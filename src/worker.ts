@@ -4,6 +4,7 @@ import sharp from "sharp";
 import { config } from "./config";
 import { supabase } from "./lib/supabase";
 import { getFilePath, downloadFile, getMe, sendMessage } from "./lib/telegram";
+import { getText } from "./lib/texts";
 
 async function sleep(ms: number) {
   await new Promise((r) => setTimeout(r, ms));
@@ -22,11 +23,12 @@ async function runJob(job: any) {
 
   const { data: user } = await supabase
     .from("users")
-    .select("telegram_id")
+    .select("telegram_id, lang")
     .eq("id", session.user_id)
     .maybeSingle();
 
   const telegramId = user?.telegram_id;
+  const lang = user?.lang || "en";
   if (!telegramId) {
     throw new Error("User telegram_id not found");
   }
@@ -208,10 +210,10 @@ async function runJob(job: any) {
     .update({ state: "done", is_active: false, sticker_set_name: stickerSetName })
     .eq("id", session.id);
 
-  await sendMessage(
-    telegramId,
-    `Готово! Вот ваш стикерпак: https://t.me/addstickers/${stickerSetName}`
-  );
+  const doneMessage = await getText(lang, "processing.done", {
+    link: `https://t.me/addstickers/${stickerSetName}`,
+  });
+  await sendMessage(telegramId, doneMessage);
 }
 
 async function poll() {
@@ -256,27 +258,23 @@ async function poll() {
         if (session?.user_id) {
           const photosCount = Array.isArray(session.photos) ? session.photos.length : 1;
 
-          const { data: user } = await supabase
+          const { data: refundUser } = await supabase
             .from("users")
-            .select("credits, telegram_id")
+            .select("credits, telegram_id, lang")
             .eq("id", session.user_id)
             .maybeSingle();
 
-          if (user) {
+          if (refundUser) {
             // Refund credits
             await supabase
               .from("users")
-              .update({ credits: (user.credits || 0) + photosCount })
+              .update({ credits: (refundUser.credits || 0) + photosCount })
               .eq("id", session.user_id);
 
             // Notify user
-            if (user.telegram_id) {
-              await sendMessage(
-                user.telegram_id,
-                `❌ Произошла ошибка при генерации стикера.\n\n` +
-                `Кредиты возвращены на баланс.\n` +
-                `Попробуй ещё раз: /start`
-              );
+            if (refundUser.telegram_id) {
+              const errorMessage = await getText(refundUser.lang || "en", "processing.error");
+              await sendMessage(refundUser.telegram_id, errorMessage);
             }
           }
         }

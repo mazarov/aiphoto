@@ -1,0 +1,136 @@
+import { supabase } from "./supabase";
+
+// Cache for texts (refreshed every 5 minutes)
+let textsCache: Map<string, string> = new Map();
+let textsCacheTime = 0;
+const TEXTS_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+// Fallback texts (used if DB is unavailable)
+const fallbackTexts: Record<string, Record<string, string>> = {
+  ru: {
+    "start.greeting_new": "Привет! 🎨\n\nЯ превращаю фото в стикеры.\nТебе начислен 1 бесплатный кредит.\n\nПришли фото, из которого сделать стикер.",
+    "start.greeting_return": "С возвращением! 🎨\n\nТвой баланс: {credits} кредитов.\n\nПришли фото, из которого сделать стикер.",
+    "start.need_start": "Нажми /start чтобы начать.",
+    "photo.ask_style": "Отлично! Теперь опиши стиль стикера (например: мульт, 3D, акварель, аниме).",
+    "photo.need_photo": "Сначала пришли фото.",
+    "photo.processing": "🔄 Обрабатываю запрос...",
+    "photo.invalid_style": "❌ Не удалось распознать стиль.\n\nОпиши визуальный стиль стикера, например:\n• аниме\n• мультяшный\n• симпсоны\n• 3D\n• пиксель арт\n• chibi, грустный",
+    "photo.not_enough_credits": "❌ Недостаточно кредитов!\n\nНужно: {needed} кредит(ов)\nУ тебя: {balance} кредит(ов)\n\nПополни баланс, чтобы продолжить.",
+    "photo.generation_started": "✨ Принял! Генерирую стикер, это займет немного времени...",
+    "photo.generation_continue": "✨ Продолжаю генерацию стикера...",
+    "payment.balance": "💳 Ваш баланс: {credits} кредитов\n\n1 стикер = 1 кредит\nПополните баланс через Telegram Stars ⭐",
+    "payment.success": "✅ Оплата прошла успешно!\n\nНачислено: {amount} кредитов\nНовый баланс: {balance} кредитов",
+    "payment.need_more": "Для генерации нужно ещё {needed} кредит(ов).\nПополни баланс или отправь /start для новой сессии.",
+    "payment.canceled": "Отменено. Можешь изменить описание стиля или пополнить баланс позже.",
+    "payment.invalid_pack": "Неверный пакет.",
+    "payment.error_create": "Ошибка создания платежа. Попробуй позже.",
+    "payment.error_invoice": "Ошибка отправки счёта. Попробуй позже.",
+    "processing.done": "Готово! Вот ваш стикерпак: {link}",
+    "processing.error": "❌ Произошла ошибка при генерации стикера.\n\nКредиты возвращены на баланс.\nПопробуй ещё раз: /start",
+  },
+  en: {
+    "start.greeting_new": "Hello! 🎨\n\nI turn photos into stickers.\nYou've received 1 free credit.\n\nSend a photo to make a sticker.",
+    "start.greeting_return": "Welcome back! 🎨\n\nYour balance: {credits} credits.\n\nSend a photo to make a sticker.",
+    "start.need_start": "Press /start to begin.",
+    "photo.ask_style": "Great! Now describe the sticker style (e.g.: cartoon, 3D, watercolor, anime).",
+    "photo.need_photo": "Send a photo first.",
+    "photo.processing": "🔄 Processing request...",
+    "photo.invalid_style": "❌ Could not recognize the style.\n\nDescribe a visual style, for example:\n• anime\n• cartoon\n• simpsons\n• 3D\n• pixel art\n• chibi, sad",
+    "photo.not_enough_credits": "❌ Not enough credits!\n\nNeeded: {needed} credit(s)\nYou have: {balance} credit(s)\n\nTop up your balance to continue.",
+    "photo.generation_started": "✨ Got it! Generating sticker, it will take a moment...",
+    "photo.generation_continue": "✨ Continuing sticker generation...",
+    "payment.balance": "💳 Your balance: {credits} credits\n\n1 sticker = 1 credit\nTop up via Telegram Stars ⭐",
+    "payment.success": "✅ Payment successful!\n\nAdded: {amount} credits\nNew balance: {balance} credits",
+    "payment.need_more": "You need {needed} more credit(s) for generation.\nTop up or send /start for a new session.",
+    "payment.canceled": "Canceled. You can change the style description or top up later.",
+    "payment.invalid_pack": "Invalid package.",
+    "payment.error_create": "Error creating payment. Try again later.",
+    "payment.error_invoice": "Error sending invoice. Try again later.",
+    "processing.done": "Done! Here's your sticker pack: {link}",
+    "processing.error": "❌ An error occurred during sticker generation.\n\nCredits have been refunded.\nTry again: /start",
+  },
+};
+
+/**
+ * Load all texts for a language from DB into cache
+ */
+async function loadTextsToCache(lang: string): Promise<void> {
+  try {
+    const { data } = await supabase
+      .from("bot_texts")
+      .select("key, text")
+      .eq("lang", lang);
+
+    if (data && data.length > 0) {
+      for (const row of data) {
+        textsCache.set(`${lang}:${row.key}`, row.text);
+      }
+    }
+    textsCacheTime = Date.now();
+  } catch (err) {
+    console.error("Failed to load texts from DB:", err);
+  }
+}
+
+/**
+ * Get localized text by key
+ * @param lang - Language code (ru, en)
+ * @param key - Text key (e.g., "start.greeting_new")
+ * @param replacements - Object with placeholder replacements
+ */
+export async function getText(
+  lang: string,
+  key: string,
+  replacements?: Record<string, string | number>
+): Promise<string> {
+  const normalizedLang = lang === "ru" ? "ru" : "en";
+  const cacheKey = `${normalizedLang}:${key}`;
+
+  // Refresh cache if expired
+  if (Date.now() - textsCacheTime > TEXTS_CACHE_TTL) {
+    await loadTextsToCache(normalizedLang);
+  }
+
+  // Try to get from cache
+  let text = textsCache.get(cacheKey);
+
+  // If not in cache, try to load from DB
+  if (!text) {
+    const { data } = await supabase
+      .from("bot_texts")
+      .select("text")
+      .eq("key", key)
+      .eq("lang", normalizedLang)
+      .maybeSingle();
+
+    if (data?.text) {
+      text = data.text;
+      textsCache.set(cacheKey, text);
+    }
+  }
+
+  // Fallback to hardcoded texts
+  if (!text) {
+    text = fallbackTexts[normalizedLang]?.[key] || fallbackTexts["en"]?.[key] || `[${key}]`;
+  }
+
+  // Replace placeholders
+  if (replacements) {
+    for (const [k, v] of Object.entries(replacements)) {
+      text = text.replace(new RegExp(`\\{${k}\\}`, "g"), String(v));
+    }
+  }
+
+  // Replace escaped newlines
+  text = text.replace(/\\n/g, "\n");
+
+  return text;
+}
+
+/**
+ * Preload texts for common languages
+ */
+export async function preloadTexts(): Promise<void> {
+  await loadTextsToCache("ru");
+  await loadTextsToCache("en");
+}

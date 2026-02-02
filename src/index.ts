@@ -3,6 +3,7 @@ import { Telegraf, Markup } from "telegraf";
 import axios from "axios";
 import { config } from "./config";
 import { supabase } from "./lib/supabase";
+import { getText } from "./lib/texts";
 
 const bot = new Telegraf(config.telegramBotToken);
 const app = express();
@@ -136,10 +137,8 @@ async function getActiveSession(userId: string) {
 
 // Helper: send buy credits menu
 async function sendBuyCreditsMenu(ctx: any, user: any, messageText?: string) {
-  const text = messageText || 
-    `💳 Ваш баланс: ${user.credits} кредитов\n\n` +
-    `1 стикер = 1 кредит\n` +
-    `Пополните баланс через Telegram Stars ⭐`;
+  const lang = user.lang || "en";
+  const text = messageText || await getText(lang, "payment.balance", { credits: user.credits });
 
   const buttons: ReturnType<typeof Markup.button.callback>[][] = [];
 
@@ -166,7 +165,8 @@ async function sendBuyCreditsMenu(ctx: any, user: any, messageText?: string) {
     buttons.push(row);
   }
 
-  buttons.push([Markup.button.callback("❌ Отмена", "cancel")]);
+  const cancelText = lang === "ru" ? "❌ Отмена" : "❌ Cancel";
+  buttons.push([Markup.button.callback(cancelText, "cancel")]);
 
   await ctx.reply(text, Markup.inlineKeyboard(buttons));
 }
@@ -220,9 +220,10 @@ bot.start(async (ctx) => {
       .select();
   }
 
+  const lang = user?.lang || "en";
   const greeting = isNewUser
-    ? `Привет! 🎨\n\nЯ превращаю фото в стикеры.\nТебе начислен 1 бесплатный кредит.\n\nПришли фото, из которого сделать стикер.`
-    : `С возвращением! 🎨\n\nТвой баланс: ${user?.credits || 0} кредитов.\n\nПришли фото, из которого сделать стикер.`;
+    ? await getText(lang, "start.greeting_new")
+    : await getText(lang, "start.greeting_return", { credits: user?.credits || 0 });
 
   await ctx.reply(greeting);
 });
@@ -235,9 +236,10 @@ bot.on("photo", async (ctx) => {
   const user = await getUser(telegramId);
   if (!user?.id) return;
 
+  const lang = user.lang || "en";
   const session = await getActiveSession(user.id);
   if (!session?.id) {
-    await ctx.reply("Нажми /start чтобы начать.");
+    await ctx.reply(await getText(lang, "start.need_start"));
     return;
   }
 
@@ -252,7 +254,7 @@ bot.on("photo", async (ctx) => {
     .update({ photos, state: "wait_description" })
     .eq("id", session.id);
 
-  await ctx.reply("Отлично! Теперь опиши стиль стикера (например: мульт, 3D, акварель, аниме).");
+  await ctx.reply(await getText(lang, "photo.ask_style"));
 });
 
 // Text handler (style description)
@@ -265,42 +267,34 @@ bot.on("text", async (ctx) => {
   const user = await getUser(telegramId);
   if (!user?.id) return;
 
+  const lang = user.lang || "en";
   const session = await getActiveSession(user.id);
   if (!session?.id) {
-    await ctx.reply("Нажми /start чтобы начать.");
+    await ctx.reply(await getText(lang, "start.need_start"));
     return;
   }
 
   // Check if we're in wait_description state
   if (session.state !== "wait_description") {
     if (session.state === "wait_photo") {
-      await ctx.reply("Сначала пришли фото.");
+      await ctx.reply(await getText(lang, "photo.need_photo"));
     }
     return;
   }
 
   const photosCount = Array.isArray(session.photos) ? session.photos.length : 0;
   if (photosCount === 0) {
-    await ctx.reply("Сначала пришли фото.");
+    await ctx.reply(await getText(lang, "photo.need_photo"));
     return;
   }
 
   // Generate prompt using LLM
-  await ctx.reply("🔄 Обрабатываю запрос...");
+  await ctx.reply(await getText(lang, "photo.processing"));
   
   const promptResult = await generatePrompt(ctx.message.text);
   
   if (!promptResult.ok || promptResult.retry) {
-    await ctx.reply(
-      `❌ Не удалось распознать стиль.\n\n` +
-      `Опиши визуальный стиль стикера, например:\n` +
-      `• аниме\n` +
-      `• мультяшный\n` +
-      `• симпсоны\n` +
-      `• 3D\n` +
-      `• пиксель арт\n` +
-      `• chibi, грустный`
-    );
+    await ctx.reply(await getText(lang, "photo.invalid_style"));
     return;
   }
 
@@ -313,12 +307,10 @@ bot.on("text", async (ctx) => {
       .update({ state: "wait_buy_credit", prompt_final: generatedPrompt })
       .eq("id", session.id);
 
-    await ctx.reply(
-      `❌ Недостаточно кредитов!\n\n` +
-      `Нужно: ${photosCount} кредит(ов)\n` +
-      `У тебя: ${user.credits} кредит(ов)\n\n` +
-      `Пополни баланс, чтобы продолжить.`
-    );
+    await ctx.reply(await getText(lang, "photo.not_enough_credits", {
+      needed: photosCount,
+      balance: user.credits,
+    }));
     await sendBuyCreditsMenu(ctx, user);
     return;
   }
@@ -343,7 +335,7 @@ bot.on("text", async (ctx) => {
     attempts: 0,
   });
 
-  await ctx.reply("✨ Принял! Генерирую стикер, это займет немного времени...");
+  await ctx.reply(await getText(lang, "photo.generation_started"));
 });
 
 // Callback: buy_credits
@@ -360,13 +352,15 @@ bot.action("buy_credits", async (ctx) => {
 
 // Callback: cancel
 bot.action("cancel", async (ctx) => {
-  await ctx.answerCbQuery("Отменено");
-  await ctx.deleteMessage().catch(() => {});
-
   const telegramId = ctx.from?.id;
   if (!telegramId) return;
 
   const user = await getUser(telegramId);
+  const lang = user?.lang || "en";
+  
+  await ctx.answerCbQuery(lang === "ru" ? "Отменено" : "Canceled");
+  await ctx.deleteMessage().catch(() => {});
+
   if (!user?.id) return;
 
   const session = await getActiveSession(user.id);
@@ -376,7 +370,7 @@ bot.action("cancel", async (ctx) => {
       .update({ state: "wait_description" })
       .eq("id", session.id);
 
-    await ctx.reply("Отменено. Можешь изменить описание стиля или пополнить баланс позже.");
+    await ctx.reply(await getText(lang, "payment.canceled"));
   }
 });
 
@@ -389,6 +383,7 @@ bot.action(/^pack_(\d+)_(\d+)$/, async (ctx) => {
   const user = await getUser(telegramId);
   if (!user?.id) return;
 
+  const lang = user.lang || "en";
   const match = ctx.match;
   const credits = parseInt(match[1], 10);
   const price = parseInt(match[2], 10);
@@ -396,7 +391,7 @@ bot.action(/^pack_(\d+)_(\d+)$/, async (ctx) => {
   // Validate pack
   const pack = CREDIT_PACKS.find((p) => p.credits === credits && p.price === price);
   if (!pack) {
-    await ctx.reply("Неверный пакет.");
+    await ctx.reply(await getText(lang, "payment.invalid_pack"));
     return;
   }
 
@@ -421,28 +416,33 @@ bot.action(/^pack_(\d+)_(\d+)$/, async (ctx) => {
     .single();
 
   if (!transaction) {
-    await ctx.reply("Ошибка создания платежа. Попробуй позже.");
+    await ctx.reply(await getText(lang, "payment.error_create"));
     return;
   }
 
   // Send invoice via Telegram Stars
   try {
     const invoicePayload = `[${transaction.id}]`;
+    const title = lang === "ru" ? `${credits} кредитов` : `${credits} credits`;
+    const description = lang === "ru" 
+      ? `Пополнение баланса на ${credits} кредитов`
+      : `Top up balance with ${credits} credits`;
+    const label = lang === "ru" ? "Кредиты" : "Credits";
 
     await axios.post(
       `https://api.telegram.org/bot${config.telegramBotToken}/sendInvoice`,
       {
         chat_id: telegramId,
-        title: `${credits} кредитов`,
-        description: `Пополнение баланса на ${credits} кредитов`,
+        title,
+        description,
         payload: invoicePayload,
         currency: "XTR",
-        prices: [{ label: "Кредиты", amount: price }],
+        prices: [{ label, amount: price }],
       }
     );
   } catch (err: any) {
     console.error("sendInvoice error:", err.response?.data || err.message);
-    await ctx.reply("Ошибка отправки счёта. Попробуй позже.");
+    await ctx.reply(await getText(lang, "payment.error_invoice"));
   }
 });
 
@@ -511,17 +511,17 @@ bot.on("successful_payment", async (ctx) => {
     .maybeSingle();
 
   if (user) {
+    const lang = user.lang || "en";
     const newCredits = (user.credits || 0) + transaction.amount;
     await supabase
       .from("users")
       .update({ credits: newCredits })
       .eq("id", user.id);
 
-    await ctx.reply(
-      `✅ Оплата прошла успешно!\n\n` +
-      `Начислено: ${transaction.amount} кредитов\n` +
-      `Новый баланс: ${newCredits} кредитов`
-    );
+    await ctx.reply(await getText(lang, "payment.success", {
+      amount: transaction.amount,
+      balance: newCredits,
+    }));
 
     // Check if there's a pending session waiting for credits
     const session = await getActiveSession(user.id);
@@ -547,12 +547,11 @@ bot.on("successful_payment", async (ctx) => {
           attempts: 0,
         });
 
-        await ctx.reply("✨ Продолжаю генерацию стикера...");
+        await ctx.reply(await getText(lang, "photo.generation_continue"));
       } else {
-        await ctx.reply(
-          `Для генерации нужно ещё ${photosCount - newCredits} кредит(ов).\n` +
-          `Пополни баланс или отправь /start для новой сессии.`
-        );
+        await ctx.reply(await getText(lang, "payment.need_more", {
+          needed: photosCount - newCredits,
+        }));
       }
     }
   }
