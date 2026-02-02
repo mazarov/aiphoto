@@ -37,8 +37,9 @@ async function runJob(job: any) {
   }
 
   const botUsername = config.botUsername || (await getMe()).username || "bot";
-  const timestamp = Date.now();
-  const stickerSetName = `p2s_${session.id}_${timestamp}_by_${botUsername}`.toLowerCase();
+  const shortId = session.id.replace(/-/g, "").substring(0, 8);
+  const timestamp = Date.now().toString().slice(-6);
+  const stickerSetName = `p2s_${shortId}_${timestamp}_by_${botUsername}`.toLowerCase();
 
   let createdStickerSet = false;
 
