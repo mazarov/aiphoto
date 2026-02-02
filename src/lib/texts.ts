@@ -25,8 +25,15 @@ const fallbackTexts: Record<string, Record<string, string>> = {
     "payment.invalid_pack": "Неверный пакет.",
     "payment.error_create": "Ошибка создания платежа. Попробуй позже.",
     "payment.error_invoice": "Ошибка отправки счёта. Попробуй позже.",
+    "payment.transaction_not_found": "Транзакция не найдена или уже обработана.",
+    "payment.invoice_title": "{credits} кредитов",
+    "payment.invoice_description": "Пополнение баланса на {credits} кредитов",
+    "payment.invoice_label": "Кредиты",
     "processing.done": "Готово! Вот ваш стикерпак: {link}",
     "processing.error": "❌ Произошла ошибка при генерации стикера.\n\nКредиты возвращены на баланс.\nПопробуй ещё раз: /start",
+    "btn.cancel": "❌ Отмена",
+    "btn.canceled": "Отменено",
+    "sticker.pack_title": "Мои стикеры",
   },
   en: {
     "start.greeting_new": "Hello! 🎨\n\nI turn photos into stickers.\nYou've received 1 free credit.\n\nSend a photo to make a sticker.",
@@ -46,8 +53,15 @@ const fallbackTexts: Record<string, Record<string, string>> = {
     "payment.invalid_pack": "Invalid package.",
     "payment.error_create": "Error creating payment. Try again later.",
     "payment.error_invoice": "Error sending invoice. Try again later.",
+    "payment.transaction_not_found": "Transaction not found or already processed.",
+    "payment.invoice_title": "{credits} credits",
+    "payment.invoice_description": "Top up balance with {credits} credits",
+    "payment.invoice_label": "Credits",
     "processing.done": "Done! Here's your sticker pack: {link}",
     "processing.error": "❌ An error occurred during sticker generation.\n\nCredits have been refunded.\nTry again: /start",
+    "btn.cancel": "❌ Cancel",
+    "btn.canceled": "Canceled",
+    "sticker.pack_title": "My Stickers",
   },
 };
 
@@ -57,7 +71,7 @@ const fallbackTexts: Record<string, Record<string, string>> = {
 async function loadTextsToCache(lang: string): Promise<void> {
   try {
     const { data } = await supabase
-      .from("bot_texts")
+      .from("bot_texts_new")
       .select("key, text")
       .eq("lang", lang);
 
@@ -97,7 +111,7 @@ export async function getText(
   // If not in cache, try to load from DB
   if (!text) {
     const { data } = await supabase
-      .from("bot_texts")
+      .from("bot_texts_new")
       .select("text")
       .eq("key", key)
       .eq("lang", normalizedLang)

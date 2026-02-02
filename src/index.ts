@@ -165,7 +165,7 @@ async function sendBuyCreditsMenu(ctx: any, user: any, messageText?: string) {
     buttons.push(row);
   }
 
-  const cancelText = lang === "ru" ? "❌ Отмена" : "❌ Cancel";
+  const cancelText = await getText(lang, "btn.cancel");
   buttons.push([Markup.button.callback(cancelText, "cancel")]);
 
   await ctx.reply(text, Markup.inlineKeyboard(buttons));
@@ -360,7 +360,7 @@ bot.action("cancel", async (ctx) => {
   const user = await getUser(telegramId);
   const lang = user?.lang || "en";
   
-  await ctx.answerCbQuery(lang === "ru" ? "Отменено" : "Canceled");
+  await ctx.answerCbQuery(await getText(lang, "btn.canceled"));
   await ctx.deleteMessage().catch(() => {});
 
   if (!user?.id) return;
@@ -425,11 +425,9 @@ bot.action(/^pack_(\d+)_(\d+)$/, async (ctx) => {
   // Send invoice via Telegram Stars
   try {
     const invoicePayload = `[${transaction.id}]`;
-    const title = lang === "ru" ? `${credits} кредитов` : `${credits} credits`;
-    const description = lang === "ru" 
-      ? `Пополнение баланса на ${credits} кредитов`
-      : `Top up balance with ${credits} credits`;
-    const label = lang === "ru" ? "Кредиты" : "Credits";
+    const title = await getText(lang, "payment.invoice_title", { credits });
+    const description = await getText(lang, "payment.invoice_description", { credits });
+    const label = await getText(lang, "payment.invoice_label");
 
     await axios.post(
       `https://api.telegram.org/bot${config.telegramBotToken}/sendInvoice`,
@@ -452,6 +450,7 @@ bot.action(/^pack_(\d+)_(\d+)$/, async (ctx) => {
 bot.on("pre_checkout_query", async (ctx) => {
   const query = ctx.preCheckoutQuery;
   const invoicePayload = query.invoice_payload;
+  const lang = (ctx.from?.language_code || "").toLowerCase().startsWith("ru") ? "ru" : "en";
 
   // Extract transaction ID from payload like "[uuid]"
   const transactionId = invoicePayload.replace(/[\[\]]/g, "");
@@ -468,7 +467,8 @@ bot.on("pre_checkout_query", async (ctx) => {
     .select("*");
 
   if (!updatedTransactions?.length) {
-    await ctx.answerPreCheckoutQuery(false, "Транзакция не найдена или уже обработана.");
+    const errorMsg = await getText(lang, "payment.transaction_not_found");
+    await ctx.answerPreCheckoutQuery(false, errorMsg);
     return;
   }
 

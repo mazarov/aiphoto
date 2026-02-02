@@ -154,9 +154,10 @@ async function runJob(job: any) {
     const form = new FormData();
 
     if (!createdStickerSet) {
+      const packTitle = await getText(lang, "sticker.pack_title");
       form.append("user_id", String(telegramId));
       form.append("name", stickerSetName);
-      form.append("title", "My Stickers");
+      form.append("title", packTitle);
       form.append(
         "stickers",
         JSON.stringify([
