@@ -1,0 +1,2296 @@
+{
+  "name": "Photo2Sticker | Processing",
+  "nodes": [
+    {
+      "parameters": {
+        "resource": "file",
+        "inputType": "binary"
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1,
+      "position": [
+        1872,
+        512
+      ],
+      "id": "b32c7ba2-ceb4-48f0-9198-97cd6fb736e8",
+      "name": "Upload a file",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "Sx93g4N43RHoyrT7",
+          "name": "Photo2Sticker_Gemini (Max)"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "for (const item of items) {\n  if (!item.binary || !item.binary.data) continue;\n\n  const file = item.binary.data;\n  const ext = (file.fileExtension || '').toLowerCase();\n\n  // Подставьте нужные варианты под ваши файлы\n  if (ext === 'jpg' || ext === 'jpeg') {\n    file.mimeType = 'image/jpeg';\n  } else if (ext === 'png') {\n    file.mimeType = 'image/png';\n  } else if (ext === 'webp') {\n    file.mimeType = 'image/webp';\n  } else if (ext === 'pdf') {\n    file.mimeType = 'application/pdf';\n  }\n\n  // при необходимости можно залогировать для отладки:\n  // console.log(file.fileName, '->', file.mimeType);\n}\n\nreturn items;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1712,
+        512
+      ],
+      "id": "6b6d13af-4004-45c3-b6e2-4922b8d79660",
+      "name": "Code"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "45b63a5e-14e0-4206-bf3d-830b4769303d",
+              "name": "imageBase64",
+              "value": "={{ ( $json.candidates?.[0]?.content?.parts || [] )\n  .find(p => (p.inlineData && p.inlineData.data))?.inlineData?.data || '' }}\n",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2464,
+        464
+      ],
+      "id": "c41d8714-b24c-4fec-b5bc-cd3d211ed133",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "operation": "toBinary",
+        "sourceProperty": "imageBase64",
+        "binaryPropertyName": "=data",
+        "options": {
+          "fileName": "file.png",
+          "mimeType": "image/png"
+        }
+      },
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        2640,
+        464
+      ],
+      "id": "25d12677-0bd6-415f-b6d0-5177a031fac4",
+      "name": "Convert to File"
+    },
+    {
+      "parameters": {
+        "operation": "resize",
+        "width": 512,
+        "height": 512,
+        "resizeOption": "ignoreAspectRatio",
+        "options": {
+          "format": "webp"
+        }
+      },
+      "type": "n8n-nodes-base.editImage",
+      "typeVersion": 1,
+      "position": [
+        2816,
+        464
+      ],
+      "id": "232b646e-9d22-4a45-ade9-6199f57e6c61",
+      "name": "Edit Image",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "content": "POST https://api.telegram.org/bot<TOKEN>/createNewStickerSet\nPOST https://api.telegram.org/bot<TOKEN>/addStickerToSet"
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -352,
+        -512
+      ],
+      "typeVersion": 1,
+      "id": "9ac7e687-0fc8-4088-880a-91f273ecf3e9",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "tableId": "users",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "keyValue": "={{ $('When Executed by Photo2Sticker | Bot').first().json.user_id }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        128,
+        -64
+      ],
+      "id": "3ba22cba-07e2-4cfb-bd24-108f3f2d92e2",
+      "name": "Get User",
+      "credentials": {
+        "supabaseApi": {
+          "id": "R7tgFzFM71oEYwVs",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "user_id"
+            },
+            {
+              "name": "session_id"
+            },
+            {
+              "name": "bot_token"
+            },
+            {
+              "name": "bot_username"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -688,
+        384
+      ],
+      "id": "20ce0e77-5369-4294-bc46-f7f1c02727fd",
+      "name": "When Executed by Photo2Sticker | Bot"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "tableId": "sessions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "keyValue": "={{ $('When Executed by Photo2Sticker | Bot').first().json.session_id }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        128,
+        96
+      ],
+      "id": "5e58b105-4410-4816-9724-2ade7692260f",
+      "name": "Get Session",
+      "credentials": {
+        "supabaseApi": {
+          "id": "R7tgFzFM71oEYwVs",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "numberInputs": 7
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        448,
+        320
+      ],
+      "id": "cc712c08-9e75-4be6-9db7-c4d30368a937",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        848,
+        368
+      ],
+      "id": "8d1e31bc-dbf3-405c-8398-ce5815a03d67",
+      "name": "Loop Over Items"
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "photos",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        624,
+        384
+      ],
+      "id": "0b0bb6c4-9ac3-4c89-a87c-4d39a51667e2",
+      "name": "Split Out"
+    },
+    {
+      "parameters": {
+        "url": "=https://api.telegram.org/bot{{ $('Get Bot Token').first().json.token }}/getFile ",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "file_id",
+              "value": "={{ $('Loop Over Items').item.json.photos }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1264,
+        544
+      ],
+      "id": "319588a5-f96f-4145-8065-78be2ad41847",
+      "name": "Get File Path",
+      "retryOnFail": true,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "url": "=https://api.telegram.org/file/bot{{ $('Get Bot Token').first().json.token }}/{{ $json.result.file_path }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1504,
+        528
+      ],
+      "id": "065f6cc6-0319-4f0f-b69f-39b398abc8ac",
+      "name": "Get File",
+      "retryOnFail": true,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "content": "## TODO\n- проверка и доработка промпта нейронкой\n- давать название стикерпаку\n\n"
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        1696,
+        -224
+      ],
+      "typeVersion": 1,
+      "id": "c23bc54e-14db-4730-98c4-131d035542d6",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.telegram.org/bot{{ $('Get Bot Token').first().json.token }}/createNewStickerSet ",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "user_id",
+              "value": "={{ $('Merge').first().json.telegram_id }}"
+            },
+            {
+              "name": "name",
+              "value": "={{ $('Create Sticker Set Name').first().json.sticker_name }}"
+            },
+            {
+              "name": "title",
+              "value": "My Cool Stickers"
+            },
+            {
+              "name": "stickers",
+              "value": "=[{\"sticker\":\"attach://file{{ $('Set Count').first().json.count }}\",\"format\":\"static\",\"emoji_list\":[{{ $('Edit Vars').first().json.emoji }}]}]"
+            },
+            {
+              "name": "needs_repainting",
+              "value": "false"
+            },
+            {
+              "parameterType": "formBinaryData",
+              "name": "=file{{ $('Set Count').first().json.count }}",
+              "inputDataFieldName": "data"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        3472,
+        432
+      ],
+      "id": "1d40a703-774a-4f7d-b2f5-4bd9e82aa998",
+      "name": "Create New Sticker Set",
+      "retryOnFail": true,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "3912b59f-6d0c-49d5-a8dd-eec180105a70",
+              "leftValue": "={{ $('Set Count').first().json.count }}",
+              "rightValue": "0",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3232,
+        448
+      ],
+      "id": "5d85bd1b-f0ab-44e6-aaef-07101c7f27b0",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "jsCode": "const botUsername = $('When Executed by Photo2Sticker | Bot').first().json.bot_username;\n\nconst now = new Date();\nconst timestamp = \n  now.getFullYear() +\n  String(now.getMonth() + 1).padStart(2, '0') +\n  String(now.getDate()).padStart(2, '0') +\n  String(now.getHours()).padStart(2, '0') +\n  String(now.getMinutes()).padStart(2, '0') +\n  String(now.getSeconds()).padStart(2, '0') +\n  String(now.getMilliseconds()).padStart(3, '0');\n\nconst stickerName = `my_stickers${timestamp}_by_${botUsername}`.toLowerCase();\n\nreturn {\n  sticker_name: stickerName\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        128,
+        256
+      ],
+      "id": "7b668758-04bb-4813-bdb6-9a74d6fc2455",
+      "name": "Create Sticker Set Name"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "b5f85653-2044-4d54-b795-398d7197ad7c",
+              "name": "emoji",
+              "value": "\"🔥\"",
+              "type": "string"
+            },
+            {
+              "id": "2d849d75-af7d-4e05-999b-859593e6f089",
+              "name": "count",
+              "value": "0",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        128,
+        400
+      ],
+      "id": "0ce59e2f-a169-43a9-b992-d7a9c940b296",
+      "name": "Edit Vars"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "b981603f-64fc-4153-bfb8-a5b30009b720",
+              "name": "count",
+              "value": "={{ $runIndex }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1088,
+        544
+      ],
+      "id": "45c5202d-9433-4860-bb9d-e0334db8bd52",
+      "name": "Set Count"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Get User').first().json.telegram_id }}",
+        "text": "={{ $('Create Text Message').first().json.text }}",
+        "replyMarkup": "inlineKeyboard",
+        "inlineKeyboard": {
+          "rows": [
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "={{ $('Get Buttons').all()[1].json.text }}",
+                    "additionalFields": {
+                      "callback_data": "={{ $('Get Buttons').all()[1].json.cb_data }}"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "row": {
+                "buttons": [
+                  {
+                    "text": "={{ $('Get Buttons').first().json.text }}",
+                    "additionalFields": {
+                      "callback_data": "={{ $('Get Buttons').first().json.cb_data }}"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        3216,
+        64
+      ],
+      "id": "1b8db56b-d23d-4f3b-bf61-8efb5749dff3",
+      "name": "Send a text message",
+      "webhookId": "f5dcf392-f04f-41ad-9f33-f87239db2726",
+      "credentials": {
+        "telegramApi": {
+          "id": "XMzesfTQuSFn9crC",
+          "name": "@Photo_2_StickerBot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "language": "python",
+        "pythonCode": "# Получаем результаты стикеров (количество true)\nstickers_results = _(\"Aggregate Success Stickers\").first()['json']['result']\ntrue_count = sum(1 for x in stickers_results if x == True)\n\n# Получаем total из Get Session (количество фото)\nphotos = _(\"Get Session\").first()['json']['photos']\ntotal_count = len(photos) if photos else 0\n\n# false = total - true\nfalse_count = total_count - true_count\n\nreturn [{'json': {'total': total_count, 'true': true_count, 'false': false_count}}]"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1520,
+        64
+      ],
+      "id": "e472c5cd-fbec-4144-8efb-d531cb0915ea",
+      "name": "Count Success Stickers"
+    },
+    {
+      "parameters": {
+        "url": "=https://api.telegram.org/bot{{ $('Get Bot Token').first().json.token }}/getStickerSet ",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "name",
+              "value": "={{ $('Create Sticker Set Name').first().json.sticker_name }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1296,
+        224
+      ],
+      "id": "4f01573d-efdb-4e1b-8e98-89a039a05f8e",
+      "name": "Get Sticker Set",
+      "retryOnFail": true,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "fieldsToAggregate": {
+          "fieldToAggregate": [
+            {
+              "fieldToAggregate": "result"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        1088,
+        224
+      ],
+      "id": "41dc70da-a9fd-4a41-a841-19ff626108f7",
+      "name": "Aggregate Success Stickers"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "tableId": "users",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "keyValue": "={{ $('Get User').first().json.id }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1920,
+        64
+      ],
+      "id": "84f41bb5-a9e3-4ff1-9e01-0321f2ff56f9",
+      "name": "Get User1",
+      "credentials": {
+        "supabaseApi": {
+          "id": "R7tgFzFM71oEYwVs",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "tableId": "transactions",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "user_id",
+              "fieldValue": "={{ $('Get User').first().json.id }}"
+            },
+            {
+              "fieldId": "amount",
+              "fieldValue": "=-{{ $('Count Success Stickers').first().json.true }}"
+            },
+            {
+              "fieldId": "state",
+              "fieldValue": "done"
+            },
+            {
+              "fieldId": "is_active",
+              "fieldValue": "false"
+            },
+            {
+              "fieldId": "description",
+              "fieldValue": "=Оплата сессии {{ $('Get Session').first().json.id }}"
+            },
+            {
+              "fieldId": "price",
+              "fieldValue": "={{ $('Count Success Stickers').first().json.true }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1728,
+        64
+      ],
+      "id": "004ab3fe-5da6-4371-971d-4195a879ab72",
+      "name": "Create Transaction",
+      "credentials": {
+        "supabaseApi": {
+          "id": "R7tgFzFM71oEYwVs",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "e742d48f-9c46-4283-8dd2-8fa404f9276e",
+              "name": "open",
+              "value": "open",
+              "type": "string"
+            },
+            {
+              "id": "7097f701-d7f7-46f5-aaf5-9e174ae6be19",
+              "name": "wait_photo",
+              "value": "wait_photo",
+              "type": "string"
+            },
+            {
+              "id": "00f074e0-6269-43db-9711-77f718196e09",
+              "name": "many_photo",
+              "value": "many_photo",
+              "type": "string"
+            },
+            {
+              "id": "0bcbe537-a78b-47a0-a494-33d3a85c2994",
+              "name": "wait_buy_credit",
+              "value": "wait_buy_credit",
+              "type": "string"
+            },
+            {
+              "id": "8f2f099e-3899-44a9-857d-840022b6d288",
+              "name": "wait_description",
+              "value": "wait_description",
+              "type": "string"
+            },
+            {
+              "id": "f2f13c3f-a25d-4e3b-95a9-7e29d46a24b3",
+              "name": "processing",
+              "value": "processing",
+              "type": "string"
+            },
+            {
+              "id": "45a0351a-3ca0-48a7-bdcf-14aeefaa6966",
+              "name": "done",
+              "value": "done",
+              "type": "string"
+            },
+            {
+              "id": "a8694047-7f0a-4df3-8709-ce2d61ef5fa0",
+              "name": "canceled",
+              "value": "canceled",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        128,
+        560
+      ],
+      "id": "42516297-1915-4ee7-8957-5cf3ab184c05",
+      "name": "Set Session State"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "c3f377cf-f22c-46b5-a5cc-6420ea8cf1d0",
+              "name": "created",
+              "value": "created",
+              "type": "string"
+            },
+            {
+              "id": "7a824e66-3eb2-4423-ba68-9c4cb39618d7",
+              "name": "processed",
+              "value": "processed",
+              "type": "string"
+            },
+            {
+              "id": "b33ef2fd-26b8-41c6-bbbd-f53f04769415",
+              "name": "done",
+              "value": "done",
+              "type": "string"
+            },
+            {
+              "id": "e843dc50-f717-4d1a-8af6-e10dab6b0fb1",
+              "name": "canceled",
+              "value": "canceled",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        128,
+        736
+      ],
+      "id": "0c3c3fcc-ece3-4a48-9835-d566696d2b50",
+      "name": "Set Transaction State"
+    },
+    {
+      "parameters": {
+        "resource": "file",
+        "fileId": "={{ $json.message?.document?.file_id ?? $json.message?.photo?.[$json.message.photo.length - 1]?.file_id }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1424,
+        2576
+      ],
+      "id": "d766234a-3af7-4bc5-8f71-20b9b4039c44",
+      "name": "Get a file",
+      "webhookId": "b3aff4e9-339a-4eef-9cfc-8a201cdd6aea",
+      "credentials": {
+        "telegramApi": {
+          "id": "CKRig9ZO0sibVOY4",
+          "name": "@sticker_test11_bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "sendSticker",
+        "chatId": "={{ $('Telegram Trigger1').item.json.message.from.id }}",
+        "binaryData": true,
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2960,
+        2544
+      ],
+      "id": "784030e6-50ce-4f2a-b608-1db998085d51",
+      "name": "Send a sticker",
+      "webhookId": "fc0ebc5c-09c6-4017-8751-776e7d2d8a35",
+      "credentials": {
+        "telegramApi": {
+          "id": "CKRig9ZO0sibVOY4",
+          "name": "@sticker_test11_bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        1216,
+        2576
+      ],
+      "id": "e1cfe569-b6c0-4b44-b087-6b6158ca5691",
+      "name": "Telegram Trigger1",
+      "webhookId": "28b1ab00-fc3b-4d7a-857c-c1939cbcdaa1",
+      "credentials": {
+        "telegramApi": {
+          "id": "CKRig9ZO0sibVOY4",
+          "name": "@sticker_test11_bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "file",
+        "inputType": "binary"
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1,
+      "position": [
+        1792,
+        2544
+      ],
+      "id": "96931eb5-2cda-4065-beb2-0197b3686430",
+      "name": "Upload a file1"
+    },
+    {
+      "parameters": {
+        "jsCode": "for (const item of items) {\n  if (!item.binary || !item.binary.data) continue;\n\n  const file = item.binary.data;\n  const ext = (file.fileExtension || '').toLowerCase();\n\n  // Подставьте нужные варианты под ваши файлы\n  if (ext === 'jpg' || ext === 'jpeg') {\n    file.mimeType = 'image/jpeg';\n  } else if (ext === 'png') {\n    file.mimeType = 'image/png';\n  } else if (ext === 'webp') {\n    file.mimeType = 'image/webp';\n  } else if (ext === 'pdf') {\n    file.mimeType = 'application/pdf';\n  }\n\n  // при необходимости можно залогировать для отладки:\n  // console.log(file.fileName, '->', file.mimeType);\n}\n\nreturn items;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1584,
+        2560
+      ],
+      "id": "c79bba55-cd2d-48bc-88ce-0c577b533fa3",
+      "name": "Code1"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-goog-api-key",
+              "value": "AIzaSyC04Qw3h4G3-v47XrmoxP6vFP5KTDVcMcE"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  contents: [\n    {\n      role: \"user\",\n      parts: [\n        {\n          text:\n            ($(\"Telegram Trigger1\").item.json.message.caption || \"\")\n        },\n        {\n          fileData: {\n            mimeType: $json.mimeType,\n            fileUri: $json.fileUri\n          }\n        }\n      ]\n    }\n  ],\n  generationConfig: {\n    responseModalities: [\"IMAGE\"],\n    imageConfig: {\n      aspectRatio: \"1:1\"\n    }\n  }\n}) }}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1984,
+        2544
+      ],
+      "id": "cdae65c1-c2d8-45f2-88e3-b53765ba4d78",
+      "name": "HTTP Request1"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "45b63a5e-14e0-4206-bf3d-830b4769303d",
+              "name": "imageBase64",
+              "value": "={{ ( $json.candidates?.[0]?.content?.parts || [] )\n  .find(p => (p.inlineData && p.inlineData.data))?.inlineData?.data || '' }}\n",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2160,
+        2544
+      ],
+      "id": "576fe3f8-96bf-417b-a2c2-505b4f9ac188",
+      "name": "Edit Fields1"
+    },
+    {
+      "parameters": {
+        "operation": "toBinary",
+        "sourceProperty": "imageBase64",
+        "binaryPropertyName": "=data",
+        "options": {
+          "fileName": "file.png",
+          "mimeType": "image/png"
+        }
+      },
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        2368,
+        2544
+      ],
+      "id": "d4e95cb6-684b-45fb-8466-9a564ea6fd6e",
+      "name": "Convert to File1"
+    },
+    {
+      "parameters": {
+        "operation": "resize",
+        "width": 512,
+        "height": 512,
+        "resizeOption": "ignoreAspectRatio",
+        "options": {
+          "format": "webp"
+        }
+      },
+      "type": "n8n-nodes-base.editImage",
+      "typeVersion": 1,
+      "position": [
+        2560,
+        2544
+      ],
+      "id": "bb575980-dba2-4678-a788-f782f0d495d9",
+      "name": "Edit Image1"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.pixian.ai/api/v2/remove-background",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "image",
+              "inputDataFieldName": "data"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "05199696-097d-487d-8819-abe5d5a35901",
+      "name": "Pixian Remove BG",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2752,
+        2544
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "5uyHVRtUYRipKi5O",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/5uyHVRtUYRipKi5O",
+          "cachedResultName": "Error Workflow 2"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        1408,
+        688
+      ],
+      "id": "fe2efec3-f043-460e-9e7b-b4dc138bc548",
+      "name": "Call 'Error Workflow 2'"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "5uyHVRtUYRipKi5O",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/5uyHVRtUYRipKi5O",
+          "cachedResultName": "Error Workflow 2"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        1680,
+        688
+      ],
+      "id": "aad10ac1-f9b0-4c35-83a2-9bd92ae0946c",
+      "name": "Call 'Error Workflow 2'1"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "5uyHVRtUYRipKi5O",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/5uyHVRtUYRipKi5O",
+          "cachedResultName": "Error Workflow 2"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        2000,
+        688
+      ],
+      "id": "cb182984-6265-4ec0-8c37-633ba770cec1",
+      "name": "Call 'Error Workflow 2'3"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "5uyHVRtUYRipKi5O",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/5uyHVRtUYRipKi5O",
+          "cachedResultName": "Error Workflow 2"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        2224,
+        688
+      ],
+      "id": "1c9c3350-d445-4593-a5de-1011b6a1b1c3",
+      "name": "Call 'Error Workflow 2'4"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "5uyHVRtUYRipKi5O",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/5uyHVRtUYRipKi5O",
+          "cachedResultName": "Error Workflow 2"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        3216,
+        688
+      ],
+      "id": "a4f4ca0c-e353-4896-901d-20f6a284a6b4",
+      "name": "Call 'Error Workflow 2'6"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "5uyHVRtUYRipKi5O",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/5uyHVRtUYRipKi5O",
+          "cachedResultName": "Error Workflow 2"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        3904,
+        688
+      ],
+      "id": "a445113c-a6e6-49d3-8f53-0e045aae7af3",
+      "name": "Call 'Error Workflow 2'7"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "5uyHVRtUYRipKi5O",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/5uyHVRtUYRipKi5O",
+          "cachedResultName": "Error Workflow 2"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        3680,
+        688
+      ],
+      "id": "9a6e7355-a9ed-4f4e-b37e-b6f26a88aad0",
+      "name": "Call 'Error Workflow 2'8"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.telegram.org/bot{{ $('Get Bot Token').first().json.token }}/addStickerToSet",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "user_id",
+              "value": "={{ $('Get User').first().json.telegram_id }}"
+            },
+            {
+              "name": "name",
+              "value": "={{ $('Create Sticker Set Name').first().json.sticker_name }}"
+            },
+            {
+              "name": "sticker",
+              "value": "={\"sticker\":\"attach://file{{ $('Set Count').first().json.count }}\",\"format\":\"static\",\"emoji_list\":[{{ $('Edit Vars').first().json.emoji }}]}"
+            },
+            {
+              "parameterType": "formBinaryData",
+              "name": "=file{{ $('Set Count').first().json.count }}",
+              "inputDataFieldName": "data"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        3472,
+        672
+      ],
+      "id": "51ca7a21-fd30-46a6-8b38-a6219732c676",
+      "name": "Add Sticker To Set",
+      "retryOnFail": true,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "92ebd8d2-30a9-4fef-863d-cb1ba6c6cace",
+              "leftValue": "={{ $('Get Pics With Bg').first().json.candidates?.[0]?.finishReason || $('Get Pics With Bg').first().json.promptFeedback?.blockReason }}",
+              "rightValue": "PROHIBITED_CONTENT",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2256,
+        480
+      ],
+      "id": "ef2f8cc5-2740-4f3e-80b5-1a6fb1f4d1b6",
+      "name": "If1"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "value": "KyuNqmSgGqX2xZQ6",
+          "mode": "list",
+          "cachedResultName": "bots",
+          "cachedResultUrl": "/projects/kIb3KG1jOzb7y7Fs/datatables/KyuNqmSgGqX2xZQ6"
+        },
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "username",
+              "keyValue": "={{ $('When Executed by Photo2Sticker | Bot').first().json.bot_username }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1,
+      "position": [
+        128,
+        944
+      ],
+      "id": "eb042eb7-22a0-4883-8a4d-5e7bb0e40a8c",
+      "name": "Get Bot Token"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-goog-api-key",
+              "value": "AIzaSyC-SM4nr6pJm5rpLEa4nTsRfEjJmpc5vjA"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  contents: [\n    {\n      role: \"user\",\n      parts: [\n        {\n          text:\n            ($('Get Session').first().json.prompt_final || \"\")\n        },\n        {\n          fileData: {\n            mimeType: $json.mimeType,\n            fileUri: $json.fileUri\n          }\n        }\n      ]\n    }\n  ],\n  generationConfig: {\n    responseModalities: [\"IMAGE\"],\n    imageConfig: {\n      aspectRatio: \"1:1\"\n    }\n  }\n}) }}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        2048,
+        496
+      ],
+      "id": "3f9dce32-6f65-493e-a997-741fecb07f25",
+      "name": "Get Pics With Bg",
+      "retryOnFail": true,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.pixian.ai/api/v2/remove-background",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "image",
+              "inputDataFieldName": "data"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "1169ed3b-265a-4eda-bc1a-9f593eb35f83",
+      "name": "Get Pics Not Bg",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        3024,
+        464
+      ],
+      "retryOnFail": true,
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "qEysnp7POqXinCG8",
+          "name": "Unnamed credential"
+        },
+        "httpBearerAuth": {
+          "id": "98mftFCkxvg0YsMy",
+          "name": "Bearer Auth account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "sessions",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $('Get Session').first().json.id }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "state",
+              "fieldValue": "={{ $('Set Session State').first().json.done }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        2112,
+        64
+      ],
+      "id": "f9ab0620-1e1e-40f5-aa46-84421bf1ed0b",
+      "name": "Close Seeeion (done)",
+      "credentials": {
+        "supabaseApi": {
+          "id": "R7tgFzFM71oEYwVs",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        848,
+        0
+      ],
+      "id": "e2b834f8-5db7-42fa-ac6f-e903445243fb",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "bot_texts",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "key",
+              "condition": "eq",
+              "keyValue": "=processing.stickerset_ready"
+            },
+            {
+              "keyName": "lang",
+              "condition": "eq",
+              "keyValue": "={{ $('Get User').first().json.lang }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        2336,
+        64
+      ],
+      "id": "833dd252-30d7-4a51-9eb6-4e6034e966de",
+      "name": "Get Msg Text",
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "R7tgFzFM71oEYwVs",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "language": "python",
+        "pythonCode": "# Получаем текст из ноды Get Msg Text\ntemplate = _(\"Get Msg Text\").all()[0]['json']['text']\n# Получаем данные\nuser_balance = _(\"Get User1\").first()['json']['credits']\nuser_lang = _(\"Get User1\").first()['json']['lang']\nsuccess_gen = _('Count Success Stickers').first()['json']['true']\ntotal = _('Count Success Stickers').first()['json']['total']\nstickerset_name = _(\"Get Sticker Set\").first()['json']['result']['name']\n\n# Определяем текст ссылки в зависимости от языка\nif user_lang == 'ru':\n    link_text = 'Открыть стикерпак'\nelse:\n    link_text = 'Open sticker pack'\n\n# Создаём HTML ссылку на стикерпак\nsticker_link = f'<a href=\"https://t.me/addstickers/{stickerset_name}\">{link_text}</a>'\n\n# Заменяем плейсхолдеры\nresult_text = template.replace(\"{credits}\", str(user_balance))\nresult_text = result_text.replace(\"{true}\", str(success_gen))\nresult_text = result_text.replace(\"{total}\", str(total))\nresult_text = result_text.replace(\"{stickerset_name}\", sticker_link)\nresult_text = result_text.replace('\\\\n', '\\n')\n\n# Обрабатываем входные items\nfor item in _input.all():\n    item['json']['text'] = result_text\n\nreturn _input.all()"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2784,
+        64
+      ],
+      "id": "4b4e5bcb-03d9-4c2f-bddb-85b9c13e273d",
+      "name": "Create Text Message"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "bot_texts",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "lang",
+              "condition": "eq",
+              "keyValue": "={{ $('User').first().json.lang }}"
+            },
+            {
+              "keyName": "key",
+              "condition": "eq",
+              "keyValue": "=errors.common"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1504,
+        320
+      ],
+      "id": "92982db7-312c-4b3a-baa7-42b101025384",
+      "name": "Get Msg Text1",
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "R7tgFzFM71oEYwVs",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Get User').first().json.telegram_id }}",
+        "text": "={{ $('Get Msg Text1').all()[0].json.text }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1680,
+        320
+      ],
+      "id": "cec7fe3b-d45e-4990-a031-93e585e49b5e",
+      "name": "Send Error Msg",
+      "webhookId": "ab202021-6a37-4bff-ac1d-eaf0cb6c69c2",
+      "credentials": {
+        "telegramApi": {
+          "id": "XMzesfTQuSFn9crC",
+          "name": "@Photo_2_StickerBot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "bot_texts",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "lang",
+              "condition": "eq",
+              "keyValue": "={{ $('Get User').first().json.lang }}"
+            },
+            {
+              "keyName": "type",
+              "condition": "eq",
+              "keyValue": "inline"
+            },
+            {
+              "keyName": "key",
+              "condition": "like",
+              "keyValue": "=balance%"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        2560,
+        64
+      ],
+      "id": "81f88753-02c7-44d7-b9dd-491a99d5840a",
+      "name": "Get Buttons",
+      "credentials": {
+        "supabaseApi": {
+          "id": "R7tgFzFM71oEYwVs",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.limit",
+      "typeVersion": 1,
+      "position": [
+        2992,
+        64
+      ],
+      "id": "67e93fbf-4602-4cbd-94d2-e7841004ae99",
+      "name": "Limit1"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "5uyHVRtUYRipKi5O",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/5uyHVRtUYRipKi5O",
+          "cachedResultName": "Error Workflow 2"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        2992,
+        688
+      ],
+      "id": "426c8578-1ff1-46d0-9fe9-7eabeb4d40a0",
+      "name": "Call 'Error Workflow 2'5"
+    },
+    {
+      "parameters": {
+        "content": "# TODO\n## Вынести гугл апи ключ в отдельную сущность для удобного редактирования",
+        "width": 656
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        1120,
+        1056
+      ],
+      "typeVersion": 1,
+      "id": "49a0bb56-163d-491b-a5c4-c42d5c429d68",
+      "name": "Sticky Note2"
+    }
+  ],
+  "pinData": {
+    "When Executed by Photo2Sticker | Bot": [
+      {
+        "json": {
+          "user_id": "cb72079c-10e2-4c06-b67b-946c4d8d3c82",
+          "session_id": "82f7a704-1cc0-424a-9c28-4ce7b4c96837",
+          "bot_token": null,
+          "bot_username": "Photo_2_StickerBot"
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Upload a file": {
+      "main": [
+        [
+          {
+            "node": "Get Pics With Bg",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Call 'Error Workflow 2'3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code": {
+      "main": [
+        [
+          {
+            "node": "Upload a file",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Convert to File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convert to File": {
+      "main": [
+        [
+          {
+            "node": "Edit Image",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Edit Image": {
+      "main": [
+        [
+          {
+            "node": "Get Pics Not Bg",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Call 'Error Workflow 2'5",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When Executed by Photo2Sticker | Bot": {
+      "main": [
+        [
+          {
+            "node": "Get User",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Session",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Edit Vars",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Create Sticker Set Name",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Set Session State",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Bot Token",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Set Transaction State",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Session": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Get User": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Split Out",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Success Stickers",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Set Count",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Out": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get File Path": {
+      "main": [
+        [
+          {
+            "node": "Get File",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Call 'Error Workflow 2'",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get File": {
+      "main": [
+        [
+          {
+            "node": "Code",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Call 'Error Workflow 2'1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create New Sticker Set": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Call 'Error Workflow 2'7",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Create New Sticker Set",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Add Sticker To Set",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Sticker Set Name": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Edit Vars": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 3
+          }
+        ]
+      ]
+    },
+    "Set Count": {
+      "main": [
+        [
+          {
+            "node": "Get File Path",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Count Success Stickers": {
+      "main": [
+        [
+          {
+            "node": "Create Transaction",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Sticker Set": {
+      "main": [
+        [
+          {
+            "node": "Count Success Stickers",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get Msg Text1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate Success Stickers": {
+      "main": [
+        [
+          {
+            "node": "Get Sticker Set",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get User1": {
+      "main": [
+        [
+          {
+            "node": "Close Seeeion (done)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Transaction": {
+      "main": [
+        [
+          {
+            "node": "Get User1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Session State": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 4
+          }
+        ]
+      ]
+    },
+    "Set Transaction State": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 5
+          }
+        ]
+      ]
+    },
+    "Get a file": {
+      "main": [
+        [
+          {
+            "node": "Code1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram Trigger1": {
+      "main": [
+        [
+          {
+            "node": "Get a file",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload a file1": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code1": {
+      "main": [
+        [
+          {
+            "node": "Upload a file1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request1": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields1": {
+      "main": [
+        [
+          {
+            "node": "Convert to File1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convert to File1": {
+      "main": [
+        [
+          {
+            "node": "Edit Image1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Image1": {
+      "main": [
+        [
+          {
+            "node": "Pixian Remove BG",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pixian Remove BG": {
+      "main": [
+        [
+          {
+            "node": "Send a sticker",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call 'Error Workflow 2'": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call 'Error Workflow 2'1": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call 'Error Workflow 2'3": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call 'Error Workflow 2'4": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call 'Error Workflow 2'6": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call 'Error Workflow 2'7": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call 'Error Workflow 2'8": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Add Sticker To Set": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Call 'Error Workflow 2'8",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If1": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Bot Token": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 6
+          }
+        ]
+      ]
+    },
+    "Get Pics With Bg": {
+      "main": [
+        [
+          {
+            "node": "If1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Call 'Error Workflow 2'4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Pics Not Bg": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Call 'Error Workflow 2'6",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Close Seeeion (done)": {
+      "main": [
+        [
+          {
+            "node": "Get Msg Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        []
+      ]
+    },
+    "Get Msg Text": {
+      "main": [
+        [
+          {
+            "node": "Get Buttons",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Text Message": {
+      "main": [
+        [
+          {
+            "node": "Limit1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Msg Text1": {
+      "main": [
+        [
+          {
+            "node": "Send Error Msg",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Buttons": {
+      "main": [
+        [
+          {
+            "node": "Create Text Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Limit1": {
+      "main": [
+        [
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call 'Error Workflow 2'5": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false,
+    "errorWorkflow": "RvFITIrWWnckMMGs"
+  },
+  "versionId": "1689a498-b4ad-4dfe-8645-c92b240384ba",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "2aba5b58948bd92d7f90b142cd7a6bc1a6cfa620e6d3bfec45ff0d7d72dee960"
+  },
+  "id": "7jXYjyhv3nlNhyEC",
+  "tags": []
+}
