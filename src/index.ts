@@ -317,7 +317,7 @@ bot.on("photo", async (ctx) => {
 
   const { error } = await supabase
     .from("sessions")
-    .update({ photos, state: "wait_style" })
+    .update({ photos, state: "wait_style", is_active: true })
     .eq("id", session.id);
 
   console.log("Session updated to wait_style, error:", error);
@@ -374,7 +374,7 @@ bot.on("text", async (ctx) => {
   if (user.credits < photosCount) {
     await supabase
       .from("sessions")
-      .update({ state: "wait_buy_credit", user_input: userInput, prompt_final: generatedPrompt })
+      .update({ state: "wait_buy_credit", user_input: userInput, prompt_final: generatedPrompt, is_active: true })
       .eq("id", session.id);
 
     await ctx.reply(await getText(lang, "photo.not_enough_credits", {
@@ -394,7 +394,7 @@ bot.on("text", async (ctx) => {
   // Update session to processing with generated prompt and user input
   await supabase
     .from("sessions")
-    .update({ user_input: userInput, prompt_final: generatedPrompt, state: "processing" })
+    .update({ user_input: userInput, prompt_final: generatedPrompt, state: "processing", is_active: true })
     .eq("id", session.id);
 
   // Create job
@@ -475,7 +475,7 @@ bot.action(/^style_(.+)$/, async (ctx) => {
   if (user.credits < photosCount) {
     await supabase
       .from("sessions")
-      .update({ state: "wait_buy_credit", user_input: userInput, prompt_final: generatedPrompt })
+      .update({ state: "wait_buy_credit", user_input: userInput, prompt_final: generatedPrompt, is_active: true })
       .eq("id", session.id);
 
     await ctx.reply(await getText(lang, "photo.not_enough_credits", {
@@ -495,7 +495,7 @@ bot.action(/^style_(.+)$/, async (ctx) => {
   // Update session to processing
   await supabase
     .from("sessions")
-    .update({ user_input: userInput, prompt_final: generatedPrompt, state: "processing" })
+    .update({ user_input: userInput, prompt_final: generatedPrompt, state: "processing", is_active: true })
     .eq("id", session.id);
 
   // Create job
@@ -541,7 +541,7 @@ bot.action("cancel", async (ctx) => {
   if (session?.state === "wait_buy_credit") {
     await supabase
       .from("sessions")
-      .update({ state: "wait_style" })
+      .update({ state: "wait_style", is_active: true })
       .eq("id", session.id);
 
     await ctx.reply(await getText(lang, "payment.canceled"));
@@ -711,7 +711,7 @@ bot.on("successful_payment", async (ctx) => {
 
         await supabase
           .from("sessions")
-          .update({ state: "processing" })
+          .update({ state: "processing", is_active: true })
           .eq("id", session.id);
 
         await supabase.from("jobs").insert({
