@@ -1132,8 +1132,16 @@ bot.on("successful_payment", async (ctx) => {
   const payment = ctx.message.successful_payment;
   const invoicePayload = payment.invoice_payload;
 
+  // === PAYMENT DEBUG LOGS ===
+  console.log("=== successful_payment received ===");
+  console.log("charge_id:", payment.telegram_payment_charge_id);
+  console.log("amount:", payment.total_amount);
+  console.log("payload:", invoicePayload);
+  console.log("timestamp:", new Date().toISOString());
+
   // Extract transaction ID
   const transactionId = invoicePayload.replace(/[\[\]]/g, "");
+  console.log("transactionId:", transactionId);
 
   // Idempotency guard: if this charge was already processed, skip
   const { data: existingCharge } = await supabase
@@ -1142,8 +1150,10 @@ bot.on("successful_payment", async (ctx) => {
     .eq("telegram_payment_charge_id", payment.telegram_payment_charge_id)
     .maybeSingle();
 
+  console.log("existingCharge check:", existingCharge?.id, existingCharge?.state);
+
   if (existingCharge?.state === "done") {
-    console.log("Payment already processed by charge id:", payment.telegram_payment_charge_id);
+    console.log(">>> SKIP: Payment already processed by charge id:", payment.telegram_payment_charge_id);
     return;
   }
 
@@ -1162,10 +1172,11 @@ bot.on("successful_payment", async (ctx) => {
     .select("*");
 
   const transaction = updatedTransactions?.[0];
+  console.log("update result - transaction found:", !!transaction, "id:", transaction?.id);
 
   if (!transaction) {
     // Already processed or not found - this prevents double crediting
-    console.log("Transaction already processed or not found:", transactionId);
+    console.log(">>> SKIP: Transaction already processed or not found:", transactionId);
     return;
   }
 
@@ -1176,13 +1187,19 @@ bot.on("successful_payment", async (ctx) => {
     .eq("id", transaction.user_id)
     .maybeSingle();
 
+  console.log("user before credit:", user?.id, "current credits:", user?.credits, "adding:", transaction.amount);
+
   if (user) {
     const lang = user.lang || "en";
     const newCredits = (user.credits || 0) + transaction.amount;
+    console.log(">>> CREDITING: user", user.id, "oldCredits:", user.credits, "adding:", transaction.amount, "newCredits:", newCredits);
+    
     await supabase
       .from("users")
       .update({ credits: newCredits })
       .eq("id", user.id);
+
+    console.log(">>> CREDITED: user", user.id, "now has", newCredits, "credits");
 
     await ctx.reply(await getText(lang, "payment.success", {
       amount: transaction.amount,
