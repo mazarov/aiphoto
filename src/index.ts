@@ -187,12 +187,15 @@ async function getUser(telegramId: number) {
 
 // Helper: get active session
 async function getActiveSession(userId: string) {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("sessions")
     .select("*")
     .eq("user_id", userId)
     .eq("is_active", true)
     .maybeSingle();
+  if (error) {
+    console.log("getActiveSession error:", error);
+  }
   return data;
 }
 
@@ -414,12 +417,13 @@ bot.action(/^style_(.+)$/, async (ctx) => {
     if (!telegramId) return;
 
     const user = await getUser(telegramId);
-    console.log("User:", user?.id, "credits:", user?.credits);
+    console.log("Style callback - User:", user?.id, "credits:", user?.credits);
     if (!user?.id) return;
 
     const lang = user.lang || "en";
+    console.log("Style callback - calling getActiveSession with userId:", user.id);
     const session = await getActiveSession(user.id);
-    console.log("Session:", session?.id, "state:", session?.state);
+    console.log("Style callback - Session:", session?.id, "state:", session?.state);
     if (!session?.id || session.state !== "wait_style") {
       console.log("Session state mismatch, expected wait_style");
       return;
