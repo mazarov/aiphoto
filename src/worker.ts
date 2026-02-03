@@ -129,12 +129,21 @@ async function runJob(job: any) {
 
   await updateProgress(4);
   const generatedBuffer = Buffer.from(imageBase64, "base64");
+  const paddedBuffer = await sharp(generatedBuffer)
+    .extend({
+      top: 30,
+      bottom: 30,
+      left: 30,
+      right: 30,
+      background: { r: 255, g: 255, b: 255, alpha: 1 },
+    })
+    .toBuffer();
 
   await updateProgress(5);
   // Remove background with Pixian
   console.log("Calling Pixian to remove background...");
   const pixianForm = new FormData();
-  pixianForm.append("image", generatedBuffer, {
+  pixianForm.append("image", paddedBuffer, {
     filename: "image.png",
     contentType: "image/png",
   });
@@ -160,7 +169,7 @@ async function runJob(job: any) {
   await updateProgress(6);
   // Trim transparent borders and fit into 512x512
   const stickerBuffer = await sharp(noBgBuffer)
-    .trim()
+    .trim({ threshold: 10 })
     .resize(512, 512, {
       fit: "contain",
       background: { r: 0, g: 0, b: 0, alpha: 0 },
