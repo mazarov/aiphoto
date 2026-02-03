@@ -207,9 +207,8 @@ async function runJob(job: any) {
   await clearProgress();
 
   console.time("step7_insert");
-  await supabase
-    .from("stickers")
-    .insert({
+  try {
+    await supabase.from("stickers").insert({
       user_id: session.user_id,
       session_id: session.id,
       source_photo_file_id: generationType === "emotion" ? session.current_photo_file_id : sourceFileId,
@@ -217,8 +216,10 @@ async function runJob(job: any) {
       generated_prompt: session.prompt_final || null,
       result_storage_path: filePathStorage,
       sticker_set_name: user?.sticker_set_name || null,
-    })
-    .finally(() => console.timeEnd("step7_insert"));
+    });
+  } finally {
+    console.timeEnd("step7_insert");
+  }
 
   await supabase
     .from("sessions")
