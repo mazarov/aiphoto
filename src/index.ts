@@ -656,7 +656,7 @@ bot.action(/^style_(.+)$/, async (ctx) => {
 // Callback: add to pack (new format with sticker ID)
 bot.action(/^add_to_pack:(.+)$/, async (ctx) => {
   console.log("=== add_to_pack:ID callback ===");
-  console.log("callback_data:", ctx.callbackQuery?.data);
+  console.log("callback_data:", ctx.match?.[0]);
   await ctx.answerCbQuery();
   const telegramId = ctx.from?.id;
   console.log("telegramId:", telegramId);
@@ -792,7 +792,7 @@ bot.action("add_to_pack", async (ctx) => {
 // Callback: change style (new format with sticker ID)
 bot.action(/^change_style:(.+)$/, async (ctx) => {
   console.log("=== change_style:ID callback ===");
-  console.log("callback_data:", ctx.callbackQuery?.data);
+  console.log("callback_data:", ctx.match?.[0]);
   await ctx.answerCbQuery();
   const telegramId = ctx.from?.id;
   if (!telegramId) return;
@@ -887,7 +887,7 @@ bot.action("change_style", async (ctx) => {
 // Callback: change emotion (new format with sticker ID)
 bot.action(/^change_emotion:(.+)$/, async (ctx) => {
   console.log("=== change_emotion:ID callback ===");
-  console.log("callback_data:", ctx.callbackQuery?.data);
+  console.log("callback_data:", ctx.match?.[0]);
   await ctx.answerCbQuery();
   const telegramId = ctx.from?.id;
   if (!telegramId) return;
