@@ -653,21 +653,88 @@ bot.action(/^style_(.+)$/, async (ctx) => {
   }
 });
 
-// Callback: add to pack
-bot.action("add_to_pack", async (ctx) => {
+// Callback: add to pack (new format with sticker ID)
+bot.action(/^add_to_pack:(.+)$/, async (ctx) => {
   await ctx.answerCbQuery();
   const telegramId = ctx.from?.id;
-  console.log("add_to_pack clicked, telegramId:", telegramId);
   if (!telegramId) return;
 
   const user = await getUser(telegramId);
-  console.log("add_to_pack user:", user?.id, "lang:", user?.lang);
+  if (!user?.id) return;
+
+  const lang = user.lang || "en";
+  const stickerId = ctx.match[1];
+
+  // Get sticker from DB by ID
+  const { data: sticker } = await supabase
+    .from("stickers")
+    .select("telegram_file_id, user_id")
+    .eq("id", stickerId)
+    .maybeSingle();
+
+  if (!sticker?.telegram_file_id) {
+    await ctx.reply(await getText(lang, "error.no_stickers_added"));
+    return;
+  }
+
+  // Verify sticker belongs to user
+  if (sticker.user_id !== user.id) {
+    return;
+  }
+
+  const botUsername = await getBotUsername();
+  const stickerSetName =
+    user.sticker_set_name || `p2s_${telegramId}_by_${botUsername}`.toLowerCase();
+  const packTitle = await getText(lang, "sticker.pack_title");
+
+  try {
+    if (!user.sticker_set_name) {
+      await axios.post(`https://api.telegram.org/bot${config.telegramBotToken}/createNewStickerSet`, {
+        user_id: telegramId,
+        name: stickerSetName,
+        title: packTitle,
+        stickers: [
+          {
+            sticker: sticker.telegram_file_id,
+            format: "static",
+            emoji_list: ["🔥"],
+          },
+        ],
+      });
+
+      await supabase.from("users").update({ sticker_set_name: stickerSetName }).eq("id", user.id);
+    } else {
+      await axios.post(`https://api.telegram.org/bot${config.telegramBotToken}/addStickerToSet`, {
+        user_id: telegramId,
+        name: stickerSetName,
+        sticker: {
+          sticker: sticker.telegram_file_id,
+          format: "static",
+          emoji_list: ["🔥"],
+        },
+      });
+    }
+
+    await ctx.reply(await getText(lang, "sticker.added_to_pack", {
+      link: `https://t.me/addstickers/${stickerSetName}`,
+    }));
+  } catch (err: any) {
+    console.error("Add to pack error:", err.response?.data || err.message);
+    await ctx.reply(await getText(lang, "error.technical"));
+  }
+});
+
+// Callback: add to pack (old format - fallback for old messages)
+bot.action("add_to_pack", async (ctx) => {
+  await ctx.answerCbQuery();
+  const telegramId = ctx.from?.id;
+  if (!telegramId) return;
+
+  const user = await getUser(telegramId);
   if (!user?.id) return;
 
   const lang = user.lang || "en";
   const session = await getActiveSession(user.id);
-  console.log("add_to_pack session:", session?.id, "state:", session?.state, "is_active:", session?.is_active);
-  console.log("add_to_pack last_sticker_file_id:", session?.last_sticker_file_id);
   if (!session?.last_sticker_file_id) {
     await ctx.reply(await getText(lang, "error.no_stickers_added"));
     return;
@@ -715,7 +782,67 @@ bot.action("add_to_pack", async (ctx) => {
   }
 });
 
-// Callback: change style
+// Callback: change style (new format with sticker ID)
+bot.action(/^change_style:(.+)$/, async (ctx) => {
+  await ctx.answerCbQuery();
+  const telegramId = ctx.from?.id;
+  if (!telegramId) return;
+
+  const user = await getUser(telegramId);
+  if (!user?.id) return;
+
+  const lang = user.lang || "en";
+  const stickerId = ctx.match[1];
+
+  // Get sticker from DB by ID
+  const { data: sticker } = await supabase
+    .from("stickers")
+    .select("source_photo_file_id, user_id")
+    .eq("id", stickerId)
+    .maybeSingle();
+
+  if (!sticker?.source_photo_file_id) {
+    await ctx.reply(await getText(lang, "error.no_stickers_added"));
+    return;
+  }
+
+  // Verify sticker belongs to user
+  if (sticker.user_id !== user.id) {
+    return;
+  }
+
+  // Get or create active session
+  let session = await getActiveSession(user.id);
+  if (!session?.id) {
+    // Create new session
+    const { data: newSession } = await supabase
+      .from("sessions")
+      .insert({ user_id: user.id, state: "wait_style", is_active: true })
+      .select()
+      .single();
+    session = newSession;
+  }
+
+  if (!session?.id) return;
+
+  await supabase
+    .from("sessions")
+    .update({
+      state: "wait_style",
+      is_active: true,
+      current_photo_file_id: sticker.source_photo_file_id,
+      prompt_final: null,
+      user_input: null,
+      pending_generation_type: null,
+      selected_emotion: null,
+      emotion_prompt: null,
+    })
+    .eq("id", session.id);
+
+  await sendStyleKeyboard(ctx, lang);
+});
+
+// Callback: change style (old format - fallback)
 bot.action("change_style", async (ctx) => {
   await ctx.answerCbQuery();
   const telegramId = ctx.from?.id;
@@ -744,7 +871,63 @@ bot.action("change_style", async (ctx) => {
   await sendStyleKeyboard(ctx, lang);
 });
 
-// Callback: change emotion
+// Callback: change emotion (new format with sticker ID)
+bot.action(/^change_emotion:(.+)$/, async (ctx) => {
+  await ctx.answerCbQuery();
+  const telegramId = ctx.from?.id;
+  if (!telegramId) return;
+
+  const user = await getUser(telegramId);
+  if (!user?.id) return;
+
+  const lang = user.lang || "en";
+  const stickerId = ctx.match[1];
+
+  // Get sticker from DB by ID
+  const { data: sticker } = await supabase
+    .from("stickers")
+    .select("telegram_file_id, source_photo_file_id, user_id")
+    .eq("id", stickerId)
+    .maybeSingle();
+
+  if (!sticker?.telegram_file_id) {
+    await ctx.reply(await getText(lang, "error.no_stickers_added"));
+    return;
+  }
+
+  // Verify sticker belongs to user
+  if (sticker.user_id !== user.id) {
+    return;
+  }
+
+  // Get or create active session
+  let session = await getActiveSession(user.id);
+  if (!session?.id) {
+    const { data: newSession } = await supabase
+      .from("sessions")
+      .insert({ user_id: user.id, state: "wait_emotion", is_active: true })
+      .select()
+      .single();
+    session = newSession;
+  }
+
+  if (!session?.id) return;
+
+  await supabase
+    .from("sessions")
+    .update({
+      state: "wait_emotion",
+      is_active: true,
+      last_sticker_file_id: sticker.telegram_file_id,
+      current_photo_file_id: sticker.source_photo_file_id,
+      pending_generation_type: null,
+    })
+    .eq("id", session.id);
+
+  await sendEmotionKeyboard(ctx, lang);
+});
+
+// Callback: change emotion (old format - fallback)
 bot.action("change_emotion", async (ctx) => {
   await ctx.answerCbQuery();
   const telegramId = ctx.from?.id;

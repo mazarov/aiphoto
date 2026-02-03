@@ -180,16 +180,36 @@ async function runJob(job: any) {
   await updateProgress(7);
   const filePathStorage = `stickers/${session.user_id}/${session.id}/${Date.now()}.webp`;
 
+  // Insert sticker record first to get ID for callback_data
+  console.time("step7_insert");
+  const { data: stickerRecord } = await supabase
+    .from("stickers")
+    .insert({
+      user_id: session.user_id,
+      session_id: session.id,
+      source_photo_file_id: generationType === "emotion" ? session.current_photo_file_id : sourceFileId,
+      user_input: session.user_input || null,
+      generated_prompt: session.prompt_final || null,
+      result_storage_path: filePathStorage,
+      sticker_set_name: user?.sticker_set_name || null,
+    })
+    .select("id")
+    .single();
+  console.timeEnd("step7_insert");
+
+  const stickerId = stickerRecord?.id;
+
   const addToPackText = await getText(lang, "btn.add_to_pack");
   const changeStyleText = await getText(lang, "btn.change_style");
   const changeEmotionText = await getText(lang, "btn.change_emotion");
 
+  // Use sticker ID in callback_data for message binding
   const replyMarkup = {
     inline_keyboard: [
-      [{ text: addToPackText, callback_data: "add_to_pack" }],
+      [{ text: addToPackText, callback_data: stickerId ? `add_to_pack:${stickerId}` : "add_to_pack" }],
       [
-        { text: changeStyleText, callback_data: "change_style" },
-        { text: changeEmotionText, callback_data: "change_emotion" },
+        { text: changeStyleText, callback_data: stickerId ? `change_style:${stickerId}` : "change_style" },
+        { text: changeEmotionText, callback_data: stickerId ? `change_emotion:${stickerId}` : "change_emotion" },
       ],
     ],
   };
@@ -215,19 +235,12 @@ async function runJob(job: any) {
 
   await clearProgress();
 
-  console.time("step7_insert");
-  try {
-    await supabase.from("stickers").insert({
-      user_id: session.user_id,
-      session_id: session.id,
-      source_photo_file_id: generationType === "emotion" ? session.current_photo_file_id : sourceFileId,
-      user_input: session.user_input || null,
-      generated_prompt: session.prompt_final || null,
-      result_storage_path: filePathStorage,
-      sticker_set_name: user?.sticker_set_name || null,
-    });
-  } finally {
-    console.timeEnd("step7_insert");
+  // Update sticker record with telegram_file_id
+  if (stickerId && stickerFileId) {
+    await supabase
+      .from("stickers")
+      .update({ telegram_file_id: stickerFileId })
+      .eq("id", stickerId);
   }
 
   await supabase
