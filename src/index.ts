@@ -403,21 +403,34 @@ bot.on("text", async (ctx) => {
 
 // Callback: style selection
 bot.action(/^style_(.+)$/, async (ctx) => {
-  await ctx.answerCbQuery();
-  const telegramId = ctx.from?.id;
-  if (!telegramId) return;
+  try {
+    await ctx.answerCbQuery();
+    const telegramId = ctx.from?.id;
+    console.log("Style callback triggered, telegramId:", telegramId);
+    if (!telegramId) return;
 
-  const user = await getUser(telegramId);
-  if (!user?.id) return;
+    const user = await getUser(telegramId);
+    console.log("User:", user?.id, "credits:", user?.credits);
+    if (!user?.id) return;
 
-  const lang = user.lang || "en";
-  const session = await getActiveSession(user.id);
-  if (!session?.id || session.state !== "wait_style") return;
+    const lang = user.lang || "en";
+    const session = await getActiveSession(user.id);
+    console.log("Session:", session?.id, "state:", session?.state);
+    if (!session?.id || session.state !== "wait_style") {
+      console.log("Session state mismatch, expected wait_style");
+      return;
+    }
 
-  const styleId = ctx.match[1];
-  const presets = await getStylePresets();
-  const preset = presets.find((p) => p.id === styleId);
-  if (!preset) return;
+    const styleId = ctx.match[1];
+    console.log("Style ID:", styleId);
+    const presets = await getStylePresets();
+    console.log("Presets count:", presets.length);
+    const preset = presets.find((p) => p.id === styleId);
+    if (!preset) {
+      console.log("Preset not found for:", styleId);
+      return;
+    }
+    console.log("Preset found:", preset.id, preset.prompt_hint);
 
   const photosCount = Array.isArray(session.photos) ? session.photos.length : 0;
   if (photosCount === 0) {
@@ -476,6 +489,9 @@ bot.action(/^style_(.+)$/, async (ctx) => {
   });
 
   await ctx.reply(await getText(lang, "photo.generation_started"));
+  } catch (err) {
+    console.error("Style callback error:", err);
+  }
 });
 
 // Callback: buy_credits
