@@ -916,6 +916,18 @@ bot.on("successful_payment", async (ctx) => {
   // Extract transaction ID
   const transactionId = invoicePayload.replace(/[\[\]]/g, "");
 
+  // Idempotency guard: if this charge was already processed, skip
+  const { data: existingCharge } = await supabase
+    .from("transactions")
+    .select("id, state")
+    .eq("telegram_payment_charge_id", payment.telegram_payment_charge_id)
+    .maybeSingle();
+
+  if (existingCharge?.state === "done") {
+    console.log("Payment already processed by charge id:", payment.telegram_payment_charge_id);
+    return;
+  }
+
   // Atomic update: only one request can successfully change state from "processed" to "done"
   const { data: updatedTransactions } = await supabase
     .from("transactions")
@@ -927,6 +939,7 @@ bot.on("successful_payment", async (ctx) => {
     })
     .eq("id", transactionId)
     .eq("state", "processed")
+    .is("telegram_payment_charge_id", null)
     .select("*");
 
   const transaction = updatedTransactions?.[0];
