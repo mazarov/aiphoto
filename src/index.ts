@@ -21,6 +21,10 @@ const STYLE_PRESETS_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 let emotionPresetsCache: { data: any[]; timestamp: number } | null = null;
 const EMOTION_PRESETS_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
+// Cache for motion presets
+let motionPresetsCache: { data: any[]; timestamp: number } | null = null;
+const MOTION_PRESETS_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
 interface StylePreset {
   id: string;
   name_ru: string;
@@ -32,6 +36,16 @@ interface StylePreset {
 }
 
 interface EmotionPreset {
+  id: string;
+  name_ru: string;
+  name_en: string;
+  prompt_hint: string;
+  emoji: string;
+  sort_order: number;
+  is_active: boolean;
+}
+
+interface MotionPreset {
   id: string;
   name_ru: string;
   name_en: string;
@@ -133,6 +147,57 @@ async function sendEmotionKeyboard(ctx: any, lang: string) {
     await getText(lang, "emotion.choose"),
     Markup.inlineKeyboard(buttons)
   );
+}
+
+async function getMotionPresets(): Promise<MotionPreset[]> {
+  const now = Date.now();
+  if (motionPresetsCache && now - motionPresetsCache.timestamp < MOTION_PRESETS_CACHE_TTL) {
+    return motionPresetsCache.data;
+  }
+
+  const { data } = await supabase
+    .from("motion_presets")
+    .select("*")
+    .eq("is_active", true)
+    .order("sort_order");
+
+  if (data) {
+    motionPresetsCache = { data, timestamp: now };
+  }
+  return data || [];
+}
+
+async function sendMotionKeyboard(ctx: any, lang: string) {
+  const presets = await getMotionPresets();
+
+  const buttons: ReturnType<typeof Markup.button.callback>[][] = [];
+  for (let i = 0; i < presets.length; i += 2) {
+    const row: ReturnType<typeof Markup.button.callback>[] = [];
+    row.push(
+      Markup.button.callback(
+        `${presets[i].emoji} ${lang === "ru" ? presets[i].name_ru : presets[i].name_en}`,
+        `motion_${presets[i].id}`
+      )
+    );
+    if (presets[i + 1]) {
+      row.push(
+        Markup.button.callback(
+          `${presets[i + 1].emoji} ${lang === "ru" ? presets[i + 1].name_ru : presets[i + 1].name_en}`,
+          `motion_${presets[i + 1].id}`
+        )
+      );
+    }
+    buttons.push(row);
+  }
+
+  await ctx.reply(
+    await getText(lang, "motion.choose"),
+    Markup.inlineKeyboard(buttons)
+  );
+}
+
+function buildMotionPrompt(motionText: string) {
+  return `Update the sticker to show this pose/action: ${motionText}. Keep the same character, style, and colors.`;
 }
 
 async function getAgent(name: string) {
@@ -550,6 +615,23 @@ bot.on("text", async (ctx) => {
       promptFinal,
       emotionPrompt: emotionText,
       selectedEmotion: emotionText,
+    });
+    return;
+  }
+
+  if (session.state === "wait_custom_motion") {
+    const motionText = ctx.message.text.trim();
+    if (!session.last_sticker_file_id) {
+      await ctx.reply(await getText(lang, "error.no_stickers_added"));
+      return;
+    }
+
+    const promptFinal = buildMotionPrompt(motionText);
+    await startGeneration(ctx, user, session, lang, {
+      generationType: "motion",
+      promptFinal,
+      emotionPrompt: motionText,
+      selectedEmotion: motionText,
     });
     return;
   }
@@ -1003,6 +1085,131 @@ bot.action(/^emotion_(.+)$/, async (ctx) => {
   const promptFinal = buildEmotionPrompt(preset.prompt_hint);
   await startGeneration(ctx, user, session, lang, {
     generationType: "emotion",
+    promptFinal,
+    emotionPrompt: preset.prompt_hint,
+    selectedEmotion: preset.id,
+  });
+});
+
+// Callback: change motion (new format with sticker ID)
+bot.action(/^change_motion:(.+)$/, async (ctx) => {
+  console.log("=== change_motion:ID callback ===");
+  console.log("callback_data:", ctx.match?.[0]);
+  await ctx.answerCbQuery();
+  const telegramId = ctx.from?.id;
+  if (!telegramId) return;
+
+  const user = await getUser(telegramId);
+  if (!user?.id) return;
+
+  const lang = user.lang || "en";
+  const stickerId = ctx.match[1];
+  console.log("stickerId:", stickerId);
+
+  // Get sticker from DB by ID
+  const { data: sticker } = await supabase
+    .from("stickers")
+    .select("telegram_file_id, source_photo_file_id, user_id")
+    .eq("id", stickerId)
+    .maybeSingle();
+
+  console.log("sticker from DB:", sticker?.user_id, "telegram_file_id:", !!sticker?.telegram_file_id);
+
+  if (!sticker?.telegram_file_id) {
+    console.log(">>> ERROR: no telegram_file_id for sticker", stickerId);
+    await ctx.reply(await getText(lang, "error.no_stickers_added"));
+    return;
+  }
+
+  // Verify sticker belongs to user
+  if (sticker.user_id !== user.id) {
+    return;
+  }
+
+  // Get or create active session
+  let session = await getActiveSession(user.id);
+  if (!session?.id) {
+    const { data: newSession } = await supabase
+      .from("sessions")
+      .insert({ user_id: user.id, state: "wait_motion", is_active: true })
+      .select()
+      .single();
+    session = newSession;
+  }
+
+  if (!session?.id) return;
+
+  await supabase
+    .from("sessions")
+    .update({
+      state: "wait_motion",
+      is_active: true,
+      last_sticker_file_id: sticker.telegram_file_id,
+      current_photo_file_id: sticker.source_photo_file_id,
+      pending_generation_type: null,
+    })
+    .eq("id", session.id);
+
+  await sendMotionKeyboard(ctx, lang);
+});
+
+// Callback: change motion (old format - fallback)
+bot.action("change_motion", async (ctx) => {
+  await ctx.answerCbQuery();
+  const telegramId = ctx.from?.id;
+  if (!telegramId) return;
+
+  const user = await getUser(telegramId);
+  if (!user?.id) return;
+
+  const lang = user.lang || "en";
+  const session = await getActiveSession(user.id);
+  if (!session?.last_sticker_file_id) {
+    await ctx.reply(await getText(lang, "error.no_stickers_added"));
+    return;
+  }
+
+  await supabase
+    .from("sessions")
+    .update({ state: "wait_motion", is_active: true, pending_generation_type: null })
+    .eq("id", session.id);
+
+  await sendMotionKeyboard(ctx, lang);
+});
+
+// Callback: motion selection
+bot.action(/^motion_(.+)$/, async (ctx) => {
+  await ctx.answerCbQuery();
+  const telegramId = ctx.from?.id;
+  if (!telegramId) return;
+
+  const user = await getUser(telegramId);
+  if (!user?.id) return;
+
+  const lang = user.lang || "en";
+  const session = await getActiveSession(user.id);
+  if (!session?.last_sticker_file_id) {
+    await ctx.reply(await getText(lang, "error.no_stickers_added"));
+    return;
+  }
+
+  const motionId = ctx.match[1];
+  const presets = await getMotionPresets();
+  const preset = presets.find((p) => p.id === motionId);
+  if (!preset) return;
+
+  if (preset.id === "custom") {
+    await supabase
+      .from("sessions")
+      .update({ state: "wait_custom_motion", is_active: true })
+      .eq("id", session.id);
+    await ctx.reply(await getText(lang, "motion.custom_prompt"));
+    return;
+  }
+
+  const promptFinal = buildMotionPrompt(preset.prompt_hint);
+  await startGeneration(ctx, user, session, lang, {
+    generationType: "motion",
     promptFinal,
     emotionPrompt: preset.prompt_hint,
     selectedEmotion: preset.id,

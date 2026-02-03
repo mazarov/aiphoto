@@ -61,10 +61,12 @@ async function runJob(job: any) {
 
   const photos = Array.isArray(session.photos) ? session.photos : [];
   const generationType =
-    session.generation_type || (session.state === "processing_emotion" ? "emotion" : "style");
+    session.generation_type || 
+    (session.state === "processing_emotion" ? "emotion" : 
+     session.state === "processing_motion" ? "motion" : "style");
 
   const sourceFileId =
-    generationType === "emotion"
+    generationType === "emotion" || generationType === "motion"
       ? session.last_sticker_file_id
       : session.current_photo_file_id || photos[photos.length - 1];
 
@@ -207,6 +209,7 @@ async function runJob(job: any) {
   const addToPackText = await getText(lang, "btn.add_to_pack");
   const changeStyleText = await getText(lang, "btn.change_style");
   const changeEmotionText = await getText(lang, "btn.change_emotion");
+  const changeMotionText = await getText(lang, "btn.change_motion");
 
   // Use sticker ID in callback_data for message binding
   const replyMarkup = {
@@ -216,6 +219,7 @@ async function runJob(job: any) {
         { text: changeStyleText, callback_data: stickerId ? `change_style:${stickerId}` : "change_style" },
         { text: changeEmotionText, callback_data: stickerId ? `change_emotion:${stickerId}` : "change_emotion" },
       ],
+      [{ text: changeMotionText, callback_data: stickerId ? `change_motion:${stickerId}` : "change_motion" }],
     ],
   };
 
