@@ -192,11 +192,24 @@ async function getActiveSession(userId: string) {
     .select("*")
     .eq("user_id", userId)
     .eq("is_active", true)
+    .order("created_at", { ascending: false })
     .maybeSingle();
   if (error) {
     console.log("getActiveSession error:", error);
   }
-  return data;
+  if (data) return data;
+
+  // Fallback: some DB setups flip is_active to false on update
+  console.log("getActiveSession fallback for user:", userId);
+  const { data: fallback } = await supabase
+    .from("sessions")
+    .select("*")
+    .eq("user_id", userId)
+    .neq("state", "canceled")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return fallback;
 }
 
 // Helper: send buy credits menu
@@ -319,8 +332,9 @@ bot.on("photo", async (ctx) => {
     .from("sessions")
     .update({ photos, state: "wait_style", is_active: true })
     .eq("id", session.id);
-
-  console.log("Session updated to wait_style, error:", error);
+  if (error) {
+    console.error("Failed to update session to wait_style:", error);
+  }
 
   await sendStyleKeyboard(ctx, lang);
 });
@@ -421,17 +435,6 @@ bot.action(/^style_(.+)$/, async (ctx) => {
     if (!user?.id) return;
 
     const lang = user.lang || "en";
-    console.log("Style callback - calling getActiveSession with userId:", user.id);
-    
-    // Debug: get all sessions for this user
-    const { data: allSessions } = await supabase
-      .from("sessions")
-      .select("id, state, is_active")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false })
-      .limit(3);
-    console.log("Style callback - All user sessions:", JSON.stringify(allSessions));
-    
     const session = await getActiveSession(user.id);
     console.log("Style callback - Session:", session?.id, "state:", session?.state);
     if (!session?.id || session.state !== "wait_style") {
@@ -442,13 +445,11 @@ bot.action(/^style_(.+)$/, async (ctx) => {
     const styleId = ctx.match[1];
     console.log("Style ID:", styleId);
     const presets = await getStylePresets();
-    console.log("Presets count:", presets.length);
     const preset = presets.find((p) => p.id === styleId);
     if (!preset) {
       console.log("Preset not found for:", styleId);
       return;
     }
-    console.log("Preset found:", preset.id, preset.prompt_hint);
 
   const photosCount = Array.isArray(session.photos) ? session.photos.length : 0;
   if (photosCount === 0) {
