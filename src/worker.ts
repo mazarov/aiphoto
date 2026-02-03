@@ -3,7 +3,7 @@ import FormData from "form-data";
 import sharp from "sharp";
 import { config } from "./config";
 import { supabase } from "./lib/supabase";
-import { getFilePath, downloadFile, sendMessage, sendSticker } from "./lib/telegram";
+import { getFilePath, downloadFile, sendMessage, sendSticker, editMessageText, deleteMessage } from "./lib/telegram";
 import { getText } from "./lib/texts";
 
 async function sleep(ms: number) {
@@ -33,6 +33,30 @@ async function runJob(job: any) {
     throw new Error("User telegram_id not found");
   }
 
+  async function updateProgress(step: 1 | 2 | 3) {
+    if (!session.progress_message_id || !session.progress_chat_id) return;
+    const key =
+      step === 1
+        ? "progress.generating_image"
+        : step === 2
+          ? "progress.removing_bg"
+          : "progress.preparing";
+    try {
+      await editMessageText(session.progress_chat_id, session.progress_message_id, await getText(lang, key));
+    } catch (err) {
+      // ignore edit errors
+    }
+  }
+
+  async function clearProgress() {
+    if (!session.progress_message_id || !session.progress_chat_id) return;
+    try {
+      await deleteMessage(session.progress_chat_id, session.progress_message_id);
+    } catch (err) {
+      // ignore delete errors
+    }
+  }
+
   const photos = Array.isArray(session.photos) ? session.photos : [];
   const generationType =
     session.generation_type || (session.state === "processing_emotion" ? "emotion" : "style");
@@ -56,6 +80,7 @@ async function runJob(job: any) {
       ? "image/png"
       : "image/jpeg";
 
+  await updateProgress(1);
   console.log("Calling Gemini image generation...");
   console.log("Prompt:", session.prompt_final?.substring(0, 100) + "...");
 
@@ -105,6 +130,7 @@ async function runJob(job: any) {
 
   const generatedBuffer = Buffer.from(imageBase64, "base64");
 
+  await updateProgress(2);
   // Remove background with Pixian
   console.log("Calling Pixian to remove background...");
   const pixianForm = new FormData();
@@ -131,9 +157,14 @@ async function runJob(job: any) {
 
   const noBgBuffer = Buffer.from(pixianRes.data);
 
-  // Resize to 512x512 and convert to webp
+  await updateProgress(3);
+  // Trim transparent borders and fit into 512x512
   const stickerBuffer = await sharp(noBgBuffer)
-    .resize(512, 512, { fit: "fill" })
+    .trim()
+    .resize(512, 512, {
+      fit: "contain",
+      background: { r: 0, g: 0, b: 0, alpha: 0 },
+    })
     .webp()
     .toBuffer();
 
@@ -177,8 +208,12 @@ async function runJob(job: any) {
       is_active: true,
       last_sticker_file_id: stickerFileId,
       last_sticker_storage_path: filePathStorage,
+      progress_message_id: null,
+      progress_chat_id: null,
     })
     .eq("id", session.id);
+
+  await clearProgress();
 }
 
 async function poll() {

@@ -36,6 +36,23 @@ export async function sendMessage(chatId: number, text: string, replyMarkup?: an
   });
 }
 
+export async function editMessageText(chatId: number, messageId: number, text: string) {
+  await axios.post(`${apiBase}/editMessageText`, {
+    chat_id: chatId,
+    message_id: messageId,
+    text,
+    parse_mode: "HTML",
+    disable_web_page_preview: true,
+  });
+}
+
+export async function deleteMessage(chatId: number, messageId: number) {
+  await axios.post(`${apiBase}/deleteMessage`, {
+    chat_id: chatId,
+    message_id: messageId,
+  });
+}
+
 export async function sendSticker(
   chatId: number,
   stickerBuffer: Buffer,

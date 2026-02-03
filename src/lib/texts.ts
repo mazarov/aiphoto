@@ -41,6 +41,9 @@ const fallbackTexts: Record<string, Record<string, string>> = {
     "emotion.custom_prompt": "Опишите желаемую эмоцию ✍️",
     "error.no_stickers_added": "Вы не добавили ни одного стикера 🧩",
     "error.technical": "Что-то пошло не так. Попробуйте повторить попытку позже ⚠️",
+    "progress.generating_image": "✨ Генерирую изображение... (1/3)",
+    "progress.removing_bg": "🎨 Удаляю фон... (2/3)",
+    "progress.preparing": "📦 Подготавливаю стикер... (3/3)",
     "sticker.pack_title": "Мои стикеры",
   },
   en: {
@@ -77,6 +80,9 @@ const fallbackTexts: Record<string, Record<string, string>> = {
     "emotion.custom_prompt": "Describe the desired emotion ✍️",
     "error.no_stickers_added": "You haven't added any stickers 🧩",
     "error.technical": "Something went wrong. Please try again later ⚠️",
+    "progress.generating_image": "✨ Generating image... (1/3)",
+    "progress.removing_bg": "🎨 Removing background... (2/3)",
+    "progress.preparing": "📦 Preparing sticker... (3/3)",
     "sticker.pack_title": "My Stickers",
   },
 };

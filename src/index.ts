@@ -249,6 +249,16 @@ async function enqueueJob(sessionId: string, userId: string) {
   });
 }
 
+async function sendProgressStart(ctx: any, sessionId: string, lang: string) {
+  const msg = await ctx.reply(await getText(lang, "progress.generating_image"));
+  if (msg?.message_id && ctx.chat?.id) {
+    await supabase
+      .from("sessions")
+      .update({ progress_message_id: msg.message_id, progress_chat_id: ctx.chat.id })
+      .eq("id", sessionId);
+  }
+}
+
 async function startGeneration(
   ctx: any,
   user: any,
@@ -313,7 +323,7 @@ async function startGeneration(
 
   await enqueueJob(session.id, user.id);
 
-  await ctx.reply(await getText(lang, "photo.generation_started"));
+  await sendProgressStart(ctx, session.id, lang);
 }
 
 // Credit packages: { credits: price_in_stars }
@@ -992,7 +1002,7 @@ bot.on("successful_payment", async (ctx) => {
 
         await enqueueJob(session.id, user.id);
 
-        await ctx.reply(await getText(lang, "photo.generation_continue"));
+        await sendProgressStart(ctx, session.id, lang);
       } else {
         await ctx.reply(await getText(lang, "payment.need_more", {
           needed: creditsNeeded - newCredits,
