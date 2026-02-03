@@ -422,6 +422,16 @@ bot.action(/^style_(.+)$/, async (ctx) => {
 
     const lang = user.lang || "en";
     console.log("Style callback - calling getActiveSession with userId:", user.id);
+    
+    // Debug: get all sessions for this user
+    const { data: allSessions } = await supabase
+      .from("sessions")
+      .select("id, state, is_active")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(3);
+    console.log("Style callback - All user sessions:", JSON.stringify(allSessions));
+    
     const session = await getActiveSession(user.id);
     console.log("Style callback - Session:", session?.id, "state:", session?.state);
     if (!session?.id || session.state !== "wait_style") {
