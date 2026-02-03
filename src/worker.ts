@@ -1,4 +1,5 @@
 import axios from "axios";
+import os from "os";
 import FormData from "form-data";
 import sharp from "sharp";
 import { config } from "./config";
@@ -9,6 +10,9 @@ import { getText } from "./lib/texts";
 async function sleep(ms: number) {
   await new Promise((r) => setTimeout(r, ms));
 }
+
+const WORKER_ID = `${os.hostname()}-${process.pid}-${Date.now()}`;
+console.log(`Worker started: ${WORKER_ID}`);
 
 async function runJob(job: any) {
   const { data: session } = await supabase
@@ -260,10 +264,15 @@ async function poll() {
   while (true) {
     const { data: jobs } = await supabase
       .from("jobs")
-      .select("*")
+      .update({
+        status: "processing",
+        worker_id: WORKER_ID,
+        started_at: new Date().toISOString(),
+      })
       .eq("status", "queued")
       .order("created_at", { ascending: true })
-      .limit(1);
+      .limit(1)
+      .select("*");
 
     const job = jobs?.[0];
     if (!job) {
@@ -271,20 +280,24 @@ async function poll() {
       continue;
     }
 
-    await supabase
-      .from("jobs")
-      .update({ status: "processing" })
-      .eq("id", job.id);
+    console.log(`Job ${job.id} claimed by ${WORKER_ID}`);
 
     try {
       await runJob(job);
-      await supabase.from("jobs").update({ status: "done" }).eq("id", job.id);
+      await supabase
+        .from("jobs")
+        .update({ status: "done", completed_at: new Date().toISOString() })
+        .eq("id", job.id);
     } catch (err: any) {
       console.error("Job failed:", job.id, err?.message || err);
 
       await supabase
         .from("jobs")
-        .update({ status: "error", error: String(err?.message || err) })
+        .update({
+          status: "error",
+          error: String(err?.message || err),
+          completed_at: new Date().toISOString(),
+        })
         .eq("id", job.id);
 
       // Refund credits on error
