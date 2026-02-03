@@ -464,6 +464,28 @@ bot.start(async (ctx) => {
   await ctx.reply(greeting);
 });
 
+// /balance command
+bot.command("balance", async (ctx) => {
+  const telegramId = ctx.from?.id;
+  if (!telegramId) return;
+
+  const user = await getUser(telegramId);
+  if (!user) {
+    const lang = (ctx.from?.language_code || "").toLowerCase().startsWith("ru") ? "ru" : "en";
+    await ctx.reply(await getText(lang, "start.need_start"));
+    return;
+  }
+
+  const lang = user.lang || "en";
+  const text = await getText(lang, "balance.info", { credits: user.credits || 0 });
+  const btnText = await getText(lang, "btn.top_up");
+
+  await ctx.reply(
+    text,
+    Markup.inlineKeyboard([[Markup.button.callback(btnText, "buy_credits")]])
+  );
+});
+
 // Photo handler
 bot.on("photo", async (ctx) => {
   const telegramId = ctx.from?.id;
