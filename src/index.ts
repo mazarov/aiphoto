@@ -13,6 +13,67 @@ app.use(express.json({ limit: "10mb" }));
 let agentCache: { data: any; timestamp: number } | null = null;
 const AGENT_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
+// Cache for style presets
+let stylePresetsCache: { data: any[]; timestamp: number } | null = null;
+const STYLE_PRESETS_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+interface StylePreset {
+  id: string;
+  name_ru: string;
+  name_en: string;
+  prompt_hint: string;
+  emoji: string;
+  sort_order: number;
+  is_active: boolean;
+}
+
+async function getStylePresets(): Promise<StylePreset[]> {
+  const now = Date.now();
+  if (stylePresetsCache && now - stylePresetsCache.timestamp < STYLE_PRESETS_CACHE_TTL) {
+    return stylePresetsCache.data;
+  }
+
+  const { data } = await supabase
+    .from("style_presets")
+    .select("*")
+    .eq("is_active", true)
+    .order("sort_order");
+
+  if (data) {
+    stylePresetsCache = { data, timestamp: now };
+  }
+  return data || [];
+}
+
+async function sendStyleKeyboard(ctx: any, lang: string) {
+  const presets = await getStylePresets();
+
+  const buttons: ReturnType<typeof Markup.button.callback>[][] = [];
+  for (let i = 0; i < presets.length; i += 2) {
+    const row: ReturnType<typeof Markup.button.callback>[] = [];
+    row.push(
+      Markup.button.callback(
+        `${presets[i].emoji} ${lang === "ru" ? presets[i].name_ru : presets[i].name_en}`,
+        `style_${presets[i].id}`
+      )
+    );
+    if (presets[i + 1]) {
+      row.push(
+        Markup.button.callback(
+          `${presets[i + 1].emoji} ${lang === "ru" ? presets[i + 1].name_ru : presets[i + 1].name_en}`,
+          `style_${presets[i + 1].id}`
+        )
+      );
+    }
+    buttons.push(row);
+  }
+
+  await ctx.reply(
+    await getText(lang, "photo.ask_style"),
+    Markup.inlineKeyboard(buttons)
+  );
+}
+
 async function getAgent(name: string) {
   const now = Date.now();
   if (agentCache && agentCache.data?.name === name && now - agentCache.timestamp < AGENT_CACHE_TTL) {
@@ -251,10 +312,10 @@ bot.on("photo", async (ctx) => {
 
   await supabase
     .from("sessions")
-    .update({ photos, state: "wait_description" })
+    .update({ photos, state: "wait_style" })
     .eq("id", session.id);
 
-  await ctx.reply(await getText(lang, "photo.ask_style"));
+  await sendStyleKeyboard(ctx, lang);
 });
 
 // Text handler (style description)
@@ -274,8 +335,8 @@ bot.on("text", async (ctx) => {
     return;
   }
 
-  // Check if we're in wait_description state
-  if (session.state !== "wait_description") {
+  // Check if we're in wait_style state
+  if (session.state !== "wait_style") {
     if (session.state === "wait_photo") {
       await ctx.reply(await getText(lang, "photo.need_photo"));
     }
@@ -340,6 +401,83 @@ bot.on("text", async (ctx) => {
   await ctx.reply(await getText(lang, "photo.generation_started"));
 });
 
+// Callback: style selection
+bot.action(/^style_(.+)$/, async (ctx) => {
+  await ctx.answerCbQuery();
+  const telegramId = ctx.from?.id;
+  if (!telegramId) return;
+
+  const user = await getUser(telegramId);
+  if (!user?.id) return;
+
+  const lang = user.lang || "en";
+  const session = await getActiveSession(user.id);
+  if (!session?.id || session.state !== "wait_style") return;
+
+  const styleId = ctx.match[1];
+  const presets = await getStylePresets();
+  const preset = presets.find((p) => p.id === styleId);
+  if (!preset) return;
+
+  const photosCount = Array.isArray(session.photos) ? session.photos.length : 0;
+  if (photosCount === 0) {
+    await ctx.reply(await getText(lang, "photo.need_photo"));
+    return;
+  }
+
+  // Use prompt_hint as userInput
+  const userInput = preset.prompt_hint;
+
+  // Generate prompt using LLM
+  await ctx.reply(await getText(lang, "photo.processing"));
+
+  const promptResult = await generatePrompt(userInput);
+
+  if (!promptResult.ok || promptResult.retry) {
+    await ctx.reply(await getText(lang, "photo.invalid_style"));
+    return;
+  }
+
+  const generatedPrompt = promptResult.prompt || userInput;
+
+  // Check credits
+  if (user.credits < photosCount) {
+    await supabase
+      .from("sessions")
+      .update({ state: "wait_buy_credit", user_input: userInput, prompt_final: generatedPrompt })
+      .eq("id", session.id);
+
+    await ctx.reply(await getText(lang, "photo.not_enough_credits", {
+      needed: photosCount,
+      balance: user.credits,
+    }));
+    await sendBuyCreditsMenu(ctx, user);
+    return;
+  }
+
+  // Deduct credits
+  await supabase
+    .from("users")
+    .update({ credits: user.credits - photosCount })
+    .eq("id", user.id);
+
+  // Update session to processing
+  await supabase
+    .from("sessions")
+    .update({ user_input: userInput, prompt_final: generatedPrompt, state: "processing" })
+    .eq("id", session.id);
+
+  // Create job
+  await supabase.from("jobs").insert({
+    session_id: session.id,
+    user_id: user.id,
+    status: "queued",
+    attempts: 0,
+  });
+
+  await ctx.reply(await getText(lang, "photo.generation_started"));
+});
+
 // Callback: buy_credits
 bot.action("buy_credits", async (ctx) => {
   await ctx.answerCbQuery();
@@ -369,7 +507,7 @@ bot.action("cancel", async (ctx) => {
   if (session?.state === "wait_buy_credit") {
     await supabase
       .from("sessions")
-      .update({ state: "wait_description" })
+      .update({ state: "wait_style" })
       .eq("id", session.id);
 
     await ctx.reply(await getText(lang, "payment.canceled"));
