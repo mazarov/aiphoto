@@ -4,7 +4,7 @@ import axios from "axios";
 import { config } from "./config";
 import { supabase } from "./lib/supabase";
 import { getText } from "./lib/texts";
-import { sendAlert } from "./lib/alerts";
+import { sendAlert, sendNotification } from "./lib/alerts";
 
 const bot = new Telegraf(config.telegramBotToken);
 const app = express();
@@ -527,6 +527,12 @@ bot.start(async (ctx) => {
         state: "done",
         is_active: false,
       });
+
+      // Send notification (async, non-blocking)
+      sendNotification({
+        type: "new_user",
+        message: `@${ctx.from?.username || "no\\_username"} (${telegramId})\n🌐 Язык: ${lang}`,
+      }).catch(console.error);
     }
   } else {
     // Update username if changed (user may change their Telegram username)
@@ -1675,6 +1681,12 @@ bot.on("successful_payment", async (ctx) => {
       amount: transaction.amount,
       balance: currentCredits,
     }));
+
+    // Send payment notification (async, non-blocking)
+    sendNotification({
+      type: "new_payment",
+      message: `👤 @${finalUser.username || finalUser.telegram_id}\n📦 Пакет: ${transaction.amount} кредитов\n⭐ Сумма: ${transaction.price} Stars`,
+    }).catch(console.error);
 
     // Check if there's a pending session waiting for credits
     const session = await getActiveSession(finalUser.id);

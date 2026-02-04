@@ -6,7 +6,7 @@ import { config } from "./config";
 import { supabase } from "./lib/supabase";
 import { getFilePath, downloadFile, sendMessage, sendSticker, editMessageText, deleteMessage } from "./lib/telegram";
 import { getText } from "./lib/texts";
-import { sendAlert } from "./lib/alerts";
+import { sendAlert, sendNotification } from "./lib/alerts";
 
 async function sleep(ms: number) {
   await new Promise((r) => setTimeout(r, ms));
@@ -28,7 +28,7 @@ async function runJob(job: any) {
 
   const { data: user } = await supabase
     .from("users")
-    .select("telegram_id, lang, sticker_set_name")
+    .select("telegram_id, lang, sticker_set_name, username")
     .eq("id", session.user_id)
     .maybeSingle();
 
@@ -307,6 +307,13 @@ async function runJob(job: any) {
   } else {
     console.log(">>> WARNING: skipped telegram_file_id update, stickerId:", stickerId, "stickerFileId:", !!stickerFileId);
   }
+
+  // Send sticker notification (async, non-blocking)
+  sendNotification({
+    type: "new_sticker",
+    message: `👤 @${user.username || telegramId}\n🎭 Тип: ${generationType}`,
+    imageBuffer: stickerBuffer,
+  }).catch(console.error);
 
   await clearProgress();
 
