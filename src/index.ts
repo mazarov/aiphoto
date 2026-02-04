@@ -501,7 +501,7 @@ bot.start(async (ctx) => {
 
     const { data: created } = await supabase
       .from("users")
-      .insert({ telegram_id: telegramId, lang, credits: 1 })
+      .insert({ telegram_id: telegramId, lang, credits: 0 })
       .select("*")
       .single();
 
