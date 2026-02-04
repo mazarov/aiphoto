@@ -404,12 +404,10 @@ async function startGeneration(
   await sendProgressStart(ctx, session.id, lang);
 }
 
-// Credit packages: { credits: price_in_stars }
+// Credit packages: { credits, price_in_stars, label_ru, label_en }
 const CREDIT_PACKS = [
-  { credits: 2, price: 15 },
-  { credits: 5, price: 30 },
-  { credits: 10, price: 60 },
-  { credits: 20, price: 100 },
+  { credits: 5, price: 75, label_ru: "🧪 Попробовать", label_en: "🧪 Try" },
+  { credits: 30, price: 150, label_ru: "⭐ Выгодный (в 3× дешевле!)", label_en: "⭐ Value (3× cheaper!)" },
 ];
 
 // Helper: get user by telegram_id
@@ -456,27 +454,16 @@ async function sendBuyCreditsMenu(ctx: any, user: any, messageText?: string) {
 
   const buttons: ReturnType<typeof Markup.button.callback>[][] = [];
 
-  for (let i = 0; i < CREDIT_PACKS.length; i += 2) {
-    const row: ReturnType<typeof Markup.button.callback>[] = [];
-    const left = CREDIT_PACKS[i];
-    row.push(
+  // One button per row with full label
+  for (const pack of CREDIT_PACKS) {
+    const label = lang === "ru" ? pack.label_ru : pack.label_en;
+    const unit = lang === "ru" ? "стикеров" : "stickers";
+    buttons.push([
       Markup.button.callback(
-        `${left.credits} — ${left.price}⭐`,
-        `pack_${left.credits}_${left.price}`
+        `${label}: ${pack.credits} ${unit} — ${pack.price}⭐`,
+        `pack_${pack.credits}_${pack.price}`
       )
-    );
-
-    const right = CREDIT_PACKS[i + 1];
-    if (right) {
-      row.push(
-        Markup.button.callback(
-          `${right.credits} — ${right.price}⭐`,
-          `pack_${right.credits}_${right.price}`
-        )
-      );
-    }
-
-    buttons.push(row);
+    ]);
   }
 
   const cancelText = await getText(lang, "btn.cancel");
