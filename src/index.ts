@@ -347,6 +347,12 @@ async function startGeneration(
 ) {
   const creditsNeeded = 1;
 
+  console.log("=== startGeneration ===");
+  console.log("user.id:", user?.id);
+  console.log("user.credits:", user?.credits, "type:", typeof user?.credits);
+  console.log("creditsNeeded:", creditsNeeded);
+  console.log("check (credits < needed):", user?.credits < creditsNeeded);
+
   if (user.credits < creditsNeeded) {
     await supabase
       .from("sessions")
