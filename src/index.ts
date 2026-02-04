@@ -204,7 +204,7 @@ async function sendMotionKeyboard(ctx: any, lang: string) {
 }
 
 function buildMotionPrompt(motionText: string) {
-  return `Update the sticker to show this pose/action: ${motionText}. Keep the same character, style, and colors.`;
+  return `Update the sticker to show this pose/action: ${motionText}. Keep the same character, style, and colors. Requirements: black background, no watermark, no logo, no frame.`;
 }
 
 function buildTextPrompt(text: string): string {
@@ -215,7 +215,7 @@ IMPORTANT:
 - Do NOT change the text in any way
 - Use the EXACT characters provided by the user
 
-The text should be integrated naturally and visually appealing - it can appear on a sign, banner, speech bubble, or creatively placed within the image. Keep the same character, style, and colors.`;
+The text should be integrated naturally and visually appealing - it can appear on a sign, banner, speech bubble, or creatively placed within the image. Keep the same character, style, and colors. Requirements: black background, no watermark, no logo, no frame.`;
 }
 
 async function getAgent(name: string) {
@@ -320,7 +320,7 @@ async function generatePrompt(userInput: string): Promise<PromptResult> {
 }
 
 function buildEmotionPrompt(emotionText: string) {
-  return `Update the sticker to show this emotion: ${emotionText}. Keep the same character, style, and colors.`;
+  return `Update the sticker to show this emotion: ${emotionText}. Keep the same character, style, and colors. Requirements: black background, no watermark, no logo, no frame.`;
 }
 
 async function enqueueJob(sessionId: string, userId: string) {
