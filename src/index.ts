@@ -207,6 +207,17 @@ function buildMotionPrompt(motionText: string) {
   return `Update the sticker to show this pose/action: ${motionText}. Keep the same character, style, and colors.`;
 }
 
+function buildTextPrompt(text: string): string {
+  return `Add the following text EXACTLY as written to the sticker: "${text}"
+
+IMPORTANT: 
+- Do NOT translate the text
+- Do NOT change the text in any way
+- Use the EXACT characters provided by the user
+
+The text should be integrated naturally and visually appealing - it can appear on a sign, banner, speech bubble, or creatively placed within the image. Keep the same character, style, and colors.`;
+}
+
 async function getAgent(name: string) {
   const now = Date.now();
   if (agentCache && agentCache.data?.name === name && now - agentCache.timestamp < AGENT_CACHE_TTL) {
@@ -337,12 +348,13 @@ async function startGeneration(
   session: any,
   lang: string,
   options: {
-    generationType: "style" | "emotion" | "motion";
+    generationType: "style" | "emotion" | "motion" | "text";
     promptFinal: string;
     userInput?: string | null;
     emotionPrompt?: string | null;
     selectedStyleId?: string | null;
     selectedEmotion?: string | null;
+    textPrompt?: string | null;
   }
 ) {
   const creditsNeeded = 1;
@@ -382,7 +394,10 @@ async function startGeneration(
     .update({ credits: user.credits - creditsNeeded })
     .eq("id", user.id);
 
-  const nextState = options.generationType === "emotion" ? "processing_emotion" : "processing";
+  const nextState = 
+    options.generationType === "emotion" ? "processing_emotion" :
+    options.generationType === "motion" ? "processing_motion" :
+    options.generationType === "text" ? "processing_text" : "processing";
 
   await supabase
     .from("sessions")
@@ -392,6 +407,7 @@ async function startGeneration(
       emotion_prompt: options.emotionPrompt || null,
       selected_style_id: options.selectedStyleId || session.selected_style_id || null,
       selected_emotion: options.selectedEmotion || null,
+      text_prompt: options.textPrompt || null,
       generation_type: options.generationType,
       credits_spent: creditsNeeded,
       state: nextState,
@@ -658,6 +674,22 @@ bot.on("text", async (ctx) => {
       promptFinal,
       emotionPrompt: motionText,
       selectedEmotion: motionText,
+    });
+    return;
+  }
+
+  if (session.state === "wait_text") {
+    const textInput = ctx.message.text.trim();
+    if (!session.last_sticker_file_id) {
+      await ctx.reply(await getText(lang, "error.no_stickers_added"));
+      return;
+    }
+
+    const promptFinal = buildTextPrompt(textInput);
+    await startGeneration(ctx, user, session, lang, {
+      generationType: "text",
+      promptFinal,
+      textPrompt: textInput,
     });
     return;
   }
@@ -1278,6 +1310,68 @@ bot.action(/^motion_(.+)$/, async (ctx) => {
     emotionPrompt: preset.prompt_hint,
     selectedEmotion: preset.id,
   });
+});
+
+// Callback: add text to sticker
+bot.action(/^add_text:(.+)$/, async (ctx) => {
+  console.log("=== add_text:ID callback ===");
+  console.log("callback_data:", ctx.match?.[0]);
+  safeAnswerCbQuery(ctx);
+  const telegramId = ctx.from?.id;
+  if (!telegramId) return;
+
+  const user = await getUser(telegramId);
+  if (!user?.id) return;
+
+  const lang = user.lang || "en";
+  const stickerId = ctx.match[1];
+  console.log("stickerId:", stickerId);
+
+  // Get sticker from DB by ID
+  const { data: sticker } = await supabase
+    .from("stickers")
+    .select("telegram_file_id, source_photo_file_id, user_id")
+    .eq("id", stickerId)
+    .maybeSingle();
+
+  console.log("sticker from DB:", sticker?.user_id, "telegram_file_id:", !!sticker?.telegram_file_id);
+
+  if (!sticker?.telegram_file_id) {
+    console.log(">>> ERROR: no telegram_file_id for sticker", stickerId);
+    await ctx.reply(await getText(lang, "error.no_stickers_added"));
+    return;
+  }
+
+  // Verify sticker belongs to user
+  if (sticker.user_id !== user.id) {
+    return;
+  }
+
+  // Get or create active session
+  let session = await getActiveSession(user.id);
+  if (!session?.id) {
+    const { data: newSession } = await supabase
+      .from("sessions")
+      .insert({ user_id: user.id, state: "wait_text", is_active: true })
+      .select()
+      .single();
+    session = newSession;
+  }
+
+  if (!session?.id) return;
+
+  await supabase
+    .from("sessions")
+    .update({
+      state: "wait_text",
+      is_active: true,
+      last_sticker_file_id: sticker.telegram_file_id,
+      current_photo_file_id: sticker.source_photo_file_id,
+      pending_generation_type: null,
+    })
+    .eq("id", session.id);
+
+  await ctx.reply(await getText(lang, "text.prompt"));
 });
 
 // Callback: buy_credits

@@ -63,10 +63,11 @@ async function runJob(job: any) {
   const generationType =
     session.generation_type || 
     (session.state === "processing_emotion" ? "emotion" : 
-     session.state === "processing_motion" ? "motion" : "style");
+     session.state === "processing_motion" ? "motion" :
+     session.state === "processing_text" ? "text" : "style");
 
   const sourceFileId =
-    generationType === "emotion" || generationType === "motion"
+    generationType === "emotion" || generationType === "motion" || generationType === "text"
       ? session.last_sticker_file_id
       : session.current_photo_file_id || photos[photos.length - 1];
 
@@ -210,6 +211,7 @@ async function runJob(job: any) {
   const changeStyleText = await getText(lang, "btn.change_style");
   const changeEmotionText = await getText(lang, "btn.change_emotion");
   const changeMotionText = await getText(lang, "btn.change_motion");
+  const addTextText = await getText(lang, "btn.add_text");
 
   // Use sticker ID in callback_data for message binding
   const replyMarkup = {
@@ -219,7 +221,10 @@ async function runJob(job: any) {
         { text: changeStyleText, callback_data: stickerId ? `change_style:${stickerId}` : "change_style" },
         { text: changeEmotionText, callback_data: stickerId ? `change_emotion:${stickerId}` : "change_emotion" },
       ],
-      [{ text: changeMotionText, callback_data: stickerId ? `change_motion:${stickerId}` : "change_motion" }],
+      [
+        { text: changeMotionText, callback_data: stickerId ? `change_motion:${stickerId}` : "change_motion" },
+        { text: addTextText, callback_data: stickerId ? `add_text:${stickerId}` : "add_text" },
+      ],
     ],
   };
 
