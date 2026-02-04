@@ -124,13 +124,28 @@ async function runJob(job: any) {
       }
     );
   } catch (err: any) {
-    console.error("Gemini API error:", err.response?.data || err.message);
+    const errorData = err.response?.data;
+    const errorMessage = errorData?.error?.message || err.message || err.code || "Unknown error";
+    const errorStatus = err.response?.status;
+    
+    console.error("=== Gemini API Error ===");
+    console.error("Status:", errorStatus);
+    console.error("Message:", errorMessage);
+    console.error("Code:", err.code);
+    console.error("Full response:", JSON.stringify(errorData || {}, null, 2));
+    
     await sendAlert({
       type: "gemini_error",
-      message: err.response?.data?.error?.message || err.message,
-      details: { sessionId: session.id, generationType },
+      message: errorMessage,
+      details: { 
+        sessionId: session.id, 
+        generationType,
+        status: errorStatus,
+        errorCode: err.code,
+        errorData: JSON.stringify(errorData || {}).slice(0, 300),
+      },
     });
-    throw new Error(`Gemini API failed: ${err.response?.data?.error?.message || err.message}`);
+    throw new Error(`Gemini API failed: ${errorMessage}`);
   }
 
   const imageBase64 =
