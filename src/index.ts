@@ -558,6 +558,30 @@ bot.command("balance", async (ctx) => {
   );
 });
 
+// /support command
+bot.command("support", async (ctx) => {
+  const telegramId = ctx.from?.id;
+  if (!telegramId) return;
+
+  const { data: user } = await supabase
+    .from("users")
+    .select("lang")
+    .eq("telegram_id", telegramId)
+    .maybeSingle();
+
+  const lang = user?.lang || "en";
+  const message = await getText(lang, "support.message");
+  const buttonText = await getText(lang, "support.button");
+
+  await ctx.reply(message, {
+    reply_markup: {
+      inline_keyboard: [[
+        { text: buttonText, url: "https://t.me/mazarov" }
+      ]]
+    }
+  });
+});
+
 // Photo handler
 bot.on("photo", async (ctx) => {
   const telegramId = ctx.from?.id;
