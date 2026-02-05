@@ -126,7 +126,7 @@ async function runJob(job: any) {
   // - emotion/motion: Flash model for speed/cost (iterations)
   const model = 
     generationType === "style" || generationType === "text"
-      ? "gemini-2.0-flash-exp"    // Nano Banana Pro — качество
+      ? "gemini-3-pro-vision"    // Nano Banana Pro — качество
       : "gemini-2.5-flash-image"; // Flash — скорость/цена
   console.log("Using model:", model, "generationType:", generationType);
 
