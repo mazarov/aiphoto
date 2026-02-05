@@ -94,6 +94,8 @@ interface NotificationOptions {
   type: NotificationType;
   message: string;
   imageBuffer?: Buffer;
+  sourceImageBuffer?: Buffer;  // Исходное фото
+  resultImageBuffer?: Buffer;  // Результат генерации
 }
 
 export async function sendNotification(options: NotificationOptions): Promise<void> {
@@ -107,8 +109,37 @@ export async function sendNotification(options: NotificationOptions): Promise<vo
   const caption = `${emoji} *${title}*\n\n${options.message}`;
 
   try {
-    if (options.imageBuffer) {
-      // Send photo with caption
+    // Media group: исходное фото + результат
+    if (options.sourceImageBuffer && options.resultImageBuffer) {
+      const formData = new FormData();
+      formData.append("chat_id", channelId);
+      
+      // Attach source image
+      formData.append("source", new Blob([options.sourceImageBuffer], { type: "image/jpeg" }), "source.jpg");
+      // Attach result image
+      formData.append("result", new Blob([options.resultImageBuffer], { type: "image/webp" }), "result.webp");
+      
+      // Media group JSON
+      const media = [
+        { type: "photo", media: "attach://source", caption, parse_mode: "Markdown" },
+        { type: "photo", media: "attach://result" },
+      ];
+      formData.append("media", JSON.stringify(media));
+
+      const response = await fetch(
+        `https://api.telegram.org/bot${config.telegramBotToken}/sendMediaGroup`,
+        {
+          method: "POST",
+          body: formData,
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.text();
+        console.error("[Notification] Failed to send media group:", errorData);
+      }
+    } else if (options.imageBuffer) {
+      // Single photo with caption
       const formData = new FormData();
       formData.append("chat_id", channelId);
       formData.append("caption", caption);
@@ -128,7 +159,7 @@ export async function sendNotification(options: NotificationOptions): Promise<vo
         console.error("[Notification] Failed to send photo:", errorData);
       }
     } else {
-      // Send text only
+      // Text only
       const response = await fetch(
         `https://api.telegram.org/bot${config.telegramBotToken}/sendMessage`,
         {

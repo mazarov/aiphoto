@@ -309,10 +309,22 @@ async function runJob(job: any) {
   }
 
   // Send sticker notification (async, non-blocking)
+  const emotionText = session.selected_emotion || "-";
+  const motionText = generationType === "motion" ? (session.selected_emotion || "-") : "-";
+  const textText = session.text_prompt ? `"${session.text_prompt}"` : "-";
+  
   sendNotification({
     type: "new_sticker",
-    message: `👤 @${user.username || telegramId}\n🎭 Тип: ${generationType}`,
-    imageBuffer: stickerBuffer,
+    message: [
+      `👤 @${user.username || telegramId} (${telegramId})`,
+      `💰 Кредиты: ${user.credits}`,
+      `🎨 Стиль: ${session.selected_style_id || "-"}`,
+      `😊 Эмоция: ${emotionText}`,
+      `🏃 Движение: ${motionText}`,
+      `✍️ Текст: ${textText}`,
+    ].join("\n"),
+    sourceImageBuffer: fileBuffer,
+    resultImageBuffer: stickerBuffer,
   }).catch(console.error);
 
   // Send rating request after 3 seconds (fire-and-forget)

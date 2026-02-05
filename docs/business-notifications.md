@@ -22,15 +22,22 @@
 🌐 Язык: ru
 ```
 
-### Новый стикер (с картинкой)
+### Новый стикер (media group: исходное фото + результат)
 ```
 🎨 Новый стикер
 
 👤 @username (42269230)
-🎭 Тип: style (anime)
+💰 Кредиты: 5
+🎨 Стиль: anime
+😊 Эмоция: happy (или -)
+🏃 Движение: dance (или -)
+✍️ Текст: "Hello" (или -)
 
-[Стикер прикреплён как изображение]
+[Фото 1: исходное изображение]
+[Фото 2: результат генерации]
 ```
+
+**Формат отправки:** Telegram Media Group из 2 фото с caption на первом.
 
 ### Новая оплата
 ```
@@ -60,7 +67,7 @@ sendNotification(...).catch(err => console.error("Notification failed:", err));
 
 ### Модуль: `src/lib/alerts.ts`
 
-Добавить новые типы и функцию для отправки фото:
+Добавить новые типы и функцию для отправки media group:
 
 ```typescript
 type NotificationType = "new_user" | "new_sticker" | "new_payment";
@@ -68,9 +75,16 @@ type NotificationType = "new_user" | "new_sticker" | "new_payment";
 async function sendNotification(options: {
   type: NotificationType;
   message: string;
-  imageBuffer?: Buffer;  // Для стикера
+  imageBuffer?: Buffer;       // Одно изображение (для обратной совместимости)
+  sourceImageBuffer?: Buffer; // Исходное фото (для new_sticker)
+  resultImageBuffer?: Buffer; // Результат генерации (для new_sticker)
 }): Promise<void>;
 ```
+
+**Логика отправки:**
+- Если есть `sourceImageBuffer` + `resultImageBuffer` → отправить как media group
+- Если есть только `imageBuffer` → отправить как одно фото
+- Иначе → отправить текстовое сообщение
 
 ### Точки интеграции
 
@@ -96,10 +110,22 @@ if (isNewUser && user) {
 
 ```typescript
 // После отправки стикера пользователю
+const emotionText = session.selected_emotion || "-";
+const motionText = generationType === "motion" ? (session.selected_emotion || "-") : "-";
+const textText = session.text_prompt ? `"${session.text_prompt}"` : "-";
+
 sendNotification({
   type: "new_sticker",
-  message: `👤 @${user.username || user.telegram_id}\n🎭 Тип: ${generationType}`,
-  imageBuffer: stickerBuffer,
+  message: [
+    `👤 @${user.username || user.telegram_id} (${telegramId})`,
+    `💰 Кредиты: ${user.credits}`,
+    `🎨 Стиль: ${session.selected_style_id || "-"}`,
+    `😊 Эмоция: ${emotionText}`,
+    `🏃 Движение: ${motionText}`,
+    `✍️ Текст: ${textText}`,
+  ].join("\n"),
+  sourceImageBuffer: fileBuffer,  // Исходное фото
+  resultImageBuffer: stickerBuffer,  // Результат
 }).catch(console.error);
 ```
 
@@ -120,3 +146,12 @@ sendNotification({
 - [x] Интегрировать в `worker.ts` — new_sticker после генерации
 - [x] Интегрировать в `index.ts` — new_payment после оплаты
 - [ ] Тестирование всех трёх типов уведомлений
+
+### v2 Улучшения (TODO)
+
+- [ ] Обновить `src/lib/alerts.ts` — добавить поддержку media group (2 фото)
+- [ ] Обновить `worker.ts` — передавать расширенные данные:
+  - Исходное фото (`sourceImageBuffer`)
+  - Результат (`resultImageBuffer`)  
+  - Кредиты, стиль, эмоция, движение, текст
+- [ ] Тестирование media group уведомлений
