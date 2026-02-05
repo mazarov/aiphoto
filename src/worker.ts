@@ -28,7 +28,7 @@ async function runJob(job: any) {
 
   const { data: user } = await supabase
     .from("users")
-    .select("telegram_id, lang, sticker_set_name, username, credits")
+    .select("telegram_id, lang, sticker_set_name, username, credits, total_generations")
     .eq("id", session.user_id)
     .maybeSingle();
 
