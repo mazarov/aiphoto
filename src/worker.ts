@@ -12,6 +12,32 @@ async function sleep(ms: number) {
   await new Promise((r) => setTimeout(r, ms));
 }
 
+// Retry helper with exponential backoff
+async function retryWithBackoff<T>(
+  fn: () => Promise<T>,
+  options: { maxAttempts?: number; baseDelayMs?: number; name?: string } = {}
+): Promise<T> {
+  const { maxAttempts = 3, baseDelayMs = 2000, name = "operation" } = options;
+  
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await fn();
+    } catch (err: any) {
+      const isRetryable = ["ECONNRESET", "ETIMEDOUT", "ECONNREFUSED", "ENOTFOUND"].includes(err.code) 
+        || (err.response?.status && err.response.status >= 500);
+      
+      if (!isRetryable || attempt === maxAttempts) {
+        throw err;
+      }
+      
+      const delay = baseDelayMs * attempt;
+      console.log(`${name} attempt ${attempt}/${maxAttempts} failed (${err.code || err.response?.status}), retrying in ${delay}ms...`);
+      await sleep(delay);
+    }
+  }
+  throw new Error("Unreachable");
+}
+
 const WORKER_ID = `${os.hostname()}-${process.pid}-${Date.now()}`;
 console.log(`Worker started: ${WORKER_ID}`);
 
@@ -200,15 +226,18 @@ async function runJob(job: any) {
   let pixianRes;
   const pixianStartTime = Date.now();
   try {
-    pixianRes = await axios.post("https://api.pixian.ai/api/v2/remove-background", pixianForm, {
-      auth: {
-        username: config.pixianUsername,
-        password: config.pixianPassword,
-      },
-      headers: pixianForm.getHeaders(),
-      responseType: "arraybuffer",
-      timeout: 60000, // 60 seconds timeout
-    });
+    pixianRes = await retryWithBackoff(
+      () => axios.post("https://api.pixian.ai/api/v2/remove-background", pixianForm, {
+        auth: {
+          username: config.pixianUsername,
+          password: config.pixianPassword,
+        },
+        headers: pixianForm.getHeaders(),
+        responseType: "arraybuffer",
+        timeout: 60000, // 60 seconds timeout
+      }),
+      { maxAttempts: 3, baseDelayMs: 2000, name: "Pixian" }
+    );
     const pixianDuration = Date.now() - pixianStartTime;
     console.log(`Pixian background removal successful (took ${pixianDuration}ms)`);
   } catch (err: any) {
@@ -217,7 +246,7 @@ async function runJob(job: any) {
       (typeof err.response.data === 'string' ? err.response.data : err.response.data.toString?.().slice(0, 500)) : 
       'no response body';
     
-    console.error("=== Pixian API Error ===");
+    console.error("=== Pixian API Error (all retries failed) ===");
     console.error("Status:", err.response?.status || "no status");
     console.error("Message:", err.message);
     console.error("Code:", err.code);
@@ -228,13 +257,14 @@ async function runJob(job: any) {
     
     await sendAlert({
       type: "rembg_failed",
-      message: `Pixian API failed: ${err.response?.status || err.code || "unknown"} ${err.message}`,
+      message: `Pixian API failed after 3 attempts: ${err.response?.status || err.code || "unknown"} ${err.message}`,
       details: { 
         sessionId: session.id,
         imageSizeKb,
         durationMs: pixianDuration,
         errorCode: err.code,
         status: err.response?.status,
+        attempts: 3,
       },
     });
     throw new Error(`Pixian API failed: ${err.response?.status} ${err.message}`);
