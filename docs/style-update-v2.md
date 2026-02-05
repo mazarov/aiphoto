@@ -11,15 +11,15 @@
 
 | # | ID | Emoji | Название RU | Name EN | prompt_hint |
 |---|-----|-------|-------------|---------|-------------|
-| 1 | cartoon | 🎨 | Мультфильм | Cartoon | cartoon style, bold outlines, bright colors, simplified shapes |
+| 1 | simpsons | 📺 | Симпсоны | Simpsons | The Simpsons cartoon style, yellow skin, overbite, bold outlines, flat colors |
 | 2 | anime | 🎌 | Аниме | Anime | anime style, clean lines, expressive eyes, detailed hair |
 | 3 | animals | 🐾 | Звери как люди | Animals Like Humans | anthropomorphic animal style, animal with human expression and posture, expressive eyes |
 | 4 | meme | 😂 | Мемы | Meme | internet meme style, exaggerated expression, reaction face |
-| 5 | magic | ✨ | Магический мир | Magic World | fantasy wizard style, glowing effects, sparkles, mystical aura |
+| 5 | potter | ⚡ | Гарри Поттер | Harry Potter | Harry Potter wizard style, Hogwarts aesthetic, magical robes, wand, mystical aura |
 | 6 | love | 💕 | История любви | Love Story | romantic illustration style, soft pink lighting, heart motifs, dreamy atmosphere |
 | 7 | cute | 🥰 | Милый | Cute | cute kawaii style, soft pastel colors, rounded shapes |
 | 8 | chibi | 🍡 | Чиби | Chibi | chibi style, big head, tiny body, adorable proportions |
-| 9 | tv | 📺 | Мультсериал | TV Cartoon | tv cartoon style, simplified shapes, flat colors, limited shading, clean outlines |
+| 9 | tv | 🎬 | Мультсериал | TV Cartoon | tv cartoon style, simplified shapes, flat colors, limited shading, clean outlines |
 
 ### 2. Скрытые стили (is_active = false)
 
@@ -77,15 +77,15 @@ UPDATE style_presets SET is_active = false;
 
 -- 2. Вставляем/обновляем новые стили
 INSERT INTO style_presets (id, emoji, name_ru, name_en, prompt_hint, sort_order, is_active) VALUES
-  ('cartoon', '🎨', 'Мультфильм', 'Cartoon', 'cartoon style, bold outlines, bright colors, simplified shapes', 1, true),
+  ('simpsons', '📺', 'Симпсоны', 'Simpsons', 'The Simpsons cartoon style, yellow skin, overbite, bold outlines, flat colors', 1, true),
   ('anime', '🎌', 'Аниме', 'Anime', 'anime style, clean lines, expressive eyes, detailed hair', 2, true),
   ('animals', '🐾', 'Звери как люди', 'Animals Like Humans', 'anthropomorphic animal style, animal with human expression and posture, expressive eyes', 3, true),
   ('meme', '😂', 'Мемы', 'Meme', 'internet meme style, exaggerated expression, reaction face', 4, true),
-  ('magic', '✨', 'Магический мир', 'Magic World', 'fantasy wizard style, glowing effects, sparkles, mystical aura', 5, true),
+  ('potter', '⚡', 'Гарри Поттер', 'Harry Potter', 'Harry Potter wizard style, Hogwarts aesthetic, magical robes, wand, mystical aura', 5, true),
   ('love', '💕', 'История любви', 'Love Story', 'romantic illustration style, soft pink lighting, heart motifs, dreamy atmosphere', 6, true),
   ('cute', '🥰', 'Милый', 'Cute', 'cute kawaii style, soft pastel colors, rounded shapes', 7, true),
   ('chibi', '🍡', 'Чиби', 'Chibi', 'chibi style, big head, tiny body, adorable proportions', 8, true),
-  ('tv', '📺', 'Мультсериал', 'TV Cartoon', 'tv cartoon style, simplified shapes, flat colors, limited shading, clean outlines', 9, true)
+  ('tv', '🎬', 'Мультсериал', 'TV Cartoon', 'tv cartoon style, simplified shapes, flat colors, limited shading, clean outlines', 9, true)
 ON CONFLICT (id) DO UPDATE SET
   emoji = EXCLUDED.emoji,
   name_ru = EXCLUDED.name_ru,
