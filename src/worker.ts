@@ -223,9 +223,9 @@ async function runJob(job: any) {
   
   // Try rembg (self-hosted) first
   if (rembgUrl) {
-    // Resize image for faster rembg processing (max 1024px)
+    // Resize image for faster rembg processing (max 512px - same as final sticker size)
     const rembgBuffer = await sharp(paddedBuffer)
-      .resize(1024, 1024, { fit: "inside", withoutEnlargement: true })
+      .resize(512, 512, { fit: "inside", withoutEnlargement: true })
       .png()
       .toBuffer();
     const rembgSizeKb = Math.round(rembgBuffer.length / 1024);
