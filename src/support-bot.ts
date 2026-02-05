@@ -107,13 +107,14 @@ bot.on("text", async (ctx) => {
 // Cron: отправка вопросов (каждую минуту)
 async function sendFeedbackQuestions() {
   try {
-    const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+    const delayMs = 10 * 1000; // 10 seconds for testing (TODO: change to 15 * 60 * 1000 for production)
+    const triggerTime = new Date(Date.now() - delayMs).toISOString();
     
     const { data: users, error } = await supabase
       .from("users")
       .select("id, telegram_id, username, feedback_trigger_at, credits")
       .not("feedback_trigger_at", "is", null)
-      .lt("feedback_trigger_at", fifteenMinutesAgo)
+      .lt("feedback_trigger_at", triggerTime)
       .eq("credits", 0)
       .limit(10);
     
