@@ -482,7 +482,7 @@ async function sendBuyCreditsMenu(ctx: any, user: any, messageText?: string) {
   const lang = user.lang || "en";
   const text = messageText || await getText(lang, "payment.balance", { credits: user.credits });
 
-  const buttons: ReturnType<typeof Markup.button.callback>[][] = [];
+  const buttons: any[][] = [];
 
   // One button per row with full label
   for (const pack of CREDIT_PACKS) {
