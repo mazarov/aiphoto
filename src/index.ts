@@ -367,6 +367,19 @@ async function startGeneration(
   console.log("check (credits < needed):", user?.credits < creditsNeeded);
 
   if (user.credits < creditsNeeded) {
+    // Send alert (async, non-blocking)
+    sendAlert({
+      type: "not_enough_credits",
+      message: "Not enough credits!",
+      details: {
+        user: `@${user.username || user.telegram_id}`,
+        type: options.generationType,
+        style: options.selectedStyleId || "-",
+        credits: user.credits,
+        needed: creditsNeeded,
+      },
+    }).catch(console.error);
+
     await supabase
       .from("sessions")
       .update({
