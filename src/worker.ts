@@ -397,9 +397,14 @@ async function runJob(job: any) {
     ],
   };
 
-  // Send sticker (WITHOUT buttons during first onboarding step)
+  // Send sticker (only "Add to pack" button during first onboarding step)
   console.time("step7_sendSticker");
-  const stickerMarkup = isOnboardingFirstSticker ? undefined : replyMarkup;
+  const onboardingMarkup = {
+    inline_keyboard: [
+      [{ text: addToPackText, callback_data: stickerId ? `add_to_pack:${stickerId}` : "add_to_pack" }],
+    ],
+  };
+  const stickerMarkup = isOnboardingFirstSticker ? onboardingMarkup : replyMarkup;
   const stickerFileId = await sendSticker(telegramId, stickerBuffer, stickerMarkup);
   console.timeEnd("step7_sendSticker");
 
