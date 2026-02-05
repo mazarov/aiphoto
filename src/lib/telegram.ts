@@ -28,6 +28,7 @@ export async function downloadFile(filePath: string): Promise<Buffer> {
 
 export async function sendMessage(chatId: number, text: string, replyMarkup?: any): Promise<{ message_id: number } | null> {
   try {
+    console.log("sendMessage payload:", JSON.stringify({ chat_id: chatId, text: text.substring(0, 50), reply_markup: replyMarkup }));
     const res = await axios.post(`${apiBase}/sendMessage`, {
       chat_id: chatId,
       text,
@@ -38,9 +39,10 @@ export async function sendMessage(chatId: number, text: string, replyMarkup?: an
     if (res.data?.ok && res.data.result?.message_id) {
       return { message_id: res.data.result.message_id };
     }
+    console.error("sendMessage unexpected response:", res.data);
     return null;
-  } catch (err) {
-    console.error("sendMessage error:", err);
+  } catch (err: any) {
+    console.error("sendMessage error:", err.response?.data || err.message);
     return null;
   }
 }
