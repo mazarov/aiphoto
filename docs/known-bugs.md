@@ -1,0 +1,17 @@
+# Known Bugs
+
+## 1. Белый фон у стикера в уведомлениях
+Telegram API `sendMediaGroup` с `type: "photo"` рендерит прозрачность как белый фон.
+Компонент: `alerts.ts`, `worker.ts`
+
+## 2. Нет retry логики для Telegram API
+При ошибке отправки сообщения (таймаут, 5xx) нет повторных попыток — сообщение теряется.
+Компонент: `telegram.ts`, `alerts.ts`
+
+## 3. In-memory Maps теряются при рестарте
+`pendingFeedback` и `pendingIssues` в support-bot хранятся в памяти, теряются при рестарте.
+Компонент: `support-bot.ts`
+
+## 4. Нет rate limiting
+Нет защиты от спама. Кредиты — единственное ограничение.
+Компонент: `index.ts`, `worker.ts`
