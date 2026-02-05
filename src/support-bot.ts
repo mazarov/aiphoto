@@ -16,6 +16,9 @@ const pendingReplies = new Map<number, number>(); // admin_id -> target_user_id
 // Map для отслеживания кто ожидает ввода feedback
 const pendingFeedback = new Map<number, string>(); // telegram_id -> user_id
 
+// Map для отслеживания кто ожидает ввода issue
+const pendingIssues = new Map<number, string>(); // telegram_id -> sticker_id
+
 console.log("Admin IDs:", ADMIN_IDS);
 
 // /start handler
@@ -30,6 +33,18 @@ bot.start(async (ctx) => {
     await ctx.reply(
       "Спасибо что решили оставить отзыв! 🙏\n\n" +
       "Напишите пару слов — что понравилось, что не понравилось, чего не хватает?"
+    );
+    return;
+  }
+  
+  // Пользователь пришёл сообщить о проблеме со стикером
+  if (payload?.startsWith("issue_")) {
+    const stickerId = payload.replace("issue_", "");
+    pendingIssues.set(ctx.from.id, stickerId);
+    
+    await ctx.reply(
+      "Опишите проблему или предложение по улучшению:\n\n" +
+      "Что именно не понравилось в результате?"
     );
     return;
   }
@@ -111,6 +126,26 @@ bot.on("text", async (ctx) => {
     return;
   }
   
+  // Пользователь сообщает о проблеме со стикером
+  if (pendingIssues.has(telegramId)) {
+    const stickerId = pendingIssues.get(telegramId)!;
+    pendingIssues.delete(telegramId);
+    
+    // Сохраняем в базу
+    await supabase.from("sticker_issues").insert({
+      sticker_id: stickerId,
+      telegram_id: telegramId,
+      username: ctx.from.username,
+      issue_text: ctx.message.text,
+    });
+    
+    // Отправляем алерт в Support Channel
+    await sendIssueAlert(ctx.from, stickerId, ctx.message.text);
+    
+    await ctx.reply("Спасибо! Мы учтём ваш отзыв при улучшении бота 💜");
+    return;
+  }
+  
   // Пользователь отвечает на feedback (старый флоу - для совместимости)
   const { data: feedback } = await supabase
     .from("user_feedback")
@@ -171,6 +206,37 @@ async function sendFeedbackAlert(from: any, text: string) {
 // Алерт с кнопкой ответа (для произвольного сообщения)
 async function sendMessageAlert(from: any, text: string) {
   await sendAlertWithReply(from, text, "💬 *Сообщение*");
+}
+
+// Алерт о проблеме со стикером
+async function sendIssueAlert(from: any, stickerId: string, text: string) {
+  const channelId = config.supportChannelId;
+  if (!channelId) return;
+  
+  const message = 
+    `🐛 *Проблема со стикером*\n\n` +
+    `👤 @${from.username || from.id} (${from.id})\n` +
+    `🎨 Стикер: \`${stickerId}\`\n` +
+    `💬 "${escapeMarkdown(text)}"`;
+  
+  try {
+    await fetch(`https://api.telegram.org/bot${config.supportBotToken}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: channelId,
+        text: message,
+        parse_mode: "Markdown",
+        reply_markup: {
+          inline_keyboard: [[
+            { text: "📩 Ответить", url: `https://t.me/${config.supportBotUsername}?start=reply_${from.id}` }
+          ]]
+        }
+      })
+    });
+  } catch (err) {
+    console.error("Failed to send issue alert:", err);
+  }
 }
 
 // Общая функция для алертов с кнопкой ответа

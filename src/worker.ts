@@ -315,6 +315,71 @@ async function runJob(job: any) {
     imageBuffer: stickerBuffer,
   }).catch(console.error);
 
+  // Send rating request after 3 seconds (fire-and-forget)
+  if (stickerId) {
+    setTimeout(async () => {
+      try {
+        // Create rating record
+        const { data: ratingRecord } = await supabase
+          .from("sticker_ratings")
+          .insert({
+            sticker_id: stickerId,
+            session_id: session.id,
+            user_id: session.user_id,
+            telegram_id: telegramId,
+            generation_type: generationType,
+            style_id: session.selected_style_id,
+            emotion_id: session.selected_emotion,
+            prompt_final: session.prompt_final,
+          })
+          .select("id")
+          .single();
+
+        if (!ratingRecord?.id) {
+          console.error("Failed to create rating record");
+          return;
+        }
+
+        const ratingText = lang === "ru" 
+          ? "Как вам результат? Оцените от 1 до 5:"
+          : "How do you like it? Rate from 1 to 5:";
+        
+        const issueButtonText = lang === "ru"
+          ? "💬 Написать о проблеме"
+          : "💬 Report an issue";
+
+        const ratingMsg = await sendMessage(telegramId, ratingText, {
+          reply_markup: {
+            inline_keyboard: [
+              [
+                { text: "⭐ 1", callback_data: `rate:${ratingRecord.id}:1` },
+                { text: "⭐ 2", callback_data: `rate:${ratingRecord.id}:2` },
+                { text: "⭐ 3", callback_data: `rate:${ratingRecord.id}:3` },
+                { text: "⭐ 4", callback_data: `rate:${ratingRecord.id}:4` },
+                { text: "⭐ 5", callback_data: `rate:${ratingRecord.id}:5` },
+              ],
+              [
+                { text: issueButtonText, url: `https://t.me/p2s_support_bot?start=issue_${stickerId}` }
+              ]
+            ]
+          }
+        });
+
+        // Save message_id for potential deletion
+        if (ratingMsg?.message_id) {
+          await supabase
+            .from("sticker_ratings")
+            .update({ message_id: ratingMsg.message_id, chat_id: telegramId })
+            .eq("id", ratingRecord.id);
+        }
+        
+        console.log("Rating request sent to", telegramId);
+      } catch (err) {
+        console.error("Failed to send rating request:", err);
+      }
+    }, 3000);
+  }
+
   // Create feedback trigger if user has 0 credits (fire-and-forget)
   if (user.credits === 0) {
     (async () => {

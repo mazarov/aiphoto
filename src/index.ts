@@ -1509,6 +1509,27 @@ bot.action("buy_credits", async (ctx) => {
   await sendBuyCreditsMenu(ctx, user);
 });
 
+// Callback: rate:<rating_id>:<score>
+bot.action(/^rate:(.+):(\d)$/, async (ctx) => {
+  safeAnswerCbQuery(ctx);
+  const ratingId = ctx.match[1];
+  const score = parseInt(ctx.match[2]);
+  
+  const { error } = await supabase
+    .from("sticker_ratings")
+    .update({ 
+      rating: score, 
+      rated_at: new Date().toISOString() 
+    })
+    .eq("id", ratingId)
+    .is("rating", null); // Только если ещё не оценено
+  
+  if (!error) {
+    const thankYouText = "⭐".repeat(score) + " Спасибо за оценку! 🙏";
+    await ctx.editMessageText(thankYouText);
+  }
+});
+
 // Callback: cancel
 bot.action("cancel", async (ctx) => {
   const telegramId = ctx.from?.id;
