@@ -438,7 +438,7 @@ async function runJob(job: any) {
     emotionButtons.push([{ text: skipText, callback_data: "onboarding_skip" }]);
     
     await sendMessage(telegramId, onboardingText, {
-      reply_markup: { inline_keyboard: emotionButtons },
+      inline_keyboard: emotionButtons,
     });
 
     // Update onboarding_step to 1
@@ -458,12 +458,10 @@ async function runJob(job: any) {
     const newPhotoText = lang === "ru" ? "📷 Новое фото" : "📷 New photo";
     
     await sendMessage(telegramId, finalText, {
-      reply_markup: {
-        inline_keyboard: [
-          [{ text: buyText, callback_data: "buy_credits" }],
-          [{ text: newPhotoText, callback_data: "new_photo" }],
-        ],
-      },
+      inline_keyboard: [
+        [{ text: buyText, callback_data: "buy_credits" }],
+        [{ text: newPhotoText, callback_data: "new_photo" }],
+      ],
     });
 
     // Update onboarding_step to 2
