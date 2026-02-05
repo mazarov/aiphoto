@@ -98,12 +98,8 @@ bot.on("text", async (ctx) => {
     return;
   }
   
-  // Произвольное сообщение - тоже сохраняем и уведомляем
-  await sendToSupportChannel(
-    `💬 *Сообщение*\n\n` +
-    `👤 @${ctx.from.username || ctx.from.id} (${ctx.from.id})\n` +
-    `💬 "${escapeMarkdown(ctx.message.text)}"`
-  );
+  // Произвольное сообщение - тоже уведомляем с кнопкой ответа
+  await sendMessageAlert(ctx.from, ctx.message.text);
   
   await ctx.reply("Спасибо за сообщение! Мы свяжемся с вами если потребуется.");
 });
@@ -200,13 +196,23 @@ async function sendToSupportChannel(text: string) {
   }
 }
 
-// Алерт с кнопкой ответа
+// Алерт с кнопкой ответа (для фидбека)
 async function sendFeedbackAlert(from: any, text: string) {
+  await sendAlertWithReply(from, text, "📝 *Фидбек*");
+}
+
+// Алерт с кнопкой ответа (для произвольного сообщения)
+async function sendMessageAlert(from: any, text: string) {
+  await sendAlertWithReply(from, text, "💬 *Сообщение*");
+}
+
+// Общая функция для алертов с кнопкой ответа
+async function sendAlertWithReply(from: any, text: string, title: string) {
   const channelId = config.supportChannelId;
   if (!channelId) return;
   
   const message = 
-    `📝 *Фидбек*\n\n` +
+    `${title}\n\n` +
     `👤 @${from.username || from.id} (${from.id})\n` +
     `💬 "${escapeMarkdown(text)}"`;
   
