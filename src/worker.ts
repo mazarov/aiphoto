@@ -214,63 +214,91 @@ async function runJob(job: any) {
     .toBuffer();
 
   await updateProgress(5);
-  // Remove background with Pixian
+  // Remove background (rembg first, Pixian fallback)
   const imageSizeKb = Math.round(paddedBuffer.length / 1024);
-  console.log(`Calling Pixian to remove background... (image size: ${imageSizeKb} KB)`);
-  const pixianForm = new FormData();
-  pixianForm.append("image", paddedBuffer, {
-    filename: "image.png",
-    contentType: "image/png",
-  });
-
-  let pixianRes;
-  const pixianStartTime = Date.now();
-  try {
-    pixianRes = await retryWithBackoff(
-      () => axios.post("https://api.pixian.ai/api/v2/remove-background", pixianForm, {
-        auth: {
-          username: config.pixianUsername,
-          password: config.pixianPassword,
-        },
-        headers: pixianForm.getHeaders(),
-        responseType: "arraybuffer",
-        timeout: 60000, // 60 seconds timeout
-      }),
-      { maxAttempts: 3, baseDelayMs: 2000, name: "Pixian" }
-    );
-    const pixianDuration = Date.now() - pixianStartTime;
-    console.log(`Pixian background removal successful (took ${pixianDuration}ms)`);
-  } catch (err: any) {
-    const pixianDuration = Date.now() - pixianStartTime;
-    const responseBody = err.response?.data ? 
-      (typeof err.response.data === 'string' ? err.response.data : err.response.data.toString?.().slice(0, 500)) : 
-      'no response body';
-    
-    console.error("=== Pixian API Error (all retries failed) ===");
-    console.error("Status:", err.response?.status || "no status");
-    console.error("Message:", err.message);
-    console.error("Code:", err.code);
-    console.error("Duration:", pixianDuration, "ms");
-    console.error("Image size:", imageSizeKb, "KB");
-    console.error("Response headers:", JSON.stringify(err.response?.headers || {}));
-    console.error("Response body:", responseBody);
-    
-    await sendAlert({
-      type: "rembg_failed",
-      message: `Pixian API failed after 3 attempts: ${err.response?.status || err.code || "unknown"} ${err.message}`,
-      details: { 
-        sessionId: session.id,
-        imageSizeKb,
-        durationMs: pixianDuration,
-        errorCode: err.code,
-        status: err.response?.status,
-        attempts: 3,
-      },
+  const rembgUrl = process.env.REMBG_URL;
+  
+  let noBgBuffer: Buffer;
+  const startTime = Date.now();
+  
+  // Try rembg (self-hosted) first
+  if (rembgUrl) {
+    console.log(`Trying rembg at ${rembgUrl}... (image size: ${imageSizeKb} KB)`);
+    const rembgForm = new FormData();
+    rembgForm.append("image", paddedBuffer, {
+      filename: "image.png",
+      contentType: "image/png",
     });
-    throw new Error(`Pixian API failed: ${err.response?.status} ${err.message}`);
+    
+    try {
+      const rembgRes = await retryWithBackoff(
+        () => axios.post(`${rembgUrl}/remove-background`, rembgForm, {
+          headers: rembgForm.getHeaders(),
+          responseType: "arraybuffer",
+          timeout: 120000, // 2 minutes for CPU processing
+        }),
+        { maxAttempts: 2, baseDelayMs: 3000, name: "rembg" }
+      );
+      const duration = Date.now() - startTime;
+      console.log(`rembg background removal successful (took ${duration}ms)`);
+      noBgBuffer = Buffer.from(rembgRes.data);
+    } catch (rembgErr: any) {
+      console.error("rembg failed, falling back to Pixian:", rembgErr.message);
+      // Fall through to Pixian
+    }
   }
+  
+  // Fallback to Pixian if rembg not configured or failed
+  if (!noBgBuffer!) {
+    console.log(`Calling Pixian to remove background... (image size: ${imageSizeKb} KB)`);
+    const pixianForm = new FormData();
+    pixianForm.append("image", paddedBuffer, {
+      filename: "image.png",
+      contentType: "image/png",
+    });
 
-  const noBgBuffer = Buffer.from(pixianRes.data);
+    try {
+      const pixianRes = await retryWithBackoff(
+        () => axios.post("https://api.pixian.ai/api/v2/remove-background", pixianForm, {
+          auth: {
+            username: config.pixianUsername,
+            password: config.pixianPassword,
+          },
+          headers: pixianForm.getHeaders(),
+          responseType: "arraybuffer",
+          timeout: 60000,
+        }),
+        { maxAttempts: 3, baseDelayMs: 2000, name: "Pixian" }
+      );
+      const duration = Date.now() - startTime;
+      console.log(`Pixian background removal successful (took ${duration}ms)`);
+      noBgBuffer = Buffer.from(pixianRes.data);
+    } catch (err: any) {
+      const duration = Date.now() - startTime;
+      const responseBody = err.response?.data ? 
+        (typeof err.response.data === 'string' ? err.response.data : err.response.data.toString?.().slice(0, 500)) : 
+        'no response body';
+      
+      console.error("=== Background removal failed (all methods) ===");
+      console.error("Status:", err.response?.status || "no status");
+      console.error("Message:", err.message);
+      console.error("Code:", err.code);
+      console.error("Duration:", duration, "ms");
+      
+      await sendAlert({
+        type: "rembg_failed",
+        message: `Background removal failed: ${err.response?.status || err.code || "unknown"} ${err.message}`,
+        details: { 
+          sessionId: session.id,
+          imageSizeKb,
+          durationMs: duration,
+          errorCode: err.code,
+          rembgConfigured: !!rembgUrl,
+        },
+      });
+      throw new Error(`Background removal failed: ${err.message}`);
+    }
+  }
 
   await updateProgress(6);
   // Trim transparent borders and fit into 512x512
