@@ -26,14 +26,23 @@ export async function downloadFile(filePath: string): Promise<Buffer> {
   return Buffer.from(res.data);
 }
 
-export async function sendMessage(chatId: number, text: string, replyMarkup?: any) {
-  await axios.post(`${apiBase}/sendMessage`, {
-    chat_id: chatId,
-    text,
-    parse_mode: "HTML",
-    disable_web_page_preview: true,
-    reply_markup: replyMarkup,
-  });
+export async function sendMessage(chatId: number, text: string, replyMarkup?: any): Promise<{ message_id: number } | null> {
+  try {
+    const res = await axios.post(`${apiBase}/sendMessage`, {
+      chat_id: chatId,
+      text,
+      parse_mode: "HTML",
+      disable_web_page_preview: true,
+      reply_markup: replyMarkup,
+    });
+    if (res.data?.ok && res.data.result?.message_id) {
+      return { message_id: res.data.result.message_id };
+    }
+    return null;
+  } catch (err) {
+    console.error("sendMessage error:", err);
+    return null;
+  }
 }
 
 export async function editMessageText(chatId: number, messageId: number, text: string) {
