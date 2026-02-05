@@ -336,12 +336,13 @@ async function generatePrompt(userInput: string): Promise<PromptResult> {
   }
 }
 
-async function enqueueJob(sessionId: string, userId: string) {
+async function enqueueJob(sessionId: string, userId: string, isFirstFree: boolean = false) {
   await supabase.from("jobs").insert({
     session_id: sessionId,
     user_id: userId,
     status: "queued",
     attempts: 0,
+    is_first_free: isFirstFree,
   });
 }
 
@@ -371,14 +372,17 @@ async function startGeneration(
   }
 ) {
   const creditsNeeded = 1;
+  const isFirstFree = (user.total_generations || 0) === 0;
 
   console.log("=== startGeneration ===");
   console.log("user.id:", user?.id);
   console.log("user.credits:", user?.credits, "type:", typeof user?.credits);
+  console.log("user.total_generations:", user?.total_generations);
+  console.log("isFirstFree:", isFirstFree);
   console.log("creditsNeeded:", creditsNeeded);
-  console.log("check (credits < needed):", user?.credits < creditsNeeded);
 
-  if (user.credits < creditsNeeded) {
+  // First generation is FREE
+  if (!isFirstFree && user.credits < creditsNeeded) {
     // Send alert (async, non-blocking)
     sendAlert({
       type: "not_enough_credits",
@@ -415,10 +419,13 @@ async function startGeneration(
     return;
   }
 
-  await supabase
-    .from("users")
-    .update({ credits: user.credits - creditsNeeded })
-    .eq("id", user.id);
+  // Deduct credits only if not first free
+  if (!isFirstFree) {
+    await supabase
+      .from("users")
+      .update({ credits: user.credits - creditsNeeded })
+      .eq("id", user.id);
+  }
 
   const nextState = 
     options.generationType === "emotion" ? "processing_emotion" :
@@ -435,13 +442,13 @@ async function startGeneration(
       selected_emotion: options.selectedEmotion || null,
       text_prompt: options.textPrompt || null,
       generation_type: options.generationType,
-      credits_spent: creditsNeeded,
+      credits_spent: isFirstFree ? 0 : creditsNeeded,
       state: nextState,
       is_active: true,
     })
     .eq("id", session.id);
 
-  await enqueueJob(session.id, user.id);
+  await enqueueJob(session.id, user.id, isFirstFree);
 
   await sendProgressStart(ctx, session.id, lang);
 }

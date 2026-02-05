@@ -95,10 +95,16 @@ async function runJob(job: any) {
   console.log("Full prompt:", session.prompt_final);
   console.log("text_prompt:", session.text_prompt);
 
+  // Select model: better quality for first free generation
+  const model = job.is_first_free 
+    ? "gemini-2.5-flash-image"  // TODO: change to better model for wow-effect
+    : "gemini-2.5-flash-image"; // Standard model
+  console.log("Using model:", model, "is_first_free:", job.is_first_free);
+
   let geminiRes;
   try {
     geminiRes = await axios.post(
-      "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent",
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
       {
         contents: [
           {
@@ -307,6 +313,13 @@ async function runJob(job: any) {
   } else {
     console.log(">>> WARNING: skipped telegram_file_id update, stickerId:", stickerId, "stickerFileId:", !!stickerFileId);
   }
+
+  // Increment total_generations counter
+  await supabase
+    .from("users")
+    .update({ total_generations: (user.total_generations || 0) + 1 })
+    .eq("id", session.user_id);
+  console.log("total_generations incremented for user:", session.user_id);
 
   // Send sticker notification (async, non-blocking)
   const emotionText = session.selected_emotion || "-";
