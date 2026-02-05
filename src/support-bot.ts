@@ -235,13 +235,23 @@ process.once("SIGINT", () => bot.stop("SIGINT"));
 process.once("SIGTERM", () => bot.stop("SIGTERM"));
 
 // Запуск
+console.log("Starting bot.launch()...");
 bot.launch({ dropPendingUpdates: true }).then(() => {
   console.log("Support bot started");
   
   // Запускаем cron сразу и каждую минуту
+  console.log("Starting cron...");
   processTriggers();
   setInterval(processTriggers, 60 * 1000);
+  console.log("Cron started");
 }).catch((err) => {
   console.error("Failed to start support bot:", err);
   process.exit(1);
 });
+
+// Fallback: если bot.launch() зависает, запустить cron через 10 сек
+setTimeout(() => {
+  console.log("Fallback: starting cron after 10s timeout");
+  processTriggers();
+  setInterval(processTriggers, 60 * 1000);
+}, 10000);
