@@ -629,7 +629,7 @@ bot.command("support", async (ctx) => {
   await ctx.reply(message, {
     reply_markup: {
       inline_keyboard: [[
-        { text: buttonText, url: "https://t.me/mazarov" }
+        { text: buttonText, url: "https://t.me/p2s_support_bot" }
       ]]
     }
   });
