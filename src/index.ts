@@ -120,9 +120,9 @@ async function countStyleExamples(styleId: string): Promise<number> {
 // Styles v2: Groups + Substyles (isolated)
 // ============================================
 
-// Feature flag helper
+// Feature flag helper - enabled for all users
 function useStylesV2(telegramId: number): boolean {
-  return config.stylesV2EnabledUsers?.includes(telegramId) ?? false;
+  return true;
 }
 
 // Interfaces for v2
@@ -910,8 +910,7 @@ bot.on("photo", async (ctx) => {
     console.error("Failed to update session to wait_style:", error);
   }
 
-  // Show v2 groups for enabled users, old flat list for others
-  console.log("[Styles v2] Check:", { telegramId, enabled: useStylesV2(telegramId), configUsers: config.stylesV2EnabledUsers });
+  // Show v2 groups for all users
   if (useStylesV2(telegramId)) {
     console.log("[Styles v2] Showing groups for user:", telegramId);
     const groups = await getStyleGroups();
