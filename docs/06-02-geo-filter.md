@@ -1,0 +1,155 @@
+# Geo-фильтрация: Whitelist языков
+
+## Проблема
+Пользователи из бедных стран съедают бесплатные кредиты без конверсии в оплату.
+
+## Решение
+Давать бесплатные кредиты только пользователям из целевых регионов (по `language_code`).
+
+---
+
+## Whitelist языков
+
+```typescript
+const ALLOWED_LANG_PREFIXES = [
+  // Россия + СНГ
+  "ru",  // Russian
+  "uk",  // Ukrainian
+  "be",  // Belarusian
+  "kk",  // Kazakh
+  "uz",  // Uzbek
+  "ky",  // Kyrgyz
+  "tg",  // Tajik
+  "az",  // Azerbaijani
+  "hy",  // Armenian
+  "ka",  // Georgian
+  
+  // США + Англоязычные
+  "en",  // English (USA, UK, Canada, Australia, etc.)
+  
+  // Европа
+  "de",  // German
+  "fr",  // French
+  "es",  // Spanish
+  "it",  // Italian
+  "pt",  // Portuguese
+  "nl",  // Dutch
+  "pl",  // Polish
+  "cs",  // Czech
+  "sk",  // Slovak
+  "hu",  // Hungarian
+  "ro",  // Romanian
+  "bg",  // Bulgarian
+  "el",  // Greek
+  "sv",  // Swedish
+  "da",  // Danish
+  "fi",  // Finnish
+  "no",  // Norwegian
+  "et",  // Estonian
+  "lv",  // Latvian
+  "lt",  // Lithuanian
+  "sl",  // Slovenian
+  "hr",  // Croatian
+  "sr",  // Serbian
+  "tr",  // Turkish
+];
+```
+
+## Заблокированные регионы (0 кредитов)
+
+- 🇮🇳 Индия (hi)
+- 🇧🇩 Бангладеш (bn)
+- 🇮🇩 Индонезия (id)
+- 🇻🇳 Вьетнам (vi)
+- 🇵🇭 Филиппины (tl)
+- 🇹🇭 Таиланд (th)
+- 🇮🇷 Иран (fa)
+- 🇵🇰 Пакистан (ur)
+- Арабские страны (ar)
+- Африка
+- Латинская Америка (кроме испано/португалоязычных)
+- И все остальные, не в whitelist
+
+---
+
+## Реализация
+
+### 1. Добавить в config.ts
+
+```typescript
+// Whitelist языков для бесплатных кредитов
+allowedLangPrefixes: [
+  // Россия + СНГ
+  "ru", "uk", "be", "kk", "uz", "ky", "tg", "az", "hy", "ka",
+  // США + Англоязычные + Европа
+  "en", "de", "fr", "es", "it", "pt", "nl", "pl", "cs", "sk",
+  "hu", "ro", "bg", "el", "sv", "da", "fi", "no", "et", "lv",
+  "lt", "sl", "hr", "sr", "tr",
+],
+```
+
+### 2. Хелпер функция
+
+```typescript
+function isAllowedLanguage(languageCode: string): boolean {
+  const code = (languageCode || "").toLowerCase();
+  return config.allowedLangPrefixes.some(prefix => code.startsWith(prefix));
+}
+```
+
+### 3. Изменить /start (регистрация)
+
+```typescript
+// Сейчас:
+await supabase.from("transactions").insert({
+  user_id: user.id,
+  amount: 2,  // всегда 2
+  ...
+});
+
+// После:
+const languageCode = ctx.from?.language_code || "";
+const freeCredits = isAllowedLanguage(languageCode) ? 2 : 0;
+
+if (freeCredits > 0) {
+  await supabase.from("transactions").insert({
+    user_id: user.id,
+    amount: freeCredits,
+    ...
+  });
+}
+```
+
+### 4. (Опционально) Сохранять language_code для аналитики
+
+```sql
+ALTER TABLE users ADD COLUMN IF NOT EXISTS language_code text;
+```
+
+```typescript
+await supabase.from("users").insert({ 
+  telegram_id: telegramId, 
+  lang,
+  language_code: ctx.from?.language_code || null,  // для аналитики
+  ...
+});
+```
+
+---
+
+## Чеклист
+
+- [ ] Добавить `allowedLangPrefixes` в config.ts
+- [ ] Функция `isAllowedLanguage()`
+- [ ] Условное начисление кредитов в /start
+- [ ] (Опционально) SQL миграция для `language_code`
+- [ ] (Опционально) Сохранять `language_code` при регистрации
+- [ ] Тестирование
+
+---
+
+## Примечания
+
+- `language_code` — язык интерфейса Telegram, не гарантирует страну
+- Пользователь может сменить язык в настройках Telegram
+- Для более точной фильтрации нужны платные сервисы (IP geolocation)
