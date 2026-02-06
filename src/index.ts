@@ -878,7 +878,7 @@ bot.on("text", async (ctx) => {
 });
 
 // Callback: style selection
-bot.action(/^style_(.+)$/, async (ctx) => {
+bot.action(/^style_([^:]+)$/, async (ctx) => {
   try {
     safeAnswerCbQuery(ctx);
     const telegramId = ctx.from?.id;
