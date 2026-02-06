@@ -1287,28 +1287,26 @@ bot.action(/^style_groups_back(:.*)?$/, async (ctx) => {
 // Callback: example for v2 substyle
 bot.action(/^style_example_v2:(.+):(.+)$/, async (ctx) => {
   try {
+    safeAnswerCbQuery(ctx);
     const telegramId = ctx.from?.id;
-    if (!telegramId) {
-      safeAnswerCbQuery(ctx);
-      return;
-    }
+    if (!telegramId) return;
 
-    if (!useStylesV2(telegramId)) {
-      safeAnswerCbQuery(ctx);
-      return;
-    }
+    if (!useStylesV2(telegramId)) return;
 
     const user = await getUser(telegramId);
-    if (!user?.id) {
-      safeAnswerCbQuery(ctx);
-      return;
-    }
+    if (!user?.id) return;
 
     const lang = user.lang || "en";
     const substyleId = ctx.match[1];
     const groupId = ctx.match[2];
     
     console.log("[Styles v2] Example requested:", substyleId, "groupId:", groupId);
+
+    // Get substyle name
+    const preset = await getStylePresetV2ById(substyleId);
+    const styleName = preset 
+      ? (lang === "ru" ? preset.name_ru : preset.name_en)
+      : substyleId;
 
     // Get example from stickers table
     const { data: example } = await supabase
@@ -1321,36 +1319,176 @@ bot.action(/^style_example_v2:(.+):(.+)$/, async (ctx) => {
       .limit(1)
       .maybeSingle();
 
-    console.log("[Styles v2] Example found:", !!example?.telegram_file_id);
+    // Count total examples
+    const { count: totalExamples } = await supabase
+      .from("stickers")
+      .select("id", { count: "exact", head: true })
+      .eq("style_preset_id", substyleId)
+      .eq("is_example", true)
+      .not("telegram_file_id", "is", null);
+
+    console.log("[Styles v2] Example found:", !!example?.telegram_file_id, "total:", totalExamples);
+
+    const backText = await getText(lang, "btn.back_to_styles");
 
     if (!example?.telegram_file_id) {
-      // No example yet - show alert
+      // No examples - edit message to show text
       const noExamplesText = await getText(lang, "style.no_examples");
-      console.log("[Styles v2] Showing no examples alert:", noExamplesText);
-      await ctx.answerCbQuery(noExamplesText, { show_alert: true }).catch((e: any) => console.error("answerCbQuery error:", e?.message));
+      await ctx.editMessageText(noExamplesText, {
+        reply_markup: {
+          inline_keyboard: [[{ text: backText, callback_data: `back_to_substyles_v2:${groupId}` }]]
+        }
+      });
       return;
     }
 
-    // Answer callback first, then send sticker
-    safeAnswerCbQuery(ctx);
+    // Delete old message
+    await ctx.deleteMessage().catch(() => {});
 
-    // Send example sticker
+    // Send sticker
+    const stickerMsg = await ctx.replyWithSticker(example.telegram_file_id);
+
+    // Build buttons
+    const titleText = await getText(lang, "style.example_title", { style: styleName });
     const moreText = await getText(lang, "btn.more");
-    const backText = await getText(lang, "btn.back_to_styles");
+    const buttons: any[][] = [];
     
-    await ctx.replyWithSticker(example.telegram_file_id, {
-      reply_markup: {
-        inline_keyboard: [
-          [
-            { text: moreText, callback_data: `style_example_v2_more:${substyleId}:${groupId}:1` },
-            { text: backText, callback_data: `style_groups_back:${groupId}` }
-          ]
-        ]
-      }
+    if ((totalExamples || 0) > 1) {
+      buttons.push([
+        { text: moreText, callback_data: `style_example_v2_more:${substyleId}:${groupId}:1` },
+        { text: backText, callback_data: `back_to_substyles_v2:${groupId}` }
+      ]);
+    } else {
+      buttons.push([{ text: backText, callback_data: `back_to_substyles_v2:${groupId}` }]);
+    }
+
+    const captionMsg = await ctx.reply(titleText, {
+      reply_markup: { inline_keyboard: buttons }
     });
+
+    // Auto-delete after 30 seconds
+    const chatId = ctx.chat?.id;
+    if (chatId) {
+      setTimeout(() => {
+        ctx.telegram.deleteMessage(chatId, stickerMsg.message_id).catch(() => {});
+        ctx.telegram.deleteMessage(chatId, captionMsg.message_id).catch(() => {});
+      }, 30000);
+    }
   } catch (err) {
     console.error("Style example v2 error:", err);
+  }
+});
+
+// Callback: back to substyles (from example)
+bot.action(/^back_to_substyles_v2:(.+)$/, async (ctx) => {
+  try {
     safeAnswerCbQuery(ctx);
+    const telegramId = ctx.from?.id;
+    if (!telegramId) return;
+
+    if (!useStylesV2(telegramId)) return;
+
+    const user = await getUser(telegramId);
+    if (!user?.id) return;
+
+    const lang = user.lang || "en";
+    const groupId = ctx.match[1];
+
+    // Delete current message and show substyles
+    await ctx.deleteMessage().catch(() => {});
+    await sendSubstylesKeyboard(ctx, lang, groupId);
+  } catch (err) {
+    console.error("Back to substyles v2 error:", err);
+  }
+});
+
+// Callback: more examples v2
+bot.action(/^style_example_v2_more:(.+):(.+):(\d+)$/, async (ctx) => {
+  try {
+    safeAnswerCbQuery(ctx);
+    const telegramId = ctx.from?.id;
+    if (!telegramId) return;
+
+    if (!useStylesV2(telegramId)) return;
+
+    const user = await getUser(telegramId);
+    if (!user?.id) return;
+
+    const lang = user.lang || "en";
+    const substyleId = ctx.match[1];
+    const groupId = ctx.match[2];
+    const offset = parseInt(ctx.match[3], 10);
+
+    console.log("[Styles v2] More examples:", substyleId, "offset:", offset);
+
+    const backText = await getText(lang, "btn.back_to_styles");
+
+    // Max 3 examples
+    if (offset >= 3) {
+      const noMoreText = await getText(lang, "style.no_more_examples");
+      await ctx.editMessageText(noMoreText, {
+        reply_markup: {
+          inline_keyboard: [[{ text: backText, callback_data: `back_to_substyles_v2:${groupId}` }]]
+        }
+      });
+      return;
+    }
+
+    // Get next example
+    const { data: examples } = await supabase
+      .from("stickers")
+      .select("telegram_file_id")
+      .eq("style_preset_id", substyleId)
+      .eq("is_example", true)
+      .not("telegram_file_id", "is", null)
+      .order("created_at", { ascending: false })
+      .range(offset, offset);
+
+    const example = examples?.[0];
+
+    if (!example?.telegram_file_id) {
+      const noMoreText = await getText(lang, "style.no_more_examples");
+      await ctx.editMessageText(noMoreText, {
+        reply_markup: {
+          inline_keyboard: [[{ text: backText, callback_data: `back_to_substyles_v2:${groupId}` }]]
+        }
+      });
+      return;
+    }
+
+    // Delete old messages (sticker + caption)
+    await ctx.deleteMessage().catch(() => {});
+
+    // Send new sticker
+    const stickerMsg = await ctx.replyWithSticker(example.telegram_file_id);
+
+    // Get substyle name
+    const preset = await getStylePresetV2ById(substyleId);
+    const styleName = preset 
+      ? (lang === "ru" ? preset.name_ru : preset.name_en)
+      : substyleId;
+    const titleText = await getText(lang, "style.example_title", { style: styleName });
+    const moreText = await getText(lang, "btn.more");
+
+    const captionMsg = await ctx.reply(titleText, {
+      reply_markup: {
+        inline_keyboard: [[
+          { text: moreText, callback_data: `style_example_v2_more:${substyleId}:${groupId}:${offset + 1}` },
+          { text: backText, callback_data: `back_to_substyles_v2:${groupId}` }
+        ]]
+      }
+    });
+
+    // Auto-delete after 30 seconds
+    const chatId = ctx.chat?.id;
+    if (chatId) {
+      setTimeout(() => {
+        ctx.telegram.deleteMessage(chatId, stickerMsg.message_id).catch(() => {});
+        ctx.telegram.deleteMessage(chatId, captionMsg.message_id).catch(() => {});
+      }, 30000);
+    }
+  } catch (err) {
+    console.error("Style example v2 more error:", err);
   }
 });
 
