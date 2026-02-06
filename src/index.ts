@@ -900,8 +900,11 @@ bot.on("photo", async (ctx) => {
   }
 
   // Show v2 groups for enabled users, old flat list for others
+  console.log("[Styles v2] Check:", { telegramId, enabled: useStylesV2(telegramId), configUsers: config.stylesV2EnabledUsers });
   if (useStylesV2(telegramId)) {
     console.log("[Styles v2] Showing groups for user:", telegramId);
+    const groups = await getStyleGroups();
+    console.log("[Styles v2] Groups count:", groups.length);
     await sendStyleGroupsKeyboard(ctx, lang);
   } else {
     await sendStyleKeyboard(ctx, lang);
