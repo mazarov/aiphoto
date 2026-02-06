@@ -98,6 +98,16 @@ async function runJob(job: any) {
       ? session.last_sticker_file_id
       : session.current_photo_file_id || photos[photos.length - 1];
 
+  // Debug logging for source file
+  console.log("[Worker] Source file debug:", {
+    generationType,
+    sourceFileId: sourceFileId?.substring(0, 30) + "...",
+    "session.current_photo_file_id": session.current_photo_file_id?.substring(0, 30) + "...",
+    "session.last_sticker_file_id": session.last_sticker_file_id?.substring(0, 30) + "...",
+    "photos.length": photos.length,
+    "photos[last]": photos[photos.length - 1]?.substring(0, 30) + "...",
+  });
+
   if (!sourceFileId) {
     throw new Error("No source file for generation");
   }
@@ -350,13 +360,21 @@ async function runJob(job: any) {
   const filePathStorage = `stickers/${session.user_id}/${session.id}/${Date.now()}.webp`;
 
   // Insert sticker record first to get ID for callback_data
+  const savedSourcePhotoFileId = generationType === "emotion" ? session.current_photo_file_id : sourceFileId;
+  console.log("[Worker] Saving sticker with source_photo_file_id:", {
+    generationType,
+    savedSourcePhotoFileId: savedSourcePhotoFileId?.substring(0, 30) + "...",
+    "session.current_photo_file_id": session.current_photo_file_id?.substring(0, 30) + "...",
+    sourceFileId: sourceFileId?.substring(0, 30) + "...",
+  });
+  
   console.time("step7_insert");
   const { data: stickerRecord } = await supabase
     .from("stickers")
     .insert({
       user_id: session.user_id,
       session_id: session.id,
-      source_photo_file_id: generationType === "emotion" ? session.current_photo_file_id : sourceFileId,
+      source_photo_file_id: savedSourcePhotoFileId,
       user_input: session.user_input || null,
       generated_prompt: session.prompt_final || null,
       result_storage_path: filePathStorage,
