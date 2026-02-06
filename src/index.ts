@@ -197,7 +197,7 @@ async function getStylePresetV2ById(id: string): Promise<StylePresetV2 | null> {
   return presets.find(p => p.id === id) || null;
 }
 
-async function sendStyleGroupsKeyboard(ctx: any, lang: string, messageId?: number) {
+async function buildStyleGroupsButtons(lang: string): Promise<any[][]> {
   const groups = await getStyleGroups();
   const customText = await getText(lang, "btn.custom_style");
   
@@ -205,29 +205,33 @@ async function sendStyleGroupsKeyboard(ctx: any, lang: string, messageId?: numbe
   const buttons: any[][] = [];
   for (let i = 0; i < groups.length; i += 2) {
     const row: any[] = [];
-    row.push(Markup.button.callback(
-      `${groups[i].emoji} ${lang === "ru" ? groups[i].name_ru : groups[i].name_en}`,
-      `style_group:${groups[i].id}`
-    ));
+    row.push({ text: `${groups[i].emoji} ${lang === "ru" ? groups[i].name_ru : groups[i].name_en}`, callback_data: `style_group:${groups[i].id}` });
     if (groups[i + 1]) {
-      row.push(Markup.button.callback(
-        `${groups[i + 1].emoji} ${lang === "ru" ? groups[i + 1].name_ru : groups[i + 1].name_en}`,
-        `style_group:${groups[i + 1].id}`
-      ));
+      row.push({ text: `${groups[i + 1].emoji} ${lang === "ru" ? groups[i + 1].name_ru : groups[i + 1].name_en}`, callback_data: `style_group:${groups[i + 1].id}` });
     }
     buttons.push(row);
   }
   
   // Custom style button
-  buttons.push([Markup.button.callback(customText, "style_custom_v2")]);
+  buttons.push([{ text: customText, callback_data: "style_custom_v2" }]);
+  
+  return buttons;
+}
 
+async function sendStyleGroupsKeyboard(ctx: any, lang: string, messageId?: number) {
+  const buttons = await buildStyleGroupsButtons(lang);
   const text = await getText(lang, "style.select_group");
-  const markup = Markup.inlineKeyboard(buttons);
 
   if (messageId) {
-    await ctx.telegram.editMessageText(ctx.chat.id, messageId, null, text, markup);
+    await ctx.telegram.editMessageText(
+      ctx.chat?.id,
+      messageId,
+      undefined,
+      text,
+      { reply_markup: { inline_keyboard: buttons } }
+    ).catch((err: any) => console.error("sendStyleGroupsKeyboard error:", err?.message));
   } else {
-    await ctx.reply(text, markup);
+    await ctx.reply(text, Markup.inlineKeyboard(buttons));
   }
 }
 
@@ -238,26 +242,33 @@ async function sendSubstylesKeyboard(ctx: any, lang: string, groupId: string, me
 
   const substyles = await getStylePresetsV2(groupId);
   const backText = await getText(lang, "btn.back_to_groups");
+  const exampleText = await getText(lang, "btn.example");
   
-  // 1 column for substyles
+  // Substyle button + Example button in one row
   const buttons: any[][] = substyles.map(s => [
     Markup.button.callback(
       `${s.emoji} ${lang === "ru" ? s.name_ru : s.name_en}`,
       `style_v2:${s.id}`
-    )
+    ),
+    Markup.button.callback(exampleText, `style_example_v2:${s.id}:${groupId}`)
   ]);
   
   // Back button
-  buttons.push([Markup.button.callback(backText, "style_groups_back")]);
+  buttons.push([Markup.button.callback(backText, `style_groups_back:${groupId}`)]);
 
   const groupName = lang === "ru" ? group.name_ru : group.name_en;
   const text = await getText(lang, "style.select_substyle", { emoji: group.emoji, name: groupName });
-  const markup = Markup.inlineKeyboard(buttons);
-
+  
   if (messageId) {
-    await ctx.telegram.editMessageText(ctx.chat.id, messageId, null, text, markup);
+    await ctx.telegram.editMessageText(
+      ctx.chat?.id,
+      messageId,
+      undefined,
+      text,
+      { reply_markup: { inline_keyboard: buttons } }
+    ).catch((err: any) => console.error("editMessageText error:", err?.message));
   } else {
-    await ctx.reply(text, markup);
+    await ctx.reply(text, Markup.inlineKeyboard(buttons));
   }
 }
 
@@ -1246,7 +1257,7 @@ bot.action(/^style_v2:(.+)$/, async (ctx) => {
 });
 
 // Callback: back to groups (v2)
-bot.action("style_groups_back", async (ctx) => {
+bot.action(/^style_groups_back(:.*)?$/, async (ctx) => {
   try {
     safeAnswerCbQuery(ctx);
     const telegramId = ctx.from?.id;
@@ -1261,9 +1272,70 @@ bot.action("style_groups_back", async (ctx) => {
     const session = await getActiveSession(user.id);
     if (!session?.id || session.state !== "wait_style") return;
 
-    await sendStyleGroupsKeyboard(ctx, lang, ctx.callbackQuery?.message?.message_id);
+    const messageId = ctx.callbackQuery?.message?.message_id;
+    await ctx.telegram.editMessageText(
+      ctx.chat?.id,
+      messageId,
+      undefined,
+      await getText(lang, "style.select_group"),
+      { reply_markup: { inline_keyboard: await buildStyleGroupsButtons(lang) } }
+    ).catch((err: any) => console.error("Back to groups error:", err?.message));
   } catch (err) {
     console.error("Style groups back callback error:", err);
+  }
+});
+
+// Callback: example for v2 substyle
+bot.action(/^style_example_v2:(.+):(.+)$/, async (ctx) => {
+  try {
+    safeAnswerCbQuery(ctx);
+    const telegramId = ctx.from?.id;
+    if (!telegramId) return;
+
+    if (!useStylesV2(telegramId)) return;
+
+    const user = await getUser(telegramId);
+    if (!user?.id) return;
+
+    const lang = user.lang || "en";
+    const substyleId = ctx.match[1];
+    const groupId = ctx.match[2];
+    
+    console.log("[Styles v2] Example requested:", substyleId);
+
+    // Get example from stickers table
+    const { data: example } = await supabase
+      .from("stickers")
+      .select("telegram_file_id")
+      .eq("style_preset_id", substyleId)
+      .eq("is_example", true)
+      .not("telegram_file_id", "is", null)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (!example?.telegram_file_id) {
+      // No example yet - show message
+      await ctx.answerCbQuery(await getText(lang, "style.no_examples"), { show_alert: true });
+      return;
+    }
+
+    // Send example sticker
+    const moreText = await getText(lang, "btn.more");
+    const backText = await getText(lang, "btn.back_to_styles");
+    
+    await ctx.replyWithSticker(example.telegram_file_id, {
+      reply_markup: {
+        inline_keyboard: [
+          [
+            { text: moreText, callback_data: `style_example_v2_more:${substyleId}:${groupId}:1` },
+            { text: backText, callback_data: `style_groups_back:${groupId}` }
+          ]
+        ]
+      }
+    });
+  } catch (err) {
+    console.error("Style example v2 error:", err);
   }
 });
 
