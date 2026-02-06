@@ -148,11 +148,24 @@ CREATE TABLE IF NOT EXISTS style_groups (
   name_en text NOT NULL,
   sort_order int DEFAULT 0,
   is_active boolean DEFAULT true,
+  show_in_onboarding boolean DEFAULT true,  -- скрыть группу для новичков
   created_at timestamptz DEFAULT now()
 );
 
 CREATE INDEX IF NOT EXISTS style_groups_active_idx 
 ON style_groups (is_active, sort_order);
+```
+
+#### Онбординг-фильтрация
+
+Колонка `show_in_onboarding` контролирует видимость группы для пользователей в процессе онбординга (`onboarding_step < 2`):
+
+- `true` (default) — группа видна всем
+- `false` — группа скрыта для новичков, видна только после завершения онбординга
+
+**Пример:** скрыть "Русские" и "Сериалы" для новичков:
+```sql
+UPDATE style_groups SET show_in_onboarding = false WHERE id IN ('russian', 'tv');
 ```
 
 ### 3.2 Новая таблица `style_presets_v2` (полная изоляция)
@@ -374,12 +387,13 @@ GROUP BY selected_style_group;
 - [x] Вставить группы в `style_groups`
 - [x] Вставить подстили в `style_presets_v2`
 - [x] **НЕ трогать** существующую `style_presets`
+- [x] Миграция `037_onboarding_style_flag.sql` — флаг `show_in_onboarding`
 
 ### Фаза 2: Код
 - [x] Feature flag в config
 - [x] Хелпер `useStylesV2()`
-- [x] Функция `buildStyleGroupsButtons()`
-- [x] Функция `sendStyleGroupsKeyboard()`
+- [x] Функция `buildStyleGroupsButtons(lang, isOnboarding)` — фильтрация по `show_in_onboarding`
+- [x] Функция `sendStyleGroupsKeyboard(ctx, lang, messageId, isOnboarding)`
 - [x] Функция `sendSubstylesKeyboard()` (с кнопками примеров)
 - [x] Хендлер `style_group:*`
 - [x] Хендлер `style_v2:*`
