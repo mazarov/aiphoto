@@ -1288,20 +1288,28 @@ bot.action(/^style_groups_back(:.*)?$/, async (ctx) => {
 // Callback: example for v2 substyle
 bot.action(/^style_example_v2:(.+):(.+)$/, async (ctx) => {
   try {
-    safeAnswerCbQuery(ctx);
     const telegramId = ctx.from?.id;
-    if (!telegramId) return;
+    if (!telegramId) {
+      safeAnswerCbQuery(ctx);
+      return;
+    }
 
-    if (!useStylesV2(telegramId)) return;
+    if (!useStylesV2(telegramId)) {
+      safeAnswerCbQuery(ctx);
+      return;
+    }
 
     const user = await getUser(telegramId);
-    if (!user?.id) return;
+    if (!user?.id) {
+      safeAnswerCbQuery(ctx);
+      return;
+    }
 
     const lang = user.lang || "en";
     const substyleId = ctx.match[1];
     const groupId = ctx.match[2];
     
-    console.log("[Styles v2] Example requested:", substyleId);
+    console.log("[Styles v2] Example requested:", substyleId, "groupId:", groupId);
 
     // Get example from stickers table
     const { data: example } = await supabase
@@ -1314,11 +1322,18 @@ bot.action(/^style_example_v2:(.+):(.+)$/, async (ctx) => {
       .limit(1)
       .maybeSingle();
 
+    console.log("[Styles v2] Example found:", !!example?.telegram_file_id);
+
     if (!example?.telegram_file_id) {
-      // No example yet - show message
-      await ctx.answerCbQuery(await getText(lang, "style.no_examples"), { show_alert: true });
+      // No example yet - show alert
+      const noExamplesText = await getText(lang, "style.no_examples");
+      console.log("[Styles v2] Showing no examples alert:", noExamplesText);
+      await ctx.answerCbQuery(noExamplesText, { show_alert: true }).catch((e: any) => console.error("answerCbQuery error:", e?.message));
       return;
     }
+
+    // Answer callback first, then send sticker
+    safeAnswerCbQuery(ctx);
 
     // Send example sticker
     const moreText = await getText(lang, "btn.more");
@@ -1336,6 +1351,7 @@ bot.action(/^style_example_v2:(.+):(.+)$/, async (ctx) => {
     });
   } catch (err) {
     console.error("Style example v2 error:", err);
+    safeAnswerCbQuery(ctx);
   }
 });
 
