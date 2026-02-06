@@ -338,7 +338,7 @@ async function runJob(job: any) {
   await updateProgress(6);
   // Trim transparent borders and fit into 512x512
   const stickerBuffer = await sharp(noBgBuffer)
-    .trim({ threshold: 10 })
+    .trim({ threshold: 3 })
     .resize(512, 512, {
       fit: "contain",
       background: { r: 0, g: 0, b: 0, alpha: 0 },

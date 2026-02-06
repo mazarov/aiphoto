@@ -1696,7 +1696,7 @@ bot.action(/^style_example:(.+)$/, async (ctx) => {
   await ctx.deleteMessage().catch(() => {});
 
   // Send sticker
-  await ctx.replyWithSticker(example.telegram_file_id);
+  const stickerMsg = await ctx.replyWithSticker(example.telegram_file_id);
 
   // Build buttons: [More] if there are more, always [Back]
   const buttons: any[][] = [];
@@ -1709,9 +1709,18 @@ bot.action(/^style_example:(.+)$/, async (ctx) => {
     buttons.push([{ text: backText, callback_data: "back_to_styles" }]);
   }
 
-  await ctx.reply(titleText, {
+  const captionMsg = await ctx.reply(titleText, {
     reply_markup: { inline_keyboard: buttons }
   });
+
+  // Auto-delete after 30 seconds
+  const chatId = ctx.chat?.id;
+  if (chatId) {
+    setTimeout(() => {
+      ctx.telegram.deleteMessage(chatId, stickerMsg.message_id).catch(() => {});
+      ctx.telegram.deleteMessage(chatId, captionMsg.message_id).catch(() => {});
+    }, 30000);
+  }
 });
 
 // Callback: style_example_more - show next example (offset)
@@ -1770,7 +1779,7 @@ bot.action(/^style_example_more:(.+):(\d+)$/, async (ctx) => {
   await ctx.deleteMessage().catch(() => {});
 
   // Send sticker
-  await ctx.replyWithSticker(example.telegram_file_id);
+  const stickerMsg = await ctx.replyWithSticker(example.telegram_file_id);
 
   // Build buttons
   const titleText = await getText(lang, "style.example_title", { style: styleName });
@@ -1790,9 +1799,18 @@ bot.action(/^style_example_more:(.+):(\d+)$/, async (ctx) => {
     buttons.push([{ text: backText, callback_data: "back_to_styles" }]);
   }
 
-  await ctx.reply(titleText, {
+  const captionMsg = await ctx.reply(titleText, {
     reply_markup: { inline_keyboard: buttons }
   });
+
+  // Auto-delete after 30 seconds
+  const chatId = ctx.chat?.id;
+  if (chatId) {
+    setTimeout(() => {
+      ctx.telegram.deleteMessage(chatId, stickerMsg.message_id).catch(() => {});
+      ctx.telegram.deleteMessage(chatId, captionMsg.message_id).catch(() => {});
+    }, 30000);
+  }
 });
 
 // Callback: back_to_styles - return to style selection
