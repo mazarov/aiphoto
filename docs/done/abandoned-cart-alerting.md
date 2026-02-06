@@ -105,8 +105,9 @@ async function processAbandonedCartAlerts() {
 
 ## Чеклист
 
-- [ ] Миграция: поле `alert_sent` в transactions
-- [ ] Функция отправки алерта с кнопкой
-- [ ] Обновить `sendNotification` для поддержки кнопок
-- [ ] Cron job каждые 5 минут
+- [x] Миграция: поле `alert_sent` в transactions
+- [x] Функция отправки алерта с кнопкой
+- [x] Обновить `sendNotification` для поддержки кнопок
+- [x] Cron job каждые 5 минут
+- [ ] Применить миграцию в Supabase
 - [ ] Тестирование

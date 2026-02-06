@@ -76,19 +76,27 @@ function escapeMarkdown(text: string): string {
 }
 
 // Business notifications
-type NotificationType = "new_user" | "new_sticker" | "new_payment";
+type NotificationType = "new_user" | "new_sticker" | "new_payment" | "abandoned_cart";
 
 const NOTIFICATION_EMOJI: Record<NotificationType, string> = {
   new_user: "👤",
   new_sticker: "🎨",
   new_payment: "💰",
+  abandoned_cart: "🛒",
 };
 
 const NOTIFICATION_TITLE: Record<NotificationType, string> = {
   new_user: "Новый пользователь",
   new_sticker: "Новый стикер",
   new_payment: "Новая оплата",
+  abandoned_cart: "Брошенная корзина",
 };
+
+interface InlineButton {
+  text: string;
+  url?: string;
+  callback_data?: string;
+}
 
 interface NotificationOptions {
   type: NotificationType;
@@ -96,6 +104,7 @@ interface NotificationOptions {
   imageBuffer?: Buffer;
   sourceImageBuffer?: Buffer;  // Исходное фото
   resultImageBuffer?: Buffer;  // Результат генерации
+  buttons?: InlineButton[][];  // Inline keyboard buttons
 }
 
 export async function sendNotification(options: NotificationOptions): Promise<void> {
@@ -159,17 +168,26 @@ export async function sendNotification(options: NotificationOptions): Promise<vo
         console.error("[Notification] Failed to send photo:", errorData);
       }
     } else {
-      // Text only
+      // Text only (with optional buttons)
+      const body: any = {
+        chat_id: channelId,
+        text: caption,
+        parse_mode: "Markdown",
+      };
+
+      // Add inline keyboard if buttons provided
+      if (options.buttons && options.buttons.length > 0) {
+        body.reply_markup = {
+          inline_keyboard: options.buttons,
+        };
+      }
+
       const response = await fetch(
         `https://api.telegram.org/bot${config.telegramBotToken}/sendMessage`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            chat_id: channelId,
-            text: caption,
-            parse_mode: "Markdown",
-          }),
+          body: JSON.stringify(body),
         }
       );
 

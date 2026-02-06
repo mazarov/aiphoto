@@ -2086,15 +2086,92 @@ async function processAbandonedCarts() {
   }
 }
 
+const ABANDONED_CART_ALERT_DELAY_MS = 15 * 60 * 1000; // 15 minutes
+
+async function processAbandonedCartAlerts() {
+  try {
+    const cutoffTime = new Date(Date.now() - ABANDONED_CART_ALERT_DELAY_MS).toISOString();
+    
+    // Find transactions older than 15 minutes without alert
+    const { data: abandoned, error } = await supabase
+      .from("transactions")
+      .select("*, users(*)")
+      .eq("state", "created")
+      .eq("alert_sent", false)
+      .gt("price", 0)
+      .lt("created_at", cutoffTime)
+      .limit(10); // Process in batches
+
+    if (error) {
+      console.error("processAbandonedCartAlerts query error:", error);
+      return;
+    }
+
+    if (!abandoned?.length) {
+      return;
+    }
+
+    console.log(`Processing ${abandoned.length} abandoned cart alerts`);
+
+    for (const tx of abandoned) {
+      const user = tx.users;
+      if (!user?.telegram_id) continue;
+
+      const minutesSince = Math.round((Date.now() - new Date(tx.created_at).getTime()) / 60000);
+      
+      // Determine pack name
+      const packName = tx.amount === 10 ? "Лайт" : tx.amount === 30 ? "Бро" : `${tx.amount} кредитов`;
+
+      const message = `👤 @${user.username || 'no_username'} (${user.telegram_id})
+📦 Пакет: ${packName} (${tx.amount} кредитов)
+💰 Сумма: ${tx.price}⭐
+⏱ Прошло: ${minutesSince} мин`;
+
+      try {
+        await sendNotification({
+          type: "abandoned_cart",
+          message,
+          buttons: [[{
+            text: "Написать пользователю",
+            url: `https://t.me/${config.supportBotUsername}?start=reply_${user.telegram_id}`
+          }]]
+        });
+
+        console.log(`Sent abandoned cart alert for ${user.username || user.telegram_id}`);
+
+        // Mark alert as sent
+        await supabase
+          .from("transactions")
+          .update({ alert_sent: true, alert_sent_at: new Date().toISOString() })
+          .eq("id", tx.id);
+
+      } catch (err: any) {
+        console.error(`Failed to send alert for ${user.telegram_id}:`, err.message);
+        // Still mark as sent to avoid retry spam
+        await supabase
+          .from("transactions")
+          .update({ alert_sent: true, alert_sent_at: new Date().toISOString() })
+          .eq("id", tx.id);
+      }
+    }
+  } catch (err) {
+    console.error("processAbandonedCartAlerts error:", err);
+  }
+}
+
 // Start abandoned cart processing interval
 function startAbandonedCartProcessor() {
   console.log("Starting abandoned cart processor (every 5 minutes)");
   
   // Run immediately on start
-  processAbandonedCarts();
+  processAbandonedCartAlerts();  // 15 min alert to team
+  processAbandonedCarts();       // 30 min discount to user
   
   // Then run every 5 minutes
-  setInterval(processAbandonedCarts, ABANDONED_CART_CHECK_INTERVAL_MS);
+  setInterval(() => {
+    processAbandonedCartAlerts();
+    processAbandonedCarts();
+  }, ABANDONED_CART_CHECK_INTERVAL_MS);
 }
 
 async function startBot() {
