@@ -117,9 +117,10 @@ async function processAbandonedCarts() {
 
 ## Чеклист
 
-- [ ] Добавить скрытые тарифы в CREDIT_PACKS
-- [ ] Миграция: поле `reminder_sent` в transactions
-- [ ] Функция отправки напоминания со скидкой
-- [ ] Cron job каждые 5 минут
-- [ ] Тексты на ru/en
+- [x] Добавить скрытые тарифы в CREDIT_PACKS
+- [x] Миграция: поле `reminder_sent` в transactions
+- [x] Функция отправки напоминания со скидкой
+- [x] Cron job каждые 5 минут
+- [x] Тексты на ru/en
+- [ ] Применить миграцию в Supabase
 - [ ] Тестирование

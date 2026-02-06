@@ -460,11 +460,14 @@ async function startGeneration(
   await sendProgressStart(ctx, session.id, lang);
 }
 
-// Credit packages: { credits, price_in_stars, label_ru, label_en, price_rub, adminOnly? }
+// Credit packages: { credits, price_in_stars, label_ru, label_en, price_rub, adminOnly?, hidden? }
 const CREDIT_PACKS = [
   { credits: 1, price: 1, price_rub: 1, label_ru: "🔧 Тест", label_en: "🔧 Test", adminOnly: true },
   { credits: 10, price: 150, price_rub: 150, label_ru: "🧪 Лайт", label_en: "🧪 Light" },
   { credits: 30, price: 300, price_rub: 300, label_ru: "⭐ Бро", label_en: "⭐ Bro" },
+  // Hidden discount packs for abandoned carts (not shown in UI, used via direct callback)
+  { credits: 10, price: 135, price_rub: 135, label_ru: "🧪 Лайт -10%", label_en: "🧪 Light -10%", hidden: true },
+  { credits: 30, price: 270, price_rub: 270, label_ru: "⭐ Бро -10%", label_en: "⭐ Bро -10%", hidden: true },
 ];
 
 // Helper: get user by telegram_id
@@ -510,8 +513,8 @@ async function sendBuyCreditsMenu(ctx: any, user: any, messageText?: string) {
   const text = messageText || await getText(lang, "payment.balance", { credits: user.credits });
   const isAdmin = config.adminIds.includes(user.telegram_id);
 
-  // Filter packs: show adminOnly only for admins
-  const availablePacks = CREDIT_PACKS.filter(p => !p.adminOnly || isAdmin);
+  // Filter packs: hide adminOnly (unless admin) and hidden packs
+  const availablePacks = CREDIT_PACKS.filter(p => !p.hidden && (!p.adminOnly || isAdmin));
 
   const buttons: any[][] = [];
 
@@ -1980,6 +1983,120 @@ app.listen(config.port, () => {
   console.log(`API running on :${config.port}`);
 });
 
+// ============================================
+// ABANDONED CART PROCESSING
+// ============================================
+
+const ABANDONED_CART_DELAY_MS = 30 * 60 * 1000; // 30 minutes
+const ABANDONED_CART_CHECK_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+
+// Map original price to discounted price (10% off)
+const DISCOUNT_MAP: Record<number, number> = {
+  150: 135, // Лайт: 150 -> 135
+  300: 270, // Бро: 300 -> 270
+};
+
+async function processAbandonedCarts() {
+  try {
+    const cutoffTime = new Date(Date.now() - ABANDONED_CART_DELAY_MS).toISOString();
+    
+    // Find transactions older than 30 minutes without reminder
+    const { data: abandoned, error } = await supabase
+      .from("transactions")
+      .select("*, users(*)")
+      .eq("state", "created")
+      .eq("reminder_sent", false)
+      .gt("price", 0)
+      .lt("created_at", cutoffTime)
+      .limit(10); // Process in batches
+
+    if (error) {
+      console.error("processAbandonedCarts query error:", error);
+      return;
+    }
+
+    if (!abandoned?.length) {
+      return;
+    }
+
+    console.log(`Processing ${abandoned.length} abandoned carts`);
+
+    for (const tx of abandoned) {
+      const user = tx.users;
+      if (!user?.telegram_id) continue;
+
+      const lang = user.lang || "en";
+      const discountedPrice = DISCOUNT_MAP[tx.price];
+      
+      // Skip if no discount available for this price
+      if (!discountedPrice) {
+        console.log(`No discount for price ${tx.price}, skipping`);
+        // Mark as sent to avoid re-processing
+        await supabase
+          .from("transactions")
+          .update({ reminder_sent: true, reminder_sent_at: new Date().toISOString() })
+          .eq("id", tx.id);
+        continue;
+      }
+
+      // Determine pack name
+      const packName = tx.amount === 10 
+        ? (lang === "ru" ? "Лайт" : "Light")
+        : tx.amount === 30 
+          ? (lang === "ru" ? "Бро" : "Bro")
+          : `${tx.amount}`;
+
+      // Build message
+      const message = lang === "ru"
+        ? `🛒 Ты выбрал пакет "${packName}", но не завершил оплату.\n\nСпециально для тебя — скидка 10%:\n${tx.amount} стикеров за ${discountedPrice}⭐ вместо ${tx.price}⭐\n\nПредложение действует 24 часа ⏰`
+        : `🛒 You selected the "${packName}" pack but didn't complete the payment.\n\nSpecial offer for you — 10% off:\n${tx.amount} stickers for ${discountedPrice}⭐ instead of ${tx.price}⭐\n\nOffer valid for 24 hours ⏰`;
+
+      const buttonText = lang === "ru"
+        ? `Оплатить со скидкой ${discountedPrice}⭐`
+        : `Pay with discount ${discountedPrice}⭐`;
+
+      try {
+        await bot.telegram.sendMessage(
+          user.telegram_id,
+          message,
+          Markup.inlineKeyboard([
+            [Markup.button.callback(buttonText, `pack_${tx.amount}_${discountedPrice}`)]
+          ])
+        );
+
+        console.log(`Sent abandoned cart reminder to ${user.username || user.telegram_id}`);
+
+        // Mark reminder as sent
+        await supabase
+          .from("transactions")
+          .update({ reminder_sent: true, reminder_sent_at: new Date().toISOString() })
+          .eq("id", tx.id);
+
+      } catch (err: any) {
+        console.error(`Failed to send reminder to ${user.telegram_id}:`, err.message);
+        // Still mark as sent to avoid retry spam
+        await supabase
+          .from("transactions")
+          .update({ reminder_sent: true, reminder_sent_at: new Date().toISOString() })
+          .eq("id", tx.id);
+      }
+    }
+  } catch (err) {
+    console.error("processAbandonedCarts error:", err);
+  }
+}
+
+// Start abandoned cart processing interval
+function startAbandonedCartProcessor() {
+  console.log("Starting abandoned cart processor (every 5 minutes)");
+  
+  // Run immediately on start
+  processAbandonedCarts();
+  
+  // Then run every 5 minutes
+  setInterval(processAbandonedCarts, ABANDONED_CART_CHECK_INTERVAL_MS);
+}
+
 async function startBot() {
   if (config.publicBaseUrl) {
     const baseUrl = config.publicBaseUrl.replace(/\/$/, "");
@@ -1998,7 +2115,10 @@ async function startBot() {
   }
 }
 
-startBot().catch(async (err) => {
+startBot().then(() => {
+  // Start background processors after bot is ready
+  startAbandonedCartProcessor();
+}).catch(async (err) => {
   console.error("Failed to start bot:", err);
   await sendAlert({
     type: "api_error",
