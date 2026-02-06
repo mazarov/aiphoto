@@ -66,17 +66,9 @@ bot.start(async (ctx) => {
 
 ```typescript
 const ALLOWED_LANG_PREFIXES = [
-  // Россия + СНГ
+  // Россия + Беларусь
   "ru",  // Russian
-  "uk",  // Ukrainian
   "be",  // Belarusian
-  "kk",  // Kazakh
-  "uz",  // Uzbek
-  "ky",  // Kyrgyz
-  "tg",  // Tajik
-  "az",  // Azerbaijani
-  "hy",  // Armenian
-  "ka",  // Georgian
   
   // США + Англоязычные
   "en",  // English (USA, UK, Canada, Australia, etc.)
@@ -111,6 +103,14 @@ const ALLOWED_LANG_PREFIXES = [
 
 ## Заблокированные регионы (0 кредитов)
 
+- 🇺🇦 Украина (uk)
+- 🇰🇿 Казахстан (kk)
+- 🇺🇿 Узбекистан (uz)
+- 🇰🇬 Кыргызстан (ky)
+- 🇹🇯 Таджикистан (tg)
+- 🇦🇿 Азербайджан (az)
+- 🇦🇲 Армения (hy)
+- 🇬🇪 Грузия (ka)
 - 🇮🇳 Индия (hi)
 - 🇧🇩 Бангладеш (bn)
 - 🇮🇩 Индонезия (id)
