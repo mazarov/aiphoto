@@ -105,6 +105,8 @@ interface NotificationOptions {
   sourceImageBuffer?: Buffer;  // Исходное фото
   resultImageBuffer?: Buffer;  // Результат генерации
   buttons?: InlineButton[][];  // Inline keyboard buttons
+  stickerId?: string;          // For "Make example" button on new_sticker
+  styleId?: string;            // Style ID for the sticker
 }
 
 export async function sendNotification(options: NotificationOptions): Promise<void> {
@@ -146,6 +148,32 @@ export async function sendNotification(options: NotificationOptions): Promise<vo
       if (!response.ok) {
         const errorData = await response.text();
         console.error("[Notification] Failed to send media group:", errorData);
+      }
+
+      // Send follow-up message with "Make example" button if stickerId provided
+      if (options.stickerId && options.styleId) {
+        const buttonMessage = `⭐ Сделать примером для стиля "${options.styleId}"?`;
+        const buttonResponse = await fetch(
+          `https://api.telegram.org/bot${config.telegramBotToken}/sendMessage`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              chat_id: channelId,
+              text: buttonMessage,
+              reply_markup: {
+                inline_keyboard: [[
+                  { text: "✅ Сделать примером", callback_data: `make_example:${options.stickerId}` }
+                ]],
+              },
+            }),
+          }
+        );
+
+        if (!buttonResponse.ok) {
+          const errorData = await buttonResponse.text();
+          console.error("[Notification] Failed to send make_example button:", errorData);
+        }
       }
     } else if (options.imageBuffer) {
       // Single photo with caption

@@ -85,33 +85,77 @@ async function getStylePresets(): Promise<StylePreset[]> {
   return data || [];
 }
 
-async function sendStyleKeyboard(ctx: any, lang: string) {
+// Style examples helpers
+interface StyleExample {
+  telegram_file_id: string;
+  style_preset_id: string;
+}
+
+async function getStyleExample(styleId: string, offset: number = 0): Promise<StyleExample | null> {
+  const { data } = await supabase
+    .from("stickers")
+    .select("telegram_file_id, style_preset_id")
+    .eq("style_preset_id", styleId)
+    .eq("is_example", true)
+    .not("telegram_file_id", "is", null)
+    .order("created_at", { ascending: false })
+    .range(offset, offset)
+    .maybeSingle();
+  
+  return data;
+}
+
+async function countStyleExamples(styleId: string): Promise<number> {
+  const { count } = await supabase
+    .from("stickers")
+    .select("id", { count: "exact", head: true })
+    .eq("style_preset_id", styleId)
+    .eq("is_example", true)
+    .not("telegram_file_id", "is", null);
+  
+  return count || 0;
+}
+
+async function sendStyleKeyboard(ctx: any, lang: string, messageId?: number) {
   const presets = await getStylePresets();
+  const exampleText = await getText(lang, "btn.example");
 
   const buttons: ReturnType<typeof Markup.button.callback>[][] = [];
-  for (let i = 0; i < presets.length; i += 2) {
-    const row: ReturnType<typeof Markup.button.callback>[] = [];
-    row.push(
-      Markup.button.callback(
-        `${presets[i].emoji} ${lang === "ru" ? presets[i].name_ru : presets[i].name_en}`,
-        `style_${presets[i].id}`
-      )
-    );
-    if (presets[i + 1]) {
-      row.push(
+  for (const preset of presets) {
+    // Skip "custom" preset - no example for it
+    if (preset.id === "custom") {
+      buttons.push([
         Markup.button.callback(
-          `${presets[i + 1].emoji} ${lang === "ru" ? presets[i + 1].name_ru : presets[i + 1].name_en}`,
-          `style_${presets[i + 1].id}`
+          `${preset.emoji} ${lang === "ru" ? preset.name_ru : preset.name_en}`,
+          `style_${preset.id}`
         )
-      );
+      ]);
+      continue;
     }
-    buttons.push(row);
+    
+    // Style button + Example button in one row
+    buttons.push([
+      Markup.button.callback(
+        `${preset.emoji} ${lang === "ru" ? preset.name_ru : preset.name_en}`,
+        `style_${preset.id}`
+      ),
+      Markup.button.callback(exampleText, `style_example:${preset.id}`)
+    ]);
   }
 
-  await ctx.reply(
-    await getText(lang, "photo.ask_style"),
-    Markup.inlineKeyboard(buttons)
-  );
+  const text = await getText(lang, "photo.ask_style");
+  
+  if (messageId) {
+    await ctx.telegram.editMessageText(
+      ctx.chat?.id,
+      messageId,
+      undefined,
+      text,
+      { reply_markup: { inline_keyboard: buttons } }
+    ).catch(() => {});
+  } else {
+    await ctx.reply(text, Markup.inlineKeyboard(buttons));
+  }
 }
 
 async function getEmotionPresets(): Promise<EmotionPreset[]> {
@@ -1545,6 +1589,229 @@ bot.action(/^rate:(.+):(\d)$/, async (ctx) => {
     const thankYouText = "⭐".repeat(score) + " Спасибо за оценку! 🙏";
     await ctx.editMessageText(thankYouText);
   }
+});
+
+// Callback: make_example (admin only - from alert channel)
+bot.action(/^make_example:(.+)$/, async (ctx) => {
+  console.log("=== make_example callback ===");
+  safeAnswerCbQuery(ctx);
+  const telegramId = ctx.from?.id;
+  if (!telegramId) return;
+
+  // Check if admin
+  if (!config.adminIds.includes(telegramId)) {
+    console.log("User not admin:", telegramId);
+    return;
+  }
+
+  const stickerId = ctx.match[1];
+  console.log("stickerId:", stickerId);
+
+  // Get sticker to check style_preset_id
+  const { data: sticker } = await supabase
+    .from("stickers")
+    .select("id, style_preset_id, is_example")
+    .eq("id", stickerId)
+    .maybeSingle();
+
+  if (!sticker) {
+    console.log("Sticker not found");
+    await ctx.editMessageText("❌ Стикер не найден");
+    return;
+  }
+
+  if (!sticker.style_preset_id) {
+    console.log("Sticker has no style_preset_id");
+    await ctx.editMessageText("❌ У стикера нет стиля");
+    return;
+  }
+
+  if (sticker.is_example) {
+    console.log("Sticker already an example");
+    await ctx.editMessageText("✅ Уже является примером");
+    return;
+  }
+
+  // Mark as example
+  const { error } = await supabase
+    .from("stickers")
+    .update({ is_example: true })
+    .eq("id", stickerId);
+
+  if (error) {
+    console.error("Failed to mark as example:", error);
+    await ctx.editMessageText("❌ Ошибка сохранения");
+    return;
+  }
+
+  console.log("Marked as example:", stickerId, "style:", sticker.style_preset_id);
+  await ctx.editMessageText(`✅ Добавлен как пример для стиля "${sticker.style_preset_id}"`);
+});
+
+// Callback: style_example - show first example
+bot.action(/^style_example:(.+)$/, async (ctx) => {
+  console.log("=== style_example callback ===");
+  safeAnswerCbQuery(ctx);
+  const telegramId = ctx.from?.id;
+  if (!telegramId) return;
+
+  const user = await getUser(telegramId);
+  if (!user?.id) return;
+
+  const lang = user.lang || "en";
+  const styleId = ctx.match[1];
+  console.log("styleId:", styleId);
+
+  // Get style name
+  const presets = await getStylePresets();
+  const preset = presets.find(p => p.id === styleId);
+  const styleName = preset 
+    ? (lang === "ru" ? preset.name_ru : preset.name_en)
+    : styleId;
+
+  // Get first example
+  const example = await getStyleExample(styleId, 0);
+  const totalExamples = await countStyleExamples(styleId);
+  
+  console.log("example found:", !!example, "total:", totalExamples);
+
+  if (!example) {
+    // No examples - show message
+    const noExamplesText = await getText(lang, "style.no_examples");
+    const backText = await getText(lang, "btn.back_to_styles");
+    await ctx.editMessageText(noExamplesText, {
+      reply_markup: {
+        inline_keyboard: [[{ text: backText, callback_data: "back_to_styles" }]]
+      }
+    });
+    return;
+  }
+
+  // Show first example sticker
+  const titleText = await getText(lang, "style.example_title", { style: styleName });
+  const moreText = await getText(lang, "btn.more");
+  const backText = await getText(lang, "btn.back_to_styles");
+
+  // Delete old message
+  await ctx.deleteMessage().catch(() => {});
+
+  // Send sticker
+  await ctx.replyWithSticker(example.telegram_file_id);
+
+  // Build buttons: [More] if there are more, always [Back]
+  const buttons: any[][] = [];
+  if (totalExamples > 1) {
+    buttons.push([
+      { text: moreText, callback_data: `style_example_more:${styleId}:1` },
+      { text: backText, callback_data: "back_to_styles" }
+    ]);
+  } else {
+    buttons.push([{ text: backText, callback_data: "back_to_styles" }]);
+  }
+
+  await ctx.reply(titleText, {
+    reply_markup: { inline_keyboard: buttons }
+  });
+});
+
+// Callback: style_example_more - show next example (offset)
+bot.action(/^style_example_more:(.+):(\d+)$/, async (ctx) => {
+  console.log("=== style_example_more callback ===");
+  safeAnswerCbQuery(ctx);
+  const telegramId = ctx.from?.id;
+  if (!telegramId) return;
+
+  const user = await getUser(telegramId);
+  if (!user?.id) return;
+
+  const lang = user.lang || "en";
+  const styleId = ctx.match[1];
+  const offset = parseInt(ctx.match[2], 10);
+  console.log("styleId:", styleId, "offset:", offset);
+
+  // Max 3 examples
+  if (offset >= 3) {
+    const noMoreText = await getText(lang, "style.no_more_examples");
+    const backText = await getText(lang, "btn.back_to_styles");
+    await ctx.editMessageText(noMoreText, {
+      reply_markup: {
+        inline_keyboard: [[{ text: backText, callback_data: "back_to_styles" }]]
+      }
+    });
+    return;
+  }
+
+  // Get style name
+  const presets = await getStylePresets();
+  const preset = presets.find(p => p.id === styleId);
+  const styleName = preset 
+    ? (lang === "ru" ? preset.name_ru : preset.name_en)
+    : styleId;
+
+  // Get next example
+  const example = await getStyleExample(styleId, offset);
+  const totalExamples = await countStyleExamples(styleId);
+  
+  console.log("example found:", !!example, "total:", totalExamples, "offset:", offset);
+
+  if (!example) {
+    // No more examples
+    const noMoreText = await getText(lang, "style.no_more_examples");
+    const backText = await getText(lang, "btn.back_to_styles");
+    await ctx.editMessageText(noMoreText, {
+      reply_markup: {
+        inline_keyboard: [[{ text: backText, callback_data: "back_to_styles" }]]
+      }
+    });
+    return;
+  }
+
+  // Delete old message
+  await ctx.deleteMessage().catch(() => {});
+
+  // Send sticker
+  await ctx.replyWithSticker(example.telegram_file_id);
+
+  // Build buttons
+  const titleText = await getText(lang, "style.example_title", { style: styleName });
+  const moreText = await getText(lang, "btn.more");
+  const backText = await getText(lang, "btn.back_to_styles");
+
+  const buttons: any[][] = [];
+  const nextOffset = offset + 1;
+  
+  // Show "More" if there are more examples AND we haven't shown 3 yet
+  if (totalExamples > nextOffset && nextOffset < 3) {
+    buttons.push([
+      { text: moreText, callback_data: `style_example_more:${styleId}:${nextOffset}` },
+      { text: backText, callback_data: "back_to_styles" }
+    ]);
+  } else {
+    buttons.push([{ text: backText, callback_data: "back_to_styles" }]);
+  }
+
+  await ctx.reply(titleText, {
+    reply_markup: { inline_keyboard: buttons }
+  });
+});
+
+// Callback: back_to_styles - return to style selection
+bot.action("back_to_styles", async (ctx) => {
+  console.log("=== back_to_styles callback ===");
+  safeAnswerCbQuery(ctx);
+  const telegramId = ctx.from?.id;
+  if (!telegramId) return;
+
+  const user = await getUser(telegramId);
+  if (!user?.id) return;
+
+  const lang = user.lang || "en";
+
+  // Delete current message
+  await ctx.deleteMessage().catch(() => {});
+
+  // Show style keyboard
+  await sendStyleKeyboard(ctx, lang);
 });
 
 // Callback: onboarding emotion selection

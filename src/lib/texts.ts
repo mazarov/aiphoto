@@ -59,6 +59,12 @@ const fallbackTexts: Record<string, Record<string, string>> = {
     "progress.step6": "📐 Оптимизирую размер... (6/7)",
     "progress.step7": "📦 Подготавливаю стикер... (7/7)",
     "sticker.pack_title": "Мои стикеры",
+    "style.example_title": "Пример стиля {style}",
+    "style.no_examples": "Примеров пока нет",
+    "style.no_more_examples": "Больше примеров нет",
+    "btn.example": "Пример",
+    "btn.more": "Ещё",
+    "btn.back_to_styles": "← Назад",
   },
   en: {
     "start.greeting_new": "Hello! 🎨\n\nI turn photos into stickers.\nYou've received 1 free credit.\n\nSend a photo to make a sticker.",
@@ -112,6 +118,12 @@ const fallbackTexts: Record<string, Record<string, string>> = {
     "progress.step6": "📐 Optimizing size... (6/7)",
     "progress.step7": "📦 Preparing sticker... (7/7)",
     "sticker.pack_title": "My Stickers",
+    "style.example_title": "Example of {style} style",
+    "style.no_examples": "No examples yet",
+    "style.no_more_examples": "No more examples",
+    "btn.example": "Example",
+    "btn.more": "More",
+    "btn.back_to_styles": "← Back",
   },
 };
 

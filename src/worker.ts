@@ -361,6 +361,7 @@ async function runJob(job: any) {
       generated_prompt: session.prompt_final || null,
       result_storage_path: filePathStorage,
       sticker_set_name: user?.sticker_set_name || null,
+      style_preset_id: session.selected_style_id || null,  // For style examples
     })
     .select("id")
     .single();
@@ -491,6 +492,8 @@ async function runJob(job: any) {
     ].join("\n"),
     sourceImageBuffer: fileBuffer,
     resultImageBuffer: stickerBuffer,
+    stickerId: stickerId || undefined,  // For "Make example" button
+    styleId: session.selected_style_id || undefined,
   }).catch(console.error);
 
   // Send rating request (skip for first sticker, delayed 30s for onboarding emotion)
