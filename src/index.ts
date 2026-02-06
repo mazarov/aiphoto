@@ -603,7 +603,7 @@ bot.start(async (ctx) => {
 
     console.log("New user - language_code:", ctx.from?.language_code, "-> lang:", lang);
 
-    const { data: created } = await supabase
+    const { data: created, error: insertError } = await supabase
       .from("users")
       .insert({ 
         telegram_id: telegramId, 
@@ -614,7 +614,22 @@ bot.start(async (ctx) => {
       .select("*")
       .single();
 
-    user = created;
+    if (insertError) {
+      console.error("User insert error:", insertError);
+      // Race condition: user might already exist, try to fetch again
+      if (insertError.code === "23505") {  // unique_violation
+        const { data: existingUser } = await supabase
+          .from("users")
+          .select("*")
+          .eq("telegram_id", telegramId)
+          .maybeSingle();
+        user = existingUser;
+        isNewUser = false;
+        console.log("User already exists, fetched:", user?.id);
+      }
+    } else {
+      user = created;
+    }
 
     // Give 2 free credits for onboarding (trigger will add to user.credits)
     if (user?.id) {
