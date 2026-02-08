@@ -883,7 +883,7 @@ bot.start(async (ctx) => {
         telegram_id: telegramId, 
         lang, 
         language_code: languageCode || null,  // save original language code
-        credits: 0,
+        credits: 1,
         has_purchased: false,
         username: ctx.from?.username || null,
         env: config.appEnv,
@@ -908,7 +908,8 @@ bot.start(async (ctx) => {
       user = created;
     }
 
-    // No free credits - paywall will show before first generation
+    // 1 free credit for first generation
+    // Paywall shows on 2nd generation if no purchase
     // Bonus +2 credits given on first purchase
 
     // Send notification (async, non-blocking)
@@ -1559,8 +1560,8 @@ bot.on("text", async (ctx) => {
   });
 });
 
-// Callback: style selection
-bot.action(/^style_([^:]+)$/, async (ctx) => {
+// Callback: style selection (legacy v1 — excludes style_v2, style_example, style_custom, style_group)
+bot.action(/^style_(?!v2:|example|custom|group)([^:]+)$/, async (ctx) => {
   try {
     safeAnswerCbQuery(ctx);
     const telegramId = ctx.from?.id;

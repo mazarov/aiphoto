@@ -1,0 +1,45 @@
+---
+description: Before implementing any feature or change, ask which branch to use and follow the git workflow
+alwaysApply: true
+---
+
+# Git Workflow
+
+## Before Starting Any Task
+
+**ALWAYS ask the user before writing code:**
+
+> "Где реализуем: в `main` или создать feature-ветку?"
+
+Do NOT commit directly to `main` without explicit confirmation.
+
+## Feature Branch Workflow
+
+```
+1. git checkout -b feature/<name>   — create branch
+2. ... commits ...                   — work in branch
+3. Test on test bot                  — verify
+4. Ask user: "Готово к мержу в main?"
+5. git checkout main && git merge feature/<name>
+6. git push origin main              — deploy to prod
+```
+
+## When to Use `main` Directly
+
+- Hotfixes (critical prod bugs)
+- Tiny config changes (env vars, typos)
+- User explicitly says "в main"
+
+## When to Use Feature Branch
+
+- New features
+- Refactoring
+- Any change touching >2 files
+- Database migrations
+- AI assistant changes
+
+## Rules
+
+- Never push untested features to `main`
+- Always confirm branch choice with user before first commit
+- Test containers deploy from feature branch, prod from `main`
