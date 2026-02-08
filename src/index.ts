@@ -752,7 +752,7 @@ async function getActiveSession(userId: string) {
     .order("created_at", { ascending: false })
     .maybeSingle();
   if (error) {
-    console.log("getActiveSession error:", error);
+    console.log("getActiveSession error:", error.message, error.code);
   }
   if (data) return data;
 
@@ -762,10 +762,14 @@ async function getActiveSession(userId: string) {
     .from("sessions")
     .select("*")
     .eq("user_id", userId)
+    .eq("env", config.appEnv)
     .neq("state", "canceled")
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
+  if (fallback) {
+    console.log("getActiveSession fallback found:", fallback.id, "state:", fallback.state, "is_active:", fallback.is_active);
+  }
   return fallback;
 }
 
@@ -946,11 +950,12 @@ bot.on("photo", async (ctx) => {
 
   // === AI Assistant: waiting for photo ===
   if (session.state === "assistant_wait_photo") {
+    console.log("Assistant photo: received, session:", session.id);
     const photos = Array.isArray(session.photos) ? session.photos : [];
     photos.push(photo.file_id);
 
     // Save photo and move to assistant_chat
-    await supabase
+    const { error: updateErr } = await supabase
       .from("sessions")
       .update({
         photos,
@@ -960,17 +965,24 @@ bot.on("photo", async (ctx) => {
       })
       .eq("id", session.id);
 
+    if (updateErr) {
+      console.error("Assistant photo: session update error:", updateErr.message);
+    }
+    console.log("Assistant photo: state updated to assistant_chat");
+
     // Get existing messages and add photo event
     const messages: AssistantMessage[] = Array.isArray(session.assistant_messages)
-      ? session.assistant_messages
+      ? [...session.assistant_messages]
       : [];
     messages.push({ role: "user", content: "[User sent a photo]" });
 
     // Get system prompt from first message
     const systemPrompt = messages.find(m => m.role === "system")?.content || "";
+    console.log("Assistant photo: calling AI, messages count:", messages.length, "systemPrompt length:", systemPrompt.length);
 
     try {
       const result = await callAIChat(messages, systemPrompt);
+      console.log("Assistant photo: AI response received, length:", result.text.length);
       messages.push({ role: "assistant", content: result.rawText });
 
       await supabase
@@ -979,8 +991,9 @@ bot.on("photo", async (ctx) => {
         .eq("id", session.id);
 
       await ctx.reply(result.text, getMainMenuKeyboard(lang));
+      console.log("Assistant photo: reply sent to user");
     } catch (err: any) {
-      console.error("Assistant photo handler AI error:", err.message);
+      console.error("Assistant photo handler AI error:", err.message, err.response?.status, err.response?.data);
       const fallback = lang === "ru"
         ? "Отличное фото! Опиши стиль стикера своими словами (например: аниме, мультяшный, минимализм и т.д.)"
         : "Great photo! Describe the sticker style in your own words (e.g.: anime, cartoon, minimal, etc.)";
@@ -992,6 +1005,7 @@ bot.on("photo", async (ctx) => {
         .eq("id", session.id);
 
       await ctx.reply(fallback, getMainMenuKeyboard(lang));
+      console.log("Assistant photo: fallback reply sent");
     }
     return;
   }
@@ -1078,9 +1092,23 @@ bot.hears(["🎨 Стили", "🎨 Styles"], async (ctx) => {
   }
 
   const lang = user.lang || "en";
+  const session = await getActiveSession(user.id);
+
+  // If user is in assistant mode, cancel it and switch to manual
+  if (session?.state?.startsWith("assistant_") || session?.state === "wait_assistant_confirm") {
+    console.log("Styles: switching from assistant to manual mode, session:", session.id);
+    await supabase
+      .from("sessions")
+      .update({
+        state: "wait_style",
+        assistant_messages: [],
+        assistant_params: null,
+        assistant_error_count: 0,
+      })
+      .eq("id", session.id);
+  }
 
   // Check if user has a photo in active session
-  const session = await getActiveSession(user.id);
   if (!session || !session.current_photo_file_id) {
     await ctx.reply(await getText(lang, "photo.need_photo"), getMainMenuKeyboard(lang));
     return;
