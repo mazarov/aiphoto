@@ -117,24 +117,8 @@ async function countStyleExamples(styleId: string): Promise<number> {
 }
 
 // ============================================
-// Styles v2: Groups + Substyles (isolated)
+// Style presets (flat list from style_presets_v2)
 // ============================================
-
-// Feature flag helper - enabled for all users
-function useStylesV2(telegramId: number): boolean {
-  return true;
-}
-
-// Interfaces for v2
-interface StyleGroup {
-  id: string;
-  emoji: string;
-  name_ru: string;
-  name_en: string;
-  sort_order: number;
-  is_active: boolean;
-  show_in_onboarding: boolean;
-}
 
 interface StylePresetV2 {
   id: string;
@@ -148,31 +132,9 @@ interface StylePresetV2 {
   show_in_onboarding: boolean;
 }
 
-// Cache for style_groups
-let styleGroupsCache: { data: StyleGroup[]; timestamp: number } | null = null;
-const STYLE_GROUPS_CACHE_TTL = 5 * 60 * 1000;
-
 // Cache for style_presets_v2
 let stylePresetsV2Cache: { data: StylePresetV2[]; timestamp: number } | null = null;
 const STYLE_PRESETS_V2_CACHE_TTL = 5 * 60 * 1000;
-
-async function getStyleGroups(): Promise<StyleGroup[]> {
-  const now = Date.now();
-  if (styleGroupsCache && now - styleGroupsCache.timestamp < STYLE_GROUPS_CACHE_TTL) {
-    return styleGroupsCache.data;
-  }
-
-  const { data } = await supabase
-    .from("style_groups")
-    .select("*")
-    .eq("is_active", true)
-    .order("sort_order");
-
-  if (data) {
-    styleGroupsCache = { data, timestamp: now };
-  }
-  return data || [];
-}
 
 async function getStylePresetsV2(groupId?: string): Promise<StylePresetV2[]> {
   const now = Date.now();
@@ -199,118 +161,25 @@ async function getStylePresetV2ById(id: string): Promise<StylePresetV2 | null> {
   return presets.find(p => p.id === id) || null;
 }
 
-async function buildStyleGroupsButtons(lang: string, isOnboarding: boolean = false): Promise<any[][]> {
-  const allGroups = await getStyleGroups();
-  // Filter groups for onboarding users (hide groups with show_in_onboarding = false)
-  const groups = isOnboarding 
-    ? allGroups.filter(g => g.show_in_onboarding !== false)
-    : allGroups;
-  const customText = await getText(lang, "btn.custom_style");
-  
-  // 2 columns for groups
-  const buttons: any[][] = [];
-  for (let i = 0; i < groups.length; i += 2) {
-    const row: any[] = [];
-    row.push({ text: `${groups[i].emoji} ${lang === "ru" ? groups[i].name_ru : groups[i].name_en}`, callback_data: `style_group:${groups[i].id}` });
-    if (groups[i + 1]) {
-      row.push({ text: `${groups[i + 1].emoji} ${lang === "ru" ? groups[i + 1].name_ru : groups[i + 1].name_en}`, callback_data: `style_group:${groups[i + 1].id}` });
-    }
-    buttons.push(row);
-  }
-  
-  // Custom style button
-  buttons.push([{ text: customText, callback_data: "style_custom_v2" }]);
-  
-  return buttons;
-}
-
-async function sendStyleGroupsKeyboard(ctx: any, lang: string, messageId?: number, isOnboarding: boolean = false) {
-  const buttons = await buildStyleGroupsButtons(lang, isOnboarding);
-  const text = await getText(lang, "style.select_group");
-
-  if (messageId) {
-    await ctx.telegram.editMessageText(
-      ctx.chat?.id,
-      messageId,
-      undefined,
-      text,
-      { reply_markup: { inline_keyboard: buttons } }
-    ).catch((err: any) => console.error("sendStyleGroupsKeyboard error:", err?.message));
-  } else {
-    await ctx.reply(text, Markup.inlineKeyboard(buttons));
-  }
-}
-
-async function sendSubstylesKeyboard(ctx: any, lang: string, groupId: string, messageId?: number, isOnboarding: boolean = false) {
-  const groups = await getStyleGroups();
-  const group = groups.find(g => g.id === groupId);
-  if (!group) return;
-
-  const allSubstyles = await getStylePresetsV2(groupId);
-  // Filter substyles for onboarding users
-  const substyles = isOnboarding
-    ? allSubstyles.filter(s => s.show_in_onboarding !== false)
-    : allSubstyles;
-  const backText = await getText(lang, "btn.back_to_groups");
+async function sendStyleKeyboardFlat(ctx: any, lang: string, messageId?: number) {
+  const allPresets = await getStylePresetsV2();
   const exampleText = await getText(lang, "btn.example");
-  
-  // Substyle button + Example button in one row
-  const buttons: any[][] = substyles.map(s => [
+  const customText = await getText(lang, "btn.custom_style");
+
+  // Style button + Example button in one row
+  const buttons: any[][] = allPresets.map(s => [
     Markup.button.callback(
       `${s.emoji} ${lang === "ru" ? s.name_ru : s.name_en}`,
       `style_v2:${s.id}`
     ),
-    Markup.button.callback(exampleText, `style_example_v2:${s.id}:${groupId}`)
+    Markup.button.callback(exampleText, `style_example_v2:${s.id}:${s.group_id}`)
   ]);
-  
-  // Back button
-  buttons.push([Markup.button.callback(backText, `style_groups_back:${groupId}`)]);
 
-  const groupName = lang === "ru" ? group.name_ru : group.name_en;
-  const text = await getText(lang, "style.select_substyle", { emoji: group.emoji, name: groupName });
-  
-  if (messageId) {
-    await ctx.telegram.editMessageText(
-      ctx.chat?.id,
-      messageId,
-      undefined,
-      text,
-      { reply_markup: { inline_keyboard: buttons } }
-    ).catch((err: any) => console.error("editMessageText error:", err?.message));
-  } else {
-    await ctx.reply(text, Markup.inlineKeyboard(buttons));
-  }
-}
-
-async function sendStyleKeyboard(ctx: any, lang: string, messageId?: number) {
-  const presets = await getStylePresets();
-  const exampleText = await getText(lang, "btn.example");
-
-  const buttons: ReturnType<typeof Markup.button.callback>[][] = [];
-  for (const preset of presets) {
-    // Skip "custom" preset - no example for it
-    if (preset.id === "custom") {
-      buttons.push([
-        Markup.button.callback(
-          `${preset.emoji} ${lang === "ru" ? preset.name_ru : preset.name_en}`,
-          `style_${preset.id}`
-        )
-      ]);
-      continue;
-    }
-    
-    // Style button + Example button in one row
-    buttons.push([
-      Markup.button.callback(
-        `${preset.emoji} ${lang === "ru" ? preset.name_ru : preset.name_en}`,
-        `style_${preset.id}`
-      ),
-      Markup.button.callback(exampleText, `style_example:${preset.id}`)
-    ]);
-  }
+  // Custom style button
+  buttons.push([{ text: customText, callback_data: "style_custom_v2" }]);
 
   const text = await getText(lang, "photo.ask_style");
-  
+
   if (messageId) {
     await ctx.telegram.editMessageText(
       ctx.chat?.id,
@@ -318,7 +187,7 @@ async function sendStyleKeyboard(ctx: any, lang: string, messageId?: number) {
       undefined,
       text,
       { reply_markup: { inline_keyboard: buttons } }
-    ).catch(() => {});
+    ).catch((err: any) => console.error("sendStyleKeyboardFlat error:", err?.message));
   } else {
     await ctx.reply(text, Markup.inlineKeyboard(buttons));
   }
@@ -948,16 +817,7 @@ bot.on("photo", async (ctx) => {
     console.error("Failed to update session to wait_style:", error);
   }
 
-  // Show v2 groups for all users
-  if (useStylesV2(telegramId)) {
-    const isOnboarding = (user.onboarding_step ?? 99) < 2;
-    console.log("[Styles v2] Showing groups for user:", telegramId, "isOnboarding:", isOnboarding);
-    const groups = await getStyleGroups();
-    console.log("[Styles v2] Groups count:", groups.length);
-    await sendStyleGroupsKeyboard(ctx, lang, undefined, isOnboarding);
-  } else {
-    await sendStyleKeyboard(ctx, lang);
-  }
+  await sendStyleKeyboardFlat(ctx, lang);
 });
 
 // ============================================
@@ -1235,31 +1095,11 @@ bot.action(/^style_group:(.+)$/, async (ctx) => {
     const telegramId = ctx.from?.id;
     if (!telegramId) return;
     
-    // Double-check feature flag
-    if (!useStylesV2(telegramId)) {
-      console.log("style_group callback for non-v2 user, ignoring");
-      return;
-    }
-
+    // Legacy handler - groups are no longer used, redirect to flat list
     const user = await getUser(telegramId);
     if (!user?.id) return;
-
     const lang = user.lang || "en";
-    const isOnboarding = (user.onboarding_step ?? 99) < 2;
-    const session = await getActiveSession(user.id);
-    if (!session?.id || session.state !== "wait_style") return;
-
-    const groupId = ctx.match[1];
-    console.log("[Styles v2] Group selected:", groupId, "isOnboarding:", isOnboarding);
-
-    // Update session with selected group for analytics
-    await supabase
-      .from("sessions")
-      .update({ selected_style_group: groupId })
-      .eq("id", session.id);
-
-    // Show substyles (filtered for onboarding)
-    await sendSubstylesKeyboard(ctx, lang, groupId, ctx.callbackQuery?.message?.message_id, isOnboarding);
+    await sendStyleKeyboardFlat(ctx, lang, ctx.callbackQuery?.message?.message_id);
   } catch (err) {
     console.error("Style group callback error:", err);
   }
@@ -1271,12 +1111,6 @@ bot.action(/^style_v2:(.+)$/, async (ctx) => {
     safeAnswerCbQuery(ctx);
     const telegramId = ctx.from?.id;
     if (!telegramId) return;
-
-    // Double-check feature flag
-    if (!useStylesV2(telegramId)) {
-      console.log("style_v2 callback for non-v2 user, ignoring");
-      return;
-    }
 
     const user = await getUser(telegramId);
     if (!user?.id) return;
@@ -1331,23 +1165,11 @@ bot.action(/^style_groups_back(:.*)?$/, async (ctx) => {
     const telegramId = ctx.from?.id;
     if (!telegramId) return;
 
-    if (!useStylesV2(telegramId)) return;
-
+    // Legacy handler - redirect to flat list
     const user = await getUser(telegramId);
     if (!user?.id) return;
-
     const lang = user.lang || "en";
-    const isOnboarding = (user.onboarding_step ?? 99) < 2;
-    
-    // Just navigate back - no state check needed
-    const messageId = ctx.callbackQuery?.message?.message_id;
-    await ctx.telegram.editMessageText(
-      ctx.chat?.id,
-      messageId,
-      undefined,
-      await getText(lang, "style.select_group"),
-      { reply_markup: { inline_keyboard: await buildStyleGroupsButtons(lang, isOnboarding) } }
-    ).catch((err: any) => console.error("Back to groups error:", err?.message));
+    await sendStyleKeyboardFlat(ctx, lang, ctx.callbackQuery?.message?.message_id);
   } catch (err) {
     console.error("Style groups back callback error:", err);
   }
@@ -1360,7 +1182,6 @@ bot.action(/^style_example_v2:(.+):(.+)$/, async (ctx) => {
     const telegramId = ctx.from?.id;
     if (!telegramId) return;
 
-    if (!useStylesV2(telegramId)) return;
 
     const user = await getUser(telegramId);
     if (!user?.id) return;
@@ -1448,27 +1269,23 @@ bot.action(/^style_example_v2:(.+):(.+)$/, async (ctx) => {
   }
 });
 
-// Callback: back to substyles (from example)
+// Callback: back to styles (from example) - now shows flat list
 bot.action(/^back_to_substyles_v2:(.+)$/, async (ctx) => {
   try {
     safeAnswerCbQuery(ctx);
     const telegramId = ctx.from?.id;
     if (!telegramId) return;
 
-    if (!useStylesV2(telegramId)) return;
-
     const user = await getUser(telegramId);
     if (!user?.id) return;
 
     const lang = user.lang || "en";
-    const isOnboarding = (user.onboarding_step ?? 99) < 2;
-    const groupId = ctx.match[1];
 
-    // Delete current message and show substyles (filtered for onboarding)
+    // Delete current message and show flat style list
     await ctx.deleteMessage().catch(() => {});
-    await sendSubstylesKeyboard(ctx, lang, groupId, undefined, isOnboarding);
+    await sendStyleKeyboardFlat(ctx, lang);
   } catch (err) {
-    console.error("Back to substyles v2 error:", err);
+    console.error("Back to styles from example error:", err);
   }
 });
 
@@ -1479,7 +1296,6 @@ bot.action(/^style_example_v2_more:(.+):(.+):(\d+)$/, async (ctx) => {
     const telegramId = ctx.from?.id;
     if (!telegramId) return;
 
-    if (!useStylesV2(telegramId)) return;
 
     const user = await getUser(telegramId);
     if (!user?.id) return;
@@ -1569,7 +1385,6 @@ bot.action("style_custom_v2", async (ctx) => {
     const telegramId = ctx.from?.id;
     if (!telegramId) return;
 
-    if (!useStylesV2(telegramId)) return;
 
     const user = await getUser(telegramId);
     if (!user?.id) return;
@@ -1857,13 +1672,7 @@ bot.action(/^change_style:(.+)$/, async (ctx) => {
     })
     .eq("id", session.id);
 
-  // Show v2 groups for enabled users
-  if (useStylesV2(telegramId)) {
-    const isOnboarding = (user.onboarding_step ?? 99) < 2;
-    await sendStyleGroupsKeyboard(ctx, lang, undefined, isOnboarding);
-  } else {
-    await sendStyleKeyboard(ctx, lang);
-  }
+  await sendStyleKeyboardFlat(ctx, lang);
 });
 
 // Callback: change style (old format - fallback)
@@ -1892,13 +1701,7 @@ bot.action("change_style", async (ctx) => {
     })
     .eq("id", session.id);
 
-  // Show v2 groups for enabled users
-  if (useStylesV2(telegramId)) {
-    const isOnboarding = (user.onboarding_step ?? 99) < 2;
-    await sendStyleGroupsKeyboard(ctx, lang, undefined, isOnboarding);
-  } else {
-    await sendStyleKeyboard(ctx, lang);
-  }
+  await sendStyleKeyboardFlat(ctx, lang);
 });
 
 // Callback: change emotion (new format with sticker ID)
@@ -2485,13 +2288,7 @@ bot.action("back_to_styles", async (ctx) => {
   // Delete current message
   await ctx.deleteMessage().catch(() => {});
 
-  // Show v2 groups for enabled users
-  if (useStylesV2(telegramId)) {
-    const isOnboarding = (user.onboarding_step ?? 99) < 2;
-    await sendStyleGroupsKeyboard(ctx, lang, undefined, isOnboarding);
-  } else {
-    await sendStyleKeyboard(ctx, lang);
-  }
+  await sendStyleKeyboardFlat(ctx, lang);
 });
 
 // Callback: onboarding emotion selection
