@@ -866,14 +866,19 @@ bot.start(async (ctx) => {
       }).catch(console.error);
     }
   } else {
-    // Update username if changed (user may change their Telegram username)
+    // Update username and lang if changed
     const currentUsername = ctx.from?.username || null;
-    if (user.username !== currentUsername) {
-      await supabase
-        .from("users")
-        .update({ username: currentUsername })
-        .eq("id", user.id);
-      user.username = currentUsername;
+    const currentLangCode = ctx.from?.language_code || "";
+    const currentLang = currentLangCode.toLowerCase().startsWith("ru") ? "ru" : "en";
+    const updates: Record<string, any> = {};
+
+    if (user.username !== currentUsername) updates.username = currentUsername;
+    if (user.lang !== currentLang) updates.lang = currentLang;
+    if (user.language_code !== currentLangCode) updates.language_code = currentLangCode || null;
+
+    if (Object.keys(updates).length > 0) {
+      await supabase.from("users").update(updates).eq("id", user.id);
+      Object.assign(user, updates);
     }
   }
 
@@ -1203,7 +1208,7 @@ bot.on("text", async (ctx) => {
 
         await ctx.reply(result.text);
         await ctx.reply(
-          lang === "ru" ? "Всё верно?" : "Is this correct?",
+          lang === "ru" ? "Всё верно?" : "Is everything correct?",
           Markup.inlineKeyboard([
             [Markup.button.callback(
               lang === "ru" ? "✅ Подтвердить" : "✅ Confirm",
@@ -1313,7 +1318,7 @@ bot.on("text", async (ctx) => {
 
         await ctx.reply(result.text);
         await ctx.reply(
-          lang === "ru" ? "Всё верно?" : "Is this correct?",
+          lang === "ru" ? "Всё верно?" : "Is everything correct?",
           Markup.inlineKeyboard([
             [Markup.button.callback(
               lang === "ru" ? "✅ Подтвердить" : "✅ Confirm",

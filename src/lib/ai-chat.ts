@@ -223,6 +223,15 @@ Do NOT forget this metadata block — it is mandatory for every response from St
 
 ---
 
+## Formatting Rules
+
+- Do NOT wrap parameter values in quotes or quotation marks in the mirror message.
+  ✅ Correct: – **Style:** anime
+  ❌ Wrong: – **Style:** "anime"
+- Keep the mirror message clean and easy to read.
+
+---
+
 ## Forbidden
 
 - ❌ Generating an image before confirmation
