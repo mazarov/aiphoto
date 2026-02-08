@@ -5,6 +5,16 @@ import { config } from "./config";
 import { supabase } from "./lib/supabase";
 import { getText } from "./lib/texts";
 import { sendAlert, sendNotification } from "./lib/alerts";
+import {
+  buildSystemPrompt,
+  callAIChat,
+  parseAssistantMetadata,
+  stripMetadata,
+  extractParamsFromConversation,
+  type AssistantMessage,
+  type AssistantContext,
+  type AssistantParams,
+} from "./lib/ai-chat";
 
 const bot = new Telegraf(config.telegramBotToken);
 const app = express();
@@ -577,17 +587,158 @@ async function getUser(telegramId: number) {
 
 // Helper: get persistent menu keyboard
 function getMainMenuKeyboard(lang: string) {
-  const texts = lang === "ru" 
-    ? ["✨ Ещё стикеры", "❓ Помощь"]
-    : ["✨ More stickers", "❓ Help"];
-  
-  return Markup.keyboard([texts]).resize().persistent();
+  const row1 = lang === "ru"
+    ? ["🤖 Помощник", "🎨 Стили"]
+    : ["🤖 Assistant", "🎨 Styles"];
+  const row2 = lang === "ru"
+    ? ["💰 Баланс", "❓ Помощь"]
+    : ["💰 Balance", "❓ Help"];
+
+  return Markup.keyboard([row1, row2]).resize().persistent();
 }
 
 // Helper: check if language is in whitelist for free credits
 function isAllowedLanguage(languageCode: string): boolean {
   const code = (languageCode || "").toLowerCase();
   return config.allowedLangPrefixes.some(prefix => code.startsWith(prefix));
+}
+
+// ============================================
+// AI Assistant helpers
+// ============================================
+
+/**
+ * Start a new AI assistant dialog: create session, call Gemini for greeting, reply to user.
+ */
+async function startAssistantDialog(ctx: any, user: any, lang: string) {
+  // Cancel all active sessions
+  await supabase
+    .from("sessions")
+    .update({ state: "canceled", is_active: false })
+    .eq("user_id", user.id)
+    .eq("is_active", true);
+
+  // Create new session with assistant state
+  const { data: newSession, error: sessionError } = await supabase
+    .from("sessions")
+    .insert({
+      user_id: user.id,
+      state: "assistant_wait_photo",
+      is_active: true,
+      env: config.appEnv,
+    })
+    .select()
+    .single();
+
+  if (sessionError || !newSession) {
+    console.error("startAssistantDialog: Failed to create session:", sessionError?.message || "no data");
+    await ctx.reply(await getText(lang, "error.technical"), getMainMenuKeyboard(lang));
+    return;
+  }
+
+  console.log("startAssistantDialog: Session created:", newSession.id, "for user:", user.id);
+
+  // Build context for system prompt
+  const assistantCtx: AssistantContext = {
+    firstName: ctx.from?.first_name || "User",
+    languageCode: user.language_code || ctx.from?.language_code || "en",
+    isPremium: ctx.from?.is_premium || false,
+    totalGenerations: user.total_generations || 0,
+    credits: user.credits || 0,
+    hasPhoto: false,
+  };
+
+  const systemPrompt = buildSystemPrompt(assistantCtx);
+
+  try {
+    // Call Gemini to generate greeting (step 0)
+    console.log("startAssistantDialog: Calling Gemini for greeting...");
+    const result = await callAIChat([], systemPrompt);
+    console.log("startAssistantDialog: Gemini response received, length:", result.text.length);
+
+    // Save messages to session
+    const messages: AssistantMessage[] = [
+      { role: "system", content: systemPrompt },
+      { role: "assistant", content: result.rawText },
+    ];
+
+    await supabase
+      .from("sessions")
+      .update({ assistant_messages: messages })
+      .eq("id", newSession.id);
+
+    await ctx.reply(result.text, getMainMenuKeyboard(lang));
+  } catch (err: any) {
+    console.error("startAssistantDialog AI error:", err.message);
+    // Fallback: hardcoded greeting
+    const greeting = lang === "ru"
+      ? `Привет, ${ctx.from?.first_name || ""}! 👋\nЯ — помощник по созданию стикеров.\nМоя задача — сделать так, чтобы результат тебе точно понравился.\n\nПришли мне фото, из которого хочешь сделать стикер.`
+      : `Hi, ${ctx.from?.first_name || ""}! 👋\nI'm your sticker creation assistant.\nMy job is to make sure you love the result.\n\nSend me a photo you'd like to turn into a sticker.`;
+
+    const messages: AssistantMessage[] = [
+      { role: "system", content: buildSystemPrompt(assistantCtx) },
+      { role: "assistant", content: greeting },
+    ];
+
+    await supabase
+      .from("sessions")
+      .update({ assistant_messages: messages })
+      .eq("id", newSession.id);
+
+    await ctx.reply(greeting, getMainMenuKeyboard(lang));
+  }
+}
+
+/**
+ * Handle assistant confirmation: start generation or show paywall.
+ */
+async function handleAssistantConfirm(ctx: any, user: any, sessionId: string, lang: string) {
+  // Re-fetch session to get latest params
+  const { data: session } = await supabase
+    .from("sessions")
+    .select("*")
+    .eq("id", sessionId)
+    .maybeSingle();
+
+  if (!session?.assistant_params) {
+    await ctx.reply(await getText(lang, "error.technical"), getMainMenuKeyboard(lang));
+    return;
+  }
+
+  const params = session.assistant_params;
+  const promptFinal = buildAssistantPrompt({
+    style: params.style || "cartoon",
+    emotion: params.emotion || "happy",
+    pose: params.pose || "default",
+  });
+
+  // Re-fetch user for fresh credits
+  const freshUser = await getUser(user.telegram_id);
+  if (!freshUser) return;
+
+  await startGeneration(ctx, freshUser, session, lang, {
+    generationType: "style",
+    promptFinal,
+    userInput: `[assistant] style: ${params.style}, emotion: ${params.emotion}, pose: ${params.pose}`,
+    selectedStyleId: "assistant",
+  });
+}
+
+/**
+ * Build final prompt for Gemini image generation from assistant params.
+ */
+function buildAssistantPrompt(params: { style: string; emotion: string; pose: string }): string {
+  return `Create a telegram sticker of the person from the photo.
+
+Style: ${params.style}
+Emotion: ${params.emotion}
+Pose/gesture: ${params.pose}
+
+Requirements:
+- White/transparent background
+- Sticker-like proportions (head slightly larger)
+- Clear outlines
+- Expressive and recognizable`;
 }
 
 // Helper: get active session
@@ -723,26 +874,13 @@ bot.start(async (ctx) => {
   }
 
   if (user?.id) {
-    // Cancel all active sessions
-    await supabase
-      .from("sessions")
-      .update({ state: "canceled", is_active: false })
-      .eq("user_id", user.id)
-      .eq("is_active", true);
-
-    // Create new session
-    await supabase
-      .from("sessions")
-      .insert({ user_id: user.id, state: "wait_photo", is_active: true, env: config.appEnv })
-      .select();
+    const lang = user.lang || "en";
+    // Start AI assistant dialog (cancels old sessions inside)
+    await startAssistantDialog(ctx, user, lang);
+  } else {
+    const lang = "en";
+    await ctx.reply(await getText(lang, "error.technical"), getMainMenuKeyboard(lang));
   }
-
-  const lang = user?.lang || "en";
-  const greeting = isNewUser
-    ? await getText(lang, "start.greeting_new")
-    : await getText(lang, "start.greeting_return", { credits: user?.credits || 0 });
-
-  await ctx.reply(greeting, getMainMenuKeyboard(lang));
 });
 
 // /balance command - shows balance + tariffs directly (no intermediate "Top up" button)
@@ -806,6 +944,85 @@ bot.on("photo", async (ctx) => {
   const photo = ctx.message.photo?.[ctx.message.photo.length - 1];
   if (!photo) return;
 
+  // === AI Assistant: waiting for photo ===
+  if (session.state === "assistant_wait_photo") {
+    const photos = Array.isArray(session.photos) ? session.photos : [];
+    photos.push(photo.file_id);
+
+    // Save photo and move to assistant_chat
+    await supabase
+      .from("sessions")
+      .update({
+        photos,
+        current_photo_file_id: photo.file_id,
+        state: "assistant_chat",
+        is_active: true,
+      })
+      .eq("id", session.id);
+
+    // Get existing messages and add photo event
+    const messages: AssistantMessage[] = Array.isArray(session.assistant_messages)
+      ? session.assistant_messages
+      : [];
+    messages.push({ role: "user", content: "[User sent a photo]" });
+
+    // Get system prompt from first message
+    const systemPrompt = messages.find(m => m.role === "system")?.content || "";
+
+    try {
+      const result = await callAIChat(messages, systemPrompt);
+      messages.push({ role: "assistant", content: result.rawText });
+
+      await supabase
+        .from("sessions")
+        .update({ assistant_messages: messages })
+        .eq("id", session.id);
+
+      await ctx.reply(result.text, getMainMenuKeyboard(lang));
+    } catch (err: any) {
+      console.error("Assistant photo handler AI error:", err.message);
+      const fallback = lang === "ru"
+        ? "Отличное фото! Опиши стиль стикера своими словами (например: аниме, мультяшный, минимализм и т.д.)"
+        : "Great photo! Describe the sticker style in your own words (e.g.: anime, cartoon, minimal, etc.)";
+      messages.push({ role: "assistant", content: fallback });
+
+      await supabase
+        .from("sessions")
+        .update({ assistant_messages: messages })
+        .eq("id", session.id);
+
+      await ctx.reply(fallback, getMainMenuKeyboard(lang));
+    }
+    return;
+  }
+
+  // === AI Assistant: new photo during active dialog ===
+  if (session.state === "assistant_chat" || session.state === "wait_assistant_confirm") {
+    // Store new photo file_id in session for later use (callback_data has 64 byte limit)
+    await supabase
+      .from("sessions")
+      .update({ pending_photo_file_id: photo.file_id })
+      .eq("id", session.id);
+
+    await ctx.reply(
+      lang === "ru"
+        ? "Вижу новое фото! С каким будем работать?"
+        : "New photo! Which one should we use?",
+      Markup.inlineKeyboard([
+        [Markup.button.callback(
+          lang === "ru" ? "✅ Новое фото" : "✅ New photo",
+          "assistant_new_photo"
+        )],
+        [Markup.button.callback(
+          lang === "ru" ? "❌ Оставить прежнее" : "❌ Keep current",
+          "assistant_keep_photo"
+        )],
+      ])
+    );
+    return;
+  }
+
+  // === Manual mode: existing logic ===
   const photos = Array.isArray(session.photos) ? session.photos : [];
   photos.push(photo.file_id);
 
@@ -824,8 +1041,57 @@ bot.on("photo", async (ctx) => {
 // Persistent menu handlers (Reply Keyboard)
 // ============================================
 
-// Menu: More stickers (buy credits)
-bot.hears(["✨ Ещё стикеры", "✨ More stickers"], async (ctx) => {
+// Menu: 🤖 Помощник — launch or continue AI assistant dialog
+bot.hears(["🤖 Помощник", "🤖 Assistant"], async (ctx) => {
+  const telegramId = ctx.from?.id;
+  if (!telegramId) return;
+
+  const user = await getUser(telegramId);
+  if (!user) {
+    const lang = (ctx.from?.language_code || "").toLowerCase().startsWith("ru") ? "ru" : "en";
+    await ctx.reply(await getText(lang, "start.need_start"), getMainMenuKeyboard(lang));
+    return;
+  }
+
+  const lang = user.lang || "en";
+
+  // If already in assistant dialog — ignore
+  const session = await getActiveSession(user.id);
+  if (session?.state?.startsWith("assistant_") || session?.state === "wait_assistant_confirm") {
+    return;
+  }
+
+  // Start new assistant dialog (implemented in step 4)
+  await startAssistantDialog(ctx, user, lang);
+});
+
+// Menu: 🎨 Стили — manual style selection mode
+bot.hears(["🎨 Стили", "🎨 Styles"], async (ctx) => {
+  const telegramId = ctx.from?.id;
+  if (!telegramId) return;
+
+  const user = await getUser(telegramId);
+  if (!user) {
+    const lang = (ctx.from?.language_code || "").toLowerCase().startsWith("ru") ? "ru" : "en";
+    await ctx.reply(await getText(lang, "start.need_start"), getMainMenuKeyboard(lang));
+    return;
+  }
+
+  const lang = user.lang || "en";
+
+  // Check if user has a photo in active session
+  const session = await getActiveSession(user.id);
+  if (!session || !session.current_photo_file_id) {
+    await ctx.reply(await getText(lang, "photo.need_photo"), getMainMenuKeyboard(lang));
+    return;
+  }
+
+  // Show flat style keyboard (manual mode)
+  await sendStyleKeyboardFlat(ctx, lang);
+});
+
+// Menu: 💰 Баланс — show balance + credit packs
+bot.hears(["💰 Баланс", "💰 Balance"], async (ctx) => {
   const telegramId = ctx.from?.id;
   if (!telegramId) return;
 
@@ -839,7 +1105,7 @@ bot.hears(["✨ Ещё стикеры", "✨ More stickers"], async (ctx) => {
   await sendBuyCreditsMenu(ctx, user);
 });
 
-// Menu: Help button
+// Menu: ❓ Помощь
 bot.hears(["❓ Помощь", "❓ Help"], async (ctx) => {
   const telegramId = ctx.from?.id;
   if (!telegramId) return;
@@ -863,6 +1129,190 @@ bot.on("text", async (ctx) => {
   const session = await getActiveSession(user.id);
   if (!session?.id) {
     await ctx.reply(await getText(lang, "start.need_start"));
+    return;
+  }
+
+  // === AI Assistant: waiting for photo but got text ===
+  if (session.state === "assistant_wait_photo") {
+    const reminder = lang === "ru"
+      ? "Сначала пришли фото — а потом я помогу со стилем 📸"
+      : "Send me a photo first — then I'll help with the style 📸";
+    await ctx.reply(reminder, getMainMenuKeyboard(lang));
+    return;
+  }
+
+  // === AI Assistant: active dialog ===
+  if (session.state === "assistant_chat") {
+    const userText = ctx.message.text.trim();
+
+    // Get existing messages
+    const messages: AssistantMessage[] = Array.isArray(session.assistant_messages)
+      ? [...session.assistant_messages]
+      : [];
+    messages.push({ role: "user", content: userText });
+
+    // Get system prompt from first message
+    const systemPrompt = messages.find(m => m.role === "system")?.content || "";
+
+    // Track error count for this session
+    const errorCount = session.assistant_error_count || 0;
+
+    try {
+      const result = await callAIChat(messages, systemPrompt);
+      messages.push({ role: "assistant", content: result.rawText });
+
+      // Check if we reached step 4 (mirror) — show confirm button
+      if (result.params?.step === 4 && !result.params.confirmed) {
+        await supabase
+          .from("sessions")
+          .update({
+            assistant_messages: messages,
+            assistant_params: result.params,
+            state: "wait_assistant_confirm",
+            is_active: true,
+          })
+          .eq("id", session.id);
+
+        await ctx.reply(result.text);
+        await ctx.reply(
+          lang === "ru" ? "Всё верно?" : "Is this correct?",
+          Markup.inlineKeyboard([
+            [Markup.button.callback(
+              lang === "ru" ? "✅ Подтвердить" : "✅ Confirm",
+              "assistant_confirm"
+            )],
+          ])
+        );
+      } else if (result.params?.confirmed) {
+        // Step 5: user confirmed via text
+        const params = result.params;
+        await supabase
+          .from("sessions")
+          .update({
+            assistant_messages: messages,
+            assistant_params: { style: params.style, emotion: params.emotion, pose: params.pose },
+            state: "wait_assistant_confirm", // will proceed in confirm handler
+            is_active: true,
+          })
+          .eq("id", session.id);
+
+        await ctx.reply(result.text);
+        // Trigger confirmation flow
+        await handleAssistantConfirm(ctx, user, session.id, lang);
+      } else {
+        // Normal dialog step
+        await supabase
+          .from("sessions")
+          .update({
+            assistant_messages: messages,
+            assistant_params: result.params,
+            assistant_error_count: 0, // reset on success
+            is_active: true,
+          })
+          .eq("id", session.id);
+
+        await ctx.reply(result.text, getMainMenuKeyboard(lang));
+      }
+    } catch (err: any) {
+      console.error("Assistant chat AI error:", err.message);
+      const newErrorCount = errorCount + 1;
+
+      await supabase
+        .from("sessions")
+        .update({ assistant_error_count: newErrorCount })
+        .eq("id", session.id);
+
+      if (newErrorCount >= 3) {
+        // Level 3: escape to manual mode
+        const escapeMsg = lang === "ru"
+          ? "К сожалению, помощник временно недоступен 😔\nНажми 🎨 Стили, чтобы выбрать стиль вручную."
+          : "Unfortunately, the assistant is temporarily unavailable 😔\nTap 🎨 Styles to choose a style manually.";
+        await ctx.reply(escapeMsg, getMainMenuKeyboard(lang));
+      } else {
+        // Level 2: soft fallback
+        const retryMsg = lang === "ru"
+          ? "Произошла ошибка, попробуй написать ещё раз."
+          : "Something went wrong, please try again.";
+        await ctx.reply(retryMsg, getMainMenuKeyboard(lang));
+      }
+
+      sendAlert({
+        type: "assistant_gemini_error" as any,
+        message: `Assistant AI error (attempt ${newErrorCount})`,
+        details: {
+          user: `@${user.username || user.telegram_id}`,
+          sessionId: session.id,
+          error: err.message?.slice(0, 200),
+        },
+      }).catch(console.error);
+    }
+    return;
+  }
+
+  // === AI Assistant: waiting for confirm but got text ===
+  if (session.state === "wait_assistant_confirm") {
+    const userText = ctx.message.text.trim().toLowerCase();
+    // Check if user confirms via text
+    const confirmWords = ["да", "ок", "ok", "yes", "confirm", "подтверждаю", "верно", "всё верно", "все верно"];
+    if (confirmWords.some(w => userText.includes(w))) {
+      await handleAssistantConfirm(ctx, user, session.id, lang);
+      return;
+    }
+
+    // User wants to change something — go back to assistant_chat
+    const messages: AssistantMessage[] = Array.isArray(session.assistant_messages)
+      ? [...session.assistant_messages]
+      : [];
+    messages.push({ role: "user", content: ctx.message.text.trim() });
+
+    const systemPrompt = messages.find(m => m.role === "system")?.content || "";
+
+    try {
+      const result = await callAIChat(messages, systemPrompt);
+      messages.push({ role: "assistant", content: result.rawText });
+
+      // Check if back to mirroring
+      if (result.params?.step === 4 && !result.params.confirmed) {
+        await supabase
+          .from("sessions")
+          .update({
+            assistant_messages: messages,
+            assistant_params: result.params,
+            state: "wait_assistant_confirm",
+            is_active: true,
+          })
+          .eq("id", session.id);
+
+        await ctx.reply(result.text);
+        await ctx.reply(
+          lang === "ru" ? "Всё верно?" : "Is this correct?",
+          Markup.inlineKeyboard([
+            [Markup.button.callback(
+              lang === "ru" ? "✅ Подтвердить" : "✅ Confirm",
+              "assistant_confirm"
+            )],
+          ])
+        );
+      } else {
+        await supabase
+          .from("sessions")
+          .update({
+            assistant_messages: messages,
+            assistant_params: result.params,
+            state: "assistant_chat",
+            is_active: true,
+          })
+          .eq("id", session.id);
+
+        await ctx.reply(result.text, getMainMenuKeyboard(lang));
+      }
+    } catch (err: any) {
+      console.error("Assistant confirm-edit AI error:", err.message);
+      const retryMsg = lang === "ru"
+        ? "Произошла ошибка, попробуй написать ещё раз."
+        : "Something went wrong, please try again.";
+      await ctx.reply(retryMsg, getMainMenuKeyboard(lang));
+    }
     return;
   }
 
@@ -2018,6 +2468,94 @@ bot.action(/^add_text:(.+)$/, async (ctx) => {
   await ctx.reply(await getText(lang, "text.prompt"));
 });
 
+// ============================================
+// AI Assistant callbacks
+// ============================================
+
+// Callback: assistant confirm — user presses [✅ Confirm] button
+bot.action("assistant_confirm", async (ctx) => {
+  safeAnswerCbQuery(ctx);
+  const telegramId = ctx.from?.id;
+  if (!telegramId) return;
+
+  const user = await getUser(telegramId);
+  if (!user?.id) return;
+
+  const lang = user.lang || "en";
+  const session = await getActiveSession(user.id);
+
+  if (!session?.id || session.state !== "wait_assistant_confirm") return;
+
+  await handleAssistantConfirm(ctx, user, session.id, lang);
+});
+
+// Callback: assistant new photo — user chose to use new photo
+bot.action("assistant_new_photo", async (ctx) => {
+  safeAnswerCbQuery(ctx);
+  const telegramId = ctx.from?.id;
+  if (!telegramId) return;
+
+  const user = await getUser(telegramId);
+  if (!user?.id) return;
+
+  const lang = user.lang || "en";
+  const session = await getActiveSession(user.id);
+  if (!session?.id) return;
+
+  const newPhotoFileId = session.pending_photo_file_id;
+  if (!newPhotoFileId) {
+    await ctx.reply(lang === "ru" ? "Фото не найдено, пришли ещё раз." : "Photo not found, please send again.");
+    return;
+  }
+  const photos = Array.isArray(session.photos) ? session.photos : [];
+  photos.push(newPhotoFileId);
+
+  // Update photo and notify assistant
+  const messages: AssistantMessage[] = Array.isArray(session.assistant_messages)
+    ? [...session.assistant_messages]
+    : [];
+  messages.push({ role: "user", content: "[User sent a new photo and chose to use it]" });
+
+  const systemPrompt = messages.find(m => m.role === "system")?.content || "";
+
+  try {
+    const result = await callAIChat(messages, systemPrompt);
+    messages.push({ role: "assistant", content: result.rawText });
+
+    await supabase
+      .from("sessions")
+      .update({
+        photos,
+        current_photo_file_id: newPhotoFileId,
+        assistant_messages: messages,
+        state: "assistant_chat",
+        is_active: true,
+      })
+      .eq("id", session.id);
+
+    await ctx.reply(result.text, getMainMenuKeyboard(lang));
+  } catch (err: any) {
+    console.error("Assistant new photo error:", err.message);
+    await supabase
+      .from("sessions")
+      .update({ photos, current_photo_file_id: newPhotoFileId })
+      .eq("id", session.id);
+
+    const msg = lang === "ru"
+      ? "Фото обновлено! Продолжаем — опиши стиль стикера."
+      : "Photo updated! Let's continue — describe the sticker style.";
+    await ctx.reply(msg, getMainMenuKeyboard(lang));
+  }
+});
+
+// Callback: assistant keep photo — user chose to keep current photo
+bot.action("assistant_keep_photo", async (ctx) => {
+  safeAnswerCbQuery(ctx);
+  const lang = (ctx.from?.language_code || "").toLowerCase().startsWith("ru") ? "ru" : "en";
+  const msg = lang === "ru" ? "Хорошо, работаем с текущим фото!" : "Ok, keeping the current photo!";
+  await ctx.reply(msg);
+});
+
 // Callback: buy_credits
 bot.action("buy_credits", async (ctx) => {
   safeAnswerCbQuery(ctx);
@@ -2707,6 +3245,25 @@ bot.on("successful_payment", async (ctx) => {
     const session = await getActiveSession(finalUser.id);
     const isWaitingForCredits = session?.state === "wait_buy_credit" || session?.state === "wait_first_purchase";
     
+    // === AI Assistant: paid after paywall — trigger generation with assistant params ===
+    if (isWaitingForCredits && session.assistant_params && !session.prompt_final) {
+      const params = session.assistant_params;
+      const promptFinal = buildAssistantPrompt({
+        style: params.style || "cartoon",
+        emotion: params.emotion || "happy",
+        pose: params.pose || "default",
+      });
+
+      // Save prompt and start generation
+      await supabase
+        .from("sessions")
+        .update({ prompt_final: promptFinal, user_input: `[assistant] ${params.style}, ${params.emotion}, ${params.pose}` })
+        .eq("id", session.id);
+
+      // Now fall through to the normal auto-continue logic below
+      session.prompt_final = promptFinal;
+    }
+
     if (isWaitingForCredits && session.prompt_final) {
       const creditsNeeded = session.credits_spent || 1;
 
@@ -2937,17 +3494,50 @@ async function processAbandonedCartAlerts() {
 }
 
 // Start abandoned cart processing interval
+// ============================================
+// EXPIRED ASSISTANT SESSIONS
+// ============================================
+
+const ASSISTANT_SESSION_TTL_MS = 30 * 60 * 1000; // 30 minutes
+
+async function processExpiredAssistantSessions() {
+  try {
+    const cutoff = new Date(Date.now() - ASSISTANT_SESSION_TTL_MS).toISOString();
+
+    const { data: expired, error } = await supabase
+      .from("sessions")
+      .update({ state: "expired", is_active: false })
+      .in("state", ["assistant_wait_photo", "assistant_chat", "wait_assistant_confirm"])
+      .eq("is_active", true)
+      .lt("updated_at", cutoff)
+      .select("id");
+
+    if (error) {
+      console.error("processExpiredAssistantSessions error:", error);
+      return;
+    }
+
+    if (expired?.length) {
+      console.log(`Expired ${expired.length} assistant sessions (30 min timeout)`);
+    }
+  } catch (err) {
+    console.error("processExpiredAssistantSessions error:", err);
+  }
+}
+
 function startAbandonedCartProcessor() {
   console.log("Starting abandoned cart processor (every 5 minutes)");
   
   // Run immediately on start
   processAbandonedCartAlerts();  // 15 min alert to team
   processAbandonedCarts();       // 30 min discount to user
+  processExpiredAssistantSessions(); // 30 min timeout for assistant sessions
   
   // Then run every 5 minutes
   setInterval(() => {
     processAbandonedCartAlerts();
     processAbandonedCarts();
+    processExpiredAssistantSessions();
   }, ABANDONED_CART_CHECK_INTERVAL_MS);
 }
 
@@ -2963,7 +3553,9 @@ async function startBot() {
 
     console.log(`Webhook set: ${webhookUrl}`);
   } else {
+    console.log("Deleting webhook...");
     await bot.telegram.deleteWebhook();
+    console.log("Webhook deleted. Launching long polling...");
     await bot.launch();
     console.log("Bot launched with long polling");
   }

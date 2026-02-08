@@ -16,6 +16,11 @@ export const config = {
   supabaseServiceRoleKey: required("SUPABASE_SERVICE_ROLE_KEY"),
   supabaseStorageBucket: process.env.SUPABASE_STORAGE_BUCKET || "stickers",
   geminiApiKey: required("GEMINI_API_KEY"),
+  openaiApiKey: process.env.OPENAI_API_KEY || "",
+
+  // AI Chat assistant settings
+  aiChatProvider: (process.env.AI_CHAT_PROVIDER || "gemini") as "gemini" | "openai",
+  aiChatModel: process.env.AI_CHAT_MODEL || "",  // empty = use default per provider
   pixianUsername: required("PIXIAN_USERNAME"),
   pixianPassword: required("PIXIAN_PASSWORD"),
   port: Number(process.env.PORT || 3001),
