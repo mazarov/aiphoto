@@ -570,6 +570,33 @@ async function startGeneration(
 
   await enqueueJob(session.id, user.id, false);
 
+  // Alert: generation started with all parameters
+  const mode = options.userInput?.startsWith("[assistant]") ? "🤖 assistant" : "✋ manual";
+  const goal = (() => {
+    switch (options.generationType) {
+      case "style": return `Стикер в стиле: ${options.selectedStyleId || options.userInput || "custom"}`;
+      case "emotion": return `Эмоция: ${options.emotionPrompt || "?"}`;
+      case "motion": return `Движение: ${options.emotionPrompt || "?"}`;
+      case "text": return `Текст: ${options.textPrompt || "?"}`;
+      default: return options.generationType;
+    }
+  })();
+
+  sendAlert({
+    type: "generation_started",
+    message: "New generation",
+    details: {
+      mode,
+      user: `@${user.username || user.telegram_id}`,
+      goal,
+      style: options.selectedStyleId || "-",
+      input: options.userInput || "-",
+      emotion: options.emotionPrompt || "-",
+      text: options.textPrompt || "-",
+      prompt: options.promptFinal.slice(0, 200),
+    },
+  }).catch(console.error);
+
   await sendProgressStart(ctx, session.id, lang);
 }
 

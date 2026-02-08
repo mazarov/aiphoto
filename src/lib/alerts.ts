@@ -2,6 +2,7 @@ import { config } from "../config";
 
 type AlertType = 
   | "generation_failed" 
+  | "generation_started"
   | "gemini_error" 
   | "rembg_failed" 
   | "worker_error" 
@@ -19,6 +20,7 @@ interface AlertOptions {
 
 const EMOJI: Record<AlertType, string> = {
   generation_failed: "🟡",
+  generation_started: "🚀",
   gemini_error: "🟠",
   rembg_failed: "🟠",
   worker_error: "🔴",
