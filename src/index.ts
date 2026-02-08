@@ -2553,6 +2553,19 @@ bot.action("assistant_confirm", async (ctx) => {
   await handleAssistantConfirm(ctx, user, session.id, lang);
 });
 
+// Callback: assistant restart — start new assistant dialog from post-generation button
+bot.action("assistant_restart", async (ctx) => {
+  safeAnswerCbQuery(ctx);
+  const telegramId = ctx.from?.id;
+  if (!telegramId) return;
+
+  const user = await getUser(telegramId);
+  if (!user?.id) return;
+
+  const lang = user.lang || "en";
+  await startAssistantDialog(ctx, user, lang);
+});
+
 // Callback: assistant new photo — user chose to use new photo
 bot.action("assistant_new_photo", async (ctx) => {
   safeAnswerCbQuery(ctx);
