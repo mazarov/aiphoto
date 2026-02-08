@@ -9,6 +9,7 @@ function required(name: string): string {
 }
 
 export const config = {
+  appEnv: process.env.APP_ENV || "prod",  // "prod" | "test"
   telegramBotToken: required("TELEGRAM_BOT_TOKEN"),
   telegramWebhookSecret: process.env.TELEGRAM_WEBHOOK_SECRET,
   supabaseUrl: required("SUPABASE_SUPABASE_PUBLIC_URL"),

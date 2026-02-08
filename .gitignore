@@ -1,7 +1,9 @@
 node_modules/
 dist/
 .env
+.env.test
 *.log
 .DS_Store
 test.jpg
 CONVERSATION_HISTORY.txt
+scripts/broadcast*

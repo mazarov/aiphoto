@@ -553,6 +553,7 @@ async function enqueueJob(sessionId: string, userId: string, isFirstFree: boolea
     status: "queued",
     attempts: 0,
     is_first_free: isFirstFree,
+    env: config.appEnv,
   });
 }
 
@@ -700,6 +701,7 @@ async function getUser(telegramId: number) {
     .from("users")
     .select("*")
     .eq("telegram_id", telegramId)
+    .eq("env", config.appEnv)
     .maybeSingle();
   return data;
 }
@@ -726,6 +728,7 @@ async function getActiveSession(userId: string) {
     .select("*")
     .eq("user_id", userId)
     .eq("is_active", true)
+    .eq("env", config.appEnv)
     .order("created_at", { ascending: false })
     .maybeSingle();
   if (error) {
@@ -806,6 +809,7 @@ bot.start(async (ctx) => {
         credits: 0,
         has_purchased: false,
         username: ctx.from?.username || null,
+        env: config.appEnv,
       })
       .select("*")
       .single();
@@ -860,7 +864,7 @@ bot.start(async (ctx) => {
     // Create new session
     await supabase
       .from("sessions")
-      .insert({ user_id: user.id, state: "wait_photo", is_active: true })
+      .insert({ user_id: user.id, state: "wait_photo", is_active: true, env: config.appEnv })
       .select();
   }
 
@@ -1831,7 +1835,7 @@ bot.action(/^change_style:(.+)$/, async (ctx) => {
     // Create new session
     const { data: newSession } = await supabase
       .from("sessions")
-      .insert({ user_id: user.id, state: "wait_style", is_active: true })
+      .insert({ user_id: user.id, state: "wait_style", is_active: true, env: config.appEnv })
       .select()
       .single();
     session = newSession;
@@ -1937,7 +1941,7 @@ bot.action(/^change_emotion:(.+)$/, async (ctx) => {
   if (!session?.id) {
     const { data: newSession } = await supabase
       .from("sessions")
-      .insert({ user_id: user.id, state: "wait_emotion", is_active: true })
+      .insert({ user_id: user.id, state: "wait_emotion", is_active: true, env: config.appEnv })
       .select()
       .single();
     session = newSession;
@@ -2063,7 +2067,7 @@ bot.action(/^change_motion:(.+)$/, async (ctx) => {
   if (!session?.id) {
     const { data: newSession } = await supabase
       .from("sessions")
-      .insert({ user_id: user.id, state: "wait_motion", is_active: true })
+      .insert({ user_id: user.id, state: "wait_motion", is_active: true, env: config.appEnv })
       .select()
       .single();
     session = newSession;
@@ -2189,7 +2193,7 @@ bot.action(/^add_text:(.+)$/, async (ctx) => {
   if (!session?.id) {
     const { data: newSession } = await supabase
       .from("sessions")
-      .insert({ user_id: user.id, state: "wait_text", is_active: true })
+      .insert({ user_id: user.id, state: "wait_text", is_active: true, env: config.appEnv })
       .select()
       .single();
     session = newSession;
@@ -2529,7 +2533,7 @@ bot.action(/^onboarding_emotion:(.+):(.+)$/, async (ctx) => {
   if (!session?.id) {
     const { data: newSession } = await supabase
       .from("sessions")
-      .insert({ user_id: user.id, state: "wait_emotion", is_active: true })
+      .insert({ user_id: user.id, state: "wait_emotion", is_active: true, env: config.appEnv })
       .select()
       .single();
     session = newSession;
@@ -2610,7 +2614,7 @@ bot.action("new_photo", async (ctx) => {
 
   await supabase
     .from("sessions")
-    .insert({ user_id: user.id, state: "wait_photo", is_active: true });
+    .insert({ user_id: user.id, state: "wait_photo", is_active: true, env: config.appEnv });
 
   const text = lang === "ru"
     ? "📷 Отправь фото — сделаем новый стикер!"
@@ -2701,6 +2705,7 @@ bot.action(/^pack_(\d+)_(\d+)$/, async (ctx) => {
       price: price,
       state: "created",
       is_active: true,
+      env: config.appEnv,
     })
     .select("*")
     .single();
@@ -2860,6 +2865,7 @@ bot.on("successful_payment", async (ctx) => {
       price: 0,
       state: "done",
       is_active: false,
+      env: config.appEnv,
     });
     
     // Set has_purchased = true

@@ -391,6 +391,7 @@ async function runJob(job: any) {
       result_storage_path: filePathStorage,
       sticker_set_name: user?.sticker_set_name || null,
       style_preset_id: session.selected_style_id || null,  // For style examples
+      env: config.appEnv,
     })
     .select("id")
     .single();
@@ -626,6 +627,7 @@ async function poll() {
     // Atomic job claim using PostgreSQL FOR UPDATE SKIP LOCKED
     const { data: jobs, error } = await supabase.rpc("claim_job", {
       p_worker_id: WORKER_ID,
+      p_env: config.appEnv,
     });
 
     if (error) {
