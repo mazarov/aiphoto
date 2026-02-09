@@ -762,6 +762,11 @@ async function startAssistantDialog(ctx: any, user: any, lang: string) {
   console.log("startAssistantDialog: Session created:", newSession.id, "for user:", user.id);
 
   // Build context for system prompt
+  const stylePresets = await getStylePresetsV2();
+  const availableStyles = stylePresets.map(s => 
+    `${s.emoji} ${lang === "ru" ? s.name_ru : s.name_en}`
+  );
+
   const assistantCtx: AssistantContext = {
     firstName: ctx.from?.first_name || "User",
     languageCode: user.language_code || ctx.from?.language_code || "en",
@@ -770,6 +775,7 @@ async function startAssistantDialog(ctx: any, user: any, lang: string) {
     credits: user.credits || 0,
     hasPhoto: false,
     previousGoal,
+    availableStyles,
   };
 
   const systemPrompt = buildSystemPrompt(assistantCtx);

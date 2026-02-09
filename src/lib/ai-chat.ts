@@ -6,7 +6,7 @@ import { config } from "../config";
 // ============================================
 
 export interface ToolCall {
-  name: "update_sticker_params" | "confirm_and_generate" | "request_photo" | "show_style_examples" | "grant_trial_credit";
+  name: "update_sticker_params" | "confirm_and_generate" | "request_photo" | "show_style_examples" | "grant_trial_credit" | "check_balance";
   args: Record<string, any>;
 }
 
@@ -28,6 +28,7 @@ export interface AssistantContext {
   credits: number;
   hasPhoto: boolean;
   previousGoal?: string | null;
+  availableStyles?: string[];
 }
 
 // ============================================
@@ -127,6 +128,22 @@ When denied: be warm, explain the value, and naturally transition to pricing.`,
       required: ["decision", "confidence", "reason"],
     },
   },
+  {
+    name: "check_balance",
+    description: `Check user's current credit balance and available credit packs.
+Call when:
+- User asks about their balance ("сколько у меня?", "my credits?", "баланс")
+- Before recommending a specific pack to buy
+- After user might have purchased credits (returned from payment flow)
+- When you need fresh data to adapt your sales approach
+
+Returns: exact credit count, purchase history, and available packs with per-sticker prices.
+Do NOT tell the user you are "checking" — just use the data naturally in conversation.`,
+    parameters: {
+      type: "object",
+      properties: {},
+    },
+  },
 ];
 
 // ============================================
@@ -144,6 +161,7 @@ You have these tools:
 - request_photo() — call when you need to ask for a photo
 - show_style_examples(style_id?) — call to show example stickers; omit style_id for style list
 - grant_trial_credit(decision, confidence, reason) — call INSTEAD of confirm_and_generate when credits=0, has_purchased=false (see Trial Credit section)
+- check_balance() — get user's current credits and available packs with per-sticker prices
 
 ## User Context
 - Name: ${ctx.firstName}
@@ -266,6 +284,13 @@ Adapt approach:
 - User is frustrated or confused → support, don't monetize
 - User is in the middle of choosing style/emotion/pose → help with the choice
 
+## Balance & Pricing
+- Call check_balance() when user asks about credits, balance, or pricing
+- Call check_balance() before recommending a specific pack
+- When recommending a pack: use per-sticker price from the data, compare to everyday items
+- Do NOT reveal that you "checked" the balance — use the data naturally
+- If check_balance shows credits > 0 and all params confirmed → proceed to confirm_and_generate()
+
 ## Post-Paywall Behavior
 
 If [SYSTEM STATE] shows paywall_shown=true:
@@ -289,11 +314,13 @@ If [SYSTEM STATE] shows paywall_shown=true:
 - If user writes text but you need a photo, remind them to send a photo.
 
 ## Style Examples
-You can show style examples to help users choose.
-- Call show_style_examples() WITHOUT style_id — code shows buttons for ALL styles, user picks one
-- Only pass style_id if user explicitly named a specific style
-- Use when user is unsure about style, asks to see options, or can't decide
-- After showing examples, continue collecting parameters normally
+IMPORTANT: NEVER list or enumerate styles in text yourself. You do NOT know all available styles.
+- To show available styles → call show_style_examples() WITHOUT style_id. Code will show real buttons from the database.
+- Only pass style_id if user explicitly named a specific style from the list below.
+- Use when user is unsure, asks to see options, or can't decide.
+- After showing examples, continue collecting parameters normally.
+- The user can also describe ANY custom style in their own words — it doesn't have to match a preset.
+${ctx.availableStyles?.length ? `\nAvailable style presets (${ctx.availableStyles.length} total): ${ctx.availableStyles.join(", ")}` : ""}
 
 ## Trial Credit (when credits = 0, has_purchased = false)
 After user confirms parameters, call grant_trial_credit() INSTEAD of confirm_and_generate().
