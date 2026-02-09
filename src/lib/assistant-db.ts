@@ -48,12 +48,16 @@ export function handleToolCall(
 ): ToolCallResult {
   if (toolCall.name === "update_sticker_params") {
     const args = toolCall.args;
+    // Merge new params with existing, only include defined values to avoid Supabase issues
+    const updates: Partial<AssistantSessionRow> = {};
+    const newStyle = args.style || aSession.style;
+    const newEmotion = args.emotion || aSession.emotion;
+    const newPose = args.pose || aSession.pose;
+    if (newStyle) updates.style = newStyle;
+    if (newEmotion) updates.emotion = newEmotion;
+    if (newPose) updates.pose = newPose;
     return {
-      updates: {
-        style: args.style || aSession.style || undefined,
-        emotion: args.emotion || aSession.emotion || undefined,
-        pose: args.pose || aSession.pose || undefined,
-      },
+      updates,
       action: "params",
     };
   }
