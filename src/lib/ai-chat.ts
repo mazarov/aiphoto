@@ -5,13 +5,9 @@ import { config } from "../config";
 // Types
 // ============================================
 
-export interface AssistantParams {
-  style: string | null;
-  emotion: string | null;
-  pose: string | null;
-  text: string | null;
-  confirmed: boolean;
-  step: number;
+export interface ToolCall {
+  name: "update_sticker_params" | "confirm_and_generate" | "request_photo" | "show_style_examples";
+  args: Record<string, any>;
 }
 
 export interface AssistantMessage {
@@ -20,9 +16,8 @@ export interface AssistantMessage {
 }
 
 export interface AIChatResult {
-  text: string;       // Clean text for user (without metadata)
-  rawText: string;    // Raw text from model (with metadata)
-  params: AssistantParams | null;
+  text: string;            // Text for user (may be empty if only tool call)
+  toolCall: ToolCall | null;  // Function call from LLM (if any)
 }
 
 export interface AssistantContext {
@@ -32,6 +27,7 @@ export interface AssistantContext {
   totalGenerations: number;
   credits: number;
   hasPhoto: boolean;
+  previousGoal?: string | null;
 }
 
 // ============================================
@@ -54,269 +50,137 @@ const TIMEOUT = 15000;
 console.log(`[AIChat] Provider: ${PROVIDER}, Model: ${MODEL}`);
 
 // ============================================
-// System Prompt Builder
+// Tools definition (Function Calling)
+// ============================================
+
+const ASSISTANT_TOOLS = [
+  {
+    name: "update_sticker_params",
+    description: "Call when user provides sticker parameters (style, emotion, pose). Can update one or several at once. Call every time user mentions any parameter.",
+    parameters: {
+      type: "object",
+      properties: {
+        style: { type: "string", description: "Sticker visual style — use the EXACT words the user said. Any style is valid. Do NOT normalize, substitute, or pick a style yourself." },
+        emotion: { type: "string", description: "Emotion to express — use the user's own words. Any emotion is valid." },
+        pose: { type: "string", description: "Pose or gesture — use the user's own words. Any pose is valid." },
+        border: { type: "boolean", description: "Whether to add a bold white outline/border around the sticker. Ask the user. Default: false." },
+      },
+    },
+  },
+  {
+    name: "confirm_and_generate",
+    description: "Call ONLY when user explicitly confirms all parameters and is ready to generate the sticker. User must say something affirmative like 'yes', 'ok', 'да', 'confirm', 'go ahead', 'подтверждаю'.",
+  },
+  {
+    name: "request_photo",
+    description: "Call when you need to ask the user for a photo to create a sticker from. Call this after understanding the user's goal.",
+  },
+  {
+    name: "show_style_examples",
+    description: "Call to show the user example stickers in different styles. Always call WITHOUT style_id — code will show buttons for ALL styles, user picks one. Only pass style_id if user explicitly named a specific style. Use when user asks to see examples, can't decide on a style, or when showing examples would help.",
+    parameters: {
+      type: "object",
+      properties: {
+        style_id: {
+          type: "string",
+          description: "Style preset ID. Usually omit — let user pick from buttons. Only pass if user explicitly named a style.",
+        },
+      },
+    },
+  },
+];
+
+// ============================================
+// System Prompt Builder (v2 — compact, tool-based)
 // ============================================
 
 export function buildSystemPrompt(ctx: AssistantContext): string {
-  return `# Role
+  return `You are a sticker creation assistant. Your goal: collect 3 parameters from the user (style, emotion, pose) and confirm them before generation.
 
-You are a sticker creation assistant.
-Your task is to **greet the user**, **collect a photo**, **understand their vision**,
-**lock in decisions**, and **prepare the generation**.
+You have these tools:
+- update_sticker_params() — call when user provides any parameter(s)
+- confirm_and_generate() — call ONLY when user explicitly confirms all parameters
+- request_photo() — call when you need to ask for a photo
+- show_style_examples(style_id?) — call to show example stickers; omit style_id for style list
 
-You **take responsibility for the result**.
-
----
-
-## User Context (injected per session)
-
+## User Context
 - Name: ${ctx.firstName}
 - Language: ${ctx.languageCode} → respond in this language
 - Is Premium: ${ctx.isPremium}
 - Total generations: ${ctx.totalGenerations}
 - Has credits: ${ctx.credits > 0}
 - Has photo: ${ctx.hasPhoto}
+- Returning user: ${ctx.previousGoal ? "yes" : "no"}${ctx.previousGoal ? `\n- Previous goal: ${ctx.previousGoal}` : ""}
 
 ## Language Rules
-
-- Your FIRST message MUST be in the user's language (based on language_code above)
 - If language_code starts with "ru" → speak Russian
 - Otherwise → speak English
 - Always match the user's language in responses
 - Address user by their first name
 
----
+## Conversation Flow
+1. If returning user (previous goal exists): greet briefly, skip the goal question, go directly to request_photo().
+   If new user: greet and understand their goal (why they need stickers). Ask ONE question only about the goal.
+2. After understanding the goal (or skipping for returning users), ask for a photo via request_photo()
+3. After photo received, collect style, emotion, pose — ASK the user for each, do NOT pick values yourself
+4. If user gives multiple params at once — accept all via single update_sticker_params() call
+5. NEVER ask for parameters already collected (see [SYSTEM STATE] below)
+   NEVER auto-fill parameters the user hasn't mentioned — ALWAYS ask first
+6. After collecting style, emotion, pose — ask if user wants a white border/outline around the sticker.
+   Example: "Добавить белую обводку?" / "Want a white border around the sticker?"
+   If user says yes → update_sticker_params({ border: true }). If no or unclear → update_sticker_params({ border: false }).
+7. When all 3 main params collected — show mirror message (including border choice), then STOP and wait for user response
+8. After mirror — ONLY if user explicitly confirms (says "да", "ok", "go", "подтверждаю", "верно", "yes") → call confirm_and_generate()
+9. If user wants changes → call update_sticker_params() with new values, then show new mirror
 
-## Behavior Principles
+CRITICAL RULES for confirm_and_generate():
+- NEVER call confirm_and_generate() if ANY parameter is still missing (check [SYSTEM STATE])
+- NEVER call confirm_and_generate() in the same turn where you collect the last parameter
+- When user provides the last missing param: FIRST call update_sticker_params(), THEN show mirror, THEN STOP
+- The user MUST explicitly say something affirmative AFTER seeing the mirror before you call confirm_and_generate()
 
-1. ❌ Do NOT generate any image until all decisions are fixed and confirmed.
-2. ❌ Do NOT suggest options on your own if the user has already expressed a preference.
-3. ✅ YOU initiate the conversation. Do not wait for the user to act first.
-4. ✅ Always mirror the user's decisions before moving forward.
-5. Speak simply and clearly. No marketing language. Do not mention AI, models, or neural networks.
-6. If the user is unsure, help them clarify — do not choose for them.
+For experienced users (total_generations > 10):
+  Combine style + emotion + pose into one question after photo.
 
----
-
-## Conversation Structure (must follow strictly)
-
-### Step 0. Greeting & Understanding the Goal
-
-YOU start the conversation. Greet the user and ask ONE question only — about their goal/purpose. Do NOT ask about the sticker itself yet.
-
-> Hi, {first_name}! 👋
-> I'm your sticker creation assistant.
-> My job is to make sure you love the result.
->
-> Tell me — what's your goal?
-> (e.g. fun stickers of yourself, a gift for a friend, stickers for your team, etc.)
-
-⚠️ Ask ONLY about the goal. Do NOT combine multiple questions. Do NOT ask about style, photo, or sticker details yet.
-
-Listen to the user's answer. Acknowledge their goal briefly, then move to Step 1.
-
----
-
-### Step 1. Photo Request
-
-After understanding the goal, ask for a photo:
-
-> Got it! Now send me a photo you'd like to turn into a sticker.
-
-If the user writes more text instead of sending a photo, gently remind them:
-
-> I need a photo to work with — send me the one you want to use for the sticker.
-
-Do NOT proceed to Step 2 until a photo is received.
-
----
-
-### Step 2. Base Style
-
-After the photo is received, ask:
-
-> Great photo! Now let's decide on the **style**.
-> Describe it in your own words (for example: simple line art, cartoonish, minimal, detailed, etc.).
-
-If the answer is vague, ask **one clarifying question only**.
-
-**For experienced users (total_generations > 10):**
-You may combine Steps 2-4 into one question:
-> Great photo! You already know the drill 💪
-> Describe the style, emotion, and pose — and I'll prepare everything.
-
----
-
-### Step 3. Emotion
-
-Ask:
-
-> What **emotion** should this sticker convey?
-> One word or a short description is enough.
-
----
-
-### Step 4. Pose / Gesture
-
-Ask:
-
-> What **pose or gesture** best expresses this emotion?
-> Describe it as best as you can — it doesn't have to be precise.
-
----
-
-### Step 5. Mirror Understanding (critical)
-
-After receiving all answers, respond in **one single message**.
-
-⚠️ CRITICAL FORMATTING RULE: NEVER use quotes, quotation marks, or backticks around parameter values. Write values as plain text.
-
-Example of CORRECT mirror message:
-> Please check if I understood you correctly:
-> – **Style:** anime
-> – **Emotion:** happy smile
-> – **Pose / gesture:** peace sign
+## Mirror Message Format (when all 3 collected)
+> – **Style:** value
+> – **Emotion:** value
+> – **Pose / gesture:** value
+> – **Border:** yes ✅ / no ❌
 >
 > If anything is off, tell me what to change.
 
-Example of WRONG mirror message (DO NOT DO THIS):
-> – **Style:** "anime"
-> – **Emotion:** "happy smile"
+NEVER use quotes around values. Plain text only.
 
-Use the same format but with the actual values the user chose.
+## Behavior Rules
+- YOU initiate the conversation. Do not wait for the user.
+- Speak simply and clearly. No marketing language.
+- Do NOT mention AI, models, or neural networks.
+- Do NOT generate any image — only collect and confirm parameters.
+- If user is unsure, help them clarify — do not choose for them.
+- NEVER substitute user's words with your own. If user says "рисованные роботы" → style = "рисованные роботы", NOT "cartoon" or "cute".
+- When user asks to CHANGE a parameter after mirror — update it with their exact words via update_sticker_params().
+- If user writes text but you need a photo, remind them to send a photo.
 
-❗ Do not ask new questions after this message.
-❗ Do not generate any image.
-❗ After this message, the system will show an inline [✅ Confirm] button.
-
-At the end of this message, append a hidden metadata block:
-<!-- PARAMS:{"style":"...","emotion":"...","pose":"...","text":null,"confirmed":false,"step":5} -->
-
----
-
-### Step 6. Lock-in & Proceed
-
-After the user confirms (via inline button or text like "ok", "да", "confirm"):
-
-**If user has credits:**
-> Great. Generating your sticker now based on these decisions.
-
-**If user has no credits:**
-
-*Premium user (is_premium == true):*
-> Everything is set. Choose a credit pack and I'll generate your sticker.
-
-*Regular user (is_premium == false):*
-> The sticker will be generated strictly based on what we agreed.
-> Choose a pack to proceed.
-
-Append metadata:
-<!-- PARAMS:{"style":"...","emotion":"...","pose":"...","text":null,"confirmed":true,"step":6} -->
-
----
-
-## Metadata Rules
-
-After EVERY response starting from Step 2, append a hidden metadata block at the very end:
-<!-- PARAMS:{"style":"...or null","emotion":"...or null","pose":"...or null","text":null,"confirmed":false,"step":N} -->
-
-This allows the system to track progress without extra API calls.
-Do NOT forget this metadata block — it is mandatory for every response from Step 2 onwards.
-
----
-
-## Payment Behavior
-
-- If is_premium == true:
-  Be direct and confident about payment. No explanations needed.
-  Premium users know how bots work — don't over-explain.
-
-- If is_premium == false:
-  Reassure the user about quality. Emphasize that the sticker will match
-  their decisions exactly. More warmth, more confidence in result.
-
----
-
-## Handling Edge Cases
-
-- User writes text before sending a photo (after Step 0) → respond naturally, then remind to send a photo
-- User sends a new photo mid-conversation → say "New photo! Which one should we use?" and wait
-- User says something off-topic → gently redirect to the current step
-- User confirms partially → ask about the remaining parameter
-
----
-
-## Formatting Rules (MANDATORY)
-
-- NEVER use quotes (""), single quotes (''), or backticks around ANY value in ANY message throughout the entire conversation.
-- This applies to style names, emotions, poses, text values, and any other user-provided data.
-  ✅ Correct: – **Style:** anime
-  ✅ Correct: – **Emotion:** happy smile
-  ❌ WRONG: – **Style:** "anime"
-  ❌ WRONG: – **Emotion:** «happy smile»
-  ❌ WRONG: – **Pose:** 'peace sign'
-- Keep all messages clean and easy to read. Plain text only for values.
-
----
-
-## Forbidden
-
-- ❌ Generating an image before confirmation
-- ❌ Mentioning "AI", "model", or "neural network"
-- ❌ Blaming the user for unclear input
-- ❌ Saying "let's try and see what happens"
-- ❌ Waiting passively — YOU always drive the conversation forward
-
----
+## Style Examples
+You can show style examples to help users choose.
+- Call show_style_examples() WITHOUT style_id — code shows buttons for ALL styles, user picks one
+- Only pass style_id if user explicitly named a specific style
+- Use when user is unsure about style, asks to see options, or can't decide
+- After showing examples, continue collecting parameters normally
 
 ## Tone
-
-Calm, confident, and collaborative.
-You are not selling — you are **taking responsibility for implementing the agreed decisions**.`;
+Calm, confident, collaborative. You take responsibility for the result.`;
 }
 
 // ============================================
-// Metadata Parser
-// ============================================
-
-const PARAMS_REGEX = /<!-- PARAMS:(.*?) -->/s;
-
-export function parseAssistantMetadata(text: string): AssistantParams | null {
-  const match = text.match(PARAMS_REGEX);
-  if (!match?.[1]) return null;
-
-  try {
-    const parsed = JSON.parse(match[1]);
-
-    if (typeof parsed !== "object" || parsed === null) return null;
-    if (typeof parsed.step !== "number") return null;
-    if (typeof parsed.confirmed !== "boolean") return null;
-
-    return {
-      style: typeof parsed.style === "string" ? parsed.style : null,
-      emotion: typeof parsed.emotion === "string" ? parsed.emotion : null,
-      pose: typeof parsed.pose === "string" ? parsed.pose : null,
-      text: typeof parsed.text === "string" ? parsed.text : null,
-      confirmed: parsed.confirmed,
-      step: parsed.step,
-    };
-  } catch {
-    return null;
-  }
-}
-
-export function stripMetadata(text: string): string {
-  return text.replace(PARAMS_REGEX, "").trim();
-}
-
-// ============================================
-// Gemini API call
+// Gemini API call (with function calling)
 // ============================================
 
 async function callGemini(
   messages: AssistantMessage[],
   systemPrompt: string
-): Promise<string> {
+): Promise<AIChatResult> {
   const contents = messages
     .filter(m => m.role !== "system")
     .map(m => ({
@@ -329,9 +193,11 @@ async function callGemini(
     contents.push({ role: "user", parts: [{ text: "Start the conversation." }] });
   }
 
-  const body = {
+  const body: Record<string, any> = {
     systemInstruction: { parts: [{ text: systemPrompt }] },
     contents,
+    tools: [{ function_declarations: ASSISTANT_TOOLS }],
+    tool_config: { function_calling_config: { mode: "AUTO" } },
     generationConfig: {
       temperature: 0.7,
       maxOutputTokens: 1024,
@@ -347,19 +213,37 @@ async function callGemini(
     }
   );
 
-  const text = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (!text) throw new Error("Gemini returned empty response");
-  return text;
+  const parts = response.data?.candidates?.[0]?.content?.parts || [];
+  let text = "";
+  let toolCall: ToolCall | null = null;
+
+  for (const part of parts) {
+    if (part.text) {
+      text += part.text;
+    }
+    if (part.functionCall) {
+      toolCall = {
+        name: part.functionCall.name,
+        args: part.functionCall.args || {},
+      };
+    }
+  }
+
+  if (!text && !toolCall) {
+    throw new Error("Gemini returned empty response (no text, no function call)");
+  }
+
+  return { text: text.trim(), toolCall };
 }
 
 // ============================================
-// OpenAI API call
+// OpenAI API call (with function calling)
 // ============================================
 
 async function callOpenAI(
   messages: AssistantMessage[],
   systemPrompt: string
-): Promise<string> {
+): Promise<AIChatResult> {
   const openaiMessages: Array<{ role: string; content: string }> = [
     { role: "system", content: systemPrompt },
   ];
@@ -374,11 +258,23 @@ async function callOpenAI(
     openaiMessages.push({ role: "user", content: "Start the conversation." });
   }
 
+  // Convert tools to OpenAI format
+  const openaiTools = ASSISTANT_TOOLS.map(t => ({
+    type: "function" as const,
+    function: {
+      name: t.name,
+      description: t.description,
+      parameters: (t as any).parameters || { type: "object", properties: {} },
+    },
+  }));
+
   const response = await axios.post(
     "https://api.openai.com/v1/chat/completions",
     {
       model: MODEL,
       messages: openaiMessages,
+      tools: openaiTools,
+      tool_choice: "auto",
       temperature: 0.7,
       max_tokens: 1024,
     },
@@ -391,9 +287,28 @@ async function callOpenAI(
     }
   );
 
-  const text = response.data?.choices?.[0]?.message?.content;
-  if (!text) throw new Error("OpenAI returned empty response");
-  return text;
+  const choice = response.data?.choices?.[0];
+  const text = choice?.message?.content || "";
+  let toolCall: ToolCall | null = null;
+
+  const toolCalls = choice?.message?.tool_calls || [];
+  if (toolCalls.length > 0) {
+    const tc = toolCalls[0];
+    try {
+      toolCall = {
+        name: tc.function.name,
+        args: JSON.parse(tc.function.arguments || "{}"),
+      };
+    } catch {
+      console.error("[AIChat] Failed to parse OpenAI tool call arguments:", tc.function.arguments);
+    }
+  }
+
+  if (!text && !toolCall) {
+    throw new Error("OpenAI returned empty response (no text, no function call)");
+  }
+
+  return { text: text.trim(), toolCall };
 }
 
 // ============================================
@@ -408,14 +323,11 @@ export async function callAIChat(
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
-      const rawText = PROVIDER === "openai"
+      const result = PROVIDER === "openai"
         ? await callOpenAI(messages, systemPrompt)
         : await callGemini(messages, systemPrompt);
 
-      const params = parseAssistantMetadata(rawText);
-      const text = stripMetadata(rawText);
-
-      return { text, rawText, params };
+      return result;
     } catch (err: any) {
       lastError = err;
 
@@ -437,91 +349,4 @@ export async function callAIChat(
   }
 
   throw lastError;
-}
-
-// ============================================
-// Fallback extraction (separate call)
-// ============================================
-
-export async function extractParamsFromConversation(
-  messages: AssistantMessage[]
-): Promise<AssistantParams | null> {
-  const conversationText = messages
-    .filter(m => m.role !== "system")
-    .map(m => `${m.role}: ${m.content}`)
-    .join("\n");
-
-  const extractionPrompt = `Analyze this conversation between a sticker creation assistant and a user.
-Extract the current state of decisions.
-Return ONLY valid JSON, no other text:
-{
-  "style": "style description or null",
-  "emotion": "emotion or null",
-  "pose": "pose/gesture or null",
-  "text": null,
-  "confirmed": true or false,
-  "step": number from 0 to 6
-}
-
-Conversation:
-${conversationText}`;
-
-  try {
-    let text: string | undefined;
-
-    if (PROVIDER === "openai") {
-      const response = await axios.post(
-        "https://api.openai.com/v1/chat/completions",
-        {
-          model: MODEL,
-          messages: [
-            { role: "system", content: "Extract structured data. Return ONLY valid JSON." },
-            { role: "user", content: extractionPrompt },
-          ],
-          temperature: 0,
-          max_tokens: 256,
-          response_format: { type: "json_object" },
-        },
-        {
-          headers: {
-            "Authorization": `Bearer ${config.openaiApiKey}`,
-            "Content-Type": "application/json",
-          },
-          timeout: TIMEOUT,
-        }
-      );
-      text = response.data?.choices?.[0]?.message?.content;
-    } else {
-      const response = await axios.post(
-        `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`,
-        {
-          contents: [{ role: "user", parts: [{ text: extractionPrompt }] }],
-          generationConfig: {
-            responseMimeType: "application/json",
-            temperature: 0,
-          },
-        },
-        {
-          headers: { "x-goog-api-key": config.geminiApiKey },
-          timeout: TIMEOUT,
-        }
-      );
-      text = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
-    }
-
-    if (!text) return null;
-
-    const parsed = JSON.parse(text);
-    return {
-      style: parsed.style || null,
-      emotion: parsed.emotion || null,
-      pose: parsed.pose || null,
-      text: parsed.text || null,
-      confirmed: parsed.confirmed === true,
-      step: typeof parsed.step === "number" ? parsed.step : 0,
-    };
-  } catch (err: any) {
-    console.error("[AIChat] Fallback extraction failed:", err.message);
-    return null;
-  }
 }

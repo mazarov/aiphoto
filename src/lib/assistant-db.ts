@@ -1,6 +1,6 @@
 import { supabase } from "./supabase";
 import { config } from "../config";
-import type { AssistantMessage, AssistantParams } from "./ai-chat";
+import type { AssistantMessage, ToolCall } from "./ai-chat";
 
 // ============================================
 // Types
@@ -15,6 +15,7 @@ export interface AssistantSessionRow {
   emotion: string | null;
   pose: string | null;
   sticker_text: string | null;
+  border: boolean;
   confirmed: boolean;
   current_step: number;
   messages: AssistantMessage[];
@@ -25,6 +26,122 @@ export interface AssistantSessionRow {
   created_at: string;
   updated_at: string;
   completed_at: string | null;
+}
+
+// ============================================
+// Tool Call Handler (merge with existing data)
+// ============================================
+
+export type ToolAction = "params" | "confirm" | "photo" | "show_examples" | "none";
+
+export interface ToolCallResult {
+  updates: Partial<AssistantSessionRow>;
+  action: ToolAction;
+}
+
+/**
+ * Handle a function call from LLM. Merges new params with existing session data.
+ * Returns both the DB updates and the semantic action to take.
+ */
+export function handleToolCall(
+  toolCall: ToolCall,
+  aSession: AssistantSessionRow
+): ToolCallResult {
+  if (toolCall.name === "update_sticker_params") {
+    const args = toolCall.args;
+    // Merge new params with existing, only include defined values to avoid Supabase issues
+    const updates: Partial<AssistantSessionRow> = {};
+    const newStyle = args.style || aSession.style;
+    const newEmotion = args.emotion || aSession.emotion;
+    const newPose = args.pose || aSession.pose;
+    if (newStyle) updates.style = newStyle;
+    if (newEmotion) updates.emotion = newEmotion;
+    if (newPose) updates.pose = newPose;
+    if (args.border !== undefined) updates.border = Boolean(args.border);
+    return {
+      updates,
+      action: "params",
+    };
+  }
+
+  if (toolCall.name === "confirm_and_generate") {
+    return {
+      updates: { confirmed: true },
+      action: "confirm",
+    };
+  }
+
+  if (toolCall.name === "request_photo") {
+    return {
+      updates: {},
+      action: "photo",
+    };
+  }
+
+  if (toolCall.name === "show_style_examples") {
+    return {
+      updates: {},
+      action: "show_examples",
+    };
+  }
+
+  return { updates: {}, action: "none" };
+}
+
+// ============================================
+// State Injection (injected into system prompt)
+// ============================================
+
+/**
+ * Build [SYSTEM STATE] block to inject before each LLM call.
+ * Tells the LLM which params are collected and which are still needed.
+ */
+export function buildStateInjection(
+  aSession: AssistantSessionRow,
+  options?: { availableStyles?: Array<{ id: string; name_en: string }> }
+): string {
+  const collected: Record<string, string | boolean | null> = {
+    style: aSession.style || null,
+    emotion: aSession.emotion || null,
+    pose: aSession.pose || null,
+    border: aSession.border ?? null,
+  };
+
+  const missing = Object.entries(collected)
+    .filter(([k, v]) => v === null && k !== "border")
+    .map(([k]) => k);
+
+  const lines = [
+    `\n[SYSTEM STATE]`,
+    `Collected: ${JSON.stringify(collected)}`,
+  ];
+
+  if (aSession.goal) {
+    lines.push(`Goal: ${aSession.goal}`);
+  }
+
+  if (missing.length > 0) {
+    lines.push(`Still need: ${missing.join(", ")}`);
+  } else {
+    lines.push(`All parameters collected. Show mirror and wait for user confirmation.`);
+  }
+
+  // Inject available styles for show_style_examples tool
+  if (options?.availableStyles && options.availableStyles.length > 0) {
+    const styleList = options.availableStyles.map(s => s.id).join(", ");
+    lines.push(`Available style IDs for examples: ${styleList}`);
+  }
+
+  lines.push(`DO NOT ask for already collected parameters.`);
+  return lines.join("\n");
+}
+
+// ============================================
+// Helper: check if all params are collected
+// ============================================
+
+export function allParamsCollected(aSession: AssistantSessionRow): boolean {
+  return !!(aSession.style && aSession.emotion && aSession.pose);
 }
 
 // ============================================
@@ -140,34 +257,84 @@ export async function closeAllActiveAssistantSessions(
 }
 
 /**
- * Apply parsed AI params to assistant session fields.
- * Extracts goal from conversation if present.
- */
-export function mapParamsToSessionFields(params: AssistantParams | null): Partial<AssistantSessionRow> {
-  if (!params) return {};
-  return {
-    style: params.style || undefined,
-    emotion: params.emotion || undefined,
-    pose: params.pose || undefined,
-    sticker_text: undefined,
-    confirmed: params.confirmed || false,
-    current_step: params.step || 0,
-  };
-}
-
-/**
  * Get assistant session params in the format expected by handleAssistantConfirm / buildAssistantPrompt.
  */
 export function getAssistantParams(session: AssistantSessionRow): {
   style: string;
   emotion: string;
   pose: string;
+  border: boolean;
 } {
   return {
     style: session.style || "cartoon",
     emotion: session.emotion || "happy",
     pose: session.pose || "default",
+    border: session.border ?? false,
   };
+}
+
+/**
+ * Get the most recent assistant session for a user regardless of status.
+ * Used as a fallback when getActiveAssistantSession returns null (session was unexpectedly closed).
+ * Only returns sessions updated within the last `maxAgeMs` milliseconds.
+ */
+export async function getRecentAssistantSession(
+  userId: string,
+  maxAgeMs: number = 5 * 60 * 1000
+): Promise<AssistantSessionRow | null> {
+  const cutoff = new Date(Date.now() - maxAgeMs).toISOString();
+
+  const { data, error } = await supabase
+    .from("assistant_sessions")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("env", config.appEnv)
+    .gte("updated_at", cutoff)
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    console.error("getRecentAssistantSession error:", error.message);
+    return null;
+  }
+  return data;
+}
+
+/**
+ * Reactivate a previously closed assistant session.
+ */
+export async function reactivateAssistantSession(id: string): Promise<void> {
+  const { error } = await supabase
+    .from("assistant_sessions")
+    .update({
+      status: "active",
+      completed_at: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id);
+
+  if (error) {
+    console.error("reactivateAssistantSession error:", error.message);
+  }
+}
+
+/**
+ * Get the last known goal for a user from any assistant session (active, completed, abandoned).
+ * Used when starting a new dialog to avoid re-asking the goal.
+ */
+export async function getLastGoalForUser(userId: string): Promise<string | null> {
+  const { data } = await supabase
+    .from("assistant_sessions")
+    .select("goal")
+    .eq("user_id", userId)
+    .eq("env", config.appEnv)
+    .not("goal", "is", null)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  return data?.goal || null;
 }
 
 /**
