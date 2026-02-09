@@ -854,6 +854,63 @@ async function processAssistantResult(
 }
 
 /**
+ * Generate a fallback reply when LLM returns only a tool call (no text).
+ * This ensures the user always gets a response.
+ */
+function generateFallbackReply(action: string, session: AssistantSessionRow, lang: string): string {
+  const isRu = lang === "ru";
+
+  if (action === "confirm") {
+    return isRu ? "Отлично! Запускаю генерацию..." : "Great! Starting generation...";
+  }
+
+  if (action === "photo") {
+    return isRu
+      ? "Пришли мне фото, из которого хочешь сделать стикер 📸"
+      : "Send me a photo you'd like to turn into a sticker 📸";
+  }
+
+  if (action === "show_mirror") {
+    return buildMirrorMessage(session, lang);
+  }
+
+  // action === "params" or "normal" — ask for next missing param
+  if (!session.style) {
+    return isRu
+      ? "Принял! Теперь опиши стиль стикера (например: аниме, мультяшный, минимализм)"
+      : "Got it! Now describe the sticker style (e.g.: anime, cartoon, minimal)";
+  }
+  if (!session.emotion) {
+    return isRu
+      ? "Отлично! Какую эмоцию хочешь передать?"
+      : "Great! What emotion should the sticker express?";
+  }
+  if (!session.pose) {
+    return isRu
+      ? "Понял! Какую позу или жест выбираешь?"
+      : "Got it! What pose or gesture do you want?";
+  }
+
+  return isRu ? "Продолжаем!" : "Let's continue!";
+}
+
+/**
+ * Build a mirror message showing all collected params.
+ */
+function buildMirrorMessage(session: AssistantSessionRow, lang: string): string {
+  const isRu = lang === "ru";
+  const lines = [
+    isRu ? "Проверь, правильно ли я понял:" : "Please check if I understood you correctly:",
+    `– **${isRu ? "Стиль" : "Style"}:** ${session.style || "?"}`,
+    `– **${isRu ? "Эмоция" : "Emotion"}:** ${session.emotion || "?"}`,
+    `– **${isRu ? "Поза / жест" : "Pose / gesture"}:** ${session.pose || "?"}`,
+    "",
+    isRu ? "Если что-то не так — скажи, что изменить." : "If anything is off, tell me what to change.",
+  ];
+  return lines.join("\n");
+}
+
+/**
  * Build final prompt for Gemini image generation from assistant params.
  */
 function buildAssistantPrompt(params: { style: string; emotion: string; pose: string }): string {
@@ -1123,9 +1180,17 @@ bot.on("photo", async (ctx) => {
 
       const { action, updatedSession } = await processAssistantResult(result, aSession, messages);
 
-      if (action === "show_mirror" && result.text) {
-        // All params collected — show confirm button
-        await ctx.reply(result.text);
+      // Generate fallback text if LLM returned only a tool call
+      let replyText = result.text;
+      if (!replyText && result.toolCall) {
+        replyText = generateFallbackReply(action, updatedSession, lang);
+        messages[messages.length - 1] = { role: "assistant", content: replyText };
+        await updateAssistantSession(aSession.id, { messages });
+      }
+
+      if (action === "show_mirror") {
+        const mirror = buildMirrorMessage(updatedSession, lang);
+        await ctx.reply(mirror);
         await ctx.reply(
           lang === "ru" ? "Всё верно?" : "Is everything correct?",
           Markup.inlineKeyboard([
@@ -1135,8 +1200,8 @@ bot.on("photo", async (ctx) => {
             )],
           ])
         );
-      } else if (result.text) {
-        await ctx.reply(result.text, getMainMenuKeyboard(lang));
+      } else if (replyText) {
+        await ctx.reply(replyText, getMainMenuKeyboard(lang));
       }
       console.log("Assistant photo: reply sent to user");
     } catch (err: any) {
@@ -1336,9 +1401,10 @@ bot.on("text", async (ctx) => {
         ...goalUpdate,
       });
 
-      if (result.text) {
-        await ctx.reply(result.text, getMainMenuKeyboard(lang));
-      }
+      const replyText = result.text || (lang === "ru"
+        ? "Понял! Пришли фото для стикера 📸"
+        : "Got it! Send me a photo for the sticker 📸");
+      await ctx.reply(replyText, getMainMenuKeyboard(lang));
     } catch (err: any) {
       console.error("Assistant wait_photo text AI error:", err.message);
       const reminder = lang === "ru"
@@ -1374,13 +1440,23 @@ bot.on("text", async (ctx) => {
 
       const { action, updatedSession } = await processAssistantResult(result, aSession, messages);
 
+      // Generate fallback text if LLM returned only a tool call (no text)
+      let replyText = result.text;
+      if (!replyText && result.toolCall) {
+        replyText = generateFallbackReply(action, updatedSession, lang);
+        // Update messages with fallback text
+        messages[messages.length - 1] = { role: "assistant", content: replyText };
+        await updateAssistantSession(aSession.id, { messages });
+      }
+
       if (action === "confirm") {
         // LLM decided user confirmed — trigger generation
-        if (result.text) await ctx.reply(result.text);
+        if (replyText) await ctx.reply(replyText);
         await handleAssistantConfirm(ctx, user, session.id, lang);
       } else if (action === "show_mirror") {
         // All params collected — show mirror + confirm button
-        if (result.text) await ctx.reply(result.text);
+        const mirror = buildMirrorMessage(updatedSession, lang);
+        await ctx.reply(mirror);
         await ctx.reply(
           lang === "ru" ? "Всё верно?" : "Is everything correct?",
           Markup.inlineKeyboard([
@@ -1396,10 +1472,10 @@ bot.on("text", async (ctx) => {
           .from("sessions")
           .update({ state: "assistant_wait_photo", is_active: true })
           .eq("id", session.id);
-        if (result.text) await ctx.reply(result.text, getMainMenuKeyboard(lang));
+        if (replyText) await ctx.reply(replyText, getMainMenuKeyboard(lang));
       } else {
         // Normal dialog step
-        if (result.text) await ctx.reply(result.text, getMainMenuKeyboard(lang));
+        if (replyText) await ctx.reply(replyText, getMainMenuKeyboard(lang));
       }
     } catch (err: any) {
       console.error("Assistant chat AI error:", err.message);
