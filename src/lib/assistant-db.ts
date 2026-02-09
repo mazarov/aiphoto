@@ -15,6 +15,7 @@ export interface AssistantSessionRow {
   emotion: string | null;
   pose: string | null;
   sticker_text: string | null;
+  border: boolean;
   confirmed: boolean;
   current_step: number;
   messages: AssistantMessage[];
@@ -56,6 +57,7 @@ export function handleToolCall(
     if (newStyle) updates.style = newStyle;
     if (newEmotion) updates.emotion = newEmotion;
     if (newPose) updates.pose = newPose;
+    if (args.border !== undefined) updates.border = Boolean(args.border);
     return {
       updates,
       action: "params",
@@ -98,14 +100,15 @@ export function buildStateInjection(
   aSession: AssistantSessionRow,
   options?: { availableStyles?: Array<{ id: string; name_en: string }> }
 ): string {
-  const collected: Record<string, string | null> = {
+  const collected: Record<string, string | boolean | null> = {
     style: aSession.style || null,
     emotion: aSession.emotion || null,
     pose: aSession.pose || null,
+    border: aSession.border ?? null,
   };
 
   const missing = Object.entries(collected)
-    .filter(([_, v]) => v === null)
+    .filter(([k, v]) => v === null && k !== "border")
     .map(([k]) => k);
 
   const lines = [
@@ -260,11 +263,13 @@ export function getAssistantParams(session: AssistantSessionRow): {
   style: string;
   emotion: string;
   pose: string;
+  border: boolean;
 } {
   return {
     style: session.style || "cartoon",
     emotion: session.emotion || "happy",
     pose: session.pose || "default",
+    border: session.border ?? false,
   };
 }
 

@@ -198,6 +198,41 @@ async function runJob(job: any) {
     throw new Error(`Gemini API failed: ${errorMessage}`);
   }
 
+  // Check for content moderation block
+  const blockReason = geminiRes.data?.promptFeedback?.blockReason;
+  if (blockReason) {
+    console.error("Gemini blocked:", blockReason);
+    await sendAlert({
+      type: "generation_failed",
+      message: `Gemini blocked: ${blockReason}`,
+      details: { 
+        user: `@${user?.username || telegramId}`,
+        sessionId: session.id, 
+        generationType,
+        styleId: session.selected_style_id || "-",
+        userInput: (session.user_input || "").slice(0, 100),
+        blockReason,
+      },
+    });
+
+    // Send user-friendly message and refund manually (don't throw — avoid generic error)
+    const lang = user?.lang || "en";
+    const blockedMsg = lang === "ru"
+      ? "⚠️ Не удалось обработать это фото в выбранном стиле.\n\nПопробуй другое фото или другой стиль.\nКредит возвращён на баланс."
+      : "⚠️ Could not process this photo with the chosen style.\n\nTry a different photo or style.\nCredit has been refunded.";
+    await sendMessage(telegramId, blockedMsg);
+
+    // Refund credits
+    const creditsToRefund = session.credits_spent || 1;
+    await supabase
+      .from("users")
+      .update({ credits: (user?.credits || 0) + creditsToRefund })
+      .eq("id", session.user_id);
+
+    // Mark job as done (not error — we handled it gracefully)
+    return;
+  }
+
   const imageBase64 =
     geminiRes.data?.candidates?.[0]?.content?.parts?.find((p: any) => p.inlineData)?.inlineData
       ?.data || null;
@@ -225,19 +260,10 @@ async function runJob(job: any) {
 
   await updateProgress(4);
   const generatedBuffer = Buffer.from(imageBase64, "base64");
-  const paddedBuffer = await sharp(generatedBuffer)
-    .extend({
-      top: 30,
-      bottom: 30,
-      left: 30,
-      right: 30,
-      background: { r: 255, g: 255, b: 255, alpha: 1 },
-    })
-    .toBuffer();
 
   await updateProgress(5);
   // Remove background (rembg first, Pixian fallback)
-  const imageSizeKb = Math.round(paddedBuffer.length / 1024);
+  const imageSizeKb = Math.round(generatedBuffer.length / 1024);
   const rembgUrl = process.env.REMBG_URL;
   
   let noBgBuffer: Buffer;
@@ -246,7 +272,7 @@ async function runJob(job: any) {
   // Try rembg (self-hosted) first
   if (rembgUrl) {
     // Resize image for faster rembg processing (max 512px - same as final sticker size)
-    const rembgBuffer = await sharp(paddedBuffer)
+    const rembgBuffer = await sharp(generatedBuffer)
       .resize(512, 512, { fit: "inside", withoutEnlargement: true })
       .png()
       .toBuffer();
@@ -306,7 +332,7 @@ async function runJob(job: any) {
   if (!noBgBuffer!) {
     console.log(`Calling Pixian to remove background... (image size: ${imageSizeKb} KB)`);
     const pixianForm = new FormData();
-    pixianForm.append("image", paddedBuffer, {
+    pixianForm.append("image", generatedBuffer, {
       filename: "image.png",
       contentType: "image/png",
     });

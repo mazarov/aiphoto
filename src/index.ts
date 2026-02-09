@@ -978,11 +978,15 @@ function generateFallbackReply(action: string, session: AssistantSessionRow, lan
  */
 function buildMirrorMessage(session: AssistantSessionRow, lang: string): string {
   const isRu = lang === "ru";
+  const borderText = session.border
+    ? (isRu ? "да ✅" : "yes ✅")
+    : (isRu ? "нет ❌" : "no ❌");
   const lines = [
     isRu ? "Проверь, правильно ли я понял:" : "Please check if I understood you correctly:",
     `– **${isRu ? "Стиль" : "Style"}:** ${session.style || "?"}`,
     `– **${isRu ? "Эмоция" : "Emotion"}:** ${session.emotion || "?"}`,
     `– **${isRu ? "Поза / жест" : "Pose / gesture"}:** ${session.pose || "?"}`,
+    `– **${isRu ? "Обводка" : "Border"}:** ${borderText}`,
     "",
     isRu ? "Если что-то не так — скажи, что изменить." : "If anything is off, tell me what to change.",
   ];
@@ -1016,7 +1020,11 @@ async function handleShowStyleExamples(ctx: any, styleId: string | undefined | n
 /**
  * Build final prompt for Gemini image generation from assistant params.
  */
-function buildAssistantPrompt(params: { style: string; emotion: string; pose: string }): string {
+function buildAssistantPrompt(params: { style: string; emotion: string; pose: string; border: boolean }): string {
+  const borderLine = params.border
+    ? "- Bold white outline/border around the character (thick, clearly visible, uniform width)"
+    : "- No outline/border around the character";
+
   return `Create a telegram sticker of the person from the photo.
 
 Style: ${params.style}
@@ -1024,10 +1032,11 @@ Emotion: ${params.emotion}
 Pose/gesture: ${params.pose}
 
 Requirements:
-- White/transparent background
+- Solid black background (NOT white, NOT transparent) — critical for clean cutout
 - Sticker-like proportions (head slightly larger)
-- Clear outlines
-- Expressive and recognizable`;
+${borderLine}
+- Expressive and recognizable
+- High contrast between character and background`;
 }
 
 // Helper: get active session

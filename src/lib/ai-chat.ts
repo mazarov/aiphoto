@@ -63,6 +63,7 @@ const ASSISTANT_TOOLS = [
         style: { type: "string", description: "Sticker visual style — use the EXACT words the user said. Any style is valid. Do NOT normalize, substitute, or pick a style yourself." },
         emotion: { type: "string", description: "Emotion to express — use the user's own words. Any emotion is valid." },
         pose: { type: "string", description: "Pose or gesture — use the user's own words. Any pose is valid." },
+        border: { type: "boolean", description: "Whether to add a bold white outline/border around the sticker. Ask the user. Default: false." },
       },
     },
   },
@@ -125,9 +126,12 @@ You have these tools:
 4. If user gives multiple params at once — accept all via single update_sticker_params() call
 5. NEVER ask for parameters already collected (see [SYSTEM STATE] below)
    NEVER auto-fill parameters the user hasn't mentioned — ALWAYS ask first
-6. When all 3 params collected — show mirror message, then STOP and wait for user response
-7. After mirror — ONLY if user explicitly confirms (says "да", "ok", "go", "подтверждаю", "верно", "yes") → call confirm_and_generate()
-8. If user wants changes → call update_sticker_params() with new values, then show new mirror
+6. After collecting style, emotion, pose — ask if user wants a white border/outline around the sticker.
+   Example: "Добавить белую обводку?" / "Want a white border around the sticker?"
+   If user says yes → update_sticker_params({ border: true }). If no or unclear → update_sticker_params({ border: false }).
+7. When all 3 main params collected — show mirror message (including border choice), then STOP and wait for user response
+8. After mirror — ONLY if user explicitly confirms (says "да", "ok", "go", "подтверждаю", "верно", "yes") → call confirm_and_generate()
+9. If user wants changes → call update_sticker_params() with new values, then show new mirror
 
 CRITICAL RULES for confirm_and_generate():
 - NEVER call confirm_and_generate() if ANY parameter is still missing (check [SYSTEM STATE])
@@ -142,6 +146,7 @@ For experienced users (total_generations > 10):
 > – **Style:** value
 > – **Emotion:** value
 > – **Pose / gesture:** value
+> – **Border:** yes ✅ / no ❌
 >
 > If anything is off, tell me what to change.
 
