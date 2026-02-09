@@ -434,16 +434,21 @@ async function callOpenAI(
     },
   }));
 
+  const body: any = {
+    model: MODEL,
+    messages: openaiMessages,
+    tools: openaiTools,
+    tool_choice: "auto",
+    max_completion_tokens: 1024,
+  };
+  // gpt-5 family doesn't support custom temperature
+  if (!MODEL.startsWith("gpt-5")) {
+    body.temperature = 0.7;
+  }
+
   const response = await axios.post(
     "https://api.openai.com/v1/chat/completions",
-    {
-      model: MODEL,
-      messages: openaiMessages,
-      tools: openaiTools,
-      tool_choice: "auto",
-      temperature: 0.7,
-      max_completion_tokens: 1024,
-    },
+    body,
     {
       headers: {
         "Authorization": `Bearer ${config.openaiApiKey}`,
