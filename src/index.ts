@@ -2893,12 +2893,8 @@ bot.action(/^assistant_example_(.+)$/, async (ctx) => {
     if (example?.telegram_file_id) {
       await ctx.replyWithSticker(example.telegram_file_id);
     } else {
-      const { data: userData } = await supabase
-        .from("users")
-        .select("language_code")
-        .eq("telegram_id", String(telegramId))
-        .maybeSingle();
-      const lang = getLang(userData?.language_code);
+      const user = await getUser(telegramId);
+      const lang = user?.lang || "en";
       const msg = lang === "ru"
         ? `Примера для этого стиля пока нет.`
         : `No example available for this style yet.`;
