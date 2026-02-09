@@ -1503,7 +1503,15 @@ bot.on("photo", async (ctx) => {
         await handleShowStyleExamples(ctx, styleId, lang);
         if (replyText) await ctx.reply(replyText, getMainMenuKeyboard(lang));
       } else if (action === "grant_credit" || action === "deny_credit") {
-        await handleTrialCreditAction(ctx, action, result, user, session, replyText, lang);
+        // Re-fetch user to get fresh credits (user may have purchased during conversation)
+        const freshUserPhoto = await getUser(user.telegram_id);
+        if (freshUserPhoto && (freshUserPhoto.credits || 0) > 0) {
+          console.log("[assistant_photo] User has credits after re-fetch:", freshUserPhoto.credits, "— generating");
+          if (replyText) await ctx.reply(replyText);
+          await handleAssistantConfirm(ctx, freshUserPhoto, session.id, lang);
+        } else {
+          await handleTrialCreditAction(ctx, action, result, freshUserPhoto || user, session, replyText, lang);
+        }
       } else if (replyText) {
         await ctx.reply(replyText, getMainMenuKeyboard(lang));
       }
@@ -1750,7 +1758,14 @@ bot.on("text", async (ctx) => {
         await handleShowStyleExamples(ctx, styleId, lang);
         if (result.text) await ctx.reply(result.text, getMainMenuKeyboard(lang));
       } else if (toolAction === "grant_credit" || toolAction === "deny_credit") {
-        await handleTrialCreditAction(ctx, toolAction as "grant_credit" | "deny_credit", result, user, session, result.text, lang);
+        const freshUserWP = await getUser(user.telegram_id);
+        if (freshUserWP && (freshUserWP.credits || 0) > 0) {
+          console.log("[wait_photo_text] User has credits after re-fetch:", freshUserWP.credits, "— generating");
+          if (result.text) await ctx.reply(result.text);
+          await handleAssistantConfirm(ctx, freshUserWP, session.id, lang);
+        } else {
+          await handleTrialCreditAction(ctx, toolAction as "grant_credit" | "deny_credit", result, freshUserWP || user, session, result.text, lang);
+        }
       } else {
         const replyText = result.text || (lang === "ru"
           ? "Понял! Пришли фото для стикера 📸"
@@ -1849,7 +1864,16 @@ bot.on("text", async (ctx) => {
           // Send LLM reply text after examples (if any)
           if (replyText) await ctx.reply(replyText, getMainMenuKeyboard(lang));
         } else if (action === "grant_credit" || action === "deny_credit") {
-          await handleTrialCreditAction(ctx, action, result, user, session, replyText, lang);
+          // Re-fetch user to get fresh credits (user may have purchased during conversation)
+          const freshUser = await getUser(user.telegram_id);
+          if (freshUser && (freshUser.credits || 0) > 0) {
+            // User now has credits (bought during conversation) — skip trial, go to generation
+            console.log("[assistant_chat] User has credits after re-fetch:", freshUser.credits, "— skipping trial, generating");
+            if (replyText) await ctx.reply(replyText);
+            await handleAssistantConfirm(ctx, freshUser, session.id, lang);
+          } else {
+            await handleTrialCreditAction(ctx, action, result, freshUser || user, session, replyText, lang);
+          }
         } else {
           // Normal dialog step
           if (replyText) await ctx.reply(replyText, getMainMenuKeyboard(lang));
@@ -3180,7 +3204,15 @@ bot.action("assistant_confirm", async (ctx) => {
       }
 
       if (action === "grant_credit" || action === "deny_credit") {
-        await handleTrialCreditAction(ctx, action, result, user, session, replyText, lang);
+        // Re-fetch user to get fresh credits (user may have purchased during conversation)
+        const freshUserConfirm = await getUser(user.telegram_id);
+        if (freshUserConfirm && (freshUserConfirm.credits || 0) > 0) {
+          console.log("[assistant_confirm] User has credits after re-fetch:", freshUserConfirm.credits, "— generating");
+          if (replyText) await ctx.reply(replyText);
+          await handleAssistantConfirm(ctx, freshUserConfirm, session.id, lang);
+        } else {
+          await handleTrialCreditAction(ctx, action, result, freshUserConfirm || user, session, replyText, lang);
+        }
       } else if (action === "confirm") {
         // AI decided to confirm directly (shouldn't happen but safe fallback)
         if (replyText) await ctx.reply(replyText);
