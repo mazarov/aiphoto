@@ -198,6 +198,40 @@ async function runJob(job: any) {
     throw new Error(`Gemini API failed: ${errorMessage}`);
   }
 
+  // Check for content moderation block
+  const blockReason = geminiRes.data?.promptFeedback?.blockReason;
+  if (blockReason) {
+    console.error("Gemini blocked:", blockReason);
+    await sendAlert({
+      type: "generation_failed",
+      message: `Gemini blocked: ${blockReason}`,
+      details: { 
+        user: `@${user?.username || telegramId}`,
+        sessionId: session.id, 
+        generationType,
+        styleId: session.selected_style_id || "-",
+        userInput: (session.user_input || "").slice(0, 100),
+        blockReason,
+      },
+    });
+
+    // Send user-friendly message and refund (don't throw — avoid generic error)
+    const blockedMsg = lang === "ru"
+      ? "⚠️ Не удалось обработать это фото в выбранном стиле.\n\nПопробуй другое фото или другой стиль.\nКредит возвращён на баланс."
+      : "⚠️ Could not process this photo with the chosen style.\n\nTry a different photo or style.\nCredit has been refunded.";
+    await sendMessage(telegramId, blockedMsg);
+
+    // Refund credits
+    const creditsToRefund = session.credits_spent || 1;
+    await supabase
+      .from("users")
+      .update({ credits: (user?.credits || 0) + creditsToRefund })
+      .eq("id", session.user_id);
+
+    // Mark job as done (not error — handled gracefully)
+    return;
+  }
+
   const imageBase64 =
     geminiRes.data?.candidates?.[0]?.content?.parts?.find((p: any) => p.inlineData)?.inlineData
       ?.data || null;
