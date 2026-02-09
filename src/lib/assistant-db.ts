@@ -1,6 +1,6 @@
 import { supabase } from "./supabase";
 import { config } from "../config";
-import type { AssistantMessage, AssistantParams } from "./ai-chat";
+import type { AssistantMessage, ToolCall } from "./ai-chat";
 
 // ============================================
 // Types
@@ -25,6 +25,100 @@ export interface AssistantSessionRow {
   created_at: string;
   updated_at: string;
   completed_at: string | null;
+}
+
+// ============================================
+// Tool Call Handler (merge with existing data)
+// ============================================
+
+export type ToolAction = "params" | "confirm" | "photo" | "none";
+
+export interface ToolCallResult {
+  updates: Partial<AssistantSessionRow>;
+  action: ToolAction;
+}
+
+/**
+ * Handle a function call from LLM. Merges new params with existing session data.
+ * Returns both the DB updates and the semantic action to take.
+ */
+export function handleToolCall(
+  toolCall: ToolCall,
+  aSession: AssistantSessionRow
+): ToolCallResult {
+  if (toolCall.name === "update_sticker_params") {
+    const args = toolCall.args;
+    return {
+      updates: {
+        style: args.style || aSession.style || undefined,
+        emotion: args.emotion || aSession.emotion || undefined,
+        pose: args.pose || aSession.pose || undefined,
+      },
+      action: "params",
+    };
+  }
+
+  if (toolCall.name === "confirm_and_generate") {
+    return {
+      updates: { confirmed: true },
+      action: "confirm",
+    };
+  }
+
+  if (toolCall.name === "request_photo") {
+    return {
+      updates: {},
+      action: "photo",
+    };
+  }
+
+  return { updates: {}, action: "none" };
+}
+
+// ============================================
+// State Injection (injected into system prompt)
+// ============================================
+
+/**
+ * Build [SYSTEM STATE] block to inject before each LLM call.
+ * Tells the LLM which params are collected and which are still needed.
+ */
+export function buildStateInjection(aSession: AssistantSessionRow): string {
+  const collected: Record<string, string | null> = {
+    style: aSession.style || null,
+    emotion: aSession.emotion || null,
+    pose: aSession.pose || null,
+  };
+
+  const missing = Object.entries(collected)
+    .filter(([_, v]) => v === null)
+    .map(([k]) => k);
+
+  const lines = [
+    `\n[SYSTEM STATE]`,
+    `Collected: ${JSON.stringify(collected)}`,
+  ];
+
+  if (aSession.goal) {
+    lines.push(`Goal: ${aSession.goal}`);
+  }
+
+  if (missing.length > 0) {
+    lines.push(`Still need: ${missing.join(", ")}`);
+  } else {
+    lines.push(`All parameters collected. Show mirror and wait for user confirmation.`);
+  }
+
+  lines.push(`DO NOT ask for already collected parameters.`);
+  return lines.join("\n");
+}
+
+// ============================================
+// Helper: check if all params are collected
+// ============================================
+
+export function allParamsCollected(aSession: AssistantSessionRow): boolean {
+  return !!(aSession.style && aSession.emotion && aSession.pose);
 }
 
 // ============================================
@@ -137,22 +231,6 @@ export async function closeAllActiveAssistantSessions(
   if (error) {
     console.error("closeAllActiveAssistantSessions error:", error.message);
   }
-}
-
-/**
- * Apply parsed AI params to assistant session fields.
- * Extracts goal from conversation if present.
- */
-export function mapParamsToSessionFields(params: AssistantParams | null): Partial<AssistantSessionRow> {
-  if (!params) return {};
-  return {
-    style: params.style || undefined,
-    emotion: params.emotion || undefined,
-    pose: params.pose || undefined,
-    sticker_text: undefined,
-    confirmed: params.confirmed || false,
-    current_step: params.step || 0,
-  };
 }
 
 /**

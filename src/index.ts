@@ -8,12 +8,8 @@ import { sendAlert, sendNotification } from "./lib/alerts";
 import {
   buildSystemPrompt,
   callAIChat,
-  parseAssistantMetadata,
-  stripMetadata,
-  extractParamsFromConversation,
   type AssistantMessage,
   type AssistantContext,
-  type AssistantParams,
 } from "./lib/ai-chat";
 import {
   createAssistantSession,
@@ -21,7 +17,9 @@ import {
   updateAssistantSession,
   closeAssistantSession,
   closeAllActiveAssistantSessions,
-  mapParamsToSessionFields,
+  handleToolCall,
+  buildStateInjection,
+  allParamsCollected,
   getAssistantParams,
   expireOldAssistantSessions,
   type AssistantSessionRow,
@@ -719,20 +717,31 @@ async function startAssistantDialog(ctx: any, user: any, lang: string) {
   }
 
   try {
-    // Call AI to generate greeting (step 0)
+    // Call AI to generate greeting (no state injection needed for first call)
     console.log("startAssistantDialog: Calling AI for greeting...");
     const result = await callAIChat([], systemPrompt);
     console.log("startAssistantDialog: AI response received, length:", result.text.length);
 
+    // Handle tool call if present (usually request_photo on first call)
+    if (result.toolCall) {
+      console.log("startAssistantDialog: Tool call:", result.toolCall.name);
+      const { action } = handleToolCall(result.toolCall, aSession);
+      if (action === "photo") {
+        // LLM asked for photo — state is already assistant_wait_photo, good
+      }
+    }
+
     // Save messages to assistant_sessions
     const messages: AssistantMessage[] = [
       ...initMessages,
-      { role: "assistant", content: result.rawText },
+      { role: "assistant", content: result.text },
     ];
 
     await updateAssistantSession(aSession.id, { messages });
 
-    await ctx.reply(result.text, getMainMenuKeyboard(lang));
+    if (result.text) {
+      await ctx.reply(result.text, getMainMenuKeyboard(lang));
+    }
   } catch (err: any) {
     console.error("startAssistantDialog AI error:", err.message);
     // Fallback: hardcoded greeting
@@ -791,6 +800,57 @@ async function handleAssistantConfirm(ctx: any, user: any, sessionId: string, la
     selectedStyleId: "assistant",
     assistantParams: params,
   });
+}
+
+/**
+ * Get system prompt with state injection for assistant session.
+ * Looks for original system prompt in messages, appends current state.
+ */
+function getAssistantSystemPrompt(messages: AssistantMessage[], aSession: AssistantSessionRow): string {
+  const basePrompt = messages.find(m => m.role === "system")?.content || "";
+  return basePrompt + buildStateInjection(aSession);
+}
+
+/**
+ * Process assistant AI result: handle tool call, update session, decide what to do next.
+ * Returns the action to take and whether confirm button should be shown.
+ */
+async function processAssistantResult(
+  result: { text: string; toolCall: import("./lib/ai-chat").ToolCall | null },
+  aSession: AssistantSessionRow,
+  messages: AssistantMessage[],
+): Promise<{ action: "confirm" | "photo" | "show_mirror" | "normal"; updatedSession: AssistantSessionRow }> {
+  let action: "confirm" | "photo" | "show_mirror" | "normal" = "normal";
+  let sessionUpdates: Partial<AssistantSessionRow> = {};
+
+  if (result.toolCall) {
+    console.log("[Assistant] Tool call:", result.toolCall.name, JSON.stringify(result.toolCall.args));
+    const toolResult = handleToolCall(result.toolCall, aSession);
+    sessionUpdates = { ...toolResult.updates };
+
+    if (toolResult.action === "confirm") {
+      action = "confirm";
+    } else if (toolResult.action === "photo") {
+      action = "photo";
+    } else if (toolResult.action === "params") {
+      // After updating params, check if all collected
+      const mergedSession = { ...aSession, ...sessionUpdates } as AssistantSessionRow;
+      if (allParamsCollected(mergedSession)) {
+        action = "show_mirror";
+      }
+    }
+  }
+
+  // Save messages and updates
+  await updateAssistantSession(aSession.id, {
+    messages,
+    ...sessionUpdates,
+    error_count: 0, // reset on success
+  });
+
+  // Return merged session for downstream checks
+  const updatedSession = { ...aSession, ...sessionUpdates } as AssistantSessionRow;
+  return { action, updatedSession };
 }
 
 /**
@@ -1052,21 +1112,32 @@ bot.on("photo", async (ctx) => {
     const messages: AssistantMessage[] = Array.isArray(aSession.messages) ? [...aSession.messages] : [];
     messages.push({ role: "user", content: "[User sent a photo]" });
 
-    // Get system prompt from first message
-    const systemPrompt = messages.find(m => m.role === "system")?.content || "";
-    console.log("Assistant photo: calling AI, messages count:", messages.length, "systemPrompt length:", systemPrompt.length);
+    // Build system prompt with state injection
+    const systemPrompt = getAssistantSystemPrompt(messages, aSession);
+    console.log("Assistant photo: calling AI, messages count:", messages.length);
 
     try {
       const result = await callAIChat(messages, systemPrompt);
       console.log("Assistant photo: AI response received, length:", result.text.length);
-      messages.push({ role: "assistant", content: result.rawText });
+      messages.push({ role: "assistant", content: result.text });
 
-      await updateAssistantSession(aSession.id, {
-        messages,
-        ...mapParamsToSessionFields(result.params),
-      });
+      const { action, updatedSession } = await processAssistantResult(result, aSession, messages);
 
-      await ctx.reply(result.text, getMainMenuKeyboard(lang));
+      if (action === "show_mirror" && result.text) {
+        // All params collected — show confirm button
+        await ctx.reply(result.text);
+        await ctx.reply(
+          lang === "ru" ? "Всё верно?" : "Is everything correct?",
+          Markup.inlineKeyboard([
+            [Markup.button.callback(
+              lang === "ru" ? "✅ Подтвердить" : "✅ Confirm",
+              "assistant_confirm"
+            )],
+          ])
+        );
+      } else if (result.text) {
+        await ctx.reply(result.text, getMainMenuKeyboard(lang));
+      }
       console.log("Assistant photo: reply sent to user");
     } catch (err: any) {
       console.error("Assistant photo handler AI error:", err.message, err.response?.status, err.response?.data);
@@ -1084,7 +1155,7 @@ bot.on("photo", async (ctx) => {
   }
 
   // === AI Assistant: new photo during active dialog ===
-  if (session.state === "assistant_chat" || session.state === "wait_assistant_confirm") {
+  if (session.state === "assistant_chat") {
     // Store new photo file_id in assistant_sessions for later use
     const aSession = await getActiveAssistantSession(user.id);
     if (aSession) {
@@ -1144,7 +1215,7 @@ bot.hears(["🤖 Помощник", "🤖 Assistant"], async (ctx) => {
 
   // If already in assistant dialog — ignore
   const session = await getActiveSession(user.id);
-  if (session?.state?.startsWith("assistant_") || session?.state === "wait_assistant_confirm") {
+  if (session?.state?.startsWith("assistant_")) {
     return;
   }
 
@@ -1168,7 +1239,7 @@ bot.hears(["🎨 Стили", "🎨 Styles"], async (ctx) => {
   const session = await getActiveSession(user.id);
 
   // If user is in assistant mode, cancel it and switch to manual
-  if (session?.state?.startsWith("assistant_") || session?.state === "wait_assistant_confirm") {
+  if (session?.state?.startsWith("assistant_")) {
     console.log("Styles: switching from assistant to manual mode, session:", session.id);
     await closeAllActiveAssistantSessions(user.id, "abandoned");
     await supabase
@@ -1239,25 +1310,35 @@ bot.on("text", async (ctx) => {
     const messages: AssistantMessage[] = Array.isArray(aSession.messages) ? [...aSession.messages] : [];
     messages.push({ role: "user", content: userText });
 
-    const systemPrompt = messages.find(m => m.role === "system")?.content || "";
+    const systemPrompt = getAssistantSystemPrompt(messages, aSession);
 
     try {
       const result = await callAIChat(messages, systemPrompt);
-      messages.push({ role: "assistant", content: result.rawText });
+      messages.push({ role: "assistant", content: result.text });
 
-      // Extract goal from early conversation
+      // Extract goal from early conversation (before photo)
       const goalUpdate: Partial<AssistantSessionRow> = {};
-      if (!aSession.goal && result.params?.step && result.params.step <= 1) {
+      if (!aSession.goal) {
         goalUpdate.goal = userText; // User's first text is likely the goal
+      }
+
+      // Process tool call (may get request_photo)
+      let toolUpdates: Partial<AssistantSessionRow> = {};
+      if (result.toolCall) {
+        console.log("[Assistant] wait_photo tool call:", result.toolCall.name);
+        const { updates } = handleToolCall(result.toolCall, aSession);
+        toolUpdates = updates;
       }
 
       await updateAssistantSession(aSession.id, {
         messages,
-        ...mapParamsToSessionFields(result.params),
+        ...toolUpdates,
         ...goalUpdate,
       });
 
-      await ctx.reply(result.text, getMainMenuKeyboard(lang));
+      if (result.text) {
+        await ctx.reply(result.text, getMainMenuKeyboard(lang));
+      }
     } catch (err: any) {
       console.error("Assistant wait_photo text AI error:", err.message);
       const reminder = lang === "ru"
@@ -1272,38 +1353,34 @@ bot.on("text", async (ctx) => {
     return;
   }
 
-  // === AI Assistant: active dialog ===
+  // === AI Assistant: active dialog (handles all: collecting params, confirming, changing) ===
   if (session.state === "assistant_chat") {
     const aSession = await getActiveAssistantSession(user.id);
     if (!aSession) { console.error("assistant_chat: no assistant_session"); return; }
 
     const userText = ctx.message.text.trim();
-
-    // Get existing messages
     const messages: AssistantMessage[] = Array.isArray(aSession.messages) ? [...aSession.messages] : [];
     messages.push({ role: "user", content: userText });
 
-    // Get system prompt from first message
-    const systemPrompt = messages.find(m => m.role === "system")?.content || "";
+    // Build system prompt with state injection (tells LLM what's collected)
+    const systemPrompt = getAssistantSystemPrompt(messages, aSession);
 
     // Track error count
     const errorCount = aSession.error_count || 0;
 
     try {
       const result = await callAIChat(messages, systemPrompt);
-      messages.push({ role: "assistant", content: result.rawText });
+      messages.push({ role: "assistant", content: result.text });
 
-      const paramFields = mapParamsToSessionFields(result.params);
+      const { action, updatedSession } = await processAssistantResult(result, aSession, messages);
 
-      // Check if we reached step 5 (mirror) — show confirm button
-      if (result.params?.step === 5 && !result.params.confirmed) {
-        await updateAssistantSession(aSession.id, { messages, ...paramFields });
-        await supabase
-          .from("sessions")
-          .update({ state: "wait_assistant_confirm", is_active: true })
-          .eq("id", session.id);
-
-        await ctx.reply(result.text);
+      if (action === "confirm") {
+        // LLM decided user confirmed — trigger generation
+        if (result.text) await ctx.reply(result.text);
+        await handleAssistantConfirm(ctx, user, session.id, lang);
+      } else if (action === "show_mirror") {
+        // All params collected — show mirror + confirm button
+        if (result.text) await ctx.reply(result.text);
         await ctx.reply(
           lang === "ru" ? "Всё верно?" : "Is everything correct?",
           Markup.inlineKeyboard([
@@ -1313,26 +1390,16 @@ bot.on("text", async (ctx) => {
             )],
           ])
         );
-      } else if (result.params?.confirmed) {
-        // User confirmed via text
-        await updateAssistantSession(aSession.id, { messages, ...paramFields });
+      } else if (action === "photo") {
+        // LLM wants a photo — switch state
         await supabase
           .from("sessions")
-          .update({ state: "wait_assistant_confirm", is_active: true })
+          .update({ state: "assistant_wait_photo", is_active: true })
           .eq("id", session.id);
-
-        await ctx.reply(result.text);
-        // Trigger confirmation flow
-        await handleAssistantConfirm(ctx, user, session.id, lang);
+        if (result.text) await ctx.reply(result.text, getMainMenuKeyboard(lang));
       } else {
         // Normal dialog step
-        await updateAssistantSession(aSession.id, {
-          messages,
-          ...paramFields,
-          error_count: 0, // reset on success
-        });
-
-        await ctx.reply(result.text, getMainMenuKeyboard(lang));
+        if (result.text) await ctx.reply(result.text, getMainMenuKeyboard(lang));
       }
     } catch (err: any) {
       console.error("Assistant chat AI error:", err.message);
@@ -1364,68 +1431,6 @@ bot.on("text", async (ctx) => {
           error: err.message?.slice(0, 200),
         },
       }).catch(console.error);
-    }
-    return;
-  }
-
-  // === AI Assistant: waiting for confirm but got text ===
-  if (session.state === "wait_assistant_confirm") {
-    const userText = ctx.message.text.trim().toLowerCase();
-    // Check if user confirms via text
-    const confirmWords = ["да", "ок", "ok", "yes", "confirm", "подтверждаю", "верно", "всё верно", "все верно"];
-    if (confirmWords.some(w => userText.includes(w))) {
-      await handleAssistantConfirm(ctx, user, session.id, lang);
-      return;
-    }
-
-    const aSession = await getActiveAssistantSession(user.id);
-    if (!aSession) { console.error("wait_assistant_confirm: no assistant_session"); return; }
-
-    // User wants to change something — go back to assistant_chat
-    const messages: AssistantMessage[] = Array.isArray(aSession.messages) ? [...aSession.messages] : [];
-    messages.push({ role: "user", content: ctx.message.text.trim() });
-
-    const systemPrompt = messages.find(m => m.role === "system")?.content || "";
-
-    try {
-      const result = await callAIChat(messages, systemPrompt);
-      messages.push({ role: "assistant", content: result.rawText });
-
-      const paramFields = mapParamsToSessionFields(result.params);
-
-      // Check if back to mirroring
-      if (result.params?.step === 5 && !result.params.confirmed) {
-        await updateAssistantSession(aSession.id, { messages, ...paramFields });
-        await supabase
-          .from("sessions")
-          .update({ state: "wait_assistant_confirm", is_active: true })
-          .eq("id", session.id);
-
-        await ctx.reply(result.text);
-        await ctx.reply(
-          lang === "ru" ? "Всё верно?" : "Is everything correct?",
-          Markup.inlineKeyboard([
-            [Markup.button.callback(
-              lang === "ru" ? "✅ Подтвердить" : "✅ Confirm",
-              "assistant_confirm"
-            )],
-          ])
-        );
-      } else {
-        await updateAssistantSession(aSession.id, { messages, ...paramFields });
-        await supabase
-          .from("sessions")
-          .update({ state: "assistant_chat", is_active: true })
-          .eq("id", session.id);
-
-        await ctx.reply(result.text, getMainMenuKeyboard(lang));
-      }
-    } catch (err: any) {
-      console.error("Assistant confirm-edit AI error:", err.message);
-      const retryMsg = lang === "ru"
-        ? "Произошла ошибка, попробуй написать ещё раз."
-        : "Something went wrong, please try again.";
-      await ctx.reply(retryMsg, getMainMenuKeyboard(lang));
     }
     return;
   }
@@ -2598,7 +2603,7 @@ bot.action("assistant_confirm", async (ctx) => {
   const lang = user.lang || "en";
   const session = await getActiveSession(user.id);
 
-  if (!session?.id || session.state !== "wait_assistant_confirm") return;
+  if (!session?.id || !session.state?.startsWith("assistant_")) return;
 
   await handleAssistantConfirm(ctx, user, session.id, lang);
 });
@@ -2642,16 +2647,23 @@ bot.action("assistant_new_photo", async (ctx) => {
   const messages: AssistantMessage[] = Array.isArray(aSession!.messages) ? [...aSession!.messages] : [];
   messages.push({ role: "user", content: "[User sent a new photo and chose to use it]" });
 
-  const systemPrompt = messages.find(m => m.role === "system")?.content || "";
+  const systemPrompt = getAssistantSystemPrompt(messages, aSession!);
 
   try {
     const result = await callAIChat(messages, systemPrompt);
-    messages.push({ role: "assistant", content: result.rawText });
+    messages.push({ role: "assistant", content: result.text });
+
+    // Process tool call if any
+    let toolUpdates: Partial<AssistantSessionRow> = {};
+    if (result.toolCall) {
+      const { updates } = handleToolCall(result.toolCall, aSession!);
+      toolUpdates = updates;
+    }
 
     await updateAssistantSession(aSession!.id, {
       messages,
       pending_photo_file_id: null,
-      ...mapParamsToSessionFields(result.params),
+      ...toolUpdates,
     });
 
     await supabase
@@ -3671,7 +3683,7 @@ async function processExpiredAssistantSessions() {
     await supabase
       .from("sessions")
       .update({ state: "expired", is_active: false })
-      .in("state", ["assistant_wait_photo", "assistant_chat", "wait_assistant_confirm"])
+      .in("state", ["assistant_wait_photo", "assistant_chat"])
       .eq("is_active", true)
       .lt("updated_at", cutoff);
   } catch (err) {
