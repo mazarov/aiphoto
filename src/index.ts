@@ -814,60 +814,26 @@ async function startAssistantDialog(ctx: any, user: any, lang: string) {
     return;
   }
 
-  try {
-    // Call AI to generate greeting (no state injection needed for first call)
-    console.log("startAssistantDialog: Calling AI for greeting...");
-    const result = await callAIChat([], systemPrompt);
-    console.log("startAssistantDialog: AI response received, length:", result.text.length);
+  // Template greeting — no AI call, instant response (~0.5s instead of 3-5s)
+  const firstName = ctx.from?.first_name || "";
+  const isReturning = previousGoal || (user.total_generations || 0) > 0;
 
-    // Handle tool call if present (usually request_photo on first call)
-    if (result.toolCall) {
-      console.log("startAssistantDialog: Tool call:", result.toolCall.name);
-      const { action } = handleToolCall(result.toolCall, aSession);
-      if (action === "photo") {
-        // LLM asked for photo — state is already assistant_wait_photo, good
-      }
-    }
+  const greeting = isReturning
+    ? (lang === "ru"
+      ? `С возвращением, ${firstName}! 👋\nПришли фото — сделаем новый стикер 📸`
+      : `Welcome back, ${firstName}! 👋\nSend a photo — let's make a new sticker 📸`)
+    : (lang === "ru"
+      ? `Привет, ${firstName}! 👋\nЯ помогу превратить твоё фото в крутой стикер.\n\nПришли мне фото, из которого хочешь сделать стикер 📸`
+      : `Hi, ${firstName}! 👋\nI'll help turn your photo into an awesome sticker.\n\nSend me a photo you'd like to turn into a sticker 📸`);
 
-    // Save messages to assistant_sessions
-    const messages: AssistantMessage[] = [
-      ...initMessages,
-      { role: "assistant", content: result.text },
-    ];
+  // Save greeting to assistant_sessions so AI has context when photo arrives
+  const messages: AssistantMessage[] = [
+    ...initMessages,
+    { role: "assistant", content: greeting },
+  ];
+  await updateAssistantSession(aSession.id, { messages });
 
-    await updateAssistantSession(aSession.id, { messages });
-
-    if (result.text) {
-      await ctx.reply(result.text, getMainMenuKeyboard(lang));
-    } else if (result.toolCall?.name === "request_photo") {
-      // AI returned tool call with no text — send fallback photo request
-      const photoRequest = lang === "ru"
-        ? "Пришли мне фото, из которого хочешь сделать стикер 📸"
-        : "Send me a photo you'd like to turn into a sticker 📸";
-      await ctx.reply(photoRequest, getMainMenuKeyboard(lang));
-    } else if (result.toolCall) {
-      // Other tool call with no text — send generic prompt
-      const fallbackMsg = lang === "ru"
-        ? "Готов помочь! Расскажи, какой стикер хочешь сделать?"
-        : "Ready to help! Tell me what kind of sticker you want to make?";
-      await ctx.reply(fallbackMsg, getMainMenuKeyboard(lang));
-    }
-  } catch (err: any) {
-    console.error("startAssistantDialog AI error:", err.message);
-    // Fallback: hardcoded greeting
-    const greeting = lang === "ru"
-      ? `Привет, ${ctx.from?.first_name || ""}! 👋\nЯ — помощник по созданию стикеров.\nМоя задача — сделать так, чтобы результат тебе точно понравился.\n\nПришли мне фото, из которого хочешь сделать стикер.`
-      : `Hi, ${ctx.from?.first_name || ""}! 👋\nI'm your sticker creation assistant.\nMy job is to make sure you love the result.\n\nSend me a photo you'd like to turn into a sticker.`;
-
-    const messages: AssistantMessage[] = [
-      ...initMessages,
-      { role: "assistant", content: greeting },
-    ];
-
-    await updateAssistantSession(aSession.id, { messages });
-
-    await ctx.reply(greeting, getMainMenuKeyboard(lang));
-  }
+  await ctx.reply(greeting, getMainMenuKeyboard(lang));
 }
 
 /**
