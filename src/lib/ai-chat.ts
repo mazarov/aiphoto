@@ -6,7 +6,7 @@ import { config } from "../config";
 // ============================================
 
 export interface ToolCall {
-  name: "update_sticker_params" | "confirm_and_generate" | "request_photo" | "show_style_examples";
+  name: "update_sticker_params" | "confirm_and_generate" | "request_photo" | "show_style_examples" | "grant_trial_credit";
   args: Record<string, any>;
 }
 
@@ -88,6 +88,45 @@ const ASSISTANT_TOOLS = [
       },
     },
   },
+  {
+    name: "grant_trial_credit",
+    description: `Call INSTEAD of confirm_and_generate when user confirmed parameters but has 0 credits and never purchased.
+Your goal: decide if giving 1 free credit will lead to a PURCHASE.
+You are spending a limited daily budget — be strategic.
+
+GRANT if user shows HIGH conversion potential:
+- Specific, personal goal (gift, team stickers, business use)
+- Detailed style/emotion preferences (shows they care about quality)
+- Engaged conversation (3+ meaningful messages, not just 'ok')
+- Premium Telegram user (higher purchasing power)
+
+DENY if user shows LOW conversion potential:
+- Vague goal ('just checking', 'want to try')
+- Minimal effort (one-word answers, no details)
+- No clear use case
+- Seems to only want freebies
+
+When budget is low (< 5 remaining): only grant to EXCEPTIONAL leads.
+When denied: be warm, explain the value, and naturally transition to pricing.`,
+    parameters: {
+      type: "object",
+      properties: {
+        decision: {
+          type: "string",
+          enum: ["grant", "deny"],
+        },
+        confidence: {
+          type: "number",
+          description: "How confident you are this user will purchase after trial (0.0 to 1.0)",
+        },
+        reason: {
+          type: "string",
+          description: "Brief reason for analytics (e.g. 'specific business use case, premium user' or 'vague intent, one-word answers')",
+        },
+      },
+      required: ["decision", "confidence", "reason"],
+    },
+  },
 ];
 
 // ============================================
@@ -102,6 +141,7 @@ You have these tools:
 - confirm_and_generate() — call ONLY when user explicitly confirms all parameters
 - request_photo() — call when you need to ask for a photo
 - show_style_examples(style_id?) — call to show example stickers; omit style_id for style list
+- grant_trial_credit(decision, confidence, reason) — call INSTEAD of confirm_and_generate when credits=0, has_purchased=false (see Trial Credit section)
 
 ## User Context
 - Name: ${ctx.firstName}
@@ -168,6 +208,24 @@ You can show style examples to help users choose.
 - Only pass style_id if user explicitly named a specific style
 - Use when user is unsure about style, asks to see options, or can't decide
 - After showing examples, continue collecting parameters normally
+
+## Trial Credit (when credits = 0, has_purchased = false)
+After user confirms parameters, call grant_trial_credit() INSTEAD of confirm_and_generate().
+You're a conversion manager. Your daily budget is limited (see [SYSTEM STATE]).
+Goal: give free credit ONLY to users who will likely PURCHASE after seeing the result.
+
+Decision framework:
+- Ask yourself: "Will this user buy a pack after seeing a great sticker?"
+- High signals: specific goal, personal use case, detailed preferences, premium user
+- Low signals: "just trying", minimal effort, no clear need
+
+If you GRANT: say something like "I'll generate this one for free — I'm sure you'll love it!"
+If you DENY: be warm and encouraging, explain the quality, and naturally transition to pricing.
+  Example: "Your sticker idea is great! To bring it to life, choose a pack below —
+  10 stickers is enough to get started."
+
+NEVER mention the word "trial", "free credit", or "budget".
+The user should feel this is a natural gift, not a calculated decision.
 
 ## Tone
 Calm, confident, collaborative. You take responsibility for the result.`;
