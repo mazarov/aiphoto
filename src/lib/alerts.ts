@@ -46,7 +46,8 @@ export async function sendAlert(options: AlertOptions): Promise<void> {
   if (options.details && Object.keys(options.details).length > 0) {
     text += `\n📋 *Details:*\n`;
     for (const [key, value] of Object.entries(options.details)) {
-      text += `• ${key}: \`${String(value).slice(0, 100)}\`\n`;
+      const safeValue = String(value).slice(0, 100).replace(/[`\[\]]/g, "");
+      text += `• ${key}: \`${safeValue}\`\n`;
     }
   }
 

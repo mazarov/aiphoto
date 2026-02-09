@@ -149,7 +149,7 @@ export function mapParamsToSessionFields(params: AssistantParams | null): Partia
     style: params.style || undefined,
     emotion: params.emotion || undefined,
     pose: params.pose || undefined,
-    sticker_text: params.text || undefined,
+    sticker_text: undefined,
     confirmed: params.confirmed || false,
     current_step: params.step || 0,
   };
@@ -162,13 +162,11 @@ export function getAssistantParams(session: AssistantSessionRow): {
   style: string;
   emotion: string;
   pose: string;
-  text: string | null;
 } {
   return {
     style: session.style || "cartoon",
     emotion: session.emotion || "happy",
     pose: session.pose || "default",
-    text: session.sticker_text || null,
   };
 }
 

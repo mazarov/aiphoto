@@ -771,7 +771,7 @@ async function handleAssistantConfirm(ctx: any, user: any, sessionId: string, la
   await startGeneration(ctx, freshUser, session, lang, {
     generationType: "style",
     promptFinal,
-    userInput: `[assistant] style: ${params.style}, emotion: ${params.emotion}, pose: ${params.pose}, text: ${params.text || "none"}`,
+    userInput: `[assistant] style: ${params.style}, emotion: ${params.emotion}, pose: ${params.pose}`,
     selectedStyleId: "assistant",
   });
 }
@@ -779,19 +779,18 @@ async function handleAssistantConfirm(ctx: any, user: any, sessionId: string, la
 /**
  * Build final prompt for Gemini image generation from assistant params.
  */
-function buildAssistantPrompt(params: { style: string; emotion: string; pose: string; text?: string | null }): string {
-  const textLine = params.text ? `\nText on sticker: "${params.text}"` : "";
+function buildAssistantPrompt(params: { style: string; emotion: string; pose: string }): string {
   return `Create a telegram sticker of the person from the photo.
 
 Style: ${params.style}
 Emotion: ${params.emotion}
-Pose/gesture: ${params.pose}${textLine}
+Pose/gesture: ${params.pose}
 
 Requirements:
 - White/transparent background
 - Sticker-like proportions (head slightly larger)
 - Clear outlines
-- Expressive and recognizable${params.text ? "\n- Text must be clearly readable and well-placed" : ""}`;
+- Expressive and recognizable`;
 }
 
 // Helper: get active session
@@ -1279,8 +1278,8 @@ bot.on("text", async (ctx) => {
 
       const paramFields = mapParamsToSessionFields(result.params);
 
-      // Check if we reached step 6 (mirror) — show confirm button
-      if (result.params?.step === 6 && !result.params.confirmed) {
+      // Check if we reached step 5 (mirror) — show confirm button
+      if (result.params?.step === 5 && !result.params.confirmed) {
         await updateAssistantSession(aSession.id, { messages, ...paramFields });
         await supabase
           .from("sessions")
@@ -1378,7 +1377,7 @@ bot.on("text", async (ctx) => {
       const paramFields = mapParamsToSessionFields(result.params);
 
       // Check if back to mirroring
-      if (result.params?.step === 6 && !result.params.confirmed) {
+      if (result.params?.step === 5 && !result.params.confirmed) {
         await updateAssistantSession(aSession.id, { messages, ...paramFields });
         await supabase
           .from("sessions")
