@@ -813,8 +813,9 @@ async function handleAssistantConfirm(ctx: any, user: any, sessionId: string, la
   const params = getAssistantParams(aSession);
   const promptFinal = buildAssistantPrompt(params);
 
-  // Mark assistant session as completed
-  await closeAssistantSession(aSession.id, "completed");
+  // Keep assistant session active so user can continue dialog after generation
+  // (e.g. "not what I wanted", "change emotion", etc.)
+  // Session will be closed when user starts new dialog, switches to manual, or by timeout
 
   // Re-fetch user for fresh credits
   const freshUser = await getUser(user.telegram_id);
@@ -3579,10 +3580,8 @@ bot.on("successful_payment", async (ctx) => {
           .update({ prompt_final: promptFinal, user_input: `[assistant] ${params.style}, ${params.emotion}, ${params.pose}` })
           .eq("id", session.id);
 
-        // Mark assistant session as completed
-        if (aSessionForPayment.status === "active") {
-          await closeAssistantSession(aSessionForPayment.id, "completed");
-        }
+        // Keep assistant session active so user can continue dialog after generation
+        // (closed on new dialog, manual switch, or timeout)
 
         // Now fall through to the normal auto-continue logic below
         session.prompt_final = promptFinal;
