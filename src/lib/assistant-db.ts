@@ -21,6 +21,9 @@ export interface AssistantSessionRow {
   messages: AssistantMessage[];
   error_count: number;
   pending_photo_file_id: string | null;
+  paywall_shown: boolean;
+  paywall_shown_at: string | null;
+  sales_attempts: number;
   status: "active" | "completed" | "abandoned" | "error";
   env: string;
   created_at: string;
@@ -154,6 +157,23 @@ export function buildStateInjection(
       lines.push(`Budget exhausted — do NOT call grant_trial_credit, show paywall instead`);
     } else if (remaining <= 5) {
       lines.push(`Budget low — grant ONLY to exceptional leads`);
+    }
+  }
+
+  // Inject paywall state for post-paywall behavior
+  if (aSession.paywall_shown) {
+    lines.push(`paywall_shown: true`);
+    if (aSession.paywall_shown_at) {
+      lines.push(`paywall_shown_at: ${aSession.paywall_shown_at}`);
+    }
+    lines.push(`Do NOT show paywall again. Use a different angle to build value.`);
+  }
+
+  // Inject sales attempts counter
+  if (aSession.sales_attempts > 0) {
+    lines.push(`sales_attempts_used: ${aSession.sales_attempts}/3`);
+    if (aSession.sales_attempts >= 3) {
+      lines.push(`Max sales attempts reached. Do NOT try to sell anymore.`);
     }
   }
 

@@ -567,6 +567,18 @@ async function startGeneration(
       }));
     }
     await sendBuyCreditsMenu(ctx, user);
+
+    // Mark paywall on assistant session (if active) for post-paywall sales behavior
+    if (session.state?.startsWith("assistant_") || options.selectedStyleId === "assistant") {
+      const aSession = await getActiveAssistantSession(user.id);
+      if (aSession && !aSession.paywall_shown) {
+        await updateAssistantSession(aSession.id, {
+          paywall_shown: true,
+          paywall_shown_at: new Date().toISOString(),
+          sales_attempts: (aSession.sales_attempts || 0) + 1,
+        });
+      }
+    }
     return;
   }
 
@@ -1190,6 +1202,16 @@ async function handleTrialCreditAction(
         : "Unfortunately, I can't generate for free right now. Choose a pack — 10 stickers is enough to start:";
       await ctx.reply(paywallText);
       await sendBuyCreditsMenu(ctx, user);
+
+      // Mark paywall shown on assistant session for post-paywall behavior
+      const aSession = await getActiveAssistantSession(user.id);
+      if (aSession) {
+        await updateAssistantSession(aSession.id, {
+          paywall_shown: true,
+          paywall_shown_at: new Date().toISOString(),
+          sales_attempts: (aSession.sales_attempts || 0) + 1,
+        });
+      }
     }
   } else {
     // deny_credit
@@ -1205,6 +1227,16 @@ async function handleTrialCreditAction(
 
     if (replyText) await ctx.reply(replyText);
     await sendBuyCreditsMenu(ctx, user);
+
+    // Mark paywall shown on assistant session for post-paywall behavior
+    const aSession = await getActiveAssistantSession(user.id);
+    if (aSession) {
+      await updateAssistantSession(aSession.id, {
+        paywall_shown: true,
+        paywall_shown_at: new Date().toISOString(),
+        sales_attempts: (aSession.sales_attempts || 0) + 1,
+      });
+    }
   }
 }
 
