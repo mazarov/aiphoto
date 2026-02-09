@@ -798,6 +798,18 @@ async function startAssistantDialog(ctx: any, user: any, lang: string) {
 
     if (result.text) {
       await ctx.reply(result.text, getMainMenuKeyboard(lang));
+    } else if (result.toolCall?.name === "request_photo") {
+      // AI returned tool call with no text — send fallback photo request
+      const photoRequest = lang === "ru"
+        ? "Пришли мне фото, из которого хочешь сделать стикер 📸"
+        : "Send me a photo you'd like to turn into a sticker 📸";
+      await ctx.reply(photoRequest, getMainMenuKeyboard(lang));
+    } else if (result.toolCall) {
+      // Other tool call with no text — send generic prompt
+      const fallbackMsg = lang === "ru"
+        ? "Готов помочь! Расскажи, какой стикер хочешь сделать?"
+        : "Ready to help! Tell me what kind of sticker you want to make?";
+      await ctx.reply(fallbackMsg, getMainMenuKeyboard(lang));
     }
   } catch (err: any) {
     console.error("startAssistantDialog AI error:", err.message);
