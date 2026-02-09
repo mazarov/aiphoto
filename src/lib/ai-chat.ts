@@ -6,7 +6,7 @@ import { config } from "../config";
 // ============================================
 
 export interface ToolCall {
-  name: "update_sticker_params" | "confirm_and_generate" | "request_photo";
+  name: "update_sticker_params" | "confirm_and_generate" | "request_photo" | "show_style_examples";
   args: Record<string, any>;
 }
 
@@ -74,6 +74,19 @@ const ASSISTANT_TOOLS = [
     name: "request_photo",
     description: "Call when you need to ask the user for a photo to create a sticker from. Call this after understanding the user's goal.",
   },
+  {
+    name: "show_style_examples",
+    description: "Call to show the user example stickers in different styles. Use when user asks to see examples, can't decide on a style, or when showing an example would help them choose. Pass style_id to show a specific style example, or omit to show a list of all available styles.",
+    parameters: {
+      type: "object",
+      properties: {
+        style_id: {
+          type: "string",
+          description: "Style preset ID to show example for. If not provided, shows list of all available styles with examples.",
+        },
+      },
+    },
+  },
 ];
 
 // ============================================
@@ -87,6 +100,7 @@ You have these tools:
 - update_sticker_params() — call when user provides any parameter(s)
 - confirm_and_generate() — call ONLY when user explicitly confirms all parameters
 - request_photo() — call when you need to ask for a photo
+- show_style_examples(style_id?) — call to show example stickers; omit style_id for style list
 
 ## User Context
 - Name: ${ctx.firstName}
@@ -139,6 +153,14 @@ NEVER use quotes around values. Plain text only.
 - Do NOT generate any image — only collect and confirm parameters.
 - If user is unsure, help them clarify — do not choose for them.
 - If user writes text but you need a photo, remind them to send a photo.
+
+## Style Examples
+You can show style examples to help users choose.
+- Call show_style_examples(style_id) to show a specific style example sticker
+- Call show_style_examples() without style_id to show list of all available styles
+- Use when user is unsure about style, asks to see options, or can't decide
+- Available style IDs are listed in [SYSTEM STATE]
+- After showing examples, continue collecting parameters normally
 
 ## Tone
 Calm, confident, collaborative. You take responsibility for the result.`;

@@ -146,6 +146,22 @@ async function countStyleExamples(styleId: string): Promise<number> {
   return count || 0;
 }
 
+// Helper: get styles that have example stickers
+async function getStylesWithExamples(): Promise<StylePreset[]> {
+  const { data: exampleStyleIds } = await supabase
+    .from("stickers")
+    .select("style_preset_id")
+    .eq("is_example", true)
+    .not("telegram_file_id", "is", null)
+    .not("style_preset_id", "is", null);
+
+  if (!exampleStyleIds?.length) return [];
+
+  const uniqueIds = [...new Set(exampleStyleIds.map((e: any) => e.style_preset_id))];
+  const presets = await getStylePresets();
+  return presets.filter(p => uniqueIds.includes(p.id));
+}
+
 // ============================================
 // Style presets (flat list from style_presets_v2)
 // ============================================
@@ -834,9 +850,14 @@ async function handleAssistantConfirm(ctx: any, user: any, sessionId: string, la
  * Get system prompt with state injection for assistant session.
  * Looks for original system prompt in messages, appends current state.
  */
-function getAssistantSystemPrompt(messages: AssistantMessage[], aSession: AssistantSessionRow): string {
+async function getAssistantSystemPrompt(messages: AssistantMessage[], aSession: AssistantSessionRow): Promise<string> {
   const basePrompt = messages.find(m => m.role === "system")?.content || "";
-  return basePrompt + buildStateInjection(aSession);
+
+  // Get available styles for show_style_examples tool
+  const presets = await getStylePresets();
+  const availableStyles = presets.map(s => ({ id: s.id, name_en: s.name_en }));
+
+  return basePrompt + buildStateInjection(aSession, { availableStyles });
 }
 
 /**
@@ -847,8 +868,8 @@ async function processAssistantResult(
   result: { text: string; toolCall: import("./lib/ai-chat").ToolCall | null },
   aSession: AssistantSessionRow,
   messages: AssistantMessage[],
-): Promise<{ action: "confirm" | "photo" | "show_mirror" | "normal"; updatedSession: AssistantSessionRow }> {
-  let action: "confirm" | "photo" | "show_mirror" | "normal" = "normal";
+): Promise<{ action: "confirm" | "photo" | "show_mirror" | "show_examples" | "normal"; updatedSession: AssistantSessionRow }> {
+  let action: "confirm" | "photo" | "show_mirror" | "show_examples" | "normal" = "normal";
   let sessionUpdates: Partial<AssistantSessionRow> = {};
 
   if (result.toolCall) {
@@ -866,6 +887,8 @@ async function processAssistantResult(
       }
     } else if (toolResult.action === "photo") {
       action = "photo";
+    } else if (toolResult.action === "show_examples") {
+      action = "show_examples";
     } else if (toolResult.action === "params") {
       // After updating params, check if all collected
       const mergedSession = { ...aSession, ...sessionUpdates } as AssistantSessionRow;
@@ -910,6 +933,12 @@ function generateFallbackReply(action: string, session: AssistantSessionRow, lan
     return buildMirrorMessage(session, lang);
   }
 
+  if (action === "show_examples") {
+    return isRu
+      ? "Вот доступные стили — нажми, чтобы увидеть пример:"
+      : "Here are the available styles — tap to see an example:";
+  }
+
   // action === "params" or "normal" — ask for next missing param
   if (!session.style) {
     return isRu
@@ -944,6 +973,56 @@ function buildMirrorMessage(session: AssistantSessionRow, lang: string): string 
     isRu ? "Если что-то не так — скажи, что изменить." : "If anything is off, tell me what to change.",
   ];
   return lines.join("\n");
+}
+
+/**
+ * Handle show_style_examples tool — send example stickers or style list to user.
+ */
+async function handleShowStyleExamples(ctx: any, styleId: string | undefined | null, lang: string): Promise<void> {
+  const isRu = lang === "ru";
+
+  if (styleId) {
+    // Show example for a specific style
+    const example = await getStyleExample(styleId);
+    if (example?.telegram_file_id) {
+      try {
+        await ctx.replyWithSticker(example.telegram_file_id);
+      } catch (err: any) {
+        console.error("handleShowStyleExamples: failed to send sticker:", err.message);
+        const msg = isRu
+          ? `К сожалению, не удалось отправить пример стиля "${styleId}".`
+          : `Sorry, couldn't send the example for "${styleId}" style.`;
+        await ctx.reply(msg);
+      }
+    } else {
+      const msg = isRu
+        ? `К сожалению, примера для стиля "${styleId}" пока нет.`
+        : `Sorry, no example available for "${styleId}" style yet.`;
+      await ctx.reply(msg);
+    }
+  } else {
+    // Show list of styles that have examples
+    const stylesWithExamples = await getStylesWithExamples();
+    if (stylesWithExamples.length > 0) {
+      const header = isRu
+        ? "Вот стили, для которых есть примеры — нажми, чтобы увидеть:"
+        : "Here are styles with examples — tap to see one:";
+
+      const buttons = stylesWithExamples.map(s => [
+        Markup.button.callback(
+          `${s.emoji} ${isRu ? s.name_ru : s.name_en}`,
+          `assistant_example_${s.id}`
+        ),
+      ]);
+
+      await ctx.reply(header, Markup.inlineKeyboard(buttons));
+    } else {
+      const msg = isRu
+        ? "Пока примеров нет, но опиши стиль словами — я пойму!"
+        : "No examples yet, but describe the style in words — I'll understand!";
+      await ctx.reply(msg);
+    }
+  }
 }
 
 /**
@@ -1219,7 +1298,7 @@ bot.on("photo", async (ctx) => {
     messages.push({ role: "user", content: "[User sent a photo]" });
 
     // Build system prompt with state injection
-    const systemPrompt = getAssistantSystemPrompt(messages, aSession);
+    const systemPrompt = await getAssistantSystemPrompt(messages, aSession);
     console.log("Assistant photo: calling AI, messages count:", messages.length);
 
     try {
@@ -1249,6 +1328,10 @@ bot.on("photo", async (ctx) => {
             )],
           ])
         );
+      } else if (action === "show_examples") {
+        const styleId = result.toolCall?.args?.style_id;
+        await handleShowStyleExamples(ctx, styleId, lang);
+        if (replyText) await ctx.reply(replyText, getMainMenuKeyboard(lang));
       } else if (replyText) {
         await ctx.reply(replyText, getMainMenuKeyboard(lang));
       }
@@ -1445,7 +1528,7 @@ bot.on("text", async (ctx) => {
     const messages: AssistantMessage[] = Array.isArray(aSession.messages) ? [...aSession.messages] : [];
     messages.push({ role: "user", content: userText });
 
-    const systemPrompt = getAssistantSystemPrompt(messages, aSession);
+    const systemPrompt = await getAssistantSystemPrompt(messages, aSession);
 
     try {
       const result = await callAIChat(messages, systemPrompt);
@@ -1457,12 +1540,14 @@ bot.on("text", async (ctx) => {
         goalUpdate.goal = userText; // User's first text is likely the goal
       }
 
-      // Process tool call (may get request_photo)
+      // Process tool call (may get request_photo or show_examples)
       let toolUpdates: Partial<AssistantSessionRow> = {};
+      let toolAction = "none";
       if (result.toolCall) {
         console.log("[Assistant] wait_photo tool call:", result.toolCall.name);
-        const { updates } = handleToolCall(result.toolCall, aSession);
+        const { updates, action: ta } = handleToolCall(result.toolCall, aSession);
         toolUpdates = updates;
+        toolAction = ta;
       }
 
       await updateAssistantSession(aSession.id, {
@@ -1471,10 +1556,16 @@ bot.on("text", async (ctx) => {
         ...goalUpdate,
       });
 
-      const replyText = result.text || (lang === "ru"
-        ? "Понял! Пришли фото для стикера 📸"
-        : "Got it! Send me a photo for the sticker 📸");
-      await ctx.reply(replyText, getMainMenuKeyboard(lang));
+      if (toolAction === "show_examples") {
+        const styleId = result.toolCall?.args?.style_id;
+        await handleShowStyleExamples(ctx, styleId, lang);
+        if (result.text) await ctx.reply(result.text, getMainMenuKeyboard(lang));
+      } else {
+        const replyText = result.text || (lang === "ru"
+          ? "Понял! Пришли фото для стикера 📸"
+          : "Got it! Send me a photo for the sticker 📸");
+        await ctx.reply(replyText, getMainMenuKeyboard(lang));
+      }
     } catch (err: any) {
       console.error("Assistant wait_photo text AI error:", err.message);
       const reminder = lang === "ru"
@@ -1505,7 +1596,7 @@ bot.on("text", async (ctx) => {
     messages.push({ role: "user", content: userText });
 
     // Build system prompt with state injection (tells LLM what's collected)
-    const systemPrompt = getAssistantSystemPrompt(messages, aSession);
+    const systemPrompt = await getAssistantSystemPrompt(messages, aSession);
 
     // Track error count
     const errorCount = aSession.error_count || 0;
@@ -1555,6 +1646,12 @@ bot.on("text", async (ctx) => {
             .from("sessions")
             .update({ state: "assistant_wait_photo", is_active: true })
             .eq("id", session.id);
+          if (replyText) await ctx.reply(replyText, getMainMenuKeyboard(lang));
+        } else if (action === "show_examples") {
+          // Show style examples to help user choose
+          const styleId = result.toolCall?.args?.style_id;
+          await handleShowStyleExamples(ctx, styleId, lang);
+          // Send LLM reply text after examples (if any)
           if (replyText) await ctx.reply(replyText, getMainMenuKeyboard(lang));
         } else {
           // Normal dialog step
@@ -2761,6 +2858,34 @@ bot.action(/^add_text:(.+)$/, async (ctx) => {
 // AI Assistant callbacks
 // ============================================
 
+// Callback: assistant style example — user clicks a style button to see example
+bot.action(/^assistant_example_(.+)$/, async (ctx) => {
+  safeAnswerCbQuery(ctx);
+  const styleId = ctx.match[1];
+  const telegramId = ctx.from?.id;
+  if (!telegramId || !styleId) return;
+
+  try {
+    const example = await getStyleExample(styleId);
+    if (example?.telegram_file_id) {
+      await ctx.replyWithSticker(example.telegram_file_id);
+    } else {
+      const { data: userData } = await supabase
+        .from("users")
+        .select("language_code")
+        .eq("telegram_id", String(telegramId))
+        .maybeSingle();
+      const lang = getLang(userData?.language_code);
+      const msg = lang === "ru"
+        ? `Примера для этого стиля пока нет.`
+        : `No example available for this style yet.`;
+      await ctx.reply(msg);
+    }
+  } catch (err: any) {
+    console.error("assistant_example callback error:", err.message);
+  }
+});
+
 // Callback: assistant confirm — user presses [✅ Confirm] button
 bot.action("assistant_confirm", async (ctx) => {
   safeAnswerCbQuery(ctx);
@@ -2817,7 +2942,7 @@ bot.action("assistant_new_photo", async (ctx) => {
   const messages: AssistantMessage[] = Array.isArray(aSession!.messages) ? [...aSession!.messages] : [];
   messages.push({ role: "user", content: "[User sent a new photo and chose to use it]" });
 
-  const systemPrompt = getAssistantSystemPrompt(messages, aSession!);
+  const systemPrompt = await getAssistantSystemPrompt(messages, aSession!);
 
   try {
     const result = await callAIChat(messages, systemPrompt);
@@ -2825,9 +2950,11 @@ bot.action("assistant_new_photo", async (ctx) => {
 
     // Process tool call if any
     let toolUpdates: Partial<AssistantSessionRow> = {};
+    let toolAction = "none";
     if (result.toolCall) {
-      const { updates } = handleToolCall(result.toolCall, aSession!);
+      const { updates, action: ta } = handleToolCall(result.toolCall, aSession!);
       toolUpdates = updates;
+      toolAction = ta;
     }
 
     await updateAssistantSession(aSession!.id, {
@@ -2846,7 +2973,13 @@ bot.action("assistant_new_photo", async (ctx) => {
       })
       .eq("id", session.id);
 
-    await ctx.reply(result.text, getMainMenuKeyboard(lang));
+    if (toolAction === "show_examples") {
+      const styleId = result.toolCall?.args?.style_id;
+      await handleShowStyleExamples(ctx, styleId, lang);
+      if (result.text) await ctx.reply(result.text, getMainMenuKeyboard(lang));
+    } else {
+      await ctx.reply(result.text, getMainMenuKeyboard(lang));
+    }
   } catch (err: any) {
     console.error("Assistant new photo error:", err.message);
     await supabase

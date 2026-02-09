@@ -6,4 +6,4 @@ dist/
 .DS_Store
 test.jpg
 CONVERSATION_HISTORY.txt
-scripts/broadcast*
+scripts/broadcast*sh-thd-*

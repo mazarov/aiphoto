@@ -31,7 +31,7 @@ export interface AssistantSessionRow {
 // Tool Call Handler (merge with existing data)
 // ============================================
 
-export type ToolAction = "params" | "confirm" | "photo" | "none";
+export type ToolAction = "params" | "confirm" | "photo" | "show_examples" | "none";
 
 export interface ToolCallResult {
   updates: Partial<AssistantSessionRow>;
@@ -76,6 +76,13 @@ export function handleToolCall(
     };
   }
 
+  if (toolCall.name === "show_style_examples") {
+    return {
+      updates: {},
+      action: "show_examples",
+    };
+  }
+
   return { updates: {}, action: "none" };
 }
 
@@ -87,7 +94,10 @@ export function handleToolCall(
  * Build [SYSTEM STATE] block to inject before each LLM call.
  * Tells the LLM which params are collected and which are still needed.
  */
-export function buildStateInjection(aSession: AssistantSessionRow): string {
+export function buildStateInjection(
+  aSession: AssistantSessionRow,
+  options?: { availableStyles?: Array<{ id: string; name_en: string }> }
+): string {
   const collected: Record<string, string | null> = {
     style: aSession.style || null,
     emotion: aSession.emotion || null,
@@ -111,6 +121,12 @@ export function buildStateInjection(aSession: AssistantSessionRow): string {
     lines.push(`Still need: ${missing.join(", ")}`);
   } else {
     lines.push(`All parameters collected. Show mirror and wait for user confirmation.`);
+  }
+
+  // Inject available styles for show_style_examples tool
+  if (options?.availableStyles && options.availableStyles.length > 0) {
+    const styleList = options.availableStyles.map(s => s.id).join(", ");
+    lines.push(`Available style IDs for examples: ${styleList}`);
   }
 
   lines.push(`DO NOT ask for already collected parameters.`);
