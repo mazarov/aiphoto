@@ -679,6 +679,27 @@ const CREDIT_PACKS = [
   { credits: 30, price: 270, price_rub: 224, label_ru: "💎 Популярный -10%", label_en: "💎 Popular -10%", hidden: true },
 ];
 
+/**
+ * Build balance info string for check_balance tool.
+ * Returned as context for AI to use in conversation.
+ */
+function buildBalanceInfo(user: any, lang: string): string {
+  const packs = CREDIT_PACKS
+    .filter((p: any) => !p.adminOnly && !p.hidden)
+    .map((p: any) => `• ${p.credits} credits — ${p.price}⭐ (${(p.price / p.credits).toFixed(1)}⭐/стикер) ${lang === "ru" ? p.label_ru : p.label_en}`)
+    .join("\n");
+
+  return [
+    `[BALANCE]`,
+    `Credits: ${user.credits || 0}`,
+    `Has purchased: ${!!user.has_purchased}`,
+    `Total generations: ${user.total_generations || 0}`,
+    ``,
+    `Available packs:`,
+    packs,
+  ].join("\n");
+}
+
 // Helper: get user by telegram_id
 async function getUser(telegramId: number) {
   const { data } = await supabase
@@ -1028,6 +1049,10 @@ function generateFallbackReply(action: string, session: AssistantSessionRow, lan
     return isRu
       ? "Твоя идея отличная! Чтобы воплотить её, выбери пакет — 10 стикеров хватит для старта:"
       : "Your idea is great! To bring it to life, choose a pack — 10 stickers is enough to start:";
+  }
+
+  if (action === "check_balance") {
+    return isRu ? "Секунду..." : "One moment...";
   }
 
   // action === "params" or "normal" — ask for next missing param
@@ -1518,6 +1543,19 @@ bot.on("photo", async (ctx) => {
         } else {
           await handleTrialCreditAction(ctx, action, result, freshUserPhoto || user, session, replyText, lang);
         }
+      } else if (action === "check_balance") {
+        const freshUserBal2 = await getUser(user.telegram_id);
+        const u2 = freshUserBal2 || user;
+        const balanceInfo2 = buildBalanceInfo(u2, lang);
+        console.log("[assistant_photo] check_balance:", u2.credits);
+        messages.push({ role: "assistant", content: balanceInfo2 });
+        const sp2 = await getAssistantSystemPrompt(messages, aSession, {
+          credits: u2.credits || 0, hasPurchased: !!u2.has_purchased, totalGenerations: u2.total_generations || 0,
+        });
+        const r2 = await callAIChat(messages, sp2);
+        messages.push({ role: "assistant", content: r2.text || "" });
+        await updateAssistantSession(aSession.id, { messages });
+        if (r2.text) await ctx.reply(r2.text, getMainMenuKeyboard(lang));
       } else if (replyText) {
         await ctx.reply(replyText, getMainMenuKeyboard(lang));
       }
@@ -1772,6 +1810,20 @@ bot.on("text", async (ctx) => {
         } else {
           await handleTrialCreditAction(ctx, toolAction as "grant_credit" | "deny_credit", result, freshUserWP || user, session, result.text, lang);
         }
+      } else if (toolAction === "check_balance") {
+        const freshUserBal3 = await getUser(user.telegram_id);
+        const u3 = freshUserBal3 || user;
+        const balanceInfo3 = buildBalanceInfo(u3, lang);
+        console.log("[wait_photo_text] check_balance:", u3.credits);
+        messages.push({ role: "assistant", content: balanceInfo3 });
+        await updateAssistantSession(aSession.id, { messages });
+        const sp3 = await getAssistantSystemPrompt(messages, aSession, {
+          credits: u3.credits || 0, hasPurchased: !!u3.has_purchased, totalGenerations: u3.total_generations || 0,
+        });
+        const r3 = await callAIChat(messages, sp3);
+        messages.push({ role: "assistant", content: r3.text || "" });
+        await updateAssistantSession(aSession.id, { messages });
+        if (r3.text) await ctx.reply(r3.text, getMainMenuKeyboard(lang));
       } else {
         const replyText = result.text || (lang === "ru"
           ? "Понял! Пришли фото для стикера 📸"
@@ -1879,6 +1931,34 @@ bot.on("text", async (ctx) => {
             await handleAssistantConfirm(ctx, freshUser, session.id, lang);
           } else {
             await handleTrialCreditAction(ctx, action, result, freshUser || user, session, replyText, lang);
+          }
+        } else if (action === "check_balance") {
+          // Fetch fresh user data and build balance info
+          const freshUserBal = await getUser(user.telegram_id);
+          const u = freshUserBal || user;
+          const balanceInfo = buildBalanceInfo(u, lang);
+          console.log("[assistant_chat] check_balance:", balanceInfo.split("\n").slice(0, 3).join(", "));
+
+          // Add balance data to conversation and call AI again for natural response
+          messages.push({ role: "assistant", content: balanceInfo });
+          const systemPrompt2 = await getAssistantSystemPrompt(messages, aSession, {
+            credits: u.credits || 0,
+            hasPurchased: !!u.has_purchased,
+            totalGenerations: u.total_generations || 0,
+          });
+          const result2 = await callAIChat(messages, systemPrompt2);
+          messages.push({ role: "assistant", content: result2.text || "" });
+          await updateAssistantSession(aSession.id, { messages });
+
+          // Process the follow-up response (may contain another tool call)
+          const { action: action2, updatedSession: uSession2 } = await processAssistantResult(result2, aSession, messages);
+          const reply2 = result2.text || generateFallbackReply(action2, uSession2, lang);
+
+          if (action2 === "confirm") {
+            if (reply2) await ctx.reply(reply2);
+            await handleAssistantConfirm(ctx, u, session.id, lang);
+          } else {
+            if (reply2) await ctx.reply(reply2, getMainMenuKeyboard(lang));
           }
         } else {
           // Normal dialog step

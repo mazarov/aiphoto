@@ -35,7 +35,7 @@ export interface AssistantSessionRow {
 // Tool Call Handler (merge with existing data)
 // ============================================
 
-export type ToolAction = "params" | "confirm" | "photo" | "show_examples" | "grant_credit" | "deny_credit" | "none";
+export type ToolAction = "params" | "confirm" | "photo" | "show_examples" | "grant_credit" | "deny_credit" | "check_balance" | "none";
 
 export interface ToolCallResult {
   updates: Partial<AssistantSessionRow>;
@@ -97,6 +97,10 @@ export function handleToolCall(
       },
       action: args.decision === "grant" ? "grant_credit" : "deny_credit",
     };
+  }
+
+  if (toolCall.name === "check_balance") {
+    return { updates: {}, action: "check_balance" };
   }
 
   return { updates: {}, action: "none" };
