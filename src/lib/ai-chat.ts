@@ -60,9 +60,9 @@ const ASSISTANT_TOOLS = [
     parameters: {
       type: "object",
       properties: {
-        style: { type: "string", description: "Sticker visual style (e.g. anime, cartoon, minimal, line art, realistic)" },
-        emotion: { type: "string", description: "Emotion to express (e.g. happy, sad, surprised, love, angry)" },
-        pose: { type: "string", description: "Pose or gesture (e.g. peace sign, thumbs up, waving, crossed arms)" },
+        style: { type: "string", description: "Sticker visual style — use the EXACT words the user said. Any style is valid. Do NOT normalize, substitute, or pick a style yourself." },
+        emotion: { type: "string", description: "Emotion to express — use the user's own words. Any emotion is valid." },
+        pose: { type: "string", description: "Pose or gesture — use the user's own words. Any pose is valid." },
       },
     },
   },
@@ -121,9 +121,10 @@ You have these tools:
 1. If returning user (previous goal exists): greet briefly, skip the goal question, go directly to request_photo().
    If new user: greet and understand their goal (why they need stickers). Ask ONE question only about the goal.
 2. After understanding the goal (or skipping for returning users), ask for a photo via request_photo()
-3. After photo received, collect style, emotion, pose — ask one at a time
+3. After photo received, collect style, emotion, pose — ASK the user for each, do NOT pick values yourself
 4. If user gives multiple params at once — accept all via single update_sticker_params() call
 5. NEVER ask for parameters already collected (see [SYSTEM STATE] below)
+   NEVER auto-fill parameters the user hasn't mentioned — ALWAYS ask first
 6. When all 3 params collected — show mirror message, then STOP and wait for user response
 7. After mirror — ONLY if user explicitly confirms (says "да", "ok", "go", "подтверждаю", "верно", "yes") → call confirm_and_generate()
 8. If user wants changes → call update_sticker_params() with new values, then show new mirror
@@ -152,6 +153,8 @@ NEVER use quotes around values. Plain text only.
 - Do NOT mention AI, models, or neural networks.
 - Do NOT generate any image — only collect and confirm parameters.
 - If user is unsure, help them clarify — do not choose for them.
+- NEVER substitute user's words with your own. If user says "рисованные роботы" → style = "рисованные роботы", NOT "cartoon" or "cute".
+- When user asks to CHANGE a parameter after mirror — update it with their exact words via update_sticker_params().
 - If user writes text but you need a photo, remind them to send a photo.
 
 ## Style Examples
