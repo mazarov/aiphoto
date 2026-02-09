@@ -5,6 +5,8 @@ import { config } from "./config";
 import { supabase } from "./lib/supabase";
 import { getText } from "./lib/texts";
 import { sendAlert, sendNotification } from "./lib/alerts";
+import { getFilePath, downloadFile, sendSticker } from "./lib/telegram";
+import { addWhiteBorder } from "./lib/image-utils";
 import {
   buildSystemPrompt,
   callAIChat,
@@ -567,6 +569,18 @@ async function startGeneration(
       }));
     }
     await sendBuyCreditsMenu(ctx, user);
+
+    // Mark paywall on assistant session (if active) for post-paywall sales behavior
+    if (session.state?.startsWith("assistant_") || options.selectedStyleId === "assistant") {
+      const aSession = await getActiveAssistantSession(user.id);
+      if (aSession && !aSession.paywall_shown) {
+        await updateAssistantSession(aSession.id, {
+          paywall_shown: true,
+          paywall_shown_at: new Date().toISOString(),
+          sales_attempts: (aSession.sales_attempts || 0) + 1,
+        });
+      }
+    }
     return;
   }
 
@@ -667,6 +681,27 @@ const CREDIT_PACKS = [
   { credits: 30, price: 270, price_rub: 224, label_ru: "💎 Популярный -10%", label_en: "💎 Popular -10%", hidden: true },
 ];
 
+/**
+ * Build balance info string for check_balance tool.
+ * Returned as context for AI to use in conversation.
+ */
+function buildBalanceInfo(user: any, lang: string): string {
+  const packs = CREDIT_PACKS
+    .filter((p: any) => !p.adminOnly && !p.hidden)
+    .map((p: any) => `• ${p.credits} credits — ${p.price}⭐ (${(p.price / p.credits).toFixed(1)}⭐/стикер) ${lang === "ru" ? p.label_ru : p.label_en}`)
+    .join("\n");
+
+  return [
+    `[BALANCE]`,
+    `Credits: ${user.credits || 0}`,
+    `Has purchased: ${!!user.has_purchased}`,
+    `Total generations: ${user.total_generations || 0}`,
+    ``,
+    `Available packs:`,
+    packs,
+  ].join("\n");
+}
+
 // Helper: get user by telegram_id
 async function getUser(telegramId: number) {
   const { data } = await supabase
@@ -750,6 +785,11 @@ async function startAssistantDialog(ctx: any, user: any, lang: string) {
   console.log("startAssistantDialog: Session created:", newSession.id, "for user:", user.id);
 
   // Build context for system prompt
+  const stylePresets = await getStylePresetsV2();
+  const availableStyles = stylePresets.map(s => 
+    `${s.emoji} ${lang === "ru" ? s.name_ru : s.name_en}`
+  );
+
   const assistantCtx: AssistantContext = {
     firstName: ctx.from?.first_name || "User",
     languageCode: user.language_code || ctx.from?.language_code || "en",
@@ -758,6 +798,7 @@ async function startAssistantDialog(ctx: any, user: any, lang: string) {
     credits: user.credits || 0,
     hasPhoto: false,
     previousGoal,
+    availableStyles,
   };
 
   const systemPrompt = buildSystemPrompt(assistantCtx);
@@ -798,6 +839,18 @@ async function startAssistantDialog(ctx: any, user: any, lang: string) {
 
     if (result.text) {
       await ctx.reply(result.text, getMainMenuKeyboard(lang));
+    } else if (result.toolCall?.name === "request_photo") {
+      // AI returned tool call with no text — send fallback photo request
+      const photoRequest = lang === "ru"
+        ? "Пришли мне фото, из которого хочешь сделать стикер 📸"
+        : "Send me a photo you'd like to turn into a sticker 📸";
+      await ctx.reply(photoRequest, getMainMenuKeyboard(lang));
+    } else if (result.toolCall) {
+      // Other tool call with no text — send generic prompt
+      const fallbackMsg = lang === "ru"
+        ? "Готов помочь! Расскажи, какой стикер хочешь сделать?"
+        : "Ready to help! Tell me what kind of sticker you want to make?";
+      await ctx.reply(fallbackMsg, getMainMenuKeyboard(lang));
     }
   } catch (err: any) {
     console.error("startAssistantDialog AI error:", err.message);
@@ -861,17 +914,48 @@ async function handleAssistantConfirm(ctx: any, user: any, sessionId: string, la
 }
 
 /**
+ * Count trial credits granted today (global, across all users).
+ */
+async function getTodayTrialCreditsCount(): Promise<number> {
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+
+  const { count } = await supabase
+    .from("assistant_sessions")
+    .select("id", { count: "exact", head: true })
+    .eq("env", config.appEnv)
+    .gte("updated_at", todayStart.toISOString())
+    .like("goal", "%[trial: grant%");
+
+  return count || 0;
+}
+
+/**
  * Get system prompt with state injection for assistant session.
  * Looks for original system prompt in messages, appends current state.
  */
-async function getAssistantSystemPrompt(messages: AssistantMessage[], aSession: AssistantSessionRow): Promise<string> {
+async function getAssistantSystemPrompt(
+  messages: AssistantMessage[],
+  aSession: AssistantSessionRow,
+  userContext?: { credits: number; hasPurchased: boolean; totalGenerations: number }
+): Promise<string> {
   const basePrompt = messages.find(m => m.role === "system")?.content || "";
 
   // Get available styles for show_style_examples tool
   const presets = await getStylePresets();
   const availableStyles = presets.map(s => ({ id: s.id, name_en: s.name_en }));
 
-  return basePrompt + buildStateInjection(aSession, { availableStyles });
+  // Inject trial budget only when user qualifies (new users with <= 2 generations)
+  let trialBudgetRemaining: number | undefined;
+  if (userContext
+    && userContext.credits === 0
+    && !userContext.hasPurchased
+    && userContext.totalGenerations <= 2) {
+    const todayCount = await getTodayTrialCreditsCount();
+    trialBudgetRemaining = Math.max(0, 20 - todayCount);
+  }
+
+  return basePrompt + buildStateInjection(aSession, { availableStyles, trialBudgetRemaining });
 }
 
 /**
@@ -882,8 +966,8 @@ async function processAssistantResult(
   result: { text: string; toolCall: import("./lib/ai-chat").ToolCall | null },
   aSession: AssistantSessionRow,
   messages: AssistantMessage[],
-): Promise<{ action: "confirm" | "photo" | "show_mirror" | "show_examples" | "normal"; updatedSession: AssistantSessionRow }> {
-  let action: "confirm" | "photo" | "show_mirror" | "show_examples" | "normal" = "normal";
+): Promise<{ action: "confirm" | "photo" | "show_mirror" | "show_examples" | "grant_credit" | "deny_credit" | "check_balance" | "normal"; updatedSession: AssistantSessionRow }> {
+  let action: "confirm" | "photo" | "show_mirror" | "show_examples" | "grant_credit" | "deny_credit" | "check_balance" | "normal" = "normal";
   let sessionUpdates: Partial<AssistantSessionRow> = {};
 
   if (result.toolCall) {
@@ -903,6 +987,12 @@ async function processAssistantResult(
       action = "photo";
     } else if (toolResult.action === "show_examples") {
       action = "show_examples";
+    } else if (toolResult.action === "grant_credit") {
+      action = "grant_credit";
+    } else if (toolResult.action === "deny_credit") {
+      action = "deny_credit";
+    } else if (toolResult.action === "check_balance") {
+      action = "check_balance";
     } else if (toolResult.action === "params") {
       // After updating params, check if all collected
       const mergedSession = { ...aSession, ...sessionUpdates } as AssistantSessionRow;
@@ -953,6 +1043,22 @@ function generateFallbackReply(action: string, session: AssistantSessionRow, lan
       : "Tap a style to see an example:";
   }
 
+  if (action === "grant_credit") {
+    return isRu
+      ? "Отлично! Сгенерирую этот стикер для тебя — уверен, результат понравится! 🎨"
+      : "Great! I'll generate this sticker for you — I'm sure you'll love it! 🎨";
+  }
+
+  if (action === "deny_credit") {
+    return isRu
+      ? "Твоя идея отличная! Чтобы воплотить её, выбери пакет — 10 стикеров хватит для старта:"
+      : "Your idea is great! To bring it to life, choose a pack — 10 stickers is enough to start:";
+  }
+
+  if (action === "check_balance") {
+    return isRu ? "Секунду..." : "One moment...";
+  }
+
   // action === "params" or "normal" — ask for next missing param
   if (!session.style) {
     return isRu
@@ -978,15 +1084,11 @@ function generateFallbackReply(action: string, session: AssistantSessionRow, lan
  */
 function buildMirrorMessage(session: AssistantSessionRow, lang: string): string {
   const isRu = lang === "ru";
-  const borderText = session.border
-    ? (isRu ? "да ✅" : "yes ✅")
-    : (isRu ? "нет ❌" : "no ❌");
   const lines = [
     isRu ? "Проверь, правильно ли я понял:" : "Please check if I understood you correctly:",
     `– **${isRu ? "Стиль" : "Style"}:** ${session.style || "?"}`,
     `– **${isRu ? "Эмоция" : "Emotion"}:** ${session.emotion || "?"}`,
     `– **${isRu ? "Поза / жест" : "Pose / gesture"}:** ${session.pose || "?"}`,
-    `– **${isRu ? "Обводка" : "Border"}:** ${borderText}`,
     "",
     isRu ? "Если что-то не так — скажи, что изменить." : "If anything is off, tell me what to change.",
   ];
@@ -1020,11 +1122,7 @@ async function handleShowStyleExamples(ctx: any, styleId: string | undefined | n
 /**
  * Build final prompt for Gemini image generation from assistant params.
  */
-function buildAssistantPrompt(params: { style: string; emotion: string; pose: string; border: boolean }): string {
-  const borderLine = params.border
-    ? "- Bold white outline/border around the character (thick, clearly visible, uniform width)"
-    : "- No outline/border around the character";
-
+function buildAssistantPrompt(params: { style: string; emotion: string; pose: string }): string {
   return `Create a telegram sticker of the person from the photo.
 
 Style: ${params.style}
@@ -1034,7 +1132,7 @@ Pose/gesture: ${params.pose}
 Requirements:
 - Solid black background (NOT white, NOT transparent) — critical for clean cutout
 - Sticker-like proportions (head slightly larger)
-${borderLine}
+- No outline/border around the character
 - Expressive and recognizable
 - High contrast between character and background`;
 }
@@ -1069,6 +1167,104 @@ async function getActiveSession(userId: string) {
     console.log("getActiveSession fallback found:", fallback.id, "state:", fallback.state, "is_active:", fallback.is_active);
   }
   return fallback;
+}
+
+/**
+ * Handle grant_credit / deny_credit action from AI assistant.
+ */
+async function handleTrialCreditAction(
+  ctx: any,
+  action: "grant_credit" | "deny_credit",
+  result: { text: string; toolCall: import("./lib/ai-chat").ToolCall | null },
+  user: any,
+  session: any,
+  replyText: string | undefined,
+  lang: string
+): Promise<void> {
+  if (action === "grant_credit") {
+    // Code ALWAYS verifies limits — even if AI said "grant"
+    const todayCount = await getTodayTrialCreditsCount();
+
+    // Check if this user already received a trial credit (prevent duplicates)
+    const { count: userTrialCount } = await supabase
+      .from("assistant_sessions")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", user.id)
+      .eq("env", config.appEnv)
+      .like("goal", "%[trial: grant%");
+    const alreadyGranted = (userTrialCount || 0) > 0;
+
+    const canGrant = todayCount < 20
+      && (user.credits || 0) === 0
+      && !user.has_purchased
+      && (user.total_generations || 0) <= 2
+      && !alreadyGranted;
+
+    if (canGrant) {
+      await supabase
+        .from("users")
+        .update({ credits: 1 })
+        .eq("id", user.id);
+
+      sendAlert({
+        type: "trial_credit_granted",
+        message: `🎁 Trial credit #${todayCount + 1}/20`,
+        details: {
+          user: `@${user.username || user.telegram_id}`,
+          confidence: result.toolCall?.args?.confidence,
+          reason: result.toolCall?.args?.reason,
+          isPremium: user.is_premium,
+          lang: user.language_code || user.lang,
+        },
+      }).catch(console.error);
+
+      // Re-fetch user with updated credits, then generate
+      const freshUser = await getUser(user.telegram_id);
+      if (replyText) await ctx.reply(replyText);
+      if (freshUser) await handleAssistantConfirm(ctx, freshUser, session.id, lang);
+    } else {
+      // Budget exhausted or guard triggered — fallback to paywall
+      const paywallText = lang === "ru"
+        ? "К сожалению, сейчас не могу сгенерировать бесплатно. Выбери пакет — 10 стикеров хватит для старта:"
+        : "Unfortunately, I can't generate for free right now. Choose a pack — 10 stickers is enough to start:";
+      await ctx.reply(paywallText);
+      await sendBuyCreditsMenu(ctx, user);
+
+      // Mark paywall shown on assistant session for post-paywall behavior
+      const aSession = await getActiveAssistantSession(user.id);
+      if (aSession) {
+        await updateAssistantSession(aSession.id, {
+          paywall_shown: true,
+          paywall_shown_at: new Date().toISOString(),
+          sales_attempts: (aSession.sales_attempts || 0) + 1,
+        });
+      }
+    }
+  } else {
+    // deny_credit
+    sendAlert({
+      type: "trial_credit_denied",
+      message: `❌ Trial denied`,
+      details: {
+        user: `@${user.username || user.telegram_id}`,
+        confidence: result.toolCall?.args?.confidence,
+        reason: result.toolCall?.args?.reason,
+      },
+    }).catch(console.error);
+
+    if (replyText) await ctx.reply(replyText);
+    await sendBuyCreditsMenu(ctx, user);
+
+    // Mark paywall shown on assistant session for post-paywall behavior
+    const aSession = await getActiveAssistantSession(user.id);
+    if (aSession) {
+      await updateAssistantSession(aSession.id, {
+        paywall_shown: true,
+        paywall_shown_at: new Date().toISOString(),
+        sales_attempts: (aSession.sales_attempts || 0) + 1,
+      });
+    }
+  }
 }
 
 // Helper: send buy credits menu
@@ -1294,8 +1490,12 @@ bot.on("photo", async (ctx) => {
     const messages: AssistantMessage[] = Array.isArray(aSession.messages) ? [...aSession.messages] : [];
     messages.push({ role: "user", content: "[User sent a photo]" });
 
-    // Build system prompt with state injection
-    const systemPrompt = await getAssistantSystemPrompt(messages, aSession);
+    // Build system prompt with state injection (including trial budget if applicable)
+    const systemPrompt = await getAssistantSystemPrompt(messages, aSession, {
+      credits: user.credits || 0,
+      hasPurchased: !!user.has_purchased,
+      totalGenerations: user.total_generations || 0,
+    });
     console.log("Assistant photo: calling AI, messages count:", messages.length);
 
     try {
@@ -1329,6 +1529,29 @@ bot.on("photo", async (ctx) => {
         const styleId = result.toolCall?.args?.style_id;
         await handleShowStyleExamples(ctx, styleId, lang);
         if (replyText) await ctx.reply(replyText, getMainMenuKeyboard(lang));
+      } else if (action === "grant_credit" || action === "deny_credit") {
+        // Re-fetch user to get fresh credits (user may have purchased during conversation)
+        const freshUserPhoto = await getUser(user.telegram_id);
+        if (freshUserPhoto && (freshUserPhoto.credits || 0) > 0) {
+          console.log("[assistant_photo] User has credits after re-fetch:", freshUserPhoto.credits, "— generating");
+          if (replyText) await ctx.reply(replyText);
+          await handleAssistantConfirm(ctx, freshUserPhoto, session.id, lang);
+        } else {
+          await handleTrialCreditAction(ctx, action, result, freshUserPhoto || user, session, replyText, lang);
+        }
+      } else if (action === "check_balance") {
+        const freshUserBal2 = await getUser(user.telegram_id);
+        const u2 = freshUserBal2 || user;
+        const balanceInfo2 = buildBalanceInfo(u2, lang);
+        console.log("[assistant_photo] check_balance:", u2.credits);
+        messages.push({ role: "assistant", content: balanceInfo2 });
+        const sp2 = await getAssistantSystemPrompt(messages, aSession, {
+          credits: u2.credits || 0, hasPurchased: !!u2.has_purchased, totalGenerations: u2.total_generations || 0,
+        });
+        const r2 = await callAIChat(messages, sp2);
+        messages.push({ role: "assistant", content: r2.text || "" });
+        await updateAssistantSession(aSession.id, { messages });
+        if (r2.text) await ctx.reply(r2.text, getMainMenuKeyboard(lang));
       } else if (replyText) {
         await ctx.reply(replyText, getMainMenuKeyboard(lang));
       }
@@ -1538,7 +1761,11 @@ bot.on("text", async (ctx) => {
     const messages: AssistantMessage[] = Array.isArray(aSession.messages) ? [...aSession.messages] : [];
     messages.push({ role: "user", content: userText });
 
-    const systemPrompt = await getAssistantSystemPrompt(messages, aSession);
+    const systemPrompt = await getAssistantSystemPrompt(messages, aSession, {
+      credits: user.credits || 0,
+      hasPurchased: !!user.has_purchased,
+      totalGenerations: user.total_generations || 0,
+    });
 
     try {
       const result = await callAIChat(messages, systemPrompt);
@@ -1552,7 +1779,7 @@ bot.on("text", async (ctx) => {
 
       // Process tool call (may get request_photo or show_examples)
       let toolUpdates: Partial<AssistantSessionRow> = {};
-      let toolAction = "none";
+      let toolAction: import("./lib/assistant-db").ToolAction | "none" = "none";
       if (result.toolCall) {
         console.log("[Assistant] wait_photo tool call:", result.toolCall.name);
         const { updates, action: ta } = handleToolCall(result.toolCall, aSession);
@@ -1570,6 +1797,29 @@ bot.on("text", async (ctx) => {
         const styleId = result.toolCall?.args?.style_id;
         await handleShowStyleExamples(ctx, styleId, lang);
         if (result.text) await ctx.reply(result.text, getMainMenuKeyboard(lang));
+      } else if (toolAction === "grant_credit" || toolAction === "deny_credit") {
+        const freshUserWP = await getUser(user.telegram_id);
+        if (freshUserWP && (freshUserWP.credits || 0) > 0) {
+          console.log("[wait_photo_text] User has credits after re-fetch:", freshUserWP.credits, "— generating");
+          if (result.text) await ctx.reply(result.text);
+          await handleAssistantConfirm(ctx, freshUserWP, session.id, lang);
+        } else {
+          await handleTrialCreditAction(ctx, toolAction as "grant_credit" | "deny_credit", result, freshUserWP || user, session, result.text, lang);
+        }
+      } else if (toolAction === "check_balance") {
+        const freshUserBal3 = await getUser(user.telegram_id);
+        const u3 = freshUserBal3 || user;
+        const balanceInfo3 = buildBalanceInfo(u3, lang);
+        console.log("[wait_photo_text] check_balance:", u3.credits);
+        messages.push({ role: "assistant", content: balanceInfo3 });
+        await updateAssistantSession(aSession.id, { messages });
+        const sp3 = await getAssistantSystemPrompt(messages, aSession, {
+          credits: u3.credits || 0, hasPurchased: !!u3.has_purchased, totalGenerations: u3.total_generations || 0,
+        });
+        const r3 = await callAIChat(messages, sp3);
+        messages.push({ role: "assistant", content: r3.text || "" });
+        await updateAssistantSession(aSession.id, { messages });
+        if (r3.text) await ctx.reply(r3.text, getMainMenuKeyboard(lang));
       } else {
         const replyText = result.text || (lang === "ru"
           ? "Понял! Пришли фото для стикера 📸"
@@ -1605,8 +1855,12 @@ bot.on("text", async (ctx) => {
     const messages: AssistantMessage[] = Array.isArray(aSession.messages) ? [...aSession.messages] : [];
     messages.push({ role: "user", content: userText });
 
-    // Build system prompt with state injection (tells LLM what's collected)
-    const systemPrompt = await getAssistantSystemPrompt(messages, aSession);
+    // Build system prompt with state injection (tells LLM what's collected, including trial budget)
+    const systemPrompt = await getAssistantSystemPrompt(messages, aSession, {
+      credits: user.credits || 0,
+      hasPurchased: !!user.has_purchased,
+      totalGenerations: user.total_generations || 0,
+    });
 
     // Track error count
     const errorCount = aSession.error_count || 0;
@@ -1663,6 +1917,45 @@ bot.on("text", async (ctx) => {
           await handleShowStyleExamples(ctx, styleId, lang);
           // Send LLM reply text after examples (if any)
           if (replyText) await ctx.reply(replyText, getMainMenuKeyboard(lang));
+        } else if (action === "grant_credit" || action === "deny_credit") {
+          // Re-fetch user to get fresh credits (user may have purchased during conversation)
+          const freshUser = await getUser(user.telegram_id);
+          if (freshUser && (freshUser.credits || 0) > 0) {
+            // User now has credits (bought during conversation) — skip trial, go to generation
+            console.log("[assistant_chat] User has credits after re-fetch:", freshUser.credits, "— skipping trial, generating");
+            if (replyText) await ctx.reply(replyText);
+            await handleAssistantConfirm(ctx, freshUser, session.id, lang);
+          } else {
+            await handleTrialCreditAction(ctx, action, result, freshUser || user, session, replyText, lang);
+          }
+        } else if (action === "check_balance") {
+          // Fetch fresh user data and build balance info
+          const freshUserBal = await getUser(user.telegram_id);
+          const u = freshUserBal || user;
+          const balanceInfo = buildBalanceInfo(u, lang);
+          console.log("[assistant_chat] check_balance:", balanceInfo.split("\n").slice(0, 3).join(", "));
+
+          // Add balance data to conversation and call AI again for natural response
+          messages.push({ role: "assistant", content: balanceInfo });
+          const systemPrompt2 = await getAssistantSystemPrompt(messages, aSession, {
+            credits: u.credits || 0,
+            hasPurchased: !!u.has_purchased,
+            totalGenerations: u.total_generations || 0,
+          });
+          const result2 = await callAIChat(messages, systemPrompt2);
+          messages.push({ role: "assistant", content: result2.text || "" });
+          await updateAssistantSession(aSession.id, { messages });
+
+          // Process the follow-up response (may contain another tool call)
+          const { action: action2, updatedSession: uSession2 } = await processAssistantResult(result2, aSession, messages);
+          const reply2 = result2.text || generateFallbackReply(action2, uSession2, lang);
+
+          if (action2 === "confirm") {
+            if (reply2) await ctx.reply(reply2);
+            await handleAssistantConfirm(ctx, u, session.id, lang);
+          } else {
+            if (reply2) await ctx.reply(reply2, getMainMenuKeyboard(lang));
+          }
         } else {
           // Normal dialog step
           if (replyText) await ctx.reply(replyText, getMainMenuKeyboard(lang));
@@ -2872,6 +3165,113 @@ bot.action(/^add_text:(.+)$/, async (ctx) => {
   await ctx.reply(await getText(lang, "text.prompt"));
 });
 
+// Callback: toggle white border on sticker (post-processing, no credits)
+bot.action(/^toggle_border:(.+)$/, async (ctx) => {
+  console.log("=== toggle_border:ID callback ===");
+  console.log("callback_data:", ctx.match?.[0]);
+  safeAnswerCbQuery(ctx);
+  const telegramId = ctx.from?.id;
+  if (!telegramId) return;
+
+  const user = await getUser(telegramId);
+  if (!user?.id) return;
+
+  const lang = user.lang || "en";
+  const stickerId = ctx.match[1];
+  console.log("stickerId:", stickerId);
+
+  // Get sticker from DB by ID
+  const { data: sticker } = await supabase
+    .from("stickers")
+    .select("telegram_file_id, user_id")
+    .eq("id", stickerId)
+    .maybeSingle();
+
+  console.log("toggle_border sticker from DB:", sticker?.user_id, "telegram_file_id:", !!sticker?.telegram_file_id);
+
+  if (!sticker?.telegram_file_id) {
+    console.log(">>> ERROR: no telegram_file_id for sticker", stickerId);
+    await ctx.reply(await getText(lang, "error.no_stickers_added"));
+    return;
+  }
+
+  // Verify sticker belongs to user
+  if (sticker.user_id !== user.id) {
+    return;
+  }
+
+  try {
+    // Show processing indicator
+    const processingMsg = await ctx.reply(lang === "ru" ? "🔲 Добавляю обводку..." : "🔲 Adding border...");
+
+    // Download current sticker via Telegram API
+    const filePath = await getFilePath(sticker.telegram_file_id);
+    const stickerBuffer = await downloadFile(filePath);
+    console.log("toggle_border: downloaded sticker, size:", stickerBuffer.length);
+
+    // Add white border via image processing
+    const borderedBuffer = await addWhiteBorder(stickerBuffer);
+    console.log("toggle_border: bordered buffer size:", borderedBuffer.length);
+
+    // Build buttons (same as post-generation)
+    const addToPackText = await getText(lang, "btn.add_to_pack");
+    const assistantText = lang === "ru" ? "🤖 Ассистент" : "🤖 Assistant";
+    const changeEmotionText = await getText(lang, "btn.change_emotion");
+    const changeMotionText = await getText(lang, "btn.change_motion");
+    const addTextText = await getText(lang, "btn.add_text");
+    const toggleBorderText = await getText(lang, "btn.toggle_border");
+
+    const replyMarkup = {
+      inline_keyboard: [
+        [{ text: addToPackText, callback_data: `add_to_pack:${stickerId}` }],
+        [
+          { text: assistantText, callback_data: "assistant_restart" },
+          { text: changeEmotionText, callback_data: `change_emotion:${stickerId}` },
+        ],
+        [
+          { text: changeMotionText, callback_data: `change_motion:${stickerId}` },
+          { text: toggleBorderText, callback_data: `toggle_border:${stickerId}` },
+        ],
+        [
+          { text: addTextText, callback_data: `add_text:${stickerId}` },
+        ],
+      ],
+    };
+
+    // Send bordered sticker
+    const newFileId = await sendSticker(telegramId, borderedBuffer, replyMarkup);
+    console.log("toggle_border: sent bordered sticker, new file_id:", newFileId?.substring(0, 30) + "...");
+
+    // Update telegram_file_id in DB
+    if (newFileId) {
+      await supabase
+        .from("stickers")
+        .update({ telegram_file_id: newFileId })
+        .eq("id", stickerId);
+      console.log("toggle_border: updated sticker telegram_file_id");
+    }
+
+    // Delete processing message
+    try {
+      await ctx.deleteMessage(processingMsg.message_id);
+    } catch (e) {
+      // ignore
+    }
+
+    // Upload bordered version to storage (background, non-critical)
+    const storagePath = `stickers/${user.id}/bordered_${Date.now()}.webp`;
+    supabase.storage
+      .from(config.supabaseStorageBucket)
+      .upload(storagePath, borderedBuffer, { contentType: "image/webp", upsert: true })
+      .then(() => console.log("toggle_border: storage upload done"))
+      .catch((err: any) => console.error("toggle_border: storage upload failed:", err));
+
+  } catch (err: any) {
+    console.error("toggle_border error:", err);
+    await ctx.reply(await getText(lang, "error.technical"));
+  }
+});
+
 // ============================================
 // AI Assistant callbacks
 // ============================================
@@ -2938,6 +3338,85 @@ bot.action("assistant_confirm", async (ctx) => {
   const session = await getActiveSession(user.id);
 
   if (!session?.id || !session.state?.startsWith("assistant_")) return;
+
+  // Check if user qualifies for trial credit — route through AI for grant/deny decision
+  const qualifiesForTrial = (user.credits || 0) === 0
+    && !user.has_purchased
+    && (user.total_generations || 0) <= 2;
+
+  if (qualifiesForTrial) {
+    const aSession = await getActiveAssistantSession(user.id);
+    if (!aSession) {
+      await handleAssistantConfirm(ctx, user, session.id, lang);
+      return;
+    }
+
+    // Check duplicate: already received trial credit
+    const { count: userTrialCount } = await supabase
+      .from("assistant_sessions")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", user.id)
+      .eq("env", config.appEnv)
+      .like("goal", "%[trial: grant%");
+    const alreadyGranted = (userTrialCount || 0) > 0;
+
+    if (alreadyGranted) {
+      // Already got trial — go straight to generation (will show paywall if no credits)
+      await handleAssistantConfirm(ctx, user, session.id, lang);
+      return;
+    }
+
+    // Inject "user confirmed" into AI conversation so it can call grant_trial_credit
+    const messages: AssistantMessage[] = Array.isArray(aSession.messages) ? [...aSession.messages] : [];
+    messages.push({ role: "user", content: lang === "ru" ? "Подтверждаю" : "Confirm" });
+
+    const systemPrompt = await getAssistantSystemPrompt(messages, aSession, {
+      credits: user.credits || 0,
+      hasPurchased: !!user.has_purchased,
+      totalGenerations: user.total_generations || 0,
+    });
+
+    try {
+      console.log("[assistant_confirm] Trial-eligible user, routing through AI...");
+      const result = await callAIChat(messages, systemPrompt);
+      console.log("[assistant_confirm] AI response:", result.toolCall?.name || "no tool", "text:", result.text?.length || 0);
+      messages.push({ role: "assistant", content: result.text || "" });
+
+      const { action, updatedSession } = await processAssistantResult(result, aSession, messages);
+      console.log("[assistant_confirm] action:", action);
+
+      let replyText = result.text;
+      if (!replyText && result.toolCall) {
+        replyText = generateFallbackReply(action, updatedSession, lang);
+        messages[messages.length - 1] = { role: "assistant", content: replyText };
+        await updateAssistantSession(aSession.id, { messages });
+      }
+
+      if (action === "grant_credit" || action === "deny_credit") {
+        // Re-fetch user to get fresh credits (user may have purchased during conversation)
+        const freshUserConfirm = await getUser(user.telegram_id);
+        if (freshUserConfirm && (freshUserConfirm.credits || 0) > 0) {
+          console.log("[assistant_confirm] User has credits after re-fetch:", freshUserConfirm.credits, "— generating");
+          if (replyText) await ctx.reply(replyText);
+          await handleAssistantConfirm(ctx, freshUserConfirm, session.id, lang);
+        } else {
+          await handleTrialCreditAction(ctx, action, result, freshUserConfirm || user, session, replyText, lang);
+        }
+      } else if (action === "confirm") {
+        // AI decided to confirm directly (shouldn't happen but safe fallback)
+        if (replyText) await ctx.reply(replyText);
+        await handleAssistantConfirm(ctx, user, session.id, lang);
+      } else {
+        // AI returned something else — show text + paywall as fallback
+        if (replyText) await ctx.reply(replyText, getMainMenuKeyboard(lang));
+      }
+    } catch (err: any) {
+      console.error("[assistant_confirm] AI error for trial user:", err.message);
+      // Fallback: go to normal confirm (will show paywall)
+      await handleAssistantConfirm(ctx, user, session.id, lang);
+    }
+    return;
+  }
 
   await handleAssistantConfirm(ctx, user, session.id, lang);
 });

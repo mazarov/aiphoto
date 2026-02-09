@@ -21,6 +21,9 @@ export interface AssistantSessionRow {
   messages: AssistantMessage[];
   error_count: number;
   pending_photo_file_id: string | null;
+  paywall_shown: boolean;
+  paywall_shown_at: string | null;
+  sales_attempts: number;
   status: "active" | "completed" | "abandoned" | "error";
   env: string;
   created_at: string;
@@ -32,7 +35,7 @@ export interface AssistantSessionRow {
 // Tool Call Handler (merge with existing data)
 // ============================================
 
-export type ToolAction = "params" | "confirm" | "photo" | "show_examples" | "none";
+export type ToolAction = "params" | "confirm" | "photo" | "show_examples" | "grant_credit" | "deny_credit" | "check_balance" | "none";
 
 export interface ToolCallResult {
   updates: Partial<AssistantSessionRow>;
@@ -85,6 +88,21 @@ export function handleToolCall(
     };
   }
 
+  if (toolCall.name === "grant_trial_credit") {
+    const args = toolCall.args;
+    const tag = `[trial: ${args.decision}, confidence: ${args.confidence}, reason: ${args.reason}]`;
+    return {
+      updates: {
+        goal: `${aSession.goal || ""} ${tag}`.trim(),
+      },
+      action: args.decision === "grant" ? "grant_credit" : "deny_credit",
+    };
+  }
+
+  if (toolCall.name === "check_balance") {
+    return { updates: {}, action: "check_balance" };
+  }
+
   return { updates: {}, action: "none" };
 }
 
@@ -98,7 +116,10 @@ export function handleToolCall(
  */
 export function buildStateInjection(
   aSession: AssistantSessionRow,
-  options?: { availableStyles?: Array<{ id: string; name_en: string }> }
+  options?: {
+    availableStyles?: Array<{ id: string; name_en: string }>;
+    trialBudgetRemaining?: number;  // Only injected when credits=0, has_purchased=false
+  }
 ): string {
   const collected: Record<string, string | boolean | null> = {
     style: aSession.style || null,
@@ -130,6 +151,34 @@ export function buildStateInjection(
   if (options?.availableStyles && options.availableStyles.length > 0) {
     const styleList = options.availableStyles.map(s => s.id).join(", ");
     lines.push(`Available style IDs for examples: ${styleList}`);
+  }
+
+  // Inject trial budget (only when user has 0 credits and never purchased)
+  if (options?.trialBudgetRemaining !== undefined) {
+    const remaining = options.trialBudgetRemaining;
+    lines.push(`Trial budget today: ${remaining}/20 remaining`);
+    if (remaining === 0) {
+      lines.push(`Budget exhausted — do NOT call grant_trial_credit, show paywall instead`);
+    } else if (remaining <= 5) {
+      lines.push(`Budget low — grant ONLY to exceptional leads`);
+    }
+  }
+
+  // Inject paywall state for post-paywall behavior
+  if (aSession.paywall_shown) {
+    lines.push(`paywall_shown: true`);
+    if (aSession.paywall_shown_at) {
+      lines.push(`paywall_shown_at: ${aSession.paywall_shown_at}`);
+    }
+    lines.push(`Do NOT show paywall again. Use a different angle to build value.`);
+  }
+
+  // Inject sales attempts counter
+  if (aSession.sales_attempts > 0) {
+    lines.push(`sales_attempts_used: ${aSession.sales_attempts}/3`);
+    if (aSession.sales_attempts >= 3) {
+      lines.push(`Max sales attempts reached. Do NOT try to sell anymore.`);
+    }
   }
 
   lines.push(`DO NOT ask for already collected parameters.`);
@@ -263,13 +312,11 @@ export function getAssistantParams(session: AssistantSessionRow): {
   style: string;
   emotion: string;
   pose: string;
-  border: boolean;
 } {
   return {
     style: session.style || "cartoon",
     emotion: session.emotion || "happy",
     pose: session.pose || "default",
-    border: session.border ?? false,
   };
 }
 
