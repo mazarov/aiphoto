@@ -56,13 +56,13 @@ console.log(`[AIChat] Provider: ${PROVIDER}, Model: ${MODEL}`);
 const ASSISTANT_TOOLS = [
   {
     name: "update_sticker_params",
-    description: "Call when user provides sticker parameters (style, emotion, pose). Can update one or several at once. Call every time user mentions any parameter.",
+    description: `Call when user provides sticker parameters. CRITICAL: copy the user's COMPLETE phrase as-is. Example: user says "аниме аватар аанг" → style must be "аниме аватар аанг", NOT just "аниме". Never shorten, normalize, or split the user's input.`,
     parameters: {
       type: "object",
       properties: {
-        style: { type: "string", description: "Sticker visual style — use the EXACT words the user said. Any style is valid. Do NOT normalize, substitute, or pick a style yourself." },
-        emotion: { type: "string", description: "Emotion to express — use the user's own words. Any emotion is valid." },
-        pose: { type: "string", description: "Pose or gesture — use the user's own words. Any pose is valid." },
+        style: { type: "string", description: "Sticker visual style. MUST be the user's FULL phrase verbatim. Never truncate. Example: 'аниме аватар аанг' NOT 'аниме'." },
+        emotion: { type: "string", description: "Emotion to express. Use the user's FULL phrase verbatim." },
+        pose: { type: "string", description: "Pose or gesture. Use the user's FULL phrase verbatim." },
         border: { type: "boolean", description: "Whether to add a bold white outline/border around the sticker. Ask the user. Default: false." },
       },
     },
@@ -281,8 +281,11 @@ If [SYSTEM STATE] shows paywall_shown=true:
 - Do NOT mention AI, models, or neural networks.
 - Do NOT generate any image — only collect and confirm parameters.
 - If user is unsure, help them clarify — do not choose for them.
-- NEVER substitute user's words with your own. If user says "рисованные роботы" → style = "рисованные роботы", NOT "cartoon" or "cute".
-- When user asks to CHANGE a parameter after mirror — update it with their exact words via update_sticker_params().
+- NEVER substitute, shorten, or normalize user's words. Copy their COMPLETE phrase verbatim.
+  Example: user says "аниме аватар аанг" → style = "аниме аватар аанг" (NOT just "аниме")
+  Example: user says "рисованные роботы" → style = "рисованные роботы" (NOT "cartoon" or "cute")
+- When user asks to CHANGE a parameter — use their FULL NEW phrase. The new value REPLACES the old one completely.
+  Example: style was "аниме", user says "сделай аниме аватар аанг" → style = "аниме аватар аанг"
 - If user writes text but you need a photo, remind them to send a photo.
 
 ## Style Examples
