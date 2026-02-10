@@ -1,17 +1,34 @@
 import sharp from "sharp";
+import * as fs from "fs";
 import * as path from "path";
 import opentype from "opentype.js";
 
-// Path to bundled font file (copied to dist/assets/ during Docker build)
-const FONT_PATH = path.join(__dirname, "..", "assets", "Inter-Bold.otf");
+// Try multiple paths to find the font file (works both locally and in Docker)
+function findFontPath(): string {
+  const candidates = [
+    path.join(__dirname, "..", "assets", "Inter-Bold.otf"),       // dist/assets/
+    path.join(__dirname, "..", "..", "src", "assets", "Inter-Bold.otf"), // src/assets/ from dist/lib/
+    path.join(process.cwd(), "src", "assets", "Inter-Bold.otf"), // CWD/src/assets/
+    path.join(process.cwd(), "dist", "assets", "Inter-Bold.otf"), // CWD/dist/assets/
+  ];
+  for (const p of candidates) {
+    if (fs.existsSync(p)) {
+      console.log("Font found at:", p);
+      return p;
+    }
+    console.log("Font not at:", p);
+  }
+  throw new Error("Inter-Bold.otf not found in any of: " + candidates.join(", "));
+}
 
 // Load font once at module init
 let cachedFont: opentype.Font | null = null;
 function getFont(): opentype.Font {
   if (!cachedFont) {
-    cachedFont = opentype.loadSync(FONT_PATH);
-    console.log("opentype.js: font loaded from", FONT_PATH,
-      "glyphs:", cachedFont.glyphs.length);
+    const fontPath = findFontPath();
+    const buf = fs.readFileSync(fontPath);
+    cachedFont = opentype.parse(buf.buffer as ArrayBuffer);
+    console.log("opentype.js: font loaded, glyphs:", cachedFont.glyphs.length);
   }
   return cachedFont;
 }
