@@ -1677,6 +1677,12 @@ bot.hears(["🎨 Стили", "🎨 Styles"], async (ctx) => {
   if (session?.state?.startsWith("assistant_")) {
     console.log("Styles: switching from assistant to manual mode, session:", session.id);
     await closeAllActiveAssistantSessions(user.id, "abandoned");
+    // Reset state immediately so photo handler won't route to dead assistant
+    await supabase
+      .from("sessions")
+      .update({ state: session.current_photo_file_id ? "wait_style" : "wait_photo" })
+      .eq("id", session.id);
+    console.log("Styles: reset state to", session.current_photo_file_id ? "wait_style" : "wait_photo");
   }
 
   // Check if user has a photo in active session
@@ -1686,7 +1692,7 @@ bot.hears(["🎨 Стили", "🎨 Styles"], async (ctx) => {
   }
 
   // Always set state to wait_style so style selection handlers work
-  if (session.state !== "wait_style") {
+  if (session.state !== "wait_style" && !session.state?.startsWith("assistant_")) {
     console.log("Styles: switching state from", session.state, "to wait_style, session:", session.id);
     await supabase
       .from("sessions")
