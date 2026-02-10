@@ -1,11 +1,5 @@
 FROM node:20-alpine
 
-# Install fonts for SVG text rendering (Cyrillic + Latin)
-RUN apk add --no-cache fontconfig ttf-dejavu \
-    && fc-cache -fv \
-    && fc-list | head -5
-ENV FONTCONFIG_PATH=/etc/fonts
-
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci
@@ -15,7 +9,7 @@ COPY src ./src
 
 RUN npm run build
 
-# Copy non-TS assets (fonts) to dist
-RUN cp -r src/assets dist/assets 2>/dev/null || true
+# Copy font assets to dist (opentype.js loads .otf at runtime)
+COPY src/assets dist/assets
 
 CMD ["node", "dist/worker.js"]
