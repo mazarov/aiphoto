@@ -1,4 +1,22 @@
 import sharp from "sharp";
+import * as fs from "fs";
+import * as path from "path";
+
+// Load font once at module init — embedded in SVG as base64 to bypass fontconfig issues
+let fontBase64Cache: string | null = null;
+function getFontBase64(): string {
+  if (fontBase64Cache) return fontBase64Cache;
+  try {
+    const fontPath = path.join(__dirname, "..", "assets", "Inter-Bold.otf");
+    const fontBuffer = fs.readFileSync(fontPath);
+    fontBase64Cache = fontBuffer.toString("base64");
+    console.log("Embedded font loaded:", fontPath, "size:", fontBuffer.length);
+  } catch (err: any) {
+    console.warn("Failed to load embedded font:", err.message);
+    fontBase64Cache = ""; // empty = will use fallback font
+  }
+  return fontBase64Cache;
+}
 
 /**
  * Morphological dilation of alpha channel.
@@ -64,8 +82,9 @@ function escapeXml(text: string): string {
 }
 
 /**
- * Add text overlay to a sticker using SVG compositing.
- * Text is rendered with white fill and black stroke for maximum readability.
+ * Add text badge overlay to a sticker.
+ * Renders a white rounded badge with black text on top of the sticker.
+ * Font is embedded as base64 in SVG — no system fonts or fontconfig needed.
  * Returns a 512x512 WebP buffer ready for Telegram.
  *
  * @param inputBuffer - WebP/PNG sticker buffer
@@ -86,31 +105,52 @@ export async function addTextToSticker(
   // Auto-scale font size based on text length
   let fontSize: number;
   if (displayText.length <= 8) {
-    fontSize = 64;
+    fontSize = 36;
   } else if (displayText.length <= 15) {
-    fontSize = 52;
+    fontSize = 30;
   } else if (displayText.length <= 22) {
-    fontSize = 42;
+    fontSize = 26;
   } else {
-    fontSize = 34;
+    fontSize = 22;
   }
 
-  const strokeWidth = Math.max(3, Math.round(fontSize / 12));
-  const yPos = position === "top" ? `${fontSize + 10}` : `${512 - 15}`;
+  // Calculate badge dimensions — width adapts to text length
+  const STRIP_H = 52;
+  const PADDING = 24;
+  const charWidth = fontSize * 0.6;
+  const textWidth = displayText.length * charWidth;
+  const rectWidth = Math.min(500, Math.max(80, textWidth + PADDING * 2));
+  const rectX = (512 - rectWidth) / 2;
 
-  // Build SVG text overlay (512x512 to match sticker dimensions)
-  // Using DejaVu Sans Bold — it's installed in the Docker container and supports Cyrillic
+  // Position: badge offset from edge
+  const MARGIN = 6;
+  const yRect = position === "bottom" ? 512 - STRIP_H - MARGIN : MARGIN;
+  const yText = position === "bottom"
+    ? 512 - STRIP_H / 2 - MARGIN + fontSize * 0.35
+    : MARGIN + STRIP_H / 2 + fontSize * 0.35;
+
+  // Build embedded font style (if available)
+  const fontB64 = getFontBase64();
+  const fontStyle = fontB64
+    ? `<defs><style>@font-face { font-family: 'Inter'; src: url('data:font/otf;base64,${fontB64}') format('opentype'); }</style></defs>`
+    : "";
+  const fontFamily = fontB64 ? "Inter" : "DejaVu Sans, Arial, sans-serif";
+
+  // Build SVG: white rounded badge + black text
   const svg = `<svg width="512" height="512" xmlns="http://www.w3.org/2000/svg">
-  <text x="256" y="${yPos}" text-anchor="middle"
-    font-family="DejaVu Sans" font-size="${fontSize}" font-weight="bold"
-    fill="white" stroke="black" stroke-width="${strokeWidth}"
-    stroke-linejoin="round" paint-order="stroke fill">${escapeXml(displayText)}</text>
+  ${fontStyle}
+  <rect x="${rectX}" y="${yRect}" width="${rectWidth}" height="${STRIP_H}"
+        fill="white" opacity="0.92" rx="14" ry="14"/>
+  <text x="256" y="${yText}" text-anchor="middle"
+        font-family="${fontFamily}" font-size="${fontSize}" font-weight="bold"
+        fill="#1a1a1a">${escapeXml(displayText)}</text>
 </svg>`;
 
   const svgBuffer = Buffer.from(svg);
-  console.log("addTextToSticker: SVG length:", svg.length, "text:", displayText, "fontSize:", fontSize, "pos:", yPos);
+  console.log("addTextToSticker: text:", displayText, "fontSize:", fontSize,
+    "badgeW:", rectWidth, "pos:", position, "fontEmbedded:", !!fontB64);
 
-  // Composite SVG text over the sticker
+  // Composite SVG badge over the sticker
   const result = await sharp(inputBuffer)
     .ensureAlpha()
     .resize(512, 512, {

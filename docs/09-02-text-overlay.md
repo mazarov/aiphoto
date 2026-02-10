@@ -246,3 +246,105 @@ RUN apt-get update && apt-get install -y fonts-noto fonts-noto-cjk --no-install-
 1. **Кириллица в SVG** — Sharp использует librsvg, который зависит от системных шрифтов. Без установленных шрифтов в Docker — квадратики.
 2. **Длинный текст** — нужна обрезка или автоматический перенос строк (SVG не умеет из коробки, нужно разбивать вручную на `<tspan>`).
 3. **Прозрачность** — текст должен быть поверх стикера, но не поверх прозрачных областей (иначе текст "висит в воздухе"). Можно добавить полупрозрачную подложку.
+
+---
+
+## Реализация v2: Плашка-бейдж с текстом
+
+### Проблема v1
+
+SVG-текст поверх стикера не рендерится в Alpine-контейнере: Sharp использует встроенный librsvg, который не видит системные шрифты через fontconfig. Текст получается пустым.
+
+### Решение v2: белая плашка + текст
+
+Вместо "голого" текста поверх стикера — **белая плашка (бейдж)** со скруглёнными углами, ширина подстраивается под длину текста.
+
+### Визуал
+
+```
+┌─────────────────┐         ┌─────────────────┐
+│                  │         │                  │
+│    СТИКЕР        │         │    СТИКЕР        │
+│                  │         │                  │
+│                  │         │                  │
+│  ┌───────────┐   │         │   ┌──────┐       │
+│  │  ПРИВЕТ!  │   │         │   │  ОК  │       │
+└──┴───────────┴──┘         └───┴──────┴──────┘
+   длинный текст              короткий текст
+```
+
+### Параметры
+
+| Параметр | Значение |
+|----------|----------|
+| Высота плашки | 52px (~10% от 512) |
+| Ширина плашки | `text_length × fontSize × 0.6 + padding × 2`, max 512 |
+| Padding | 24px слева/справа |
+| Скругление | `rx="12"` |
+| Цвет плашки | white, opacity 0.9 |
+| Цвет текста | black, bold |
+| Позиция | bottom (по умолчанию) или top |
+| Плашка центрирована | Да, `x = (512 - rectWidth) / 2` |
+
+### Алгоритм
+
+1. Стикер 512x512 — **не масштабируем**
+2. Вычисляем ширину текста: `charWidth = fontSize × 0.6`, `textWidth = length × charWidth`
+3. Ширина плашки: `rectWidth = min(512, textWidth + padding × 2)`
+4. Позиция X: `rectX = (512 - rectWidth) / 2` (центрируем)
+5. Генерируем SVG 512x512 с `<rect>` + `<text>`
+6. `sharp(sticker).composite([{ input: svgBuffer }])` — один вызов
+
+### Код
+
+```typescript
+export async function addTextToSticker(
+  inputBuffer: Buffer,
+  text: string,
+  position: "top" | "bottom" = "bottom"
+): Promise<Buffer> {
+  let displayText = text.trim();
+  if (displayText.length > 30) displayText = displayText.substring(0, 27) + "...";
+
+  // Auto-scale font size
+  let fontSize: number;
+  if (displayText.length <= 8) fontSize = 36;
+  else if (displayText.length <= 15) fontSize = 30;
+  else if (displayText.length <= 22) fontSize = 26;
+  else fontSize = 22;
+
+  // Calculate badge dimensions
+  const STRIP_H = 52;
+  const PADDING = 24;
+  const charWidth = fontSize * 0.6;
+  const textWidth = displayText.length * charWidth;
+  const rectWidth = Math.min(500, textWidth + PADDING * 2);
+  const rectX = (512 - rectWidth) / 2;
+
+  // Position
+  const yRect = position === "bottom" ? 512 - STRIP_H - 6 : 6;
+  const yText = position === "bottom" ? 512 - STRIP_H / 3 - 6 : STRIP_H * 0.7 + 6;
+
+  const svg = `<svg width="512" height="512" xmlns="http://www.w3.org/2000/svg">
+    <rect x="${rectX}" y="${yRect}" width="${rectWidth}" height="${STRIP_H}"
+          fill="white" opacity="0.9" rx="12"/>
+    <text x="256" y="${yText}" text-anchor="middle"
+          font-family="DejaVu Sans, sans-serif" font-size="${fontSize}"
+          font-weight="bold" fill="black">${escapeXml(displayText)}</text>
+  </svg>`;
+
+  return await sharp(inputBuffer)
+    .ensureAlpha()
+    .resize(512, 512, { fit: "contain", background: { r: 0, g: 0, b: 0, alpha: 0 } })
+    .composite([{ input: Buffer.from(svg), blend: "over" }])
+    .webp()
+    .toBuffer();
+}
+```
+
+### Преимущества v2
+
+- **Graceful degradation**: даже если шрифт не рендерится, белая плашка видна (не пустой стикер)
+- **Читаемость**: чёрный текст на белом фоне — всегда читаем, независимо от цветов стикера
+- **Стиль**: скруглённая плашка выглядит как профессиональный стикер-бейдж
+- **Адаптивность**: ширина плашки подстраивается под текст — не занимает лишнее место
