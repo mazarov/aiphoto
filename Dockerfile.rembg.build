@@ -17,7 +17,7 @@ RUN pip install --no-cache-dir \
     pillow
 
 # Pre-download the model (faster startup)
-RUN python -c "from rembg import new_session; new_session('u2netp')" || true
+RUN python -c "from rembg import new_session; new_session('u2net')" || true
 
 COPY rembg_server.py .
 

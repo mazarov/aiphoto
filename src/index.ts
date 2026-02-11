@@ -1175,9 +1175,9 @@ Preserve recognizable facial features, proportions, and overall likeness for eve
 Composition: Characters and objects occupy maximum canvas area with clear silhouette.
 Outline: Bold uniform border around the entire composition (approx 25–35% outline width), smooth and consistent.
 Visual design: High contrast, strong edge separation, color palette consistent with the selected style.
-Background: Solid contrasting color that makes background removal easy — use bright green (#00FF00) or solid gray (#808080), whichever contrasts best with the character palette. NEVER use black or white background.
 Requirements: No watermark, no logo, no frame, no text unless the style specifically requires it.
-Quality: Expressive, visually appealing, optimized for clean automated background removal and messenger sticker use.`;
+Quality: Expressive, visually appealing, optimized for clean automated background removal and messenger sticker use.
+CRITICAL REQUIREMENT: The background MUST be a solid uniform bright green color (#00FF00). Do NOT use any other background color regardless of the style. This is essential for automated background removal. The ENTIRE area behind the character(s) must be filled with exactly #00FF00 green — no gradients, no style-specific backgrounds, no dark colors.`;
 }
 
 // Helper: get active session
