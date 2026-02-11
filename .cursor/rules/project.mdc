@@ -41,15 +41,19 @@
 - **НЕ использовать** Dockhost API для редеплоя — endpoint не работает
 - После `git push` просто дождаться автодеплоя
 
-### Тест (feature ветки)
+### Тест (ветка `test`)
+Тестовые контейнеры на Dockhost привязаны к ветке `test`.
 1. Создать feature-ветку: `git checkout -b feature/my-feature`
-2. Запушить: `git push -u origin feature/my-feature`
+2. Разработать и закоммитить
 3. **Применить SQL-миграции** в Supabase (единая БД для прод и тест, разделение по колонке `env`)
-4. **Редеплой тестовых контейнеров на Dockhost вручную:**
-   - Зайти в Dockhost → выбрать тестовый контейнер (api / worker)
-   - Сменить ветку на feature-ветку → Rebuild
-   - Или: пользователь делает это сам через UI Dockhost
-5. Тестовый бот использует `.env.test` с `APP_ENV=test` — все данные (users, sessions, jobs) фильтруются по `env = 'test'`
+4. **Смержить в `test` и запушить:**
+   ```bash
+   git checkout test
+   git merge feature/my-feature --no-edit
+   git push
+   ```
+5. Dockhost автоматически пересобирает контейнеры при пуше в `test`
+6. Тестовый бот использует `APP_ENV=test` — все данные (users, sessions, jobs) фильтруются по `env = 'test'`
 
 ### Локальный запуск для отладки
 ```bash

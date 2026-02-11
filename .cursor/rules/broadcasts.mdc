@@ -1,0 +1,13 @@
+# Рассылки (Broadcasts)
+
+## Критично: только Photo_2_StickerBot
+
+Рассылки используют **только** `@Photo_2_StickerBot`. Никаких других ботов.
+
+- `TELEGRAM_BOT_TOKEN` — берётся из `.env` (прод)
+- URL в кнопках: `https://t.me/Photo_2_StickerBot` (захардкожен)
+
+## Перед запуском рассылки
+
+1. Запускать через `npm run broadcast:valentine:test` или `npm run broadcast:valentine -- --send` — скрипты используют `DOTENV_CONFIG_PATH=.env`
+2. НЕ запускать с `DOTENV_CONFIG_PATH=.env.test` — будет загружен токен неправильного бота

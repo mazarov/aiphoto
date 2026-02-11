@@ -4537,17 +4537,9 @@ bot.action("idea_done", async (ctx) => {
 
   const lang = user.lang || "en";
 
-  // Count stickers in pack
-  const { count } = await supabase
-    .from("stickers")
-    .select("id", { count: "exact", head: true })
-    .eq("user_id", user.id)
-    .not("telegram_file_id", "is", null);
-
-  const stickerCount = count || 0;
   const text = lang === "ru"
-    ? `🎉 Отлично! В твоём паке уже ${stickerCount} стикеров`
-    : `🎉 Great! Your pack has ${stickerCount} stickers`;
+    ? "🎉 Отлично! Ты можешь продолжить создавать стикеры или начать с нового фото."
+    : "🎉 Great! You can keep creating stickers or start with a new photo.";
 
   try {
     await ctx.editMessageText(text, {
