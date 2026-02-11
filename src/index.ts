@@ -737,6 +737,37 @@ function buildBalanceInfo(user: any, lang: string): string {
 }
 
 // Helper: get user by telegram_id
+// Build standard sticker action buttons (used after generation, text overlay, border toggle)
+async function buildStickerButtons(lang: string, stickerId: string) {
+  const addToPackText = await getText(lang, "btn.add_to_pack");
+  const assistantText = lang === "ru" ? "🤖 Ассистент" : "🤖 Assistant";
+  const changeEmotionText = await getText(lang, "btn.change_emotion");
+  const changeMotionText = await getText(lang, "btn.change_motion");
+  const addTextText = await getText(lang, "btn.add_text");
+  const toggleBorderText = await getText(lang, "btn.toggle_border");
+  const packIdeasText = lang === "ru" ? "💡 Идеи для пака" : "💡 Pack ideas";
+
+  return {
+    inline_keyboard: [
+      [{ text: addToPackText, callback_data: `add_to_pack:${stickerId}` }],
+      [
+        { text: assistantText, callback_data: "assistant_restart" },
+        { text: changeEmotionText, callback_data: `change_emotion:${stickerId}` },
+      ],
+      [
+        { text: changeMotionText, callback_data: `change_motion:${stickerId}` },
+        { text: toggleBorderText, callback_data: `toggle_border:${stickerId}` },
+      ],
+      [
+        { text: addTextText, callback_data: `add_text:${stickerId}` },
+      ],
+      [
+        { text: packIdeasText, callback_data: `pack_ideas:${stickerId}` },
+      ],
+    ],
+  };
+}
+
 async function getUser(telegramId: number) {
   const { data } = await supabase
     .from("users")
@@ -2267,30 +2298,8 @@ bot.on("text", async (ctx) => {
       console.log("text_overlay: result buffer size:", textBuffer.length);
 
       // Build buttons (same as post-generation)
-      const addToPackText = await getText(lang, "btn.add_to_pack");
-      const assistantText = lang === "ru" ? "🤖 Ассистент" : "🤖 Assistant";
-      const changeEmotionText = await getText(lang, "btn.change_emotion");
-      const changeMotionText = await getText(lang, "btn.change_motion");
-      const addTextText = await getText(lang, "btn.add_text");
-      const toggleBorderText = await getText(lang, "btn.toggle_border");
-
       const btnStickerId = stickerId || "unknown";
-      const replyMarkup = {
-        inline_keyboard: [
-          [{ text: addToPackText, callback_data: `add_to_pack:${btnStickerId}` }],
-          [
-            { text: assistantText, callback_data: "assistant_restart" },
-            { text: changeEmotionText, callback_data: `change_emotion:${btnStickerId}` },
-          ],
-          [
-            { text: changeMotionText, callback_data: `change_motion:${btnStickerId}` },
-            { text: toggleBorderText, callback_data: `toggle_border:${btnStickerId}` },
-          ],
-          [
-            { text: addTextText, callback_data: `add_text:${btnStickerId}` },
-          ],
-        ],
-      };
+      const replyMarkup = await buildStickerButtons(lang, btnStickerId);
 
       // Send sticker with text overlay
       const newFileId = await sendSticker(user.telegram_id, textBuffer, replyMarkup);
@@ -3605,29 +3614,7 @@ bot.action(/^toggle_border:(.+)$/, async (ctx) => {
     console.log("toggle_border: bordered buffer size:", borderedBuffer.length);
 
     // Build buttons (same as post-generation)
-    const addToPackText = await getText(lang, "btn.add_to_pack");
-    const assistantText = lang === "ru" ? "🤖 Ассистент" : "🤖 Assistant";
-    const changeEmotionText = await getText(lang, "btn.change_emotion");
-    const changeMotionText = await getText(lang, "btn.change_motion");
-    const addTextText = await getText(lang, "btn.add_text");
-    const toggleBorderText = await getText(lang, "btn.toggle_border");
-
-    const replyMarkup = {
-      inline_keyboard: [
-        [{ text: addToPackText, callback_data: `add_to_pack:${stickerId}` }],
-        [
-          { text: assistantText, callback_data: "assistant_restart" },
-          { text: changeEmotionText, callback_data: `change_emotion:${stickerId}` },
-        ],
-        [
-          { text: changeMotionText, callback_data: `change_motion:${stickerId}` },
-          { text: toggleBorderText, callback_data: `toggle_border:${stickerId}` },
-        ],
-        [
-          { text: addTextText, callback_data: `add_text:${stickerId}` },
-        ],
-      ],
-    };
+    const replyMarkup = await buildStickerButtons(lang, stickerId);
 
     // Send bordered sticker
     const newFileId = await sendSticker(telegramId, borderedBuffer, replyMarkup);
