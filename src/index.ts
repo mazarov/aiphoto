@@ -542,6 +542,27 @@ async function startGeneration(
         needed: creditsNeeded,
         hasPurchased: user.has_purchased,
       },
+    }).then(() => {
+      // Send discount buttons for admin (only for paywall — new users)
+      if (isPaywall && config.alertChannelId) {
+        const tid = user.telegram_id;
+        const uname = user.username || tid;
+        fetch(`https://api.telegram.org/bot${config.telegramBotToken}/sendMessage`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            chat_id: config.alertChannelId,
+            text: `💸 Отправить скидку @${uname}?`,
+            reply_markup: {
+              inline_keyboard: [[
+                { text: "🔥 -10%", callback_data: `admin_discount:${tid}:10` },
+                { text: "🔥 -15%", callback_data: `admin_discount:${tid}:15` },
+                { text: "🔥 -25%", callback_data: `admin_discount:${tid}:25` },
+              ]],
+            },
+          }),
+        }).catch(err => console.error("[Discount buttons] Error:", err));
+      }
     }).catch(console.error);
 
     await supabase
@@ -676,11 +697,22 @@ const CREDIT_PACKS = [
   { credits: 30, price: 300, price_rub: 249, label_ru: "💎 Популярный", label_en: "💎 Popular" },
   { credits: 100, price: 700, price_rub: 699, label_ru: "👑 Про", label_en: "👑 Pro" },
   { credits: 250, price: 1500, price_rub: 1490, label_ru: "🚀 Макс", label_en: "🚀 Max" },
-  // Hidden discount packs (not shown in UI, used via direct callback for promos & abandoned carts)
+  // Hidden discount packs (not shown in UI, used via direct callback for promos, abandoned carts, admin discounts)
+  // -10%
   { credits: 10, price: 135, price_rub: 89, label_ru: "⭐ Старт -10%", label_en: "⭐ Start -10%", hidden: true },
   { credits: 30, price: 270, price_rub: 224, label_ru: "💎 Популярный -10%", label_en: "💎 Popular -10%", hidden: true },
   { credits: 100, price: 630, price_rub: 629, label_ru: "👑 Про -10%", label_en: "👑 Pro -10%", hidden: true },
   { credits: 250, price: 1350, price_rub: 1341, label_ru: "🚀 Макс -10%", label_en: "🚀 Max -10%", hidden: true },
+  // -15%
+  { credits: 10, price: 127, price_rub: 84, label_ru: "⭐ Старт -15%", label_en: "⭐ Start -15%", hidden: true },
+  { credits: 30, price: 255, price_rub: 211, label_ru: "💎 Популярный -15%", label_en: "💎 Popular -15%", hidden: true },
+  { credits: 100, price: 595, price_rub: 594, label_ru: "👑 Про -15%", label_en: "👑 Pro -15%", hidden: true },
+  { credits: 250, price: 1275, price_rub: 1267, label_ru: "🚀 Макс -15%", label_en: "🚀 Max -15%", hidden: true },
+  // -25%
+  { credits: 10, price: 112, price_rub: 74, label_ru: "⭐ Старт -25%", label_en: "⭐ Start -25%", hidden: true },
+  { credits: 30, price: 225, price_rub: 186, label_ru: "💎 Популярный -25%", label_en: "💎 Popular -25%", hidden: true },
+  { credits: 100, price: 525, price_rub: 524, label_ru: "👑 Про -25%", label_en: "👑 Pro -25%", hidden: true },
+  { credits: 250, price: 1125, price_rub: 1117, label_ru: "🚀 Макс -25%", label_en: "🚀 Max -25%", hidden: true },
 ];
 
 /**
@@ -3964,6 +3996,86 @@ bot.action(/^make_example:(.+)$/, async (ctx) => {
 
   console.log("Marked as example:", stickerId, "style:", sticker.style_preset_id);
   await ctx.editMessageText(`✅ Добавлен как пример для стиля "${sticker.style_preset_id}"`);
+});
+
+// Callback: admin_discount — admin sends discount offer to user from alert channel
+bot.action(/^admin_discount:(\d+):(\d+)$/, async (ctx) => {
+  console.log("=== admin_discount callback ===");
+  safeAnswerCbQuery(ctx);
+  const adminTelegramId = ctx.from?.id;
+  if (!adminTelegramId) return;
+
+  // Only admins can use this
+  if (!config.adminIds.includes(adminTelegramId)) {
+    console.log("[admin_discount] Not admin:", adminTelegramId);
+    return;
+  }
+
+  const targetTelegramId = parseInt(ctx.match[1], 10);
+  const discountPercent = parseInt(ctx.match[2], 10);
+  console.log("[admin_discount] targetTelegramId:", targetTelegramId, "discount:", discountPercent + "%");
+
+  // Get target user
+  const user = await getUser(targetTelegramId);
+  if (!user?.id) {
+    console.log("[admin_discount] User not found:", targetTelegramId);
+    await ctx.editMessageText(`❌ Пользователь ${targetTelegramId} не найден`);
+    return;
+  }
+
+  const lang = user.lang || "en";
+  const uname = user.username || targetTelegramId;
+
+  // Find discount packs matching the percent
+  const discountSuffix = `-${discountPercent}%`;
+  const discountPacks = CREDIT_PACKS.filter(
+    (p) => p.hidden && p.label_en.endsWith(discountSuffix)
+  );
+
+  if (discountPacks.length === 0) {
+    console.log("[admin_discount] No packs found for discount:", discountPercent + "%");
+    await ctx.editMessageText(`❌ Нет пакетов для скидки ${discountPercent}%`);
+    return;
+  }
+
+  // Build message text
+  const messageText = lang === "ru"
+    ? `🔥 Специальное предложение для тебя!\n\nСкидка ${discountPercent}% на все пакеты стикеров 🎉\n\n💰 Выбирай:`
+    : `🔥 Special offer just for you!\n\n${discountPercent}% off on all sticker packs 🎉\n\n💰 Choose your pack:`;
+
+  // Build inline buttons for discount packs (plain objects for direct API call)
+  const inlineKeyboard: { text: string; callback_data: string }[][] = [];
+  for (const pack of discountPacks) {
+    const label = lang === "ru" ? pack.label_ru : pack.label_en;
+    const unit = lang === "ru" ? "стикеров" : "stickers";
+    inlineKeyboard.push([{
+      text: `${label}: ${pack.credits} ${unit} — ${pack.price}⭐ (${pack.price_rub}₽)`,
+      callback_data: `pack_${pack.credits}_${pack.price}`,
+    }]);
+  }
+
+  // Send discount message to user
+  try {
+    await axios.post(`https://api.telegram.org/bot${config.telegramBotToken}/sendMessage`, {
+      chat_id: targetTelegramId,
+      text: messageText,
+      reply_markup: { inline_keyboard: inlineKeyboard },
+    });
+
+    console.log("[admin_discount] Discount message sent to:", targetTelegramId);
+
+    // Update button in alert channel to "✅ Sent"
+    await ctx.editMessageText(`✅ Скидка ${discountPercent}% отправлена @${uname}`);
+  } catch (err: any) {
+    const errMsg = err.response?.data?.description || err.message;
+    console.error("[admin_discount] Failed to send to user:", errMsg);
+
+    if (errMsg?.includes("bot was blocked") || errMsg?.includes("chat not found")) {
+      await ctx.editMessageText(`❌ Не удалось отправить @${uname} — бот заблокирован`);
+    } else {
+      await ctx.editMessageText(`❌ Ошибка отправки @${uname}: ${errMsg}`);
+    }
+  }
 });
 
 // Callback: style_example - show first example
