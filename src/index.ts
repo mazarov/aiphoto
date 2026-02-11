@@ -4280,7 +4280,7 @@ bot.action(/^pack_ideas:(.+)$/, async (ctx) => {
   if (!session?.id) {
     const { data: newSession } = await supabase
       .from("sessions")
-      .insert({ user_id: user.id, state: "browsing_ideas", is_active: true, env: config.appEnv })
+      .insert({ user_id: user.id, state: "confirm_sticker", is_active: true, env: config.appEnv })
       .select()
       .single();
     session = newSession;
@@ -4325,24 +4325,15 @@ bot.action(/^pack_ideas:(.+)$/, async (ctx) => {
     console.log("[PackIdeas] Using default ideas");
   }
 
-  // Save ideas to session
+  // Save ideas to session (keep state as confirm_sticker — state is ENUM, no browsing_ideas value)
   const { error: updateErr } = await supabase.from("sessions").update({
     pack_ideas: ideas,
     current_idea_index: 0,
-    state: "browsing_ideas",
     is_active: true,
   }).eq("id", session.id);
 
   if (updateErr) {
     console.error("[PackIdeas] Session update FAILED:", updateErr.message, updateErr.code, updateErr.details);
-    // Fallback: try updating without pack_ideas columns (in case migration not applied)
-    const { error: fallbackErr } = await supabase.from("sessions").update({
-      state: "browsing_ideas",
-      is_active: true,
-    }).eq("id", session.id);
-    if (fallbackErr) {
-      console.error("[PackIdeas] Fallback update also failed:", fallbackErr.message);
-    }
   } else {
     console.log("[PackIdeas] Session updated OK, ideas saved to DB");
   }
@@ -4588,7 +4579,6 @@ bot.action("idea_more", async (ctx) => {
   await supabase.from("sessions").update({
     pack_ideas: ideas,
     current_idea_index: 0,
-    state: "browsing_ideas",
   }).eq("id", session.id);
 
   // Show first new idea

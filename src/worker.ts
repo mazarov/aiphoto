@@ -410,7 +410,7 @@ async function runJob(job: any) {
   console.time(timerLabel("step7_insert"));
   // Determine idea_source from session (if sticker generated from pack idea)
   const ideaSource = (() => {
-    if (session.state === "browsing_ideas" || session.generated_from_ideas?.length > 0) {
+    if (session.pack_ideas?.length > 0 && session.generated_from_ideas?.length > 0) {
       const ideas = session.generated_from_ideas || [];
       return ideas[ideas.length - 1] || null;
     }
@@ -718,8 +718,7 @@ async function runJob(job: any) {
       console.error("Storage upload failed:", err);
     });
 
-  // Keep browsing_ideas state if we were in pack ideas flow
-  const nextState = ideaSource ? "browsing_ideas" : "confirm_sticker";
+  const nextState = "confirm_sticker";
 
   await supabase
     .from("sessions")
