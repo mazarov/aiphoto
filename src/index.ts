@@ -4197,9 +4197,30 @@ Categories: emotion, action, scene, text_meme, holiday, outfit`;
       }
 
       const parsed = JSON.parse(text);
-      const ideas = Array.isArray(parsed) ? parsed : parsed.ideas || parsed.items || [];
-      if (!Array.isArray(ideas) || ideas.length === 0) {
-        console.error("[PackIdeas] GPT-4o unexpected format:", text.slice(0, 200));
+
+      // GPT-4o returns various formats: array, {ideas:[]}, {items:[]}, {json:[]}, {data:[]}, or single object
+      let ideas: any[];
+      if (Array.isArray(parsed)) {
+        ideas = parsed;
+      } else if (typeof parsed === "object" && parsed !== null) {
+        // Try known wrapper keys
+        const wrapped = parsed.ideas || parsed.items || parsed.json || parsed.data || parsed.sticker_ideas || parsed.stickerIdeas;
+        if (Array.isArray(wrapped)) {
+          ideas = wrapped;
+        } else if (parsed.emoji && parsed.promptModification) {
+          // Single idea object returned — wrap in array
+          ideas = [parsed];
+        } else {
+          // Last resort: find first array value in the object
+          const firstArray = Object.values(parsed).find((v) => Array.isArray(v)) as any[] | undefined;
+          ideas = firstArray || [];
+        }
+      } else {
+        ideas = [];
+      }
+
+      if (ideas.length === 0) {
+        console.error("[PackIdeas] GPT-4o unexpected format, no ideas extracted:", text.slice(0, 300));
         return getDefaultIdeas(lang);
       }
 
@@ -4644,25 +4665,39 @@ bot.action("idea_more", async (ctx) => {
     existingStickers.unshift(`Style: ${session.selected_style_id}`);
   }
 
-  const ideas = await generatePackIdeas({
-    stickerFileId,
-    stylePresetId: session.selected_style_id,
-    lang,
-    existingStickers,
-  });
+  let ideas: StickerIdea[];
+  try {
+    ideas = await generatePackIdeas({
+      stickerFileId,
+      stylePresetId: session.selected_style_id,
+      lang,
+      existingStickers,
+    });
+    console.log("[idea_more] Generated", ideas.length, "new ideas");
+  } catch (err: any) {
+    console.error("[idea_more] generatePackIdeas failed:", err.message);
+    ideas = getDefaultIdeas(lang);
+  }
 
-  await supabase.from("sessions").update({
+  const { error: updateErr } = await supabase.from("sessions").update({
     pack_ideas: ideas,
     current_idea_index: 0,
   }).eq("id", session.id);
+  if (updateErr) console.error("[idea_more] session update failed:", updateErr.message);
 
   // Show first new idea
   const text = formatIdeaMessage(ideas[0], 0, ideas.length, lang);
   const keyboard = getIdeaKeyboard(0, ideas.length, lang);
   try {
     await ctx.editMessageText(text, { parse_mode: "HTML", reply_markup: keyboard });
-  } catch {
-    await ctx.reply(text, { parse_mode: "HTML", reply_markup: keyboard });
+  } catch (editErr: any) {
+    // "message is not modified" — happens when same default ideas are shown
+    console.log("[idea_more] editMessage failed:", editErr.message?.slice(0, 100));
+    try {
+      await ctx.reply(text, { parse_mode: "HTML", reply_markup: keyboard });
+    } catch (replyErr: any) {
+      console.error("[idea_more] reply also failed:", replyErr.message);
+    }
   }
 });
 
