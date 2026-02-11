@@ -4158,6 +4158,60 @@ Return a JSON array of exactly 8 ideas in this format:
 
 Categories: emotion, action, scene, text_meme, holiday, outfit`;
 
+  // Use GPT-4o when OpenAI key is set, otherwise fallback to Gemini
+  if (config.openaiApiKey) {
+    try {
+      const imageUrl = `data:${mimeType};base64,${base64}`;
+      const response = await axios.post(
+        "https://api.openai.com/v1/chat/completions",
+        {
+          model: "gpt-4o",
+          messages: [
+            { role: "system", content: systemPrompt },
+            {
+              role: "user",
+              content: [
+                { type: "text", text: "Analyze this sticker and generate 8 unique ideas for a sticker pack. Return a JSON array of exactly 8 ideas." },
+                {
+                  type: "image_url",
+                  image_url: { url: imageUrl },
+                },
+              ],
+            },
+          ],
+          response_format: { type: "json_object" },
+          max_tokens: 4096,
+        },
+        {
+          headers: {
+            "Authorization": `Bearer ${config.openaiApiKey}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      const text = response.data?.choices?.[0]?.message?.content;
+      if (!text) {
+        console.error("[PackIdeas] GPT-4o returned no content");
+        return getDefaultIdeas(lang);
+      }
+
+      const parsed = JSON.parse(text);
+      const ideas = Array.isArray(parsed) ? parsed : parsed.ideas || parsed.items || [];
+      if (!Array.isArray(ideas) || ideas.length === 0) {
+        console.error("[PackIdeas] GPT-4o unexpected format:", text.slice(0, 200));
+        return getDefaultIdeas(lang);
+      }
+
+      console.log("[PackIdeas] GPT-4o generated", ideas.length, "ideas");
+      return ideas.slice(0, 8);
+    } catch (err: any) {
+      console.error("[PackIdeas] GPT-4o Error:", err.response?.data || err.message);
+      return getDefaultIdeas(lang);
+    }
+  }
+
+  // Fallback: Gemini when OPENAI_API_KEY is not set
   try {
     const response = await axios.post(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent`,
@@ -4200,9 +4254,10 @@ Categories: emotion, action, scene, text_meme, holiday, outfit`;
       return getDefaultIdeas(lang);
     }
 
+    console.log("[PackIdeas] Gemini generated", parsed.length, "ideas");
     return parsed.slice(0, 8);
   } catch (err: any) {
-    console.error("[PackIdeas] Error:", err.response?.data || err.message);
+    console.error("[PackIdeas] Gemini Error:", err.response?.data || err.message);
     return getDefaultIdeas(lang);
   }
 }
