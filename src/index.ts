@@ -1940,6 +1940,77 @@ bot.on("text", async (ctx) => {
     return;
   }
 
+  // === Custom Idea: intercept text when waiting for user concept ===
+  if (session.waiting_custom_idea) {
+    const userConcept = ctx.message.text.trim();
+    console.log("[CustomIdea] User concept:", userConcept);
+
+    // Reset flag immediately
+    await supabase.from("sessions").update({ waiting_custom_idea: false }).eq("id", session.id);
+
+    // Show thinking
+    const thinkingMsg = await ctx.reply(lang === "ru" ? "💡 Думаю..." : "💡 Thinking...");
+
+    // Get sticker file ID
+    const stickerFileId = session.last_sticker_file_id;
+    if (!stickerFileId) {
+      await ctx.reply(lang === "ru" ? "⚠️ Сначала сгенерируй стикер" : "⚠️ Generate a sticker first");
+      return;
+    }
+
+    // Generate custom idea
+    let idea: StickerIdea;
+    try {
+      idea = await generateCustomIdea({
+        stickerFileId,
+        stylePresetId: session.selected_style_id,
+        lang,
+        userConcept,
+      });
+      console.log("[CustomIdea] Generated:", idea.titleEn, "category:", idea.category);
+    } catch (err: any) {
+      console.error("[CustomIdea] Error:", err.message);
+      idea = getDefaultIdeaForConcept(userConcept, lang);
+    }
+
+    // Save custom idea to session
+    const { error: saveErr } = await supabase.from("sessions").update({
+      custom_idea: idea,
+    }).eq("id", session.id);
+    if (saveErr) console.error("[CustomIdea] save failed:", saveErr.message);
+
+    // Format and show
+    const title = lang === "ru" ? idea.titleRu : idea.titleEn;
+    const desc = lang === "ru" ? idea.descriptionRu : idea.descriptionEn;
+    const textHint = idea.hasText && idea.textSuggestion
+      ? `\n💬 «${idea.textSuggestion}»`
+      : "";
+
+    const ideaText = `✏️ <b>${lang === "ru" ? "Твоя идея" : "Your idea"}:</b>\n\n`
+      + `${idea.emoji} <b>${title}</b>\n`
+      + `${desc}${textHint}`;
+
+    const keyboard = {
+      inline_keyboard: [
+        [
+          { text: lang === "ru" ? "🎨 Сгенерить (1💎)" : "🎨 Generate (1💎)", callback_data: "idea_generate_custom" },
+          { text: lang === "ru" ? "✏️ Ещё слово" : "✏️ Another word", callback_data: "custom_idea" },
+        ],
+        [
+          { text: lang === "ru" ? "↩️ Назад к идеям" : "↩️ Back to ideas", callback_data: "idea_back" },
+        ],
+      ],
+    };
+
+    // Delete thinking message and send result
+    try {
+      await ctx.telegram.deleteMessage(ctx.chat!.id, thinkingMsg.message_id);
+    } catch {}
+
+    await ctx.reply(ideaText, { parse_mode: "HTML", reply_markup: keyboard });
+    return;
+  }
+
   // === AI Assistant: re-route to assistant after sticker generation ===
   // If user was in assistant flow and sticker was generated, session.state moved to
   // confirm_sticker/wait_style/etc. but assistant_session is still active.
@@ -4319,6 +4390,145 @@ function getDefaultIdeas(lang: string): StickerIdea[] {
   ];
 }
 
+async function generateCustomIdea(opts: {
+  stickerFileId: string;
+  stylePresetId: string | null;
+  lang: string;
+  userConcept: string;
+}): Promise<StickerIdea> {
+  const { stickerFileId, stylePresetId, lang, userConcept } = opts;
+
+  const filePath = await getFilePath(stickerFileId);
+  const fileBuffer = await downloadFile(filePath);
+  const base64 = fileBuffer.toString("base64");
+  const mimeType = filePath.endsWith(".webp") ? "image/webp" : filePath.endsWith(".png") ? "image/png" : "image/jpeg";
+
+  let styleName = stylePresetId || "custom";
+  let styleHint = "";
+  if (stylePresetId) {
+    const presets = await getStylePresets();
+    const preset = presets.find((p: any) => p.id === stylePresetId);
+    if (preset) {
+      styleName = preset.name_en || preset.id;
+      styleHint = preset.prompt_hint || "";
+    }
+  }
+
+  const textLang = lang === "ru" ? "Russian" : "English";
+
+  const systemPrompt = `You are a professional sticker pack designer.
+Analyze the sticker image and generate exactly 1 detailed sticker idea based on the user's concept: "${userConcept}".
+
+Style: ${styleName} (${styleHint})
+
+CRITICAL — Preserving character appearance:
+- Analyze the character's OUTFIT, ACCESSORIES, HAIRSTYLE in the image
+- promptModification MUST describe the character wearing the SAME outfit as in the image
+- Do NOT change clothes, hat, glasses, hairstyle or other features
+
+Creative expansion:
+- Expand the user's concept into a vivid, detailed scene
+- Think about HOW the character expresses this concept (pose, expression, props, scene)
+- If the concept implies text (like "спасибо", "ору") — add it as hasText with textSuggestion
+
+Return a single JSON object:
+{
+  "emoji": "😴",
+  "titleRu": "Устал",
+  "titleEn": "Tired",
+  "descriptionRu": "Персонаж зевает, глаза полузакрыты",
+  "descriptionEn": "Character yawning, half-closed eyes",
+  "promptModification": "yawning with half-closed eyes, slouching posture, wearing [SAME OUTFIT AS IMAGE]",
+  "hasText": false,
+  "textSuggestion": null,
+  "textPlacement": null,
+  "category": "emotion"
+}
+
+titleRu and descriptionRu must be in ${textLang === "Russian" ? "Russian" : "English"}.
+Categories: emotion, action, scene, text_meme, holiday, outfit`;
+
+  if (config.openaiApiKey) {
+    try {
+      const imageUrl = `data:${mimeType};base64,${base64}`;
+      const response = await axios.post(
+        "https://api.openai.com/v1/chat/completions",
+        {
+          model: "gpt-4o-mini",
+          messages: [
+            { role: "system", content: systemPrompt },
+            {
+              role: "user",
+              content: [
+                { type: "text", text: `Generate 1 sticker idea for the concept: "${userConcept}". Return a single JSON object.` },
+                { type: "image_url", image_url: { url: imageUrl } },
+              ],
+            },
+          ],
+          response_format: { type: "json_object" },
+          max_tokens: 1024,
+        },
+        {
+          headers: {
+            "Authorization": `Bearer ${config.openaiApiKey}`,
+            "Content-Type": "application/json",
+          },
+          timeout: 30_000,
+        }
+      );
+
+      const text = response.data?.choices?.[0]?.message?.content;
+      if (!text) {
+        console.error("[CustomIdea] GPT-4o-mini returned no content");
+        return getDefaultIdeaForConcept(userConcept, lang);
+      }
+
+      const parsed = JSON.parse(text);
+
+      // Extract single idea from various formats
+      let idea: any;
+      if (Array.isArray(parsed)) {
+        idea = parsed[0];
+      } else if (parsed.emoji && parsed.promptModification) {
+        idea = parsed;
+      } else {
+        // Try to find idea in wrapper
+        const wrapped = parsed.idea || parsed.ideas || parsed.item || parsed.json || parsed.data;
+        idea = Array.isArray(wrapped) ? wrapped[0] : wrapped;
+      }
+
+      if (!idea?.emoji || !idea?.promptModification) {
+        console.error("[CustomIdea] Could not extract idea:", text.slice(0, 200));
+        return getDefaultIdeaForConcept(userConcept, lang);
+      }
+
+      console.log("[CustomIdea] Generated idea:", idea.titleEn);
+      return idea;
+    } catch (err: any) {
+      console.error("[CustomIdea] GPT error:", err.response?.data || err.message);
+      return getDefaultIdeaForConcept(userConcept, lang);
+    }
+  }
+
+  // Fallback: simple idea from concept
+  return getDefaultIdeaForConcept(userConcept, lang);
+}
+
+function getDefaultIdeaForConcept(concept: string, lang: string): StickerIdea {
+  return {
+    emoji: "✨",
+    titleRu: concept,
+    titleEn: concept,
+    descriptionRu: `Стикер на тему: ${concept}`,
+    descriptionEn: `Sticker about: ${concept}`,
+    promptModification: `${concept}, expressive pose and facial expression`,
+    hasText: false,
+    textSuggestion: null,
+    textPlacement: null,
+    category: "emotion",
+  };
+}
+
 function formatIdeaMessage(idea: StickerIdea, index: number, total: number, lang: string): string {
   const title = lang === "ru" ? idea.titleRu : idea.titleEn;
   const desc = lang === "ru" ? idea.descriptionRu : idea.descriptionEn;
@@ -4334,6 +4544,7 @@ function formatIdeaMessage(idea: StickerIdea, index: number, total: number, lang
 function getIdeaKeyboard(index: number, total: number, lang: string) {
   const generateText = lang === "ru" ? "🎨 Сгенерить (1💎)" : "🎨 Generate (1💎)";
   const nextText = lang === "ru" ? "➡️ Следующая" : "➡️ Next";
+  const customText = lang === "ru" ? "✏️ Своя идея" : "✏️ Custom idea";
   const doneText = lang === "ru" ? "✅ Хватит" : "✅ Done";
 
   const buttons: any[][] = [
@@ -4341,6 +4552,7 @@ function getIdeaKeyboard(index: number, total: number, lang: string) {
       { text: generateText, callback_data: `idea_generate:${index}` },
       { text: nextText, callback_data: "idea_next" },
     ],
+    [{ text: customText, callback_data: "custom_idea" }],
     [{ text: doneText, callback_data: "idea_done" }],
   ];
 
@@ -4721,6 +4933,176 @@ bot.action("idea_more", async (ctx) => {
     } catch (replyErr: any) {
       console.error("[idea_more] reply also failed:", replyErr.message);
     }
+  }
+});
+
+// Callback: Custom idea — ask user for a word/phrase
+bot.action("custom_idea", async (ctx) => {
+  console.log("=== custom_idea callback ===");
+  safeAnswerCbQuery(ctx);
+  const telegramId = ctx.from?.id;
+  if (!telegramId) return;
+
+  const user = await getUser(telegramId);
+  if (!user?.id) return;
+
+  const lang = user.lang || "en";
+  const session = await getActiveSession(user.id);
+  if (!session?.id) return;
+
+  // Set waiting flag
+  const { error } = await supabase.from("sessions").update({
+    waiting_custom_idea: true,
+  }).eq("id", session.id);
+  if (error) console.error("[custom_idea] session update failed:", error.message);
+
+  const prompt = lang === "ru"
+    ? "✏️ <b>Напиши слово или фразу — я придумаю идею!</b>\n\nНапример: <i>устал, злой, с кофе, танцует, ору, спасибо, утро понедельника</i>"
+    : "✏️ <b>Type a word or phrase — I'll create an idea!</b>\n\nExamples: <i>tired, angry, with coffee, dancing, LOL, thank you, Monday morning</i>";
+
+  try {
+    await ctx.editMessageText(prompt, {
+      parse_mode: "HTML",
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: lang === "ru" ? "↩️ Назад к идеям" : "↩️ Back to ideas", callback_data: "idea_back" }],
+        ],
+      },
+    });
+  } catch {
+    await ctx.reply(prompt, {
+      parse_mode: "HTML",
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: lang === "ru" ? "↩️ Назад к идеям" : "↩️ Back to ideas", callback_data: "idea_back" }],
+        ],
+      },
+    });
+  }
+});
+
+// Callback: Generate sticker from custom idea
+bot.action("idea_generate_custom", async (ctx) => {
+  console.log("=== idea_generate_custom callback ===");
+  safeAnswerCbQuery(ctx);
+  const telegramId = ctx.from?.id;
+  if (!telegramId) return;
+
+  const user = await getUser(telegramId);
+  if (!user?.id) return;
+
+  const lang = user.lang || "en";
+  const session = await getActiveSession(user.id);
+
+  if (!session?.custom_idea) {
+    await ctx.reply(lang === "ru" ? "⚠️ Идея не найдена. Попробуй ещё раз." : "⚠️ Idea not found. Try again.");
+    return;
+  }
+
+  const idea: StickerIdea = session.custom_idea;
+  console.log("[idea_generate_custom] Generating custom idea:", idea.titleEn);
+
+  // Build prompt
+  const emotionTemplate = await getPromptTemplate("emotion");
+  let promptFinal: string;
+  if (emotionTemplate) {
+    promptFinal = buildPromptFromTemplate(emotionTemplate, idea.promptModification);
+  } else {
+    promptFinal = idea.promptModification;
+  }
+
+  // Handle text overlay
+  let textPrompt: string | null = null;
+  let generationType: "style" | "emotion" | "motion" | "text" = "emotion";
+
+  if (idea.hasText && idea.textSuggestion) {
+    if (idea.textPlacement === "bottom_caption") {
+      textPrompt = idea.textSuggestion;
+      generationType = "text";
+    } else {
+      const textInPrompt = idea.textPlacement === "speech_bubble"
+        ? `with speech bubble saying "${idea.textSuggestion}"`
+        : `holding a sign that reads "${idea.textSuggestion}"`;
+      promptFinal += `. ${textInPrompt}`;
+    }
+  }
+
+  // Clear custom_idea flag
+  await supabase.from("sessions").update({
+    custom_idea: null,
+    waiting_custom_idea: false,
+  }).eq("id", session.id);
+
+  // Show generating status
+  try {
+    const generatingText = lang === "ru"
+      ? `✏️ <b>${idea.titleRu}</b>\n\n⏳ Генерация...`
+      : `✏️ <b>${idea.titleEn}</b>\n\n⏳ Generating...`;
+    await ctx.editMessageText(generatingText, { parse_mode: "HTML" });
+  } catch {}
+
+  // Start generation
+  await startGeneration(ctx, user, session, lang, {
+    generationType,
+    promptFinal,
+    textPrompt,
+    selectedStyleId: session.selected_style_id,
+    selectedEmotion: idea.titleEn,
+    emotionPrompt: idea.promptModification,
+  });
+
+  sendAlert({
+    type: "idea_generated",
+    message: "Sticker from custom idea",
+    details: {
+      user: `@${user.username || telegramId}`,
+      ideaTitle: idea.titleEn,
+      ideaCategory: idea.category,
+      source: "custom",
+    },
+  }).catch(console.error);
+});
+
+// Callback: Back to idea browsing
+bot.action("idea_back", async (ctx) => {
+  console.log("=== idea_back callback ===");
+  safeAnswerCbQuery(ctx);
+  const telegramId = ctx.from?.id;
+  if (!telegramId) return;
+
+  const user = await getUser(telegramId);
+  if (!user?.id) return;
+
+  const lang = user.lang || "en";
+  const session = await getActiveSession(user.id);
+  if (!session?.id) return;
+
+  // Clear custom idea flags
+  await supabase.from("sessions").update({
+    waiting_custom_idea: false,
+    custom_idea: null,
+  }).eq("id", session.id);
+
+  const ideas: StickerIdea[] = session.pack_ideas || [];
+  const currentIndex = session.current_idea_index || 0;
+
+  if (ideas.length === 0) {
+    try {
+      await ctx.editMessageText(
+        lang === "ru" ? "💡 Нажми «Идеи для пака» чтобы сгенерировать идеи." : "💡 Press «Pack ideas» to generate ideas.",
+        { parse_mode: "HTML" }
+      );
+    } catch {}
+    return;
+  }
+
+  const safeIndex = Math.min(currentIndex, ideas.length - 1);
+  const text = formatIdeaMessage(ideas[safeIndex], safeIndex, ideas.length, lang);
+  const keyboard = getIdeaKeyboard(safeIndex, ideas.length, lang);
+  try {
+    await ctx.editMessageText(text, { parse_mode: "HTML", reply_markup: keyboard });
+  } catch {
+    await ctx.reply(text, { parse_mode: "HTML", reply_markup: keyboard });
   }
 });
 
