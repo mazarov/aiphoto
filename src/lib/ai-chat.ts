@@ -341,6 +341,7 @@ Goal: give free credit ONLY to users who will likely PURCHASE after seeing the r
 
 Decision framework:
 - Ask yourself: "Will this user buy a pack after seeing a great sticker?"
+- VERY HIGH signal: traffic_source = "paid" in [SYSTEM STATE] — user came from paid ads, actively searched for this. Grant in ~70% of cases.
 - High signals: specific goal, personal use case, detailed preferences, premium user
 - Low signals: "just trying", minimal effort, no clear need
 

@@ -905,7 +905,7 @@ async function getTodayTrialCreditsCount(): Promise<number> {
 async function getAssistantSystemPrompt(
   messages: AssistantMessage[],
   aSession: AssistantSessionRow,
-  userContext?: { credits: number; hasPurchased: boolean; totalGenerations: number }
+  userContext?: { credits: number; hasPurchased: boolean; totalGenerations: number; utmSource?: string | null; utmMedium?: string | null }
 ): Promise<string> {
   const basePrompt = messages.find(m => m.role === "system")?.content || "";
 
@@ -923,7 +923,11 @@ async function getAssistantSystemPrompt(
     trialBudgetRemaining = Math.max(0, 20 - todayCount);
   }
 
-  return basePrompt + buildStateInjection(aSession, { availableStyles, trialBudgetRemaining });
+  // Determine traffic source for trial credit decision
+  const isPaidTraffic = userContext?.utmSource && userContext?.utmMedium === "cpc";
+  const trafficSource = isPaidTraffic ? "paid" : (userContext?.utmSource || null);
+
+  return basePrompt + buildStateInjection(aSession, { availableStyles, trialBudgetRemaining, trafficSource });
 }
 
 /**
@@ -1601,6 +1605,8 @@ bot.on("photo", async (ctx) => {
       credits: user.credits || 0,
       hasPurchased: !!user.has_purchased,
       totalGenerations: user.total_generations || 0,
+      utmSource: user.utm_source,
+      utmMedium: user.utm_medium,
     });
     console.log("Assistant photo: calling AI, messages count:", messages.length);
 
@@ -1653,6 +1659,7 @@ bot.on("photo", async (ctx) => {
         messages.push({ role: "assistant", content: balanceInfo2 });
         const sp2 = await getAssistantSystemPrompt(messages, aSession, {
           credits: u2.credits || 0, hasPurchased: !!u2.has_purchased, totalGenerations: u2.total_generations || 0,
+          utmSource: u2.utm_source, utmMedium: u2.utm_medium,
         });
         const r2 = await callAIChat(messages, sp2);
         messages.push({ role: "assistant", content: r2.text || "" });
@@ -1911,6 +1918,8 @@ bot.on("text", async (ctx) => {
       credits: user.credits || 0,
       hasPurchased: !!user.has_purchased,
       totalGenerations: user.total_generations || 0,
+      utmSource: user.utm_source,
+      utmMedium: user.utm_medium,
     });
 
     try {
@@ -1961,6 +1970,7 @@ bot.on("text", async (ctx) => {
         await updateAssistantSession(aSession.id, { messages });
         const sp3 = await getAssistantSystemPrompt(messages, aSession, {
           credits: u3.credits || 0, hasPurchased: !!u3.has_purchased, totalGenerations: u3.total_generations || 0,
+          utmSource: u3.utm_source, utmMedium: u3.utm_medium,
         });
         const r3 = await callAIChat(messages, sp3);
         messages.push({ role: "assistant", content: r3.text || "" });
@@ -2006,6 +2016,8 @@ bot.on("text", async (ctx) => {
       credits: user.credits || 0,
       hasPurchased: !!user.has_purchased,
       totalGenerations: user.total_generations || 0,
+      utmSource: user.utm_source,
+      utmMedium: user.utm_medium,
     });
 
     // Track error count
@@ -2087,6 +2099,8 @@ bot.on("text", async (ctx) => {
             credits: u.credits || 0,
             hasPurchased: !!u.has_purchased,
             totalGenerations: u.total_generations || 0,
+            utmSource: u.utm_source,
+            utmMedium: u.utm_medium,
           });
           const result2 = await callAIChat(messages, systemPrompt2);
           messages.push({ role: "assistant", content: result2.text || "" });
@@ -3714,6 +3728,8 @@ bot.action("assistant_confirm", async (ctx) => {
       credits: user.credits || 0,
       hasPurchased: !!user.has_purchased,
       totalGenerations: user.total_generations || 0,
+      utmSource: user.utm_source,
+      utmMedium: user.utm_medium,
     });
 
     try {

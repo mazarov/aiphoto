@@ -119,6 +119,7 @@ export function buildStateInjection(
   options?: {
     availableStyles?: Array<{ id: string; name_en: string }>;
     trialBudgetRemaining?: number;  // Only injected when credits=0, has_purchased=false
+    trafficSource?: string | null;  // "paid" for CPC ads, utm_source value, or null
   }
 ): string {
   const collected: Record<string, string | boolean | null> = {
@@ -161,6 +162,14 @@ export function buildStateInjection(
       lines.push(`Budget exhausted — do NOT call grant_trial_credit, show paywall instead`);
     } else if (remaining <= 5) {
       lines.push(`Budget low — grant ONLY to exceptional leads`);
+    }
+  }
+
+  // Inject traffic source for trial credit decision
+  if (options?.trafficSource) {
+    lines.push(`Traffic source: ${options.trafficSource}`);
+    if (options.trafficSource === "paid") {
+      lines.push(`User came from PAID advertising (Yandex/CPC). They actively searched for this service — HIGH conversion potential. Grant trial credit in ~70% of cases unless clear red flags.`);
     }
   }
 
