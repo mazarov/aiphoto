@@ -4129,6 +4129,12 @@ The user's sticker style: ${styleName} (${styleHint})
 Already existing stickers in the pack (DO NOT repeat similar ideas):
 ${existingList}
 
+CRITICAL — Preserving character appearance:
+- Carefully analyze the character's OUTFIT, ACCESSORIES, HAIRSTYLE, and KEY VISUAL FEATURES in the sticker image
+- EVERY idea's promptModification MUST explicitly describe the character wearing the SAME outfit/clothing as in the original sticker
+- Do NOT change the character's clothes, hat, glasses, hairstyle, or other defining features unless the idea is specifically in the "outfit" category
+- Example: if the character wears a red hoodie and sneakers, every promptModification should include "wearing red hoodie and sneakers"
+
 Rules:
 1. Each idea must be visually distinct from all others
 2. Mix categories for a well-rounded pack:
@@ -4140,8 +4146,8 @@ Rules:
    - Suggest short text (1-3 words) in ${textLang}
    - Text should be casual/memey: ${lang === "ru" ? '"ОК", "Нет", "Жиза", "Привет!", "Ору", "Спасибо"' : '"OK", "Nope", "LOL", "Hi!", "Thanks", "Mood"'}
    - Specify placement: speech_bubble, sign, or bottom_caption
-4. promptModification must be in English, detailed enough for image generation
-5. Keep the same character/subject from the original sticker
+4. promptModification must be in English, detailed enough for image generation. ALWAYS include the character's original outfit description.
+5. Keep the same character/subject from the original sticker — same face, body, outfit, accessories
 6. titleRu and descriptionRu must be in Russian, titleEn and descriptionEn in English
 
 Return a JSON array of exactly 8 ideas in this format:
@@ -4167,7 +4173,7 @@ Categories: emotion, action, scene, text_meme, holiday, outfit`;
       const response = await axios.post(
         "https://api.openai.com/v1/chat/completions",
         {
-          model: "gpt-4o",
+          model: "gpt-4o-mini",
           messages: [
             { role: "system", content: systemPrompt },
             {
