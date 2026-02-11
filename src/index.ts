@@ -1406,12 +1406,17 @@ bot.start(async (ctx) => {
     // No free credits on registration — credits granted by AI assistant (grant_credit, 20/day limit)
     // Paywall shows if no credits and no purchase
 
-    // Send notification (async, non-blocking)
+    // Send notification (async, non-blocking) with discount buttons for admin
     if (user?.id) {
       const utmInfo = utm.source ? `\n📢 Источник: ${utm.source}${utm.medium ? "/" + utm.medium : ""}${utm.campaign ? " кампания:" + utm.campaign : ""}` : "";
       sendNotification({
         type: "new_user",
         message: `@${ctx.from?.username || "no\\_username"} (${telegramId})\n🌐 Язык: ${languageCode || "unknown"}${utmInfo}`,
+        buttons: [[
+          { text: "🔥 -10%", callback_data: `admin_discount:${telegramId}:10` },
+          { text: "🔥 -15%", callback_data: `admin_discount:${telegramId}:15` },
+          { text: "🔥 -25%", callback_data: `admin_discount:${telegramId}:25` },
+        ]],
       }).catch(console.error);
     }
   } else {
