@@ -939,13 +939,17 @@ async function startAssistantDialog(ctx: any, user: any, lang: string) {
     .eq("is_active", true);
 
   // Create new session with assistant state
+  // If user has a photo from previous session, skip wait_photo
+  const lastPhoto = user.last_photo_file_id || null;
   const { data: newSession, error: sessionError } = await supabase
     .from("sessions")
     .insert({
       user_id: user.id,
-      state: "assistant_wait_photo",
+      state: lastPhoto ? "assistant_chat" : "assistant_wait_photo",
       is_active: true,
       env: config.appEnv,
+      current_photo_file_id: lastPhoto,
+      photos: lastPhoto ? [lastPhoto] : [],
     })
     .select()
     .single();
@@ -992,13 +996,25 @@ async function startAssistantDialog(ctx: any, user: any, lang: string) {
   const firstName = ctx.from?.first_name || "";
   const isReturning = previousGoal || (user.total_generations || 0) > 0;
 
-  const greeting = isReturning
-    ? (lang === "ru"
-      ? `С возвращением, ${firstName}! 👋\nПришли фото — сделаем новый стикер 📸`
-      : `Welcome back, ${firstName}! 👋\nSend a photo — let's make a new sticker 📸`)
-    : (lang === "ru"
-      ? `Привет, ${firstName}! 👋\nЯ помогу превратить твоё фото в крутой стикер.\n\nПришли мне фото, из которого хочешь сделать стикер 📸`
-      : `Hi, ${firstName}! 👋\nI'll help turn your photo into an awesome sticker.\n\nSend me a photo you'd like to turn into a sticker 📸`);
+  let greeting: string;
+  if (lastPhoto) {
+    // Photo already available — skip "send photo" prompt
+    greeting = isReturning
+      ? (lang === "ru"
+        ? `С возвращением, ${firstName}! 👋\nФото уже есть — опиши какой стикер хочешь 🎨`
+        : `Welcome back, ${firstName}! 👋\nPhoto ready — describe what sticker you want 🎨`)
+      : (lang === "ru"
+        ? `Привет, ${firstName}! 👋\nФото уже загружено — опиши стиль стикера или выбери из меню 🎨`
+        : `Hi, ${firstName}! 👋\nPhoto already loaded — describe the sticker style or pick from the menu 🎨`);
+  } else {
+    greeting = isReturning
+      ? (lang === "ru"
+        ? `С возвращением, ${firstName}! 👋\nПришли фото — сделаем новый стикер 📸`
+        : `Welcome back, ${firstName}! 👋\nSend a photo — let's make a new sticker 📸`)
+      : (lang === "ru"
+        ? `Привет, ${firstName}! 👋\nЯ помогу превратить твоё фото в крутой стикер.\n\nПришли мне фото, из которого хочешь сделать стикер 📸`
+        : `Hi, ${firstName}! 👋\nI'll help turn your photo into an awesome sticker.\n\nSend me a photo you'd like to turn into a sticker 📸`);
+  }
 
   // Save greeting to assistant_sessions so AI has context when photo arrives
   const messages: AssistantMessage[] = [
