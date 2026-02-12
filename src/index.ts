@@ -273,17 +273,31 @@ async function getStyleExampleUrl(styleId: string): Promise<string | null> {
   return await getSignedStorageUrl(storagePath);
 }
 
-async function getSignedStorageUrl(path: string): Promise<string | null> {
-  const { data, error } = await supabase.storage
-    .from(config.supabaseStorageBucket)
-    .createSignedUrl(path, 3600); // 1 hour
+function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((resolve) => setTimeout(() => resolve(fallback), ms)),
+  ]);
+}
 
-  if (error || !data?.signedUrl) {
-    console.error("[StyleCarousel] Signed URL error:", path, error?.message);
+async function getSignedStorageUrl(path: string): Promise<string | null> {
+  try {
+    const { data, error } = await withTimeout(
+      supabase.storage.from(config.supabaseStorageBucket).createSignedUrl(path, 3600),
+      5000,
+      { data: null, error: { message: "timeout" } } as any
+    );
+
+    if (error || !data?.signedUrl) {
+      console.error("[StyleCarousel] Signed URL error:", path, error?.message);
+      return null;
+    }
+
+    return data.signedUrl;
+  } catch (err: any) {
+    console.error("[StyleCarousel] getSignedStorageUrl exception:", path, err.message);
     return null;
   }
-
-  return data.signedUrl;
 }
 
 /**
@@ -305,19 +319,20 @@ async function sendStyleCarousel(ctx: any, lang: string, page: number = 0): Prom
   const startIdx = safePage * PAGE_SIZE;
   const pagePresets = allPresets.slice(startIdx, startIdx + PAGE_SIZE);
 
-  // Try to send sticker example images for each style on the page
+  // TODO: Re-enable when Supabase Storage signed URLs are fixed
+  // For now, skip sending images to avoid blocking the bot
   const stickerMsgIds: number[] = [];
-  for (const preset of pagePresets) {
-    try {
-      const imageUrl = await getStyleExampleUrl(preset.id);
-      if (imageUrl) {
-        const msg = await ctx.replyWithPhoto(imageUrl);
-        stickerMsgIds.push(msg.message_id);
-      }
-    } catch (err: any) {
-      console.error("[StyleCarousel] Failed to send example photo:", preset.id, err.message);
-    }
-  }
+  // for (const preset of pagePresets) {
+  //   try {
+  //     const imageUrl = await getStyleExampleUrl(preset.id);
+  //     if (imageUrl) {
+  //       const msg = await withTimeout(ctx.replyWithPhoto(imageUrl), 10000, null);
+  //       if (msg?.message_id) stickerMsgIds.push(msg.message_id);
+  //     }
+  //   } catch (err: any) {
+  //     console.error("[StyleCarousel] Failed to send example photo:", preset.id, err.message);
+  //   }
+  // }
 
   // Build text with style names
   const nameLines = pagePresets.map((preset, i) => {
@@ -6716,9 +6731,9 @@ async function startBot() {
     console.log(`Webhook set: ${webhookUrl}`);
   } else {
     console.log("Deleting webhook...");
-    await bot.telegram.deleteWebhook();
-    console.log("Webhook deleted. Launching long polling...");
-    await bot.launch();
+    await bot.telegram.deleteWebhook({ drop_pending_updates: true });
+    console.log("Webhook deleted. Launching long polling (drop pending updates)...");
+    await bot.launch({ dropPendingUpdates: true });
     console.log("Bot launched with long polling");
   }
 }
