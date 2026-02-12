@@ -94,15 +94,51 @@
 ai создание стикеров из фото
 ```
 
+### UTM-разметка (динамические параметры Яндекс Директ)
+
+Все ссылки в объявлениях размечаются динамическими параметрами Директа.
+При клике Яндекс подставит реальные значения вместо `{...}`.
+Справка: https://yandex.ru/support/direct/ru/statistics/url-tags
+
+**Шаблон основной ссылки объявления:**
+```
+https://photo2sticker.ru/?utm_source=yandex&utm_medium=cpc&utm_campaign={campaign_id}&utm_content={ad_id}.{position_type}.{position}&utm_term={keyword}
+```
+
+**Шаблон быстрых ссылок (sitelinks):**
+```
+https://photo2sticker.ru/PAGE?utm_source=yandex&utm_medium=cpc&utm_campaign={campaign_id}&utm_content=sitelink_N.{ad_id}&utm_term={keyword}
+```
+
+**Шаблон deep link на бота (start payload):**
+```
+https://t.me/photo2sticker_bot?start=ya_{campaign_id}_{ad_id}
+```
+
+> ⚠️ В быстрых ссылках параметры `{campaign_id}`, `{ad_id}`, `{phrase_id}` подставляются,
+> только если эти же параметры есть в основной ссылке объявления.
+
+| Параметр | Что подставится |
+|----------|----------------|
+| `{campaign_id}` | ID кампании (число) |
+| `{ad_id}` | ID объявления (число) |
+| `{keyword}` | Ключевая фраза показа |
+| `{position_type}` | Тип блока: premium / dynamic_places / other / none |
+| `{position}` | Позиция в блоке (1, 2...) |
+| `{source}` | Домен площадки РСЯ или none (поиск) |
+| `{source_type}` | search / context |
+| `{device_type}` | desktop / mobile / tablet |
+| `{region_id}` | ID региона показа |
+
 ### Формат start payload для каждой кампании
 
-| Кампания | Пример start payload |
-|----------|---------------------|
-| А — Горячие | `yandex_cpc_{campaign_id}_{ad_id}` |
-| Б — Telegram | `yandex_cpc_{campaign_id}_{ad_id}` |
-| В — Бесплатно | `yandex_cpc_{campaign_id}_{ad_id}` |
-| Г — Бот | `yandex_cpc_{campaign_id}_{ad_id}` |
-| Д — ИИ | `yandex_cpc_{campaign_id}_{ad_id}` |
+| Кампания | Start payload (deep link) | Пример реальный |
+|----------|--------------------------|----------------|
+| А — Горячие | `ya_{campaign_id}_{ad_id}` | `ya_12345678_987654` |
+| Б — Telegram | `ya_{campaign_id}_{ad_id}` | `ya_12345679_987655` |
+| В — Бесплатно | `ya_{campaign_id}_{ad_id}` | `ya_12345680_987656` |
+| Г — Бот | `ya_{campaign_id}_{ad_id}` | `ya_12345681_987657` |
+| Д — ИИ | `ya_{campaign_id}_{ad_id}` | `ya_12345682_987658` |
 
 ---
 
@@ -142,7 +178,7 @@ ai создание стикеров из фото
 Заголовок 2: 10+ стилей · ИИ генерация
 Текст:        Отправь фото → выбери стиль → получи стикер для Telegram.
               Без регистрации. 50 000+ стикеров уже создано.
-Ссылка:       photo2sticker.ru
+Ссылка:       https://photo2sticker.ru/?utm_source=yandex&utm_medium=cpc&utm_campaign={campaign_id}&utm_content={ad_id}.{position_type}.{position}&utm_term={keyword}
 Отобр. ссылка: /стикер-из-фото
 ```
 
@@ -152,16 +188,16 @@ ai создание стикеров из фото
 Заголовок 2: Готово за 30 секунд
 Текст:        ИИ превращает фото в стильный стикер. Мультик, аниме, чиби
               и ещё 10 стилей. Первый стикер бесплатно. Попробуй!
-Ссылка:       photo2sticker.ru
+Ссылка:       https://photo2sticker.ru/?utm_source=yandex&utm_medium=cpc&utm_campaign={campaign_id}&utm_content={ad_id}.{position_type}.{position}&utm_term={keyword}
 Отобр. ссылка: /создать-стикер
 ```
 
 **Быстрые ссылки (для всех объявлений кампании А):**
 ```
-1. Попробовать бесплатно     → /bot?utm=ya_a_sitelink1
-2. Примеры стикеров          → /examples?utm=ya_a_sitelink2
-3. Стили: аниме, мультик     → /styles?utm=ya_a_sitelink3
-4. Как это работает           → /how?utm=ya_a_sitelink4
+1. Попробовать бесплатно     → https://photo2sticker.ru/bot?utm_source=yandex&utm_medium=cpc&utm_campaign={campaign_id}&utm_content=sitelink1.{ad_id}&utm_term={keyword}
+2. Примеры стикеров          → https://photo2sticker.ru/examples?utm_source=yandex&utm_medium=cpc&utm_campaign={campaign_id}&utm_content=sitelink2.{ad_id}&utm_term={keyword}
+3. Стили: аниме, мультик     → https://photo2sticker.ru/styles?utm_source=yandex&utm_medium=cpc&utm_campaign={campaign_id}&utm_content=sitelink3.{ad_id}&utm_term={keyword}
+4. Как это работает           → https://photo2sticker.ru/how?utm_source=yandex&utm_medium=cpc&utm_campaign={campaign_id}&utm_content=sitelink4.{ad_id}&utm_term={keyword}
 ```
 
 **Уточнения:**
@@ -179,6 +215,7 @@ ai создание стикеров из фото
 Заголовок 2: Бот создаёт за 30 секунд
 Текст:        Отправь фото боту → выбери стиль → стикер готов и добавлен
               в твой стикерпак. Мультик, аниме, чиби — 10+ стилей.
+Ссылка:       https://photo2sticker.ru/?utm_source=yandex&utm_medium=cpc&utm_campaign={campaign_id}&utm_content={ad_id}.{position_type}.{position}&utm_term={keyword}
 Отобр. ссылка: /telegram-стикеры
 ```
 
@@ -188,15 +225,16 @@ ai создание стикеров из фото
 Заголовок 2: Первый стикер — бесплатно!
 Текст:        ИИ-бот превращает фото в стикер за 30 сек. Сохраняет
               черты лица. 10+ стилей. Без регистрации и дизайнера.
+Ссылка:       https://photo2sticker.ru/?utm_source=yandex&utm_medium=cpc&utm_campaign={campaign_id}&utm_content={ad_id}.{position_type}.{position}&utm_term={keyword}
 Отобр. ссылка: /тг-стикеры
 ```
 
 **Быстрые ссылки:**
 ```
-1. Открыть бота в Telegram   → /bot?utm=ya_b_sitelink1
-2. Примеры стилей            → /styles?utm=ya_b_sitelink2
-3. Первый стикер бесплатно   → /free?utm=ya_b_sitelink3
-4. Как создать стикерпак     → /how?utm=ya_b_sitelink4
+1. Открыть бота в Telegram   → https://photo2sticker.ru/bot?utm_source=yandex&utm_medium=cpc&utm_campaign={campaign_id}&utm_content=sitelink1.{ad_id}&utm_term={keyword}
+2. Примеры стилей            → https://photo2sticker.ru/styles?utm_source=yandex&utm_medium=cpc&utm_campaign={campaign_id}&utm_content=sitelink2.{ad_id}&utm_term={keyword}
+3. Первый стикер бесплатно   → https://photo2sticker.ru/free?utm_source=yandex&utm_medium=cpc&utm_campaign={campaign_id}&utm_content=sitelink3.{ad_id}&utm_term={keyword}
+4. Как создать стикерпак     → https://photo2sticker.ru/how?utm_source=yandex&utm_medium=cpc&utm_campaign={campaign_id}&utm_content=sitelink4.{ad_id}&utm_term={keyword}
 ```
 
 **Уточнения:**
@@ -214,6 +252,7 @@ Telegram бот | Стикерпак за минуту | Без дизайнер
 Заголовок 2: Без регистрации
 Текст:        Загрузи фото → выбери стиль → получи стикер для Telegram.
               Первый стикер полностью бесплатно. ИИ, 10+ стилей.
+Ссылка:       https://photo2sticker.ru/?utm_source=yandex&utm_medium=cpc&utm_campaign={campaign_id}&utm_content={ad_id}.{position_type}.{position}&utm_term={keyword}
 Отобр. ссылка: /бесплатно
 ```
 
@@ -223,7 +262,16 @@ Telegram бот | Стикерпак за минуту | Без дизайнер
 Заголовок 2: ИИ + 10 стилей
 Текст:        Сделать стикер из фото за 1 минуту. Мультик, аниме, чиби.
               Без скачивания, без регистрации. Первый стикер — 0₽.
+Ссылка:       https://photo2sticker.ru/?utm_source=yandex&utm_medium=cpc&utm_campaign={campaign_id}&utm_content={ad_id}.{position_type}.{position}&utm_term={keyword}
 Отобр. ссылка: /онлайн
+```
+
+**Быстрые ссылки:**
+```
+1. Попробовать бесплатно     → https://photo2sticker.ru/bot?utm_source=yandex&utm_medium=cpc&utm_campaign={campaign_id}&utm_content=sitelink1.{ad_id}&utm_term={keyword}
+2. Примеры стикеров          → https://photo2sticker.ru/examples?utm_source=yandex&utm_medium=cpc&utm_campaign={campaign_id}&utm_content=sitelink2.{ad_id}&utm_term={keyword}
+3. 10+ стилей на выбор       → https://photo2sticker.ru/styles?utm_source=yandex&utm_medium=cpc&utm_campaign={campaign_id}&utm_content=sitelink3.{ad_id}&utm_term={keyword}
+4. Как это работает           → https://photo2sticker.ru/how?utm_source=yandex&utm_medium=cpc&utm_campaign={campaign_id}&utm_content=sitelink4.{ad_id}&utm_term={keyword}
 ```
 
 **Уточнения:**
@@ -241,7 +289,16 @@ Telegram бот | Стикерпак за минуту | Без дизайнер
 Заголовок 2: Первый стикер бесплатно
 Текст:        Отправь фото боту — получи стильный стикер за 30 сек.
               Мультик, аниме, чиби и ещё 10 стилей. Попробуй сейчас!
+Ссылка:       https://photo2sticker.ru/?utm_source=yandex&utm_medium=cpc&utm_campaign={campaign_id}&utm_content={ad_id}.{position_type}.{position}&utm_term={keyword}
 Отобр. ссылка: /тг-бот
+```
+
+**Быстрые ссылки:**
+```
+1. Открыть бота              → https://photo2sticker.ru/bot?utm_source=yandex&utm_medium=cpc&utm_campaign={campaign_id}&utm_content=sitelink1.{ad_id}&utm_term={keyword}
+2. Примеры стикеров          → https://photo2sticker.ru/examples?utm_source=yandex&utm_medium=cpc&utm_campaign={campaign_id}&utm_content=sitelink2.{ad_id}&utm_term={keyword}
+3. Первый стикер бесплатно   → https://photo2sticker.ru/free?utm_source=yandex&utm_medium=cpc&utm_campaign={campaign_id}&utm_content=sitelink3.{ad_id}&utm_term={keyword}
+4. Как это работает           → https://photo2sticker.ru/how?utm_source=yandex&utm_medium=cpc&utm_campaign={campaign_id}&utm_content=sitelink4.{ad_id}&utm_term={keyword}
 ```
 
 **Уточнения:**
@@ -259,6 +316,7 @@ Telegram-бот | ИИ генерация | 10+ стилей | Без регис
 Заголовок 2: Нейросеть + 10 стилей
 Текст:        Нейросеть сохраняет черты лица и превращает фото в стикер
               для Telegram. Мультик, аниме, чиби. Первый — бесплатно.
+Ссылка:       https://photo2sticker.ru/?utm_source=yandex&utm_medium=cpc&utm_campaign={campaign_id}&utm_content={ad_id}.{position_type}.{position}&utm_term={keyword}
 Отобр. ссылка: /ии-стикеры
 ```
 
@@ -268,7 +326,16 @@ Telegram-бот | ИИ генерация | 10+ стилей | Без регис
 Заголовок 2: 10+ стилей · 30 секунд
 Текст:        ИИ-бот в Telegram: загрузи фото → выбери стиль → стикер
               готов. Сохраняет лицо и стиль. Без регистрации.
+Ссылка:       https://photo2sticker.ru/?utm_source=yandex&utm_medium=cpc&utm_campaign={campaign_id}&utm_content={ad_id}.{position_type}.{position}&utm_term={keyword}
 Отобр. ссылка: /нейросеть
+```
+
+**Быстрые ссылки:**
+```
+1. Попробовать бесплатно     → https://photo2sticker.ru/bot?utm_source=yandex&utm_medium=cpc&utm_campaign={campaign_id}&utm_content=sitelink1.{ad_id}&utm_term={keyword}
+2. Примеры стикеров          → https://photo2sticker.ru/examples?utm_source=yandex&utm_medium=cpc&utm_campaign={campaign_id}&utm_content=sitelink2.{ad_id}&utm_term={keyword}
+3. 10+ стилей нейросети      → https://photo2sticker.ru/styles?utm_source=yandex&utm_medium=cpc&utm_campaign={campaign_id}&utm_content=sitelink3.{ad_id}&utm_term={keyword}
+4. Как работает ИИ           → https://photo2sticker.ru/how?utm_source=yandex&utm_medium=cpc&utm_campaign={campaign_id}&utm_content=sitelink4.{ad_id}&utm_term={keyword}
 ```
 
 **Уточнения:**
@@ -366,14 +433,18 @@ Telegram-бот | ИИ генерация | 10+ стилей | Без регис
 > ИИ превращает фото в стильный стикер для Telegram. Первый стикер — бесплатно.
 
 **CTA-кнопка (добавить сверху, above the fold):**
-> [Сделать стикер бесплатно] → ссылка на бота
+> [Сделать стикер бесплатно] → `https://t.me/photo2sticker_bot?start=landing_hero`
 
 **Под CTA (добавить):**
 > Без регистрации. Без дизайнера. Готово за 1 минуту.
 > Создано 50,000+ стикеров
 
 **Текст основной CTA внизу:**
-> Сделать стикер в Telegram → **Попробовать бесплатно**
+> Сделать стикер в Telegram → **Попробовать бесплатно** → `https://t.me/photo2sticker_bot?start=landing_bottom`
+
+> Лендинг получает UTM-параметры из Яндекс Директа через URL.
+> Бот-ссылки на лендинге содержат фиксированные start payload (`landing_hero`, `landing_bottom`).
+> Для связки «реклама → лендинг → бот» лендинг должен прокидывать `utm_campaign` в start payload бота (см. трекинг).
 
 ---
 
@@ -409,6 +480,10 @@ Telegram-бот | ИИ генерация | 10+ стилей | Без регис
 - [ ] Добавить "Первый стикер бесплатно" рядом с CTA
 - [ ] Добавить счётчик "Создано 50,000+ стикеров"
 
-**Трекинг:**
-- [ ] Настроить UTM-ссылки для каждой кампании
-- [ ] Проверить трекинг: UTM → users → конверсия
+**UTM-разметка (Яндекс Директ динамические параметры):**
+- [ ] Все основные ссылки объявлений содержат: `utm_source=yandex&utm_medium=cpc&utm_campaign={campaign_id}&utm_content={ad_id}.{position_type}.{position}&utm_term={keyword}`
+- [ ] Все быстрые ссылки содержат: `utm_source=yandex&utm_medium=cpc&utm_campaign={campaign_id}&utm_content=sitelink_N.{ad_id}&utm_term={keyword}`
+- [ ] Deep link на бота: `start=ya_{campaign_id}_{ad_id}`
+- [ ] Проверить что динамические параметры подставляются (тестовый клик → проверить URL в Метрике)
+- [ ] Настроить цели в Яндекс Метрике: переход на бота, регистрация, покупка
+- [ ] Проверить трекинг: UTM → landing → bot start payload → users → конверсия
