@@ -90,11 +90,10 @@ export function handleToolCall(
 
   if (toolCall.name === "grant_trial_credit") {
     const args = toolCall.args;
-    const tag = `[trial: ${args.decision}, confidence: ${args.confidence}, reason: ${args.reason}]`;
+    // NOTE: goal tag is written AFTER actual grant/deny in handleTrialCreditAction (index.ts)
+    // to avoid alreadyGranted check finding the tag before the credit is actually granted
     return {
-      updates: {
-        goal: `${aSession.goal || ""} ${tag}`.trim(),
-      },
+      updates: {},
       action: args.decision === "grant" ? "grant_credit" : "deny_credit",
     };
   }

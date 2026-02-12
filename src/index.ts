@@ -1249,6 +1249,15 @@ async function handleTrialCreditAction(
         .update({ credits: 1 })
         .eq("id", user.id);
 
+      // Write [trial: grant] tag AFTER actual credit grant (fix: was written before check)
+      const aSession = await getActiveAssistantSession(user.id);
+      if (aSession) {
+        const tag = `[trial: grant, confidence: ${result.toolCall?.args?.confidence}, reason: ${result.toolCall?.args?.reason}]`;
+        await updateAssistantSession(aSession.id, {
+          goal: `${aSession.goal || ""} ${tag}`.trim(),
+        });
+      }
+
       sendAlert({
         type: "trial_credit_granted",
         message: `🎁 Trial credit #${todayCount + 1}/20`,
@@ -1261,30 +1270,64 @@ async function handleTrialCreditAction(
         },
       }).catch(console.error);
 
-      // Re-fetch user with updated credits, then generate
-      const freshUser = await getUser(user.telegram_id);
-      if (replyText) await ctx.reply(replyText);
-      if (freshUser) await handleAssistantConfirm(ctx, freshUser, session.id, lang);
-    } else {
-      // Budget exhausted or guard triggered — fallback to paywall
-      const paywallText = lang === "ru"
-        ? "К сожалению, сейчас не могу сгенерировать бесплатно. Выбери пакет — 10 стикеров хватит для старта:"
-        : "Unfortunately, I can't generate for free right now. Choose a pack — 10 stickers is enough to start:";
-      await ctx.reply(paywallText);
-      await sendBuyCreditsMenu(ctx, user);
+      // Check if all sticker params are collected
+      const paramsReady = aSession && allParamsCollected(aSession);
 
-      // Mark paywall shown on assistant session for post-paywall behavior
+      if (paramsReady) {
+        // All params collected — grant + generate (as before)
+        const freshUser = await getUser(user.telegram_id);
+        if (replyText) await ctx.reply(replyText);
+        if (freshUser) await handleAssistantConfirm(ctx, freshUser, session.id, lang);
+      } else {
+        // Early grant — just credit the user, continue conversation
+        if (replyText) await ctx.reply(replyText, getMainMenuKeyboard(lang));
+        // Generation will happen later when user hits [Confirm]
+      }
+    } else {
+      // Budget exhausted or guard triggered
+      // Write [trial: grant_blocked] tag
       const aSession = await getActiveAssistantSession(user.id);
       if (aSession) {
+        const tag = `[trial: grant_blocked, reason: canGrant=false]`;
         await updateAssistantSession(aSession.id, {
-          paywall_shown: true,
-          paywall_shown_at: new Date().toISOString(),
-          sales_attempts: (aSession.sales_attempts || 0) + 1,
+          goal: `${aSession.goal || ""} ${tag}`.trim(),
         });
+      }
+
+      const paramsReady = aSession && allParamsCollected(aSession);
+
+      if (paramsReady) {
+        // Params collected — show paywall (as before)
+        const paywallText = lang === "ru"
+          ? "К сожалению, сейчас не могу сгенерировать бесплатно. Выбери пакет — 10 стикеров хватит для старта:"
+          : "Unfortunately, I can't generate for free right now. Choose a pack — 10 stickers is enough to start:";
+        await ctx.reply(paywallText);
+        await sendBuyCreditsMenu(ctx, user);
+
+        // Mark paywall shown on assistant session
+        if (aSession) {
+          await updateAssistantSession(aSession.id, {
+            paywall_shown: true,
+            paywall_shown_at: new Date().toISOString(),
+            sales_attempts: (aSession.sales_attempts || 0) + 1,
+          });
+        }
+      } else {
+        // Early call, budget exhausted — silently continue conversation
+        if (replyText) await ctx.reply(replyText, getMainMenuKeyboard(lang));
       }
     }
   } else {
     // deny_credit
+    // Write [trial: deny] tag
+    const aSession = await getActiveAssistantSession(user.id);
+    if (aSession) {
+      const tag = `[trial: deny, confidence: ${result.toolCall?.args?.confidence}, reason: ${result.toolCall?.args?.reason}]`;
+      await updateAssistantSession(aSession.id, {
+        goal: `${aSession.goal || ""} ${tag}`.trim(),
+      });
+    }
+
     sendAlert({
       type: "trial_credit_denied",
       message: `❌ Trial denied`,
@@ -1295,17 +1338,24 @@ async function handleTrialCreditAction(
       },
     }).catch(console.error);
 
-    if (replyText) await ctx.reply(replyText);
-    await sendBuyCreditsMenu(ctx, user);
+    const paramsReady = aSession && allParamsCollected(aSession);
 
-    // Mark paywall shown on assistant session for post-paywall behavior
-    const aSession = await getActiveAssistantSession(user.id);
-    if (aSession) {
-      await updateAssistantSession(aSession.id, {
-        paywall_shown: true,
-        paywall_shown_at: new Date().toISOString(),
-        sales_attempts: (aSession.sales_attempts || 0) + 1,
-      });
+    if (paramsReady) {
+      // Params collected — show paywall (as before)
+      if (replyText) await ctx.reply(replyText);
+      await sendBuyCreditsMenu(ctx, user);
+
+      // Mark paywall shown on assistant session
+      if (aSession) {
+        await updateAssistantSession(aSession.id, {
+          paywall_shown: true,
+          paywall_shown_at: new Date().toISOString(),
+          sales_attempts: (aSession.sales_attempts || 0) + 1,
+        });
+      }
+    } else {
+      // Early deny — soft, no paywall, continue conversation
+      if (replyText) await ctx.reply(replyText, getMainMenuKeyboard(lang));
     }
   }
 }
