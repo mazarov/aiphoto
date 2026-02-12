@@ -1856,7 +1856,11 @@ bot.on("photo", async (ctx) => {
             await handleAssistantConfirm(ctx, freshUserPhoto, session.id, lang);
           } else {
             console.log("[assistant_photo] User has credits but params not complete — continuing dialog");
-            if (replyText) await ctx.reply(replyText, getMainMenuKeyboard(lang));
+            // Use params-asking fallback (style/emotion/pose), not grant_credit fallback
+            const paramsPrompt = generateFallbackReply("normal", updatedSession, lang);
+            messages[messages.length - 1] = { role: "assistant", content: paramsPrompt };
+            await updateAssistantSession(aSession.id, { messages });
+            await ctx.reply(paramsPrompt, getMainMenuKeyboard(lang));
           }
         } else {
           await handleTrialCreditAction(ctx, action, result, freshUserPhoto || user, session, replyText, lang);
@@ -2243,7 +2247,10 @@ bot.on("text", async (ctx) => {
             await handleAssistantConfirm(ctx, freshUserWP, session.id, lang);
           } else {
             console.log("[wait_photo_text] User has credits but params not complete — continuing dialog");
-            if (result.text) await ctx.reply(result.text, getMainMenuKeyboard(lang));
+            const paramsPrompt = generateFallbackReply("normal", mergedSession, lang);
+            messages[messages.length - 1] = { role: "assistant", content: paramsPrompt };
+            await updateAssistantSession(aSession.id, { messages });
+            await ctx.reply(paramsPrompt, getMainMenuKeyboard(lang));
           }
         } else {
           await handleTrialCreditAction(ctx, toolAction as "grant_credit" | "deny_credit", result, freshUserWP || user, session, result.text, lang);
@@ -2372,7 +2379,10 @@ bot.on("text", async (ctx) => {
               await handleAssistantConfirm(ctx, freshUser, session.id, lang);
             } else {
               console.log("[assistant_chat] User has credits but params not complete — continuing dialog");
-              if (replyText) await ctx.reply(replyText, getMainMenuKeyboard(lang));
+              const paramsPrompt = generateFallbackReply("normal", updatedSession, lang);
+              messages[messages.length - 1] = { role: "assistant", content: paramsPrompt };
+              await updateAssistantSession(aSession.id, { messages });
+              await ctx.reply(paramsPrompt, getMainMenuKeyboard(lang));
             }
           } else {
             await handleTrialCreditAction(ctx, action, result, freshUser || user, session, replyText, lang);
