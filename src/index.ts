@@ -233,81 +233,90 @@ async function sendStyleKeyboardFlat(ctx: any, lang: string, messageId?: number)
 }
 
 /**
- * Get a sticker example for a style: first try is_example, then any sticker for this style.
+ * Get a sticker example image URL for a style from Supabase Storage.
+ * Tries is_example first, then any sticker with result_storage_path.
  */
-async function getAnyStickerForStyle(styleId: string): Promise<StyleExample | null> {
-  const example = await getStyleExample(styleId);
-  if (example?.telegram_file_id) return example;
-
-  // Fallback: any sticker generated with this style
-  const { data } = await supabase
+async function getStyleExampleUrl(styleId: string): Promise<string | null> {
+  // Try is_example with storage path first
+  const { data: exData } = await supabase
     .from("stickers")
-    .select("telegram_file_id, style_preset_id")
+    .select("result_storage_path")
     .eq("style_preset_id", styleId)
-    .not("telegram_file_id", "is", null)
+    .eq("is_example", true)
+    .not("result_storage_path", "is", null)
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
 
-  return data;
+  if (exData?.result_storage_path) {
+    return `${config.supabaseUrl}/storage/v1/object/public/${config.supabaseStorageBucket}/${exData.result_storage_path}`;
+  }
+
+  // Fallback: any sticker for this style with storage path
+  const { data: anyData } = await supabase
+    .from("stickers")
+    .select("result_storage_path")
+    .eq("style_preset_id", styleId)
+    .not("result_storage_path", "is", null)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (anyData?.result_storage_path) {
+    return `${config.supabaseUrl}/storage/v1/object/public/${config.supabaseStorageBucket}/${anyData.result_storage_path}`;
+  }
+
+  return null;
 }
 
 /**
  * Style carousel: show 2 styles at a time with sticker examples.
- * Sends 2 stickers + 1 text message with names and buttons.
- * Returns message IDs for cleanup on navigation.
+ * Sends stickers (if available) + 1 text message with names and buttons.
  */
 async function sendStyleCarousel(ctx: any, lang: string, page: number = 0): Promise<void> {
   const allPresets = await getStylePresetsV2();
   const isRu = lang === "ru";
   const PAGE_SIZE = 2;
 
-  // Filter presets that have sticker examples (is_example first, then any sticker)
-  const presetsWithExamples: Array<{ preset: StylePresetV2; example: StyleExample }> = [];
-  for (const preset of allPresets) {
-    const example = await getAnyStickerForStyle(preset.id);
-    if (example?.telegram_file_id) {
-      presetsWithExamples.push({ preset, example });
-    }
-  }
-
-  if (presetsWithExamples.length === 0) {
-    console.log("[StyleCarousel] No sticker examples found for any style, falling back to flat list");
+  if (allPresets.length === 0) {
     await sendStyleKeyboardFlat(ctx, lang);
     return;
   }
 
-  const totalPages = Math.ceil(presetsWithExamples.length / PAGE_SIZE);
+  const totalPages = Math.ceil(allPresets.length / PAGE_SIZE);
   const safePage = page % totalPages; // cyclic
   const startIdx = safePage * PAGE_SIZE;
-  const pageItems = presetsWithExamples.slice(startIdx, startIdx + PAGE_SIZE);
+  const pagePresets = allPresets.slice(startIdx, startIdx + PAGE_SIZE);
 
-  // Send stickers
+  // Try to send sticker example images for each style on the page
   const stickerMsgIds: number[] = [];
-  for (const item of pageItems) {
+  for (const preset of pagePresets) {
     try {
-      const msg = await ctx.replyWithSticker(item.example.telegram_file_id);
-      stickerMsgIds.push(msg.message_id);
+      const imageUrl = await getStyleExampleUrl(preset.id);
+      if (imageUrl) {
+        const msg = await ctx.replyWithPhoto(imageUrl);
+        stickerMsgIds.push(msg.message_id);
+      }
     } catch (err: any) {
-      console.error("[StyleCarousel] Failed to send sticker:", item.preset.id, err.message);
+      console.error("[StyleCarousel] Failed to send example photo:", preset.id, err.message);
     }
   }
 
   // Build text with style names
-  const nameLines = pageItems.map((item, i) => {
+  const nameLines = pagePresets.map((preset, i) => {
     const num = i === 0 ? "1️⃣" : "2️⃣";
-    const name = isRu ? item.preset.name_ru : item.preset.name_en;
-    return `${num} ${item.preset.emoji} ${name}`;
+    const name = isRu ? preset.name_ru : preset.name_en;
+    return `${num} ${preset.emoji} ${name}`;
   });
 
   const headerText = isRu ? "Выбери стиль:" : "Choose a style:";
   const text = `${headerText}\n\n${nameLines.join("\n")}`;
 
   // Build buttons
-  const selectButtons = pageItems.map((item, i) => {
+  const selectButtons = pagePresets.map((preset, i) => {
     const num = i === 0 ? "1️⃣" : "2️⃣";
     const label = isRu ? "Выбрать" : "Select";
-    return { text: `${num} ${label}`, callback_data: `style_carousel_pick:${item.preset.id}` };
+    return { text: `${num} ${label}`, callback_data: `style_carousel_pick:${preset.id}` };
   });
 
   const navButtons: any[] = [
