@@ -1852,6 +1852,14 @@ bot.command("support", async (ctx) => {
   });
 });
 
+/**
+ * Get photo file_id: from current session first, then from user.last_photo_file_id.
+ * If found from user, copies it into the session for generation to work.
+ */
+function getUserPhotoFileId(user: any, session: any): string | null {
+  return session?.current_photo_file_id || user?.last_photo_file_id || null;
+}
+
 // Photo handler
 bot.on("photo", async (ctx) => {
   const telegramId = ctx.from?.id;
@@ -1871,6 +1879,11 @@ bot.on("photo", async (ctx) => {
 
   const photo = ctx.message.photo?.[ctx.message.photo.length - 1];
   if (!photo) return;
+
+  // Save last photo on user for reuse across sessions
+  await supabase.from("users")
+    .update({ last_photo_file_id: photo.file_id })
+    .eq("id", user.id);
 
   // === AI Assistant: re-route to assistant_wait_photo if assistant is active after generation ===
   if (!session.state?.startsWith("assistant_") && !["processing", "processing_emotion", "processing_motion", "processing_text"].includes(session.state)) {
@@ -2175,22 +2188,24 @@ bot.hears(["🎨 Стили", "🎨 Styles"], async (ctx) => {
   if (session?.state?.startsWith("assistant_")) {
     console.log("Styles: switching from assistant to manual mode, session:", session.id);
     await closeAllActiveAssistantSessions(user.id, "abandoned");
-    // Reset state immediately so photo handler won't route to dead assistant
-    await supabase
-      .from("sessions")
-      .update({ state: session.current_photo_file_id ? "wait_style" : "wait_photo" })
-      .eq("id", session.id);
-    console.log("Styles: reset state to", session.current_photo_file_id ? "wait_style" : "wait_photo");
   }
 
-  // Check if user has a photo in active session
-  if (!session || !session.current_photo_file_id) {
+  // Get photo: from session or from user's last photo
+  const photoFileId = getUserPhotoFileId(user, session);
+
+  if (!session || !photoFileId) {
     await ctx.reply(await getText(lang, "photo.need_photo"), getMainMenuKeyboard(lang));
     return;
   }
 
-  // Always set state to wait_style so style selection handlers work
-  if (session.state !== "wait_style" && !session.state?.startsWith("assistant_")) {
+  // Copy photo from user to session if needed
+  if (!session.current_photo_file_id && photoFileId) {
+    await supabase.from("sessions")
+      .update({ current_photo_file_id: photoFileId, photos: [photoFileId], state: "wait_style", is_active: true })
+      .eq("id", session.id);
+    console.log("Styles: reused photo from user.last_photo_file_id");
+  } else if (session.state !== "wait_style" && !session.state?.startsWith("assistant_")) {
+    // Always set state to wait_style so style selection handlers work
     console.log("Styles: switching state from", session.state, "to wait_style, session:", session.id);
     await supabase
       .from("sessions")
@@ -2935,11 +2950,17 @@ bot.action(/^style_carousel_pick:(.+)$/, async (ctx) => {
     const preset = await getStylePresetV2ById(styleId);
     if (!preset) return;
 
-    const photos = Array.isArray(session.photos) ? session.photos : [];
-    const currentPhotoId = session.current_photo_file_id || photos[photos.length - 1];
+    const currentPhotoId = getUserPhotoFileId(user, session);
     if (!currentPhotoId) {
       await ctx.reply(await getText(lang, "photo.need_photo"));
       return;
+    }
+
+    // Copy photo from user to session if needed
+    if (!session.current_photo_file_id && currentPhotoId) {
+      await supabase.from("sessions")
+        .update({ current_photo_file_id: currentPhotoId, photos: [currentPhotoId] })
+        .eq("id", session.id);
     }
 
     const userInput = preset.prompt_hint;
@@ -3039,11 +3060,17 @@ bot.action(/^style_v2:(.+)$/, async (ctx) => {
       return;
     }
 
-    const photos = Array.isArray(session.photos) ? session.photos : [];
-    const currentPhotoId = session.current_photo_file_id || photos[photos.length - 1];
+    const currentPhotoId = getUserPhotoFileId(user, session);
     if (!currentPhotoId) {
       await ctx.reply(await getText(lang, "photo.need_photo"));
       return;
+    }
+
+    // Copy photo from user to session if needed
+    if (!session.current_photo_file_id && currentPhotoId) {
+      await supabase.from("sessions")
+        .update({ current_photo_file_id: currentPhotoId, photos: [currentPhotoId] })
+        .eq("id", session.id);
     }
 
     // Use prompt_hint as userInput
