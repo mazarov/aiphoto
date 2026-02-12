@@ -5789,6 +5789,7 @@ bot.on("successful_payment", async (ctx) => {
     // Check if there's a pending session waiting for credits (paywall or normal)
     const session = await getActiveSession(finalUser.id);
     const isWaitingForCredits = session?.state === "wait_buy_credit" || session?.state === "wait_first_purchase";
+    console.log("[payment] session:", session?.id, "state:", session?.state, "is_active:", session?.is_active, "prompt_final:", !!session?.prompt_final, "isWaitingForCredits:", isWaitingForCredits);
     
     // === AI Assistant: paid after paywall — trigger generation with assistant params ===
     if (isWaitingForCredits && !session.prompt_final) {
@@ -5822,6 +5823,7 @@ bot.on("successful_payment", async (ctx) => {
 
     if (isWaitingForCredits && session.prompt_final) {
       const creditsNeeded = session.credits_spent || 1;
+      console.log("[payment] auto-continue: creditsNeeded:", creditsNeeded, "currentCredits:", currentCredits);
 
       if (currentCredits >= creditsNeeded) {
         const nextState =
