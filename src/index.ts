@@ -567,10 +567,12 @@ async function startGeneration(
       }
     }).catch(console.error);
 
-    await supabase
+    const targetState = isPaywall ? "wait_first_purchase" : "wait_buy_credit";
+    console.log("[startGeneration] Setting paywall state:", targetState, "sessionId:", session.id);
+    const { error: paywallUpdateErr } = await supabase
       .from("sessions")
       .update({
-        state: isPaywall ? "wait_first_purchase" : "wait_buy_credit",
+        state: targetState,
         pending_generation_type: options.generationType,
         user_input: options.userInput || session.user_input || null,
         prompt_final: options.promptFinal,
@@ -581,6 +583,11 @@ async function startGeneration(
         is_active: true,
       })
       .eq("id", session.id);
+    if (paywallUpdateErr) {
+      console.error("[startGeneration] Paywall state update FAILED:", paywallUpdateErr.message);
+    } else {
+      console.log("[startGeneration] Paywall state update OK");
+    }
 
     if (isPaywall) {
       // Show paywall message with bonus info
@@ -6161,35 +6168,66 @@ bot.on("successful_payment", async (ctx) => {
         }));
       }
     } else if (session && !isWaitingForCredits) {
-      // Session exists but not in paywall state — check if assistant has collected params
-      console.log("[payment] session not in paywall state:", session.state, "— checking assistant fallback");
-      const aSessionFallback = await getActiveAssistantSession(finalUser.id);
-      if (aSessionFallback && allParamsCollected(aSessionFallback) && session.current_photo_file_id) {
-        console.log("[payment] assistant fallback: params collected, auto-generating");
-        const params = getAssistantParams(aSessionFallback);
-        const promptFinal = buildAssistantPrompt(params);
+      // Session exists but not in paywall state — try to auto-continue anyway
+      console.log("[payment] session not in paywall state:", session.state, "— checking fallbacks");
 
-        await supabase
-          .from("sessions")
-          .update({
-            state: "processing",
-            is_active: true,
-            prompt_final: promptFinal,
-            user_input: `[assistant] ${params.style}, ${params.emotion}, ${params.pose}`,
-            selected_style_id: "assistant",
-            credits_spent: 1,
-          })
-          .eq("id", session.id);
+      // Fallback 1: session has prompt_final (startGeneration paywall update may have failed)
+      if (session.prompt_final && session.current_photo_file_id) {
+        const creditsNeeded = session.credits_spent || 1;
+        console.log("[payment] fallback: session has prompt_final, auto-continuing. creditsNeeded:", creditsNeeded);
 
-        const { data: deductedFb } = await supabase
-          .rpc("deduct_credits", { p_user_id: finalUser.id, p_amount: 1 });
+        if (currentCredits >= creditsNeeded) {
+          const nextState =
+            session.pending_generation_type === "emotion" ? "processing_emotion" : "processing";
 
-        if (deductedFb) {
-          await enqueueJob(session.id, finalUser.id);
-          await sendProgressStart(ctx, session.id, lang);
-          console.log("[payment] assistant fallback: generation started");
-        } else {
-          console.error("[payment] assistant fallback: deduct failed");
+          const { data: deductedFb } = await supabase
+            .rpc("deduct_credits", { p_user_id: finalUser.id, p_amount: creditsNeeded });
+
+          if (deductedFb) {
+            await supabase
+              .from("sessions")
+              .update({ state: nextState, is_active: true })
+              .eq("id", session.id);
+
+            await enqueueJob(session.id, finalUser.id);
+            await sendProgressStart(ctx, session.id, lang);
+            console.log("[payment] fallback: generation started, state:", nextState);
+          } else {
+            console.error("[payment] fallback: deduct failed");
+          }
+        }
+      }
+
+      // Fallback 2: assistant session with collected params (no prompt_final yet)
+      if (!session.prompt_final) {
+        const aSessionFallback = await getActiveAssistantSession(finalUser.id);
+        if (aSessionFallback && allParamsCollected(aSessionFallback) && session.current_photo_file_id) {
+          console.log("[payment] assistant fallback: params collected, auto-generating");
+          const params = getAssistantParams(aSessionFallback);
+          const promptFinal = buildAssistantPrompt(params);
+
+          await supabase
+            .from("sessions")
+            .update({
+              state: "processing",
+              is_active: true,
+              prompt_final: promptFinal,
+              user_input: `[assistant] ${params.style}, ${params.emotion}, ${params.pose}`,
+              selected_style_id: "assistant",
+              credits_spent: 1,
+            })
+            .eq("id", session.id);
+
+          const { data: deductedFb } = await supabase
+            .rpc("deduct_credits", { p_user_id: finalUser.id, p_amount: 1 });
+
+          if (deductedFb) {
+            await enqueueJob(session.id, finalUser.id);
+            await sendProgressStart(ctx, session.id, lang);
+            console.log("[payment] assistant fallback: generation started");
+          } else {
+            console.error("[payment] assistant fallback: deduct failed");
+          }
         }
       }
     }
