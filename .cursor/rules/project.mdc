@@ -36,6 +36,16 @@
 - `Dockerfile.support` → Саппорт бот
 - `Dockerfile.rembg` → Self-hosted rembg сервер (удаление фона)
 
+### Rebuild rembg образа (при смене модели/кода rembg_server.py)
+Dockerfile.rembg тянет pre-built образ из Docker Hub. Сборка вручную — из папки проекта:
+```bash
+docker build --platform linux/amd64 -f Dockerfile.rembg.build -t mazarov/p2s-rembg:latest .
+docker push mazarov/p2s-rembg:latest
+```
+⚠️ **Обязательно `--platform linux/amd64`** — Dockhost и серверы используют amd64. Без этого на Mac (Apple Silicon) соберётся arm64 и будет ошибка `no match for platform in manifest`.
+
+После push — Redeploy rembg-контейнера на Dockhost.
+
 ### Прод (main)
 - Деплой автоматический через GitHub Actions при пуше в `main`
 - **НЕ использовать** Dockhost API для редеплоя — endpoint не работает

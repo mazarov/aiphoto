@@ -56,6 +56,12 @@ The entire area behind the character(s) must be filled with exactly #00FF00 gree
 
 Рекомендация: `u2net` как оптимальный баланс качества и скорости.
 
+### 3. Chroma key post-processing (дополнительно)
+
+Когда Gemini рисует зелёный фон, а rembg оставляет артефакты (особенно за шарами, между рукой и фоном) — добавить проход: пиксели близкие к #00FF00 → прозрачность.
+
+Спецификация: **docs/chroma-key-cleanup.md**
+
 ---
 
 ## Чеклист

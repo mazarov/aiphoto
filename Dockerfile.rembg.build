@@ -14,7 +14,9 @@ RUN pip install --no-cache-dir \
     rembg[cpu] \
     flask \
     gunicorn \
-    pillow
+    pillow \
+    pymatting \
+    scipy
 
 # Pre-download the model (faster startup)
 RUN python -c "from rembg import new_session; new_session('u2net')" || true
