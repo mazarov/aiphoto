@@ -1924,6 +1924,56 @@ bot.on("photo", async (ctx) => {
     return;
   }
 
+  // === Avatar demo follow-up: user sends photo after avatar_demo → start assistant dialog ===
+  if (session.generation_type === "avatar_demo" && session.state === "confirm_sticker") {
+    console.log("[AvatarDemo] User sent photo after avatar_demo — starting assistant dialog");
+    await startAssistantDialog(ctx, user, lang);
+    // Re-fetch session to get the new assistant_wait_photo state
+    const newSession = await getActiveSession(user.id);
+    if (newSession?.state === "assistant_wait_photo") {
+      // Save photo and process as assistant photo
+      const photos = Array.isArray(newSession.photos) ? [...newSession.photos] : [];
+      photos.push(photo.file_id);
+      await supabase.from("sessions")
+        .update({ photos, current_photo_file_id: photo.file_id, state: "assistant_chat", is_active: true })
+        .eq("id", newSession.id);
+
+      const aSession = await getActiveAssistantSession(user.id);
+      if (aSession) {
+        const messages: AssistantMessage[] = Array.isArray(aSession.messages) ? [...aSession.messages] : [];
+        messages.push({ role: "user", content: "[User sent a photo]" });
+
+        const systemPrompt = await getAssistantSystemPrompt(messages, aSession, {
+          credits: user.credits || 0,
+          hasPurchased: !!user.has_purchased,
+          totalGenerations: user.total_generations || 0,
+          utmSource: user.utm_source,
+          utmMedium: user.utm_medium,
+        });
+
+        try {
+          const result = await callAIChat(messages, systemPrompt);
+          messages.push({ role: "assistant", content: result.text });
+          const { action, updatedSession } = await processAssistantResult(result, aSession, messages);
+          let replyText = result.text;
+          if (!replyText && result.toolCall) {
+            replyText = generateFallbackReply(action, updatedSession, lang);
+            messages[messages.length - 1] = { role: "assistant", content: replyText };
+          }
+          await updateAssistantSession(aSession.id, { messages });
+          if (replyText) await ctx.reply(replyText, getMainMenuKeyboard(lang));
+        } catch (err: any) {
+          console.error("[AvatarDemo] Assistant AI error:", err.message);
+          const fallback = lang === "ru"
+            ? "Отличное фото! Опиши стиль стикера (например: аниме, мультяшный, минимализм)"
+            : "Great photo! Describe the sticker style (e.g.: anime, cartoon, minimal)";
+          await ctx.reply(fallback, getMainMenuKeyboard(lang));
+        }
+      }
+    }
+    return;
+  }
+
   // === Manual mode: existing logic ===
   const photos = Array.isArray(session.photos) ? session.photos : [];
   photos.push(photo.file_id);
