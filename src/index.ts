@@ -233,6 +233,26 @@ async function sendStyleKeyboardFlat(ctx: any, lang: string, messageId?: number)
 }
 
 /**
+ * Get a sticker example for a style: first try is_example, then any sticker for this style.
+ */
+async function getAnyStickerForStyle(styleId: string): Promise<StyleExample | null> {
+  const example = await getStyleExample(styleId);
+  if (example?.telegram_file_id) return example;
+
+  // Fallback: any sticker generated with this style
+  const { data } = await supabase
+    .from("stickers")
+    .select("telegram_file_id, style_preset_id")
+    .eq("style_preset_id", styleId)
+    .not("telegram_file_id", "is", null)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  return data;
+}
+
+/**
  * Style carousel: show 2 styles at a time with sticker examples.
  * Sends 2 stickers + 1 text message with names and buttons.
  * Returns message IDs for cleanup on navigation.
@@ -242,17 +262,17 @@ async function sendStyleCarousel(ctx: any, lang: string, page: number = 0): Prom
   const isRu = lang === "ru";
   const PAGE_SIZE = 2;
 
-  // Filter presets that have examples (async check)
+  // Filter presets that have sticker examples (is_example first, then any sticker)
   const presetsWithExamples: Array<{ preset: StylePresetV2; example: StyleExample }> = [];
   for (const preset of allPresets) {
-    const example = await getStyleExample(preset.id);
+    const example = await getAnyStickerForStyle(preset.id);
     if (example?.telegram_file_id) {
       presetsWithExamples.push({ preset, example });
     }
   }
 
   if (presetsWithExamples.length === 0) {
-    // No examples at all — fallback to flat list
+    console.log("[StyleCarousel] No sticker examples found for any style, falling back to flat list");
     await sendStyleKeyboardFlat(ctx, lang);
     return;
   }
