@@ -316,9 +316,13 @@ async function sendStyleCarousel(ctx: any, lang: string, page: number = 0): Prom
     return { text: `${num} ${label}`, callback_data: `style_carousel_pick:${preset.id}` };
   });
 
+  const prevPage = (safePage - 1 + totalPages) % totalPages;
+  const nextPage = (safePage + 1) % totalPages;
+
   const navButtons: any[] = [
-    { text: isRu ? "➡️ Другие стили" : "➡️ More styles", callback_data: `style_carousel_next:${safePage + 1}:${stickerMsgIds.join(",")}` },
-    { text: isRu ? "📋 Все стили" : "📋 All styles", callback_data: `style_carousel_all:${stickerMsgIds.join(",")}` },
+    { text: "⬅️", callback_data: `style_carousel_next:${prevPage}:${stickerMsgIds.join(",")}` },
+    { text: `${safePage + 1}/${totalPages}`, callback_data: "noop" },
+    { text: "➡️", callback_data: `style_carousel_next:${nextPage}:${stickerMsgIds.join(",")}` },
   ];
 
   const keyboard = [selectButtons, navButtons];
@@ -2986,30 +2990,9 @@ bot.action(/^style_carousel_next:(\d+):(.*)$/, async (ctx) => {
   }
 });
 
-// Callback: carousel — show all styles (flat list)
-bot.action(/^style_carousel_all:(.*)$/, async (ctx) => {
-  try {
-    safeAnswerCbQuery(ctx);
-    const telegramId = ctx.from?.id;
-    if (!telegramId) return;
-
-    const user = await getUser(telegramId);
-    if (!user?.id) return;
-    const lang = user.lang || "en";
-
-    const stickerMsgIds = ctx.match[1].split(",").filter(Boolean).map(Number);
-
-    // Delete previous sticker messages
-    for (const msgId of stickerMsgIds) {
-      await ctx.telegram.deleteMessage(ctx.chat!.id, msgId).catch(() => {});
-    }
-    // Delete the text+buttons message
-    await ctx.deleteMessage().catch(() => {});
-
-    await sendStyleKeyboardFlat(ctx, lang);
-  } catch (err) {
-    console.error("[StyleCarousel] All error:", err);
-  }
+// Callback: noop — page counter button, do nothing
+bot.action("noop", async (ctx) => {
+  safeAnswerCbQuery(ctx);
 });
 
 // ============================================
