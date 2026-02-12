@@ -551,11 +551,11 @@ async function runJob(job: any) {
     }
   }
 
-  // Avatar demo: send CTA message after sticker (instead of onboarding)
+  // Avatar demo: send action CTA + "send your own photo" prompt
   if (isAvatarDemo) {
     const ctaText = lang === "ru"
-      ? "🎉 Вот что получилось!\n\n📸 Пришли своё фото — результат будет ещё лучше!\n💡 Лучше всего подходит фото лица крупным планом"
-      : "🎉 Here's what I got!\n\n📸 Send your own photo — the result will be even better!\n💡 A close-up face photo works best";
+      ? "🎉 Вот что получилось!\n\n👇 Попробуй прямо сейчас:\n😊 **Изменить эмоцию** — сделай грустного, злого, влюблённого\n🏃 **Добавить движение** — танец, прыжок, бег\n💡 **Идеи для пака** — AI подберёт идеи для целого стикерпака!\n\n📸 Пришли своё фото — результат будет ещё лучше!"
+      : "🎉 Here's what I got!\n\n👇 Try it now:\n😊 **Change emotion** — make it sad, angry, in love\n🏃 **Add motion** — dance, jump, run\n💡 **Pack ideas** — AI will suggest ideas for a whole sticker pack!\n\n📸 Send your own photo — the result will be even better!";
     await sendMessage(telegramId, ctaText);
     console.log("[AvatarDemo] CTA sent to user:", telegramId);
   }
