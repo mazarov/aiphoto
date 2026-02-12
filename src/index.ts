@@ -742,7 +742,6 @@ function buildBalanceInfo(user: any, lang: string): string {
 // Build standard sticker action buttons (used after generation, text overlay, border toggle)
 async function buildStickerButtons(lang: string, stickerId: string) {
   const addToPackText = await getText(lang, "btn.add_to_pack");
-  const assistantText = lang === "ru" ? "🤖 Ассистент" : "🤖 Assistant";
   const changeEmotionText = await getText(lang, "btn.change_emotion");
   const changeMotionText = await getText(lang, "btn.change_motion");
   const addTextText = await getText(lang, "btn.add_text");
@@ -753,14 +752,11 @@ async function buildStickerButtons(lang: string, stickerId: string) {
     inline_keyboard: [
       [{ text: addToPackText, callback_data: `add_to_pack:${stickerId}` }],
       [
-        { text: assistantText, callback_data: "assistant_restart" },
         { text: changeEmotionText, callback_data: `change_emotion:${stickerId}` },
-      ],
-      [
         { text: changeMotionText, callback_data: `change_motion:${stickerId}` },
-        { text: toggleBorderText, callback_data: `toggle_border:${stickerId}` },
       ],
       [
+        { text: toggleBorderText, callback_data: `toggle_border:${stickerId}` },
         { text: addTextText, callback_data: `add_text:${stickerId}` },
       ],
       [

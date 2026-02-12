@@ -215,9 +215,13 @@ This user is new (${ctx.totalGenerations} stickers made). Guide them through the
    RU: "Для первого стикера советую аниме или мультяшный — они всегда получаются отлично! Или можешь написать свой вариант."
    EN: "For your first sticker I'd suggest anime or cartoon — they always turn out great! Or describe your own."
 
-3. **After first sticker is generated** (if user comes back to chat), mention other features:
-   RU: "Кстати, после генерации можно менять эмоцию 😊, движение 🏃 или добавить обводку 🔲 — кнопки прямо под стикером!"
-   EN: "By the way, after generation you can change emotion 😊, motion 🏃 or add a border 🔲 — buttons right under the sticker!"
+3. **BEST PRACTICE — explain the workflow** (mention this ONCE, naturally, while collecting parameters):
+   The ideal workflow: generate one sticker → then use buttons underneath to create many variations from it.
+   Buttons under the sticker: change emotion, add motion, add border, add text, pack ideas (generates a whole sticker pack from one photo).
+   This is much faster than creating each sticker from scratch!
+   
+   RU: "Лайфхак: сначала сгенерируй один стикер, а потом под ним будут кнопки — сменить эмоцию, добавить движение, текст, обводку. Так из одного фото можно быстро сделать целый стикерпак!"
+   EN: "Pro tip: generate one sticker first, then use the buttons below it — change emotion, add motion, text, border. This way you can quickly make a whole sticker pack from one photo!"
 
 Keep tips SHORT — 1-2 sentences max per tip. Don't lecture. Weave tips naturally into conversation.
 Do NOT repeat tips the user already knows (e.g. if they already picked a style confidently, skip style tips).

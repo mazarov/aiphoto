@@ -477,7 +477,6 @@ async function runJob(job: any) {
   console.log("onboarding_step:", onboardingStep, "isOnboardingFirstSticker:", isOnboardingFirstSticker, "isOnboardingEmotion:", isOnboardingEmotion);
 
   const addToPackText = await getText(lang, "btn.add_to_pack");
-  const assistantText = lang === "ru" ? "🤖 Ассистент" : "🤖 Assistant";
   const changeEmotionText = await getText(lang, "btn.change_emotion");
   const changeMotionText = await getText(lang, "btn.change_motion");
   const addTextText = await getText(lang, "btn.add_text");
@@ -489,14 +488,11 @@ async function runJob(job: any) {
     inline_keyboard: [
       [{ text: addToPackText, callback_data: stickerId ? `add_to_pack:${stickerId}` : "add_to_pack" }],
       [
-        { text: assistantText, callback_data: "assistant_restart" },
         { text: changeEmotionText, callback_data: stickerId ? `change_emotion:${stickerId}` : "change_emotion" },
-      ],
-      [
         { text: changeMotionText, callback_data: stickerId ? `change_motion:${stickerId}` : "change_motion" },
-        { text: toggleBorderText, callback_data: stickerId ? `toggle_border:${stickerId}` : "toggle_border" },
       ],
       [
+        { text: toggleBorderText, callback_data: stickerId ? `toggle_border:${stickerId}` : "toggle_border" },
         { text: addTextText, callback_data: stickerId ? `add_text:${stickerId}` : "add_text" },
       ],
       [
@@ -505,15 +501,9 @@ async function runJob(job: any) {
     ],
   };
 
-  // Send sticker (only "Add to pack" button during first onboarding step)
+  // Send sticker with full button set (including first-time users)
   console.time(timerLabel("step7_sendSticker"));
-  const onboardingMarkup = {
-    inline_keyboard: [
-      [{ text: addToPackText, callback_data: stickerId ? `add_to_pack:${stickerId}` : "add_to_pack" }],
-    ],
-  };
-  const stickerMarkup = isOnboardingFirstSticker ? onboardingMarkup : replyMarkup;
-  const stickerFileId = await sendSticker(telegramId, stickerBuffer, stickerMarkup);
+  const stickerFileId = await sendSticker(telegramId, stickerBuffer, replyMarkup);
   console.timeEnd(timerLabel("step7_sendSticker"));
 
   // Update telegram_file_id IMMEDIATELY after sending (before user can click buttons)
@@ -538,58 +528,21 @@ async function runJob(job: any) {
     console.log("assistant mode: onboarding_step updated to", newStep);
   }
 
-  // Onboarding messages and step updates (manual mode only)
+  // Onboarding message after first sticker (manual mode only)
   if (isOnboardingFirstSticker && stickerId) {
-    // First sticker: show emotion selection, update step to 1
+    // First sticker: explain buttons workflow, skip guided emotion step
     const onboardingText = lang === "ru"
-      ? "🎉 Вот твой первый стикер!\n\nА теперь давай оживим его — добавь эмоцию:"
-      : "🎉 Here's your first sticker!\n\nNow let's bring it to life — add an emotion:";
+      ? "🎉 Вот твой первый стикер!\n\n💡 Лайфхак: используй кнопки под стикером, чтобы быстро сделать целый стикерпак:\n\n😊 Сменить эмоцию\n🏃 Добавить движение\n🔲 Обводка\n💬 Текст на стикере\n💡 Идеи для пака — ИИ предложит варианты!\n\nТак из одного фото можно создать 10+ стикеров 🚀"
+      : "🎉 Here's your first sticker!\n\n💡 Pro tip: use the buttons below the sticker to quickly make a whole sticker pack:\n\n😊 Change emotion\n🏃 Add motion\n🔲 Border\n💬 Text on sticker\n💡 Pack ideas — AI suggests variations!\n\nThis way you can create 10+ stickers from one photo 🚀";
     
-    const onboardingEmotions = [
-      { emoji: "😂", id: "laughing", label_ru: "Смех", label_en: "Laughing" },
-      { emoji: "😎", id: "cool", label_ru: "Крутой", label_en: "Cool" },
-      { emoji: "😢", id: "sad", label_ru: "Грустный", label_en: "Sad" },
-      { emoji: "😡", id: "angry", label_ru: "Злой", label_en: "Angry" },
-    ];
-    
-    const emotionButtons = onboardingEmotions.map(e => [{
-      text: `${e.emoji} ${lang === "ru" ? e.label_ru : e.label_en}`,
-      callback_data: `onboarding_emotion:${stickerId}:${e.id}`,
-    }]);
-    
-    await sendMessage(telegramId, onboardingText, {
-      inline_keyboard: emotionButtons,
-    });
+    await sendMessage(telegramId, onboardingText);
 
-    // Update onboarding_step to 1
-    await supabase
-      .from("users")
-      .update({ onboarding_step: 1 })
-      .eq("id", session.user_id);
-    console.log("onboarding_step updated to 1");
-  }
-  else if (isOnboardingEmotion) {
-    // Emotion during onboarding: show final message, update step to 2
-    const finalText = lang === "ru"
-      ? "🔥 Отлично! Теперь ты умеешь создавать живые стикеры.\n\nЕщё можно:\n🏃 Добавить движение\n💬 Написать текст на стикере\n\nХочешь создать ещё?"
-      : "🔥 Awesome! Now you know how to create lively stickers.\n\nYou can also:\n🏃 Add motion\n💬 Add text to sticker\n\nWant to create more?";
-    
-    const buyText = lang === "ru" ? "🛒 Купить кредиты" : "🛒 Buy credits";
-    const newPhotoText = lang === "ru" ? "📷 Новое фото" : "📷 New photo";
-    
-    await sendMessage(telegramId, finalText, {
-      inline_keyboard: [
-        [{ text: buyText, callback_data: "buy_credits" }],
-        [{ text: newPhotoText, callback_data: "new_photo" }],
-      ],
-    });
-
-    // Update onboarding_step to 2
+    // Skip guided emotion step, go straight to step 2 (onboarding complete)
     await supabase
       .from("users")
       .update({ onboarding_step: 2 })
       .eq("id", session.user_id);
-    console.log("onboarding_step updated to 2");
+    console.log("onboarding_step updated to 2 (skipped guided emotion step)");
   }
 
   // Send sticker notification (async, non-blocking)
