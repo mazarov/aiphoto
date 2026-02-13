@@ -124,17 +124,47 @@ flowchart TD
 - Нотификация в алерт-канал (новый стикер)
 - Инкремент `total_generations` у пользователя
 
-## Типы генерации
+## Цепочка генерации (бизнес-логика)
 
-| Тип | Описание | Промпт |
-|-----|----------|--------|
-| `style` | Новый стикер в выбранном стиле | style preset prompt_hint |
-| `emotion` | Изменение эмоции существующего стикера | emotion preset + предыдущий стикер |
-| `motion` | Изменение позы/движения | motion preset + предыдущий стикер |
-| `text` | Генерация с текстом (legacy, через AI) | user text + предыдущий стикер |
+```
+Фото (AgAC) ──[style]──> Стикер (CAAC)
+                               │
+                     ┌─────────┼─────────┐
+                     ▼         ▼         ▼
+               [emotion]   [motion]   [text]
+                     │         │         │
+                     ▼         ▼         ▼
+               Новый стикер (CAAC) ──> [emotion/motion] ──> ...
+```
 
-Для `emotion`/`motion`/`text` — входным изображением служит предыдущий стикер
-(`session.last_sticker_file_id`), а не оригинальное фото.
+### Правила
+
+- **Style** — ТОЛЬКО из оригинального фото пользователя (AgAC)
+- **Emotion / Motion** — ТОЛЬКО из ранее созданного стикера (CAAC), НИКОГДА из фото
+- **Text** — оверлей поверх стикера, генерация через Gemini не используется
+- Цепочки произвольной длины: style → motion → emotion → motion → ...
+
+### Типы генерации
+
+| Тип | Источник (input) | `source_photo_file_id` в БД | Промпт |
+|-----|-----------------|----------------------------|--------|
+| `style` | Оригинальное фото (AgAC) | Оригинальное фото (AgAC) | style preset prompt_hint |
+| `emotion` | Предыдущий стикер (CAAC) | Этот же стикер (CAAC) | emotion preset + стикер |
+| `motion` | Предыдущий стикер (CAAC) | Этот же стикер (CAAC) | motion preset + стикер |
+| `text` | Нет генерации | — | текстовый оверлей |
+
+### Код определения источника
+
+```typescript
+// worker.ts — определение sourceFileId
+const sourceFileId =
+  generationType === "emotion" || generationType === "motion" || generationType === "text"
+    ? session.last_sticker_file_id    // стикер (CAAC)
+    : session.current_photo_file_id;  // оригинальное фото (AgAC)
+
+// source_photo_file_id в БД = всегда sourceFileId
+const savedSourcePhotoFileId = sourceFileId;
+```
 
 ## Конфигурация
 

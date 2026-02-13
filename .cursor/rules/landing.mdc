@@ -1,0 +1,79 @@
+---
+description: Rules for the landing page submodule (deploy, stack, conventions)
+globs: landing/**
+alwaysApply: false
+---
+
+# Landing Page
+
+## Общее
+
+Лендинг — **отдельный git submodule** (`landing/`), репо: `https://github.com/mazarov/photo2sticker.git`.
+Коммиты в файлы `landing/` делаются **внутри submodule** (отдельная git-история).
+
+## Стек
+
+- **React 19** + **Vite 7** + **TailwindCSS 4** (tw-animate-css, shadcn/ui)
+- **Framer Motion** — анимации
+- **Express** — dev-сервер (server/)
+- **nginx** — продакшн (static SPA)
+- **TypeScript 5.6**
+
+## Структура
+
+```
+landing/
+├── client/src/
+│   ├── App.tsx              — точка входа (рендерит Home)
+│   ├── pages/home.tsx       — главная страница
+│   ├── components/landing/  — секции лендинга (Hero, Features, FAQ, etc.)
+│   ├── components/ui/       — UI-компоненты (shadcn/ui)
+│   └── lib/utils.ts         — утилиты (cn, buildTelegramStartLink)
+├── server/                  — Express dev-сервер
+├── Dockerfile               — multi-stage: node build → nginx
+├── nginx.conf               — SPA fallback + gzip + cache
+└── vercel.json              — альтернативный деплой на Vercel
+```
+
+## Деплой на Dockhost
+
+### Сборка и пуш Docker-образа
+```bash
+cd landing
+docker build --platform linux/amd64 -t mazarov/p2s-landing:latest .
+docker push mazarov/p2s-landing:latest
+```
+⚠️ **Обязательно `--platform linux/amd64`** — Dockhost использует amd64.
+
+### Контейнер
+- **Порт:** 80 (nginx)
+- **Health check:** `GET /health` → 200 "OK"
+- **Без env vars** — статический SPA, конфиг вкомпилирован при сборке
+
+### После деплоя
+- Проверить: `curl https://<landing-domain>/health`
+- Проверить SPA routing: открыть любой URL → должен отдать index.html
+
+## Соглашения
+
+- Все кнопки «Открыть бота» используют `buildTelegramStartLink()` из `lib/utils.ts`
+- Deep link формат: `https://t.me/Photo_2_StickerBot?start={utm_payload}`
+- UTM параметры из URL пробрасываются в start payload бота
+- Новые секции добавлять в `client/src/components/landing/` и подключать в `pages/home.tsx`
+
+## Git workflow (submodule)
+
+```bash
+# Работа с лендингом
+cd landing
+git checkout -b feature/my-change
+# ... изменения ...
+git add . && git commit -m "feat: my change"
+git push origin feature/my-change
+
+# После мержа в main лендинга — обновить ссылку в основном репо
+cd ..
+git add landing
+git commit -m "chore: update landing submodule"
+git push
+```

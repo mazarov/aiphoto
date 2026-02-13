@@ -32,11 +32,12 @@
 ## Деплой
 
 ### Архитектура
-Проект работает на **Dockhost** — 4 отдельных Docker-контейнера, каждый со своим Dockerfile:
+Проект работает на **Dockhost** — 5 контейнеров, каждый со своим Dockerfile:
 - `Dockerfile.api` → API бот (Telegram webhook / long polling)
 - `Dockerfile.worker` → Воркер генерации стикеров
 - `Dockerfile.support` → Саппорт бот
 - `Dockerfile.rembg` → Self-hosted rembg сервер (удаление фона)
+- `landing/Dockerfile` → Лендинг (Vite SPA + nginx)
 
 ### Rebuild rembg образа (при смене модели/кода rembg_server.py)
 Dockerfile.rembg тянет pre-built образ из Docker Hub. Сборка вручную — из папки проекта:
@@ -99,10 +100,19 @@ src/
     ├── telegram.ts — утилиты Telegram API
     └── texts.ts    — локализация (ru/en)
 
+landing/        — лендинг (git submodule, отдельный репо)
 docs/           — требования и документация
 docs/done/      — завершённые фичи
 sql/            — миграции (нумерация 001, 002...)
 ```
+
+## Landing (submodule)
+
+Лендинг подключен как git submodule из `https://github.com/mazarov/photo2sticker.git` → папка `landing/`.
+
+- **Отдельный репозиторий** — коммиты в `landing/` делаются внутри submodule
+- **Обновление submodule:** `cd landing && git pull origin main && cd .. && git add landing && git commit -m "chore: update landing submodule"`
+- **Деплой лендинга** — см. правило `landing.mdc`
 
 ## Локализация
 

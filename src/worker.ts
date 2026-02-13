@@ -465,7 +465,10 @@ async function runJob(job: any) {
   const filePathStorage = `stickers/${session.user_id}/${session.id}/${Date.now()}.webp`;
 
   // Insert sticker record first to get ID for callback_data
-  const savedSourcePhotoFileId = generationType === "emotion" ? session.current_photo_file_id : sourceFileId;
+  // For all generation types, source_photo_file_id = sourceFileId:
+  // - style: sourceFileId = original photo (AgAC)
+  // - emotion/motion/text: sourceFileId = previous sticker (CAAC)
+  const savedSourcePhotoFileId = sourceFileId;
   console.log("[Worker] Saving sticker with source_photo_file_id:", {
     generationType,
     savedSourcePhotoFileId: savedSourcePhotoFileId?.substring(0, 30) + "...",
