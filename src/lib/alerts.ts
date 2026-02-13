@@ -4,16 +4,13 @@ type AlertType =
   | "generation_failed" 
   | "generation_started"
   | "gemini_error" 
-  | "rembg_failed" 
   | "worker_error" 
   | "api_error"
   | "not_enough_credits"
   | "paywall_shown"
   | "assistant_gemini_error"
   | "trial_credit_granted"
-  | "trial_credit_denied"
-  | "idea_generated"
-  | "onboarding_completed";
+  | "trial_credit_denied";
 
 interface AlertOptions {
   type: AlertType;
@@ -26,7 +23,6 @@ const EMOJI: Record<AlertType, string> = {
   generation_failed: "🟡",
   generation_started: "🚀",
   gemini_error: "🟠",
-  rembg_failed: "🟠",
   worker_error: "🔴",
   api_error: "🔴",
   not_enough_credits: "💸",
@@ -34,8 +30,6 @@ const EMOJI: Record<AlertType, string> = {
   assistant_gemini_error: "🤖",
   trial_credit_granted: "🎁",
   trial_credit_denied: "❌",
-  idea_generated: "💡",
-  onboarding_completed: "🎓",
 };
 
 export async function sendAlert(options: AlertOptions): Promise<void> {

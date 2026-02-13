@@ -1,13 +1,11 @@
 import axios from "axios";
 import os from "os";
-import FormData from "form-data";
 import sharp from "sharp";
 import { config } from "./config";
 import { supabase } from "./lib/supabase";
-import { getFilePath, downloadFile, sendMessage, sendSticker, editMessageText, deleteMessage } from "./lib/telegram";
+import { getFilePath, downloadFile, sendMessage, sendPhoto, editMessageText, deleteMessage } from "./lib/telegram";
 import { getText } from "./lib/texts";
 import { sendAlert, sendNotification } from "./lib/alerts";
-import { chromaKeyGreen, fullChromaKey, getGreenPixelRatio, despillGreenEdges } from "./lib/image-utils";
 import { getAppConfig } from "./lib/app-config";
 
 async function sleep(ms: number) {
@@ -43,60 +41,35 @@ async function retryWithBackoff<T>(
 const WORKER_ID = `${os.hostname()}-${process.pid}-${Date.now()}`;
 console.log(`Worker started: ${WORKER_ID}`);
 
-/**
- * Call rembg HTTP API to remove background.
- * Returns buffer with transparent background, or undefined if failed.
- */
-async function callRembg(imageBuffer: Buffer, rembgUrl: string | undefined, imageSizeKb: number): Promise<Buffer | undefined> {
-  if (!rembgUrl) return undefined;
+// Quality presets: max dimension in pixels
+const QUALITY_MAP: Record<string, number> = {
+  fhd: 1920,
+  "2k": 2560,
+  "4k": 3840,
+};
+
+// Parse aspect ratio string (e.g. "16:9") into {w, h}
+function parseAspectRatio(ratio: string): { w: number; h: number } {
+  const parts = ratio.split(":");
+  if (parts.length === 2) {
+    const w = parseInt(parts[0], 10);
+    const h = parseInt(parts[1], 10);
+    if (w > 0 && h > 0) return { w, h };
+  }
+  return { w: 1, h: 1 }; // default square
+}
+
+// Calculate output dimensions from aspect ratio and quality
+function getOutputDimensions(aspectRatio: string, quality: string): { width: number; height: number } {
+  const maxSide = QUALITY_MAP[quality] || 1920;
+  const { w, h } = parseAspectRatio(aspectRatio);
   
-  try {
-    // Resize image for faster rembg processing (max 512px)
-    const rembgBuffer = await sharp(imageBuffer)
-      .resize(512, 512, { fit: "inside", withoutEnlargement: true })
-      .png()
-      .toBuffer();
-    const rembgSizeKb = Math.round(rembgBuffer.length / 1024);
-    console.log(`[rembg] Starting request to ${rembgUrl} (resized: ${rembgSizeKb} KB, original: ${imageSizeKb} KB)`);
-    
-    // Health check
-    try {
-      const healthStart = Date.now();
-      const healthRes = await axios.get(`${rembgUrl}/health`, { timeout: 5000 });
-      console.log(`[rembg] Health check OK (${Date.now() - healthStart}ms):`, healthRes.data);
-    } catch (healthErr: any) {
-      console.error(`[rembg] Health check FAILED: ${healthErr.code || healthErr.message}`);
-    }
-    
-    const rembgForm = new FormData();
-    rembgForm.append("image", rembgBuffer, {
-      filename: "image.png",
-      contentType: "image/png",
-    });
-    
-    let attemptNum = 0;
-    const rembgRes = await retryWithBackoff(
-      () => {
-        attemptNum++;
-        const attemptStart = Date.now();
-        console.log(`[rembg] Attempt ${attemptNum}/2 starting...`);
-        return axios.post(`${rembgUrl}/remove-background`, rembgForm, {
-          headers: rembgForm.getHeaders(),
-          responseType: "arraybuffer",
-          timeout: 90000,
-        }).then(res => {
-          console.log(`[rembg] Attempt ${attemptNum} completed in ${Date.now() - attemptStart}ms`);
-          return res;
-        });
-      },
-      { maxAttempts: 2, baseDelayMs: 3000, name: "rembg" }
-    );
-    const processingTime = rembgRes.headers?.['x-processing-time-ms'] || 'unknown';
-    console.log(`[rembg] SUCCESS server_processing=${processingTime}ms`);
-    return Buffer.from(rembgRes.data);
-  } catch (rembgErr: any) {
-    console.error(`[rembg] FAILED: ${rembgErr.code || 'none'} — ${rembgErr.message}`);
-    return undefined;
+  if (w >= h) {
+    // Landscape or square: width = maxSide
+    return { width: maxSide, height: Math.round(maxSide * h / w) };
+  } else {
+    // Portrait: height = maxSide
+    return { width: Math.round(maxSide * w / h), height: maxSide };
   }
 }
 
@@ -113,7 +86,7 @@ async function runJob(job: any) {
 
   const { data: user } = await supabase
     .from("users")
-    .select("telegram_id, lang, sticker_set_name, username, credits, total_generations, onboarding_step")
+    .select("telegram_id, lang, username, credits, total_generations, onboarding_step")
     .eq("id", session.user_id)
     .maybeSingle();
 
@@ -146,26 +119,16 @@ async function runJob(job: any) {
   }
 
   const photos = Array.isArray(session.photos) ? session.photos : [];
-  // Determine generation type: trust state over generation_type column (state is always correct)
-  const generationType =
-    session.state === "processing_emotion" ? "emotion" : 
-    session.state === "processing_motion" ? "motion" :
-    session.state === "processing_text" ? "text" :
-    session.generation_type || "style";
+  const generationType = session.generation_type || "style";
 
-  const sourceFileId =
-    generationType === "emotion" || generationType === "motion" || generationType === "text"
-      ? session.last_sticker_file_id
-      : session.current_photo_file_id || photos[photos.length - 1];
+  // Source: always original photo (no sticker chain in photo bot)
+  const sourceFileId = session.current_photo_file_id || photos[photos.length - 1];
 
-  // Debug logging for source file
   console.log("[Worker] Source file debug:", {
     generationType,
     sourceFileId: sourceFileId?.substring(0, 30) + "...",
     "session.current_photo_file_id": session.current_photo_file_id?.substring(0, 30) + "...",
-    "session.last_sticker_file_id": session.last_sticker_file_id?.substring(0, 30) + "...",
     "photos.length": photos.length,
-    "photos[last]": photos[photos.length - 1]?.substring(0, 30) + "...",
   });
 
   if (!sourceFileId) {
@@ -186,22 +149,19 @@ async function runJob(job: any) {
   await updateProgress(3);
   console.log("Calling Gemini image generation...");
   console.log("generationType:", generationType);
-  console.log("session.generation_type:", session.generation_type);
-  console.log("session.state:", session.state);
   console.log("Full prompt:", session.prompt_final);
-  console.log("text_prompt:", session.text_prompt);
 
-  // Model selection from app_config (changeable at runtime via Supabase, cached 60s)
-  const model = 
-    generationType === "emotion" ? await getAppConfig("gemini_model_emotion", "gemini-2.5-flash-image") :
-    generationType === "motion"  ? await getAppConfig("gemini_model_motion",  "gemini-2.5-flash-image") :
-    await getAppConfig("gemini_model_style", "gemini-3-pro-image-preview");
-  console.log("Using model:", model, "generationType:", generationType);
+  // Read generation parameters from session (set during flow in index.ts)
+  const selectedModel = session.selected_model || await getAppConfig("gemini_model_style", "gemini-3-pro-image-preview");
+  const selectedAspectRatio = session.selected_aspect_ratio || "1:1";
+  const selectedQuality = session.selected_quality || "fhd";
+  
+  console.log("Using model:", selectedModel, "aspectRatio:", selectedAspectRatio, "quality:", selectedQuality);
 
   let geminiRes;
   try {
     geminiRes = await axios.post(
-      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+      `https://generativelanguage.googleapis.com/v1beta/models/${selectedModel}:generateContent`,
       {
         contents: [
           {
@@ -219,7 +179,7 @@ async function runJob(job: any) {
         ],
         generationConfig: {
           responseModalities: ["IMAGE", "TEXT"],
-          imageConfig: { aspectRatio: "1:1" },
+          imageConfig: { aspectRatio: selectedAspectRatio },
         },
       },
       {
@@ -272,7 +232,6 @@ async function runJob(job: any) {
       },
     });
 
-    // Send user-friendly message with retry button and refund
     const lang = user?.lang || "en";
     const blockedMsg = lang === "ru"
       ? "⚠️ Не удалось обработать это фото в выбранном стиле.\n\nПопробуй другое фото или другой стиль.\nКредит возвращён на баланс."
@@ -291,7 +250,6 @@ async function runJob(job: any) {
       .update({ credits: (user?.credits || 0) + creditsToRefund })
       .eq("id", session.user_id);
 
-    // Mark job as done (not error — handled gracefully)
     return;
   }
 
@@ -320,478 +278,104 @@ async function runJob(job: any) {
 
   console.log("Image generated successfully");
 
-  await updateProgress(4);
+  await updateProgress(5);
   const generatedBuffer = Buffer.from(imageBase64, "base64");
 
-  // Pre-check: calculate green pixel ratio on original image (before rembg)
-  // Used later to decide whether chroma key cleanup is needed
-  let greenRatio = 0;
-  try {
-    const rawOriginal = await sharp(generatedBuffer).ensureAlpha().raw().toBuffer();
-    greenRatio = getGreenPixelRatio(rawOriginal, 4);
-    console.log(`[chromaKey] Green pixel ratio in original image: ${(greenRatio * 100).toFixed(1)}%`);
-  } catch (err: any) {
-    console.error(`[chromaKey] Failed to calculate green ratio: ${err.message}`);
-  }
-
-  await updateProgress(5);
   // ============================================================
-  // Smart background removal — route by green pixel ratio
+  // Photo processing: resize by quality + aspect ratio
+  // No background removal needed for AI Photo Bot
   // ============================================================
-  // greenRatio > 40%  → fullChromaKey only (skip rembg — fast, reliable)
-  // greenRatio 5-40%  → fullChromaKey first, then rembg to clean up
-  // greenRatio < 5%   → rembg only (Gemini didn't draw green BG)
-  // ============================================================
-  const imageSizeKb = Math.round(generatedBuffer.length / 1024);
-  const rembgUrl = process.env.REMBG_URL;
-  
-  let noBgBuffer: Buffer | undefined;
-  const startTime = Date.now();
+  const { width: targetWidth, height: targetHeight } = getOutputDimensions(selectedAspectRatio, selectedQuality);
+  console.log(`[photo] Resizing to ${targetWidth}x${targetHeight} (${selectedAspectRatio}, ${selectedQuality})`);
 
-  if (greenRatio > 0.40) {
-    // === PATH A: High green ratio — chroma key only, skip rembg ===
-    console.log(`[bgRemoval] PATH A: greenRatio=${(greenRatio * 100).toFixed(1)}% > 40% — using fullChromaKey only (skip rembg)`);
-    try {
-      const ckStart = Date.now();
-      noBgBuffer = await fullChromaKey(generatedBuffer);
-      console.log(`[bgRemoval] fullChromaKey done in ${Date.now() - ckStart}ms`);
-    } catch (err: any) {
-      console.error(`[bgRemoval] fullChromaKey failed: ${err.message} — falling back to rembg`);
-      // Fall through to rembg below
-      noBgBuffer = undefined as any;
-    }
-  } else if (greenRatio > 0.05) {
-    // === PATH B: Medium green ratio — chroma key first, then rembg ===
-    console.log(`[bgRemoval] PATH B: greenRatio=${(greenRatio * 100).toFixed(1)}% (5-40%) — fullChromaKey + rembg`);
-    try {
-      const ckStart = Date.now();
-      const chromaResult = await fullChromaKey(generatedBuffer);
-      console.log(`[bgRemoval] fullChromaKey pre-pass done in ${Date.now() - ckStart}ms`);
-      // Now pass chroma key result to rembg for final cleanup
-      noBgBuffer = await callRembg(chromaResult, rembgUrl, imageSizeKb);
-    } catch (err: any) {
-      console.error(`[bgRemoval] PATH B failed: ${err.message} — trying rembg on original`);
-      noBgBuffer = undefined as any;
-    }
-  } else {
-    // === PATH C: Low/no green ratio — rembg only ===
-    console.log(`[bgRemoval] PATH C: greenRatio=${(greenRatio * 100).toFixed(1)}% < 5% — rembg only`);
-  }
-
-  // If no result yet, call rembg on original image
-  if (!noBgBuffer) {
-    noBgBuffer = await callRembg(generatedBuffer, rembgUrl, imageSizeKb);
-  }
-  
-  // If rembg also failed, fallback to Pixian
-  if (!noBgBuffer) {
-    console.log(`Calling Pixian to remove background... (image size: ${imageSizeKb} KB)`);
-    const pixianForm = new FormData();
-    pixianForm.append("image", generatedBuffer, {
-      filename: "image.png",
-      contentType: "image/png",
-    });
-
-    try {
-      const pixianRes = await retryWithBackoff(
-        () => axios.post("https://api.pixian.ai/api/v2/remove-background", pixianForm, {
-          auth: {
-            username: config.pixianUsername,
-            password: config.pixianPassword,
-          },
-          headers: pixianForm.getHeaders(),
-          responseType: "arraybuffer",
-          timeout: 60000,
-        }),
-        { maxAttempts: 3, baseDelayMs: 2000, name: "Pixian" }
-      );
-      const duration = Date.now() - startTime;
-      console.log(`Pixian background removal successful (took ${duration}ms)`);
-      noBgBuffer = Buffer.from(pixianRes.data);
-    } catch (err: any) {
-      const duration = Date.now() - startTime;
-      
-      console.error("=== Background removal failed (all methods) ===");
-      console.error("Status:", err.response?.status || "no status");
-      console.error("Message:", err.message);
-      console.error("Code:", err.code);
-      console.error("Duration:", duration, "ms");
-      
-      await sendAlert({
-        type: "rembg_failed",
-        message: `Background removal failed: ${err.response?.status || err.code || "unknown"} ${err.message}`,
-        details: { 
-          user: `@${user?.username || telegramId}`,
-          sessionId: session.id,
-          generationType,
-          styleId: session.selected_style_id || "-",
-          imageSizeKb,
-          durationMs: duration,
-          errorCode: err.code,
-          rembgConfigured: !!rembgUrl,
-        },
-      });
-      throw new Error(`Background removal failed: ${err.message}`);
-    }
-  }
-
-  const bgDuration = Date.now() - startTime;
-  console.log(`[bgRemoval] Total background removal took ${bgDuration}ms`);
-
-  await updateProgress(6);
-
-  // At this point noBgBuffer is guaranteed to be set (or we threw above)
-  const bgRemovedBuffer = noBgBuffer!;
-
-  // Final chroma key cleanup: catch any remaining green artifacts
-  let cleanedBuffer: Buffer = bgRemovedBuffer;
-  if (greenRatio > 0.05) {
-    try {
-      const ckStart = Date.now();
-      cleanedBuffer = await chromaKeyGreen(bgRemovedBuffer);
-      console.log(`[chromaKey] Final cleanup done in ${Date.now() - ckStart}ms`);
-    } catch (err: any) {
-      console.error(`[chromaKey] Final cleanup failed, using previous output: ${err.message}`);
-      cleanedBuffer = bgRemovedBuffer;
-    }
-  } else {
-    console.log(`[chromaKey] Final cleanup skipped — green ratio ${(greenRatio * 100).toFixed(1)}% below 5%`);
-  }
-
-  // Despill: remove green fringing from edges (2 passes)
-  try {
-    const dsStart = Date.now();
-    cleanedBuffer = await despillGreenEdges(cleanedBuffer, 2);
-    console.log(`[despill] Edge cleanup done in ${Date.now() - dsStart}ms`);
-  } catch (err: any) {
-    console.error(`[despill] Edge cleanup failed, using previous output: ${err.message}`);
-  }
-
-  // Trim transparent borders and fit into 512x512 with 10px padding for border
-  const stickerBuffer = await sharp(cleanedBuffer)
-    .trim({ threshold: 2 })
-    .resize(492, 492, {
-      fit: "contain",
-      background: { r: 0, g: 0, b: 0, alpha: 0 },
+  const photoBuffer = await sharp(generatedBuffer)
+    .resize(targetWidth, targetHeight, {
+      fit: "cover",
+      position: "center",
     })
-    .extend({
-      top: 10, bottom: 10, left: 10, right: 10,
-      background: { r: 0, g: 0, b: 0, alpha: 0 },
-    })
-    .webp()
+    .png()
     .toBuffer();
 
   await updateProgress(7);
-  const filePathStorage = `stickers/${session.user_id}/${session.id}/${Date.now()}.webp`;
+  const filePathStorage = `photos/${session.user_id}/${session.id}/${Date.now()}.png`;
 
-  // Insert sticker record first to get ID for callback_data
-  // For all generation types, source_photo_file_id = sourceFileId:
-  // - style: sourceFileId = original photo (AgAC)
-  // - emotion/motion/text: sourceFileId = previous sticker (CAAC)
-  const savedSourcePhotoFileId = sourceFileId;
-  console.log("[Worker] Saving sticker with source_photo_file_id:", {
-    generationType,
-    savedSourcePhotoFileId: savedSourcePhotoFileId?.substring(0, 30) + "...",
-    "session.current_photo_file_id": session.current_photo_file_id?.substring(0, 30) + "...",
-    sourceFileId: sourceFileId?.substring(0, 30) + "...",
-  });
-  
-  const timerLabel = (name: string) => `${name}:${job.id.substring(0, 8)}`;
-  console.time(timerLabel("step7_insert"));
-  // Determine idea_source from session (if sticker generated from pack idea)
-  const ideaSource = (() => {
-    if (session.pack_ideas?.length > 0 && session.generated_from_ideas?.length > 0) {
-      const ideas = session.generated_from_ideas || [];
-      return ideas[ideas.length - 1] || null;
-    }
-    return null;
-  })();
-
-  const { data: stickerRecord } = await supabase
+  // Insert result record
+  const { data: resultRecord } = await supabase
     .from("stickers")
     .insert({
       user_id: session.user_id,
       session_id: session.id,
-      source_photo_file_id: savedSourcePhotoFileId,
+      source_photo_file_id: sourceFileId,
       user_input: session.user_input || null,
       generated_prompt: session.prompt_final || null,
       result_storage_path: filePathStorage,
-      sticker_set_name: user?.sticker_set_name || null,
-      style_preset_id: session.selected_style_id || null,  // For style examples
-      idea_source: ideaSource,
+      style_preset_id: session.selected_style_id || null,
       env: config.appEnv,
     })
     .select("id")
     .single();
-  console.timeEnd(timerLabel("step7_insert"));
 
-  const stickerId = stickerRecord?.id;
-  console.log("stickerId after insert:", stickerId);
+  const resultId = resultRecord?.id;
+  console.log("resultId after insert:", resultId);
 
-  // Onboarding logic - determine UI based on onboarding_step
-  // Skip hardcoded onboarding for assistant mode — AI handles the guidance
-  // Skip for avatar_demo — it's a free preview, not a real generation
-  const isAvatarDemo = generationType === "avatar_demo";
-  const isAssistantMode = session.selected_style_id === "assistant";
-  const onboardingStep = user.onboarding_step ?? 99;
-  const isOnboardingFirstSticker = !isAssistantMode && !isAvatarDemo && onboardingStep === 0 && generationType === "style";
-  const isOnboardingEmotion = !isAssistantMode && !isAvatarDemo && onboardingStep === 1 && generationType === "emotion";
-  
-  console.log("onboarding_step:", onboardingStep, "isOnboardingFirstSticker:", isOnboardingFirstSticker, "isOnboardingEmotion:", isOnboardingEmotion);
+  // Buttons for result photo
+  const downloadText = lang === "ru" ? "📥 Скачать" : "📥 Download";
+  const newStyleText = lang === "ru" ? "🎨 Другой стиль" : "🎨 Another style";
+  const newPhotoText = lang === "ru" ? "📷 Новое фото" : "📷 New photo";
 
-  const addToPackText = await getText(lang, "btn.add_to_pack");
-  const changeEmotionText = await getText(lang, "btn.change_emotion");
-  const changeMotionText = await getText(lang, "btn.change_motion");
-  const addTextText = await getText(lang, "btn.add_text");
-  const toggleBorderText = await getText(lang, "btn.toggle_border");
-  const packIdeasText = lang === "ru" ? "💡 Идеи для пака" : "💡 Pack ideas";
-
-  // Use sticker ID in callback_data for message binding
   const replyMarkup = {
     inline_keyboard: [
-      [{ text: addToPackText, callback_data: stickerId ? `add_to_pack:${stickerId}` : "add_to_pack" }],
       [
-        { text: changeEmotionText, callback_data: stickerId ? `change_emotion:${stickerId}` : "change_emotion" },
-        { text: changeMotionText, callback_data: stickerId ? `change_motion:${stickerId}` : "change_motion" },
-      ],
-      [
-        { text: toggleBorderText, callback_data: stickerId ? `toggle_border:${stickerId}` : "toggle_border" },
-        { text: addTextText, callback_data: stickerId ? `add_text:${stickerId}` : "add_text" },
-      ],
-      [
-        { text: packIdeasText, callback_data: stickerId ? `pack_ideas:${stickerId}` : "pack_ideas" },
+        { text: newStyleText, callback_data: "new_style" },
+        { text: newPhotoText, callback_data: "new_photo" },
       ],
     ],
   };
 
-  // Send sticker with full button set (including first-time users)
-  console.time(timerLabel("step7_sendSticker"));
-  const stickerFileId = await sendSticker(telegramId, stickerBuffer, replyMarkup);
-  console.timeEnd(timerLabel("step7_sendSticker"));
+  // Send result as photo
+  console.log("[photo] Sending result photo to user...");
+  const photoFileId = await sendPhoto(telegramId, photoBuffer, replyMarkup);
 
-  // Update telegram_file_id IMMEDIATELY after sending (before user can click buttons)
-  console.log("Updating sticker with telegram_file_id:", stickerId, "fileId:", stickerFileId?.substring(0, 30) + "...");
-  if (stickerId && stickerFileId) {
+  // Update telegram_file_id
+  if (resultId && photoFileId) {
     await supabase
       .from("stickers")
-      .update({ telegram_file_id: stickerFileId })
-      .eq("id", stickerId);
-    console.log("sticker telegram_file_id updated successfully");
-  } else {
-    console.log(">>> WARNING: skipped telegram_file_id update, stickerId:", stickerId, "stickerFileId:", !!stickerFileId);
+      .update({ telegram_file_id: photoFileId })
+      .eq("id", resultId);
+    console.log("result telegram_file_id updated successfully");
   }
 
-  // Advance onboarding_step (for both assistant and manual mode)
-  // Skip for avatar_demo — don't touch onboarding state
-  if (!isAvatarDemo && onboardingStep < 2) {
-    const newStep = Math.min(onboardingStep + 1, 2);
-    await supabase
-      .from("users")
-      .update({ onboarding_step: newStep })
-      .eq("id", session.user_id);
-    console.log("onboarding_step updated to", newStep);
-  }
-
-  // Post-generation CTA: show after first sticker (both assistant and manual mode)
-  // Only for style generation (not emotion/motion iterations)
-  if (!isAvatarDemo && onboardingStep <= 1 && generationType === "style" && stickerId) {
-    const onboardingText = lang === "ru"
-      ? "👇 Попробуй прямо сейчас:\n😊 **Изменить эмоцию** — сделай грустного, злого, влюблённого\n🏃 **Добавить движение** — танец, прыжок, бег\n💡 **Идеи для пака** — AI подберёт идеи для целого стикерпака!"
-      : "👇 Try it now:\n😊 **Change emotion** — make it sad, angry, in love\n🏃 **Add motion** — dance, jump, run\n💡 **Pack ideas** — AI will suggest ideas for a whole sticker pack!";
-    
-    await sendMessage(telegramId, onboardingText);
-    console.log("post-generation CTA sent, onboardingStep:", onboardingStep);
-
-    // Mark onboarding complete
-    if (onboardingStep < 2) {
-      await supabase
-        .from("users")
-        .update({ onboarding_step: 2 })
-        .eq("id", session.user_id);
-      console.log("onboarding_step updated to 2 (complete)");
-    }
-  }
-
-  // Avatar demo: send action CTA + "send your own photo" prompt
-  if (isAvatarDemo) {
-    const ctaText = lang === "ru"
-      ? "🎉 Вот что получилось!\n\n👇 Попробуй прямо сейчас:\n😊 **Изменить эмоцию** — сделай грустного, злого, влюблённого\n🏃 **Добавить движение** — танец, прыжок, бег\n💡 **Идеи для пака** — AI подберёт идеи для целого стикерпака!\n\n📸 Пришли своё фото — результат будет ещё лучше!"
-      : "🎉 Here's what I got!\n\n👇 Try it now:\n😊 **Change emotion** — make it sad, angry, in love\n🏃 **Add motion** — dance, jump, run\n💡 **Pack ideas** — AI will suggest ideas for a whole sticker pack!\n\n📸 Send your own photo — the result will be even better!";
-    await sendMessage(telegramId, ctaText);
-    console.log("[AvatarDemo] CTA sent to user:", telegramId);
-  }
-
-  // Send sticker notification (async, non-blocking)
-  const emotionText = session.selected_emotion || "-";
-  const motionText = generationType === "motion" ? (session.selected_emotion || "-") : "-";
-  const textText = session.text_prompt ? `"${session.text_prompt}"` : "-";
-  
+  // Send result notification (async, non-blocking)
   sendNotification({
     type: "new_sticker",
     message: [
       `👤 @${user.username || telegramId} (${telegramId})`,
       `💰 Кредиты: ${user.credits}`,
       `🎨 Стиль: ${session.selected_style_id || "-"}`,
-      `😊 Эмоция: ${emotionText}`,
-      `🏃 Движение: ${motionText}`,
-      `✍️ Текст: ${textText}`,
+      `📐 Формат: ${selectedAspectRatio}`,
+      `📏 Качество: ${selectedQuality}`,
     ].join("\n"),
     sourceImageBuffer: fileBuffer,
-    resultImageBuffer: stickerBuffer,
-    stickerId: stickerId || undefined,  // For "Make example" button
-    styleId: session.selected_style_id || undefined,
+    resultImageBuffer: photoBuffer,
   }).catch(console.error);
-
-  // Send rating request — DISABLED (temporarily, to reduce noise)
-  const skipRating = true; // was: isOnboardingFirstSticker || isAvatarDemo;
-  const ratingDelay = isOnboardingEmotion ? 30000 : 3000;  // 30s for onboarding, 3s normally
-  if (stickerId && !skipRating) {
-    setTimeout(async () => {
-      try {
-        // Create rating record
-        const { data: ratingRecord } = await supabase
-          .from("sticker_ratings")
-          .insert({
-            sticker_id: stickerId,
-            session_id: session.id,
-            user_id: session.user_id,
-            telegram_id: telegramId,
-            generation_type: generationType,
-            style_id: session.selected_style_id,
-            style_preset_id: session.selected_style_id || null,  // For analytics
-            emotion_id: session.selected_emotion,
-            prompt_final: session.prompt_final,
-          })
-          .select("id")
-          .single();
-
-        if (!ratingRecord?.id) {
-          console.error("Failed to create rating record");
-          return;
-        }
-
-        const ratingText = lang === "ru" 
-          ? "Как вам результат? Оцените от 1 до 5:"
-          : "How do you like it? Rate from 1 to 5:";
-        
-        const issueButtonText = lang === "ru"
-          ? "💬 Написать о проблеме"
-          : "💬 Report an issue";
-
-        const supportUrl = `https://t.me/p2s_support_bot?start=issue_${stickerId}`;
-        console.log("Rating buttons for sticker:", stickerId, "rating:", ratingRecord.id);
-        console.log("Support URL:", supportUrl);
-        
-        const ratingMsg = await sendMessage(telegramId, ratingText, {
-          inline_keyboard: [
-            [
-              { text: "⭐1", callback_data: `rate:${ratingRecord.id}:1` },
-              { text: "⭐2", callback_data: `rate:${ratingRecord.id}:2` },
-              { text: "⭐3", callback_data: `rate:${ratingRecord.id}:3` },
-              { text: "⭐4", callback_data: `rate:${ratingRecord.id}:4` },
-              { text: "⭐5", callback_data: `rate:${ratingRecord.id}:5` },
-            ],
-            [
-              { text: issueButtonText, url: supportUrl }
-            ]
-          ]
-        });
-
-        // Save message_id for potential deletion
-        if (ratingMsg?.message_id) {
-          await supabase
-            .from("sticker_ratings")
-            .update({ message_id: ratingMsg.message_id, chat_id: telegramId })
-            .eq("id", ratingRecord.id);
-        }
-        
-        console.log("Rating request sent to", telegramId);
-      } catch (err) {
-        console.error("Failed to send rating request:", err);
-      }
-    }, ratingDelay);
-  }
 
   await clearProgress();
 
-  // Auto-show next pack idea if we were browsing ideas
-  if (ideaSource && session.pack_ideas?.length > 0) {
-    // Re-fetch session to get the latest current_idea_index
-    // (index.ts updates it BEFORE creating the job, but worker reads session at job start — can be stale)
-    const { data: freshSession } = await supabase
-      .from("sessions")
-      .select("current_idea_index, pack_ideas")
-      .eq("id", session.id)
-      .maybeSingle();
-    const ideas = freshSession?.pack_ideas || session.pack_ideas;
-    const nextIndex = freshSession?.current_idea_index ?? session.current_idea_index ?? 0;
-    console.log(`[Worker] Next idea: fresh_index=${freshSession?.current_idea_index}, stale_index=${session.current_idea_index}, using=${nextIndex}`);
-    if (nextIndex < ideas.length) {
-      const idea = ideas[nextIndex];
-      const title = lang === "ru" ? idea.titleRu : idea.titleEn;
-      const desc = lang === "ru" ? idea.descriptionRu : idea.descriptionEn;
-      const textHint = idea.hasText && idea.textSuggestion
-        ? `\n✏️ ${lang === "ru" ? "Текст" : "Text"}: "${idea.textSuggestion}"`
-        : "";
-      const text = `💡 ${lang === "ru" ? "Идея" : "Idea"} ${nextIndex + 1}/${ideas.length}\n\n`
-        + `${idea.emoji} <b>${title}</b>\n`
-        + `${desc}${textHint}`;
-
-      const generateText = lang === "ru" ? "🎨 Сгенерить (1💎)" : "🎨 Generate (1💎)";
-      const nextText = lang === "ru" ? "➡️ Следующая" : "➡️ Next";
-      const doneText = lang === "ru" ? "✅ Хватит" : "✅ Done";
-
-      try {
-        await sendMessage(telegramId, text, {
-          inline_keyboard: [
-            [
-              { text: generateText, callback_data: `idea_generate:${nextIndex}` },
-              { text: nextText, callback_data: "idea_next" },
-            ],
-            [{ text: doneText, callback_data: "idea_done" }],
-          ],
-        });
-      } catch (err) {
-        console.error("[Worker] Failed to show next idea:", err);
-      }
-    } else {
-      // All ideas exhausted
-      const generated = ideas.filter((i: any) => i.generated).length;
-      const allDoneText = lang === "ru"
-        ? `🎉 Все ${ideas.length} идей показаны!\nСгенерировано: ${generated} из ${ideas.length}`
-        : `🎉 All ${ideas.length} ideas shown!\nGenerated: ${generated} of ${ideas.length}`;
-      try {
-        await sendMessage(telegramId, allDoneText, {
-          inline_keyboard: [
-            [{ text: lang === "ru" ? "🔄 Новые идеи" : "🔄 More ideas", callback_data: "idea_more" }],
-            [{ text: lang === "ru" ? "📷 Новое фото" : "📷 New photo", callback_data: "new_photo" }],
-          ],
-        });
-      } catch (err) {
-        console.error("[Worker] Failed to show all-done:", err);
-      }
-    }
-  }
-
-  // Upload to storage in background (non-critical, can be slow)
-  console.time(timerLabel("step7_upload"));
+  // Upload to storage in background (non-critical)
   supabase.storage
     .from(config.supabaseStorageBucket)
-    .upload(filePathStorage, stickerBuffer, { contentType: "image/webp", upsert: true })
-    .then(() => console.timeEnd(timerLabel("step7_upload")))
+    .upload(filePathStorage, photoBuffer, { contentType: "image/png", upsert: true })
+    .then(() => console.log("[storage] Upload completed:", filePathStorage))
     .catch((err) => {
-      console.timeEnd(timerLabel("step7_upload"));
       console.error("Storage upload failed:", err);
     });
-
-  const nextState = "confirm_sticker";
 
   await supabase
     .from("sessions")
     .update({
-      state: nextState,
+      state: "confirm_result",
       is_active: true,
-      last_sticker_file_id: stickerFileId,
+      last_sticker_file_id: photoFileId,
       last_sticker_storage_path: filePathStorage,
       progress_message_id: null,
       progress_chat_id: null,
@@ -801,7 +385,6 @@ async function runJob(job: any) {
 
 async function poll() {
   while (true) {
-    // Atomic job claim using PostgreSQL FOR UPDATE SKIP LOCKED
     const { data: jobs, error } = await supabase.rpc("claim_job", {
       p_worker_id: WORKER_ID,
       p_env: config.appEnv,
@@ -857,18 +440,16 @@ async function poll() {
             .maybeSingle();
 
           if (refundUser) {
-            // Refund credits
             await supabase
               .from("users")
               .update({ credits: (refundUser.credits || 0) + creditsToRefund })
               .eq("id", session.user_id);
 
-            // Notify user with retry button
             if (refundUser.telegram_id) {
               const rlang = refundUser.lang || "en";
               const errorText = rlang === "ru"
-                ? "❌ Произошла ошибка при генерации стикера.\n\nКредиты возвращены на баланс."
-                : "❌ An error occurred during sticker generation.\n\nCredits have been refunded.";
+                ? "❌ Произошла ошибка при генерации фото.\n\nКредиты возвращены на баланс."
+                : "❌ An error occurred during photo generation.\n\nCredits have been refunded.";
               const retryBtn = rlang === "ru" ? "🔄 Повторить" : "🔄 Retry";
               await sendMessage(refundUser.telegram_id, errorText, {
                 inline_keyboard: [[

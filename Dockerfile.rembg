@@ -1,3 +1,0 @@
-# Use pre-built image from Docker Hub
-# To rebuild: docker build --platform linux/amd64 -f Dockerfile.rembg.build -t mazarov/p2s-rembg:latest . && docker push mazarov/p2s-rembg:latest
-FROM mazarov/p2s-rembg:latest

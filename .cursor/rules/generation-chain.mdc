@@ -1,62 +1,48 @@
 ---
-description: Business logic for sticker generation chain (style, emotion, motion, text)
+description: Business logic for photo generation pipeline
 alwaysApply: true
 ---
 
-# Цепочка генерации стикеров
+# Пайплайн генерации фото
 
 **Всегда читай это правило перед реализацией задач, связанных с генерацией.**
 
-## Типы генерации и источники
+## Flow
 
 ```
-Фото (AgAC) ──[style]──> Стикер (CAAC)
-                               │
-                     ┌─────────┼─────────┐
-                     ▼         ▼         ▼
-               [emotion]   [motion]   [text]
-                     │         │         │
-                     ▼         ▼         ▼
-               Новый стикер (CAAC) ──> ...
+Фото → Выбор стиля → Выбор модели → Выбор формата → Выбор качества → Gemini → Resize → sendPhoto
 ```
 
-| Тип генерации | Источник (input для Gemini) | `source_photo_file_id` в БД |
-|---------------|---------------------------|----------------------------|
-| **style** | Оригинальное фото (AgAC) | Оригинальное фото (AgAC) |
-| **emotion** | Ранее созданный стикер (CAAC) | Этот же стикер (CAAC) |
-| **motion** | Ранее созданный стикер (CAAC) | Этот же стикер (CAAC) |
-| **text** | Нет генерации — текстовый оверлей поверх стикера | — |
+## Параметры генерации
 
-## Ключевые правила
+| Параметр | Хранится в session | Значения |
+|----------|-------------------|----------|
+| Стиль | `selected_style_id` | Пресеты из `style_presets_v2` |
+| Модель | `selected_model` | `gemini-2.5-flash-image`, `gemini-3-pro-image-preview` |
+| Формат | `selected_aspect_ratio` | `1:1`, `4:3`, `3:4`, `16:9`, `9:16`, `3:2`, `2:3` |
+| Качество | `selected_quality` | `fhd` (1920px), `2k` (2560px), `4k` (3840px) |
 
-1. **Style** — ТОЛЬКО из оригинального фото пользователя
-2. **Emotion / Motion** — ТОЛЬКО из ранее созданного стикера, НИКОГДА из оригинального фото
-3. **Text** — оверлей поверх стикера, генерация через Gemini не используется
-4. **`source_photo_file_id`** — всегда равен `sourceFileId` (для style = фото, для производных = стикер)
-5. Цепочки могут быть произвольной длины: style → motion → emotion → motion → ...
-
-## Код (worker.ts)
+## Worker pipeline (worker.ts)
 
 ```typescript
-// sourceFileId определяет input для генерации
-const sourceFileId =
-  generationType === "emotion" || generationType === "motion" || generationType === "text"
-    ? session.last_sticker_file_id    // стикер (CAAC)
-    : session.current_photo_file_id;  // оригинальное фото (AgAC)
+// 1. Источник — всегда оригинальное фото
+const sourceFileId = session.current_photo_file_id || photos[photos.length - 1];
 
-// source_photo_file_id в БД = всегда sourceFileId
-const savedSourcePhotoFileId = sourceFileId;
+// 2. Gemini API с aspect ratio
+generationConfig: {
+  imageConfig: { aspectRatio: selectedAspectRatio }
+}
+
+// 3. Resize по качеству
+const { width, height } = getOutputDimensions(aspectRatio, quality);
+sharp(generatedBuffer).resize(width, height, { fit: "cover" }).png()
+
+// 4. sendPhoto (не sendSticker!)
 ```
 
-## Код (index.ts) — обработка кнопок
+## Отличия от photo2sticker
 
-При нажатии `change_emotion:ID` / `change_motion:ID`:
-1. Берём стикер из БД по ID
-2. `last_sticker_file_id = sticker.telegram_file_id` (CAAC стикер)
-3. `current_photo_file_id = sticker.source_photo_file_id` (сохраняем для контекста)
-
-## Частые ошибки
-
-- ❌ Для emotion/motion брать оригинальное фото вместо стикера
-- ❌ Сохранять `source_photo_file_id = original photo` для производных типов
-- ❌ Путать `current_photo_file_id` (фото) с `last_sticker_file_id` (стикер)
+- НЕТ emotion/motion/text цепочки
+- НЕТ удаления фона
+- НЕТ WebP / 512x512 / trim / sticker packs
+- Результат — PNG фото, не стикер

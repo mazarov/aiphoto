@@ -14,15 +14,13 @@ export const config = {
   telegramWebhookSecret: process.env.TELEGRAM_WEBHOOK_SECRET,
   supabaseUrl: required("SUPABASE_SUPABASE_PUBLIC_URL"),
   supabaseServiceRoleKey: required("SUPABASE_SERVICE_ROLE_KEY"),
-  supabaseStorageBucket: process.env.SUPABASE_STORAGE_BUCKET || "stickers",
+  supabaseStorageBucket: process.env.SUPABASE_STORAGE_BUCKET || "photos",
   geminiApiKey: required("GEMINI_API_KEY"),
   openaiApiKey: process.env.OPENAI_API_KEY || "",
 
   // AI Chat assistant settings
   aiChatProvider: (process.env.AI_CHAT_PROVIDER || "gemini") as "gemini" | "openai",
   aiChatModel: process.env.AI_CHAT_MODEL || "",  // empty = use default per provider
-  pixianUsername: required("PIXIAN_USERNAME"),
-  pixianPassword: required("PIXIAN_PASSWORD"),
   port: Number(process.env.PORT || 3001),
   webhookPath: process.env.WEBHOOK_PATH || "/telegram/webhook",
   publicBaseUrl: process.env.PUBLIC_BASE_URL || "",

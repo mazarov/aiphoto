@@ -5,7 +5,7 @@ import { config } from "./config";
 import { supabase } from "./lib/supabase";
 import { getText } from "./lib/texts";
 import { sendAlert, sendNotification } from "./lib/alerts";
-import { getFilePath, downloadFile, sendSticker } from "./lib/telegram";
+import { getFilePath, downloadFile, sendPhoto } from "./lib/telegram";
 import { addWhiteBorder, addTextToSticker } from "./lib/image-utils";
 import { getAppConfig } from "./lib/app-config";
 import {
@@ -2934,8 +2934,8 @@ bot.on("text", async (ctx) => {
       const replyMarkup = await buildStickerButtons(lang, btnStickerId);
 
       // Send sticker with text overlay
-      const newFileId = await sendSticker(user.telegram_id, textBuffer, replyMarkup);
-      console.log("text_overlay: sent sticker, new file_id:", newFileId?.substring(0, 30) + "...");
+      const newFileId = await sendPhoto(user.telegram_id, textBuffer, replyMarkup);
+      console.log("text_overlay: sent photo, new file_id:", newFileId?.substring(0, 30) + "...");
 
       // Update telegram_file_id in DB
       if (newFileId && stickerId) {
@@ -4344,8 +4344,8 @@ bot.action(/^toggle_border:(.+)$/, async (ctx) => {
     const replyMarkup = await buildStickerButtons(lang, stickerId);
 
     // Send bordered sticker
-    const newFileId = await sendSticker(telegramId, borderedBuffer, replyMarkup);
-    console.log("toggle_border: sent bordered sticker, new file_id:", newFileId?.substring(0, 30) + "...");
+    const newFileId = await sendPhoto(telegramId, borderedBuffer, replyMarkup);
+    console.log("toggle_border: sent bordered photo, new file_id:", newFileId?.substring(0, 30) + "...");
 
     // Update telegram_file_id in DB
     if (newFileId) {
@@ -5716,8 +5716,8 @@ bot.action(/^idea_generate:(\d+)$/, async (ctx) => {
 
   // Alert for analytics
   sendAlert({
-    type: "idea_generated",
-    message: "Sticker from pack idea",
+    type: "generation_started",
+    message: "Photo from pack idea",
     details: {
       user: `@${user.username || telegramId}`,
       ideaTitle: idea.titleEn,
@@ -6021,8 +6021,8 @@ bot.action("idea_generate_custom", async (ctx) => {
   });
 
   sendAlert({
-    type: "idea_generated",
-    message: "Sticker from custom idea",
+    type: "generation_started",
+    message: "Photo from custom idea",
     details: {
       user: `@${user.username || telegramId}`,
       ideaTitle: idea.titleEn,

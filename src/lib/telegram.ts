@@ -64,26 +64,26 @@ export async function deleteMessage(chatId: number, messageId: number) {
   });
 }
 
-export async function sendSticker(
+export async function sendPhoto(
   chatId: number,
-  stickerBuffer: Buffer,
+  photoBuffer: Buffer,
   replyMarkup?: any
 ): Promise<string> {
   const form = new FormData();
   form.append("chat_id", String(chatId));
-  form.append("sticker", stickerBuffer, {
-    filename: "sticker.webp",
-    contentType: "image/webp",
+  form.append("photo", photoBuffer, {
+    filename: "photo.png",
+    contentType: "image/png",
   });
   if (replyMarkup) {
     form.append("reply_markup", JSON.stringify(replyMarkup));
   }
 
-  const res = await axios.post(`${apiBase}/sendSticker`, form, { headers: form.getHeaders() });
+  const res = await axios.post(`${apiBase}/sendPhoto`, form, { headers: form.getHeaders() });
   if (!res.data?.ok) {
-    throw new Error(`Telegram sendSticker failed: ${JSON.stringify(res.data)}`);
+    throw new Error(`Telegram sendPhoto failed: ${JSON.stringify(res.data)}`);
   }
 
-  const fileId = res.data.result?.sticker?.file_id;
+  const fileId = res.data.result?.photo?.[res.data.result.photo.length - 1]?.file_id;
   return fileId as string;
 }

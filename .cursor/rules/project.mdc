@@ -1,4 +1,4 @@
-# Photo2Sticker Bot — Project Rules
+# AI Photo Bot — Project Rules
 
 ## Перед деплоем (ОБЯЗАТЕЛЬНО)
 
@@ -11,123 +11,84 @@
 2. **При изменении select запросов** — проверить что все нужные поля включены в select.
 
 3. **Перед каждым релизом / деплоем:**
-   - Проверить, что новые изменения не ломают существующую логику (стили, assistant, платежи, рассылки)
+   - Проверить, что новые изменения не ломают существующую логику (стили, платежи)
    - Оценить пересечения с текущими callback, handler'ами и flow
-   - Остановиться и дождаться явного подтверждения от пользователя («Готово к релизу» / «можно деплоить»)
+   - Остановиться и дождаться явного подтверждения от пользователя
    - Без подтверждения — не коммитить и не пушить
+
+## Git — КРИТИЧНО
+
+**Этот проект — отдельный репозиторий: `https://github.com/mazarov/aiphoto`**
+
+- Push ТОЛЬКО в `mazarov/aiphoto` — НЕ в photo2sticker-bot
+- Коммиты делаются ВНУТРИ `aiphoto/` директории
+- После push — обновить ссылку в родительском репо photo2sticker-bot
+- **Если не уверен куда пушить — СПРОСИ**
 
 ## Работа с кодом
 
 - После создания SQL миграции — напомнить пользователю выполнить в Supabase
-- Новые фичи документировать в `docs/` перед реализацией
-- Имя файла в docs: `ДД-ММ-название.md` (например `12-02-early-trial-decision.md`)
-- После реализации и деплоя — перенести файл из `docs/` в `docs/done/`
-- Читать `docs/known-bugs.md` при работе с соответствующими компонентами
-
-## Коммиты
-
-- Формат: `type: description` (feat, fix, docs, refactor)
+- Новые фичи документировать перед реализацией
+- Формат коммитов: `type: description` (feat, fix, docs, refactor)
 - Пушить сразу после коммита
 
 ## Деплой
 
 ### Архитектура
-Проект работает на **Dockhost** — 5 контейнеров, каждый со своим Dockerfile:
+Проект работает на **Dockhost** — 3 контейнера:
 - `Dockerfile.api` → API бот (Telegram webhook / long polling)
-- `Dockerfile.worker` → Воркер генерации стикеров
+- `Dockerfile.worker` → Воркер генерации фото
 - `Dockerfile.support` → Саппорт бот
-- `Dockerfile.rembg` → Self-hosted rembg сервер (удаление фона)
-- `landing/Dockerfile` → Лендинг (Vite SPA + nginx)
 
-### Rebuild rembg образа (при смене модели/кода rembg_server.py)
-Dockerfile.rembg тянет pre-built образ из Docker Hub. Сборка вручную — из папки проекта:
-```bash
-docker build --platform linux/amd64 -f Dockerfile.rembg.build -t mazarov/p2s-rembg:latest .
-docker push mazarov/p2s-rembg:latest
-```
-⚠️ **Обязательно `--platform linux/amd64`** — Dockhost и серверы используют amd64. Без этого на Mac (Apple Silicon) соберётся arm64 и будет ошибка `no match for platform in manifest`.
-
-После push — Redeploy rembg-контейнера на Dockhost.
+**Нет rembg контейнера** — удаление фона не используется.
 
 ### Прод (main)
-- Деплой автоматический через GitHub Actions при пуше в `main`
-- **НЕ использовать** Dockhost API для редеплоя — endpoint не работает
-- После `git push` просто дождаться автодеплоя
-
-### Тест (ветка `test`)
-Тестовые контейнеры на Dockhost привязаны к ветке `test`.
-1. Создать feature-ветку: `git checkout -b feature/my-feature`
-2. Разработать и закоммитить
-3. **Применить SQL-миграции** в Supabase (единая БД для прод и тест, разделение по колонке `env`)
-4. **Смержить в `test` и запушить:**
-   ```bash
-   git checkout test
-   git merge feature/my-feature --no-edit
-   git push
-   ```
-5. Dockhost автоматически пересобирает контейнеры при пуше в `test`
-6. Тестовый бот использует `APP_ENV=test` — все данные (users, sessions, jobs) фильтруются по `env = 'test'`
-
-### Локальный запуск для отладки
-```bash
-npm run dev:test:api      # API с .env.test (long polling)
-npm run dev:test:worker   # Воркер с .env.test
-```
-⚠️ Локальный запуск конфликтует с запущенным на Dockhost тестовым ботом (409 Conflict) — нужно сначала остановить контейнер на Dockhost
-
-### Разделение окружений
-- `APP_ENV=prod` / `APP_ENV=test` — колонка `env` в таблицах `users`, `sessions`, `jobs`, `stickers`
-- Одна Supabase БД для обоих окружений
-- Разные Telegram боты (разные токены)
-
-## Известные ограничения
-
-- Support bot не может писать первым — использовать deep links из основного бота
-- Telegram API `sendMediaGroup` рендерит прозрачность как белый фон
-- `pendingFeedback` и `pendingIssues` в support-bot хранятся в памяти, теряются при рестарте
+- Деплой автоматический при пуше в `main`
+- После `git push` дождаться автодеплоя
 
 ## Структура проекта
 
 ```
 src/
 ├── index.ts        — основной бот (Telegraf)
-├── worker.ts       — воркер генерации стикеров
+├── worker.ts       — воркер генерации фото
 ├── support-bot.ts  — саппорт бот
 ├── config.ts       — конфигурация
 └── lib/
     ├── alerts.ts   — алерты и нотификации
     ├── supabase.ts — клиент Supabase
-    ├── telegram.ts — утилиты Telegram API
-    └── texts.ts    — локализация (ru/en)
+    ├── telegram.ts — утилиты Telegram API (sendPhoto)
+    ├── texts.ts    — локализация (ru/en)
+    ├── app-config.ts — конфигурация из БД
+    └── image-utils.ts — утилиты обработки изображений
 
-landing/        — лендинг (git submodule, отдельный репо)
-docs/           — требования и документация
-docs/done/      — завершённые фичи
 sql/            — миграции (нумерация 001, 002...)
 ```
 
-## Landing (submodule)
+## Отличия от photo2sticker
 
-Лендинг подключен как git submodule из `https://github.com/mazarov/photo2sticker.git` → папка `landing/`.
+- Результат — **фото** (sendPhoto), не стикер (sendSticker)
+- **Нет** удаления фона (rembg, chromaKey, Pixian)
+- **Нет** стикер-специфики (512x512, WebP, стикерпаки, trim)
+- **Есть** выбор модели, формата (aspect ratio), качества
+- Supabase — та же инстанция, таблицы с префиксом `photo_`
+- Storage bucket: `photos` (не `stickers`)
 
-- **Отдельный репозиторий** — коммиты в `landing/` делаются внутри submodule
-- **Обновление submodule:** `cd landing && git pull origin main && cd .. && git add landing && git commit -m "chore: update landing submodule"`
-- **Деплой лендинга** — см. правило `landing.mdc`
+## Пайплайн генерации (worker)
+
+```
+Фото → Gemini API (модель + aspect ratio) → Resize (качество) → PNG → sendPhoto
+```
+
+Без background removal, без chroma key.
 
 ## Локализация
 
 - Все пользовательские сообщения через `getText(lang, key)`
 - Поддерживаемые языки: `ru`, `en`
-- Тексты в `src/lib/texts.ts`
 
 ## База данных (Supabase)
 
-- Таблицы: users, sessions, jobs, stickers, sticker_sets, transactions, notification_triggers, sticker_ratings, sticker_issues
-- RPC функции: `claim_job` (атомарный захват job воркером)
-- При добавлении полей — создавать миграцию в `sql/`
-
-## Модели генерации
-
-- Основная: `gemini-2.5-flash-image`
-- Для текста (планируется): `gemini-3-pro-vision` (Nano Banana Pro)
-- Выбор модели в `worker.ts`
+- Та же инстанция что и photo2sticker
+- Таблицы с префиксом `photo_` (photo_users, photo_sessions, photo_jobs, photo_results...)
+- RPC функции: `claim_job` (пока общая, позже `photo_claim_job`)
