@@ -75,7 +75,7 @@ function getOutputDimensions(aspectRatio: string, quality: string): { width: num
 
 async function runJob(job: any) {
   const { data: session } = await supabase
-    .from("sessions")
+    .from("photo_sessions")
     .select("*")
     .eq("id", job.session_id)
     .maybeSingle();
@@ -85,7 +85,7 @@ async function runJob(job: any) {
   }
 
   const { data: user } = await supabase
-    .from("users")
+    .from("photo_users")
     .select("telegram_id, lang, username, credits, total_generations, onboarding_step")
     .eq("id", session.user_id)
     .maybeSingle();
@@ -246,7 +246,7 @@ async function runJob(job: any) {
     // Refund credits
     const creditsToRefund = session.credits_spent || 1;
     await supabase
-      .from("users")
+      .from("photo_users")
       .update({ credits: (user?.credits || 0) + creditsToRefund })
       .eq("id", session.user_id);
 
@@ -301,7 +301,7 @@ async function runJob(job: any) {
 
   // Insert result record
   const { data: resultRecord } = await supabase
-    .from("stickers")
+    .from("photo_results")
     .insert({
       user_id: session.user_id,
       session_id: session.id,
@@ -339,7 +339,7 @@ async function runJob(job: any) {
   // Update telegram_file_id
   if (resultId && photoFileId) {
     await supabase
-      .from("stickers")
+      .from("photo_results")
       .update({ telegram_file_id: photoFileId })
       .eq("id", resultId);
     console.log("result telegram_file_id updated successfully");
@@ -371,12 +371,12 @@ async function runJob(job: any) {
     });
 
   await supabase
-    .from("sessions")
+    .from("photo_sessions")
     .update({
       state: "confirm_result",
       is_active: true,
-      last_sticker_file_id: photoFileId,
-      last_sticker_storage_path: filePathStorage,
+      last_result_file_id: photoFileId,
+      last_result_storage_path: filePathStorage,
       progress_message_id: null,
       progress_chat_id: null,
     })
@@ -385,7 +385,7 @@ async function runJob(job: any) {
 
 async function poll() {
   while (true) {
-    const { data: jobs, error } = await supabase.rpc("claim_job", {
+    const { data: jobs, error } = await supabase.rpc("photo_claim_job", {
       p_worker_id: WORKER_ID,
       p_env: config.appEnv,
     });
@@ -407,14 +407,14 @@ async function poll() {
     try {
       await runJob(job);
       await supabase
-        .from("jobs")
+        .from("photo_jobs")
         .update({ status: "done", completed_at: new Date().toISOString() })
         .eq("id", job.id);
     } catch (err: any) {
       console.error("Job failed:", job.id, err?.message || err);
 
       await supabase
-        .from("jobs")
+        .from("photo_jobs")
         .update({
           status: "error",
           error: String(err?.message || err),
@@ -425,7 +425,7 @@ async function poll() {
       // Refund credits on error
       try {
         const { data: session } = await supabase
-          .from("sessions")
+          .from("photo_sessions")
           .select("user_id, photos, credits_spent")
           .eq("id", job.session_id)
           .maybeSingle();
@@ -434,14 +434,14 @@ async function poll() {
           const creditsToRefund = session.credits_spent || 1;
 
           const { data: refundUser } = await supabase
-            .from("users")
+            .from("photo_users")
             .select("credits, telegram_id, lang")
             .eq("id", session.user_id)
             .maybeSingle();
 
           if (refundUser) {
             await supabase
-              .from("users")
+              .from("photo_users")
               .update({ credits: (refundUser.credits || 0) + creditsToRefund })
               .eq("id", session.user_id);
 

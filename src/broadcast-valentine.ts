@@ -125,7 +125,7 @@ async function main() {
     console.log(`Test: sending to ${targetId}`);
   } else {
     const { data, error } = await supabase
-      .from("users")
+      .from("photo_users")
       .select("telegram_id, lang")
       .eq("env", "prod");
 

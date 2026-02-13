@@ -111,7 +111,7 @@ async function getStylePresets(): Promise<StylePreset[]> {
   }
 
   const { data } = await supabase
-    .from("style_presets")
+    .from("photo_style_presets")
     .select("*")
     .eq("is_active", true)
     .order("sort_order");
@@ -130,7 +130,7 @@ interface StyleExample {
 
 async function getStyleExample(styleId: string, offset: number = 0): Promise<StyleExample | null> {
   const { data } = await supabase
-    .from("stickers")
+    .from("photo_results")
     .select("telegram_file_id, style_preset_id")
     .eq("style_preset_id", styleId)
     .eq("is_example", true)
@@ -145,7 +145,7 @@ async function getStyleExample(styleId: string, offset: number = 0): Promise<Sty
 
 async function countStyleExamples(styleId: string): Promise<number> {
   const { count } = await supabase
-    .from("stickers")
+    .from("photo_results")
     .select("id", { count: "exact", head: true })
     .eq("style_preset_id", styleId)
     .eq("is_example", true)
@@ -184,7 +184,7 @@ async function getStylePresetsV2(groupId?: string): Promise<StylePresetV2[]> {
   }
 
   const { data } = await supabase
-    .from("style_presets_v2")
+    .from("photo_style_presets")
     .select("*")
     .eq("is_active", true)
     .order("sort_order");
@@ -241,7 +241,7 @@ async function sendStyleKeyboardFlat(ctx: any, lang: string, messageId?: number)
 async function getStyleStickerFileId(styleId: string): Promise<string | null> {
   // Try is_example first
   const { data: exData } = await supabase
-    .from("stickers")
+    .from("photo_results")
     .select("telegram_file_id")
     .eq("style_preset_id", styleId)
     .eq("is_example", true)
@@ -255,7 +255,7 @@ async function getStyleStickerFileId(styleId: string): Promise<string | null> {
 
   // Fallback: any sticker for this style in same env
   const { data: anyData } = await supabase
-    .from("stickers")
+    .from("photo_results")
     .select("telegram_file_id")
     .eq("style_preset_id", styleId)
     .eq("env", config.appEnv)
@@ -365,7 +365,7 @@ async function getEmotionPresets(): Promise<EmotionPreset[]> {
   }
 
   const { data } = await supabase
-    .from("emotion_presets")
+    .from("photo_emotion_presets")
     .select("*")
     .eq("is_active", true)
     .order("sort_order");
@@ -412,7 +412,7 @@ async function getMotionPresets(): Promise<MotionPreset[]> {
   }
 
   const { data } = await supabase
-    .from("motion_presets")
+    .from("photo_motion_presets")
     .select("*")
     .eq("is_active", true)
     .order("sort_order");
@@ -460,7 +460,7 @@ async function getPromptTemplate(id: string): Promise<string> {
   }
   
   const { data } = await supabase
-    .from("prompt_templates")
+    .from("photo_prompt_templates")
     .select("id, template");
   
   if (data) {
@@ -486,7 +486,7 @@ async function getAgent(name: string) {
   }
 
   const { data } = await supabase
-    .from("agents")
+    .from("photo_agents")
     .select("*")
     .eq("name", name)
     .eq("is_active", true)
@@ -581,7 +581,7 @@ async function generatePrompt(userInput: string): Promise<PromptResult> {
 }
 
 async function enqueueJob(sessionId: string, userId: string, isFirstFree: boolean = false) {
-  await supabase.from("jobs").insert({
+  await supabase.from("photo_jobs").insert({
     session_id: sessionId,
     user_id: userId,
     status: "queued",
@@ -595,7 +595,7 @@ async function sendProgressStart(ctx: any, sessionId: string, lang: string) {
   const msg = await ctx.reply(await getText(lang, "progress.step1"));
   if (msg?.message_id && ctx.chat?.id) {
     await supabase
-      .from("sessions")
+      .from("photo_sessions")
       .update({ progress_message_id: msg.message_id, progress_chat_id: ctx.chat.id })
       .eq("id", sessionId);
   }
@@ -671,7 +671,7 @@ async function startGeneration(
     const targetState = isPaywall ? "wait_first_purchase" : "wait_buy_credit";
     console.log("[startGeneration] Setting paywall state:", targetState, "sessionId:", session.id);
     const { error: paywallUpdateErr } = await supabase
-      .from("sessions")
+      .from("photo_sessions")
       .update({
         state: targetState,
         pending_generation_type: options.generationType,
@@ -717,7 +717,7 @@ async function startGeneration(
 
   // Deduct credits atomically (prevents race condition)
   const { data: deducted, error: deductError } = await supabase
-    .rpc("deduct_credits", { p_user_id: user.id, p_amount: creditsNeeded });
+    .rpc("photo_deduct_credits", { p_user_id: user.id, p_amount: creditsNeeded });
   
   if (deductError || !deducted) {
     console.error("Atomic deduct failed - race condition detected:", deductError?.message || "not enough credits");
@@ -730,7 +730,7 @@ async function startGeneration(
   }
 
   // Increment total_generations
-  await supabase.rpc("increment_generations", { p_user_id: user.id });
+  await supabase.rpc("photo_increment_generations", { p_user_id: user.id });
 
   const nextState = 
     options.generationType === "emotion" ? "processing_emotion" :
@@ -738,7 +738,7 @@ async function startGeneration(
     options.generationType === "text" ? "processing_text" : "processing";
 
   await supabase
-    .from("sessions")
+    .from("photo_sessions")
     .update({
       user_input: options.userInput || session.user_input || null,
       prompt_final: options.promptFinal,
@@ -880,7 +880,7 @@ async function buildStickerButtons(lang: string, stickerId: string) {
 
 async function getUser(telegramId: number) {
   const { data } = await supabase
-    .from("users")
+    .from("photo_users")
     .select("*")
     .eq("telegram_id", telegramId)
     .eq("env", config.appEnv)
@@ -934,7 +934,7 @@ async function startAssistantDialog(ctx: any, user: any, lang: string) {
 
   // Cancel all active sessions
   await supabase
-    .from("sessions")
+    .from("photo_sessions")
     .update({ state: "canceled", is_active: false })
     .eq("user_id", user.id)
     .eq("is_active", true);
@@ -943,7 +943,7 @@ async function startAssistantDialog(ctx: any, user: any, lang: string) {
   // If user has a photo from previous session, skip wait_photo
   const lastPhoto = user.last_photo_file_id || null;
   const { data: newSession, error: sessionError } = await supabase
-    .from("sessions")
+    .from("photo_sessions")
     .insert({
       user_id: user.id,
       state: lastPhoto ? "assistant_chat" : "assistant_wait_photo",
@@ -1040,7 +1040,7 @@ async function handleAssistantConfirm(ctx: any, user: any, sessionId: string, la
 
   // Re-fetch sessions row for generation
   const { data: session } = await supabase
-    .from("sessions")
+    .from("photo_sessions")
     .select("*")
     .eq("id", sessionId)
     .maybeSingle();
@@ -1078,7 +1078,7 @@ async function getTodayTrialCreditsCount(): Promise<number> {
   todayStart.setHours(0, 0, 0, 0);
 
   const { count } = await supabase
-    .from("assistant_sessions")
+    .from("photo_assistant_sessions")
     .select("id", { count: "exact", head: true })
     .eq("env", config.appEnv)
     .gte("updated_at", todayStart.toISOString())
@@ -1313,7 +1313,7 @@ This is essential for automated background removal. Ignoring this requirement wi
 // Helper: get active session
 async function getActiveSession(userId: string) {
   const { data, error } = await supabase
-    .from("sessions")
+    .from("photo_sessions")
     .select("*")
     .eq("user_id", userId)
     .eq("is_active", true)
@@ -1328,7 +1328,7 @@ async function getActiveSession(userId: string) {
   // Fallback: some DB setups flip is_active to false on update
   console.log("getActiveSession fallback for user:", userId);
   const { data: fallback } = await supabase
-    .from("sessions")
+    .from("photo_sessions")
     .select("*")
     .eq("user_id", userId)
     .eq("env", config.appEnv)
@@ -1360,7 +1360,7 @@ async function handleTrialCreditAction(
 
     // Check if this user already received a trial credit (prevent duplicates)
     const { count: userTrialCount } = await supabase
-      .from("assistant_sessions")
+      .from("photo_assistant_sessions")
       .select("id", { count: "exact", head: true })
       .eq("user_id", user.id)
       .eq("env", config.appEnv)
@@ -1375,7 +1375,7 @@ async function handleTrialCreditAction(
 
     if (canGrant) {
       await supabase
-        .from("users")
+        .from("photo_users")
         .update({ credits: 1 })
         .eq("id", user.id);
 
@@ -1619,7 +1619,7 @@ async function generateAndSendOutreachAlert(
 
   // Save outreach to DB
   const { data: outreach, error: outreachError } = await supabase
-    .from("user_outreach")
+    .from("photo_user_outreach")
     .insert({
       user_id: user.id,
       telegram_id: telegramId,
@@ -1677,7 +1677,7 @@ async function generateAndSendOutreachAlert(
     if (data.ok && data.result?.message_id) {
       // Save alert message_id for later editing
       await supabase
-        .from("user_outreach")
+        .from("photo_user_outreach")
         .update({ alert_message_id: data.result.message_id })
         .eq("id", outreachId);
     }
@@ -1732,14 +1732,14 @@ async function handleAvatarAutoGeneration(ctx: any, user: any, lang: string) {
 
   // Close any active sessions
   await supabase
-    .from("sessions")
+    .from("photo_sessions")
     .update({ state: "canceled", is_active: false })
     .eq("user_id", user.id)
     .eq("is_active", true);
 
   // Create session with credits_spent: 0 (free demo) and generation_type: avatar_demo
   const { data: session, error: sessionError } = await supabase
-    .from("sessions")
+    .from("photo_sessions")
     .insert({
       user_id: user.id,
       state: "processing",
@@ -1795,7 +1795,7 @@ bot.start(async (ctx) => {
     console.log("New user - language_code:", languageCode, "-> lang:", lang);
 
     const { data: created, error: insertError } = await supabase
-      .from("users")
+      .from("photo_users")
       .insert({ 
         telegram_id: telegramId, 
         lang, 
@@ -1818,7 +1818,7 @@ bot.start(async (ctx) => {
       // Race condition: user might already exist, try to fetch again
       if (insertError.code === "23505") {  // unique_violation
         const { data: existingUser } = await supabase
-          .from("users")
+          .from("photo_users")
           .select("*")
           .eq("telegram_id", telegramId)
           .maybeSingle();
@@ -1865,7 +1865,7 @@ bot.start(async (ctx) => {
     }
 
     if (Object.keys(updates).length > 0) {
-      await supabase.from("users").update(updates).eq("id", user.id);
+      await supabase.from("photo_users").update(updates).eq("id", user.id);
       Object.assign(user, updates);
     }
   }
@@ -1896,12 +1896,12 @@ bot.start(async (ctx) => {
       if (preset) {
         // Close active sessions, create new one with preferred style
         await supabase
-          .from("sessions")
+          .from("photo_sessions")
           .update({ state: "canceled", is_active: false })
           .eq("user_id", user.id)
           .eq("is_active", true);
 
-        await supabase.from("sessions").insert({
+        await supabase.from("photo_sessions").insert({
           user_id: user.id,
           state: "wait_photo",
           is_active: true,
@@ -1949,12 +1949,12 @@ bot.action(/^val_(.+)$/, async (ctx) => {
   const lang = user.lang || "en";
 
   await supabase
-    .from("sessions")
+    .from("photo_sessions")
     .update({ state: "canceled", is_active: false })
     .eq("user_id", user.id)
     .eq("is_active", true);
 
-  await supabase.from("sessions").insert({
+  await supabase.from("photo_sessions").insert({
     user_id: user.id,
     state: "wait_photo",
     is_active: true,
@@ -1992,7 +1992,7 @@ bot.command("support", async (ctx) => {
   if (!telegramId) return;
 
   const { data: user } = await supabase
-    .from("users")
+    .from("photo_users")
     .select("lang")
     .eq("telegram_id", telegramId)
     .maybeSingle();
@@ -2039,7 +2039,7 @@ bot.on("photo", async (ctx) => {
   if (!photo) return;
 
   // Save last photo on user for reuse across sessions
-  const { error: lastPhotoErr } = await supabase.from("users")
+  const { error: lastPhotoErr } = await supabase.from("photo_users")
     .update({ last_photo_file_id: photo.file_id })
     .eq("id", user.id);
   if (lastPhotoErr) {
@@ -2053,7 +2053,7 @@ bot.on("photo", async (ctx) => {
     const activeAssistant = await getActiveAssistantSession(user.id);
     if (activeAssistant && activeAssistant.status === "active") {
       console.log("Assistant photo re-route: state was", session.state, "→ switching to assistant_wait_photo");
-      await supabase.from("sessions")
+      await supabase.from("photo_sessions")
         .update({ state: "assistant_wait_photo", is_active: true })
         .eq("id", session.id);
       session.state = "assistant_wait_photo";
@@ -2066,7 +2066,7 @@ bot.on("photo", async (ctx) => {
     console.log("Assistant chat photo: updating photo for session:", session.id);
     const chatPhotos = Array.isArray(session.photos) ? session.photos : [];
     chatPhotos.push(photo.file_id);
-    await supabase.from("sessions")
+    await supabase.from("photo_sessions")
       .update({ photos: chatPhotos, current_photo_file_id: photo.file_id, is_active: true })
       .eq("id", session.id);
 
@@ -2109,7 +2109,7 @@ bot.on("photo", async (ctx) => {
     if (!aSession) {
       console.log("Assistant photo: no assistant_session — falling through to manual mode");
       // Reset session state so it doesn't stay stuck in assistant_wait_photo
-      await supabase.from("sessions")
+      await supabase.from("photo_sessions")
         .update({ state: "wait_photo", is_active: true })
         .eq("id", session.id);
       session.state = "wait_photo";
@@ -2121,7 +2121,7 @@ bot.on("photo", async (ctx) => {
 
     // Save photo and move to assistant_chat
     const { error: updateErr } = await supabase
-      .from("sessions")
+      .from("photo_sessions")
       .update({
         photos,
         current_photo_file_id: photo.file_id,
@@ -2269,7 +2269,7 @@ bot.on("photo", async (ctx) => {
       // Save photo and process as assistant photo
       const photos = Array.isArray(newSession.photos) ? [...newSession.photos] : [];
       photos.push(photo.file_id);
-      await supabase.from("sessions")
+      await supabase.from("photo_sessions")
         .update({ photos, current_photo_file_id: photo.file_id, state: "assistant_chat", is_active: true })
         .eq("id", newSession.id);
 
@@ -2319,7 +2319,7 @@ bot.on("photo", async (ctx) => {
     const preset = await getStylePresetV2ById(session.selected_style_id);
     if (preset) {
       const { error: upErr } = await supabase
-        .from("sessions")
+        .from("photo_sessions")
         .update({
           photos,
           state: "wait_style",
@@ -2344,7 +2344,7 @@ bot.on("photo", async (ctx) => {
   }
 
   const { error } = await supabase
-    .from("sessions")
+    .from("photo_sessions")
     .update({ photos, state: "wait_style", is_active: true, current_photo_file_id: photo.file_id })
     .eq("id", session.id);
   if (error) {
@@ -2402,7 +2402,7 @@ bot.hears(["🎨 Стили", "🎨 Styles"], async (ctx) => {
     console.log("Styles: switching from assistant to manual mode, session:", session.id);
     await closeAllActiveAssistantSessions(user.id, "abandoned");
     // Always reset session state so photo handler won't get stuck in assistant_wait_photo
-    await supabase.from("sessions")
+    await supabase.from("photo_sessions")
       .update({ state: "wait_photo", is_active: true })
       .eq("id", session.id);
     if (session) session.state = "wait_photo";
@@ -2426,7 +2426,7 @@ bot.hears(["🎨 Стили", "🎨 Styles"], async (ctx) => {
   if (session.state !== "wait_style") {
     console.log("Styles: switching state from", session.state, "to wait_style, session:", session.id);
   }
-  await supabase.from("sessions")
+  await supabase.from("photo_sessions")
     .update(sessionUpdate)
     .eq("id", session.id);
 
@@ -2482,7 +2482,7 @@ bot.on("text", async (ctx) => {
     console.log("[CustomIdea] User concept:", userConcept);
 
     // Reset flag immediately
-    await supabase.from("sessions").update({ waiting_custom_idea: false }).eq("id", session.id);
+    await supabase.from("photo_sessions").update({ waiting_custom_idea: false }).eq("id", session.id);
 
     // Show thinking
     const thinkingMsg = await ctx.reply(lang === "ru" ? "💡 Думаю..." : "💡 Thinking...");
@@ -2510,7 +2510,7 @@ bot.on("text", async (ctx) => {
     }
 
     // Save custom idea to session
-    const { error: saveErr } = await supabase.from("sessions").update({
+    const { error: saveErr } = await supabase.from("photo_sessions").update({
       custom_idea: idea,
     }).eq("id", session.id);
     if (saveErr) console.error("[CustomIdea] save failed:", saveErr.message);
@@ -2568,7 +2568,7 @@ bot.on("text", async (ctx) => {
 
     if (activeAssistant) {
       console.log("Assistant re-route: state was", session.state, "→ switching to assistant_chat, aSession:", activeAssistant.id);
-      await supabase.from("sessions")
+      await supabase.from("photo_sessions")
         .update({ state: "assistant_chat", is_active: true })
         .eq("id", session.id);
       // Update local session object for downstream handlers
@@ -2582,7 +2582,7 @@ bot.on("text", async (ctx) => {
   if (session.state === "assistant_wait_photo") {
     console.log("Assistant wait_photo text: session:", session.id, "is_active:", session.is_active);
     if (!session.is_active) {
-      await supabase.from("sessions").update({ is_active: true }).eq("id", session.id);
+      await supabase.from("photo_sessions").update({ is_active: true }).eq("id", session.id);
     }
     const aSession = await getActiveAssistantSession(user.id);
     if (!aSession) { console.error("assistant_wait_photo: no assistant_session"); return; }
@@ -2687,7 +2687,7 @@ bot.on("text", async (ctx) => {
     console.log("Assistant chat: text received, session:", session.id, "user:", user.id, "is_active:", session.is_active);
     // Ensure is_active stays true (some DB setups reset it on update)
     if (!session.is_active) {
-      await supabase.from("sessions").update({ is_active: true }).eq("id", session.id);
+      await supabase.from("photo_sessions").update({ is_active: true }).eq("id", session.id);
     }
     const aSession = await getActiveAssistantSession(user.id);
     if (!aSession) { console.error("assistant_chat: no assistant_session"); return; }
@@ -2758,7 +2758,7 @@ bot.on("text", async (ctx) => {
         } else if (action === "photo") {
           // LLM wants a photo — switch state
           await supabase
-            .from("sessions")
+            .from("photo_sessions")
             .update({ state: "assistant_wait_photo", is_active: true })
             .eq("id", session.id);
           if (replyText) await ctx.reply(replyText, getMainMenuKeyboard(lang));
@@ -2940,7 +2940,7 @@ bot.on("text", async (ctx) => {
       // Update telegram_file_id in DB
       if (newFileId && stickerId) {
         await supabase
-          .from("stickers")
+          .from("photo_results")
           .update({ telegram_file_id: newFileId })
           .eq("id", stickerId);
         console.log("text_overlay: updated sticker telegram_file_id");
@@ -3111,7 +3111,7 @@ bot.action(/^style_(?!v2:|example|custom|group)([^:]+)$/, async (ctx) => {
     // Handle custom style - ask user to describe
     if (preset.id === "custom") {
       await supabase
-        .from("sessions")
+        .from("photo_sessions")
         .update({ state: "wait_custom_style", is_active: true })
         .eq("id", session.id);
       await ctx.reply(await getText(lang, "style.custom_prompt"));
@@ -3182,7 +3182,7 @@ bot.action(/^style_carousel_pick:(.+)$/, async (ctx) => {
 
     // Copy photo from user to session if needed
     if (!session.current_photo_file_id && currentPhotoId) {
-      await supabase.from("sessions")
+      await supabase.from("photo_sessions")
         .update({ current_photo_file_id: currentPhotoId, photos: [currentPhotoId] })
         .eq("id", session.id);
     }
@@ -3292,7 +3292,7 @@ bot.action(/^style_v2:(.+)$/, async (ctx) => {
 
     // Copy photo from user to session if needed
     if (!session.current_photo_file_id && currentPhotoId) {
-      await supabase.from("sessions")
+      await supabase.from("photo_sessions")
         .update({ current_photo_file_id: currentPhotoId, photos: [currentPhotoId] })
         .eq("id", session.id);
     }
@@ -3356,7 +3356,7 @@ bot.action(/^broadcast_example:(.+):(.+)$/, async (ctx) => {
     const lang = user.lang || "en";
 
     const { data: example } = await supabase
-      .from("stickers")
+      .from("photo_results")
       .select("telegram_file_id")
       .eq("style_preset_id", substyleId)
       .eq("is_example", true)
@@ -3428,7 +3428,7 @@ bot.action(/^style_example_v2:(.+):(.+)$/, async (ctx) => {
 
     // Get example from stickers table
     const { data: example } = await supabase
-      .from("stickers")
+      .from("photo_results")
       .select("telegram_file_id")
       .eq("style_preset_id", substyleId)
       .eq("is_example", true)
@@ -3439,7 +3439,7 @@ bot.action(/^style_example_v2:(.+):(.+)$/, async (ctx) => {
 
     // Count total examples
     const { count: totalExamples } = await supabase
-      .from("stickers")
+      .from("photo_results")
       .select("id", { count: "exact", head: true })
       .eq("style_preset_id", substyleId)
       .eq("is_example", true)
@@ -3550,7 +3550,7 @@ bot.action(/^style_example_v2_more:(.+):(.+):(\d+)$/, async (ctx) => {
 
     // Get next example
     const { data: examples } = await supabase
-      .from("stickers")
+      .from("photo_results")
       .select("telegram_file_id")
       .eq("style_preset_id", substyleId)
       .eq("is_example", true)
@@ -3623,7 +3623,7 @@ bot.action("style_custom_v2", async (ctx) => {
 
     // Switch state to wait for custom style text
     await supabase
-      .from("sessions")
+      .from("photo_sessions")
       .update({ state: "wait_custom_style_v2", is_active: true })
       .eq("id", session.id);
 
@@ -3655,7 +3655,7 @@ bot.action(/^add_to_pack:(.+)$/, async (ctx) => {
 
   // Get sticker from DB by ID
   const { data: sticker } = await supabase
-    .from("stickers")
+    .from("photo_results")
     .select("telegram_file_id, user_id")
     .eq("id", stickerId)
     .maybeSingle();
@@ -3685,7 +3685,7 @@ bot.action(/^add_to_pack:(.+)$/, async (ctx) => {
       title: packTitle,
       stickers: [{ sticker: fileId, format: "static", emoji_list: ["🔥"] }],
     }, { timeout: 15000 });
-    await supabase.from("users").update({ sticker_set_name: name }).eq("id", user.id);
+    await supabase.from("photo_users").update({ sticker_set_name: name }).eq("id", user.id);
     console.log("add_to_pack: sticker set created:", name);
   };
 
@@ -3784,7 +3784,7 @@ bot.action("add_to_pack", async (ctx) => {
       title: packTitle,
       stickers: [{ sticker: fileId, format: "static", emoji_list: ["🔥"] }],
     }, { timeout: 15000 });
-    await supabase.from("users").update({ sticker_set_name: name }).eq("id", user.id);
+    await supabase.from("photo_users").update({ sticker_set_name: name }).eq("id", user.id);
     console.log("add_to_pack(old): sticker set created:", name);
   };
 
@@ -3868,7 +3868,7 @@ bot.action(/^change_style:(.+)$/, async (ctx) => {
 
   // Get sticker from DB by ID
   const { data: sticker } = await supabase
-    .from("stickers")
+    .from("photo_results")
     .select("source_photo_file_id, user_id")
     .eq("id", stickerId)
     .maybeSingle();
@@ -3891,7 +3891,7 @@ bot.action(/^change_style:(.+)$/, async (ctx) => {
   if (!session?.id) {
     // Create new session
     const { data: newSession } = await supabase
-      .from("sessions")
+      .from("photo_sessions")
       .insert({ user_id: user.id, state: "wait_style", is_active: true, env: config.appEnv })
       .select()
       .single();
@@ -3901,7 +3901,7 @@ bot.action(/^change_style:(.+)$/, async (ctx) => {
   if (!session?.id) return;
 
   await supabase
-    .from("sessions")
+    .from("photo_sessions")
     .update({
       state: "wait_style",
       is_active: true,
@@ -3931,7 +3931,7 @@ bot.action("change_style", async (ctx) => {
   if (!session?.id) return;
 
   await supabase
-    .from("sessions")
+    .from("photo_sessions")
     .update({
       state: "wait_style",
       is_active: true,
@@ -3963,7 +3963,7 @@ bot.action(/^change_emotion:(.+)$/, async (ctx) => {
 
   // Get sticker from DB by ID
   const { data: sticker } = await supabase
-    .from("stickers")
+    .from("photo_results")
     .select("telegram_file_id, source_photo_file_id, user_id")
     .eq("id", stickerId)
     .maybeSingle();
@@ -3985,7 +3985,7 @@ bot.action(/^change_emotion:(.+)$/, async (ctx) => {
   let session = await getActiveSession(user.id);
   if (!session?.id) {
     const { data: newSession } = await supabase
-      .from("sessions")
+      .from("photo_sessions")
       .insert({ user_id: user.id, state: "wait_emotion", is_active: true, env: config.appEnv })
       .select()
       .single();
@@ -3995,7 +3995,7 @@ bot.action(/^change_emotion:(.+)$/, async (ctx) => {
   if (!session?.id) return;
 
   await supabase
-    .from("sessions")
+    .from("photo_sessions")
     .update({
       state: "wait_emotion",
       is_active: true,
@@ -4025,7 +4025,7 @@ bot.action("change_emotion", async (ctx) => {
   }
 
   await supabase
-    .from("sessions")
+    .from("photo_sessions")
     .update({ state: "wait_emotion", is_active: true, pending_generation_type: null })
     .eq("id", session.id);
 
@@ -4055,7 +4055,7 @@ bot.action(/^emotion_(.+)$/, async (ctx) => {
 
   if (preset.id === "custom") {
     await supabase
-      .from("sessions")
+      .from("photo_sessions")
       .update({ state: "wait_custom_emotion", is_active: true })
       .eq("id", session.id);
     await ctx.reply(await getText(lang, "emotion.custom_prompt"));
@@ -4089,7 +4089,7 @@ bot.action(/^change_motion:(.+)$/, async (ctx) => {
 
   // Get sticker from DB by ID
   const { data: sticker } = await supabase
-    .from("stickers")
+    .from("photo_results")
     .select("telegram_file_id, source_photo_file_id, user_id")
     .eq("id", stickerId)
     .maybeSingle();
@@ -4111,7 +4111,7 @@ bot.action(/^change_motion:(.+)$/, async (ctx) => {
   let session = await getActiveSession(user.id);
   if (!session?.id) {
     const { data: newSession } = await supabase
-      .from("sessions")
+      .from("photo_sessions")
       .insert({ user_id: user.id, state: "wait_motion", is_active: true, env: config.appEnv })
       .select()
       .single();
@@ -4121,7 +4121,7 @@ bot.action(/^change_motion:(.+)$/, async (ctx) => {
   if (!session?.id) return;
 
   await supabase
-    .from("sessions")
+    .from("photo_sessions")
     .update({
       state: "wait_motion",
       is_active: true,
@@ -4151,7 +4151,7 @@ bot.action("change_motion", async (ctx) => {
   }
 
   await supabase
-    .from("sessions")
+    .from("photo_sessions")
     .update({ state: "wait_motion", is_active: true, pending_generation_type: null })
     .eq("id", session.id);
 
@@ -4181,7 +4181,7 @@ bot.action(/^motion_(.+)$/, async (ctx) => {
 
   if (preset.id === "custom") {
     await supabase
-      .from("sessions")
+      .from("photo_sessions")
       .update({ state: "wait_custom_motion", is_active: true })
       .eq("id", session.id);
     await ctx.reply(await getText(lang, "motion.custom_prompt"));
@@ -4215,7 +4215,7 @@ bot.action(/^add_text:(.+)$/, async (ctx) => {
 
   // Get sticker from DB by ID
   const { data: sticker } = await supabase
-    .from("stickers")
+    .from("photo_results")
     .select("telegram_file_id, source_photo_file_id, user_id")
     .eq("id", stickerId)
     .maybeSingle();
@@ -4237,7 +4237,7 @@ bot.action(/^add_text:(.+)$/, async (ctx) => {
   let session = await getActiveSession(user.id);
   if (!session?.id) {
     const { data: newSession } = await supabase
-      .from("sessions")
+      .from("photo_sessions")
       .insert({ user_id: user.id, state: "wait_text_overlay", is_active: true, env: config.appEnv })
       .select()
       .single();
@@ -4248,7 +4248,7 @@ bot.action(/^add_text:(.+)$/, async (ctx) => {
 
   console.log("add_text: updating session", session.id, "from state:", session.state, "to wait_text_overlay");
   const { error: updateErr } = await supabase
-    .from("sessions")
+    .from("photo_sessions")
     .update({
       state: "wait_text_overlay",
       is_active: true,
@@ -4262,7 +4262,7 @@ bot.action(/^add_text:(.+)$/, async (ctx) => {
     console.error("add_text: session update FAILED:", updateErr.message, updateErr.code);
     // Fallback: try without user_input in case column doesn't accept this value
     const { error: retryErr } = await supabase
-      .from("sessions")
+      .from("photo_sessions")
       .update({
         state: "wait_text_overlay",
         is_active: true,
@@ -4281,7 +4281,7 @@ bot.action(/^add_text:(.+)$/, async (ctx) => {
 
   // Verify the update persisted
   const { data: verify } = await supabase
-    .from("sessions")
+    .from("photo_sessions")
     .select("state, is_active")
     .eq("id", session.id)
     .maybeSingle();
@@ -4309,7 +4309,7 @@ bot.action(/^toggle_border:(.+)$/, async (ctx) => {
 
   // Get sticker from DB by ID
   const { data: sticker } = await supabase
-    .from("stickers")
+    .from("photo_results")
     .select("telegram_file_id, user_id")
     .eq("id", stickerId)
     .maybeSingle();
@@ -4350,7 +4350,7 @@ bot.action(/^toggle_border:(.+)$/, async (ctx) => {
     // Update telegram_file_id in DB
     if (newFileId) {
       await supabase
-        .from("stickers")
+        .from("photo_results")
         .update({ telegram_file_id: newFileId })
         .eq("id", stickerId);
       console.log("toggle_border: updated sticker telegram_file_id");
@@ -4458,7 +4458,7 @@ bot.action("assistant_confirm", async (ctx) => {
 
     // Check duplicate: already received trial credit
     const { count: userTrialCount } = await supabase
-      .from("assistant_sessions")
+      .from("photo_assistant_sessions")
       .select("id", { count: "exact", head: true })
       .eq("user_id", user.id)
       .eq("env", config.appEnv)
@@ -4612,7 +4612,7 @@ bot.action("assistant_new_photo", async (ctx) => {
     });
 
     await supabase
-      .from("sessions")
+      .from("photo_sessions")
       .update({
         photos,
         current_photo_file_id: newPhotoFileId,
@@ -4631,7 +4631,7 @@ bot.action("assistant_new_photo", async (ctx) => {
   } catch (err: any) {
     console.error("Assistant new photo error:", err.message);
     await supabase
-      .from("sessions")
+      .from("photo_sessions")
       .update({ photos, current_photo_file_id: newPhotoFileId })
       .eq("id", session.id);
 
@@ -4669,7 +4669,7 @@ bot.action(/^rate:(.+):(\d)$/, async (ctx) => {
   const score = parseInt(ctx.match[2]);
   
   const { error } = await supabase
-    .from("sticker_ratings")
+    .from("photo_ratings")
     .update({ 
       rating: score, 
       rated_at: new Date().toISOString() 
@@ -4701,7 +4701,7 @@ bot.action(/^make_example:(.+)$/, async (ctx) => {
 
   // Get sticker to check style_preset_id
   const { data: sticker } = await supabase
-    .from("stickers")
+    .from("photo_results")
     .select("id, style_preset_id, is_example")
     .eq("id", stickerId)
     .maybeSingle();
@@ -4726,7 +4726,7 @@ bot.action(/^make_example:(.+)$/, async (ctx) => {
 
   // Mark as example
   const { error } = await supabase
-    .from("stickers")
+    .from("photo_results")
     .update({ is_example: true })
     .eq("id", stickerId);
 
@@ -4836,7 +4836,7 @@ bot.action(/^admin_send_outreach:(.+)$/, async (ctx) => {
 
   // Load outreach from DB
   const { data: outreach } = await supabase
-    .from("user_outreach")
+    .from("photo_user_outreach")
     .select("*")
     .eq("id", outreachId)
     .single();
@@ -4870,7 +4870,7 @@ bot.action(/^admin_send_outreach:(.+)$/, async (ctx) => {
 
     // Update status to sent
     await supabase
-      .from("user_outreach")
+      .from("photo_user_outreach")
       .update({ status: "sent", sent_at: new Date().toISOString() })
       .eq("id", outreachId);
 
@@ -4901,7 +4901,7 @@ bot.action(/^admin_regen_outreach:(.+)$/, async (ctx) => {
 
   // Load outreach from DB
   const { data: outreach } = await supabase
-    .from("user_outreach")
+    .from("photo_user_outreach")
     .select("*")
     .eq("id", outreachId)
     .single();
@@ -4942,7 +4942,7 @@ bot.action(/^admin_regen_outreach:(.+)$/, async (ctx) => {
 
     // Update in DB
     await supabase
-      .from("user_outreach")
+      .from("photo_user_outreach")
       .update({ message_text: newText })
       .eq("id", outreachId);
 
@@ -4999,7 +4999,7 @@ bot.action(/^retry_generation:(.+)$/, async (ctx) => {
 
   // Get the original session
   const { data: session } = await supabase
-    .from("sessions")
+    .from("photo_sessions")
     .select("*")
     .eq("id", sessionId)
     .eq("user_id", user.id)
@@ -5536,7 +5536,7 @@ bot.action(/^pack_ideas:(.+)$/, async (ctx) => {
 
   // Get sticker info
   const { data: sticker } = await supabase
-    .from("stickers")
+    .from("photo_results")
     .select("telegram_file_id, style_preset_id, user_id")
     .eq("id", stickerId)
     .maybeSingle();
@@ -5552,7 +5552,7 @@ bot.action(/^pack_ideas:(.+)$/, async (ctx) => {
   let session = await getActiveSession(user.id);
   if (!session?.id) {
     const { data: newSession } = await supabase
-      .from("sessions")
+      .from("photo_sessions")
       .insert({ user_id: user.id, state: "confirm_sticker", is_active: true, env: config.appEnv })
       .select()
       .single();
@@ -5599,7 +5599,7 @@ bot.action(/^pack_ideas:(.+)$/, async (ctx) => {
   }
 
   // Save ideas to session (keep state as confirm_sticker — state is ENUM, no browsing_ideas value)
-  const { error: updateErr } = await supabase.from("sessions").update({
+  const { error: updateErr } = await supabase.from("photo_sessions").update({
     pack_ideas: ideas,
     current_idea_index: 0,
     is_active: true,
@@ -5687,7 +5687,7 @@ bot.action(/^idea_generate:(\d+)$/, async (ctx) => {
   ideas[ideaIndex].generated = true;
   const generatedFromIdeas = [...(session.generated_from_ideas || []), `idea_${ideaIndex}`];
 
-  const { error: ideaUpdateErr } = await supabase.from("sessions").update({
+  const { error: ideaUpdateErr } = await supabase.from("photo_sessions").update({
     pack_ideas: ideas,
     current_idea_index: ideaIndex + 1,
     generated_from_ideas: generatedFromIdeas,
@@ -5776,7 +5776,7 @@ bot.action("idea_next", async (ctx) => {
     return;
   }
 
-  const { error: idxErr } = await supabase.from("sessions").update({
+  const { error: idxErr } = await supabase.from("photo_sessions").update({
     current_idea_index: nextIndex,
   }).eq("id", session.id);
   if (idxErr) console.error("[idea_next] index update failed:", idxErr.message);
@@ -5880,7 +5880,7 @@ bot.action("idea_more", async (ctx) => {
     ideas = getDefaultIdeas(lang);
   }
 
-  const { error: updateErr } = await supabase.from("sessions").update({
+  const { error: updateErr } = await supabase.from("photo_sessions").update({
     pack_ideas: ideas,
     current_idea_index: 0,
   }).eq("id", session.id);
@@ -5917,7 +5917,7 @@ bot.action("custom_idea", async (ctx) => {
   if (!session?.id) return;
 
   // Set waiting flag
-  const { error } = await supabase.from("sessions").update({
+  const { error } = await supabase.from("photo_sessions").update({
     waiting_custom_idea: true,
   }).eq("id", session.id);
   if (error) console.error("[custom_idea] session update failed:", error.message);
@@ -5997,7 +5997,7 @@ bot.action("idea_generate_custom", async (ctx) => {
   }
 
   // Clear custom_idea flag
-  await supabase.from("sessions").update({
+  await supabase.from("photo_sessions").update({
     custom_idea: null,
     waiting_custom_idea: false,
   }).eq("id", session.id);
@@ -6047,7 +6047,7 @@ bot.action("idea_back", async (ctx) => {
   if (!session?.id) return;
 
   // Clear custom idea flags
-  await supabase.from("sessions").update({
+  await supabase.from("photo_sessions").update({
     waiting_custom_idea: false,
     custom_idea: null,
   }).eq("id", session.id);
@@ -6286,7 +6286,7 @@ bot.action(/^onboarding_emotion:(.+):(.+)$/, async (ctx) => {
 
   // Get sticker to find source photo and telegram_file_id
   const { data: sticker } = await supabase
-    .from("stickers")
+    .from("photo_results")
     .select("source_photo_file_id, user_id, telegram_file_id")
     .eq("id", stickerId)
     .maybeSingle();
@@ -6300,7 +6300,7 @@ bot.action(/^onboarding_emotion:(.+):(.+)$/, async (ctx) => {
   let session = await getActiveSession(user.id);
   if (!session?.id) {
     const { data: newSession } = await supabase
-      .from("sessions")
+      .from("photo_sessions")
       .insert({ user_id: user.id, state: "wait_emotion", is_active: true, env: config.appEnv })
       .select()
       .single();
@@ -6310,7 +6310,7 @@ bot.action(/^onboarding_emotion:(.+):(.+)$/, async (ctx) => {
 
   // Update session with photo, sticker file_id, and emotion
   await supabase
-    .from("sessions")
+    .from("photo_sessions")
     .update({
       state: "wait_emotion",
       is_active: true,
@@ -6322,7 +6322,7 @@ bot.action(/^onboarding_emotion:(.+):(.+)$/, async (ctx) => {
 
   // Get emotion preset
   const { data: emotionPreset } = await supabase
-    .from("emotion_presets")
+    .from("photo_emotion_presets")
     .select("prompt_hint")
     .eq("id", emotionId)
     .maybeSingle();
@@ -6358,7 +6358,7 @@ bot.action("onboarding_skip", async (ctx) => {
   const lang = user.lang || "en";
 
   // Skip onboarding
-  await supabase.rpc("skip_onboarding", { p_user_id: user.id });
+  await supabase.rpc("photo_skip_onboarding", { p_user_id: user.id });
 
   const skipText = lang === "ru"
     ? "Хорошо! Когда захочешь добавить эмоцию — нажми кнопку под стикером 😊"
@@ -6381,12 +6381,12 @@ bot.action("new_photo", async (ctx) => {
 
   // Create new session
   await supabase
-    .from("sessions")
+    .from("photo_sessions")
     .update({ is_active: false })
     .eq("user_id", user.id);
 
   await supabase
-    .from("sessions")
+    .from("photo_sessions")
     .insert({ user_id: user.id, state: "wait_photo", is_active: true, env: config.appEnv });
 
   const text = lang === "ru"
@@ -6417,7 +6417,7 @@ bot.action("cancel", async (ctx) => {
       session.pending_generation_type === "motion" ? "wait_motion" :
       session.pending_generation_type === "text" ? "wait_text_overlay" : "wait_style";
     await supabase
-      .from("sessions")
+      .from("photo_sessions")
       .update({ state: nextState, is_active: true })
       .eq("id", session.id);
 
@@ -6471,7 +6471,7 @@ bot.action(/^pack_(\d+)_(\d+)$/, async (ctx) => {
   // Cancel old active transactions
   const cancelStart = Date.now();
   await supabase
-    .from("transactions")
+    .from("photo_transactions")
     .update({ state: "canceled", is_active: false })
     .eq("user_id", user.id)
     .eq("is_active", true);
@@ -6480,7 +6480,7 @@ bot.action(/^pack_(\d+)_(\d+)$/, async (ctx) => {
   // Create new transaction
   const createStart = Date.now();
   const { data: transaction, error: createError } = await supabase
-    .from("transactions")
+    .from("photo_transactions")
     .insert({
       user_id: user.id,
       amount: credits,
@@ -6577,7 +6577,7 @@ bot.on("successful_payment", async (ctx) => {
   // Idempotency guard: if this charge was already processed, skip
   const checkStart = Date.now();
   const { data: existingCharge } = await supabase
-    .from("transactions")
+    .from("photo_transactions")
     .select("id, state")
     .eq("telegram_payment_charge_id", payment.telegram_payment_charge_id)
     .maybeSingle();
@@ -6594,7 +6594,7 @@ bot.on("successful_payment", async (ctx) => {
   // Note: We skip "processed" state now - pre_checkout_query no longer updates DB
   const updateStart = Date.now();
   const { data: updatedTransactions, error: updateError } = await supabase
-    .from("transactions")
+    .from("photo_transactions")
     .update({
       state: "done",
       is_active: false,
@@ -6623,7 +6623,7 @@ bot.on("successful_payment", async (ctx) => {
 
   // Get user and add credits
   const { data: user } = await supabase
-    .from("users")
+    .from("photo_users")
     .select("*")
     .eq("id", transaction.user_id)
     .maybeSingle();
@@ -6641,7 +6641,7 @@ bot.on("successful_payment", async (ctx) => {
     console.log("First purchase detected! Adding bonus:", bonusCredits);
     
     // Add bonus credits via transaction
-    await supabase.from("transactions").insert({
+    await supabase.from("photo_transactions").insert({
       user_id: user.id,
       amount: bonusCredits,
       price: 0,
@@ -6652,14 +6652,14 @@ bot.on("successful_payment", async (ctx) => {
     
     // Set has_purchased = true
     await supabase
-      .from("users")
+      .from("photo_users")
       .update({ has_purchased: true })
       .eq("id", user.id);
   }
 
   // Re-fetch user to get updated balance (after trigger executed + bonus)
   const { data: updatedUser } = await supabase
-    .from("users")
+    .from("photo_users")
     .select("*")
     .eq("id", transaction.user_id)
     .maybeSingle();
@@ -6697,7 +6697,7 @@ bot.on("successful_payment", async (ctx) => {
     if (isWaitingForCredits && !session.prompt_final) {
       // Check if there's a completed/active assistant session with params
       const { data: aSessionForPayment } = await supabase
-        .from("assistant_sessions")
+        .from("photo_assistant_sessions")
         .select("*")
         .eq("session_id", session.id)
         .in("status", ["active", "completed"])
@@ -6711,7 +6711,7 @@ bot.on("successful_payment", async (ctx) => {
 
         // Save prompt and start generation
         await supabase
-          .from("sessions")
+          .from("photo_sessions")
           .update({ prompt_final: promptFinal, user_input: `[assistant] ${params.style}, ${params.emotion}, ${params.pose}` })
           .eq("id", session.id);
 
@@ -6735,11 +6735,11 @@ bot.on("successful_payment", async (ctx) => {
 
         // Auto-continue generation: deduct credits atomically
         const { data: deducted } = await supabase
-          .rpc("deduct_credits", { p_user_id: finalUser.id, p_amount: creditsNeeded });
+          .rpc("photo_deduct_credits", { p_user_id: finalUser.id, p_amount: creditsNeeded });
 
         if (deducted) {
           await supabase
-            .from("sessions")
+            .from("photo_sessions")
             .update({ 
               state: nextState, 
               is_active: true,
@@ -6788,11 +6788,11 @@ bot.on("successful_payment", async (ctx) => {
             session.pending_generation_type === "text" ? "processing_text" : "processing";
 
           const { data: deductedFb } = await supabase
-            .rpc("deduct_credits", { p_user_id: finalUser.id, p_amount: creditsNeeded });
+            .rpc("photo_deduct_credits", { p_user_id: finalUser.id, p_amount: creditsNeeded });
 
           if (deductedFb) {
             await supabase
-              .from("sessions")
+              .from("photo_sessions")
               .update({ 
                 state: nextState, 
                 is_active: true,
@@ -6818,7 +6818,7 @@ bot.on("successful_payment", async (ctx) => {
           const promptFinal = buildAssistantPrompt(params);
 
           await supabase
-            .from("sessions")
+            .from("photo_sessions")
             .update({
               state: "processing",
               is_active: true,
@@ -6830,7 +6830,7 @@ bot.on("successful_payment", async (ctx) => {
             .eq("id", session.id);
 
           const { data: deductedFb } = await supabase
-            .rpc("deduct_credits", { p_user_id: finalUser.id, p_amount: 1 });
+            .rpc("photo_deduct_credits", { p_user_id: finalUser.id, p_amount: 1 });
 
           if (deductedFb) {
             await enqueueJob(session.id, finalUser.id);
@@ -6885,7 +6885,7 @@ async function processAbandonedCarts() {
     
     // Find transactions older than 30 minutes without reminder
     const { data: abandoned, error } = await supabase
-      .from("transactions")
+      .from("photo_transactions")
       .select("*, users(*)")
       .eq("state", "created")
       .eq("reminder_sent", false)
@@ -6916,7 +6916,7 @@ async function processAbandonedCarts() {
         console.log(`No discount for price ${tx.price}, skipping`);
         // Mark as sent to avoid re-processing
         await supabase
-          .from("transactions")
+          .from("photo_transactions")
           .update({ reminder_sent: true, reminder_sent_at: new Date().toISOString() })
           .eq("id", tx.id);
         continue;
@@ -6951,7 +6951,7 @@ async function processAbandonedCarts() {
 
         // Mark reminder as sent
         await supabase
-          .from("transactions")
+          .from("photo_transactions")
           .update({ reminder_sent: true, reminder_sent_at: new Date().toISOString() })
           .eq("id", tx.id);
 
@@ -6959,7 +6959,7 @@ async function processAbandonedCarts() {
         console.error(`Failed to send reminder to ${user.telegram_id}:`, err.message);
         // Still mark as sent to avoid retry spam
         await supabase
-          .from("transactions")
+          .from("photo_transactions")
           .update({ reminder_sent: true, reminder_sent_at: new Date().toISOString() })
           .eq("id", tx.id);
       }
@@ -6977,7 +6977,7 @@ async function processAbandonedCartAlerts() {
     
     // Find transactions older than 15 minutes without alert
     const { data: abandoned, error } = await supabase
-      .from("transactions")
+      .from("photo_transactions")
       .select("*, users(*)")
       .eq("state", "created")
       .eq("alert_sent", false)
@@ -7024,7 +7024,7 @@ async function processAbandonedCartAlerts() {
 
         // Mark alert as sent
         await supabase
-          .from("transactions")
+          .from("photo_transactions")
           .update({ alert_sent: true, alert_sent_at: new Date().toISOString() })
           .eq("id", tx.id);
 
@@ -7032,7 +7032,7 @@ async function processAbandonedCartAlerts() {
         console.error(`Failed to send alert for ${user.telegram_id}:`, err.message);
         // Still mark as sent to avoid retry spam
         await supabase
-          .from("transactions")
+          .from("photo_transactions")
           .update({ alert_sent: true, alert_sent_at: new Date().toISOString() })
           .eq("id", tx.id);
       }
@@ -7060,7 +7060,7 @@ async function processExpiredAssistantSessions() {
     // Also expire the corresponding sessions rows
     const cutoff = new Date(Date.now() - ASSISTANT_SESSION_TTL_MS).toISOString();
     await supabase
-      .from("sessions")
+      .from("photo_sessions")
       .update({ state: "expired", is_active: false })
       .in("state", ["assistant_wait_photo", "assistant_chat"])
       .eq("is_active", true)

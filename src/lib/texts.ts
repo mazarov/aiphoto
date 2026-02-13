@@ -148,7 +148,7 @@ const fallbackTexts: Record<string, Record<string, string>> = {
 async function loadTextsToCache(lang: string): Promise<void> {
   try {
     const { data } = await supabase
-      .from("bot_texts_new")
+      .from("photo_bot_texts")
       .select("key, text")
       .eq("lang", lang);
 
@@ -188,7 +188,7 @@ export async function getText(
   // If not in cache, try to load from DB
   if (!text) {
     const { data } = await supabase
-      .from("bot_texts_new")
+      .from("photo_bot_texts")
       .select("text")
       .eq("key", key)
       .eq("lang", normalizedLang)

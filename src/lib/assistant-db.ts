@@ -214,7 +214,7 @@ export async function createAssistantSession(
   initialMessages: AssistantMessage[] = []
 ): Promise<AssistantSessionRow | null> {
   const { data, error } = await supabase
-    .from("assistant_sessions")
+    .from("photo_assistant_sessions")
     .insert({
       user_id: userId,
       session_id: sessionId,
@@ -236,7 +236,7 @@ export async function createAssistantSession(
  */
 export async function getActiveAssistantSession(userId: string): Promise<AssistantSessionRow | null> {
   const { data, error } = await supabase
-    .from("assistant_sessions")
+    .from("photo_assistant_sessions")
     .select("*")
     .eq("user_id", userId)
     .eq("status", "active")
@@ -260,7 +260,7 @@ export async function updateAssistantSession(
   data: Partial<Omit<AssistantSessionRow, "id" | "user_id" | "created_at" | "env">>
 ): Promise<void> {
   const { error } = await supabase
-    .from("assistant_sessions")
+    .from("photo_assistant_sessions")
     .update({ ...data, updated_at: new Date().toISOString() })
     .eq("id", id);
 
@@ -277,7 +277,7 @@ export async function closeAssistantSession(
   status: "completed" | "abandoned" | "error"
 ): Promise<void> {
   const { error } = await supabase
-    .from("assistant_sessions")
+    .from("photo_assistant_sessions")
     .update({
       status,
       completed_at: new Date().toISOString(),
@@ -298,7 +298,7 @@ export async function closeAllActiveAssistantSessions(
   status: "abandoned" | "error" = "abandoned"
 ): Promise<void> {
   const { error } = await supabase
-    .from("assistant_sessions")
+    .from("photo_assistant_sessions")
     .update({
       status,
       completed_at: new Date().toISOString(),
@@ -340,7 +340,7 @@ export async function getRecentAssistantSession(
   const cutoff = new Date(Date.now() - maxAgeMs).toISOString();
 
   const { data, error } = await supabase
-    .from("assistant_sessions")
+    .from("photo_assistant_sessions")
     .select("*")
     .eq("user_id", userId)
     .eq("env", config.appEnv)
@@ -361,7 +361,7 @@ export async function getRecentAssistantSession(
  */
 export async function reactivateAssistantSession(id: string): Promise<void> {
   const { error } = await supabase
-    .from("assistant_sessions")
+    .from("photo_assistant_sessions")
     .update({
       status: "active",
       completed_at: null,
@@ -380,7 +380,7 @@ export async function reactivateAssistantSession(id: string): Promise<void> {
  */
 export async function getLastGoalForUser(userId: string): Promise<string | null> {
   const { data } = await supabase
-    .from("assistant_sessions")
+    .from("photo_assistant_sessions")
     .select("goal")
     .eq("user_id", userId)
     .eq("env", config.appEnv)
@@ -399,7 +399,7 @@ export async function expireOldAssistantSessions(ttlMs: number): Promise<number>
   const cutoff = new Date(Date.now() - ttlMs).toISOString();
 
   const { data, error } = await supabase
-    .from("assistant_sessions")
+    .from("photo_assistant_sessions")
     .update({
       status: "abandoned",
       completed_at: new Date().toISOString(),

@@ -19,7 +19,7 @@ export async function getAppConfig(key: string, defaultValue: string): Promise<s
 
   try {
     const { data } = await supabase
-      .from("app_config")
+      .from("photo_app_config")
       .select("value")
       .eq("key", key)
       .maybeSingle();

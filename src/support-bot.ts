@@ -58,7 +58,7 @@ bot.start(async (ctx) => {
     
     // Verify outreach exists and is sent
     const { data: outreach } = await supabase
-      .from("user_outreach")
+      .from("photo_user_outreach")
       .select("id, status")
       .eq("id", outreachId)
       .single();
@@ -68,14 +68,14 @@ bot.start(async (ctx) => {
       
       // Get localized prompt
       const { data: user } = await supabase
-        .from("users")
+        .from("photo_users")
         .select("lang")
         .eq("telegram_id", ctx.from.id)
         .maybeSingle();
       const lang = user?.lang || "en";
       
       const { data: textRow } = await supabase
-        .from("bot_texts_new")
+        .from("photo_bot_texts")
         .select("text")
         .eq("lang", lang)
         .eq("key", "outreach.reply_prompt")
@@ -94,7 +94,7 @@ bot.start(async (ctx) => {
     pendingReplies.set(ctx.from.id, targetId);
     
     const { data: feedback } = await supabase
-      .from("user_feedback")
+      .from("photo_user_feedback")
       .select("username, answer_text")
       .eq("telegram_id", targetId)
       .maybeSingle();
@@ -132,7 +132,7 @@ bot.on("text", async (ctx) => {
         throw new Error(data.description || "Unknown Telegram error");
       }
       
-      await supabase.from("user_feedback")
+      await supabase.from("photo_user_feedback")
         .update({ 
           admin_reply_text: ctx.message.text,
           admin_reply_at: new Date().toISOString()
@@ -161,7 +161,7 @@ bot.on("text", async (ctx) => {
     
     // Save reply to DB
     await supabase
-      .from("user_outreach")
+      .from("photo_user_outreach")
       .update({
         reply_text: ctx.message.text,
         status: "replied",
@@ -171,7 +171,7 @@ bot.on("text", async (ctx) => {
     
     // Load outreach for context
     const { data: outreach } = await supabase
-      .from("user_outreach")
+      .from("photo_user_outreach")
       .select("message_text, telegram_id")
       .eq("id", outreachId)
       .single();
@@ -202,14 +202,14 @@ bot.on("text", async (ctx) => {
     
     // Thank the user
     const { data: user } = await supabase
-      .from("users")
+      .from("photo_users")
       .select("lang")
       .eq("telegram_id", telegramId)
       .maybeSingle();
     const lang = user?.lang || "en";
     
     const { data: thanksRow } = await supabase
-      .from("bot_texts_new")
+      .from("photo_bot_texts")
       .select("text")
       .eq("lang", lang)
       .eq("key", "outreach.reply_thanks")
@@ -225,7 +225,7 @@ bot.on("text", async (ctx) => {
     pendingFeedback.delete(telegramId);
     
     // Сохраняем в базу
-    await supabase.from("user_feedback").upsert({
+    await supabase.from("photo_user_feedback").upsert({
       user_id: userId,
       telegram_id: telegramId,
       username: ctx.from.username,
@@ -246,7 +246,7 @@ bot.on("text", async (ctx) => {
     pendingIssues.delete(telegramId);
     
     // Сохраняем в базу
-    await supabase.from("sticker_issues").insert({
+    await supabase.from("photo_issues").insert({
       sticker_id: stickerId,
       telegram_id: telegramId,
       username: ctx.from.username,
@@ -262,14 +262,14 @@ bot.on("text", async (ctx) => {
   
   // Пользователь отвечает на feedback (старый флоу - для совместимости)
   const { data: feedback } = await supabase
-    .from("user_feedback")
+    .from("photo_user_feedback")
     .select("*")
     .eq("telegram_id", telegramId)
     .is("answer_text", null)
     .maybeSingle();
   
   if (feedback) {
-    await supabase.from("user_feedback")
+    await supabase.from("photo_user_feedback")
       .update({ 
         answer_text: ctx.message.text,
         answer_at: new Date().toISOString()
