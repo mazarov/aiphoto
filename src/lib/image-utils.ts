@@ -37,8 +37,8 @@ export async function fullChromaKey(buffer: Buffer): Promise<Buffer> {
   const { width, height, channels } = info;
   const targetR = 0, targetG = 255, targetB = 0;
   // Two thresholds: hard (definitely green) and soft (edge anti-aliasing)
-  const hardThresholdSq = 80 * 80;   // definitely green → fully transparent
-  const softThresholdSq = 120 * 120; // near-green → partial transparency (smooth edges)
+  const hardThresholdSq = 90 * 90;   // definitely green → fully transparent
+  const softThresholdSq = 160 * 160; // near-green → partial transparency (smooth edges)
   let cleaned = 0;
 
   for (let i = 0; i < data.length; i += channels) {
@@ -92,6 +92,79 @@ export async function chromaKeyGreen(buffer: Buffer): Promise<Buffer> {
   }
 
   console.log(`[chromaKey] Cleaned ${cleaned} green pixels out of ${data.length / channels} total`);
+
+  return sharp(Buffer.from(data), { raw: { width, height, channels } })
+    .png()
+    .toBuffer();
+}
+
+/**
+ * Remove green fringing from edges after chroma key / rembg.
+ * Multi-pass: finds pixels adjacent to transparent areas and removes
+ * those with green tint. Each pass exposes new edge pixels for the next.
+ */
+export async function despillGreenEdges(buffer: Buffer, passes: number = 2): Promise<Buffer> {
+  const { data, info } = await sharp(buffer)
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const { width, height, channels } = info;
+  let totalCleaned = 0;
+
+  for (let pass = 0; pass < passes; pass++) {
+    let cleaned = 0;
+
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const idx = (y * width + x) * channels;
+        const a = data[idx + 3];
+
+        if (a < 10) continue; // already transparent
+
+        // Check if adjacent to transparent pixel (8-connected)
+        let nearTransparent = false;
+        for (let dy = -1; dy <= 1 && !nearTransparent; dy++) {
+          for (let dx = -1; dx <= 1 && !nearTransparent; dx++) {
+            if (dx === 0 && dy === 0) continue;
+            const nx = x + dx, ny = y + dy;
+            if (nx < 0 || nx >= width || ny < 0 || ny >= height) {
+              nearTransparent = true;
+              continue;
+            }
+            if (data[(ny * width + nx) * channels + 3] < 10) {
+              nearTransparent = true;
+            }
+          }
+        }
+
+        if (!nearTransparent) continue;
+
+        const r = data[idx], g = data[idx + 1], b = data[idx + 2];
+        const maxRB = Math.max(r, b, 1);
+
+        // Strong green dominance: remove entirely
+        if (g > 150 && g > r * 1.5 && g > b * 1.5) {
+          data[idx + 3] = 0;
+          cleaned++;
+        }
+        // Moderate green tint: fade out
+        else if (g > 100 && g > r * 1.3 && g > b * 1.3) {
+          data[idx + 3] = Math.round(a * 0.3);
+          cleaned++;
+        }
+        // Slight green tint on edge: desaturate green channel
+        else if (g > 80 && g > maxRB * 1.15) {
+          data[idx + 1] = Math.round((r + b) / 2); // replace G with avg of R,B
+          cleaned++;
+        }
+      }
+    }
+
+    totalCleaned += cleaned;
+    if (cleaned === 0) break; // no more edge pixels to clean
+  }
+
+  console.log(`[despill] Cleaned ${totalCleaned} green edge pixels (${passes} passes)`);
 
   return sharp(Buffer.from(data), { raw: { width, height, channels } })
     .png()

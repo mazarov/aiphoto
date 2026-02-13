@@ -7,7 +7,7 @@ import { supabase } from "./lib/supabase";
 import { getFilePath, downloadFile, sendMessage, sendSticker, editMessageText, deleteMessage } from "./lib/telegram";
 import { getText } from "./lib/texts";
 import { sendAlert, sendNotification } from "./lib/alerts";
-import { chromaKeyGreen, fullChromaKey, getGreenPixelRatio } from "./lib/image-utils";
+import { chromaKeyGreen, fullChromaKey, getGreenPixelRatio, despillGreenEdges } from "./lib/image-utils";
 import { getAppConfig } from "./lib/app-config";
 
 async function sleep(ms: number) {
@@ -456,6 +456,15 @@ async function runJob(job: any) {
     }
   } else {
     console.log(`[chromaKey] Final cleanup skipped — green ratio ${(greenRatio * 100).toFixed(1)}% below 5%`);
+  }
+
+  // Despill: remove green fringing from edges (2 passes)
+  try {
+    const dsStart = Date.now();
+    cleanedBuffer = await despillGreenEdges(cleanedBuffer, 2);
+    console.log(`[despill] Edge cleanup done in ${Date.now() - dsStart}ms`);
+  } catch (err: any) {
+    console.error(`[despill] Edge cleanup failed, using previous output: ${err.message}`);
   }
 
   // Trim transparent borders and fit into 512x512
