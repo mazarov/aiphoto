@@ -17,14 +17,14 @@ app = Flask(__name__)
 
 # Pre-load model on startup
 logger.info("Loading rembg model...")
-session = new_session("u2net")
+session = new_session("isnet-general-use")
 logger.info("Model loaded successfully")
 
 
 @app.route('/health', methods=['GET'])
 def health():
     """Health check endpoint"""
-    return jsonify({'status': 'ok', 'model': 'u2net'})
+    return jsonify({'status': 'ok', 'model': 'isnet-general-use'})
 
 
 @app.route('/remove-background', methods=['POST'])
@@ -97,7 +97,7 @@ def index():
     return jsonify({
         'service': 'rembg-api',
         'version': '1.0.0',
-        'model': 'u2net',
+        'model': 'isnet-general-use',
         'endpoints': {
             '/health': 'GET - Health check',
             '/remove-background': 'POST - Remove background (multipart/form-data with image file)',
