@@ -7,6 +7,7 @@ import { getText } from "./lib/texts";
 import { sendAlert, sendNotification } from "./lib/alerts";
 import { getFilePath, downloadFile, sendSticker } from "./lib/telegram";
 import { addWhiteBorder, addTextToSticker } from "./lib/image-utils";
+import { getAppConfig } from "./lib/app-config";
 import {
   buildSystemPrompt,
   callAIChat,
@@ -1585,8 +1586,22 @@ async function handleAvatarAutoGeneration(ctx: any, user: any, lang: string) {
     : "Hi! I turn photos into stickers 🎨 Look — I'm already making one from your profile photo so you can see how it works!";
   await ctx.reply(greetingText, getMainMenuKeyboard(lang));
 
-  // Fixed anime prompt with green background (no LLM prompt_generator)
-  const avatarPrompt = `Create a high-quality messenger sticker. Style: anime/manga art style, expressive eyes, clean bold lines, vibrant colors. Subject: Analyze the provided photo. Extract the person. Preserve recognizable facial features, hairstyle, and distinctive traits. Adapt proportions to anime style while keeping facial identity. The character should have a friendly, welcoming expression. Composition: Upper body or full body pose, facing the viewer. Fit the character fully into the frame, do not crop. Leave small padding around the edges. Bold uniform border around the composition (thick, approx 25-35% outline width), smooth and consistent outline. Visual design: High contrast, strong edge separation, simplified shapes, bright saturated anime color palette. Requirements: No watermark, no logo, no frame, no text. Quality: Expressive, visually appealing, optimized for messenger sticker use. CRITICAL BACKGROUND REQUIREMENT: The image must show ONLY the character on a SOLID UNIFORM BRIGHT GREEN (#00FF00) background. Fill the ENTIRE area behind the character with exactly #00FF00 green. Do NOT draw any scene, environment, room, or backdrop. The character must appear as a clean cutout on flat green, like a green screen photo shoot. Ignoring this will ruin the sticker.`;
+  // Get configurable style from app_config (default: cartoon_telegram)
+  const defaultStyleId = await getAppConfig("avatar_demo_style", "cartoon_telegram");
+  const preset = await getStylePresetV2ById(defaultStyleId);
+  if (!preset) {
+    console.error("[AvatarAuto] Default preset not found:", defaultStyleId);
+    return false;
+  }
+
+  // Generate prompt via prompt_generator agent (same as normal style flow)
+  const userInput = preset.prompt_hint;
+  const promptResult = await generatePrompt(userInput);
+  const avatarPrompt = promptResult.ok && !promptResult.retry
+    ? promptResult.prompt || userInput
+    : userInput;
+
+  console.log("[AvatarAuto] Style:", defaultStyleId, "prompt_hint:", userInput?.substring(0, 50));
 
   // Close any active sessions
   await supabase
@@ -1602,10 +1617,10 @@ async function handleAvatarAutoGeneration(ctx: any, user: any, lang: string) {
       user_id: user.id,
       state: "processing",
       is_active: true,
-      selected_style_id: "anime_classic",
+      selected_style_id: defaultStyleId,
       current_photo_file_id: avatarFileId,
       prompt_final: avatarPrompt,
-      user_input: "[avatar_demo] anime style",
+      user_input: `[avatar_demo] ${userInput}`,
       generation_type: "avatar_demo",
       credits_spent: 0,
       env: config.appEnv,
