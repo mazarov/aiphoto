@@ -7,13 +7,6 @@ RUN npm ci
 COPY tsconfig.json ./
 COPY src ./src
 
-# Verify font exists before build
-RUN ls -la src/assets/Inter-Bold.otf
-
 RUN npm run build
-
-# Copy font assets to dist (opentype.js loads .otf at runtime)
-RUN mkdir -p dist/assets && cp src/assets/Inter-Bold.otf dist/assets/Inter-Bold.otf
-RUN ls -la dist/assets/
 
 CMD ["node", "dist/worker.js"]
