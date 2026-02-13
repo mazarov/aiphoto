@@ -6123,7 +6123,10 @@ bot.action("cancel", async (ctx) => {
 
   const session = await getActiveSession(user.id);
   if (session?.state === "wait_buy_credit") {
-    const nextState = session.pending_generation_type === "emotion" ? "wait_emotion" : "wait_style";
+    const nextState = 
+      session.pending_generation_type === "emotion" ? "wait_emotion" :
+      session.pending_generation_type === "motion" ? "wait_motion" :
+      session.pending_generation_type === "text" ? "wait_text_overlay" : "wait_style";
     await supabase
       .from("sessions")
       .update({ state: nextState, is_active: true })
@@ -6437,7 +6440,9 @@ bot.on("successful_payment", async (ctx) => {
 
       if (currentCredits >= creditsNeeded) {
         const nextState =
-          session.pending_generation_type === "emotion" ? "processing_emotion" : "processing";
+          session.pending_generation_type === "emotion" ? "processing_emotion" :
+          session.pending_generation_type === "motion" ? "processing_motion" :
+          session.pending_generation_type === "text" ? "processing_text" : "processing";
 
         // Auto-continue generation: deduct credits atomically
         const { data: deducted } = await supabase
@@ -6446,7 +6451,11 @@ bot.on("successful_payment", async (ctx) => {
         if (deducted) {
           await supabase
             .from("sessions")
-            .update({ state: nextState, is_active: true })
+            .update({ 
+              state: nextState, 
+              is_active: true,
+              generation_type: session.pending_generation_type || null,
+            })
             .eq("id", session.id);
 
           await enqueueJob(session.id, finalUser.id);
@@ -6485,7 +6494,9 @@ bot.on("successful_payment", async (ctx) => {
 
         if (currentCredits >= creditsNeeded) {
           const nextState =
-            session.pending_generation_type === "emotion" ? "processing_emotion" : "processing";
+            session.pending_generation_type === "emotion" ? "processing_emotion" :
+            session.pending_generation_type === "motion" ? "processing_motion" :
+            session.pending_generation_type === "text" ? "processing_text" : "processing";
 
           const { data: deductedFb } = await supabase
             .rpc("deduct_credits", { p_user_id: finalUser.id, p_amount: creditsNeeded });
@@ -6493,7 +6504,11 @@ bot.on("successful_payment", async (ctx) => {
           if (deductedFb) {
             await supabase
               .from("sessions")
-              .update({ state: nextState, is_active: true })
+              .update({ 
+                state: nextState, 
+                is_active: true,
+                generation_type: session.pending_generation_type || null,
+              })
               .eq("id", session.id);
 
             await enqueueJob(session.id, finalUser.id);
