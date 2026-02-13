@@ -1,0 +1,62 @@
+---
+description: Business logic for sticker generation chain (style, emotion, motion, text)
+alwaysApply: true
+---
+
+# Цепочка генерации стикеров
+
+**Всегда читай это правило перед реализацией задач, связанных с генерацией.**
+
+## Типы генерации и источники
+
+```
+Фото (AgAC) ──[style]──> Стикер (CAAC)
+                               │
+                     ┌─────────┼─────────┐
+                     ▼         ▼         ▼
+               [emotion]   [motion]   [text]
+                     │         │         │
+                     ▼         ▼         ▼
+               Новый стикер (CAAC) ──> ...
+```
+
+| Тип генерации | Источник (input для Gemini) | `source_photo_file_id` в БД |
+|---------------|---------------------------|----------------------------|
+| **style** | Оригинальное фото (AgAC) | Оригинальное фото (AgAC) |
+| **emotion** | Ранее созданный стикер (CAAC) | Этот же стикер (CAAC) |
+| **motion** | Ранее созданный стикер (CAAC) | Этот же стикер (CAAC) |
+| **text** | Нет генерации — текстовый оверлей поверх стикера | — |
+
+## Ключевые правила
+
+1. **Style** — ТОЛЬКО из оригинального фото пользователя
+2. **Emotion / Motion** — ТОЛЬКО из ранее созданного стикера, НИКОГДА из оригинального фото
+3. **Text** — оверлей поверх стикера, генерация через Gemini не используется
+4. **`source_photo_file_id`** — всегда равен `sourceFileId` (для style = фото, для производных = стикер)
+5. Цепочки могут быть произвольной длины: style → motion → emotion → motion → ...
+
+## Код (worker.ts)
+
+```typescript
+// sourceFileId определяет input для генерации
+const sourceFileId =
+  generationType === "emotion" || generationType === "motion" || generationType === "text"
+    ? session.last_sticker_file_id    // стикер (CAAC)
+    : session.current_photo_file_id;  // оригинальное фото (AgAC)
+
+// source_photo_file_id в БД = всегда sourceFileId
+const savedSourcePhotoFileId = sourceFileId;
+```
+
+## Код (index.ts) — обработка кнопок
+
+При нажатии `change_emotion:ID` / `change_motion:ID`:
+1. Берём стикер из БД по ID
+2. `last_sticker_file_id = sticker.telegram_file_id` (CAAC стикер)
+3. `current_photo_file_id = sticker.source_photo_file_id` (сохраняем для контекста)
+
+## Частые ошибки
+
+- ❌ Для emotion/motion брать оригинальное фото вместо стикера
+- ❌ Сохранять `source_photo_file_id = original photo` для производных типов
+- ❌ Путать `current_photo_file_id` (фото) с `last_sticker_file_id` (стикер)
