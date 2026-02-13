@@ -24,6 +24,46 @@ export function getGreenPixelRatio(data: Buffer, channels: number): number {
 }
 
 /**
+ * Full chroma key — remove ALL green (#00FF00) pixels from an image.
+ * Used when greenRatio is high (>40%) and we skip rembg entirely.
+ * Unlike chromaKeyGreen(), this works on ALL pixels (including fully opaque).
+ * Edges get anti-aliased transparency based on distance from green.
+ */
+export async function fullChromaKey(buffer: Buffer): Promise<Buffer> {
+  const { data, info } = await sharp(buffer)
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const { width, height, channels } = info;
+  const targetR = 0, targetG = 255, targetB = 0;
+  // Two thresholds: hard (definitely green) and soft (edge anti-aliasing)
+  const hardThresholdSq = 80 * 80;   // definitely green → fully transparent
+  const softThresholdSq = 120 * 120; // near-green → partial transparency (smooth edges)
+  let cleaned = 0;
+
+  for (let i = 0; i < data.length; i += channels) {
+    const r = data[i], g = data[i + 1], b = data[i + 2];
+    const distSq = (r - targetR) ** 2 + (g - targetG) ** 2 + (b - targetB) ** 2;
+
+    if (distSq < hardThresholdSq) {
+      data[i + 3] = 0; // fully transparent
+      cleaned++;
+    } else if (distSq < softThresholdSq) {
+      // Smooth edge: linearly interpolate alpha based on distance
+      const t = (distSq - hardThresholdSq) / (softThresholdSq - hardThresholdSq);
+      data[i + 3] = Math.round(t * data[i + 3]);
+      cleaned++;
+    }
+  }
+
+  console.log(`[fullChromaKey] Removed ${cleaned} green pixels out of ${data.length / channels} total`);
+
+  return sharp(Buffer.from(data), { raw: { width, height, channels } })
+    .png()
+    .toBuffer();
+}
+
+/**
  * Remove leftover green (#00FF00) pixels from an image after rembg.
  * Only affects semi-transparent pixels (alpha <= 220) to avoid
  * damaging green elements that are part of the character.

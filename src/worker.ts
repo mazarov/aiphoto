@@ -7,7 +7,7 @@ import { supabase } from "./lib/supabase";
 import { getFilePath, downloadFile, sendMessage, sendSticker, editMessageText, deleteMessage } from "./lib/telegram";
 import { getText } from "./lib/texts";
 import { sendAlert, sendNotification } from "./lib/alerts";
-import { chromaKeyGreen, getGreenPixelRatio } from "./lib/image-utils";
+import { chromaKeyGreen, fullChromaKey, getGreenPixelRatio } from "./lib/image-utils";
 
 async function sleep(ms: number) {
   await new Promise((r) => setTimeout(r, ms));
@@ -41,6 +41,63 @@ async function retryWithBackoff<T>(
 
 const WORKER_ID = `${os.hostname()}-${process.pid}-${Date.now()}`;
 console.log(`Worker started: ${WORKER_ID}`);
+
+/**
+ * Call rembg HTTP API to remove background.
+ * Returns buffer with transparent background, or undefined if failed.
+ */
+async function callRembg(imageBuffer: Buffer, rembgUrl: string | undefined, imageSizeKb: number): Promise<Buffer | undefined> {
+  if (!rembgUrl) return undefined;
+  
+  try {
+    // Resize image for faster rembg processing (max 512px)
+    const rembgBuffer = await sharp(imageBuffer)
+      .resize(512, 512, { fit: "inside", withoutEnlargement: true })
+      .png()
+      .toBuffer();
+    const rembgSizeKb = Math.round(rembgBuffer.length / 1024);
+    console.log(`[rembg] Starting request to ${rembgUrl} (resized: ${rembgSizeKb} KB, original: ${imageSizeKb} KB)`);
+    
+    // Health check
+    try {
+      const healthStart = Date.now();
+      const healthRes = await axios.get(`${rembgUrl}/health`, { timeout: 5000 });
+      console.log(`[rembg] Health check OK (${Date.now() - healthStart}ms):`, healthRes.data);
+    } catch (healthErr: any) {
+      console.error(`[rembg] Health check FAILED: ${healthErr.code || healthErr.message}`);
+    }
+    
+    const rembgForm = new FormData();
+    rembgForm.append("image", rembgBuffer, {
+      filename: "image.png",
+      contentType: "image/png",
+    });
+    
+    let attemptNum = 0;
+    const rembgRes = await retryWithBackoff(
+      () => {
+        attemptNum++;
+        const attemptStart = Date.now();
+        console.log(`[rembg] Attempt ${attemptNum}/2 starting...`);
+        return axios.post(`${rembgUrl}/remove-background`, rembgForm, {
+          headers: rembgForm.getHeaders(),
+          responseType: "arraybuffer",
+          timeout: 90000,
+        }).then(res => {
+          console.log(`[rembg] Attempt ${attemptNum} completed in ${Date.now() - attemptStart}ms`);
+          return res;
+        });
+      },
+      { maxAttempts: 2, baseDelayMs: 3000, name: "rembg" }
+    );
+    const processingTime = rembgRes.headers?.['x-processing-time-ms'] || 'unknown';
+    console.log(`[rembg] SUCCESS server_processing=${processingTime}ms`);
+    return Buffer.from(rembgRes.data);
+  } catch (rembgErr: any) {
+    console.error(`[rembg] FAILED: ${rembgErr.code || 'none'} — ${rembgErr.message}`);
+    return undefined;
+  }
+}
 
 async function runJob(job: any) {
   const { data: session } = await supabase
@@ -274,73 +331,55 @@ async function runJob(job: any) {
   }
 
   await updateProgress(5);
-  // Remove background (rembg first, Pixian fallback)
+  // ============================================================
+  // Smart background removal — route by green pixel ratio
+  // ============================================================
+  // greenRatio > 40%  → fullChromaKey only (skip rembg — fast, reliable)
+  // greenRatio 5-40%  → fullChromaKey first, then rembg to clean up
+  // greenRatio < 5%   → rembg only (Gemini didn't draw green BG)
+  // ============================================================
   const imageSizeKb = Math.round(generatedBuffer.length / 1024);
   const rembgUrl = process.env.REMBG_URL;
   
   let noBgBuffer: Buffer;
   const startTime = Date.now();
-  
-  // Try rembg (self-hosted) first
-  if (rembgUrl) {
-    // Resize image for faster rembg processing (max 512px - same as final sticker size)
-    const rembgBuffer = await sharp(generatedBuffer)
-      .resize(512, 512, { fit: "inside", withoutEnlargement: true })
-      .png()
-      .toBuffer();
-    const rembgSizeKb = Math.round(rembgBuffer.length / 1024);
-    console.log(`[rembg] Starting request to ${rembgUrl} (resized: ${rembgSizeKb} KB, original: ${imageSizeKb} KB)`);
-    
-    // Health check first to see if rembg is reachable
+
+  if (greenRatio > 0.40) {
+    // === PATH A: High green ratio — chroma key only, skip rembg ===
+    console.log(`[bgRemoval] PATH A: greenRatio=${(greenRatio * 100).toFixed(1)}% > 40% — using fullChromaKey only (skip rembg)`);
     try {
-      const healthStart = Date.now();
-      const healthRes = await axios.get(`${rembgUrl}/health`, { timeout: 5000 });
-      console.log(`[rembg] Health check OK (${Date.now() - healthStart}ms):`, healthRes.data);
-    } catch (healthErr: any) {
-      console.error(`[rembg] Health check FAILED: ${healthErr.code || healthErr.message}`);
-      // Continue anyway, maybe just health endpoint is slow
+      const ckStart = Date.now();
+      noBgBuffer = await fullChromaKey(generatedBuffer);
+      console.log(`[bgRemoval] fullChromaKey done in ${Date.now() - ckStart}ms`);
+    } catch (err: any) {
+      console.error(`[bgRemoval] fullChromaKey failed: ${err.message} — falling back to rembg`);
+      // Fall through to rembg below
+      noBgBuffer = undefined as any;
     }
-    
-    const rembgForm = new FormData();
-    rembgForm.append("image", rembgBuffer, {
-      filename: "image.png",
-      contentType: "image/png",
-    });
-    
+  } else if (greenRatio > 0.05) {
+    // === PATH B: Medium green ratio — chroma key first, then rembg ===
+    console.log(`[bgRemoval] PATH B: greenRatio=${(greenRatio * 100).toFixed(1)}% (5-40%) — fullChromaKey + rembg`);
     try {
-      let attemptNum = 0;
-      const rembgRes = await retryWithBackoff(
-        () => {
-          attemptNum++;
-          const attemptStart = Date.now();
-          console.log(`[rembg] Attempt ${attemptNum}/2 starting...`);
-          return axios.post(`${rembgUrl}/remove-background`, rembgForm, {
-            headers: rembgForm.getHeaders(),
-            responseType: "arraybuffer",
-            timeout: 90000, // 90 seconds for CPU processing
-          }).then(res => {
-            console.log(`[rembg] Attempt ${attemptNum} completed in ${Date.now() - attemptStart}ms`);
-            return res;
-          });
-        },
-        { maxAttempts: 2, baseDelayMs: 3000, name: "rembg" }
-      );
-      const duration = Date.now() - startTime;
-      const processingTime = rembgRes.headers?.['x-processing-time-ms'] || 'unknown';
-      console.log(`[rembg] SUCCESS total=${duration}ms, server_processing=${processingTime}ms`);
-      noBgBuffer = Buffer.from(rembgRes.data);
-    } catch (rembgErr: any) {
-      const duration = Date.now() - startTime;
-      console.error(`[rembg] FAILED after ${duration}ms:`);
-      console.error(`[rembg]   code: ${rembgErr.code || 'none'}`);
-      console.error(`[rembg]   message: ${rembgErr.message}`);
-      console.error(`[rembg]   status: ${rembgErr.response?.status || 'no response'}`);
-      console.error(`[rembg]   response: ${rembgErr.response?.data ? Buffer.from(rembgErr.response.data).toString().slice(0, 200) : 'none'}`);
-      // Fall through to Pixian
+      const ckStart = Date.now();
+      const chromaResult = await fullChromaKey(generatedBuffer);
+      console.log(`[bgRemoval] fullChromaKey pre-pass done in ${Date.now() - ckStart}ms`);
+      // Now pass chroma key result to rembg for final cleanup
+      noBgBuffer = await callRembg(chromaResult, rembgUrl, imageSizeKb);
+    } catch (err: any) {
+      console.error(`[bgRemoval] PATH B failed: ${err.message} — trying rembg on original`);
+      noBgBuffer = undefined as any;
     }
+  } else {
+    // === PATH C: Low/no green ratio — rembg only ===
+    console.log(`[bgRemoval] PATH C: greenRatio=${(greenRatio * 100).toFixed(1)}% < 5% — rembg only`);
+  }
+
+  // If no result yet, call rembg on original image
+  if (!noBgBuffer!) {
+    noBgBuffer = await callRembg(generatedBuffer, rembgUrl, imageSizeKb);
   }
   
-  // Fallback to Pixian if rembg not configured or failed
+  // If rembg also failed, fallback to Pixian
   if (!noBgBuffer!) {
     console.log(`Calling Pixian to remove background... (image size: ${imageSizeKb} KB)`);
     const pixianForm = new FormData();
@@ -367,9 +406,6 @@ async function runJob(job: any) {
       noBgBuffer = Buffer.from(pixianRes.data);
     } catch (err: any) {
       const duration = Date.now() - startTime;
-      const responseBody = err.response?.data ? 
-        (typeof err.response.data === 'string' ? err.response.data : err.response.data.toString?.().slice(0, 500)) : 
-        'no response body';
       
       console.error("=== Background removal failed (all methods) ===");
       console.error("Status:", err.response?.status || "no status");
@@ -395,22 +431,24 @@ async function runJob(job: any) {
     }
   }
 
+  const bgDuration = Date.now() - startTime;
+  console.log(`[bgRemoval] Total background removal took ${bgDuration}ms`);
+
   await updateProgress(6);
 
-  // Chroma key cleanup: remove leftover green pixels after rembg
-  // Only run if original image had significant green background (> 5%)
+  // Final chroma key cleanup: catch any remaining green artifacts
   let cleanedBuffer = noBgBuffer;
   if (greenRatio > 0.05) {
     try {
       const ckStart = Date.now();
       cleanedBuffer = await chromaKeyGreen(noBgBuffer);
-      console.log(`[chromaKey] Cleanup done in ${Date.now() - ckStart}ms`);
+      console.log(`[chromaKey] Final cleanup done in ${Date.now() - ckStart}ms`);
     } catch (err: any) {
-      console.error(`[chromaKey] Cleanup failed, using rembg output: ${err.message}`);
+      console.error(`[chromaKey] Final cleanup failed, using previous output: ${err.message}`);
       cleanedBuffer = noBgBuffer;
     }
   } else {
-    console.log(`[chromaKey] Skipped — green ratio ${(greenRatio * 100).toFixed(1)}% below 5% threshold`);
+    console.log(`[chromaKey] Final cleanup skipped — green ratio ${(greenRatio * 100).toFixed(1)}% below 5%`);
   }
 
   // Trim transparent borders and fit into 512x512

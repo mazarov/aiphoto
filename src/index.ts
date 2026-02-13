@@ -1299,8 +1299,15 @@ Composition: Characters and objects occupy maximum canvas area with clear silhou
 Outline: Bold uniform border around the entire composition (approx 25–35% outline width), smooth and consistent.
 Visual design: High contrast, strong edge separation, color palette consistent with the selected style.
 Requirements: No watermark, no logo, no frame, no text unless the style specifically requires it.
-Quality: Expressive, visually appealing, optimized for clean automated background removal and messenger sticker use.
-CRITICAL REQUIREMENT: The background MUST be a solid uniform bright green color (#00FF00). Do NOT use any other background color regardless of the style. This is essential for automated background removal. The ENTIRE area behind the character(s) must be filled with exactly #00FF00 green — no gradients, no style-specific backgrounds, no dark colors.`;
+Quality: Expressive, visually appealing, optimized for messenger sticker use.
+
+CRITICAL BACKGROUND REQUIREMENT — READ CAREFULLY:
+The image must show ONLY the character(s) and significant objects on a SOLID UNIFORM BRIGHT GREEN (#00FF00) background.
+- Fill the ENTIRE area behind the character(s) with exactly #00FF00 green.
+- Do NOT draw any scene, environment, room, landscape, or decorative backdrop.
+- Do NOT use any other background color — no dark, no gradient, no style-specific backgrounds.
+- The character(s) must appear as a clean cutout on flat green, like a green screen photo shoot.
+This is essential for automated background removal. Ignoring this requirement will ruin the sticker.`;
 }
 
 // Helper: get active session
@@ -1579,7 +1586,7 @@ async function handleAvatarAutoGeneration(ctx: any, user: any, lang: string) {
   await ctx.reply(greetingText, getMainMenuKeyboard(lang));
 
   // Fixed anime prompt with green background (no LLM prompt_generator)
-  const avatarPrompt = `Create a high-quality messenger sticker. Style: anime/manga art style, expressive eyes, clean bold lines, vibrant colors. Subject: Analyze the provided photo. Extract the person. Preserve recognizable facial features, hairstyle, and distinctive traits. Adapt proportions to anime style while keeping facial identity. The character should have a friendly, welcoming expression. Composition: Upper body or full body pose, facing the viewer. Fit the character fully into the frame, do not crop. Leave small padding around the edges. Bold uniform border around the composition (thick, approx 25-35% outline width), smooth and consistent outline. Visual design: High contrast, strong edge separation, simplified shapes, bright saturated anime color palette. Requirements: No watermark, no logo, no frame, no text. Quality: Expressive, visually appealing, optimized for clean automated background removal. CRITICAL REQUIREMENT: The background MUST be a solid uniform bright green color (#00FF00). Do NOT use any other background color. The ENTIRE area behind the character must be filled with exactly #00FF00 green.`;
+  const avatarPrompt = `Create a high-quality messenger sticker. Style: anime/manga art style, expressive eyes, clean bold lines, vibrant colors. Subject: Analyze the provided photo. Extract the person. Preserve recognizable facial features, hairstyle, and distinctive traits. Adapt proportions to anime style while keeping facial identity. The character should have a friendly, welcoming expression. Composition: Upper body or full body pose, facing the viewer. Fit the character fully into the frame, do not crop. Leave small padding around the edges. Bold uniform border around the composition (thick, approx 25-35% outline width), smooth and consistent outline. Visual design: High contrast, strong edge separation, simplified shapes, bright saturated anime color palette. Requirements: No watermark, no logo, no frame, no text. Quality: Expressive, visually appealing, optimized for messenger sticker use. CRITICAL BACKGROUND REQUIREMENT: The image must show ONLY the character on a SOLID UNIFORM BRIGHT GREEN (#00FF00) background. Fill the ENTIRE area behind the character with exactly #00FF00 green. Do NOT draw any scene, environment, room, or backdrop. The character must appear as a clean cutout on flat green, like a green screen photo shoot. Ignoring this will ruin the sticker.`;
 
   // Close any active sessions
   await supabase
