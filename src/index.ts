@@ -1296,10 +1296,9 @@ Subject: Analyze the provided photo carefully:
 - If a person is interacting with a significant object (vehicle, bicycle, musical instrument, pet, sports equipment, furniture they sit/lean on) — include that object as part of the sticker.
 - Remove ONLY irrelevant background (walls, sky, floor, landscape, generic surroundings).
 Preserve recognizable facial features, proportions, and overall likeness for every person. Adapt proportions to match the style while keeping facial identity.
-Composition: Characters and objects occupy maximum canvas area with clear silhouette.
-Outline: Bold uniform border around the entire composition (approx 25–35% outline width), smooth and consistent.
+Composition: Characters and objects occupy maximum canvas area with clear silhouette. Do NOT add any border, outline, or stroke around the character(s). Keep the edges clean and natural.
 Visual design: High contrast, strong edge separation, color palette consistent with the selected style.
-Requirements: No watermark, no logo, no frame, no text unless the style specifically requires it.
+Requirements: No watermark, no logo, no frame, no border, no outline, no text unless the style specifically requires it.
 Quality: Expressive, visually appealing, optimized for messenger sticker use.
 
 CRITICAL BACKGROUND REQUIREMENT — READ CAREFULLY:
