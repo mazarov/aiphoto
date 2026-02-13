@@ -8,6 +8,7 @@ import { getFilePath, downloadFile, sendMessage, sendSticker, editMessageText, d
 import { getText } from "./lib/texts";
 import { sendAlert, sendNotification } from "./lib/alerts";
 import { chromaKeyGreen, fullChromaKey, getGreenPixelRatio } from "./lib/image-utils";
+import { getAppConfig } from "./lib/app-config";
 
 async function sleep(ms: number) {
   await new Promise((r) => setTimeout(r, ms));
@@ -190,10 +191,11 @@ async function runJob(job: any) {
   console.log("Full prompt:", session.prompt_final);
   console.log("text_prompt:", session.text_prompt);
 
-  // Model selection: Pro 3.0 for style (best quality), Flash for derivatives (emotion/motion — speed)
-  const model = generationType === "style" 
-    ? "gemini-3-pro-image-preview" 
-    : "gemini-2.5-flash-image";
+  // Model selection from app_config (changeable at runtime via Supabase, cached 60s)
+  const model = 
+    generationType === "emotion" ? await getAppConfig("gemini_model_emotion", "gemini-2.5-flash-image") :
+    generationType === "motion"  ? await getAppConfig("gemini_model_motion",  "gemini-2.5-flash-image") :
+    await getAppConfig("gemini_model_style", "gemini-3-pro-image-preview");
   console.log("Using model:", model, "generationType:", generationType);
 
   let geminiRes;
