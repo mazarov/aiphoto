@@ -607,7 +607,7 @@ async function startGeneration(
   session: any,
   lang: string,
   options: {
-    generationType: "style" | "emotion" | "motion" | "text";
+    generationType: string;
     promptFinal: string;
     userInput?: string | null;
     emotionPrompt?: string | null;
@@ -668,7 +668,7 @@ async function startGeneration(
       }
     }).catch(console.error);
 
-    const targetState = isPaywall ? "wait_first_purchase" : "wait_buy_credit";
+    const targetState = "wait_payment";
     console.log("[startGeneration] Setting paywall state:", targetState, "sessionId:", session.id);
     const { error: paywallUpdateErr } = await supabase
       .from("photo_sessions")
@@ -732,10 +732,7 @@ async function startGeneration(
   // Increment total_generations
   await supabase.rpc("photo_increment_generations", { p_user_id: user.id });
 
-  const nextState = 
-    options.generationType === "emotion" ? "processing_emotion" :
-    options.generationType === "motion" ? "processing_motion" :
-    options.generationType === "text" ? "processing_text" : "processing";
+  const nextState = "processing";
 
   await supabase
     .from("photo_sessions")
@@ -763,13 +760,7 @@ async function startGeneration(
       const ap = options.assistantParams!;
       return `${ap.style} / ${ap.emotion} / ${ap.pose}`;
     }
-    switch (options.generationType) {
-      case "style": return `Стикер в стиле: ${options.selectedStyleId || options.userInput || "custom"}`;
-      case "emotion": return `Эмоция: ${options.emotionPrompt || "?"}`;
-      case "motion": return `Движение: ${options.emotionPrompt || "?"}`;
-      case "text": return `Текст: ${options.textPrompt || "?"}`;
-      default: return options.generationType;
-    }
+    return `Photo: style=${options.selectedStyleId || options.userInput || "custom"}, model=${session.selected_model || "default"}, ratio=${session.selected_aspect_ratio || "1:1"}, quality=${session.selected_quality || "fhd"}`;
   })();
 
   const alertDetails: Record<string, any> = {
@@ -798,6 +789,100 @@ async function startGeneration(
   }).catch(console.error);
 
   await sendProgressStart(ctx, session.id, lang);
+}
+
+// ============================================================
+// Photo flow: model → format → quality selection helpers
+// ============================================================
+
+async function showModelSelection(ctx: any, lang: string) {
+  const title = lang === "ru"
+    ? "🤖 <b>Выбери модель генерации:</b>"
+    : "🤖 <b>Choose generation model:</b>";
+
+  const keyboard = {
+    inline_keyboard: [
+      [
+        { text: "⚡ Gemini 2.5 Flash", callback_data: "select_model:gemini-2.5-flash-image" },
+      ],
+      [
+        { text: "✨ Gemini 3.0 Pro", callback_data: "select_model:gemini-3-pro-image-preview" },
+      ],
+    ],
+  };
+
+  await ctx.reply(title, { parse_mode: "HTML", reply_markup: keyboard });
+}
+
+async function showFormatSelection(ctx: any, lang: string) {
+  const title = lang === "ru"
+    ? "📐 <b>Выбери формат:</b>"
+    : "📐 <b>Choose aspect ratio:</b>";
+
+  const keyboard = {
+    inline_keyboard: [
+      [
+        { text: "1:1", callback_data: "select_format:1:1" },
+        { text: "4:3", callback_data: "select_format:4:3" },
+        { text: "3:4", callback_data: "select_format:3:4" },
+      ],
+      [
+        { text: "16:9", callback_data: "select_format:16:9" },
+        { text: "9:16", callback_data: "select_format:9:16" },
+        { text: "3:2", callback_data: "select_format:3:2" },
+      ],
+    ],
+  };
+
+  await ctx.reply(title, { parse_mode: "HTML", reply_markup: keyboard });
+}
+
+async function showQualitySelection(ctx: any, lang: string) {
+  const title = lang === "ru"
+    ? "🖼 <b>Выбери качество:</b>"
+    : "🖼 <b>Choose quality:</b>";
+
+  const keyboard = {
+    inline_keyboard: [
+      [
+        { text: "FullHD (1920px)", callback_data: "select_quality:fhd" },
+      ],
+      [
+        { text: "2K (2560px)", callback_data: "select_quality:2k" },
+      ],
+      [
+        { text: "4K (3840px)", callback_data: "select_quality:4k" },
+      ],
+    ],
+  };
+
+  await ctx.reply(title, { parse_mode: "HTML", reply_markup: keyboard });
+}
+
+/**
+ * Save generated prompt to session and proceed to model selection.
+ * Common logic extracted from style_v2, carousel_pick, and custom style handlers.
+ */
+async function proceedToModelSelection(
+  ctx: any,
+  session: any,
+  lang: string,
+  promptFinal: string,
+  userInput: string | null,
+  selectedStyleId: string | null,
+) {
+  await supabase
+    .from("photo_sessions")
+    .update({
+      state: "wait_model",
+      is_active: true,
+      prompt_final: promptFinal,
+      user_input: userInput,
+      selected_style_id: selectedStyleId,
+    })
+    .eq("id", session.id);
+
+  await showModelSelection(ctx, lang);
 }
 
 // Credit packages: { credits, price_in_stars, label_ru, label_en, price_rub, adminOnly?, hidden? }
@@ -1010,11 +1095,11 @@ async function startAssistantDialog(ctx: any, user: any, lang: string) {
   } else {
     greeting = isReturning
       ? (lang === "ru"
-        ? `С возвращением, ${firstName}! 👋\nПришли фото — сделаем новый стикер 📸`
-        : `Welcome back, ${firstName}! 👋\nSend a photo — let's make a new sticker 📸`)
+        ? `С возвращением, ${firstName}! 👋\nПришли фото — создадим AI-изображение 📸`
+        : `Welcome back, ${firstName}! 👋\nSend a photo — let's create an AI image 📸`)
       : (lang === "ru"
-        ? `Привет, ${firstName}! 👋\nЯ помогу превратить твоё фото в крутой стикер.\n\nПришли мне фото, из которого хочешь сделать стикер 📸`
-        : `Hi, ${firstName}! 👋\nI'll help turn your photo into an awesome sticker.\n\nSend me a photo you'd like to turn into a sticker 📸`);
+        ? `Привет, ${firstName}! 👋\nЯ помогу создать AI-изображение из твоего фото.\n\nПришли мне фото 📸`
+        : `Hi, ${firstName}! 👋\nI'll help create an AI image from your photo.\n\nSend me a photo 📸`);
   }
 
   // Save greeting to assistant_sessions so AI has context when photo arrives
@@ -2333,12 +2418,8 @@ bot.on("photo", async (ctx) => {
       const promptResult = await generatePrompt(userInput);
       const generatedPrompt = promptResult.ok && !promptResult.retry ? promptResult.prompt || userInput : userInput;
       Object.assign(session, { photos, current_photo_file_id: photo.file_id, state: "wait_style", selected_style_id: preset.id });
-      await startGeneration(ctx, user, session, lang, {
-        generationType: "style",
-        promptFinal: generatedPrompt,
-        userInput,
-        selectedStyleId: preset.id,
-      });
+      // Photo flow: save prompt → model selection
+      await proceedToModelSelection(ctx, session, lang, generatedPrompt, userInput, preset.id);
       return;
     }
   }
@@ -2997,12 +3078,8 @@ bot.on("text", async (ctx) => {
     }
 
     const generatedPrompt = promptResult.prompt || styleText;
-    await startGeneration(ctx, user, session, lang, {
-      generationType: "style",
-      promptFinal: generatedPrompt,
-      userInput: styleText,
-      selectedStyleId: "custom",
-    });
+    // Photo flow: save prompt → model selection
+    await proceedToModelSelection(ctx, session, lang, generatedPrompt, styleText, "custom");
     return;
   }
 
@@ -3025,12 +3102,8 @@ bot.on("text", async (ctx) => {
     }
 
     const generatedPrompt = promptResult.prompt || styleText;
-    await startGeneration(ctx, user, session, lang, {
-      generationType: "style",
-      promptFinal: generatedPrompt,
-      userInput: styleText,
-      selectedStyleId: "custom_v2",
-    });
+    // Photo flow: save prompt → model selection
+    await proceedToModelSelection(ctx, session, lang, generatedPrompt, styleText, "custom_v2");
     return;
   }
 
@@ -3072,11 +3145,8 @@ bot.on("text", async (ctx) => {
   const generatedPrompt = promptResult.prompt || ctx.message.text;
   const userInput = ctx.message.text;
 
-  await startGeneration(ctx, user, session, lang, {
-    generationType: "style",
-    promptFinal: generatedPrompt,
-    userInput,
-  });
+  // Photo flow: save prompt → model selection
+  await proceedToModelSelection(ctx, session, lang, generatedPrompt, userInput, null);
 });
 
 // Callback: style selection (legacy v1 — excludes style_v2, style_example, style_custom, style_group)
@@ -3140,12 +3210,8 @@ bot.action(/^style_(?!v2:|example|custom|group)([^:]+)$/, async (ctx) => {
 
     const generatedPrompt = promptResult.prompt || userInput;
 
-    await startGeneration(ctx, user, session, lang, {
-      generationType: "style",
-      promptFinal: generatedPrompt,
-      userInput,
-      selectedStyleId: preset.id,
-    });
+    // Photo flow: save prompt → model selection
+    await proceedToModelSelection(ctx, session, lang, generatedPrompt, userInput, preset.id);
   } catch (err) {
     console.error("Style callback error:", err);
   }
@@ -3197,12 +3263,8 @@ bot.action(/^style_carousel_pick:(.+)$/, async (ctx) => {
     }
 
     const generatedPrompt = promptResult.prompt || userInput;
-    await startGeneration(ctx, user, session, lang, {
-      generationType: "style",
-      promptFinal: generatedPrompt,
-      userInput,
-      selectedStyleId: preset.id,
-    });
+    // Photo flow: save prompt → model selection
+    await proceedToModelSelection(ctx, session, lang, generatedPrompt, userInput, preset.id);
   } catch (err) {
     console.error("[StyleCarousel] Pick error:", err);
   }
@@ -3309,12 +3371,8 @@ bot.action(/^style_v2:(.+)$/, async (ctx) => {
 
     const generatedPrompt = promptResult.prompt || userInput;
 
-    await startGeneration(ctx, user, session, lang, {
-      generationType: "style",
-      promptFinal: generatedPrompt,
-      userInput,
-      selectedStyleId: preset.id,
-    });
+    // Photo flow: save prompt → model selection (instead of direct generation)
+    await proceedToModelSelection(ctx, session, lang, generatedPrompt, userInput, preset.id);
   } catch (err) {
     console.error("Style v2 callback error:", err);
   }
@@ -3635,6 +3693,142 @@ bot.action("style_custom_v2", async (ctx) => {
 
 // ============================================
 // End of Styles v2 handlers
+// ============================================
+
+// ============================================
+// Photo Flow: Model → Format → Quality
+// ============================================
+
+// Callback: select model
+bot.action(/^select_model:(.+)$/, async (ctx) => {
+  try {
+    safeAnswerCbQuery(ctx);
+    const telegramId = ctx.from?.id;
+    if (!telegramId) return;
+
+    const user = await getUser(telegramId);
+    if (!user?.id) return;
+
+    const lang = user.lang || "en";
+    const session = await getActiveSession(user.id);
+    if (!session?.id || session.state !== "wait_model") return;
+
+    const model = ctx.match[1];
+    console.log("[PhotoFlow] Model selected:", model);
+
+    await supabase
+      .from("photo_sessions")
+      .update({ selected_model: model, state: "wait_format", is_active: true })
+      .eq("id", session.id);
+
+    await showFormatSelection(ctx, lang);
+  } catch (err) {
+    console.error("[PhotoFlow] select_model error:", err);
+  }
+});
+
+// Callback: select format (aspect ratio)
+bot.action(/^select_format:(.+)$/, async (ctx) => {
+  try {
+    safeAnswerCbQuery(ctx);
+    const telegramId = ctx.from?.id;
+    if (!telegramId) return;
+
+    const user = await getUser(telegramId);
+    if (!user?.id) return;
+
+    const lang = user.lang || "en";
+    const session = await getActiveSession(user.id);
+    if (!session?.id || session.state !== "wait_format") return;
+
+    const format = ctx.match[1];
+    console.log("[PhotoFlow] Format selected:", format);
+
+    await supabase
+      .from("photo_sessions")
+      .update({ selected_aspect_ratio: format, state: "wait_quality", is_active: true })
+      .eq("id", session.id);
+
+    await showQualitySelection(ctx, lang);
+  } catch (err) {
+    console.error("[PhotoFlow] select_format error:", err);
+  }
+});
+
+// Callback: select quality — final step, starts generation
+bot.action(/^select_quality:(.+)$/, async (ctx) => {
+  try {
+    safeAnswerCbQuery(ctx);
+    const telegramId = ctx.from?.id;
+    if (!telegramId) return;
+
+    const user = await getUser(telegramId);
+    if (!user?.id) return;
+
+    const lang = user.lang || "en";
+    const session = await getActiveSession(user.id);
+    if (!session?.id || session.state !== "wait_quality") return;
+
+    const quality = ctx.match[1];
+    console.log("[PhotoFlow] Quality selected:", quality);
+
+    await supabase
+      .from("photo_sessions")
+      .update({ selected_quality: quality, is_active: true })
+      .eq("id", session.id);
+
+    // Re-fetch session with updated fields
+    const updatedSession = await getActiveSession(user.id);
+    if (!updatedSession?.id) return;
+
+    await startGeneration(ctx, user, updatedSession, lang, {
+      generationType: "style",
+      promptFinal: updatedSession.prompt_final || "",
+      userInput: updatedSession.user_input,
+      selectedStyleId: updatedSession.selected_style_id,
+    });
+  } catch (err) {
+    console.error("[PhotoFlow] select_quality error:", err);
+  }
+});
+
+// Callback: new_style — re-enter style selection with same photo
+bot.action("new_style", async (ctx) => {
+  try {
+    safeAnswerCbQuery(ctx);
+    const telegramId = ctx.from?.id;
+    if (!telegramId) return;
+
+    const user = await getUser(telegramId);
+    if (!user?.id) return;
+
+    const lang = user.lang || "en";
+    const session = await getActiveSession(user.id);
+    if (!session?.id) return;
+
+    // Reset session to style selection, keep photo
+    await supabase
+      .from("photo_sessions")
+      .update({
+        state: "wait_style",
+        is_active: true,
+        prompt_final: null,
+        user_input: null,
+        selected_style_id: null,
+        selected_model: null,
+        selected_aspect_ratio: null,
+        selected_quality: null,
+      })
+      .eq("id", session.id);
+
+    await sendStyleCarousel(ctx, lang);
+  } catch (err) {
+    console.error("[PhotoFlow] new_style error:", err);
+  }
+});
+
+// ============================================
+// End of Photo Flow handlers
 // ============================================
 
 // Callback: add to pack (new format with sticker ID)
@@ -6390,10 +6584,10 @@ bot.action("new_photo", async (ctx) => {
     .insert({ user_id: user.id, state: "wait_photo", is_active: true, env: config.appEnv });
 
   const text = lang === "ru"
-    ? "📷 Отправь фото — сделаем новый стикер!"
-    : "📷 Send a photo — let's create a new sticker!";
+    ? "📷 Отправь фото — создадим новый шедевр!"
+    : "📷 Send a photo — let's create something amazing!";
 
-  await ctx.editMessageText(text);
+  await ctx.reply(text);
 });
 
 // Callback: cancel

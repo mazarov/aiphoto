@@ -319,7 +319,6 @@ async function runJob(job: any) {
   console.log("resultId after insert:", resultId);
 
   // Buttons for result photo
-  const downloadText = lang === "ru" ? "📥 Скачать" : "📥 Download";
   const newStyleText = lang === "ru" ? "🎨 Другой стиль" : "🎨 Another style";
   const newPhotoText = lang === "ru" ? "📷 Новое фото" : "📷 New photo";
 
@@ -347,11 +346,12 @@ async function runJob(job: any) {
 
   // Send result notification (async, non-blocking)
   sendNotification({
-    type: "new_sticker",
+    type: "new_photo",
     message: [
       `👤 @${user.username || telegramId} (${telegramId})`,
       `💰 Кредиты: ${user.credits}`,
       `🎨 Стиль: ${session.selected_style_id || "-"}`,
+      `🤖 Модель: ${selectedModel}`,
       `📐 Формат: ${selectedAspectRatio}`,
       `📏 Качество: ${selectedQuality}`,
     ].join("\n"),

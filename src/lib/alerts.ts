@@ -85,18 +85,18 @@ function escapeMarkdown(text: string): string {
 }
 
 // Business notifications
-type NotificationType = "new_user" | "new_sticker" | "new_payment" | "abandoned_cart";
+type NotificationType = "new_user" | "new_photo" | "new_payment" | "abandoned_cart";
 
 const NOTIFICATION_EMOJI: Record<NotificationType, string> = {
   new_user: "👤",
-  new_sticker: "🎨",
+  new_photo: "🖼",
   new_payment: "💰",
   abandoned_cart: "🛒",
 };
 
 const NOTIFICATION_TITLE: Record<NotificationType, string> = {
   new_user: "Новый пользователь",
-  new_sticker: "Новый стикер",
+  new_photo: "Новое фото",
   new_payment: "Новая оплата",
   abandoned_cart: "Брошенная корзина",
 };
