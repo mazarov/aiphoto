@@ -4814,7 +4814,7 @@ async function processAbandonedCarts() {
     // Find transactions older than 30 minutes without reminder
     const { data: abandoned, error } = await supabase
       .from("photo_transactions")
-      .select("*, users(*)")
+      .select("*, photo_users(*)")
       .eq("state", "created")
       .eq("reminder_sent", false)
       .gt("price", 0)
@@ -4833,7 +4833,7 @@ async function processAbandonedCarts() {
     console.log(`Processing ${abandoned.length} abandoned carts`);
 
     for (const tx of abandoned) {
-      const user = tx.users;
+      const user = tx.photo_users;
       if (!user?.telegram_id) continue;
 
       const lang = user.lang || "en";
@@ -4906,7 +4906,7 @@ async function processAbandonedCartAlerts() {
     // Find transactions older than 15 minutes without alert
     const { data: abandoned, error } = await supabase
       .from("photo_transactions")
-      .select("*, users(*)")
+      .select("*, photo_users(*)")
       .eq("state", "created")
       .eq("alert_sent", false)
       .gt("price", 0)
@@ -4925,7 +4925,7 @@ async function processAbandonedCartAlerts() {
     console.log(`Processing ${abandoned.length} abandoned cart alerts`);
 
     for (const tx of abandoned) {
-      const user = tx.users;
+      const user = tx.photo_users;
       if (!user?.telegram_id) continue;
 
       const minutesSince = Math.round((Date.now() - new Date(tx.created_at).getTime()) / 60000);
