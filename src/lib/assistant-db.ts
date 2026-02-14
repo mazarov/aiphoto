@@ -50,7 +50,7 @@ export function handleToolCall(
   toolCall: ToolCall,
   aSession: AssistantSessionRow
 ): ToolCallResult {
-  if (toolCall.name === "update_sticker_params") {
+  if (toolCall.name === "update_photo_params") {
     const args = toolCall.args;
     // Merge new params with existing, only include defined values to avoid Supabase issues
     const updates: Partial<AssistantSessionRow> = {};

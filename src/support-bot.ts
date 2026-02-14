@@ -17,7 +17,7 @@ const pendingReplies = new Map<number, number>(); // admin_id -> target_user_id
 const pendingFeedback = new Map<number, string>(); // telegram_id -> user_id
 
 // Map для отслеживания кто ожидает ввода issue
-const pendingIssues = new Map<number, string>(); // telegram_id -> sticker_id
+const pendingIssues = new Map<number, string>(); // telegram_id -> result_id
 
 // Map для отслеживания ожидающих ответов на outreach
 const pendingOutreach = new Map<number, string>(); // telegram_id -> outreach_id
@@ -40,10 +40,10 @@ bot.start(async (ctx) => {
     return;
   }
   
-  // Пользователь пришёл сообщить о проблеме со стикером
+  // Пользователь пришёл сообщить о проблеме с результатом
   if (payload?.startsWith("issue_")) {
-    const stickerId = payload.replace("issue_", "");
-    pendingIssues.set(ctx.from.id, stickerId);
+    const resultId = payload.replace("issue_", "");
+    pendingIssues.set(ctx.from.id, resultId);
     
     await ctx.reply(
       "Опишите проблему или предложение по улучшению:\n\n" +
@@ -83,7 +83,7 @@ bot.start(async (ctx) => {
       
       await ctx.reply(textRow?.text || "Thanks for replying! Write your thoughts — we will definitely read them 🙏");
     } else {
-      await ctx.reply("Это бот поддержки photo2sticker. Напишите ваш вопрос!");
+      await ctx.reply("Это бот поддержки AI Photo. Напишите ваш вопрос!");
     }
     return;
   }
@@ -107,7 +107,7 @@ bot.start(async (ctx) => {
     return;
   }
   
-  await ctx.reply("Это бот поддержки photo2sticker. Напишите ваш вопрос!");
+  await ctx.reply("Это бот поддержки AI Photo. Напишите ваш вопрос!");
 });
 
 // Text handler
@@ -240,21 +240,21 @@ bot.on("text", async (ctx) => {
     return;
   }
   
-  // Пользователь сообщает о проблеме со стикером
+  // Пользователь сообщает о проблеме с результатом
   if (pendingIssues.has(telegramId)) {
-    const stickerId = pendingIssues.get(telegramId)!;
+    const resultId = pendingIssues.get(telegramId)!;
     pendingIssues.delete(telegramId);
     
     // Сохраняем в базу
     await supabase.from("photo_issues").insert({
-      sticker_id: stickerId,
+      sticker_id: resultId,
       telegram_id: telegramId,
       username: ctx.from.username,
       issue_text: ctx.message.text,
     });
     
     // Отправляем алерт в Support Channel
-    await sendIssueAlert(ctx.from, stickerId, ctx.message.text);
+    await sendIssueAlert(ctx.from, resultId, ctx.message.text);
     
     await ctx.reply("Спасибо! Мы учтём ваш отзыв при улучшении бота 💜");
     return;
@@ -322,16 +322,16 @@ async function sendMessageAlert(from: any, text: string) {
   await sendAlertWithReply(from, text, "💬 *Сообщение*");
 }
 
-// Алерт о проблеме со стикером
-async function sendIssueAlert(from: any, stickerId: string, text: string) {
+// Алерт о проблеме с результатом генерации
+async function sendIssueAlert(from: any, resultId: string, text: string) {
   const channelId = config.supportChannelId;
   if (!channelId) return;
   
   const message = 
-    `🐛 *Проблема со стикером*\n\n` +
+    `🐛 *Проблема с результатом*\n\n` +
     `👤 @${from.username || from.id} (${from.id})\n` +
-    `🎨 Стикер: \`${stickerId}\`\n` +
-    `💬 "${escapeMarkdown(text)}"`;
+    `🎨 Результат: \`${resultId}\`\n` +
+    `💬 "${escapeMarkdown(text)}"`;  
   
   try {
     await fetch(`https://api.telegram.org/bot${config.supportBotToken}/sendMessage`, {

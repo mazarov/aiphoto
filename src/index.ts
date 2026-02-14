@@ -6,7 +6,7 @@ import { supabase } from "./lib/supabase";
 import { getText } from "./lib/texts";
 import { sendAlert, sendNotification } from "./lib/alerts";
 import { getFilePath, downloadFile, sendPhoto } from "./lib/telegram";
-// image-utils: unused sticker functions removed (addWhiteBorder, addTextToSticker)
+// image-utils: sticker-specific functions removed (not needed for AI Photo Bot)
 import { getAppConfig } from "./lib/app-config";
 import {
   buildSystemPrompt,
@@ -234,11 +234,11 @@ async function sendStyleKeyboardFlat(ctx: any, lang: string, messageId?: number)
 }
 
 /**
- * Get a sticker telegram_file_id for a style (for carousel preview).
+ * Get a photo telegram_file_id for a style (for carousel preview).
  * Filtered by env so file_ids work only for the current bot.
- * Tries is_example first, then any sticker.
+ * Tries is_example first, then any photo result.
  */
-async function getStyleStickerFileId(styleId: string): Promise<string | null> {
+async function getStyleExampleFileId(styleId: string): Promise<string | null> {
   // Try is_example first
   const { data: exData } = await supabase
     .from("photo_results")
@@ -253,7 +253,7 @@ async function getStyleStickerFileId(styleId: string): Promise<string | null> {
 
   if (exData?.telegram_file_id) return exData.telegram_file_id;
 
-  // Fallback: any sticker for this style in same env
+  // Fallback: any photo result for this style in same env
   const { data: anyData } = await supabase
     .from("photo_results")
     .select("telegram_file_id")
@@ -268,8 +268,8 @@ async function getStyleStickerFileId(styleId: string): Promise<string | null> {
 }
 
 /**
- * Style carousel: show 2 styles at a time with sticker examples.
- * Sends stickers (if available) + 1 text message with names and buttons.
+ * Style carousel: show 2 styles at a time with photo examples.
+ * Sends example photos (if available) + 1 text message with names and buttons.
  */
 async function sendStyleCarousel(ctx: any, lang: string, page: number = 0): Promise<void> {
   const allPresets = await getStylePresetsV2();
@@ -286,17 +286,17 @@ async function sendStyleCarousel(ctx: any, lang: string, page: number = 0): Prom
   const startIdx = safePage * PAGE_SIZE;
   const pagePresets = allPresets.slice(startIdx, startIdx + PAGE_SIZE);
 
-  // Send sticker examples for each style on the page (via telegram_file_id)
-  const stickerMsgIds: number[] = [];
+  // Send photo examples for each style on the page (via telegram_file_id)
+  const exampleMsgIds: number[] = [];
   for (const preset of pagePresets) {
     try {
-      const fileId = await getStyleStickerFileId(preset.id);
+      const fileId = await getStyleExampleFileId(preset.id);
       if (fileId) {
-        const msg = await ctx.replyWithSticker(fileId);
-        stickerMsgIds.push(msg.message_id);
+        const msg = await ctx.replyWithPhoto(fileId);
+        exampleMsgIds.push(msg.message_id);
       }
     } catch (err: any) {
-      console.error("[StyleCarousel] Failed to send sticker:", preset.id, err.message);
+      console.error("[StyleCarousel] Failed to send photo example:", preset.id, err.message);
     }
   }
 
@@ -321,16 +321,16 @@ async function sendStyleCarousel(ctx: any, lang: string, page: number = 0): Prom
   const nextPage = (safePage + 1) % totalPages;
 
   const navButtons: any[] = [
-    { text: "⬅️", callback_data: `style_carousel_next:${prevPage}:${stickerMsgIds.join(",")}` },
+    { text: "⬅️", callback_data: `style_carousel_next:${prevPage}:${exampleMsgIds.join(",")}` },
     { text: `${safePage + 1}/${totalPages}`, callback_data: "noop" },
-    { text: "➡️", callback_data: `style_carousel_next:${nextPage}:${stickerMsgIds.join(",")}` },
+    { text: "➡️", callback_data: `style_carousel_next:${nextPage}:${exampleMsgIds.join(",")}` },
   ];
 
   const keyboard = [selectButtons, navButtons];
 
   const textMsg = await ctx.reply(text, { reply_markup: { inline_keyboard: keyboard } });
 
-  console.log("[StyleCarousel] Page:", safePage, "styles:", pagePresets.map((p: StylePresetV2) => p.id).join(","), "stickerMsgs:", stickerMsgIds, "textMsg:", textMsg.message_id);
+  console.log("[StyleCarousel] Page:", safePage, "styles:", pagePresets.map((p: StylePresetV2) => p.id).join(","), "exampleMsgs:", exampleMsgIds, "textMsg:", textMsg.message_id);
 }
 
 /**
@@ -921,7 +921,7 @@ const CREDIT_PACKS = [
 function buildBalanceInfo(user: any, lang: string): string {
   const packs = CREDIT_PACKS
     .filter((p: any) => !p.adminOnly && !p.hidden)
-    .map((p: any) => `• ${p.credits} credits — ${p.price}⭐ (${(p.price / p.credits).toFixed(1)}⭐/стикер) ${lang === "ru" ? p.label_ru : p.label_en}`)
+    .map((p: any) => `• ${p.credits} credits — ${p.price}⭐ (${(p.price / p.credits).toFixed(1)}⭐/фото) ${lang === "ru" ? p.label_ru : p.label_en}`)
     .join("\n");
 
   return [
@@ -1059,11 +1059,11 @@ async function startAssistantDialog(ctx: any, user: any, lang: string) {
     // Photo already available — skip "send photo" prompt
     greeting = isReturning
       ? (lang === "ru"
-        ? `С возвращением, ${firstName}! 👋\nФото уже есть — опиши какой стикер хочешь 🎨`
-        : `Welcome back, ${firstName}! 👋\nPhoto ready — describe what sticker you want 🎨`)
+        ? `С возвращением, ${firstName}! 👋\nФото уже есть — опиши какой стиль хочешь 🎨`
+        : `Welcome back, ${firstName}! 👋\nPhoto ready — describe the style you want 🎨`)
       : (lang === "ru"
-        ? `Привет, ${firstName}! 👋\nФото уже загружено — опиши стиль стикера или выбери из меню 🎨`
-        : `Hi, ${firstName}! 👋\nPhoto already loaded — describe the sticker style or pick from the menu 🎨`);
+        ? `Привет, ${firstName}! 👋\nФото уже загружено — опиши стиль или выбери из меню 🎨`
+        : `Hi, ${firstName}! 👋\nPhoto already loaded — describe the style or pick from the menu 🎨`);
   } else {
     greeting = isReturning
       ? (lang === "ru"
@@ -1247,8 +1247,8 @@ function generateFallbackReply(action: string, session: AssistantSessionRow, lan
 
   if (action === "photo") {
     return isRu
-      ? "Пришли мне фото, из которого хочешь сделать стикер 📸"
-      : "Send me a photo you'd like to turn into a sticker 📸";
+      ? "Пришли мне фото для генерации 📸"
+      : "Send me a photo to generate from 📸";
   }
 
   if (action === "show_mirror") {
@@ -1263,14 +1263,14 @@ function generateFallbackReply(action: string, session: AssistantSessionRow, lan
 
   if (action === "grant_credit") {
     return isRu
-      ? "Отлично! Сгенерирую этот стикер для тебя — уверен, результат понравится! 🎨"
-      : "Great! I'll generate this sticker for you — I'm sure you'll love it! 🎨";
+      ? "Отлично! Сгенерирую это фото для тебя — уверен, результат понравится! 🎨"
+      : "Great! I'll generate this photo for you — I'm sure you'll love it! 🎨";
   }
 
   if (action === "deny_credit") {
     return isRu
-      ? "Твоя идея отличная! Чтобы воплотить её, выбери пакет — 10 стикеров хватит для старта:"
-      : "Your idea is great! To bring it to life, choose a pack — 10 stickers is enough to start:";
+      ? "Твоя идея отличная! Чтобы воплотить её, выбери пакет — 10 фото хватит для старта:"
+      : "Your idea is great! To bring it to life, choose a pack — 10 photos is enough to start:";
   }
 
   if (action === "check_balance") {
@@ -1280,13 +1280,13 @@ function generateFallbackReply(action: string, session: AssistantSessionRow, lan
   // action === "params" or "normal" — ask for next missing param
   if (!session.style) {
     return isRu
-      ? "Принял! Теперь опиши стиль стикера (например: аниме, мультяшный, минимализм)"
-      : "Got it! Now describe the sticker style (e.g.: anime, cartoon, minimal)";
+      ? "Принял! Теперь опиши стиль (например: аниме, мультяшный, минимализм)"
+      : "Got it! Now describe the style (e.g.: anime, cartoon, minimal)";
   }
   if (!session.emotion) {
     return isRu
       ? "Отлично! Какую эмоцию хочешь передать?"
-      : "Great! What emotion should the sticker express?";
+      : "Great! What emotion should the photo express?";
   }
   if (!session.pose) {
     return isRu
@@ -1322,8 +1322,8 @@ async function handleShowStyleExamples(ctx: any, styleId: string | undefined | n
     // Specific style requested — show example via existing helper
     const example = await getStyleExample(styleId);
     if (example?.telegram_file_id) {
-      try { await ctx.replyWithSticker(example.telegram_file_id); } catch (err: any) {
-        console.error("handleShowStyleExamples: send sticker failed:", err.message);
+      try { await ctx.replyWithPhoto(example.telegram_file_id); } catch (err: any) {
+        console.error("handleShowStyleExamples: send photo failed:", err.message);
       }
     } else {
       const isRu = lang === "ru";
@@ -1341,30 +1341,20 @@ async function handleShowStyleExamples(ctx: any, styleId: string | undefined | n
  * Build final prompt for Gemini image generation from assistant params.
  */
 function buildAssistantPrompt(params: { style: string; emotion: string; pose: string }): string {
-  return `Create a high-quality messenger sticker of the person from the photo.
+  return `Create a high-quality AI photo of the person from the source photo.
 
 Style: ${params.style}
 Emotion: ${params.emotion}
 Pose/gesture: ${params.pose}
 
 Subject: Analyze the provided photo carefully:
-- If there is ONE person — extract that person.
-- If there are MULTIPLE people — extract ALL of them together, preserving their relative positions and interactions.
-- Include ONLY objects the person is physically holding or wearing (bag, phone, hat, glasses). Do NOT include background objects like furniture, railings, walls, architecture, vehicles they stand near, or scenery.
-- Remove ALL background — the sticker should show ONLY the character(s) as a clean isolated figure.
+- If there is ONE person — feature that person.
+- If there are MULTIPLE people — feature ALL of them together, preserving their relative positions and interactions.
 Preserve recognizable facial features, proportions, and overall likeness for every person. Adapt proportions to match the style while keeping facial identity.
-Composition: Character(s) occupy maximum canvas area with clear silhouette. Do NOT add any border, outline, or stroke around the character(s). Keep the edges clean and natural.
-Visual design: High contrast, strong edge separation, color palette consistent with the selected style.
-Requirements: No watermark, no logo, no frame, no border, no outline, no text unless the style specifically requires it.
-Quality: Expressive, visually appealing, optimized for messenger sticker use.
-
-CRITICAL BACKGROUND REQUIREMENT — READ CAREFULLY:
-The image must show ONLY the character(s) on a SOLID UNIFORM BRIGHT GREEN (#00FF00) background.
-- Fill the ENTIRE area behind the character(s) with exactly #00FF00 green.
-- Do NOT draw any scene, environment, room, landscape, or decorative backdrop.
-- Do NOT use any other background color — no dark, no gradient, no style-specific backgrounds.
-- The character(s) must appear as a clean cutout on flat green, like a green screen photo shoot.
-This is essential for automated background removal. Ignoring this requirement will ruin the sticker.`;
+Composition: Well-balanced composition with the character(s) as the focal point.
+Visual design: High contrast, color palette consistent with the selected style.
+Requirements: No watermark, no logo, no frame, no text unless the style specifically requires it.
+Quality: Expressive, visually appealing, high-quality output.`;
 }
 
 // Helper: get active session
@@ -1457,7 +1447,7 @@ async function handleTrialCreditAction(
         },
       }).catch(console.error);
 
-      // Check if all sticker params are collected
+      // Check if all photo params are collected
       const paramsReady = aSession && allParamsCollected(aSession);
 
       if (paramsReady) {
@@ -1486,8 +1476,8 @@ async function handleTrialCreditAction(
       if (paramsReady) {
         // Params collected — show paywall (as before)
         const paywallText = lang === "ru"
-          ? "К сожалению, сейчас не могу сгенерировать бесплатно. Выбери пакет — 10 стикеров хватит для старта:"
-          : "Unfortunately, I can't generate for free right now. Choose a pack — 10 stickers is enough to start:";
+          ? "К сожалению, сейчас не могу сгенерировать бесплатно. Выбери пакет — 10 фото хватит для старта:"
+          : "Unfortunately, I can't generate for free right now. Choose a pack — 10 photos is enough to start:";
         await ctx.reply(paywallText);
         await sendBuyCreditsMenu(ctx, user);
 
@@ -1565,7 +1555,7 @@ async function sendBuyCreditsMenu(ctx: any, user: any, messageText?: string) {
   // One button per row with full label
   for (const pack of availablePacks) {
     const label = lang === "ru" ? pack.label_ru : pack.label_en;
-    const unit = lang === "ru" ? "стикеров" : "stickers";
+    const unit = lang === "ru" ? "фото" : "photos";
     buttons.push([
       Markup.button.callback(
         `${label}: ${pack.credits} ${unit} — ${pack.price}⭐ (${pack.price_rub}₽)`,
@@ -1766,8 +1756,8 @@ async function handleAvatarAutoGeneration(ctx: any, user: any, lang: string) {
 
   // Send instant greeting
   const greetingText = lang === "ru"
-    ? "Привет! Я делаю стикеры из фото 🎨 Смотри — уже готовлю один из твоей аватарки, чтобы ты увидел как это работает!"
-    : "Hi! I turn photos into stickers 🎨 Look — I'm already making one from your profile photo so you can see how it works!";
+    ? "Привет! Я создаю AI-фото 🎨 Смотри — уже готовлю одно из твоей аватарки, чтобы ты увидел как это работает!"
+    : "Hi! I create AI photos 🎨 Look — I'm already making one from your profile photo so you can see how it works!";
   await ctx.reply(greetingText, getMainMenuKeyboard(lang));
 
   // Get configurable style from app_config (default: cartoon_telegram)
@@ -1968,8 +1958,8 @@ bot.start(async (ctx) => {
 
         const styleName = lang === "ru" ? preset.name_ru : preset.name_en;
         const text = lang === "ru"
-          ? `💝 Отправь фото — создам стикер в стиле «${styleName}»!\n\n${preset.emoji} Просто отправь фото сюда 👇`
-          : `💝 Send a photo — I'll create a sticker in «${styleName}» style!\n\n${preset.emoji} Just send your photo here 👇`;
+          ? `💝 Отправь фото — создам AI-фото в стиле «${styleName}»!\n\n${preset.emoji} Просто отправь фото сюда 👇`
+          : `💝 Send a photo — I'll create an AI photo in «${styleName}» style!\n\n${preset.emoji} Just send your photo here 👇`;
         await ctx.reply(text, getMainMenuKeyboard(lang));
         return;
       }
@@ -2021,8 +2011,8 @@ bot.action(/^val_(.+)$/, async (ctx) => {
 
   const styleName = lang === "ru" ? preset.name_ru : preset.name_en;
   const text = lang === "ru"
-    ? `💝 Отправь фото — создам стикер в стиле «${styleName}»!\n\n${preset.emoji} Просто отправь фото сюда 👇`
-    : `💝 Send a photo — I'll create a sticker in «${styleName}» style!\n\n${preset.emoji} Just send your photo here 👇`;
+    ? `💝 Отправь фото — создам AI-фото в стиле «${styleName}»!\n\n${preset.emoji} Просто отправь фото сюда 👇`
+    : `💝 Send a photo — I'll create an AI photo in «${styleName}» style!\n\n${preset.emoji} Just send your photo here 👇`;
   await ctx.reply(text, getMainMenuKeyboard(lang));
 });
 
@@ -2147,8 +2137,8 @@ bot.on("photo", async (ctx) => {
       } catch (err: any) {
         console.error("Assistant chat photo AI error:", err.message);
         const ack = lang === "ru"
-          ? "Фото обновлено! Продолжаем — что будем делать со стикером?"
-          : "Photo updated! Let's continue — what shall we do with the sticker?";
+          ? "Фото обновлено! Продолжаем — опиши что хочешь получить 🎨"
+          : "Photo updated! Let's continue — describe what you want 🎨";
         await ctx.reply(ack, getMainMenuKeyboard(lang));
       }
     } else {
@@ -2278,8 +2268,8 @@ bot.on("photo", async (ctx) => {
     } catch (err: any) {
       console.error("Assistant photo handler AI error:", err.message, err.response?.status, err.response?.data);
       const fallback = lang === "ru"
-        ? "Отличное фото! Опиши стиль стикера своими словами (например: аниме, мультяшный, минимализм и т.д.)"
-        : "Great photo! Describe the sticker style in your own words (e.g.: anime, cartoon, minimal, etc.)";
+        ? "Отличное фото! Опиши стиль своими словами (например: аниме, мультяшный, минимализм и т.д.)"
+        : "Great photo! Describe the style in your own words (e.g.: anime, cartoon, minimal, etc.)";
       messages.push({ role: "assistant", content: fallback });
 
       await updateAssistantSession(aSession.id, { messages });
@@ -2357,8 +2347,8 @@ bot.on("photo", async (ctx) => {
         } catch (err: any) {
           console.error("[AvatarDemo] Assistant AI error:", err.message);
           const fallback = lang === "ru"
-            ? "Отличное фото! Опиши стиль стикера (например: аниме, мультяшный, минимализм)"
-            : "Great photo! Describe the sticker style (e.g.: anime, cartoon, minimal)";
+            ? "Отличное фото! Опиши стиль (например: аниме, мультяшный, минимализм)"
+            : "Great photo! Describe the style (e.g.: anime, cartoon, minimal)";
           await ctx.reply(fallback, getMainMenuKeyboard(lang));
         }
       }
@@ -2646,15 +2636,15 @@ bot.on("text", async (ctx) => {
         if (r3.text) await ctx.reply(r3.text, getMainMenuKeyboard(lang));
       } else {
         const replyText = result.text || (lang === "ru"
-          ? "Понял! Пришли фото для стикера 📸"
-          : "Got it! Send me a photo for the sticker 📸");
+          ? "Понял! Пришли фото для генерации 📸"
+          : "Got it! Send me a photo to generate 📸");
         await ctx.reply(replyText, getMainMenuKeyboard(lang));
       }
     } catch (err: any) {
       console.error("Assistant wait_photo text AI error:", err.message);
       const reminder = lang === "ru"
-        ? "Понял! А теперь пришли фото — из которого сделаем стикер 📸"
-        : "Got it! Now send me a photo — I'll turn it into a sticker 📸";
+        ? "Понял! А теперь пришли фото для генерации 📸"
+        : "Got it! Now send me a photo to generate 📸";
       messages.push({ role: "assistant", content: reminder });
 
       await updateAssistantSession(aSession.id, { messages });
@@ -2900,7 +2890,7 @@ bot.on("text", async (ctx) => {
     if (session.state === "wait_photo") {
       await ctx.reply(await getText(lang, "photo.need_photo"));
     } else if (session.state === "confirm_result") {
-      // User sent text after sticker generation but re-route didn't find an assistant session
+      // User sent text after photo generation but re-route didn't find an assistant session
       // Suggest they start a new assistant dialog or use manual mode
       console.log("confirm_result text fallback: user sent text but no active assistant. Text:", ctx.message.text?.slice(0, 50));
       const msg = lang === "ru"
@@ -3068,10 +3058,10 @@ bot.action(/^style_carousel_next:(\d+):(.*)$/, async (ctx) => {
     const lang = user.lang || "en";
 
     const nextPage = parseInt(ctx.match[1], 10);
-    const stickerMsgIds = ctx.match[2].split(",").filter(Boolean).map(Number);
+    const exampleMsgIds = ctx.match[2].split(",").filter(Boolean).map(Number);
 
-    // Delete previous sticker messages
-    for (const msgId of stickerMsgIds) {
+    // Delete previous example messages
+    for (const msgId of exampleMsgIds) {
       await ctx.telegram.deleteMessage(ctx.chat!.id, msgId).catch(() => {});
     }
     // Delete the text+buttons message (current message)
@@ -3181,7 +3171,7 @@ bot.action(/^style_groups_back(:.*)?$/, async (ctx) => {
   }
 });
 
-// Callback: example from broadcast — original message stays, only sticker+caption removed on Back
+// Callback: example from broadcast — original message stays, only photo+caption removed on Back
 bot.action(/^broadcast_example:(.+):(.+)$/, async (ctx) => {
   try {
     const substyleId = ctx.match[1];
@@ -3221,10 +3211,10 @@ bot.action(/^broadcast_example:(.+):(.+)$/, async (ctx) => {
     const backText = await getText(lang, "btn.back_to_styles");
 
     // Don't delete original broadcast message — send as new messages
-    const stickerMsg = await ctx.replyWithSticker(example.telegram_file_id);
+    const exampleMsg = await ctx.replyWithPhoto(example.telegram_file_id);
     await ctx.reply(titleText, {
       reply_markup: {
-        inline_keyboard: [[{ text: backText, callback_data: `back_from_broadcast:${stickerMsg.message_id}` }]],
+        inline_keyboard: [[{ text: backText, callback_data: `back_from_broadcast:${exampleMsg.message_id}` }]],
       },
     });
   } catch (err) {
@@ -3235,13 +3225,13 @@ bot.action(/^broadcast_example:(.+):(.+)$/, async (ctx) => {
 bot.action(/^back_from_broadcast:(\d+)$/, async (ctx) => {
   try {
     safeAnswerCbQuery(ctx);
-    const stickerMsgId = parseInt(ctx.match[1], 10);
+    const exampleMsgId = parseInt(ctx.match[1], 10);
     const chatId = ctx.chat?.id;
     if (!chatId) return;
 
-    // Delete caption (current message) and sticker
+    // Delete caption (current message) and photo example
     await ctx.deleteMessage().catch(() => {});
-    await ctx.telegram.deleteMessage(chatId, stickerMsgId).catch(() => {});
+    await ctx.telegram.deleteMessage(chatId, exampleMsgId).catch(() => {});
   } catch (err) {
     console.error("Back from broadcast example error:", err);
   }
@@ -3270,7 +3260,7 @@ bot.action(/^style_example_v2:(.+):(.+)$/, async (ctx) => {
       ? (lang === "ru" ? preset.name_ru : preset.name_en)
       : substyleId;
 
-    // Get example from stickers table
+    // Get example from photo_results table
     const { data: example } = await supabase
       .from("photo_results")
       .select("telegram_file_id")
@@ -3307,8 +3297,8 @@ bot.action(/^style_example_v2:(.+):(.+)$/, async (ctx) => {
     // Delete old message
     await ctx.deleteMessage().catch(() => {});
 
-    // Send sticker
-    const stickerMsg = await ctx.replyWithSticker(example.telegram_file_id);
+    // Send photo example
+    const exampleMsg = await ctx.replyWithPhoto(example.telegram_file_id);
 
     // Build buttons
     const titleText = await getText(lang, "style.example_title", { style: styleName });
@@ -3332,7 +3322,7 @@ bot.action(/^style_example_v2:(.+):(.+)$/, async (ctx) => {
     const chatId = ctx.chat?.id;
     if (chatId) {
       setTimeout(() => {
-        ctx.telegram.deleteMessage(chatId, stickerMsg.message_id).catch(() => {});
+        ctx.telegram.deleteMessage(chatId, exampleMsg.message_id).catch(() => {});
         ctx.telegram.deleteMessage(chatId, captionMsg.message_id).catch(() => {});
       }, 30000);
     }
@@ -3414,11 +3404,11 @@ bot.action(/^style_example_v2_more:(.+):(.+):(\d+)$/, async (ctx) => {
       return;
     }
 
-    // Delete old messages (sticker + caption)
+    // Delete old messages (photo + caption)
     await ctx.deleteMessage().catch(() => {});
 
-    // Send new sticker
-    const stickerMsg = await ctx.replyWithSticker(example.telegram_file_id);
+    // Send new photo example
+    const exampleMsg = await ctx.replyWithPhoto(example.telegram_file_id);
 
     // Get substyle name
     const preset = await getStylePresetV2ById(substyleId);
@@ -3441,7 +3431,7 @@ bot.action(/^style_example_v2_more:(.+):(.+):(\d+)$/, async (ctx) => {
     const chatId = ctx.chat?.id;
     if (chatId) {
       setTimeout(() => {
-        ctx.telegram.deleteMessage(chatId, stickerMsg.message_id).catch(() => {});
+        ctx.telegram.deleteMessage(chatId, exampleMsg.message_id).catch(() => {});
         ctx.telegram.deleteMessage(chatId, captionMsg.message_id).catch(() => {});
       }, 30000);
     }
@@ -3618,7 +3608,7 @@ bot.action("new_style", async (ctx) => {
 // ============================================
 
 
-// Callback: change style (new format with sticker ID)
+// Callback: change style (new format with result ID)
 bot.action(/^change_style:(.+)$/, async (ctx) => {
   console.log("=== change_style:ID callback ===");
   console.log("callback_data:", ctx.match?.[0]);
@@ -3630,26 +3620,26 @@ bot.action(/^change_style:(.+)$/, async (ctx) => {
   if (!user?.id) return;
 
   const lang = user.lang || "en";
-  const stickerId = ctx.match[1];
-  console.log("stickerId:", stickerId);
+  const resultId = ctx.match[1];
+  console.log("resultId:", resultId);
 
-  // Get sticker from DB by ID
-  const { data: sticker } = await supabase
+  // Get photo result from DB by ID
+  const { data: result } = await supabase
     .from("photo_results")
     .select("source_photo_file_id, user_id")
-    .eq("id", stickerId)
+    .eq("id", resultId)
     .maybeSingle();
 
-  console.log("sticker from DB:", sticker?.user_id, "source_photo_file_id:", !!sticker?.source_photo_file_id);
+  console.log("result from DB:", result?.user_id, "source_photo_file_id:", !!result?.source_photo_file_id);
 
-  if (!sticker?.source_photo_file_id) {
-    console.log(">>> ERROR: no source_photo_file_id for sticker", stickerId);
+  if (!result?.source_photo_file_id) {
+    console.log(">>> ERROR: no source_photo_file_id for result", resultId);
     await ctx.reply(await getText(lang, "error.no_stickers_added"));
     return;
   }
 
-  // Verify sticker belongs to user
-  if (sticker.user_id !== user.id) {
+  // Verify result belongs to user
+  if (result.user_id !== user.id) {
     return;
   }
 
@@ -3672,7 +3662,7 @@ bot.action(/^change_style:(.+)$/, async (ctx) => {
     .update({
       state: "wait_style",
       is_active: true,
-      current_photo_file_id: sticker.source_photo_file_id,
+      current_photo_file_id: result.source_photo_file_id,
       prompt_final: null,
       user_input: null,
       pending_generation_type: null,
@@ -3754,7 +3744,7 @@ bot.action(/^assistant_pick_style:(.+)$/, async (ctx) => {
 
       const replyText = result.text || (lang === "ru"
         ? `Отлично, стиль: ${styleName}! Какую эмоцию хочешь передать?`
-        : `Great, style: ${styleName}! What emotion should the sticker express?`);
+        : `Great, style: ${styleName}! What emotion should the photo express?`);
       await ctx.reply(replyText, getMainMenuKeyboard(lang));
     } else {
       // No active assistant session — just acknowledge
@@ -3973,8 +3963,8 @@ bot.action("assistant_new_photo", async (ctx) => {
       .eq("id", session.id);
 
     const msg = lang === "ru"
-      ? "Фото обновлено! Продолжаем — опиши стиль стикера."
-      : "Photo updated! Let's continue — describe the sticker style.";
+      ? "Фото обновлено! Продолжаем — опиши стиль."
+      : "Photo updated! Let's continue — describe the style.";
     await ctx.reply(msg, getMainMenuKeyboard(lang));
   }
 });
@@ -4042,14 +4032,14 @@ bot.action(/^admin_discount:(\d+):(\d+)$/, async (ctx) => {
 
   // Build message text
   const messageText = lang === "ru"
-    ? `🔥 Специальное предложение для тебя!\n\nСкидка ${discountPercent}% на все пакеты стикеров 🎉\n\n💰 Выбирай:`
-    : `🔥 Special offer just for you!\n\n${discountPercent}% off on all sticker packs 🎉\n\n💰 Choose your pack:`;
+    ? `🔥 Специальное предложение для тебя!\n\nСкидка ${discountPercent}% на все пакеты фото 🎉\n\n💰 Выбирай:`
+    : `🔥 Special offer just for you!\n\n${discountPercent}% off on all photo packs 🎉\n\n💰 Choose your pack:`;
 
   // Build inline buttons for discount packs (plain objects for direct API call)
   const inlineKeyboard: { text: string; callback_data: string }[][] = [];
   for (const pack of discountPacks) {
     const label = lang === "ru" ? pack.label_ru : pack.label_en;
-    const unit = lang === "ru" ? "стикеров" : "stickers";
+    const unit = lang === "ru" ? "фото" : "photos";
     inlineKeyboard.push([{
       text: `${label}: ${pack.credits} ${unit} — ${pack.price}⭐ (${pack.price_rub}₽)`,
       callback_data: `pack_${pack.credits}_${pack.price}`,
@@ -4869,8 +4859,8 @@ async function processAbandonedCarts() {
 
       // Build message
       const message = lang === "ru"
-        ? `🛒 Ты выбрал пакет "${packName}", но не завершил оплату.\n\nСпециально для тебя — скидка 10%:\n${tx.amount} стикеров за ${discountedPrice}⭐ вместо ${tx.price}⭐\n\nПредложение действует 24 часа ⏰`
-        : `🛒 You selected the "${packName}" pack but didn't complete the payment.\n\nSpecial offer for you — 10% off:\n${tx.amount} stickers for ${discountedPrice}⭐ instead of ${tx.price}⭐\n\nOffer valid for 24 hours ⏰`;
+        ? `🛒 Ты выбрал пакет "${packName}", но не завершил оплату.\n\nСпециально для тебя — скидка 10%:\n${tx.amount} фото за ${discountedPrice}⭐ вместо ${tx.price}⭐\n\nПредложение действует 24 часа ⏰`
+        : `🛒 You selected the "${packName}" pack but didn't complete the payment.\n\nSpecial offer for you — 10% off:\n${tx.amount} photos for ${discountedPrice}⭐ instead of ${tx.price}⭐\n\nOffer valid for 24 hours ⏰`;
 
       const buttonText = lang === "ru"
         ? `Оплатить со скидкой ${discountedPrice}⭐`

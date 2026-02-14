@@ -114,8 +114,8 @@ interface NotificationOptions {
   sourceImageBuffer?: Buffer;  // Исходное фото
   resultImageBuffer?: Buffer;  // Результат генерации
   buttons?: InlineButton[][];  // Inline keyboard buttons
-  stickerId?: string;          // For "Make example" button on new_sticker
-  styleId?: string;            // Style ID for the sticker
+  stickerId?: string;          // For "Make example" button on new generation
+  styleId?: string;            // Style ID for the result
 }
 
 export async function sendNotification(options: NotificationOptions): Promise<void> {
@@ -191,7 +191,7 @@ export async function sendNotification(options: NotificationOptions): Promise<vo
       formData.append("chat_id", channelId);
       formData.append("caption", caption);
       formData.append("parse_mode", "Markdown");
-      formData.append("photo", new Blob([options.imageBuffer], { type: "image/webp" }), "sticker.webp");
+      formData.append("photo", new Blob([options.imageBuffer], { type: "image/png" }), "photo.png");
 
       const response = await fetch(
         `https://api.telegram.org/bot${config.telegramBotToken}/sendPhoto`,

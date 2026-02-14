@@ -35,7 +35,7 @@ const VALENTINE_STYLES = [
 
 const MESSAGE_RU = `💝 14 февраля уже скоро!
 
-Сделай уникальный подарок — стикерпак с вашими совместными фото 💑
+Сделай уникальный подарок — AI-фото с вашими совместными снимками 💑
 
 Выбери стиль и отправь фото 👇
 
@@ -45,7 +45,7 @@ const MESSAGE_RU = `💝 14 февраля уже скоро!
 
 const MESSAGE_EN = `💝 Valentine's Day is almost here!
 
-Create a unique gift — a sticker pack with your couple photos 💑
+Create a unique gift — AI photos with your couple pictures 💑
 
 Choose a style and send your photo 👇
 
