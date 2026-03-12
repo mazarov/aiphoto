@@ -1,0 +1,165 @@
+export type Dimension =
+  | "audience_tag"
+  | "style_tag"
+  | "occasion_tag"
+  | "object_tag"
+  | "doc_task_tag";
+
+export type TagEntry = {
+  slug: string;
+  dimension: Dimension;
+  labelRu: string;
+  labelEn: string;
+  urlPath: string;
+  /** Regex patterns for extracting this tag from prompt text (used by fill-seo-tags) */
+  patterns: RegExp[];
+};
+
+export const TAG_REGISTRY: TagEntry[] = [
+  // ── audience_tag ──
+  { slug: "devushka", dimension: "audience_tag", labelRu: "Девушки", labelEn: "Women", urlPath: "/promty-dlya-foto-devushki", patterns: [/девушк|женщин|женск/i] },
+  { slug: "muzhchina", dimension: "audience_tag", labelRu: "Мужчины", labelEn: "Men", urlPath: "/promty-dlya-foto-muzhchiny", patterns: [/мужчин|мужск|парень/i] },
+  { slug: "para", dimension: "audience_tag", labelRu: "Пары", labelEn: "Couples", urlPath: "/promty-dlya-foto-par", patterns: [/пар\b|парн|вдвоем|пары/i] },
+  { slug: "semya", dimension: "audience_tag", labelRu: "Семья", labelEn: "Family", urlPath: "/promty-dlya-semejnogo-foto", patterns: [/семейн(?!ого\s+(альбом|архив))|семья/i] },
+  { slug: "detskie", dimension: "audience_tag", labelRu: "Дети", labelEn: "Kids", urlPath: "/promty-dlya-detskih-foto", patterns: [/детск|ребен/i] },
+  { slug: "s_mamoy", dimension: "audience_tag", labelRu: "С мамой", labelEn: "With mother", urlPath: "/promty-dlya-foto-s-mamoy", patterns: [/с мамой|мам\b/i] },
+  { slug: "s_papoy", dimension: "audience_tag", labelRu: "С папой", labelEn: "With father", urlPath: "/promty-dlya-foto-s-papoy", patterns: [/с папой|пап\b/i] },
+  { slug: "s_parnem", dimension: "audience_tag", labelRu: "С парнем", labelEn: "With boyfriend", urlPath: "/promty-dlya-foto-s-parnem", patterns: [/с парнем/i] },
+  { slug: "s_muzhem", dimension: "audience_tag", labelRu: "С мужем", labelEn: "With husband", urlPath: "/promty-dlya-foto-s-muzhem", patterns: [/с мужем/i] },
+  { slug: "s_podrugoy", dimension: "audience_tag", labelRu: "С подругой", labelEn: "With friend", urlPath: "/promty-dlya-foto-s-podrugoy", patterns: [/с подругой/i] },
+  { slug: "s_drugom", dimension: "audience_tag", labelRu: "С другом", labelEn: "With friend", urlPath: "/promty-dlya-foto-s-drugom", patterns: [/с другом/i] },
+  { slug: "s_synom", dimension: "audience_tag", labelRu: "С сыном", labelEn: "With son", urlPath: "/promty-dlya-foto-s-synom", patterns: [/с сыном/i] },
+  { slug: "s_dochkoy", dimension: "audience_tag", labelRu: "С дочкой", labelEn: "With daughter", urlPath: "/promty-dlya-foto-s-dochkoy", patterns: [/с дочкой|с дочерью/i] },
+  { slug: "s_sestroy", dimension: "audience_tag", labelRu: "С сестрой", labelEn: "With sister", urlPath: "/promty-dlya-foto-s-sestroy", patterns: [/с сестрой/i] },
+  { slug: "s_bratom", dimension: "audience_tag", labelRu: "С братом", labelEn: "With brother", urlPath: "/promty-dlya-foto-s-bratom", patterns: [/с братом/i] },
+  { slug: "s_babushkoy", dimension: "audience_tag", labelRu: "С бабушкой", labelEn: "With grandmother", urlPath: "/promty-dlya-foto-s-babushkoy", patterns: [/с бабушкой/i] },
+  { slug: "malchik", dimension: "audience_tag", labelRu: "Мальчик", labelEn: "Boy", urlPath: "/promty-dlya-foto-malchik", patterns: [/мальчик/i] },
+  { slug: "devochka", dimension: "audience_tag", labelRu: "Девочка", labelEn: "Girl", urlPath: "/promty-dlya-foto-devochka", patterns: [/девочка/i] },
+  { slug: "podrostok", dimension: "audience_tag", labelRu: "Подросток", labelEn: "Teenager", urlPath: "/promty-dlya-foto-podrostok", patterns: [/подросток/i] },
+  { slug: "malysh", dimension: "audience_tag", labelRu: "Малыш", labelEn: "Baby", urlPath: "/promty-dlya-foto-malysh", patterns: [/малыш|младенец/i] },
+  { slug: "pokoleniy", dimension: "audience_tag", labelRu: "Поколения", labelEn: "Generations", urlPath: "/promty-dlya-foto-pokoleniy", patterns: [/поколений|поколения/i] },
+  { slug: "vlyublennykh", dimension: "audience_tag", labelRu: "Влюблённые", labelEn: "Lovers", urlPath: "/promty-dlya-foto-vlyublennykh", patterns: [/влюблён|влюблен/i] },
+  { slug: "s_pitomcem", dimension: "audience_tag", labelRu: "С питомцем", labelEn: "With pet", urlPath: "/promty-dlya-foto-s-pitomcem", patterns: [/с питомц|с животн/i] },
+  { slug: "beremennaya", dimension: "audience_tag", labelRu: "Беременная", labelEn: "Pregnant", urlPath: "/promty-dlya-foto-beremennaya", patterns: [/беременн/i] },
+
+  // ── style_tag ──
+  { slug: "cherno_beloe", dimension: "style_tag", labelRu: "Чёрно-белое", labelEn: "Black & White", urlPath: "/stil/cherno-beloe", patterns: [/черно-бел|чёрно-бел|монохром/i] },
+  { slug: "realistichnoe", dimension: "style_tag", labelRu: "Реалистичное", labelEn: "Realistic", urlPath: "/stil/realistichnoe", patterns: [/реалист/i] },
+  { slug: "portret", dimension: "style_tag", labelRu: "Портрет", labelEn: "Portrait", urlPath: "/stil/portret", patterns: [/портрет/i] },
+  { slug: "3d", dimension: "style_tag", labelRu: "3D", labelEn: "3D", urlPath: "/stil/3d", patterns: [/3д|3d/i] },
+  { slug: "gta", dimension: "style_tag", labelRu: "GTA", labelEn: "GTA", urlPath: "/stil/gta", patterns: [/гта|gta/i] },
+  { slug: "studiynoe", dimension: "style_tag", labelRu: "Студийное", labelEn: "Studio", urlPath: "/stil/studiynoe", patterns: [/студийн|studio/i] },
+  { slug: "love_is", dimension: "style_tag", labelRu: "Love Is", labelEn: "Love Is", urlPath: "/stil/love-is", patterns: [/love is|лав ис/i] },
+  { slug: "delovoe", dimension: "style_tag", labelRu: "Деловое", labelEn: "Business", urlPath: "/stil/delovoe", patterns: [/делов|бизнес/i] },
+  { slug: "multyashnoe", dimension: "style_tag", labelRu: "Мультяшное", labelEn: "Cartoon", urlPath: "/stil/multyashnoe", patterns: [/мультяш|мультик/i] },
+  { slug: "kollazh", dimension: "style_tag", labelRu: "Коллаж", labelEn: "Collage", urlPath: "/stil/kollazh", patterns: [/коллаж/i] },
+  { slug: "otkrytka", dimension: "style_tag", labelRu: "Открытка", labelEn: "Postcard", urlPath: "/stil/otkrytka", patterns: [/открытк/i] },
+  { slug: "sovetskoe", dimension: "style_tag", labelRu: "Советское", labelEn: "Soviet", urlPath: "/stil/sovetskoe", patterns: [/совет/i] },
+  { slug: "retro", dimension: "style_tag", labelRu: "Ретро", labelEn: "Retro", urlPath: "/stil/retro", patterns: [/ретро/i] },
+  { slug: "anime", dimension: "style_tag", labelRu: "Аниме", labelEn: "Anime", urlPath: "/stil/anime", patterns: [/аниме/i] },
+  { slug: "polaroid", dimension: "style_tag", labelRu: "Полароид", labelEn: "Polaroid", urlPath: "/stil/polaroid", patterns: [/полароид|polaroid/i] },
+  { slug: "disney", dimension: "style_tag", labelRu: "Disney", labelEn: "Disney", urlPath: "/stil/disney", patterns: [/дисней|disney/i] },
+  { slug: "selfi", dimension: "style_tag", labelRu: "Селфи", labelEn: "Selfie", urlPath: "/stil/selfi", patterns: [/селфи|selfie/i] },
+  { slug: "piksar", dimension: "style_tag", labelRu: "Pixar", labelEn: "Pixar", urlPath: "/stil/piksar", patterns: [/пиксар|pixar/i] },
+  { slug: "neonovoe", dimension: "style_tag", labelRu: "Неоновое", labelEn: "Neon", urlPath: "/stil/neonovoe", patterns: [/неоновый\s+стиль|неоновое\s+фото|неоновая\s+(подсветка|съёмка|фотосессия)|в\s+неоновом\s+стиле|под\s+неоновыми\s+огнями|неон\b|neon\b/i] },
+  { slug: "street_style", dimension: "style_tag", labelRu: "Street Style", labelEn: "Street Style", urlPath: "/stil/street-style", patterns: [/street.?style|стрит.?стайл/i] },
+  { slug: "fashion", dimension: "style_tag", labelRu: "Fashion", labelEn: "Fashion", urlPath: "/stil/fashion", patterns: [/fashion|фэшн|фешн/i] },
+  { slug: "glyanec", dimension: "style_tag", labelRu: "Глянец", labelEn: "Glossy", urlPath: "/stil/glyanec", patterns: [/глянц|журнал\b/i] },
+  { slug: "victorias_secret", dimension: "style_tag", labelRu: "Victoria's Secret", labelEn: "Victoria's Secret", urlPath: "/stil/victorias-secret", patterns: [/victoria.?s secret|виктория.?сикрет/i] },
+  { slug: "barbie", dimension: "style_tag", labelRu: "Barbie", labelEn: "Barbie", urlPath: "/stil/barbie", patterns: [/barbie|барби/i] },
+
+  // ── occasion_tag ──
+  { slug: "den_rozhdeniya", dimension: "occasion_tag", labelRu: "День рождения", labelEn: "Birthday", urlPath: "/sobytiya/den-rozhdeniya", patterns: [/день рождения|на др\b/i] },
+  { slug: "8_marta", dimension: "occasion_tag", labelRu: "8 марта", labelEn: "March 8", urlPath: "/sobytiya/8-marta", patterns: [/8 марта/i] },
+  { slug: "14_fevralya", dimension: "occasion_tag", labelRu: "14 февраля", labelEn: "Valentine's Day", urlPath: "/sobytiya/14-fevralya", patterns: [/14 февраля|день влюбленных|валентин/i] },
+  { slug: "23_fevralya", dimension: "occasion_tag", labelRu: "23 февраля", labelEn: "Feb 23", urlPath: "/sobytiya/23-fevralya", patterns: [/23 февраля/i] },
+  { slug: "maslenica", dimension: "occasion_tag", labelRu: "Масленица", labelEn: "Maslenitsa", urlPath: "/sobytiya/maslenica", patterns: [/маслениц/i] },
+  { slug: "novyy_god", dimension: "occasion_tag", labelRu: "Новый год", labelEn: "New Year", urlPath: "/sobytiya/novyj-god", patterns: [/новый год|новогодн/i] },
+  { slug: "svadba", dimension: "occasion_tag", labelRu: "Свадьба", labelEn: "Wedding", urlPath: "/sobytiya/svadba", patterns: [/свадьб/i] },
+  { slug: "rozhdestvo", dimension: "occasion_tag", labelRu: "Рождество", labelEn: "Christmas", urlPath: "/sobytiya/rozhdestvo", patterns: [/рождеств|christmas/i] },
+
+  // ── object_tag ──
+  { slug: "v_forme", dimension: "object_tag", labelRu: "В форме", labelEn: "In uniform", urlPath: "/v-forme", patterns: [/в форм|военн|солдат/i] },
+  { slug: "s_mashinoy", dimension: "object_tag", labelRu: "С машиной", labelEn: "With car", urlPath: "/s-mashinoy", patterns: [/с машин|авто|тачк/i] },
+  { slug: "s_cvetami", dimension: "object_tag", labelRu: "С цветами", labelEn: "With flowers", urlPath: "/s-cvetami", patterns: [/с цвет|букет|тюльпан|роз\b|пион|мимоз/i] },
+  { slug: "so_znamenitostyu", dimension: "object_tag", labelRu: "Со знаменитостью", labelEn: "With celebrity", urlPath: "/so-znamenitostyu", patterns: [/со знаменит|с кумир|со звезд/i] },
+  { slug: "v_profil", dimension: "object_tag", labelRu: "В профиль", labelEn: "Profile", urlPath: "/v-profil", patterns: [/в профиль|боком/i] },
+  { slug: "s_kotom", dimension: "object_tag", labelRu: "С котом", labelEn: "With cat", urlPath: "/s-kotom", patterns: [/с кот|котёнк|котенк|кошк|кошеч/i] },
+  { slug: "v_kostyume", dimension: "object_tag", labelRu: "В костюме", labelEn: "In suit", urlPath: "/v-kostyume", patterns: [/в костюм|в пиджак/i] },
+  { slug: "na_chernom_fone", dimension: "object_tag", labelRu: "На чёрном фоне", labelEn: "On black background", urlPath: "/na-chernom-fone", patterns: [/на черн\w* фон/i] },
+  { slug: "s_tortom", dimension: "object_tag", labelRu: "С тортом", labelEn: "With cake", urlPath: "/s-tortom", patterns: [/с торт/i] },
+  { slug: "zima", dimension: "object_tag", labelRu: "Зима", labelEn: "Winter", urlPath: "/zima", patterns: [/зимн|снег|заснеж/i] },
+  { slug: "v_zerkale", dimension: "object_tag", labelRu: "В зеркале", labelEn: "In mirror", urlPath: "/v-zerkale", patterns: [/в зеркал/i] },
+  { slug: "vesna", dimension: "object_tag", labelRu: "Весна", labelEn: "Spring", urlPath: "/vesna", patterns: [/весенн|весна/i] },
+  { slug: "s_sobakoy", dimension: "object_tag", labelRu: "С собакой", labelEn: "With dog", urlPath: "/s-sobakoj", patterns: [/с собак|пёс|пес\b/i] },
+  { slug: "v_lesu", dimension: "object_tag", labelRu: "В лесу", labelEn: "In forest", urlPath: "/v-lesu", patterns: [/в лес/i] },
+  { slug: "s_koronoy", dimension: "object_tag", labelRu: "С короной", labelEn: "With crown", urlPath: "/s-koronoy", patterns: [/с корон/i] },
+  { slug: "na_more", dimension: "object_tag", labelRu: "На море", labelEn: "At sea", urlPath: "/na-more", patterns: [/на мор|пляж/i] },
+  { slug: "v_polnyy_rost", dimension: "object_tag", labelRu: "В полный рост", labelEn: "Full body", urlPath: "/v-polnyy-rost", patterns: [/в полный рост/i] },
+  { slug: "v_gorah", dimension: "object_tag", labelRu: "В горах", labelEn: "In mountains", urlPath: "/v-gorah", patterns: [/в гор/i] },
+  { slug: "na_ulice", dimension: "object_tag", labelRu: "На улице", labelEn: "Outdoor", urlPath: "/na-ulice", patterns: [/на улиц/i] },
+  { slug: "v_mashine", dimension: "object_tag", labelRu: "В машине", labelEn: "In car", urlPath: "/v-mashine", patterns: [/в машин|за рулём|за рулем|в салоне авто/i] },
+  { slug: "na_yahte", dimension: "object_tag", labelRu: "На яхте", labelEn: "On yacht", urlPath: "/na-yahte", patterns: [/на яхте|яхт\b/i] },
+  { slug: "v_restorane", dimension: "object_tag", labelRu: "В ресторане", labelEn: "In restaurant", urlPath: "/v-restorane", patterns: [/в ресторан|в кафе|бистро/i] },
+  { slug: "na_kryshe", dimension: "object_tag", labelRu: "На крыше", labelEn: "On rooftop", urlPath: "/na-kryshe", patterns: [/на крыш/i] },
+  { slug: "v_pustyne", dimension: "object_tag", labelRu: "В пустыне", labelEn: "In desert", urlPath: "/v-pustyne", patterns: [/в пустын|барханы|барханов/i] },
+  { slug: "pod_vodoy", dimension: "object_tag", labelRu: "Под водой", labelEn: "Underwater", urlPath: "/pod-vodoy", patterns: [/под водой|подводн/i] },
+  { slug: "v_gorode", dimension: "object_tag", labelRu: "В городе", labelEn: "In city", urlPath: "/v-gorode", patterns: [/небоскрёб|небоскреб/i] },
+  { slug: "s_shuboj", dimension: "object_tag", labelRu: "В шубе", labelEn: "In fur coat", urlPath: "/s-shuboj", patterns: [/в шубе|шуба|шубой|меховой|меховая|меховую/i] },
+  { slug: "so_svechami", dimension: "object_tag", labelRu: "Со свечами", labelEn: "With candles", urlPath: "/so-svechami", patterns: [/со свеч|при свечах|свечой|свечей/i] },
+  { slug: "v_platye", dimension: "object_tag", labelRu: "В платье", labelEn: "In dress", urlPath: "/v-platye", patterns: [/в платье|платья|платьем/i] },
+  { slug: "s_bokalom", dimension: "object_tag", labelRu: "С бокалом", labelEn: "With glass", urlPath: "/s-bokalom", patterns: [/бокал|шампанск/i] },
+  { slug: "s_kofe", dimension: "object_tag", labelRu: "С кофе", labelEn: "With coffee", urlPath: "/s-kofe", patterns: [/кофе|чашечк/i] },
+
+  // ── doc_task_tag ──
+  { slug: "na_pasport", dimension: "doc_task_tag", labelRu: "На паспорт", labelEn: "Passport", urlPath: "/foto-na-pasport", patterns: [/на паспорт/i] },
+  { slug: "na_dokumenty", dimension: "doc_task_tag", labelRu: "На документы", labelEn: "For documents", urlPath: "/foto-na-dokumenty", patterns: [/на документ/i] },
+  { slug: "na_avatarku", dimension: "doc_task_tag", labelRu: "На аватарку", labelEn: "For avatar", urlPath: "/foto-na-avatarku", patterns: [/на аватарк|на аву|аватар/i] },
+  { slug: "na_rezume", dimension: "doc_task_tag", labelRu: "На резюме", labelEn: "For resume", urlPath: "/foto-na-rezume", patterns: [/на резюме|для резюме/i] },
+  { slug: "na_zagranpasport", dimension: "doc_task_tag", labelRu: "На загранпаспорт", labelEn: "For passport", urlPath: "/foto-na-zagranpasport", patterns: [/на загранпаспорт/i] },
+];
+
+// ── Lookup indexes (built once at import) ──
+
+const byUrlPath = new Map<string, TagEntry>();
+const bySlug = new Map<string, TagEntry>();
+
+for (const entry of TAG_REGISTRY) {
+  const normalized = entry.urlPath.endsWith("/")
+    ? entry.urlPath.slice(0, -1)
+    : entry.urlPath;
+  byUrlPath.set(normalized, entry);
+  bySlug.set(`${entry.dimension}:${entry.slug}`, entry);
+}
+
+export function findTagByUrlPath(path: string): TagEntry | null {
+  const normalized = path.endsWith("/") ? path.slice(0, -1) : path;
+  return byUrlPath.get(normalized) ?? null;
+}
+
+export function findTagBySlug(dimension: Dimension, slug: string): TagEntry | null {
+  return bySlug.get(`${dimension}:${slug}`) ?? null;
+}
+
+export function getTagsByDimension(dimension: Dimension): TagEntry[] {
+  return TAG_REGISTRY.filter((e) => e.dimension === dimension);
+}
+
+/** Returns sibling tags (same dimension) for internal linking. Excludes current tag. */
+export function getSiblingTags(tag: TagEntry, limit = 6): TagEntry[] {
+  const same = TAG_REGISTRY.filter((e) => e.dimension === tag.dimension && e.slug !== tag.slug);
+  return same.slice(0, limit);
+}
+
+/** All urlPaths for sitemap / generateStaticParams */
+export function getAllTagPaths(): string[] {
+  return TAG_REGISTRY.map((e) => (e.urlPath.startsWith("/") ? e.urlPath.slice(1) : e.urlPath));
+}
+
+export const DIMENSION_LABELS: Record<Dimension, string> = {
+  audience_tag: "Люди и отношения",
+  style_tag: "Стили",
+  occasion_tag: "События",
+  object_tag: "Сцены и объекты",
+  doc_task_tag: "Задачи",
+};

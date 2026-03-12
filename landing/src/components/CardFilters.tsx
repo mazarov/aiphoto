@@ -1,0 +1,319 @@
+"use client";
+
+import { useState, useMemo, useEffect, useCallback, useRef } from "react";
+import type { PromptCardFull } from "@/lib/supabase";
+import { TAG_REGISTRY } from "@/lib/tag-registry";
+import { PromptCard } from "./PromptCard";
+import { GroupedCard } from "./GroupedCard";
+
+type Props = {
+  cards: PromptCardFull[];
+};
+
+function getSeoTagSlugs(seoTags: unknown): string[] {
+  const t = seoTags as Record<string, string[]> | null;
+  if (!t) return [];
+  return ["audience_tag", "style_tag", "occasion_tag", "object_tag", "doc_task_tag"].flatMap(
+    (d) => (t[d] || []) as string[]
+  );
+}
+
+type Filters = {
+  hasWarnings: "all" | "yes" | "no";
+  scoreMin: number;
+  scoreMax: number;
+  hasRuPrompt: "all" | "yes" | "no";
+  selectedTag: string;
+};
+
+type GridItem =
+  | { type: "single"; card: PromptCardFull }
+  | { type: "group"; key: string; cards: PromptCardFull[] };
+
+export function FilterableGrid({ cards }: Props) {
+  const [debugMode, setDebugMode] = useState(false);
+  const [panelOpen, setPanelOpen] = useState(false);
+  const [filters, setFilters] = useState<Filters>({
+    hasWarnings: "all",
+    scoreMin: 0,
+    scoreMax: 100,
+    hasRuPrompt: "all",
+    selectedTag: "",
+  });
+  const [grouped, setGrouped] = useState(false);
+
+  const [idSearch, setIdSearch] = useState("");
+  const [searchResults, setSearchResults] = useState<PromptCardFull[] | null>(null);
+  const [searching, setSearching] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+
+  const [filterResults, setFilterResults] = useState<PromptCardFull[] | null>(null);
+  const [filterSearching, setFilterSearching] = useState(false);
+  const filterDebounceRef = useRef<ReturnType<typeof setTimeout>>();
+
+  const isIdMode = idSearch.trim().length >= 4;
+  const isFilterMode =
+    !isIdMode &&
+    (filters.hasWarnings !== "all" ||
+      filters.scoreMin > 0 ||
+      filters.scoreMax < 100 ||
+      filters.hasRuPrompt !== "all" ||
+      filters.selectedTag !== "");
+
+  const doIdSearch = useCallback(async (q: string) => {
+    const trimmed = q.trim();
+    if (trimmed.length < 4) { setSearchResults(null); setSearching(false); return; }
+    setSearching(true);
+    try {
+      const res = await fetch(`/api/search-card?q=${encodeURIComponent(trimmed)}`);
+      const data = await res.json();
+      setSearchResults(data.cards || []);
+    } catch { setSearchResults([]); } finally { setSearching(false); }
+  }, []);
+
+  const doFilterSearch = useCallback(async () => {
+    setFilterSearching(true);
+    try {
+      const u = new URLSearchParams({
+        hasWarnings: filters.hasWarnings,
+        scoreMin: String(filters.scoreMin),
+        scoreMax: String(filters.scoreMax),
+        hasRuPrompt: filters.hasRuPrompt,
+        ...(filters.selectedTag && { seoTag: filters.selectedTag }),
+      });
+      const res = await fetch(`/api/search-cards?${u}`);
+      const data = await res.json();
+      setFilterResults(data.cards || []);
+    } catch { setFilterResults([]); } finally { setFilterSearching(false); }
+  }, [filters.hasWarnings, filters.scoreMin, filters.scoreMax, filters.hasRuPrompt, filters.selectedTag]);
+
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    const trimmed = idSearch.trim();
+    if (trimmed.length < 4) { setSearchResults(null); return; }
+    setSearching(true);
+    debounceRef.current = setTimeout(() => doIdSearch(trimmed), 400);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [idSearch, doIdSearch]);
+
+  useEffect(() => {
+    if (!isFilterMode) { setFilterResults(null); setFilterSearching(false); return; }
+    if (filterDebounceRef.current) clearTimeout(filterDebounceRef.current);
+    setFilterSearching(true);
+    filterDebounceRef.current = setTimeout(doFilterSearch, 300);
+    return () => { if (filterDebounceRef.current) clearTimeout(filterDebounceRef.current); };
+  }, [isFilterMode, doFilterSearch]);
+
+  const sourceCards =
+    isIdMode ? (searchResults || []) : isFilterMode ? (filterResults || []) : cards;
+
+  const allTags = useMemo(() => {
+    const set = new Set<string>(TAG_REGISTRY.map((e) => e.slug));
+    for (const c of cards) { for (const slug of getSeoTagSlugs(c.seo_tags)) set.add(slug); }
+    if (filterResults) { for (const c of filterResults) { for (const slug of getSeoTagSlugs(c.seo_tags)) set.add(slug); } }
+    return Array.from(set).sort();
+  }, [cards, filterResults]);
+
+  const filtered = useMemo(() => {
+    if (isIdMode || isFilterMode) return sourceCards;
+    return sourceCards.filter((c) => {
+      if (filters.hasWarnings === "yes" && c.warnings.length === 0) return false;
+      if (filters.hasWarnings === "no" && c.warnings.length > 0) return false;
+      if (c.seoReadinessScore < filters.scoreMin) return false;
+      if (c.seoReadinessScore > filters.scoreMax) return false;
+      const hasRu = c.promptTexts.length > 0;
+      if (filters.hasRuPrompt === "yes" && !hasRu) return false;
+      if (filters.hasRuPrompt === "no" && hasRu) return false;
+      if (filters.selectedTag) {
+        const slugs = getSeoTagSlugs(c.seo_tags);
+        if (!slugs.includes(filters.selectedTag)) return false;
+      }
+      return true;
+    });
+  }, [sourceCards, filters, isIdMode, isFilterMode]);
+
+  const shouldGroup = debugMode ? grouped : true;
+
+  const gridItems: GridItem[] = useMemo(() => {
+    if (!shouldGroup) return filtered.map((card) => ({ type: "single" as const, card }));
+    const groupMap = new Map<string, PromptCardFull[]>();
+    for (const card of filtered) {
+      if (card.sourceGroupKey && card.cardSplitTotal > 1) {
+        const arr = groupMap.get(card.sourceGroupKey) || [];
+        arr.push(card);
+        groupMap.set(card.sourceGroupKey, arr);
+      }
+    }
+    const items: GridItem[] = [];
+    const seen = new Set<string>();
+    for (const card of filtered) {
+      if (card.sourceGroupKey && card.cardSplitTotal > 1) {
+        if (seen.has(card.sourceGroupKey)) continue;
+        seen.add(card.sourceGroupKey);
+        items.push({ type: "group", key: card.sourceGroupKey, cards: groupMap.get(card.sourceGroupKey)! });
+      } else {
+        items.push({ type: "single", card });
+      }
+    }
+    return items;
+  }, [filtered, shouldGroup]);
+
+  const groupCount = useMemo(() => {
+    if (!grouped) return 0;
+    return gridItems.filter((i) => i.type === "group").length;
+  }, [gridItems, grouped]);
+
+  function toggleDebug() {
+    if (debugMode) {
+      setDebugMode(false);
+      setPanelOpen(false);
+    } else {
+      setDebugMode(true);
+      setPanelOpen(true);
+    }
+  }
+
+  function handleReset() {
+    setFilters({ hasWarnings: "all", scoreMin: 0, scoreMax: 100, hasRuPrompt: "all", selectedTag: "" });
+    setGrouped(false);
+    setIdSearch("");
+    setSearchResults(null);
+    setFilterResults(null);
+  }
+
+  const statsText = isIdMode
+    ? (searching ? "Поиск..." : `${filtered.length} найдено`)
+    : isFilterMode
+      ? (filterSearching ? "Поиск..." : `${filtered.length} найдено`)
+      : grouped
+        ? `${gridItems.length} (${groupCount} групп) из ${cards.length}`
+        : `${filtered.length} из ${cards.length}`;
+
+  return (
+    <div>
+      {/* Grid */}
+      {(isIdMode && searching) || (isFilterMode && filterSearching) ? (
+        <div className="flex items-center justify-center py-24">
+          <div className="flex items-center gap-3 text-zinc-400">
+            <svg className="h-5 w-5 animate-spin" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" className="opacity-20" /><path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" /></svg>
+            Поиск по базе...
+          </div>
+        </div>
+      ) : gridItems.length === 0 ? (
+        <div className="py-24 text-center">
+          <p className="text-zinc-400">{isIdMode || isFilterMode ? "Карточки не найдены." : "Нет карточек по выбранным фильтрам."}</p>
+        </div>
+      ) : (
+        <div className={debugMode
+          ? "grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 items-stretch"
+          : "columns-2 sm:columns-3 lg:columns-4 xl:columns-5 gap-4"
+        }>
+          {gridItems.map((item) =>
+            item.type === "single" ? (
+              <div key={item.card.id} className={debugMode ? "" : "mb-4 break-inside-avoid"}>
+                <PromptCard card={item.card} debug={debugMode} />
+              </div>
+            ) : (
+              <div key={item.key} className={debugMode ? "" : "mb-4 break-inside-avoid"}>
+                <GroupedCard cards={item.cards} debug={debugMode} />
+              </div>
+            )
+          )}
+        </div>
+      )}
+
+      {/* Floating debug FAB */}
+      <button
+        type="button"
+        onClick={toggleDebug}
+        className={`fixed bottom-6 right-6 z-50 flex items-center gap-2 rounded-full px-4 py-3 text-sm font-semibold shadow-lg transition-all ${
+          debugMode
+            ? "bg-amber-500 text-white shadow-amber-500/30 hover:bg-amber-600"
+            : "bg-zinc-900 text-white shadow-zinc-900/20 hover:bg-zinc-800"
+        }`}
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M12 20h.01M8.5 8.5a3.5 3.5 0 1 1 5 3c-.8.7-1.5 1.3-1.5 2.5M12 17h.01" />
+        </svg>
+        {debugMode ? "Debug ON" : "Debug"}
+      </button>
+
+      {/* Floating filter panel overlay */}
+      {debugMode && panelOpen && (
+        <>
+          <div className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm" onClick={() => setPanelOpen(false)} />
+          <div className="fixed bottom-20 right-6 z-50 w-[340px] max-h-[calc(100vh-120px)] overflow-y-auto rounded-2xl border border-zinc-200 bg-white p-5 shadow-2xl shadow-zinc-900/20">
+            <div className="flex items-center justify-between mb-4">
+              <span className="text-sm font-semibold text-zinc-900">Фильтры</span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs tabular-nums text-zinc-400">{statsText}</span>
+                <button type="button" onClick={() => setPanelOpen(false)} className="rounded-full p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 transition-colors">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              {/* ID search */}
+              <div>
+                <label className="text-[10px] font-semibold uppercase tracking-widest text-zinc-400 block mb-1.5">ID (поиск по базе)</label>
+                <div className="relative">
+                  <input type="text" value={idSearch} onChange={(e) => setIdSearch(e.target.value)} placeholder="f8ada5bf-3100..."
+                    className={`w-full rounded-xl border bg-zinc-50 px-3 py-2 text-sm font-mono placeholder:text-zinc-300 transition-colors ${isIdMode ? "border-indigo-400 bg-indigo-50 text-indigo-800" : "border-zinc-200 text-zinc-700"}`}
+                  />
+                  {searching && <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-zinc-400">...</span>}
+                </div>
+              </div>
+
+              {/* Warnings */}
+              <div>
+                <label className="text-[10px] font-semibold uppercase tracking-widest text-zinc-400 block mb-1.5">Warnings</label>
+                <select value={filters.hasWarnings} onChange={(e) => setFilters((f) => ({ ...f, hasWarnings: e.target.value as Filters["hasWarnings"] }))} disabled={isIdMode}
+                  className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-700 disabled:opacity-40"
+                ><option value="all">Все</option><option value="yes">С warnings</option><option value="no">Без warnings</option></select>
+              </div>
+
+              {/* Score */}
+              <div>
+                <label className="text-[10px] font-semibold uppercase tracking-widest text-zinc-400 block mb-1.5">Score</label>
+                <div className="flex items-center gap-2">
+                  <input type="number" min={0} max={100} step={20} value={filters.scoreMin} onChange={(e) => setFilters((f) => ({ ...f, scoreMin: Number(e.target.value) }))} disabled={isIdMode}
+                    className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-700 disabled:opacity-40" />
+                  <span className="text-zinc-300 flex-shrink-0">—</span>
+                  <input type="number" min={0} max={100} step={20} value={filters.scoreMax} onChange={(e) => setFilters((f) => ({ ...f, scoreMax: Number(e.target.value) }))} disabled={isIdMode}
+                    className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-700 disabled:opacity-40" />
+                </div>
+              </div>
+
+              {/* RU prompt */}
+              <div>
+                <label className="text-[10px] font-semibold uppercase tracking-widest text-zinc-400 block mb-1.5">Промт RU</label>
+                <select value={filters.hasRuPrompt} onChange={(e) => setFilters((f) => ({ ...f, hasRuPrompt: e.target.value as Filters["hasRuPrompt"] }))} disabled={isIdMode}
+                  className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-700 disabled:opacity-40"
+                ><option value="all">Все</option><option value="yes">Есть</option><option value="no">Нет</option></select>
+              </div>
+
+              {/* Tag */}
+              <div>
+                <label className="text-[10px] font-semibold uppercase tracking-widest text-zinc-400 block mb-1.5">Тег</label>
+                <select value={filters.selectedTag} onChange={(e) => setFilters((f) => ({ ...f, selectedTag: e.target.value }))} disabled={isIdMode}
+                  className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-700 disabled:opacity-40"
+                ><option value="">Все теги</option>{allTags.map((tag) => (<option key={tag} value={tag}>{tag}</option>))}</select>
+              </div>
+
+              {/* Group + Reset */}
+              <div className="flex gap-2 pt-1">
+                <button type="button" onClick={() => setGrouped((g) => !g)}
+                  className={`flex-1 rounded-xl border px-3 py-2 text-sm font-medium transition-all ${grouped ? "border-indigo-400 bg-indigo-500 text-white" : "border-zinc-200 bg-zinc-50 text-zinc-600 hover:bg-zinc-100"}`}
+                >Группа</button>
+                <button type="button" onClick={handleReset}
+                  className="flex-1 rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-700"
+                >Сбросить</button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
