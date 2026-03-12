@@ -1,23 +1,118 @@
-import { fetchRouteCards, enrichCardsWithDetails } from "@/lib/supabase";
+import type { Metadata } from "next";
+import {
+  fetchHomepageSections,
+  buildMenuCountsFromSections,
+  type HomepageSectionItemWithUrls,
+} from "@/lib/supabase";
+import { getMenuRouteMap } from "@/lib/menu";
+import { TAG_REGISTRY, DIMENSION_LABELS, type Dimension } from "@/lib/tag-registry";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
-import { FilterableGrid } from "@/components/CardFilters";
+import { CategorySection } from "@/components/CategorySection";
+import { MENU } from "@/lib/menu";
+
+export const revalidate = 3600;
+
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://promptshot.ru";
+
+export const metadata: Metadata = {
+  title: "Промты для фото с нейросетями — готовая библиотека промптов",
+  description:
+    "Готовые промты для генерации и обработки фотографий с нейросетями. Копируй, вставляй, получай результат.",
+  alternates: { canonical: SITE_URL + "/" },
+};
+
+const SECTION_ORDER: Dimension[] = [
+  "audience_tag",
+  "style_tag",
+  "occasion_tag",
+  "object_tag",
+  "doc_task_tag",
+];
 
 export default async function HomePage() {
-  const result = await fetchRouteCards({
-    limit: 48,
-    offset: 0,
-  });
+  let sections: HomepageSectionItemWithUrls[];
+  try {
+    sections = await fetchHomepageSections();
+  } catch {
+    sections = [];
+  }
 
-  const cards = await enrichCardsWithDetails(result.cards);
+  const routeMap = getMenuRouteMap();
+  const menuCounts = buildMenuCountsFromSections(sections, routeMap);
+
+  const sectionsByDimSlug = new Map<string, (typeof sections)[number]>();
+  for (const s of sections) {
+    sectionsByDimSlug.set(`${s.dimension}:${s.slug}`, s);
+  }
+
+  const totalPrompts = sections.reduce((sum, s) => sum + s.total_count, 0);
+  const totalCategories = sections.filter((s) => s.total_count > 0).length;
+
+  const sectionBlocks = SECTION_ORDER.map((dim) => {
+    const menuSection = MENU.find((m) => m.dimension === dim);
+    if (!menuSection) return null;
+
+    const tagSlugs = menuSection.groups.flatMap((g) =>
+      g.items.map((item) => {
+        const tag = TAG_REGISTRY.find((t) => t.urlPath + "/" === item.href);
+        return tag ?? null;
+      })
+    ).filter(Boolean);
+
+    const items = tagSlugs.map((tag) => ({
+      label: tag!.labelRu,
+      href: tag!.urlPath + "/",
+      data: sectionsByDimSlug.get(`${dim}:${tag!.slug}`) ?? {
+        dimension: dim,
+        slug: tag!.slug,
+        total_count: 0,
+        photo_bucket: null,
+        photo_path: null,
+        second_photo_bucket: null,
+        second_photo_path: null,
+        photoUrl: null,
+        secondPhotoUrl: null,
+      },
+    }));
+
+    return {
+      title: DIMENSION_LABELS[dim],
+      dimension: dim,
+      items,
+    };
+  }).filter(Boolean);
+
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "CollectionPage",
+    name: "Промты для фото с нейросетями",
+    description: metadata.description,
+    url: SITE_URL + "/",
+    hasPart: sections
+      .filter((s) => s.total_count > 0)
+      .slice(0, 50)
+      .map((s) => {
+        const tag = TAG_REGISTRY.find(
+          (t) => t.dimension === s.dimension && t.slug === s.slug
+        );
+        return tag
+          ? {
+              "@type": "CollectionPage",
+              name: tag.labelRu,
+              url: `${SITE_URL}${tag.urlPath}/`,
+            }
+          : null;
+      })
+      .filter(Boolean),
+  };
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <Header />
+    <div className="flex min-h-screen flex-col bg-gradient-to-b from-indigo-50/40 via-white to-zinc-50/50">
+      <Header counts={menuCounts} />
 
       {/* Hero */}
-      <section className="relative overflow-hidden border-b border-zinc-100">
-        <div className="absolute inset-0 bg-gradient-to-b from-indigo-50/60 via-white to-white" />
+      <section className="relative overflow-hidden">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(99,102,241,0.12),transparent)]" />
         <div className="relative mx-auto max-w-7xl px-5 pt-20 pb-14 text-center">
           <h1 className="mx-auto max-w-3xl text-4xl font-bold tracking-tight text-zinc-900 sm:text-5xl lg:text-6xl">
@@ -33,20 +128,48 @@ export default async function HomePage() {
           <div className="mt-8 flex items-center justify-center gap-2 text-sm text-zinc-400">
             <span className="inline-flex items-center gap-1.5 rounded-full bg-zinc-100 px-3 py-1 text-zinc-600">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
-              {result.total_count ?? result.cards_count}+ промптов
+              {totalPrompts}+ промптов
             </span>
             <span className="inline-flex items-center gap-1.5 rounded-full bg-zinc-100 px-3 py-1 text-zinc-600">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
-              Все стили
+              {totalCategories} категорий
             </span>
           </div>
         </div>
       </section>
 
-      <main className="mx-auto w-full max-w-7xl flex-1 px-5 py-10">
-        <FilterableGrid cards={cards} />
+      <main className="mx-auto w-full max-w-7xl flex-1 px-5 pb-16">
+        {sectionBlocks.length > 0 ? (
+          sectionBlocks.map((block, i) => (
+            <CategorySection
+              key={block!.dimension}
+              title={block!.title}
+              items={block!.items}
+              isFirstSection={i === 0}
+            />
+          ))
+        ) : (
+          /* Fallback: text links if RPC failed */
+          <div className="mt-12 flex flex-wrap gap-2">
+            {TAG_REGISTRY.map((tag) => (
+              <a
+                key={tag.slug}
+                href={tag.urlPath + "/"}
+                className="rounded-lg border border-zinc-200 bg-white px-4 py-2 text-sm text-zinc-600 transition-colors hover:border-zinc-300 hover:bg-zinc-50 hover:text-zinc-900"
+              >
+                {tag.labelRu}
+              </a>
+            ))}
+          </div>
+        )}
       </main>
+
       <Footer />
+
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
     </div>
   );
 }

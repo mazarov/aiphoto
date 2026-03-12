@@ -190,6 +190,67 @@ export async function fetchMenuCounts(
   return results;
 }
 
+// ── Homepage sections (single RPC for all category blocks) ──
+
+export type HomepageSectionItem = {
+  dimension: string;
+  slug: string;
+  total_count: number;
+  photo_bucket: string | null;
+  photo_path: string | null;
+  second_photo_bucket: string | null;
+  second_photo_path: string | null;
+};
+
+export type HomepageSectionItemWithUrls = HomepageSectionItem & {
+  photoUrl: string | null;
+  secondPhotoUrl: string | null;
+};
+
+export async function fetchHomepageSections(
+  siteLang = "ru"
+): Promise<HomepageSectionItemWithUrls[]> {
+  const supabase = createSupabaseServer();
+  const { data, error } = await supabase.rpc("get_homepage_sections", {
+    p_site_lang: siteLang,
+  });
+
+  if (error) throw new Error(`get_homepage_sections: ${error.message}`);
+
+  const items = (data ?? []) as HomepageSectionItem[];
+  return items.map((item) => ({
+    ...item,
+    photoUrl: item.photo_bucket && item.photo_path
+      ? getStoragePublicUrl(item.photo_bucket, item.photo_path)
+      : null,
+    secondPhotoUrl: item.second_photo_bucket && item.second_photo_path
+      ? getStoragePublicUrl(item.second_photo_bucket, item.second_photo_path)
+      : null,
+  }));
+}
+
+/** Build menu counts from homepage sections data (avoids ~80 separate RPC calls). */
+export function buildMenuCountsFromSections(
+  sections: HomepageSectionItemWithUrls[],
+  routeMap: { href: string; params: { audience_tag?: string; style_tag?: string; occasion_tag?: string; object_tag?: string; doc_task_tag?: string } }[]
+): Record<string, number> {
+  const countsByDimSlug = new Map<string, number>();
+  for (const s of sections) {
+    countsByDimSlug.set(`${s.dimension}:${s.slug}`, s.total_count);
+  }
+
+  const result: Record<string, number> = {};
+  for (const { href, params } of routeMap) {
+    for (const [dim, slug] of Object.entries(params)) {
+      if (slug) {
+        result[href] = countsByDimSlug.get(`${dim}:${slug}`) ?? 0;
+        break;
+      }
+    }
+  }
+  return result;
+}
+
 export type PhotoMeta = {
   url: string;
   bucket: string;

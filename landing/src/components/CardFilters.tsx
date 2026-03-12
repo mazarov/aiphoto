@@ -50,11 +50,11 @@ export function FilterableGrid({ cards }: Props) {
   const [idSearch, setIdSearch] = useState("");
   const [searchResults, setSearchResults] = useState<PromptCardFull[] | null>(null);
   const [searching, setSearching] = useState(false);
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const [filterResults, setFilterResults] = useState<PromptCardFull[] | null>(null);
   const [filterSearching, setFilterSearching] = useState(false);
-  const filterDebounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const filterDebounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const isIdMode = idSearch.trim().length >= 4;
   const isFilterMode =
