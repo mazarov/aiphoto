@@ -32,6 +32,7 @@ export type RouteCardsResult = {
   cards: RouteCard[];
   tier_used: string;
   cards_count: number;
+  total_count: number;
   has_minimum: boolean;
   dimension_count: number;
 };
@@ -158,7 +159,8 @@ export async function fetchMenuCounts(
         p_offset: 0,
         p_min_cards: 0,
       });
-      return { href, count: (data as RouteCardsResult | null)?.cards_count ?? 0 };
+      const r = data as RouteCardsResult | null;
+      return { href, count: r?.total_count ?? r?.cards_count ?? 0 };
     });
     const batchResults = await Promise.all(promises);
     for (const { href, count } of batchResults) {

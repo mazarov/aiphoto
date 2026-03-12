@@ -11,7 +11,13 @@ import {
   DIMENSION_LABELS,
 } from "@/lib/tag-registry";
 
-type Props = { params: Promise<{ slug: string[] }> };
+const PAGE_SIZE = 48;
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://promptshot.ru";
+
+type Props = {
+  params: Promise<{ slug: string[] }>;
+  searchParams: Promise<{ page?: string }>;
+};
 
 export async function generateStaticParams() {
   const paths = getAllTagPaths();
@@ -20,15 +26,26 @@ export async function generateStaticParams() {
   }));
 }
 
-export async function generateMetadata({ params }: Props) {
+export async function generateMetadata({ params, searchParams }: Props) {
   const { slug } = await params;
+  const { page: pageStr } = await searchParams;
   const path = "/" + slug.join("/");
   const tag = findTagByUrlPath(path);
   if (!tag) return {};
 
+  const page = Math.max(1, parseInt(pageStr || "1", 10) || 1);
+  const canonicalPath = tag.urlPath.endsWith("/") ? tag.urlPath : tag.urlPath + "/";
+  const canonicalUrl = `${SITE_URL}${canonicalPath}`;
+
   return {
-    title: `Промты для фото: ${tag.labelRu} — готовые промпты для ИИ`,
+    title:
+      page > 1
+        ? `Промты для фото: ${tag.labelRu} — страница ${page}`
+        : `Промты для фото: ${tag.labelRu} — готовые промпты для ИИ`,
     description: `Готовые промты «${tag.labelRu}». Копируй и используй в нейросети для создания фото.`,
+    alternates: {
+      canonical: canonicalUrl,
+    },
   };
 }
 
@@ -71,12 +88,91 @@ const FAQ_ITEMS = [
   },
 ];
 
-export default async function TagPage({ params }: Props) {
+function Pagination({
+  currentPage,
+  totalPages,
+  basePath,
+}: {
+  currentPage: number;
+  totalPages: number;
+  basePath: string;
+}) {
+  function pageHref(p: number) {
+    return p === 1 ? basePath : `${basePath}?page=${p}`;
+  }
+
+  const pages: (number | "...")[] = [];
+  if (totalPages <= 7) {
+    for (let i = 1; i <= totalPages; i++) pages.push(i);
+  } else {
+    pages.push(1);
+    if (currentPage > 3) pages.push("...");
+    const start = Math.max(2, currentPage - 1);
+    const end = Math.min(totalPages - 1, currentPage + 1);
+    for (let i = start; i <= end; i++) pages.push(i);
+    if (currentPage < totalPages - 2) pages.push("...");
+    pages.push(totalPages);
+  }
+
+  return (
+    <nav className="mt-10 flex items-center justify-center gap-1.5" aria-label="Пагинация">
+      {currentPage > 1 && (
+        <Link
+          href={pageHref(currentPage - 1)}
+          className="flex h-10 items-center rounded-lg border border-zinc-200 px-3 text-sm text-zinc-600 transition-colors hover:bg-zinc-50 hover:text-zinc-900"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="mr-1">
+            <path d="M15 18l-6-6 6-6" />
+          </svg>
+          Назад
+        </Link>
+      )}
+
+      {pages.map((p, i) =>
+        p === "..." ? (
+          <span key={`dots-${i}`} className="flex h-10 w-10 items-center justify-center text-sm text-zinc-400">
+            ...
+          </span>
+        ) : (
+          <Link
+            key={p}
+            href={pageHref(p)}
+            className={`flex h-10 w-10 items-center justify-center rounded-lg text-sm font-medium transition-colors ${
+              p === currentPage
+                ? "bg-zinc-900 text-white"
+                : "border border-zinc-200 text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900"
+            }`}
+          >
+            {p}
+          </Link>
+        ),
+      )}
+
+      {currentPage < totalPages && (
+        <Link
+          href={pageHref(currentPage + 1)}
+          className="flex h-10 items-center rounded-lg border border-zinc-200 px-3 text-sm text-zinc-600 transition-colors hover:bg-zinc-50 hover:text-zinc-900"
+        >
+          Далее
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="ml-1">
+            <path d="M9 18l6-6-6-6" />
+          </svg>
+        </Link>
+      )}
+    </nav>
+  );
+}
+
+export default async function TagPage({ params, searchParams }: Props) {
   const { slug } = await params;
+  const { page: pageStr } = await searchParams;
   const path = "/" + slug.join("/");
   const tag = findTagByUrlPath(path);
 
   if (!tag) notFound();
+
+  const page = Math.max(1, parseInt(pageStr || "1", 10) || 1);
+  const offset = (page - 1) * PAGE_SIZE;
 
   const rpcParams: Record<string, string | null> = {
     audience_tag: null,
@@ -93,12 +189,16 @@ export default async function TagPage({ params }: Props) {
     occasion_tag: rpcParams.occasion_tag,
     object_tag: rpcParams.object_tag,
     doc_task_tag: rpcParams.doc_task_tag,
-    limit: 48,
+    limit: PAGE_SIZE,
+    offset,
   });
+  const totalCount = result.total_count ?? result.cards_count;
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
   const cards = await enrichCardsWithDetails(result.cards);
   const siblings = getSiblingTags(tag, 6);
   const sectionLabel = DIMENSION_LABELS[tag.dimension];
   const intro = INTRO_TEMPLATES[tag.dimension] || INTRO_TEMPLATES.audience_tag;
+  const basePath = tag.urlPath.endsWith("/") ? tag.urlPath : tag.urlPath + "/";
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -145,19 +245,29 @@ export default async function TagPage({ params }: Props) {
           </p>
           <div className="mt-4 flex items-center gap-3">
             <span className="inline-flex items-center rounded-full bg-zinc-100 px-3 py-1 text-sm tabular-nums text-zinc-600">
-              {result.cards_count}{" "}
-              {result.cards_count === 1
+              {totalCount}{" "}
+              {totalCount === 1
                 ? "промпт"
-                : result.cards_count < 5
+                : totalCount < 5
                   ? "промпта"
                   : "промптов"}
             </span>
+            {totalPages > 1 && (
+              <span className="text-sm text-zinc-400">
+                Страница {page} из {totalPages}
+              </span>
+            )}
           </div>
         </div>
       </section>
 
       <main className="mx-auto w-full max-w-7xl flex-1 px-5 py-10">
         <FilterableGrid cards={cards} />
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <Pagination currentPage={page} totalPages={totalPages} basePath={basePath} />
+        )}
 
         {/* How to use */}
         <section className="mt-16 rounded-2xl border border-zinc-200 bg-white p-6 sm:p-8">
