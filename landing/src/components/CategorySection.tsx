@@ -2,12 +2,19 @@
 
 import { useState } from "react";
 import { CategoryCard } from "./CategoryCard";
-import type { HomepageSectionItemWithUrls } from "@/lib/supabase";
+
+export type CategoryItemDisplayData = {
+  dimension: string;
+  slug: string;
+  total_count: number;
+  photoUrl: string | null;
+  secondPhotoUrl: string | null;
+};
 
 type CategoryItem = {
   label: string;
   href: string;
-  data: HomepageSectionItemWithUrls;
+  data: CategoryItemDisplayData;
 };
 
 type Props = {

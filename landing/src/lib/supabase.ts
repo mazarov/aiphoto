@@ -192,19 +192,24 @@ export async function fetchMenuCounts(
 
 // ── Homepage sections (single RPC for all category blocks) ──
 
-export type HomepageSectionItem = {
+export type HomepageCardRaw = {
+  card_id: string;
+  storage_bucket: string;
+  storage_path: string;
+};
+
+export type HomepageSectionItemRaw = {
   dimension: string;
   slug: string;
   total_count: number;
-  photo_bucket: string | null;
-  photo_path: string | null;
-  second_photo_bucket: string | null;
-  second_photo_path: string | null;
+  cards: HomepageCardRaw[];
 };
 
-export type HomepageSectionItemWithUrls = HomepageSectionItem & {
-  photoUrl: string | null;
-  secondPhotoUrl: string | null;
+export type HomepageSectionItemWithUrls = {
+  dimension: string;
+  slug: string;
+  total_count: number;
+  cards: { card_id: string; photoUrl: string }[];
 };
 
 export async function fetchHomepageSections(
@@ -217,21 +222,77 @@ export async function fetchHomepageSections(
 
   if (error) throw new Error(`get_homepage_sections: ${error.message}`);
 
-  const items = (data ?? []) as HomepageSectionItem[];
-  return items.map((item) => ({
-    ...item,
-    photoUrl: item.photo_bucket && item.photo_path
-      ? getStoragePublicUrl(item.photo_bucket, item.photo_path)
-      : null,
-    secondPhotoUrl: item.second_photo_bucket && item.second_photo_path
-      ? getStoragePublicUrl(item.second_photo_bucket, item.second_photo_path)
-      : null,
-  }));
+  const rawItems = Array.isArray(data) ? data : [];
+  return rawItems.map((item: Record<string, unknown>) => {
+    const dim = String(item.dimension ?? "");
+    const slug = String(item.slug ?? "");
+    const totalCount = Number(item.total_count ?? 0);
+    const rawCards = item.cards;
+    const cardsArray = Array.isArray(rawCards) ? rawCards : [];
+
+    let cards: { card_id: string; photoUrl: string }[];
+
+    if (cardsArray.length > 0) {
+      cards = cardsArray
+        .filter(
+          (c): c is Record<string, string> =>
+            c != null &&
+            typeof c === "object" &&
+            typeof (c as Record<string, unknown>).card_id === "string" &&
+            typeof (c as Record<string, unknown>).storage_bucket === "string" &&
+            typeof (c as Record<string, unknown>).storage_path === "string"
+        )
+        .map((c) => ({
+          card_id: c.card_id,
+          photoUrl: getStoragePublicUrl(c.storage_bucket, c.storage_path),
+        }));
+    } else {
+      // Backwards compat: old RPC (118) returns photo_bucket, photo_path
+      const bucket = item.photo_bucket ?? item.second_photo_bucket;
+      const path = item.photo_path ?? item.second_photo_path;
+      cards =
+        typeof bucket === "string" && typeof path === "string"
+          ? [{ card_id: `legacy-${dim}-${slug}`, photoUrl: getStoragePublicUrl(bucket, path) }]
+          : [];
+    }
+
+    return {
+      dimension: dim,
+      slug,
+      total_count: totalCount,
+      cards,
+    };
+  });
+}
+
+/**
+ * Pick primary and secondary photos for a tag, avoiding cards already used.
+ * Returns { photoUrl, secondPhotoUrl } for the category block.
+ */
+export function pickDeduplicatedPhotos(
+  cards: { card_id: string; photoUrl: string }[],
+  usedCardIds: Set<string>
+): { photoUrl: string | null; secondPhotoUrl: string | null; usedIds: string[] } {
+  const unused = cards.filter((c) => !usedCardIds.has(c.card_id));
+  const primary = unused[0] ?? cards[0];
+  const secondary = unused[1] ?? unused[0] ?? null;
+  const usedIds: string[] = [];
+  if (primary) {
+    usedIds.push(primary.card_id);
+    if (secondary && secondary.card_id !== primary.card_id) {
+      usedIds.push(secondary.card_id);
+    }
+  }
+  return {
+    photoUrl: primary?.photoUrl ?? null,
+    secondPhotoUrl: secondary?.photoUrl ?? null,
+    usedIds,
+  };
 }
 
 /** Build menu counts from homepage sections data (avoids ~80 separate RPC calls). */
 export function buildMenuCountsFromSections(
-  sections: HomepageSectionItemWithUrls[],
+  sections: { dimension: string; slug: string; total_count: number }[],
   routeMap: { href: string; params: { audience_tag?: string; style_tag?: string; occasion_tag?: string; object_tag?: string; doc_task_tag?: string } }[]
 ): Record<string, number> {
   const countsByDimSlug = new Map<string, number>();

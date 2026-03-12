@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import {
   fetchHomepageSections,
   buildMenuCountsFromSections,
-  type HomepageSectionItemWithUrls,
+  pickDeduplicatedPhotos,
 } from "@/lib/supabase";
 import { getMenuRouteMap } from "@/lib/menu";
 import { TAG_REGISTRY, DIMENSION_LABELS, type Dimension } from "@/lib/tag-registry";
@@ -31,10 +32,11 @@ const SECTION_ORDER: Dimension[] = [
 ];
 
 export default async function HomePage() {
-  let sections: HomepageSectionItemWithUrls[];
+  let sections: Awaited<ReturnType<typeof fetchHomepageSections>>;
   try {
     sections = await fetchHomepageSections();
-  } catch {
+  } catch (err) {
+    console.error("[HomePage] fetchHomepageSections failed:", err);
     sections = [];
   }
 
@@ -49,6 +51,8 @@ export default async function HomePage() {
   const totalPrompts = sections.reduce((sum, s) => sum + s.total_count, 0);
   const totalCategories = sections.filter((s) => s.total_count > 0).length;
 
+  const usedCardIds = new Set<string>();
+
   const sectionBlocks = SECTION_ORDER.map((dim) => {
     const menuSection = MENU.find((m) => m.dimension === dim);
     if (!menuSection) return null;
@@ -60,21 +64,26 @@ export default async function HomePage() {
       })
     ).filter(Boolean);
 
-    const items = tagSlugs.map((tag) => ({
-      label: tag!.labelRu,
-      href: tag!.urlPath + "/",
-      data: sectionsByDimSlug.get(`${dim}:${tag!.slug}`) ?? {
-        dimension: dim,
-        slug: tag!.slug,
-        total_count: 0,
-        photo_bucket: null,
-        photo_path: null,
-        second_photo_bucket: null,
-        second_photo_path: null,
-        photoUrl: null,
-        secondPhotoUrl: null,
-      },
-    }));
+    const items = tagSlugs.map((tag) => {
+      const raw = sectionsByDimSlug.get(`${dim}:${tag!.slug}`);
+      const { photoUrl, secondPhotoUrl, usedIds } = pickDeduplicatedPhotos(
+        raw?.cards ?? [],
+        usedCardIds
+      );
+      for (const id of usedIds) usedCardIds.add(id);
+
+      return {
+        label: tag!.labelRu,
+        href: tag!.urlPath + "/",
+        data: {
+          dimension: dim,
+          slug: tag!.slug,
+          total_count: raw?.total_count ?? 0,
+          photoUrl,
+          secondPhotoUrl,
+        },
+      };
+    });
 
     return {
       title: DIMENSION_LABELS[dim],
@@ -166,9 +175,11 @@ export default async function HomePage() {
 
       <Footer />
 
-      <script
+      <Script
+        id="homepage-json-ld"
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        strategy="afterInteractive"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c") }}
       />
     </div>
   );
