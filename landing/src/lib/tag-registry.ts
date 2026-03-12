@@ -141,6 +141,28 @@ export function findTagBySlug(dimension: Dimension, slug: string): TagEntry | nu
   return bySlug.get(`${dimension}:${slug}`) ?? null;
 }
 
+/** First tag from seo_tags by priority (for breadcrumb). audience_tag > style_tag > occasion_tag > object_tag > doc_task_tag */
+const BREADCRUMB_DIMENSIONS: Dimension[] = [
+  "audience_tag",
+  "style_tag",
+  "occasion_tag",
+  "object_tag",
+  "doc_task_tag",
+];
+
+export function getFirstTagFromSeoTags(seoTags: Record<string, unknown> | null): TagEntry | null {
+  if (!seoTags) return null;
+  for (const dim of BREADCRUMB_DIMENSIONS) {
+    const arr = (seoTags[dim] || []) as string[];
+    const slug = arr[0];
+    if (slug) {
+      const entry = findTagBySlug(dim, slug);
+      if (entry) return entry;
+    }
+  }
+  return null;
+}
+
 export function getTagsByDimension(dimension: Dimension): TagEntry[] {
   return TAG_REGISTRY.filter((e) => e.dimension === dimension);
 }

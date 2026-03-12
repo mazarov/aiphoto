@@ -1,6 +1,6 @@
 import type { MetadataRoute } from "next";
 import { getAllTagPaths } from "@/lib/tag-registry";
-import { getPublishedCardSlugs } from "@/lib/supabase";
+import { getPublishedCardsForSitemap } from "@/lib/supabase";
 
 const BASE_URL =
   process.env.NEXT_PUBLIC_SITE_URL ||
@@ -15,10 +15,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: path.split("/").length === 1 ? 0.9 : 0.8,
   }));
 
-  const cardSlugs = await getPublishedCardSlugs();
-  const cardUrls: MetadataRoute.Sitemap = cardSlugs.map((slug) => ({
+  const cards = await getPublishedCardsForSitemap();
+  const cardUrls: MetadataRoute.Sitemap = cards.map(({ slug, updated_at }) => ({
     url: `${BASE_URL}/p/${slug}`,
-    lastModified: new Date(),
+    lastModified: new Date(updated_at),
     changeFrequency: "monthly" as const,
     priority: 0.7,
   }));

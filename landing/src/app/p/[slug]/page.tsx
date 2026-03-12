@@ -1,99 +1,167 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import {
-  createSupabaseServer,
+  getCardPageData,
   getStoragePublicUrl,
 } from "@/lib/supabase";
+import {
+  getFirstTagFromSeoTags,
+  findTagBySlug,
+  type Dimension,
+} from "@/lib/tag-registry";
 import { CopyPromptButton } from "@/components/CopyPromptButton";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 
+const BASE_URL =
+  process.env.NEXT_PUBLIC_SITE_URL ||
+  (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://promptshot.ru");
+
+const DIMENSIONS: Dimension[] = [
+  "audience_tag",
+  "style_tag",
+  "occasion_tag",
+  "object_tag",
+  "doc_task_tag",
+];
+
+function getSeoSlugsWithTags(seoTags: Record<string, unknown> | null): { slug: string; label: string; href: string | null }[] {
+  if (!seoTags) return [];
+  const result: { slug: string; label: string; href: string | null }[] = [];
+  for (const dim of DIMENSIONS) {
+    const arr = (seoTags[dim] || []) as string[];
+    for (const slug of arr) {
+      const entry = findTagBySlug(dim, slug);
+      result.push({
+        slug,
+        label: entry?.labelRu ?? slug,
+        href: entry ? entry.urlPath : null,
+      });
+    }
+  }
+  return result;
+}
+
+function buildDescription(data: Awaited<ReturnType<typeof getCardPageData>>): string {
+  if (!data) return "Готовый промт для генерации фото ИИ. Посмотри результат и скопируй.";
+  const title = data.title_ru || data.title_en || "Промт";
+  const tags = getSeoSlugsWithTags(data.seo_tags).map((t) => t.label);
+  if (data.promptTexts.length > 0) {
+    const excerpt = data.promptTexts[0].slice(0, 100).trim();
+    const suffix = data.promptTexts[0].length > 100 ? "…" : "";
+    return `Промт для фото: «${excerpt}${suffix}». Скопируй и создай фото в нейросети.`;
+  }
+  if (tags.length > 0) {
+    return `Готовый промт «${title}» — ${tags.join(", ")}. Копируй и используй в ИИ.`;
+  }
+  return "Готовый промт для генерации фото ИИ. Посмотри результат и скопируй.";
+}
+
+function buildTitle(titleRu: string): string {
+  const suffix = " — промт для фото ИИ | PromptShot";
+  const maxLen = 60;
+  if (titleRu.length + suffix.length <= maxLen) return `${titleRu}${suffix}`;
+  return titleRu.slice(0, maxLen - suffix.length - 1).trim() + suffix;
+}
+
 type Props = { params: Promise<{ slug: string }> };
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { slug } = await params;
+  const data = await getCardPageData(slug);
+  if (!data) return {};
+
+  const title = data.title_ru || data.title_en || "Промт";
+  const isThin = data.promptTexts.length === 0 && data.photoUrls.length === 0;
+  const canonical = `${BASE_URL}/p/${data.slug}`;
+
+  return {
+    title: buildTitle(title),
+    description: buildDescription(data),
+    alternates: { canonical },
+    openGraph: {
+      title: buildTitle(title),
+      description: buildDescription(data),
+      url: canonical,
+      type: "article",
+      images: data.mainPhotoUrl ? [{ url: data.mainPhotoUrl }] : undefined,
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: buildTitle(title),
+      description: buildDescription(data),
+      images: data.mainPhotoUrl ? [data.mainPhotoUrl] : undefined,
+    },
+    robots: isThin ? "noindex, follow" : "index, follow",
+  };
+}
 
 export default async function CardPage({ params }: Props) {
   const { slug } = await params;
-  const supabase = createSupabaseServer();
+  const data = await getCardPageData(slug);
 
-  const { data: card } = await supabase
-    .from("prompt_cards")
-    .select(
-      "id,slug,title_ru,title_en,seo_tags,seo_readiness_score,is_published,source_dataset_slug,source_message_id,source_date,hashtags,parse_warnings"
-    )
-    .eq("slug", slug)
-    .eq("is_published", true)
-    .single();
+  if (!data) notFound();
 
-  if (!card) notFound();
+  const title = data.title_ru || data.title_en || "Без названия";
+  const hashtags = data.hashtags;
+  const tagEntries = getSeoSlugsWithTags(data.seo_tags);
+  const breadcrumbTag = getFirstTagFromSeoTags(data.seo_tags);
+  const promptTexts = data.promptTexts;
 
-  const [variantsRes, mediaRes, beforeRes] = await Promise.all([
-    supabase
-      .from("prompt_variants")
-      .select("prompt_text_ru")
-      .eq("card_id", card.id)
-      .order("variant_index", { ascending: true }),
-    supabase
-      .from("prompt_card_media")
-      .select("storage_bucket,storage_path")
-      .eq("card_id", card.id)
-      .eq("media_type", "photo"),
-    supabase
-      .from("prompt_card_before_media")
-      .select("storage_bucket,storage_path")
-      .eq("card_id", card.id)
-      .maybeSingle(),
-  ]);
+  // JSON-LD CreativeWork
+  const creativeWorkLd = {
+    "@context": "https://schema.org",
+    "@type": "CreativeWork",
+    name: title,
+    description:
+      data.promptTexts[0]?.slice(0, 150) ?? data.title_ru ?? "Промт для фото ИИ",
+    image: data.mainPhotoUrl ?? undefined,
+    url: `${BASE_URL}/p/${data.slug}`,
+    datePublished: data.source_date ?? undefined,
+    keywords: tagEntries.map((t) => t.label).join(", "),
+    isPartOf: {
+      "@type": "CollectionPage",
+      name: "PromptShot — промты для фото ИИ",
+      url: BASE_URL,
+    },
+  };
 
-  const promptTexts = (variantsRes.data || [])
-    .map((v) => (v as { prompt_text_ru: string | null }).prompt_text_ru)
-    .filter((t): t is string => !!t?.trim());
+  // JSON-LD BreadcrumbList
+  const breadcrumbItems = [
+    { "@type": "ListItem", position: 1, name: "Главная", item: BASE_URL },
+    ...(breadcrumbTag
+      ? [
+          {
+            "@type": "ListItem",
+            position: 2,
+            name: breadcrumbTag.labelRu,
+            item: `${BASE_URL}${breadcrumbTag.urlPath}`,
+          },
+          { "@type": "ListItem", position: 3, name: title, item: `${BASE_URL}/p/${data.slug}` },
+        ]
+      : [{ "@type": "ListItem", position: 2, name: title, item: `${BASE_URL}/p/${data.slug}` }]),
+  ];
+  const breadcrumbLd = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: breadcrumbItems,
+  };
 
-  const allMedia = (mediaRes.data || []) as {
-    storage_bucket: string;
-    storage_path: string;
-  }[];
-  const beforeMedia = beforeRes.data as {
-    storage_bucket: string;
-    storage_path: string;
-  } | null;
-
-  const filteredMedia = beforeMedia
-    ? allMedia.filter(
-        (m) =>
-          !(
-            m.storage_bucket === beforeMedia.storage_bucket &&
-            m.storage_path === beforeMedia.storage_path
-          )
-      )
-    : allMedia;
-
-  const photoMeta = filteredMedia.map((m) => ({
-    url: getStoragePublicUrl(m.storage_bucket, m.storage_path),
-    bucket: m.storage_bucket,
-    path: m.storage_path,
-  }));
-  const photoUrls = photoMeta.map((m) => m.url);
-  const beforePhotoUrl = beforeMedia
-    ? getStoragePublicUrl(beforeMedia.storage_bucket, beforeMedia.storage_path)
-    : null;
-
-  const title = card.title_ru || card.title_en || "Без названия";
-  const hashtags = (card.hashtags as string[] | null) || [];
-  const seoTags = card.seo_tags as Record<string, unknown> | null;
-  const seoSlugs = seoTags
-    ? [
-        "audience_tag",
-        "style_tag",
-        "occasion_tag",
-        "object_tag",
-        "doc_task_tag",
-      ].flatMap((d) => ((seoTags[d] || []) as string[]))
-    : [];
-
-  const mainPhoto = photoUrls[0] || null;
+  const safeJson = (obj: object) =>
+    JSON.stringify(obj).replace(/</g, "\\u003c");
 
   return (
     <div className="flex min-h-screen flex-col bg-white">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: safeJson(creativeWorkLd) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: safeJson(breadcrumbLd) }}
+      />
       <Header />
 
       <main className="flex-1">
@@ -101,10 +169,10 @@ export default async function CardPage({ params }: Props) {
         <section className="relative bg-zinc-950">
           <div className="mx-auto max-w-5xl">
             <div className="relative aspect-[16/10] sm:aspect-[16/9] overflow-hidden">
-              {mainPhoto ? (
+              {data.mainPhotoUrl ? (
                 <>
                   <Image
-                    src={mainPhoto}
+                    src={data.mainPhotoUrl}
                     alt=""
                     fill
                     sizes="100vw"
@@ -113,7 +181,7 @@ export default async function CardPage({ params }: Props) {
                     priority
                   />
                   <Image
-                    src={mainPhoto}
+                    src={data.mainPhotoUrl}
                     alt={title}
                     fill
                     sizes="100vw"
@@ -127,31 +195,31 @@ export default async function CardPage({ params }: Props) {
                 </div>
               )}
 
-              {/* Before badge */}
-              {beforePhotoUrl && (
-                <div className="absolute left-4 bottom-4 w-16 rounded-xl overflow-hidden border-2 border-white/20 shadow-2xl backdrop-blur-sm">
-                  <div className="text-[10px] text-white/80 text-center py-0.5 bg-black/40 border-b border-white/10">
-                    Было
-                  </div>
-                  <div className="aspect-square relative">
-                    <Image src={beforePhotoUrl} alt="before" fill className="object-cover" sizes="64px" />
+              {/* Before badge — flush to top-left */}
+              {data.beforePhotoUrl && (
+                <div className="absolute top-0 left-0 z-10 w-[18%] min-w-[100px] max-w-[180px]">
+                  <div className="aspect-square relative bg-zinc-800 rounded-br-xl overflow-hidden shadow-2xl ring-1 ring-black/10">
+                    <Image src={data.beforePhotoUrl} alt="before" fill className="object-cover" sizes="180px" />
+                    <div className="absolute inset-x-0 bottom-0 text-[10px] text-white font-bold text-center py-0.5 bg-gradient-to-t from-black/70 to-transparent tracking-wider">
+                      БЫЛО
+                    </div>
                   </div>
                 </div>
               )}
 
               {/* Photo count */}
-              {photoUrls.length > 1 && (
+              {data.photoUrls.length > 1 && (
                 <div className="absolute top-4 right-4 rounded-full bg-black/40 px-3 py-1.5 text-xs font-medium text-white/90 backdrop-blur-md">
-                  {photoUrls.length} фото
+                  {data.photoUrls.length} фото
                 </div>
               )}
             </div>
           </div>
 
           {/* Thumbnail strip */}
-          {photoUrls.length > 1 && (
+          {data.photoUrls.length > 1 && (
             <div className="mx-auto max-w-5xl px-4 py-3 flex items-center gap-2 overflow-x-auto">
-              {photoUrls.map((url, i) => (
+              {data.photoUrls.map((url, i) => (
                 <div
                   key={i}
                   className={`flex-shrink-0 w-14 h-14 rounded-lg overflow-hidden border-2 transition ${
@@ -177,31 +245,51 @@ export default async function CardPage({ params }: Props) {
           <nav className="mb-6 flex items-center gap-1.5 text-sm text-zinc-400">
             <Link href="/" className="transition-colors hover:text-zinc-700">Главная</Link>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-zinc-300"><path d="M9 18l6-6-6-6"/></svg>
-            <span className="text-zinc-600 line-clamp-1">{title}</span>
+            {breadcrumbTag ? (
+              <>
+                <Link href={breadcrumbTag.urlPath} className="transition-colors hover:text-zinc-700">
+                  {breadcrumbTag.labelRu}
+                </Link>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-zinc-300"><path d="M9 18l6-6-6-6"/></svg>
+                <span className="text-zinc-600 line-clamp-1">{title}</span>
+              </>
+            ) : (
+              <span className="text-zinc-600 line-clamp-1">{title}</span>
+            )}
           </nav>
 
           <h1 className="text-2xl font-bold tracking-tight text-zinc-900 sm:text-3xl">
             {title}
           </h1>
 
-          {/* Tags */}
-          {seoSlugs.length > 0 && (
+          {/* Tags — clickable */}
+          {tagEntries.length > 0 && (
             <div className="mt-4 flex flex-wrap gap-1.5">
-              {seoSlugs.map((slug) => (
-                <span
-                  key={slug}
-                  className="rounded-full bg-zinc-100 px-3 py-1 text-xs text-zinc-600 transition-colors hover:bg-zinc-200"
-                >
-                  {slug}
-                </span>
-              ))}
+              {tagEntries.map(({ slug, label, href }) =>
+                href ? (
+                  <Link
+                    key={slug}
+                    href={href}
+                    className="rounded-full bg-zinc-100 px-3 py-1 text-xs text-zinc-600 transition-colors hover:bg-zinc-200"
+                  >
+                    {label}
+                  </Link>
+                ) : (
+                  <span
+                    key={slug}
+                    className="rounded-full bg-zinc-100 px-3 py-1 text-xs text-zinc-600"
+                  >
+                    {label}
+                  </span>
+                )
+              )}
             </div>
           )}
 
           {/* Hashtags */}
           {hashtags.length > 0 && (
             <div className="mt-3 text-sm text-zinc-400">
-              {hashtags.map((h) => `#${h.replace(/^#/, "")}`).join("  ")}
+              {hashtags.map((h) => `#${String(h).replace(/^#/, "")}`).join("  ")}
             </div>
           )}
 

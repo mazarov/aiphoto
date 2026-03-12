@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import Image from "next/image";
 import type { PromptCardFull } from "@/lib/supabase";
 import { PhotoCarousel } from "./PhotoCarousel";
@@ -124,7 +125,7 @@ export function PromptCard({ card, debug = false }: Props) {
   }
 
   // === Normal mode ===
-  return (
+  const articleEl = (
     <article className="group relative overflow-hidden rounded-2xl transition-all duration-200 hover:shadow-xl hover:shadow-zinc-900/10 hover:-translate-y-0.5">
       <div className="relative aspect-[3/4] w-full overflow-hidden rounded-2xl bg-zinc-200">
         {/* Photo — object-cover, no blur layer */}
@@ -164,21 +165,22 @@ export function PromptCard({ card, debug = false }: Props) {
           </>
         )}
 
+        {/* Before badge — flush to top-left corner */}
+        {card.beforePhotoUrl && (
+          <div className="absolute top-0 left-0 z-20 w-[28%] min-w-[72px]">
+            <div className="aspect-square relative bg-zinc-800 rounded-br-xl overflow-hidden shadow-2xl ring-1 ring-black/10">
+              <Image src={card.beforePhotoUrl} alt="before" fill className="object-cover" sizes="120px" />
+              <div className="absolute inset-x-0 bottom-0 text-[8px] text-white font-bold text-center py-0.5 bg-gradient-to-t from-black/70 to-transparent tracking-wider">
+                БЫЛО
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Top badges */}
         <div className="absolute top-3 left-3 right-3 z-20 flex items-start justify-between pointer-events-none">
           <div className="flex items-center gap-1.5">
-            {/* Before badge — large */}
-            {card.beforePhotoUrl && (
-              <div className="pointer-events-auto w-14 rounded-xl overflow-hidden border-2 border-white/30 shadow-xl backdrop-blur-sm">
-                <div className="text-[8px] text-white/90 text-center py-0.5 bg-black/50 font-semibold tracking-wide border-b border-white/10">
-                  БЫЛО
-                </div>
-                <div className="aspect-[4/3] relative">
-                  <Image src={card.beforePhotoUrl} alt="before" fill className="object-cover" sizes="56px" />
-                </div>
-              </div>
-            )}
-            {/* Group badge */}
+            {card.beforePhotoUrl && <div className="w-[28%] min-w-[72px]" />}
             {card.cardSplitTotal > 1 && (
               <div className="rounded-full bg-indigo-500/80 backdrop-blur-md px-2 py-0.5 text-[10px] font-bold text-white shadow">
                 {card.cardSplitIndex + 1}/{card.cardSplitTotal}
@@ -218,7 +220,7 @@ export function PromptCard({ card, debug = false }: Props) {
             {promptPreview && (
               <button
                 type="button"
-                onClick={() => setExpanded(true)}
+                onClick={(e) => { e.stopPropagation(); e.preventDefault(); setExpanded(true); }}
                 className="text-left text-[11px] text-white/60 leading-relaxed line-clamp-1 hover:text-white/80 transition-colors w-full"
               >
                 {promptPreview}
@@ -227,10 +229,10 @@ export function PromptCard({ card, debug = false }: Props) {
             {card.promptTexts.length > 0 && (
               <button
                 type="button"
-                onClick={handleCopy}
+                onClick={(e) => { e.stopPropagation(); e.preventDefault(); setExpanded(true); }}
                 className="mt-2 w-full rounded-lg bg-white/15 backdrop-blur-md border border-white/10 px-3 py-2 text-[11px] font-semibold text-white transition-all hover:bg-white/25 active:scale-[0.98]"
               >
-                {copied ? "Скопировано!" : "Скопировать промт"}
+                Скопировать промт
               </button>
             )}
           </div>
@@ -238,12 +240,12 @@ export function PromptCard({ card, debug = false }: Props) {
 
         {/* Expanded overlay */}
         {expanded && (
-          <div className="absolute inset-0 z-30 flex flex-col bg-black/70 backdrop-blur-sm p-4" onClick={(e) => e.stopPropagation()}>
+          <div className="absolute inset-0 z-30 flex flex-col bg-black/70 backdrop-blur-sm p-4" onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}>
             <div className="flex items-start justify-between mb-3">
               <h3 className="text-[13px] font-semibold text-white leading-snug flex-1 mr-2">{title}</h3>
               <button
                 type="button"
-                onClick={() => setExpanded(false)}
+                onClick={(e) => { e.stopPropagation(); e.preventDefault(); setExpanded(false); }}
                 className="flex-shrink-0 rounded-full bg-white/15 p-1.5 text-white/70 hover:bg-white/25 hover:text-white transition-colors"
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
@@ -263,7 +265,7 @@ export function PromptCard({ card, debug = false }: Props) {
             )}
             <button
               type="button"
-              onClick={handleCopy}
+              onClick={(e) => { e.stopPropagation(); e.preventDefault(); handleCopy(e); }}
               className="w-full rounded-xl bg-white px-3 py-2.5 text-xs font-semibold text-zinc-900 transition-all hover:bg-zinc-100 active:scale-[0.98]"
             >
               {copied ? "Скопировано!" : "Скопировать промт"}
@@ -272,5 +274,13 @@ export function PromptCard({ card, debug = false }: Props) {
         )}
       </div>
     </article>
+  );
+
+  return card.slug ? (
+    <Link href={`/p/${card.slug}`} className="block">
+      {articleEl}
+    </Link>
+  ) : (
+    articleEl
   );
 }

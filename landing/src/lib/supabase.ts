@@ -114,6 +114,7 @@ export async function searchCardsFiltered(params: {
   scoreMax?: number;
   hasRuPrompt?: "all" | "yes" | "no";
   seoTag?: string | null;
+  hasBefore?: "all" | "yes";
   limit?: number;
   offset?: number;
 }): Promise<RouteCard[]> {
@@ -124,6 +125,7 @@ export async function searchCardsFiltered(params: {
     p_score_max: params.scoreMax ?? 100,
     p_has_ru_prompt: params.hasRuPrompt ?? "all",
     p_seo_tag: params.seoTag || null,
+    p_has_before: params.hasBefore ?? "all",
     p_limit: params.limit ?? 100,
     p_offset: params.offset ?? 0,
   });
@@ -348,15 +350,117 @@ export async function enrichCardsWithDetails(
 
 /** Fetches all published card slugs for sitemap. */
 export async function getPublishedCardSlugs(): Promise<string[]> {
+  const rows = await getPublishedCardsForSitemap();
+  return rows.map((r) => r.slug);
+}
+
+/** Fetches published cards with updated_at for sitemap lastModified. */
+export async function getPublishedCardsForSitemap(): Promise<
+  { slug: string; updated_at: string }[]
+> {
   try {
     const supabase = createSupabaseServer();
     const { data } = await supabase
       .from("prompt_cards")
-      .select("slug")
+      .select("slug,updated_at")
       .eq("is_published", true)
       .not("slug", "is", null);
-    return (data || []).map((r) => (r as { slug: string }).slug);
+    return (data || []).map((r) => ({
+      slug: (r as { slug: string }).slug,
+      updated_at: (r as { updated_at: string }).updated_at,
+    }));
   } catch {
     return [];
   }
+}
+
+export type CardPageData = {
+  id: string;
+  slug: string;
+  title_ru: string | null;
+  title_en: string | null;
+  seo_tags: Record<string, unknown> | null;
+  hashtags: string[];
+  source_date: string | null;
+  promptTexts: string[];
+  photoUrls: string[];
+  beforePhotoUrl: string | null;
+  mainPhotoUrl: string | null;
+};
+
+/** Fetches full card data for /p/[slug] page and generateMetadata. */
+export async function getCardPageData(slug: string): Promise<CardPageData | null> {
+  const supabase = createSupabaseServer();
+  const { data: card } = await supabase
+    .from("prompt_cards")
+    .select(
+      "id,slug,title_ru,title_en,seo_tags,hashtags,is_published,source_date,source_dataset_slug,source_message_id"
+    )
+    .eq("slug", slug)
+    .eq("is_published", true)
+    .single();
+
+  if (!card) return null;
+
+  const [variantsRes, mediaRes, beforeRes] = await Promise.all([
+    supabase
+      .from("prompt_variants")
+      .select("prompt_text_ru")
+      .eq("card_id", card.id)
+      .order("variant_index", { ascending: true }),
+    supabase
+      .from("prompt_card_media")
+      .select("storage_bucket,storage_path")
+      .eq("card_id", card.id)
+      .eq("media_type", "photo"),
+    supabase
+      .from("prompt_card_before_media")
+      .select("storage_bucket,storage_path")
+      .eq("card_id", card.id)
+      .maybeSingle(),
+  ]);
+
+  const promptTexts = (variantsRes.data || [])
+    .map((v) => (v as { prompt_text_ru: string | null }).prompt_text_ru)
+    .filter((t): t is string => !!t?.trim());
+
+  const allMedia = (mediaRes.data || []) as {
+    storage_bucket: string;
+    storage_path: string;
+  }[];
+  const beforeMedia = beforeRes.data as {
+    storage_bucket: string;
+    storage_path: string;
+  } | null;
+
+  const filteredMedia = beforeMedia
+    ? allMedia.filter(
+        (m) =>
+          !(
+            m.storage_bucket === beforeMedia.storage_bucket &&
+            m.storage_path === beforeMedia.storage_path
+          )
+      )
+    : allMedia;
+
+  const photoUrls = filteredMedia.map((m) =>
+    getStoragePublicUrl(m.storage_bucket, m.storage_path)
+  );
+  const beforePhotoUrl = beforeMedia
+    ? getStoragePublicUrl(beforeMedia.storage_bucket, beforeMedia.storage_path)
+    : null;
+
+  return {
+    id: card.id,
+    slug: card.slug,
+    title_ru: card.title_ru,
+    title_en: card.title_en,
+    seo_tags: card.seo_tags as Record<string, unknown> | null,
+    hashtags: (card.hashtags as string[] | null) || [],
+    source_date: card.source_date,
+    promptTexts,
+    photoUrls,
+    beforePhotoUrl,
+    mainPhotoUrl: photoUrls[0] || null,
+  };
 }
