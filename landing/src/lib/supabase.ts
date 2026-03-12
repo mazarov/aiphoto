@@ -116,6 +116,7 @@ export async function searchCardsFiltered(params: {
   hasRuPrompt?: "all" | "yes" | "no";
   seoTag?: string | null;
   hasBefore?: "all" | "yes";
+  dataset?: string | null;
   limit?: number;
   offset?: number;
 }): Promise<RouteCard[]> {
@@ -127,6 +128,7 @@ export async function searchCardsFiltered(params: {
     p_has_ru_prompt: params.hasRuPrompt ?? "all",
     p_seo_tag: params.seoTag || null,
     p_has_before: params.hasBefore ?? "all",
+    p_dataset: params.dataset || null,
     p_limit: params.limit ?? 100,
     p_offset: params.offset ?? 0,
   });
@@ -134,6 +136,23 @@ export async function searchCardsFiltered(params: {
   if (error) throw new Error(`search_cards_filtered: ${error.message}`);
   const cards = (data || []) as RouteCard[];
   return expandCardGroups(cards);
+}
+
+export async function fetchDatasets(): Promise<string[]> {
+  const supabase = createSupabaseServer();
+  const { data, error } = await supabase
+    .from("prompt_cards")
+    .select("source_dataset_slug")
+    .eq("is_published", true)
+    .not("source_dataset_slug", "is", null);
+
+  if (error) return [];
+  const slugs = new Set<string>();
+  for (const row of data || []) {
+    const s = (row as { source_dataset_slug: string | null }).source_dataset_slug;
+    if (s) slugs.add(s);
+  }
+  return [...slugs].sort();
 }
 
 export async function fetchMenuCounts(
@@ -356,7 +375,8 @@ export async function getPublishedCardSlugs(): Promise<string[]> {
   return rows.map((r) => r.slug);
 }
 
-/** Fetches published cards with updated_at for sitemap lastModified. */
+/** Fetches published cards with updated_at for sitemap lastModified.
+ *  Excludes non-first group members (card_split_index > 0). */
 export async function getPublishedCardsForSitemap(): Promise<
   { slug: string; updated_at: string }[]
 > {
@@ -364,13 +384,15 @@ export async function getPublishedCardsForSitemap(): Promise<
     const supabase = createSupabaseServer();
     const { data } = await supabase
       .from("prompt_cards")
-      .select("slug,updated_at")
+      .select("slug,updated_at,card_split_index")
       .eq("is_published", true)
       .not("slug", "is", null);
-    return (data || []).map((r) => ({
-      slug: (r as { slug: string }).slug,
-      updated_at: (r as { updated_at: string }).updated_at,
-    }));
+    return (data || [])
+      .filter((r) => ((r as Record<string, unknown>).card_split_index as number ?? 0) === 0)
+      .map((r) => ({
+        slug: (r as { slug: string }).slug,
+        updated_at: (r as { updated_at: string }).updated_at,
+      }));
   } catch {
     return [];
   }
@@ -399,6 +421,7 @@ export type CardPageData = {
   card_split_index: number;
   card_split_total: number;
   siblings: CardPageSibling[];
+  groupFirstSlug: string | null;
 };
 
 /** Fetches full card data for /p/[slug] page and generateMetadata. */
@@ -422,7 +445,9 @@ export async function getCardPageData(slug: string): Promise<CardPageData | null
     card.source_dataset_slug &&
     card.source_message_id != null;
 
-  const [variantsRes, mediaRes, beforeRes, siblingsRes] = await Promise.all([
+  const needsFirstSlug = hasGroup && splitIndex > 0;
+
+  const [variantsRes, mediaRes, beforeRes, siblingsRes, firstSlugRes] = await Promise.all([
     supabase
       .from("prompt_variants")
       .select("prompt_text_ru")
@@ -447,6 +472,16 @@ export async function getCardPageData(slug: string): Promise<CardPageData | null
           .eq("is_published", true)
           .neq("id", card.id)
           .order("card_split_index", { ascending: true })
+      : Promise.resolve({ data: null }),
+    needsFirstSlug
+      ? supabase
+          .from("prompt_cards")
+          .select("slug")
+          .eq("source_dataset_slug", card.source_dataset_slug!)
+          .eq("source_message_id", card.source_message_id!)
+          .eq("card_split_index", 0)
+          .eq("is_published", true)
+          .maybeSingle()
       : Promise.resolve({ data: null }),
   ]);
 
@@ -519,6 +554,10 @@ export async function getCardPageData(slug: string): Promise<CardPageData | null
     }));
   }
 
+  const groupFirstSlug = needsFirstSlug
+    ? ((firstSlugRes.data as { slug: string } | null)?.slug ?? null)
+    : null;
+
   return {
     id: card.id,
     slug: card.slug,
@@ -534,5 +573,6 @@ export async function getCardPageData(slug: string): Promise<CardPageData | null
     card_split_index: splitIndex,
     card_split_total: splitTotal,
     siblings,
+    groupFirstSlug,
   };
 }

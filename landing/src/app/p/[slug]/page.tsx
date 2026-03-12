@@ -76,7 +76,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const title = data.title_ru || data.title_en || "Промт";
   const isThin =
     data.promptTexts.length === 0 && data.photoUrls.length === 0;
-  const canonical = `${BASE_URL}/p/${data.slug}`;
+
+  const isGroupSecondary = data.card_split_index > 0 && !!data.groupFirstSlug;
+  const canonical = isGroupSecondary
+    ? `${BASE_URL}/p/${data.groupFirstSlug}`
+    : `${BASE_URL}/p/${data.slug}`;
 
   return {
     title: buildTitle(title),
@@ -95,7 +99,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       description: buildDescription(data),
       images: data.mainPhotoUrl ? [data.mainPhotoUrl] : undefined,
     },
-    robots: isThin ? "noindex, follow" : "index, follow",
+    robots: isThin || isGroupSecondary ? "noindex, follow" : "index, follow",
   };
 }
 

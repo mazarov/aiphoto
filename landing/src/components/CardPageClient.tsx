@@ -313,14 +313,6 @@ export function CardPageClient({ data, tagEntries, breadcrumbTag }: Props) {
               </div>
             )}
 
-            {/* Hashtags */}
-            {data.hashtags.length > 0 && (
-              <div className="mt-8 text-sm text-zinc-400">
-                {data.hashtags
-                  .map((h) => `#${String(h).replace(/^#/, "")}`)
-                  .join("  ")}
-              </div>
-            )}
           </div>
         </div>
       </div>

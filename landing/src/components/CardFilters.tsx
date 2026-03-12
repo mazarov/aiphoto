@@ -25,6 +25,7 @@ type Filters = {
   hasRuPrompt: "all" | "yes" | "no";
   selectedTag: string;
   hasBefore: "all" | "yes";
+  dataset: string;
 };
 
 type GridItem =
@@ -41,8 +42,10 @@ export function FilterableGrid({ cards }: Props) {
     hasRuPrompt: "all",
     selectedTag: "",
     hasBefore: "all",
+    dataset: "",
   });
   const [grouped, setGrouped] = useState(false);
+  const [datasets, setDatasets] = useState<string[]>([]);
 
   const [idSearch, setIdSearch] = useState("");
   const [searchResults, setSearchResults] = useState<PromptCardFull[] | null>(null);
@@ -61,7 +64,14 @@ export function FilterableGrid({ cards }: Props) {
       filters.scoreMax < 100 ||
       filters.hasRuPrompt !== "all" ||
       filters.selectedTag !== "" ||
-      filters.hasBefore !== "all");
+      filters.hasBefore !== "all" ||
+      filters.dataset !== "");
+
+  useEffect(() => {
+    if (!debugMode) return;
+    if (datasets.length > 0) return;
+    fetch("/api/datasets").then((r) => r.json()).then((d) => setDatasets(d.datasets || [])).catch(() => {});
+  }, [debugMode, datasets.length]);
 
   const doIdSearch = useCallback(async (q: string) => {
     const trimmed = q.trim();
@@ -84,12 +94,13 @@ export function FilterableGrid({ cards }: Props) {
         hasRuPrompt: filters.hasRuPrompt,
         hasBefore: filters.hasBefore,
         ...(filters.selectedTag && { seoTag: filters.selectedTag }),
+        ...(filters.dataset && { dataset: filters.dataset }),
       });
       const res = await fetch(`/api/search-cards?${u}`);
       const data = await res.json();
       setFilterResults(data.cards || []);
     } catch { setFilterResults([]); } finally { setFilterSearching(false); }
-  }, [filters.hasWarnings, filters.scoreMin, filters.scoreMax, filters.hasRuPrompt, filters.hasBefore, filters.selectedTag]);
+  }, [filters.hasWarnings, filters.scoreMin, filters.scoreMax, filters.hasRuPrompt, filters.hasBefore, filters.selectedTag, filters.dataset]);
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -179,7 +190,7 @@ export function FilterableGrid({ cards }: Props) {
   }
 
   function handleReset() {
-    setFilters({ hasWarnings: "all", scoreMin: 0, scoreMax: 100, hasRuPrompt: "all", selectedTag: "", hasBefore: "all" });
+    setFilters({ hasWarnings: "all", scoreMin: 0, scoreMax: 100, hasRuPrompt: "all", selectedTag: "", hasBefore: "all", dataset: "" });
     setGrouped(false);
     setIdSearch("");
     setSearchResults(null);
@@ -322,6 +333,24 @@ export function FilterableGrid({ cards }: Props) {
                   {filters.hasBefore === "yes" ? "Только с «было»" : "Показать с «было»"}
                 </button>
               </div>
+
+              {/* Dataset */}
+              {datasets.length > 0 && (
+                <div>
+                  <label className="text-[10px] font-semibold uppercase tracking-widest text-zinc-400 block mb-1.5">Датасет</label>
+                  <select
+                    value={filters.dataset}
+                    onChange={(e) => setFilters((f) => ({ ...f, dataset: e.target.value }))}
+                    disabled={isIdMode}
+                    className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-700 disabled:opacity-40"
+                  >
+                    <option value="">Все датасеты</option>
+                    {datasets.map((d) => (
+                      <option key={d} value={d}>{d}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               {/* Group + Reset */}
               <div className="flex gap-2 pt-1">

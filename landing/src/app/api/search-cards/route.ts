@@ -9,6 +9,7 @@ export async function GET(req: NextRequest) {
   const hasRuPrompt = (params.get("hasRuPrompt") || "all") as "all" | "yes" | "no";
   const seoTag = params.get("seoTag")?.trim() || null;
   const hasBefore = (params.get("hasBefore") || "all") as "all" | "yes";
+  const dataset = params.get("dataset")?.trim() || null;
   const limit = Math.min(200, Math.max(1, Number(params.get("limit")) || 100));
   const offset = Math.max(0, Number(params.get("offset")) || 0);
 
@@ -19,6 +20,7 @@ export async function GET(req: NextRequest) {
     hasRuPrompt,
     seoTag,
     hasBefore,
+    dataset,
     limit,
     offset,
   });
