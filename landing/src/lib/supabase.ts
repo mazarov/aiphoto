@@ -374,6 +374,14 @@ export async function getPublishedCardsForSitemap(): Promise<
   }
 }
 
+export type CardPageSibling = {
+  id: string;
+  slug: string;
+  title_ru: string | null;
+  card_split_index: number;
+  mainPhotoUrl: string | null;
+};
+
 export type CardPageData = {
   id: string;
   slug: string;
@@ -386,6 +394,9 @@ export type CardPageData = {
   photoUrls: string[];
   beforePhotoUrl: string | null;
   mainPhotoUrl: string | null;
+  card_split_index: number;
+  card_split_total: number;
+  siblings: CardPageSibling[];
 };
 
 /** Fetches full card data for /p/[slug] page and generateMetadata. */
@@ -394,7 +405,7 @@ export async function getCardPageData(slug: string): Promise<CardPageData | null
   const { data: card } = await supabase
     .from("prompt_cards")
     .select(
-      "id,slug,title_ru,title_en,seo_tags,hashtags,is_published,source_date,source_dataset_slug,source_message_id"
+      "id,slug,title_ru,title_en,seo_tags,hashtags,is_published,source_date,source_dataset_slug,source_message_id,card_split_index,card_split_total"
     )
     .eq("slug", slug)
     .eq("is_published", true)
@@ -402,7 +413,14 @@ export async function getCardPageData(slug: string): Promise<CardPageData | null
 
   if (!card) return null;
 
-  const [variantsRes, mediaRes, beforeRes] = await Promise.all([
+  const splitTotal = (card as Record<string, unknown>).card_split_total as number | null ?? 1;
+  const splitIndex = (card as Record<string, unknown>).card_split_index as number | null ?? 0;
+  const hasGroup =
+    splitTotal > 1 &&
+    card.source_dataset_slug &&
+    card.source_message_id != null;
+
+  const [variantsRes, mediaRes, beforeRes, siblingsRes] = await Promise.all([
     supabase
       .from("prompt_variants")
       .select("prompt_text_ru")
@@ -418,6 +436,16 @@ export async function getCardPageData(slug: string): Promise<CardPageData | null
       .select("storage_bucket,storage_path")
       .eq("card_id", card.id)
       .maybeSingle(),
+    hasGroup
+      ? supabase
+          .from("prompt_cards")
+          .select("id,slug,title_ru,card_split_index")
+          .eq("source_dataset_slug", card.source_dataset_slug)
+          .eq("source_message_id", card.source_message_id!)
+          .eq("is_published", true)
+          .neq("id", card.id)
+          .order("card_split_index", { ascending: true })
+      : Promise.resolve({ data: null }),
   ]);
 
   const promptTexts = (variantsRes.data || [])
@@ -450,6 +478,45 @@ export async function getCardPageData(slug: string): Promise<CardPageData | null
     ? getStoragePublicUrl(beforeMedia.storage_bucket, beforeMedia.storage_path)
     : null;
 
+  let siblings: CardPageSibling[] = [];
+  const sibCards = (siblingsRes.data || []) as {
+    id: string;
+    slug: string;
+    title_ru: string | null;
+    card_split_index: number | null;
+  }[];
+
+  if (sibCards.length > 0) {
+    const sibIds = sibCards.map((s) => s.id);
+    const { data: sibMedia } = await supabase
+      .from("prompt_card_media")
+      .select("card_id,storage_bucket,storage_path")
+      .in("card_id", sibIds)
+      .eq("media_type", "photo");
+
+    const firstPhotoByCard = new Map<string, string>();
+    for (const m of (sibMedia || []) as {
+      card_id: string;
+      storage_bucket: string;
+      storage_path: string;
+    }[]) {
+      if (!firstPhotoByCard.has(m.card_id)) {
+        firstPhotoByCard.set(
+          m.card_id,
+          getStoragePublicUrl(m.storage_bucket, m.storage_path)
+        );
+      }
+    }
+
+    siblings = sibCards.map((s) => ({
+      id: s.id,
+      slug: s.slug,
+      title_ru: s.title_ru,
+      card_split_index: s.card_split_index ?? 0,
+      mainPhotoUrl: firstPhotoByCard.get(s.id) || null,
+    }));
+  }
+
   return {
     id: card.id,
     slug: card.slug,
@@ -462,5 +529,8 @@ export async function getCardPageData(slug: string): Promise<CardPageData | null
     photoUrls,
     beforePhotoUrl,
     mainPhotoUrl: photoUrls[0] || null,
+    card_split_index: splitIndex,
+    card_split_total: splitTotal,
+    siblings,
   };
 }

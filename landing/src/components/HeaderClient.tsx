@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
 import Link from "next/link";
 import type { MenuSectionWithCounts, MenuGroupWithCounts, MenuItemWithCount } from "@/lib/menu";
 
@@ -21,35 +21,51 @@ function CountBadge({ count }: { count?: number }) {
 
 function DropdownPanel({ section }: { section: MenuSectionWithCounts }) {
   return (
-    <div className="absolute left-1/2 top-full z-50 mt-2 -translate-x-1/2 min-w-[320px] rounded-2xl border border-zinc-200/80 bg-white/95 p-5 shadow-2xl shadow-zinc-900/10 backdrop-blur-xl">
-      <div className="flex gap-6">
-        {section.groups.map((group) => (
-          <div key={group.title} className="min-w-[130px]">
-            <div className="mb-2.5 text-[10px] font-semibold uppercase tracking-widest text-zinc-400">
-              {group.title}
+    <>
+      {/* Invisible bridge — covers the gap between button and dropdown */}
+      <div className="absolute left-0 right-0 top-full z-40 h-3" />
+      <div className="absolute left-1/2 top-full z-50 mt-2 -translate-x-1/2 min-w-[320px] rounded-2xl border border-zinc-200/80 bg-white/95 p-5 shadow-2xl shadow-zinc-900/10 backdrop-blur-xl">
+        <div className="flex gap-6">
+          {section.groups.map((group) => (
+            <div key={group.title} className="min-w-[130px]">
+              <div className="mb-2.5 text-[10px] font-semibold uppercase tracking-widest text-zinc-400">
+                {group.title}
+              </div>
+              <ul className="space-y-0.5">
+                {group.items.map((item) => (
+                  <li key={item.href}>
+                    <Link
+                      href={item.href}
+                      className="flex items-center rounded-lg px-2.5 py-1.5 text-[13px] text-zinc-600 transition-colors hover:bg-zinc-50 hover:text-zinc-900"
+                    >
+                      {item.label}
+                      <CountBadge count={item.count} />
+                    </Link>
+                  </li>
+                ))}
+              </ul>
             </div>
-            <ul className="space-y-0.5">
-              {group.items.map((item) => (
-                <li key={item.href}>
-                  <Link
-                    href={item.href}
-                    className="flex items-center rounded-lg px-2.5 py-1.5 text-[13px] text-zinc-600 transition-colors hover:bg-zinc-50 hover:text-zinc-900"
-                  >
-                    {item.label}
-                    <CountBadge count={item.count} />
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 
+const CLOSE_DELAY = 150;
+
 function NavItem({ section }: { section: MenuSectionWithCounts }) {
   const [open, setOpen] = useState(false);
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleEnter = useCallback(() => {
+    if (closeTimer.current) { clearTimeout(closeTimer.current); closeTimer.current = null; }
+    setOpen(true);
+  }, []);
+
+  const handleLeave = useCallback(() => {
+    closeTimer.current = setTimeout(() => setOpen(false), CLOSE_DELAY);
+  }, []);
 
   const totalCount = section.groups.reduce(
     (sum, g) => sum + g.items.reduce((s, i) => s + (i.count ?? 0), 0),
@@ -59,8 +75,8 @@ function NavItem({ section }: { section: MenuSectionWithCounts }) {
   return (
     <div
       className="relative"
-      onMouseEnter={() => setOpen(true)}
-      onMouseLeave={() => setOpen(false)}
+      onMouseEnter={handleEnter}
+      onMouseLeave={handleLeave}
     >
       <button
         type="button"

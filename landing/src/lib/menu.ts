@@ -1,4 +1,4 @@
-import { TAG_REGISTRY, findTagByUrlPath, type TagEntry } from "./tag-registry";
+import { TAG_REGISTRY, DIMENSION_LABELS, findTagByUrlPath, type TagEntry, type Dimension } from "./tag-registry";
 
 export type MenuItem = {
   label: string;
@@ -22,6 +22,7 @@ export type MenuGroupWithCounts = {
 export type MenuSection = {
   label: string;
   href?: string;
+  dimension: Dimension;
   groups: MenuGroup[];
 };
 
@@ -43,6 +44,32 @@ function tagItem(slug: string): MenuItem {
   const entry = TAG_REGISTRY.find((t) => t.slug === slug);
   if (!entry) throw new Error(`Tag "${slug}" not found in TAG_REGISTRY`);
   return { label: entry.labelRu, href: entry.urlPath + "/" };
+}
+
+/**
+ * Collect all slugs explicitly placed in curated groups,
+ * then append any TAG_REGISTRY tags for that dimension
+ * not yet placed into an "Ещё" group.
+ */
+function withAutoGroup(section: MenuSection): MenuSection {
+  const placedSlugs = new Set<string>();
+  for (const g of section.groups) {
+    for (const item of g.items) {
+      const tag = TAG_REGISTRY.find((t) => t.urlPath + "/" === item.href);
+      if (tag) placedSlugs.add(tag.slug);
+    }
+  }
+
+  const unplaced = TAG_REGISTRY
+    .filter((t) => t.dimension === section.dimension && !placedSlugs.has(t.slug))
+    .map((t) => tagItem(t.slug));
+
+  if (unplaced.length === 0) return section;
+
+  return {
+    ...section,
+    groups: [...section.groups, { title: "Ещё", items: unplaced }],
+  };
 }
 
 export function getRouteParamsForHref(href: string): RouteParams | null {
@@ -69,20 +96,21 @@ export function applyCountsToMenu(
   counts: Record<string, number>
 ): MenuSectionWithCounts[] {
   return MENU.map((section) => ({
-    ...section,
+    label: section.label,
+    href: section.href,
     groups: section.groups.map((group) => ({
       ...group,
-      items: group.items.map((item) => ({
-        ...item,
-        count: counts[item.href],
-      })),
+      items: group.items
+        .map((item) => ({ ...item, count: counts[item.href] ?? 0 }))
+        .sort((a, b) => (b.count ?? 0) - (a.count ?? 0)),
     })),
   }));
 }
 
-export const MENU: MenuSection[] = [
+const CURATED_SECTIONS: MenuSection[] = [
   {
     label: "Люди и отношения",
+    dimension: "audience_tag",
     groups: [
       {
         title: "Базовые",
@@ -90,8 +118,18 @@ export const MENU: MenuSection[] = [
           tagItem("devushka"),
           tagItem("muzhchina"),
           tagItem("para"),
+          tagItem("vlyublennykh"),
           tagItem("semya"),
           tagItem("detskie"),
+        ],
+      },
+      {
+        title: "Дети",
+        items: [
+          tagItem("malchik"),
+          tagItem("devochka"),
+          tagItem("podrostok"),
+          tagItem("malysh"),
         ],
       },
       {
@@ -104,6 +142,8 @@ export const MENU: MenuSection[] = [
           tagItem("s_muzhem"),
           tagItem("s_dochkoy"),
           tagItem("s_synom"),
+          tagItem("s_sestroy"),
+          tagItem("s_bratom"),
         ],
       },
       {
@@ -120,6 +160,7 @@ export const MENU: MenuSection[] = [
   },
   {
     label: "Стили",
+    dimension: "style_tag",
     groups: [
       {
         title: "Core",
@@ -128,6 +169,9 @@ export const MENU: MenuSection[] = [
           tagItem("realistichnoe"),
           tagItem("portret"),
           tagItem("studiynoe"),
+          tagItem("selfi"),
+          tagItem("3d"),
+          tagItem("kollazh"),
         ],
       },
       {
@@ -140,6 +184,9 @@ export const MENU: MenuSection[] = [
           tagItem("sovetskoe"),
           tagItem("fashion"),
           tagItem("neonovoe"),
+          tagItem("street_style"),
+          tagItem("glyanec"),
+          tagItem("victorias_secret"),
         ],
       },
       {
@@ -158,6 +205,7 @@ export const MENU: MenuSection[] = [
   },
   {
     label: "События",
+    dimension: "occasion_tag",
     groups: [
       {
         title: "Праздники",
@@ -174,23 +222,15 @@ export const MENU: MenuSection[] = [
       },
     ],
   },
-  {
-    label: "Задачи",
-    groups: [
-      {
-        title: "Документы",
-        items: [
-          tagItem("na_pasport"),
-          tagItem("na_dokumenty"),
-          tagItem("na_avatarku"),
-          tagItem("na_rezume"),
-          tagItem("na_zagranpasport"),
-        ],
-      },
-    ],
-  },
+  // "Задачи" (doc_task_tag) скрыт из меню — мало контента
+  // {
+  //   label: "Задачи",
+  //   dimension: "doc_task_tag",
+  //   groups: [{ title: "Документы", items: [...] }],
+  // },
   {
     label: "Сцены и объекты",
+    dimension: "object_tag",
     groups: [
       {
         title: "Объекты",
@@ -202,6 +242,10 @@ export const MENU: MenuSection[] = [
           tagItem("s_sobakoy"),
           tagItem("s_tortom"),
           tagItem("s_koronoy"),
+          tagItem("s_bokalom"),
+          tagItem("s_kofe"),
+          tagItem("so_svechami"),
+          tagItem("s_shuboj"),
         ],
       },
       {
@@ -229,8 +273,32 @@ export const MENU: MenuSection[] = [
           tagItem("na_yahte"),
           tagItem("v_restorane"),
           tagItem("na_kryshe"),
+          tagItem("v_gorode"),
+          tagItem("v_pustyne"),
+          tagItem("pod_vodoy"),
         ],
       },
     ],
   },
 ];
+
+function buildMenu(): MenuSection[] {
+  const sections = CURATED_SECTIONS.map(withAutoGroup);
+  const coveredDims = new Set(CURATED_SECTIONS.map((s) => s.dimension));
+
+  const ALL_DIMS: Dimension[] = ["audience_tag", "style_tag", "occasion_tag", "object_tag", "doc_task_tag"];
+  for (const dim of ALL_DIMS) {
+    if (coveredDims.has(dim)) continue;
+    const tags = TAG_REGISTRY.filter((t) => t.dimension === dim);
+    if (tags.length === 0) continue;
+    sections.push({
+      label: DIMENSION_LABELS[dim] || dim,
+      dimension: dim,
+      groups: [{ title: "Все", items: tags.map((t) => tagItem(t.slug)) }],
+    });
+  }
+
+  return sections;
+}
+
+export const MENU: MenuSection[] = buildMenu();

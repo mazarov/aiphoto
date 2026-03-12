@@ -8,6 +8,7 @@ export async function GET(req: NextRequest) {
   const scoreMax = Math.max(0, Math.min(100, Number(params.get("scoreMax")) || 100));
   const hasRuPrompt = (params.get("hasRuPrompt") || "all") as "all" | "yes" | "no";
   const seoTag = params.get("seoTag")?.trim() || null;
+  const hasBefore = (params.get("hasBefore") || "all") as "all" | "yes";
   const limit = Math.min(200, Math.max(1, Number(params.get("limit")) || 100));
   const offset = Math.max(0, Number(params.get("offset")) || 0);
 
@@ -17,6 +18,7 @@ export async function GET(req: NextRequest) {
     scoreMax,
     hasRuPrompt,
     seoTag,
+    hasBefore,
     limit,
     offset,
   });

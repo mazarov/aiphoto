@@ -24,6 +24,7 @@ type Filters = {
   scoreMax: number;
   hasRuPrompt: "all" | "yes" | "no";
   selectedTag: string;
+  hasBefore: "all" | "yes";
 };
 
 type GridItem =
@@ -39,6 +40,7 @@ export function FilterableGrid({ cards }: Props) {
     scoreMax: 100,
     hasRuPrompt: "all",
     selectedTag: "",
+    hasBefore: "all",
   });
   const [grouped, setGrouped] = useState(false);
 
@@ -58,7 +60,8 @@ export function FilterableGrid({ cards }: Props) {
       filters.scoreMin > 0 ||
       filters.scoreMax < 100 ||
       filters.hasRuPrompt !== "all" ||
-      filters.selectedTag !== "");
+      filters.selectedTag !== "" ||
+      filters.hasBefore !== "all");
 
   const doIdSearch = useCallback(async (q: string) => {
     const trimmed = q.trim();
@@ -79,13 +82,14 @@ export function FilterableGrid({ cards }: Props) {
         scoreMin: String(filters.scoreMin),
         scoreMax: String(filters.scoreMax),
         hasRuPrompt: filters.hasRuPrompt,
+        hasBefore: filters.hasBefore,
         ...(filters.selectedTag && { seoTag: filters.selectedTag }),
       });
       const res = await fetch(`/api/search-cards?${u}`);
       const data = await res.json();
       setFilterResults(data.cards || []);
     } catch { setFilterResults([]); } finally { setFilterSearching(false); }
-  }, [filters.hasWarnings, filters.scoreMin, filters.scoreMax, filters.hasRuPrompt, filters.selectedTag]);
+  }, [filters.hasWarnings, filters.scoreMin, filters.scoreMax, filters.hasRuPrompt, filters.hasBefore, filters.selectedTag]);
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -124,6 +128,7 @@ export function FilterableGrid({ cards }: Props) {
       const hasRu = c.promptTexts.length > 0;
       if (filters.hasRuPrompt === "yes" && !hasRu) return false;
       if (filters.hasRuPrompt === "no" && hasRu) return false;
+      if (filters.hasBefore === "yes" && !c.beforePhotoUrl) return false;
       if (filters.selectedTag) {
         const slugs = getSeoTagSlugs(c.seo_tags);
         if (!slugs.includes(filters.selectedTag)) return false;
@@ -174,7 +179,7 @@ export function FilterableGrid({ cards }: Props) {
   }
 
   function handleReset() {
-    setFilters({ hasWarnings: "all", scoreMin: 0, scoreMax: 100, hasRuPrompt: "all", selectedTag: "" });
+    setFilters({ hasWarnings: "all", scoreMin: 0, scoreMax: 100, hasRuPrompt: "all", selectedTag: "", hasBefore: "all" });
     setGrouped(false);
     setIdSearch("");
     setSearchResults(null);
@@ -299,6 +304,23 @@ export function FilterableGrid({ cards }: Props) {
                 <select value={filters.selectedTag} onChange={(e) => setFilters((f) => ({ ...f, selectedTag: e.target.value }))} disabled={isIdMode}
                   className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-700 disabled:opacity-40"
                 ><option value="">Все теги</option>{allTags.map((tag) => (<option key={tag} value={tag}>{tag}</option>))}</select>
+              </div>
+
+              {/* Было */}
+              <div>
+                <label className="text-[10px] font-semibold uppercase tracking-widest text-zinc-400 block mb-1.5">Было</label>
+                <button
+                  type="button"
+                  onClick={() => setFilters((f) => ({ ...f, hasBefore: f.hasBefore === "yes" ? "all" : "yes" }))}
+                  disabled={isIdMode}
+                  className={`w-full rounded-xl border px-3 py-2 text-sm font-medium transition-all disabled:opacity-40 ${
+                    filters.hasBefore === "yes"
+                      ? "border-amber-400 bg-amber-500 text-white"
+                      : "border-zinc-200 bg-zinc-50 text-zinc-600 hover:bg-zinc-100"
+                  }`}
+                >
+                  {filters.hasBefore === "yes" ? "Только с «было»" : "Показать с «было»"}
+                </button>
               </div>
 
               {/* Group + Reset */}
