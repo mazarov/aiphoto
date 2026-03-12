@@ -1,0 +1,89 @@
+---
+description: Пайплайн загрузки новых карточек промтов из Telegram-экспорта в БД и на лендинг
+alwaysApply: false
+---
+
+# Загрузка карточек промтов
+
+## Обзор пайплайна
+
+```
+Telegram-экспорт → Инжест в БД → SEO-теги → Публикация → URL автоматически
+```
+
+## Шаг 0. Подготовка
+
+Экспорты лежат в `docs/export/`. Каждая папка — датасет (например `lexy_15.02.26`).
+
+Узнать сколько карточек уже загружено из датасета:
+
+```bash
+cd /Users/azarovmaxim/photo2sticker-bot && node -r dotenv/config -e "
+const { createClient } = require('@supabase/supabase-js');
+const sb = createClient(process.env.SUPABASE_SUPABASE_PUBLIC_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
+sb.from('prompt_cards').select('id', { count: 'exact', head: true }).eq('source_dataset_slug', 'DATASET_SLUG').then(r => console.log('Cards:', r.count));
+"
+```
+
+## Шаг 1. Инжест карточек
+
+```bash
+cd aiphoto
+npx tsx src/ingest-telegram-export-to-supabase.ts \
+  --dataset DATASET_SLUG \
+  --offset EXISTING_COUNT \
+  --limit 100
+```
+
+- `--offset` — пропустить уже загруженные (= текущее количество в БД)
+- `--limit` — сколько новых загрузить
+- `--dry-run` — сначала проверить без записи в БД
+- Скрипт использует `upsert`, повторный запуск безопасен
+
+## Шаг 2. SEO-теги
+
+```bash
+npx tsx src/fill-seo-tags.ts --dataset DATASET_SLUG
+```
+
+- Обрабатывает только карточки с `seo_readiness_score = 0` (новые)
+- `--recompute-all` — пересчитать все карточки датасета
+- `--dry-run` — проверить без записи
+
+Теги и URL берутся из единого реестра `landing/src/lib/tag-registry.ts`.
+
+## Шаг 3. Публикация
+
+```bash
+cd /Users/azarovmaxim/photo2sticker-bot && node -r dotenv/config -e "
+const { createClient } = require('@supabase/supabase-js');
+const sb = createClient(process.env.SUPABASE_SUPABASE_PUBLIC_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
+sb.from('prompt_cards').update({ is_published: true }).eq('is_published', false).eq('source_dataset_slug', 'DATASET_SLUG').select('id').then(r => console.log('Published:', r.data?.length ?? 0));
+"
+```
+
+## Добавление нового тега
+
+Одна запись в `landing/src/lib/tag-registry.ts`:
+
+```typescript
+{ slug: "new_tag", dimension: "object_tag", labelRu: "Новый", labelEn: "New", urlPath: "/new-tag", patterns: [/паттерн/i] },
+```
+
+Автоматически заработает:
+- Парсинг промптов (`fill-seo-tags.ts` импортирует `TAG_REGISTRY`)
+- URL на лендинге (catch-all `[...slug]/page.tsx`)
+- Для показа в меню — добавить `tagItem("new_tag")` в `landing/src/lib/menu.ts`
+
+## Типичный сценарий: +100 карточек
+
+```bash
+# 1. Проверить текущее количество (подставить slug)
+# 2. Dry-run
+npx tsx src/ingest-telegram-export-to-supabase.ts --dataset lexy_15.02.26 --offset 228 --limit 100 --dry-run
+# 3. Инжест
+npx tsx src/ingest-telegram-export-to-supabase.ts --dataset lexy_15.02.26 --offset 228 --limit 100
+# 4. SEO-теги
+npx tsx src/fill-seo-tags.ts --dataset lexy_15.02.26
+# 5. Публикация (скрипт выше)
+```

@@ -1,0 +1,366 @@
+# SEO Landing Implementation Plan
+
+**Документ-источник:** `docs/07-03-prompt-landing-plan.md`
+**Ветка:** `main`
+**Статус:** in progress
+
+---
+
+## Обзор
+
+Строим SEO-лендинг с карточками промптов. Programmatic SEO на 5 измерениях (72 значения).
+Стек: Next.js 15 (App Router), Tailwind 4, shadcn/ui, Supabase (отдельный проект), Dockhost.
+
+---
+
+## Фазы реализации (по зависимостям)
+
+### Фаза 0 — БД: seo_tags (КРИТИЧЕСКИЙ ПУТЬ)
+
+**Без этого ничего не работает.**
+
+#### Задача 0.1: Миграция `sql/109_prompt_cards_seo_tags.sql`
+
+Добавить колонку `seo_tags jsonb` и `seo_readiness_score int` в `prompt_cards`.
+
+```sql
+ALTER TABLE prompt_cards
+  ADD COLUMN IF NOT EXISTS seo_tags jsonb NOT NULL DEFAULT '{}'::jsonb;
+
+ALTER TABLE prompt_cards
+  ADD COLUMN IF NOT EXISTS seo_readiness_score int NOT NULL DEFAULT 0;
+
+CREATE INDEX IF NOT EXISTS idx_prompt_cards_seo_tags
+  ON prompt_cards USING gin(seo_tags);
+
+CREATE INDEX IF NOT EXISTS idx_prompt_cards_seo_readiness
+  ON prompt_cards(seo_readiness_score DESC);
+```
+
+Формат `seo_tags`:
+```json
+{
+  "audience_tag": ["devushka", "para"],
+  "style_tag": ["studiynoe", "portret"],
+  "occasion_tag": [],
+  "object_tag": ["na_chernom_fone"],
+  "doc_task_tag": [],
+  "labels": {
+    "ru": ["промт для студийного фото пары"],
+    "en": ["studio couple photo prompt"]
+  }
+}
+```
+
+#### Задача 0.2: Миграция `sql/110_prompt_clusters_canonical.sql`
+
+Обновить `prompt_clusters` под canonical slug-дерево из `11-03-seo-menu-map.csv`.
+
+Добавить колонки:
+```sql
+ALTER TABLE prompt_clusters
+  ADD COLUMN IF NOT EXISTS menu_group text,
+  ADD COLUMN IF NOT EXISTS category text,
+  ADD COLUMN IF NOT EXISTS page_level text NOT NULL DEFAULT 'L1',
+  ADD COLUMN IF NOT EXISTS dimension_type text,
+  ADD COLUMN IF NOT EXISTS dimension_value text,
+  ADD COLUMN IF NOT EXISTS query_count int NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS total_volume int NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS is_indexable bool NOT NULL DEFAULT false;
+```
+
+Затем INSERT/UPSERT всех строк из `11-03-seo-menu-map.csv` (168 URL).
+
+**Правило:** НЕ редактировать существующие миграции (100-108). Только новые файлы 109+.
+
+---
+
+### Фаза 1 — Скрипт тегирования seo_tags
+
+**Зависит от:** Фаза 0 (колонка `seo_tags` должна существовать).
+
+#### Задача 1.1: Создать `src/fill-seo-tags.ts`
+
+Скрипт по аналогии с существующим `src/fill-hashtags-from-prompts.ts`, но:
+
+1. Использует **полный словарь 72 значений** из `10-03-hashtag-extraction-tz.md` (разделы 5.5-5.9).
+2. Записывает результат в `prompt_cards.seo_tags` (jsonb), НЕ в `hashtags`.
+3. Вычисляет `seo_readiness_score` (0-100).
+
+**Полный словарь (5 измерений, 72+ значения):**
+
+**audience_tag (22 значения):**
+| slug | patterns (RU) |
+|------|--------------|
+| `devushka` | `девушк\|женщин\|женск` |
+| `muzhchina` | `мужчин\|мужск\|парень` |
+| `para` | `пар\|парн\|вдвоем` |
+| `semya` | `семейн\|семь` |
+| `detskie` | `детск\|ребен` |
+| `s_mamoy` | `с мамой\|мам` |
+| `s_papoy` | `с папой\|пап` |
+| `s_parnem` | `с парнем` |
+| `s_muzhem` | `с мужем` |
+| `s_podrugoy` | `с подругой` |
+| `s_drugom` | `с другом` |
+| `s_synom` | `с сыном` |
+| `s_dochkoy` | `с дочкой\|с дочерью` |
+| `s_sestroy` | `с сестрой` |
+| `s_bratom` | `с братом` |
+| `s_babushkoy` | `с бабушкой` |
+| `malchik` | `мальчик` |
+| `devochka` | `девочка` |
+| `podrostok` | `подросток` |
+| `malysh` | `малыш\|младенец` |
+| `pokoleniy` | `поколений\|поколения` |
+| `vlyublennykh` | `влюблён\|влюблен` |
+| `s_pitomcem` | `с питомц\|с животн` |
+
+**style_tag (18 значений):**
+| slug | patterns |
+|------|---------|
+| `cherno_beloe` | `черно-бел\|чёрно-бел\|монохром` |
+| `realistichnoe` | `реалист` |
+| `portret` | `портрет` |
+| `3d` | `3д\|3d` |
+| `gta` | `гта\|gta` |
+| `studiynoe` | `студийн\|studio` |
+| `love_is` | `love is\|лав ис` |
+| `delovoe` | `делов\|бизнес` |
+| `multyashnoe` | `мультяш\|мультик` |
+| `kollazh` | `коллаж` |
+| `otkrytka` | `открытк` |
+| `sovetskoe` | `совет` |
+| `retro` | `ретро` |
+| `anime` | `аниме` |
+| `polaroid` | `полароид\|polaroid` |
+| `disney` | `дисней\|disney` |
+| `selfi` | `селфи\|selfie` |
+| `piksar` | `пиксар\|pixar` |
+
+**occasion_tag (7 значений):**
+| slug | patterns |
+|------|---------|
+| `den_rozhdeniya` | `день рождения\|на др\b` |
+| `8_marta` | `8 марта` |
+| `14_fevralya` | `14 февраля\|день влюбленных\|валентин` |
+| `23_fevralya` | `23 февраля` |
+| `maslenica` | `маслениц` |
+| `novyy_god` | `новый год\|новогодн` |
+| `svadba` | `свадьб` |
+
+**object_tag (20 значений):**
+| slug | patterns |
+|------|---------|
+| `v_forme` | `в форм\|военн\|солдат` |
+| `s_mashinoy` | `с машин\|авто\|тачк` |
+| `s_cvetami` | `с цвет\|букет\|тюльпан\|роз\b\|пион\|мимоз` |
+| `so_znamenitostyu` | `со знаменит\|с кумир\|со звезд` |
+| `v_profil` | `в профиль\|боком` |
+| `s_kotom` | `с кот\|кош` |
+| `v_kostyume` | `в костюм\|в пиджак` |
+| `na_chernom_fone` | `на черн\w* фон` |
+| `s_tortom` | `с торт` |
+| `zima` | `зимн\|снег\|заснеж` |
+| `v_zerkale` | `в зеркал` |
+| `vesna` | `весенн\|весна` |
+| `s_sobakoy` | `с собак\|пёс\|пес\b` |
+| `v_lesu` | `в лес` |
+| `s_koronoy` | `с корон` |
+| `na_more` | `на мор\|пляж` |
+| `v_polnyy_rost` | `в полный рост` |
+| `v_gorah` | `в гор` |
+| `na_ulice` | `на улиц` |
+
+**doc_task_tag (5 значений):**
+| slug | patterns |
+|------|---------|
+| `na_pasport` | `на паспорт` |
+| `na_dokumenty` | `на документ` |
+| `na_avatarku` | `на аватарк\|на аву\|аватар` |
+| `na_rezume` | `на резюме\|для резюме` |
+| `na_zagranpasport` | `на загранпаспорт` |
+
+**Формула seo_readiness_score:**
+- +20 за каждое заполненное измерение (max 5 × 20 = 100)
+- Минимум 20 (хотя бы 1 тег) для попадания в programmatic SEO
+
+**CLI:**
+```bash
+npx tsx src/fill-seo-tags.ts --dry-run
+npx tsx src/fill-seo-tags.ts --recompute-all
+npx tsx src/fill-seo-tags.ts --dataset lexy_prompts --limit 50
+```
+
+#### Задача 1.2: Валидация
+
+После прогона — вывести статистику:
+- Сколько карточек получили seo_tags
+- Покрытие по каждому измерению
+- Карточки с score = 0 (без тегов)
+- Топ-10 самых частых комбинаций тегов
+
+---
+
+### Фаза 2 — Card Retrieval Resolver
+
+**Зависит от:** Фаза 1 (карточки должны иметь seo_tags).
+
+#### Задача 2.1: Supabase RPC `resolve_route_cards`
+
+Миграция `sql/111_resolve_route_cards_rpc.sql`.
+
+Контракт:
+```sql
+resolve_route_cards(
+  p_audience_tag text DEFAULT NULL,
+  p_style_tag text DEFAULT NULL,
+  p_occasion_tag text DEFAULT NULL,
+  p_object_tag text DEFAULT NULL,
+  p_doc_task_tag text DEFAULT NULL,
+  p_limit int DEFAULT 24,
+  p_offset int DEFAULT 0
+)
+```
+
+Каскад A/B/C из `11-03-seo-card-retrieval-requirements.md`:
+- **Tier A:** ВСЕ заданные измерения совпадают
+- **Tier B:** хотя бы одно совпадает, остальные в ранжировании
+- **Tier C:** любое пересечение по seo_tags
+
+Ранжирование:
+- +30 audience_tag, +20 occasion_tag, +15 style/object/doc_task
+- +quality_bonus за seo_readiness_score
+- ORDER BY relevance DESC, source_date DESC, id ASC
+
+min_cards_per_route: L1 >= 3, L2/L3 >= 6.
+
+#### Задача 2.2: Тесты
+
+Проверить на 5-10 реальных route_key:
+- `/promty-dlya-foto-devushki/` → audience_tag=devushka
+- `/stil/cherno-beloe/` → style_tag=cherno_beloe
+- `/sobytiya/den-rozhdeniya/` → occasion_tag=den_rozhdeniya
+- `/promty-dlya-foto-devushki/cherno-beloe/` → audience+style
+- `/v-forme/` → object_tag=v_forme
+
+---
+
+### Фаза 3 — Next.js MVP (каркас) ✅ DONE
+
+**Зависит от:** Фаза 2 (retrieval должен работать).
+
+#### Задача 3.1: Инициализация проекта ✅
+
+```bash
+cd aiphoto
+npx create-next-app@latest landing --ts --tailwind --eslint --app --src-dir --import-alias "@/*"
+```
+
+Стек: Next.js 15, App Router, Tailwind CSS 4, shadcn/ui.
+
+#### Задача 3.2: Supabase client
+
+`landing/src/lib/supabase.ts` — server-side client (service role для SSG/SSR).
+
+Env vars:
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY` (server only)
+
+#### Задача 3.3: Компоненты
+
+- `PromptCard.tsx` — карточка (фото, промт, теги)
+- `CopyPromptButton.tsx` — кнопка копирования
+- `PromptGrid.tsx` — сетка карточек (responsive: 1/2/3/4 колонки)
+- `Breadcrumbs.tsx` — хлебные крошки
+- `Header.tsx` — навигация (7 разделов + мобильный бургер)
+- `Footer.tsx` — подвал
+
+#### Задача 3.4: Главная страница
+
+`landing/app/page.tsx` — broad-выборка карточек через `resolve_route_cards` без фильтров.
+
+#### Задача 3.5: Dockerfile + деплой
+
+Dockerfile со standalone output (см. `07-03-prompt-landing-plan.md` раздел «Деплой»).
+
+---
+
+### Фаза 4 — Programmatic SEO pages
+
+**Зависит от:** Фаза 3 (каркас должен работать).
+
+#### Задача 4.1: Динамические роуты
+
+- `[cluster]/page.tsx` — audience, object, doc_task L1
+- `stil/[style]/page.tsx` — style L1
+- `sobytiya/[event]/page.tsx` — occasion L1
+- `[cluster]/[sub]/page.tsx` — L2 комбинации
+
+#### Задача 4.2: generateStaticParams
+
+Из `prompt_clusters` таблицы. Только `is_published = true`.
+
+#### Задача 4.3: Шаблоны контента
+
+Для каждой programmatic страницы:
+1. H1 под узкий intent
+2. 60-120 слов intro
+3. Сетка карточек (6+)
+4. Блок «как использовать промт»
+5. FAQ 3-5 вопросов
+6. Перелинковка: соседние теги
+
+#### Задача 4.4: sitemap.ts + robots.ts
+
+- sitemap: все URL с `is_indexable = true`
+- robots: `Allow: /`, ссылка на sitemap
+- noindex страницы исключены из sitemap
+
+---
+
+### Фаза 5 — SEO polish
+
+**Зависит от:** Фаза 4.
+
+- Schema.org: HowTo (карточки), FAQPage (кластеры), BreadcrumbList
+- generateMetadata для всех страниц
+- Перелинковка между разделами (4-8 ссылок на блок)
+- Яндекс.Метрика (цели: copy_prompt, page_view_cluster)
+
+---
+
+## Ключевые файлы проекта
+
+| Файл | Назначение |
+|------|-----------|
+| `sql/103_prompt_landing_tables.sql` | Исходные таблицы (НЕ РЕДАКТИРОВАТЬ) |
+| `sql/105_prompt_parser_tables.sql` | Parser таблицы с актуальной схемой prompt_cards (НЕ РЕДАКТИРОВАТЬ) |
+| `src/fill-hashtags-from-prompts.ts` | Существующий скрипт hashtags (образец для fill-seo-tags) |
+| `docs/07-03-prompt-landing-plan.md` | Главный план (дерево сайта, SEO, стек) |
+| `docs/10-03-hashtag-extraction-tz.md` | Таксономия 72 значений, словарь, правила |
+| `docs/11-03-seo-card-retrieval-requirements.md` | Каскад A/B/C, ранжирование, min_cards |
+| `docs/11-03-seo-menu-map.csv` | 168 canonical URL для prompt_clusters |
+
+## Текущая схема prompt_cards (из 105 + 106)
+
+```
+id, source_group_id, slug, title_ru, title_en,
+hashtags text[], tags text[],
+source_channel, source_dataset_slug, source_message_id, source_date,
+parse_status, parse_warnings,
+is_published, sort_order,
+card_split_index, card_split_total, split_strategy,
+created_at, updated_at
+```
+
+**Связанные таблицы:** prompt_variants (prompt_text_ru/en), prompt_card_media (фото).
+
+## Правила для исполнителя
+
+1. **Миграции:** только новые файлы (109+). НЕ редактировать 100-108.
+2. **Ветка:** `main`. Коммитить в main после подтверждения пользователя.
+3. **Тесты:** после каждой фазы — валидация (SQL-запросы, dry-run скрипты).
+4. **Документация:** после реализации обновить `docs/architecture/` по правилу update-architecture-docs.
+5. **Shell:** один тяжёлый процесс за раз (см. shell-safety.mdc).
