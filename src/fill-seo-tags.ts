@@ -51,6 +51,18 @@ type SeoTags = {
   labels: { ru: string[]; en: string[] };
 };
 
+type NewTagMeta = {
+  slug: string;
+  dimension: Dimension;
+  labelRu: string;
+  labelEn: string;
+};
+
+type ClassifyResult = {
+  seoTags: SeoTags;
+  newTags: NewTagMeta[];
+};
+
 const DIMENSIONS: Dimension[] = ["audience_tag", "style_tag", "occasion_tag", "object_tag", "doc_task_tag"];
 
 const SLUG_LABELS = Object.fromEntries(
@@ -213,45 +225,78 @@ function buildTagListForPrompt(): string {
 function buildResponseSchema(): object {
   const props: Record<string, object> = {};
   for (const dim of DIMENSIONS) {
-    const slugs = TAG_REGISTRY.filter((t) => t.dimension === dim).map((t) => t.slug);
     props[dim] = {
       type: "ARRAY",
-      items: { type: "STRING", enum: slugs },
+      items: { type: "STRING" },
     };
   }
+  props["new_tags"] = {
+    type: "ARRAY",
+    items: {
+      type: "OBJECT",
+      properties: {
+        slug: { type: "STRING" },
+        dimension: { type: "STRING", enum: [...DIMENSIONS] },
+        labelRu: { type: "STRING" },
+        labelEn: { type: "STRING" },
+      },
+      required: ["slug", "dimension", "labelRu", "labelEn"],
+    },
+  };
   return {
     type: "OBJECT",
     properties: props,
-    required: DIMENSIONS,
+    required: [...DIMENSIONS, "new_tags"],
   };
 }
 
-const SYSTEM_PROMPT = `Ты классификатор промтов для фотогенерации.
+const SYSTEM_PROMPT = `You are a photo prompt classifier for an SEO-driven photo prompt catalog.
 
-Дан промт (title + текст). Определи, какие теги подходят.
+Given a prompt (title + text in Russian), assign ALL relevant tags across 5 dimensions.
 
-Правила:
-- Выбирай ТОЛЬКО slug'и из списка ниже
-- Тег подходит, если промт ЯВНО описывает соответствующую сцену/объект/стиль/аудиторию/событие
-- Для audience_tag: определяй по описанию персонажей и их отношений. Если описана женщина — ставь devushka. Если мужчина — muzhchina. Если двое вместе — para. Если описаны родственные отношения (мать+дочь, отец+сын) — ставь соответствующий тег (s_mamoy, s_dochkoy и т.д.)
-- Для style_tag: определяй по технике съёмки, визуальному стилю, референсам (портрет, студийное, GTA, аниме и т.д.)
-- Для object_tag: определяй по объектам, локациям, одежде, аксессуарам в кадре
-- Для occasion_tag: определяй по упоминанию праздников или событий (день рождения, свадьба, 8 марта и т.д.)
-- Для doc_task_tag: определяй по назначению фото (на паспорт, на аватарку, на резюме)
-- Если сомневаешься — НЕ добавляй тег. Точность важнее полноты.
-- Верни пустой массив для измерения, если ничего не подходит.
+STEP 1 — Use KNOWN tags from the list below whenever they match.
+STEP 2 — If the prompt describes a scene, location, style, or subject NOT covered by the known tags, CREATE a new tag.
 
-Доступные теги:
+Rules for KNOWN tags:
+- A tag is relevant if the prompt EXPLICITLY describes the corresponding scene/object/style/audience/event
+- For audience_tag: determine by character descriptions and relationships. Woman = devushka. Man = muzhchina. Two together = para. Family relationships = corresponding tag (s_mamoy, s_dochkoy, etc.)
+- For style_tag: determine by shooting technique, visual style, references (portrait, studio, GTA, anime, etc.)
+- For object_tag: determine by objects, locations, clothing category, accessories in the scene
+- For occasion_tag: determine by mentions of holidays or events
+- For doc_task_tag: determine by the purpose of the photo
+
+Rules for NEW tags:
+- A good new tag is something a user would SEARCH for: "photo prompt in elevator", "photo prompt at gym", "photo prompt vintage style"
+- The slug must be latin snake_case transliteration of the Russian concept (e.g. v_lifte, v_sportale, s_sharami, kinematograficheskoe)
+- Provide labelRu (Russian, user-facing, e.g. "В лифте") and labelEn (English, e.g. "In elevator")
+- The tag should apply to at least several different prompts, not be unique to one specific photo
+- Place new slugs in the corresponding dimension arrays AND in the "new_tags" metadata array
+
+DO NOT create tags for:
+- Specific clothing items or colors (chernyy_top, rozovyy_sviter)
+- Camera/technical parameters (8k, raw, bokeh, malaya_glubina_rezkosti)
+- Generation instructions (bez_retushi, sohranit_vneshnost, bez_stilizatsii)
+- Appearance details (raspushchennye_volosy, naturalnyy_makiyazh, siyanie_kozhi)
+- Textures and micro-details (pory_dereva, volokna_tkani, pushkovye_voloski)
+- Lighting/shadow descriptions (myagkiy_svet, kontrastnyy_svet, glubokie_teni)
+- Emotional expressions (spokoynaya_ulybka, zagadochnyy_vzglyad)
+- Pose descriptions (ruka_nad_golovoy, vzglyad_v_kameru)
+
+When in doubt — DO NOT add the tag. Precision is more important than recall.
+Return an empty array for a dimension if nothing matches.
+Return an empty "new_tags" array if all assigned tags are from the known list.
+
+Known tags:
 ${buildTagListForPrompt()}`;
 
 async function classifyWithGemini(
   apiKey: string,
   title: string | null,
   promptTexts: string[],
-): Promise<SeoTags | null> {
+): Promise<ClassifyResult | null> {
   const userText = [
-    title ? `Название: ${title}` : "",
-    `Промт:\n${promptTexts.join("\n---\n")}`,
+    title ? `Title: ${title}` : "",
+    `Prompt:\n${promptTexts.join("\n---\n")}`,
   ]
     .filter(Boolean)
     .join("\n\n");
@@ -264,7 +309,7 @@ async function classifyWithGemini(
     generationConfig: {
       responseMimeType: "application/json",
       responseSchema: buildResponseSchema(),
-      maxOutputTokens: 512,
+      maxOutputTokens: 1024,
       temperature: 0.1,
       thinkingConfig: { thinkingBudget: 0 },
     },
@@ -280,7 +325,7 @@ async function classifyWithGemini(
   });
 
   if (res.status === 429) {
-    return null; // caller will retry
+    return null;
   }
 
   if (!res.ok) {
@@ -298,7 +343,6 @@ async function classifyWithGemini(
   const rawText = json.candidates?.[0]?.content?.parts?.[0]?.text;
   if (!rawText) return null;
 
-  // Gemini may prefix JSON with thinking text — extract JSON object
   let jsonStr = rawText;
   const jsonStart = rawText.indexOf("{");
   const jsonEnd = rawText.lastIndexOf("}");
@@ -306,7 +350,7 @@ async function classifyWithGemini(
     jsonStr = rawText.slice(jsonStart, jsonEnd + 1);
   }
 
-  const parsed = JSON.parse(jsonStr) as Record<string, string[]>;
+  const parsed = JSON.parse(jsonStr) as Record<string, unknown>;
 
   const result: SeoTags = {
     audience_tag: [],
@@ -317,26 +361,46 @@ async function classifyWithGemini(
     labels: { ru: [], en: [] },
   };
 
-  let invalidCount = 0;
+  const newTagsMeta: NewTagMeta[] = [];
+  const newTagSlugsRaw = new Map<string, NewTagMeta>();
+
+  const rawNewTags = parsed["new_tags"];
+  if (Array.isArray(rawNewTags)) {
+    for (const nt of rawNewTags) {
+      if (nt && typeof nt === "object" && typeof nt.slug === "string" && typeof nt.dimension === "string") {
+        const dim = nt.dimension as Dimension;
+        if (DIMENSIONS.includes(dim)) {
+          newTagSlugsRaw.set(`${dim}:${nt.slug}`, {
+            slug: nt.slug,
+            dimension: dim,
+            labelRu: typeof nt.labelRu === "string" ? nt.labelRu : nt.slug,
+            labelEn: typeof nt.labelEn === "string" ? nt.labelEn : nt.slug,
+          });
+        }
+      }
+    }
+  }
+
   for (const dim of DIMENSIONS) {
     const arr = parsed[dim];
     if (!Array.isArray(arr)) continue;
     const validSet = VALID_SLUGS_BY_DIM.get(dim)!;
     for (const slug of arr) {
-      if (typeof slug === "string" && validSet.has(slug)) {
-        result[dim].push(slug);
-      } else {
-        invalidCount++;
+      if (typeof slug !== "string" || !slug) continue;
+      result[dim].push(slug);
+      if (!validSet.has(slug)) {
+        const meta = newTagSlugsRaw.get(`${dim}:${slug}`);
+        if (meta) {
+          newTagsMeta.push(meta);
+        } else {
+          newTagsMeta.push({ slug, dimension: dim, labelRu: slug, labelEn: slug });
+        }
       }
     }
   }
 
-  if (invalidCount > 0) {
-    console.warn(`  ⚠ ${invalidCount} invalid slugs filtered from Gemini response`);
-  }
-
   fillLabels(result);
-  return result;
+  return { seoTags: result, newTags: newTagsMeta };
 }
 
 async function classifyWithRetry(
@@ -344,12 +408,11 @@ async function classifyWithRetry(
   title: string | null,
   promptTexts: string[],
   maxRetries = 3,
-): Promise<SeoTags | null> {
+): Promise<ClassifyResult | null> {
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
       const result = await classifyWithGemini(apiKey, title, promptTexts);
       if (result !== null) return result;
-      // rate limited — wait and retry
       const delay = 2000 * Math.pow(2, attempt) + Math.random() * 1000;
       console.warn(`  ⏳ Rate limited, retrying in ${Math.round(delay / 1000)}s...`);
       await sleep(delay);
@@ -562,6 +625,7 @@ async function main() {
     // LLM with concurrency
     const sem = new Semaphore(args.concurrency);
     let processed = 0;
+    const allNewTags = new Map<string, { meta: NewTagMeta; count: number }>();
 
     const processCard = async (card: CardRow) => {
       const prompts = promptMap.get(card.id) || [];
@@ -569,10 +633,9 @@ async function main() {
 
       await sem.acquire();
       try {
-        const seoTags = await classifyWithRetry(geminiApiKey, card.title_ru, prompts);
-        if (!seoTags) {
+        const result = await classifyWithRetry(geminiApiKey, card.title_ru, prompts);
+        if (!result) {
           llmFailed++;
-          // Fallback to regex
           const fallback = extractSeoTagsRegex(prompts, card.title_ru);
           const score = computeSeoReadinessScore(fallback);
           if (!args.dryRun) {
@@ -584,6 +647,19 @@ async function main() {
           totalTagCount += countTags(fallback);
           updated++;
           return;
+        }
+
+        const { seoTags, newTags } = result;
+
+        for (const nt of newTags) {
+          const key = `${nt.dimension}:${nt.slug}`;
+          const existing = allNewTags.get(key);
+          if (existing) {
+            existing.count++;
+            if (nt.labelRu !== nt.slug) existing.meta = nt;
+          } else {
+            allNewTags.set(key, { meta: nt, count: 1 });
+          }
         }
 
         const score = computeSeoReadinessScore(seoTags);
@@ -607,6 +683,27 @@ async function main() {
     };
 
     await Promise.all(cards.map(processCard));
+
+    // Report and auto-append new tags
+    const MIN_COUNT_FOR_REGISTRY = 3;
+    const qualifiedNewTags = [...allNewTags.entries()]
+      .filter(([, v]) => v.count >= MIN_COUNT_FOR_REGISTRY)
+      .sort((a, b) => b[1].count - a[1].count);
+
+    if (allNewTags.size > 0) {
+      console.log(`\n🆕 New tags discovered: ${allNewTags.size} unique`);
+      const sorted = [...allNewTags.entries()].sort((a, b) => b[1].count - a[1].count);
+      for (const [key, { meta, count }] of sorted.slice(0, 30)) {
+        const marker = count >= MIN_COUNT_FOR_REGISTRY ? "✅" : "  ";
+        console.log(`   ${marker} ${String(count).padStart(3)}x  ${key}  "${meta.labelRu}" / "${meta.labelEn}"`);
+      }
+      if (sorted.length > 30) console.log(`   ... and ${sorted.length - 30} more`);
+      console.log(`   Qualified for TAG_REGISTRY (>=${MIN_COUNT_FOR_REGISTRY} cards): ${qualifiedNewTags.length}`);
+    }
+
+    if (qualifiedNewTags.length > 0 && !args.dryRun) {
+      appendNewTagsToRegistry(qualifiedNewTags.map(([, v]) => v.meta));
+    }
   }
 
   const total = cards.length - skippedNoPrompts;
@@ -629,6 +726,90 @@ async function main() {
       const dims = DIMENSIONS.map((d) => s.seo_tags[d].length > 0 ? `${d}=[${s.seo_tags[d].join(",")}]` : null).filter(Boolean);
       console.log(`   ${s.title ?? "?"} (score=${s.score}): ${dims.join(" ")}`);
     }
+  }
+}
+
+// ── Auto-append new tags to TAG_REGISTRY file ──
+
+const URL_PATH_PREFIXES: Record<Dimension, string> = {
+  audience_tag: "/promty-dlya-foto-",
+  style_tag: "/stil/",
+  occasion_tag: "/sobytiya/",
+  object_tag: "/",
+  doc_task_tag: "/foto-",
+};
+
+function slugToUrlPath(dim: Dimension, slug: string): string {
+  const prefix = URL_PATH_PREFIXES[dim];
+  const urlSlug = slug.replace(/_/g, "-");
+  return `${prefix}${urlSlug}`;
+}
+
+function appendNewTagsToRegistry(tags: NewTagMeta[]): void {
+  const registryPath = path.resolve(process.cwd(), "landing/src/lib/tag-registry.ts");
+  const { readFileSync, writeFileSync } = require("node:fs") as typeof import("node:fs");
+
+  const content = readFileSync(registryPath, "utf-8");
+
+  const existingSlugs = new Set(TAG_REGISTRY.map((t) => `${t.dimension}:${t.slug}`));
+  const toAdd = tags.filter((t) => !existingSlugs.has(`${t.dimension}:${t.slug}`));
+
+  if (toAdd.length === 0) {
+    console.log("   No new tags to append (all already exist).");
+    return;
+  }
+
+  const grouped = new Map<Dimension, NewTagMeta[]>();
+  for (const t of toAdd) {
+    const arr = grouped.get(t.dimension) || [];
+    arr.push(t);
+    grouped.set(t.dimension, arr);
+  }
+
+  const newLines: string[] = [];
+  newLines.push("\n  // ── LLM-discovered tags ──");
+  for (const dim of DIMENSIONS) {
+    const dimTags = grouped.get(dim);
+    if (!dimTags) continue;
+    for (const t of dimTags) {
+      const urlPath = slugToUrlPath(dim, t.slug);
+      const escapedRu = t.labelRu.replace(/"/g, '\\"');
+      const escapedEn = t.labelEn.replace(/"/g, '\\"');
+      newLines.push(`  { slug: "${t.slug}", dimension: "${dim}", labelRu: "${escapedRu}", labelEn: "${escapedEn}", urlPath: "${urlPath}", patterns: [] },`);
+    }
+  }
+
+  const marker = "export const TAG_REGISTRY: TagEntry[] = [";
+  const markerIdx = content.indexOf(marker);
+  if (markerIdx === -1) {
+    console.error("   ✗ Could not find TAG_REGISTRY declaration");
+    return;
+  }
+
+  const searchFrom = markerIdx + marker.length;
+  let depth = 1;
+  let insertPoint = -1;
+  for (let i = searchFrom; i < content.length; i++) {
+    if (content[i] === "[") depth++;
+    else if (content[i] === "]") {
+      depth--;
+      if (depth === 0) { insertPoint = i; break; }
+    }
+  }
+  if (insertPoint === -1) {
+    console.error("   ✗ Could not find TAG_REGISTRY closing bracket");
+    return;
+  }
+
+  const before = content.slice(0, insertPoint);
+  const after = content.slice(insertPoint);
+
+  const updated = before + newLines.join("\n") + "\n" + after;
+  writeFileSync(registryPath, updated, "utf-8");
+
+  console.log(`\n📝 Appended ${toAdd.length} new tags to TAG_REGISTRY:`);
+  for (const t of toAdd) {
+    console.log(`   + ${t.dimension}:${t.slug} — "${t.labelRu}" / "${t.labelEn}"`);
   }
 }
 

@@ -117,6 +117,18 @@ export const TAG_REGISTRY: TagEntry[] = [
   { slug: "na_avatarku", dimension: "doc_task_tag", labelRu: "На аватарку", labelEn: "For avatar", urlPath: "/foto-na-avatarku", patterns: [/на аватарк|на аву|аватар/i] },
   { slug: "na_rezume", dimension: "doc_task_tag", labelRu: "На резюме", labelEn: "For resume", urlPath: "/foto-na-rezume", patterns: [/на резюме|для резюме/i] },
   { slug: "na_zagranpasport", dimension: "doc_task_tag", labelRu: "На загранпаспорт", labelEn: "For passport", urlPath: "/foto-na-zagranpasport", patterns: [/на загранпаспорт/i] },
+
+  // ── LLM-discovered tags ──
+  { slug: "kinematograficheskoe", dimension: "style_tag", labelRu: "Кинематографическое", labelEn: "Cinematic", urlPath: "/stil/kinematograficheskoe", patterns: [/кинематограф/i] },
+  { slug: "y2k", dimension: "style_tag", labelRu: "Y2K", labelEn: "Y2K", urlPath: "/stil/y2k", patterns: [/y2k/i] },
+  { slug: "lifestyle", dimension: "style_tag", labelRu: "Лайфстайл", labelEn: "Lifestyle", urlPath: "/stil/lifestyle", patterns: [/лайфстайл|lifestyle/i] },
+  { slug: "vintazhnoe", dimension: "style_tag", labelRu: "Винтажное", labelEn: "Vintage", urlPath: "/stil/vintazhnoe", patterns: [/винтаж|vintage/i] },
+  { slug: "s_elkoj", dimension: "object_tag", labelRu: "С ёлкой", labelEn: "With Christmas tree", urlPath: "/s-elkoj", patterns: [/с ёлк|с елк|ёлочк|елочк/i] },
+  { slug: "s_sharami", dimension: "object_tag", labelRu: "С шарами", labelEn: "With balloons", urlPath: "/s-sharami", patterns: [/с шар|воздушн\w+\s+шар|шарик/i] },
+  { slug: "na_belom_fone", dimension: "object_tag", labelRu: "На белом фоне", labelEn: "On white background", urlPath: "/na-belom-fone", patterns: [/на\s+бел\w*\s+фон|белый\s+фон/i] },
+  { slug: "v_interere", dimension: "object_tag", labelRu: "В интерьере", labelEn: "Indoors", urlPath: "/v-interere", patterns: [/в интерьер|интерьерн/i] },
+  { slug: "s_podarkami", dimension: "object_tag", labelRu: "С подарками", labelEn: "With gifts", urlPath: "/s-podarkami", patterns: [/с подарк|подарочн/i] },
+  { slug: "s_ochkami", dimension: "object_tag", labelRu: "С очками", labelEn: "With glasses", urlPath: "/s-ochkami", patterns: [/с очками|в очках|очки/i] },
 ];
 
 // ── Lookup indexes (built once at import) ──

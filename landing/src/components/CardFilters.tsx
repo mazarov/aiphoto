@@ -5,6 +5,7 @@ import type { PromptCardFull } from "@/lib/supabase";
 import { TAG_REGISTRY } from "@/lib/tag-registry";
 import { PromptCard } from "./PromptCard";
 import { GroupedCard } from "./GroupedCard";
+import { useDebug } from "./DebugFAB";
 
 type Props = {
   cards: PromptCardFull[];
@@ -33,8 +34,9 @@ type GridItem =
   | { type: "group"; key: string; cards: PromptCardFull[] };
 
 export function FilterableGrid({ cards }: Props) {
-  const [debugMode, setDebugMode] = useState(false);
-  const [panelOpen, setPanelOpen] = useState(false);
+  const debugCtx = useDebug();
+  const debugMode = debugCtx?.debugOpen ?? false;
+  const panelOpen = debugCtx?.panelOpen ?? false;
   const [filters, setFilters] = useState<Filters>({
     hasWarnings: "all",
     scoreMin: 0,
@@ -66,6 +68,13 @@ export function FilterableGrid({ cards }: Props) {
       filters.selectedTag !== "" ||
       filters.hasBefore !== "all" ||
       filters.dataset !== "");
+
+  const setHasFilterPanel = debugCtx?.setHasFilterPanel;
+  useEffect(() => {
+    if (!setHasFilterPanel) return;
+    setHasFilterPanel(true);
+    return () => setHasFilterPanel(false);
+  }, [setHasFilterPanel]);
 
   useEffect(() => {
     if (!debugMode) return;
@@ -179,16 +188,6 @@ export function FilterableGrid({ cards }: Props) {
     return gridItems.filter((i) => i.type === "group").length;
   }, [gridItems, grouped]);
 
-  function toggleDebug() {
-    if (debugMode) {
-      setDebugMode(false);
-      setPanelOpen(false);
-    } else {
-      setDebugMode(true);
-      setPanelOpen(true);
-    }
-  }
-
   function handleReset() {
     setFilters({ hasWarnings: "all", scoreMin: 0, scoreMax: 100, hasRuPrompt: "all", selectedTag: "", hasBefore: "all", dataset: "" });
     setGrouped(false);
@@ -238,32 +237,16 @@ export function FilterableGrid({ cards }: Props) {
         </div>
       )}
 
-      {/* Floating debug FAB */}
-      <button
-        type="button"
-        onClick={toggleDebug}
-        className={`fixed bottom-6 right-6 z-50 flex items-center gap-2 rounded-full px-4 py-3 text-sm font-semibold shadow-lg transition-all ${
-          debugMode
-            ? "bg-amber-500 text-white shadow-amber-500/30 hover:bg-amber-600"
-            : "bg-zinc-900 text-white shadow-zinc-900/20 hover:bg-zinc-800"
-        }`}
-      >
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <path d="M12 20h.01M8.5 8.5a3.5 3.5 0 1 1 5 3c-.8.7-1.5 1.3-1.5 2.5M12 17h.01" />
-        </svg>
-        {debugMode ? "Debug ON" : "Debug"}
-      </button>
-
-      {/* Floating filter panel overlay */}
+      {/* Floating filter panel overlay (FAB is in layout) */}
       {debugMode && panelOpen && (
         <>
-          <div className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm" onClick={() => setPanelOpen(false)} />
+          <div className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm" onClick={() => debugCtx?.setPanelOpen(false)} />
           <div className="fixed bottom-20 right-6 z-50 w-[340px] max-h-[calc(100vh-120px)] overflow-y-auto rounded-2xl border border-zinc-200 bg-white p-5 shadow-2xl shadow-zinc-900/20">
             <div className="flex items-center justify-between mb-4">
               <span className="text-sm font-semibold text-zinc-900">Фильтры</span>
               <div className="flex items-center gap-2">
                 <span className="text-xs tabular-nums text-zinc-400">{statsText}</span>
-                <button type="button" onClick={() => setPanelOpen(false)} className="rounded-full p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 transition-colors">
+                <button type="button" onClick={() => debugCtx?.setPanelOpen(false)} className="rounded-full p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 transition-colors">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
                 </button>
               </div>
