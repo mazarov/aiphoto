@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import Image from "next/image";
 import type { PromptCardFull } from "@/lib/supabase";
 import { CopyPromptButton } from "./CopyPromptButton";
@@ -29,6 +30,7 @@ const WARNING_LABELS: Record<string, string> = {
 };
 
 export function GroupedCard({ cards, debug = false }: Props) {
+  const router = useRouter();
   const sorted = [...cards].sort((a, b) => a.cardSplitIndex - b.cardSplitIndex);
   const [activeCardIdx, setActiveCardIdx] = useState(0);
   const activeCard = sorted[activeCardIdx];
@@ -38,6 +40,7 @@ export function GroupedCard({ cards, debug = false }: Props) {
   const allWarnings = Array.from(new Set(sorted.flatMap((c) => c.warnings)));
   const allHashtags = Array.from(new Set(sorted.flatMap((c) => c.hashtags)));
   const allPrompts = sorted.flatMap((c) => c.promptTexts);
+  const groupBeforeUrl = sorted.find((c) => c.beforePhotoUrl)?.beforePhotoUrl ?? null;
 
   const [activePhotoIdx, setActivePhotoIdx] = useState(0);
   const photos = activeCard.photoUrls;
@@ -49,9 +52,9 @@ export function GroupedCard({ cards, debug = false }: Props) {
   const promptPreview =
     allPrompts[0]?.slice(0, 100) + (allPrompts[0]?.length > 100 ? "…" : "") || "";
 
-  function handleCardSwitch(idx: number) {
+  function handleCardSwitch(idx: number, photoIdx = 0) {
     setActiveCardIdx(idx);
-    setActivePhotoIdx(0);
+    setActivePhotoIdx(photoIdx);
   }
 
   function nextPhoto(e: React.MouseEvent) {
@@ -95,10 +98,12 @@ export function GroupedCard({ cards, debug = false }: Props) {
               </>
             ) : (<div className="flex h-full items-center justify-center text-zinc-400 text-sm">Нет фото</div>)}
             <div className="absolute top-2 right-2 rounded-full bg-indigo-500 text-white px-2 py-0.5 text-[10px] font-bold shadow">Группа {sorted.length}</div>
-            {activeCard.beforePhotoUrl && (
-              <div className="absolute left-2 bottom-2 w-16 rounded-lg overflow-hidden border border-white/60 shadow-lg bg-black/60">
-                <div className="text-[10px] text-white text-center py-0.5 border-b border-white/20">Было</div>
-                <div className="aspect-square relative"><Image src={activeCard.beforePhotoUrl} alt="before" fill className="object-cover" sizes="64px" /></div>
+            {(activeCard.beforePhotoUrl || groupBeforeUrl) && (
+              <div className="absolute top-0 left-0 z-10 w-[28%] min-w-[72px]">
+                <div className="aspect-square relative bg-zinc-800 rounded-br-xl overflow-hidden shadow-2xl ring-1 ring-black/10">
+                  <Image src={(activeCard.beforePhotoUrl || groupBeforeUrl)!} alt="before" fill className="object-cover" sizes="120px" />
+                  <div className="absolute inset-x-0 bottom-0 text-[8px] text-white font-bold text-center py-0.5 bg-gradient-to-t from-black/70 to-transparent tracking-wider">БЫЛО</div>
+                </div>
               </div>
             )}
           </div>
@@ -128,6 +133,7 @@ export function GroupedCard({ cards, debug = false }: Props) {
             <span className="inline-flex items-center rounded-full border border-zinc-200 bg-zinc-50 px-2 py-0.5 text-[11px] text-zinc-600">photos: {sorted.reduce((s, c) => s + c.photoCount, 0)}</span>
             <span className="inline-flex items-center rounded-full border border-zinc-200 bg-zinc-50 px-2 py-0.5 text-[11px] text-zinc-600">prompts: {sorted.reduce((s, c) => s + c.promptCount, 0)}</span>
             {allWarnings.length > 0 && (<span className="inline-flex items-center rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] text-amber-700">warnings: {allWarnings.length}</span>)}
+            {groupBeforeUrl && (<span className="inline-flex items-center rounded-full border border-teal-200 bg-teal-50 px-2 py-0.5 text-[11px] text-teal-700">было/стало</span>)}
           </div>
           {allWarnings.length > 0 && (
             <div className="rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">
@@ -154,16 +160,17 @@ export function GroupedCard({ cards, debug = false }: Props) {
     ? (sorted[activeCardIdx === 0 ? 1 : 0].photoUrls[0] || null)
     : null;
 
-  return (
-    <div className="group relative pb-2 pr-2">
-      {/* Back card — offset right & down, slightly rotated */}
-      <div className="absolute top-3 left-3 right-0 bottom-0 rounded-2xl bg-zinc-300 overflow-hidden rotate-[2deg] shadow-md transition-transform duration-300 group-hover:rotate-[4deg] group-hover:translate-x-1 group-hover:translate-y-1">
-        {secondPhoto && (
-          <Image src={secondPhoto} alt="" fill className="object-cover opacity-60" sizes="(max-width: 640px) 50vw, 25vw" />
-        )}
-      </div>
+  const activeSlug = activeCard.slug;
 
-      <article className="relative z-10 overflow-hidden rounded-2xl transition-all duration-200 group-hover:shadow-xl group-hover:shadow-zinc-900/10 group-hover:-translate-y-0.5 group-hover:-translate-x-0.5">
+  const handleCardClick = (e: React.MouseEvent) => {
+    if (activeSlug) router.push(`/p/${activeSlug}`);
+  };
+
+  const articleEl = (
+      <article
+        className={`relative z-10 overflow-hidden rounded-2xl transition-all duration-200 group-hover:shadow-xl group-hover:shadow-zinc-900/10 group-hover:-translate-y-0.5 group-hover:-translate-x-0.5 ${activeSlug ? "cursor-pointer" : ""}`}
+        role={activeSlug ? "link" : undefined}
+      >
         <div className="relative aspect-[3/4] w-full overflow-hidden rounded-2xl bg-zinc-200">
           {/* Photo — object-cover */}
           {currentPhotoUrl ? (
@@ -178,88 +185,93 @@ export function GroupedCard({ cards, debug = false }: Props) {
             <div className="flex h-full items-center justify-center bg-zinc-100 text-zinc-400 text-sm">Нет фото</div>
           )}
 
-          {/* Arrow buttons */}
-          {photos.length > 1 && (
-            <>
-              <button type="button" onClick={prevPhoto}
-                className="absolute left-2 top-1/2 -translate-y-1/2 z-20 rounded-full bg-black/40 p-1.5 text-white opacity-0 backdrop-blur-md transition-all group-hover:opacity-100 hover:bg-black/60 active:scale-90"
-              ><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M15 18l-6-6 6-6"/></svg></button>
-              <button type="button" onClick={nextPhoto}
-                className="absolute right-2 top-1/2 -translate-y-1/2 z-20 rounded-full bg-black/40 p-1.5 text-white opacity-0 backdrop-blur-md transition-all group-hover:opacity-100 hover:bg-black/60 active:scale-90"
-              ><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M9 18l6-6-6-6"/></svg></button>
-            </>
+          {/* Transparent click overlay — above image, below buttons */}
+          {activeSlug && (
+            <div
+              className="absolute inset-0 z-10 cursor-pointer"
+              onClick={handleCardClick}
+              aria-hidden
+            />
           )}
 
-          {/* Group selector — segmented, top */}
-          <div className="absolute top-0 inset-x-0 z-20 flex">
-            {sorted.map((c, i) => (
-              <button
-                key={c.id}
-                type="button"
-                onClick={() => handleCardSwitch(i)}
-                className={`flex-1 py-1.5 text-[10px] font-bold transition-all backdrop-blur-md ${
-                  i === activeCardIdx ? "bg-indigo-500/80 text-white" : "bg-black/25 text-white/70 hover:bg-black/50"
-                } ${i > 0 ? "border-l border-white/15" : ""}`}
-              >
-                {i + 1}/{sorted.length}
-              </button>
-            ))}
-          </div>
+          {/* Arrow buttons — photos first, then next group card */}
+          <button type="button" onClick={(e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            if (activePhotoIdx > 0) { setActivePhotoIdx(activePhotoIdx - 1); }
+            else { const prev = (activeCardIdx - 1 + sorted.length) % sorted.length; handleCardSwitch(prev, sorted[prev].photoUrls.length - 1); }
+          }}
+            className="absolute left-2 top-1/2 -translate-y-1/2 z-20 rounded-full bg-black/40 p-1.5 text-white opacity-0 backdrop-blur-md transition-all group-hover:opacity-100 hover:bg-black/60 active:scale-90"
+          ><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M15 18l-6-6 6-6"/></svg></button>
+          <button type="button" onClick={(e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            if (activePhotoIdx < photos.length - 1) { setActivePhotoIdx(activePhotoIdx + 1); }
+            else { handleCardSwitch((activeCardIdx + 1) % sorted.length); }
+          }}
+            className="absolute right-2 top-1/2 -translate-y-1/2 z-20 rounded-full bg-black/40 p-1.5 text-white opacity-0 backdrop-blur-md transition-all group-hover:opacity-100 hover:bg-black/60 active:scale-90"
+          ><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M9 18l6-6-6-6"/></svg></button>
 
-          {/* Top badges */}
-          <div className="absolute top-9 left-3 right-3 z-20 flex items-start justify-between pointer-events-none">
-            <div className="flex items-center gap-1.5">
-              {/* Before badge — large */}
-              {activeCard.beforePhotoUrl && (
-                <div className="pointer-events-auto w-14 rounded-xl overflow-hidden border-2 border-white/30 shadow-xl backdrop-blur-sm">
-                  <div className="text-[8px] text-white/90 text-center py-0.5 bg-black/50 font-semibold tracking-wide border-b border-white/10">БЫЛО</div>
-                  <div className="aspect-[4/3] relative">
-                    <Image src={activeCard.beforePhotoUrl} alt="before" fill className="object-cover" sizes="56px" />
-                  </div>
-                </div>
-              )}
-            </div>
-            {photos.length > 1 && (
-              <div className="rounded-full bg-black/40 backdrop-blur-md px-2 py-0.5 text-[10px] font-medium text-white/90 tabular-nums">
-                {activePhotoIdx + 1}/{photos.length}
+          {/* Group paging — same style as photo counter but indigo, centered */}
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); e.preventDefault(); handleCardSwitch((activeCardIdx + 1) % sorted.length); }}
+            className="absolute top-3 left-1/2 -translate-x-1/2 z-20 rounded-full bg-indigo-500/80 backdrop-blur-md px-2 py-0.5 text-[10px] font-medium text-white/90 tabular-nums cursor-pointer hover:bg-indigo-500 transition-colors"
+          >
+            {activeCardIdx + 1}/{sorted.length}
+          </button>
+
+          {/* Before badge — flush left */}
+          {(activeCard.beforePhotoUrl || groupBeforeUrl) && (
+            <div className="absolute top-0 left-0 z-20 w-[28%] min-w-[72px]">
+              <div className="aspect-square relative bg-zinc-800 rounded-br-xl overflow-hidden shadow-2xl ring-1 ring-black/10">
+                <Image src={(activeCard.beforePhotoUrl || groupBeforeUrl)!} alt="before" fill className="object-cover" sizes="120px" />
+                <div className="absolute inset-x-0 bottom-0 text-[8px] text-white font-bold text-center py-0.5 bg-gradient-to-t from-black/70 to-transparent tracking-wider">БЫЛО</div>
               </div>
-            )}
-          </div>
+            </div>
+          )}
+
+          {/* Photo counter */}
+          {photos.length > 1 && (
+            <div className="absolute top-3 right-3 z-20 rounded-full bg-black/40 backdrop-blur-md px-2 py-0.5 text-[10px] font-medium text-white/90 tabular-nums">
+              {activePhotoIdx + 1}/{photos.length}
+            </div>
+          )}
 
           {/* Photo dots */}
           {photos.length > 1 && (
             <div className="absolute bottom-14 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1.5">
               {photos.map((_, i) => (
-                <button key={i} type="button" onClick={(e) => { e.stopPropagation(); setActivePhotoIdx(i); }}
+                <button key={i} type="button" onClick={(e) => { e.stopPropagation(); e.preventDefault(); setActivePhotoIdx(i); }}
                   className={`rounded-full transition-all ${i === activePhotoIdx ? "w-2 h-2 bg-white shadow-sm" : "w-1.5 h-1.5 bg-white/50"}`}
                 />
               ))}
             </div>
           )}
 
-          {/* Default overlay */}
+          {/* Default overlay — pointer-events-none so clicks pass through to Link */}
           {!expanded && (
-            <div className="absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/80 via-black/40 to-transparent pt-20 pb-3.5 px-3.5">
+            <div className="absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/80 via-black/40 to-transparent pt-20 pb-3.5 px-3.5 pointer-events-none">
               <h3 className="text-[13px] font-semibold text-white leading-snug line-clamp-2 mb-1">{title}</h3>
               {promptPreview && (
-                <button type="button" onClick={() => setExpanded(true)}
-                  className="text-left text-[11px] text-white/60 leading-relaxed line-clamp-1 hover:text-white/80 transition-colors w-full"
+                <button type="button" onClick={(e) => { e.stopPropagation(); e.preventDefault(); setExpanded(true); }}
+                  className="text-left text-[11px] text-white/60 leading-relaxed line-clamp-1 hover:text-white/80 transition-colors w-full pointer-events-auto"
                 >{promptPreview}</button>
               )}
               {allPrompts.length > 0 && (
-                <button type="button" onClick={handleCopy}
-                  className="mt-2 w-full rounded-lg bg-white/15 backdrop-blur-md border border-white/10 px-3 py-2 text-[11px] font-semibold text-white transition-all hover:bg-white/25 active:scale-[0.98]"
-                >{copied ? "Скопировано!" : "Скопировать промт"}</button>
+                <button type="button" onClick={(e) => { e.stopPropagation(); e.preventDefault(); setExpanded(true); }}
+                  className="mt-2 w-full rounded-lg bg-white/15 backdrop-blur-md border border-white/10 px-3 py-2 text-[11px] font-semibold text-white transition-all hover:bg-white/25 active:scale-[0.98] pointer-events-auto"
+                >Скопировать промт</button>
               )}
             </div>
           )}
 
           {/* Expanded overlay */}
           {expanded && (
-            <div className="absolute inset-0 z-30 flex flex-col bg-black/70 backdrop-blur-sm p-4" onClick={(e) => e.stopPropagation()}>
+            <div className="absolute inset-0 z-30 flex flex-col bg-black/70 backdrop-blur-sm p-4" onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}>
               <div className="flex items-start justify-between mb-3">
                 <h3 className="text-[13px] font-semibold text-white leading-snug flex-1 mr-2">{title}</h3>
-                <button type="button" onClick={() => setExpanded(false)}
+                <button type="button" onClick={(e) => { e.stopPropagation(); e.preventDefault(); setExpanded(false); }}
                   className="flex-shrink-0 rounded-full bg-white/15 p-1.5 text-white/70 hover:bg-white/25 hover:text-white transition-colors"
                 ><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
               </div>
@@ -271,13 +283,26 @@ export function GroupedCard({ cards, debug = false }: Props) {
                   {allSeoSlugs.slice(0, 5).map((slug) => (<span key={slug} className="rounded-full bg-white/10 px-2 py-0.5 text-[9px] text-white/60">{slug}</span>))}
                 </div>
               )}
-              <button type="button" onClick={handleCopy}
+              <button type="button" onClick={(e) => { e.stopPropagation(); e.preventDefault(); handleCopy(e); }}
                 className="w-full rounded-xl bg-white px-3 py-2.5 text-xs font-semibold text-zinc-900 transition-all hover:bg-zinc-100 active:scale-[0.98]"
               >{copied ? "Скопировано!" : "Скопировать промт"}</button>
             </div>
           )}
         </div>
       </article>
+  );
+
+  return (
+    <div className="group relative pb-2 pr-2">
+      {/* Back card — offset right & down, slightly rotated */}
+      <div className="absolute top-3 left-3 right-0 bottom-0 rounded-2xl bg-zinc-300 overflow-hidden rotate-[2deg] shadow-md transition-transform duration-300 group-hover:rotate-[4deg] group-hover:translate-x-1 group-hover:translate-y-1">
+        {secondPhoto && (
+          <Image src={secondPhoto} alt="" fill className="object-cover opacity-60" sizes="(max-width: 640px) 50vw, 25vw" />
+        )}
+      </div>
+      <div className="relative z-10">
+        {articleEl}
+      </div>
     </div>
   );
 }

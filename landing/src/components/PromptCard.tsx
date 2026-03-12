@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import Image from "next/image";
 import type { PromptCardFull } from "@/lib/supabase";
 import { PhotoCarousel } from "./PhotoCarousel";
@@ -34,6 +34,7 @@ const WARNING_LABELS: Record<string, string> = {
 };
 
 export function PromptCard({ card, debug = false }: Props) {
+  const router = useRouter();
   const title = card.title_ru || card.title_en || "Без названия";
   const seoSlugs = getSeoTagSlugs(card.seo_tags);
   const hasRuPrompt = card.promptTexts.length > 0;
@@ -49,11 +50,13 @@ export function PromptCard({ card, debug = false }: Props) {
 
   function nextPhoto(e: React.MouseEvent) {
     e.stopPropagation();
+    e.preventDefault();
     if (photos.length > 1) setPhotoIndex((i) => (i + 1) % photos.length);
   }
 
   function prevPhoto(e: React.MouseEvent) {
     e.stopPropagation();
+    e.preventDefault();
     if (photos.length > 1) setPhotoIndex((i) => (i - 1 + photos.length) % photos.length);
   }
 
@@ -125,8 +128,17 @@ export function PromptCard({ card, debug = false }: Props) {
   }
 
   // === Normal mode ===
+  const handleCardClick = (e: React.MouseEvent) => {
+    if (card.slug) {
+      router.push(`/p/${card.slug}`);
+    }
+  };
+
   const articleEl = (
-    <article className="group relative overflow-hidden rounded-2xl transition-all duration-200 hover:shadow-xl hover:shadow-zinc-900/10 hover:-translate-y-0.5">
+    <article
+      className={`group relative overflow-hidden rounded-2xl transition-all duration-200 hover:shadow-xl hover:shadow-zinc-900/10 hover:-translate-y-0.5 ${card.slug ? "cursor-pointer" : ""}`}
+      role={card.slug ? "link" : undefined}
+    >
       <div className="relative aspect-[3/4] w-full overflow-hidden rounded-2xl bg-zinc-200">
         {/* Photo — object-cover, no blur layer */}
         {currentPhoto ? (
@@ -141,6 +153,15 @@ export function PromptCard({ card, debug = false }: Props) {
           <div className="flex h-full items-center justify-center bg-zinc-100 text-zinc-400 text-sm">
             Нет фото
           </div>
+        )}
+
+        {/* Transparent click overlay — above image, below buttons; captures clicks for navigation */}
+        {card.slug && (
+          <div
+            className="absolute inset-0 z-10 cursor-pointer"
+            onClick={handleCardClick}
+            aria-hidden
+          />
         )}
 
         {/* Arrow buttons — visible on hover */}
@@ -202,7 +223,7 @@ export function PromptCard({ card, debug = false }: Props) {
               <button
                 key={i}
                 type="button"
-                onClick={(e) => { e.stopPropagation(); setPhotoIndex(i); }}
+                onClick={(e) => { e.stopPropagation(); e.preventDefault(); setPhotoIndex(i); }}
                 className={`rounded-full transition-all ${
                   i === photoIndex ? "w-2 h-2 bg-white shadow-sm" : "w-1.5 h-1.5 bg-white/50"
                 }`}
@@ -211,9 +232,9 @@ export function PromptCard({ card, debug = false }: Props) {
           </div>
         )}
 
-        {/* Default overlay */}
+        {/* Default overlay — pointer-events-none so clicks pass through to Link; buttons have pointer-events-auto */}
         {!expanded && (
-          <div className="absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/80 via-black/40 to-transparent pt-20 pb-3.5 px-3.5">
+          <div className="absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/80 via-black/40 to-transparent pt-20 pb-3.5 px-3.5 pointer-events-none">
             <h3 className="text-[13px] font-semibold text-white leading-snug line-clamp-2 mb-1">
               {title}
             </h3>
@@ -221,7 +242,7 @@ export function PromptCard({ card, debug = false }: Props) {
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); e.preventDefault(); setExpanded(true); }}
-                className="text-left text-[11px] text-white/60 leading-relaxed line-clamp-1 hover:text-white/80 transition-colors w-full"
+                className="text-left text-[11px] text-white/60 leading-relaxed line-clamp-1 hover:text-white/80 transition-colors w-full pointer-events-auto"
               >
                 {promptPreview}
               </button>
@@ -230,7 +251,7 @@ export function PromptCard({ card, debug = false }: Props) {
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); e.preventDefault(); setExpanded(true); }}
-                className="mt-2 w-full rounded-lg bg-white/15 backdrop-blur-md border border-white/10 px-3 py-2 text-[11px] font-semibold text-white transition-all hover:bg-white/25 active:scale-[0.98]"
+                className="mt-2 w-full rounded-lg bg-white/15 backdrop-blur-md border border-white/10 px-3 py-2 text-[11px] font-semibold text-white transition-all hover:bg-white/25 active:scale-[0.98] pointer-events-auto"
               >
                 Скопировать промт
               </button>
@@ -276,11 +297,5 @@ export function PromptCard({ card, debug = false }: Props) {
     </article>
   );
 
-  return card.slug ? (
-    <Link href={`/p/${card.slug}`} className="block">
-      {articleEl}
-    </Link>
-  ) : (
-    articleEl
-  );
+  return articleEl;
 }
