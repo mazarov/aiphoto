@@ -11,6 +11,7 @@ import path from "node:path";
 import { existsSync } from "node:fs";
 import { config as loadDotenv } from "dotenv";
 import { createClient } from "@supabase/supabase-js";
+import { getGeminiGenerateContentUrl } from "./lib/gemini-url";
 
 type Args = {
   dataset?: string;
@@ -113,7 +114,7 @@ async function translateWithGemini(
     },
   };
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
+  const url = `${getGeminiGenerateContentUrl(GEMINI_MODEL)}?key=${apiKey}`;
 
   const res = await fetch(url, {
     method: "POST",

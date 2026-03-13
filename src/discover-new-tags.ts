@@ -9,6 +9,7 @@ import { existsSync } from "node:fs";
 import { config as loadDotenv } from "dotenv";
 import { createClient } from "@supabase/supabase-js";
 import { TAG_REGISTRY } from "../landing/src/lib/tag-registry";
+import { getGeminiGenerateContentUrl } from "./lib/gemini-url";
 
 const DIMS = ["audience_tag", "style_tag", "occasion_tag", "object_tag", "doc_task_tag"] as const;
 
@@ -56,7 +57,7 @@ async function classify(apiKey: string, title: string | null, text: string) {
   const userText = [title ? `Title: ${title}` : "", `Prompt: ${text}`].filter(Boolean).join("\n");
 
   const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+    `${getGeminiGenerateContentUrl("gemini-2.5-flash")}?key=${apiKey}`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },

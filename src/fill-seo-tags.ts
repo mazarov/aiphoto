@@ -15,6 +15,7 @@ import { existsSync } from "node:fs";
 import { config as loadDotenv } from "dotenv";
 import { createClient } from "@supabase/supabase-js";
 import { TAG_REGISTRY, type Dimension, type TagEntry } from "../landing/src/lib/tag-registry";
+import { getGeminiGenerateContentUrl } from "./lib/gemini-url";
 
 // ── Types ──
 
@@ -315,7 +316,7 @@ async function classifyWithGemini(
     },
   };
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
+  const url = `${getGeminiGenerateContentUrl(GEMINI_MODEL)}?key=${apiKey}`;
 
   const res = await fetch(url, {
     method: "POST",

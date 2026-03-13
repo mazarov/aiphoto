@@ -9,6 +9,7 @@ import path from "node:path";
 import { existsSync } from "node:fs";
 import { config as loadDotenv } from "dotenv";
 import { createClient } from "@supabase/supabase-js";
+import { getGeminiGenerateContentUrl } from "./lib/gemini-url";
 
 const JUNK_PATTERNS = [
   "Сделай такое же фото в два клика",
@@ -153,7 +154,7 @@ async function generateTitle(apiKey: string, promptText: string): Promise<string
     },
   };
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
+  const url = `${getGeminiGenerateContentUrl(GEMINI_MODEL)}?key=${apiKey}`;
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
