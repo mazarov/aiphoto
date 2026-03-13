@@ -221,15 +221,15 @@ export function FilterableGrid({ cards }: Props) {
       ) : (
         <div className={debugMode
           ? "grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 items-stretch"
-          : "columns-2 sm:columns-3 lg:columns-4 xl:columns-5 gap-4"
+          : "columns-2 sm:columns-3 lg:columns-4 xl:columns-5 gap-2 sm:gap-4 px-1 sm:px-0"
         }>
           {gridItems.map((item) =>
             item.type === "single" ? (
-              <div key={item.card.id} className={debugMode ? "" : "mb-4 break-inside-avoid"}>
+              <div key={item.card.id} className={debugMode ? "" : "mb-2 sm:mb-4 break-inside-avoid"}>
                 <PromptCard card={item.card} debug={debugMode} />
               </div>
             ) : (
-              <div key={item.key} className={debugMode ? "" : "mb-4 break-inside-avoid"}>
+              <div key={item.key} className={debugMode ? "" : "mb-2 sm:mb-4 break-inside-avoid"}>
                 <GroupedCard cards={item.cards} debug={debugMode} />
               </div>
             )

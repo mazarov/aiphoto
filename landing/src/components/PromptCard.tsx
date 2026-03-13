@@ -232,7 +232,7 @@ export function PromptCard({ card, debug = false }: Props) {
           </div>
         )}
 
-        {/* Default overlay — pointer-events-none so clicks pass through to Link; buttons have pointer-events-auto */}
+        {/* Default overlay — pointer-events-none so clicks pass through to navigation overlay */}
         {!expanded && (
           <div className="absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/80 via-black/40 to-transparent pt-20 pb-3.5 px-3.5 pointer-events-none">
             <h3 className="text-[13px] font-semibold text-white leading-snug line-clamp-2 mb-1">
@@ -242,7 +242,7 @@ export function PromptCard({ card, debug = false }: Props) {
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); e.preventDefault(); setExpanded(true); }}
-                className="text-left text-[11px] text-white/60 leading-relaxed line-clamp-1 hover:text-white/80 transition-colors w-full pointer-events-auto"
+                className="hidden sm:block text-left text-[11px] text-white/60 leading-relaxed line-clamp-1 hover:text-white/80 transition-colors w-full pointer-events-auto"
               >
                 {promptPreview}
               </button>
@@ -251,7 +251,7 @@ export function PromptCard({ card, debug = false }: Props) {
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); e.preventDefault(); setExpanded(true); }}
-                className="mt-2 w-full rounded-lg bg-white/15 backdrop-blur-md border border-white/10 px-3 py-2 text-[11px] font-semibold text-white transition-all hover:bg-white/25 active:scale-[0.98] pointer-events-auto"
+                className="mt-2 w-full rounded-lg bg-white/15 backdrop-blur-md border border-white/10 px-2 py-1.5 sm:px-3 sm:py-2 text-[10px] sm:text-[11px] font-semibold text-white transition-all hover:bg-white/25 active:scale-[0.98] pointer-events-auto"
               >
                 Скопировать промт
               </button>
