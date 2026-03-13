@@ -133,6 +133,15 @@ export const TAG_REGISTRY: TagEntry[] = [
   // ── LLM-discovered tags ──
   { slug: "editorial", dimension: "style_tag", labelRu: "Эдиториал", labelEn: "Editorial", urlPath: "/stil/editorial", patterns: [] },
   { slug: "noch", dimension: "object_tag", labelRu: "Ночь", labelEn: "Night", urlPath: "/noch", patterns: [] },
+
+  // ── LLM-discovered tags (batch 2026-03-13) ──
+  { slug: "osen", dimension: "object_tag", labelRu: "Осень", labelEn: "Autumn", urlPath: "/osen", patterns: [/осенн|осень|листопад|жёлтые\s+лист|желтые\s+лист/i] },
+  { slug: "leto", dimension: "object_tag", labelRu: "Лето", labelEn: "Summer", urlPath: "/leto", patterns: [/летн|лето(?![а-яё])/i] },
+  { slug: "v_pole", dimension: "object_tag", labelRu: "В поле", labelEn: "In a field", urlPath: "/v-pole", patterns: [/в\s+пол[ею]|полевы|среди\s+колос/i] },
+  { slug: "s_loshadyu", dimension: "object_tag", labelRu: "С лошадью", labelEn: "With horse", urlPath: "/s-loshadyu", patterns: [/с лошадью|лошад|конь|коня|конём/i] },
+  { slug: "romanticheskiy", dimension: "style_tag", labelRu: "Романтический", labelEn: "Romantic", urlPath: "/stil/romanticheskiy", patterns: [/романтич/i] },
+  { slug: "bokho_stil", dimension: "style_tag", labelRu: "Бохо-стиль", labelEn: "Boho style", urlPath: "/stil/bokho-stil", patterns: [/бохо|boho/i] },
+  { slug: "etno_stil", dimension: "style_tag", labelRu: "Этно-стиль", labelEn: "Ethno style", urlPath: "/stil/etno-stil", patterns: [/этно|ethno/i] },
 ];
 
 // ── Lookup indexes (built once at import) ──
