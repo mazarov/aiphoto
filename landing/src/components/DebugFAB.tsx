@@ -58,7 +58,7 @@ function DebugFAB() {
     <button
       type="button"
       onClick={ctx.toggleDebug}
-      className={`fixed bottom-6 right-6 z-50 flex items-center gap-2 rounded-full px-4 py-3 text-sm font-semibold shadow-lg transition-all ${
+      className={`fixed bottom-20 sm:bottom-6 right-6 z-50 flex items-center gap-2 rounded-full px-4 py-3 text-sm font-semibold shadow-lg transition-all ${
         ctx.debugOpen
           ? "bg-amber-500 text-white shadow-amber-500/30 hover:bg-amber-600"
           : "bg-zinc-900 text-white shadow-zinc-900/20 hover:bg-zinc-800"
@@ -83,7 +83,7 @@ function DebugMinimalPanel() {
         className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm"
         onClick={() => ctx.setPanelOpen(false)}
       />
-      <div className="fixed bottom-20 right-6 z-50 w-[280px] rounded-2xl border border-zinc-200 bg-white p-5 shadow-2xl shadow-zinc-900/20">
+      <div className="fixed bottom-36 sm:bottom-20 right-6 z-50 w-[280px] rounded-2xl border border-zinc-200 bg-white p-5 shadow-2xl shadow-zinc-900/20">
         <div className="flex items-center justify-between mb-3">
           <span className="text-sm font-semibold text-zinc-900">Debug</span>
           <button

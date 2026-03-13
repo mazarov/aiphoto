@@ -40,4 +40,8 @@ p {
   .scrollbar-none::-webkit-scrollbar {
     display: none;
   }
+
+  .safe-area-pb {
+    padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+  }
 }

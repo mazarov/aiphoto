@@ -64,9 +64,9 @@ export function CardPageClient({ data, tagEntries, breadcrumbTag }: Props) {
   }
 
   return (
-    <div className="mx-auto max-w-6xl px-5 py-8 lg:py-12">
+    <div className="mx-auto max-w-6xl px-5 py-8 lg:py-12 pb-24 sm:pb-8">
       {/* Breadcrumb */}
-      <nav className="mb-6 flex items-center gap-1.5 text-sm text-zinc-400">
+      <nav className="mb-6 hidden sm:flex items-center gap-1.5 text-sm text-zinc-400">
         <Link href="/" className="transition-colors hover:text-zinc-700">
           Главная
         </Link>
@@ -288,8 +288,8 @@ export function CardPageClient({ data, tagEntries, breadcrumbTag }: Props) {
                   ))}
                 </div>
 
-                {/* Copy CTA */}
-                <div className="mt-6">
+                {/* Copy CTA — desktop only (mobile uses sticky bar) */}
+                <div className="mt-6 hidden sm:block">
                   <button
                     type="button"
                     onClick={handleCopy}
@@ -316,6 +316,29 @@ export function CardPageClient({ data, tagEntries, breadcrumbTag }: Props) {
           </div>
         </div>
       </div>
+
+      {/* Mobile sticky copy button */}
+      {data.promptTexts.length > 0 && (
+        <div className="fixed inset-x-0 bottom-0 z-40 sm:hidden px-4 py-3 safe-area-pb">
+          <button
+            type="button"
+            onClick={handleCopy}
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-zinc-900 px-4 py-3 text-sm font-semibold text-white shadow-lg active:scale-[0.98]"
+          >
+            {copied ? (
+              <>
+                <CheckIcon size={16} />
+                Скопировано!
+              </>
+            ) : (
+              <>
+                <CopyIcon size={16} />
+                Скопировать промпт
+              </>
+            )}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
