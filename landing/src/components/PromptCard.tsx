@@ -35,12 +35,70 @@ const WARNING_LABELS: Record<string, string> = {
   photo_prompt_count_mismatch: "Кол-во фото ≠ промптов",
 };
 
+function PromptCardDebug({ card }: { card: PromptCardFull }) {
+  const title = card.title_ru || card.title_en || "Без названия";
+  const seoSlugs = getSeoTagSlugs(card.seo_tags);
+  const hasRuPrompt = card.promptTexts.length > 0;
+
+  return (
+    <article className="flex h-full flex-col overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm">
+      <PhotoCarousel
+        photoUrls={card.photoUrls}
+        photoMeta={card.photoMeta}
+        beforePhotoUrl={card.beforePhotoUrl}
+        alt={title}
+        cardId={card.id}
+      />
+      <div className="flex flex-1 flex-col p-4 gap-3">
+        <h3 className="text-base font-semibold text-zinc-900 leading-tight">{title}</h3>
+        <div className="text-[10px] text-zinc-400 font-mono break-all select-all">{card.id}</div>
+        <div className="text-xs text-zinc-500 font-mono">
+          {card.datasetSlug && <span>{card.datasetSlug}</span>}
+          {card.sourceMessageId && <span> · msg {card.sourceMessageId}</span>}
+          {card.sourceDate && <span> · {card.sourceDate}</span>}
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          <span className="inline-flex items-center rounded-full border border-zinc-200 bg-zinc-50 px-2 py-0.5 text-[11px] text-zinc-600">photos: {card.photoCount}</span>
+          <span className="inline-flex items-center rounded-full border border-zinc-200 bg-zinc-50 px-2 py-0.5 text-[11px] text-zinc-600">prompts: {card.promptCount}</span>
+          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] border ${card.seoReadinessScore >= 60 ? "border-emerald-200 bg-emerald-50 text-emerald-700" : card.seoReadinessScore >= 40 ? "border-blue-200 bg-blue-50 text-blue-700" : "border-zinc-200 bg-zinc-50 text-zinc-500"}`}>
+            score: {card.seoReadinessScore}
+          </span>
+          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] border ${hasRuPrompt ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-red-200 bg-red-50 text-red-600"}`}>
+            RU: {hasRuPrompt ? "есть" : "нет"}
+          </span>
+          {card.warnings.length > 0 && (
+            <span className="inline-flex items-center rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] text-amber-700">warnings: {card.warnings.length}</span>
+          )}
+          {card.beforePhotoUrl && (
+            <span className="inline-flex items-center rounded-full border border-teal-200 bg-teal-50 px-2 py-0.5 text-[11px] text-teal-700">было/стало</span>
+          )}
+        </div>
+        {card.warnings.length > 0 && (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">
+            {card.warnings.map((w, i) => (<div key={i}>• {WARNING_LABELS[w] || w}</div>))}
+          </div>
+        )}
+        {seoSlugs.length > 0 && (
+          <div className="flex flex-wrap gap-1">
+            {seoSlugs.map((slug) => (<span key={slug} className="rounded-full bg-violet-50 border border-violet-200 px-2 py-0.5 text-[11px] text-violet-700">{slug}</span>))}
+          </div>
+        )}
+        {card.hashtags.length > 0 && (
+          <div className="text-xs text-zinc-500">{card.hashtags.map((h) => `#${h.replace(/^#/, "")}`).join(" ")}</div>
+        )}
+        {card.promptTexts.length > 0 && (
+          <div className="max-h-40 overflow-y-auto rounded-lg border border-zinc-200 bg-zinc-50 p-2 font-mono text-xs text-zinc-600 whitespace-pre-wrap">{card.promptTexts.join("\n\n")}</div>
+        )}
+      </div>
+    </article>
+  );
+}
+
 export function PromptCard({ card, debug = false }: Props) {
   const router = useRouter();
   const { reactions, favorites, toggleReaction, toggleFavorite } = useCardInteractions();
   const title = card.title_ru || card.title_en || "Без названия";
   const seoSlugs = getSeoTagSlugs(card.seo_tags);
-  const hasRuPrompt = card.promptTexts.length > 0;
 
   const [photoIndex, setPhotoIndex] = useState(0);
   const [expanded, setExpanded] = useState(false);
@@ -74,79 +132,25 @@ export function PromptCard({ card, debug = false }: Props) {
     } catch {}
   }
 
-  // === Debug mode ===
   if (debug) {
-    return (
-      <article className="flex h-full flex-col overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm">
-        <PhotoCarousel
-          photoUrls={card.photoUrls}
-          photoMeta={card.photoMeta}
-          beforePhotoUrl={card.beforePhotoUrl}
-          alt={title}
-          cardId={card.id}
-        />
-        <div className="flex flex-1 flex-col p-4 gap-3">
-          <h3 className="text-base font-semibold text-zinc-900 leading-tight">{title}</h3>
-          <div className="text-[10px] text-zinc-400 font-mono break-all select-all">{card.id}</div>
-          <div className="text-xs text-zinc-500 font-mono">
-            {card.datasetSlug && <span>{card.datasetSlug}</span>}
-            {card.sourceMessageId && <span> · msg {card.sourceMessageId}</span>}
-            {card.sourceDate && <span> · {card.sourceDate}</span>}
-          </div>
-          <div className="flex flex-wrap gap-1.5">
-            <span className="inline-flex items-center rounded-full border border-zinc-200 bg-zinc-50 px-2 py-0.5 text-[11px] text-zinc-600">photos: {card.photoCount}</span>
-            <span className="inline-flex items-center rounded-full border border-zinc-200 bg-zinc-50 px-2 py-0.5 text-[11px] text-zinc-600">prompts: {card.promptCount}</span>
-            <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] border ${card.seoReadinessScore >= 60 ? "border-emerald-200 bg-emerald-50 text-emerald-700" : card.seoReadinessScore >= 40 ? "border-blue-200 bg-blue-50 text-blue-700" : "border-zinc-200 bg-zinc-50 text-zinc-500"}`}>
-              score: {card.seoReadinessScore}
-            </span>
-            <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] border ${hasRuPrompt ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-red-200 bg-red-50 text-red-600"}`}>
-              RU: {hasRuPrompt ? "есть" : "нет"}
-            </span>
-            {card.warnings.length > 0 && (
-              <span className="inline-flex items-center rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] text-amber-700">warnings: {card.warnings.length}</span>
-            )}
-            {card.beforePhotoUrl && (
-              <span className="inline-flex items-center rounded-full border border-teal-200 bg-teal-50 px-2 py-0.5 text-[11px] text-teal-700">было/стало</span>
-            )}
-          </div>
-          {card.warnings.length > 0 && (
-            <div className="rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">
-              {card.warnings.map((w, i) => (<div key={i}>• {WARNING_LABELS[w] || w}</div>))}
-            </div>
-          )}
-          {seoSlugs.length > 0 && (
-            <div className="flex flex-wrap gap-1">
-              {seoSlugs.map((slug) => (<span key={slug} className="rounded-full bg-violet-50 border border-violet-200 px-2 py-0.5 text-[11px] text-violet-700">{slug}</span>))}
-            </div>
-          )}
-          {card.hashtags.length > 0 && (
-            <div className="text-xs text-zinc-500">{card.hashtags.map((h) => `#${h.replace(/^#/, "")}`).join(" ")}</div>
-          )}
-          {card.promptTexts.length > 0 && (
-            <div className="max-h-40 overflow-y-auto rounded-lg border border-zinc-200 bg-zinc-50 p-2 font-mono text-xs text-zinc-600 whitespace-pre-wrap">{card.promptTexts.join("\n\n")}</div>
-          )}
-        </div>
-      </article>
-    );
+    return <PromptCardDebug card={card} />;
   }
 
-  // === Normal mode ===
   const userReaction = reactions.get(card.id) ?? null;
   const isFavorited = favorites.has(card.id);
 
-  const handleCardClick = (e: React.MouseEvent) => {
+  const handleCardClick = () => {
     if (card.slug) {
       router.push(`/p/${card.slug}`);
     }
   };
 
-  const articleEl = (
+  return (
     <article
       className={`group relative overflow-hidden rounded-2xl transition-all duration-200 hover:shadow-xl hover:shadow-zinc-900/10 hover:-translate-y-0.5 ${card.slug ? "cursor-pointer" : ""}`}
       role={card.slug ? "link" : undefined}
     >
       <div className="relative aspect-[3/4] w-full overflow-hidden rounded-2xl bg-zinc-200">
-        {/* Photo — object-cover, no blur layer */}
         {currentPhoto ? (
           <Image
             src={currentPhoto}
@@ -161,7 +165,6 @@ export function PromptCard({ card, debug = false }: Props) {
           </div>
         )}
 
-        {/* Transparent click overlay — above image, below buttons; captures clicks for navigation */}
         {card.slug && (
           <div
             className="absolute inset-0 z-10 cursor-pointer"
@@ -170,7 +173,6 @@ export function PromptCard({ card, debug = false }: Props) {
           />
         )}
 
-        {/* Arrow buttons — visible on hover */}
         {photos.length > 1 && (
           <>
             <button
@@ -192,7 +194,6 @@ export function PromptCard({ card, debug = false }: Props) {
           </>
         )}
 
-        {/* Before badge — flush to top-left corner */}
         {card.beforePhotoUrl && (
           <div className="absolute top-0 left-0 z-20 w-[28%] min-w-[72px]">
             <div className="aspect-square relative bg-zinc-800 rounded-br-xl overflow-hidden shadow-2xl ring-1 ring-black/10">
@@ -204,7 +205,6 @@ export function PromptCard({ card, debug = false }: Props) {
           </div>
         )}
 
-        {/* Top badges + bookmark */}
         <div className="absolute top-3 left-3 right-3 z-20 flex items-start justify-between">
           <div className="flex items-center gap-1.5 pointer-events-none">
             {card.beforePhotoUrl && <div className="w-[28%] min-w-[72px]" />}
@@ -231,7 +231,6 @@ export function PromptCard({ card, debug = false }: Props) {
           </div>
         </div>
 
-        {/* Photo dots */}
         {photos.length > 1 && (
           <div className="absolute bottom-14 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1.5">
             {photos.map((_, i) => (
@@ -247,7 +246,6 @@ export function PromptCard({ card, debug = false }: Props) {
           </div>
         )}
 
-        {/* Default overlay */}
         {!expanded && (
           <div className="absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/80 via-black/40 to-transparent pt-20 pb-3.5 px-3.5">
             <div className="flex items-end justify-between gap-2 pointer-events-none">
@@ -284,7 +282,6 @@ export function PromptCard({ card, debug = false }: Props) {
           </div>
         )}
 
-        {/* Expanded overlay */}
         {expanded && (
           <div className="absolute inset-0 z-30 flex flex-col bg-black/70 backdrop-blur-sm p-4" onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}>
             <div className="flex items-start justify-between mb-3">
@@ -321,6 +318,4 @@ export function PromptCard({ card, debug = false }: Props) {
       </div>
     </article>
   );
-
-  return articleEl;
 }
