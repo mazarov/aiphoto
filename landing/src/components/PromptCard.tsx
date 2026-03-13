@@ -37,6 +37,7 @@ const WARNING_LABELS: Record<string, string> = {
 
 export function PromptCard({ card, debug = false }: Props) {
   const router = useRouter();
+  const { reactions, favorites, toggleReaction, toggleFavorite } = useCardInteractions();
   const title = card.title_ru || card.title_en || "Без названия";
   const seoSlugs = getSeoTagSlugs(card.seo_tags);
   const hasRuPrompt = card.promptTexts.length > 0;
@@ -130,7 +131,6 @@ export function PromptCard({ card, debug = false }: Props) {
   }
 
   // === Normal mode ===
-  const { reactions, favorites, toggleReaction, toggleFavorite } = useCardInteractions();
   const userReaction = reactions.get(card.id) ?? null;
   const isFavorited = favorites.has(card.id);
 
