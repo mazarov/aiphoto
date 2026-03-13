@@ -190,7 +190,7 @@ async function sbUpdate(table, id, data) {
 
 const SYSTEM_PROMPT = `You are a photo prompt classifier for an SEO-driven photo prompt catalog.
 
-Given a prompt (title + text in Russian), assign ALL relevant tags across 5 dimensions.
+Given a prompt (title + text in Russian or English), assign ALL relevant tags across 5 dimensions.
 
 STEP 1 — Use KNOWN tags from the list below whenever they match.
 STEP 2 — If the prompt describes a scene, location, style, or subject NOT covered by the known tags, CREATE a new tag.
@@ -334,9 +334,9 @@ async function main() {
   for (let i = 0; i < cards.length; i += 20) {
     const ids = cards.slice(i, i + 20).map(c => `"${c.id}"`).join(",");
     const variants = await sbSelect("prompt_variants",
-      `select=card_id,prompt_text_ru&card_id=in.(${ids})&order=variant_index.asc`);
+      `select=card_id,prompt_text_ru,prompt_text_en&card_id=in.(${ids})&order=variant_index.asc`);
     for (const v of variants) {
-      const text = (v.prompt_text_ru || "").trim();
+      const text = (v.prompt_text_ru || v.prompt_text_en || "").trim();
       if (!text) continue;
       const arr = promptMap.get(v.card_id) || [];
       arr.push(text);
