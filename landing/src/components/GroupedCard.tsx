@@ -261,7 +261,7 @@ export function GroupedCard({ cards, debug = false }: Props) {
               {allPrompts.length > 0 && (
                 <button type="button" onClick={(e) => { e.stopPropagation(); e.preventDefault(); setExpanded(true); }}
                   className="mt-2 w-full rounded-lg bg-white/15 backdrop-blur-md border border-white/10 px-2 py-1.5 sm:px-3 sm:py-2 text-[10px] sm:text-[11px] font-semibold text-white transition-all hover:bg-white/25 active:scale-[0.98] pointer-events-auto"
-                >Скопировать промт</button>
+                ><span className="sm:hidden">Скопировать</span><span className="hidden sm:inline">Скопировать промт</span></button>
               )}
             </div>
           )}

@@ -221,7 +221,7 @@ export function FilterableGrid({ cards }: Props) {
       ) : (
         <div className={debugMode
           ? "grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 items-stretch"
-          : "columns-2 sm:columns-3 lg:columns-4 xl:columns-5 gap-2 sm:gap-4 px-1 sm:px-0"
+          : "columns-2 sm:columns-3 lg:columns-4 xl:columns-5 gap-2 sm:gap-4"
         }>
           {gridItems.map((item) =>
             item.type === "single" ? (

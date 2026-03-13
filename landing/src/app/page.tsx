@@ -147,7 +147,7 @@ export default async function HomePage() {
         </div>
       </section>
 
-      <main className="mx-auto w-full max-w-7xl flex-1 px-5 pb-16">
+      <main className="mx-auto w-full max-w-7xl flex-1 px-2 sm:px-5 pb-16">
         {sectionBlocks.length > 0 ? (
           sectionBlocks.map((block, i) => (
             <CategorySection

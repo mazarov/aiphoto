@@ -15,7 +15,7 @@ export function PromptGrid({ cards }: Props) {
   }
 
   return (
-    <div className="grid grid-cols-2 gap-2 px-1 sm:grid-cols-2 sm:gap-6 sm:px-0 lg:grid-cols-3 xl:grid-cols-4">
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3 xl:grid-cols-4">
       {cards.map((card) => (
         <PromptCard key={card.id} card={card} />
       ))}
