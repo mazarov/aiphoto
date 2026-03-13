@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import Image from "next/image";
 import type { PromptCardFull } from "@/lib/supabase";
 
@@ -66,6 +66,8 @@ function ResultCard({
 
 export function SearchBar() {
   const router = useRouter();
+  const pathname = usePathname();
+  const hideMobileBar = pathname === "/" || pathname.startsWith("/search");
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<PromptCardFull[]>([]);
   const [showResults, setShowResults] = useState(false);
@@ -261,7 +263,7 @@ export function SearchBar() {
       </div>
 
       {/* ═══════════ Mobile: floating bottom bar ═══════════ */}
-      {!mobileActive && (
+      {!mobileActive && !hideMobileBar && (
         <button
           type="button"
           onClick={() => setMobileActive(true)}
