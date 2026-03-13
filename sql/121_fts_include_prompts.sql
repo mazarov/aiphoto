@@ -2,8 +2,8 @@
 -- Migration 121: Include prompt texts in FTS (denormalization)
 --
 -- Replaces GENERATED ALWAYS AS fts column with a trigger-maintained
--- tsvector that covers title_ru (A), title_en (B), and all
--- prompt_variants.prompt_text_ru (C) for the card.
+-- tsvector that covers title_ru (A) and all
+-- prompt_variants.prompt_text_ru (B) for the card.
 -- ============================================================
 
 -- 1. Drop the GENERATED column and recreate as plain column
@@ -21,11 +21,10 @@ LANGUAGE plpgsql
 AS $$
 DECLARE
   v_title_ru  text;
-  v_title_en  text;
   v_prompts   text;
 BEGIN
-  SELECT c.title_ru, c.title_en
-    INTO v_title_ru, v_title_en
+  SELECT c.title_ru
+    INTO v_title_ru
     FROM prompt_cards c
    WHERE c.id = p_card_id;
 
@@ -39,8 +38,7 @@ BEGIN
   UPDATE prompt_cards
      SET fts =
        setweight(to_tsvector('russian', coalesce(v_title_ru, '')), 'A') ||
-       setweight(to_tsvector('english', coalesce(v_title_en, '')), 'B') ||
-       setweight(to_tsvector('russian', coalesce(v_prompts, '')), 'C')
+       setweight(to_tsvector('russian', coalesce(v_prompts, '')), 'B')
    WHERE id = p_card_id;
 END;
 $$;
@@ -58,7 +56,7 @@ $$;
 
 DROP TRIGGER IF EXISTS trg_rebuild_fts_on_card ON prompt_cards;
 CREATE TRIGGER trg_rebuild_fts_on_card
-  AFTER INSERT OR UPDATE OF title_ru, title_en
+  AFTER INSERT OR UPDATE OF title_ru
   ON prompt_cards
   FOR EACH ROW
   EXECUTE FUNCTION trg_card_fts_on_card();
