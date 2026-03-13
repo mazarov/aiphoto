@@ -14,7 +14,7 @@
 
 // ── Config ──
 
-const GEMINI_API_KEY = "AIzaSyC-SM4nr6pJm5rpLEa4nTsRfEjJmpc5vjA";
+const GEMINI_API_KEY = "AIzaSyCCiECEtG1MtKCjx_qEHpVXfZHFMhnsiN8";
 const GEMINI_BASE = "https://gemini-proxy.photo2sticker.ru";
 const GEMINI_MODEL = "gemini-2.5-flash";
 
