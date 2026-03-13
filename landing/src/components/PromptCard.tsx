@@ -239,22 +239,17 @@ export function PromptCard({ card, debug = false }: Props) {
               {title}
             </h3>
             {promptPreview && (
-              <button
-                type="button"
-                onClick={(e) => { e.stopPropagation(); e.preventDefault(); setExpanded(true); }}
-                className="hidden sm:block text-left text-[11px] text-white/60 leading-relaxed line-clamp-1 hover:text-white/80 transition-colors w-full pointer-events-auto"
-              >
+              <p className="text-[11px] text-white/60 leading-relaxed line-clamp-1 mb-1">
                 {promptPreview}
-              </button>
+              </p>
             )}
             {card.promptTexts.length > 0 && (
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); e.preventDefault(); setExpanded(true); }}
-                className="mt-2 w-full rounded-lg bg-white/15 backdrop-blur-md border border-white/10 px-2 py-1.5 sm:px-3 sm:py-2 text-[10px] sm:text-[11px] font-semibold text-white transition-all hover:bg-white/25 active:scale-[0.98] pointer-events-auto"
+                className="mt-1 w-full rounded-lg bg-white/15 backdrop-blur-md border border-white/10 px-2 py-1.5 sm:px-3 sm:py-2 text-[10px] sm:text-[11px] font-semibold text-white transition-all hover:bg-white/25 active:scale-[0.98] pointer-events-auto truncate"
               >
-                <span className="sm:hidden">Скопировать</span>
-                <span className="hidden sm:inline">Скопировать промт</span>
+                Скопировать
               </button>
             )}
           </div>
