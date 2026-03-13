@@ -33,6 +33,40 @@ function translitSlug(text: string): string {
   return s.slice(0, 80).replace(/-$/, '');
 }
 
+// --- Supplier dedup ---
+// Maps legacy dataset slugs to the canonical supplier key.
+// New datasets follow format: {SUPPLIER_KEY}_{Source}_{YYYY-MM-DD}
+const SUPPLIER_LEGACY_MAP: Record<string, string> = {
+  'lexy_15.02.26': 'LEXYGPT',
+};
+
+function parseSupplierKey(datasetSlug: string): string {
+  if (SUPPLIER_LEGACY_MAP[datasetSlug]) return SUPPLIER_LEGACY_MAP[datasetSlug];
+  const match = datasetSlug.match(/^([A-Za-z0-9]+)_\w+_\d{4}-\d{2}-\d{2}$/);
+  return match ? match[1] : datasetSlug;
+}
+
+async function findSupplierDatasetSlugs(
+  supabase: ReturnType<typeof createClient>,
+  supplierKey: string,
+  currentDatasetSlug: string,
+): Promise<string[]> {
+  const slugs = new Set<string>();
+  slugs.add(currentDatasetSlug);
+  for (const [slug, key] of Object.entries(SUPPLIER_LEGACY_MAP)) {
+    if (key === supplierKey) slugs.add(slug);
+  }
+  const { data } = await supabase.from('import_datasets').select('dataset_slug');
+  if (data) {
+    for (const row of data) {
+      if (parseSupplierKey(row.dataset_slug) === supplierKey) {
+        slugs.add(row.dataset_slug);
+      }
+    }
+  }
+  return Array.from(slugs);
+}
+
 async function generateUniqueSlug(
   supabase: ReturnType<typeof createClient>,
   title: string,
@@ -116,32 +150,34 @@ function parseArgs(): Args {
     }
   }
   if (!datasetSlug) {
-    throw new Error("Missing --dataset. Example: --dataset lexy_15.02.26");
+    throw new Error("Missing --dataset. Example: --dataset LEXYGPT_ChatExport_2026-03-13");
   }
   return { datasetSlug, dryRun, limit, offset, existingOnly, messageId };
 }
 
 async function fetchExistingSourceMessageIds(
   supabase: ReturnType<typeof createClient>,
-  datasetSlug: string,
+  datasetSlugs: string[],
 ): Promise<Set<number>> {
   const pageSize = 1000;
-  let from = 0;
   const ids = new Set<number>();
-  while (true) {
-    const { data, error } = await supabase
-      .from("prompt_cards")
-      .select("source_message_id")
-      .eq("source_dataset_slug", datasetSlug)
-      .order("source_message_id", { ascending: true })
-      .range(from, from + pageSize - 1);
-    if (error) throw new Error(`Failed load existing prompt_cards: ${error.message}`);
-    if (!data || data.length === 0) break;
-    for (const row of data) {
-      if (typeof row.source_message_id === "number") ids.add(row.source_message_id);
+  for (const slug of datasetSlugs) {
+    let from = 0;
+    while (true) {
+      const { data, error } = await supabase
+        .from("prompt_cards")
+        .select("source_message_id")
+        .eq("source_dataset_slug", slug)
+        .order("source_message_id", { ascending: true })
+        .range(from, from + pageSize - 1);
+      if (error) throw new Error(`Failed load existing prompt_cards: ${error.message}`);
+      if (!data || data.length === 0) break;
+      for (const row of data) {
+        if (typeof row.source_message_id === "number") ids.add(row.source_message_id);
+      }
+      if (data.length < pageSize) break;
+      from += pageSize;
     }
-    if (data.length < pageSize) break;
-    from += pageSize;
   }
   return ids;
 }
@@ -418,14 +454,29 @@ async function main() {
   const serviceKey = required("SUPABASE_SERVICE_ROLE_KEY");
   const supabase = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
 
+  // Supplier-aware dedup: find all datasets from the same supplier
+  const supplierKey = parseSupplierKey(args.datasetSlug);
+  const allSupplierSlugs = await findSupplierDatasetSlugs(supabase, supplierKey, args.datasetSlug);
+  const existingSupplierIds = await fetchExistingSourceMessageIds(supabase, allSupplierSlugs);
+  // eslint-disable-next-line no-console
+  console.log(`[supplier] key=${supplierKey} datasets=[${allSupplierSlugs.join(', ')}] existing=${existingSupplierIds.size}`);
+
   let selectedCards = parsed.cards;
   if (args.messageId != null) {
     selectedCards = selectedCards.filter((c) => c.sourceMessageId === args.messageId);
   }
   if (args.existingOnly) {
-    const existingIds = await fetchExistingSourceMessageIds(supabase, args.datasetSlug);
-    selectedCards = selectedCards.filter((c) => existingIds.has(c.sourceMessageId));
+    selectedCards = selectedCards.filter((c) => existingSupplierIds.has(c.sourceMessageId));
   }
+
+  // Auto-dedup: skip cards already imported from ANY supplier dataset
+  let skippedDuplicates = 0;
+  if (!args.existingOnly) {
+    const beforeDedup = selectedCards.length;
+    selectedCards = selectedCards.filter((c) => !existingSupplierIds.has(c.sourceMessageId));
+    skippedDuplicates = beforeDedup - selectedCards.length;
+  }
+
   // Group by (dataset, messageId) and slice by MESSAGES, never split a group
   const msgKeys = [...new Set(selectedCards.map((c) => `${c.datasetSlug}::${c.sourceMessageId}`))].sort();
   const from = Math.min(args.offset, msgKeys.length);
@@ -440,8 +491,11 @@ async function main() {
       JSON.stringify(
         {
           dataset: args.datasetSlug,
+          supplierKey,
+          supplierDatasets: allSupplierSlugs,
           dryRun: true,
           cardsTotal: parsed.cards.length,
+          skippedDuplicates,
           cardsSelected: cardsToIngest.length,
           parsedSuccess: cardsToIngest.length,
           parsedFailed: 0,
@@ -504,8 +558,11 @@ async function main() {
     JSON.stringify(
       {
         dataset: args.datasetSlug,
+        supplierKey,
+        supplierDatasets: allSupplierSlugs,
         dryRun: args.dryRun,
         cardsTotal: parsed.cards.length,
+        skippedDuplicates,
         cardsSelected: cardsToIngest.length,
         parsedSuccess: success,
         parsedFailed: failed,

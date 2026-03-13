@@ -11,6 +11,8 @@ import {
   DIMENSION_LABELS,
 } from "@/lib/tag-registry";
 
+export const dynamic = "force-dynamic";
+
 const PAGE_SIZE = 48;
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://promptshot.ru";
 

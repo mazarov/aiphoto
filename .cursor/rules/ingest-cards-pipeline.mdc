@@ -8,12 +8,32 @@ alwaysApply: false
 ## Обзор пайплайна
 
 ```
-Telegram-экспорт → Инжест в БД → LLM SEO-теги → Публикация → URL автоматически
+Telegram-экспорт → Инжест в БД (с dedup по supplier) → LLM SEO-теги → Публикация → URL автоматически
 ```
+
+## Именование датасетов
+
+Формат: `{SUPPLIER_KEY}_{Source}_{YYYY-MM-DD}`
+
+| Часть | Значение | Пример |
+|---|---|---|
+| `SUPPLIER_KEY` | Ключ поставщика (канала) | `LEXYGPT` |
+| `Source` | Откуда получили данные | `ChatExport` |
+| `YYYY-MM-DD` | Дата, до которой забрали данные | `2026-03-13` |
+
+Пример: `LEXYGPT_ChatExport_2026-03-13`
+
+### Legacy-маппинг
+
+Старые датасеты маппятся на supplier key через `SUPPLIER_LEGACY_MAP` в скрипте:
+
+| Legacy slug | Supplier key |
+|---|---|
+| `lexy_15.02.26` | `LEXYGPT` |
 
 ## Шаг 0. Подготовка
 
-Экспорты лежат в `docs/export/`. Каждая папка — датасет (например `lexy_15.02.26`).
+Экспорты лежат в `docs/export/`. Каждая папка — датасет.
 
 Узнать сколько карточек уже загружено из датасета:
 
@@ -30,15 +50,30 @@ sb.from('prompt_cards').select('id', { count: 'exact', head: true }).eq('source_
 ```bash
 cd aiphoto
 npx tsx src/ingest-telegram-export-to-supabase.ts \
-  --dataset DATASET_SLUG \
-  --offset EXISTING_COUNT \
+  --dataset LEXYGPT_ChatExport_2026-03-13 \
   --limit 100
 ```
 
-- `--offset` — пропустить уже загруженные (= текущее количество в БД)
-- `--limit` — сколько новых загрузить
+- **Автоматический dedup** — скрипт определяет supplier key из slug, находит ВСЕ датасеты этого supplier, проверяет `source_message_id` по ним. Дубли пропускаются автоматически.
+- `--offset` — опционально, для пагинации по новым карточкам (dedup уже отфильтровал старые)
+- `--limit` — сколько новых загрузить за раз
 - `--dry-run` — сначала проверить без записи в БД
+- `--existing-only` — только перезаписать уже существующие карточки
 - Скрипт использует `upsert`, повторный запуск безопасен
+
+### Вывод скрипта
+
+```json
+{
+  "dataset": "LEXYGPT_ChatExport_2026-03-13",
+  "supplierKey": "LEXYGPT",
+  "supplierDatasets": ["LEXYGPT_ChatExport_2026-03-13", "lexy_15.02.26"],
+  "skippedDuplicates": 228,
+  "cardsSelected": 45,
+  "parsedSuccess": 45,
+  ...
+}
+```
 
 ## Шаг 2. SEO-теги (LLM)
 
@@ -46,16 +81,16 @@ npx tsx src/ingest-telegram-export-to-supabase.ts \
 
 ```bash
 # LLM-классификация новых карточек (seo_readiness_score = 0)
-npx tsx src/fill-seo-tags.ts --dataset DATASET_SLUG
+npx tsx src/fill-seo-tags.ts --dataset LEXYGPT_ChatExport_2026-03-13
 
 # Пересчитать ВСЕ карточки датасета через LLM
-npx tsx src/fill-seo-tags.ts --dataset DATASET_SLUG --recompute-all
+npx tsx src/fill-seo-tags.ts --dataset LEXYGPT_ChatExport_2026-03-13 --recompute-all
 
 # Dry-run — проверить без записи
-npx tsx src/fill-seo-tags.ts --dataset DATASET_SLUG --dry-run
+npx tsx src/fill-seo-tags.ts --dataset LEXYGPT_ChatExport_2026-03-13 --dry-run
 
 # Regex fallback (если Gemini недоступен / нет VPN)
-npx tsx src/fill-seo-tags.ts --dataset DATASET_SLUG --regex-only
+npx tsx src/fill-seo-tags.ts --dataset LEXYGPT_ChatExport_2026-03-13 --regex-only
 
 # Одна карточка
 npx tsx src/fill-seo-tags.ts --card-id <uuid>
@@ -100,15 +135,19 @@ sb.from('prompt_cards').update({ is_published: true }).eq('is_published', false)
 - URL на лендинге (catch-all `[...slug]/page.tsx`)
 - Для показа в меню — добавить `tagItem("new_tag")` в `landing/src/lib/menu.ts`
 
-## Типичный сценарий: +100 карточек
+## Добавление нового поставщика
+
+1. Если legacy slug — добавить маппинг в `SUPPLIER_LEGACY_MAP` в `src/ingest-telegram-export-to-supabase.ts`
+2. Новые датасеты — использовать формат `{SUPPLIER_KEY}_{Source}_{YYYY-MM-DD}` (key определяется автоматически)
+
+## Типичный сценарий: новый экспорт от существующего поставщика
 
 ```bash
-# 1. Проверить текущее количество (подставить slug)
-# 2. Dry-run
-npx tsx src/ingest-telegram-export-to-supabase.ts --dataset lexy_15.02.26 --offset 228 --limit 100 --dry-run
-# 3. Инжест
-npx tsx src/ingest-telegram-export-to-supabase.ts --dataset lexy_15.02.26 --offset 228 --limit 100
-# 4. LLM SEO-теги
-npx tsx src/fill-seo-tags.ts --dataset lexy_15.02.26
-# 5. Публикация (скрипт выше)
+# 1. Dry-run — проверить что видит скрипт (dedup автоматический)
+npx tsx src/ingest-telegram-export-to-supabase.ts --dataset LEXYGPT_ChatExport_2026-03-13 --dry-run
+# 2. Инжест (без --offset, dedup сам пропустит дубли)
+npx tsx src/ingest-telegram-export-to-supabase.ts --dataset LEXYGPT_ChatExport_2026-03-13 --limit 100
+# 3. LLM SEO-теги
+npx tsx src/fill-seo-tags.ts --dataset LEXYGPT_ChatExport_2026-03-13
+# 4. Публикация (скрипт выше)
 ```

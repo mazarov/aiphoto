@@ -67,7 +67,11 @@ export interface ParseDatasetResult {
   skippedNoPhoto: number;
 }
 
-export const PARSER_VERSION = "v0.3.2";
+export const PARSER_VERSION = "v0.4.0";
+
+// Blockquotes shorter than this are treated as decorative headers, not prompts.
+// Based on data: all real prompts >= 89 chars, all decorative <= 65 chars.
+const MIN_PROMPT_LENGTH = 80;
 
 function dedupeWarnings(input: string[]): string[] {
   return Array.from(new Set(input));
@@ -335,20 +339,22 @@ function parseGroupToCards(group: MessageNode[], datasetSlug: string, channelTit
   if (firstPhoto) firstPhoto.isPrimary = true;
 
   const variants: PromptVariant[] = [];
-  $g("blockquote").each((idx, el) => {
+  let variantIdx = 0;
+  $g("blockquote").each((_idx, el) => {
     const promptTextRaw = normalizePlainText($g(el).text() ?? "");
     if (!promptTextRaw) return;
+    if (promptTextRaw.length < MIN_PROMPT_LENGTH) return;
     const byLang = splitPromptByLanguage(promptTextRaw);
-    // Keep variant if at least one language text is present.
     if (!byLang.ru && !byLang.en) return;
     const label = parseFrameLabel($g(el).parent().text());
     variants.push({
-      variantIndex: idx,
+      variantIndex: variantIdx,
       labelRaw: label,
       promptTextRu: byLang.ru,
       promptTextEn: byLang.en,
       matchStrategy: "direct_index",
     });
+    variantIdx += 1;
   });
 
   const photos = media.filter((m) => m.mediaType === "photo");

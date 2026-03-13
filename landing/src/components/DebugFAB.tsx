@@ -1,7 +1,9 @@
 "use client";
 
-import { createContext, useContext, useState, useCallback } from "react";
+import { createContext, useContext, useState, useCallback, useEffect } from "react";
 import { usePathname } from "next/navigation";
+
+const LS_KEY = "debug_open";
 
 type DebugContextValue = {
   debugOpen: boolean;
@@ -24,10 +26,18 @@ export function DebugProvider({ children }: { children: React.ReactNode }) {
   const [panelOpen, setPanelOpen] = useState(false);
   const [hasFilterPanel, setHasFilterPanel] = useState(false);
 
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(LS_KEY);
+      if (stored === "1") setDebugOpen(true);
+    } catch {}
+  }, []);
+
   const toggleDebug = useCallback(() => {
     setDebugOpen((prev) => {
       const next = !prev;
       setPanelOpen(next);
+      try { localStorage.setItem(LS_KEY, next ? "1" : "0"); } catch {}
       return next;
     });
   }, []);

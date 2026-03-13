@@ -129,6 +129,16 @@ export const TAG_REGISTRY: TagEntry[] = [
   { slug: "v_interere", dimension: "object_tag", labelRu: "В интерьере", labelEn: "Indoors", urlPath: "/v-interere", patterns: [/в интерьер|интерьерн/i] },
   { slug: "s_podarkami", dimension: "object_tag", labelRu: "С подарками", labelEn: "With gifts", urlPath: "/s-podarkami", patterns: [/с подарк|подарочн/i] },
   { slug: "s_ochkami", dimension: "object_tag", labelRu: "С очками", labelEn: "With glasses", urlPath: "/s-ochkami", patterns: [/с очками|в очках|очки/i] },
+
+  // ── LLM-discovered tags ──
+  { slug: "fotorealizm", dimension: "style_tag", labelRu: "Фотореализм", labelEn: "Photorealism", urlPath: "/stil/fotorealizm", patterns: [] },
+  { slug: "minimalizm", dimension: "style_tag", labelRu: "Минимализм", labelEn: "Minimalism", urlPath: "/stil/minimalizm", patterns: [] },
+  { slug: "vysokaya_moda", dimension: "style_tag", labelRu: "Высокая мода", labelEn: "High fashion", urlPath: "/stil/vysokaya-moda", patterns: [] },
+  { slug: "s_pitomcem", dimension: "object_tag", labelRu: "s_pitomcem", labelEn: "s_pitomcem", urlPath: "/s-pitomcem", patterns: [] },
+
+  // ── LLM-discovered tags ──
+  { slug: "editorial", dimension: "style_tag", labelRu: "Эдиториал", labelEn: "Editorial", urlPath: "/stil/editorial", patterns: [] },
+  { slug: "noch", dimension: "object_tag", labelRu: "Ночь", labelEn: "Night", urlPath: "/noch", patterns: [] },
 ];
 
 // ── Lookup indexes (built once at import) ──
