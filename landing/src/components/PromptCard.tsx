@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
 import Image from "next/image";
 import type { PromptCardFull } from "@/lib/supabase";
 import { PhotoCarousel } from "./PhotoCarousel";
@@ -95,7 +95,6 @@ function PromptCardDebug({ card }: { card: PromptCardFull }) {
 }
 
 export function PromptCard({ card, debug = false }: Props) {
-  const router = useRouter();
   const { reactions, favorites, toggleReaction, toggleFavorite } = useCardInteractions();
   const title = card.title_ru || card.title_en || "Без названия";
   const seoSlugs = getSeoTagSlugs(card.seo_tags);
@@ -139,16 +138,9 @@ export function PromptCard({ card, debug = false }: Props) {
   const userReaction = reactions.get(card.id) ?? null;
   const isFavorited = favorites.has(card.id);
 
-  const handleCardClick = () => {
-    if (card.slug) {
-      router.push(`/p/${card.slug}`);
-    }
-  };
-
   return (
     <article
       className={`group relative overflow-hidden rounded-2xl transition-all duration-200 hover:shadow-xl hover:shadow-zinc-900/10 hover:-translate-y-0.5 ${card.slug ? "cursor-pointer" : ""}`}
-      role={card.slug ? "link" : undefined}
     >
       <div className="relative aspect-[3/4] w-full overflow-hidden rounded-2xl bg-zinc-200">
         {currentPhoto ? (
@@ -166,10 +158,11 @@ export function PromptCard({ card, debug = false }: Props) {
         )}
 
         {card.slug && (
-          <div
-            className="absolute inset-0 z-10 cursor-pointer"
-            onClick={handleCardClick}
-            aria-hidden
+          <Link
+            href={`/p/${card.slug}`}
+            className="absolute inset-0 z-10"
+            aria-label={title}
+            prefetch
           />
         )}
 

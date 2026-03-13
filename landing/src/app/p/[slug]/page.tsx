@@ -1,3 +1,4 @@
+import { cache } from "react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getCardPageData } from "@/lib/supabase";
@@ -9,6 +10,8 @@ import {
 import { CardPageClient } from "@/components/CardPageClient";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
+
+const getCachedCardPageData = cache(getCardPageData);
 
 const BASE_URL =
   process.env.NEXT_PUBLIC_SITE_URL ||
@@ -69,7 +72,7 @@ type Props = { params: Promise<{ slug: string }> };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
-  const data = await getCardPageData(slug);
+  const data = await getCachedCardPageData(slug);
   if (!data) return {};
 
   const title = data.title_ru || data.title_en || "Промт";
@@ -102,9 +105,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
+export const revalidate = 3600;
+
 export default async function CardPage({ params }: Props) {
   const { slug } = await params;
-  const data = await getCardPageData(slug);
+  const data = await getCachedCardPageData(slug);
 
   if (!data) notFound();
 

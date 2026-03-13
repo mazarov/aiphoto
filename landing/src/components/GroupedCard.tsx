@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
 import Image from "next/image";
 import type { PromptCardFull } from "@/lib/supabase";
 import { CopyPromptButton } from "./CopyPromptButton";
@@ -30,7 +30,6 @@ const WARNING_LABELS: Record<string, string> = {
 };
 
 export function GroupedCard({ cards, debug = false }: Props) {
-  const router = useRouter();
   const sorted = [...cards].sort((a, b) => a.cardSplitIndex - b.cardSplitIndex);
   const [activeCardIdx, setActiveCardIdx] = useState(0);
   const activeCard = sorted[activeCardIdx];
@@ -162,17 +161,11 @@ export function GroupedCard({ cards, debug = false }: Props) {
 
   const activeSlug = activeCard.slug;
 
-  const handleCardClick = (e: React.MouseEvent) => {
-    if (activeSlug) router.push(`/p/${activeSlug}`);
-  };
-
   const articleEl = (
       <article
         className={`relative z-10 overflow-hidden rounded-2xl transition-all duration-200 group-hover:shadow-xl group-hover:shadow-zinc-900/10 group-hover:-translate-y-0.5 group-hover:-translate-x-0.5 ${activeSlug ? "cursor-pointer" : ""}`}
-        role={activeSlug ? "link" : undefined}
       >
         <div className="relative aspect-[3/4] w-full overflow-hidden rounded-2xl bg-zinc-200">
-          {/* Photo — object-cover */}
           {currentPhotoUrl ? (
             <Image
               src={currentPhotoUrl}
@@ -185,12 +178,12 @@ export function GroupedCard({ cards, debug = false }: Props) {
             <div className="flex h-full items-center justify-center bg-zinc-100 text-zinc-400 text-sm">Нет фото</div>
           )}
 
-          {/* Transparent click overlay — above image, below buttons */}
           {activeSlug && (
-            <div
-              className="absolute inset-0 z-10 cursor-pointer"
-              onClick={handleCardClick}
-              aria-hidden
+            <Link
+              href={`/p/${activeSlug}`}
+              className="absolute inset-0 z-10"
+              aria-label={title}
+              prefetch
             />
           )}
 

@@ -65,7 +65,8 @@ export async function fetchRouteCards(params: {
   return result;
 }
 
-/** Fetches sibling cards for any card in a group; never splits groups. */
+/** Fetches sibling cards for any card in a group; never splits groups.
+ *  All group expansions are batched into parallel queries (no N+1). */
 async function expandCardGroups(cards: RouteCard[]): Promise<RouteCard[]> {
   if (cards.length === 0) return [];
   const supabase = createSupabaseServer();
@@ -74,22 +75,31 @@ async function expandCardGroups(cards: RouteCard[]): Promise<RouteCard[]> {
     .from("prompt_cards")
     .select("id,source_dataset_slug,source_message_id,card_split_total")
     .in("id", [...ids]);
-  const groupsToExpand = new Set<string>();
+
+  const groupKeys: { dataset: string; msgId: number }[] = [];
   for (const r of meta || []) {
     const row = r as { id: string; source_dataset_slug: string | null; source_message_id: number | null; card_split_total: number | null };
     if (row.card_split_total && row.card_split_total > 1 && row.source_dataset_slug && row.source_message_id != null) {
-      groupsToExpand.add(`${row.source_dataset_slug}::${row.source_message_id}`);
+      const key = `${row.source_dataset_slug}::${row.source_message_id}`;
+      if (!groupKeys.some((g) => `${g.dataset}::${g.msgId}` === key)) {
+        groupKeys.push({ dataset: row.source_dataset_slug, msgId: row.source_message_id });
+      }
     }
   }
-  if (groupsToExpand.size === 0) return cards;
+  if (groupKeys.length === 0) return cards;
+
+  const siblingResults = await Promise.all(
+    groupKeys.map(({ dataset, msgId }) =>
+      supabase
+        .from("prompt_cards")
+        .select("id,slug,title_ru,title_en,seo_tags,seo_readiness_score")
+        .eq("source_dataset_slug", dataset)
+        .eq("source_message_id", msgId)
+    )
+  );
+
   const allIds = new Set(ids);
-  for (const gk of groupsToExpand) {
-    const [dataset, msgId] = gk.split("::");
-    const { data: siblings } = await supabase
-      .from("prompt_cards")
-      .select("id,slug,title_ru,title_en,seo_tags,seo_readiness_score")
-      .eq("source_dataset_slug", dataset)
-      .eq("source_message_id", Number(msgId));
+  for (const { data: siblings } of siblingResults) {
     for (const s of siblings || []) {
       const row = s as { id: string; slug: string; title_ru: string; title_en: string | null; seo_tags: unknown; seo_readiness_score: number | null };
       if (!allIds.has(row.id)) {
