@@ -138,6 +138,25 @@ export async function searchCardsFiltered(params: {
   return expandCardGroups(cards);
 }
 
+export type SearchTextResult = RouteCard & { match_type: string };
+
+export async function searchCardsByText(
+  query: string,
+  limit = 20,
+  offset = 0
+): Promise<SearchTextResult[]> {
+  const supabase = createSupabaseServer();
+  const { data, error } = await supabase.rpc("search_cards_text", {
+    p_query: query,
+    p_limit: limit,
+    p_offset: offset,
+  });
+
+  if (error) throw new Error(`search_cards_text: ${error.message}`);
+  const cards = (data || []) as SearchTextResult[];
+  return expandCardGroups(cards) as Promise<SearchTextResult[]>;
+}
+
 export async function fetchDatasets(): Promise<string[]> {
   const supabase = createSupabaseServer();
   const { data, error } = await supabase
@@ -375,6 +394,11 @@ export async function enrichCardsWithDetails(
         .select("card_id,storage_bucket,storage_path")
         .in("card_id", ids),
     ]);
+
+  if (cardsMetaRes.error) console.error("[enrich] cardsMetaRes error:", cardsMetaRes.error.message);
+  if (variantsRes.error) console.error("[enrich] variantsRes error:", variantsRes.error.message);
+  if (mediaRes.error) console.error("[enrich] mediaRes error:", mediaRes.error.message);
+  if (beforeMediaRes.error) console.error("[enrich] beforeMediaRes error:", beforeMediaRes.error.message);
 
   type CardMeta = {
     datasetSlug: string | null;

@@ -2,7 +2,8 @@
 
 import { useState, useRef, useCallback } from "react";
 import Link from "next/link";
-import type { MenuSectionWithCounts, MenuGroupWithCounts, MenuItemWithCount } from "@/lib/menu";
+import type { MenuSectionWithCounts } from "@/lib/menu";
+import { SearchBar } from "./SearchBar";
 
 function CountBadge({ count }: { count?: number }) {
   if (count === undefined) return null;
@@ -216,15 +217,18 @@ export function HeaderClient({ menu }: { menu: MenuSectionWithCounts[] }) {
             ))}
           </nav>
 
-          <button
-            type="button"
-            onClick={() => setMobileOpen(true)}
-            className="rounded-xl p-2 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-600 lg:hidden"
-          >
-            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-          </button>
+          <div className="flex items-center gap-1">
+            <SearchBar />
+            <button
+              type="button"
+              onClick={() => setMobileOpen(true)}
+              className="rounded-xl p-2 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-600 lg:hidden"
+            >
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
+          </div>
         </div>
       </header>
       <MobileMenu open={mobileOpen} onClose={() => setMobileOpen(false)} menu={menu} />
