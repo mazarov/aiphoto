@@ -77,7 +77,7 @@ export function SearchBar() {
   const desktopRef = useRef<HTMLDivElement>(null);
   const desktopInputRef = useRef<HTMLInputElement>(null);
   const mobileInputRef = useRef<HTMLInputElement>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const fetchResults = useCallback(async (q: string) => {
     if (q.length < MIN_QUERY) {
