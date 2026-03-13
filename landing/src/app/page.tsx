@@ -28,7 +28,6 @@ const SECTION_ORDER: Dimension[] = [
   "style_tag",
   "occasion_tag",
   "object_tag",
-  "doc_task_tag",
 ];
 
 export default async function HomePage() {

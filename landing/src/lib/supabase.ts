@@ -42,7 +42,6 @@ export async function fetchRouteCards(params: {
   style_tag?: string | null;
   occasion_tag?: string | null;
   object_tag?: string | null;
-  doc_task_tag?: string | null;
   site_lang?: string;
   limit?: number;
   offset?: number;
@@ -53,7 +52,7 @@ export async function fetchRouteCards(params: {
     p_style_tag: params.style_tag ?? null,
     p_occasion_tag: params.occasion_tag ?? null,
     p_object_tag: params.object_tag ?? null,
-    p_doc_task_tag: params.doc_task_tag ?? null,
+    p_doc_task_tag: null,
     p_site_lang: params.site_lang ?? "ru",
     p_limit: params.limit ?? 24,
     p_offset: params.offset ?? 0,
@@ -175,7 +174,7 @@ export async function fetchDatasets(): Promise<string[]> {
 }
 
 export async function fetchMenuCounts(
-  routeMap: { href: string; params: { audience_tag?: string; style_tag?: string; occasion_tag?: string; object_tag?: string; doc_task_tag?: string } }[]
+  routeMap: { href: string; params: { audience_tag?: string; style_tag?: string; occasion_tag?: string; object_tag?: string } }[]
 ): Promise<Record<string, number>> {
   if (routeMap.length === 0) return {};
 
@@ -191,7 +190,7 @@ export async function fetchMenuCounts(
         p_style_tag: params.style_tag ?? null,
         p_occasion_tag: params.occasion_tag ?? null,
         p_object_tag: params.object_tag ?? null,
-        p_doc_task_tag: params.doc_task_tag ?? null,
+        p_doc_task_tag: null,
         p_site_lang: "ru",
         p_limit: 1000,
         p_offset: 0,
@@ -312,7 +311,7 @@ export function pickDeduplicatedPhotos(
 /** Build menu counts from homepage sections data (avoids ~80 separate RPC calls). */
 export function buildMenuCountsFromSections(
   sections: { dimension: string; slug: string; total_count: number }[],
-  routeMap: { href: string; params: { audience_tag?: string; style_tag?: string; occasion_tag?: string; object_tag?: string; doc_task_tag?: string } }[]
+  routeMap: { href: string; params: { audience_tag?: string; style_tag?: string; occasion_tag?: string; object_tag?: string } }[]
 ): Record<string, number> {
   const countsByDimSlug = new Map<string, number>();
   for (const s of sections) {

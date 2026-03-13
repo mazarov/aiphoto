@@ -2,8 +2,7 @@ export type Dimension =
   | "audience_tag"
   | "style_tag"
   | "occasion_tag"
-  | "object_tag"
-  | "doc_task_tag";
+  | "object_tag";
 
 export type TagEntry = {
   slug: string;
@@ -111,12 +110,7 @@ export const TAG_REGISTRY: TagEntry[] = [
   { slug: "s_bokalom", dimension: "object_tag", labelRu: "С бокалом", labelEn: "With glass", urlPath: "/s-bokalom", patterns: [/бокал|шампанск/i] },
   { slug: "s_kofe", dimension: "object_tag", labelRu: "С кофе", labelEn: "With coffee", urlPath: "/s-kofe", patterns: [/кофе|чашечк/i] },
 
-  // ── doc_task_tag ──
-  { slug: "na_pasport", dimension: "doc_task_tag", labelRu: "На паспорт", labelEn: "Passport", urlPath: "/foto-na-pasport", patterns: [/на паспорт/i] },
-  { slug: "na_dokumenty", dimension: "doc_task_tag", labelRu: "На документы", labelEn: "For documents", urlPath: "/foto-na-dokumenty", patterns: [/на документ/i] },
-  { slug: "na_avatarku", dimension: "doc_task_tag", labelRu: "На аватарку", labelEn: "For avatar", urlPath: "/foto-na-avatarku", patterns: [/на аватарк|на аву|аватар/i] },
-  { slug: "na_rezume", dimension: "doc_task_tag", labelRu: "На резюме", labelEn: "For resume", urlPath: "/foto-na-rezume", patterns: [/на резюме|для резюме/i] },
-  { slug: "na_zagranpasport", dimension: "doc_task_tag", labelRu: "На загранпаспорт", labelEn: "For passport", urlPath: "/foto-na-zagranpasport", patterns: [/на загранпаспорт/i] },
+  { slug: "na_avatarku", dimension: "object_tag", labelRu: "На аватарку", labelEn: "For avatar", urlPath: "/foto-na-avatarku", patterns: [/на аватарк|на аву|аватар/i] },
 
   // ── LLM-discovered tags ──
   { slug: "kinematograficheskoe", dimension: "style_tag", labelRu: "Кинематографическое", labelEn: "Cinematic", urlPath: "/stil/kinematograficheskoe", patterns: [/кинематограф/i] },
@@ -163,13 +157,12 @@ export function findTagBySlug(dimension: Dimension, slug: string): TagEntry | nu
   return bySlug.get(`${dimension}:${slug}`) ?? null;
 }
 
-/** First tag from seo_tags by priority (for breadcrumb). audience_tag > style_tag > occasion_tag > object_tag > doc_task_tag */
+/** First tag from seo_tags by priority (for breadcrumb). audience_tag > style_tag > occasion_tag > object_tag */
 const BREADCRUMB_DIMENSIONS: Dimension[] = [
   "audience_tag",
   "style_tag",
   "occasion_tag",
   "object_tag",
-  "doc_task_tag",
 ];
 
 export function getFirstTagFromSeoTags(seoTags: Record<string, unknown> | null): TagEntry | null {
@@ -205,5 +198,4 @@ export const DIMENSION_LABELS: Record<Dimension, string> = {
   style_tag: "Стили",
   occasion_tag: "События",
   object_tag: "Сцены и объекты",
-  doc_task_tag: "Задачи",
 };

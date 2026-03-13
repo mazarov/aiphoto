@@ -60,8 +60,6 @@ const INTRO_TEMPLATES: Record<string, string> = {
     "Промпты для праздничных и тематических фото. День рождения, 8 марта, свадьба, Новый год — готовые формулировки для нейросетей, чтобы создать атмосферное фото к любому событию.",
   object_tag:
     "Промпты для фото с объектами, в определённой обстановке или позе. С машиной, с цветами, на море, в зеркале — копируй и используй в ИИ для создания нужной сцены.",
-  doc_task_tag:
-    "Промпты для создания фото на документы: паспорт, резюме, аватарку. Готовые формулировки под требования к освещению, фону и ракурсу — для нейросетей и фоторедакторов.",
 };
 
 const HOW_TO_STEPS = [
@@ -181,7 +179,6 @@ export default async function TagPage({ params, searchParams }: Props) {
     style_tag: null,
     occasion_tag: null,
     object_tag: null,
-    doc_task_tag: null,
   };
   rpcParams[tag.dimension] = tag.slug;
 
@@ -190,7 +187,6 @@ export default async function TagPage({ params, searchParams }: Props) {
     style_tag: rpcParams.style_tag,
     occasion_tag: rpcParams.occasion_tag,
     object_tag: rpcParams.object_tag,
-    doc_task_tag: rpcParams.doc_task_tag,
     limit: PAGE_SIZE,
     offset,
   });

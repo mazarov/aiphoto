@@ -37,7 +37,6 @@ export type RouteParams = {
   style_tag?: string;
   occasion_tag?: string;
   object_tag?: string;
-  doc_task_tag?: string;
 };
 
 function tagItem(slug: string): MenuItem {
@@ -222,12 +221,6 @@ const CURATED_SECTIONS: MenuSection[] = [
       },
     ],
   },
-  // "Задачи" (doc_task_tag) скрыт из меню — мало контента
-  // {
-  //   label: "Задачи",
-  //   dimension: "doc_task_tag",
-  //   groups: [{ title: "Документы", items: [...] }],
-  // },
   {
     label: "Сцены и объекты",
     dimension: "object_tag",
@@ -258,6 +251,7 @@ const CURATED_SECTIONS: MenuSection[] = [
           tagItem("na_chernom_fone"),
           tagItem("v_platye"),
           tagItem("v_polnyy_rost"),
+          tagItem("na_avatarku"),
         ],
       },
       {
@@ -286,7 +280,7 @@ function buildMenu(): MenuSection[] {
   const sections = CURATED_SECTIONS.map(withAutoGroup);
   const coveredDims = new Set(CURATED_SECTIONS.map((s) => s.dimension));
 
-  const ALL_DIMS: Dimension[] = ["audience_tag", "style_tag", "occasion_tag", "object_tag", "doc_task_tag"];
+  const ALL_DIMS: Dimension[] = ["audience_tag", "style_tag", "occasion_tag", "object_tag"];
   for (const dim of ALL_DIMS) {
     if (coveredDims.has(dim)) continue;
     const tags = TAG_REGISTRY.filter((t) => t.dimension === dim);

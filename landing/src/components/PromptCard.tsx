@@ -19,7 +19,6 @@ function getSeoTagSlugs(seoTags: unknown): string[] {
     "style_tag",
     "occasion_tag",
     "object_tag",
-    "doc_task_tag",
   ].flatMap((d) => (t[d] || []) as string[]);
 }
 

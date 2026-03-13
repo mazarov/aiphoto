@@ -19,7 +19,6 @@ const DIMENSIONS: Dimension[] = [
   "style_tag",
   "occasion_tag",
   "object_tag",
-  "doc_task_tag",
 ];
 
 function getSeoSlugsWithTags(

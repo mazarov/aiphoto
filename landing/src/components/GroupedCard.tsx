@@ -14,7 +14,7 @@ type Props = {
 function getSeoTagSlugs(seoTags: unknown): string[] {
   const t = seoTags as Record<string, string[]> | null;
   if (!t) return [];
-  return ["audience_tag", "style_tag", "occasion_tag", "object_tag", "doc_task_tag"].flatMap(
+  return ["audience_tag", "style_tag", "occasion_tag", "object_tag"].flatMap(
     (d) => (t[d] || []) as string[]
   );
 }
