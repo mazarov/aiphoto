@@ -6,6 +6,7 @@ import { TAG_REGISTRY } from "@/lib/tag-registry";
 import { PromptCard } from "./PromptCard";
 import { GroupedCard } from "./GroupedCard";
 import { useDebug } from "./DebugFAB";
+import { CardInteractionsProvider } from "@/context/CardInteractionsContext";
 
 type Props = {
   cards: PromptCardFull[];
@@ -203,7 +204,13 @@ export function FilterableGrid({ cards }: Props) {
         ? `${gridItems.length} (${groupCount} групп) из ${cards.length}`
         : `${filtered.length} из ${cards.length}`;
 
+  const cardIds = useMemo(
+    () => filtered.map((c) => c.id),
+    [filtered]
+  );
+
   return (
+    <CardInteractionsProvider cardIds={cardIds}>
     <div>
       {/* Grid */}
       {(isIdMode && searching) || (isFilterMode && filterSearching) ? (
@@ -348,5 +355,6 @@ export function FilterableGrid({ cards }: Props) {
         </>
       )}
     </div>
+    </CardInteractionsProvider>
   );
 }

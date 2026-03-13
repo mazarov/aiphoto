@@ -3,6 +3,24 @@ import { createSupabaseServer, enrichCardsWithDetails } from "@/lib/supabase";
 import type { RouteCard } from "@/lib/supabase";
 
 export async function GET(req: NextRequest) {
+  // Batch fetch by comma-separated IDs (for favorites page)
+  const idsParam = req.nextUrl.searchParams.get("ids")?.trim();
+  if (idsParam) {
+    const ids = idsParam.split(",").filter((id) => id.length > 0);
+    if (ids.length === 0) return NextResponse.json({ cards: [] });
+
+    const supabase = createSupabaseServer();
+    const { data } = await supabase
+      .from("prompt_cards")
+      .select("id,slug,title_ru,title_en,seo_tags")
+      .in("id", ids)
+      .eq("is_published", true);
+
+    const rows: RouteCard[] = (data || []).map((r) => ({ ...r, relevance_score: 0 }));
+    const enriched = await enrichCardsWithDetails(rows);
+    return NextResponse.json({ cards: enriched });
+  }
+
   const q = req.nextUrl.searchParams.get("q")?.trim();
   if (!q || q.length < 4) {
     return NextResponse.json({ cards: [] });

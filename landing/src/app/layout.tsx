@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { DebugProvider } from "@/components/DebugFAB";
+import { AuthProvider } from "@/context/AuthContext";
+import { AuthModal } from "@/components/AuthModal";
 
 const inter = Inter({
   subsets: ["latin", "cyrillic"],
@@ -23,7 +25,10 @@ export default function RootLayout({
   return (
     <html lang="ru" className={inter.className}>
       <body className="min-h-screen bg-white text-zinc-900 antialiased">
-        <DebugProvider>{children}</DebugProvider>
+        <AuthProvider>
+          <DebugProvider>{children}</DebugProvider>
+          <AuthModal />
+        </AuthProvider>
       </body>
     </html>
   );

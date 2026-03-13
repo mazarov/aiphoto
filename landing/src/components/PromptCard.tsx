@@ -5,6 +5,9 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import type { PromptCardFull } from "@/lib/supabase";
 import { PhotoCarousel } from "./PhotoCarousel";
+import { ReactionButtons } from "./ReactionButtons";
+import { FavoriteButton } from "./FavoriteButton";
+import { useCardInteractions } from "@/context/CardInteractionsContext";
 
 type Props = {
   card: PromptCardFull;
@@ -127,6 +130,10 @@ export function PromptCard({ card, debug = false }: Props) {
   }
 
   // === Normal mode ===
+  const { reactions, favorites, toggleReaction, toggleFavorite } = useCardInteractions();
+  const userReaction = reactions.get(card.id) ?? null;
+  const isFavorited = favorites.has(card.id);
+
   const handleCardClick = (e: React.MouseEvent) => {
     if (card.slug) {
       router.push(`/p/${card.slug}`);
@@ -197,9 +204,9 @@ export function PromptCard({ card, debug = false }: Props) {
           </div>
         )}
 
-        {/* Top badges */}
-        <div className="absolute top-3 left-3 right-3 z-20 flex items-start justify-between pointer-events-none">
-          <div className="flex items-center gap-1.5">
+        {/* Top badges + bookmark */}
+        <div className="absolute top-3 left-3 right-3 z-20 flex items-start justify-between">
+          <div className="flex items-center gap-1.5 pointer-events-none">
             {card.beforePhotoUrl && <div className="w-[28%] min-w-[72px]" />}
             {card.cardSplitTotal > 1 && (
               <div className="rounded-full bg-indigo-500/80 backdrop-blur-md px-2 py-0.5 text-[10px] font-bold text-white shadow">
@@ -207,12 +214,21 @@ export function PromptCard({ card, debug = false }: Props) {
               </div>
             )}
           </div>
-          {/* Photo counter */}
-          {photos.length > 1 && (
-            <div className="rounded-full bg-black/40 backdrop-blur-md px-2 py-0.5 text-[10px] font-medium text-white/90 tabular-nums">
-              {photoIndex + 1}/{photos.length}
+          <div className="flex items-center gap-1.5">
+            {photos.length > 1 && (
+              <div className="rounded-full bg-black/40 backdrop-blur-md px-2 py-0.5 text-[10px] font-medium text-white/90 tabular-nums pointer-events-none">
+                {photoIndex + 1}/{photos.length}
+              </div>
+            )}
+            <div className="opacity-0 group-hover:opacity-100 transition-opacity pointer-events-auto">
+              <FavoriteButton
+                cardId={card.id}
+                isFavorited={isFavorited}
+                onToggle={toggleFavorite}
+                variant="overlay"
+              />
             </div>
-          )}
+          </div>
         </div>
 
         {/* Photo dots */}
@@ -231,22 +247,36 @@ export function PromptCard({ card, debug = false }: Props) {
           </div>
         )}
 
-        {/* Default overlay — pointer-events-none so clicks pass through to navigation overlay */}
+        {/* Default overlay */}
         {!expanded && (
-          <div className="absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/80 via-black/40 to-transparent pt-20 pb-3.5 px-3.5 pointer-events-none">
-            <h3 className="text-[13px] font-semibold text-white leading-snug line-clamp-2 mb-1">
-              {title}
-            </h3>
-            {promptPreview && (
-              <p className="text-[11px] text-white/60 leading-relaxed line-clamp-1 mb-1">
-                {promptPreview}
-              </p>
-            )}
+          <div className="absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/80 via-black/40 to-transparent pt-20 pb-3.5 px-3.5">
+            <div className="flex items-end justify-between gap-2 pointer-events-none">
+              <div className="flex-1 min-w-0">
+                <h3 className="text-[13px] font-semibold text-white leading-snug line-clamp-2 mb-0.5">
+                  {title}
+                </h3>
+                {promptPreview && (
+                  <p className="text-[11px] text-white/60 leading-relaxed line-clamp-1">
+                    {promptPreview}
+                  </p>
+                )}
+              </div>
+              <div className="flex-shrink-0 pointer-events-auto opacity-0 group-hover:opacity-100 transition-opacity">
+                <ReactionButtons
+                  cardId={card.id}
+                  likesCount={card.likesCount}
+                  dislikesCount={card.dislikesCount}
+                  userReaction={userReaction}
+                  onToggle={toggleReaction}
+                  variant="overlay"
+                />
+              </div>
+            </div>
             {card.promptTexts.length > 0 && (
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); e.preventDefault(); setExpanded(true); }}
-                className="mt-1 w-full rounded-lg bg-white/15 backdrop-blur-md border border-white/10 px-2 py-1.5 sm:px-3 sm:py-2 text-[10px] sm:text-[11px] font-semibold text-white transition-all hover:bg-white/25 active:scale-[0.98] pointer-events-auto truncate"
+                className="mt-2 w-full rounded-lg bg-white/15 backdrop-blur-md border border-white/10 px-2 py-1.5 sm:px-3 sm:py-2 text-[10px] sm:text-[11px] font-semibold text-white transition-all hover:bg-white/25 active:scale-[0.98] pointer-events-auto truncate"
               >
                 Скопировать
               </button>

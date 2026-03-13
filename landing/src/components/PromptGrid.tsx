@@ -1,11 +1,17 @@
+"use client";
+
+import { useMemo } from "react";
 import type { PromptCardFull } from "@/lib/supabase";
 import { PromptCard } from "./PromptCard";
+import { CardInteractionsProvider } from "@/context/CardInteractionsContext";
 
 type Props = {
   cards: PromptCardFull[];
 };
 
 export function PromptGrid({ cards }: Props) {
+  const cardIds = useMemo(() => cards.map((c) => c.id), [cards]);
+
   if (cards.length === 0) {
     return (
       <p className="py-12 text-center text-stone-500">
@@ -15,10 +21,12 @@ export function PromptGrid({ cards }: Props) {
   }
 
   return (
-    <div className="grid grid-cols-2 gap-2 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3 xl:grid-cols-4">
-      {cards.map((card) => (
-        <PromptCard key={card.id} card={card} />
-      ))}
-    </div>
+    <CardInteractionsProvider cardIds={cardIds}>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3 xl:grid-cols-4">
+        {cards.map((card) => (
+          <PromptCard key={card.id} card={card} />
+        ))}
+      </div>
+    </CardInteractionsProvider>
   );
 }

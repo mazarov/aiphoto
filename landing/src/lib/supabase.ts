@@ -352,6 +352,8 @@ export type PromptCardFull = RouteCard & {
   cardSplitIndex: number;
   cardSplitTotal: number;
   sourceGroupKey: string | null;
+  likesCount: number;
+  dislikesCount: number;
 };
 
 type MediaRow = {
@@ -374,7 +376,7 @@ export async function enrichCardsWithDetails(
       supabase
         .from("prompt_cards")
         .select(
-          "id,source_dataset_slug,source_message_id,source_date,hashtags,parse_warnings,seo_readiness_score,card_split_index,card_split_total"
+          "id,source_dataset_slug,source_message_id,source_date,hashtags,parse_warnings,seo_readiness_score,card_split_index,card_split_total,likes_count,dislikes_count"
         )
         .in("id", ids),
       supabase
@@ -408,6 +410,8 @@ export async function enrichCardsWithDetails(
     seoReadinessScore: number;
     cardSplitIndex: number;
     cardSplitTotal: number;
+    likesCount: number;
+    dislikesCount: number;
   };
   const metaByCard = new Map<string, CardMeta>();
   for (const row of cardsMetaRes.data || []) {
@@ -421,6 +425,8 @@ export async function enrichCardsWithDetails(
       seo_readiness_score: number | null;
       card_split_index: number | null;
       card_split_total: number | null;
+      likes_count: number | null;
+      dislikes_count: number | null;
     };
     metaByCard.set(r.id, {
       datasetSlug: r.source_dataset_slug,
@@ -431,6 +437,8 @@ export async function enrichCardsWithDetails(
       seoReadinessScore: r.seo_readiness_score ?? 0,
       cardSplitIndex: r.card_split_index ?? 0,
       cardSplitTotal: r.card_split_total ?? 1,
+      likesCount: r.likes_count ?? 0,
+      dislikesCount: r.dislikes_count ?? 0,
     });
   }
 
@@ -510,6 +518,8 @@ export async function enrichCardsWithDetails(
         meta?.datasetSlug && meta?.sourceMessageId
           ? `${meta.datasetSlug}::${meta.sourceMessageId}`
           : null,
+      likesCount: meta?.likesCount ?? 0,
+      dislikesCount: meta?.dislikesCount ?? 0,
     };
   });
 }
@@ -567,6 +577,8 @@ export type CardPageData = {
   card_split_total: number;
   siblings: CardPageSibling[];
   groupFirstSlug: string | null;
+  likesCount: number;
+  dislikesCount: number;
 };
 
 /** Fetches full card data for /p/[slug] page and generateMetadata. */
@@ -575,7 +587,7 @@ export async function getCardPageData(slug: string): Promise<CardPageData | null
   const { data: card } = await supabase
     .from("prompt_cards")
     .select(
-      "id,slug,title_ru,title_en,seo_tags,hashtags,is_published,source_date,source_dataset_slug,source_message_id,card_split_index,card_split_total"
+      "id,slug,title_ru,title_en,seo_tags,hashtags,is_published,source_date,source_dataset_slug,source_message_id,card_split_index,card_split_total,likes_count,dislikes_count"
     )
     .eq("slug", slug)
     .eq("is_published", true)
@@ -719,5 +731,7 @@ export async function getCardPageData(slug: string): Promise<CardPageData | null
     card_split_total: splitTotal,
     siblings,
     groupFirstSlug,
+    likesCount: (card as Record<string, unknown>).likes_count as number ?? 0,
+    dislikesCount: (card as Record<string, unknown>).dislikes_count as number ?? 0,
   };
 }

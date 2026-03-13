@@ -4,6 +4,9 @@ import { useState, useMemo } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import type { CardPageData } from "@/lib/supabase";
+import { CardInteractionsProvider, useCardInteractions } from "@/context/CardInteractionsContext";
+import { ReactionButtons } from "./ReactionButtons";
+import { FavoriteButton } from "./FavoriteButton";
 
 type TagEntry = { slug: string; label: string; href: string | null };
 type BreadcrumbTag = { labelRu: string; urlPath: string } | null;
@@ -15,7 +18,19 @@ type Props = {
 };
 
 export function CardPageClient({ data, tagEntries, breadcrumbTag }: Props) {
+  const cardIds = useMemo(() => [data.id], [data.id]);
+  return (
+    <CardInteractionsProvider cardIds={cardIds}>
+      <CardPageClientInner data={data} tagEntries={tagEntries} breadcrumbTag={breadcrumbTag} />
+    </CardInteractionsProvider>
+  );
+}
+
+function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
   const title = data.title_ru || data.title_en || "Без названия";
+  const { reactions, favorites, toggleReaction, toggleFavorite } = useCardInteractions();
+  const userReaction = reactions.get(data.id) ?? null;
+  const isFavorited = favorites.has(data.id);
 
   const [photoIndex, setPhotoIndex] = useState(0);
   const [copied, setCopied] = useState(false);
@@ -143,9 +158,9 @@ export function CardPageClient({ data, tagEntries, breadcrumbTag }: Props) {
                 </div>
               )}
 
-              {/* Top badges */}
-              <div className="absolute top-3 left-3 right-3 z-20 flex items-start justify-between pointer-events-none">
-                <div className="flex items-center gap-1.5">
+              {/* Top badges + bookmark */}
+              <div className="absolute top-3 left-3 right-3 z-20 flex items-start justify-between">
+                <div className="flex items-center gap-1.5 pointer-events-none">
                   {data.beforePhotoUrl && <div className="w-[28%] min-w-[72px]" />}
                   {data.card_split_total > 1 && (
                     <div className="rounded-full bg-indigo-500/80 backdrop-blur-md px-2 py-0.5 text-[10px] font-bold text-white shadow">
@@ -153,12 +168,19 @@ export function CardPageClient({ data, tagEntries, breadcrumbTag }: Props) {
                     </div>
                   )}
                 </div>
-                {/* Photo counter */}
-                {photos.length > 1 && (
-                  <div className="rounded-full bg-black/40 backdrop-blur-md px-2 py-0.5 text-[10px] font-medium text-white/90 tabular-nums">
-                    {photoIndex + 1}/{photos.length}
-                  </div>
-                )}
+                <div className="flex items-center gap-1.5">
+                  {photos.length > 1 && (
+                    <div className="rounded-full bg-black/40 backdrop-blur-md px-2 py-0.5 text-[10px] font-medium text-white/90 tabular-nums pointer-events-none">
+                      {photoIndex + 1}/{photos.length}
+                    </div>
+                  )}
+                  <FavoriteButton
+                    cardId={data.id}
+                    isFavorited={isFavorited}
+                    onToggle={toggleFavorite}
+                    variant="overlay-lg"
+                  />
+                </div>
               </div>
 
               {/* Photo dots */}
@@ -179,33 +201,47 @@ export function CardPageClient({ data, tagEntries, breadcrumbTag }: Props) {
                 </div>
               )}
 
-              {/* Bottom gradient overlay — title (h1) + tags */}
-              <div className="absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/80 via-black/40 to-transparent pt-20 pb-3.5 px-3.5">
-                <h1 className="text-[13px] font-semibold text-white leading-snug line-clamp-2 mb-1.5">
-                  {title}
-                </h1>
-                {tagEntries.length > 0 && (
-                  <div className="flex flex-wrap gap-1 pointer-events-auto">
-                    {tagEntries.map(({ slug, label, href }) =>
-                      href ? (
-                        <Link
-                          key={slug}
-                          href={href}
-                          className="rounded-full bg-white/15 backdrop-blur-md px-2 py-0.5 text-[10px] text-white/80 transition-colors hover:bg-white/25"
-                        >
-                          {label}
-                        </Link>
-                      ) : (
-                        <span
-                          key={slug}
-                          className="rounded-full bg-white/15 backdrop-blur-md px-2 py-0.5 text-[10px] text-white/80"
-                        >
-                          {label}
-                        </span>
-                      )
+              {/* Bottom gradient overlay — title + tags + reactions */}
+              <div className="absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/80 via-black/40 to-transparent pt-20 pb-4 px-4">
+                <div className="flex items-end justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <h1 className="text-base font-semibold text-white leading-snug line-clamp-2 mb-1.5">
+                      {title}
+                    </h1>
+                    {tagEntries.length > 0 && (
+                      <div className="flex flex-wrap gap-1 pointer-events-auto">
+                        {tagEntries.map(({ slug, label, href }) =>
+                          href ? (
+                            <Link
+                              key={slug}
+                              href={href}
+                              className="rounded-full bg-white/15 backdrop-blur-md px-2 py-0.5 text-[10px] text-white/80 transition-colors hover:bg-white/25"
+                            >
+                              {label}
+                            </Link>
+                          ) : (
+                            <span
+                              key={slug}
+                              className="rounded-full bg-white/15 backdrop-blur-md px-2 py-0.5 text-[10px] text-white/80"
+                            >
+                              {label}
+                            </span>
+                          )
+                        )}
+                      </div>
                     )}
                   </div>
-                )}
+                  <div className="flex-shrink-0 pointer-events-auto">
+                    <ReactionButtons
+                      cardId={data.id}
+                      likesCount={data.likesCount}
+                      dislikesCount={data.dislikesCount}
+                      userReaction={userReaction}
+                      onToggle={toggleReaction}
+                      variant="overlay-lg"
+                    />
+                  </div>
+                </div>
               </div>
             </div>
           </article>
@@ -248,6 +284,7 @@ export function CardPageClient({ data, tagEntries, breadcrumbTag }: Props) {
               })}
             </div>
           )}
+
         </div>
 
         {/* ── Right: Content ── */}

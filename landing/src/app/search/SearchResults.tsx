@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { PromptCard } from "@/components/PromptCard";
 import type { PromptCardFull } from "@/lib/supabase";
+import { CardInteractionsProvider } from "@/context/CardInteractionsContext";
 
 const PAGE_SIZE = 20;
 
@@ -87,7 +88,10 @@ export function SearchResults({ initialQuery }: Props) {
     }
   };
 
+  const cardIds = useMemo(() => cards.map((c) => c.id), [cards]);
+
   return (
+    <CardInteractionsProvider cardIds={cardIds}>
     <div>
       {/* Search input */}
       <form onSubmit={handleSubmit} className="mb-8">
@@ -202,5 +206,6 @@ export function SearchResults({ initialQuery }: Props) {
         </div>
       )}
     </div>
+    </CardInteractionsProvider>
   );
 }

@@ -68,7 +68,7 @@ function ResultCard({
 export function SearchBar() {
   const router = useRouter();
   const pathname = usePathname();
-  const hideMobileBar = pathname === "/" || pathname.startsWith("/search");
+  const hideMobileBar = pathname === "/" || pathname.startsWith("/search") || pathname.startsWith("/p/");
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<PromptCardFull[]>([]);
   const [showResults, setShowResults] = useState(false);
