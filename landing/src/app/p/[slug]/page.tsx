@@ -179,7 +179,7 @@ export default async function CardPage({ params }: Props) {
       />
       <Header />
 
-      <main className="flex-1">
+      <main className="flex-1 pb-20 lg:pb-0">
         <CardPageClient
           data={data}
           tagEntries={tagEntries}

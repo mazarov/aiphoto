@@ -262,18 +262,16 @@ export function SearchBar() {
         )}
       </div>
 
-      {/* ═══════════ Mobile: floating bottom bar ═══════════ */}
+      {/* ═══════════ Mobile: compact bottom search pill ═══════════ */}
       {!mobileActive && !hideMobileBar && (
         <button
           type="button"
           onClick={() => setMobileActive(true)}
-          className="animate-slide-up animate-pulse-glow fixed bottom-5 left-4 right-4 z-40 flex items-center gap-3 rounded-[18px] border border-white/60 bg-white/90 px-5 py-4 shadow-[0_8px_40px_-8px_rgba(0,0,0,0.12)] backdrop-blur-2xl transition-transform active:scale-[0.98] lg:hidden"
-          style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
+          className="fixed bottom-4 left-1/2 z-40 -translate-x-1/2 flex items-center gap-2.5 rounded-full border border-zinc-200/80 bg-white/95 pl-4 pr-5 py-2.5 shadow-lg shadow-zinc-900/10 backdrop-blur-xl transition-transform active:scale-[0.97] lg:hidden"
+          style={{ marginBottom: "env(safe-area-inset-bottom)" }}
         >
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-500 shadow-sm">
-            <SearchIcon className="h-4 w-4 text-white" />
-          </div>
-          <span className="flex-1 text-left text-[15px] text-zinc-400">Найти промт...</span>
+          <SearchIcon className="h-4 w-4 text-zinc-400" />
+          <span className="text-[13px] font-medium text-zinc-400">Найти промт</span>
         </button>
       )}
 

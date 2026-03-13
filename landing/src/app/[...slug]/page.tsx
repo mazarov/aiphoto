@@ -259,7 +259,7 @@ export default async function TagPage({ params, searchParams }: Props) {
         </div>
       </section>
 
-      <main className="mx-auto w-full max-w-7xl flex-1 px-2 sm:px-5 py-10">
+      <main className="mx-auto w-full max-w-7xl flex-1 px-2 sm:px-5 py-10 pb-24 lg:pb-10">
         <FilterableGrid cards={cards} />
 
         {/* Pagination */}
