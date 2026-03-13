@@ -128,9 +128,6 @@ export function FilterableGrid({ cards }: Props) {
     return () => { if (filterDebounceRef.current) clearTimeout(filterDebounceRef.current); };
   }, [isFilterMode, doFilterSearch]);
 
-  const sourceCards =
-    isIdMode ? (searchResults || []) : isFilterMode ? (filterResults || []) : cards;
-
   const allTags = useMemo(() => {
     const set = new Set<string>(TAG_REGISTRY.map((e) => e.slug));
     for (const c of cards) { for (const slug of getSeoTagSlugs(c.seo_tags)) set.add(slug); }
@@ -139,6 +136,8 @@ export function FilterableGrid({ cards }: Props) {
   }, [cards, filterResults]);
 
   const filtered = useMemo(() => {
+    const sourceCards =
+      isIdMode ? (searchResults || []) : isFilterMode ? (filterResults || []) : cards;
     if (isIdMode || isFilterMode) return sourceCards;
     return sourceCards.filter((c) => {
       if (filters.hasWarnings === "yes" && c.warnings.length === 0) return false;
@@ -155,7 +154,7 @@ export function FilterableGrid({ cards }: Props) {
       }
       return true;
     });
-  }, [sourceCards, filters, isIdMode, isFilterMode]);
+  }, [isIdMode, searchResults, isFilterMode, filterResults, cards, filters]);
 
   const shouldGroup = debugMode ? grouped : true;
 

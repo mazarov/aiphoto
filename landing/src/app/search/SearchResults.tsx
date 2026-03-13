@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { PromptCard } from "@/components/PromptCard";
 import type { PromptCardFull } from "@/lib/supabase";
 
@@ -175,12 +176,12 @@ export function SearchResults({ initialQuery }: Props) {
           <p className="mt-2 text-sm text-zinc-500">
             Попробуйте изменить запрос или перейдите в категории на главной
           </p>
-          <a
+          <Link
             href="/"
             className="mt-4 inline-block rounded-xl bg-indigo-500 px-6 py-2.5 text-sm font-semibold text-white transition-all hover:bg-indigo-600"
           >
             На главную
-          </a>
+          </Link>
         </div>
       )}
 
