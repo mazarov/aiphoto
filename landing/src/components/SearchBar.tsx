@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { useRouter, usePathname } from "next/navigation";
 import Image from "next/image";
 import type { PromptCardFull } from "@/lib/supabase";
@@ -190,6 +191,9 @@ export function SearchBar() {
     return () => document.removeEventListener("keydown", onKeyDown);
   }, []);
 
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+
   const hasQuery = query.trim().length >= MIN_QUERY;
   const noResults = showResults && results.length === 0 && hasQuery && !loading;
 
@@ -262,125 +266,131 @@ export function SearchBar() {
         )}
       </div>
 
-      {/* ═══════════ Mobile: compact bottom search pill ═══════════ */}
-      {!mobileActive && !hideMobileBar && (
-        <button
-          type="button"
-          onClick={() => setMobileActive(true)}
-          className="fixed bottom-4 left-1/2 z-40 -translate-x-1/2 flex items-center gap-2.5 rounded-full border border-zinc-200/80 bg-white/95 pl-4 pr-5 py-2.5 shadow-lg shadow-zinc-900/10 backdrop-blur-xl transition-transform active:scale-[0.97] lg:hidden"
-          style={{ marginBottom: "env(safe-area-inset-bottom)" }}
-        >
-          <SearchIcon className="h-4 w-4 text-zinc-400" />
-          <span className="text-[13px] font-medium text-zinc-400">Найти промт</span>
-        </button>
-      )}
+      {/* ═══════════ Mobile elements via portal (escape header's backdrop-filter containing block) ═══════════ */}
+      {mounted && createPortal(
+        <>
+          {/* Mobile: compact bottom search pill */}
+          {!mobileActive && !hideMobileBar && (
+            <button
+              type="button"
+              onClick={() => setMobileActive(true)}
+              className="fixed bottom-4 left-1/2 z-40 -translate-x-1/2 flex items-center gap-2.5 rounded-full border border-zinc-200/80 bg-white/95 pl-4 pr-5 py-2.5 shadow-lg shadow-zinc-900/10 backdrop-blur-xl transition-transform active:scale-[0.97] lg:hidden"
+              style={{ marginBottom: "env(safe-area-inset-bottom)" }}
+            >
+              <SearchIcon className="h-4 w-4 text-zinc-400" />
+              <span className="text-[13px] font-medium text-zinc-400">Найти промт</span>
+            </button>
+          )}
 
-      {/* ═══════════ Mobile modal ═══════════ */}
-      {mobileActive && (
-        <div className="fixed inset-0 z-50 flex flex-col lg:hidden">
-          {/* Backdrop */}
-          <div className="animate-fade-in absolute inset-0 bg-black/30 backdrop-blur-[2px]" onClick={closeAll} />
+          {/* Mobile modal */}
+          {mobileActive && (
+            <div className="fixed inset-0 z-50 flex flex-col lg:hidden">
+              {/* Backdrop */}
+              <div className="animate-fade-in absolute inset-0 bg-black/30 backdrop-blur-[2px]" onClick={closeAll} />
 
-          {/* Content area — results grow from bottom */}
-          <div className="relative flex flex-1 flex-col justify-end pb-0">
-            {/* Results panel */}
-            {showResults && results.length > 0 && (
-              <div className="animate-slide-up mx-3 mb-2 max-h-[55vh] overflow-y-auto overscroll-contain rounded-2xl border border-white/60 bg-white shadow-[0_8px_40px_-8px_rgba(0,0,0,0.15)]">
-                <div className="p-1.5">
-                  {results.map((card) => (
-                    <ResultCard
-                      key={card.id}
-                      card={card}
-                      onClick={() => card.slug && handleCardClick(card.slug)}
+              {/* Content area — results grow from bottom */}
+              <div className="relative flex flex-1 flex-col justify-end pb-0">
+                {/* Results panel */}
+                {showResults && results.length > 0 && (
+                  <div className="animate-slide-up mx-3 mb-2 max-h-[55vh] overflow-y-auto overscroll-contain rounded-2xl border border-white/60 bg-white shadow-[0_8px_40px_-8px_rgba(0,0,0,0.15)]">
+                    <div className="p-1.5">
+                      {results.map((card) => (
+                        <ResultCard
+                          key={card.id}
+                          card={card}
+                          onClick={() => card.slug && handleCardClick(card.slug)}
+                        />
+                      ))}
+                    </div>
+                    <div className="border-t border-zinc-100">
+                      <button
+                        type="button"
+                        onClick={navigateToSearch}
+                        className="flex w-full items-center justify-center gap-2 px-4 py-3.5 text-[13px] font-medium text-indigo-600 transition-colors active:bg-indigo-50"
+                      >
+                        Показать все результаты
+                        <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* No results */}
+                {noResults && (
+                  <div className="animate-slide-up mx-3 mb-2 rounded-2xl border border-white/60 bg-white p-8 text-center shadow-[0_8px_40px_-8px_rgba(0,0,0,0.15)]">
+                    <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-zinc-100">
+                      <SearchIcon className="h-4 w-4 text-zinc-400" />
+                    </div>
+                    <div className="text-sm font-medium text-zinc-600">Ничего не найдено</div>
+                    <div className="mt-1 text-xs text-zinc-400">Попробуйте другой запрос</div>
+                  </div>
+                )}
+
+                {/* Popular searches — shown when no query */}
+                {!hasQuery && !loading && (
+                  <div className="animate-slide-up mx-3 mb-2 rounded-2xl border border-white/60 bg-white p-5 shadow-[0_8px_40px_-8px_rgba(0,0,0,0.15)]">
+                    <div className="mb-3 text-[11px] font-semibold uppercase tracking-widest text-zinc-400">
+                      Популярные запросы
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {POPULAR_QUERIES.map((q) => (
+                        <button
+                          key={q}
+                          type="button"
+                          onClick={() => handleQuickSearch(q)}
+                          className="rounded-full border border-zinc-200 bg-zinc-50 px-3.5 py-1.5 text-[13px] font-medium text-zinc-600 transition-colors active:bg-zinc-100 active:border-zinc-300"
+                        >
+                          {q}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Bottom input bar */}
+              <div
+                className="animate-slide-up-sheet relative bg-white px-4 pb-4 pt-3"
+                style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
+              >
+                <div className="flex items-center gap-2.5">
+                  <div className="relative flex-1">
+                    <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400">
+                      <SearchIcon className="h-[18px] w-[18px]" />
+                    </span>
+                    <input
+                      ref={mobileInputRef}
+                      type="text"
+                      value={query}
+                      onChange={(e) => handleChange(e.target.value)}
+                      onKeyDown={handleKeyDown}
+                      placeholder="Найти промт..."
+                      enterKeyHint="search"
+                      autoComplete="off"
+                      autoCorrect="off"
+                      className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 py-3 pl-10 pr-4 text-[16px] text-zinc-800 placeholder:text-zinc-400 transition-colors focus:border-indigo-200 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/10"
                     />
-                  ))}
-                </div>
-                <div className="border-t border-zinc-100">
+                    {loading && (
+                      <span className="absolute right-3.5 top-1/2 -translate-y-1/2">{spinner}</span>
+                    )}
+                  </div>
                   <button
                     type="button"
-                    onClick={navigateToSearch}
-                    className="flex w-full items-center justify-center gap-2 px-4 py-3.5 text-[13px] font-medium text-indigo-600 transition-colors active:bg-indigo-50"
+                    onClick={closeAll}
+                    className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl bg-zinc-100 text-zinc-400 transition-colors active:bg-zinc-200"
                   >
-                    Показать все результаты
-                    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                     </svg>
                   </button>
                 </div>
               </div>
-            )}
-
-            {/* No results */}
-            {noResults && (
-              <div className="animate-slide-up mx-3 mb-2 rounded-2xl border border-white/60 bg-white p-8 text-center shadow-[0_8px_40px_-8px_rgba(0,0,0,0.15)]">
-                <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-zinc-100">
-                  <SearchIcon className="h-4 w-4 text-zinc-400" />
-                </div>
-                <div className="text-sm font-medium text-zinc-600">Ничего не найдено</div>
-                <div className="mt-1 text-xs text-zinc-400">Попробуйте другой запрос</div>
-              </div>
-            )}
-
-            {/* Popular searches — shown when no query */}
-            {!hasQuery && !loading && (
-              <div className="animate-slide-up mx-3 mb-2 rounded-2xl border border-white/60 bg-white p-5 shadow-[0_8px_40px_-8px_rgba(0,0,0,0.15)]">
-                <div className="mb-3 text-[11px] font-semibold uppercase tracking-widest text-zinc-400">
-                  Популярные запросы
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {POPULAR_QUERIES.map((q) => (
-                    <button
-                      key={q}
-                      type="button"
-                      onClick={() => handleQuickSearch(q)}
-                      className="rounded-full border border-zinc-200 bg-zinc-50 px-3.5 py-1.5 text-[13px] font-medium text-zinc-600 transition-colors active:bg-zinc-100 active:border-zinc-300"
-                    >
-                      {q}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Bottom input bar */}
-          <div
-            className="animate-slide-up-sheet relative bg-white px-4 pb-4 pt-3"
-            style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
-          >
-            <div className="flex items-center gap-2.5">
-              <div className="relative flex-1">
-                <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400">
-                  <SearchIcon className="h-[18px] w-[18px]" />
-                </span>
-                <input
-                  ref={mobileInputRef}
-                  type="text"
-                  value={query}
-                  onChange={(e) => handleChange(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  placeholder="Найти промт..."
-                  enterKeyHint="search"
-                  autoComplete="off"
-                  autoCorrect="off"
-                  className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 py-3 pl-10 pr-4 text-[16px] text-zinc-800 placeholder:text-zinc-400 transition-colors focus:border-indigo-200 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/10"
-                />
-                {loading && (
-                  <span className="absolute right-3.5 top-1/2 -translate-y-1/2">{spinner}</span>
-                )}
-              </div>
-              <button
-                type="button"
-                onClick={closeAll}
-                className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl bg-zinc-100 text-zinc-400 transition-colors active:bg-zinc-200"
-              >
-                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
             </div>
-          </div>
-        </div>
+          )}
+        </>,
+        document.body
       )}
     </>
   );
