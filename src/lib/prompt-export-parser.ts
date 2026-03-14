@@ -67,7 +67,7 @@ export interface ParseDatasetResult {
   skippedNoPhoto: number;
 }
 
-export const PARSER_VERSION = "v0.5.0";
+export const PARSER_VERSION = "v0.6.0";
 
 // Blockquotes shorter than this are treated as decorative headers, not prompts.
 // Based on data: all real prompts >= 89 chars, all decorative <= 65 chars.
@@ -240,16 +240,22 @@ async function readHtmlParts(datasetDir: string): Promise<string[]> {
   return htmls.map((name) => path.join(datasetDir, name));
 }
 
-function isSelfContainedPost(nodeHtml: string): boolean {
+function hasLongBlockquoteInNode(nodeHtml: string): boolean {
   const $n = cheerio.load(`<div>${nodeHtml}</div>`);
-  const hasPhoto = $n("a.photo_wrap").length > 0;
-  if (!hasPhoto) return false;
-  let hasLongBlockquote = false;
+  let found = false;
   $n("blockquote").each((_i, el) => {
-    const text = $n(el).text().trim();
-    if (text.length >= MIN_PROMPT_LENGTH) hasLongBlockquote = true;
+    if ($n(el).text().trim().length >= MIN_PROMPT_LENGTH) found = true;
   });
-  return hasLongBlockquote;
+  return found;
+}
+
+function hasPhotoInNode(nodeHtml: string): boolean {
+  const $n = cheerio.load(`<div>${nodeHtml}</div>`);
+  return $n("a.photo_wrap").length > 0;
+}
+
+function isSelfContainedPost(nodeHtml: string): boolean {
+  return hasPhotoInNode(nodeHtml) && hasLongBlockquoteInNode(nodeHtml);
 }
 
 function groupMessageNodes(nodes: MessageNode[]): MessageNode[][] {
@@ -264,6 +270,7 @@ function groupMessageNodes(nodes: MessageNode[]): MessageNode[][] {
   const groups: MessageNode[][] = [];
   let current: MessageNode[] = [];
   let currentTitleSignal: string | null = null;
+  let currentHasPrompt = false;
   for (const node of nodes) {
     const isService = node.classes.includes("service");
     const isJoined = node.classes.includes("joined");
@@ -273,6 +280,7 @@ function groupMessageNodes(nodes: MessageNode[]): MessageNode[][] {
         groups.push(current);
         current = [];
         currentTitleSignal = null;
+        currentHasPrompt = false;
       }
       continue;
     }
@@ -280,12 +288,14 @@ function groupMessageNodes(nodes: MessageNode[]): MessageNode[][] {
       if (current.length > 0) groups.push(current);
       current = [node];
       currentTitleSignal = extractTitleSignal(node.html);
+      currentHasPrompt = hasLongBlockquoteInNode(node.html);
       continue;
     }
     if (isJoined) {
       if (current.length === 0) {
         current = [node];
         currentTitleSignal = extractTitleSignal(node.html);
+        currentHasPrompt = hasLongBlockquoteInNode(node.html);
       } else {
         const joinedTitleSignal = extractTitleSignal(node.html);
         const shouldSplitByTitleShift =
@@ -293,18 +303,44 @@ function groupMessageNodes(nodes: MessageNode[]): MessageNode[][] {
           Boolean(joinedTitleSignal) &&
           currentTitleSignal !== joinedTitleSignal;
 
-        const shouldSplitBySelfContained =
-          current.length > 0 && isSelfContainedPost(node.html);
+        const shouldSplitBySelfContained = isSelfContainedPost(node.html);
+
+        const nodeHasPrompt = hasLongBlockquoteInNode(node.html);
+        const nodeHasPhoto = hasPhotoInNode(node.html);
+
+        // Text-only prompt arriving when the group already has a prompt:
+        // the trailing photo-only nodes belong to this new prompt, not the old group.
+        // "Look-back split": move trailing photo-only nodes from current group
+        // into the new group together with this text-only prompt.
+        const shouldLookBackSplit =
+          currentHasPrompt && nodeHasPrompt && !nodeHasPhoto;
 
         if (shouldSplitByTitleShift || shouldSplitBySelfContained) {
           groups.push(current);
           current = [node];
           currentTitleSignal = joinedTitleSignal ?? extractTitleSignal(node.html);
+          currentHasPrompt = nodeHasPrompt;
+        } else if (shouldLookBackSplit) {
+          // Steal trailing photo-only nodes from current group
+          const stolen: MessageNode[] = [];
+          while (current.length > 0) {
+            const last = current[current.length - 1];
+            if (hasPhotoInNode(last.html) && !hasLongBlockquoteInNode(last.html)) {
+              stolen.unshift(current.pop()!);
+            } else {
+              break;
+            }
+          }
+          if (current.length > 0) groups.push(current);
+          current = [...stolen, node];
+          currentTitleSignal = joinedTitleSignal ?? extractTitleSignal(node.html);
+          currentHasPrompt = true;
         } else {
           current.push(node);
           if (!currentTitleSignal && joinedTitleSignal) {
             currentTitleSignal = joinedTitleSignal;
           }
+          if (nodeHasPrompt) currentHasPrompt = true;
         }
       }
     }

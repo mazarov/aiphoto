@@ -108,6 +108,7 @@ export function PromptCard({ card, debug = false }: Props) {
   const promptPreview =
     card.promptTexts[0]?.slice(0, 100) + (card.promptTexts[0]?.length > 100 ? "…" : "") || "";
 
+
   function nextPhoto(e: React.MouseEvent) {
     e.stopPropagation();
     e.preventDefault();
@@ -240,7 +241,7 @@ export function PromptCard({ card, debug = false }: Props) {
         )}
 
         {!expanded && (
-          <div className="absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/80 via-black/40 to-transparent pt-20 pb-3.5 px-3.5">
+          <div className="absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/80 via-black/40 to-transparent pt-20 pb-3.5 px-3.5 pointer-events-none">
             <div className="flex items-end justify-between gap-2 pointer-events-none">
               <div className="flex-1 min-w-0">
                 <h3 className="text-[13px] font-semibold text-white leading-snug line-clamp-2 mb-0.5">

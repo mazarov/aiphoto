@@ -10,6 +10,7 @@ import {
   getAllTagPaths,
   DIMENSION_LABELS,
 } from "@/lib/tag-registry";
+import { getSeoContent } from "@/lib/seo-content";
 
 export const revalidate = 3600;
 
@@ -38,13 +39,15 @@ export async function generateMetadata({ params, searchParams }: Props) {
   const page = Math.max(1, parseInt(pageStr || "1", 10) || 1);
   const canonicalPath = tag.urlPath.endsWith("/") ? tag.urlPath : tag.urlPath + "/";
   const canonicalUrl = `${SITE_URL}${canonicalPath}`;
+  const seo = getSeoContent(tag.slug);
+
+  const baseTitle = seo?.metaTitle ?? `Промты для фото: ${tag.labelRu} — готовые промпты для ИИ`;
+  const title = page > 1 ? `${seo?.h1 ?? `Промты для фото: ${tag.labelRu}`} — страница ${page}` : baseTitle;
+  const description = seo?.metaDescription ?? `Готовые промты «${tag.labelRu}». Копируй и используй в нейросети для создания фото.`;
 
   return {
-    title:
-      page > 1
-        ? `Промты для фото: ${tag.labelRu} — страница ${page}`
-        : `Промты для фото: ${tag.labelRu} — готовые промпты для ИИ`,
-    description: `Готовые промты «${tag.labelRu}». Копируй и используй в нейросети для создания фото.`,
+    title,
+    description,
     alternates: {
       canonical: canonicalUrl,
     },
@@ -195,7 +198,11 @@ export default async function TagPage({ params, searchParams }: Props) {
   const cards = await enrichCardsWithDetails(result.cards);
   const siblings = getSiblingTags(tag, 6);
   const sectionLabel = DIMENSION_LABELS[tag.dimension];
-  const intro = INTRO_TEMPLATES[tag.dimension] || INTRO_TEMPLATES.audience_tag;
+  const seo = getSeoContent(tag.slug);
+  const intro = seo?.intro ?? (INTRO_TEMPLATES[tag.dimension] || INTRO_TEMPLATES.audience_tag);
+  const h1Text = seo?.h1 ?? `Промты для фото: ${tag.labelRu}`;
+  const faq = seo?.faqItems ?? FAQ_ITEMS;
+  const howTo = seo?.howToSteps ?? HOW_TO_STEPS;
   const basePath = tag.urlPath.endsWith("/") ? tag.urlPath : tag.urlPath + "/";
 
   return (
@@ -236,10 +243,10 @@ export default async function TagPage({ params, searchParams }: Props) {
           </nav>
 
           <h1 className="text-3xl font-bold tracking-tight text-zinc-900 sm:text-4xl">
-            Промты для фото: {tag.labelRu}
+            {h1Text}
           </h1>
           <p className="mt-3 max-w-2xl text-zinc-600 leading-relaxed">
-            {intro} Ниже — подборка промптов «{tag.labelRu}»: выбирай, копируй и создавай фото.
+            {intro}
           </p>
           <div className="mt-4 flex items-center gap-3">
             <span className="inline-flex items-center rounded-full bg-zinc-100 px-3 py-1 text-sm tabular-nums text-zinc-600">
@@ -271,7 +278,7 @@ export default async function TagPage({ params, searchParams }: Props) {
         <section className="mt-16 rounded-2xl border border-zinc-200 bg-white p-6 sm:p-8">
           <h2 className="text-xl font-bold text-zinc-900">Как использовать промт</h2>
           <ol className="mt-4 space-y-3 text-zinc-600">
-            {HOW_TO_STEPS.map((step, i) => (
+            {howTo.map((step, i) => (
               <li key={i} className="flex gap-3">
                 <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-indigo-100 text-sm font-bold text-indigo-700">
                   {i + 1}
@@ -286,7 +293,7 @@ export default async function TagPage({ params, searchParams }: Props) {
         <section className="mt-12">
           <h2 className="text-xl font-bold text-zinc-900">Частые вопросы</h2>
           <dl className="mt-4 space-y-6">
-            {FAQ_ITEMS.map((item, i) => (
+            {faq.map((item, i) => (
               <div key={i} className="rounded-xl border border-zinc-200 bg-zinc-50/50 p-4">
                 <dt className="font-semibold text-zinc-900">{item.q}</dt>
                 <dd className="mt-2 text-zinc-600">{item.a}</dd>
