@@ -9,7 +9,7 @@ import { existsSync } from "node:fs";
 import { config as loadDotenv } from "dotenv";
 import { createClient } from "@supabase/supabase-js";
 import { TAG_REGISTRY } from "../landing/src/lib/tag-registry";
-import { getGeminiGenerateContentUrl } from "./lib/gemini-url";
+import { llmChat, RateLimitError } from "./lib/llm";
 
 const DIMS = ["audience_tag", "style_tag", "occasion_tag", "object_tag", "doc_task_tag"] as const;
 
@@ -53,49 +53,32 @@ function loadEnvFiles() {
   }
 }
 
-async function classify(apiKey: string, title: string | null, text: string) {
+async function classify(title: string | null, text: string) {
   const userText = [title ? `Title: ${title}` : "", `Prompt: ${text}`].filter(Boolean).join("\n");
 
-  const res = await fetch(
-    `${getGeminiGenerateContentUrl("gemini-2.5-flash")}?key=${apiKey}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ role: "user", parts: [{ text: userText }] }],
-        systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
-        generationConfig: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: "OBJECT",
-            properties: Object.fromEntries(
-              DIMS.map((d) => [d, { type: "ARRAY", items: { type: "STRING" } }])
-            ),
-            required: [...DIMS],
-          },
-          maxOutputTokens: 512,
-          temperature: 0.1,
-          thinkingConfig: { thinkingBudget: 0 },
-        },
-      }),
-      signal: AbortSignal.timeout(15000),
-    }
-  );
+  const jsonInstruction = `\nRespond with a JSON object (no markdown fences): { "audience_tag": [...], "style_tag": [...], "occasion_tag": [...], "object_tag": [...], "doc_task_tag": [...] }`;
 
-  if (!res.ok) {
-    const t = await res.text().catch(() => "");
-    console.error(`  ERR ${res.status}: ${t.slice(0, 120)}`);
+  try {
+    const result = await llmChat({
+      messages: [
+        { role: "system", content: SYSTEM_PROMPT + jsonInstruction },
+        { role: "user", content: userText },
+      ],
+      jsonMode: true,
+      maxTokens: 512,
+      temperature: 0.1,
+      timeoutMs: 30_000,
+    });
+
+    const raw = result.text;
+    if (!raw) return null;
+    const jsonStr = raw.includes("{") ? raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1) : raw;
+    return JSON.parse(jsonStr) as Record<string, string[]>;
+  } catch (e) {
+    if (e instanceof RateLimitError) return null;
+    console.error(`  ERR: ${(e as Error).message.slice(0, 120)}`);
     return null;
   }
-
-  const json = (await res.json()) as {
-    candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
-  };
-  const raw = json.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (!raw) return null;
-
-  const jsonStr = raw.includes("{") ? raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1) : raw;
-  return JSON.parse(jsonStr) as Record<string, string[]>;
 }
 
 async function main() {
@@ -106,9 +89,6 @@ async function main() {
     const idx = process.argv.indexOf("--limit");
     return idx >= 0 ? parseInt(process.argv[idx + 1] || "10", 10) : 10;
   })();
-
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new Error("Missing GEMINI_API_KEY");
 
   const sbUrl = process.env.SUPABASE_SUPABASE_PUBLIC_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || "";
   const sb = createClient(sbUrl, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
@@ -145,7 +125,7 @@ async function main() {
     if (!text) continue;
     if (i > 0) await new Promise((r) => setTimeout(r, 2000));
 
-    const result = await classify(apiKey, card.title_ru, text);
+    const result = await classify(card.title_ru, text);
     if (!result) continue;
     processed++;
 

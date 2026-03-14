@@ -15,7 +15,7 @@ import { existsSync } from "node:fs";
 import { config as loadDotenv } from "dotenv";
 import { createClient } from "@supabase/supabase-js";
 import { TAG_REGISTRY, type Dimension, type TagEntry } from "../landing/src/lib/tag-registry";
-import { getGeminiGenerateContentUrl } from "./lib/gemini-url";
+import { llmChat, RateLimitError } from "./lib/llm";
 
 // ── Types ──
 
@@ -207,9 +207,7 @@ function fillLabels(tags: SeoTags): void {
   }
 }
 
-// ── Gemini LLM classifier ──
-
-const GEMINI_MODEL = "gemini-2.5-flash";
+// ── LLM classifier ──
 
 function buildTagListForPrompt(): string {
   const lines: string[] = [];
@@ -223,32 +221,17 @@ function buildTagListForPrompt(): string {
   return lines.join("\n");
 }
 
-function buildResponseSchema(): object {
-  const props: Record<string, object> = {};
-  for (const dim of DIMENSIONS) {
-    props[dim] = {
-      type: "ARRAY",
-      items: { type: "STRING" },
-    };
-  }
-  props["new_tags"] = {
-    type: "ARRAY",
-    items: {
-      type: "OBJECT",
-      properties: {
-        slug: { type: "STRING" },
-        dimension: { type: "STRING", enum: [...DIMENSIONS] },
-        labelRu: { type: "STRING" },
-        labelEn: { type: "STRING" },
-      },
-      required: ["slug", "dimension", "labelRu", "labelEn"],
-    },
-  };
-  return {
-    type: "OBJECT",
-    properties: props,
-    required: [...DIMENSIONS, "new_tags"],
-  };
+function buildJsonFormatInstruction(): string {
+  return `
+Respond with a JSON object (no markdown fences). Schema:
+{
+  "audience_tag": ["slug1", ...],
+  "style_tag": ["slug1", ...],
+  "occasion_tag": ["slug1", ...],
+  "object_tag": ["slug1", ...],
+  "doc_task_tag": ["slug1", ...],
+  "new_tags": [{ "slug": "...", "dimension": "...", "labelRu": "...", "labelEn": "..." }, ...]
+}`;
 }
 
 const SYSTEM_PROMPT = `You are a photo prompt classifier for an SEO-driven photo prompt catalog.
@@ -288,10 +271,10 @@ Return an empty array for a dimension if nothing matches.
 Return an empty "new_tags" array if all assigned tags are from the known list.
 
 Known tags:
-${buildTagListForPrompt()}`;
+${buildTagListForPrompt()}
+${buildJsonFormatInstruction()}`;
 
-async function classifyWithGemini(
-  apiKey: string,
+async function classifyWithLlm(
   title: string | null,
   promptTexts: string[],
 ): Promise<ClassifyResult | null> {
@@ -302,46 +285,24 @@ async function classifyWithGemini(
     .filter(Boolean)
     .join("\n\n");
 
-  const body = {
-    contents: [
-      { role: "user", parts: [{ text: userText }] },
-    ],
-    systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
-    generationConfig: {
-      responseMimeType: "application/json",
-      responseSchema: buildResponseSchema(),
-      maxOutputTokens: 1024,
+  let result;
+  try {
+    result = await llmChat({
+      messages: [
+        { role: "system", content: SYSTEM_PROMPT },
+        { role: "user", content: userText },
+      ],
+      jsonMode: true,
+      maxTokens: 1024,
       temperature: 0.1,
-      thinkingConfig: { thinkingBudget: 0 },
-    },
-  };
-
-  const url = `${getGeminiGenerateContentUrl(GEMINI_MODEL)}?key=${apiKey}`;
-
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(15_000),
-  });
-
-  if (res.status === 429) {
-    return null;
+      timeoutMs: 30_000,
+    });
+  } catch (e) {
+    if (e instanceof RateLimitError) return null;
+    throw e;
   }
 
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`Gemini ${res.status}: ${text.slice(0, 200)}`);
-  }
-
-  const json = await res.json() as {
-    candidates?: Array<{
-      content?: { parts?: Array<{ text?: string }> };
-      finishReason?: string;
-    }>;
-  };
-
-  const rawText = json.candidates?.[0]?.content?.parts?.[0]?.text;
+  const rawText = result.text;
   if (!rawText) return null;
 
   let jsonStr = rawText;
@@ -405,14 +366,13 @@ async function classifyWithGemini(
 }
 
 async function classifyWithRetry(
-  apiKey: string,
   title: string | null,
   promptTexts: string[],
   maxRetries = 3,
 ): Promise<ClassifyResult | null> {
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
-      const result = await classifyWithGemini(apiKey, title, promptTexts);
+      const result = await classifyWithLlm(title, promptTexts);
       if (result !== null) return result;
       const delay = 2000 * Math.pow(2, attempt) + Math.random() * 1000;
       console.warn(`  ⏳ Rate limited, retrying in ${Math.round(delay / 1000)}s...`);
@@ -424,7 +384,7 @@ async function classifyWithRetry(
         console.warn(`  ⏳ Error (${msg.slice(0, 60)}), retrying in ${Math.round(delay / 1000)}s...`);
         await sleep(delay);
       } else {
-        console.error(`  ✗ Gemini failed: ${msg.slice(0, 100)}`);
+        console.error(`  ✗ LLM failed: ${msg.slice(0, 100)}`);
         return null;
       }
     }
@@ -568,9 +528,8 @@ async function main() {
   const serviceRoleKey = required("SUPABASE_SERVICE_ROLE_KEY");
   if (!supabaseUrl) throw new Error("Missing Supabase URL env");
 
-  const geminiApiKey = args.regexOnly ? "" : (process.env.GEMINI_API_KEY || "");
-  if (!args.regexOnly && !geminiApiKey) {
-    console.warn("⚠ GEMINI_API_KEY not set, falling back to regex mode");
+  if (!args.regexOnly && !process.env.OPENAI_API_KEY) {
+    console.warn("⚠ OPENAI_API_KEY not set, falling back to regex mode");
     args.regexOnly = true;
   }
 
@@ -578,7 +537,7 @@ async function main() {
   console.log(`\n🏷️  fill-seo-tags [mode=${mode}] [dryRun=${args.dryRun}] [recompute=${args.recomputeAll}]`);
   if (args.dataset) console.log(`   dataset: ${args.dataset}`);
   if (args.cardId) console.log(`   cardId: ${args.cardId}`);
-  if (!args.regexOnly) console.log(`   model: ${GEMINI_MODEL}, concurrency: ${args.concurrency}`);
+  if (!args.regexOnly) console.log(`   model: ${process.env.LLM_MODEL || "gpt-4.1-mini"}, concurrency: ${args.concurrency}`);
 
   const supabase = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false } });
 
@@ -634,7 +593,7 @@ async function main() {
 
       await sem.acquire();
       try {
-        const result = await classifyWithRetry(geminiApiKey, card.title_ru, prompts);
+        const result = await classifyWithRetry(card.title_ru, prompts);
         if (!result) {
           llmFailed++;
           const fallback = extractSeoTagsRegex(prompts, card.title_ru);

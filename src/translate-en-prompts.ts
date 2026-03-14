@@ -11,7 +11,7 @@ import path from "node:path";
 import { existsSync } from "node:fs";
 import { config as loadDotenv } from "dotenv";
 import { createClient } from "@supabase/supabase-js";
-import { getGeminiGenerateContentUrl } from "./lib/gemini-url";
+import { llmChat, RateLimitError } from "./lib/llm";
 
 type Args = {
   dataset?: string;
@@ -84,8 +84,6 @@ function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-const GEMINI_MODEL = "gemini-2.5-flash";
-
 const SYSTEM_PROMPT = `You are a professional translator for a photo prompt catalog.
 
 Translate the given English photo generation prompt into natural Russian.
@@ -98,44 +96,22 @@ Rules:
 - Do NOT add explanations, just return the translated prompt text
 - Return ONLY the translated text, nothing else`;
 
-async function translateWithGemini(
-  apiKey: string,
-  promptEn: string,
-): Promise<string | null> {
-  const body = {
-    contents: [
-      { role: "user", parts: [{ text: `Translate this photo prompt to Russian:\n\n${promptEn}` }] },
-    ],
-    systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
-    generationConfig: {
-      maxOutputTokens: 2048,
+async function translateWithLlm(promptEn: string): Promise<string | null> {
+  try {
+    const result = await llmChat({
+      messages: [
+        { role: "system", content: SYSTEM_PROMPT },
+        { role: "user", content: `Translate this photo prompt to Russian:\n\n${promptEn}` },
+      ],
+      maxTokens: 2048,
       temperature: 0.2,
-      thinkingConfig: { thinkingBudget: 0 },
-    },
-  };
-
-  const url = `${getGeminiGenerateContentUrl(GEMINI_MODEL)}?key=${apiKey}`;
-
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(15_000),
-  });
-
-  if (res.status === 429) return null;
-
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`Gemini ${res.status}: ${text.slice(0, 200)}`);
+      timeoutMs: 30_000,
+    });
+    return result.text.trim() || null;
+  } catch (e) {
+    if (e instanceof RateLimitError) return null;
+    throw e;
   }
-
-  const json = await res.json() as {
-    candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
-  };
-
-  const translated = json.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-  return translated || null;
 }
 
 async function main() {
@@ -145,7 +121,6 @@ async function main() {
   const supabaseUrl = resolveSupabaseUrl();
   if (!supabaseUrl) throw new Error("Missing Supabase URL env");
   const serviceKey = required("SUPABASE_SERVICE_ROLE_KEY");
-  const apiKey = required("GEMINI_API_KEY");
   const supabase = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
 
   // Fetch card IDs for dataset
@@ -208,7 +183,7 @@ async function main() {
     const maxRetries = 3;
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       try {
-        const translated = await translateWithGemini(apiKey, variant.prompt_text_en);
+        const translated = await translateWithLlm(variant.prompt_text_en);
 
         if (translated === null) {
           rateLimited++;

@@ -1,6 +1,6 @@
 # 03 — Пайплайн: парсинг → загрузка → публикация
 
-> Последнее обновление: 2026-03-13
+> Последнее обновление: 2026-03-14
 
 ## Обзор
 
@@ -261,6 +261,24 @@ WHERE source_dataset_slug = '<slug>'
 
 Используют встроенный `fetch` (Node 20+) и прямые REST-вызовы к Supabase. Не требуют `npm install`.
 
+**Скрипты НЕ хранятся в git** (`scripts/` в `.gitignore`). Копировать на сервер вручную через `scp`.
+
+### Секреты: только через env vars
+
+**Секреты НИКОГДА не хардкодятся в скриптах.** Перед запуском экспортировать переменные:
+
+```bash
+export OPENAI_API_KEY=<ключ из OpenAI>
+export SUPABASE_URL=https://bk07-67ud-ea1y.gw-1a.dockhost.net
+export SUPABASE_SERVICE_ROLE_KEY=<service role key>
+
+# Опционально: модель и endpoint
+# export LLM_MODEL=gpt-4.1-mini
+# export OPENAI_BASE_URL=https://api.openai.com/v1
+
+node fill-seo-tags-standalone.mjs --dataset <slug>
+```
+
 ---
 
 ## Порядок выполнения (чеклист)
@@ -286,8 +304,11 @@ WHERE source_dataset_slug = '<slug>'
 |-----------|---------------|
 | `SUPABASE_SUPABASE_PUBLIC_URL` | Ingest, SEO-скрипты |
 | `SUPABASE_SERVICE_ROLE_KEY` | Ingest, SEO-скрипты |
-| `GEMINI_API_KEY` | translate, fill-seo-tags, fix-template-titles |
-| `GEMINI_PROXY_BASE_URL` | Опционально: прокси для обхода гео-блокировки |
+| `OPENAI_API_KEY` | translate, fill-seo-tags, fix-template-titles, discover-new-tags |
+| `OPENAI_BASE_URL` | Опционально: кастомный endpoint (default: `api.openai.com/v1`) |
+| `LLM_MODEL` | Опционально: модель (default: `gpt-4.1-mini`) |
+| `GEMINI_API_KEY` | Бот (worker, ai-chat) — НЕ используется в SEO-пайплайне |
+| `GEMINI_PROXY_BASE_URL` | Опционально: прокси для бота |
 
 ---
 

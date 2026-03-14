@@ -9,7 +9,7 @@ import path from "node:path";
 import { existsSync } from "node:fs";
 import { config as loadDotenv } from "dotenv";
 import { createClient } from "@supabase/supabase-js";
-import { getGeminiGenerateContentUrl } from "./lib/gemini-url";
+import { llmChat, RateLimitError } from "./lib/llm";
 
 const JUNK_PATTERNS = [
   "Сделай такое же фото в два клика",
@@ -127,8 +127,6 @@ async function generateUniqueSlug(
   return slug;
 }
 
-const GEMINI_MODEL = "gemini-2.5-flash";
-
 const SYSTEM_PROMPT = `You are a title generator for a photo prompt catalog.
 
 Given a photo generation prompt text in Russian, create a SHORT, descriptive title in Russian.
@@ -141,40 +139,24 @@ Rules:
 - Do NOT use quotes or special characters
 - Return ONLY the title text, nothing else`;
 
-async function generateTitle(apiKey: string, promptText: string): Promise<string | null> {
-  const body = {
-    contents: [
-      { role: "user", parts: [{ text: `Generate a short Russian title for this photo prompt:\n\n${promptText.slice(0, 500)}` }] },
-    ],
-    systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
-    generationConfig: {
-      maxOutputTokens: 100,
+async function generateTitle(promptText: string): Promise<string | null> {
+  try {
+    const result = await llmChat({
+      messages: [
+        { role: "system", content: SYSTEM_PROMPT },
+        { role: "user", content: `Generate a short Russian title for this photo prompt:\n\n${promptText.slice(0, 500)}` },
+      ],
+      maxTokens: 100,
       temperature: 0.3,
-      thinkingConfig: { thinkingBudget: 0 },
-    },
-  };
-
-  const url = `${getGeminiGenerateContentUrl(GEMINI_MODEL)}?key=${apiKey}`;
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(10_000),
-  });
-
-  if (res.status === 429) return null;
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`Gemini ${res.status}: ${text.slice(0, 200)}`);
+      timeoutMs: 15_000,
+    });
+    const title = result.text.trim();
+    if (!title) return null;
+    return title.replace(/^["«]|["»]$/g, '').trim().slice(0, 120);
+  } catch (e) {
+    if (e instanceof RateLimitError) return null;
+    throw e;
   }
-
-  const json = await res.json() as {
-    candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
-  };
-
-  const title = json.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-  if (!title) return null;
-  return title.replace(/^["«]|["»]$/g, '').trim().slice(0, 120);
 }
 
 async function main() {
@@ -183,7 +165,6 @@ async function main() {
   const supabaseUrl = resolveSupabaseUrl();
   if (!supabaseUrl) throw new Error("Missing Supabase URL");
   const serviceKey = required("SUPABASE_SERVICE_ROLE_KEY");
-  const apiKey = required("GEMINI_API_KEY");
   const supabase = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
 
   // Fetch cards with junk titles
@@ -241,7 +222,7 @@ async function main() {
     const maxRetries = 3;
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       try {
-        const newTitle = await generateTitle(apiKey, prompt);
+        const newTitle = await generateTitle(prompt);
         if (newTitle === null) {
           console.log(`  ⏳ Rate limited, retrying...`);
           await sleep(2000 * Math.pow(2, attempt));
