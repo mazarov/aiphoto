@@ -364,6 +364,7 @@ export type PhotoMeta = {
 
 export type PromptCardFull = RouteCard & {
   promptTexts: string[];
+  hasRuPrompt: boolean;
   photoUrls: string[];
   photoMeta: PhotoMeta[];
   beforePhotoUrl: string | null;
@@ -407,7 +408,7 @@ export async function enrichCardsWithDetails(
         .in("id", ids),
       supabase
         .from("prompt_variants")
-        .select("card_id,prompt_text_ru")
+        .select("card_id,prompt_text_ru,prompt_text_en")
         .in("card_id", ids)
         .order("variant_index", { ascending: true }),
       supabase
@@ -469,13 +470,15 @@ export async function enrichCardsWithDetails(
   }
 
   const variantsByCard = new Map<string, string[]>();
+  const cardsWithRuPrompt = new Set<string>();
   for (const v of variantsRes.data || []) {
-    const t = (v as { card_id: string; prompt_text_ru: string | null })
-      .prompt_text_ru;
-    if (t?.trim()) {
-      const arr = variantsByCard.get(v.card_id) || [];
-      arr.push(t.trim());
-      variantsByCard.set(v.card_id, arr);
+    const row = v as { card_id: string; prompt_text_ru: string | null; prompt_text_en: string | null };
+    if (row.prompt_text_ru?.trim()) cardsWithRuPrompt.add(row.card_id);
+    const t = row.prompt_text_ru?.trim() || row.prompt_text_en?.trim() || null;
+    if (t) {
+      const arr = variantsByCard.get(row.card_id) || [];
+      arr.push(t);
+      variantsByCard.set(row.card_id, arr);
     }
   }
 
@@ -525,6 +528,7 @@ export async function enrichCardsWithDetails(
     return {
       ...c,
       promptTexts: prompts,
+      hasRuPrompt: cardsWithRuPrompt.has(c.id),
       photoUrls,
       photoMeta,
       beforePhotoUrl: before
@@ -633,7 +637,7 @@ export async function getCardPageData(slug: string): Promise<CardPageData | null
   const [variantsRes, mediaRes, beforeRes, siblingsRes, firstSlugRes] = await Promise.all([
     supabase
       .from("prompt_variants")
-      .select("prompt_text_ru")
+      .select("prompt_text_ru,prompt_text_en")
       .eq("card_id", card.id)
       .order("variant_index", { ascending: true }),
     supabase
@@ -669,8 +673,11 @@ export async function getCardPageData(slug: string): Promise<CardPageData | null
   ]);
 
   const promptTexts = (variantsRes.data || [])
-    .map((v) => (v as { prompt_text_ru: string | null }).prompt_text_ru)
-    .filter((t): t is string => !!t?.trim());
+    .map((v) => {
+      const row = v as { prompt_text_ru: string | null; prompt_text_en: string | null };
+      return row.prompt_text_ru?.trim() || row.prompt_text_en?.trim() || null;
+    })
+    .filter((t): t is string => !!t);
 
   const allMedia = (mediaRes.data || []) as {
     storage_bucket: string;

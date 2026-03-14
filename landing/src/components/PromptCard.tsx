@@ -38,7 +38,7 @@ const WARNING_LABELS: Record<string, string> = {
 function PromptCardDebug({ card }: { card: PromptCardFull }) {
   const title = card.title_ru || card.title_en || "Без названия";
   const seoSlugs = getSeoTagSlugs(card.seo_tags);
-  const hasRuPrompt = card.promptTexts.length > 0;
+  const hasEnOnly = !card.hasRuPrompt && card.promptTexts.length > 0;
 
   return (
     <article className="flex h-full flex-col overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm">
@@ -63,8 +63,8 @@ function PromptCardDebug({ card }: { card: PromptCardFull }) {
           <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] border ${card.seoReadinessScore >= 60 ? "border-emerald-200 bg-emerald-50 text-emerald-700" : card.seoReadinessScore >= 40 ? "border-blue-200 bg-blue-50 text-blue-700" : "border-zinc-200 bg-zinc-50 text-zinc-500"}`}>
             score: {card.seoReadinessScore}
           </span>
-          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] border ${hasRuPrompt ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-red-200 bg-red-50 text-red-600"}`}>
-            RU: {hasRuPrompt ? "есть" : "нет"}
+          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] border ${card.hasRuPrompt ? "border-emerald-200 bg-emerald-50 text-emerald-700" : hasEnOnly ? "border-amber-300 bg-amber-50 text-amber-700" : "border-red-200 bg-red-50 text-red-600"}`}>
+            {card.hasRuPrompt ? "RU: есть" : hasEnOnly ? "EN only" : "нет промпта"}
           </span>
           {card.warnings.length > 0 && (
             <span className="inline-flex items-center rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] text-amber-700">warnings: {card.warnings.length}</span>

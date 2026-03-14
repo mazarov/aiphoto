@@ -145,9 +145,8 @@ export function FilterableGrid({ cards }: Props) {
       if (filters.hasWarnings === "no" && c.warnings.length > 0) return false;
       if (c.seoReadinessScore < filters.scoreMin) return false;
       if (c.seoReadinessScore > filters.scoreMax) return false;
-      const hasRu = c.promptTexts.length > 0;
-      if (filters.hasRuPrompt === "yes" && !hasRu) return false;
-      if (filters.hasRuPrompt === "no" && hasRu) return false;
+      if (filters.hasRuPrompt === "yes" && !c.hasRuPrompt) return false;
+      if (filters.hasRuPrompt === "no" && c.hasRuPrompt) return false;
       if (filters.hasBefore === "yes" && !c.beforePhotoUrl) return false;
       if (filters.selectedTag) {
         const slugs = getSeoTagSlugs(c.seo_tags);
