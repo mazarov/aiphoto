@@ -1,6 +1,6 @@
 # 01 — Лендинг (promptshot.ru)
 
-> Последнее обновление: 2026-03-13
+> Последнее обновление: 2026-03-14
 
 ## Стек
 
@@ -39,7 +39,7 @@
 
 ### Статические файлы
 
-- `sitemap.ts` — динамический sitemap из `prompt_cards`
+- `sitemap.ts` — динамический sitemap (L1 теги + L2 комбинации + карточки)
 - `robots.ts` — robots.txt
 
 ---
@@ -90,20 +90,30 @@ fetchHomepageSections(siteLang)          ← RPC get_homepage_sections
   → CategorySection[]
 ```
 
-### Листинг `/[...slug]`
+### Листинг `/[...slug]` (L1 / L2 / L3)
 
 ```
-findTagByUrlPath(path)                  ← TAG_REGISTRY (in-memory)
-  → tag
-fetchRouteCards({ audience_tag, ... })  ← RPC resolve_route_cards
+resolveUrlToTags(slugSegments)          ← route-resolver.ts
+  → ResolvedRoute { tags[], level, rpcParams, canonicalPath, parentPath }
+fetchRouteCards(rpcParams)              ← RPC resolve_route_cards (multi-tag)
   → RouteCard[]
 expandCardGroups(cards)                 ← prompt_cards (siblings, Promise.all)
 enrichCardsWithDetails(cards)           ← prompt_cards + prompt_variants
                                           + prompt_card_media
                                           + prompt_card_before_media
-getSeoContent(tag.slug)                 ← seo-content.ts (static map)
+getSeoForRoute(route)                   ← seo-templates.ts → seo-content.ts fallback
   → h1, metaTitle, metaDescription, intro, FAQ, howTo
 ```
+
+**Programmatic SEO levels:**
+
+| Level | URL example | Резолвинг |
+|-------|------------|-----------|
+| L1 | `/promty-dlya-foto-devushki/` | 1 тег из TAG_REGISTRY |
+| L2 | `/promty-dlya-foto-devushki/cherno-beloe/` | 2 тега из разных измерений |
+| L3 | `/promty-dlya-foto-devushki/cherno-beloe/v-zerkale/` | 3 тега из разных измерений |
+
+**Index/noindex:** L1 >= 3 карточек, L2/L3 >= 6 карточек. При noindex — canonical на родительский L1.
 
 ### Карточка `/p/[slug]`
 
@@ -154,7 +164,10 @@ getFirstTagFromSeoTags(seo_tags)        ← breadcrumb
 
 - **Root layout:** дефолтный title + description
 - **Главная:** canonical, JSON-LD `CollectionPage`
-- **Листинг:** `generateMetadata` → title/description из `getSeoContent(tag.slug)`
+- **Листинг L1:** `generateMetadata` → title/description из `getSeoContent(tag.slug)`
+- **Листинг L2/L3:** `generateMetadata` → title/description из `getSeoForRoute(route)` (шаблоны)
+- **JSON-LD:** `BreadcrumbList` + `FAQPage` на всех листингах
+- **Index/noindex:** L1 >= 3 карточек, L2/L3 >= 6 карточек
 - **Карточка:** `generateMetadata` → OpenGraph, Twitter, `noindex` для thin/secondary карточек
 - **Поиск:** `robots: { index: false }`
 
@@ -163,7 +176,7 @@ getFirstTagFromSeoTags(seo_tags)        ← breadcrumb
 ```typescript
 interface TagEntry {
   slug: string;
-  dimension: "audience_tag" | "style_tag" | "occasion_tag" | "object_tag";
+  dimension: "audience_tag" | "style_tag" | "occasion_tag" | "object_tag" | "doc_task_tag";
   labelRu: string;
   labelEn: string;
   urlPath: string;       // e.g. "/stil/cherno-beloe"
@@ -171,15 +184,41 @@ interface TagEntry {
 }
 ```
 
-Функции: `findTagByUrlPath`, `findTagBySlug`, `getAllTagPaths`, `getFirstTagFromSeoTags`, `getSiblingTags`.
+Функции: `findTagByUrlPath`, `findTagBySlug`, `findTagByLastSegment`, `getAllTagPaths`, `getFirstTagFromSeoTags`, `getSiblingTags`.
+
+Индексы: `byUrlPath` (полный путь), `bySlug` (dimension:slug), `byLastSegment` (последний сегмент URL → кандидаты для L2/L3).
+
+### Route Resolver (`src/lib/route-resolver.ts`)
+
+Парсит `slug[]` из `[...slug]` маршрута в `ResolvedRoute`:
+
+```typescript
+type ResolvedRoute = {
+  tags: TagEntry[];        // 1..3 распознанных тега
+  level: 1 | 2 | 3;
+  rpcParams: { audience_tag, style_tag, occasion_tag, object_tag, doc_task_tag };
+  canonicalPath: string;   // нормализованный URL
+  parentPath: string | null;
+  primaryTag: TagEntry;
+};
+```
+
+Алгоритм: сначала `findTagByUrlPath(fullPath)` (L1), затем поиск splitAt с `findTagByLastSegment` (L2/L3).
 
 ### SEO Content (`src/lib/seo-content.ts`)
 
-Статическая карта `slug → SeoContent`:
+Статическая карта `slug → SeoContent` для L1 тегов:
 - `h1`, `metaTitle`, `metaDescription`
 - `intro` (текст для страницы)
 - `faqItems` (FAQ для Schema.org)
 - `howToSteps` (HowTo для Schema.org)
+
+### SEO Templates (`src/lib/seo-templates.ts`)
+
+Шаблонная генерация SEO-контента для L2/L3:
+- Приоритет: ручной контент из `seo-content.ts` → шаблон по паре измерений → generic fallback
+- Шаблоны для всех пар измерений (audience+style, audience+occasion, style+object и т.д.)
+- JSON-LD: `BreadcrumbList` + `FAQPage` на всех листингах
 
 ---
 
@@ -214,6 +253,12 @@ HomepageSectionItemWithUrls, PhotoMeta, PromptCardFull, CardPageSibling, CardPag
 
 // tag-registry.ts
 Dimension, TagEntry
+
+// route-resolver.ts
+ResolvedRoute
+
+// seo-templates.ts
+(uses SeoContent from seo-content.ts)
 
 // menu.ts
 MenuItem, MenuGroup, MenuSection, RouteParams
@@ -258,8 +303,10 @@ landing/src/
 │   ├── supabase.ts             ← Серверный клиент + data fetching
 │   ├── supabase-browser.ts     ← Браузерный клиент (auth, reactions)
 │   ├── supabase-server-auth.ts ← Серверная авторизация
-│   ├── tag-registry.ts         ← Реестр SEO-тегов
-│   ├── seo-content.ts          ← Статический SEO-контент
+│   ├── tag-registry.ts         ← Реестр SEO-тегов (5 измерений, 100+ тегов)
+│   ├── route-resolver.ts       ← Резолвинг URL → теги (L1/L2/L3)
+│   ├── seo-templates.ts        ← Шаблонный SEO для L2/L3
+│   ├── seo-content.ts          ← Ручной SEO-контент для L1
 │   └── menu.ts                 ← Структура меню
 ├── context/
 │   ├── AuthContext.tsx          ← Контекст авторизации

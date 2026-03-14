@@ -594,38 +594,38 @@ $$;
 
 ## 13. Чеклист реализации
 
-### Phase 1 (MVP)
+### Phase 1 (MVP) — DONE
 
-- [ ] `doc_task_tag` добавлен в `Dimension`
-- [ ] 4 тега doc_task добавлены в `TAG_REGISTRY`
-- [ ] Индекс `byLastSegment` добавлен в `tag-registry.ts`
-- [ ] `route-resolver.ts` создан, покрывает L1/L2/L3
-- [ ] `[...slug]/page.tsx` использует `resolveUrlToTags`
-- [ ] `generateMetadata` работает для L2/L3
-- [ ] L2 URL не возвращают 404
+- [x] `doc_task_tag` добавлен в `Dimension`
+- [x] 4 тега doc_task добавлены в `TAG_REGISTRY`
+- [x] Индекс `byLastSegment` добавлен в `tag-registry.ts`
+- [x] `route-resolver.ts` создан, покрывает L1/L2/L3
+- [x] `[...slug]/page.tsx` использует `resolveUrlToTags`
+- [x] `generateMetadata` работает для L2/L3
+- [x] L2 URL не возвращают 404
 - [ ] Unit-тесты для `resolveUrlToTags`
 
-### Phase 2 (SEO)
+### Phase 2 (SEO) — DONE
 
-- [ ] `seo-templates.ts` создан
-- [ ] Шаблоны для всех пар измерений
-- [ ] Шаблоны для L3
-- [ ] Index/noindex в `generateMetadata`
-- [ ] Canonical на L1 при noindex
-- [ ] JSON-LD `FAQPage` для L2
+- [x] `seo-templates.ts` создан
+- [x] Шаблоны для всех пар измерений
+- [x] Шаблоны для L3
+- [x] Index/noindex в `generateMetadata`
+- [x] Canonical на L1 при noindex
+- [x] JSON-LD `FAQPage` + `BreadcrumbList` для L1/L2/L3
 
-### Phase 3 (Sitemap)
+### Phase 3 (Sitemap) — DONE (без SQL RPC)
 
-- [ ] SQL миграция `get_indexable_tag_combos`
-- [ ] `sitemap.ts` включает L2
+- [ ] SQL миграция `get_indexable_tag_combos` (отложена — L2 в sitemap без проверки count, noindex meta защищает)
+- [x] `sitemap.ts` включает L2 (все допустимые пары из разных измерений)
 - [ ] (optional) `generateStaticParams` для L2
 
-### Phase 4 (Linking)
+### Phase 4 (Linking) — DONE
 
-- [ ] Breadcrumbs Главная → L1 → L2
-- [ ] Блок «Соседние комбинации»
-- [ ] Ссылка на родительский L1
-- [ ] Чипы L2 расширений на L1
+- [x] Breadcrumbs Главная → L1 → L2
+- [x] Блок «Соседние комбинации» (siblings of primary + siblings of secondary tag)
+- [x] Ссылка на родительский L1
+- [ ] Чипы L2 расширений на L1 (отложено)
 
 ### Phase 5 (LLM SEO)
 

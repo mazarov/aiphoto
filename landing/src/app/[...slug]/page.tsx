@@ -1,16 +1,18 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import Script from "next/script";
 import { fetchRouteCards, enrichCardsWithDetails } from "@/lib/supabase";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { FilterableGrid } from "@/components/CardFilters";
 import {
-  findTagByUrlPath,
   getSiblingTags,
   getAllTagPaths,
   DIMENSION_LABELS,
 } from "@/lib/tag-registry";
-import { getSeoContent } from "@/lib/seo-content";
+import { resolveUrlToTags, getMinCardsForLevel, type ResolvedRoute } from "@/lib/route-resolver";
+import { getSeoForRoute } from "@/lib/seo-templates";
+import type { SeoContent } from "@/lib/seo-content";
 
 export const revalidate = 3600;
 
@@ -32,64 +34,122 @@ export async function generateStaticParams() {
 export async function generateMetadata({ params, searchParams }: Props) {
   const { slug } = await params;
   const { page: pageStr } = await searchParams;
-  const path = "/" + slug.join("/");
-  const tag = findTagByUrlPath(path);
-  if (!tag) return {};
+  const route = resolveUrlToTags(slug);
+  if (!route) return {};
 
   const page = Math.max(1, parseInt(pageStr || "1", 10) || 1);
-  const canonicalPath = tag.urlPath.endsWith("/") ? tag.urlPath : tag.urlPath + "/";
-  const canonicalUrl = `${SITE_URL}${canonicalPath}`;
-  const seo = getSeoContent(tag.slug);
+  const seo = getSeoForRoute(route);
 
-  const baseTitle = seo?.metaTitle ?? `Промты для фото: ${tag.labelRu} — готовые промпты для ИИ`;
-  const title = page > 1 ? `${seo?.h1 ?? `Промты для фото: ${tag.labelRu}`} — страница ${page}` : baseTitle;
-  const description = seo?.metaDescription ?? `Готовые промты «${tag.labelRu}». Копируй и используй в нейросети для создания фото.`;
+  const canonicalUrl = `${SITE_URL}${route.canonicalPath}`;
+  const title = page > 1 ? `${seo.h1} — страница ${page}` : seo.metaTitle;
+
+  const result = await fetchRouteCards({
+    ...route.rpcParams,
+    limit: 1,
+    offset: 0,
+  });
+  const totalCount = result.total_count ?? result.cards_count;
+  const minCards = getMinCardsForLevel(route.level);
+  const shouldIndex = totalCount >= minCards;
 
   return {
     title,
-    description,
+    description: seo.metaDescription,
+    robots: shouldIndex
+      ? { index: true, follow: true }
+      : { index: false, follow: true },
     alternates: {
-      canonical: canonicalUrl,
+      canonical: shouldIndex
+        ? canonicalUrl
+        : route.parentPath
+          ? `${SITE_URL}${route.parentPath}`
+          : canonicalUrl,
     },
   };
 }
 
-const INTRO_TEMPLATES: Record<string, string> = {
-  audience_tag:
-    "Готовые промпты для создания фото с помощью нейросетей. Выбери подходящий промт, скопируй и вставь в ИИ-генератор — получишь результат за секунды. Все промты проверены на практике.",
-  style_tag:
-    "Промпты для фото в разных визуальных стилях. От реалистичного портрета до мультяшного или ретро — копируй текст и получай нужный результат в любом ИИ-генераторе изображений.",
-  occasion_tag:
-    "Промпты для праздничных и тематических фото. День рождения, 8 марта, свадьба, Новый год — готовые формулировки для нейросетей, чтобы создать атмосферное фото к любому событию.",
-  object_tag:
-    "Промпты для фото с объектами, в определённой обстановке или позе. С машиной, с цветами, на море, в зеркале — копируй и используй в ИИ для создания нужной сцены.",
-};
+function buildJsonLd(route: ResolvedRoute, seo: SeoContent, siteUrl: string) {
+  const canonicalUrl = `${siteUrl}${route.canonicalPath}`;
 
-const HOW_TO_STEPS = [
-  "Выбери карточку с подходящим промтом и нажми «Скопировать промт».",
-  "Открой нейросеть (Kandinsky, Midjourney, DALL·E, Flux и др.) или фоторедактор с ИИ.",
-  "Вставь скопированный текст в поле ввода и добавь своё фото, если нужно.",
-  "Получи результат и при необходимости скорректируй промт под свой запрос.",
-];
+  const breadcrumbItems = [
+    { "@type": "ListItem", position: 1, name: "Главная", item: siteUrl },
+  ];
 
-const FAQ_ITEMS = [
-  {
-    q: "Как использовать промт для фото?",
-    a: "Скопируйте текст промта, откройте нейросеть или фоторедактор с ИИ, вставьте промт в поле ввода. Добавьте своё фото, если требуется, и запустите генерацию.",
-  },
-  {
-    q: "Какие нейросети подходят для этих промптов?",
-    a: "Промпты работают в Kandinsky, Midjourney, DALL·E, Flux, Leonardo AI, Ideogram и других генераторах изображений. Формулировки на русском языке.",
-  },
-  {
-    q: "Можно ли изменить промт под себя?",
-    a: "Да. Используйте промт как основу: добавляйте детали (цвет волос, одежду, фон), меняйте стиль или убирайте лишнее. Нейросеть поймёт контекст.",
-  },
-  {
-    q: "Промпты бесплатные?",
-    a: "Да. Все промты на сайте можно копировать и использовать бесплатно в любых ИИ-сервисах.",
-  },
-];
+  if (route.level === 1) {
+    breadcrumbItems.push({
+      "@type": "ListItem",
+      position: 2,
+      name: route.primaryTag.labelRu,
+      item: canonicalUrl,
+    });
+  } else {
+    breadcrumbItems.push({
+      "@type": "ListItem",
+      position: 2,
+      name: route.primaryTag.labelRu,
+      item: `${siteUrl}${route.parentPath}`,
+    });
+    if (route.level === 2) {
+      breadcrumbItems.push({
+        "@type": "ListItem",
+        position: 3,
+        name: route.tags[1].labelRu,
+        item: canonicalUrl,
+      });
+    } else if (route.level === 3) {
+      breadcrumbItems.push({
+        "@type": "ListItem",
+        position: 3,
+        name: route.tags[1].labelRu,
+        item: canonicalUrl,
+      });
+      breadcrumbItems.push({
+        "@type": "ListItem",
+        position: 4,
+        name: route.tags[2].labelRu,
+        item: canonicalUrl,
+      });
+    }
+  }
+
+  const schemas: Record<string, unknown>[] = [
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      itemListElement: breadcrumbItems,
+    },
+  ];
+
+  if (seo.faqItems.length > 0) {
+    schemas.push({
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      mainEntity: seo.faqItems.map((item) => ({
+        "@type": "Question",
+        name: item.q,
+        acceptedAnswer: { "@type": "Answer", text: item.a },
+      })),
+    });
+  }
+
+  return schemas;
+}
+
+function BreadcrumbSeparator() {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      className="text-zinc-300"
+    >
+      <path d="M9 18l6-6-6-6" />
+    </svg>
+  );
+}
 
 function Pagination({
   currentPage,
@@ -169,84 +229,75 @@ function Pagination({
 export default async function TagPage({ params, searchParams }: Props) {
   const { slug } = await params;
   const { page: pageStr } = await searchParams;
-  const path = "/" + slug.join("/");
-  const tag = findTagByUrlPath(path);
+  const route = resolveUrlToTags(slug);
 
-  if (!tag) notFound();
+  if (!route) notFound();
 
   const page = Math.max(1, parseInt(pageStr || "1", 10) || 1);
   const offset = (page - 1) * PAGE_SIZE;
 
-  const rpcParams: Record<string, string | null> = {
-    audience_tag: null,
-    style_tag: null,
-    occasion_tag: null,
-    object_tag: null,
-  };
-  rpcParams[tag.dimension] = tag.slug;
-
   const result = await fetchRouteCards({
-    audience_tag: rpcParams.audience_tag,
-    style_tag: rpcParams.style_tag,
-    occasion_tag: rpcParams.occasion_tag,
-    object_tag: rpcParams.object_tag,
+    ...route.rpcParams,
     limit: PAGE_SIZE,
     offset,
   });
   const totalCount = result.total_count ?? result.cards_count;
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
   const cards = await enrichCardsWithDetails(result.cards);
-  const siblings = getSiblingTags(tag, 6);
-  const sectionLabel = DIMENSION_LABELS[tag.dimension];
-  const seo = getSeoContent(tag.slug);
-  const intro = seo?.intro ?? (INTRO_TEMPLATES[tag.dimension] || INTRO_TEMPLATES.audience_tag);
-  const h1Text = seo?.h1 ?? `Промты для фото: ${tag.labelRu}`;
-  const faq = seo?.faqItems ?? FAQ_ITEMS;
-  const howTo = seo?.howToSteps ?? HOW_TO_STEPS;
-  const basePath = tag.urlPath.endsWith("/") ? tag.urlPath : tag.urlPath + "/";
+
+  const seo = getSeoForRoute(route);
+  const basePath = route.canonicalPath;
+
+  const primaryTag = route.primaryTag;
+  const siblings = getSiblingTags(primaryTag, 6);
+  const sectionLabel = DIMENSION_LABELS[primaryTag.dimension];
 
   return (
     <div className="flex min-h-screen flex-col">
       <Header />
 
-      {/* Tag hero */}
+      {/* Hero */}
       <section className="border-b border-zinc-100 bg-gradient-to-b from-zinc-50 to-white">
         <div className="mx-auto max-w-7xl px-5 pt-10 pb-8">
+          {/* Breadcrumbs */}
           <nav className="mb-5 flex items-center gap-1.5 text-sm text-zinc-400">
             <Link href="/" className="transition-colors hover:text-zinc-700">
               Главная
             </Link>
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              className="text-zinc-300"
-            >
-              <path d="M9 18l6-6-6-6" />
-            </svg>
-            <span>{sectionLabel}</span>
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              className="text-zinc-300"
-            >
-              <path d="M9 18l6-6-6-6" />
-            </svg>
-            <span className="text-zinc-700 font-medium">{tag.labelRu}</span>
+            <BreadcrumbSeparator />
+            {route.level === 1 ? (
+              <>
+                <span>{sectionLabel}</span>
+                <BreadcrumbSeparator />
+                <span className="text-zinc-700 font-medium">{primaryTag.labelRu}</span>
+              </>
+            ) : (
+              <>
+                <Link
+                  href={route.parentPath!}
+                  className="transition-colors hover:text-zinc-700"
+                >
+                  {primaryTag.labelRu}
+                </Link>
+                <BreadcrumbSeparator />
+                {route.level === 2 ? (
+                  <span className="text-zinc-700 font-medium">{route.tags[1].labelRu}</span>
+                ) : (
+                  <>
+                    <span className="text-zinc-500">{route.tags[1].labelRu}</span>
+                    <BreadcrumbSeparator />
+                    <span className="text-zinc-700 font-medium">{route.tags[2].labelRu}</span>
+                  </>
+                )}
+              </>
+            )}
           </nav>
 
           <h1 className="text-3xl font-bold tracking-tight text-zinc-900 sm:text-4xl">
-            {h1Text}
+            {seo.h1}
           </h1>
           <p className="mt-3 max-w-2xl text-zinc-600 leading-relaxed">
-            {intro}
+            {seo.intro}
           </p>
           <div className="mt-4 flex items-center gap-3">
             <span className="inline-flex items-center rounded-full bg-zinc-100 px-3 py-1 text-sm tabular-nums text-zinc-600">
@@ -269,16 +320,30 @@ export default async function TagPage({ params, searchParams }: Props) {
       <main className="mx-auto w-full max-w-7xl flex-1 px-2 sm:px-5 py-10 pb-24 lg:pb-10">
         <FilterableGrid cards={cards} />
 
-        {/* Pagination */}
         {totalPages > 1 && (
           <Pagination currentPage={page} totalPages={totalPages} basePath={basePath} />
+        )}
+
+        {/* Parent link for L2/L3 */}
+        {route.parentPath && (
+          <div className="mt-10">
+            <Link
+              href={route.parentPath}
+              className="inline-flex items-center gap-2 text-sm text-indigo-600 hover:text-indigo-800 transition-colors"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M15 18l-6-6 6-6" />
+              </svg>
+              Все промты: {primaryTag.labelRu}
+            </Link>
+          </div>
         )}
 
         {/* How to use */}
         <section className="mt-16 rounded-2xl border border-zinc-200 bg-white p-6 sm:p-8">
           <h2 className="text-xl font-bold text-zinc-900">Как использовать промт</h2>
           <ol className="mt-4 space-y-3 text-zinc-600">
-            {howTo.map((step, i) => (
+            {seo.howToSteps.map((step, i) => (
               <li key={i} className="flex gap-3">
                 <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-indigo-100 text-sm font-bold text-indigo-700">
                   {i + 1}
@@ -293,7 +358,7 @@ export default async function TagPage({ params, searchParams }: Props) {
         <section className="mt-12">
           <h2 className="text-xl font-bold text-zinc-900">Частые вопросы</h2>
           <dl className="mt-4 space-y-6">
-            {faq.map((item, i) => (
+            {seo.faqItems.map((item, i) => (
               <div key={i} className="rounded-xl border border-zinc-200 bg-zinc-50/50 p-4">
                 <dt className="font-semibold text-zinc-900">{item.q}</dt>
                 <dd className="mt-2 text-zinc-600">{item.a}</dd>
@@ -302,7 +367,7 @@ export default async function TagPage({ params, searchParams }: Props) {
           </dl>
         </section>
 
-        {/* Internal links */}
+        {/* Internal links — siblings of primary tag */}
         {siblings.length > 0 && (
           <section className="mt-12">
             <h2 className="text-lg font-bold text-zinc-900">Ещё разделы</h2>
@@ -319,8 +384,38 @@ export default async function TagPage({ params, searchParams }: Props) {
             </div>
           </section>
         )}
+
+        {/* Cross-dimension links for L2: show siblings with same second tag */}
+        {route.level >= 2 && route.tags.length >= 2 && (
+          <section className="mt-8">
+            <h2 className="text-lg font-bold text-zinc-900">
+              Ещё «{route.tags[1].labelRu}»
+            </h2>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {getSiblingTags(route.tags[1], 8).map((s) => (
+                <Link
+                  key={s.slug}
+                  href={s.urlPath + "/"}
+                  className="rounded-lg border border-zinc-200 bg-white px-4 py-2 text-sm text-zinc-600 transition-colors hover:border-zinc-300 hover:bg-zinc-50 hover:text-zinc-900"
+                >
+                  {s.labelRu}
+                </Link>
+              ))}
+            </div>
+          </section>
+        )}
       </main>
       <Footer />
+
+      {/* JSON-LD: BreadcrumbList + FAQPage */}
+      <Script
+        id="tag-page-json-ld"
+        type="application/ld+json"
+        strategy="afterInteractive"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(buildJsonLd(route, seo, SITE_URL)).replace(/</g, "\\u003c"),
+        }}
+      />
     </div>
   );
 }

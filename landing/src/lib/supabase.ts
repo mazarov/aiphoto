@@ -43,6 +43,7 @@ export async function fetchRouteCards(params: {
   style_tag?: string | null;
   occasion_tag?: string | null;
   object_tag?: string | null;
+  doc_task_tag?: string | null;
   site_lang?: string;
   limit?: number;
   offset?: number;
@@ -53,7 +54,7 @@ export async function fetchRouteCards(params: {
     p_style_tag: params.style_tag ?? null,
     p_occasion_tag: params.occasion_tag ?? null,
     p_object_tag: params.object_tag ?? null,
-    p_doc_task_tag: null,
+    p_doc_task_tag: params.doc_task_tag ?? null,
     p_site_lang: params.site_lang ?? "ru",
     p_limit: params.limit ?? 24,
     p_offset: params.offset ?? 0,
@@ -64,6 +65,30 @@ export async function fetchRouteCards(params: {
   const result = data as RouteCardsResult;
   result.cards = await expandCardGroups(result.cards);
   return result;
+}
+
+export type IndexableTagCombo = {
+  dim1: string;
+  slug1: string;
+  dim2: string;
+  slug2: string;
+  cards_count: number;
+};
+
+export async function getIndexableTagCombos(
+  minCards = 6,
+  siteLang = "ru",
+): Promise<IndexableTagCombo[]> {
+  const supabase = createSupabaseServer();
+  const { data, error } = await supabase.rpc("get_indexable_tag_combos", {
+    p_min_cards: minCards,
+    p_site_lang: siteLang,
+  });
+  if (error) {
+    console.error("get_indexable_tag_combos error:", error.message);
+    return [];
+  }
+  return (data ?? []) as IndexableTagCombo[];
 }
 
 /** Fetches sibling cards for any card in a group; never splits groups.
