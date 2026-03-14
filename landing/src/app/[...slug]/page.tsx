@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import Script from "next/script";
-import { fetchRouteCards, enrichCardsWithDetails } from "@/lib/supabase";
+import { fetchRouteCards, enrichCardsWithDetails, getIndexableTagCombos } from "@/lib/supabase";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { FilterableGrid } from "@/components/CardFilters";
@@ -9,6 +9,10 @@ import {
   getSiblingTags,
   getAllTagPaths,
   DIMENSION_LABELS,
+  findTagBySlug,
+  type Dimension,
+  type TagEntry,
+  DIMENSION_PRIORITY,
 } from "@/lib/tag-registry";
 import { resolveUrlToTags, getMinCardsForLevel, type ResolvedRoute } from "@/lib/route-resolver";
 import { getSeoForRoute } from "@/lib/seo-templates";
@@ -135,6 +139,74 @@ function buildJsonLd(route: ResolvedRoute, seo: SeoContent, siteUrl: string) {
   return schemas;
 }
 
+type L2Chip = {
+  tag: TagEntry;
+  href: string;
+  count: number;
+};
+
+type L2ChipGroup = {
+  dimension: Dimension;
+  label: string;
+  chips: L2Chip[];
+};
+
+async function getL2ChipsForTag(
+  tag: TagEntry,
+  limit = 12,
+): Promise<L2ChipGroup[]> {
+  const combos = await getIndexableTagCombos(6, "ru");
+
+  const matching: { other: TagEntry; count: number }[] = [];
+  for (const c of combos) {
+    let otherDim: string | null = null;
+    let otherSlug: string | null = null;
+
+    if (c.dim1 === tag.dimension && c.slug1 === tag.slug) {
+      otherDim = c.dim2;
+      otherSlug = c.slug2;
+    } else if (c.dim2 === tag.dimension && c.slug2 === tag.slug) {
+      otherDim = c.dim1;
+      otherSlug = c.slug1;
+    }
+    if (!otherDim || !otherSlug) continue;
+
+    const otherTag = findTagBySlug(otherDim as Dimension, otherSlug);
+    if (otherTag) {
+      matching.push({ other: otherTag, count: c.cards_count });
+    }
+  }
+
+  matching.sort((a, b) => b.count - a.count);
+
+  const grouped = new Map<Dimension, L2Chip[]>();
+  for (const { other, count } of matching) {
+    const lastSeg = other.urlPath.split("/").filter(Boolean).pop()!;
+    const basePath = tag.urlPath.endsWith("/") ? tag.urlPath : tag.urlPath + "/";
+    const chip: L2Chip = {
+      tag: other,
+      href: basePath + lastSeg + "/",
+      count,
+    };
+    const arr = grouped.get(other.dimension) ?? [];
+    arr.push(chip);
+    grouped.set(other.dimension, arr);
+  }
+
+  const groups: L2ChipGroup[] = [];
+  for (const dim of DIMENSION_PRIORITY) {
+    if (dim === tag.dimension) continue;
+    const chips = grouped.get(dim);
+    if (!chips || chips.length === 0) continue;
+    groups.push({
+      dimension: dim,
+      label: DIMENSION_LABELS[dim],
+      chips: chips.slice(0, limit),
+    });
+  }
+  return groups;
+}
+
 function BreadcrumbSeparator() {
   return (
     <svg
@@ -251,6 +323,7 @@ export default async function TagPage({ params, searchParams }: Props) {
   const primaryTag = route.primaryTag;
   const siblings = getSiblingTags(primaryTag, 6);
   const sectionLabel = DIMENSION_LABELS[primaryTag.dimension];
+  const l2ChipGroups = route.level === 1 ? await getL2ChipsForTag(primaryTag) : [];
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -314,6 +387,32 @@ export default async function TagPage({ params, searchParams }: Props) {
               </span>
             )}
           </div>
+          {/* L2 chips — only on L1 pages */}
+          {l2ChipGroups.length > 0 && (
+            <div className="mt-6 space-y-4">
+              {l2ChipGroups.map((group) => (
+                <div key={group.dimension}>
+                  <p className="mb-2 text-xs font-medium uppercase tracking-wider text-zinc-400">
+                    {group.label}
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {group.chips.map((chip) => (
+                      <Link
+                        key={chip.tag.slug}
+                        href={chip.href}
+                        className="inline-flex items-center gap-1.5 rounded-full border border-zinc-200 bg-white px-3 py-1.5 text-sm text-zinc-600 transition-colors hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700"
+                      >
+                        {chip.tag.labelRu}
+                        <span className="text-[11px] tabular-nums text-zinc-400">
+                          {chip.count}
+                        </span>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </section>
 

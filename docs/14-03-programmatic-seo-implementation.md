@@ -616,8 +616,8 @@ $$;
 
 ### Phase 3 (Sitemap) — DONE (без SQL RPC)
 
-- [ ] SQL миграция `get_indexable_tag_combos` (отложена — L2 в sitemap без проверки count, noindex meta защищает)
-- [x] `sitemap.ts` включает L2 (все допустимые пары из разных измерений)
+- [x] SQL миграция `get_indexable_tag_combos` — 636 пар с >= 6 карточками
+- [x] `sitemap.ts` включает L2 (636 страниц из RPC `get_indexable_tag_combos`)
 - [ ] (optional) `generateStaticParams` для L2
 
 ### Phase 4 (Linking) — DONE
@@ -625,7 +625,7 @@ $$;
 - [x] Breadcrumbs Главная → L1 → L2
 - [x] Блок «Соседние комбинации» (siblings of primary + siblings of secondary tag)
 - [x] Ссылка на родительский L1
-- [ ] Чипы L2 расширений на L1 (отложено)
+- [x] Чипы L2 расширений на L1 (из `getIndexableTagCombos`, сгруппированы по измерениям, с количеством карточек)
 
 ### Phase 5 (LLM SEO)
 

@@ -115,6 +115,8 @@ getSeoForRoute(route)                   ← seo-templates.ts → seo-content.ts 
 
 **Index/noindex:** L1 >= 3 карточек, L2/L3 >= 6 карточек. При noindex — canonical на родительский L1.
 
+**L2 чипы на L1:** На L1 страницах отображаются чипы-ссылки на L2 комбинации, сгруппированные по измерениям. Данные из RPC `get_indexable_tag_combos(min_cards=6)`, фильтруются для текущего L1 тега. Чипы показывают label + количество карточек.
+
 ### Карточка `/p/[slug]`
 
 ```
