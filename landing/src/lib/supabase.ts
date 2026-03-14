@@ -642,9 +642,10 @@ export async function getCardPageData(slug: string): Promise<CardPageData | null
       .order("variant_index", { ascending: true }),
     supabase
       .from("prompt_card_media")
-      .select("storage_bucket,storage_path")
+      .select("storage_bucket,storage_path,is_primary")
       .eq("card_id", card.id)
-      .eq("media_type", "photo"),
+      .eq("media_type", "photo")
+      .order("is_primary", { ascending: false }),
     supabase
       .from("prompt_card_before_media")
       .select("storage_bucket,storage_path")

@@ -67,6 +67,13 @@ export const SOURCE_PROFILES: SourceProfile[] = [
     minPromptLength: 30,
     groupingStrategy: "self-contained-split",
   },
+  {
+    slugPrefix: "GPTFluxBot",
+    displayName: "Промпты Nano Banana",
+    promptContainerSelector: "blockquote, pre",
+    minPromptLength: 80,
+    groupingStrategy: "self-contained-split",
+  },
 ];
 
 /**
