@@ -324,8 +324,16 @@ async function classifyCard(title, promptTexts) {
     signal: AbortSignal.timeout(30000),
   });
 
-  if (res.status === 429) return null;
-  if (!res.ok) throw new Error(`LLM ${res.status}: ${(await res.text()).slice(0, 200)}`);
+  if (res.status === 429) {
+    const body = await res.text().catch(() => "");
+    console.log(`  🔴 429 response: ${body.slice(0, 300)}`);
+    return null;
+  }
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    console.log(`  🔴 ${res.status} response: ${body.slice(0, 300)}`);
+    throw new Error(`LLM ${res.status}: ${body.slice(0, 200)}`);
+  }
 
   const json = await res.json();
   const raw = json.choices?.[0]?.message?.content;
