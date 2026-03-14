@@ -168,6 +168,15 @@ export const TAG_REGISTRY: TagEntry[] = [
   { slug: "produktovaya_fotografiya", dimension: "style_tag", labelRu: "Продуктовая фотография", labelEn: "Product photography", urlPath: "/stil/produktovaya-fotografiya", patterns: [/продуктов\S*\s+фото|product\s+photo/i] },
   { slug: "art_deco", dimension: "style_tag", labelRu: "Арт-деко", labelEn: "Art Deco", urlPath: "/stil/art-deco", patterns: [/арт.?деко|art.?deco/i] },
   { slug: "na_naberezhnoj", dimension: "object_tag", labelRu: "На набережной", labelEn: "On embankment", urlPath: "/na-naberezhnoj", patterns: [/на\s+набережн|набережн/i] },
+
+  // ── LLM-discovered tags (full recompute 2026-03-14) ──
+  { slug: "giperrealistichnoe", dimension: "style_tag", labelRu: "Гиперреалистичное", labelEn: "Hyperrealistic", urlPath: "/stil/giperrealistichnoe", patterns: [/гиперреалист|hyperrealist/i] },
+  { slug: "na_okne", dimension: "object_tag", labelRu: "У окна", labelEn: "By the window", urlPath: "/na-okne", patterns: [/у\s+окн|на\s+окн|возле\s+окн|у\s+подоконник/i] },
+  { slug: "na_balkone", dimension: "object_tag", labelRu: "На балконе", labelEn: "On balcony", urlPath: "/na-balkone", patterns: [/на\s+балкон|балкон/i] },
+  { slug: "v_metroe", dimension: "object_tag", labelRu: "В метро", labelEn: "In metro", urlPath: "/v-metroe", patterns: [/в\s+метро|метро/i] },
+  { slug: "v_lifte", dimension: "object_tag", labelRu: "В лифте", labelEn: "In elevator", urlPath: "/v-lifte", patterns: [/в\s+лифт|лифт/i] },
+  { slug: "v_parke", dimension: "object_tag", labelRu: "В парке", labelEn: "In park", urlPath: "/v-parke", patterns: [/в\s+парк|парков/i] },
+  { slug: "impressionizm", dimension: "style_tag", labelRu: "Импрессионизм", labelEn: "Impressionism", urlPath: "/stil/impressionizm", patterns: [/импрессионизм|impressionism/i] },
 ];
 
 // ── Lookup indexes (built once at import) ──
