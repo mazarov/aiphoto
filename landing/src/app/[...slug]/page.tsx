@@ -173,7 +173,10 @@ async function getL2ChipsForTag(
 
     const otherTag = findTagBySlug(otherDim as Dimension, otherSlug);
     if (otherTag) {
-      matching.push({ other: otherTag, count: c.cards_count });
+      const count = Number(c.cards_count) || 0;
+      if (count > 0) {
+        matching.push({ other: otherTag, count });
+      }
     }
   }
 
@@ -387,32 +390,6 @@ export default async function TagPage({ params, searchParams }: Props) {
               </span>
             )}
           </div>
-          {/* L2 chips — only on L1 pages */}
-          {l2ChipGroups.length > 0 && (
-            <div className="mt-6 space-y-4">
-              {l2ChipGroups.map((group) => (
-                <div key={group.dimension}>
-                  <p className="mb-2 text-xs font-medium uppercase tracking-wider text-zinc-400">
-                    {group.label}
-                  </p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {group.chips.map((chip) => (
-                      <Link
-                        key={chip.tag.slug}
-                        href={chip.href}
-                        className="inline-flex items-center gap-1.5 rounded-full border border-zinc-200 bg-white px-3 py-1.5 text-sm text-zinc-600 transition-colors hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700"
-                      >
-                        {chip.tag.labelRu}
-                        <span className="text-[11px] tabular-nums text-zinc-400">
-                          {chip.count}
-                        </span>
-                      </Link>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
         </div>
       </section>
 
@@ -436,6 +413,33 @@ export default async function TagPage({ params, searchParams }: Props) {
               Все промты: {primaryTag.labelRu}
             </Link>
           </div>
+        )}
+
+        {/* L2 chips — only on L1 pages */}
+        {l2ChipGroups.length > 0 && (
+          <section className="mt-12 space-y-4">
+            {l2ChipGroups.map((group) => (
+              <div key={group.dimension}>
+                <p className="mb-2 text-xs font-medium uppercase tracking-wider text-zinc-400">
+                  {group.label}
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {group.chips.map((chip) => (
+                    <Link
+                      key={chip.tag.slug}
+                      href={chip.href}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-zinc-200 bg-white px-3 py-1.5 text-sm text-zinc-600 transition-colors hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700"
+                    >
+                      {chip.tag.labelRu}
+                      <span className="text-[11px] tabular-nums text-zinc-400">
+                        {chip.count}
+                      </span>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </section>
         )}
 
         {/* How to use */}
