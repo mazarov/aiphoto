@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import * as cheerio from "cheerio";
+import { type SourceProfile, findSourceProfile, DEFAULT_PROFILE } from "./source-profiles";
 
 export type MediaType = "photo" | "video";
 export type MatchStrategy = "direct_index" | "label_based" | "fallback_all" | "fallback_tail";
@@ -63,18 +64,14 @@ export interface ParseDatasetResult {
   datasetSlug: string;
   cards: ParsedCard[];
   htmlFiles: number;
-  skippedNoBlockquote: number;
+  skippedNoPrompt: number;
   skippedNoPhoto: number;
+  profileUsed: string;
 }
 
-export const PARSER_VERSION = "v0.7.0";
+export const PARSER_VERSION = "v1.0.0";
 
-// Blockquotes shorter than this are treated as decorative headers, not prompts.
-// Based on data: all real prompts >= 89 chars, all decorative <= 65 chars.
-const MIN_PROMPT_LENGTH = 80;
-
-// Some channels use <pre> instead of <blockquote> for prompts (e.g. NeiRoAIPhotoBot).
-const PROMPT_CONTAINER_SELECTOR = "blockquote, pre";
+// ─── Shared utilities ───────────────────────────────────────────────
 
 function dedupeWarnings(input: string[]): string[] {
   return Array.from(new Set(input));
@@ -129,7 +126,6 @@ function splitPromptByLanguage(promptText: string): { ru: string; en: string | n
   const cyrCount = cyrillicMatches.length;
   const latinCount = latinMatches.length;
 
-  // English-only (or mostly-English) prompts should not pollute RU field.
   if (latinCount > 0 && cyrCount === 0) {
     return { ru: "", en: promptText };
   }
@@ -139,6 +135,28 @@ function splitPromptByLanguage(promptText: string): { ru: string; en: string | n
 
   return { ru: promptText, en: null };
 }
+
+// ─── Profile-aware node helpers ─────────────────────────────────────
+
+function hasLongPromptInNode(nodeHtml: string, profile: SourceProfile): boolean {
+  const $n = cheerio.load(`<div>${nodeHtml}</div>`);
+  let found = false;
+  $n(profile.promptContainerSelector).each((_i, el) => {
+    if ($n(el).text().trim().length >= profile.minPromptLength) found = true;
+  });
+  return found;
+}
+
+function hasPhotoInNode(nodeHtml: string): boolean {
+  const $n = cheerio.load(`<div>${nodeHtml}</div>`);
+  return $n("a.photo_wrap").length > 0;
+}
+
+function isSelfContainedPost(nodeHtml: string, profile: SourceProfile): boolean {
+  return hasPhotoInNode(nodeHtml) && hasLongPromptInNode(nodeHtml, profile);
+}
+
+// ─── Variant / media mapping ────────────────────────────────────────
 
 function mapVariantsToMedia(
   variants: PromptVariant[],
@@ -210,7 +228,6 @@ function splitItemsByPromptCount<T>(items: T[], promptCount: number): T[][] {
     }
   }
 
-  // For photos < prompts we ensure every chunk gets at least one item by cycling.
   if (items.length < promptCount) {
     for (let i = 0; i < promptCount; i += 1) {
       if (chunks[i].length === 0) {
@@ -230,6 +247,8 @@ function reindexMedia(media: MediaItem[]): MediaItem[] {
   }));
 }
 
+// ─── HTML reading ───────────────────────────────────────────────────
+
 async function readHtmlParts(datasetDir: string): Promise<string[]> {
   const entries = await fs.readdir(datasetDir);
   const htmls = entries.filter((name) => /^messages(\d+)?\.html$/.test(name));
@@ -243,25 +262,9 @@ async function readHtmlParts(datasetDir: string): Promise<string[]> {
   return htmls.map((name) => path.join(datasetDir, name));
 }
 
-function hasLongBlockquoteInNode(nodeHtml: string): boolean {
-  const $n = cheerio.load(`<div>${nodeHtml}</div>`);
-  let found = false;
-  $n(PROMPT_CONTAINER_SELECTOR).each((_i, el) => {
-    if ($n(el).text().trim().length >= MIN_PROMPT_LENGTH) found = true;
-  });
-  return found;
-}
+// ─── Message grouping (profile-aware) ───────────────────────────────
 
-function hasPhotoInNode(nodeHtml: string): boolean {
-  const $n = cheerio.load(`<div>${nodeHtml}</div>`);
-  return $n("a.photo_wrap").length > 0;
-}
-
-function isSelfContainedPost(nodeHtml: string): boolean {
-  return hasPhotoInNode(nodeHtml) && hasLongBlockquoteInNode(nodeHtml);
-}
-
-function groupMessageNodes(nodes: MessageNode[]): MessageNode[][] {
+function groupMessageNodes(nodes: MessageNode[], profile: SourceProfile): MessageNode[][] {
   const extractTitleSignal = (nodeHtml: string): string | null => {
     const $n = cheerio.load(`<div>${nodeHtml}</div>`);
     const strong = $n(".text strong").first().text().trim();
@@ -270,14 +273,18 @@ function groupMessageNodes(nodes: MessageNode[]): MessageNode[][] {
     return normalized || null;
   };
 
+  const useLookBack = profile.groupingStrategy === "look-back-split";
+
   const groups: MessageNode[][] = [];
   let current: MessageNode[] = [];
   let currentTitleSignal: string | null = null;
   let currentHasPrompt = false;
+
   for (const node of nodes) {
     const isService = node.classes.includes("service");
     const isJoined = node.classes.includes("joined");
     const isDefault = node.classes.includes("default") && node.classes.includes("clearfix");
+
     if (isService) {
       if (current.length > 0) {
         groups.push(current);
@@ -287,18 +294,20 @@ function groupMessageNodes(nodes: MessageNode[]): MessageNode[][] {
       }
       continue;
     }
+
     if (isDefault && !isJoined) {
       if (current.length > 0) groups.push(current);
       current = [node];
       currentTitleSignal = extractTitleSignal(node.html);
-      currentHasPrompt = hasLongBlockquoteInNode(node.html);
+      currentHasPrompt = hasLongPromptInNode(node.html, profile);
       continue;
     }
+
     if (isJoined) {
       if (current.length === 0) {
         current = [node];
         currentTitleSignal = extractTitleSignal(node.html);
-        currentHasPrompt = hasLongBlockquoteInNode(node.html);
+        currentHasPrompt = hasLongPromptInNode(node.html, profile);
       } else {
         const joinedTitleSignal = extractTitleSignal(node.html);
         const shouldSplitByTitleShift =
@@ -306,17 +315,15 @@ function groupMessageNodes(nodes: MessageNode[]): MessageNode[][] {
           Boolean(joinedTitleSignal) &&
           currentTitleSignal !== joinedTitleSignal;
 
-        const shouldSplitBySelfContained = isSelfContainedPost(node.html);
+        const shouldSplitBySelfContained = isSelfContainedPost(node.html, profile);
 
-        const nodeHasPrompt = hasLongBlockquoteInNode(node.html);
+        const nodeHasPrompt = hasLongPromptInNode(node.html, profile);
         const nodeHasPhoto = hasPhotoInNode(node.html);
 
-        // Text-only prompt arriving when the group already has a prompt:
-        // the trailing photo-only nodes belong to this new prompt, not the old group.
-        // "Look-back split": move trailing photo-only nodes from current group
-        // into the new group together with this text-only prompt.
+        // "Look-back split": when a text-only prompt arrives and the group
+        // already has a prompt, steal trailing photo-only nodes into a new group.
         const shouldLookBackSplit =
-          currentHasPrompt && nodeHasPrompt && !nodeHasPhoto;
+          useLookBack && currentHasPrompt && nodeHasPrompt && !nodeHasPhoto;
 
         if (shouldSplitByTitleShift || shouldSplitBySelfContained) {
           groups.push(current);
@@ -324,11 +331,10 @@ function groupMessageNodes(nodes: MessageNode[]): MessageNode[][] {
           currentTitleSignal = joinedTitleSignal ?? extractTitleSignal(node.html);
           currentHasPrompt = nodeHasPrompt;
         } else if (shouldLookBackSplit) {
-          // Steal trailing photo-only nodes from current group
           const stolen: MessageNode[] = [];
           while (current.length > 0) {
             const last = current[current.length - 1];
-            if (hasPhotoInNode(last.html) && !hasLongBlockquoteInNode(last.html)) {
+            if (hasPhotoInNode(last.html) && !hasLongPromptInNode(last.html, profile)) {
               stolen.unshift(current.pop()!);
             } else {
               break;
@@ -352,7 +358,9 @@ function groupMessageNodes(nodes: MessageNode[]): MessageNode[][] {
   return groups;
 }
 
-function parseGroupToCards(group: MessageNode[], datasetSlug: string, channelTitle: string): ParsedCard[] {
+// ─── Group → Cards ──────────────────────────────────────────────────
+
+function parseGroupToCards(group: MessageNode[], datasetSlug: string, channelTitle: string, profile: SourceProfile): ParsedCard[] {
   const warnings: string[] = [];
   const groupHtml = group.map((g) => g.html).join("\n");
   const $g = cheerio.load(`<div id="root">${groupHtml}</div>`);
@@ -394,10 +402,10 @@ function parseGroupToCards(group: MessageNode[], datasetSlug: string, channelTit
 
   const variants: PromptVariant[] = [];
   let variantIdx = 0;
-  $g(PROMPT_CONTAINER_SELECTOR).each((_idx, el) => {
+  $g(profile.promptContainerSelector).each((_idx, el) => {
     const promptTextRaw = normalizePlainText($g(el).text() ?? "");
     if (!promptTextRaw) return;
-    if (promptTextRaw.length < MIN_PROMPT_LENGTH) return;
+    if (promptTextRaw.length < profile.minPromptLength) return;
     const byLang = splitPromptByLanguage(promptTextRaw);
     if (!byLang.ru && !byLang.en) return;
     const label = parseFrameLabel($g(el).parent().text());
@@ -425,12 +433,10 @@ function parseGroupToCards(group: MessageNode[], datasetSlug: string, channelTit
     titleRaw,
     titleNormalized,
     cardSlug: null as string | null,
-    // Parsing strategy: ignore Telegram hashtags completely.
     hashtags: [],
     parserVersion: PARSER_VERSION,
   };
 
-  // Default behavior for trivial cases: keep a single card.
   if (variants.length <= 1 || photos.length <= 1) {
     const mapped = mapVariantsToMedia(variants, photos);
     const finalWarnings = [...warnings];
@@ -456,11 +462,9 @@ function parseGroupToCards(group: MessageNode[], datasetSlug: string, channelTit
     ];
   }
 
-  // Multi-prompt + multi-photo groups are split into sub-cards.
   const splitWarnings = [...warnings];
   const hasExplicitMarkers = hasExplicitIndexedLabels(variants) || hasIndexedFrameHints(rawTextPlain, variants.length);
   if (!hasExplicitMarkers) {
-    // Multi-photo posts without explicit frame numbering are ambiguous by design.
     splitWarnings.push("ambiguous_prompt_photo_mapping");
     splitWarnings.push("split_mapping_no_explicit_markers");
   }
@@ -508,7 +512,30 @@ function parseGroupToCards(group: MessageNode[], datasetSlug: string, channelTit
   return cards;
 }
 
-export async function parseDataset(datasetSlug: string, root = path.resolve(process.cwd(), "docs", "export")): Promise<ParseDatasetResult> {
+// ─── Public API ─────────────────────────────────────────────────────
+
+export async function parseDataset(
+  datasetSlug: string,
+  root = path.resolve(process.cwd(), "docs", "export"),
+): Promise<ParseDatasetResult> {
+  const profile = findSourceProfile(datasetSlug);
+  if (!profile) {
+    throw new Error(
+      `[parser] No SourceProfile registered for "${datasetSlug}".\n` +
+      `Before parsing a new source you must:\n` +
+      `  1. Inspect 5-10 posts in docs/export/${datasetSlug}/messages.html\n` +
+      `  2. Add a SourceProfile in src/lib/source-profiles.ts\n` +
+      `  3. Run with --dry-run first\n` +
+      `\nTo analyze the source automatically, run:\n` +
+      `  npx tsx src/analyze-source.ts ${datasetSlug}`,
+    );
+  }
+
+  // eslint-disable-next-line no-console
+  console.log(`[parser] Using profile "${profile.displayName}" (${profile.slugPrefix})`);
+  // eslint-disable-next-line no-console
+  console.log(`[parser]   promptContainer=${profile.promptContainerSelector} minLen=${profile.minPromptLength} grouping=${profile.groupingStrategy}`);
+
   const datasetDir = path.resolve(root, datasetSlug);
   const htmlFiles = await readHtmlParts(datasetDir);
   if (htmlFiles.length === 0) {
@@ -516,7 +543,7 @@ export async function parseDataset(datasetSlug: string, root = path.resolve(proc
   }
 
   const cards: ParsedCard[] = [];
-  let skippedNoBlockquote = 0;
+  let skippedNoPrompt = 0;
   let skippedNoPhoto = 0;
   let channelTitle = datasetSlug;
 
@@ -533,20 +560,20 @@ export async function parseDataset(datasetSlug: string, root = path.resolve(proc
         classes: ($(el).attr("class") ?? "").trim(),
         html: $.html(el),
       }));
-    const groups = groupMessageNodes(nodes);
+    const groups = groupMessageNodes(nodes, profile);
 
     for (const group of groups) {
       const groupHtml = group.map((g) => g.html).join("\n");
       const $g = cheerio.load(`<div>${groupHtml}</div>`);
-      if ($g(PROMPT_CONTAINER_SELECTOR).length === 0) {
-        skippedNoBlockquote += 1;
+      if ($g(profile.promptContainerSelector).length === 0) {
+        skippedNoPrompt += 1;
         continue;
       }
       if ($g("a.photo_wrap").length === 0) {
         skippedNoPhoto += 1;
         continue;
       }
-      const groupCards = parseGroupToCards(group, datasetSlug, channelTitle);
+      const groupCards = parseGroupToCards(group, datasetSlug, channelTitle, profile);
       cards.push(...groupCards);
     }
   }
@@ -555,8 +582,8 @@ export async function parseDataset(datasetSlug: string, root = path.resolve(proc
     datasetSlug,
     cards,
     htmlFiles: htmlFiles.length,
-    skippedNoBlockquote,
+    skippedNoPrompt,
     skippedNoPhoto,
+    profileUsed: profile.slugPrefix,
   };
 }
-
