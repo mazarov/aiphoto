@@ -314,7 +314,7 @@ async function classifyWithLlm(
 
   const parsed = JSON.parse(jsonStr) as Record<string, unknown>;
 
-  const result: SeoTags = {
+  const seoResult: SeoTags = {
     audience_tag: [],
     style_tag: [],
     occasion_tag: [],
@@ -349,7 +349,7 @@ async function classifyWithLlm(
     const validSet = VALID_SLUGS_BY_DIM.get(dim)!;
     for (const slug of arr) {
       if (typeof slug !== "string" || !slug) continue;
-      result[dim].push(slug);
+      seoResult[dim].push(slug);
       if (!validSet.has(slug)) {
         const meta = newTagSlugsRaw.get(`${dim}:${slug}`);
         if (meta) {
@@ -361,8 +361,8 @@ async function classifyWithLlm(
     }
   }
 
-  fillLabels(result);
-  return { seoTags: result, newTags: newTagsMeta };
+  fillLabels(seoResult);
+  return { seoTags: seoResult, newTags: newTagsMeta };
 }
 
 async function classifyWithRetry(
