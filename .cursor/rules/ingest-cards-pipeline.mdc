@@ -77,7 +77,7 @@ npx tsx src/ingest-telegram-export-to-supabase.ts \
 
 ## Шаг 2. SEO-теги (LLM)
 
-По умолчанию используется **Gemini 2.5 Flash** с structured output для классификации промтов.
+Используется **OpenAI API** (gpt-4.1-mini по умолчанию) для классификации промтов.
 
 ```bash
 # LLM-классификация новых карточек (seo_readiness_score = 0)
@@ -86,30 +86,36 @@ npx tsx src/fill-seo-tags.ts --dataset LEXYGPT_ChatExport_2026-03-13
 # Пересчитать ВСЕ карточки датасета через LLM
 npx tsx src/fill-seo-tags.ts --dataset LEXYGPT_ChatExport_2026-03-13 --recompute-all
 
-# Dry-run — проверить без записи
-npx tsx src/fill-seo-tags.ts --dataset LEXYGPT_ChatExport_2026-03-13 --dry-run
-
-# Regex fallback (если Gemini недоступен / нет VPN)
+# Regex fallback (если LLM недоступен)
 npx tsx src/fill-seo-tags.ts --dataset LEXYGPT_ChatExport_2026-03-13 --regex-only
-
-# Одна карточка
-npx tsx src/fill-seo-tags.ts --card-id <uuid>
 ```
+
+⚠️ **OpenAI и Gemini блокируют запросы из РФ.** Для LLM-тегирования использовать DO сервер (standalone-скрипт) или VPN.
 
 ### Как работает LLM-тегирование
 
-- Модель: `gemini-2.5-flash` (structured output + `thinkingBudget: 0`)
+- Модель: `gpt-4.1-mini` (OpenAI Chat Completions, JSON mode)
 - Input: title + prompt_text_ru
-- Output: `{ audience_tag: [...], style_tag: [...], ... }` — slug'и строго из TAG_REGISTRY enum
+- Output: `{ audience_tag: [...], style_tag: [...], ..., new_tags: [...] }`
 - Параллельность: 5 запросов (configurable via `--concurrency`)
 - Retry: 3 попытки с exponential backoff на 429/500/503
 - Fallback: если LLM не отвечает → regex extraction
-- Стоимость: ~$0.05 за 700 карточек
 
 ### Env переменные
 
-- `GEMINI_API_KEY` — должен быть в `landing/.env.local` или `.env`
+- `OPENAI_API_KEY` — должен быть в `landing/.env.local` или `.env`
 - `SUPABASE_SERVICE_ROLE_KEY` — для записи в БД
+- `LLM_MODEL` — опционально (default: `gpt-4.1-mini`)
+
+## Шаг 2.5. Проверка новых тегов (ОБЯЗАТЕЛЬНО)
+
+После `fill-seo-tags` в выводе есть секция `🆕 New tags discovered`.
+
+**Агент ОБЯЗАН спросить пользователя:**
+
+> "LLM обнаружил N новых тегов. Теги с >= 3 вхождениями: [список]. Добавить в tag-registry.ts?"
+
+Если пользователь подтверждает — добавить теги в `landing/src/lib/tag-registry.ts` с `urlPath` и `patterns`.
 
 ## Шаг 3. Публикация
 
@@ -143,11 +149,17 @@ sb.from('prompt_cards').update({ is_published: true }).eq('is_published', false)
 ## Типичный сценарий: новый экспорт от существующего поставщика
 
 ```bash
-# 1. Dry-run — проверить что видит скрипт (dedup автоматический)
-npx tsx src/ingest-telegram-export-to-supabase.ts --dataset LEXYGPT_ChatExport_2026-03-13 --dry-run
-# 2. Инжест (без --offset, dedup сам пропустит дубли)
-npx tsx src/ingest-telegram-export-to-supabase.ts --dataset LEXYGPT_ChatExport_2026-03-13 --limit 100
-# 3. LLM SEO-теги
-npx tsx src/fill-seo-tags.ts --dataset LEXYGPT_ChatExport_2026-03-13
-# 4. Публикация (скрипт выше)
+# 1. Анализ источника
+npx tsx src/analyze-source.ts <slug>
+# 2. Dry-run
+npx tsx src/ingest-telegram-export-to-supabase.ts --dataset <slug> --dry-run
+# 3. Инжест
+npx tsx src/ingest-telegram-export-to-supabase.ts --dataset <slug>
+# 4. Перевод EN→RU (если есть EN-only промты)
+npx tsx src/translate-en-prompts.ts --dataset <slug>
+# 5. LLM SEO-теги (на DO сервере если из РФ!)
+npx tsx src/fill-seo-tags.ts --dataset <slug>
+# 6. ⚠️ Проверить новые теги → спросить пользователя → добавить в tag-registry.ts
+# 7. Публикация (SQL)
+# 8. Проверить на лендинге
 ```

@@ -284,17 +284,35 @@ node fill-seo-tags-standalone.mjs --dataset <slug>
 ## Порядок выполнения (чеклист)
 
 ```
-□ 1. Экспорт из Telegram → docs/export/<slug>/
-□ 2. npx tsx src/analyze-source.ts <slug>
-□ 3. Создать/проверить SourceProfile
-□ 4. npx tsx src/ingest-...ts --dataset <slug> --dry-run
-□ 5. npx tsx src/ingest-...ts --dataset <slug>
-□ 6. npx tsx src/translate-en-prompts.ts --dataset <slug>
-□ 7. npx tsx src/fill-seo-tags.ts --dataset <slug>
-□ 8. npx tsx src/fix-template-titles.ts --dataset <slug>
-□ 9. SQL: UPDATE prompt_cards SET is_published = true WHERE ...
-□ 10. Проверить на лендинге
+□ 1.  Экспорт из Telegram → docs/export/<slug>/
+□ 2.  npx tsx src/analyze-source.ts <slug>
+□ 3.  Создать/проверить SourceProfile
+□ 4.  npx tsx src/ingest-...ts --dataset <slug> --dry-run
+□ 5.  npx tsx src/ingest-...ts --dataset <slug>
+□ 6.  npx tsx src/translate-en-prompts.ts --dataset <slug>
+□ 7.  npx tsx src/fill-seo-tags.ts --dataset <slug>
+□ 8.  npx tsx src/fix-template-titles.ts --dataset <slug>
+□ 9.  ⚠️ ПРОВЕРИТЬ НОВЫЕ ТЕГИ (см. ниже)
+□ 10. SQL: UPDATE prompt_cards SET is_published = true WHERE ...
+□ 11. Проверить на лендинге
 ```
+
+### Шаг 9: Проверка новых тегов
+
+После `fill-seo-tags` в выводе есть секция `🆕 New tags discovered`. **Обязательно спросить пользователя:**
+
+> "LLM обнаружил N новых тегов. Вот теги с >= 3 вхождениями: [список]. Добавить их в tag-registry.ts?"
+
+Если пользователь подтверждает:
+1. Добавить теги в `landing/src/lib/tag-registry.ts` с правильными `urlPath` и `patterns`
+2. Закоммитить и запушить
+3. После деплоя — новые теги создадут страницы на лендинге
+
+**Правила для urlPath:**
+- `style_tag` → `/stil/<slug-with-dashes>`
+- `object_tag` → `/<slug-with-dashes>`
+- `audience_tag` → `/promty-dlya-foto-<slug-with-dashes>`
+- `occasion_tag` → `/<slug-with-dashes>`
 
 ---
 

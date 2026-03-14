@@ -142,6 +142,15 @@ export const TAG_REGISTRY: TagEntry[] = [
   { slug: "romanticheskiy", dimension: "style_tag", labelRu: "Романтический", labelEn: "Romantic", urlPath: "/stil/romanticheskiy", patterns: [/романтич/i] },
   { slug: "bokho_stil", dimension: "style_tag", labelRu: "Бохо-стиль", labelEn: "Boho style", urlPath: "/stil/bokho-stil", patterns: [/бохо|boho/i] },
   { slug: "etno_stil", dimension: "style_tag", labelRu: "Этно-стиль", labelEn: "Ethno style", urlPath: "/stil/etno-stil", patterns: [/этно|ethno/i] },
+
+  // ── LLM-discovered tags (batch 2026-03-14, PixelNanoBot) ──
+  { slug: "ultrarealistichnoe", dimension: "style_tag", labelRu: "Ультрареалистичное", labelEn: "Ultra-realistic", urlPath: "/stil/ultrarealistichnoe", patterns: [/ultra.?realist|ультрареалист/i] },
+  { slug: "s_shuboy", dimension: "object_tag", labelRu: "С шубой", labelEn: "With fur coat", urlPath: "/s-shuboy", patterns: [/в\s+шуб|с\s+шуб|шуба|шубк/i] },
+  { slug: "v_basseyne", dimension: "object_tag", labelRu: "В бассейне", labelEn: "In pool", urlPath: "/v-basseyne", patterns: [/в\s+бассейн|бассейн/i] },
+  { slug: "vintazhnyy_avtomobil", dimension: "object_tag", labelRu: "Винтажный автомобиль", labelEn: "Vintage car", urlPath: "/vintazhnyy-avtomobil", patterns: [/винтажн\S*\s+авто|ретро.?авто|старинн\S*\s+авто|vintage\s+car/i] },
+  { slug: "s_medvedem", dimension: "object_tag", labelRu: "С медведем", labelEn: "With bear", urlPath: "/s-medvedem", patterns: [/с\s+медвед|медведь|медведем/i] },
+  { slug: "glam", dimension: "style_tag", labelRu: "Глэм", labelEn: "Glam", urlPath: "/stil/glam", patterns: [/глэм|глам|glam/i] },
+  { slug: "v_sportale", dimension: "object_tag", labelRu: "В спортзале", labelEn: "In gym", urlPath: "/v-sportale", patterns: [/в\s+спортзал|в\s+тренажёрн|в\s+тренажерн|спортзал|gym/i] },
 ];
 
 // ── Lookup indexes (built once at import) ──
