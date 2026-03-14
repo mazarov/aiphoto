@@ -441,10 +441,8 @@ async function main() {
         }
 
         updated++;
-        const dims = DIMENSIONS.map(d => seoTags[d].length > 0 ? `${d}=[${seoTags[d].join(",")}]` : null).filter(Boolean);
-        if (updated <= 5 || updated % 50 === 0) {
-          console.log(`  ✓ [${updated}] ${(card.title_ru || "?").slice(0, 40)} (score=${s}) ${dims.join(" ")}`);
-        }
+        const tagCount = DIMENSIONS.reduce((sum, d) => sum + seoTags[d].length, 0);
+        console.log(`  ✅ [${updated}/${cards.length}] score=${s} tags=${tagCount} "${(card.title_ru || "?").slice(0, 50)}"`);
         return;
       } catch (err) {
         const is403 = err.message.includes("403");
