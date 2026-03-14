@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { unstable_cache } from "next/cache";
 
 const supabaseUrl =
   process.env.NEXT_PUBLIC_SUPABASE_URL ||
@@ -183,7 +184,7 @@ export async function fetchDatasets(): Promise<string[]> {
   return [...slugs].sort();
 }
 
-export async function fetchMenuCounts(
+async function fetchMenuCountsRaw(
   routeMap: { href: string; params: { audience_tag?: string; style_tag?: string; occasion_tag?: string; object_tag?: string } }[]
 ): Promise<Record<string, number>> {
   if (routeMap.length === 0) return {};
@@ -216,6 +217,21 @@ export async function fetchMenuCounts(
   }
 
   return results;
+}
+
+const getCachedMenuCounts = unstable_cache(
+  async (routeMapJson: string) => {
+    const routeMap = JSON.parse(routeMapJson);
+    return fetchMenuCountsRaw(routeMap);
+  },
+  ["menu-counts"],
+  { revalidate: 3600 }
+);
+
+export async function fetchMenuCounts(
+  routeMap: { href: string; params: { audience_tag?: string; style_tag?: string; occasion_tag?: string; object_tag?: string } }[]
+): Promise<Record<string, number>> {
+  return getCachedMenuCounts(JSON.stringify(routeMap));
 }
 
 // ── Homepage sections (single RPC for all category blocks) ──
