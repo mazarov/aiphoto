@@ -4,8 +4,6 @@ import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import type { PromptCardFull } from "@/lib/supabase";
-import { CopyPromptButton } from "./CopyPromptButton";
-
 type Props = {
   cards: PromptCardFull[];
   debug?: boolean;
@@ -19,16 +17,6 @@ function getSeoTagSlugs(seoTags: unknown): string[] {
   );
 }
 
-const WARNING_LABELS: Record<string, string> = {
-  missing_date: "Нет даты",
-  missing_ru_prompt_text: "Нет RU промпта",
-  ambiguous_prompt_photo_mapping: "Неоднозначная связка фото-промпт",
-  split_mapping_no_explicit_markers: "Нет разметки Кадр 1/2/3",
-  split_mapping_remainder_distribution: "Неравномерное распределение",
-  split_mapping_photo_reuse: "Фото переиспользованы",
-  photo_prompt_count_mismatch: "Кол-во фото ≠ промптов",
-};
-
 export function GroupedCard({ cards, debug = false }: Props) {
   const sorted = [...cards].sort((a, b) => a.cardSplitIndex - b.cardSplitIndex);
   const [activeCardIdx, setActiveCardIdx] = useState(0);
@@ -36,8 +24,6 @@ export function GroupedCard({ cards, debug = false }: Props) {
 
   const title = activeCard.title_ru || activeCard.title_en || "Без названия";
   const allSeoSlugs = Array.from(new Set(sorted.flatMap((c) => getSeoTagSlugs(c.seo_tags))));
-  const allWarnings = Array.from(new Set(sorted.flatMap((c) => c.warnings)));
-  const allHashtags = Array.from(new Set(sorted.flatMap((c) => c.hashtags)));
   const allPrompts = sorted.flatMap((c) => c.promptTexts);
   const groupBeforeUrl = sorted.find((c) => c.beforePhotoUrl)?.beforePhotoUrl ?? null;
 
@@ -77,83 +63,6 @@ export function GroupedCard({ cards, debug = false }: Props) {
     } catch {}
   }
 
-  // === Debug mode ===
-  if (debug) {
-    return (
-      <article className="flex h-full flex-col overflow-hidden rounded-xl border-2 border-indigo-300 bg-white shadow-sm">
-        <div className="flex bg-indigo-50 border-b border-indigo-200">
-          {sorted.map((c, i) => (
-            <button key={c.id} type="button" onClick={() => handleCardSwitch(i)}
-              className={`flex-1 py-1.5 text-xs font-medium transition-colors ${i === activeCardIdx ? "bg-indigo-500 text-white" : "text-indigo-600 hover:bg-indigo-100"} ${i > 0 ? "border-l border-indigo-200" : ""}`}
-            >{i + 1} / {sorted.length}</button>
-          ))}
-        </div>
-        <div className="relative">
-          <div className="relative aspect-[4/3] overflow-hidden bg-zinc-100">
-            {currentPhotoUrl ? (
-              <>
-                <Image src={currentPhotoUrl} alt="" fill sizes="(max-width: 640px) 100vw, 33vw" className="object-cover scale-110 blur-2xl brightness-75" aria-hidden />
-                <Image src={currentPhotoUrl} alt={title} fill sizes="(max-width: 640px) 100vw, 33vw" className="object-contain relative" />
-              </>
-            ) : (<div className="flex h-full items-center justify-center text-zinc-400 text-sm">Нет фото</div>)}
-            <div className="absolute top-2 right-2 rounded-full bg-indigo-500 text-white px-2 py-0.5 text-[10px] font-bold shadow">Группа {sorted.length}</div>
-            {(activeCard.beforePhotoUrl || groupBeforeUrl) && (
-              <div className="absolute top-0 left-0 z-10 w-[28%] min-w-[72px]">
-                <div className="aspect-square relative bg-zinc-800 rounded-br-xl overflow-hidden shadow-2xl ring-1 ring-black/10">
-                  <Image src={(activeCard.beforePhotoUrl || groupBeforeUrl)!} alt="before" fill className="object-cover" sizes="120px" />
-                  <div className="absolute inset-x-0 bottom-0 text-[8px] text-white font-bold text-center py-0.5 bg-gradient-to-t from-black/70 to-transparent tracking-wider">БЫЛО</div>
-                </div>
-              </div>
-            )}
-          </div>
-          {photos.length > 1 && (
-            <div className="flex items-center gap-1.5 overflow-x-auto p-2 bg-zinc-50 border-t border-zinc-100">
-              {photos.map((url, i) => (
-                <button key={i} type="button" onClick={() => setActivePhotoIdx(i)}
-                  className={`flex-shrink-0 w-11 h-11 rounded-md overflow-hidden border-2 transition ${i === activePhotoIdx ? "border-blue-500 shadow-sm" : "border-zinc-200 hover:border-zinc-400"}`}
-                ><Image src={url} alt={`thumb ${i + 1}`} width={44} height={44} className="object-cover w-full h-full" /></button>
-              ))}
-            </div>
-          )}
-        </div>
-        <div className="flex flex-1 flex-col p-4 gap-3">
-          <h3 className="text-base font-semibold text-zinc-900 leading-tight">{title}</h3>
-          <div className="text-[10px] text-zinc-400 font-mono break-all select-all">
-            {sorted.map((c, i) => (<span key={c.id}>{i > 0 && " · "}<span className={i === activeCardIdx ? "text-indigo-500 font-bold" : ""}>{c.id.slice(0, 8)}</span></span>))}
-          </div>
-          <div className="text-xs text-zinc-500 font-mono">
-            {activeCard.datasetSlug && <span>{activeCard.datasetSlug}</span>}
-            {activeCard.sourceMessageId && <span> · msg {activeCard.sourceMessageId}</span>}
-            {activeCard.sourceDate && <span> · {activeCard.sourceDate}</span>}
-            <span> · split {activeCard.cardSplitIndex + 1}/{activeCard.cardSplitTotal}</span>
-          </div>
-          <div className="flex flex-wrap gap-1.5">
-            <span className="inline-flex items-center rounded-full border border-indigo-200 bg-indigo-50 px-2 py-0.5 text-[11px] text-indigo-700 font-medium">группа: {sorted.length} карт</span>
-            <span className="inline-flex items-center rounded-full border border-zinc-200 bg-zinc-50 px-2 py-0.5 text-[11px] text-zinc-600">photos: {sorted.reduce((s, c) => s + c.photoCount, 0)}</span>
-            <span className="inline-flex items-center rounded-full border border-zinc-200 bg-zinc-50 px-2 py-0.5 text-[11px] text-zinc-600">prompts: {sorted.reduce((s, c) => s + c.promptCount, 0)}</span>
-            {allWarnings.length > 0 && (<span className="inline-flex items-center rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] text-amber-700">warnings: {allWarnings.length}</span>)}
-            {groupBeforeUrl && (<span className="inline-flex items-center rounded-full border border-teal-200 bg-teal-50 px-2 py-0.5 text-[11px] text-teal-700">было/стало</span>)}
-          </div>
-          {allWarnings.length > 0 && (
-            <div className="rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">
-              {allWarnings.map((w, i) => (<div key={i}>• {WARNING_LABELS[w] || w}</div>))}
-            </div>
-          )}
-          {allSeoSlugs.length > 0 && (
-            <div className="flex flex-wrap gap-1">
-              {allSeoSlugs.map((slug) => (<span key={slug} className="rounded-full bg-violet-50 border border-violet-200 px-2 py-0.5 text-[11px] text-violet-700">{slug}</span>))}
-            </div>
-          )}
-          {allHashtags.length > 0 && (<div className="text-xs text-zinc-500">{allHashtags.map((h) => `#${h.replace(/^#/, "")}`).join(" ")}</div>)}
-          {allPrompts.length > 0 && (
-            <div className="max-h-40 overflow-y-auto rounded-lg border border-zinc-200 bg-zinc-50 p-2 font-mono text-xs text-zinc-600 whitespace-pre-wrap">{allPrompts.join("\n\n")}</div>
-          )}
-          <div className="mt-auto pt-1"><CopyPromptButton texts={allPrompts} className="w-full" /></div>
-        </div>
-      </article>
-    );
-  }
-
   // === Normal mode — diagonal offset photo stack ===
   const secondPhoto = sorted.length > 1
     ? (sorted[activeCardIdx === 0 ? 1 : 0].photoUrls[0] || null)
@@ -161,10 +70,38 @@ export function GroupedCard({ cards, debug = false }: Props) {
 
   const activeSlug = activeCard.slug;
 
+  const totalPhotos = sorted.reduce((s, c) => s + c.photoCount, 0);
+  const totalPrompts = sorted.reduce((s, c) => s + c.promptCount, 0);
+  const hasEnOnly = !activeCard.hasRuPrompt && activeCard.promptTexts.length > 0;
+  const ruLabel = activeCard.hasRuPrompt ? "RU: есть" : hasEnOnly ? "EN only" : "нет промпта";
+  const ruColor = activeCard.hasRuPrompt ? "bg-emerald-600" : hasEnOnly ? "bg-amber-500" : "bg-red-500";
+  const scoreColor = activeCard.seoReadinessScore >= 60 ? "bg-emerald-600" : activeCard.seoReadinessScore >= 40 ? "bg-blue-500" : "bg-zinc-500";
+
   const articleEl = (
       <article
         className={`relative z-10 overflow-hidden rounded-2xl transition-all duration-200 group-hover:shadow-xl group-hover:shadow-zinc-900/10 group-hover:-translate-y-0.5 group-hover:-translate-x-0.5 ${activeSlug ? "cursor-pointer" : ""}`}
       >
+        {debug && (
+          <div className="absolute inset-x-0 top-0 z-30 pointer-events-none">
+            <div className="bg-black/70 backdrop-blur-sm px-2.5 py-2 space-y-1">
+              <div className="text-[9px] text-white/50 font-mono break-all select-all leading-tight pointer-events-auto">{activeCard.id}</div>
+              <div className="text-[10px] text-white/70 font-mono leading-tight">
+                {activeCard.datasetSlug && <span>{activeCard.datasetSlug}</span>}
+                {activeCard.sourceMessageId && <span> · msg {activeCard.sourceMessageId}</span>}
+                {activeCard.sourceDate && <span> · {activeCard.sourceDate}</span>}
+              </div>
+              <div className="flex flex-wrap gap-1">
+                <span className="rounded-full bg-zinc-600 px-1.5 py-px text-[9px] text-white font-medium">photos: {totalPhotos}</span>
+                <span className="rounded-full bg-zinc-600 px-1.5 py-px text-[9px] text-white font-medium">prompts: {totalPrompts}</span>
+                <span className={`rounded-full ${scoreColor} px-1.5 py-px text-[9px] text-white font-medium`}>score: {activeCard.seoReadinessScore}</span>
+                <span className={`rounded-full ${ruColor} px-1.5 py-px text-[9px] text-white font-medium`}>{ruLabel}</span>
+                {groupBeforeUrl && (
+                  <span className="rounded-full bg-teal-600 px-1.5 py-px text-[9px] text-white font-medium">было</span>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
         <div className="relative aspect-[3/4] w-full overflow-hidden rounded-2xl bg-zinc-200">
           {currentPhotoUrl ? (
             <Image

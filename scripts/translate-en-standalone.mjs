@@ -135,8 +135,11 @@ async function main() {
   if (!toProcess.length) { console.log("Nothing to translate."); return; }
 
   let success = 0, failed = 0, rateLimited = 0;
+  let consecutive403 = 0;
+  let stopped = false;
 
   async function processOne(variant) {
+    if (stopped) return;
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
         const translated = await translate(variant.prompt_text_en);
@@ -147,6 +150,8 @@ async function main() {
           await sleep(delay);
           continue;
         }
+
+        consecutive403 = 0;
 
         if (!DRY_RUN) {
           await sbUpdate("prompt_variants", variant.id, {
@@ -162,6 +167,15 @@ async function main() {
         }
         return;
       } catch (err) {
+        const is403 = err.message.includes("403");
+        if (is403) {
+          consecutive403++;
+          if (consecutive403 >= 3) {
+            console.error(`\n🛑 3 consecutive 403 errors — stopping early. Fix API access and re-run.`);
+            stopped = true;
+            return;
+          }
+        }
         if (attempt === 2) {
           failed++;
           console.log(`  ✗ ${err.message.slice(0, 100)}`);
@@ -174,7 +188,9 @@ async function main() {
 
   const running = new Set();
   for (const v of toProcess) {
+    if (stopped) break;
     if (running.size >= CONCURRENCY) await Promise.race(running);
+    if (stopped) break;
     const p = processOne(v).then(() => running.delete(p));
     running.add(p);
   }

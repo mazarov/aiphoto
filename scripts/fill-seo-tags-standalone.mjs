@@ -155,6 +155,15 @@ const KNOWN_TAGS = [
   { slug: "s_podarkami", dim: "object_tag", ru: "С подарками", en: "With gifts" },
   { slug: "s_ochkami", dim: "object_tag", ru: "С очками", en: "With glasses" },
   { slug: "noch", dim: "object_tag", ru: "Ночь", en: "Night" },
+  { slug: "ultrarealistichnoe", dim: "style_tag", ru: "Ультрареалистичное", en: "Ultra-realistic" },
+  { slug: "s_shuboy", dim: "object_tag", ru: "С шубой", en: "With fur coat" },
+  { slug: "v_basseyne", dim: "object_tag", ru: "В бассейне", en: "In pool" },
+  { slug: "vintazhnyy_avtomobil", dim: "object_tag", ru: "Винтажный автомобиль", en: "Vintage car" },
+  { slug: "s_medvedem", dim: "object_tag", ru: "С медведем", en: "With bear" },
+  { slug: "glam", dim: "style_tag", ru: "Глэм", en: "Glam" },
+  { slug: "v_sportale", dim: "object_tag", ru: "В спортзале", en: "In gym" },
+  { slug: "na_krovati", dim: "object_tag", ru: "На кровати", en: "On bed" },
+  { slug: "halloween", dim: "occasion_tag", ru: "Хэллоуин", en: "Halloween" },
 ];
 
 const KNOWN_SLUGS = new Set(KNOWN_TAGS.map(t => t.slug));
@@ -368,10 +377,12 @@ async function main() {
 
   let updated = 0, failed = 0, skipped = 0;
   const allNewTags = new Map();
-  let active = 0;
+  let consecutive403 = 0;
+  let stopped = false;
   const queue = [...cards];
 
   async function processCard(card) {
+    if (stopped) return;
     const prompts = promptMap.get(card.id);
     if (!prompts?.length) { skipped++; return; }
 
@@ -384,6 +395,7 @@ async function main() {
           continue;
         }
 
+        consecutive403 = 0;
         const { seoTags, newTags } = buildSeoTags(parsed);
         const s = score(seoTags);
 
@@ -405,6 +417,15 @@ async function main() {
         }
         return;
       } catch (err) {
+        const is403 = err.message.includes("403");
+        if (is403) {
+          consecutive403++;
+          if (consecutive403 >= 3) {
+            console.error(`\n🛑 3 consecutive 403 errors — stopping early. Fix API access and re-run.`);
+            stopped = true;
+            return;
+          }
+        }
         if (attempt === 2) {
           failed++;
           console.log(`  ✗ ${card.id}: ${err.message.slice(0, 100)}`);
@@ -417,7 +438,9 @@ async function main() {
 
   const running = new Set();
   for (const card of queue) {
+    if (stopped) break;
     if (running.size >= CONCURRENCY) await Promise.race(running);
+    if (stopped) break;
     const p = processCard(card).then(() => running.delete(p));
     running.add(p);
   }

@@ -47,7 +47,6 @@ export function FilterableGrid({ cards }: Props) {
     hasBefore: "all",
     dataset: "",
   });
-  const [grouped, setGrouped] = useState(false);
   const [datasets, setDatasets] = useState<string[]>([]);
 
   const [idSearch, setIdSearch] = useState("");
@@ -156,7 +155,7 @@ export function FilterableGrid({ cards }: Props) {
     });
   }, [isIdMode, searchResults, isFilterMode, filterResults, cards, filters]);
 
-  const shouldGroup = debugMode ? grouped : true;
+  const shouldGroup = true;
 
   const gridItems: GridItem[] = useMemo(() => {
     if (!shouldGroup) return filtered.map((card) => ({ type: "single" as const, card }));
@@ -183,13 +182,11 @@ export function FilterableGrid({ cards }: Props) {
   }, [filtered, shouldGroup]);
 
   const groupCount = useMemo(() => {
-    if (!grouped) return 0;
     return gridItems.filter((i) => i.type === "group").length;
-  }, [gridItems, grouped]);
+  }, [gridItems]);
 
   function handleReset() {
     setFilters({ hasWarnings: "all", scoreMin: 0, scoreMax: 100, hasRuPrompt: "all", selectedTag: "", hasBefore: "all", dataset: "" });
-    setGrouped(false);
     setIdSearch("");
     setSearchResults(null);
     setFilterResults(null);
@@ -199,9 +196,7 @@ export function FilterableGrid({ cards }: Props) {
     ? (searching ? "Поиск..." : `${filtered.length} найдено`)
     : isFilterMode
       ? (filterSearching ? "Поиск..." : `${filtered.length} найдено`)
-      : grouped
-        ? `${gridItems.length} (${groupCount} групп) из ${cards.length}`
-        : `${filtered.length} из ${cards.length}`;
+      : `${gridItems.length} (${groupCount} групп) из ${cards.length}`;
 
   const cardIds = useMemo(
     () => filtered.map((c) => c.id),
@@ -224,17 +219,14 @@ export function FilterableGrid({ cards }: Props) {
           <p className="text-zinc-400">{isIdMode || isFilterMode ? "Карточки не найдены." : "Нет карточек по выбранным фильтрам."}</p>
         </div>
       ) : (
-        <div className={debugMode
-          ? "grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 items-stretch"
-          : "columns-2 sm:columns-3 lg:columns-4 xl:columns-5 gap-2 sm:gap-4"
-        }>
+        <div className="columns-2 sm:columns-3 lg:columns-4 xl:columns-5 gap-2 sm:gap-4">
           {gridItems.map((item) =>
             item.type === "single" ? (
-              <div key={item.card.id} className={debugMode ? "" : "mb-2 sm:mb-4 break-inside-avoid"}>
+              <div key={item.card.id} className="mb-2 sm:mb-4 break-inside-avoid">
                 <PromptCard card={item.card} debug={debugMode} />
               </div>
             ) : (
-              <div key={item.key} className={debugMode ? "" : "mb-2 sm:mb-4 break-inside-avoid"}>
+              <div key={item.key} className="mb-2 sm:mb-4 break-inside-avoid">
                 <GroupedCard cards={item.cards} debug={debugMode} />
               </div>
             )
@@ -340,13 +332,10 @@ export function FilterableGrid({ cards }: Props) {
                 </div>
               )}
 
-              {/* Group + Reset */}
-              <div className="flex gap-2 pt-1">
-                <button type="button" onClick={() => setGrouped((g) => !g)}
-                  className={`flex-1 rounded-xl border px-3 py-2 text-sm font-medium transition-all ${grouped ? "border-indigo-400 bg-indigo-500 text-white" : "border-zinc-200 bg-zinc-50 text-zinc-600 hover:bg-zinc-100"}`}
-                >Группа</button>
+              {/* Reset */}
+              <div className="pt-1">
                 <button type="button" onClick={handleReset}
-                  className="flex-1 rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-700"
+                  className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-700"
                 >Сбросить</button>
               </div>
             </div>

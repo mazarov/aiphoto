@@ -4,7 +4,6 @@ import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import type { PromptCardFull } from "@/lib/supabase";
-import { PhotoCarousel } from "./PhotoCarousel";
 import { ReactionButtons } from "./ReactionButtons";
 import { FavoriteButton } from "./FavoriteButton";
 import { useCardInteractions } from "@/context/CardInteractionsContext";
@@ -25,72 +24,32 @@ function getSeoTagSlugs(seoTags: unknown): string[] {
   ].flatMap((d) => (t[d] || []) as string[]);
 }
 
-const WARNING_LABELS: Record<string, string> = {
-  missing_date: "Нет даты",
-  missing_ru_prompt_text: "Нет RU промпта",
-  ambiguous_prompt_photo_mapping: "Неоднозначная связка фото-промпт",
-  split_mapping_no_explicit_markers: "Нет разметки Кадр 1/2/3",
-  split_mapping_remainder_distribution: "Неравномерное распределение",
-  split_mapping_photo_reuse: "Фото переиспользованы",
-  photo_prompt_count_mismatch: "Кол-во фото ≠ промптов",
-};
-
-function PromptCardDebug({ card }: { card: PromptCardFull }) {
-  const title = card.title_ru || card.title_en || "Без названия";
-  const seoSlugs = getSeoTagSlugs(card.seo_tags);
+function DebugOverlay({ card }: { card: PromptCardFull }) {
   const hasEnOnly = !card.hasRuPrompt && card.promptTexts.length > 0;
+  const ruLabel = card.hasRuPrompt ? "RU: есть" : hasEnOnly ? "EN only" : "нет промпта";
+  const ruColor = card.hasRuPrompt ? "bg-emerald-600" : hasEnOnly ? "bg-amber-500" : "bg-red-500";
+  const scoreColor = card.seoReadinessScore >= 60 ? "bg-emerald-600" : card.seoReadinessScore >= 40 ? "bg-blue-500" : "bg-zinc-500";
 
   return (
-    <article className="flex h-full flex-col overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm">
-      <PhotoCarousel
-        photoUrls={card.photoUrls}
-        photoMeta={card.photoMeta}
-        beforePhotoUrl={card.beforePhotoUrl}
-        alt={title}
-        cardId={card.id}
-      />
-      <div className="flex flex-1 flex-col p-4 gap-3">
-        <h3 className="text-base font-semibold text-zinc-900 leading-tight">{title}</h3>
-        <div className="text-[10px] text-zinc-400 font-mono break-all select-all">{card.id}</div>
-        <div className="text-xs text-zinc-500 font-mono">
+    <div className="absolute inset-x-0 top-0 z-30 pointer-events-none">
+      <div className="bg-black/70 backdrop-blur-sm px-2.5 py-2 space-y-1">
+        <div className="text-[9px] text-white/50 font-mono break-all select-all leading-tight pointer-events-auto">{card.id}</div>
+        <div className="text-[10px] text-white/70 font-mono leading-tight">
           {card.datasetSlug && <span>{card.datasetSlug}</span>}
           {card.sourceMessageId && <span> · msg {card.sourceMessageId}</span>}
           {card.sourceDate && <span> · {card.sourceDate}</span>}
         </div>
-        <div className="flex flex-wrap gap-1.5">
-          <span className="inline-flex items-center rounded-full border border-zinc-200 bg-zinc-50 px-2 py-0.5 text-[11px] text-zinc-600">photos: {card.photoCount}</span>
-          <span className="inline-flex items-center rounded-full border border-zinc-200 bg-zinc-50 px-2 py-0.5 text-[11px] text-zinc-600">prompts: {card.promptCount}</span>
-          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] border ${card.seoReadinessScore >= 60 ? "border-emerald-200 bg-emerald-50 text-emerald-700" : card.seoReadinessScore >= 40 ? "border-blue-200 bg-blue-50 text-blue-700" : "border-zinc-200 bg-zinc-50 text-zinc-500"}`}>
-            score: {card.seoReadinessScore}
-          </span>
-          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] border ${card.hasRuPrompt ? "border-emerald-200 bg-emerald-50 text-emerald-700" : hasEnOnly ? "border-amber-300 bg-amber-50 text-amber-700" : "border-red-200 bg-red-50 text-red-600"}`}>
-            {card.hasRuPrompt ? "RU: есть" : hasEnOnly ? "EN only" : "нет промпта"}
-          </span>
-          {card.warnings.length > 0 && (
-            <span className="inline-flex items-center rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] text-amber-700">warnings: {card.warnings.length}</span>
-          )}
+        <div className="flex flex-wrap gap-1">
+          <span className="rounded-full bg-zinc-600 px-1.5 py-px text-[9px] text-white font-medium">photos: {card.photoCount}</span>
+          <span className="rounded-full bg-zinc-600 px-1.5 py-px text-[9px] text-white font-medium">prompts: {card.promptCount}</span>
+          <span className={`rounded-full ${scoreColor} px-1.5 py-px text-[9px] text-white font-medium`}>score: {card.seoReadinessScore}</span>
+          <span className={`rounded-full ${ruColor} px-1.5 py-px text-[9px] text-white font-medium`}>{ruLabel}</span>
           {card.beforePhotoUrl && (
-            <span className="inline-flex items-center rounded-full border border-teal-200 bg-teal-50 px-2 py-0.5 text-[11px] text-teal-700">было/стало</span>
+            <span className="rounded-full bg-teal-600 px-1.5 py-px text-[9px] text-white font-medium">было</span>
           )}
         </div>
-        {card.warnings.length > 0 && (
-          <div className="rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">
-            {card.warnings.map((w, i) => (<div key={i}>• {WARNING_LABELS[w] || w}</div>))}
-          </div>
-        )}
-        {seoSlugs.length > 0 && (
-          <div className="flex flex-wrap gap-1">
-            {seoSlugs.map((slug) => (<span key={slug} className="rounded-full bg-violet-50 border border-violet-200 px-2 py-0.5 text-[11px] text-violet-700">{slug}</span>))}
-          </div>
-        )}
-        {card.hashtags.length > 0 && (
-          <div className="text-xs text-zinc-500">{card.hashtags.map((h) => `#${h.replace(/^#/, "")}`).join(" ")}</div>
-        )}
-        {card.promptTexts.length > 0 && (
-          <div className="max-h-40 overflow-y-auto rounded-lg border border-zinc-200 bg-zinc-50 p-2 font-mono text-xs text-zinc-600 whitespace-pre-wrap">{card.promptTexts.join("\n\n")}</div>
-        )}
       </div>
-    </article>
+    </div>
   );
 }
 
@@ -132,10 +91,6 @@ export function PromptCard({ card, debug = false }: Props) {
     } catch {}
   }
 
-  if (debug) {
-    return <PromptCardDebug card={card} />;
-  }
-
   const userReaction = reactions.get(card.id) ?? null;
   const isFavorited = favorites.has(card.id);
 
@@ -143,6 +98,7 @@ export function PromptCard({ card, debug = false }: Props) {
     <article
       className={`group relative overflow-hidden rounded-2xl transition-all duration-200 hover:shadow-xl hover:shadow-zinc-900/10 hover:-translate-y-0.5 ${card.slug ? "cursor-pointer" : ""}`}
     >
+      {debug && <DebugOverlay card={card} />}
       <div className="relative aspect-[3/4] w-full overflow-hidden rounded-2xl bg-zinc-200">
         {currentPhoto ? (
           <Image

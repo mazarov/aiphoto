@@ -151,6 +151,10 @@ export const TAG_REGISTRY: TagEntry[] = [
   { slug: "s_medvedem", dimension: "object_tag", labelRu: "С медведем", labelEn: "With bear", urlPath: "/s-medvedem", patterns: [/с\s+медвед|медведь|медведем/i] },
   { slug: "glam", dimension: "style_tag", labelRu: "Глэм", labelEn: "Glam", urlPath: "/stil/glam", patterns: [/глэм|глам|glam/i] },
   { slug: "v_sportale", dimension: "object_tag", labelRu: "В спортзале", labelEn: "In gym", urlPath: "/v-sportale", patterns: [/в\s+спортзал|в\s+тренажёрн|в\s+тренажерн|спортзал|gym/i] },
+
+  // ── LLM-discovered tags (batch 2026-03-14, GPTFluxBot) ──
+  { slug: "na_krovati", dimension: "object_tag", labelRu: "На кровати", labelEn: "On bed", urlPath: "/na-krovati", patterns: [/на\s+кроват|в\s+кроват|в\s+постел|на\s+постел/i] },
+  { slug: "halloween", dimension: "occasion_tag", labelRu: "Хэллоуин", labelEn: "Halloween", urlPath: "/halloween", patterns: [/хэллоуин|хеллоуин|halloween/i] },
 ];
 
 // ── Lookup indexes (built once at import) ──
