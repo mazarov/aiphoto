@@ -67,11 +67,14 @@ export interface ParseDatasetResult {
   skippedNoPhoto: number;
 }
 
-export const PARSER_VERSION = "v0.6.0";
+export const PARSER_VERSION = "v0.7.0";
 
 // Blockquotes shorter than this are treated as decorative headers, not prompts.
 // Based on data: all real prompts >= 89 chars, all decorative <= 65 chars.
 const MIN_PROMPT_LENGTH = 80;
+
+// Some channels use <pre> instead of <blockquote> for prompts (e.g. NeiRoAIPhotoBot).
+const PROMPT_CONTAINER_SELECTOR = "blockquote, pre";
 
 function dedupeWarnings(input: string[]): string[] {
   return Array.from(new Set(input));
@@ -243,7 +246,7 @@ async function readHtmlParts(datasetDir: string): Promise<string[]> {
 function hasLongBlockquoteInNode(nodeHtml: string): boolean {
   const $n = cheerio.load(`<div>${nodeHtml}</div>`);
   let found = false;
-  $n("blockquote").each((_i, el) => {
+  $n(PROMPT_CONTAINER_SELECTOR).each((_i, el) => {
     if ($n(el).text().trim().length >= MIN_PROMPT_LENGTH) found = true;
   });
   return found;
@@ -391,7 +394,7 @@ function parseGroupToCards(group: MessageNode[], datasetSlug: string, channelTit
 
   const variants: PromptVariant[] = [];
   let variantIdx = 0;
-  $g("blockquote").each((_idx, el) => {
+  $g(PROMPT_CONTAINER_SELECTOR).each((_idx, el) => {
     const promptTextRaw = normalizePlainText($g(el).text() ?? "");
     if (!promptTextRaw) return;
     if (promptTextRaw.length < MIN_PROMPT_LENGTH) return;
@@ -535,7 +538,7 @@ export async function parseDataset(datasetSlug: string, root = path.resolve(proc
     for (const group of groups) {
       const groupHtml = group.map((g) => g.html).join("\n");
       const $g = cheerio.load(`<div>${groupHtml}</div>`);
-      if ($g("blockquote").length === 0) {
+      if ($g(PROMPT_CONTAINER_SELECTOR).length === 0) {
         skippedNoBlockquote += 1;
         continue;
       }
