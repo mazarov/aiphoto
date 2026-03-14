@@ -67,7 +67,7 @@ export interface ParseDatasetResult {
   skippedNoPhoto: number;
 }
 
-export const PARSER_VERSION = "v0.4.0";
+export const PARSER_VERSION = "v0.5.0";
 
 // Blockquotes shorter than this are treated as decorative headers, not prompts.
 // Based on data: all real prompts >= 89 chars, all decorative <= 65 chars.
@@ -240,6 +240,18 @@ async function readHtmlParts(datasetDir: string): Promise<string[]> {
   return htmls.map((name) => path.join(datasetDir, name));
 }
 
+function isSelfContainedPost(nodeHtml: string): boolean {
+  const $n = cheerio.load(`<div>${nodeHtml}</div>`);
+  const hasPhoto = $n("a.photo_wrap").length > 0;
+  if (!hasPhoto) return false;
+  let hasLongBlockquote = false;
+  $n("blockquote").each((_i, el) => {
+    const text = $n(el).text().trim();
+    if (text.length >= MIN_PROMPT_LENGTH) hasLongBlockquote = true;
+  });
+  return hasLongBlockquote;
+}
+
 function groupMessageNodes(nodes: MessageNode[]): MessageNode[][] {
   const extractTitleSignal = (nodeHtml: string): string | null => {
     const $n = cheerio.load(`<div>${nodeHtml}</div>`);
@@ -281,10 +293,13 @@ function groupMessageNodes(nodes: MessageNode[]): MessageNode[][] {
           Boolean(joinedTitleSignal) &&
           currentTitleSignal !== joinedTitleSignal;
 
-        if (shouldSplitByTitleShift) {
+        const shouldSplitBySelfContained =
+          current.length > 0 && isSelfContainedPost(node.html);
+
+        if (shouldSplitByTitleShift || shouldSplitBySelfContained) {
           groups.push(current);
           current = [node];
-          currentTitleSignal = joinedTitleSignal;
+          currentTitleSignal = joinedTitleSignal ?? extractTitleSignal(node.html);
         } else {
           current.push(node);
           if (!currentTitleSignal && joinedTitleSignal) {
