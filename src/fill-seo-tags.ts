@@ -250,23 +250,38 @@ Rules for KNOWN tags:
 - For doc_task_tag: determine by the purpose of the photo
 
 Rules for NEW tags:
-- A good new tag is something a user would SEARCH for: "photo prompt in elevator", "photo prompt at gym", "photo prompt vintage style"
+- A good new tag is something a user would SEARCH for on Google/Yandex: "photo prompt in elevator", "photo prompt with Mercedes", "photo prompt vintage style"
 - The slug must be latin snake_case transliteration of the Russian concept (e.g. v_lifte, v_sportale, s_sharami, kinematograficheskoe)
 - Provide labelRu (Russian, user-facing, e.g. "В лифте") and labelEn (English, e.g. "In elevator")
 - The tag should apply to at least several different prompts, not be unique to one specific photo
 - Place new slugs in the corresponding dimension arrays AND in the "new_tags" metadata array
 
+DO create tags for (if not already in known list):
+- Brands: cars (Mercedes, BMW, Porsche), phones (iPhone), fashion (Chanel, Dior) → object_tag
+- Vehicles: motorcycle, yacht, vintage car, bicycle → object_tag
+- Animals: specific species (cat, dog, horse, parrot, rabbit) → object_tag
+- Flowers: roses, tulips, peonies, lavender, sunflowers, lilies → object_tag
+- Food & drinks: champagne, cake, coffee, wine → object_tag (if central to scene)
+- Locations: specific cities, landmarks, beach, forest, mountains → object_tag
+- Interiors: bathroom, kitchen, bedroom, staircase, rooftop → object_tag
+- Props that define the scene: balloons, candles, books, guitar, umbrella → object_tag
+- Art styles: cyberpunk, steampunk, art deco, fine art, film noir → style_tag
+- Photo types: selfie, mirror selfie, photo booth, drone shot → style_tag
+- Professions/roles: doctor, pilot, chef, athlete, ballerina → object_tag
+- Seasons & weather: rain, snow, fog, golden hour → object_tag
+- Life stages: pregnancy, newborn, toddler, elderly → audience_tag
+
 DO NOT create tags for:
-- Specific clothing items or colors (chernyy_top, rozovyy_sviter)
-- Camera/technical parameters (8k, raw, bokeh, malaya_glubina_rezkosti)
-- Generation instructions (bez_retushi, sohranit_vneshnost, bez_stilizatsii)
-- Appearance details (raspushchennye_volosy, naturalnyy_makiyazh, siyanie_kozhi)
-- Textures and micro-details (pory_dereva, volokna_tkani, pushkovye_voloski)
-- Lighting/shadow descriptions (myagkiy_svet, kontrastnyy_svet, glubokie_teni)
-- Emotional expressions (spokoynaya_ulybka, zagadochnyy_vzglyad)
+- Generic clothing colors or fabric types (chernyy_top, rozovyy_sviter)
+- Camera technical parameters (8k, raw, bokeh, malaya_glubina_rezkosti)
+- AI generation instructions (bez_retushi, sohranit_vneshnost, bez_stilizatsii)
+- Hair/eye/skin descriptions (raspushchennye_volosy, naturalnyy_makiyazh, siyanie_kozhi)
+- Micro-textures (pory_dereva, volokna_tkani, pushkovye_voloski)
+- Lighting descriptions (myagkiy_svet, kontrastnyy_svet, glubokie_teni)
+- Emotions and facial expressions (spokoynaya_ulybka, zagadochnyy_vzglyad)
 - Pose descriptions (ruka_nad_golovoy, vzglyad_v_kameru)
 
-When in doubt — DO NOT add the tag. Precision is more important than recall.
+When in doubt about whether users would search for it — ADD the tag. Recall > precision for SEO.
 Return an empty array for a dimension if nothing matches.
 Return an empty "new_tags" array if all assigned tags are from the known list.
 

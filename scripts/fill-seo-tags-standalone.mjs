@@ -234,18 +234,37 @@ Rules for KNOWN tags:
 - For doc_task_tag: determine by the purpose of the photo
 
 Rules for NEW tags:
-- A good new tag is something a user would SEARCH for
+- A good new tag is something a user would SEARCH for on Google/Yandex
 - The slug must be latin snake_case transliteration of the Russian concept
 - Provide labelRu and labelEn
 - Place new slugs in the corresponding dimension arrays AND in the "new_tags" array
 
-DO NOT create tags for:
-- Specific clothing items or colors
-- Camera/technical parameters
-- Generation instructions
-- Appearance details, textures, lighting, emotions, poses
+DO create tags for (if not already in known list):
+- Brands: cars (Mercedes, BMW, Porsche), phones (iPhone), fashion (Chanel, Dior) → object_tag
+- Vehicles: motorcycle, yacht, vintage car, bicycle → object_tag
+- Animals: specific species (cat, dog, horse, parrot, rabbit) → object_tag
+- Flowers: roses, tulips, peonies, lavender, sunflowers, lilies → object_tag
+- Food & drinks: champagne, cake, coffee, wine → object_tag (if central to scene)
+- Locations: specific cities, landmarks, beach, forest, mountains → object_tag
+- Interiors: bathroom, kitchen, bedroom, staircase, rooftop → object_tag
+- Props that define the scene: balloons, candles, books, guitar, umbrella → object_tag
+- Art styles: cyberpunk, steampunk, art deco, fine art, film noir → style_tag
+- Photo types: selfie, mirror selfie, photo booth, drone shot → style_tag
+- Professions/roles: doctor, pilot, chef, athlete, ballerina → object_tag
+- Seasons & weather: rain, snow, fog, golden hour → object_tag
+- Life stages: pregnancy, newborn, toddler, elderly → audience_tag
 
-When in doubt — DO NOT add the tag. Precision > recall.
+DO NOT create tags for:
+- Generic clothing colors or fabric types (black top, pink sweater)
+- Camera technical parameters (8k, f/1.4, 85mm, bokeh)
+- AI generation instructions (keep face, no stylization)
+- Hair/eye/skin descriptions (loose hair, natural makeup)
+- Micro-textures (wood grain, fabric fibers)
+- Lighting descriptions (soft light, rim light, deep shadows)
+- Emotions and facial expressions (calm smile, mysterious gaze)
+- Pose descriptions (hand above head, looking at camera)
+
+When in doubt about whether users would search for it — ADD the tag. Recall > precision for SEO.
 Return empty arrays for dimensions with no matches.
 
 Known tags:
