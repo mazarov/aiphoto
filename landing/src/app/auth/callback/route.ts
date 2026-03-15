@@ -1,5 +1,4 @@
 import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
 import { NextResponse, type NextRequest } from "next/server";
 
 function getSiteOrigin(request: NextRequest): string {
@@ -20,20 +19,27 @@ export async function GET(request: NextRequest) {
   const origin = getSiteOrigin(request);
   const code = searchParams.get("code");
   const next = searchParams.get("next") ?? "/";
+  const successRedirectUrl = `${origin}${next}`;
+  const noCodeRedirectUrl = `${origin}/?auth_error=no_code`;
 
   if (code) {
-    const cookieStore = await cookies();
+    // Keep response mutable so Supabase can attach Set-Cookie headers directly.
+    let response = NextResponse.redirect(successRedirectUrl);
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
       {
         cookies: {
           getAll() {
-            return cookieStore.getAll();
+            return request.cookies.getAll();
           },
           setAll(cookiesToSet) {
+            cookiesToSet.forEach(({ name, value }) =>
+              request.cookies.set(name, value)
+            );
+            response = NextResponse.redirect(successRedirectUrl);
             cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
+              response.cookies.set(name, value, options)
             );
           },
         },
@@ -42,16 +48,18 @@ export async function GET(request: NextRequest) {
 
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error) {
-      return NextResponse.redirect(`${origin}${next}`);
+      return response;
     }
     // GoTrue flow state is one-time. If callback is replayed, second exchange
     // returns flow_state_not_found even though the first attempt may already
     // have succeeded and set session cookies.
     if (error.message.includes("invalid flow state")) {
-      console.warn(
-        "Auth callback: flow state already consumed, redirecting without hard error"
-      );
-      return NextResponse.redirect(`${origin}${next}`);
+      const { data } = await supabase.auth.getUser();
+      if (data.user) {
+        console.warn("Auth callback: replayed flow state with active session");
+        return response;
+      }
+      console.error("Auth callback: invalid flow state and no active session");
     }
     console.error("Auth callback exchangeCodeForSession failed:", error.message);
     return NextResponse.redirect(
@@ -59,5 +67,5 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  return NextResponse.redirect(`${origin}/?auth_error=no_code`);
+  return NextResponse.redirect(noCodeRedirectUrl);
 }
