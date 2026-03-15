@@ -18,17 +18,22 @@ export function InfiniteGrid({ initialCards, totalCount, rpcParams }: Props) {
   const [hasMore, setHasMore] = useState(initialCards.length < totalCount);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const loadingRef = useRef(false);
+  const hasMoreRef = useRef(hasMore);
   const offsetRef = useRef(initialCards.length);
+  const rpcParamsRef = useRef(rpcParams);
+
+  hasMoreRef.current = hasMore;
+  rpcParamsRef.current = rpcParams;
 
   const loadMore = useCallback(async () => {
-    if (loadingRef.current || !hasMore) return;
+    if (loadingRef.current || !hasMoreRef.current) return;
     loadingRef.current = true;
     setLoading(true);
     try {
       const sp = new URLSearchParams();
       sp.set("limit", String(PAGE_SIZE));
       sp.set("offset", String(offsetRef.current));
-      for (const [k, v] of Object.entries(rpcParams)) {
+      for (const [k, v] of Object.entries(rpcParamsRef.current)) {
         if (v) sp.set(k, v);
       }
       const res = await fetch(`/api/listing?${sp}`);
@@ -38,21 +43,24 @@ export function InfiniteGrid({ initialCards, totalCount, rpcParams }: Props) {
         setCards((prev) => [...prev, ...newCards]);
         offsetRef.current += newCards.length;
       }
-      setHasMore(newCards.length === PAGE_SIZE);
+      const more = newCards.length === PAGE_SIZE;
+      setHasMore(more);
+      hasMoreRef.current = more;
     } catch {
       setHasMore(false);
+      hasMoreRef.current = false;
     } finally {
       setLoading(false);
       loadingRef.current = false;
     }
-  }, [hasMore, rpcParams]);
+  }, []);
 
   useEffect(() => {
     const el = sentinelRef.current;
     if (!el) return;
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0]?.isIntersecting && !loadingRef.current) {
+        if (entries[0]?.isIntersecting && !loadingRef.current && hasMoreRef.current) {
           loadMore();
         }
       },
@@ -79,7 +87,7 @@ export function InfiniteGrid({ initialCards, totalCount, rpcParams }: Props) {
 
       <FilterableGrid cards={cards} />
 
-      {hasMore && <div ref={sentinelRef} className="h-px" />}
+      <div ref={sentinelRef} className="h-px" />
 
       {loading && (
         <div className="flex justify-center py-12">

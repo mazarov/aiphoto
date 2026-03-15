@@ -26,17 +26,24 @@ export function SearchResults({ initialQuery }: Props) {
   const [hasMore, setHasMore] = useState(false);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const loadingRef = useRef(false);
+  const hasMoreRef = useRef(false);
+  const offsetRef = useRef(0);
+  const queryRef = useRef(query);
+
+  queryRef.current = query;
 
   const doSearch = useCallback(async (q: string, append = false) => {
     if (q.length < 2) {
       if (!append) {
         setCards([]);
         setSearched(false);
+        setHasMore(false);
+        hasMoreRef.current = false;
       }
       return;
     }
 
-    const newOffset = append ? offset + PAGE_SIZE : 0;
+    const newOffset = append ? offsetRef.current + PAGE_SIZE : 0;
     setLoading(true);
     loadingRef.current = true;
     try {
@@ -53,7 +60,10 @@ export function SearchResults({ initialQuery }: Props) {
       }
       setMatchType(data.matchType ?? null);
       setOffset(newOffset);
-      setHasMore(newCards.length === PAGE_SIZE);
+      offsetRef.current = newOffset;
+      const more = newCards.length === PAGE_SIZE;
+      setHasMore(more);
+      hasMoreRef.current = more;
       setSearched(true);
     } catch {
       if (!append) setCards([]);
@@ -61,7 +71,7 @@ export function SearchResults({ initialQuery }: Props) {
       setLoading(false);
       loadingRef.current = false;
     }
-  }, [offset]);
+  }, []);
 
   useEffect(() => {
     if (initialQuery.length >= 2) {
@@ -76,6 +86,7 @@ export function SearchResults({ initialQuery }: Props) {
       setQuery(q);
       setInputValue(q);
       setOffset(0);
+      offsetRef.current = 0;
       doSearch(q);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -87,6 +98,7 @@ export function SearchResults({ initialQuery }: Props) {
     if (q.length >= 2) {
       setQuery(q);
       setOffset(0);
+      offsetRef.current = 0;
       router.push(`/search?q=${encodeURIComponent(q)}`, { scroll: false });
       doSearch(q);
     }
@@ -97,15 +109,15 @@ export function SearchResults({ initialQuery }: Props) {
     if (!el) return;
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0]?.isIntersecting && !loadingRef.current) {
-          doSearch(query, true);
+        if (entries[0]?.isIntersecting && !loadingRef.current && hasMoreRef.current) {
+          doSearch(queryRef.current, true);
         }
       },
       { rootMargin: "400px" }
     );
     observer.observe(el);
     return () => observer.disconnect();
-  }, [doSearch, query]);
+  }, [doSearch]);
 
   const cardIds = useMemo(() => cards.map((c) => c.id), [cards]);
 
@@ -166,7 +178,7 @@ export function SearchResults({ initialQuery }: Props) {
       )}
 
       {/* Autoload sentinel */}
-      {hasMore && <div ref={sentinelRef} className="h-px" />}
+      <div ref={sentinelRef} className="h-px" />
 
       {/* Loading */}
       {loading && (
