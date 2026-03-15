@@ -44,6 +44,15 @@ export async function GET(request: NextRequest) {
     if (!error) {
       return NextResponse.redirect(`${origin}${next}`);
     }
+    // GoTrue flow state is one-time. If callback is replayed, second exchange
+    // returns flow_state_not_found even though the first attempt may already
+    // have succeeded and set session cookies.
+    if (error.message.includes("invalid flow state")) {
+      console.warn(
+        "Auth callback: flow state already consumed, redirecting without hard error"
+      );
+      return NextResponse.redirect(`${origin}${next}`);
+    }
     console.error("Auth callback exchangeCodeForSession failed:", error.message);
     return NextResponse.redirect(
       `${origin}/?auth_error=${encodeURIComponent(error.message)}`
