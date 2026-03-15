@@ -1,6 +1,6 @@
 # 01 — Лендинг (promptshot.ru)
 
-> Последнее обновление: 2026-03-14
+> Последнее обновление: 2026-03-15
 
 ## Стек
 
@@ -128,6 +128,19 @@ getCachedCardPageData(slug)             ← React.cache(getCardPageData)
   → siblings (same source_message_id)
 getFirstTagFromSeoTags(seo_tags)        ← breadcrumb
 ```
+
+### Поиск `/search`
+
+```
+SearchResults (client, infinite scroll)
+  → /api/search?q=&limit=24&offset=N
+  → search_cards_text (hybrid rank: FTS + trigram)
+  → enrichCardsWithDetails(cards)
+```
+
+- Пагинация детерминированная: `24 → 48 → 72` (без расширения групп в поиске).
+- Ранжирование гибридное: морфология (`fts`) + fuzzy (`trigram` по `title_ru` и `prompt_text_ru`).
+- Стабильная сортировка: `has_fts DESC`, затем `relevance_score`, `source_date DESC`, `id`.
 
 ---
 

@@ -177,7 +177,7 @@ export type SearchTextResult = RouteCard & { match_type: string };
 
 export async function searchCardsByText(
   query: string,
-  limit = 20,
+  limit = 24,
   offset = 0
 ): Promise<SearchTextResult[]> {
   const supabase = createSupabaseServer();
@@ -188,8 +188,9 @@ export async function searchCardsByText(
   });
 
   if (error) throw new Error(`search_cards_text: ${error.message}`);
-  const cards = (data || []) as SearchTextResult[];
-  return expandCardGroups(cards) as Promise<SearchTextResult[]>;
+  // Keep search pagination deterministic (24/48/72...).
+  // Group expansion is used for tag listings, but for search it breaks limit/offset semantics.
+  return (data || []) as SearchTextResult[];
 }
 
 export async function fetchDatasets(): Promise<string[]> {
