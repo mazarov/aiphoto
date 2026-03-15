@@ -12,7 +12,8 @@ export function AuthModal() {
     const supabase = createSupabaseBrowser();
     await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: `${window.location.origin}/auth/callback` },
+      // Return to current page; AuthProvider completes code exchange in browser.
+      options: { redirectTo: `${window.location.origin}${window.location.pathname}${window.location.search}` },
     });
   }
 

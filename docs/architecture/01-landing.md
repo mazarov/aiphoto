@@ -24,7 +24,7 @@
 /[...slug]              → Листинг по тегу (напр. /promty-dlya-foto-devushki, /stil/cherno-beloe)
 /search                 → Поиск (клиентский)
 /favorites              → Избранное (требует авторизации)
-/auth/callback          → OAuth callback (Supabase Auth)
+/auth/callback          → Legacy OAuth callback fallback (server-side)
 ```
 
 ### API Routes
@@ -170,6 +170,8 @@ SearchResults (client, infinite scroll)
 | CopyPromptButton | `components/CopyPromptButton.tsx` | Копирование промта |
 | AuthModal | `components/AuthModal.tsx` | Модалка авторизации |
 | DebugFAB | `components/DebugFAB.tsx` | Debug-панель |
+
+OAuth completion: `AuthProvider` завершает `code -> session` на клиенте через `exchangeCodeForSession()` и очищает auth-параметры из URL.
 
 ---
 
