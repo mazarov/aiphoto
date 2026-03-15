@@ -1,6 +1,6 @@
 # 02 — Парсер Telegram-экспортов
 
-> Последнее обновление: 2026-03-13  
+> Последнее обновление: 2026-03-15  
 > Версия парсера: `v1.0.0`
 
 ## Обзор
@@ -58,6 +58,9 @@ interface SourceProfile {
 | `LEXYGPT` | `blockquote` | 80 | `self-contained-split` |
 | `bananogenpromt` | `blockquote, pre` | 80 | `self-contained-split` |
 | `PixelNanoBot` | `blockquote, pre` | 30 | `self-contained-split` |
+| `Hvhvgybot` | `blockquote, pre` | 20 | `self-contained-split` |
+
+Для `Hvhvgybot` подтверждён паттерн: основной промт обычно находится в самом посте (`blockquote`/`pre`) вместе с фото или в соседних `joined` сообщениях. В экспорте встречаются `reply_to` сообщения, но prompt-only reply без фото не превращается в карточку (скрипт требует `prompt + photo` в одной группе).
 
 ### Матчинг
 

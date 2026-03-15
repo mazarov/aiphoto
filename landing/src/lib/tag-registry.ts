@@ -216,6 +216,15 @@ export const TAG_REGISTRY: TagEntry[] = [
   { slug: "s_igrushkoy", dimension: "object_tag", labelRu: "С игрушкой", labelEn: "With toy", urlPath: "/s-igrushkoy", patterns: [/с\s+игрушк|игрушечн|плюшев/i] },
   { slug: "na_lestnice", dimension: "object_tag", labelRu: "На лестнице", labelEn: "On staircase", urlPath: "/na-lestnice", patterns: [/на\s+лестниц|лестница|ступен/i] },
   { slug: "s_zhurnalom", dimension: "object_tag", labelRu: "С журналом", labelEn: "With magazine", urlPath: "/s-zhurnalom", patterns: [/с\s+журнал|журнал(?!ьн)/i] },
+  // ── Added from Hvhvgybot dataset (2026-03-15) ──
+  { slug: "s_pionami", dimension: "object_tag", labelRu: "С пионами", labelEn: "With peonies", urlPath: "/s-pionami", patterns: [/пион|пионы|с\s+пионами/i] },
+  { slug: "s_valentinkami", dimension: "object_tag", labelRu: "С валентинками", labelEn: "With valentines", urlPath: "/s-valentinkami", patterns: [/валентинк|с\s+валентинками/i] },
+  { slug: "s_shokoladkoy", dimension: "object_tag", labelRu: "С шоколадкой", labelEn: "With chocolate", urlPath: "/s-shokoladkoy", patterns: [/шоколадк|с\s+шоколад/i] },
+  { slug: "s_otkrytkami", dimension: "object_tag", labelRu: "С открытками", labelEn: "With postcards", urlPath: "/s-otkrytkami", patterns: [/с\s+открытками|с\s+открыткой/i] },
+  { slug: "s_serdechkami", dimension: "object_tag", labelRu: "С сердечками", labelEn: "With hearts", urlPath: "/s-serdechkami", patterns: [/сердечк|с\s+сердцем|с\s+сердечками/i] },
+  { slug: "s_lentami", dimension: "object_tag", labelRu: "С лентами", labelEn: "With ribbons", urlPath: "/s-lentami", patterns: [/с\s+лентами|ленточк|ленты/i] },
+  { slug: "na_stole", dimension: "object_tag", labelRu: "На столе", labelEn: "On table", urlPath: "/na-stole", patterns: [/на\s+столе|на\s+столик|на\s+поверхности\s+стола/i] },
+  { slug: "s_cheburashkoy", dimension: "object_tag", labelRu: "С Чебурашкой", labelEn: "With Cheburashka", urlPath: "/s-cheburashkoy", patterns: [/чебурашк|с\s+чебурашкой/i] },
 ];
 
 // ── Lookup indexes (built once at import) ──

@@ -205,9 +205,25 @@ const KNOWN_TAGS = [
   { slug: "s_igrushkoy", dim: "object_tag", ru: "С игрушкой", en: "With toy" },
   { slug: "na_lestnice", dim: "object_tag", ru: "На лестнице", en: "On staircase" },
   { slug: "s_zhurnalom", dim: "object_tag", ru: "С журналом", en: "With magazine" },
+  { slug: "s_pionami", dim: "object_tag", ru: "С пионами", en: "With peonies" },
+  { slug: "s_valentinkami", dim: "object_tag", ru: "С валентинками", en: "With valentines" },
+  { slug: "s_shokoladkoy", dim: "object_tag", ru: "С шоколадкой", en: "With chocolate" },
+  { slug: "s_otkrytkami", dim: "object_tag", ru: "С открытками", en: "With postcards" },
+  { slug: "s_serdechkami", dim: "object_tag", ru: "С сердечками", en: "With hearts" },
+  { slug: "s_lentami", dim: "object_tag", ru: "С лентами", en: "With ribbons" },
+  { slug: "na_stole", dim: "object_tag", ru: "На столе", en: "On table" },
+  { slug: "s_cheburashkoy", dim: "object_tag", ru: "С Чебурашкой", en: "With Cheburashka" },
 ];
 
 const KNOWN_SLUGS = new Set(KNOWN_TAGS.map(t => t.slug));
+
+const TAG_ALIASES = {
+  "chernо_beloe": "cherno_beloe", // mixed Cyrillic/Latin "o"
+  "s_iphone": "iphone",
+  "s_snegom": "sneg",
+  "fotorealistichnoe": "fotorealizm",
+  "s_buketom": "s_cvetami",
+};
 
 function buildTagList() {
   const lines = [];
@@ -403,10 +419,12 @@ function buildSeoTags(parsed) {
     const arr = parsed[dim];
     if (!Array.isArray(arr)) continue;
     for (const slug of arr) {
-      if (typeof slug === "string" && slug) result[dim].push(slug);
-      if (!KNOWN_SLUGS.has(slug)) {
-        const meta = (parsed.new_tags || []).find(t => t.slug === slug && t.dimension === dim);
-        newTags.push(meta || { slug, dimension: dim, labelRu: slug, labelEn: slug });
+      if (typeof slug !== "string" || !slug) continue;
+      const normalized = TAG_ALIASES[slug] || slug;
+      if (!result[dim].includes(normalized)) result[dim].push(normalized);
+      if (!KNOWN_SLUGS.has(normalized)) {
+        const meta = (parsed.new_tags || []).find(t => (t.slug === slug || t.slug === normalized) && t.dimension === dim);
+        newTags.push(meta ? { ...meta, slug: normalized } : { slug: normalized, dimension: dim, labelRu: normalized, labelEn: normalized });
       }
     }
   }

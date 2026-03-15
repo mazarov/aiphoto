@@ -512,6 +512,125 @@ function parseGroupToCards(group: MessageNode[], datasetSlug: string, channelTit
   return cards;
 }
 
+// ─── Reply-to-parent strategy ───────────────────────────────────────
+
+interface ReplyParentMsg {
+  id: number;
+  html: string;
+  dateAttr: string;
+  photos: MediaItem[];
+  hashtags: string[];
+}
+
+function parseReplyToParent(
+  allNodes: MessageNode[],
+  datasetSlug: string,
+  channelTitle: string,
+  profile: SourceProfile,
+): { cards: ParsedCard[]; skippedNoPrompt: number; skippedNoPhoto: number } {
+  const msgMap = new Map<number, ReplyParentMsg>();
+  const cards: ParsedCard[] = [];
+  let skippedNoPrompt = 0;
+  let skippedNoPhoto = 0;
+
+  for (const node of allNodes) {
+    const msgId = parseMessageId(node.id);
+    if (!msgId) continue;
+    const $n = cheerio.load(`<div>${node.html}</div>`);
+    const dateAttr = $n(".pull_right.date.details").first().attr("title") ?? "";
+
+    const photos: MediaItem[] = [];
+    $n("a.photo_wrap").each((idx, el) => {
+      const href = $n(el).attr("href")?.trim() ?? "";
+      if (!href) return;
+      const thumb = $n(el).find("img").first().attr("src")?.trim() ?? null;
+      photos.push({
+        mediaIndex: idx,
+        mediaType: "photo",
+        sourceRelativePath: href,
+        thumbRelativePath: thumb,
+        isPrimary: idx === 0,
+      });
+    });
+
+    const hashtagsArr: string[] = [];
+    $n("a[onclick*='ShowHashtag']").each((_i, el) => {
+      const tag = $n(el).text().trim().replace(/^#/, "");
+      if (tag) hashtagsArr.push(tag);
+    });
+
+    msgMap.set(msgId, { id: msgId, html: node.html, dateAttr, photos, hashtags: hashtagsArr });
+  }
+
+  for (const node of allNodes) {
+    const $n = cheerio.load(`<div>${node.html}</div>`);
+    const replyLink = $n(".reply_to a").first().attr("onclick") ?? "";
+    const replyMatch = replyLink.match(/GoToMessage\((\d+)\)/);
+    if (!replyMatch) continue;
+
+    const parentId = Number(replyMatch[1]);
+    const parent = msgMap.get(parentId);
+    if (!parent || parent.photos.length === 0) {
+      skippedNoPhoto++;
+      continue;
+    }
+
+    const textEl = $n(".text");
+    const promptText = normalizePlainText(textEl.text() ?? "");
+    if (promptText.length < profile.minPromptLength) {
+      skippedNoPrompt++;
+      continue;
+    }
+
+    const byLang = splitPromptByLanguage(promptText);
+    if (!byLang.ru && !byLang.en) {
+      skippedNoPrompt++;
+      continue;
+    }
+
+    const replyMsgId = parseMessageId(node.id) ?? 0;
+    const photos = reindexMedia(parent.photos);
+    const variant: PromptVariant = {
+      variantIndex: 0,
+      labelRaw: null,
+      promptTextRu: byLang.ru,
+      promptTextEn: byLang.en,
+      matchStrategy: "fallback_all",
+    };
+
+    const rawHtml = (textEl.html() ?? "").trim();
+    const firstLine = promptText.split("\n").find((s) => s.trim()) ?? `message-${parentId}`;
+    const titleNorm = normalizeTitle(firstLine);
+
+    cards.push({
+      datasetSlug,
+      channelTitle,
+      sourceMessageId: parentId,
+      sourceMessageIds: [parentId, replyMsgId],
+      sourcePublishedAt: parent.dateAttr,
+      rawTextHtml: rawHtml,
+      rawTextPlain: promptText,
+      titleRaw: null,
+      titleNormalized: titleNorm,
+      cardSlug: null,
+      hashtags: parent.hashtags,
+      parseStatus: "parsed",
+      parseWarnings: [],
+      parserVersion: PARSER_VERSION,
+      cardSplitIndex: 0,
+      cardSplitTotal: 1,
+      cardSplitStrategy: "single_card",
+      photoCount: photos.length,
+      promptCount: 1,
+      media: photos,
+      variants: [variant],
+      variantMediaLinks: photos.map((m) => ({ variantIndex: 0, mediaIndex: m.mediaIndex })),
+    });
+  }
+
+  return { cards, skippedNoPrompt, skippedNoPhoto };
+}
+
 // ─── Public API ─────────────────────────────────────────────────────
 
 export async function parseDataset(
@@ -560,6 +679,15 @@ export async function parseDataset(
         classes: ($(el).attr("class") ?? "").trim(),
         html: $.html(el),
       }));
+
+    if (profile.groupingStrategy === "reply-to-parent") {
+      const result = parseReplyToParent(nodes, datasetSlug, channelTitle, profile);
+      cards.push(...result.cards);
+      skippedNoPrompt += result.skippedNoPrompt;
+      skippedNoPhoto += result.skippedNoPhoto;
+      continue;
+    }
+
     const groups = groupMessageNodes(nodes, profile);
 
     for (const group of groups) {

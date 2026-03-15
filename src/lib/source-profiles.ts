@@ -28,7 +28,7 @@ export interface SourceProfile {
    * - "look-back-split": also handle pattern where photo-only msgs precede a text-only prompt
    *   (e.g. ii_photolab early posts: photo, photo, photo, text-prompt)
    */
-  groupingStrategy: "self-contained-split" | "look-back-split";
+  groupingStrategy: "self-contained-split" | "look-back-split" | "reply-to-parent";
 }
 
 export const SOURCE_PROFILES: SourceProfile[] = [
@@ -73,6 +73,20 @@ export const SOURCE_PROFILES: SourceProfile[] = [
     promptContainerSelector: "blockquote, pre",
     minPromptLength: 80,
     groupingStrategy: "self-contained-split",
+  },
+  {
+    slugPrefix: "Hvhvgybot",
+    displayName: "Промпты для души ✨❄️☃️",
+    promptContainerSelector: "blockquote, pre",
+    minPromptLength: 20,
+    groupingStrategy: "self-contained-split",
+  },
+  {
+    slugPrefix: "ChatBananahMama",
+    displayName: "Промты для нейросетей 🫶🏻фото и видео Chat",
+    promptContainerSelector: ".text",
+    minPromptLength: 40,
+    groupingStrategy: "reply-to-parent",
   },
 ];
 

@@ -75,6 +75,19 @@ for (const dim of DIMENSIONS) {
   VALID_SLUGS_BY_DIM.set(dim, new Set(TAG_REGISTRY.filter((t) => t.dimension === dim).map((t) => t.slug)));
 }
 
+// Normalizes common LLM alias duplicates to canonical slugs.
+const TAG_ALIASES: Record<string, string> = {
+  "chernо_beloe": "cherno_beloe", // mixed Cyrillic/Latin "o"
+  "s_iphone": "iphone",
+  "s_snegom": "sneg",
+  "fotorealistichnoe": "fotorealizm",
+  "s_buketom": "s_cvetami",
+};
+
+function normalizeTagSlug(slug: string): string {
+  return TAG_ALIASES[slug] ?? slug;
+}
+
 // ── CLI args ──
 
 function parseArgs(): Args {
@@ -384,13 +397,16 @@ async function classifyWithLlm(
     const validSet = VALID_SLUGS_BY_DIM.get(dim)!;
     for (const slug of arr) {
       if (typeof slug !== "string" || !slug) continue;
-      seoResult[dim].push(slug);
-      if (!validSet.has(slug)) {
-        const meta = newTagSlugsRaw.get(`${dim}:${slug}`);
+      const normalized = normalizeTagSlug(slug);
+      if (!seoResult[dim].includes(normalized)) {
+        seoResult[dim].push(normalized);
+      }
+      if (!validSet.has(normalized)) {
+        const meta = newTagSlugsRaw.get(`${dim}:${slug}`) ?? newTagSlugsRaw.get(`${dim}:${normalized}`);
         if (meta) {
-          newTagsMeta.push(meta);
+          newTagsMeta.push({ ...meta, slug: normalized });
         } else {
-          newTagsMeta.push({ slug, dimension: dim, labelRu: slug, labelEn: slug });
+          newTagsMeta.push({ slug: normalized, dimension: dim, labelRu: normalized, labelEn: normalized });
         }
       }
     }

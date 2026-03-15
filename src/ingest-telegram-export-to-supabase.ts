@@ -75,21 +75,11 @@ async function generateUniqueSlug(
   splitTotal: number,
 ): Promise<string> {
   let base = translitSlug(title);
-  if (!base) base = 'promt-' + cardId.slice(0, 8);
+  if (!base) base = 'promt';
   if (splitTotal > 1) base += '-' + (splitIndex + 1);
 
-  let slug = base;
-  let counter = 1;
-  while (true) {
-    const { count } = await supabase
-      .from('prompt_cards')
-      .select('id', { count: 'exact', head: true })
-      .eq('slug', slug)
-      .neq('id', cardId);
-    if (!count || count === 0) break;
-    counter++;
-    slug = base + '-' + counter;
-  }
+  const shortId = cardId.replace(/-/g, '').slice(0, 5);
+  const slug = base + '-' + shortId;
   return slug;
 }
 
@@ -253,6 +243,19 @@ async function finalizeRun(
   if (error) throw new Error(`Failed finalize import_runs: ${error.message}`);
 }
 
+const UPLOAD_TIMEOUT_MS = 30_000;
+const UPLOAD_RETRIES = 3;
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`Timeout after ${ms}ms: ${label}`)), ms);
+    promise.then(
+      (v) => { clearTimeout(timer); resolve(v); },
+      (e) => { clearTimeout(timer); reject(e); },
+    );
+  });
+}
+
 async function uploadMedia(
   supabase: ReturnType<typeof createClient>,
   card: ParsedCard,
@@ -276,19 +279,30 @@ async function uploadMedia(
   if (!file) {
     return null;
   }
-  const { error } = await supabase.storage.from("prompt-images").upload(objectPath, file, {
-    upsert: true,
-    contentType: mimeType,
-  });
-  if (error) {
-    return null;
+
+  for (let attempt = 1; attempt <= UPLOAD_RETRIES; attempt++) {
+    try {
+      const { error } = await withTimeout(
+        supabase.storage.from("prompt-images").upload(objectPath, file, {
+          upsert: true,
+          contentType: mimeType,
+        }),
+        UPLOAD_TIMEOUT_MS,
+        `upload ${objectPath}`,
+      );
+      if (error) return null;
+      return {
+        storageBucket: "prompt-images",
+        storagePath: objectPath,
+        mimeType,
+        fileSizeBytes: file.byteLength,
+      };
+    } catch {
+      if (attempt === UPLOAD_RETRIES) return null;
+      await new Promise((r) => setTimeout(r, 2000 * attempt));
+    }
   }
-  return {
-    storageBucket: "prompt-images",
-    storagePath: objectPath,
-    mimeType,
-    fileSizeBytes: file.byteLength,
-  };
+  return null;
 }
 
 async function ingestCard(

@@ -42,6 +42,8 @@ function comboToPath(
   return `${base}/${secondaryLastSeg}`;
 }
 
+export const revalidate = 3600;
+
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const tagPaths = getAllTagPaths();
   const tagUrls: MetadataRoute.Sitemap = tagPaths.map((path) => ({
