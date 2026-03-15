@@ -28,10 +28,7 @@ type Props = {
 };
 
 export async function generateStaticParams() {
-  const paths = getAllTagPaths();
-  return paths.map((path) => ({
-    slug: path.split("/").filter(Boolean),
-  }));
+  return [];
 }
 
 export async function generateMetadata({ params }: Props) {
