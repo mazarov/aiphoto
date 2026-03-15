@@ -7,7 +7,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ cards: [], query: q || "" });
   }
 
-  const limit = Math.min(60, Math.max(1, Number(req.nextUrl.searchParams.get("limit")) || 20));
+  const limit = Math.min(100, Math.max(1, Number(req.nextUrl.searchParams.get("limit")) || 24));
   const offset = Math.max(0, Number(req.nextUrl.searchParams.get("offset")) || 0);
 
   try {

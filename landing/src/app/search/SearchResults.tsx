@@ -7,7 +7,7 @@ import { PromptCard } from "@/components/PromptCard";
 import type { PromptCardFull } from "@/lib/supabase";
 import { CardInteractionsProvider } from "@/context/CardInteractionsContext";
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 24;
 
 type Props = {
   initialQuery: string;
