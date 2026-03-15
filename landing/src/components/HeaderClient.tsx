@@ -22,33 +22,79 @@ function CountBadge({ count }: { count?: number }) {
   );
 }
 
+const COLUMN_SPLIT_THRESHOLD = 14;
+
 function DropdownPanel({ section }: { section: MenuSectionWithCounts }) {
   return (
     <>
       {/* Invisible bridge — covers the gap between button and dropdown */}
       <div className="absolute left-0 right-0 top-full z-40 h-3" />
-      <div className="absolute left-1/2 top-full z-50 mt-2 -translate-x-1/2 min-w-[320px] rounded-2xl border border-zinc-200/80 bg-white/95 p-5 shadow-2xl shadow-zinc-900/10 backdrop-blur-xl">
+      <div className="absolute left-1/2 top-full z-50 mt-2 -translate-x-1/2 min-w-[320px] max-h-[calc(100vh-80px)] overflow-y-auto rounded-2xl border border-zinc-200/80 bg-white/95 p-5 shadow-2xl shadow-zinc-900/10 backdrop-blur-xl">
         <div className="flex gap-6">
-          {section.groups.map((group) => (
-            <div key={group.title} className="min-w-[130px]">
-              <div className="mb-2.5 text-[10px] font-semibold uppercase tracking-widest text-zinc-400">
-                {group.title}
+          {section.groups.map((group) => {
+            const items = group.items;
+            const needsSplit = items.length > COLUMN_SPLIT_THRESHOLD;
+            if (needsSplit) {
+              const mid = Math.ceil(items.length / 2);
+              const col1 = items.slice(0, mid);
+              const col2 = items.slice(mid);
+              return (
+                <div key={group.title}>
+                  <div className="mb-2.5 text-[10px] font-semibold uppercase tracking-widest text-zinc-400">
+                    {group.title}
+                  </div>
+                  <div className="flex gap-4">
+                    <ul className="min-w-[130px] space-y-0.5">
+                      {col1.map((item) => (
+                        <li key={item.href}>
+                          <Link
+                            href={item.href}
+                            className="flex items-center rounded-lg px-2.5 py-1.5 text-[13px] text-zinc-600 transition-colors hover:bg-zinc-50 hover:text-zinc-900"
+                          >
+                            {item.label}
+                            <CountBadge count={item.count} />
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                    <ul className="min-w-[130px] space-y-0.5">
+                      {col2.map((item) => (
+                        <li key={item.href}>
+                          <Link
+                            href={item.href}
+                            className="flex items-center rounded-lg px-2.5 py-1.5 text-[13px] text-zinc-600 transition-colors hover:bg-zinc-50 hover:text-zinc-900"
+                          >
+                            {item.label}
+                            <CountBadge count={item.count} />
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              );
+            }
+            return (
+              <div key={group.title} className="min-w-[130px]">
+                <div className="mb-2.5 text-[10px] font-semibold uppercase tracking-widest text-zinc-400">
+                  {group.title}
+                </div>
+                <ul className="space-y-0.5">
+                  {items.map((item) => (
+                    <li key={item.href}>
+                      <Link
+                        href={item.href}
+                        className="flex items-center rounded-lg px-2.5 py-1.5 text-[13px] text-zinc-600 transition-colors hover:bg-zinc-50 hover:text-zinc-900"
+                      >
+                        {item.label}
+                        <CountBadge count={item.count} />
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
               </div>
-              <ul className="space-y-0.5">
-                {group.items.map((item) => (
-                  <li key={item.href}>
-                    <Link
-                      href={item.href}
-                      className="flex items-center rounded-lg px-2.5 py-1.5 text-[13px] text-zinc-600 transition-colors hover:bg-zinc-50 hover:text-zinc-900"
-                    >
-                      {item.label}
-                      <CountBadge count={item.count} />
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </>
