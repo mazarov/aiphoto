@@ -177,6 +177,37 @@ export const TAG_REGISTRY: TagEntry[] = [
   { slug: "v_lifte", dimension: "object_tag", labelRu: "В лифте", labelEn: "In elevator", urlPath: "/v-lifte", patterns: [/в\s+лифт|лифт/i] },
   { slug: "v_parke", dimension: "object_tag", labelRu: "В парке", labelEn: "In park", urlPath: "/v-parke", patterns: [/в\s+парк|парков/i] },
   { slug: "impressionizm", dimension: "style_tag", labelRu: "Импрессионизм", labelEn: "Impressionism", urlPath: "/stil/impressionizm", patterns: [/импрессионизм|impressionism/i] },
+
+  // ── LLM-discovered tags (full recompute 2026-03-15) ──
+  // Locations & interiors
+  { slug: "v_spalne", dimension: "object_tag", labelRu: "В спальне", labelEn: "In bedroom", urlPath: "/v-spalne", patterns: [/в\s+спальн|спальня/i] },
+  { slug: "kuhnya", dimension: "object_tag", labelRu: "На кухне", labelEn: "In kitchen", urlPath: "/kuhnya", patterns: [/на\s+кухн|кухня|кухонн/i] },
+  { slug: "v_sadu", dimension: "object_tag", labelRu: "В саду", labelEn: "In garden", urlPath: "/v-sadu", patterns: [/в\s+саду|садов|в\s+сад(?![а-яё])/i] },
+  { slug: "v_vannoy", dimension: "object_tag", labelRu: "В ванной", labelEn: "In bathroom", urlPath: "/v-vannoy", patterns: [/в\s+ванн|ванная|ванной/i] },
+  // Seasons & weather
+  { slug: "sneg", dimension: "object_tag", labelRu: "Снег", labelEn: "Snow", urlPath: "/sneg", patterns: [/снег|снежн|снежинк|снегопад/i] },
+  { slug: "dozhd", dimension: "object_tag", labelRu: "Дождь", labelEn: "Rain", urlPath: "/dozhd", patterns: [/дожд|ливен|ливн/i] },
+  { slug: "tuman", dimension: "object_tag", labelRu: "Туман", labelEn: "Fog", urlPath: "/tuman", patterns: [/туман|fog/i] },
+  { slug: "zakat", dimension: "object_tag", labelRu: "Закат", labelEn: "Sunset", urlPath: "/zakat", patterns: [/закат|sunset|рассвет/i] },
+  { slug: "zolotoy_chas", dimension: "object_tag", labelRu: "Золотой час", labelEn: "Golden hour", urlPath: "/zolotoy-chas", patterns: [/золот\S*\s+час|golden\s+hour/i] },
+  // Animals & vehicles
+  { slug: "mototsikl", dimension: "object_tag", labelRu: "Мотоцикл", labelEn: "Motorcycle", urlPath: "/mototsikl", patterns: [/мотоцикл|байк(?![а-яё])|motorcycle/i] },
+  { slug: "velosiped", dimension: "object_tag", labelRu: "Велосипед", labelEn: "Bicycle", urlPath: "/velosiped", patterns: [/велосипед|bicycle/i] },
+  // Flowers (specific)
+  { slug: "s_tulpanami", dimension: "object_tag", labelRu: "С тюльпанами", labelEn: "With tulips", urlPath: "/s-tulpanami", patterns: [/тюльпан/i] },
+  // Drinks
+  { slug: "s_shampanskim", dimension: "object_tag", labelRu: "С шампанским", labelEn: "With champagne", urlPath: "/s-shampanskim", patterns: [/шампанск/i] },
+  // Props
+  { slug: "s_zontom", dimension: "object_tag", labelRu: "С зонтом", labelEn: "With umbrella", urlPath: "/s-zontom", patterns: [/с\s+зонт|зонтик|зонтом|umbrella/i] },
+  { slug: "s_knigoy", dimension: "object_tag", labelRu: "С книгой", labelEn: "With book", urlPath: "/s-knigoy", patterns: [/с\s+книг|книга|книжк/i] },
+  { slug: "s_gitaroy", dimension: "object_tag", labelRu: "С гитарой", labelEn: "With guitar", urlPath: "/s-gitaroy", patterns: [/гитар|guitar/i] },
+  { slug: "s_tykvoy", dimension: "object_tag", labelRu: "С тыквой", labelEn: "With pumpkin", urlPath: "/s-tykvoy", patterns: [/тыкв|pumpkin/i] },
+  { slug: "s_naushnikami", dimension: "object_tag", labelRu: "С наушниками", labelEn: "With headphones", urlPath: "/s-naushnikami", patterns: [/наушник|headphone/i] },
+  { slug: "s_mandarinami", dimension: "object_tag", labelRu: "С мандаринами", labelEn: "With tangerines", urlPath: "/s-mandarinami", patterns: [/мандарин/i] },
+  { slug: "s_girlyandami", dimension: "object_tag", labelRu: "С гирляндами", labelEn: "With garlands", urlPath: "/s-girlyandami", patterns: [/гирлянд/i] },
+  { slug: "iphone", dimension: "object_tag", labelRu: "С iPhone", labelEn: "With iPhone", urlPath: "/iphone", patterns: [/iphone|айфон/i] },
+  // Styles
+  { slug: "fine_art", dimension: "style_tag", labelRu: "Fine Art", labelEn: "Fine Art", urlPath: "/stil/fine-art", patterns: [/fine\s*art|файн\s*арт/i] },
 ];
 
 // ── Lookup indexes (built once at import) ──

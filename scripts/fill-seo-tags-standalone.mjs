@@ -175,6 +175,28 @@ const KNOWN_TAGS = [
   { slug: "v_lifte", dim: "object_tag", ru: "В лифте", en: "In elevator" },
   { slug: "v_parke", dim: "object_tag", ru: "В парке", en: "In park" },
   { slug: "impressionizm", dim: "style_tag", ru: "Импрессионизм", en: "Impressionism" },
+  { slug: "v_spalne", dim: "object_tag", ru: "В спальне", en: "In bedroom" },
+  { slug: "kuhnya", dim: "object_tag", ru: "На кухне", en: "In kitchen" },
+  { slug: "v_sadu", dim: "object_tag", ru: "В саду", en: "In garden" },
+  { slug: "v_vannoy", dim: "object_tag", ru: "В ванной", en: "In bathroom" },
+  { slug: "sneg", dim: "object_tag", ru: "Снег", en: "Snow" },
+  { slug: "dozhd", dim: "object_tag", ru: "Дождь", en: "Rain" },
+  { slug: "tuman", dim: "object_tag", ru: "Туман", en: "Fog" },
+  { slug: "zakat", dim: "object_tag", ru: "Закат", en: "Sunset" },
+  { slug: "zolotoy_chas", dim: "object_tag", ru: "Золотой час", en: "Golden hour" },
+  { slug: "mototsikl", dim: "object_tag", ru: "Мотоцикл", en: "Motorcycle" },
+  { slug: "velosiped", dim: "object_tag", ru: "Велосипед", en: "Bicycle" },
+  { slug: "s_tulpanami", dim: "object_tag", ru: "С тюльпанами", en: "With tulips" },
+  { slug: "s_shampanskim", dim: "object_tag", ru: "С шампанским", en: "With champagne" },
+  { slug: "s_zontom", dim: "object_tag", ru: "С зонтом", en: "With umbrella" },
+  { slug: "s_knigoy", dim: "object_tag", ru: "С книгой", en: "With book" },
+  { slug: "s_gitaroy", dim: "object_tag", ru: "С гитарой", en: "With guitar" },
+  { slug: "s_tykvoy", dim: "object_tag", ru: "С тыквой", en: "With pumpkin" },
+  { slug: "s_naushnikami", dim: "object_tag", ru: "С наушниками", en: "With headphones" },
+  { slug: "s_mandarinami", dim: "object_tag", ru: "С мандаринами", en: "With tangerines" },
+  { slug: "s_girlyandami", dim: "object_tag", ru: "С гирляндами", en: "With garlands" },
+  { slug: "iphone", dim: "object_tag", ru: "С iPhone", en: "With iPhone" },
+  { slug: "fine_art", dim: "style_tag", ru: "Fine Art", en: "Fine Art" },
 ];
 
 const KNOWN_SLUGS = new Set(KNOWN_TAGS.map(t => t.slug));
@@ -255,6 +277,8 @@ DO create tags for (if not already in known list):
 - Life stages: pregnancy, newborn, toddler, elderly → audience_tag
 
 DO NOT create tags for:
+- Clothing items & accessories: gloves, scarf, hat, earrings, necklace, bracelet, belt, stockings, skirt, jacket, coat, corset, pajamas, beret, heels, sneakers → these are NOT searchable photo categories
+- Bags & purses (s_sumkoy, s_korzinoj) — too generic
 - Generic clothing colors or fabric types (black top, pink sweater)
 - Camera technical parameters (8k, f/1.4, 85mm, bokeh)
 - AI generation instructions (keep face, no stylization)
@@ -263,8 +287,26 @@ DO NOT create tags for:
 - Lighting descriptions (soft light, rim light, deep shadows)
 - Emotions and facial expressions (calm smile, mysterious gaze)
 - Pose descriptions (hand above head, looking at camera)
+- Furniture & decor items (chair, table, sofa, pillow, curtain) — unless it defines the SCENE (kitchen, bedroom = OK)
+- Phone/smartphone as generic prop — use "iphone" only if specifically iPhone
 
-When in doubt about whether users would search for it — ADD the tag. Recall > precision for SEO.
+IMPORTANT — Use existing slugs, do NOT create duplicates:
+- "глянец" / "glyanec" / "glanec" / "glianec" → use "glyanec"
+- "коллаж" / "kolazh" → use "kollazh"
+- "редакционное" / "redakcionnoe" → use "editorial"
+- "мужчина" / "mužčina" → use "muzhchina"
+- "девушка" / "devuška" → use "devushka"
+- "чёрно-белое" / "chernо_beloe" → use "cherno_beloe"
+- "iPhone" / "s_iphone" / "s_telefonom" / "smartfon" / "s_mobilnym_telefonom" → use "iphone"
+- "снег" / "s_snegom" / "snezhinki" / "snegopad" → use "sneg"
+- "свечи" / "svechi" / "svecha" / "s_svechami" → use "so_svechami"
+- "лошадь" / "loshad" → use "s_loshadyu"
+- "тюльпаны" / "tulipany" → use "s_tulpanami"
+- "осень" / "osen" → use "osen" (known tag)
+- "гирлянда" / "s_girlyandoy" → use "s_girlyandami"
+
+Only create a NEW tag if it represents a genuinely distinct, searchable concept not covered above.
+Precision > recall for new tags. Only add new tags users would actually search for on Google/Yandex.
 Return empty arrays for dimensions with no matches.
 
 Known tags:

@@ -272,6 +272,8 @@ DO create tags for (if not already in known list):
 - Life stages: pregnancy, newborn, toddler, elderly → audience_tag
 
 DO NOT create tags for:
+- Clothing items & accessories: gloves, scarf, hat, earrings, necklace, bracelet, belt, stockings, skirt, jacket, coat, corset, pajamas, beret, heels, sneakers → these are NOT searchable photo categories
+- Bags & purses (s_sumkoy, s_korzinoj) — too generic
 - Generic clothing colors or fabric types (chernyy_top, rozovyy_sviter)
 - Camera technical parameters (8k, raw, bokeh, malaya_glubina_rezkosti)
 - AI generation instructions (bez_retushi, sohranit_vneshnost, bez_stilizatsii)
@@ -280,8 +282,26 @@ DO NOT create tags for:
 - Lighting descriptions (myagkiy_svet, kontrastnyy_svet, glubokie_teni)
 - Emotions and facial expressions (spokoynaya_ulybka, zagadochnyy_vzglyad)
 - Pose descriptions (ruka_nad_golovoy, vzglyad_v_kameru)
+- Furniture & decor items (chair, table, sofa, pillow, curtain) — unless it defines the SCENE (kitchen, bedroom = OK)
+- Phone/smartphone as generic prop — use "iphone" only if specifically iPhone
 
-When in doubt about whether users would search for it — ADD the tag. Recall > precision for SEO.
+IMPORTANT — Use existing slugs, do NOT create duplicates:
+- "глянец" / "glyanec" / "glanec" / "glianec" → use "glyanec"
+- "коллаж" / "kolazh" → use "kollazh"
+- "редакционное" / "redakcionnoe" → use "editorial"
+- "мужчина" / "mužčina" → use "muzhchina"
+- "девушка" / "devuška" → use "devushka"
+- "чёрно-белое" / "chernо_beloe" → use "cherno_beloe"
+- "iPhone" / "s_iphone" / "s_telefonom" / "smartfon" / "s_mobilnym_telefonom" → use "iphone"
+- "снег" / "s_snegom" / "snezhinki" / "snegopad" → use "sneg"
+- "свечи" / "svechi" / "svecha" / "s_svechami" → use "so_svechami"
+- "лошадь" / "loshad" → use "s_loshadyu"
+- "тюльпаны" / "tulipany" → use "s_tulpanami"
+- "осень" / "osen" → use "osen" (known tag)
+- "гирлянда" / "s_girlyandoy" → use "s_girlyandami"
+
+Only create a NEW tag if it represents a genuinely distinct, searchable concept not covered above.
+Precision > recall for new tags. Only add new tags users would actually search for on Google/Yandex.
 Return an empty array for a dimension if nothing matches.
 Return an empty "new_tags" array if all assigned tags are from the known list.
 
