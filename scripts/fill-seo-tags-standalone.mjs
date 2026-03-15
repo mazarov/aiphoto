@@ -197,6 +197,14 @@ const KNOWN_TAGS = [
   { slug: "s_girlyandami", dim: "object_tag", ru: "С гирляндами", en: "With garlands" },
   { slug: "iphone", dim: "object_tag", ru: "С iPhone", en: "With iPhone" },
   { slug: "fine_art", dim: "style_tag", ru: "Fine Art", en: "Fine Art" },
+  { slug: "s_samovarom", dim: "object_tag", ru: "С самоваром", en: "With samovar" },
+  { slug: "na_krasnom_fone", dim: "object_tag", ru: "На красном фоне", en: "On red background" },
+  { slug: "na_rozovom_fone", dim: "object_tag", ru: "На розовом фоне", en: "On pink background" },
+  { slug: "s_maskoy", dim: "object_tag", ru: "С маской", en: "With mask" },
+  { slug: "s_konfetami", dim: "object_tag", ru: "С конфетами", en: "With sweets" },
+  { slug: "s_igrushkoy", dim: "object_tag", ru: "С игрушкой", en: "With toy" },
+  { slug: "na_lestnice", dim: "object_tag", ru: "На лестнице", en: "On staircase" },
+  { slug: "s_zhurnalom", dim: "object_tag", ru: "С журналом", en: "With magazine" },
 ];
 
 const KNOWN_SLUGS = new Set(KNOWN_TAGS.map(t => t.slug));

@@ -208,6 +208,14 @@ export const TAG_REGISTRY: TagEntry[] = [
   { slug: "iphone", dimension: "object_tag", labelRu: "С iPhone", labelEn: "With iPhone", urlPath: "/iphone", patterns: [/iphone|айфон/i] },
   // Styles
   { slug: "fine_art", dimension: "style_tag", labelRu: "Fine Art", labelEn: "Fine Art", urlPath: "/stil/fine-art", patterns: [/fine\s*art|файн\s*арт/i] },
+  { slug: "s_samovarom", dimension: "object_tag", labelRu: "С самоваром", labelEn: "With samovar", urlPath: "/s-samovarom", patterns: [/самовар/i] },
+  { slug: "na_krasnom_fone", dimension: "object_tag", labelRu: "На красном фоне", labelEn: "On red background", urlPath: "/na-krasnom-fone", patterns: [/на\s+красн\w*\s+фон|красный\s+фон/i] },
+  { slug: "na_rozovom_fone", dimension: "object_tag", labelRu: "На розовом фоне", labelEn: "On pink background", urlPath: "/na-rozovom-fone", patterns: [/на\s+розов\w*\s+фон|розовый\s+фон/i] },
+  { slug: "s_maskoy", dimension: "object_tag", labelRu: "С маской", labelEn: "With mask", urlPath: "/s-maskoy", patterns: [/с\s+маск|маска|маске|маской/i] },
+  { slug: "s_konfetami", dimension: "object_tag", labelRu: "С конфетами", labelEn: "With sweets", urlPath: "/s-konfetami", patterns: [/конфет|сладост/i] },
+  { slug: "s_igrushkoy", dimension: "object_tag", labelRu: "С игрушкой", labelEn: "With toy", urlPath: "/s-igrushkoy", patterns: [/с\s+игрушк|игрушечн|плюшев/i] },
+  { slug: "na_lestnice", dimension: "object_tag", labelRu: "На лестнице", labelEn: "On staircase", urlPath: "/na-lestnice", patterns: [/на\s+лестниц|лестница|ступен/i] },
+  { slug: "s_zhurnalom", dimension: "object_tag", labelRu: "С журналом", labelEn: "With magazine", urlPath: "/s-zhurnalom", patterns: [/с\s+журнал|журнал(?!ьн)/i] },
 ];
 
 // ── Lookup indexes (built once at import) ──
