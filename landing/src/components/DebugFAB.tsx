@@ -61,25 +61,7 @@ export function DebugProvider({ children }: { children: React.ReactNode }) {
 }
 
 function DebugFAB() {
-  const ctx = useDebug();
-  if (!ctx) return null;
-
-  return (
-    <button
-      type="button"
-      onClick={ctx.toggleDebug}
-      className={`fixed bottom-20 sm:bottom-6 right-6 z-50 flex items-center gap-2 rounded-full px-4 py-3 text-sm font-semibold shadow-lg transition-all ${
-        ctx.debugOpen
-          ? "bg-amber-500 text-white shadow-amber-500/30 hover:bg-amber-600"
-          : "bg-zinc-900 text-white shadow-zinc-900/20 hover:bg-zinc-800"
-      }`}
-    >
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <path d="M12 20h.01M8.5 8.5a3.5 3.5 0 1 1 5 3c-.8.7-1.5 1.3-1.5 2.5M12 17h.01" />
-      </svg>
-      {ctx.debugOpen ? "Debug ON" : "Debug"}
-    </button>
-  );
+  return null;
 }
 
 function DebugMinimalPanel() {

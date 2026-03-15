@@ -624,6 +624,9 @@ export type CardPageData = {
   seo_tags: Record<string, unknown> | null;
   hashtags: string[];
   source_date: string | null;
+  source_dataset_slug: string | null;
+  source_message_id: string | null;
+  seo_readiness_score: number | null;
   promptTexts: string[];
   photoUrls: string[];
   beforePhotoUrl: string | null;
@@ -642,7 +645,7 @@ export async function getCardPageData(slug: string): Promise<CardPageData | null
   const { data: card } = await supabase
     .from("prompt_cards")
     .select(
-      "id,slug,title_ru,title_en,seo_tags,hashtags,is_published,source_date,source_dataset_slug,source_message_id,card_split_index,card_split_total,likes_count,dislikes_count"
+      "id,slug,title_ru,title_en,seo_tags,seo_readiness_score,hashtags,is_published,source_date,source_dataset_slug,source_message_id,card_split_index,card_split_total,likes_count,dislikes_count"
     )
     .eq("slug", slug)
     .eq("is_published", true)
@@ -782,6 +785,9 @@ export async function getCardPageData(slug: string): Promise<CardPageData | null
     seo_tags: card.seo_tags as Record<string, unknown> | null,
     hashtags: (card.hashtags as string[] | null) || [],
     source_date: card.source_date,
+    source_dataset_slug: (card as Record<string, unknown>).source_dataset_slug as string | null,
+    source_message_id: (card as Record<string, unknown>).source_message_id != null ? String((card as Record<string, unknown>).source_message_id) : null,
+    seo_readiness_score: (card as Record<string, unknown>).seo_readiness_score as number | null,
     promptTexts,
     photoUrls,
     beforePhotoUrl,

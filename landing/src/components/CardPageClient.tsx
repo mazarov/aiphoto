@@ -7,6 +7,7 @@ import type { CardPageData } from "@/lib/supabase";
 import { CardInteractionsProvider, useCardInteractions } from "@/context/CardInteractionsContext";
 import { ReactionButtons } from "./ReactionButtons";
 import { FavoriteButton } from "./FavoriteButton";
+import { useDebug } from "./DebugFAB";
 
 type TagEntry = { slug: string; label: string; href: string | null };
 type BreadcrumbTag = { labelRu: string; urlPath: string } | null;
@@ -31,6 +32,8 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
   const { reactions, favorites, toggleReaction, toggleFavorite } = useCardInteractions();
   const userReaction = reactions.get(data.id) ?? null;
   const isFavorited = favorites.has(data.id);
+  const debugCtx = useDebug();
+  const debugMode = debugCtx?.debugOpen ?? false;
 
   const [photoIndex, setPhotoIndex] = useState(0);
   const [copied, setCopied] = useState(false);
@@ -101,6 +104,38 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
           <span className="text-zinc-600 line-clamp-1">{title}</span>
         )}
       </nav>
+
+      {/* Debug panel */}
+      {debugMode && (
+        <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 p-4 font-mono text-xs text-zinc-700 space-y-1.5">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="rounded bg-amber-500 px-1.5 py-0.5 text-[10px] font-bold text-white">DEBUG</span>
+          </div>
+          <div><span className="text-zinc-400">id:</span> <span className="select-all">{data.id}</span></div>
+          <div><span className="text-zinc-400">slug:</span> {data.slug}</div>
+          <div><span className="text-zinc-400">dataset:</span> {data.source_dataset_slug || "—"}</div>
+          <div><span className="text-zinc-400">source_msg:</span> {data.source_message_id || "—"}</div>
+          <div><span className="text-zinc-400">source_date:</span> {data.source_date || "—"}</div>
+          <div><span className="text-zinc-400">split:</span> {data.card_split_index}/{data.card_split_total}</div>
+          <div><span className="text-zinc-400">photos:</span> {data.photoUrls.length} · <span className="text-zinc-400">prompts:</span> {data.promptTexts.length}</div>
+          <div><span className="text-zinc-400">seo_score:</span> {data.seo_readiness_score ?? "—"}</div>
+          {data.seo_tags && (
+            <div className="mt-1.5 flex flex-wrap gap-1">
+              {["audience_tag", "style_tag", "occasion_tag", "object_tag", "doc_task_tag"].map((dim) => {
+                const arr = ((data.seo_tags as Record<string, string[]>)?.[dim] || []);
+                return arr.map((slug: string) => (
+                  <span key={`${dim}:${slug}`} className="rounded-full bg-zinc-200 px-1.5 py-px text-[9px] text-zinc-600">
+                    {dim.replace("_tag", "")}:{slug}
+                  </span>
+                ));
+              })}
+            </div>
+          )}
+          {data.beforePhotoUrl && (
+            <div><span className="text-zinc-400">before:</span> <span className="text-teal-600">есть</span></div>
+          )}
+        </div>
+      )}
 
       {/* Two-column layout */}
       <div className="flex flex-col lg:flex-row lg:gap-12 xl:gap-16">
