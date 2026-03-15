@@ -1,6 +1,9 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 function getSiteOrigin(request: NextRequest): string {
   const forwardedHost = request.headers.get("x-forwarded-host");
   const forwardedProto = request.headers.get("x-forwarded-proto") ?? "https";
@@ -14,6 +17,15 @@ function getSiteOrigin(request: NextRequest): string {
   return process.env.NEXT_PUBLIC_SITE_URL ?? new URL(request.url).origin;
 }
 
+function redirectNoStore(url: string): NextResponse {
+  const response = NextResponse.redirect(url);
+  response.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, private, max-age=0");
+  response.headers.set("Pragma", "no-cache");
+  response.headers.set("Expires", "0");
+  response.headers.set("Vary", "Cookie");
+  return response;
+}
+
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const origin = getSiteOrigin(request);
@@ -24,7 +36,7 @@ export async function GET(request: NextRequest) {
 
   if (code) {
     // Keep response mutable so Supabase can attach Set-Cookie headers directly.
-    let response = NextResponse.redirect(successRedirectUrl);
+    let response = redirectNoStore(successRedirectUrl);
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -37,7 +49,7 @@ export async function GET(request: NextRequest) {
             cookiesToSet.forEach(({ name, value }) =>
               request.cookies.set(name, value)
             );
-            response = NextResponse.redirect(successRedirectUrl);
+            response = redirectNoStore(successRedirectUrl);
             cookiesToSet.forEach(({ name, value, options }) =>
               response.cookies.set(name, value, options)
             );
@@ -62,10 +74,10 @@ export async function GET(request: NextRequest) {
       console.error("Auth callback: invalid flow state and no active session");
     }
     console.error("Auth callback exchangeCodeForSession failed:", error.message);
-    return NextResponse.redirect(
+    return redirectNoStore(
       `${origin}/?auth_error=${encodeURIComponent(error.message)}`
     );
   }
 
-  return NextResponse.redirect(noCodeRedirectUrl);
+  return redirectNoStore(noCodeRedirectUrl);
 }
