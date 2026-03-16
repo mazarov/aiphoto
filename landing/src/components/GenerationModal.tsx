@@ -160,12 +160,10 @@ export function GenerationModal() {
 
   if (!isOpen) return null;
 
-  const selectedModelCost = config?.models.find((m) => m.id === model)?.cost ?? 1;
   const canGenerate =
     user &&
     photos.some((p) => p.storagePath && !p.uploading && !p.error) &&
     prompt.trim().length >= (config?.limits.minPromptLength ?? 8) &&
-    credits >= selectedModelCost &&
     state === "form";
 
   return (
@@ -270,22 +268,15 @@ export function GenerationModal() {
               </p>
             </div>
 
-            {credits === 0 ? (
-              <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4 text-center">
-                <p className="text-sm font-medium text-zinc-700">Пополнить баланс</p>
-                <p className="mt-1 text-xs text-zinc-500">Покупка кредитов — скоро</p>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={handleGenerate}
-                disabled={!canGenerate}
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-zinc-900 px-6 py-3 text-sm font-semibold text-white shadow-sm transition-all hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <span>🚀</span>
-                Генерация ({selectedModelCost} кр.)
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={handleGenerate}
+              disabled={!canGenerate}
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-zinc-900 px-6 py-3 text-sm font-semibold text-white shadow-sm transition-all hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <span>🚀</span>
+              Создать фото
+            </button>
           </div>
         )}
 

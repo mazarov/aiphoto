@@ -382,7 +382,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
                       </>
                     )}
                   </button>
-                  <GenerateButton cardId={data.id} />
+                  <GenerateButton cardId={data.id} initialPrompt={data.promptTexts[0] || ""} />
                 </div>
               </div>
             )}
@@ -411,7 +411,11 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
               </>
             )}
           </button>
-          <GenerateButton cardId={data.id} variant="mobile" />
+          <GenerateButton
+            cardId={data.id}
+            initialPrompt={data.promptTexts[0] || ""}
+            variant="mobile"
+          />
         </div>
       )}
     </div>

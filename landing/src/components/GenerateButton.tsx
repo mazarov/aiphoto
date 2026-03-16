@@ -5,11 +5,12 @@ import { useDebug } from "./DebugFAB";
 
 type Props = {
   cardId: string;
+  initialPrompt?: string;
   className?: string;
   variant?: "desktop" | "mobile";
 };
 
-export function GenerateButton({ cardId, className = "", variant = "desktop" }: Props) {
+export function GenerateButton({ cardId, initialPrompt, className = "", variant = "desktop" }: Props) {
   const generation = useGeneration();
   const debug = useDebug();
   const showGeneration = debug?.debugOpen ?? false;
@@ -17,7 +18,7 @@ export function GenerateButton({ cardId, className = "", variant = "desktop" }: 
   if (!showGeneration) return null;
 
   const handleClick = () => {
-    generation?.openGenerationModal({ cardId });
+    generation?.openGenerationModal({ cardId, initialPrompt });
   };
 
   if (variant === "mobile") {
