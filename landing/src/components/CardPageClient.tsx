@@ -7,6 +7,7 @@ import type { CardPageData } from "@/lib/supabase";
 import { CardInteractionsProvider, useCardInteractions } from "@/context/CardInteractionsContext";
 import { ReactionButtons } from "./ReactionButtons";
 import { FavoriteButton } from "./FavoriteButton";
+import { GenerateButton } from "./GenerateButton";
 import { useDebug } from "./DebugFAB";
 
 type TagEntry = { slug: string; label: string; href: string | null };
@@ -360,12 +361,12 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
                   ))}
                 </div>
 
-                {/* Copy CTA — desktop only (mobile uses sticky bar) */}
-                <div className="mt-6 hidden sm:block">
+                {/* Copy + Generate CTA — desktop only (mobile uses sticky bar) */}
+                <div className="mt-6 hidden sm:flex flex-wrap gap-3">
                   <button
                     type="button"
                     onClick={handleCopy}
-                    className="inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-xl bg-zinc-900 px-6 py-3 text-sm font-semibold text-white shadow-sm transition-all hover:bg-zinc-800 hover:shadow-md active:scale-[0.98]"
+                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-zinc-900 px-6 py-3 text-sm font-semibold text-white shadow-sm transition-all hover:bg-zinc-800 hover:shadow-md active:scale-[0.98]"
                   >
                     {copied ? (
                       <>
@@ -381,6 +382,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
                       </>
                     )}
                   </button>
+                  <GenerateButton cardId={data.id} />
                 </div>
               </div>
             )}
@@ -389,13 +391,13 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
         </div>
       </div>
 
-      {/* Mobile sticky copy button */}
+      {/* Mobile sticky bar: Copy + Generate */}
       {data.promptTexts.length > 0 && (
-        <div className="fixed inset-x-0 bottom-0 z-40 sm:hidden px-4 py-3 safe-area-pb">
+        <div className="fixed inset-x-0 bottom-0 z-40 sm:hidden px-4 py-3 safe-area-pb flex gap-2">
           <button
             type="button"
             onClick={handleCopy}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-zinc-900 px-4 py-3 text-sm font-semibold text-white shadow-lg active:scale-[0.98]"
+            className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-zinc-900 px-4 py-3 text-sm font-semibold text-white shadow-lg active:scale-[0.98]"
           >
             {copied ? (
               <>
@@ -409,6 +411,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
               </>
             )}
           </button>
+          <GenerateButton cardId={data.id} variant="mobile" />
         </div>
       )}
     </div>

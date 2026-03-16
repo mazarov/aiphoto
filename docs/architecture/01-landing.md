@@ -1,6 +1,6 @@
 # 01 — Лендинг (promptshot.ru)
 
-> Последнее обновление: 2026-03-15
+> Последнее обновление: 2026-03-16
 
 ## Стек
 
@@ -24,6 +24,7 @@
 /[...slug]              → Листинг по тегу (напр. /promty-dlya-foto-devushki, /stil/cherno-beloe)
 /search                 → Поиск (клиентский)
 /favorites              → Избранное (требует авторизации)
+/generations            → Мои генерации (debug-only, требует auth)
 /auth/callback          → Legacy OAuth callback fallback (server-side)
 ```
 
@@ -36,6 +37,23 @@
 | `/api/search-cards` | Фильтрованный поиск (`search_cards_filtered` RPC) |
 | `/api/datasets` | Список датасетов (debug) |
 | `/api/set-before` | Before/after медиа |
+| `/api/generation-config` | Конфиг генерации (модели, лимиты) |
+| `/api/generation-prompt` | EN промпт карточки по cardId |
+| `/api/upload-generation-photo` | Загрузка фото для генерации |
+| `/api/generate` | Запуск генерации (auth) |
+| `/api/generate-process` | Внутренний: обработка генерации |
+| `/api/generations` | Список генераций пользователя |
+| `/api/generations/[id]` | Статус/результат генерации |
+| `/api/me` | Текущий пользователь + credits |
+
+### Модуль генерации (debug-only)
+
+- **Точка входа:** кнопка «Сгенерировать» на странице карточки (`/p/[slug]`), рядом с «Скопировать промпт».
+- **Видимость:** только при `debugOpen` (5 кликов по логотипу в футере).
+- **Flow:** Browser → POST /api/generate → создание записи → fire-and-forget fetch на /api/generate-process → Gemini через VPN proxy → результат в Storage.
+- **Таблицы:** `landing_users.credits`, `landing_generations`, `landing_generation_config`.
+- **Storage:** `web-generation-uploads` (входные фото), `web-generation-results` (результаты).
+- **Страница:** `/generations` — «Мои генерации» (в дропдауне пользователя при debug).
 
 ### Статические файлы
 
@@ -57,6 +75,7 @@
 | `/[...slug]` (листинг) | ISR | `revalidate = 3600` |
 | `/search` | CSR | `robots: noindex` |
 | `/favorites` | CSR | требует auth |
+| `/generations` | CSR | debug-only, требует auth |
 
 ### Слои кеширования
 

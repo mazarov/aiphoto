@@ -6,6 +6,7 @@ import Image from "next/image";
 import type { MenuSectionWithCounts } from "@/lib/menu";
 import { SearchBar } from "./SearchBar";
 import { useAuth } from "@/context/AuthContext";
+import { useDebug } from "./DebugFAB";
 
 function CountBadge({ count }: { count?: number }) {
   if (count === undefined) return null;
@@ -249,6 +250,8 @@ function MobileMenu({
 
 function UserMenu() {
   const { user, loading, openAuthModal, signOut } = useAuth();
+  const debug = useDebug();
+  const showGenerations = debug?.debugOpen ?? false;
   const [open, setOpen] = useState(false);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -322,6 +325,16 @@ function UserMenu() {
               </svg>
               Избранное
             </Link>
+            {showGenerations && (
+              <Link
+                href="/generations"
+                onClick={() => setOpen(false)}
+                className="flex items-center gap-2 rounded-lg px-3 py-2 text-[13px] text-zinc-600 transition-colors hover:bg-zinc-50 hover:text-zinc-900"
+              >
+                <span>🚀</span>
+                Мои генерации
+              </Link>
+            )}
             <button
               type="button"
               onClick={() => { setOpen(false); signOut(); }}

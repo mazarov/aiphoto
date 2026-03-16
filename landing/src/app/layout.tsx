@@ -4,7 +4,9 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { DebugProvider } from "@/components/DebugFAB";
 import { AuthProvider } from "@/context/AuthContext";
+import { GenerationProvider } from "@/context/GenerationContext";
 import { AuthModal } from "@/components/AuthModal";
+import { GenerationModal } from "@/components/GenerationModal";
 
 const inter = Inter({
   subsets: ["latin", "cyrillic"],
@@ -32,7 +34,12 @@ export default function RootLayout({
     <html lang="ru" className={inter.className}>
       <body className="min-h-screen bg-white text-zinc-900 antialiased">
         <AuthProvider>
-          <DebugProvider>{children}</DebugProvider>
+          <DebugProvider>
+            <GenerationProvider>
+              {children}
+              <GenerationModal />
+            </GenerationProvider>
+          </DebugProvider>
           <AuthModal />
         </AuthProvider>
 
