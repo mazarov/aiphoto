@@ -132,15 +132,24 @@ export async function POST(req: NextRequest) {
 
     const modelConfig = models.find((m) => m.id === model) || models[0];
     const creditsNeeded = modelConfig.cost;
+    const promptText = prompt.trim();
+    const promptPreview =
+      promptText.length > 800 ? `${promptText.slice(0, 800)}... [truncated]` : promptText;
     console.log("[generation.create] resolved config", {
       userId: user.id,
+      userEmail: user.email ?? null,
+      userName:
+        (user.user_metadata?.full_name as string | undefined) ??
+        (user.user_metadata?.name as string | undefined) ??
+        null,
       modelRequested: model ?? null,
       modelResolved: modelConfig.id,
       creditsNeeded,
       aspectRatio: ar,
       imageSize: sz,
       photos: photoStoragePaths.length,
-      promptLength: prompt.trim().length,
+      promptLength: promptText.length,
+      promptPreview,
     });
 
     const { data: userRow } = await supabase
@@ -197,7 +206,7 @@ export async function POST(req: NextRequest) {
         user_id: user.id,
         status: "pending",
         card_id: cardId || null,
-        prompt_text: prompt.trim(),
+        prompt_text: promptText,
         model: modelConfig.id,
         aspect_ratio: ar,
         image_size: sz,

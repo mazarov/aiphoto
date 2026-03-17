@@ -74,6 +74,9 @@ async function processGeneration(supabase: ReturnType<typeof createSupabaseServe
 
   const userId = gen.user_id as string;
   const creditsSpent = gen.credits_spent as number;
+  const promptText = String(gen.prompt_text || "");
+  const promptPreview =
+    promptText.length > 800 ? `${promptText.slice(0, 800)}... [truncated]` : promptText;
 
   await supabase
     .from("landing_generations")
@@ -91,7 +94,8 @@ async function processGeneration(supabase: ReturnType<typeof createSupabaseServe
     aspectRatio: gen.aspect_ratio,
     imageSize: gen.image_size,
     photos: ((gen.input_photo_paths as string[]) || []).length,
-    promptLength: String(gen.prompt_text || "").length,
+    promptLength: promptText.length,
+    promptPreview,
   });
 
   const refundAndFail = async (errorType: string, errorMessage: string) => {
