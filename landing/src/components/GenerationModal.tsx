@@ -34,6 +34,7 @@ export function GenerationModal() {
   const [generationId, setGenerationId] = useState<string | null>(null);
   const [resultUrl, setResultUrl] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
 
   const fetchConfig = useCallback(async () => {
@@ -69,6 +70,7 @@ export function GenerationModal() {
       setGenerationId(null);
       setResultUrl(null);
       setErrorMessage(null);
+      setFormError(null);
       setPhotos([]);
       setProgress(0);
     }
@@ -109,9 +111,20 @@ export function GenerationModal() {
       .filter((p) => p.storagePath && !p.uploading && !p.error)
       .map((p) => p.storagePath!);
 
-    if (storagePaths.length < 1) return;
-    if (prompt.trim().length < (config?.limits.minPromptLength ?? 8)) return;
-    if (credits < (config?.models.find((m) => m.id === model)?.cost ?? 1)) return;
+    if (storagePaths.length < 1) {
+      setFormError("Добавьте хотя бы одно фото");
+      return;
+    }
+    if (prompt.trim().length < (config?.limits.minPromptLength ?? 8)) {
+      setFormError(`Промпт должен быть минимум ${config?.limits.minPromptLength ?? 8} символов`);
+      return;
+    }
+    if (credits < (config?.models.find((m) => m.id === model)?.cost ?? 1)) {
+      setFormError("Нет кредитов");
+      return;
+    }
+
+    setFormError(null);
 
     setState("processing");
     setProgress(10);
@@ -155,6 +168,7 @@ export function GenerationModal() {
     setGenerationId(null);
     setResultUrl(null);
     setErrorMessage(null);
+    setFormError(null);
     setProgress(0);
   };
 
@@ -277,6 +291,9 @@ export function GenerationModal() {
               <span>🚀</span>
               Создать фото
             </button>
+            {formError && (
+              <p className="text-sm text-red-600">{formError}</p>
+            )}
           </div>
         )}
 
