@@ -2,8 +2,21 @@ import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServer } from "@/lib/supabase";
 import { createSupabaseServerAuth } from "@/lib/supabase-server-auth";
 
+function toErrorMeta(err: unknown) {
+  if (!(err instanceof Error)) return { message: String(err) };
+  const withCause = err as Error & { cause?: { code?: string; errno?: number } };
+  return {
+    name: err.name,
+    message: err.message,
+    stack: err.stack,
+    causeCode: withCause.cause?.code,
+    causeErrno: withCause.cause?.errno,
+  };
+}
+
 export async function POST(req: NextRequest) {
   try {
+    console.log("[generation.create] incoming request");
     const supabaseAuth = await createSupabaseServerAuth();
     const {
       data: { user },
@@ -11,6 +24,9 @@ export async function POST(req: NextRequest) {
     } = await supabaseAuth.auth.getUser();
 
     if (authError || !user) {
+      console.warn("[generation.create] unauthorized", {
+        authError: authError?.message ?? null,
+      });
       return NextResponse.json({ error: "unauthorized" }, { status: 401 });
     }
 
@@ -36,6 +52,10 @@ export async function POST(req: NextRequest) {
     const validImageSizes = ["1K", "2K", "4K"];
 
     if (!prompt || typeof prompt !== "string" || prompt.trim().length < minPromptLength) {
+      console.warn("[generation.create] validation error: prompt too short", {
+        userId: user.id,
+        promptLength: typeof prompt === "string" ? prompt.trim().length : null,
+      });
       return NextResponse.json(
         { error: "validation_error", message: "Промпт должен быть минимум 8 символов" },
         { status: 400 }
@@ -43,6 +63,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (!photoStoragePaths || !Array.isArray(photoStoragePaths) || photoStoragePaths.length < 1) {
+      console.warn("[generation.create] validation error: no photos", { userId: user.id });
       return NextResponse.json(
         { error: "validation_error", message: "Нужно минимум 1 фото" },
         { status: 400 }
@@ -50,6 +71,10 @@ export async function POST(req: NextRequest) {
     }
 
     if (photoStoragePaths.length > 4) {
+      console.warn("[generation.create] validation error: too many photos", {
+        userId: user.id,
+        photos: photoStoragePaths.length,
+      });
       return NextResponse.json(
         { error: "validation_error", message: "Максимум 4 фото" },
         { status: 400 }
@@ -59,12 +84,20 @@ export async function POST(req: NextRequest) {
     const ar = aspectRatio || "1:1";
     const sz = imageSize || "1K";
     if (!validAspectRatios.includes(ar)) {
+      console.warn("[generation.create] validation error: invalid aspect ratio", {
+        userId: user.id,
+        aspectRatio: ar,
+      });
       return NextResponse.json(
         { error: "validation_error", message: "Недопустимый формат" },
         { status: 400 }
       );
     }
     if (!validImageSizes.includes(sz)) {
+      console.warn("[generation.create] validation error: invalid image size", {
+        userId: user.id,
+        imageSize: sz,
+      });
       return NextResponse.json(
         { error: "validation_error", message: "Недопустимое качество" },
         { status: 400 }
@@ -99,6 +132,16 @@ export async function POST(req: NextRequest) {
 
     const modelConfig = models.find((m) => m.id === model) || models[0];
     const creditsNeeded = modelConfig.cost;
+    console.log("[generation.create] resolved config", {
+      userId: user.id,
+      modelRequested: model ?? null,
+      modelResolved: modelConfig.id,
+      creditsNeeded,
+      aspectRatio: ar,
+      imageSize: sz,
+      photos: photoStoragePaths.length,
+      promptLength: prompt.trim().length,
+    });
 
     const { data: userRow } = await supabase
       .from("landing_users")
@@ -108,6 +151,11 @@ export async function POST(req: NextRequest) {
 
     const availableCredits = (userRow as { credits?: number } | null)?.credits ?? 0;
     if (availableCredits < creditsNeeded) {
+      console.warn("[generation.create] insufficient credits", {
+        userId: user.id,
+        availableCredits,
+        creditsNeeded,
+      });
       return NextResponse.json(
         {
           error: "insufficient_credits",
@@ -125,6 +173,13 @@ export async function POST(req: NextRequest) {
     );
 
     if (deductError || deductResult === -1) {
+      console.warn("[generation.create] credit deduction failed", {
+        userId: user.id,
+        availableCredits,
+        creditsNeeded,
+        deductError: deductError?.message ?? null,
+        deductResult,
+      });
       return NextResponse.json(
         {
           error: "insufficient_credits",
@@ -157,24 +212,51 @@ export async function POST(req: NextRequest) {
         p_user_id: user.id,
         p_amount: -creditsNeeded,
       });
-      console.error("generate insert error:", insertError);
+      console.error("[generation.create] insert error", {
+        userId: user.id,
+        insertError: insertError?.message ?? null,
+      });
       return NextResponse.json({ error: "Failed to create generation" }, { status: 500 });
     }
+
+    console.log("[generation.create] generation row created", {
+      generationId: gen.id,
+      userId: user.id,
+      status: "pending",
+    });
 
     const baseUrl =
       process.env.NEXT_PUBLIC_SITE_URL ||
       (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null) ||
       req.headers.get("origin") ||
       req.nextUrl.origin;
+    console.log("[generation.create] kickoff generate-process", {
+      generationId: gen.id,
+      baseUrl,
+    });
+
     fetch(`${baseUrl}/api/generate-process`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id: gen.id }),
-    }).catch((err) => console.error("generate-process kickoff error:", err));
+    })
+      .then((res) => {
+        console.log("[generation.create] generate-process kickoff response", {
+          generationId: gen.id,
+          status: res.status,
+          ok: res.ok,
+        });
+      })
+      .catch((err) =>
+        console.error("[generation.create] generate-process kickoff error", {
+          generationId: gen.id,
+          ...toErrorMeta(err),
+        })
+      );
 
     return NextResponse.json({ id: gen.id });
   } catch (err) {
-    console.error("generate error:", err);
+    console.error("[generation.create] unhandled error", toErrorMeta(err));
     return NextResponse.json({ error: "Generation failed" }, { status: 500 });
   }
 }
