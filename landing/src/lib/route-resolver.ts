@@ -134,5 +134,5 @@ export function resolveUrlToTags(slugSegments: string[]): ResolvedRoute | null {
 
 /** Min cards threshold for index/noindex */
 export function getMinCardsForLevel(level: 1 | 2 | 3): number {
-  return level === 1 ? 3 : 6;
+  return level === 1 ? 1 : 6;
 }
