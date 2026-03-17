@@ -4,7 +4,6 @@ import {
   createContext,
   useContext,
   useEffect,
-  useRef,
   useState,
   useCallback,
   type ReactNode,
@@ -34,7 +33,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [showAuthModal, setShowAuthModal] = useState(false);
-  const handledAuthCodeRef = useRef(false);
 
   const openAuthModal = useCallback(() => setShowAuthModal(true), []);
   const closeAuthModal = useCallback(() => setShowAuthModal(false), []);
@@ -43,28 +41,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const supabase = createSupabaseBrowser();
 
     async function initAuth() {
-      const url = new URL(window.location.href);
-      const code = url.searchParams.get("code");
-
-      // Complete OAuth on the client to avoid server callback flow-state races.
-      if (code && !handledAuthCodeRef.current) {
-        handledAuthCodeRef.current = true;
-        const { error } = await supabase.auth.exchangeCodeForSession(code);
-        if (error) {
-          console.error("Client OAuth exchange failed:", error.message);
-        } else {
-          const cleanUrl = new URL(window.location.href);
-          cleanUrl.searchParams.delete("code");
-          cleanUrl.searchParams.delete("state");
-          cleanUrl.searchParams.delete("error");
-          cleanUrl.searchParams.delete("error_code");
-          cleanUrl.searchParams.delete("error_description");
-          window.history.replaceState(
-            {},
-            "",
-            `${cleanUrl.pathname}${cleanUrl.search}${cleanUrl.hash}`
-          );
-        }
+      // Defensive cleanup for legacy callback URLs containing OAuth params.
+      const cleanUrl = new URL(window.location.href);
+      const hasLegacyAuthParams =
+        cleanUrl.searchParams.has("code") ||
+        cleanUrl.searchParams.has("state") ||
+        cleanUrl.searchParams.has("error") ||
+        cleanUrl.searchParams.has("error_code") ||
+        cleanUrl.searchParams.has("error_description");
+      if (hasLegacyAuthParams) {
+        cleanUrl.searchParams.delete("code");
+        cleanUrl.searchParams.delete("state");
+        cleanUrl.searchParams.delete("error");
+        cleanUrl.searchParams.delete("error_code");
+        cleanUrl.searchParams.delete("error_description");
+        window.history.replaceState(
+          {},
+          "",
+          `${cleanUrl.pathname}${cleanUrl.search}${cleanUrl.hash}`
+        );
       }
 
       const { data: { user } } = await supabase.auth.getUser();

@@ -10,10 +10,13 @@ export function AuthModal() {
 
   async function signInWithGoogle() {
     const supabase = createSupabaseBrowser();
+    const nextPath = `${window.location.pathname}${window.location.search}`;
     await supabase.auth.signInWithOAuth({
       provider: "google",
-      // Return to current page; AuthProvider completes code exchange in browser.
-      options: { redirectTo: `${window.location.origin}${window.location.pathname}${window.location.search}` },
+      // Use a single OAuth flow via server callback to avoid cookie races.
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}`,
+      },
     });
   }
 
