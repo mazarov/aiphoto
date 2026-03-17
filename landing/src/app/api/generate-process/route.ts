@@ -3,6 +3,7 @@ import { createSupabaseServer, getStoragePublicUrl } from "@/lib/supabase";
 
 const BUCKET_UPLOADS = "web-generation-uploads";
 const BUCKET_RESULTS = "web-generation-results";
+const DIRECT_GEMINI_BASE_URL = "https://generativelanguage.googleapis.com";
 
 function toErrorMeta(err: unknown) {
   if (!(err instanceof Error)) return { message: String(err) };
@@ -16,9 +17,42 @@ function toErrorMeta(err: unknown) {
   };
 }
 
-function getGeminiBaseUrl(): string {
-  const url = process.env.GEMINI_PROXY_BASE_URL || "https://generativelanguage.googleapis.com";
-  return url.replace(/\/+$/, "");
+function parseBooleanConfig(value: string | null | undefined, fallback: boolean): boolean {
+  const raw = String(value ?? "").trim().toLowerCase();
+  if (!raw) return fallback;
+  if (["true", "1", "yes", "y", "on"].includes(raw)) return true;
+  if (["false", "0", "no", "n", "off"].includes(raw)) return false;
+  return fallback;
+}
+
+async function shouldUseGeminiProxy(supabase: ReturnType<typeof createSupabaseServer>): Promise<boolean> {
+  try {
+    const { data } = await supabase
+      .from("photo_app_config")
+      .select("value")
+      .eq("key", "gemini_use_proxy")
+      .maybeSingle();
+    return parseBooleanConfig(data?.value, true);
+  } catch (err) {
+    console.warn("[generation.process] failed to read photo_app_config.gemini_use_proxy", {
+      ...toErrorMeta(err),
+    });
+    return true;
+  }
+}
+
+async function getGeminiBaseUrlRuntime(
+  supabase: ReturnType<typeof createSupabaseServer>
+): Promise<{ baseUrl: string; viaProxy: boolean }> {
+  const useProxy = await shouldUseGeminiProxy(supabase);
+  const proxyBase = (process.env.GEMINI_PROXY_BASE_URL || "").replace(/\/+$/, "");
+  if (useProxy && proxyBase) {
+    return { baseUrl: proxyBase, viaProxy: true };
+  }
+  if (useProxy && !proxyBase) {
+    console.warn("[generation.process] gemini_use_proxy=true but GEMINI_PROXY_BASE_URL is empty, fallback to direct");
+  }
+  return { baseUrl: DIRECT_GEMINI_BASE_URL, viaProxy: false };
 }
 
 async function processGeneration(supabase: ReturnType<typeof createSupabaseServer>, id: string) {
@@ -121,7 +155,8 @@ async function processGeneration(supabase: ReturnType<typeof createSupabaseServe
     });
   }
 
-  const geminiUrl = `${getGeminiBaseUrl()}/v1beta/models/${gen.model}:generateContent`;
+  const { baseUrl: geminiBaseUrl, viaProxy } = await getGeminiBaseUrlRuntime(supabase);
+  const geminiUrl = `${geminiBaseUrl}/v1beta/models/${gen.model}:generateContent`;
   const apiKey = process.env.GEMINI_API_KEY;
 
   if (!apiKey) {
@@ -135,7 +170,7 @@ async function processGeneration(supabase: ReturnType<typeof createSupabaseServe
     console.log("[generation.process] gemini request", {
       generationId: id,
       url: geminiUrl,
-      viaProxy: getGeminiBaseUrl() !== "https://generativelanguage.googleapis.com",
+      viaProxy,
       partsCount: parts.length,
       model: gen.model,
       aspectRatio: gen.aspect_ratio,

@@ -51,6 +51,7 @@
 - **Точка входа:** кнопка «Сгенерировать» на странице карточки (`/p/[slug]`), рядом с «Скопировать промпт».
 - **Видимость:** только при `debugOpen` (5 кликов по логотипу в футере).
 - **Flow:** Browser → POST /api/generate → создание записи → fire-and-forget fetch на /api/generate-process → Gemini через VPN proxy → результат в Storage.
+- **Gemini routing:** `generate-process` читает `photo_app_config.gemini_use_proxy`; при `true` использует `GEMINI_PROXY_BASE_URL`, при `false` ходит напрямую в `generativelanguage.googleapis.com`.
 - **Таблицы:** `landing_users.credits`, `landing_generations`, `landing_generation_config`.
 - **Storage:** `web-generation-uploads` (входные фото), `web-generation-results` (результаты).
 - **Страница:** `/generations` — «Мои генерации» (в дропдауне пользователя при debug).
