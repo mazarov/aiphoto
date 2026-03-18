@@ -189,7 +189,7 @@ async function processGeneration(supabase: ReturnType<typeof createSupabaseServe
       body: JSON.stringify({
         contents: [{ role: "user", parts }],
         generationConfig: {
-          responseModalities: ["IMAGE", "TEXT"],
+          responseModalities: ["IMAGE"],
           imageConfig: {
             aspectRatio: gen.aspect_ratio,
             imageSize: gen.image_size,
@@ -226,12 +226,24 @@ async function processGeneration(supabase: ReturnType<typeof createSupabaseServe
     return;
   }
 
-  const candidates = geminiData?.candidates as Array<{ content?: { parts?: Array<{ inlineData?: { data: string }; text?: string }> } }> | undefined;
-  const firstTextPart = candidates?.[0]?.content?.parts?.find((p) => typeof p.text === "string");
+  const candidates = geminiData?.candidates as Array<{
+    finishReason?: string;
+    safetyRatings?: Array<{ category?: string; probability?: string; blocked?: boolean }>;
+    content?: { parts?: Array<{ inlineData?: { data: string }; text?: string }> };
+  }> | undefined;
+  const firstCandidate = candidates?.[0];
+  const firstCandidateParts = firstCandidate?.content?.parts ?? [];
+  const firstTextPart = firstCandidateParts.find((p) => typeof p.text === "string");
+  const firstCandidatePartTypes = firstCandidateParts.map((p) =>
+    p.inlineData ? "inlineData" : typeof p.text === "string" ? "text" : "unknown"
+  );
   console.log("[generation.process] gemini payload summary", {
     generationId: id,
     hasPromptFeedback: !!geminiData?.promptFeedback,
     candidateCount: Array.isArray(candidates) ? candidates.length : 0,
+    firstCandidateFinishReason: firstCandidate?.finishReason ?? null,
+    firstCandidateSafetyRatings: firstCandidate?.safetyRatings ?? null,
+    firstCandidatePartTypes,
     hasFirstText: !!firstTextPart,
     firstTextPreview:
       typeof firstTextPart?.text === "string" ? firstTextPart.text.slice(0, 200) : null,
@@ -247,7 +259,7 @@ async function processGeneration(supabase: ReturnType<typeof createSupabaseServe
     return;
   }
 
-  const imagePart = candidates?.[0]?.content?.parts?.find((p: { inlineData?: { data: string } }) => p.inlineData);
+  const imagePart = firstCandidateParts.find((p: { inlineData?: { data: string } }) => p.inlineData);
   const imageBase64 = imagePart?.inlineData?.data;
 
   if (!imageBase64) {

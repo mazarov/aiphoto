@@ -362,7 +362,13 @@ export function HeaderClient({ menu }: { menu: MenuSectionWithCounts[] }) {
       <header className="sticky top-0 z-40 border-b border-zinc-100 bg-white/80 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-3">
           <Link href="/" className="flex items-center gap-2 text-lg font-bold tracking-tight text-zinc-900">
-            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-violet-500 text-[11px] font-black text-white">P</span>
+            <Image
+              src="/android-chrome-192x192.png"
+              alt=""
+              width={28}
+              height={28}
+              className="h-7 w-7 rounded-lg"
+            />
             PromptShot
           </Link>
 

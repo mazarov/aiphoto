@@ -2,6 +2,7 @@
 
 import { useRef, useCallback } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useDebug } from "./DebugFAB";
 
 export function Footer() {
@@ -31,7 +32,13 @@ export function Footer() {
               onClick={handleLogoClick}
               className="flex items-center gap-2 text-base font-bold tracking-tight text-zinc-900 select-none"
             >
-              <span className={`flex h-6 w-6 items-center justify-center rounded-md text-[10px] font-black text-white ${debug?.debugOpen ? "bg-gradient-to-br from-amber-500 to-orange-500" : "bg-gradient-to-br from-indigo-500 to-violet-500"}`}>P</span>
+              <Image
+                src="/android-chrome-192x192.png"
+                alt=""
+                width={24}
+                height={24}
+                className={`h-6 w-6 rounded-md ${debug?.debugOpen ? "ring-2 ring-amber-400/70" : ""}`}
+              />
               PromptShot
             </button>
             <p className="mt-2 max-w-xs text-sm text-zinc-500">
