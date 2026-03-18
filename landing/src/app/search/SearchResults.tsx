@@ -25,7 +25,7 @@ type Props = {
   initialQuery: string;
 };
 
-export function SearchResults({ initialQuery, initialFilters }: Props) {
+export function SearchResults({ initialQuery }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { filters, applyFilters, activeCount } = useListingFilters({

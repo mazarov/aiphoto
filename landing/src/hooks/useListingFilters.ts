@@ -66,7 +66,7 @@ export function useListingFilters(options: UseListingFiltersOptions = {}) {
       const next = { ...filters, [key]: value };
       applyFilters(next);
     },
-    [filters]
+    [filters, applyFilters]
   );
 
   const applyFilters = useCallback(
