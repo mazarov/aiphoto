@@ -47,6 +47,7 @@ export async function fetchRouteCards(params: {
   site_lang?: string;
   limit?: number;
   offset?: number;
+  min_cards?: number;
 }): Promise<RouteCardsResult> {
   const supabase = createSupabaseServer();
   const { data, error } = await supabase.rpc("resolve_route_cards", {
@@ -58,7 +59,7 @@ export async function fetchRouteCards(params: {
     p_site_lang: params.site_lang ?? "ru",
     p_limit: params.limit ?? 24,
     p_offset: params.offset ?? 0,
-    p_min_cards: 2,
+    p_min_cards: params.min_cards ?? 2,
   });
 
   if (error) throw new Error(`resolve_route_cards: ${error.message}`);

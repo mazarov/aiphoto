@@ -237,11 +237,13 @@ export default async function TagPage({ params, searchParams }: Props) {
 
   const offset = 0;
   const mergedParams = mergeFilterParams(route.rpcParams, qs ?? null);
+  const hasQueryFilters = Boolean(qs?.audience || qs?.style || qs?.occasion || qs?.object);
 
   const result = await fetchRouteCards({
     ...mergedParams,
     limit: PAGE_SIZE,
     offset,
+    min_cards: hasQueryFilters ? 0 : 2,
   });
   const totalCount = result.total_count ?? result.cards_count;
   const cards = await enrichCardsWithDetails(result.cards);

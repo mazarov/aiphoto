@@ -7,10 +7,12 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   try {
     const supabase = createSupabaseServer();
-    const { data, error } = await supabase.rpc("get_tag_counts_cache");
+    const { data, error } = await supabase
+      .from("tag_counts_cache")
+      .select("dimension, tag_slug, count");
 
     if (error) {
-      console.error("[menu-counts] RPC error:", error.message);
+      console.error("[menu-counts] select error:", error.message);
       return NextResponse.json({});
     }
 

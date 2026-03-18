@@ -10,9 +10,10 @@ type Props = {
   initialCards: PromptCardFull[];
   totalCount: number;
   rpcParams: Record<string, string | null>;
+  strictMode?: boolean;
 };
 
-export function InfiniteGrid({ initialCards, totalCount, rpcParams }: Props) {
+export function InfiniteGrid({ initialCards, totalCount, rpcParams, strictMode = false }: Props) {
   const [cards, setCards] = useState(initialCards);
   const [loading, setLoading] = useState(false);
   const [hasMore, setHasMore] = useState(initialCards.length < totalCount);
@@ -36,6 +37,7 @@ export function InfiniteGrid({ initialCards, totalCount, rpcParams }: Props) {
       for (const [k, v] of Object.entries(rpcParamsRef.current)) {
         if (v) sp.set(k, v);
       }
+      if (strictMode) sp.set("strict", "1");
       const res = await fetch(`/api/listing?${sp}`);
       const data = await res.json();
       const newCards = (data.cards || []) as PromptCardFull[];

@@ -31,6 +31,7 @@ export function CatalogWithFilters({
         initialCards={initialCards}
         totalCount={totalCount}
         rpcParams={mergedRpcParams}
+        strictMode={activeCount > 0}
       />
       <FilterFAB
         filters={filters}

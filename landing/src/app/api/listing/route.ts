@@ -5,6 +5,7 @@ export async function GET(req: NextRequest) {
   const sp = req.nextUrl.searchParams;
   const limit = Math.min(60, Math.max(1, Number(sp.get("limit")) || 24));
   const offset = Math.max(0, Number(sp.get("offset")) || 0);
+  const strict = sp.get("strict") === "1";
 
   const params: Record<string, string | null> = {};
   for (const key of ["audience_tag", "style_tag", "occasion_tag", "object_tag", "doc_task_tag"]) {
@@ -12,7 +13,12 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const result = await fetchRouteCards({ ...params, limit, offset });
+    const result = await fetchRouteCards({
+      ...params,
+      limit,
+      offset,
+      min_cards: strict ? 0 : 2,
+    });
     const enriched = await enrichCardsWithDetails(result.cards);
     return NextResponse.json({
       cards: enriched,
