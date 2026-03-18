@@ -1,5 +1,4 @@
-import { fetchMenuCounts } from "@/lib/supabase";
-import { getMenuRouteMap, applyCountsToMenu } from "@/lib/menu";
+import { applyCountsToMenu } from "@/lib/menu";
 import { HeaderClient } from "./HeaderClient";
 import { SidebarNav } from "./SidebarNav";
 import { Footer } from "./Footer";
@@ -9,10 +8,8 @@ type Props = {
   counts?: Record<string, number>;
 };
 
-export async function PageLayout({ children, counts: precomputedCounts }: Props) {
-  const routeMap = getMenuRouteMap();
-  const counts = precomputedCounts ?? await fetchMenuCounts(routeMap);
-  const menu = applyCountsToMenu(counts);
+export function PageLayout({ children, counts }: Props) {
+  const menu = applyCountsToMenu(counts ?? {});
 
   return (
     <>
