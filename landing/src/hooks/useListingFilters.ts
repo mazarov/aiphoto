@@ -61,14 +61,6 @@ export function useListingFilters(options: UseListingFiltersOptions = {}) {
     return out;
   }, [baseRpcParams, filters]);
 
-  const setFilter = useCallback(
-    (key: keyof FilterState, value: string | null) => {
-      const next = { ...filters, [key]: value };
-      applyFilters(next);
-    },
-    [filters, applyFilters]
-  );
-
   const applyFilters = useCallback(
     (nextFilters: FilterState) => {
       const sp = new URLSearchParams(searchParams.toString());
@@ -82,6 +74,14 @@ export function useListingFilters(options: UseListingFiltersOptions = {}) {
       router.push(qs ? `${path}?${qs}` : path, { scroll: false });
     },
     [router, searchParams]
+  );
+
+  const setFilter = useCallback(
+    (key: keyof FilterState, value: string | null) => {
+      const next = { ...filters, [key]: value };
+      applyFilters(next);
+    },
+    [filters, applyFilters]
   );
 
   const resetFilters = useCallback(() => {
