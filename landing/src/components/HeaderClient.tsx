@@ -102,7 +102,28 @@ function UserMenu() {
 export function HeaderClient() {
   return (
     <header className="sticky top-0 z-40 border-b border-zinc-100 bg-white/80 backdrop-blur-xl">
-      <div className="flex items-center gap-4 px-5 py-3">
+      {/* Mobile: centered logo + right auth */}
+      <div className="relative flex items-center justify-end px-4 py-3 lg:hidden">
+        <Link
+          href="/"
+          className="absolute left-1/2 flex -translate-x-1/2 items-center gap-2 text-lg font-bold tracking-tight text-zinc-900"
+        >
+          <Image
+            src="/android-chrome-192x192.png"
+            alt=""
+            width={28}
+            height={28}
+            className="h-7 w-7 rounded-lg"
+          />
+          <span>PromptShot</span>
+        </Link>
+        <div className="flex items-center">
+          <UserMenu />
+        </div>
+      </div>
+
+      {/* Desktop: logo + centered search + user menu */}
+      <div className="hidden items-center gap-4 px-5 py-3 lg:flex">
         <Link href="/" className="flex flex-shrink-0 items-center gap-2 text-lg font-bold tracking-tight text-zinc-900">
           <Image
             src="/android-chrome-192x192.png"
@@ -111,17 +132,14 @@ export function HeaderClient() {
             height={28}
             className="h-7 w-7 rounded-lg"
           />
-          <span className="hidden sm:inline">PromptShot</span>
+          <span>PromptShot</span>
         </Link>
 
-        <div className="hidden flex-1 justify-center lg:flex">
+        <div className="flex flex-1 justify-center">
           <SearchBar />
         </div>
 
         <div className="flex flex-shrink-0 items-center gap-2">
-          <div className="lg:hidden">
-            <SearchBar />
-          </div>
           <UserMenu />
         </div>
       </div>
