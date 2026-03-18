@@ -174,7 +174,8 @@ SearchResults (client, infinite scroll)
 
 | Компонент | Файл | Роль |
 |-----------|------|------|
-| Header | `components/Header.tsx` | Серверный, fetchMenuCounts → HeaderClient |
+| PageLayout | `components/PageLayout.tsx` | Серверный: fetchMenuCounts → HeaderClient + SidebarNav + children + Footer |
+| Header | `components/Header.tsx` | Legacy серверный (заменён PageLayout) |
 | Footer | `components/Footer.tsx` | Статический |
 | CardPage | `app/p/[slug]/page.tsx` | Серверный, SSR карточки |
 
@@ -182,7 +183,8 @@ SearchResults (client, infinite scroll)
 
 | Компонент | Файл | Роль |
 |-----------|------|------|
-| HeaderClient | `components/HeaderClient.tsx` | Навигация, меню |
+| HeaderClient | `components/HeaderClient.tsx` | Тонкий sticky header: логотип + SearchBar + UserMenu |
+| SidebarNav | `components/SidebarNav.tsx` | Сквозной левый sidebar (desktop sticky, mobile FAB+slide-over): accordion-секции, подсветка активного URL |
 | PromptCard | `components/PromptCard.tsx` | Карточка в листинге |
 | GroupedCard | `components/GroupedCard.tsx` | Группа split-карточек |
 | CardPageClient | `components/CardPageClient.tsx` | Клиентская часть карточки |

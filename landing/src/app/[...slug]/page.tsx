@@ -2,8 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import Script from "next/script";
 import { fetchRouteCards, enrichCardsWithDetails, getIndexableTagCombos } from "@/lib/supabase";
-import { Header } from "@/components/Header";
-import { Footer } from "@/components/Footer";
+import { PageLayout } from "@/components/PageLayout";
 import { CatalogWithFilters } from "@/components/CatalogWithFilters";
 import {
   getSiblingTags,
@@ -266,12 +265,10 @@ export default async function TagPage({ params, searchParams }: Props) {
   const lockedDimensions = route.tags.map((t) => t.dimension);
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <Header />
-
+    <PageLayout>
       {/* Hero */}
       <section className="border-b border-zinc-100 bg-gradient-to-b from-zinc-50 to-white">
-        <div className="mx-auto max-w-7xl px-5 pt-10 pb-8">
+        <div className="px-5 pt-10 pb-8">
           {/* Breadcrumbs */}
           <nav className="mb-5 flex items-center gap-1.5 text-sm text-zinc-400">
             <Link href="/" className="transition-colors hover:text-zinc-700">
@@ -315,7 +312,7 @@ export default async function TagPage({ params, searchParams }: Props) {
         </div>
       </section>
 
-      <main className="mx-auto w-full max-w-7xl flex-1 px-2 sm:px-5 py-10 pb-24 lg:pb-10">
+      <main className="w-full flex-1 px-2 sm:px-5 py-10 pb-24 lg:pb-10">
         <CatalogWithFilters
           initialCards={cards}
           totalCount={totalCount}
@@ -431,7 +428,6 @@ export default async function TagPage({ params, searchParams }: Props) {
           </section>
         )}
       </main>
-      <Footer />
 
       {/* JSON-LD: BreadcrumbList + FAQPage */}
       <Script
@@ -442,6 +438,6 @@ export default async function TagPage({ params, searchParams }: Props) {
           __html: JSON.stringify(buildJsonLd(route, seo, SITE_URL)).replace(/</g, "\\u003c"),
         }}
       />
-    </div>
+    </PageLayout>
   );
 }

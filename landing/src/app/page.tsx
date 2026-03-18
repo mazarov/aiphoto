@@ -7,8 +7,7 @@ import {
 } from "@/lib/supabase";
 import { getMenuRouteMap } from "@/lib/menu";
 import { TAG_REGISTRY, DIMENSION_LABELS, type Dimension } from "@/lib/tag-registry";
-import { Header } from "@/components/Header";
-import { Footer } from "@/components/Footer";
+import { PageLayout } from "@/components/PageLayout";
 import { CategorySection } from "@/components/CategorySection";
 import { HomeSearch } from "@/components/HomeSearch";
 import { MENU } from "@/lib/menu";
@@ -117,24 +116,22 @@ export default async function HomePage() {
   };
 
   return (
-    <div className="flex min-h-screen flex-col bg-gradient-to-b from-indigo-50/40 via-white to-zinc-50/50">
-      <Header counts={menuCounts} />
-
+    <PageLayout counts={menuCounts}>
       {/* Hero */}
-      <section className="relative overflow-hidden">
+      <section className="relative overflow-hidden bg-gradient-to-b from-indigo-50/40 via-white to-white">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(99,102,241,0.12),transparent)]" />
-        <div className="relative mx-auto max-w-7xl px-5 pt-20 pb-14 text-center">
-          <h1 className="mx-auto max-w-3xl text-4xl font-bold tracking-tight text-zinc-900 sm:text-5xl lg:text-6xl">
+        <div className="relative mx-auto max-w-5xl px-5 pt-16 pb-10 text-center">
+          <h1 className="mx-auto max-w-3xl text-3xl font-bold tracking-tight text-zinc-900 sm:text-4xl lg:text-5xl">
             Промты для фото{" "}
             <span className="bg-gradient-to-r from-indigo-500 to-violet-500 text-gradient">
               с нейросетями
             </span>
           </h1>
-          <p className="mx-auto mt-5 max-w-lg text-base text-zinc-500 sm:text-lg">
+          <p className="mx-auto mt-4 max-w-lg text-base text-zinc-500 sm:text-lg">
             Готовые промпты для генерации фотографий.
             Копируй, вставляй, получай результат.
           </p>
-          <div className="mt-8 flex items-center justify-center gap-2 text-sm text-zinc-400">
+          <div className="mt-6 flex items-center justify-center gap-2 text-sm text-zinc-400">
             <span className="inline-flex items-center gap-1.5 rounded-full bg-zinc-100 px-3 py-1 text-zinc-600">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
               {totalPrompts}+ промптов
@@ -147,7 +144,7 @@ export default async function HomePage() {
         </div>
       </section>
 
-      <main className="mx-auto w-full max-w-7xl flex-1 px-2 sm:px-5 pb-16">
+      <main className="w-full flex-1 px-2 sm:px-5 pb-16">
         <div className="mt-2 mb-10 px-2 sm:px-0">
           <HomeSearch />
         </div>
@@ -162,7 +159,6 @@ export default async function HomePage() {
             />
           ))
         ) : (
-          /* Fallback: text links if RPC failed */
           <div className="mt-12 flex flex-wrap gap-2">
             {TAG_REGISTRY.map((tag) => (
               <a
@@ -177,14 +173,12 @@ export default async function HomePage() {
         )}
       </main>
 
-      <Footer />
-
       <Script
         id="homepage-json-ld"
         type="application/ld+json"
         strategy="afterInteractive"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c") }}
       />
-    </div>
+    </PageLayout>
   );
 }

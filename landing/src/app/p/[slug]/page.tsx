@@ -8,8 +8,7 @@ import {
   type Dimension,
 } from "@/lib/tag-registry";
 import { CardPageClient } from "@/components/CardPageClient";
-import { Header } from "@/components/Header";
-import { Footer } from "@/components/Footer";
+import { PageLayout } from "@/components/PageLayout";
 
 const getCachedCardPageData = cache(getCardPageData);
 
@@ -173,7 +172,7 @@ export default async function CardPage({ params }: Props) {
     JSON.stringify(obj).replace(/</g, "\\u003c");
 
   return (
-    <div className="flex min-h-screen flex-col bg-white">
+    <PageLayout>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: safeJson(creativeWorkLd) }}
@@ -182,7 +181,6 @@ export default async function CardPage({ params }: Props) {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: safeJson(breadcrumbLd) }}
       />
-      <Header />
 
       <main className="flex-1 pb-20 lg:pb-0">
         <CardPageClient
@@ -195,8 +193,6 @@ export default async function CardPage({ params }: Props) {
           }
         />
       </main>
-
-      <Footer />
-    </div>
+    </PageLayout>
   );
 }

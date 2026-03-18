@@ -1,5 +1,4 @@
-import { Header } from "@/components/Header";
-import { Footer } from "@/components/Footer";
+import { PageLayout } from "@/components/PageLayout";
 import { GenerationsContent } from "./GenerationsContent";
 import type { Metadata } from "next";
 
@@ -10,13 +9,11 @@ export const metadata: Metadata = {
 
 export default function GenerationsPage() {
   return (
-    <>
-      <Header />
-      <main className="mx-auto max-w-7xl px-5 py-8">
+    <PageLayout>
+      <main className="w-full px-5 py-8">
         <h1 className="mb-8 text-2xl font-bold text-zinc-900">Мои генерации</h1>
         <GenerationsContent />
       </main>
-      <Footer />
-    </>
+    </PageLayout>
   );
 }

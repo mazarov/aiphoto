@@ -204,9 +204,9 @@ export function SearchBar() {
   return (
     <>
       {/* ═══════════ Desktop (lg+) ═══════════ */}
-      <div ref={desktopRef} className="relative hidden lg:block">
+      <div ref={desktopRef} className="relative hidden w-full max-w-xl lg:block">
         <div className="relative">
-          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400">
+          <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400">
             <SearchIcon />
           </span>
           <input
@@ -216,8 +216,8 @@ export function SearchBar() {
             onChange={(e) => handleChange(e.target.value)}
             onKeyDown={handleKeyDown}
             onFocus={() => hasQuery && results.length > 0 && setShowResults(true)}
-            placeholder="Поиск..."
-            className="w-48 rounded-xl border border-zinc-200 bg-zinc-50/80 py-1.5 pl-9 pr-14 text-sm text-zinc-700 placeholder:text-zinc-400 transition-all duration-200 focus:w-72 focus:border-indigo-200 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:shadow-lg focus:shadow-indigo-500/5"
+            placeholder="Поиск промтов..."
+            className="w-full rounded-xl border border-zinc-200 bg-zinc-50/80 py-2 pl-10 pr-14 text-sm text-zinc-700 placeholder:text-zinc-400 transition-all duration-200 focus:border-indigo-200 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:shadow-lg focus:shadow-indigo-500/5"
           />
           {loading ? (
             <span className="absolute right-3 top-1/2 -translate-y-1/2">{spinner}</span>
@@ -230,7 +230,7 @@ export function SearchBar() {
 
         {/* Desktop dropdown */}
         {showResults && results.length > 0 && (
-          <div className="animate-scale-in absolute right-0 z-50 mt-2 w-[380px] overflow-hidden rounded-2xl border border-zinc-200/60 bg-white shadow-2xl shadow-zinc-900/10">
+          <div className="animate-scale-in absolute left-0 right-0 z-50 mt-2 min-w-[380px] overflow-hidden rounded-2xl border border-zinc-200/60 bg-white shadow-2xl shadow-zinc-900/10">
             <div className="p-1.5">
               {results.map((card) => (
                 <ResultCard
@@ -256,7 +256,7 @@ export function SearchBar() {
         )}
 
         {noResults && (
-          <div className="animate-scale-in absolute right-0 z-50 mt-2 w-[320px] overflow-hidden rounded-2xl border border-zinc-200/60 bg-white p-8 text-center shadow-2xl shadow-zinc-900/10">
+          <div className="animate-scale-in absolute left-0 right-0 z-50 mt-2 min-w-[320px] overflow-hidden rounded-2xl border border-zinc-200/60 bg-white p-8 text-center shadow-2xl shadow-zinc-900/10">
             <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-zinc-100">
               <SearchIcon className="h-4 w-4 text-zinc-400" />
             </div>
@@ -269,16 +269,15 @@ export function SearchBar() {
       {/* ═══════════ Mobile elements via portal (escape header's backdrop-filter containing block) ═══════════ */}
       {mounted && createPortal(
         <>
-          {/* Mobile: compact bottom search pill */}
+          {/* Mobile: compact bottom search FAB */}
           {!mobileActive && !hideMobileBar && (
             <button
               type="button"
               onClick={() => setMobileActive(true)}
-              className="fixed bottom-4 left-1/2 z-40 -translate-x-1/2 flex items-center gap-2.5 rounded-full border border-zinc-200/80 bg-white/95 pl-4 pr-5 py-2.5 shadow-lg shadow-zinc-900/10 backdrop-blur-xl transition-transform active:scale-[0.97] lg:hidden"
-              style={{ marginBottom: "env(safe-area-inset-bottom)" }}
+              className="fixed bottom-20 left-1/2 z-30 -translate-x-1/2 flex h-12 w-12 items-center justify-center rounded-full bg-zinc-900 text-white shadow-lg transition-all hover:bg-zinc-800 active:scale-95 sm:bottom-6 lg:hidden"
+              aria-label="Поиск"
             >
-              <SearchIcon className="h-4 w-4 text-zinc-400" />
-              <span className="text-[13px] font-medium text-zinc-400">Найти промт</span>
+              <SearchIcon className="h-5 w-5" />
             </button>
           )}
 

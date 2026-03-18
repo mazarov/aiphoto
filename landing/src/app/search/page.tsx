@@ -1,6 +1,5 @@
 import { Metadata } from "next";
-import { Header } from "@/components/Header";
-import { Footer } from "@/components/Footer";
+import { PageLayout } from "@/components/PageLayout";
 import { SearchResults } from "./SearchResults";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://promptshot.ru";
@@ -32,12 +31,10 @@ export default async function SearchPage({ searchParams }: Props) {
   const query = qs?.q?.trim() || "";
 
   return (
-    <>
-      <Header />
-      <main className="mx-auto max-w-7xl px-5 py-8">
+    <PageLayout>
+      <main className="w-full px-5 py-8">
         <SearchResults initialQuery={query} />
       </main>
-      <Footer />
-    </>
+    </PageLayout>
   );
 }
