@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-import { unstable_cache } from "next/cache";
+
 
 const supabaseUrl =
   process.env.NEXT_PUBLIC_SUPABASE_URL ||
@@ -238,56 +238,6 @@ export async function fetchDatasets(): Promise<string[]> {
     if (s) slugs.add(s);
   }
   return [...slugs].sort();
-}
-
-async function fetchMenuCountsRaw(
-  routeMap: { href: string; params: { audience_tag?: string; style_tag?: string; occasion_tag?: string; object_tag?: string } }[]
-): Promise<Record<string, number>> {
-  if (routeMap.length === 0) return {};
-
-  const supabase = createSupabaseServer();
-  const results: Record<string, number> = {};
-
-  const BATCH = 6;
-  for (let i = 0; i < routeMap.length; i += BATCH) {
-    const batch = routeMap.slice(i, i + BATCH);
-    const promises = batch.map(async ({ href, params }) => {
-      const { data } = await supabase.rpc("resolve_route_cards", {
-        p_audience_tag: params.audience_tag ?? null,
-        p_style_tag: params.style_tag ?? null,
-        p_occasion_tag: params.occasion_tag ?? null,
-        p_object_tag: params.object_tag ?? null,
-        p_doc_task_tag: null,
-        p_site_lang: "ru",
-        p_limit: 1000,
-        p_offset: 0,
-        p_min_cards: 0,
-      });
-      const r = data as RouteCardsResult | null;
-      return { href, count: r?.total_count ?? r?.cards_count ?? 0 };
-    });
-    const batchResults = await Promise.all(promises);
-    for (const { href, count } of batchResults) {
-      results[href] = count;
-    }
-  }
-
-  return results;
-}
-
-const getCachedMenuCounts = unstable_cache(
-  async (routeMapJson: string) => {
-    const routeMap = JSON.parse(routeMapJson);
-    return fetchMenuCountsRaw(routeMap);
-  },
-  ["menu-counts"],
-  { revalidate: 3600 }
-);
-
-export async function fetchMenuCounts(
-  routeMap: { href: string; params: { audience_tag?: string; style_tag?: string; occasion_tag?: string; object_tag?: string } }[]
-): Promise<Record<string, number>> {
-  return getCachedMenuCounts(JSON.stringify(routeMap));
 }
 
 // ── Homepage sections (single RPC for all category blocks) ──

@@ -2,10 +2,8 @@ import type { Metadata } from "next";
 import Script from "next/script";
 import {
   fetchHomepageSections,
-  buildMenuCountsFromSections,
   pickDeduplicatedPhotos,
 } from "@/lib/supabase";
-import { getMenuRouteMap } from "@/lib/menu";
 import { TAG_REGISTRY, DIMENSION_LABELS, type Dimension } from "@/lib/tag-registry";
 import { PageLayout } from "@/components/PageLayout";
 import { CategorySection } from "@/components/CategorySection";
@@ -38,9 +36,6 @@ export default async function HomePage() {
     console.error("[HomePage] fetchHomepageSections failed:", err);
     sections = [];
   }
-
-  const routeMap = getMenuRouteMap();
-  const menuCounts = buildMenuCountsFromSections(sections, routeMap);
 
   const sectionsByDimSlug = new Map<string, (typeof sections)[number]>();
   for (const s of sections) {
@@ -116,7 +111,7 @@ export default async function HomePage() {
   };
 
   return (
-    <PageLayout counts={menuCounts}>
+    <PageLayout>
       {/* Hero */}
       <section className="relative overflow-hidden bg-gradient-to-b from-indigo-50/40 via-white to-white">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(99,102,241,0.12),transparent)]" />

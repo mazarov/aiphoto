@@ -1,10 +1,27 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { MenuSectionWithCounts } from "@/lib/menu";
+
+function enrichMenuWithCounts(
+  menu: MenuSectionWithCounts[],
+  counts: Record<string, number>,
+): MenuSectionWithCounts[] {
+  if (Object.keys(counts).length === 0) return menu;
+  return menu.map((section) => ({
+    ...section,
+    groups: section.groups.map((group) => ({
+      ...group,
+      items: group.items.map((item) => ({
+        ...item,
+        count: counts[item.href] ?? item.count ?? 0,
+      })),
+    })),
+  }));
+}
 
 const EXPANDED_SECTION_STORAGE_KEY = "sidebar_expanded_section_idx";
 
@@ -145,7 +162,21 @@ function SidebarContent({
 export function SidebarNav({ menu }: { menu: MenuSectionWithCounts[] }) {
   const pathname = usePathname();
   const normalizedPath = normalizePath(pathname || "/");
-  const activeIdx = getActiveSectionIdx(menu, normalizedPath);
+
+  const [counts, setCounts] = useState<Record<string, number>>({});
+  const enrichedMenu = useMemo(() => enrichMenuWithCounts(menu, counts), [menu, counts]);
+  const activeIdx = getActiveSectionIdx(enrichedMenu, normalizedPath);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/menu-counts")
+      .then((r) => (r.ok ? r.json() : {}))
+      .then((data: Record<string, number>) => {
+        if (!cancelled) setCounts(data);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
   const [expandedIdx, setExpandedIdx] = useState<number | null>(() => {
     if (activeIdx >= 0) return activeIdx;
@@ -194,7 +225,7 @@ export function SidebarNav({ menu }: { menu: MenuSectionWithCounts[] }) {
       <aside className="hidden w-60 flex-shrink-0 lg:block">
         <div className="sticky top-[57px] h-[calc(100vh-57px)] overflow-y-auto border-r border-zinc-100 bg-white">
           <SidebarContent
-            menu={menu}
+            menu={enrichedMenu}
             pathname={normalizedPath}
             expandedIdx={expandedIdx}
             onToggle={handleToggle}
@@ -236,7 +267,7 @@ export function SidebarNav({ menu }: { menu: MenuSectionWithCounts[] }) {
                 </div>
                 <div className="flex-1 overflow-y-auto overscroll-contain">
                   <SidebarContent
-                    menu={menu}
+                    menu={enrichedMenu}
                     pathname={normalizedPath}
                     expandedIdx={expandedIdx}
                     onToggle={handleToggle}
