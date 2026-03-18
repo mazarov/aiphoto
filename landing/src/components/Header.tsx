@@ -1,5 +1,3 @@
-import { fetchMenuCounts } from "@/lib/supabase";
-import { getMenuRouteMap, applyCountsToMenu } from "@/lib/menu";
 import { HeaderClient } from "./HeaderClient";
 
 type Props = {
@@ -8,9 +6,6 @@ type Props = {
 };
 
 export async function Header({ counts: precomputedCounts }: Props = {}) {
-  const routeMap = getMenuRouteMap();
-  const counts = precomputedCounts ?? await fetchMenuCounts(routeMap);
-  const menuWithCounts = applyCountsToMenu(counts);
-
-  return <HeaderClient menu={menuWithCounts} />;
+  void precomputedCounts;
+  return <HeaderClient />;
 }
