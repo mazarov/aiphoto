@@ -191,7 +191,7 @@ SearchResults (client, infinite scroll)
 | AuthModal | `components/AuthModal.tsx` | Модалка авторизации |
 | DebugFAB | `components/DebugFAB.tsx` | Debug-панель |
 
-OAuth completion: единый server-side flow через `/auth/callback`; `AuthProvider` только читает текущую сессию пользователя и чистит legacy auth-параметры из URL.
+OAuth completion: `AuthProvider` завершает `code -> session` на клиенте через `exchangeCodeForSession()` и очищает auth-параметры из URL.
 
 ---
 
