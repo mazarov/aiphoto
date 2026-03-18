@@ -6,6 +6,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { MenuSectionWithCounts } from "@/lib/menu";
 
+const EXPANDED_SECTION_STORAGE_KEY = "sidebar_expanded_section_idx";
+
 function normalizePath(path: string): string {
   if (!path || path === "/") return "/";
   return path.endsWith("/") ? path.slice(0, -1) : path;
@@ -145,7 +147,15 @@ export function SidebarNav({ menu }: { menu: MenuSectionWithCounts[] }) {
   const normalizedPath = normalizePath(pathname || "/");
   const activeIdx = getActiveSectionIdx(menu, normalizedPath);
 
-  const [expandedIdx, setExpandedIdx] = useState<number | null>(activeIdx >= 0 ? activeIdx : null);
+  const [expandedIdx, setExpandedIdx] = useState<number | null>(() => {
+    if (activeIdx >= 0) return activeIdx;
+    if (typeof window === "undefined") return null;
+    const raw = window.localStorage.getItem(EXPANDED_SECTION_STORAGE_KEY);
+    if (raw === null) return null;
+    const parsed = Number(raw);
+    if (!Number.isInteger(parsed) || parsed < 0 || parsed >= menu.length) return null;
+    return parsed;
+  });
   const [mobileOpen, setMobileOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
 
@@ -154,6 +164,14 @@ export function SidebarNav({ menu }: { menu: MenuSectionWithCounts[] }) {
   useEffect(() => {
     if (activeIdx >= 0) setExpandedIdx(activeIdx);
   }, [activeIdx]);
+
+  useEffect(() => {
+    if (expandedIdx === null) {
+      window.localStorage.removeItem(EXPANDED_SECTION_STORAGE_KEY);
+      return;
+    }
+    window.localStorage.setItem(EXPANDED_SECTION_STORAGE_KEY, String(expandedIdx));
+  }, [expandedIdx]);
 
   useEffect(() => {
     setMobileOpen(false);

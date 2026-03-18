@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { FilterPanel } from "./FilterPanel";
 import type { FilterState } from "@/hooks/useListingFilters";
 import type { Dimension } from "@/lib/tag-registry";
@@ -26,21 +27,30 @@ export function FilterFAB({
   cardsForCounts,
 }: Props) {
   const [open, setOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="fixed bottom-20 right-5 z-30 flex h-12 w-12 items-center justify-center rounded-full bg-zinc-900 text-white shadow-lg transition-all hover:bg-zinc-800 active:scale-95 sm:bottom-6 sm:right-6"
-        aria-label={activeCount > 0 ? `Фильтры (${activeCount})` : "Фильтры"}
-      >
-        {activeCount > 0 ? (
-          <span className="text-sm font-semibold tabular-nums">{activeCount}</span>
-        ) : (
-          <FilterIcon />
+      {mounted &&
+        createPortal(
+          <button
+            type="button"
+            onClick={() => setOpen(true)}
+            className="fixed bottom-20 right-5 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-zinc-900 text-white shadow-lg transition-all hover:bg-zinc-800 active:scale-95 sm:bottom-6 sm:right-6"
+            aria-label={activeCount > 0 ? `Фильтры (${activeCount})` : "Фильтры"}
+          >
+            {activeCount > 0 ? (
+              <span className="text-sm font-semibold tabular-nums">{activeCount}</span>
+            ) : (
+              <FilterIcon />
+            )}
+          </button>,
+          document.body,
         )}
-      </button>
 
       {open && (
         <FilterPanel

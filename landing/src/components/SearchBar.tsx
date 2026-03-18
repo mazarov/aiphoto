@@ -269,15 +269,16 @@ export function SearchBar() {
       {/* ═══════════ Mobile elements via portal (escape header's backdrop-filter containing block) ═══════════ */}
       {mounted && createPortal(
         <>
-          {/* Mobile: compact bottom search FAB */}
+          {/* Mobile: fake search bar trigger */}
           {!mobileActive && !hideMobileBar && (
             <button
               type="button"
               onClick={() => setMobileActive(true)}
-              className="fixed bottom-20 left-1/2 z-30 -translate-x-1/2 flex h-12 w-12 items-center justify-center rounded-full bg-zinc-900 text-white shadow-lg transition-all hover:bg-zinc-800 active:scale-95 sm:bottom-6 lg:hidden"
+              className="fixed bottom-20 left-1/2 z-40 -translate-x-1/2 flex h-12 w-[188px] items-center gap-2.5 rounded-full border border-zinc-200/80 bg-white/95 px-4 text-left text-zinc-500 shadow-lg shadow-zinc-900/10 backdrop-blur-xl transition-transform active:scale-[0.98] sm:bottom-6 sm:w-[220px] lg:hidden"
               aria-label="Поиск"
             >
-              <SearchIcon className="h-5 w-5" />
+              <SearchIcon className="h-4.5 w-4.5 text-zinc-400" />
+              <span className="truncate text-[13px] font-medium text-zinc-400">Найти промт</span>
             </button>
           )}
 
