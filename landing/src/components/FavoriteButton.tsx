@@ -25,8 +25,8 @@ export function FavoriteButton({
       className={`rounded-full ${pad} transition-all active:scale-90 ${
         isOverlay
           ? isFavorited
-            ? "bg-white/20 text-amber-300 backdrop-blur-md"
-            : "bg-black/20 text-white/60 backdrop-blur-md hover:bg-white/20 hover:text-white"
+            ? "text-amber-300"
+            : "text-white/60 hover:text-white"
           : isFavorited
             ? "text-amber-500 hover:text-amber-600"
             : "text-zinc-300 hover:text-amber-500"
