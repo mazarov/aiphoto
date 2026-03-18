@@ -28,8 +28,8 @@ export async function generateMetadata({ searchParams }: Props): Promise<Metadat
 }
 
 export default async function SearchPage({ searchParams }: Props) {
-  const { q } = await searchParams;
-  const query = q?.trim() || "";
+  const qs = await searchParams;
+  const query = qs?.q?.trim() || "";
 
   return (
     <>

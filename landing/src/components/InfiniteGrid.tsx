@@ -41,9 +41,9 @@ export function InfiniteGrid({ initialCards, totalCount, rpcParams }: Props) {
       const newCards = (data.cards || []) as PromptCardFull[];
       if (newCards.length > 0) {
         setCards((prev) => [...prev, ...newCards]);
-        offsetRef.current += newCards.length;
+        offsetRef.current += PAGE_SIZE;
       }
-      const more = newCards.length === PAGE_SIZE;
+      const more = newCards.length >= PAGE_SIZE;
       setHasMore(more);
       hasMoreRef.current = more;
     } catch {
@@ -64,11 +64,11 @@ export function InfiniteGrid({ initialCards, totalCount, rpcParams }: Props) {
           loadMore();
         }
       },
-      { rootMargin: "600px" }
+      { rootMargin: "600px", threshold: 0 }
     );
     observer.observe(el);
     return () => observer.disconnect();
-  }, [loadMore]);
+  }, [loadMore, cards.length]);
 
   const countText = useMemo(() => {
     const n = totalCount;

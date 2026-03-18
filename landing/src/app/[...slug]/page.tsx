@@ -4,7 +4,7 @@ import Script from "next/script";
 import { fetchRouteCards, enrichCardsWithDetails, getIndexableTagCombos } from "@/lib/supabase";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
-import { InfiniteGrid } from "@/components/InfiniteGrid";
+import { CatalogWithFilters } from "@/components/CatalogWithFilters";
 import {
   getSiblingTags,
   getAllTagPaths,
@@ -25,6 +25,7 @@ const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://promptshot.ru";
 
 type Props = {
   params: Promise<{ slug: string[] }>;
+  searchParams?: Promise<{ audience?: string; style?: string; occasion?: string; object?: string }>;
 };
 
 export async function generateStaticParams() {
@@ -220,16 +221,30 @@ function BreadcrumbSeparator() {
   );
 }
 
-export default async function TagPage({ params }: Props) {
+function mergeFilterParams(
+  routeParams: Record<string, string | null>,
+  searchParams: { audience?: string; style?: string; occasion?: string; object?: string } | null
+): Record<string, string | null> {
+  const out = { ...routeParams };
+  if (searchParams?.audience) out.audience_tag = searchParams.audience;
+  if (searchParams?.style) out.style_tag = searchParams.style;
+  if (searchParams?.occasion) out.occasion_tag = searchParams.occasion;
+  if (searchParams?.object) out.object_tag = searchParams.object;
+  return out;
+}
+
+export default async function TagPage({ params, searchParams }: Props) {
   const { slug } = await params;
+  const qs = await searchParams;
   const route = resolveUrlToTags(slug);
 
   if (!route) notFound();
 
   const offset = 0;
+  const mergedParams = mergeFilterParams(route.rpcParams, qs ?? null);
 
   const result = await fetchRouteCards({
-    ...route.rpcParams,
+    ...mergedParams,
     limit: PAGE_SIZE,
     offset,
   });
@@ -243,10 +258,12 @@ export default async function TagPage({ params }: Props) {
   const sectionLabel = DIMENSION_LABELS[primaryTag.dimension];
   const l2ChipGroups = route.level === 1 ? await getL2ChipsForTag(primaryTag) : [];
 
-  const rpcParams: Record<string, string | null> = {};
+  const baseRpcParams: Record<string, string | null> = {};
   for (const [k, v] of Object.entries(route.rpcParams)) {
-    rpcParams[k] = v ?? null;
+    baseRpcParams[k] = v ?? null;
   }
+
+  const lockedDimensions = route.tags.map((t) => t.dimension);
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -299,7 +316,12 @@ export default async function TagPage({ params }: Props) {
       </section>
 
       <main className="mx-auto w-full max-w-7xl flex-1 px-2 sm:px-5 py-10 pb-24 lg:pb-10">
-        <InfiniteGrid initialCards={cards} totalCount={totalCount} rpcParams={rpcParams} />
+        <CatalogWithFilters
+          initialCards={cards}
+          totalCount={totalCount}
+          baseRpcParams={baseRpcParams}
+          lockedDimensions={lockedDimensions}
+        />
 
         {/* Parent link for L2/L3 */}
         {route.parentPath && (

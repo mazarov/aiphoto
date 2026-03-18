@@ -1,6 +1,6 @@
 # 01 — Лендинг (promptshot.ru)
 
-> Последнее обновление: 2026-03-17
+> Последнее обновление: 2026-03-18
 
 ## Стек
 
@@ -33,6 +33,7 @@
 | Путь | Назначение |
 |------|-----------|
 | `/api/search` | Текстовый поиск (`search_cards_text` RPC) |
+| `/api/filter-counts` | Счётчики тегов для текущей выборки (`get_filter_counts` RPC) |
 | `/api/search-card` | Карточка по ID / prefix / batch |
 | `/api/search-cards` | Фильтрованный поиск (`search_cards_filtered` RPC) |
 | `/api/datasets` | Список датасетов (debug) |
@@ -137,6 +138,8 @@ getSeoForRoute(route)                   ← seo-templates.ts → seo-content.ts 
 
 **L2 чипы на L1:** На L1 страницах отображаются чипы-ссылки на L2 комбинации, сгруппированные по измерениям. Данные из RPC `get_indexable_tag_combos(min_cards=6)`, фильтруются для текущего L1 тега. Чипы показывают label + количество карточек.
 
+**Фильтрация (FilterFAB):** Плавающая кнопка справа внизу на листингах и в поиске. При нажатии открывается панель с чипсами по измерениям: Кто на фото, Стиль, Событие, Сцена. Фильтры передаются через query params (`?audience=devushka&style=portret`). На tag-страницах измерения, уже заданные URL-путём, скрыты из панели. Каталог: серверный merge `route.rpcParams` + `searchParams`, refetch при смене фильтров. **Применимые теги:** на каталоге FilterPanel запрашивает `/api/filter-counts` (RPC `get_filter_counts`); на поиске — агрегирует счётчики из загруженных карточек (`cardsForCounts`). Показываются только теги с карточками, с счётчиками (напр. «Портрет (42)»), отсортированы по убыванию count.
+
 ### Карточка `/p/[slug]`
 
 ```
@@ -156,6 +159,7 @@ SearchResults (client, infinite scroll)
   → /api/search?q=&limit=24&offset=N
   → search_cards_text (hybrid rank: FTS + trigram)
   → enrichCardsWithDetails(cards)
+  → FilterFAB: фильтрация по audience/style/occasion/object (client-side по seo_tags)
 ```
 
 - Пагинация детерминированная: `24 → 48 → 72` (без расширения групп в поиске).
@@ -184,6 +188,10 @@ SearchResults (client, infinite scroll)
 | CardPageClient | `components/CardPageClient.tsx` | Клиентская часть карточки |
 | PhotoCarousel | `components/PhotoCarousel.tsx` | Карусель фото |
 | CardFilters | `components/CardFilters.tsx` | Debug-фильтры (FilterableGrid) |
+| CatalogWithFilters | `components/CatalogWithFilters.tsx` | Листинг + FilterFAB, useListingFilters |
+| FilterFAB | `components/FilterFAB.tsx` | Плавающая кнопка фильтров, передаёт rpcParams в FilterPanel |
+| FilterPanel | `components/FilterPanel.tsx` | Панель с чипсами, при rpcParams — fetch filter-counts, только применимые теги с счётчиками |
+| FilterChips | `components/FilterChips.tsx` | Строка чипсов для одного измерения |
 | HomeSearch | `components/HomeSearch.tsx` | Поиск на главной |
 | ReactionButtons | `components/ReactionButtons.tsx` | Like/dislike |
 | FavoriteButton | `components/FavoriteButton.tsx` | Избранное |
@@ -275,6 +283,7 @@ type ResolvedRoute = {
 | RPC | Назначение |
 |-----|-----------|
 | `resolve_route_cards` | Карточки по тегам (листинг + меню) |
+| `get_filter_counts` | Счётчики тегов для текущей выборки (FilterPanel) |
 | `get_homepage_sections` | Секции главной |
 | `search_cards_filtered` | Фильтрованный поиск |
 | `search_cards_text` | Полнотекстовый поиск |

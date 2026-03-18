@@ -6,16 +6,32 @@ import Link from "next/link";
 import { PromptCard } from "@/components/PromptCard";
 import type { PromptCardFull } from "@/lib/supabase";
 import { CardInteractionsProvider } from "@/context/CardInteractionsContext";
+import { FilterFAB } from "@/components/FilterFAB";
+import { useListingFilters } from "@/hooks/useListingFilters";
+import type { FilterState } from "@/hooks/useListingFilters";
 
 const PAGE_SIZE = 24;
+
+function cardMatchesFilters(card: PromptCardFull, f: FilterState): boolean {
+  const tags = (card.seo_tags || {}) as Record<string, string[]>;
+  if (f.audience && !(tags.audience_tag || []).includes(f.audience)) return false;
+  if (f.style && !(tags.style_tag || []).includes(f.style)) return false;
+  if (f.occasion && !(tags.occasion_tag || []).includes(f.occasion)) return false;
+  if (f.object && !(tags.object_tag || []).includes(f.object)) return false;
+  return true;
+}
 
 type Props = {
   initialQuery: string;
 };
 
-export function SearchResults({ initialQuery }: Props) {
+export function SearchResults({ initialQuery, initialFilters }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { filters, applyFilters, activeCount } = useListingFilters({
+    baseRpcParams: {},
+    lockedDimensions: [],
+  });
   const [query, setQuery] = useState(initialQuery);
   const [inputValue, setInputValue] = useState(initialQuery);
   const [cards, setCards] = useState<PromptCardFull[]>([]);
@@ -92,6 +108,11 @@ export function SearchResults({ initialQuery }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
+  const displayedCards = useMemo(() => {
+    if (activeCount === 0) return cards;
+    return cards.filter((c) => cardMatchesFilters(c, filters));
+  }, [cards, filters, activeCount]);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const q = inputValue.trim();
@@ -99,7 +120,12 @@ export function SearchResults({ initialQuery }: Props) {
       setQuery(q);
       setOffset(0);
       offsetRef.current = 0;
-      router.push(`/search?q=${encodeURIComponent(q)}`, { scroll: false });
+      const sp = new URLSearchParams();
+      sp.set("q", q);
+      for (const [k, v] of Object.entries(filters)) {
+        if (v) sp.set(k, v);
+      }
+      router.push(`/search?${sp.toString()}`, { scroll: false });
       doSearch(q);
     }
   };
@@ -156,7 +182,7 @@ export function SearchResults({ initialQuery }: Props) {
             Результаты по запросу &laquo;{query}&raquo;
           </h1>
           <span className="rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-medium text-zinc-500 tabular-nums">
-            {cards.length}{hasMore ? "+" : ""}
+            {displayedCards.length}{hasMore ? "+" : ""}
           </span>
           {matchType === "trgm" && (
             <span className="rounded-full bg-amber-50 border border-amber-200 px-2.5 py-0.5 text-xs text-amber-700">
@@ -167,9 +193,9 @@ export function SearchResults({ initialQuery }: Props) {
       )}
 
       {/* Grid */}
-      {cards.length > 0 && (
+      {displayedCards.length > 0 && (
         <div className="columns-2 gap-4 sm:columns-3 lg:columns-4 xl:columns-5">
-          {cards.map((card) => (
+          {displayedCards.map((card) => (
             <div key={card.id} className="mb-4 break-inside-avoid">
               <PromptCard card={card} />
             </div>
@@ -187,8 +213,19 @@ export function SearchResults({ initialQuery }: Props) {
         </div>
       )}
 
+      {/* Filter FAB */}
+      {searched && cards.length > 0 && (
+        <FilterFAB
+          filters={filters}
+          activeCount={activeCount}
+          onApply={applyFilters}
+          hiddenDimensions={[]}
+          cardsForCounts={cards}
+        />
+      )}
+
       {/* Empty state */}
-      {searched && cards.length === 0 && !loading && (
+      {searched && displayedCards.length === 0 && !loading && (
         <div className="mx-auto max-w-md py-16 text-center">
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-zinc-100">
             <svg className="h-7 w-7 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>

@@ -91,6 +91,36 @@ export async function getIndexableTagCombos(
   return (data ?? []) as IndexableTagCombo[];
 }
 
+export type FilterCountRow = {
+  dimension: string;
+  slug: string;
+  cards_count: number;
+};
+
+export async function getFilterCounts(params: {
+  audience_tag?: string | null;
+  style_tag?: string | null;
+  occasion_tag?: string | null;
+  object_tag?: string | null;
+  doc_task_tag?: string | null;
+  site_lang?: string;
+}): Promise<FilterCountRow[]> {
+  const supabase = createSupabaseServer();
+  const { data, error } = await supabase.rpc("get_filter_counts", {
+    p_audience_tag: params.audience_tag ?? null,
+    p_style_tag: params.style_tag ?? null,
+    p_occasion_tag: params.occasion_tag ?? null,
+    p_object_tag: params.object_tag ?? null,
+    p_doc_task_tag: params.doc_task_tag ?? null,
+    p_site_lang: params.site_lang ?? "ru",
+  });
+  if (error) {
+    console.error("get_filter_counts error:", error.message);
+    return [];
+  }
+  return (data ?? []) as FilterCountRow[];
+}
+
 /** Fetches sibling cards for any card in a group; never splits groups.
  *  All group expansions are batched into parallel queries (no N+1). */
 async function expandCardGroups(cards: RouteCard[]): Promise<RouteCard[]> {
