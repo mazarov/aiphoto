@@ -27,10 +27,6 @@ type Props = {
   searchParams?: Promise<{ audience?: string; style?: string; occasion?: string; object?: string }>;
 };
 
-export async function generateStaticParams() {
-  return [];
-}
-
 export async function generateMetadata({ params }: Props) {
   const { slug } = await params;
   const route = resolveUrlToTags(slug);
