@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import Script from "next/script";
-import { fetchRouteCards, enrichCardsWithDetails, getIndexableTagCombos } from "@/lib/supabase";
+import { fetchRouteCards, enrichCardsWithDetails, getIndexableTagCombos, getFirstCardPhotoUrl } from "@/lib/supabase";
 import { PageLayout } from "@/components/PageLayout";
 import { CatalogWithFilters } from "@/components/CatalogWithFilters";
 import {
@@ -39,12 +39,14 @@ export async function generateMetadata({ params }: Props) {
 
   const result = await fetchRouteCards({
     ...route.rpcParams,
-    limit: 1,
+    limit: 3,
     offset: 0,
   });
   const totalCount = result.total_count ?? result.cards_count;
   const minCards = getMinCardsForLevel(route.level);
   const shouldIndex = totalCount >= minCards;
+
+  const ogImageUrl = await getFirstCardPhotoUrl(result.cards.map((c) => c.id));
 
   return {
     title,
@@ -59,10 +61,29 @@ export async function generateMetadata({ params }: Props) {
           ? `${SITE_URL}${route.parentPath}`
           : canonicalUrl,
     },
+    openGraph: {
+      title,
+      description: seo.metaDescription,
+      url: canonicalUrl,
+      type: "website",
+      siteName: "PromptShot",
+      ...(ogImageUrl ? { images: [{ url: ogImageUrl, width: 1200, height: 630 }] } : {}),
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description: seo.metaDescription,
+      ...(ogImageUrl ? { images: [ogImageUrl] } : {}),
+    },
   };
 }
 
-function buildJsonLd(route: ResolvedRoute, seo: SeoContent, siteUrl: string) {
+function buildJsonLd(
+  route: ResolvedRoute,
+  seo: SeoContent,
+  siteUrl: string,
+  ogImageUrl: string | null,
+) {
   const canonicalUrl = `${siteUrl}${route.canonicalPath}`;
 
   const breadcrumbItems = [
@@ -107,6 +128,19 @@ function buildJsonLd(route: ResolvedRoute, seo: SeoContent, siteUrl: string) {
   }
 
   const schemas: Record<string, unknown>[] = [
+    {
+      "@context": "https://schema.org",
+      "@type": "CollectionPage",
+      name: seo.metaTitle,
+      description: seo.metaDescription,
+      url: canonicalUrl,
+      ...(ogImageUrl ? { image: ogImageUrl } : {}),
+      isPartOf: {
+        "@type": "WebSite",
+        name: "PromptShot",
+        url: siteUrl,
+      },
+    },
     {
       "@context": "https://schema.org",
       "@type": "BreadcrumbList",
@@ -249,6 +283,10 @@ export default async function TagPage({ params, searchParams }: Props) {
   const cards = await enrichCardsWithDetails(result.cards);
 
   const seo = getSeoForRoute(route);
+
+  const pageOgImage = cards.length > 0
+    ? cards.find((c) => c.photoUrls.length > 0)?.photoUrls[0] ?? null
+    : null;
 
   const primaryTag = route.primaryTag;
   const siblings = getSiblingTags(primaryTag, 6);
@@ -433,7 +471,7 @@ export default async function TagPage({ params, searchParams }: Props) {
         type="application/ld+json"
         strategy="afterInteractive"
         dangerouslySetInnerHTML={{
-          __html: JSON.stringify(buildJsonLd(route, seo, SITE_URL)).replace(/</g, "\\u003c"),
+          __html: JSON.stringify(buildJsonLd(route, seo, SITE_URL, pageOgImage)).replace(/</g, "\\u003c"),
         }}
       />
     </PageLayout>

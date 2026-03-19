@@ -18,6 +18,13 @@ export const metadata: Metadata = {
   description:
     "Готовые промты для фото: девушки, пары, дети, студийное, чёрно-белое. Копируй и используй в ИИ для создания фото.",
   manifest: "/site.webmanifest",
+  robots: {
+    index: true,
+    follow: true,
+    "max-image-preview": "large" as const,
+    "max-snippet": -1,
+    "max-video-preview": -1,
+  },
   icons: {
     icon: [
       { url: "/favicon.ico" },

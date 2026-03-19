@@ -1,3 +1,4 @@
+import { cache } from "react";
 import type { Metadata } from "next";
 import Script from "next/script";
 import {
@@ -14,12 +15,43 @@ export const revalidate = 3600;
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://promptshot.ru";
 
-export const metadata: Metadata = {
-  title: "Промты для фото с нейросетями — готовая библиотека промптов",
-  description:
-    "Готовые промты для генерации и обработки фотографий с нейросетями. Копируй, вставляй, получай результат.",
-  alternates: { canonical: SITE_URL + "/" },
-};
+const TITLE = "Промты для фото с нейросетями — готовая библиотека промптов";
+const DESCRIPTION =
+  "Готовые промты для генерации и обработки фотографий с нейросетями. Копируй, вставляй, получай результат.";
+
+const getCachedSections = cache(async () => {
+  try {
+    return await fetchHomepageSections();
+  } catch (err) {
+    console.error("[HomePage] fetchHomepageSections failed:", err);
+    return [];
+  }
+});
+
+export async function generateMetadata(): Promise<Metadata> {
+  const sections = await getCachedSections();
+  const firstPhoto = sections.find((s) => s.cards.length > 0)?.cards[0]?.photoUrl ?? null;
+
+  return {
+    title: TITLE,
+    description: DESCRIPTION,
+    alternates: { canonical: SITE_URL + "/" },
+    openGraph: {
+      title: TITLE,
+      description: DESCRIPTION,
+      url: SITE_URL + "/",
+      type: "website",
+      siteName: "PromptShot",
+      ...(firstPhoto ? { images: [{ url: firstPhoto, width: 1200, height: 630 }] } : {}),
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: TITLE,
+      description: DESCRIPTION,
+      ...(firstPhoto ? { images: [firstPhoto] } : {}),
+    },
+  };
+}
 
 const SECTION_ORDER: Dimension[] = [
   "audience_tag",
@@ -29,13 +61,7 @@ const SECTION_ORDER: Dimension[] = [
 ];
 
 export default async function HomePage() {
-  let sections: Awaited<ReturnType<typeof fetchHomepageSections>>;
-  try {
-    sections = await fetchHomepageSections();
-  } catch (err) {
-    console.error("[HomePage] fetchHomepageSections failed:", err);
-    sections = [];
-  }
+  const sections = await getCachedSections();
 
   const sectionsByDimSlug = new Map<string, (typeof sections)[number]>();
   for (const s of sections) {
@@ -86,12 +112,15 @@ export default async function HomePage() {
     };
   }).filter(Boolean);
 
+  const homeOgImage = sections.find((s) => s.cards.length > 0)?.cards[0]?.photoUrl ?? null;
+
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "CollectionPage",
-    name: "Промты для фото с нейросетями",
-    description: metadata.description,
+    name: TITLE,
+    description: DESCRIPTION,
     url: SITE_URL + "/",
+    ...(homeOgImage ? { image: homeOgImage } : {}),
     hasPart: sections
       .filter((s) => s.total_count > 0)
       .slice(0, 50)

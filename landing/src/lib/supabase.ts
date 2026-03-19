@@ -341,6 +341,24 @@ export function pickDeduplicatedPhotos(
   };
 }
 
+export async function getFirstCardPhotoUrl(
+  cardIds: string[],
+): Promise<string | null> {
+  if (cardIds.length === 0) return null;
+  const supabase = createSupabaseServer();
+  const { data } = await supabase
+    .from("prompt_card_media")
+    .select("storage_bucket,storage_path")
+    .in("card_id", cardIds.slice(0, 5))
+    .eq("media_type", "photo")
+    .order("is_primary", { ascending: false })
+    .limit(1);
+  const row = (data || [])[0] as
+    | { storage_bucket: string; storage_path: string }
+    | undefined;
+  return row ? getStoragePublicUrl(row.storage_bucket, row.storage_path) : null;
+}
+
 /** Build menu counts from homepage sections data (avoids ~80 separate RPC calls). */
 export function buildMenuCountsFromSections(
   sections: { dimension: string; slug: string; total_count: number }[],
