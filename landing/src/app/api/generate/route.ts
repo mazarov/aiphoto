@@ -38,6 +38,7 @@ export async function POST(req: NextRequest) {
       imageSize,
       cardId,
       photoStoragePaths,
+      vibeId,
     } = body as {
       prompt?: string;
       model?: string;
@@ -45,6 +46,7 @@ export async function POST(req: NextRequest) {
       imageSize?: string;
       cardId?: string | null;
       photoStoragePaths?: string[];
+      vibeId?: string | null;
     };
 
     const minPromptLength = 8;
@@ -105,6 +107,27 @@ export async function POST(req: NextRequest) {
     }
 
     const supabase = createSupabaseServer();
+    let resolvedVibeId: string | null = null;
+
+    if (vibeId) {
+      const { data: vibeRow, error: vibeError } = await supabase
+        .from("vibes")
+        .select("id,user_id")
+        .eq("id", vibeId)
+        .single();
+      if (vibeError || !vibeRow || vibeRow.user_id !== user.id) {
+        console.warn("[generation.create] validation error: invalid vibeId", {
+          userId: user.id,
+          vibeId,
+          vibeError: vibeError?.message ?? null,
+        });
+        return NextResponse.json(
+          { error: "validation_error", message: "Недопустимый vibeId" },
+          { status: 400 }
+        );
+      }
+      resolvedVibeId = vibeRow.id;
+    }
 
     const { data: configRows } = await supabase
       .from("landing_generation_config")
@@ -212,6 +235,7 @@ export async function POST(req: NextRequest) {
         image_size: sz,
         credits_spent: creditsNeeded,
         input_photo_paths: photoStoragePaths,
+        vibe_id: resolvedVibeId,
       })
       .select("id")
       .single();

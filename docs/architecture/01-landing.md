@@ -1,6 +1,6 @@
 # 01 — Лендинг (promptshot.ru)
 
-> Последнее обновление: 2026-03-18
+> Последнее обновление: 2026-03-19
 
 ## Стек
 
@@ -46,6 +46,9 @@
 | `/api/generations` | Список генераций пользователя |
 | `/api/generations/[id]` | Статус/результат генерации |
 | `/api/me` | Текущий пользователь + credits |
+| `/api/vibe/extract` | Извлечение style JSON из URL изображения (auth) |
+| `/api/vibe/expand` | Генерация 3 prompt-вариантов из style JSON (auth) |
+| `/api/vibe/save` | Сохранение выбранной vibe-генерации (auth) |
 
 ### Модуль генерации (debug-only)
 
@@ -56,6 +59,20 @@
 - **Таблицы:** `landing_users.credits`, `landing_generations`, `landing_generation_config`.
 - **Storage:** `web-generation-uploads` (входные фото), `web-generation-results` (результаты).
 - **Страница:** `/generations` — «Мои генерации» (в дропдауне пользователя при debug).
+
+### Vibe Pipeline (Steal This Vibe)
+
+- **Extract:** `POST /api/vibe/extract` — проверяет auth, валидирует безопасный URL (SSRF guard), скачивает изображение, отправляет в Gemini Vision, сохраняет structured style JSON в таблицу `vibes`.
+- **Expand:** `POST /api/vibe/expand` — берёт style (из body или по `vibeId`), вызывает Gemini text и возвращает 3 варианта промптов с акцентами: `lighting`, `mood`, `composition`.
+- **Save:** `POST /api/vibe/save` — сохраняет выбранную completed-генерацию в `landing_vibe_saves` и связывает с `vibe_id`/`card_id`.
+- **Generate:** дальше используется существующий `POST /api/generate` без изменений (3 отдельных вызова, по одному на вариант).
+- **Gemini routing:** extract/expand используют тот же runtime-флаг `photo_app_config.gemini_use_proxy` и `GEMINI_PROXY_BASE_URL`.
+
+### CORS for Extension
+
+- API теперь обрабатывает CORS в `middleware.ts` для `chrome-extension://` origin.
+- Allowlist источников формируется из `CORS_ALLOWED_ORIGINS` и `CHROME_EXTENSION_ID`.
+- Поддерживается preflight (`OPTIONS`) + credentialed requests (`Access-Control-Allow-Credentials: true`).
 
 ### Статические файлы
 
@@ -265,6 +282,7 @@ type ResolvedRoute = {
 Шаблонная генерация SEO-контента для L2/L3:
 - Приоритет: ручной контент из `seo-content.ts` → шаблон по паре измерений → generic fallback
 - Шаблоны для всех пар измерений (audience+style, audience+occasion, style+object и т.д.)
+- Шаблонные `metaTitle` для fallback-страниц приведены к единому формату: `... — Nano Banana, ИИ-генератор | Бесплатно 2026`
 - JSON-LD: `BreadcrumbList` + `FAQPage` на всех листингах
 
 ---
@@ -279,6 +297,9 @@ type ResolvedRoute = {
 | `prompt_card_before_media` | Before/after фото |
 | `card_reactions` | Лайки/дизлайки (через supabase-browser) |
 | `card_favorites` | Избранное (через supabase-browser) |
+| `vibes` | Сохранённые extracted style JSON для Steal This Vibe |
+| `landing_generations` | История web-генераций (добавлена связь `vibe_id`) |
+| `landing_vibe_saves` | Сохранённые выборы пользователя по vibe-генерациям |
 
 ### RPC
 
@@ -374,3 +395,9 @@ landing/src/
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Браузерный клиент |
 | `SUPABASE_SERVICE_ROLE_KEY` | Серверный клиент |
 | `NEXT_PUBLIC_SITE_URL` | Canonical URLs, OG |
+| `GEMINI_API_KEY` | Gemini вызовы в `generate-process`, `vibe/extract`, `vibe/expand` |
+| `GEMINI_PROXY_BASE_URL` | Прокси-маршрутизация Gemini при `gemini_use_proxy=true` |
+| `GEMINI_VIBE_EXTRACT_MODEL` | (optional) override модели для `/api/vibe/extract` |
+| `GEMINI_VIBE_EXPAND_MODEL` | (optional) override модели для `/api/vibe/expand` |
+| `CORS_ALLOWED_ORIGINS` | CSV allowlist origins для CORS API |
+| `CHROME_EXTENSION_ID` | Extension ID для `chrome-extension://` CORS origin |

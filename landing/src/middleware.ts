@@ -2,6 +2,39 @@ import { NextResponse, type NextRequest } from "next/server";
 
 const OLD_SLUG_RE = /^\/p\/([^/]+)\/?$/;
 const HAS_SHORT_ID_RE = /-[0-9a-f]{5}$/;
+const DEFAULT_ALLOWED_METHODS = "GET, POST, OPTIONS";
+const DEFAULT_ALLOWED_HEADERS = "Content-Type, Authorization";
+
+function parseAllowedOrigins(): string[] {
+  const fromEnv = (process.env.CORS_ALLOWED_ORIGINS || "")
+    .split(",")
+    .map((v) => v.trim())
+    .filter(Boolean);
+  const extensionId = (process.env.CHROME_EXTENSION_ID || "").trim();
+  const extensionOrigin = extensionId ? `chrome-extension://${extensionId}` : "";
+
+  return [...fromEnv, extensionOrigin].filter(Boolean);
+}
+
+function isApiRequest(request: NextRequest): boolean {
+  return request.nextUrl.pathname.startsWith("/api/");
+}
+
+function applyCorsHeaders(request: NextRequest, response: NextResponse): NextResponse {
+  const origin = request.headers.get("origin");
+  const allowedOrigins = parseAllowedOrigins();
+  const allowOrigin = origin && allowedOrigins.includes(origin) ? origin : null;
+
+  response.headers.set("Vary", "Origin");
+  if (allowOrigin) {
+    response.headers.set("Access-Control-Allow-Origin", allowOrigin);
+    response.headers.set("Access-Control-Allow-Credentials", "true");
+    response.headers.set("Access-Control-Allow-Methods", DEFAULT_ALLOWED_METHODS);
+    response.headers.set("Access-Control-Allow-Headers", DEFAULT_ALLOWED_HEADERS);
+  }
+
+  return response;
+}
 
 async function resolveSlugRedirect(slug: string): Promise<string | null> {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -21,6 +54,13 @@ async function resolveSlugRedirect(slug: string): Promise<string | null> {
 }
 
 export async function middleware(request: NextRequest) {
+  if (isApiRequest(request)) {
+    if (request.method === "OPTIONS") {
+      return applyCorsHeaders(request, new NextResponse(null, { status: 204 }));
+    }
+    return applyCorsHeaders(request, NextResponse.next({ request }));
+  }
+
   // 301 redirect for old card slugs without short-id suffix
   const slugMatch = OLD_SLUG_RE.exec(request.nextUrl.pathname);
   if (slugMatch) {

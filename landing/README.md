@@ -23,6 +23,41 @@ npm run build
 npm start
 ```
 
+## Steal This Vibe (extension + API)
+
+Новые endpoints:
+
+- `POST /api/vibe/extract`
+- `POST /api/vibe/expand`
+- `POST /api/vibe/save`
+
+Новые SQL-миграции:
+
+- `138_vibes_table.sql`
+- `139_landing_generations_vibe_id.sql`
+- `140_landing_vibe_saves.sql`
+
+### CORS для extension
+
+API вызывается из origin `chrome-extension://<id>`, поэтому в `landing/.env.local` обязательно:
+
+```bash
+CHROME_EXTENSION_ID=<id из chrome://extensions>
+# или CORS_ALLOWED_ORIGINS=chrome-extension://<id1>,chrome-extension://<id2>
+```
+
+Без этого браузер заблокирует запросы в API из extension.
+
+### Быстрый smoke checklist
+
+1. Пользователь залогинен -> `GET /api/me` возвращает `200`
+2. Upload фото -> `POST /api/upload-generation-photo` возвращает `storagePath`
+3. Extract -> `POST /api/vibe/extract` возвращает `{ vibeId, style }`
+4. Expand -> `POST /api/vibe/expand` возвращает 3 prompts
+5. Generate -> 3x `POST /api/generate` возвращает 3 id
+6. Polling -> `GET /api/generations/[id]` до `completed`
+7. Save -> `POST /api/vibe/save` возвращает `saveId`
+
 ## Docker
 
 ```bash

@@ -1,0 +1,26 @@
+{
+  "manifest_version": 3,
+  "name": "Steal This Vibe",
+  "version": "0.1.0",
+  "description": "Capture style from any image and generate 3 looks on PromptShot.",
+  "permissions": ["sidePanel", "activeTab", "storage"],
+  "host_permissions": ["https://promptshot.ru/*", "http://localhost:3001/*"],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content-script.js"],
+      "css": ["content-script.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "side_panel": {
+    "default_path": "sidepanel/index.html"
+  ],
+  "action": {
+    "default_title": "Steal This Vibe"
+  }
+}

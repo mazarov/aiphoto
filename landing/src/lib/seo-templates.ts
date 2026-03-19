@@ -18,16 +18,16 @@ const PAIR_H1: Partial<Record<DimensionPair, (a: string, b: string) => string>> 
 };
 
 const PAIR_META_TITLE: Partial<Record<DimensionPair, (a: string, b: string) => string>> = {
-  "audience_tag+style_tag": (a, b) => `${cap(a)} ${b} — промты для фото ИИ | 2026`,
-  "audience_tag+occasion_tag": (a, b) => `${cap(a)} на ${b} — промты для фото ИИ | 2026`,
-  "audience_tag+object_tag": (a, b) => `${cap(a)} ${b} — промты для фото ИИ | 2026`,
-  "audience_tag+doc_task_tag": (a, b) => `${cap(a)} ${b} — промты для фото ИИ | 2026`,
-  "style_tag+occasion_tag": (a, b) => `${cap(a)} фото ${b} — промты для ИИ | 2026`,
-  "style_tag+object_tag": (a, b) => `${cap(a)} ${b} — промты для фото ИИ | 2026`,
-  "style_tag+doc_task_tag": (a, b) => `${cap(a)} ${b} — промты для фото ИИ | 2026`,
-  "occasion_tag+object_tag": (a, b) => `${cap(a)} ${b} — промты для фото ИИ | 2026`,
-  "occasion_tag+doc_task_tag": (a, b) => `${cap(a)} ${b} — промты для фото ИИ | 2026`,
-  "object_tag+doc_task_tag": (a, b) => `${cap(a)} ${b} — промты для фото ИИ | 2026`,
+  "audience_tag+style_tag": (a, b) => `${cap(a)} ${b} — Nano Banana, ИИ-генератор | Бесплатно 2026`,
+  "audience_tag+occasion_tag": (a, b) => `${cap(a)} на ${b} — Nano Banana, ИИ-генератор | Бесплатно 2026`,
+  "audience_tag+object_tag": (a, b) => `${cap(a)} ${b} — Nano Banana, ИИ-генератор | Бесплатно 2026`,
+  "audience_tag+doc_task_tag": (a, b) => `${cap(a)} ${b} — Nano Banana, ИИ-генератор | Бесплатно 2026`,
+  "style_tag+occasion_tag": (a, b) => `${cap(a)} фото ${b} — Nano Banana, ИИ-генератор | Бесплатно 2026`,
+  "style_tag+object_tag": (a, b) => `${cap(a)} ${b} — Nano Banana, ИИ-генератор | Бесплатно 2026`,
+  "style_tag+doc_task_tag": (a, b) => `${cap(a)} ${b} — Nano Banana, ИИ-генератор | Бесплатно 2026`,
+  "occasion_tag+object_tag": (a, b) => `${cap(a)} ${b} — Nano Banana, ИИ-генератор | Бесплатно 2026`,
+  "occasion_tag+doc_task_tag": (a, b) => `${cap(a)} ${b} — Nano Banana, ИИ-генератор | Бесплатно 2026`,
+  "object_tag+doc_task_tag": (a, b) => `${cap(a)} ${b} — Nano Banana, ИИ-генератор | Бесплатно 2026`,
 };
 
 function cap(s: string): string {
@@ -57,7 +57,7 @@ function generateMetaTitleForPair(t1: TagEntry, t2: TagEntry): string {
   const key = makePairKey(t1.dimension, t2.dimension);
   const fn = PAIR_META_TITLE[key];
   if (fn) return fn(labelLower(t1), labelLower(t2));
-  return `${cap(labelLower(t1))} ${labelLower(t2)} — промты для фото ИИ | 2026`;
+  return `${cap(labelLower(t1))} ${labelLower(t2)} — Nano Banana, ИИ-генератор | Бесплатно 2026`;
 }
 
 function generateIntro(tags: TagEntry[]): string {
@@ -110,7 +110,7 @@ export function getSeoForRoute(route: ResolvedRoute): SeoContent {
     if (manual) return manual;
     return {
       h1: `Промты для фото: ${route.primaryTag.labelRu}`,
-      metaTitle: `Промты для фото: ${route.primaryTag.labelRu} — ИИ-генератор | 2026`,
+      metaTitle: `Промты для фото ${route.primaryTag.labelRu.toLowerCase()} — Nano Banana, ИИ-генератор | Бесплатно 2026`,
       metaDescription: generateMetaDescription(route.tags),
       intro: generateIntro(route.tags),
       faqItems: generateFaq(route.tags),
@@ -139,7 +139,7 @@ export function getSeoForRoute(route: ResolvedRoute): SeoContent {
   const desc = comboDescription(sorted);
   return {
     h1: `Промты для фото: ${desc}`,
-    metaTitle: `${cap(desc)} — промты для фото ИИ | 2026`,
+    metaTitle: `${cap(desc)} — Nano Banana, ИИ-генератор | Бесплатно 2026`,
     metaDescription: generateMetaDescription(route.tags),
     intro: generateIntro(route.tags),
     faqItems: generateFaq(route.tags),
