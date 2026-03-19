@@ -115,7 +115,7 @@ npx tsx src/fill-seo-tags.ts --dataset LEXYGPT_ChatExport_2026-03-13 --regex-onl
 
 > "LLM обнаружил N новых тегов. Теги с >= 3 вхождениями: [список]. Добавить в tag-registry.ts?"
 
-Если пользователь подтверждает — добавить теги в `landing/src/lib/tag-registry.ts` с `urlPath` и `patterns`.
+Если пользователь подтверждает — добавить теги в `landing/src/lib/tag-registry.ts` с `urlPath` и `patterns`, затем в каталоге `landing` выполнить `npm run seo:sync` (дописывает шаблонные блоки в `seo-content.ts` для новых slug). Проверка покрытия: `npm run seo:check`.
 
 ## Шаг 3. Публикация
 
@@ -139,7 +139,8 @@ sb.from('prompt_cards').update({ is_published: true }).eq('is_published', false)
 - LLM-классификация (`fill-seo-tags.ts` строит enum из TAG_REGISTRY)
 - Regex fallback (через поле `patterns`)
 - URL на лендинге (catch-all `[...slug]/page.tsx`)
-- Для показа в меню — добавить `tagItem("new_tag")` в `landing/src/lib/menu.ts`
+- После коммита в реестр: `cd landing && npm run seo:sync` — запись в `seo-content.ts` (L1 title/FAQ/howTo по шаблону из `seo-content-from-tag.ts`)
+- Для показа в меню — добавить `tagItem("new_tag")` в `landing/src/lib/menu.ts` (либо тег попадёт в группу «Ещё» по измерению)
 
 ## Добавление нового поставщика
 
@@ -159,7 +160,7 @@ npx tsx src/ingest-telegram-export-to-supabase.ts --dataset <slug>
 npx tsx src/translate-en-prompts.ts --dataset <slug>
 # 5. LLM SEO-теги (на DO сервере если из РФ!)
 npx tsx src/fill-seo-tags.ts --dataset <slug>
-# 6. ⚠️ Проверить новые теги → спросить пользователя → добавить в tag-registry.ts
+# 6. ⚠️ Проверить новые теги → спросить пользователя → добавить в tag-registry.ts → npm run seo:sync в landing/
 # 7. Публикация (SQL)
 # 8. Проверить на лендинге
 ```

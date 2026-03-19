@@ -8,4 +8,4 @@ dist/
 test.jpg
 CONVERSATION_HISTORY.txt
 scripts/broadcast*sh-thd-*
-scripts/
+/scripts/

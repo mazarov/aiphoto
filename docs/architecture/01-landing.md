@@ -283,10 +283,12 @@ type ResolvedRoute = {
 - `faqItems` (FAQ для Schema.org)
 - `howToSteps` (HowTo для Schema.org)
 
+**Синхронизация с реестром:** у каждого уникального `slug` из `TAG_REGISTRY` должна быть запись в `seo-content.ts`. Шаблон для новых slug строится в `seo-content-from-tag.ts`; скрипт `npm run seo:sync` дописывает недостающие блоки в конец объекта `SEO`, `npm run seo:check` падает с кодом 1 при пропусках (удобно для CI). Кураторские страницы можно править вручную в том же файле — повторный `--write` не перезаписывает существующие ключи.
+
 ### SEO Templates (`src/lib/seo-templates.ts`)
 
 Шаблонная генерация SEO-контента для L2/L3:
-- Приоритет: ручной контент из `seo-content.ts` → шаблон по паре измерений → generic fallback
+- Приоритет: контент из `seo-content.ts` (L1 по `primaryTag.slug`) → шаблон по паре измерений → generic fallback
 - Шаблоны для всех пар измерений (audience+style, audience+occasion, style+object и т.д.)
 - Шаблонные `metaTitle` для fallback-страниц приведены к единому формату: `... — Nano Banana, ИИ-генератор | Бесплатно 2026`
 - JSON-LD: `BreadcrumbList` + `FAQPage` на всех листингах
@@ -374,6 +376,8 @@ landing/src/
 │       ├── datasets/route.ts
 │       └── set-before/route.ts
 ├── components/                 ← UI-компоненты (см. таблицу выше)
+├── scripts/
+│   └── sync-seo-content.ts     ← npm run seo:sync / seo:check
 ├── lib/
 │   ├── supabase.ts             ← Серверный клиент + data fetching
 │   ├── supabase-browser.ts     ← Браузерный клиент (auth, reactions)
@@ -381,7 +385,8 @@ landing/src/
 │   ├── tag-registry.ts         ← Реестр SEO-тегов (5 измерений, 100+ тегов)
 │   ├── route-resolver.ts       ← Резолвинг URL → теги (L1/L2/L3)
 │   ├── seo-templates.ts        ← Шаблонный SEO для L2/L3
-│   ├── seo-content.ts          ← Ручной SEO-контент для L1
+│   ├── seo-content-from-tag.ts ← Шаблон L1 из TagEntry (npm run seo:sync)
+│   ├── seo-content.ts          ← SEO для L1 (кураторский + автодобавленный)
 │   └── menu.ts                 ← Структура меню
 ├── context/
 │   ├── AuthContext.tsx          ← Контекст авторизации
