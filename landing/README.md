@@ -36,6 +36,7 @@ npm start
 - `138_vibes_table.sql`
 - `139_landing_generations_vibe_id.sql`
 - `140_landing_vibe_saves.sql`
+- `142_landing_vibe_saves_auto_seo_tags.sql`
 
 ### CORS для extension
 
@@ -48,6 +49,16 @@ CHROME_EXTENSION_ID=<id из chrome://extensions>
 
 Без этого браузер заблокирует запросы в API из extension.
 
+### Try this look на карточках
+
+Чтобы включить публичную кнопку генерации на карточках (`/p/[slug]`), добавь:
+
+```bash
+NEXT_PUBLIC_ENABLE_TRY_THIS_LOOK=true
+```
+
+Если флаг не задан, кнопка остаётся доступной только в debug-режиме.
+
 ### Быстрый smoke checklist
 
 1. Пользователь залогинен -> `GET /api/me` возвращает `200`
@@ -56,7 +67,7 @@ CHROME_EXTENSION_ID=<id из chrome://extensions>
 4. Expand -> `POST /api/vibe/expand` возвращает 3 prompts
 5. Generate -> 3x `POST /api/generate` возвращает 3 id
 6. Polling -> `GET /api/generations/[id]` до `completed`
-7. Save -> `POST /api/vibe/save` возвращает `saveId`
+7. Save -> `POST /api/vibe/save` возвращает `saveId` (+ `autoTagCount`), auto-теги сохраняются в `landing_vibe_saves.auto_seo_tags`, при отсутствии `card_id` выполняется автопубликация карточки
 
 ## Docker
 

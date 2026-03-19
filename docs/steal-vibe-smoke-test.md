@@ -10,6 +10,7 @@
   - `138_vibes_table.sql`
   - `139_landing_generations_vibe_id.sql`
   - `140_landing_vibe_saves.sql`
+  - `142_landing_vibe_saves_auto_seo_tags.sql`
 - В `landing/.env.local` есть:
   - `NEXT_PUBLIC_SUPABASE_URL`
   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
@@ -136,7 +137,7 @@ curl -s -X POST "$BASE_URL/api/vibe/save" \
   -d "{\"vibeId\":\"$VIBE_ID\",\"generationId\":\"$GEN_ID_1\",\"prompt\":\"$PROMPT_1\",\"accent\":\"lighting\"}"
 ```
 
-Ожидаемо: `saveId`, `generationId`, `vibeId`, `cardId` (опционально), `cardUrl` (опционально).
+Ожидаемо: `saveId`, `generationId`, `vibeId`, `cardId` (опционально), `cardUrl` (опционально), `autoTagCount`.
 
 ## 8) DB sanity checks (optional)
 
@@ -151,10 +152,15 @@ where vibe_id = '<VIBE_ID>'
 order by created_at desc;
 
 -- save записался
-select id, user_id, vibe_id, generation_id, accent, created_at
+select id, user_id, vibe_id, generation_id, accent, auto_seo_tags, created_at
 from landing_vibe_saves
 where vibe_id = '<VIBE_ID>'
 order by created_at desc;
+
+-- (если есть card_id) seo_tags на карточке обогатились
+select id, seo_tags
+from prompt_cards
+where id = '<CARD_ID>';
 ```
 
 ## Acceptance criteria
@@ -163,3 +169,4 @@ order by created_at desc;
 - Минимум 2/3 генераций доходят до `completed`
 - `vibe_id` сохраняется в `landing_generations`
 - `/api/vibe/save` успешно создаёт запись в `landing_vibe_saves`
+- При валидном `result_storage_*` у генерации появляется `card_id` (автопубликация best-effort)

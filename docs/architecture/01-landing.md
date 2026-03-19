@@ -64,7 +64,7 @@
 
 - **Extract:** `POST /api/vibe/extract` — проверяет auth, валидирует безопасный URL (SSRF guard), скачивает изображение, отправляет в Gemini Vision, сохраняет structured style JSON в таблицу `vibes`.
 - **Expand:** `POST /api/vibe/expand` — берёт style (из body или по `vibeId`), вызывает Gemini text и возвращает 3 варианта промптов с акцентами: `lighting`, `mood`, `composition`.
-- **Save:** `POST /api/vibe/save` — сохраняет выбранную completed-генерацию в `landing_vibe_saves` и связывает с `vibe_id`/`card_id`.
+- **Save:** `POST /api/vibe/save` — сохраняет выбранную completed-генерацию в `landing_vibe_saves`, связывает с `vibe_id`/`card_id`, пишет `auto_seo_tags` и, если `card_id` отсутствует, пытается автосоздать `prompt_cards` + `prompt_card_media` + `prompt_variants` из `landing_generations.result_storage_*`. После этого обогащает `prompt_cards.seo_tags` на основе `vibes.style` (через `TAG_REGISTRY`).
 - **Generate:** дальше используется существующий `POST /api/generate` без изменений (3 отдельных вызова, по одному на вариант).
 - **Gemini routing:** extract/expand используют тот же runtime-флаг `photo_app_config.gemini_use_proxy` и `GEMINI_PROXY_BASE_URL`.
 
@@ -73,6 +73,12 @@
 - API теперь обрабатывает CORS в `middleware.ts` для `chrome-extension://` origin.
 - Allowlist источников формируется из `CORS_ALLOWED_ORIGINS` и `CHROME_EXTENSION_ID`.
 - Поддерживается preflight (`OPTIONS`) + credentialed requests (`Access-Control-Allow-Credentials: true`).
+
+### Try This Look (карточка промта)
+
+- Кнопка на карточке использует существующий `GenerationModal` (`GenerationContext.openGenerationModal`).
+- Публичная видимость управляется флагом `NEXT_PUBLIC_ENABLE_TRY_THIS_LOOK=true`.
+- Если флаг выключен, кнопка доступна только в debug-режиме (совместимо с текущим workflow).
 
 ### Статические файлы
 
@@ -299,7 +305,7 @@ type ResolvedRoute = {
 | `card_favorites` | Избранное (через supabase-browser) |
 | `vibes` | Сохранённые extracted style JSON для Steal This Vibe |
 | `landing_generations` | История web-генераций (добавлена связь `vibe_id`) |
-| `landing_vibe_saves` | Сохранённые выборы пользователя по vibe-генерациям |
+| `landing_vibe_saves` | Сохранённые выборы пользователя по vibe-генерациям (`vibe_id`, `card_id`, `auto_seo_tags`) |
 
 ### RPC
 
@@ -401,3 +407,4 @@ landing/src/
 | `GEMINI_VIBE_EXPAND_MODEL` | (optional) override модели для `/api/vibe/expand` |
 | `CORS_ALLOWED_ORIGINS` | CSV allowlist origins для CORS API |
 | `CHROME_EXTENSION_ID` | Extension ID для `chrome-extension://` CORS origin |
+| `NEXT_PUBLIC_ENABLE_TRY_THIS_LOOK` | Публичная кнопка `Try this look` на `/p/[slug]` |

@@ -1,4 +1,4 @@
-# Steal This Vibe — Browser Extension
+u# Steal This Vibe — Browser Extension
 
 > Требования на реализацию проекта
 > Дата: 2026-03-18
@@ -688,14 +688,14 @@ CREATE POLICY "Users can insert own vibes"
 
 ### Делаем
 
-- [ ] Chrome extension: content script + side panel UI
-- [ ] Overlay-кнопка "Steal this vibe" поверх фото на страницах
-- [ ] Новые endpoints: `/api/vibe/extract`, `/api/vibe/expand`, `/api/vibe/save`
-- [ ] Upload фото через существующий `/api/upload-generation-photo`
-- [ ] 3 генерации через существующий `/api/generate`
-- [ ] Выбор лучшего + save как карточка
-- [ ] Auth через существующую Supabase авторизацию
-- [ ] Таблица `vibes` для хранения extracted styles
+- [x] Chrome extension: content script + side panel UI
+- [x] Overlay-кнопка "Steal this vibe" поверх фото на страницах
+- [x] Новые endpoints: `/api/vibe/extract`, `/api/vibe/expand`, `/api/vibe/save`
+- [x] Upload фото через существующий `/api/upload-generation-photo`
+- [x] 3 генерации через существующий `/api/generate`
+- [x] Выбор лучшего + save как карточка
+- [x] Auth через существующую Supabase авторизацию
+- [x] Таблица `vibes` для хранения extracted styles
 
 ### НЕ делаем в MVP
 
@@ -718,6 +718,8 @@ CREATE POLICY "Users can insert own vibes"
 | Время от клика до результата | < 20 сек |
 
 ## 10. Критичные проблемы (не были учтены)
+
+> Статус на 2026-03-19: ключевые блокеры из этого раздела закрыты в реализации (CORS для extension, message passing content-script ↔ sidepanel, SSRF guard, auth/cookies, устойчивый polling и UX стоимости).
 
 ### 10.1. CORS — BLOCKER
 

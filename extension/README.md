@@ -70,7 +70,43 @@ location.reload();
 
 ## Ограничения текущего scaffold
 
-- Нет продуманного UI/UX состояния для частичных ошибок
-- Нет ретраев для failed генераций
-- Нет автоматической публикации в `prompt_cards` (save пишет в `landing_vibe_saves`)
+- UI остаётся упрощённым (plain JS без фреймворка)
+- Автопубликация в `prompt_cards` best-effort (при ошибке публикации сохранение остаётся в `landing_vibe_saves`)
 - Нет сборки через bundler (пока plain JS)
+
+## Что уже есть в phase2
+
+- Частичные ошибки не роняют весь запуск (можно получить 2/3 успешных результатов)
+- Retry для отдельного failed-результата
+- Retry all failed для пакетного повтора
+- Reset session для быстрой очистки локального состояния
+- Сохранение состояния sidepanel в `chrome.storage.local` (восстановление после закрытия панели)
+- Run History (последние запуски: модель, размеры, успешные/ошибки)
+- Агрегированные метрики history (успешность %, last error type)
+- Метрики по акцентам (`lighting`, `mood`, `composition`) с success rate
+- Export run history в JSON + Clear history
+- Динамическая загрузка generation config через `/api/generation-config`
+- Cooldown на повторный запуск генерации (anti-spam)
+- Двухшаговое подтверждение стоимости перед запуском (credits confirm)
+- Soft auth fallback: при 401/403 sidepanel возвращается в экран логина
+- Индикатор состояния сессии (активна / требуется вход)
+- Авто-обновление сессии/кредитов каждые 30 секунд
+- Автовосстановление незавершённых генераций при повторном открытии sidepanel
+- Кнопка «Очистить результаты» (без сброса выбранных настроек)
+- Общий progress bar по 3 задачам генерации
+- Адаптивный polling (увеличение интервала на long-running задачах)
+- Status detail для долгих генераций (понятный текст вместо "тишины")
+- Нормализация API-ошибок в понятные сообщения (auth/credits/validation/server)
+- First-run hint в sidepanel (как начать работу)
+- Inline toast-уведомления (info/success/error) с авто-скрытием
+- При `Save` отображается количество auto-tag (`autoTagCount`), если карточка уже доступна
+
+## Smoke checklist (phase2 ready)
+
+- Авторизация из sidepanel проходит через `/api/me` (есть user + credits)
+- Загрузка фото в `/api/upload-generation-photo` успешна
+- Запуск 3 генераций проходит через `/api/generate` + polling `/api/generations/[id]`
+- При частичном фейле работает `Retry` и `Retry all failed`
+- После перезагрузки sidepanel состояние и незавершенные задачи восстанавливаются
+- `Save` вызывает `/api/vibe/save` и не ломает текущую сессию
+- Кнопка «Очистить результаты» чистит только результаты (без сброса model/ratio/size/source)
