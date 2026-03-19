@@ -156,7 +156,7 @@ async function main() {
     const cardCount = countMap.get(
       `${DIM_TO_TAG[cluster.dimension_type]}:${cluster.dimension_value}`
     ) || 0;
-    const description = `AI photo prompts: ${label}. Browse and copy → https://${siteDomain}/${cluster.slug}/`;
+    const description = `AI photo prompts: ${label}. Ready-to-use prompts for AI photo generation — copy and paste into ChatGPT or Gemini.`;
 
     if (dryRun) {
       console.log(`[DRY] "${boardName}" (${cardCount} cards) → ${cluster.slug}`);

@@ -91,7 +91,9 @@ function pickBoard(
 
 // ── Pinterest API ──
 
-const PINTEREST_API = "https://api.pinterest.com/v5";
+const PINTEREST_API = process.env.PINTEREST_SANDBOX === "true"
+  ? "https://api-sandbox.pinterest.com/v5"
+  : "https://api.pinterest.com/v5";
 const MAX_RETRIES = 3;
 
 async function refreshToken(): Promise<string> {
