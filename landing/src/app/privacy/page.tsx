@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { PageLayout } from "@/components/PageLayout";
 
 const SITE = "PromptShot";
@@ -122,9 +123,9 @@ export default function PrivacyPage() {
             <p className="mt-2">
               Мы можем обновлять данную Политику. Актуальная версия всегда доступна по
               адресу{" "}
-              <a href="/privacy" className="text-blue-600 underline">
+              <Link href="/privacy" className="text-blue-600 underline">
                 {DOMAIN}/privacy
-              </a>
+              </Link>
               . Продолжая использовать Сервис после изменений, вы принимаете обновлённую
               Политику.
             </p>
