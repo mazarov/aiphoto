@@ -54,10 +54,13 @@ export function Footer() {
             </div>
           </nav>
         </div>
-        <div className="mt-10 border-t border-zinc-200/60 pt-6">
+        <div className="mt-10 flex flex-col gap-3 border-t border-zinc-200/60 pt-6 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs text-zinc-400">
             &copy; {new Date().getFullYear()} PromptShot. Все права защищены.
           </p>
+          <Link href="/privacy" className="text-xs text-zinc-400 transition-colors hover:text-zinc-600">
+            Политика конфиденциальности
+          </Link>
         </div>
       </div>
     </footer>
