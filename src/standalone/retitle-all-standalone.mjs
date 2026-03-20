@@ -222,12 +222,20 @@ async function main() {
     if (i > 0 && i % 500 === 0) console.log(`   fetched prompts: ${i}/${ids.length}`);
   }
 
-  let success = 0, failed = 0, noPrompt = 0, slugChanged = 0;
+  let success = 0, failed = 0, noPrompt = 0, slugChanged = 0, processed = 0;
+  const total = toProcess.length;
   const running = new Set();
+
+  function logProgress() {
+    processed++;
+    if (processed % 25 === 0 || processed === total) {
+      console.log(`  ⏳ [${processed}/${total}] updated=${success} noPrompt=${noPrompt} failed=${failed}`);
+    }
+  }
 
   async function processCard(card) {
     const prompt = promptMap.get(card.id);
-    if (!prompt) { noPrompt++; return; }
+    if (!prompt) { noPrompt++; logProgress(); return; }
 
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
@@ -253,9 +261,10 @@ async function main() {
         success++;
         if (card.slug !== newSlug) slugChanged++;
         if (success <= 5 || success % 50 === 0) console.log(`  ✓ [${success}] RU: ${titles.ru}  |  EN: ${titles.en}  |  DE: ${titles.de}`);
+        logProgress();
         return;
       } catch (err) {
-        if (attempt === 2) { failed++; console.log(`  ✗ ${err.message.slice(0, 140)}`); }
+        if (attempt === 2) { failed++; console.log(`  ✗ ${err.message.slice(0, 140)}`); logProgress(); }
         else await sleep(1000 * (attempt + 1));
       }
     }
