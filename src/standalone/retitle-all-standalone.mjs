@@ -222,25 +222,35 @@ async function main() {
     if (i > 0 && i % 500 === 0) console.log(`   fetched prompts: ${i}/${ids.length}`);
   }
 
+  console.log(`   promptMap size: ${promptMap.size} (cards with prompt text)`);
+  console.log(`\n   🚀 Starting processing ${toProcess.length} cards...\n`);
+
   let success = 0, failed = 0, noPrompt = 0, slugChanged = 0, processed = 0;
   const total = toProcess.length;
   const running = new Set();
 
   function logProgress() {
     processed++;
-    if (processed % 25 === 0 || processed === total) {
+    if (processed <= 3 || processed % 10 === 0 || processed === total) {
       console.log(`  ⏳ [${processed}/${total}] updated=${success} noPrompt=${noPrompt} failed=${failed}`);
     }
   }
 
   async function processCard(card) {
     const prompt = promptMap.get(card.id);
-    if (!prompt) { noPrompt++; logProgress(); return; }
+    if (!prompt) {
+      noPrompt++;
+      if (noPrompt <= 5) console.log(`  ⚠ No prompt for card ${card.id.slice(0, 8)}...`);
+      logProgress();
+      return;
+    }
+    if (processed < 3) console.log(`  → Calling LLM for card ${card.id.slice(0, 8)}...`);
 
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
         const titles = await generateTitles(prompt);
         if (!titles) {
+          if (attempt === 0) console.log(`  ⚠ LLM returned no titles for ${card.id.slice(0, 8)}, retry ${attempt + 1}/3`);
           await sleep(2000 * Math.pow(2, attempt));
           continue;
         }
@@ -264,10 +274,18 @@ async function main() {
         logProgress();
         return;
       } catch (err) {
-        if (attempt === 2) { failed++; console.log(`  ✗ ${err.message.slice(0, 140)}`); logProgress(); }
-        else await sleep(1000 * (attempt + 1));
+        if (attempt === 2) {
+          failed++;
+          console.log(`  ✗ card ${card.id.slice(0, 8)}: ${err.message.slice(0, 140)}`);
+          logProgress();
+          return;
+        }
+        await sleep(1000 * (attempt + 1));
       }
     }
+    failed++;
+    console.log(`  ✗ card ${card.id.slice(0, 8)}: all 3 attempts returned empty`);
+    logProgress();
   }
 
   for (const card of toProcess) {
