@@ -1,0 +1,59 @@
+---
+description: Правила запуска скриптов на DigitalOcean (DO). Читай перед любой задачей с DO.
+alwaysApply: true
+---
+
+# Запуск скриптов на DigitalOcean (DO)
+
+## Что такое DO в контексте проекта
+
+DO = DigitalOcean droplet. Там **нет развёрнутого проекта**, нет `npm install`, нет `node_modules`. Сервер используется только как раннер для одноразовых скриптов.
+
+## Как запускать скрипты на DO
+
+1. Скачать нужный скрипт напрямую с GitHub (raw):
+
+```bash
+curl -sO https://raw.githubusercontent.com/mazarov/aiphoto/main/src/<script-name>.ts
+```
+
+2. Если скрипт зависит от `src/lib/*` — скачать зависимости тоже:
+
+```bash
+curl -sO https://raw.githubusercontent.com/mazarov/aiphoto/main/src/lib/llm.ts
+```
+
+3. Экспортировать env-переменные **вручную** (НЕ хардкодить в скрипте):
+
+```bash
+export OPENAI_API_KEY=...
+export SUPABASE_URL=...
+export SUPABASE_SERVICE_ROLE_KEY=...
+```
+
+4. Запустить через `npx tsx` (Node 20+ уже стоит на сервере):
+
+```bash
+npx tsx <script-name>.ts --dry-run
+```
+
+## Альтернатива: standalone `.mjs` скрипты
+
+Для DO лучше делать **standalone `.mjs`** версии скриптов:
+- Без импортов из `src/lib/*` — всё inline
+- Без `dotenv`, `@supabase/supabase-js` — только `fetch` (Node 20+)
+- Хранятся в `scripts/` (в `.gitignore`)
+
+## Правила
+
+- **НЕ давать инструкцию `git clone` / `npm install`** на DO
+- **НЕ предполагать** что на DO есть `package.json` или `node_modules`
+- Каждый раз давать полную команду `curl` + `export` + `npx tsx`
+- Секреты — ТОЛЬКО через `export`, никогда в коде
+
+## Когда пользователь пишет "запусти на DO"
+
+1. Проверь, есть ли standalone `.mjs` версия скрипта в `scripts/`
+2. Если нет — предложи сделать или дай `curl` инструкцию для `.ts` версии
+3. Всегда напомни про `export` env-переменных
+4. Всегда начинай с `--dry-run`
