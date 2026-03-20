@@ -46,6 +46,7 @@
 | `/api/generations` | Список генераций пользователя |
 | `/api/generations/[id]` | Статус/результат генерации |
 | `/api/me` | Текущий пользователь + credits |
+| `/api/buy-credits-link` | Deep link в Telegram-бота для покупки web-кредитов |
 | `/api/vibe/extract` | Извлечение style JSON из URL изображения (auth) |
 | `/api/vibe/expand` | Генерация 3 prompt-вариантов из style JSON (auth) |
 | `/api/vibe/save` | Сохранение выбранной vibe-генерации (auth) |
@@ -67,6 +68,15 @@
 - **Save:** `POST /api/vibe/save` — сохраняет выбранную completed-генерацию в `landing_vibe_saves`, связывает с `vibe_id`/`card_id`, пишет `auto_seo_tags` и, если `card_id` отсутствует, пытается автосоздать `prompt_cards` + `prompt_card_media` + `prompt_variants` из `landing_generations.result_storage_*`. После этого обогащает `prompt_cards.seo_tags` на основе `vibes.style` (через `TAG_REGISTRY`).
 - **Generate:** дальше используется существующий `POST /api/generate` без изменений (3 отдельных вызова, по одному на вариант).
 - **Gemini routing:** extract/expand используют тот же runtime-флаг `photo_app_config.gemini_use_proxy` и `GEMINI_PROXY_BASE_URL`.
+
+### Покупка web-кредитов через Telegram Stars
+
+- **Endpoint:** `POST /api/buy-credits-link` (auth required).
+- **Bot runtime:** обработка платежей выполняется отдельным сервисом `payment-bot` (standalone Telegram bot).
+- **Если привязка уже есть:** возвращает `?start=webcredits`.
+- **Если привязки нет:** создаёт OTP в `landing_link_tokens`, возвращает `?start=weblink_<otp>`.
+- **Связка аккаунтов:** `landing_user_telegram_links` (1 Telegram ↔ 1 landing user).
+- **Оплата:** Telegram callback `webpack_*` создаёт `landing_web_transactions`, `successful_payment` завершает транзакцию и начисляет кредиты через RPC `landing_add_credits`.
 
 ### CORS for Extension
 
@@ -315,6 +325,9 @@ type ResolvedRoute = {
 | `vibes` | Сохранённые extracted style JSON для Steal This Vibe |
 | `landing_generations` | История web-генераций (добавлена связь `vibe_id`) |
 | `landing_vibe_saves` | Сохранённые выборы пользователя по vibe-генерациям (`vibe_id`, `card_id`, `auto_seo_tags`) |
+| `landing_user_telegram_links` | Привязка web-пользователя к Telegram (`landing_user_id` ↔ `telegram_id`) |
+| `landing_link_tokens` | Одноразовые OTP для deep-link привязки (TTL 10 мин) |
+| `landing_web_transactions` | Платежи web-кредитов через Telegram Stars |
 
 ### RPC
 
@@ -325,6 +338,7 @@ type ResolvedRoute = {
 | `get_homepage_sections` | Секции главной |
 | `search_cards_filtered` | Фильтрованный поиск |
 | `search_cards_text` | Полнотекстовый поиск |
+| `landing_add_credits` | Начисление кредитов в `landing_users.credits` после web-оплаты |
 
 ---
 
@@ -420,3 +434,4 @@ landing/src/
 | `CORS_ALLOWED_ORIGINS` | CSV allowlist origins для CORS API |
 | `CHROME_EXTENSION_ID` | Extension ID для `chrome-extension://` CORS origin |
 | `NEXT_PUBLIC_ENABLE_TRY_THIS_LOOK` | Публичная кнопка `Try this look` на `/p/[slug]` |
+| `TELEGRAM_BOT_LINK` | Базовый deep link до Telegram-бота для `/api/buy-credits-link` |

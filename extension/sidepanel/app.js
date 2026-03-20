@@ -4,6 +4,8 @@ const POLL_TIMEOUT_MS = 120000;
 const LONG_RUNNING_MS = 45000;
 const GENERATION_COOLDOWN_MS = 20000;
 const AUTH_REFRESH_MS = 30000;
+const CREDIT_POLL_INTERVAL = 5000;
+const CREDIT_POLL_MAX = 60;
 const SESSION_VIBE_KEY = "pendingVibe";
 const LOCAL_STATE_KEY = "stv_state_v2";
 const MAX_RUN_HISTORY = 10;
@@ -56,10 +58,12 @@ const state = {
   cooldownUntil: 0,
   confirmGenerate: false,
   toast: null,
-  resuming: false
+  resuming: false,
+  waitingForPayment: false
 };
 
 let toastTimer = null;
+let creditPollTimer = null;
 
 function storageLocalGet(key) {
   return new Promise((resolve) => {
@@ -107,6 +111,13 @@ function clearToastTimer() {
   if (toastTimer) {
     clearTimeout(toastTimer);
     toastTimer = null;
+  }
+}
+
+function stopCreditPolling() {
+  if (creditPollTimer) {
+    clearInterval(creditPollTimer);
+    creditPollTimer = null;
   }
 }
 
@@ -474,6 +485,57 @@ async function refreshAuthSilently() {
     render();
     await persistState();
   }
+}
+
+async function openBuyCredits() {
+  try {
+    const data = await api("/api/buy-credits-link", { method: "POST" });
+    if (!data?.deepLink) {
+      throw new Error("Ссылка для оплаты не получена");
+    }
+    window.open(data.deepLink, "_blank");
+    startCreditPolling();
+  } catch (err) {
+    const message = normalizeUiError(err, "Не удалось получить ссылку на оплату");
+    state.error = message;
+    setToast("error", message);
+    render();
+  }
+}
+
+function startCreditPolling() {
+  stopCreditPolling();
+  const initialCredits = Number(state.credits || 0);
+  let polls = 0;
+  state.waitingForPayment = true;
+  state.info = "Ожидаем оплату... Вернитесь сюда после оплаты в Telegram";
+  render();
+
+  creditPollTimer = setInterval(async () => {
+    polls += 1;
+    await checkAuth();
+
+    if (Number(state.credits || 0) > initialCredits) {
+      const delta = Number(state.credits || 0) - initialCredits;
+      stopCreditPolling();
+      state.waitingForPayment = false;
+      state.info = "";
+      setToast("success", `Зачислено ${delta} кредитов!`);
+      await persistState();
+      render();
+      return;
+    }
+
+    if (polls >= CREDIT_POLL_MAX) {
+      stopCreditPolling();
+      state.waitingForPayment = false;
+      state.info = "Таймаут ожидания. Если вы оплатили, обновите страницу или откройте панель снова.";
+      render();
+      return;
+    }
+
+    render();
+  }, CREDIT_POLL_INTERVAL);
 }
 
 async function uploadPhoto(file) {
@@ -951,6 +1013,7 @@ function renderMain() {
   );
   const completedCount = state.results.filter((r) => r.status === "completed").length;
   const failedCount = state.results.filter((r) => r.status === "failed").length;
+  const needsCredits = state.credits < requiredCredits;
   const historyStats = getHistoryStats();
   const accentStats = getAccentStats();
   const sessionHealth = getSessionHealth();
@@ -1056,6 +1119,11 @@ function renderMain() {
       <p class="muted ${escapeHtml(sessionHealth.className)}">Статус: ${escapeHtml(sessionHealth.label)}</p>
       <p class="muted">Кредиты: ${escapeHtml(String(state.credits))}</p>
       <p class="muted">Стоимость запуска: ${escapeHtml(String(requiredCredits))} кредита(ов)</p>
+      ${
+        needsCredits
+          ? `<p class="muted error-text">Недостаточно кредитов: нужно ${escapeHtml(String(requiredCredits))}, доступно ${escapeHtml(String(state.credits))}</p>`
+          : ""
+      }
       ${source}
       ${
         showFirstRunHint
@@ -1090,6 +1158,9 @@ function renderMain() {
       <div class="row">
         <button id="run-generate" class="primary" ${canGenerate ? "" : "disabled"}>
           ${state.resuming ? "Восстанавливаем..." : state.generating ? "Генерируем..." : "Сгенерировать 3 варианта"}
+        </button>
+        <button id="buy-credits" ${needsCredits && !state.generating ? "" : "disabled"}>
+          ${state.waitingForPayment ? "Ожидаем оплату..." : "Купить кредиты ⭐"}
         </button>
         <button id="retry-all" ${failedCount > 0 && !state.generating ? "" : "disabled"}>
           Повторить все ошибки
@@ -1181,6 +1252,13 @@ function renderMain() {
     render();
     await persistState();
   });
+
+  const buyCreditsBtn = document.getElementById("buy-credits");
+  if (buyCreditsBtn) {
+    buyCreditsBtn.addEventListener("click", async () => {
+      await openBuyCredits();
+    });
+  }
 
   const confirmBtn = document.getElementById("confirm-generate");
   if (confirmBtn) {

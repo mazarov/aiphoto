@@ -1,25 +1,42 @@
-# Photo2Sticker Bot Service
+# PromptShot Payment Service
 
-Сервис состоит из двух процессов:
-- API (Telegram webhook)
-- Worker (очередь генерации)
+Проект сейчас состоит из двух ключевых частей:
+- `payment-bot/` — standalone Telegram bot для покупки web-кредитов.
+- `landing/` — Next.js API/UI, где extension получает deep link (`/api/buy-credits-link`).
 
-## Запуск локально
+## Локальный запуск payment bot
 
 ```bash
+cd payment-bot
 npm install
-npm run dev:api
-npm run dev:worker
+npm run dev
 ```
 
-По умолчанию API запускается с long polling, если `PUBLIC_BASE_URL` пустой.
-Если нужен webhook, укажи публичный URL (например, ngrok) в `PUBLIC_BASE_URL`
-и сервис сам вызовет `setWebhook`.
+Или из корня:
+
+```bash
+npm run dev:api
+```
+
+## Сборка и запуск
+
+```bash
+npm run build:api
+npm run start:api
+```
 
 ## ENV
-См. `.env.example`.
 
-## Примечания
-- Все ключи в ENV.
-- Таблицы `users`, `sessions`, `transactions`, `bot_texts` используются как есть.
-- Для очереди используется таблица `jobs` (будет добавлена позже).
+- Для `payment-bot`: см. `payment-bot/.env.example`
+- Для `landing`: см. `landing/.env.example`
+
+Ключевая переменная для связки extension -> bot:
+- `TELEGRAM_BOT_LINK` (на стороне landing), например `https://t.me/<bot_username>`
+
+## Инфраструктурные проверки
+
+Перед деплоем можно проверить целостность entrypoints:
+
+```bash
+npm run check:entrypoints
+```

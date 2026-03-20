@@ -1,7 +1,6 @@
 FROM node:20-alpine
 
 WORKDIR /app
-
 COPY package*.json ./
 RUN npm ci
 
@@ -10,4 +9,5 @@ COPY src ./src
 
 RUN npm run build
 
-CMD ["node", "dist/support-bot.js"]
+EXPOSE 3002
+CMD ["node", "dist/index.js"]

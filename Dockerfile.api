@@ -1,13 +1,13 @@
 FROM node:20-alpine
 
 WORKDIR /app
-COPY package*.json ./
+COPY payment-bot/package*.json ./
 RUN npm ci
 
-COPY tsconfig.json ./
-COPY src ./src
+COPY payment-bot/tsconfig.json ./
+COPY payment-bot/src ./src
 
 RUN npm run build
 
-EXPOSE 3001
+EXPOSE 3002
 CMD ["node", "dist/index.js"]
