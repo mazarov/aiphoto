@@ -1,6 +1,6 @@
 # 03 — Пайплайн: парсинг → загрузка → публикация
 
-> Последнее обновление: 2026-03-14
+> Последнее обновление: 2026-03-20
 
 ## Обзор
 
@@ -34,14 +34,15 @@
 │  6. translate-en-prompts.ts → перевод EN→RU                      │
 │  7. fill-seo-tags.ts → тегирование (LLM + regex)                │
 │  8. fix-template-titles.ts → замена шаблонных тайтлов            │
-│  9. discover-new-tags.ts → поиск новых тегов (опционально)       │
+│  9. fix-prompt-marker-titles.ts → очистка prompt-like тайтлов     │
+│ 10. discover-new-tags.ts → поиск новых тегов (опционально)       │
 └──────────────────────────┬───────────────────────────────────────┘
                            │
                            ▼
 ┌──────────────────────────────────────────────────────────────────┐
 │                       ПУБЛИКАЦИЯ                                 │
 │                                                                  │
-│  10. UPDATE prompt_cards SET is_published = true                  │
+│  11. UPDATE prompt_cards SET is_published = true                  │
 │      WHERE source_dataset_slug = '<slug>'                        │
 └──────────────────────────────────────────────────────────────────┘
 ```
@@ -227,7 +228,25 @@ npx tsx src/fix-template-titles.ts --dataset <slug>
 
 ---
 
-## Шаг 9: Поиск новых тегов (опционально)
+## Шаг 9: Исправление prompt-like тайтлов
+
+```bash
+npx tsx src/fix-prompt-marker-titles.ts --dry-run
+npx tsx src/fix-prompt-marker-titles.ts
+```
+
+| Аргумент | Описание |
+|----------|---------|
+| `--dry-run` | Без записи |
+| `--limit` | Макс. кол-во |
+| `--concurrency` | Параллельность |
+| `--include-unpublished` | Обрабатывать и непубликованные карточки |
+
+**Логика:** обрабатывает все карточки (по умолчанию опубликованные), берёт `prompt_variants`, генерирует SEO-тайтлы `title_ru/title_en/title_de` (до 150 символов), пересчитывает `slug` по `title_ru` и при изменении пишет `old_slug → new_slug` в `slug_redirects` для 301-редиректа.
+
+---
+
+## Шаг 10: Поиск новых тегов (опционально)
 
 ```bash
 npx tsx src/discover-new-tags.ts --limit 10
@@ -237,7 +256,7 @@ npx tsx src/discover-new-tags.ts --limit 10
 
 ---
 
-## Шаг 10: Публикация
+## Шаг 11: Публикация
 
 ```sql
 UPDATE prompt_cards
@@ -292,9 +311,10 @@ node fill-seo-tags-standalone.mjs --dataset <slug>
 □ 6.  npx tsx src/translate-en-prompts.ts --dataset <slug>
 □ 7.  npx tsx src/fill-seo-tags.ts --dataset <slug>
 □ 8.  npx tsx src/fix-template-titles.ts --dataset <slug>
-□ 9.  ⚠️ ПРОВЕРИТЬ НОВЫЕ ТЕГИ (см. ниже)
-□ 10. SQL: UPDATE prompt_cards SET is_published = true WHERE ...
-□ 11. Проверить на лендинге
+□ 9.  npx tsx src/fix-prompt-marker-titles.ts
+□ 10. ⚠️ ПРОВЕРИТЬ НОВЫЕ ТЕГИ (см. ниже)
+□ 11. SQL: UPDATE prompt_cards SET is_published = true WHERE ...
+□ 12. Проверить на лендинге
 ```
 
 ### Шаг 9: Проверка новых тегов
@@ -322,7 +342,7 @@ node fill-seo-tags-standalone.mjs --dataset <slug>
 |-----------|---------------|
 | `SUPABASE_SUPABASE_PUBLIC_URL` | Ingest, SEO-скрипты |
 | `SUPABASE_SERVICE_ROLE_KEY` | Ingest, SEO-скрипты |
-| `OPENAI_API_KEY` | translate, fill-seo-tags, fix-template-titles, discover-new-tags |
+| `OPENAI_API_KEY` | translate, fill-seo-tags, fix-template-titles, fix-prompt-marker-titles, discover-new-tags |
 | `OPENAI_BASE_URL` | Опционально: кастомный endpoint (default: `api.openai.com/v1`) |
 | `LLM_MODEL` | Опционально: модель (default: `gpt-4.1-mini`) |
 | `GEMINI_API_KEY` | Бот (worker, ai-chat) — НЕ используется в SEO-пайплайне |
@@ -339,6 +359,7 @@ src/
 ├── translate-en-prompts.ts                 ← CLI: перевод EN→RU
 ├── fill-seo-tags.ts                        ← CLI: SEO-тегирование
 ├── fix-template-titles.ts                  ← CLI: замена шаблонных тайтлов
+├── fix-prompt-marker-titles.ts             ← CLI: очистка prompt-like тайтлов
 ├── discover-new-tags.ts                    ← CLI: поиск новых тегов
 └── lib/
     ├── source-profiles.ts                  ← Профили источников

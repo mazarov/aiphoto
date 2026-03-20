@@ -1,7 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 const OLD_SLUG_RE = /^\/p\/([^/]+)\/?$/;
-const HAS_SHORT_ID_RE = /-[0-9a-f]{5}$/;
 const DEFAULT_ALLOWED_METHODS = "GET, POST, OPTIONS";
 const DEFAULT_ALLOWED_HEADERS = "Content-Type, Authorization";
 
@@ -61,15 +60,14 @@ export async function middleware(request: NextRequest) {
     return applyCorsHeaders(request, NextResponse.next({ request }));
   }
 
-  // 301 redirect for old card slugs without short-id suffix
+  // 301 redirect for any legacy card slug present in redirect map.
+  // Needed for mass title/slug regeneration where old slugs can also contain short-id.
   const slugMatch = OLD_SLUG_RE.exec(request.nextUrl.pathname);
   if (slugMatch) {
     const slug = slugMatch[1];
-    if (!HAS_SHORT_ID_RE.test(slug)) {
-      const newSlug = await resolveSlugRedirect(slug);
-      if (newSlug) {
-        return NextResponse.redirect(new URL(`/p/${newSlug}`, request.url), 301);
-      }
+    const newSlug = await resolveSlugRedirect(slug);
+    if (newSlug) {
+      return NextResponse.redirect(new URL(`/p/${newSlug}`, request.url), 301);
     }
   }
   return NextResponse.next({ request });

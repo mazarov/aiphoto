@@ -19,6 +19,8 @@
     "build:prompt-cards:prototype": "tsx src/build-local-prompt-cards-prototype.ts",
     "fill:hashtags": "tsx src/fill-hashtags-from-prompts.ts",
     "fill:seo-tags": "tsx src/fill-seo-tags.ts",
+    "fix:prompt-marker-titles": "tsx src/fix-prompt-marker-titles.ts",
+    "retitle:all": "tsx src/fix-prompt-marker-titles.ts",
     "fill:seo-tags:root-env": "cd .. && node -r dotenv/config ./node_modules/.bin/tsx aiphoto/src/fill-seo-tags.ts"
   },
   "dependencies": {

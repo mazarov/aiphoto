@@ -1,6 +1,6 @@
 # 01 — Лендинг (promptshot.ru)
 
-> Последнее обновление: 2026-03-19
+> Последнее обновление: 2026-03-20
 
 ## Стек
 
@@ -73,6 +73,12 @@
 - API теперь обрабатывает CORS в `middleware.ts` для `chrome-extension://` origin.
 - Allowlist источников формируется из `CORS_ALLOWED_ORIGINS` и `CHROME_EXTENSION_ID`.
 - Поддерживается preflight (`OPTIONS`) + credentialed requests (`Access-Control-Allow-Credentials: true`).
+
+### 301 редиректы карточек `/p/[slug]`
+
+- `middleware.ts` проверяет `slug_redirects` для любого URL вида `/p/:slug`.
+- При наличии записи `old_slug -> new_slug` выполняется `301` на `/p/new_slug`.
+- Это покрывает как старые slug без short-id, так и slug после массового ре-тайтла карточек.
 
 ### Try This Look (карточка промта)
 
@@ -300,6 +306,7 @@ type ResolvedRoute = {
 | Таблица | Что читает лендинг |
 |---------|-------------------|
 | `prompt_cards` | Основные карточки (slug, title, seo_tags, is_published, ...) |
+| `slug_redirects` | Карта 301 редиректов старых slug на новые |
 | `prompt_variants` | Тексты промтов (prompt_text_ru, prompt_text_en) |
 | `prompt_card_media` | Фото (storage_bucket, storage_path, is_primary) |
 | `prompt_card_before_media` | Before/after фото |
