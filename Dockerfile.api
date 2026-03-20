@@ -2,7 +2,7 @@ FROM node:20-alpine
 
 WORKDIR /app
 COPY payment-bot/package*.json ./
-RUN npm ci
+RUN npm install
 
 COPY payment-bot/tsconfig.json ./
 COPY payment-bot/src ./src
