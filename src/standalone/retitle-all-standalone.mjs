@@ -114,10 +114,17 @@ async function llmCall(promptText) {
     }),
     signal: AbortSignal.timeout(30000),
   });
-  if (res.status === 429) return null;
-  if (!res.ok) throw new Error(`LLM ${res.status}: ${(await res.text()).slice(0, 200)}`);
+  if (res.status === 429) { console.log("  [DEBUG] LLM 429 rate-limited"); return null; }
+  if (!res.ok) {
+    const body = (await res.text()).slice(0, 300);
+    throw new Error(`LLM ${res.status}: ${body}`);
+  }
   const json = await res.json();
-  return json.choices?.[0]?.message?.content ?? null;
+  const content = json.choices?.[0]?.message?.content ?? null;
+  if (!content && _llmDebugCount < 5) {
+    console.log(`  [DEBUG] LLM response has no content. finish_reason=${json.choices?.[0]?.finish_reason}, keys=${Object.keys(json).join(",")}`);
+  }
+  return content;
 }
 
 function parseJson(text) {
@@ -131,12 +138,21 @@ function strip(s) {
   return (s || "").replace(/[""«»"]/g, "").replace(/\s+/g, " ").trim().slice(0, TITLE_MAX);
 }
 
+let _llmDebugCount = 0;
+
 async function generateTitles(promptText) {
   const raw = await llmCall(promptText);
+  if (_llmDebugCount < 3) {
+    _llmDebugCount++;
+    console.log(`  [DEBUG LLM raw #${_llmDebugCount}]: ${JSON.stringify(raw).slice(0, 300)}`);
+  }
   const obj = parseJson(raw);
   if (!obj) return null;
   const ru = strip(obj.ru), en = strip(obj.en), de = strip(obj.de);
-  if (!ru || !en || !de) return null;
+  if (!ru || !en || !de) {
+    if (_llmDebugCount <= 5) console.log(`  [DEBUG] parsed but empty: ru="${ru}" en="${en}" de="${de}"`);
+    return null;
+  }
   return { ru, en, de };
 }
 
