@@ -41,6 +41,7 @@ const SB = {
 };
 
 const TITLE_MAX = 120;
+let llmRateLimitedUntil = 0;
 
 const SYSTEM_PROMPT = `You are an SEO title writer for PromptShot — a catalog of ready-made AI photo generation prompts.
 
@@ -99,6 +100,15 @@ async function sbHead(table, query) {
 // ── LLM ──
 
 async function llmCall(promptText) {
+  const now = Date.now();
+  if (now < llmRateLimitedUntil) {
+    const waitMs = llmRateLimitedUntil - now;
+    if (waitMs > 0) {
+      console.log(`  [DEBUG] Global LLM cooldown: waiting ${Math.round(waitMs / 1000)}s`);
+      await new Promise((resolve) => setTimeout(resolve, waitMs));
+    }
+  }
+
   const res = await fetch(`${OPENAI_BASE}/chat/completions`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${OPENAI_API_KEY}` },
@@ -114,7 +124,27 @@ async function llmCall(promptText) {
     }),
     signal: AbortSignal.timeout(30000),
   });
-  if (res.status === 429) { console.log("  [DEBUG] LLM 429 rate-limited"); return null; }
+  if (res.status === 429) {
+    const retryAfterRaw = res.headers.get("retry-after");
+    const retryAfterSec = retryAfterRaw ? parseInt(retryAfterRaw, 10) : NaN;
+    const retryAfterMs = Number.isFinite(retryAfterSec) && retryAfterSec > 0 ? retryAfterSec * 1000 : 15000;
+    const body = (await res.text()).slice(0, 300);
+    let bodyJson = null;
+    try { bodyJson = JSON.parse(body); } catch {}
+    const errCode = bodyJson?.error?.code || bodyJson?.code || "";
+    const errType = bodyJson?.error?.type || bodyJson?.type || "";
+    if (errCode === "insufficient_quota" || errType === "insufficient_quota") {
+      const err = new Error(`LLM insufficient_quota: ${body}`);
+      err.code = "LLM_INSUFFICIENT_QUOTA";
+      throw err;
+    }
+    llmRateLimitedUntil = Math.max(llmRateLimitedUntil, Date.now() + retryAfterMs);
+    console.log(`  [DEBUG] LLM 429 rate-limited (retry in ${Math.round(retryAfterMs / 1000)}s)`);
+    const err = new Error(`LLM 429: ${body || "rate limited"}`);
+    err.code = "LLM_RATE_LIMIT";
+    err.retryAfterMs = retryAfterMs;
+    throw err;
+  }
   if (!res.ok) {
     const body = (await res.text()).slice(0, 300);
     throw new Error(`LLM ${res.status}: ${body}`);
@@ -244,6 +274,8 @@ async function main() {
   let success = 0, failed = 0, noPrompt = 0, slugChanged = 0, processed = 0;
   const total = toProcess.length;
   const running = new Set();
+  let stopRequested = false;
+  let stopReason = "";
 
   function logProgress() {
     processed++;
@@ -253,6 +285,7 @@ async function main() {
   }
 
   async function processCard(card) {
+    if (stopRequested) return;
     const prompt = promptMap.get(card.id);
     if (!prompt) {
       noPrompt++;
@@ -262,6 +295,7 @@ async function main() {
     }
     if (processed < 3) console.log(`  → Calling LLM for card ${card.id.slice(0, 8)}...`);
 
+    let rateLimitHits = 0;
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
         const titles = await generateTitles(prompt);
@@ -290,6 +324,29 @@ async function main() {
         logProgress();
         return;
       } catch (err) {
+        if (err?.code === "LLM_INSUFFICIENT_QUOTA") {
+          failed++;
+          stopRequested = true;
+          stopReason = err.message.slice(0, 220);
+          console.log(`  ✗ card ${card.id.slice(0, 8)}: ${stopReason}`);
+          console.log("  ⛔ Stopping run: OpenAI quota exhausted");
+          logProgress();
+          return;
+        }
+        if (err?.code === "LLM_RATE_LIMIT") {
+          rateLimitHits++;
+          if (rateLimitHits > 8) {
+            failed++;
+            console.log(`  ✗ card ${card.id.slice(0, 8)}: too many 429 rate limits`);
+            logProgress();
+            return;
+          }
+          const waitMs = err?.retryAfterMs && Number.isFinite(err.retryAfterMs) ? err.retryAfterMs : 15000;
+          console.log(`  ↻ card ${card.id.slice(0, 8)}: waiting ${Math.round(waitMs / 1000)}s after 429 (${rateLimitHits}/8)`);
+          await sleep(waitMs);
+          attempt--;
+          continue;
+        }
         if (attempt === 2) {
           failed++;
           console.log(`  ✗ card ${card.id.slice(0, 8)}: ${err.message.slice(0, 140)}`);
@@ -305,11 +362,18 @@ async function main() {
   }
 
   for (const card of toProcess) {
+    if (stopRequested) break;
     if (running.size >= CONCURRENCY) await Promise.race(running);
+    if (stopRequested) break;
     const p = processCard(card).then(() => running.delete(p));
     running.add(p);
   }
   await Promise.all(running);
+
+  if (stopRequested) {
+    console.log("\n⛔ Stopped early.");
+    if (stopReason) console.log(`   Reason: ${stopReason}`);
+  }
 
   console.log("\n✅ Done!");
   console.log(`   Updated: ${success}/${toProcess.length}`);
