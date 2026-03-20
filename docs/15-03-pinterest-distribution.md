@@ -1,6 +1,6 @@
 # Pinterest — дистрибуция карточек промтов
 
-**Дата:** 15.03.2026
+**Дата:** 15.03.2026 (обновление 19.03.2026 — bulk CSV: имя доски)
 **Проект:** aiphoto (лендинг промтов)
 **Статус:** ready for development
 
@@ -73,7 +73,7 @@ ORDER BY sort_order;
 | dimension_type | Шаблон названия | Пример |
 |---|---|---|
 | audience | "AI Photo: {title}" | "AI Photo: Girls", "AI Photo: Couples" |
-| style | "AI {title} Style" | "AI Portrait Style", "AI B&W Style" |
+| style | "{title} AI Photos" | "Portrait AI Photos", "B&W AI Photos" |
 | occasion | "{title} AI Photos" | "Birthday AI Photos", "Valentine's AI Photos" |
 | object | "AI Photos: {title}" | "AI Photos: With Flowers", "AI Photos: Winter" |
 | doc_task | "AI {title}" | "AI Passport Photo", "AI Resume Photo" |
@@ -142,6 +142,14 @@ function pickBoard(seoTags, boardMap, fallbackBoardId) {
   return fallbackBoardId;
 }
 ```
+
+### Bulk CSV (`generate-pinterest-csv.ts`)
+
+Ручная загрузка через интерфейс Pinterest: колонка **Pinterest board** должна **точно совпадать** с названием доски в аккаунте. Доски создаются скриптом `create-pinterest-boards.ts` по шаблонам выше с полем **`title_en || title_ru`** (не только `title_ru`). Пример: для audience-кластера «девушки» в БД доска называется **`AI Photo: Girls`**, а не `Девушки` — если в CSV указать короткое русское имя, Pinterest не найдёт доску и вернёт «Не удалось создать пин».
+
+Тест одной карточки на доску «Девушки» (L1 `audience` / `devushka`):
+
+`npx tsx src/generate-pinterest-csv.ts --limit 1 --board audience:devushka --output pinterest-test-devushki-1.csv`
 
 ---
 

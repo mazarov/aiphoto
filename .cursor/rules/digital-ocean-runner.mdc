@@ -23,18 +23,14 @@ curl -sO https://raw.githubusercontent.com/mazarov/aiphoto/main/src/<script-name
 curl -sO https://raw.githubusercontent.com/mazarov/aiphoto/main/src/lib/llm.ts
 ```
 
-3. Экспортировать env-переменные **вручную** (НЕ хардкодить в скрипте):
+3. Env-переменные **уже сохранены на DO** как постоянные (в `.bashrc` / profile).
+   НЕ нужно экспортировать каждый раз. НЕ включать `export ...` в инструкции.
+   Если нужна НОВАЯ переменная — напомнить пользователю добавить её один раз.
+
+4. Запускать через `node` (Node 20+ уже стоит на сервере) **только в фоне**:
 
 ```bash
-export OPENAI_API_KEY=...
-export SUPABASE_URL=...
-export SUPABASE_SERVICE_ROLE_KEY=...
-```
-
-4. Запустить через `npx tsx` (Node 20+ уже стоит на сервере):
-
-```bash
-npx tsx <script-name>.ts --dry-run
+nohup node <script-name>.mjs --dry-run > <script-name>.log 2>&1 &
 ```
 
 ## Альтернатива: standalone `.mjs` скрипты
@@ -42,18 +38,23 @@ npx tsx <script-name>.ts --dry-run
 Для DO лучше делать **standalone `.mjs`** версии скриптов:
 - Без импортов из `src/lib/*` — всё inline
 - Без `dotenv`, `@supabase/supabase-js` — только `fetch` (Node 20+)
-- Хранятся в `scripts/` (в `.gitignore`)
+- Хранятся в git-пути, доступном через raw URL (например `src/standalone/`)
 
 ## Правила
 
 - **НЕ давать инструкцию `git clone` / `npm install`** на DO
 - **НЕ предполагать** что на DO есть `package.json` или `node_modules`
-- Каждый раз давать полную команду `curl` + `export` + `npx tsx`
-- Секреты — ТОЛЬКО через `export`, никогда в коде
+- Каждый раз давать команду `curl` + `nohup node ... > log 2>&1 &`
+- НЕ писать `export` секретов — они уже на сервере
+- Секреты — НИКОГДА в коде, только env vars
+- После команды запуска всегда давать команды проверки:
+  - `ps aux | grep <script-name>`
+  - `tail -f <script-name>.log`
 
 ## Когда пользователь пишет "запусти на DO"
 
-1. Проверь, есть ли standalone `.mjs` версия скрипта в `scripts/`
+1. Проверь, есть ли standalone `.mjs` версия скрипта в git-пути (предпочтительно `src/standalone/`)
 2. Если нет — предложи сделать или дай `curl` инструкцию для `.ts` версии
-3. Всегда напомни про `export` env-переменных
+3. НЕ писать `export` секретов (уже на сервере). Если нужна новая переменная — сказать один раз.
 4. Всегда начинай с `--dry-run`
+5. Все команды запуска — только в фоне (`nohup ... &`)
