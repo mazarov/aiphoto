@@ -8,7 +8,7 @@ alwaysApply: false
 ## Обзор пайплайна
 
 ```
-Telegram-экспорт → Инжест в БД (с dedup по supplier) → LLM SEO-теги → Публикация → URL автоматически
+Telegram-экспорт → Parse → LLM Enrich (titles ru/en/de + prompt en/de) → Инжест в БД (с dedup) → LLM SEO-теги → Публикация
 ```
 
 ## Именование датасетов
@@ -45,7 +45,7 @@ sb.from('prompt_cards').select('id', { count: 'exact', head: true }).eq('source_
 "
 ```
 
-## Шаг 1. Инжест карточек
+## Шаг 1. Инжест карточек (с LLM-обогащением)
 
 ```bash
 cd aiphoto
@@ -54,12 +54,21 @@ npx tsx src/ingest-telegram-export-to-supabase.ts \
   --limit 100
 ```
 
+Скрипт автоматически выполняет **обогащение через LLM** перед записью в БД:
+1. Parse HTML → карточки в памяти
+2. Для каждой карточки — **один LLM-вызов** → SEO titles (ru/en/de) + перевод промпта (en/de)
+3. Сохранение полной карточки в БД (titles + prompt translations)
+
 - **Автоматический dedup** — скрипт определяет supplier key из slug, находит ВСЕ датасеты этого supplier, проверяет `source_message_id` по ним. Дубли пропускаются автоматически.
 - `--offset` — опционально, для пагинации по новым карточкам (dedup уже отфильтровал старые)
 - `--limit` — сколько новых загрузить за раз
 - `--dry-run` — сначала проверить без записи в БД
 - `--existing-only` — только перезаписать уже существующие карточки
+- `--skip-llm` — пропустить LLM-обогащение (быстрый инжест, titles из парсера)
+- `--concurrency N` — параллельность LLM-вызовов (default: 3)
 - Скрипт использует `upsert`, повторный запуск безопасен
+
+⚠️ **LLM-обогащение требует `OPENAI_API_KEY`** в env. Если ключ отсутствует — обогащение пропускается, карточка сохраняется с title из парсера.
 
 ### Вывод скрипта
 
@@ -154,13 +163,15 @@ sb.from('prompt_cards').update({ is_published: true }).eq('is_published', false)
 npx tsx src/analyze-source.ts <slug>
 # 2. Dry-run
 npx tsx src/ingest-telegram-export-to-supabase.ts --dataset <slug> --dry-run
-# 3. Инжест
+# 3. Инжест + LLM-обогащение (titles ru/en/de + prompt en/de — один LLM-вызов на карточку)
 npx tsx src/ingest-telegram-export-to-supabase.ts --dataset <slug>
-# 4. Перевод EN→RU (если есть EN-only промты)
-npx tsx src/translate-en-prompts.ts --dataset <slug>
-# 5. LLM SEO-теги (на DO сервере если из РФ!)
+# 4. LLM SEO-теги (на DO сервере если из РФ!)
 npx tsx src/fill-seo-tags.ts --dataset <slug>
-# 6. ⚠️ Проверить новые теги → спросить пользователя → добавить в tag-registry.ts → npm run seo:sync в landing/
-# 7. Публикация (SQL)
-# 8. Проверить на лендинге
+# 5. ⚠️ Проверить новые теги → спросить пользователя → добавить в tag-registry.ts → npm run seo:sync в landing/
+# 6. Публикация (SQL)
+# 7. Проверить на лендинге
 ```
+
+Шаг перевода `translate-en-prompts.ts` больше не нужен — переводы (en/de) создаются во время инжеста.
+Скрипт `fix-prompt-marker-titles.ts` не нужен для новых карточек — SEO titles генерируются при инжесте.
+Оба скрипта остаются для backfill старых карточек.

@@ -6,9 +6,9 @@ import { createClient } from "@supabase/supabase-js";
 import {
   parseDataset,
   type ParsedCard,
-  type PromptVariant,
   type MediaItem,
 } from "./lib/prompt-export-parser";
+import { enrichCardWithRetry, type EnrichResult } from "./lib/enrich-card";
 
 interface Args {
   datasetSlug: string;
@@ -17,6 +17,8 @@ interface Args {
   offset: number;
   existingOnly: boolean;
   messageId?: number;
+  skipLlm: boolean;
+  concurrency: number;
 }
 
 const CYR_MAP: Record<string, string> = {
@@ -88,6 +90,7 @@ function loadEnvFiles() {
   const candidates = [
     path.resolve(cwd, ".env"),
     path.resolve(cwd, ".env.local"),
+    path.resolve(cwd, "landing", ".env.local"),
     path.resolve(cwd, "..", ".env"),
     path.resolve(cwd, "..", ".env.local"),
   ];
@@ -122,10 +125,13 @@ function parseArgs(): Args {
   let offset = 0;
   let existingOnly = false;
   let messageId: number | undefined;
+  let skipLlm = false;
+  let concurrency = 3;
   for (let i = 0; i < args.length; i += 1) {
     if (args[i] === "--dataset") datasetSlug = args[i + 1] ?? "";
     if (args[i] === "--dry-run") dryRun = true;
     if (args[i] === "--existing-only") existingOnly = true;
+    if (args[i] === "--skip-llm") skipLlm = true;
     if (args[i] === "--message-id") {
       const parsed = Number(args[i + 1]);
       if (!Number.isNaN(parsed) && parsed > 0) messageId = parsed;
@@ -138,11 +144,15 @@ function parseArgs(): Args {
       const parsed = Number(args[i + 1]);
       if (!Number.isNaN(parsed) && parsed >= 0) offset = parsed;
     }
+    if (args[i] === "--concurrency") {
+      const parsed = Number(args[i + 1]);
+      if (!Number.isNaN(parsed) && parsed > 0) concurrency = parsed;
+    }
   }
   if (!datasetSlug) {
     throw new Error("Missing --dataset. Example: --dataset LEXYGPT_ChatExport_2026-03-13");
   }
-  return { datasetSlug, dryRun, limit, offset, existingOnly, messageId };
+  return { datasetSlug, dryRun, limit, offset, existingOnly, messageId, skipLlm, concurrency };
 }
 
 async function fetchExistingSourceMessageIds(
@@ -311,6 +321,7 @@ async function ingestCard(
   datasetId: string,
   runId: string,
   dryRun: boolean,
+  enrichment: EnrichResult | null = null,
 ) {
   const sourcePublishedIso = toIsoFromTelegramDate(card.sourcePublishedAt);
   const sourceGroupKey = `${card.datasetSlug}:message${card.sourceMessageId}`;
@@ -342,7 +353,10 @@ async function ingestCard(
     throw new Error(`Failed upsert source_message_groups: ${sourceGroupErr?.message}`);
   }
 
-  // First upsert without slug to get the card id
+  const effectiveTitleRu = enrichment?.titleRu || card.titleNormalized;
+  const effectiveTitleEn = enrichment?.titleEn || null;
+  const effectiveTitleDe = enrichment?.titleDe || null;
+
   const { data: promptCard, error: cardErr } = await supabase
     .from("prompt_cards")
     .upsert(
@@ -351,8 +365,9 @@ async function ingestCard(
         card_split_index: card.cardSplitIndex,
         card_split_total: card.cardSplitTotal,
         split_strategy: card.cardSplitStrategy,
-        title_ru: card.titleNormalized,
-        title_en: null,
+        title_ru: effectiveTitleRu,
+        title_en: effectiveTitleEn,
+        title_de: effectiveTitleDe,
         hashtags: [],
         tags: [],
         source_channel: card.channelTitle,
@@ -370,10 +385,10 @@ async function ingestCard(
     throw new Error(`Failed upsert prompt_cards: ${cardErr?.message}`);
   }
 
-  // Generate slug if missing
-  if (!promptCard.slug && card.titleNormalized) {
+  const slugTitle = effectiveTitleRu || card.titleNormalized;
+  if (!promptCard.slug && slugTitle) {
     const slug = await generateUniqueSlug(
-      supabase, card.titleNormalized, promptCard.id,
+      supabase, slugTitle, promptCard.id,
       card.cardSplitIndex, card.cardSplitTotal,
     );
     await supabase.from("prompt_cards").update({ slug }).eq("id", promptCard.id);
@@ -416,7 +431,15 @@ async function ingestCard(
   // Ingestion must not auto-fill or overwrite it.
 
   const variantRows: Array<{ id: string; variant_index: number }> = [];
-  for (const variant of card.variants) {
+  for (let vi = 0; vi < card.variants.length; vi++) {
+    const variant = card.variants[vi];
+    const promptEn = enrichment?.promptEn && vi === 0
+      ? enrichment.promptEn
+      : variant.promptTextEn;
+    const promptDe = enrichment?.promptDe && vi === 0
+      ? enrichment.promptDe
+      : null;
+
     const { data: variantRow, error: variantErr } = await supabase
       .from("prompt_variants")
       .insert({
@@ -424,9 +447,11 @@ async function ingestCard(
         variant_index: variant.variantIndex,
         label_raw: variant.labelRaw,
         prompt_text_ru: variant.promptTextRu,
-        prompt_text_en: variant.promptTextEn,
+        prompt_text_en: promptEn,
+        prompt_text_de: promptDe,
         prompt_normalized_ru: variant.promptTextRu,
-        prompt_normalized_en: variant.promptTextEn,
+        prompt_normalized_en: promptEn,
+        prompt_normalized_de: promptDe,
         match_strategy: variant.matchStrategy,
       })
       .select("id, variant_index")
@@ -499,8 +524,56 @@ async function main() {
   const cardsToIngest = selectedCards.filter((c) => selectedMsgKeys.has(`${c.datasetSlug}::${c.sourceMessageId}`));
   const channelTitle = parsed.cards[0]?.channelTitle ?? args.datasetSlug;
 
+  // --- LLM enrichment phase (before DB) ---
+  const hasOpenAiKey = Boolean(process.env.OPENAI_API_KEY);
+  const llmEnabled = !args.skipLlm && !args.dryRun && hasOpenAiKey;
+  const enrichmentMap = new Map<number, EnrichResult>();
+
+  if (!args.skipLlm && !hasOpenAiKey && !args.dryRun) {
+    console.log(`\n⚠️  OPENAI_API_KEY not set — LLM enrichment skipped, using parser titles\n`);
+  }
+
+  if (llmEnabled) {
+    console.log(`\n🔤 Enriching ${cardsToIngest.length} cards via LLM (concurrency=${args.concurrency})...\n`);
+    let enriched = 0;
+    let enrichFailed = 0;
+    const active = new Set<Promise<void>>();
+
+    const enrichOne = async (card: ParsedCard) => {
+      const firstRuPrompt = card.variants.find((v) => v.promptTextRu)?.promptTextRu;
+      if (!firstRuPrompt) return;
+
+      const result = await enrichCardWithRetry({
+        titleRu: card.titleNormalized,
+        promptTextRu: firstRuPrompt,
+        promptTextEn: card.variants.find((v) => v.promptTextEn)?.promptTextEn ?? null,
+      });
+
+      if (result) {
+        enrichmentMap.set(card.sourceMessageId, result);
+        enriched++;
+        if (enriched <= 3 || enriched % 20 === 0) {
+          console.log(`  ✓ [${enriched}] ${result.titleRu}`);
+        }
+      } else {
+        enrichFailed++;
+        console.log(`  ✗ LLM failed for msg ${card.sourceMessageId}, will use parser title`);
+      }
+    };
+
+    for (const card of cardsToIngest) {
+      if (active.size >= args.concurrency) await Promise.race(active);
+      const p = enrichOne(card).then(() => active.delete(p));
+      active.add(p);
+    }
+    await Promise.all(active);
+
+    console.log(`\n✅ Enrichment done: ${enriched} OK, ${enrichFailed} failed\n`);
+  } else if (args.skipLlm) {
+    console.log(`\n⏩ LLM enrichment skipped (--skip-llm)\n`);
+  }
+
   if (args.dryRun) {
-    // eslint-disable-next-line no-console
     console.log(
       JSON.stringify(
         {
@@ -511,6 +584,7 @@ async function main() {
           cardsTotal: parsed.cards.length,
           skippedDuplicates,
           cardsSelected: cardsToIngest.length,
+          enriched: enrichmentMap.size,
           parsedSuccess: cardsToIngest.length,
           parsedFailed: 0,
           mediaSaved: cardsToIngest.reduce(
@@ -538,7 +612,8 @@ async function main() {
 
   for (const card of cardsToIngest) {
     try {
-      const result = await ingestCard(supabase, card, dataset.id, run.id, args.dryRun);
+      const enrichment = enrichmentMap.get(card.sourceMessageId) ?? null;
+      const result = await ingestCard(supabase, card, dataset.id, run.id, args.dryRun, enrichment);
       success += 1;
       mediaSaved += result.mediaRows.length;
     } catch (error) {
@@ -561,13 +636,13 @@ async function main() {
         skipped_no_blockquote: parsed.skippedNoPrompt,
         skipped_no_photo: parsed.skippedNoPhoto,
         media_saved: mediaSaved,
+        enriched: enrichmentMap.size,
         dry_run: args.dryRun,
       },
     },
     args.dryRun,
   );
 
-  // eslint-disable-next-line no-console
   console.log(
     JSON.stringify(
       {
@@ -578,6 +653,7 @@ async function main() {
         cardsTotal: parsed.cards.length,
         skippedDuplicates,
         cardsSelected: cardsToIngest.length,
+        enriched: enrichmentMap.size,
         parsedSuccess: success,
         parsedFailed: failed,
         mediaSaved,
