@@ -246,7 +246,7 @@ async function main() {
         }
         success++;
         if (card.slug !== newSlug) slugChanged++;
-        if (success <= 5 || success % 50 === 0) console.log(`  ✓ [${success}] ${titles.ru}`);
+        if (success <= 5 || success % 50 === 0) console.log(`  ✓ [${success}] RU: ${titles.ru}  |  EN: ${titles.en}  |  DE: ${titles.de}`);
         return;
       } catch (err) {
         if (attempt === 2) { failed++; console.log(`  ✗ ${err.message.slice(0, 140)}`); }

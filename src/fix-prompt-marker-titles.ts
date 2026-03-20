@@ -333,7 +333,7 @@ async function main() {
           redirectsWritten++;
         }
         if (success <= 5 || success % 50 === 0) {
-          console.log(`  ✓ [${success}] ${titles.ru}`);
+          console.log(`  ✓ [${success}] RU: ${titles.ru}  |  EN: ${titles.en}  |  DE: ${titles.de}`);
         }
         return;
       } catch (err) {
