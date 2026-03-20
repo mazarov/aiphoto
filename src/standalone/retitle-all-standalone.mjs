@@ -29,6 +29,7 @@ if (!OPENAI_API_KEY || !SUPABASE_URL || !SUPABASE_KEY) {
 const args = process.argv.slice(2);
 const DRY_RUN = args.includes("--dry-run");
 const INCLUDE_UNPUBLISHED = args.includes("--include-unpublished");
+const SKIP_EXISTING = args.includes("--skip-existing");
 const LIMIT = (() => { const i = args.indexOf("--limit"); return i >= 0 ? parseInt(args[i + 1], 10) : undefined; })();
 const CONCURRENCY = (() => { const i = args.indexOf("--concurrency"); return i >= 0 ? parseInt(args[i + 1], 10) : 4; })();
 
@@ -179,12 +180,13 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 async function main() {
   console.log(`\n📝 retitle-all-standalone [dryRun=${DRY_RUN}]`);
   console.log(`   model: ${LLM_MODEL}, concurrency: ${CONCURRENCY}`);
-  console.log(`   includeUnpublished: ${INCLUDE_UNPUBLISHED}\n`);
+  console.log(`   includeUnpublished: ${INCLUDE_UNPUBLISHED}`);
+  console.log(`   skipExisting(title_de): ${SKIP_EXISTING}\n`);
 
   const allCards = [];
   let offset = 0;
   while (true) {
-    let q = `select=id,slug,title_ru,title_en,card_split_index,card_split_total&order=id.asc&limit=500&offset=${offset}`;
+    let q = `select=id,slug,title_ru,title_en,title_de,card_split_index,card_split_total&order=id.asc&limit=500&offset=${offset}`;
     if (!INCLUDE_UNPUBLISHED) q += "&is_published=eq.true";
     const batch = await sbGet("prompt_cards", q);
     if (!batch.length) break;
@@ -193,8 +195,12 @@ async function main() {
     offset += 500;
   }
 
-  const toProcess = LIMIT ? allCards.slice(0, LIMIT) : allCards;
-  console.log(`   cards found: ${allCards.length}, processing: ${toProcess.length}\n`);
+  const candidates = SKIP_EXISTING
+    ? allCards.filter((c) => !(typeof c.title_de === "string" && c.title_de.trim()))
+    : allCards;
+  const skippedExisting = allCards.length - candidates.length;
+  const toProcess = LIMIT ? candidates.slice(0, LIMIT) : candidates;
+  console.log(`   cards found: ${allCards.length}, skipped existing: ${skippedExisting}, processing: ${toProcess.length}\n`);
   if (!toProcess.length) return;
 
   const promptMap = new Map();
