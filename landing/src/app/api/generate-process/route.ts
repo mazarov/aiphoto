@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServer, getStoragePublicUrl } from "@/lib/supabase";
+import { GENERATE_VIBE_PREFIX } from "@/lib/vibe-gemini-instructions";
 
 const BUCKET_UPLOADS = "web-generation-uploads";
 const BUCKET_RESULTS = "web-generation-results";
@@ -123,9 +124,11 @@ async function processGeneration(supabase: ReturnType<typeof createSupabaseServe
   };
 
   const inputPaths = (gen.input_photo_paths as string[]) || [];
-  const parts: { text?: string; inlineData?: { mimeType: string; data: string } }[] = [
-    { text: (gen.prompt_text as string) || "" },
-  ];
+  const rawPrompt = (gen.prompt_text as string) || "";
+  const isVibeGeneration = !!(gen.vibe_id);
+  const fullPrompt = isVibeGeneration ? GENERATE_VIBE_PREFIX + rawPrompt : rawPrompt;
+
+  const imageParts: { inlineData: { mimeType: string; data: string } }[] = [];
 
   for (const path of inputPaths) {
     console.log("[generation.process] download input photo", {
@@ -149,7 +152,7 @@ async function processGeneration(supabase: ReturnType<typeof createSupabaseServe
     const buf = Buffer.from(await fileData.arrayBuffer());
     const base64 = buf.toString("base64");
     const mime = path.endsWith(".png") ? "image/png" : path.endsWith(".webp") ? "image/webp" : "image/jpeg";
-    parts.push({ inlineData: { mimeType: mime, data: base64 } });
+    imageParts.push({ inlineData: { mimeType: mime, data: base64 } });
     console.log("[generation.process] input photo encoded", {
       generationId: id,
       path,
@@ -158,6 +161,12 @@ async function processGeneration(supabase: ReturnType<typeof createSupabaseServe
       base64Length: base64.length,
     });
   }
+
+  /* Image-first order: Gemini sees the photo as subject, then reads the restyle instructions. */
+  const parts: { text?: string; inlineData?: { mimeType: string; data: string } }[] = [
+    ...imageParts,
+    { text: fullPrompt },
+  ];
 
   const { baseUrl: geminiBaseUrl, viaProxy } = await getGeminiBaseUrlRuntime(supabase);
   const geminiUrl = `${geminiBaseUrl}/v1beta/models/${gen.model}:generateContent`;
@@ -179,6 +188,8 @@ async function processGeneration(supabase: ReturnType<typeof createSupabaseServe
       model: gen.model,
       aspectRatio: gen.aspect_ratio,
       imageSize: gen.image_size,
+      isVibeGeneration,
+      promptLength: fullPrompt.length,
     });
     geminiRes = await fetch(geminiUrl, {
       method: "POST",
