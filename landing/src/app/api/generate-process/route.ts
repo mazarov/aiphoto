@@ -1,11 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServer, getStoragePublicUrl } from "@/lib/supabase";
-import {
-  assembleVibeFinalPrompt,
-  shouldAttachVibeReferenceImageToGeneration,
-  VIBE_IMAGE_PART_LABEL_REFERENCE,
-  VIBE_IMAGE_PART_LABEL_SUBJECT,
-} from "@/lib/vibe-gemini-instructions";
+import { assembleVibeFinalPrompt } from "@/lib/vibe-gemini-instructions";
 
 const BUCKET_UPLOADS = "web-generation-uploads";
 const BUCKET_RESULTS = "web-generation-results";
@@ -174,96 +169,17 @@ async function processGeneration(supabase: ReturnType<typeof createSupabaseServe
     });
   }
 
-  const attachRefPixel =
-    isVibeGeneration && shouldAttachVibeReferenceImageToGeneration();
-
-  let referenceImagePart: { inlineData: { mimeType: string; data: string } } | null = null;
-  let referenceMetaForLog: {
-    sourceUrl: string;
-    host: string;
-    mime: string;
-    bytes: number;
-  } | null = null;
-
-  if (attachRefPixel && gen.vibe_id) {
-    const { data: vibeRow } = await supabase
-      .from("vibes")
-      .select("source_image_url")
-      .eq("id", gen.vibe_id)
-      .single();
-    const refUrl = vibeRow?.source_image_url as string | undefined;
-    if (refUrl) {
-      try {
-        console.log("[generation.process] downloading reference image", {
-          generationId: id,
-          refHost: new URL(refUrl).hostname,
-        });
-        const refRes = await fetch(refUrl, {
-          headers: {
-            "User-Agent": "PromptShotBot/1.0 (+https://promptshot.ru)",
-            Accept: "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
-          },
-          signal: AbortSignal.timeout(15000),
-        });
-        if (refRes.ok) {
-          const ct = String(refRes.headers.get("content-type") || "").split(";")[0].trim().toLowerCase();
-          const refMime = (ct === "image/png" || ct === "image/webp") ? ct : "image/jpeg";
-          const refBuf = Buffer.from(await refRes.arrayBuffer());
-          if (refBuf.length <= 10 * 1024 * 1024) {
-            referenceImagePart = { inlineData: { mimeType: refMime, data: refBuf.toString("base64") } };
-            try {
-              const ru = new URL(refUrl);
-              referenceMetaForLog = {
-                sourceUrl: refUrl,
-                host: ru.hostname,
-                mime: refMime,
-                bytes: refBuf.length,
-              };
-            } catch {
-              referenceMetaForLog = {
-                sourceUrl: refUrl.slice(0, 300),
-                host: "(parse_error)",
-                mime: refMime,
-                bytes: refBuf.length,
-              };
-            }
-            console.log("[generation.process] reference image encoded", {
-              generationId: id,
-              mime: refMime,
-              bytes: refBuf.length,
-            });
-          }
-        } else {
-          console.warn("[generation.process] reference image download non-ok", {
-            generationId: id,
-            status: refRes.status,
-          });
-        }
-      } catch (err) {
-        console.warn("[generation.process] reference image download failed, continuing without", {
-          generationId: id,
-          error: err instanceof Error ? err.message : String(err),
-        });
-      }
-    }
-  }
-
-  const hasTwoImages = isVibeGeneration && referenceImagePart !== null;
+  /** Vibe: always user photo(s) + text. Reference pixels caused model collages with gemini-*-image. */
+  const hasTwoImages = false;
 
   if (isVibeGeneration) {
-    console.warn("[generation.process] vibe_reference_pixels", {
+    console.warn("[generation.process] vibe_generation_layout", {
       generationId: id,
-      attachRefPixel,
-      referenceDownloaded: Boolean(referenceImagePart),
-      architecture: attachRefPixel
-        ? "dual_image_experimental"
-        : "single_user_image_plus_text_default",
+      architecture: "single_user_image_plus_text_only",
     });
   }
 
-  const fullPrompt = isVibeGeneration
-    ? assembleVibeFinalPrompt(rawPrompt, hasTwoImages)
-    : rawPrompt;
+  const fullPrompt = isVibeGeneration ? assembleVibeFinalPrompt(rawPrompt) : rawPrompt;
 
   if (shouldLogFullGenerationPrompt()) {
     console.warn("[generation.process] full_prompt_text", {
@@ -277,20 +193,10 @@ async function processGeneration(supabase: ReturnType<typeof createSupabaseServe
     });
   }
 
-  /*
-   * Two-image vibe: interleaved text labels so the model maps A=reference, B=user.
-   * [label, IMAGE A, label, IMAGE B, long text] — avoids two anonymous consecutive images.
-   */
-  const parts: { text?: string; inlineData?: { mimeType: string; data: string } }[] =
-    hasTwoImages && referenceImagePart
-      ? [
-          { text: VIBE_IMAGE_PART_LABEL_REFERENCE },
-          referenceImagePart,
-          { text: VIBE_IMAGE_PART_LABEL_SUBJECT },
-          ...imageParts,
-          { text: fullPrompt },
-        ]
-      : [...(referenceImagePart ? [referenceImagePart] : []), ...imageParts, { text: fullPrompt }];
+  const parts: { text?: string; inlineData?: { mimeType: string; data: string } }[] = [
+    ...imageParts,
+    { text: fullPrompt },
+  ];
 
   if (isVibeGeneration) {
     console.warn("[generation.process] parts_outline", {
@@ -311,33 +217,16 @@ async function processGeneration(supabase: ReturnType<typeof createSupabaseServe
     bytes: number;
     base64Chars: number;
   }> = [];
-  let refImageLogged = false;
   let userMetaIdx = 0;
   for (let pi = 0; pi < parts.length; pi++) {
     const p = parts[pi];
     if (!p?.inlineData) continue;
     const idata = p.inlineData;
-    if (hasTwoImages && referenceMetaForLog && !refImageLogged) {
-      refImageLogged = true;
-      imagesSentToGemini.push({
-        partIndex: pi,
-        role: "IMAGE_A_style_reference",
-        sourceUrlHost: referenceMetaForLog.host,
-        sourceUrlPreview:
-          referenceMetaForLog.sourceUrl.length > 220
-            ? `${referenceMetaForLog.sourceUrl.slice(0, 220)}…`
-            : referenceMetaForLog.sourceUrl,
-        mime: idata.mimeType,
-        bytes: referenceMetaForLog.bytes,
-        base64Chars: idata.data.length,
-      });
-      continue;
-    }
     const um = userImageMetaForLog[userMetaIdx];
     userMetaIdx += 1;
     imagesSentToGemini.push({
       partIndex: pi,
-      role: hasTwoImages ? `IMAGE_B_user_subject_${userMetaIdx}` : `user_subject_${userMetaIdx}`,
+      role: `user_subject_${userMetaIdx}`,
       storagePath: um?.storagePath,
       mime: idata.mimeType,
       bytes: um?.bytes ?? 0,
@@ -351,7 +240,7 @@ async function processGeneration(supabase: ReturnType<typeof createSupabaseServe
     model: gen.model,
     vibeId: gen.vibe_id ?? null,
     isVibeGeneration,
-    attachReferencePixelsEnv: attachRefPixel,
+    attachReferencePixelsEnv: false,
     hasTwoImages,
     imagesSentToGemini,
     partsSequence: parts.map((p, idx) => {
