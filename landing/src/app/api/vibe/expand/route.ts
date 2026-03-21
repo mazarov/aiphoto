@@ -8,6 +8,7 @@ import {
   coerceStylePayload,
   getGeminiVibeExpandModelRuntime,
   getVibeAttachReferenceImageToGeneration,
+  getVibeOneShotExtractPromptEnabled,
   MIN_VIBE_SCENE_PROMPT_CHARS,
   type StylePayload,
 } from "@/lib/vibe-gemini-instructions";
@@ -132,6 +133,7 @@ export async function POST(req: NextRequest) {
     };
 
     const supabase = createSupabaseServer();
+    const oneShotExtractConfigEnabled = await getVibeOneShotExtractPromptEnabled(supabase);
 
     let style: StylePayload | null = coerceStylePayload(body.style);
     let hasReferenceUrl = false;
@@ -176,7 +178,11 @@ export async function POST(req: NextRequest) {
 
       const variant: PromptVariant = { accent: SINGLE_PROMPT_ACCENT, prompt: prefilledPrompt };
       const prompts: PromptVariant[] = [variant];
-      const assembled = assembleVibeFinalPrompt(prefilledPrompt, willAttachReferenceInline);
+      const assembled = assembleVibeFinalPrompt(
+        prefilledPrompt,
+        willAttachReferenceInline,
+        oneShotExtractConfigEnabled,
+      );
       const finalPromptPreviews = [{ accent: SINGLE_PROMPT_ACCENT, fullText: assembled }];
 
       return NextResponse.json({
@@ -335,7 +341,11 @@ export async function POST(req: NextRequest) {
       promptChars: promptText.length,
     });
 
-    const assembled = assembleVibeFinalPrompt(promptText, willAttachReferenceInline);
+    const assembled = assembleVibeFinalPrompt(
+      promptText,
+      willAttachReferenceInline,
+      oneShotExtractConfigEnabled,
+    );
     const finalPromptPreviews = [{ accent: SINGLE_PROMPT_ACCENT, fullText: assembled }];
 
     return NextResponse.json({

@@ -348,6 +348,40 @@ The text prompt below adds director-level specificity. Follow it precisely. Neve
 
 `.trimStart();
 
+/**
+ * When `vibe_one_shot_extract_prompt` is on: same as {@link GENERATE_VIBE_PREFIX_TWO_IMAGES} but without the
+ * “single seamless photograph / FORBIDDEN tiling…” block (one-shot scene prompt already encodes integration).
+ */
+export const GENERATE_VIBE_PREFIX_TWO_IMAGES_ONE_SHOT = `
+CRITICAL INSTRUCTIONS — read carefully before the prompt.
+
+REQUEST LAYOUT (multi-part message):
+1) A short text label, then IMAGE A — the STYLE REFERENCE photograph (pose, light, set, wardrobe, camera, color grade, mood).
+2) A short text label, then IMAGE B — the SUBJECT / USER (the only source for who the person in the output must be).
+
+YOUR TASK: Create a NEW photorealistic image where the person from IMAGE B is placed into a scene that recreates the look, feel, and atmosphere of IMAGE A — as if B had been photographed in that same shoot. Not a lazy crop of B's selfie. Not a face-swap onto A.
+
+IDENTITY (from IMAGE B — preserve exactly):
+- Face structure, bone structure, facial features, skin tone, eye color and shape, brows, nose, lips, ears, apparent age
+- Body proportions and build
+- Natural hair color and texture (do not recolor B to match A's hair)
+
+STYLE & SCENE (from IMAGE A + the text below — apply onto B):
+- Pose, body position, and body language — match IMAGE A, NOT B's original pose in their upload
+- Hair STYLING and arrangement — adapt B's hair to match the reference look (part, length layout, fall over shoulders, etc.) without turning B into A's face
+- Facial expression mood and performance from the reference (smile quality, gaze intensity) while keeping B recognizable
+- Environment, setting, surfaces, props, background
+- Lighting: direction, quality, color temperature, shadow pattern
+- Color grading, contrast, saturation, palette of the shot
+- Clothing: style, fabrics, colors, fit — worn naturally on B's body
+- Camera: angle, framing, composition, depth of field, lens feel
+
+The result must look like B was ACTUALLY PHOTOGRAPHED in that reference scene — natural integration, not composited or pasted.
+
+The text prompt below adds director-level specificity. Follow it precisely. Never let prose describing "the model in the reference" override IMAGE B's identity.
+
+`.trimStart();
+
 export const GENERATE_VIBE_PREFIX_SINGLE_IMAGE = `
 CRITICAL INSTRUCTIONS — read carefully before the prompt.
 
@@ -360,6 +394,22 @@ CHANGE to match the description: pose, body position, clothing, hairstyle arrang
 The paragraph below was written from a style JSON about a reference shoot. If it mentions hair/eyes/skin of "another" model, ignore that for identity — use ONLY the attached photo for who the person is. Still follow that text for pose, light, wardrobe, set, and grade.
 
 Output must be a single seamless photograph — one coherent frame. FORBIDDEN: tiling, side-by-side panels, vertical/horizontal stitching, collage, or any composition that looks like two photos glued together. Do not paste the subject onto a strip of another image.
+
+The person must look like they were ACTUALLY PHOTOGRAPHED in the described setting — natural, realistic, belonging to the scene. Not composited or pasted.
+
+Scene description:
+
+`.trimStart();
+
+/**
+ * When `vibe_one_shot_extract_prompt` is on: drops PRESERVE/CHANGE, “style JSON” disclaimer, and seamless/collage FORBIDDEN block
+ * (one-shot extract prompt already states identity + integration).
+ */
+export const GENERATE_VIBE_PREFIX_SINGLE_IMAGE_ONE_SHOT = `
+CRITICAL INSTRUCTIONS — read carefully before the prompt.
+
+The attached photo shows the SUBJECT — a real person whose identity must be preserved.
+Your task is to CREATE ONE NEW photorealistic image of this person placed into the scene described below.
 
 The person must look like they were ACTUALLY PHOTOGRAPHED in the described setting — natural, realistic, belonging to the scene. Not composited or pasted.
 
@@ -535,13 +585,22 @@ Return ONLY a valid JSON object (not an array):
  * Full text sent to Gemini image generation for vibe rows (must match generate-process).
  * `assumeReferenceImageLoaded`: true only when reference inline image is actually attached
  * (or, in expand preview, when we intend to attach and have source_image_url).
+ * `oneShotExtractConfigEnabled`: when `photo_app_config.vibe_one_shot_extract_prompt` is true — shorter prefixes
+ * (no duplicate PRESERVE/JSON disclaimer/seamless-FORBIDDEN blocks; dual path also skips JSON identity bridge).
  */
 export function assembleVibeFinalPrompt(
   rawExpandedPrompt: string,
-  assumeReferenceImageLoaded = false
+  assumeReferenceImageLoaded = false,
+  oneShotExtractConfigEnabled = false
 ): string {
   if (assumeReferenceImageLoaded) {
+    if (oneShotExtractConfigEnabled) {
+      return GENERATE_VIBE_PREFIX_TWO_IMAGES_ONE_SHOT + rawExpandedPrompt;
+    }
     return GENERATE_VIBE_PREFIX_TWO_IMAGES + GENERATE_VIBE_JSON_IDENTITY_BRIDGE_DUAL + rawExpandedPrompt;
+  }
+  if (oneShotExtractConfigEnabled) {
+    return GENERATE_VIBE_PREFIX_SINGLE_IMAGE_ONE_SHOT + rawExpandedPrompt;
   }
   return GENERATE_VIBE_PREFIX_SINGLE_IMAGE + rawExpandedPrompt;
 }

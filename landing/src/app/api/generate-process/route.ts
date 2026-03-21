@@ -3,6 +3,7 @@ import { createSupabaseServer, getStoragePublicUrl } from "@/lib/supabase";
 import {
   assembleVibeFinalPrompt,
   getVibeAttachReferenceImageToGeneration,
+  getVibeOneShotExtractPromptEnabled,
   VIBE_IMAGE_PART_LABEL_REFERENCE,
   VIBE_IMAGE_PART_LABEL_SUBJECT,
 } from "@/lib/vibe-gemini-instructions";
@@ -250,17 +251,21 @@ async function processGeneration(supabase: ReturnType<typeof createSupabaseServe
 
   const hasTwoImages = isVibeGeneration && referenceImagePart !== null;
 
+  const oneShotExtractConfigEnabled =
+    isVibeGeneration && (await getVibeOneShotExtractPromptEnabled(supabase));
+
   if (isVibeGeneration) {
     console.warn("[generation.process] vibe_generation_layout", {
       generationId: id,
       attachReferenceIntent: attachRefPixel,
       referenceDownloaded: Boolean(referenceImagePart),
       architecture: hasTwoImages ? "dual_reference_plus_user" : "single_user_image_plus_text_only",
+      oneShotExtractConfigEnabled,
     });
   }
 
   const fullPrompt = isVibeGeneration
-    ? assembleVibeFinalPrompt(rawPrompt, hasTwoImages)
+    ? assembleVibeFinalPrompt(rawPrompt, hasTwoImages, oneShotExtractConfigEnabled)
     : rawPrompt;
 
   if (shouldLogFullGenerationPrompt()) {
