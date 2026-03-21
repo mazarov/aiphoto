@@ -140,6 +140,8 @@ export function getGeminiVibeExpandModel(): string {
 export const EXTRACT_STYLE_INSTRUCTION = `
 Analyze this reference image and extract every visual detail needed to recreate this exact scene with a different person. The output will guide an AI image generation model — be extremely specific and concrete.
 
+Note: The JSON describes THIS reference shot only (including this model's hair, eyes, skin in palette/expression where visible). A later step swaps in the end user's face. Accurate reference documentation is good; identity transfer is handled separately — do not omit real details from the photo.
+
 Return a JSON object with these exact fields:
 
 - scene: What is happening in this image. Describe the setting, action, time of day, and spatial context. 2-3 sentences. Example: "A woman lying on a bed of white crumpled sheets, taking a selfie from above. Morning light fills the room. The frame is intimate and close."
@@ -217,34 +219,43 @@ Follow the text prompt below for all scene details.
 `.trimStart();
 
 export const EXPAND_PROMPTS_INSTRUCTION = `
-You are an expert prompt engineer for photorealistic AI image generation. Your task: turn a style description into 3 detailed scene prompts. These prompts will be used alongside a reference image, so they serve as ENRICHMENT and SPECIFICITY — the model already sees the visual reference.
+You are an expert prompt engineer for photorealistic AI image generation. Your task: turn a style JSON (extracted from a REFERENCE photo) into 3 detailed prompts for a DIFFERENT person.
 
-Given the style JSON, generate exactly 3 prompts. Each prompt describes the SAME scene but with a different creative emphasis.
+CRITICAL — IDENTITY vs SCENE:
+The JSON describes the reference model's shoot (pose, light, room, grading). It does NOT describe the end user. A separate SUBJECT photo will be provided — that person must appear in the output with THEIR real face, hair color, eye color, skin tone, and bone structure.
 
-EVERY prompt MUST include ALL of these elements (never skip any):
-1. SUBJECT POSE — exact body position, hand placement, head angle, gaze direction (from subject_pose field). This is THE most critical element. Without correct pose the result looks wrong.
-2. EXPRESSION — exact facial expression, emotion, micro-details like smile type, eye quality (from expression field)
-3. CAMERA — focal length, angle, distance, depth of field (from camera field)
-4. LIGHTING — direction, quality, temperature, shadow pattern, sources (from lighting field)
-5. ENVIRONMENT — specific surfaces, textures, props with positions (from environment field)
-6. CLOTHING — garments, fabrics, colors, fit, accessories (from clothing field)
-7. COLOR GRADING — palette, contrast, saturation, shadow/highlight tints (from color_grading + color_palette fields)
-8. MOOD — emotional atmosphere, story, viewer relationship (from mood field)
-9. KEY DETAILS — include ALL key_details verbatim as they are the vibe anchors
+NEVER in your prompts:
+- Name or imply the reference model's biometrics as the goal (e.g. "fiery red hair", "pale blue-green eyes", "porcelain skin", "freckles like the reference") unless you explicitly frame them as optional makeup/styling ON THE USER ("bold red lip color on the subject", "rim-lit hair" without forcing a hair color).
+- Say "the woman in the reference" or copy identity from scene/mood text literally.
+
+ALWAYS in your prompts:
+- Repeatedly anchor identity: "the person from the SUBJECT / user portrait", "preserve this person's facial identity exactly".
+- Transfer: pose, body position, gaze *behavior* (into camera, intensity), environment, wall/surfaces, camera angle, lens feel, lighting setup, overall color grade of the SCENE, clothing silhouette and fabrics, mood — as applied to the SUBJECT person.
+
+Given the style JSON, generate exactly 3 prompts. Each describes the SAME transferred scene for the SUBJECT user.
+
+EVERY prompt MUST include (adapted for SUBJECT, not reference clone):
+1. SUBJECT POSE — from subject_pose: body, hands, head tilt, gaze direction (no reference hair/eye color).
+2. EXPRESSION — from expression: emotional tone, muscle movement, lip parting, gaze intensity — NOT "blue eyes" / "crimson lips" as identity; you may say "striking lip color" or "bold red lipstick" as makeup on the subject.
+3. CAMERA — from camera field (unchanged — technical).
+4. LIGHTING — from lighting (unchanged — technical).
+5. ENVIRONMENT — from environment (unchanged).
+6. CLOTHING — from clothing: garment types and fit; if colors are extreme, they are wardrobe on the subject, not a new face.
+7. COLOR GRADING — from color_grading + color_palette: describe the LOOK of the photograph (shadow tint, saturation). Do NOT use palette lines to override the subject's natural hair/eyes/skin — those palette entries often describe the reference model; rephrase as "warm rim light on hair", "cool gray wall", "rich lip color" without assigning fake hair color to the user.
+8. MOOD — from mood, but address "the subject" not "the red-haired woman".
+9. KEY DETAILS — REWRITE each key_detail into a transferable anchor: same composition/light/prop beats, but strip or generalize reference-only identity (e.g. "voluminous hair with warm rim light from the right" NOT "fiery red hair"). Never paste key_details verbatim if they contain hair color, eye color, or face of the reference model.
 
 Each prompt uses a different creative emphasis:
-- Prompt A (accent: lighting): Open with the lighting setup, then weave in all other elements naturally
-- Prompt B (accent: mood): Open with the emotional atmosphere and story, then describe the physical scene
-- Prompt C (accent: composition): Open with camera angle and framing, then describe the scene within that frame
+- Prompt A (accent: lighting): Lead with lighting, then full scene on the SUBJECT.
+- Prompt B (accent: mood): Lead with atmosphere, then full scene on the SUBJECT.
+- Prompt C (accent: composition): Lead with framing/camera, then full scene on the SUBJECT.
 
 Rules:
-1. Start each prompt with: "Using the SUBJECT portrait (the user's photo, the last image before this text — not the style-reference image), place this person into this scene:"
-2. Length: 150-300 words per prompt — be richly detailed, never generic
-3. Describe the pose as if directing an actor: "lying on back with right arm reaching up toward camera, head tilted slightly left on pillow, left hand resting near face"
-4. Describe expression precisely: "soft half-smile with slightly parted lips, heavy-lidded eyes looking directly into camera"
-5. NEVER use vague phrases like "warm tones", "natural lighting", "casual pose" — always specify exactly
-6. Include specific textures: "crumpled white cotton sheets", not just "white sheets"
-7. The prompt must work as a Gemini image generation prompt paired with subject photo + reference image
+1. Start each prompt with: "Using the SUBJECT portrait (the user's photo — the last image before this text, not the style-reference image), place this exact person into the following scene while keeping their real face and identity:"
+2. Length: 150-300 words per prompt.
+3. At least twice per prompt, remind: identity comes only from the SUBJECT photo; reference is for style/pose/scene only.
+4. NEVER use vague phrases like "warm tones" without specifying where (skin, wall, highlights).
+5. The prompt must work with two input images: first = style reference, last = subject.
 
 Return ONLY valid JSON array with 3 objects:
 [
@@ -253,3 +264,13 @@ Return ONLY valid JSON array with 3 objects:
   { "accent": "composition", "prompt": "..." }
 ]
 `.trim();
+
+/**
+ * Inserted between vibe prefix and the expanded prompt text so the image model
+ * does not treat JSON-derived prose as "become this reference person".
+ */
+export const GENERATE_VIBE_JSON_IDENTITY_BRIDGE = `
+
+JSON-TO-SCENE REMINDER: The detailed prompt below was expanded from a style JSON that describes a REFERENCE photo's shoot. Any mention of hair color, eye color, skin tone, freckles, age, or facial features in that text refers to the reference model only — IGNORE those for identity. The ONLY identity source is the SUBJECT photo (the last image before this block). Reproduce pose, lighting, environment, grading, outfit, and mood from the text; keep the SUBJECT's real face and body proportions.
+
+`;
