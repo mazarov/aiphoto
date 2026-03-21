@@ -3,10 +3,11 @@ import { createSupabaseServer } from "@/lib/supabase";
 import { getSupabaseUserForApiRoute } from "@/lib/supabase-route-auth";
 import {
   assembleVibeFinalPrompt,
+  buildVibeExpandRuntimeContext,
   EXPAND_PROMPTS_INSTRUCTION,
-  EXPAND_RUNTIME_CONTEXT,
   getGeminiVibeExpandModel,
   coerceStylePayload,
+  shouldAttachVibeReferenceImageToGeneration,
   type StylePayload,
 } from "@/lib/vibe-gemini-instructions";
 import {
@@ -155,12 +156,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "missing_style" }, { status: 400 });
     }
 
+    const willAttachReferenceInline =
+      shouldAttachVibeReferenceImageToGeneration() && hasReferenceUrl;
+
     console.warn("[vibe.expand] request_begin", {
       userId: user.id,
       hasStyleInBody: body.style !== undefined && body.style !== null,
       vibeId: body.vibeId ?? null,
       hasReferenceUrl,
-      referencePixelsInGeneration: false,
+      referencePixelsInGeneration: willAttachReferenceInline,
     });
 
     const textModel = getGeminiVibeExpandModel();
@@ -171,7 +175,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "expand_failed" }, { status: 500 });
     }
 
-    const expandUserText = `${EXPAND_PROMPTS_INSTRUCTION}\n\n${EXPAND_RUNTIME_CONTEXT}\n\nStyle description:\n${JSON.stringify(style, null, 2)}`;
+    const expandUserText = `${EXPAND_PROMPTS_INSTRUCTION}\n\n${buildVibeExpandRuntimeContext(willAttachReferenceInline)}\n\nStyle description:\n${JSON.stringify(style, null, 2)}`;
     const geminiBody = {
       contents: [
         {
@@ -302,7 +306,7 @@ export async function POST(req: NextRequest) {
       promptChars: promptText.length,
     });
 
-    const assembled = assembleVibeFinalPrompt(promptText);
+    const assembled = assembleVibeFinalPrompt(promptText, willAttachReferenceInline);
     const finalPromptPreviews = [{ accent: SINGLE_PROMPT_ACCENT, fullText: assembled }];
 
     return NextResponse.json({
@@ -310,8 +314,8 @@ export async function POST(req: NextRequest) {
       modelUsed: textModel,
       finalPromptPreviews,
       finalPromptForGeneration: assembled,
-      finalPromptAssumesTwoImages: false,
-      vibeReferenceInlinePixels: false,
+      finalPromptAssumesTwoImages: willAttachReferenceInline,
+      vibeReferenceInlinePixels: willAttachReferenceInline,
     });
   } catch (err) {
     console.error("[vibe.expand] unhandled error", {

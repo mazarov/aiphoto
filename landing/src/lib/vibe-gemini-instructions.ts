@@ -162,6 +162,55 @@ Be surgically precise. Avoid vague descriptions like "warm tones" or "natural lo
 Return ONLY valid JSON, no markdown.
 `.trim();
 
+/** Placed immediately BEFORE the reference inline image in the multi-part request. */
+export const VIBE_IMAGE_PART_LABEL_REFERENCE = `
+[IMAGE A — STYLE REFERENCE ONLY]
+The NEXT part is a photograph used ONLY as a recipe: pose, lighting, wardrobe style, background, camera, color grade, mood.
+It is NOT the person to depict in the output. Do NOT copy this person's face, bone structure, skin, eyes, or hair color as the result identity.
+`.trim();
+
+/** Placed immediately BEFORE the user's photo inline image(s). */
+export const VIBE_IMAGE_PART_LABEL_SUBJECT = `
+[IMAGE B — SUBJECT / USER IDENTITY]
+The NEXT part is the ONLY source for who the person in the output must be. The output face MUST match this person (same identity).
+If the result looks like IMAGE A's model, you FAILED — redo mentally until the face matches IMAGE B.
+`.trim();
+
+/**
+ * Prepended when generate-process attaches reference + user (interleaved labels + images + text).
+ */
+export const GENERATE_VIBE_PREFIX_TWO_IMAGES = `
+CRITICAL INSTRUCTIONS — read carefully before the prompt.
+
+REQUEST LAYOUT (multi-part message):
+1) A short text label, then IMAGE A — the STYLE REFERENCE photograph (pose, light, set, wardrobe, camera, color grade, mood).
+2) A short text label, then IMAGE B — the SUBJECT / USER (the only source for who the person in the output must be).
+
+YOUR TASK: Create a NEW photorealistic image where the person from IMAGE B is placed into a scene that recreates the look, feel, and atmosphere of IMAGE A — as if B had been photographed in that same shoot. Not a lazy crop of B's selfie. Not a face-swap onto A.
+
+IDENTITY (from IMAGE B — preserve exactly):
+- Face structure, bone structure, facial features, skin tone, eye color and shape, brows, nose, lips, ears, apparent age
+- Body proportions and build
+- Natural hair color and texture (do not recolor B to match A's hair)
+
+STYLE & SCENE (from IMAGE A + the text below — apply onto B):
+- Pose, body position, and body language — match IMAGE A, NOT B's original pose in their upload
+- Hair STYLING and arrangement — adapt B's hair to match the reference look (part, length layout, fall over shoulders, etc.) without turning B into A's face
+- Facial expression mood and performance from the reference (smile quality, gaze intensity) while keeping B recognizable
+- Environment, setting, surfaces, props, background
+- Lighting: direction, quality, color temperature, shadow pattern
+- Color grading, contrast, saturation, palette of the shot
+- Clothing: style, fabrics, colors, fit — worn naturally on B's body
+- Camera: angle, framing, composition, depth of field, lens feel
+
+The result must look like B was ACTUALLY PHOTOGRAPHED in that reference scene — natural integration, not composited or pasted.
+
+Output must be a single seamless photograph — one coherent frame. FORBIDDEN: tiling, side-by-side panels, vertical/horizontal stitching, collage, diptych, or any composition that looks like two photos glued together. Do not paste B's face as a cutout on top of A.
+
+The text prompt below adds director-level specificity. Follow it precisely. Never let prose describing "the model in the reference" override IMAGE B's identity.
+
+`.trimStart();
+
 export const GENERATE_VIBE_PREFIX_SINGLE_IMAGE = `
 CRITICAL INSTRUCTIONS — read carefully before the prompt.
 
@@ -181,13 +230,39 @@ Scene description:
 
 `.trimStart();
 
+/** Bridge only for dual-image requests (after TWO_IMAGES prefix, before expanded prose). */
+export const GENERATE_VIBE_JSON_IDENTITY_BRIDGE_DUAL = `
+
+JSON-TO-SCENE REMINDER: The detailed prompt below was expanded from a style JSON about the REFERENCE shoot. Any hair/eye/skin/face wording there describes IMAGE A's model — IGNORE for identity. The ONLY identity source is IMAGE B (the user photo, after its [IMAGE B] label). Transfer pose, light, set, clothes, grade, mood from the text onto B's face.
+
+`;
+
 /**
- * Appended in /api/vibe/expand. Generation always sends user photo + text only (no reference pixels).
+ * Expand step: tells Gemini whether image-gen will attach reference pixels.
  */
-export const EXPAND_RUNTIME_CONTEXT = `
-RUNTIME CONTEXT:
-The image generation API receives ONLY the USER photograph plus your text — reference / Pinterest image pixels are never sent to the image model. The style JSON is the sole recipe for the reference look: spell out pose, hands, head tilt, gaze, wardrobe, set, and light with maximum precision so the model can rebuild the scene from words alone.
+export function buildVibeExpandRuntimeContext(willAttachReferenceInline: boolean): string {
+  if (willAttachReferenceInline) {
+    return `
+RUNTIME CONTEXT (do not repeat this label in your JSON; use it only for phrasing):
+The image generation step will receive TWO inputs in order: first the REFERENCE photo (IMAGE A — style anchor), then the USER photo (IMAGE B — identity). The model sees both pixels — your prompt adds director-level detail (blocking, textures, micro-expression). Strongly align pose, framing, and lighting with what IMAGE A shows; the face must remain the user from IMAGE B.
 `.trim();
+  }
+  return `
+RUNTIME CONTEXT:
+The image generation API receives ONLY the USER photograph plus your text — reference / Pinterest image pixels are not sent to the image model. The style JSON is the sole recipe for the reference look: spell out pose, hands, head tilt, gaze, wardrobe, set, and light with maximum precision so the model can rebuild the scene from words alone.
+`.trim();
+}
+
+/**
+ * Default ON (unset = attach). Set VIBE_ATTACH_REFERENCE_IMAGE_TO_GENERATION=0 to disable
+ * (user photo + text only; weaker pose transfer from reference).
+ */
+export function shouldAttachVibeReferenceImageToGeneration(): boolean {
+  const raw = String(process.env.VIBE_ATTACH_REFERENCE_IMAGE_TO_GENERATION ?? "").trim().toLowerCase();
+  if (!raw) return true;
+  if (["false", "0", "no", "n", "off"].includes(raw)) return false;
+  return ["1", "true", "yes", "y", "on"].includes(raw);
+}
 
 export const EXPAND_PROMPTS_INSTRUCTION = `
 You are an expert prompt engineer for photorealistic AI image generation. Your task: turn a style JSON (extracted from a REFERENCE photo) into ONE rich scene prompt for a DIFFERENT person (the end user's face will come from their attached photograph).
@@ -218,8 +293,16 @@ Return ONLY a valid JSON object (not an array):
 `.trim();
 
 /**
- * Full text sent to Gemini image generation for vibe rows (user photo + text only; must match generate-process).
+ * Full text sent to Gemini image generation for vibe rows (must match generate-process).
+ * `assumeReferenceImageLoaded`: true only when reference inline image is actually attached
+ * (or, in expand preview, when we intend to attach and have source_image_url).
  */
-export function assembleVibeFinalPrompt(rawExpandedPrompt: string): string {
+export function assembleVibeFinalPrompt(
+  rawExpandedPrompt: string,
+  assumeReferenceImageLoaded = false
+): string {
+  if (assumeReferenceImageLoaded) {
+    return GENERATE_VIBE_PREFIX_TWO_IMAGES + GENERATE_VIBE_JSON_IDENTITY_BRIDGE_DUAL + rawExpandedPrompt;
+  }
   return GENERATE_VIBE_PREFIX_SINGLE_IMAGE + rawExpandedPrompt;
 }
