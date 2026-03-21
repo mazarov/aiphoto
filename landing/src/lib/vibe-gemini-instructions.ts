@@ -6,6 +6,8 @@
 export const STYLE_FIELDS = [
   "scene",
   "genre",
+  "subject_pose",
+  "expression",
   "lighting",
   "camera",
   "mood",
@@ -33,6 +35,8 @@ const STYLE_FIELDS_DEFAULT_EMPTY: readonly StyleField[] = [
 const STYLE_FIELDS_REQUIRED_NON_EMPTY: readonly StyleField[] = [
   "scene",
   "genre",
+  "subject_pose",
+  "expression",
   "lighting",
   "camera",
   "mood",
@@ -41,6 +45,8 @@ const STYLE_FIELDS_REQUIRED_NON_EMPTY: readonly StyleField[] = [
 
 /** Alternate keys models sometimes return instead of canonical names. */
 const STYLE_FIELD_ALIASES: Partial<Record<StyleField, readonly string[]>> = {
+  subject_pose: ["pose", "body_position", "posture", "body_pose"],
+  expression: ["facial_expression", "face_expression", "emotion"],
   color_palette: ["color", "colors", "palette"],
   environment: ["background", "setting", "location"],
   key_details: ["details", "distinctive_details", "anchors"],
@@ -132,61 +138,108 @@ export function getGeminiVibeExpandModel(): string {
 }
 
 export const EXTRACT_STYLE_INSTRUCTION = `
-Analyze this image and extract its complete visual style so another AI model can recreate this exact vibe with a different person's photo.
+Analyze this reference image and extract every visual detail needed to recreate this exact scene with a different person. The output will guide an AI image generation model — be extremely specific and concrete.
 
 Return a JSON object with these exact fields:
 
-- scene: What is depicted — subject, setting, action, time of day. 2-3 sentences. Be specific about the environment.
-- genre: The photographic genre (fashion editorial, street photography, portrait, lifestyle, etc.)
-- lighting: Direction, quality (hard/soft), color temperature (warm/cool Kelvin range), shadow density, light sources (natural window light, studio softbox, golden hour, neon, etc.)
-- camera: Estimated lens (35mm, 50mm, 85mm, etc.), depth of field (shallow/deep), shooting angle (eye-level, low, overhead), distance (close-up, medium, full-body).
-- mood: The emotional tone — 2-3 sentences. What feeling does this image evoke? What story does it tell?
-- color_palette: List 4-6 dominant colors as descriptive names (e.g. "warm terracotta", "muted sage green", "deep navy"). Note overall warmth/coolness.
-- color_grading: Contrast level (low/medium/high), saturation (muted/natural/vibrant), shadows tint (warm/cool/neutral), highlights tint, any visible film emulation or filter look.
-- clothing: Detailed description — garment types, fabrics (knit, silk, denim, leather), colors, patterns, fit (oversized, fitted, layered). Include accessories (jewelry, bags, hats, glasses). Empty string if no person.
-- environment: Specific background elements — surfaces (brick wall, wooden floor, marble), objects/props (coffee cup, books, plants, neon sign), textures, materials. Indoor/outdoor. Urban/natural.
-- composition: Framing (tight crop, wide shot, centered, off-center), rule of thirds placement, negative space usage, leading lines, symmetry.
-- key_details: Array of 3-5 specific visual details that make this image distinctive and must be replicated to preserve the vibe (e.g. "steam rising from coffee cup", "golden hour rim light on hair", "crumpled newspaper on table").
+- scene: What is happening in this image. Describe the setting, action, time of day, and spatial context. 2-3 sentences. Example: "A woman lying on a bed of white crumpled sheets, taking a selfie from above. Morning light fills the room. The frame is intimate and close."
+- genre: The photographic genre and substyle. Examples: "intimate lifestyle portrait", "high-fashion editorial", "candid street photography", "cozy bedroom selfie".
+- subject_pose: CRITICAL FIELD. Describe the full body position with precision: standing/sitting/lying/leaning? Which direction? Hand placement (holding phone, resting on cheek, behind head, etc.). Head angle and tilt. Gaze direction (into camera, away, down). Shoulder position. Leg arrangement if visible. Be as specific as a film director giving blocking instructions. Example: "Lying on back, head on pillow tilted slightly left, right arm extended up holding phone for overhead selfie, left hand resting near face, relaxed open body language, legs slightly bent under sheets."
+- expression: The precise facial expression and emotional state. Not just "smiling" — describe the quality: "soft relaxed half-smile, slightly parted lips, heavy-lidded dreamy eyes looking directly into camera with quiet confidence." Include micro-details: teeth showing or not, eyebrow position, eye squint level.
+- lighting: Direction (front/side/back/above), quality (hard shadows/soft diffused), color temperature (specify Kelvin range or descriptive: "warm golden 3000K"), shadow density (deep/medium/light), specific light sources (window light from left, overhead ring light, golden hour backlight, neon reflection, etc.). Example: "Soft diffused natural light from a window on the right side, warm 3500K temperature, very light shadows, no harsh contrasts, subtle warm glow on skin."
+- camera: Estimated focal length (24mm/35mm/50mm/85mm/135mm), depth of field (shallow bokeh/medium/deep), shooting angle (overhead looking down, eye-level, low angle looking up, 45-degree), distance to subject (extreme close-up, close-up face+shoulders, medium shot waist-up, full body), tilt if any. Example: "Wide-angle ~24mm, overhead top-down angle, close-up covering face and upper body, shallow depth of field with sheets blurred at edges."
+- mood: The emotional atmosphere in 2-3 sentences. What feeling does this image evoke? What story does it tell? What is the viewer's relationship to the subject — voyeuristic, intimate, distant, confrontational? Example: "Intimate and personal, like a private morning moment shared between lovers. The mood is warm, unhurried, sensual without being explicit. The viewer feels like they are the one being looked at."
+- color_palette: List 4-6 dominant colors as specific descriptive names. Note overall warmth/coolness and any color harmony pattern. Example: "creamy ivory whites, warm peachy skin tones, soft blush pink, light honey gold highlights, pale lavender shadows. Overall very warm and desaturated."
+- color_grading: Contrast level (low/medium/high), saturation style (muted/natural/vibrant/desaturated pastels), shadows tint (warm amber/cool blue/neutral), highlights tint (warm/cool/neutral), any visible film look or filter emulation. Example: "Low contrast, slightly desaturated with warm peachy cast, shadows tinted warm amber, highlights creamy and soft, resembles analog film with slight grain."
+- clothing: Detailed description of garments, fabrics, colors, fit, and state (buttoned/unbuttoned, tucked/untucked, sleeves rolled). Include accessories and their placement. Describe texture (knit, silk, cotton, denim). If partially clothed or implied nudity, describe exactly what is visible and covered. Empty string if not applicable.
+- environment: Every visible background element with specific materials and textures. Surfaces (wrinkled white cotton sheets, weathered brick, polished concrete). Objects and props with their positions (coffee cup on nightstand to the left, crumpled pillow, phone charging cable). Indoor/outdoor. Room type if identifiable. Example: "White cotton bed sheets, slightly crumpled and wrinkled, one white pillow under the head, bedframe not visible, no other furniture or objects in frame, bright clean minimal bedroom."
+- composition: Framing (tight crop, wide, centered, rule-of-thirds), subject placement in frame, negative space distribution, leading lines, symmetry/asymmetry, aspect ratio feel (square, portrait, landscape). Example: "Overhead top-down composition, subject centered filling most of frame, slight diagonal body angle from bottom-left to top-right, minimal negative space at edges, intimate tight framing."
+- key_details: Array of 3-5 unique visual details that define this image's distinctive character and MUST be present in the recreation. Focus on details that make the difference between "generic" and "this exact vibe." Example: ["hair fanned out naturally on white pillow", "one arm reaching up toward camera creating depth", "soft morning window light creating warm glow on skin", "slightly crumpled white sheets framing the body", "direct intimate eye contact with camera from below"].
 
-Be extremely specific and concrete. Avoid generic descriptions like "warm tones" — instead say "amber-orange tones with desaturated shadows leaning teal". The goal is to capture every reproducible visual attribute.
+Be surgically precise. Avoid vague descriptions like "warm tones" or "natural look." Every field should contain enough detail that a blind person could understand exactly what this image looks like.
 Return ONLY valid JSON, no markdown.
 `.trim();
 
 /**
  * Prepended to every generation prompt in generate-process.
- * Tells Gemini the attached photo is the subject to restyle, not a generic reference.
+ * Two-image mode: Image 1 = identity source, Image 2 = style reference.
+ * Falls back to single-image mode when no reference is available.
  */
-export const GENERATE_VIBE_PREFIX = `
-IMPORTANT INSTRUCTIONS — read before looking at the prompt below.
-The attached photo shows the SUBJECT. Your task is to RESTYLE this photo to match the described vibe.
-Preserve the person's face, skin tone, hair color and hairstyle, and body proportions exactly — they must be clearly recognizable.
-Apply ALL described style details: clothing, environment/background, lighting, color grading, props, and atmosphere.
-Do NOT invent new elements that are not described. Follow the prompt precisely.
+export const GENERATE_VIBE_PREFIX_TWO_IMAGES = `
+CRITICAL INSTRUCTIONS — read carefully before the prompt.
+
+You are given TWO images:
+- IMAGE 1 (first image): The SUBJECT — a real person. This is the identity source.
+- IMAGE 2 (second image): The STYLE REFERENCE — this is the visual target you must match.
+
+YOUR TASK: Create a NEW photorealistic image where the person from Image 1 is placed into a scene that recreates the look, feel, and atmosphere of Image 2.
+
+IDENTITY (from Image 1 — PRESERVE exactly):
+- Face structure, bone structure, facial features, skin tone, eye color, eye shape
+- Body proportions and build
+- Natural hair color and texture
+
+STYLE (from Image 2 — RECREATE everything):
+- Pose, body position, and body language — match the reference pose, NOT the subject's original pose
+- Environment, setting, surfaces, props, background
+- Lighting direction, quality, color temperature, shadow patterns
+- Color grading, contrast, saturation, color palette
+- Clothing style, fabrics, fit (adapt to the subject's body)
+- Mood, atmosphere, emotional tone
+- Camera angle, framing, composition, depth of field
+- Hair styling and arrangement (adapt subject's hair to match reference styling)
+- Facial expression and emotional state from the reference
+
+The result must look like the subject was ACTUALLY PHOTOGRAPHED in the reference scene — not composited or photoshopped. Natural skin texture, realistic lighting interaction with face and body, proper perspective.
+
+The text prompt below provides additional specific details. Follow it precisely.
+
+`.trimStart();
+
+export const GENERATE_VIBE_PREFIX_SINGLE_IMAGE = `
+CRITICAL INSTRUCTIONS — read carefully before the prompt.
+
+The attached photo shows the SUBJECT — a real person whose identity must be preserved.
+Your task is to CREATE A NEW photorealistic image of this person placed into the scene described below.
+
+PRESERVE exactly: face structure, facial features, skin tone, eye color, body proportions, natural hair color.
+CHANGE to match the description: pose, body position, clothing, hairstyle arrangement, environment, lighting, color grading, camera angle, expression.
+
+The person must look like they were ACTUALLY PHOTOGRAPHED in the described setting — natural, realistic, belonging to the scene. Not composited or pasted.
+
+Follow the text prompt below for all scene details.
 
 `.trimStart();
 
 export const EXPAND_PROMPTS_INSTRUCTION = `
-You are a prompt engineer for AI image generation. Your task: turn a detailed style description into prompts that will restyle a user's photo to match this exact vibe.
+You are an expert prompt engineer for photorealistic AI image generation. Your task: turn a style description into 3 detailed scene prompts. These prompts will be used alongside a reference image, so they serve as ENRICHMENT and SPECIFICITY — the model already sees the visual reference.
 
-Given the style JSON, generate exactly 3 prompts. Each prompt MUST include ALL of these visual details from the style:
-- Clothing (garments, fabrics, colors, accessories — copy specifics from the style)
-- Environment/background (surfaces, props, textures — be concrete)
-- Color grading (palette, contrast, saturation, shadow/highlight tints)
-- Lighting setup (direction, quality, temperature)
-- Mood and atmosphere
+Given the style JSON, generate exactly 3 prompts. Each prompt describes the SAME scene but with a different creative emphasis.
 
-Each prompt focuses on a different accent but NEVER omits the other details:
-- Prompt A (accent: lighting): lead with lighting, but include full clothing + environment + color
-- Prompt B (accent: mood): lead with atmosphere/emotion, but include full clothing + environment + color
-- Prompt C (accent: composition): lead with framing/angles, but include full clothing + environment + color
+EVERY prompt MUST include ALL of these elements (never skip any):
+1. SUBJECT POSE — exact body position, hand placement, head angle, gaze direction (from subject_pose field). This is THE most critical element. Without correct pose the result looks wrong.
+2. EXPRESSION — exact facial expression, emotion, micro-details like smile type, eye quality (from expression field)
+3. CAMERA — focal length, angle, distance, depth of field (from camera field)
+4. LIGHTING — direction, quality, temperature, shadow pattern, sources (from lighting field)
+5. ENVIRONMENT — specific surfaces, textures, props with positions (from environment field)
+6. CLOTHING — garments, fabrics, colors, fit, accessories (from clothing field)
+7. COLOR GRADING — palette, contrast, saturation, shadow/highlight tints (from color_grading + color_palette fields)
+8. MOOD — emotional atmosphere, story, viewer relationship (from mood field)
+9. KEY DETAILS — include ALL key_details verbatim as they are the vibe anchors
+
+Each prompt uses a different creative emphasis:
+- Prompt A (accent: lighting): Open with the lighting setup, then weave in all other elements naturally
+- Prompt B (accent: mood): Open with the emotional atmosphere and story, then describe the physical scene
+- Prompt C (accent: composition): Open with camera angle and framing, then describe the scene within that frame
 
 Rules:
-1. Start each prompt with "Restyle the person in the attached photo:"
-2. Length: 80-180 words per prompt — be detailed, not generic
-3. Always include specific clothing items and environment props from the style
-4. Include the color grading details (not just "warm tones" — say exactly which tones)
-5. Include any key_details from the style verbatim — these are the vibe anchors
-6. The prompt must be directly usable as a Gemini image generation prompt with an attached photo
+1. Start each prompt with: "Place the person from the attached photo into this scene:"
+2. Length: 150-300 words per prompt — be richly detailed, never generic
+3. Describe the pose as if directing an actor: "lying on back with right arm reaching up toward camera, head tilted slightly left on pillow, left hand resting near face"
+4. Describe expression precisely: "soft half-smile with slightly parted lips, heavy-lidded eyes looking directly into camera"
+5. NEVER use vague phrases like "warm tones", "natural lighting", "casual pose" — always specify exactly
+6. Include specific textures: "crumpled white cotton sheets", not just "white sheets"
+7. The prompt must work as a Gemini image generation prompt paired with subject photo + reference image
 
 Return ONLY valid JSON array with 3 objects:
 [

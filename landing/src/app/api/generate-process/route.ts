@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServer, getStoragePublicUrl } from "@/lib/supabase";
-import { GENERATE_VIBE_PREFIX } from "@/lib/vibe-gemini-instructions";
+import {
+  GENERATE_VIBE_PREFIX_TWO_IMAGES,
+  GENERATE_VIBE_PREFIX_SINGLE_IMAGE,
+} from "@/lib/vibe-gemini-instructions";
 
 const BUCKET_UPLOADS = "web-generation-uploads";
 const BUCKET_RESULTS = "web-generation-results";
@@ -126,7 +129,6 @@ async function processGeneration(supabase: ReturnType<typeof createSupabaseServe
   const inputPaths = (gen.input_photo_paths as string[]) || [];
   const rawPrompt = (gen.prompt_text as string) || "";
   const isVibeGeneration = !!(gen.vibe_id);
-  const fullPrompt = isVibeGeneration ? GENERATE_VIBE_PREFIX + rawPrompt : rawPrompt;
 
   const imageParts: { inlineData: { mimeType: string; data: string } }[] = [];
 
@@ -162,9 +164,65 @@ async function processGeneration(supabase: ReturnType<typeof createSupabaseServe
     });
   }
 
-  /* Image-first order: Gemini sees the photo as subject, then reads the restyle instructions. */
+  let referenceImagePart: { inlineData: { mimeType: string; data: string } } | null = null;
+  if (isVibeGeneration && gen.vibe_id) {
+    const { data: vibeRow } = await supabase
+      .from("vibes")
+      .select("source_image_url")
+      .eq("id", gen.vibe_id)
+      .single();
+    const refUrl = vibeRow?.source_image_url as string | undefined;
+    if (refUrl) {
+      try {
+        console.log("[generation.process] downloading reference image", {
+          generationId: id,
+          refHost: new URL(refUrl).hostname,
+        });
+        const refRes = await fetch(refUrl, {
+          headers: {
+            "User-Agent": "PromptShotBot/1.0 (+https://promptshot.ru)",
+            Accept: "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+          },
+          signal: AbortSignal.timeout(15000),
+        });
+        if (refRes.ok) {
+          const ct = String(refRes.headers.get("content-type") || "").split(";")[0].trim().toLowerCase();
+          const refMime = (ct === "image/png" || ct === "image/webp") ? ct : "image/jpeg";
+          const refBuf = Buffer.from(await refRes.arrayBuffer());
+          if (refBuf.length <= 10 * 1024 * 1024) {
+            referenceImagePart = { inlineData: { mimeType: refMime, data: refBuf.toString("base64") } };
+            console.log("[generation.process] reference image encoded", {
+              generationId: id,
+              mime: refMime,
+              bytes: refBuf.length,
+            });
+          }
+        } else {
+          console.warn("[generation.process] reference image download non-ok", {
+            generationId: id,
+            status: refRes.status,
+          });
+        }
+      } catch (err) {
+        console.warn("[generation.process] reference image download failed, continuing without", {
+          generationId: id,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+  }
+
+  const hasTwoImages = isVibeGeneration && referenceImagePart !== null;
+  const vibePrefix = hasTwoImages ? GENERATE_VIBE_PREFIX_TWO_IMAGES : GENERATE_VIBE_PREFIX_SINGLE_IMAGE;
+  const fullPrompt = isVibeGeneration ? vibePrefix + rawPrompt : rawPrompt;
+
+  /*
+   * Image order: [subject_photo, reference_image?, text_prompt]
+   * Gemini sees Image 1 as identity source, Image 2 as style reference.
+   */
   const parts: { text?: string; inlineData?: { mimeType: string; data: string } }[] = [
     ...imageParts,
+    ...(referenceImagePart ? [referenceImagePart] : []),
     { text: fullPrompt },
   ];
 
@@ -189,6 +247,7 @@ async function processGeneration(supabase: ReturnType<typeof createSupabaseServe
       aspectRatio: gen.aspect_ratio,
       imageSize: gen.image_size,
       isVibeGeneration,
+      hasTwoImages,
       promptLength: fullPrompt.length,
     });
     geminiRes = await fetch(geminiUrl, {
