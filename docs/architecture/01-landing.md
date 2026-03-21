@@ -1,6 +1,6 @@
 # 01 — Лендинг (promptshot.ru)
 
-> Последнее обновление: 2026-03-20
+> Последнее обновление: 2026-03-21
 
 > UI side panel + content script: см. `docs/extension-ui-spec.md`; карта файлов и токены — `extension/DEVELOPER.md`.
 
@@ -72,6 +72,7 @@
 - **Save:** `POST /api/vibe/save` — сохраняет выбранную completed-генерацию в `landing_vibe_saves`, связывает с `vibe_id`/`card_id`, пишет `auto_seo_tags` и, если `card_id` отсутствует, пытается автосоздать `prompt_cards` + `prompt_card_media` + `prompt_variants` из `landing_generations.result_storage_*`. После этого обогащает `prompt_cards.seo_tags` на основе `vibes.style` (через `TAG_REGISTRY`).
 - **Generate:** `POST /api/generate` — расширение вызывает **один раз** на запуск (первый промпт после expand); сайт при необходимости может вызывать несколько раз.
 - **Gemini routing:** extract/expand используют тот же runtime-флаг `photo_app_config.gemini_use_proxy` и `GEMINI_PROXY_BASE_URL`.
+- **Логи Gemini (extract/expand):** каждый вызов пишет в server logs `gemini_request` / `gemini_response` (host, модель, длительность, сводка ответа API, длина текста). При сбое — `gemini_pipeline_failed` с этапами JSON-парсинга (`parseStages`) и диагностикой coerce. При `GEMINI_VIBE_DEBUG=1` дополнительно — redacted body запроса и превью текста ответа (`landing/src/lib/gemini-vibe-debug-log.ts`).
 
 ### Покупка web-кредитов через Telegram Stars
 
@@ -442,6 +443,7 @@ landing/src/
 | `GEMINI_PROXY_BASE_URL` | Прокси-маршрутизация Gemini при `gemini_use_proxy=true` |
 | `GEMINI_VIBE_EXTRACT_MODEL` | (optional) override модели для `/api/vibe/extract` |
 | `GEMINI_VIBE_EXPAND_MODEL` | (optional) override модели для `/api/vibe/expand` |
+| `GEMINI_VIBE_DEBUG` | `1` / `true` — расширенные логи Gemini для vibe extract/expand |
 | `CORS_ALLOWED_ORIGINS` | CSV allowlist origins для CORS API |
 | `CHROME_EXTENSION_ID` | Extension ID для `chrome-extension://` CORS origin |
 | `NEXT_PUBLIC_ENABLE_TRY_THIS_LOOK` | Публичная кнопка `Try this look` на `/p/[slug]` |

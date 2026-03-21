@@ -7,6 +7,12 @@ import {
   coerceStylePayload,
   type StylePayload,
 } from "@/lib/vibe-gemini-instructions";
+import {
+  isGeminiVibeDebug,
+  parseGeminiJsonArray,
+  redactGenerateContentBody,
+  summarizeGeminiApiResponse,
+} from "@/lib/gemini-vibe-debug-log";
 
 const DIRECT_GEMINI_BASE_URL = "https://generativelanguage.googleapis.com";
 const ALLOWED_ACCENTS = ["lighting", "mood", "composition"] as const;
@@ -57,36 +63,6 @@ async function getGeminiBaseUrlRuntime(
   return DIRECT_GEMINI_BASE_URL;
 }
 
-function extractJsonArray(text: string): unknown[] | null {
-  const trimmed = text.trim();
-  if (!trimmed) return null;
-
-  const tryParse = (candidate: string): unknown[] | null => {
-    try {
-      const parsed = JSON.parse(candidate);
-      return Array.isArray(parsed) ? parsed : null;
-    } catch {
-      return null;
-    }
-  };
-
-  const direct = tryParse(trimmed);
-  if (direct) return direct;
-
-  const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
-  if (fenced?.[1]) {
-    const inside = tryParse(fenced[1]);
-    if (inside) return inside;
-  }
-
-  const firstBracket = trimmed.indexOf("[");
-  const lastBracket = trimmed.lastIndexOf("]");
-  if (firstBracket >= 0 && lastBracket > firstBracket) {
-    return tryParse(trimmed.slice(firstBracket, lastBracket + 1));
-  }
-  return null;
-}
-
 function coercePromptVariants(input: unknown[]): PromptVariant[] | null {
   if (input.length !== 3) return null;
   const variants: PromptVariant[] = [];
@@ -103,6 +79,23 @@ function coercePromptVariants(input: unknown[]): PromptVariant[] | null {
   }
   const dedup = new Set(variants.map((v) => v.accent));
   return dedup.size === 3 ? variants : null;
+}
+
+function diagnosePromptArray(parsed: unknown[] | null): Record<string, unknown> {
+  if (!parsed) return { reason: "no_array" };
+  if (parsed.length !== 3) return { reason: "length_not_3", length: parsed.length };
+  const items = parsed.map((item, i) => {
+    if (!item || typeof item !== "object") return { index: i, shape: typeof item };
+    const row = item as Record<string, unknown>;
+    return {
+      index: i,
+      keys: Object.keys(row),
+      accent: row.accent,
+      promptType: typeof row.prompt,
+      promptLen: typeof row.prompt === "string" ? row.prompt.length : null,
+    };
+  });
+  return { items };
 }
 
 export async function POST(req: NextRequest) {
@@ -143,27 +136,44 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "expand_failed" }, { status: 500 });
     }
 
+    const expandUserText = `${EXPAND_PROMPTS_INSTRUCTION}\n\nStyle description:\n${JSON.stringify(style, null, 2)}`;
+    const geminiBody = {
+      contents: [
+        {
+          role: "user",
+          parts: [{ text: expandUserText }],
+        },
+      ],
+      generationConfig: {
+        responseMimeType: "application/json",
+      },
+    };
+
+    console.info("[vibe.expand] gemini_request", {
+      userId: user.id,
+      model: textModel,
+      endpointHost: (() => {
+        try {
+          return new URL(geminiBaseUrl).hostname;
+        } catch {
+          return "invalid_base_url";
+        }
+      })(),
+      userTextChars: expandUserText.length,
+      styleKeys: Object.keys(style),
+    });
+    if (isGeminiVibeDebug()) {
+      console.info("[vibe.expand] gemini_request_body_redacted", redactGenerateContentBody(geminiBody));
+    }
+
+    const geminiStarted = Date.now();
     const geminiRes = await fetch(geminiUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "x-goog-api-key": apiKey,
       },
-      body: JSON.stringify({
-        contents: [
-          {
-            role: "user",
-            parts: [
-              {
-                text: `${EXPAND_PROMPTS_INSTRUCTION}\n\nStyle description:\n${JSON.stringify(style, null, 2)}`,
-              },
-            ],
-          },
-        ],
-        generationConfig: {
-          responseMimeType: "application/json",
-        },
-      }),
+      body: JSON.stringify(geminiBody),
       signal: AbortSignal.timeout(45000),
     });
 
@@ -173,17 +183,49 @@ export async function POST(req: NextRequest) {
     };
 
     const text = geminiData?.candidates?.[0]?.content?.parts?.find((p) => typeof p.text === "string")?.text || "";
-    const parsed = extractJsonArray(text);
-    const prompts = parsed ? coercePromptVariants(parsed) : null;
-    if (!geminiRes.ok || !prompts) {
-      console.error("[vibe.expand] gemini parse failed", {
+    const responseSummary = summarizeGeminiApiResponse(geminiData);
+
+    console.info("[vibe.expand] gemini_response", {
+      userId: user.id,
+      model: textModel,
+      httpStatus: geminiRes.status,
+      durationMs: Date.now() - geminiStarted,
+      textChars: text.length,
+      ...responseSummary,
+    });
+    if (isGeminiVibeDebug() && text.length > 0) {
+      console.info("[vibe.expand] gemini_response_text_preview", {
         userId: user.id,
-        status: geminiRes.status,
+        preview: text.slice(0, 2500),
+        tail: text.length > 2500 ? text.slice(-400) : undefined,
+      });
+    }
+
+    const { value: parsed, stages: parseStages } = parseGeminiJsonArray(text);
+    const prompts = parsed ? coercePromptVariants(parsed) : null;
+
+    if (!geminiRes.ok || !prompts) {
+      console.error("[vibe.expand] gemini_pipeline_failed", {
+        userId: user.id,
+        model: textModel,
+        httpStatus: geminiRes.status,
         geminiError: geminiData?.error?.message ?? null,
-        textPreview: text.slice(0, 300),
+        textLen: text.length,
+        jsonArrayParsed: Boolean(parsed),
+        parseStages,
+        promptCoerceOk: Boolean(prompts),
+        promptArrayDiagnose: diagnosePromptArray(parsed),
+        textHead: text.slice(0, 500),
+        textTail: text.length > 500 ? text.slice(-300) : undefined,
       });
       return NextResponse.json({ error: "expand_failed" }, { status: 500 });
     }
+
+    console.info("[vibe.expand] gemini_parse_ok", {
+      userId: user.id,
+      parseStages: parseStages.filter((s) => s.ok).map((s) => s.stage),
+      promptsCount: prompts.length,
+    });
 
     return NextResponse.json({ prompts, modelUsed: textModel });
   } catch (err) {

@@ -7,7 +7,14 @@ import {
   EXTRACT_STYLE_INSTRUCTION,
   getGeminiVibeExtractModel,
   coerceStylePayload,
+  getStyleCoerceDiagnostics,
 } from "@/lib/vibe-gemini-instructions";
+import {
+  isGeminiVibeDebug,
+  parseGeminiJsonObject,
+  redactGenerateContentBody,
+  summarizeGeminiApiResponse,
+} from "@/lib/gemini-vibe-debug-log";
 
 const DIRECT_GEMINI_BASE_URL = "https://generativelanguage.googleapis.com";
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
@@ -141,41 +148,6 @@ async function fetchImageAsInlineData(imageUrl: string): Promise<{ mimeType: str
   };
 }
 
-function extractJsonObject(text: string): Record<string, unknown> | null {
-  const trimmed = text.trim();
-  if (!trimmed) return null;
-
-  const directTry = (() => {
-    try {
-      return JSON.parse(trimmed) as Record<string, unknown>;
-    } catch {
-      return null;
-    }
-  })();
-  if (directTry) return directTry;
-
-  const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
-  if (fenced?.[1]) {
-    try {
-      return JSON.parse(fenced[1]) as Record<string, unknown>;
-    } catch {
-      return null;
-    }
-  }
-
-  const firstBrace = trimmed.indexOf("{");
-  const lastBrace = trimmed.lastIndexOf("}");
-  if (firstBrace >= 0 && lastBrace > firstBrace) {
-    const slice = trimmed.slice(firstBrace, lastBrace + 1);
-    try {
-      return JSON.parse(slice) as Record<string, unknown>;
-    } catch {
-      return null;
-    }
-  }
-  return null;
-}
-
 export async function POST(req: NextRequest) {
   try {
     const { user, error: authError } = await getSupabaseUserForApiRoute(req);
@@ -215,23 +187,43 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "extract_failed" }, { status: 500 });
     }
 
+    const geminiBody = {
+      contents: [
+        {
+          role: "user",
+          parts: [{ text: EXTRACT_STYLE_INSTRUCTION }, { inlineData }],
+        },
+      ],
+      generationConfig: {
+        responseMimeType: "application/json",
+      },
+    };
+
+    console.info("[vibe.extract] gemini_request", {
+      userId: user.id,
+      model: visionModel,
+      endpointHost: (() => {
+        try {
+          return new URL(geminiBaseUrl).hostname;
+        } catch {
+          return "invalid_base_url";
+        }
+      })(),
+      inlineImageBase64Chars: inlineData.data.length,
+      instructionTextChars: EXTRACT_STYLE_INSTRUCTION.length,
+    });
+    if (isGeminiVibeDebug()) {
+      console.info("[vibe.extract] gemini_request_body_redacted", redactGenerateContentBody(geminiBody));
+    }
+
+    const geminiStarted = Date.now();
     const geminiRes = await fetch(geminiUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "x-goog-api-key": apiKey,
       },
-      body: JSON.stringify({
-        contents: [
-          {
-            role: "user",
-            parts: [{ text: EXTRACT_STYLE_INSTRUCTION }, { inlineData }],
-          },
-        ],
-        generationConfig: {
-          responseMimeType: "application/json",
-        },
-      }),
+      body: JSON.stringify(geminiBody),
       signal: AbortSignal.timeout(45000),
     });
 
@@ -241,20 +233,52 @@ export async function POST(req: NextRequest) {
     };
 
     const text = geminiData?.candidates?.[0]?.content?.parts?.find((p) => typeof p.text === "string")?.text || "";
-    const parsed = extractJsonObject(text);
-    const style = parsed ? coerceStylePayload(parsed) : null;
-    if (!geminiRes.ok || !style) {
-      console.error("[vibe.extract] gemini parse failed", {
+    const responseSummary = summarizeGeminiApiResponse(geminiData);
+
+    console.info("[vibe.extract] gemini_response", {
+      userId: user.id,
+      model: visionModel,
+      httpStatus: geminiRes.status,
+      durationMs: Date.now() - geminiStarted,
+      textChars: text.length,
+      ...responseSummary,
+    });
+    if (isGeminiVibeDebug() && text.length > 0) {
+      console.info("[vibe.extract] gemini_response_text_preview", {
         userId: user.id,
-        status: geminiRes.status,
+        preview: text.slice(0, 2500),
+        tail: text.length > 2500 ? text.slice(-400) : undefined,
+      });
+    }
+
+    const { value: parsed, stages: parseStages } = parseGeminiJsonObject(text);
+    const style = parsed ? coerceStylePayload(parsed) : null;
+
+    if (!geminiRes.ok || !style) {
+      const coerceDiag = parsed ? getStyleCoerceDiagnostics(parsed) : null;
+      console.error("[vibe.extract] gemini_pipeline_failed", {
+        userId: user.id,
+        model: visionModel,
+        httpStatus: geminiRes.status,
         geminiError: geminiData?.error?.message ?? null,
         textLen: text.length,
-        jsonParsed: Boolean(parsed),
+        jsonObjectParsed: Boolean(parsed),
+        parseStages,
         parsedKeys: parsed ? Object.keys(parsed) : [],
-        textPreview: text.slice(0, 300),
+        coerceAccepted: style ? true : coerceDiag?.accepted ?? false,
+        coerceMissingRequired: coerceDiag?.missingRequired ?? null,
+        coerceRawKeys: coerceDiag?.rawKeys ?? [],
+        textHead: text.slice(0, 500),
+        textTail: text.length > 500 ? text.slice(-300) : undefined,
       });
       return NextResponse.json({ error: "extract_failed" }, { status: 500 });
     }
+
+    console.info("[vibe.extract] gemini_parse_ok", {
+      userId: user.id,
+      parseStages: parseStages.filter((s) => s.ok).map((s) => s.stage),
+      styleFieldCount: Object.keys(style).length,
+    });
 
     const { data: vibe, error: insertError } = await supabase
       .from("vibes")

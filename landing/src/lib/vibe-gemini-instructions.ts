@@ -101,6 +101,28 @@ export function coerceStylePayload(input: unknown): StylePayload | null {
   return result;
 }
 
+/** When coerceStylePayload returns null — which required fields are still empty (after aliases). */
+export function getStyleCoerceDiagnostics(input: unknown): {
+  accepted: boolean;
+  rawKeys: string[];
+  missingRequired: string[];
+} {
+  if (!input || typeof input !== "object") {
+    return { accepted: false, rawKeys: [], missingRequired: ["<not_an_object>"] };
+  }
+  const raw = input as Record<string, unknown>;
+  const rawKeys = Object.keys(raw);
+  if (coerceStylePayload(input)) {
+    return { accepted: true, rawKeys, missingRequired: [] };
+  }
+  const missing: string[] = [];
+  for (const field of STYLE_FIELDS_REQUIRED_NON_EMPTY) {
+    const str = coerceStyleValueToString(pickRawStyleValue(raw, field));
+    if (!str) missing.push(field);
+  }
+  return { accepted: false, rawKeys, missingRequired: missing };
+}
+
 export function getGeminiVibeExtractModel(): string {
   return process.env.GEMINI_VIBE_EXTRACT_MODEL || "gemini-2.5-flash";
 }
