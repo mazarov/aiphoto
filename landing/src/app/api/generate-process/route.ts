@@ -1,10 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServer, getStoragePublicUrl } from "@/lib/supabase";
-import {
-  GENERATE_VIBE_JSON_IDENTITY_BRIDGE,
-  GENERATE_VIBE_PREFIX_TWO_IMAGES,
-  GENERATE_VIBE_PREFIX_SINGLE_IMAGE,
-} from "@/lib/vibe-gemini-instructions";
+import { assembleVibeFinalPrompt } from "@/lib/vibe-gemini-instructions";
 
 const BUCKET_UPLOADS = "web-generation-uploads";
 const BUCKET_RESULTS = "web-generation-results";
@@ -214,9 +210,8 @@ async function processGeneration(supabase: ReturnType<typeof createSupabaseServe
   }
 
   const hasTwoImages = isVibeGeneration && referenceImagePart !== null;
-  const vibePrefix = hasTwoImages ? GENERATE_VIBE_PREFIX_TWO_IMAGES : GENERATE_VIBE_PREFIX_SINGLE_IMAGE;
   const fullPrompt = isVibeGeneration
-    ? vibePrefix + GENERATE_VIBE_JSON_IDENTITY_BRIDGE + rawPrompt
+    ? assembleVibeFinalPrompt(rawPrompt, hasTwoImages)
     : rawPrompt;
 
   /*

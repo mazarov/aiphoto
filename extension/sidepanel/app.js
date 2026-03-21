@@ -67,6 +67,9 @@ const state = {
   extractModel: "",
   expandModel: "",
   prompts: [],
+  /** Full text sent to Gemini (prefix + bridge + expanded prompt), from expand response */
+  finalPromptForGeneration: "",
+  finalPromptAssumesTwoImages: false,
   results: [],
   generating: false,
   runHistory: [],
@@ -457,6 +460,8 @@ function toSerializableState() {
     extractModel: state.extractModel,
     expandModel: state.expandModel,
     prompts: state.prompts,
+    finalPromptForGeneration: state.finalPromptForGeneration,
+    finalPromptAssumesTwoImages: state.finalPromptAssumesTwoImages,
     results: state.results,
     runHistory: state.runHistory,
     cooldownUntil: state.cooldownUntil,
@@ -535,6 +540,9 @@ function applyPersistedState(saved) {
   state.extractModel = saved.extractModel || state.extractModel;
   state.expandModel = saved.expandModel || state.expandModel;
   state.prompts = Array.isArray(saved.prompts) ? saved.prompts : state.prompts;
+  state.finalPromptForGeneration =
+    typeof saved.finalPromptForGeneration === "string" ? saved.finalPromptForGeneration : state.finalPromptForGeneration;
+  state.finalPromptAssumesTwoImages = Boolean(saved.finalPromptAssumesTwoImages);
   state.results = Array.isArray(saved.results) ? saved.results : state.results;
   state.runHistory = Array.isArray(saved.runHistory) ? saved.runHistory : state.runHistory;
   state.cooldownUntil = Number(saved.cooldownUntil || 0);
@@ -773,10 +781,14 @@ async function runExtract() {
   state.vibeId = extractData.vibeId;
   state.style = extractData.style;
   state.extractModel = String(extractData.modelUsed || "");
+  state.finalPromptForGeneration = "";
+  state.finalPromptAssumesTwoImages = false;
   await persistState();
 }
 
 async function runExpand() {
+  state.finalPromptForGeneration = "";
+  state.finalPromptAssumesTwoImages = false;
   const expandData = await api("/api/vibe/expand", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -784,6 +796,8 @@ async function runExpand() {
   });
   state.prompts = Array.isArray(expandData.prompts) ? expandData.prompts : [];
   state.expandModel = String(expandData.modelUsed || "");
+  state.finalPromptForGeneration = String(expandData.finalPromptForGeneration || "").trim();
+  state.finalPromptAssumesTwoImages = Boolean(expandData.finalPromptAssumesTwoImages);
   await persistState();
 }
 
@@ -1143,6 +1157,8 @@ async function resetSession() {
   state.extractModel = "";
   state.expandModel = "";
   state.prompts = [];
+  state.finalPromptForGeneration = "";
+  state.finalPromptAssumesTwoImages = false;
   state.results = [];
   await storageLocalRemove(LOCAL_STATE_KEY);
   setToast("info", t("session_cleared"));
@@ -1158,6 +1174,8 @@ async function clearResultsOnly() {
   state.extractModel = "";
   state.expandModel = "";
   state.prompts = [];
+  state.finalPromptForGeneration = "";
+  state.finalPromptAssumesTwoImages = false;
   state.results = [];
   await persistState();
   setToast("info", t("results_cleared"));
@@ -1373,6 +1391,12 @@ function renderMain() {
     `
     : "";
 
+  const finalPromptHint =
+    state.finalPromptAssumesTwoImages === true ? t("final_prompt_hint_two") : t("final_prompt_hint_one");
+  const finalPromptBody = state.finalPromptForGeneration
+    ? `<pre class="prompt-box prompt-box--final-prompt">${escapeHtml(state.finalPromptForGeneration)}</pre>`
+    : `<p class="muted">${escapeHtml(t("final_prompt_empty"))}</p>`;
+
   const pipelinePanelHtml =
     state.style && typeof state.style === "object"
       ? `<div class="card stv-card-side">
@@ -1380,6 +1404,9 @@ function renderMain() {
           <p class="muted">${escapeHtml(t("step1_model"))}: <code>${escapeHtml(state.extractModel || "—")}</code></p>
           <p class="muted">${escapeHtml(t("step2_model"))}: <code>${escapeHtml(state.expandModel || "—")}</code></p>
           <pre class="prompt-box">${escapeHtml(JSON.stringify(state.style, null, 2))}</pre>
+          <p class="stv-subtitle">${escapeHtml(t("step1_final_prompt_title"))}</p>
+          <p class="muted">${escapeHtml(finalPromptHint)}</p>
+          ${finalPromptBody}
           <div class="row" style="margin-top:8px">
             <button type="button" id="pipeline-spec-btn">${escapeHtml(t("btn_pipeline_spec"))}</button>
           </div>

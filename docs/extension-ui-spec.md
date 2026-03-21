@@ -100,7 +100,7 @@ Primary-кнопки: **градиент** indigo → violet (как CTA на л
 
 **После main-карточки (siblings внутри shell):**
 
-- Карточка **Шаг 1 / JSON стиля** (если есть `state.style`) — см. ранее: модели, JSON, кнопка pipeline-spec.
+- Карточка **Шаг 1 / JSON стиля** (если есть `state.style`) — модели extract/expand, JSON, **блок «Финальный промпт»** (`finalPromptForGeneration` из ответа `POST /api/vibe/expand` — тот же текст, что собирает `generate-process` для Gemini), кнопка pipeline-spec.
 - **Результаты** (grid) — карточки с акцентом, промпт, статус, превью, действия.
 - **История запусков** — статистика, экспорт, очистка, чипы, список.
 

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServer } from "@/lib/supabase";
 import { getSupabaseUserForApiRoute } from "@/lib/supabase-route-auth";
 import {
+  assembleVibeFinalPrompt,
   EXPAND_PROMPTS_INSTRUCTION,
   getGeminiVibeExpandModel,
   coerceStylePayload,
@@ -114,14 +115,19 @@ export async function POST(req: NextRequest) {
     const supabase = createSupabaseServer();
 
     let style: StylePayload | null = coerceStylePayload(body.style);
-    if (!style && body.vibeId) {
-      const { data } = await supabase
+    let hasReferenceUrl = false;
+
+    if (body.vibeId) {
+      const { data: vibe } = await supabase
         .from("vibes")
-        .select("style,user_id")
+        .select("style,user_id,source_image_url")
         .eq("id", body.vibeId)
         .single();
-      if (data && data.user_id === user.id) {
-        style = coerceStylePayload(data.style);
+      if (vibe && vibe.user_id === user.id) {
+        hasReferenceUrl = Boolean(String(vibe.source_image_url || "").trim());
+        if (!style) {
+          style = coerceStylePayload(vibe.style);
+        }
       }
     }
 
@@ -268,7 +274,18 @@ export async function POST(req: NextRequest) {
       promptsCount: prompts.length,
     });
 
-    return NextResponse.json({ prompts, modelUsed: textModel });
+    const finalPromptPreviews = prompts.map((p) => ({
+      accent: p.accent,
+      fullText: assembleVibeFinalPrompt(p.prompt, hasReferenceUrl),
+    }));
+
+    return NextResponse.json({
+      prompts,
+      modelUsed: textModel,
+      finalPromptPreviews,
+      finalPromptForGeneration: assembleVibeFinalPrompt(prompts[0].prompt, hasReferenceUrl),
+      finalPromptAssumesTwoImages: hasReferenceUrl,
+    });
   } catch (err) {
     console.error("[vibe.expand] unhandled error", {
       ...toErrorMeta(err),

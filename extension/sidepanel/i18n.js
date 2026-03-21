@@ -117,6 +117,13 @@ const STRINGS = {
     step2_model: "Модель промптов (expand)",
     run_expand_prep: "Стиль готов. Готовим текстовые промпты…",
     btn_pipeline_spec: "Системные промпты API",
+    step1_final_prompt_title: "Финальный промпт (уходит в PromptShot → Gemini)",
+    final_prompt_empty:
+      "Появится после expand — нажмите «Сгенерировать» (шаги extract → expand).",
+    final_prompt_hint_two:
+      "Сборка совпадает с сервером: префикс (2 изображения) + напоминание про JSON + текст expand. В запросе: референс, затем ваше фото.",
+    final_prompt_hint_one:
+      "В vibe нет URL референса — префикс для одного изображения. На сервере при успешной загрузке референса может быть вариант с двумя картинками.",
   },
   de: {
     title_app: "Steal This Vibe",
@@ -235,6 +242,13 @@ const STRINGS = {
     step2_model: "Modell Prompts (Expand)",
     run_expand_prep: "Stil fertig. Text-Prompts werden erstellt…",
     btn_pipeline_spec: "API-Systemprompts",
+    step1_final_prompt_title: "Finaler Prompt (geht an PromptShot → Gemini)",
+    final_prompt_empty:
+      "Erscheint nach Expand — auf „Generieren“ tippen (Extract → Expand).",
+    final_prompt_hint_two:
+      "Wie auf dem Server: Präfix (2 Bilder) + JSON-Hinweis + Expand-Text. Reihenfolge: Referenz, dann dein Foto.",
+    final_prompt_hint_one:
+      "Keine Referenz-URL in der Vibe — Präfix für ein Bild. Lädt der Server die Referenz, kann es zwei Bilder sein.",
   },
 };
 

@@ -453,21 +453,22 @@ Return ONLY valid JSON, no markdown.
 ```json
 {
   "prompts": [
-    {
-      "accent": "lighting",
-      "prompt": "A portrait photo of {subject} in soft natural window light, warm golden highlights, shallow depth of field at 85mm, candid and relaxed mood, wearing an oversized knit sweater, desaturated shadows with warm color palette, rule of thirds composition"
-    },
-    {
-      "accent": "mood",
-      "prompt": "A contemplative fashion editorial of {subject} sitting by a window in a cafe, dreamy and introspective atmosphere, soft bokeh background, gentle natural illumination, minimal styling with knit sweater, muted warm tones"
-    },
-    {
-      "accent": "composition",
-      "prompt": "A cinematic portrait of {subject} framed with rule of thirds, positioned left with negative space right, cafe setting visible through window, 85mm portrait lens, shallow depth of field, warm ambient light, relaxed editorial style"
-    }
+    { "accent": "lighting", "prompt": "…expanded text only…" },
+    { "accent": "mood", "prompt": "…" },
+    { "accent": "composition", "prompt": "…" }
+  ],
+  "modelUsed": "gemini-2.5-flash",
+  "finalPromptAssumesTwoImages": true,
+  "finalPromptForGeneration": "…prefix + JSON bridge + prompts[0].prompt — как в generate-process…",
+  "finalPromptPreviews": [
+    { "accent": "lighting", "fullText": "…" },
+    { "accent": "mood", "fullText": "…" },
+    { "accent": "composition", "fullText": "…" }
   ]
 }
 ```
+
+`finalPromptForGeneration` / `fullText` собираются через `assembleVibeFinalPrompt` в `vibe-gemini-instructions.ts` (должны совпадать с тем, что уходит в Gemini при генерации). `finalPromptAssumesTwoImages` = есть непустой `vibes.source_image_url` (если сервер потом не скачает референс, фактически сработает однокартиночный префикс).
 
 **Промпт для LLM (Gemini text):**
 

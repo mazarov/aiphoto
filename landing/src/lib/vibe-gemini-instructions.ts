@@ -274,3 +274,17 @@ export const GENERATE_VIBE_JSON_IDENTITY_BRIDGE = `
 JSON-TO-SCENE REMINDER: The detailed prompt below was expanded from a style JSON that describes a REFERENCE photo's shoot. Any mention of hair color, eye color, skin tone, freckles, age, or facial features in that text refers to the reference model only — IGNORE those for identity. The ONLY identity source is the SUBJECT photo (the last image before this block). Reproduce pose, lighting, environment, grading, outfit, and mood from the text; keep the SUBJECT's real face and body proportions.
 
 `;
+
+/**
+ * Full text sent to Gemini image generation for vibe rows (must match generate-process).
+ * `assumeReferenceImageLoaded`: true when reference inline image will be attached (same as hasTwoImages).
+ */
+export function assembleVibeFinalPrompt(
+  rawExpandedPrompt: string,
+  assumeReferenceImageLoaded: boolean
+): string {
+  const prefix = assumeReferenceImageLoaded
+    ? GENERATE_VIBE_PREFIX_TWO_IMAGES
+    : GENERATE_VIBE_PREFIX_SINGLE_IMAGE;
+  return prefix + GENERATE_VIBE_JSON_IDENTITY_BRIDGE + rawExpandedPrompt;
+}

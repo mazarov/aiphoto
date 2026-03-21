@@ -177,6 +177,13 @@ body {
   opacity: 0.98;
 }
 
+.stv-subtitle {
+  font-weight: 600;
+  font-size: 13px;
+  margin: 14px 0 6px;
+  color: var(--stv-text);
+}
+
 .title {
   font-weight: 600;
   font-size: 14px;
@@ -433,6 +440,10 @@ input[type="file"] {
 
 .prompt-box-label {
   margin: 0 0 4px;
+}
+
+.prompt-box.prompt-box--final-prompt {
+  max-height: 320px;
 }
 
 .prompt-box {

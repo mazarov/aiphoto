@@ -1,6 +1,6 @@
 # 01 — Лендинг (promptshot.ru)
 
-> Последнее обновление: 2026-03-21
+> Последнее обновление: 2026-03-22
 
 > UI side panel + content script: см. `docs/extension-ui-spec.md`; карта файлов и токены — `extension/DEVELOPER.md`.
 
@@ -67,7 +67,7 @@
 ### Vibe Pipeline (Steal This Vibe)
 
 - **Extract:** `POST /api/vibe/extract` — проверяет auth, валидирует безопасный URL (SSRF guard), скачивает изображение, отправляет в Gemini Vision, сохраняет structured style JSON в таблицу `vibes`. В ответе поле **`modelUsed`** (реально вызванная vision-модель). Системный текст инструкции — `landing/src/lib/vibe-gemini-instructions.ts` → `EXTRACT_STYLE_INSTRUCTION`.
-- **Expand:** `POST /api/vibe/expand` — берёт style (из body или по `vibeId`), вызывает Gemini text и возвращает 3 варианта промптов с акцентами: `lighting`, `mood`, `composition`. В ответе **`modelUsed`**. Инструкция — `EXPAND_PROMPTS_INSTRUCTION` в том же файле.
+- **Expand:** `POST /api/vibe/expand` — берёт style (из body или по `vibeId`), вызывает Gemini text и возвращает 3 варианта промптов с акцентами: `lighting`, `mood`, `composition`. В ответе **`modelUsed`**, **`finalPromptForGeneration`** (полный текст для первого варианта: `assembleVibeFinalPrompt` = как в `generate-process`), **`finalPromptPreviews`** (все 3), **`finalPromptAssumesTwoImages`** (есть ли `source_image_url` у vibe). Инструкция — `EXPAND_PROMPTS_INSTRUCTION` в том же файле.
 - **Pipeline spec (отладка / extension):** `GET /api/vibe/pipeline-spec` (auth) — JSON с полями `extract` / `expand`: `model`, `envKey`, полный текст **`instruction`** для обоих шагов.
 - **Save:** `POST /api/vibe/save` — сохраняет выбранную completed-генерацию в `landing_vibe_saves`, связывает с `vibe_id`/`card_id`, пишет `auto_seo_tags` и, если `card_id` отсутствует, пытается автосоздать `prompt_cards` + `prompt_card_media` + `prompt_variants` из `landing_generations.result_storage_*`. После этого обогащает `prompt_cards.seo_tags` на основе `vibes.style` (через `TAG_REGISTRY`).
 - **Generate:** `POST /api/generate` — расширение вызывает **один раз** на запуск (первый промпт после expand); сайт при необходимости может вызывать несколько раз.
