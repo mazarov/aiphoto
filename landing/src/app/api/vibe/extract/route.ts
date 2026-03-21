@@ -5,7 +5,7 @@ import { createSupabaseServer } from "@/lib/supabase";
 import { getSupabaseUserForApiRoute } from "@/lib/supabase-route-auth";
 import {
   EXTRACT_STYLE_INSTRUCTION,
-  getGeminiVibeExtractModel,
+  getGeminiVibeExtractModelRuntime,
   coerceStylePayload,
   getStyleCoerceDiagnostics,
 } from "@/lib/vibe-gemini-instructions";
@@ -196,7 +196,7 @@ export async function POST(req: NextRequest) {
     }
 
     const supabase = createSupabaseServer();
-    const visionModel = getGeminiVibeExtractModel();
+    const visionModel = await getGeminiVibeExtractModelRuntime(supabase);
     const geminiBaseUrl = await getGeminiBaseUrlRuntime(supabase);
     const geminiUrl = `${geminiBaseUrl}/v1beta/models/${visionModel}:generateContent`;
     const apiKey = process.env.GEMINI_API_KEY;

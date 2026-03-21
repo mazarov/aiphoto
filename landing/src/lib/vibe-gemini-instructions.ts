@@ -8,6 +8,18 @@ import { createSupabaseServer } from "@/lib/supabase";
 export const PHOTO_APP_CONFIG_KEY_VIBE_ATTACH_REFERENCE =
   "vibe_attach_reference_image_to_generation";
 
+/** Gemini model id for `/api/vibe/extract` (vision → style JSON). */
+export const PHOTO_APP_CONFIG_KEY_VIBE_EXTRACT_MODEL = "vibe_extract_model";
+
+/** Gemini model id for `/api/vibe/expand` (text → scene prompt JSON). */
+export const PHOTO_APP_CONFIG_KEY_VIBE_EXPAND_MODEL = "vibe_expand_model";
+
+/** Default when DB row missing and env unset — Pro for sharper pose/geometry from reference pixels. */
+export const DEFAULT_GEMINI_VIBE_EXTRACT_MODEL = "gemini-2.5-pro";
+
+/** Default when DB row missing and env unset — Flash for fast text expand. */
+export const DEFAULT_GEMINI_VIBE_EXPAND_MODEL = "gemini-2.5-flash";
+
 export const STYLE_FIELDS = [
   "scene",
   "genre",
@@ -134,12 +146,73 @@ export function getStyleCoerceDiagnostics(input: unknown): {
   return { accepted: false, rawKeys, missingRequired: missing };
 }
 
-export function getGeminiVibeExtractModel(): string {
-  return process.env.GEMINI_VIBE_EXTRACT_MODEL || "gemini-2.5-flash";
+async function getGeminiVibeModelFromPhotoAppConfig(
+  supabase: ReturnType<typeof createSupabaseServer>,
+  configKey: string,
+  envName: "GEMINI_VIBE_EXTRACT_MODEL" | "GEMINI_VIBE_EXPAND_MODEL",
+  codeDefault: string,
+  logLabel: string
+): Promise<string> {
+  const envRaw =
+    envName === "GEMINI_VIBE_EXTRACT_MODEL"
+      ? process.env.GEMINI_VIBE_EXTRACT_MODEL
+      : process.env.GEMINI_VIBE_EXPAND_MODEL;
+  const envTrimmed = String(envRaw ?? "").trim();
+  const fallbackModel = envTrimmed || codeDefault;
+
+  try {
+    const { data, error } = await supabase
+      .from("photo_app_config")
+      .select("value")
+      .eq("key", configKey)
+      .maybeSingle();
+
+    if (error) {
+      console.warn(`[vibe.config] photo_app_config read failed (${logLabel})`, {
+        key: configKey,
+        message: error.message,
+      });
+      return fallbackModel;
+    }
+
+    const v = data?.value;
+    if (v !== undefined && v !== null && String(v).trim() !== "") {
+      return String(v).trim();
+    }
+  } catch (err) {
+    console.warn(`[vibe.config] photo_app_config read threw (${logLabel})`, {
+      key: configKey,
+      message: err instanceof Error ? err.message : String(err),
+    });
+  }
+
+  return fallbackModel;
 }
 
-export function getGeminiVibeExpandModel(): string {
-  return process.env.GEMINI_VIBE_EXPAND_MODEL || "gemini-2.5-flash";
+/** Resolved model for extract: `photo_app_config.vibe_extract_model` → env → default Pro. */
+export async function getGeminiVibeExtractModelRuntime(
+  supabase: ReturnType<typeof createSupabaseServer>
+): Promise<string> {
+  return getGeminiVibeModelFromPhotoAppConfig(
+    supabase,
+    PHOTO_APP_CONFIG_KEY_VIBE_EXTRACT_MODEL,
+    "GEMINI_VIBE_EXTRACT_MODEL",
+    DEFAULT_GEMINI_VIBE_EXTRACT_MODEL,
+    "extract"
+  );
+}
+
+/** Resolved model for expand: `photo_app_config.vibe_expand_model` → env → default Flash. */
+export async function getGeminiVibeExpandModelRuntime(
+  supabase: ReturnType<typeof createSupabaseServer>
+): Promise<string> {
+  return getGeminiVibeModelFromPhotoAppConfig(
+    supabase,
+    PHOTO_APP_CONFIG_KEY_VIBE_EXPAND_MODEL,
+    "GEMINI_VIBE_EXPAND_MODEL",
+    DEFAULT_GEMINI_VIBE_EXPAND_MODEL,
+    "expand"
+  );
 }
 
 export const EXTRACT_STYLE_INSTRUCTION = `

@@ -5,7 +5,7 @@ import {
   assembleVibeFinalPrompt,
   buildVibeExpandRuntimeContext,
   EXPAND_PROMPTS_INSTRUCTION,
-  getGeminiVibeExpandModel,
+  getGeminiVibeExpandModelRuntime,
   coerceStylePayload,
   getVibeAttachReferenceImageToGeneration,
   type StylePayload,
@@ -167,7 +167,7 @@ export async function POST(req: NextRequest) {
       referencePixelsInGeneration: willAttachReferenceInline,
     });
 
-    const textModel = getGeminiVibeExpandModel();
+    const textModel = await getGeminiVibeExpandModelRuntime(supabase);
     const geminiBaseUrl = await getGeminiBaseUrlRuntime(supabase);
     const geminiUrl = `${geminiBaseUrl}/v1beta/models/${textModel}:generateContent`;
     const apiKey = process.env.GEMINI_API_KEY;
