@@ -162,44 +162,55 @@ Be surgically precise. Avoid vague descriptions like "warm tones" or "natural lo
 Return ONLY valid JSON, no markdown.
 `.trim();
 
+/** Placed immediately BEFORE the reference inline image in the multi-part request. */
+export const VIBE_IMAGE_PART_LABEL_REFERENCE = `
+[IMAGE A — STYLE REFERENCE ONLY]
+The NEXT part is a photograph used ONLY as a recipe: pose, lighting, wardrobe style, background, camera, color grade, mood.
+It is NOT the person to depict in the output. Do NOT copy this person's face, bone structure, skin, eyes, or hair color as the result identity.
+`.trim();
+
+/** Placed immediately BEFORE the user's photo inline image(s). */
+export const VIBE_IMAGE_PART_LABEL_SUBJECT = `
+[IMAGE B — SUBJECT / USER IDENTITY]
+The NEXT part is the ONLY source for who the person in the output must be. The output face MUST match this person (same identity).
+If the result looks like IMAGE A's model, you FAILED — redo mentally until the face matches IMAGE B.
+`.trim();
+
 /**
  * Prepended to every generation prompt in generate-process.
- * Two-image mode: parts order is [reference, subject_photo(s), text] so the subject
- * is the last image before the prompt (Gemini image models weight that strongly).
- * Falls back to single-image mode when no reference is available.
+ * Two-image mode: parts are [label, IMAGE A ref, label, IMAGE B user, long text] — see generate-process.
  */
 export const GENERATE_VIBE_PREFIX_TWO_IMAGES = `
-CRITICAL INSTRUCTIONS — read carefully before the prompt.
+CRITICAL — READ ALL SECTIONS.
 
-Image order in this request (before this text): FIRST image = style reference only. LAST image = the SUBJECT user photo (identity you must keep).
+REQUEST LAYOUT (multi-part message):
+1) A short text label, then IMAGE A (reference photo).
+2) A short text label, then IMAGE B (user / subject photo).
+3) This instruction block + detailed scene prompt below.
 
-You are given TWO images:
-- IMAGE 1 (first image): STYLE REFERENCE — mood, pose, scene, lighting, outfit style, composition. Do NOT copy this person's face or identity; it is only a visual recipe.
-- IMAGE 2 (last image, immediately before this text): The SUBJECT — the real user. The output MUST clearly show THIS person's face and recognizable identity.
+IMAGE A: style reference ONLY (pose, light, set, clothes, framing, grade). Never treat anyone in A as the output person.
+IMAGE B: the real user. The output MUST be recognizable as THIS person (face, eyes, nose, jaw, skin tone, age). Makeup and hairstyle may follow the reference LOOK, but bone structure and identity come only from B.
 
-YOUR TASK: Create a NEW photorealistic image where the person from Image 2 (the subject) is placed into a scene that recreates the look, feel, and atmosphere of Image 1 (the reference).
+YOUR TASK: One new photorealistic photo where the PERSON is from IMAGE B, re-shot as if in the shoot described by IMAGE A + the text below. Not a reskin of A. Not a casual edit of B's selfie — full scene match.
 
-IDENTITY (from Image 2 — the LAST image — PRESERVE exactly):
-- Face structure, bone structure, facial features, skin tone, eye color, eye shape
-- Body proportions and build
-- Natural hair color and texture
+IDENTITY (IMAGE B only — non-negotiable):
+- Face shape, features, eyes, brows, nose, lips, ears, skin tone, apparent age = from B
+- Body proportions = from B
+- Hair: keep it believable for B; you may style/crop/light it like the reference, but do not silently turn B into A's hair/face
 
-STYLE (from Image 1 — RECREATE everything in the output, applied to the subject from Image 2):
-- Pose, body position, and body language — match the reference pose, NOT the subject's original pose
-- Environment, setting, surfaces, props, background
-- Lighting direction, quality, color temperature, shadow patterns
-- Color grading, contrast, saturation, color palette
-- Clothing style, fabrics, fit (adapt to the subject's body)
-- Mood, atmosphere, emotional tone
-- Camera angle, framing, composition, depth of field
-- Hair styling and arrangement (adapt subject's hair to match reference styling)
-- Facial expression and emotional state from the reference
+STYLE & SCENE (from IMAGE A + text — apply onto B's body):
+- Pose, hands, head tilt, gaze direction (match A)
+- Environment, props, backdrop
+- Lighting direction, quality, color temp, shadows
+- Wardrobe type/fit/color palette as in the prompt (on B's body)
+- Camera angle, lens feel, depth of field, composition
+- Mood and expression *energy* (intense, soft, etc.) — without replacing B's facial identity with A's
 
-The result must look like the subject from Image 2 was ACTUALLY PHOTOGRAPHED in the reference scene — not composited or photoshopped. Natural skin texture, realistic lighting interaction with face and body, proper perspective.
+QUALITY BAR: A viewer who covers everything except the face should still say "that's the user from B", not "that's the model from A".
 
-Never output a copy of Image 1 alone. Never replace the subject's face with the reference person's face.
+FORBIDDEN: Near-duplicate of IMAGE A. Swapping A's face onto the output. Ignoring IMAGE A's pose/light/outfit when the text asks for them.
 
-The text prompt below provides additional specific details. Follow it precisely.
+The detailed prompt below expands the JSON style — follow it, but NEVER let its description of "the model in the reference" override IMAGE B's identity.
 
 `.trimStart();
 
@@ -251,11 +262,11 @@ Each prompt uses a different creative emphasis:
 - Prompt C (accent: composition): Lead with framing/camera, then full scene on the SUBJECT.
 
 Rules:
-1. Start each prompt with: "Using the SUBJECT portrait (the user's photo — the last image before this text, not the style-reference image), place this exact person into the following scene while keeping their real face and identity:"
+1. Start each prompt with: "Using IMAGE B (the user photo — after the [IMAGE B — SUBJECT] label, NOT IMAGE A), place this exact person into the scene while keeping their real face and identity:"
 2. Length: 150-300 words per prompt.
-3. At least twice per prompt, remind: identity comes only from the SUBJECT photo; reference is for style/pose/scene only.
+3. At least twice per prompt, remind: face/identity = IMAGE B only; IMAGE A is pose/light/clothes/backdrop only.
 4. NEVER use vague phrases like "warm tones" without specifying where (skin, wall, highlights).
-5. The prompt must work with two input images: first = style reference, last = subject.
+5. The request has two images in order: IMAGE A then IMAGE B, each preceded by a text label — your wording must not confuse them.
 
 Return ONLY valid JSON array with 3 objects:
 [
@@ -271,7 +282,7 @@ Return ONLY valid JSON array with 3 objects:
  */
 export const GENERATE_VIBE_JSON_IDENTITY_BRIDGE = `
 
-JSON-TO-SCENE REMINDER: The detailed prompt below was expanded from a style JSON that describes a REFERENCE photo's shoot. Any mention of hair color, eye color, skin tone, freckles, age, or facial features in that text refers to the reference model only — IGNORE those for identity. The ONLY identity source is the SUBJECT photo (the last image before this block). Reproduce pose, lighting, environment, grading, outfit, and mood from the text; keep the SUBJECT's real face and body proportions.
+JSON-TO-SCENE REMINDER: The detailed prompt below was expanded from a style JSON about the REFERENCE shoot. Any hair/eye/skin/face wording there describes IMAGE A's model — IGNORE for identity. The ONLY identity source is IMAGE B (the user photo, right after its [IMAGE B] label). Transfer pose, light, set, clothes, grade, mood from the text onto B's face.
 
 `;
 

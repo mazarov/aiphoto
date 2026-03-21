@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServer, getStoragePublicUrl } from "@/lib/supabase";
-import { assembleVibeFinalPrompt } from "@/lib/vibe-gemini-instructions";
+import {
+  assembleVibeFinalPrompt,
+  VIBE_IMAGE_PART_LABEL_REFERENCE,
+  VIBE_IMAGE_PART_LABEL_SUBJECT,
+} from "@/lib/vibe-gemini-instructions";
 
 const BUCKET_UPLOADS = "web-generation-uploads";
 const BUCKET_RESULTS = "web-generation-results";
@@ -232,15 +236,28 @@ async function processGeneration(supabase: ReturnType<typeof createSupabaseServe
   }
 
   /*
-   * Image order for vibe+reference: [reference_image, subject_photo(s), text_prompt]
-   * Subject must be LAST before text — otherwise the model often copies the reference
-   * and ignores the user's face (looks like "original reference only").
+   * Two-image vibe: interleaved text labels so the model maps A=reference, B=user.
+   * [label, IMAGE A, label, IMAGE B, long text] — avoids two anonymous consecutive images.
    */
-  const parts: { text?: string; inlineData?: { mimeType: string; data: string } }[] = [
-    ...(referenceImagePart ? [referenceImagePart] : []),
-    ...imageParts,
-    { text: fullPrompt },
-  ];
+  const parts: { text?: string; inlineData?: { mimeType: string; data: string } }[] =
+    hasTwoImages && referenceImagePart
+      ? [
+          { text: VIBE_IMAGE_PART_LABEL_REFERENCE },
+          referenceImagePart,
+          { text: VIBE_IMAGE_PART_LABEL_SUBJECT },
+          ...imageParts,
+          { text: fullPrompt },
+        ]
+      : [...(referenceImagePart ? [referenceImagePart] : []), ...imageParts, { text: fullPrompt }];
+
+  if (isVibeGeneration) {
+    console.warn("[generation.process] parts_outline", {
+      generationId: id,
+      hasTwoImages,
+      partKinds: parts.map((p) => (p.inlineData ? "inlineData" : "text")),
+      textPartCount: parts.filter((p) => p.text).length,
+    });
+  }
 
   const { baseUrl: geminiBaseUrl, viaProxy } = await getGeminiBaseUrlRuntime(supabase);
   const geminiUrl = `${geminiBaseUrl}/v1beta/models/${gen.model}:generateContent`;

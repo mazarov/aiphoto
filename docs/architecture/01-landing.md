@@ -1,6 +1,6 @@
 # 01 — Лендинг (promptshot.ru)
 
-> Последнее обновление: 2026-03-23
+> Последнее обновление: 2026-03-24
 
 > UI side panel + content script: см. `docs/extension-ui-spec.md`; карта файлов и токены — `extension/DEVELOPER.md`.
 
@@ -71,7 +71,7 @@
 - **Pipeline spec (отладка / extension):** `GET /api/vibe/pipeline-spec` (auth) — JSON с полями `extract` / `expand`: `model`, `envKey`, полный текст **`instruction`** для обоих шагов.
 - **Save:** `POST /api/vibe/save` — сохраняет выбранную completed-генерацию в `landing_vibe_saves`, связывает с `vibe_id`/`card_id`, пишет `auto_seo_tags` и, если `card_id` отсутствует, пытается автосоздать `prompt_cards` + `prompt_card_media` + `prompt_variants` из `landing_generations.result_storage_*`. После этого обогащает `prompt_cards.seo_tags` на основе `vibes.style` (через `TAG_REGISTRY`).
 - **Generate:** `POST /api/generate` — расширение вызывает **один раз** на запуск (первый промпт после expand); сайт при необходимости может вызывать несколько раз.
-- **generate-process (vibe + reference):** если у генерации есть `vibe_id`, сервер подтягивает `vibes.source_image_url`, скачивает референс и шлёт в Gemini **два** изображения. **Порядок parts:** `[референс, фото(а) пользователя из Storage, текст]`. Фото пользователя — **последнее перед текстом**: иначе image-модель часто якорится на референсе и выдаёт «копию референса» без лица пользователя. Текст: префикс `GENERATE_VIBE_PREFIX_*`, затем **`GENERATE_VIBE_JSON_IDENTITY_BRIDGE`** (напоминание: JSON/expand описывают референс — идентичность только с фото пользователя), затем expanded prompt (`vibe-gemini-instructions.ts`).
+- **generate-process (vibe + reference):** если у генерации есть `vibe_id`, сервер подтягивает `vibes.source_image_url`, скачивает референс и шлёт в Gemini **два** изображения с **текстовыми метками** между ними (IMAGE A / IMAGE B), чтобы модель не путала анонимные подряд идущие картинки. **Порядок parts:** `[текст VIBE_IMAGE_PART_LABEL_REFERENCE, референс, текст VIBE_IMAGE_PART_LABEL_SUBJECT, фото пользователя из Storage, длинный текст = префикс + bridge + expanded prompt]`. Текст: префикс `GENERATE_VIBE_PREFIX_TWO_IMAGES`, затем **`GENERATE_VIBE_JSON_IDENTITY_BRIDGE`**, затем expanded prompt (`vibe-gemini-instructions.ts`).
 - **Логи полного промпта:** перед вызовом Gemini `generate-process` пишет **`console.warn` `[generation.process] full_prompt_text`** с полем `text` (весь `fullPrompt`) и метаданными. Отключить: `LANDING_LOG_FULL_GENERATION_PROMPT=0` (см. `.env.example`).
 - **Gemini routing:** extract/expand используют тот же runtime-флаг `photo_app_config.gemini_use_proxy` и `GEMINI_PROXY_BASE_URL`.
 - **Логи Gemini (extract/expand):** шаги идут через **`console.warn`** (часто `console.info` не попадает в Docker/Vercel). Цепочка: `request_begin` → (extract) `image_download_*` → `gemini_request` → `gemini_response` → `gemini_parse_ok`. Таймаут/сеть к Gemini: **`gemini_fetch_failed`** с `fetchErrorDetails` (в т.ч. `causeCode: ETIMEDOUT`). Невалидный JSON ответа: `gemini_response_body_not_json`. При сбое пайплайна — одна строка **`PIPELINE_FAIL`** + объект `gemini_pipeline_failed` (`parseStages`, coerce). При `GEMINI_VIBE_DEBUG=1` — redacted body и превью текста (`landing/src/lib/gemini-vibe-debug-log.ts`).
