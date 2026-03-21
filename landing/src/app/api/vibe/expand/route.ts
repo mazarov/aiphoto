@@ -7,11 +7,14 @@ import {
   EXPAND_PROMPTS_INSTRUCTION,
   coerceStylePayload,
   getGeminiVibeExpandModelRuntime,
+  getOpenAiVibeExpandModelRuntime,
   getVibeAttachReferenceImageToGeneration,
+  getVibeExpandLlmProvider,
   getVibeOneShotExtractPromptEnabled,
   MIN_VIBE_SCENE_PROMPT_CHARS,
   type StylePayload,
 } from "@/lib/vibe-gemini-instructions";
+import { openAiExpandStyleToPromptJson } from "@/lib/vibe-llm-openai";
 import {
   fetchErrorDetails,
   isGeminiVibeDebug,
@@ -164,7 +167,11 @@ export async function POST(req: NextRequest) {
     const willAttachReferenceInline =
       (await getVibeAttachReferenceImageToGeneration(supabase)) && hasReferenceUrl;
 
-    const textModel = await getGeminiVibeExpandModelRuntime(supabase);
+    const expandLlm = await getVibeExpandLlmProvider(supabase);
+    const textModel =
+      expandLlm === "openai"
+        ? await getOpenAiVibeExpandModelRuntime(supabase)
+        : await getGeminiVibeExpandModelRuntime(supabase);
 
     if (prefilledPrompt) {
       console.warn("[vibe.expand] request_begin", {
@@ -174,6 +181,7 @@ export async function POST(req: NextRequest) {
         hasReferenceUrl,
         referencePixelsInGeneration: willAttachReferenceInline,
         expandSource: "prefilled_generation_prompt",
+        llmProvider: expandLlm,
       });
 
       const variant: PromptVariant = { accent: SINGLE_PROMPT_ACCENT, prompt: prefilledPrompt };
@@ -188,6 +196,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({
         prompts,
         modelUsed: textModel,
+        llmProvider: expandLlm,
         finalPromptPreviews,
         finalPromptForGeneration: assembled,
         finalPromptAssumesTwoImages: willAttachReferenceInline,
@@ -195,112 +204,181 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    console.warn("[vibe.expand] request_begin", {
-      userId: user.id,
-      hasStyleInBody: body.style !== undefined && body.style !== null,
-      vibeId: body.vibeId ?? null,
-      hasReferenceUrl,
-      referencePixelsInGeneration: willAttachReferenceInline,
-      expandSource: "gemini",
-    });
-    const geminiBaseUrl = await getGeminiBaseUrlRuntime(supabase);
-    const geminiUrl = `${geminiBaseUrl}/v1beta/models/${textModel}:generateContent`;
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      return NextResponse.json({ error: "expand_failed" }, { status: 500 });
-    }
-
     const expandUserText = `${EXPAND_PROMPTS_INSTRUCTION}\n\n${buildVibeExpandRuntimeContext(willAttachReferenceInline)}\n\nStyle description:\n${JSON.stringify(style, null, 2)}`;
-    const geminiBody = {
-      contents: [
-        {
-          role: "user",
-          parts: [{ text: expandUserText }],
-        },
-      ],
-      generationConfig: {
-        responseMimeType: "application/json",
-      },
-    };
 
-    const geminiEndpointHost = (() => {
-      try {
-        return new URL(geminiBaseUrl).hostname;
-      } catch {
-        return "invalid_base_url";
+    let text = "";
+    let llmHttpOk = false;
+    let llmHttpStatus = 0;
+    let llmError: string | null = null;
+
+    const llmStarted = Date.now();
+
+    if (expandLlm === "openai") {
+      const openaiKey = process.env.OPENAI_API_KEY;
+      if (!openaiKey) {
+        console.error("[vibe.expand] missing OPENAI_API_KEY for openai expand");
+        return NextResponse.json({ error: "expand_failed" }, { status: 500 });
       }
-    })();
 
-    console.warn("[vibe.expand] gemini_request", {
-      userId: user.id,
-      model: textModel,
-      endpointHost: geminiEndpointHost,
-      userTextChars: expandUserText.length,
-      styleKeys: Object.keys(style),
-      timeoutMs: 45000,
-    });
-    if (isGeminiVibeDebug()) {
-      console.warn("[vibe.expand] gemini_request_body_redacted", redactGenerateContentBody(geminiBody));
-    }
-
-    const geminiStarted = Date.now();
-    let geminiRes: Response;
-    try {
-      geminiRes = await fetch(geminiUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-goog-api-key": apiKey,
-        },
-        body: JSON.stringify(geminiBody),
-        signal: AbortSignal.timeout(45000),
-      });
-    } catch (err) {
-      console.error("[vibe.expand] gemini_fetch_failed", {
+      console.warn("[vibe.expand] request_begin", {
         userId: user.id,
+        hasStyleInBody: body.style !== undefined && body.style !== null,
+        vibeId: body.vibeId ?? null,
+        hasReferenceUrl,
+        referencePixelsInGeneration: willAttachReferenceInline,
+        expandSource: "openai",
+        llmProvider: expandLlm,
+      });
+
+      console.warn("[vibe.expand] openai_request", {
+        userId: user.id,
+        llm: "openai",
+        model: textModel,
+        userTextChars: expandUserText.length,
+        styleKeys: Object.keys(style),
+        timeoutMs: 120000,
+      });
+
+      const oaRes = await openAiExpandStyleToPromptJson({
+        apiKey: openaiKey,
+        model: textModel,
+        userText: expandUserText,
+        timeoutMs: 120000,
+      });
+      text = oaRes.text;
+      llmHttpOk = oaRes.ok;
+      llmHttpStatus = oaRes.status;
+      llmError = oaRes.errorMessage ?? null;
+
+      console.warn("[vibe.expand] openai_response", {
+        userId: user.id,
+        llm: "openai",
+        model: textModel,
+        httpStatus: llmHttpStatus,
+        durationMs: Date.now() - llmStarted,
+        textChars: text.length,
+        error: llmError,
+      });
+      if (isGeminiVibeDebug() && text.length > 0) {
+        console.warn("[vibe.expand] openai_response_text_preview", {
+          userId: user.id,
+          preview: text.slice(0, 2500),
+          tail: text.length > 2500 ? text.slice(-400) : undefined,
+        });
+      }
+    } else {
+      console.warn("[vibe.expand] request_begin", {
+        userId: user.id,
+        hasStyleInBody: body.style !== undefined && body.style !== null,
+        vibeId: body.vibeId ?? null,
+        hasReferenceUrl,
+        referencePixelsInGeneration: willAttachReferenceInline,
+        expandSource: "gemini",
+        llmProvider: expandLlm,
+      });
+
+      const geminiBaseUrl = await getGeminiBaseUrlRuntime(supabase);
+      const geminiUrl = `${geminiBaseUrl}/v1beta/models/${textModel}:generateContent`;
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        return NextResponse.json({ error: "expand_failed" }, { status: 500 });
+      }
+
+      const geminiBody = {
+        contents: [
+          {
+            role: "user",
+            parts: [{ text: expandUserText }],
+          },
+        ],
+        generationConfig: {
+          responseMimeType: "application/json",
+        },
+      };
+
+      const geminiEndpointHost = (() => {
+        try {
+          return new URL(geminiBaseUrl).hostname;
+        } catch {
+          return "invalid_base_url";
+        }
+      })();
+
+      console.warn("[vibe.expand] gemini_request", {
+        userId: user.id,
+        llm: "gemini",
         model: textModel,
         endpointHost: geminiEndpointHost,
-        durationMs: Date.now() - geminiStarted,
-        ...toErrorMeta(err),
-        ...fetchErrorDetails(err),
+        userTextChars: expandUserText.length,
+        styleKeys: Object.keys(style),
+        timeoutMs: 45000,
       });
-      return NextResponse.json({ error: "expand_failed" }, { status: 503 });
-    }
+      if (isGeminiVibeDebug()) {
+        console.warn("[vibe.expand] gemini_request_body_redacted", redactGenerateContentBody(geminiBody));
+      }
 
-    let geminiData: {
-      error?: { message?: string };
-      candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
-    };
-    try {
-      geminiData = (await geminiRes.json()) as typeof geminiData;
-    } catch (err) {
-      console.error("[vibe.expand] gemini_response_body_not_json", {
+      let geminiRes: Response;
+      try {
+        geminiRes = await fetch(geminiUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-goog-api-key": apiKey,
+          },
+          body: JSON.stringify(geminiBody),
+          signal: AbortSignal.timeout(45000),
+        });
+      } catch (err) {
+        console.error("[vibe.expand] gemini_fetch_failed", {
+          userId: user.id,
+          model: textModel,
+          endpointHost: geminiEndpointHost,
+          durationMs: Date.now() - llmStarted,
+          ...toErrorMeta(err),
+          ...fetchErrorDetails(err),
+        });
+        return NextResponse.json({ error: "expand_failed" }, { status: 503 });
+      }
+
+      let geminiData: {
+        error?: { message?: string };
+        candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+      };
+      try {
+        geminiData = (await geminiRes.json()) as typeof geminiData;
+      } catch (err) {
+        console.error("[vibe.expand] gemini_response_body_not_json", {
+          userId: user.id,
+          model: textModel,
+          httpStatus: geminiRes.status,
+          durationMs: Date.now() - llmStarted,
+          ...fetchErrorDetails(err),
+        });
+        return NextResponse.json({ error: "expand_failed" }, { status: 502 });
+      }
+
+      text = geminiData?.candidates?.[0]?.content?.parts?.find((p) => typeof p.text === "string")?.text || "";
+      const responseSummary = summarizeGeminiApiResponse(geminiData);
+      llmHttpOk = geminiRes.ok;
+      llmHttpStatus = geminiRes.status;
+      llmError = geminiData?.error?.message ?? null;
+
+      console.warn("[vibe.expand] gemini_response", {
         userId: user.id,
+        llm: "gemini",
         model: textModel,
         httpStatus: geminiRes.status,
-        durationMs: Date.now() - geminiStarted,
-        ...fetchErrorDetails(err),
+        durationMs: Date.now() - llmStarted,
+        textChars: text.length,
+        ...responseSummary,
       });
-      return NextResponse.json({ error: "expand_failed" }, { status: 502 });
-    }
-
-    const text = geminiData?.candidates?.[0]?.content?.parts?.find((p) => typeof p.text === "string")?.text || "";
-    const responseSummary = summarizeGeminiApiResponse(geminiData);
-
-    console.warn("[vibe.expand] gemini_response", {
-      userId: user.id,
-      model: textModel,
-      httpStatus: geminiRes.status,
-      durationMs: Date.now() - geminiStarted,
-      textChars: text.length,
-      ...responseSummary,
-    });
-    if (isGeminiVibeDebug() && text.length > 0) {
-      console.warn("[vibe.expand] gemini_response_text_preview", {
-        userId: user.id,
-        preview: text.slice(0, 2500),
-        tail: text.length > 2500 ? text.slice(-400) : undefined,
-      });
+      if (isGeminiVibeDebug() && text.length > 0) {
+        console.warn("[vibe.expand] gemini_response_text_preview", {
+          userId: user.id,
+          preview: text.slice(0, 2500),
+          tail: text.length > 2500 ? text.slice(-400) : undefined,
+        });
+      }
     }
 
     const objectParse = parseGeminiJsonObject(text);
@@ -308,18 +386,19 @@ export async function POST(req: NextRequest) {
     const promptText = coerceExpandPrompt(objectParse.value, arrayParse.value);
     const parseStages = [...objectParse.stages, ...arrayParse.stages];
 
-    if (!geminiRes.ok || !promptText) {
+    if (!llmHttpOk || !promptText) {
       const stageLine = parseStages
         .map((s) => `${s.stage}:${s.ok ? "ok" : "fail"}${s.message ? `(${String(s.message).slice(0, 120)})` : ""}`)
         .join(" | ");
       console.error(
-        `[vibe.expand] PIPELINE_FAIL user=${user.id} http=${geminiRes.status} promptOk=${Boolean(promptText)} stages=${stageLine}`,
+        `[vibe.expand] PIPELINE_FAIL user=${user.id} llm=${expandLlm} http=${llmHttpStatus} promptOk=${Boolean(promptText)} stages=${stageLine}`,
       );
-      console.error("[vibe.expand] gemini_pipeline_failed", {
+      console.error("[vibe.expand] expand_pipeline_failed", {
         userId: user.id,
+        llm: expandLlm,
         model: textModel,
-        httpStatus: geminiRes.status,
-        geminiError: geminiData?.error?.message ?? null,
+        httpStatus: llmHttpStatus,
+        llmError,
         textLen: text.length,
         jsonObjectParsed: Boolean(objectParse.value),
         jsonArrayParsed: Boolean(arrayParse.value),
@@ -334,8 +413,9 @@ export async function POST(req: NextRequest) {
     const variant: PromptVariant = { accent: SINGLE_PROMPT_ACCENT, prompt: promptText };
     const prompts: PromptVariant[] = [variant];
 
-    console.warn("[vibe.expand] gemini_parse_ok", {
+    console.warn("[vibe.expand] expand_parse_ok", {
       userId: user.id,
+      llm: expandLlm,
       parseStages: parseStages.filter((s) => s.ok).map((s) => s.stage),
       promptsCount: prompts.length,
       promptChars: promptText.length,
@@ -351,6 +431,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       prompts,
       modelUsed: textModel,
+      llmProvider: expandLlm,
       finalPromptPreviews,
       finalPromptForGeneration: assembled,
       finalPromptAssumesTwoImages: willAttachReferenceInline,

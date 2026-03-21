@@ -6,11 +6,19 @@ import {
   EXPAND_PROMPTS_INSTRUCTION,
   getGeminiVibeExpandModelRuntime,
   getGeminiVibeExtractModelRuntime,
+  getOpenAiVibeExpandModelRuntime,
+  getOpenAiVibeExtractModelRuntime,
+  getVibeExpandLlmProvider,
+  getVibeExtractLlmProvider,
   getVibeOneShotExtractPromptEnabled,
   ONE_SHOT_EXTRACT_PROMPT_INSTRUCTION,
+  PHOTO_APP_CONFIG_KEY_VIBE_EXPAND_LLM,
   PHOTO_APP_CONFIG_KEY_VIBE_EXPAND_MODEL,
+  PHOTO_APP_CONFIG_KEY_VIBE_EXTRACT_LLM,
   PHOTO_APP_CONFIG_KEY_VIBE_EXTRACT_MODEL,
   PHOTO_APP_CONFIG_KEY_VIBE_ONE_SHOT_EXTRACT_PROMPT,
+  PHOTO_APP_CONFIG_KEY_VIBE_OPENAI_EXPAND_MODEL,
+  PHOTO_APP_CONFIG_KEY_VIBE_OPENAI_EXTRACT_MODEL,
 } from "@/lib/vibe-gemini-instructions";
 
 /**
@@ -23,17 +31,40 @@ export async function GET(request: NextRequest) {
   }
 
   const supabase = createSupabaseServer();
-  const [extractModel, expandModel, oneShotExtractPrompt] = await Promise.all([
+  const [
+    extractLlm,
+    expandLlm,
+    geminiExtractModel,
+    geminiExpandModel,
+    openAiExtractModel,
+    openAiExpandModel,
+    oneShotExtractPrompt,
+  ] = await Promise.all([
+    getVibeExtractLlmProvider(supabase),
+    getVibeExpandLlmProvider(supabase),
     getGeminiVibeExtractModelRuntime(supabase),
     getGeminiVibeExpandModelRuntime(supabase),
+    getOpenAiVibeExtractModelRuntime(supabase),
+    getOpenAiVibeExpandModelRuntime(supabase),
     getVibeOneShotExtractPromptEnabled(supabase),
   ]);
 
   return NextResponse.json({
     extract: {
-      configKey: PHOTO_APP_CONFIG_KEY_VIBE_EXTRACT_MODEL,
-      envKey: "GEMINI_VIBE_EXTRACT_MODEL",
-      model: extractModel,
+      llmProvider: extractLlm,
+      providerConfigKey: PHOTO_APP_CONFIG_KEY_VIBE_EXTRACT_LLM,
+      providerEnvKey: "VIBE_EXTRACT_LLM",
+      gemini: {
+        configKey: PHOTO_APP_CONFIG_KEY_VIBE_EXTRACT_MODEL,
+        envKey: "GEMINI_VIBE_EXTRACT_MODEL",
+        model: geminiExtractModel,
+      },
+      openai: {
+        configKey: PHOTO_APP_CONFIG_KEY_VIBE_OPENAI_EXTRACT_MODEL,
+        envKey: "VIBE_OPENAI_EXTRACT_MODEL",
+        model: openAiExtractModel,
+      },
+      modelUsed: extractLlm === "openai" ? openAiExtractModel : geminiExtractModel,
       instruction: EXTRACT_STYLE_INSTRUCTION,
       oneShot: {
         enabled: oneShotExtractPrompt,
@@ -43,9 +74,20 @@ export async function GET(request: NextRequest) {
       },
     },
     expand: {
-      configKey: PHOTO_APP_CONFIG_KEY_VIBE_EXPAND_MODEL,
-      envKey: "GEMINI_VIBE_EXPAND_MODEL",
-      model: expandModel,
+      llmProvider: expandLlm,
+      providerConfigKey: PHOTO_APP_CONFIG_KEY_VIBE_EXPAND_LLM,
+      providerEnvKey: "VIBE_EXPAND_LLM",
+      gemini: {
+        configKey: PHOTO_APP_CONFIG_KEY_VIBE_EXPAND_MODEL,
+        envKey: "GEMINI_VIBE_EXPAND_MODEL",
+        model: geminiExpandModel,
+      },
+      openai: {
+        configKey: PHOTO_APP_CONFIG_KEY_VIBE_OPENAI_EXPAND_MODEL,
+        envKey: "VIBE_OPENAI_EXPAND_MODEL",
+        model: openAiExpandModel,
+      },
+      modelUsed: expandLlm === "openai" ? openAiExpandModel : geminiExpandModel,
       instruction: EXPAND_PROMPTS_INSTRUCTION,
     },
   });

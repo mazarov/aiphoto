@@ -26,6 +26,22 @@ export const PHOTO_APP_CONFIG_KEY_VIBE_ONE_SHOT_EXTRACT_PROMPT = "vibe_one_shot_
 /** Minimum length for `prompt` from expand JSON or one-shot extract. */
 export const MIN_VIBE_SCENE_PROMPT_CHARS = 600;
 
+/** `gemini` | `openai` — which backend runs `/api/vibe/extract` (vision → JSON / one-shot prompt). */
+export const PHOTO_APP_CONFIG_KEY_VIBE_EXTRACT_LLM = "vibe_extract_llm";
+
+/** `gemini` | `openai` — which backend runs `/api/vibe/expand` (style JSON → scene prompt). */
+export const PHOTO_APP_CONFIG_KEY_VIBE_EXPAND_LLM = "vibe_expand_llm";
+
+/** OpenAI model when `vibe_extract_llm` = openai (vision-capable, e.g. gpt-4o). */
+export const PHOTO_APP_CONFIG_KEY_VIBE_OPENAI_EXTRACT_MODEL = "vibe_openai_extract_model";
+
+/** OpenAI model when `vibe_expand_llm` = openai (text JSON). */
+export const PHOTO_APP_CONFIG_KEY_VIBE_OPENAI_EXPAND_MODEL = "vibe_openai_expand_model";
+
+export const DEFAULT_OPENAI_VIBE_EXTRACT_MODEL = "gpt-4o";
+
+export const DEFAULT_OPENAI_VIBE_EXPAND_MODEL = "gpt-4.1-mini";
+
 export const STYLE_FIELDS = [
   "scene",
   "genre",
@@ -205,18 +221,14 @@ export function buildOneShotVibeStyleFromPrompt(rawPrompt: string): StylePayload
   };
 }
 
-async function getGeminiVibeModelFromPhotoAppConfig(
+async function getVibeModelStringFromPhotoAppConfig(
   supabase: ReturnType<typeof createSupabaseServer>,
   configKey: string,
-  envName: "GEMINI_VIBE_EXTRACT_MODEL" | "GEMINI_VIBE_EXPAND_MODEL",
+  envVarName: string,
   codeDefault: string,
   logLabel: string
 ): Promise<string> {
-  const envRaw =
-    envName === "GEMINI_VIBE_EXTRACT_MODEL"
-      ? process.env.GEMINI_VIBE_EXTRACT_MODEL
-      : process.env.GEMINI_VIBE_EXPAND_MODEL;
-  const envTrimmed = String(envRaw ?? "").trim();
+  const envTrimmed = String(process.env[envVarName] ?? "").trim();
   const fallbackModel = envTrimmed || codeDefault;
 
   try {
@@ -252,7 +264,7 @@ async function getGeminiVibeModelFromPhotoAppConfig(
 export async function getGeminiVibeExtractModelRuntime(
   supabase: ReturnType<typeof createSupabaseServer>
 ): Promise<string> {
-  return getGeminiVibeModelFromPhotoAppConfig(
+  return getVibeModelStringFromPhotoAppConfig(
     supabase,
     PHOTO_APP_CONFIG_KEY_VIBE_EXTRACT_MODEL,
     "GEMINI_VIBE_EXTRACT_MODEL",
@@ -265,12 +277,119 @@ export async function getGeminiVibeExtractModelRuntime(
 export async function getGeminiVibeExpandModelRuntime(
   supabase: ReturnType<typeof createSupabaseServer>
 ): Promise<string> {
-  return getGeminiVibeModelFromPhotoAppConfig(
+  return getVibeModelStringFromPhotoAppConfig(
     supabase,
     PHOTO_APP_CONFIG_KEY_VIBE_EXPAND_MODEL,
     "GEMINI_VIBE_EXPAND_MODEL",
     DEFAULT_GEMINI_VIBE_EXPAND_MODEL,
     "expand"
+  );
+}
+
+function parseVibeLlmProvider(value: string | null | undefined, fallback: "gemini" | "openai"): "gemini" | "openai" {
+  const raw = String(value ?? "").trim().toLowerCase();
+  if (raw === "openai") return "openai";
+  if (raw === "gemini") return "gemini";
+  return fallback;
+}
+
+/**
+ * Source of truth: `photo_app_config.vibe_extract_llm` (`gemini` | `openai`). Fallback: env `VIBE_EXTRACT_LLM`, default **gemini**.
+ */
+export async function getVibeExtractLlmProvider(
+  supabase: ReturnType<typeof createSupabaseServer>
+): Promise<"gemini" | "openai"> {
+  const envFallback = parseVibeLlmProvider(process.env.VIBE_EXTRACT_LLM, "gemini");
+
+  try {
+    const { data, error } = await supabase
+      .from("photo_app_config")
+      .select("value")
+      .eq("key", PHOTO_APP_CONFIG_KEY_VIBE_EXTRACT_LLM)
+      .maybeSingle();
+
+    if (error) {
+      console.warn("[vibe.config] photo_app_config read failed", {
+        key: PHOTO_APP_CONFIG_KEY_VIBE_EXTRACT_LLM,
+        message: error.message,
+      });
+      return envFallback;
+    }
+
+    const v = data?.value;
+    if (v !== undefined && v !== null && String(v).trim() !== "") {
+      return parseVibeLlmProvider(String(v), envFallback);
+    }
+  } catch (err) {
+    console.warn("[vibe.config] photo_app_config read threw", {
+      key: PHOTO_APP_CONFIG_KEY_VIBE_EXTRACT_LLM,
+      message: err instanceof Error ? err.message : String(err),
+    });
+  }
+
+  return envFallback;
+}
+
+/**
+ * Source of truth: `photo_app_config.vibe_expand_llm` (`gemini` | `openai`). Fallback: env `VIBE_EXPAND_LLM`, default **gemini**.
+ */
+export async function getVibeExpandLlmProvider(
+  supabase: ReturnType<typeof createSupabaseServer>
+): Promise<"gemini" | "openai"> {
+  const envFallback = parseVibeLlmProvider(process.env.VIBE_EXPAND_LLM, "gemini");
+
+  try {
+    const { data, error } = await supabase
+      .from("photo_app_config")
+      .select("value")
+      .eq("key", PHOTO_APP_CONFIG_KEY_VIBE_EXPAND_LLM)
+      .maybeSingle();
+
+    if (error) {
+      console.warn("[vibe.config] photo_app_config read failed", {
+        key: PHOTO_APP_CONFIG_KEY_VIBE_EXPAND_LLM,
+        message: error.message,
+      });
+      return envFallback;
+    }
+
+    const v = data?.value;
+    if (v !== undefined && v !== null && String(v).trim() !== "") {
+      return parseVibeLlmProvider(String(v), envFallback);
+    }
+  } catch (err) {
+    console.warn("[vibe.config] photo_app_config read threw", {
+      key: PHOTO_APP_CONFIG_KEY_VIBE_EXPAND_LLM,
+      message: err instanceof Error ? err.message : String(err),
+    });
+  }
+
+  return envFallback;
+}
+
+/** OpenAI chat model for extract when `vibe_extract_llm` = openai. */
+export async function getOpenAiVibeExtractModelRuntime(
+  supabase: ReturnType<typeof createSupabaseServer>
+): Promise<string> {
+  return getVibeModelStringFromPhotoAppConfig(
+    supabase,
+    PHOTO_APP_CONFIG_KEY_VIBE_OPENAI_EXTRACT_MODEL,
+    "VIBE_OPENAI_EXTRACT_MODEL",
+    DEFAULT_OPENAI_VIBE_EXTRACT_MODEL,
+    "openai-extract"
+  );
+}
+
+/** OpenAI chat model for expand when `vibe_expand_llm` = openai. */
+export async function getOpenAiVibeExpandModelRuntime(
+  supabase: ReturnType<typeof createSupabaseServer>
+): Promise<string> {
+  return getVibeModelStringFromPhotoAppConfig(
+    supabase,
+    PHOTO_APP_CONFIG_KEY_VIBE_OPENAI_EXPAND_MODEL,
+    "VIBE_OPENAI_EXPAND_MODEL",
+    DEFAULT_OPENAI_VIBE_EXPAND_MODEL,
+    "openai-expand"
   );
 }
 

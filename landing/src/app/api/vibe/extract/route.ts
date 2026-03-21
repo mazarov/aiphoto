@@ -9,10 +9,13 @@ import {
   buildOneShotVibeStyleFromPrompt,
   coerceStylePayload,
   getGeminiVibeExtractModelRuntime,
+  getOpenAiVibeExtractModelRuntime,
   getStyleCoerceDiagnostics,
+  getVibeExtractLlmProvider,
   getVibeOneShotExtractPromptEnabled,
   MIN_VIBE_SCENE_PROMPT_CHARS,
 } from "@/lib/vibe-gemini-instructions";
+import { openAiExtractImageJson } from "@/lib/vibe-llm-openai";
 import {
   fetchErrorDetails,
   isGeminiVibeDebug,
@@ -200,110 +203,170 @@ export async function POST(req: NextRequest) {
     }
 
     const supabase = createSupabaseServer();
+    const extractLlm = await getVibeExtractLlmProvider(supabase);
     const oneShotExtract = await getVibeOneShotExtractPromptEnabled(supabase);
-    const visionModel = await getGeminiVibeExtractModelRuntime(supabase);
-    const geminiBaseUrl = await getGeminiBaseUrlRuntime(supabase);
-    const geminiUrl = `${geminiBaseUrl}/v1beta/models/${visionModel}:generateContent`;
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      return NextResponse.json({ error: "extract_failed" }, { status: 500 });
-    }
 
     const extractInstruction = oneShotExtract
       ? ONE_SHOT_EXTRACT_PROMPT_INSTRUCTION
       : EXTRACT_STYLE_INSTRUCTION;
 
-    const geminiBody = {
-      contents: [
-        {
-          role: "user",
-          parts: [{ text: extractInstruction }, { inlineData }],
-        },
-      ],
-      generationConfig: {
-        responseMimeType: "application/json",
-      },
-    };
+    let text = "";
+    let httpOk = false;
+    let httpStatus = 0;
+    let modelUsed = "";
+    let llmError: string | null = null;
 
-    const geminiEndpointHost = (() => {
-      try {
-        return new URL(geminiBaseUrl).hostname;
-      } catch {
-        return "invalid_base_url";
+    const llmStarted = Date.now();
+
+    if (extractLlm === "openai") {
+      const openaiKey = process.env.OPENAI_API_KEY;
+      if (!openaiKey) {
+        console.error("[vibe.extract] missing OPENAI_API_KEY for openai extract");
+        return NextResponse.json({ error: "extract_failed" }, { status: 500 });
       }
-    })();
-
-    console.warn("[vibe.extract] gemini_request", {
-      userId: user.id,
-      model: visionModel,
-      endpointHost: geminiEndpointHost,
-      inlineImageBase64Chars: inlineData.data.length,
-      oneShotExtract,
-      instructionTextChars: extractInstruction.length,
-      timeoutMs: 45000,
-    });
-    if (isGeminiVibeDebug()) {
-      console.warn("[vibe.extract] gemini_request_body_redacted", redactGenerateContentBody(geminiBody));
-    }
-
-    const geminiStarted = Date.now();
-    let geminiRes: Response;
-    try {
-      geminiRes = await fetch(geminiUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-goog-api-key": apiKey,
-        },
-        body: JSON.stringify(geminiBody),
-        signal: AbortSignal.timeout(45000),
-      });
-    } catch (err) {
-      console.error("[vibe.extract] gemini_fetch_failed", {
+      modelUsed = await getOpenAiVibeExtractModelRuntime(supabase);
+      console.warn("[vibe.extract] openai_request", {
         userId: user.id,
+        llm: "openai",
+        model: modelUsed,
+        inlineImageBase64Chars: inlineData.data.length,
+        oneShotExtract,
+        instructionTextChars: extractInstruction.length,
+        timeoutMs: 120000,
+      });
+      const oaRes = await openAiExtractImageJson({
+        apiKey: openaiKey,
+        model: modelUsed,
+        instructionText: extractInstruction,
+        imageMimeType: inlineData.mimeType,
+        imageBase64: inlineData.data,
+      });
+      text = oaRes.text;
+      httpOk = oaRes.ok;
+      httpStatus = oaRes.status;
+      llmError = oaRes.errorMessage ?? null;
+      console.warn("[vibe.extract] openai_response", {
+        userId: user.id,
+        llm: "openai",
+        model: modelUsed,
+        httpStatus,
+        durationMs: Date.now() - llmStarted,
+        textChars: text.length,
+        error: llmError,
+      });
+      if (isGeminiVibeDebug() && text.length > 0) {
+        console.warn("[vibe.extract] openai_response_text_preview", {
+          userId: user.id,
+          preview: text.slice(0, 2500),
+          tail: text.length > 2500 ? text.slice(-400) : undefined,
+        });
+      }
+    } else {
+      const visionModel = await getGeminiVibeExtractModelRuntime(supabase);
+      modelUsed = visionModel;
+      const geminiBaseUrl = await getGeminiBaseUrlRuntime(supabase);
+      const geminiUrl = `${geminiBaseUrl}/v1beta/models/${visionModel}:generateContent`;
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        return NextResponse.json({ error: "extract_failed" }, { status: 500 });
+      }
+
+      const geminiBody = {
+        contents: [
+          {
+            role: "user",
+            parts: [{ text: extractInstruction }, { inlineData }],
+          },
+        ],
+        generationConfig: {
+          responseMimeType: "application/json",
+        },
+      };
+
+      const geminiEndpointHost = (() => {
+        try {
+          return new URL(geminiBaseUrl).hostname;
+        } catch {
+          return "invalid_base_url";
+        }
+      })();
+
+      console.warn("[vibe.extract] gemini_request", {
+        userId: user.id,
+        llm: "gemini",
         model: visionModel,
         endpointHost: geminiEndpointHost,
-        durationMs: Date.now() - geminiStarted,
-        ...toErrorMeta(err),
-        ...fetchErrorDetails(err),
+        inlineImageBase64Chars: inlineData.data.length,
+        oneShotExtract,
+        instructionTextChars: extractInstruction.length,
+        timeoutMs: 45000,
       });
-      return NextResponse.json({ error: "extract_failed" }, { status: 503 });
-    }
+      if (isGeminiVibeDebug()) {
+        console.warn("[vibe.extract] gemini_request_body_redacted", redactGenerateContentBody(geminiBody));
+      }
 
-    let geminiData: {
-      error?: { message?: string };
-      candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
-    };
-    try {
-      geminiData = (await geminiRes.json()) as typeof geminiData;
-    } catch (err) {
-      console.error("[vibe.extract] gemini_response_body_not_json", {
+      let geminiRes: Response;
+      try {
+        geminiRes = await fetch(geminiUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-goog-api-key": apiKey,
+          },
+          body: JSON.stringify(geminiBody),
+          signal: AbortSignal.timeout(45000),
+        });
+      } catch (err) {
+        console.error("[vibe.extract] gemini_fetch_failed", {
+          userId: user.id,
+          model: visionModel,
+          endpointHost: geminiEndpointHost,
+          durationMs: Date.now() - llmStarted,
+          ...toErrorMeta(err),
+          ...fetchErrorDetails(err),
+        });
+        return NextResponse.json({ error: "extract_failed" }, { status: 503 });
+      }
+
+      let geminiData: {
+        error?: { message?: string };
+        candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+      };
+      try {
+        geminiData = (await geminiRes.json()) as typeof geminiData;
+      } catch (err) {
+        console.error("[vibe.extract] gemini_response_body_not_json", {
+          userId: user.id,
+          model: visionModel,
+          httpStatus: geminiRes.status,
+          durationMs: Date.now() - llmStarted,
+          ...fetchErrorDetails(err),
+        });
+        return NextResponse.json({ error: "extract_failed" }, { status: 502 });
+      }
+
+      text = geminiData?.candidates?.[0]?.content?.parts?.find((p) => typeof p.text === "string")?.text || "";
+      const responseSummary = summarizeGeminiApiResponse(geminiData);
+      httpOk = geminiRes.ok;
+      httpStatus = geminiRes.status;
+      llmError = geminiData?.error?.message ?? null;
+
+      console.warn("[vibe.extract] gemini_response", {
         userId: user.id,
+        llm: "gemini",
         model: visionModel,
         httpStatus: geminiRes.status,
-        durationMs: Date.now() - geminiStarted,
-        ...fetchErrorDetails(err),
+        durationMs: Date.now() - llmStarted,
+        textChars: text.length,
+        ...responseSummary,
       });
-      return NextResponse.json({ error: "extract_failed" }, { status: 502 });
-    }
-
-    const text = geminiData?.candidates?.[0]?.content?.parts?.find((p) => typeof p.text === "string")?.text || "";
-    const responseSummary = summarizeGeminiApiResponse(geminiData);
-
-    console.warn("[vibe.extract] gemini_response", {
-      userId: user.id,
-      model: visionModel,
-      httpStatus: geminiRes.status,
-      durationMs: Date.now() - geminiStarted,
-      textChars: text.length,
-      ...responseSummary,
-    });
-    if (isGeminiVibeDebug() && text.length > 0) {
-      console.warn("[vibe.extract] gemini_response_text_preview", {
-        userId: user.id,
-        preview: text.slice(0, 2500),
-        tail: text.length > 2500 ? text.slice(-400) : undefined,
-      });
+      if (isGeminiVibeDebug() && text.length > 0) {
+        console.warn("[vibe.extract] gemini_response_text_preview", {
+          userId: user.id,
+          preview: text.slice(0, 2500),
+          tail: text.length > 2500 ? text.slice(-400) : undefined,
+        });
+      }
     }
 
     const { value: parsed, stages: parseStages } = parseGeminiJsonObject(text);
@@ -315,18 +378,19 @@ export async function POST(req: NextRequest) {
           : "";
       const promptOk = rawPrompt.length >= MIN_VIBE_SCENE_PROMPT_CHARS;
 
-      if (!geminiRes.ok || !promptOk) {
+      if (!httpOk || !promptOk) {
         const stageLine = parseStages
           .map((s) => `${s.stage}:${s.ok ? "ok" : "fail"}${s.message ? `(${String(s.message).slice(0, 120)})` : ""}`)
           .join(" | ");
         console.error(
-          `[vibe.extract] PIPELINE_FAIL user=${user.id} one_shot=true http=${geminiRes.status} promptOk=${promptOk} promptLen=${rawPrompt.length} stages=${stageLine}`,
+          `[vibe.extract] PIPELINE_FAIL user=${user.id} one_shot=true llm=${extractLlm} http=${httpStatus} promptOk=${promptOk} promptLen=${rawPrompt.length} stages=${stageLine}`,
         );
-        console.error("[vibe.extract] gemini_pipeline_failed_one_shot", {
+        console.error("[vibe.extract] extract_pipeline_failed_one_shot", {
           userId: user.id,
-          model: visionModel,
-          httpStatus: geminiRes.status,
-          geminiError: geminiData?.error?.message ?? null,
+          llm: extractLlm,
+          model: modelUsed,
+          httpStatus,
+          llmError,
           textLen: text.length,
           jsonObjectParsed: Boolean(parsed),
           parseStages,
@@ -340,8 +404,9 @@ export async function POST(req: NextRequest) {
 
       const style = buildOneShotVibeStyleFromPrompt(rawPrompt);
 
-      console.warn("[vibe.extract] gemini_parse_ok", {
+      console.warn("[vibe.extract] extract_parse_ok", {
         userId: user.id,
+        llm: extractLlm,
         oneShotExtract: true,
         parseStages: parseStages.filter((s) => s.ok).map((s) => s.stage),
         styleFieldCount: Object.keys(style).length,
@@ -371,26 +436,28 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({
         vibeId: vibe.id,
         style,
-        modelUsed: visionModel,
+        modelUsed,
+        llmProvider: extractLlm,
         oneShotExtract: true,
       });
     }
 
     const style = parsed ? coerceStylePayload(parsed) : null;
 
-    if (!geminiRes.ok || !style) {
+    if (!httpOk || !style) {
       const coerceDiag = parsed ? getStyleCoerceDiagnostics(parsed) : null;
       const stageLine = parseStages
         .map((s) => `${s.stage}:${s.ok ? "ok" : "fail"}${s.message ? `(${String(s.message).slice(0, 120)})` : ""}`)
         .join(" | ");
       console.error(
-        `[vibe.extract] PIPELINE_FAIL user=${user.id} http=${geminiRes.status} parsed=${Boolean(parsed)} styleOk=${Boolean(style)} missing=${JSON.stringify(coerceDiag?.missingRequired ?? [])} stages=${stageLine}`,
+        `[vibe.extract] PIPELINE_FAIL user=${user.id} llm=${extractLlm} http=${httpStatus} parsed=${Boolean(parsed)} styleOk=${Boolean(style)} missing=${JSON.stringify(coerceDiag?.missingRequired ?? [])} stages=${stageLine}`,
       );
-      console.error("[vibe.extract] gemini_pipeline_failed", {
+      console.error("[vibe.extract] extract_pipeline_failed", {
         userId: user.id,
-        model: visionModel,
-        httpStatus: geminiRes.status,
-        geminiError: geminiData?.error?.message ?? null,
+        llm: extractLlm,
+        model: modelUsed,
+        httpStatus,
+        llmError,
         textLen: text.length,
         jsonObjectParsed: Boolean(parsed),
         parseStages,
@@ -404,8 +471,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "extract_failed" }, { status: 500 });
     }
 
-    console.warn("[vibe.extract] gemini_parse_ok", {
+    console.warn("[vibe.extract] extract_parse_ok", {
       userId: user.id,
+      llm: extractLlm,
       parseStages: parseStages.filter((s) => s.ok).map((s) => s.stage),
       styleFieldCount: Object.keys(style).length,
     });
@@ -431,7 +499,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       vibeId: vibe.id,
       style,
-      modelUsed: visionModel,
+      modelUsed,
+      llmProvider: extractLlm,
     });
   } catch (err) {
     console.error("[vibe.extract] unhandled error", {
