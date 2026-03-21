@@ -262,11 +262,11 @@ Each prompt uses a different creative emphasis:
 - Prompt C (accent: composition): Lead with framing/camera, then full scene on the SUBJECT.
 
 Rules:
-1. Start each prompt with: "Using IMAGE B (the user photo — after the [IMAGE B — SUBJECT] label, NOT IMAGE A), place this exact person into the scene while keeping their real face and identity:"
+1. Start each prompt with: "Transform the person in the attached USER photograph into the following scene while preserving their real face and identity exactly:"
 2. Length: 150-300 words per prompt.
-3. At least twice per prompt, remind: face/identity = IMAGE B only; IMAGE A is pose/light/clothes/backdrop only.
+3. At least twice per prompt, remind: identity comes only from the attached user photo; the reference shot exists only as JSON/text — do not imply a second face source.
 4. NEVER use vague phrases like "warm tones" without specifying where (skin, wall, highlights).
-5. The request has two images in order: IMAGE A then IMAGE B, each preceded by a text label — your wording must not confuse them.
+5. Write a self-contained scene: the image model typically receives ONLY the user's photo plus your text (reference pixels are not sent by default). All mood/light/pose/outfit must be clear from your words.
 
 Return ONLY valid JSON array with 3 objects:
 [
@@ -277,18 +277,36 @@ Return ONLY valid JSON array with 3 objects:
 `.trim();
 
 /**
- * Inserted between vibe prefix and the expanded prompt text so the image model
- * does not treat JSON-derived prose as "become this reference person".
+ * Default OFF. When enabled, generate-process downloads vibes.source_image_url and sends it
+ * as a second inline image (experimental — models often clone the reference face).
+ * Reference is always used in extract (vision → JSON); default generation path is user photo + text only.
  */
-export const GENERATE_VIBE_JSON_IDENTITY_BRIDGE = `
+export function shouldAttachVibeReferenceImageToGeneration(): boolean {
+  const raw = String(process.env.VIBE_ATTACH_REFERENCE_IMAGE_TO_GENERATION ?? "").trim().toLowerCase();
+  return ["1", "true", "yes", "y", "on"].includes(raw);
+}
 
-JSON-TO-SCENE REMINDER: The detailed prompt below was expanded from a style JSON about the REFERENCE shoot. Any hair/eye/skin/face wording there describes IMAGE A's model — IGNORE for identity. The ONLY identity source is IMAGE B (the user photo, right after its [IMAGE B] label). Transfer pose, light, set, clothes, grade, mood from the text onto B's face.
+/**
+ * Inserted between vibe prefix and the expanded prompt (single-image generation — default).
+ */
+export const GENERATE_VIBE_JSON_IDENTITY_BRIDGE_SINGLE = `
+
+JSON-TO-SCENE REMINDER: The detailed prompt below was expanded from a style JSON about a REFERENCE photo. Any hair/eye/skin/face wording there describes the reference model — IGNORE for identity. The ONLY identity source is the single attached USER photograph. Apply pose, lighting, environment, color grade, outfit, and mood from the text to that person.
+
+`;
+
+/**
+ * When two images are attached (label, ref, label, user, text).
+ */
+export const GENERATE_VIBE_JSON_IDENTITY_BRIDGE_DUAL = `
+
+JSON-TO-SCENE REMINDER: The detailed prompt below was expanded from a style JSON about the REFERENCE shoot. Any hair/eye/skin/face wording there describes IMAGE A's model — IGNORE for identity. The ONLY identity source is IMAGE B (the user photo, after its [IMAGE B] label). Transfer pose, light, set, clothes, grade, mood from the text onto B's face.
 
 `;
 
 /**
  * Full text sent to Gemini image generation for vibe rows (must match generate-process).
- * `assumeReferenceImageLoaded`: true when reference inline image will be attached (same as hasTwoImages).
+ * `assumeReferenceImageLoaded`: true only when reference inline image is actually attached.
  */
 export function assembleVibeFinalPrompt(
   rawExpandedPrompt: string,
@@ -297,5 +315,8 @@ export function assembleVibeFinalPrompt(
   const prefix = assumeReferenceImageLoaded
     ? GENERATE_VIBE_PREFIX_TWO_IMAGES
     : GENERATE_VIBE_PREFIX_SINGLE_IMAGE;
-  return prefix + GENERATE_VIBE_JSON_IDENTITY_BRIDGE + rawExpandedPrompt;
+  const bridge = assumeReferenceImageLoaded
+    ? GENERATE_VIBE_JSON_IDENTITY_BRIDGE_DUAL
+    : GENERATE_VIBE_JSON_IDENTITY_BRIDGE_SINGLE;
+  return prefix + bridge + rawExpandedPrompt;
 }

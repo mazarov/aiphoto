@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServer, getStoragePublicUrl } from "@/lib/supabase";
 import {
   assembleVibeFinalPrompt,
+  shouldAttachVibeReferenceImageToGeneration,
   VIBE_IMAGE_PART_LABEL_REFERENCE,
   VIBE_IMAGE_PART_LABEL_SUBJECT,
 } from "@/lib/vibe-gemini-instructions";
@@ -137,6 +138,8 @@ async function processGeneration(supabase: ReturnType<typeof createSupabaseServe
   const isVibeGeneration = !!(gen.vibe_id);
 
   const imageParts: { inlineData: { mimeType: string; data: string } }[] = [];
+  /** For logs: each user upload sent to Gemini (order matches imageParts). */
+  const userImageMetaForLog: { storagePath: string; mime: string; bytes: number }[] = [];
 
   for (const path of inputPaths) {
     console.log("[generation.process] download input photo", {
@@ -161,6 +164,7 @@ async function processGeneration(supabase: ReturnType<typeof createSupabaseServe
     const base64 = buf.toString("base64");
     const mime = path.endsWith(".png") ? "image/png" : path.endsWith(".webp") ? "image/webp" : "image/jpeg";
     imageParts.push({ inlineData: { mimeType: mime, data: base64 } });
+    userImageMetaForLog.push({ storagePath: path, mime, bytes: buf.length });
     console.log("[generation.process] input photo encoded", {
       generationId: id,
       path,
@@ -170,8 +174,18 @@ async function processGeneration(supabase: ReturnType<typeof createSupabaseServe
     });
   }
 
+  const attachRefPixel =
+    isVibeGeneration && shouldAttachVibeReferenceImageToGeneration();
+
   let referenceImagePart: { inlineData: { mimeType: string; data: string } } | null = null;
-  if (isVibeGeneration && gen.vibe_id) {
+  let referenceMetaForLog: {
+    sourceUrl: string;
+    host: string;
+    mime: string;
+    bytes: number;
+  } | null = null;
+
+  if (attachRefPixel && gen.vibe_id) {
     const { data: vibeRow } = await supabase
       .from("vibes")
       .select("source_image_url")
@@ -197,6 +211,22 @@ async function processGeneration(supabase: ReturnType<typeof createSupabaseServe
           const refBuf = Buffer.from(await refRes.arrayBuffer());
           if (refBuf.length <= 10 * 1024 * 1024) {
             referenceImagePart = { inlineData: { mimeType: refMime, data: refBuf.toString("base64") } };
+            try {
+              const ru = new URL(refUrl);
+              referenceMetaForLog = {
+                sourceUrl: refUrl,
+                host: ru.hostname,
+                mime: refMime,
+                bytes: refBuf.length,
+              };
+            } catch {
+              referenceMetaForLog = {
+                sourceUrl: refUrl.slice(0, 300),
+                host: "(parse_error)",
+                mime: refMime,
+                bytes: refBuf.length,
+              };
+            }
             console.log("[generation.process] reference image encoded", {
               generationId: id,
               mime: refMime,
@@ -219,6 +249,18 @@ async function processGeneration(supabase: ReturnType<typeof createSupabaseServe
   }
 
   const hasTwoImages = isVibeGeneration && referenceImagePart !== null;
+
+  if (isVibeGeneration) {
+    console.warn("[generation.process] vibe_reference_pixels", {
+      generationId: id,
+      attachRefPixel,
+      referenceDownloaded: Boolean(referenceImagePart),
+      architecture: attachRefPixel
+        ? "dual_image_experimental"
+        : "single_user_image_plus_text_default",
+    });
+  }
+
   const fullPrompt = isVibeGeneration
     ? assembleVibeFinalPrompt(rawPrompt, hasTwoImages)
     : rawPrompt;
@@ -258,6 +300,78 @@ async function processGeneration(supabase: ReturnType<typeof createSupabaseServe
       textPartCount: parts.filter((p) => p.text).length,
     });
   }
+
+  const imagesSentToGemini: Array<{
+    partIndex: number;
+    role: string;
+    storagePath?: string;
+    sourceUrlHost?: string;
+    sourceUrlPreview?: string;
+    mime: string;
+    bytes: number;
+    base64Chars: number;
+  }> = [];
+  let refImageLogged = false;
+  let userMetaIdx = 0;
+  for (let pi = 0; pi < parts.length; pi++) {
+    const p = parts[pi];
+    if (!p?.inlineData) continue;
+    const idata = p.inlineData;
+    if (hasTwoImages && referenceMetaForLog && !refImageLogged) {
+      refImageLogged = true;
+      imagesSentToGemini.push({
+        partIndex: pi,
+        role: "IMAGE_A_style_reference",
+        sourceUrlHost: referenceMetaForLog.host,
+        sourceUrlPreview:
+          referenceMetaForLog.sourceUrl.length > 220
+            ? `${referenceMetaForLog.sourceUrl.slice(0, 220)}…`
+            : referenceMetaForLog.sourceUrl,
+        mime: idata.mimeType,
+        bytes: referenceMetaForLog.bytes,
+        base64Chars: idata.data.length,
+      });
+      continue;
+    }
+    const um = userImageMetaForLog[userMetaIdx];
+    userMetaIdx += 1;
+    imagesSentToGemini.push({
+      partIndex: pi,
+      role: hasTwoImages ? `IMAGE_B_user_subject_${userMetaIdx}` : `user_subject_${userMetaIdx}`,
+      storagePath: um?.storagePath,
+      mime: idata.mimeType,
+      bytes: um?.bytes ?? 0,
+      base64Chars: idata.data.length,
+    });
+  }
+
+  console.warn("[generation.process] gemini_multimodal_images", {
+    generationId: id,
+    userId,
+    model: gen.model,
+    vibeId: gen.vibe_id ?? null,
+    isVibeGeneration,
+    attachReferencePixelsEnv: attachRefPixel,
+    hasTwoImages,
+    imagesSentToGemini,
+    partsSequence: parts.map((p, idx) => {
+      if (p.inlineData) {
+        return {
+          partIndex: idx,
+          type: "inlineData",
+          mime: p.inlineData.mimeType,
+          base64Chars: p.inlineData.data.length,
+        };
+      }
+      const t = p.text ?? "";
+      return {
+        partIndex: idx,
+        type: "text",
+        chars: t.length,
+        head: t.trim().slice(0, 72) + (t.length > 72 ? "…" : ""),
+      };
+    }),
+  });
 
   const { baseUrl: geminiBaseUrl, viaProxy } = await getGeminiBaseUrlRuntime(supabase);
   const geminiUrl = `${geminiBaseUrl}/v1beta/models/${gen.model}:generateContent`;

@@ -6,6 +6,7 @@ import {
   EXPAND_PROMPTS_INSTRUCTION,
   getGeminiVibeExpandModel,
   coerceStylePayload,
+  shouldAttachVibeReferenceImageToGeneration,
   type StylePayload,
 } from "@/lib/vibe-gemini-instructions";
 import {
@@ -135,10 +136,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "missing_style" }, { status: 400 });
     }
 
+    const referenceInlineEnabled = shouldAttachVibeReferenceImageToGeneration();
+    const willAttachReferenceInline = referenceInlineEnabled && hasReferenceUrl;
+
     console.warn("[vibe.expand] request_begin", {
       userId: user.id,
       hasStyleInBody: body.style !== undefined && body.style !== null,
       vibeId: body.vibeId ?? null,
+      hasReferenceUrl,
+      referenceInlineEnabled,
+      willAttachReferenceInline,
     });
 
     const textModel = getGeminiVibeExpandModel();
@@ -276,15 +283,16 @@ export async function POST(req: NextRequest) {
 
     const finalPromptPreviews = prompts.map((p) => ({
       accent: p.accent,
-      fullText: assembleVibeFinalPrompt(p.prompt, hasReferenceUrl),
+      fullText: assembleVibeFinalPrompt(p.prompt, willAttachReferenceInline),
     }));
 
     return NextResponse.json({
       prompts,
       modelUsed: textModel,
       finalPromptPreviews,
-      finalPromptForGeneration: assembleVibeFinalPrompt(prompts[0].prompt, hasReferenceUrl),
-      finalPromptAssumesTwoImages: hasReferenceUrl,
+      finalPromptForGeneration: assembleVibeFinalPrompt(prompts[0].prompt, willAttachReferenceInline),
+      finalPromptAssumesTwoImages: willAttachReferenceInline,
+      vibeReferenceInlinePixels: referenceInlineEnabled,
     });
   } catch (err) {
     console.error("[vibe.expand] unhandled error", {
