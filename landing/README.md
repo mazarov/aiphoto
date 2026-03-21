@@ -64,8 +64,8 @@ NEXT_PUBLIC_ENABLE_TRY_THIS_LOOK=true
 1. Пользователь залогинен -> `GET /api/me` возвращает `200`
 2. Upload фото -> `POST /api/upload-generation-photo` возвращает `storagePath`
 3. Extract -> `POST /api/vibe/extract` возвращает `{ vibeId, style }`
-4. Expand -> `POST /api/vibe/expand` возвращает 3 prompts
-5. Generate -> 3x `POST /api/generate` возвращает 3 id
+4. Expand -> `POST /api/vibe/expand` возвращает 1 prompt (`accent: scene`)
+5. Generate -> 1x `POST /api/generate` возвращает id
 6. Polling -> `GET /api/generations/[id]` до `completed`
 7. Save -> `POST /api/vibe/save` возвращает `saveId` (+ `autoTagCount`), auto-теги сохраняются в `landing_vibe_saves.auto_seo_tags`, при отсутствии `card_id` выполняется автопубликация карточки
 

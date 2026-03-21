@@ -277,6 +277,7 @@ function classifyErrorType(message) {
 
 function formatAccentLabel(accent) {
   const map = {
+    scene: t("accent_scene"),
     lighting: t("accent_lighting"),
     mood: t("accent_mood"),
     composition: t("accent_composition")
@@ -414,6 +415,7 @@ function getHistoryStats() {
 
 function getAccentStats() {
   const base = {
+    scene: { completed: 0, failed: 0 },
     lighting: { completed: 0, failed: 0 },
     mood: { completed: 0, failed: 0 },
     composition: { completed: 0, failed: 0 }
@@ -1073,12 +1075,13 @@ async function generateAll() {
   state.info =
     failed === 0 ? t("all_done") : `${t("partial_done")}: ${completed}/1`;
   const perAccent = {
+    scene: { completed: 0, failed: 0 },
     lighting: { completed: 0, failed: 0 },
     mood: { completed: 0, failed: 0 },
     composition: { completed: 0, failed: 0 }
   };
   for (const row of state.results) {
-    const key = String(row.accent || "");
+    const key = String(row.accent || "scene");
     if (!Object.prototype.hasOwnProperty.call(perAccent, key)) continue;
     if (row.status === "completed") perAccent[key].completed += 1;
     if (row.status === "failed") perAccent[key].failed += 1;

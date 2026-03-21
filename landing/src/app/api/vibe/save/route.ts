@@ -3,7 +3,7 @@ import { createSupabaseServer } from "@/lib/supabase";
 import { getSupabaseUserForApiRoute } from "@/lib/supabase-route-auth";
 import { TAG_REGISTRY, type Dimension } from "@/lib/tag-registry";
 
-const ALLOWED_ACCENTS = ["lighting", "mood", "composition"] as const;
+const ALLOWED_ACCENTS = ["scene", "lighting", "mood", "composition"] as const;
 type PromptAccent = (typeof ALLOWED_ACCENTS)[number];
 const VIBE_PUBLISH_DATASET_SLUG = "steal_this_vibe_extension";
 const VIBE_PUBLISH_CHANNEL = "Steal This Vibe Extension";
@@ -123,7 +123,13 @@ function buildCardTitle(prompt: string, accent: PromptAccent): string {
   if (!normalized) return "Steal This Vibe";
   const short = normalized.length > 90 ? `${normalized.slice(0, 87).trim()}...` : normalized;
   const accentLabel =
-    accent === "lighting" ? "Свет" : accent === "mood" ? "Атмосфера" : "Композиция";
+    accent === "scene"
+      ? "Сцена"
+      : accent === "lighting"
+        ? "Свет"
+        : accent === "mood"
+          ? "Атмосфера"
+          : "Композиция";
   return `Steal This Vibe: ${accentLabel} — ${short}`;
 }
 

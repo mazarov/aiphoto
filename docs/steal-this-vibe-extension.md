@@ -452,46 +452,18 @@ Return ONLY valid JSON, no markdown.
 
 ```json
 {
-  "prompts": [
-    { "accent": "lighting", "prompt": "…expanded text only…" },
-    { "accent": "mood", "prompt": "…" },
-    { "accent": "composition", "prompt": "…" }
-  ],
+  "prompts": [{ "accent": "scene", "prompt": "…expanded text only…" }],
   "modelUsed": "gemini-2.5-flash",
   "finalPromptAssumesTwoImages": true,
-  "finalPromptForGeneration": "…prefix + JSON bridge + prompts[0].prompt — как в generate-process…",
-  "finalPromptPreviews": [
-    { "accent": "lighting", "fullText": "…" },
-    { "accent": "mood", "fullText": "…" },
-    { "accent": "composition", "fullText": "…" }
-  ]
+  "vibeReferenceInlinePixels": true,
+  "finalPromptForGeneration": "…prefix + JSON bridge + prompt — как в generate-process…",
+  "finalPromptPreviews": [{ "accent": "scene", "fullText": "…" }]
 }
 ```
 
-`finalPromptForGeneration` / `fullText` собираются через `assembleVibeFinalPrompt` в `vibe-gemini-instructions.ts` (должны совпадать с тем, что уходит в Gemini при генерации). `finalPromptAssumesTwoImages` = есть непустой `vibes.source_image_url` (если сервер потом не скачает референс, фактически сработает однокартиночный префикс).
+`finalPromptForGeneration` / `fullText` собираются через `assembleVibeFinalPrompt` в `vibe-gemini-instructions.ts`. `finalPromptAssumesTwoImages` = реально прикреплены пиксели референса (`VIBE_ATTACH_REFERENCE_IMAGE_TO_GENERATION` + успешный download). К запросу expand дописывается `buildVibeExpandRuntimeContext(...)`.
 
-**Промпт для LLM (Gemini text):**
-
-```
-You are a prompt engineer for AI image generation.
-
-Given a structured style description of a photo, generate exactly 3 prompts for recreating this style with a different person's photo.
-
-Each prompt must:
-1. Include "{subject}" placeholder where the person should be described
-2. Be 1-3 sentences, 30-80 words
-3. Focus on a different visual accent:
-   - Prompt A: emphasize LIGHTING (direction, quality, color temperature, shadows)
-   - Prompt B: emphasize MOOD (atmosphere, emotion, narrative)
-   - Prompt C: emphasize COMPOSITION (framing, angles, spatial arrangement)
-4. Include ALL style elements but weight the accent aspect more heavily
-5. Be directly usable as a Gemini image generation prompt
-
-Style description:
-{style_json}
-
-Return ONLY valid JSON array with 3 objects, each having "accent" and "prompt" fields.
-```
+**Промпт для LLM (Gemini text):** см. `EXPAND_PROMPTS_INSTRUCTION` + runtime context в `landing/src/lib/vibe-gemini-instructions.ts`; ответ — JSON-объект `{ "prompt": "..." }` (допустим fallback: массив из одного `{ accent, prompt }`).
 
 **Ошибки:**
 
@@ -510,7 +482,7 @@ Return ONLY valid JSON array with 3 objects, each having "accent" and "prompt" f
   "vibeId": "uuid",
   "generationId": "uuid",
   "prompt": "выбранный промпт",
-  "accent": "lighting"
+  "accent": "scene"
 }
 ```
 
@@ -620,18 +592,16 @@ Side Panel загружен, пользователь нажал "Steal this vib
 │   └─ получаем storagePath
 │
 ├─ 4. POST /api/vibe/expand { vibeId, style }
-│   └─ получаем 3 промпта (lighting, mood, composition)
+│   └─ получаем 1 промпт (accent: scene)
 │
-├─ 5. 3× POST /api/generate { prompt, photoStoragePaths: [storagePath], model, aspectRatio, imageSize }
-│   └─ получаем 3 generationId
+├─ 5. 1× POST /api/generate { prompt, photoStoragePaths: [storagePath], model, aspectRatio, imageSize }
+│   └─ получаем generationId
 │
-├─ 6. Polling: 3× GET /api/generations/[id] каждые 2.5 сек
-│   └─ показываем общий прогресс (0/3, 1/3, 2/3, 3/3 ready)
-│   └─ по мере готовности показываем результаты
+├─ 6. Polling: GET /api/generations/[id] каждые 2.5 сек
+│   └─ прогресс до completed
 │
-├─ 7. Все 3 готовы → экран результатов
-│   └─ 3 карточки с изображениями
-│   └─ у каждой: label акцента (Lighting / Mood / Composition)
+├─ 7. Результат готов → экран результатов
+│   └─ 1 карточка (акцент «Сцена»)
 │   └─ кнопки: ⭐ Save / ⬇ Download / 🔗 Open on site
 │
 └─ 8. "Save" → POST /api/vibe/save { vibeId, generationId, prompt, accent }
@@ -671,8 +641,7 @@ CREATE POLICY "Users can insert own vibes"
 | Недостаточно кредитов | Показать баланс + "Нужно N кредитов, у вас M", ссылка на пополнение |
 | Extract не смог скачать изображение | "Не удалось загрузить изображение. Попробуйте другое фото" |
 | Extract вернул невалидный JSON | Retry 1 раз, если снова → "Не удалось определить стиль" |
-| Одна из 3 генераций failed | Показать 2 успешных, для failed — "Не удалось сгенерировать", кредит возвращён |
-| Все 3 генерации failed | Экран ошибки + "Попробовать ещё раз" |
+| Генерация failed | Карточка ошибки, кредит возвращён |
 | Таймаут генерации (> 60 сек) | Прекратить polling, показать "Генерация заняла слишком долго" |
 | Сеть недоступна | Toast "Нет соединения", retry кнопка |
 

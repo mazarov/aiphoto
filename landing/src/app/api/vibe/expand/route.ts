@@ -3,6 +3,7 @@ import { createSupabaseServer } from "@/lib/supabase";
 import { getSupabaseUserForApiRoute } from "@/lib/supabase-route-auth";
 import {
   assembleVibeFinalPrompt,
+  buildVibeExpandRuntimeContext,
   EXPAND_PROMPTS_INSTRUCTION,
   getGeminiVibeExpandModel,
   coerceStylePayload,
@@ -13,15 +14,19 @@ import {
   fetchErrorDetails,
   isGeminiVibeDebug,
   parseGeminiJsonArray,
+  parseGeminiJsonObject,
   redactGenerateContentBody,
   summarizeGeminiApiResponse,
 } from "@/lib/gemini-vibe-debug-log";
 
 const DIRECT_GEMINI_BASE_URL = "https://generativelanguage.googleapis.com";
-const ALLOWED_ACCENTS = ["lighting", "mood", "composition"] as const;
 
-type PromptAccent = (typeof ALLOWED_ACCENTS)[number];
-type PromptVariant = { accent: PromptAccent; prompt: string };
+/** Single-scene expand output; accent is fixed for API compatibility / save route. */
+const SINGLE_PROMPT_ACCENT = "scene" as const;
+type PromptVariant = { accent: typeof SINGLE_PROMPT_ACCENT; prompt: string };
+
+/** ~100+ words expected; expand instructs 200–380 words */
+const MIN_EXPAND_PROMPT_CHARS = 600;
 
 function toErrorMeta(err: unknown) {
   if (!(err instanceof Error)) return { message: String(err) };
@@ -66,39 +71,54 @@ async function getGeminiBaseUrlRuntime(
   return DIRECT_GEMINI_BASE_URL;
 }
 
-function coercePromptVariants(input: unknown[]): PromptVariant[] | null {
-  if (input.length !== 3) return null;
-  const variants: PromptVariant[] = [];
-  for (const item of input) {
-    if (!item || typeof item !== "object") return null;
-    const row = item as Record<string, unknown>;
-    const accent = row.accent;
-    const prompt = row.prompt;
-    if (!ALLOWED_ACCENTS.includes(accent as PromptAccent)) return null;
-    if (typeof prompt !== "string") return null;
-    const normalized = prompt.trim();
-    if (normalized.length < 8) return null;
-    variants.push({ accent: accent as PromptAccent, prompt: normalized });
-  }
-  const dedup = new Set(variants.map((v) => v.accent));
-  return dedup.size === 3 ? variants : null;
+function coerceExpandSinglePromptFromObject(obj: Record<string, unknown>): string | null {
+  const prompt = obj.prompt;
+  if (typeof prompt !== "string") return null;
+  const normalized = prompt.trim();
+  if (normalized.length < MIN_EXPAND_PROMPT_CHARS) return null;
+  return normalized;
 }
 
-function diagnosePromptArray(parsed: unknown[] | null): Record<string, unknown> {
-  if (!parsed) return { reason: "no_array" };
-  if (parsed.length !== 3) return { reason: "length_not_3", length: parsed.length };
-  const items = parsed.map((item, i) => {
-    if (!item || typeof item !== "object") return { index: i, shape: typeof item };
-    const row = item as Record<string, unknown>;
-    return {
-      index: i,
-      keys: Object.keys(row),
-      accent: row.accent,
-      promptType: typeof row.prompt,
-      promptLen: typeof row.prompt === "string" ? row.prompt.length : null,
-    };
-  });
-  return { items };
+/**
+ * Primary: { "prompt": "..." }. Fallback: legacy array of one { accent, prompt }.
+ */
+function coerceExpandPrompt(
+  parsedObject: Record<string, unknown> | null,
+  parsedArray: unknown[] | null,
+): string | null {
+  if (parsedObject) {
+    const fromObj = coerceExpandSinglePromptFromObject(parsedObject);
+    if (fromObj) return fromObj;
+  }
+  if (parsedArray?.length === 1) {
+    const item = parsedArray[0];
+    if (item && typeof item === "object") {
+      const row = item as Record<string, unknown>;
+      if (typeof row.prompt === "string") {
+        const normalized = row.prompt.trim();
+        if (normalized.length >= MIN_EXPAND_PROMPT_CHARS) return normalized;
+      }
+    }
+  }
+  return null;
+}
+
+function diagnoseExpandParse(
+  parsedObject: Record<string, unknown> | null,
+  parsedArray: unknown[] | null,
+): Record<string, unknown> {
+  return {
+    objectKeys: parsedObject ? Object.keys(parsedObject) : [],
+    objectPromptLen:
+      parsedObject && typeof parsedObject.prompt === "string"
+        ? (parsedObject.prompt as string).length
+        : null,
+    arrayLength: parsedArray?.length ?? null,
+    array0Keys:
+      parsedArray?.[0] && typeof parsedArray[0] === "object"
+        ? Object.keys(parsedArray[0] as object)
+        : [],
+  };
 }
 
 export async function POST(req: NextRequest) {
@@ -156,7 +176,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "expand_failed" }, { status: 500 });
     }
 
-    const expandUserText = `${EXPAND_PROMPTS_INSTRUCTION}\n\nStyle description:\n${JSON.stringify(style, null, 2)}`;
+    const expandUserText = `${EXPAND_PROMPTS_INSTRUCTION}\n\n${buildVibeExpandRuntimeContext(willAttachReferenceInline)}\n\nStyle description:\n${JSON.stringify(style, null, 2)}`;
     const geminiBody = {
       contents: [
         {
@@ -249,15 +269,17 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const { value: parsed, stages: parseStages } = parseGeminiJsonArray(text);
-    const prompts = parsed ? coercePromptVariants(parsed) : null;
+    const objectParse = parseGeminiJsonObject(text);
+    const arrayParse = parseGeminiJsonArray(text);
+    const promptText = coerceExpandPrompt(objectParse.value, arrayParse.value);
+    const parseStages = [...objectParse.stages, ...arrayParse.stages];
 
-    if (!geminiRes.ok || !prompts) {
+    if (!geminiRes.ok || !promptText) {
       const stageLine = parseStages
         .map((s) => `${s.stage}:${s.ok ? "ok" : "fail"}${s.message ? `(${String(s.message).slice(0, 120)})` : ""}`)
         .join(" | ");
       console.error(
-        `[vibe.expand] PIPELINE_FAIL user=${user.id} http=${geminiRes.status} arrayParsed=${Boolean(parsed)} promptsOk=${Boolean(prompts)} stages=${stageLine}`,
+        `[vibe.expand] PIPELINE_FAIL user=${user.id} http=${geminiRes.status} promptOk=${Boolean(promptText)} stages=${stageLine}`,
       );
       console.error("[vibe.expand] gemini_pipeline_failed", {
         userId: user.id,
@@ -265,32 +287,34 @@ export async function POST(req: NextRequest) {
         httpStatus: geminiRes.status,
         geminiError: geminiData?.error?.message ?? null,
         textLen: text.length,
-        jsonArrayParsed: Boolean(parsed),
+        jsonObjectParsed: Boolean(objectParse.value),
+        jsonArrayParsed: Boolean(arrayParse.value),
         parseStages,
-        promptCoerceOk: Boolean(prompts),
-        promptArrayDiagnose: diagnosePromptArray(parsed),
+        expandDiagnose: diagnoseExpandParse(objectParse.value, arrayParse.value),
         textHead: text.slice(0, 500),
         textTail: text.length > 500 ? text.slice(-300) : undefined,
       });
       return NextResponse.json({ error: "expand_failed" }, { status: 500 });
     }
 
+    const variant: PromptVariant = { accent: SINGLE_PROMPT_ACCENT, prompt: promptText };
+    const prompts: PromptVariant[] = [variant];
+
     console.warn("[vibe.expand] gemini_parse_ok", {
       userId: user.id,
       parseStages: parseStages.filter((s) => s.ok).map((s) => s.stage),
       promptsCount: prompts.length,
+      promptChars: promptText.length,
     });
 
-    const finalPromptPreviews = prompts.map((p) => ({
-      accent: p.accent,
-      fullText: assembleVibeFinalPrompt(p.prompt, willAttachReferenceInline),
-    }));
+    const assembled = assembleVibeFinalPrompt(promptText, willAttachReferenceInline);
+    const finalPromptPreviews = [{ accent: SINGLE_PROMPT_ACCENT, fullText: assembled }];
 
     return NextResponse.json({
       prompts,
       modelUsed: textModel,
       finalPromptPreviews,
-      finalPromptForGeneration: assembleVibeFinalPrompt(prompts[0].prompt, willAttachReferenceInline),
+      finalPromptForGeneration: assembled,
       finalPromptAssumesTwoImages: willAttachReferenceInline,
       vibeReferenceInlinePixels: referenceInlineEnabled,
     });

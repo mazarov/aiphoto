@@ -181,36 +181,32 @@ If the result looks like IMAGE A's model, you FAILED — redo mentally until the
  * Two-image mode: parts are [label, IMAGE A ref, label, IMAGE B user, long text] — see generate-process.
  */
 export const GENERATE_VIBE_PREFIX_TWO_IMAGES = `
-CRITICAL — READ ALL SECTIONS.
+CRITICAL INSTRUCTIONS — read carefully before the prompt.
 
 REQUEST LAYOUT (multi-part message):
-1) A short text label, then IMAGE A (reference photo).
-2) A short text label, then IMAGE B (user / subject photo).
-3) This instruction block + detailed scene prompt below.
+1) A short text label, then IMAGE A — the STYLE REFERENCE photograph (pose, light, set, wardrobe, camera, color grade, mood).
+2) A short text label, then IMAGE B — the SUBJECT / USER (the only source for who the person in the output must be).
 
-IMAGE A: style reference ONLY (pose, light, set, clothes, framing, grade). Never treat anyone in A as the output person.
-IMAGE B: the real user. The output MUST be recognizable as THIS person (face, eyes, nose, jaw, skin tone, age). Makeup and hairstyle may follow the reference LOOK, but bone structure and identity come only from B.
+YOUR TASK: Create a NEW photorealistic image where the person from IMAGE B is placed into a scene that recreates the look, feel, and atmosphere of IMAGE A — as if B had been photographed in that same shoot. Not a lazy crop of B's selfie. Not a face-swap onto A.
 
-YOUR TASK: One new photorealistic photo where the PERSON is from IMAGE B, re-shot as if in the shoot described by IMAGE A + the text below. Not a reskin of A. Not a casual edit of B's selfie — full scene match.
+IDENTITY (from IMAGE B — preserve exactly):
+- Face structure, bone structure, facial features, skin tone, eye color and shape, brows, nose, lips, ears, apparent age
+- Body proportions and build
+- Natural hair color and texture (do not recolor B to match A's hair)
 
-IDENTITY (IMAGE B only — non-negotiable):
-- Face shape, features, eyes, brows, nose, lips, ears, skin tone, apparent age = from B
-- Body proportions = from B
-- Hair: keep it believable for B; you may style/crop/light it like the reference, but do not silently turn B into A's hair/face
+STYLE & SCENE (from IMAGE A + the text below — apply onto B):
+- Pose, body position, and body language — match IMAGE A, NOT B's original pose in their upload
+- Hair STYLING and arrangement — adapt B's hair to match the reference look (part, length layout, fall over shoulders, etc.) without turning B into A's face
+- Facial expression mood and performance from the reference (smile quality, gaze intensity) while keeping B recognizable
+- Environment, setting, surfaces, props, background
+- Lighting: direction, quality, color temperature, shadow pattern
+- Color grading, contrast, saturation, palette of the shot
+- Clothing: style, fabrics, colors, fit — worn naturally on B's body
+- Camera: angle, framing, composition, depth of field, lens feel
 
-STYLE & SCENE (from IMAGE A + text — apply onto B's body):
-- Pose, hands, head tilt, gaze direction (match A)
-- Environment, props, backdrop
-- Lighting direction, quality, color temp, shadows
-- Wardrobe type/fit/color palette as in the prompt (on B's body)
-- Camera angle, lens feel, depth of field, composition
-- Mood and expression *energy* (intense, soft, etc.) — without replacing B's facial identity with A's
+The result must look like B was ACTUALLY PHOTOGRAPHED in that reference scene — natural integration, not composited or pasted.
 
-QUALITY BAR: A viewer who covers everything except the face should still say "that's the user from B", not "that's the model from A".
-
-FORBIDDEN: Near-duplicate of IMAGE A. Swapping A's face onto the output. Ignoring IMAGE A's pose/light/outfit when the text asks for them.
-
-The detailed prompt below expands the JSON style — follow it, but NEVER let its description of "the model in the reference" override IMAGE B's identity.
+The text prompt below adds director-level specificity. Follow it precisely. Never let prose describing "the model in the reference" override IMAGE B's identity.
 
 `.trimStart();
 
@@ -229,51 +225,48 @@ Follow the text prompt below for all scene details.
 
 `.trimStart();
 
+/**
+ * Appended in /api/vibe/expand after this block so Gemini knows whether image-gen gets reference pixels.
+ */
+export function buildVibeExpandRuntimeContext(willAttachReferenceInline: boolean): string {
+  if (willAttachReferenceInline) {
+    return `
+RUNTIME CONTEXT (do not repeat this label in your JSON; use it only for phrasing):
+The image generation step will receive TWO inputs in order: first the REFERENCE photo (style anchor), then the USER photo (identity). The model sees both pixels — your prompt adds director-level detail (blocking, textures, micro-expression). Strongly align pose, framing, and lighting with what IMAGE A shows; the face must remain the user from IMAGE B.
+`.trim();
+  }
+  return `
+RUNTIME CONTEXT:
+The image generation step will receive ONLY the USER photograph plus your text — reference image pixels are NOT attached. The JSON is the only recipe for the Pinterest/reference look: spell out pose, hands, head tilt, gaze, wardrobe, set, and light with maximum precision so the model can rebuild the scene without seeing the reference.
+`.trim();
+}
+
 export const EXPAND_PROMPTS_INSTRUCTION = `
-You are an expert prompt engineer for photorealistic AI image generation. Your task: turn a style JSON (extracted from a REFERENCE photo) into 3 detailed prompts for a DIFFERENT person.
+You are an expert prompt engineer for photorealistic AI image generation. Your task: turn a style JSON (extracted from a REFERENCE photo) into ONE rich scene prompt for a DIFFERENT person (the end user's face will come from their attached photograph).
 
-CRITICAL — IDENTITY vs SCENE:
-The JSON describes the reference model's shoot (pose, light, room, grading). It does NOT describe the end user. A separate SUBJECT photo will be provided — that person must appear in the output with THEIR real face, hair color, eye color, skin tone, and bone structure.
+The JSON documents the reference shoot. The OUTPUT must depict the USER's real identity (face, skin tone, eye color, hair color, bone structure) — not the reference model's face. Transfer the SCENE: pose, light, wardrobe, environment, camera, grade, mood.
 
-NEVER in your prompts:
-- Name or imply the reference model's biometrics as the goal (e.g. "fiery red hair", "pale blue-green eyes", "porcelain skin", "freckles like the reference") unless you explicitly frame them as optional makeup/styling ON THE USER ("bold red lip color on the subject", "rim-lit hair" without forcing a hair color).
-- Say "the woman in the reference" or copy identity from scene/mood text literally.
+Generate exactly ONE prompt. In that single text, weave together what used to be three accent variants (lighting-led, mood-led, composition-led) into one flowing scene: open with strong lighting and color-grade cues, carry emotional atmosphere through the middle, and lock framing/camera/pose explicitly — without omitting any required element below.
 
-ALWAYS in your prompts:
-- Repeatedly anchor identity: "the person from the SUBJECT / user portrait", "preserve this person's facial identity exactly".
-- Transfer: pose, body position, gaze *behavior* (into camera, intensity), environment, wall/surfaces, camera angle, lens feel, lighting setup, overall color grade of the SCENE, clothing silhouette and fabrics, mood — as applied to the SUBJECT person.
-
-Given the style JSON, generate exactly 3 prompts. Each describes the SAME transferred scene for the SUBJECT user.
-
-EVERY prompt MUST include (adapted for SUBJECT, not reference clone):
-1. SUBJECT POSE — from subject_pose: body, hands, head tilt, gaze direction (no reference hair/eye color).
-2. EXPRESSION — from expression: emotional tone, muscle movement, lip parting, gaze intensity — NOT "blue eyes" / "crimson lips" as identity; you may say "striking lip color" or "bold red lipstick" as makeup on the subject.
-3. CAMERA — from camera field (unchanged — technical).
-4. LIGHTING — from lighting (unchanged — technical).
-5. ENVIRONMENT — from environment (unchanged).
-6. CLOTHING — from clothing: garment types and fit; if colors are extreme, they are wardrobe on the subject, not a new face.
-7. COLOR GRADING — from color_grading + color_palette: describe the LOOK of the photograph (shadow tint, saturation). Do NOT use palette lines to override the subject's natural hair/eyes/skin — those palette entries often describe the reference model; rephrase as "warm rim light on hair", "cool gray wall", "rich lip color" without assigning fake hair color to the user.
-8. MOOD — from mood, but address "the subject" not "the red-haired woman".
-9. KEY DETAILS — REWRITE each key_detail into a transferable anchor: same composition/light/prop beats, but strip or generalize reference-only identity (e.g. "voluminous hair with warm rim light from the right" NOT "fiery red hair"). Never paste key_details verbatim if they contain hair color, eye color, or face of the reference model.
-
-Each prompt uses a different creative emphasis:
-- Prompt A (accent: lighting): Lead with lighting, then full scene on the SUBJECT.
-- Prompt B (accent: mood): Lead with atmosphere, then full scene on the SUBJECT.
-- Prompt C (accent: composition): Lead with framing/camera, then full scene on the SUBJECT.
+THE PROMPT MUST COVER ALL of these (woven into prose, not as a markdown list):
+1. SUBJECT POSE — from subject_pose: full blocking — body, hands, head tilt, gaze direction. This is the highest priority for "wow"; be as specific as a film director.
+2. EXPRESSION — from expression: micro-details (smile type, lips, eyes, brows).
+3. CAMERA — from camera: focal length, angle, distance, depth of field.
+4. LIGHTING — from lighting: direction, quality, temperature, shadows, sources.
+5. ENVIRONMENT — from environment: surfaces, textures, props and positions.
+6. CLOTHING — from clothing: garments, fabrics, fit, accessories (wardrobe on the user).
+7. COLOR GRADING — from color_grading + color_palette: concrete photographic look (shadow/highlight tint, saturation, contrast). Rephrase palette terms as light and set (e.g. "warm rim on hair", "sage wall") without assigning the reference model's hair/eye/skin colors as the user's identity.
+8. MOOD — from mood: atmosphere and viewer relationship, addressed to "the subject" / "the person".
+9. KEY DETAILS — include EVERY string from key_details VERBATIM as must-replicate anchors (you may introduce them as "Essential anchors:" or weave them in quotes). Do not drop or soften them.
 
 Rules:
-1. Start each prompt with: "Transform the person in the attached USER photograph into the following scene while preserving their real face and identity exactly:"
-2. Length: 150-300 words per prompt.
-3. At least twice per prompt, remind: identity comes only from the attached user photo; the reference shot exists only as JSON/text — do not imply a second face source.
-4. NEVER use vague phrases like "warm tones" without specifying where (skin, wall, highlights).
-5. Write a self-contained scene: the image model typically receives ONLY the user's photo plus your text (reference pixels are not sent by default). All mood/light/pose/outfit must be clear from your words.
+1. Start the prompt with: "Place the person from the attached photo into this scene:"
+2. Length: 200-380 words in one continuous paragraph (or two short paragraphs if needed for clarity).
+3. NEVER vague phrases like "natural lighting" or "warm tones" without saying exactly where and how.
+4. Remind at least once that facial identity must match the attached user/subject photo only.
 
-Return ONLY valid JSON array with 3 objects:
-[
-  { "accent": "lighting", "prompt": "..." },
-  { "accent": "mood", "prompt": "..." },
-  { "accent": "composition", "prompt": "..." }
-]
+Return ONLY a valid JSON object (not an array):
+{ "prompt": "..." }
 `.trim();
 
 /**
