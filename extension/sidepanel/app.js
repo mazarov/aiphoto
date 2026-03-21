@@ -487,13 +487,24 @@ async function refreshAuthSilently() {
   }
 }
 
+function toAbsoluteTelegramDeepLink(url) {
+  const u = String(url || "").trim();
+  if (!u) return u;
+  if (/^https?:\/\//i.test(u) || u.startsWith("tg:")) return u;
+  // Server returned bare "BotName?start=..." — relative URLs break inside extension sidepanel
+  if (/^[A-Za-z0-9_]+\?/.test(u)) {
+    return `https://t.me/${u}`;
+  }
+  return u;
+}
+
 async function openBuyCredits() {
   try {
     const data = await api("/api/buy-credits-link", { method: "POST" });
     if (!data?.deepLink) {
       throw new Error("Ссылка для оплаты не получена");
     }
-    window.open(data.deepLink, "_blank");
+    window.open(toAbsoluteTelegramDeepLink(data.deepLink), "_blank");
     startCreditPolling();
   } catch (err) {
     const message = normalizeUiError(err, "Не удалось получить ссылку на оплату");

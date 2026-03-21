@@ -3,12 +3,33 @@ import { NextResponse } from "next/server";
 import { createSupabaseServer } from "@/lib/supabase";
 import { createSupabaseServerAuth } from "@/lib/supabase-server-auth";
 
-function buildBotLink(path: string): string {
-  const base = (process.env.TELEGRAM_BOT_LINK || "").trim();
+/**
+ * Must produce an absolute https URL so extension window.open() does not resolve
+ * relative to chrome-extension:// (which breaks Telegram deep links).
+ */
+function normalizeTelegramBotBase(raw: string): string {
+  let base = raw.trim();
   if (!base) {
     throw new Error("Missing TELEGRAM_BOT_LINK env var");
   }
-  return `${base.replace(/\/+$/, "")}${path}`;
+  if (base.startsWith("@")) {
+    base = base.slice(1);
+  }
+  if (/^[A-Za-z0-9_]+$/.test(base)) {
+    base = `https://t.me/${base}`;
+  } else if (base.startsWith("t.me/")) {
+    base = `https://${base}`;
+  } else if (!/^https?:\/\//i.test(base)) {
+    throw new Error(
+      "TELEGRAM_BOT_LINK must be a full URL (e.g. https://t.me/YourBot) or bare bot username"
+    );
+  }
+  return base.replace(/\/+$/, "");
+}
+
+function buildBotLink(path: string): string {
+  const base = normalizeTelegramBotBase(process.env.TELEGRAM_BOT_LINK || "");
+  return `${base}${path}`;
 }
 
 function createOtp(): string {
