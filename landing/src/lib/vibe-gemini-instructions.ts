@@ -276,7 +276,7 @@ Note: The JSON describes THIS reference shot only (including this model's hair, 
 Return a JSON object with these exact fields:
 MANDATORY: Core string fields (scene, genre, subject_pose, expression, lighting, camera, mood, composition) must be non-empty. Never use "" for camera or composition — estimate focal length, angle, framing, and placement from the image if unsure.
 
-- scene: What is happening in this image. Describe the setting, action, time of day, and spatial context. 2-3 sentences. Example: "A woman lying on a bed of white crumpled sheets, taking a selfie from above. Morning light fills the room. The frame is intimate and close."
+- scene: What is happening in this image. Describe the setting, action, time of day, and spatial context in 2-3 sentences, AND one sentence on overall vibe/energy (confident, vulnerable, playful, editorial cool, candid warmth) plus how the pose reads (open vs guarded, relaxed vs tense). Example: "A woman lying on a bed of white crumpled sheets, taking a selfie from above. Morning light fills the room. The frame is intimate and close. The vibe is soft, unhurried, and inviting — body language reads fully relaxed and trusting."
 - genre: The photographic genre and substyle. Examples: "intimate lifestyle portrait", "high-fashion editorial", "candid street photography", "cozy bedroom selfie".
 - subject_pose: CRITICAL FIELD — one dense paragraph (or two short sentences) that a director could shoot from, covering ALL of the below that apply. Do NOT substitute a generic "classic frontal portrait" or "facing straight to camera" or "neutral head" if the photo shows ANY torso turn, shoulder asymmetry, or head tilt — describe the REAL geometry.
   REQUIRED ANCHORS (use explicit viewer/subject directions): (1) Torso vs camera: square-on, slight quarter-turn, or three-quarter; estimate degrees if helpful (~10–30°). (2) Which shoulder is CLOSER to the camera — say both "subject's left/right" AND "viewer's left/right" once each to avoid ambiguity. (3) Head relative to torso: tilt TOWARD which shoulder (ear dropping that way)? Or vertical? Neck extension or compression? (4) Face vs lens: full face, three-quarter, or profile — even if eyes look into the lens, the chin/nose line may still be off-axis; say so. (5) Chin height: raised, neutral, or tucked. (6) Shoulder line: level or one raised/forward. (7) Gaze: into camera, past camera, down — consistent with head pose. (8) Arms/hands if visible; if cropped out, say "hands out of frame". (9) Legs/feet if visible; else omit. (10) Weight / lean: obvious shift forward, back, or hip pop if visible.
@@ -344,7 +344,7 @@ The result must look like B was ACTUALLY PHOTOGRAPHED in that reference scene �
 
 Output must be a single seamless photograph — one coherent frame. FORBIDDEN: tiling, side-by-side panels, vertical/horizontal stitching, collage, diptych, or any composition that looks like two photos glued together. Do not paste B's face as a cutout on top of A.
 
-The text prompt below adds director-level specificity. Follow it precisely. Never let prose describing "the model in the reference" override IMAGE B's identity.
+The text prompt below adds director-level specificity — treat pose, body line, and overall vibe as mandatory to match IMAGE A; then light, wardrobe, set, and grade. Follow it precisely. Never let prose describing "the model in the reference" override IMAGE B's identity.
 
 `.trimStart();
 
@@ -378,7 +378,7 @@ STYLE & SCENE (from IMAGE A + the text below — apply onto B):
 
 The result must look like B was ACTUALLY PHOTOGRAPHED in that reference scene — natural integration, not composited or pasted.
 
-The text prompt below adds director-level specificity. Follow it precisely. Never let prose describing "the model in the reference" override IMAGE B's identity.
+The text prompt below adds director-level specificity — treat pose, body line, and overall vibe as mandatory to match IMAGE A; then light, wardrobe, set, and grade. Follow it precisely. Never let prose describing "the model in the reference" override IMAGE B's identity.
 
 `.trimStart();
 
@@ -397,7 +397,7 @@ Output must be a single seamless photograph — one coherent frame. FORBIDDEN: t
 
 The person must look like they were ACTUALLY PHOTOGRAPHED in the described setting — natural, realistic, belonging to the scene. Not composited or pasted.
 
-Scene description:
+Director scene — follow pose, framing, light, and vibe below precisely (identity stays from the attached photo):
 
 `.trimStart();
 
@@ -413,7 +413,7 @@ Your task is to CREATE ONE NEW photorealistic image of this person placed into t
 
 The person must look like they were ACTUALLY PHOTOGRAPHED in the described setting — natural, realistic, belonging to the scene. Not composited or pasted.
 
-Scene description:
+Director scene — follow pose, framing, light, and vibe below precisely (identity stays from the attached photo):
 
 `.trimStart();
 
@@ -534,20 +534,22 @@ You see ONE reference photograph (Pinterest / editorial / selfie). A later step 
 
 Your task in THIS step: write ONE rich English scene prompt that an image model can follow together with the user's photo. The prompt must transfer pose, lighting, wardrobe, environment, camera, color grade, and mood from the reference — with the same precision as a two-step pipeline (structured analysis + expansion).
 
-POSE (critical): Describe torso vs camera (square-on / quarter-turn / three-quarter), which shoulder is closer to the camera (subject's and viewer's left/right), head tilt toward which shoulder, chin height, gaze vs lens, shoulder line, arms/hands if visible. Do NOT replace an asymmetric reference with a generic "straight-on portrait".
+POSE & BODY (highest priority): Before light or wardrobe, lock geometry like a director. Include: torso vs camera (square-on / quarter-turn / three-quarter; ~degrees if useful); which shoulder is closer (state BOTH subject's left/right AND viewer's left/right once); head tilt toward which shoulder or vertical; chin height; face vs lens (full / three-quarter / profile) even if eyes hit the lens; shoulder line level or uneven; weight on hips/feet or where the body leans; spine line and any twist; arms/hands (or "hands out of frame"); legs/feet if visible; micro-gestures and tension vs relaxation. Do NOT replace an asymmetric reference with a generic "straight-on portrait".
 
-COVER in flowing prose (not a bullet list), woven together:
-- Subject pose and expression (micro-details)
-- Camera: focal length estimate, angle, distance, depth of field
-- Lighting: direction, quality, color temperature, shadows
-- Environment, clothing, color grading, mood
-- Key visual anchors (props, jewelry, background) — rephrase any reference-only face/hair/eye/skin biometrics as transferable cues ("the subject's natural eye color", etc.)
+VIBE / ATMOSPHERE: After pose, explicitly carry genre + emotional temperature + viewer relationship (intimate / editorial / voyeuristic / heroic / candid) so the shot "feels" like the reference, not just looks lit similarly.
+
+COVER in flowing prose (not a bullet list), woven together (pose+vibe first, then the rest):
+- Expression: micro-details (mouth, eyes, brows) tied to the pose
+- Camera: focal length estimate, angle, distance, depth of field, framing
+- Lighting: direction, quality, color temperature, shadows — always anchored in space (e.g. window camera-left)
+- Environment, clothing, color grading, props/jewelry/background anchors — rephrase reference-only face/hair/eye/skin biometrics as transferable cues ("the subject's natural eye color", etc.)
 
 Rules:
 1. Start the prompt with exactly: "Place the person from the attached photo into this scene:"
-2. Length: 200-380 words, one or two short paragraphs.
-3. No vague "natural lighting" without placement.
-4. Remind that facial identity must match the user's attached photo only.
+2. In the sentences immediately after that opening, dedicate ~35–45% of the total word count to pose + body language + overall vibe before deep lighting/grade detail.
+3. Length: 220–420 words, one or two short paragraphs.
+4. No vague "natural lighting" or "relaxed pose" without concrete placement and geometry.
+5. Remind that facial identity must match the user's attached photo only.
 
 Return ONLY valid JSON (not markdown):
 { "prompt": "..." }
@@ -558,23 +560,23 @@ You are an expert prompt engineer for photorealistic AI image generation. Your t
 
 The JSON documents the reference shoot. The OUTPUT must depict the USER's real identity (face, skin tone, eye color, hair color, bone structure) — not the reference model's face. Transfer the SCENE: pose, light, wardrobe, environment, camera, grade, mood.
 
-Generate exactly ONE prompt. In that single text, weave together what used to be three accent variants (lighting-led, mood-led, composition-led) into one flowing scene: open with strong lighting and color-grade cues, carry emotional atmosphere through the middle, and lock framing/camera/pose explicitly — without omitting any required element below.
+Generate exactly ONE prompt. Structure the prose for an image model: right after the required opening sentence, spend the next ~35–45% of words on dense POSE + BODY LANGUAGE from subject_pose (preserve viewer/subject left-right shoulder language if JSON has it; include weight, spine line, hands, gaze vs head axis). Then weave expression + vibe (genre + mood + viewer relationship from genre/mood/scene). Only then layer camera, environment, wardrobe, lighting, and color grade. Do not bury pose in the closing sentences — if subject_pose is long, you may use two paragraphs: first = pose+expression+vibe, second = camera+environment+light+wardrobe+grade+key details.
 
 THE PROMPT MUST COVER ALL of these (woven into prose, not as a markdown list):
-1. SUBJECT POSE — from subject_pose: full blocking — body, hands, head tilt, gaze direction. This is the highest priority for "wow"; be as specific as a film director.
-2. EXPRESSION — from expression: micro-details (smile type, lips, eyes, brows).
-3. CAMERA — from camera: focal length, angle, distance, depth of field.
-4. LIGHTING — from lighting: direction, quality, temperature, shadows, sources.
-5. ENVIRONMENT — from environment: surfaces, textures, props and positions.
-6. CLOTHING — from clothing: garments, fabrics, fit, accessories (wardrobe on the user).
-7. COLOR GRADING — from color_grading + color_palette: concrete photographic look (shadow/highlight tint, saturation, contrast). Rephrase palette terms as light and set (e.g. "warm rim on hair", "sage wall") without assigning the reference model's hair/eye/skin colors as the user's identity.
-8. MOOD — from mood: atmosphere and viewer relationship, addressed to "the subject" / "the person".
+1. SUBJECT POSE — from subject_pose: full blocking — torso rotation, shoulders (which closer to camera), head tilt, chin, gaze vs lens, arms/hands, legs if relevant, weight/lean. Highest priority; director-level, not a summary.
+2. EXPRESSION — from expression: micro-details (smile type, lips, eyes, brows) consistent with the pose.
+3. VIBE GLUE — from scene + genre + mood: one coherent "feel" (energy, intimacy vs distance, editorial vs candid) so the reference's attitude is obvious.
+4. CAMERA — from camera + composition: focal length, angle, distance, depth of field, framing, subject placement.
+5. LIGHTING — from lighting: direction, quality, temperature, shadows, sources.
+6. ENVIRONMENT — from environment: surfaces, textures, props and positions.
+7. CLOTHING — from clothing: garments, fabrics, fit, accessories (wardrobe on the user).
+8. COLOR GRADING — from color_grading + color_palette: concrete photographic look (shadow/highlight tint, saturation, contrast). Rephrase palette terms as light and set (e.g. "warm rim on hair", "sage wall") without assigning the reference model's hair/eye/skin colors as the user's identity.
 9. KEY DETAILS — rewrite each key_detail into a transferable anchor for the USER: keep composition/light/prop/jewelry/fabric beats, but strip or generalize ANY reference-only biometrics (eye color, hair color, skin tone, face shape, "emerald eyes", "long dark hair", etc.). Never quote key_details verbatim if they describe the reference model's face or body — rephrase as "intense direct gaze with the subject's natural eye color", "hair styled with a braid using the subject's natural hair color and length", etc.
 
 Rules:
 1. Start the prompt with: "Place the person from the attached photo into this scene:"
-2. Length: 200-380 words in one continuous paragraph (or two short paragraphs if needed for clarity).
-3. NEVER vague phrases like "natural lighting" or "warm tones" without saying exactly where and how.
+2. Length: 220–420 words in one continuous paragraph or two short paragraphs (use two if needed to keep pose detail early).
+3. NEVER vague phrases like "natural lighting" or "warm tones" or "relaxed pose" without saying exactly where and how (geometry, direction, quality).
 4. Remind at least once that facial identity must match the attached user/subject photo only.
 
 Return ONLY a valid JSON object (not an array):
