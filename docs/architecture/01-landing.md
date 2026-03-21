@@ -1,6 +1,6 @@
 # 01 — Лендинг (promptshot.ru)
 
-> Последнее обновление: 2026-03-21 (vibe attach ref via photo_app_config)
+> Последнее обновление: 2026-03-21 (extract subject_pose anchors)
 
 > UI side panel + content script: см. `docs/extension-ui-spec.md`; карта файлов и токены — `extension/DEVELOPER.md`.
 
@@ -66,7 +66,7 @@
 
 ### Vibe Pipeline (Steal This Vibe)
 
-- **Extract:** `POST /api/vibe/extract` — проверяет auth, валидирует безопасный URL (SSRF guard), скачивает изображение, отправляет в Gemini Vision, сохраняет structured style JSON в таблицу `vibes`. В ответе поле **`modelUsed`** (реально вызванная vision-модель). Системный текст инструкции — `landing/src/lib/vibe-gemini-instructions.ts` → `EXTRACT_STYLE_INSTRUCTION`.
+- **Extract:** `POST /api/vibe/extract` — проверяет auth, валидирует безопасный URL (SSRF guard), скачивает изображение, отправляет в Gemini Vision, сохраняет structured style JSON в таблицу `vibes`. В ответе поле **`modelUsed`** (реально вызванная vision-модель). Системный текст инструкции — `landing/src/lib/vibe-gemini-instructions.ts` → `EXTRACT_STYLE_INSTRUCTION` (в т.ч. жёсткие якоря для **`subject_pose`**: разворот торса, какое плечо ближе к камере, наклон головы к плечу, запрет подмены на «идеальный фронтальный портрет»).
 - **Expand:** `POST /api/vibe/expand` — берёт style (из body или по `vibeId`), вызывает Gemini text и возвращает **один** сценарный промпт: `prompts: [{ accent: "scene", prompt }]`. К запросу дописывается **`buildVibeExpandRuntimeContext(willAttachReferenceInline)`** — если включена отправка референса в image-gen и у vibe есть `source_image_url`, контекст описывает два входных изображения (A=референс, B=пользователь); иначе — только user + текст. В ответе **`modelUsed`**, **`finalPromptForGeneration`** (= `assembleVibeFinalPrompt(prompt, willAttachReferenceInline)`), **`finalPromptPreviews`**, **`finalPromptAssumesTwoImages`** / **`vibeReferenceInlinePixels`** совпадают с намерением (фактическая вставка пикселей референса — в `generate-process`, см. ниже). JSON от модели: `{ "prompt": "..." }` (fallback: массив из одного legacy-элемента).
 - **Pipeline spec (отладка / extension):** `GET /api/vibe/pipeline-spec` (auth) — JSON с полями `extract` / `expand`: `model`, `envKey`, полный текст **`instruction`** для обоих шагов.
 - **Save:** `POST /api/vibe/save` — сохраняет выбранную completed-генерацию в `landing_vibe_saves`, связывает с `vibe_id`/`card_id`, пишет `auto_seo_tags` и, если `card_id` отсутствует, пытается автосоздать `prompt_cards` + `prompt_card_media` + `prompt_variants` из `landing_generations.result_storage_*`. После этого обогащает `prompt_cards.seo_tags` на основе `vibes.style` (через `TAG_REGISTRY`).
