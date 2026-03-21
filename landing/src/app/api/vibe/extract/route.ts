@@ -248,6 +248,9 @@ export async function POST(req: NextRequest) {
         userId: user.id,
         status: geminiRes.status,
         geminiError: geminiData?.error?.message ?? null,
+        textLen: text.length,
+        jsonParsed: Boolean(parsed),
+        parsedKeys: parsed ? Object.keys(parsed) : [],
         textPreview: text.slice(0, 300),
       });
       return NextResponse.json({ error: "extract_failed" }, { status: 500 });

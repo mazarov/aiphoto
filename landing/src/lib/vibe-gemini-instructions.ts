@@ -20,33 +20,84 @@ export const STYLE_FIELDS = [
 export type StyleField = (typeof STYLE_FIELDS)[number];
 export type StylePayload = Record<StyleField, string>;
 
-const OPTIONAL_STYLE_FIELDS: readonly StyleField[] = ["clothing"];
-const ARRAY_STYLE_FIELDS: readonly StyleField[] = ["key_details"];
+/** If missing, Gemini output still validates (expand can work with partial palette text). */
+const STYLE_FIELDS_DEFAULT_EMPTY: readonly StyleField[] = [
+  "clothing",
+  "key_details",
+  "color_palette",
+  "color_grading",
+  "environment",
+];
+
+/** Must be non-empty after coercion — core vibe fields. */
+const STYLE_FIELDS_REQUIRED_NON_EMPTY: readonly StyleField[] = [
+  "scene",
+  "genre",
+  "lighting",
+  "camera",
+  "mood",
+  "composition",
+];
+
+/** Alternate keys models sometimes return instead of canonical names. */
+const STYLE_FIELD_ALIASES: Partial<Record<StyleField, readonly string[]>> = {
+  color_palette: ["color", "colors", "palette"],
+  environment: ["background", "setting", "location"],
+  key_details: ["details", "distinctive_details", "anchors"],
+};
+
+function pickRawStyleValue(raw: Record<string, unknown>, field: StyleField): unknown {
+  const direct = raw[field];
+  if (direct !== undefined && direct !== null) return direct;
+  const aliases = STYLE_FIELD_ALIASES[field];
+  if (aliases) {
+    for (const key of aliases) {
+      const v = raw[key];
+      if (v !== undefined && v !== null) return v;
+    }
+  }
+  return undefined;
+}
+
+function coerceStyleValueToString(value: unknown): string {
+  if (value === undefined || value === null) return "";
+  if (typeof value === "string") return value.trim();
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  if (Array.isArray(value)) {
+    return value
+      .map((x) => String(x).trim())
+      .filter(Boolean)
+      .join("; ");
+  }
+  return "";
+}
 
 export function coerceStylePayload(input: unknown): StylePayload | null {
   if (!input || typeof input !== "object") return null;
   const raw = input as Record<string, unknown>;
   const result = {} as StylePayload;
+
   for (const field of STYLE_FIELDS) {
-    const value = raw[field];
-    if (ARRAY_STYLE_FIELDS.includes(field)) {
-      if (Array.isArray(value)) {
-        result[field] = value.map(String).join("; ");
-        continue;
-      }
-    }
-    if (typeof value === "string") {
-      const normalized = value.trim();
-      if (!normalized && !OPTIONAL_STYLE_FIELDS.includes(field)) return null;
-      result[field] = normalized;
+    const value = pickRawStyleValue(raw, field);
+    const str = coerceStyleValueToString(value);
+
+    if (str.length > 0) {
+      result[field] = str;
       continue;
     }
-    if (OPTIONAL_STYLE_FIELDS.includes(field)) {
+
+    if (STYLE_FIELDS_DEFAULT_EMPTY.includes(field)) {
       result[field] = "";
       continue;
     }
-    return null;
+
+    if (STYLE_FIELDS_REQUIRED_NON_EMPTY.includes(field)) {
+      return null;
+    }
+
+    result[field] = "";
   }
+
   return result;
 }
 
