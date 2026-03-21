@@ -217,12 +217,13 @@ async function processGeneration(supabase: ReturnType<typeof createSupabaseServe
   const fullPrompt = isVibeGeneration ? vibePrefix + rawPrompt : rawPrompt;
 
   /*
-   * Image order: [subject_photo, reference_image?, text_prompt]
-   * Gemini sees Image 1 as identity source, Image 2 as style reference.
+   * Image order for vibe+reference: [reference_image, subject_photo(s), text_prompt]
+   * Subject must be LAST before text — otherwise the model often copies the reference
+   * and ignores the user's face (looks like "original reference only").
    */
   const parts: { text?: string; inlineData?: { mimeType: string; data: string } }[] = [
-    ...imageParts,
     ...(referenceImagePart ? [referenceImagePart] : []),
+    ...imageParts,
     { text: fullPrompt },
   ];
 

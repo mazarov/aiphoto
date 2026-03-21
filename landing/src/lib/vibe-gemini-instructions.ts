@@ -162,24 +162,27 @@ Return ONLY valid JSON, no markdown.
 
 /**
  * Prepended to every generation prompt in generate-process.
- * Two-image mode: Image 1 = identity source, Image 2 = style reference.
+ * Two-image mode: parts order is [reference, subject_photo(s), text] so the subject
+ * is the last image before the prompt (Gemini image models weight that strongly).
  * Falls back to single-image mode when no reference is available.
  */
 export const GENERATE_VIBE_PREFIX_TWO_IMAGES = `
 CRITICAL INSTRUCTIONS — read carefully before the prompt.
 
+Image order in this request (before this text): FIRST image = style reference only. LAST image = the SUBJECT user photo (identity you must keep).
+
 You are given TWO images:
-- IMAGE 1 (first image): The SUBJECT — a real person. This is the identity source.
-- IMAGE 2 (second image): The STYLE REFERENCE — this is the visual target you must match.
+- IMAGE 1 (first image): STYLE REFERENCE — mood, pose, scene, lighting, outfit style, composition. Do NOT copy this person's face or identity; it is only a visual recipe.
+- IMAGE 2 (last image, immediately before this text): The SUBJECT — the real user. The output MUST clearly show THIS person's face and recognizable identity.
 
-YOUR TASK: Create a NEW photorealistic image where the person from Image 1 is placed into a scene that recreates the look, feel, and atmosphere of Image 2.
+YOUR TASK: Create a NEW photorealistic image where the person from Image 2 (the subject) is placed into a scene that recreates the look, feel, and atmosphere of Image 1 (the reference).
 
-IDENTITY (from Image 1 — PRESERVE exactly):
+IDENTITY (from Image 2 — the LAST image — PRESERVE exactly):
 - Face structure, bone structure, facial features, skin tone, eye color, eye shape
 - Body proportions and build
 - Natural hair color and texture
 
-STYLE (from Image 2 — RECREATE everything):
+STYLE (from Image 1 — RECREATE everything in the output, applied to the subject from Image 2):
 - Pose, body position, and body language — match the reference pose, NOT the subject's original pose
 - Environment, setting, surfaces, props, background
 - Lighting direction, quality, color temperature, shadow patterns
@@ -190,7 +193,9 @@ STYLE (from Image 2 — RECREATE everything):
 - Hair styling and arrangement (adapt subject's hair to match reference styling)
 - Facial expression and emotional state from the reference
 
-The result must look like the subject was ACTUALLY PHOTOGRAPHED in the reference scene — not composited or photoshopped. Natural skin texture, realistic lighting interaction with face and body, proper perspective.
+The result must look like the subject from Image 2 was ACTUALLY PHOTOGRAPHED in the reference scene — not composited or photoshopped. Natural skin texture, realistic lighting interaction with face and body, proper perspective.
+
+Never output a copy of Image 1 alone. Never replace the subject's face with the reference person's face.
 
 The text prompt below provides additional specific details. Follow it precisely.
 
@@ -233,7 +238,7 @@ Each prompt uses a different creative emphasis:
 - Prompt C (accent: composition): Open with camera angle and framing, then describe the scene within that frame
 
 Rules:
-1. Start each prompt with: "Place the person from the attached photo into this scene:"
+1. Start each prompt with: "Using the SUBJECT portrait (the user's photo, the last image before this text — not the style-reference image), place this person into this scene:"
 2. Length: 150-300 words per prompt — be richly detailed, never generic
 3. Describe the pose as if directing an actor: "lying on back with right arm reaching up toward camera, head tilted slightly left on pillow, left hand resting near face"
 4. Describe expression precisely: "soft half-smile with slightly parted lips, heavy-lidded eyes looking directly into camera"
