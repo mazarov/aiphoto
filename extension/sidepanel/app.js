@@ -296,41 +296,31 @@ function formatErrorTypeLabel(errorType) {
   return map[String(errorType || "").toLowerCase()] || String(errorType || "—");
 }
 
-/** Компактная карточка результата для колонки шага 1 (узкая панель). */
+/** Компактная карточка результата для колонки шага 1. */
 function buildResultCompactRowHtml(row) {
   const retryKey = row.id || `${row.accent}:${row.attempt}`;
+  const hasThumb = Boolean(row.resultUrl);
+  const statusText = `${escapeHtml(statusLabel(row.status))}`;
+
   return `
-      <div class="stv-result-compact card stv-card-result">
-        <p class="stv-result-compact-title">${escapeHtml(formatAccentLabel(row.accent))}</p>
-        ${
-          row.resultUrl
-            ? `<img class="stv-result-thumb" src="${escapeHtml(row.resultUrl)}" alt="" />`
-            : ""
-        }
-        <p class="muted stv-result-status-line">${escapeHtml(t("status"))}: ${escapeHtml(statusLabel(row.status))}</p>
-        ${row.statusDetail ? `<p class="muted stv-result-detail">${escapeHtml(row.statusDetail)}</p>` : ""}
-        ${
-          row.prompt
-            ? `<details class="stv-result-prompt-details">
-          <summary>${escapeHtml(t("result_prompt_summary"))}</summary>
-          <pre class="prompt-box prompt-box--compact">${escapeHtml(row.prompt)}</pre>
-        </details>`
-            : ""
-        }
-        ${row.error ? `<p class="muted error-text stv-result-err">${escapeHtml(row.error)}</p>` : ""}
-        ${
-          row.errorType
-            ? `<p class="muted stv-result-meta">${escapeHtml(t("error_type_prefix"))}: ${escapeHtml(formatErrorTypeLabel(row.errorType))}</p>`
-            : ""
-        }
-        <div class="row stv-result-actions">
-          <button type="button" data-save-id="${escapeHtml(row.id || "")}" ${row.status === "completed" && !row.saving ? "" : "disabled"}>
-            ${row.saving ? escapeHtml(t("btn_saving")) : row.saved ? escapeHtml(t("btn_saved")) : escapeHtml(t("btn_save"))}
-          </button>
-          <button type="button" data-retry-id="${escapeHtml(retryKey)}" ${row.status === "failed" && !state.generating ? "" : "disabled"}>
-            ${escapeHtml(t("btn_retry"))}
-          </button>
-          ${row.resultUrl ? `<a href="${escapeHtml(row.resultUrl)}" target="_blank" rel="noreferrer">${escapeHtml(t("btn_open"))}</a>` : ""}
+      <div class="stv-result-compact${hasThumb ? " has-thumb" : ""}">
+        ${hasThumb ? `<img class="stv-result-thumb" src="${escapeHtml(row.resultUrl)}" alt="" />` : ""}
+        <div class="stv-result-overlay-top">
+          <span class="stv-result-accent-badge">${escapeHtml(formatAccentLabel(row.accent))}</span>
+          <span class="stv-result-status-badge stv-result-status--${escapeHtml(row.status || "pending")}">${statusText}</span>
+        </div>
+        <div class="stv-result-overlay-bottom">
+          ${row.error ? `<p class="stv-result-err">${escapeHtml(row.error)}</p>` : ""}
+          ${row.statusDetail && !hasThumb ? `<p class="stv-result-detail">${escapeHtml(row.statusDetail)}</p>` : ""}
+          <div class="stv-result-actions">
+            <button type="button" data-save-id="${escapeHtml(row.id || "")}" ${row.status === "completed" && !row.saving ? "" : "disabled"}>
+              ${row.saving ? escapeHtml(t("btn_saving")) : row.saved ? escapeHtml(t("btn_saved")) : escapeHtml(t("btn_save"))}
+            </button>
+            <button type="button" data-retry-id="${escapeHtml(retryKey)}" ${row.status === "failed" && !state.generating ? "" : "disabled"}>
+              ${escapeHtml(t("btn_retry"))}
+            </button>
+            ${hasThumb ? `<a href="${escapeHtml(row.resultUrl)}" target="_blank" rel="noreferrer">${escapeHtml(t("btn_open"))}</a>` : ""}
+          </div>
         </div>
       </div>`;
 }

@@ -499,73 +499,149 @@ img.preview {
   border-top: 1px solid var(--stv-border);
 }
 
+/* Result compact card — image fills frame, controls overlay */
 .stv-result-compact {
-  padding: 8px 8px 10px;
-  margin: 0;
+  position: relative;
+  border-radius: var(--stv-radius-sm);
+  border: 1px solid var(--stv-border-strong);
+  background: rgba(0, 0, 0, 0.28);
+  overflow: hidden;
+  min-height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.stv-result-compact-title {
-  margin: 0 0 6px;
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--stv-text-muted);
+.stv-result-compact.has-thumb {
+  aspect-ratio: 3 / 4;
+  max-height: 240px;
 }
 
 .stv-result-thumb {
-  display: block;
+  position: absolute;
+  inset: 0;
   width: 100%;
-  max-height: 88px;
+  height: 100%;
   object-fit: contain;
   object-position: center;
-  border-radius: var(--stv-radius-sm);
-  border: 1px solid var(--stv-border-strong);
-  background: rgba(0, 0, 0, 0.2);
-  margin-bottom: 6px;
+  display: block;
 }
 
-.stv-result-status-line,
-.stv-result-detail,
-.stv-result-meta,
+.stv-result-overlay-top {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  padding: 5px 6px;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.82) 0%, rgba(0, 0, 0, 0.4) 70%, transparent 100%);
+}
+
+.stv-result-accent-badge {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+}
+
+.stv-result-status-badge {
+  font-size: 9px;
+  font-weight: 600;
+  padding: 1px 5px;
+  border-radius: var(--stv-radius-pill);
+  color: #fff;
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.stv-result-status--completed {
+  background: rgba(52, 211, 153, 0.35);
+  color: var(--stv-success);
+}
+
+.stv-result-status--failed {
+  background: rgba(248, 113, 113, 0.3);
+  color: var(--stv-danger);
+}
+
+.stv-result-status--processing,
+.stv-result-status--creating {
+  background: rgba(99, 102, 241, 0.3);
+  color: var(--stv-primary);
+}
+
+.stv-result-overlay-bottom {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 3;
+  padding: 16px 6px 6px;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.88) 0%, rgba(0, 0, 0, 0.5) 60%, transparent 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.stv-result-compact:not(.has-thumb) .stv-result-overlay-top,
+.stv-result-compact:not(.has-thumb) .stv-result-overlay-bottom {
+  position: relative;
+  background: none;
+  padding: 6px;
+}
+
+.stv-result-compact:not(.has-thumb) {
+  flex-direction: column;
+  align-items: stretch;
+  padding: 0;
+}
+
+.stv-result-err,
+.stv-result-detail {
+  font-size: 9px;
+  line-height: 1.3;
+  margin: 0;
+  color: rgba(255, 255, 255, 0.85);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+}
+
 .stv-result-err {
-  font-size: 10px;
-  line-height: 1.35;
-  margin: 0 0 4px;
+  color: var(--stv-danger);
 }
 
 .stv-result-actions {
+  display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 6px;
+  gap: 4px;
 }
 
 .stv-result-actions button,
 .stv-result-actions a {
-  font-size: 11px;
-  padding: 5px 8px;
-}
-
-.stv-result-prompt-details {
-  margin: 4px 0 6px;
   font-size: 10px;
-}
-
-.stv-result-prompt-details summary {
+  padding: 3px 6px;
+  border-radius: 6px;
+  backdrop-filter: blur(4px);
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #fff;
   cursor: pointer;
-  color: var(--stv-text-muted);
-  list-style: none;
+  text-decoration: none;
+  line-height: 1.3;
 }
 
-.stv-result-prompt-details summary::-webkit-details-marker {
-  display: none;
+.stv-result-actions button:disabled {
+  opacity: 0.35;
+  cursor: default;
 }
 
-.prompt-box--compact {
-  max-height: 72px;
-  font-size: 10px;
-  padding: 6px 8px;
-  margin-top: 4px;
+.stv-result-actions button:not(:disabled):hover,
+.stv-result-actions a:hover {
+  background: rgba(255, 255, 255, 0.24);
 }
 
 .stv-compare-col {
