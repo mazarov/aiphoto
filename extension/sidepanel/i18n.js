@@ -38,6 +38,7 @@ const STRINGS = {
     first_run_hint:
       "Подсказка: наведите курсор на фото на любом сайте и нажмите кнопку «Steal this vibe». После этого вернитесь в эту панель.",
     photo_uploaded: "Фото загружено",
+    photo_preview_loading: "Загружаем превью…",
     photo_saved_label: "Файл с ПК",
     photo_pick: "Выбрать фото с ПК",
     photo_replace: "Заменить фото с ПК",
@@ -125,6 +126,11 @@ const STRINGS = {
       "Сборка совпадает с сервером: префикс (2 изображения) + напоминание про JSON + текст expand. В запросе: референс, затем ваше фото.",
     final_prompt_hint_one:
       "В vibe нет URL референса — префикс для одного изображения. На сервере при успешной загрузке референса может быть вариант с двумя картинками.",
+    grooming_title: "Внешний вид (референс)",
+    grooming_hair: "Перенести укладку волос",
+    grooming_makeup: "Перенести макияж",
+    grooming_adjust_hint: "При необходимости снимите галочки и нажмите «Продолжить генерацию».",
+    btn_continue_generate: "Продолжить генерацию",
   },
   de: {
     title_app: "Steal This Vibe",
@@ -164,6 +170,7 @@ const STRINGS = {
     first_run_hint:
       "Tipp: Fahren Sie über ein Foto auf einer beliebigen Seite und klicken Sie „Steal this vibe“. Kehren Sie dann hierher zurück.",
     photo_uploaded: "Foto hochgeladen",
+    photo_preview_loading: "Vorschau wird geladen…",
     photo_saved_label: "Datei vom PC",
     photo_pick: "Foto vom PC wählen",
     photo_replace: "Foto vom PC ersetzen",
@@ -251,6 +258,11 @@ const STRINGS = {
       "Wie auf dem Server: Präfix (2 Bilder) + JSON-Hinweis + Expand-Text. Reihenfolge: Referenz, dann dein Foto.",
     final_prompt_hint_one:
       "Keine Referenz-URL in der Vibe — Präfix für ein Bild. Lädt der Server die Referenz, kann es zwei Bilder sein.",
+    grooming_title: "Look (Referenz)",
+    grooming_hair: "Frisur/Styling übernehmen",
+    grooming_makeup: "Make-up übernehmen",
+    grooming_adjust_hint: "Häkchen anpassen, dann „Weiter zur Generierung“.",
+    btn_continue_generate: "Weiter zur Generierung",
   },
 };
 

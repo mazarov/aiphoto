@@ -15,6 +15,11 @@ import {
   getVibeOneShotExtractPromptEnabled,
   MIN_VIBE_SCENE_PROMPT_CHARS,
 } from "@/lib/vibe-gemini-instructions";
+import {
+  combineSceneAndGroomingForDefaultDisplay,
+  parseExpandStructuredResult,
+  validateVibePersistParts,
+} from "@/lib/vibe-grooming-assembly";
 import { openAiExtractImageJson } from "@/lib/vibe-llm-openai";
 import {
   fetchErrorDetails,
@@ -372,37 +377,76 @@ export async function POST(req: NextRequest) {
     const { value: parsed, stages: parseStages } = parseGeminiJsonObject(text);
 
     if (oneShotExtract) {
-      const rawPrompt =
-        parsed && typeof (parsed as Record<string, unknown>).prompt === "string"
-          ? String((parsed as Record<string, unknown>).prompt).trim()
-          : "";
-      const promptOk = rawPrompt.length >= MIN_VIBE_SCENE_PROMPT_CHARS;
-
-      if (!httpOk || !promptOk) {
-        const stageLine = parseStages
-          .map((s) => `${s.stage}:${s.ok ? "ok" : "fail"}${s.message ? `(${String(s.message).slice(0, 120)})` : ""}`)
-          .join(" | ");
-        console.error(
-          `[vibe.extract] PIPELINE_FAIL user=${user.id} one_shot=true llm=${extractLlm} http=${httpStatus} promptOk=${promptOk} promptLen=${rawPrompt.length} stages=${stageLine}`,
-        );
-        console.error("[vibe.extract] extract_pipeline_failed_one_shot", {
+      if (!httpOk) {
+        console.error("[vibe.extract] extract_pipeline_failed_one_shot_http", {
           userId: user.id,
           llm: extractLlm,
-          model: modelUsed,
           httpStatus,
           llmError,
-          textLen: text.length,
-          jsonObjectParsed: Boolean(parsed),
-          parseStages,
-          parsedKeys: parsed ? Object.keys(parsed) : [],
-          promptLen: rawPrompt.length,
-          textHead: text.slice(0, 500),
-          textTail: text.length > 500 ? text.slice(-300) : undefined,
         });
         return NextResponse.json({ error: "extract_failed" }, { status: 500 });
       }
 
-      const style = buildOneShotVibeStyleFromPrompt(rawPrompt);
+      const structured = parseExpandStructuredResult(parsed, null, MIN_VIBE_SCENE_PROMPT_CHARS);
+      let sceneCore: string;
+      let grooming: { hair: string; makeup: string };
+      let combinedForPrefill: string;
+
+      if (structured) {
+        sceneCore = structured.scene;
+        grooming = structured.grooming;
+        combinedForPrefill = combineSceneAndGroomingForDefaultDisplay(sceneCore, grooming);
+      } else {
+        const rawPrompt =
+          parsed && typeof (parsed as Record<string, unknown>).prompt === "string"
+            ? String((parsed as Record<string, unknown>).prompt).trim()
+            : "";
+        const promptOk = rawPrompt.length >= MIN_VIBE_SCENE_PROMPT_CHARS;
+        if (!promptOk) {
+          const stageLine = parseStages
+            .map((s) => `${s.stage}:${s.ok ? "ok" : "fail"}${s.message ? `(${String(s.message).slice(0, 120)})` : ""}`)
+            .join(" | ");
+          console.error(
+            `[vibe.extract] PIPELINE_FAIL user=${user.id} one_shot=true llm=${extractLlm} http=${httpStatus} promptOk=${promptOk} promptLen=${rawPrompt.length} stages=${stageLine}`,
+          );
+          console.error("[vibe.extract] extract_pipeline_failed_one_shot", {
+            userId: user.id,
+            llm: extractLlm,
+            model: modelUsed,
+            httpStatus,
+            llmError,
+            textLen: text.length,
+            jsonObjectParsed: Boolean(parsed),
+            parseStages,
+            parsedKeys: parsed ? Object.keys(parsed) : [],
+            promptLen: rawPrompt.length,
+            textHead: text.slice(0, 500),
+            textTail: text.length > 500 ? text.slice(-300) : undefined,
+          });
+          return NextResponse.json({ error: "extract_failed" }, { status: 500 });
+        }
+        sceneCore = rawPrompt;
+        grooming = { hair: "", makeup: "" };
+        combinedForPrefill = rawPrompt;
+      }
+
+      const validated = validateVibePersistParts(sceneCore, grooming, combinedForPrefill);
+      if (!validated.ok) {
+        console.error("[vibe.extract] one_shot_persist_validation_failed", {
+          userId: user.id,
+          reason: validated.reason,
+          sceneLen: sceneCore.trim().length,
+          hairLen: grooming.hair.length,
+          makeupLen: grooming.makeup.length,
+          combinedLen: combinedForPrefill.length,
+        });
+        return NextResponse.json(
+          { error: "vibe_prompt_too_large", detail: validated.reason },
+          { status: 400 },
+        );
+      }
+
+      const style = buildOneShotVibeStyleFromPrompt(validated.combinedUnprefixed);
 
       console.warn("[vibe.extract] extract_parse_ok", {
         userId: user.id,
@@ -410,7 +454,8 @@ export async function POST(req: NextRequest) {
         oneShotExtract: true,
         parseStages: parseStages.filter((s) => s.ok).map((s) => s.stage),
         styleFieldCount: Object.keys(style).length,
-        promptChars: rawPrompt.length,
+        promptChars: validated.combinedUnprefixed.length,
+        structuredOneShot: Boolean(structured),
       });
 
       const { data: vibe, error: insertError } = await supabase
@@ -419,7 +464,10 @@ export async function POST(req: NextRequest) {
           user_id: user.id,
           source_image_url: safeUrl.toString(),
           style,
-          prefilled_generation_prompt: rawPrompt,
+          prefilled_generation_prompt: validated.combinedUnprefixed,
+          prompt_scene_core: validated.sceneCore,
+          grooming_reference: validated.grooming,
+          last_monolithic_prompt: validated.combinedUnprefixed,
         })
         .select("id")
         .single();

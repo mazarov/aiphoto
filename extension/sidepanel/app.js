@@ -56,6 +56,8 @@ const state = {
   photoPreviewSignedUrl: "",
   /** Path we last resolved `photoPreviewSignedUrl` for (avoid duplicate fetches). */
   photoPreviewSignedForPath: "",
+  /** True while fetching signed URL for storage preview (blob URL missing). */
+  userPhotoPreviewLoading: false,
   selectedModel: "gemini-2.5-flash-image",
   selectedAspectRatio: "1:1",
   selectedImageSize: "1K",
@@ -70,6 +72,12 @@ const state = {
   /** Full text sent to Gemini (prefix + bridge + expanded prompt), from expand response */
   finalPromptForGeneration: "",
   finalPromptAssumesTwoImages: false,
+  /** Server: split prompt + grooming refs — show hair/makeup checkboxes */
+  vibeGroomingControlsAvailable: false,
+  groomingPolicy: { applyHair: true, applyMakeup: true },
+  /** After expand: wait for user to adjust grooming, then continue */
+  awaitingContinueGenerate: false,
+  pendingRunStartedAt: 0,
   results: [],
   generating: false,
   runHistory: [],
@@ -81,6 +89,7 @@ const state = {
 
 let toastTimer = null;
 let creditPollTimer = null;
+let assembleDebounceTimer = null;
 
 function storageLocalGet(key) {
   return new Promise((resolve) => {
@@ -149,21 +158,26 @@ let userPhotoPreviewRefreshPromise = null;
  */
 async function refreshUserPhotoPreviewIfNeeded() {
   if (!state.photoStoragePath || state.photoPreviewObjectUrl) {
+    state.userPhotoPreviewLoading = false;
     return;
   }
   if (
     state.photoPreviewSignedUrl &&
     state.photoPreviewSignedForPath === state.photoStoragePath
   ) {
+    state.userPhotoPreviewLoading = false;
     return;
   }
   if (!state.user || !accessTokenRef) {
+    state.userPhotoPreviewLoading = false;
     return;
   }
   if (userPhotoPreviewRefreshPromise) {
     return userPhotoPreviewRefreshPromise;
   }
   userPhotoPreviewRefreshPromise = (async () => {
+    state.userPhotoPreviewLoading = true;
+    render();
     try {
       const q = encodeURIComponent(state.photoStoragePath);
       const data = await api(`/api/upload-generation-photo/signed-url?path=${q}`);
@@ -171,13 +185,14 @@ async function refreshUserPhotoPreviewIfNeeded() {
       if (typeof url === "string" && url.startsWith("http")) {
         state.photoPreviewSignedUrl = url;
         state.photoPreviewSignedForPath = state.photoStoragePath;
-        render();
       }
     } catch (e) {
       console.warn("[stv] user photo signed preview:", e);
     } finally {
       userPhotoPreviewRefreshPromise = null;
+      state.userPhotoPreviewLoading = false;
     }
+    render();
   })();
   return userPhotoPreviewRefreshPromise;
 }
@@ -464,6 +479,10 @@ function toSerializableState() {
     prompts: state.prompts,
     finalPromptForGeneration: state.finalPromptForGeneration,
     finalPromptAssumesTwoImages: state.finalPromptAssumesTwoImages,
+    vibeGroomingControlsAvailable: state.vibeGroomingControlsAvailable,
+    groomingPolicy: state.groomingPolicy,
+    awaitingContinueGenerate: state.awaitingContinueGenerate,
+    pendingRunStartedAt: state.pendingRunStartedAt,
     results: state.results,
     runHistory: state.runHistory,
     cooldownUntil: state.cooldownUntil,
@@ -545,6 +564,15 @@ function applyPersistedState(saved) {
   state.finalPromptForGeneration =
     typeof saved.finalPromptForGeneration === "string" ? saved.finalPromptForGeneration : state.finalPromptForGeneration;
   state.finalPromptAssumesTwoImages = Boolean(saved.finalPromptAssumesTwoImages);
+  state.vibeGroomingControlsAvailable = Boolean(saved.vibeGroomingControlsAvailable);
+  if (saved.groomingPolicy && typeof saved.groomingPolicy === "object") {
+    state.groomingPolicy = {
+      applyHair: saved.groomingPolicy.applyHair !== false,
+      applyMakeup: saved.groomingPolicy.applyMakeup !== false
+    };
+  }
+  state.awaitingContinueGenerate = Boolean(saved.awaitingContinueGenerate);
+  state.pendingRunStartedAt = Number(saved.pendingRunStartedAt || 0);
   state.results = Array.isArray(saved.results) ? saved.results : state.results;
   state.runHistory = Array.isArray(saved.runHistory) ? saved.runHistory : state.runHistory;
   state.cooldownUntil = Number(saved.cooldownUntil || 0);
@@ -702,6 +730,16 @@ async function refreshAuthSilently() {
     render();
     await persistState();
   }
+  /* Blob preview is lost after panel unload; retry signed URL if still empty (first fetch may have raced token). */
+  if (
+    state.user &&
+    accessTokenRef &&
+    state.photoStoragePath &&
+    !state.photoPreviewObjectUrl &&
+    !state.photoPreviewSignedUrl
+  ) {
+    void refreshUserPhotoPreviewIfNeeded();
+  }
 }
 
 function toAbsoluteTelegramDeepLink(url) {
@@ -791,6 +829,7 @@ async function runExtract() {
 async function runExpand() {
   state.finalPromptForGeneration = "";
   state.finalPromptAssumesTwoImages = false;
+  state.vibeGroomingControlsAvailable = false;
   const expandData = await api("/api/vibe/expand", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -800,7 +839,36 @@ async function runExpand() {
   state.expandModel = String(expandData.modelUsed || "");
   state.finalPromptForGeneration = String(expandData.finalPromptForGeneration || "").trim();
   state.finalPromptAssumesTwoImages = Boolean(expandData.finalPromptAssumesTwoImages);
+  state.vibeGroomingControlsAvailable = Boolean(expandData.vibeGroomingControlsAvailable);
   await persistState();
+}
+
+function scheduleAssemblePrompt() {
+  if (!state.vibeId || !state.vibeGroomingControlsAvailable) return;
+  clearTimeout(assembleDebounceTimer);
+  assembleDebounceTimer = setTimeout(async () => {
+    assembleDebounceTimer = null;
+    try {
+      const data = await api("/api/vibe/assemble-prompt", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          vibeId: state.vibeId,
+          groomingPolicy: {
+            applyHair: state.groomingPolicy.applyHair,
+            applyMakeup: state.groomingPolicy.applyMakeup
+          }
+        })
+      });
+      state.prompts = Array.isArray(data.prompts) ? data.prompts : state.prompts;
+      state.finalPromptForGeneration = String(data.finalPromptForGeneration || "").trim();
+      state.finalPromptAssumesTwoImages = Boolean(data.finalPromptAssumesTwoImages);
+      await persistState();
+      render();
+    } catch (err) {
+      setToast("error", normalizeUiError(err, "assemble"));
+    }
+  }, 280);
 }
 
 async function createGeneration(promptVariant) {
@@ -1010,31 +1078,7 @@ async function clearRunHistory() {
   render();
 }
 
-async function generateAll() {
-  if (state.generating) return;
-  if (!state.sourceImageUrl) throw new Error("Нет source image");
-  if (!state.photoStoragePath) throw new Error("Сначала загрузите фото");
-  if (getCooldownLeftSeconds() > 0) {
-    throw new Error(`Подождите ${getCooldownLeftSeconds()} сек перед новым запуском`);
-  }
-
-  const requiredCredits = getRequiredCredits();
-  if (state.credits < requiredCredits) {
-    throw new Error(`Недостаточно кредитов: нужно ${requiredCredits}, доступно ${state.credits}`);
-  }
-
-  state.generating = true;
-  state.cooldownUntil = Date.now() + GENERATION_COOLDOWN_MS;
-  const runStartedAt = Date.now();
-  state.phase = "processing";
-  state.error = "";
-  state.info = t("run_extract");
-  render();
-
-  await runExtract();
-  state.info = t("run_expand_prep");
-  render();
-  await runExpand();
+async function completeGenerationAfterExpand(runStartedAt) {
   const allPrompts = Array.isArray(state.prompts) ? state.prompts : [];
   state.prompts = allPrompts.slice(0, 1);
   if (state.prompts.length !== 1) {
@@ -1072,6 +1116,8 @@ async function generateAll() {
   ];
   state.phase = "done";
   state.generating = false;
+  state.awaitingContinueGenerate = false;
+  state.pendingRunStartedAt = 0;
   state.info =
     failed === 0 ? t("all_done") : `${t("partial_done")}: ${completed}/1`;
   const perAccent = {
@@ -1109,6 +1155,68 @@ async function generateAll() {
   }
   await persistState();
   render();
+}
+
+async function generateAll() {
+  if (state.generating || state.awaitingContinueGenerate) return;
+  if (!state.sourceImageUrl) throw new Error("Нет source image");
+  if (!state.photoStoragePath) throw new Error("Сначала загрузите фото");
+  if (getCooldownLeftSeconds() > 0) {
+    throw new Error(`Подождите ${getCooldownLeftSeconds()} сек перед новым запуском`);
+  }
+
+  const requiredCredits = getRequiredCredits();
+  if (state.credits < requiredCredits) {
+    throw new Error(`Недостаточно кредитов: нужно ${requiredCredits}, доступно ${state.credits}`);
+  }
+
+  state.awaitingContinueGenerate = false;
+  state.pendingRunStartedAt = 0;
+  state.generating = true;
+  state.cooldownUntil = Date.now() + GENERATION_COOLDOWN_MS;
+  const runStartedAt = Date.now();
+  state.phase = "processing";
+  state.error = "";
+  state.info = t("run_extract");
+  render();
+
+  await runExtract();
+  state.info = t("run_expand_prep");
+  render();
+  await runExpand();
+
+  if (state.vibeGroomingControlsAvailable) {
+    state.pendingRunStartedAt = runStartedAt;
+    state.awaitingContinueGenerate = true;
+    state.generating = false;
+    state.phase = "idle";
+    state.info = t("grooming_adjust_hint");
+    render();
+    await persistState();
+    return;
+  }
+
+  await completeGenerationAfterExpand(runStartedAt);
+}
+
+async function continueGenerateAfterGrooming() {
+  if (!state.awaitingContinueGenerate || state.generating) return;
+  const runStartedAt = state.pendingRunStartedAt || Date.now();
+  state.awaitingContinueGenerate = false;
+  state.pendingRunStartedAt = 0;
+  state.generating = true;
+  state.phase = "processing";
+  state.error = "";
+  state.info = t("run_generate");
+  render();
+  await persistState();
+  try {
+    await completeGenerationAfterExpand(runStartedAt);
+  } catch (err) {
+    state.generating = false;
+    state.phase = "idle";
+    throw err;
+  }
 }
 
 async function retryResultById(id) {
@@ -1153,6 +1261,7 @@ async function resetSession() {
   state.info = t("session_cleared");
   revokePhotoPreviewObjectUrl();
   clearPhotoPreviewSignedUrl();
+  state.userPhotoPreviewLoading = false;
   state.photoStoragePath = "";
   state.uploadedFileName = "";
   state.vibeId = null;
@@ -1162,6 +1271,10 @@ async function resetSession() {
   state.prompts = [];
   state.finalPromptForGeneration = "";
   state.finalPromptAssumesTwoImages = false;
+  state.vibeGroomingControlsAvailable = false;
+  state.groomingPolicy = { applyHair: true, applyMakeup: true };
+  state.awaitingContinueGenerate = false;
+  state.pendingRunStartedAt = 0;
   state.results = [];
   await storageLocalRemove(LOCAL_STATE_KEY);
   setToast("info", t("session_cleared"));
@@ -1179,6 +1292,10 @@ async function clearResultsOnly() {
   state.prompts = [];
   state.finalPromptForGeneration = "";
   state.finalPromptAssumesTwoImages = false;
+  state.vibeGroomingControlsAvailable = false;
+  state.groomingPolicy = { applyHair: true, applyMakeup: true };
+  state.awaitingContinueGenerate = false;
+  state.pendingRunStartedAt = 0;
   state.results = [];
   await persistState();
   setToast("info", t("results_cleared"));
@@ -1286,6 +1403,7 @@ function renderMain() {
     state.sourceImageUrl &&
       state.photoStoragePath &&
       !state.generating &&
+      !state.awaitingContinueGenerate &&
       state.credits >= requiredCredits &&
       cooldownLeftSec === 0
   );
@@ -1302,7 +1420,9 @@ function renderMain() {
   const userPhotoFrame = userPhotoSrc
     ? `<img class="stv-compare-img" src="${escapeHtml(userPhotoSrc)}" alt="" />`
     : state.photoStoragePath
-      ? `<div class="stv-compare-placeholder">
+      ? state.userPhotoPreviewLoading
+        ? `<div class="stv-compare-placeholder muted">${escapeHtml(t("photo_preview_loading"))}</div>`
+        : `<div class="stv-compare-placeholder">
           <span class="photo-saved" aria-hidden="true">✓</span>
           <span class="muted">${escapeHtml(state.uploadedFileName || t("photo_saved_label"))}</span>
         </div>`
@@ -1410,6 +1530,28 @@ function renderMain() {
           <p class="stv-subtitle">${escapeHtml(t("step1_final_prompt_title"))}</p>
           <p class="muted">${escapeHtml(finalPromptHint)}</p>
           ${finalPromptBody}
+          ${
+            state.vibeGroomingControlsAvailable
+              ? `<div class="stv-grooming-block" style="margin-top:10px">
+            <p class="stv-subtitle">${escapeHtml(t("grooming_title"))}</p>
+            <label class="stv-check" style="display:block;margin:6px 0">
+              <input type="checkbox" id="grooming-hair" ${state.groomingPolicy.applyHair ? "checked" : ""} />
+              ${escapeHtml(t("grooming_hair"))}
+            </label>
+            <label class="stv-check" style="display:block;margin:6px 0">
+              <input type="checkbox" id="grooming-makeup" ${state.groomingPolicy.applyMakeup ? "checked" : ""} />
+              ${escapeHtml(t("grooming_makeup"))}
+            </label>
+          </div>`
+              : ""
+          }
+          ${
+            state.awaitingContinueGenerate
+              ? `<div class="row" style="margin-top:12px">
+            <button type="button" class="primary" id="btn-continue-generate">${escapeHtml(t("btn_continue_generate"))}</button>
+          </div>`
+              : ""
+          }
           <div class="row" style="margin-top:8px">
             <button type="button" id="pipeline-spec-btn">${escapeHtml(t("btn_pipeline_spec"))}</button>
           </div>
@@ -1578,6 +1720,39 @@ function renderMain() {
         }
       } catch (err) {
         setToast("error", normalizeUiError(err, "pipeline-spec"));
+      }
+    });
+  }
+
+  const groomingHair = document.getElementById("grooming-hair");
+  if (groomingHair) {
+    groomingHair.addEventListener("change", async () => {
+      state.groomingPolicy.applyHair = groomingHair.checked;
+      await persistState();
+      scheduleAssemblePrompt();
+    });
+  }
+  const groomingMakeup = document.getElementById("grooming-makeup");
+  if (groomingMakeup) {
+    groomingMakeup.addEventListener("change", async () => {
+      state.groomingPolicy.applyMakeup = groomingMakeup.checked;
+      await persistState();
+      scheduleAssemblePrompt();
+    });
+  }
+  const continueGenBtn = document.getElementById("btn-continue-generate");
+  if (continueGenBtn) {
+    continueGenBtn.addEventListener("click", async () => {
+      try {
+        state.error = "";
+        await continueGenerateAfterGrooming();
+      } catch (err) {
+        state.generating = false;
+        state.phase = "idle";
+        state.error = normalizeUiError(err, "Ошибка генерации");
+        setToast("error", state.error);
+        render();
+        await persistState();
       }
     });
   }
@@ -1795,8 +1970,20 @@ async function boot() {
 
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible" && !state.loading) {
-      refreshAuthSilently().catch(() => {});
-      void tryConsumePendingVibeFromSessionPoll();
+      void (async () => {
+        await refreshAuthSilently();
+        void refreshUserPhotoPreviewIfNeeded();
+        void tryConsumePendingVibeFromSessionPoll();
+      })();
+    }
+  });
+
+  window.addEventListener("pageshow", (e) => {
+    if (e.persisted && !state.loading) {
+      void (async () => {
+        await refreshAuthSilently();
+        void refreshUserPhotoPreviewIfNeeded();
+      })();
     }
   });
 }
