@@ -459,12 +459,112 @@ img.preview {
   border: 1px solid var(--stv-border-strong);
 }
 
-/* Step 1: two columns — vertical frames, image fully visible (no crop) */
+/* Step 1: три колонки — ваше фото | референс | результат */
 .stv-compare-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  align-items: stretch;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+  align-items: start;
+  margin-top: 4px;
+}
+
+.stv-compare-col--result {
+  min-width: 0;
+}
+
+.stv-result-column {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  width: 100%;
+  max-height: 300px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.stv-result-column--empty {
+  max-height: none;
+  overflow: visible;
+}
+
+.stv-result-placeholder-frame {
+  aspect-ratio: 3 / 4;
+  max-height: 240px;
+}
+
+.stv-compare-progress {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--stv-border);
+}
+
+.stv-result-compact {
+  padding: 8px 8px 10px;
+  margin: 0;
+}
+
+.stv-result-compact-title {
+  margin: 0 0 6px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--stv-text-muted);
+}
+
+.stv-result-thumb {
+  display: block;
+  width: 100%;
+  max-height: 88px;
+  object-fit: contain;
+  object-position: center;
+  border-radius: var(--stv-radius-sm);
+  border: 1px solid var(--stv-border-strong);
+  background: rgba(0, 0, 0, 0.2);
+  margin-bottom: 6px;
+}
+
+.stv-result-status-line,
+.stv-result-detail,
+.stv-result-meta,
+.stv-result-err {
+  font-size: 10px;
+  line-height: 1.35;
+  margin: 0 0 4px;
+}
+
+.stv-result-actions {
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.stv-result-actions button,
+.stv-result-actions a {
+  font-size: 11px;
+  padding: 5px 8px;
+}
+
+.stv-result-prompt-details {
+  margin: 4px 0 6px;
+  font-size: 10px;
+}
+
+.stv-result-prompt-details summary {
+  cursor: pointer;
+  color: var(--stv-text-muted);
+  list-style: none;
+}
+
+.stv-result-prompt-details summary::-webkit-details-marker {
+  display: none;
+}
+
+.prompt-box--compact {
+  max-height: 72px;
+  font-size: 10px;
+  padding: 6px 8px;
   margin-top: 4px;
 }
 
@@ -487,6 +587,77 @@ img.preview {
   align-items: center;
   justify-content: center;
   overflow: hidden;
+}
+
+/* «Ваше фото»: превью + выбор файла внутри одной рамки */
+.stv-photo-frame--user {
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  position: relative;
+}
+
+.stv-photo-frame--user .stv-photo-frame-content {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.stv-photo-frame--user.has-photo .stv-photo-frame-content {
+  position: absolute;
+  inset: 0;
+  flex: none;
+}
+
+.stv-photo-upload-bar {
+  flex-shrink: 0;
+  position: relative;
+  z-index: 2;
+  padding: 8px 8px 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border-top: 1px solid var(--stv-border);
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.stv-photo-frame--user.has-photo .stv-photo-upload-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 4;
+  margin: 0;
+  border-top: none;
+  padding: 18px 8px 8px;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.92) 0%, rgba(0, 0, 0, 0.55) 55%, transparent 100%);
+}
+
+.stv-photo-file-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--stv-text-muted);
+  line-height: 1.3;
+  cursor: pointer;
+}
+
+.stv-photo-frame--user.has-photo .stv-photo-file-label {
+  color: rgba(255, 255, 255, 0.95);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+}
+
+.stv-photo-file-input {
+  width: 100%;
+  max-width: 100%;
+  font-size: 11px;
+  color: var(--stv-text-muted);
+}
+
+.stv-photo-frame--user.has-photo .stv-photo-file-input {
+  color: rgba(255, 255, 255, 0.9);
 }
 
 .stv-compare-img {
@@ -514,10 +685,6 @@ img.preview {
 
 .stv-compare-hint {
   margin-top: 12px;
-}
-
-.stv-compare-file {
-  margin-top: 0;
 }
 
 .grid {

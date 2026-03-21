@@ -1,6 +1,6 @@
 # Web Generation Module
 
-> Последнее обновление: 2026-03-16
+> Последнее обновление: 2026-03-20
 
 Модуль генерации изображений на лендинге PromptShot. Открывается как модальное окно поверх любой страницы. Точка входа — кнопка рядом с «Скопировать промпт» на странице карточки.
 
@@ -402,6 +402,14 @@ Polling статуса генерации. Требует auth. Пользова
 { "storagePath": "user-uuid/1710590400_0.jpg" }
 ```
 
+### 5.7.1. `GET /api/upload-generation-photo/signed-url`
+
+Превью загруженного файла в extension после перезагрузки сайдпанели: `blob:` URL не восстанавливается из `chrome.storage`, а bucket `web-generation-uploads` приватный.
+
+**Query:** `path` — тот же `storagePath`, что вернул POST upload (должен начинаться с `{user.id}/`).
+
+**Ответ:** `{ "signedUrl": "…", "expiresIn": 86400 }` — короткоживущий URL для `<img src>`.
+
 ---
 
 ## 6. UI / UX
@@ -644,6 +652,7 @@ if (!showGeneration) return null;
 | `/api/generation-config` | GET | Нет | Конфиг: модели, лимиты |
 | `/api/generation-prompt` | GET | Нет | EN промпт карточки по cardId |
 | `/api/upload-generation-photo` | POST | Да | Загрузка фото в Storage |
+| `/api/upload-generation-photo/signed-url` | GET | Да | Подписанный URL превью по `path` |
 | `/api/generate` | POST | Да | Запуск генерации |
 | `/api/generations/[id]` | GET | Да | Статус/результат генерации |
 | `/api/generations` | GET | Да | Список генераций пользователя |

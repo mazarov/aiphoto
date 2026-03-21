@@ -52,6 +52,10 @@ const state = {
   uploadedFileName: "",
   /** In-memory preview after upload (not persisted). */
   photoPreviewObjectUrl: "",
+  /** Signed Supabase URL when blob is gone (reload); not persisted. */
+  photoPreviewSignedUrl: "",
+  /** Path we last resolved `photoPreviewSignedUrl` for (avoid duplicate fetches). */
+  photoPreviewSignedForPath: "",
   selectedModel: "gemini-2.5-flash-image",
   selectedAspectRatio: "1:1",
   selectedImageSize: "1K",
@@ -127,6 +131,53 @@ function revokePhotoPreviewObjectUrl() {
     }
     state.photoPreviewObjectUrl = "";
   }
+}
+
+function clearPhotoPreviewSignedUrl() {
+  state.photoPreviewSignedUrl = "";
+  state.photoPreviewSignedForPath = "";
+}
+
+/** Avoid parallel signed-url fetches from repeated renderMain(). */
+let userPhotoPreviewRefreshPromise = null;
+
+/**
+ * After side panel reload, blob URLs are gone but `photoStoragePath` persists.
+ * Fetch a time-limited signed URL so <img> can show the uploaded file.
+ */
+async function refreshUserPhotoPreviewIfNeeded() {
+  if (!state.photoStoragePath || state.photoPreviewObjectUrl) {
+    return;
+  }
+  if (
+    state.photoPreviewSignedUrl &&
+    state.photoPreviewSignedForPath === state.photoStoragePath
+  ) {
+    return;
+  }
+  if (!state.user || !accessTokenRef) {
+    return;
+  }
+  if (userPhotoPreviewRefreshPromise) {
+    return userPhotoPreviewRefreshPromise;
+  }
+  userPhotoPreviewRefreshPromise = (async () => {
+    try {
+      const q = encodeURIComponent(state.photoStoragePath);
+      const data = await api(`/api/upload-generation-photo/signed-url?path=${q}`);
+      const url = data?.signedUrl;
+      if (typeof url === "string" && url.startsWith("http")) {
+        state.photoPreviewSignedUrl = url;
+        state.photoPreviewSignedForPath = state.photoStoragePath;
+        render();
+      }
+    } catch (e) {
+      console.warn("[stv] user photo signed preview:", e);
+    } finally {
+      userPhotoPreviewRefreshPromise = null;
+    }
+  })();
+  return userPhotoPreviewRefreshPromise;
 }
 
 function clearToastTimer() {
@@ -243,6 +294,45 @@ function formatErrorTypeLabel(errorType) {
     unknown: "Unknown"
   };
   return map[String(errorType || "").toLowerCase()] || String(errorType || "—");
+}
+
+/** Компактная карточка результата для колонки шага 1 (узкая панель). */
+function buildResultCompactRowHtml(row) {
+  const retryKey = row.id || `${row.accent}:${row.attempt}`;
+  return `
+      <div class="stv-result-compact card stv-card-result">
+        <p class="stv-result-compact-title">${escapeHtml(formatAccentLabel(row.accent))}</p>
+        ${
+          row.resultUrl
+            ? `<img class="stv-result-thumb" src="${escapeHtml(row.resultUrl)}" alt="" />`
+            : ""
+        }
+        <p class="muted stv-result-status-line">${escapeHtml(t("status"))}: ${escapeHtml(statusLabel(row.status))}</p>
+        ${row.statusDetail ? `<p class="muted stv-result-detail">${escapeHtml(row.statusDetail)}</p>` : ""}
+        ${
+          row.prompt
+            ? `<details class="stv-result-prompt-details">
+          <summary>${escapeHtml(t("result_prompt_summary"))}</summary>
+          <pre class="prompt-box prompt-box--compact">${escapeHtml(row.prompt)}</pre>
+        </details>`
+            : ""
+        }
+        ${row.error ? `<p class="muted error-text stv-result-err">${escapeHtml(row.error)}</p>` : ""}
+        ${
+          row.errorType
+            ? `<p class="muted stv-result-meta">${escapeHtml(t("error_type_prefix"))}: ${escapeHtml(formatErrorTypeLabel(row.errorType))}</p>`
+            : ""
+        }
+        <div class="row stv-result-actions">
+          <button type="button" data-save-id="${escapeHtml(row.id || "")}" ${row.status === "completed" && !row.saving ? "" : "disabled"}>
+            ${row.saving ? escapeHtml(t("btn_saving")) : row.saved ? escapeHtml(t("btn_saved")) : escapeHtml(t("btn_save"))}
+          </button>
+          <button type="button" data-retry-id="${escapeHtml(retryKey)}" ${row.status === "failed" && !state.generating ? "" : "disabled"}>
+            ${escapeHtml(t("btn_retry"))}
+          </button>
+          ${row.resultUrl ? `<a href="${escapeHtml(row.resultUrl)}" target="_blank" rel="noreferrer">${escapeHtml(t("btn_open"))}</a>` : ""}
+        </div>
+      </div>`;
 }
 
 function normalizeUiError(err, fallbackText) {
@@ -497,20 +587,44 @@ async function api(path, init = {}) {
 }
 
 /**
+ * Cache-bust reference preview so the same CDN URL still reloads after a new click.
+ */
+function referenceImageSrcForUi() {
+  const u = state.sourceImageUrl;
+  if (!u) return "";
+  const at = Number(state.sourceContext?.at || 0);
+  const sep = u.includes("?") ? "&" : "?";
+  return `${u}${sep}_stv=${at}`;
+}
+
+/**
  * Apply vibe from session storage (first open or subsequent "Steal this vibe" while panel stays open).
  */
 async function applyPendingVibeFromStorage(vibe) {
   const url = vibe?.imageUrl;
   if (typeof url !== "string" || !url.startsWith("http")) return;
+  const at = Number(vibe.at || 0);
+  if (state.sourceImageUrl === url && Number(state.sourceContext?.at || 0) === at) {
+    await storageSessionRemove(SESSION_VIBE_KEY);
+    return;
+  }
   state.sourceImageUrl = url;
   state.sourceContext = vibe;
   state.error = "";
   state.info = t("info_source_updated");
   await storageSessionRemove(SESSION_VIBE_KEY);
   await persistState();
-  if (!state.loading) {
-    render();
-  }
+  /* Always re-render: !state.loading guard missed updates during boot / race with onMessage. */
+  render();
+}
+
+/** Poll session storage — sendMessage / onChanged often do not reach the side panel from the SW. */
+async function tryConsumePendingVibeFromSessionPoll() {
+  if (state.loading) return;
+  const result = await storageSessionGet(SESSION_VIBE_KEY);
+  const vibe = result?.[SESSION_VIBE_KEY];
+  if (!vibe?.imageUrl) return;
+  await applyPendingVibeFromStorage(vibe);
 }
 
 async function loadPendingVibe() {
@@ -1032,6 +1146,7 @@ async function resetSession() {
   state.error = "";
   state.info = t("session_cleared");
   revokePhotoPreviewObjectUrl();
+  clearPhotoPreviewSignedUrl();
   state.photoStoragePath = "";
   state.uploadedFileName = "";
   state.vibeId = null;
@@ -1174,8 +1289,9 @@ function renderMain() {
   const overallProgress = getOverallProgressPercent();
   const showFirstRunHint = !state.sourceImageUrl && (!Array.isArray(state.runHistory) || state.runHistory.length === 0);
 
-  const userPhotoFrame = state.photoPreviewObjectUrl
-    ? `<img class="stv-compare-img" src="${escapeHtml(state.photoPreviewObjectUrl)}" alt="" />`
+  const userPhotoSrc = state.photoPreviewObjectUrl || state.photoPreviewSignedUrl;
+  const userPhotoFrame = userPhotoSrc
+    ? `<img class="stv-compare-img" src="${escapeHtml(userPhotoSrc)}" alt="" />`
     : state.photoStoragePath
       ? `<div class="stv-compare-placeholder">
           <span class="photo-saved" aria-hidden="true">✓</span>
@@ -1183,45 +1299,37 @@ function renderMain() {
         </div>`
       : `<div class="stv-compare-placeholder muted">${escapeHtml(t("compare_photo_empty"))}</div>`;
 
+  const hasUserPhoto = Boolean(state.photoStoragePath);
+  const userPhotoUploadBar = `
+    <div class="stv-photo-upload-bar">
+      <label class="stv-photo-file-label" for="photo-file">${escapeHtml(
+        hasUserPhoto ? t("photo_replace") : t("photo_pick")
+      )}</label>
+      <input id="photo-file" class="stv-photo-file-input" type="file" accept="image/jpeg,image/png,image/webp" />
+    </div>`;
+
   const referenceFrame = state.sourceImageUrl
-    ? `<img class="stv-compare-img" src="${escapeHtml(state.sourceImageUrl)}" alt="" />`
+    ? `<img class="stv-compare-img" src="${escapeHtml(referenceImageSrcForUi())}" alt="" />`
     : `<div class="stv-compare-placeholder muted">${escapeHtml(t("source_hint"))}</div>`;
 
-  const resultsHtml = state.results.length
-    ? `<div class="grid">${state.results
-        .map((row) => {
-          const retryKey = row.id || `${row.accent}:${row.attempt}`;
-          return `
-      <div class="card stv-card-result">
-        <p class="title">${escapeHtml(formatAccentLabel(row.accent))}</p>
-        ${
-          row.prompt
-            ? `<div class="prompt-box-wrap">
-          <p class="muted prompt-box-label">${escapeHtml(t("gen_prompt_label"))}</p>
-          <pre class="prompt-box">${escapeHtml(row.prompt)}</pre>
-        </div>`
-            : ""
-        }
-        <p class="muted">${escapeHtml(t("status"))}: ${escapeHtml(statusLabel(row.status))}</p>
-        ${row.statusDetail ? `<p class="muted">${escapeHtml(row.statusDetail)}</p>` : ""}
-        <p class="muted">${escapeHtml(t("attempt"))}: ${escapeHtml(String(row.attempt || 0))}</p>
-        ${row.resultUrl ? `<img class="preview" src="${escapeHtml(row.resultUrl)}" alt="Result" />` : ""}
-        ${row.error ? `<p class="muted error-text">${escapeHtml(row.error)}</p>` : ""}
-        ${row.errorType ? `<p class="muted">${escapeHtml(t("error_type_prefix"))}: ${escapeHtml(formatErrorTypeLabel(row.errorType))}</p>` : ""}
-        <div class="row">
-          <button data-save-id="${escapeHtml(row.id || "")}" ${row.status === "completed" && !row.saving ? "" : "disabled"}>
-            ${row.saving ? escapeHtml(t("btn_saving")) : row.saved ? escapeHtml(t("btn_saved")) : escapeHtml(t("btn_save"))}
-          </button>
-          <button data-retry-id="${escapeHtml(retryKey)}" ${row.status === "failed" && !state.generating ? "" : "disabled"}>
-            ${escapeHtml(t("btn_retry"))}
-          </button>
-          ${row.resultUrl ? `<a href="${escapeHtml(row.resultUrl)}" target="_blank" rel="noreferrer">${escapeHtml(t("btn_open"))}</a>` : ""}
+  const resultsCompareColumnHtml = state.results.length
+    ? `<div class="stv-result-column">${state.results.map((row) => buildResultCompactRowHtml(row)).join("")}</div>`
+    : `<div class="stv-result-column stv-result-column--empty">
+        <div class="stv-photo-frame stv-result-placeholder-frame">
+          <div class="stv-compare-placeholder muted">${escapeHtml(t("compare_result_empty"))}</div>
         </div>
-      </div>
-    `;
-        })
-        .join("")}</div>`
-    : "";
+      </div>`;
+
+  const compareProgressHtml =
+    state.results.length > 0
+      ? `
+          <div class="stv-compare-progress">
+            <div class="progress-wrap">
+              <div class="progress-bar" style="width:${escapeHtml(String(overallProgress))}%"></div>
+            </div>
+            <p class="muted">${escapeHtml(t("progress_total"))}: ${escapeHtml(String(overallProgress))}%</p>
+          </div>`
+      : "";
 
   const runHistoryHtml = Array.isArray(state.runHistory) && state.runHistory.length
     ? `
@@ -1333,17 +1441,21 @@ function renderMain() {
           <div class="stv-compare-grid">
             <div class="stv-compare-col">
               <span class="stv-field-label">${escapeHtml(t("compare_col_your_photo"))}</span>
-              <div class="stv-photo-frame">${userPhotoFrame}</div>
-              <div class="stv-field stv-compare-file">
-                <span class="stv-field-label">${escapeHtml(state.photoStoragePath ? t("photo_replace") : t("photo_pick"))}</span>
-                <input id="photo-file" type="file" accept="image/jpeg,image/png,image/webp" />
+              <div class="stv-photo-frame stv-photo-frame--user${hasUserPhoto ? " has-photo" : ""}">
+                <div class="stv-photo-frame-content">${userPhotoFrame}</div>
+                ${userPhotoUploadBar}
               </div>
             </div>
             <div class="stv-compare-col">
               <span class="stv-field-label">${escapeHtml(t("compare_col_reference"))}</span>
               <div class="stv-photo-frame">${referenceFrame}</div>
             </div>
+            <div class="stv-compare-col stv-compare-col--result">
+              <span class="stv-field-label">${escapeHtml(t("compare_col_result"))}</span>
+              ${resultsCompareColumnHtml}
+            </div>
           </div>
+          ${compareProgressHtml}
           ${
             showFirstRunHint
               ? `<p class="muted stv-compare-hint">${escapeHtml(t("first_run_hint"))}</p>`
@@ -1420,16 +1532,6 @@ function renderMain() {
             ? `<p class="muted">${escapeHtml(t("cooldown"))}: ${escapeHtml(String(cooldownLeftSec))} ${escapeHtml(t("cooldown_sec"))}</p>`
             : ""
         }
-        ${
-          state.results.length
-            ? `
-        <div class="progress-wrap">
-          <div class="progress-bar" style="width:${escapeHtml(String(overallProgress))}%"></div>
-        </div>
-        <p class="muted">${escapeHtml(t("progress_total"))}: ${escapeHtml(String(overallProgress))}%</p>
-      `
-            : ""
-        }
         <p class="muted">${escapeHtml(t("done_label"))}: ${completedCount}/1, ${escapeHtml(t("errors_label"))}: ${failedCount}/1</p>
         ${state.info ? `<p class="muted">${escapeHtml(state.info)}</p>` : ""}
         ${state.error ? `<p class="muted error-text">${escapeHtml(state.error)}</p>` : ""}
@@ -1460,7 +1562,6 @@ function renderMain() {
         </details>
       </div>
       ${pipelinePanelHtml}
-      ${resultsHtml}
       ${runHistoryHtml}
     </div>
   `;
@@ -1527,6 +1628,7 @@ function renderMain() {
       render();
       await uploadPhoto(file);
       revokePhotoPreviewObjectUrl();
+      clearPhotoPreviewSignedUrl();
       state.photoPreviewObjectUrl = URL.createObjectURL(file);
       state.info = t("photo_uploaded");
       setToast("success", t("photo_uploaded"));
@@ -1619,6 +1721,8 @@ function renderMain() {
       await clearRunHistory();
     });
   }
+
+  void refreshUserPhotoPreviewIfNeeded();
 }
 
 function render() {
@@ -1658,6 +1762,10 @@ async function boot() {
   }
 
   chrome.runtime.onMessage.addListener((msg) => {
+    if (msg?.type === "STV_PENDING_VIBE" && msg.vibe) {
+      void applyPendingVibeFromStorage(msg.vibe);
+      return;
+    }
     if (msg?.type === "PROMPTSHOT_AUTH_DONE") {
       void (async () => {
         await refreshAccessTokenFromSupabase();
@@ -1694,6 +1802,12 @@ async function boot() {
     }
   }, 1000);
 
+  const VIBE_SESSION_POLL_MS = 350;
+  setInterval(() => {
+    if (document.visibilityState !== "visible" || state.loading) return;
+    void tryConsumePendingVibeFromSessionPoll();
+  }, VIBE_SESSION_POLL_MS);
+
   setInterval(() => {
     if (!state.loading) {
       refreshAuthSilently().catch(() => {});
@@ -1703,6 +1817,7 @@ async function boot() {
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible" && !state.loading) {
       refreshAuthSilently().catch(() => {});
+      void tryConsumePendingVibeFromSessionPoll();
     }
   });
 }

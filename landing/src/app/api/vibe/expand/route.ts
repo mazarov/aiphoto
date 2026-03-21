@@ -4,24 +4,14 @@ import { getSupabaseUserForApiRoute } from "@/lib/supabase-route-auth";
 import {
   EXPAND_PROMPTS_INSTRUCTION,
   getGeminiVibeExpandModel,
+  coerceStylePayload,
+  type StylePayload,
 } from "@/lib/vibe-gemini-instructions";
 
 const DIRECT_GEMINI_BASE_URL = "https://generativelanguage.googleapis.com";
-const STYLE_FIELDS = [
-  "scene",
-  "genre",
-  "lighting",
-  "camera",
-  "mood",
-  "color",
-  "clothing",
-  "composition",
-] as const;
 const ALLOWED_ACCENTS = ["lighting", "mood", "composition"] as const;
 
-type StyleField = (typeof STYLE_FIELDS)[number];
 type PromptAccent = (typeof ALLOWED_ACCENTS)[number];
-type StylePayload = Record<StyleField, string>;
 type PromptVariant = { accent: PromptAccent; prompt: string };
 
 function toErrorMeta(err: unknown) {
@@ -95,20 +85,6 @@ function extractJsonArray(text: string): unknown[] | null {
     return tryParse(trimmed.slice(firstBracket, lastBracket + 1));
   }
   return null;
-}
-
-function coerceStylePayload(input: unknown): StylePayload | null {
-  if (!input || typeof input !== "object") return null;
-  const row = input as Record<string, unknown>;
-  const style = {} as StylePayload;
-  for (const field of STYLE_FIELDS) {
-    const value = row[field];
-    if (typeof value !== "string") return null;
-    const normalized = value.trim();
-    if (!normalized && field !== "clothing") return null;
-    style[field] = normalized;
-  }
-  return style;
 }
 
 function coercePromptVariants(input: unknown[]): PromptVariant[] | null {

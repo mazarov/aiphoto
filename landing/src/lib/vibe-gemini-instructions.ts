@@ -3,6 +3,53 @@
  * Single source of truth for route handlers and /api/vibe/pipeline-spec.
  */
 
+export const STYLE_FIELDS = [
+  "scene",
+  "genre",
+  "lighting",
+  "camera",
+  "mood",
+  "color_palette",
+  "color_grading",
+  "clothing",
+  "environment",
+  "composition",
+  "key_details",
+] as const;
+
+export type StyleField = (typeof STYLE_FIELDS)[number];
+export type StylePayload = Record<StyleField, string>;
+
+const OPTIONAL_STYLE_FIELDS: readonly StyleField[] = ["clothing"];
+const ARRAY_STYLE_FIELDS: readonly StyleField[] = ["key_details"];
+
+export function coerceStylePayload(input: unknown): StylePayload | null {
+  if (!input || typeof input !== "object") return null;
+  const raw = input as Record<string, unknown>;
+  const result = {} as StylePayload;
+  for (const field of STYLE_FIELDS) {
+    const value = raw[field];
+    if (ARRAY_STYLE_FIELDS.includes(field)) {
+      if (Array.isArray(value)) {
+        result[field] = value.map(String).join("; ");
+        continue;
+      }
+    }
+    if (typeof value === "string") {
+      const normalized = value.trim();
+      if (!normalized && !OPTIONAL_STYLE_FIELDS.includes(field)) return null;
+      result[field] = normalized;
+      continue;
+    }
+    if (OPTIONAL_STYLE_FIELDS.includes(field)) {
+      result[field] = "";
+      continue;
+    }
+    return null;
+  }
+  return result;
+}
+
 export function getGeminiVibeExtractModel(): string {
   return process.env.GEMINI_VIBE_EXTRACT_MODEL || "gemini-2.5-flash";
 }

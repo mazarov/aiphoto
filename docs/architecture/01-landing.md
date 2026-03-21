@@ -1,6 +1,6 @@
 # 01 — Лендинг (promptshot.ru)
 
-> Последнее обновление: 2026-03-24
+> Последнее обновление: 2026-03-20
 
 > UI side panel + content script: см. `docs/extension-ui-spec.md`; карта файлов и токены — `extension/DEVELOPER.md`.
 
@@ -43,6 +43,7 @@
 | `/api/generation-config` | Конфиг генерации (модели, лимиты) |
 | `/api/generation-prompt` | EN промпт карточки по cardId |
 | `/api/upload-generation-photo` | Загрузка фото для генерации |
+| `/api/upload-generation-photo/signed-url` | GET: подписанный URL превью загруженного фото (auth, path в query) |
 | `/api/generate` | Запуск генерации (auth) |
 | `/api/generate-process` | Внутренний: обработка генерации |
 | `/api/generations` | Список генераций пользователя |

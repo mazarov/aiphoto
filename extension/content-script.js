@@ -32,8 +32,14 @@ const OVERLAY_I18N = {
     line: "Снять стиль с фото",
     short: "Снять стиль",
     aria: "Снять стиль с фото в PromptShot — отправить изображение в расширение",
+    reload_hint:
+      "Расширение обновилось или перезагрузилось — обновите страницу (F5 или Cmd+R), затем снова наведите на фото.",
   },
 };
+OVERLAY_I18N.en.reload_hint =
+  "The extension was updated — refresh this page (F5 or Cmd+R), then hover the image again.";
+OVERLAY_I18N.de.reload_hint =
+  "Die Erweiterung wurde aktualisiert — Seite neu laden (F5), dann erneut über das Bild fahren.";
 
 function getOverlayLang() {
   const nav = (typeof navigator !== "undefined" && navigator.language) || "en";
@@ -364,19 +370,45 @@ function hideButton() {
   if (overlayBtn) overlayBtn.classList.remove("visible");
 }
 
+function showExtensionReloadHint() {
+  const copy = OVERLAY_I18N[getOverlayLang()] || OVERLAY_I18N.en;
+  const msg = copy.reload_hint || OVERLAY_I18N.en.reload_hint;
+  try {
+    window.alert(msg);
+  } catch {
+    /* ignore */
+  }
+}
+
 function handleButtonClick(e) {
   e.preventDefault();
   e.stopPropagation();
   if (!activeImg) return;
   const imageUrl = getBestImageUrl(activeImg);
   if (!imageUrl || !imageUrl.startsWith("http")) return;
-  chrome.runtime.sendMessage({
-    type: "STEAL_VIBE",
-    imageUrl,
-    pageUrl: window.location.href,
-    pageTitle: document.title,
-  });
-  scheduleHide();
+  /* After extension reload/update, old injected script loses chrome.runtime — throws or lastError */
+  try {
+    chrome.runtime.sendMessage(
+      {
+        type: "STEAL_VIBE",
+        imageUrl,
+        pageUrl: window.location.href,
+        pageTitle: document.title,
+      },
+      () => {
+        if (chrome.runtime.lastError) {
+          const m = String(chrome.runtime.lastError.message || "");
+          if (m.includes("invalidated") || m.includes("Extension context")) {
+            showExtensionReloadHint();
+          }
+          return;
+        }
+        scheduleHide();
+      }
+    );
+  } catch {
+    showExtensionReloadHint();
+  }
 }
 
 // ─── Per-image listeners ──────────────────────────────────────────────────────

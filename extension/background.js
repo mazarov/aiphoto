@@ -13,22 +13,23 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return false;
   }
 
-  chrome.storage.session.set(
-    {
-      [STORAGE_KEY]: {
-        imageUrl: message.imageUrl,
-        pageUrl: message.pageUrl || "",
-        pageTitle: message.pageTitle || "",
-        at: Date.now()
-      }
-    },
-    () => {
-      chrome.sidePanel
-        .open({ tabId })
-        .then(() => sendResponse({ ok: true }))
-        .catch((err) => sendResponse({ ok: false, error: String(err) }));
-    }
-  );
+  const vibePayload = {
+    imageUrl: message.imageUrl,
+    pageUrl: message.pageUrl || "",
+    pageTitle: message.pageTitle || "",
+    at: Date.now()
+  };
+
+  chrome.storage.session.set({ [STORAGE_KEY]: vibePayload }, () => {
+    chrome.sidePanel
+      .open({ tabId })
+      .then(() =>
+        /* After panel is open, SW → extension page delivery is reliable; session.onChanged often misses */
+        chrome.runtime.sendMessage({ type: "STV_PENDING_VIBE", vibe: vibePayload }).catch(() => {})
+      )
+      .then(() => sendResponse({ ok: true }))
+      .catch((err) => sendResponse({ ok: false, error: String(err) }));
+  });
 
   return true;
 });

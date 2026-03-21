@@ -6,23 +6,11 @@ import { getSupabaseUserForApiRoute } from "@/lib/supabase-route-auth";
 import {
   EXTRACT_STYLE_INSTRUCTION,
   getGeminiVibeExtractModel,
+  coerceStylePayload,
 } from "@/lib/vibe-gemini-instructions";
 
 const DIRECT_GEMINI_BASE_URL = "https://generativelanguage.googleapis.com";
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
-const STYLE_FIELDS = [
-  "scene",
-  "genre",
-  "lighting",
-  "camera",
-  "mood",
-  "color",
-  "clothing",
-  "composition",
-] as const;
-
-type StyleField = (typeof STYLE_FIELDS)[number];
-type StylePayload = Record<StyleField, string>;
 
 function toErrorMeta(err: unknown) {
   if (!(err instanceof Error)) return { message: String(err) };
@@ -186,18 +174,6 @@ function extractJsonObject(text: string): Record<string, unknown> | null {
     }
   }
   return null;
-}
-
-function coerceStylePayload(raw: Record<string, unknown>): StylePayload | null {
-  const result = {} as StylePayload;
-  for (const field of STYLE_FIELDS) {
-    const value = raw[field];
-    if (typeof value !== "string") return null;
-    const normalized = value.trim();
-    if (!normalized && field !== "clothing") return null;
-    result[field] = normalized;
-  }
-  return result;
 }
 
 export async function POST(req: NextRequest) {

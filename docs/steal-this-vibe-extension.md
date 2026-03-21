@@ -84,6 +84,7 @@ u# Steal This Vibe — Browser Extension
 | Компонент | Что делает | Где в коде |
 |-----------|-----------|------------|
 | `POST /api/upload-generation-photo` | Загрузка фото пользователя (resize 2048px, JPEG 85%) | `landing/src/app/api/upload-generation-photo/` |
+| `GET /api/upload-generation-photo/signed-url?path=` | Подписанный URL для превью после reload сайдпанели (bucket приватный) | `landing/src/app/api/upload-generation-photo/signed-url/` |
 | `POST /api/generate` | Создание задачи: валидация, списание кредитов, запуск | `landing/src/app/api/generate/` |
 | `/api/generate-process` | Gemini API call, upload результата в Storage | `landing/src/app/api/generate-process/` |
 | `GET /api/generations/[id]` | Polling статуса (pending → processing → completed) | `landing/src/app/api/generations/[id]/` |
