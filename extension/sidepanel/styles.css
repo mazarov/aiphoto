@@ -493,6 +493,16 @@ img.preview {
   max-height: 240px;
 }
 
+.stv-actions-under-photos {
+  margin-top: 12px;
+  display: flex;
+  gap: 8px;
+}
+
+.stv-actions-under-photos button {
+  flex: 1 1 0;
+}
+
 .stv-compare-progress {
   margin-top: 12px;
   padding-top: 10px;

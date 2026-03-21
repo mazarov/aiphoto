@@ -71,7 +71,6 @@ const state = {
   generating: false,
   runHistory: [],
   cooldownUntil: 0,
-  confirmGenerate: false,
   toast: null,
   resuming: false,
   waitingForPayment: false
@@ -1160,7 +1159,6 @@ async function clearResultsOnly() {
   state.expandModel = "";
   state.prompts = [];
   state.results = [];
-  state.confirmGenerate = false;
   await persistState();
   setToast("info", t("results_cleared"));
   render();
@@ -1446,6 +1444,19 @@ function renderMain() {
             </div>
           </div>
           ${compareProgressHtml}
+          <div class="stv-actions-primary stv-actions-under-photos">
+            <button type="button" id="run-generate" class="primary" ${canGenerate ? "" : "disabled"}>
+              ${state.resuming ? escapeHtml(t("btn_resuming")) : state.generating ? escapeHtml(t("btn_generating")) : escapeHtml(t("btn_generate"))}
+            </button>
+            <button type="button" id="buy-credits" class="${needsCredits ? "primary" : ""}" ${needsCredits && !state.generating ? "" : "disabled"}>
+              ${state.waitingForPayment ? escapeHtml(t("btn_waiting_payment")) : escapeHtml(t("btn_buy_credits"))}
+            </button>
+          </div>
+          ${
+            cooldownLeftSec > 0
+              ? `<p class="muted">${escapeHtml(t("cooldown"))}: ${escapeHtml(String(cooldownLeftSec))} ${escapeHtml(t("cooldown_sec"))}</p>`
+              : ""
+          }
           ${
             showFirstRunHint
               ? `<p class="muted stv-compare-hint">${escapeHtml(t("first_run_hint"))}</p>`
@@ -1491,37 +1502,6 @@ function renderMain() {
           </div>
         </section>
 
-        <section class="stv-section">
-          <div class="stv-section-head">
-            <span class="stv-step" aria-hidden="true">3</span>
-            <h2 class="stv-section-title">${escapeHtml(t("section_actions"))}</h2>
-          </div>
-          <div class="stv-actions-primary">
-            <button type="button" id="run-generate" class="primary" ${canGenerate ? "" : "disabled"}>
-              ${state.resuming ? escapeHtml(t("btn_resuming")) : state.generating ? escapeHtml(t("btn_generating")) : escapeHtml(t("btn_generate"))}
-            </button>
-            <button type="button" id="buy-credits" class="${needsCredits ? "primary" : ""}" ${needsCredits && !state.generating ? "" : "disabled"}>
-              ${state.waitingForPayment ? escapeHtml(t("btn_waiting_payment")) : escapeHtml(t("btn_buy_credits"))}
-            </button>
-          </div>
-        </section>
-
-        ${
-          state.confirmGenerate
-            ? `
-        <div class="row">
-          <span class="muted">${escapeHtml(t("confirm_run"))} ${escapeHtml(String(requiredCredits))} ${escapeHtml(t("credit_word"))}</span>
-          <button id="confirm-generate" class="primary" ${canGenerate ? "" : "disabled"}>${escapeHtml(t("btn_confirm"))}</button>
-          <button id="cancel-generate" ${state.generating ? "disabled" : ""}>${escapeHtml(t("btn_cancel"))}</button>
-        </div>
-      `
-            : ""
-        }
-        ${
-          cooldownLeftSec > 0
-            ? `<p class="muted">${escapeHtml(t("cooldown"))}: ${escapeHtml(String(cooldownLeftSec))} ${escapeHtml(t("cooldown_sec"))}</p>`
-            : ""
-        }
         <p class="muted">${escapeHtml(t("done_label"))}: ${completedCount}/1, ${escapeHtml(t("errors_label"))}: ${failedCount}/1</p>
         ${state.info ? `<p class="muted">${escapeHtml(state.info)}</p>` : ""}
         ${state.error ? `<p class="muted error-text">${escapeHtml(state.error)}</p>` : ""}
@@ -1631,44 +1611,23 @@ function renderMain() {
   });
 
   document.getElementById("run-generate").addEventListener("click", async () => {
-    state.confirmGenerate = true;
-    state.error = "";
-    render();
-    await persistState();
+    try {
+      state.error = "";
+      await generateAll();
+    } catch (err) {
+      state.generating = false;
+      state.phase = "idle";
+      state.error = normalizeUiError(err, "Ошибка генерации");
+      setToast("error", state.error);
+      render();
+      await persistState();
+    }
   });
 
   const buyCreditsBtn = document.getElementById("buy-credits");
   if (buyCreditsBtn) {
     buyCreditsBtn.addEventListener("click", async () => {
       await openBuyCredits();
-    });
-  }
-
-  const confirmBtn = document.getElementById("confirm-generate");
-  if (confirmBtn) {
-    confirmBtn.addEventListener("click", async () => {
-      try {
-        state.confirmGenerate = false;
-        state.error = "";
-        await generateAll();
-      } catch (err) {
-        state.generating = false;
-        state.phase = "idle";
-        state.error = normalizeUiError(err, "Ошибка генерации");
-        setToast("error", state.error);
-        render();
-        await persistState();
-      }
-    });
-  }
-
-  const cancelBtn = document.getElementById("cancel-generate");
-  if (cancelBtn) {
-    cancelBtn.addEventListener("click", async () => {
-      state.confirmGenerate = false;
-      state.info = t("cancel_user");
-      render();
-      await persistState();
     });
   }
 
