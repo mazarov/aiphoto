@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServer, getStoragePublicUrl } from "@/lib/supabase";
 import {
   assembleVibeFinalPrompt,
-  shouldAttachVibeReferenceImageToGeneration,
+  getVibeAttachReferenceImageToGeneration,
   VIBE_IMAGE_PART_LABEL_REFERENCE,
   VIBE_IMAGE_PART_LABEL_SUBJECT,
 } from "@/lib/vibe-gemini-instructions";
@@ -175,7 +175,7 @@ async function processGeneration(supabase: ReturnType<typeof createSupabaseServe
   }
 
   const attachRefPixel =
-    isVibeGeneration && shouldAttachVibeReferenceImageToGeneration();
+    isVibeGeneration && (await getVibeAttachReferenceImageToGeneration(supabase));
 
   let referenceImagePart: { inlineData: { mimeType: string; data: string } } | null = null;
   let referenceMetaForLog: {

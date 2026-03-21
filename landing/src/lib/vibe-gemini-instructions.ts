@@ -3,6 +3,11 @@
  * Single source of truth for route handlers and /api/vibe/pipeline-spec.
  */
 
+import { createSupabaseServer } from "@/lib/supabase";
+
+export const PHOTO_APP_CONFIG_KEY_VIBE_ATTACH_REFERENCE =
+  "vibe_attach_reference_image_to_generation";
+
 export const STYLE_FIELDS = [
   "scene",
   "genre",
@@ -253,15 +258,50 @@ The image generation API receives ONLY the USER photograph plus your text — re
 `.trim();
 }
 
-/**
- * Default ON (unset = attach). Set VIBE_ATTACH_REFERENCE_IMAGE_TO_GENERATION=0 to disable
- * (user photo + text only; weaker pose transfer from reference).
- */
-export function shouldAttachVibeReferenceImageToGeneration(): boolean {
-  const raw = String(process.env.VIBE_ATTACH_REFERENCE_IMAGE_TO_GENERATION ?? "").trim().toLowerCase();
-  if (!raw) return true;
+function parseBoolConfigValue(value: string | null | undefined, fallback: boolean): boolean {
+  const raw = String(value ?? "").trim().toLowerCase();
+  if (!raw) return fallback;
+  if (["true", "1", "yes", "y", "on"].includes(raw)) return true;
   if (["false", "0", "no", "n", "off"].includes(raw)) return false;
-  return ["1", "true", "yes", "y", "on"].includes(raw);
+  return fallback;
+}
+
+/**
+ * Source of truth: `photo_app_config` row `vibe_attach_reference_image_to_generation` (`true`/`false`).
+ * Fallback if row missing / empty / read error: env `VIBE_ATTACH_REFERENCE_IMAGE_TO_GENERATION`, then default **true**.
+ */
+export async function getVibeAttachReferenceImageToGeneration(
+  supabase: ReturnType<typeof createSupabaseServer>
+): Promise<boolean> {
+  const envFallback = parseBoolConfigValue(process.env.VIBE_ATTACH_REFERENCE_IMAGE_TO_GENERATION, true);
+
+  try {
+    const { data, error } = await supabase
+      .from("photo_app_config")
+      .select("value")
+      .eq("key", PHOTO_APP_CONFIG_KEY_VIBE_ATTACH_REFERENCE)
+      .maybeSingle();
+
+    if (error) {
+      console.warn("[vibe.config] photo_app_config read failed", {
+        key: PHOTO_APP_CONFIG_KEY_VIBE_ATTACH_REFERENCE,
+        message: error.message,
+      });
+      return envFallback;
+    }
+
+    const v = data?.value;
+    if (v !== undefined && v !== null && String(v).trim() !== "") {
+      return parseBoolConfigValue(String(v), envFallback);
+    }
+  } catch (err) {
+    console.warn("[vibe.config] photo_app_config read threw", {
+      key: PHOTO_APP_CONFIG_KEY_VIBE_ATTACH_REFERENCE,
+      message: err instanceof Error ? err.message : String(err),
+    });
+  }
+
+  return envFallback;
 }
 
 export const EXPAND_PROMPTS_INSTRUCTION = `

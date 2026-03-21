@@ -7,7 +7,7 @@ import {
   EXPAND_PROMPTS_INSTRUCTION,
   getGeminiVibeExpandModel,
   coerceStylePayload,
-  shouldAttachVibeReferenceImageToGeneration,
+  getVibeAttachReferenceImageToGeneration,
   type StylePayload,
 } from "@/lib/vibe-gemini-instructions";
 import {
@@ -157,7 +157,7 @@ export async function POST(req: NextRequest) {
     }
 
     const willAttachReferenceInline =
-      shouldAttachVibeReferenceImageToGeneration() && hasReferenceUrl;
+      (await getVibeAttachReferenceImageToGeneration(supabase)) && hasReferenceUrl;
 
     console.warn("[vibe.expand] request_begin", {
       userId: user.id,

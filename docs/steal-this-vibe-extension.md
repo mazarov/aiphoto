@@ -461,7 +461,7 @@ Return ONLY valid JSON, no markdown.
 }
 ```
 
-`finalPromptForGeneration` / `fullText` собираются через `assembleVibeFinalPrompt` в `vibe-gemini-instructions.ts`. `finalPromptAssumesTwoImages` = реально прикреплены пиксели референса (`VIBE_ATTACH_REFERENCE_IMAGE_TO_GENERATION` + успешный download). К запросу expand дописывается `buildVibeExpandRuntimeContext(...)`.
+`finalPromptForGeneration` / `fullText` собираются через `assembleVibeFinalPrompt` в `vibe-gemini-instructions.ts`. `finalPromptAssumesTwoImages` / `vibeReferenceInlinePixels` отражают намерение: `photo_app_config.vibe_attach_reference_image_to_generation` (fallback: env `VIBE_ATTACH_REFERENCE_IMAGE_TO_GENERATION`) и наличие `source_image_url` у vibe; фактическая вставка пикселей — в `generate-process` после успешного download. К запросу expand дописывается `buildVibeExpandRuntimeContext(...)`.
 
 **Промпт для LLM (Gemini text):** см. `EXPAND_PROMPTS_INSTRUCTION` + runtime context в `landing/src/lib/vibe-gemini-instructions.ts`; ответ — JSON-объект `{ "prompt": "..." }` (допустим fallback: массив из одного `{ accent, prompt }`).
 

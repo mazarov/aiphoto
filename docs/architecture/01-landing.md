@@ -1,6 +1,6 @@
 # 01 — Лендинг (promptshot.ru)
 
-> Последнее обновление: 2026-03-21 (vibe dual-image gen)
+> Последнее обновление: 2026-03-21 (vibe attach ref via photo_app_config)
 
 > UI side panel + content script: см. `docs/extension-ui-spec.md`; карта файлов и токены — `extension/DEVELOPER.md`.
 
@@ -71,7 +71,7 @@
 - **Pipeline spec (отладка / extension):** `GET /api/vibe/pipeline-spec` (auth) — JSON с полями `extract` / `expand`: `model`, `envKey`, полный текст **`instruction`** для обоих шагов.
 - **Save:** `POST /api/vibe/save` — сохраняет выбранную completed-генерацию в `landing_vibe_saves`, связывает с `vibe_id`/`card_id`, пишет `auto_seo_tags` и, если `card_id` отсутствует, пытается автосоздать `prompt_cards` + `prompt_card_media` + `prompt_variants` из `landing_generations.result_storage_*`. После этого обогащает `prompt_cards.seo_tags` на основе `vibes.style` (через `TAG_REGISTRY`).
 - **Generate:** `POST /api/generate` — расширение вызывает **один раз** на запуск (единственный промпт после expand).
-- **generate-process (vibe):** при `vibe_id` и **`VIBE_ATTACH_REFERENCE_IMAGE_TO_GENERATION`** (по умолчанию включено: пустое значение = on) сервер качает `vibes.source_image_url` и шлёт в Gemini **два** изображения с метками: `[IMAGE A]`, референс, `[IMAGE B]`, фото(а) пользователя из Storage, затем длинный текст. **Полный текст:** `GENERATE_VIBE_PREFIX_TWO_IMAGES` + `GENERATE_VIBE_JSON_IDENTITY_BRIDGE_DUAL` + expanded prompt. Если флаг выключен или скачивание референса не удалось — только user + текст и **`GENERATE_VIBE_PREFIX_SINGLE_IMAGE`** + prompt (как раньше). Лог **`vibe_generation_layout`**: `architecture` = `dual_reference_plus_user` | `single_user_image_plus_text_only`.
+- **generate-process (vibe):** при `vibe_id` и **`photo_app_config.vibe_attach_reference_image_to_generation`** = `true` (дефолт в миграции `sql/147_*.sql`) сервер качает `vibes.source_image_url` и шлёт в Gemini **два** изображения с метками: `[IMAGE A]`, референс, `[IMAGE B]`, фото(а) пользователя из Storage, затем длинный текст. **Полный текст:** `GENERATE_VIBE_PREFIX_TWO_IMAGES` + `GENERATE_VIBE_JSON_IDENTITY_BRIDGE_DUAL` + expanded prompt. Если в конфиге `false`, строка в БД отсутствует (fallback: env `VIBE_ATTACH_REFERENCE_IMAGE_TO_GENERATION`, затем default on), ошибка чтения `photo_app_config`, или скачивание референса не удалось — только user + текст и **`GENERATE_VIBE_PREFIX_SINGLE_IMAGE`** + prompt. Лог **`vibe_generation_layout`**: `architecture` = `dual_reference_plus_user` | `single_user_image_plus_text_only`. Чтение: `getVibeAttachReferenceImageToGeneration` в `vibe-gemini-instructions.ts`.
 - **Логи полного промпта:** перед вызовом Gemini `generate-process` пишет **`console.warn` `[generation.process] full_prompt_text`** с полем `text` (весь `fullPrompt`) и метаданными. Отключить: `LANDING_LOG_FULL_GENERATION_PROMPT=0` (см. `.env.example`).
 - **Логи картинок в Gemini:** **`[generation.process] gemini_multimodal_images`** — `imagesSentToGemini` (роли `IMAGE_A_style_reference` / `IMAGE_B_user_subject_*` или `user_subject_*`, `storagePath`, URL превью референса, mime, bytes), плюс **`partsSequence`**.
 - **Gemini routing:** extract/expand используют тот же runtime-флаг `photo_app_config.gemini_use_proxy` и `GEMINI_PROXY_BASE_URL`.
@@ -447,7 +447,8 @@ landing/src/
 | `GEMINI_VIBE_EXTRACT_MODEL` | (optional) override модели для `/api/vibe/extract` |
 | `GEMINI_VIBE_EXPAND_MODEL` | (optional) override модели для `/api/vibe/expand` |
 | `GEMINI_VIBE_DEBUG` | `1` / `true` — расширенные логи Gemini для vibe extract/expand |
-| `VIBE_ATTACH_REFERENCE_IMAGE_TO_GENERATION` | `0` / `false` / `off` — не слать пиксели референса в image-gen; **пусто** = прикреплять (IMAGE A + B) |
+| `photo_app_config.vibe_attach_reference_image_to_generation` | `true` / `false` — слать пиксели референса в web image-gen (ключ в БД, см. `sql/147_*.sql`) |
+| `VIBE_ATTACH_REFERENCE_IMAGE_TO_GENERATION` | Fallback, если строка в `photo_app_config` недоступна или пуста (`0` = выкл.) |
 | `LANDING_LOG_FULL_GENERATION_PROMPT` | `0` — не логировать полный текст в `generate-process` |
 | `CORS_ALLOWED_ORIGINS` | CSV allowlist origins для CORS API |
 | `CHROME_EXTENSION_ID` | Extension ID для `chrome-extension://` CORS origin |
