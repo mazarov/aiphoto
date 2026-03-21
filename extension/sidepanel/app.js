@@ -9,7 +9,6 @@ const POLL_INTERVAL_MS = 2500;
 const POLL_TIMEOUT_MS = 120000;
 const LONG_RUNNING_MS = 45000;
 const GENERATION_COOLDOWN_MS = 20000;
-const PROMPTS_PER_RUN = 3;
 const AUTH_REFRESH_MS = 30000;
 const CREDIT_POLL_INTERVAL = 5000;
 const CREDIT_POLL_MAX = 60;
@@ -1003,9 +1002,9 @@ async function generateAll() {
     throw new Error(`Подождите ${getCooldownLeftSeconds()} сек перед новым запуском`);
   }
 
-  const totalCreditsNeeded = getRequiredCredits() * PROMPTS_PER_RUN;
-  if (state.credits < totalCreditsNeeded) {
-    throw new Error(`Недостаточно кредитов: нужно ${totalCreditsNeeded}, доступно ${state.credits}`);
+  const requiredCredits = getRequiredCredits();
+  if (state.credits < requiredCredits) {
+    throw new Error(`Недостаточно кредитов: нужно ${requiredCredits}, доступно ${state.credits}`);
   }
 
   state.generating = true;
@@ -1020,7 +1019,9 @@ async function generateAll() {
   state.info = t("run_expand_prep");
   render();
   await runExpand();
-  if (!Array.isArray(state.prompts) || state.prompts.length === 0) {
+  const allPrompts = Array.isArray(state.prompts) ? state.prompts : [];
+  state.prompts = allPrompts.slice(0, 1);
+  if (state.prompts.length !== 1) {
     state.generating = false;
     throw new Error(t("err_expand"));
   }
@@ -1056,7 +1057,7 @@ async function generateAll() {
   state.phase = "done";
   state.generating = false;
   state.info =
-    failed === 0 ? t("all_done") : `${t("partial_done")}: ${completed}/${state.results.length}`;
+    failed === 0 ? t("all_done") : `${t("partial_done")}: ${completed}/1`;
   const perAccent = {
     lighting: { completed: 0, failed: 0 },
     mood: { completed: 0, failed: 0 },
@@ -1258,7 +1259,7 @@ function renderAuthRequired() {
 }
 
 function renderMain() {
-  const requiredCredits = getRequiredCredits() * PROMPTS_PER_RUN;
+  const requiredCredits = getRequiredCredits();
   const cooldownLeftSec = getCooldownLeftSeconds();
   const canGenerate = Boolean(
     state.sourceImageUrl &&
