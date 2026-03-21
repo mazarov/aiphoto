@@ -75,7 +75,7 @@ const state = {
   /** Server: split prompt + grooming refs — show hair/makeup checkboxes */
   vibeGroomingControlsAvailable: false,
   groomingPolicy: { applyHair: true, applyMakeup: true },
-  /** After expand: wait for user to adjust grooming, then continue */
+  /** After expand: wait for user to adjust grooming, then continue image gen */
   awaitingContinueGenerate: false,
   pendingRunStartedAt: 0,
   results: [],
@@ -1193,6 +1193,7 @@ async function generateAll() {
     state.info = t("grooming_adjust_hint");
     render();
     await persistState();
+    scheduleAssemblePrompt();
     return;
   }
 
@@ -1520,6 +1521,35 @@ function renderMain() {
     ? `<pre class="prompt-box prompt-box--final-prompt">${escapeHtml(state.finalPromptForGeneration)}</pre>`
     : `<p class="muted">${escapeHtml(t("final_prompt_empty"))}</p>`;
 
+  /**
+   * Hair / makeup: always visible; user can set preferences anytime. Server assemble runs only after
+   * reference extract+expand when vibeGroomingControlsAvailable (see scheduleAssemblePrompt).
+   */
+  const groomingHintKey = !state.vibeGroomingControlsAvailable
+    ? "grooming_unlock_hint"
+    : state.awaitingContinueGenerate
+      ? "grooming_adjust_hint"
+      : "grooming_ready_hint";
+  const groomingMainSectionHtml = `<div class="stv-grooming-block stv-grooming-block--main">
+          <p class="stv-subtitle">${escapeHtml(t("grooming_title"))}</p>
+          <p class="muted stv-grooming-hint">${escapeHtml(t(groomingHintKey))}</p>
+          <label class="stv-check stv-grooming-check">
+            <input type="checkbox" id="grooming-hair" ${state.groomingPolicy.applyHair ? "checked" : ""} />
+            <span>${escapeHtml(t("grooming_hair"))}</span>
+          </label>
+          <label class="stv-check stv-grooming-check">
+            <input type="checkbox" id="grooming-makeup" ${state.groomingPolicy.applyMakeup ? "checked" : ""} />
+            <span>${escapeHtml(t("grooming_makeup"))}</span>
+          </label>
+          ${
+            state.awaitingContinueGenerate
+              ? `<div class="stv-grooming-continue">
+            <button type="button" class="primary" id="btn-continue-generate">${escapeHtml(t("btn_continue_generate"))}</button>
+          </div>`
+              : ""
+          }
+        </div>`;
+
   const pipelinePanelHtml =
     state.style && typeof state.style === "object"
       ? `<div class="card stv-card-side">
@@ -1530,28 +1560,6 @@ function renderMain() {
           <p class="stv-subtitle">${escapeHtml(t("step1_final_prompt_title"))}</p>
           <p class="muted">${escapeHtml(finalPromptHint)}</p>
           ${finalPromptBody}
-          ${
-            state.vibeGroomingControlsAvailable
-              ? `<div class="stv-grooming-block" style="margin-top:10px">
-            <p class="stv-subtitle">${escapeHtml(t("grooming_title"))}</p>
-            <label class="stv-check" style="display:block;margin:6px 0">
-              <input type="checkbox" id="grooming-hair" ${state.groomingPolicy.applyHair ? "checked" : ""} />
-              ${escapeHtml(t("grooming_hair"))}
-            </label>
-            <label class="stv-check" style="display:block;margin:6px 0">
-              <input type="checkbox" id="grooming-makeup" ${state.groomingPolicy.applyMakeup ? "checked" : ""} />
-              ${escapeHtml(t("grooming_makeup"))}
-            </label>
-          </div>`
-              : ""
-          }
-          ${
-            state.awaitingContinueGenerate
-              ? `<div class="row" style="margin-top:12px">
-            <button type="button" class="primary" id="btn-continue-generate">${escapeHtml(t("btn_continue_generate"))}</button>
-          </div>`
-              : ""
-          }
           <div class="row" style="margin-top:8px">
             <button type="button" id="pipeline-spec-btn">${escapeHtml(t("btn_pipeline_spec"))}</button>
           </div>
@@ -1629,6 +1637,7 @@ function renderMain() {
               ? `<p class="muted">${escapeHtml(t("cooldown"))}: ${escapeHtml(String(cooldownLeftSec))} ${escapeHtml(t("cooldown_sec"))}</p>`
               : ""
           }
+          ${groomingMainSectionHtml}
           ${
             showFirstRunHint
               ? `<p class="muted stv-compare-hint">${escapeHtml(t("first_run_hint"))}</p>`

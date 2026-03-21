@@ -514,6 +514,54 @@ img.preview {
   flex: 1 1 0;
 }
 
+/* Grooming (hair / makeup) — primary placement under Generate so it is not missed */
+.stv-grooming-block--main {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-radius: var(--stv-radius-sm);
+  border: 1px solid var(--stv-border-strong);
+  background: var(--stv-surface);
+}
+
+.stv-grooming-block--main .stv-subtitle {
+  margin: 0 0 6px;
+}
+
+.stv-grooming-hint {
+  margin: 0 0 10px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.stv-grooming-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 8px 0;
+  cursor: pointer;
+  color: var(--stv-text);
+}
+
+.stv-grooming-check input {
+  margin-top: 2px;
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  accent-color: var(--stv-primary);
+}
+
+.stv-grooming-check span {
+  line-height: 1.35;
+}
+
+.stv-grooming-continue {
+  margin-top: 14px;
+}
+
+.stv-grooming-continue .primary {
+  width: 100%;
+}
+
 .stv-compare-progress {
   margin-top: 12px;
   padding-top: 10px;

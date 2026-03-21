@@ -129,6 +129,10 @@ const STRINGS = {
     grooming_title: "Внешний вид (референс)",
     grooming_hair: "Перенести укладку волос",
     grooming_makeup: "Перенести макияж",
+    grooming_unlock_hint:
+      "Выбор сохраняется. В промпт перенос волос и макияжа попадёт только после распознавания референса («Сгенерировать»), если сервер отдаст эти части отдельно.",
+    grooming_ready_hint:
+      "Перенос укладки и макияжа уже учитывается в промпте. Перед новым запуском можно снять галочки до «Сгенерировать».",
     grooming_adjust_hint: "При необходимости снимите галочки и нажмите «Продолжить генерацию».",
     btn_continue_generate: "Продолжить генерацию",
   },
@@ -261,6 +265,10 @@ const STRINGS = {
     grooming_title: "Look (Referenz)",
     grooming_hair: "Frisur/Styling übernehmen",
     grooming_makeup: "Make-up übernehmen",
+    grooming_unlock_hint:
+      "Deine Auswahl wird gespeichert. Frisur/Make-up landen erst im Prompt nach der Referenz-Erkennung („Generieren“), wenn der Server sie separat liefert.",
+    grooming_ready_hint:
+      "Frisur/Make-up sind im Prompt berücksichtigt. Vor einem neuen Lauf kannst du die Häkchen vor „Generieren“ ändern.",
     grooming_adjust_hint: "Häkchen anpassen, dann „Weiter zur Generierung“.",
     btn_continue_generate: "Weiter zur Generierung",
   },
