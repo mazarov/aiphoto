@@ -5,9 +5,10 @@ import {
   assembleVibeFinalPrompt,
   buildVibeExpandRuntimeContext,
   EXPAND_PROMPTS_INSTRUCTION,
-  getGeminiVibeExpandModelRuntime,
   coerceStylePayload,
+  getGeminiVibeExpandModelRuntime,
   getVibeAttachReferenceImageToGeneration,
+  MIN_VIBE_SCENE_PROMPT_CHARS,
   type StylePayload,
 } from "@/lib/vibe-gemini-instructions";
 import {
@@ -24,9 +25,6 @@ const DIRECT_GEMINI_BASE_URL = "https://generativelanguage.googleapis.com";
 /** Single-scene expand output; accent is fixed for API compatibility / save route. */
 const SINGLE_PROMPT_ACCENT = "scene" as const;
 type PromptVariant = { accent: typeof SINGLE_PROMPT_ACCENT; prompt: string };
-
-/** ~100+ words expected; expand instructs 200–380 words */
-const MIN_EXPAND_PROMPT_CHARS = 600;
 
 function toErrorMeta(err: unknown) {
   if (!(err instanceof Error)) return { message: String(err) };
@@ -75,7 +73,7 @@ function coerceExpandSinglePromptFromObject(obj: Record<string, unknown>): strin
   const prompt = obj.prompt;
   if (typeof prompt !== "string") return null;
   const normalized = prompt.trim();
-  if (normalized.length < MIN_EXPAND_PROMPT_CHARS) return null;
+  if (normalized.length < MIN_VIBE_SCENE_PROMPT_CHARS) return null;
   return normalized;
 }
 
@@ -96,7 +94,7 @@ function coerceExpandPrompt(
       const row = item as Record<string, unknown>;
       if (typeof row.prompt === "string") {
         const normalized = row.prompt.trim();
-        if (normalized.length >= MIN_EXPAND_PROMPT_CHARS) return normalized;
+        if (normalized.length >= MIN_VIBE_SCENE_PROMPT_CHARS) return normalized;
       }
     }
   }
@@ -137,17 +135,22 @@ export async function POST(req: NextRequest) {
 
     let style: StylePayload | null = coerceStylePayload(body.style);
     let hasReferenceUrl = false;
+    let prefilledPrompt: string | null = null;
 
     if (body.vibeId) {
       const { data: vibe } = await supabase
         .from("vibes")
-        .select("style,user_id,source_image_url")
+        .select("style,user_id,source_image_url,prefilled_generation_prompt")
         .eq("id", body.vibeId)
         .single();
       if (vibe && vibe.user_id === user.id) {
         hasReferenceUrl = Boolean(String(vibe.source_image_url || "").trim());
         if (!style) {
           style = coerceStylePayload(vibe.style);
+        }
+        const p = String(vibe.prefilled_generation_prompt ?? "").trim();
+        if (p.length >= MIN_VIBE_SCENE_PROMPT_CHARS) {
+          prefilledPrompt = p;
         }
       }
     }
@@ -159,15 +162,41 @@ export async function POST(req: NextRequest) {
     const willAttachReferenceInline =
       (await getVibeAttachReferenceImageToGeneration(supabase)) && hasReferenceUrl;
 
+    const textModel = await getGeminiVibeExpandModelRuntime(supabase);
+
+    if (prefilledPrompt) {
+      console.warn("[vibe.expand] request_begin", {
+        userId: user.id,
+        hasStyleInBody: body.style !== undefined && body.style !== null,
+        vibeId: body.vibeId ?? null,
+        hasReferenceUrl,
+        referencePixelsInGeneration: willAttachReferenceInline,
+        expandSource: "prefilled_generation_prompt",
+      });
+
+      const variant: PromptVariant = { accent: SINGLE_PROMPT_ACCENT, prompt: prefilledPrompt };
+      const prompts: PromptVariant[] = [variant];
+      const assembled = assembleVibeFinalPrompt(prefilledPrompt, willAttachReferenceInline);
+      const finalPromptPreviews = [{ accent: SINGLE_PROMPT_ACCENT, fullText: assembled }];
+
+      return NextResponse.json({
+        prompts,
+        modelUsed: textModel,
+        finalPromptPreviews,
+        finalPromptForGeneration: assembled,
+        finalPromptAssumesTwoImages: willAttachReferenceInline,
+        vibeReferenceInlinePixels: willAttachReferenceInline,
+      });
+    }
+
     console.warn("[vibe.expand] request_begin", {
       userId: user.id,
       hasStyleInBody: body.style !== undefined && body.style !== null,
       vibeId: body.vibeId ?? null,
       hasReferenceUrl,
       referencePixelsInGeneration: willAttachReferenceInline,
+      expandSource: "gemini",
     });
-
-    const textModel = await getGeminiVibeExpandModelRuntime(supabase);
     const geminiBaseUrl = await getGeminiBaseUrlRuntime(supabase);
     const geminiUrl = `${geminiBaseUrl}/v1beta/models/${textModel}:generateContent`;
     const apiKey = process.env.GEMINI_API_KEY;

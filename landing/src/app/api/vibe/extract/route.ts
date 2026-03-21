@@ -5,9 +5,13 @@ import { createSupabaseServer } from "@/lib/supabase";
 import { getSupabaseUserForApiRoute } from "@/lib/supabase-route-auth";
 import {
   EXTRACT_STYLE_INSTRUCTION,
-  getGeminiVibeExtractModelRuntime,
+  ONE_SHOT_EXTRACT_PROMPT_INSTRUCTION,
+  buildOneShotVibeStyleFromPrompt,
   coerceStylePayload,
+  getGeminiVibeExtractModelRuntime,
   getStyleCoerceDiagnostics,
+  getVibeOneShotExtractPromptEnabled,
+  MIN_VIBE_SCENE_PROMPT_CHARS,
 } from "@/lib/vibe-gemini-instructions";
 import {
   fetchErrorDetails,
@@ -196,6 +200,7 @@ export async function POST(req: NextRequest) {
     }
 
     const supabase = createSupabaseServer();
+    const oneShotExtract = await getVibeOneShotExtractPromptEnabled(supabase);
     const visionModel = await getGeminiVibeExtractModelRuntime(supabase);
     const geminiBaseUrl = await getGeminiBaseUrlRuntime(supabase);
     const geminiUrl = `${geminiBaseUrl}/v1beta/models/${visionModel}:generateContent`;
@@ -204,11 +209,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "extract_failed" }, { status: 500 });
     }
 
+    const extractInstruction = oneShotExtract
+      ? ONE_SHOT_EXTRACT_PROMPT_INSTRUCTION
+      : EXTRACT_STYLE_INSTRUCTION;
+
     const geminiBody = {
       contents: [
         {
           role: "user",
-          parts: [{ text: EXTRACT_STYLE_INSTRUCTION }, { inlineData }],
+          parts: [{ text: extractInstruction }, { inlineData }],
         },
       ],
       generationConfig: {
@@ -229,7 +238,8 @@ export async function POST(req: NextRequest) {
       model: visionModel,
       endpointHost: geminiEndpointHost,
       inlineImageBase64Chars: inlineData.data.length,
-      instructionTextChars: EXTRACT_STYLE_INSTRUCTION.length,
+      oneShotExtract,
+      instructionTextChars: extractInstruction.length,
       timeoutMs: 45000,
     });
     if (isGeminiVibeDebug()) {
@@ -297,6 +307,75 @@ export async function POST(req: NextRequest) {
     }
 
     const { value: parsed, stages: parseStages } = parseGeminiJsonObject(text);
+
+    if (oneShotExtract) {
+      const rawPrompt =
+        parsed && typeof (parsed as Record<string, unknown>).prompt === "string"
+          ? String((parsed as Record<string, unknown>).prompt).trim()
+          : "";
+      const promptOk = rawPrompt.length >= MIN_VIBE_SCENE_PROMPT_CHARS;
+
+      if (!geminiRes.ok || !promptOk) {
+        const stageLine = parseStages
+          .map((s) => `${s.stage}:${s.ok ? "ok" : "fail"}${s.message ? `(${String(s.message).slice(0, 120)})` : ""}`)
+          .join(" | ");
+        console.error(
+          `[vibe.extract] PIPELINE_FAIL user=${user.id} one_shot=true http=${geminiRes.status} promptOk=${promptOk} promptLen=${rawPrompt.length} stages=${stageLine}`,
+        );
+        console.error("[vibe.extract] gemini_pipeline_failed_one_shot", {
+          userId: user.id,
+          model: visionModel,
+          httpStatus: geminiRes.status,
+          geminiError: geminiData?.error?.message ?? null,
+          textLen: text.length,
+          jsonObjectParsed: Boolean(parsed),
+          parseStages,
+          parsedKeys: parsed ? Object.keys(parsed) : [],
+          promptLen: rawPrompt.length,
+          textHead: text.slice(0, 500),
+          textTail: text.length > 500 ? text.slice(-300) : undefined,
+        });
+        return NextResponse.json({ error: "extract_failed" }, { status: 500 });
+      }
+
+      const style = buildOneShotVibeStyleFromPrompt(rawPrompt);
+
+      console.warn("[vibe.extract] gemini_parse_ok", {
+        userId: user.id,
+        oneShotExtract: true,
+        parseStages: parseStages.filter((s) => s.ok).map((s) => s.stage),
+        styleFieldCount: Object.keys(style).length,
+        promptChars: rawPrompt.length,
+      });
+
+      const { data: vibe, error: insertError } = await supabase
+        .from("vibes")
+        .insert({
+          user_id: user.id,
+          source_image_url: safeUrl.toString(),
+          style,
+          prefilled_generation_prompt: rawPrompt,
+        })
+        .select("id")
+        .single();
+
+      if (insertError || !vibe) {
+        console.error("[vibe.extract] insert failed", {
+          userId: user.id,
+          oneShotExtract: true,
+          error: insertError?.message ?? null,
+        });
+        return NextResponse.json({ error: "extract_failed" }, { status: 500 });
+      }
+
+      return NextResponse.json({
+        vibeId: vibe.id,
+        style,
+        modelUsed: visionModel,
+        oneShotExtract: true,
+      });
+    }
+
     const style = parsed ? coerceStylePayload(parsed) : null;
 
     if (!geminiRes.ok || !style) {

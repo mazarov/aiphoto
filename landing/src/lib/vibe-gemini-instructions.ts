@@ -20,6 +20,12 @@ export const DEFAULT_GEMINI_VIBE_EXTRACT_MODEL = "gemini-2.5-pro";
 /** Default when DB row missing and env unset — Flash for fast text expand. */
 export const DEFAULT_GEMINI_VIBE_EXPAND_MODEL = "gemini-2.5-flash";
 
+/** When true, `/api/vibe/extract` outputs `{ "prompt": "..." }` in one vision call; expand uses DB prefilled row. */
+export const PHOTO_APP_CONFIG_KEY_VIBE_ONE_SHOT_EXTRACT_PROMPT = "vibe_one_shot_extract_prompt";
+
+/** Minimum length for `prompt` from expand JSON or one-shot extract. */
+export const MIN_VIBE_SCENE_PROMPT_CHARS = 600;
+
 export const STYLE_FIELDS = [
   "scene",
   "genre",
@@ -168,6 +174,29 @@ export function getStyleCoerceDiagnostics(input: unknown): {
     if (!str) missing.push(field);
   }
   return { accepted: false, rawKeys, missingRequired: missing };
+}
+
+/**
+ * Stored in `vibes.style` when extract used one-shot mode — valid `StylePayload`, SEO-friendly text from the same prompt.
+ */
+export function buildOneShotVibeStyleFromPrompt(rawPrompt: string): StylePayload {
+  const p = rawPrompt.trim();
+  const clip = (max: number) => (p.length <= max ? p : `${p.slice(0, max)}…`);
+  return {
+    scene: clip(900),
+    genre: "reference-matched portrait (one-shot pipeline)",
+    subject_pose: clip(800),
+    expression: clip(600),
+    lighting: clip(700),
+    camera: clip(500),
+    mood: clip(500),
+    composition: clip(600),
+    color_palette: "",
+    color_grading: "",
+    clothing: clip(600),
+    environment: clip(600),
+    key_details: clip(1200),
+  };
 }
 
 async function getGeminiVibeModelFromPhotoAppConfig(
@@ -406,6 +435,73 @@ export async function getVibeAttachReferenceImageToGeneration(
 
   return envFallback;
 }
+
+/**
+ * Source of truth: `photo_app_config.vibe_one_shot_extract_prompt`. Fallback: env `VIBE_ONE_SHOT_EXTRACT_PROMPT`, default **false**.
+ */
+export async function getVibeOneShotExtractPromptEnabled(
+  supabase: ReturnType<typeof createSupabaseServer>
+): Promise<boolean> {
+  const envFallback = parseBoolConfigValue(process.env.VIBE_ONE_SHOT_EXTRACT_PROMPT, false);
+
+  try {
+    const { data, error } = await supabase
+      .from("photo_app_config")
+      .select("value")
+      .eq("key", PHOTO_APP_CONFIG_KEY_VIBE_ONE_SHOT_EXTRACT_PROMPT)
+      .maybeSingle();
+
+    if (error) {
+      console.warn("[vibe.config] photo_app_config read failed", {
+        key: PHOTO_APP_CONFIG_KEY_VIBE_ONE_SHOT_EXTRACT_PROMPT,
+        message: error.message,
+      });
+      return envFallback;
+    }
+
+    const v = data?.value;
+    if (v !== undefined && v !== null && String(v).trim() !== "") {
+      return parseBoolConfigValue(String(v), envFallback);
+    }
+  } catch (err) {
+    console.warn("[vibe.config] photo_app_config read threw", {
+      key: PHOTO_APP_CONFIG_KEY_VIBE_ONE_SHOT_EXTRACT_PROMPT,
+      message: err instanceof Error ? err.message : String(err),
+    });
+  }
+
+  return envFallback;
+}
+
+/**
+ * Single Gemini vision call: reference image → final scene prompt text (same role as extract+expand).
+ * Output JSON: { "prompt": "..." } only.
+ */
+export const ONE_SHOT_EXTRACT_PROMPT_INSTRUCTION = `
+You are an expert vision analyst and prompt engineer for photorealistic AI image generation.
+
+You see ONE reference photograph (Pinterest / editorial / selfie). A later step will place a DIFFERENT real person (the end user) into this scene — their face, skin, eyes, hair color, and bone structure must come ONLY from the user's photo, not from the reference model.
+
+Your task in THIS step: write ONE rich English scene prompt that an image model can follow together with the user's photo. The prompt must transfer pose, lighting, wardrobe, environment, camera, color grade, and mood from the reference — with the same precision as a two-step pipeline (structured analysis + expansion).
+
+POSE (critical): Describe torso vs camera (square-on / quarter-turn / three-quarter), which shoulder is closer to the camera (subject's and viewer's left/right), head tilt toward which shoulder, chin height, gaze vs lens, shoulder line, arms/hands if visible. Do NOT replace an asymmetric reference with a generic "straight-on portrait".
+
+COVER in flowing prose (not a bullet list), woven together:
+- Subject pose and expression (micro-details)
+- Camera: focal length estimate, angle, distance, depth of field
+- Lighting: direction, quality, color temperature, shadows
+- Environment, clothing, color grading, mood
+- Key visual anchors (props, jewelry, background) — rephrase any reference-only face/hair/eye/skin biometrics as transferable cues ("the subject's natural eye color", etc.)
+
+Rules:
+1. Start the prompt with exactly: "Place the person from the attached photo into this scene:"
+2. Length: 200-380 words, one or two short paragraphs.
+3. No vague "natural lighting" without placement.
+4. Remind that facial identity must match the user's attached photo only.
+
+Return ONLY valid JSON (not markdown):
+{ "prompt": "..." }
+`.trim();
 
 export const EXPAND_PROMPTS_INSTRUCTION = `
 You are an expert prompt engineer for photorealistic AI image generation. Your task: turn a style JSON (extracted from a REFERENCE photo) into ONE rich scene prompt for a DIFFERENT person (the end user's face will come from their attached photograph).

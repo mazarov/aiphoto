@@ -6,8 +6,11 @@ import {
   EXPAND_PROMPTS_INSTRUCTION,
   getGeminiVibeExpandModelRuntime,
   getGeminiVibeExtractModelRuntime,
+  getVibeOneShotExtractPromptEnabled,
+  ONE_SHOT_EXTRACT_PROMPT_INSTRUCTION,
   PHOTO_APP_CONFIG_KEY_VIBE_EXPAND_MODEL,
   PHOTO_APP_CONFIG_KEY_VIBE_EXTRACT_MODEL,
+  PHOTO_APP_CONFIG_KEY_VIBE_ONE_SHOT_EXTRACT_PROMPT,
 } from "@/lib/vibe-gemini-instructions";
 
 /**
@@ -20,9 +23,10 @@ export async function GET(request: NextRequest) {
   }
 
   const supabase = createSupabaseServer();
-  const [extractModel, expandModel] = await Promise.all([
+  const [extractModel, expandModel, oneShotExtractPrompt] = await Promise.all([
     getGeminiVibeExtractModelRuntime(supabase),
     getGeminiVibeExpandModelRuntime(supabase),
+    getVibeOneShotExtractPromptEnabled(supabase),
   ]);
 
   return NextResponse.json({
@@ -31,6 +35,12 @@ export async function GET(request: NextRequest) {
       envKey: "GEMINI_VIBE_EXTRACT_MODEL",
       model: extractModel,
       instruction: EXTRACT_STYLE_INSTRUCTION,
+      oneShot: {
+        enabled: oneShotExtractPrompt,
+        configKey: PHOTO_APP_CONFIG_KEY_VIBE_ONE_SHOT_EXTRACT_PROMPT,
+        envKey: "VIBE_ONE_SHOT_EXTRACT_PROMPT",
+        instruction: ONE_SHOT_EXTRACT_PROMPT_INSTRUCTION,
+      },
     },
     expand: {
       configKey: PHOTO_APP_CONFIG_KEY_VIBE_EXPAND_MODEL,
