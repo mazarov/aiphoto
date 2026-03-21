@@ -22,10 +22,10 @@
 |--------|----------|
 | **Где** | Fixed overlay, позиция у **правого верхнего** края видимой области картинки (`position: fixed` внутри shadow host). |
 | **Изоляция** | **Shadow DOM** (`#stv-shadow-host`) — стили не конфликтуют с сайтом; нужно для Pinterest/React и т.п. |
-| **Внешний вид** | Pill: градиент **indigo → violet**, **двойное кольцо** (тёмное + светлое) и тени для читаемости на шумных/похожих по цвету фото; слева маркер **P** (как в side panel), основной текст + подпись **PromptShot**. |
-| **Текст** | Локаль по **`navigator.language`**: EN «Steal this vibe», DE «Stil übernehmen», RU «Снять стиль с фото». Если ширина картинки **&lt; ~260px** — короткий вариант (`short`), строка бренда скрыта (`.compact`). |
-| **a11y** | `type="button"`, `tabindex="0"`, **`aria-label`** на языке пользователя; **`focus-visible`**: белая обводка. |
-| **Поведение** | Появляется при **наведении** на подходящий `<img>` (мин. размер ~120px, не nav/header/footer, `http(s)` src). Fade-in класс `.visible` (opacity 0→1). Задержка скрытия ~450 ms. **Кликабельность:** кнопка слегка **заходит на картинку** (`BUTTON_OVERLAP_IMG_PX`); на `mouseleave` с `<img>` и на `mouseout` документа `relatedTarget` считается «наш оверлей», если это `#stv-shadow-host` или узел внутри `shadowRoot` (иначе при переходе light DOM → Shadow DOM кнопка исчезала до клика). |
+| **Внешний вид** | **Мини-карточка** как в side panel: фон **zinc** `rgba(24,24,27,0.94)`, радиус **12px**, индиго-обводка/свечение; градиент **indigo → violet** только на маркере **P** (как `.stv-brand-mark`); текст **#fafafa**, бренд **#a1a1aa**; `min-height` ~46px, крупнее типографика. |
+| **Текст** | Локаль по **`navigator.language`**: EN «Steal this vibe», DE «Stil übernehmen», RU «Снять стиль с фото». Если ширина картинки **&lt; ~280px** — короткий вариант (`short`), строка бренда скрыта (`.compact`). |
+| **a11y** | `type="button"`, `tabindex="0"`, **`aria-label`** на языке пользователя; **`focus-visible`**: обводка `#a5b4fc`. |
+| **Поведение** | Появляется при **наведении** на подходящий `<img>`. Скрытие: **нет** глобального `mouseout` (Pinterest/листинги дают ложные `mouseout` между вложенными узлами). Удержание: **`mousemove`** (throttle ~20ms) + зона **padding вокруг `getBoundingClientRect()` картинки** (`HOVER_PAD_*`, доля от размера) и запас вокруг кнопки; пока курсор в зоне — `cancelHide`. Вне зоны — `scheduleHide` (**~900ms**). `mouseleave` на `<img>` по-прежнему с проверкой перехода на Shadow host / кнопку. |
 | **Клик** | Открывается side panel, в session storage кладётся `imageUrl` + контекст страницы. |
 
 **Ограничение:** язык оверлея берётся из браузера, не из переключателя DE/RU в side panel (у панели другой origin / `localStorage`). При желании синхронизировать — писать выбор языка в `chrome.storage` из панели и читать в content script.
@@ -91,10 +91,9 @@ Primary-кнопки: **градиент** indigo → violet (как CTA на л
 2. **Карточка main:**
    - Toast (если есть)
    - **`.stv-meta-strip`** — кредиты (крупно), стоимость запуска, статус сессии, пользователь; при нехватке кредитов — строка ошибки
-   - **Шаг 1** — референс: превью или подсказка + first-run hint
-   - **Шаг 2** — фото с ПК: статус файла + `input[type=file]`
-   - **Шаг 3** — три поля в колонке: модель, aspect ratio, размер
-   - **Шаг 4** — **Сгенерировать** (primary), **Купить кредиты** (primary, если не хватает кредитов)
+   - **Шаг 1** — сетка **`.stv-compare-grid`**: две колонки (**ваше фото** | **стиль референса**). В **`.stv-photo-frame`** (вертикальный контейнер `aspect-ratio: 3/4`, `max-height`, превью **`object-fit: contain`**) — слева превью с ПК (`state.photoPreviewObjectUrl` после загрузки или ✓+имя при восстановлении из storage без blob), справа `sourceImageUrl` или подсказка; под левой колонкой `input[type=file]`. First-run hint под сеткой.
+   - **Шаг 2** — три поля: модель, aspect ratio, размер
+   - **Шаг 3** — **Сгенерировать** (primary), **Купить кредиты** (primary, если не хватает кредитов)
    - Подтверждение списания, cooldown, прогресс, сводка готово/ошибки, info/error
    - **«Дополнительные действия»** (`details`) — повтор ошибки, очистить результат, сброс сессии
    - **«Для разработчиков»** (`details`) — `API` + origin, напоминание про `docs/extension-ui-spec.md`
@@ -122,7 +121,7 @@ Primary-кнопки: **градиент** indigo → violet (как CTA на л
 
 ## Локализация
 
-- Файл `sidepanel/i18n.js`: ключи **RU** и **DE** (в т.ч. секции `section_*`, `field_*`, `more_actions`, `dev_details`, `dev_doc_hint`, `brand_sub`).
+- Файл `sidepanel/i18n.js`: ключи **RU** и **DE** (в т.ч. `section_photos_compare`, `compare_col_your_photo`, `compare_col_reference`, `compare_photo_empty`, `field_*`, …).
 - Выбор языка: `navigator.language` начинается с `de` → DE, иначе RU; ручной переключатель → `localStorage.stv_ui_lang`.
 - **Кнопка на странице** и часть toast/сообщений сохранения могут быть **не полностью** переведены — см. код.
 
@@ -161,4 +160,4 @@ Primary-кнопки: **градиент** indigo → violet (как CTA на л
 
 ---
 
-> Последнее обновление: 2026-03-22
+> Последнее обновление: 2026-03-24

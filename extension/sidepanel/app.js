@@ -50,6 +50,8 @@ const state = {
   sourceContext: null,
   photoStoragePath: "",
   uploadedFileName: "",
+  /** In-memory preview after upload (not persisted). */
+  photoPreviewObjectUrl: "",
   selectedModel: "gemini-2.5-flash-image",
   selectedAspectRatio: "1:1",
   selectedImageSize: "1K",
@@ -114,6 +116,17 @@ function escapeHtml(value) {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+}
+
+function revokePhotoPreviewObjectUrl() {
+  if (state.photoPreviewObjectUrl) {
+    try {
+      URL.revokeObjectURL(state.photoPreviewObjectUrl);
+    } catch {
+      /* ignore */
+    }
+    state.photoPreviewObjectUrl = "";
+  }
 }
 
 function clearToastTimer() {
@@ -1006,6 +1019,7 @@ async function resetSession() {
   state.phase = "idle";
   state.error = "";
   state.info = t("session_cleared");
+  revokePhotoPreviewObjectUrl();
   state.photoStoragePath = "";
   state.uploadedFileName = "";
   state.vibeId = null;
@@ -1148,9 +1162,18 @@ function renderMain() {
   const overallProgress = getOverallProgressPercent();
   const showFirstRunHint = !state.sourceImageUrl && (!Array.isArray(state.runHistory) || state.runHistory.length === 0);
 
-  const source = state.sourceImageUrl
-    ? `<img class="preview" src="${escapeHtml(state.sourceImageUrl)}" alt="Source" />`
-    : `<p class="muted">${escapeHtml(t("source_hint"))}</p>`;
+  const userPhotoFrame = state.photoPreviewObjectUrl
+    ? `<img class="stv-compare-img" src="${escapeHtml(state.photoPreviewObjectUrl)}" alt="" />`
+    : state.photoStoragePath
+      ? `<div class="stv-compare-placeholder">
+          <span class="photo-saved" aria-hidden="true">✓</span>
+          <span class="muted">${escapeHtml(state.uploadedFileName || t("photo_saved_label"))}</span>
+        </div>`
+      : `<div class="stv-compare-placeholder muted">${escapeHtml(t("compare_photo_empty"))}</div>`;
+
+  const referenceFrame = state.sourceImageUrl
+    ? `<img class="stv-compare-img" src="${escapeHtml(state.sourceImageUrl)}" alt="" />`
+    : `<div class="stv-compare-placeholder muted">${escapeHtml(t("source_hint"))}</div>`;
 
   const resultsHtml = state.results.length
     ? `<div class="grid">${state.results
@@ -1293,12 +1316,25 @@ function renderMain() {
         <section class="stv-section">
           <div class="stv-section-head">
             <span class="stv-step" aria-hidden="true">1</span>
-            <h2 class="stv-section-title">${escapeHtml(t("section_ref"))}</h2>
+            <h2 class="stv-section-title">${escapeHtml(t("section_photos_compare"))}</h2>
           </div>
-          ${source}
+          <div class="stv-compare-grid">
+            <div class="stv-compare-col">
+              <span class="stv-field-label">${escapeHtml(t("compare_col_your_photo"))}</span>
+              <div class="stv-photo-frame">${userPhotoFrame}</div>
+              <div class="stv-field stv-compare-file">
+                <span class="stv-field-label">${escapeHtml(state.photoStoragePath ? t("photo_replace") : t("photo_pick"))}</span>
+                <input id="photo-file" type="file" accept="image/jpeg,image/png,image/webp" />
+              </div>
+            </div>
+            <div class="stv-compare-col">
+              <span class="stv-field-label">${escapeHtml(t("compare_col_reference"))}</span>
+              <div class="stv-photo-frame">${referenceFrame}</div>
+            </div>
+          </div>
           ${
             showFirstRunHint
-              ? `<p class="muted">${escapeHtml(t("first_run_hint"))}</p>`
+              ? `<p class="muted stv-compare-hint">${escapeHtml(t("first_run_hint"))}</p>`
               : ""
           }
         </section>
@@ -1306,22 +1342,6 @@ function renderMain() {
         <section class="stv-section">
           <div class="stv-section-head">
             <span class="stv-step" aria-hidden="true">2</span>
-            <h2 class="stv-section-title">${escapeHtml(t("section_upload"))}</h2>
-          </div>
-          ${
-            state.photoStoragePath
-              ? `<p class="muted photo-saved">✓ ${escapeHtml(state.uploadedFileName || t("photo_saved_label"))}</p>`
-              : ""
-          }
-          <div class="stv-field">
-            <span class="stv-field-label">${escapeHtml(state.photoStoragePath ? t("photo_replace") : t("photo_pick"))}</span>
-            <input id="photo-file" type="file" accept="image/jpeg,image/png,image/webp" />
-          </div>
-        </section>
-
-        <section class="stv-section">
-          <div class="stv-section-head">
-            <span class="stv-step" aria-hidden="true">3</span>
             <h2 class="stv-section-title">${escapeHtml(t("section_settings"))}</h2>
           </div>
           <div class="stv-fields">
@@ -1359,7 +1379,7 @@ function renderMain() {
 
         <section class="stv-section">
           <div class="stv-section-head">
-            <span class="stv-step" aria-hidden="true">4</span>
+            <span class="stv-step" aria-hidden="true">3</span>
             <h2 class="stv-section-title">${escapeHtml(t("section_actions"))}</h2>
           </div>
           <div class="stv-actions-primary">
@@ -1494,6 +1514,8 @@ function renderMain() {
       state.info = t("uploading_photo");
       render();
       await uploadPhoto(file);
+      revokePhotoPreviewObjectUrl();
+      state.photoPreviewObjectUrl = URL.createObjectURL(file);
       state.info = t("photo_uploaded");
       setToast("success", t("photo_uploaded"));
       render();

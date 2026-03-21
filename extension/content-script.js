@@ -1,12 +1,17 @@
 // ─── Config ──────────────────────────────────────────────────────────────────
 const MIN_RENDERED_SIZE = 120;
-const BUTTON_OFFSET = 10;
+const BUTTON_OFFSET = 8;
 /** Pull button slightly over the image so the cursor path img→button doesn’t cross a “dead” gap. */
-const BUTTON_OVERLAP_IMG_PX = 4;
-const HIDE_DELAY_MS = 450;
+const BUTTON_OVERLAP_IMG_PX = 6;
+/** Pinterest / grid UIs: many nested elements fire mouseout; hide only after pointer leaves padded zone. */
+const HIDE_DELAY_MS = 900;
+const HOVER_PAD_MIN_PX = 32;
+const HOVER_PAD_MAX_PX = 56;
+const HOVER_PAD_RATIO = 0.14;
+const POINTER_MOVE_THROTTLE_MS = 20;
 const OBSERVER_DEBOUNCE_MS = 200;
 /** Shown image narrower than this → compact label (fits small tiles). */
-const COMPACT_IMG_WIDTH = 260;
+const COMPACT_IMG_WIDTH = 280;
 
 /**
  * Floating button copy (content script has no access to side panel localStorage).
@@ -65,38 +70,40 @@ function ensureShadowContainer() {
   shadowRoot = shadowHost.attachShadow({ mode: "open" });
 
   const style = document.createElement("style");
+  /* Tokens aligned with extension sidepanel styles.css (--stv-*) */
   style.textContent = `
     button {
       position: fixed;
       padding: 0;
       margin: 0;
-      border-radius: 9999px;
-      border: 1px solid rgba(255, 255, 255, 0.42);
-      background: linear-gradient(135deg, #6366f1 0%, #5b5cf0 50%, #8b5cf6 100%);
-      color: #fff;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: rgba(24, 24, 27, 0.94);
+      color: #fafafa;
       font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       cursor: pointer;
       pointer-events: all;
       user-select: none;
-      transition: filter 0.15s, box-shadow 0.15s, opacity 0.15s, transform 0.12s;
+      -webkit-font-smoothing: antialiased;
+      min-height: 46px;
+      transition: border-color 0.15s, box-shadow 0.15s, opacity 0.2s ease-out, transform 0.12s;
       opacity: 0;
-      /* Legibility on busy / similar-hue photos */
       box-shadow:
-        0 0 0 1px rgba(0, 0, 0, 0.45),
-        0 0 0 2px rgba(255, 255, 255, 0.14),
-        0 2px 18px rgba(0, 0, 0, 0.35),
-        0 2px 16px rgba(99, 102, 241, 0.42);
+        0 0 0 1px rgba(99, 102, 241, 0.22),
+        0 1px 0 rgba(255, 255, 255, 0.06) inset,
+        0 8px 28px rgba(0, 0, 0, 0.45),
+        0 4px 16px rgba(99, 102, 241, 0.18);
     }
     button.visible {
       opacity: 1;
     }
     button:hover {
-      filter: brightness(1.06);
+      border-color: rgba(99, 102, 241, 0.45);
       box-shadow:
-        0 0 0 1px rgba(0, 0, 0, 0.5),
-        0 0 0 2px rgba(255, 255, 255, 0.2),
-        0 4px 22px rgba(0, 0, 0, 0.38),
-        0 4px 20px rgba(99, 102, 241, 0.5);
+        0 0 0 1px rgba(99, 102, 241, 0.35),
+        0 1px 0 rgba(255, 255, 255, 0.08) inset,
+        0 10px 32px rgba(0, 0, 0, 0.5),
+        0 6px 22px rgba(99, 102, 241, 0.28);
     }
     button:active:not(:disabled) {
       transform: scale(0.98);
@@ -105,66 +112,67 @@ function ensureShadowContainer() {
       outline: none;
     }
     button:focus-visible {
-      outline: 2px solid #fff;
+      outline: 2px solid #a5b4fc;
       outline-offset: 3px;
     }
     .stv-ob-inner {
       display: flex;
       align-items: center;
-      gap: 8px;
-      padding: 5px 12px 5px 5px;
+      gap: 10px;
+      padding: 8px 14px 8px 8px;
       white-space: nowrap;
     }
     .stv-ob-mark {
       flex-shrink: 0;
-      width: 28px;
-      height: 28px;
-      border-radius: 9px;
+      width: 34px;
+      height: 34px;
+      border-radius: 10px;
       display: flex;
       align-items: center;
       justify-content: center;
       font-weight: 800;
-      font-size: 14px;
+      font-size: 15px;
       letter-spacing: -0.04em;
       color: #fff;
-      background: rgba(255, 255, 255, 0.22);
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25);
+      background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+      box-shadow: 0 2px 12px rgba(99, 102, 241, 0.4);
     }
     .stv-ob-text {
       display: flex;
       flex-direction: column;
       align-items: flex-start;
       text-align: left;
-      line-height: 1.15;
+      line-height: 1.2;
+      gap: 1px;
     }
     .stv-ob-line {
-      font-size: 12px;
+      font-size: 13px;
       font-weight: 600;
-      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+      letter-spacing: -0.02em;
+      color: #fafafa;
     }
     .stv-ob-brand {
       font-size: 10px;
-      font-weight: 500;
-      opacity: 0.9;
-      letter-spacing: 0.03em;
+      font-weight: 600;
+      letter-spacing: 0.06em;
       text-transform: uppercase;
-      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+      color: #a1a1aa;
     }
     button.compact .stv-ob-brand {
       display: none;
     }
     button.compact .stv-ob-inner {
-      padding-right: 10px;
-      gap: 6px;
+      padding: 7px 12px 7px 7px;
+      gap: 8px;
     }
     button.compact .stv-ob-mark {
-      width: 24px;
-      height: 24px;
-      font-size: 12px;
-      border-radius: 8px;
+      width: 30px;
+      height: 30px;
+      font-size: 13px;
+      border-radius: 9px;
     }
     button.compact .stv-ob-line {
-      font-size: 11px;
+      font-size: 12px;
     }
   `;
   shadowRoot.appendChild(style);
@@ -183,6 +191,54 @@ function isStvOverlayTarget(el) {
   if (shadowHost && el === shadowHost) return true;
   if (shadowRoot && shadowRoot.contains(el)) return true;
   return false;
+}
+
+function getHoverPadPx(rect) {
+  const m = Math.min(rect.width, rect.height);
+  return Math.min(
+    HOVER_PAD_MAX_PX,
+    Math.max(HOVER_PAD_MIN_PX, Math.round(m * HOVER_PAD_RATIO))
+  );
+}
+
+/** True if pointer is still “over” the active pin: padded img rect or near the floating button. */
+function pointerNearActiveUi(clientX, clientY) {
+  if (!activeImg) return false;
+  const r = activeImg.getBoundingClientRect();
+  const pad = getHoverPadPx(r);
+  const inPaddedImg =
+    clientX >= r.left - pad &&
+    clientX <= r.right + pad &&
+    clientY >= r.top - pad &&
+    clientY <= r.bottom + pad;
+  if (inPaddedImg) return true;
+  if (overlayBtn?.classList.contains("visible")) {
+    const b = overlayBtn.getBoundingClientRect();
+    const bp = 14;
+    if (
+      clientX >= b.left - bp &&
+      clientX <= b.right + bp &&
+      clientY >= b.top - bp &&
+      clientY <= b.bottom + bp
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+let lastPointerMoveTs = 0;
+
+function onGlobalPointerMove(e) {
+  if (!activeImg) return;
+  const now = Date.now();
+  if (now - lastPointerMoveTs < POINTER_MOVE_THROTTLE_MS) return;
+  lastPointerMoveTs = now;
+  if (pointerNearActiveUi(e.clientX, e.clientY)) {
+    cancelHide();
+  } else {
+    scheduleHide();
+  }
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -269,8 +325,8 @@ function positionButton(img) {
   syncOverlayButton(btn, rect.width);
   const vw = window.innerWidth;
   const vh = window.innerHeight;
-  const bw = btn.offsetWidth || 168;
-  const bh = btn.offsetHeight || 36;
+  const bw = btn.offsetWidth || 200;
+  const bh = btn.offsetHeight || 48;
 
   const left = Math.min(
     rect.right - bw - BUTTON_OFFSET + BUTTON_OVERLAP_IMG_PX,
@@ -365,22 +421,9 @@ document.addEventListener(
   { capture: true, passive: true }
 );
 
-document.addEventListener(
-  "mouseout",
-  (e) => {
-    const to = e.relatedTarget;
-    if (!to || !(to instanceof Element)) {
-      scheduleHide();
-      return;
-    }
-    if (to === activeImg || isStvOverlayTarget(to)) {
-      cancelHide();
-      return;
-    }
-    scheduleHide();
-  },
-  { capture: true, passive: true }
-);
+/* Do NOT hide on document mouseout — Pinterest/listings fire it on every nested boundary and the
+   button vanished mid-hover. Visibility is driven by throttled mousemove + padded img zone. */
+document.addEventListener("mousemove", onGlobalPointerMove, { capture: true, passive: true });
 
 // Update position on scroll/resize
 window.addEventListener("scroll", () => {
