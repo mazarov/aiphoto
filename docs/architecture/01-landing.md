@@ -1,6 +1,6 @@
 # 01 — Лендинг (promptshot.ru)
 
-> Последнее обновление: 2026-03-21 (vibe: trailing `GENERATE_VIBE_TRAILING_POSE_LOCK_*` + усиление инструкций позы в extract/expand)
+> Последнее обновление: 2026-03-21 (vibe: сжатые extract/expand/one-shot/runtime + общий `GENERATE_VIBE_PREFIX_TWO_IMAGES_CORE`; pose lock короче)
 
 > UI side panel + content script: см. `docs/extension-ui-spec.md`; карта файлов и токены — `extension/DEVELOPER.md`.
 
