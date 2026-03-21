@@ -7,7 +7,7 @@
 | Файл | Назначение |
 |------|------------|
 | `sidepanel/styles.css` | Визуал панели: токены `--stv-*`, классы `.stv-*`, базовые `.card`, `.row` |
-| `sidepanel/app.js` | Состояние `state`, `render()` / `renderMain()` / `renderAuthRequired()` — **вся разметка в шаблонных строках** |
+| `sidepanel/app.js` | Состояние `state`, `render()` / `renderMain()` / `renderAuthRequired()` — **вся разметка в шаблонных строках**; **`chrome.storage.session.onChanged`** — подхват нового `pendingVibe`, если панель уже открыта (иначе обновление только после перезагрузки панели) |
 | `sidepanel/i18n.js` | Строки RU/DE (`t("key")`) |
 | `sidepanel/index.html` | Корень `#app`, подключение CSS/JS |
 | `content-script.js` | Плавающая кнопка: Shadow DOM; визуал как **mini side panel** (zinc surface + градиент только на **P**); видимость: throttled **`mousemove`** + **паддинг вокруг active img** (не полагаться на `document mouseout` — ломает Pinterest) |

@@ -496,16 +496,28 @@ async function api(path, init = {}) {
   return data;
 }
 
+/**
+ * Apply vibe from session storage (first open or subsequent "Steal this vibe" while panel stays open).
+ */
+async function applyPendingVibeFromStorage(vibe) {
+  const url = vibe?.imageUrl;
+  if (typeof url !== "string" || !url.startsWith("http")) return;
+  state.sourceImageUrl = url;
+  state.sourceContext = vibe;
+  state.error = "";
+  state.info = t("info_source_updated");
+  await storageSessionRemove(SESSION_VIBE_KEY);
+  await persistState();
+  if (!state.loading) {
+    render();
+  }
+}
+
 async function loadPendingVibe() {
   const result = await storageSessionGet(SESSION_VIBE_KEY);
   const vibe = result?.[SESSION_VIBE_KEY];
   if (vibe?.imageUrl) {
-    state.sourceImageUrl = vibe.imageUrl;
-    state.sourceContext = vibe;
-    state.error = "";
-    state.info = t("info_source_updated");
-    await storageSessionRemove(SESSION_VIBE_KEY);
-    await persistState();
+    await applyPendingVibeFromStorage(vibe);
   }
 }
 
@@ -1653,6 +1665,16 @@ async function boot() {
         render();
       })();
     }
+  });
+
+  /* When side panel is already open, boot() won't run again — background still writes session.
+     onChanged picks up every new "Steal this vibe" click. */
+  chrome.storage.session.onChanged.addListener((changes, areaName) => {
+    if (areaName !== "session") return;
+    const ch = changes[SESSION_VIBE_KEY];
+    const next = ch?.newValue;
+    if (!next || typeof next.imageUrl !== "string" || !next.imageUrl.startsWith("http")) return;
+    void applyPendingVibeFromStorage(next);
   });
 
   await loadPendingVibe();
