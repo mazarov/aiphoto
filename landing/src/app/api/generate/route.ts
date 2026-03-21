@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServer } from "@/lib/supabase";
-import { createSupabaseServerAuth } from "@/lib/supabase-server-auth";
+import { getSupabaseUserForApiRoute } from "@/lib/supabase-route-auth";
 
 function toErrorMeta(err: unknown) {
   if (!(err instanceof Error)) return { message: String(err) };
@@ -17,11 +17,7 @@ function toErrorMeta(err: unknown) {
 export async function POST(req: NextRequest) {
   try {
     console.log("[generation.create] incoming request");
-    const supabaseAuth = await createSupabaseServerAuth();
-    const {
-      data: { user },
-      error: authError,
-    } = await supabaseAuth.auth.getUser();
+    const { user, error: authError } = await getSupabaseUserForApiRoute(req);
 
     if (authError || !user) {
       console.warn("[generation.create] unauthorized", {

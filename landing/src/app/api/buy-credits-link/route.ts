@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
-import { NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 import { createSupabaseServer } from "@/lib/supabase";
-import { createSupabaseServerAuth } from "@/lib/supabase-server-auth";
+import { getSupabaseUserForApiRoute } from "@/lib/supabase-route-auth";
 
 /**
  * Must produce an absolute https URL so extension window.open() does not resolve
@@ -36,13 +36,9 @@ function createOtp(): string {
   return randomBytes(6).toString("hex");
 }
 
-export async function POST() {
+export async function POST(request: NextRequest) {
   try {
-    const supabaseAuth = await createSupabaseServerAuth();
-    const {
-      data: { user },
-      error: authError,
-    } = await supabaseAuth.auth.getUser();
+    const { user, error: authError } = await getSupabaseUserForApiRoute(request);
 
     if (authError || !user) {
       return NextResponse.json({ error: "unauthorized" }, { status: 401 });

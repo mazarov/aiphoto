@@ -1,4 +1,10 @@
+import { t, toggleUiLang } from "./i18n.js";
+import { createSupabaseForExtension } from "./supabase-extension.js";
+
 const API_ORIGIN = localStorage.getItem("stv_api_origin") || "https://promptshot.ru";
+
+let supabaseClient = null;
+let accessTokenRef = null;
 const POLL_INTERVAL_MS = 2500;
 const POLL_TIMEOUT_MS = 120000;
 const LONG_RUNNING_MS = 45000;
@@ -43,6 +49,7 @@ const state = {
   sourceImageUrl: "",
   sourceContext: null,
   photoStoragePath: "",
+  uploadedFileName: "",
   selectedModel: "gemini-2.5-flash-image",
   selectedAspectRatio: "1:1",
   selectedImageSize: "1K",
@@ -136,7 +143,7 @@ function getModelConfig(modelId) {
 }
 
 function getRequiredCredits() {
-  return Number(getModelConfig(state.selectedModel).cost || 1) * 3;
+  return Number(getModelConfig(state.selectedModel).cost || 1);
 }
 
 function getCooldownLeftSeconds() {
@@ -148,15 +155,15 @@ function getCooldownLeftSeconds() {
 function statusLabel(status) {
   switch (status) {
     case "creating":
-      return "создание";
+      return t("status_creating");
     case "processing":
-      return "генерация";
+      return t("status_processing");
     case "completed":
-      return "готово";
+      return t("status_completed");
     case "failed":
-      return "ошибка";
+      return t("status_failed");
     default:
-      return "в очереди";
+      return t("status_queued");
   }
 }
 
@@ -202,23 +209,23 @@ function classifyErrorType(message) {
 
 function formatAccentLabel(accent) {
   const map = {
-    lighting: "Свет",
-    mood: "Атмосфера",
-    composition: "Композиция"
+    lighting: t("accent_lighting"),
+    mood: t("accent_mood"),
+    composition: t("accent_composition")
   };
   return map[String(accent || "").toLowerCase()] || String(accent || "—");
 }
 
 function formatErrorTypeLabel(errorType) {
   const map = {
-    insufficient_credits: "Недостаточно кредитов",
-    timeout: "Таймаут",
-    unauthorized: "Требуется вход",
-    network: "Сетевая ошибка",
-    validation_error: "Ошибка валидации",
-    session_interrupted: "Сессия прервана",
-    generation_failed: "Ошибка генерации",
-    unknown: "Неизвестная ошибка"
+    insufficient_credits: t("insufficient_credits"),
+    timeout: "Timeout",
+    unauthorized: t("session_bad"),
+    network: "Network",
+    validation_error: "Validation",
+    session_interrupted: "Session",
+    generation_failed: t("status_failed"),
+    unknown: "Unknown"
   };
   return map[String(errorType || "").toLowerCase()] || String(errorType || "—");
 }
@@ -233,7 +240,7 @@ function normalizeUiError(err, fallbackText) {
   const status = Number(err.status || 0);
 
   if (status === 401 || status === 403 || code === "unauthorized") {
-    return "Сессия истекла. Войдите заново на promptshot.ru";
+    return t("err_session");
   }
   if (code === "insufficient_credits") {
     const required = Number(payload?.required || 0);
@@ -275,9 +282,9 @@ function formatDateTime(ts) {
 
 function getSessionHealth() {
   if (state.user) {
-    return { label: "Сессия активна", className: "session-ok" };
+    return { label: t("session_ok"), className: "session-ok" };
   }
-  return { label: "Требуется вход", className: "session-bad" };
+  return { label: t("session_bad"), className: "session-bad" };
 }
 
 function getHistoryStats() {
@@ -347,6 +354,7 @@ function toSerializableState() {
     sourceImageUrl: state.sourceImageUrl,
     sourceContext: state.sourceContext,
     photoStoragePath: state.photoStoragePath,
+    uploadedFileName: state.uploadedFileName,
     selectedModel: state.selectedModel,
     selectedAspectRatio: state.selectedAspectRatio,
     selectedImageSize: state.selectedImageSize,
@@ -364,12 +372,65 @@ async function persistState() {
   await storageLocalSet({ [LOCAL_STATE_KEY]: toSerializableState() });
 }
 
+async function initSupabaseAuth() {
+  await storageLocalSet({ stv_api_origin: API_ORIGIN });
+  supabaseClient = await createSupabaseForExtension(API_ORIGIN);
+  supabaseClient.auth.onAuthStateChange((_event, session) => {
+    accessTokenRef = session?.access_token ?? null;
+  });
+  const { data } = await supabaseClient.auth.getSession();
+  accessTokenRef = data.session?.access_token ?? null;
+}
+
+async function refreshAccessTokenFromSupabase() {
+  if (!supabaseClient) return;
+  try {
+    const { data } = await supabaseClient.auth.getSession();
+    accessTokenRef = data.session?.access_token ?? null;
+  } catch {
+    /* ignore */
+  }
+}
+
+async function startGoogleSignIn() {
+  try {
+    if (!supabaseClient) await initSupabaseAuth();
+    const redirectTo = chrome.runtime.getURL("sidepanel/auth-callback.html");
+    const { data, error } = await supabaseClient.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo, skipBrowserRedirect: true }
+    });
+    if (error) throw error;
+    if (data?.url) {
+      chrome.tabs.create({ url: data.url });
+    }
+  } catch (err) {
+    state.error = normalizeUiError(err, "OAuth failed");
+    setToast("error", state.error);
+    render();
+  }
+}
+
+async function signOutExtension() {
+  try {
+    await supabaseClient?.auth.signOut();
+  } catch {
+    /* ignore */
+  }
+  accessTokenRef = null;
+  state.user = null;
+  state.credits = 0;
+  await checkAuth();
+  render();
+}
+
 function applyPersistedState(saved) {
   if (!saved || typeof saved !== "object") return;
   state.phase = saved.phase || state.phase;
   state.sourceImageUrl = saved.sourceImageUrl || state.sourceImageUrl;
   state.sourceContext = saved.sourceContext || state.sourceContext;
   state.photoStoragePath = saved.photoStoragePath || state.photoStoragePath;
+  state.uploadedFileName = saved.uploadedFileName || state.uploadedFileName;
   state.selectedModel = saved.selectedModel || state.selectedModel;
   state.selectedAspectRatio = saved.selectedAspectRatio || state.selectedAspectRatio;
   state.selectedImageSize = saved.selectedImageSize || state.selectedImageSize;
@@ -382,19 +443,30 @@ function applyPersistedState(saved) {
 }
 
 async function api(path, init = {}) {
+  const headers = { ...(init.headers || {}) };
+  if (accessTokenRef && !headers.Authorization) {
+    headers.Authorization = `Bearer ${accessTokenRef}`;
+  }
   const response = await fetch(`${API_ORIGIN}${path}`, {
     ...init,
+    headers,
     credentials: "include"
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
     if (response.status === 401 || response.status === 403) {
+      try {
+        await supabaseClient?.auth.signOut();
+      } catch {
+        /* ignore */
+      }
+      accessTokenRef = null;
       state.user = null;
       state.credits = 0;
       state.generating = false;
       state.phase = "idle";
       state.info = "";
-      state.error = "Сессия истекла. Войдите заново на promptshot.ru";
+      state.error = t("err_session");
       render();
     }
     const err = new Error(data?.message || data?.error || `HTTP ${response.status}`);
@@ -412,7 +484,7 @@ async function loadPendingVibe() {
     state.sourceImageUrl = vibe.imageUrl;
     state.sourceContext = vibe;
     state.error = "";
-    state.info = "Источник обновлен с веб-страницы";
+    state.info = t("info_source_updated");
     await storageSessionRemove(SESSION_VIBE_KEY);
     await persistState();
   }
@@ -477,6 +549,7 @@ async function checkAuth() {
 async function refreshAuthSilently() {
   const prevUserId = state.user?.id || null;
   const prevCredits = Number(state.credits || 0);
+  await refreshAccessTokenFromSupabase();
   await checkAuth();
 
   const currentUserId = state.user?.id || null;
@@ -519,7 +592,7 @@ function startCreditPolling() {
   const initialCredits = Number(state.credits || 0);
   let polls = 0;
   state.waitingForPayment = true;
-  state.info = "Ожидаем оплату... Вернитесь сюда после оплаты в Telegram";
+  state.info = t("payment_wait");
   render();
 
   creditPollTimer = setInterval(async () => {
@@ -531,7 +604,7 @@ function startCreditPolling() {
       stopCreditPolling();
       state.waitingForPayment = false;
       state.info = "";
-      setToast("success", `Зачислено ${delta} кредитов!`);
+      setToast("success", `${t("credits_added")}: ${delta}`);
       await persistState();
       render();
       return;
@@ -540,7 +613,7 @@ function startCreditPolling() {
     if (polls >= CREDIT_POLL_MAX) {
       stopCreditPolling();
       state.waitingForPayment = false;
-      state.info = "Таймаут ожидания. Если вы оплатили, обновите страницу или откройте панель снова.";
+      state.info = t("payment_timeout");
       render();
       return;
     }
@@ -621,7 +694,7 @@ async function runRowPipeline(row) {
     row.id = await createGeneration(row);
     row.status = "processing";
     row.progress = 40;
-    row.statusDetail = "Ожидание результата...";
+    row.statusDetail = t("gen_wait");
     render();
     await persistState();
 
@@ -633,8 +706,8 @@ async function runRowPipeline(row) {
       row.progress = Math.max(row.progress, mappedProgress);
       row.statusDetail =
         elapsedMs >= LONG_RUNNING_MS
-          ? `Генерация занимает больше обычного (${Math.ceil(elapsedMs / 1000)}с)`
-          : `Генерация... ${Math.ceil(elapsedMs / 1000)}с`;
+          ? `${t("gen_slow")} (${Math.ceil(elapsedMs / 1000)}s)`
+          : `${t("gen_wait")} ${Math.ceil(elapsedMs / 1000)}s`;
 
       const now = Date.now();
       const shouldRender = row.progress !== lastProgress || now - lastPersistAt > 7000;
@@ -649,13 +722,13 @@ async function runRowPipeline(row) {
     row.resultUrl = String(poll.resultUrl || "");
     row.error = "";
     row.errorType = "";
-    row.statusDetail = "Результат готов";
+    row.statusDetail = t("result_ready");
   } catch (err) {
     row.status = "failed";
     row.progress = 0;
     row.error = normalizeUiError(err, "Неизвестная ошибка");
     row.errorType = classifyErrorType(row.error);
-    row.statusDetail = "Не удалось завершить генерацию";
+    row.statusDetail = t("gen_failed");
   }
 
   render();
@@ -685,7 +758,7 @@ async function resumeInFlightGenerations() {
   for (const row of queuedWithoutId) {
     row.status = "failed";
     row.progress = 0;
-    row.error = "Сессия прервана до старта генерации. Нажмите «Повторить».";
+    row.error = t("session_retry_hint");
     row.errorType = "session_interrupted";
     row.statusDetail = "Ожидает ручного повтора";
   }
@@ -699,7 +772,7 @@ async function resumeInFlightGenerations() {
   state.resuming = true;
   state.generating = true;
   state.phase = "processing";
-  state.info = `Восстанавливаем ${inFlight.length} незавершённых задач...`;
+  state.info = t("restore_line");
   state.error = "";
   render();
   await persistState();
@@ -719,8 +792,8 @@ async function resumeInFlightGenerations() {
           row.progress = Math.max(Number(row.progress || 0), mappedProgress);
           row.statusDetail =
             elapsedMs >= LONG_RUNNING_MS
-              ? `Восстановление: дольше обычного (${Math.ceil(elapsedMs / 1000)}с)`
-              : `Восстановление... ${Math.ceil(elapsedMs / 1000)}с`;
+              ? `${t("restore_slow")} (${Math.ceil(elapsedMs / 1000)}s)`
+              : `${t("restore_wait")} ${Math.ceil(elapsedMs / 1000)}s`;
           render();
         });
         row.status = "completed";
@@ -728,13 +801,13 @@ async function resumeInFlightGenerations() {
         row.resultUrl = String(poll.resultUrl || "");
         row.error = "";
         row.errorType = "";
-        row.statusDetail = "Результат восстановлен";
+        row.statusDetail = t("result_ready");
       } catch (err) {
         row.status = "failed";
         row.progress = 0;
         row.error = normalizeUiError(err, "Неизвестная ошибка");
         row.errorType = classifyErrorType(row.error);
-        row.statusDetail = "Не удалось восстановить генерацию";
+        row.statusDetail = t("restore_failed");
       }
       await persistState();
       render();
@@ -746,9 +819,9 @@ async function resumeInFlightGenerations() {
   state.resuming = false;
   state.generating = false;
   state.phase = "done";
-  state.info = `Восстановление завершено: ${completed}/3 готово, ${failed}/3 с ошибкой`;
+  state.info = `${t("restore_done")}: ${completed}/${inFlight.length || 1}`;
   await persistState();
-  setToast("info", `Восстановлено: ${completed}/3 готово`);
+  setToast("info", `${t("restore_done")}: ${completed}`);
   render();
 }
 
@@ -776,9 +849,9 @@ function exportRunHistory() {
 
 async function clearRunHistory() {
   state.runHistory = [];
-  state.info = "История запусков очищена";
+  state.info = t("history_cleared");
   await persistState();
-  setToast("success", "История запусков очищена");
+  setToast("success", t("history_cleared"));
   render();
 }
 
@@ -800,13 +873,15 @@ async function generateAll() {
   const runStartedAt = Date.now();
   state.phase = "processing";
   state.error = "";
-  state.info = "Извлекаем стиль и создаём промпты...";
+  state.info = t("run_extract");
   render();
 
   await runExtractAndExpand();
-  if (!Array.isArray(state.prompts) || state.prompts.length !== 3) {
+  const allPrompts = Array.isArray(state.prompts) ? state.prompts : [];
+  state.prompts = allPrompts.slice(0, 1);
+  if (state.prompts.length !== 1) {
     state.generating = false;
-    throw new Error("Expand не вернул 3 промпта");
+    throw new Error(t("err_expand"));
   }
 
   state.results = state.prompts.map((p) => ({
@@ -821,7 +896,7 @@ async function generateAll() {
     attempt: 0,
     saving: false
   }));
-  state.info = "Запускаем 3 генерации...";
+  state.info = t("run_generate");
   render();
   await persistState();
 
@@ -839,7 +914,8 @@ async function generateAll() {
   ];
   state.phase = "done";
   state.generating = false;
-  state.info = `Готово: ${completed}/3, с ошибкой: ${failed}/3`;
+  state.info =
+    failed === 0 ? t("all_done") : `${t("partial_done")}: ${completed}/1`;
   const perAccent = {
     lighting: { completed: 0, failed: 0 },
     mood: { completed: 0, failed: 0 },
@@ -868,9 +944,9 @@ async function generateAll() {
   });
   await refreshAuthSilently();
   if (failed === 0) {
-    setToast("success", "Все 3 варианта готовы");
+    setToast("success", t("all_done"));
   } else {
-    setToast("info", `Готово ${completed}/3, ошибки: ${failed}/3`);
+    setToast("info", `${t("partial_done")} (${failed})`);
   }
   await persistState();
   render();
@@ -888,7 +964,7 @@ async function retryResultById(id) {
   await runRowPipeline(row);
   const completed = state.results.filter((r) => r.status === "completed").length;
   const failed = state.results.filter((r) => r.status === "failed").length;
-  state.info = `Результаты: ${completed}/3 готово, ${failed}/3 с ошибкой`;
+  state.info = `${t("done_label")}: ${completed}/1, ${t("errors_label")}: ${failed}/1`;
   await persistState();
   render();
 }
@@ -897,7 +973,7 @@ async function retryAllFailed() {
   if (state.generating) return;
   const failed = state.results.filter((r) => r.status === "failed");
   if (!failed.length) return;
-  state.info = `Повторяем ${failed.length} неудачных вариантов...`;
+  state.info = t("retry_line");
   state.error = "";
   render();
   for (const row of failed) {
@@ -905,38 +981,39 @@ async function retryAllFailed() {
   }
   const completed = state.results.filter((r) => r.status === "completed").length;
   const failedAfter = state.results.filter((r) => r.status === "failed").length;
-  state.info = `После ретрая: ${completed}/3 готово, ${failedAfter}/3 с ошибкой`;
+  state.info = `${t("done_label")}: ${completed}/1, ${t("errors_label")}: ${failedAfter}/1`;
   await refreshAuthSilently();
   await persistState();
-  setToast("info", `Ретрай завершён: ${completed}/3 готово`);
+  setToast("info", t("all_done"));
   render();
 }
 
 async function resetSession() {
   state.phase = "idle";
   state.error = "";
-  state.info = "Сессия очищена";
+  state.info = t("session_cleared");
   state.photoStoragePath = "";
+  state.uploadedFileName = "";
   state.vibeId = null;
   state.style = null;
   state.prompts = [];
   state.results = [];
   await storageLocalRemove(LOCAL_STATE_KEY);
-  setToast("info", "Сессия сброшена");
+  setToast("info", t("session_cleared"));
   render();
 }
 
 async function clearResultsOnly() {
   state.phase = "idle";
   state.error = "";
-  state.info = "Результаты очищены";
+  state.info = t("results_cleared");
   state.vibeId = null;
   state.style = null;
   state.prompts = [];
   state.results = [];
   state.confirmGenerate = false;
   await persistState();
-  setToast("info", "Результаты очищены");
+  setToast("info", t("results_cleared"));
   render();
 }
 
@@ -989,23 +1066,24 @@ function renderAuthRequired() {
   const sessionHealth = getSessionHealth();
   app.innerHTML = `
     <div class="card">
-      <p class="title">Steal This Vibe</p>
-      <p class="muted ${escapeHtml(sessionHealth.className)}">Статус: ${escapeHtml(sessionHealth.label)}</p>
-      <p class="muted">Войдите на promptshot.ru, чтобы продолжить.</p>
+      <p class="title">${escapeHtml(t("title_app"))}</p>
+      <p class="muted ${escapeHtml(sessionHealth.className)}">${escapeHtml(t("status"))}: ${escapeHtml(sessionHealth.label)}</p>
+      <p class="muted">${escapeHtml(t("auth_hint"))}</p>
       <div class="row">
-        <button class="primary" id="open-login">Открыть promptshot.ru</button>
-        <button id="retry-auth">Проверить снова</button>
+        <button class="primary" id="btn-google">${escapeHtml(t("btn_google"))}</button>
+        <button id="retry-auth">${escapeHtml(t("btn_retry_auth"))}</button>
       </div>
       ${state.error ? `<p class="muted error-text">${escapeHtml(state.error)}</p>` : ""}
     </div>
   `;
 
-  document.getElementById("open-login").addEventListener("click", () => {
-    chrome.tabs.create({ url: API_ORIGIN });
+  document.getElementById("btn-google").addEventListener("click", () => {
+    void startGoogleSignIn();
   });
   document.getElementById("retry-auth").addEventListener("click", async () => {
     state.loading = true;
     render();
+    await refreshAccessTokenFromSupabase();
     await checkAuth();
     state.loading = false;
     render();
@@ -1033,7 +1111,7 @@ function renderMain() {
 
   const source = state.sourceImageUrl
     ? `<img class="preview" src="${escapeHtml(state.sourceImageUrl)}" alt="Source" />`
-    : `<p class="muted">Наведите на картинку на любом сайте и нажмите "Steal this vibe".</p>`;
+    : `<p class="muted">${escapeHtml(t("source_hint"))}</p>`;
 
   const resultsHtml = state.results.length
     ? `<div class="grid">${state.results
@@ -1042,20 +1120,20 @@ function renderMain() {
           return `
       <div class="card">
         <p class="title">${escapeHtml(formatAccentLabel(row.accent))}</p>
-        <p class="muted">Статус: ${escapeHtml(statusLabel(row.status))}</p>
+        <p class="muted">${escapeHtml(t("status"))}: ${escapeHtml(statusLabel(row.status))}</p>
         ${row.statusDetail ? `<p class="muted">${escapeHtml(row.statusDetail)}</p>` : ""}
-        <p class="muted">Попытка: ${escapeHtml(String(row.attempt || 0))}</p>
+        <p class="muted">${escapeHtml(t("attempt"))}: ${escapeHtml(String(row.attempt || 0))}</p>
         ${row.resultUrl ? `<img class="preview" src="${escapeHtml(row.resultUrl)}" alt="Result" />` : ""}
         ${row.error ? `<p class="muted error-text">${escapeHtml(row.error)}</p>` : ""}
-        ${row.errorType ? `<p class="muted">Тип ошибки: ${escapeHtml(formatErrorTypeLabel(row.errorType))}</p>` : ""}
+        ${row.errorType ? `<p class="muted">${escapeHtml(t("error_type_prefix"))}: ${escapeHtml(formatErrorTypeLabel(row.errorType))}</p>` : ""}
         <div class="row">
           <button data-save-id="${escapeHtml(row.id || "")}" ${row.status === "completed" && !row.saving ? "" : "disabled"}>
-            ${row.saving ? "Сохраняем..." : row.saved ? "Сохранено" : "Сохранить"}
+            ${row.saving ? escapeHtml(t("btn_saving")) : row.saved ? escapeHtml(t("btn_saved")) : escapeHtml(t("btn_save"))}
           </button>
           <button data-retry-id="${escapeHtml(retryKey)}" ${row.status === "failed" && !state.generating ? "" : "disabled"}>
-            Повторить
+            ${escapeHtml(t("btn_retry"))}
           </button>
-          ${row.resultUrl ? `<a href="${escapeHtml(row.resultUrl)}" target="_blank" rel="noreferrer">Открыть</a>` : ""}
+          ${row.resultUrl ? `<a href="${escapeHtml(row.resultUrl)}" target="_blank" rel="noreferrer">${escapeHtml(t("btn_open"))}</a>` : ""}
         </div>
       </div>
     `;
@@ -1066,24 +1144,24 @@ function renderMain() {
   const runHistoryHtml = Array.isArray(state.runHistory) && state.runHistory.length
     ? `
       <div class="card">
-        <p class="title">История запусков</p>
+        <p class="title">${escapeHtml(t("history_title"))}</p>
         <p class="muted">
-          запусков=${escapeHtml(String(historyStats.totalRuns))},
-          успешно=${escapeHtml(String(historyStats.totalCompleted))},
-          ошибок=${escapeHtml(String(historyStats.totalFailed))},
-          успех=${escapeHtml(String(historyStats.avgSuccessPercent))}%,
-          последняя_ошибка=${escapeHtml(historyStats.lastErrorType)}
+          ${escapeHtml(t("history_runs"))}=${escapeHtml(String(historyStats.totalRuns))},
+          ${escapeHtml(t("history_ok"))}=${escapeHtml(String(historyStats.totalCompleted))},
+          ${escapeHtml(t("history_fail"))}=${escapeHtml(String(historyStats.totalFailed))},
+          ${escapeHtml(t("metric_success"))}=${escapeHtml(String(historyStats.avgSuccessPercent))}%,
+          ${escapeHtml(t("history_last_err"))}=${escapeHtml(historyStats.lastErrorType)}
         </p>
         <div class="row">
-          <button id="export-history">Экспорт JSON</button>
-          <button id="clear-history">Очистить историю</button>
+          <button id="export-history">${escapeHtml(t("history_export"))}</button>
+          <button id="clear-history">${escapeHtml(t("history_clear"))}</button>
         </div>
         <div class="row">
           ${accentStats
             .map(
               (s) =>
                 `<span class="metric-chip">${escapeHtml(
-                  `${formatAccentLabel(s.accent)}: успех ${s.successPercent}% (${s.completed}/${s.total || 0})`
+                  `${formatAccentLabel(s.accent)}: ${t("metric_success")} ${s.successPercent}% (${s.completed}/${s.total || 0})`
                 )}</span>`
             )
             .join("")}
@@ -1094,10 +1172,10 @@ function renderMain() {
           <div class="history-item">
             <p class="muted"><strong>${escapeHtml(formatDateTime(run.startedAt))}</strong></p>
             <p class="muted">
-              модель=${escapeHtml(run.model || "—")}, ratio=${escapeHtml(run.aspectRatio || "—")}, размер=${escapeHtml(run.imageSize || "—")}
+              ${escapeHtml(t("history_model"))}=${escapeHtml(run.model || "—")}, ${escapeHtml(t("history_ratio"))}=${escapeHtml(run.aspectRatio || "—")}, ${escapeHtml(t("history_size"))}=${escapeHtml(run.imageSize || "—")}
             </p>
             <p class="muted">
-              успешно=${escapeHtml(String(run.completed ?? 0))}, ошибок=${escapeHtml(String(run.failed ?? 0))}
+              ${escapeHtml(t("history_ok"))}=${escapeHtml(String(run.completed ?? 0))}, ${escapeHtml(t("history_fail"))}=${escapeHtml(String(run.failed ?? 0))}
             </p>
             ${
               run.perAccent && typeof run.perAccent === "object"
@@ -1124,24 +1202,34 @@ function renderMain() {
           ? `<div class="toast toast-${escapeHtml(state.toast.type)}">${escapeHtml(state.toast.message)}</div>`
           : ""
       }
-      <p class="title">Steal This Vibe</p>
-      <p class="muted">API: ${escapeHtml(API_ORIGIN)}</p>
-      <p class="muted">Пользователь: ${escapeHtml(state.user.email || state.user.id || "unknown")}</p>
-      <p class="muted ${escapeHtml(sessionHealth.className)}">Статус: ${escapeHtml(sessionHealth.label)}</p>
-      <p class="muted">Кредиты: ${escapeHtml(String(state.credits))}</p>
-      <p class="muted">Стоимость запуска: ${escapeHtml(String(requiredCredits))} кредита(ов)</p>
+      <p class="title">${escapeHtml(t("title_app"))}</p>
+      <div class="row">
+        <button type="button" id="toggle-lang">${escapeHtml(t("lang_toggle"))}</button>
+        <button type="button" id="sign-out">${escapeHtml(t("btn_sign_out"))}</button>
+      </div>
+      <p class="muted">${escapeHtml(t("api"))}: ${escapeHtml(API_ORIGIN)}</p>
+      <p class="muted">${escapeHtml(t("user"))}: ${escapeHtml(state.user.email || state.user.id || "unknown")}</p>
+      <p class="muted ${escapeHtml(sessionHealth.className)}">${escapeHtml(t("status"))}: ${escapeHtml(sessionHealth.label)}</p>
+      <p class="muted">${escapeHtml(t("credits"))}: ${escapeHtml(String(state.credits))}</p>
+      <p class="muted">${escapeHtml(t("cost_run"))}: ${escapeHtml(String(requiredCredits))} ${escapeHtml(t("credit_word"))}</p>
       ${
         needsCredits
-          ? `<p class="muted error-text">Недостаточно кредитов: нужно ${escapeHtml(String(requiredCredits))}, доступно ${escapeHtml(String(state.credits))}</p>`
+          ? `<p class="muted error-text">${escapeHtml(t("insufficient_credits"))}: ${escapeHtml(String(requiredCredits))} / ${escapeHtml(String(state.credits))}</p>`
           : ""
       }
       ${source}
       ${
         showFirstRunHint
-          ? `<p class="muted">Подсказка: наведите курсор на фото на любом сайте и нажмите кнопку "Steal this vibe". После этого вернитесь в эту панель.</p>`
+          ? `<p class="muted">${escapeHtml(t("first_run_hint"))}</p>`
+          : ""
+      }
+      ${
+        state.photoStoragePath
+          ? `<p class="muted photo-saved">✓ ${escapeHtml(state.uploadedFileName || t("photo_saved_label"))}</p>`
           : ""
       }
       <div class="row">
+        <label class="muted" for="photo-file">${escapeHtml(state.photoStoragePath ? t("photo_replace") : t("photo_pick"))}</label>
         <input id="photo-file" type="file" accept="image/jpeg,image/png,image/webp" />
       </div>
       <div class="row">
@@ -1168,35 +1256,35 @@ function renderMain() {
       </div>
       <div class="row">
         <button id="run-generate" class="primary" ${canGenerate ? "" : "disabled"}>
-          ${state.resuming ? "Восстанавливаем..." : state.generating ? "Генерируем..." : "Сгенерировать 3 варианта"}
+          ${state.resuming ? escapeHtml(t("btn_resuming")) : state.generating ? escapeHtml(t("btn_generating")) : escapeHtml(t("btn_generate"))}
         </button>
         <button id="buy-credits" ${needsCredits && !state.generating ? "" : "disabled"}>
-          ${state.waitingForPayment ? "Ожидаем оплату..." : "Купить кредиты ⭐"}
+          ${state.waitingForPayment ? escapeHtml(t("btn_waiting_payment")) : escapeHtml(t("btn_buy_credits"))}
         </button>
         <button id="retry-all" ${failedCount > 0 && !state.generating ? "" : "disabled"}>
-          Повторить все ошибки
+          ${escapeHtml(t("btn_retry_all"))}
         </button>
         <button id="clear-results" ${state.generating ? "disabled" : ""}>
-          Очистить результаты
+          ${escapeHtml(t("btn_clear_results"))}
         </button>
         <button id="reset-session" ${state.generating ? "disabled" : ""}>
-          Сбросить сессию
+          ${escapeHtml(t("btn_reset_session"))}
         </button>
       </div>
       ${
         state.confirmGenerate
           ? `
         <div class="row">
-          <span class="muted">Подтвердить запуск: будет списано ${escapeHtml(String(requiredCredits))} кредитов</span>
-          <button id="confirm-generate" class="primary" ${canGenerate ? "" : "disabled"}>Подтвердить</button>
-          <button id="cancel-generate" ${state.generating ? "disabled" : ""}>Отмена</button>
+          <span class="muted">${escapeHtml(t("confirm_run"))} ${escapeHtml(String(requiredCredits))} ${escapeHtml(t("credit_word"))}</span>
+          <button id="confirm-generate" class="primary" ${canGenerate ? "" : "disabled"}>${escapeHtml(t("btn_confirm"))}</button>
+          <button id="cancel-generate" ${state.generating ? "disabled" : ""}>${escapeHtml(t("btn_cancel"))}</button>
         </div>
       `
           : ""
       }
       ${
         cooldownLeftSec > 0
-          ? `<p class="muted">Cooldown: подождите ${escapeHtml(String(cooldownLeftSec))} сек</p>`
+          ? `<p class="muted">${escapeHtml(t("cooldown"))}: ${escapeHtml(String(cooldownLeftSec))} ${escapeHtml(t("cooldown_sec"))}</p>`
           : ""
       }
       ${
@@ -1205,17 +1293,31 @@ function renderMain() {
         <div class="progress-wrap">
           <div class="progress-bar" style="width:${escapeHtml(String(overallProgress))}%"></div>
         </div>
-        <p class="muted">Общий прогресс: ${escapeHtml(String(overallProgress))}%</p>
+        <p class="muted">${escapeHtml(t("progress_total"))}: ${escapeHtml(String(overallProgress))}%</p>
       `
           : ""
       }
-      <p class="muted">Готово: ${completedCount}/3, ошибки: ${failedCount}/3</p>
+      <p class="muted">${escapeHtml(t("done_label"))}: ${completedCount}/1, ${escapeHtml(t("errors_label"))}: ${failedCount}/1</p>
       ${state.info ? `<p class="muted">${escapeHtml(state.info)}</p>` : ""}
       ${state.error ? `<p class="muted error-text">${escapeHtml(state.error)}</p>` : ""}
     </div>
     ${resultsHtml}
     ${runHistoryHtml}
   `;
+
+  const signOutBtn = document.getElementById("sign-out");
+  if (signOutBtn) {
+    signOutBtn.addEventListener("click", () => {
+      void signOutExtension();
+    });
+  }
+  const langBtn = document.getElementById("toggle-lang");
+  if (langBtn) {
+    langBtn.addEventListener("click", () => {
+      toggleUiLang();
+      render();
+    });
+  }
 
   const modelEl = document.getElementById("model");
   modelEl.value = state.selectedModel;
@@ -1244,11 +1346,12 @@ function renderMain() {
     if (!file) return;
     try {
       state.error = "";
-      state.info = "Загружаем фото...";
+      state.uploadedFileName = file.name;
+      state.info = t("uploading_photo");
       render();
       await uploadPhoto(file);
-      state.info = "Фото загружено";
-      setToast("success", "Фото успешно загружено");
+      state.info = t("photo_uploaded");
+      setToast("success", t("photo_uploaded"));
       render();
     } catch (err) {
       state.error = normalizeUiError(err, "Ошибка загрузки фото");
@@ -1293,7 +1396,7 @@ function renderMain() {
   if (cancelBtn) {
     cancelBtn.addEventListener("click", async () => {
       state.confirmGenerate = false;
-      state.info = "Запуск отменен пользователем";
+      state.info = t("cancel_user");
       render();
       await persistState();
     });
@@ -1342,8 +1445,7 @@ function renderMain() {
 
 function render() {
   if (state.loading) {
-    app.innerHTML =
-      '<div class="card"><p class="title">Steal This Vibe</p><p class="muted">Загрузка...</p></div>';
+    app.innerHTML = `<div class="card"><p class="title">${escapeHtml(t("title_app"))}</p><p class="muted">${escapeHtml(t("loading"))}</p></div>`;
     return;
   }
   if (!state.user) {
@@ -1364,14 +1466,30 @@ async function boot() {
   render();
 
   await loadPersistedState();
+  try {
+    await initSupabaseAuth();
+  } catch (e) {
+    console.warn("[stv] initSupabaseAuth:", e);
+  }
+
+  chrome.runtime.onMessage.addListener((msg) => {
+    if (msg?.type === "PROMPTSHOT_AUTH_DONE") {
+      void (async () => {
+        await refreshAccessTokenFromSupabase();
+        await checkAuth();
+        render();
+      })();
+    }
+  });
+
   await loadPendingVibe();
   await loadConfig();
   await checkAuth();
   await resumeInFlightGenerations();
 
   state.loading = false;
-  if (state.user && !String(state.info || "").toLowerCase().includes("восстанов")) {
-    setToast("info", "Готово к генерации", 1800);
+  if (state.user && state.phase === "idle" && !state.generating && !state.resuming) {
+    setToast("info", t("toast_ready"), 1800);
   }
   render();
 

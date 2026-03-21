@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServer } from "@/lib/supabase";
-import { createSupabaseServerAuth } from "@/lib/supabase-server-auth";
+import { getSupabaseUserForApiRoute } from "@/lib/supabase-route-auth";
 
 const DIRECT_GEMINI_BASE_URL = "https://generativelanguage.googleapis.com";
 const TEXT_MODEL = process.env.GEMINI_VIBE_EXPAND_MODEL || "gemini-2.5-flash";
@@ -151,11 +151,7 @@ Return ONLY valid JSON array with 3 objects and exact accents:
 
 export async function POST(req: NextRequest) {
   try {
-    const supabaseAuth = await createSupabaseServerAuth();
-    const {
-      data: { user },
-      error: authError,
-    } = await supabaseAuth.auth.getUser();
+    const { user, error: authError } = await getSupabaseUserForApiRoute(req);
     if (authError || !user) {
       return NextResponse.json({ error: "unauthorized" }, { status: 401 });
     }

@@ -1,6 +1,6 @@
 # 01 — Лендинг (promptshot.ru)
 
-> Последнее обновление: 2026-03-20
+> Последнее обновление: 2026-03-21
 
 ## Стек
 
@@ -66,7 +66,7 @@
 - **Extract:** `POST /api/vibe/extract` — проверяет auth, валидирует безопасный URL (SSRF guard), скачивает изображение, отправляет в Gemini Vision, сохраняет structured style JSON в таблицу `vibes`.
 - **Expand:** `POST /api/vibe/expand` — берёт style (из body или по `vibeId`), вызывает Gemini text и возвращает 3 варианта промптов с акцентами: `lighting`, `mood`, `composition`.
 - **Save:** `POST /api/vibe/save` — сохраняет выбранную completed-генерацию в `landing_vibe_saves`, связывает с `vibe_id`/`card_id`, пишет `auto_seo_tags` и, если `card_id` отсутствует, пытается автосоздать `prompt_cards` + `prompt_card_media` + `prompt_variants` из `landing_generations.result_storage_*`. После этого обогащает `prompt_cards.seo_tags` на основе `vibes.style` (через `TAG_REGISTRY`).
-- **Generate:** дальше используется существующий `POST /api/generate` без изменений (3 отдельных вызова, по одному на вариант).
+- **Generate:** `POST /api/generate` — расширение вызывает **один раз** на запуск (первый промпт после expand); сайт при необходимости может вызывать несколько раз.
 - **Gemini routing:** extract/expand используют тот же runtime-флаг `photo_app_config.gemini_use_proxy` и `GEMINI_PROXY_BASE_URL`.
 
 ### Покупка web-кредитов через Telegram Stars
@@ -84,6 +84,12 @@
 - API теперь обрабатывает CORS в `middleware.ts` для `chrome-extension://` origin.
 - Allowlist источников формируется из `CORS_ALLOWED_ORIGINS` и `CHROME_EXTENSION_ID`.
 - Поддерживается preflight (`OPTIONS`) + credentialed requests (`Access-Control-Allow-Credentials: true`).
+
+### Extension auth (Bearer) и public-config
+
+- **`GET /api/public-config`** — публично отдаёт `supabaseUrl` + `supabaseAnonKey` (те же `NEXT_PUBLIC_*`, что уже в браузере лендинга) для инициализации Supabase Client в расширении.
+- **Route Handlers** vibe/generate/me/upload/buy-credits/generations: авторизация через `getSupabaseUserForApiRoute(request)` — если в запросе есть **`Authorization: Bearer <access_token>`**, пользователь берётся из JWT; иначе — сессия по **cookies** (как на сайте).
+- Расширение: Google OAuth в отдельной вкладке, redirect на `chrome-extension://<id>/sidepanel/auth-callback.html` (URL нужно добавить в Supabase **Redirect URLs**).
 
 ### 301 редиректы карточек `/p/[slug]`
 

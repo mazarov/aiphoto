@@ -1,16 +1,18 @@
 # Steal This Vibe Extension (MVP scaffold)
 
-Минимальный scaffold для flow:
+Flow:
 
 1. hover на изображение -> кнопка `Steal this vibe`
 2. click -> открывается side panel
-3. auth check через `/api/me`
-4. upload фото -> `/api/upload-generation-photo`
+3. вход **Google в панели** (PKCE + `sidepanel/auth-callback.html`); API с `Authorization: Bearer`
+4. upload фото -> `/api/upload-generation-photo` (путь и имя файла сохраняются в `chrome.storage` до смены фото / сброса)
 5. extract -> `/api/vibe/extract`
-6. expand -> `/api/vibe/expand`
-7. 3x generate -> `/api/generate`
+6. expand -> `/api/vibe/expand` (сервер по-прежнему отдаёт 3 промпта; расширение использует **первый**)
+7. **одна** генерация -> `/api/generate`
 8. polling -> `/api/generations/[id]`
 9. save -> `/api/vibe/save`
+
+**Язык UI:** RU по умолчанию, DE если `navigator.language` начинается с `de`, либо переключатель **DE/RU** в панели (`localStorage.stv_ui_lang`).
 
 ## Структура
 
@@ -19,8 +21,27 @@
 - `content-script.js`
 - `content-script.css`
 - `sidepanel/index.html`
-- `sidepanel/app.js`
+- `sidepanel/app.js` (ES modules)
+- `sidepanel/i18n.js`, `sidepanel/supabase-extension.js`
+- `sidepanel/auth-callback.html` + `auth-callback.js` (OAuth redirect)
+- `sidepanel/vendor/supabase.js` (бандл `@supabase/supabase-js`, см. ниже)
 - `sidepanel/styles.css`
+
+### Supabase Redirect URLs
+
+В Supabase Dashboard → Authentication → URL configuration добавь **точный** redirect:
+
+`chrome-extension://<ТВОЙ_EXTENSION_ID>/sidepanel/auth-callback.html`
+
+ID смотри в `chrome://extensions` ( unpacked — стабилен для папки). Без этого Google OAuth вернёт ошибку.
+
+### Пересборка `vendor/supabase.js`
+
+Из каталога `landing`:
+
+```bash
+npm run vendor:extension
+```
 
 ## Запуск в Chrome (dev)
 
@@ -33,7 +54,8 @@
 ## Важно для API и CORS
 
 Extension делает запросы c origin `chrome-extension://<EXT_ID>`.
-Для успешной авторизации (`credentials: include`) backend должен разрешить этот origin.
+Backend разрешает origin через `CHROME_EXTENSION_ID` / `CORS_ALLOWED_ORIGINS`.
+После входа через Google в панели к API уходит **`Authorization: Bearer <access_token>`** (плюс `credentials: include` для совместимости).
 
 Настройки на стороне landing (`landing/.env.local`):
 

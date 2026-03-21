@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServer } from "@/lib/supabase";
-import { createSupabaseServerAuth } from "@/lib/supabase-server-auth";
+import { getSupabaseUserForApiRoute } from "@/lib/supabase-route-auth";
 import { TAG_REGISTRY, type Dimension } from "@/lib/tag-registry";
 
 const ALLOWED_ACCENTS = ["lighting", "mood", "composition"] as const;
@@ -216,11 +216,7 @@ async function createSyntheticSourceGroup(
 
 export async function POST(req: NextRequest) {
   try {
-    const supabaseAuth = await createSupabaseServerAuth();
-    const {
-      data: { user },
-      error: authError,
-    } = await supabaseAuth.auth.getUser();
+    const { user, error: authError } = await getSupabaseUserForApiRoute(req);
     if (authError || !user) {
       return NextResponse.json({ error: "unauthorized" }, { status: 401 });
     }

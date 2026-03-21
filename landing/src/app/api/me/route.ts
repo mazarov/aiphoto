@@ -1,14 +1,13 @@
-import { NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 import { createSupabaseServer } from "@/lib/supabase";
-import { createSupabaseServerAuth } from "@/lib/supabase-server-auth";
+import { getSupabaseUserForApiRoute } from "@/lib/supabase-route-auth";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const supabaseAuth = await createSupabaseServerAuth();
     const {
-      data: { user },
+      user,
       error: authError,
-    } = await supabaseAuth.auth.getUser();
+    } = await getSupabaseUserForApiRoute(request);
 
     if (authError || !user) {
       return NextResponse.json({ user: null, credits: 0 });

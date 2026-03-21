@@ -8,21 +8,23 @@
     "start": "next start -p 3001",
     "lint": "next lint",
     "seo:check": "tsx scripts/sync-seo-content.ts --check",
-    "seo:sync": "tsx scripts/sync-seo-content.ts --write"
+    "seo:sync": "tsx scripts/sync-seo-content.ts --write",
+    "vendor:extension": "esbuild node_modules/@supabase/supabase-js/dist/index.mjs --bundle --format=esm --outfile=../extension/sidepanel/vendor/supabase.js --platform=browser"
   },
   "dependencies": {
     "@supabase/ssr": "^0.9.0",
     "@supabase/supabase-js": "^2.48.0",
-    "sharp": "^0.33.5",
     "next": "^15.5.7",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "sharp": "^0.33.5"
   },
   "devDependencies": {
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "autoprefixer": "^10",
+    "esbuild": "^0.25.12",
     "eslint": "^9",
     "eslint-config-next": "^15.5.7",
     "postcss": "^8",
