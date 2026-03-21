@@ -176,6 +176,7 @@ ctx.answerPreCheckoutQuery(true)
 
 ```typescript
 const WEB_CREDIT_PACKS = [
+  { credits: 1, price: 1, label_ru: "🔹 Мини", label_en: "🔹 Mini" },
   { credits: 10, price: 150, label_ru: "⭐ Старт", label_en: "⭐ Start" },
   { credits: 30, price: 300, label_ru: "💎 Поп",   label_en: "💎 Pop" },
   { credits: 100, price: 700, label_ru: "👑 Про",   label_en: "👑 Pro" },

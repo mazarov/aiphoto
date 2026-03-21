@@ -10,6 +10,7 @@ const app = express();
 app.use(express.json({ limit: "2mb" }));
 
 const WEB_CREDIT_PACKS = [
+  { credits: 1, price: 1, label_ru: "🔹 Мини", label_en: "🔹 Mini" },
   { credits: 10, price: 150, label_ru: "⭐ Старт", label_en: "⭐ Start" },
   { credits: 30, price: 300, label_ru: "💎 Поп", label_en: "💎 Pop" },
   { credits: 100, price: 700, label_ru: "👑 Про", label_en: "👑 Pro" },
@@ -31,9 +32,16 @@ function getLang(ctx: any): "ru" | "en" {
 
 async function showWebCreditPacks(ctx: any, lang: "ru" | "en") {
   const title = lang === "ru" ? "Пакеты кредитов для PromptShot:" : "PromptShot credit packs:";
-  const unit = lang === "ru" ? "кредитов" : "credits";
   const buttons = WEB_CREDIT_PACKS.map((pack) => {
     const label = lang === "ru" ? pack.label_ru : pack.label_en;
+    const unit =
+      lang === "ru"
+        ? pack.credits === 1
+          ? "кредит"
+          : "кредитов"
+        : pack.credits === 1
+          ? "credit"
+          : "credits";
     return [
       Markup.button.callback(
         `${label}: ${pack.credits} ${unit} — ${pack.price}⭐`,
