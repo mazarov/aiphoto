@@ -67,6 +67,18 @@ const STYLE_FIELD_ALIASES: Partial<Record<StyleField, readonly string[]>> = {
   color_palette: ["color", "colors", "palette"],
   environment: ["background", "setting", "location"],
   key_details: ["details", "distinctive_details", "anchors"],
+  camera: ["lens", "camera_settings", "photography", "optics"],
+  composition: ["framing", "crop", "shot_composition"],
+};
+
+/**
+ * Gemini sometimes returns "" for camera/composition despite valid JSON; patch so extract does not fail.
+ */
+const STYLE_REQUIRED_STRING_FALLBACKS: Partial<Record<StyleField, string>> = {
+  camera:
+    "Estimated from the reference image: portrait-style focal length (approx. 50–105mm), camera height and angle consistent with visible perspective, depth of field matching background blur; refine from pixels.",
+  composition:
+    "Match the reference crop: subject placement in frame, headroom, symmetry/asymmetry, and negative space as visible in the photograph.",
 };
 
 function pickRawStyleValue(raw: Record<string, unknown>, field: StyleField): unknown {
@@ -115,10 +127,22 @@ export function coerceStylePayload(input: unknown): StylePayload | null {
     }
 
     if (STYLE_FIELDS_REQUIRED_NON_EMPTY.includes(field)) {
-      return null;
+      result[field] = "";
+      continue;
     }
 
     result[field] = "";
+  }
+
+  for (const field of STYLE_FIELDS_REQUIRED_NON_EMPTY) {
+    const cur = String(result[field] ?? "").trim();
+    if (cur.length > 0) continue;
+    const fallback = STYLE_REQUIRED_STRING_FALLBACKS[field];
+    if (fallback) {
+      result[field] = fallback;
+      continue;
+    }
+    return null;
   }
 
   return result;
@@ -221,6 +245,7 @@ Analyze this reference image and extract every visual detail needed to recreate 
 Note: The JSON describes THIS reference shot only (including this model's hair, eyes, skin in palette/expression where visible). A later step swaps in the end user's face. Accurate reference documentation is good; identity transfer is handled separately — do not omit real details from the photo.
 
 Return a JSON object with these exact fields:
+MANDATORY: Core string fields (scene, genre, subject_pose, expression, lighting, camera, mood, composition) must be non-empty. Never use "" for camera or composition — estimate focal length, angle, framing, and placement from the image if unsure.
 
 - scene: What is happening in this image. Describe the setting, action, time of day, and spatial context. 2-3 sentences. Example: "A woman lying on a bed of white crumpled sheets, taking a selfie from above. Morning light fills the room. The frame is intimate and close."
 - genre: The photographic genre and substyle. Examples: "intimate lifestyle portrait", "high-fashion editorial", "candid street photography", "cozy bedroom selfie".

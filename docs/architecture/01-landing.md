@@ -1,6 +1,6 @@
 # 01 — Лендинг (promptshot.ru)
 
-> Последнее обновление: 2026-03-21 (vibe models in photo_app_config)
+> Последнее обновление: 2026-03-21 (vibe extract coerce fallbacks)
 
 > UI side panel + content script: см. `docs/extension-ui-spec.md`; карта файлов и токены — `extension/DEVELOPER.md`.
 
@@ -66,7 +66,7 @@
 
 ### Vibe Pipeline (Steal This Vibe)
 
-- **Extract:** `POST /api/vibe/extract` — проверяет auth, валидирует безопасный URL (SSRF guard), скачивает изображение, отправляет в Gemini Vision, сохраняет structured style JSON в таблицу `vibes`. **Модель:** `photo_app_config.vibe_extract_model` (дефолт `gemini-2.5-pro`, миграция `sql/148_*.sql`) → fallback env `GEMINI_VIBE_EXTRACT_MODEL` → кодовый дефолт. В ответе **`modelUsed`**. Инструкция — `EXTRACT_STYLE_INSTRUCTION` (в т.ч. якоря **`subject_pose`**).
+- **Extract:** `POST /api/vibe/extract` — проверяет auth, валидирует безопасный URL (SSRF guard), скачивает изображение, отправляет в Gemini Vision, сохраняет structured style JSON в таблицу `vibes`. **Модель:** `photo_app_config.vibe_extract_model` (дефолт `gemini-2.5-pro`, миграция `sql/148_*.sql`) → fallback env `GEMINI_VIBE_EXTRACT_MODEL` → кодовый дефолт. В ответе **`modelUsed`**. Инструкция — `EXTRACT_STYLE_INSTRUCTION` (в т.ч. якоря **`subject_pose`**). **`coerceStylePayload`:** если `camera` / `composition` пришли пустыми, подставляются fallback-строки (плюс алиасы `lens`/`framing` и т.д.), чтобы пайплайн не падал на HTTP 200.
 - **Expand:** `POST /api/vibe/expand` — берёт style (из body или по `vibeId`), вызывает Gemini text и возвращает **один** сценарный промпт: `prompts: [{ accent: "scene", prompt }]`. **Модель:** `photo_app_config.vibe_expand_model` (дефолт `gemini-2.5-flash`) → env `GEMINI_VIBE_EXPAND_MODEL` → кодовый дефолт. К запросу дописывается **`buildVibeExpandRuntimeContext(willAttachReferenceInline)`**. В ответе **`modelUsed`**, **`finalPromptForGeneration`**, **`finalPromptPreviews`**, **`finalPromptAssumesTwoImages`** / **`vibeReferenceInlinePixels`**. JSON от модели: `{ "prompt": "..." }` (fallback: массив из одного legacy-элемента).
 - **Pipeline spec (отладка / extension):** `GET /api/vibe/pipeline-spec` (auth) — JSON с полями `extract` / `expand`: **`configKey`** (`vibe_extract_model` / `vibe_expand_model`), **`envKey`**, разрешённый **`model`**, полный текст **`instruction`**.
 - **Save:** `POST /api/vibe/save` — сохраняет выбранную completed-генерацию в `landing_vibe_saves`, связывает с `vibe_id`/`card_id`, пишет `auto_seo_tags` и, если `card_id` отсутствует, пытается автосоздать `prompt_cards` + `prompt_card_media` + `prompt_variants` из `landing_generations.result_storage_*`. После этого обогащает `prompt_cards.seo_tags` на основе `vibes.style` (через `TAG_REGISTRY`).
