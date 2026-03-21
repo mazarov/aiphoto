@@ -11,6 +11,37 @@ export function isGeminiVibeDebug(): boolean {
   return v === "1" || v === "true" || v === "yes";
 }
 
+/**
+ * Node `TypeError: fetch failed` often hides `cause` (e.g. ETIMEDOUT).
+ * Use in catch blocks around fetch() for actionable logs.
+ */
+export function fetchErrorDetails(err: unknown): Record<string, unknown> {
+  if (!(err instanceof Error)) {
+    return { shape: typeof err, message: String(err) };
+  }
+  const out: Record<string, unknown> = {
+    name: err.name,
+    message: err.message,
+  };
+  const c = err.cause;
+  if (c instanceof Error) {
+    out.causeName = c.name;
+    out.causeMessage = c.message;
+  } else if (c && typeof c === "object") {
+    const o = c as Record<string, unknown>;
+    if (o.code !== undefined) out.causeCode = o.code;
+    if (o.errno !== undefined) out.causeErrno = o.errno;
+    try {
+      out.causeJson = JSON.stringify(c);
+    } catch {
+      out.causeString = String(c);
+    }
+  } else if (c != null) {
+    out.causeString = String(c);
+  }
+  return out;
+}
+
 function parseErr(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }

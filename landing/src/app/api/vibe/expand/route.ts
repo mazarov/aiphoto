@@ -8,6 +8,7 @@ import {
   type StylePayload,
 } from "@/lib/vibe-gemini-instructions";
 import {
+  fetchErrorDetails,
   isGeminiVibeDebug,
   parseGeminiJsonArray,
   redactGenerateContentBody,
@@ -128,6 +129,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "missing_style" }, { status: 400 });
     }
 
+    console.warn("[vibe.expand] request_begin", {
+      userId: user.id,
+      hasStyleInBody: body.style !== undefined && body.style !== null,
+      vibeId: body.vibeId ?? null,
+    });
+
     const textModel = getGeminiVibeExpandModel();
     const geminiBaseUrl = await getGeminiBaseUrlRuntime(supabase);
     const geminiUrl = `${geminiBaseUrl}/v1beta/models/${textModel}:generateContent`;
@@ -149,43 +156,71 @@ export async function POST(req: NextRequest) {
       },
     };
 
-    console.info("[vibe.expand] gemini_request", {
+    const geminiEndpointHost = (() => {
+      try {
+        return new URL(geminiBaseUrl).hostname;
+      } catch {
+        return "invalid_base_url";
+      }
+    })();
+
+    console.warn("[vibe.expand] gemini_request", {
       userId: user.id,
       model: textModel,
-      endpointHost: (() => {
-        try {
-          return new URL(geminiBaseUrl).hostname;
-        } catch {
-          return "invalid_base_url";
-        }
-      })(),
+      endpointHost: geminiEndpointHost,
       userTextChars: expandUserText.length,
       styleKeys: Object.keys(style),
+      timeoutMs: 45000,
     });
     if (isGeminiVibeDebug()) {
-      console.info("[vibe.expand] gemini_request_body_redacted", redactGenerateContentBody(geminiBody));
+      console.warn("[vibe.expand] gemini_request_body_redacted", redactGenerateContentBody(geminiBody));
     }
 
     const geminiStarted = Date.now();
-    const geminiRes = await fetch(geminiUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-goog-api-key": apiKey,
-      },
-      body: JSON.stringify(geminiBody),
-      signal: AbortSignal.timeout(45000),
-    });
+    let geminiRes: Response;
+    try {
+      geminiRes = await fetch(geminiUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-goog-api-key": apiKey,
+        },
+        body: JSON.stringify(geminiBody),
+        signal: AbortSignal.timeout(45000),
+      });
+    } catch (err) {
+      console.error("[vibe.expand] gemini_fetch_failed", {
+        userId: user.id,
+        model: textModel,
+        endpointHost: geminiEndpointHost,
+        durationMs: Date.now() - geminiStarted,
+        ...toErrorMeta(err),
+        ...fetchErrorDetails(err),
+      });
+      return NextResponse.json({ error: "expand_failed" }, { status: 503 });
+    }
 
-    const geminiData = (await geminiRes.json()) as {
+    let geminiData: {
       error?: { message?: string };
       candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
     };
+    try {
+      geminiData = (await geminiRes.json()) as typeof geminiData;
+    } catch (err) {
+      console.error("[vibe.expand] gemini_response_body_not_json", {
+        userId: user.id,
+        model: textModel,
+        httpStatus: geminiRes.status,
+        durationMs: Date.now() - geminiStarted,
+        ...fetchErrorDetails(err),
+      });
+      return NextResponse.json({ error: "expand_failed" }, { status: 502 });
+    }
 
     const text = geminiData?.candidates?.[0]?.content?.parts?.find((p) => typeof p.text === "string")?.text || "";
     const responseSummary = summarizeGeminiApiResponse(geminiData);
 
-    console.info("[vibe.expand] gemini_response", {
+    console.warn("[vibe.expand] gemini_response", {
       userId: user.id,
       model: textModel,
       httpStatus: geminiRes.status,
@@ -194,7 +229,7 @@ export async function POST(req: NextRequest) {
       ...responseSummary,
     });
     if (isGeminiVibeDebug() && text.length > 0) {
-      console.info("[vibe.expand] gemini_response_text_preview", {
+      console.warn("[vibe.expand] gemini_response_text_preview", {
         userId: user.id,
         preview: text.slice(0, 2500),
         tail: text.length > 2500 ? text.slice(-400) : undefined,
@@ -205,6 +240,12 @@ export async function POST(req: NextRequest) {
     const prompts = parsed ? coercePromptVariants(parsed) : null;
 
     if (!geminiRes.ok || !prompts) {
+      const stageLine = parseStages
+        .map((s) => `${s.stage}:${s.ok ? "ok" : "fail"}${s.message ? `(${String(s.message).slice(0, 120)})` : ""}`)
+        .join(" | ");
+      console.error(
+        `[vibe.expand] PIPELINE_FAIL user=${user.id} http=${geminiRes.status} arrayParsed=${Boolean(parsed)} promptsOk=${Boolean(prompts)} stages=${stageLine}`,
+      );
       console.error("[vibe.expand] gemini_pipeline_failed", {
         userId: user.id,
         model: textModel,
@@ -221,7 +262,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "expand_failed" }, { status: 500 });
     }
 
-    console.info("[vibe.expand] gemini_parse_ok", {
+    console.warn("[vibe.expand] gemini_parse_ok", {
       userId: user.id,
       parseStages: parseStages.filter((s) => s.ok).map((s) => s.stage),
       promptsCount: prompts.length,
@@ -229,7 +270,10 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ prompts, modelUsed: textModel });
   } catch (err) {
-    console.error("[vibe.expand] unhandled error", toErrorMeta(err));
+    console.error("[vibe.expand] unhandled error", {
+      ...toErrorMeta(err),
+      ...fetchErrorDetails(err),
+    });
     return NextResponse.json({ error: "expand_failed" }, { status: 500 });
   }
 }
