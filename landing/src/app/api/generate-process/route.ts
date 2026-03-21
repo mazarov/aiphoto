@@ -26,6 +26,11 @@ function parseBooleanConfig(value: string | null | undefined, fallback: boolean)
   return fallback;
 }
 
+/** Full prompt body in logs; disable with LANDING_LOG_FULL_GENERATION_PROMPT=0 if too noisy. */
+function shouldLogFullGenerationPrompt(): boolean {
+  return parseBooleanConfig(process.env.LANDING_LOG_FULL_GENERATION_PROMPT, true);
+}
+
 async function shouldUseGeminiProxy(supabase: ReturnType<typeof createSupabaseServer>): Promise<boolean> {
   try {
     const { data } = await supabase
@@ -213,6 +218,18 @@ async function processGeneration(supabase: ReturnType<typeof createSupabaseServe
   const fullPrompt = isVibeGeneration
     ? assembleVibeFinalPrompt(rawPrompt, hasTwoImages)
     : rawPrompt;
+
+  if (shouldLogFullGenerationPrompt()) {
+    console.warn("[generation.process] full_prompt_text", {
+      generationId: id,
+      userId,
+      isVibeGeneration,
+      hasTwoImages,
+      rawPromptChars: rawPrompt.length,
+      fullPromptChars: fullPrompt.length,
+      text: fullPrompt,
+    });
+  }
 
   /*
    * Image order for vibe+reference: [reference_image, subject_photo(s), text_prompt]
