@@ -1,5 +1,7 @@
 # Steal This Vibe Extension (MVP scaffold)
 
+**UI / визуальная логика для дизайна и LLM:** см. [`docs/extension-ui-spec.md`](../docs/extension-ui-spec.md).
+
 Flow:
 
 1. hover на изображение -> кнопка `Steal this vibe`
@@ -11,6 +13,10 @@ Flow:
 7. **одна** генерация -> `/api/generate`
 8. polling -> `/api/generations/[id]`
 9. save -> `/api/vibe/save`
+
+В карточке результата показывается **текст промпта**, ушедший в `POST /api/generate` (из expand).
+
+После успешного extract/expand отображается блок **«Шаг 1»**: JSON стиля с референса, поля **`modelUsed`** (vision / expand) и кнопка загрузки полных системных инструкций через `GET /api/vibe/pipeline-spec`.
 
 **Язык UI:** RU по умолчанию, DE если `navigator.language` начинается с `de`, либо переключатель **DE/RU** в панели (`localStorage.stv_ui_lang`).
 

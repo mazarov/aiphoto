@@ -3,10 +3,13 @@ import { isIP } from "node:net";
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServer } from "@/lib/supabase";
 import { getSupabaseUserForApiRoute } from "@/lib/supabase-route-auth";
+import {
+  EXTRACT_STYLE_INSTRUCTION,
+  getGeminiVibeExtractModel,
+} from "@/lib/vibe-gemini-instructions";
 
 const DIRECT_GEMINI_BASE_URL = "https://generativelanguage.googleapis.com";
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
-const VISION_MODEL = process.env.GEMINI_VIBE_EXTRACT_MODEL || "gemini-2.5-flash";
 const STYLE_FIELDS = [
   "scene",
   "genre",
@@ -197,23 +200,6 @@ function coerceStylePayload(raw: Record<string, unknown>): StylePayload | null {
   return result;
 }
 
-const EXTRACT_PROMPT = `
-Analyze this image and extract its visual style as a structured description.
-Return a JSON object with these exact fields:
-
-- scene: What is depicted (subject, setting, action). 1-2 sentences.
-- genre: The photographic genre (fashion editorial, street photography, portrait, etc.)
-- lighting: Describe the lighting setup, direction, quality, color temperature.
-- camera: Lens, focal length, depth of field, angle, distance.
-- mood: The emotional tone and atmosphere.
-- color: Color palette, grading, contrast, saturation levels.
-- clothing: What the subject is wearing (if applicable, empty string if not).
-- composition: Framing, rule of thirds, negative space, leading lines.
-
-Be specific and precise. Focus on reproducible visual attributes.
-Return ONLY valid JSON, no markdown.
-`.trim();
-
 export async function POST(req: NextRequest) {
   try {
     const { user, error: authError } = await getSupabaseUserForApiRoute(req);
@@ -245,8 +231,9 @@ export async function POST(req: NextRequest) {
     }
 
     const supabase = createSupabaseServer();
+    const visionModel = getGeminiVibeExtractModel();
     const geminiBaseUrl = await getGeminiBaseUrlRuntime(supabase);
-    const geminiUrl = `${geminiBaseUrl}/v1beta/models/${VISION_MODEL}:generateContent`;
+    const geminiUrl = `${geminiBaseUrl}/v1beta/models/${visionModel}:generateContent`;
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
       return NextResponse.json({ error: "extract_failed" }, { status: 500 });
@@ -262,7 +249,7 @@ export async function POST(req: NextRequest) {
         contents: [
           {
             role: "user",
-            parts: [{ text: EXTRACT_PROMPT }, { inlineData }],
+            parts: [{ text: EXTRACT_STYLE_INSTRUCTION }, { inlineData }],
           },
         ],
         generationConfig: {
@@ -311,6 +298,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       vibeId: vibe.id,
       style,
+      modelUsed: visionModel,
     });
   } catch (err) {
     console.error("[vibe.extract] unhandled error", toErrorMeta(err));

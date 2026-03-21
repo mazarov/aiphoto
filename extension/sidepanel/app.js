@@ -58,6 +58,8 @@ const state = {
   imageSizes: [...DEFAULT_IMAGE_SIZES],
   vibeId: null,
   style: null,
+  extractModel: "",
+  expandModel: "",
   prompts: [],
   results: [],
   generating: false,
@@ -360,6 +362,8 @@ function toSerializableState() {
     selectedImageSize: state.selectedImageSize,
     vibeId: state.vibeId,
     style: state.style,
+    extractModel: state.extractModel,
+    expandModel: state.expandModel,
     prompts: state.prompts,
     results: state.results,
     runHistory: state.runHistory,
@@ -436,6 +440,8 @@ function applyPersistedState(saved) {
   state.selectedImageSize = saved.selectedImageSize || state.selectedImageSize;
   state.vibeId = saved.vibeId || state.vibeId;
   state.style = saved.style || state.style;
+  state.extractModel = saved.extractModel || state.extractModel;
+  state.expandModel = saved.expandModel || state.expandModel;
   state.prompts = Array.isArray(saved.prompts) ? saved.prompts : state.prompts;
   state.results = Array.isArray(saved.results) ? saved.results : state.results;
   state.runHistory = Array.isArray(saved.runHistory) ? saved.runHistory : state.runHistory;
@@ -630,7 +636,7 @@ async function uploadPhoto(file) {
   await persistState();
 }
 
-async function runExtractAndExpand() {
+async function runExtract() {
   const extractData = await api("/api/vibe/extract", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -638,13 +644,18 @@ async function runExtractAndExpand() {
   });
   state.vibeId = extractData.vibeId;
   state.style = extractData.style;
+  state.extractModel = String(extractData.modelUsed || "");
+  await persistState();
+}
 
+async function runExpand() {
   const expandData = await api("/api/vibe/expand", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ vibeId: state.vibeId, style: state.style })
   });
   state.prompts = Array.isArray(expandData.prompts) ? expandData.prompts : [];
+  state.expandModel = String(expandData.modelUsed || "");
   await persistState();
 }
 
@@ -876,7 +887,10 @@ async function generateAll() {
   state.info = t("run_extract");
   render();
 
-  await runExtractAndExpand();
+  await runExtract();
+  state.info = t("run_expand_prep");
+  render();
+  await runExpand();
   const allPrompts = Array.isArray(state.prompts) ? state.prompts : [];
   state.prompts = allPrompts.slice(0, 1);
   if (state.prompts.length !== 1) {
@@ -996,6 +1010,8 @@ async function resetSession() {
   state.uploadedFileName = "";
   state.vibeId = null;
   state.style = null;
+  state.extractModel = "";
+  state.expandModel = "";
   state.prompts = [];
   state.results = [];
   await storageLocalRemove(LOCAL_STATE_KEY);
@@ -1009,6 +1025,8 @@ async function clearResultsOnly() {
   state.info = t("results_cleared");
   state.vibeId = null;
   state.style = null;
+  state.extractModel = "";
+  state.expandModel = "";
   state.prompts = [];
   state.results = [];
   state.confirmGenerate = false;
@@ -1065,17 +1083,38 @@ async function saveResultById(id) {
 function renderAuthRequired() {
   const sessionHealth = getSessionHealth();
   app.innerHTML = `
-    <div class="card">
-      <p class="title">${escapeHtml(t("title_app"))}</p>
-      <p class="muted ${escapeHtml(sessionHealth.className)}">${escapeHtml(t("status"))}: ${escapeHtml(sessionHealth.label)}</p>
-      <p class="muted">${escapeHtml(t("auth_hint"))}</p>
-      <div class="row">
-        <button class="primary" id="btn-google">${escapeHtml(t("btn_google"))}</button>
-        <button id="retry-auth">${escapeHtml(t("btn_retry_auth"))}</button>
+    <div class="stv-shell">
+      <header class="stv-topbar">
+        <div class="stv-brand">
+          <span class="stv-brand-mark" aria-hidden="true">P</span>
+          <div class="stv-brand-text">
+            <span class="stv-brand-name">PromptShot</span>
+            <span class="stv-brand-sub">${escapeHtml(t("brand_sub"))}</span>
+          </div>
+        </div>
+        <div class="stv-topbar-actions">
+          <button type="button" class="stv-tool-btn" id="toggle-lang">${escapeHtml(t("lang_toggle"))}</button>
+        </div>
+      </header>
+      <div class="card stv-card-main">
+        <p class="muted ${escapeHtml(sessionHealth.className)}">${escapeHtml(t("status"))}: ${escapeHtml(sessionHealth.label)}</p>
+        <p class="muted">${escapeHtml(t("auth_hint"))}</p>
+        <div class="stv-actions-primary">
+          <button type="button" class="primary" id="btn-google">${escapeHtml(t("btn_google"))}</button>
+          <button type="button" id="retry-auth">${escapeHtml(t("btn_retry_auth"))}</button>
+        </div>
+        ${state.error ? `<p class="muted error-text">${escapeHtml(state.error)}</p>` : ""}
       </div>
-      ${state.error ? `<p class="muted error-text">${escapeHtml(state.error)}</p>` : ""}
     </div>
   `;
+
+  const langBtnAuth = document.getElementById("toggle-lang");
+  if (langBtnAuth) {
+    langBtnAuth.addEventListener("click", () => {
+      toggleUiLang();
+      render();
+    });
+  }
 
   document.getElementById("btn-google").addEventListener("click", () => {
     void startGoogleSignIn();
@@ -1118,8 +1157,16 @@ function renderMain() {
         .map((row) => {
           const retryKey = row.id || `${row.accent}:${row.attempt}`;
           return `
-      <div class="card">
+      <div class="card stv-card-result">
         <p class="title">${escapeHtml(formatAccentLabel(row.accent))}</p>
+        ${
+          row.prompt
+            ? `<div class="prompt-box-wrap">
+          <p class="muted prompt-box-label">${escapeHtml(t("gen_prompt_label"))}</p>
+          <pre class="prompt-box">${escapeHtml(row.prompt)}</pre>
+        </div>`
+            : ""
+        }
         <p class="muted">${escapeHtml(t("status"))}: ${escapeHtml(statusLabel(row.status))}</p>
         ${row.statusDetail ? `<p class="muted">${escapeHtml(row.statusDetail)}</p>` : ""}
         <p class="muted">${escapeHtml(t("attempt"))}: ${escapeHtml(String(row.attempt || 0))}</p>
@@ -1143,7 +1190,7 @@ function renderMain() {
 
   const runHistoryHtml = Array.isArray(state.runHistory) && state.runHistory.length
     ? `
-      <div class="card">
+      <div class="card stv-card-history">
         <p class="title">${escapeHtml(t("history_title"))}</p>
         <p class="muted">
           ${escapeHtml(t("history_runs"))}=${escapeHtml(String(historyStats.totalRuns))},
@@ -1195,115 +1242,212 @@ function renderMain() {
     `
     : "";
 
+  const pipelinePanelHtml =
+    state.style && typeof state.style === "object"
+      ? `<div class="card stv-card-side">
+          <p class="title">${escapeHtml(t("step1_title"))}</p>
+          <p class="muted">${escapeHtml(t("step1_model"))}: <code>${escapeHtml(state.extractModel || "—")}</code></p>
+          <p class="muted">${escapeHtml(t("step2_model"))}: <code>${escapeHtml(state.expandModel || "—")}</code></p>
+          <pre class="prompt-box">${escapeHtml(JSON.stringify(state.style, null, 2))}</pre>
+          <div class="row" style="margin-top:8px">
+            <button type="button" id="pipeline-spec-btn">${escapeHtml(t("btn_pipeline_spec"))}</button>
+          </div>
+          <pre id="pipeline-spec-out" class="prompt-box" style="display:none; margin-top:8px; max-height:240px;"></pre>
+        </div>`
+      : "";
+
   app.innerHTML = `
-    <div class="card">
-      ${
-        state.toast
-          ? `<div class="toast toast-${escapeHtml(state.toast.type)}">${escapeHtml(state.toast.message)}</div>`
-          : ""
-      }
-      <p class="title">${escapeHtml(t("title_app"))}</p>
-      <div class="row">
-        <button type="button" id="toggle-lang">${escapeHtml(t("lang_toggle"))}</button>
-        <button type="button" id="sign-out">${escapeHtml(t("btn_sign_out"))}</button>
-      </div>
-      <p class="muted">${escapeHtml(t("api"))}: ${escapeHtml(API_ORIGIN)}</p>
-      <p class="muted">${escapeHtml(t("user"))}: ${escapeHtml(state.user.email || state.user.id || "unknown")}</p>
-      <p class="muted ${escapeHtml(sessionHealth.className)}">${escapeHtml(t("status"))}: ${escapeHtml(sessionHealth.label)}</p>
-      <p class="muted">${escapeHtml(t("credits"))}: ${escapeHtml(String(state.credits))}</p>
-      <p class="muted">${escapeHtml(t("cost_run"))}: ${escapeHtml(String(requiredCredits))} ${escapeHtml(t("credit_word"))}</p>
-      ${
-        needsCredits
-          ? `<p class="muted error-text">${escapeHtml(t("insufficient_credits"))}: ${escapeHtml(String(requiredCredits))} / ${escapeHtml(String(state.credits))}</p>`
-          : ""
-      }
-      ${source}
-      ${
-        showFirstRunHint
-          ? `<p class="muted">${escapeHtml(t("first_run_hint"))}</p>`
-          : ""
-      }
-      ${
-        state.photoStoragePath
-          ? `<p class="muted photo-saved">✓ ${escapeHtml(state.uploadedFileName || t("photo_saved_label"))}</p>`
-          : ""
-      }
-      <div class="row">
-        <label class="muted" for="photo-file">${escapeHtml(state.photoStoragePath ? t("photo_replace") : t("photo_pick"))}</label>
-        <input id="photo-file" type="file" accept="image/jpeg,image/png,image/webp" />
-      </div>
-      <div class="row">
-        <select id="model">
-          ${state.models
-            .map(
-              (m) =>
-                `<option value="${escapeHtml(m.id)}">${escapeHtml(
-                  `${m.label} (${m.cost})`
-                )}</option>`
-            )
-            .join("")}
-        </select>
-        <select id="aspect-ratio">
-          ${state.aspectRatios
-            .map((a) => `<option value="${escapeHtml(a.value)}">${escapeHtml(a.label)}</option>`)
-            .join("")}
-        </select>
-        <select id="image-size">
-          ${state.imageSizes
-            .map((s) => `<option value="${escapeHtml(s.value)}">${escapeHtml(s.label)}</option>`)
-            .join("")}
-        </select>
-      </div>
-      <div class="row">
-        <button id="run-generate" class="primary" ${canGenerate ? "" : "disabled"}>
-          ${state.resuming ? escapeHtml(t("btn_resuming")) : state.generating ? escapeHtml(t("btn_generating")) : escapeHtml(t("btn_generate"))}
-        </button>
-        <button id="buy-credits" ${needsCredits && !state.generating ? "" : "disabled"}>
-          ${state.waitingForPayment ? escapeHtml(t("btn_waiting_payment")) : escapeHtml(t("btn_buy_credits"))}
-        </button>
-        <button id="retry-all" ${failedCount > 0 && !state.generating ? "" : "disabled"}>
-          ${escapeHtml(t("btn_retry_all"))}
-        </button>
-        <button id="clear-results" ${state.generating ? "disabled" : ""}>
-          ${escapeHtml(t("btn_clear_results"))}
-        </button>
-        <button id="reset-session" ${state.generating ? "disabled" : ""}>
-          ${escapeHtml(t("btn_reset_session"))}
-        </button>
-      </div>
-      ${
-        state.confirmGenerate
-          ? `
+    <div class="stv-shell">
+      <header class="stv-topbar">
+        <div class="stv-brand">
+          <span class="stv-brand-mark" aria-hidden="true">P</span>
+          <div class="stv-brand-text">
+            <span class="stv-brand-name">PromptShot</span>
+            <span class="stv-brand-sub">${escapeHtml(t("brand_sub"))}</span>
+          </div>
+        </div>
+        <div class="stv-topbar-actions">
+          <button type="button" class="stv-tool-btn" id="toggle-lang">${escapeHtml(t("lang_toggle"))}</button>
+          <button type="button" class="stv-tool-btn" id="sign-out">${escapeHtml(t("btn_sign_out"))}</button>
+        </div>
+      </header>
+
+      <div class="card stv-card-main">
+        ${
+          state.toast
+            ? `<div class="toast toast-${escapeHtml(state.toast.type)}">${escapeHtml(state.toast.message)}</div>`
+            : ""
+        }
+
+        <div class="stv-meta-strip">
+          <div class="stv-meta-credits">${escapeHtml(t("credits"))}: ${escapeHtml(String(state.credits))} <span>· ${escapeHtml(t("cost_run"))} ${escapeHtml(String(requiredCredits))} ${escapeHtml(t("credit_word"))}</span></div>
+          <div class="stv-meta-row ${escapeHtml(sessionHealth.className)}">${escapeHtml(t("status"))}: ${escapeHtml(sessionHealth.label)}</div>
+          <div class="stv-meta-row">${escapeHtml(t("user"))}: ${escapeHtml(state.user.email || state.user.id || "—")}</div>
+          ${
+            needsCredits
+              ? `<div class="stv-meta-row error-text">${escapeHtml(t("insufficient_credits"))}: ${escapeHtml(String(requiredCredits))} / ${escapeHtml(String(state.credits))}</div>`
+              : ""
+          }
+        </div>
+
+        <section class="stv-section">
+          <div class="stv-section-head">
+            <span class="stv-step" aria-hidden="true">1</span>
+            <h2 class="stv-section-title">${escapeHtml(t("section_ref"))}</h2>
+          </div>
+          ${source}
+          ${
+            showFirstRunHint
+              ? `<p class="muted">${escapeHtml(t("first_run_hint"))}</p>`
+              : ""
+          }
+        </section>
+
+        <section class="stv-section">
+          <div class="stv-section-head">
+            <span class="stv-step" aria-hidden="true">2</span>
+            <h2 class="stv-section-title">${escapeHtml(t("section_upload"))}</h2>
+          </div>
+          ${
+            state.photoStoragePath
+              ? `<p class="muted photo-saved">✓ ${escapeHtml(state.uploadedFileName || t("photo_saved_label"))}</p>`
+              : ""
+          }
+          <div class="stv-field">
+            <span class="stv-field-label">${escapeHtml(state.photoStoragePath ? t("photo_replace") : t("photo_pick"))}</span>
+            <input id="photo-file" type="file" accept="image/jpeg,image/png,image/webp" />
+          </div>
+        </section>
+
+        <section class="stv-section">
+          <div class="stv-section-head">
+            <span class="stv-step" aria-hidden="true">3</span>
+            <h2 class="stv-section-title">${escapeHtml(t("section_settings"))}</h2>
+          </div>
+          <div class="stv-fields">
+            <label class="stv-field" for="model">
+              <span class="stv-field-label">${escapeHtml(t("field_model"))}</span>
+              <select id="model">
+                ${state.models
+                  .map(
+                    (m) =>
+                      `<option value="${escapeHtml(m.id)}">${escapeHtml(
+                        `${m.label} (${m.cost})`
+                      )}</option>`
+                  )
+                  .join("")}
+              </select>
+            </label>
+            <label class="stv-field" for="aspect-ratio">
+              <span class="stv-field-label">${escapeHtml(t("field_ratio"))}</span>
+              <select id="aspect-ratio">
+                ${state.aspectRatios
+                  .map((a) => `<option value="${escapeHtml(a.value)}">${escapeHtml(a.label)}</option>`)
+                  .join("")}
+              </select>
+            </label>
+            <label class="stv-field" for="image-size">
+              <span class="stv-field-label">${escapeHtml(t("field_size"))}</span>
+              <select id="image-size">
+                ${state.imageSizes
+                  .map((s) => `<option value="${escapeHtml(s.value)}">${escapeHtml(s.label)}</option>`)
+                  .join("")}
+              </select>
+            </label>
+          </div>
+        </section>
+
+        <section class="stv-section">
+          <div class="stv-section-head">
+            <span class="stv-step" aria-hidden="true">4</span>
+            <h2 class="stv-section-title">${escapeHtml(t("section_actions"))}</h2>
+          </div>
+          <div class="stv-actions-primary">
+            <button type="button" id="run-generate" class="primary" ${canGenerate ? "" : "disabled"}>
+              ${state.resuming ? escapeHtml(t("btn_resuming")) : state.generating ? escapeHtml(t("btn_generating")) : escapeHtml(t("btn_generate"))}
+            </button>
+            <button type="button" id="buy-credits" class="${needsCredits ? "primary" : ""}" ${needsCredits && !state.generating ? "" : "disabled"}>
+              ${state.waitingForPayment ? escapeHtml(t("btn_waiting_payment")) : escapeHtml(t("btn_buy_credits"))}
+            </button>
+          </div>
+        </section>
+
+        ${
+          state.confirmGenerate
+            ? `
         <div class="row">
           <span class="muted">${escapeHtml(t("confirm_run"))} ${escapeHtml(String(requiredCredits))} ${escapeHtml(t("credit_word"))}</span>
           <button id="confirm-generate" class="primary" ${canGenerate ? "" : "disabled"}>${escapeHtml(t("btn_confirm"))}</button>
           <button id="cancel-generate" ${state.generating ? "disabled" : ""}>${escapeHtml(t("btn_cancel"))}</button>
         </div>
       `
-          : ""
-      }
-      ${
-        cooldownLeftSec > 0
-          ? `<p class="muted">${escapeHtml(t("cooldown"))}: ${escapeHtml(String(cooldownLeftSec))} ${escapeHtml(t("cooldown_sec"))}</p>`
-          : ""
-      }
-      ${
-        state.results.length
-          ? `
+            : ""
+        }
+        ${
+          cooldownLeftSec > 0
+            ? `<p class="muted">${escapeHtml(t("cooldown"))}: ${escapeHtml(String(cooldownLeftSec))} ${escapeHtml(t("cooldown_sec"))}</p>`
+            : ""
+        }
+        ${
+          state.results.length
+            ? `
         <div class="progress-wrap">
           <div class="progress-bar" style="width:${escapeHtml(String(overallProgress))}%"></div>
         </div>
         <p class="muted">${escapeHtml(t("progress_total"))}: ${escapeHtml(String(overallProgress))}%</p>
       `
-          : ""
-      }
-      <p class="muted">${escapeHtml(t("done_label"))}: ${completedCount}/1, ${escapeHtml(t("errors_label"))}: ${failedCount}/1</p>
-      ${state.info ? `<p class="muted">${escapeHtml(state.info)}</p>` : ""}
-      ${state.error ? `<p class="muted error-text">${escapeHtml(state.error)}</p>` : ""}
+            : ""
+        }
+        <p class="muted">${escapeHtml(t("done_label"))}: ${completedCount}/1, ${escapeHtml(t("errors_label"))}: ${failedCount}/1</p>
+        ${state.info ? `<p class="muted">${escapeHtml(state.info)}</p>` : ""}
+        ${state.error ? `<p class="muted error-text">${escapeHtml(state.error)}</p>` : ""}
+
+        <details class="stv-disclosure">
+          <summary>${escapeHtml(t("more_actions"))}</summary>
+          <div class="stv-disclosure-body">
+            <div class="row">
+              <button type="button" id="retry-all" ${failedCount > 0 && !state.generating ? "" : "disabled"}>
+                ${escapeHtml(t("btn_retry_all"))}
+              </button>
+              <button type="button" id="clear-results" ${state.generating ? "disabled" : ""}>
+                ${escapeHtml(t("btn_clear_results"))}
+              </button>
+              <button type="button" id="reset-session" ${state.generating ? "disabled" : ""}>
+                ${escapeHtml(t("btn_reset_session"))}
+              </button>
+            </div>
+          </div>
+        </details>
+
+        <details class="stv-disclosure stv-disclosure--dev">
+          <summary>${escapeHtml(t("dev_details"))}</summary>
+          <div class="stv-disclosure-body">
+            <p class="muted"><code>${escapeHtml(t("api"))}</code> ${escapeHtml(API_ORIGIN)}</p>
+            <p class="muted">${escapeHtml(t("dev_doc_hint"))}</p>
+          </div>
+        </details>
+      </div>
+      ${pipelinePanelHtml}
+      ${resultsHtml}
+      ${runHistoryHtml}
     </div>
-    ${resultsHtml}
-    ${runHistoryHtml}
   `;
+
+  const pipelineSpecBtn = document.getElementById("pipeline-spec-btn");
+  if (pipelineSpecBtn) {
+    pipelineSpecBtn.addEventListener("click", async () => {
+      try {
+        const d = await api("/api/vibe/pipeline-spec");
+        const out = document.getElementById("pipeline-spec-out");
+        if (out) {
+          out.style.display = "block";
+          out.textContent = JSON.stringify(d, null, 2);
+        }
+      } catch (err) {
+        setToast("error", normalizeUiError(err, "pipeline-spec"));
+      }
+    });
+  }
 
   const signOutBtn = document.getElementById("sign-out");
   if (signOutBtn) {
@@ -1445,7 +1589,14 @@ function renderMain() {
 
 function render() {
   if (state.loading) {
-    app.innerHTML = `<div class="card"><p class="title">${escapeHtml(t("title_app"))}</p><p class="muted">${escapeHtml(t("loading"))}</p></div>`;
+    app.innerHTML = `
+      <div class="stv-shell">
+        <div class="card stv-loading-card">
+          <div class="stv-brand-mark" style="margin:0 auto 12px" aria-hidden="true">P</div>
+          <p class="title">${escapeHtml(t("title_app"))}</p>
+          <p class="muted">${escapeHtml(t("loading"))}</p>
+        </div>
+      </div>`;
     return;
   }
   if (!state.user) {

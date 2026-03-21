@@ -1,8 +1,42 @@
 // ─── Config ──────────────────────────────────────────────────────────────────
 const MIN_RENDERED_SIZE = 120;
 const BUTTON_OFFSET = 10;
-const HIDE_DELAY_MS = 350;
+/** Pull button slightly over the image so the cursor path img→button doesn’t cross a “dead” gap. */
+const BUTTON_OVERLAP_IMG_PX = 4;
+const HIDE_DELAY_MS = 450;
 const OBSERVER_DEBOUNCE_MS = 200;
+/** Shown image narrower than this → compact label (fits small tiles). */
+const COMPACT_IMG_WIDTH = 260;
+
+/**
+ * Floating button copy (content script has no access to side panel localStorage).
+ * Lang from navigator; aligns with vibe DE/RU expansion.
+ */
+const OVERLAY_I18N = {
+  en: {
+    line: "Steal this vibe",
+    short: "Steal vibe",
+    aria: "Steal this vibe with PromptShot — send this image to the extension side panel",
+  },
+  de: {
+    line: "Stil übernehmen",
+    short: "Stil",
+    aria: "Stil mit PromptShot übernehmen — Bild an die Erweiterung senden",
+  },
+  ru: {
+    line: "Снять стиль с фото",
+    short: "Снять стиль",
+    aria: "Снять стиль с фото в PromptShot — отправить изображение в расширение",
+  },
+};
+
+function getOverlayLang() {
+  const nav = (typeof navigator !== "undefined" && navigator.language) || "en";
+  const low = nav.toLowerCase();
+  if (low.startsWith("de")) return "de";
+  if (low.startsWith("ru")) return "ru";
+  return "en";
+}
 
 // ─── Shadow root container ────────────────────────────────────────────────────
 // Button lives in Shadow DOM to avoid polluting React's virtual DOM tree.
@@ -34,28 +68,103 @@ function ensureShadowContainer() {
   style.textContent = `
     button {
       position: fixed;
-      padding: 6px 11px;
+      padding: 0;
+      margin: 0;
       border-radius: 9999px;
-      border: 1px solid rgba(255,255,255,0.35);
-      background: rgba(15,15,20,0.92);
+      border: 1px solid rgba(255, 255, 255, 0.42);
+      background: linear-gradient(135deg, #6366f1 0%, #5b5cf0 50%, #8b5cf6 100%);
       color: #fff;
       font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      font-size: 12px;
-      line-height: 1;
       cursor: pointer;
-      box-shadow: 0 4px 14px rgba(0,0,0,0.35);
-      backdrop-filter: blur(8px);
       pointer-events: all;
-      white-space: nowrap;
       user-select: none;
-      transition: background 0.15s, opacity 0.15s;
+      transition: filter 0.15s, box-shadow 0.15s, opacity 0.15s, transform 0.12s;
       opacity: 0;
+      /* Legibility on busy / similar-hue photos */
+      box-shadow:
+        0 0 0 1px rgba(0, 0, 0, 0.45),
+        0 0 0 2px rgba(255, 255, 255, 0.14),
+        0 2px 18px rgba(0, 0, 0, 0.35),
+        0 2px 16px rgba(99, 102, 241, 0.42);
     }
     button.visible {
       opacity: 1;
     }
     button:hover {
-      background: rgba(30,30,40,0.97);
+      filter: brightness(1.06);
+      box-shadow:
+        0 0 0 1px rgba(0, 0, 0, 0.5),
+        0 0 0 2px rgba(255, 255, 255, 0.2),
+        0 4px 22px rgba(0, 0, 0, 0.38),
+        0 4px 20px rgba(99, 102, 241, 0.5);
+    }
+    button:active:not(:disabled) {
+      transform: scale(0.98);
+    }
+    button:focus {
+      outline: none;
+    }
+    button:focus-visible {
+      outline: 2px solid #fff;
+      outline-offset: 3px;
+    }
+    .stv-ob-inner {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 12px 5px 5px;
+      white-space: nowrap;
+    }
+    .stv-ob-mark {
+      flex-shrink: 0;
+      width: 28px;
+      height: 28px;
+      border-radius: 9px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 14px;
+      letter-spacing: -0.04em;
+      color: #fff;
+      background: rgba(255, 255, 255, 0.22);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25);
+    }
+    .stv-ob-text {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      text-align: left;
+      line-height: 1.15;
+    }
+    .stv-ob-line {
+      font-size: 12px;
+      font-weight: 600;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+    }
+    .stv-ob-brand {
+      font-size: 10px;
+      font-weight: 500;
+      opacity: 0.9;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+    }
+    button.compact .stv-ob-brand {
+      display: none;
+    }
+    button.compact .stv-ob-inner {
+      padding-right: 10px;
+      gap: 6px;
+    }
+    button.compact .stv-ob-mark {
+      width: 24px;
+      height: 24px;
+      font-size: 12px;
+      border-radius: 8px;
+    }
+    button.compact .stv-ob-line {
+      font-size: 11px;
     }
   `;
   shadowRoot.appendChild(style);
@@ -64,6 +173,17 @@ function ensureShadowContainer() {
 // ─── State ────────────────────────────────────────────────────────────────────
 let activeImg = null;
 let hideTimer = null;
+
+/**
+ * True if the pointer moved to our floating UI (light DOM host or shadow tree).
+ * Fixes: mouseleave on <img> + relatedTarget retargeting to #stv-shadow-host when entering Shadow DOM.
+ */
+function isStvOverlayTarget(el) {
+  if (!el || !(el instanceof Element)) return false;
+  if (shadowHost && el === shadowHost) return true;
+  if (shadowRoot && shadowRoot.contains(el)) return true;
+  return false;
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function parseSrcset(srcset) {
@@ -104,7 +224,26 @@ function getOrCreateButton() {
   ensureShadowContainer();
   if (!overlayBtn) {
     overlayBtn = document.createElement("button");
-    overlayBtn.textContent = "✨ Steal this vibe";
+    overlayBtn.type = "button";
+    overlayBtn.setAttribute("tabindex", "0");
+
+    const inner = document.createElement("span");
+    inner.className = "stv-ob-inner";
+    const mark = document.createElement("span");
+    mark.className = "stv-ob-mark";
+    mark.setAttribute("aria-hidden", "true");
+    mark.textContent = "P";
+    const textWrap = document.createElement("span");
+    textWrap.className = "stv-ob-text";
+    const line = document.createElement("span");
+    line.className = "stv-ob-line";
+    const brand = document.createElement("span");
+    brand.className = "stv-ob-brand";
+    brand.textContent = "PromptShot";
+    textWrap.append(line, brand);
+    inner.append(mark, textWrap);
+    overlayBtn.append(inner);
+
     overlayBtn.addEventListener("mouseenter", cancelHide);
     overlayBtn.addEventListener("mouseleave", scheduleHide);
     overlayBtn.addEventListener("click", handleButtonClick);
@@ -113,20 +252,32 @@ function getOrCreateButton() {
   return overlayBtn;
 }
 
+/** Sync label + compact mode from image width and browser language. */
+function syncOverlayButton(btn, imgCssWidth) {
+  const lang = getOverlayLang();
+  const copy = OVERLAY_I18N[lang] || OVERLAY_I18N.en;
+  const compact = imgCssWidth < COMPACT_IMG_WIDTH;
+  btn.classList.toggle("compact", compact);
+  const line = btn.querySelector(".stv-ob-line");
+  if (line) line.textContent = compact ? copy.short : copy.line;
+  btn.setAttribute("aria-label", copy.aria);
+}
+
 function positionButton(img) {
   const btn = getOrCreateButton();
   const rect = img.getBoundingClientRect();
+  syncOverlayButton(btn, rect.width);
   const vw = window.innerWidth;
   const vh = window.innerHeight;
-  const bw = btn.offsetWidth || 145;
-  const bh = btn.offsetHeight || 28;
+  const bw = btn.offsetWidth || 168;
+  const bh = btn.offsetHeight || 36;
 
   const left = Math.min(
-    rect.right - bw - BUTTON_OFFSET,
+    rect.right - bw - BUTTON_OFFSET + BUTTON_OVERLAP_IMG_PX,
     vw - bw - BUTTON_OFFSET
   );
   const top = Math.min(
-    rect.top + BUTTON_OFFSET,
+    rect.top + BUTTON_OFFSET - BUTTON_OVERLAP_IMG_PX,
     vh - bh - BUTTON_OFFSET
   );
 
@@ -181,7 +332,14 @@ function attachToImg(img) {
   listenedImgs.add(img);
 
   img.addEventListener("mouseenter", () => showButton(img), { passive: true });
-  img.addEventListener("mouseleave", scheduleHide, { passive: true });
+  img.addEventListener(
+    "mouseleave",
+    (e) => {
+      if (isStvOverlayTarget(e.relatedTarget)) return;
+      scheduleHide();
+    },
+    { passive: true }
+  );
 }
 
 // ─── Global fallback: mouseover on document ───────────────────────────────────
@@ -211,12 +369,11 @@ document.addEventListener(
   "mouseout",
   (e) => {
     const to = e.relatedTarget;
-    if (!to) { scheduleHide(); return; }
-    if (!(to instanceof Element)) { scheduleHide(); return; }
-    if (
-      to === activeImg ||
-      (overlayBtn && (to === overlayBtn || overlayBtn.contains(to)))
-    ) {
+    if (!to || !(to instanceof Element)) {
+      scheduleHide();
+      return;
+    }
+    if (to === activeImg || isStvOverlayTarget(to)) {
       cancelHide();
       return;
     }

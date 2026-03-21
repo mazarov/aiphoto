@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServer } from "@/lib/supabase";
 import { getSupabaseUserForApiRoute } from "@/lib/supabase-route-auth";
+import {
+  EXPAND_PROMPTS_INSTRUCTION,
+  getGeminiVibeExpandModel,
+} from "@/lib/vibe-gemini-instructions";
 
 const DIRECT_GEMINI_BASE_URL = "https://generativelanguage.googleapis.com";
-const TEXT_MODEL = process.env.GEMINI_VIBE_EXPAND_MODEL || "gemini-2.5-flash";
 const STYLE_FIELDS = [
   "scene",
   "genre",
@@ -126,29 +129,6 @@ function coercePromptVariants(input: unknown[]): PromptVariant[] | null {
   return dedup.size === 3 ? variants : null;
 }
 
-const EXPAND_PROMPT = `
-You are a prompt engineer for AI image generation.
-
-Given a structured style description of a photo, generate exactly 3 prompts for recreating this style with a different person's photo.
-
-Each prompt must:
-1. Include "the person in the provided reference photo" phrase
-2. Be 1-3 sentences, 30-80 words
-3. Focus on a different visual accent:
-   - Prompt A: emphasize LIGHTING (direction, quality, color temperature, shadows)
-   - Prompt B: emphasize MOOD (atmosphere, emotion, narrative)
-   - Prompt C: emphasize COMPOSITION (framing, angles, spatial arrangement)
-4. Include all style elements but weight the accent aspect more heavily
-5. Be directly usable as a Gemini image generation prompt
-
-Return ONLY valid JSON array with 3 objects and exact accents:
-[
-  { "accent": "lighting", "prompt": "..." },
-  { "accent": "mood", "prompt": "..." },
-  { "accent": "composition", "prompt": "..." }
-]
-`.trim();
-
 export async function POST(req: NextRequest) {
   try {
     const { user, error: authError } = await getSupabaseUserForApiRoute(req);
@@ -179,8 +159,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "missing_style" }, { status: 400 });
     }
 
+    const textModel = getGeminiVibeExpandModel();
     const geminiBaseUrl = await getGeminiBaseUrlRuntime(supabase);
-    const geminiUrl = `${geminiBaseUrl}/v1beta/models/${TEXT_MODEL}:generateContent`;
+    const geminiUrl = `${geminiBaseUrl}/v1beta/models/${textModel}:generateContent`;
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
       return NextResponse.json({ error: "expand_failed" }, { status: 500 });
@@ -196,7 +177,11 @@ export async function POST(req: NextRequest) {
         contents: [
           {
             role: "user",
-            parts: [{ text: `${EXPAND_PROMPT}\n\nStyle description:\n${JSON.stringify(style, null, 2)}` }],
+            parts: [
+              {
+                text: `${EXPAND_PROMPTS_INSTRUCTION}\n\nStyle description:\n${JSON.stringify(style, null, 2)}`,
+              },
+            ],
           },
         ],
         generationConfig: {
@@ -224,7 +209,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "expand_failed" }, { status: 500 });
     }
 
-    return NextResponse.json({ prompts });
+    return NextResponse.json({ prompts, modelUsed: textModel });
   } catch (err) {
     console.error("[vibe.expand] unhandled error", toErrorMeta(err));
     return NextResponse.json({ error: "expand_failed" }, { status: 500 });
