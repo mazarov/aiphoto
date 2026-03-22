@@ -383,44 +383,32 @@ Ignore B's original pose, head tilt, and camera angle when they conflict with IM
 `.trim();
 
 /**
- * Final image-gen text order: **scene first** (recognition / expand body), then **CRITICAL**, then **Rules (short)**.
+ * Final image-gen text order: **scene first** (recognition / expand body), then one **CRITICAL RULES** block.
  * Dual-image: IMAGE A/B labels are separate parts in `generate-process` before this string.
  */
 
-const GENERATE_VIBE_CRITICAL_SINGLE = `
-CRITICAL
+const GENERATE_VIBE_CRITICAL_RULES_SINGLE = `
+CRITICAL RULES
 The attached image is the SUBJECT (a real person). Output exactly one new photorealistic photograph of that same person living in the scene described above. Identity = that attachment only.
-`.trim();
 
-const GENERATE_VIBE_RULES_SINGLE = `
-Rules (short):
 - Preserve: face structure, features, skin tone, eye color, proportions, natural hair color (never recolor to mimic a "model" in the text).
-- Apply from the scene text: pose, body, clothing, hair styling, makeup/skin, environment, lighting, color grade, camera/framing, expression.
 - Text may describe another person's hair/eyes/skin — ignore for identity; still follow for pose, light, wardrobe, grooming, set, grade.
-- One seamless photograph — no tiles, collage, diptych, side-by-side, or obvious composite.
 - Subject must look naturally photographed in the setting, not pasted.
-- Pose: match scene blocking and head angle, not the casual upload. Square-on / frontal in the scene → do not add extra torso rotation.
 `.trim();
 
-const GENERATE_VIBE_CRITICAL_DUAL = `
-CRITICAL
+const GENERATE_VIBE_CRITICAL_RULES_DUAL = `
+CRITICAL RULES
 Earlier parts were labeled: IMAGE A = style reference (not the output identity); IMAGE B = subject (only identity). Output one new photograph of B as if shot in A's session — A's pose, light, set, wardrobe, and grade on B. Not a face-swap or lazy crop.
-`.trim();
 
-const GENERATE_VIBE_RULES_DUAL = `
-Rules (short):
 - Identity: B's face, bone structure, skin, eyes, age, body; keep B's natural hair color; restyle hair and makeup to A's shoot.
-- Blocking & expression: follow A and the scene text, not B's selfie when they conflict. Frontal / square-on in A or text → no invented strong three-quarter.
 - Grooming = beauty finish only — does not override torso/head angles from A or the scene.
 - Wardrobe, set, light, camera, palette: match A + scene on B.
-- One seamless frame; no collage; do not paste B's face onto A.
 - Face/hair/skin prose in the scene = reference only — apply look to B, never copy A's identity.
-- Pose lock: match A's torso, shoulders, head tilt, chin, face plane on B; no extra rotation beyond A.
 `.trim();
 
-function joinVibeFinalPromptParts(scene: string, critical: string, rules: string): string {
+function joinVibeFinalPromptParts(scene: string, criticalRules: string): string {
   const body = String(scene ?? "").trimEnd();
-  return `${body}\n\n${critical}\n\n${rules}`.trim();
+  return `${body}\n\n${criticalRules}`.trim();
 }
 
 function parseBoolConfigValue(value: string | null | undefined, fallback: boolean): boolean {
@@ -471,14 +459,14 @@ export async function getVibeAttachReferenceImageToGeneration(
 
 /**
  * Full text sent to Gemini image generation for vibe rows (must match generate-process).
- * Order: **scene body first** (from expand / DB), then **CRITICAL**, then **Rules (short)**.
+ * Order: **scene body first** (from expand / DB), then **CRITICAL RULES** (single merged block).
  * Dual-image: A/B labels are separate multimodal parts in `generate-process`, not in this string.
  * `assumeReferenceImageLoaded`: true when reference pixels are attached with the user image.
  */
 export function assembleVibeFinalPrompt(rawExpandedPrompt: string, assumeReferenceImageLoaded = false): string {
   const scene = String(rawExpandedPrompt ?? "").trimEnd();
   if (assumeReferenceImageLoaded) {
-    return joinVibeFinalPromptParts(scene, GENERATE_VIBE_CRITICAL_DUAL, GENERATE_VIBE_RULES_DUAL);
+    return joinVibeFinalPromptParts(scene, GENERATE_VIBE_CRITICAL_RULES_DUAL);
   }
-  return joinVibeFinalPromptParts(scene, GENERATE_VIBE_CRITICAL_SINGLE, GENERATE_VIBE_RULES_SINGLE);
+  return joinVibeFinalPromptParts(scene, GENERATE_VIBE_CRITICAL_RULES_SINGLE);
 }

@@ -21,6 +21,21 @@ const TRIPLE_VARIANT_FLOW_LS_KEY = "stv_triple_variant_flow";
 /** Matches POST /api/generate validation (max 4 user images). */
 const MAX_USER_PHOTOS = 4;
 
+/** Presets for POST /api/vibe/extract `extractTemperature`; null = omit (API default). */
+const EXTRACT_TEMPERATURE_PRESETS = [0.1, 0.3, 0.6, 0.9, 1];
+
+function normalizePersistedExtractTemperature(value) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return null;
+  const hit = EXTRACT_TEMPERATURE_PRESETS.find((x) => Math.abs(x - value) < 1e-6);
+  return hit !== undefined ? hit : null;
+}
+
+function extractTemperatureSelectValue(stateValue) {
+  if (stateValue === null || stateValue === undefined) return "";
+  const n = normalizePersistedExtractTemperature(stateValue);
+  return n !== null ? String(n) : "";
+}
+
 function isTripleVariantFlowEnabled() {
   try {
     const v = localStorage.getItem(TRIPLE_VARIANT_FLOW_LS_KEY);
@@ -104,7 +119,9 @@ const state = {
   /** 0–100 during extract/expand/assemble (before result rows exist); reset when idle */
   pipelinePrepPercent: 0,
   /** Primary button label while generating: extract | expand | assemble | generate */
-  runStage: "idle"
+  runStage: "idle",
+  /** null = omit temperature on extract (provider default); else one of EXTRACT_TEMPERATURE_PRESETS */
+  extractTemperature: null
 };
 
 let toastTimer = null;
@@ -677,6 +694,7 @@ function toSerializableState() {
     results: state.results,
     runHistory: state.runHistory,
     cooldownUntil: state.cooldownUntil,
+    extractTemperature: normalizePersistedExtractTemperature(state.extractTemperature),
     updatedAt: Date.now()
   };
 }
@@ -799,6 +817,7 @@ function applyPersistedState(saved) {
   state.results = Array.isArray(saved.results) ? saved.results : state.results;
   state.runHistory = Array.isArray(saved.runHistory) ? saved.runHistory : state.runHistory;
   state.cooldownUntil = Number(saved.cooldownUntil || 0);
+  state.extractTemperature = normalizePersistedExtractTemperature(saved.extractTemperature);
 }
 
 async function api(path, init = {}) {
@@ -1042,10 +1061,15 @@ async function uploadUserPhotoFile(file) {
 }
 
 async function runExtract() {
+  const extractBody = { imageUrl: state.sourceImageUrl };
+  const et = normalizePersistedExtractTemperature(state.extractTemperature);
+  if (et !== null) {
+    extractBody.extractTemperature = et;
+  }
   const extractData = await api("/api/vibe/extract", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ imageUrl: state.sourceImageUrl })
+    body: JSON.stringify(extractBody)
   });
   state.vibeId = extractData.vibeId;
   state.style = extractData.style;
@@ -1978,6 +2002,18 @@ function renderMain() {
                   .join("")}
               </select>
             </label>
+            <label class="stv-field" for="extract-temperature">
+              <span class="stv-field-label">${escapeHtml(t("field_extract_temperature"))}</span>
+              <select id="extract-temperature">
+                <option value="" ${extractTemperatureSelectValue(state.extractTemperature) === "" ? "selected" : ""}>${escapeHtml(t("extract_temp_default"))}</option>
+                <option value="0.1" ${extractTemperatureSelectValue(state.extractTemperature) === "0.1" ? "selected" : ""}>${escapeHtml(t("extract_temp_01"))}</option>
+                <option value="0.3" ${extractTemperatureSelectValue(state.extractTemperature) === "0.3" ? "selected" : ""}>${escapeHtml(t("extract_temp_03"))}</option>
+                <option value="0.6" ${extractTemperatureSelectValue(state.extractTemperature) === "0.6" ? "selected" : ""}>${escapeHtml(t("extract_temp_06"))}</option>
+                <option value="0.9" ${extractTemperatureSelectValue(state.extractTemperature) === "0.9" ? "selected" : ""}>${escapeHtml(t("extract_temp_09"))}</option>
+                <option value="1" ${extractTemperatureSelectValue(state.extractTemperature) === "1" ? "selected" : ""}>${escapeHtml(t("extract_temp_10"))}</option>
+              </select>
+              <span class="muted stv-field-hint">${escapeHtml(t("field_extract_temperature_hint"))}</span>
+            </label>
           </div>
         </section>
 
@@ -2122,6 +2158,16 @@ function renderMain() {
     state.selectedImageSize = e.target.value;
     await persistState();
   });
+
+  const extractTempEl = document.getElementById("extract-temperature");
+  if (extractTempEl) {
+    extractTempEl.value = extractTemperatureSelectValue(state.extractTemperature);
+    extractTempEl.addEventListener("change", async (e) => {
+      const raw = String(e.target.value || "").trim();
+      state.extractTemperature = raw === "" ? null : normalizePersistedExtractTemperature(Number(raw));
+      await persistState();
+    });
+  }
 
   const photoFileInput = document.getElementById("photo-file");
   if (photoFileInput) {

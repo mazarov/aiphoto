@@ -25,6 +25,23 @@ import { VIBE_PROMPT_CHAIN_LEGACY_2C23 } from "@/lib/vibe-legacy-config";
 const DIRECT_GEMINI_BASE_URL = "https://generativelanguage.googleapis.com";
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 
+const EXTRACT_TEMPERATURE_MIN = 0;
+const EXTRACT_TEMPERATURE_MAX = 2;
+
+/**
+ * Optional client override for sampling during style extract. Omitted / null = provider default.
+ * Invalid types → 400 (do not silently ignore malformed client input).
+ */
+function parseOptionalExtractTemperature(raw: unknown): { ok: true; value?: number } | { ok: false } {
+  if (raw === undefined || raw === null) return { ok: true, value: undefined };
+  if (typeof raw !== "number" || !Number.isFinite(raw)) return { ok: false };
+  const clamped = Math.min(
+    EXTRACT_TEMPERATURE_MAX,
+    Math.max(EXTRACT_TEMPERATURE_MIN, raw),
+  );
+  return { ok: true, value: clamped };
+}
+
 function toErrorMeta(err: unknown) {
   if (!(err instanceof Error)) return { message: String(err) };
   const withCause = err as Error & { cause?: { code?: string; errno?: number } };
@@ -161,11 +178,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "unauthorized" }, { status: 401 });
     }
 
-    const body = (await req.json()) as { imageUrl?: string };
+    const body = (await req.json()) as { imageUrl?: string; extractTemperature?: unknown };
     const imageUrl = String(body?.imageUrl || "").trim();
     if (!imageUrl) {
       return NextResponse.json({ error: "invalid_url" }, { status: 400 });
     }
+
+    const tempParsed = parseOptionalExtractTemperature(body.extractTemperature);
+    if (!tempParsed.ok) {
+      return NextResponse.json(
+        {
+          error: "validation_error",
+          message: "extractTemperature must be a finite number between 0 and 2, or null/omitted",
+        },
+        { status: 400 },
+      );
+    }
+    const extractTemperature = tempParsed.value;
 
     const safeUrl = await validateSafeImageUrl(imageUrl);
     if (!safeUrl) {
@@ -175,6 +204,7 @@ export async function POST(req: NextRequest) {
     console.warn("[vibe.extract] request_begin", {
       userId: user.id,
       imageHost: safeUrl.hostname,
+      extractTemperature: extractTemperature ?? "default",
     });
 
     let inlineData: { mimeType: string; data: string };
@@ -226,6 +256,7 @@ export async function POST(req: NextRequest) {
         inlineImageBase64Chars: inlineData.data.length,
         legacyPromptChain: true,
         instructionTextChars: extractInstruction.length,
+        extractTemperature: extractTemperature ?? "default",
         timeoutMs: 120000,
       });
       const oaRes = await openAiExtractImageJson({
@@ -234,6 +265,7 @@ export async function POST(req: NextRequest) {
         instructionText: extractInstruction,
         imageMimeType: inlineData.mimeType,
         imageBase64: inlineData.data,
+        temperature: extractTemperature,
       });
       text = oaRes.text;
       httpOk = oaRes.ok;
@@ -265,6 +297,13 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "extract_failed" }, { status: 500 });
       }
 
+      const generationConfig: Record<string, unknown> = {
+        responseMimeType: "application/json",
+      };
+      if (extractTemperature !== undefined) {
+        generationConfig.temperature = extractTemperature;
+      }
+
       const geminiBody = {
         contents: [
           {
@@ -272,9 +311,7 @@ export async function POST(req: NextRequest) {
             parts: [{ text: extractInstruction }, { inlineData }],
           },
         ],
-        generationConfig: {
-          responseMimeType: "application/json",
-        },
+        generationConfig,
       };
 
       const geminiEndpointHost = (() => {
@@ -293,6 +330,7 @@ export async function POST(req: NextRequest) {
         inlineImageBase64Chars: inlineData.data.length,
         legacyPromptChain: true,
         instructionTextChars: extractInstruction.length,
+        extractTemperature: extractTemperature ?? "default",
         timeoutMs: 45000,
       });
       if (isGeminiVibeDebug()) {

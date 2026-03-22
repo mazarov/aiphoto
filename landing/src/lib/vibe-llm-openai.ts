@@ -25,16 +25,21 @@ export async function openAiChatCompletionJson(params: {
     content: string | OpenAiUserContentPart[];
   }>;
   timeoutMs?: number;
+  /** If set, passed to the API (e.g. vibe extract). */
+  temperature?: number;
 }): Promise<{ ok: boolean; status: number; text: string; errorMessage?: string }> {
   const base = normalizeOpenAiBaseUrl();
   const url = `${base}/chat/completions`;
   const timeoutMs = params.timeoutMs ?? 120_000;
 
-  const body = {
+  const body: Record<string, unknown> = {
     model: params.model,
     messages: params.messages,
     response_format: { type: "json_object" as const },
   };
+  if (params.temperature !== undefined && Number.isFinite(params.temperature)) {
+    body.temperature = params.temperature;
+  }
 
   let res: Response;
   try {
@@ -184,6 +189,7 @@ export async function openAiExtractImageJson(params: {
   imageMimeType: string;
   imageBase64: string;
   timeoutMs?: number;
+  temperature?: number;
 }): Promise<{ ok: boolean; status: number; text: string; errorMessage?: string }> {
   const mime = params.imageMimeType || "image/jpeg";
   const dataUrl = `data:${mime};base64,${params.imageBase64}`;
@@ -200,5 +206,6 @@ export async function openAiExtractImageJson(params: {
       },
     ],
     timeoutMs: params.timeoutMs ?? 120_000,
+    temperature: params.temperature,
   });
 }
