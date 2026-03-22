@@ -1064,7 +1064,14 @@ async function runExpand() {
   const expandData = await api("/api/vibe/expand", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ vibeId: state.vibeId, style: state.style })
+    body: JSON.stringify({
+      vibeId: state.vibeId,
+      style: state.style,
+      groomingPolicy: {
+        applyHair: state.groomingPolicy.applyHair,
+        applyMakeup: state.groomingPolicy.applyMakeup
+      }
+    })
   });
   state.prompts = Array.isArray(expandData.prompts) ? expandData.prompts : [];
   state.mergedForSingleGeneration = String(expandData.mergedPrompt || "").trim();
@@ -1095,15 +1102,20 @@ async function runAssemblePromptNow() {
 }
 
 function scheduleAssemblePrompt() {
-  if (!state.vibeId || !state.vibeGroomingControlsAvailable) return;
+  if (!state.vibeId) return;
   clearTimeout(assembleDebounceTimer);
   assembleDebounceTimer = setTimeout(async () => {
     assembleDebounceTimer = null;
+    if (state.generating) return;
     try {
-      await runAssemblePromptNow();
+      if (state.vibeGroomingControlsAvailable) {
+        await runAssemblePromptNow();
+      } else {
+        await runExpand();
+      }
       render();
     } catch (err) {
-      setToast("error", normalizeUiError(err, "assemble"));
+      setToast("error", normalizeUiError(err, state.vibeGroomingControlsAvailable ? "assemble" : "expand"));
     }
   }, 280);
 }

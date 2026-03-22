@@ -4,6 +4,7 @@
  */
 
 import { parseGeminiJsonArray, parseGeminiJsonObject } from "@/lib/gemini-vibe-debug-log";
+import type { GroomingPolicy } from "@/lib/vibe-grooming-assembly";
 import { openAiChatCompletionText } from "@/lib/vibe-llm-openai";
 
 export const LEGACY_VIBE_STYLE_FIELDS = [
@@ -44,6 +45,29 @@ export function buildLegacyVibeFullPromptBody(style: LegacyVibeStylePayload): st
     parts.push(`${LEGACY_VIBE_FIELD_LABELS[field]}:\n${text}`);
   }
   return parts.join("\n\n").trim();
+}
+
+/**
+ * Extension checkboxes «волосы / макияж»: без отдельных колонок grooming в legacy — добавляем явные
+ * англоязычные секции к телу промпта (перед `assembleVibeFinalPrompt`).
+ */
+export function appendLegacyGroomingPolicyBlocks(baseBody: string, policy: GroomingPolicy): string {
+  const base = String(baseBody ?? "").trimEnd();
+  const extras: string[] = [];
+  if (policy.applyHair) {
+    extras.push(
+      "Hair styling (transfer from reference):\n" +
+        "Restyle the subject's hair to match the reference photograph — silhouette, volume, parting, and finish — while keeping the subject's natural hair color from their identity photo (see image-gen rules).",
+    );
+  }
+  if (policy.applyMakeup) {
+    extras.push(
+      "Makeup and skin (transfer from reference):\n" +
+        "Match makeup intensity, eye look, lip finish, and skin finish to the reference photograph on the subject's face.",
+    );
+  }
+  if (!extras.length) return base;
+  return `${base}\n\n${extras.join("\n\n")}`.trim();
 }
 
 export const LEGACY_PROMPT_ACCENTS = ["lighting", "mood", "composition"] as const;

@@ -4,9 +4,11 @@ import { getSupabaseUserForApiRoute } from "@/lib/supabase-route-auth";
 import { assembleVibeFinalPrompt, getVibeAttachReferenceImageToGeneration } from "@/lib/vibe-gemini-instructions";
 import {
   LEGACY_PROMPT_ACCENTS,
+  appendLegacyGroomingPolicyBlocks,
   buildLegacyVibeFullPromptBody,
   legacyStyleFromUnknownRowStyle,
 } from "@/lib/vibe-legacy-prompt-chain";
+import type { GroomingPolicy } from "@/lib/vibe-grooming-assembly";
 import { VIBE_PROMPT_CHAIN_LEGACY_2C23 } from "@/lib/vibe-legacy-config";
 import { fetchErrorDetails } from "@/lib/gemini-vibe-debug-log";
 
@@ -36,6 +38,12 @@ export async function POST(req: NextRequest) {
     const body = (await req.json()) as {
       vibeId?: string;
       style?: unknown;
+      groomingPolicy?: { applyHair?: boolean; applyMakeup?: boolean };
+    };
+
+    const groomingPolicy: GroomingPolicy = {
+      applyHair: body.groomingPolicy?.applyHair !== false,
+      applyMakeup: body.groomingPolicy?.applyMakeup !== false,
     };
 
     const supabase = createSupabaseServer();
@@ -77,10 +85,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "missing_style" }, { status: 400 });
     }
 
-    const promptBody = buildLegacyVibeFullPromptBody(legacyStyle);
-    if (!promptBody) {
+    const styleBody = buildLegacyVibeFullPromptBody(legacyStyle);
+    if (!styleBody) {
       return NextResponse.json({ error: "missing_style_body" }, { status: 400 });
     }
+
+    const promptBody = appendLegacyGroomingPolicyBlocks(styleBody, groomingPolicy);
 
     const willAttachReferenceInline =
       (await getVibeAttachReferenceImageToGeneration(supabase)) && hasReferenceUrl;
@@ -102,6 +112,9 @@ export async function POST(req: NextRequest) {
       hasReferenceUrl,
       referencePixelsInGeneration: willAttachReferenceInline,
       expandSource: "legacy_full_style_literal",
+      applyHair: groomingPolicy.applyHair,
+      applyMakeup: groomingPolicy.applyMakeup,
+      styleBodyChars: styleBody.length,
       bodyChars: promptBody.length,
       promptsCount: prompts.length,
     });
