@@ -1,6 +1,6 @@
 /**
- * Steal-This-Vibe prompt chain from commit 2c23ce94 (8-field extract, 3-accent expand, LLM merge).
- * Product uses this path only; `vibes.prompt_chain` = legacy_2c23 for new rows.
+ * Steal-This-Vibe legacy style shape from commit 2c23ce94 (8-field extract).
+ * POST /api/vibe/expand uses `style.scene` only (no text LLM). Accent expand + merge helpers remain for reference / tooling.
  */
 
 import { parseGeminiJsonArray, parseGeminiJsonObject } from "@/lib/gemini-vibe-debug-log";
