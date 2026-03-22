@@ -1,6 +1,6 @@
 # 01 — Лендинг (promptshot.ru)
 
-> Последнее обновление: 2026-03-22 (STV expand: **groomingPolicy** → `appendLegacyGroomingPolicyBlocks`; extension debounce re-expand при смене чекбоксов; **legacy_2c23**; до 4 фото — `docs/23-03-stv-multi-user-photos-ui.md`)
+> Последнее обновление: 2026-03-22 (legacy extract: поле **`camera`** в **`LEGACY_EXTRACT_PROMPT_2C23CE94`** — структурированный чеклист ракурса: фокалка, дистанция, высота камеры, горизонтальный угол, roll, DOF + явная неопределённость)
 
 > UI side panel + content script: см. `docs/extension-ui-spec.md`; карта файлов и токены — `extension/DEVELOPER.md`.
 
@@ -68,7 +68,7 @@
 ### Vibe Pipeline (Steal This Vibe)
 
 - **Единственный путь:** **legacy chain** из коммита `2c23ce94` — см. `landing/src/lib/vibe-legacy-prompt-chain.ts`, колонка **`vibes.prompt_chain` = `legacy_2c23`** (миграция **`sql/152_*.sql`**). Флаг **`photo_app_config.vibe_legacy_prompt_chain_2c23ce94`** больше не переключает поведение extract (ключ в БД может оставаться для истории).
-- **Extract:** `POST /api/vibe/extract` — SSRF-guard, скачивание изображения, vision → JSON с **ровно 8 полями** по **`LEGACY_EXTRACT_PROMPT_2C23CE94`**. Провайдеры и модели: **`vibe_extract_llm`**, `vibe_extract_model` / OpenAI — как раньше (`sql/150_*.sql`). Insert в **`vibes`**: **`style`**, **`prompt_chain` = `legacy_2c23`**. Ответ: **`legacyPromptChain: true`**. Нет веток modern / one-shot / `coerceStylePayload` для extract.
+- **Extract:** `POST /api/vibe/extract` — SSRF-guard, скачивание изображения, vision → JSON с **ровно 8 полями** по **`LEGACY_EXTRACT_PROMPT_2C23CE94`** (поле **`camera`**: обязательный порядок — класс фокалки, масштаб кадра, высота относительно глаз, горизонтальный угол с обоснованием, roll, DOF; при двусмысленности — явный «uncertain», без угадывания). Провайдеры и модели: **`vibe_extract_llm`**, `vibe_extract_model` / OpenAI — как раньше (`sql/150_*.sql`). Insert в **`vibes`**: **`style`**, **`prompt_chain` = `legacy_2c23`**. Ответ: **`legacyPromptChain: true`**. Нет веток modern / one-shot / `coerceStylePayload` для extract.
 - **Expand:** `POST /api/vibe/expand` — legacy **`style`** из body и/или строки vibe; **`vibeId`** + владелец + **`prompt_chain` = `legacy_2c23`** (иначе **404** / **409** как раньше). **Без text LLM:** база = **`buildLegacyVibeFullPromptBody(style)`**; опционально **`groomingPolicy`** `{ applyHair, applyMakeup }` (дефолт **true**) → **`appendLegacyGroomingPolicyBlocks`** добавляет англ. секции про перенос укладки/макияжа с референса; оба **false** — только поля стиля. **`mergedPrompt`** = итоговое тело; **`finalPromptForGeneration`** = **`assembleVibeFinalPrompt(...)`**. Extension шлёт **`groomingPolicy`** вместе с expand и при смене чекбоксов делает debounce **повторного expand** (assemble для legacy по-прежнему **409**).
 - **Assemble:** `POST /api/vibe/assemble-prompt` — всегда **409**: для **`legacy_2c23`** — **`assemble_not_applicable_legacy`**; для старых строк без legacy — **`vibe_not_legacy`** (нужен повторный extract).
 - **Pipeline spec:** `GET /api/vibe/pipeline-spec` — **`extract`** как раньше; **`expand.mode`** = **`scene_literal`**, без моделей expand в ответе; исторический текст accent-expand — поле **`historicalAccentExpandInstruction`**.

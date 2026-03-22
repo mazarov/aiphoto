@@ -82,11 +82,18 @@ Return a JSON object with these exact fields:
 - scene: What is depicted (subject, setting, action). 1-2 sentences.
 - genre: The photographic genre (fashion editorial, street photography, portrait, etc.)
 - lighting: Describe the lighting setup, direction, quality, color temperature.
-- camera: Lens, focal length, depth of field, angle, distance.
+- camera: One paragraph that MUST answer, in this order, using clear photographic terms (not vague words like "selfie angle" alone):
+  (1) Estimated focal length class: ultra-wide / wide / normal / short tele / tele (give a plausible full-frame equivalent range in mm if inferable, else say "unknown").
+  (2) Subject distance and framing scale: e.g. extreme close-up / close-up / bust / waist-up / full body / wide environmental (pick one).
+  (3) Camera height relative to the subject's eyes: below eye level / eye level / slightly above / clearly above / overhead / ground level (pick one; justify briefly from the image).
+  (4) Horizontal viewing angle: frontal (0°) / slight three-quarter (~20–35°) / strong three-quarter (~45–60°) / near-profile (~70–90°) / profile (pick one; justify using face or ears or nose symmetry and visible jawline).
+  (5) Camera roll or tilt: level horizon vs Dutch tilt; if tilted, direction and approximate degrees only if confident.
+  (6) Depth of field: shallow / moderate / deep; what is sharp vs blurred.
+  If face or body geometry is ambiguous, state uncertainty explicitly (e.g. "uncertain between eye-level and slightly above") instead of guessing.
 - mood: The emotional tone and atmosphere.
 - color: Color palette, grading, contrast, saturation levels.
 - clothing: What the subject is wearing (if applicable, empty string if not).
-- composition: Framing, rule of thirds, negative space, leading lines.
+- composition: Framing choices (placement in frame, headroom, negative space, leading lines). Do not repeat the full camera-height or horizontal-angle analysis here; reference it only if needed in one short clause.
 
 Be specific and precise. Focus on reproducible visual attributes.
 Return ONLY valid JSON, no markdown.
