@@ -54,7 +54,8 @@ export async function GET(request: NextRequest) {
       llmProvider: "none",
       modelUsed: "passthrough",
       mergedPromptSource: "all non-empty legacy style fields → labeled sections (buildLegacyVibeFullPromptBody)",
-      finalPrompt: "assembleVibeFinalPrompt(scene, willAttachReferenceInline)",
+      finalPrompt:
+        "assembleVibeFinalPrompt(scene, willAttachReferenceInline) — dual + grooming markers in body → extra LAST block after CRITICAL RULES",
       referenceForHistoricalPrompts: "LEGACY_EXPAND_PROMPT_2C23CE94 / merge — не используются в POST /api/vibe/expand",
       historicalAccentExpandInstruction: LEGACY_EXPAND_PROMPT_2C23CE94,
       groomingMinCharsNote: `MIN_VIBE_SCENE_PROMPT_CHARS (${MIN_VIBE_SCENE_PROMPT_CHARS}) — только для grooming-хелперов.`,

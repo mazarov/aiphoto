@@ -401,6 +401,7 @@ CRITICAL RULES
 Earlier parts were labeled: IMAGE A = style reference (not the output identity); IMAGE B = subject (only identity). Output one new photograph of B as if shot in A's session — A's pose, light, set, wardrobe, and grade on B. Not a face-swap or lazy crop.
 
 - Identity: B's face, bone structure, skin, eyes, age, body; keep B's natural hair color; restyle hair and makeup to A's shoot.
+- If the scene text asks to transfer hair or makeup from A, the change must read clearly in pixels — leaving B looking like an unstyled snapshot of B is wrong when A shows a styled look.
 - Grooming = beauty finish only — does not override torso/head angles from A or the scene.
 - Wardrobe, set, light, camera, palette: match A + scene on B.
 - Face/hair/skin prose in the scene = reference only — apply look to B, never copy A's identity.
@@ -409,6 +410,43 @@ Earlier parts were labeled: IMAGE A = style reference (not the output identity);
 function joinVibeFinalPromptParts(scene: string, criticalRules: string): string {
   const body = String(scene ?? "").trimEnd();
   return `${body}\n\n${criticalRules}`.trim();
+}
+
+/**
+ * Detect grooming sections in the unprefixed body (legacy expand blocks or split-path inserts).
+ * Keep in sync with {@link appendLegacyGroomingPolicyBlocks} and {@link buildGroomingInsert}.
+ */
+function detectGroomingSectionsInUnprefixedBody(body: string): { hair: boolean; makeup: boolean } {
+  const b = String(body ?? "");
+  const hair =
+    b.includes("Hair styling (transfer from reference):") || b.includes("Hair styling (match reference shoot):");
+  const makeup =
+    b.includes("Makeup and skin (transfer from reference):") ||
+    b.includes("Makeup and skin finish (match reference shoot):");
+  return { hair, makeup };
+}
+
+/**
+ * Short imperative block placed **after** CRITICAL RULES when two images are used and grooming is requested.
+ * Image models (e.g. Gemini 3.x Flash image) often weight the tail of the text more than mid-body paragraphs.
+ */
+function buildFlashImageGroomingRecencyTail(unprefixedBody: string): string {
+  const { hair, makeup } = detectGroomingSectionsInUnprefixedBody(unprefixedBody);
+  if (!hair && !makeup) return "";
+  const lines: string[] = [
+    "LAST — must show in the output image (not optional wording):",
+  ];
+  if (hair) {
+    lines.push(
+      "• Hair: visibly restyle B to match IMAGE A's hair styling (silhouette, volume, parting, finish, shine/matte). Keep B's natural hair pigment only.",
+    );
+  }
+  if (makeup) {
+    lines.push(
+      "• Face: visibly match IMAGE A's makeup intensity, eye definition, lip finish, and skin finish on B. Do not leave B looking like B's casual/unretouched photo if A is clearly groomed.",
+    );
+  }
+  return `\n\n${lines.join("\n")}`;
 }
 
 function parseBoolConfigValue(value: string | null | undefined, fallback: boolean): boolean {
@@ -460,13 +498,15 @@ export async function getVibeAttachReferenceImageToGeneration(
 /**
  * Full text sent to Gemini image generation for vibe rows (must match generate-process).
  * Order: **scene body first** (from expand / DB), then **CRITICAL RULES** (single merged block).
+ * Dual-image + grooming paragraphs in the body: optional **LAST** block after CRITICAL (recency for Flash image).
  * Dual-image: A/B labels are separate multimodal parts in `generate-process`, not in this string.
  * `assumeReferenceImageLoaded`: true when reference pixels are attached with the user image.
  */
 export function assembleVibeFinalPrompt(rawExpandedPrompt: string, assumeReferenceImageLoaded = false): string {
   const scene = String(rawExpandedPrompt ?? "").trimEnd();
   if (assumeReferenceImageLoaded) {
-    return joinVibeFinalPromptParts(scene, GENERATE_VIBE_CRITICAL_RULES_DUAL);
+    const withCritical = joinVibeFinalPromptParts(scene, GENERATE_VIBE_CRITICAL_RULES_DUAL);
+    return `${withCritical}${buildFlashImageGroomingRecencyTail(scene)}`.trim();
   }
   return joinVibeFinalPromptParts(scene, GENERATE_VIBE_CRITICAL_RULES_SINGLE);
 }
