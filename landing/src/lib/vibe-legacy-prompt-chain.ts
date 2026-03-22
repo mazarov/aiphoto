@@ -110,14 +110,15 @@ Return a JSON object with these exact fields:
   If face or body geometry is ambiguous, state uncertainty explicitly (e.g. "uncertain between eye-level and slightly above") instead of guessing.
 - mood: The emotional tone and atmosphere.
 - color: Color palette, grading, contrast, saturation levels.
-- clothing: One cohesive English paragraph for IMAGE GENERATION. Describe ONLY garments and worn accessories visible on the subject (not pose — pose field; not body shape commentary unless it affects how cloth reads).
-  Cover in order (say "not visible" if a region is out of frame; use empty string "" only if no clothing/accessories are visible at all, e.g. face-only crop with no apparel):
+- clothing: One cohesive English paragraph for IMAGE GENERATION. Describe garments, jewelry, and worn accessories on the subject only (not pose — pose field; not body shape commentary unless it affects how cloth reads).
+  Cover in order (say "not visible" if a region is out of frame; use empty string "" only if no clothing, jewelry, or worn accessories are visible at all, e.g. face-only crop with nothing worn visible):
   (1) Upper body: garment type(s) (e.g. tank, tee, shirt, blouse, sweater, jacket, coat), neckline/collar, sleeve length and cut, layers (under/over).
   (2) Lower body if visible: pants, skirt, shorts, dress continuation — cut (wide, slim, straight), rise if inferable.
   (3) Colors and patterns: name dominant and accent colors; stripes, checks, solid, print motif if any.
   (4) Material read: what the fabric looks like (denim, ribbed knit, leather, satin, mesh, fleece, linen, suit wool, etc.) even if approximate.
   (5) Fit and styling: tight / fitted / relaxed / oversized; cropped, tucked vs untucked, rolled cuffs, undone buttons, off-shoulder, etc.
-  (6) Footwear if visible; headwear, belt, jewelry, watch, bag strap on body — one short phrase each or "none visible".
+  (6) Jewelry and piercings: earrings (studs, hoops, drops), necklaces/chokers/chains, rings, bracelets/bangles, anklets, visible piercings, brooches, pins, body chains — metal color (gold, silver, rose) and stones if any; say "none visible" if absent.
+  (7) Other worn accessories: footwear if visible; headwear (cap, beanie, headband); belt; watch; eyeglasses/sunglasses; gloves; scarf; bag/handbag/clutch on body or strap crossing torso — one short phrase each or "none visible".
   Do NOT repeat pose geometry; do not describe background wardrobe on other people unless they are the main subject.
 - composition: One cohesive paragraph written for downstream IMAGE GENERATION. The expand step does not rewrite this field — it is passed through verbatim under the label "Composition", so be concrete and actionable inside the picture frame only.
   Cover in order (skip a clause only if truly not applicable; say "not visible" when unsure):

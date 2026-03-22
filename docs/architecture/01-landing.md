@@ -1,6 +1,6 @@
 # 01 — Лендинг (promptshot.ru)
 
-> Последнее обновление: 2026-03-23 (**extract:** усиленная инструкция для **`clothing`** в `LEGACY_EXTRACT_PROMPT_2C23CE94`; поле **`pose`** + backfill)
+> Последнее обновление: 2026-03-23 (**extract:** **`clothing`** — отдельный пункт jewelry/piercings + прочие аксессуары; **`pose`** + backfill)
 
 > UI side panel + content script: см. `docs/extension-ui-spec.md`; карта файлов и токены — `extension/DEVELOPER.md`.
 
