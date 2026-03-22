@@ -16,7 +16,7 @@
 1. **Референс** (картинка с сайта) — «как должно выглядеть» по свету, настроению, композиции, палитре и т.д.  
 2. **Субъект** (загруженное фото) — **чьё лицо/тело нужно сохранить**.
 
-Модель генерации не «копирует» референс в лоб: ей передают **(а)** структурированное текстовое описание стиля референса, **(б)** один или несколько **текстовых** сценариев генерации, **(в)** при включённой настройке — **сами пиксели референса и пользователя** плюс **длинные инструкции** (префиксы, роли A/B, pose lock), которые явно разделяют «стиль» и «идентичность субъекта».
+Модель генерации не «копирует» референс в лоб: ей передают **(а)** структурированное текстовое описание стиля референса, **(б)** один или несколько **текстовых** сценариев генерации, **(в)** при включённой настройке — **сами пиксели референса и пользователя** плюс **текст после картинок**: сначала тело сцены, затем блок **CRITICAL**, затем короткие **Rules** (роли A/B задаются отдельными текстовыми частями перед изображениями в `generate-process`).
 
 Именно эта **трёхслойная цепочка** (извлечь стиль → развернуть в промпт(ы) → собрать мультимодальный запрос) и есть «логика генерации» в смысле этого документа.
 
@@ -79,9 +79,9 @@ sequenceDiagram
   SP->>XP: vibeId, style
   XP-->>SP: prompts[], (+ поля прода сейчас)
 
-  opt grooming / текущий прод
+  opt assemble (legacy-only прод)
     SP->>AS: vibeId, groomingPolicy
-    AS-->>SP: обновлённые prompts, finalPrompt…
+    AS-->>SP: 409 assemble_not_applicable_legacy / vibe_not_legacy
   end
 
   SP->>GN: prompt (один текст), vibeId, photoStoragePaths
@@ -120,13 +120,9 @@ sequenceDiagram
 
 После парса строка пишется в **`vibes`** вместе с **`source_image_url`**; клиент получает **`vibeId`** + **`style`**.
 
-### 4.3 Отличие от текущего прода (ориентир для миграции)
+### 4.3 Текущий прод
 
-Сейчас тот же route существенно богаче: провайдер extract (Gemini/OpenAI), **one-shot** режим с одним монолитным `prompt` + grooming, дополнительные поля в БД, инструкции вынесены в `EXTRACT_STYLE_INSTRUCTION` / one-shot (см. `landing/src/app/api/vibe/extract/route.ts`, `landing/src/lib/*vibe*`).
-
-**Для фиче-флага «legacy extract+style shape»** спецификация такая:
-
-- При включённом режиме сервер **воспроизводит** контракт `2c23ce94`: те же **8 строковых полей** и тот же смысл vision-запроса (можно вынести старый текст инструкции в отдельную константу `LEGACY_EXTRACT_PROMPT_2C23CE94` рядом с текущими).
+**Extract** всегда использует контракт `2c23ce94`: **8 строковых полей**, инструкция **`LEGACY_EXTRACT_PROMPT_2C23CE94`**, insert с **`prompt_chain = legacy_2c23`**. Ветки modern / one-shot / `EXTRACT_STYLE_INSTRUCTION` **удалены** (см. `landing/src/app/api/vibe/extract/route.ts`, `vibe-legacy-prompt-chain.ts`). Провайдеры Gemini/OpenAI и выбор модели — по-прежнему через `photo_app_config`.
 
 ---
 
@@ -136,10 +132,10 @@ sequenceDiagram
 
 На входе — **JSON стиля** (и/или `vibeId` для подгрузки из БД). На выходе — **несколько коротких текстовых промптов**, каждый с **акцентом** (в `2c23ce94` строго три: lighting / mood / composition).
 
-Эти строки попадают в поле **`prompt`** при создании генерации. Они **не** содержат клиентских «префиксов» Gemini — длинная инструкция добавляется в **`generate-process`** (`assembleVibeFinalPrompt` + константы из `vibe-gemini-instructions.ts`).
+Эти строки попадают в поле **`prompt`** при создании генерации. Они **не** содержат обёртку для image-gen — в **`generate-process`** вызывается **`assembleVibeFinalPrompt`**: сначала это тело сцены, затем блок **CRITICAL**, затем **Rules (short)** (`vibe-gemini-instructions.ts`).
 
 **Важно: три строки не «собираются в один» сценарный текст.** Это **три альтернативных формулировки** одного и того же стиля с разным **акцентом** (свет / настроение / композиция). В **`2c23ce94`** для них создавались **три отдельные** задачи **`POST /api/generate`**, каждая со **своим** `prompt` из массива. В режиме **одной** генерации в запись уходит **одна** выбранная строка.  
-**«Единый промпт»** в смысле пайплайна — это не конкатенация трёх абзацев, а **одна** выбранная строка сцены + **обёртка** в `generate-process` (`assembleVibeFinalPrompt`: префиксы, роли картинок A/B, pose lock и т.д.). В БД у задачи генерации хранится одно поле **`prompt_text`** — одна строка.
+**«Единый промпт»** в смысле пайплайна — **одна** строка сцены в БД + в `generate-process` **`assembleVibeFinalPrompt`** добавляет **CRITICAL** и короткие **Rules** (роли A/B — отдельные части multimodal до текста). В БД у задачи генерации хранится одно поле **`prompt_text`** — тело сцены без этой обёртки.
 
 ### 5.2 Правила промптов в `2c23ce94` (суть инструкции к LLM)
 
@@ -266,7 +262,7 @@ flowchart TD
 
 1. Скачивает **фото пользователя** из Storage → `imageParts` (base64).
 2. Если **`vibe_id`** и в конфиге включено **`vibe_attach_reference_image_to_generation`**, скачивает **`vibes.source_image_url`** → **пиксели референса**.
-3. Собирает **`fullPrompt = assembleVibeFinalPrompt(rawPrompt, hasTwoImages, oneShotExtractConfigEnabled)`**, где **`rawPrompt`** — то, что пришло в **`prompt`** из клиента.
+3. Собирает **`fullPrompt = assembleVibeFinalPrompt(rawPrompt, hasTwoImages)`**, где **`rawPrompt`** — то, что пришло в **`prompt`** из клиента (третий аргумент one-shot **убран**).
 4. Формирует **parts** для Gemini:
    - **Два изображения:** `[текст метка A]`, референс, `[текст метка B]`, пользователь, **`fullPrompt`**;
    - **Один (только пользователь):** пользователь + **`fullPrompt`** (если референс не скачался или флаг выкл.).
@@ -340,7 +336,7 @@ flowchart TD
 ## 10. Архитектурная заметка (границы ответственности)
 
 - **Extract / Expand** отвечают за **семантику стиля** и **короткий текст сцены** под image-модель.
-- **generate-process** отвечает за **политику идентичности vs стиля**, **порядок изображений**, **длинные префиксы** и устойчивость к отсутствию скачанного референса.
+- **generate-process** отвечает за **политику идентичности vs стиля**, **порядок изображений**, **`assembleVibeFinalPrompt`** (сцена → CRITICAL → Rules) и устойчивость к отсутствию скачанного референса.
 - Фиче-флаг **не** должен дублировать длинные инструкции на клиенте: клиент по-прежнему шлёт **короткий** `prompt` + `vibeId`.
 
 Так документ остаётся **единым ТЗ** для бэкенда и панели при внедрении legacy-цепочки с **одной** генерацией.
@@ -414,13 +410,10 @@ flowchart TD
 2. Панель **не вызывает** `assemble-prompt`, когда флаг false (как сейчас по условию).
 3. Если `assemble-prompt` всё же вызван для legacy-вайба → ответ **`409`** с кодом вроде **`assemble_not_applicable_legacy`** и коротким `message` (не ломать клиент необработанным 500).
 
-#### П.3 — `assembleVibeFinalPrompt` и one-shot
+#### П.3 — `assembleVibeFinalPrompt`
 
-1. В таблицу **`vibes`** добавить маркер, например **`prompt_chain`** `text`: значения **`modern`** (дефолт) | **`legacy_2c23`** (или boolean **`is_legacy_prompt_chain`** — на усмотрение миграции).
-2. При **insert** из legacy-extract выставлять **`legacy_2c23`**.
-3. В **`generate-process`**, при чтении строки vibe: если **`prompt_chain === 'legacy_2c23'`**, при вызове **`assembleVibeFinalPrompt`** передавать **`oneShotExtractConfigEnabled = false`** независимо от глобального `photo_app_config` one-shot.
-
-*Альтернатива без колонки на первом PR:* пока глобально включён legacy-флаг **и** у vibe нет признаков one-shot в БД — трактовать как false; колонка предпочтительна для смешанного трафика.
+1. Колонка **`vibes.prompt_chain`**: новые строки — **`legacy_2c23`**; старые без маркера или **`modern`** → expand возвращает **409** `vibe_not_legacy`.
+2. **`assembleVibeFinalPrompt(rawPrompt, hasTwoImages)`** — только ветки dual/single; one-shot Rules **удалены** из кода.
 
 #### П.4 — Приоритет конфигов extract
 
@@ -449,7 +442,7 @@ flowchart TD
 | `mergeModelUsed` | желательно | для отладки |
 | `modelUsed` | да | модель expand |
 | `vibeGroomingControlsAvailable` | да | **`false`** |
-| `finalPromptForGeneration` | да | **`assembleVibeFinalPrompt(candidate, hasTwoImages, false)`**, где **`candidate`** = `mergedPrompt` или fallback-строка из п.1; **`hasTwoImages`** = ожидание прикрепления референса (как в текущем проде) |
+| `finalPromptForGeneration` | да | **`assembleVibeFinalPrompt(candidate, hasTwoImages)`**, где **`candidate`** = `mergedPrompt` или fallback-строка из п.1; **`hasTwoImages`** = ожидание прикрепления референса |
 | `finalPromptAssumesTwoImages` | да | согласовать с **`vibe_attach_reference_image_to_generation`** (обычно **true**, если пиксели референса планируются) |
 
 #### П.7 — Область флага

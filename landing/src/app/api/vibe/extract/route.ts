@@ -4,22 +4,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServer } from "@/lib/supabase";
 import { getSupabaseUserForApiRoute } from "@/lib/supabase-route-auth";
 import {
-  EXTRACT_STYLE_INSTRUCTION,
-  ONE_SHOT_EXTRACT_PROMPT_INSTRUCTION,
-  buildOneShotVibeStyleFromPrompt,
-  coerceStylePayload,
   getGeminiVibeExtractModelRuntime,
   getOpenAiVibeExtractModelRuntime,
-  getStyleCoerceDiagnostics,
   getVibeExtractLlmProvider,
-  getVibeOneShotExtractPromptEnabled,
-  MIN_VIBE_SCENE_PROMPT_CHARS,
 } from "@/lib/vibe-gemini-instructions";
-import {
-  combineSceneAndGroomingForDefaultDisplay,
-  parseExpandStructuredResult,
-  validateVibePersistParts,
-} from "@/lib/vibe-grooming-assembly";
 import { openAiExtractImageJson } from "@/lib/vibe-llm-openai";
 import {
   fetchErrorDetails,
@@ -32,11 +20,9 @@ import {
   coerceLegacyVibeStylePayload,
   LEGACY_EXTRACT_PROMPT_2C23CE94,
 } from "@/lib/vibe-legacy-prompt-chain";
-import { getVibeLegacyPromptChainEnabled, VIBE_PROMPT_CHAIN_LEGACY_2C23 } from "@/lib/vibe-legacy-config";
+import { VIBE_PROMPT_CHAIN_LEGACY_2C23 } from "@/lib/vibe-legacy-config";
 
 const DIRECT_GEMINI_BASE_URL = "https://generativelanguage.googleapis.com";
-
-let legacyOneShotIgnoreLogged = false;
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 
 function toErrorMeta(err: unknown) {
@@ -216,20 +202,7 @@ export async function POST(req: NextRequest) {
 
     const supabase = createSupabaseServer();
     const extractLlm = await getVibeExtractLlmProvider(supabase);
-    const legacyPromptChain = await getVibeLegacyPromptChainEnabled(supabase);
-    const oneShotConfigEnabled = await getVibeOneShotExtractPromptEnabled(supabase);
-    const oneShotExtract = !legacyPromptChain && oneShotConfigEnabled;
-
-    if (legacyPromptChain && oneShotConfigEnabled && !legacyOneShotIgnoreLogged) {
-      legacyOneShotIgnoreLogged = true;
-      console.warn("[vibe.extract] one_shot_ignored_due_to_legacy_chain", { userId: user.id });
-    }
-
-    const extractInstruction = legacyPromptChain
-      ? LEGACY_EXTRACT_PROMPT_2C23CE94
-      : oneShotExtract
-        ? ONE_SHOT_EXTRACT_PROMPT_INSTRUCTION
-        : EXTRACT_STYLE_INSTRUCTION;
+    const extractInstruction = LEGACY_EXTRACT_PROMPT_2C23CE94;
 
     let text = "";
     let httpOk = false;
@@ -251,8 +224,7 @@ export async function POST(req: NextRequest) {
         llm: "openai",
         model: modelUsed,
         inlineImageBase64Chars: inlineData.data.length,
-        oneShotExtract,
-        legacyPromptChain,
+        legacyPromptChain: true,
         instructionTextChars: extractInstruction.length,
         timeoutMs: 120000,
       });
@@ -319,8 +291,7 @@ export async function POST(req: NextRequest) {
         model: visionModel,
         endpointHost: geminiEndpointHost,
         inlineImageBase64Chars: inlineData.data.length,
-        oneShotExtract,
-        legacyPromptChain,
+        legacyPromptChain: true,
         instructionTextChars: extractInstruction.length,
         timeoutMs: 45000,
       });
@@ -394,222 +365,36 @@ export async function POST(req: NextRequest) {
 
     const { value: parsed, stages: parseStages } = parseGeminiJsonObject(text);
 
-    if (legacyPromptChain) {
-      if (!httpOk) {
-        console.error("[vibe.extract] extract_pipeline_failed_legacy_http", {
-          userId: user.id,
-          llm: extractLlm,
-          httpStatus,
-          llmError,
-        });
-        return NextResponse.json({ error: "extract_failed" }, { status: 500 });
-      }
-
-      const legacyStyle = parsed ? coerceLegacyVibeStylePayload(parsed) : null;
-      if (!legacyStyle) {
-        console.error("[vibe.extract] extract_pipeline_failed_legacy_coerce", {
-          userId: user.id,
-          llm: extractLlm,
-          model: modelUsed,
-          httpStatus,
-          parseStages,
-          parsedKeys: parsed ? Object.keys(parsed) : [],
-        });
-        return NextResponse.json({ error: "extract_failed" }, { status: 500 });
-      }
-
-      const { data: vibe, error: insertError } = await supabase
-        .from("vibes")
-        .insert({
-          user_id: user.id,
-          source_image_url: safeUrl.toString(),
-          style: legacyStyle,
-          prompt_chain: VIBE_PROMPT_CHAIN_LEGACY_2C23,
-        })
-        .select("id")
-        .single();
-
-      if (insertError || !vibe) {
-        console.error("[vibe.extract] insert failed", {
-          userId: user.id,
-          legacyPromptChain: true,
-          error: insertError?.message ?? null,
-        });
-        return NextResponse.json({ error: "extract_failed" }, { status: 500 });
-      }
-
-      console.warn("[vibe.extract] extract_parse_ok", {
+    if (!httpOk) {
+      console.error("[vibe.extract] extract_pipeline_failed_legacy_http", {
         userId: user.id,
         llm: extractLlm,
-        legacyPromptChain: true,
-        styleFieldCount: Object.keys(legacyStyle).length,
-      });
-
-      return NextResponse.json({
-        vibeId: vibe.id,
-        style: legacyStyle,
-        modelUsed,
-        llmProvider: extractLlm,
-        legacyPromptChain: true,
-      });
-    }
-
-    if (oneShotExtract) {
-      if (!httpOk) {
-        console.error("[vibe.extract] extract_pipeline_failed_one_shot_http", {
-          userId: user.id,
-          llm: extractLlm,
-          httpStatus,
-          llmError,
-        });
-        return NextResponse.json({ error: "extract_failed" }, { status: 500 });
-      }
-
-      const structured = parseExpandStructuredResult(parsed, null, MIN_VIBE_SCENE_PROMPT_CHARS);
-      let sceneCore: string;
-      let grooming: { hair: string; makeup: string };
-      let combinedForPrefill: string;
-
-      if (structured) {
-        sceneCore = structured.scene;
-        grooming = structured.grooming;
-        combinedForPrefill = combineSceneAndGroomingForDefaultDisplay(sceneCore, grooming);
-      } else {
-        const rawPrompt =
-          parsed && typeof (parsed as Record<string, unknown>).prompt === "string"
-            ? String((parsed as Record<string, unknown>).prompt).trim()
-            : "";
-        const promptOk = rawPrompt.length >= MIN_VIBE_SCENE_PROMPT_CHARS;
-        if (!promptOk) {
-          const stageLine = parseStages
-            .map((s) => `${s.stage}:${s.ok ? "ok" : "fail"}${s.message ? `(${String(s.message).slice(0, 120)})` : ""}`)
-            .join(" | ");
-          console.error(
-            `[vibe.extract] PIPELINE_FAIL user=${user.id} one_shot=true llm=${extractLlm} http=${httpStatus} promptOk=${promptOk} promptLen=${rawPrompt.length} stages=${stageLine}`,
-          );
-          console.error("[vibe.extract] extract_pipeline_failed_one_shot", {
-            userId: user.id,
-            llm: extractLlm,
-            model: modelUsed,
-            httpStatus,
-            llmError,
-            textLen: text.length,
-            jsonObjectParsed: Boolean(parsed),
-            parseStages,
-            parsedKeys: parsed ? Object.keys(parsed) : [],
-            promptLen: rawPrompt.length,
-            textHead: text.slice(0, 500),
-            textTail: text.length > 500 ? text.slice(-300) : undefined,
-          });
-          return NextResponse.json({ error: "extract_failed" }, { status: 500 });
-        }
-        sceneCore = rawPrompt;
-        grooming = { hair: "", makeup: "" };
-        combinedForPrefill = rawPrompt;
-      }
-
-      const validated = validateVibePersistParts(sceneCore, grooming, combinedForPrefill);
-      if (!validated.ok) {
-        console.error("[vibe.extract] one_shot_persist_validation_failed", {
-          userId: user.id,
-          reason: validated.reason,
-          sceneLen: sceneCore.trim().length,
-          hairLen: grooming.hair.length,
-          makeupLen: grooming.makeup.length,
-          combinedLen: combinedForPrefill.length,
-        });
-        return NextResponse.json(
-          { error: "vibe_prompt_too_large", detail: validated.reason },
-          { status: 400 },
-        );
-      }
-
-      const style = buildOneShotVibeStyleFromPrompt(validated.combinedUnprefixed);
-
-      console.warn("[vibe.extract] extract_parse_ok", {
-        userId: user.id,
-        llm: extractLlm,
-        oneShotExtract: true,
-        parseStages: parseStages.filter((s) => s.ok).map((s) => s.stage),
-        styleFieldCount: Object.keys(style).length,
-        promptChars: validated.combinedUnprefixed.length,
-        structuredOneShot: Boolean(structured),
-      });
-
-      const { data: vibe, error: insertError } = await supabase
-        .from("vibes")
-        .insert({
-          user_id: user.id,
-          source_image_url: safeUrl.toString(),
-          style,
-          prefilled_generation_prompt: validated.combinedUnprefixed,
-          prompt_scene_core: validated.sceneCore,
-          grooming_reference: validated.grooming,
-          last_monolithic_prompt: validated.combinedUnprefixed,
-        })
-        .select("id")
-        .single();
-
-      if (insertError || !vibe) {
-        console.error("[vibe.extract] insert failed", {
-          userId: user.id,
-          oneShotExtract: true,
-          error: insertError?.message ?? null,
-        });
-        return NextResponse.json({ error: "extract_failed" }, { status: 500 });
-      }
-
-      return NextResponse.json({
-        vibeId: vibe.id,
-        style,
-        modelUsed,
-        llmProvider: extractLlm,
-        oneShotExtract: true,
-      });
-    }
-
-    const style = parsed ? coerceStylePayload(parsed) : null;
-
-    if (!httpOk || !style) {
-      const coerceDiag = parsed ? getStyleCoerceDiagnostics(parsed) : null;
-      const stageLine = parseStages
-        .map((s) => `${s.stage}:${s.ok ? "ok" : "fail"}${s.message ? `(${String(s.message).slice(0, 120)})` : ""}`)
-        .join(" | ");
-      console.error(
-        `[vibe.extract] PIPELINE_FAIL user=${user.id} llm=${extractLlm} http=${httpStatus} parsed=${Boolean(parsed)} styleOk=${Boolean(style)} missing=${JSON.stringify(coerceDiag?.missingRequired ?? [])} stages=${stageLine}`,
-      );
-      console.error("[vibe.extract] extract_pipeline_failed", {
-        userId: user.id,
-        llm: extractLlm,
-        model: modelUsed,
         httpStatus,
         llmError,
-        textLen: text.length,
-        jsonObjectParsed: Boolean(parsed),
-        parseStages,
-        parsedKeys: parsed ? Object.keys(parsed) : [],
-        coerceAccepted: style ? true : coerceDiag?.accepted ?? false,
-        coerceMissingRequired: coerceDiag?.missingRequired ?? null,
-        coerceRawKeys: coerceDiag?.rawKeys ?? [],
-        textHead: text.slice(0, 500),
-        textTail: text.length > 500 ? text.slice(-300) : undefined,
       });
       return NextResponse.json({ error: "extract_failed" }, { status: 500 });
     }
 
-    console.warn("[vibe.extract] extract_parse_ok", {
-      userId: user.id,
-      llm: extractLlm,
-      parseStages: parseStages.filter((s) => s.ok).map((s) => s.stage),
-      styleFieldCount: Object.keys(style).length,
-    });
+    const legacyStyle = parsed ? coerceLegacyVibeStylePayload(parsed) : null;
+    if (!legacyStyle) {
+      console.error("[vibe.extract] extract_pipeline_failed_legacy_coerce", {
+        userId: user.id,
+        llm: extractLlm,
+        model: modelUsed,
+        httpStatus,
+        parseStages,
+        parsedKeys: parsed ? Object.keys(parsed) : [],
+      });
+      return NextResponse.json({ error: "extract_failed" }, { status: 500 });
+    }
 
     const { data: vibe, error: insertError } = await supabase
       .from("vibes")
       .insert({
         user_id: user.id,
         source_image_url: safeUrl.toString(),
-        style,
+        style: legacyStyle,
+        prompt_chain: VIBE_PROMPT_CHAIN_LEGACY_2C23,
       })
       .select("id")
       .single();
@@ -617,16 +402,25 @@ export async function POST(req: NextRequest) {
     if (insertError || !vibe) {
       console.error("[vibe.extract] insert failed", {
         userId: user.id,
+        legacyPromptChain: true,
         error: insertError?.message ?? null,
       });
       return NextResponse.json({ error: "extract_failed" }, { status: 500 });
     }
 
+    console.warn("[vibe.extract] extract_parse_ok", {
+      userId: user.id,
+      llm: extractLlm,
+      legacyPromptChain: true,
+      styleFieldCount: Object.keys(legacyStyle).length,
+    });
+
     return NextResponse.json({
       vibeId: vibe.id,
-      style,
+      style: legacyStyle,
       modelUsed,
       llmProvider: extractLlm,
+      legacyPromptChain: true,
     });
   } catch (err) {
     console.error("[vibe.extract] unhandled error", {

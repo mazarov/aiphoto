@@ -184,11 +184,28 @@ function hasUserPhotos() {
 /** Avoid parallel signed-url fetches from repeated renderMain(). */
 let userPhotosSignedRefreshPromise = null;
 
+function userPhotosNeedSignedPreviews() {
+  return state.userPhotos.some(
+    (p) =>
+      p.storagePath &&
+      !p.previewObjectUrl &&
+      (!p.signedPreviewUrl || p.signedForPath !== p.storagePath)
+  );
+}
+
 /**
  * After reload, blob URLs are gone; fetch signed URL per stored path for <img> previews.
+ * Requires Bearer: extension panel often has no site cookies, so we refresh Supabase session if needed.
  */
 async function refreshUserPhotosSignedPreviews() {
-  if (!state.user || !accessTokenRef) {
+  if (!state.user) {
+    state.userPhotosPreviewLoading = false;
+    return;
+  }
+  if (!accessTokenRef && supabaseClient) {
+    await refreshAccessTokenFromSupabase();
+  }
+  if (!accessTokenRef) {
     state.userPhotosPreviewLoading = false;
     return;
   }
@@ -209,7 +226,7 @@ async function refreshUserPhotosSignedPreviews() {
     state.userPhotosPreviewLoading = true;
     render();
     try {
-      await Promise.all(
+      const settled = await Promise.allSettled(
         need.map(async (p) => {
           const q = encodeURIComponent(p.storagePath);
           const data = await api(`/api/upload-generation-photo/signed-url?path=${q}`);
@@ -221,8 +238,12 @@ async function refreshUserPhotosSignedPreviews() {
           }
         })
       );
-    } catch (e) {
-      console.warn("[stv] user photos signed preview:", e);
+      for (let i = 0; i < settled.length; i += 1) {
+        const r = settled[i];
+        if (r.status === "rejected") {
+          console.warn("[stv] user photos signed preview:", need[i]?.storagePath, r.reason);
+        }
+      }
     } finally {
       userPhotosSignedRefreshPromise = null;
       state.userPhotosPreviewLoading = false;
@@ -243,12 +264,6 @@ function removeUserPhotoAt(index) {
     }
   }
   state.userPhotos.splice(index, 1);
-}
-
-function truncateFileName(name, maxLen) {
-  const s = String(name || "").trim();
-  if (s.length <= maxLen) return s;
-  return `${s.slice(0, Math.max(0, maxLen - 1))}…`;
 }
 
 function clearToastTimer() {
@@ -675,6 +690,10 @@ async function initSupabaseAuth() {
   supabaseClient = await createSupabaseForExtension(API_ORIGIN);
   supabaseClient.auth.onAuthStateChange((_event, session) => {
     accessTokenRef = session?.access_token ?? null;
+    /* Token can arrive after first paint; signed preview fetch would have no-op'd without Bearer. */
+    if (!state.loading && state.user && accessTokenRef && userPhotosNeedSignedPreviews()) {
+      void refreshUserPhotosSignedPreviews();
+    }
   });
   const { data } = await supabaseClient.auth.getSession();
   accessTokenRef = data.session?.access_token ?? null;
@@ -937,10 +956,7 @@ async function refreshAuthSilently() {
     await persistState();
   }
   /* Blob previews lost after unload; fill signed URLs for persisted paths. */
-  const anyNeedSigned = state.userPhotos.some(
-    (p) => p.storagePath && !p.previewObjectUrl && !p.signedPreviewUrl
-  );
-  if (state.user && accessTokenRef && anyNeedSigned) {
+  if (state.user && accessTokenRef && userPhotosNeedSignedPreviews()) {
     void refreshUserPhotosSignedPreviews();
   }
 }
@@ -1678,14 +1694,13 @@ function buildUserPhotosBlockHtml() {
   const atMax = n >= MAX_USER_PHOTOS;
   const fileInput = `<input id="photo-file" class="stv-photo-file-input" type="file" accept="image/jpeg,image/png,image/webp" />`;
 
-  let grid = "";
+  let canvas = "";
   if (n === 0) {
-    grid = `<label class="stv-user-photo-empty" for="photo-file">
+    canvas = `<label class="stv-user-photo-empty" for="photo-file" aria-label="${escapeHtml(t("photo_pick"))}">
         <span class="stv-user-photo-empty-plus" aria-hidden="true">+</span>
-        <span class="stv-user-photo-empty-title">${escapeHtml(t("photo_pick_empty"))}</span>
       </label>`;
   } else {
-    grid = `<div class="stv-user-photos-grid">${state.userPhotos
+    canvas = `<div class="stv-user-photos-grid">${state.userPhotos
       .map((p, i) => {
         const src = p.previewObjectUrl || p.signedPreviewUrl || "";
         let inner;
@@ -1701,34 +1716,23 @@ function buildUserPhotosBlockHtml() {
         return `<div class="stv-user-photo-cell">
           ${inner}
           <button type="button" class="stv-user-photo-remove" data-remove-photo="${String(i)}" aria-label="${escapeHtml(t("photo_remove_aria"))}">×</button>
-          <span class="stv-user-photo-filename">${escapeHtml(truncateFileName(p.fileName, 24))}</span>
         </div>`;
       })
       .join("")}</div>`;
   }
 
-  let actions = "";
-  if (!atMax && n > 0) {
-    actions = `<div class="stv-user-photos-actions">
-        <label class="stv-user-photo-add-btn" for="photo-file">${escapeHtml(t("photo_add_more"))}</label>
-      </div>`;
-  } else if (atMax) {
-    actions = `<p class="muted stv-user-photos-max">${escapeHtml(t("photo_max_label"))}</p>`;
-  }
-
-  const countLine =
-    n > 0
-      ? `<p class="muted stv-user-photos-count">${escapeHtml(
-          t("photo_count").replace("{n}", String(n)).replace("{m}", String(MAX_USER_PHOTOS))
-        )}</p>`
+  const addOverlay =
+    n > 0 && !atMax
+      ? `<div class="stv-user-photos-overlay-bottom">
+          <div class="stv-result-actions">
+            <label for="photo-file" class="stv-overlay-pill-btn">${escapeHtml(t("photo_add_overlay"))}</label>
+          </div>
+        </div>`
       : "";
 
   return `<div class="stv-user-photos-block">
-      <p class="muted stv-user-photos-sub">${escapeHtml(t("user_photos_subtitle"))}</p>
-      <p class="muted stv-user-photos-hint">${escapeHtml(t("user_photos_hint"))}</p>
-      ${grid}
-      ${countLine}
-      ${actions}
+      <div class="stv-user-photos-canvas">${canvas}</div>
+      ${addOverlay}
       ${fileInput}
     </div>`;
 }
@@ -2318,6 +2322,11 @@ async function boot() {
         void refreshUserPhotosSignedPreviews();
       })();
     }
+  });
+
+  /* Reduce losing userPhotos paths if the panel closes before persistState() finishes. */
+  window.addEventListener("pagehide", () => {
+    void persistState();
   });
 }
 

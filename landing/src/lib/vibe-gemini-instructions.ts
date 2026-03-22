@@ -1,6 +1,6 @@
 /**
- * Shared Gemini instructions + defaults for vibe extract / expand.
- * Single source of truth for route handlers and /api/vibe/pipeline-spec.
+ * Shared defaults for vibe extract/expand models, image-gen labels, and `assembleVibeFinalPrompt`.
+ * Legacy extract/expand instructions live in `vibe-legacy-prompt-chain.ts`; `GET /api/vibe/pipeline-spec` re-exports them.
  */
 
 import { createSupabaseServer } from "@/lib/supabase";
@@ -20,16 +20,13 @@ export const DEFAULT_GEMINI_VIBE_EXTRACT_MODEL = "gemini-2.5-pro";
 /** Default when DB row missing and env unset — Flash for fast text expand. */
 export const DEFAULT_GEMINI_VIBE_EXPAND_MODEL = "gemini-2.5-flash";
 
-/** When true, `/api/vibe/extract` outputs `{ "prompt": "..." }` in one vision call; expand uses DB prefilled row. */
-export const PHOTO_APP_CONFIG_KEY_VIBE_ONE_SHOT_EXTRACT_PROMPT = "vibe_one_shot_extract_prompt";
-
-/** Minimum length for `prompt` from expand JSON or one-shot extract. */
+/** Minimum length for scene prompt validation in grooming helpers (legacy expand does not use this gate). */
 export const MIN_VIBE_SCENE_PROMPT_CHARS = 600;
 
-/** `gemini` | `openai` — which backend runs `/api/vibe/extract` (vision → JSON / one-shot prompt). */
+/** `gemini` | `openai` — which backend runs `/api/vibe/extract` (vision → legacy 8-field JSON). */
 export const PHOTO_APP_CONFIG_KEY_VIBE_EXTRACT_LLM = "vibe_extract_llm";
 
-/** `gemini` | `openai` — which backend runs `/api/vibe/expand` (style JSON → scene prompt). */
+/** `gemini` | `openai` — which backend runs `/api/vibe/expand` (legacy 8-field style → 3-accent JSON + merge). */
 export const PHOTO_APP_CONFIG_KEY_VIBE_EXPAND_LLM = "vibe_expand_llm";
 
 /** OpenAI model when `vibe_extract_llm` = openai (vision-capable, e.g. gpt-4o). */
@@ -195,30 +192,6 @@ export function getStyleCoerceDiagnostics(input: unknown): {
     if (!str) missing.push(field);
   }
   return { accepted: false, rawKeys, missingRequired: missing };
-}
-
-/**
- * Stored in `vibes.style` when extract used one-shot mode — valid `StylePayload`, SEO-friendly text from the same prompt.
- */
-export function buildOneShotVibeStyleFromPrompt(rawPrompt: string): StylePayload {
-  const p = rawPrompt.trim();
-  const clip = (max: number) => (p.length <= max ? p : `${p.slice(0, max)}…`);
-  return {
-    scene: clip(900),
-    genre: "reference-matched portrait (one-shot pipeline)",
-    subject_pose: clip(800),
-    expression: clip(600),
-    hair_makeup: clip(700),
-    lighting: clip(700),
-    camera: clip(500),
-    mood: clip(500),
-    composition: clip(600),
-    color_palette: "",
-    color_grading: "",
-    clothing: clip(600),
-    environment: clip(600),
-    key_details: clip(1200),
-  };
 }
 
 async function getVibeModelStringFromPhotoAppConfig(
@@ -393,45 +366,6 @@ export async function getOpenAiVibeExpandModelRuntime(
   );
 }
 
-export const EXTRACT_STYLE_INSTRUCTION = `
-Analyze this reference image for an AI image model that will recreate the scene with a different person. Be specific and concrete.
-
-The JSON describes THIS reference only; a later step swaps in the end user's face. Do not omit visible reference details; identity transfer is handled downstream.
-
-Return a JSON object with these exact fields:
-MANDATORY non-empty strings: scene, genre, subject_pose, expression, hair_makeup, lighting, camera, mood, composition. Never use "" for camera or composition — estimate from the image if unsure.
-
-- scene: **What is happening** — setting type, time of day, subject action, overall spatial context (2–3 sentences) + one sentence on vibe/energy and how the pose reads. Do **not** pack full set-dressing here; name the place and mood, then put **surfaces, props, and layout** in the **environment** field so the background is not lost.
-- genre: Photographic genre/substyle (e.g. lifestyle portrait, editorial, street, selfie).
-- subject_pose: CRITICAL — one dense paragraph a director could shoot from. Do NOT state numeric degrees — use qualitative labels only.
-  **FRONTAL BODY CHECK (apply first):** If the **sternum/chest plane and hips** read **parallel to the camera** (both sides of the torso equally deep — no clear "near shoulder vs far shoulder" from ribcage twist) **and** the face is **full or nearly full to the lens**, the body is **square-on** or **slight turn at most**. State **square-on** clearly. Do **NOT** use **clear three-quarter**, **strong three-quarter**, **look-back**, or "head turned back over shoulder" for that geometry — that would mis-train the generator into rotating the subject.
-  **WARDROBE / HAIR TRAP:** An **off-the-shoulder** sweater, dropped strap, asymmetric neckline, or hair covering one shoulder can make the shoulder line look uneven **without** the ribcage turning. If the chest still faces the camera, attribute uneven shoulders to **garment/hair**, not to torso rotation — keep torso label **square-on** or **slight turn**.
-  **HEAD–TORSO DECOUPLING (when it truly applies):** Only when the **chest/hips are visibly angled away** from the camera while the **face still engages the lens**, describe both: strong torso turn **plus** head turned back toward the lens (classic look-back). Never upgrade to this pattern from eye contact alone — require a visible **twist of ribcage/hips** vs lens.
-  ANCHORS (viewer + subject directions): (1) Torso+hips vs camera plane — pick ONE label: **square-on** | **slight turn** | **clear three-quarter** | **strong three-quarter / semi-profile body** | **near-profile body** (hips follow torso unless contradicting pixels). (2) Which shoulder is CLOSER — only as **pose geometry** if the ribcage is turned; if square-on, say both shoulders **similar depth** or note asymmetry is **neckline/garment only**. (3) Head vs torso: aligned with torso vs twisted back toward lens (only if torso is actually turned away). (4) Face vs lens: full / three-quarter / profile. (5) Chin: raised / neutral / tucked. (6) Shoulder line: level vs uneven — **separate** garment drape from skeletal twist. (7) Gaze vs head. (8) Arms/hands or "hands out of frame"; be **internally consistent** (e.g. do not say both hands on a prop and one hand in a pocket). (9) Legs/feet if visible. (10) Weight/lean/hip if visible.
-  FORBIDDEN: any phrase like "~N degrees"; **strong three-quarter / look-back** when chest and hips face the camera; inventing torso rotation from clothing alone; symmetric "straight-on" when the **ribcage** is clearly angled (then use three-quarter labels). If unsure slight vs strong **body** turn, prefer **stronger** only when **ribcage/hip line** asymmetry vs the lens is visible — **not** from neckline alone.
-  Examples: (square-on + garment) "Three-quarter length; **torso square-on** to camera; face full to lens; one shoulder visually lower because **off-shoulder knit drape**, not body twist; chin neutral; hands/props as visible." (look-back) "Bust crop; **strong three-quarter body** — ribcage/hips angled; near shoulder clearly larger in frame; **head turned back** so face nearly to lens; hands OOF." (bed) "On back, head on pillow tilted left, right arm up with phone for overhead selfie, left hand near face, legs bent under sheets."
-- expression: Precise expression and emotion — quality of smile, lips, brows, eyes, squint; not just "smiling".
-- hair_makeup: BEAUTY TRANSFER — one paragraph: hair STYLING (part, volume, texture, updo/waves, flyaways, shine/matte, accessories) + MAKEUP (base, blush/contour, brows, eyes, lips). Phrase for transfer to another face; natural hair COLOR stays the user's later. Do NOT put pose/head turn here — subject_pose only.
-- lighting: Direction, quality, color temp (K or words), shadow depth, named sources.
-- camera: Focal length band, DoF, angle, distance (crop), tilt.
-- mood: 2–3 sentences — feeling, story, viewer relationship to subject.
-- color_palette: 4–6 named colors + warm/cool harmony (or "").
-- color_grading: Contrast, saturation, shadow/highlight tint, film/filter feel (or "").
-- clothing: Garments, fabrics, fit, accessories; visible coverage. "" if N/A.
-- environment: **SET / BACKGROUND for image-gen** — one dense paragraph whenever anything readable appears behind or beside the subject (almost always non-empty for environmental portraits). Do NOT write a vague label only ("modern kitchen", "studio"); spell out **transferable** specifics:
-  • **Indoor/outdoor** and **architectural cues** (walls, ceiling height feel, windows/doors if visible).
-  • **Depth layers** — immediate surroundings near the subject vs mid-ground vs far background; what is **sharp vs soft / bokeh** (so the model knows what to paint).
-  • **Surfaces & materials** — countertop, tiles, wood grain, paint, metal, fabric of furniture (colors in plain words).
-  • **Props with placement** — e.g. "ceramic bowls and a small plant on a floating shelf **above** the backsplash", "fruit bowl **on the counter behind subject's shoulder**"; left / right / behind relative to **the viewer** or the subject, as clearest.
-  • **Spatial relationship to subject** — leaning on counter, corner of room, doorway frame, horizon line (outdoor).
-  Use "" only for **seamless / solid / no identifiable environment** (e.g. pure gradient, blown-out white, or crop with zero context).
-- composition: Framing, placement, negative space, lines, symmetry, aspect feel.
-- key_details: Array 3–5 distinctive anchors for the vibe; if not a plain frontal bust, include ≥1 pose/composition anchor (diagonal torso, foreshortened arm, asymmetry). If the background is not a plain studio/seamless, include **≥1 concrete set/background anchor** (specific prop, surface, or spatial beat — not only "cozy interior"). Strip later to transferable wording in expand.
-
-Be precise — no vague "natural" or "warm tones" without concrete geometry, direction, or texture. Preserve asymmetry in subject_pose and composition unless the reference is truly frontal. **Environment** must be reconstructible: another model should be able to rebuild the room/location from your text without seeing the photo.
-Return ONLY valid JSON, no markdown.
-`.trim();
-
 /** Placed immediately BEFORE the reference inline image in the multi-part request. */
 export const VIBE_IMAGE_PART_LABEL_REFERENCE = `
 [IMAGE A — STYLE REFERENCE ONLY]
@@ -448,124 +382,45 @@ If the result looks like IMAGE A's model, you FAILED — redo mentally until the
 Ignore B's original pose, head tilt, and camera angle when they conflict with IMAGE A — B is an identity plate, not a blocking reference. Re-pose the body and head to match A's geometry.
 `.trim();
 
-/** Shared body for dual-image vibe prefixes (two-shot adds {@link GENERATE_VIBE_PREFIX_TWO_IMAGES_SEAMLESS} before closing). */
-const GENERATE_VIBE_PREFIX_TWO_IMAGES_CORE = `
-CRITICAL INSTRUCTIONS — read carefully before the prompt.
-
-REQUEST LAYOUT (multi-part message):
-1) A short text label, then IMAGE A — the STYLE REFERENCE photograph (pose, light, set, wardrobe, hair styling, makeup, camera, color grade, mood).
-2) A short text label, then IMAGE B — the SUBJECT / USER (the only source for who the person in the output must be).
-
-YOUR TASK: Create a NEW photorealistic image where the person from IMAGE B is placed into a scene that recreates the look, feel, and atmosphere of IMAGE A — as if B had been photographed in that same shoot. Not a lazy crop of B's selfie. Not a face-swap onto A.
-
-IDENTITY (from IMAGE B — preserve exactly):
-- Face structure, bone structure, facial features, skin tone, eye color and shape, brows, nose, lips, ears, apparent age
-- Body proportions and build
-- Natural hair color and texture (do not recolor B to match A's hair) — but you MUST visibly restyle (part, volume, waves/sleek/updo) to match A's salon/editorial hair look
-
-STYLE & SCENE (from IMAGE A + the text below — apply onto B):
-- Pose, body position, and body language — match IMAGE A, NOT B's original pose in their upload. If B's selfie is turned but A is **square-on / frontal to camera**, the OUTPUT must be **frontal like A**, not an extra three-quarter. If B is frontal but A is three-quarter (or look-back), the OUTPUT must follow A — rotate B's head and shoulders accordingly while keeping B's face recognizable. Do not exaggerate turn beyond A.
-- Hair STYLING and arrangement — aggressively adapt B's hair to A's reference look (part, root lift, waves/curls/sleek pull-back, flyaways, accessories). The head must read as "same shoot as A", not B's everyday hair. Grooming describes finish and styling only — it does NOT override torso/head angle from IMAGE A or from the scene text.
-- Makeup / beauty — match A's cosmetic look on B's face (eye makeup shape, lip finish, skin finish, contour/blush level). Do not leave B bare-faced if A is clearly made up.
-- Facial expression mood and performance from the reference (smile quality, gaze intensity) while keeping B recognizable
-- Environment, setting, surfaces, props, background
-- Lighting: direction, quality, color temperature, shadow pattern
-- Color grading, contrast, saturation, palette of the shot
-- Clothing: style, fabrics, colors, fit — worn naturally on B's body
-- Camera: angle, framing, composition, depth of field, lens feel
-
-The result must look like B was ACTUALLY PHOTOGRAPHED in that reference scene — natural integration, not composited or pasted.
-
-`.trim();
-
-const GENERATE_VIBE_PREFIX_TWO_IMAGES_SEAMLESS = `
-Output must be a single seamless photograph — one coherent frame. FORBIDDEN: tiling, side-by-side panels, vertical/horizontal stitching, collage, diptych, or any composition that looks like two photos glued together. Do not paste B's face as a cutout on top of A.
-
-`;
-
-const GENERATE_VIBE_PREFIX_TWO_IMAGES_CLOSING = `
-The text prompt below adds director-level specificity — treat pose, body line, hair/makeup grooming, and overall vibe as mandatory to match IMAGE A; then light, wardrobe, set, and grade. Follow it precisely. Never let prose describing "the model in the reference" override IMAGE B's identity.
-
-`.trim();
-
 /**
- * Prepended when generate-process attaches reference + user (interleaved labels + images + text).
+ * Final image-gen text order: **scene first** (recognition / expand body), then **CRITICAL**, then **Rules (short)**.
+ * Dual-image: IMAGE A/B labels are separate parts in `generate-process` before this string.
  */
-export const GENERATE_VIBE_PREFIX_TWO_IMAGES =
-  `${GENERATE_VIBE_PREFIX_TWO_IMAGES_CORE}${GENERATE_VIBE_PREFIX_TWO_IMAGES_SEAMLESS}${GENERATE_VIBE_PREFIX_TWO_IMAGES_CLOSING}`.trimStart();
 
-/**
- * When `vibe_one_shot_extract_prompt` is on: shared dual-image core without the seamless/collage block (one-shot scene text already covers integration).
- */
-export const GENERATE_VIBE_PREFIX_TWO_IMAGES_ONE_SHOT =
-  `${GENERATE_VIBE_PREFIX_TWO_IMAGES_CORE}${GENERATE_VIBE_PREFIX_TWO_IMAGES_CLOSING}`.trimStart();
-
-export const GENERATE_VIBE_PREFIX_SINGLE_IMAGE = `
-CRITICAL INSTRUCTIONS — read carefully before the prompt.
-
-The attached photo shows the SUBJECT — a real person whose identity must be preserved.
-Your task is to CREATE ONE NEW photorealistic image of this person placed into the scene described below.
-
-PRESERVE exactly: face structure, facial features, skin tone, eye color, body proportions, natural hair color (do not dye to match a reference model).
-CHANGE to match the description: pose, body position, clothing, hairstyle STYLING (part, volume, texture, updo/waves/sleek — must look visibly restyled vs the raw upload), makeup and skin finish as described, environment, lighting, color grading, camera angle, expression.
-
-The paragraph below was written from a style JSON about a reference shoot. If it mentions hair/eyes/skin of "another" model, ignore that for identity — use ONLY the attached photo for who the person is. Still follow that text for pose, light, wardrobe, hair styling, makeup, set, and grade.
-
-Output must be a single seamless photograph — one coherent frame. FORBIDDEN: tiling, side-by-side panels, vertical/horizontal stitching, collage, or any composition that looks like two photos glued together. Do not paste the subject onto a strip of another image.
-
-The person must look like they were ACTUALLY PHOTOGRAPHED in the described setting — natural, realistic, belonging to the scene. Not composited or pasted.
-
-Director scene — follow pose, framing, light, vibe, hair styling, and makeup below precisely (identity stays from the attached photo):
-
-`.trimStart();
-
-/**
- * When `vibe_one_shot_extract_prompt` is on: drops PRESERVE/CHANGE, “style JSON” disclaimer, and seamless/collage FORBIDDEN block
- * (one-shot extract prompt already states identity + integration).
- */
-export const GENERATE_VIBE_PREFIX_SINGLE_IMAGE_ONE_SHOT = `
-CRITICAL INSTRUCTIONS — read carefully before the prompt.
-
-The attached photo shows the SUBJECT — a real person whose identity must be preserved.
-Your task is to CREATE ONE NEW photorealistic image of this person placed into the scene described below.
-
-GROOMING: The scene text will specify hair styling and makeup from a reference shoot — apply them fully on this person's face and hair. The output must look like a professional reshoot, NOT like the user's casual upload with only a new background.
-
-The person must look like they were ACTUALLY PHOTOGRAPHED in the described setting — natural, realistic, belonging to the scene. Not composited or pasted.
-
-Director scene — follow pose, framing, light, vibe, hair, and makeup below precisely (identity stays from the attached photo):
-
-`.trimStart();
-
-/** Bridge only for dual-image requests (after TWO_IMAGES prefix, before expanded prose). */
-export const GENERATE_VIBE_JSON_IDENTITY_BRIDGE_DUAL = `
-
-JSON-TO-SCENE: The prose below describes the REFERENCE shoot — any face/hair/skin biometrics there are IMAGE A only; identity is IMAGE B only. Apply pose, light, set, wardrobe, grade, mood, and grooming from the text onto B (restyled hair/makeup, not B's casual selfie). Blocking in the text beats B's upload pose; grooming is beauty only, not head/torso angle.
-
-`;
-
-/** Appended after the director scene text so image models re-attend to geometry vs identity. */
-export const GENERATE_VIBE_TRAILING_POSE_LOCK_DUAL = `
-POSE LOCK: Match IMAGE A's torso orientation (including **square-on** when A is frontal), shoulders, head tilt, chin, and face plane (full / three-quarter / profile) on B's body — do not keep B's selfie angle when it conflicts. Do **not** rotate the body extra relative to A; if A faces the camera, B must not be painted in a strong three-quarter unless A clearly is. Identity from B; geometry from A.
+const GENERATE_VIBE_CRITICAL_SINGLE = `
+CRITICAL
+The attached image is the SUBJECT (a real person). Output exactly one new photorealistic photograph of that same person living in the scene described above. Identity = that attachment only.
 `.trim();
 
-/** Single-image vibe path: reinforce pose from text vs casual upload. */
-export const GENERATE_VIBE_TRAILING_POSE_LOCK_SINGLE = `
-POSE LOCK: Follow the scene text's blocking and head angle — do not revert to the attached photo's casual pose if the text specifies a different turn or asymmetry. If the text describes a **square-on** or frontal body, do **not** add extra torso rotation.
+const GENERATE_VIBE_RULES_SINGLE = `
+Rules (short):
+- Preserve: face structure, features, skin tone, eye color, proportions, natural hair color (never recolor to mimic a "model" in the text).
+- Apply from the scene text: pose, body, clothing, hair styling, makeup/skin, environment, lighting, color grade, camera/framing, expression.
+- Text may describe another person's hair/eyes/skin — ignore for identity; still follow for pose, light, wardrobe, grooming, set, grade.
+- One seamless photograph — no tiles, collage, diptych, side-by-side, or obvious composite.
+- Subject must look naturally photographed in the setting, not pasted.
+- Pose: match scene blocking and head angle, not the casual upload. Square-on / frontal in the scene → do not add extra torso rotation.
 `.trim();
 
-/**
- * Expand step: tells Gemini whether image-gen will attach reference pixels.
- */
-export function buildVibeExpandRuntimeContext(willAttachReferenceInline: boolean): string {
-  if (willAttachReferenceInline) {
-    return `
-RUNTIME (do not echo this label in JSON): Image-gen gets IMAGE A then B. Align pose/framing/light/grooming with A; face = B only. Copy subject_pose fully in "prompt"; put hair/makeup in grooming.* only — never let grooming replace blocking.
+const GENERATE_VIBE_CRITICAL_DUAL = `
+CRITICAL
+Earlier parts were labeled: IMAGE A = style reference (not the output identity); IMAGE B = subject (only identity). Output one new photograph of B as if shot in A's session — A's pose, light, set, wardrobe, and grade on B. Not a face-swap or lazy crop.
 `.trim();
-  }
-  return `
-RUNTIME: Image-gen sees ONLY the user photo + your text — no reference pixels. Spell out subject_pose in full (no summary → no default frontal). hair_makeup → grooming.*; do not trade explicit head/torso angles for long beauty prose.
+
+const GENERATE_VIBE_RULES_DUAL = `
+Rules (short):
+- Identity: B's face, bone structure, skin, eyes, age, body; keep B's natural hair color; restyle hair and makeup to A's shoot.
+- Blocking & expression: follow A and the scene text, not B's selfie when they conflict. Frontal / square-on in A or text → no invented strong three-quarter.
+- Grooming = beauty finish only — does not override torso/head angles from A or the scene.
+- Wardrobe, set, light, camera, palette: match A + scene on B.
+- One seamless frame; no collage; do not paste B's face onto A.
+- Face/hair/skin prose in the scene = reference only — apply look to B, never copy A's identity.
+- Pose lock: match A's torso, shoulders, head tilt, chin, face plane on B; no extra rotation beyond A.
 `.trim();
+
+function joinVibeFinalPromptParts(scene: string, critical: string, rules: string): string {
+  const body = String(scene ?? "").trimEnd();
+  return `${body}\n\n${critical}\n\n${rules}`.trim();
 }
 
 function parseBoolConfigValue(value: string | null | undefined, fallback: boolean): boolean {
@@ -615,117 +470,15 @@ export async function getVibeAttachReferenceImageToGeneration(
 }
 
 /**
- * Source of truth: `photo_app_config.vibe_one_shot_extract_prompt`. Fallback: env `VIBE_ONE_SHOT_EXTRACT_PROMPT`, default **false**.
- */
-export async function getVibeOneShotExtractPromptEnabled(
-  supabase: ReturnType<typeof createSupabaseServer>
-): Promise<boolean> {
-  const envFallback = parseBoolConfigValue(process.env.VIBE_ONE_SHOT_EXTRACT_PROMPT, false);
-
-  try {
-    const { data, error } = await supabase
-      .from("photo_app_config")
-      .select("value")
-      .eq("key", PHOTO_APP_CONFIG_KEY_VIBE_ONE_SHOT_EXTRACT_PROMPT)
-      .maybeSingle();
-
-    if (error) {
-      console.warn("[vibe.config] photo_app_config read failed", {
-        key: PHOTO_APP_CONFIG_KEY_VIBE_ONE_SHOT_EXTRACT_PROMPT,
-        message: error.message,
-      });
-      return envFallback;
-    }
-
-    const v = data?.value;
-    if (v !== undefined && v !== null && String(v).trim() !== "") {
-      return parseBoolConfigValue(String(v), envFallback);
-    }
-  } catch (err) {
-    console.warn("[vibe.config] photo_app_config read threw", {
-      key: PHOTO_APP_CONFIG_KEY_VIBE_ONE_SHOT_EXTRACT_PROMPT,
-      message: err instanceof Error ? err.message : String(err),
-    });
-  }
-
-  return envFallback;
-}
-
-/**
- * Single Gemini vision call: reference image → scene + grooming JSON (same role as extract+expand).
- * Output JSON: { "prompt", "grooming": { "hair", "makeup" } }.
- */
-export const ONE_SHOT_EXTRACT_PROMPT_INSTRUCTION = `
-You analyze ONE reference photo for photorealistic image generation. A different real person (user) will be placed into this scene — their face, skin, eyes, hair color, bone structure come ONLY from the user's photo later.
-
-Output JSON: "prompt" = scene-only English prose; "grooming" = transferable hair + makeup for the user's natural hair color. Match the reference shoot like a two-step extract+expand pipeline.
-
-Inside "prompt" (priority order): (1) POSE/BODY first — director-level geometry: torso+hips vs camera (**square-on / slight / clear three-quarter / strong three-quarter / semi-profile body** — no numeric degrees). If the reference is **square-on**, say so explicitly; do not imply a look-back or strong three-quarter unless the ribcage/hips are clearly angled away from the lens. For uneven shoulders, say when it is **garment/hair only** vs true body twist. **Head rotation relative to torso** (look-back) only if torso is actually turned away. Head tilt, chin, face vs lens, arms/hands consistent (no both-hands-on-prop + hand-in-pocket). Legs if visible. (2) Vibe (genre, energy, viewer relationship). (3) Expression tied to pose. (4) Camera, concrete lighting, **setting/background as layered space** (near vs mid vs far, sharp vs bokeh, props with left/right/behind), clothing, grade — rephrase reference biometrics as transferable ("subject's natural eye color"). No one-word locations ("kitchen", "beach") without surfaces and layout. Long hair/makeup prose lives ONLY in grooming.*.
-
-"grooming.hair" / "grooming.makeup": full reference styling; "" only if invisible / bare / unstyled.
-
-Rules:
-1. Start "prompt" with exactly: "Place the person from the attached photo into this scene:"
-2. ~35–45% of "prompt" words = pose + body + vibe before deep light/grade; no long hair/makeup in "prompt".
-3. Total "prompt" ~220–420 words (with grooming, scene is complete for image-gen).
-4. No vague lighting/pose — always concrete geometry and direction.
-5. State in "prompt" that identity must match the user's photo only; if reference is styled, do not describe the subject as bare-faced/everyday-hair (use grooming).
-6. On conflict: blocking in "prompt" wins; grooming never contradicts head/torso angles.
-
-Return ONLY valid JSON (not markdown):
-{
-  "prompt": "<scene prose — no duplicate of grooming paragraphs>",
-  "grooming": { "hair": "<…>", "makeup": "<…>" }
-}
-At most a short forward reference to grooming inside "prompt", not full duplication.
-`.trim();
-
-export const EXPAND_PROMPTS_INSTRUCTION = `
-You turn a style JSON (from a REFERENCE photo) into ONE rich scene for a DIFFERENT person — the user's face comes only from their attached photo. Transfer pose, light, wardrobe, environment, camera, grade, mood; output identity = USER, not the reference model. User must look restyled, not pasted from a casual selfie.
-
-Generate structured JSON. In "prompt", immediately after the required opening line, use ~35–45% of words for dense POSE + BODY from subject_pose (keep viewer/subject shoulder language, weight, spine, hands, gaze vs head). Then expression + vibe (scene/genre/mood). Then camera+composition, **environment (must not be generic)** — merge the **environment** field into concrete prose: depth layers, materials, prop placement (left/right/behind), sharp vs blurred background; if **environment** is empty, unfold only spatial/set cues already stated in **scene** or **composition** — do not invent props or rooms not implied by the JSON. Wardrobe, lighting, color grade from color_grading/color_palette (rephrase palette as light/set — never assign reference hair/eye/skin as the user's identity). Weave key_details as transferable anchors (keep pose/prop/light/set beats; strip reference-only biometrics — e.g. "natural eye color", "natural hair color and length"). Use two short "prompt" paragraphs if needed so pose stays early.
-Never compress subject_pose to a generic portrait — but **do not add** body rotation that the JSON denies: if **subject_pose** says **square-on** / slight turn, keep the person **facing the camera** in prose; only use strong three-quarter / look-back language when **subject_pose** (or visible ribcage turn in other fields) supports it. Preserve uneven shoulders from **wardrobe** without reframing as torso twist. All hair_makeup prose goes into grooming.* only — "prompt" may mention that hair/makeup match the reference in one short phrase, not full duplication.
-
-Rules:
-1. Start with: "Place the person from the attached photo into this scene:"
-2. 220–420 words; one paragraph or two short ones (pose first).
-3. No vague "natural lighting" / "warm tones" / "relaxed pose" without concrete geometry and direction.
-4. Remind once: identity = attached user only.
-5. If hair_makeup is styled, output must not read like unchanged casual user hair/face — carry style in grooming.
-
-Return ONLY a JSON object (not an array):
-{
-  "prompt": "<scene prose; hair/makeup only briefly referenced, full detail in grooming>",
-  "grooming": {
-    "hair": "<from hair_makeup; \"\" if unstyled>",
-    "makeup": "<from hair_makeup; \"\" if bare-faced>"
-  }
-}
-`.trim();
-
-/**
  * Full text sent to Gemini image generation for vibe rows (must match generate-process).
- * Appends {@link GENERATE_VIBE_TRAILING_POSE_LOCK_DUAL} or {@link GENERATE_VIBE_TRAILING_POSE_LOCK_SINGLE}
- * after the scene body so the image model re-attends to geometry vs casual upload pose.
- * `assumeReferenceImageLoaded`: true only when reference inline image is actually attached
- * (or, in expand preview, when we intend to attach and have source_image_url).
- * `oneShotExtractConfigEnabled`: when `photo_app_config.vibe_one_shot_extract_prompt` is true — shorter prefixes
- * (no duplicate PRESERVE/JSON disclaimer/seamless-FORBIDDEN blocks; dual path also skips JSON identity bridge).
+ * Order: **scene body first** (from expand / DB), then **CRITICAL**, then **Rules (short)**.
+ * Dual-image: A/B labels are separate multimodal parts in `generate-process`, not in this string.
+ * `assumeReferenceImageLoaded`: true when reference pixels are attached with the user image.
  */
-export function assembleVibeFinalPrompt(
-  rawExpandedPrompt: string,
-  assumeReferenceImageLoaded = false,
-  oneShotExtractConfigEnabled = false
-): string {
+export function assembleVibeFinalPrompt(rawExpandedPrompt: string, assumeReferenceImageLoaded = false): string {
   const scene = String(rawExpandedPrompt ?? "").trimEnd();
   if (assumeReferenceImageLoaded) {
-    if (oneShotExtractConfigEnabled) {
-      return `${GENERATE_VIBE_PREFIX_TWO_IMAGES_ONE_SHOT}${scene}\n\n${GENERATE_VIBE_TRAILING_POSE_LOCK_DUAL}`;
-    }
-    return `${GENERATE_VIBE_PREFIX_TWO_IMAGES}${GENERATE_VIBE_JSON_IDENTITY_BRIDGE_DUAL}${scene}\n\n${GENERATE_VIBE_TRAILING_POSE_LOCK_DUAL}`;
+    return joinVibeFinalPromptParts(scene, GENERATE_VIBE_CRITICAL_DUAL, GENERATE_VIBE_RULES_DUAL);
   }
-  if (oneShotExtractConfigEnabled) {
-    return `${GENERATE_VIBE_PREFIX_SINGLE_IMAGE_ONE_SHOT}${scene}\n\n${GENERATE_VIBE_TRAILING_POSE_LOCK_SINGLE}`;
-  }
-  return `${GENERATE_VIBE_PREFIX_SINGLE_IMAGE}${scene}\n\n${GENERATE_VIBE_TRAILING_POSE_LOCK_SINGLE}`;
+  return joinVibeFinalPromptParts(scene, GENERATE_VIBE_CRITICAL_SINGLE, GENERATE_VIBE_RULES_SINGLE);
 }

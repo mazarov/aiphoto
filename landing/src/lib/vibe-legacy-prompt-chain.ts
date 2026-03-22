@@ -1,6 +1,6 @@
 /**
- * Legacy Steal-This-Vibe prompt chain from commit 2c23ce94 (8-field extract, 3-accent expand, LLM merge).
- * Used when extract runs under photo_app_config.vibe_legacy_prompt_chain_2c23ce94 and for vibes.prompt_chain = legacy_2c23.
+ * Steal-This-Vibe prompt chain from commit 2c23ce94 (8-field extract, 3-accent expand, LLM merge).
+ * Product uses this path only; `vibes.prompt_chain` = legacy_2c23 for new rows.
  */
 
 import { parseGeminiJsonArray, parseGeminiJsonObject } from "@/lib/gemini-vibe-debug-log";
