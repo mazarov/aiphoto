@@ -104,7 +104,6 @@ const STRINGS = {
     accent_composition: "Композиция",
     err_session: "Сессия истекла. Войдите снова.",
     err_expand: "Не удалось подготовить промпт. Попробуйте снова.",
-    err_stv_rewrite: "Не удалось переписать стиль (STV). Попробуйте снова.",
     err_expand_three:
       "Сервер должен вернуть ровно 3 промпта в режиме «3× генерация». Выключите флаг в «Для разработчиков» или повторите запуск.",
     all_done_triple: "Все три варианта готовы",
@@ -267,7 +266,6 @@ const STRINGS = {
     accent_composition: "Komposition",
     err_session: "Sitzung abgelaufen. Bitte neu anmelden.",
     err_expand: "Prompt konnte nicht erstellt werden. Bitte erneut versuchen.",
-    err_stv_rewrite: "STV-Stilrewrite fehlgeschlagen. Bitte erneut versuchen.",
     err_expand_three:
       "Im Modus „3× Generierung“ müssen genau 3 Prompts kommen. Flag unter „Für Entwickler“ aus oder erneut starten.",
     all_done_triple: "Alle drei Varianten sind fertig",

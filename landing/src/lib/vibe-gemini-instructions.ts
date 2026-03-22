@@ -8,12 +8,6 @@ import { createSupabaseServer } from "@/lib/supabase";
 export const PHOTO_APP_CONFIG_KEY_VIBE_ATTACH_REFERENCE =
   "vibe_attach_reference_image_to_generation";
 
-/** When true, `/api/vibe/extract` uses STV 3-step anti-copy JSON + follow-up STV routes (sql/154_*.sql). */
-export const PHOTO_APP_CONFIG_KEY_VIBE_STV_ANTI_COPY_3STEP = "vibe_stv_anti_copy_3step";
-
-const PHOTO_APP_CONFIG_KEY_GEMINI_USE_PROXY = "gemini_use_proxy";
-const DIRECT_GEMINI_BASE_URL = "https://generativelanguage.googleapis.com";
-
 /** Gemini model id for `/api/vibe/extract` (vision → style JSON). */
 export const PHOTO_APP_CONFIG_KEY_VIBE_EXTRACT_MODEL = "vibe_extract_model";
 
@@ -473,61 +467,6 @@ export async function getVibeAttachReferenceImageToGeneration(
   }
 
   return envFallback;
-}
-
-/**
- * STV 3-step anti-copy pipeline. Default **false** if row missing or unreadable.
- */
-export async function getVibeStvAntiCopy3StepEnabled(
-  supabase: ReturnType<typeof createSupabaseServer>
-): Promise<boolean> {
-  try {
-    const { data, error } = await supabase
-      .from("photo_app_config")
-      .select("value")
-      .eq("key", PHOTO_APP_CONFIG_KEY_VIBE_STV_ANTI_COPY_3STEP)
-      .maybeSingle();
-
-    if (error) {
-      console.warn("[vibe.config] photo_app_config read failed", {
-        key: PHOTO_APP_CONFIG_KEY_VIBE_STV_ANTI_COPY_3STEP,
-        message: error.message,
-      });
-      return false;
-    }
-
-    const v = data?.value;
-    if (v !== undefined && v !== null && String(v).trim() !== "") {
-      return parseBoolConfigValue(String(v), false);
-    }
-  } catch (err) {
-    console.warn("[vibe.config] photo_app_config read threw", {
-      key: PHOTO_APP_CONFIG_KEY_VIBE_STV_ANTI_COPY_3STEP,
-      message: err instanceof Error ? err.message : String(err),
-    });
-  }
-
-  return false;
-}
-
-/** Gemini REST base URL (proxy or direct) — same rules as `/api/vibe/extract`. */
-export async function getGeminiApiBaseUrlForVibeRoutes(
-  supabase: ReturnType<typeof createSupabaseServer>
-): Promise<string> {
-  let useProxy = true;
-  try {
-    const { data } = await supabase
-      .from("photo_app_config")
-      .select("value")
-      .eq("key", PHOTO_APP_CONFIG_KEY_GEMINI_USE_PROXY)
-      .maybeSingle();
-    useProxy = parseBoolConfigValue(data?.value, true);
-  } catch {
-    useProxy = true;
-  }
-  const proxyBase = (process.env.GEMINI_PROXY_BASE_URL || "").replace(/\/+$/, "");
-  if (useProxy && proxyBase) return proxyBase;
-  return DIRECT_GEMINI_BASE_URL;
 }
 
 /**

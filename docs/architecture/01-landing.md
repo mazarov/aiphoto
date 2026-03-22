@@ -1,6 +1,6 @@
 # 01 — Лендинг (promptshot.ru)
 
-> Последнее обновление: 2026-03-22 (STV 3-step anti-copy: **`photo_app_config.vibe_stv_anti_copy_3step`**, маршруты **`/api/vibe/stv-style-rewrite`**, **`/api/vibe/stv-final-prompt`**, `CHECK` **`sql/155_*.sql`**)
+> Последнее обновление: 2026-03-22 (STV expand: **groomingPolicy** → `appendLegacyGroomingPolicyBlocks`; extension debounce re-expand при смене чекбоксов; **legacy_2c23**; до 4 фото — `docs/23-03-stv-multi-user-photos-ui.md`)
 
 > UI side panel + content script: см. `docs/extension-ui-spec.md`; карта файлов и токены — `extension/DEVELOPER.md`.
 
@@ -51,9 +51,7 @@
 | `/api/me` | Текущий пользователь + credits |
 | `/api/buy-credits-link` | Deep link в Telegram-бота для покупки web-кредитов |
 | `/api/vibe/extract` | Извлечение style JSON из URL изображения (auth) |
-| `/api/vibe/expand` | Legacy: rich prompt из 8-field style (auth); для `stv_anti_copy_3step` — **409** |
-| `/api/vibe/stv-style-rewrite` | STV шаг 2: JSON из vibe → scene prompt (Gemini text, auth) |
-| `/api/vibe/stv-final-prompt` | STV шаг 3: scene prompt → финальный текст + `assembleVibeFinalPrompt` (auth) |
+| `/api/vibe/expand` | Один rich prompt из style JSON (auth) |
 | `/api/vibe/assemble-prompt` | Legacy-only: **409** для всех вибров (grooming assemble отключён; см. ответ `assemble_not_applicable_legacy` / `vibe_not_legacy`) |
 | `/api/vibe/save` | Сохранение выбранной vibe-генерации (auth) |
 
@@ -69,8 +67,7 @@
 
 ### Vibe Pipeline (Steal This Vibe)
 
-- **Единственный путь (прод сейчас):** **legacy chain** из коммита `2c23ce94` — см. `landing/src/lib/vibe-legacy-prompt-chain.ts`, колонка **`vibes.prompt_chain` = `legacy_2c23`** (миграция **`sql/152_*.sql`**). Флаг **`photo_app_config.vibe_legacy_prompt_chain_2c23ce94`** больше не переключает поведение extract (ключ в БД может оставаться для истории).
-- **3-step anti-copy STV (опционально):** спека **`docs/24-03-stv-three-step-style-prompt-pipeline.md`**. Включение: **`photo_app_config.vibe_stv_anti_copy_3step`** = `true` (сид **`sql/154_*.sql`**). **Extract:** при `true` — vision → JSON шага 1, insert **`prompt_chain` = `stv_anti_copy_3step`** (миграция **`sql/155_*.sql`** на `CHECK`). Ответ extract: **`stvAntiCopy3Step: true`**, **`legacyPromptChain: false`**. **Expand** для таких строк — **409** `stv_use_dedicated_routes`. Цепочка: **`POST /api/vibe/stv-style-rewrite`** `{ vibeId }` → **`POST /api/vibe/stv-final-prompt`** `{ vibeId, scenePrompt }` (шаги 2–3 на **Gemini**, модель **`vibe_expand_model`**, proxy как у extract). Extension ветвит после extract по **`stvAntiCopy3Step`**.
+- **Единственный путь:** **legacy chain** из коммита `2c23ce94` — см. `landing/src/lib/vibe-legacy-prompt-chain.ts`, колонка **`vibes.prompt_chain` = `legacy_2c23`** (миграция **`sql/152_*.sql`**). Флаг **`photo_app_config.vibe_legacy_prompt_chain_2c23ce94`** больше не переключает поведение extract (ключ в БД может оставаться для истории).
 - **Extract:** `POST /api/vibe/extract` — SSRF-guard, скачивание изображения, vision → JSON с **ровно 8 полями** по **`LEGACY_EXTRACT_PROMPT_2C23CE94`**. Провайдеры и модели: **`vibe_extract_llm`**, `vibe_extract_model` / OpenAI — как раньше (`sql/150_*.sql`). Insert в **`vibes`**: **`style`**, **`prompt_chain` = `legacy_2c23`**. Ответ: **`legacyPromptChain: true`**. Нет веток modern / one-shot / `coerceStylePayload` для extract.
 - **Expand:** `POST /api/vibe/expand` — legacy **`style`** из body и/или строки vibe; **`vibeId`** + владелец + **`prompt_chain` = `legacy_2c23`** (иначе **404** / **409** как раньше). **Без text LLM:** база = **`buildLegacyVibeFullPromptBody(style)`**; опционально **`groomingPolicy`** `{ applyHair, applyMakeup }` (дефолт **true**) → **`appendLegacyGroomingPolicyBlocks`** добавляет англ. секции про перенос укладки/макияжа с референса; оба **false** — только поля стиля. **`mergedPrompt`** = итоговое тело; **`finalPromptForGeneration`** = **`assembleVibeFinalPrompt(...)`**. Extension шлёт **`groomingPolicy`** вместе с expand и при смене чекбоксов делает debounce **повторного expand** (assemble для legacy по-прежнему **409**).
 - **Assemble:** `POST /api/vibe/assemble-prompt` — всегда **409**: для **`legacy_2c23`** — **`assemble_not_applicable_legacy`**; для старых строк без legacy — **`vibe_not_legacy`** (нужен повторный extract).
@@ -458,7 +455,6 @@ landing/src/
 | `GEMINI_VIBE_EXTRACT_MODEL` | Fallback, если строка в `photo_app_config` пуста или чтение не удалось |
 | `GEMINI_VIBE_EXPAND_MODEL` | То же для expand |
 | `GEMINI_VIBE_DEBUG` | `1` / `true` — расширенные логи Gemini для vibe extract/expand |
-| `photo_app_config.vibe_stv_anti_copy_3step` | `true` / `false` — 3-step STV (anti-copy extract + `stv-style-rewrite` + `stv-final-prompt`); сид `sql/154_*.sql`; спека `docs/24-03-stv-three-step-style-prompt-pipeline.md` |
 | `photo_app_config.vibe_attach_reference_image_to_generation` | `true` / `false` — слать пиксели референса в web image-gen (ключ в БД, см. `sql/147_*.sql`) |
 | `VIBE_ATTACH_REFERENCE_IMAGE_TO_GENERATION` | Fallback, если строка в `photo_app_config` недоступна или пуста (`0` = выкл.) |
 | `LANDING_LOG_FULL_GENERATION_PROMPT` | `0` — не логировать полный текст в `generate-process` |

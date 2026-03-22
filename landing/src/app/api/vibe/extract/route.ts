@@ -7,9 +7,8 @@ import {
   getGeminiVibeExtractModelRuntime,
   getOpenAiVibeExtractModelRuntime,
   getVibeExtractLlmProvider,
-  getVibeStvAntiCopy3StepEnabled,
 } from "@/lib/vibe-gemini-instructions";
-import { openAiChatCompletionJson, openAiExtractImageJson } from "@/lib/vibe-llm-openai";
+import { openAiExtractImageJson } from "@/lib/vibe-llm-openai";
 import {
   fetchErrorDetails,
   isGeminiVibeDebug,
@@ -21,15 +20,7 @@ import {
   coerceLegacyVibeStylePayload,
   LEGACY_EXTRACT_PROMPT_2C23CE94,
 } from "@/lib/vibe-legacy-prompt-chain";
-import {
-  VIBE_PROMPT_CHAIN_LEGACY_2C23,
-  VIBE_PROMPT_CHAIN_STV_ANTI_COPY_3STEP,
-} from "@/lib/vibe-legacy-config";
-import { coerceStvAntiCopyExtractionPayload } from "@/lib/vibe-stv-extraction-payload";
-import {
-  STV_EXTRACT_STEP1_SYSTEM,
-  STV_EXTRACT_STEP1_USER,
-} from "@/lib/vibe-stv-three-step-instructions";
+import { VIBE_PROMPT_CHAIN_LEGACY_2C23 } from "@/lib/vibe-legacy-config";
 
 const DIRECT_GEMINI_BASE_URL = "https://generativelanguage.googleapis.com";
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
@@ -210,7 +201,6 @@ export async function POST(req: NextRequest) {
     }
 
     const supabase = createSupabaseServer();
-    const stvAntiCopy3StepEnabled = await getVibeStvAntiCopy3StepEnabled(supabase);
     const extractLlm = await getVibeExtractLlmProvider(supabase);
     const extractInstruction = LEGACY_EXTRACT_PROMPT_2C23CE94;
 
@@ -234,36 +224,17 @@ export async function POST(req: NextRequest) {
         llm: "openai",
         model: modelUsed,
         inlineImageBase64Chars: inlineData.data.length,
-        legacyPromptChain: !stvAntiCopy3StepEnabled,
-        stvAntiCopy3StepEnabled,
-        instructionTextChars: stvAntiCopy3StepEnabled ? STV_EXTRACT_STEP1_SYSTEM.length : extractInstruction.length,
+        legacyPromptChain: true,
+        instructionTextChars: extractInstruction.length,
         timeoutMs: 120000,
       });
-      const mime = inlineData.mimeType || "image/jpeg";
-      const dataUrl = `data:${mime};base64,${inlineData.data}`;
-      const oaRes = stvAntiCopy3StepEnabled
-        ? await openAiChatCompletionJson({
-            apiKey: openaiKey,
-            model: modelUsed,
-            messages: [
-              { role: "system", content: STV_EXTRACT_STEP1_SYSTEM },
-              {
-                role: "user",
-                content: [
-                  { type: "text", text: STV_EXTRACT_STEP1_USER },
-                  { type: "image_url", image_url: { url: dataUrl } },
-                ],
-              },
-            ],
-            timeoutMs: 120_000,
-          })
-        : await openAiExtractImageJson({
-            apiKey: openaiKey,
-            model: modelUsed,
-            instructionText: extractInstruction,
-            imageMimeType: inlineData.mimeType,
-            imageBase64: inlineData.data,
-          });
+      const oaRes = await openAiExtractImageJson({
+        apiKey: openaiKey,
+        model: modelUsed,
+        instructionText: extractInstruction,
+        imageMimeType: inlineData.mimeType,
+        imageBase64: inlineData.data,
+      });
       text = oaRes.text;
       httpOk = oaRes.ok;
       httpStatus = oaRes.status;
@@ -294,31 +265,17 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "extract_failed" }, { status: 500 });
       }
 
-      const geminiBody = stvAntiCopy3StepEnabled
-        ? {
-            systemInstruction: { parts: [{ text: STV_EXTRACT_STEP1_SYSTEM }] },
-            contents: [
-              {
-                role: "user",
-                parts: [{ text: STV_EXTRACT_STEP1_USER }, { inlineData }],
-              },
-            ],
-            generationConfig: {
-              responseMimeType: "application/json",
-              temperature: 0.1,
-            },
-          }
-        : {
-            contents: [
-              {
-                role: "user",
-                parts: [{ text: extractInstruction }, { inlineData }],
-              },
-            ],
-            generationConfig: {
-              responseMimeType: "application/json",
-            },
-          };
+      const geminiBody = {
+        contents: [
+          {
+            role: "user",
+            parts: [{ text: extractInstruction }, { inlineData }],
+          },
+        ],
+        generationConfig: {
+          responseMimeType: "application/json",
+        },
+      };
 
       const geminiEndpointHost = (() => {
         try {
@@ -334,9 +291,8 @@ export async function POST(req: NextRequest) {
         model: visionModel,
         endpointHost: geminiEndpointHost,
         inlineImageBase64Chars: inlineData.data.length,
-        legacyPromptChain: !stvAntiCopy3StepEnabled,
-        stvAntiCopy3StepEnabled,
-        instructionTextChars: stvAntiCopy3StepEnabled ? STV_EXTRACT_STEP1_SYSTEM.length : extractInstruction.length,
+        legacyPromptChain: true,
+        instructionTextChars: extractInstruction.length,
         timeoutMs: 45000,
       });
       if (isGeminiVibeDebug()) {
@@ -419,57 +375,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "extract_failed" }, { status: 500 });
     }
 
-    if (stvAntiCopy3StepEnabled) {
-      const stvStyle = parsed ? coerceStvAntiCopyExtractionPayload(parsed as Record<string, unknown>) : null;
-      if (!stvStyle) {
-        console.error("[vibe.extract] extract_pipeline_failed_stv_coerce", {
-          userId: user.id,
-          llm: extractLlm,
-          model: modelUsed,
-          httpStatus,
-          parseStages,
-          parsedKeys: parsed ? Object.keys(parsed) : [],
-        });
-        return NextResponse.json({ error: "extract_failed" }, { status: 500 });
-      }
-
-      const { data: vibe, error: insertError } = await supabase
-        .from("vibes")
-        .insert({
-          user_id: user.id,
-          source_image_url: safeUrl.toString(),
-          style: stvStyle,
-          prompt_chain: VIBE_PROMPT_CHAIN_STV_ANTI_COPY_3STEP,
-        })
-        .select("id")
-        .single();
-
-      if (insertError || !vibe) {
-        console.error("[vibe.extract] insert failed", {
-          userId: user.id,
-          stvAntiCopy3Step: true,
-          error: insertError?.message ?? null,
-        });
-        return NextResponse.json({ error: "extract_failed" }, { status: 500 });
-      }
-
-      console.warn("[vibe.extract] extract_parse_ok", {
-        userId: user.id,
-        llm: extractLlm,
-        stvAntiCopy3Step: true,
-        styleFieldCount: Object.keys(stvStyle).length,
-      });
-
-      return NextResponse.json({
-        vibeId: vibe.id,
-        style: stvStyle,
-        modelUsed,
-        llmProvider: extractLlm,
-        legacyPromptChain: false,
-        stvAntiCopy3Step: true,
-      });
-    }
-
     const legacyStyle = parsed ? coerceLegacyVibeStylePayload(parsed) : null;
     if (!legacyStyle) {
       console.error("[vibe.extract] extract_pipeline_failed_legacy_coerce", {
@@ -516,7 +421,6 @@ export async function POST(req: NextRequest) {
       modelUsed,
       llmProvider: extractLlm,
       legacyPromptChain: true,
-      stvAntiCopy3Step: false,
     });
   } catch (err) {
     console.error("[vibe.extract] unhandled error", {
