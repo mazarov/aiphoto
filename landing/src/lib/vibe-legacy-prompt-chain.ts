@@ -1,6 +1,6 @@
 /**
  * Steal-This-Vibe legacy style shape from commit 2c23ce94 (8-field extract).
- * POST /api/vibe/expand uses `style.scene` only (no text LLM). Accent expand + merge helpers remain for reference / tooling.
+ * POST /api/vibe/expand passthrough: full labeled body from all non-empty fields (no text LLM). Legacy accent expand + merge helpers remain for reference / tooling.
  */
 
 import { parseGeminiJsonArray, parseGeminiJsonObject } from "@/lib/gemini-vibe-debug-log";
@@ -19,6 +19,32 @@ export const LEGACY_VIBE_STYLE_FIELDS = [
 
 export type LegacyVibeStyleField = (typeof LEGACY_VIBE_STYLE_FIELDS)[number];
 export type LegacyVibeStylePayload = Record<LegacyVibeStyleField, string>;
+
+/** Section titles for image-gen text built from extract JSON (order = {@link LEGACY_VIBE_STYLE_FIELDS}). */
+export const LEGACY_VIBE_FIELD_LABELS: Record<LegacyVibeStyleField, string> = {
+  scene: "Scene",
+  genre: "Genre",
+  lighting: "Lighting",
+  camera: "Camera",
+  mood: "Mood",
+  color: "Color",
+  clothing: "Clothing",
+  composition: "Composition",
+};
+
+/**
+ * Verbatim style text for expand → generate: every non-empty legacy field as a labeled block.
+ * Skips empty strings (e.g. clothing N/A).
+ */
+export function buildLegacyVibeFullPromptBody(style: LegacyVibeStylePayload): string {
+  const parts: string[] = [];
+  for (const field of LEGACY_VIBE_STYLE_FIELDS) {
+    const text = String(style[field] ?? "").trim();
+    if (!text) continue;
+    parts.push(`${LEGACY_VIBE_FIELD_LABELS[field]}:\n${text}`);
+  }
+  return parts.join("\n\n").trim();
+}
 
 export const LEGACY_PROMPT_ACCENTS = ["lighting", "mood", "composition"] as const;
 export type LegacyPromptAccent = (typeof LEGACY_PROMPT_ACCENTS)[number];

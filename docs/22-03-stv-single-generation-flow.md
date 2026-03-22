@@ -128,7 +128,7 @@ sequenceDiagram
 
 ## 5. Слой 2 — «Как стиль превращается в текст для генерации» (Expand)
 
-> **Текущий прод:** `POST /api/vibe/expand` **без** text LLM: **`mergedPrompt`** = **`style.scene`** (trim), затем **`assembleVibeFinalPrompt`**. Три строки в **`prompts`** — один и тот же текст с акцентами `lighting` / `mood` / `composition` (совместимость с triple-variant в extension). Ниже — логика исторического `2c23ce94` и merge для справки.
+> **Текущий прод:** `POST /api/vibe/expand` **без** text LLM: **`mergedPrompt`** = все непустые поля legacy JSON в виде помеченных секций (**`buildLegacyVibeFullPromptBody`**), затем **`assembleVibeFinalPrompt`**. Три строки в **`prompts`** — тот же текст (triple-variant). Ниже — исторический `2c23ce94` и merge для справки.
 
 ### 5.1 Роль Expand
 

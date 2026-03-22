@@ -2,7 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServer } from "@/lib/supabase";
 import { getSupabaseUserForApiRoute } from "@/lib/supabase-route-auth";
 import { assembleVibeFinalPrompt, getVibeAttachReferenceImageToGeneration } from "@/lib/vibe-gemini-instructions";
-import { LEGACY_PROMPT_ACCENTS, legacyStyleFromUnknownRowStyle } from "@/lib/vibe-legacy-prompt-chain";
+import {
+  LEGACY_PROMPT_ACCENTS,
+  buildLegacyVibeFullPromptBody,
+  legacyStyleFromUnknownRowStyle,
+} from "@/lib/vibe-legacy-prompt-chain";
 import { VIBE_PROMPT_CHAIN_LEGACY_2C23 } from "@/lib/vibe-legacy-config";
 import { fetchErrorDetails } from "@/lib/gemini-vibe-debug-log";
 
@@ -19,8 +23,8 @@ function toErrorMeta(err: unknown) {
 }
 
 /**
- * No text LLM: `mergedPrompt` = extract JSON field `scene` (trimmed).
- * Three `prompts` share the same body so the extension triple-variant mode still receives three slots.
+ * No text LLM: `mergedPrompt` = all non-empty legacy style fields as labeled sections ({@link buildLegacyVibeFullPromptBody}).
+ * Three `prompts` share the same body for extension triple-variant mode.
  */
 export async function POST(req: NextRequest) {
   try {
@@ -73,9 +77,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "missing_style" }, { status: 400 });
     }
 
-    const sceneBody = String(legacyStyle.scene ?? "").trim();
-    if (!sceneBody) {
-      return NextResponse.json({ error: "missing_scene" }, { status: 400 });
+    const promptBody = buildLegacyVibeFullPromptBody(legacyStyle);
+    if (!promptBody) {
+      return NextResponse.json({ error: "missing_style_body" }, { status: 400 });
     }
 
     const willAttachReferenceInline =
@@ -83,28 +87,28 @@ export async function POST(req: NextRequest) {
 
     const prompts = LEGACY_PROMPT_ACCENTS.map((accent) => ({
       accent,
-      prompt: sceneBody,
+      prompt: promptBody,
     }));
 
-    const assembled = assembleVibeFinalPrompt(sceneBody, willAttachReferenceInline);
+    const assembled = assembleVibeFinalPrompt(promptBody, willAttachReferenceInline);
     const finalPromptPreviews = LEGACY_PROMPT_ACCENTS.map((accent) => ({
       accent,
       fullText: assembled,
     }));
 
-    console.warn("[vibe.expand] scene_passthrough_ok", {
+    console.warn("[vibe.expand] legacy_full_style_passthrough_ok", {
       userId: user.id,
       vibeId: body.vibeId ?? null,
       hasReferenceUrl,
       referencePixelsInGeneration: willAttachReferenceInline,
-      expandSource: "legacy_scene_literal",
-      sceneChars: sceneBody.length,
+      expandSource: "legacy_full_style_literal",
+      bodyChars: promptBody.length,
       promptsCount: prompts.length,
     });
 
     return NextResponse.json({
       prompts,
-      mergedPrompt: sceneBody,
+      mergedPrompt: promptBody,
       mergeModelUsed: "none",
       mergeOk: false,
       mergeMs: 0,

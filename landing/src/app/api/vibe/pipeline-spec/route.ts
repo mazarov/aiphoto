@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
       mode: "scene_literal",
       llmProvider: "none",
       modelUsed: "passthrough",
-      mergedPromptSource: "vibes.style.scene (trim)",
+      mergedPromptSource: "all non-empty legacy style fields → labeled sections (buildLegacyVibeFullPromptBody)",
       finalPrompt: "assembleVibeFinalPrompt(scene, willAttachReferenceInline)",
       referenceForHistoricalPrompts: "LEGACY_EXPAND_PROMPT_2C23CE94 / merge — не используются в POST /api/vibe/expand",
       historicalAccentExpandInstruction: LEGACY_EXPAND_PROMPT_2C23CE94,
