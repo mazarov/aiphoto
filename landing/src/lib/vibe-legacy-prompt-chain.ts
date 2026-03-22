@@ -93,7 +93,15 @@ Return a JSON object with these exact fields:
 - mood: The emotional tone and atmosphere.
 - color: Color palette, grading, contrast, saturation levels.
 - clothing: What the subject is wearing (if applicable, empty string if not).
-- composition: Framing choices (placement in frame, headroom, negative space, leading lines). Do not repeat the full camera-height or horizontal-angle analysis here; reference it only if needed in one short clause.
+- composition: One cohesive paragraph written for downstream IMAGE GENERATION. The expand step does not rewrite this field — it is passed through verbatim under the label "Composition", so be concrete and actionable inside the picture frame only.
+  Cover in order (skip a clause only if truly not applicable; say "not visible" when unsure):
+  (1) Subject placement vs frame: centered, rule-of-thirds (name which intersection if clear), edge-weighted, or symmetrical balance.
+  (2) Crop tightness and what is included: e.g. tight face, head-and-shoulders, waist-up, full figure, or environment-dominant; note headroom and chin room if relevant.
+  (3) Vertical position of the subject in the frame (high / mid / low) and, if a horizon or strong horizontal is visible, whether it sits high or low in the frame.
+  (4) Foreground / midground / background emphasis in one short phrase.
+  (5) Leading lines, framing elements, or strong geometry — name them if present; otherwise "no strong leading lines".
+  (6) Notable negative space: amount and side (left/right/top/bottom) if any.
+  Do NOT repeat the camera field: no focal length, no mm equivalents, no camera-height-relative-to-eyes or horizontal viewing-angle analysis here — only how the scene is arranged inside the rectangle. One short cross-reference to the shot scale (e.g. "matches the waist-up framing implied above") is OK if it avoids duplicating lens/pose geometry.
 
 Be specific and precise. Focus on reproducible visual attributes.
 Return ONLY valid JSON, no markdown.

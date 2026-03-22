@@ -1,6 +1,6 @@
 # Steal This Vibe: цепочка промптов из `2c23ce94` → текущий прод (одна генерация)
 
-> **Версия документа:** 2026-03-22 (extract: опциональный **`extractTemperature`** в body; `camera` в `LEGACY_EXTRACT_PROMPT_2C23CE94`; §11.5; §5.4.1 merge)  
+> **Версия документа:** 2026-03-22 (extract: **`extractTemperature`**; **`camera`** и **`composition`** в `LEGACY_EXTRACT_PROMPT_2C23CE94` — `composition` под passthrough expand; §11.5; §5.4.1 merge)  
 > **Цель:** зафиксировать, *как из пикселей референса получается текст и мультимодальный запрос*, из-за которого **фото пользователя визуально приближают к стилю референса**, на примере коммита **`2c23ce94`**, и описать, **как тот же смысл приземлить в текущем стеке через фиче-флаг**, сохранив **ровно один** `POST /api/generate` за запуск (без трёх параллельных джобов).
 
 **Не цель этого документа:** описывать UI кредитов, cooldown, Bearer vs cookie, историю запусков. Это побочные детали панели.
@@ -116,13 +116,13 @@ sequenceDiagram
 | `mood` | Эмоция, атмосфера |
 | `color` | Палитра, грейдинг, контраст, насыщенность |
 | `clothing` | Одежда или `""` |
-| `composition` | Кадрирование, трети, негативное пространство, линии |
+| `composition` | Один абзац для image-gen: expand **не переписывает** поле — passthrough под меткой **Composition** (`buildLegacyVibeFullPromptBody`). Порядок: плейсмент vs кадр → кроп/масштаб → вертикаль в кадре → fg/mid/bg → линии/геометрия → негативное пространство; без дублирования **`camera`** |
 
 После парса строка пишется в **`vibes`** вместе с **`source_image_url`**; клиент получает **`vibeId`** + **`style`**.
 
 ### 4.3 Текущий прод
 
-**Extract** всегда использует контракт `2c23ce94`: **8 строковых полей**, инструкция **`LEGACY_EXTRACT_PROMPT_2C23CE94`** (в т.ч. структурированное описание ракурса в **`camera`**), insert с **`prompt_chain = legacy_2c23`**. Опционально в body: **`extractTemperature`** (0–2) — сэмплинг только для extract; extension задаёт пресетами в «Настройках». Ветки modern / one-shot / `EXTRACT_STYLE_INSTRUCTION` **удалены** (см. `landing/src/app/api/vibe/extract/route.ts`, `vibe-legacy-prompt-chain.ts`). Провайдеры Gemini/OpenAI и выбор модели — через `photo_app_config`.
+**Extract** всегда использует контракт `2c23ce94`: **8 строковых полей**, инструкция **`LEGACY_EXTRACT_PROMPT_2C23CE94`**: структурированный **`camera`**; **`composition`** — связный абзац под **passthrough** в expand (без text LLM на expand), без повторения оптики/ракурса из **`camera`**. Insert с **`prompt_chain = legacy_2c23`**. Опционально в body: **`extractTemperature`** (0–2). Ветки modern / one-shot **удалены** (`landing/src/app/api/vibe/extract/route.ts`, `vibe-legacy-prompt-chain.ts`). Провайдеры — через `photo_app_config`.
 
 ---
 
