@@ -118,6 +118,10 @@ const STRINGS = {
     step1_model: "Модель распознавания (vision)",
     step2_model: "Модель промптов (expand)",
     run_expand_prep: "Стиль готов. Готовим текстовые промпты…",
+    run_assemble: "Учитываем волосы и макияж в промпте…",
+    btn_stage_extract: "Извлекаем стиль…",
+    btn_stage_expand: "Готовим промпты…",
+    btn_stage_assemble: "Собираем промпт…",
     btn_pipeline_spec: "Системные промпты API",
     step1_final_prompt_title: "Финальный промпт (уходит в PromptShot → Gemini)",
     final_prompt_empty:
@@ -133,7 +137,8 @@ const STRINGS = {
       "Выбор сохраняется. В промпт перенос волос и макияжа попадёт только после распознавания референса («Сгенерировать»), если сервер отдаст эти части отдельно.",
     grooming_ready_hint:
       "Перенос укладки и макияжа уже учитывается в промпте. Перед новым запуском можно снять галочки до «Сгенерировать».",
-    grooming_adjust_hint: "При необходимости снимите галочки и нажмите «Продолжить генерацию».",
+    grooming_adjust_hint:
+      "Если после прошлого запуска остался шаг «Продолжить» — нажмите кнопку. В новом запуске паузы нет: галочки действуют сразу.",
     btn_continue_generate: "Продолжить генерацию",
   },
   de: {
@@ -254,6 +259,10 @@ const STRINGS = {
     step1_model: "Modell Erkennung (Vision)",
     step2_model: "Modell Prompts (Expand)",
     run_expand_prep: "Stil fertig. Text-Prompts werden erstellt…",
+    run_assemble: "Frisur/Make-up im Prompt…",
+    btn_stage_extract: "Stil wird erkannt…",
+    btn_stage_expand: "Prompts werden erstellt…",
+    btn_stage_assemble: "Prompt wird zusammengesetzt…",
     btn_pipeline_spec: "API-Systemprompts",
     step1_final_prompt_title: "Finaler Prompt (geht an PromptShot → Gemini)",
     final_prompt_empty:
@@ -269,7 +278,8 @@ const STRINGS = {
       "Deine Auswahl wird gespeichert. Frisur/Make-up landen erst im Prompt nach der Referenz-Erkennung („Generieren“), wenn der Server sie separat liefert.",
     grooming_ready_hint:
       "Frisur/Make-up sind im Prompt berücksichtigt. Vor einem neuen Lauf kannst du die Häkchen vor „Generieren“ ändern.",
-    grooming_adjust_hint: "Häkchen anpassen, dann „Weiter zur Generierung“.",
+    grooming_adjust_hint:
+      "Nach einem alten Lauf: „Weiter zur Generierung“ drücken. Neuer Lauf: keine Pause, Häkchen gelten sofort.",
     btn_continue_generate: "Weiter zur Generierung",
   },
 };

@@ -84,7 +84,11 @@ const state = {
   cooldownUntil: 0,
   toast: null,
   resuming: false,
-  waitingForPayment: false
+  waitingForPayment: false,
+  /** 0–100 during extract/expand/assemble (before result rows exist); reset when idle */
+  pipelinePrepPercent: 0,
+  /** Primary button label while generating: extract | expand | assemble | generate */
+  runStage: "idle"
 };
 
 let toastTimer = null;
@@ -455,11 +459,39 @@ function getAccentStats() {
   });
 }
 
+/** Share of the bar for LLM prep (extract → expand → assemble); rest = image generation rows */
+const PIPELINE_PREP_SHARE = 38;
+const PIPELINE_GEN_SHARE = 62;
+
 function getOverallProgressPercent() {
-  if (!Array.isArray(state.results) || state.results.length === 0) return 0;
-  const sum = state.results.reduce((acc, row) => acc + Number(row.progress || 0), 0);
-  const avg = Math.round(sum / state.results.length);
-  return Math.max(0, Math.min(100, avg));
+  const rows = Array.isArray(state.results) ? state.results : [];
+  const rowAvg =
+    rows.length > 0
+      ? Math.round(rows.reduce((acc, row) => acc + Number(row.progress || 0), 0) / rows.length)
+      : 0;
+
+  if (state.generating || state.resuming) {
+    if (!rows.length) {
+      const prep = Math.max(0, Math.min(100, Number(state.pipelinePrepPercent || 0)));
+      return Math.max(0, Math.min(100, Math.round((PIPELINE_PREP_SHARE * prep) / 100)));
+    }
+    return Math.max(
+      0,
+      Math.min(100, Math.round(PIPELINE_PREP_SHARE + (PIPELINE_GEN_SHARE * rowAvg) / 100))
+    );
+  }
+
+  if (!rows.length) return 0;
+  return Math.max(0, Math.min(100, rowAvg));
+}
+
+function primaryGenerateButtonLabel() {
+  if (state.resuming) return t("btn_resuming");
+  if (!state.generating) return t("btn_generate");
+  if (state.runStage === "extract") return t("btn_stage_extract");
+  if (state.runStage === "expand") return t("btn_stage_expand");
+  if (state.runStage === "assemble") return t("btn_stage_assemble");
+  return t("btn_generating");
 }
 
 function toSerializableState() {
@@ -600,6 +632,8 @@ async function api(path, init = {}) {
       state.user = null;
       state.credits = 0;
       state.generating = false;
+      state.runStage = "idle";
+      state.pipelinePrepPercent = 0;
       state.phase = "idle";
       state.info = "";
       state.error = t("err_session");
@@ -843,27 +877,32 @@ async function runExpand() {
   await persistState();
 }
 
+async function runAssemblePromptNow() {
+  if (!state.vibeId || !state.vibeGroomingControlsAvailable) return;
+  const data = await api("/api/vibe/assemble-prompt", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      vibeId: state.vibeId,
+      groomingPolicy: {
+        applyHair: state.groomingPolicy.applyHair,
+        applyMakeup: state.groomingPolicy.applyMakeup
+      }
+    })
+  });
+  state.prompts = Array.isArray(data.prompts) ? data.prompts : state.prompts;
+  state.finalPromptForGeneration = String(data.finalPromptForGeneration || "").trim();
+  state.finalPromptAssumesTwoImages = Boolean(data.finalPromptAssumesTwoImages);
+  await persistState();
+}
+
 function scheduleAssemblePrompt() {
   if (!state.vibeId || !state.vibeGroomingControlsAvailable) return;
   clearTimeout(assembleDebounceTimer);
   assembleDebounceTimer = setTimeout(async () => {
     assembleDebounceTimer = null;
     try {
-      const data = await api("/api/vibe/assemble-prompt", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          vibeId: state.vibeId,
-          groomingPolicy: {
-            applyHair: state.groomingPolicy.applyHair,
-            applyMakeup: state.groomingPolicy.applyMakeup
-          }
-        })
-      });
-      state.prompts = Array.isArray(data.prompts) ? data.prompts : state.prompts;
-      state.finalPromptForGeneration = String(data.finalPromptForGeneration || "").trim();
-      state.finalPromptAssumesTwoImages = Boolean(data.finalPromptAssumesTwoImages);
-      await persistState();
+      await runAssemblePromptNow();
       render();
     } catch (err) {
       setToast("error", normalizeUiError(err, "assemble"));
@@ -1083,6 +1122,8 @@ async function completeGenerationAfterExpand(runStartedAt) {
   state.prompts = allPrompts.slice(0, 1);
   if (state.prompts.length !== 1) {
     state.generating = false;
+    state.runStage = "idle";
+    state.pipelinePrepPercent = 0;
     throw new Error(t("err_expand"));
   }
 
@@ -1116,6 +1157,8 @@ async function completeGenerationAfterExpand(runStartedAt) {
   ];
   state.phase = "done";
   state.generating = false;
+  state.runStage = "idle";
+  state.pipelinePrepPercent = 0;
   state.awaitingContinueGenerate = false;
   state.pendingRunStartedAt = 0;
   state.info =
@@ -1177,26 +1220,30 @@ async function generateAll() {
   const runStartedAt = Date.now();
   state.phase = "processing";
   state.error = "";
+  state.pipelinePrepPercent = 6;
+  state.runStage = "extract";
   state.info = t("run_extract");
   render();
 
   await runExtract();
+  state.pipelinePrepPercent = 36;
+  state.runStage = "expand";
   state.info = t("run_expand_prep");
   render();
   await runExpand();
 
   if (state.vibeGroomingControlsAvailable) {
-    state.pendingRunStartedAt = runStartedAt;
-    state.awaitingContinueGenerate = true;
-    state.generating = false;
-    state.phase = "idle";
-    state.info = t("grooming_adjust_hint");
+    state.pipelinePrepPercent = 72;
+    state.runStage = "assemble";
+    state.info = t("run_assemble");
     render();
-    await persistState();
-    scheduleAssemblePrompt();
-    return;
+    await runAssemblePromptNow();
   }
 
+  state.pipelinePrepPercent = 100;
+  state.runStage = "generate";
+  state.info = t("run_generate");
+  render();
   await completeGenerationAfterExpand(runStartedAt);
 }
 
@@ -1207,6 +1254,8 @@ async function continueGenerateAfterGrooming() {
   state.pendingRunStartedAt = 0;
   state.generating = true;
   state.phase = "processing";
+  state.pipelinePrepPercent = 100;
+  state.runStage = "generate";
   state.error = "";
   state.info = t("run_generate");
   render();
@@ -1450,16 +1499,17 @@ function renderMain() {
         </div>
       </div>`;
 
-  const compareProgressHtml =
-    state.results.length > 0
-      ? `
+  const showCompareProgress =
+    state.results.length > 0 || state.generating || state.resuming;
+  const compareProgressHtml = showCompareProgress
+    ? `
           <div class="stv-compare-progress">
             <div class="progress-wrap">
               <div class="progress-bar" style="width:${escapeHtml(String(overallProgress))}%"></div>
             </div>
             <p class="muted">${escapeHtml(t("progress_total"))}: ${escapeHtml(String(overallProgress))}%</p>
           </div>`
-      : "";
+    : "";
 
   const runHistoryHtml = Array.isArray(state.runHistory) && state.runHistory.length
     ? `
@@ -1623,10 +1673,11 @@ function renderMain() {
               ${resultsCompareColumnHtml}
             </div>
           </div>
+          ${groomingMainSectionHtml}
           ${compareProgressHtml}
           <div class="stv-actions-primary stv-actions-under-photos">
             <button type="button" id="run-generate" class="primary" ${canGenerate ? "" : "disabled"}>
-              ${state.resuming ? escapeHtml(t("btn_resuming")) : state.generating ? escapeHtml(t("btn_generating")) : escapeHtml(t("btn_generate"))}
+              ${escapeHtml(primaryGenerateButtonLabel())}
             </button>
             <button type="button" id="buy-credits" class="${needsCredits ? "primary" : ""}" ${needsCredits && !state.generating ? "" : "disabled"}>
               ${state.waitingForPayment ? escapeHtml(t("btn_waiting_payment")) : escapeHtml(t("btn_buy_credits"))}
@@ -1637,7 +1688,6 @@ function renderMain() {
               ? `<p class="muted">${escapeHtml(t("cooldown"))}: ${escapeHtml(String(cooldownLeftSec))} ${escapeHtml(t("cooldown_sec"))}</p>`
               : ""
           }
-          ${groomingMainSectionHtml}
           ${
             showFirstRunHint
               ? `<p class="muted stv-compare-hint">${escapeHtml(t("first_run_hint"))}</p>`
@@ -1757,6 +1807,8 @@ function renderMain() {
         await continueGenerateAfterGrooming();
       } catch (err) {
         state.generating = false;
+        state.runStage = "idle";
+        state.pipelinePrepPercent = 0;
         state.phase = "idle";
         state.error = normalizeUiError(err, "Ошибка генерации");
         setToast("error", state.error);
@@ -1830,6 +1882,8 @@ function renderMain() {
       await generateAll();
     } catch (err) {
       state.generating = false;
+      state.runStage = "idle";
+      state.pipelinePrepPercent = 0;
       state.phase = "idle";
       state.error = normalizeUiError(err, "Ошибка генерации");
       setToast("error", state.error);

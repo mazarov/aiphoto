@@ -1,6 +1,6 @@
 # 01 — Лендинг (promptshot.ru)
 
-> Последнее обновление: 2026-03-21 (vibe: сжатые extract/expand/one-shot/runtime + общий `GENERATE_VIBE_PREFIX_TWO_IMAGES_CORE`; pose lock короче)
+> Последнее обновление: 2026-03-22 (extension: единый прогресс extract→expand→assemble→generate; assemble без паузы по чекбоксам; блок «Внешний вид» над прогрессом и кнопками)
 
 > UI side panel + content script: см. `docs/extension-ui-spec.md`; карта файлов и токены — `extension/DEVELOPER.md`.
 
@@ -79,7 +79,7 @@
 - **Логи картинок в Gemini:** **`[generation.process] gemini_multimodal_images`** — `imagesSentToGemini` (роли `IMAGE_A_style_reference` / `IMAGE_B_user_subject_*` или `user_subject_*`, `storagePath`, URL превью референса, mime, bytes), плюс **`partsSequence`**.
 - **Gemini routing:** при провайдере **gemini** extract/expand используют `photo_app_config.gemini_use_proxy` и `GEMINI_PROXY_BASE_URL`. OpenAI ходит на **`OPENAI_BASE_URL`** (или `https://api.openai.com/v1`) с **`Authorization: Bearer`**, proxy не используется.
 - **Логи (extract/expand):** Gemini: `gemini_request` / `gemini_response` / `extract_parse_ok` | `expand_parse_ok`. OpenAI: `openai_request` / `openai_response`. Общие: **`PIPELINE_FAIL`**, `extract_pipeline_failed` / `expand_pipeline_failed` / `extract_pipeline_failed_one_shot`. При `GEMINI_VIBE_DEBUG=1` — превью текста и для OpenAI (`landing/src/lib/gemini-vibe-debug-log.ts`).
-- **Extension (grooming):** после expand, если **`vibeGroomingControlsAvailable`**, пауза перед генерацией: чекбоксы волосы/макияж → debounced **`assemble-prompt`** → кнопка «Продолжить генерацию». **`generate`** по-прежнему шлёт unprefixed **`prompt`** из `prompts[0]`; префикс добавляет **`generate-process`**. Детали и решения v1 — **`docs/20-03-vibe-grooming-extension-controls.md` §3.4**.
+- **Extension (grooming):** блок **«Внешний вид (референс)»** (чекбоксы волосы/макияж) в UI **выше** полосы прогресса и кнопок «Сгенерировать» / «Купить кредиты». При запуске генерации: после **`expand`**, если **`vibeGroomingControlsAvailable`**, side panel **сразу** вызывает **`assemble-prompt`** с текущими чекбоксами (без паузы и без обязательного «Продолжить»). Debounced **`assemble-prompt`** остаётся для правок чекбоксов **вне** активного запуска. Прогресс и подпись primary-кнопки покрывают весь пайплайн: extract → expand → assemble (если есть) → polling **`/api/generations/:id`**. **`generate`** по-прежнему шлёт unprefixed **`prompt`** из `prompts[0]`; префикс добавляет **`generate-process`**. Детали v1 — **`docs/20-03-vibe-grooming-extension-controls.md` §3.4** (кнопка «Продолжить» — только для старых сохранённых сессий с **`awaitingContinueGenerate`**).
 
 ### Покупка web-кредитов через Telegram Stars
 
