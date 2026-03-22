@@ -18,6 +18,8 @@ const MAX_RUN_HISTORY = 10;
 const TOAST_TIMEOUT_MS = 3200;
 /** Включает режим как в коммите 2c23ce94: 3 промпта → 3 параллельных `POST /api/generate`. См. docs/22-03-stv-single-generation-flow.md §3 */
 const TRIPLE_VARIANT_FLOW_LS_KEY = "stv_triple_variant_flow";
+/** Matches POST /api/generate validation (max 4 user images). */
+const MAX_USER_PHOTOS = 4;
 
 function isTripleVariantFlowEnabled() {
   try {
@@ -63,16 +65,13 @@ const state = {
   credits: 0,
   sourceImageUrl: "",
   sourceContext: null,
-  photoStoragePath: "",
-  uploadedFileName: "",
-  /** In-memory preview after upload (not persisted). */
-  photoPreviewObjectUrl: "",
-  /** Signed Supabase URL when blob is gone (reload); not persisted. */
-  photoPreviewSignedUrl: "",
-  /** Path we last resolved `photoPreviewSignedUrl` for (avoid duplicate fetches). */
-  photoPreviewSignedForPath: "",
-  /** True while fetching signed URL for storage preview (blob URL missing). */
-  userPhotoPreviewLoading: false,
+  /**
+   * User subject photos for generation (order = API order).
+   * Persisted: storagePath + fileName only. Ephemeral: previewObjectUrl, signed*, uploading.
+   */
+  userPhotos: [],
+  /** True while fetching signed preview URLs after reload. */
+  userPhotosPreviewLoading: false,
   selectedModel: "gemini-2.5-flash-image",
   selectedAspectRatio: "1:1",
   selectedImageSize: "1K",
@@ -154,68 +153,102 @@ function escapeHtml(value) {
     .replace(/"/g, "&quot;");
 }
 
-function revokePhotoPreviewObjectUrl() {
-  if (state.photoPreviewObjectUrl) {
-    try {
-      URL.revokeObjectURL(state.photoPreviewObjectUrl);
-    } catch {
-      /* ignore */
+function revokeAllUserPhotoObjectUrls() {
+  for (const p of state.userPhotos) {
+    if (p.previewObjectUrl) {
+      try {
+        URL.revokeObjectURL(p.previewObjectUrl);
+      } catch {
+        /* ignore */
+      }
+      p.previewObjectUrl = "";
     }
-    state.photoPreviewObjectUrl = "";
   }
 }
 
-function clearPhotoPreviewSignedUrl() {
-  state.photoPreviewSignedUrl = "";
-  state.photoPreviewSignedForPath = "";
+function clearAllUserPhotoSignedUrls() {
+  for (const p of state.userPhotos) {
+    p.signedPreviewUrl = "";
+    p.signedForPath = "";
+  }
+}
+
+function userPhotoStoragePaths() {
+  return state.userPhotos.map((p) => p.storagePath).filter(Boolean);
+}
+
+function hasUserPhotos() {
+  return state.userPhotos.length > 0;
 }
 
 /** Avoid parallel signed-url fetches from repeated renderMain(). */
-let userPhotoPreviewRefreshPromise = null;
+let userPhotosSignedRefreshPromise = null;
 
 /**
- * After side panel reload, blob URLs are gone but `photoStoragePath` persists.
- * Fetch a time-limited signed URL so <img> can show the uploaded file.
+ * After reload, blob URLs are gone; fetch signed URL per stored path for <img> previews.
  */
-async function refreshUserPhotoPreviewIfNeeded() {
-  if (!state.photoStoragePath || state.photoPreviewObjectUrl) {
-    state.userPhotoPreviewLoading = false;
-    return;
-  }
-  if (
-    state.photoPreviewSignedUrl &&
-    state.photoPreviewSignedForPath === state.photoStoragePath
-  ) {
-    state.userPhotoPreviewLoading = false;
-    return;
-  }
+async function refreshUserPhotosSignedPreviews() {
   if (!state.user || !accessTokenRef) {
-    state.userPhotoPreviewLoading = false;
+    state.userPhotosPreviewLoading = false;
     return;
   }
-  if (userPhotoPreviewRefreshPromise) {
-    return userPhotoPreviewRefreshPromise;
+  const need = state.userPhotos.filter(
+    (p) =>
+      p.storagePath &&
+      !p.previewObjectUrl &&
+      (!p.signedPreviewUrl || p.signedForPath !== p.storagePath)
+  );
+  if (!need.length) {
+    state.userPhotosPreviewLoading = false;
+    return;
   }
-  userPhotoPreviewRefreshPromise = (async () => {
-    state.userPhotoPreviewLoading = true;
+  if (userPhotosSignedRefreshPromise) {
+    return userPhotosSignedRefreshPromise;
+  }
+  userPhotosSignedRefreshPromise = (async () => {
+    state.userPhotosPreviewLoading = true;
     render();
     try {
-      const q = encodeURIComponent(state.photoStoragePath);
-      const data = await api(`/api/upload-generation-photo/signed-url?path=${q}`);
-      const url = data?.signedUrl;
-      if (typeof url === "string" && url.startsWith("http")) {
-        state.photoPreviewSignedUrl = url;
-        state.photoPreviewSignedForPath = state.photoStoragePath;
-      }
+      await Promise.all(
+        need.map(async (p) => {
+          const q = encodeURIComponent(p.storagePath);
+          const data = await api(`/api/upload-generation-photo/signed-url?path=${q}`);
+          const url = data?.signedUrl;
+          const item = state.userPhotos.find((x) => x.storagePath === p.storagePath);
+          if (item && typeof url === "string" && url.startsWith("http")) {
+            item.signedPreviewUrl = url;
+            item.signedForPath = p.storagePath;
+          }
+        })
+      );
     } catch (e) {
-      console.warn("[stv] user photo signed preview:", e);
+      console.warn("[stv] user photos signed preview:", e);
     } finally {
-      userPhotoPreviewRefreshPromise = null;
-      state.userPhotoPreviewLoading = false;
+      userPhotosSignedRefreshPromise = null;
+      state.userPhotosPreviewLoading = false;
+      render();
     }
-    render();
   })();
-  return userPhotoPreviewRefreshPromise;
+  return userPhotosSignedRefreshPromise;
+}
+
+function removeUserPhotoAt(index) {
+  const p = state.userPhotos[index];
+  if (!p) return;
+  if (p.previewObjectUrl) {
+    try {
+      URL.revokeObjectURL(p.previewObjectUrl);
+    } catch {
+      /* ignore */
+    }
+  }
+  state.userPhotos.splice(index, 1);
+}
+
+function truncateFileName(name, maxLen) {
+  const s = String(name || "").trim();
+  if (s.length <= maxLen) return s;
+  return `${s.slice(0, Math.max(0, maxLen - 1))}…`;
 }
 
 function clearToastTimer() {
@@ -610,8 +643,7 @@ function toSerializableState() {
     phase: state.phase,
     sourceImageUrl: state.sourceImageUrl,
     sourceContext: state.sourceContext,
-    photoStoragePath: state.photoStoragePath,
-    uploadedFileName: state.uploadedFileName,
+    userPhotos: state.userPhotos.map(({ storagePath, fileName }) => ({ storagePath, fileName })),
     selectedModel: state.selectedModel,
     selectedAspectRatio: state.selectedAspectRatio,
     selectedImageSize: state.selectedImageSize,
@@ -695,8 +727,32 @@ function applyPersistedState(saved) {
   state.phase = saved.phase || state.phase;
   state.sourceImageUrl = saved.sourceImageUrl || state.sourceImageUrl;
   state.sourceContext = saved.sourceContext || state.sourceContext;
-  state.photoStoragePath = saved.photoStoragePath || state.photoStoragePath;
-  state.uploadedFileName = saved.uploadedFileName || state.uploadedFileName;
+  if (Array.isArray(saved.userPhotos) && saved.userPhotos.length) {
+    state.userPhotos = saved.userPhotos
+      .filter((p) => p && typeof p.storagePath === "string" && String(p.storagePath).trim())
+      .map((p) => ({
+        storagePath: String(p.storagePath).trim(),
+        fileName: String(p.fileName || ""),
+        previewObjectUrl: "",
+        signedPreviewUrl: "",
+        signedForPath: "",
+        uploading: false
+      }))
+      .slice(0, MAX_USER_PHOTOS);
+  } else if (saved.photoStoragePath && String(saved.photoStoragePath).trim()) {
+    state.userPhotos = [
+      {
+        storagePath: String(saved.photoStoragePath).trim(),
+        fileName: String(saved.uploadedFileName || ""),
+        previewObjectUrl: "",
+        signedPreviewUrl: "",
+        signedForPath: "",
+        uploading: false
+      }
+    ];
+  } else if (Array.isArray(saved.userPhotos)) {
+    state.userPhotos = [];
+  }
   state.selectedModel = saved.selectedModel || state.selectedModel;
   state.selectedAspectRatio = saved.selectedAspectRatio || state.selectedAspectRatio;
   state.selectedImageSize = saved.selectedImageSize || state.selectedImageSize;
@@ -880,15 +936,12 @@ async function refreshAuthSilently() {
     render();
     await persistState();
   }
-  /* Blob preview is lost after panel unload; retry signed URL if still empty (first fetch may have raced token). */
-  if (
-    state.user &&
-    accessTokenRef &&
-    state.photoStoragePath &&
-    !state.photoPreviewObjectUrl &&
-    !state.photoPreviewSignedUrl
-  ) {
-    void refreshUserPhotoPreviewIfNeeded();
+  /* Blob previews lost after unload; fill signed URLs for persisted paths. */
+  const anyNeedSigned = state.userPhotos.some(
+    (p) => p.storagePath && !p.previewObjectUrl && !p.signedPreviewUrl
+  );
+  if (state.user && accessTokenRef && anyNeedSigned) {
+    void refreshUserPhotosSignedPreviews();
   }
 }
 
@@ -954,11 +1007,21 @@ function startCreditPolling() {
   }, CREDIT_POLL_INTERVAL);
 }
 
-async function uploadPhoto(file) {
+async function uploadUserPhotoFile(file) {
+  if (state.userPhotos.length >= MAX_USER_PHOTOS) {
+    return;
+  }
   const form = new FormData();
   form.append("file", file);
   const data = await api("/api/upload-generation-photo", { method: "POST", body: form });
-  state.photoStoragePath = data.storagePath;
+  state.userPhotos.push({
+    storagePath: data.storagePath,
+    fileName: file.name,
+    previewObjectUrl: URL.createObjectURL(file),
+    signedPreviewUrl: "",
+    signedForPath: "",
+    uploading: false
+  });
   await persistState();
 }
 
@@ -1039,7 +1102,7 @@ async function createGeneration(promptVariant) {
       aspectRatio: state.selectedAspectRatio,
       imageSize: state.selectedImageSize,
       vibeId: state.vibeId,
-      photoStoragePaths: [state.photoStoragePath]
+      photoStoragePaths: userPhotoStoragePaths()
     })
   });
   return String(data.id);
@@ -1364,7 +1427,7 @@ async function completeGenerationAfterExpand(runStartedAt) {
 async function generateAll() {
   if (state.generating || state.awaitingContinueGenerate) return;
   if (!state.sourceImageUrl) throw new Error("Нет source image");
-  if (!state.photoStoragePath) throw new Error("Сначала загрузите фото");
+  if (!hasUserPhotos()) throw new Error("Сначала загрузите фото");
   if (getCooldownLeftSeconds() > 0) {
     throw new Error(`Подождите ${getCooldownLeftSeconds()} сек перед новым запуском`);
   }
@@ -1434,7 +1497,7 @@ async function retryResultById(id) {
   if (state.generating) return;
   const row = state.results.find((r) => r.id === id || `${r.accent}:${r.attempt}` === id);
   if (!row) return;
-  if (!state.photoStoragePath) {
+  if (!hasUserPhotos()) {
     state.error = "Сначала загрузите фото";
     render();
     return;
@@ -1472,11 +1535,10 @@ async function resetSession() {
   state.phase = "idle";
   state.error = "";
   state.info = t("session_cleared");
-  revokePhotoPreviewObjectUrl();
-  clearPhotoPreviewSignedUrl();
-  state.userPhotoPreviewLoading = false;
-  state.photoStoragePath = "";
-  state.uploadedFileName = "";
+  revokeAllUserPhotoObjectUrls();
+  clearAllUserPhotoSignedUrls();
+  state.userPhotos = [];
+  state.userPhotosPreviewLoading = false;
   state.vibeId = null;
   state.style = null;
   state.extractModel = "";
@@ -1611,13 +1673,73 @@ function renderAuthRequired() {
   });
 }
 
+function buildUserPhotosBlockHtml() {
+  const n = state.userPhotos.length;
+  const atMax = n >= MAX_USER_PHOTOS;
+  const fileInput = `<input id="photo-file" class="stv-photo-file-input" type="file" accept="image/jpeg,image/png,image/webp" />`;
+
+  let grid = "";
+  if (n === 0) {
+    grid = `<label class="stv-user-photo-empty" for="photo-file">
+        <span class="stv-user-photo-empty-plus" aria-hidden="true">+</span>
+        <span class="stv-user-photo-empty-title">${escapeHtml(t("photo_pick_empty"))}</span>
+      </label>`;
+  } else {
+    grid = `<div class="stv-user-photos-grid">${state.userPhotos
+      .map((p, i) => {
+        const src = p.previewObjectUrl || p.signedPreviewUrl || "";
+        let inner;
+        if (p.uploading) {
+          inner = `<div class="stv-user-photo-thumb-placeholder muted">${escapeHtml(t("uploading_photo"))}</div>`;
+        } else if (src) {
+          inner = `<img class="stv-user-photo-thumb" src="${escapeHtml(src)}" alt="" />`;
+        } else if (state.userPhotosPreviewLoading) {
+          inner = `<div class="stv-user-photo-thumb-placeholder muted">${escapeHtml(t("photo_preview_loading"))}</div>`;
+        } else {
+          inner = `<div class="stv-user-photo-thumb-placeholder muted"><span class="photo-saved" aria-hidden="true">✓</span></div>`;
+        }
+        return `<div class="stv-user-photo-cell">
+          ${inner}
+          <button type="button" class="stv-user-photo-remove" data-remove-photo="${String(i)}" aria-label="${escapeHtml(t("photo_remove_aria"))}">×</button>
+          <span class="stv-user-photo-filename">${escapeHtml(truncateFileName(p.fileName, 24))}</span>
+        </div>`;
+      })
+      .join("")}</div>`;
+  }
+
+  let actions = "";
+  if (!atMax && n > 0) {
+    actions = `<div class="stv-user-photos-actions">
+        <label class="stv-user-photo-add-btn" for="photo-file">${escapeHtml(t("photo_add_more"))}</label>
+      </div>`;
+  } else if (atMax) {
+    actions = `<p class="muted stv-user-photos-max">${escapeHtml(t("photo_max_label"))}</p>`;
+  }
+
+  const countLine =
+    n > 0
+      ? `<p class="muted stv-user-photos-count">${escapeHtml(
+          t("photo_count").replace("{n}", String(n)).replace("{m}", String(MAX_USER_PHOTOS))
+        )}</p>`
+      : "";
+
+  return `<div class="stv-user-photos-block">
+      <p class="muted stv-user-photos-sub">${escapeHtml(t("user_photos_subtitle"))}</p>
+      <p class="muted stv-user-photos-hint">${escapeHtml(t("user_photos_hint"))}</p>
+      ${grid}
+      ${countLine}
+      ${actions}
+      ${fileInput}
+    </div>`;
+}
+
 function renderMain() {
   const requiredCredits = getRequiredCredits();
   const promptsPerRunUi = getPromptsPerRun();
   const cooldownLeftSec = getCooldownLeftSeconds();
   const canGenerate = Boolean(
     state.sourceImageUrl &&
-      state.photoStoragePath &&
+      hasUserPhotos() &&
       !state.generating &&
       !state.awaitingContinueGenerate &&
       state.credits >= requiredCredits &&
@@ -1630,26 +1752,8 @@ function renderMain() {
   const overallProgress = getOverallProgressPercent();
   const showFirstRunHint = !state.sourceImageUrl && (!Array.isArray(state.runHistory) || state.runHistory.length === 0);
 
-  const userPhotoSrc = state.photoPreviewObjectUrl || state.photoPreviewSignedUrl;
-  const userPhotoFrame = userPhotoSrc
-    ? `<img class="stv-compare-img" src="${escapeHtml(userPhotoSrc)}" alt="" />`
-    : state.photoStoragePath
-      ? state.userPhotoPreviewLoading
-        ? `<div class="stv-compare-placeholder muted">${escapeHtml(t("photo_preview_loading"))}</div>`
-        : `<div class="stv-compare-placeholder">
-          <span class="photo-saved" aria-hidden="true">✓</span>
-          <span class="muted">${escapeHtml(state.uploadedFileName || t("photo_saved_label"))}</span>
-        </div>`
-      : `<div class="stv-compare-placeholder muted">${escapeHtml(t("compare_photo_empty"))}</div>`;
-
-  const hasUserPhoto = Boolean(state.photoStoragePath);
-  const userPhotoUploadBar = `
-    <div class="stv-photo-upload-bar">
-      <label class="stv-photo-file-label" for="photo-file">${escapeHtml(
-        hasUserPhoto ? t("photo_replace") : t("photo_pick")
-      )}</label>
-      <input id="photo-file" class="stv-photo-file-input" type="file" accept="image/jpeg,image/png,image/webp" />
-    </div>`;
+  const hasUserPhoto = hasUserPhotos();
+  const userPhotosInner = buildUserPhotosBlockHtml();
 
   const referenceFrame = state.sourceImageUrl
     ? `<img class="stv-compare-img" src="${escapeHtml(referenceImageSrcForUi())}" alt="" />`
@@ -1788,9 +1892,8 @@ function renderMain() {
           <div class="stv-compare-grid">
             <div class="stv-compare-col">
               <span class="stv-field-label">${escapeHtml(t("compare_col_your_photo"))}</span>
-              <div class="stv-photo-frame stv-photo-frame--user${hasUserPhoto ? " has-photo" : ""}">
-                <div class="stv-photo-frame-content">${userPhotoFrame}</div>
-                ${userPhotoUploadBar}
+              <div class="stv-photo-frame stv-photo-frame--user stv-photo-frame--user-multi${hasUserPhoto ? " has-user-photos" : ""}">
+                <div class="stv-photo-frame-content stv-photo-frame-content--multi">${userPhotosInner}</div>
               </div>
             </div>
             <div class="stv-compare-col">
@@ -2004,26 +2107,42 @@ function renderMain() {
     await persistState();
   });
 
-  document.getElementById("photo-file").addEventListener("change", async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    try {
-      state.error = "";
-      state.uploadedFileName = file.name;
-      state.info = t("uploading_photo");
+  const photoFileInput = document.getElementById("photo-file");
+  if (photoFileInput) {
+    photoFileInput.addEventListener("change", async (e) => {
+      const file = e.target.files?.[0];
+      e.target.value = "";
+      if (!file) return;
+      if (state.userPhotos.length >= MAX_USER_PHOTOS) {
+        setToast("info", t("photo_max_reached"));
+        render();
+        return;
+      }
+      try {
+        state.error = "";
+        state.info = t("uploading_photo");
+        render();
+        await uploadUserPhotoFile(file);
+        state.info = t("photo_uploaded");
+        setToast("success", state.userPhotos.length > 1 ? t("photo_added") : t("photo_uploaded"));
+        render();
+      } catch (err) {
+        state.error = normalizeUiError(err, "Ошибка загрузки фото");
+        setToast("error", state.error);
+        render();
+      }
+    });
+  }
+
+  app.querySelectorAll("[data-remove-photo]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const raw = btn.getAttribute("data-remove-photo");
+      const idx = Number(raw);
+      if (!Number.isFinite(idx) || idx < 0) return;
+      removeUserPhotoAt(idx);
+      await persistState();
       render();
-      await uploadPhoto(file);
-      revokePhotoPreviewObjectUrl();
-      clearPhotoPreviewSignedUrl();
-      state.photoPreviewObjectUrl = URL.createObjectURL(file);
-      state.info = t("photo_uploaded");
-      setToast("success", t("photo_uploaded"));
-      render();
-    } catch (err) {
-      state.error = normalizeUiError(err, "Ошибка загрузки фото");
-      setToast("error", state.error);
-      render();
-    }
+    });
   });
 
   document.getElementById("run-generate").addEventListener("click", async () => {
@@ -2090,7 +2209,7 @@ function renderMain() {
   }
 
   bindRunHistoryActions();
-  void refreshUserPhotoPreviewIfNeeded();
+  void refreshUserPhotosSignedPreviews();
 }
 
 function render() {
@@ -2186,7 +2305,7 @@ async function boot() {
     if (document.visibilityState === "visible" && !state.loading) {
       void (async () => {
         await refreshAuthSilently();
-        void refreshUserPhotoPreviewIfNeeded();
+        void refreshUserPhotosSignedPreviews();
         void tryConsumePendingVibeFromSessionPoll();
       })();
     }
@@ -2196,7 +2315,7 @@ async function boot() {
     if (e.persisted && !state.loading) {
       void (async () => {
         await refreshAuthSilently();
-        void refreshUserPhotoPreviewIfNeeded();
+        void refreshUserPhotosSignedPreviews();
       })();
     }
   });

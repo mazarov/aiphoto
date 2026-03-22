@@ -951,6 +951,175 @@ img.preview {
   color: rgba(255, 255, 255, 0.9);
 }
 
+/* Multi user photos (1–4) — см. docs/23-03-stv-multi-user-photos-ui.md */
+.stv-photo-frame--user-multi {
+  aspect-ratio: auto;
+  min-height: 168px;
+  max-height: 320px;
+  align-items: stretch;
+}
+
+.stv-photo-frame--user-multi .stv-photo-frame-content--multi {
+  display: block;
+  width: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 6px 8px 8px;
+}
+
+.stv-user-photos-block {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.stv-user-photos-block .stv-photo-file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.stv-user-photos-sub,
+.stv-user-photos-hint {
+  font-size: 11px;
+  line-height: 1.35;
+  margin: 0;
+}
+
+.stv-user-photo-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 112px;
+  border: 1px dashed var(--stv-border-strong);
+  border-radius: var(--stv-radius-sm);
+  background: rgba(0, 0, 0, 0.22);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.stv-user-photo-empty:hover {
+  border-color: rgba(99, 102, 241, 0.45);
+  background: rgba(99, 102, 241, 0.08);
+}
+
+.stv-user-photo-empty-plus {
+  font-size: 26px;
+  font-weight: 300;
+  color: var(--stv-text-muted);
+  line-height: 1;
+}
+
+.stv-user-photo-empty-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--stv-text-muted);
+  text-align: center;
+  padding: 0 8px;
+}
+
+.stv-user-photos-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.stv-user-photo-cell {
+  position: relative;
+  border-radius: var(--stv-radius-sm);
+  border: 1px solid var(--stv-border-strong);
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.28);
+  min-height: 0;
+}
+
+.stv-user-photo-thumb {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  display: block;
+}
+
+.stv-user-photo-thumb-placeholder {
+  min-height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  text-align: center;
+  font-size: 10px;
+}
+
+.stv-user-photo-remove {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.72);
+  color: #fafafa;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.stv-user-photo-remove:hover {
+  background: rgba(185, 28, 28, 0.92);
+}
+
+.stv-user-photo-filename {
+  display: block;
+  width: 100%;
+  padding: 4px 6px;
+  font-size: 10px;
+  color: var(--stv-text-muted);
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border-top: 1px solid var(--stv-border);
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.stv-user-photos-actions {
+  margin-top: 2px;
+}
+
+.stv-user-photo-add-btn {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--stv-primary);
+  cursor: pointer;
+}
+
+.stv-user-photo-add-btn:hover {
+  color: var(--stv-primary-hover);
+}
+
+.stv-user-photos-max,
+.stv-user-photos-count {
+  font-size: 11px;
+  margin: 0;
+}
+
 .stv-compare-img {
   max-width: 100%;
   max-height: 100%;

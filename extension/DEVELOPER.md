@@ -7,7 +7,7 @@
 | Файл | Назначение |
 |------|------------|
 | `sidepanel/styles.css` | Визуал панели: токены `--stv-*`, классы `.stv-*`, базовые `.card`, `.row` |
-| `sidepanel/app.js` | Состояние `state`, `render()` …; доставка референса: **`STV_PENDING_VIBE`**, **`session.onChanged`**, и **poll `chrome.storage.session` ~350ms** (основной запас, т.к. SW→panel часто молчит); превью референса с **`_stv=<at>`** cache-bust; превью **загруженного фото**: `blob:` после выбора файла, после перезагрузки панели — **`/api/upload-generation-photo/signed-url`** (`refreshUserPhotoPreviewIfNeeded`), повтор при **`visibilitychange` / `pageshow`** и при **`refreshAuthSilently`** если signed URL ещё пуст |
+| `sidepanel/app.js` | Состояние `state`, `render()` …; доставка референса: **`STV_PENDING_VIBE`**, **`session.onChanged`**, и **poll `chrome.storage.session` ~350ms** (основной запас, т.к. SW→panel часто молчит); превью референса с **`_stv=<at>`** cache-bust; **фото пользователя (1–4):** `state.userPhotos[]` (`storagePath`, `fileName` + эфемерные превью); persist только пути/имена; миграция со старых `photoStoragePath` / `uploadedFileName`; после перезагрузки — **`refreshUserPhotosSignedPreviews()`** (signed URL на каждый path), см. `docs/23-03-stv-multi-user-photos-ui.md`; `POST /api/generate` получает **`photoStoragePaths`** = все пути в порядке сетки |
 | `sidepanel/i18n.js` | Строки RU/DE (`t("key")`) |
 | `sidepanel/index.html` | Корень `#app`, подключение CSS/JS |
 | `content-script.js` | Плавающая кнопка: Shadow DOM; визуал как **mini side panel** (zinc surface + градиент только на **P**); видимость: throttled **`mousemove`** + **паддинг вокруг active img** (не полагаться на `document mouseout` — ломает Pinterest) |
