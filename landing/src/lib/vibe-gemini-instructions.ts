@@ -376,10 +376,11 @@ It is NOT the person to depict in the output. Do NOT copy this person's face, bo
 /** Placed immediately BEFORE the user's photo inline image(s). */
 export const VIBE_IMAGE_PART_LABEL_SUBJECT = `
 [IMAGE B — SUBJECT / USER IDENTITY]
-The NEXT part is the ONLY source for who the person in the output must be. The output face MUST match this person (same identity).
-Re-style hair and apply makeup to match IMAGE A's groomed look — the person must NOT look like an unchanged snapshot from B; only identity (bone structure, natural hair color) stays from B.
-If the result looks like IMAGE A's model, you FAILED — redo mentally until the face matches IMAGE B.
-Ignore B's original pose, head tilt, and camera angle when they conflict with IMAGE A — B is an identity plate, not a blocking reference. Re-pose the body and head to match A's geometry.
+The NEXT image is the ONLY source for WHO the person is: face shape, bone structure, features, eyes, skin undertone, age, body, and natural HAIR COLOR/pigment (never use A's hair color).
+It is NOT the styling source for hair layout or makeup when the long text below includes "Hair styling (transfer from reference)" and/or "Makeup and skin (transfer from reference)": then hair STYLING and MAKEUP LOOK come from IMAGE A, not from B's pixels — only B's identity + hair pigment stay from B.
+If those grooming sections are absent in the text, keep B's casual hair and face as in B.
+The output must read as B's face, not A's. If it looks like A's face, you FAILED.
+Ignore B's pose, head tilt, and camera angle when they conflict with IMAGE A — re-pose to match A's geometry and the scene.
 `.trim();
 
 /**
@@ -400,8 +401,8 @@ const GENERATE_VIBE_CRITICAL_RULES_DUAL = `
 CRITICAL RULES
 Earlier parts were labeled: IMAGE A = style reference (not the output identity); IMAGE B = subject (only identity). Output one new photograph of B as if shot in A's session — A's pose, light, set, wardrobe, and grade on B. Not a face-swap or lazy crop.
 
-- Identity: B's face, bone structure, skin, eyes, age, body; keep B's natural hair color; restyle hair and makeup to A's shoot.
-- If the scene text asks to transfer hair or makeup from A, the change must read clearly in pixels — leaving B looking like an unstyled snapshot of B is wrong when A shows a styled look.
+- Split sources: from B = identity (face, bones, eyes, body) + natural HAIR COLOR only. From A = hair STYLING and MAKEUP LOOK when the text includes the grooming-transfer sections — then do not treat B's hairstyle or makeup in B's photo as the target; override them with A's styled look while keeping B's face and hair pigment.
+- If grooming transfer is requested, the change must read clearly in pixels — B must not look like an unstyled snapshot of B when A is clearly groomed.
 - Grooming = beauty finish only — does not override torso/head angles from A or the scene.
 - Wardrobe, set, light, camera, palette: match A + scene on B.
 - Face/hair/skin prose in the scene = reference only — apply look to B, never copy A's identity.
@@ -435,15 +436,16 @@ function buildFlashImageGroomingRecencyTail(unprefixedBody: string): string {
   if (!hair && !makeup) return "";
   const lines: string[] = [
     "LAST — must show in the output image (not optional wording):",
+    "Hierarchy: B = who + natural hair color; A = hair styling + makeup (for this request). Ignore B's haircut/makeup pixels as the goal when they differ from A.",
   ];
   if (hair) {
     lines.push(
-      "• Hair: visibly restyle B to match IMAGE A's hair styling (silhouette, volume, parting, finish, shine/matte). Keep B's natural hair pigment only.",
+      "• Hair: visibly match IMAGE A's styling (silhouette, volume, parting, finish) on B's head; keep only B's natural pigment — not B's original layout from the photo.",
     );
   }
   if (makeup) {
     lines.push(
-      "• Face: visibly match IMAGE A's makeup intensity, eye definition, lip finish, and skin finish on B. Do not leave B looking like B's casual/unretouched photo if A is clearly groomed.",
+      "• Face: visibly match IMAGE A's makeup and skin finish on B — replace B's casual look, do not clone B's bare/casual face from the input.",
     );
   }
   return `\n\n${lines.join("\n")}`;

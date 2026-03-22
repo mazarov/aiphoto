@@ -50,6 +50,8 @@ export function buildLegacyVibeFullPromptBody(style: LegacyVibeStylePayload): st
 /**
  * Extension checkboxes «волосы / макияж»: без отдельных колонок grooming в legacy — добавляем явные
  * англоязычные секции к телу промпта (перед `assembleVibeFinalPrompt`).
+ * Section title lines (`Hair styling (transfer from reference):`, etc.) are referenced by
+ * `VIBE_IMAGE_PART_LABEL_SUBJECT` in `vibe-gemini-instructions.ts` — keep titles in sync.
  */
 export function appendLegacyGroomingPolicyBlocks(baseBody: string, policy: GroomingPolicy): string {
   const base = String(baseBody ?? "").trimEnd();
@@ -57,13 +59,15 @@ export function appendLegacyGroomingPolicyBlocks(baseBody: string, policy: Groom
   if (policy.applyHair) {
     extras.push(
       "Hair styling (transfer from reference):\n" +
-        "Restyle the subject's hair to match the reference photograph — silhouette, volume, parting, and finish — while keeping the subject's natural hair color from their identity photo (see image-gen rules).",
+        "No conflict with identity: from IMAGE B take only face + natural hair COLOR/pigment (never copy A's hair color). From IMAGE A take the entire HAIR STYLING — silhouette, length impression, volume, parting, texture, finish.\n" +
+        "Do not preserve B's haircut layout, part, or volume from B's pixels when they differ from A; B is not the styling reference for hair. Output must show A's hairstyle on B's head with B's natural pigment.",
     );
   }
   if (policy.applyMakeup) {
     extras.push(
       "Makeup and skin (transfer from reference):\n" +
-        "Match makeup intensity, eye look, lip finish, and skin finish to the reference photograph on the subject's face.",
+        "No conflict with identity: from IMAGE B take only facial structure and identity. From IMAGE A take the MAKEUP LOOK and skin/beauty finish (eyes, lips, brows, contour, matte vs glow).\n" +
+        "Replace B's apparent makeup and skin finish in B's photo with A's groomed look on B's face — do not keep B's casual/unmade-up pixels as the target when A is clearly styled.",
     );
   }
   if (!extras.length) return base;
