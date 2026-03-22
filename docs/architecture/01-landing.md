@@ -1,6 +1,6 @@
 # 01 — Лендинг (promptshot.ru)
 
-> Последнее обновление: 2026-03-23 (**web generate без vibe:** `assembleLandingCardFinalPrompt` — после текста карточки блок **CRITICAL RULES** с принудительной сменой гардероба по промпту)
+> Последнее обновление: 2026-03-23 (**CRITICAL RULES:** общий пункт качества — фотореализм, текстуры, 8K-grade detail; карточка + vibe single/dual)
 
 > UI side panel + content script: см. `docs/extension-ui-spec.md`; карта файлов и токены — `extension/DEVELOPER.md`.
 

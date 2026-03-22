@@ -388,10 +388,15 @@ Ignore B's pose, head tilt, and camera angle when they conflict with IMAGE A —
  * Dual-image: IMAGE A/B labels are separate parts in `generate-process` before this string.
  */
 
+/** Shared tail for all image-gen CRITICAL RULES (card + vibe). Pixel cap still from `generationConfig.imageConfig.imageSize`. */
+const IMAGE_QUALITY_CRITICAL_BULLET =
+  "- Photorealistic output, high textural detail, high quality, 8K-grade resolution and micro-detail (maximize sharpness and surface fidelity).";
+
 const GENERATE_VIBE_CRITICAL_RULES_SINGLE = `
 CRITICAL RULES
 - Preserve: face structure, features, skin tone, eye color, proportions.
 - Subject must look naturally photographed in the setting, not pasted.
+${IMAGE_QUALITY_CRITICAL_BULLET}
 `.trim();
 
 /**
@@ -405,6 +410,7 @@ The input image(s) show the SUBJECT (a real person). Output exactly one new phot
 - Identity: preserve the same person — face structure, features, skin tone, eye color, body proportions, natural hair color from the input. Do not swap in a different face or body.
 - Wardrobe — fully replace clothing: ignore the apparel, shoes, and visible accessories in the input photo as the outfit to keep. Treat input clothing as something to discard unless the text explicitly says to preserve it. Dress the subject exactly as the text prompt describes — fully change the outfit to match the prompt; do not default to copying the T-shirt, hoodie, jeans, dress, or shoes from the upload. If the text names specific garments, colors, or style, the output must show those.
 - Result must look naturally photographed, not pasted or flatly composited.
+${IMAGE_QUALITY_CRITICAL_BULLET}
 `.trim();
 
 const GENERATE_VIBE_CRITICAL_RULES_DUAL = `
@@ -416,6 +422,7 @@ Earlier parts were labeled: IMAGE A = style reference (not the output identity);
 - Grooming = beauty finish only — does not override torso/head angles from A or the scene.
 - Wardrobe, set, light, camera, palette: match A + scene on B.
 - Face/hair/skin prose in the scene = reference only — apply look to B, never copy A's identity.
+${IMAGE_QUALITY_CRITICAL_BULLET}
 `.trim();
 
 function joinVibeFinalPromptParts(scene: string, criticalRules: string): string {
