@@ -94,6 +94,12 @@ const STRINGS = {
     accent_composition: "Композиция",
     err_session: "Сессия истекла. Войдите снова.",
     err_expand: "Не удалось подготовить промпт. Попробуйте снова.",
+    err_expand_three:
+      "Сервер должен вернуть ровно 3 промпта в режиме «3× генерация». Выключите флаг в «Для разработчиков» или повторите запуск.",
+    all_done_triple: "Все три варианта готовы",
+    dev_flag_triple_label: "Режим 3× генерация за один запуск (эксперимент)",
+    dev_flag_triple_hint:
+      "localStorage: stv_triple_variant_flow. См. docs/22-03-stv-single-generation-flow.md §3.",
     session_retry_hint: "Сессия прервана до старта. Нажмите «Повторить».",
     cancel_user: "Запуск отменён",
     session_cleared: "Сессия сброшена",
@@ -240,6 +246,12 @@ const STRINGS = {
     accent_composition: "Komposition",
     err_session: "Sitzung abgelaufen. Bitte neu anmelden.",
     err_expand: "Prompt konnte nicht erstellt werden. Bitte erneut versuchen.",
+    err_expand_three:
+      "Im Modus „3× Generierung“ müssen genau 3 Prompts kommen. Flag unter „Für Entwickler“ aus oder erneut starten.",
+    all_done_triple: "Alle drei Varianten sind fertig",
+    dev_flag_triple_label: "Modus: 3× Generierung pro Lauf (Experiment)",
+    dev_flag_triple_hint:
+      "localStorage: stv_triple_variant_flow. Siehe docs/22-03-stv-single-generation-flow.md §3.",
     session_retry_hint: "Sitzung unterbrochen. „Wiederholen“ drücken.",
     cancel_user: "Start abgebrochen",
     session_cleared: "Sitzung zurückgesetzt",

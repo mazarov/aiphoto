@@ -7,6 +7,7 @@ import {
   VIBE_IMAGE_PART_LABEL_REFERENCE,
   VIBE_IMAGE_PART_LABEL_SUBJECT,
 } from "@/lib/vibe-gemini-instructions";
+import { VIBE_PROMPT_CHAIN_LEGACY_2C23 } from "@/lib/vibe-legacy-config";
 
 const BUCKET_UPLOADS = "web-generation-uploads";
 const BUCKET_RESULTS = "web-generation-results";
@@ -186,65 +187,70 @@ async function processGeneration(supabase: ReturnType<typeof createSupabaseServe
     bytes: number;
   } | null = null;
 
-  if (attachRefPixel && gen.vibe_id) {
+  let vibePromptChain: string | null = null;
+  if (gen.vibe_id) {
     const { data: vibeRow } = await supabase
       .from("vibes")
-      .select("source_image_url")
+      .select("source_image_url,prompt_chain")
       .eq("id", gen.vibe_id)
       .single();
-    const refUrl = vibeRow?.source_image_url as string | undefined;
-    if (refUrl) {
-      try {
-        console.log("[generation.process] downloading reference image", {
-          generationId: id,
-          refHost: new URL(refUrl).hostname,
-        });
-        const refRes = await fetch(refUrl, {
-          headers: {
-            "User-Agent": "PromptShotBot/1.0 (+https://promptshot.ru)",
-            Accept: "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
-          },
-          signal: AbortSignal.timeout(15000),
-        });
-        if (refRes.ok) {
-          const ct = String(refRes.headers.get("content-type") || "").split(";")[0].trim().toLowerCase();
-          const refMime = ct === "image/png" || ct === "image/webp" ? ct : "image/jpeg";
-          const refBuf = Buffer.from(await refRes.arrayBuffer());
-          if (refBuf.length <= 10 * 1024 * 1024) {
-            referenceImagePart = { inlineData: { mimeType: refMime, data: refBuf.toString("base64") } };
-            try {
-              const ru = new URL(refUrl);
-              referenceMetaForLog = {
-                sourceUrl: refUrl,
-                host: ru.hostname,
+    vibePromptChain = typeof vibeRow?.prompt_chain === "string" ? vibeRow.prompt_chain : null;
+
+    if (attachRefPixel) {
+      const refUrl = vibeRow?.source_image_url as string | undefined;
+      if (refUrl) {
+        try {
+          console.log("[generation.process] downloading reference image", {
+            generationId: id,
+            refHost: new URL(refUrl).hostname,
+          });
+          const refRes = await fetch(refUrl, {
+            headers: {
+              "User-Agent": "PromptShotBot/1.0 (+https://promptshot.ru)",
+              Accept: "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+            },
+            signal: AbortSignal.timeout(15000),
+          });
+          if (refRes.ok) {
+            const ct = String(refRes.headers.get("content-type") || "").split(";")[0].trim().toLowerCase();
+            const refMime = ct === "image/png" || ct === "image/webp" ? ct : "image/jpeg";
+            const refBuf = Buffer.from(await refRes.arrayBuffer());
+            if (refBuf.length <= 10 * 1024 * 1024) {
+              referenceImagePart = { inlineData: { mimeType: refMime, data: refBuf.toString("base64") } };
+              try {
+                const ru = new URL(refUrl);
+                referenceMetaForLog = {
+                  sourceUrl: refUrl,
+                  host: ru.hostname,
+                  mime: refMime,
+                  bytes: refBuf.length,
+                };
+              } catch {
+                referenceMetaForLog = {
+                  sourceUrl: refUrl.slice(0, 300),
+                  host: "(parse_error)",
+                  mime: refMime,
+                  bytes: refBuf.length,
+                };
+              }
+              console.log("[generation.process] reference image encoded", {
+                generationId: id,
                 mime: refMime,
                 bytes: refBuf.length,
-              };
-            } catch {
-              referenceMetaForLog = {
-                sourceUrl: refUrl.slice(0, 300),
-                host: "(parse_error)",
-                mime: refMime,
-                bytes: refBuf.length,
-              };
+              });
             }
-            console.log("[generation.process] reference image encoded", {
+          } else {
+            console.warn("[generation.process] reference image download non-ok", {
               generationId: id,
-              mime: refMime,
-              bytes: refBuf.length,
+              status: refRes.status,
             });
           }
-        } else {
-          console.warn("[generation.process] reference image download non-ok", {
+        } catch (err) {
+          console.warn("[generation.process] reference image download failed, continuing without", {
             generationId: id,
-            status: refRes.status,
+            error: err instanceof Error ? err.message : String(err),
           });
         }
-      } catch (err) {
-        console.warn("[generation.process] reference image download failed, continuing without", {
-          generationId: id,
-          error: err instanceof Error ? err.message : String(err),
-        });
       }
     }
   }
@@ -252,7 +258,9 @@ async function processGeneration(supabase: ReturnType<typeof createSupabaseServe
   const hasTwoImages = isVibeGeneration && referenceImagePart !== null;
 
   const oneShotExtractConfigEnabled =
-    isVibeGeneration && (await getVibeOneShotExtractPromptEnabled(supabase));
+    isVibeGeneration &&
+    (await getVibeOneShotExtractPromptEnabled(supabase)) &&
+    vibePromptChain !== VIBE_PROMPT_CHAIN_LEGACY_2C23;
 
   if (isVibeGeneration) {
     console.warn("[generation.process] vibe_generation_layout", {
@@ -261,6 +269,8 @@ async function processGeneration(supabase: ReturnType<typeof createSupabaseServe
       referenceDownloaded: Boolean(referenceImagePart),
       architecture: hasTwoImages ? "dual_reference_plus_user" : "single_user_image_plus_text_only",
       oneShotExtractConfigEnabled,
+      vibePromptChain: vibePromptChain ?? "unknown",
+      legacyPromptChain: vibePromptChain === VIBE_PROMPT_CHAIN_LEGACY_2C23,
     });
   }
 

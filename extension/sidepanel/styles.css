@@ -566,6 +566,20 @@ input[type="file"] {
   background: rgba(99, 102, 241, 0.06);
 }
 
+.stv-dev-flag-label {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 4px;
+  cursor: pointer;
+}
+
+.stv-dev-flag-hint {
+  font-size: 11px;
+  margin: 0;
+  line-height: 1.4;
+}
+
 .prompt-box-wrap {
   margin: 6px 0 10px;
 }

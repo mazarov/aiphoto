@@ -12,7 +12,8 @@
 | `sidepanel/index.html` | Корень `#app`, подключение CSS/JS |
 | `content-script.js` | Плавающая кнопка: Shadow DOM; визуал как **mini side panel** (zinc surface + градиент только на **P**); видимость: throttled **`mousemove`** + **паддинг вокруг active img** (не полагаться на `document mouseout` — ломает Pinterest) |
 
-Спека для дизайна и LLM: **`docs/extension-ui-spec.md`**.
+Спека для дизайна и LLM: **`docs/extension-ui-spec.md`**.  
+Флоу vibe → generate (референс `2c23ce94`, текущий код, флаг 3×): **`docs/22-03-stv-single-generation-flow.md`**.
 
 ## Токены бренда
 

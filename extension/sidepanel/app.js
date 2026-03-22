@@ -16,6 +16,21 @@ const SESSION_VIBE_KEY = "pendingVibe";
 const LOCAL_STATE_KEY = "stv_state_v2";
 const MAX_RUN_HISTORY = 10;
 const TOAST_TIMEOUT_MS = 3200;
+/** Включает режим как в коммите 2c23ce94: 3 промпта → 3 параллельных `POST /api/generate`. См. docs/22-03-stv-single-generation-flow.md §3 */
+const TRIPLE_VARIANT_FLOW_LS_KEY = "stv_triple_variant_flow";
+
+function isTripleVariantFlowEnabled() {
+  try {
+    const v = localStorage.getItem(TRIPLE_VARIANT_FLOW_LS_KEY);
+    return v === "1" || String(v).toLowerCase() === "true";
+  } catch {
+    return false;
+  }
+}
+
+function getPromptsPerRun() {
+  return isTripleVariantFlowEnabled() ? 3 : 1;
+}
 
 const DEFAULT_MODELS = [
   { id: "gemini-2.5-flash-image", label: "Flash", cost: 1 },
@@ -69,6 +84,8 @@ const state = {
   extractModel: "",
   expandModel: "",
   prompts: [],
+  /** When API returns mergedPrompt (legacy 2c23 single-gen), use this for POST /api/generate instead of prompts[0]. */
+  mergedForSingleGeneration: "",
   /** Full text sent to Gemini (prefix + bridge + expanded prompt), from expand response */
   finalPromptForGeneration: "",
   finalPromptAssumesTwoImages: false,
@@ -230,7 +247,7 @@ function getModelConfig(modelId) {
 }
 
 function getRequiredCredits() {
-  return Number(getModelConfig(state.selectedModel).cost || 1);
+  return Number(getModelConfig(state.selectedModel).cost || 1) * getPromptsPerRun();
 }
 
 function getCooldownLeftSeconds() {
@@ -603,6 +620,7 @@ function toSerializableState() {
     extractModel: state.extractModel,
     expandModel: state.expandModel,
     prompts: state.prompts,
+    mergedForSingleGeneration: state.mergedForSingleGeneration,
     finalPromptForGeneration: state.finalPromptForGeneration,
     finalPromptAssumesTwoImages: state.finalPromptAssumesTwoImages,
     vibeGroomingControlsAvailable: state.vibeGroomingControlsAvailable,
@@ -687,6 +705,10 @@ function applyPersistedState(saved) {
   state.extractModel = saved.extractModel || state.extractModel;
   state.expandModel = saved.expandModel || state.expandModel;
   state.prompts = Array.isArray(saved.prompts) ? saved.prompts : state.prompts;
+  state.mergedForSingleGeneration =
+    typeof saved.mergedForSingleGeneration === "string"
+      ? saved.mergedForSingleGeneration
+      : state.mergedForSingleGeneration;
   state.finalPromptForGeneration =
     typeof saved.finalPromptForGeneration === "string" ? saved.finalPromptForGeneration : state.finalPromptForGeneration;
   state.finalPromptAssumesTwoImages = Boolean(saved.finalPromptAssumesTwoImages);
@@ -949,6 +971,7 @@ async function runExtract() {
   state.vibeId = extractData.vibeId;
   state.style = extractData.style;
   state.extractModel = String(extractData.modelUsed || "");
+  state.mergedForSingleGeneration = "";
   state.finalPromptForGeneration = "";
   state.finalPromptAssumesTwoImages = false;
   await persistState();
@@ -958,12 +981,14 @@ async function runExpand() {
   state.finalPromptForGeneration = "";
   state.finalPromptAssumesTwoImages = false;
   state.vibeGroomingControlsAvailable = false;
+  state.mergedForSingleGeneration = "";
   const expandData = await api("/api/vibe/expand", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ vibeId: state.vibeId, style: state.style })
   });
   state.prompts = Array.isArray(expandData.prompts) ? expandData.prompts : [];
+  state.mergedForSingleGeneration = String(expandData.mergedPrompt || "").trim();
   state.expandModel = String(expandData.modelUsed || "");
   state.finalPromptForGeneration = String(expandData.finalPromptForGeneration || "").trim();
   state.finalPromptAssumesTwoImages = Boolean(expandData.finalPromptAssumesTwoImages);
@@ -1212,13 +1237,30 @@ async function clearRunHistory() {
 }
 
 async function completeGenerationAfterExpand(runStartedAt) {
+  const n = getPromptsPerRun();
   const allPrompts = Array.isArray(state.prompts) ? state.prompts : [];
-  state.prompts = allPrompts.slice(0, 1);
-  if (state.prompts.length !== 1) {
-    state.generating = false;
-    state.runStage = "idle";
-    state.pipelinePrepPercent = 0;
-    throw new Error(t("err_expand"));
+
+  if (n === 1) {
+    const merged = String(state.mergedForSingleGeneration || "").trim();
+    if (merged) {
+      state.prompts = [{ accent: "scene", prompt: merged }];
+    } else {
+      state.prompts = allPrompts.slice(0, 1);
+    }
+    if (state.prompts.length !== 1) {
+      state.generating = false;
+      state.runStage = "idle";
+      state.pipelinePrepPercent = 0;
+      throw new Error(t("err_expand"));
+    }
+  } else {
+    state.prompts = allPrompts;
+    if (state.prompts.length !== 3) {
+      state.generating = false;
+      state.runStage = "idle";
+      state.pipelinePrepPercent = 0;
+      throw new Error(t("err_expand_three"));
+    }
   }
 
   state.results = state.prompts.map((p) => ({
@@ -1237,7 +1279,18 @@ async function completeGenerationAfterExpand(runStartedAt) {
   render();
   await persistState();
 
-  await Promise.all(state.results.map((row) => runRowPipeline(row)));
+  if (n === 1) {
+    const genRow = state.results[0];
+    if (!genRow) {
+      state.generating = false;
+      state.runStage = "idle";
+      state.pipelinePrepPercent = 0;
+      throw new Error(t("err_expand"));
+    }
+    await runRowPipeline(genRow);
+  } else {
+    await Promise.all(state.results.map((row) => runRowPipeline(row)));
+  }
 
   const completed = state.results.filter((r) => r.status === "completed").length;
   const failed = state.results.filter((r) => r.status === "failed").length;
@@ -1256,7 +1309,7 @@ async function completeGenerationAfterExpand(runStartedAt) {
   state.awaitingContinueGenerate = false;
   state.pendingRunStartedAt = 0;
   state.info =
-    failed === 0 ? t("all_done") : `${t("partial_done")}: ${completed}/1`;
+    failed === 0 ? t("all_done") : `${t("partial_done")}: ${completed}/${n}`;
   const perAccent = {
     scene: { completed: 0, failed: 0 },
     lighting: { completed: 0, failed: 0 },
@@ -1270,9 +1323,14 @@ async function completeGenerationAfterExpand(runStartedAt) {
     if (row.status === "failed") perAccent[key].failed += 1;
   }
 
-  const resultRow = state.results[0];
+  const primaryHistoryRow =
+    state.results.find((r) => r.status === "completed" && r.resultUrl) ||
+    state.results.find((r) => r.status === "completed") ||
+    state.results[0];
   const genId =
-    resultRow && typeof resultRow.id === "string" && resultRow.id.trim() ? String(resultRow.id).trim() : null;
+    primaryHistoryRow && typeof primaryHistoryRow.id === "string" && primaryHistoryRow.id.trim()
+      ? String(primaryHistoryRow.id).trim()
+      : null;
   await appendRunHistory({
     id: String(runStartedAt),
     startedAt: runStartedAt,
@@ -1288,14 +1346,14 @@ async function completeGenerationAfterExpand(runStartedAt) {
     perAccent,
     generationId: genId,
     resultUrl:
-      resultRow && resultRow.status === "completed" && resultRow.resultUrl
-        ? String(resultRow.resultUrl)
+      primaryHistoryRow && primaryHistoryRow.status === "completed" && primaryHistoryRow.resultUrl
+        ? String(primaryHistoryRow.resultUrl)
         : "",
-    prompt: resultRow && typeof resultRow.prompt === "string" ? resultRow.prompt : ""
+    prompt: primaryHistoryRow && typeof primaryHistoryRow.prompt === "string" ? primaryHistoryRow.prompt : ""
   });
   await refreshAuthSilently();
   if (failed === 0) {
-    setToast("success", t("all_done"));
+    setToast("success", n === 3 ? t("all_done_triple") : t("all_done"));
   } else {
     setToast("info", `${t("partial_done")} (${failed})`);
   }
@@ -1384,7 +1442,8 @@ async function retryResultById(id) {
   await runRowPipeline(row);
   const completed = state.results.filter((r) => r.status === "completed").length;
   const failed = state.results.filter((r) => r.status === "failed").length;
-  state.info = `${t("done_label")}: ${completed}/1, ${t("errors_label")}: ${failed}/1`;
+  const pr = getPromptsPerRun();
+  state.info = `${t("done_label")}: ${completed}/${pr}, ${t("errors_label")}: ${failed}/${pr}`;
   await persistState();
   render();
 }
@@ -1401,7 +1460,8 @@ async function retryAllFailed() {
   }
   const completed = state.results.filter((r) => r.status === "completed").length;
   const failedAfter = state.results.filter((r) => r.status === "failed").length;
-  state.info = `${t("done_label")}: ${completed}/1, ${t("errors_label")}: ${failedAfter}/1`;
+  const pr = getPromptsPerRun();
+  state.info = `${t("done_label")}: ${completed}/${pr}, ${t("errors_label")}: ${failedAfter}/${pr}`;
   await refreshAuthSilently();
   await persistState();
   setToast("info", t("all_done"));
@@ -1422,6 +1482,7 @@ async function resetSession() {
   state.extractModel = "";
   state.expandModel = "";
   state.prompts = [];
+  state.mergedForSingleGeneration = "";
   state.finalPromptForGeneration = "";
   state.finalPromptAssumesTwoImages = false;
   state.vibeGroomingControlsAvailable = false;
@@ -1443,6 +1504,7 @@ async function clearResultsOnly() {
   state.extractModel = "";
   state.expandModel = "";
   state.prompts = [];
+  state.mergedForSingleGeneration = "";
   state.finalPromptForGeneration = "";
   state.finalPromptAssumesTwoImages = false;
   state.vibeGroomingControlsAvailable = false;
@@ -1551,6 +1613,7 @@ function renderAuthRequired() {
 
 function renderMain() {
   const requiredCredits = getRequiredCredits();
+  const promptsPerRunUi = getPromptsPerRun();
   const cooldownLeftSec = getCooldownLeftSeconds();
   const canGenerate = Boolean(
     state.sourceImageUrl &&
@@ -1799,7 +1862,7 @@ function renderMain() {
           </div>
         </section>
 
-        <p class="muted">${escapeHtml(t("done_label"))}: ${completedCount}/1, ${escapeHtml(t("errors_label"))}: ${failedCount}/1</p>
+        <p class="muted">${escapeHtml(t("done_label"))}: ${completedCount}/${promptsPerRunUi}, ${escapeHtml(t("errors_label"))}: ${failedCount}/${promptsPerRunUi}</p>
         ${state.info ? `<p class="muted">${escapeHtml(state.info)}</p>` : ""}
         ${state.error ? `<p class="muted error-text">${escapeHtml(state.error)}</p>` : ""}
 
@@ -1825,6 +1888,11 @@ function renderMain() {
           <div class="stv-disclosure-body">
             <p class="muted"><code>${escapeHtml(t("api"))}</code> ${escapeHtml(API_ORIGIN)}</p>
             <p class="muted">${escapeHtml(t("dev_doc_hint"))}</p>
+            <label class="muted stv-dev-flag-label">
+              <input type="checkbox" id="stv-dev-triple-flow" ${isTripleVariantFlowEnabled() ? "checked" : ""} />
+              <span>${escapeHtml(t("dev_flag_triple_label"))}</span>
+            </label>
+            <p class="muted stv-dev-flag-hint">${escapeHtml(t("dev_flag_triple_hint"))}</p>
           </div>
         </details>
       </div>
@@ -1832,6 +1900,22 @@ function renderMain() {
       ${runHistoryHtml}
     </div>
   `;
+
+  const tripleFlowCb = document.getElementById("stv-dev-triple-flow");
+  if (tripleFlowCb) {
+    tripleFlowCb.addEventListener("change", () => {
+      try {
+        if (tripleFlowCb.checked) {
+          localStorage.setItem(TRIPLE_VARIANT_FLOW_LS_KEY, "1");
+        } else {
+          localStorage.removeItem(TRIPLE_VARIANT_FLOW_LS_KEY);
+        }
+      } catch {
+        /* ignore */
+      }
+      render();
+    });
+  }
 
   const pipelineSpecBtn = document.getElementById("pipeline-spec-btn");
   if (pipelineSpecBtn) {

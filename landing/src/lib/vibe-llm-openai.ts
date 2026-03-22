@@ -87,6 +87,76 @@ export async function openAiChatCompletionJson(params: {
   return { ok: true, status: res.status, text };
 }
 
+/** Chat completions without `response_format` — for plain text (e.g. legacy merge) or free-form JSON in body. */
+export async function openAiChatCompletionText(params: {
+  apiKey: string;
+  model: string;
+  messages: Array<{
+    role: "system" | "user" | "assistant";
+    content: string;
+  }>;
+  timeoutMs?: number;
+}): Promise<{ ok: boolean; status: number; text: string; errorMessage?: string }> {
+  const base = normalizeOpenAiBaseUrl();
+  const url = `${base}/chat/completions`;
+  const timeoutMs = params.timeoutMs ?? 120_000;
+
+  const body = {
+    model: params.model,
+    messages: params.messages,
+  };
+
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${params.apiKey}`,
+      },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+  } catch (err) {
+    return {
+      ok: false,
+      status: 0,
+      text: "",
+      errorMessage: err instanceof Error ? err.message : String(err),
+    };
+  }
+
+  let data: unknown;
+  try {
+    data = await res.json();
+  } catch {
+    return {
+      ok: false,
+      status: res.status,
+      text: "",
+      errorMessage: "response body not json",
+    };
+  }
+
+  const obj = data as {
+    error?: { message?: string };
+    choices?: Array<{ message?: { content?: string | null } }>;
+  };
+
+  if (!res.ok) {
+    return {
+      ok: false,
+      status: res.status,
+      text: "",
+      errorMessage: obj?.error?.message ?? `http_${res.status}`,
+    };
+  }
+
+  const content = obj?.choices?.[0]?.message?.content;
+  const text = typeof content === "string" ? content : "";
+  return { ok: true, status: res.status, text };
+}
+
 export async function openAiExpandStyleToPromptJson(params: {
   apiKey: string;
   model: string;

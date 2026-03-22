@@ -12,6 +12,7 @@ import {
   parseGroomingReferenceFromRow,
   type GroomingPolicy,
 } from "@/lib/vibe-grooming-assembly";
+import { VIBE_PROMPT_CHAIN_LEGACY_2C23 } from "@/lib/vibe-legacy-config";
 
 const SINGLE_PROMPT_ACCENT = "scene" as const;
 
@@ -46,7 +47,7 @@ export async function POST(req: NextRequest) {
     const { data: vibe, error: fetchErr } = await supabase
       .from("vibes")
       .select(
-        "user_id,source_image_url,prefilled_generation_prompt,prompt_scene_core,grooming_reference,last_monolithic_prompt",
+        "user_id,source_image_url,prefilled_generation_prompt,prompt_scene_core,grooming_reference,last_monolithic_prompt,prompt_chain",
       )
       .eq("id", vibeId)
       .single();
@@ -57,6 +58,16 @@ export async function POST(req: NextRequest) {
 
     if (vibe.user_id !== user.id) {
       return NextResponse.json({ error: "vibe_forbidden" }, { status: 400 });
+    }
+
+    if (vibe.prompt_chain === VIBE_PROMPT_CHAIN_LEGACY_2C23) {
+      return NextResponse.json(
+        {
+          error: "assemble_not_applicable_legacy",
+          message: "Grooming assemble is not used for legacy_2c23 prompt chain; expand already returns final prompts.",
+        },
+        { status: 409 },
+      );
     }
 
     const row = {

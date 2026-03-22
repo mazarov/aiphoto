@@ -28,8 +28,15 @@ import {
   redactGenerateContentBody,
   summarizeGeminiApiResponse,
 } from "@/lib/gemini-vibe-debug-log";
+import {
+  coerceLegacyVibeStylePayload,
+  LEGACY_EXTRACT_PROMPT_2C23CE94,
+} from "@/lib/vibe-legacy-prompt-chain";
+import { getVibeLegacyPromptChainEnabled, VIBE_PROMPT_CHAIN_LEGACY_2C23 } from "@/lib/vibe-legacy-config";
 
 const DIRECT_GEMINI_BASE_URL = "https://generativelanguage.googleapis.com";
+
+let legacyOneShotIgnoreLogged = false;
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 
 function toErrorMeta(err: unknown) {
@@ -209,11 +216,20 @@ export async function POST(req: NextRequest) {
 
     const supabase = createSupabaseServer();
     const extractLlm = await getVibeExtractLlmProvider(supabase);
-    const oneShotExtract = await getVibeOneShotExtractPromptEnabled(supabase);
+    const legacyPromptChain = await getVibeLegacyPromptChainEnabled(supabase);
+    const oneShotConfigEnabled = await getVibeOneShotExtractPromptEnabled(supabase);
+    const oneShotExtract = !legacyPromptChain && oneShotConfigEnabled;
 
-    const extractInstruction = oneShotExtract
-      ? ONE_SHOT_EXTRACT_PROMPT_INSTRUCTION
-      : EXTRACT_STYLE_INSTRUCTION;
+    if (legacyPromptChain && oneShotConfigEnabled && !legacyOneShotIgnoreLogged) {
+      legacyOneShotIgnoreLogged = true;
+      console.warn("[vibe.extract] one_shot_ignored_due_to_legacy_chain", { userId: user.id });
+    }
+
+    const extractInstruction = legacyPromptChain
+      ? LEGACY_EXTRACT_PROMPT_2C23CE94
+      : oneShotExtract
+        ? ONE_SHOT_EXTRACT_PROMPT_INSTRUCTION
+        : EXTRACT_STYLE_INSTRUCTION;
 
     let text = "";
     let httpOk = false;
@@ -236,6 +252,7 @@ export async function POST(req: NextRequest) {
         model: modelUsed,
         inlineImageBase64Chars: inlineData.data.length,
         oneShotExtract,
+        legacyPromptChain,
         instructionTextChars: extractInstruction.length,
         timeoutMs: 120000,
       });
@@ -303,6 +320,7 @@ export async function POST(req: NextRequest) {
         endpointHost: geminiEndpointHost,
         inlineImageBase64Chars: inlineData.data.length,
         oneShotExtract,
+        legacyPromptChain,
         instructionTextChars: extractInstruction.length,
         timeoutMs: 45000,
       });
@@ -375,6 +393,66 @@ export async function POST(req: NextRequest) {
     }
 
     const { value: parsed, stages: parseStages } = parseGeminiJsonObject(text);
+
+    if (legacyPromptChain) {
+      if (!httpOk) {
+        console.error("[vibe.extract] extract_pipeline_failed_legacy_http", {
+          userId: user.id,
+          llm: extractLlm,
+          httpStatus,
+          llmError,
+        });
+        return NextResponse.json({ error: "extract_failed" }, { status: 500 });
+      }
+
+      const legacyStyle = parsed ? coerceLegacyVibeStylePayload(parsed) : null;
+      if (!legacyStyle) {
+        console.error("[vibe.extract] extract_pipeline_failed_legacy_coerce", {
+          userId: user.id,
+          llm: extractLlm,
+          model: modelUsed,
+          httpStatus,
+          parseStages,
+          parsedKeys: parsed ? Object.keys(parsed) : [],
+        });
+        return NextResponse.json({ error: "extract_failed" }, { status: 500 });
+      }
+
+      const { data: vibe, error: insertError } = await supabase
+        .from("vibes")
+        .insert({
+          user_id: user.id,
+          source_image_url: safeUrl.toString(),
+          style: legacyStyle,
+          prompt_chain: VIBE_PROMPT_CHAIN_LEGACY_2C23,
+        })
+        .select("id")
+        .single();
+
+      if (insertError || !vibe) {
+        console.error("[vibe.extract] insert failed", {
+          userId: user.id,
+          legacyPromptChain: true,
+          error: insertError?.message ?? null,
+        });
+        return NextResponse.json({ error: "extract_failed" }, { status: 500 });
+      }
+
+      console.warn("[vibe.extract] extract_parse_ok", {
+        userId: user.id,
+        llm: extractLlm,
+        legacyPromptChain: true,
+        styleFieldCount: Object.keys(legacyStyle).length,
+      });
+
+      return NextResponse.json({
+        vibeId: vibe.id,
+        style: legacyStyle,
+        modelUsed,
+        llmProvider: extractLlm,
+        legacyPromptChain: true,
+      });
+    }
 
     if (oneShotExtract) {
       if (!httpOk) {
