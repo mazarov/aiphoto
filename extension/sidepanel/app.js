@@ -304,20 +304,6 @@ function formatAccentLabel(accent) {
   return map[String(accent || "").toLowerCase()] || String(accent || "—");
 }
 
-function formatErrorTypeLabel(errorType) {
-  const map = {
-    insufficient_credits: t("insufficient_credits"),
-    timeout: "Timeout",
-    unauthorized: t("session_bad"),
-    network: "Network",
-    validation_error: "Validation",
-    session_interrupted: "Session",
-    generation_failed: t("status_failed"),
-    unknown: "Unknown"
-  };
-  return map[String(errorType || "").toLowerCase()] || String(errorType || "—");
-}
-
 /** Компактная карточка результата для колонки шага 1. */
 function buildResultCompactRowHtml(row) {
   const retryKey = row.id || `${row.accent}:${row.attempt}`;
@@ -404,58 +390,128 @@ function getSessionHealth() {
   return { label: t("session_bad"), className: "session-bad" };
 }
 
-function getHistoryStats() {
-  const runs = Array.isArray(state.runHistory) ? state.runHistory : [];
-  if (!runs.length) {
-    return {
-      totalRuns: 0,
-      totalCompleted: 0,
-      totalFailed: 0,
-      avgSuccessPercent: 0,
-      lastErrorType: "—"
-    };
-  }
-
-  const totalCompleted = runs.reduce((sum, r) => sum + Number(r.completed || 0), 0);
-  const totalFailed = runs.reduce((sum, r) => sum + Number(r.failed || 0), 0);
-  const totalAttempts = totalCompleted + totalFailed;
-  const avgSuccessPercent = totalAttempts > 0 ? Math.round((totalCompleted / totalAttempts) * 100) : 0;
-  const lastFailedRun = runs.find((r) => Number(r.failed || 0) > 0);
-  const lastErrorType = lastFailedRun?.errorTypes?.[0] || "—";
-
-  return {
-    totalRuns: runs.length,
-    totalCompleted,
-    totalFailed,
-    avgSuccessPercent,
-    lastErrorType
-  };
+function modelLabelForRun(modelId) {
+  const cfg = getModelConfig(modelId);
+  if (!cfg) return String(modelId || "—");
+  return `${cfg.label} (${cfg.cost})`;
 }
 
-function getAccentStats() {
-  const base = {
-    scene: { completed: 0, failed: 0 },
-    lighting: { completed: 0, failed: 0 },
-    mood: { completed: 0, failed: 0 },
-    composition: { completed: 0, failed: 0 }
-  };
+function historyResultUrl(run) {
+  const u = run?.resultUrl;
+  return typeof u === "string" && u.startsWith("http") ? u : "";
+}
 
-  const runs = Array.isArray(state.runHistory) ? state.runHistory : [];
-  for (const run of runs) {
-    const perAccent = run?.perAccent;
-    if (!perAccent || typeof perAccent !== "object") continue;
-    for (const key of Object.keys(base)) {
-      const row = perAccent[key];
-      if (!row || typeof row !== "object") continue;
-      base[key].completed += Number(row.completed || 0);
-      base[key].failed += Number(row.failed || 0);
+function historyPromptText(run) {
+  const p = run?.prompt;
+  return typeof p === "string" ? p : "";
+}
+
+function buildRunHistoryCardHtml(run, idx) {
+  const url = historyResultUrl(run);
+  const promptText = historyPromptText(run);
+  const modelLine = modelLabelForRun(run.model);
+  const ratio = run.aspectRatio || "—";
+  const size = run.imageSize || "—";
+  const when = formatDateTime(run.startedAt);
+  const failed = Number(run.failed || 0) > 0;
+  const thumb = url
+    ? `<img class="stv-history-thumb-img" src="${escapeHtml(url)}" alt="" loading="lazy" decoding="async" />`
+    : `<div class="stv-history-thumb-fallback muted">${escapeHtml(
+        failed ? t("history_failed_thumb") : t("history_no_thumb")
+      )}</div>`;
+
+  return `
+    <article class="stv-history-card">
+      <div class="stv-history-thumb" aria-hidden="true">${thumb}</div>
+      <div class="stv-history-body">
+        <p class="stv-history-date muted">${escapeHtml(when)}</p>
+        <div class="stv-history-chips" aria-label="${escapeHtml(t("history_params_label"))}">
+          <span class="stv-history-chip" title="${escapeHtml(t("field_model"))}">${escapeHtml(modelLine)}</span>
+          <span class="stv-history-chip" title="${escapeHtml(t("field_ratio"))}">${escapeHtml(ratio)}</span>
+          <span class="stv-history-chip" title="${escapeHtml(t("field_size"))}">${escapeHtml(size)}</span>
+        </div>
+        <div class="stv-history-actions row">
+          <button type="button" data-history-download="${idx}" ${url ? "" : "disabled"}>${escapeHtml(t("history_download"))}</button>
+          <button type="button" data-history-open="${idx}" ${url ? "" : "disabled"}>${escapeHtml(t("history_open"))}</button>
+          <button type="button" data-history-prompt="${idx}" ${promptText.trim() ? "" : "disabled"}>${escapeHtml(
+            t("history_prompt")
+          )}</button>
+        </div>
+        <details class="stv-history-prompt-details">
+          <summary>${escapeHtml(t("history_prompt_toggle"))}</summary>
+          <pre class="prompt-box stv-history-prompt-pre">${escapeHtml(promptText || "—")}</pre>
+        </details>
+      </div>
+    </article>`;
+}
+
+async function downloadHistoryResultByUrl(url, baseName) {
+  const safeName = String(baseName || `promptshot-${Date.now()}`).replace(/[^a-zA-Z0-9._-]+/g, "_");
+  const extGuess = (() => {
+    try {
+      const p = new URL(url).pathname.toLowerCase();
+      if (p.endsWith(".png")) return ".png";
+      if (p.endsWith(".webp")) return ".webp";
+      if (p.endsWith(".jpg") || p.endsWith(".jpeg")) return ".jpg";
+    } catch {
+      /* ignore */
     }
+    return ".png";
+  })();
+  try {
+    const res = await fetch(url, { mode: "cors", credentials: "omit" });
+    if (!res.ok) throw new Error(String(res.status));
+    const blob = await res.blob();
+    const dl = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = dl;
+    a.download = safeName.endsWith(".png") || safeName.endsWith(".jpg") ? safeName : `${safeName}${extGuess}`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(dl);
+    setToast("success", t("history_downloaded"));
+  } catch (e) {
+    console.warn("[stv] history download:", e);
+    window.open(url, "_blank", "noopener,noreferrer");
+    setToast("info", t("history_download_fallback"));
   }
+}
 
-  return Object.entries(base).map(([accent, row]) => {
-    const total = row.completed + row.failed;
-    const successPercent = total > 0 ? Math.round((row.completed / total) * 100) : 0;
-    return { accent, ...row, total, successPercent };
+function bindRunHistoryActions() {
+  const list = document.getElementById("stv-history-list");
+  if (!list) return;
+  list.addEventListener("click", (ev) => {
+    const el = ev.target instanceof HTMLElement ? ev.target.closest("button[data-history-download],button[data-history-open],button[data-history-prompt]") : null;
+    if (!el) return;
+    const idx = Number(el.getAttribute("data-history-download") ?? el.getAttribute("data-history-open") ?? el.getAttribute("data-history-prompt"));
+    if (!Number.isFinite(idx) || idx < 0) return;
+    const run = state.runHistory?.[idx];
+    if (!run) return;
+
+    if (el.hasAttribute("data-history-download")) {
+      const url = historyResultUrl(run);
+      if (!url) return;
+      void downloadHistoryResultByUrl(url, `stv-${run.id || idx}`);
+      return;
+    }
+    if (el.hasAttribute("data-history-open")) {
+      const url = historyResultUrl(run);
+      if (!url) return;
+      window.open(url, "_blank", "noopener,noreferrer");
+      return;
+    }
+    if (el.hasAttribute("data-history-prompt")) {
+      const text = historyPromptText(run);
+      if (!text.trim()) return;
+      const card = el.closest(".stv-history-card");
+      const det = card?.querySelector(".stv-history-prompt-details");
+      if (det) det.open = true;
+      void navigator.clipboard.writeText(text).then(
+        () => setToast("success", t("history_prompt_copied")),
+        () => setToast("error", t("history_prompt_copy_failed"))
+      );
+    }
   });
 }
 
@@ -1176,6 +1232,9 @@ async function completeGenerationAfterExpand(runStartedAt) {
     if (row.status === "failed") perAccent[key].failed += 1;
   }
 
+  const resultRow = state.results[0];
+  const genId =
+    resultRow && typeof resultRow.id === "string" && resultRow.id.trim() ? String(resultRow.id).trim() : null;
   await appendRunHistory({
     id: String(runStartedAt),
     startedAt: runStartedAt,
@@ -1188,7 +1247,13 @@ async function completeGenerationAfterExpand(runStartedAt) {
     completed,
     failed,
     errorTypes,
-    perAccent
+    perAccent,
+    generationId: genId,
+    resultUrl:
+      resultRow && resultRow.status === "completed" && resultRow.resultUrl
+        ? String(resultRow.resultUrl)
+        : "",
+    prompt: resultRow && typeof resultRow.prompt === "string" ? resultRow.prompt : ""
   });
   await refreshAuthSilently();
   if (failed === 0) {
@@ -1460,8 +1525,6 @@ function renderMain() {
   const completedCount = state.results.filter((r) => r.status === "completed").length;
   const failedCount = state.results.filter((r) => r.status === "failed").length;
   const needsCredits = state.credits < requiredCredits;
-  const historyStats = getHistoryStats();
-  const accentStats = getAccentStats();
   const sessionHealth = getSessionHealth();
   const overallProgress = getOverallProgressPercent();
   const showFirstRunHint = !state.sourceImageUrl && (!Array.isArray(state.runHistory) || state.runHistory.length === 0);
@@ -1511,59 +1574,25 @@ function renderMain() {
           </div>`
     : "";
 
-  const runHistoryHtml = Array.isArray(state.runHistory) && state.runHistory.length
-    ? `
+  const runCount = Array.isArray(state.runHistory) ? state.runHistory.length : 0;
+  const runHistoryHtml =
+    runCount > 0
+      ? `
       <div class="card stv-card-history">
-        <p class="title">${escapeHtml(t("history_title"))}</p>
-        <p class="muted">
-          ${escapeHtml(t("history_runs"))}=${escapeHtml(String(historyStats.totalRuns))},
-          ${escapeHtml(t("history_ok"))}=${escapeHtml(String(historyStats.totalCompleted))},
-          ${escapeHtml(t("history_fail"))}=${escapeHtml(String(historyStats.totalFailed))},
-          ${escapeHtml(t("metric_success"))}=${escapeHtml(String(historyStats.avgSuccessPercent))}%,
-          ${escapeHtml(t("history_last_err"))}=${escapeHtml(historyStats.lastErrorType)}
-        </p>
-        <div class="row">
-          <button id="export-history">${escapeHtml(t("history_export"))}</button>
-          <button id="clear-history">${escapeHtml(t("history_clear"))}</button>
+        <div class="stv-history-toolbar">
+          <p class="title stv-history-title">${escapeHtml(t("history_title"))}</p>
+          <p class="muted stv-history-count">${escapeHtml(t("history_count_prefix"))} ${escapeHtml(String(runCount))}</p>
         </div>
-        <div class="row">
-          ${accentStats
-            .map(
-              (s) =>
-                `<span class="metric-chip">${escapeHtml(
-                  `${formatAccentLabel(s.accent)}: ${t("metric_success")} ${s.successPercent}% (${s.completed}/${s.total || 0})`
-                )}</span>`
-            )
-            .join("")}
+        <div class="row stv-history-toolbar-actions">
+          <button type="button" id="export-history">${escapeHtml(t("history_export"))}</button>
+          <button type="button" id="clear-history">${escapeHtml(t("history_clear"))}</button>
         </div>
-        ${state.runHistory
-          .map(
-            (run) => `
-          <div class="history-item">
-            <p class="muted"><strong>${escapeHtml(formatDateTime(run.startedAt))}</strong></p>
-            <p class="muted">
-              ${escapeHtml(t("history_model"))}=${escapeHtml(run.model || "—")}, ${escapeHtml(t("history_ratio"))}=${escapeHtml(run.aspectRatio || "—")}, ${escapeHtml(t("history_size"))}=${escapeHtml(run.imageSize || "—")}
-            </p>
-            <p class="muted">
-              ${escapeHtml(t("history_ok"))}=${escapeHtml(String(run.completed ?? 0))}, ${escapeHtml(t("history_fail"))}=${escapeHtml(String(run.failed ?? 0))}
-            </p>
-            ${
-              run.perAccent && typeof run.perAccent === "object"
-                ? `<p class="muted">акценты=lighting(${escapeHtml(String(run.perAccent.lighting?.completed || 0))}/${escapeHtml(String((run.perAccent.lighting?.completed || 0) + (run.perAccent.lighting?.failed || 0)))}) mood(${escapeHtml(String(run.perAccent.mood?.completed || 0))}/${escapeHtml(String((run.perAccent.mood?.completed || 0) + (run.perAccent.mood?.failed || 0)))}) composition(${escapeHtml(String(run.perAccent.composition?.completed || 0))}/${escapeHtml(String((run.perAccent.composition?.completed || 0) + (run.perAccent.composition?.failed || 0)))})</p>`
-                : ""
-            }
-            ${
-              Array.isArray(run.errorTypes) && run.errorTypes.length
-                ? `<p class="muted">типы_ошибок=${escapeHtml(run.errorTypes.map(formatErrorTypeLabel).join(", "))}</p>`
-                : ""
-            }
-          </div>
-        `
-          )
-          .join("")}
+        <div class="stv-history-list" id="stv-history-list">
+          ${state.runHistory.map((run, idx) => buildRunHistoryCardHtml(run, idx)).join("")}
+        </div>
       </div>
     `
-    : "";
+      : "";
 
   const finalPromptHint =
     state.finalPromptAssumesTwoImages === true ? t("final_prompt_hint_two") : t("final_prompt_hint_one");
@@ -1939,6 +1968,7 @@ function renderMain() {
     });
   }
 
+  bindRunHistoryActions();
   void refreshUserPhotoPreviewIfNeeded();
 }
 

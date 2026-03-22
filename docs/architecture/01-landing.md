@@ -1,6 +1,6 @@
 # 01 — Лендинг (promptshot.ru)
 
-> Последнее обновление: 2026-03-22 (extension: единый прогресс extract→expand→assemble→generate; assemble без паузы по чекбоксам; блок «Внешний вид» над прогрессом и кнопками)
+> Последнее обновление: 2026-03-22 (extension: история запусков — карточки с превью, параметрами, скачать/открыть/промпт; см. ниже)
 
 > UI side panel + content script: см. `docs/extension-ui-spec.md`; карта файлов и токены — `extension/DEVELOPER.md`.
 
@@ -80,6 +80,7 @@
 - **Gemini routing:** при провайдере **gemini** extract/expand используют `photo_app_config.gemini_use_proxy` и `GEMINI_PROXY_BASE_URL`. OpenAI ходит на **`OPENAI_BASE_URL`** (или `https://api.openai.com/v1`) с **`Authorization: Bearer`**, proxy не используется.
 - **Логи (extract/expand):** Gemini: `gemini_request` / `gemini_response` / `extract_parse_ok` | `expand_parse_ok`. OpenAI: `openai_request` / `openai_response`. Общие: **`PIPELINE_FAIL`**, `extract_pipeline_failed` / `expand_pipeline_failed` / `extract_pipeline_failed_one_shot`. При `GEMINI_VIBE_DEBUG=1` — превью текста и для OpenAI (`landing/src/lib/gemini-vibe-debug-log.ts`).
 - **Extension (grooming):** блок **«Внешний вид (референс)»** (чекбоксы волосы/макияж) в UI **выше** полосы прогресса и кнопок «Сгенерировать» / «Купить кредиты». При запуске генерации: после **`expand`**, если **`vibeGroomingControlsAvailable`**, side panel **сразу** вызывает **`assemble-prompt`** с текущими чекбоксами (без паузы и без обязательного «Продолжить»). Debounced **`assemble-prompt`** остаётся для правок чекбоксов **вне** активного запуска. Прогресс и подпись primary-кнопки покрывают весь пайплайн: extract → expand → assemble (если есть) → polling **`/api/generations/:id`**. **`generate`** по-прежнему шлёт unprefixed **`prompt`** из `prompts[0]`; префикс добавляет **`generate-process`**. Детали v1 — **`docs/20-03-vibe-grooming-extension-controls.md` §3.4** (кнопка «Продолжить» — только для старых сохранённых сессий с **`awaitingContinueGenerate`**).
+- **Extension (история запусков):** листинг карточек в side panel: превью по сохранённому **`resultUrl`**, чипы **модель / aspect ratio / image size**, действия **скачать** (fetch→blob при успешном CORS, иначе открытие URL), **открыть**, **промпт** (копирование в буфер + раскрытие `<details>` с текстом). Персистенция в **`chrome.storage.local`** (`stv_state_v2.runHistory`), лимит **`MAX_RUN_HISTORY`** (10): только метаданные и строки (**`prompt`**, URL), **без** бинарников; опционально **`generationId`** для возможного будущего re-sign. Записи до этого изменения без **`resultUrl`/`prompt`** показывают заглушку и disabled-кнопки.
 
 ### Покупка web-кредитов через Telegram Stars
 
