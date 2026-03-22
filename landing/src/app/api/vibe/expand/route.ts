@@ -9,7 +9,10 @@ import {
   legacyStyleFromUnknownRowStyle,
 } from "@/lib/vibe-legacy-prompt-chain";
 import type { GroomingPolicy } from "@/lib/vibe-grooming-assembly";
-import { VIBE_PROMPT_CHAIN_LEGACY_2C23 } from "@/lib/vibe-legacy-config";
+import {
+  VIBE_PROMPT_CHAIN_LEGACY_2C23,
+  VIBE_PROMPT_CHAIN_STV_ANTI_COPY_3STEP,
+} from "@/lib/vibe-legacy-config";
 import { fetchErrorDetails } from "@/lib/gemini-vibe-debug-log";
 
 function toErrorMeta(err: unknown) {
@@ -65,6 +68,15 @@ export async function POST(req: NextRequest) {
         .single();
       if (!vibe || vibe.user_id !== user.id) {
         return NextResponse.json({ error: "vibe_not_found" }, { status: 404 });
+      }
+      if (vibe.prompt_chain === VIBE_PROMPT_CHAIN_STV_ANTI_COPY_3STEP) {
+        return NextResponse.json(
+          {
+            error: "stv_use_dedicated_routes",
+            message: "Use POST /api/vibe/stv-style-rewrite then /api/vibe/stv-final-prompt for this vibe.",
+          },
+          { status: 409 },
+        );
       }
       if (vibe.prompt_chain !== VIBE_PROMPT_CHAIN_LEGACY_2C23) {
         return NextResponse.json(

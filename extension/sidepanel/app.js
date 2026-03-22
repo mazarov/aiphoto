@@ -104,7 +104,9 @@ const state = {
   /** 0–100 during extract/expand/assemble (before result rows exist); reset when idle */
   pipelinePrepPercent: 0,
   /** Primary button label while generating: extract | expand | assemble | generate */
-  runStage: "idle"
+  runStage: "idle",
+  /** Server: extract used STV 3-step anti-copy JSON (`photo_app_config.vibe_stv_anti_copy_3step`). */
+  stvAntiCopy3Step: false
 };
 
 let toastTimer = null;
@@ -677,6 +679,7 @@ function toSerializableState() {
     results: state.results,
     runHistory: state.runHistory,
     cooldownUntil: state.cooldownUntil,
+    stvAntiCopy3Step: Boolean(state.stvAntiCopy3Step),
     updatedAt: Date.now()
   };
 }
@@ -799,6 +802,7 @@ function applyPersistedState(saved) {
   state.results = Array.isArray(saved.results) ? saved.results : state.results;
   state.runHistory = Array.isArray(saved.runHistory) ? saved.runHistory : state.runHistory;
   state.cooldownUntil = Number(saved.cooldownUntil || 0);
+  state.stvAntiCopy3Step = Boolean(saved.stvAntiCopy3Step);
 }
 
 async function api(path, init = {}) {
@@ -1050,13 +1054,45 @@ async function runExtract() {
   state.vibeId = extractData.vibeId;
   state.style = extractData.style;
   state.extractModel = String(extractData.modelUsed || "");
+  state.stvAntiCopy3Step = Boolean(extractData.stvAntiCopy3Step);
   state.mergedForSingleGeneration = "";
   state.finalPromptForGeneration = "";
   state.finalPromptAssumesTwoImages = false;
   await persistState();
 }
 
+async function runStvPromptChain() {
+  state.finalPromptForGeneration = "";
+  state.finalPromptAssumesTwoImages = false;
+  state.vibeGroomingControlsAvailable = false;
+  state.mergedForSingleGeneration = "";
+  const rw = await api("/api/vibe/stv-style-rewrite", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ vibeId: state.vibeId })
+  });
+  const scene = String(rw.scenePrompt || "").trim();
+  if (!scene) {
+    throw new Error(t("err_stv_rewrite"));
+  }
+  const fin = await api("/api/vibe/stv-final-prompt", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ vibeId: state.vibeId, scenePrompt: scene })
+  });
+  state.prompts = Array.isArray(fin.prompts) ? fin.prompts : [];
+  state.mergedForSingleGeneration = String(fin.mergedPrompt || "").trim();
+  state.expandModel = String(fin.modelUsed || "");
+  state.finalPromptForGeneration = String(fin.finalPromptForGeneration || "").trim();
+  state.finalPromptAssumesTwoImages = Boolean(fin.finalPromptAssumesTwoImages);
+  await persistState();
+}
+
 async function runExpand() {
+  if (state.stvAntiCopy3Step) {
+    await runStvPromptChain();
+    return;
+  }
   state.finalPromptForGeneration = "";
   state.finalPromptAssumesTwoImages = false;
   state.vibeGroomingControlsAvailable = false;
