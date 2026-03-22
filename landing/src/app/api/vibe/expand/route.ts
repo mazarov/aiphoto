@@ -36,6 +36,12 @@ import {
 
 const DIRECT_GEMINI_BASE_URL = "https://generativelanguage.googleapis.com";
 
+const GEMINI_EXPAND_MAX_ATTEMPTS = 3;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 /** Single-scene expand output; accent is fixed for API compatibility / save route. */
 const SINGLE_PROMPT_ACCENT = "scene" as const;
 type PromptVariant = { accent: typeof SINGLE_PROMPT_ACCENT; prompt: string };
@@ -343,30 +349,63 @@ export async function POST(req: NextRequest) {
       }
 
       let geminiRes: Response;
-      try {
-        geminiRes = await fetch(geminiUrl, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-goog-api-key": apiKey,
-          },
-          body: JSON.stringify(geminiBody),
-          signal: AbortSignal.timeout(45000),
-        });
-      } catch (err) {
-        console.error("[vibe.expand] gemini_fetch_failed", {
-          userId: user.id,
-          model: textModel,
-          endpointHost: geminiEndpointHost,
-          durationMs: Date.now() - llmStarted,
-          ...toErrorMeta(err),
-          ...fetchErrorDetails(err),
-        });
-        return NextResponse.json({ error: "expand_failed" }, { status: 503 });
+      let fetchAttempt = 0;
+      while (true) {
+        try {
+          geminiRes = await fetch(geminiUrl, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "x-goog-api-key": apiKey,
+            },
+            body: JSON.stringify(geminiBody),
+            signal: AbortSignal.timeout(45000),
+          });
+        } catch (err) {
+          console.error("[vibe.expand] gemini_fetch_failed", {
+            userId: user.id,
+            model: textModel,
+            endpointHost: geminiEndpointHost,
+            durationMs: Date.now() - llmStarted,
+            ...toErrorMeta(err),
+            ...fetchErrorDetails(err),
+          });
+          return NextResponse.json({ error: "expand_failed", detail: "network" }, { status: 503 });
+        }
+
+        const status = geminiRes.status;
+        const retryable = status === 503 || status === 429;
+        if (retryable && fetchAttempt < GEMINI_EXPAND_MAX_ATTEMPTS - 1) {
+          try {
+            await geminiRes.text();
+          } catch {
+            /* ignore */
+          }
+          const retryAfterHeader = geminiRes.headers.get("retry-after");
+          const parsedRa = retryAfterHeader ? Number.parseInt(retryAfterHeader, 10) : NaN;
+          const baseDelay = Math.min(4000, 400 * 2 ** fetchAttempt);
+          const jitter = Math.floor(Math.random() * 250);
+          const waitMs =
+            Number.isFinite(parsedRa) && parsedRa > 0
+              ? Math.min(10_000, parsedRa * 1000)
+              : baseDelay + jitter;
+          console.warn("[vibe.expand] gemini_retry", {
+            userId: user.id,
+            model: textModel,
+            httpStatus: status,
+            attempt: fetchAttempt + 1,
+            maxAttempts: GEMINI_EXPAND_MAX_ATTEMPTS,
+            waitMs,
+          });
+          fetchAttempt += 1;
+          await sleep(waitMs);
+          continue;
+        }
+        break;
       }
 
       let geminiData: {
-        error?: { message?: string };
+        error?: { message?: string; status?: string };
         candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
       };
       try {
@@ -379,7 +418,29 @@ export async function POST(req: NextRequest) {
           durationMs: Date.now() - llmStarted,
           ...fetchErrorDetails(err),
         });
-        return NextResponse.json({ error: "expand_failed" }, { status: 502 });
+        return NextResponse.json({ error: "expand_failed", detail: "bad_response" }, { status: 502 });
+      }
+
+      if (!geminiRes.ok) {
+        const errMsg = geminiData?.error?.message ?? null;
+        const errStatus = geminiData?.error?.status ?? null;
+        console.error("[vibe.expand] gemini_http_error", {
+          userId: user.id,
+          model: textModel,
+          httpStatus: geminiRes.status,
+          llmError: errMsg,
+          errorStatus: errStatus,
+          attempts: fetchAttempt + 1,
+        });
+        const unavailable =
+          geminiRes.status === 503 || errStatus === "UNAVAILABLE" || errStatus === "RESOURCE_EXHAUSTED";
+        return NextResponse.json(
+          {
+            error: "expand_failed",
+            detail: unavailable ? "gemini_unavailable" : "gemini_error",
+          },
+          { status: unavailable ? 503 : geminiRes.status >= 400 && geminiRes.status < 600 ? geminiRes.status : 502 },
+        );
       }
 
       text = geminiData?.candidates?.[0]?.content?.parts?.find((p) => typeof p.text === "string")?.text || "";
