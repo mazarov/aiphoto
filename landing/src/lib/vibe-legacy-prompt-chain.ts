@@ -1,5 +1,5 @@
 /**
- * Steal-This-Vibe legacy style shape from commit 2c23ce94 (8-field extract).
+ * Steal-This-Vibe legacy style shape from commit 2c23ce94 (extract) + **pose** field (9 keys).
  * POST /api/vibe/expand passthrough: full labeled body from all non-empty fields (no text LLM). Legacy accent expand + merge helpers remain for reference / tooling.
  */
 
@@ -10,6 +10,7 @@ import { openAiChatCompletionText } from "@/lib/vibe-llm-openai";
 export const LEGACY_VIBE_STYLE_FIELDS = [
   "scene",
   "genre",
+  "pose",
   "lighting",
   "camera",
   "mood",
@@ -25,6 +26,7 @@ export type LegacyVibeStylePayload = Record<LegacyVibeStyleField, string>;
 export const LEGACY_VIBE_FIELD_LABELS: Record<LegacyVibeStyleField, string> = {
   scene: "Scene",
   genre: "Genre",
+  pose: "Pose",
   lighting: "Lighting",
   camera: "Camera",
   mood: "Mood",
@@ -32,6 +34,10 @@ export const LEGACY_VIBE_FIELD_LABELS: Record<LegacyVibeStyleField, string> = {
   clothing: "Clothing",
   composition: "Composition",
 };
+
+/** When `pose` is missing in stored JSON (pre–pose-field vibes), expand coerces to this so prompts stay valid. */
+export const LEGACY_POSE_MISSING_BACKFILL =
+  "Infer subject pose from the reference image: head orientation relative to camera and shoulders, torso angle, arm and hand placement, stance or seated posture, and weight distribution as visible.";
 
 /**
  * Verbatim style text for expand → generate: every non-empty legacy field as a labeled block.
@@ -83,8 +89,16 @@ export const LEGACY_EXTRACT_PROMPT_2C23CE94 = `
 Analyze this image and extract its visual style as a structured description.
 Return a JSON object with these exact fields:
 
-- scene: What is depicted (subject, setting, action). 1-2 sentences.
+- scene: Who and where: subject (brief traits), setting, and what is happening in one line — 1-2 sentences. Do NOT describe detailed body pose, head angle vs shoulders, limb positions, or weight distribution here; put all of that in pose.
 - genre: The photographic genre (fashion editorial, street photography, portrait, etc.)
+- pose: One cohesive English paragraph for downstream IMAGE GENERATION. Describe ONLY the subject's physical pose and body geometry (not camera/lens — camera field; not placement inside the frame rectangle — composition field).
+  Cover in order (omit a clause only if that body region is out of frame; say "not visible"):
+  (1) Head vs torso: facing direction (toward camera / away / profile), head turn relative to shoulders, tilt (chin up or down, ear toward shoulder if any).
+  (2) Shoulders and torso: square vs angled to camera, lean forward or back, twist, visible spine curve if any.
+  (3) Arms and hands: positions, angles, and contacts (face, hair, hips, pockets, props, crossed arms, etc.); relaxed vs tense.
+  (4) Hips and legs if visible: stance, which leg bears weight, knee bend, sitting or lying pose if applicable.
+  (5) One short posture label if accurate (e.g. upright formal, relaxed slouch, contrapposto, arms-akimbo).
+  Do NOT repeat the camera field: no focal length, mm, camera height relative to eyes, or horizontal viewing angle. Do NOT repeat composition-only framing (rule-of-thirds, negative space).
 - lighting: Describe the lighting setup, direction, quality, color temperature.
 - camera: One paragraph that MUST answer, in this order, using clear photographic terms (not vague words like "selfie angle" alone):
   (1) Estimated focal length class: ultra-wide / wide / normal / short tele / tele (give a plausible full-frame equivalent range in mm if inferable, else say "unknown").
@@ -96,7 +110,15 @@ Return a JSON object with these exact fields:
   If face or body geometry is ambiguous, state uncertainty explicitly (e.g. "uncertain between eye-level and slightly above") instead of guessing.
 - mood: The emotional tone and atmosphere.
 - color: Color palette, grading, contrast, saturation levels.
-- clothing: What the subject is wearing (if applicable, empty string if not).
+- clothing: One cohesive English paragraph for IMAGE GENERATION. Describe ONLY garments and worn accessories visible on the subject (not pose — pose field; not body shape commentary unless it affects how cloth reads).
+  Cover in order (say "not visible" if a region is out of frame; use empty string "" only if no clothing/accessories are visible at all, e.g. face-only crop with no apparel):
+  (1) Upper body: garment type(s) (e.g. tank, tee, shirt, blouse, sweater, jacket, coat), neckline/collar, sleeve length and cut, layers (under/over).
+  (2) Lower body if visible: pants, skirt, shorts, dress continuation — cut (wide, slim, straight), rise if inferable.
+  (3) Colors and patterns: name dominant and accent colors; stripes, checks, solid, print motif if any.
+  (4) Material read: what the fabric looks like (denim, ribbed knit, leather, satin, mesh, fleece, linen, suit wool, etc.) even if approximate.
+  (5) Fit and styling: tight / fitted / relaxed / oversized; cropped, tucked vs untucked, rolled cuffs, undone buttons, off-shoulder, etc.
+  (6) Footwear if visible; headwear, belt, jewelry, watch, bag strap on body — one short phrase each or "none visible".
+  Do NOT repeat pose geometry; do not describe background wardrobe on other people unless they are the main subject.
 - composition: One cohesive paragraph written for downstream IMAGE GENERATION. The expand step does not rewrite this field — it is passed through verbatim under the label "Composition", so be concrete and actionable inside the picture frame only.
   Cover in order (skip a clause only if truly not applicable; say "not visible" when unsure):
   (1) Subject placement vs frame: centered, rule-of-thirds (name which intersection if clear), edge-weighted, or symmetrical balance.
@@ -155,6 +177,15 @@ export function coerceLegacyVibeStylePayload(input: unknown): LegacyVibeStylePay
   const row = input as Record<string, unknown>;
   const style = {} as LegacyVibeStylePayload;
   for (const field of LEGACY_VIBE_STYLE_FIELDS) {
+    if (field === "pose") {
+      const value = row[field];
+      if (typeof value === "string" && value.trim()) {
+        style.pose = value.trim();
+      } else {
+        style.pose = LEGACY_POSE_MISSING_BACKFILL;
+      }
+      continue;
+    }
     const value = row[field];
     if (typeof value !== "string") return null;
     const normalized = value.trim();
@@ -376,7 +407,7 @@ export function resolveMergedPromptWithFallback(
   };
 }
 
-/** If DB style JSON is legacy 8-field shape, coerce; else null. */
+/** If DB style JSON is legacy shape (9 fields, or 8 without pose — backfilled), coerce; else null. */
 export function legacyStyleFromUnknownRowStyle(style: unknown): LegacyVibeStylePayload | null {
   return coerceLegacyVibeStylePayload(style);
 }

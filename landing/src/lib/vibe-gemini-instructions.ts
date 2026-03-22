@@ -23,10 +23,10 @@ export const DEFAULT_GEMINI_VIBE_EXPAND_MODEL = "gemini-2.5-flash";
 /** Minimum length for scene prompt validation in grooming helpers (legacy expand does not use this gate). */
 export const MIN_VIBE_SCENE_PROMPT_CHARS = 600;
 
-/** `gemini` | `openai` — which backend runs `/api/vibe/extract` (vision → legacy 8-field JSON). */
+/** `gemini` | `openai` — which backend runs `/api/vibe/extract` (vision → legacy JSON: scene…composition + pose). */
 export const PHOTO_APP_CONFIG_KEY_VIBE_EXTRACT_LLM = "vibe_extract_llm";
 
-/** `gemini` | `openai` — which backend runs `/api/vibe/expand` (legacy 8-field style → 3-accent JSON + merge). */
+/** `gemini` | `openai` — which backend runs `/api/vibe/expand` (legacy style JSON → 3-accent JSON + merge; expand passthrough ignores LLM when legacy). */
 export const PHOTO_APP_CONFIG_KEY_VIBE_EXPAND_LLM = "vibe_expand_llm";
 
 /** OpenAI model when `vibe_extract_llm` = openai (vision-capable, e.g. gpt-4o). */

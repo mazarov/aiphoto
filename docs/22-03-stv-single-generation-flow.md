@@ -1,6 +1,6 @@
 # Steal This Vibe: цепочка промптов из `2c23ce94` → текущий прод (одна генерация)
 
-> **Версия документа:** 2026-03-22 (dual assemble: хвост **LAST** после CRITICAL при grooming в теле; extract/expand как раньше; §11.5)  
+> **Версия документа:** 2026-03-23 (legacy extract: поле **`pose`**; coerce backfill для старых JSON; §11.5)  
 > **Цель:** зафиксировать, *как из пикселей референса получается текст и мультимодальный запрос*, из-за которого **фото пользователя визуально приближают к стилю референса**, на примере коммита **`2c23ce94`**, и описать, **как тот же смысл приземлить в текущем стеке через фиче-флаг**, сохранив **ровно один** `POST /api/generate` за запуск (без трёх параллельных джобов).
 
 **Не цель этого документа:** описывать UI кредитов, cooldown, Bearer vs cookie, историю запусков. Это побочные детали панели.
@@ -105,24 +105,25 @@ sequenceDiagram
 
 ### 4.2 Поля стиля в `2c23ce94`
 
-Источник: `git show 2c23ce94:landing/src/app/api/vibe/extract/route.ts` — константа **`STYLE_FIELDS`** и **`EXTRACT_PROMPT`**.
+Источник: актуальная инструкция — **`LEGACY_EXTRACT_PROMPT_2C23CE94`** в `landing/src/lib/vibe-legacy-prompt-chain.ts` (исторически уходит к `2c23ce94`, поле **`pose`** добавлено позже).
 
 | Поле | Смысл (кратко) |
 |------|----------------|
-| `scene` | Что на кадре: субъект, место, действие (1–2 предложения) |
+| `scene` | Кто, где, что происходит (1–2 предложения); **без** детальной позы тела — она в **`pose`** |
 | `genre` | Жанр фото (editorial, street, portrait, …) |
+| `pose` | Поза и геометрия тела: голова/торс, руки, ноги/стойка, ярлык осанки; не оптика и не композиция кадра |
 | `lighting` | Свет: направление, качество, ЦТ, тени |
 | `camera` | Объектив, фокус, ГРИП, угол, дистанция |
 | `mood` | Эмоция, атмосфера |
 | `color` | Палитра, грейдинг, контраст, насыщенность |
-| `clothing` | Одежда или `""` |
+| `clothing` | Одежда и носимые аксессуары: типы, цвет/принт, материал «на глаз», посадка, обувь/украшения; `""` только если в кадре нет одежды |
 | `composition` | Один абзац для image-gen: expand **не переписывает** поле — passthrough под меткой **Composition** (`buildLegacyVibeFullPromptBody`). Порядок: плейсмент vs кадр → кроп/масштаб → вертикаль в кадре → fg/mid/bg → линии/геометрия → негативное пространство; без дублирования **`camera`** |
 
 После парса строка пишется в **`vibes`** вместе с **`source_image_url`**; клиент получает **`vibeId`** + **`style`**.
 
 ### 4.3 Текущий прод
 
-**Extract** всегда использует контракт `2c23ce94`: **8 строковых полей**, инструкция **`LEGACY_EXTRACT_PROMPT_2C23CE94`**: структурированный **`camera`**; **`composition`** — связный абзац под **passthrough** в expand (без text LLM на expand), без повторения оптики/ракурса из **`camera`**. Insert с **`prompt_chain = legacy_2c23`**. Опционально в body: **`extractTemperature`** (0–2). Ветки modern / one-shot **удалены** (`landing/src/app/api/vibe/extract/route.ts`, `vibe-legacy-prompt-chain.ts`). Провайдеры — через `photo_app_config`.
+**Extract** всегда использует **`LEGACY_EXTRACT_PROMPT_2C23CE94`**: **9 строковых полей** (в т.ч. **`pose`**), структурированный **`camera`**, **`composition`** под passthrough expand. Старые записи **`vibes.style`** без **`pose`**: при чтении coerce подставляет **`LEGACY_POSE_MISSING_BACKFILL`**. Insert с **`prompt_chain = legacy_2c23`**. **`extractTemperature`** (0–2). Ветки modern / one-shot **удалены**. Провайдеры — через `photo_app_config`.
 
 ---
 
@@ -202,7 +203,7 @@ sequenceDiagram
 
 **Вход merge-LLM (логический):**
 
-- **`style`** — объект JSON стиля (те же 8 полей legacy или подмножество), как контекст «что за кадр».
+- **`style`** — объект JSON стиля (legacy **9** полей или подмножество), как контекст «что за кадр».
 - **`variants`** — ровно три строки с подписями акцентов, например в тексте системного сообщения:
   - `[LIGHTING] …`
   - `[MOOD] …`
@@ -281,7 +282,7 @@ flowchart TD
 
 | Ось | Что меняет | Сколько `POST /api/generate` |
 |-----|------------|------------------------------|
-| **A. Legacy prompt chain** | Серверный **extract/expand** как в `2c23ce94` (8 полей + 3 акцента в expand) | **Всегда 1** (клиент шлёт один `prompt`) |
+| **A. Legacy prompt chain** | Серверный **extract/expand** (9 полей incl. **pose**; исторически 3 акцента в expand) | **Всегда 1** (клиент шлёт один `prompt`) |
 | **B. Три джобы (эксперимент в панели)** | `localStorage.stv_triple_variant_flow` — три параллельных вызова generate | **3** |
 
 **Целевой продукт по вашему ТЗ — ось A**, не B. Ось B оставлена как отдельный dev-эксперимент и **не** является частью «восстановления промптов».
@@ -315,7 +316,7 @@ flowchart TD
 
 | Этап | `2c23ce94` | Текущий прод (ориентир) |
 |------|------------|-------------------------|
-| Референс → стиль | Vision + JSON 8 полей | Vision/OpenAI + расширенные/one-shot схемы |
+| Референс → стиль | Vision + JSON 9 полей (legacy) | Vision/OpenAI + расширенные/one-shot схемы |
 | Стиль → тексты | Один LLM-expand → **3** `{accent,prompt}` | Несколько путей + assemble + grooming |
 | Текст → картинка | `generate` + `generate-process`; ref pixels по конфигу | То же; больше веток в `assembleVibeFinalPrompt` |
 | Запусков generate с панели за клик | **3** параллельно | **1** (по умолчанию) |
@@ -421,7 +422,7 @@ flowchart TD
 
 Если **`photo_app_config.vibe_legacy_prompt_chain_2c23ce94`** = `"true"`:
 
-- для **новых** `POST /api/vibe/extract` использовать **только** legacy-пайплайн (8 полей + legacy инструкция);
+- для **новых** `POST /api/vibe/extract` использовать **только** legacy-пайплайн (9 полей + **`LEGACY_EXTRACT_PROMPT_2C23CE94`**);
 - **`vibe_one_shot_extract_prompt`** (и аналоги one-shot) **не применять**; один раз залогировать предупреждение при старте или при первом extract в процессе: `[vibe.extract] one_shot_ignored_due_to_legacy_chain`.
 
 Если legacy-флаг **false** — текущее поведение без изменений.

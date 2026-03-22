@@ -1,5 +1,5 @@
 /**
- * Steal-This-Vibe uses only the legacy chain (8-field extract, 3-accent expand + merge).
+ * Steal-This-Vibe uses only the legacy chain (9-field extract incl. pose; historical 3-accent expand + merge).
  * `vibes.prompt_chain` = {@link VIBE_PROMPT_CHAIN_LEGACY_2C23} for new rows.
  */
 
