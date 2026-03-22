@@ -1,6 +1,6 @@
 # 01 — Лендинг (promptshot.ru)
 
-> Последнее обновление: 2026-03-23 (**extract:** **`clothing`** — отдельный пункт jewelry/piercings + прочие аксессуары; **`pose`** + backfill)
+> Последнее обновление: 2026-03-23 (**web generate без vibe:** `assembleLandingCardFinalPrompt` — после текста карточки блок **CRITICAL RULES** с принудительной сменой гардероба по промпту)
 
 > UI side panel + content script: см. `docs/extension-ui-spec.md`; карта файлов и токены — `extension/DEVELOPER.md`.
 
@@ -60,6 +60,7 @@
 - **Точка входа:** кнопка «Сгенерировать» на странице карточки (`/p/[slug]`), рядом с «Скопировать промпт».
 - **Видимость:** только при `debugOpen` (5 кликов по логотипу в футере).
 - **Flow:** Browser → POST /api/generate → создание записи → fire-and-forget fetch на /api/generate-process → Gemini через VPN proxy → результат в Storage.
+- **Текст в Gemini (без `vibe_id`):** `generate-process` склеивает **`prompt_text`** + **`GENERATE_LANDING_CARD_CRITICAL_RULES`** (`assembleLandingCardFinalPrompt`) — идентичность с фото, **гардероб по тексту промпта**, не копировать одежду с загрузки.
 - **Gemini routing:** `generate-process` читает `photo_app_config.gemini_use_proxy`; при `true` использует `GEMINI_PROXY_BASE_URL`, при `false` ходит напрямую в `generativelanguage.googleapis.com`.
 - **Таблицы:** `landing_users.credits`, `landing_generations`, `landing_generation_config`.
 - **Storage:** `web-generation-uploads` (входные фото), `web-generation-results` (результаты).

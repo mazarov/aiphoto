@@ -1,6 +1,6 @@
 # Web Generation Module
 
-> Последнее обновление: 2026-03-20
+> Последнее обновление: 2026-03-23
 
 Модуль генерации изображений на лендинге PromptShot. Открывается как модальное окно поверх любой страницы. Точка входа — кнопка рядом с «Скопировать промпт» на странице карточки.
 
@@ -38,6 +38,8 @@ Next.js API Route (Dockhost, Россия)
   ▼
 Browser  ← polling GET /api/generations/[id] каждые 2-3 сек
 ```
+
+**Текст для image-модели (без `vibe_id`):** в `generate-process` к **`prompt_text`** дописывается **`GENERATE_LANDING_CARD_CRITICAL_RULES`** через **`assembleLandingCardFinalPrompt`** — лицо/идентичность с загрузки, **одежда и аксессуары по промпту карточки**, не копировать гардероб с входного фото (если только промпт явно не просит оставить).
 
 ### Безопасность
 
@@ -352,7 +354,7 @@ Polling статуса генерации. Требует auth. Пользова
 **Вариант A — Inline processing (проще для MVP):**
 - `POST /api/generate` создаёт запись, возвращает id.
 - `POST /api/generate-process` (внутренний, вызывается через `fetch` без await из первого endpoint'а, или через `waitUntil` если доступен).
-- Обрабатывает: скачивает фото → вызывает Gemini → сохраняет результат.
+- Обрабатывает: скачивает фото → собирает полный текст (`assembleLandingCardFinalPrompt` для строк без `vibe_id`) → вызывает Gemini → сохраняет результат.
 
 **Вариант B — Отдельный worker (надёжнее):**
 - Отдельный процесс (cron или long-running) поллит `landing_generations WHERE status = 'pending'`.

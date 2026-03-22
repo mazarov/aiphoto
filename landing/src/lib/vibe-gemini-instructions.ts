@@ -390,11 +390,21 @@ Ignore B's pose, head tilt, and camera angle when they conflict with IMAGE A —
 
 const GENERATE_VIBE_CRITICAL_RULES_SINGLE = `
 CRITICAL RULES
-The attached image is the SUBJECT (a real person). Output exactly one new photorealistic photograph of that same person living in the scene described above. Identity = that attachment only.
-
-- Preserve: face structure, features, skin tone, eye color, proportions, natural hair color (never recolor to mimic a "model" in the text).
-- Text may describe another person's hair/eyes/skin — ignore for identity; still follow for pose, light, wardrobe, grooming, set, grade.
+- Preserve: face structure, features, skin tone, eye color, proportions.
 - Subject must look naturally photographed in the setting, not pasted.
+`.trim();
+
+/**
+ * Card / debug web generation (`landing_generations` without `vibe_id`): user photo(s) + prompt text only.
+ * Pushes the model to take wardrobe from the text, not from input pixels.
+ */
+export const GENERATE_LANDING_CARD_CRITICAL_RULES = `
+CRITICAL RULES
+The input image(s) show the SUBJECT (a real person). Output exactly one new photorealistic photograph of that same person following the text description above (the prompt).
+
+- Identity: preserve the same person — face structure, features, skin tone, eye color, body proportions, natural hair color from the input. Do not swap in a different face or body.
+- Wardrobe — fully replace clothing: ignore the apparel, shoes, and visible accessories in the input photo as the outfit to keep. Treat input clothing as something to discard unless the text explicitly says to preserve it. Dress the subject exactly as the text prompt describes — fully change the outfit to match the prompt; do not default to copying the T-shirt, hoodie, jeans, dress, or shoes from the upload. If the text names specific garments, colors, or style, the output must show those.
+- Result must look naturally photographed, not pasted or flatly composited.
 `.trim();
 
 const GENERATE_VIBE_CRITICAL_RULES_DUAL = `
@@ -511,4 +521,12 @@ export function assembleVibeFinalPrompt(rawExpandedPrompt: string, assumeReferen
     return `${withCritical}${buildFlashImageGroomingRecencyTail(scene)}`.trim();
   }
   return joinVibeFinalPromptParts(scene, GENERATE_VIBE_CRITICAL_RULES_SINGLE);
+}
+
+/**
+ * Non-vibe card generation: same order as vibe — **prompt body first**, then **CRITICAL RULES** (wardrobe from text).
+ * Used in `generate-process` when `vibe_id` is null.
+ */
+export function assembleLandingCardFinalPrompt(rawCardPrompt: string): string {
+  return joinVibeFinalPromptParts(String(rawCardPrompt ?? "").trimEnd(), GENERATE_LANDING_CARD_CRITICAL_RULES);
 }

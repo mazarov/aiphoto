@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServer, getStoragePublicUrl } from "@/lib/supabase";
 import {
+  assembleLandingCardFinalPrompt,
   assembleVibeFinalPrompt,
   getVibeAttachReferenceImageToGeneration,
   VIBE_IMAGE_PART_LABEL_REFERENCE,
@@ -267,7 +268,9 @@ async function processGeneration(supabase: ReturnType<typeof createSupabaseServe
     });
   }
 
-  const fullPrompt = isVibeGeneration ? assembleVibeFinalPrompt(rawPrompt, hasTwoImages) : rawPrompt;
+  const fullPrompt = isVibeGeneration
+    ? assembleVibeFinalPrompt(rawPrompt, hasTwoImages)
+    : assembleLandingCardFinalPrompt(rawPrompt);
 
   if (shouldLogFullGenerationPrompt()) {
     console.warn("[generation.process] full_prompt_text", {
