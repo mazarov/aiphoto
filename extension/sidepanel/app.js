@@ -515,30 +515,68 @@ function bindRunHistoryActions() {
   });
 }
 
-/** Share of the bar for LLM prep (extract → expand → assemble); rest = image generation rows */
-const PIPELINE_PREP_SHARE = 38;
-const PIPELINE_GEN_SHARE = 62;
+/**
+ * Full bar 0–100%: first half = prep (extract → expand → assemble) from `pipelinePrepPercent`,
+ * second half = image job polling from average `row.progress`.
+ * During prep we ignore stale `state.results` from a previous run (they stayed at 100% and broke the bar).
+ */
+const PREP_PROGRESS_SHARE = 50;
+const GEN_PROGRESS_SHARE = 50;
+
+const IN_FLIGHT_STATUSES = new Set(["queued", "creating", "processing"]);
+
+function isPrepRunStage() {
+  return (
+    state.runStage === "extract" ||
+    state.runStage === "expand" ||
+    state.runStage === "assemble"
+  );
+}
+
+function averageRowProgress(rows) {
+  if (!Array.isArray(rows) || !rows.length) return 0;
+  const sum = rows.reduce((acc, row) => acc + Number(row.progress || 0), 0);
+  return Math.round(sum / rows.length);
+}
+
+function resultsHaveInFlightWork() {
+  const rows = Array.isArray(state.results) ? state.results : [];
+  return rows.some((r) => IN_FLIGHT_STATUSES.has(String(r.status || "")));
+}
+
+function shouldShowCompareProgressBar() {
+  return state.generating || state.resuming || resultsHaveInFlightWork();
+}
 
 function getOverallProgressPercent() {
   const rows = Array.isArray(state.results) ? state.results : [];
-  const rowAvg =
-    rows.length > 0
-      ? Math.round(rows.reduce((acc, row) => acc + Number(row.progress || 0), 0) / rows.length)
-      : 0;
+  const rowAvg = averageRowProgress(rows);
 
   if (state.generating || state.resuming) {
-    if (!rows.length) {
+    if (state.generating && isPrepRunStage()) {
       const prep = Math.max(0, Math.min(100, Number(state.pipelinePrepPercent || 0)));
-      return Math.max(0, Math.min(100, Math.round((PIPELINE_PREP_SHARE * prep) / 100)));
+      return Math.max(0, Math.min(100, Math.round((prep / 100) * PREP_PROGRESS_SHARE)));
     }
     return Math.max(
       0,
-      Math.min(100, Math.round(PIPELINE_PREP_SHARE + (PIPELINE_GEN_SHARE * rowAvg) / 100))
+      Math.min(
+        100,
+        Math.round(PREP_PROGRESS_SHARE + (rowAvg / 100) * GEN_PROGRESS_SHARE)
+      )
     );
   }
 
-  if (!rows.length) return 0;
-  return Math.max(0, Math.min(100, rowAvg));
+  if (resultsHaveInFlightWork()) {
+    return Math.max(
+      0,
+      Math.min(
+        100,
+        Math.round(PREP_PROGRESS_SHARE + (rowAvg / 100) * GEN_PROGRESS_SHARE)
+      )
+    );
+  }
+
+  return 0;
 }
 
 function primaryGenerateButtonLabel() {
@@ -1562,8 +1600,7 @@ function renderMain() {
         </div>
       </div>`;
 
-  const showCompareProgress =
-    state.results.length > 0 || state.generating || state.resuming;
+  const showCompareProgress = shouldShowCompareProgressBar();
   const compareProgressHtml = showCompareProgress
     ? `
           <div class="stv-compare-progress">
