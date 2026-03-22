@@ -417,11 +417,11 @@ const GENERATE_VIBE_CRITICAL_RULES_DUAL = `
 CRITICAL RULES
 Earlier parts were labeled: IMAGE A = style reference (not the output identity); IMAGE B = subject (only identity). Output one new photograph of B as if shot in A's session — A's pose, light, set, wardrobe, and grade on B. Not a face-swap or lazy crop.
 
+- Scene / Genre / Mood (and similar prose) were written from the reference image and may still mention hair, face, or skin. Treat that as **setting and atmosphere only**. They must NOT replace IMAGE B's face, natural hair color, hair length, or resting hairstyle. If there is **no** "Hair styling (transfer from reference):" section in the text, keep B's real hair from B's photo — ignore any hair adjectives in Scene. If that section **is** present, take hair **styling** from A and natural **pigment** from B (as below).
 - Split sources: from B = identity (face, bones, eyes, body) + natural HAIR COLOR only. From A = hair STYLING and MAKEUP LOOK when the text includes the grooming-transfer sections — then do not treat B's hairstyle or makeup in B's photo as the target; override them with A's styled look while keeping B's face and hair pigment.
 - If grooming transfer is requested, the change must read clearly in pixels — B must not look like an unstyled snapshot of B when A is clearly groomed.
 - Grooming = beauty finish only — does not override torso/head angles from A or the scene.
 - Wardrobe, set, light, camera, palette: match A + scene on B.
-- Face/hair/skin prose in the scene = reference only — apply look to B, never copy A's identity.
 ${IMAGE_QUALITY_CRITICAL_BULLET}
 `.trim();
 

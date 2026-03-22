@@ -246,7 +246,7 @@ async function processGeneration(supabase: ReturnType<typeof createSupabaseServe
             });
           }
         } catch (err) {
-          console.warn("[generation.process] reference image download failed, continuing without", {
+          console.warn("[generation.process] reference image download failed", {
             generationId: id,
             error: err instanceof Error ? err.message : String(err),
           });
@@ -266,6 +266,18 @@ async function processGeneration(supabase: ReturnType<typeof createSupabaseServe
       vibePromptChain: vibePromptChain ?? "unknown",
       legacyPromptChain: vibePromptChain === VIBE_PROMPT_CHAIN_LEGACY_2C23,
     });
+  }
+
+  if (isVibeGeneration && attachRefPixel && !referenceImagePart) {
+    console.error("[generation.process] vibe_reference_required_but_missing", {
+      generationId: id,
+      vibeId: gen.vibe_id ?? null,
+    });
+    await refundAndFail(
+      "vibe_reference_missing",
+      "Референс Steal This Vibe не загрузился и не был отправлен в модель. Повторите extract или проверьте доступность URL изображения.",
+    );
+    return;
   }
 
   const fullPrompt = isVibeGeneration

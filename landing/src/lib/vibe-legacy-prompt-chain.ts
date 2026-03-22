@@ -89,7 +89,7 @@ export const LEGACY_EXTRACT_PROMPT_2C23CE94 = `
 Analyze this image and extract its visual style as a structured description.
 Return a JSON object with these exact fields:
 
-- scene: Who and where: subject (brief traits), setting, and what is happening in one line — 1-2 sentences. Do NOT describe detailed body pose, head angle vs shoulders, limb positions, or weight distribution here; put all of that in pose.
+- scene: Where, environment, and what is happening — 1-2 sentences. Use a neutral subject label if needed ("the subject", "a person") but do NOT describe hair color, hair length, hair texture, facial features, skin tone, age, or body type here (those fields are for the reference model only and would wrongly override a different person's photo at generation time). Put pose in pose; put garments in clothing. Actions and props (mirror selfie, phone, walking, sitting) are OK without cataloguing the model's biometrics.
 - genre: The photographic genre (fashion editorial, street photography, portrait, etc.)
 - pose: One cohesive English paragraph for downstream IMAGE GENERATION. Describe ONLY the subject's physical pose and body geometry (not camera/lens — camera field; not placement inside the frame rectangle — composition field).
   Cover in order (omit a clause only if that body region is out of frame; say "not visible"):
