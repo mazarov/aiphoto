@@ -28,10 +28,19 @@ ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
-# next.config outputFileTracingRoot = repo root → standalone is .next/standalone/landing/, not standalone/server.js
-COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone/landing ./
+# Standalone layout depends on build context:
+# - CI (context = landing/ only): server.js at .next/standalone/server.js
+# - Monorepo local (context includes parent): outputFileTracingRoot → .next/standalone/landing/server.js
+COPY --from=builder /app/.next/standalone /opt/standalone
+RUN if [ -f /opt/standalone/landing/server.js ]; then \
+      cp -a /opt/standalone/landing/. /app/; \
+    else \
+      cp -a /opt/standalone/. /app/; \
+    fi \
+    && rm -rf /opt/standalone \
+    && chown -R nextjs:nodejs /app
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
-COPY --from=builder /app/public ./public
+COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 USER nextjs
 EXPOSE 3001
 ENV PORT=3001
