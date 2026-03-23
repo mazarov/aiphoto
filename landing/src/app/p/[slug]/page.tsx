@@ -1,5 +1,6 @@
 import { cache } from "react";
 import type { Metadata } from "next";
+import dynamic from "next/dynamic";
 import { notFound } from "next/navigation";
 import { getCardPageData } from "@/lib/supabase";
 import {
@@ -7,8 +8,26 @@ import {
   findTagBySlug,
   type Dimension,
 } from "@/lib/tag-registry";
-import { CardPageClient } from "@/components/CardPageClient";
 import { PageLayout } from "@/components/PageLayout";
+
+const CardPageClient = dynamic(
+  () =>
+    import("@/components/CardPageClient").then((m) => m.CardPageClient),
+  {
+    ssr: true,
+    loading: () => (
+      <div
+        className="mx-auto max-w-2xl space-y-6 px-5 py-10"
+        aria-busy="true"
+        aria-label="Загрузка карточки"
+      >
+        <div className="h-64 animate-pulse rounded-3xl bg-zinc-100" />
+        <div className="mx-auto h-8 w-2/3 animate-pulse rounded-lg bg-zinc-100" />
+        <div className="h-36 animate-pulse rounded-2xl bg-zinc-50" />
+      </div>
+    ),
+  }
+);
 
 const getCachedCardPageData = cache(getCardPageData);
 

@@ -56,6 +56,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
   const [deleteSaving, setDeleteSaving] = useState(false);
   const [deleteStatus, setDeleteStatus] = useState<string | null>(null);
 
+  // Reset local media only when opening another card (`id`), not on every `data` reference change.
   useEffect(() => {
     setPhotos(data.photoUrls);
     setPhotoMeta(data.photoMeta);
@@ -64,6 +65,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
     setPhotoIndex(0);
     setSetBeforeStatus(null);
     setDeleteStatus(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: [data.id] only
   }, [data.id]);
 
   const currentPhoto = photos[photoIndex] || null;
@@ -81,10 +83,6 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
   const hasPrompts = data.promptTexts.length > 0;
   const hasPhotos = photos.length > 0;
   const viewCount = useCardViewBeacon(data.slug, data.viewCount ?? 0);
-  const viewsAriaLabel =
-    viewCount > 0
-      ? `${formatCompactCount(viewCount)} просмотров`
-      : "Пока нет просмотров";
 
   const groupCards = useMemo(() => {
     if (data.siblings.length === 0) return [];
@@ -212,7 +210,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
   return (
     <div className="mx-auto max-w-2xl px-5 py-6 lg:py-10 pb-28">
       {/* Breadcrumb — hidden on mobile */}
-      <nav className="mb-6 hidden sm:flex items-center gap-1.5 text-sm text-zinc-400">
+      <nav className="mb-6 hidden sm:flex items-center gap-1.5 text-sm text-zinc-500">
         <Link href="/" className="transition-colors hover:text-zinc-700">
           Главная
         </Link>
@@ -313,14 +311,15 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
           {/* Blurred photo layer */}
           {currentPhoto && (
             <>
-              <div className="absolute inset-0 scale-150">
+              <div className="absolute inset-0 scale-150" aria-hidden>
                 <Image
                   src={currentPhoto}
                   alt=""
                   fill
                   className="object-cover opacity-50 blur-3xl saturate-150 brightness-110"
                   sizes="100vw"
-                  priority
+                  loading="lazy"
+                  fetchPriority="low"
                 />
               </div>
               <div className="absolute inset-0 bg-gradient-to-b from-white/10 via-transparent to-white/15" />
@@ -341,6 +340,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
                   sizes="(max-width: 640px) 260px, 300px"
                   className="object-cover"
                   priority
+                  decoding="async"
                   onLoadingComplete={onHeroFrameLoad}
                 />
 
@@ -351,17 +351,17 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
                       type="button"
                       onClick={prevPhoto}
                       className="absolute left-2 top-1/2 -translate-y-1/2 z-20 rounded-full bg-black/30 p-1.5 text-white opacity-0 backdrop-blur-md transition-all group-hover:opacity-100 hover:bg-black/50 active:scale-90"
-                      aria-label="Previous photo"
+                      aria-label="Предыдущее фото"
                     >
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M15 18l-6-6 6-6" /></svg>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden><path d="M15 18l-6-6 6-6" /></svg>
                     </button>
                     <button
                       type="button"
                       onClick={nextPhoto}
                       className="absolute right-2 top-1/2 -translate-y-1/2 z-20 rounded-full bg-black/30 p-1.5 text-white opacity-0 backdrop-blur-md transition-all group-hover:opacity-100 hover:bg-black/50 active:scale-90"
-                      aria-label="Next photo"
+                      aria-label="Следующее фото"
                     >
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M9 18l6-6-6-6" /></svg>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden><path d="M9 18l6-6-6-6" /></svg>
                     </button>
                   </>
                 )}
@@ -482,6 +482,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
                 onClick={handleShare}
                 className={`${CARD_OVERLAY_ACTION_PILL} min-w-[2.75rem] text-white/70 transition-colors hover:text-white active:scale-95`}
                 title="Поделиться"
+                aria-label="Поделиться ссылкой на карточку"
               >
                 <ShareIcon className="block shrink-0" size={14} />
               </button>
@@ -495,10 +496,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
         {title}
       </h1>
 
-      <p
-        className="mb-6 flex items-center justify-center gap-2 text-sm text-zinc-500"
-        aria-label={viewsAriaLabel}
-      >
+      <p className="mb-6 flex items-center justify-center gap-2 text-sm text-zinc-500">
         <EyeIcon
           className={`shrink-0 ${viewCount > 0 ? "text-zinc-500" : "text-zinc-300"}`}
           size={16}
@@ -519,7 +517,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
               className="group/prompt relative rounded-2xl bg-zinc-50/80 border border-zinc-100 p-5 sm:p-6"
             >
               {data.promptTexts.length > 1 && (
-                <div className="mb-3 text-[11px] font-medium text-zinc-400 uppercase tracking-wide">
+                <div className="mb-3 text-[11px] font-medium text-zinc-500 uppercase tracking-wide">
                   Промпт {i + 1}
                 </div>
               )}
@@ -531,6 +529,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
                 onClick={() => handleCopySingle(text, i)}
                 className="absolute top-3 right-3 rounded-lg border border-zinc-200 bg-white p-1.5 text-zinc-400 opacity-0 shadow-sm transition-all group-hover/prompt:opacity-100 hover:text-zinc-700 hover:border-zinc-300"
                 title="Скопировать"
+                aria-label={`Скопировать промпт ${i + 1}`}
               >
                 {copiedIdx === i ? <CheckIcon size={14} /> : <CopyIcon size={14} />}
               </button>
@@ -541,7 +540,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
 
       {/* ── Subtitle ── */}
       {hasPrompts && (
-        <p className="text-center text-sm text-zinc-400 mb-6 max-w-md mx-auto">
+        <p className="text-center text-sm text-zinc-500 mb-6 max-w-md mx-auto">
           Готовый промт для генерации фото с помощью ИИ. Скопируй и используй в нейросети.
         </p>
       )}
@@ -643,7 +642,7 @@ function CheckIcon({ size = 14 }: { size?: number }) {
 
 function ShareIcon({ size = 18, className }: { size?: number; className?: string }) {
   return (
-    <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
       <polyline points="16 6 12 2 8 6" />
       <line x1="12" y1="2" x2="12" y2="15" />

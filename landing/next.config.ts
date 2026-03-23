@@ -1,6 +1,9 @@
+import path from "node:path";
 import type { NextConfig } from "next";
 
+/** Monorepo: lockfiles exist in `aiphoto/` and parent repos — pin tracing root so standalone build is deterministic. */
 const nextConfig: NextConfig = {
+  outputFileTracingRoot: path.join(import.meta.dirname, ".."),
   output: "standalone",
   serverExternalPackages: ["@supabase/supabase-js"],
   async redirects() {

@@ -90,6 +90,7 @@
 - [x] `CardOverlayMetricsChips`: **`role="img"`** + `aria-label`.
 - [x] `ReactionButtons`, `FavoriteButton`, `GroupedCard`, `PromptCard`: **доступные имена** кнопок; крупнее touch target у переключателя группы в `GroupedCard`.
 - [x] Контраст: подписи L2-чипов и счётчики — **`text-zinc-500` / `text-zinc-600`** вместо `text-zinc-400` на белом.
+- [x] **`/p/[slug]`:** герой — один **`priority`**; фон blur lazy + **`fetchPriority="low"`**; **`dynamic(CardPageClient)`**; a11y/контраст в `CardPageClient` (см. §10).
 - [ ] Edge / CDN заголовки поверх `revalidate` (хостинг).
 - [ ] Профилирование `enrichCardsWithDetails` + бюджет (R5.2).
 - [ ] Виртуализация / усечение DOM при длинном scroll (R9).
@@ -97,7 +98,29 @@
 
 ---
 
-## 10. Связанные документы
+## 10. Страница карточки `/p/[slug]` (аналогичный аудит)
+
+**Было (риски PSI):**
+
+- Два `next/image` с **`priority`** в герое (размытый фон + основное фото) — двойной preload, конкуренция за сеть и LCP.
+- Тяжёлый клиентский чанк `CardPageClient` без отдельного code split.
+- Мелкие a11y: подписи навигации по фото, «Поделиться», копирование промпта; контраст `text-zinc-400` на белом; лишний `aria-label` на `<p>` со счётчиком просмотров (текст и так виден).
+
+**Сделано в коде:**
+
+- Фон blur: **`loading="lazy"`**, **`fetchPriority="low"`**, без `priority`; контейнер **`aria-hidden`**.
+- Герой (основное фото): один **`priority`**, **`decoding="async"`**.
+- **`dynamic()`** для `CardPageClient` в `p/[slug]/page.tsx` + компактный skeleton.
+- Breadcrumb **`text-zinc-500`**; подписи промптов и футер-блок — контрастнее; кнопки с **`aria-label`**; русские подписи стрелок.
+
+**Бэклог (при необходимости):**
+
+- Отложить `POST /api/card-view` до `requestIdleCallback` (микрооптимизация TBT).
+- Перенести JSON-LD в `next/script` с `afterInteractive` (единообразие; на LCP почти не влияет).
+
+---
+
+## 11. Связанные документы
 
 - Архитектура лендинга: `docs/architecture/01-landing.md`
 - Предыдущий аудит и контекст карточек: `docs/23-03-prompt-card-view-count-requirements.md`

@@ -66,6 +66,8 @@ export default function RootLayout({
         `}</Script>
         <noscript>
           <div>
+            {/* Yandex noscript pixel — must stay a raw <img>, not next/image */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="https://mc.yandex.ru/watch/107703100" style={{position:"absolute",left:"-9999px"}} alt="" />
           </div>
         </noscript>
