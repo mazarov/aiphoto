@@ -18,6 +18,10 @@ import {
   SIZES_CARD_GRID,
 } from "@/lib/card-image-presets";
 import { ListingCardPhotoSkeleton } from "./ListingCardPhotoSkeleton";
+import {
+  hasListingGridImageLoaded,
+  rememberListingGridImageUrl,
+} from "@/lib/listing-grid-image-load-cache";
 
 type Props = {
   cards: PromptCardFull[];
@@ -49,17 +53,28 @@ export function GroupedCard({ cards, debug = false, priorityLoad = false }: Prop
   const userReaction = reactions.get(activeCard.id) ?? null;
   const viewCount = activeCard.viewCount ?? 0;
 
-  const [imageReady, setImageReady] = useState(false);
+  const [imageReady, setImageReady] = useState(
+    () => Boolean(currentPhotoUrl && hasListingGridImageLoaded(currentPhotoUrl))
+  );
 
   useEffect(() => {
+    if (!currentPhotoUrl) {
+      setImageReady(false);
+      return;
+    }
+    if (hasListingGridImageLoaded(currentPhotoUrl)) {
+      setImageReady(true);
+      return;
+    }
     setImageReady(false);
-  }, [currentPhotoUrl, activePhotoIdx, activeCard.id]);
+  }, [currentPhotoUrl]);
 
   const onPhotoFrameLoad = useCallback(() => {
+    if (currentPhotoUrl) rememberListingGridImageUrl(currentPhotoUrl);
     setImageReady(true);
-  }, []);
+  }, [currentPhotoUrl]);
 
-  /** Same as PromptCard — avoid replaying opacity transition on lazy scroll-back. */
+  /** Same cache strategy as PromptCard (see `listing-grid-image-load-cache`). */
   const mainPhotoClass = priorityLoad
     ? "object-cover z-[2] opacity-100"
     : `object-cover z-[2] ${imageReady ? "opacity-100" : "opacity-0"}`;

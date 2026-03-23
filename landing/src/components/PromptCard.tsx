@@ -19,6 +19,10 @@ import {
   SIZES_CARD_GRID,
 } from "@/lib/card-image-presets";
 import { ListingCardPhotoSkeleton } from "./ListingCardPhotoSkeleton";
+import {
+  hasListingGridImageLoaded,
+  rememberListingGridImageUrl,
+} from "@/lib/listing-grid-image-load-cache";
 
 type Props = {
   card: PromptCardFull;
@@ -103,17 +107,28 @@ export function PromptCard({ card, debug = false, priorityLoad = false }: Props)
   const isFavorited = favorites.has(card.id);
 
   /** Listing: fixed 3:4 + cover (no per-image aspect — keeps grid rows even). */
-  const [imageReady, setImageReady] = useState(false);
+  const [imageReady, setImageReady] = useState(
+    () => Boolean(currentPhoto && hasListingGridImageLoaded(currentPhoto))
+  );
 
   useEffect(() => {
+    if (!currentPhoto) {
+      setImageReady(false);
+      return;
+    }
+    if (hasListingGridImageLoaded(currentPhoto)) {
+      setImageReady(true);
+      return;
+    }
     setImageReady(false);
-  }, [currentPhoto, photoIndex]);
+  }, [currentPhoto]);
 
   const onPhotoFrameLoad = useCallback(() => {
+    if (currentPhoto) rememberListingGridImageUrl(currentPhoto);
     setImageReady(true);
-  }, []);
+  }, [currentPhoto]);
 
-  /** No opacity transition: after lazy decode / scroll-back, `onLoadingComplete` can fire again; a 300ms fade replays and looks like photos «disappear». */
+  /** Opacity gate + tab-level URL cache: remount / missing second `load` on scroll-back won't blank the cell if this URL already decoded once. */
   const mainPhotoClass = priorityLoad
     ? "object-cover z-[2] opacity-100"
     : `object-cover z-[2] ${imageReady ? "opacity-100" : "opacity-0"}`;
