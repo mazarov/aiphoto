@@ -50,7 +50,24 @@
 
 **Требование:** вторая **физическая максимальная ширина** (например 960–1280 px — выбрать одну).
 
-### 3.3 Соответствие `sizes`
+### 3.3 Текущие числа в коде (обновлять при смене пресетов)
+
+| Константа | Значение | Назначение |
+|-----------|----------|------------|
+| `CARD_IMAGE_GRID_MAX_WIDTH_PX` | 512 | `width` в `render/image` для пресета A |
+| `CARD_IMAGE_HERO_MAX_WIDTH_PX` | 768 | `width` для пресета B |
+| `CARD_IMAGE_GRID_QUALITY` | 68 | `quality` в URL для A |
+| `CARD_IMAGE_HERO_QUALITY` | 70 | `quality` в URL для B |
+| `CARD_IMAGE_LISTING_MAX_WIDTH_PX` | 360 | `width` в `render/image` для пресета L (каталог) |
+| `CARD_IMAGE_LISTING_QUALITY` | 58 | `quality` в URL для L |
+| `CARD_IMAGE_NEXT_QUALITY` | 60 | `quality` у `next/image` для A (главная `CategoryCard`, `/p/` врезки) |
+| `CARD_IMAGE_LISTING_NEXT_QUALITY` | 48 | `quality` у `next/image` для L (`PromptCard`, `GroupedCard`, `SearchBar`) |
+
+Пресет **L** подставляется в `enrichCardsWithDetails` (`listing` в `getStorageCardMediaUrl`) — листинги `[...slug]`, API listing/search/search-card, избранное. Главная (`fetchHomepageSections`) по-прежнему **A** (`grid`).
+
+Цель снижения веса: меньше пикселей с источника + ниже качество на двух этапах (imgproxy и оптимизатор Next); L даёт ещё ~½ пикселей относительно A при том же CSS.
+
+### 3.4 Соответствие `sizes`
 
 - Для пресета A — **одна** общая строка `SIZES_CARD_GRID` (или генератор от breakpoints), используемая во всех компонентах пресета A.
 - Для пресета B — **одна** строка `SIZES_CARD_HERO`.
@@ -62,7 +79,7 @@
 
 ## 4. Поставка URL (Storage / imgproxy / Next)
 
-1. **Если включён `render/image`:** функция сборки публичного URL для карточек принимает **`preset: 'A' | 'B'`** и подставляет **только** разрешённые ширину/качество из того же модуля, что и `next/image`.
+1. **Если включён `render/image`:** функция сборки публичного URL для карточек принимает **`preset: grid | hero | listing`** (A / B / L) и подставляет **только** разрешённые ширину/качество из того же модуля, что и `next/image`.
 2. **Если остаётся только `next/image` (Vercel):** физический размер всё равно задаётся из того же модуля (через `width`/`sizes` и при custom loader — те же числа).
 3. **Запрет:** хардкод `width=500` в одном месте и `width=600` в другом для одного и того же пресета A.
 

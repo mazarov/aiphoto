@@ -4,7 +4,10 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useRouter, usePathname } from "next/navigation";
 import Image from "next/image";
-import { SIZES_CARD_GRID } from "@/lib/card-image-presets";
+import {
+  CARD_IMAGE_LISTING_NEXT_QUALITY,
+  SIZES_CARD_GRID,
+} from "@/lib/card-image-presets";
 import type { PromptCardFull } from "@/lib/supabase";
 
 const DEBOUNCE_MS = 300;
@@ -48,6 +51,7 @@ function ResultCard({
             fill
             className="object-cover"
             sizes={SIZES_CARD_GRID}
+            quality={CARD_IMAGE_LISTING_NEXT_QUALITY}
           />
         </div>
       ) : (

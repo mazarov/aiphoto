@@ -18,7 +18,11 @@ import {
 } from "@/lib/card-overlay-action-pill";
 import { useCardPhotoFrame } from "@/hooks/useCardPhotoFrame";
 import { CARD_OVERLAY_PHOTO_COUNTER_CLASS } from "@/lib/card-overlay-photo-counter";
-import { SIZES_CARD_GRID, SIZES_CARD_HERO } from "@/lib/card-image-presets";
+import {
+  CARD_IMAGE_NEXT_QUALITY,
+  SIZES_CARD_GRID,
+  SIZES_CARD_HERO,
+} from "@/lib/card-image-presets";
 
 type TagEntry = { slug: string; label: string; href: string | null };
 type BreadcrumbTag = { labelRu: string; urlPath: string } | null;
@@ -354,6 +358,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
                   alt={title}
                   fill
                   sizes={SIZES_CARD_HERO}
+                  quality={CARD_IMAGE_NEXT_QUALITY}
                   className="object-cover"
                   priority
                   fetchPriority="high"
@@ -393,6 +398,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
                         fill
                         className="object-cover"
                         sizes={SIZES_CARD_GRID}
+                        quality={CARD_IMAGE_NEXT_QUALITY}
                       />
                       <div className="absolute inset-x-0 bottom-0 text-[7px] text-white font-bold text-center py-0.5 bg-gradient-to-t from-black/70 to-transparent tracking-wider">
                         БЫЛО
@@ -432,6 +438,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
                                 height={16}
                                 className="h-full w-full object-cover"
                                 sizes={SIZES_CARD_GRID}
+                                quality={CARD_IMAGE_NEXT_QUALITY}
                               />
                             </div>
                           )}

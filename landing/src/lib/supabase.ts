@@ -585,7 +585,7 @@ export async function enrichCardsWithDetails(
         )
       : mediaItems;
     const photoMeta: PhotoMeta[] = filteredMedia.map((m) => ({
-      url: getStorageCardMediaUrl(m.storage_bucket, m.storage_path, "grid"),
+      url: getStorageCardMediaUrl(m.storage_bucket, m.storage_path, "listing"),
       bucket: m.storage_bucket,
       path: m.storage_path,
       width: m.width,
@@ -601,7 +601,7 @@ export async function enrichCardsWithDetails(
       photoUrls,
       photoMeta,
       beforePhotoUrl: before
-        ? getStorageCardMediaUrl(before.bucket, before.path, "grid")
+        ? getStorageCardMediaUrl(before.bucket, before.path, "listing")
         : null,
       datasetSlug: meta?.datasetSlug ?? null,
       sourceMessageId: meta?.sourceMessageId ?? null,

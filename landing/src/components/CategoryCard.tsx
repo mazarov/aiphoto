@@ -1,6 +1,9 @@
 import Link from "next/link";
 import Image from "next/image";
-import { SIZES_CARD_GRID } from "@/lib/card-image-presets";
+import {
+  CARD_IMAGE_NEXT_QUALITY,
+  SIZES_CARD_GRID,
+} from "@/lib/card-image-presets";
 
 type Props = {
   label: string;
@@ -41,6 +44,7 @@ export function CategoryCard({
               fill
               className="object-cover opacity-60"
               sizes={SIZES_CARD_GRID}
+              quality={CARD_IMAGE_NEXT_QUALITY}
             />
           </div>
         )}
@@ -55,6 +59,7 @@ export function CategoryCard({
                 fill
                 className="object-cover"
                 sizes={SIZES_CARD_GRID}
+                quality={CARD_IMAGE_NEXT_QUALITY}
                 priority={priority}
               />
             ) : (

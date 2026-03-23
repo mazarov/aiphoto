@@ -14,7 +14,10 @@ import {
   OVERLAY_BUTTON_UA_RESET,
 } from "@/lib/card-overlay-action-pill";
 import { CardOverlayMetricsChips } from "./CardOverlayMetricsChips";
-import { SIZES_CARD_GRID } from "@/lib/card-image-presets";
+import {
+  CARD_IMAGE_LISTING_NEXT_QUALITY,
+  SIZES_CARD_GRID,
+} from "@/lib/card-image-presets";
 import { ListingCardPhotoSkeleton } from "./ListingCardPhotoSkeleton";
 
 type Props = {
@@ -127,6 +130,7 @@ export function PromptCard({ card, debug = false, priorityLoad = false }: Props)
             alt={title}
             fill
             sizes={SIZES_CARD_GRID}
+            quality={CARD_IMAGE_LISTING_NEXT_QUALITY}
             priority={priorityLoad}
             fetchPriority={priorityLoad ? "high" : undefined}
             className={mainPhotoClass}
@@ -178,6 +182,7 @@ export function PromptCard({ card, debug = false, priorityLoad = false }: Props)
                 fill
                 className="object-cover"
                 sizes={SIZES_CARD_GRID}
+                quality={CARD_IMAGE_LISTING_NEXT_QUALITY}
               />
               <div className="absolute inset-x-0 bottom-0 text-[8px] text-white font-bold text-center py-0.5 bg-gradient-to-t from-black/70 to-transparent tracking-wider">
                 БЫЛО

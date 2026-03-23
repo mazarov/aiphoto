@@ -1,6 +1,6 @@
 # 01 — Лендинг (promptshot.ru)
 
-> Последнее обновление: 2026-03-23 (**Листинг LCP:** первые `LISTING_LCP_PRIORITY_GRID_ITEMS` (12) ячеек в `FilterableGrid` — `next/image` `priority` + `fetchPriority="high"`, без `transition-opacity` на главном фото (`opacity-100`); остальные ячейки — fade-in 300ms после `onLoadingComplete`. См. `landing/src/lib/listing-lcp.ts`.) (**`/p/[slug]`:** герой — `priority` + `fetchPriority="high"`; размытый фон **после** `onLoadingComplete` героя, **CSS `background-image`** (не второй `<img>`, чтобы LCP не уходил на full-bleed blur); `dynamic(CardPageClient)`; `browserslist` в `landing/package.json` — меньше legacy polyfills в чанках. См. `docs/23-03-listing-performance-requirements.md` §10. **Производительность листингов / PSI:** требования `docs/23-03-listing-performance-requirements.md` — Метрика `lazyOnload`, `dynamic()` для `CatalogWithFilters` на `[...slug]`, секция каталога с `h2.sr-only`, a11y кнопок реакций/избранного/навигации по фото, `role="img"` у чипа просмотров, контраст подписей L2-чипов. **Превью в листинге (`PromptCard`, `GroupedCard`):** только фиксированный кадр **`aspect-[3/4]`** + `object-cover` (без inline `aspect-ratio` из БД — ровные ячейки; листинг — **CSS Grid**, порядок строками слева направо, не multicol); до декода — `ListingCardPhotoSkeleton` (shimmer). На **`/p/[slug]`** (`CardPageClient`) — по-прежнему `useCardPhotoFrame` и clamp 2:3…3:2. **Подгрузка листинга:** `InfiniteGrid` — `ListingGridLoadingSkeleton` (сетка-призрак), не спиннер. **view_count:** миграции `sql/154_*` (сортировки листингов) + `sql/155_increment_prompt_card_view.sql` (RPC `increment_prompt_card_view`); на `/p/[slug]` — `POST /api/card-view` + `useCardViewBeacon`, дедуп `sessionStorage` `promptshot_view_{slug}`. UI превью: `CARD_OVERLAY_PHOTO_COUNTER_CLASS` по центру сверху; `CardOverlayMetricsChips` — просмотры справа при `view_count > 0`; пилюли действий — `CARD_OVERLAY_ACTION_PILL`. Подробнее — `docs/23-03-prompt-card-view-count-requirements.md`. **Пресеты размеров промо-фото:** `landing/src/lib/card-image-presets.ts` (`SIZES_CARD_GRID`, `SIZES_CARD_HERO`, `SIZES_CARD_HERO_VIEWPORT`); `getStorageCardMediaUrl(…, grid|hero)` в `landing/src/lib/supabase.ts` при `NEXT_PUBLIC_SUPABASE_STORAGE_IMAGE_TRANSFORM=1` — `/render/image/public/`. ТЗ: `docs/23-03-canonical-image-presets-requirements.md`. **Docker / standalone:** см. § «Сборка Docker (standalone)» ниже.)
+> Последнее обновление: 2026-03-23 (**Листинг LCP:** первые `LISTING_LCP_PRIORITY_GRID_ITEMS` (12) ячеек в `FilterableGrid` — `next/image` `priority` + `fetchPriority="high"`, без `transition-opacity` на главном фото (`opacity-100`); остальные ячейки — fade-in 300ms после `onLoadingComplete`. См. `landing/src/lib/listing-lcp.ts`.) (**`/p/[slug]`:** герой — `priority` + `fetchPriority="high"`; размытый фон **после** `onLoadingComplete` героя, **CSS `background-image`** (не второй `<img>`, чтобы LCP не уходил на full-bleed blur); `dynamic(CardPageClient)`; `browserslist` в `landing/package.json` — меньше legacy polyfills в чанках. См. `docs/23-03-listing-performance-requirements.md` §10. **Производительность листингов / PSI:** требования `docs/23-03-listing-performance-requirements.md` — Метрика `lazyOnload`, `dynamic()` для `CatalogWithFilters` на `[...slug]`, секция каталога с `h2.sr-only`, a11y кнопок реакций/избранного/навигации по фото, `role="img"` у чипа просмотров, контраст подписей L2-чипов. **Превью в листинге (`PromptCard`, `GroupedCard`):** только фиксированный кадр **`aspect-[3/4]`** + `object-cover` (без inline `aspect-ratio` из БД — ровные ячейки; листинг — **CSS Grid**, порядок строками слева направо, не multicol); до декода — `ListingCardPhotoSkeleton` (shimmer). На **`/p/[slug]`** (`CardPageClient`) — по-прежнему `useCardPhotoFrame` и clamp 2:3…3:2. **Подгрузка листинга:** `InfiniteGrid` — `ListingGridLoadingSkeleton` (сетка-призрак), не спиннер. **view_count:** миграции `sql/154_*` (сортировки листингов) + `sql/155_increment_prompt_card_view.sql` (RPC `increment_prompt_card_view`); на `/p/[slug]` — `POST /api/card-view` + `useCardViewBeacon`, дедуп `sessionStorage` `promptshot_view_{slug}`. UI превью: `CARD_OVERLAY_PHOTO_COUNTER_CLASS` по центру сверху; `CardOverlayMetricsChips` — просмотры справа при `view_count > 0`; пилюли действий — `CARD_OVERLAY_ACTION_PILL`. Подробнее — `docs/23-03-prompt-card-view-count-requirements.md`. **Промо-фото / сжатие:** цепочка и пресеты — § «Промо-фото карточек: сжатие и пресеты» ниже; детальное ТЗ — `docs/23-03-canonical-image-presets-requirements.md`. **Docker / standalone:** см. § «Сборка Docker (standalone)» ниже.)
 
 > UI side panel + content script: см. `docs/extension-ui-spec.md`; карта файлов и токены — `extension/DEVELOPER.md`.
 
@@ -30,7 +30,37 @@
 /auth/callback          → OAuth callback (server-side)
 ```
 
-### API Routes
+## Промо-фото карточек: сжатие и пресеты
+
+Источник констант и сборки URL: `landing/src/lib/card-image-presets.ts`, обёртка `getStorageCardMediaUrl(bucket, path, preset)` в `landing/src/lib/supabase.ts`.
+
+### Два этапа отдачи в браузер
+
+1. **Опционально — Supabase Storage Image Transformation** (`/storage/v1/render/image/public/…`): при `NEXT_PUBLIC_SUPABASE_STORAGE_IMAGE_TRANSFORM=1` вместо прямого `…/object/public/…` подставляется URL с параметрами **`width`** и **`quality`**. На стороне хостинга Storage запрос обрабатывает **imgproxy** (ресайз + перекодирование в JPEG/WebP и т.д.). Это первое ограничение по пикселям и первое сжатие по качеству.
+2. **Всегда для `<Image />` — оптимизатор Next.js** (`/_next/image?…`): по `src` (уже может быть `render/image` или полный объект) сервер лендинга отдаёт формат (часто WebP/AVIF) и размер, согласованный с атрибутом **`sizes`** (подсказка для `srcset` / выбора ширины `w=`) и явным **`quality={…}`** на компоненте. В Next 15 разрешённые значения `quality` заданы в **`next.config.ts`** → `images.qualities` (сейчас **48**, **60**, **75**).
+
+Итоговый вес файла задаётся **произведением** решений обоих этапов: узкий `width` на шаге 1 уменьшает вход для шага 2; низкий `quality` на шаге 2 даёт дополнительное сжатие уже после imgproxy.
+
+### Пресеты (`preset` в коде: `grid` | `listing` | `hero`)
+
+| Имя в доках | `preset` | `width` × `quality` в `render/image` | Где формируются URL | `next/image` quality в UI |
+|-------------|----------|--------------------------------------|----------------------|---------------------------|
+| **A (grid)** | `grid` | 512 × 68 | `fetchHomepageSections`, `getFirstCardPhotoUrl`, миниатюры/врезки на `/p/[slug]` (before, siblings, карусель), всё, что явно остаётся на «сеточном» URL | `CARD_IMAGE_NEXT_QUALITY` (**60**) — `CategoryCard`, `CardPageClient`, `PhotoCarousel` |
+| **L (listing)** | `listing` | 360 × 58 | **`enrichCardsWithDetails`** — единый путь для карточек каталога: SSR `[...slug]`, `/api/listing`, `/api/search`, `/api/search-cards`, `/api/search-card` (в т.ч. избранное) | `CARD_IMAGE_LISTING_NEXT_QUALITY` (**48**) — `PromptCard`, `GroupedCard`, превью в `SearchBar` |
+| **B (hero)** | `hero` | 768 × 70 | **`fetchCardPageData`**: основные `photoUrls` / главное фото страницы карточки | `CARD_IMAGE_NEXT_QUALITY` (**60**) |
+
+Если **`NEXT_PUBLIC_SUPABASE_STORAGE_IMAGE_TRANSFORM` не `1`**, шаг 1 пропускается: в `src` попадает полный **`object/public`** объект; сжатие и уменьшение размера выполняет в основном только **Next Image** (важны `sizes` и `quality`).
+
+### Подсказки `sizes`
+
+Строки **`SIZES_CARD_GRID`**, **`SIZES_CARD_HERO`**, **`SIZES_CARD_HERO_VIEWPORT`** в том же модуле пресетов описывают **реальный CSS-размер** слота, чтобы браузер запрашивал у `/_next/image` не завышенную ширину `w` (лишний `w` = лишние байты при том же отображении).
+
+### Связанные документы
+
+- `docs/23-03-canonical-image-presets-requirements.md` — требования и таблица констант.
+- Инфраструктура imgproxy / порты / `IMGPROXY_URL` — в операционных заметках деплоя Storage (см. также обсуждения в репозитории).
+
+## API Routes
 
 | Путь | Назначение |
 |------|-----------|
