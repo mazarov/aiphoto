@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { SearchBar } from "./SearchBar";
+import { SiteLogoMark } from "./SiteLogoMark";
 import { useAuth } from "@/context/AuthContext";
 import { useDebug } from "./DebugFAB";
 
@@ -108,13 +109,7 @@ export function HeaderClient() {
           href="/"
           className="absolute left-1/2 flex -translate-x-1/2 items-center gap-2 text-lg font-bold tracking-tight text-zinc-900"
         >
-          <Image
-            src="/android-chrome-192x192.png"
-            alt=""
-            width={28}
-            height={28}
-            className="h-7 w-7 rounded-lg"
-          />
+          <SiteLogoMark size={28} className="h-7 w-7 rounded-lg" />
           <span>PromptShot</span>
         </Link>
         <div className="flex items-center">
@@ -125,13 +120,7 @@ export function HeaderClient() {
       {/* Desktop: logo + centered search + user menu */}
       <div className="hidden items-center gap-4 px-5 py-3 lg:flex">
         <Link href="/" className="flex flex-shrink-0 items-center gap-2 text-lg font-bold tracking-tight text-zinc-900">
-          <Image
-            src="/android-chrome-192x192.png"
-            alt=""
-            width={28}
-            height={28}
-            className="h-7 w-7 rounded-lg"
-          />
+          <SiteLogoMark size={28} className="h-7 w-7 rounded-lg" />
           <span>PromptShot</span>
         </Link>
 

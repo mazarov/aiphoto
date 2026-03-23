@@ -2,7 +2,7 @@
 
 import { useRef, useCallback } from "react";
 import Link from "next/link";
-import Image from "next/image";
+import { SiteLogoMark } from "./SiteLogoMark";
 import { useDebug } from "./DebugFAB";
 
 export function Footer() {
@@ -32,11 +32,8 @@ export function Footer() {
               onClick={handleLogoClick}
               className="flex items-center gap-2 text-base font-bold tracking-tight text-zinc-900 select-none"
             >
-              <Image
-                src="/android-chrome-192x192.png"
-                alt=""
-                width={24}
-                height={24}
+              <SiteLogoMark
+                size={24}
                 className={`h-6 w-6 rounded-md ${debug?.debugOpen ? "ring-2 ring-amber-400/70" : ""}`}
               />
               PromptShot
