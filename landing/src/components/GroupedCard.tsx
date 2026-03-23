@@ -15,6 +15,7 @@ import {
 } from "@/lib/card-overlay-action-pill";
 import { CardOverlayMetricsChips } from "./CardOverlayMetricsChips";
 import { hasListingPhotoDbAspect } from "@/lib/listing-lcp";
+import { SIZES_CARD_GRID } from "@/lib/card-image-presets";
 
 type Props = {
   cards: PromptCardFull[];
@@ -173,7 +174,7 @@ export function GroupedCard({ cards, debug = false, priorityLoad = false }: Prop
               src={currentPhotoUrl}
               alt={title}
               fill
-              sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+              sizes={SIZES_CARD_GRID}
               priority={priorityLoad}
               fetchPriority={priorityLoad ? "high" : undefined}
               className={mainPhotoClass}
@@ -239,7 +240,13 @@ export function GroupedCard({ cards, debug = false, priorityLoad = false }: Prop
           {(activeCard.beforePhotoUrl || groupBeforeUrl) && (
             <div className="absolute top-0 left-0 z-20 w-[28%] min-w-[72px]">
               <div className="aspect-square relative bg-zinc-800 rounded-br-xl overflow-hidden shadow-2xl ring-1 ring-black/10">
-                <Image src={(activeCard.beforePhotoUrl || groupBeforeUrl)!} alt="before" fill className="object-cover" sizes="120px" />
+                <Image
+                  src={(activeCard.beforePhotoUrl || groupBeforeUrl)!}
+                  alt="before"
+                  fill
+                  className="object-cover"
+                  sizes={SIZES_CARD_GRID}
+                />
                 <div className="absolute inset-x-0 bottom-0 text-[8px] text-white font-bold text-center py-0.5 bg-gradient-to-t from-black/70 to-transparent tracking-wider">БЫЛО</div>
               </div>
             </div>
@@ -313,7 +320,7 @@ export function GroupedCard({ cards, debug = false, priorityLoad = false }: Prop
             loading="lazy"
             fetchPriority="low"
             className="object-cover opacity-60"
-            sizes="(max-width: 640px) 50vw, 25vw"
+            sizes={SIZES_CARD_GRID}
           />
         )}
       </div>

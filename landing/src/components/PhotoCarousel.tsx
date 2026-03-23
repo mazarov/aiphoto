@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react";
 import Image from "next/image";
 import type { PhotoMeta } from "@/lib/supabase";
+import { SIZES_CARD_GRID, SIZES_CARD_HERO_VIEWPORT } from "@/lib/card-image-presets";
 
 type Props = {
   photoUrls: string[];
@@ -75,7 +76,7 @@ export function PhotoCarousel({
               src={currentUrl}
               alt=""
               fill
-              sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+              sizes={SIZES_CARD_HERO_VIEWPORT}
               className="object-cover scale-105 blur-2xl brightness-[0.6] saturate-150"
               aria-hidden
             />
@@ -83,7 +84,7 @@ export function PhotoCarousel({
               src={currentUrl}
               alt={alt}
               fill
-              sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+              sizes={SIZES_CARD_HERO_VIEWPORT}
               className="object-contain relative"
             />
           </>
@@ -104,7 +105,7 @@ export function PhotoCarousel({
                 alt="before"
                 fill
                 className="object-cover"
-                sizes="64px"
+                sizes={SIZES_CARD_GRID}
               />
             </div>
           </div>

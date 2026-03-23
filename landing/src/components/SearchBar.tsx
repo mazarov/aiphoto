@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useRouter, usePathname } from "next/navigation";
 import Image from "next/image";
+import { SIZES_CARD_GRID } from "@/lib/card-image-presets";
 import type { PromptCardFull } from "@/lib/supabase";
 
 const DEBOUNCE_MS = 300;
@@ -41,7 +42,13 @@ function ResultCard({
     >
       {card.photoUrls[0] ? (
         <div className="relative h-12 w-12 flex-shrink-0 overflow-hidden rounded-xl bg-zinc-100 ring-1 ring-zinc-900/5">
-          <Image src={card.photoUrls[0]} alt="" fill className="object-cover" sizes="48px" />
+          <Image
+            src={card.photoUrls[0]}
+            alt=""
+            fill
+            className="object-cover"
+            sizes={SIZES_CARD_GRID}
+          />
         </div>
       ) : (
         <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-zinc-100 text-zinc-300">

@@ -1,5 +1,8 @@
 import { createClient } from "@supabase/supabase-js";
-
+import {
+  buildStorageRenderImagePublicUrl,
+  type CardImagePreset,
+} from "@/lib/card-image-presets";
 
 const supabaseUrl =
   process.env.NEXT_PUBLIC_SUPABASE_URL ||
@@ -18,6 +21,18 @@ export function createSupabaseServer() {
 
 export function getStoragePublicUrl(bucket: string, path: string): string {
   return `${supabaseUrl}/storage/v1/object/public/${bucket}/${path}`;
+}
+
+/** Промо-фото карточек: опционально `render/image` (см. NEXT_PUBLIC_SUPABASE_STORAGE_IMAGE_TRANSFORM). */
+export function getStorageCardMediaUrl(
+  bucket: string,
+  path: string,
+  preset: CardImagePreset
+): string {
+  if (process.env.NEXT_PUBLIC_SUPABASE_STORAGE_IMAGE_TRANSFORM === "1") {
+    return buildStorageRenderImagePublicUrl(supabaseUrl, bucket, path, preset);
+  }
+  return getStoragePublicUrl(bucket, path);
 }
 
 export type RouteCard = {
@@ -295,7 +310,11 @@ export async function fetchHomepageSections(
         )
         .map((c) => ({
           card_id: c.card_id,
-          photoUrl: getStoragePublicUrl(c.storage_bucket, c.storage_path),
+          photoUrl: getStorageCardMediaUrl(
+            c.storage_bucket,
+            c.storage_path,
+            "grid"
+          ),
         }));
     } else {
       // Backwards compat: old RPC (118) returns photo_bucket, photo_path
@@ -303,7 +322,12 @@ export async function fetchHomepageSections(
       const path = item.photo_path ?? item.second_photo_path;
       cards =
         typeof bucket === "string" && typeof path === "string"
-          ? [{ card_id: `legacy-${dim}-${slug}`, photoUrl: getStoragePublicUrl(bucket, path) }]
+          ? [
+              {
+                card_id: `legacy-${dim}-${slug}`,
+                photoUrl: getStorageCardMediaUrl(bucket, path, "grid"),
+              },
+            ]
           : [];
     }
 
@@ -356,7 +380,9 @@ export async function getFirstCardPhotoUrl(
   const row = (data || [])[0] as
     | { storage_bucket: string; storage_path: string }
     | undefined;
-  return row ? getStoragePublicUrl(row.storage_bucket, row.storage_path) : null;
+  return row
+    ? getStorageCardMediaUrl(row.storage_bucket, row.storage_path, "grid")
+    : null;
 }
 
 /** Build menu counts from homepage sections data (avoids ~80 separate RPC calls). */
@@ -559,7 +585,7 @@ export async function enrichCardsWithDetails(
         )
       : mediaItems;
     const photoMeta: PhotoMeta[] = filteredMedia.map((m) => ({
-      url: getStoragePublicUrl(m.storage_bucket, m.storage_path),
+      url: getStorageCardMediaUrl(m.storage_bucket, m.storage_path, "grid"),
       bucket: m.storage_bucket,
       path: m.storage_path,
       width: m.width,
@@ -575,7 +601,7 @@ export async function enrichCardsWithDetails(
       photoUrls,
       photoMeta,
       beforePhotoUrl: before
-        ? getStoragePublicUrl(before.bucket, before.path)
+        ? getStorageCardMediaUrl(before.bucket, before.path, "grid")
         : null,
       datasetSlug: meta?.datasetSlug ?? null,
       sourceMessageId: meta?.sourceMessageId ?? null,
@@ -764,10 +790,10 @@ export async function getCardPageData(slug: string): Promise<CardPageData | null
     : allMedia;
 
   const photoUrls = filteredMedia.map((m) =>
-    getStoragePublicUrl(m.storage_bucket, m.storage_path)
+    getStorageCardMediaUrl(m.storage_bucket, m.storage_path, "hero")
   );
   const photoMeta: PhotoMeta[] = filteredMedia.map((m) => ({
-    url: getStoragePublicUrl(m.storage_bucket, m.storage_path),
+    url: getStorageCardMediaUrl(m.storage_bucket, m.storage_path, "hero"),
     bucket: m.storage_bucket,
     path: m.storage_path,
     width: m.width ?? null,
@@ -778,7 +804,11 @@ export async function getCardPageData(slug: string): Promise<CardPageData | null
     height: m.height ?? null,
   }));
   const beforePhotoUrl = beforeMedia
-    ? getStoragePublicUrl(beforeMedia.storage_bucket, beforeMedia.storage_path)
+    ? getStorageCardMediaUrl(
+        beforeMedia.storage_bucket,
+        beforeMedia.storage_path,
+        "grid"
+      )
     : null;
 
   let siblings: CardPageSibling[] = [];
@@ -806,7 +836,7 @@ export async function getCardPageData(slug: string): Promise<CardPageData | null
       if (!firstPhotoByCard.has(m.card_id)) {
         firstPhotoByCard.set(
           m.card_id,
-          getStoragePublicUrl(m.storage_bucket, m.storage_path)
+          getStorageCardMediaUrl(m.storage_bucket, m.storage_path, "grid")
         );
       }
     }

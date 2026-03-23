@@ -18,6 +18,7 @@ import {
 } from "@/lib/card-overlay-action-pill";
 import { useCardPhotoFrame } from "@/hooks/useCardPhotoFrame";
 import { CARD_OVERLAY_PHOTO_COUNTER_CLASS } from "@/lib/card-overlay-photo-counter";
+import { SIZES_CARD_GRID, SIZES_CARD_HERO } from "@/lib/card-image-presets";
 
 type TagEntry = { slug: string; label: string; href: string | null };
 type BreadcrumbTag = { labelRu: string; urlPath: string } | null;
@@ -352,7 +353,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
                   src={currentPhoto}
                   alt={title}
                   fill
-                  sizes="(max-width: 640px) 260px, 300px"
+                  sizes={SIZES_CARD_HERO}
                   className="object-cover"
                   priority
                   fetchPriority="high"
@@ -386,7 +387,13 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
                 {beforePhotoUrl && (
                   <div className="absolute top-0 left-0 z-20 w-[28%] min-w-[56px]">
                     <div className="aspect-square relative bg-zinc-800 rounded-br-xl overflow-hidden shadow-lg ring-1 ring-black/10">
-                      <Image src={beforePhotoUrl} alt="before" fill className="object-cover" sizes="80px" />
+                      <Image
+                        src={beforePhotoUrl}
+                        alt="before"
+                        fill
+                        className="object-cover"
+                        sizes={SIZES_CARD_GRID}
+                      />
                       <div className="absolute inset-x-0 bottom-0 text-[7px] text-white font-bold text-center py-0.5 bg-gradient-to-t from-black/70 to-transparent tracking-wider">
                         БЫЛО
                       </div>
@@ -432,6 +439,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
                                 width={16}
                                 height={16}
                                 className="h-full w-full object-cover"
+                                sizes={SIZES_CARD_GRID}
                               />
                             </div>
                           )}
