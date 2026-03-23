@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import type { PromptCardFull } from "@/lib/supabase";
@@ -19,6 +19,7 @@ import {
   SIZES_CARD_GRID,
 } from "@/lib/card-image-presets";
 import { ListingCardPhotoSkeleton } from "./ListingCardPhotoSkeleton";
+import { useListingCardPhotoReveal } from "@/hooks/useListingCardPhotoReveal";
 
 type Props = {
   card: PromptCardFull;
@@ -103,15 +104,21 @@ export function PromptCard({ card, debug = false, priorityLoad = false }: Props)
   const isFavorited = favorites.has(card.id);
 
   /**
-   * Skeleton until this mount’s `onLoad` / `onLoadingComplete`.
-   * Do not derive from a tab-level URL cache: after lazy scroll-back the inner `<img>` may decode
-   * again while cache said “ready” → skeleton hidden → empty `Image` → visible `bg-zinc-200` “white” card.
+   * Skeleton until `onLoad` / `onLoadingComplete`, and again when the card re-enters the viewport
+   * after lazy unload (`useListingCardPhotoReveal`).
    */
   const [imageReady, setImageReady] = useState(false);
+  const photoFrameRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setImageReady(false);
   }, [currentPhoto]);
+
+  useListingCardPhotoReveal({
+    frameRef: photoFrameRef,
+    photoUrl: currentPhoto,
+    setReady: setImageReady,
+  });
 
   const onPhotoFrameLoad = useCallback(() => {
     setImageReady(true);
@@ -125,7 +132,10 @@ export function PromptCard({ card, debug = false, priorityLoad = false }: Props)
       className={`group relative isolate overflow-hidden rounded-2xl transition-all duration-200 hover:shadow-xl hover:shadow-zinc-900/10 hover:-translate-y-0.5 ${card.slug ? "cursor-pointer" : ""}`}
     >
       {debug && <DebugOverlay card={card} />}
-      <div className="relative w-full overflow-hidden rounded-2xl bg-zinc-200 aspect-[3/4]">
+      <div
+        ref={photoFrameRef}
+        className="relative w-full overflow-hidden rounded-2xl bg-zinc-200 aspect-[3/4]"
+      >
         {currentPhoto && !imageReady && <ListingCardPhotoSkeleton overlay />}
         {currentPhoto ? (
           <Image

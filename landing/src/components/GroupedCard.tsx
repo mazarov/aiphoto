@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import type { PromptCardFull } from "@/lib/supabase";
@@ -18,6 +18,7 @@ import {
   SIZES_CARD_GRID,
 } from "@/lib/card-image-presets";
 import { ListingCardPhotoSkeleton } from "./ListingCardPhotoSkeleton";
+import { useListingCardPhotoReveal } from "@/hooks/useListingCardPhotoReveal";
 
 type Props = {
   cards: PromptCardFull[];
@@ -50,10 +51,17 @@ export function GroupedCard({ cards, debug = false, priorityLoad = false }: Prop
   const viewCount = activeCard.viewCount ?? 0;
 
   const [imageReady, setImageReady] = useState(false);
+  const photoFrameRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setImageReady(false);
   }, [currentPhotoUrl]);
+
+  useListingCardPhotoReveal({
+    frameRef: photoFrameRef,
+    photoUrl: currentPhotoUrl,
+    setReady: setImageReady,
+  });
 
   const onPhotoFrameLoad = useCallback(() => {
     setImageReady(true);
@@ -130,7 +138,10 @@ export function GroupedCard({ cards, debug = false, priorityLoad = false }: Prop
             </div>
           </div>
         )}
-        <div className="relative w-full overflow-hidden rounded-2xl bg-zinc-200 aspect-[3/4]">
+        <div
+          ref={photoFrameRef}
+          className="relative w-full overflow-hidden rounded-2xl bg-zinc-200 aspect-[3/4]"
+        >
           {currentPhotoUrl && !imageReady && <ListingCardPhotoSkeleton overlay />}
           {currentPhotoUrl ? (
             <Image
