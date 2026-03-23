@@ -113,9 +113,10 @@ export function PromptCard({ card, debug = false, priorityLoad = false }: Props)
     setImageReady(true);
   }, []);
 
+  /** No opacity transition: after lazy decode / scroll-back, `onLoadingComplete` can fire again; a 300ms fade replays and looks like photos «disappear». */
   const mainPhotoClass = priorityLoad
     ? "object-cover z-[2] opacity-100"
-    : `object-cover transition-[opacity] duration-300 ease-out ${imageReady ? "opacity-100 z-[2]" : "opacity-0 z-[2]"}`;
+    : `object-cover z-[2] ${imageReady ? "opacity-100" : "opacity-0"}`;
 
   return (
     <article
@@ -135,6 +136,7 @@ export function PromptCard({ card, debug = false, priorityLoad = false }: Props)
             fetchPriority={priorityLoad ? "high" : undefined}
             className={mainPhotoClass}
             onLoadingComplete={onPhotoFrameLoad}
+            onLoad={onPhotoFrameLoad}
             onError={() => setImageReady(true)}
           />
         ) : (

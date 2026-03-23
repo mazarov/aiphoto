@@ -59,9 +59,10 @@ export function GroupedCard({ cards, debug = false, priorityLoad = false }: Prop
     setImageReady(true);
   }, []);
 
+  /** Same as PromptCard — avoid replaying opacity transition on lazy scroll-back. */
   const mainPhotoClass = priorityLoad
     ? "object-cover z-[2] opacity-100"
-    : `object-cover transition-[opacity] duration-300 ease-out ${imageReady ? "opacity-100 z-[2]" : "opacity-0 z-[2]"}`;
+    : `object-cover z-[2] ${imageReady ? "opacity-100" : "opacity-0"}`;
 
   function handleCardSwitch(idx: number, photoIdx = 0) {
     setActiveCardIdx(idx);
@@ -144,6 +145,7 @@ export function GroupedCard({ cards, debug = false, priorityLoad = false }: Prop
               fetchPriority={priorityLoad ? "high" : undefined}
               className={mainPhotoClass}
               onLoadingComplete={onPhotoFrameLoad}
+              onLoad={onPhotoFrameLoad}
               onError={() => setImageReady(true)}
             />
           ) : (
