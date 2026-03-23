@@ -28,9 +28,10 @@ ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
-COPY --from=builder /app/public ./public
-COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+# next.config outputFileTracingRoot = repo root → standalone is .next/standalone/landing/, not standalone/server.js
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone/landing ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+COPY --from=builder /app/public ./public
 USER nextjs
 EXPOSE 3001
 ENV PORT=3001
