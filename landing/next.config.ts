@@ -37,7 +37,7 @@ const nextConfig: NextConfig = {
     ];
   },
   images: {
-    qualities: [48, 60, 75],
+    qualities: [25, 60, 75],
     remotePatterns: [
       { protocol: "https", hostname: "*.supabase.co" },
       { protocol: "https", hostname: "*.dockhost.net" },

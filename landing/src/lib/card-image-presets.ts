@@ -27,7 +27,7 @@ export const CARD_IMAGE_LISTING_QUALITY = 58;
 export const CARD_IMAGE_NEXT_QUALITY = 60;
 
 /** `next/image` quality для карточек из пресета L (листинги / поиск / избранное). */
-export const CARD_IMAGE_LISTING_NEXT_QUALITY = 48;
+export const CARD_IMAGE_LISTING_NEXT_QUALITY = 25;
 
 /** Единая подсказка `sizes` для пресета A (все сеточные и мелкие врезки). */
 export const SIZES_CARD_GRID =
