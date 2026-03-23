@@ -225,10 +225,10 @@ export function FilterableGrid({
           <p className="text-zinc-400">{isIdMode || isFilterMode ? "Карточки не найдены." : "Нет карточек по выбранным фильтрам."}</p>
         </div>
       ) : (
-        <div className="columns-2 sm:columns-3 lg:columns-4 xl:columns-5 gap-2 sm:gap-4">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4 xl:grid-cols-5">
           {gridItems.map((item, index) =>
             item.type === "single" ? (
-              <div key={item.card.id} className="mb-2 sm:mb-4 break-inside-avoid">
+              <div key={item.card.id} className="min-w-0">
                 <PromptCard
                   card={item.card}
                   debug={debugMode}
@@ -236,7 +236,7 @@ export function FilterableGrid({
                 />
               </div>
             ) : (
-              <div key={item.key} className="mb-2 sm:mb-4 break-inside-avoid">
+              <div key={item.key} className="min-w-0">
                 <GroupedCard
                   cards={item.cards}
                   debug={debugMode}

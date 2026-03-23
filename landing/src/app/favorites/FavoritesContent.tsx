@@ -108,9 +108,9 @@ export function FavoritesContent() {
 
   return (
     <CardInteractionsProvider cardIds={cardIds}>
-      <div className="columns-2 gap-4 sm:columns-3 lg:columns-4 xl:columns-5">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4 xl:grid-cols-5">
         {cards.map((card) => (
-          <div key={card.id} className="mb-4 break-inside-avoid">
+          <div key={card.id} className="min-w-0">
             <PromptCard card={card} />
           </div>
         ))}

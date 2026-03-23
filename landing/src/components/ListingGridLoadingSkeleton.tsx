@@ -1,7 +1,7 @@
 import { ListingCardChromeSkeleton, ListingCardPhotoSkeleton } from "./ListingCardPhotoSkeleton";
 
 const GRID =
-  "columns-2 sm:columns-3 lg:columns-4 xl:columns-5 gap-2 sm:gap-4";
+  "grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4 xl:grid-cols-5";
 
 type Props = {
   count?: number;
@@ -15,7 +15,7 @@ export function ListingGridLoadingSkeleton({ count = 8 }: Props) {
     <div className={`${GRID} py-6`} aria-busy="true" aria-live="polite">
       <span className="sr-only">Загрузка следующих карточек</span>
       {Array.from({ length: count }, (_, i) => (
-        <div key={i} className="mb-2 sm:mb-4 break-inside-avoid">
+        <div key={i} className="min-w-0">
           <article className="relative isolate overflow-hidden rounded-2xl bg-transparent shadow-md shadow-zinc-900/[0.06] ring-1 ring-zinc-900/[0.06]">
             <div className="relative w-full overflow-hidden rounded-2xl bg-zinc-200/90 aspect-[3/4] ring-1 ring-black/[0.04]">
               <ListingCardPhotoSkeleton />

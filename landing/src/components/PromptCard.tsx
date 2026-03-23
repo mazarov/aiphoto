@@ -99,7 +99,7 @@ export function PromptCard({ card, debug = false, priorityLoad = false }: Props)
   const userReaction = reactions.get(card.id) ?? null;
   const isFavorited = favorites.has(card.id);
 
-  /** Listing: fixed 3:4 + cover (no per-image aspect — keeps CSS columns even). */
+  /** Listing: fixed 3:4 + cover (no per-image aspect — keeps grid rows even). */
   const [imageReady, setImageReady] = useState(false);
 
   useEffect(() => {

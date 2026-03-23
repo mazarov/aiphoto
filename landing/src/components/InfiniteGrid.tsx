@@ -97,7 +97,7 @@ export function InfiniteGrid({
     observer.observe(el);
     return () => observer.disconnect();
     // Sentinel is the same node as items append; reconnecting on every cards.length tick
-    // caused extra layout/observer churn during scroll (worse with CSS columns).
+    // caused extra layout/observer churn during scroll.
   }, [loadMore]);
 
   const countText = useMemo(() => {
