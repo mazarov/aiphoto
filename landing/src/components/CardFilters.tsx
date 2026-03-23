@@ -7,9 +7,12 @@ import { PromptCard } from "./PromptCard";
 import { GroupedCard } from "./GroupedCard";
 import { useDebug } from "./DebugFAB";
 import { CardInteractionsProvider } from "@/context/CardInteractionsContext";
+import { LISTING_LCP_PRIORITY_GRID_ITEMS } from "@/lib/listing-lcp";
 
 type Props = {
   cards: PromptCardFull[];
+  /** First N grid cells use `priority` + no lazy on main photo (listing LCP). */
+  lcpPriorityCount?: number;
 };
 
 function getSeoTagSlugs(seoTags: unknown): string[] {
@@ -34,7 +37,10 @@ type GridItem =
   | { type: "single"; card: PromptCardFull }
   | { type: "group"; key: string; cards: PromptCardFull[] };
 
-export function FilterableGrid({ cards }: Props) {
+export function FilterableGrid({
+  cards,
+  lcpPriorityCount = LISTING_LCP_PRIORITY_GRID_ITEMS,
+}: Props) {
   const debugCtx = useDebug();
   const debugMode = debugCtx?.debugOpen ?? false;
   const panelOpen = debugCtx?.panelOpen ?? false;
@@ -220,14 +226,22 @@ export function FilterableGrid({ cards }: Props) {
         </div>
       ) : (
         <div className="columns-2 sm:columns-3 lg:columns-4 xl:columns-5 gap-2 sm:gap-4">
-          {gridItems.map((item) =>
+          {gridItems.map((item, index) =>
             item.type === "single" ? (
               <div key={item.card.id} className="mb-2 sm:mb-4 break-inside-avoid">
-                <PromptCard card={item.card} debug={debugMode} />
+                <PromptCard
+                  card={item.card}
+                  debug={debugMode}
+                  priorityLoad={index < lcpPriorityCount}
+                />
               </div>
             ) : (
               <div key={item.key} className="mb-2 sm:mb-4 break-inside-avoid">
-                <GroupedCard cards={item.cards} debug={debugMode} />
+                <GroupedCard
+                  cards={item.cards}
+                  debug={debugMode}
+                  priorityLoad={index < lcpPriorityCount}
+                />
               </div>
             )
           )}

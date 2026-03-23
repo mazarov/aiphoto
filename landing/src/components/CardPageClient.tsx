@@ -12,7 +12,10 @@ import { FavoriteButton } from "./FavoriteButton";
 import { GenerateButton } from "./GenerateButton";
 import { useDebug } from "./DebugFAB";
 import { formatCompactCount } from "@/lib/format-view-count";
-import { CARD_OVERLAY_ACTION_PILL } from "@/lib/card-overlay-action-pill";
+import {
+  CARD_OVERLAY_ACTION_PILL,
+  OVERLAY_BUTTON_UA_RESET,
+} from "@/lib/card-overlay-action-pill";
 import { useCardPhotoFrame } from "@/hooks/useCardPhotoFrame";
 import { CARD_OVERLAY_PHOTO_COUNTER_CLASS } from "@/lib/card-overlay-photo-counter";
 
@@ -350,7 +353,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
                     <button
                       type="button"
                       onClick={prevPhoto}
-                      className="absolute left-2 top-1/2 -translate-y-1/2 z-20 rounded-full bg-black/30 p-1.5 text-white opacity-0 backdrop-blur-md transition-all group-hover:opacity-100 hover:bg-black/50 active:scale-90"
+                      className={`${OVERLAY_BUTTON_UA_RESET} absolute left-2 top-1/2 -translate-y-1/2 z-20 rounded-full bg-black/30 p-1.5 text-white opacity-0 backdrop-blur-md transition-all group-hover:opacity-100 hover:bg-black/50 active:scale-90`}
                       aria-label="Предыдущее фото"
                     >
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden><path d="M15 18l-6-6 6-6" /></svg>
@@ -358,7 +361,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
                     <button
                       type="button"
                       onClick={nextPhoto}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 z-20 rounded-full bg-black/30 p-1.5 text-white opacity-0 backdrop-blur-md transition-all group-hover:opacity-100 hover:bg-black/50 active:scale-90"
+                      className={`${OVERLAY_BUTTON_UA_RESET} absolute right-2 top-1/2 -translate-y-1/2 z-20 rounded-full bg-black/30 p-1.5 text-white opacity-0 backdrop-blur-md transition-all group-hover:opacity-100 hover:bg-black/50 active:scale-90`}
                       aria-label="Следующее фото"
                     >
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden><path d="M9 18l6-6-6-6" /></svg>

@@ -9,14 +9,20 @@ import { ReactionButtons } from "./ReactionButtons";
 import { splitCardTitle } from "@/lib/format-view-count";
 import { useCardPhotoFrame } from "@/hooks/useCardPhotoFrame";
 import { CARD_OVERLAY_PHOTO_COUNTER_CLASS } from "@/lib/card-overlay-photo-counter";
+import {
+  OVERLAY_BUTTON_APPEARANCE_RESET,
+  OVERLAY_BUTTON_UA_RESET,
+} from "@/lib/card-overlay-action-pill";
 import { CardOverlayMetricsChips } from "./CardOverlayMetricsChips";
+import { hasListingPhotoDbAspect } from "@/lib/listing-lcp";
 
 type Props = {
   cards: PromptCardFull[];
   debug?: boolean;
+  priorityLoad?: boolean;
 };
 
-export function GroupedCard({ cards, debug = false }: Props) {
+export function GroupedCard({ cards, debug = false, priorityLoad = false }: Props) {
   const sorted = [...cards].sort((a, b) => a.cardSplitIndex - b.cardSplitIndex);
   const [activeCardIdx, setActiveCardIdx] = useState(0);
   const activeCard = sorted[activeCardIdx];
@@ -42,6 +48,7 @@ export function GroupedCard({ cards, debug = false }: Props) {
 
   const frameMeta =
     activeCard.photoMeta[activePhotoIdx] ?? activeCard.photoMeta[0];
+  const hasDbAspect = hasListingPhotoDbAspect(frameMeta);
   const {
     containerStyle: photoFrameStyle,
     onLoadingComplete: onPhotoFrameFromHook,
@@ -51,10 +58,25 @@ export function GroupedCard({ cards, debug = false }: Props) {
     currentPhotoUrl || ""
   );
 
-  const [imageReady, setImageReady] = useState(false);
+  const [imageReady, setImageReady] = useState(
+    () => Boolean(priorityLoad && hasDbAspect && currentPhotoUrl)
+  );
+
   useEffect(() => {
-    setImageReady(false);
-  }, [currentPhotoUrl]);
+    if (!currentPhotoUrl) {
+      setImageReady(false);
+      return;
+    }
+    const m =
+      activeCard.photoMeta[activePhotoIdx] ?? activeCard.photoMeta[0];
+    if (priorityLoad && hasListingPhotoDbAspect(m)) setImageReady(true);
+    else setImageReady(false);
+  }, [
+    currentPhotoUrl,
+    activePhotoIdx,
+    priorityLoad,
+    activeCard.photoMeta,
+  ]);
 
   const onPhotoFrameLoad = useCallback(
     (img: HTMLImageElement) => {
@@ -63,6 +85,10 @@ export function GroupedCard({ cards, debug = false }: Props) {
     },
     [onPhotoFrameFromHook]
   );
+
+  const mainPhotoClass = priorityLoad
+    ? "object-cover z-[2] opacity-100"
+    : `object-cover transition-opacity duration-200 ${imageReady ? "opacity-100 z-[2]" : "opacity-0 z-[2]"}`;
 
   function handleCardSwitch(idx: number, photoIdx = 0) {
     setActiveCardIdx(idx);
@@ -148,7 +174,9 @@ export function GroupedCard({ cards, debug = false }: Props) {
               alt={title}
               fill
               sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
-              className={`object-cover transition-opacity duration-200 ${imageReady ? "opacity-100 z-[2]" : "opacity-0 z-[2]"}`}
+              priority={priorityLoad}
+              fetchPriority={priorityLoad ? "high" : undefined}
+              className={mainPhotoClass}
               onLoadingComplete={onPhotoFrameLoad}
               onError={() => setImageReady(true)}
             />
@@ -174,7 +202,7 @@ export function GroupedCard({ cards, debug = false }: Props) {
             if (activePhotoIdx > 0) { setActivePhotoIdx(activePhotoIdx - 1); }
             else { const prev = (activeCardIdx - 1 + sorted.length) % sorted.length; handleCardSwitch(prev, sorted[prev].photoUrls.length - 1); }
           }}
-            className="absolute left-2 top-1/2 -translate-y-1/2 z-20 rounded-full bg-black/40 p-1.5 text-white opacity-0 backdrop-blur-md transition-all group-hover:opacity-100 hover:bg-black/60 active:scale-90"
+            className={`${OVERLAY_BUTTON_UA_RESET} absolute left-2 top-1/2 -translate-y-1/2 z-20 rounded-full bg-black/40 p-1.5 text-white opacity-0 backdrop-blur-md transition-all group-hover:opacity-100 hover:bg-black/60 active:scale-90`}
           ><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden><path d="M15 18l-6-6 6-6"/></svg></button>
           <button
             type="button"
@@ -185,7 +213,7 @@ export function GroupedCard({ cards, debug = false }: Props) {
             if (activePhotoIdx < photos.length - 1) { setActivePhotoIdx(activePhotoIdx + 1); }
             else { handleCardSwitch((activeCardIdx + 1) % sorted.length); }
           }}
-            className="absolute right-2 top-1/2 -translate-y-1/2 z-20 rounded-full bg-black/40 p-1.5 text-white opacity-0 backdrop-blur-md transition-all group-hover:opacity-100 hover:bg-black/60 active:scale-90"
+            className={`${OVERLAY_BUTTON_UA_RESET} absolute right-2 top-1/2 -translate-y-1/2 z-20 rounded-full bg-black/40 p-1.5 text-white opacity-0 backdrop-blur-md transition-all group-hover:opacity-100 hover:bg-black/60 active:scale-90`}
           ><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden><path d="M9 18l6-6-6-6"/></svg></button>
 
           {(sorted.length > 1 || photos.length > 1) && (
@@ -195,7 +223,7 @@ export function GroupedCard({ cards, debug = false }: Props) {
                   type="button"
                   aria-label={`Переключить вариант карточки: ${activeCardIdx + 1} из ${sorted.length}`}
                   onClick={(e) => { e.stopPropagation(); e.preventDefault(); handleCardSwitch((activeCardIdx + 1) % sorted.length); }}
-                  className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-full bg-indigo-500/80 px-2 py-2 text-[10px] font-medium text-white/90 tabular-nums backdrop-blur-md transition-colors hover:bg-indigo-500 touch-manipulation"
+                  className={`${OVERLAY_BUTTON_UA_RESET} inline-flex min-h-11 min-w-11 items-center justify-center rounded-full bg-indigo-500/80 px-2 py-2 text-[10px] font-medium text-white/90 tabular-nums backdrop-blur-md transition-colors hover:bg-indigo-500 touch-manipulation`}
                 >
                   {activeCardIdx + 1}/{sorted.length}
                 </button>
@@ -240,7 +268,7 @@ export function GroupedCard({ cards, debug = false }: Props) {
               )}
               {allPrompts.length > 0 && (
                 <button type="button" onClick={(e) => { e.stopPropagation(); e.preventDefault(); setExpanded(true); }}
-                  className="mt-1 w-full rounded-lg bg-white/15 backdrop-blur-md border border-white/10 px-2 py-1.5 sm:px-3 sm:py-2 text-[10px] sm:text-[11px] font-semibold text-white transition-all hover:bg-white/25 active:scale-[0.98] pointer-events-auto truncate"
+                  className={`${OVERLAY_BUTTON_APPEARANCE_RESET} mt-1 w-full rounded-lg bg-white/15 backdrop-blur-md border border-white/10 px-2 py-1.5 sm:px-3 sm:py-2 text-[10px] sm:text-[11px] font-semibold text-white transition-all hover:bg-white/25 active:scale-[0.98] pointer-events-auto truncate`}
                 >Скопировать</button>
               )}
             </div>
@@ -256,7 +284,7 @@ export function GroupedCard({ cards, debug = false }: Props) {
                   type="button"
                   aria-label="Закрыть"
                   onClick={(e) => { e.stopPropagation(); e.preventDefault(); setExpanded(false); }}
-                  className="flex-shrink-0 rounded-full bg-white/15 p-1.5 text-white/70 transition-colors hover:bg-white/25 hover:text-white"
+                  className={`${OVERLAY_BUTTON_UA_RESET} flex-shrink-0 rounded-full bg-white/15 p-1.5 text-white/70 transition-colors hover:bg-white/25 hover:text-white`}
                 ><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden><path d="M18 6L6 18M6 6l12 12"/></svg></button>
               </div>
               <div className="mb-2 min-h-0 flex-1 overflow-y-auto rounded-xl bg-white/10 p-3">
@@ -266,7 +294,7 @@ export function GroupedCard({ cards, debug = false }: Props) {
                 <p className="mb-3 shrink-0 text-[11px] leading-relaxed text-white/50">{expandedTitle.rest}</p>
               ) : null}
               <button type="button" onClick={handleCopy}
-                className="w-full shrink-0 rounded-xl bg-white px-3 py-2.5 text-xs font-semibold text-zinc-900 transition-all hover:bg-zinc-100 active:scale-[0.98]"
+                className={`${OVERLAY_BUTTON_UA_RESET} w-full shrink-0 rounded-xl bg-white px-3 py-2.5 text-xs font-semibold text-zinc-900 transition-all hover:bg-zinc-100 active:scale-[0.98]`}
               >{copied ? "Промпт скопирован" : "Скопировать промт"}</button>
             </div>
           )}
@@ -278,7 +306,15 @@ export function GroupedCard({ cards, debug = false }: Props) {
     <div className="group relative pb-2 pr-2">
       <div className="absolute top-3 left-3 right-0 bottom-0 rounded-2xl bg-zinc-300 overflow-hidden rotate-[2deg] shadow-md transition-transform duration-300 group-hover:rotate-[4deg] group-hover:translate-x-1 group-hover:translate-y-1">
         {secondPhoto && (
-          <Image src={secondPhoto} alt="" fill className="object-cover opacity-60" sizes="(max-width: 640px) 50vw, 25vw" />
+          <Image
+            src={secondPhoto}
+            alt=""
+            fill
+            loading="lazy"
+            fetchPriority="low"
+            className="object-cover opacity-60"
+            sizes="(max-width: 640px) 50vw, 25vw"
+          />
         )}
       </div>
       <div className="relative z-10">

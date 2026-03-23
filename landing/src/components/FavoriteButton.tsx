@@ -29,7 +29,7 @@ export function FavoriteButton({
           ? `${CARD_OVERLAY_ACTION_PILL} min-w-[2.75rem] ${
               isFavorited ? "text-amber-300" : "text-white/60 hover:text-white"
             }`
-          : `rounded-full ${padSurface} ${
+          : `appearance-none rounded-full border-0 shadow-none ${padSurface} ${
               isFavorited
                 ? "text-amber-500 hover:text-amber-600"
                 : "text-zinc-300 hover:text-amber-500"

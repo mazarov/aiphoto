@@ -74,7 +74,7 @@ export function ReactionButtons({
         className={`flex items-center transition-colors active:scale-95 ${
           isOverlay
             ? `${CARD_OVERLAY_ACTION_PILL} min-w-[2.75rem]`
-            : `gap-0.5 rounded-md ${padding}`
+            : `appearance-none gap-0.5 rounded-md border-0 shadow-none ${padding}`
         } ${userReaction === "like" ? activeUp : base}`}
       >
         <ThumbUpIcon size={size} filled={userReaction === "like"} />
@@ -89,7 +89,7 @@ export function ReactionButtons({
         className={`flex items-center transition-colors active:scale-95 ${
           isOverlay
             ? `${CARD_OVERLAY_ACTION_PILL} min-w-[2.75rem]`
-            : `gap-0.5 rounded-md ${padding}`
+            : `appearance-none gap-0.5 rounded-md border-0 shadow-none ${padding}`
         } ${userReaction === "dislike" ? activeDown : base}`}
       >
         <ThumbDownIcon size={size} filled={userReaction === "dislike"} />

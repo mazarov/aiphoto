@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { PromptCard } from "@/components/PromptCard";
+import { LISTING_LCP_PRIORITY_GRID_ITEMS } from "@/lib/listing-lcp";
 import type { PromptCardFull } from "@/lib/supabase";
 import { CardInteractionsProvider } from "@/context/CardInteractionsContext";
 import { FilterFAB } from "@/components/FilterFAB";
@@ -196,9 +197,12 @@ export function SearchResults({ initialQuery }: Props) {
       {/* Grid */}
       {displayedCards.length > 0 && (
         <div className="columns-2 gap-4 sm:columns-3 lg:columns-4 xl:columns-5">
-          {displayedCards.map((card) => (
+          {displayedCards.map((card, index) => (
             <div key={card.id} className="mb-4 break-inside-avoid">
-              <PromptCard card={card} />
+              <PromptCard
+                card={card}
+                priorityLoad={index < LISTING_LCP_PRIORITY_GRID_ITEMS}
+              />
             </div>
           ))}
         </div>

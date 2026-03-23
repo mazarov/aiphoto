@@ -91,6 +91,7 @@
 - [x] `ReactionButtons`, `FavoriteButton`, `GroupedCard`, `PromptCard`: **доступные имена** кнопок; крупнее touch target у переключателя группы в `GroupedCard`.
 - [x] Контраст: подписи L2-чипов и счётчики — **`text-zinc-500` / `text-zinc-600`** вместо `text-zinc-400` на белом.
 - [x] **`/p/[slug]`:** герой — один **`priority`**; фон blur lazy + **`fetchPriority="low"`**; **`dynamic(CardPageClient)`**; a11y/контраст в `CardPageClient` (см. §10).
+- [x] **Листинг LCP:** первые 12 ячеек сетки — **`priority` + `fetchPriority="high"`**; без длинного fade на главном фото; хелпер **`listing-lcp.ts`** (`PromptCard` / `GroupedCard` / `FilterableGrid`, поиск и `PromptGrid`).
 - [ ] Edge / CDN заголовки поверх `revalidate` (хостинг).
 - [ ] Профилирование `enrichCardsWithDetails` + бюджет (R5.2).
 - [ ] Виртуализация / усечение DOM при длинном scroll (R9).

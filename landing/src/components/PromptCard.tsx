@@ -10,11 +10,18 @@ import { useCardInteractions } from "@/context/CardInteractionsContext";
 import { splitCardTitle } from "@/lib/format-view-count";
 import { useCardPhotoFrame } from "@/hooks/useCardPhotoFrame";
 import { CARD_OVERLAY_PHOTO_COUNTER_CLASS } from "@/lib/card-overlay-photo-counter";
+import {
+  OVERLAY_BUTTON_APPEARANCE_RESET,
+  OVERLAY_BUTTON_UA_RESET,
+} from "@/lib/card-overlay-action-pill";
 import { CardOverlayMetricsChips } from "./CardOverlayMetricsChips";
+import { hasListingPhotoDbAspect } from "@/lib/listing-lcp";
 
 type Props = {
   card: PromptCardFull;
   debug?: boolean;
+  /** First cells in category grid — eager image + LCP-friendly reveal. */
+  priorityLoad?: boolean;
 };
 
 function DebugOverlay({ card }: { card: PromptCardFull }) {
@@ -46,7 +53,7 @@ function DebugOverlay({ card }: { card: PromptCardFull }) {
   );
 }
 
-export function PromptCard({ card, debug = false }: Props) {
+export function PromptCard({ card, debug = false, priorityLoad = false }: Props) {
   const { reactions, favorites, toggleReaction, toggleFavorite } = useCardInteractions();
   const title = card.title_ru || card.title_en || "Без названия";
   const expandedTitle = splitCardTitle(title);
@@ -93,6 +100,7 @@ export function PromptCard({ card, debug = false }: Props) {
   const isFavorited = favorites.has(card.id);
 
   const frameMeta = card.photoMeta[photoIndex] ?? card.photoMeta[0];
+  const hasDbAspect = hasListingPhotoDbAspect(frameMeta);
   const {
     containerStyle: photoFrameStyle,
     onLoadingComplete: onPhotoFrameFromHook,
@@ -102,10 +110,19 @@ export function PromptCard({ card, debug = false }: Props) {
     currentPhoto || ""
   );
 
-  const [imageReady, setImageReady] = useState(false);
+  const [imageReady, setImageReady] = useState(
+    () => Boolean(priorityLoad && hasDbAspect && currentPhoto)
+  );
+
   useEffect(() => {
-    setImageReady(false);
-  }, [currentPhoto]);
+    if (!currentPhoto) {
+      setImageReady(false);
+      return;
+    }
+    const m = card.photoMeta[photoIndex] ?? card.photoMeta[0];
+    if (priorityLoad && hasListingPhotoDbAspect(m)) setImageReady(true);
+    else setImageReady(false);
+  }, [currentPhoto, photoIndex, priorityLoad, card.photoMeta]);
 
   const onPhotoFrameLoad = useCallback(
     (img: HTMLImageElement) => {
@@ -114,6 +131,10 @@ export function PromptCard({ card, debug = false }: Props) {
     },
     [onPhotoFrameFromHook]
   );
+
+  const mainPhotoClass = priorityLoad
+    ? "object-cover z-[2] opacity-100"
+    : `object-cover transition-opacity duration-200 ${imageReady ? "opacity-100 z-[2]" : "opacity-0 z-[2]"}`;
 
   return (
     <article
@@ -136,7 +157,9 @@ export function PromptCard({ card, debug = false }: Props) {
             alt={title}
             fill
             sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
-            className={`object-cover transition-opacity duration-200 ${imageReady ? "opacity-100 z-[2]" : "opacity-0 z-[2]"}`}
+            priority={priorityLoad}
+            fetchPriority={priorityLoad ? "high" : undefined}
+            className={mainPhotoClass}
             onLoadingComplete={onPhotoFrameLoad}
             onError={() => setImageReady(true)}
           />
@@ -160,7 +183,7 @@ export function PromptCard({ card, debug = false }: Props) {
             <button
               type="button"
               onClick={prevPhoto}
-              className="absolute left-2 top-1/2 -translate-y-1/2 z-20 rounded-full bg-black/40 p-1.5 text-white opacity-0 backdrop-blur-md transition-all group-hover:opacity-100 hover:bg-black/60 active:scale-90"
+              className={`${OVERLAY_BUTTON_UA_RESET} absolute left-2 top-1/2 -translate-y-1/2 z-20 rounded-full bg-black/40 p-1.5 text-white opacity-0 backdrop-blur-md transition-all group-hover:opacity-100 hover:bg-black/60 active:scale-90`}
               aria-label="Предыдущее фото"
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden><path d="M15 18l-6-6 6-6"/></svg>
@@ -168,7 +191,7 @@ export function PromptCard({ card, debug = false }: Props) {
             <button
               type="button"
               onClick={nextPhoto}
-              className="absolute right-2 top-1/2 -translate-y-1/2 z-20 rounded-full bg-black/40 p-1.5 text-white opacity-0 backdrop-blur-md transition-all group-hover:opacity-100 hover:bg-black/60 active:scale-90"
+              className={`${OVERLAY_BUTTON_UA_RESET} absolute right-2 top-1/2 -translate-y-1/2 z-20 rounded-full bg-black/40 p-1.5 text-white opacity-0 backdrop-blur-md transition-all group-hover:opacity-100 hover:bg-black/60 active:scale-90`}
               aria-label="Следующее фото"
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden><path d="M9 18l6-6-6-6"/></svg>
@@ -239,7 +262,7 @@ export function PromptCard({ card, debug = false }: Props) {
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); e.preventDefault(); setExpanded(true); }}
-                className="mt-1 w-full rounded-lg border border-white/10 bg-white/15 px-2 py-1.5 text-[10px] font-semibold text-white backdrop-blur-md transition-all hover:bg-white/25 active:scale-[0.98] pointer-events-auto sm:px-3 sm:py-2 sm:text-[11px] truncate"
+                className={`${OVERLAY_BUTTON_APPEARANCE_RESET} mt-1 w-full rounded-lg border border-white/10 bg-white/15 px-2 py-1.5 text-[10px] font-semibold text-white backdrop-blur-md transition-all hover:bg-white/25 active:scale-[0.98] pointer-events-auto sm:px-3 sm:py-2 sm:text-[11px] truncate`}
               >
                 Скопировать
               </button>
@@ -257,7 +280,7 @@ export function PromptCard({ card, debug = false }: Props) {
                 type="button"
                 aria-label="Закрыть"
                 onClick={(e) => { e.stopPropagation(); e.preventDefault(); setExpanded(false); }}
-                className="flex-shrink-0 rounded-full bg-white/15 p-1.5 text-white/70 transition-colors hover:bg-white/25 hover:text-white"
+                className={`${OVERLAY_BUTTON_UA_RESET} flex-shrink-0 rounded-full bg-white/15 p-1.5 text-white/70 transition-colors hover:bg-white/25 hover:text-white`}
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden><path d="M18 6L6 18M6 6l12 12"/></svg>
               </button>
@@ -273,7 +296,7 @@ export function PromptCard({ card, debug = false }: Props) {
             <button
               type="button"
               onClick={handleCopy}
-              className="w-full shrink-0 rounded-xl bg-white px-3 py-2.5 text-xs font-semibold text-zinc-900 transition-all hover:bg-zinc-100 active:scale-[0.98]"
+              className={`${OVERLAY_BUTTON_UA_RESET} w-full shrink-0 rounded-xl bg-white px-3 py-2.5 text-xs font-semibold text-zinc-900 transition-all hover:bg-zinc-100 active:scale-[0.98]`}
             >
               {copied ? "Промпт скопирован" : "Скопировать промт"}
             </button>
