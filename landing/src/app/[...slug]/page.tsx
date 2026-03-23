@@ -38,10 +38,9 @@ import {
 import { resolveUrlToTags, getMinCardsForLevel, type ResolvedRoute } from "@/lib/route-resolver";
 import { getSeoForRoute } from "@/lib/seo-templates";
 import type { SeoContent } from "@/lib/seo-content";
+import { LISTING_SSR_INITIAL_LIMIT } from "@/lib/listing-pagination";
 
 export const revalidate = 3600;
-
-const PAGE_SIZE = 48;
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://promptshot.ru";
 
 type Props = {
@@ -297,7 +296,7 @@ export default async function TagPage({ params, searchParams }: Props) {
 
   const result = await fetchRouteCards({
     ...mergedParams,
-    limit: PAGE_SIZE,
+    limit: LISTING_SSR_INITIAL_LIMIT,
     offset,
     min_cards: hasQueryFilters ? 0 : 2,
   });

@@ -4,8 +4,9 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import type { PromptCardFull } from "@/lib/supabase";
 import { FilterableGrid } from "./CardFilters";
 import { ListingGridLoadingSkeleton } from "./ListingGridLoadingSkeleton";
+import { LISTING_INFINITE_PAGE_SIZE } from "@/lib/listing-pagination";
 
-const PAGE_SIZE = 48;
+const PAGE_SIZE = LISTING_INFINITE_PAGE_SIZE;
 
 type Props = {
   initialCards: PromptCardFull[];
@@ -16,9 +17,9 @@ type Props = {
   strictMode?: boolean;
 };
 
-function hasMorePages(rankedBatchSize: number, rankedOffset: number, totalCount: number, pageSize: number) {
+/** Offset/step в единицах ranked RPC (`cards_count` / `ranked_batch_size`), `totalCount` = `total_count`. */
+function hasMorePages(rankedBatchSize: number, rankedOffset: number, totalCount: number) {
   if (rankedBatchSize <= 0) return false;
-  if (rankedBatchSize < pageSize) return false;
   return rankedOffset + rankedBatchSize < totalCount;
 }
 
@@ -32,7 +33,7 @@ export function InfiniteGrid({
   const [cards, setCards] = useState(initialCards);
   const [loading, setLoading] = useState(false);
   const [hasMore, setHasMore] = useState(() =>
-    hasMorePages(initialRankedBatchSize, 0, totalCount, PAGE_SIZE)
+    hasMorePages(initialRankedBatchSize, 0, totalCount)
   );
   const sentinelRef = useRef<HTMLDivElement>(null);
   const loadingRef = useRef(false);
@@ -71,7 +72,7 @@ export function InfiniteGrid({
       setCards((prev) => [...prev, ...newCards]);
       offsetRef.current = oldOffset + step;
 
-      const more = step === PAGE_SIZE && oldOffset + step < totalCount;
+      const more = oldOffset + step < totalCount;
       setHasMore(more);
       hasMoreRef.current = more;
     } catch {
