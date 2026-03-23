@@ -109,8 +109,8 @@
 
 **Сделано в коде:**
 
-- Фон blur: **`loading="lazy"`**, **`fetchPriority="low"`**, без `priority`; контейнер **`aria-hidden`**.
-- Герой (основное фото): один **`priority`**, **`decoding="async"`**.
+- Фон blur: раньше второй `<img>` забирал LCP; теперь **только после загрузки героя** и через **CSS `background-image`** (без `<img>`).
+- Герой (основное фото): **`priority`**, **`fetchPriority="high"`**, **`decoding="async"`**.
 - **`dynamic()`** для `CardPageClient` в `p/[slug]/page.tsx` + компактный skeleton.
 - Breadcrumb **`text-zinc-500`**; подписи промптов и футер-блок — контрастнее; кнопки с **`aria-label`**; русские подписи стрелок.
 

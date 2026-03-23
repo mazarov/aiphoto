@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useCardViewBeacon } from "@/hooks/useCardViewBeacon";
 import Image from "next/image";
@@ -77,12 +77,27 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
   const {
     containerStyle: heroFrameStyle,
     showTailwindFallback: heroFrameFallback,
-    onLoadingComplete: onHeroFrameLoad,
+    onLoadingComplete: onHeroFrameFromHook,
   } = useCardPhotoFrame(
     currentDims?.width ?? null,
     currentDims?.height ?? null,
     currentPhoto || ""
   );
+
+  /** Defer blur backdrop until hero `img` loaded so LCP is the main photo, not a full-bleed duplicate `<img>`. */
+  const [blurBackdropReady, setBlurBackdropReady] = useState(false);
+  useEffect(() => {
+    setBlurBackdropReady(false);
+  }, [currentPhoto]);
+
+  const onHeroFrameLoad = useCallback(
+    (img: HTMLImageElement) => {
+      onHeroFrameFromHook(img);
+      setBlurBackdropReady(true);
+    },
+    [onHeroFrameFromHook]
+  );
+
   const hasPrompts = data.promptTexts.length > 0;
   const hasPhotos = photos.length > 0;
   const viewCount = useCardViewBeacon(data.slug, data.viewCount ?? 0);
@@ -311,21 +326,18 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
       {/* ── Hero Image with Blur Backdrop ── */}
       {hasPhotos && (
         <div className="relative overflow-hidden rounded-3xl bg-zinc-100 mb-8">
-          {/* Blurred photo layer */}
-          {currentPhoto && (
+          {/* Blurred backdrop: CSS only, after hero loads — avoids second `<img>` winning LCP over the card photo */}
+          {blurBackdropReady && currentPhoto && (
             <>
-              <div className="absolute inset-0 scale-150" aria-hidden>
-                <Image
-                  src={currentPhoto}
-                  alt=""
-                  fill
-                  className="object-cover opacity-50 blur-3xl saturate-150 brightness-110"
-                  sizes="100vw"
-                  loading="lazy"
-                  fetchPriority="low"
+              <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
+                <div
+                  className="absolute inset-0 scale-150 bg-cover bg-center opacity-50 blur-3xl saturate-150 brightness-110"
+                  style={{
+                    backgroundImage: `url(${JSON.stringify(currentPhoto)})`,
+                  }}
                 />
               </div>
-              <div className="absolute inset-0 bg-gradient-to-b from-white/10 via-transparent to-white/15" />
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/10 via-transparent to-white/15" />
             </>
           )}
 
@@ -343,6 +355,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
                   sizes="(max-width: 640px) 260px, 300px"
                   className="object-cover"
                   priority
+                  fetchPriority="high"
                   decoding="async"
                   onLoadingComplete={onHeroFrameLoad}
                 />
