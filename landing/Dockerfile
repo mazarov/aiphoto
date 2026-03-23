@@ -32,10 +32,13 @@ RUN adduser --system --uid 1001 nextjs
 # - CI (context = landing/ only): server.js at .next/standalone/server.js
 # - Monorepo local (context includes parent): outputFileTracingRoot → .next/standalone/landing/server.js
 COPY --from=builder /app/.next/standalone /opt/standalone
+# Layout: monorepo build → `landing/server.js`; Docker-only context (`landing/`) → `server.js` at standalone root (see `next.config.ts` outputFileTracingRoot).
 RUN if [ -f /opt/standalone/landing/server.js ]; then \
       cp -a /opt/standalone/landing/. /app/; \
-    else \
+    elif [ -f /opt/standalone/server.js ]; then \
       cp -a /opt/standalone/. /app/; \
+    else \
+      echo "ERROR: no server.js under .next/standalone"; find /opt/standalone -name server.js 2>/dev/null || true; exit 1; \
     fi \
     && rm -rf /opt/standalone \
     && chown -R nextjs:nodejs /app

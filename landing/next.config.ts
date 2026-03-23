@@ -1,9 +1,19 @@
+import fs from "node:fs";
 import path from "node:path";
 import type { NextConfig } from "next";
 
-/** Monorepo: lockfiles exist in `aiphoto/` and parent repos — pin tracing root so standalone build is deterministic. */
+const landingDir = import.meta.dirname;
+const repoRoot = path.resolve(landingDir, "..");
+/**
+ * Docker (context = `landing/` only): `WORKDIR /app` → parent is `/`, not the monorepo — tracing from `/` breaks standalone layout and `server.js` never lands where the Dockerfile expects.
+ * Local / CI from repo: `aiphoto/package-lock.json` exists → trace from monorepo root for deterministic standalone.
+ */
+const outputFileTracingRoot = fs.existsSync(path.join(repoRoot, "package-lock.json"))
+  ? repoRoot
+  : landingDir;
+
 const nextConfig: NextConfig = {
-  outputFileTracingRoot: path.join(import.meta.dirname, ".."),
+  outputFileTracingRoot,
   output: "standalone",
   serverExternalPackages: ["@supabase/supabase-js"],
   async redirects() {
