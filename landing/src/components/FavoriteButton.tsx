@@ -36,6 +36,7 @@ export function FavoriteButton({
             }`
       }`}
       title={isFavorited ? "Убрать из избранного" : "В избранное"}
+      aria-label={isFavorited ? "Убрать из избранного" : "В избранное"}
     >
       <BookmarkIcon size={size} filled={isFavorited} className="block shrink-0" />
     </button>

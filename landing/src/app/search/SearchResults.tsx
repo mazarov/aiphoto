@@ -150,6 +150,7 @@ export function SearchResults({ initialQuery }: Props) {
   return (
     <CardInteractionsProvider cardIds={cardIds}>
     <div>
+      <h1 className="sr-only">Поиск промптов</h1>
       {/* Search input */}
       <form onSubmit={handleSubmit} className="mb-8">
         <div className="relative mx-auto max-w-xl">
@@ -178,9 +179,9 @@ export function SearchResults({ initialQuery }: Props) {
       {/* Status */}
       {searched && cards.length > 0 && (
         <div className="mb-6 flex items-center gap-3">
-          <h1 className="text-lg font-semibold text-zinc-900">
+          <h2 className="text-lg font-semibold text-zinc-900">
             Результаты по запросу &laquo;{query}&raquo;
-          </h1>
+          </h2>
           <span className="rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-medium text-zinc-500 tabular-nums">
             {displayedCards.length}{hasMore ? "+" : ""}
           </span>
@@ -255,9 +256,9 @@ export function SearchResults({ initialQuery }: Props) {
               <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
             </svg>
           </div>
-          <h2 className="text-lg font-semibold text-zinc-900">
+          <p className="text-lg font-semibold text-zinc-900">
             Поиск промптов
-          </h2>
+          </p>
           <p className="mt-2 text-sm text-zinc-500">
             Введите запрос — например, «портрет», «3D стиль» или «с котом»
           </p>

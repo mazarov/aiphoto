@@ -35,6 +35,7 @@ export function CardOverlayMetricsChips({ viewCount }: Props) {
   return (
     <div className="pointer-events-none flex justify-end">
       <span
+        role="img"
         className={VIEWS_CHIP}
         aria-label={`${formatCompactCount(viewCount)} просмотров`}
       >

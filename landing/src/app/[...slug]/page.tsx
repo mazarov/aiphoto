@@ -2,8 +2,30 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import Script from "next/script";
 import { fetchRouteCards, enrichCardsWithDetails, getIndexableTagCombos, getFirstCardPhotoUrl } from "@/lib/supabase";
+import dynamic from "next/dynamic";
 import { PageLayout } from "@/components/PageLayout";
-import { CatalogWithFilters } from "@/components/CatalogWithFilters";
+
+const CatalogWithFilters = dynamic(
+  () =>
+    import("@/components/CatalogWithFilters").then((mod) => mod.CatalogWithFilters),
+  {
+    ssr: true,
+    loading: () => (
+      <div
+        className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 pb-8"
+        aria-busy="true"
+        aria-label="Загрузка каталога"
+      >
+        {Array.from({ length: 8 }, (_, i) => (
+          <div
+            key={i}
+            className="aspect-[3/4] rounded-2xl bg-zinc-100 animate-pulse"
+          />
+        ))}
+      </div>
+    ),
+  }
+);
 import {
   getSiblingTags,
   getAllTagPaths,
@@ -349,13 +371,18 @@ export default async function TagPage({ params, searchParams }: Props) {
       </section>
 
       <main className="w-full flex-1 px-2 sm:px-5 py-10 pb-24 lg:pb-10">
-        <CatalogWithFilters
-          initialCards={cards}
-          totalCount={totalCount}
-          initialRankedBatchSize={result.cards_count}
-          baseRpcParams={baseRpcParams}
-          lockedDimensions={lockedDimensions}
-        />
+        <section aria-labelledby="catalog-heading">
+          <h2 id="catalog-heading" className="sr-only">
+            Промты в этой категории
+          </h2>
+          <CatalogWithFilters
+            initialCards={cards}
+            totalCount={totalCount}
+            initialRankedBatchSize={result.cards_count}
+            baseRpcParams={baseRpcParams}
+            lockedDimensions={lockedDimensions}
+          />
+        </section>
 
         {/* Parent link for L2/L3 */}
         {route.parentPath && (
@@ -377,7 +404,7 @@ export default async function TagPage({ params, searchParams }: Props) {
           <section className="mt-12 space-y-4">
             {l2ChipGroups.map((group) => (
               <div key={group.dimension}>
-                <p className="mb-2 text-xs font-medium uppercase tracking-wider text-zinc-400">
+                <p className="mb-2 text-xs font-medium uppercase tracking-wider text-zinc-600">
                   {group.label}
                 </p>
                 <div className="flex flex-wrap gap-1.5">
@@ -388,7 +415,7 @@ export default async function TagPage({ params, searchParams }: Props) {
                       className="inline-flex items-center gap-1.5 rounded-full border border-zinc-200 bg-white px-3 py-1.5 text-sm text-zinc-600 transition-colors hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700"
                     >
                       {chip.tag.labelRu}
-                      <span className="text-[11px] tabular-nums text-zinc-400">
+                      <span className="text-[11px] tabular-nums text-zinc-500">
                         {chip.count}
                       </span>
                     </Link>

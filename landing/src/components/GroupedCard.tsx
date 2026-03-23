@@ -165,30 +165,37 @@ export function GroupedCard({ cards, debug = false }: Props) {
             />
           )}
 
-          <button type="button" onClick={(e) => {
+          <button
+            type="button"
+            aria-label="Предыдущее фото"
+            onClick={(e) => {
             e.stopPropagation();
             e.preventDefault();
             if (activePhotoIdx > 0) { setActivePhotoIdx(activePhotoIdx - 1); }
             else { const prev = (activeCardIdx - 1 + sorted.length) % sorted.length; handleCardSwitch(prev, sorted[prev].photoUrls.length - 1); }
           }}
             className="absolute left-2 top-1/2 -translate-y-1/2 z-20 rounded-full bg-black/40 p-1.5 text-white opacity-0 backdrop-blur-md transition-all group-hover:opacity-100 hover:bg-black/60 active:scale-90"
-          ><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M15 18l-6-6 6-6"/></svg></button>
-          <button type="button" onClick={(e) => {
+          ><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden><path d="M15 18l-6-6 6-6"/></svg></button>
+          <button
+            type="button"
+            aria-label="Следующее фото"
+            onClick={(e) => {
             e.stopPropagation();
             e.preventDefault();
             if (activePhotoIdx < photos.length - 1) { setActivePhotoIdx(activePhotoIdx + 1); }
             else { handleCardSwitch((activeCardIdx + 1) % sorted.length); }
           }}
             className="absolute right-2 top-1/2 -translate-y-1/2 z-20 rounded-full bg-black/40 p-1.5 text-white opacity-0 backdrop-blur-md transition-all group-hover:opacity-100 hover:bg-black/60 active:scale-90"
-          ><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M9 18l6-6-6-6"/></svg></button>
+          ><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden><path d="M9 18l6-6-6-6"/></svg></button>
 
           {(sorted.length > 1 || photos.length > 1) && (
             <div className="absolute top-3 left-1/2 z-20 flex -translate-x-1/2 flex-col items-center gap-1 pointer-events-auto">
               {sorted.length > 1 && (
                 <button
                   type="button"
+                  aria-label={`Переключить вариант карточки: ${activeCardIdx + 1} из ${sorted.length}`}
                   onClick={(e) => { e.stopPropagation(); e.preventDefault(); handleCardSwitch((activeCardIdx + 1) % sorted.length); }}
-                  className="rounded-full bg-indigo-500/80 px-2 py-0.5 text-[10px] font-medium text-white/90 tabular-nums backdrop-blur-md transition-colors hover:bg-indigo-500"
+                  className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-full bg-indigo-500/80 px-2 py-2 text-[10px] font-medium text-white/90 tabular-nums backdrop-blur-md transition-colors hover:bg-indigo-500 touch-manipulation"
                 >
                   {activeCardIdx + 1}/{sorted.length}
                 </button>
@@ -245,9 +252,12 @@ export function GroupedCard({ cards, debug = false }: Props) {
                 <h3 className="mr-2 min-w-0 flex-1 text-[13px] font-semibold leading-snug text-white line-clamp-1">
                   {expandedTitle.first}
                 </h3>
-                <button type="button" onClick={(e) => { e.stopPropagation(); e.preventDefault(); setExpanded(false); }}
+                <button
+                  type="button"
+                  aria-label="Закрыть"
+                  onClick={(e) => { e.stopPropagation(); e.preventDefault(); setExpanded(false); }}
                   className="flex-shrink-0 rounded-full bg-white/15 p-1.5 text-white/70 transition-colors hover:bg-white/25 hover:text-white"
-                ><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+                ><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden><path d="M18 6L6 18M6 6l12 12"/></svg></button>
               </div>
               <div className="mb-2 min-h-0 flex-1 overflow-y-auto rounded-xl bg-white/10 p-3">
                 <div className="font-mono text-[11px] text-white/80 whitespace-pre-wrap leading-relaxed">{allPrompts.join("\n\n")}</div>
