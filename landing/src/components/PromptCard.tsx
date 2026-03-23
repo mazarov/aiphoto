@@ -19,10 +19,6 @@ import {
   SIZES_CARD_GRID,
 } from "@/lib/card-image-presets";
 import { ListingCardPhotoSkeleton } from "./ListingCardPhotoSkeleton";
-import {
-  hasListingGridImageLoaded,
-  rememberListingGridImageUrl,
-} from "@/lib/listing-grid-image-load-cache";
 
 type Props = {
   card: PromptCardFull;
@@ -106,32 +102,23 @@ export function PromptCard({ card, debug = false, priorityLoad = false }: Props)
   const userReaction = reactions.get(card.id) ?? null;
   const isFavorited = favorites.has(card.id);
 
-  /** Listing: fixed 3:4 + cover (no per-image aspect — keeps grid rows even). */
-  const [imageReady, setImageReady] = useState(
-    () => Boolean(currentPhoto && hasListingGridImageLoaded(currentPhoto))
-  );
+  /**
+   * Skeleton until this mount’s `onLoad` / `onLoadingComplete`.
+   * Do not derive from a tab-level URL cache: after lazy scroll-back the inner `<img>` may decode
+   * again while cache said “ready” → skeleton hidden → empty `Image` → visible `bg-zinc-200` “white” card.
+   */
+  const [imageReady, setImageReady] = useState(false);
 
   useEffect(() => {
-    if (!currentPhoto) {
-      setImageReady(false);
-      return;
-    }
-    if (hasListingGridImageLoaded(currentPhoto)) {
-      setImageReady(true);
-      return;
-    }
     setImageReady(false);
   }, [currentPhoto]);
 
   const onPhotoFrameLoad = useCallback(() => {
-    if (currentPhoto) rememberListingGridImageUrl(currentPhoto);
     setImageReady(true);
-  }, [currentPhoto]);
+  }, []);
 
-  /** Opacity gate + tab-level URL cache: remount / missing second `load` on scroll-back won't blank the cell if this URL already decoded once. */
-  const mainPhotoClass = priorityLoad
-    ? "object-cover z-[2] opacity-100"
-    : `object-cover z-[2] ${imageReady ? "opacity-100" : "opacity-0"}`;
+  /** Always opaque: placeholder is the skeleton layer (z-[3]), not `opacity-0` on the image. */
+  const mainPhotoClass = "object-cover z-[2] opacity-100";
 
   return (
     <article
@@ -139,7 +126,7 @@ export function PromptCard({ card, debug = false, priorityLoad = false }: Props)
     >
       {debug && <DebugOverlay card={card} />}
       <div className="relative w-full overflow-hidden rounded-2xl bg-zinc-200 aspect-[3/4]">
-        {currentPhoto && !imageReady && <ListingCardPhotoSkeleton />}
+        {currentPhoto && !imageReady && <ListingCardPhotoSkeleton overlay />}
         {currentPhoto ? (
           <Image
             src={currentPhoto}

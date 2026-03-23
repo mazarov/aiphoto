@@ -18,10 +18,6 @@ import {
   SIZES_CARD_GRID,
 } from "@/lib/card-image-presets";
 import { ListingCardPhotoSkeleton } from "./ListingCardPhotoSkeleton";
-import {
-  hasListingGridImageLoaded,
-  rememberListingGridImageUrl,
-} from "@/lib/listing-grid-image-load-cache";
 
 type Props = {
   cards: PromptCardFull[];
@@ -53,31 +49,18 @@ export function GroupedCard({ cards, debug = false, priorityLoad = false }: Prop
   const userReaction = reactions.get(activeCard.id) ?? null;
   const viewCount = activeCard.viewCount ?? 0;
 
-  const [imageReady, setImageReady] = useState(
-    () => Boolean(currentPhotoUrl && hasListingGridImageLoaded(currentPhotoUrl))
-  );
+  const [imageReady, setImageReady] = useState(false);
 
   useEffect(() => {
-    if (!currentPhotoUrl) {
-      setImageReady(false);
-      return;
-    }
-    if (hasListingGridImageLoaded(currentPhotoUrl)) {
-      setImageReady(true);
-      return;
-    }
     setImageReady(false);
   }, [currentPhotoUrl]);
 
   const onPhotoFrameLoad = useCallback(() => {
-    if (currentPhotoUrl) rememberListingGridImageUrl(currentPhotoUrl);
     setImageReady(true);
-  }, [currentPhotoUrl]);
+  }, []);
 
-  /** Same cache strategy as PromptCard (see `listing-grid-image-load-cache`). */
-  const mainPhotoClass = priorityLoad
-    ? "object-cover z-[2] opacity-100"
-    : `object-cover z-[2] ${imageReady ? "opacity-100" : "opacity-0"}`;
+  /** Same as PromptCard: skeleton overlay, image always opaque. */
+  const mainPhotoClass = "object-cover z-[2] opacity-100";
 
   function handleCardSwitch(idx: number, photoIdx = 0) {
     setActiveCardIdx(idx);
@@ -148,7 +131,7 @@ export function GroupedCard({ cards, debug = false, priorityLoad = false }: Prop
           </div>
         )}
         <div className="relative w-full overflow-hidden rounded-2xl bg-zinc-200 aspect-[3/4]">
-          {currentPhotoUrl && !imageReady && <ListingCardPhotoSkeleton />}
+          {currentPhotoUrl && !imageReady && <ListingCardPhotoSkeleton overlay />}
           {currentPhotoUrl ? (
             <Image
               src={currentPhotoUrl}

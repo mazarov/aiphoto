@@ -61,7 +61,7 @@
 | `CARD_IMAGE_LISTING_MAX_WIDTH_PX` | 360 | `width` в `render/image` для пресета L (каталог) |
 | `CARD_IMAGE_LISTING_QUALITY` | 58 | `quality` в URL для L |
 | `CARD_IMAGE_NEXT_QUALITY` | 60 | `quality` у `next/image` для A (главная `CategoryCard`, `/p/` врезки) |
-| `CARD_IMAGE_LISTING_NEXT_QUALITY` | 35 | `quality` у `next/image` для L (`PromptCard`, `GroupedCard`, `SearchBar`) |
+| `CARD_IMAGE_LISTING_NEXT_QUALITY` | 45 | `quality` у `next/image` для L (`PromptCard`, `GroupedCard`, `SearchBar`) |
 
 Пресет **L** подставляется в `enrichCardsWithDetails` (`listing` в `getStorageCardMediaUrl`) — листинги `[...slug]`, API listing/search/search-card, избранное. Главная (`fetchHomepageSections`) по-прежнему **A** (`grid`).
 

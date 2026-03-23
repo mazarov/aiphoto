@@ -1,11 +1,13 @@
 /**
  * Placeholder only in the **photo** band — stops above the footer/CTA so the semi-transparent
  * gradient never reveals a second “gray rectangle” under the pills (no rect → pill sequence).
+ *
+ * @param overlay — `true` when stacked above `next/image` (z-[3]); `false` in `ListingGridLoadingSkeleton` (z-[1], chrome stays on top).
  */
-export function ListingCardPhotoSkeleton() {
+export function ListingCardPhotoSkeleton({ overlay = false }: { overlay?: boolean }) {
   return (
     <div
-      className="absolute inset-x-0 top-0 z-[1] overflow-hidden rounded-t-2xl bg-zinc-300/45 shadow-[inset_0_1px_0_rgba(255,255,255,0.3)] [bottom:32%]"
+      className={`absolute inset-x-0 top-0 overflow-hidden rounded-t-2xl bg-zinc-300/45 shadow-[inset_0_1px_0_rgba(255,255,255,0.3)] [bottom:32%] ${overlay ? "z-[3]" : "z-[1]"}`}
       aria-hidden
     >
       <div
