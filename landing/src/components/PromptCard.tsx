@@ -8,15 +8,14 @@ import { ReactionButtons } from "./ReactionButtons";
 import { FavoriteButton } from "./FavoriteButton";
 import { useCardInteractions } from "@/context/CardInteractionsContext";
 import { splitCardTitle } from "@/lib/format-view-count";
-import { useCardPhotoFrame } from "@/hooks/useCardPhotoFrame";
 import { CARD_OVERLAY_PHOTO_COUNTER_CLASS } from "@/lib/card-overlay-photo-counter";
 import {
   OVERLAY_BUTTON_APPEARANCE_RESET,
   OVERLAY_BUTTON_UA_RESET,
 } from "@/lib/card-overlay-action-pill";
 import { CardOverlayMetricsChips } from "./CardOverlayMetricsChips";
-import { hasListingPhotoDbAspect } from "@/lib/listing-lcp";
 import { SIZES_CARD_GRID } from "@/lib/card-image-presets";
+import { ListingCardPhotoSkeleton } from "./ListingCardPhotoSkeleton";
 
 type Props = {
   card: PromptCardFull;
@@ -100,58 +99,28 @@ export function PromptCard({ card, debug = false, priorityLoad = false }: Props)
   const userReaction = reactions.get(card.id) ?? null;
   const isFavorited = favorites.has(card.id);
 
-  const frameMeta = card.photoMeta[photoIndex] ?? card.photoMeta[0];
-  const hasDbAspect = hasListingPhotoDbAspect(frameMeta);
-  const {
-    containerStyle: photoFrameStyle,
-    onLoadingComplete: onPhotoFrameFromHook,
-  } = useCardPhotoFrame(
-    frameMeta?.width ?? null,
-    frameMeta?.height ?? null,
-    currentPhoto || ""
-  );
-
-  const [imageReady, setImageReady] = useState(
-    () => Boolean(priorityLoad && hasDbAspect && currentPhoto)
-  );
+  /** Listing: fixed 3:4 + cover (no per-image aspect — keeps CSS columns even). */
+  const [imageReady, setImageReady] = useState(false);
 
   useEffect(() => {
-    if (!currentPhoto) {
-      setImageReady(false);
-      return;
-    }
-    const m = card.photoMeta[photoIndex] ?? card.photoMeta[0];
-    if (priorityLoad && hasListingPhotoDbAspect(m)) setImageReady(true);
-    else setImageReady(false);
-  }, [currentPhoto, photoIndex, priorityLoad, card.photoMeta]);
+    setImageReady(false);
+  }, [currentPhoto, photoIndex]);
 
-  const onPhotoFrameLoad = useCallback(
-    (img: HTMLImageElement) => {
-      onPhotoFrameFromHook(img);
-      setImageReady(true);
-    },
-    [onPhotoFrameFromHook]
-  );
+  const onPhotoFrameLoad = useCallback(() => {
+    setImageReady(true);
+  }, []);
 
   const mainPhotoClass = priorityLoad
     ? "object-cover z-[2] opacity-100"
-    : `object-cover transition-opacity duration-200 ${imageReady ? "opacity-100 z-[2]" : "opacity-0 z-[2]"}`;
+    : `object-cover transition-[opacity] duration-300 ease-out ${imageReady ? "opacity-100 z-[2]" : "opacity-0 z-[2]"}`;
 
   return (
     <article
       className={`group relative isolate overflow-hidden rounded-2xl transition-all duration-200 hover:shadow-xl hover:shadow-zinc-900/10 hover:-translate-y-0.5 ${card.slug ? "cursor-pointer" : ""}`}
     >
       {debug && <DebugOverlay card={card} />}
-      <div
-        className="relative w-full overflow-hidden rounded-2xl bg-zinc-200 aspect-[3/4]"
-        style={photoFrameStyle}
-      >
-        {currentPhoto && !imageReady && (
-          <div
-            className="absolute inset-0 z-[1] animate-pulse bg-gradient-to-b from-zinc-200 to-zinc-300"
-            aria-hidden
-          />
-        )}
+      <div className="relative w-full overflow-hidden rounded-2xl bg-zinc-200 aspect-[3/4]">
+        {currentPhoto && !imageReady && <ListingCardPhotoSkeleton />}
         {currentPhoto ? (
           <Image
             src={currentPhoto}
@@ -234,7 +203,7 @@ export function PromptCard({ card, debug = false, priorityLoad = false }: Props)
           </div>
         )}
 
-        <div className="absolute right-3 top-3 z-20 flex flex-col items-end gap-1.5 sm:right-3.5 sm:top-3.5">
+        <div className="absolute right-3 top-3 z-20 flex flex-col items-end gap-1.5 sm:right-3.5">
           <CardOverlayMetricsChips viewCount={viewCount} />
           <div className="pointer-events-auto flex flex-col items-end gap-1.5">
             <ReactionButtons
@@ -269,7 +238,7 @@ export function PromptCard({ card, debug = false, priorityLoad = false }: Props)
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); e.preventDefault(); setExpanded(true); }}
-                className={`${OVERLAY_BUTTON_APPEARANCE_RESET} mt-1 w-full rounded-lg border border-white/10 bg-white/15 px-2 py-1.5 text-[10px] font-semibold text-white backdrop-blur-md transition-all hover:bg-white/25 active:scale-[0.98] pointer-events-auto sm:px-3 sm:py-2 sm:text-[11px] truncate`}
+                className={`${OVERLAY_BUTTON_APPEARANCE_RESET} mt-1 w-full rounded-full border border-white/10 bg-white/15 px-2 py-1.5 text-[10px] font-semibold text-white backdrop-blur-md transition-all hover:bg-white/25 active:scale-[0.98] pointer-events-auto sm:px-3 sm:py-2 sm:text-[11px] truncate`}
               >
                 Скопировать
               </button>

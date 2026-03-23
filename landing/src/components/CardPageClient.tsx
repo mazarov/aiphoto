@@ -408,14 +408,6 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
                     </div>
                   </div>
                 )}
-                {data.card_split_total > 1 && (
-                  <div className="pointer-events-none absolute top-2 right-2 z-20">
-                    <div className="rounded-full bg-indigo-500/80 px-2 py-0.5 text-[10px] font-bold text-white shadow backdrop-blur-md">
-                      {data.card_split_index + 1}/{data.card_split_total}
-                    </div>
-                  </div>
-                )}
-
                 {/* Group variant pills — on photo */}
                 {groupCards.length > 1 && (
                   <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1 pointer-events-auto">

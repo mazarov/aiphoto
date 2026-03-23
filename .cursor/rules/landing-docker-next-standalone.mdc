@@ -1,0 +1,27 @@
+---
+description: Лендинг Next.js в Docker — standalone, outputFileTracingRoot и /app/server.js; не ломать прод-сборку.
+alwaysApply: true
+---
+
+# Лендинг: Docker + Next.js `output: "standalone"`
+
+## Когда актуально
+
+Любые правки **`landing/next.config.ts`**, **`landing/Dockerfile`**, контекста/команд **`docker build`** для лендинга, или добавление путей/копирования в runner-стадии.
+
+## Запрет и причина
+
+- **Нельзя** задавать `outputFileTracingRoot` как **безусловный** `path.join(import.meta.dirname, "..")` только ради «монорепо».
+- **Почему:** образ обычно собирают с контекстом **`landing/`** → в контейнере `WORKDIR /app` и родитель **`/app` — это не корень `aiphoto`**, а `/`. Трейсинг от `/` ломает `.next/standalone`, в **`/app` нет `server.js`**, старт падает: `Cannot find module '/app/server.js'`.
+
+## Как правильно (source of truth)
+
+1. **Дефолт в коде:** корень трейсинга = родитель каталога `landing/`, только если там есть `package-lock.json` (монорепо в клоне); иначе — сам каталог приложения (`landing/` / `/app` в Docker).
+2. **Явный override на `next build`:** env **`NEXT_STANDALONE_TRACING_ROOT`** (абсолютный путь или относительно `landing/`) — для нестандартного CI; не хардкодить секреты.
+3. **`landing/Dockerfile`:** поддерживать **оба** layout — `standalone/landing/server.js` и плоский **`standalone/server.js`**; при отсутствии файла — **fail на этапе сборки**, не в рантайме.
+4. После изменений образа — напомнить про smoke: **`landing/scripts/verify-docker-image.sh IMAGE:TAG`** (проверка **`/app/server.js`**).
+5. Зафиксировать нюансы в **`docs/architecture/01-landing.md`** (§ «Сборка Docker (standalone)»), если менялся контракт.
+
+## Не путать
+
+- Это **не** про API/worker Dockerfiles в корне репо — только **лендинг** (`landing/`).

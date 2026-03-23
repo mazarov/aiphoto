@@ -77,6 +77,20 @@ p {
     display: none;
   }
 
+  /* Listing card image skeleton — bar sweep (class on element in ListingCardPhotoSkeleton) */
+  .listing-card-shimmer-bar {
+    animation: listing-shimmer 1.35s ease-in-out infinite;
+  }
+
+  @keyframes listing-shimmer {
+    0% {
+      transform: translateX(-120%) skewX(-14deg);
+    }
+    100% {
+      transform: translateX(320%) skewX(-14deg);
+    }
+  }
+
   .safe-area-pb {
     padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
   }

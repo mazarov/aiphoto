@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import type { PromptCardFull } from "@/lib/supabase";
 import { FilterableGrid } from "./CardFilters";
+import { ListingGridLoadingSkeleton } from "./ListingGridLoadingSkeleton";
 
 const PAGE_SIZE = 48;
 
@@ -118,11 +119,7 @@ export function InfiniteGrid({
 
       <div ref={sentinelRef} className="h-px" />
 
-      {loading && (
-        <div className="flex justify-center py-12">
-          <span className="block h-6 w-6 animate-spin rounded-full border-2 border-zinc-300 border-t-indigo-500" />
-        </div>
-      )}
+      {loading && <ListingGridLoadingSkeleton />}
     </>
   );
 }

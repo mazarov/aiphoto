@@ -4,13 +4,24 @@ import type { NextConfig } from "next";
 
 const landingDir = import.meta.dirname;
 const repoRoot = path.resolve(landingDir, "..");
+
 /**
- * Docker (context = `landing/` only): `WORKDIR /app` → parent is `/`, not the monorepo — tracing from `/` breaks standalone layout and `server.js` never lands where the Dockerfile expects.
- * Local / CI from repo: `aiphoto/package-lock.json` exists → trace from monorepo root for deterministic standalone.
+ * Standalone tracing root (must match Docker `COPY` + `CMD node server.js`):
+ * - Default: monorepo parent if `../package-lock.json` exists, else `landing/` only (Docker context `landing/`).
+ * - Override: `NEXT_STANDALONE_TRACING_ROOT` at **build** time — absolute path, or relative to this directory (e.g. `..` when parent lockfile is missing but you still want repo root).
  */
-const outputFileTracingRoot = fs.existsSync(path.join(repoRoot, "package-lock.json"))
-  ? repoRoot
-  : landingDir;
+function resolveOutputFileTracingRoot(): string {
+  const raw = process.env.NEXT_STANDALONE_TRACING_ROOT?.trim();
+  if (raw) {
+    return path.isAbsolute(raw) ? raw : path.resolve(landingDir, raw);
+  }
+  if (fs.existsSync(path.join(repoRoot, "package-lock.json"))) {
+    return repoRoot;
+  }
+  return landingDir;
+}
+
+const outputFileTracingRoot = resolveOutputFileTracingRoot();
 
 const nextConfig: NextConfig = {
   outputFileTracingRoot,

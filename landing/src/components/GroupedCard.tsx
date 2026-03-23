@@ -7,15 +7,14 @@ import type { PromptCardFull } from "@/lib/supabase";
 import { useCardInteractions } from "@/context/CardInteractionsContext";
 import { ReactionButtons } from "./ReactionButtons";
 import { splitCardTitle } from "@/lib/format-view-count";
-import { useCardPhotoFrame } from "@/hooks/useCardPhotoFrame";
 import { CARD_OVERLAY_PHOTO_COUNTER_CLASS } from "@/lib/card-overlay-photo-counter";
 import {
   OVERLAY_BUTTON_APPEARANCE_RESET,
   OVERLAY_BUTTON_UA_RESET,
 } from "@/lib/card-overlay-action-pill";
 import { CardOverlayMetricsChips } from "./CardOverlayMetricsChips";
-import { hasListingPhotoDbAspect } from "@/lib/listing-lcp";
 import { SIZES_CARD_GRID } from "@/lib/card-image-presets";
+import { ListingCardPhotoSkeleton } from "./ListingCardPhotoSkeleton";
 
 type Props = {
   cards: PromptCardFull[];
@@ -47,49 +46,19 @@ export function GroupedCard({ cards, debug = false, priorityLoad = false }: Prop
   const userReaction = reactions.get(activeCard.id) ?? null;
   const viewCount = activeCard.viewCount ?? 0;
 
-  const frameMeta =
-    activeCard.photoMeta[activePhotoIdx] ?? activeCard.photoMeta[0];
-  const hasDbAspect = hasListingPhotoDbAspect(frameMeta);
-  const {
-    containerStyle: photoFrameStyle,
-    onLoadingComplete: onPhotoFrameFromHook,
-  } = useCardPhotoFrame(
-    frameMeta?.width ?? null,
-    frameMeta?.height ?? null,
-    currentPhotoUrl || ""
-  );
-
-  const [imageReady, setImageReady] = useState(
-    () => Boolean(priorityLoad && hasDbAspect && currentPhotoUrl)
-  );
+  const [imageReady, setImageReady] = useState(false);
 
   useEffect(() => {
-    if (!currentPhotoUrl) {
-      setImageReady(false);
-      return;
-    }
-    const m =
-      activeCard.photoMeta[activePhotoIdx] ?? activeCard.photoMeta[0];
-    if (priorityLoad && hasListingPhotoDbAspect(m)) setImageReady(true);
-    else setImageReady(false);
-  }, [
-    currentPhotoUrl,
-    activePhotoIdx,
-    priorityLoad,
-    activeCard.photoMeta,
-  ]);
+    setImageReady(false);
+  }, [currentPhotoUrl, activePhotoIdx, activeCard.id]);
 
-  const onPhotoFrameLoad = useCallback(
-    (img: HTMLImageElement) => {
-      onPhotoFrameFromHook(img);
-      setImageReady(true);
-    },
-    [onPhotoFrameFromHook]
-  );
+  const onPhotoFrameLoad = useCallback(() => {
+    setImageReady(true);
+  }, []);
 
   const mainPhotoClass = priorityLoad
     ? "object-cover z-[2] opacity-100"
-    : `object-cover transition-opacity duration-200 ${imageReady ? "opacity-100 z-[2]" : "opacity-0 z-[2]"}`;
+    : `object-cover transition-[opacity] duration-300 ease-out ${imageReady ? "opacity-100 z-[2]" : "opacity-0 z-[2]"}`;
 
   function handleCardSwitch(idx: number, photoIdx = 0) {
     setActiveCardIdx(idx);
@@ -159,16 +128,8 @@ export function GroupedCard({ cards, debug = false, priorityLoad = false }: Prop
             </div>
           </div>
         )}
-        <div
-          className="relative w-full overflow-hidden rounded-2xl bg-zinc-200 aspect-[3/4]"
-          style={photoFrameStyle}
-        >
-          {currentPhotoUrl && !imageReady && (
-            <div
-              className="absolute inset-0 z-[1] animate-pulse bg-gradient-to-b from-zinc-200 to-zinc-300"
-              aria-hidden
-            />
-          )}
+        <div className="relative w-full overflow-hidden rounded-2xl bg-zinc-200 aspect-[3/4]">
+          {currentPhotoUrl && !imageReady && <ListingCardPhotoSkeleton />}
           {currentPhotoUrl ? (
             <Image
               src={currentPhotoUrl}
@@ -217,25 +178,41 @@ export function GroupedCard({ cards, debug = false, priorityLoad = false }: Prop
             className={`${OVERLAY_BUTTON_UA_RESET} absolute right-2 top-1/2 -translate-y-1/2 z-20 rounded-full bg-black/40 p-1.5 text-white opacity-0 backdrop-blur-md transition-all group-hover:opacity-100 hover:bg-black/60 active:scale-90`}
           ><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden><path d="M9 18l6-6-6-6"/></svg></button>
 
-          {(sorted.length > 1 || photos.length > 1) && (
-            <div className="absolute top-3 left-1/2 z-20 flex -translate-x-1/2 flex-col items-center gap-1 pointer-events-auto">
-              {sorted.length > 1 && (
+          <div className="pointer-events-none absolute top-3 left-3 right-3 z-20 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-x-2 sm:left-3.5 sm:right-3.5">
+            <div className="pointer-events-auto min-w-0 justify-self-start self-start">
+              {sorted.length > 1 ? (
                 <button
                   type="button"
                   aria-label={`Переключить вариант карточки: ${activeCardIdx + 1} из ${sorted.length}`}
-                  onClick={(e) => { e.stopPropagation(); e.preventDefault(); handleCardSwitch((activeCardIdx + 1) % sorted.length); }}
-                  className={`${OVERLAY_BUTTON_UA_RESET} inline-flex min-h-11 min-w-11 items-center justify-center rounded-full bg-indigo-500/80 px-2 py-2 text-[10px] font-medium text-white/90 tabular-nums backdrop-blur-md transition-colors hover:bg-indigo-500 touch-manipulation`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    handleCardSwitch((activeCardIdx + 1) % sorted.length);
+                  }}
+                  className={`${OVERLAY_BUTTON_UA_RESET} ${CARD_OVERLAY_PHOTO_COUNTER_CLASS} transition-colors hover:bg-black/55 active:scale-[0.98] touch-manipulation`}
                 >
                   {activeCardIdx + 1}/{sorted.length}
                 </button>
-              )}
-              {photos.length > 1 && (
-                <div className={`pointer-events-none ${CARD_OVERLAY_PHOTO_COUNTER_CLASS}`}>
-                  {activePhotoIdx + 1}/{photos.length}
-                </div>
-              )}
+              ) : null}
             </div>
-          )}
+            <div className="pointer-events-none justify-self-center self-start">
+              {photos.length > 1 ? (
+                <div className={CARD_OVERLAY_PHOTO_COUNTER_CLASS}>{activePhotoIdx + 1}/{photos.length}</div>
+              ) : null}
+            </div>
+            <div className="pointer-events-auto flex flex-col items-end gap-1.5 justify-self-end self-start">
+              <CardOverlayMetricsChips viewCount={viewCount} />
+              <ReactionButtons
+                cardId={activeCard.id}
+                likesCount={activeCard.likesCount}
+                dislikesCount={activeCard.dislikesCount}
+                userReaction={userReaction}
+                onToggle={toggleReaction}
+                variant="overlay"
+                stacked
+              />
+            </div>
+          </div>
 
           {(activeCard.beforePhotoUrl || groupBeforeUrl) && (
             <div className="absolute top-0 left-0 z-20 w-[28%] min-w-[72px]">
@@ -252,21 +229,6 @@ export function GroupedCard({ cards, debug = false, priorityLoad = false }: Prop
             </div>
           )}
 
-          <div className="absolute right-3 top-3 z-20 flex flex-col items-end gap-1.5 sm:right-3.5 sm:top-3.5">
-            <CardOverlayMetricsChips viewCount={viewCount} />
-            <div className="pointer-events-auto">
-              <ReactionButtons
-                cardId={activeCard.id}
-                likesCount={activeCard.likesCount}
-                dislikesCount={activeCard.dislikesCount}
-                userReaction={userReaction}
-                onToggle={toggleReaction}
-                variant="overlay"
-                stacked
-              />
-            </div>
-          </div>
-
           {!expanded && (
             <div className="absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/80 via-black/40 to-transparent pt-20 pb-3.5 px-3.5 pointer-events-none">
               <h3 className="text-[13px] font-semibold text-white leading-snug line-clamp-1 mb-0.5">{title}</h3>
@@ -275,7 +237,7 @@ export function GroupedCard({ cards, debug = false, priorityLoad = false }: Prop
               )}
               {allPrompts.length > 0 && (
                 <button type="button" onClick={(e) => { e.stopPropagation(); e.preventDefault(); setExpanded(true); }}
-                  className={`${OVERLAY_BUTTON_APPEARANCE_RESET} mt-1 w-full rounded-lg bg-white/15 backdrop-blur-md border border-white/10 px-2 py-1.5 sm:px-3 sm:py-2 text-[10px] sm:text-[11px] font-semibold text-white transition-all hover:bg-white/25 active:scale-[0.98] pointer-events-auto truncate`}
+                  className={`${OVERLAY_BUTTON_APPEARANCE_RESET} mt-1 w-full rounded-full bg-white/15 backdrop-blur-md border border-white/10 px-2 py-1.5 sm:px-3 sm:py-2 text-[10px] sm:text-[11px] font-semibold text-white transition-all hover:bg-white/25 active:scale-[0.98] pointer-events-auto truncate`}
                 >Скопировать</button>
               )}
             </div>

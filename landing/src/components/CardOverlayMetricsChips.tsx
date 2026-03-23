@@ -1,8 +1,8 @@
 import { formatCompactCount } from "@/lib/format-view-count";
+import { CARD_OVERLAY_ACTION_PILL } from "@/lib/card-overlay-action-pill";
 
-/** Views-only chip (matches action-pill height family for top-right column). */
-const VIEWS_CHIP =
-  "inline-flex h-7 items-center justify-center gap-1 rounded-full bg-black/40 px-2 text-[10px] font-medium leading-none text-white/90 tabular-nums backdrop-blur-md";
+/** Same glass pill as like/dislike/favorite (`CARD_OVERLAY_ACTION_PILL`); non-interactive. */
+const VIEWS_CHIP = `${CARD_OVERLAY_ACTION_PILL} min-w-[2.75rem] text-[10px] font-medium text-white/90 tabular-nums`;
 
 function EyeIcon({ className }: { className?: string }) {
   return (

@@ -1,6 +1,6 @@
 # 01 — Лендинг (promptshot.ru)
 
-> Последнее обновление: 2026-03-23 (**Листинг LCP:** первые `LISTING_LCP_PRIORITY_GRID_ITEMS` (12) ячеек в `FilterableGrid` — `next/image` `priority` + `fetchPriority="high"`, без `transition-opacity` на главном фото; при `width/height` в БД — сразу `opacity-100`; фоновая карточка в `GroupedCard` — `loading="lazy"` / `fetchPriority="low"`. См. `landing/src/lib/listing-lcp.ts`.) (**`/p/[slug]`:** герой — `priority` + `fetchPriority="high"`; размытый фон **после** `onLoadingComplete` героя, **CSS `background-image`** (не второй `<img>`, чтобы LCP не уходил на full-bleed blur); `dynamic(CardPageClient)`; `browserslist` в `landing/package.json` — меньше legacy polyfills в чанках. См. `docs/23-03-listing-performance-requirements.md` §10. **Производительность листингов / PSI:** требования `docs/23-03-listing-performance-requirements.md` — Метрика `lazyOnload`, `dynamic()` для `CatalogWithFilters` на `[...slug]`, секция каталога с `h2.sr-only`, a11y кнопок реакций/избранного/навигации по фото, `role="img"` у чипа просмотров, контраст подписей L2-чипов. **Превью фото карточек:** при наличии `prompt_card_media.width/height` — inline `aspect-ratio` из БД; иначе — после `onLoadingComplete` подставляется clamp 2:3…3:2. В листингах (`columns-*`) на контейнере **всегда** класс `aspect-[3/4]` (inline при наличии метаданных переопределяет), плюс pulse-скелетон до загрузки — иначе WebKit мог давать нулевую высоту и «пустые» карточки при скролле. **view_count:** миграции `sql/154_*` (сортировки листингов) + `sql/155_increment_prompt_card_view.sql` (RPC `increment_prompt_card_view`); на `/p/[slug]` — `POST /api/card-view` + `useCardViewBeacon`, дедуп `sessionStorage` `promptshot_view_{slug}`. UI превью: `CARD_OVERLAY_PHOTO_COUNTER_CLASS` по центру сверху; `CardOverlayMetricsChips` — просмотры справа при `view_count > 0`; пилюли действий — `CARD_OVERLAY_ACTION_PILL`. Подробнее — `docs/23-03-prompt-card-view-count-requirements.md`. **Пресеты размеров промо-фото:** `landing/src/lib/card-image-presets.ts` (`SIZES_CARD_GRID`, `SIZES_CARD_HERO`, `SIZES_CARD_HERO_VIEWPORT`); `getStorageCardMediaUrl(…, grid|hero)` в `landing/src/lib/supabase.ts` при `NEXT_PUBLIC_SUPABASE_STORAGE_IMAGE_TRANSFORM=1` — `/render/image/public/`. ТЗ: `docs/23-03-canonical-image-presets-requirements.md`. **Docker standalone:** образ собирается из контекста `landing/` — `outputFileTracingRoot` в `next.config.ts` только если рядом с родителем есть `package-lock.json` (монорепо); в образе иначе корень трейсинга = сам `landing/`, иначе standalone ломается и нет `/app/server.js`. `landing/Dockerfile` копирует и `landing/server.js`, и плоский `server.js`.)
+> Последнее обновление: 2026-03-23 (**Листинг LCP:** первые `LISTING_LCP_PRIORITY_GRID_ITEMS` (12) ячеек в `FilterableGrid` — `next/image` `priority` + `fetchPriority="high"`, без `transition-opacity` на главном фото (`opacity-100`); остальные ячейки — fade-in 300ms после `onLoadingComplete`. См. `landing/src/lib/listing-lcp.ts`.) (**`/p/[slug]`:** герой — `priority` + `fetchPriority="high"`; размытый фон **после** `onLoadingComplete` героя, **CSS `background-image`** (не второй `<img>`, чтобы LCP не уходил на full-bleed blur); `dynamic(CardPageClient)`; `browserslist` в `landing/package.json` — меньше legacy polyfills в чанках. См. `docs/23-03-listing-performance-requirements.md` §10. **Производительность листингов / PSI:** требования `docs/23-03-listing-performance-requirements.md` — Метрика `lazyOnload`, `dynamic()` для `CatalogWithFilters` на `[...slug]`, секция каталога с `h2.sr-only`, a11y кнопок реакций/избранного/навигации по фото, `role="img"` у чипа просмотров, контраст подписей L2-чипов. **Превью в листинге (`PromptCard`, `GroupedCard`):** только фиксированный кадр **`aspect-[3/4]`** + `object-cover` (без inline `aspect-ratio` из БД — ровные колонки masonry); до декода — `ListingCardPhotoSkeleton` (shimmer). На **`/p/[slug]`** (`CardPageClient`) — по-прежнему `useCardPhotoFrame` и clamp 2:3…3:2. **Подгрузка листинга:** `InfiniteGrid` — `ListingGridLoadingSkeleton` (сетка-призрак), не спиннер. **view_count:** миграции `sql/154_*` (сортировки листингов) + `sql/155_increment_prompt_card_view.sql` (RPC `increment_prompt_card_view`); на `/p/[slug]` — `POST /api/card-view` + `useCardViewBeacon`, дедуп `sessionStorage` `promptshot_view_{slug}`. UI превью: `CARD_OVERLAY_PHOTO_COUNTER_CLASS` по центру сверху; `CardOverlayMetricsChips` — просмотры справа при `view_count > 0`; пилюли действий — `CARD_OVERLAY_ACTION_PILL`. Подробнее — `docs/23-03-prompt-card-view-count-requirements.md`. **Пресеты размеров промо-фото:** `landing/src/lib/card-image-presets.ts` (`SIZES_CARD_GRID`, `SIZES_CARD_HERO`, `SIZES_CARD_HERO_VIEWPORT`); `getStorageCardMediaUrl(…, grid|hero)` в `landing/src/lib/supabase.ts` при `NEXT_PUBLIC_SUPABASE_STORAGE_IMAGE_TRANSFORM=1` — `/render/image/public/`. ТЗ: `docs/23-03-canonical-image-presets-requirements.md`. **Docker / standalone:** см. § «Сборка Docker (standalone)» ниже.)
 
 > UI side panel + content script: см. `docs/extension-ui-spec.md`; карта файлов и токены — `extension/DEVELOPER.md`.
 
@@ -252,7 +252,7 @@ SearchResults (client, infinite scroll)
 | SidebarNav | `components/SidebarNav.tsx` | Сквозной левый sidebar (desktop sticky, mobile FAB+slide-over): accordion-секции, подсветка активного URL |
 | PromptCard | `components/PromptCard.tsx` | Карточка в листинге |
 | GroupedCard | `components/GroupedCard.tsx` | Группа split-карточек |
-| CardOverlayMetricsChips | `components/CardOverlayMetricsChips.tsx` | Чип просмотров справа сверху (при `view_count > 0`); счётчик фото — `card-overlay-photo-counter.ts` + разметка по центру |
+| CardOverlayMetricsChips | `components/CardOverlayMetricsChips.tsx` | Чип просмотров (база `CARD_OVERLAY_ACTION_PILL`); счётчик фото — `card-overlay-photo-counter.ts` (тот же pill) + разметка по центру |
 | CardPageClient | `components/CardPageClient.tsx` | Клиентская часть карточки |
 | PhotoCarousel | `components/PhotoCarousel.tsx` | Карусель фото |
 | CardFilters | `components/CardFilters.tsx` | Debug-фильтры (FilterableGrid) |
@@ -431,7 +431,8 @@ landing/src/
 │       └── set-before/route.ts
 ├── components/                 ← UI-компоненты (см. таблицу выше)
 ├── scripts/
-│   └── sync-seo-content.ts     ← npm run seo:sync / seo:check
+│   ├── sync-seo-content.ts     ← npm run seo:sync / seo:check
+│   └── verify-docker-image.sh  ← smoke: есть ли /app/server.js в собранном образе
 ├── lib/
 │   ├── supabase.ts             ← Серверный клиент + data fetching
 │   ├── supabase-browser.ts     ← Браузерный клиент (auth, reactions)
@@ -452,10 +453,33 @@ landing/src/
 
 ---
 
+## Сборка Docker (standalone)
+
+**Почему ломалось:** контекст образа только `landing/` → в контейнере родитель `/app` — это не корень монорепо; жёсткий `outputFileTracingRoot: ..` указывал на `/` и ломал расклад `.next/standalone`, в `/app` не оказывался `server.js`.
+
+**Контракт сейчас**
+
+| Где собираете | Поведение |
+|---------------|-----------|
+| Dockhost / `docker build -f landing/Dockerfile landing/` | Без `package-lock.json` вне контекста → трейсинг от каталога приложения → плоский `standalone/server.js`; Dockerfile копирует в `/app`. |
+| Локально из клона `aiphoto/` | Рядом с `landing/` есть `package-lock.json` → трейсинг от `aiphoto/` → `standalone/landing/server.js`; Dockerfile берёт вложенную ветку. |
+
+**Как не повторить**
+
+1. **Не менять контекст сборки** без правки `landing/Dockerfile` / `next.config.ts` и без проверки образа.
+2. **После каждого изменения образа:** `landing/scripts/verify-docker-image.sh IMAGE:TAG` — падает, если нет `/app/server.js` (раньше ошибка всплывала только при старте пода).
+3. **В CI / перед деплоем:** шаг `docker build` → `verify-docker-image.sh` → (опционально) `docker run` + `curl` на `:3001`.
+4. **Нестандартный CI** (нет родительского lockfile в контексте, но нужен монорепо-root): на этапе `next build` задать **`NEXT_STANDALONE_TRACING_ROOT`** — абсолютный путь или относительный от `landing/` (например `..`, если в builder положили файлы родителя в ожидаемое место).
+
+`landing/Dockerfile` при отсутствии `server.js` падает на этапе сборки с `find` — это предпочтительнее, чем «зелёный» билд и падение в рантайме.
+
+---
+
 ## Env Variables
 
 | Переменная | Где используется |
 |-----------|-----------------|
+| `NEXT_STANDALONE_TRACING_ROOT` | Опционально при **`next build`** / Docker build: явный корень file tracing для `output: standalone` (см. § «Сборка Docker») |
 | `NEXT_PUBLIC_SUPABASE_URL` | Браузерный клиент |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Браузерный клиент |
 | `SUPABASE_SERVICE_ROLE_KEY` | Серверный клиент |

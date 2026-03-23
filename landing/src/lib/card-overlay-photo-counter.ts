@@ -1,6 +1,8 @@
+import { CARD_OVERLAY_ACTION_PILL } from "./card-overlay-action-pill";
+
 /**
- * Centered `n/m` photo index over the image (listings + detail).
- * Not the same as `CARD_OVERLAY_ACTION_PILL` (reactions / metrics eye chip).
+ * Centered `n/m` photo index (listings + detail hero).
+ * Same glass pill as like/dislike/favorite/views — `CARD_OVERLAY_ACTION_PILL` + counter typography.
  */
 export const CARD_OVERLAY_PHOTO_COUNTER_CLASS =
-  "rounded-full bg-black/40 px-2 py-0.5 text-[10px] font-medium text-white/90 tabular-nums backdrop-blur-md";
+  `${CARD_OVERLAY_ACTION_PILL} text-[10px] font-medium text-white/90 tabular-nums`;
