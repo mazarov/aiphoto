@@ -1,6 +1,6 @@
 # 03 — Пайплайн: парсинг → загрузка → публикация
 
-> Последнее обновление: 2026-03-20
+> Последнее обновление: 2026-03-23
 
 ## Обзор
 
@@ -253,6 +253,21 @@ npx tsx src/discover-new-tags.ts --limit 10
 ```
 
 Открытая классификация: LLM предлагает теги, которых нет в `TAG_REGISTRY`. Только вывод в консоль, без записи в БД.
+
+---
+
+## Обслуживание: `prompt_card_media.width` / `height`
+
+Ингест исторически не заполнял размеры; для корректного `aspect-ratio` на лендинге можно догнать из Storage:
+
+```bash
+cd aiphoto
+npm run backfill:media-dimensions:dry    # только лог
+npm run backfill:media-dimensions        # запись в БД
+npx tsx src/backfill-prompt-card-media-dimensions.ts --limit 500
+```
+
+Скрипт: `src/backfill-prompt-card-media-dimensions.ts` (чанки по 200, пауза 50 ms). Нужны `SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_URL` и `SUPABASE_SERVICE_ROLE_KEY`.
 
 ---
 

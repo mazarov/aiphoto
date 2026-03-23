@@ -385,6 +385,8 @@ export type PhotoMeta = {
   url: string;
   bucket: string;
   path: string;
+  width: number | null;
+  height: number | null;
 };
 
 export type PromptCardFull = RouteCard & {
@@ -406,6 +408,7 @@ export type PromptCardFull = RouteCard & {
   sourceGroupKey: string | null;
   likesCount: number;
   dislikesCount: number;
+  viewCount: number;
 };
 
 type MediaRow = {
@@ -413,6 +416,8 @@ type MediaRow = {
   storage_bucket: string;
   storage_path: string;
   is_primary: boolean;
+  width: number | null;
+  height: number | null;
 };
 
 export async function enrichCardsWithDetails(
@@ -428,7 +433,7 @@ export async function enrichCardsWithDetails(
       supabase
         .from("prompt_cards")
         .select(
-          "id,source_dataset_slug,source_message_id,source_date,hashtags,parse_warnings,seo_readiness_score,card_split_index,card_split_total,likes_count,dislikes_count"
+          "id,source_dataset_slug,source_message_id,source_date,hashtags,parse_warnings,seo_readiness_score,card_split_index,card_split_total,likes_count,dislikes_count,view_count"
         )
         .in("id", ids),
       supabase
@@ -438,7 +443,7 @@ export async function enrichCardsWithDetails(
         .order("variant_index", { ascending: true }),
       supabase
         .from("prompt_card_media")
-        .select("card_id,storage_bucket,storage_path,is_primary")
+        .select("card_id,storage_bucket,storage_path,is_primary,width,height")
         .in("card_id", ids)
         .eq("media_type", "photo")
         .order("is_primary", { ascending: false }),
@@ -464,6 +469,7 @@ export async function enrichCardsWithDetails(
     cardSplitTotal: number;
     likesCount: number;
     dislikesCount: number;
+    viewCount: number;
   };
   const metaByCard = new Map<string, CardMeta>();
   for (const row of cardsMetaRes.data || []) {
@@ -479,6 +485,7 @@ export async function enrichCardsWithDetails(
       card_split_total: number | null;
       likes_count: number | null;
       dislikes_count: number | null;
+      view_count: number | null;
     };
     metaByCard.set(r.id, {
       datasetSlug: r.source_dataset_slug,
@@ -491,6 +498,7 @@ export async function enrichCardsWithDetails(
       cardSplitTotal: r.card_split_total ?? 1,
       likesCount: r.likes_count ?? 0,
       dislikesCount: r.dislikes_count ?? 0,
+      viewCount: r.view_count ?? 0,
     });
   }
 
@@ -508,10 +516,18 @@ export async function enrichCardsWithDetails(
   }
 
   const allMediaByCard = new Map<string, MediaRow[]>();
-  for (const m of (mediaRes.data || []) as MediaRow[]) {
-    const arr = allMediaByCard.get(m.card_id) || [];
-    arr.push(m);
-    allMediaByCard.set(m.card_id, arr);
+  for (const m of (mediaRes.data || []) as Record<string, unknown>[]) {
+    const row: MediaRow = {
+      card_id: m.card_id as string,
+      storage_bucket: m.storage_bucket as string,
+      storage_path: m.storage_path as string,
+      is_primary: Boolean(m.is_primary),
+      width: (m.width as number | null) ?? null,
+      height: (m.height as number | null) ?? null,
+    };
+    const arr = allMediaByCard.get(row.card_id) || [];
+    arr.push(row);
+    allMediaByCard.set(row.card_id, arr);
   }
 
   const beforeByCard = new Map<
@@ -546,6 +562,8 @@ export async function enrichCardsWithDetails(
       url: getStoragePublicUrl(m.storage_bucket, m.storage_path),
       bucket: m.storage_bucket,
       path: m.storage_path,
+      width: m.width,
+      height: m.height,
     }));
     const photoUrls = photoMeta.map((m) => m.url);
     const prompts = variantsByCard.get(c.id) || [];
@@ -575,6 +593,7 @@ export async function enrichCardsWithDetails(
           : null,
       likesCount: meta?.likesCount ?? 0,
       dislikesCount: meta?.dislikesCount ?? 0,
+      viewCount: meta?.viewCount ?? 0,
     };
   });
 }
@@ -629,6 +648,10 @@ export type CardPageData = {
   seo_readiness_score: number | null;
   promptTexts: string[];
   photoUrls: string[];
+  /** Parallel to photoUrls — storage refs for debug «Было» / set-before. */
+  photoMeta: PhotoMeta[];
+  /** Parallel to photoUrls — from prompt_card_media (may be null if not backfilled). */
+  photoDimensions: { width: number | null; height: number | null }[];
   beforePhotoUrl: string | null;
   mainPhotoUrl: string | null;
   card_split_index: number;
@@ -637,6 +660,7 @@ export type CardPageData = {
   groupFirstSlug: string | null;
   likesCount: number;
   dislikesCount: number;
+  viewCount: number;
 };
 
 /** Fetches full card data for /p/[slug] page and generateMetadata. */
@@ -645,7 +669,7 @@ export async function getCardPageData(slug: string): Promise<CardPageData | null
   const { data: card } = await supabase
     .from("prompt_cards")
     .select(
-      "id,slug,title_ru,title_en,seo_tags,seo_readiness_score,hashtags,is_published,source_date,source_dataset_slug,source_message_id,card_split_index,card_split_total,likes_count,dislikes_count"
+      "id,slug,title_ru,title_en,seo_tags,seo_readiness_score,hashtags,is_published,source_date,source_dataset_slug,source_message_id,card_split_index,card_split_total,likes_count,dislikes_count,view_count"
     )
     .eq("slug", slug)
     .eq("is_published", true)
@@ -670,7 +694,7 @@ export async function getCardPageData(slug: string): Promise<CardPageData | null
       .order("variant_index", { ascending: true }),
     supabase
       .from("prompt_card_media")
-      .select("storage_bucket,storage_path,is_primary")
+      .select("storage_bucket,storage_path,is_primary,width,height")
       .eq("card_id", card.id)
       .eq("media_type", "photo")
       .order("is_primary", { ascending: false }),
@@ -711,6 +735,8 @@ export async function getCardPageData(slug: string): Promise<CardPageData | null
   const allMedia = (mediaRes.data || []) as {
     storage_bucket: string;
     storage_path: string;
+    width: number | null;
+    height: number | null;
   }[];
   const beforeMedia = beforeRes.data as {
     storage_bucket: string;
@@ -730,6 +756,17 @@ export async function getCardPageData(slug: string): Promise<CardPageData | null
   const photoUrls = filteredMedia.map((m) =>
     getStoragePublicUrl(m.storage_bucket, m.storage_path)
   );
+  const photoMeta: PhotoMeta[] = filteredMedia.map((m) => ({
+    url: getStoragePublicUrl(m.storage_bucket, m.storage_path),
+    bucket: m.storage_bucket,
+    path: m.storage_path,
+    width: m.width ?? null,
+    height: m.height ?? null,
+  }));
+  const photoDimensions = filteredMedia.map((m) => ({
+    width: m.width ?? null,
+    height: m.height ?? null,
+  }));
   const beforePhotoUrl = beforeMedia
     ? getStoragePublicUrl(beforeMedia.storage_bucket, beforeMedia.storage_path)
     : null;
@@ -790,6 +827,8 @@ export async function getCardPageData(slug: string): Promise<CardPageData | null
     seo_readiness_score: (card as Record<string, unknown>).seo_readiness_score as number | null,
     promptTexts,
     photoUrls,
+    photoMeta,
+    photoDimensions,
     beforePhotoUrl,
     mainPhotoUrl: photoUrls[0] || null,
     card_split_index: splitIndex,
@@ -798,5 +837,6 @@ export async function getCardPageData(slug: string): Promise<CardPageData | null
     groupFirstSlug,
     likesCount: (card as Record<string, unknown>).likes_count as number ?? 0,
     dislikesCount: (card as Record<string, unknown>).dislikes_count as number ?? 0,
+    viewCount: (card as Record<string, unknown>).view_count as number ?? 0,
   };
 }

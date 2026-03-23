@@ -7,22 +7,15 @@ import type { PromptCardFull } from "@/lib/supabase";
 import { ReactionButtons } from "./ReactionButtons";
 import { FavoriteButton } from "./FavoriteButton";
 import { useCardInteractions } from "@/context/CardInteractionsContext";
+import { splitCardTitle } from "@/lib/format-view-count";
+import { useCardPhotoFrame } from "@/hooks/useCardPhotoFrame";
+import { CARD_OVERLAY_PHOTO_COUNTER_CLASS } from "@/lib/card-overlay-photo-counter";
+import { CardOverlayMetricsChips } from "./CardOverlayMetricsChips";
 
 type Props = {
   card: PromptCardFull;
   debug?: boolean;
 };
-
-function getSeoTagSlugs(seoTags: unknown): string[] {
-  const t = seoTags as Record<string, string[]> | null;
-  if (!t) return [];
-  return [
-    "audience_tag",
-    "style_tag",
-    "occasion_tag",
-    "object_tag",
-  ].flatMap((d) => (t[d] || []) as string[]);
-}
 
 function DebugOverlay({ card }: { card: PromptCardFull }) {
   const hasEnOnly = !card.hasRuPrompt && card.promptTexts.length > 0;
@@ -56,7 +49,7 @@ function DebugOverlay({ card }: { card: PromptCardFull }) {
 export function PromptCard({ card, debug = false }: Props) {
   const { reactions, favorites, toggleReaction, toggleFavorite } = useCardInteractions();
   const title = card.title_ru || card.title_en || "Без названия";
-  const seoSlugs = getSeoTagSlugs(card.seo_tags);
+  const expandedTitle = splitCardTitle(title);
 
   const [photoIndex, setPhotoIndex] = useState(0);
   const [expanded, setExpanded] = useState(false);
@@ -67,6 +60,7 @@ export function PromptCard({ card, debug = false }: Props) {
   const promptPreview =
     card.promptTexts[0]?.slice(0, 100) + (card.promptTexts[0]?.length > 100 ? "…" : "") || "";
 
+  const viewCount = card.viewCount ?? 0;
 
   function nextPhoto(e: React.MouseEvent) {
     e.stopPropagation();
@@ -82,24 +76,42 @@ export function PromptCard({ card, debug = false }: Props) {
 
   async function handleCopy(e: React.MouseEvent) {
     e.stopPropagation();
+    e.preventDefault();
     const str = card.promptTexts.join("\n\n");
     if (!str) return;
+    setCopied(true);
     try {
       await navigator.clipboard.writeText(str);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {}
+    } catch {
+      setCopied(false);
+      return;
+    }
+    setTimeout(() => setCopied(false), 2000);
   }
 
   const userReaction = reactions.get(card.id) ?? null;
   const isFavorited = favorites.has(card.id);
+
+  const frameMeta = card.photoMeta[photoIndex] ?? card.photoMeta[0];
+  const {
+    containerStyle: photoFrameStyle,
+    showTailwindFallback: photoFrameFallback,
+    onLoadingComplete: onPhotoFrameLoad,
+  } = useCardPhotoFrame(
+    frameMeta?.width ?? null,
+    frameMeta?.height ?? null,
+    currentPhoto || ""
+  );
 
   return (
     <article
       className={`group relative overflow-hidden rounded-2xl transition-all duration-200 hover:shadow-xl hover:shadow-zinc-900/10 hover:-translate-y-0.5 ${card.slug ? "cursor-pointer" : ""}`}
     >
       {debug && <DebugOverlay card={card} />}
-      <div className="relative aspect-[3/4] w-full overflow-hidden rounded-2xl bg-zinc-200">
+      <div
+        className={`relative w-full overflow-hidden rounded-2xl bg-zinc-200${photoFrameFallback ? " aspect-[3/4]" : ""}`}
+        style={photoFrameStyle}
+      >
         {currentPhoto ? (
           <Image
             src={currentPhoto}
@@ -107,6 +119,7 @@ export function PromptCard({ card, debug = false }: Props) {
             fill
             sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
             className="object-cover"
+            onLoadingComplete={onPhotoFrameLoad}
           />
         ) : (
           <div className="flex h-full items-center justify-center bg-zinc-100 text-zinc-400 text-sm">
@@ -155,76 +168,59 @@ export function PromptCard({ card, debug = false }: Props) {
           </div>
         )}
 
-        <div className="absolute top-3 left-3 right-3 z-20 flex items-start justify-between">
-          <div className="flex items-center gap-1.5 pointer-events-none">
-            {card.beforePhotoUrl && <div className="w-[28%] min-w-[72px]" />}
-            {card.cardSplitTotal > 1 && (
-              <div className="rounded-full bg-indigo-500/80 backdrop-blur-md px-2 py-0.5 text-[10px] font-bold text-white shadow">
-                {card.cardSplitIndex + 1}/{card.cardSplitTotal}
-              </div>
-            )}
-          </div>
-          <div className="flex items-center gap-1.5">
-            {photos.length > 1 && (
-              <div className="rounded-full bg-black/40 backdrop-blur-md px-2 py-0.5 text-[10px] font-medium text-white/90 tabular-nums pointer-events-none">
-                {photoIndex + 1}/{photos.length}
-              </div>
-            )}
-            <div className="opacity-0 group-hover:opacity-100 transition-opacity pointer-events-auto">
-              <FavoriteButton
-                cardId={card.id}
-                isFavorited={isFavorited}
-                onToggle={toggleFavorite}
-                variant="overlay"
-              />
+        <div className="pointer-events-none absolute top-3 left-3 z-20 flex items-center gap-1.5">
+          {card.beforePhotoUrl && <div className="w-[28%] min-w-[72px]" />}
+          {card.cardSplitTotal > 1 && (
+            <div className="rounded-full bg-indigo-500/80 backdrop-blur-md px-2 py-0.5 text-[10px] font-bold text-white shadow">
+              {card.cardSplitIndex + 1}/{card.cardSplitTotal}
             </div>
-          </div>
+          )}
         </div>
 
         {photos.length > 1 && (
-          <div className="absolute bottom-14 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1.5">
-            {photos.map((_, i) => (
-              <button
-                key={i}
-                type="button"
-                onClick={(e) => { e.stopPropagation(); e.preventDefault(); setPhotoIndex(i); }}
-                className={`rounded-full transition-all ${
-                  i === photoIndex ? "w-2 h-2 bg-white shadow-sm" : "w-1.5 h-1.5 bg-white/50"
-                }`}
-              />
-            ))}
+          <div className="pointer-events-none absolute top-3 left-1/2 z-20 -translate-x-1/2">
+            <div className={CARD_OVERLAY_PHOTO_COUNTER_CLASS}>
+              {photoIndex + 1}/{photos.length}
+            </div>
           </div>
         )}
 
+        <div className="absolute right-3 top-3 z-20 flex flex-col items-end gap-1.5 sm:right-3.5 sm:top-3.5">
+          <CardOverlayMetricsChips viewCount={viewCount} />
+          <div className="pointer-events-auto flex flex-col items-end gap-1.5">
+            <ReactionButtons
+              cardId={card.id}
+              likesCount={card.likesCount}
+              dislikesCount={card.dislikesCount}
+              userReaction={userReaction}
+              onToggle={toggleReaction}
+              variant="overlay"
+              stacked
+            />
+            <FavoriteButton
+              cardId={card.id}
+              isFavorited={isFavorited}
+              onToggle={toggleFavorite}
+              variant="overlay"
+            />
+          </div>
+        </div>
+
         {!expanded && (
           <div className="absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/80 via-black/40 to-transparent pt-20 pb-3.5 px-3.5 pointer-events-none">
-            <div className="flex items-end justify-between gap-2 pointer-events-none">
-              <div className="flex-1 min-w-0">
-                <h3 className="text-[13px] font-semibold text-white leading-snug line-clamp-2 mb-0.5">
-                  {title}
-                </h3>
-                {promptPreview && (
-                  <p className="text-[11px] text-white/60 leading-relaxed line-clamp-1">
-                    {promptPreview}
-                  </p>
-                )}
-              </div>
-              <div className="flex-shrink-0 pointer-events-auto opacity-0 group-hover:opacity-100 transition-opacity">
-                <ReactionButtons
-                  cardId={card.id}
-                  likesCount={card.likesCount}
-                  dislikesCount={card.dislikesCount}
-                  userReaction={userReaction}
-                  onToggle={toggleReaction}
-                  variant="overlay"
-                />
-              </div>
-            </div>
+            <h3 className="mb-0.5 text-[13px] font-semibold leading-snug text-white line-clamp-1">
+              {title}
+            </h3>
+            {promptPreview && (
+              <p className="mb-1 text-[11px] leading-relaxed text-white/60 line-clamp-2">
+                {promptPreview}
+              </p>
+            )}
             {card.promptTexts.length > 0 && (
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); e.preventDefault(); setExpanded(true); }}
-                className="mt-2 w-full rounded-lg bg-white/15 backdrop-blur-md border border-white/10 px-2 py-1.5 sm:px-3 sm:py-2 text-[10px] sm:text-[11px] font-semibold text-white transition-all hover:bg-white/25 active:scale-[0.98] pointer-events-auto truncate"
+                className="mt-1 w-full rounded-lg border border-white/10 bg-white/15 px-2 py-1.5 text-[10px] font-semibold text-white backdrop-blur-md transition-all hover:bg-white/25 active:scale-[0.98] pointer-events-auto sm:px-3 sm:py-2 sm:text-[11px] truncate"
               >
                 Скопировать
               </button>
@@ -233,35 +229,33 @@ export function PromptCard({ card, debug = false }: Props) {
         )}
 
         {expanded && (
-          <div className="absolute inset-0 z-30 flex flex-col bg-black/70 backdrop-blur-sm p-4" onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}>
-            <div className="flex items-start justify-between mb-3">
-              <h3 className="text-[13px] font-semibold text-white leading-snug flex-1 mr-2">{title}</h3>
+          <div className="absolute inset-0 z-30 flex flex-col bg-black/70 backdrop-blur-sm p-4">
+            <div className="mb-2 flex shrink-0 items-start justify-between">
+              <h3 className="mr-2 min-w-0 flex-1 text-[13px] font-semibold leading-snug text-white line-clamp-1">
+                {expandedTitle.first}
+              </h3>
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); e.preventDefault(); setExpanded(false); }}
-                className="flex-shrink-0 rounded-full bg-white/15 p-1.5 text-white/70 hover:bg-white/25 hover:text-white transition-colors"
+                className="flex-shrink-0 rounded-full bg-white/15 p-1.5 text-white/70 transition-colors hover:bg-white/25 hover:text-white"
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
               </button>
             </div>
-            <div className="flex-1 overflow-y-auto mb-3 rounded-xl bg-white/10 p-3">
+            <div className="mb-2 min-h-0 flex-1 overflow-y-auto rounded-xl bg-white/10 p-3">
               <div className="font-mono text-[11px] text-white/80 whitespace-pre-wrap leading-relaxed">
                 {card.promptTexts.join("\n\n")}
               </div>
             </div>
-            {seoSlugs.length > 0 && (
-              <div className="flex flex-wrap gap-1 mb-3">
-                {seoSlugs.slice(0, 5).map((slug) => (
-                  <span key={slug} className="rounded-full bg-white/10 px-2 py-0.5 text-[9px] text-white/60">{slug}</span>
-                ))}
-              </div>
-            )}
+            {expandedTitle.rest ? (
+              <p className="mb-3 shrink-0 text-[11px] leading-relaxed text-white/50">{expandedTitle.rest}</p>
+            ) : null}
             <button
               type="button"
-              onClick={(e) => { e.stopPropagation(); e.preventDefault(); handleCopy(e); }}
-              className="w-full rounded-xl bg-white px-3 py-2.5 text-xs font-semibold text-zinc-900 transition-all hover:bg-zinc-100 active:scale-[0.98]"
+              onClick={handleCopy}
+              className="w-full shrink-0 rounded-xl bg-white px-3 py-2.5 text-xs font-semibold text-zinc-900 transition-all hover:bg-zinc-100 active:scale-[0.98]"
             >
-              {copied ? "Скопировано!" : "Скопировать промт"}
+              {copied ? "Промпт скопирован" : "Скопировать промт"}
             </button>
           </div>
         )}

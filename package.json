@@ -16,7 +16,9 @@
     "fill:seo-tags": "tsx src/fill-seo-tags.ts",
     "fix:prompt-marker-titles": "tsx src/fix-prompt-marker-titles.ts",
     "retitle:all": "tsx src/fix-prompt-marker-titles.ts",
-    "fill:seo-tags:root-env": "cd .. && node -r dotenv/config ./node_modules/.bin/tsx aiphoto/src/fill-seo-tags.ts"
+    "fill:seo-tags:root-env": "cd .. && node -r dotenv/config ./node_modules/.bin/tsx aiphoto/src/fill-seo-tags.ts",
+    "backfill:media-dimensions": "tsx src/backfill-prompt-card-media-dimensions.ts",
+    "backfill:media-dimensions:dry": "tsx src/backfill-prompt-card-media-dimensions.ts --dry-run"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.48.0",
@@ -24,6 +26,7 @@
     "cheerio": "^1.2.0",
     "dotenv": "^16.4.5",
     "express": "^4.21.2",
+    "image-size": "^1.2.1",
     "telegraf": "^4.16.3",
     "xlsx": "^0.18.5"
   },

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { useCardViewBeacon } from "@/hooks/useCardViewBeacon";
 import Image from "next/image";
 import Link from "next/link";
 import type { CardPageData } from "@/lib/supabase";
@@ -9,6 +10,10 @@ import { ReactionButtons } from "./ReactionButtons";
 import { FavoriteButton } from "./FavoriteButton";
 import { GenerateButton } from "./GenerateButton";
 import { useDebug } from "./DebugFAB";
+import { formatCompactCount } from "@/lib/format-view-count";
+import { CARD_OVERLAY_ACTION_PILL } from "@/lib/card-overlay-action-pill";
+import { useCardPhotoFrame } from "@/hooks/useCardPhotoFrame";
+import { CARD_OVERLAY_PHOTO_COUNTER_CLASS } from "@/lib/card-overlay-photo-counter";
 
 type TagEntry = { slug: string; label: string; href: string | null };
 type BreadcrumbTag = { labelRu: string; urlPath: string } | null;
@@ -40,10 +45,41 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
   const [copied, setCopied] = useState(false);
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
 
-  const photos = data.photoUrls;
+  const [photos, setPhotos] = useState(data.photoUrls);
+  const [photoMeta, setPhotoMeta] = useState(data.photoMeta);
+  const [photoDimensions, setPhotoDimensions] = useState(data.photoDimensions);
+  const [beforePhotoUrl, setBeforePhotoUrl] = useState(data.beforePhotoUrl);
+  const [setBeforeSaving, setSetBeforeSaving] = useState(false);
+  const [setBeforeStatus, setSetBeforeStatus] = useState<string | null>(null);
+
+  useEffect(() => {
+    setPhotos(data.photoUrls);
+    setPhotoMeta(data.photoMeta);
+    setPhotoDimensions(data.photoDimensions);
+    setBeforePhotoUrl(data.beforePhotoUrl);
+    setPhotoIndex(0);
+    setSetBeforeStatus(null);
+  }, [data.id]);
+
   const currentPhoto = photos[photoIndex] || null;
+  const currentDims =
+    photoDimensions[photoIndex] ?? photoDimensions[0];
+  const {
+    containerStyle: heroFrameStyle,
+    showTailwindFallback: heroFrameFallback,
+    onLoadingComplete: onHeroFrameLoad,
+  } = useCardPhotoFrame(
+    currentDims?.width ?? null,
+    currentDims?.height ?? null,
+    currentPhoto || ""
+  );
   const hasPrompts = data.promptTexts.length > 0;
   const hasPhotos = photos.length > 0;
+  const viewCount = useCardViewBeacon(data.slug, data.viewCount ?? 0);
+  const viewsAriaLabel =
+    viewCount > 0
+      ? `${formatCompactCount(viewCount)} просмотров`
+      : "Пока нет просмотров";
 
   const groupCards = useMemo(() => {
     if (data.siblings.length === 0) return [];
@@ -98,6 +134,43 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
     }
   }
 
+  async function handleDebugSetBefore() {
+    const meta = photoMeta[photoIndex];
+    if (!meta) return;
+    setSetBeforeSaving(true);
+    setSetBeforeStatus(null);
+    try {
+      const res = await fetch("/api/set-before", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          cardId: data.id,
+          storageBucket: meta.bucket,
+          storagePath: meta.path,
+        }),
+      });
+      if (!res.ok) {
+        const j = (await res.json()) as { error?: string };
+        setSetBeforeStatus(`Ошибка: ${j.error || res.statusText}`);
+        return;
+      }
+      const idx = photoIndex;
+      setBeforePhotoUrl(meta.url);
+      const nextPhotos = photos.filter((_, i) => i !== idx);
+      const nextIdx =
+        nextPhotos.length === 0 ? 0 : Math.min(idx, nextPhotos.length - 1);
+      setPhotos(nextPhotos);
+      setPhotoMeta(photoMeta.filter((_, i) => i !== idx));
+      setPhotoDimensions(photoDimensions.filter((_, i) => i !== idx));
+      setPhotoIndex(nextIdx);
+      setSetBeforeStatus("Сохранено");
+    } catch (e) {
+      setSetBeforeStatus(`Ошибка: ${(e as Error).message}`);
+    } finally {
+      setSetBeforeSaving(false);
+    }
+  }
+
   return (
     <div className="mx-auto max-w-2xl px-5 py-6 lg:py-10 pb-28">
       {/* Breadcrumb — hidden on mobile */}
@@ -134,8 +207,9 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
           <div><span className="text-zinc-400">source_msg:</span> {data.source_message_id || "—"}</div>
           <div><span className="text-zinc-400">source_date:</span> {data.source_date || "—"}</div>
           <div><span className="text-zinc-400">split:</span> {data.card_split_index}/{data.card_split_total}</div>
-          <div><span className="text-zinc-400">photos:</span> {data.photoUrls.length} · <span className="text-zinc-400">prompts:</span> {data.promptTexts.length}</div>
+          <div><span className="text-zinc-400">photos:</span> {photos.length} · <span className="text-zinc-400">prompts:</span> {data.promptTexts.length}</div>
           <div><span className="text-zinc-400">seo_score:</span> {data.seo_readiness_score ?? "—"}</div>
+          <div><span className="text-zinc-400">view_count:</span> {viewCount}</div>
           {data.seo_tags && (
             <div className="mt-1.5 flex flex-wrap gap-1">
               {["audience_tag", "style_tag", "occasion_tag", "object_tag", "doc_task_tag"].map((dim) => {
@@ -148,9 +222,31 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
               })}
             </div>
           )}
-          {data.beforePhotoUrl && (
+          {beforePhotoUrl && (
             <div><span className="text-zinc-400">before:</span> <span className="text-teal-600">есть</span></div>
           )}
+          <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-amber-200/80">
+            <button
+              type="button"
+              onClick={handleDebugSetBefore}
+              disabled={setBeforeSaving || photos.length === 0 || !photoMeta[photoIndex]}
+              className="rounded-lg bg-amber-200/90 border border-amber-400 px-2.5 py-1.5 text-[11px] font-semibold text-amber-900 transition-colors hover:bg-amber-300/90 disabled:opacity-50"
+            >
+              {setBeforeSaving ? "Сохраняю…" : "Сделать «Было»"}
+            </button>
+            <span className="text-[10px] text-zinc-500">
+              текущее фото {photos.length ? photoIndex + 1 : 0}/{photos.length}
+            </span>
+            {setBeforeStatus && (
+              <span
+                className={`text-[11px] ${
+                  setBeforeStatus.startsWith("Ошибка") ? "text-red-600" : "text-emerald-700"
+                }`}
+              >
+                {setBeforeStatus}
+              </span>
+            )}
+          </div>
         </div>
       )}
 
@@ -177,7 +273,10 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
           {/* Photo content */}
           <div className="group relative flex flex-col items-center justify-center gap-4 px-6 py-8 sm:px-10 sm:py-10">
             {currentPhoto ? (
-              <div className="relative w-full max-w-[260px] sm:max-w-[300px] aspect-[3/4] rounded-2xl overflow-hidden shadow-2xl ring-1 ring-black/5">
+              <div
+                className={`relative w-full max-w-[260px] sm:max-w-[300px] rounded-2xl overflow-hidden bg-zinc-200 shadow-2xl ring-1 ring-black/5${heroFrameFallback ? " aspect-[3/4]" : ""}`}
+                style={heroFrameStyle}
+              >
                 <Image
                   src={currentPhoto}
                   alt={title}
@@ -185,6 +284,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
                   sizes="(max-width: 640px) 260px, 300px"
                   className="object-cover"
                   priority
+                  onLoadingComplete={onHeroFrameLoad}
                 />
 
                 {/* Nav arrows */}
@@ -210,10 +310,10 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
                 )}
 
                 {/* Before badge */}
-                {data.beforePhotoUrl && (
+                {beforePhotoUrl && (
                   <div className="absolute top-0 left-0 z-20 w-[28%] min-w-[56px]">
                     <div className="aspect-square relative bg-zinc-800 rounded-br-xl overflow-hidden shadow-lg ring-1 ring-black/10">
-                      <Image src={data.beforePhotoUrl} alt="before" fill className="object-cover" sizes="80px" />
+                      <Image src={beforePhotoUrl} alt="before" fill className="object-cover" sizes="80px" />
                       <div className="absolute inset-x-0 bottom-0 text-[7px] text-white font-bold text-center py-0.5 bg-gradient-to-t from-black/70 to-transparent tracking-wider">
                         БЫЛО
                       </div>
@@ -221,23 +321,20 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
                   </div>
                 )}
 
-                {/* Top badges: photo counter + split */}
-                <div className="absolute top-2 left-2 right-2 z-20 flex items-start justify-between pointer-events-none">
-                  <div className="flex items-center gap-1.5">
-                    {photos.length > 1 && (
-                      <div className="rounded-full bg-black/40 backdrop-blur-md px-2 py-0.5 text-[10px] font-medium text-white/90 tabular-nums">
-                        {photoIndex + 1}/{photos.length}
-                      </div>
-                    )}
+                {photos.length > 1 && (
+                  <div className="pointer-events-none absolute top-2 left-1/2 z-20 -translate-x-1/2">
+                    <div className={CARD_OVERLAY_PHOTO_COUNTER_CLASS}>
+                      {photoIndex + 1}/{photos.length}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-1.5">
-                    {data.card_split_total > 1 && (
-                      <div className="rounded-full bg-indigo-500/80 backdrop-blur-md px-2 py-0.5 text-[10px] font-bold text-white shadow">
-                        {data.card_split_index + 1}/{data.card_split_total}
-                      </div>
-                    )}
+                )}
+                {data.card_split_total > 1 && (
+                  <div className="pointer-events-none absolute top-2 right-2 z-20">
+                    <div className="rounded-full bg-indigo-500/80 px-2 py-0.5 text-[10px] font-bold text-white shadow backdrop-blur-md">
+                      {data.card_split_index + 1}/{data.card_split_total}
+                    </div>
                   </div>
-                </div>
+                )}
 
                 {/* Group variant pills — on photo */}
                 {groupCards.length > 1 && (
@@ -276,25 +373,6 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
                   </div>
                 )}
 
-                {/* Photo dots — on photo */}
-                {photos.length > 1 && (
-                  <div className={`absolute left-1/2 -translate-x-1/2 z-20 flex items-center gap-1.5 ${
-                    groupCards.length > 1 ? "bottom-8" : "bottom-2"
-                  }`}>
-                    {photos.map((_, i) => (
-                      <button
-                        key={i}
-                        type="button"
-                        onClick={() => setPhotoIndex(i)}
-                        className={`rounded-full transition-all ${
-                          i === photoIndex
-                            ? "w-2 h-2 bg-white shadow-sm"
-                            : "w-1.5 h-1.5 bg-white/50"
-                        }`}
-                      />
-                    ))}
-                  </div>
-                )}
               </div>
             ) : (
               <div className="flex h-48 items-center justify-center text-zinc-400 text-sm">
@@ -326,8 +404,8 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
               </div>
             )}
 
-            {/* Action buttons — glass pill overlay */}
-            <div className="flex items-center gap-1 rounded-full bg-black/15 backdrop-blur-md px-3 py-1.5">
+            {/* Action buttons — one chip per control (same as photo counter) */}
+            <div className="flex flex-wrap items-center justify-center gap-1.5">
               <ReactionButtons
                 cardId={data.id}
                 likesCount={data.likesCount}
@@ -336,7 +414,6 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
                 onToggle={toggleReaction}
                 variant="overlay"
               />
-              <div className="w-px h-4 bg-white/20 mx-1" />
               <FavoriteButton
                 cardId={data.id}
                 isFavorited={isFavorited}
@@ -346,10 +423,10 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
               <button
                 type="button"
                 onClick={handleShare}
-                className="rounded-full p-1.5 text-white/70 transition-colors hover:text-white active:scale-95"
+                className={`${CARD_OVERLAY_ACTION_PILL} min-w-[2.75rem] text-white/70 transition-colors hover:text-white active:scale-95`}
                 title="Поделиться"
               >
-                <ShareIcon size={14} />
+                <ShareIcon className="block shrink-0" size={14} />
               </button>
             </div>
           </div>
@@ -360,6 +437,21 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
       <h1 className="text-2xl sm:text-3xl font-bold text-center text-zinc-900 leading-tight mb-2">
         {title}
       </h1>
+
+      <p
+        className="mb-6 flex items-center justify-center gap-2 text-sm text-zinc-500"
+        aria-label={viewsAriaLabel}
+      >
+        <EyeIcon
+          className={`shrink-0 ${viewCount > 0 ? "text-zinc-500" : "text-zinc-300"}`}
+          size={16}
+          aria-hidden
+        />
+        <span className={`tabular-nums ${viewCount > 0 ? "text-zinc-600" : "text-zinc-400"}`}>
+          {formatCompactCount(viewCount)}
+        </span>
+        <span className="font-normal text-zinc-500">просмотров</span>
+      </p>
 
       {/* ── Prompt Content ── */}
       {hasPrompts && (
@@ -434,6 +526,31 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
 
 /* ── Icons ── */
 
+function EyeIcon({
+  className,
+  size = 16,
+}: {
+  className?: string;
+  size?: number;
+}) {
+  return (
+    <svg
+      className={className}
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.75}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  );
+}
+
 function Chevron() {
   return (
     <svg
@@ -467,9 +584,9 @@ function CheckIcon({ size = 14 }: { size?: number }) {
   );
 }
 
-function ShareIcon({ size = 18 }: { size?: number }) {
+function ShareIcon({ size = 18, className }: { size?: number; className?: string }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
       <polyline points="16 6 12 2 8 6" />
       <line x1="12" y1="2" x2="12" y2="15" />

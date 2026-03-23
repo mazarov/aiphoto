@@ -1,6 +1,6 @@
 # 01 — Лендинг (promptshot.ru)
 
-> Последнее обновление: 2026-03-23 (**STV dual CRITICAL + extract `scene`:** не подменять волосы/лицо B текстом Scene; `scene` без биометрии референса)
+> Последнее обновление: 2026-03-23 (**Превью фото карточек:** при наличии `prompt_card_media.width/height` — `aspect-ratio` из БД; иначе (ингест сейчас часто не пишет размеры) — после загрузки картинки `next/image` `onLoadingComplete` + `useCardPhotoFrame` подставляет `naturalWidth`/`naturalHeight` (тот же clamp 2:3…3:2) + `object-cover`; до загрузки — `aspect-[3/4]`. **view_count:** миграции `sql/154_*` (сортировки листингов) + `sql/155_increment_prompt_card_view.sql` (RPC `increment_prompt_card_view`); на `/p/[slug]` — `POST /api/card-view` + `useCardViewBeacon`, дедуп `sessionStorage` `promptshot_view_{slug}`. UI превью: `CARD_OVERLAY_PHOTO_COUNTER_CLASS` по центру сверху; `CardOverlayMetricsChips` — просмотры справа при `view_count > 0`; пилюли действий — `CARD_OVERLAY_ACTION_PILL`. Подробнее — `docs/23-03-prompt-card-view-count-requirements.md`.)
 
 > UI side panel + content script: см. `docs/extension-ui-spec.md`; карта файлов и токены — `extension/DEVELOPER.md`.
 
@@ -36,6 +36,7 @@
 |------|-----------|
 | `/api/search` | Текстовый поиск (`search_cards_text` RPC) |
 | `/api/filter-counts` | Счётчики тегов для текущей выборки (`get_filter_counts` RPC) |
+| `/api/card-view` | POST: инкремент `view_count` по `slug` (beacon со страницы `/p/[slug]`, дедуп `sessionStorage`; RPC `increment_prompt_card_view`) |
 | `/api/search-card` | Карточка по ID / prefix / batch |
 | `/api/search-cards` | Фильтрованный поиск (`search_cards_filtered` RPC) |
 | `/api/datasets` | Список датасетов (debug) |
@@ -213,6 +214,8 @@ getCachedCardPageData(slug)             ← React.cache(getCardPageData)
 getFirstTagFromSeoTags(seo_tags)        ← breadcrumb
 ```
 
+- **`getCardPageData`:** в ответе для клиента — `photoMeta[]` (bucket/path/url, параллельно `photoUrls`) для debug-действий. В жёлтой DEBUG-панели на `CardPageClient` (после 5 кликов по логотипу в футере) — кнопка **«Сделать „Было“»**: текущий слайд карусели → `POST /api/set-before` (`prompt_card_before_media`), локально обновляются превью «Было» и список фото без перезагрузки.
+
 ### Поиск `/search`
 
 ```
@@ -248,6 +251,7 @@ SearchResults (client, infinite scroll)
 | SidebarNav | `components/SidebarNav.tsx` | Сквозной левый sidebar (desktop sticky, mobile FAB+slide-over): accordion-секции, подсветка активного URL |
 | PromptCard | `components/PromptCard.tsx` | Карточка в листинге |
 | GroupedCard | `components/GroupedCard.tsx` | Группа split-карточек |
+| CardOverlayMetricsChips | `components/CardOverlayMetricsChips.tsx` | Чип просмотров справа сверху (при `view_count > 0`); счётчик фото — `card-overlay-photo-counter.ts` + разметка по центру |
 | CardPageClient | `components/CardPageClient.tsx` | Клиентская часть карточки |
 | PhotoCarousel | `components/PhotoCarousel.tsx` | Карусель фото |
 | CardFilters | `components/CardFilters.tsx` | Debug-фильтры (FilterableGrid) |
@@ -337,7 +341,7 @@ type ResolvedRoute = {
 
 | Таблица | Что читает лендинг |
 |---------|-------------------|
-| `prompt_cards` | Основные карточки (slug, title, seo_tags, is_published, ...) |
+| `prompt_cards` | Основные карточки (slug, title, seo_tags, is_published, **view_count**, likes/dislikes, …) |
 | `slug_redirects` | Карта 301 редиректов старых slug на новые |
 | `prompt_variants` | Тексты промтов (prompt_text_ru, prompt_text_en) |
 | `prompt_card_media` | Фото (storage_bucket, storage_path, is_primary) |
@@ -361,6 +365,10 @@ type ResolvedRoute = {
 | `search_cards_filtered` | Фильтрованный поиск |
 | `search_cards_text` | Полнотекстовый поиск |
 | `landing_add_credits` | Начисление кредитов в `landing_users.credits` после web-оплаты |
+
+**Сортировка карточек в сетках (после 154):** `resolve_route_cards`, `search_cards_filtered`, `get_homepage_sections` сортируют по **`view_count` DESC**, тай-брейк **`source_date` DESC**, **`id`**. Веса тегов / `seo_readiness_score` в **ORDER BY не используются** (поле `relevance_score` в JSON `resolve_route_cards` может оставаться для отладки).
+
+**Инкремент `view_count`:** план — клиент после гидрации на `/p/[slug]` → `POST /api/card-view` (или RPC); до внедрения beacon счётчик в БД остаётся 0.
 
 ---
 

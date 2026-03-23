@@ -4,26 +4,26 @@ import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import type { PromptCardFull } from "@/lib/supabase";
+import { useCardInteractions } from "@/context/CardInteractionsContext";
+import { ReactionButtons } from "./ReactionButtons";
+import { splitCardTitle } from "@/lib/format-view-count";
+import { useCardPhotoFrame } from "@/hooks/useCardPhotoFrame";
+import { CARD_OVERLAY_PHOTO_COUNTER_CLASS } from "@/lib/card-overlay-photo-counter";
+import { CardOverlayMetricsChips } from "./CardOverlayMetricsChips";
+
 type Props = {
   cards: PromptCardFull[];
   debug?: boolean;
 };
 
-function getSeoTagSlugs(seoTags: unknown): string[] {
-  const t = seoTags as Record<string, string[]> | null;
-  if (!t) return [];
-  return ["audience_tag", "style_tag", "occasion_tag", "object_tag"].flatMap(
-    (d) => (t[d] || []) as string[]
-  );
-}
-
 export function GroupedCard({ cards, debug = false }: Props) {
   const sorted = [...cards].sort((a, b) => a.cardSplitIndex - b.cardSplitIndex);
   const [activeCardIdx, setActiveCardIdx] = useState(0);
   const activeCard = sorted[activeCardIdx];
+  const { reactions, toggleReaction } = useCardInteractions();
 
   const title = activeCard.title_ru || activeCard.title_en || "Без названия";
-  const allSeoSlugs = Array.from(new Set(sorted.flatMap((c) => getSeoTagSlugs(c.seo_tags))));
+  const expandedTitle = splitCardTitle(title);
   const allPrompts = sorted.flatMap((c) => c.promptTexts);
   const groupBeforeUrl = sorted.find((c) => c.beforePhotoUrl)?.beforePhotoUrl ?? null;
 
@@ -36,6 +36,21 @@ export function GroupedCard({ cards, debug = false }: Props) {
 
   const promptPreview =
     allPrompts[0]?.slice(0, 100) + (allPrompts[0]?.length > 100 ? "…" : "") || "";
+
+  const userReaction = reactions.get(activeCard.id) ?? null;
+  const viewCount = activeCard.viewCount ?? 0;
+
+  const frameMeta =
+    activeCard.photoMeta[activePhotoIdx] ?? activeCard.photoMeta[0];
+  const {
+    containerStyle: photoFrameStyle,
+    showTailwindFallback: photoFrameFallback,
+    onLoadingComplete: onPhotoFrameLoad,
+  } = useCardPhotoFrame(
+    frameMeta?.width ?? null,
+    frameMeta?.height ?? null,
+    currentPhotoUrl || ""
+  );
 
   function handleCardSwitch(idx: number, photoIdx = 0) {
     setActiveCardIdx(idx);
@@ -54,16 +69,19 @@ export function GroupedCard({ cards, debug = false }: Props) {
 
   async function handleCopy(e: React.MouseEvent) {
     e.stopPropagation();
+    e.preventDefault();
     const str = allPrompts.join("\n\n");
     if (!str) return;
+    setCopied(true);
     try {
       await navigator.clipboard.writeText(str);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {}
+    } catch {
+      setCopied(false);
+      return;
+    }
+    setTimeout(() => setCopied(false), 2000);
   }
 
-  // === Normal mode — diagonal offset photo stack ===
   const secondPhoto = sorted.length > 1
     ? (sorted[activeCardIdx === 0 ? 1 : 0].photoUrls[0] || null)
     : null;
@@ -102,7 +120,10 @@ export function GroupedCard({ cards, debug = false }: Props) {
             </div>
           </div>
         )}
-        <div className="relative aspect-[3/4] w-full overflow-hidden rounded-2xl bg-zinc-200">
+        <div
+          className={`relative w-full overflow-hidden rounded-2xl bg-zinc-200${photoFrameFallback ? " aspect-[3/4]" : ""}`}
+          style={photoFrameStyle}
+        >
           {currentPhotoUrl ? (
             <Image
               src={currentPhotoUrl}
@@ -110,6 +131,7 @@ export function GroupedCard({ cards, debug = false }: Props) {
               fill
               sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
               className="object-cover"
+              onLoadingComplete={onPhotoFrameLoad}
             />
           ) : (
             <div className="flex h-full items-center justify-center bg-zinc-100 text-zinc-400 text-sm">Нет фото</div>
@@ -124,7 +146,6 @@ export function GroupedCard({ cards, debug = false }: Props) {
             />
           )}
 
-          {/* Arrow buttons — photos first, then next group card */}
           <button type="button" onClick={(e) => {
             e.stopPropagation();
             e.preventDefault();
@@ -142,16 +163,25 @@ export function GroupedCard({ cards, debug = false }: Props) {
             className="absolute right-2 top-1/2 -translate-y-1/2 z-20 rounded-full bg-black/40 p-1.5 text-white opacity-0 backdrop-blur-md transition-all group-hover:opacity-100 hover:bg-black/60 active:scale-90"
           ><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M9 18l6-6-6-6"/></svg></button>
 
-          {/* Group paging — same style as photo counter but indigo, centered */}
-          <button
-            type="button"
-            onClick={(e) => { e.stopPropagation(); e.preventDefault(); handleCardSwitch((activeCardIdx + 1) % sorted.length); }}
-            className="absolute top-3 left-1/2 -translate-x-1/2 z-20 rounded-full bg-indigo-500/80 backdrop-blur-md px-2 py-0.5 text-[10px] font-medium text-white/90 tabular-nums cursor-pointer hover:bg-indigo-500 transition-colors"
-          >
-            {activeCardIdx + 1}/{sorted.length}
-          </button>
+          {(sorted.length > 1 || photos.length > 1) && (
+            <div className="absolute top-3 left-1/2 z-20 flex -translate-x-1/2 flex-col items-center gap-1 pointer-events-auto">
+              {sorted.length > 1 && (
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); e.preventDefault(); handleCardSwitch((activeCardIdx + 1) % sorted.length); }}
+                  className="rounded-full bg-indigo-500/80 px-2 py-0.5 text-[10px] font-medium text-white/90 tabular-nums backdrop-blur-md transition-colors hover:bg-indigo-500"
+                >
+                  {activeCardIdx + 1}/{sorted.length}
+                </button>
+              )}
+              {photos.length > 1 && (
+                <div className={`pointer-events-none ${CARD_OVERLAY_PHOTO_COUNTER_CLASS}`}>
+                  {activePhotoIdx + 1}/{photos.length}
+                </div>
+              )}
+            </div>
+          )}
 
-          {/* Before badge — flush left */}
           {(activeCard.beforePhotoUrl || groupBeforeUrl) && (
             <div className="absolute top-0 left-0 z-20 w-[28%] min-w-[72px]">
               <div className="aspect-square relative bg-zinc-800 rounded-br-xl overflow-hidden shadow-2xl ring-1 ring-black/10">
@@ -161,30 +191,26 @@ export function GroupedCard({ cards, debug = false }: Props) {
             </div>
           )}
 
-          {/* Photo counter */}
-          {photos.length > 1 && (
-            <div className="absolute top-3 right-3 z-20 rounded-full bg-black/40 backdrop-blur-md px-2 py-0.5 text-[10px] font-medium text-white/90 tabular-nums">
-              {activePhotoIdx + 1}/{photos.length}
+          <div className="absolute right-3 top-3 z-20 flex flex-col items-end gap-1.5 sm:right-3.5 sm:top-3.5">
+            <CardOverlayMetricsChips viewCount={viewCount} />
+            <div className="pointer-events-auto">
+              <ReactionButtons
+                cardId={activeCard.id}
+                likesCount={activeCard.likesCount}
+                dislikesCount={activeCard.dislikesCount}
+                userReaction={userReaction}
+                onToggle={toggleReaction}
+                variant="overlay"
+                stacked
+              />
             </div>
-          )}
+          </div>
 
-          {/* Photo dots */}
-          {photos.length > 1 && (
-            <div className="absolute bottom-14 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1.5">
-              {photos.map((_, i) => (
-                <button key={i} type="button" onClick={(e) => { e.stopPropagation(); e.preventDefault(); setActivePhotoIdx(i); }}
-                  className={`rounded-full transition-all ${i === activePhotoIdx ? "w-2 h-2 bg-white shadow-sm" : "w-1.5 h-1.5 bg-white/50"}`}
-                />
-              ))}
-            </div>
-          )}
-
-          {/* Default overlay — pointer-events-none so clicks pass through to navigation overlay */}
           {!expanded && (
             <div className="absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/80 via-black/40 to-transparent pt-20 pb-3.5 px-3.5 pointer-events-none">
-              <h3 className="text-[13px] font-semibold text-white leading-snug line-clamp-2 mb-1">{title}</h3>
+              <h3 className="text-[13px] font-semibold text-white leading-snug line-clamp-1 mb-0.5">{title}</h3>
               {promptPreview && (
-                <p className="text-[11px] text-white/60 leading-relaxed line-clamp-1 mb-1">{promptPreview}</p>
+                <p className="text-[11px] text-white/60 leading-relaxed line-clamp-2 mb-1">{promptPreview}</p>
               )}
               {allPrompts.length > 0 && (
                 <button type="button" onClick={(e) => { e.stopPropagation(); e.preventDefault(); setExpanded(true); }}
@@ -194,26 +220,25 @@ export function GroupedCard({ cards, debug = false }: Props) {
             </div>
           )}
 
-          {/* Expanded overlay */}
           {expanded && (
-            <div className="absolute inset-0 z-30 flex flex-col bg-black/70 backdrop-blur-sm p-4" onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}>
-              <div className="flex items-start justify-between mb-3">
-                <h3 className="text-[13px] font-semibold text-white leading-snug flex-1 mr-2">{title}</h3>
+            <div className="absolute inset-0 z-30 flex flex-col bg-black/70 backdrop-blur-sm p-4">
+              <div className="mb-2 flex shrink-0 items-start justify-between">
+                <h3 className="mr-2 min-w-0 flex-1 text-[13px] font-semibold leading-snug text-white line-clamp-1">
+                  {expandedTitle.first}
+                </h3>
                 <button type="button" onClick={(e) => { e.stopPropagation(); e.preventDefault(); setExpanded(false); }}
-                  className="flex-shrink-0 rounded-full bg-white/15 p-1.5 text-white/70 hover:bg-white/25 hover:text-white transition-colors"
+                  className="flex-shrink-0 rounded-full bg-white/15 p-1.5 text-white/70 transition-colors hover:bg-white/25 hover:text-white"
                 ><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
               </div>
-              <div className="flex-1 overflow-y-auto mb-3 rounded-xl bg-white/10 p-3">
+              <div className="mb-2 min-h-0 flex-1 overflow-y-auto rounded-xl bg-white/10 p-3">
                 <div className="font-mono text-[11px] text-white/80 whitespace-pre-wrap leading-relaxed">{allPrompts.join("\n\n")}</div>
               </div>
-              {allSeoSlugs.length > 0 && (
-                <div className="flex flex-wrap gap-1 mb-3">
-                  {allSeoSlugs.slice(0, 5).map((slug) => (<span key={slug} className="rounded-full bg-white/10 px-2 py-0.5 text-[9px] text-white/60">{slug}</span>))}
-                </div>
-              )}
-              <button type="button" onClick={(e) => { e.stopPropagation(); e.preventDefault(); handleCopy(e); }}
-                className="w-full rounded-xl bg-white px-3 py-2.5 text-xs font-semibold text-zinc-900 transition-all hover:bg-zinc-100 active:scale-[0.98]"
-              >{copied ? "Скопировано!" : "Скопировать промт"}</button>
+              {expandedTitle.rest ? (
+                <p className="mb-3 shrink-0 text-[11px] leading-relaxed text-white/50">{expandedTitle.rest}</p>
+              ) : null}
+              <button type="button" onClick={handleCopy}
+                className="w-full shrink-0 rounded-xl bg-white px-3 py-2.5 text-xs font-semibold text-zinc-900 transition-all hover:bg-zinc-100 active:scale-[0.98]"
+              >{copied ? "Промпт скопирован" : "Скопировать промт"}</button>
             </div>
           )}
         </div>
@@ -222,7 +247,6 @@ export function GroupedCard({ cards, debug = false }: Props) {
 
   return (
     <div className="group relative pb-2 pr-2">
-      {/* Back card — offset right & down, slightly rotated */}
       <div className="absolute top-3 left-3 right-0 bottom-0 rounded-2xl bg-zinc-300 overflow-hidden rotate-[2deg] shadow-md transition-transform duration-300 group-hover:rotate-[4deg] group-hover:translate-x-1 group-hover:translate-y-1">
         {secondPhoto && (
           <Image src={secondPhoto} alt="" fill className="object-cover opacity-60" sizes="(max-width: 640px) 50vw, 25vw" />
