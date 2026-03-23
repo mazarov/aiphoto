@@ -598,6 +598,11 @@ export async function enrichCardsWithDetails(
   });
 }
 
+/** Published card slugs never listed in sitemap.xml (direct /p/… may still work). */
+const SITEMAP_EXCLUDED_CARD_SLUGS = new Set([
+  "devochka-v-zimney-shapke-i-palto-sredi-zasnezhennykh-vetvey-khvoynogo-lesa-a89d6",
+]);
+
 /** Fetches all published card slugs for sitemap. */
 export async function getPublishedCardSlugs(): Promise<string[]> {
   const rows = await getPublishedCardsForSitemap();
@@ -617,7 +622,12 @@ export async function getPublishedCardsForSitemap(): Promise<
       .eq("is_published", true)
       .not("slug", "is", null);
     return (data || [])
-      .filter((r) => ((r as Record<string, unknown>).card_split_index as number ?? 0) === 0)
+      .filter((r) => {
+        const slug = (r as { slug: string }).slug;
+        const splitIdx =
+          ((r as Record<string, unknown>).card_split_index as number) ?? 0;
+        return splitIdx === 0 && !SITEMAP_EXCLUDED_CARD_SLUGS.has(slug);
+      })
       .map((r) => ({
         slug: (r as { slug: string }).slug,
         updated_at: (r as { updated_at: string }).updated_at,

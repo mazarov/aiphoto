@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useCardViewBeacon } from "@/hooks/useCardViewBeacon";
 import Image from "next/image";
 import Link from "next/link";
@@ -34,6 +35,7 @@ export function CardPageClient({ data, tagEntries, breadcrumbTag }: Props) {
 }
 
 function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
+  const router = useRouter();
   const title = data.title_ru || data.title_en || "Без названия";
   const { reactions, favorites, toggleReaction, toggleFavorite } = useCardInteractions();
   const userReaction = reactions.get(data.id) ?? null;
@@ -51,6 +53,8 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
   const [beforePhotoUrl, setBeforePhotoUrl] = useState(data.beforePhotoUrl);
   const [setBeforeSaving, setSetBeforeSaving] = useState(false);
   const [setBeforeStatus, setSetBeforeStatus] = useState<string | null>(null);
+  const [deleteSaving, setDeleteSaving] = useState(false);
+  const [deleteStatus, setDeleteStatus] = useState<string | null>(null);
 
   useEffect(() => {
     setPhotos(data.photoUrls);
@@ -59,6 +63,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
     setBeforePhotoUrl(data.beforePhotoUrl);
     setPhotoIndex(0);
     setSetBeforeStatus(null);
+    setDeleteStatus(null);
   }, [data.id]);
 
   const currentPhoto = photos[photoIndex] || null;
@@ -171,6 +176,39 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
     }
   }
 
+  async function handleDebugDeleteCard() {
+    if (
+      !window.confirm(
+        `Удалить карточку из базы без восстановления?\n\nslug:\n${data.slug}`
+      )
+    ) {
+      return;
+    }
+    setDeleteSaving(true);
+    setDeleteStatus(null);
+    try {
+      const res = await fetch("/api/debug-delete-card", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          cardId: data.id,
+          confirmSlug: data.slug,
+        }),
+      });
+      const j = (await res.json()) as { error?: string };
+      if (!res.ok) {
+        setDeleteStatus(`Ошибка: ${j.error || res.statusText}`);
+        return;
+      }
+      router.push("/");
+      router.refresh();
+    } catch (e) {
+      setDeleteStatus(`Ошибка: ${(e as Error).message}`);
+    } finally {
+      setDeleteSaving(false);
+    }
+  }
+
   return (
     <div className="mx-auto max-w-2xl px-5 py-6 lg:py-10 pb-28">
       {/* Breadcrumb — hidden on mobile */}
@@ -244,6 +282,25 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
                 }`}
               >
                 {setBeforeStatus}
+              </span>
+            )}
+          </div>
+          <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-red-200/80">
+            <button
+              type="button"
+              onClick={handleDebugDeleteCard}
+              disabled={deleteSaving}
+              className="rounded-lg bg-red-100 border border-red-300 px-2.5 py-1.5 text-[11px] font-semibold text-red-900 transition-colors hover:bg-red-200/90 disabled:opacity-50"
+            >
+              {deleteSaving ? "Удаляю…" : "Удалить карточку"}
+            </button>
+            {deleteStatus && (
+              <span
+                className={`text-[11px] ${
+                  deleteStatus.startsWith("Ошибка") ? "text-red-600" : "text-emerald-700"
+                }`}
+              >
+                {deleteStatus}
               </span>
             )}
           </div>

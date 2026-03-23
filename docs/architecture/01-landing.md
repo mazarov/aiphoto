@@ -41,6 +41,7 @@
 | `/api/search-cards` | Фильтрованный поиск (`search_cards_filtered` RPC) |
 | `/api/datasets` | Список датасетов (debug) |
 | `/api/set-before` | Before/after медиа |
+| `/api/debug-delete-card` | POST: удаление строки `prompt_cards` (+ строки `slug_redirects` для slug карточки); body: `cardId`, `confirmSlug` (должен совпасть со slug в БД). После удаления — `revalidatePath('/sitemap.xml')` и `/p/[slug]`, чтобы URL сразу исчез из sitemap и кеша страницы (источник URL в sitemap — `getPublishedCardsForSitemap()`). Объекты в Storage не трогает |
 | `/api/generation-config` | Конфиг генерации (модели, лимиты) |
 | `/api/generation-prompt` | EN промпт карточки по cardId |
 | `/api/upload-generation-photo` | Загрузка фото для генерации |
@@ -214,7 +215,7 @@ getCachedCardPageData(slug)             ← React.cache(getCardPageData)
 getFirstTagFromSeoTags(seo_tags)        ← breadcrumb
 ```
 
-- **`getCardPageData`:** в ответе для клиента — `photoMeta[]` (bucket/path/url, параллельно `photoUrls`) для debug-действий. В жёлтой DEBUG-панели на `CardPageClient` (после 5 кликов по логотипу в футере) — кнопка **«Сделать „Было“»**: текущий слайд карусели → `POST /api/set-before` (`prompt_card_before_media`), локально обновляются превью «Было» и список фото без перезагрузки.
+- **`getCardPageData`:** в ответе для клиента — `photoMeta[]` (bucket/path/url, параллельно `photoUrls`) для debug-действий. В жёлтой DEBUG-панели на `CardPageClient` (после 5 кликов по логотипу в футере) — кнопка **«Сделать „Было“»**: текущий слайд карусели → `POST /api/set-before` (`prompt_card_before_media`), локально обновляются превью «Было» и список фото без перезагрузки; **«Удалить карточку»** → `POST /api/debug-delete-card` (подтверждение в браузере + `confirmSlug`), редирект на `/`.
 
 ### Поиск `/search`
 
