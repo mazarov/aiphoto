@@ -9,6 +9,8 @@ import type { Dimension } from "@/lib/tag-registry";
 type Props = {
   initialCards: PromptCardFull[];
   totalCount: number;
+  /** Ranked rows returned by resolve_route_cards for the first page (before sibling expansion). */
+  initialRankedBatchSize: number;
   baseRpcParams: Record<string, string | null>;
   lockedDimensions: Dimension[];
 };
@@ -16,6 +18,7 @@ type Props = {
 export function CatalogWithFilters({
   initialCards,
   totalCount,
+  initialRankedBatchSize,
   baseRpcParams,
   lockedDimensions,
 }: Props) {
@@ -30,6 +33,7 @@ export function CatalogWithFilters({
         key={JSON.stringify(mergedRpcParams)}
         initialCards={initialCards}
         totalCount={totalCount}
+        initialRankedBatchSize={initialRankedBatchSize}
         rpcParams={mergedRpcParams}
         strictMode={activeCount > 0}
       />

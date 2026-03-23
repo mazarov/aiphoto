@@ -32,6 +32,7 @@ export function useCardPhotoFrame(
   }, [imageKey]);
 
   const containerStyle = dbStyle ?? measuredStyle;
+  /** @deprecated Always apply `aspect-[3/4]` on the wrapper; inline `containerStyle` overrides it. Columns layout needs a stable class-based ratio. */
   const showTailwindFallback = containerStyle == null;
 
   const onLoadingComplete = useCallback(

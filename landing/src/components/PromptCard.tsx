@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import type { PromptCardFull } from "@/lib/supabase";
@@ -95,31 +95,50 @@ export function PromptCard({ card, debug = false }: Props) {
   const frameMeta = card.photoMeta[photoIndex] ?? card.photoMeta[0];
   const {
     containerStyle: photoFrameStyle,
-    showTailwindFallback: photoFrameFallback,
-    onLoadingComplete: onPhotoFrameLoad,
+    onLoadingComplete: onPhotoFrameFromHook,
   } = useCardPhotoFrame(
     frameMeta?.width ?? null,
     frameMeta?.height ?? null,
     currentPhoto || ""
   );
 
+  const [imageReady, setImageReady] = useState(false);
+  useEffect(() => {
+    setImageReady(false);
+  }, [currentPhoto]);
+
+  const onPhotoFrameLoad = useCallback(
+    (img: HTMLImageElement) => {
+      onPhotoFrameFromHook(img);
+      setImageReady(true);
+    },
+    [onPhotoFrameFromHook]
+  );
+
   return (
     <article
-      className={`group relative overflow-hidden rounded-2xl transition-all duration-200 hover:shadow-xl hover:shadow-zinc-900/10 hover:-translate-y-0.5 ${card.slug ? "cursor-pointer" : ""}`}
+      className={`group relative isolate overflow-hidden rounded-2xl transition-all duration-200 hover:shadow-xl hover:shadow-zinc-900/10 hover:-translate-y-0.5 ${card.slug ? "cursor-pointer" : ""}`}
     >
       {debug && <DebugOverlay card={card} />}
       <div
-        className={`relative w-full overflow-hidden rounded-2xl bg-zinc-200${photoFrameFallback ? " aspect-[3/4]" : ""}`}
+        className="relative w-full overflow-hidden rounded-2xl bg-zinc-200 aspect-[3/4]"
         style={photoFrameStyle}
       >
+        {currentPhoto && !imageReady && (
+          <div
+            className="absolute inset-0 z-[1] animate-pulse bg-gradient-to-b from-zinc-200 to-zinc-300"
+            aria-hidden
+          />
+        )}
         {currentPhoto ? (
           <Image
             src={currentPhoto}
             alt={title}
             fill
             sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
-            className="object-cover"
+            className={`object-cover transition-opacity duration-200 ${imageReady ? "opacity-100 z-[2]" : "opacity-0 z-[2]"}`}
             onLoadingComplete={onPhotoFrameLoad}
+            onError={() => setImageReady(true)}
           />
         ) : (
           <div className="flex h-full items-center justify-center bg-zinc-100 text-zinc-400 text-sm">

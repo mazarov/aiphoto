@@ -24,6 +24,8 @@ export async function GET(req: NextRequest) {
       cards: enriched,
       total_count: result.total_count ?? result.cards_count,
       tier_used: result.tier_used,
+      /** Rows consumed in resolve_route_cards ORDER BY (before sibling expansion). Client must use this for offset, not enriched.cards.length. */
+      ranked_batch_size: result.cards_count,
     });
   } catch (err) {
     console.error("listing error:", err);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import type { PromptCardFull } from "@/lib/supabase";
@@ -44,12 +44,24 @@ export function GroupedCard({ cards, debug = false }: Props) {
     activeCard.photoMeta[activePhotoIdx] ?? activeCard.photoMeta[0];
   const {
     containerStyle: photoFrameStyle,
-    showTailwindFallback: photoFrameFallback,
-    onLoadingComplete: onPhotoFrameLoad,
+    onLoadingComplete: onPhotoFrameFromHook,
   } = useCardPhotoFrame(
     frameMeta?.width ?? null,
     frameMeta?.height ?? null,
     currentPhotoUrl || ""
+  );
+
+  const [imageReady, setImageReady] = useState(false);
+  useEffect(() => {
+    setImageReady(false);
+  }, [currentPhotoUrl]);
+
+  const onPhotoFrameLoad = useCallback(
+    (img: HTMLImageElement) => {
+      onPhotoFrameFromHook(img);
+      setImageReady(true);
+    },
+    [onPhotoFrameFromHook]
   );
 
   function handleCardSwitch(idx: number, photoIdx = 0) {
@@ -97,7 +109,7 @@ export function GroupedCard({ cards, debug = false }: Props) {
 
   const articleEl = (
       <article
-        className={`relative z-10 overflow-hidden rounded-2xl transition-all duration-200 group-hover:shadow-xl group-hover:shadow-zinc-900/10 group-hover:-translate-y-0.5 group-hover:-translate-x-0.5 ${activeSlug ? "cursor-pointer" : ""}`}
+        className={`relative z-10 isolate overflow-hidden rounded-2xl transition-all duration-200 group-hover:shadow-xl group-hover:shadow-zinc-900/10 group-hover:-translate-y-0.5 group-hover:-translate-x-0.5 ${activeSlug ? "cursor-pointer" : ""}`}
       >
         {debug && (
           <div className="absolute inset-x-0 top-0 z-30 pointer-events-none">
@@ -121,17 +133,24 @@ export function GroupedCard({ cards, debug = false }: Props) {
           </div>
         )}
         <div
-          className={`relative w-full overflow-hidden rounded-2xl bg-zinc-200${photoFrameFallback ? " aspect-[3/4]" : ""}`}
+          className="relative w-full overflow-hidden rounded-2xl bg-zinc-200 aspect-[3/4]"
           style={photoFrameStyle}
         >
+          {currentPhotoUrl && !imageReady && (
+            <div
+              className="absolute inset-0 z-[1] animate-pulse bg-gradient-to-b from-zinc-200 to-zinc-300"
+              aria-hidden
+            />
+          )}
           {currentPhotoUrl ? (
             <Image
               src={currentPhotoUrl}
               alt={title}
               fill
               sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
-              className="object-cover"
+              className={`object-cover transition-opacity duration-200 ${imageReady ? "opacity-100 z-[2]" : "opacity-0 z-[2]"}`}
               onLoadingComplete={onPhotoFrameLoad}
+              onError={() => setImageReady(true)}
             />
           ) : (
             <div className="flex h-full items-center justify-center bg-zinc-100 text-zinc-400 text-sm">Нет фото</div>

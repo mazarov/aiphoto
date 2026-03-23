@@ -9,18 +9,34 @@ const PAGE_SIZE = 48;
 type Props = {
   initialCards: PromptCardFull[];
   totalCount: number;
+  /** Ranked rows in the first SSR batch (before sibling expansion). Must match resolve_route_cards LIMIT slice. */
+  initialRankedBatchSize: number;
   rpcParams: Record<string, string | null>;
   strictMode?: boolean;
 };
 
-export function InfiniteGrid({ initialCards, totalCount, rpcParams, strictMode = false }: Props) {
+function hasMorePages(rankedBatchSize: number, rankedOffset: number, totalCount: number, pageSize: number) {
+  if (rankedBatchSize <= 0) return false;
+  if (rankedBatchSize < pageSize) return false;
+  return rankedOffset + rankedBatchSize < totalCount;
+}
+
+export function InfiniteGrid({
+  initialCards,
+  totalCount,
+  initialRankedBatchSize,
+  rpcParams,
+  strictMode = false,
+}: Props) {
   const [cards, setCards] = useState(initialCards);
   const [loading, setLoading] = useState(false);
-  const [hasMore, setHasMore] = useState(initialCards.length < totalCount);
+  const [hasMore, setHasMore] = useState(() =>
+    hasMorePages(initialRankedBatchSize, 0, totalCount, PAGE_SIZE)
+  );
   const sentinelRef = useRef<HTMLDivElement>(null);
   const loadingRef = useRef(false);
   const hasMoreRef = useRef(hasMore);
-  const offsetRef = useRef(initialCards.length);
+  const offsetRef = useRef(initialRankedBatchSize);
   const rpcParamsRef = useRef(rpcParams);
 
   hasMoreRef.current = hasMore;
@@ -31,9 +47,10 @@ export function InfiniteGrid({ initialCards, totalCount, rpcParams, strictMode =
     loadingRef.current = true;
     setLoading(true);
     try {
+      const oldOffset = offsetRef.current;
       const sp = new URLSearchParams();
       sp.set("limit", String(PAGE_SIZE));
-      sp.set("offset", String(offsetRef.current));
+      sp.set("offset", String(oldOffset));
       for (const [k, v] of Object.entries(rpcParamsRef.current)) {
         if (v) sp.set(k, v);
       }
@@ -41,11 +58,19 @@ export function InfiniteGrid({ initialCards, totalCount, rpcParams, strictMode =
       const res = await fetch(`/api/listing?${sp}`);
       const data = await res.json();
       const newCards = (data.cards || []) as PromptCardFull[];
-      if (newCards.length > 0) {
-        setCards((prev) => [...prev, ...newCards]);
-        offsetRef.current += PAGE_SIZE;
+      const rankedSize = Math.max(0, Number(data.ranked_batch_size) || 0);
+
+      if (newCards.length === 0) {
+        setHasMore(false);
+        hasMoreRef.current = false;
+        return;
       }
-      const more = newCards.length >= PAGE_SIZE;
+
+      const step = rankedSize > 0 ? rankedSize : PAGE_SIZE;
+      setCards((prev) => [...prev, ...newCards]);
+      offsetRef.current = oldOffset + step;
+
+      const more = step === PAGE_SIZE && oldOffset + step < totalCount;
       setHasMore(more);
       hasMoreRef.current = more;
     } catch {
@@ -55,7 +80,7 @@ export function InfiniteGrid({ initialCards, totalCount, rpcParams, strictMode =
       setLoading(false);
       loadingRef.current = false;
     }
-  }, []);
+  }, [strictMode, totalCount]);
 
   useEffect(() => {
     const el = sentinelRef.current;
@@ -70,7 +95,9 @@ export function InfiniteGrid({ initialCards, totalCount, rpcParams, strictMode =
     );
     observer.observe(el);
     return () => observer.disconnect();
-  }, [loadMore, cards.length]);
+    // Sentinel is the same node as items append; reconnecting on every cards.length tick
+    // caused extra layout/observer churn during scroll (worse with CSS columns).
+  }, [loadMore]);
 
   const countText = useMemo(() => {
     const n = totalCount;

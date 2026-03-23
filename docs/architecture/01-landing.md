@@ -1,6 +1,6 @@
 # 01 — Лендинг (promptshot.ru)
 
-> Последнее обновление: 2026-03-23 (**Превью фото карточек:** при наличии `prompt_card_media.width/height` — `aspect-ratio` из БД; иначе (ингест сейчас часто не пишет размеры) — после загрузки картинки `next/image` `onLoadingComplete` + `useCardPhotoFrame` подставляет `naturalWidth`/`naturalHeight` (тот же clamp 2:3…3:2) + `object-cover`; до загрузки — `aspect-[3/4]`. **view_count:** миграции `sql/154_*` (сортировки листингов) + `sql/155_increment_prompt_card_view.sql` (RPC `increment_prompt_card_view`); на `/p/[slug]` — `POST /api/card-view` + `useCardViewBeacon`, дедуп `sessionStorage` `promptshot_view_{slug}`. UI превью: `CARD_OVERLAY_PHOTO_COUNTER_CLASS` по центру сверху; `CardOverlayMetricsChips` — просмотры справа при `view_count > 0`; пилюли действий — `CARD_OVERLAY_ACTION_PILL`. Подробнее — `docs/23-03-prompt-card-view-count-requirements.md`.)
+> Последнее обновление: 2026-03-23 (**Превью фото карточек:** при наличии `prompt_card_media.width/height` — inline `aspect-ratio` из БД; иначе — после `onLoadingComplete` подставляется clamp 2:3…3:2. В листингах (`columns-*`) на контейнере **всегда** класс `aspect-[3/4]` (inline при наличии метаданных переопределяет), плюс pulse-скелетон до загрузки — иначе WebKit мог давать нулевую высоту и «пустые» карточки при скролле. **view_count:** миграции `sql/154_*` (сортировки листингов) + `sql/155_increment_prompt_card_view.sql` (RPC `increment_prompt_card_view`); на `/p/[slug]` — `POST /api/card-view` + `useCardViewBeacon`, дедуп `sessionStorage` `promptshot_view_{slug}`. UI превью: `CARD_OVERLAY_PHOTO_COUNTER_CLASS` по центру сверху; `CardOverlayMetricsChips` — просмотры справа при `view_count > 0`; пилюли действий — `CARD_OVERLAY_ACTION_PILL`. Подробнее — `docs/23-03-prompt-card-view-count-requirements.md`.)
 
 > UI side panel + content script: см. `docs/extension-ui-spec.md`; карта файлов и токены — `extension/DEVELOPER.md`.
 
@@ -368,7 +368,9 @@ type ResolvedRoute = {
 
 **Сортировка карточек в сетках (после 154):** `resolve_route_cards`, `search_cards_filtered`, `get_homepage_sections` сортируют по **`view_count` DESC**, тай-брейк **`source_date` DESC**, **`id`**. Веса тегов / `seo_readiness_score` в **ORDER BY не используются** (поле `relevance_score` в JSON `resolve_route_cards` может оставаться для отладки).
 
-**Инкремент `view_count`:** план — клиент после гидрации на `/p/[slug]` → `POST /api/card-view` (или RPC); до внедрения beacon счётчик в БД остаётся 0.
+**Пагинация листинга (`InfiniteGrid` + `GET /api/listing`):** в ответе есть **`ranked_batch_size`** (число строк из RPC до `expandCardGroups`). Следующий **`offset`** увеличивается на это значение, а не на `cards.length`: иначе split-группы раздувают массив, OFFSET в SQL перескакивает через «недопоказанные» ранги и колоночная сетка визуально «перемешивается». Если после деплоя всё ещё будут дубликаты/пропуски при активных просмотрах, причина — **живой** `view_count` + `OFFSET` (см. ниже); тогда нужен keyset (`view_count`, `source_date`, `id`) или сортировка только по стабильным полям для листинга.
+
+**Инкремент `view_count`:** клиент на `/p/[slug]` → `POST /api/card-view` + `useCardViewBeacon` (дедуп в `sessionStorage`); RPC `increment_prompt_card_view` (`sql/155_*`).
 
 ---
 

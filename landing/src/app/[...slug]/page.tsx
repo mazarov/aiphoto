@@ -352,6 +352,7 @@ export default async function TagPage({ params, searchParams }: Props) {
         <CatalogWithFilters
           initialCards={cards}
           totalCount={totalCount}
+          initialRankedBatchSize={result.cards_count}
           baseRpcParams={baseRpcParams}
           lockedDimensions={lockedDimensions}
         />
