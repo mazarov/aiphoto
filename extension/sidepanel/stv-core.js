@@ -1,7 +1,9 @@
 import { t, toggleUiLang } from "./i18n.js";
-import { createSupabaseForExtension } from "./supabase-extension.js";
+import { getStvRuntime } from "./stv-config.js";
 
-const API_ORIGIN = localStorage.getItem("stv_api_origin") || "https://promptshot.ru";
+function rt() {
+  return getStvRuntime();
+}
 
 let supabaseClient = null;
 let accessTokenRef = null;
@@ -20,6 +22,9 @@ const TOAST_TIMEOUT_MS = 3200;
 const TRIPLE_VARIANT_FLOW_LS_KEY = "stv_triple_variant_flow";
 /** Matches POST /api/generate validation (max 4 user images). */
 const MAX_USER_PHOTOS = 4;
+
+/** Brand mark: star inside gradient tile (aligned with content-script `.stv-ob-mark`). */
+const STV_MARK_STAR_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" class="stv-mark-star"><path fill-rule="evenodd" d="M10.788 3.21c.448-1.077 1.656-1.077 2.104 0l2.052 4.96 5.35.434c1.161.094 1.548 1.603.748 2.384l-4.09 3.941 1.14 5.348c.25 1.17-1.036 2.017-2.1 1.51l-4.828-2.29-4.827 2.29c-1.064.507-2.35-.34-2.1-1.51l1.14-5.348-4.09-3.941c-.8-.781-.413-2.384.748-2.384l5.35-.434 2.052-4.96Z" clip-rule="evenodd"/></svg>`;
 
 /** Presets for POST /api/vibe/extract `extractTemperature`; null = omit (API default). */
 const EXTRACT_TEMPERATURE_PRESETS = [0.1, 0.3, 0.6, 0.9, 1];
@@ -94,6 +99,8 @@ const state = {
   aspectRatios: [...DEFAULT_ASPECT_RATIOS],
   imageSizes: [...DEFAULT_IMAGE_SIZES],
   vibeId: null,
+  /** UGC card attribution when opened from landing embed */
+  landingCardId: null,
   style: null,
   extractModel: "",
   expandModel: "",
@@ -129,33 +136,23 @@ let creditPollTimer = null;
 let assembleDebounceTimer = null;
 
 function storageLocalGet(key) {
-  return new Promise((resolve) => {
-    chrome.storage.local.get(key, (result) => resolve(result));
-  });
+  return rt().platform.storage.local.get(key);
 }
 
 function storageLocalSet(obj) {
-  return new Promise((resolve) => {
-    chrome.storage.local.set(obj, resolve);
-  });
+  return rt().platform.storage.local.set(obj);
 }
 
 function storageLocalRemove(key) {
-  return new Promise((resolve) => {
-    chrome.storage.local.remove(key, resolve);
-  });
+  return rt().platform.storage.local.remove(key);
 }
 
 function storageSessionGet(key) {
-  return new Promise((resolve) => {
-    chrome.storage.session.get(key, (result) => resolve(result));
-  });
+  return rt().platform.storage.session.get(key);
 }
 
 function storageSessionRemove(key) {
-  return new Promise((resolve) => {
-    chrome.storage.session.remove(key, resolve);
-  });
+  return rt().platform.storage.session.remove(key);
 }
 
 function sleep(ms) {
@@ -680,6 +677,7 @@ function toSerializableState() {
     selectedAspectRatio: state.selectedAspectRatio,
     selectedImageSize: state.selectedImageSize,
     vibeId: state.vibeId,
+    landingCardId: state.landingCardId,
     style: state.style,
     extractModel: state.extractModel,
     expandModel: state.expandModel,
@@ -704,8 +702,9 @@ async function persistState() {
 }
 
 async function initSupabaseAuth() {
-  await storageLocalSet({ stv_api_origin: API_ORIGIN });
-  supabaseClient = await createSupabaseForExtension(API_ORIGIN);
+  const origin = rt().getApiOrigin();
+  await storageLocalSet({ stv_api_origin: origin });
+  supabaseClient = await rt().createSupabaseClient(origin);
   supabaseClient.auth.onAuthStateChange((_event, session) => {
     accessTokenRef = session?.access_token ?? null;
     /* Token can arrive after first paint; signed preview fetch would have no-op'd without Bearer. */
@@ -730,14 +729,14 @@ async function refreshAccessTokenFromSupabase() {
 async function startGoogleSignIn() {
   try {
     if (!supabaseClient) await initSupabaseAuth();
-    const redirectTo = chrome.runtime.getURL("sidepanel/auth-callback.html");
+    const redirectTo = rt().platform.getOAuthCallbackUrl();
     const { data, error } = await supabaseClient.auth.signInWithOAuth({
       provider: "google",
       options: { redirectTo, skipBrowserRedirect: true }
     });
     if (error) throw error;
     if (data?.url) {
-      chrome.tabs.create({ url: data.url });
+      rt().platform.openOAuthUrl(data.url);
     }
   } catch (err) {
     state.error = normalizeUiError(err, "OAuth failed");
@@ -794,6 +793,10 @@ function applyPersistedState(saved) {
   state.selectedAspectRatio = saved.selectedAspectRatio || state.selectedAspectRatio;
   state.selectedImageSize = saved.selectedImageSize || state.selectedImageSize;
   state.vibeId = saved.vibeId || state.vibeId;
+  state.landingCardId =
+    typeof saved.landingCardId === "string" && saved.landingCardId.trim()
+      ? saved.landingCardId.trim()
+      : state.landingCardId;
   state.style = saved.style || state.style;
   state.extractModel = saved.extractModel || state.extractModel;
   state.expandModel = saved.expandModel || state.expandModel;
@@ -825,7 +828,7 @@ async function api(path, init = {}) {
   if (accessTokenRef && !headers.Authorization) {
     headers.Authorization = `Bearer ${accessTokenRef}`;
   }
-  const response = await fetch(`${API_ORIGIN}${path}`, {
+  const response = await fetch(`${rt().getApiOrigin()}${path}`, {
     ...init,
     headers,
     credentials: "include"
@@ -903,6 +906,24 @@ async function loadPendingVibe() {
   const vibe = result?.[SESSION_VIBE_KEY];
   if (vibe?.imageUrl) {
     await applyPendingVibeFromStorage(vibe);
+  }
+}
+
+/** Web embed: seed reference image and card id from URL (landing iframe). */
+async function applyEmbedQueryParams() {
+  if (rt().platform.id !== "web" || typeof window === "undefined") return;
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const cardId = params.get("cardId");
+    if (cardId && cardId.trim()) {
+      state.landingCardId = cardId.trim();
+    }
+    const src = params.get("sourceImageUrl");
+    if (src && /^https?:\/\//i.test(src.trim())) {
+      await applyPendingVibeFromStorage({ imageUrl: src.trim(), at: Date.now() });
+    }
+  } catch {
+    /* ignore */
   }
 }
 
@@ -1154,6 +1175,7 @@ async function createGeneration(promptVariant) {
       aspectRatio: state.selectedAspectRatio,
       imageSize: state.selectedImageSize,
       vibeId: state.vibeId,
+      cardId: state.landingCardId || null,
       photoStoragePaths: userPhotoStoragePaths()
     })
   });
@@ -1329,7 +1351,7 @@ async function appendRunHistory(entry) {
 function exportRunHistory() {
   const payload = {
     exportedAt: new Date().toISOString(),
-    apiOrigin: API_ORIGIN,
+    apiOrigin: rt().getApiOrigin(),
     runs: state.runHistory || []
   };
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
@@ -1682,7 +1704,7 @@ function renderAuthRequired() {
     <div class="stv-shell">
       <header class="stv-topbar">
         <div class="stv-brand">
-          <span class="stv-brand-mark" aria-hidden="true">P</span>
+          <span class="stv-brand-mark" aria-hidden="true">${STV_MARK_STAR_SVG}</span>
           <div class="stv-brand-text">
             <span class="stv-brand-name">PromptShot</span>
             <span class="stv-brand-sub">${escapeHtml(t("brand_sub"))}</span>
@@ -1894,7 +1916,7 @@ function renderMain() {
     <div class="stv-shell">
       <header class="stv-topbar">
         <div class="stv-brand">
-          <span class="stv-brand-mark" aria-hidden="true">P</span>
+          <span class="stv-brand-mark" aria-hidden="true">${STV_MARK_STAR_SVG}</span>
           <div class="stv-brand-text">
             <span class="stv-brand-name">PromptShot</span>
             <span class="stv-brand-sub">${escapeHtml(t("brand_sub"))}</span>
@@ -2041,7 +2063,7 @@ function renderMain() {
         <details class="stv-disclosure stv-disclosure--dev">
           <summary>${escapeHtml(t("dev_details"))}</summary>
           <div class="stv-disclosure-body">
-            <p class="muted"><code>${escapeHtml(t("api"))}</code> ${escapeHtml(API_ORIGIN)}</p>
+            <p class="muted"><code>${escapeHtml(t("api"))}</code> ${escapeHtml(rt().getApiOrigin())}</p>
             <p class="muted">${escapeHtml(t("dev_doc_hint"))}</p>
             <label class="muted stv-dev-flag-label">
               <input type="checkbox" id="stv-dev-triple-flow" ${isTripleVariantFlowEnabled() ? "checked" : ""} />
@@ -2279,7 +2301,7 @@ function render() {
     app.innerHTML = `
       <div class="stv-shell">
         <div class="card stv-loading-card">
-          <div class="stv-brand-mark" style="margin:0 auto 12px" aria-hidden="true">P</div>
+          <div class="stv-brand-mark" style="margin:0 auto 12px" aria-hidden="true">${STV_MARK_STAR_SVG}</div>
           <p class="title">${escapeHtml(t("title_app"))}</p>
           <p class="muted">${escapeHtml(t("loading"))}</p>
         </div>
@@ -2299,18 +2321,19 @@ async function loadPersistedState() {
   applyPersistedState(saved);
 }
 
-async function boot() {
+export async function boot() {
   state.loading = true;
   render();
 
   await loadPersistedState();
+  await applyEmbedQueryParams();
   try {
     await initSupabaseAuth();
   } catch (e) {
     console.warn("[stv] initSupabaseAuth:", e);
   }
 
-  chrome.runtime.onMessage.addListener((msg) => {
+  rt().platform.runtime.onMessage?.((msg) => {
     if (msg?.type === "STV_PENDING_VIBE" && msg.vibe) {
       void applyPendingVibeFromStorage(msg.vibe);
       return;
@@ -2326,7 +2349,7 @@ async function boot() {
 
   /* When side panel is already open, boot() won't run again — background still writes session.
      onChanged picks up every new "Steal this vibe" click. */
-  chrome.storage.session.onChanged.addListener((changes, areaName) => {
+  rt().platform.storage.session.onChanged?.((changes, areaName) => {
     if (areaName !== "session") return;
     const ch = changes[SESSION_VIBE_KEY];
     const next = ch?.newValue;
@@ -2387,5 +2410,3 @@ async function boot() {
     void persistState();
   });
 }
-
-boot();

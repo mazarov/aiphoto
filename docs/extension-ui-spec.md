@@ -72,7 +72,7 @@ Primary-кнопки: **градиент** indigo → violet (как CTA на л
 
 ## Side Panel — логика экранов и состояний
 
-Состояние живёт в объекте `state` (см. `sidepanel/app.js`). Перерисовка: **`render()`** → загрузка / не залогинен / главный экран.
+Состояние живёт в объекте `state` (см. `sidepanel/stv-core.js`). Перерисовка: **`render()`** → загрузка / не залогинен / главный экран.
 
 ### 1. Загрузка (`state.loading`)
 
@@ -142,7 +142,7 @@ Primary-кнопки: **градиент** indigo → violet (как CTA на л
 | Файл | Роль |
 |------|------|
 | `extension/sidepanel/styles.css` | Токены `--stv-*`, все стили панели |
-| `extension/sidepanel/app.js` | Разметка, `render*()`, обработчики после `innerHTML` |
+| `extension/sidepanel/stv-core.js` | Разметка, `render*()`, обработчики после `innerHTML` |
 | `extension/sidepanel/i18n.js` | Тексты RU/DE |
 | `extension/content-script.js` | Inline стили и разметка кнопки на сайте |
 | `extension/sidepanel/index.html` | Оболочка, `#app` |

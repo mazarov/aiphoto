@@ -136,12 +136,15 @@ function ensureShadowContainer() {
       display: flex;
       align-items: center;
       justify-content: center;
-      font-weight: 800;
-      font-size: 15px;
-      letter-spacing: -0.04em;
       color: #fff;
       background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
       box-shadow: 0 2px 12px rgba(99, 102, 241, 0.4);
+    }
+    .stv-ob-mark svg {
+      width: 17px;
+      height: 17px;
+      display: block;
+      fill: currentColor;
     }
     .stv-ob-text {
       display: flex;
@@ -174,8 +177,11 @@ function ensureShadowContainer() {
     button.compact .stv-ob-mark {
       width: 30px;
       height: 30px;
-      font-size: 13px;
       border-radius: 9px;
+    }
+    button.compact .stv-ob-mark svg {
+      width: 15px;
+      height: 15px;
     }
     button.compact .stv-ob-line {
       font-size: 12px;
@@ -294,7 +300,8 @@ function getOrCreateButton() {
     const mark = document.createElement("span");
     mark.className = "stv-ob-mark";
     mark.setAttribute("aria-hidden", "true");
-    mark.textContent = "P";
+    mark.innerHTML =
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M10.788 3.21c.448-1.077 1.656-1.077 2.104 0l2.052 4.96 5.35.434c1.161.094 1.548 1.603.748 2.384l-4.09 3.941 1.14 5.348c.25 1.17-1.036 2.017-2.1 1.51l-4.828-2.29-4.827 2.29c-1.064.507-2.35-.34-2.1-1.51l1.14-5.348-4.09-3.941c-.8-.781-.413-2.384.748-2.384l5.35-.434 2.052-4.96Z" clip-rule="evenodd"/></svg>';
     const textWrap = document.createElement("span");
     textWrap.className = "stv-ob-text";
     const line = document.createElement("span");

@@ -675,6 +675,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
             </button>
             <GenerateButton
               cardId={data.id}
+              sourceImageUrl={currentPhoto || undefined}
               initialPrompt={data.promptTexts[0] || ""}
               variant="mobile"
             />

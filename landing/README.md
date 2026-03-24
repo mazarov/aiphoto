@@ -14,11 +14,12 @@ cp ../../.env .env.local
 # SUPABASE_SUPABASE_PUBLIC_URL или NEXT_PUBLIC_SUPABASE_URL
 # SUPABASE_SERVICE_ROLE_KEY
 
-# Dev
+# Dev (перед первым открытием /embed/stv или модалки генерации — собрать панель STV)
+npm run build:stv-web
 npm run dev
 # http://localhost:3001
 
-# Build
+# Build (включает build:stv-web автоматически)
 npm run build
 npm start
 ```

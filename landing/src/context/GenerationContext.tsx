@@ -3,11 +3,16 @@
 import { createContext, useContext, useState, useCallback, type ReactNode } from "react";
 
 type GenerationContextValue = {
-  openGenerationModal: (options?: { cardId?: string; initialPrompt?: string }) => void;
+  openGenerationModal: (options?: {
+    cardId?: string;
+    initialPrompt?: string;
+    sourceImageUrl?: string;
+  }) => void;
   closeGenerationModal: () => void;
   isOpen: boolean;
   initialCardId: string | null;
   initialPrompt: string | null;
+  sourceImageUrl: string | null;
 };
 
 const GenerationContext = createContext<GenerationContextValue | null>(null);
@@ -20,11 +25,13 @@ export function GenerationProvider({ children }: { children: ReactNode }) {
   const [isOpen, setIsOpen] = useState(false);
   const [initialCardId, setInitialCardId] = useState<string | null>(null);
   const [initialPrompt, setInitialPrompt] = useState<string | null>(null);
+  const [sourceImageUrl, setSourceImageUrl] = useState<string | null>(null);
 
   const openGenerationModal = useCallback(
-    (options?: { cardId?: string; initialPrompt?: string }) => {
+    (options?: { cardId?: string; initialPrompt?: string; sourceImageUrl?: string }) => {
       setInitialCardId(options?.cardId ?? null);
       setInitialPrompt(options?.initialPrompt ?? null);
+      setSourceImageUrl(options?.sourceImageUrl?.trim() || null);
       setIsOpen(true);
     },
     []
@@ -34,6 +41,7 @@ export function GenerationProvider({ children }: { children: ReactNode }) {
     setIsOpen(false);
     setInitialCardId(null);
     setInitialPrompt(null);
+    setSourceImageUrl(null);
   }, []);
 
   const value: GenerationContextValue = {
@@ -42,11 +50,8 @@ export function GenerationProvider({ children }: { children: ReactNode }) {
     isOpen,
     initialCardId,
     initialPrompt,
+    sourceImageUrl,
   };
 
-  return (
-    <GenerationContext.Provider value={value}>
-      {children}
-    </GenerationContext.Provider>
-  );
+  return <GenerationContext.Provider value={value}>{children}</GenerationContext.Provider>;
 }

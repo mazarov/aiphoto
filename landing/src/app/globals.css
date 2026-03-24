@@ -102,8 +102,21 @@ p {
  */
 @layer components {
   .listing-card-chrome {
-    opacity: 0;
     pointer-events: none;
+  }
+
+  /** Badges, «БЫЛО», bottom title/preview gradient — slower fade/slide. */
+  .listing-card-chrome-ambient {
+    opacity: 0;
+  }
+
+  /**
+   * Fast opacity (~55ms): metrics + reactions, photo arrows, frame counter,
+   * «Скопировать» — no lag vs slow ambient layer.
+   */
+  .listing-card-chrome-actions-fast,
+  .listing-card-chrome-controls-fast {
+    opacity: 0;
   }
 
   /**
@@ -115,17 +128,29 @@ p {
   }
 
   @media (hover: hover) and (pointer: fine) {
-    .listing-card-chrome {
+    .listing-card-chrome-ambient {
       transform: translateY(8px);
       transition:
-        opacity 280ms cubic-bezier(0.4, 0, 0.2, 1),
-        transform 280ms cubic-bezier(0.4, 0, 0.2, 1);
+        opacity 260ms cubic-bezier(0.4, 0, 0.2, 1),
+        transform 260ms cubic-bezier(0.4, 0, 0.2, 1);
     }
 
-    .group:hover .listing-card-chrome,
-    .group:focus-within .listing-card-chrome {
+    .listing-card-chrome-actions-fast,
+    .listing-card-chrome-controls-fast {
+      transition: opacity 55ms ease-out;
+    }
+
+    .group:hover .listing-card-chrome-ambient,
+    .group:focus-within .listing-card-chrome-ambient {
       opacity: 1;
       transform: translateY(0);
+    }
+
+    .group:hover .listing-card-chrome-actions-fast,
+    .group:focus-within .listing-card-chrome-actions-fast,
+    .group:hover .listing-card-chrome-controls-fast,
+    .group:focus-within .listing-card-chrome-controls-fast {
+      opacity: 1;
     }
 
     .group:hover .listing-card-chrome .listing-card-chrome-target,
@@ -134,13 +159,18 @@ p {
     }
 
     @media (prefers-reduced-motion: reduce) {
-      .listing-card-chrome {
+      .listing-card-chrome-ambient {
         transform: none;
-        transition: opacity 150ms ease-out;
+        transition: opacity 120ms ease-out;
       }
 
-      .group:hover .listing-card-chrome,
-      .group:focus-within .listing-card-chrome {
+      .listing-card-chrome-actions-fast,
+      .listing-card-chrome-controls-fast {
+        transition: opacity 90ms ease-out;
+      }
+
+      .group:hover .listing-card-chrome-ambient,
+      .group:focus-within .listing-card-chrome-ambient {
         transform: none;
       }
     }

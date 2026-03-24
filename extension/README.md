@@ -27,8 +27,10 @@ Flow:
 - `content-script.js`
 - `content-script.css`
 - `sidepanel/index.html`
-- `sidepanel/app.js` (ES modules)
-- `sidepanel/i18n.js`, `sidepanel/supabase-extension.js`
+- `sidepanel/boot-chrome.js` → `stv-core.js` (общая логика с веб-embed)
+- `sidepanel/platform/chrome-platform.js` / `web-platform.js`
+- `sidepanel/boot-web.js` — собирается в `landing/public/stv-panel/boot.mjs` (`landing`: `npm run build:stv-web`)
+- `sidepanel/i18n.js`, `sidepanel/supabase-extension.js` (Chrome), `supabase-web.js` (embed)
 - `sidepanel/auth-callback.html` + `auth-callback.js` (OAuth redirect)
 - `sidepanel/vendor/supabase.js` (бандл `@supabase/supabase-js`, см. ниже)
 - `sidepanel/styles.css`
@@ -80,7 +82,7 @@ CHROME_EXTENSION_ID=<your_extension_id_from_chrome_extensions>
 
 ## API origin для sidepanel
 
-По умолчанию `sidepanel/app.js` использует:
+По умолчанию `stv-core` + `boot-chrome` используют:
 
 ```js
 const API_ORIGIN = localStorage.getItem("stv_api_origin") || "https://promptshot.ru";
@@ -100,7 +102,7 @@ location.reload();
 
 - UI остаётся упрощённым (plain JS без фреймворка)
 - Автопубликация в `prompt_cards` best-effort (при ошибке публикации сохранение остаётся в `landing_vibe_saves`)
-- Нет сборки через bundler (пока plain JS)
+- Веб-встраивание: бандл `boot.mjs` через esbuild в `landing` (`npm run build:stv-web`); Chrome-панель по-прежнему native ESM без бандла
 
 ## Что уже есть в phase2
 

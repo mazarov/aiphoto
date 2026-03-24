@@ -7,7 +7,9 @@
 | Файл | Назначение |
 |------|------------|
 | `sidepanel/styles.css` | Визуал панели: токены `--stv-*`, классы `.stv-*`, базовые `.card`, `.row` |
-| `sidepanel/app.js` | Состояние `state`, `render()` …; доставка референса: **`STV_PENDING_VIBE`**, **`session.onChanged`**, и **poll `chrome.storage.session` ~350ms** (основной запас, т.к. SW→panel часто молчит); превью референса с **`_stv=<at>`** cache-bust; **фото пользователя (1–4):** `state.userPhotos[]` (`storagePath`, `fileName` + эфемерные превью); persist только пути/имена; миграция со старых `photoStoragePath` / `uploadedFileName`; после перезагрузки — **`refreshUserPhotosSignedPreviews()`** (signed URL на каждый path), см. `docs/23-03-stv-multi-user-photos-ui.md`; `POST /api/generate` получает **`photoStoragePaths`** = все пути в порядке сетки |
+| `sidepanel/stv-core.js` | Состояние `state`, `render()`, API — **единый модуль** для Chrome и лендинга. Точки входа: **`boot-chrome.js`** (side panel) и **`boot-web.js`** (бандл в `landing/public/stv-panel/`). Платформенные хуки: `extension/sidepanel/platform/*` (`chrome.storage` / `session` vs `localStorage` / `sessionStorage`, OAuth redirect). Доставка референса в extension: **`STV_PENDING_VIBE`**, **`session.onChanged`**, poll **`chrome.storage.session` ~350ms**; на сайте — query **`sourceImageUrl`** на `/embed/stv`. Превью референса с **`_stv=<at>`**; **фото пользователя (1–4):** `state.userPhotos[]`; `POST /api/generate` — **`photoStoragePaths`** + опционально **`cardId`** (`state.landingCardId`) |
+| `sidepanel/boot-chrome.js` | `configureStv` + `boot()` для панели; подключён из `index.html` |
+| `sidepanel/boot-web.js` | То же ядро для веб; собирать из каталога `landing`: **`npm run build:stv-web`** |
 | `sidepanel/i18n.js` | Строки RU/DE (`t("key")`) |
 | `sidepanel/index.html` | Корень `#app`, подключение CSS/JS |
 | `content-script.js` | Плавающая кнопка: Shadow DOM; визуал как **mini side panel** (zinc surface + градиент только на **P**); видимость: throttled **`mousemove`** + **паддинг вокруг active img** (не полагаться на `document mouseout` — ломает Pinterest) |

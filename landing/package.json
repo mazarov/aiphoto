@@ -11,7 +11,8 @@
   ],
   "scripts": {
     "dev": "next dev -p 3001",
-    "build": "next build",
+    "build:stv-web": "node scripts/build-stv-web.mjs",
+    "build": "npm run build:stv-web && next build",
     "start": "next start -p 3001",
     "lint": "next lint",
     "seo:check": "tsx scripts/sync-seo-content.ts --check",
