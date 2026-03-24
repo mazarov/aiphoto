@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import type { PromptCardFull } from "@/lib/supabase";
@@ -18,8 +18,6 @@ import {
   CARD_IMAGE_LISTING_NEXT_QUALITY,
   SIZES_CARD_GRID,
 } from "@/lib/card-image-presets";
-import { ListingCardPhotoSkeleton } from "./ListingCardPhotoSkeleton";
-import { useListingCardPhotoReveal } from "@/hooks/useListingCardPhotoReveal";
 
 type Props = {
   card: PromptCardFull;
@@ -103,25 +101,6 @@ export function PromptCard({ card, debug = false, priorityLoad = false }: Props)
   const userReaction = reactions.get(card.id) ?? null;
   const isFavorited = favorites.has(card.id);
 
-  /**
-   * Skeleton until first `onLoad` / `onLoadingComplete`, and when the card re-enters the viewport
-   * after lazy unload (`useListingCardPhotoReveal`). Do **not** reset on `currentPhoto` when the user
-   * flips photos in the grid — that was flashing `ListingCardPhotoSkeleton` (white/semi layer) over ~68% of the frame.
-   */
-  const [imageReady, setImageReady] = useState(false);
-  const photoFrameRef = useRef<HTMLDivElement>(null);
-
-  useListingCardPhotoReveal({
-    frameRef: photoFrameRef,
-    photoUrl: currentPhoto,
-    setReady: setImageReady,
-  });
-
-  const onPhotoFrameLoad = useCallback(() => {
-    setImageReady(true);
-  }, []);
-
-  /** Always opaque: placeholder is the skeleton layer (z-[3]), not `opacity-0` on the image. */
   const mainPhotoClass =
     "listing-card-photo-hover object-cover z-[2] opacity-100";
 
@@ -130,11 +109,7 @@ export function PromptCard({ card, debug = false, priorityLoad = false }: Props)
       className={`group relative isolate overflow-hidden rounded-2xl transition-all duration-200 hover:shadow-xl hover:shadow-zinc-900/10 hover:-translate-y-0.5 ${card.slug ? "cursor-pointer" : ""}`}
     >
       {debug && <DebugOverlay card={card} />}
-      <div
-        ref={photoFrameRef}
-        className="relative w-full overflow-hidden rounded-2xl bg-zinc-200 aspect-[3/4]"
-      >
-        {currentPhoto && !imageReady && <ListingCardPhotoSkeleton overlay />}
+      <div className="relative w-full overflow-hidden rounded-2xl bg-zinc-200 aspect-[3/4]">
         {currentPhoto ? (
           <Image
             src={currentPhoto}
@@ -145,9 +120,6 @@ export function PromptCard({ card, debug = false, priorityLoad = false }: Props)
             priority={priorityLoad}
             fetchPriority={priorityLoad ? "high" : undefined}
             className={mainPhotoClass}
-            onLoadingComplete={onPhotoFrameLoad}
-            onLoad={onPhotoFrameLoad}
-            onError={() => setImageReady(true)}
           />
         ) : (
           <div className="flex h-full items-center justify-center bg-zinc-100 text-zinc-400 text-sm">

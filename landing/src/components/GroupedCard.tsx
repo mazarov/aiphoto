@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import type { PromptCardFull } from "@/lib/supabase";
@@ -17,8 +17,6 @@ import {
   CARD_IMAGE_LISTING_NEXT_QUALITY,
   SIZES_CARD_GRID,
 } from "@/lib/card-image-presets";
-import { ListingCardPhotoSkeleton } from "./ListingCardPhotoSkeleton";
-import { useListingCardPhotoReveal } from "@/hooks/useListingCardPhotoReveal";
 
 type Props = {
   cards: PromptCardFull[];
@@ -50,25 +48,6 @@ export function GroupedCard({ cards, debug = false, priorityLoad = false }: Prop
   const userReaction = reactions.get(activeCard.id) ?? null;
   const viewCount = activeCard.viewCount ?? 0;
 
-  const [imageReady, setImageReady] = useState(false);
-  const photoFrameRef = useRef<HTMLDivElement>(null);
-
-  /** Reset skeleton only when switching **group variant**, not when paging photos on the same variant. */
-  useEffect(() => {
-    setImageReady(false);
-  }, [activeCard.id]);
-
-  useListingCardPhotoReveal({
-    frameRef: photoFrameRef,
-    photoUrl: currentPhotoUrl,
-    setReady: setImageReady,
-  });
-
-  const onPhotoFrameLoad = useCallback(() => {
-    setImageReady(true);
-  }, []);
-
-  /** Same as PromptCard: skeleton overlay, image always opaque. */
   const mainPhotoClass =
     "listing-card-photo-hover object-cover z-[2] opacity-100";
 
@@ -140,11 +119,7 @@ export function GroupedCard({ cards, debug = false, priorityLoad = false }: Prop
             </div>
           </div>
         )}
-        <div
-          ref={photoFrameRef}
-          className="relative w-full overflow-hidden rounded-2xl bg-zinc-200 aspect-[3/4]"
-        >
-          {currentPhotoUrl && !imageReady && <ListingCardPhotoSkeleton overlay />}
+        <div className="relative w-full overflow-hidden rounded-2xl bg-zinc-200 aspect-[3/4]">
           {currentPhotoUrl ? (
             <Image
               src={currentPhotoUrl}
@@ -155,9 +130,6 @@ export function GroupedCard({ cards, debug = false, priorityLoad = false }: Prop
               priority={priorityLoad}
               fetchPriority={priorityLoad ? "high" : undefined}
               className={mainPhotoClass}
-              onLoadingComplete={onPhotoFrameLoad}
-              onLoad={onPhotoFrameLoad}
-              onError={() => setImageReady(true)}
             />
           ) : (
             <div className="flex h-full items-center justify-center bg-zinc-100 text-zinc-400 text-sm">Нет фото</div>

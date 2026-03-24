@@ -7,7 +7,7 @@
 export function ListingCardPhotoSkeleton({ overlay = false }: { overlay?: boolean }) {
   return (
     <div
-      className={`absolute inset-x-0 top-0 overflow-hidden rounded-t-2xl bg-zinc-300/45 shadow-[inset_0_1px_0_rgba(255,255,255,0.3)] [bottom:32%] ${overlay ? "z-[3]" : "z-[1]"}`}
+      className={`pointer-events-none absolute inset-x-0 top-0 overflow-hidden rounded-t-2xl bg-zinc-300/45 shadow-[inset_0_1px_0_rgba(255,255,255,0.3)] [bottom:32%] ${overlay ? "z-[3]" : "z-[1]"}`}
       aria-hidden
     >
       <div
