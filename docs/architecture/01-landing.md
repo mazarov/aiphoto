@@ -1,6 +1,6 @@
 # 01 — Лендинг (promptshot.ru)
 
-> Последнее обновление: 2026-03-23 (**Листинг LCP:** первые `LISTING_LCP_PRIORITY_GRID_ITEMS` (12) ячеек в `FilterableGrid` — `next/image` `priority` + `fetchPriority="high"`, без `transition-opacity` на главном фото (`opacity-100`); остальные ячейки — скелетон **`ListingCardPhotoSkeleton overlay`** до `onLoad`; **`useListingCardPhotoReveal`** (`IntersectionObserver`, debounce ~320ms на уход из зоны; при повторном входе — два `rAF`, затем при `complete` вызов **`HTMLImageElement.decode()`** с `setReady(true|false)`: `complete` без декода на GPU даёт пустой `bg-zinc-200` на десктопе). **Стабильный `key`** у `InfiniteGrid` — `stableRpcParamsKey`. См. `landing/src/lib/listing-lcp.ts`, `landing/src/hooks/useListingCardPhotoReveal.ts`.) (**`/p/[slug]`:** герой — `priority` + `fetchPriority="high"`; размытый фон **после** `onLoadingComplete` героя, **CSS `background-image`** (не второй `<img>`, чтобы LCP не уходил на full-bleed blur); `dynamic(CardPageClient)`; `browserslist` в `landing/package.json` — меньше legacy polyfills в чанках. См. `docs/23-03-listing-performance-requirements.md` §10. **Производительность листингов / PSI:** требования `docs/23-03-listing-performance-requirements.md` — Метрика `lazyOnload`, `dynamic()` для `CatalogWithFilters` на `[...slug]`, секция каталога с `h2.sr-only`, a11y кнопок реакций/избранного/навигации по фото, `role="img"` у чипа просмотров, контраст подписей L2-чипов. **Превью в листинге (`PromptCard`, `GroupedCard`):** только фиксированный кадр **`aspect-[3/4]`** + `object-cover` (без inline `aspect-ratio` из БД — ровные ячейки; листинг — **CSS Grid**, порядок строками слева направо, не multicol); до декода — `ListingCardPhotoSkeleton` (shimmer). На **`/p/[slug]`** (`CardPageClient`) — по-прежнему `useCardPhotoFrame` и clamp 2:3…3:2. **Подгрузка листинга:** `InfiniteGrid` — `ListingGridLoadingSkeleton` (сетка-призрак), не спиннер. **view_count:** миграции `sql/154_*` (сортировки листингов) + `sql/155_increment_prompt_card_view.sql` (RPC `increment_prompt_card_view`); на `/p/[slug]` — `POST /api/card-view` + `useCardViewBeacon`, дедуп `sessionStorage` `promptshot_view_{slug}`. UI превью: `CARD_OVERLAY_PHOTO_COUNTER_CLASS` по центру сверху; `CardOverlayMetricsChips` — просмотры справа при `view_count > 0`; пилюли действий — `CARD_OVERLAY_ACTION_PILL`. Подробнее — `docs/23-03-prompt-card-view-count-requirements.md`. **Промо-фото / сжатие:** цепочка и пресеты — § «Промо-фото карточек: сжатие и пресеты» ниже; детальное ТЗ — `docs/23-03-canonical-image-presets-requirements.md`. **Docker / standalone:** см. § «Сборка Docker (standalone)» ниже.)
+> Последнее обновление: 2026-03-24 (**Листинг LCP:** первые `LISTING_LCP_PRIORITY_GRID_ITEMS` (12) ячеек в `FilterableGrid` — `next/image` `priority` + `fetchPriority="high"`, без `transition-opacity` на главном фото (`opacity-100`); остальные ячейки — скелетон **`ListingCardPhotoSkeleton overlay`** до `onLoad`; **`useListingCardPhotoReveal`** (`IntersectionObserver`, debounce ~320ms на уход из зоны; при повторном входе — два `rAF`, затем при `complete` вызов **`HTMLImageElement.decode()`** с `setReady(true|false)`: `complete` без декода на GPU даёт пустой `bg-zinc-200` на десктопе). **Стабильный `key`** у `InfiniteGrid` — `stableRpcParamsKey`. См. `landing/src/lib/listing-lcp.ts`, `landing/src/hooks/useListingCardPhotoReveal.ts`.) (**`/p/[slug]`:** герой — `priority` + `fetchPriority="high"`; размытый фон **после** `onLoadingComplete` героя, **CSS `background-image`** (не второй `<img>`, чтобы LCP не уходил на full-bleed blur); `dynamic(CardPageClient)`; `browserslist` в `landing/package.json` — меньше legacy polyfills в чанках. См. `docs/23-03-listing-performance-requirements.md` §10. **Производительность листингов / PSI:** требования `docs/23-03-listing-performance-requirements.md` — Метрика `lazyOnload`, `dynamic()` для `CatalogWithFilters` на `[...slug]`, секция каталога с `h2.sr-only`, a11y кнопок реакций/избранного/навигации по фото, `role="img"` у чипа просмотров, контраст подписей L2-чипов. **Превью в листинге (`PromptCard`, `GroupedCard`):** только фиксированный кадр **`aspect-[3/4]`** + `object-cover` (без inline `aspect-ratio` из БД — ровные ячейки; листинг — **CSS Grid**, порядок строками слева направо, не multicol); до декода — `ListingCardPhotoSkeleton` (shimmer). На **`/p/[slug]`** (`CardPageClient`) — по-прежнему `useCardPhotoFrame` и clamp 2:3…3:2. **Hover-оверлей листинга:** при **`(hover: hover) and (pointer: fine)`** метаданные и действия в обёртке **`listing-card-chrome`** (`landing/src/app/globals.css`) показываются на `:hover` / `:focus-within` у предка с классом **`group`**; лёгкий **`translateY`** + fade, на фото — **`listing-card-photo-hover`** (`scale(1.03)` при `prefers-reduced-motion: no-preference`). На touch / coarse pointer оверлей скрыт: тап ведёт на `/p/[slug]` (лайки, копирование, многофото — на странице карточки). Интерактивы помечены **`listing-card-chrome-target`**, чтобы до появления оверлея клики не перехватывались невидимыми кнопками. Полноэкранное «Скопировать» (`expanded`) вне `listing-card-chrome`, `z-30`. **Подгрузка листинга:** `InfiniteGrid` — `ListingGridLoadingSkeleton` (сетка-призрак), не спиннер. **view_count:** миграции `sql/154_*` (сортировки листингов) + `sql/155_increment_prompt_card_view.sql` (RPC `increment_prompt_card_view`); на `/p/[slug]` — `POST /api/card-view` + `useCardViewBeacon`, дедуп `sessionStorage` `promptshot_view_{slug}`. UI превью: `CARD_OVERLAY_PHOTO_COUNTER_CLASS` по центру сверху; `CardOverlayMetricsChips` — просмотры справа при `view_count > 0`; пилюли действий — `CARD_OVERLAY_ACTION_PILL`. Подробнее — `docs/23-03-prompt-card-view-count-requirements.md`. **Промо-фото / сжатие:** цепочка и пресеты — § «Промо-фото карточек: сжатие и пресеты» ниже; детальное ТЗ — `docs/23-03-canonical-image-presets-requirements.md`. **Docker / standalone:** см. § «Сборка Docker (standalone)» ниже.)
 
 > UI side panel + content script: см. `docs/extension-ui-spec.md`; карта файлов и токены — `extension/DEVELOPER.md`.
 
@@ -26,9 +26,14 @@
 /[...slug]              → Листинг по тегу (напр. /promty-dlya-foto-devushki, /stil/cherno-beloe)
 /search                 → Поиск (клиентский)
 /favorites              → Избранное (требует авторизации)
-/generations            → Мои генерации (debug-only, требует auth)
+/generations            → Мои генерации (auth): листинг как в каталоге (`PromptCard`), карточки UGC из `prompt_cards` с `author_user_id`
 /auth/callback          → OAuth callback (server-side)
 ```
+
+### UGC (веб-генерация, Steal This Vibe)
+
+- Колонка `prompt_cards.author_user_id` — владелец пользовательской карточки; новые карты из `generate-process` и из `/api/vibe/save` создаются с **`is_published=false`** до явной публикации.
+- Страница **`/p/[slug]`** — `export const dynamic = "force-dynamic"`; `getCardPageData(slug, { viewerUserId })` отдаёт черновик только если `viewerUserId === author_user_id`; для неопубликованных в metadata — **`robots: noindex`**.
 
 ## Промо-фото карточек: сжатие и пресеты
 
@@ -78,8 +83,10 @@
 | `/api/upload-generation-photo/signed-url` | GET: подписанный URL превью загруженного фото (auth, path в query) |
 | `/api/generate` | Запуск генерации (auth) |
 | `/api/generate-process` | Внутренний: обработка генерации |
-| `/api/generations` | Список генераций пользователя |
+| `/api/generations` | Список строк `landing_generations` (legacy / отладка) |
 | `/api/generations/[id]` | Статус/результат генерации |
+| `/api/my-prompt-cards` | GET (auth): карточки `prompt_cards` с `author_user_id = user`, включая черновики (`is_published=false`), для `/generations` |
+| `/api/my-cards/[slug]/visibility` | PATCH (auth): `{ published: boolean }` — владелец переключает видимость; при `published: true` — LLM/regex тегирование (`landing/src/lib/seo-tags-classify.ts`), затем `revalidatePath` |
 | `/api/me` | Текущий пользователь + credits |
 | `/api/buy-credits-link` | Deep link в Telegram-бота для покупки web-кредитов |
 | `/api/vibe/extract` | Извлечение style JSON из URL изображения (auth) |
@@ -96,7 +103,8 @@
 - **Gemini routing:** `generate-process` читает `photo_app_config.gemini_use_proxy`; при `true` использует `GEMINI_PROXY_BASE_URL`, при `false` ходит напрямую в `generativelanguage.googleapis.com`.
 - **Таблицы:** `landing_users.credits`, `landing_generations`, `landing_generation_config`.
 - **Storage:** `web-generation-uploads` (входные фото), `web-generation-results` (результаты).
-- **Страница:** `/generations` — «Мои генерации» (в дропдауне пользователя при debug).
+- **Страница:** `/generations` — «Мои генерации» в меню пользователя; сетка `PromptCard` как в избранном.
+- **UGC-карточка:** после успешного `generate-process` создаётся черновик в `prompt_cards` (`author_user_id`, `is_published=false`, датасет `web_generation_ugc`), связь `landing_generations.ugc_card_id`. Публикация — на `/p/[slug]` (кнопка владельца) или PATCH visibility API; в индекс попадают только `is_published=true` (sitemap, поиск, RPC листингов).
 
 ### Vibe Pipeline (Steal This Vibe)
 
@@ -166,11 +174,11 @@
 | Страница | Рендеринг | Кеш |
 |----------|-----------|-----|
 | `/` (главная) | ISR | `revalidate = 3600` |
-| `/p/[slug]` (карточка) | ISR | `revalidate = 3600` |
+| `/p/[slug]` (карточка) | **Dynamic** | `dynamic = force-dynamic` (доступ владельца к черновикам UGC + cookies) |
 | `/[...slug]` (листинг) | ISR | `revalidate = 3600` |
 | `/search` | CSR | `robots: noindex` |
 | `/favorites` | CSR | требует auth |
-| `/generations` | CSR | debug-only, требует auth |
+| `/generations` | CSR | требует auth, `robots: noindex` |
 
 ### Слои кеширования
 

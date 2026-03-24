@@ -125,7 +125,8 @@ export function PromptCard({ card, debug = false, priorityLoad = false }: Props)
   }, []);
 
   /** Always opaque: placeholder is the skeleton layer (z-[3]), not `opacity-0` on the image. */
-  const mainPhotoClass = "object-cover z-[2] opacity-100";
+  const mainPhotoClass =
+    "listing-card-photo-hover object-cover z-[2] opacity-100";
 
   return (
     <article
@@ -166,104 +167,111 @@ export function PromptCard({ card, debug = false, priorityLoad = false }: Props)
           />
         )}
 
-        {photos.length > 1 && (
-          <>
-            <button
-              type="button"
-              onClick={prevPhoto}
-              className={`${OVERLAY_BUTTON_UA_RESET} absolute left-2 top-1/2 -translate-y-1/2 z-20 rounded-full bg-black/40 p-1.5 text-white opacity-0 backdrop-blur-md transition-all group-hover:opacity-100 hover:bg-black/60 active:scale-90`}
-              aria-label="Предыдущее фото"
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden><path d="M15 18l-6-6 6-6"/></svg>
-            </button>
-            <button
-              type="button"
-              onClick={nextPhoto}
-              className={`${OVERLAY_BUTTON_UA_RESET} absolute right-2 top-1/2 -translate-y-1/2 z-20 rounded-full bg-black/40 p-1.5 text-white opacity-0 backdrop-blur-md transition-all group-hover:opacity-100 hover:bg-black/60 active:scale-90`}
-              aria-label="Следующее фото"
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden><path d="M9 18l6-6-6-6"/></svg>
-            </button>
-          </>
-        )}
+        <div className="listing-card-chrome absolute inset-0 z-20">
+          {photos.length > 1 && (
+            <>
+              <button
+                type="button"
+                onClick={prevPhoto}
+                className={`${OVERLAY_BUTTON_UA_RESET} listing-card-chrome-target absolute left-2 top-1/2 -translate-y-1/2 rounded-full bg-black/40 p-1.5 text-white backdrop-blur-md transition-colors hover:bg-black/60 active:scale-90`}
+                aria-label="Предыдущее фото"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden><path d="M15 18l-6-6 6-6"/></svg>
+              </button>
+              <button
+                type="button"
+                onClick={nextPhoto}
+                className={`${OVERLAY_BUTTON_UA_RESET} listing-card-chrome-target absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-black/40 p-1.5 text-white backdrop-blur-md transition-colors hover:bg-black/60 active:scale-90`}
+                aria-label="Следующее фото"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden><path d="M9 18l6-6-6-6"/></svg>
+              </button>
+            </>
+          )}
 
-        {card.beforePhotoUrl && (
-          <div className="absolute top-0 left-0 z-20 w-[28%] min-w-[72px]">
-            <div className="aspect-square relative bg-zinc-800 rounded-br-xl overflow-hidden shadow-2xl ring-1 ring-black/10">
-              <Image
-                src={card.beforePhotoUrl}
-                alt="before"
-                fill
-                className="object-cover"
-                sizes={SIZES_CARD_GRID}
-                quality={CARD_IMAGE_LISTING_NEXT_QUALITY}
-              />
-              <div className="absolute inset-x-0 bottom-0 text-[8px] text-white font-bold text-center py-0.5 bg-gradient-to-t from-black/70 to-transparent tracking-wider">
-                БЫЛО
+          {card.beforePhotoUrl && (
+            <div className="absolute top-0 left-0 w-[28%] min-w-[72px]">
+              <div className="aspect-square relative bg-zinc-800 rounded-br-xl overflow-hidden shadow-2xl ring-1 ring-black/10">
+                <Image
+                  src={card.beforePhotoUrl}
+                  alt="before"
+                  fill
+                  className="object-cover"
+                  sizes={SIZES_CARD_GRID}
+                  quality={CARD_IMAGE_LISTING_NEXT_QUALITY}
+                />
+                <div className="absolute inset-x-0 bottom-0 text-[8px] text-white font-bold text-center py-0.5 bg-gradient-to-t from-black/70 to-transparent tracking-wider">
+                  БЫЛО
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
 
-        <div className="pointer-events-none absolute top-3 left-3 z-20 flex items-center gap-1.5">
-          {card.beforePhotoUrl && <div className="w-[28%] min-w-[72px]" />}
-          {card.cardSplitTotal > 1 && (
-            <div className="rounded-full bg-indigo-500/80 backdrop-blur-md px-2 py-0.5 text-[10px] font-bold text-white shadow">
-              {card.cardSplitIndex + 1}/{card.cardSplitTotal}
+          <div className="pointer-events-none absolute top-3 left-3 flex items-center gap-1.5">
+            {card.beforePhotoUrl && <div className="w-[28%] min-w-[72px]" />}
+            {card.cardSplitTotal > 1 && (
+              <div className="rounded-full bg-indigo-500/80 backdrop-blur-md px-2 py-0.5 text-[10px] font-bold text-white shadow">
+                {card.cardSplitIndex + 1}/{card.cardSplitTotal}
+              </div>
+            )}
+            {card.isPublished === false && (
+              <div className="rounded-full bg-amber-500/90 backdrop-blur-md px-2 py-0.5 text-[10px] font-bold text-white shadow">
+                Черновик
+              </div>
+            )}
+          </div>
+
+          {photos.length > 1 && (
+            <div className="pointer-events-none absolute top-3 left-1/2 -translate-x-1/2">
+              <div className={CARD_OVERLAY_PHOTO_COUNTER_CLASS}>
+                {photoIndex + 1}/{photos.length}
+              </div>
+            </div>
+          )}
+
+          <div className="absolute right-3 top-3 flex flex-col items-end gap-1.5 sm:right-3.5">
+            <CardOverlayMetricsChips viewCount={viewCount} />
+            <div className="listing-card-chrome-target flex flex-col items-end gap-1.5">
+              <ReactionButtons
+                cardId={card.id}
+                likesCount={card.likesCount}
+                dislikesCount={card.dislikesCount}
+                userReaction={userReaction}
+                onToggle={toggleReaction}
+                variant="overlay"
+                stacked
+              />
+              <FavoriteButton
+                cardId={card.id}
+                isFavorited={isFavorited}
+                onToggle={toggleFavorite}
+                variant="overlay"
+              />
+            </div>
+          </div>
+
+          {!expanded && (
+            <div className="absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/80 via-black/40 to-transparent pt-20 pb-3.5 px-3.5 pointer-events-none">
+              <h3 className="mb-0.5 text-[13px] font-semibold leading-snug text-white line-clamp-1">
+                {title}
+              </h3>
+              {promptPreview && (
+                <p className="mb-1 text-[11px] leading-relaxed text-white/60 line-clamp-2">
+                  {promptPreview}
+                </p>
+              )}
+              {card.promptTexts.length > 0 && (
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); e.preventDefault(); setExpanded(true); }}
+                  className={`${OVERLAY_BUTTON_APPEARANCE_RESET} listing-card-chrome-target mt-1 w-full rounded-full border border-white/10 bg-white/15 px-2 py-1.5 text-[10px] font-semibold text-white backdrop-blur-md transition-all hover:bg-white/25 active:scale-[0.98] sm:px-3 sm:py-2 sm:text-[11px] truncate`}
+                >
+                  Скопировать
+                </button>
+              )}
             </div>
           )}
         </div>
-
-        {photos.length > 1 && (
-          <div className="pointer-events-none absolute top-3 left-1/2 z-20 -translate-x-1/2">
-            <div className={CARD_OVERLAY_PHOTO_COUNTER_CLASS}>
-              {photoIndex + 1}/{photos.length}
-            </div>
-          </div>
-        )}
-
-        <div className="absolute right-3 top-3 z-20 flex flex-col items-end gap-1.5 sm:right-3.5">
-          <CardOverlayMetricsChips viewCount={viewCount} />
-          <div className="pointer-events-auto flex flex-col items-end gap-1.5">
-            <ReactionButtons
-              cardId={card.id}
-              likesCount={card.likesCount}
-              dislikesCount={card.dislikesCount}
-              userReaction={userReaction}
-              onToggle={toggleReaction}
-              variant="overlay"
-              stacked
-            />
-            <FavoriteButton
-              cardId={card.id}
-              isFavorited={isFavorited}
-              onToggle={toggleFavorite}
-              variant="overlay"
-            />
-          </div>
-        </div>
-
-        {!expanded && (
-          <div className="absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/80 via-black/40 to-transparent pt-20 pb-3.5 px-3.5 pointer-events-none">
-            <h3 className="mb-0.5 text-[13px] font-semibold leading-snug text-white line-clamp-1">
-              {title}
-            </h3>
-            {promptPreview && (
-              <p className="mb-1 text-[11px] leading-relaxed text-white/60 line-clamp-2">
-                {promptPreview}
-              </p>
-            )}
-            {card.promptTexts.length > 0 && (
-              <button
-                type="button"
-                onClick={(e) => { e.stopPropagation(); e.preventDefault(); setExpanded(true); }}
-                className={`${OVERLAY_BUTTON_APPEARANCE_RESET} mt-1 w-full rounded-full border border-white/10 bg-white/15 px-2 py-1.5 text-[10px] font-semibold text-white backdrop-blur-md transition-all hover:bg-white/25 active:scale-[0.98] pointer-events-auto sm:px-3 sm:py-2 sm:text-[11px] truncate`}
-              >
-                Скопировать
-              </button>
-            )}
-          </div>
-        )}
 
         {expanded && (
           <div className="absolute inset-0 z-30 flex flex-col bg-black/70 backdrop-blur-sm p-4">

@@ -95,3 +95,68 @@ p {
     padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
   }
 }
+
+/**
+ * Listing grid cards: hide metadata chrome until hover/focus-within on fine-pointer devices.
+ * Touch / coarse pointer: chrome stays hidden (actions on /p/[slug]).
+ */
+@layer components {
+  .listing-card-chrome {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  /**
+   * Clicks must reach the card Link when chrome is hidden; children with
+   * pointer-events:auto would still hit-test if only the parent had none.
+   */
+  .listing-card-chrome-target {
+    pointer-events: none;
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .listing-card-chrome {
+      transform: translateY(8px);
+      transition:
+        opacity 280ms cubic-bezier(0.4, 0, 0.2, 1),
+        transform 280ms cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .group:hover .listing-card-chrome,
+    .group:focus-within .listing-card-chrome {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .group:hover .listing-card-chrome .listing-card-chrome-target,
+    .group:focus-within .listing-card-chrome .listing-card-chrome-target {
+      pointer-events: auto;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .listing-card-chrome {
+        transform: none;
+        transition: opacity 150ms ease-out;
+      }
+
+      .group:hover .listing-card-chrome,
+      .group:focus-within .listing-card-chrome {
+        transform: none;
+      }
+    }
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    @media (prefers-reduced-motion: no-preference) {
+      .listing-card-photo-hover {
+        transform-origin: center;
+        transition: transform 280ms cubic-bezier(0.4, 0, 0.2, 1);
+      }
+
+      .group:hover .listing-card-photo-hover,
+      .group:focus-within .listing-card-photo-hover {
+        transform: scale(1.03);
+      }
+    }
+  }
+}
