@@ -35,10 +35,12 @@
 ## Деплой
 
 ### Архитектура
-Проект работает на **Dockhost** — 3 контейнера:
+Проект работает на **Dockhost** — боты и лендинг (отдельные образы):
+
 - `Dockerfile.api` → API бот (Telegram webhook / long polling)
 - `Dockerfile.worker` → Воркер генерации фото
 - `Dockerfile.support` → Саппорт бот
+- **`landing/Dockerfile`** → Next.js (лендинг / API маршруты): сборка **из корня репо** — `docker build -f landing/Dockerfile .` (нужен `extension/sidepanel` для `npm run build:stv-web`). Подробно: **`.cursor/rules/landing-docker-next-standalone.mdc`**, **`docs/architecture/01-landing.md`**.
 
 **Нет rembg контейнера** — удаление фона не используется.
 

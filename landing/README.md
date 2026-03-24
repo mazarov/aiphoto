@@ -24,6 +24,12 @@ npm run build
 npm start
 ```
 
+## Сборка (`npm run build`)
+
+- Запуск из каталога **`landing/`**.
+- В клоне репозитория рядом должен лежать **`extension/sidepanel`** (относительно `landing/` это **`../extension/sidepanel`**). Иначе упадёт **`npm run build:stv-web`** (бандл STV для `/embed/stv` и модалки).
+- Скрипты: **`build:stv-web`** → `public/stv-panel/boot.mjs` + `styles.css`; **`build`** → STV + **`next build`**.
+
 ## Steal This Vibe (extension + API)
 
 Новые endpoints:
@@ -72,7 +78,10 @@ NEXT_PUBLIC_ENABLE_TRY_THIS_LOOK=true
 
 ## Docker
 
+Контекст сборки — **корень монорепо** `aiphoto/` (рядом с `landing/` должен быть `extension/sidepanel` для бандла STV):
+
 ```bash
-docker build -t aiphoto-landing .
+cd ..   # из landing/ — в корень aiphoto
+docker build -f landing/Dockerfile -t aiphoto-landing .
 docker run -p 3001:3001 -e NEXT_PUBLIC_SUPABASE_URL=... -e SUPABASE_SERVICE_ROLE_KEY=... aiphoto-landing
 ```

@@ -7,12 +7,13 @@ Flow:
 1. hover на изображение -> кнопка `Steal this vibe`
 2. click -> открывается side panel
 3. вход **Google в панели** (PKCE + `sidepanel/auth-callback.html`); API с `Authorization: Bearer`
-4. upload фото -> `/api/upload-generation-photo` (путь и имя файла сохраняются в `chrome.storage` до смены фото / сброса)
-5. extract -> `/api/vibe/extract`
-6. expand -> `/api/vibe/expand` (сервер по-прежнему отдаёт 3 промпта; расширение использует **первый**)
-7. **одна** генерация -> `/api/generate`
-8. polling -> `/api/generations/[id]`
-9. save -> `/api/vibe/save`
+4. **Референс стиля:** с сайта (шаг 1) **или** одно фото с ПК в той же колонке панели («+» / «×») → тот же bucket, перед extract — signed URL
+5. **Ваше фото (1–4):** upload -> `/api/upload-generation-photo` (пути в `chrome.storage` до смены / сброса)
+6. extract -> `/api/vibe/extract`
+7. expand -> `/api/vibe/expand` (сервер по-прежнему отдаёт 3 промпта; расширение использует **первый**)
+8. **одна** генерация -> `/api/generate`
+9. polling -> `/api/generations/[id]`
+10. save -> `/api/vibe/save`
 
 В карточке результата показывается **текст промпта**, ушедший в `POST /api/generate` (из expand).
 
@@ -29,7 +30,7 @@ Flow:
 - `sidepanel/index.html`
 - `sidepanel/boot-chrome.js` → `stv-core.js` (общая логика с веб-embed)
 - `sidepanel/platform/chrome-platform.js` / `web-platform.js`
-- `sidepanel/boot-web.js` — собирается в `landing/public/stv-panel/boot.mjs` (`landing`: `npm run build:stv-web`)
+- `sidepanel/boot-web.js` — собирается в `landing/public/stv-panel/boot.mjs` (`landing`: `npm run build:stv-web`; **Docker-образ лендинга** — контекст **корня** `aiphoto/`, см. `landing/README.md` § Docker)
 - `sidepanel/i18n.js`, `sidepanel/supabase-extension.js` (Chrome), `supabase-web.js` (embed)
 - `sidepanel/auth-callback.html` + `auth-callback.js` (OAuth redirect)
 - `sidepanel/vendor/supabase.js` (бандл `@supabase/supabase-js`, см. ниже)
@@ -50,6 +51,11 @@ ID смотри в `chrome://extensions` ( unpacked — стабилен для 
 ```bash
 npm run vendor:extension
 ```
+
+### Веб-бандл и образ лендинга
+
+- Локально: из **`landing/`** выполнить **`npm run build:stv-web`** или полный **`npm run build`** (нужен соседний **`extension/sidepanel`** в клоне).
+- CI / Docker: **`docker build -f landing/Dockerfile .`** из **корня** репозитория (не из каталога `landing/` одного). Иначе esbuild не найдёт исходники панели.
 
 ## Запуск в Chrome (dev)
 

@@ -1,14 +1,19 @@
+# Build from repository root (sibling `extension/sidepanel` is required for `npm run build:stv-web`):
+#   docker build -f landing/Dockerfile .
+#
 FROM node:20-alpine AS base
 
 FROM base AS deps
-WORKDIR /app
-COPY package.json package-lock.json* ./
+WORKDIR /work/landing
+COPY landing/package.json landing/package-lock.json* ./
 RUN npm ci
 
 FROM base AS builder
-WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
-COPY . .
+WORKDIR /work/landing
+COPY --from=deps /work/landing/node_modules ./node_modules
+COPY landing/ .
+# Steal This Vibe web bundle — esbuild entry `extension/sidepanel/boot-web.js` (see `scripts/build-stv-web.mjs`)
+COPY extension/sidepanel /work/extension/sidepanel
 ENV NEXT_TELEMETRY_DISABLED=1
 ARG SUPABASE_SUPABASE_PUBLIC_URL
 ARG SUPABASE_SERVICE_ROLE_KEY
@@ -28,11 +33,7 @@ ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
-# Standalone layout depends on build context:
-# - CI (context = landing/ only): server.js at .next/standalone/server.js
-# - Monorepo local (context includes parent): outputFileTracingRoot → .next/standalone/landing/server.js
-COPY --from=builder /app/.next/standalone /opt/standalone
-# Layout: monorepo build → `landing/server.js`; Docker-only context (`landing/`) → `server.js` at standalone root (see `next.config.ts` outputFileTracingRoot).
+COPY --from=builder /work/landing/.next/standalone /opt/standalone
 RUN if [ -f /opt/standalone/landing/server.js ]; then \
       cp -a /opt/standalone/landing/. /app/; \
     elif [ -f /opt/standalone/server.js ]; then \
@@ -42,8 +43,8 @@ RUN if [ -f /opt/standalone/landing/server.js ]; then \
     fi \
     && rm -rf /opt/standalone \
     && chown -R nextjs:nodejs /app
-COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
-COPY --from=builder --chown=nextjs:nodejs /app/public ./public
+COPY --from=builder --chown=nextjs:nodejs /work/landing/.next/static ./.next/static
+COPY --from=builder --chown=nextjs:nodejs /work/landing/public ./public
 USER nextjs
 EXPOSE 3001
 ENV PORT=3001

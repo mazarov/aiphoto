@@ -1,27 +1,56 @@
 ---
-description: Лендинг Next.js в Docker — standalone, outputFileTracingRoot и /app/server.js; не ломать прод-сборку.
+description: Лендинг Next.js — правила сборки (локально, Docker, STV-бандл), standalone, outputFileTracingRoot, /app/server.js.
 alwaysApply: true
 ---
 
-# Лендинг: Docker + Next.js `output: "standalone"`
+# Лендинг: сборка и Docker (`output: "standalone"`)
 
 ## Когда актуально
 
-Любые правки **`landing/next.config.ts`**, **`landing/Dockerfile`**, контекста/команд **`docker build`** для лендинга, или добавление путей/копирования в runner-стадии.
+Правки **`landing/next.config.ts`**, **`landing/Dockerfile`**, **`landing/scripts/build-stv-web.mjs`**, корневого **`.dockerignore`**, команд **`docker build`** / CI для лендинга, путей **`extension/sidepanel`**.
 
-## Запрет и причина
+---
 
-- **Нельзя** задавать `outputFileTracingRoot` как **безусловный** `path.join(import.meta.dirname, "..")` только ради «монорепо».
-- **Почему:** образ обычно собирают с контекстом **`landing/`** → в контейнере `WORKDIR /app` и родитель **`/app` — это не корень `aiphoto`**, а `/`. Трейсинг от `/` ломает `.next/standalone`, в **`/app` нет `server.js`**, старт падает: `Cannot find module '/app/server.js'`.
+## Правила сборки
 
-## Как правильно (source of truth)
+### Локально (каталог `landing/`)
 
-1. **Дефолт в коде:** корень трейсинга = родитель каталога `landing/`, только если там есть `package-lock.json` (монорепо в клоне); иначе — сам каталог приложения (`landing/` / `/app` в Docker).
-2. **Явный override на `next build`:** env **`NEXT_STANDALONE_TRACING_ROOT`** (абсолютный путь или относительно `landing/`) — для нестандартного CI; не хардкодить секреты.
-3. **`landing/Dockerfile`:** поддерживать **оба** layout — `standalone/landing/server.js` и плоский **`standalone/server.js`**; при отсутствии файла — **fail на этапе сборки**, не в рантайме.
-4. После изменений образа — напомнить про smoke: **`landing/scripts/verify-docker-image.sh IMAGE:TAG`** (проверка **`/app/server.js`**).
-5. Зафиксировать нюансы в **`docs/architecture/01-landing.md`** (§ «Сборка Docker (standalone)»), если менялся контракт.
+1. **`npm run build`** = **`npm run build:stv-web`** (esbuild) + **`next build`**.
+2. **`build:stv-web`** берёт entry **`extension/sidepanel/boot-web.js`**: путь считается как **`../extension/sidepanel`** от корня пакета `landing/`. Клон должен содержать **и `landing/`, и `extension/sidepanel`** (типичный layout репо `aiphoto/`).
+3. Перед **`npm run dev`**, если нужны **`/embed/stv`** или модалка STV — один раз **`npm run build:stv-web`** (или полный **`npm run build`**).
+
+### Docker / CI (образ лендинга)
+
+1. **Команда:** из **корня репозитория** (рядом лежат `landing/` и `extension/`):
+
+   ```bash
+   docker build -f landing/Dockerfile -t <tag> .
+   ```
+
+2. **Запрещено:** контекст **только `landing/`** (как каталог для `docker build … landing/`) — внутри builder не будет **`extension/sidepanel`**, упадёт **`npm run build:stv-web`** (esbuild: `Could not resolve "/extension/sidepanel/boot-web.js"` или аналог).
+
+3. **Контекст ограничивает** корневой **`.dockerignore`** (исключаются `node_modules`, `.next`, `sql`, `docs`, и т.д. — см. файл в корне репо).
+
+4. **После смены Dockerfile / стадий:** smoke — **`landing/scripts/verify-docker-image.sh IMAGE:TAG`** (наличие **`/app/server.js`**).
+
+5. Документация для людей: **`docs/architecture/01-landing.md`** (§ «Сборка Docker (standalone)»), **`landing/README.md`** (§ Docker).
+
+---
+
+## `next.config.ts` — `outputFileTracingRoot`
+
+- **Нельзя** задавать корень трейсинга как **безусловный** `path.join(import.meta.dirname, "..")` только ради монорепо (см. комментарии в **`landing/next.config.ts`**).
+- **Дефолт в коде:** родитель `landing/`, **если** там есть **`package-lock.json`**; иначе — сам каталог приложения.
+- **В Docker-образе лендинга** корневой `package-lock.json` в слой builder **не копируется** намеренно → трейсинг от каталога приложения → обычно **плоский** `.next/standalone/server.js` (runner в Dockerfile поддерживает оба layout).
+- **Override:** env **`NEXT_STANDALONE_TRACING_ROOT`** на этапе **`next build`** (без секретов в значениях).
+
+---
+
+## `landing/Dockerfile` — runner
+
+- Поддерживать **оба** расклада standalone: **`standalone/landing/server.js`** и плоский **`standalone/server.js`**; при отсутствии — **fail на этапе сборки**, не в рантайме.
+- Стадия builder: **`WORKDIR`** под дерево `landing/`, плюс **`COPY extension/sidepanel`** в ожидаемое место относительно `../` (см. актуальный Dockerfile).
 
 ## Не путать
 
-- Это **не** про API/worker Dockerfiles в корне репо — только **лендинг** (`landing/`).
+- Это **не** про **`Dockerfile.api` / `Dockerfile.worker` / `Dockerfile.support`** в корне — только **веб-лендинг** (`landing/`).
