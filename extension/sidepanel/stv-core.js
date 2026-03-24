@@ -22,6 +22,41 @@ const TOAST_TIMEOUT_MS = 3200;
 const TRIPLE_VARIANT_FLOW_LS_KEY = "stv_triple_variant_flow";
 /** Matches POST /api/generate validation (max 4 user images). */
 const MAX_USER_PHOTOS = 4;
+/** Signed GET URLs expire server-side (~24h); refresh before that. */
+const SIGNED_PREVIEW_MAX_AGE_MS = 22 * 60 * 60 * 1000;
+
+function isSignedPreviewStillUsable(p) {
+  if (!p?.storagePath) return false;
+  const url = p.signedPreviewUrl;
+  if (typeof url !== "string" || !url.startsWith("http")) return false;
+  if (p.signedForPath && p.signedForPath !== p.storagePath) return false;
+  const at = Number(p.signedPreviewSavedAt || 0);
+  if (!at) return true;
+  return Date.now() - at < SIGNED_PREVIEW_MAX_AGE_MS;
+}
+
+async function fetchSignedUrlForStoragePath(storagePath) {
+  const q = encodeURIComponent(storagePath);
+  const data = await api(`/api/upload-generation-photo/signed-url?path=${q}`);
+  const url = data?.signedUrl;
+  if (typeof url !== "string" || !url.startsWith("http")) return null;
+  return url;
+}
+
+/** After upload: fill signed URL for <img> and for chrome.storage persist (no Bearer on reopen). */
+async function applySignedPreviewToItem(item) {
+  if (!item?.storagePath) return;
+  try {
+    const url = await fetchSignedUrlForStoragePath(item.storagePath);
+    if (url) {
+      item.signedPreviewUrl = url;
+      item.signedForPath = item.storagePath;
+      item.signedPreviewSavedAt = Date.now();
+    }
+  } catch (e) {
+    console.warn("[stv] signed preview for item", item.storagePath, e);
+  }
+}
 
 /** Brand mark: star inside gradient tile (aligned with content-script `.stv-ob-mark`). */
 const STV_MARK_STAR_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" class="stv-mark-star"><path fill-rule="evenodd" d="M10.788 3.21c.448-1.077 1.656-1.077 2.104 0l2.052 4.96 5.35.434c1.161.094 1.548 1.603.748 2.384l-4.09 3.941 1.14 5.348c.25 1.17-1.036 2.017-2.1 1.51l-4.828-2.29-4.827 2.29c-1.064.507-2.35-.34-2.1-1.51l1.14-5.348-4.09-3.941c-.8-.781-.413-2.384.748-2.384l5.35-.434 2.052-4.96Z" clip-rule="evenodd"/></svg>`;
@@ -85,6 +120,13 @@ const state = {
   credits: 0,
   sourceImageUrl: "",
   sourceContext: null,
+  /**
+   * Optional style reference from disk (one file). Mutually exclusive with sourceImageUrl steal/embed.
+   * Persisted: storagePath + fileName only. Ephemeral: previewObjectUrl, signed*, previewBust.
+   */
+  referencePhoto: null,
+  /** True while fetching signed preview for persisted referencePhoto after reload. */
+  referencePhotoPreviewLoading: false,
   /**
    * User subject photos for generation (order = API order).
    * Persisted: storagePath + fileName only. Ephemeral: previewObjectUrl, signed*, uploading.
@@ -167,6 +209,14 @@ function escapeHtml(value) {
     .replace(/"/g, "&quot;");
 }
 
+/** Safe inside double-quoted HTML attributes (e.g. img src). Do not use full escapeHtml on blob: URLs beyond this. */
+function escapeHtmlAttrUrl(url) {
+  return String(url)
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;");
+}
+
 function revokeAllUserPhotoObjectUrls() {
   for (const p of state.userPhotos) {
     if (p.previewObjectUrl) {
@@ -195,16 +245,42 @@ function hasUserPhotos() {
   return state.userPhotos.length > 0;
 }
 
+function hasReference() {
+  return Boolean(state.sourceImageUrl) || Boolean(state.referencePhoto?.storagePath);
+}
+
+function clearUrlReference() {
+  state.sourceImageUrl = "";
+  state.sourceContext = null;
+}
+
+function clearReferenceUpload() {
+  const p = state.referencePhoto;
+  if (!p) return;
+  if (p.previewObjectUrl) {
+    try {
+      URL.revokeObjectURL(p.previewObjectUrl);
+    } catch {
+      /* ignore */
+    }
+  }
+  state.referencePhoto = null;
+  state.referencePhotoPreviewLoading = false;
+}
+
+function removeReference() {
+  if (state.referencePhoto?.storagePath) {
+    clearReferenceUpload();
+  } else {
+    clearUrlReference();
+  }
+}
+
 /** Avoid parallel signed-url fetches from repeated renderMain(). */
 let userPhotosSignedRefreshPromise = null;
 
 function userPhotosNeedSignedPreviews() {
-  return state.userPhotos.some(
-    (p) =>
-      p.storagePath &&
-      !p.previewObjectUrl &&
-      (!p.signedPreviewUrl || p.signedForPath !== p.storagePath)
-  );
+  return state.userPhotos.some((p) => p.storagePath && !p.previewObjectUrl && !isSignedPreviewStillUsable(p));
 }
 
 /**
@@ -224,10 +300,7 @@ async function refreshUserPhotosSignedPreviews() {
     return;
   }
   const need = state.userPhotos.filter(
-    (p) =>
-      p.storagePath &&
-      !p.previewObjectUrl &&
-      (!p.signedPreviewUrl || p.signedForPath !== p.storagePath)
+    (p) => p.storagePath && !p.previewObjectUrl && !isSignedPreviewStillUsable(p)
   );
   if (!need.length) {
     state.userPhotosPreviewLoading = false;
@@ -249,6 +322,7 @@ async function refreshUserPhotosSignedPreviews() {
           if (item && typeof url === "string" && url.startsWith("http")) {
             item.signedPreviewUrl = url;
             item.signedForPath = p.storagePath;
+            item.signedPreviewSavedAt = Date.now();
           }
         })
       );
@@ -261,10 +335,69 @@ async function refreshUserPhotosSignedPreviews() {
     } finally {
       userPhotosSignedRefreshPromise = null;
       state.userPhotosPreviewLoading = false;
+      await persistState();
       render();
     }
   })();
   return userPhotosSignedRefreshPromise;
+}
+
+let referencePhotoSignedRefreshPromise = null;
+
+function referencePhotoNeedSignedPreview() {
+  const p = state.referencePhoto;
+  return Boolean(p?.storagePath && !p.previewObjectUrl && !isSignedPreviewStillUsable(p));
+}
+
+async function refreshReferencePhotoSignedPreview() {
+  if (!state.user) {
+    state.referencePhotoPreviewLoading = false;
+    return;
+  }
+  if (!accessTokenRef && supabaseClient) {
+    await refreshAccessTokenFromSupabase();
+  }
+  if (!accessTokenRef) {
+    state.referencePhotoPreviewLoading = false;
+    return;
+  }
+  const p = state.referencePhoto;
+  if (!p?.storagePath || p.previewObjectUrl || isSignedPreviewStillUsable(p)) {
+    state.referencePhotoPreviewLoading = false;
+    return;
+  }
+  if (referencePhotoSignedRefreshPromise) {
+    return referencePhotoSignedRefreshPromise;
+  }
+  referencePhotoSignedRefreshPromise = (async () => {
+    state.referencePhotoPreviewLoading = true;
+    render();
+    try {
+      const q = encodeURIComponent(p.storagePath);
+      const data = await api(`/api/upload-generation-photo/signed-url?path=${q}`);
+      const url = data?.signedUrl;
+      const item = state.referencePhoto;
+      if (item && typeof url === "string" && url.startsWith("http")) {
+        item.signedPreviewUrl = url;
+        item.signedForPath = p.storagePath;
+        item.signedPreviewSavedAt = Date.now();
+        item.previewBust = Date.now();
+      }
+    } catch (err) {
+      console.warn("[stv] reference photo signed preview:", p?.storagePath, err);
+    } finally {
+      referencePhotoSignedRefreshPromise = null;
+      state.referencePhotoPreviewLoading = false;
+      await persistState();
+      render();
+    }
+  })();
+  return referencePhotoSignedRefreshPromise;
+}
+
+function refreshPersistedPhotoPreviews() {
+  void refreshUserPhotosSignedPreviews();
+  void refreshReferencePhotoSignedPreview();
 }
 
 function removeUserPhotoAt(index) {
@@ -672,7 +805,31 @@ function toSerializableState() {
     phase: state.phase,
     sourceImageUrl: state.sourceImageUrl,
     sourceContext: state.sourceContext,
-    userPhotos: state.userPhotos.map(({ storagePath, fileName }) => ({ storagePath, fileName })),
+    referencePhoto:
+      state.referencePhoto?.storagePath && String(state.referencePhoto.storagePath).trim()
+        ? (() => {
+            const rp = state.referencePhoto;
+            const base = {
+              storagePath: String(rp.storagePath).trim(),
+              fileName: String(rp.fileName || "")
+            };
+            if (isSignedPreviewStillUsable(rp)) {
+              base.signedPreviewUrl = rp.signedPreviewUrl;
+              base.signedForPath = String(rp.storagePath).trim();
+              base.signedPreviewSavedAt = Number(rp.signedPreviewSavedAt || 0) || Date.now();
+            }
+            return base;
+          })()
+        : null,
+    userPhotos: state.userPhotos.map((p) => {
+      const row = { storagePath: p.storagePath, fileName: p.fileName };
+      if (isSignedPreviewStillUsable(p)) {
+        row.signedPreviewUrl = p.signedPreviewUrl;
+        row.signedForPath = p.storagePath;
+        row.signedPreviewSavedAt = Number(p.signedPreviewSavedAt || 0) || Date.now();
+      }
+      return row;
+    }),
     selectedModel: state.selectedModel,
     selectedAspectRatio: state.selectedAspectRatio,
     selectedImageSize: state.selectedImageSize,
@@ -708,8 +865,12 @@ async function initSupabaseAuth() {
   supabaseClient.auth.onAuthStateChange((_event, session) => {
     accessTokenRef = session?.access_token ?? null;
     /* Token can arrive after first paint; signed preview fetch would have no-op'd without Bearer. */
-    if (!state.loading && state.user && accessTokenRef && userPhotosNeedSignedPreviews()) {
-      void refreshUserPhotosSignedPreviews();
+    if (
+      state.user &&
+      accessTokenRef &&
+      (userPhotosNeedSignedPreviews() || referencePhotoNeedSignedPreview())
+    ) {
+      refreshPersistedPhotoPreviews();
     }
   });
   const { data } = await supabaseClient.auth.getSession();
@@ -763,17 +924,65 @@ function applyPersistedState(saved) {
   state.phase = saved.phase || state.phase;
   state.sourceImageUrl = saved.sourceImageUrl || state.sourceImageUrl;
   state.sourceContext = saved.sourceContext || state.sourceContext;
+  const savedRef = saved.referencePhoto;
+  if (
+    savedRef &&
+    typeof savedRef === "object" &&
+    typeof savedRef.storagePath === "string" &&
+    String(savedRef.storagePath).trim()
+  ) {
+    const refPath = String(savedRef.storagePath).trim();
+    const refRow = {
+      storagePath: refPath,
+      fileName: String(savedRef.fileName || ""),
+      previewObjectUrl: "",
+      signedPreviewUrl: "",
+      signedForPath: "",
+      signedPreviewSavedAt: 0,
+      previewBust: 0,
+      uploading: false
+    };
+    if (
+      typeof savedRef.signedPreviewUrl === "string" &&
+      savedRef.signedPreviewUrl.startsWith("http") &&
+      String(savedRef.signedForPath || refPath) === refPath
+    ) {
+      refRow.signedPreviewUrl = savedRef.signedPreviewUrl;
+      refRow.signedForPath = refPath;
+      refRow.signedPreviewSavedAt = Number(savedRef.signedPreviewSavedAt || 0);
+    }
+    state.referencePhoto = refRow;
+    state.sourceImageUrl = "";
+    state.sourceContext = null;
+  } else {
+    state.referencePhoto = null;
+    state.referencePhotoPreviewLoading = false;
+  }
   if (Array.isArray(saved.userPhotos) && saved.userPhotos.length) {
     state.userPhotos = saved.userPhotos
       .filter((p) => p && typeof p.storagePath === "string" && String(p.storagePath).trim())
-      .map((p) => ({
-        storagePath: String(p.storagePath).trim(),
-        fileName: String(p.fileName || ""),
-        previewObjectUrl: "",
-        signedPreviewUrl: "",
-        signedForPath: "",
-        uploading: false
-      }))
+      .map((p) => {
+        const path = String(p.storagePath).trim();
+        const row = {
+          storagePath: path,
+          fileName: String(p.fileName || ""),
+          previewObjectUrl: "",
+          signedPreviewUrl: "",
+          signedForPath: "",
+          signedPreviewSavedAt: 0,
+          uploading: false
+        };
+        if (
+          typeof p.signedPreviewUrl === "string" &&
+          p.signedPreviewUrl.startsWith("http") &&
+          String(p.signedForPath || path) === path
+        ) {
+          row.signedPreviewUrl = p.signedPreviewUrl;
+          row.signedForPath = path;
+          row.signedPreviewSavedAt = Number(p.signedPreviewSavedAt || 0);
+        }
+        return row;
+      })
       .slice(0, MAX_USER_PHOTOS);
   } else if (saved.photoStoragePath && String(saved.photoStoragePath).trim()) {
     state.userPhotos = [
@@ -783,6 +992,7 @@ function applyPersistedState(saved) {
         previewObjectUrl: "",
         signedPreviewUrl: "",
         signedForPath: "",
+        signedPreviewSavedAt: 0,
         uploading: false
       }
     ];
@@ -861,9 +1071,21 @@ async function api(path, init = {}) {
 }
 
 /**
- * Cache-bust reference preview so the same CDN URL still reloads after a new click.
+ * Cache-bust reference preview (URL steal or uploaded file preview).
  */
 function referenceImageSrcForUi() {
+  const rp = state.referencePhoto;
+  if (rp?.storagePath) {
+    const src = rp.previewObjectUrl || rp.signedPreviewUrl || "";
+    if (!src) return "";
+    /* Appending ?query to blob: breaks loading in Chrome extension panel. */
+    if (src.startsWith("blob:")) {
+      return src;
+    }
+    const bust = Number(rp.previewBust || 0);
+    const sep = src.includes("?") ? "&" : "?";
+    return `${src}${sep}_stvref=${bust}`;
+  }
   const u = state.sourceImageUrl;
   if (!u) return "";
   const at = Number(state.sourceContext?.at || 0);
@@ -879,9 +1101,11 @@ async function applyPendingVibeFromStorage(vibe) {
   if (typeof url !== "string" || !url.startsWith("http")) return;
   const at = Number(vibe.at || 0);
   if (state.sourceImageUrl === url && Number(state.sourceContext?.at || 0) === at) {
+    clearReferenceUpload();
     await storageSessionRemove(SESSION_VIBE_KEY);
     return;
   }
+  clearReferenceUpload();
   state.sourceImageUrl = url;
   state.sourceContext = vibe;
   state.error = "";
@@ -996,8 +1220,8 @@ async function refreshAuthSilently() {
     await persistState();
   }
   /* Blob previews lost after unload; fill signed URLs for persisted paths. */
-  if (state.user && accessTokenRef && userPhotosNeedSignedPreviews()) {
-    void refreshUserPhotosSignedPreviews();
+  if (state.user && accessTokenRef && (userPhotosNeedSignedPreviews() || referencePhotoNeedSignedPreview())) {
+    refreshPersistedPhotoPreviews();
   }
 }
 
@@ -1076,13 +1300,50 @@ async function uploadUserPhotoFile(file) {
     previewObjectUrl: URL.createObjectURL(file),
     signedPreviewUrl: "",
     signedForPath: "",
+    signedPreviewSavedAt: 0,
     uploading: false
   });
+  const last = state.userPhotos[state.userPhotos.length - 1];
+  await applySignedPreviewToItem(last);
   await persistState();
 }
 
+async function uploadReferencePhotoFile(file) {
+  const form = new FormData();
+  form.append("file", file);
+  const data = await api("/api/upload-generation-photo", { method: "POST", body: form });
+  clearReferenceUpload();
+  clearUrlReference();
+  state.referencePhoto = {
+    storagePath: data.storagePath,
+    fileName: file.name,
+    previewObjectUrl: URL.createObjectURL(file),
+    signedPreviewUrl: "",
+    signedForPath: "",
+    signedPreviewSavedAt: 0,
+    previewBust: Date.now(),
+    uploading: false
+  };
+  await applySignedPreviewToItem(state.referencePhoto);
+  await persistState();
+}
+
+async function resolveExtractImageUrl() {
+  if (state.referencePhoto?.storagePath) {
+    const q = encodeURIComponent(state.referencePhoto.storagePath);
+    const data = await api(`/api/upload-generation-photo/signed-url?path=${q}`);
+    const url = data?.signedUrl;
+    if (typeof url !== "string" || !url.startsWith("http")) {
+      throw new Error("Не удалось получить ссылку на референс для extract");
+    }
+    return url;
+  }
+  return state.sourceImageUrl;
+}
+
 async function runExtract() {
-  const extractBody = { imageUrl: state.sourceImageUrl };
+  const imageUrl = await resolveExtractImageUrl();
+  const extractBody = { imageUrl };
   const et = normalizePersistedExtractTemperature(state.extractTemperature);
   if (et !== null) {
     extractBody.extractTemperature = et;
@@ -1500,7 +1761,7 @@ async function completeGenerationAfterExpand(runStartedAt) {
 
 async function generateAll() {
   if (state.generating || state.awaitingContinueGenerate) return;
-  if (!state.sourceImageUrl) throw new Error("Нет source image");
+  if (!hasReference()) throw new Error("Нет source image");
   if (!hasUserPhotos()) throw new Error("Сначала загрузите фото");
   if (getCooldownLeftSeconds() > 0) {
     throw new Error(`Подождите ${getCooldownLeftSeconds()} сек перед новым запуском`);
@@ -1613,6 +1874,8 @@ async function resetSession() {
   clearAllUserPhotoSignedUrls();
   state.userPhotos = [];
   state.userPhotosPreviewLoading = false;
+  clearReferenceUpload();
+  clearUrlReference();
   state.vibeId = null;
   state.style = null;
   state.extractModel = "";
@@ -1765,7 +2028,7 @@ function buildUserPhotosBlockHtml() {
         if (p.uploading) {
           inner = `<div class="stv-user-photo-thumb-placeholder muted">${escapeHtml(t("uploading_photo"))}</div>`;
         } else if (src) {
-          inner = `<img class="stv-user-photo-thumb" src="${escapeHtml(src)}" alt="" />`;
+          inner = `<img class="stv-user-photo-thumb" src="${escapeHtmlAttrUrl(src)}" alt="" />`;
         } else if (state.userPhotosPreviewLoading) {
           inner = `<div class="stv-user-photo-thumb-placeholder muted">${escapeHtml(t("photo_preview_loading"))}</div>`;
         } else {
@@ -1795,12 +2058,44 @@ function buildUserPhotosBlockHtml() {
     </div>`;
 }
 
+function buildReferenceFrameHtml() {
+  const refFileInput = `<input id="reference-photo-file" class="stv-reference-file-input" type="file" accept="image/jpeg,image/png,image/webp" />`;
+  if (!hasReference()) {
+    return `${refFileInput}
+      <div class="stv-reference-frame-inner stv-reference-frame-inner--empty">
+        <label class="stv-reference-empty-plus-wrap" for="reference-photo-file" aria-label="${escapeHtml(t("reference_pick_aria"))}">
+          <span class="stv-user-photo-empty-plus" aria-hidden="true">+</span>
+        </label>
+        <p class="muted stv-reference-empty-hint">${escapeHtml(t("reference_empty_hint"))}</p>
+      </div>`;
+  }
+  const src = referenceImageSrcForUi();
+  const rp = state.referencePhoto;
+  const loadingUpload =
+    rp?.storagePath &&
+    !rp.previewObjectUrl &&
+    (!rp.signedPreviewUrl || state.referencePhotoPreviewLoading);
+  let main;
+  if (loadingUpload) {
+    main = `<div class="stv-compare-placeholder muted">${escapeHtml(t("photo_preview_loading"))}</div>`;
+  } else if (src) {
+    main = `<img class="stv-compare-img" src="${escapeHtmlAttrUrl(src)}" alt="" />`;
+  } else {
+    main = `<div class="stv-compare-placeholder muted">${escapeHtml(t("photo_preview_loading"))}</div>`;
+  }
+  return `${refFileInput}
+    <div class="stv-reference-frame-inner stv-reference-frame-inner--filled">
+      ${main}
+      <button type="button" class="stv-user-photo-remove" data-remove-reference="1" aria-label="${escapeHtml(t("reference_remove_aria"))}">×</button>
+    </div>`;
+}
+
 function renderMain() {
   const requiredCredits = getRequiredCredits();
   const promptsPerRunUi = getPromptsPerRun();
   const cooldownLeftSec = getCooldownLeftSeconds();
   const canGenerate = Boolean(
-    state.sourceImageUrl &&
+    hasReference() &&
       hasUserPhotos() &&
       !state.generating &&
       !state.awaitingContinueGenerate &&
@@ -1812,14 +2107,13 @@ function renderMain() {
   const needsCredits = state.credits < requiredCredits;
   const sessionHealth = getSessionHealth();
   const overallProgress = getOverallProgressPercent();
-  const showFirstRunHint = !state.sourceImageUrl && (!Array.isArray(state.runHistory) || state.runHistory.length === 0);
+  const showFirstRunHint =
+    !hasReference() && (!Array.isArray(state.runHistory) || state.runHistory.length === 0);
 
   const hasUserPhoto = hasUserPhotos();
   const userPhotosInner = buildUserPhotosBlockHtml();
 
-  const referenceFrame = state.sourceImageUrl
-    ? `<img class="stv-compare-img" src="${escapeHtml(referenceImageSrcForUi())}" alt="" />`
-    : `<div class="stv-compare-placeholder muted">${escapeHtml(t("source_hint"))}</div>`;
+  const referenceFrame = buildReferenceFrameHtml();
 
   const resultsCompareColumnHtml = state.results.length
     ? `<div class="stv-result-column">${state.results.map((row) => buildResultCompactRowHtml(row)).join("")}</div>`
@@ -1960,7 +2254,7 @@ function renderMain() {
             </div>
             <div class="stv-compare-col">
               <span class="stv-field-label">${escapeHtml(t("compare_col_reference"))}</span>
-              <div class="stv-photo-frame">${referenceFrame}</div>
+              <div class="stv-photo-frame stv-photo-frame--reference">${referenceFrame}</div>
             </div>
             <div class="stv-compare-col stv-compare-col--result">
               <span class="stv-field-label">${escapeHtml(t("compare_col_result"))}</span>
@@ -2218,6 +2512,37 @@ function renderMain() {
     });
   }
 
+  const referenceFileInput = document.getElementById("reference-photo-file");
+  if (referenceFileInput) {
+    referenceFileInput.addEventListener("change", async (e) => {
+      const file = e.target.files?.[0];
+      e.target.value = "";
+      if (!file) return;
+      try {
+        state.error = "";
+        state.info = t("uploading_photo");
+        render();
+        await uploadReferencePhotoFile(file);
+        state.info = t("reference_uploaded");
+        setToast("success", t("reference_uploaded"));
+        render();
+      } catch (err) {
+        state.error = normalizeUiError(err, "Ошибка загрузки референса");
+        setToast("error", state.error);
+        render();
+      }
+    });
+  }
+
+  app.querySelectorAll("[data-remove-reference]").forEach((btn) => {
+    btn.addEventListener("click", async (e) => {
+      e.preventDefault();
+      removeReference();
+      await persistState();
+      render();
+    });
+  });
+
   app.querySelectorAll("[data-remove-photo]").forEach((btn) => {
     btn.addEventListener("click", async () => {
       const raw = btn.getAttribute("data-remove-photo");
@@ -2293,7 +2618,7 @@ function renderMain() {
   }
 
   bindRunHistoryActions();
-  void refreshUserPhotosSignedPreviews();
+  refreshPersistedPhotoPreviews();
 }
 
 function render() {
@@ -2342,6 +2667,7 @@ export async function boot() {
       void (async () => {
         await refreshAccessTokenFromSupabase();
         await checkAuth();
+        refreshPersistedPhotoPreviews();
         render();
       })();
     }
@@ -2362,7 +2688,21 @@ export async function boot() {
   await checkAuth();
   await resumeInFlightGenerations();
 
+  /* Ensure Bearer for signed preview URLs after cold open (storage/session timing). */
+  if (supabaseClient && state.user) {
+    try {
+      const { data, error } = await supabaseClient.auth.refreshSession();
+      if (!error && data?.session?.access_token) {
+        accessTokenRef = data.session.access_token;
+      }
+    } catch {
+      await refreshAccessTokenFromSupabase();
+    }
+  }
+
   state.loading = false;
+  /* Await preview fetch before first paint — otherwise thumbnails stay broken after panel reopen. */
+  await Promise.all([refreshUserPhotosSignedPreviews(), refreshReferencePhotoSignedPreview()]);
   if (state.user && state.phase === "idle" && !state.generating && !state.resuming) {
     setToast("info", t("toast_ready"), 1800);
   }
@@ -2390,7 +2730,7 @@ export async function boot() {
     if (document.visibilityState === "visible" && !state.loading) {
       void (async () => {
         await refreshAuthSilently();
-        void refreshUserPhotosSignedPreviews();
+        refreshPersistedPhotoPreviews();
         void tryConsumePendingVibeFromSessionPoll();
       })();
     }
@@ -2400,7 +2740,7 @@ export async function boot() {
     if (e.persisted && !state.loading) {
       void (async () => {
         await refreshAuthSilently();
-        void refreshUserPhotosSignedPreviews();
+        refreshPersistedPhotoPreviews();
       })();
     }
   });

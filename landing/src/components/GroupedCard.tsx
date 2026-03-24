@@ -169,6 +169,8 @@ export function GroupedCard({ cards, debug = false, priorityLoad = false }: Prop
               className="absolute inset-0 z-10"
               aria-label={title}
               prefetch
+              target="_blank"
+              rel="noopener noreferrer"
             />
           )}
 

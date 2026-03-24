@@ -44,8 +44,13 @@ const STRINGS = {
     credit_word: "кредита(ов)",
     insufficient_credits: "Недостаточно кредитов",
     source_hint: 'Наведите на картинку на любом сайте и нажмите "Steal this vibe".',
+    reference_empty_hint:
+      "Или нажмите «+» и выберите файл референса с компьютера (одно фото).",
+    reference_pick_aria: "Загрузить фото референса стиля с компьютера",
+    reference_remove_aria: "Убрать референс",
+    reference_uploaded: "Референс загружен",
     first_run_hint:
-      "Подсказка: наведите курсор на фото на любом сайте и нажмите кнопку «Steal this vibe». После этого вернитесь в эту панель.",
+      "Подсказка: референс стиля — с сайта («Steal this vibe») или «+» в колонке референса; затем загрузите своё фото.",
     photo_uploaded: "Фото загружено",
     photo_preview_loading: "Загружаем превью…",
     photo_saved_label: "Файл с ПК",
@@ -215,8 +220,13 @@ const STRINGS = {
     credit_word: "Credit(s)",
     insufficient_credits: "Nicht genug Credits",
     source_hint: 'Fahren Sie über ein Bild und klicken Sie „Steal this vibe“.',
+    reference_empty_hint:
+      "Oder tippen Sie auf „+“ und wählen Sie ein Referenzbild vom Computer (ein Foto).",
+    reference_pick_aria: "Referenz-Stilfoto vom Computer hochladen",
+    reference_remove_aria: "Referenz entfernen",
+    reference_uploaded: "Referenz hochgeladen",
     first_run_hint:
-      "Tipp: Fahren Sie über ein Foto auf einer beliebigen Seite und klicken Sie „Steal this vibe“. Kehren Sie dann hierher zurück.",
+      "Tipp: Referenz — von der Website („Steal this vibe“) oder „+“ in der Referenz-Spalte; dann Ihr Foto hochladen.",
     photo_uploaded: "Foto hochgeladen",
     photo_preview_loading: "Vorschau wird geladen…",
     photo_saved_label: "Datei vom PC",

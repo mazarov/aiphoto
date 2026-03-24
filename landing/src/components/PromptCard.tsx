@@ -161,6 +161,8 @@ export function PromptCard({ card, debug = false, priorityLoad = false }: Props)
             className="absolute inset-0 z-10"
             aria-label={title}
             prefetch
+            target="_blank"
+            rel="noopener noreferrer"
           />
         )}
 
