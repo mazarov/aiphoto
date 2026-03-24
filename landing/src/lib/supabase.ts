@@ -717,18 +717,33 @@ export async function getCardPageData(
   options?: GetCardPageDataOptions,
 ): Promise<CardPageData | null> {
   const supabase = createSupabaseServer();
-  const { data: card } = await supabase
+  /** Core columns only — avoids 404 for all /p/ pages when migration 156 (`author_user_id`) is not applied yet. */
+  const { data: card, error: cardError } = await supabase
     .from("prompt_cards")
     .select(
-      "id,slug,title_ru,title_en,seo_tags,seo_readiness_score,hashtags,is_published,source_date,source_dataset_slug,source_message_id,card_split_index,card_split_total,likes_count,dislikes_count,view_count,author_user_id"
+      "id,slug,title_ru,title_en,seo_tags,seo_readiness_score,hashtags,is_published,source_date,source_dataset_slug,source_message_id,card_split_index,card_split_total,likes_count,dislikes_count,view_count"
     )
     .eq("slug", slug)
     .maybeSingle();
 
+  if (cardError) {
+    console.error("[getCardPageData] prompt_cards select failed", cardError.message);
+    return null;
+  }
   if (!card) return null;
 
   const isPublished = !!(card as { is_published?: boolean }).is_published;
-  const authorUserId = ((card as { author_user_id?: string | null }).author_user_id ?? null) as string | null;
+
+  let authorUserId: string | null = null;
+  const { data: authorRow, error: authorErr } = await supabase
+    .from("prompt_cards")
+    .select("author_user_id")
+    .eq("id", card.id)
+    .maybeSingle();
+  if (!authorErr && authorRow) {
+    authorUserId =
+      ((authorRow as { author_user_id?: string | null }).author_user_id ?? null) as string | null;
+  }
   const viewerId = options?.viewerUserId ?? null;
   const viewerIsOwner = !!(viewerId && authorUserId && viewerId === authorUserId);
 
