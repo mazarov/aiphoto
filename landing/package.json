@@ -12,6 +12,7 @@
   "scripts": {
     "dev": "next dev -p 3001",
     "build:stv-web": "node scripts/build-stv-web.mjs",
+    "sync:stv-sidepanel": "node scripts/sync-stv-web-sidepanel.mjs",
     "build": "npm run build:stv-web && next build",
     "start": "next start -p 3001",
     "lint": "next lint",

@@ -27,7 +27,7 @@ npm start
 ## Сборка (`npm run build`)
 
 - Запуск из каталога **`landing/`**.
-- В клоне репозитория рядом должен лежать **`extension/sidepanel`** (относительно `landing/` это **`../extension/sidepanel`**). Иначе упадёт **`npm run build:stv-web`** (бандл STV для `/embed/stv` и модалки).
+- **`build:stv-web`** смотрит **`../extension/sidepanel`**, иначе **`./stv-web-sidepanel/`** (зеркало в git для Docker). После правок в **`extension/sidepanel/`**: **`npm run sync:stv-sidepanel`**.
 - Скрипты: **`build:stv-web`** → `public/stv-panel/boot.mjs` + `styles.css`; **`build`** → STV + **`next build`**.
 
 ## Steal This Vibe (extension + API)
@@ -78,10 +78,12 @@ NEXT_PUBLIC_ENABLE_TRY_THIS_LOOK=true
 
 ## Docker
 
-Контекст сборки — **корень монорепо** `aiphoto/` (рядом с `landing/` должен быть `extension/sidepanel` для бандла STV):
+Контекст сборки — **каталог `landing/`** (как у Dockhost). Исходники STV для бандла лежат в **`landing/stv-web-sidepanel/`**.
 
 ```bash
-cd ..   # из landing/ — в корень aiphoto
-docker build -f landing/Dockerfile -t aiphoto-landing .
+# из корня клона aiphoto/
+docker build -f landing/Dockerfile -t aiphoto-landing landing/
 docker run -p 3001:3001 -e NEXT_PUBLIC_SUPABASE_URL=... -e SUPABASE_SERVICE_ROLE_KEY=... aiphoto-landing
 ```
+
+Не собирать **`docker build -f landing/Dockerfile .`** из корня репо — в контекст попадёт не тот **`package.json`**.

@@ -1,12 +1,30 @@
 import * as esbuild from "esbuild";
-import { copyFile, mkdir } from "node:fs/promises";
+import { access, copyFile, mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const landingRoot = join(__dirname, "..");
 const repoRoot = join(landingRoot, "..");
-const sidepanel = join(repoRoot, "extension", "sidepanel");
+
+/** Monorepo sibling (local dev) or vendored mirror (Docker context = landing/ only). */
+async function resolveSidepanelDir() {
+  const fromRepo = join(repoRoot, "extension", "sidepanel");
+  const vendored = join(landingRoot, "stv-web-sidepanel");
+  for (const dir of [fromRepo, vendored]) {
+    try {
+      await access(join(dir, "boot-web.js"));
+      return dir;
+    } catch {
+      /* try next */
+    }
+  }
+  throw new Error(
+    "[build-stv-web] sidepanel not found: expected ../extension/sidepanel or ./stv-web-sidepanel (run: npm run sync:stv-sidepanel)"
+  );
+}
+
+const sidepanel = await resolveSidepanelDir();
 const outDir = join(landingRoot, "public", "stv-panel");
 
 await mkdir(outDir, { recursive: true });

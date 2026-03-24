@@ -30,7 +30,7 @@ Flow:
 - `sidepanel/index.html`
 - `sidepanel/boot-chrome.js` → `stv-core.js` (общая логика с веб-embed)
 - `sidepanel/platform/chrome-platform.js` / `web-platform.js`
-- `sidepanel/boot-web.js` — собирается в `landing/public/stv-panel/boot.mjs` (`landing`: `npm run build:stv-web`; **Docker-образ лендинга** — контекст **корня** `aiphoto/`, см. `landing/README.md` § Docker)
+- `sidepanel/boot-web.js` — собирается в `landing/public/stv-panel/boot.mjs` (`landing`: `npm run build:stv-web`; зеркало для CI — **`landing/stv-web-sidepanel/`**, обновление: **`npm run sync:stv-sidepanel`**)
 - `sidepanel/i18n.js`, `sidepanel/supabase-extension.js` (Chrome), `supabase-web.js` (embed)
 - `sidepanel/auth-callback.html` + `auth-callback.js` (OAuth redirect)
 - `sidepanel/vendor/supabase.js` (бандл `@supabase/supabase-js`, см. ниже)
@@ -54,8 +54,9 @@ npm run vendor:extension
 
 ### Веб-бандл и образ лендинга
 
-- Локально: из **`landing/`** выполнить **`npm run build:stv-web`** или полный **`npm run build`** (нужен соседний **`extension/sidepanel`** в клоне).
-- CI / Docker: **`docker build -f landing/Dockerfile .`** из **корня** репозитория (не из каталога `landing/` одного). Иначе esbuild не найдёт исходники панели.
+- Локально: из **`landing/`** — **`npm run build:stv-web`** / **`npm run build`** (предпочтительно **`../extension/sidepanel`**; иначе зеркало **`landing/stv-web-sidepanel/`**).
+- После правок **`extension/sidepanel/`** для веба: из **`landing/`** — **`npm run sync:stv-sidepanel`** и коммит зеркала.
+- Docker: контекст **`landing/`** — **`docker build -f landing/Dockerfile landing/`** (см. **`landing/README.md`**).
 
 ## Запуск в Chrome (dev)
 
