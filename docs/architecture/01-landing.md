@@ -52,7 +52,7 @@
 | Имя в доках | `preset` | `width` × `quality` в `render/image` | Где формируются URL | `next/image` quality в UI |
 |-------------|----------|--------------------------------------|----------------------|---------------------------|
 | **A (grid)** | `grid` | 512 × 68 | `fetchHomepageSections`, `getFirstCardPhotoUrl`, миниатюры/врезки на `/p/[slug]` (before, siblings, карусель), всё, что явно остаётся на «сеточном» URL | `CARD_IMAGE_NEXT_QUALITY` (**60**) — `CategoryCard`, `CardPageClient`, `PhotoCarousel` |
-| **L (listing)** | `listing` | 360 × 58 | **`enrichCardsWithDetails`** — единый путь для карточек каталога: SSR `[...slug]`, `/api/listing`, `/api/search`, `/api/search-cards`, `/api/search-card` (в т.ч. избранное) | `CARD_IMAGE_LISTING_NEXT_QUALITY` (**45**) — `PromptCard`, `GroupedCard`, превью в `SearchBar` |
+| **L (listing)** | `listing` | 512 × 58 | **`enrichCardsWithDetails`** — единый путь для карточек каталога: SSR `[...slug]`, `/api/listing`, `/api/search`, `/api/search-cards`, `/api/search-card` (в т.ч. избранное) | `CARD_IMAGE_LISTING_NEXT_QUALITY` (**45**) — `PromptCard`, `GroupedCard`, превью в `SearchBar` |
 | **B (hero)** | `hero` | 768 × 70 | **`fetchCardPageData`**: основные `photoUrls` / главное фото страницы карточки | `CARD_IMAGE_NEXT_QUALITY` (**60**) |
 
 Если **`NEXT_PUBLIC_SUPABASE_STORAGE_IMAGE_TRANSFORM` не `1`**, шаг 1 пропускается: в `src` попадает полный **`object/public`** объект; сжатие и уменьшение размера выполняет в основном только **Next Image** (важны `sizes` и `quality`).
@@ -110,6 +110,7 @@
 - **Storage:** `web-generation-uploads` (входные фото), `web-generation-results` (результаты).
 - **Страница:** `/generations` — «Мои генерации» в меню пользователя; сетка `PromptCard` как в избранном.
 - **UGC-карточка:** после успешного `generate-process` создаётся черновик в `prompt_cards` (`author_user_id`, `is_published=false`, датасет `web_generation_ugc`), связь `landing_generations.ugc_card_id`. Публикация — на `/p/[slug]` (кнопка владельца) или PATCH visibility API; в индекс попадают только `is_published=true` (sitemap, поиск, RPC листингов).
+- **Бэкфилл до релиза UGC:** скрипт `landing/scripts/backfill-ugc-from-generations.ts` — для строк `landing_generations` со статусом `completed`, пустым `ugc_card_id` и заполненным результатом в Storage создаёт те же `prompt_cards`, что и runtime (`createUgcCardForCompletedGeneration`). Запуск из корня репо: `npm run backfill:ugc-from-generations:dry` затем `npm run backfill:ugc-from-generations` (или из `landing/`: `npm run backfill:ugc-from-generations:dry`). Env: **`SUPABASE_SERVICE_ROLE_KEY`**, URL (`NEXT_PUBLIC_SUPABASE_URL` / `SUPABASE_URL`). Аргументы: `--dry-run`, `--limit N`, `--user-id <uuid>`.
 
 ### Vibe Pipeline (Steal This Vibe)
 

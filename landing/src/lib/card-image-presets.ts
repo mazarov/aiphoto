@@ -11,9 +11,9 @@ export const CARD_IMAGE_HERO_MAX_WIDTH_PX = 768;
 
 /**
  * Пресет L — только сетки каталога (`enrichCardsWithDetails`: листинги, поиск, избранное).
- * ~½ пикселей относительно A при том же layout; главная (`CategoryCard`) остаётся на A.
+ * Тот же `width` в `render/image`, что у A; ниже `quality` на imgproxy (58 vs 68) и у `next/image` (45 vs 60).
  */
-export const CARD_IMAGE_LISTING_MAX_WIDTH_PX = 360;
+export const CARD_IMAGE_LISTING_MAX_WIDTH_PX = CARD_IMAGE_GRID_MAX_WIDTH_PX;
 
 /** JPEG/WebP quality в URL `/render/image/...` (imgproxy). */
 export const CARD_IMAGE_GRID_QUALITY = 68;

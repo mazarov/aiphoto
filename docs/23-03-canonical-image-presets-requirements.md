@@ -58,14 +58,14 @@
 | `CARD_IMAGE_HERO_MAX_WIDTH_PX` | 768 | `width` для пресета B |
 | `CARD_IMAGE_GRID_QUALITY` | 68 | `quality` в URL для A |
 | `CARD_IMAGE_HERO_QUALITY` | 70 | `quality` в URL для B |
-| `CARD_IMAGE_LISTING_MAX_WIDTH_PX` | 360 | `width` в `render/image` для пресета L (каталог) |
+| `CARD_IMAGE_LISTING_MAX_WIDTH_PX` | = `CARD_IMAGE_GRID_MAX_WIDTH_PX` (512) | `width` в `render/image` для L — тот же, что у A |
 | `CARD_IMAGE_LISTING_QUALITY` | 58 | `quality` в URL для L |
 | `CARD_IMAGE_NEXT_QUALITY` | 60 | `quality` у `next/image` для A (главная `CategoryCard`, `/p/` врезки) |
 | `CARD_IMAGE_LISTING_NEXT_QUALITY` | 45 | `quality` у `next/image` для L (`PromptCard`, `GroupedCard`, `SearchBar`) |
 
 Пресет **L** подставляется в `enrichCardsWithDetails` (`listing` в `getStorageCardMediaUrl`) — листинги `[...slug]`, API listing/search/search-card, избранное. Главная (`fetchHomepageSections`) по-прежнему **A** (`grid`).
 
-Цель снижения веса: меньше пикселей с источника + ниже качество на двух этапах (imgproxy и оптимизатор Next); L даёт ещё ~½ пикселей относительно A при том же CSS.
+Цель снижения веса при том же `width`, что у A: **ниже** `quality` в `render/image` (**58** vs **68**) и у `next/image` (**45** vs **60**); пикселей с источника у L и A одинаково (**512**).
 
 ### 3.4 Соответствие `sizes`
 
