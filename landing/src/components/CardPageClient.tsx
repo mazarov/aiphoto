@@ -45,6 +45,9 @@ export function CardPageClient({ data, tagEntries, breadcrumbTag }: Props) {
 function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
   const router = useRouter();
   const title = data.title_ru || data.title_en || "Без названия";
+  const [publishedLocal, setPublishedLocal] = useState(data.isPublished);
+  const [pubSaving, setPubSaving] = useState(false);
+  const [pubStatus, setPubStatus] = useState<string | null>(null);
   const { reactions, favorites, toggleReaction, toggleFavorite } = useCardInteractions();
   const userReaction = reactions.get(data.id) ?? null;
   const isFavorited = favorites.has(data.id);
@@ -73,8 +76,37 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
     setPhotoIndex(0);
     setSetBeforeStatus(null);
     setDeleteStatus(null);
+    setPubStatus(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: [data.id] only
   }, [data.id]);
+
+  useEffect(() => {
+    setPublishedLocal(data.isPublished);
+  }, [data.isPublished, data.id]);
+
+  async function handleVisibilityChange(nextPublished: boolean) {
+    setPubSaving(true);
+    setPubStatus(null);
+    try {
+      const res = await fetch(`/api/my-cards/${encodeURIComponent(data.slug)}/visibility`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ published: nextPublished }),
+      });
+      const j = (await res.json()) as { error?: string };
+      if (!res.ok) {
+        setPubStatus(j.error || res.statusText);
+        return;
+      }
+      setPublishedLocal(nextPublished);
+      router.refresh();
+    } catch (e) {
+      setPubStatus((e as Error).message);
+    } finally {
+      setPubSaving(false);
+    }
+  }
 
   const currentPhoto = photos[photoIndex] || null;
   const currentDims =
@@ -518,6 +550,56 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
       <h1 className="text-2xl sm:text-3xl font-bold text-center text-zinc-900 leading-tight mb-2">
         {title}
       </h1>
+
+      {data.authorUserId && (
+        <div className="mb-5 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
+          <div className="flex items-center gap-3">
+            <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-full bg-zinc-200 ring-2 ring-zinc-100">
+              {data.authorAvatarUrl ? (
+                <Image
+                  src={data.authorAvatarUrl}
+                  alt=""
+                  fill
+                  className="object-cover"
+                  sizes="44px"
+                  quality={60}
+                />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center text-sm font-semibold text-zinc-500">
+                  {(data.authorDisplayName || "?").slice(0, 1).toUpperCase()}
+                </div>
+              )}
+            </div>
+            <div className="min-w-0 text-left">
+              <div className="truncate text-sm font-medium text-zinc-800">
+                {data.authorDisplayName || "Автор"}
+              </div>
+              {!publishedLocal && data.viewerIsOwner && (
+                <div className="text-xs text-amber-800">Черновик — виден только вам</div>
+              )}
+            </div>
+          </div>
+          {data.viewerIsOwner && (
+            <div className="flex flex-col items-center gap-1 sm:items-start">
+              <button
+                type="button"
+                disabled={pubSaving}
+                onClick={() => handleVisibilityChange(!publishedLocal)}
+                className="rounded-xl bg-zinc-900 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-zinc-800 disabled:opacity-50"
+              >
+                {pubSaving
+                  ? "Сохранение…"
+                  : publishedLocal
+                    ? "Скрыть"
+                    : "Опубликовать"}
+              </button>
+              {pubStatus && (
+                <span className="text-center text-xs text-red-600 sm:text-left">{pubStatus}</span>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       <p className="mb-6 flex items-center justify-center gap-2 text-sm text-zinc-500">
         <EyeIcon

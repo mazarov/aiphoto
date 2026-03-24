@@ -1,59 +1,44 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useAuth } from "@/context/AuthContext";
-import { useDebug } from "@/components/DebugFAB";
-import { GenerationCard } from "@/components/GenerationCard";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
-
-type Generation = {
-  id: string;
-  status: string;
-  resultUrl: string | null;
-  prompt: string;
-  model: string;
-  aspectRatio: string;
-  createdAt: string;
-};
+import { useAuth } from "@/context/AuthContext";
+import type { PromptCardFull } from "@/lib/supabase";
+import { PromptCard } from "@/components/PromptCard";
+import { CardInteractionsProvider } from "@/context/CardInteractionsContext";
+import { LISTING_LCP_PRIORITY_GRID_ITEMS } from "@/lib/listing-lcp";
 
 export function GenerationsContent() {
   const { user, loading: authLoading } = useAuth();
-  const debug = useDebug();
-  const showGeneration = debug?.debugOpen ?? false;
-
-  const [generations, setGenerations] = useState<Generation[]>([]);
-  const [total, setTotal] = useState(0);
+  const [cards, setCards] = useState<PromptCardFull[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!user || !showGeneration) {
+    if (authLoading) return;
+    if (!user) {
       setLoading(false);
       return;
     }
 
     async function load() {
-      const res = await fetch("/api/generations?limit=50", { credentials: "include" });
+      const res = await fetch("/api/my-prompt-cards?limit=80", { credentials: "include" });
       const data = await res.json();
-      setGenerations(data.generations || []);
-      setTotal(data.total ?? 0);
+      setCards(data.cards || []);
       setLoading(false);
     }
 
     load();
-  }, [user, showGeneration]);
+  }, [user, authLoading]);
 
-  if (!showGeneration) {
-    return (
-      <p className="text-zinc-500">
-        Страница доступна в режиме отладки. 5 кликов по логотипу в футере.
-      </p>
-    );
-  }
+  const cardIds = useMemo(() => cards.map((c) => c.id), [cards]);
 
   if (authLoading || !user) {
     return (
       <p className="text-zinc-500">
-        <Link href="/" className="text-indigo-600 hover:underline">Войдите</Link>, чтобы увидеть свои генерации.
+        <Link href="/" className="text-indigo-600 hover:underline">
+          Войдите
+        </Link>
+        , чтобы увидеть свои генерации.
       </p>
     );
   }
@@ -62,28 +47,27 @@ export function GenerationsContent() {
     return <div className="animate-pulse text-zinc-500">Загрузка...</div>;
   }
 
-  if (generations.length === 0) {
+  if (cards.length === 0) {
     return (
       <p className="text-zinc-500">
-        У вас пока нет генераций. Откройте карточку промпта и нажмите «Сгенерировать».
+        У вас пока нет карточек с генерациями. Откройте промт в каталоге и нажмите «Сгенерировать» — результат
+        появится здесь как карточка.
       </p>
     );
   }
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-      {generations.map((g) => (
-        <GenerationCard
-          key={g.id}
-          id={g.id}
-          status={g.status}
-          resultUrl={g.resultUrl}
-          prompt={g.prompt}
-          model={g.model}
-          aspectRatio={g.aspectRatio}
-          createdAt={g.createdAt}
-        />
-      ))}
-    </div>
+    <CardInteractionsProvider cardIds={cardIds}>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4 xl:grid-cols-5">
+        {cards.map((card, index) => (
+          <div key={card.id} className="min-w-0">
+            <PromptCard
+              card={card}
+              priorityLoad={index < LISTING_LCP_PRIORITY_GRID_ITEMS}
+            />
+          </div>
+        ))}
+      </div>
+    </CardInteractionsProvider>
   );
 }

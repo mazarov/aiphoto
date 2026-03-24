@@ -435,6 +435,8 @@ export type PromptCardFull = RouteCard & {
   likesCount: number;
   dislikesCount: number;
   viewCount: number;
+  /** UGC draft vs published (e.g. «Мои генерации»). */
+  isPublished?: boolean;
 };
 
 type MediaRow = {
@@ -697,21 +699,52 @@ export type CardPageData = {
   likesCount: number;
   dislikesCount: number;
   viewCount: number;
+  isPublished: boolean;
+  authorUserId: string | null;
+  authorAvatarUrl: string | null;
+  authorDisplayName: string | null;
+  viewerIsOwner: boolean;
+};
+
+export type GetCardPageDataOptions = {
+  /** Logged-in user id from cookies; allows viewing own unpublished UGC. */
+  viewerUserId?: string | null;
 };
 
 /** Fetches full card data for /p/[slug] page and generateMetadata. */
-export async function getCardPageData(slug: string): Promise<CardPageData | null> {
+export async function getCardPageData(
+  slug: string,
+  options?: GetCardPageDataOptions,
+): Promise<CardPageData | null> {
   const supabase = createSupabaseServer();
   const { data: card } = await supabase
     .from("prompt_cards")
     .select(
-      "id,slug,title_ru,title_en,seo_tags,seo_readiness_score,hashtags,is_published,source_date,source_dataset_slug,source_message_id,card_split_index,card_split_total,likes_count,dislikes_count,view_count"
+      "id,slug,title_ru,title_en,seo_tags,seo_readiness_score,hashtags,is_published,source_date,source_dataset_slug,source_message_id,card_split_index,card_split_total,likes_count,dislikes_count,view_count,author_user_id"
     )
     .eq("slug", slug)
-    .eq("is_published", true)
-    .single();
+    .maybeSingle();
 
   if (!card) return null;
+
+  const isPublished = !!(card as { is_published?: boolean }).is_published;
+  const authorUserId = ((card as { author_user_id?: string | null }).author_user_id ?? null) as string | null;
+  const viewerId = options?.viewerUserId ?? null;
+  const viewerIsOwner = !!(viewerId && authorUserId && viewerId === authorUserId);
+
+  if (!isPublished && !viewerIsOwner) return null;
+
+  let authorAvatarUrl: string | null = null;
+  let authorDisplayName: string | null = null;
+  if (authorUserId) {
+    const { data: profile } = await supabase
+      .from("landing_users")
+      .select("avatar_url,display_name")
+      .eq("id", authorUserId)
+      .maybeSingle();
+    authorAvatarUrl = (profile?.avatar_url as string | null) ?? null;
+    authorDisplayName = (profile?.display_name as string | null) ?? null;
+  }
 
   const splitTotal = (card as Record<string, unknown>).card_split_total as number | null ?? 1;
   const splitIndex = (card as Record<string, unknown>).card_split_index as number | null ?? 0;
@@ -878,5 +911,10 @@ export async function getCardPageData(slug: string): Promise<CardPageData | null
     likesCount: (card as Record<string, unknown>).likes_count as number ?? 0,
     dislikesCount: (card as Record<string, unknown>).dislikes_count as number ?? 0,
     viewCount: (card as Record<string, unknown>).view_count as number ?? 0,
+    isPublished,
+    authorUserId,
+    authorAvatarUrl,
+    authorDisplayName,
+    viewerIsOwner,
   };
 }

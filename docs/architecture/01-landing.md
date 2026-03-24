@@ -188,7 +188,7 @@
 ├─────────────────────────────────────────────┤
 │  2. unstable_cache (revalidate=3600)        │ ← fetchMenuCounts (Header)
 ├─────────────────────────────────────────────┤
-│  3. React.cache (per-request dedup)         │ ← getCardPageData (metadata + page)
+│  3. React.cache (per-request dedup)         │ ← getCardPageData(slug, viewerUserId) (metadata + page)
 ├─────────────────────────────────────────────┤
 │  4. loading.tsx (Suspense skeletons)        │ ← мгновенный UI при навигации
 ├─────────────────────────────────────────────┤

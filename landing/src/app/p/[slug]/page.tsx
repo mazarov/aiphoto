@@ -1,8 +1,9 @@
 import { cache } from "react";
 import type { Metadata } from "next";
-import dynamic from "next/dynamic";
+import nextDynamic from "next/dynamic";
 import { notFound } from "next/navigation";
 import { getCardPageData } from "@/lib/supabase";
+import { getSupabaseUserFromServerCookies } from "@/lib/supabase-route-auth";
 import {
   getFirstTagFromSeoTags,
   findTagBySlug,
@@ -10,7 +11,7 @@ import {
 } from "@/lib/tag-registry";
 import { PageLayout } from "@/components/PageLayout";
 
-const CardPageClient = dynamic(
+const CardPageClient = nextDynamic(
   () =>
     import("@/components/CardPageClient").then((m) => m.CardPageClient),
   {
@@ -29,7 +30,9 @@ const CardPageClient = dynamic(
   }
 );
 
-const getCachedCardPageData = cache(getCardPageData);
+const getCachedCardPageData = cache((slug: string, viewerUserId: string | null) =>
+  getCardPageData(slug, { viewerUserId }),
+);
 
 const BASE_URL =
   process.env.NEXT_PUBLIC_SITE_URL ||
@@ -88,9 +91,12 @@ function buildTitle(titleRu: string): string {
 
 type Props = { params: Promise<{ slug: string }> };
 
+export const dynamic = "force-dynamic";
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
-  const data = await getCachedCardPageData(slug);
+  const viewer = await getSupabaseUserFromServerCookies();
+  const data = await getCachedCardPageData(slug, viewer?.id ?? null);
   if (!data) return {};
 
   const title = data.title_ru || data.title_en || "Промт";
@@ -119,15 +125,19 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       description: buildDescription(data),
       images: data.mainPhotoUrl ? [data.mainPhotoUrl] : undefined,
     },
-    robots: isThin || isGroupSecondary ? "noindex, follow" : "index, follow",
+    robots:
+      !data.isPublished
+        ? { index: false, follow: false }
+        : isThin || isGroupSecondary
+          ? "noindex, follow"
+          : "index, follow",
   };
 }
 
-export const revalidate = 3600;
-
 export default async function CardPage({ params }: Props) {
   const { slug } = await params;
-  const data = await getCachedCardPageData(slug);
+  const viewer = await getSupabaseUserFromServerCookies();
+  const data = await getCachedCardPageData(slug, viewer?.id ?? null);
 
   if (!data) notFound();
 

@@ -54,3 +54,28 @@ export async function getSupabaseUserForApiRoute(request: NextRequest): Promise<
     supabaseAuth,
   };
 }
+
+/** Server Components / generateMetadata: session from cookies (no Request). */
+export async function getSupabaseUserFromServerCookies(): Promise<User | null> {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+  const cookieStore = await cookies();
+  const supabaseAuth = createServerClient(url, anon, {
+    cookies: {
+      getAll() {
+        return cookieStore.getAll();
+      },
+      setAll(cookiesToSet) {
+        try {
+          cookiesToSet.forEach(({ name, value, options }) =>
+            cookieStore.set(name, value, options)
+          );
+        } catch {
+          /* read-only context */
+        }
+      },
+    },
+  });
+  const { data } = await supabaseAuth.auth.getUser();
+  return data.user ?? null;
+}

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServer, getStoragePublicUrl } from "@/lib/supabase";
+import { createUgcCardForCompletedGeneration } from "@/lib/web-ugc-card";
 import {
   assembleLandingCardFinalPrompt,
   assembleVibeFinalPrompt,
@@ -546,6 +547,28 @@ async function processGeneration(supabase: ReturnType<typeof createSupabaseServe
       updated_at: new Date().toISOString(),
     })
     .eq("id", id);
+
+  try {
+    const ugc = await createUgcCardForCompletedGeneration(supabase, {
+      generationId: id,
+      userId,
+      promptText: rawPrompt,
+      resultBucket: BUCKET_RESULTS,
+      resultPath,
+    });
+    if (ugc?.slug) {
+      console.log("[generation.process] ugc prompt_card created", {
+        generationId: id,
+        cardId: ugc.cardId,
+        slug: ugc.slug,
+      });
+    }
+  } catch (ugcErr) {
+    console.error("[generation.process] ugc card creation failed", {
+      generationId: id,
+      ...toErrorMeta(ugcErr),
+    });
+  }
 
   console.log("[generation.process] completed", {
     generationId: id,

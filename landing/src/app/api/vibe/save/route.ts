@@ -362,7 +362,8 @@ export async function POST(req: NextRequest) {
             source_date: new Date().toISOString(),
             parse_status: "parsed",
             parse_warnings: [],
-            is_published: true,
+            is_published: false,
+            author_user_id: user.id,
           })
           .select("id,slug")
           .single();
