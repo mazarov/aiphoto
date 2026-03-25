@@ -613,6 +613,20 @@ textarea.prompt-box {
   min-height: 140px;
 }
 
+.stv-settings-prompt-block {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--stv-border);
+}
+
+.stv-custom-prompt-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0 0 8px;
+  cursor: pointer;
+}
+
 .stv-prompt-edit-hint {
   font-size: 11px;
   margin: 6px 0 0;

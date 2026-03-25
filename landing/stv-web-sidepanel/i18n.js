@@ -161,6 +161,18 @@ const STRINGS = {
     step1_final_prompt_title: "Финальный промпт (уходит в PromptShot → Gemini)",
     prompt_body_editable_hint:
       "Можно править и вставлять свой текст. В запрос уходит это поле; сервер добавляет служебные правила и префикс (см. раскрытый блок ниже, если он есть).",
+    custom_prompt_checkbox: "Свой промпт",
+    custom_prompt_mode_hint:
+      "Режим своего промпта: expand не вызывается, в модель уходит только текст ниже (плюс то, что добавит сервер). Нужен непустой текст от 8 символов.",
+    custom_prompt_placeholder: "Введите промпт для генерации…",
+    custom_prompt_edit_hint:
+      "Текст уходит в POST /api/generate как prompt; сервер дополнит инструкциями для vibe-генерации.",
+    custom_prompt_restored: "Промпт снова собран из стиля (expand)",
+    err_custom_prompt_empty: "Включён «Свой промпт» — введите текст промпта.",
+    err_custom_prompt_short: "Промпт слишком короткий: нужно минимум 8 символов.",
+    grooming_custom_prompt_hint:
+      "При «Своём промпте» галочки волос/макияжа не применяются — текст задаёте вы целиком.",
+    expand_skipped_custom: "не используется (свой промпт)",
     final_prompt_preview_summary: "Как соберётся на сервере (только просмотр)",
     final_prompt_empty:
       "Появится после expand — нажмите «Сгенерировать» (шаги extract → expand).",
@@ -340,6 +352,18 @@ const STRINGS = {
     step1_final_prompt_title: "Finaler Prompt (geht an PromptShot → Gemini)",
     prompt_body_editable_hint:
       "Du kannst den Text bearbeiten oder einfügen. Genau dieser Text geht in die API; der Server ergänzt Regeln und Präfix (siehe aufklappbare Vorschau unten, falls vorhanden).",
+    custom_prompt_checkbox: "Eigener Prompt",
+    custom_prompt_mode_hint:
+      "Eigener Prompt: kein Expand-Aufruf, nur dein Text unten geht an die API (plus Server-Anweisungen). Mindestens 8 Zeichen.",
+    custom_prompt_placeholder: "Prompt für die Generierung eingeben…",
+    custom_prompt_edit_hint:
+      "Text wird als `prompt` an POST /api/generate gesendet; der Server ergänzt Vibe-Anweisungen.",
+    custom_prompt_restored: "Prompt wieder aus dem Stil gebaut (Expand)",
+    err_custom_prompt_empty: "Eigener Prompt aktiv — bitte Prompt-Text eingeben.",
+    err_custom_prompt_short: "Prompt zu kurz: mindestens 8 Zeichen.",
+    grooming_custom_prompt_hint:
+      "Bei eigenem Prompt gelten Frisur/Make-up-Kästchen nicht — du schreibst den Text selbst.",
+    expand_skipped_custom: "aus (eigener Prompt)",
     final_prompt_preview_summary: "So setzt der Server es zusammen (nur Ansicht)",
     final_prompt_empty:
       "Erscheint nach Expand — auf „Generieren“ tippen (Extract → Expand).",

@@ -170,7 +170,9 @@ const state = {
   /** Primary button label while generating: extract | expand | assemble | generate */
   runStage: "idle",
   /** null = omit temperature on extract (provider default); else one of EXTRACT_TEMPERATURE_PRESETS */
-  extractTemperature: null
+  extractTemperature: null,
+  /** Skip expand/assemble; user types prompt in textarea (still runs extract for vibeId + style JSON). */
+  customPromptMode: false
 };
 
 let toastTimer = null;
@@ -874,6 +876,7 @@ function toSerializableState() {
     runHistory: state.runHistory,
     cooldownUntil: state.cooldownUntil,
     extractTemperature: normalizePersistedExtractTemperature(state.extractTemperature),
+    customPromptMode: Boolean(state.customPromptMode),
     updatedAt: Date.now()
   };
 }
@@ -1055,6 +1058,7 @@ function applyPersistedState(saved) {
   state.runHistory = Array.isArray(saved.runHistory) ? saved.runHistory : state.runHistory;
   state.cooldownUntil = Number(saved.cooldownUntil || 0);
   state.extractTemperature = normalizePersistedExtractTemperature(saved.extractTemperature);
+  state.customPromptMode = Boolean(saved.customPromptMode);
 }
 
 async function api(path, init = {}) {
@@ -1380,9 +1384,11 @@ async function runExtract() {
   state.vibeId = extractData.vibeId;
   state.style = extractData.style;
   state.extractModel = String(extractData.modelUsed || "");
-  state.mergedForSingleGeneration = "";
-  state.finalPromptForGeneration = "";
-  state.finalPromptAssumesTwoImages = false;
+  if (!state.customPromptMode) {
+    state.mergedForSingleGeneration = "";
+    state.finalPromptForGeneration = "";
+    state.finalPromptAssumesTwoImages = false;
+  }
   await persistState();
 }
 
@@ -1432,7 +1438,7 @@ async function runAssemblePromptNow() {
 }
 
 function scheduleAssemblePrompt() {
-  if (!state.vibeId) return;
+  if (!state.vibeId || state.customPromptMode) return;
   clearTimeout(assembleDebounceTimer);
   assembleDebounceTimer = setTimeout(async () => {
     assembleDebounceTimer = null;
@@ -1664,8 +1670,30 @@ async function completeGenerationAfterExpand(runStartedAt) {
     applyGenerationPromptBodyFromUi(ta.value);
   }
 
+  const bodyTrim = String(state.mergedForSingleGeneration || "").trim();
+  if (state.customPromptMode) {
+    if (!bodyTrim) {
+      state.generating = false;
+      state.runStage = "idle";
+      state.pipelinePrepPercent = 0;
+      throw new Error(t("err_custom_prompt_empty"));
+    }
+    if (bodyTrim.length < 8) {
+      state.generating = false;
+      state.runStage = "idle";
+      state.pipelinePrepPercent = 0;
+      throw new Error(t("err_custom_prompt_short"));
+    }
+  }
+
   const n = getPromptsPerRun();
-  const allPrompts = Array.isArray(state.prompts) ? state.prompts : [];
+  let allPrompts = Array.isArray(state.prompts) ? state.prompts : [];
+
+  if (n === 3 && state.customPromptMode && bodyTrim && allPrompts.length !== 3) {
+    const tripleAccents = ["lighting", "mood", "composition"];
+    state.prompts = tripleAccents.map((accent) => ({ accent, prompt: bodyTrim }));
+    allPrompts = state.prompts;
+  }
 
   if (n === 1) {
     const merged = String(state.mergedForSingleGeneration || "").trim();
@@ -1814,18 +1842,21 @@ async function generateAll() {
   render();
 
   await runExtract();
-  state.pipelinePrepPercent = 36;
-  state.runStage = "expand";
-  state.info = t("run_expand_prep");
-  render();
-  await runExpand();
 
-  if (state.vibeGroomingControlsAvailable) {
-    state.pipelinePrepPercent = 72;
-    state.runStage = "assemble";
-    state.info = t("run_assemble");
+  if (!state.customPromptMode) {
+    state.pipelinePrepPercent = 36;
+    state.runStage = "expand";
+    state.info = t("run_expand_prep");
     render();
-    await runAssemblePromptNow();
+    await runExpand();
+
+    if (state.vibeGroomingControlsAvailable) {
+      state.pipelinePrepPercent = 72;
+      state.runStage = "assemble";
+      state.info = t("run_assemble");
+      render();
+      await runAssemblePromptNow();
+    }
   }
 
   state.pipelinePrepPercent = 100;
@@ -1837,6 +1868,7 @@ async function generateAll() {
 
 async function continueGenerateAfterGrooming() {
   if (!state.awaitingContinueGenerate || state.generating) return;
+  if (state.customPromptMode) return;
   const runStartedAt = state.pendingRunStartedAt || Date.now();
   state.awaitingContinueGenerate = false;
   state.pendingRunStartedAt = 0;
@@ -1921,6 +1953,7 @@ async function resetSession() {
   state.finalPromptAssumesTwoImages = false;
   state.vibeGroomingControlsAvailable = false;
   state.groomingPolicy = { applyHair: true, applyMakeup: true };
+  state.customPromptMode = false;
   state.awaitingContinueGenerate = false;
   state.pendingRunStartedAt = 0;
   state.results = [];
@@ -1943,6 +1976,7 @@ async function clearResultsOnly() {
   state.finalPromptAssumesTwoImages = false;
   state.vibeGroomingControlsAvailable = false;
   state.groomingPolicy = { applyHair: true, applyMakeup: true };
+  state.customPromptMode = false;
   state.awaitingContinueGenerate = false;
   state.pendingRunStartedAt = 0;
   state.results = [];
@@ -2189,37 +2223,58 @@ function renderMain() {
     `
       : "";
 
-  const finalPromptHint =
-    state.finalPromptAssumesTwoImages === true ? t("final_prompt_hint_two") : t("final_prompt_hint_one");
+  const finalPromptHint = state.customPromptMode
+    ? t("custom_prompt_mode_hint")
+    : state.finalPromptAssumesTwoImages === true
+      ? t("final_prompt_hint_two")
+      : t("final_prompt_hint_one");
   const assembledPreviewBlock =
-    String(state.finalPromptForGeneration || "").trim().length > 0
+    !state.customPromptMode && String(state.finalPromptForGeneration || "").trim().length > 0
       ? `<details class="stv-disclosure stv-disclosure--assembled-preview">
           <summary>${escapeHtml(t("final_prompt_preview_summary"))}</summary>
           <pre class="prompt-box stv-assembled-prompt-preview">${escapeHtml(state.finalPromptForGeneration)}</pre>
         </details>`
       : "";
-  const finalPromptBody = `<textarea id="stv-gen-prompt-body" class="prompt-box prompt-box--final-prompt" rows="14" spellcheck="false" autocomplete="off" aria-label="${escapeHtml(t("gen_prompt_label"))}" placeholder="${escapeHtml(t("final_prompt_empty"))}"></textarea>
-          <p class="muted stv-prompt-edit-hint">${escapeHtml(t("prompt_body_editable_hint"))}</p>
+  const promptPlaceholder = state.customPromptMode ? t("custom_prompt_placeholder") : t("final_prompt_empty");
+  const promptHintBelow = state.customPromptMode
+    ? t("custom_prompt_edit_hint")
+    : t("prompt_body_editable_hint");
+  const customPromptCheckHtml = `<label class="stv-check stv-custom-prompt-check">
+          <input type="checkbox" id="stv-custom-prompt-mode" ${state.customPromptMode ? "checked" : ""} ${state.generating ? "disabled" : ""} />
+          <span>${escapeHtml(t("custom_prompt_checkbox"))}</span>
+        </label>`;
+  const finalPromptBody = `${customPromptCheckHtml}
+          <textarea id="stv-gen-prompt-body" class="prompt-box prompt-box--final-prompt" rows="14" spellcheck="false" autocomplete="off" aria-label="${escapeHtml(t("gen_prompt_label"))}" placeholder="${escapeHtml(promptPlaceholder)}"></textarea>
+          <p class="muted stv-prompt-edit-hint">${escapeHtml(promptHintBelow)}</p>
           ${assembledPreviewBlock}`;
+
+  const settingsPromptSectionHtml = `<div class="stv-settings-prompt-block">
+            <p class="stv-subtitle">${escapeHtml(t("step1_final_prompt_title"))}</p>
+            <p class="muted">${escapeHtml(finalPromptHint)}</p>
+            ${finalPromptBody}
+          </div>`;
 
   /**
    * Hair / makeup: always visible; user can set preferences anytime. Server assemble runs only after
    * reference extract+expand when vibeGroomingControlsAvailable (see scheduleAssemblePrompt).
    */
-  const groomingHintKey = !state.vibeGroomingControlsAvailable
-    ? "grooming_unlock_hint"
-    : state.awaitingContinueGenerate
-      ? "grooming_adjust_hint"
-      : "grooming_ready_hint";
+  const groomingHintKey = state.customPromptMode
+    ? "grooming_custom_prompt_hint"
+    : !state.vibeGroomingControlsAvailable
+      ? "grooming_unlock_hint"
+      : state.awaitingContinueGenerate
+        ? "grooming_adjust_hint"
+        : "grooming_ready_hint";
+  const groomDisabled = state.customPromptMode ? "disabled" : "";
   const groomingMainSectionHtml = `<div class="stv-grooming-block stv-grooming-block--main">
           <p class="stv-subtitle">${escapeHtml(t("grooming_title"))}</p>
           <p class="muted stv-grooming-hint">${escapeHtml(t(groomingHintKey))}</p>
           <label class="stv-check stv-grooming-check">
-            <input type="checkbox" id="grooming-hair" ${state.groomingPolicy.applyHair ? "checked" : ""} />
+            <input type="checkbox" id="grooming-hair" ${state.groomingPolicy.applyHair ? "checked" : ""} ${groomDisabled} />
             <span>${escapeHtml(t("grooming_hair"))}</span>
           </label>
           <label class="stv-check stv-grooming-check">
-            <input type="checkbox" id="grooming-makeup" ${state.groomingPolicy.applyMakeup ? "checked" : ""} />
+            <input type="checkbox" id="grooming-makeup" ${state.groomingPolicy.applyMakeup ? "checked" : ""} ${groomDisabled} />
             <span>${escapeHtml(t("grooming_makeup"))}</span>
           </label>
           ${
@@ -2236,11 +2291,8 @@ function renderMain() {
       ? `<div class="card stv-card-side">
           <p class="title">${escapeHtml(t("step1_title"))}</p>
           <p class="muted">${escapeHtml(t("step1_model"))}: <code>${escapeHtml(state.extractModel || "—")}</code></p>
-          <p class="muted">${escapeHtml(t("step2_model"))}: <code>${escapeHtml(state.expandModel || "—")}</code></p>
+          <p class="muted">${escapeHtml(t("step2_model"))}: <code>${escapeHtml(state.customPromptMode ? t("expand_skipped_custom") : state.expandModel || "—")}</code></p>
           <pre class="prompt-box">${escapeHtml(JSON.stringify(state.style, null, 2))}</pre>
-          <p class="stv-subtitle">${escapeHtml(t("step1_final_prompt_title"))}</p>
-          <p class="muted">${escapeHtml(finalPromptHint)}</p>
-          ${finalPromptBody}
           <div class="row" style="margin-top:8px">
             <button type="button" id="pipeline-spec-btn">${escapeHtml(t("btn_pipeline_spec"))}</button>
           </div>
@@ -2372,6 +2424,7 @@ function renderMain() {
               </select>
               <span class="muted stv-field-hint">${escapeHtml(t("field_extract_temperature_hint"))}</span>
             </label>
+            ${settingsPromptSectionHtml}
           </div>
         </section>
 
@@ -2427,6 +2480,35 @@ function renderMain() {
         /* ignore */
       }
       render();
+    });
+  }
+
+  const customPromptCb = document.getElementById("stv-custom-prompt-mode");
+  if (customPromptCb) {
+    customPromptCb.addEventListener("change", async () => {
+      state.customPromptMode = customPromptCb.checked;
+      if (state.customPromptMode) {
+        applyGenerationPromptBodyFromUi("");
+        state.finalPromptForGeneration = "";
+        state.finalPromptAssumesTwoImages = false;
+        state.prompts = [];
+        await persistState();
+        render();
+        queueMicrotask(() => document.getElementById("stv-gen-prompt-body")?.focus());
+        return;
+      }
+      try {
+        if (state.vibeId && state.style) {
+          await runExpand();
+          setToast("info", t("custom_prompt_restored"));
+        }
+        await persistState();
+        render();
+      } catch (err) {
+        state.customPromptMode = true;
+        setToast("error", normalizeUiError(err, "expand"));
+        render();
+      }
     });
   }
 
