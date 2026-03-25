@@ -176,6 +176,7 @@ const state = {
 let toastTimer = null;
 let creditPollTimer = null;
 let assembleDebounceTimer = null;
+let promptBodyPersistTimer = null;
 
 function storageLocalGet(key) {
   return rt().platform.storage.local.get(key);
@@ -207,6 +208,29 @@ function escapeHtml(value) {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+}
+
+/** Body text sent as `prompt` to `POST /api/generate` (server runs `assembleVibeFinalPrompt` on it). */
+function getGenerationPromptBodyForUi() {
+  const m = state.mergedForSingleGeneration;
+  if (typeof m === "string" && m.trim()) return m;
+  const p0 = Array.isArray(state.prompts) ? state.prompts[0] : null;
+  if (p0 && typeof p0.prompt === "string") return p0.prompt;
+  return "";
+}
+
+function applyGenerationPromptBodyFromUi(text) {
+  const v = typeof text === "string" ? text : String(text ?? "");
+  state.mergedForSingleGeneration = v;
+  const prompts = Array.isArray(state.prompts) ? state.prompts : [];
+  if (!prompts.length) {
+    state.prompts = v.trim() ? [{ accent: "scene", prompt: v }] : [];
+    return;
+  }
+  state.prompts = prompts.map((p) => ({
+    accent: typeof p.accent === "string" && p.accent ? p.accent : "scene",
+    prompt: v
+  }));
 }
 
 /** Safe inside double-quoted HTML attributes (e.g. img src). Do not use full escapeHtml on blob: URLs beyond this. */
@@ -1635,6 +1659,11 @@ async function clearRunHistory() {
 }
 
 async function completeGenerationAfterExpand(runStartedAt) {
+  const ta = document.getElementById("stv-gen-prompt-body");
+  if (ta && typeof ta.value === "string") {
+    applyGenerationPromptBodyFromUi(ta.value);
+  }
+
   const n = getPromptsPerRun();
   const allPrompts = Array.isArray(state.prompts) ? state.prompts : [];
 
@@ -1832,6 +1861,12 @@ async function retryResultById(id) {
   if (state.generating) return;
   const row = state.results.find((r) => r.id === id || `${r.accent}:${r.attempt}` === id);
   if (!row) return;
+  const ta = document.getElementById("stv-gen-prompt-body");
+  if (ta && typeof ta.value === "string") {
+    applyGenerationPromptBodyFromUi(ta.value);
+    const body = String(state.mergedForSingleGeneration || "").trim();
+    if (body) row.prompt = body;
+  }
   if (!hasUserPhotos()) {
     state.error = "Сначала загрузите фото";
     render();
@@ -2156,9 +2191,16 @@ function renderMain() {
 
   const finalPromptHint =
     state.finalPromptAssumesTwoImages === true ? t("final_prompt_hint_two") : t("final_prompt_hint_one");
-  const finalPromptBody = state.finalPromptForGeneration
-    ? `<pre class="prompt-box prompt-box--final-prompt">${escapeHtml(state.finalPromptForGeneration)}</pre>`
-    : `<p class="muted">${escapeHtml(t("final_prompt_empty"))}</p>`;
+  const assembledPreviewBlock =
+    String(state.finalPromptForGeneration || "").trim().length > 0
+      ? `<details class="stv-disclosure stv-disclosure--assembled-preview">
+          <summary>${escapeHtml(t("final_prompt_preview_summary"))}</summary>
+          <pre class="prompt-box stv-assembled-prompt-preview">${escapeHtml(state.finalPromptForGeneration)}</pre>
+        </details>`
+      : "";
+  const finalPromptBody = `<textarea id="stv-gen-prompt-body" class="prompt-box prompt-box--final-prompt" rows="14" spellcheck="false" autocomplete="off" aria-label="${escapeHtml(t("gen_prompt_label"))}" placeholder="${escapeHtml(t("final_prompt_empty"))}"></textarea>
+          <p class="muted stv-prompt-edit-hint">${escapeHtml(t("prompt_body_editable_hint"))}</p>
+          ${assembledPreviewBlock}`;
 
   /**
    * Hair / makeup: always visible; user can set preferences anytime. Server assemble runs only after
@@ -2385,6 +2427,21 @@ function renderMain() {
         /* ignore */
       }
       render();
+    });
+  }
+
+  const promptBodyTa = document.getElementById("stv-gen-prompt-body");
+  if (promptBodyTa) {
+    if (document.activeElement !== promptBodyTa) {
+      promptBodyTa.value = getGenerationPromptBodyForUi();
+    }
+    promptBodyTa.addEventListener("input", () => {
+      applyGenerationPromptBodyFromUi(promptBodyTa.value);
+      clearTimeout(promptBodyPersistTimer);
+      promptBodyPersistTimer = setTimeout(() => {
+        promptBodyPersistTimer = null;
+        void persistState();
+      }, 400);
     });
   }
 

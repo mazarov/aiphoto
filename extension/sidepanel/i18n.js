@@ -159,6 +159,9 @@ const STRINGS = {
     btn_stage_assemble: "Собираем промпт…",
     btn_pipeline_spec: "Системные промпты API",
     step1_final_prompt_title: "Финальный промпт (уходит в PromptShot → Gemini)",
+    prompt_body_editable_hint:
+      "Можно править и вставлять свой текст. В запрос уходит это поле; сервер добавляет служебные правила и префикс (см. раскрытый блок ниже, если он есть).",
+    final_prompt_preview_summary: "Как соберётся на сервере (только просмотр)",
     final_prompt_empty:
       "Появится после expand — нажмите «Сгенерировать» (шаги extract → expand).",
     final_prompt_hint_two:
@@ -335,6 +338,9 @@ const STRINGS = {
     btn_stage_assemble: "Prompt wird zusammengesetzt…",
     btn_pipeline_spec: "API-Systemprompts",
     step1_final_prompt_title: "Finaler Prompt (geht an PromptShot → Gemini)",
+    prompt_body_editable_hint:
+      "Du kannst den Text bearbeiten oder einfügen. Genau dieser Text geht in die API; der Server ergänzt Regeln und Präfix (siehe aufklappbare Vorschau unten, falls vorhanden).",
+    final_prompt_preview_summary: "So setzt der Server es zusammen (nur Ansicht)",
     final_prompt_empty:
       "Erscheint nach Expand — auf „Generieren“ tippen (Extract → Expand).",
     final_prompt_hint_two:

@@ -22,6 +22,41 @@ const TOAST_TIMEOUT_MS = 3200;
 const TRIPLE_VARIANT_FLOW_LS_KEY = "stv_triple_variant_flow";
 /** Matches POST /api/generate validation (max 4 user images). */
 const MAX_USER_PHOTOS = 4;
+/** Signed GET URLs expire server-side (~24h); refresh before that. */
+const SIGNED_PREVIEW_MAX_AGE_MS = 22 * 60 * 60 * 1000;
+
+function isSignedPreviewStillUsable(p) {
+  if (!p?.storagePath) return false;
+  const url = p.signedPreviewUrl;
+  if (typeof url !== "string" || !url.startsWith("http")) return false;
+  if (p.signedForPath && p.signedForPath !== p.storagePath) return false;
+  const at = Number(p.signedPreviewSavedAt || 0);
+  if (!at) return true;
+  return Date.now() - at < SIGNED_PREVIEW_MAX_AGE_MS;
+}
+
+async function fetchSignedUrlForStoragePath(storagePath) {
+  const q = encodeURIComponent(storagePath);
+  const data = await api(`/api/upload-generation-photo/signed-url?path=${q}`);
+  const url = data?.signedUrl;
+  if (typeof url !== "string" || !url.startsWith("http")) return null;
+  return url;
+}
+
+/** After upload: fill signed URL for <img> and for chrome.storage persist (no Bearer on reopen). */
+async function applySignedPreviewToItem(item) {
+  if (!item?.storagePath) return;
+  try {
+    const url = await fetchSignedUrlForStoragePath(item.storagePath);
+    if (url) {
+      item.signedPreviewUrl = url;
+      item.signedForPath = item.storagePath;
+      item.signedPreviewSavedAt = Date.now();
+    }
+  } catch (e) {
+    console.warn("[stv] signed preview for item", item.storagePath, e);
+  }
+}
 
 /** Brand mark: star inside gradient tile (aligned with content-script `.stv-ob-mark`). */
 const STV_MARK_STAR_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" class="stv-mark-star"><path fill-rule="evenodd" d="M10.788 3.21c.448-1.077 1.656-1.077 2.104 0l2.052 4.96 5.35.434c1.161.094 1.548 1.603.748 2.384l-4.09 3.941 1.14 5.348c.25 1.17-1.036 2.017-2.1 1.51l-4.828-2.29-4.827 2.29c-1.064.507-2.35-.34-2.1-1.51l1.14-5.348-4.09-3.941c-.8-.781-.413-2.384.748-2.384l5.35-.434 2.052-4.96Z" clip-rule="evenodd"/></svg>`;
@@ -141,6 +176,7 @@ const state = {
 let toastTimer = null;
 let creditPollTimer = null;
 let assembleDebounceTimer = null;
+let promptBodyPersistTimer = null;
 
 function storageLocalGet(key) {
   return rt().platform.storage.local.get(key);
@@ -172,6 +208,37 @@ function escapeHtml(value) {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+}
+
+/** Body text sent as `prompt` to `POST /api/generate` (server runs `assembleVibeFinalPrompt` on it). */
+function getGenerationPromptBodyForUi() {
+  const m = state.mergedForSingleGeneration;
+  if (typeof m === "string" && m.trim()) return m;
+  const p0 = Array.isArray(state.prompts) ? state.prompts[0] : null;
+  if (p0 && typeof p0.prompt === "string") return p0.prompt;
+  return "";
+}
+
+function applyGenerationPromptBodyFromUi(text) {
+  const v = typeof text === "string" ? text : String(text ?? "");
+  state.mergedForSingleGeneration = v;
+  const prompts = Array.isArray(state.prompts) ? state.prompts : [];
+  if (!prompts.length) {
+    state.prompts = v.trim() ? [{ accent: "scene", prompt: v }] : [];
+    return;
+  }
+  state.prompts = prompts.map((p) => ({
+    accent: typeof p.accent === "string" && p.accent ? p.accent : "scene",
+    prompt: v
+  }));
+}
+
+/** Safe inside double-quoted HTML attributes (e.g. img src). Do not use full escapeHtml on blob: URLs beyond this. */
+function escapeHtmlAttrUrl(url) {
+  return String(url)
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;");
 }
 
 function revokeAllUserPhotoObjectUrls() {
@@ -237,12 +304,7 @@ function removeReference() {
 let userPhotosSignedRefreshPromise = null;
 
 function userPhotosNeedSignedPreviews() {
-  return state.userPhotos.some(
-    (p) =>
-      p.storagePath &&
-      !p.previewObjectUrl &&
-      (!p.signedPreviewUrl || p.signedForPath !== p.storagePath)
-  );
+  return state.userPhotos.some((p) => p.storagePath && !p.previewObjectUrl && !isSignedPreviewStillUsable(p));
 }
 
 /**
@@ -262,10 +324,7 @@ async function refreshUserPhotosSignedPreviews() {
     return;
   }
   const need = state.userPhotos.filter(
-    (p) =>
-      p.storagePath &&
-      !p.previewObjectUrl &&
-      (!p.signedPreviewUrl || p.signedForPath !== p.storagePath)
+    (p) => p.storagePath && !p.previewObjectUrl && !isSignedPreviewStillUsable(p)
   );
   if (!need.length) {
     state.userPhotosPreviewLoading = false;
@@ -287,6 +346,7 @@ async function refreshUserPhotosSignedPreviews() {
           if (item && typeof url === "string" && url.startsWith("http")) {
             item.signedPreviewUrl = url;
             item.signedForPath = p.storagePath;
+            item.signedPreviewSavedAt = Date.now();
           }
         })
       );
@@ -299,6 +359,7 @@ async function refreshUserPhotosSignedPreviews() {
     } finally {
       userPhotosSignedRefreshPromise = null;
       state.userPhotosPreviewLoading = false;
+      await persistState();
       render();
     }
   })();
@@ -309,11 +370,7 @@ let referencePhotoSignedRefreshPromise = null;
 
 function referencePhotoNeedSignedPreview() {
   const p = state.referencePhoto;
-  return Boolean(
-    p?.storagePath &&
-      !p.previewObjectUrl &&
-      (!p.signedPreviewUrl || p.signedForPath !== p.storagePath)
-  );
+  return Boolean(p?.storagePath && !p.previewObjectUrl && !isSignedPreviewStillUsable(p));
 }
 
 async function refreshReferencePhotoSignedPreview() {
@@ -329,11 +386,7 @@ async function refreshReferencePhotoSignedPreview() {
     return;
   }
   const p = state.referencePhoto;
-  if (
-    !p?.storagePath ||
-    p.previewObjectUrl ||
-    (p.signedPreviewUrl && p.signedForPath === p.storagePath)
-  ) {
+  if (!p?.storagePath || p.previewObjectUrl || isSignedPreviewStillUsable(p)) {
     state.referencePhotoPreviewLoading = false;
     return;
   }
@@ -351,6 +404,7 @@ async function refreshReferencePhotoSignedPreview() {
       if (item && typeof url === "string" && url.startsWith("http")) {
         item.signedPreviewUrl = url;
         item.signedForPath = p.storagePath;
+        item.signedPreviewSavedAt = Date.now();
         item.previewBust = Date.now();
       }
     } catch (err) {
@@ -358,6 +412,7 @@ async function refreshReferencePhotoSignedPreview() {
     } finally {
       referencePhotoSignedRefreshPromise = null;
       state.referencePhotoPreviewLoading = false;
+      await persistState();
       render();
     }
   })();
@@ -776,12 +831,29 @@ function toSerializableState() {
     sourceContext: state.sourceContext,
     referencePhoto:
       state.referencePhoto?.storagePath && String(state.referencePhoto.storagePath).trim()
-        ? {
-            storagePath: String(state.referencePhoto.storagePath).trim(),
-            fileName: String(state.referencePhoto.fileName || "")
-          }
+        ? (() => {
+            const rp = state.referencePhoto;
+            const base = {
+              storagePath: String(rp.storagePath).trim(),
+              fileName: String(rp.fileName || "")
+            };
+            if (isSignedPreviewStillUsable(rp)) {
+              base.signedPreviewUrl = rp.signedPreviewUrl;
+              base.signedForPath = String(rp.storagePath).trim();
+              base.signedPreviewSavedAt = Number(rp.signedPreviewSavedAt || 0) || Date.now();
+            }
+            return base;
+          })()
         : null,
-    userPhotos: state.userPhotos.map(({ storagePath, fileName }) => ({ storagePath, fileName })),
+    userPhotos: state.userPhotos.map((p) => {
+      const row = { storagePath: p.storagePath, fileName: p.fileName };
+      if (isSignedPreviewStillUsable(p)) {
+        row.signedPreviewUrl = p.signedPreviewUrl;
+        row.signedForPath = p.storagePath;
+        row.signedPreviewSavedAt = Number(p.signedPreviewSavedAt || 0) || Date.now();
+      }
+      return row;
+    }),
     selectedModel: state.selectedModel,
     selectedAspectRatio: state.selectedAspectRatio,
     selectedImageSize: state.selectedImageSize,
@@ -818,7 +890,6 @@ async function initSupabaseAuth() {
     accessTokenRef = session?.access_token ?? null;
     /* Token can arrive after first paint; signed preview fetch would have no-op'd without Bearer. */
     if (
-      !state.loading &&
       state.user &&
       accessTokenRef &&
       (userPhotosNeedSignedPreviews() || referencePhotoNeedSignedPreview())
@@ -884,15 +955,27 @@ function applyPersistedState(saved) {
     typeof savedRef.storagePath === "string" &&
     String(savedRef.storagePath).trim()
   ) {
-    state.referencePhoto = {
-      storagePath: String(savedRef.storagePath).trim(),
+    const refPath = String(savedRef.storagePath).trim();
+    const refRow = {
+      storagePath: refPath,
       fileName: String(savedRef.fileName || ""),
       previewObjectUrl: "",
       signedPreviewUrl: "",
       signedForPath: "",
+      signedPreviewSavedAt: 0,
       previewBust: 0,
       uploading: false
     };
+    if (
+      typeof savedRef.signedPreviewUrl === "string" &&
+      savedRef.signedPreviewUrl.startsWith("http") &&
+      String(savedRef.signedForPath || refPath) === refPath
+    ) {
+      refRow.signedPreviewUrl = savedRef.signedPreviewUrl;
+      refRow.signedForPath = refPath;
+      refRow.signedPreviewSavedAt = Number(savedRef.signedPreviewSavedAt || 0);
+    }
+    state.referencePhoto = refRow;
     state.sourceImageUrl = "";
     state.sourceContext = null;
   } else {
@@ -902,14 +985,28 @@ function applyPersistedState(saved) {
   if (Array.isArray(saved.userPhotos) && saved.userPhotos.length) {
     state.userPhotos = saved.userPhotos
       .filter((p) => p && typeof p.storagePath === "string" && String(p.storagePath).trim())
-      .map((p) => ({
-        storagePath: String(p.storagePath).trim(),
-        fileName: String(p.fileName || ""),
-        previewObjectUrl: "",
-        signedPreviewUrl: "",
-        signedForPath: "",
-        uploading: false
-      }))
+      .map((p) => {
+        const path = String(p.storagePath).trim();
+        const row = {
+          storagePath: path,
+          fileName: String(p.fileName || ""),
+          previewObjectUrl: "",
+          signedPreviewUrl: "",
+          signedForPath: "",
+          signedPreviewSavedAt: 0,
+          uploading: false
+        };
+        if (
+          typeof p.signedPreviewUrl === "string" &&
+          p.signedPreviewUrl.startsWith("http") &&
+          String(p.signedForPath || path) === path
+        ) {
+          row.signedPreviewUrl = p.signedPreviewUrl;
+          row.signedForPath = path;
+          row.signedPreviewSavedAt = Number(p.signedPreviewSavedAt || 0);
+        }
+        return row;
+      })
       .slice(0, MAX_USER_PHOTOS);
   } else if (saved.photoStoragePath && String(saved.photoStoragePath).trim()) {
     state.userPhotos = [
@@ -919,6 +1016,7 @@ function applyPersistedState(saved) {
         previewObjectUrl: "",
         signedPreviewUrl: "",
         signedForPath: "",
+        signedPreviewSavedAt: 0,
         uploading: false
       }
     ];
@@ -1004,6 +1102,10 @@ function referenceImageSrcForUi() {
   if (rp?.storagePath) {
     const src = rp.previewObjectUrl || rp.signedPreviewUrl || "";
     if (!src) return "";
+    /* Appending ?query to blob: breaks loading in Chrome extension panel. */
+    if (src.startsWith("blob:")) {
+      return src;
+    }
     const bust = Number(rp.previewBust || 0);
     const sep = src.includes("?") ? "&" : "?";
     return `${src}${sep}_stvref=${bust}`;
@@ -1222,8 +1324,11 @@ async function uploadUserPhotoFile(file) {
     previewObjectUrl: URL.createObjectURL(file),
     signedPreviewUrl: "",
     signedForPath: "",
+    signedPreviewSavedAt: 0,
     uploading: false
   });
+  const last = state.userPhotos[state.userPhotos.length - 1];
+  await applySignedPreviewToItem(last);
   await persistState();
 }
 
@@ -1239,9 +1344,11 @@ async function uploadReferencePhotoFile(file) {
     previewObjectUrl: URL.createObjectURL(file),
     signedPreviewUrl: "",
     signedForPath: "",
+    signedPreviewSavedAt: 0,
     previewBust: Date.now(),
     uploading: false
   };
+  await applySignedPreviewToItem(state.referencePhoto);
   await persistState();
 }
 
@@ -1552,6 +1659,11 @@ async function clearRunHistory() {
 }
 
 async function completeGenerationAfterExpand(runStartedAt) {
+  const ta = document.getElementById("stv-gen-prompt-body");
+  if (ta && typeof ta.value === "string") {
+    applyGenerationPromptBodyFromUi(ta.value);
+  }
+
   const n = getPromptsPerRun();
   const allPrompts = Array.isArray(state.prompts) ? state.prompts : [];
 
@@ -1749,6 +1861,12 @@ async function retryResultById(id) {
   if (state.generating) return;
   const row = state.results.find((r) => r.id === id || `${r.accent}:${r.attempt}` === id);
   if (!row) return;
+  const ta = document.getElementById("stv-gen-prompt-body");
+  if (ta && typeof ta.value === "string") {
+    applyGenerationPromptBodyFromUi(ta.value);
+    const body = String(state.mergedForSingleGeneration || "").trim();
+    if (body) row.prompt = body;
+  }
   if (!hasUserPhotos()) {
     state.error = "Сначала загрузите фото";
     render();
@@ -1945,7 +2063,7 @@ function buildUserPhotosBlockHtml() {
         if (p.uploading) {
           inner = `<div class="stv-user-photo-thumb-placeholder muted">${escapeHtml(t("uploading_photo"))}</div>`;
         } else if (src) {
-          inner = `<img class="stv-user-photo-thumb" src="${escapeHtml(src)}" alt="" />`;
+          inner = `<img class="stv-user-photo-thumb" src="${escapeHtmlAttrUrl(src)}" alt="" />`;
         } else if (state.userPhotosPreviewLoading) {
           inner = `<div class="stv-user-photo-thumb-placeholder muted">${escapeHtml(t("photo_preview_loading"))}</div>`;
         } else {
@@ -1996,7 +2114,7 @@ function buildReferenceFrameHtml() {
   if (loadingUpload) {
     main = `<div class="stv-compare-placeholder muted">${escapeHtml(t("photo_preview_loading"))}</div>`;
   } else if (src) {
-    main = `<img class="stv-compare-img" src="${escapeHtml(src)}" alt="" />`;
+    main = `<img class="stv-compare-img" src="${escapeHtmlAttrUrl(src)}" alt="" />`;
   } else {
     main = `<div class="stv-compare-placeholder muted">${escapeHtml(t("photo_preview_loading"))}</div>`;
   }
@@ -2073,9 +2191,16 @@ function renderMain() {
 
   const finalPromptHint =
     state.finalPromptAssumesTwoImages === true ? t("final_prompt_hint_two") : t("final_prompt_hint_one");
-  const finalPromptBody = state.finalPromptForGeneration
-    ? `<pre class="prompt-box prompt-box--final-prompt">${escapeHtml(state.finalPromptForGeneration)}</pre>`
-    : `<p class="muted">${escapeHtml(t("final_prompt_empty"))}</p>`;
+  const assembledPreviewBlock =
+    String(state.finalPromptForGeneration || "").trim().length > 0
+      ? `<details class="stv-disclosure stv-disclosure--assembled-preview">
+          <summary>${escapeHtml(t("final_prompt_preview_summary"))}</summary>
+          <pre class="prompt-box stv-assembled-prompt-preview">${escapeHtml(state.finalPromptForGeneration)}</pre>
+        </details>`
+      : "";
+  const finalPromptBody = `<textarea id="stv-gen-prompt-body" class="prompt-box prompt-box--final-prompt" rows="14" spellcheck="false" autocomplete="off" aria-label="${escapeHtml(t("gen_prompt_label"))}" placeholder="${escapeHtml(t("final_prompt_empty"))}"></textarea>
+          <p class="muted stv-prompt-edit-hint">${escapeHtml(t("prompt_body_editable_hint"))}</p>
+          ${assembledPreviewBlock}`;
 
   /**
    * Hair / makeup: always visible; user can set preferences anytime. Server assemble runs only after
@@ -2302,6 +2427,21 @@ function renderMain() {
         /* ignore */
       }
       render();
+    });
+  }
+
+  const promptBodyTa = document.getElementById("stv-gen-prompt-body");
+  if (promptBodyTa) {
+    if (document.activeElement !== promptBodyTa) {
+      promptBodyTa.value = getGenerationPromptBodyForUi();
+    }
+    promptBodyTa.addEventListener("input", () => {
+      applyGenerationPromptBodyFromUi(promptBodyTa.value);
+      clearTimeout(promptBodyPersistTimer);
+      promptBodyPersistTimer = setTimeout(() => {
+        promptBodyPersistTimer = null;
+        void persistState();
+      }, 400);
     });
   }
 
@@ -2605,7 +2745,21 @@ export async function boot() {
   await checkAuth();
   await resumeInFlightGenerations();
 
+  /* Ensure Bearer for signed preview URLs after cold open (storage/session timing). */
+  if (supabaseClient && state.user) {
+    try {
+      const { data, error } = await supabaseClient.auth.refreshSession();
+      if (!error && data?.session?.access_token) {
+        accessTokenRef = data.session.access_token;
+      }
+    } catch {
+      await refreshAccessTokenFromSupabase();
+    }
+  }
+
   state.loading = false;
+  /* Await preview fetch before first paint — otherwise thumbnails stay broken after panel reopen. */
+  await Promise.all([refreshUserPhotosSignedPreviews(), refreshReferencePhotoSignedPreview()]);
   if (state.user && state.phase === "idle" && !state.generating && !state.resuming) {
     setToast("info", t("toast_ready"), 1800);
   }

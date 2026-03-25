@@ -605,6 +605,25 @@ input[type="file"] {
   max-height: 320px;
 }
 
+textarea.prompt-box {
+  width: 100%;
+  box-sizing: border-box;
+  display: block;
+  resize: vertical;
+  min-height: 140px;
+}
+
+.stv-prompt-edit-hint {
+  font-size: 11px;
+  margin: 6px 0 0;
+  line-height: 1.35;
+}
+
+.stv-assembled-prompt-preview {
+  max-height: 220px;
+  margin-top: 6px;
+}
+
 .prompt-box {
   margin: 0;
   padding: 8px 10px;
