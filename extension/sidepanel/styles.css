@@ -1351,3 +1351,161 @@ code {
   text-align: center;
   padding: 28px 16px;
 }
+
+/* —— Tab bar + prompt / generate / history panels —— */
+.stv-tabbar {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 4px;
+  margin: 10px 0 14px;
+  padding: 4px;
+  border-radius: var(--stv-radius-sm);
+  background: var(--stv-surface);
+  border: 1px solid var(--stv-border);
+}
+
+.stv-tab {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: var(--stv-font);
+  color: var(--stv-text-muted);
+  background: transparent;
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.stv-tab:hover {
+  color: var(--stv-text);
+  background: var(--stv-surface-hover);
+}
+
+.stv-tab--active {
+  color: #fff;
+  background: linear-gradient(135deg, var(--stv-primary) 0%, var(--stv-accent) 100%);
+  box-shadow: 0 2px 10px rgba(99, 102, 241, 0.35);
+}
+
+.stv-tab-panel--hidden {
+  display: none !important;
+}
+
+.stv-tab-lead {
+  margin: 0 0 12px;
+  font-size: 12px;
+}
+
+.stv-tab-hint {
+  margin-top: 8px;
+}
+
+.stv-prompt-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--stv-space);
+  align-items: start;
+}
+
+@media (max-width: 380px) {
+  .stv-prompt-split {
+    grid-template-columns: 1fr;
+  }
+}
+
+.stv-prompt-split-ref .stv-photo-frame,
+.stv-prompt-split-copy .stv-prompt-summary {
+  min-height: 120px;
+}
+
+.stv-prompt-tab-actions {
+  margin-top: 10px;
+}
+
+.stv-prompt-readonly,
+.stv-prompt-editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--stv-space-sm);
+}
+
+.stv-prompt-summary {
+  margin: 0;
+  max-height: 220px;
+  overflow: auto;
+  font-size: 11px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.stv-secondary-btn {
+  align-self: flex-start;
+  padding: 8px 14px;
+  border-radius: var(--stv-radius-sm);
+  border: 1px solid var(--stv-border-strong);
+  background: var(--stv-surface-hover);
+  color: var(--stv-text);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.stv-secondary-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.stv-style-block-field .stv-style-block-textarea {
+  min-height: 56px;
+  font-size: 11px;
+}
+
+.stv-prompt-editor-actions {
+  margin-top: 4px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.stv-jump-prompt-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.stv-prompt-jump-chip {
+  text-align: left;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: var(--stv-radius-sm);
+  border: 1px solid var(--stv-border-strong);
+  background: var(--stv-surface);
+  color: var(--stv-text-muted);
+  font-size: 11px;
+  line-height: 1.35;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.stv-prompt-jump-chip:hover:not(:disabled) {
+  border-color: rgba(99, 102, 241, 0.45);
+  color: var(--stv-text);
+}
+
+.stv-prompt-jump-chip:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.stv-tab-panel .stv-card-side {
+  margin-top: 14px;
+}
+
+.stv-history-empty {
+  margin: 12px 0 0;
+  padding: 0 2px;
+}
