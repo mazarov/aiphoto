@@ -1,4 +1,4 @@
-import { t, toggleUiLang } from "./i18n.js";
+import { t, tf, resolveUiLang, setUiLang } from "./i18n.js";
 import { getStvRuntime } from "./stv-config.js";
 import {
   LEGACY_VIBE_STYLE_FIELDS,
@@ -274,6 +274,35 @@ function escapeHtmlAttrUrl(url) {
     .replace(/&/g, "&amp;")
     .replace(/"/g, "&quot;")
     .replace(/</g, "&lt;");
+}
+
+function langSelectHtml() {
+  const cur = resolveUiLang();
+  const aria = escapeHtml(t("lang_select_aria"));
+  const opts = [
+    { v: "ru", l: "Русский" },
+    { v: "en", l: "English" },
+    { v: "de", l: "Deutsch" }
+  ];
+  const optionsHtml = opts
+    .map(
+      (o) =>
+        `<option value="${escapeHtml(o.v)}"${cur === o.v ? " selected" : ""}>${escapeHtml(o.l)}</option>`
+    )
+    .join("");
+  return `<label class="stv-lang-select-wrap">
+    <span class="stv-sr-only">${aria}</span>
+    <select id="stv-lang-select" class="stv-lang-select" aria-label="${aria}">${optionsHtml}</select>
+  </label>`;
+}
+
+function bindLangSelect() {
+  const sel = document.getElementById("stv-lang-select");
+  if (!sel) return;
+  sel.addEventListener("change", () => {
+    setUiLang(String(sel.value || ""));
+    render();
+  });
 }
 
 function revokeAllUserPhotoObjectUrls() {
@@ -574,14 +603,24 @@ function getAdaptivePollIntervalMs(elapsedMs) {
 function classifyErrorType(message) {
   const text = String(message || "").toLowerCase();
   if (!text) return "unknown";
-  if (text.includes("недостаточно кредитов")) return "insufficient_credits";
-  if (text.includes("таймаут")) return "timeout";
+  if (
+    text.includes("недостаточно кредитов") ||
+    text.includes("not enough credits") ||
+    text.includes("insufficient credits") ||
+    text.includes("nicht genug credits")
+  ) {
+    return "insufficient_credits";
+  }
+  if (text.includes("таймаут") || text.includes("timeout") || text.includes("timed out")) return "timeout";
   if (
     text.includes("unauthorized") ||
     text.includes("авториза") ||
     text.includes("сессия истекла") ||
     text.includes("войдите заново") ||
-    text.includes("требуется вход")
+    text.includes("требуется вход") ||
+    text.includes("sign in") ||
+    text.includes("session expired") ||
+    text.includes("anmeldung")
   ) {
     return "unauthorized";
   }
@@ -589,18 +628,20 @@ function classifyErrorType(message) {
     text.includes("fetch") ||
     text.includes("network") ||
     text.includes("соедин") ||
-    text.includes("не удалось получить изображение")
+    text.includes("не удалось получить изображение") ||
+    text.includes("could not fetch image")
   ) {
     return "network";
   }
   if (
     text.includes("validation") ||
     text.includes("проверьте параметры") ||
-    text.includes("некорректные параметры")
+    text.includes("некорректные параметры") ||
+    text.includes("check your request")
   ) {
     return "validation_error";
   }
-  if (text.includes("ошибк")) return "generation_failed";
+  if (text.includes("ошибк") || text.includes("fehlgeschlagen") || text.includes("failed")) return "generation_failed";
   return "unknown";
 }
 
@@ -644,7 +685,7 @@ function buildResultCompactRowHtml(row) {
 }
 
 function normalizeUiError(err, fallbackText) {
-  const fallback = String(fallbackText || "Произошла ошибка");
+  const fallback = String(fallbackText != null && fallbackText !== "" ? fallbackText : t("err_generic"));
   if (!err) return fallback;
 
   const payload = err.payload && typeof err.payload === "object" ? err.payload : null;
@@ -659,27 +700,27 @@ function normalizeUiError(err, fallbackText) {
     const required = Number(payload?.required || 0);
     const available = Number(payload?.available || 0);
     if (required > 0 || available >= 0) {
-      return `Недостаточно кредитов: нужно ${required}, доступно ${available}`;
+      return tf("err_insufficient_credits_detail", { required, available });
     }
-    return "Недостаточно кредитов";
+    return t("insufficient_credits");
   }
   if (code === "validation_error") {
-    return message || "Проверьте параметры запроса";
+    return message || t("err_validation_default");
   }
   if (code === "fetch_failed") {
-    return "Не удалось получить изображение по ссылке. Попробуйте другую картинку.";
+    return t("err_fetch_image_failed");
   }
   if (code === "extract_failed") {
-    return "Не удалось извлечь стиль изображения. Попробуйте снова.";
+    return t("err_extract_style_failed");
   }
   if (code === "expand_failed") {
-    return "Не удалось подготовить варианты промптов. Попробуйте снова.";
+    return t("err_expand_variants_failed");
   }
   if (code === "save_failed") {
-    return "Не удалось сохранить результат. Попробуйте позже.";
+    return t("err_save_result_failed");
   }
   if (status >= 500) {
-    return message || "Временная ошибка сервера. Попробуйте снова.";
+    return message || t("err_server_temp");
   }
   if (message) return message;
   if (err instanceof Error && err.message) return err.message;
@@ -1056,7 +1097,7 @@ async function startGoogleSignIn() {
       rt().platform.openOAuthUrl(data.url);
     }
   } catch (err) {
-    state.error = normalizeUiError(err, "OAuth failed");
+    state.error = normalizeUiError(err, t("err_oauth_failed"));
     setToast("error", state.error);
     render();
   }
@@ -1366,7 +1407,7 @@ async function checkAuth() {
     state.user = null;
     state.credits = 0;
     if (err.status !== 401) {
-      state.error = normalizeUiError(err, "Не удалось проверить авторизацию");
+      state.error = normalizeUiError(err, t("err_auth_check"));
     }
   }
 }
@@ -1404,12 +1445,12 @@ async function openBuyCredits() {
   try {
     const data = await api("/api/buy-credits-link", { method: "POST" });
     if (!data?.deepLink) {
-      throw new Error("Ссылка для оплаты не получена");
+      throw new Error(t("err_payment_url_missing"));
     }
     window.open(toAbsoluteTelegramDeepLink(data.deepLink), "_blank");
     startCreditPolling();
   } catch (err) {
-    const message = normalizeUiError(err, "Не удалось получить ссылку на оплату");
+    const message = normalizeUiError(err, t("err_payment_link"));
     state.error = message;
     setToast("error", message);
     render();
@@ -1498,7 +1539,7 @@ async function resolveExtractImageUrl() {
     const data = await api(`/api/upload-generation-photo/signed-url?path=${q}`);
     const url = data?.signedUrl;
     if (typeof url !== "string" || !url.startsWith("http")) {
-      throw new Error("Не удалось получить ссылку на референс для extract");
+      throw new Error(t("err_reference_url"));
     }
     return url;
   }
@@ -1588,7 +1629,10 @@ function scheduleAssemblePrompt() {
       }
       render();
     } catch (err) {
-      setToast("error", normalizeUiError(err, state.vibeGroomingControlsAvailable ? "assemble" : "expand"));
+      setToast(
+        "error",
+        normalizeUiError(err, state.vibeGroomingControlsAvailable ? t("err_assemble_prompt") : t("err_expand"))
+      );
     }
   }, 280);
 }
@@ -1620,11 +1664,11 @@ async function pollOne(id, onTick) {
     }
     if (data.status === "completed") return data;
     if (data.status === "failed") {
-      throw new Error(data.errorMessage || "Генерация завершилась ошибкой");
+      throw new Error(data.errorMessage || t("err_generation_failed"));
     }
     await sleep(getAdaptivePollIntervalMs(elapsedMs));
   }
-  throw new Error("Таймаут генерации");
+  throw new Error(t("err_generation_timeout"));
 }
 
 async function runRowPipeline(row) {
@@ -1672,7 +1716,7 @@ async function runRowPipeline(row) {
   } catch (err) {
     row.status = "failed";
     row.progress = 0;
-    row.error = normalizeUiError(err, "Неизвестная ошибка");
+    row.error = normalizeUiError(err, t("err_unknown"));
     row.errorType = classifyErrorType(row.error);
     row.statusDetail = t("gen_failed");
   }
@@ -1706,7 +1750,7 @@ async function resumeInFlightGenerations() {
     row.progress = 0;
     row.error = t("session_retry_hint");
     row.errorType = "session_interrupted";
-    row.statusDetail = "Ожидает ручного повтора";
+    row.statusDetail = t("history_status_manual_retry");
   }
 
   if (!inFlight.length) {
@@ -1751,7 +1795,7 @@ async function resumeInFlightGenerations() {
       } catch (err) {
         row.status = "failed";
         row.progress = 0;
-        row.error = normalizeUiError(err, "Неизвестная ошибка");
+        row.error = normalizeUiError(err, t("err_unknown"));
         row.errorType = classifyErrorType(row.error);
         row.statusDetail = t("restore_failed");
       }
@@ -1979,15 +2023,17 @@ async function completeGenerationAfterExpand(runStartedAt) {
 
 async function generateAll() {
   if (state.generating || state.awaitingContinueGenerate) return;
-  if (!hasReference()) throw new Error("Нет source image");
-  if (!hasUserPhotos()) throw new Error("Сначала загрузите фото");
+  if (!hasReference()) throw new Error(t("err_no_reference"));
+  if (!hasUserPhotos()) throw new Error(t("err_upload_photos_first"));
   if (getCooldownLeftSeconds() > 0) {
-    throw new Error(`Подождите ${getCooldownLeftSeconds()} сек перед новым запуском`);
+    throw new Error(tf("err_cooldown_wait", { n: getCooldownLeftSeconds() }));
   }
 
   const requiredCredits = getRequiredCredits();
   if (state.credits < requiredCredits) {
-    throw new Error(`Недостаточно кредитов: нужно ${requiredCredits}, доступно ${state.credits}`);
+    throw new Error(
+      tf("err_insufficient_credits_detail", { required: requiredCredits, available: state.credits })
+    );
   }
 
   state.awaitingContinueGenerate = false;
@@ -2071,7 +2117,7 @@ async function retryResultById(id) {
     if (body) row.prompt = body;
   }
   if (!hasUserPhotos()) {
-    state.error = "Сначала загрузите фото";
+    state.error = t("err_upload_photos_first");
     render();
     return;
   }
@@ -2184,22 +2230,22 @@ async function saveResultById(id) {
     if (data.cardUrl) {
       window.open(data.cardUrl, "_blank");
       if (autoTagCount > 0) {
-        setToast("success", `Сохранено: +${autoTagCount} SEO-тегов, карточка открыта`);
+        setToast("success", tf("toast_saved_seo_open", { n: autoTagCount }));
       } else {
-        setToast("success", "Сохранено и открыта карточка");
+        setToast("success", t("toast_saved_card_opened"));
       }
     } else {
       if (autoTagCount > 0) {
-        state.info = `Сохранено. Определено ${autoTagCount} SEO-тегов, карточка будет опубликована позже.`;
+        state.info = tf("info_saved_seo_pending", { n: autoTagCount });
       } else {
-        state.info = "Сохранено. Карточка будет опубликована позже.";
+        state.info = t("info_saved_card_later");
       }
-      setToast("success", "Сохранено");
+      setToast("success", t("toast_saved_ok"));
     }
     await refreshAuthSilently();
   } catch (err) {
     row.saving = false;
-    state.error = normalizeUiError(err, "Ошибка сохранения");
+    state.error = normalizeUiError(err, t("err_save"));
     setToast("error", state.error);
   }
   await persistState();
@@ -2219,7 +2265,7 @@ function renderAuthRequired() {
           </div>
         </div>
         <div class="stv-topbar-actions">
-          <button type="button" class="stv-tool-btn" id="toggle-lang">${escapeHtml(t("lang_toggle"))}</button>
+          ${langSelectHtml()}
         </div>
       </header>
       <div class="card stv-card-main">
@@ -2234,13 +2280,7 @@ function renderAuthRequired() {
     </div>
   `;
 
-  const langBtnAuth = document.getElementById("toggle-lang");
-  if (langBtnAuth) {
-    langBtnAuth.addEventListener("click", () => {
-      toggleUiLang();
-      render();
-    });
-  }
+  bindLangSelect();
 
   document.getElementById("btn-google").addEventListener("click", () => {
     void startGoogleSignIn();
@@ -2402,7 +2442,7 @@ async function runExtractExpandOnly() {
     schedulePromptReadyFlash();
   } catch (err) {
     state.prepNetworkPending = false;
-    state.error = normalizeUiError(err, "extract");
+    state.error = normalizeUiError(err, t("err_expand"));
     setToast("error", state.error);
   } finally {
     state.preparingPromptOnly = false;
@@ -2836,7 +2876,7 @@ function renderMain() {
               }
             </div>
           </details>
-          <button type="button" class="stv-tool-btn" id="toggle-lang">${escapeHtml(t("lang_toggle"))}</button>
+          ${langSelectHtml()}
           <button type="button" class="stv-tool-btn" id="sign-out">${escapeHtml(t("btn_sign_out"))}</button>
         </div>
       </header>
@@ -2879,7 +2919,7 @@ function renderMain() {
       render();
     } catch (err) {
       state.customPromptMode = true;
-      setToast("error", normalizeUiError(err, "expand"));
+      setToast("error", normalizeUiError(err, t("err_expand")));
       render();
     }
   }
@@ -2939,7 +2979,7 @@ function renderMain() {
         state.runStage = "idle";
         state.pipelinePrepPercent = 0;
         state.phase = "idle";
-        state.error = normalizeUiError(err, "Ошибка генерации");
+        state.error = normalizeUiError(err, t("err_generate_flow"));
         setToast("error", state.error);
         render();
         await persistState();
@@ -2953,13 +2993,7 @@ function renderMain() {
       void signOutExtension();
     });
   }
-  const langBtn = document.getElementById("toggle-lang");
-  if (langBtn) {
-    langBtn.addEventListener("click", () => {
-      toggleUiLang();
-      render();
-    });
-  }
+  bindLangSelect();
 
   app.querySelectorAll("[data-panel-tab]").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -3101,7 +3135,7 @@ function renderMain() {
         setToast("success", state.userPhotos.length > 1 ? t("photo_added") : t("photo_uploaded"));
         render();
       } catch (err) {
-        state.error = normalizeUiError(err, "Ошибка загрузки фото");
+        state.error = normalizeUiError(err, t("err_photo_upload"));
         setToast("error", state.error);
         render();
       }
@@ -3122,7 +3156,7 @@ function renderMain() {
         setToast("success", t("reference_uploaded"));
         render();
       } catch (err) {
-        state.error = normalizeUiError(err, "Ошибка загрузки референса");
+        state.error = normalizeUiError(err, t("err_reference_upload"));
         setToast("error", state.error);
         render();
       }
@@ -3158,7 +3192,7 @@ function renderMain() {
       state.runStage = "idle";
       state.pipelinePrepPercent = 0;
       state.phase = "idle";
-      state.error = normalizeUiError(err, "Ошибка генерации");
+      state.error = normalizeUiError(err, t("err_generate_flow"));
       setToast("error", state.error);
       render();
       await persistState();

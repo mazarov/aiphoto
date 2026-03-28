@@ -19,7 +19,7 @@ Flow:
 
 После успешного extract/expand отображается блок **«Шаг 1»**: JSON стиля с референса, поля **`modelUsed`** (vision / expand) и кнопка загрузки полных системных инструкций через `GET /api/vibe/pipeline-spec`.
 
-**Язык UI:** RU по умолчанию, DE если `navigator.language` начинается с `de`, либо переключатель **DE/RU** в панели (`localStorage.stv_ui_lang`).
+**Язык UI:** RU по умолчанию, EN если `navigator.language` начинается с `en`, DE если с `de`; выбор **Русский / English / Deutsch** в выпадающем списке в шапке панели (`localStorage.stv_ui_lang`: `ru` | `en` | `de`).
 
 ## Структура
 

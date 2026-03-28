@@ -14206,6 +14206,13 @@ var STRINGS = {
     cooldown: "\u041F\u043E\u0434\u043E\u0436\u0434\u0438\u0442\u0435",
     cooldown_sec: "\u0441\u0435\u043A",
     progress_total: "\u041F\u0440\u043E\u0433\u0440\u0435\u0441\u0441",
+    progress_working: "\u0412\u044B\u043F\u043E\u043B\u043D\u044F\u0435\u0442\u0441\u044F\u2026",
+    meta_account: "\u0410\u043A\u043A\u0430\u0443\u043D\u0442",
+    prompt_mode_from_style: "\u0418\u0437 \u0441\u0442\u0438\u043B\u044F",
+    prompt_mode_custom: "\u0421\u0432\u043E\u0439 \u0442\u0435\u043A\u0441\u0442",
+    prompt_mode_group_aria: "\u0418\u0441\u0442\u043E\u0447\u043D\u0438\u043A \u0442\u0435\u043A\u0441\u0442\u0430 \u043F\u0440\u043E\u043C\u043F\u0442\u0430",
+    history_run_kind_prompt: "\u0422\u043E\u043B\u044C\u043A\u043E \u043F\u0440\u043E\u043C\u043F\u0442",
+    history_thumb_prompt_only: "\u041F\u0440\u043E\u043C\u043F\u0442 \u0431\u0435\u0437 \u043A\u0430\u0440\u0442\u0438\u043D\u043A\u0438",
     done_label: "\u0413\u043E\u0442\u043E\u0432\u043E",
     errors_label: "\u041E\u0448\u0438\u0431\u043A\u0438",
     status: "\u0421\u0442\u0430\u0442\u0443\u0441",
@@ -14283,6 +14290,17 @@ var STRINGS = {
     btn_stage_assemble: "\u0421\u043E\u0431\u0438\u0440\u0430\u0435\u043C \u043F\u0440\u043E\u043C\u043F\u0442\u2026",
     btn_pipeline_spec: "\u0421\u0438\u0441\u0442\u0435\u043C\u043D\u044B\u0435 \u043F\u0440\u043E\u043C\u043F\u0442\u044B API",
     step1_final_prompt_title: "\u0424\u0438\u043D\u0430\u043B\u044C\u043D\u044B\u0439 \u043F\u0440\u043E\u043C\u043F\u0442 (\u0443\u0445\u043E\u0434\u0438\u0442 \u0432 PromptShot \u2192 Gemini)",
+    prompt_body_editable_hint: "\u041C\u043E\u0436\u043D\u043E \u043F\u0440\u0430\u0432\u0438\u0442\u044C \u0438 \u0432\u0441\u0442\u0430\u0432\u043B\u044F\u0442\u044C \u0441\u0432\u043E\u0439 \u0442\u0435\u043A\u0441\u0442. \u0412 \u0437\u0430\u043F\u0440\u043E\u0441 \u0443\u0445\u043E\u0434\u0438\u0442 \u044D\u0442\u043E \u043F\u043E\u043B\u0435; \u0441\u0435\u0440\u0432\u0435\u0440 \u0434\u043E\u0431\u0430\u0432\u043B\u044F\u0435\u0442 \u0441\u043B\u0443\u0436\u0435\u0431\u043D\u044B\u0435 \u043F\u0440\u0430\u0432\u0438\u043B\u0430 \u0438 \u043F\u0440\u0435\u0444\u0438\u043A\u0441 (\u0441\u043C. \u0440\u0430\u0441\u043A\u0440\u044B\u0442\u044B\u0439 \u0431\u043B\u043E\u043A \u043D\u0438\u0436\u0435, \u0435\u0441\u043B\u0438 \u043E\u043D \u0435\u0441\u0442\u044C).",
+    custom_prompt_checkbox: "\u0421\u0432\u043E\u0439 \u043F\u0440\u043E\u043C\u043F\u0442",
+    custom_prompt_mode_hint: "\u0420\u0435\u0436\u0438\u043C \u0441\u0432\u043E\u0435\u0433\u043E \u043F\u0440\u043E\u043C\u043F\u0442\u0430: expand \u043D\u0435 \u0432\u044B\u0437\u044B\u0432\u0430\u0435\u0442\u0441\u044F, \u0432 \u043C\u043E\u0434\u0435\u043B\u044C \u0443\u0445\u043E\u0434\u0438\u0442 \u0442\u043E\u043B\u044C\u043A\u043E \u0442\u0435\u043A\u0441\u0442 \u043D\u0438\u0436\u0435 (\u043F\u043B\u044E\u0441 \u0442\u043E, \u0447\u0442\u043E \u0434\u043E\u0431\u0430\u0432\u0438\u0442 \u0441\u0435\u0440\u0432\u0435\u0440). \u041D\u0443\u0436\u0435\u043D \u043D\u0435\u043F\u0443\u0441\u0442\u043E\u0439 \u0442\u0435\u043A\u0441\u0442 \u043E\u0442 8 \u0441\u0438\u043C\u0432\u043E\u043B\u043E\u0432.",
+    custom_prompt_placeholder: "\u0412\u0432\u0435\u0434\u0438\u0442\u0435 \u043F\u0440\u043E\u043C\u043F\u0442 \u0434\u043B\u044F \u0433\u0435\u043D\u0435\u0440\u0430\u0446\u0438\u0438\u2026",
+    custom_prompt_edit_hint: "\u0422\u0435\u043A\u0441\u0442 \u0443\u0445\u043E\u0434\u0438\u0442 \u0432 POST /api/generate \u043A\u0430\u043A prompt; \u0441\u0435\u0440\u0432\u0435\u0440 \u0434\u043E\u043F\u043E\u043B\u043D\u0438\u0442 \u0438\u043D\u0441\u0442\u0440\u0443\u043A\u0446\u0438\u044F\u043C\u0438 \u0434\u043B\u044F vibe-\u0433\u0435\u043D\u0435\u0440\u0430\u0446\u0438\u0438.",
+    custom_prompt_restored: "\u041F\u0440\u043E\u043C\u043F\u0442 \u0441\u043D\u043E\u0432\u0430 \u0441\u043E\u0431\u0440\u0430\u043D \u0438\u0437 \u0441\u0442\u0438\u043B\u044F (expand)",
+    err_custom_prompt_empty: "\u0412\u043A\u043B\u044E\u0447\u0451\u043D \xAB\u0421\u0432\u043E\u0439 \u043F\u0440\u043E\u043C\u043F\u0442\xBB \u2014 \u0432\u0432\u0435\u0434\u0438\u0442\u0435 \u0442\u0435\u043A\u0441\u0442 \u043F\u0440\u043E\u043C\u043F\u0442\u0430.",
+    err_custom_prompt_short: "\u041F\u0440\u043E\u043C\u043F\u0442 \u0441\u043B\u0438\u0448\u043A\u043E\u043C \u043A\u043E\u0440\u043E\u0442\u043A\u0438\u0439: \u043D\u0443\u0436\u043D\u043E \u043C\u0438\u043D\u0438\u043C\u0443\u043C 8 \u0441\u0438\u043C\u0432\u043E\u043B\u043E\u0432.",
+    grooming_custom_prompt_hint: "\u041F\u0440\u0438 \xAB\u0421\u0432\u043E\u0451\u043C \u043F\u0440\u043E\u043C\u043F\u0442\u0435\xBB \u0433\u0430\u043B\u043E\u0447\u043A\u0438 \u0432\u043E\u043B\u043E\u0441/\u043C\u0430\u043A\u0438\u044F\u0436\u0430 \u043D\u0435 \u043F\u0440\u0438\u043C\u0435\u043D\u044F\u044E\u0442\u0441\u044F \u2014 \u0442\u0435\u043A\u0441\u0442 \u0437\u0430\u0434\u0430\u0451\u0442\u0435 \u0432\u044B \u0446\u0435\u043B\u0438\u043A\u043E\u043C.",
+    expand_skipped_custom: "\u043D\u0435 \u0438\u0441\u043F\u043E\u043B\u044C\u0437\u0443\u0435\u0442\u0441\u044F (\u0441\u0432\u043E\u0439 \u043F\u0440\u043E\u043C\u043F\u0442)",
+    final_prompt_preview_summary: "\u041A\u0430\u043A \u0441\u043E\u0431\u0435\u0440\u0451\u0442\u0441\u044F \u043D\u0430 \u0441\u0435\u0440\u0432\u0435\u0440\u0435 (\u0442\u043E\u043B\u044C\u043A\u043E \u043F\u0440\u043E\u0441\u043C\u043E\u0442\u0440)",
     final_prompt_empty: "\u041F\u043E\u044F\u0432\u0438\u0442\u0441\u044F \u043F\u043E\u0441\u043B\u0435 expand \u2014 \u043D\u0430\u0436\u043C\u0438\u0442\u0435 \xAB\u0421\u0433\u0435\u043D\u0435\u0440\u0438\u0440\u043E\u0432\u0430\u0442\u044C\xBB (\u0448\u0430\u0433\u0438 extract \u2192 expand).",
     final_prompt_hint_two: "\u0421\u0431\u043E\u0440\u043A\u0430 \u0441\u043E\u0432\u043F\u0430\u0434\u0430\u0435\u0442 \u0441 \u0441\u0435\u0440\u0432\u0435\u0440\u043E\u043C: \u043F\u0440\u0435\u0444\u0438\u043A\u0441 (2 \u0438\u0437\u043E\u0431\u0440\u0430\u0436\u0435\u043D\u0438\u044F) + \u043D\u0430\u043F\u043E\u043C\u0438\u043D\u0430\u043D\u0438\u0435 \u043F\u0440\u043E JSON + \u0442\u0435\u043A\u0441\u0442 expand. \u0412 \u0437\u0430\u043F\u0440\u043E\u0441\u0435: \u0440\u0435\u0444\u0435\u0440\u0435\u043D\u0441, \u0437\u0430\u0442\u0435\u043C \u0432\u0430\u0448\u0435 \u0444\u043E\u0442\u043E.",
     final_prompt_hint_one: "\u0412 vibe \u043D\u0435\u0442 URL \u0440\u0435\u0444\u0435\u0440\u0435\u043D\u0441\u0430 \u2014 \u043F\u0440\u0435\u0444\u0438\u043A\u0441 \u0434\u043B\u044F \u043E\u0434\u043D\u043E\u0433\u043E \u0438\u0437\u043E\u0431\u0440\u0430\u0436\u0435\u043D\u0438\u044F. \u041D\u0430 \u0441\u0435\u0440\u0432\u0435\u0440\u0435 \u043F\u0440\u0438 \u0443\u0441\u043F\u0435\u0448\u043D\u043E\u0439 \u0437\u0430\u0433\u0440\u0443\u0437\u043A\u0435 \u0440\u0435\u0444\u0435\u0440\u0435\u043D\u0441\u0430 \u043C\u043E\u0436\u0435\u0442 \u0431\u044B\u0442\u044C \u0432\u0430\u0440\u0438\u0430\u043D\u0442 \u0441 \u0434\u0432\u0443\u043C\u044F \u043A\u0430\u0440\u0442\u0438\u043D\u043A\u0430\u043C\u0438.",
@@ -14292,7 +14310,316 @@ var STRINGS = {
     grooming_unlock_hint: "\u0413\u0430\u043B\u043E\u0447\u043A\u0438 \u0434\u043E\u0431\u0430\u0432\u043B\u044F\u044E\u0442 \u0432 \u0444\u0438\u043D\u0430\u043B\u044C\u043D\u044B\u0439 \u043F\u0440\u043E\u043C\u043F\u0442 \u043E\u0442\u0434\u0435\u043B\u044C\u043D\u044B\u0435 \u0431\u043B\u043E\u043A\u0438 \u043F\u0440\u043E \u0443\u043A\u043B\u0430\u0434\u043A\u0443 \u0438 \u043C\u0430\u043A\u0438\u044F\u0436 \u0441 \u0440\u0435\u0444\u0435\u0440\u0435\u043D\u0441\u0430 (\u043F\u043E\u0441\u043B\u0435 \xAB\u0421\u0433\u0435\u043D\u0435\u0440\u0438\u0440\u043E\u0432\u0430\u0442\u044C\xBB \u0443\u0447\u0438\u0442\u044B\u0432\u0430\u044E\u0442\u0441\u044F \u043F\u0440\u0438 expand; \u0441\u043C\u0435\u043D\u0430 \u0433\u0430\u043B\u043E\u0447\u0435\u043A \u043E\u0431\u043D\u043E\u0432\u043B\u044F\u0435\u0442 \u043F\u0440\u0435\u0432\u044C\u044E \u043F\u0440\u043E\u043C\u043F\u0442\u0430).",
     grooming_ready_hint: "\u041F\u0435\u0440\u0435\u043D\u043E\u0441 \u0443\u043A\u043B\u0430\u0434\u043A\u0438 \u0438 \u043C\u0430\u043A\u0438\u044F\u0436\u0430 \u0443\u0436\u0435 \u0443\u0447\u0438\u0442\u044B\u0432\u0430\u0435\u0442\u0441\u044F \u0432 \u043F\u0440\u043E\u043C\u043F\u0442\u0435. \u041F\u0435\u0440\u0435\u0434 \u043D\u043E\u0432\u044B\u043C \u0437\u0430\u043F\u0443\u0441\u043A\u043E\u043C \u043C\u043E\u0436\u043D\u043E \u0441\u043D\u044F\u0442\u044C \u0433\u0430\u043B\u043E\u0447\u043A\u0438 \u0434\u043E \xAB\u0421\u0433\u0435\u043D\u0435\u0440\u0438\u0440\u043E\u0432\u0430\u0442\u044C\xBB.",
     grooming_adjust_hint: "\u0415\u0441\u043B\u0438 \u043F\u043E\u0441\u043B\u0435 \u043F\u0440\u043E\u0448\u043B\u043E\u0433\u043E \u0437\u0430\u043F\u0443\u0441\u043A\u0430 \u043E\u0441\u0442\u0430\u043B\u0441\u044F \u0448\u0430\u0433 \xAB\u041F\u0440\u043E\u0434\u043E\u043B\u0436\u0438\u0442\u044C\xBB \u2014 \u043D\u0430\u0436\u043C\u0438\u0442\u0435 \u043A\u043D\u043E\u043F\u043A\u0443. \u0412 \u043D\u043E\u0432\u043E\u043C \u0437\u0430\u043F\u0443\u0441\u043A\u0435 \u043F\u0430\u0443\u0437\u044B \u043D\u0435\u0442: \u0433\u0430\u043B\u043E\u0447\u043A\u0438 \u0434\u0435\u0439\u0441\u0442\u0432\u0443\u044E\u0442 \u0441\u0440\u0430\u0437\u0443.",
-    btn_continue_generate: "\u041F\u0440\u043E\u0434\u043E\u043B\u0436\u0438\u0442\u044C \u0433\u0435\u043D\u0435\u0440\u0430\u0446\u0438\u044E"
+    btn_continue_generate: "\u041F\u0440\u043E\u0434\u043E\u043B\u0436\u0438\u0442\u044C \u0433\u0435\u043D\u0435\u0440\u0430\u0446\u0438\u044E",
+    tab_prompt: "\u041F\u0440\u043E\u043C\u043F\u0442",
+    tab_generate: "\u0413\u0435\u043D\u0435\u0440\u0430\u0446\u0438\u044F",
+    tab_history: "\u041C\u043E\u0438 \u0433\u0435\u043D\u0435\u0440\u0430\u0446\u0438\u0438",
+    tabbar_aria: "\u0420\u0430\u0437\u0434\u0435\u043B\u044B \u043F\u0430\u043D\u0435\u043B\u0438",
+    tab_prompt_lead: "\u0420\u0435\u0444\u0435\u0440\u0435\u043D\u0441 \u0441\u043B\u0435\u0432\u0430 \u2014 \u0440\u0430\u0441\u043F\u043E\u0437\u043D\u0430\u043D\u043D\u044B\u0439 \u043F\u0440\u043E\u043C\u043F\u0442 \u0441\u043F\u0440\u0430\u0432\u0430. \u041C\u043E\u0436\u043D\u043E \u0438\u0437\u0432\u043B\u0435\u0447\u044C \u0441\u0442\u0438\u043B\u044C \u0431\u0435\u0437 \u0437\u0430\u043F\u0443\u0441\u043A\u0430 \u043A\u0430\u0440\u0442\u0438\u043D\u043A\u0438.",
+    tab_prompt_recognized_label: "\u041F\u0440\u043E\u043C\u043F\u0442 \u0434\u043B\u044F \u0433\u0435\u043D\u0435\u0440\u0430\u0446\u0438\u0438",
+    tab_prompt_no_reference: "\u0414\u043E\u0431\u0430\u0432\u044C\u0442\u0435 \u0440\u0435\u0444\u0435\u0440\u0435\u043D\u0441: \xABSteal this vibe\xBB \u043D\u0430 \u0441\u0430\u0439\u0442\u0435 \u0438\u043B\u0438 \xAB+\xBB \u0437\u0434\u0435\u0441\u044C.",
+    tab_prompt_need_reference: "\u0421\u043D\u0430\u0447\u0430\u043B\u0430 \u0432\u044B\u0431\u0435\u0440\u0438\u0442\u0435 \u0440\u0435\u0444\u0435\u0440\u0435\u043D\u0441.",
+    tab_prompt_custom_mode_hint: "\u0412\u043A\u043B\u044E\u0447\u0451\u043D \u0440\u0435\u0436\u0438\u043C \xAB\u0421\u0432\u043E\u0439 \u043F\u0440\u043E\u043C\u043F\u0442\xBB \u2014 \u0440\u0435\u0434\u0430\u043A\u0442\u0438\u0440\u0443\u0439\u0442\u0435 \u0442\u0435\u043A\u0441\u0442 \u043D\u0430 \u0432\u043A\u043B\u0430\u0434\u043A\u0435 \xAB\u0413\u0435\u043D\u0435\u0440\u0430\u0446\u0438\u044F\xBB. \u0411\u043B\u043E\u043A\u0438 \u0441\u0442\u0438\u043B\u044F \u0437\u0434\u0435\u0441\u044C \u043D\u0435\u0434\u043E\u0441\u0442\u0443\u043F\u043D\u044B.",
+    btn_extract_prompt_only: "\u0418\u0437\u0432\u043B\u0435\u0447\u044C \u043F\u0440\u043E\u043C\u043F\u0442",
+    btn_refresh_prompt_extract: "\u041E\u0431\u043D\u043E\u0432\u0438\u0442\u044C \u043F\u0440\u043E\u043C\u043F\u0442",
+    toast_prompt_ready: "\u041F\u0440\u043E\u043C\u043F\u0442 \u0433\u043E\u0442\u043E\u0432",
+    btn_edit_prompt_blocks: "\u0420\u0435\u0434\u0430\u043A\u0442\u0438\u0440\u043E\u0432\u0430\u0442\u044C \u0431\u043B\u043E\u043A\u0438",
+    btn_save_prompt_blocks: "\u0421\u043E\u0445\u0440\u0430\u043D\u0438\u0442\u044C",
+    btn_cancel_prompt_edit: "\u041E\u0442\u043C\u0435\u043D\u0430",
+    btn_copy_prompt: "\u041A\u043E\u043F\u0438\u0440\u043E\u0432\u0430\u0442\u044C",
+    btn_copy_prompt_aria: "\u0421\u043A\u043E\u043F\u0438\u0440\u043E\u0432\u0430\u0442\u044C \u043F\u0440\u043E\u043C\u043F\u0442 \u0432 \u0431\u0443\u0444\u0435\u0440 \u043E\u0431\u043C\u0435\u043D\u0430",
+    err_style_body_empty: "\u0417\u0430\u043F\u043E\u043B\u043D\u0438\u0442\u0435 \u0445\u043E\u0442\u044F \u0431\u044B \u043E\u0434\u043D\u043E \u043F\u043E\u043B\u0435 \u0441\u0442\u0438\u043B\u044F \u0438\u043B\u0438 \u0441\u043D\u043E\u0432\u0430 \u0438\u0437\u0432\u043B\u0435\u043A\u0438\u0442\u0435 \u043F\u0440\u043E\u043C\u043F\u0442.",
+    toast_prompt_blocks_saved: "\u041F\u0440\u043E\u043C\u043F\u0442 \u043E\u0431\u043D\u043E\u0432\u043B\u0451\u043D",
+    current_prompt_label: "\u0422\u0435\u043A\u0443\u0449\u0438\u0439 \u043F\u0440\u043E\u043C\u043F\u0442 \u2014 \u043E\u0442\u043A\u0440\u044B\u0442\u044C \u043D\u0430 \u0432\u043A\u043B\u0430\u0434\u043A\u0435 \xAB\u041F\u0440\u043E\u043C\u043F\u0442\xBB",
+    btn_edit_prompt_goto_tab: "\u0418\u0437\u043C\u0435\u043D\u0438\u0442\u044C",
+    tab_jump_prompt_empty: "\u041F\u0440\u043E\u043C\u043F\u0442 \u0435\u0449\u0451 \u043D\u0435 \u0433\u043E\u0442\u043E\u0432",
+    history_empty_hint: "\u0417\u0430\u043F\u0443\u0441\u043A\u043E\u0432 \u043F\u043E\u043A\u0430 \u043D\u0435\u0442 \u2014 \u043F\u043E\u0441\u043B\u0435 \u0433\u0435\u043D\u0435\u0440\u0430\u0446\u0438\u0438 \u043A\u0430\u0440\u0442\u0438\u043D\u043A\u0438 \u0438\u043B\u0438 \u0438\u0437\u0432\u043B\u0435\u0447\u0435\u043D\u0438\u044F \u043F\u0440\u043E\u043C\u043F\u0442\u0430.",
+    history_filter_aria: "\u0424\u0438\u043B\u044C\u0442\u0440 \u0438\u0441\u0442\u043E\u0440\u0438\u0438",
+    history_filter_all: "\u0412\u0441\u0435",
+    history_filter_image: "\u0421 \u0444\u043E\u0442\u043E",
+    history_filter_prompt: "\u041F\u0440\u043E\u043C\u043F\u0442",
+    history_filter_empty: "\u0412 \u044D\u0442\u043E\u0439 \u043A\u0430\u0442\u0435\u0433\u043E\u0440\u0438\u0438 \u043F\u043E\u043A\u0430 \u043F\u0443\u0441\u0442\u043E.",
+    settings_disclosure_summary: "\u041F\u0430\u0440\u0430\u043C\u0435\u0442\u0440\u044B \u0433\u0435\u043D\u0435\u0440\u0430\u0446\u0438\u0438",
+    stale_prompt_hint: "\u0420\u0435\u0444\u0435\u0440\u0435\u043D\u0441 \u0438\u0437\u043C\u0435\u043D\u0438\u043B\u0441\u044F \u2014 \u043D\u0430\u0436\u043C\u0438\u0442\u0435 \xAB\u041E\u0431\u043D\u043E\u0432\u0438\u0442\u044C \u043F\u0440\u043E\u043C\u043F\u0442\xBB, \u0447\u0442\u043E\u0431\u044B \u0441\u0438\u043D\u0445\u0440\u043E\u043D\u0438\u0437\u0438\u0440\u043E\u0432\u0430\u0442\u044C \u0442\u0435\u043A\u0441\u0442.",
+    btn_dismiss_error: "\u0421\u043A\u0440\u044B\u0442\u044C",
+    prompt_section_summary: "\u041F\u0440\u043E\u043C\u043F\u0442",
+    lang_select_aria: "\u042F\u0437\u044B\u043A \u0438\u043D\u0442\u0435\u0440\u0444\u0435\u0439\u0441\u0430",
+    err_generic: "\u041F\u0440\u043E\u0438\u0437\u043E\u0448\u043B\u0430 \u043E\u0448\u0438\u0431\u043A\u0430",
+    err_insufficient_credits_detail: "\u041D\u0435\u0434\u043E\u0441\u0442\u0430\u0442\u043E\u0447\u043D\u043E \u043A\u0440\u0435\u0434\u0438\u0442\u043E\u0432: \u043D\u0443\u0436\u043D\u043E {required}, \u0434\u043E\u0441\u0442\u0443\u043F\u043D\u043E {available}",
+    err_cooldown_wait: "\u041F\u043E\u0434\u043E\u0436\u0434\u0438\u0442\u0435 {n} \u0441\u0435\u043A \u043F\u0435\u0440\u0435\u0434 \u043D\u043E\u0432\u044B\u043C \u0437\u0430\u043F\u0443\u0441\u043A\u043E\u043C",
+    err_no_reference: "\u0421\u043D\u0430\u0447\u0430\u043B\u0430 \u0432\u044B\u0431\u0435\u0440\u0438\u0442\u0435 \u0440\u0435\u0444\u0435\u0440\u0435\u043D\u0441",
+    err_upload_photos_first: "\u0421\u043D\u0430\u0447\u0430\u043B\u0430 \u0437\u0430\u0433\u0440\u0443\u0437\u0438\u0442\u0435 \u0444\u043E\u0442\u043E",
+    history_status_manual_retry: "\u041E\u0436\u0438\u0434\u0430\u0435\u0442 \u0440\u0443\u0447\u043D\u043E\u0433\u043E \u043F\u043E\u0432\u0442\u043E\u0440\u0430",
+    toast_saved_seo_open: "\u0421\u043E\u0445\u0440\u0430\u043D\u0435\u043D\u043E: +{n} SEO-\u0442\u0435\u0433\u043E\u0432, \u043A\u0430\u0440\u0442\u043E\u0447\u043A\u0430 \u043E\u0442\u043A\u0440\u044B\u0442\u0430",
+    toast_saved_card_opened: "\u0421\u043E\u0445\u0440\u0430\u043D\u0435\u043D\u043E \u0438 \u043E\u0442\u043A\u0440\u044B\u0442\u0430 \u043A\u0430\u0440\u0442\u043E\u0447\u043A\u0430",
+    info_saved_seo_pending: "\u0421\u043E\u0445\u0440\u0430\u043D\u0435\u043D\u043E. \u041E\u043F\u0440\u0435\u0434\u0435\u043B\u0435\u043D\u043E {n} SEO-\u0442\u0435\u0433\u043E\u0432, \u043A\u0430\u0440\u0442\u043E\u0447\u043A\u0430 \u0431\u0443\u0434\u0435\u0442 \u043E\u043F\u0443\u0431\u043B\u0438\u043A\u043E\u0432\u0430\u043D\u0430 \u043F\u043E\u0437\u0436\u0435.",
+    info_saved_card_later: "\u0421\u043E\u0445\u0440\u0430\u043D\u0435\u043D\u043E. \u041A\u0430\u0440\u0442\u043E\u0447\u043A\u0430 \u0431\u0443\u0434\u0435\u0442 \u043E\u043F\u0443\u0431\u043B\u0438\u043A\u043E\u0432\u0430\u043D\u0430 \u043F\u043E\u0437\u0436\u0435.",
+    toast_saved_ok: "\u0421\u043E\u0445\u0440\u0430\u043D\u0435\u043D\u043E",
+    err_auth_check: "\u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u043F\u0440\u043E\u0432\u0435\u0440\u0438\u0442\u044C \u0430\u0432\u0442\u043E\u0440\u0438\u0437\u0430\u0446\u0438\u044E",
+    err_payment_url_missing: "\u0421\u0441\u044B\u043B\u043A\u0430 \u0434\u043B\u044F \u043E\u043F\u043B\u0430\u0442\u044B \u043D\u0435 \u043F\u043E\u043B\u0443\u0447\u0435\u043D\u0430",
+    err_payment_link: "\u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u043F\u043E\u043B\u0443\u0447\u0438\u0442\u044C \u0441\u0441\u044B\u043B\u043A\u0443 \u043D\u0430 \u043E\u043F\u043B\u0430\u0442\u0443",
+    err_reference_url: "\u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u043F\u043E\u043B\u0443\u0447\u0438\u0442\u044C \u0441\u0441\u044B\u043B\u043A\u0443 \u043D\u0430 \u0440\u0435\u0444\u0435\u0440\u0435\u043D\u0441 \u0434\u043B\u044F extract",
+    err_generation_failed: "\u0413\u0435\u043D\u0435\u0440\u0430\u0446\u0438\u044F \u0437\u0430\u0432\u0435\u0440\u0448\u0438\u043B\u0430\u0441\u044C \u043E\u0448\u0438\u0431\u043A\u043E\u0439",
+    err_generation_timeout: "\u0422\u0430\u0439\u043C\u0430\u0443\u0442 \u0433\u0435\u043D\u0435\u0440\u0430\u0446\u0438\u0438",
+    err_unknown: "\u041D\u0435\u0438\u0437\u0432\u0435\u0441\u0442\u043D\u0430\u044F \u043E\u0448\u0438\u0431\u043A\u0430",
+    err_save: "\u041E\u0448\u0438\u0431\u043A\u0430 \u0441\u043E\u0445\u0440\u0430\u043D\u0435\u043D\u0438\u044F",
+    err_generate_flow: "\u041E\u0448\u0438\u0431\u043A\u0430 \u0433\u0435\u043D\u0435\u0440\u0430\u0446\u0438\u0438",
+    err_photo_upload: "\u041E\u0448\u0438\u0431\u043A\u0430 \u0437\u0430\u0433\u0440\u0443\u0437\u043A\u0438 \u0444\u043E\u0442\u043E",
+    err_reference_upload: "\u041E\u0448\u0438\u0431\u043A\u0430 \u0437\u0430\u0433\u0440\u0443\u0437\u043A\u0438 \u0440\u0435\u0444\u0435\u0440\u0435\u043D\u0441\u0430",
+    err_validation_default: "\u041F\u0440\u043E\u0432\u0435\u0440\u044C\u0442\u0435 \u043F\u0430\u0440\u0430\u043C\u0435\u0442\u0440\u044B \u0437\u0430\u043F\u0440\u043E\u0441\u0430",
+    err_fetch_image_failed: "\u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u043F\u043E\u043B\u0443\u0447\u0438\u0442\u044C \u0438\u0437\u043E\u0431\u0440\u0430\u0436\u0435\u043D\u0438\u0435 \u043F\u043E \u0441\u0441\u044B\u043B\u043A\u0435. \u041F\u043E\u043F\u0440\u043E\u0431\u0443\u0439\u0442\u0435 \u0434\u0440\u0443\u0433\u0443\u044E \u043A\u0430\u0440\u0442\u0438\u043D\u043A\u0443.",
+    err_extract_style_failed: "\u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u0438\u0437\u0432\u043B\u0435\u0447\u044C \u0441\u0442\u0438\u043B\u044C \u0438\u0437\u043E\u0431\u0440\u0430\u0436\u0435\u043D\u0438\u044F. \u041F\u043E\u043F\u0440\u043E\u0431\u0443\u0439\u0442\u0435 \u0441\u043D\u043E\u0432\u0430.",
+    err_expand_variants_failed: "\u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u043F\u043E\u0434\u0433\u043E\u0442\u043E\u0432\u0438\u0442\u044C \u0432\u0430\u0440\u0438\u0430\u043D\u0442\u044B \u043F\u0440\u043E\u043C\u043F\u0442\u043E\u0432. \u041F\u043E\u043F\u0440\u043E\u0431\u0443\u0439\u0442\u0435 \u0441\u043D\u043E\u0432\u0430.",
+    err_save_result_failed: "\u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u0441\u043E\u0445\u0440\u0430\u043D\u0438\u0442\u044C \u0440\u0435\u0437\u0443\u043B\u044C\u0442\u0430\u0442. \u041F\u043E\u043F\u0440\u043E\u0431\u0443\u0439\u0442\u0435 \u043F\u043E\u0437\u0436\u0435.",
+    err_server_temp: "\u0412\u0440\u0435\u043C\u0435\u043D\u043D\u0430\u044F \u043E\u0448\u0438\u0431\u043A\u0430 \u0441\u0435\u0440\u0432\u0435\u0440\u0430. \u041F\u043E\u043F\u0440\u043E\u0431\u0443\u0439\u0442\u0435 \u0441\u043D\u043E\u0432\u0430.",
+    err_oauth_failed: "\u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u0432\u043E\u0439\u0442\u0438 \u0447\u0435\u0440\u0435\u0437 Google",
+    err_assemble_prompt: "\u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u0441\u043E\u0431\u0440\u0430\u0442\u044C \u043F\u0440\u043E\u043C\u043F\u0442"
+  },
+  en: {
+    title_app: "Steal This Vibe",
+    brand_sub: "Extension \xB7 Steal This Vibe",
+    section_ref: "Style from reference",
+    section_photos_compare: "Photo, reference & result",
+    compare_col_your_photo: "Your photo",
+    compare_col_reference: "Reference style",
+    compare_col_result: "Result",
+    compare_result_empty: "Appears after you start generation (step 3)",
+    result_prompt_summary: "Prompt",
+    compare_photo_empty: "No photo selected",
+    section_upload: "Your photo",
+    section_settings: "Settings",
+    section_actions: "Run",
+    field_model: "Model",
+    field_ratio: "Aspect ratio",
+    field_size: "Output size",
+    field_extract_temperature: "Extract temperature",
+    field_extract_temperature_hint: "Only for reference style analysis (JSON), not for the image model below.",
+    extract_temp_default: "Default (API)",
+    extract_temp_01: "Stricter (0.1)",
+    extract_temp_03: "Balanced (0.3)",
+    extract_temp_06: "Looser (0.6)",
+    extract_temp_09: "More variation (0.9)",
+    extract_temp_10: "Max in presets (1.0)",
+    more_actions: "More actions",
+    dev_details: "For developers",
+    dev_doc_hint: "UI structure: docs/extension-ui-spec.md in the aiphoto repo.",
+    loading: "Loading...",
+    session_ok: "Signed in",
+    session_bad: "Sign-in required",
+    auth_hint: "Sign in with Google \u2014 no need to leave the site.",
+    btn_google: "Sign in with Google",
+    btn_retry_auth: "Check again",
+    btn_sign_out: "Sign out",
+    toast_ready: "Ready to generate",
+    user: "User",
+    api: "API",
+    credits: "Credits",
+    cost_run: "Cost per run",
+    credit_word: "credit(s)",
+    insufficient_credits: "Not enough credits",
+    source_hint: 'Hover any image on a page and click "Steal this vibe".',
+    reference_empty_hint: 'Or tap "+" and pick a reference file from your computer (one photo).',
+    reference_pick_aria: "Upload reference style photo from computer",
+    reference_remove_aria: "Remove reference",
+    reference_uploaded: "Reference uploaded",
+    first_run_hint: 'Tip: style reference from the site ("Steal this vibe") or "+" in the reference column; then upload your photo.',
+    photo_uploaded: "Photo uploaded",
+    photo_preview_loading: "Loading preview\u2026",
+    photo_saved_label: "File from PC",
+    photo_pick: "Choose photo from PC",
+    photo_replace: "Replace photo from PC",
+    user_photos_subtitle: "One person \u2014 up to 4 shots",
+    user_photos_hint: "Different angles help keep your likeness in the result.",
+    photo_pick_empty: "Choose a photo",
+    photo_add_more: "Add another",
+    photo_add_overlay: "More",
+    photo_max_label: "Up to 4 photos",
+    photo_count: "{n} of {m} uploaded",
+    photo_max_reached: "No more than 4 photos",
+    photo_added: "Photo added",
+    photo_remove_aria: "Remove photo",
+    btn_generate: "Generate",
+    btn_generating: "Generating...",
+    btn_resuming: "Resuming...",
+    btn_buy_credits: "Buy credits \u2B50",
+    btn_waiting_payment: "Waiting for payment...",
+    btn_retry_all: "Retry error",
+    btn_clear_results: "Clear result",
+    btn_reset_session: "Reset session",
+    confirm_run: "Confirm run: credits will be charged",
+    btn_confirm: "Confirm",
+    btn_cancel: "Cancel",
+    cooldown: "Please wait",
+    cooldown_sec: "sec",
+    progress_total: "Progress",
+    progress_working: "Working\u2026",
+    meta_account: "Account",
+    prompt_mode_from_style: "From style",
+    prompt_mode_custom: "Custom text",
+    prompt_mode_group_aria: "Prompt text source",
+    history_run_kind_prompt: "Prompt only",
+    history_thumb_prompt_only: "Prompt without image",
+    done_label: "Done",
+    errors_label: "Errors",
+    status: "Status",
+    attempt: "Attempt",
+    btn_save: "Save",
+    btn_saving: "Saving...",
+    btn_saved: "Saved",
+    btn_retry: "Retry",
+    btn_open: "Open",
+    history_title: "Run history",
+    history_count_prefix: "Entries:",
+    history_download: "Download",
+    history_open: "Open",
+    history_prompt: "Prompt",
+    history_prompt_toggle: "Prompt text",
+    history_params_label: "Generation parameters",
+    history_no_thumb: "No image",
+    history_failed_thumb: "Error",
+    history_downloaded: "File saved",
+    history_download_fallback: "Opened in a new tab \u2014 save from the browser",
+    history_prompt_copied: "Prompt copied",
+    history_prompt_copy_failed: "Could not copy to clipboard",
+    history_export: "Export JSON",
+    history_clear: "Clear history",
+    history_cleared: "Run history cleared",
+    lang_toggle: "DE",
+    uploading_photo: "Uploading photo...",
+    status_creating: "creating",
+    status_processing: "generating",
+    status_completed: "done",
+    status_failed: "error",
+    status_queued: "queued",
+    accent_scene: "Scene",
+    accent_lighting: "Lighting",
+    accent_mood: "Mood",
+    accent_composition: "Composition",
+    err_session: "Session expired. Please sign in again.",
+    err_expand: "Could not prepare the prompt. Try again.",
+    err_expand_three: 'The server must return exactly 3 prompts in "3\xD7 generation" mode. Turn off the flag under "For developers" or run again.',
+    all_done_triple: "All three variants are ready",
+    dev_flag_triple_label: "Mode: 3\xD7 generation per run (experiment)",
+    dev_flag_triple_hint: "localStorage: stv_triple_variant_flow. See docs/22-03-stv-single-generation-flow.md \xA73.",
+    session_retry_hint: "Session interrupted before start. Tap Retry.",
+    cancel_user: "Run cancelled",
+    session_cleared: "Session reset",
+    results_cleared: "Result cleared",
+    payment_wait: "Waiting for payment... Return here after paying in Telegram",
+    payment_timeout: "Wait timed out. If you paid, open the panel again.",
+    credits_added: "Credited",
+    all_done: "Done",
+    partial_done: "Done with errors",
+    restore_done: "Restored",
+    info_source_updated: "Source updated from the page",
+    run_extract: "Extracting style and building prompt...",
+    run_generate: "Starting generation...",
+    result_ready: "Result ready",
+    gen_slow: "Generation is taking longer than usual",
+    gen_wait: "Waiting for result...",
+    gen_failed: "Could not finish generation",
+    restore_slow: "Restore is taking longer than usual",
+    restore_wait: "Restoring...",
+    restore_failed: "Could not restore generation",
+    restore_line: "Resuming unfinished task...",
+    retry_line: "Retrying...",
+    metric_success: "success",
+    error_type_prefix: "Error type",
+    gen_prompt_label: "Prompt for generation",
+    step1_title: "Step 1: style from reference (JSON)",
+    step1_model: "Recognition model (vision)",
+    step2_model: "Prompt model (expand)",
+    run_expand_prep: "Style ready. Building text prompts\u2026",
+    run_assemble: "Adding hair & makeup to prompt\u2026",
+    btn_stage_extract: "Extracting style\u2026",
+    btn_stage_expand: "Building prompts\u2026",
+    btn_stage_assemble: "Assembling prompt\u2026",
+    btn_pipeline_spec: "API system prompts",
+    step1_final_prompt_title: "Final prompt (goes to PromptShot \u2192 Gemini)",
+    prompt_body_editable_hint: "You can edit or paste text. This field is what the API receives; the server adds rules and a prefix (see expandable preview below if present).",
+    custom_prompt_checkbox: "Custom prompt",
+    custom_prompt_mode_hint: "Custom prompt: no expand call \u2014 only your text below goes to the model (plus server instructions). At least 8 characters.",
+    custom_prompt_placeholder: "Enter prompt for generation\u2026",
+    custom_prompt_edit_hint: "Text is sent as `prompt` in POST /api/generate; the server adds vibe instructions.",
+    custom_prompt_restored: "Prompt rebuilt from style (expand)",
+    err_custom_prompt_empty: "Custom prompt is on \u2014 enter prompt text.",
+    err_custom_prompt_short: "Prompt too short: at least 8 characters.",
+    grooming_custom_prompt_hint: "With a custom prompt, hair/makeup checkboxes do not apply \u2014 you write the full text.",
+    expand_skipped_custom: "not used (custom prompt)",
+    final_prompt_preview_summary: "How the server assembles it (preview only)",
+    final_prompt_empty: "Appears after expand \u2014 tap Generate (extract \u2192 expand).",
+    final_prompt_hint_two: "Matches the server: prefix (2 images) + JSON reminder + expand text. Order: reference, then your photo.",
+    final_prompt_hint_one: "No reference URL in vibe \u2014 prefix for one image. If the server loads the reference, it may use two images.",
+    grooming_title: "Look (reference)",
+    grooming_hair: "Transfer hairstyle",
+    grooming_makeup: "Transfer makeup",
+    grooming_unlock_hint: "Checkboxes add separate hair and makeup blocks from the reference to the final prompt (after Generate they are used in expand; toggling updates the preview).",
+    grooming_ready_hint: "Hair and makeup are already in the prompt. Before a new run you can clear checkboxes before Generate.",
+    grooming_adjust_hint: "If a previous run left Continue \u2014 tap the button. New runs have no pause: checkboxes apply immediately.",
+    btn_continue_generate: "Continue generation",
+    tab_prompt: "Prompt",
+    tab_generate: "Generate",
+    tab_history: "My generations",
+    tabbar_aria: "Panel sections",
+    tab_prompt_lead: "Reference on the left \u2014 recognized prompt on the right. You can extract style without starting an image.",
+    tab_prompt_recognized_label: "Prompt for generation",
+    tab_prompt_no_reference: 'Add reference: "Steal this vibe" on the site or "+" here.',
+    tab_prompt_need_reference: "Choose a reference first.",
+    tab_prompt_custom_mode_hint: "Custom prompt is on \u2014 edit text on the Generate tab. Style blocks are disabled here.",
+    btn_extract_prompt_only: "Extract prompt",
+    btn_refresh_prompt_extract: "Refresh prompt",
+    toast_prompt_ready: "Prompt ready",
+    btn_edit_prompt_blocks: "Edit blocks",
+    btn_save_prompt_blocks: "Save",
+    btn_cancel_prompt_edit: "Cancel",
+    btn_copy_prompt: "Copy",
+    btn_copy_prompt_aria: "Copy prompt to clipboard",
+    err_style_body_empty: "Fill at least one style field or extract the prompt again.",
+    toast_prompt_blocks_saved: "Prompt updated",
+    current_prompt_label: "Current prompt \u2014 open on Prompt tab",
+    btn_edit_prompt_goto_tab: "Edit",
+    tab_jump_prompt_empty: "Prompt not ready yet",
+    history_empty_hint: "No runs yet \u2014 after image generation or prompt extraction.",
+    history_filter_aria: "Filter history",
+    history_filter_all: "All",
+    history_filter_image: "With photo",
+    history_filter_prompt: "Prompt",
+    history_filter_empty: "Nothing here yet in this filter.",
+    settings_disclosure_summary: "Generation parameters",
+    stale_prompt_hint: "Reference changed \u2014 tap Refresh prompt to sync text.",
+    btn_dismiss_error: "Dismiss",
+    prompt_section_summary: "Prompt",
+    lang_select_aria: "Interface language",
+    err_generic: "Something went wrong",
+    err_insufficient_credits_detail: "Not enough credits: need {required}, have {available}",
+    err_cooldown_wait: "Wait {n} sec before another run",
+    err_no_reference: "Choose a reference first",
+    err_upload_photos_first: "Upload your photo first",
+    history_status_manual_retry: "Waiting for manual retry",
+    toast_saved_seo_open: "Saved: +{n} SEO tags, card opened",
+    toast_saved_card_opened: "Saved and card opened",
+    info_saved_seo_pending: "Saved. Detected {n} SEO tags; card will be published later.",
+    info_saved_card_later: "Saved. Card will be published later.",
+    toast_saved_ok: "Saved",
+    err_auth_check: "Could not verify sign-in",
+    err_payment_url_missing: "Payment link not received",
+    err_payment_link: "Could not get payment link",
+    err_reference_url: "Could not get reference URL for extract",
+    err_generation_failed: "Generation failed",
+    err_generation_timeout: "Generation timed out",
+    err_unknown: "Unknown error",
+    err_save: "Save failed",
+    err_generate_flow: "Generation error",
+    err_photo_upload: "Photo upload failed",
+    err_reference_upload: "Reference upload failed",
+    err_validation_default: "Check your request parameters",
+    err_fetch_image_failed: "Could not fetch image from URL. Try another image.",
+    err_extract_style_failed: "Could not extract image style. Try again.",
+    err_expand_variants_failed: "Could not prepare prompt variants. Try again.",
+    err_save_result_failed: "Could not save result. Try again later.",
+    err_server_temp: "Temporary server error. Try again.",
+    err_oauth_failed: "Google sign-in failed",
+    err_assemble_prompt: "Could not assemble the prompt"
   },
   de: {
     title_app: "Steal This Vibe",
@@ -14371,6 +14698,13 @@ var STRINGS = {
     cooldown: "Bitte warten",
     cooldown_sec: "Sek.",
     progress_total: "Fortschritt",
+    progress_working: "Wird ausgef\xFChrt\u2026",
+    meta_account: "Konto",
+    prompt_mode_from_style: "Aus Stil",
+    prompt_mode_custom: "Eigener Text",
+    prompt_mode_group_aria: "Quelle des Prompt-Texts",
+    history_run_kind_prompt: "Nur Prompt",
+    history_thumb_prompt_only: "Prompt ohne Bild",
     done_label: "Fertig",
     errors_label: "Fehler",
     status: "Status",
@@ -14448,6 +14782,17 @@ var STRINGS = {
     btn_stage_assemble: "Prompt wird zusammengesetzt\u2026",
     btn_pipeline_spec: "API-Systemprompts",
     step1_final_prompt_title: "Finaler Prompt (geht an PromptShot \u2192 Gemini)",
+    prompt_body_editable_hint: "Du kannst den Text bearbeiten oder einf\xFCgen. Genau dieser Text geht in die API; der Server erg\xE4nzt Regeln und Pr\xE4fix (siehe aufklappbare Vorschau unten, falls vorhanden).",
+    custom_prompt_checkbox: "Eigener Prompt",
+    custom_prompt_mode_hint: "Eigener Prompt: kein Expand-Aufruf, nur dein Text unten geht an die API (plus Server-Anweisungen). Mindestens 8 Zeichen.",
+    custom_prompt_placeholder: "Prompt f\xFCr die Generierung eingeben\u2026",
+    custom_prompt_edit_hint: "Text wird als `prompt` an POST /api/generate gesendet; der Server erg\xE4nzt Vibe-Anweisungen.",
+    custom_prompt_restored: "Prompt wieder aus dem Stil gebaut (Expand)",
+    err_custom_prompt_empty: "Eigener Prompt aktiv \u2014 bitte Prompt-Text eingeben.",
+    err_custom_prompt_short: "Prompt zu kurz: mindestens 8 Zeichen.",
+    grooming_custom_prompt_hint: "Bei eigenem Prompt gelten Frisur/Make-up-K\xE4stchen nicht \u2014 du schreibst den Text selbst.",
+    expand_skipped_custom: "aus (eigener Prompt)",
+    final_prompt_preview_summary: "So setzt der Server es zusammen (nur Ansicht)",
     final_prompt_empty: "Erscheint nach Expand \u2014 auf \u201EGenerieren\u201C tippen (Extract \u2192 Expand).",
     final_prompt_hint_two: "Wie auf dem Server: Pr\xE4fix (2 Bilder) + JSON-Hinweis + Expand-Text. Reihenfolge: Referenz, dann dein Foto.",
     final_prompt_hint_one: "Keine Referenz-URL in der Vibe \u2014 Pr\xE4fix f\xFCr ein Bild. L\xE4dt der Server die Referenz, kann es zwei Bilder sein.",
@@ -14457,29 +14802,241 @@ var STRINGS = {
     grooming_unlock_hint: "Deine Auswahl wird gespeichert. Frisur/Make-up landen erst im Prompt nach der Referenz-Erkennung (\u201EGenerieren\u201C), wenn der Server sie separat liefert.",
     grooming_ready_hint: "Frisur/Make-up sind im Prompt ber\xFCcksichtigt. Vor einem neuen Lauf kannst du die H\xE4kchen vor \u201EGenerieren\u201C \xE4ndern.",
     grooming_adjust_hint: "Nach einem alten Lauf: \u201EWeiter zur Generierung\u201C dr\xFCcken. Neuer Lauf: keine Pause, H\xE4kchen gelten sofort.",
-    btn_continue_generate: "Weiter zur Generierung"
+    btn_continue_generate: "Weiter zur Generierung",
+    tab_prompt: "Prompt",
+    tab_generate: "Generierung",
+    tab_history: "Meine Generierungen",
+    tabbar_aria: "Panel-Bereiche",
+    tab_prompt_lead: "Referenz links, erkannten Prompt rechts. Stil kannst du ohne Bild-Start extrahieren.",
+    tab_prompt_recognized_label: "Prompt f\xFCr die Generierung",
+    tab_prompt_no_reference: "Referenz hinzuf\xFCgen: \u201ESteal this vibe\u201C auf der Seite oder \u201E+\u201C hier.",
+    tab_prompt_need_reference: "Zuerst eine Referenz w\xE4hlen.",
+    tab_prompt_custom_mode_hint: "Eigener Prompt aktiv \u2014 Text auf der Registerkarte \u201EGenerierung\u201C bearbeiten. Stil-Bl\xF6cke hier sind deaktiviert.",
+    btn_extract_prompt_only: "Prompt extrahieren",
+    btn_refresh_prompt_extract: "Prompt aktualisieren",
+    toast_prompt_ready: "Prompt bereit",
+    btn_edit_prompt_blocks: "Bl\xF6cke bearbeiten",
+    btn_save_prompt_blocks: "Speichern",
+    btn_cancel_prompt_edit: "Abbrechen",
+    btn_copy_prompt: "Kopieren",
+    btn_copy_prompt_aria: "Prompt in die Zwischenablage kopieren",
+    err_style_body_empty: "Mindestens ein Stilfeld f\xFCllen oder Prompt erneut extrahieren.",
+    toast_prompt_blocks_saved: "Prompt aktualisiert",
+    current_prompt_label: "Aktueller Prompt \u2014 in \u201EPrompt\u201C \xF6ffnen",
+    btn_edit_prompt_goto_tab: "Bearbeiten",
+    tab_jump_prompt_empty: "Noch kein Prompt",
+    history_empty_hint: "Noch keine L\xE4ufe \u2014 nach Bild-Generierung oder Prompt-Extraktion.",
+    history_filter_aria: "Verlauf filtern",
+    history_filter_all: "Alle",
+    history_filter_image: "Mit Bild",
+    history_filter_prompt: "Prompt",
+    history_filter_empty: "In dieser Kategorie ist noch nichts.",
+    settings_disclosure_summary: "Generierungs-Parameter",
+    stale_prompt_hint: "Referenz ge\xE4ndert \u2014 \u201EPrompt aktualisieren\u201C, um den Text anzupassen.",
+    btn_dismiss_error: "Schlie\xDFen",
+    prompt_section_summary: "Prompt",
+    lang_select_aria: "Sprache der Oberfl\xE4che",
+    err_generic: "Ein Fehler ist aufgetreten",
+    err_insufficient_credits_detail: "Nicht genug Credits: ben\xF6tigt {required}, verf\xFCgbar {available}",
+    err_cooldown_wait: "Bitte {n} Sek. warten, bevor du erneut startest",
+    err_no_reference: "Zuerst eine Referenz w\xE4hlen",
+    err_upload_photos_first: "Zuerst ein Foto hochladen",
+    history_status_manual_retry: "Wartet auf manuellen Retry",
+    toast_saved_seo_open: "Gespeichert: +{n} SEO-Tags, Karte ge\xF6ffnet",
+    toast_saved_card_opened: "Gespeichert und Karte ge\xF6ffnet",
+    info_saved_seo_pending: "Gespeichert. {n} SEO-Tags erkannt, Karte wird sp\xE4ter ver\xF6ffentlicht.",
+    info_saved_card_later: "Gespeichert. Karte wird sp\xE4ter ver\xF6ffentlicht.",
+    toast_saved_ok: "Gespeichert",
+    err_auth_check: "Anmeldung konnte nicht gepr\xFCft werden",
+    err_payment_url_missing: "Zahlungslink nicht erhalten",
+    err_payment_link: "Zahlungslink konnte nicht geladen werden",
+    err_reference_url: "Referenz-URL f\xFCr Extract nicht erhalten",
+    err_generation_failed: "Generierung fehlgeschlagen",
+    err_generation_timeout: "Zeit\xFCberschreitung bei der Generierung",
+    err_unknown: "Unbekannter Fehler",
+    err_save: "Speichern fehlgeschlagen",
+    err_generate_flow: "Generierungsfehler",
+    err_photo_upload: "Foto-Upload fehlgeschlagen",
+    err_reference_upload: "Referenz-Upload fehlgeschlagen",
+    err_validation_default: "Bitte Anfrageparameter pr\xFCfen",
+    err_fetch_image_failed: "Bild von URL nicht geladen. Anderes Bild versuchen.",
+    err_extract_style_failed: "Stil konnte nicht extrahiert werden. Erneut versuchen.",
+    err_expand_variants_failed: "Prompt-Varianten konnten nicht erstellt werden. Erneut versuchen.",
+    err_save_result_failed: "Ergebnis konnte nicht gespeichert werden. Sp\xE4ter erneut versuchen.",
+    err_server_temp: "Vor\xFCbergehender Serverfehler. Erneut versuchen.",
+    err_oauth_failed: "Google-Anmeldung fehlgeschlagen",
+    err_assemble_prompt: "Prompt konnte nicht zusammengesetzt werden"
   }
 };
 function resolveUiLang() {
   try {
     const stored = localStorage.getItem("stv_ui_lang");
-    if (stored === "de" || stored === "ru") return stored;
+    if (stored === "de" || stored === "ru" || stored === "en") return stored;
   } catch {
   }
   const nav = typeof navigator !== "undefined" && navigator.language || "ru";
-  return nav.toLowerCase().startsWith("de") ? "de" : "ru";
+  const low = nav.toLowerCase();
+  if (low.startsWith("de")) return "de";
+  if (low.startsWith("en")) return "en";
+  return "ru";
 }
-function toggleUiLang() {
-  const next = resolveUiLang() === "de" ? "ru" : "de";
+function setUiLang(lang) {
+  if (lang !== "ru" && lang !== "en" && lang !== "de") return resolveUiLang();
   try {
-    localStorage.setItem("stv_ui_lang", next);
+    localStorage.setItem("stv_ui_lang", lang);
   } catch {
   }
-  return next;
+  return lang;
 }
 function t(key) {
   const lang = resolveUiLang();
-  return STRINGS[lang]?.[key] ?? STRINGS.ru[key] ?? key;
+  return STRINGS[lang]?.[key] ?? STRINGS.en[key] ?? STRINGS.ru[key] ?? key;
+}
+function tf(key, vars = {}) {
+  let s = t(key);
+  for (const [k, v] of Object.entries(vars)) {
+    s = s.split(`{${k}}`).join(String(v));
+  }
+  return s;
+}
+
+// ../extension/sidepanel/stv-prompt-assembly.js
+var LEGACY_VIBE_STYLE_FIELDS = [
+  "scene",
+  "genre",
+  "pose",
+  "lighting",
+  "camera",
+  "mood",
+  "color",
+  "clothing",
+  "composition"
+];
+var LEGACY_VIBE_FIELD_LABELS = {
+  scene: "Scene",
+  genre: "Genre",
+  pose: "Pose",
+  lighting: "Lighting",
+  camera: "Camera",
+  mood: "Mood",
+  color: "Color",
+  clothing: "Clothing",
+  composition: "Composition"
+};
+var IMAGE_QUALITY_CRITICAL_BULLET = "- Photorealistic output, high textural detail, high quality, 8K-grade resolution and micro-detail (maximize sharpness and surface fidelity).";
+var GENERATE_VIBE_CRITICAL_RULES_SINGLE = `
+CRITICAL RULES
+- Preserve: face structure, features, skin tone, eye color, proportions.
+- Subject must look naturally photographed in the setting, not pasted.
+${IMAGE_QUALITY_CRITICAL_BULLET}
+`.trim();
+var GENERATE_VIBE_CRITICAL_RULES_DUAL = `
+CRITICAL RULES
+Earlier parts were labeled: IMAGE A = style reference (not the output identity); IMAGE B = subject (only identity). Output one new photograph of B as if shot in A's session \u2014 A's pose, light, set, wardrobe, and grade on B. Not a face-swap or lazy crop.
+
+- Scene / Genre / Mood (and similar prose) were written from the reference image and may still mention hair, face, or skin. Treat that as **setting and atmosphere only**. They must NOT replace IMAGE B's face, natural hair color, hair length, or resting hairstyle. If there is **no** "Hair styling (transfer from reference):" section in the text, keep B's real hair from B's photo \u2014 ignore any hair adjectives in Scene. If that section **is** present, take hair **styling** from A and natural **pigment** from B (as below).
+- Split sources: from B = identity (face, bones, eyes, body) + natural HAIR COLOR only. From A = hair STYLING and MAKEUP LOOK when the text includes the grooming-transfer sections \u2014 then do not treat B's hairstyle or makeup in B's photo as the target; override them with A's styled look while keeping B's face and hair pigment.
+- If grooming transfer is requested, the change must read clearly in pixels \u2014 B must not look like an unstyled snapshot of B when A is clearly groomed.
+- Grooming = beauty finish only \u2014 does not override torso/head angles from A or the scene.
+- Wardrobe, set, light, camera, palette: match A + scene on B.
+${IMAGE_QUALITY_CRITICAL_BULLET}
+`.trim();
+function joinVibeFinalPromptParts(scene, criticalRules) {
+  const body = String(scene ?? "").trimEnd();
+  return `${body}
+
+${criticalRules}`.trim();
+}
+function detectGroomingSectionsInUnprefixedBody(body) {
+  const b = String(body ?? "");
+  const hair = b.includes("Hair styling (transfer from reference):") || b.includes("Hair styling (match reference shoot):");
+  const makeup = b.includes("Makeup and skin (transfer from reference):") || b.includes("Makeup and skin finish (match reference shoot):");
+  return { hair, makeup };
+}
+function buildFlashImageGroomingRecencyTail(unprefixedBody) {
+  const { hair, makeup } = detectGroomingSectionsInUnprefixedBody(unprefixedBody);
+  if (!hair && !makeup) return "";
+  const lines = [
+    "LAST \u2014 must show in the output image (not optional wording):",
+    "Hierarchy: B = who + natural hair color; A = hair styling + makeup (for this request). Ignore B's haircut/makeup pixels as the goal when they differ from A."
+  ];
+  if (hair) {
+    lines.push(
+      "\u2022 Hair: visibly match IMAGE A's styling (silhouette, volume, parting, finish) on B's head; keep only B's natural pigment \u2014 not B's original layout from the photo."
+    );
+  }
+  if (makeup) {
+    lines.push(
+      "\u2022 Face: visibly match IMAGE A's makeup and skin finish on B \u2014 replace B's casual look, do not clone B's bare/casual face from the input."
+    );
+  }
+  return `
+
+${lines.join("\n")}`;
+}
+function assembleVibeFinalPrompt(rawExpandedPrompt, assumeReferenceImageLoaded = false) {
+  const scene = String(rawExpandedPrompt ?? "").trimEnd();
+  if (assumeReferenceImageLoaded) {
+    const withCritical = joinVibeFinalPromptParts(scene, GENERATE_VIBE_CRITICAL_RULES_DUAL);
+    return `${withCritical}${buildFlashImageGroomingRecencyTail(scene)}`.trim();
+  }
+  return joinVibeFinalPromptParts(scene, GENERATE_VIBE_CRITICAL_RULES_SINGLE);
+}
+function buildLegacyVibeFullPromptBody(style) {
+  const parts = [];
+  for (const field of LEGACY_VIBE_STYLE_FIELDS) {
+    const text = String(style?.[field] ?? "").trim();
+    if (!text) continue;
+    parts.push(`${LEGACY_VIBE_FIELD_LABELS[field]}:
+${text}`);
+  }
+  return parts.join("\n\n").trim();
+}
+function appendLegacyGroomingPolicyBlocks(baseBody, policy) {
+  const base = String(baseBody ?? "").trimEnd();
+  const extras = [];
+  if (policy.applyHair) {
+    extras.push(
+      "Hair styling (transfer from reference):\nNo conflict with identity: from IMAGE B take only face + natural hair COLOR/pigment (never copy A's hair color). From IMAGE A take the entire HAIR STYLING \u2014 silhouette, length impression, volume, parting, texture, finish.\nDo not preserve B's haircut layout, part, or volume from B's pixels when they differ from A; B is not the styling reference for hair. Output must show A's hairstyle on B's head with B's natural pigment."
+    );
+  }
+  if (policy.applyMakeup) {
+    extras.push(
+      "Makeup and skin (transfer from reference):\nNo conflict with identity: from IMAGE B take only facial structure and identity. From IMAGE A take the MAKEUP LOOK and skin/beauty finish (eyes, lips, brows, contour, matte vs glow).\nReplace B's apparent makeup and skin finish in B's photo with A's groomed look on B's face \u2014 do not keep B's casual/unmade-up pixels as the target when A is clearly styled."
+    );
+  }
+  if (!extras.length) return base;
+  return `${base}
+
+${extras.join("\n\n")}`.trim();
+}
+function normalizeLegacyStyleFromState(style) {
+  const o = {};
+  for (const field of LEGACY_VIBE_STYLE_FIELDS) {
+    o[field] = "";
+  }
+  if (!style || typeof style !== "object") return o;
+  const src = (
+    /** @type {Record<string, unknown>} */
+    style
+  );
+  for (const field of LEGACY_VIBE_STYLE_FIELDS) {
+    if (field === "pose") {
+      o.pose = String(src.pose ?? src.subject_pose ?? "").trim();
+    } else {
+      o[field] = String(src[field] ?? "").trim();
+    }
+  }
+  return o;
+}
+function buildUnprefixedGenerationBodyFromStyle(style, groomingPolicy) {
+  const norm = normalizeLegacyStyleFromState(style);
+  const styleBody = buildLegacyVibeFullPromptBody(norm);
+  if (!styleBody) return "";
+  return appendLegacyGroomingPolicyBlocks(styleBody, groomingPolicy);
+}
+function buildFinalPromptForUiPreview(unprefixedBody, assumeTwoImages) {
+  return assembleVibeFinalPrompt(String(unprefixedBody ?? "").trimEnd(), assumeTwoImages);
 }
 
 // ../extension/sidepanel/stv-core.js
@@ -14623,6 +15180,10 @@ var state = {
   pendingRunStartedAt: 0,
   results: [],
   generating: false,
+  /** True during «Извлечь/обновить промпт» on Prompt tab (extract/expand/assemble only, no image gen). */
+  preparingPromptOnly: false,
+  /** True while awaiting a network call inside extract/expand/assemble prep (indeterminate progress). */
+  prepNetworkPending: false,
   runHistory: [],
   cooldownUntil: 0,
   toast: null,
@@ -14633,19 +15194,40 @@ var state = {
   /** Primary button label while generating: extract | expand | assemble | generate */
   runStage: "idle",
   /** null = omit temperature on extract (provider default); else one of EXTRACT_TEMPERATURE_PRESETS */
-  extractTemperature: null
+  extractTemperature: null,
+  /** Skip expand/assemble; user types prompt in textarea (still runs extract for vibeId + style JSON). */
+  customPromptMode: false,
+  /** Global shell tab: prompt | generate | history */
+  panelTab: "generate",
+  /** Prompt tab: expanded 9-field editor */
+  promptBlocksExpanded: false,
+  /** Fingerprint of reference used for last successful extract (path or url). */
+  extractReferenceFingerprint: "",
+  /** History tab filter: all | image | prompt */
+  historyFilter: "all",
+  /** Brief highlight on prompt block after successful extract-only (not persisted). */
+  promptReadyFlash: false
 };
 var toastTimer = null;
 var creditPollTimer = null;
 var assembleDebounceTimer = null;
+var promptBodyPersistTimer = null;
+var promptReadyFlashTimer = null;
+var topbarAccountCleanup = null;
+function schedulePromptReadyFlash() {
+  state.promptReadyFlash = true;
+  clearTimeout(promptReadyFlashTimer);
+  promptReadyFlashTimer = setTimeout(() => {
+    promptReadyFlashTimer = null;
+    state.promptReadyFlash = false;
+    render();
+  }, 1600);
+}
 function storageLocalGet(key) {
   return rt().platform.storage.local.get(key);
 }
 function storageLocalSet(obj) {
   return rt().platform.storage.local.set(obj);
-}
-function storageLocalRemove(key) {
-  return rt().platform.storage.local.remove(key);
 }
 function storageSessionGet(key) {
   return rt().platform.storage.session.get(key);
@@ -14659,25 +15241,52 @@ function sleep2(ms) {
 function escapeHtml(value) {
   return String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
+function getGenerationPromptBodyForUi() {
+  const m = state.mergedForSingleGeneration;
+  if (typeof m === "string" && m.trim()) return m;
+  const p0 = Array.isArray(state.prompts) ? state.prompts[0] : null;
+  if (p0 && typeof p0.prompt === "string") return p0.prompt;
+  return "";
+}
+function applyGenerationPromptBodyFromUi(text) {
+  const v = typeof text === "string" ? text : String(text ?? "");
+  state.mergedForSingleGeneration = v;
+  const prompts = Array.isArray(state.prompts) ? state.prompts : [];
+  if (!prompts.length) {
+    state.prompts = v.trim() ? [{ accent: "scene", prompt: v }] : [];
+    return;
+  }
+  state.prompts = prompts.map((p) => ({
+    accent: typeof p.accent === "string" && p.accent ? p.accent : "scene",
+    prompt: v
+  }));
+}
 function escapeHtmlAttrUrl(url) {
   return String(url).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
 }
-function revokeAllUserPhotoObjectUrls() {
-  for (const p of state.userPhotos) {
-    if (p.previewObjectUrl) {
-      try {
-        URL.revokeObjectURL(p.previewObjectUrl);
-      } catch {
-      }
-      p.previewObjectUrl = "";
-    }
-  }
+function langSelectHtml() {
+  const cur = resolveUiLang();
+  const aria = escapeHtml(t("lang_select_aria"));
+  const opts = [
+    { v: "ru", l: "\u0420\u0443\u0441\u0441\u043A\u0438\u0439" },
+    { v: "en", l: "English" },
+    { v: "de", l: "Deutsch" }
+  ];
+  const optionsHtml = opts.map(
+    (o) => `<option value="${escapeHtml(o.v)}"${cur === o.v ? " selected" : ""}>${escapeHtml(o.l)}</option>`
+  ).join("");
+  return `<label class="stv-lang-select-wrap">
+    <span class="stv-sr-only">${aria}</span>
+    <select id="stv-lang-select" class="stv-lang-select" aria-label="${aria}">${optionsHtml}</select>
+  </label>`;
 }
-function clearAllUserPhotoSignedUrls() {
-  for (const p of state.userPhotos) {
-    p.signedPreviewUrl = "";
-    p.signedForPath = "";
-  }
+function bindLangSelect() {
+  const sel = document.getElementById("stv-lang-select");
+  if (!sel) return;
+  sel.addEventListener("change", () => {
+    setUiLang(String(sel.value || ""));
+    render();
+  });
 }
 function userPhotoStoragePaths() {
   return state.userPhotos.map((p) => p.storagePath).filter(Boolean);
@@ -14687,6 +15296,41 @@ function hasUserPhotos() {
 }
 function hasReference() {
   return Boolean(state.sourceImageUrl) || Boolean(state.referencePhoto?.storagePath);
+}
+function getReferenceFingerprint() {
+  const path = state.referencePhoto?.storagePath && String(state.referencePhoto.storagePath).trim();
+  if (path) return `path:${path}`;
+  const u = String(state.sourceImageUrl || "").trim();
+  if (u) return `url:${u}`;
+  return "";
+}
+function isPromptStaleVsExtract() {
+  if (!state.vibeId || !state.style) return false;
+  if (!state.extractReferenceFingerprint) return false;
+  const cur = getReferenceFingerprint();
+  if (!cur) return false;
+  return cur !== state.extractReferenceFingerprint;
+}
+function wireTopbarAccountPanel() {
+  topbarAccountCleanup?.();
+  topbarAccountCleanup = null;
+  const det = document.querySelector(".stv-topbar-account");
+  if (!det) return;
+  const onDoc = (e) => {
+    if (!det.open) return;
+    const t2 = e.target;
+    if (t2 instanceof Node && det.contains(t2)) return;
+    det.removeAttribute("open");
+  };
+  const onKey = (e) => {
+    if (e.key === "Escape" && det.open) det.removeAttribute("open");
+  };
+  document.addEventListener("click", onDoc, true);
+  document.addEventListener("keydown", onKey, true);
+  topbarAccountCleanup = () => {
+    document.removeEventListener("click", onDoc, true);
+    document.removeEventListener("keydown", onKey, true);
+  };
 }
 function clearUrlReference() {
   state.sourceImageUrl = "";
@@ -14889,18 +15533,20 @@ function getAdaptivePollIntervalMs(elapsedMs) {
 function classifyErrorType(message) {
   const text = String(message || "").toLowerCase();
   if (!text) return "unknown";
-  if (text.includes("\u043D\u0435\u0434\u043E\u0441\u0442\u0430\u0442\u043E\u0447\u043D\u043E \u043A\u0440\u0435\u0434\u0438\u0442\u043E\u0432")) return "insufficient_credits";
-  if (text.includes("\u0442\u0430\u0439\u043C\u0430\u0443\u0442")) return "timeout";
-  if (text.includes("unauthorized") || text.includes("\u0430\u0432\u0442\u043E\u0440\u0438\u0437\u0430") || text.includes("\u0441\u0435\u0441\u0441\u0438\u044F \u0438\u0441\u0442\u0435\u043A\u043B\u0430") || text.includes("\u0432\u043E\u0439\u0434\u0438\u0442\u0435 \u0437\u0430\u043D\u043E\u0432\u043E") || text.includes("\u0442\u0440\u0435\u0431\u0443\u0435\u0442\u0441\u044F \u0432\u0445\u043E\u0434")) {
+  if (text.includes("\u043D\u0435\u0434\u043E\u0441\u0442\u0430\u0442\u043E\u0447\u043D\u043E \u043A\u0440\u0435\u0434\u0438\u0442\u043E\u0432") || text.includes("not enough credits") || text.includes("insufficient credits") || text.includes("nicht genug credits")) {
+    return "insufficient_credits";
+  }
+  if (text.includes("\u0442\u0430\u0439\u043C\u0430\u0443\u0442") || text.includes("timeout") || text.includes("timed out")) return "timeout";
+  if (text.includes("unauthorized") || text.includes("\u0430\u0432\u0442\u043E\u0440\u0438\u0437\u0430") || text.includes("\u0441\u0435\u0441\u0441\u0438\u044F \u0438\u0441\u0442\u0435\u043A\u043B\u0430") || text.includes("\u0432\u043E\u0439\u0434\u0438\u0442\u0435 \u0437\u0430\u043D\u043E\u0432\u043E") || text.includes("\u0442\u0440\u0435\u0431\u0443\u0435\u0442\u0441\u044F \u0432\u0445\u043E\u0434") || text.includes("sign in") || text.includes("session expired") || text.includes("anmeldung")) {
     return "unauthorized";
   }
-  if (text.includes("fetch") || text.includes("network") || text.includes("\u0441\u043E\u0435\u0434\u0438\u043D") || text.includes("\u043D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u043F\u043E\u043B\u0443\u0447\u0438\u0442\u044C \u0438\u0437\u043E\u0431\u0440\u0430\u0436\u0435\u043D\u0438\u0435")) {
+  if (text.includes("fetch") || text.includes("network") || text.includes("\u0441\u043E\u0435\u0434\u0438\u043D") || text.includes("\u043D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u043F\u043E\u043B\u0443\u0447\u0438\u0442\u044C \u0438\u0437\u043E\u0431\u0440\u0430\u0436\u0435\u043D\u0438\u0435") || text.includes("could not fetch image")) {
     return "network";
   }
-  if (text.includes("validation") || text.includes("\u043F\u0440\u043E\u0432\u0435\u0440\u044C\u0442\u0435 \u043F\u0430\u0440\u0430\u043C\u0435\u0442\u0440\u044B") || text.includes("\u043D\u0435\u043A\u043E\u0440\u0440\u0435\u043A\u0442\u043D\u044B\u0435 \u043F\u0430\u0440\u0430\u043C\u0435\u0442\u0440\u044B")) {
+  if (text.includes("validation") || text.includes("\u043F\u0440\u043E\u0432\u0435\u0440\u044C\u0442\u0435 \u043F\u0430\u0440\u0430\u043C\u0435\u0442\u0440\u044B") || text.includes("\u043D\u0435\u043A\u043E\u0440\u0440\u0435\u043A\u0442\u043D\u044B\u0435 \u043F\u0430\u0440\u0430\u043C\u0435\u0442\u0440\u044B") || text.includes("check your request")) {
     return "validation_error";
   }
-  if (text.includes("\u043E\u0448\u0438\u0431\u043A")) return "generation_failed";
+  if (text.includes("\u043E\u0448\u0438\u0431\u043A") || text.includes("fehlgeschlagen") || text.includes("failed")) return "generation_failed";
   return "unknown";
 }
 function formatAccentLabel(accent) {
@@ -14939,7 +15585,7 @@ function buildResultCompactRowHtml(row) {
       </div>`;
 }
 function normalizeUiError(err, fallbackText) {
-  const fallback = String(fallbackText || "\u041F\u0440\u043E\u0438\u0437\u043E\u0448\u043B\u0430 \u043E\u0448\u0438\u0431\u043A\u0430");
+  const fallback = String(fallbackText != null && fallbackText !== "" ? fallbackText : t("err_generic"));
   if (!err) return fallback;
   const payload = err.payload && typeof err.payload === "object" ? err.payload : null;
   const code = String(payload?.error || "").toLowerCase();
@@ -14952,27 +15598,27 @@ function normalizeUiError(err, fallbackText) {
     const required = Number(payload?.required || 0);
     const available = Number(payload?.available || 0);
     if (required > 0 || available >= 0) {
-      return `\u041D\u0435\u0434\u043E\u0441\u0442\u0430\u0442\u043E\u0447\u043D\u043E \u043A\u0440\u0435\u0434\u0438\u0442\u043E\u0432: \u043D\u0443\u0436\u043D\u043E ${required}, \u0434\u043E\u0441\u0442\u0443\u043F\u043D\u043E ${available}`;
+      return tf("err_insufficient_credits_detail", { required, available });
     }
-    return "\u041D\u0435\u0434\u043E\u0441\u0442\u0430\u0442\u043E\u0447\u043D\u043E \u043A\u0440\u0435\u0434\u0438\u0442\u043E\u0432";
+    return t("insufficient_credits");
   }
   if (code === "validation_error") {
-    return message || "\u041F\u0440\u043E\u0432\u0435\u0440\u044C\u0442\u0435 \u043F\u0430\u0440\u0430\u043C\u0435\u0442\u0440\u044B \u0437\u0430\u043F\u0440\u043E\u0441\u0430";
+    return message || t("err_validation_default");
   }
   if (code === "fetch_failed") {
-    return "\u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u043F\u043E\u043B\u0443\u0447\u0438\u0442\u044C \u0438\u0437\u043E\u0431\u0440\u0430\u0436\u0435\u043D\u0438\u0435 \u043F\u043E \u0441\u0441\u044B\u043B\u043A\u0435. \u041F\u043E\u043F\u0440\u043E\u0431\u0443\u0439\u0442\u0435 \u0434\u0440\u0443\u0433\u0443\u044E \u043A\u0430\u0440\u0442\u0438\u043D\u043A\u0443.";
+    return t("err_fetch_image_failed");
   }
   if (code === "extract_failed") {
-    return "\u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u0438\u0437\u0432\u043B\u0435\u0447\u044C \u0441\u0442\u0438\u043B\u044C \u0438\u0437\u043E\u0431\u0440\u0430\u0436\u0435\u043D\u0438\u044F. \u041F\u043E\u043F\u0440\u043E\u0431\u0443\u0439\u0442\u0435 \u0441\u043D\u043E\u0432\u0430.";
+    return t("err_extract_style_failed");
   }
   if (code === "expand_failed") {
-    return "\u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u043F\u043E\u0434\u0433\u043E\u0442\u043E\u0432\u0438\u0442\u044C \u0432\u0430\u0440\u0438\u0430\u043D\u0442\u044B \u043F\u0440\u043E\u043C\u043F\u0442\u043E\u0432. \u041F\u043E\u043F\u0440\u043E\u0431\u0443\u0439\u0442\u0435 \u0441\u043D\u043E\u0432\u0430.";
+    return t("err_expand_variants_failed");
   }
   if (code === "save_failed") {
-    return "\u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u0441\u043E\u0445\u0440\u0430\u043D\u0438\u0442\u044C \u0440\u0435\u0437\u0443\u043B\u044C\u0442\u0430\u0442. \u041F\u043E\u043F\u0440\u043E\u0431\u0443\u0439\u0442\u0435 \u043F\u043E\u0437\u0436\u0435.";
+    return t("err_save_result_failed");
   }
   if (status >= 500) {
-    return message || "\u0412\u0440\u0435\u043C\u0435\u043D\u043D\u0430\u044F \u043E\u0448\u0438\u0431\u043A\u0430 \u0441\u0435\u0440\u0432\u0435\u0440\u0430. \u041F\u043E\u043F\u0440\u043E\u0431\u0443\u0439\u0442\u0435 \u0441\u043D\u043E\u0432\u0430.";
+    return message || t("err_server_temp");
   }
   if (message) return message;
   if (err instanceof Error && err.message) return err.message;
@@ -15003,39 +15649,58 @@ function historyPromptText(run) {
   const p = run?.prompt;
   return typeof p === "string" ? p : "";
 }
+function runHistoryKind(run) {
+  return run && run.runKind === "prompt" ? "prompt" : "image";
+}
+function getPromptSnapshotForHistory() {
+  return String(
+    state.mergedForSingleGeneration || getGenerationPromptBodyForUi() || state.finalPromptForGeneration || ""
+  ).trim();
+}
 function buildRunHistoryCardHtml(run, idx) {
   const url = historyResultUrl(run);
   const promptText = historyPromptText(run);
+  const kind = runHistoryKind(run);
   const modelLine = modelLabelForRun(run.model);
   const ratio = run.aspectRatio || "\u2014";
   const size = run.imageSize || "\u2014";
   const when = formatDateTime(run.startedAt);
   const failed = Number(run.failed || 0) > 0;
-  const thumb = url ? `<img class="stv-history-thumb-img" src="${escapeHtml(url)}" alt="" loading="lazy" decoding="async" />` : `<div class="stv-history-thumb-fallback muted">${escapeHtml(
-    failed ? t("history_failed_thumb") : t("history_no_thumb")
-  )}</div>`;
+  const thumbFallback = kind === "prompt" && !failed ? t("history_thumb_prompt_only") : failed ? t("history_failed_thumb") : t("history_no_thumb");
+  const thumb = url ? `<img class="stv-history-thumb-img" src="${escapeHtml(url)}" alt="" loading="lazy" decoding="async" />` : `<div class="stv-history-thumb-fallback muted">${escapeHtml(thumbFallback)}</div>`;
+  const chipsHtml = kind === "prompt" ? [
+    `<span class="stv-history-chip stv-history-chip--kind">${escapeHtml(t("history_run_kind_prompt"))}</span>`,
+    run.extractModel ? `<span class="stv-history-chip" title="${escapeHtml(t("step1_model"))}">${escapeHtml(
+      `${t("step1_model")}: ${run.extractModel}`
+    )}</span>` : "",
+    run.expandModel ? `<span class="stv-history-chip" title="${escapeHtml(t("step2_model"))}">${escapeHtml(
+      `${t("step2_model")}: ${run.expandModel}`
+    )}</span>` : ""
+  ].filter(Boolean).join("") : `<span class="stv-history-chip" title="${escapeHtml(t("field_model"))}">${escapeHtml(modelLine)}</span>
+            <span class="stv-history-chip" title="${escapeHtml(t("field_ratio"))}">${escapeHtml(ratio)}</span>
+            <span class="stv-history-chip" title="${escapeHtml(t("field_size"))}">${escapeHtml(size)}</span>`;
   return `
     <article class="stv-history-card">
-      <div class="stv-history-thumb" aria-hidden="true">${thumb}</div>
-      <div class="stv-history-body">
-        <p class="stv-history-date muted">${escapeHtml(when)}</p>
-        <div class="stv-history-chips" aria-label="${escapeHtml(t("history_params_label"))}">
-          <span class="stv-history-chip" title="${escapeHtml(t("field_model"))}">${escapeHtml(modelLine)}</span>
-          <span class="stv-history-chip" title="${escapeHtml(t("field_ratio"))}">${escapeHtml(ratio)}</span>
-          <span class="stv-history-chip" title="${escapeHtml(t("field_size"))}">${escapeHtml(size)}</span>
-        </div>
-        <div class="stv-history-actions row">
-          <button type="button" data-history-download="${idx}" ${url ? "" : "disabled"}>${escapeHtml(t("history_download"))}</button>
-          <button type="button" data-history-open="${idx}" ${url ? "" : "disabled"}>${escapeHtml(t("history_open"))}</button>
-          <button type="button" data-history-prompt="${idx}" ${promptText.trim() ? "" : "disabled"}>${escapeHtml(
+      <div class="stv-history-card-row">
+        <div class="stv-history-thumb" aria-hidden="true">${thumb}</div>
+        <div class="stv-history-body">
+          <p class="stv-history-date muted">${escapeHtml(when)}</p>
+          <div class="stv-history-chips" aria-label="${escapeHtml(t("history_params_label"))}">
+            ${chipsHtml}
+          </div>
+          <div class="stv-history-actions row">
+            <button type="button" data-history-download="${idx}" ${url ? "" : "disabled"}>${escapeHtml(t("history_download"))}</button>
+            <button type="button" data-history-open="${idx}" ${url ? "" : "disabled"}>${escapeHtml(t("history_open"))}</button>
+            <button type="button" data-history-prompt="${idx}" ${promptText.trim() ? "" : "disabled"}>${escapeHtml(
     t("history_prompt")
   )}</button>
+          </div>
         </div>
-        <details class="stv-history-prompt-details">
-          <summary>${escapeHtml(t("history_prompt_toggle"))}</summary>
-          <pre class="prompt-box stv-history-prompt-pre">${escapeHtml(promptText || "\u2014")}</pre>
-        </details>
       </div>
+      <details class="stv-history-prompt-details stv-history-prompt-details--full">
+        <summary>${escapeHtml(t("history_prompt_toggle"))}</summary>
+        <pre class="prompt-box stv-history-prompt-pre">${escapeHtml(promptText || "\u2014")}</pre>
+      </details>
     </article>`;
 }
 async function downloadHistoryResultByUrl(url, baseName) {
@@ -15120,14 +15785,22 @@ function resultsHaveInFlightWork() {
   return rows.some((r) => IN_FLIGHT_STATUSES.has(String(r.status || "")));
 }
 function shouldShowCompareProgressBar() {
-  return state.generating || state.resuming || resultsHaveInFlightWork();
+  return state.generating || state.preparingPromptOnly || state.resuming || resultsHaveInFlightWork();
+}
+function shouldShowPrepIndeterminate() {
+  return Boolean(
+    state.prepNetworkPending && isPrepRunStage() && (state.generating || state.preparingPromptOnly)
+  );
 }
 function getOverallProgressPercent() {
   const rows = Array.isArray(state.results) ? state.results : [];
   const rowAvg = averageRowProgress(rows);
-  if (state.generating || state.resuming) {
-    if (state.generating && isPrepRunStage()) {
+  if (state.generating || state.preparingPromptOnly || state.resuming) {
+    if ((state.generating || state.preparingPromptOnly) && isPrepRunStage()) {
       const prep = Math.max(0, Math.min(100, Number(state.pipelinePrepPercent || 0)));
+      if (state.preparingPromptOnly && !state.generating) {
+        return Math.max(0, Math.min(100, Math.round(prep)));
+      }
       return Math.max(0, Math.min(100, Math.round(prep / 100 * PREP_PROGRESS_SHARE)));
     }
     return Math.max(
@@ -15151,7 +15824,7 @@ function getOverallProgressPercent() {
 }
 function primaryGenerateButtonLabel() {
   if (state.resuming) return t("btn_resuming");
-  if (!state.generating) return t("btn_generate");
+  if (!state.generating && !state.preparingPromptOnly) return t("btn_generate");
   if (state.runStage === "extract") return t("btn_stage_extract");
   if (state.runStage === "expand") return t("btn_stage_expand");
   if (state.runStage === "assemble") return t("btn_stage_assemble");
@@ -15204,6 +15877,10 @@ function toSerializableState() {
     runHistory: state.runHistory,
     cooldownUntil: state.cooldownUntil,
     extractTemperature: normalizePersistedExtractTemperature(state.extractTemperature),
+    customPromptMode: Boolean(state.customPromptMode),
+    panelTab: state.panelTab === "prompt" || state.panelTab === "history" ? state.panelTab : "generate",
+    extractReferenceFingerprint: String(state.extractReferenceFingerprint || ""),
+    historyFilter: ["all", "image", "prompt"].includes(state.historyFilter) ? state.historyFilter : "all",
     updatedAt: Date.now()
   };
 }
@@ -15244,7 +15921,7 @@ async function startGoogleSignIn() {
       rt().platform.openOAuthUrl(data.url);
     }
   } catch (err) {
-    state.error = normalizeUiError(err, "OAuth failed");
+    state.error = normalizeUiError(err, t("err_oauth_failed"));
     setToast("error", state.error);
     render();
   }
@@ -15349,6 +16026,11 @@ function applyPersistedState(saved) {
   state.runHistory = Array.isArray(saved.runHistory) ? saved.runHistory : state.runHistory;
   state.cooldownUntil = Number(saved.cooldownUntil || 0);
   state.extractTemperature = normalizePersistedExtractTemperature(saved.extractTemperature);
+  state.customPromptMode = Boolean(saved.customPromptMode);
+  const pt = saved.panelTab;
+  state.panelTab = pt === "prompt" || pt === "history" || pt === "generate" ? pt : "generate";
+  state.extractReferenceFingerprint = typeof saved.extractReferenceFingerprint === "string" ? saved.extractReferenceFingerprint : "";
+  state.historyFilter = ["all", "image", "prompt"].includes(saved.historyFilter) ? saved.historyFilter : "all";
 }
 async function api(path, init = {}) {
   const headers = { ...init.headers || {} };
@@ -15497,7 +16179,7 @@ async function checkAuth() {
     state.user = null;
     state.credits = 0;
     if (err.status !== 401) {
-      state.error = normalizeUiError(err, "\u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u043F\u0440\u043E\u0432\u0435\u0440\u0438\u0442\u044C \u0430\u0432\u0442\u043E\u0440\u0438\u0437\u0430\u0446\u0438\u044E");
+      state.error = normalizeUiError(err, t("err_auth_check"));
     }
   }
 }
@@ -15529,12 +16211,12 @@ async function openBuyCredits() {
   try {
     const data = await api("/api/buy-credits-link", { method: "POST" });
     if (!data?.deepLink) {
-      throw new Error("\u0421\u0441\u044B\u043B\u043A\u0430 \u0434\u043B\u044F \u043E\u043F\u043B\u0430\u0442\u044B \u043D\u0435 \u043F\u043E\u043B\u0443\u0447\u0435\u043D\u0430");
+      throw new Error(t("err_payment_url_missing"));
     }
     window.open(toAbsoluteTelegramDeepLink(data.deepLink), "_blank");
     startCreditPolling();
   } catch (err) {
-    const message = normalizeUiError(err, "\u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u043F\u043E\u043B\u0443\u0447\u0438\u0442\u044C \u0441\u0441\u044B\u043B\u043A\u0443 \u043D\u0430 \u043E\u043F\u043B\u0430\u0442\u0443");
+    const message = normalizeUiError(err, t("err_payment_link"));
     state.error = message;
     setToast("error", message);
     render();
@@ -15615,7 +16297,7 @@ async function resolveExtractImageUrl() {
     const data = await api(`/api/upload-generation-photo/signed-url?path=${q}`);
     const url = data?.signedUrl;
     if (typeof url !== "string" || !url.startsWith("http")) {
-      throw new Error("\u041D\u0435 \u0443\u0434\u0430\u043B\u043E\u0441\u044C \u043F\u043E\u043B\u0443\u0447\u0438\u0442\u044C \u0441\u0441\u044B\u043B\u043A\u0443 \u043D\u0430 \u0440\u0435\u0444\u0435\u0440\u0435\u043D\u0441 \u0434\u043B\u044F extract");
+      throw new Error(t("err_reference_url"));
     }
     return url;
   }
@@ -15636,9 +16318,12 @@ async function runExtract() {
   state.vibeId = extractData.vibeId;
   state.style = extractData.style;
   state.extractModel = String(extractData.modelUsed || "");
-  state.mergedForSingleGeneration = "";
-  state.finalPromptForGeneration = "";
-  state.finalPromptAssumesTwoImages = false;
+  if (!state.customPromptMode) {
+    state.mergedForSingleGeneration = "";
+    state.finalPromptForGeneration = "";
+    state.finalPromptAssumesTwoImages = false;
+  }
+  state.extractReferenceFingerprint = getReferenceFingerprint();
   await persistState();
 }
 async function runExpand() {
@@ -15685,7 +16370,7 @@ async function runAssemblePromptNow() {
   await persistState();
 }
 function scheduleAssemblePrompt() {
-  if (!state.vibeId) return;
+  if (!state.vibeId || state.customPromptMode) return;
   clearTimeout(assembleDebounceTimer);
   assembleDebounceTimer = setTimeout(async () => {
     assembleDebounceTimer = null;
@@ -15698,7 +16383,10 @@ function scheduleAssemblePrompt() {
       }
       render();
     } catch (err) {
-      setToast("error", normalizeUiError(err, state.vibeGroomingControlsAvailable ? "assemble" : "expand"));
+      setToast(
+        "error",
+        normalizeUiError(err, state.vibeGroomingControlsAvailable ? t("err_assemble_prompt") : t("err_expand"))
+      );
     }
   }, 280);
 }
@@ -15728,11 +16416,11 @@ async function pollOne(id, onTick) {
     }
     if (data.status === "completed") return data;
     if (data.status === "failed") {
-      throw new Error(data.errorMessage || "\u0413\u0435\u043D\u0435\u0440\u0430\u0446\u0438\u044F \u0437\u0430\u0432\u0435\u0440\u0448\u0438\u043B\u0430\u0441\u044C \u043E\u0448\u0438\u0431\u043A\u043E\u0439");
+      throw new Error(data.errorMessage || t("err_generation_failed"));
     }
     await sleep2(getAdaptivePollIntervalMs(elapsedMs));
   }
-  throw new Error("\u0422\u0430\u0439\u043C\u0430\u0443\u0442 \u0433\u0435\u043D\u0435\u0440\u0430\u0446\u0438\u0438");
+  throw new Error(t("err_generation_timeout"));
 }
 async function runRowPipeline(row) {
   row.attempt = Number(row.attempt || 0) + 1;
@@ -15772,7 +16460,7 @@ async function runRowPipeline(row) {
   } catch (err) {
     row.status = "failed";
     row.progress = 0;
-    row.error = normalizeUiError(err, "\u041D\u0435\u0438\u0437\u0432\u0435\u0441\u0442\u043D\u0430\u044F \u043E\u0448\u0438\u0431\u043A\u0430");
+    row.error = normalizeUiError(err, t("err_unknown"));
     row.errorType = classifyErrorType(row.error);
     row.statusDetail = t("gen_failed");
   }
@@ -15792,7 +16480,7 @@ async function resumeInFlightGenerations() {
     row.progress = 0;
     row.error = t("session_retry_hint");
     row.errorType = "session_interrupted";
-    row.statusDetail = "\u041E\u0436\u0438\u0434\u0430\u0435\u0442 \u0440\u0443\u0447\u043D\u043E\u0433\u043E \u043F\u043E\u0432\u0442\u043E\u0440\u0430";
+    row.statusDetail = t("history_status_manual_retry");
   }
   if (!inFlight.length) {
     await persistState();
@@ -15824,7 +16512,7 @@ async function resumeInFlightGenerations() {
       } catch (err) {
         row.status = "failed";
         row.progress = 0;
-        row.error = normalizeUiError(err, "\u041D\u0435\u0438\u0437\u0432\u0435\u0441\u0442\u043D\u0430\u044F \u043E\u0448\u0438\u0431\u043A\u0430");
+        row.error = normalizeUiError(err, t("err_unknown"));
         row.errorType = classifyErrorType(row.error);
         row.statusDetail = t("restore_failed");
       }
@@ -15845,6 +16533,29 @@ async function resumeInFlightGenerations() {
 async function appendRunHistory(entry) {
   state.runHistory = [entry, ...state.runHistory || []].slice(0, MAX_RUN_HISTORY);
   await persistState();
+}
+async function appendPromptOnlyRunHistory(startedAt) {
+  const prompt = getPromptSnapshotForHistory();
+  await appendRunHistory({
+    id: `prompt-${String(startedAt)}`,
+    startedAt,
+    finishedAt: Date.now(),
+    runKind: "prompt",
+    model: state.selectedModel,
+    aspectRatio: state.selectedAspectRatio,
+    imageSize: state.selectedImageSize,
+    sourceImageUrl: state.sourceImageUrl,
+    vibeId: state.vibeId || null,
+    completed: 1,
+    failed: 0,
+    errorTypes: [],
+    perAccent: {},
+    generationId: null,
+    resultUrl: "",
+    prompt,
+    extractModel: String(state.extractModel || ""),
+    expandModel: String(state.expandModel || "")
+  });
 }
 function exportRunHistory() {
   const payload = {
@@ -15870,8 +16581,32 @@ async function clearRunHistory() {
   render();
 }
 async function completeGenerationAfterExpand(runStartedAt) {
+  const ta = document.getElementById("stv-gen-prompt-body");
+  if (ta && typeof ta.value === "string") {
+    applyGenerationPromptBodyFromUi(ta.value);
+  }
+  const bodyTrim = String(state.mergedForSingleGeneration || "").trim();
+  if (state.customPromptMode) {
+    if (!bodyTrim) {
+      state.generating = false;
+      state.runStage = "idle";
+      state.pipelinePrepPercent = 0;
+      throw new Error(t("err_custom_prompt_empty"));
+    }
+    if (bodyTrim.length < 8) {
+      state.generating = false;
+      state.runStage = "idle";
+      state.pipelinePrepPercent = 0;
+      throw new Error(t("err_custom_prompt_short"));
+    }
+  }
   const n = getPromptsPerRun();
-  const allPrompts = Array.isArray(state.prompts) ? state.prompts : [];
+  let allPrompts = Array.isArray(state.prompts) ? state.prompts : [];
+  if (n === 3 && state.customPromptMode && bodyTrim && allPrompts.length !== 3) {
+    const tripleAccents = ["lighting", "mood", "composition"];
+    state.prompts = tripleAccents.map((accent) => ({ accent, prompt: bodyTrim }));
+    allPrompts = state.prompts;
+  }
   if (n === 1) {
     const merged = String(state.mergedForSingleGeneration || "").trim();
     if (merged) {
@@ -15977,14 +16712,16 @@ async function completeGenerationAfterExpand(runStartedAt) {
 }
 async function generateAll() {
   if (state.generating || state.awaitingContinueGenerate) return;
-  if (!hasReference()) throw new Error("\u041D\u0435\u0442 source image");
-  if (!hasUserPhotos()) throw new Error("\u0421\u043D\u0430\u0447\u0430\u043B\u0430 \u0437\u0430\u0433\u0440\u0443\u0437\u0438\u0442\u0435 \u0444\u043E\u0442\u043E");
+  if (!hasReference()) throw new Error(t("err_no_reference"));
+  if (!hasUserPhotos()) throw new Error(t("err_upload_photos_first"));
   if (getCooldownLeftSeconds() > 0) {
-    throw new Error(`\u041F\u043E\u0434\u043E\u0436\u0434\u0438\u0442\u0435 ${getCooldownLeftSeconds()} \u0441\u0435\u043A \u043F\u0435\u0440\u0435\u0434 \u043D\u043E\u0432\u044B\u043C \u0437\u0430\u043F\u0443\u0441\u043A\u043E\u043C`);
+    throw new Error(tf("err_cooldown_wait", { n: getCooldownLeftSeconds() }));
   }
   const requiredCredits = getRequiredCredits();
   if (state.credits < requiredCredits) {
-    throw new Error(`\u041D\u0435\u0434\u043E\u0441\u0442\u0430\u0442\u043E\u0447\u043D\u043E \u043A\u0440\u0435\u0434\u0438\u0442\u043E\u0432: \u043D\u0443\u0436\u043D\u043E ${requiredCredits}, \u0434\u043E\u0441\u0442\u0443\u043F\u043D\u043E ${state.credits}`);
+    throw new Error(
+      tf("err_insufficient_credits_detail", { required: requiredCredits, available: state.credits })
+    );
   }
   state.awaitingContinueGenerate = false;
   state.pendingRunStartedAt = 0;
@@ -15996,28 +16733,41 @@ async function generateAll() {
   state.pipelinePrepPercent = 6;
   state.runStage = "extract";
   state.info = t("run_extract");
+  state.prepNetworkPending = true;
   render();
-  await runExtract();
-  state.pipelinePrepPercent = 36;
-  state.runStage = "expand";
-  state.info = t("run_expand_prep");
-  render();
-  await runExpand();
-  if (state.vibeGroomingControlsAvailable) {
-    state.pipelinePrepPercent = 72;
-    state.runStage = "assemble";
-    state.info = t("run_assemble");
+  try {
+    await runExtract();
+    state.prepNetworkPending = false;
+    if (!state.customPromptMode) {
+      state.pipelinePrepPercent = 36;
+      state.runStage = "expand";
+      state.info = t("run_expand_prep");
+      state.prepNetworkPending = true;
+      render();
+      await runExpand();
+      state.prepNetworkPending = false;
+      if (state.vibeGroomingControlsAvailable) {
+        state.pipelinePrepPercent = 72;
+        state.runStage = "assemble";
+        state.info = t("run_assemble");
+        state.prepNetworkPending = true;
+        render();
+        await runAssemblePromptNow();
+        state.prepNetworkPending = false;
+      }
+    }
+    state.pipelinePrepPercent = 100;
+    state.runStage = "generate";
+    state.info = t("run_generate");
     render();
-    await runAssemblePromptNow();
+    await completeGenerationAfterExpand(runStartedAt);
+  } finally {
+    state.prepNetworkPending = false;
   }
-  state.pipelinePrepPercent = 100;
-  state.runStage = "generate";
-  state.info = t("run_generate");
-  render();
-  await completeGenerationAfterExpand(runStartedAt);
 }
 async function continueGenerateAfterGrooming() {
   if (!state.awaitingContinueGenerate || state.generating) return;
+  if (state.customPromptMode) return;
   const runStartedAt = state.pendingRunStartedAt || Date.now();
   state.awaitingContinueGenerate = false;
   state.pendingRunStartedAt = 0;
@@ -16041,8 +16791,14 @@ async function retryResultById(id) {
   if (state.generating) return;
   const row = state.results.find((r) => r.id === id || `${r.accent}:${r.attempt}` === id);
   if (!row) return;
+  const ta = document.getElementById("stv-gen-prompt-body");
+  if (ta && typeof ta.value === "string") {
+    applyGenerationPromptBodyFromUi(ta.value);
+    const body = String(state.mergedForSingleGeneration || "").trim();
+    if (body) row.prompt = body;
+  }
   if (!hasUserPhotos()) {
-    state.error = "\u0421\u043D\u0430\u0447\u0430\u043B\u0430 \u0437\u0430\u0433\u0440\u0443\u0437\u0438\u0442\u0435 \u0444\u043E\u0442\u043E";
+    state.error = t("err_upload_photos_first");
     render();
     return;
   }
@@ -16052,73 +16808,6 @@ async function retryResultById(id) {
   const pr = getPromptsPerRun();
   state.info = `${t("done_label")}: ${completed}/${pr}, ${t("errors_label")}: ${failed}/${pr}`;
   await persistState();
-  render();
-}
-async function retryAllFailed() {
-  if (state.generating) return;
-  const failed = state.results.filter((r) => r.status === "failed");
-  if (!failed.length) return;
-  state.info = t("retry_line");
-  state.error = "";
-  render();
-  for (const row of failed) {
-    await runRowPipeline(row);
-  }
-  const completed = state.results.filter((r) => r.status === "completed").length;
-  const failedAfter = state.results.filter((r) => r.status === "failed").length;
-  const pr = getPromptsPerRun();
-  state.info = `${t("done_label")}: ${completed}/${pr}, ${t("errors_label")}: ${failedAfter}/${pr}`;
-  await refreshAuthSilently();
-  await persistState();
-  setToast("info", t("all_done"));
-  render();
-}
-async function resetSession() {
-  state.phase = "idle";
-  state.error = "";
-  state.info = t("session_cleared");
-  revokeAllUserPhotoObjectUrls();
-  clearAllUserPhotoSignedUrls();
-  state.userPhotos = [];
-  state.userPhotosPreviewLoading = false;
-  clearReferenceUpload();
-  clearUrlReference();
-  state.vibeId = null;
-  state.style = null;
-  state.extractModel = "";
-  state.expandModel = "";
-  state.prompts = [];
-  state.mergedForSingleGeneration = "";
-  state.finalPromptForGeneration = "";
-  state.finalPromptAssumesTwoImages = false;
-  state.vibeGroomingControlsAvailable = false;
-  state.groomingPolicy = { applyHair: true, applyMakeup: true };
-  state.awaitingContinueGenerate = false;
-  state.pendingRunStartedAt = 0;
-  state.results = [];
-  await storageLocalRemove(LOCAL_STATE_KEY);
-  setToast("info", t("session_cleared"));
-  render();
-}
-async function clearResultsOnly() {
-  state.phase = "idle";
-  state.error = "";
-  state.info = t("results_cleared");
-  state.vibeId = null;
-  state.style = null;
-  state.extractModel = "";
-  state.expandModel = "";
-  state.prompts = [];
-  state.mergedForSingleGeneration = "";
-  state.finalPromptForGeneration = "";
-  state.finalPromptAssumesTwoImages = false;
-  state.vibeGroomingControlsAvailable = false;
-  state.groomingPolicy = { applyHair: true, applyMakeup: true };
-  state.awaitingContinueGenerate = false;
-  state.pendingRunStartedAt = 0;
-  state.results = [];
-  await persistState();
-  setToast("info", t("results_cleared"));
   render();
 }
 async function saveResultById(id) {
@@ -16143,22 +16832,22 @@ async function saveResultById(id) {
     if (data.cardUrl) {
       window.open(data.cardUrl, "_blank");
       if (autoTagCount > 0) {
-        setToast("success", `\u0421\u043E\u0445\u0440\u0430\u043D\u0435\u043D\u043E: +${autoTagCount} SEO-\u0442\u0435\u0433\u043E\u0432, \u043A\u0430\u0440\u0442\u043E\u0447\u043A\u0430 \u043E\u0442\u043A\u0440\u044B\u0442\u0430`);
+        setToast("success", tf("toast_saved_seo_open", { n: autoTagCount }));
       } else {
-        setToast("success", "\u0421\u043E\u0445\u0440\u0430\u043D\u0435\u043D\u043E \u0438 \u043E\u0442\u043A\u0440\u044B\u0442\u0430 \u043A\u0430\u0440\u0442\u043E\u0447\u043A\u0430");
+        setToast("success", t("toast_saved_card_opened"));
       }
     } else {
       if (autoTagCount > 0) {
-        state.info = `\u0421\u043E\u0445\u0440\u0430\u043D\u0435\u043D\u043E. \u041E\u043F\u0440\u0435\u0434\u0435\u043B\u0435\u043D\u043E ${autoTagCount} SEO-\u0442\u0435\u0433\u043E\u0432, \u043A\u0430\u0440\u0442\u043E\u0447\u043A\u0430 \u0431\u0443\u0434\u0435\u0442 \u043E\u043F\u0443\u0431\u043B\u0438\u043A\u043E\u0432\u0430\u043D\u0430 \u043F\u043E\u0437\u0436\u0435.`;
+        state.info = tf("info_saved_seo_pending", { n: autoTagCount });
       } else {
-        state.info = "\u0421\u043E\u0445\u0440\u0430\u043D\u0435\u043D\u043E. \u041A\u0430\u0440\u0442\u043E\u0447\u043A\u0430 \u0431\u0443\u0434\u0435\u0442 \u043E\u043F\u0443\u0431\u043B\u0438\u043A\u043E\u0432\u0430\u043D\u0430 \u043F\u043E\u0437\u0436\u0435.";
+        state.info = t("info_saved_card_later");
       }
-      setToast("success", "\u0421\u043E\u0445\u0440\u0430\u043D\u0435\u043D\u043E");
+      setToast("success", t("toast_saved_ok"));
     }
     await refreshAuthSilently();
   } catch (err) {
     row.saving = false;
-    state.error = normalizeUiError(err, "\u041E\u0448\u0438\u0431\u043A\u0430 \u0441\u043E\u0445\u0440\u0430\u043D\u0435\u043D\u0438\u044F");
+    state.error = normalizeUiError(err, t("err_save"));
     setToast("error", state.error);
   }
   await persistState();
@@ -16177,7 +16866,7 @@ function renderAuthRequired() {
           </div>
         </div>
         <div class="stv-topbar-actions">
-          <button type="button" class="stv-tool-btn" id="toggle-lang">${escapeHtml(t("lang_toggle"))}</button>
+          ${langSelectHtml()}
         </div>
       </header>
       <div class="card stv-card-main">
@@ -16191,13 +16880,7 @@ function renderAuthRequired() {
       </div>
     </div>
   `;
-  const langBtnAuth = document.getElementById("toggle-lang");
-  if (langBtnAuth) {
-    langBtnAuth.addEventListener("click", () => {
-      toggleUiLang();
-      render();
-    });
-  }
+  bindLangSelect();
   document.getElementById("btn-google").addEventListener("click", () => {
     void startGoogleSignIn();
   });
@@ -16249,12 +16932,13 @@ function buildUserPhotosBlockHtml() {
       ${fileInput}
     </div>`;
 }
-function buildReferenceFrameHtml() {
-  const refFileInput = `<input id="reference-photo-file" class="stv-reference-file-input" type="file" accept="image/jpeg,image/png,image/webp" />`;
+function buildReferenceFrameHtml(refInputId = "reference-photo-file") {
+  const rid = String(refInputId || "reference-photo-file").trim() || "reference-photo-file";
+  const refFileInput = `<input id="${escapeHtml(rid)}" class="stv-reference-file-input" type="file" accept="image/jpeg,image/png,image/webp" />`;
   if (!hasReference()) {
     return `${refFileInput}
       <div class="stv-reference-frame-inner stv-reference-frame-inner--empty">
-        <label class="stv-reference-empty-plus-wrap" for="reference-photo-file" aria-label="${escapeHtml(t("reference_pick_aria"))}">
+        <label class="stv-reference-empty-plus-wrap" for="${escapeHtml(rid)}" aria-label="${escapeHtml(t("reference_pick_aria"))}">
           <span class="stv-user-photo-empty-plus" aria-hidden="true">+</span>
         </label>
         <p class="muted stv-reference-empty-hint">${escapeHtml(t("reference_empty_hint"))}</p>
@@ -16277,12 +16961,105 @@ function buildReferenceFrameHtml() {
       <button type="button" class="stv-user-photo-remove" data-remove-reference="1" aria-label="${escapeHtml(t("reference_remove_aria"))}">\xD7</button>
     </div>`;
 }
+function truncatePromptPreview(text, max = 360) {
+  const s = String(text || "").trim();
+  if (s.length <= max) return s;
+  return `${s.slice(0, max)}\u2026`;
+}
+function syncPromptChainFromUnprefixedBody(unprefixed) {
+  const v = String(unprefixed ?? "").trim();
+  if (!v) return;
+  state.mergedForSingleGeneration = v;
+  const n = getPromptsPerRun();
+  if (n === 3 && !state.customPromptMode) {
+    const tripleAccents = ["lighting", "mood", "composition"];
+    state.prompts = tripleAccents.map((accent) => ({ accent, prompt: v }));
+  } else {
+    state.prompts = [{ accent: "scene", prompt: v }];
+  }
+  state.finalPromptForGeneration = buildFinalPromptForUiPreview(v, state.finalPromptAssumesTwoImages);
+}
+async function runExtractExpandOnly() {
+  if (!hasReference()) {
+    setToast("error", t("tab_prompt_need_reference"));
+    return;
+  }
+  if (state.generating || state.preparingPromptOnly) return;
+  const promptRunStartedAt = Date.now();
+  state.error = "";
+  state.preparingPromptOnly = true;
+  state.phase = "processing";
+  state.pipelinePrepPercent = 6;
+  state.runStage = "extract";
+  state.info = t("run_extract");
+  state.prepNetworkPending = true;
+  render();
+  try {
+    await runExtract();
+    state.prepNetworkPending = false;
+    if (!state.customPromptMode) {
+      state.pipelinePrepPercent = 36;
+      state.runStage = "expand";
+      state.info = t("run_expand_prep");
+      state.prepNetworkPending = true;
+      render();
+      await runExpand();
+      state.prepNetworkPending = false;
+      if (state.vibeGroomingControlsAvailable) {
+        state.pipelinePrepPercent = 72;
+        state.runStage = "assemble";
+        state.info = t("run_assemble");
+        state.prepNetworkPending = true;
+        render();
+        await runAssemblePromptNow();
+        state.prepNetworkPending = false;
+      }
+    }
+    await appendPromptOnlyRunHistory(promptRunStartedAt);
+    await persistState();
+    setToast("success", t("toast_prompt_ready"));
+    schedulePromptReadyFlash();
+  } catch (err) {
+    state.prepNetworkPending = false;
+    state.error = normalizeUiError(err, t("err_expand"));
+    setToast("error", state.error);
+  } finally {
+    state.preparingPromptOnly = false;
+    state.prepNetworkPending = false;
+    state.pipelinePrepPercent = 0;
+    state.runStage = "idle";
+    if (state.phase === "processing" && !state.generating) state.phase = "idle";
+    state.info = "";
+    render();
+  }
+}
+function applyStructuredStyleSaveFromDom() {
+  const base = state.style && typeof state.style === "object" ? { ...state.style } : {};
+  for (const k of LEGACY_VIBE_STYLE_FIELDS) {
+    const el = document.getElementById(`stv-style-field-${k}`);
+    if (el && typeof el.value === "string") {
+      base[k] = el.value;
+    }
+  }
+  delete base.subject_pose;
+  state.style = base;
+  const unprefixed = buildUnprefixedGenerationBodyFromStyle(base, state.groomingPolicy);
+  if (!String(unprefixed || "").trim()) {
+    setToast("error", t("err_style_body_empty"));
+    return;
+  }
+  syncPromptChainFromUnprefixedBody(unprefixed);
+  state.promptBlocksExpanded = false;
+  void persistState();
+  setToast("success", t("toast_prompt_blocks_saved"));
+  render();
+}
 function renderMain() {
   const requiredCredits = getRequiredCredits();
   const promptsPerRunUi = getPromptsPerRun();
   const cooldownLeftSec = getCooldownLeftSeconds();
   const canGenerate = Boolean(
-    hasReference() && hasUserPhotos() && !state.generating && !state.awaitingContinueGenerate && state.credits >= requiredCredits && cooldownLeftSec === 0
+    hasReference() && hasUserPhotos() && !state.generating && !state.preparingPromptOnly && !state.awaitingContinueGenerate && state.credits >= requiredCredits && cooldownLeftSec === 0
   );
   const completedCount = state.results.filter((r) => r.status === "completed").length;
   const failedCount = state.results.filter((r) => r.status === "failed").length;
@@ -16292,96 +17069,157 @@ function renderMain() {
   const showFirstRunHint = !hasReference() && (!Array.isArray(state.runHistory) || state.runHistory.length === 0);
   const hasUserPhoto = hasUserPhotos();
   const userPhotosInner = buildUserPhotosBlockHtml();
-  const referenceFrame = buildReferenceFrameHtml();
+  const referenceFramePrompt = buildReferenceFrameHtml("stv-ref-file-prompt");
+  const referenceFrameGenerate = buildReferenceFrameHtml("stv-ref-file-generate");
   const resultsCompareColumnHtml = state.results.length ? `<div class="stv-result-column">${state.results.map((row) => buildResultCompactRowHtml(row)).join("")}</div>` : `<div class="stv-result-column stv-result-column--empty">
         <div class="stv-photo-frame stv-result-placeholder-frame">
           <div class="stv-compare-placeholder muted">${escapeHtml(t("compare_result_empty"))}</div>
         </div>
       </div>`;
   const showCompareProgress = shouldShowCompareProgressBar();
+  const prepIndeterminate = shouldShowPrepIndeterminate();
   const compareProgressHtml = showCompareProgress ? `
           <div class="stv-compare-progress">
-            <div class="progress-wrap">
-              <div class="progress-bar" style="width:${escapeHtml(String(overallProgress))}%"></div>
+            <div class="progress-wrap${prepIndeterminate ? " progress-wrap--indeterminate" : ""}">
+              ${prepIndeterminate ? '<div class="progress-bar progress-bar--indeterminate" aria-hidden="true"></div>' : `<div class="progress-bar" style="width:${escapeHtml(String(overallProgress))}%"></div>`}
             </div>
-            <p class="muted">${escapeHtml(t("progress_total"))}: ${escapeHtml(String(overallProgress))}%</p>
+            <p class="muted">${prepIndeterminate ? escapeHtml(state.info || t("progress_working")) : `${escapeHtml(t("progress_total"))}: ${escapeHtml(String(overallProgress))}%`}</p>
           </div>` : "";
+  const promptTabStatusLine = state.preparingPromptOnly ? escapeHtml(
+    String(state.info || "").trim() || (prepIndeterminate ? t("progress_working") : `${t("progress_total")}: ${overallProgress}%`)
+  ) : "";
+  const promptTabButtonMeterHtml = state.preparingPromptOnly && hasReference() ? prepIndeterminate ? '<span class="stv-btn-extract-prompt-meter" aria-hidden="true"><span class="stv-btn-extract-prompt-meter-fill stv-btn-extract-prompt-meter-fill--indeterminate"></span></span>' : `<span class="stv-btn-extract-prompt-meter" aria-hidden="true"><span class="stv-btn-extract-prompt-meter-fill" style="width:${escapeHtml(String(overallProgress))}%"></span></span>` : "";
+  const promptTabExtractStatusBelowHtml = state.preparingPromptOnly && hasReference() ? `<p class="muted stv-prompt-extract-status-text" role="status" aria-live="polite">${promptTabStatusLine}</p>` : "";
   const runCount = Array.isArray(state.runHistory) ? state.runHistory.length : 0;
-  const runHistoryHtml = runCount > 0 ? `
+  const hf = state.historyFilter || "all";
+  const historyEntries = runCount > 0 ? state.runHistory.map((run, idx) => ({ run, idx })).filter(({ run }) => {
+    if (hf === "image") return runHistoryKind(run) === "image";
+    if (hf === "prompt") return runHistoryKind(run) === "prompt";
+    return true;
+  }) : [];
+  const runHistoryListHtml = historyEntries.length > 0 ? historyEntries.map(({ run, idx }) => buildRunHistoryCardHtml(run, idx)).join("") : "";
+  const historyFilterHtml = `
+        <div class="stv-history-filter" role="tablist" aria-label="${escapeHtml(t("history_filter_aria"))}">
+          <button type="button" role="tab" class="stv-history-filter-btn${hf === "all" ? " stv-history-filter-btn--active" : ""}" data-history-filter="all" aria-selected="${hf === "all" ? "true" : "false"}">${escapeHtml(t("history_filter_all"))}</button>
+          <button type="button" role="tab" class="stv-history-filter-btn${hf === "image" ? " stv-history-filter-btn--active" : ""}" data-history-filter="image" aria-selected="${hf === "image" ? "true" : "false"}">${escapeHtml(t("history_filter_image"))}</button>
+          <button type="button" role="tab" class="stv-history-filter-btn${hf === "prompt" ? " stv-history-filter-btn--active" : ""}" data-history-filter="prompt" aria-selected="${hf === "prompt" ? "true" : "false"}">${escapeHtml(t("history_filter_prompt"))}</button>
+        </div>`;
+  const runHistoryCardHtml = `
       <div class="card stv-card-history">
         <div class="stv-history-toolbar">
           <p class="title stv-history-title">${escapeHtml(t("history_title"))}</p>
           <p class="muted stv-history-count">${escapeHtml(t("history_count_prefix"))} ${escapeHtml(String(runCount))}</p>
         </div>
+        ${runCount > 0 ? historyFilterHtml : ""}
         <div class="row stv-history-toolbar-actions">
           <button type="button" id="export-history">${escapeHtml(t("history_export"))}</button>
           <button type="button" id="clear-history">${escapeHtml(t("history_clear"))}</button>
         </div>
-        <div class="stv-history-list" id="stv-history-list">
-          ${state.runHistory.map((run, idx) => buildRunHistoryCardHtml(run, idx)).join("")}
-        </div>
-      </div>
-    ` : "";
-  const finalPromptHint = state.finalPromptAssumesTwoImages === true ? t("final_prompt_hint_two") : t("final_prompt_hint_one");
-  const finalPromptBody = state.finalPromptForGeneration ? `<pre class="prompt-box prompt-box--final-prompt">${escapeHtml(state.finalPromptForGeneration)}</pre>` : `<p class="muted">${escapeHtml(t("final_prompt_empty"))}</p>`;
-  const groomingHintKey = !state.vibeGroomingControlsAvailable ? "grooming_unlock_hint" : state.awaitingContinueGenerate ? "grooming_adjust_hint" : "grooming_ready_hint";
+        <div class="stv-history-list" id="stv-history-list">${runHistoryListHtml}</div>
+        ${runCount === 0 ? `<p class="muted stv-history-empty">${escapeHtml(t("history_empty_hint"))}</p>` : historyEntries.length === 0 ? `<p class="muted stv-history-empty">${escapeHtml(t("history_filter_empty"))}</p>` : ""}
+      </div>`;
+  const groomingHintKey = state.customPromptMode ? "grooming_custom_prompt_hint" : !state.vibeGroomingControlsAvailable ? "grooming_unlock_hint" : state.awaitingContinueGenerate ? "grooming_adjust_hint" : "grooming_ready_hint";
+  const groomDisabled = state.customPromptMode ? "disabled" : "";
   const groomingMainSectionHtml = `<div class="stv-grooming-block stv-grooming-block--main">
           <p class="stv-subtitle">${escapeHtml(t("grooming_title"))}</p>
           <p class="muted stv-grooming-hint">${escapeHtml(t(groomingHintKey))}</p>
           <label class="stv-check stv-grooming-check">
-            <input type="checkbox" id="grooming-hair" ${state.groomingPolicy.applyHair ? "checked" : ""} />
+            <input type="checkbox" id="grooming-hair" ${state.groomingPolicy.applyHair ? "checked" : ""} ${groomDisabled} />
             <span>${escapeHtml(t("grooming_hair"))}</span>
           </label>
           <label class="stv-check stv-grooming-check">
-            <input type="checkbox" id="grooming-makeup" ${state.groomingPolicy.applyMakeup ? "checked" : ""} />
+            <input type="checkbox" id="grooming-makeup" ${state.groomingPolicy.applyMakeup ? "checked" : ""} ${groomDisabled} />
             <span>${escapeHtml(t("grooming_makeup"))}</span>
           </label>
           ${state.awaitingContinueGenerate ? `<div class="stv-grooming-continue">
             <button type="button" class="primary" id="btn-continue-generate">${escapeHtml(t("btn_continue_generate"))}</button>
           </div>` : ""}
         </div>`;
-  const pipelinePanelHtml = state.style && typeof state.style === "object" ? `<div class="card stv-card-side">
-          <p class="title">${escapeHtml(t("step1_title"))}</p>
-          <p class="muted">${escapeHtml(t("step1_model"))}: <code>${escapeHtml(state.extractModel || "\u2014")}</code></p>
-          <p class="muted">${escapeHtml(t("step2_model"))}: <code>${escapeHtml(state.expandModel || "\u2014")}</code></p>
-          <pre class="prompt-box">${escapeHtml(JSON.stringify(state.style, null, 2))}</pre>
-          <p class="stv-subtitle">${escapeHtml(t("step1_final_prompt_title"))}</p>
-          <p class="muted">${escapeHtml(finalPromptHint)}</p>
-          ${finalPromptBody}
-          <div class="row" style="margin-top:8px">
-            <button type="button" id="pipeline-spec-btn">${escapeHtml(t("btn_pipeline_spec"))}</button>
+  const normStyle = normalizeLegacyStyleFromState(state.style);
+  const unprefForPrompt = buildUnprefixedGenerationBodyFromStyle(state.style, state.groomingPolicy);
+  const promptSummaryText = state.customPromptMode ? String(getGenerationPromptBodyForUi() || "").trim() : String(unprefForPrompt || getGenerationPromptBodyForUi() || "").trim();
+  const showStyleBlocks = !state.customPromptMode && String(unprefForPrompt || "").trim().length > 0;
+  const hasStyleExtracted = showStyleBlocks;
+  const showStalePromptBanner = isPromptStaleVsExtract() && hasReference();
+  const promptBlockFlashClass = state.promptReadyFlash ? " stv-prompt-block--flash" : "";
+  const styleFieldsHtml = LEGACY_VIBE_STYLE_FIELDS.map((field) => {
+    const label = LEGACY_VIBE_FIELD_LABELS[field];
+    const val = escapeHtml(normStyle[field] || "");
+    return `<label class="stv-field stv-style-block-field" for="stv-style-field-${escapeHtml(field)}">
+        <span class="stv-field-label">${escapeHtml(label)}</span>
+        <textarea id="stv-style-field-${escapeHtml(field)}" class="prompt-box stv-style-block-textarea" rows="3" spellcheck="false">${val}</textarea>
+      </label>`;
+  }).join("");
+  const modeToggleDisabled = state.generating || state.preparingPromptOnly;
+  const promptTabCustomToggleHtml = `<div class="stv-prompt-mode-toggle" role="group" aria-label="${escapeHtml(t("prompt_mode_group_aria"))}">
+          <button type="button" id="stv-prompt-mode-style" class="stv-prompt-mode-btn${!state.customPromptMode ? " stv-prompt-mode-btn--active" : ""}" ${modeToggleDisabled ? "disabled" : ""} aria-pressed="${!state.customPromptMode ? "true" : "false"}">${escapeHtml(t("prompt_mode_from_style"))}</button>
+          <button type="button" id="stv-prompt-mode-custom" class="stv-prompt-mode-btn${state.customPromptMode ? " stv-prompt-mode-btn--active" : ""}" ${modeToggleDisabled ? "disabled" : ""} aria-pressed="${state.customPromptMode ? "true" : "false"}">${escapeHtml(t("prompt_mode_custom"))}</button>
+        </div>`;
+  const promptTabBodyHtml = state.customPromptMode ? `<div class="stv-prompt-custom-editor">
+          <p class="muted stv-prompt-hint-top">${escapeHtml(t("custom_prompt_mode_hint"))}</p>
+          <textarea id="stv-gen-prompt-body" class="prompt-box prompt-box--final-prompt${state.promptReadyFlash ? " stv-prompt-summary--flash" : ""}" rows="14" spellcheck="false" autocomplete="off" aria-label="${escapeHtml(t("gen_prompt_label"))}" placeholder="${escapeHtml(t("custom_prompt_placeholder"))}"></textarea>
+          <p class="muted stv-prompt-edit-hint">${escapeHtml(t("custom_prompt_edit_hint"))}</p>
+        </div>` : state.promptBlocksExpanded ? `<div class="stv-prompt-editor">
+          ${styleFieldsHtml}
+          <div class="row stv-prompt-editor-actions">
+            <button type="button" class="primary" id="btn-save-prompt-blocks">${escapeHtml(t("btn_save_prompt_blocks"))}</button>
+            <button type="button" id="btn-cancel-prompt-blocks">${escapeHtml(t("btn_cancel_prompt_edit"))}</button>
           </div>
-          <pre id="pipeline-spec-out" class="prompt-box" style="display:none; margin-top:8px; max-height:240px;"></pre>
-        </div>` : "";
-  app.innerHTML = `
-    <div class="stv-shell">
-      <header class="stv-topbar">
-        <div class="stv-brand">
-          <span class="stv-brand-mark" aria-hidden="true">${STV_MARK_STAR_SVG}</span>
-          <div class="stv-brand-text">
-            <span class="stv-brand-name">PromptShot</span>
-            <span class="stv-brand-sub">${escapeHtml(t("brand_sub"))}</span>
+        </div>` : `<div class="stv-prompt-readonly">
+          <div class="stv-prompt-summary-toolbar">
+            <button type="button" class="stv-secondary-btn stv-copy-prompt-btn" id="btn-copy-prompt-tab" ${promptSummaryText ? "" : "disabled"} aria-label="${escapeHtml(t("btn_copy_prompt_aria"))}">${escapeHtml(t("btn_copy_prompt"))}</button>
           </div>
-        </div>
-        <div class="stv-topbar-actions">
-          <button type="button" class="stv-tool-btn" id="toggle-lang">${escapeHtml(t("lang_toggle"))}</button>
-          <button type="button" class="stv-tool-btn" id="sign-out">${escapeHtml(t("btn_sign_out"))}</button>
-        </div>
-      </header>
-
-      <div class="card stv-card-main">
-        ${state.toast ? `<div class="toast toast-${escapeHtml(state.toast.type)}">${escapeHtml(state.toast.message)}</div>` : ""}
-
-        <div class="stv-meta-strip">
-          <div class="stv-meta-credits">${escapeHtml(t("credits"))}: ${escapeHtml(String(state.credits))} <span>\xB7 ${escapeHtml(t("cost_run"))} ${escapeHtml(String(requiredCredits))} ${escapeHtml(t("credit_word"))}</span></div>
-          <div class="stv-meta-row ${escapeHtml(sessionHealth.className)}">${escapeHtml(t("status"))}: ${escapeHtml(sessionHealth.label)}</div>
-          <div class="stv-meta-row">${escapeHtml(t("user"))}: ${escapeHtml(state.user.email || state.user.id || "\u2014")}</div>
-          ${needsCredits ? `<div class="stv-meta-row error-text">${escapeHtml(t("insufficient_credits"))}: ${escapeHtml(String(requiredCredits))} / ${escapeHtml(String(state.credits))}</div>` : ""}
-        </div>
-
+          <pre class="prompt-box stv-prompt-summary${state.promptReadyFlash ? " stv-prompt-summary--flash" : ""}" id="stv-prompt-summary-pre">${escapeHtml(promptSummaryText)}</pre>
+          <button type="button" class="stv-secondary-btn" id="btn-toggle-prompt-blocks" ${showStyleBlocks ? "" : "disabled"}>${escapeHtml(t("btn_edit_prompt_blocks"))}</button>
+        </div>`;
+  const tabBarHtml = `
+        <nav class="stv-tabbar" role="tablist" aria-label="${escapeHtml(t("tabbar_aria"))}">
+          <button type="button" role="tab" class="stv-tab${state.panelTab === "prompt" ? " stv-tab--active" : ""}" data-panel-tab="prompt" aria-selected="${state.panelTab === "prompt" ? "true" : "false"}">${escapeHtml(t("tab_prompt"))}</button>
+          <button type="button" role="tab" class="stv-tab${state.panelTab === "generate" ? " stv-tab--active" : ""}" data-panel-tab="generate" aria-selected="${state.panelTab === "generate" ? "true" : "false"}">${escapeHtml(t("tab_generate"))}</button>
+          <button type="button" role="tab" class="stv-tab${state.panelTab === "history" ? " stv-tab--active" : ""}" data-panel-tab="history" aria-selected="${state.panelTab === "history" ? "true" : "false"}">${escapeHtml(t("tab_history"))}</button>
+        </nav>`;
+  const promptTabPanelHtml = `
+        <div class="stv-tab-panel${state.panelTab === "prompt" ? "" : " stv-tab-panel--hidden"}" data-tab="prompt" role="tabpanel">
+          <p class="muted stv-tab-lead">${escapeHtml(t("tab_prompt_lead"))}</p>
+          ${showStalePromptBanner ? `<p class="stv-stale-prompt-banner" role="status">${escapeHtml(t("stale_prompt_hint"))}</p>` : ""}
+          <div class="stv-prompt-tab-stack${promptBlockFlashClass}">
+            <div class="stv-prompt-ref-block">
+              <span class="stv-field-label">${escapeHtml(t("compare_col_reference"))}</span>
+              <div class="stv-photo-frame stv-photo-frame--reference">${referenceFramePrompt}</div>
+              ${!hasReference() ? `<p class="muted stv-tab-hint">${escapeHtml(t("tab_prompt_no_reference"))}</p>` : ""}
+              <div class="stv-prompt-tab-actions">
+                <div class="stv-prompt-extract-wrap">
+                  <button type="button" class="stv-btn-extract-prompt ${hasStyleExtracted ? "" : "primary"}${state.preparingPromptOnly ? " stv-btn-extract-prompt--busy stv-btn-loading" : ""}" id="btn-extract-prompt-only" aria-busy="${state.preparingPromptOnly ? "true" : "false"}" ${!hasReference() || state.generating || state.preparingPromptOnly ? "disabled" : ""}><span class="stv-btn-extract-prompt-label">${escapeHtml(hasStyleExtracted ? t("btn_refresh_prompt_extract") : t("btn_extract_prompt_only"))}</span>${promptTabButtonMeterHtml}</button>
+                  ${promptTabExtractStatusBelowHtml}
+                </div>
+              </div>
+            </div>
+            <div class="stv-prompt-below-ref">
+              ${promptTabCustomToggleHtml}
+              <span class="stv-field-label">${escapeHtml(t("tab_prompt_recognized_label"))}</span>
+              ${promptTabBodyHtml}
+            </div>
+          </div>
+        </div>`;
+  const jumpPromptChipLabel = promptSummaryText ? truncatePromptPreview(promptSummaryText, 72) : t("tab_jump_prompt_empty");
+  const generateCurrentPromptBlockHtml = promptSummaryText ? `<details class="stv-generate-current-prompt">
+          <summary class="stv-generate-current-prompt-summary">
+            <span class="muted stv-generate-current-prompt-label">${escapeHtml(t("current_prompt_label"))}</span>
+            <span class="stv-prompt-jump-chip stv-prompt-jump-chip--summary" aria-hidden="true">${escapeHtml(jumpPromptChipLabel)}</span>
+          </summary>
+          <div class="stv-generate-current-prompt-expanded">
+            <pre class="prompt-box stv-generate-prompt-expanded-pre">${escapeHtml(promptSummaryText)}</pre>
+            <button type="button" class="stv-secondary-btn" id="btn-edit-prompt-goto-tab">${escapeHtml(t("btn_edit_prompt_goto_tab"))}</button>
+          </div>
+        </details>` : `<div class="stv-jump-prompt-row stv-jump-prompt-row--disabled">
+          <span class="muted">${escapeHtml(t("current_prompt_label"))}</span>
+          <div class="stv-prompt-jump-chip stv-prompt-jump-chip--disabled" aria-disabled="true">${escapeHtml(t("tab_jump_prompt_empty"))}</div>
+        </div>`;
+  const generateTabPanelHtml = `
+        <div class="stv-tab-panel${state.panelTab === "generate" ? "" : " stv-tab-panel--hidden"}" data-tab="generate" role="tabpanel">
+          ${generateCurrentPromptBlockHtml}
         <section class="stv-section">
           <div class="stv-section-head">
-            <span class="stv-step" aria-hidden="true">1</span>
             <h2 class="stv-section-title">${escapeHtml(t("section_photos_compare"))}</h2>
           </div>
           <div class="stv-compare-grid">
@@ -16393,7 +17231,7 @@ function renderMain() {
             </div>
             <div class="stv-compare-col">
               <span class="stv-field-label">${escapeHtml(t("compare_col_reference"))}</span>
-              <div class="stv-photo-frame stv-photo-frame--reference">${referenceFrame}</div>
+              <div class="stv-photo-frame stv-photo-frame--reference">${referenceFrameGenerate}</div>
             </div>
             <div class="stv-compare-col stv-compare-col--result">
               <span class="stv-field-label">${escapeHtml(t("compare_col_result"))}</span>
@@ -16414,114 +17252,155 @@ function renderMain() {
           ${showFirstRunHint ? `<p class="muted stv-compare-hint">${escapeHtml(t("first_run_hint"))}</p>` : ""}
         </section>
 
-        <section class="stv-section">
-          <div class="stv-section-head">
-            <span class="stv-step" aria-hidden="true">2</span>
-            <h2 class="stv-section-title">${escapeHtml(t("section_settings"))}</h2>
-          </div>
-          <div class="stv-fields">
-            <label class="stv-field" for="model">
-              <span class="stv-field-label">${escapeHtml(t("field_model"))}</span>
-              <select id="model">
-                ${state.models.map(
+        <details class="stv-settings-disclosure">
+          <summary class="stv-settings-disclosure-summary">
+            <span class="stv-section-title stv-settings-disclosure-title">${escapeHtml(t("settings_disclosure_summary"))}</span>
+          </summary>
+          <div class="stv-settings-disclosure-body">
+            <div class="stv-fields">
+              <label class="stv-field" for="model">
+                <span class="stv-field-label">${escapeHtml(t("field_model"))}</span>
+                <select id="model">
+                  ${state.models.map(
     (m) => `<option value="${escapeHtml(m.id)}">${escapeHtml(
       `${m.label} (${m.cost})`
     )}</option>`
   ).join("")}
-              </select>
-            </label>
-            <label class="stv-field" for="aspect-ratio">
-              <span class="stv-field-label">${escapeHtml(t("field_ratio"))}</span>
-              <select id="aspect-ratio">
-                ${state.aspectRatios.map((a) => `<option value="${escapeHtml(a.value)}">${escapeHtml(a.label)}</option>`).join("")}
-              </select>
-            </label>
-            <label class="stv-field" for="image-size">
-              <span class="stv-field-label">${escapeHtml(t("field_size"))}</span>
-              <select id="image-size">
-                ${state.imageSizes.map((s) => `<option value="${escapeHtml(s.value)}">${escapeHtml(s.label)}</option>`).join("")}
-              </select>
-            </label>
-            <label class="stv-field" for="extract-temperature">
-              <span class="stv-field-label">${escapeHtml(t("field_extract_temperature"))}</span>
-              <select id="extract-temperature">
-                <option value="" ${extractTemperatureSelectValue(state.extractTemperature) === "" ? "selected" : ""}>${escapeHtml(t("extract_temp_default"))}</option>
-                <option value="0.1" ${extractTemperatureSelectValue(state.extractTemperature) === "0.1" ? "selected" : ""}>${escapeHtml(t("extract_temp_01"))}</option>
-                <option value="0.3" ${extractTemperatureSelectValue(state.extractTemperature) === "0.3" ? "selected" : ""}>${escapeHtml(t("extract_temp_03"))}</option>
-                <option value="0.6" ${extractTemperatureSelectValue(state.extractTemperature) === "0.6" ? "selected" : ""}>${escapeHtml(t("extract_temp_06"))}</option>
-                <option value="0.9" ${extractTemperatureSelectValue(state.extractTemperature) === "0.9" ? "selected" : ""}>${escapeHtml(t("extract_temp_09"))}</option>
-                <option value="1" ${extractTemperatureSelectValue(state.extractTemperature) === "1" ? "selected" : ""}>${escapeHtml(t("extract_temp_10"))}</option>
-              </select>
-              <span class="muted stv-field-hint">${escapeHtml(t("field_extract_temperature_hint"))}</span>
-            </label>
-          </div>
-        </section>
-
-        <p class="muted">${escapeHtml(t("done_label"))}: ${completedCount}/${promptsPerRunUi}, ${escapeHtml(t("errors_label"))}: ${failedCount}/${promptsPerRunUi}</p>
-        ${state.info ? `<p class="muted">${escapeHtml(state.info)}</p>` : ""}
-        ${state.error ? `<p class="muted error-text">${escapeHtml(state.error)}</p>` : ""}
-
-        <details class="stv-disclosure">
-          <summary>${escapeHtml(t("more_actions"))}</summary>
-          <div class="stv-disclosure-body">
-            <div class="row">
-              <button type="button" id="retry-all" ${failedCount > 0 && !state.generating ? "" : "disabled"}>
-                ${escapeHtml(t("btn_retry_all"))}
-              </button>
-              <button type="button" id="clear-results" ${state.generating ? "disabled" : ""}>
-                ${escapeHtml(t("btn_clear_results"))}
-              </button>
-              <button type="button" id="reset-session" ${state.generating ? "disabled" : ""}>
-                ${escapeHtml(t("btn_reset_session"))}
-              </button>
+                </select>
+              </label>
+              <label class="stv-field" for="aspect-ratio">
+                <span class="stv-field-label">${escapeHtml(t("field_ratio"))}</span>
+                <select id="aspect-ratio">
+                  ${state.aspectRatios.map((a) => `<option value="${escapeHtml(a.value)}">${escapeHtml(a.label)}</option>`).join("")}
+                </select>
+              </label>
+              <label class="stv-field" for="image-size">
+                <span class="stv-field-label">${escapeHtml(t("field_size"))}</span>
+                <select id="image-size">
+                  ${state.imageSizes.map((s) => `<option value="${escapeHtml(s.value)}">${escapeHtml(s.label)}</option>`).join("")}
+                </select>
+              </label>
+              <label class="stv-field" for="extract-temperature">
+                <span class="stv-field-label">${escapeHtml(t("field_extract_temperature"))}</span>
+                <select id="extract-temperature">
+                  <option value="" ${extractTemperatureSelectValue(state.extractTemperature) === "" ? "selected" : ""}>${escapeHtml(t("extract_temp_default"))}</option>
+                  <option value="0.1" ${extractTemperatureSelectValue(state.extractTemperature) === "0.1" ? "selected" : ""}>${escapeHtml(t("extract_temp_01"))}</option>
+                  <option value="0.3" ${extractTemperatureSelectValue(state.extractTemperature) === "0.3" ? "selected" : ""}>${escapeHtml(t("extract_temp_03"))}</option>
+                  <option value="0.6" ${extractTemperatureSelectValue(state.extractTemperature) === "0.6" ? "selected" : ""}>${escapeHtml(t("extract_temp_06"))}</option>
+                  <option value="0.9" ${extractTemperatureSelectValue(state.extractTemperature) === "0.9" ? "selected" : ""}>${escapeHtml(t("extract_temp_09"))}</option>
+                  <option value="1" ${extractTemperatureSelectValue(state.extractTemperature) === "1" ? "selected" : ""}>${escapeHtml(t("extract_temp_10"))}</option>
+                </select>
+                <span class="muted stv-field-hint">${escapeHtml(t("field_extract_temperature_hint"))}</span>
+              </label>
             </div>
           </div>
         </details>
 
-        <details class="stv-disclosure stv-disclosure--dev">
-          <summary>${escapeHtml(t("dev_details"))}</summary>
-          <div class="stv-disclosure-body">
-            <p class="muted"><code>${escapeHtml(t("api"))}</code> ${escapeHtml(rt().getApiOrigin())}</p>
-            <p class="muted">${escapeHtml(t("dev_doc_hint"))}</p>
-            <label class="muted stv-dev-flag-label">
-              <input type="checkbox" id="stv-dev-triple-flow" ${isTripleVariantFlowEnabled() ? "checked" : ""} />
-              <span>${escapeHtml(t("dev_flag_triple_label"))}</span>
-            </label>
-            <p class="muted stv-dev-flag-hint">${escapeHtml(t("dev_flag_triple_hint"))}</p>
+        <p class="muted">${escapeHtml(t("done_label"))}: ${completedCount}/${promptsPerRunUi}, ${escapeHtml(t("errors_label"))}: ${failedCount}/${promptsPerRunUi}</p>
+        ${state.info ? `<p class="muted">${escapeHtml(state.info)}</p>` : ""}
+        ${state.error ? `<div class="stv-error-banner">
+            <p class="error-text stv-error-banner-text">${escapeHtml(state.error)}</p>
+            <button type="button" class="stv-tool-btn" id="stv-clear-error">${escapeHtml(t("btn_dismiss_error"))}</button>
+          </div>` : ""}
+        </div>`;
+  const historyTabPanelHtml = `
+        <div class="stv-tab-panel${state.panelTab === "history" ? "" : " stv-tab-panel--hidden"}" data-tab="history" role="tabpanel">
+          ${runHistoryCardHtml}
+        </div>`;
+  const creditsPillTitle = `${t("credits")}: ${state.credits} \xB7 ${t("cost_run")} ${requiredCredits} ${t("credit_word")}`;
+  app.innerHTML = `
+    <div class="stv-shell">
+      <header class="stv-topbar stv-topbar--compact">
+        <div class="stv-topbar-left">
+          <div class="stv-brand">
+            <span class="stv-brand-mark" aria-hidden="true">${STV_MARK_STAR_SVG}</span>
+            <div class="stv-brand-text">
+              <span class="stv-brand-name">PromptShot</span>
+              <span class="stv-brand-sub">${escapeHtml(t("brand_sub"))}</span>
+            </div>
           </div>
-        </details>
+        </div>
+        <div class="stv-topbar-end">
+          <span class="stv-credits-pill${needsCredits ? " stv-credits-pill--warn" : ""}" title="${escapeHtml(creditsPillTitle)}">
+            <span class="stv-sr-only">${escapeHtml(creditsPillTitle)}</span>
+            <span class="stv-credits-pill__n" aria-hidden="true">${escapeHtml(String(state.credits))}</span>
+            <span class="stv-credits-pill__sep" aria-hidden="true">\xB7</span>
+            <span class="stv-credits-pill__cost" aria-hidden="true">${escapeHtml(String(requiredCredits))}</span>
+          </span>
+          <details class="stv-topbar-account">
+            <summary class="stv-tool-btn stv-topbar-account-summary">${escapeHtml(t("meta_account"))}</summary>
+            <div class="stv-topbar-account-panel">
+              <p class="stv-meta-row-compact ${escapeHtml(sessionHealth.className)}">${escapeHtml(t("status"))}: ${escapeHtml(sessionHealth.label)}</p>
+              <p class="stv-meta-row-compact muted">${escapeHtml(t("user"))}: ${escapeHtml(state.user.email || state.user.id || "\u2014")}</p>
+              ${needsCredits ? `<p class="stv-meta-row-compact error-text">${escapeHtml(t("insufficient_credits"))}: ${escapeHtml(String(requiredCredits))} / ${escapeHtml(String(state.credits))}</p>` : ""}
+            </div>
+          </details>
+          ${langSelectHtml()}
+          <button type="button" class="stv-tool-btn" id="sign-out">${escapeHtml(t("btn_sign_out"))}</button>
+        </div>
+      </header>
+
+      <div class="card stv-card-main">
+        ${state.toast ? `<div class="toast toast-${escapeHtml(state.toast.type)}">${escapeHtml(state.toast.message)}</div>` : ""}
+
+        ${tabBarHtml}
+        ${promptTabPanelHtml}
+        ${generateTabPanelHtml}
+        ${historyTabPanelHtml}
       </div>
-      ${pipelinePanelHtml}
-      ${runHistoryHtml}
     </div>
   `;
-  const tripleFlowCb = document.getElementById("stv-dev-triple-flow");
-  if (tripleFlowCb) {
-    tripleFlowCb.addEventListener("change", () => {
-      try {
-        if (tripleFlowCb.checked) {
-          localStorage.setItem(TRIPLE_VARIANT_FLOW_LS_KEY, "1");
-        } else {
-          localStorage.removeItem(TRIPLE_VARIANT_FLOW_LS_KEY);
-        }
-      } catch {
-      }
+  async function applyCustomPromptMode(next) {
+    if (state.customPromptMode === next) return;
+    if (next) {
+      state.customPromptMode = true;
+      applyGenerationPromptBodyFromUi("");
+      state.finalPromptForGeneration = "";
+      state.finalPromptAssumesTwoImages = false;
+      state.prompts = [];
+      await persistState();
       render();
+      queueMicrotask(() => document.getElementById("stv-gen-prompt-body")?.focus());
+      return;
+    }
+    state.customPromptMode = false;
+    try {
+      if (state.vibeId && state.style) {
+        await runExpand();
+        setToast("info", t("custom_prompt_restored"));
+      }
+      await persistState();
+      render();
+    } catch (err) {
+      state.customPromptMode = true;
+      setToast("error", normalizeUiError(err, t("err_expand")));
+      render();
+    }
+  }
+  const promptModeStyleBtn = document.getElementById("stv-prompt-mode-style");
+  if (promptModeStyleBtn) {
+    promptModeStyleBtn.addEventListener("click", () => {
+      void applyCustomPromptMode(false);
     });
   }
-  const pipelineSpecBtn = document.getElementById("pipeline-spec-btn");
-  if (pipelineSpecBtn) {
-    pipelineSpecBtn.addEventListener("click", async () => {
-      try {
-        const d = await api("/api/vibe/pipeline-spec");
-        const out = document.getElementById("pipeline-spec-out");
-        if (out) {
-          out.style.display = "block";
-          out.textContent = JSON.stringify(d, null, 2);
-        }
-      } catch (err) {
-        setToast("error", normalizeUiError(err, "pipeline-spec"));
-      }
+  const promptModeCustomBtn = document.getElementById("stv-prompt-mode-custom");
+  if (promptModeCustomBtn) {
+    promptModeCustomBtn.addEventListener("click", () => {
+      void applyCustomPromptMode(true);
+    });
+  }
+  const promptBodyTa = document.getElementById("stv-gen-prompt-body");
+  if (promptBodyTa) {
+    if (document.activeElement !== promptBodyTa) {
+      promptBodyTa.value = getGenerationPromptBodyForUi();
+    }
+    promptBodyTa.addEventListener("input", () => {
+      applyGenerationPromptBodyFromUi(promptBodyTa.value);
+      clearTimeout(promptBodyPersistTimer);
+      promptBodyPersistTimer = setTimeout(() => {
+        promptBodyPersistTimer = null;
+        void persistState();
+      }, 400);
     });
   }
   const groomingHair = document.getElementById("grooming-hair");
@@ -16551,7 +17430,7 @@ function renderMain() {
         state.runStage = "idle";
         state.pipelinePrepPercent = 0;
         state.phase = "idle";
-        state.error = normalizeUiError(err, "\u041E\u0448\u0438\u0431\u043A\u0430 \u0433\u0435\u043D\u0435\u0440\u0430\u0446\u0438\u0438");
+        state.error = normalizeUiError(err, t("err_generate_flow"));
         setToast("error", state.error);
         render();
         await persistState();
@@ -16564,32 +17443,105 @@ function renderMain() {
       void signOutExtension();
     });
   }
-  const langBtn = document.getElementById("toggle-lang");
-  if (langBtn) {
-    langBtn.addEventListener("click", () => {
-      toggleUiLang();
+  bindLangSelect();
+  app.querySelectorAll("[data-panel-tab]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const tab = btn.getAttribute("data-panel-tab");
+      if (tab !== "prompt" && tab !== "generate" && tab !== "history") return;
+      state.panelTab = tab;
+      void persistState();
+      render();
+    });
+  });
+  app.querySelectorAll("[data-history-filter]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const v = btn.getAttribute("data-history-filter");
+      if (v !== "all" && v !== "image" && v !== "prompt") return;
+      state.historyFilter = v;
+      void persistState();
+      render();
+    });
+  });
+  const clearErrorBtn = document.getElementById("stv-clear-error");
+  if (clearErrorBtn) {
+    clearErrorBtn.addEventListener("click", () => {
+      state.error = "";
+      render();
+      void persistState();
+    });
+  }
+  const editPromptGotoTabBtn = document.getElementById("btn-edit-prompt-goto-tab");
+  if (editPromptGotoTabBtn) {
+    editPromptGotoTabBtn.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      state.panelTab = "prompt";
+      void persistState();
       render();
     });
   }
+  const extractOnlyBtn = document.getElementById("btn-extract-prompt-only");
+  if (extractOnlyBtn) {
+    extractOnlyBtn.addEventListener("click", () => {
+      void runExtractExpandOnly();
+    });
+  }
+  const copyPromptTabBtn = document.getElementById("btn-copy-prompt-tab");
+  if (copyPromptTabBtn) {
+    copyPromptTabBtn.addEventListener("click", () => {
+      const pre = document.getElementById("stv-prompt-summary-pre");
+      const text = pre && typeof pre.textContent === "string" ? pre.textContent.trim() : "";
+      if (!text) return;
+      void navigator.clipboard.writeText(text).then(
+        () => setToast("success", t("history_prompt_copied")),
+        () => setToast("error", t("history_prompt_copy_failed"))
+      );
+    });
+  }
+  const toggleBlocksBtn = document.getElementById("btn-toggle-prompt-blocks");
+  if (toggleBlocksBtn) {
+    toggleBlocksBtn.addEventListener("click", () => {
+      state.promptBlocksExpanded = true;
+      render();
+    });
+  }
+  const cancelBlocksBtn = document.getElementById("btn-cancel-prompt-blocks");
+  if (cancelBlocksBtn) {
+    cancelBlocksBtn.addEventListener("click", () => {
+      state.promptBlocksExpanded = false;
+      render();
+    });
+  }
+  const saveBlocksBtn = document.getElementById("btn-save-prompt-blocks");
+  if (saveBlocksBtn) {
+    saveBlocksBtn.addEventListener("click", () => {
+      applyStructuredStyleSaveFromDom();
+    });
+  }
   const modelEl = document.getElementById("model");
-  modelEl.value = state.selectedModel;
-  modelEl.addEventListener("change", async (e) => {
-    state.selectedModel = e.target.value;
-    await persistState();
-    render();
-  });
+  if (modelEl) {
+    modelEl.value = state.selectedModel;
+    modelEl.addEventListener("change", async (e) => {
+      state.selectedModel = e.target.value;
+      await persistState();
+      render();
+    });
+  }
   const arEl = document.getElementById("aspect-ratio");
-  arEl.value = state.selectedAspectRatio;
-  arEl.addEventListener("change", async (e) => {
-    state.selectedAspectRatio = e.target.value;
-    await persistState();
-  });
+  if (arEl) {
+    arEl.value = state.selectedAspectRatio;
+    arEl.addEventListener("change", async (e) => {
+      state.selectedAspectRatio = e.target.value;
+      await persistState();
+    });
+  }
   const szEl = document.getElementById("image-size");
-  szEl.value = state.selectedImageSize;
-  szEl.addEventListener("change", async (e) => {
-    state.selectedImageSize = e.target.value;
-    await persistState();
-  });
+  if (szEl) {
+    szEl.value = state.selectedImageSize;
+    szEl.addEventListener("change", async (e) => {
+      state.selectedImageSize = e.target.value;
+      await persistState();
+    });
+  }
   const extractTempEl = document.getElementById("extract-temperature");
   if (extractTempEl) {
     extractTempEl.value = extractTemperatureSelectValue(state.extractTemperature);
@@ -16619,14 +17571,13 @@ function renderMain() {
         setToast("success", state.userPhotos.length > 1 ? t("photo_added") : t("photo_uploaded"));
         render();
       } catch (err) {
-        state.error = normalizeUiError(err, "\u041E\u0448\u0438\u0431\u043A\u0430 \u0437\u0430\u0433\u0440\u0443\u0437\u043A\u0438 \u0444\u043E\u0442\u043E");
+        state.error = normalizeUiError(err, t("err_photo_upload"));
         setToast("error", state.error);
         render();
       }
     });
   }
-  const referenceFileInput = document.getElementById("reference-photo-file");
-  if (referenceFileInput) {
+  app.querySelectorAll(".stv-reference-file-input").forEach((referenceFileInput) => {
     referenceFileInput.addEventListener("change", async (e) => {
       const file = e.target.files?.[0];
       e.target.value = "";
@@ -16640,12 +17591,12 @@ function renderMain() {
         setToast("success", t("reference_uploaded"));
         render();
       } catch (err) {
-        state.error = normalizeUiError(err, "\u041E\u0448\u0438\u0431\u043A\u0430 \u0437\u0430\u0433\u0440\u0443\u0437\u043A\u0438 \u0440\u0435\u0444\u0435\u0440\u0435\u043D\u0441\u0430");
+        state.error = normalizeUiError(err, t("err_reference_upload"));
         setToast("error", state.error);
         render();
       }
     });
-  }
+  });
   app.querySelectorAll("[data-remove-reference]").forEach((btn) => {
     btn.addEventListener("click", async (e) => {
       e.preventDefault();
@@ -16673,7 +17624,7 @@ function renderMain() {
       state.runStage = "idle";
       state.pipelinePrepPercent = 0;
       state.phase = "idle";
-      state.error = normalizeUiError(err, "\u041E\u0448\u0438\u0431\u043A\u0430 \u0433\u0435\u043D\u0435\u0440\u0430\u0446\u0438\u0438");
+      state.error = normalizeUiError(err, t("err_generate_flow"));
       setToast("error", state.error);
       render();
       await persistState();
@@ -16685,15 +17636,6 @@ function renderMain() {
       await openBuyCredits();
     });
   }
-  document.getElementById("retry-all").addEventListener("click", async () => {
-    await retryAllFailed();
-  });
-  document.getElementById("clear-results").addEventListener("click", async () => {
-    await clearResultsOnly();
-  });
-  document.getElementById("reset-session").addEventListener("click", async () => {
-    await resetSession();
-  });
   app.querySelectorAll("[data-save-id]").forEach((node) => {
     node.addEventListener("click", async () => {
       const id = node.getAttribute("data-save-id");
@@ -16719,6 +17661,7 @@ function renderMain() {
     });
   }
   bindRunHistoryActions();
+  wireTopbarAccountPanel();
   refreshPersistedPhotoPreviews();
 }
 function render() {
