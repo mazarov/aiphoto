@@ -1,5 +1,5 @@
 // ─── Config ──────────────────────────────────────────────────────────────────
-const MIN_RENDERED_SIZE = 120;
+const MIN_RENDERED_SIZE = 200;
 const BUTTON_OFFSET = 8;
 /** Pull button slightly over the image so the cursor path img→button doesn’t cross a “dead” gap. */
 const BUTTON_OVERLAP_IMG_PX = 6;
@@ -275,6 +275,13 @@ function getBestImageUrl(img) {
   return img.currentSrc || img.src || null;
 }
 
+/** Reject SVG rasters in <img> (icons, logos); compare path without query/hash. */
+function isSvgImageUrl(url) {
+  if (!url) return false;
+  const pathOnly = url.split("#")[0].split("?")[0].toLowerCase();
+  return pathOnly.endsWith(".svg");
+}
+
 function isEligible(img) {
   if (!img || img.tagName !== "IMG") return false;
   const rect = img.getBoundingClientRect();
@@ -283,6 +290,7 @@ function isEligible(img) {
   if (w < MIN_RENDERED_SIZE || h < MIN_RENDERED_SIZE) return false;
   const src = getBestImageUrl(img);
   if (!src || !src.startsWith("http")) return false;
+  if (isSvgImageUrl(src)) return false;
   if (img.closest("nav,header,footer,[role=navigation]")) return false;
   return true;
 }

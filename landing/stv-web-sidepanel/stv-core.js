@@ -167,6 +167,10 @@ const state = {
   pendingRunStartedAt: 0,
   results: [],
   generating: false,
+  /** True during «Извлечь/обновить промпт» on Prompt tab (extract/expand/assemble only, no image gen). */
+  preparingPromptOnly: false,
+  /** True while awaiting a network call inside extract/expand/assemble prep (indeterminate progress). */
+  prepNetworkPending: false,
   runHistory: [],
   cooldownUntil: 0,
   toast: null,
@@ -183,13 +187,31 @@ const state = {
   /** Global shell tab: prompt | generate | history */
   panelTab: "generate",
   /** Prompt tab: expanded 9-field editor */
-  promptBlocksExpanded: false
+  promptBlocksExpanded: false,
+  /** Fingerprint of reference used for last successful extract (path or url). */
+  extractReferenceFingerprint: "",
+  /** History tab filter: all | image | prompt */
+  historyFilter: "all",
+  /** Brief highlight on prompt block after successful extract-only (not persisted). */
+  promptReadyFlash: false
 };
 
 let toastTimer = null;
 let creditPollTimer = null;
 let assembleDebounceTimer = null;
 let promptBodyPersistTimer = null;
+let promptReadyFlashTimer = null;
+let topbarAccountCleanup = null;
+
+function schedulePromptReadyFlash() {
+  state.promptReadyFlash = true;
+  clearTimeout(promptReadyFlashTimer);
+  promptReadyFlashTimer = setTimeout(() => {
+    promptReadyFlashTimer = null;
+    state.promptReadyFlash = false;
+    render();
+  }, 1600);
+}
 
 function storageLocalGet(key) {
   return rt().platform.storage.local.get(key);
@@ -284,6 +306,45 @@ function hasUserPhotos() {
 
 function hasReference() {
   return Boolean(state.sourceImageUrl) || Boolean(state.referencePhoto?.storagePath);
+}
+
+/** Stable id for «current reference» to detect change vs last extract. */
+function getReferenceFingerprint() {
+  const path = state.referencePhoto?.storagePath && String(state.referencePhoto.storagePath).trim();
+  if (path) return `path:${path}`;
+  const u = String(state.sourceImageUrl || "").trim();
+  if (u) return `url:${u}`;
+  return "";
+}
+
+function isPromptStaleVsExtract() {
+  if (!state.vibeId || !state.style) return false;
+  if (!state.extractReferenceFingerprint) return false;
+  const cur = getReferenceFingerprint();
+  if (!cur) return false;
+  return cur !== state.extractReferenceFingerprint;
+}
+
+function wireTopbarAccountPanel() {
+  topbarAccountCleanup?.();
+  topbarAccountCleanup = null;
+  const det = document.querySelector(".stv-topbar-account");
+  if (!det) return;
+  const onDoc = (e) => {
+    if (!det.open) return;
+    const t = e.target;
+    if (t instanceof Node && det.contains(t)) return;
+    det.removeAttribute("open");
+  };
+  const onKey = (e) => {
+    if (e.key === "Escape" && det.open) det.removeAttribute("open");
+  };
+  document.addEventListener("click", onDoc, true);
+  document.addEventListener("keydown", onKey, true);
+  topbarAccountCleanup = () => {
+    document.removeEventListener("click", onDoc, true);
+    document.removeEventListener("keydown", onKey, true);
+  };
 }
 
 function clearUrlReference() {
@@ -655,42 +716,82 @@ function historyPromptText(run) {
   return typeof p === "string" ? p : "";
 }
 
+function runHistoryKind(run) {
+  return run && run.runKind === "prompt" ? "prompt" : "image";
+}
+
+/** Text to store for a prompt-only history row right after extract/expand/assemble. */
+function getPromptSnapshotForHistory() {
+  return String(
+    state.mergedForSingleGeneration ||
+      getGenerationPromptBodyForUi() ||
+      state.finalPromptForGeneration ||
+      ""
+  ).trim();
+}
+
 function buildRunHistoryCardHtml(run, idx) {
   const url = historyResultUrl(run);
   const promptText = historyPromptText(run);
+  const kind = runHistoryKind(run);
   const modelLine = modelLabelForRun(run.model);
   const ratio = run.aspectRatio || "—";
   const size = run.imageSize || "—";
   const when = formatDateTime(run.startedAt);
   const failed = Number(run.failed || 0) > 0;
+  const thumbFallback =
+    kind === "prompt" && !failed
+      ? t("history_thumb_prompt_only")
+      : failed
+        ? t("history_failed_thumb")
+        : t("history_no_thumb");
   const thumb = url
     ? `<img class="stv-history-thumb-img" src="${escapeHtml(url)}" alt="" loading="lazy" decoding="async" />`
-    : `<div class="stv-history-thumb-fallback muted">${escapeHtml(
-        failed ? t("history_failed_thumb") : t("history_no_thumb")
-      )}</div>`;
+    : `<div class="stv-history-thumb-fallback muted">${escapeHtml(thumbFallback)}</div>`;
+
+  const chipsHtml =
+    kind === "prompt"
+      ? [
+          `<span class="stv-history-chip stv-history-chip--kind">${escapeHtml(t("history_run_kind_prompt"))}</span>`,
+          run.extractModel
+            ? `<span class="stv-history-chip" title="${escapeHtml(t("step1_model"))}">${escapeHtml(
+                `${t("step1_model")}: ${run.extractModel}`
+              )}</span>`
+            : "",
+          run.expandModel
+            ? `<span class="stv-history-chip" title="${escapeHtml(t("step2_model"))}">${escapeHtml(
+                `${t("step2_model")}: ${run.expandModel}`
+              )}</span>`
+            : ""
+        ]
+          .filter(Boolean)
+          .join("")
+      : `<span class="stv-history-chip" title="${escapeHtml(t("field_model"))}">${escapeHtml(modelLine)}</span>
+            <span class="stv-history-chip" title="${escapeHtml(t("field_ratio"))}">${escapeHtml(ratio)}</span>
+            <span class="stv-history-chip" title="${escapeHtml(t("field_size"))}">${escapeHtml(size)}</span>`;
 
   return `
     <article class="stv-history-card">
-      <div class="stv-history-thumb" aria-hidden="true">${thumb}</div>
-      <div class="stv-history-body">
-        <p class="stv-history-date muted">${escapeHtml(when)}</p>
-        <div class="stv-history-chips" aria-label="${escapeHtml(t("history_params_label"))}">
-          <span class="stv-history-chip" title="${escapeHtml(t("field_model"))}">${escapeHtml(modelLine)}</span>
-          <span class="stv-history-chip" title="${escapeHtml(t("field_ratio"))}">${escapeHtml(ratio)}</span>
-          <span class="stv-history-chip" title="${escapeHtml(t("field_size"))}">${escapeHtml(size)}</span>
+      <div class="stv-history-card-row">
+        <div class="stv-history-thumb" aria-hidden="true">${thumb}</div>
+        <div class="stv-history-body">
+          <p class="stv-history-date muted">${escapeHtml(when)}</p>
+          <div class="stv-history-chips" aria-label="${escapeHtml(t("history_params_label"))}">
+            ${chipsHtml}
+          </div>
+          <div class="stv-history-actions row">
+            <button type="button" data-history-download="${idx}" ${url ? "" : "disabled"}>${escapeHtml(t("history_download"))}</button>
+            <button type="button" data-history-open="${idx}" ${url ? "" : "disabled"}>${escapeHtml(t("history_open"))}</button>
+            <button type="button" data-history-prompt="${idx}" ${promptText.trim() ? "" : "disabled"}>${escapeHtml(
+              t("history_prompt")
+            )}</button>
+          </div>
         </div>
-        <div class="stv-history-actions row">
-          <button type="button" data-history-download="${idx}" ${url ? "" : "disabled"}>${escapeHtml(t("history_download"))}</button>
-          <button type="button" data-history-open="${idx}" ${url ? "" : "disabled"}>${escapeHtml(t("history_open"))}</button>
-          <button type="button" data-history-prompt="${idx}" ${promptText.trim() ? "" : "disabled"}>${escapeHtml(
-            t("history_prompt")
-          )}</button>
-        </div>
-        <details class="stv-history-prompt-details">
-          <summary>${escapeHtml(t("history_prompt_toggle"))}</summary>
-          <pre class="prompt-box stv-history-prompt-pre">${escapeHtml(promptText || "—")}</pre>
-        </details>
       </div>
+      <details class="stv-history-prompt-details stv-history-prompt-details--full">
+        <summary>${escapeHtml(t("history_prompt_toggle"))}</summary>
+        <pre class="prompt-box stv-history-prompt-pre">${escapeHtml(promptText || "—")}</pre>
+      </details>
     </article>`;
 }
 
@@ -794,16 +895,30 @@ function resultsHaveInFlightWork() {
 }
 
 function shouldShowCompareProgressBar() {
-  return state.generating || state.resuming || resultsHaveInFlightWork();
+  return (
+    state.generating ||
+    state.preparingPromptOnly ||
+    state.resuming ||
+    resultsHaveInFlightWork()
+  );
+}
+
+function shouldShowPrepIndeterminate() {
+  return Boolean(
+    state.prepNetworkPending && isPrepRunStage() && (state.generating || state.preparingPromptOnly)
+  );
 }
 
 function getOverallProgressPercent() {
   const rows = Array.isArray(state.results) ? state.results : [];
   const rowAvg = averageRowProgress(rows);
 
-  if (state.generating || state.resuming) {
-    if (state.generating && isPrepRunStage()) {
+  if (state.generating || state.preparingPromptOnly || state.resuming) {
+    if ((state.generating || state.preparingPromptOnly) && isPrepRunStage()) {
       const prep = Math.max(0, Math.min(100, Number(state.pipelinePrepPercent || 0)));
+      if (state.preparingPromptOnly && !state.generating) {
+        return Math.max(0, Math.min(100, Math.round(prep)));
+      }
       return Math.max(0, Math.min(100, Math.round((prep / 100) * PREP_PROGRESS_SHARE)));
     }
     return Math.max(
@@ -830,7 +945,7 @@ function getOverallProgressPercent() {
 
 function primaryGenerateButtonLabel() {
   if (state.resuming) return t("btn_resuming");
-  if (!state.generating) return t("btn_generate");
+  if (!state.generating && !state.preparingPromptOnly) return t("btn_generate");
   if (state.runStage === "extract") return t("btn_stage_extract");
   if (state.runStage === "expand") return t("btn_stage_expand");
   if (state.runStage === "assemble") return t("btn_stage_assemble");
@@ -889,6 +1004,8 @@ function toSerializableState() {
     extractTemperature: normalizePersistedExtractTemperature(state.extractTemperature),
     customPromptMode: Boolean(state.customPromptMode),
     panelTab: state.panelTab === "prompt" || state.panelTab === "history" ? state.panelTab : "generate",
+    extractReferenceFingerprint: String(state.extractReferenceFingerprint || ""),
+    historyFilter: ["all", "image", "prompt"].includes(state.historyFilter) ? state.historyFilter : "all",
     updatedAt: Date.now()
   };
 }
@@ -1073,6 +1190,11 @@ function applyPersistedState(saved) {
   state.customPromptMode = Boolean(saved.customPromptMode);
   const pt = saved.panelTab;
   state.panelTab = pt === "prompt" || pt === "history" || pt === "generate" ? pt : "generate";
+  state.extractReferenceFingerprint =
+    typeof saved.extractReferenceFingerprint === "string" ? saved.extractReferenceFingerprint : "";
+  state.historyFilter = ["all", "image", "prompt"].includes(saved.historyFilter)
+    ? saved.historyFilter
+    : "all";
 }
 
 async function api(path, init = {}) {
@@ -1403,6 +1525,7 @@ async function runExtract() {
     state.finalPromptForGeneration = "";
     state.finalPromptAssumesTwoImages = false;
   }
+  state.extractReferenceFingerprint = getReferenceFingerprint();
   await persistState();
 }
 
@@ -1653,6 +1776,30 @@ async function appendRunHistory(entry) {
   await persistState();
 }
 
+async function appendPromptOnlyRunHistory(startedAt) {
+  const prompt = getPromptSnapshotForHistory();
+  await appendRunHistory({
+    id: `prompt-${String(startedAt)}`,
+    startedAt,
+    finishedAt: Date.now(),
+    runKind: "prompt",
+    model: state.selectedModel,
+    aspectRatio: state.selectedAspectRatio,
+    imageSize: state.selectedImageSize,
+    sourceImageUrl: state.sourceImageUrl,
+    vibeId: state.vibeId || null,
+    completed: 1,
+    failed: 0,
+    errorTypes: [],
+    perAccent: {},
+    generationId: null,
+    resultUrl: "",
+    prompt,
+    extractModel: String(state.extractModel || ""),
+    expandModel: String(state.expandModel || "")
+  });
+}
+
 function exportRunHistory() {
   const payload = {
     exportedAt: new Date().toISOString(),
@@ -1853,31 +2000,41 @@ async function generateAll() {
   state.pipelinePrepPercent = 6;
   state.runStage = "extract";
   state.info = t("run_extract");
+  state.prepNetworkPending = true;
   render();
 
-  await runExtract();
+  try {
+    await runExtract();
+    state.prepNetworkPending = false;
 
-  if (!state.customPromptMode) {
-    state.pipelinePrepPercent = 36;
-    state.runStage = "expand";
-    state.info = t("run_expand_prep");
-    render();
-    await runExpand();
-
-    if (state.vibeGroomingControlsAvailable) {
-      state.pipelinePrepPercent = 72;
-      state.runStage = "assemble";
-      state.info = t("run_assemble");
+    if (!state.customPromptMode) {
+      state.pipelinePrepPercent = 36;
+      state.runStage = "expand";
+      state.info = t("run_expand_prep");
+      state.prepNetworkPending = true;
       render();
-      await runAssemblePromptNow();
-    }
-  }
+      await runExpand();
+      state.prepNetworkPending = false;
 
-  state.pipelinePrepPercent = 100;
-  state.runStage = "generate";
-  state.info = t("run_generate");
-  render();
-  await completeGenerationAfterExpand(runStartedAt);
+      if (state.vibeGroomingControlsAvailable) {
+        state.pipelinePrepPercent = 72;
+        state.runStage = "assemble";
+        state.info = t("run_assemble");
+        state.prepNetworkPending = true;
+        render();
+        await runAssemblePromptNow();
+        state.prepNetworkPending = false;
+      }
+    }
+
+    state.pipelinePrepPercent = 100;
+    state.runStage = "generate";
+    state.info = t("run_generate");
+    render();
+    await completeGenerationAfterExpand(runStartedAt);
+  } finally {
+    state.prepNetworkPending = false;
+  }
 }
 
 async function continueGenerateAfterGrooming() {
@@ -1970,6 +2127,7 @@ async function resetSession() {
   state.customPromptMode = false;
   state.panelTab = "generate";
   state.promptBlocksExpanded = false;
+  state.extractReferenceFingerprint = "";
   state.awaitingContinueGenerate = false;
   state.pendingRunStartedAt = 0;
   state.results = [];
@@ -1994,6 +2152,7 @@ async function clearResultsOnly() {
   state.groomingPolicy = { applyHair: true, applyMakeup: true };
   state.customPromptMode = false;
   state.promptBlocksExpanded = false;
+  state.extractReferenceFingerprint = "";
   state.awaitingContinueGenerate = false;
   state.pendingRunStartedAt = 0;
   state.results = [];
@@ -2206,30 +2365,54 @@ async function runExtractExpandOnly() {
     setToast("error", t("tab_prompt_need_reference"));
     return;
   }
-  if (state.generating) return;
+  if (state.generating || state.preparingPromptOnly) return;
+  const promptRunStartedAt = Date.now();
   state.error = "";
+  state.preparingPromptOnly = true;
+  state.phase = "processing";
+  state.pipelinePrepPercent = 6;
+  state.runStage = "extract";
   state.info = t("run_extract");
+  state.prepNetworkPending = true;
   render();
   try {
     await runExtract();
+    state.prepNetworkPending = false;
     if (!state.customPromptMode) {
+      state.pipelinePrepPercent = 36;
+      state.runStage = "expand";
       state.info = t("run_expand_prep");
+      state.prepNetworkPending = true;
       render();
       await runExpand();
+      state.prepNetworkPending = false;
       if (state.vibeGroomingControlsAvailable) {
+        state.pipelinePrepPercent = 72;
+        state.runStage = "assemble";
         state.info = t("run_assemble");
+        state.prepNetworkPending = true;
         render();
         await runAssemblePromptNow();
+        state.prepNetworkPending = false;
       }
     }
+    await appendPromptOnlyRunHistory(promptRunStartedAt);
     await persistState();
     setToast("success", t("toast_prompt_ready"));
+    schedulePromptReadyFlash();
   } catch (err) {
+    state.prepNetworkPending = false;
     state.error = normalizeUiError(err, "extract");
     setToast("error", state.error);
+  } finally {
+    state.preparingPromptOnly = false;
+    state.prepNetworkPending = false;
+    state.pipelinePrepPercent = 0;
+    state.runStage = "idle";
+    if (state.phase === "processing" && !state.generating) state.phase = "idle";
+    state.info = "";
+    render();
   }
-  state.info = "";
-  render();
 }
 
 function applyStructuredStyleSaveFromDom() {
@@ -2262,6 +2445,7 @@ function renderMain() {
     hasReference() &&
       hasUserPhotos() &&
       !state.generating &&
+      !state.preparingPromptOnly &&
       !state.awaitingContinueGenerate &&
       state.credits >= requiredCredits &&
       cooldownLeftSec === 0
@@ -2289,25 +2473,71 @@ function renderMain() {
       </div>`;
 
   const showCompareProgress = shouldShowCompareProgressBar();
+  const prepIndeterminate = shouldShowPrepIndeterminate();
   const compareProgressHtml = showCompareProgress
     ? `
           <div class="stv-compare-progress">
-            <div class="progress-wrap">
-              <div class="progress-bar" style="width:${escapeHtml(String(overallProgress))}%"></div>
+            <div class="progress-wrap${prepIndeterminate ? " progress-wrap--indeterminate" : ""}">
+              ${
+                prepIndeterminate
+                  ? '<div class="progress-bar progress-bar--indeterminate" aria-hidden="true"></div>'
+                  : `<div class="progress-bar" style="width:${escapeHtml(String(overallProgress))}%"></div>`
+              }
             </div>
-            <p class="muted">${escapeHtml(t("progress_total"))}: ${escapeHtml(String(overallProgress))}%</p>
+            <p class="muted">${
+              prepIndeterminate
+                ? escapeHtml(state.info || t("progress_working"))
+                : `${escapeHtml(t("progress_total"))}: ${escapeHtml(String(overallProgress))}%`
+            }</p>
           </div>`
     : "";
 
+  const promptTabStatusLine = state.preparingPromptOnly
+    ? escapeHtml(
+        String(state.info || "").trim() ||
+          (prepIndeterminate ? t("progress_working") : `${t("progress_total")}: ${overallProgress}%`)
+      )
+    : "";
+  const promptTabButtonMeterHtml =
+    state.preparingPromptOnly && hasReference()
+      ? prepIndeterminate
+        ? '<span class="stv-btn-extract-prompt-meter" aria-hidden="true"><span class="stv-btn-extract-prompt-meter-fill stv-btn-extract-prompt-meter-fill--indeterminate"></span></span>'
+        : `<span class="stv-btn-extract-prompt-meter" aria-hidden="true"><span class="stv-btn-extract-prompt-meter-fill" style="width:${escapeHtml(String(overallProgress))}%"></span></span>`
+      : "";
+  const promptTabExtractStatusBelowHtml =
+    state.preparingPromptOnly && hasReference()
+      ? `<p class="muted stv-prompt-extract-status-text" role="status" aria-live="polite">${promptTabStatusLine}</p>`
+      : "";
+
   const runCount = Array.isArray(state.runHistory) ? state.runHistory.length : 0;
+  const hf = state.historyFilter || "all";
+  const historyEntries =
+    runCount > 0
+      ? state.runHistory
+          .map((run, idx) => ({ run, idx }))
+          .filter(({ run }) => {
+            if (hf === "image") return runHistoryKind(run) === "image";
+            if (hf === "prompt") return runHistoryKind(run) === "prompt";
+            return true;
+          })
+      : [];
   const runHistoryListHtml =
-    runCount > 0 ? state.runHistory.map((run, idx) => buildRunHistoryCardHtml(run, idx)).join("") : "";
+    historyEntries.length > 0
+      ? historyEntries.map(({ run, idx }) => buildRunHistoryCardHtml(run, idx)).join("")
+      : "";
+  const historyFilterHtml = `
+        <div class="stv-history-filter" role="tablist" aria-label="${escapeHtml(t("history_filter_aria"))}">
+          <button type="button" role="tab" class="stv-history-filter-btn${hf === "all" ? " stv-history-filter-btn--active" : ""}" data-history-filter="all" aria-selected="${hf === "all" ? "true" : "false"}">${escapeHtml(t("history_filter_all"))}</button>
+          <button type="button" role="tab" class="stv-history-filter-btn${hf === "image" ? " stv-history-filter-btn--active" : ""}" data-history-filter="image" aria-selected="${hf === "image" ? "true" : "false"}">${escapeHtml(t("history_filter_image"))}</button>
+          <button type="button" role="tab" class="stv-history-filter-btn${hf === "prompt" ? " stv-history-filter-btn--active" : ""}" data-history-filter="prompt" aria-selected="${hf === "prompt" ? "true" : "false"}">${escapeHtml(t("history_filter_prompt"))}</button>
+        </div>`;
   const runHistoryCardHtml = `
       <div class="card stv-card-history">
         <div class="stv-history-toolbar">
           <p class="title stv-history-title">${escapeHtml(t("history_title"))}</p>
           <p class="muted stv-history-count">${escapeHtml(t("history_count_prefix"))} ${escapeHtml(String(runCount))}</p>
         </div>
+        ${runCount > 0 ? historyFilterHtml : ""}
         <div class="row stv-history-toolbar-actions">
           <button type="button" id="export-history">${escapeHtml(t("history_export"))}</button>
           <button type="button" id="clear-history">${escapeHtml(t("history_clear"))}</button>
@@ -2316,40 +2546,11 @@ function renderMain() {
         ${
           runCount === 0
             ? `<p class="muted stv-history-empty">${escapeHtml(t("history_empty_hint"))}</p>`
-            : ""
+            : historyEntries.length === 0
+              ? `<p class="muted stv-history-empty">${escapeHtml(t("history_filter_empty"))}</p>`
+              : ""
         }
       </div>`;
-
-  const finalPromptHint = state.customPromptMode
-    ? t("custom_prompt_mode_hint")
-    : state.finalPromptAssumesTwoImages === true
-      ? t("final_prompt_hint_two")
-      : t("final_prompt_hint_one");
-  const assembledPreviewBlock =
-    !state.customPromptMode && String(state.finalPromptForGeneration || "").trim().length > 0
-      ? `<details class="stv-disclosure stv-disclosure--assembled-preview">
-          <summary>${escapeHtml(t("final_prompt_preview_summary"))}</summary>
-          <pre class="prompt-box stv-assembled-prompt-preview">${escapeHtml(state.finalPromptForGeneration)}</pre>
-        </details>`
-      : "";
-  const promptPlaceholder = state.customPromptMode ? t("custom_prompt_placeholder") : t("final_prompt_empty");
-  const promptHintBelow = state.customPromptMode
-    ? t("custom_prompt_edit_hint")
-    : t("prompt_body_editable_hint");
-  const customPromptCheckHtml = `<label class="stv-check stv-custom-prompt-check">
-          <input type="checkbox" id="stv-custom-prompt-mode" ${state.customPromptMode ? "checked" : ""} ${state.generating ? "disabled" : ""} />
-          <span>${escapeHtml(t("custom_prompt_checkbox"))}</span>
-        </label>`;
-  const finalPromptBody = `${customPromptCheckHtml}
-          <textarea id="stv-gen-prompt-body" class="prompt-box prompt-box--final-prompt" rows="14" spellcheck="false" autocomplete="off" aria-label="${escapeHtml(t("gen_prompt_label"))}" placeholder="${escapeHtml(promptPlaceholder)}"></textarea>
-          <p class="muted stv-prompt-edit-hint">${escapeHtml(promptHintBelow)}</p>
-          ${assembledPreviewBlock}`;
-
-  const settingsPromptSectionHtml = `<div class="stv-settings-prompt-block">
-            <p class="stv-subtitle">${escapeHtml(t("step1_final_prompt_title"))}</p>
-            <p class="muted">${escapeHtml(finalPromptHint)}</p>
-            ${finalPromptBody}
-          </div>`;
 
   /**
    * Hair / makeup: always visible; user can set preferences anytime. Server assemble runs only after
@@ -2383,20 +2584,6 @@ function renderMain() {
           }
         </div>`;
 
-  const pipelinePanelHtml =
-    state.style && typeof state.style === "object"
-      ? `<div class="card stv-card-side">
-          <p class="title">${escapeHtml(t("step1_title"))}</p>
-          <p class="muted">${escapeHtml(t("step1_model"))}: <code>${escapeHtml(state.extractModel || "—")}</code></p>
-          <p class="muted">${escapeHtml(t("step2_model"))}: <code>${escapeHtml(state.customPromptMode ? t("expand_skipped_custom") : state.expandModel || "—")}</code></p>
-          <pre class="prompt-box">${escapeHtml(JSON.stringify(state.style, null, 2))}</pre>
-          <div class="row" style="margin-top:8px">
-            <button type="button" id="pipeline-spec-btn">${escapeHtml(t("btn_pipeline_spec"))}</button>
-          </div>
-          <pre id="pipeline-spec-out" class="prompt-box" style="display:none; margin-top:8px; max-height:240px;"></pre>
-        </div>`
-      : "";
-
   const normStyle = normalizeLegacyStyleFromState(state.style);
   const unprefForPrompt = buildUnprefixedGenerationBodyFromStyle(state.style, state.groomingPolicy);
   const promptSummaryText = state.customPromptMode
@@ -2404,6 +2591,8 @@ function renderMain() {
     : String(unprefForPrompt || getGenerationPromptBodyForUi() || "").trim();
   const showStyleBlocks = !state.customPromptMode && String(unprefForPrompt || "").trim().length > 0;
   const hasStyleExtracted = showStyleBlocks;
+  const showStalePromptBanner = isPromptStaleVsExtract() && hasReference();
+  const promptBlockFlashClass = state.promptReadyFlash ? " stv-prompt-block--flash" : "";
 
   const styleFieldsHtml = LEGACY_VIBE_STYLE_FIELDS.map((field) => {
     const label = LEGACY_VIBE_FIELD_LABELS[field];
@@ -2414,8 +2603,18 @@ function renderMain() {
       </label>`;
   }).join("");
 
-  const promptRightColHtml = state.customPromptMode
-    ? `<p class="muted">${escapeHtml(t("tab_prompt_custom_mode_hint"))}</p>`
+  const modeToggleDisabled = state.generating || state.preparingPromptOnly;
+  const promptTabCustomToggleHtml = `<div class="stv-prompt-mode-toggle" role="group" aria-label="${escapeHtml(t("prompt_mode_group_aria"))}">
+          <button type="button" id="stv-prompt-mode-style" class="stv-prompt-mode-btn${!state.customPromptMode ? " stv-prompt-mode-btn--active" : ""}" ${modeToggleDisabled ? "disabled" : ""} aria-pressed="${!state.customPromptMode ? "true" : "false"}">${escapeHtml(t("prompt_mode_from_style"))}</button>
+          <button type="button" id="stv-prompt-mode-custom" class="stv-prompt-mode-btn${state.customPromptMode ? " stv-prompt-mode-btn--active" : ""}" ${modeToggleDisabled ? "disabled" : ""} aria-pressed="${state.customPromptMode ? "true" : "false"}">${escapeHtml(t("prompt_mode_custom"))}</button>
+        </div>`;
+
+  const promptTabBodyHtml = state.customPromptMode
+    ? `<div class="stv-prompt-custom-editor">
+          <p class="muted stv-prompt-hint-top">${escapeHtml(t("custom_prompt_mode_hint"))}</p>
+          <textarea id="stv-gen-prompt-body" class="prompt-box prompt-box--final-prompt${state.promptReadyFlash ? " stv-prompt-summary--flash" : ""}" rows="14" spellcheck="false" autocomplete="off" aria-label="${escapeHtml(t("gen_prompt_label"))}" placeholder="${escapeHtml(t("custom_prompt_placeholder"))}"></textarea>
+          <p class="muted stv-prompt-edit-hint">${escapeHtml(t("custom_prompt_edit_hint"))}</p>
+        </div>`
     : state.promptBlocksExpanded
       ? `<div class="stv-prompt-editor">
           ${styleFieldsHtml}
@@ -2425,7 +2624,10 @@ function renderMain() {
           </div>
         </div>`
       : `<div class="stv-prompt-readonly">
-          <pre class="prompt-box stv-prompt-summary" id="stv-prompt-summary-pre">${escapeHtml(truncatePromptPreview(promptSummaryText))}</pre>
+          <div class="stv-prompt-summary-toolbar">
+            <button type="button" class="stv-secondary-btn stv-copy-prompt-btn" id="btn-copy-prompt-tab" ${promptSummaryText ? "" : "disabled"} aria-label="${escapeHtml(t("btn_copy_prompt_aria"))}">${escapeHtml(t("btn_copy_prompt"))}</button>
+          </div>
+          <pre class="prompt-box stv-prompt-summary${state.promptReadyFlash ? " stv-prompt-summary--flash" : ""}" id="stv-prompt-summary-pre">${escapeHtml(promptSummaryText)}</pre>
           <button type="button" class="stv-secondary-btn" id="btn-toggle-prompt-blocks" ${showStyleBlocks ? "" : "disabled"}>${escapeHtml(t("btn_edit_prompt_blocks"))}</button>
         </div>`;
 
@@ -2439,8 +2641,13 @@ function renderMain() {
   const promptTabPanelHtml = `
         <div class="stv-tab-panel${state.panelTab === "prompt" ? "" : " stv-tab-panel--hidden"}" data-tab="prompt" role="tabpanel">
           <p class="muted stv-tab-lead">${escapeHtml(t("tab_prompt_lead"))}</p>
-          <div class="stv-prompt-split">
-            <div class="stv-prompt-split-ref">
+          ${
+            showStalePromptBanner
+              ? `<p class="stv-stale-prompt-banner" role="status">${escapeHtml(t("stale_prompt_hint"))}</p>`
+              : ""
+          }
+          <div class="stv-prompt-tab-stack${promptBlockFlashClass}">
+            <div class="stv-prompt-ref-block">
               <span class="stv-field-label">${escapeHtml(t("compare_col_reference"))}</span>
               <div class="stv-photo-frame stv-photo-frame--reference">${referenceFramePrompt}</div>
               ${
@@ -2449,27 +2656,43 @@ function renderMain() {
                   : ""
               }
               <div class="stv-prompt-tab-actions">
-                <button type="button" class="${hasStyleExtracted ? "" : "primary"}" id="btn-extract-prompt-only" ${!hasReference() || state.generating ? "disabled" : ""}>${escapeHtml(hasStyleExtracted ? t("btn_refresh_prompt_extract") : t("btn_extract_prompt_only"))}</button>
+                <div class="stv-prompt-extract-wrap">
+                  <button type="button" class="stv-btn-extract-prompt ${hasStyleExtracted ? "" : "primary"}${state.preparingPromptOnly ? " stv-btn-extract-prompt--busy stv-btn-loading" : ""}" id="btn-extract-prompt-only" aria-busy="${state.preparingPromptOnly ? "true" : "false"}" ${!hasReference() || state.generating || state.preparingPromptOnly ? "disabled" : ""}><span class="stv-btn-extract-prompt-label">${escapeHtml(hasStyleExtracted ? t("btn_refresh_prompt_extract") : t("btn_extract_prompt_only"))}</span>${promptTabButtonMeterHtml}</button>
+                  ${promptTabExtractStatusBelowHtml}
+                </div>
               </div>
             </div>
-            <div class="stv-prompt-split-copy">
+            <div class="stv-prompt-below-ref">
+              ${promptTabCustomToggleHtml}
               <span class="stv-field-label">${escapeHtml(t("tab_prompt_recognized_label"))}</span>
-              ${promptRightColHtml}
+              ${promptTabBodyHtml}
             </div>
           </div>
-          ${pipelinePanelHtml}
         </div>`;
 
   const jumpPromptChipLabel = promptSummaryText
     ? truncatePromptPreview(promptSummaryText, 72)
     : t("tab_jump_prompt_empty");
 
+  const generateCurrentPromptBlockHtml = promptSummaryText
+    ? `<details class="stv-generate-current-prompt">
+          <summary class="stv-generate-current-prompt-summary">
+            <span class="muted stv-generate-current-prompt-label">${escapeHtml(t("current_prompt_label"))}</span>
+            <span class="stv-prompt-jump-chip stv-prompt-jump-chip--summary" aria-hidden="true">${escapeHtml(jumpPromptChipLabel)}</span>
+          </summary>
+          <div class="stv-generate-current-prompt-expanded">
+            <pre class="prompt-box stv-generate-prompt-expanded-pre">${escapeHtml(promptSummaryText)}</pre>
+            <button type="button" class="stv-secondary-btn" id="btn-edit-prompt-goto-tab">${escapeHtml(t("btn_edit_prompt_goto_tab"))}</button>
+          </div>
+        </details>`
+    : `<div class="stv-jump-prompt-row stv-jump-prompt-row--disabled">
+          <span class="muted">${escapeHtml(t("current_prompt_label"))}</span>
+          <div class="stv-prompt-jump-chip stv-prompt-jump-chip--disabled" aria-disabled="true">${escapeHtml(t("tab_jump_prompt_empty"))}</div>
+        </div>`;
+
   const generateTabPanelHtml = `
         <div class="stv-tab-panel${state.panelTab === "generate" ? "" : " stv-tab-panel--hidden"}" data-tab="generate" role="tabpanel">
-          <div class="stv-jump-prompt-row">
-            <span class="muted">${escapeHtml(t("current_prompt_label"))}</span>
-            <button type="button" class="stv-prompt-jump-chip" id="btn-jump-to-prompt-tab" ${promptSummaryText ? "" : "disabled"}>${escapeHtml(jumpPromptChipLabel)}</button>
-          </div>
+          ${generateCurrentPromptBlockHtml}
         <section class="stv-section">
           <div class="stv-section-head">
             <h2 class="stv-section-title">${escapeHtml(t("section_photos_compare"))}</h2>
@@ -2512,89 +2735,67 @@ function renderMain() {
           }
         </section>
 
-        <section class="stv-section">
-          <div class="stv-section-head">
-            <h2 class="stv-section-title">${escapeHtml(t("section_settings"))}</h2>
-          </div>
-          <div class="stv-fields">
-            <label class="stv-field" for="model">
-              <span class="stv-field-label">${escapeHtml(t("field_model"))}</span>
-              <select id="model">
-                ${state.models
-                  .map(
-                    (m) =>
-                      `<option value="${escapeHtml(m.id)}">${escapeHtml(
-                        `${m.label} (${m.cost})`
-                      )}</option>`
-                  )
-                  .join("")}
-              </select>
-            </label>
-            <label class="stv-field" for="aspect-ratio">
-              <span class="stv-field-label">${escapeHtml(t("field_ratio"))}</span>
-              <select id="aspect-ratio">
-                ${state.aspectRatios
-                  .map((a) => `<option value="${escapeHtml(a.value)}">${escapeHtml(a.label)}</option>`)
-                  .join("")}
-              </select>
-            </label>
-            <label class="stv-field" for="image-size">
-              <span class="stv-field-label">${escapeHtml(t("field_size"))}</span>
-              <select id="image-size">
-                ${state.imageSizes
-                  .map((s) => `<option value="${escapeHtml(s.value)}">${escapeHtml(s.label)}</option>`)
-                  .join("")}
-              </select>
-            </label>
-            <label class="stv-field" for="extract-temperature">
-              <span class="stv-field-label">${escapeHtml(t("field_extract_temperature"))}</span>
-              <select id="extract-temperature">
-                <option value="" ${extractTemperatureSelectValue(state.extractTemperature) === "" ? "selected" : ""}>${escapeHtml(t("extract_temp_default"))}</option>
-                <option value="0.1" ${extractTemperatureSelectValue(state.extractTemperature) === "0.1" ? "selected" : ""}>${escapeHtml(t("extract_temp_01"))}</option>
-                <option value="0.3" ${extractTemperatureSelectValue(state.extractTemperature) === "0.3" ? "selected" : ""}>${escapeHtml(t("extract_temp_03"))}</option>
-                <option value="0.6" ${extractTemperatureSelectValue(state.extractTemperature) === "0.6" ? "selected" : ""}>${escapeHtml(t("extract_temp_06"))}</option>
-                <option value="0.9" ${extractTemperatureSelectValue(state.extractTemperature) === "0.9" ? "selected" : ""}>${escapeHtml(t("extract_temp_09"))}</option>
-                <option value="1" ${extractTemperatureSelectValue(state.extractTemperature) === "1" ? "selected" : ""}>${escapeHtml(t("extract_temp_10"))}</option>
-              </select>
-              <span class="muted stv-field-hint">${escapeHtml(t("field_extract_temperature_hint"))}</span>
-            </label>
-            ${settingsPromptSectionHtml}
-          </div>
-        </section>
-
-        <p class="muted">${escapeHtml(t("done_label"))}: ${completedCount}/${promptsPerRunUi}, ${escapeHtml(t("errors_label"))}: ${failedCount}/${promptsPerRunUi}</p>
-        ${state.info ? `<p class="muted">${escapeHtml(state.info)}</p>` : ""}
-        ${state.error ? `<p class="muted error-text">${escapeHtml(state.error)}</p>` : ""}
-
-        <details class="stv-disclosure">
-          <summary>${escapeHtml(t("more_actions"))}</summary>
-          <div class="stv-disclosure-body">
-            <div class="row">
-              <button type="button" id="retry-all" ${failedCount > 0 && !state.generating ? "" : "disabled"}>
-                ${escapeHtml(t("btn_retry_all"))}
-              </button>
-              <button type="button" id="clear-results" ${state.generating ? "disabled" : ""}>
-                ${escapeHtml(t("btn_clear_results"))}
-              </button>
-              <button type="button" id="reset-session" ${state.generating ? "disabled" : ""}>
-                ${escapeHtml(t("btn_reset_session"))}
-              </button>
+        <details class="stv-settings-disclosure">
+          <summary class="stv-settings-disclosure-summary">
+            <span class="stv-section-title stv-settings-disclosure-title">${escapeHtml(t("settings_disclosure_summary"))}</span>
+          </summary>
+          <div class="stv-settings-disclosure-body">
+            <div class="stv-fields">
+              <label class="stv-field" for="model">
+                <span class="stv-field-label">${escapeHtml(t("field_model"))}</span>
+                <select id="model">
+                  ${state.models
+                    .map(
+                      (m) =>
+                        `<option value="${escapeHtml(m.id)}">${escapeHtml(
+                          `${m.label} (${m.cost})`
+                        )}</option>`
+                    )
+                    .join("")}
+                </select>
+              </label>
+              <label class="stv-field" for="aspect-ratio">
+                <span class="stv-field-label">${escapeHtml(t("field_ratio"))}</span>
+                <select id="aspect-ratio">
+                  ${state.aspectRatios
+                    .map((a) => `<option value="${escapeHtml(a.value)}">${escapeHtml(a.label)}</option>`)
+                    .join("")}
+                </select>
+              </label>
+              <label class="stv-field" for="image-size">
+                <span class="stv-field-label">${escapeHtml(t("field_size"))}</span>
+                <select id="image-size">
+                  ${state.imageSizes
+                    .map((s) => `<option value="${escapeHtml(s.value)}">${escapeHtml(s.label)}</option>`)
+                    .join("")}
+                </select>
+              </label>
+              <label class="stv-field" for="extract-temperature">
+                <span class="stv-field-label">${escapeHtml(t("field_extract_temperature"))}</span>
+                <select id="extract-temperature">
+                  <option value="" ${extractTemperatureSelectValue(state.extractTemperature) === "" ? "selected" : ""}>${escapeHtml(t("extract_temp_default"))}</option>
+                  <option value="0.1" ${extractTemperatureSelectValue(state.extractTemperature) === "0.1" ? "selected" : ""}>${escapeHtml(t("extract_temp_01"))}</option>
+                  <option value="0.3" ${extractTemperatureSelectValue(state.extractTemperature) === "0.3" ? "selected" : ""}>${escapeHtml(t("extract_temp_03"))}</option>
+                  <option value="0.6" ${extractTemperatureSelectValue(state.extractTemperature) === "0.6" ? "selected" : ""}>${escapeHtml(t("extract_temp_06"))}</option>
+                  <option value="0.9" ${extractTemperatureSelectValue(state.extractTemperature) === "0.9" ? "selected" : ""}>${escapeHtml(t("extract_temp_09"))}</option>
+                  <option value="1" ${extractTemperatureSelectValue(state.extractTemperature) === "1" ? "selected" : ""}>${escapeHtml(t("extract_temp_10"))}</option>
+                </select>
+                <span class="muted stv-field-hint">${escapeHtml(t("field_extract_temperature_hint"))}</span>
+              </label>
             </div>
           </div>
         </details>
 
-        <details class="stv-disclosure stv-disclosure--dev">
-          <summary>${escapeHtml(t("dev_details"))}</summary>
-          <div class="stv-disclosure-body">
-            <p class="muted"><code>${escapeHtml(t("api"))}</code> ${escapeHtml(rt().getApiOrigin())}</p>
-            <p class="muted">${escapeHtml(t("dev_doc_hint"))}</p>
-            <label class="muted stv-dev-flag-label">
-              <input type="checkbox" id="stv-dev-triple-flow" ${isTripleVariantFlowEnabled() ? "checked" : ""} />
-              <span>${escapeHtml(t("dev_flag_triple_label"))}</span>
-            </label>
-            <p class="muted stv-dev-flag-hint">${escapeHtml(t("dev_flag_triple_hint"))}</p>
-          </div>
-        </details>
+        <p class="muted">${escapeHtml(t("done_label"))}: ${completedCount}/${promptsPerRunUi}, ${escapeHtml(t("errors_label"))}: ${failedCount}/${promptsPerRunUi}</p>
+        ${state.info ? `<p class="muted">${escapeHtml(state.info)}</p>` : ""}
+        ${
+          state.error
+            ? `<div class="stv-error-banner">
+            <p class="error-text stv-error-banner-text">${escapeHtml(state.error)}</p>
+            <button type="button" class="stv-tool-btn" id="stv-clear-error">${escapeHtml(t("btn_dismiss_error"))}</button>
+          </div>`
+            : ""
+        }
         </div>`;
 
   const historyTabPanelHtml = `
@@ -2602,17 +2803,39 @@ function renderMain() {
           ${runHistoryCardHtml}
         </div>`;
 
+  const creditsPillTitle = `${t("credits")}: ${state.credits} · ${t("cost_run")} ${requiredCredits} ${t("credit_word")}`;
+
   app.innerHTML = `
     <div class="stv-shell">
-      <header class="stv-topbar">
-        <div class="stv-brand">
-          <span class="stv-brand-mark" aria-hidden="true">${STV_MARK_STAR_SVG}</span>
-          <div class="stv-brand-text">
-            <span class="stv-brand-name">PromptShot</span>
-            <span class="stv-brand-sub">${escapeHtml(t("brand_sub"))}</span>
+      <header class="stv-topbar stv-topbar--compact">
+        <div class="stv-topbar-left">
+          <div class="stv-brand">
+            <span class="stv-brand-mark" aria-hidden="true">${STV_MARK_STAR_SVG}</span>
+            <div class="stv-brand-text">
+              <span class="stv-brand-name">PromptShot</span>
+              <span class="stv-brand-sub">${escapeHtml(t("brand_sub"))}</span>
+            </div>
           </div>
         </div>
-        <div class="stv-topbar-actions">
+        <div class="stv-topbar-end">
+          <span class="stv-credits-pill${needsCredits ? " stv-credits-pill--warn" : ""}" title="${escapeHtml(creditsPillTitle)}">
+            <span class="stv-sr-only">${escapeHtml(creditsPillTitle)}</span>
+            <span class="stv-credits-pill__n" aria-hidden="true">${escapeHtml(String(state.credits))}</span>
+            <span class="stv-credits-pill__sep" aria-hidden="true">·</span>
+            <span class="stv-credits-pill__cost" aria-hidden="true">${escapeHtml(String(requiredCredits))}</span>
+          </span>
+          <details class="stv-topbar-account">
+            <summary class="stv-tool-btn stv-topbar-account-summary">${escapeHtml(t("meta_account"))}</summary>
+            <div class="stv-topbar-account-panel">
+              <p class="stv-meta-row-compact ${escapeHtml(sessionHealth.className)}">${escapeHtml(t("status"))}: ${escapeHtml(sessionHealth.label)}</p>
+              <p class="stv-meta-row-compact muted">${escapeHtml(t("user"))}: ${escapeHtml(state.user.email || state.user.id || "—")}</p>
+              ${
+                needsCredits
+                  ? `<p class="stv-meta-row-compact error-text">${escapeHtml(t("insufficient_credits"))}: ${escapeHtml(String(requiredCredits))} / ${escapeHtml(String(state.credits))}</p>`
+                  : ""
+              }
+            </div>
+          </details>
           <button type="button" class="stv-tool-btn" id="toggle-lang">${escapeHtml(t("lang_toggle"))}</button>
           <button type="button" class="stv-tool-btn" id="sign-out">${escapeHtml(t("btn_sign_out"))}</button>
         </div>
@@ -2625,17 +2848,6 @@ function renderMain() {
             : ""
         }
 
-        <div class="stv-meta-strip">
-          <div class="stv-meta-credits">${escapeHtml(t("credits"))}: ${escapeHtml(String(state.credits))} <span>· ${escapeHtml(t("cost_run"))} ${escapeHtml(String(requiredCredits))} ${escapeHtml(t("credit_word"))}</span></div>
-          <div class="stv-meta-row ${escapeHtml(sessionHealth.className)}">${escapeHtml(t("status"))}: ${escapeHtml(sessionHealth.label)}</div>
-          <div class="stv-meta-row">${escapeHtml(t("user"))}: ${escapeHtml(state.user.email || state.user.id || "—")}</div>
-          ${
-            needsCredits
-              ? `<div class="stv-meta-row error-text">${escapeHtml(t("insufficient_credits"))}: ${escapeHtml(String(requiredCredits))} / ${escapeHtml(String(state.credits))}</div>`
-              : ""
-          }
-        </div>
-
         ${tabBarHtml}
         ${promptTabPanelHtml}
         ${generateTabPanelHtml}
@@ -2644,48 +2856,44 @@ function renderMain() {
     </div>
   `;
 
-  const tripleFlowCb = document.getElementById("stv-dev-triple-flow");
-  if (tripleFlowCb) {
-    tripleFlowCb.addEventListener("change", () => {
-      try {
-        if (tripleFlowCb.checked) {
-          localStorage.setItem(TRIPLE_VARIANT_FLOW_LS_KEY, "1");
-        } else {
-          localStorage.removeItem(TRIPLE_VARIANT_FLOW_LS_KEY);
-        }
-      } catch {
-        /* ignore */
-      }
+  async function applyCustomPromptMode(next) {
+    if (state.customPromptMode === next) return;
+    if (next) {
+      state.customPromptMode = true;
+      applyGenerationPromptBodyFromUi("");
+      state.finalPromptForGeneration = "";
+      state.finalPromptAssumesTwoImages = false;
+      state.prompts = [];
+      await persistState();
       render();
-    });
+      queueMicrotask(() => document.getElementById("stv-gen-prompt-body")?.focus());
+      return;
+    }
+    state.customPromptMode = false;
+    try {
+      if (state.vibeId && state.style) {
+        await runExpand();
+        setToast("info", t("custom_prompt_restored"));
+      }
+      await persistState();
+      render();
+    } catch (err) {
+      state.customPromptMode = true;
+      setToast("error", normalizeUiError(err, "expand"));
+      render();
+    }
   }
 
-  const customPromptCb = document.getElementById("stv-custom-prompt-mode");
-  if (customPromptCb) {
-    customPromptCb.addEventListener("change", async () => {
-      state.customPromptMode = customPromptCb.checked;
-      if (state.customPromptMode) {
-        applyGenerationPromptBodyFromUi("");
-        state.finalPromptForGeneration = "";
-        state.finalPromptAssumesTwoImages = false;
-        state.prompts = [];
-        await persistState();
-        render();
-        queueMicrotask(() => document.getElementById("stv-gen-prompt-body")?.focus());
-        return;
-      }
-      try {
-        if (state.vibeId && state.style) {
-          await runExpand();
-          setToast("info", t("custom_prompt_restored"));
-        }
-        await persistState();
-        render();
-      } catch (err) {
-        state.customPromptMode = true;
-        setToast("error", normalizeUiError(err, "expand"));
-        render();
-      }
+  const promptModeStyleBtn = document.getElementById("stv-prompt-mode-style");
+  if (promptModeStyleBtn) {
+    promptModeStyleBtn.addEventListener("click", () => {
+      void applyCustomPromptMode(false);
+    });
+  }
+  const promptModeCustomBtn = document.getElementById("stv-prompt-mode-custom");
+  if (promptModeCustomBtn) {
+    promptModeCustomBtn.addEventListener("click", () => {
+      void applyCustomPromptMode(true);
     });
   }
 
@@ -2701,22 +2909,6 @@ function renderMain() {
         promptBodyPersistTimer = null;
         void persistState();
       }, 400);
-    });
-  }
-
-  const pipelineSpecBtn = document.getElementById("pipeline-spec-btn");
-  if (pipelineSpecBtn) {
-    pipelineSpecBtn.addEventListener("click", async () => {
-      try {
-        const d = await api("/api/vibe/pipeline-spec");
-        const out = document.getElementById("pipeline-spec-out");
-        if (out) {
-          out.style.display = "block";
-          out.textContent = JSON.stringify(d, null, 2);
-        }
-      } catch (err) {
-        setToast("error", normalizeUiError(err, "pipeline-spec"));
-      }
     });
   }
 
@@ -2779,9 +2971,29 @@ function renderMain() {
     });
   });
 
-  const jumpPromptBtn = document.getElementById("btn-jump-to-prompt-tab");
-  if (jumpPromptBtn) {
-    jumpPromptBtn.addEventListener("click", () => {
+  app.querySelectorAll("[data-history-filter]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const v = btn.getAttribute("data-history-filter");
+      if (v !== "all" && v !== "image" && v !== "prompt") return;
+      state.historyFilter = v;
+      void persistState();
+      render();
+    });
+  });
+
+  const clearErrorBtn = document.getElementById("stv-clear-error");
+  if (clearErrorBtn) {
+    clearErrorBtn.addEventListener("click", () => {
+      state.error = "";
+      render();
+      void persistState();
+    });
+  }
+
+  const editPromptGotoTabBtn = document.getElementById("btn-edit-prompt-goto-tab");
+  if (editPromptGotoTabBtn) {
+    editPromptGotoTabBtn.addEventListener("click", (ev) => {
+      ev.preventDefault();
       state.panelTab = "prompt";
       void persistState();
       render();
@@ -2792,6 +3004,19 @@ function renderMain() {
   if (extractOnlyBtn) {
     extractOnlyBtn.addEventListener("click", () => {
       void runExtractExpandOnly();
+    });
+  }
+
+  const copyPromptTabBtn = document.getElementById("btn-copy-prompt-tab");
+  if (copyPromptTabBtn) {
+    copyPromptTabBtn.addEventListener("click", () => {
+      const pre = document.getElementById("stv-prompt-summary-pre");
+      const text = pre && typeof pre.textContent === "string" ? pre.textContent.trim() : "";
+      if (!text) return;
+      void navigator.clipboard.writeText(text).then(
+        () => setToast("success", t("history_prompt_copied")),
+        () => setToast("error", t("history_prompt_copy_failed"))
+      );
     });
   }
 
@@ -2819,26 +3044,32 @@ function renderMain() {
   }
 
   const modelEl = document.getElementById("model");
-  modelEl.value = state.selectedModel;
-  modelEl.addEventListener("change", async (e) => {
-    state.selectedModel = e.target.value;
-    await persistState();
-    render();
-  });
+  if (modelEl) {
+    modelEl.value = state.selectedModel;
+    modelEl.addEventListener("change", async (e) => {
+      state.selectedModel = e.target.value;
+      await persistState();
+      render();
+    });
+  }
 
   const arEl = document.getElementById("aspect-ratio");
-  arEl.value = state.selectedAspectRatio;
-  arEl.addEventListener("change", async (e) => {
-    state.selectedAspectRatio = e.target.value;
-    await persistState();
-  });
+  if (arEl) {
+    arEl.value = state.selectedAspectRatio;
+    arEl.addEventListener("change", async (e) => {
+      state.selectedAspectRatio = e.target.value;
+      await persistState();
+    });
+  }
 
   const szEl = document.getElementById("image-size");
-  szEl.value = state.selectedImageSize;
-  szEl.addEventListener("change", async (e) => {
-    state.selectedImageSize = e.target.value;
-    await persistState();
-  });
+  if (szEl) {
+    szEl.value = state.selectedImageSize;
+    szEl.addEventListener("change", async (e) => {
+      state.selectedImageSize = e.target.value;
+      await persistState();
+    });
+  }
 
   const extractTempEl = document.getElementById("extract-temperature");
   if (extractTempEl) {
@@ -2941,18 +3172,6 @@ function renderMain() {
     });
   }
 
-  document.getElementById("retry-all").addEventListener("click", async () => {
-    await retryAllFailed();
-  });
-
-  document.getElementById("clear-results").addEventListener("click", async () => {
-    await clearResultsOnly();
-  });
-
-  document.getElementById("reset-session").addEventListener("click", async () => {
-    await resetSession();
-  });
-
   app.querySelectorAll("[data-save-id]").forEach((node) => {
     node.addEventListener("click", async () => {
       const id = node.getAttribute("data-save-id");
@@ -2982,6 +3201,7 @@ function renderMain() {
   }
 
   bindRunHistoryActions();
+  wireTopbarAccountPanel();
   refreshPersistedPhotoPreviews();
 }
 

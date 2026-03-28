@@ -18,7 +18,9 @@
     "retitle:all": "tsx src/fix-prompt-marker-titles.ts",
     "fill:seo-tags:root-env": "cd .. && node -r dotenv/config ./node_modules/.bin/tsx aiphoto/src/fill-seo-tags.ts",
     "backfill:media-dimensions": "tsx src/backfill-prompt-card-media-dimensions.ts",
-    "backfill:media-dimensions:dry": "tsx src/backfill-prompt-card-media-dimensions.ts --dry-run"
+    "backfill:media-dimensions:dry": "tsx src/backfill-prompt-card-media-dimensions.ts --dry-run",
+    "backfill:ugc-from-generations": "cd landing && npx tsx scripts/backfill-ugc-from-generations.ts",
+    "backfill:ugc-from-generations:dry": "cd landing && npx tsx scripts/backfill-ugc-from-generations.ts --dry-run"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.48.0",
