@@ -13,7 +13,7 @@
 | `sidepanel/boot-web.js` | То же ядро для веб; из **`landing/`**: **`npm run build:stv-web`**. Зеркало для Docker: **`landing/stv-web-sidepanel/`** — **`npm run sync:stv-sidepanel`** после правок здесь |
 | `sidepanel/i18n.js` | Строки RU/DE (`t("key")`) |
 | `sidepanel/index.html` | Корень `#app`, подключение CSS/JS |
-| `content-script.js` | Плавающая кнопка: Shadow DOM; визуал как **mini side panel** (zinc surface + градиент только на **P**); видимость: throttled **`mousemove`** + **паддинг вокруг active img** (не полагаться на `document mouseout` — ломает Pinterest) |
+| `content-script.js` | Плавающая кнопка: Shadow DOM; визуал как **mini side panel** (zinc surface + градиент только на **P**); видимость: throttled **`mousemove`** + **паддинг вокруг active img** (не полагаться на `document mouseout` — ломает Pinterest). Порог размера — по **`getBoundingClientRect()`** (не intrinsic), плюс отсев `nav`/`header`/`footer`/`[role=navigation|banner|contentinfo]`, `.svg` в URL, **`MIN_RENDERED_SIZE`** |
 
 Спека для дизайна и LLM: **`docs/extension-ui-spec.md`**.  
 Флоу vibe → generate (референс `2c23ce94`, текущий код, флаг 3×): **`docs/22-03-stv-single-generation-flow.md`**.

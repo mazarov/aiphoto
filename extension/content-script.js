@@ -285,13 +285,20 @@ function isSvgImageUrl(url) {
 function isEligible(img) {
   if (!img || img.tagName !== "IMG") return false;
   const rect = img.getBoundingClientRect();
-  const w = Math.max(rect.width, img.naturalWidth, img.clientWidth || 0);
-  const h = Math.max(rect.height, img.naturalHeight, img.clientHeight || 0);
+  // Layout box only (not naturalWidth): tiny on-screen avatars/icons can still decode
+  // to 128px+ intrinsic and used to pass a 120px threshold via Math.max.
+  const w = Math.ceil(rect.width);
+  const h = Math.ceil(rect.height);
   if (w < MIN_RENDERED_SIZE || h < MIN_RENDERED_SIZE) return false;
   const src = getBestImageUrl(img);
   if (!src || !src.startsWith("http")) return false;
   if (isSvgImageUrl(src)) return false;
-  if (img.closest("nav,header,footer,[role=navigation]")) return false;
+  if (
+    img.closest(
+      "nav,header,footer,[role=navigation],[role=banner],[role=contentinfo]"
+    )
+  )
+    return false;
   return true;
 }
 
