@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServer } from "@/lib/supabase";
 import { getSupabaseUserForApiRoute } from "@/lib/supabase-route-auth";
+import { getStvPipelineTrace, stvLog } from "@/lib/stv-pipeline-log";
 
 function toErrorMeta(err: unknown) {
   if (!(err instanceof Error)) return { message: String(err) };
@@ -27,6 +28,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
+    const pipelineTrace = getStvPipelineTrace(req, body);
     const {
       prompt,
       model,
@@ -43,6 +45,7 @@ export async function POST(req: NextRequest) {
       cardId?: string | null;
       photoStoragePaths?: string[];
       vibeId?: string | null;
+      pipelineTraceId?: string;
     };
 
     const minPromptLength = 8;
@@ -156,12 +159,26 @@ export async function POST(req: NextRequest) {
       promptText.length > 800 ? `${promptText.slice(0, 800)}... [truncated]` : promptText;
     console.log("[generation.create] resolved config", {
       userId: user.id,
+      pipelineTrace,
       userEmail: user.email ?? null,
       userName:
         (user.user_metadata?.full_name as string | undefined) ??
         (user.user_metadata?.name as string | undefined) ??
         null,
       modelRequested: model ?? null,
+      modelResolved: modelConfig.id,
+      creditsNeeded,
+      aspectRatio: ar,
+      imageSize: sz,
+      photos: photoStoragePaths.length,
+      promptLength: promptText.length,
+      promptPreview,
+    });
+    stvLog("generation.create", {
+      pipelineTrace,
+      userId: user.id,
+      vibeId: resolvedVibeId,
+      cardId: cardId || null,
       modelResolved: modelConfig.id,
       creditsNeeded,
       aspectRatio: ar,
@@ -251,7 +268,14 @@ export async function POST(req: NextRequest) {
     console.log("[generation.create] generation row created", {
       generationId: gen.id,
       userId: user.id,
+      pipelineTrace,
       status: "pending",
+    });
+    stvLog("generation.row_created", {
+      pipelineTrace,
+      userId: user.id,
+      generationId: gen.id,
+      vibeId: resolvedVibeId,
     });
 
     const baseUrl =
@@ -267,7 +291,10 @@ export async function POST(req: NextRequest) {
     fetch(`${baseUrl}/api/generate-process`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: gen.id }),
+      body: JSON.stringify({
+        id: gen.id,
+        ...(pipelineTrace ? { pipelineTraceId: pipelineTrace } : {}),
+      }),
     })
       .then((res) => {
         console.log("[generation.create] generate-process kickoff response", {

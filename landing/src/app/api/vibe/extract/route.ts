@@ -21,6 +21,7 @@ import {
   LEGACY_EXTRACT_PROMPT_2C23CE94,
 } from "@/lib/vibe-legacy-prompt-chain";
 import { VIBE_PROMPT_CHAIN_LEGACY_2C23 } from "@/lib/vibe-legacy-config";
+import { getStvPipelineTrace, stvLog } from "@/lib/stv-pipeline-log";
 
 const DIRECT_GEMINI_BASE_URL = "https://generativelanguage.googleapis.com";
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
@@ -179,6 +180,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = (await req.json()) as { imageUrl?: string; extractTemperature?: unknown };
+    const pipelineTrace = getStvPipelineTrace(req, body);
     const imageUrl = String(body?.imageUrl || "").trim();
     if (!imageUrl) {
       return NextResponse.json({ error: "invalid_url" }, { status: 400 });
@@ -203,7 +205,15 @@ export async function POST(req: NextRequest) {
 
     console.warn("[vibe.extract] request_begin", {
       userId: user.id,
+      pipelineTrace,
       imageHost: safeUrl.hostname,
+      extractTemperature: extractTemperature ?? "default",
+    });
+    stvLog("vibe.extract.begin", {
+      pipelineTrace,
+      userId: user.id,
+      imageUrlHost: safeUrl.hostname,
+      instructionChars: LEGACY_EXTRACT_PROMPT_2C23CE94.length,
       extractTemperature: extractTemperature ?? "default",
     });
 
@@ -251,6 +261,7 @@ export async function POST(req: NextRequest) {
       modelUsed = await getOpenAiVibeExtractModelRuntime(supabase);
       console.warn("[vibe.extract] openai_request", {
         userId: user.id,
+        pipelineTrace,
         llm: "openai",
         model: modelUsed,
         inlineImageBase64Chars: inlineData.data.length,
@@ -273,6 +284,7 @@ export async function POST(req: NextRequest) {
       llmError = oaRes.errorMessage ?? null;
       console.warn("[vibe.extract] openai_response", {
         userId: user.id,
+        pipelineTrace,
         llm: "openai",
         model: modelUsed,
         httpStatus,
@@ -324,6 +336,7 @@ export async function POST(req: NextRequest) {
 
       console.warn("[vibe.extract] gemini_request", {
         userId: user.id,
+        pipelineTrace,
         llm: "gemini",
         model: visionModel,
         endpointHost: geminiEndpointHost,
@@ -385,6 +398,7 @@ export async function POST(req: NextRequest) {
 
       console.warn("[vibe.extract] gemini_response", {
         userId: user.id,
+        pipelineTrace,
         llm: "gemini",
         model: visionModel,
         httpStatus: geminiRes.status,
@@ -401,11 +415,22 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    stvLog("vibe.extract.llm_done", {
+      pipelineTrace,
+      userId: user.id,
+      llm: extractLlm,
+      modelUsed,
+      durationMs: Date.now() - llmStarted,
+      outputTextChars: text.length,
+      httpStatus,
+    });
+
     const { value: parsed, stages: parseStages } = parseGeminiJsonObject(text);
 
     if (!httpOk) {
       console.error("[vibe.extract] extract_pipeline_failed_legacy_http", {
         userId: user.id,
+        pipelineTrace,
         llm: extractLlm,
         httpStatus,
         llmError,
@@ -417,6 +442,7 @@ export async function POST(req: NextRequest) {
     if (!legacyStyle) {
       console.error("[vibe.extract] extract_pipeline_failed_legacy_coerce", {
         userId: user.id,
+        pipelineTrace,
         llm: extractLlm,
         model: modelUsed,
         httpStatus,
@@ -448,8 +474,18 @@ export async function POST(req: NextRequest) {
 
     console.warn("[vibe.extract] extract_parse_ok", {
       userId: user.id,
+      pipelineTrace,
+      vibeId: vibe.id,
       llm: extractLlm,
       legacyPromptChain: true,
+      styleFieldCount: Object.keys(legacyStyle).length,
+    });
+    stvLog("vibe.extract.ok", {
+      pipelineTrace,
+      userId: user.id,
+      vibeId: vibe.id,
+      modelUsed,
+      llmProvider: extractLlm,
       styleFieldCount: Object.keys(legacyStyle).length,
     });
 

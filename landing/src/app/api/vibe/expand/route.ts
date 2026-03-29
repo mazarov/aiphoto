@@ -11,6 +11,7 @@ import {
 import type { GroomingPolicy } from "@/lib/vibe-grooming-assembly";
 import { VIBE_PROMPT_CHAIN_LEGACY_2C23 } from "@/lib/vibe-legacy-config";
 import { fetchErrorDetails } from "@/lib/gemini-vibe-debug-log";
+import { getStvPipelineTrace, stvLog } from "@/lib/stv-pipeline-log";
 
 function toErrorMeta(err: unknown) {
   if (!(err instanceof Error)) return { message: String(err) };
@@ -40,6 +41,7 @@ export async function POST(req: NextRequest) {
       style?: unknown;
       groomingPolicy?: { applyHair?: boolean; applyMakeup?: boolean };
     };
+    const pipelineTrace = getStvPipelineTrace(req, body);
 
     const groomingPolicy: GroomingPolicy = {
       applyHair: body.groomingPolicy?.applyHair !== false,
@@ -108,6 +110,7 @@ export async function POST(req: NextRequest) {
 
     console.warn("[vibe.expand] legacy_full_style_passthrough_ok", {
       userId: user.id,
+      pipelineTrace,
       vibeId: body.vibeId ?? null,
       hasReferenceUrl,
       referencePixelsInGeneration: willAttachReferenceInline,
@@ -116,6 +119,20 @@ export async function POST(req: NextRequest) {
       applyMakeup: groomingPolicy.applyMakeup,
       styleBodyChars: styleBody.length,
       bodyChars: promptBody.length,
+      promptsCount: prompts.length,
+    });
+
+    const mergedPrompt = promptBody;
+    const finalPg = assembled;
+    stvLog("vibe.expand.ok", {
+      pipelineTrace,
+      userId: user.id,
+      vibeId: body.vibeId ?? null,
+      modelUsed: "passthrough",
+      llmProvider: "none",
+      mergedPromptChars: mergedPrompt.length,
+      finalPromptForGenerationChars: finalPg.length,
+      finalPromptAssumesTwoImages: willAttachReferenceInline,
       promptsCount: prompts.length,
     });
 

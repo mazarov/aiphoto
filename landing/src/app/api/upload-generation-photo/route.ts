@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServer } from "@/lib/supabase";
 import { getSupabaseUserForApiRoute } from "@/lib/supabase-route-auth";
+import { getStvPipelineTrace, stvLog } from "@/lib/stv-pipeline-log";
 import sharp from "sharp";
 
 const BUCKET = "web-generation-uploads";
@@ -16,6 +17,8 @@ export async function POST(req: NextRequest) {
     if (authError || !user) {
       return NextResponse.json({ error: "unauthorized" }, { status: 401 });
     }
+
+    const pipelineTrace = getStvPipelineTrace(req);
 
     const formData = await req.formData();
     const file = formData.get("file") as File | null;
@@ -64,6 +67,13 @@ export async function POST(req: NextRequest) {
         { status: 500 }
       );
     }
+
+    stvLog("upload.reference_ok", {
+      pipelineTrace,
+      userId: user.id,
+      storagePath: path,
+      bytesOut: resized.length,
+    });
 
     return NextResponse.json({ storagePath: path });
   } catch (err) {

@@ -9,6 +9,8 @@ import {
   VIBE_IMAGE_PART_LABEL_SUBJECT,
 } from "@/lib/vibe-gemini-instructions";
 import { VIBE_PROMPT_CHAIN_LEGACY_2C23 } from "@/lib/vibe-legacy-config";
+import { getStvPipelineTrace, stvLog } from "@/lib/stv-pipeline-log";
+import { redactGenerateContentBody } from "@/lib/gemini-vibe-debug-log";
 
 const BUCKET_UPLOADS = "web-generation-uploads";
 const BUCKET_RESULTS = "web-generation-results";
@@ -37,6 +39,11 @@ function parseBooleanConfig(value: string | null | undefined, fallback: boolean)
 /** Full prompt body in logs; disable with LANDING_LOG_FULL_GENERATION_PROMPT=0 if too noisy. */
 function shouldLogFullGenerationPrompt(): boolean {
   return parseBooleanConfig(process.env.LANDING_LOG_FULL_GENERATION_PROMPT, true);
+}
+
+/** Redacted multimodal `generateContent` body (no base64); for debugging STV image requests. */
+function shouldLogGeminiGenerateContentBodyRedacted(): boolean {
+  return parseBooleanConfig(process.env.LANDING_LOG_GEMINI_GENERATE_CONTENT_BODY_REDACTED, false);
 }
 
 async function shouldUseGeminiProxy(supabase: ReturnType<typeof createSupabaseServer>): Promise<boolean> {
@@ -69,8 +76,14 @@ async function getGeminiBaseUrlRuntime(
   return { baseUrl: DIRECT_GEMINI_BASE_URL, viaProxy: false };
 }
 
-async function processGeneration(supabase: ReturnType<typeof createSupabaseServer>, id: string) {
-  console.log("[generation.process] start", { generationId: id });
+async function processGeneration(
+  supabase: ReturnType<typeof createSupabaseServer>,
+  id: string,
+  pipelineTrace: string | null = null,
+) {
+  const pt = pipelineTrace || null;
+  console.log("[generation.process] start", { generationId: id, pipelineTrace: pt });
+  stvLog("generation.process.start", { pipelineTrace: pt, generationId: id });
   const { data: gen, error: fetchErr } = await supabase
     .from("landing_generations")
     .select("*")
@@ -81,6 +94,7 @@ async function processGeneration(supabase: ReturnType<typeof createSupabaseServe
   if (fetchErr || !gen) {
     console.warn("[generation.process] generation not found or not pending", {
       generationId: id,
+      pipelineTrace: pt,
       fetchError: fetchErr?.message ?? null,
     });
     return;
@@ -103,6 +117,7 @@ async function processGeneration(supabase: ReturnType<typeof createSupabaseServe
 
   console.log("[generation.process] marked processing", {
     generationId: id,
+    pipelineTrace: pt,
     userId,
     model: gen.model,
     aspectRatio: gen.aspect_ratio,
@@ -111,10 +126,19 @@ async function processGeneration(supabase: ReturnType<typeof createSupabaseServe
     promptLength: promptText.length,
     promptPreview,
   });
+  stvLog("generation.process.marked_processing", {
+    pipelineTrace: pt,
+    generationId: id,
+    userId,
+    vibeId: gen.vibe_id ?? null,
+    model: gen.model,
+    promptLength: promptText.length,
+  });
 
   const refundAndFail = async (errorType: string, errorMessage: string) => {
     console.warn("[generation.process] fail+refund", {
       generationId: id,
+      pipelineTrace: pt,
       userId,
       errorType,
       errorMessage,
@@ -147,6 +171,7 @@ async function processGeneration(supabase: ReturnType<typeof createSupabaseServe
   for (const path of inputPaths) {
     console.log("[generation.process] download input photo", {
       generationId: id,
+      pipelineTrace: pt,
       path,
     });
     const { data: fileData, error: downloadErr } = await supabase.storage
@@ -156,6 +181,7 @@ async function processGeneration(supabase: ReturnType<typeof createSupabaseServe
     if (downloadErr || !fileData) {
       console.error("[generation.process] input photo download failed", {
         generationId: id,
+        pipelineTrace: pt,
         path,
         downloadError: downloadErr?.message ?? null,
       });
@@ -170,6 +196,7 @@ async function processGeneration(supabase: ReturnType<typeof createSupabaseServe
     userImageMetaForLog.push({ storagePath: path, mime, bytes: buf.length });
     console.log("[generation.process] input photo encoded", {
       generationId: id,
+      pipelineTrace: pt,
       path,
       mime,
       bytes: buf.length,
@@ -203,6 +230,7 @@ async function processGeneration(supabase: ReturnType<typeof createSupabaseServe
         try {
           console.log("[generation.process] downloading reference image", {
             generationId: id,
+            pipelineTrace: pt,
             refHost: new URL(refUrl).hostname,
           });
           const refRes = await fetch(refUrl, {
@@ -236,6 +264,7 @@ async function processGeneration(supabase: ReturnType<typeof createSupabaseServe
               }
               console.log("[generation.process] reference image encoded", {
                 generationId: id,
+                pipelineTrace: pt,
                 mime: refMime,
                 bytes: refBuf.length,
               });
@@ -243,12 +272,14 @@ async function processGeneration(supabase: ReturnType<typeof createSupabaseServe
           } else {
             console.warn("[generation.process] reference image download non-ok", {
               generationId: id,
+              pipelineTrace: pt,
               status: refRes.status,
             });
           }
         } catch (err) {
           console.warn("[generation.process] reference image download failed", {
             generationId: id,
+            pipelineTrace: pt,
             error: err instanceof Error ? err.message : String(err),
           });
         }
@@ -261,6 +292,7 @@ async function processGeneration(supabase: ReturnType<typeof createSupabaseServe
   if (isVibeGeneration) {
     console.warn("[generation.process] vibe_generation_layout", {
       generationId: id,
+      pipelineTrace: pt,
       attachReferenceIntent: attachRefPixel,
       referenceDownloaded: Boolean(referenceImagePart),
       architecture: hasTwoImages ? "dual_reference_plus_user" : "single_user_image_plus_text_only",
@@ -272,6 +304,7 @@ async function processGeneration(supabase: ReturnType<typeof createSupabaseServe
   if (isVibeGeneration && attachRefPixel && !referenceImagePart) {
     console.error("[generation.process] vibe_reference_required_but_missing", {
       generationId: id,
+      pipelineTrace: pt,
       vibeId: gen.vibe_id ?? null,
     });
     await refundAndFail(
@@ -288,6 +321,7 @@ async function processGeneration(supabase: ReturnType<typeof createSupabaseServe
   if (shouldLogFullGenerationPrompt()) {
     console.warn("[generation.process] full_prompt_text", {
       generationId: id,
+      pipelineTrace: pt,
       userId,
       isVibeGeneration,
       hasTwoImages,
@@ -315,6 +349,7 @@ async function processGeneration(supabase: ReturnType<typeof createSupabaseServe
   if (isVibeGeneration) {
     console.warn("[generation.process] parts_outline", {
       generationId: id,
+      pipelineTrace: pt,
       hasTwoImages,
       partKinds: parts.map((p) => (p.inlineData ? "inlineData" : "text")),
       textPartCount: parts.filter((p) => p.text).length,
@@ -367,6 +402,7 @@ async function processGeneration(supabase: ReturnType<typeof createSupabaseServe
 
   console.warn("[generation.process] gemini_multimodal_images", {
     generationId: id,
+    pipelineTrace: pt,
     userId,
     model: gen.model,
     vibeId: gen.vibe_id ?? null,
@@ -398,15 +434,27 @@ async function processGeneration(supabase: ReturnType<typeof createSupabaseServe
   const apiKey = process.env.GEMINI_API_KEY;
 
   if (!apiKey) {
-    console.error("[generation.process] missing GEMINI_API_KEY", { generationId: id });
+    console.error("[generation.process] missing GEMINI_API_KEY", { generationId: id, pipelineTrace: pt });
     await refundAndFail("config_error", "Gemini API key not configured");
     return;
   }
+
+  const geminiRequestPayload = {
+    contents: [{ role: "user" as const, parts }],
+    generationConfig: {
+      responseModalities: ["IMAGE"] as const,
+      imageConfig: {
+        aspectRatio: gen.aspect_ratio,
+        imageSize: gen.image_size,
+      },
+    },
+  };
 
   let geminiRes: Response;
   try {
     console.log("[generation.process] gemini request", {
       generationId: id,
+      pipelineTrace: pt,
       url: geminiUrl,
       viaProxy,
       partsCount: parts.length,
@@ -417,26 +465,33 @@ async function processGeneration(supabase: ReturnType<typeof createSupabaseServe
       hasTwoImages,
       promptLength: fullPrompt.length,
     });
+    stvLog("generation.process.gemini_request", {
+      pipelineTrace: pt,
+      generationId: id,
+      userId,
+      model: gen.model,
+      partsCount: parts.length,
+      promptLength: fullPrompt.length,
+    });
+    if (shouldLogGeminiGenerateContentBodyRedacted()) {
+      console.warn("[generation.process] gemini_request_body_redacted", {
+        generationId: id,
+        pipelineTrace: pt,
+        body: redactGenerateContentBody(geminiRequestPayload),
+      });
+    }
     geminiRes = await fetch(geminiUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "x-goog-api-key": apiKey,
       },
-      body: JSON.stringify({
-        contents: [{ role: "user", parts }],
-        generationConfig: {
-          responseModalities: ["IMAGE"],
-          imageConfig: {
-            aspectRatio: gen.aspect_ratio,
-            imageSize: gen.image_size,
-          },
-        },
-      }),
+      body: JSON.stringify(geminiRequestPayload),
       signal: AbortSignal.timeout(120000),
     });
     console.log("[generation.process] gemini response headers", {
       generationId: id,
+      pipelineTrace: pt,
       status: geminiRes.status,
       ok: geminiRes.ok,
       contentType: geminiRes.headers.get("content-type"),
@@ -445,6 +500,7 @@ async function processGeneration(supabase: ReturnType<typeof createSupabaseServe
     const msg = err instanceof Error ? err.message : "Unknown error";
     console.error("[generation.process] gemini fetch failed", {
       generationId: id,
+      pipelineTrace: pt,
       ...toErrorMeta(err),
     });
     await refundAndFail("timeout", msg);
@@ -457,6 +513,7 @@ async function processGeneration(supabase: ReturnType<typeof createSupabaseServe
   } catch (err) {
     console.error("[generation.process] gemini response parse failed", {
       generationId: id,
+      pipelineTrace: pt,
       ...toErrorMeta(err),
     });
     await refundAndFail("gemini_error", "Gemini response parse failed");
@@ -476,6 +533,7 @@ async function processGeneration(supabase: ReturnType<typeof createSupabaseServe
   );
   console.log("[generation.process] gemini payload summary", {
     generationId: id,
+    pipelineTrace: pt,
     hasPromptFeedback: !!geminiData?.promptFeedback,
     candidateCount: Array.isArray(candidates) ? candidates.length : 0,
     firstCandidateFinishReason: firstCandidate?.finishReason ?? null,
@@ -490,6 +548,7 @@ async function processGeneration(supabase: ReturnType<typeof createSupabaseServe
   if (blockReason) {
     console.warn("[generation.process] gemini blocked", {
       generationId: id,
+      pipelineTrace: pt,
       blockReason,
     });
     await refundAndFail("gemini_blocked", "Контент заблокирован модерацией");
@@ -503,6 +562,7 @@ async function processGeneration(supabase: ReturnType<typeof createSupabaseServe
     const errMsg = (geminiData?.error as { message?: string } | undefined)?.message || "Gemini не вернул изображение";
     console.error("[generation.process] no image in gemini response", {
       generationId: id,
+      pipelineTrace: pt,
       errMsg,
       status: geminiRes.status,
     });
@@ -512,6 +572,7 @@ async function processGeneration(supabase: ReturnType<typeof createSupabaseServe
 
   console.log("[generation.process] gemini image received", {
     generationId: id,
+    pipelineTrace: pt,
     base64Length: imageBase64.length,
   });
 
@@ -528,6 +589,7 @@ async function processGeneration(supabase: ReturnType<typeof createSupabaseServe
   if (uploadErr) {
     console.error("[generation.process] upload result failed", {
       generationId: id,
+      pipelineTrace: pt,
       path: resultPath,
       uploadError: uploadErr.message,
     });
@@ -559,6 +621,7 @@ async function processGeneration(supabase: ReturnType<typeof createSupabaseServe
     if (ugc?.slug) {
       console.log("[generation.process] ugc prompt_card created", {
         generationId: id,
+        pipelineTrace: pt,
         cardId: ugc.cardId,
         slug: ugc.slug,
       });
@@ -566,29 +629,41 @@ async function processGeneration(supabase: ReturnType<typeof createSupabaseServe
   } catch (ugcErr) {
     console.error("[generation.process] ugc card creation failed", {
       generationId: id,
+      pipelineTrace: pt,
       ...toErrorMeta(ugcErr),
     });
   }
 
   console.log("[generation.process] completed", {
     generationId: id,
+    pipelineTrace: pt,
     resultPath,
     resultUrl,
+  });
+  stvLog("generation.process.completed", {
+    pipelineTrace: pt,
+    generationId: id,
+    userId,
+    resultPath,
   });
 }
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { id } = body as { id?: string };
+    const { id } = body as { id?: string; pipelineTraceId?: string };
+    const traceResolved = getStvPipelineTrace(req, body);
     if (!id) {
       console.warn("[generation.process] bad request: missing id");
       return NextResponse.json({ error: "Missing id" }, { status: 400 });
     }
 
-    console.log("[generation.process] POST received", { generationId: id });
+    console.log("[generation.process] POST received", {
+      generationId: id,
+      pipelineTrace: traceResolved,
+    });
     const supabase = createSupabaseServer();
-    await processGeneration(supabase, id);
+    await processGeneration(supabase, id, traceResolved);
 
     return NextResponse.json({ ok: true });
   } catch (err) {

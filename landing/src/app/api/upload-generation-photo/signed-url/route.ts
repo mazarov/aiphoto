@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServer } from "@/lib/supabase";
 import { getSupabaseUserForApiRoute } from "@/lib/supabase-route-auth";
+import { getStvPipelineTrace, stvLog } from "@/lib/stv-pipeline-log";
 
 const BUCKET = "web-generation-uploads";
 /** Short-lived URL for <img src> in extension (no Bearer on image requests). */
@@ -19,6 +20,8 @@ export async function GET(req: NextRequest) {
     if (authError || !user) {
       return NextResponse.json({ error: "unauthorized" }, { status: 401 });
     }
+
+    const pipelineTrace = getStvPipelineTrace(req);
 
     const path = req.nextUrl.searchParams.get("path") || "";
     if (!isSafeStoragePath(path)) {
@@ -39,6 +42,13 @@ export async function GET(req: NextRequest) {
       console.error("upload-generation-photo signed-url:", error?.message);
       return NextResponse.json({ error: "not found" }, { status: 404 });
     }
+
+    stvLog("upload.signed_url_ok", {
+      pipelineTrace,
+      userId: user.id,
+      storagePath: path,
+      expiresInSec: SIGNED_TTL_SEC,
+    });
 
     return NextResponse.json({
       signedUrl: data.signedUrl,
