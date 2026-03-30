@@ -26,6 +26,32 @@ import { getStvPipelineTrace, stvLog } from "@/lib/stv-pipeline-log";
 const DIRECT_GEMINI_BASE_URL = "https://generativelanguage.googleapis.com";
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 
+/** Optional client override for vision instruction (A/B extract prompts). */
+const MIN_EXTRACT_INSTRUCTION_OVERRIDE_LEN = 80;
+const MAX_EXTRACT_INSTRUCTION_OVERRIDE_LEN = 48_000;
+
+function resolveExtractInstruction(override: unknown): { instruction: string; custom: boolean } | { error: string } {
+  if (override === undefined || override === null) {
+    return { instruction: LEGACY_EXTRACT_PROMPT_2C23CE94, custom: false };
+  }
+  if (typeof override !== "string") {
+    return { error: "extractInstructionOverride must be a string when provided" };
+  }
+  const trimmed = override.trim();
+  if (!trimmed) {
+    return { instruction: LEGACY_EXTRACT_PROMPT_2C23CE94, custom: false };
+  }
+  if (trimmed.length < MIN_EXTRACT_INSTRUCTION_OVERRIDE_LEN) {
+    return {
+      error: `extractInstructionOverride must be at least ${MIN_EXTRACT_INSTRUCTION_OVERRIDE_LEN} characters`,
+    };
+  }
+  if (trimmed.length > MAX_EXTRACT_INSTRUCTION_OVERRIDE_LEN) {
+    return { error: `extractInstructionOverride exceeds ${MAX_EXTRACT_INSTRUCTION_OVERRIDE_LEN} characters` };
+  }
+  return { instruction: trimmed, custom: true };
+}
+
 const EXTRACT_TEMPERATURE_MIN = 0;
 const EXTRACT_TEMPERATURE_MAX = 2;
 
@@ -179,12 +205,26 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "unauthorized" }, { status: 401 });
     }
 
-    const body = (await req.json()) as { imageUrl?: string; extractTemperature?: unknown };
+    const body = (await req.json()) as {
+      imageUrl?: string;
+      extractTemperature?: unknown;
+      extractInstructionOverride?: unknown;
+    };
     const pipelineTrace = getStvPipelineTrace(req, body);
     const imageUrl = String(body?.imageUrl || "").trim();
     if (!imageUrl) {
       return NextResponse.json({ error: "invalid_url" }, { status: 400 });
     }
+
+    const instrResolved = resolveExtractInstruction(body.extractInstructionOverride);
+    if ("error" in instrResolved) {
+      return NextResponse.json(
+        { error: "validation_error", message: instrResolved.error },
+        { status: 400 },
+      );
+    }
+    const extractInstruction = instrResolved.instruction;
+    const extractInstructionCustom = instrResolved.custom;
 
     const tempParsed = parseOptionalExtractTemperature(body.extractTemperature);
     if (!tempParsed.ok) {
@@ -208,12 +248,15 @@ export async function POST(req: NextRequest) {
       pipelineTrace,
       imageHost: safeUrl.hostname,
       extractTemperature: extractTemperature ?? "default",
+      extractInstructionCustom,
+      instructionChars: extractInstruction.length,
     });
     stvLog("vibe.extract.begin", {
       pipelineTrace,
       userId: user.id,
       imageUrlHost: safeUrl.hostname,
-      instructionChars: LEGACY_EXTRACT_PROMPT_2C23CE94.length,
+      instructionChars: extractInstruction.length,
+      extractInstructionCustom,
       extractTemperature: extractTemperature ?? "default",
     });
 
@@ -242,7 +285,6 @@ export async function POST(req: NextRequest) {
 
     const supabase = createSupabaseServer();
     const extractLlm = await getVibeExtractLlmProvider(supabase);
-    const extractInstruction = LEGACY_EXTRACT_PROMPT_2C23CE94;
 
     let text = "";
     let httpOk = false;
@@ -495,6 +537,7 @@ export async function POST(req: NextRequest) {
       modelUsed,
       llmProvider: extractLlm,
       legacyPromptChain: true,
+      extractInstructionCustom,
     });
   } catch (err) {
     console.error("[vibe.extract] unhandled error", {

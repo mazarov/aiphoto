@@ -18,11 +18,20 @@ export const STV_OVERLAY_STAR_PATH =
   "M10.788 3.21c.448-1.077 1.656-1.077 2.104 0l2.052 4.96 5.35.434c1.161.094 1.548 1.603.748 2.384l-4.09 3.941 1.14 5.348c.25 1.17-1.036 2.017-2.1 1.51l-4.828-2.29-4.827 2.29c-1.064.507-2.35-.34-2.1-1.51l1.14-5.348-4.09-3.941c-.8-.781-.413-2.384.748-2.384l5.35-.434 2.052-4.96Z";
 
 /** Кнопка оверлея — визуал content-script (мокап, не кликабельно). */
-export function OverlayButtonMock({ className }: { className?: string }) {
+export function OverlayButtonMock({
+  className,
+  headline = "Steal this vibe",
+  headlineClassName,
+}: {
+  className?: string;
+  /** Подпись на лендинге расширения и т.п.; дефолт совпадает с живым content-script. */
+  headline?: string;
+  headlineClassName?: string;
+}) {
   return (
     <div
       role="img"
-      aria-label="Extension overlay: Steal this vibe — PromptShot"
+      aria-label={`Extension overlay: ${headline} — PromptShot`}
       className={
         "pointer-events-none min-h-[46px] select-none rounded-[12px] border border-white/10 bg-[rgba(24,24,27,0.94)] text-left text-[#fafafa] shadow-[0_0_0_1px_rgba(99,102,241,0.22),0_1px_0_rgba(255,255,255,0.06)_inset,0_8px_28px_rgba(0,0,0,0.45),0_4px_16px_rgba(99,102,241,0.18)] " +
         (className ?? "")
@@ -41,7 +50,11 @@ export function OverlayButtonMock({ className }: { className?: string }) {
           </svg>
         </div>
         <div className="flex flex-col items-start gap-px leading-tight">
-          <span className="text-[12px] font-semibold tracking-tight text-[#fafafa] sm:text-[13px]">Steal this vibe</span>
+          <span
+            className={`font-semibold tracking-tight text-[#fafafa] ${headlineClassName ?? "text-[12px] sm:text-[13px]"}`}
+          >
+            {headline}
+          </span>
           <span className="text-[10px] font-semibold uppercase tracking-[0.06em] text-[#a1a1aa]">PromptShot</span>
         </div>
       </div>

@@ -1609,6 +1609,50 @@ code {
 
 .stv-prompt-tab-actions {
   margin-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.stv-extract-override-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.stv-extract-override-block .stv-checkbox-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--stv-text);
+}
+
+.stv-extract-override-block .stv-checkbox-row input {
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.stv-extract-override-hint {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.stv-extract-override-textarea {
+  width: 100%;
+  min-height: 140px;
+  max-height: 220px;
+  resize: vertical;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.stv-test-extract-btn {
+  width: 100%;
 }
 
 .stv-prompt-extract-wrap {

@@ -154,7 +154,7 @@ export function PainReferenceVsDraftMock() {
 
   return (
     <div className="rounded-2xl border border-white/[0.08] bg-[rgb(24_24_27/0.45)] p-5 shadow-[0_20px_50px_-28px_rgba(0,0,0,0.5)] sm:p-6">
-      <div className="mb-5 flex flex-col gap-1.5 border-b border-white/[0.06] pb-4 sm:flex-row sm:items-end sm:justify-between">
+      <div className="mb-5 flex flex-col gap-1.5 pb-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-zinc-400">
             Reference vs prompt
@@ -184,6 +184,7 @@ export function PainReferenceVsDraftMock() {
                       src={PAIN_REFERENCE_IMAGE_SRC}
                       alt="Reference photo for style — example from PromptShot generations"
                       fill
+                      unoptimized
                       className="object-contain object-center"
                       sizes="(max-width: 640px) 100vw, 340px"
                       quality={60}
@@ -243,7 +244,7 @@ export function PainReferenceVsDraftMock() {
 
       <p className="mt-5 text-center text-[11px] leading-relaxed text-zinc-500 sm:mt-6">
         {fromExtract
-          ? "Built with the same extract → expand path as Steal This Vibe in the extension."
+          ? "Built with the same extract → expand path as Image To Prompt in the extension."
           : "The sample text is intentionally off — add your photo to run the real pipeline."}
       </p>
     </div>

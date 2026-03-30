@@ -209,6 +209,15 @@ const STRINGS = {
       "Включён режим «Свой промпт» — редактируйте текст на вкладке «Генерация». Блоки стиля здесь недоступны.",
     btn_extract_prompt_only: "Извлечь промпт",
     btn_refresh_prompt_extract: "Обновить промпт",
+    btn_test_extract_prompt: "Тест extract (только стиль)",
+    extract_override_checkbox: "Свой промпт извлечения (вместо серверного legacy)",
+    extract_override_hint:
+      "Включите, чтобы в extract уходил текст ниже (hybrid по умолчанию или ваш). «Тест extract» — только JSON стиля; «Обновить промпт» — полный pipeline. Выключено — системный промпт на сервере.",
+    extract_override_text_aria: "Инструкция для extract (vision → JSON)",
+    err_extract_override_short:
+      "Промпт извлечения слишком короткий: минимум 80 символов или выключите галку.",
+    toast_extract_test_ok:
+      "Стиль извлечён. Нажмите «Обновить промпт», чтобы собрать текст для генерации.",
     toast_prompt_ready: "Промпт готов",
     btn_edit_prompt_blocks: "Редактировать блоки",
     btn_save_prompt_blocks: "Сохранить",
@@ -470,6 +479,15 @@ const STRINGS = {
       'Custom prompt is on — edit text on the Generate tab. Style blocks are disabled here.',
     btn_extract_prompt_only: "Extract prompt",
     btn_refresh_prompt_extract: "Refresh prompt",
+    btn_test_extract_prompt: "Test extract (style only)",
+    extract_override_checkbox: "Custom extract instruction (instead of server legacy)",
+    extract_override_hint:
+      "When on, extract uses the text below (hybrid default or yours). “Test extract” runs vision only; “Refresh prompt” runs the full pipeline. Off — server default instruction.",
+    extract_override_text_aria: "Extract instruction (vision → JSON)",
+    err_extract_override_short:
+      "Extract instruction too short: at least 80 characters, or turn the checkbox off.",
+    toast_extract_test_ok:
+      "Style extracted. Tap “Refresh prompt” to build generation text.",
     toast_prompt_ready: "Prompt ready",
     btn_edit_prompt_blocks: "Edit blocks",
     btn_save_prompt_blocks: "Save",
@@ -732,6 +750,15 @@ const STRINGS = {
       "Eigener Prompt aktiv — Text auf der Registerkarte „Generierung“ bearbeiten. Stil-Blöcke hier sind deaktiviert.",
     btn_extract_prompt_only: "Prompt extrahieren",
     btn_refresh_prompt_extract: "Prompt aktualisieren",
+    btn_test_extract_prompt: "Test Extract (nur Stil)",
+    extract_override_checkbox: "Eigene Extract-Anweisung (statt Server-Legacy)",
+    extract_override_hint:
+      "Wenn aktiv, nutzt Extract den Text unten (Hybrid-Standard oder deiner). „Test Extract“ nur Vision; „Prompt aktualisieren“ voller Ablauf. Aus — Server-Standard.",
+    extract_override_text_aria: "Extract-Anweisung (Vision → JSON)",
+    err_extract_override_short:
+      "Extract-Text zu kurz: mindestens 80 Zeichen oder Häkchen aus.",
+    toast_extract_test_ok:
+      "Stil extrahiert. „Prompt aktualisieren“ für Generierungstext.",
     toast_prompt_ready: "Prompt bereit",
     btn_edit_prompt_blocks: "Blöcke bearbeiten",
     btn_save_prompt_blocks: "Speichern",

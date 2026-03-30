@@ -15206,7 +15206,9 @@ var state = {
   /** History tab filter: all | image | prompt */
   historyFilter: "all",
   /** Brief highlight on prompt block after successful extract-only (not persisted). */
-  promptReadyFlash: false
+  promptReadyFlash: false,
+  /** Correlates server logs: upload → extract → expand → generate (header X-STV-Pipeline-Trace). */
+  pipelineTraceId: ""
 };
 var toastTimer = null;
 var creditPollTimer = null;
@@ -15348,12 +15350,23 @@ function clearReferenceUpload() {
   state.referencePhoto = null;
   state.referencePhotoPreviewLoading = false;
 }
+function bumpPipelineTraceId() {
+  try {
+    state.pipelineTraceId = crypto.randomUUID();
+  } catch {
+    state.pipelineTraceId = `stv_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+  }
+}
+function clearPipelineTraceId() {
+  state.pipelineTraceId = "";
+}
 function removeReference() {
   if (state.referencePhoto?.storagePath) {
     clearReferenceUpload();
   } else {
     clearUrlReference();
   }
+  clearPipelineTraceId();
 }
 var userPhotosSignedRefreshPromise = null;
 function userPhotosNeedSignedPreviews() {
@@ -15881,6 +15894,7 @@ function toSerializableState() {
     panelTab: state.panelTab === "prompt" || state.panelTab === "history" ? state.panelTab : "generate",
     extractReferenceFingerprint: String(state.extractReferenceFingerprint || ""),
     historyFilter: ["all", "image", "prompt"].includes(state.historyFilter) ? state.historyFilter : "all",
+    pipelineTraceId: String(state.pipelineTraceId || "").trim().slice(0, 64),
     updatedAt: Date.now()
   };
 }
@@ -16031,11 +16045,17 @@ function applyPersistedState(saved) {
   state.panelTab = pt === "prompt" || pt === "history" || pt === "generate" ? pt : "generate";
   state.extractReferenceFingerprint = typeof saved.extractReferenceFingerprint === "string" ? saved.extractReferenceFingerprint : "";
   state.historyFilter = ["all", "image", "prompt"].includes(saved.historyFilter) ? saved.historyFilter : "all";
+  const ptid = typeof saved.pipelineTraceId === "string" ? saved.pipelineTraceId.trim().slice(0, 64) : "";
+  state.pipelineTraceId = ptid;
 }
 async function api(path, init = {}) {
   const headers = { ...init.headers || {} };
   if (accessTokenRef && !headers.Authorization) {
     headers.Authorization = `Bearer ${accessTokenRef}`;
+  }
+  const tid = String(state.pipelineTraceId || "").trim();
+  if (tid && !headers["X-STV-Pipeline-Trace"] && !headers["x-stv-pipeline-trace"]) {
+    headers["X-STV-Pipeline-Trace"] = tid;
   }
   const response = await fetch(`${rt().getApiOrigin()}${path}`, {
     ...init,
@@ -16097,6 +16117,7 @@ async function applyPendingVibeFromStorage(vibe) {
   clearReferenceUpload();
   state.sourceImageUrl = url;
   state.sourceContext = vibe;
+  bumpPipelineTraceId();
   state.error = "";
   state.info = t("info_source_updated");
   await storageSessionRemove(SESSION_VIBE_KEY);
@@ -16288,6 +16309,7 @@ async function uploadReferencePhotoFile(file) {
     previewBust: Date.now(),
     uploading: false
   };
+  bumpPipelineTraceId();
   await applySignedPreviewToItem(state.referencePhoto);
   await persistState();
 }
@@ -16391,6 +16413,7 @@ function scheduleAssemblePrompt() {
   }, 280);
 }
 async function createGeneration(promptVariant) {
+  const tid = String(state.pipelineTraceId || "").trim();
   const data = await api("/api/generate", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -16401,7 +16424,8 @@ async function createGeneration(promptVariant) {
       imageSize: state.selectedImageSize,
       vibeId: state.vibeId,
       cardId: state.landingCardId || null,
-      photoStoragePaths: userPhotoStoragePaths()
+      photoStoragePaths: userPhotoStoragePaths(),
+      ...tid ? { pipelineTraceId: tid } : {}
     })
   });
   return String(data.id);
