@@ -9,7 +9,7 @@ import {
   findTagBySlug,
   type Dimension,
 } from "@/lib/tag-registry";
-import { PageLayout } from "@/components/PageLayout";
+import { CardPageLayout } from "@/components/CardPageLayout";
 
 const CardPageClient = nextDynamic(
   () =>
@@ -17,14 +17,13 @@ const CardPageClient = nextDynamic(
   {
     ssr: true,
     loading: () => (
-      <div
-        className="mx-auto max-w-2xl space-y-6 px-5 py-10"
-        aria-busy="true"
-        aria-label="Загрузка карточки"
-      >
-        <div className="h-64 animate-pulse rounded-3xl bg-zinc-100" />
-        <div className="mx-auto h-8 w-2/3 animate-pulse rounded-lg bg-zinc-100" />
-        <div className="h-36 animate-pulse rounded-2xl bg-zinc-50" />
+      <div aria-busy="true" aria-label="Загрузка карточки">
+        <div className="h-[100dvh] animate-pulse bg-gradient-to-b from-zinc-200 via-zinc-100 to-white md:hidden" />
+        <div className="mx-auto max-w-2xl space-y-6 px-5 py-8 pb-28 md:py-10">
+          <div className="mx-auto hidden h-72 animate-pulse rounded-3xl bg-zinc-100 md:block md:mx-0" />
+          <div className="mx-auto h-8 w-2/3 animate-pulse rounded-lg bg-zinc-100" />
+          <div className="h-36 animate-pulse rounded-2xl bg-zinc-50 md:h-44" />
+        </div>
       </div>
     ),
   }
@@ -200,8 +199,10 @@ export default async function CardPage({ params }: Props) {
   const safeJson = (obj: object) =>
     JSON.stringify(obj).replace(/</g, "\\u003c");
 
+  const immersiveMobileChrome = data.photoUrls.length > 0;
+
   return (
-    <PageLayout>
+    <CardPageLayout hideMobileChrome={immersiveMobileChrome}>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: safeJson(creativeWorkLd) }}
@@ -211,7 +212,7 @@ export default async function CardPage({ params }: Props) {
         dangerouslySetInnerHTML={{ __html: safeJson(breadcrumbLd) }}
       />
 
-      <main className="flex-1 pb-20 lg:pb-0">
+      <main className="flex min-h-0 flex-1 flex-col pb-20 max-md:min-h-0 lg:pb-0">
         <CardPageClient
           data={data}
           tagEntries={tagEntries}
@@ -222,6 +223,6 @@ export default async function CardPage({ params }: Props) {
           }
         />
       </main>
-    </PageLayout>
+    </CardPageLayout>
   );
 }

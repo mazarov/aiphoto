@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect, useCallback, useRef } from "react";
+import { useState, useMemo, useEffect, useLayoutEffect, useCallback, useRef } from "react";
 import type { PromptCardFull } from "@/lib/supabase";
 import { TAG_REGISTRY } from "@/lib/tag-registry";
 import { PromptCard } from "./PromptCard";
@@ -8,6 +8,11 @@ import { GroupedCard } from "./GroupedCard";
 import { useDebug } from "./DebugFAB";
 import { CardInteractionsProvider } from "@/context/CardInteractionsContext";
 import { LISTING_LCP_PRIORITY_GRID_ITEMS } from "@/lib/listing-lcp";
+import {
+  buildListingSlugOrder,
+  writeListingNavigationContext,
+  type ListingNavGridItem,
+} from "@/lib/listing-card-navigation-context";
 
 type Props = {
   cards: PromptCardFull[];
@@ -190,6 +195,12 @@ export function FilterableGrid({
   const groupCount = useMemo(() => {
     return gridItems.filter((i) => i.type === "group").length;
   }, [gridItems]);
+
+  useLayoutEffect(() => {
+    if (isIdMode || isFilterMode) return;
+    const order = buildListingSlugOrder(gridItems as ListingNavGridItem[]);
+    writeListingNavigationContext(order);
+  }, [gridItems, isIdMode, isFilterMode]);
 
   function handleReset() {
     setFilters({ hasWarnings: "all", scoreMin: 0, scoreMax: 100, hasRuPrompt: "all", selectedTag: "", hasBefore: "all", dataset: "" });

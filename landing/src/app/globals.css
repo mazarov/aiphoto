@@ -97,8 +97,10 @@ p {
 }
 
 /**
- * Listing grid cards: hide metadata chrome until hover/focus-within on fine-pointer devices.
- * Touch / coarse pointer: chrome stays hidden (actions on /p/[slug]).
+ * Listing grid cards: hide metadata chrome until hover/focus-within on desktop-sized fine-pointer viewports.
+ * Below 768px: no hover overlay (narrow layout / DevTools mobile width — tap opens /p/[slug]).
+ * Touch/coarse pointer: chrome stays hidden. Children must not use stray pointer-events:auto when
+ * opacity is 0 — hits would not reach the card Link (`listing-card-chrome-target` is auto only here).
  */
 @layer components {
   .listing-card-chrome {
@@ -113,8 +115,8 @@ p {
   /**
    * Fast opacity (~55ms): metrics + reactions, photo arrows, frame counter,
    * «Сгенерировать» / «Скопировать» — no lag vs slow ambient layer.
-   * Нижний ряд CTA в JSX помечает детей классами `[&>*]:pointer-events-auto` — иначе
-   * у `.listing-card-chrome-target` вне `:hover`/fine-pointer клик не попадает в кнопку.
+   * Интерактивные элементы помечены `listing-card-chrome-target` — pointer-events включаются
+   * только когда chrome показан (см. @media ниже).
    */
   .listing-card-chrome-actions-fast,
   .listing-card-chrome-controls-fast {
@@ -129,7 +131,7 @@ p {
     pointer-events: none;
   }
 
-  @media (hover: hover) and (pointer: fine) {
+  @media (hover: hover) and (pointer: fine) and (min-width: 768px) {
     .listing-card-chrome-ambient {
       transform: translateY(8px);
       transition:
@@ -178,7 +180,7 @@ p {
     }
   }
 
-  @media (hover: hover) and (pointer: fine) {
+  @media (hover: hover) and (pointer: fine) and (min-width: 768px) {
     @media (prefers-reduced-motion: no-preference) {
       .listing-card-photo-hover {
         transform-origin: center;

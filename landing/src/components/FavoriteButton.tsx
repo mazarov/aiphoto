@@ -17,7 +17,7 @@ export function FavoriteButton({
 }: Props) {
   const isOverlay = variant === "overlay" || variant === "overlay-lg";
   const isLg = variant === "overlay-lg";
-  const size = isLg ? 22 : isOverlay ? 14 : 20;
+  const size = isLg ? 22 : isOverlay ? 16 : 20;
   const padSurface = isLg ? "p-2" : "p-1.5";
 
   return (

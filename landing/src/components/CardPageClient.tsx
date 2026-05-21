@@ -24,6 +24,21 @@ import {
   SIZES_CARD_HERO,
 } from "@/lib/card-image-presets";
 import { copyTextSyncFallback, copyTextUniversal } from "@/lib/copy-text-to-clipboard";
+import {
+  resolveListingNavNeighbors,
+  type ListingCardNavNeighbors,
+} from "@/lib/listing-card-navigation-context";
+
+/** Glass как у «тегов» на этом экране: chip-подложка без отдельной нижней панели. */
+const MOBILE_FS_CHIP =
+  "bg-black/15 text-white/90 backdrop-blur-md shadow-none transition-colors hover:bg-black/25";
+/** То же — приглушённый текст для нессылочных чипов */
+const MOBILE_FS_CHIP_MUTED =
+  "bg-black/15 text-white/80 backdrop-blur-md shadow-none transition-colors hover:bg-black/25";
+const MOBILE_FS_PANEL = `${MOBILE_FS_CHIP} rounded-2xl px-3 py-2.5 text-[13px] font-medium leading-snug`;
+/** Кнопки поверх фото (копировать) — без «полосы», тот же glass. */
+const MOBILE_FS_ACTION = `${MOBILE_FS_CHIP} rounded-xl font-semibold`;
+const MOBILE_FS_EXPAND = `${MOBILE_FS_CHIP} rounded-2xl px-4 py-3 text-[13px] font-medium leading-snug`;
 
 type TagEntry = { slug: string; label: string; href: string | null };
 type BreadcrumbTag = { labelRu: string; urlPath: string } | null;
@@ -68,6 +83,9 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
   const [setBeforeStatus, setSetBeforeStatus] = useState<string | null>(null);
   const [deleteSaving, setDeleteSaving] = useState(false);
   const [deleteStatus, setDeleteStatus] = useState<string | null>(null);
+  const [listingNavNeighbors, setListingNavNeighbors] =
+    useState<ListingCardNavNeighbors | null>(null);
+  const [mobilePromptOverlay, setMobilePromptOverlay] = useState(false);
 
   // Reset local media only when opening another card (`id`), not on every `data` reference change.
   useEffect(() => {
@@ -85,6 +103,14 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
   useEffect(() => {
     setPublishedLocal(data.isPublished);
   }, [data.isPublished, data.id]);
+
+  useEffect(() => {
+    setListingNavNeighbors(resolveListingNavNeighbors(data.slug));
+  }, [data.slug]);
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, [data.slug]);
 
   async function handleVisibilityChange(nextPublished: boolean) {
     setPubSaving(true);
@@ -135,6 +161,37 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
       setBlurBackdropReady(true);
     },
     [onHeroFrameFromHook]
+  );
+
+
+  const handleCloseMobileViewer = useCallback(() => {
+    if (typeof window !== "undefined" && window.history.length > 1) {
+      router.back();
+    } else {
+      router.push("/");
+    }
+  }, [router]);
+
+
+
+  useEffect(() => {
+    if (!mobilePromptOverlay || typeof window === "undefined") return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setMobilePromptOverlay(false);
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [mobilePromptOverlay]);
+
+  useEffect(() => {
+    setMobilePromptOverlay(false);
+  }, [data.slug]);
+
+  const goListingNeighbor = useCallback(
+    (slug: string) => {
+      router.push(`/p/${encodeURIComponent(slug)}`);
+    },
+    [router]
   );
 
   const hasPrompts = data.promptTexts.length > 0;
@@ -278,6 +335,10 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
     }
   }
 
+  const listingPrev = listingNavNeighbors?.prevSlug ?? null;
+  const listingNext = listingNavNeighbors?.nextSlug ?? null;
+  const listingNavInStickyBar = !!(listingPrev || listingNext);
+
   return (
     <div className="mx-auto max-w-2xl px-5 py-6 lg:py-10 pb-28">
       {/* Breadcrumb — hidden on mobile */}
@@ -304,7 +365,9 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
 
       {/* Debug panel */}
       {debugMode && (
-        <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 p-4 font-mono text-xs text-zinc-700 space-y-1.5">
+        <div
+          className={`mb-4 rounded-xl border border-amber-300 bg-amber-50 p-4 font-mono text-xs text-zinc-700 space-y-1.5 ${hasPhotos ? "max-md:hidden" : ""}`}
+        >
           <div className="flex items-center gap-2 mb-2">
             <span className="rounded bg-amber-500 px-1.5 py-0.5 text-[10px] font-bold text-white">DEBUG</span>
           </div>
@@ -376,70 +439,242 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
         </div>
       )}
 
-      {/* ── Hero Image with Blur Backdrop ── */}
+      {/* ── Hero (desktop framed / mobile immersive) ── */}
       {hasPhotos && (
-        <div className="relative overflow-hidden rounded-3xl bg-zinc-100 mb-8">
-          {/* Blurred backdrop: CSS only, after hero loads — avoids second `<img>` winning LCP over the card photo */}
-          {blurBackdropReady && currentPhoto && (
-            <>
-              <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
+        <>
+          {/* Desktop первым — LCP для md+, mobile блок скрыт */}
+          <div className="relative mb-8 hidden overflow-hidden rounded-3xl bg-zinc-100 md:block">
+            {blurBackdropReady && currentPhoto && (
+              <>
+                <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
+                  <div
+                    className="absolute inset-0 scale-150 bg-cover bg-center opacity-50 blur-3xl saturate-150 brightness-110"
+                    style={{
+                      backgroundImage: `url(${JSON.stringify(currentPhoto)})`,
+                    }}
+                  />
+                </div>
+                <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/10 via-transparent to-white/15" />
+              </>
+            )}
+            <div className="group relative flex flex-col items-center justify-center gap-4 px-6 py-8 sm:px-10 sm:py-10">
+              {currentPhoto ? (
                 <div
-                  className="absolute inset-0 scale-150 bg-cover bg-center opacity-50 blur-3xl saturate-150 brightness-110"
-                  style={{
-                    backgroundImage: `url(${JSON.stringify(currentPhoto)})`,
-                  }}
+                  className={`relative w-full max-w-[260px] sm:max-w-[300px] rounded-2xl overflow-hidden bg-zinc-200 shadow-2xl ring-1 ring-black/5${heroFrameFallback ? " aspect-[3/4]" : ""}`}
+                  style={heroFrameStyle}
+                >
+                  <Image
+                    src={currentPhoto}
+                    alt={title}
+                    fill
+                    sizes={SIZES_CARD_HERO}
+                    quality={CARD_IMAGE_NEXT_QUALITY}
+                    className="object-cover"
+                    priority
+                    fetchPriority="high"
+                    decoding="async"
+                    onLoadingComplete={onHeroFrameLoad}
+                  />
+
+                  {photos.length > 1 && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={prevPhoto}
+                        className={`${OVERLAY_BUTTON_UA_RESET} absolute left-2 top-1/2 z-20 -translate-y-1/2 rounded-full bg-black/30 p-1.5 text-white opacity-0 backdrop-blur-md transition-all hover:bg-black/50 active:scale-90 max-md:opacity-100 md:group-hover:opacity-100`}
+                        aria-label="Предыдущее фото"
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden><path d="M15 18l-6-6 6-6" /></svg>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={nextPhoto}
+                        className={`${OVERLAY_BUTTON_UA_RESET} absolute right-2 top-1/2 z-20 -translate-y-1/2 rounded-full bg-black/30 p-1.5 text-white opacity-0 backdrop-blur-md transition-all hover:bg-black/50 active:scale-90 max-md:opacity-100 md:group-hover:opacity-100`}
+                        aria-label="Следующее фото"
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden><path d="M9 18l6-6-6-6" /></svg>
+                      </button>
+                    </>
+                  )}
+
+                  {beforePhotoUrl && (
+                    <div className="absolute top-0 left-0 z-20 w-[28%] min-w-[56px]">
+                      <div className="aspect-square relative bg-zinc-800 rounded-br-xl overflow-hidden shadow-lg ring-1 ring-black/10">
+                        <Image
+                          src={beforePhotoUrl}
+                          alt="before"
+                          fill
+                          className="object-cover"
+                          sizes={SIZES_CARD_GRID}
+                          quality={CARD_IMAGE_NEXT_QUALITY}
+                        />
+                        <div className="absolute inset-x-0 bottom-0 text-[7px] text-white font-bold text-center py-0.5 bg-gradient-to-t from-black/70 to-transparent tracking-wider">
+                          БЫЛО
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {photos.length > 1 && (
+                    <div className="pointer-events-none absolute top-2 left-1/2 z-20 -translate-x-1/2">
+                      <div className={CARD_OVERLAY_PHOTO_COUNTER_CLASS}>
+                        {photoIndex + 1}/{photos.length}
+                      </div>
+                    </div>
+                  )}
+                  {groupCards.length > 1 && (
+                    <div className="pointer-events-none absolute bottom-2 left-1/2 z-20 flex -translate-x-1/2 items-center gap-1">
+                      <div className="pointer-events-auto flex items-center gap-1">
+                        {groupCards.map((card) => {
+                          const isActive = card.id === data.id;
+                          return (
+                            <Link
+                              key={card.id}
+                              href={`/p/${card.slug}`}
+                              className={`flex flex-shrink-0 items-center gap-1 rounded-full px-2 py-1 text-[11px] font-semibold transition-colors ${
+                                isActive
+                                  ? "bg-white/30 ring-1 ring-white/40 text-white"
+                                  : `${MOBILE_FS_CHIP_MUTED} ring-1 ring-transparent`
+                              }`}
+                            >
+                              {card.mainPhotoUrl && (
+                                <div className="h-4 w-4 flex-shrink-0 overflow-hidden rounded-full ring-1 ring-white/20">
+                                  <Image
+                                    src={card.mainPhotoUrl}
+                                    alt=""
+                                    width={16}
+                                    height={16}
+                                    className="h-full w-full object-cover"
+                                    sizes={SIZES_CARD_GRID}
+                                    quality={CARD_IMAGE_NEXT_QUALITY}
+                                  />
+                                </div>
+                              )}
+                              <span
+                                className={`tabular-nums font-semibold ${
+                                  isActive ? "text-white" : "text-white/85"
+                                }`}
+                              >
+                                {card.card_split_index + 1}
+                              </span>
+                            </Link>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="flex h-48 items-center justify-center text-sm text-zinc-400">
+                  Нет фото
+                </div>
+              )}
+
+              {tagEntries.length > 0 && (
+                <div className="w-full space-y-2">
+                  <h2 className="sr-only">Теги</h2>
+                  <div className="flex flex-wrap justify-center gap-1.5">
+                    {tagEntries.map(({ slug, label, href }) =>
+                      href ? (
+                        <Link
+                          key={slug}
+                          href={href}
+                          className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${MOBILE_FS_CHIP}`}
+                        >
+                          {label}
+                        </Link>
+                      ) : (
+                        <span
+                          key={slug}
+                          className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${MOBILE_FS_CHIP_MUTED}`}
+                        >
+                          {label}
+                        </span>
+                      )
+                    )}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex w-full flex-col items-center gap-3">
+                <h2 className="sr-only">Отклики и шаринг</h2>
+                <div className="flex flex-wrap items-center justify-center gap-1.5">
+                <ReactionButtons
+                  cardId={data.id}
+                  likesCount={data.likesCount}
+                  dislikesCount={data.dislikesCount}
+                  userReaction={userReaction}
+                  onToggle={toggleReaction}
+                  variant="overlay"
                 />
+                <FavoriteButton
+                  cardId={data.id}
+                  isFavorited={isFavorited}
+                  onToggle={toggleFavorite}
+                  variant="overlay"
+                />
+                <button
+                  type="button"
+                  onClick={handleShare}
+                  className={`${CARD_OVERLAY_ACTION_PILL} min-w-[2.75rem] text-white/70 transition-colors hover:text-white active:scale-95`}
+                  title="Поделиться"
+                  aria-label="Поделиться ссылкой на карточку"
+                >
+                  <ShareIcon className="block shrink-0" size={16} />
+                </button>
               </div>
-              <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/10 via-transparent to-white/15" />
-            </>
-          )}
+              </div>
+            </div>
+          </div>
 
-          {/* Photo content */}
-          <div className="group relative flex flex-col items-center justify-center gap-4 px-6 py-8 sm:px-10 sm:py-10">
+          {/* Mobile: fullscreen-карточка (Chrome скрыт через CardPageLayout при наличии фото). */}
+          <div className="fixed inset-0 z-[245] flex min-h-[100dvh] flex-col bg-transparent md:hidden motion-reduce:transition-none">
             {currentPhoto ? (
-              <div
-                className={`relative w-full max-w-[260px] sm:max-w-[300px] rounded-2xl overflow-hidden bg-zinc-200 shadow-2xl ring-1 ring-black/5${heroFrameFallback ? " aspect-[3/4]" : ""}`}
-                style={heroFrameStyle}
-              >
-                <Image
-                  src={currentPhoto}
-                  alt={title}
-                  fill
-                  sizes={SIZES_CARD_HERO}
-                  quality={CARD_IMAGE_NEXT_QUALITY}
-                  className="object-cover"
-                  priority
-                  fetchPriority="high"
-                  decoding="async"
-                  onLoadingComplete={onHeroFrameLoad}
+              <>
+                <div className="pointer-events-none absolute inset-0 z-[1] bg-zinc-950" aria-hidden />
+
+                {/* Полноэкранное фото (как в референсе), без framed 3:4 */}
+                <div className="absolute inset-0 z-[2]">
+                  <Image
+                    src={currentPhoto}
+                    alt={title}
+                    fill
+                    sizes="100vw"
+                    quality={CARD_IMAGE_NEXT_QUALITY}
+                    className="object-cover object-center"
+                    priority
+                    fetchPriority="high"
+                    decoding="async"
+                    onLoadingComplete={onHeroFrameLoad}
+                  />
+                </div>
+
+                <div
+                  className="pointer-events-none absolute inset-x-0 bottom-0 z-[8] h-[70%] bg-gradient-to-t from-black/78 via-black/38 to-transparent"
+                  aria-hidden
                 />
 
-                {/* Nav arrows */}
-                {photos.length > 1 && (
+                {/* Тап по краям */}
+                {photos.length > 1 ? (
                   <>
                     <button
                       type="button"
                       onClick={prevPhoto}
-                      className={`${OVERLAY_BUTTON_UA_RESET} absolute left-2 top-1/2 -translate-y-1/2 z-20 rounded-full bg-black/30 p-1.5 text-white opacity-0 backdrop-blur-md transition-all group-hover:opacity-100 hover:bg-black/50 active:scale-90`}
+                      className={`${OVERLAY_BUTTON_UA_RESET} absolute bottom-[calc(env(safe-area-inset-bottom)+5.875rem)] left-0 top-[calc(env(safe-area-inset-top)+6rem)] z-[58] w-[34%] touch-manipulation`}
                       aria-label="Предыдущее фото"
-                    >
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden><path d="M15 18l-6-6 6-6" /></svg>
-                    </button>
+                    />
                     <button
                       type="button"
                       onClick={nextPhoto}
-                      className={`${OVERLAY_BUTTON_UA_RESET} absolute right-2 top-1/2 -translate-y-1/2 z-20 rounded-full bg-black/30 p-1.5 text-white opacity-0 backdrop-blur-md transition-all group-hover:opacity-100 hover:bg-black/50 active:scale-90`}
+                      className={`${OVERLAY_BUTTON_UA_RESET} absolute bottom-[calc(env(safe-area-inset-bottom)+5.875rem)] right-0 top-[calc(env(safe-area-inset-top)+6rem)] z-[58] w-[34%] touch-manipulation`}
                       aria-label="Следующее фото"
-                    >
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden><path d="M9 18l6-6-6-6" /></svg>
-                    </button>
+                    />
                   </>
-                )}
+                ) : null}
 
-                {/* Before badge */}
-                {beforePhotoUrl && (
-                  <div className="absolute top-0 left-0 z-20 w-[28%] min-w-[56px]">
-                    <div className="aspect-square relative bg-zinc-800 rounded-br-xl overflow-hidden shadow-lg ring-1 ring-black/10">
+                {beforePhotoUrl ? (
+                  <div className="pointer-events-auto absolute left-4 top-[calc(env(safe-area-inset-top)+4.25rem)] z-[61] w-[26%] min-w-[52px] max-w-[92px]">
+                    <div className="relative aspect-square overflow-hidden rounded-br-xl bg-zinc-800 shadow-md ring-1 ring-black/35">
                       <Image
                         src={beforePhotoUrl}
                         alt="before"
@@ -448,127 +683,319 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
                         sizes={SIZES_CARD_GRID}
                         quality={CARD_IMAGE_NEXT_QUALITY}
                       />
-                      <div className="absolute inset-x-0 bottom-0 text-[7px] text-white font-bold text-center py-0.5 bg-gradient-to-t from-black/70 to-transparent tracking-wider">
+                      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/72 to-transparent py-px text-center text-[6px] font-bold uppercase tracking-wide text-white">
                         БЫЛО
                       </div>
                     </div>
                   </div>
-                )}
+                ) : null}
 
-                {photos.length > 1 && (
-                  <div className="pointer-events-none absolute top-2 left-1/2 z-20 -translate-x-1/2">
-                    <div className={CARD_OVERLAY_PHOTO_COUNTER_CLASS}>
-                      {photoIndex + 1}/{photos.length}
+                <header className="pointer-events-none relative z-[60] shrink-0 px-4 pt-[max(12px,env(safe-area-inset-top))]">
+                  <div className="pointer-events-auto flex min-h-[2.75rem] items-center gap-2 pb-2">
+                    <div className="h-11 w-11 shrink-0" aria-hidden />
+                    <div className="flex min-h-[2.75rem] min-w-0 flex-1 items-center justify-center px-1">
+                      <div
+                        className={`inline-flex max-w-[min(100%,18rem)] items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] ${MOBILE_FS_CHIP}`}
+                        aria-label={`Просмотров: ${formatCompactCount(viewCount)}`}
+                      >
+                        <EyeIcon size={16} className="shrink-0 text-white/85" aria-hidden />
+                        <span className={`tabular-nums font-semibold tracking-tight ${viewCount > 0 ? "text-white/95" : "text-white/55"}`}>
+                          {formatCompactCount(viewCount)}
+                        </span>
+                        <span className="truncate font-normal text-white/75">просмотров</span>
+                      </div>
+                    </div>
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-end">
+                      <button
+                        type="button"
+                        aria-label="Закрыть"
+                        onClick={handleCloseMobileViewer}
+                        className={`${OVERLAY_BUTTON_UA_RESET} flex h-10 w-10 items-center justify-center rounded-full bg-black/15 p-2 text-white/90 backdrop-blur-md shadow-none transition-colors hover:bg-black/25 active:scale-[0.97]`}
+                      >
+                        <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden>
+                          <path d="M18 6L6 18M6 6l12 12"/>
+                        </svg>
+                      </button>
                     </div>
                   </div>
-                )}
-                {/* Group variant pills — on photo */}
-                {groupCards.length > 1 && (
-                  <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1 pointer-events-auto">
-                    {groupCards.map((card) => {
-                      const isActive = card.id === data.id;
-                      return (
-                        <Link
-                          key={card.id}
-                          href={`/p/${card.slug}`}
-                          className={`flex items-center gap-1 rounded-full backdrop-blur-md px-2 py-1 transition-all flex-shrink-0 ${
-                            isActive
-                              ? "bg-white/30 ring-1 ring-white/40"
-                              : "bg-black/30 hover:bg-black/40"
-                          }`}
-                        >
-                          {card.mainPhotoUrl && (
-                            <div className="h-4 w-4 flex-shrink-0 overflow-hidden rounded-full ring-1 ring-white/20">
-                              <Image
-                                src={card.mainPhotoUrl}
-                                alt=""
-                                width={16}
-                                height={16}
-                                className="h-full w-full object-cover"
-                                sizes={SIZES_CARD_GRID}
-                                quality={CARD_IMAGE_NEXT_QUALITY}
-                              />
-                            </div>
-                          )}
-                          <span className={`text-[10px] font-medium ${
-                            isActive ? "text-white" : "text-white/80"
-                          }`}>
-                            {card.card_split_index + 1}
-                          </span>
-                        </Link>
-                      );
-                    })}
+
+                  {photos.length > 1 ? (
+                    <div className="pointer-events-none flex gap-1 px-1 pb-3 pt-1" aria-hidden>
+                      {photos.map((_, idx) => (
+                        <div
+                          key={idx}
+                          className={`h-1 min-h-1 min-w-[12px] flex-1 rounded-full ${idx === photoIndex ? "bg-white shadow-[0_0_12px_rgb(255_255_255/0.55)]" : "bg-white/32"}`}
+                        />
+                      ))}
+                    </div>
+                  ) : null}
+                </header>
+
+                <aside className="pointer-events-none absolute right-3 top-1/2 z-[73] flex max-h-[min(76dvh,100dvh-8rem)] -translate-y-1/2 flex-col items-end justify-center gap-2">
+                  <div className="pointer-events-auto flex flex-col items-center gap-2">
+                    <ReactionButtons
+                      cardId={data.id}
+                      likesCount={data.likesCount}
+                      dislikesCount={data.dislikesCount}
+                      userReaction={userReaction}
+                      onToggle={toggleReaction}
+                      variant="overlay"
+                      stacked
+                    />
+                    <FavoriteButton
+                      cardId={data.id}
+                      isFavorited={isFavorited}
+                      onToggle={toggleFavorite}
+                      variant="overlay"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleShare}
+                      className={`${CARD_OVERLAY_ACTION_PILL} min-w-[2.75rem] text-white/70 transition-colors hover:text-white active:scale-95`}
+                      title="Поделиться"
+                      aria-label="Поделиться ссылкой на карточку"
+                    >
+                      <ShareIcon className="block shrink-0" size={16} />
+                    </button>
                   </div>
-                )}
+                </aside>
+                <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[80] flex max-h-[min(56dvh,calc(100dvh-env(safe-area-inset-bottom)-env(safe-area-inset-top)-6rem)] flex-col justify-end gap-3 overflow-hidden px-4 pb-[calc(env(safe-area-inset-bottom)+6.125rem)] pt-28">
+                  <div className="pointer-events-auto min-h-0 w-full flex-1 space-y-3 overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch]">
+                    {hasPrompts ? (
+                      <section aria-labelledby="mobile-prompt-preview-label">
+                        <h2 id="mobile-prompt-preview-label" className="sr-only">
+                          Превью промта
+                        </h2>
+                        <div className={MOBILE_FS_PANEL}>
+                          <p className="line-clamp-2 whitespace-pre-wrap leading-snug text-white/92">
+                            {data.promptTexts.join("\n\n")}
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => setMobilePromptOverlay(true)}
+                            className={`${OVERLAY_BUTTON_UA_RESET} mt-2 touch-manipulation text-left text-[11px] font-medium leading-snug text-white/52 underline decoration-white/28 underline-offset-2 transition-colors hover:text-white/72`}
+                          >
+                            Показать целиком
+                          </button>
+                        </div>
+                      </section>
+                    ) : null}
+                    {tagEntries.length > 0 ? (
+                      <section className="" aria-label="Теги">
+                        <h2 className="sr-only">Теги</h2>
+                        <div className="flex flex-wrap gap-1.5">
+                          {tagEntries.map(({ slug, label, href }) =>
+                            href ? (
+                              <Link
+                                key={slug}
+                                href={href}
+                                className={`rounded-full px-2.5 py-1 text-[11px] font-medium text-white/90 ${MOBILE_FS_CHIP}`}
+                              >
+                                {label}
+                              </Link>
+                            ) : (
+                              <span
+                                key={slug}
+                                className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${MOBILE_FS_CHIP_MUTED}`}
+                              >
+                                {label}
+                              </span>
+                            )
+                          )}
+                        </div>
+                      </section>
+                    ) : null}
+                    {groupCards.length > 1 ? (
+                      <section className="" aria-label="Подборка">
+                        <h2 className="sr-only">Подборка</h2>
+                        <div className="scrollbar-none flex gap-1.5 overflow-x-auto pb-1 [-webkit-overflow-scrolling:touch]">
+                          {groupCards.map((card) => {
+                            const isActive = card.id === data.id;
+                            return (
+                              <Link
+                                key={card.id}
+                                href={`/p/${card.slug}`}
+                                className={`flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors ${
+                                  isActive ? "bg-white/30 ring-1 ring-white/45 text-white" : `${MOBILE_FS_CHIP_MUTED} ring-1 ring-transparent`
+                                }`}
+                              >
+                                {card.mainPhotoUrl ? (
+                                  <div className="relative h-4 w-4 shrink-0 overflow-hidden rounded-full ring-1 ring-white/25">
+                                    <Image
+                                      src={card.mainPhotoUrl}
+                                      alt=""
+                                      width={16}
+                                      height={16}
+                                      className="h-full w-full object-cover"
+                                      sizes={SIZES_CARD_GRID}
+                                      quality={CARD_IMAGE_NEXT_QUALITY}
+                                    />
+                                  </div>
+                                ) : null}
+                                <span className="tabular-nums font-semibold">{card.card_split_index + 1}</span>
+                              </Link>
+                            );
+                          })}
+                        </div>
+                      </section>
+                    ) : null}
+                  </div>
+                </div>
 
-              </div>
+                {/* Низ: только лента / Lexy / копировать — без общей подложки, поверх фото */}
+                <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[99] pb-[max(14px,env(safe-area-inset-bottom))] pt-6 md:hidden">
+                  <div className="pointer-events-auto mx-auto flex w-full max-w-lg flex-col gap-2 px-3">
+
+                    {!hasPrompts && listingNavInStickyBar ? (
+                      <div className="grid grid-cols-2 gap-2">
+                        <StickyListingNavButton
+                          slug={listingPrev}
+                          direction="prev"
+                          onGo={goListingNeighbor}
+                          floatingGlass
+                        />
+                        <StickyListingNavButton
+                          slug={listingNext}
+                          direction="next"
+                          onGo={goListingNeighbor}
+                          floatingGlass
+                        />
+                      </div>
+                    ) : null}
+
+                    {hasPrompts && listingNavInStickyBar ? (
+                      <div className="grid grid-cols-[minmax(0,2.75rem)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,2.75rem)] items-stretch gap-2 shadow-none">
+                        <StickyListingNavButton
+                          slug={listingPrev}
+                          direction="prev"
+                          onGo={goListingNeighbor}
+                          floatingGlass
+                        />
+                        <LexyGptGenerateButton
+                          promptText={data.promptTexts.join("\n\n")}
+                          variant="sticky"
+                          className="h-full min-h-11 min-w-0 !flex-initial px-2 text-[11px] shadow-none ring-2 ring-black/35 w-full"
+                        />
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            void handleCopy();
+                          }}
+                          className={`${OVERLAY_BUTTON_UA_RESET} shadow-none flex min-h-11 flex-1 items-center justify-center gap-1 px-2 py-2 text-[11px] text-white ${MOBILE_FS_ACTION}`}
+                        >
+                          {stickyCopy === "ok" ? (
+                            <>
+                              <CheckIcon size={18} />
+                              <span className="sr-only sm:not-sr-only">Готово</span>
+                            </>
+                          ) : stickyCopy === "fail" ? (
+                            <>
+                              <span className="text-amber-200" aria-hidden>
+                                !
+                              </span>
+                              <span className="truncate">Не удалось</span>
+                            </>
+                          ) : (
+                            <>
+                              <CopyIcon size={18} />
+                              <span className="max-sm:sr-only">
+                                {data.promptTexts.length > 1 ? "Все промпты" : "Копировать"}
+                              </span>
+                            </>
+                          )}
+                        </button>
+                        <StickyListingNavButton
+                          slug={listingNext}
+                          direction="next"
+                          onGo={goListingNeighbor}
+                          floatingGlass
+                        />
+                      </div>
+                    ) : null}
+
+                    {hasPrompts && !listingNavInStickyBar ? (
+                      <div className="flex flex-col gap-2 shadow-none">
+                        <LexyGptGenerateButton
+                          promptText={data.promptTexts.join("\n\n")}
+                          variant="sticky"
+                          className="min-h-11 text-[11px] shadow-none ring-2 ring-black/35"
+                        />
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            void handleCopy();
+                          }}
+                          className={`${OVERLAY_BUTTON_UA_RESET} shadow-none flex min-h-11 flex-1 items-center justify-center gap-2 px-4 py-3 text-[11px] text-white ${MOBILE_FS_ACTION}`}
+                        >
+                          {stickyCopy === "ok" ? (
+                            <>
+                              <CheckIcon size={18} />
+                              <span className="max-sm:hidden">Скопировано!</span>
+                              <span className="sm:hidden">Готово</span>
+                            </>
+                          ) : stickyCopy === "fail" ? (
+                            <>
+                              <span className="text-amber-200" aria-hidden>
+                                !
+                              </span>
+                              Не удалось скопировать
+                            </>
+                          ) : (
+                            <>
+                              <CopyIcon size={18} />
+                              {data.promptTexts.length > 1 ? "Скопировать все промпты" : "Скопировать промпт"}
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+
+                {hasPrompts && mobilePromptOverlay ? (
+                  <>
+                    <button
+                      type="button"
+                      aria-label="Закрыть полный промт"
+                      className={`${OVERLAY_BUTTON_UA_RESET} absolute inset-0 z-[104] bg-black/48 backdrop-blur-[2px]`}
+                      onClick={() => setMobilePromptOverlay(false)}
+                    />
+                    <div
+                      className={`absolute inset-x-4 bottom-[calc(env(safe-area-inset-bottom)+6rem)] z-[106] max-h-[min(68dvh,calc(100dvh-env(safe-area-inset-top)-8rem-env(safe-area-inset-bottom)))] overflow-hidden shadow-none ${MOBILE_FS_EXPAND}`}
+                    >
+                      <div className="scrollbar-none max-h-full overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch]">
+                        <p className="whitespace-pre-wrap text-[13px] leading-relaxed text-white/92">{data.promptTexts.join("\n\n")}</p>
+                      </div>
+                    </div>
+                  </>
+                ) : null}
+              </>
             ) : (
-              <div className="flex h-48 items-center justify-center text-zinc-400 text-sm">
-                Нет фото
-              </div>
+              <div className="flex flex-1 items-center justify-center px-6 text-zinc-500">Нет фото</div>
             )}
-
-            {/* Tags — glass pills overlay */}
-            {tagEntries.length > 0 && (
-              <div className="flex flex-wrap justify-center gap-1.5">
-                {tagEntries.map(({ slug, label, href }) =>
-                  href ? (
-                    <Link
-                      key={slug}
-                      href={href}
-                      className="rounded-full bg-black/15 backdrop-blur-md px-2.5 py-1 text-[11px] font-medium text-white/90 transition-colors hover:bg-black/25"
-                    >
-                      {label}
-                    </Link>
-                  ) : (
-                    <span
-                      key={slug}
-                      className="rounded-full bg-black/15 backdrop-blur-md px-2.5 py-1 text-[11px] font-medium text-white/80"
-                    >
-                      {label}
-                    </span>
-                  )
-                )}
-              </div>
-            )}
-
-            {/* Action buttons — one chip per control (same as photo counter) */}
-            <div className="flex flex-wrap items-center justify-center gap-1.5">
-              <ReactionButtons
-                cardId={data.id}
-                likesCount={data.likesCount}
-                dislikesCount={data.dislikesCount}
-                userReaction={userReaction}
-                onToggle={toggleReaction}
-                variant="overlay"
-              />
-              <FavoriteButton
-                cardId={data.id}
-                isFavorited={isFavorited}
-                onToggle={toggleFavorite}
-                variant="overlay"
-              />
-              <button
-                type="button"
-                onClick={handleShare}
-                className={`${CARD_OVERLAY_ACTION_PILL} min-w-[2.75rem] text-white/70 transition-colors hover:text-white active:scale-95`}
-                title="Поделиться"
-                aria-label="Поделиться ссылкой на карточку"
-              >
-                <ShareIcon className="block shrink-0" size={14} />
-              </button>
-            </div>
           </div>
-        </div>
+        </>
       )}
 
-      {/* ── Title ── */}
-      <h1 className="text-2xl sm:text-3xl font-bold text-center text-zinc-900 leading-tight mb-2">
+      {/* ── Title: на мобиле без фото в герое — один видимый h1; если герой full-bleed, заголовок sr-only до md (SEO сохранён) ── */}
+      <h1
+        className={
+          hasPhotos
+            ? "mb-2 text-center text-2xl font-bold leading-tight text-zinc-900 sm:text-3xl max-md:sr-only"
+            : "mb-2 text-center text-2xl font-bold leading-tight text-zinc-900 sm:text-3xl"
+        }
+      >
         {title}
       </h1>
 
       {data.authorUserId && (
-        <div className="mb-5 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
+        <div
+          className={`mb-5 flex flex-col items-center gap-3 sm:flex-row sm:justify-center ${hasPhotos ? "max-md:hidden" : ""}`}
+        >
           <div className="flex items-center gap-3">
             <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-full bg-zinc-200 ring-2 ring-zinc-100">
               {data.authorAvatarUrl ? (
@@ -617,7 +1044,9 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
         </div>
       )}
 
-      <p className="mb-6 flex items-center justify-center gap-2 text-sm text-zinc-500">
+      <p
+        className={`mb-6 flex items-center justify-center gap-2 text-sm text-zinc-500 ${hasPhotos ? "max-md:hidden" : ""}`}
+      >
         <EyeIcon
           className={`shrink-0 ${viewCount > 0 ? "text-zinc-500" : "text-zinc-300"}`}
           size={16}
@@ -631,7 +1060,10 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
 
       {/* ── Prompt Content ── */}
       {hasPrompts && (
-        <div className="space-y-3 mb-4">
+        <div
+          id="card-prompt-full"
+          className={`mb-4 space-y-3 scroll-mt-36 ${hasPhotos ? "hidden md:block" : ""}`}
+        >
           {data.promptTexts.map((text, i) => (
             <div
               key={i}
@@ -673,53 +1105,165 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
 
       {/* ── Subtitle ── */}
       {hasPrompts && (
-        <p className="text-center text-sm text-zinc-500 mb-6 max-w-md mx-auto">
+        <p className="mx-auto mb-6 hidden max-w-md text-center text-sm text-zinc-500 sm:block">
           Готовый промт для генерации фото с помощью ИИ. Скопируй и используй в нейросети.
         </p>
       )}
 
       {/* ── Sticky CTA — floating ── */}
       {hasPrompts && (
-        <div className="fixed inset-x-0 bottom-0 z-[100] safe-area-pb pointer-events-none lg:left-60">
-          <div className="mx-auto max-w-2xl px-4 py-4 flex flex-col sm:flex-row gap-2 pointer-events-auto">
-            <LexyGptGenerateButton
-              promptText={data.promptTexts.join("\n\n")}
-              variant="sticky"
-            />
-            <button
-              type="button"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                void handleCopy();
-              }}
-              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-zinc-900 px-4 py-3 text-sm font-semibold text-white shadow-lg transition-all hover:bg-zinc-800 active:scale-[0.98]"
-            >
-              {stickyCopy === "ok" ? (
-                <>
-                  <CheckIcon size={16} />
-                  Скопировано!
-                </>
-              ) : stickyCopy === "fail" ? (
-                <>
-                  <span className="text-amber-300" aria-hidden>
-                    !
-                  </span>
-                  Не удалось скопировать
-                </>
-              ) : (
-                <>
-                  <CopyIcon size={16} />
-                  {data.promptTexts.length > 1
-                    ? "Скопировать все промпты"
-                    : "Копировать промпт"}
-                </>
-              )}
-            </button>
+        <div className="fixed inset-x-0 bottom-0 z-[240] safe-area-pb pointer-events-none lg:left-60">
+          <div className="mx-auto max-w-2xl px-4 py-4 pointer-events-auto">
+            {listingNavInStickyBar ? (
+              <div className="grid grid-cols-[minmax(0,3rem)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,3rem)] items-stretch gap-2">
+                <StickyListingNavButton slug={listingPrev} direction="prev" onGo={goListingNeighbor} />
+                <LexyGptGenerateButton
+                  promptText={data.promptTexts.join("\n\n")}
+                  variant="sticky"
+                  className="h-full min-w-0 !flex-initial px-2.5 w-full sm:px-3"
+                />
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    void handleCopy();
+                  }}
+                  className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-zinc-900 px-3 py-2 text-xs font-semibold text-white shadow-lg transition-all hover:bg-zinc-800 active:scale-[0.98] sm:text-sm sm:px-4"
+                >
+                  {stickyCopy === "ok" ? (
+                    <>
+                      <CheckIcon size={16} />
+                      <span className="max-sm:hidden">Скопировано!</span>
+                      <span className="sm:hidden">Готово</span>
+                    </>
+                  ) : stickyCopy === "fail" ? (
+                    <>
+                      <span className="text-amber-300" aria-hidden>
+                        !
+                      </span>
+                      Не удалось
+                    </>
+                  ) : (
+                    <>
+                      <CopyIcon size={16} />
+                      <span className="max-sm:sr-only">
+                        {data.promptTexts.length > 1 ? "Все промпты" : "Копировать"}
+                      </span>
+                    </>
+                  )}
+                </button>
+                <StickyListingNavButton slug={listingNext} direction="next" onGo={goListingNeighbor} />
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-stretch">
+                <LexyGptGenerateButton
+                  promptText={data.promptTexts.join("\n\n")}
+                  variant="sticky"
+                />
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    void handleCopy();
+                  }}
+                  className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-zinc-900 px-4 py-3 text-sm font-semibold text-white shadow-lg transition-all hover:bg-zinc-800 active:scale-[0.98]"
+                >
+                  {stickyCopy === "ok" ? (
+                    <>
+                      <CheckIcon size={16} />
+                      <span className="max-sm:hidden">Скопировано!</span>
+                      <span className="sm:hidden">Готово</span>
+                    </>
+                  ) : stickyCopy === "fail" ? (
+                    <>
+                      <span className="text-amber-300" aria-hidden>
+                        !
+                      </span>
+                      Не удалось скопировать
+                    </>
+                  ) : (
+                    <>
+                      <CopyIcon size={16} />
+                      {data.promptTexts.length > 1 ? "Скопировать все промпты" : "Копировать промпт"}
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
     </div>
+  );
+}
+
+/** Предыдущая / следующая карточка листинга (localStorage контекст) — в нижнем sticky-баре. */
+function StickyListingNavButton({
+  slug,
+  direction,
+  onGo,
+  floatingGlass = false,
+}: {
+  slug: string | null;
+  direction: "prev" | "next";
+  onGo: (slug: string) => void;
+  /** Мобила fullscreen над фото: круг-пилюля без «полосы-дока» (как тег‑glass). */
+  floatingGlass?: boolean;
+}) {
+  const enabled = slug != null;
+  const bar = `${OVERLAY_BUTTON_UA_RESET} flex h-auto min-h-12 w-full items-center justify-center rounded-xl bg-zinc-800 text-white shadow-lg transition-colors motion-reduce:transition-none`;
+  const chip = `${OVERLAY_BUTTON_UA_RESET} flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-black/15 text-white/88 backdrop-blur-md shadow-none transition-colors motion-reduce:transition-none`;
+  const base = floatingGlass ? chip : bar;
+  const accent = floatingGlass ? "hover:bg-black/26 active:scale-[0.97]" : "hover:bg-zinc-700 active:scale-[0.97]";
+  return (
+    <button
+      type="button"
+      disabled={!enabled}
+      className={`${base} ${enabled ? accent : "opacity-35"}`}
+      aria-label={
+        direction === "prev"
+          ? "Предыдущая карточка из листинга"
+          : "Следующая карточка из листинга"
+      }
+      title={direction === "prev" ? "Предыдущая в ленте" : "Следующая в ленте"}
+      onClick={() => slug && onGo(slug)}
+    >
+      {direction === "prev" ? (
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="#fff"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className="shrink-0 opacity-95"
+          aria-hidden
+        >
+          <path d="M14 18L8 12l6-6" />
+          <path d="M20 12H8.5" />
+        </svg>
+      ) : (
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="#fff"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className="shrink-0 opacity-95"
+          aria-hidden
+        >
+          <path d="M10 18l6-6-6-6" />
+          <path d="M4 12h11.5" />
+        </svg>
+      )}
+    </button>
   );
 }
 

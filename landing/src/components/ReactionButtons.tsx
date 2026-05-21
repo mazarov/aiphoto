@@ -37,8 +37,8 @@ export function ReactionButtons({
     ? "text-red-300"
     : "text-red-400";
 
-  const size = isLg ? 20 : isOverlay ? 14 : 18;
-  const countClass = isLg ? "text-xs" : isOverlay ? "text-[10px]" : "text-xs";
+  const size = isLg ? 20 : isOverlay ? 16 : 18;
+  const countClass = isLg ? "text-xs" : isOverlay ? "text-[11px]" : "text-xs";
   const stackedOverlay = stacked && isOverlay;
   const padding = isLg ? "p-1.5" : isOverlay ? "px-2 py-1" : "p-1";
 

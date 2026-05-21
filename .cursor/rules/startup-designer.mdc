@@ -69,6 +69,10 @@ When designing, structure output as:
 5. **UX details** — micro-interactions and user flow
 6. **Design improvements** — ideas to make the interface feel premium
 
+## Плотность UI (шрифты и иконки)
+
+При реализации в коде следуй общему правилу [**ui-typography-icons-consistency**](./ui-typography-icons-consistency.mdc): в одном тулбаре/ряду не смешивать ступени размеров без причины; оверлеи над фото — своя узкая шкала (`11px` подписи / `13px` читаемый текст), маркетинг — `text-xs` / `text-sm` / `text-base`.
+
 ## Implementation Standard
 
 The UI should feel like a modern SaaS product launched in 2026.

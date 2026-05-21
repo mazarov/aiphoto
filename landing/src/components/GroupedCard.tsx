@@ -168,7 +168,7 @@ export function GroupedCard({ cards, debug = false, priorityLoad = false }: Prop
                   }`}
                 >
                   <h3
-                    className="text-[13px] font-semibold text-white leading-snug line-clamp-1 mb-0.5 pointer-events-auto cursor-pointer"
+                    className="listing-card-chrome-target text-[13px] font-semibold text-white leading-snug line-clamp-1 mb-0.5 cursor-pointer"
                     onClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
@@ -180,7 +180,7 @@ export function GroupedCard({ cards, debug = false, priorityLoad = false }: Prop
                   {promptPreview && (
                     <button
                       type="button"
-                      className={`${OVERLAY_BUTTON_APPEARANCE_RESET} mb-1 max-w-full text-left text-[11px] text-white/60 leading-relaxed line-clamp-2 decoration-white/25 underline-offset-2 underline pointer-events-auto hover:text-white/80`}
+                      className={`listing-card-chrome-target ${OVERLAY_BUTTON_APPEARANCE_RESET} mb-1 max-w-full text-left text-[11px] text-white/60 leading-relaxed line-clamp-2 decoration-white/25 underline-offset-2 underline hover:text-white/80`}
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
@@ -248,12 +248,16 @@ export function GroupedCard({ cards, debug = false, priorityLoad = false }: Prop
                 </div>
               )}
               {!expanded && allPrompts.length > 0 && (
-                <div className="absolute inset-x-0 bottom-0 z-[1] flex flex-col gap-2 px-3.5 pb-3.5 sm:flex-row [&>*]:pointer-events-auto">
-                  <LexyGptGenerateButton promptText={allPrompts.join("\n\n")} variant="listing" />
+                <div className="absolute inset-x-0 bottom-0 z-[1] flex flex-col gap-2 px-3.5 pb-3.5 sm:flex-row">
+                  <LexyGptGenerateButton
+                    promptText={allPrompts.join("\n\n")}
+                    variant="listing"
+                    className="listing-card-chrome-target"
+                  />
                   <button
                     type="button"
                     onClick={handleCopy}
-                    className={`${OVERLAY_BUTTON_APPEARANCE_RESET} flex-1 min-w-0 rounded-full bg-white/15 backdrop-blur-md border border-white/10 px-2 py-1.5 sm:px-3 sm:py-2 text-[10px] sm:text-[11px] font-semibold text-white transition-all hover:bg-white/25 active:scale-[0.98]`}
+                    className={`listing-card-chrome-target ${OVERLAY_BUTTON_APPEARANCE_RESET} flex-1 min-w-0 rounded-full bg-white/15 backdrop-blur-md border border-white/10 px-2 py-1.5 sm:px-3 sm:py-2 text-[10px] sm:text-[11px] font-semibold text-white transition-all hover:bg-white/25 active:scale-[0.98]`}
                   >
                     {copyHint === "success"
                       ? "Скопировано!"
