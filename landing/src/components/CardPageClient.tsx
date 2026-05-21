@@ -9,7 +9,7 @@ import type { CardPageData } from "@/lib/supabase";
 import { CardInteractionsProvider, useCardInteractions } from "@/context/CardInteractionsContext";
 import { ReactionButtons } from "./ReactionButtons";
 import { FavoriteButton } from "./FavoriteButton";
-import { GenerateButton } from "./GenerateButton";
+import { LexyGptGenerateButton } from "./LexyGptGenerateButton";
 import { useDebug } from "./DebugFAB";
 import { formatCompactCount } from "@/lib/format-view-count";
 import {
@@ -23,6 +23,7 @@ import {
   SIZES_CARD_GRID,
   SIZES_CARD_HERO,
 } from "@/lib/card-image-presets";
+import { copyTextSyncFallback, copyTextUniversal } from "@/lib/copy-text-to-clipboard";
 
 type TagEntry = { slug: string; label: string; href: string | null };
 type BreadcrumbTag = { labelRu: string; urlPath: string } | null;
@@ -55,8 +56,9 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
   const debugMode = debugCtx?.debugOpen ?? false;
 
   const [photoIndex, setPhotoIndex] = useState(0);
-  const [copied, setCopied] = useState(false);
+  const [stickyCopy, setStickyCopy] = useState<"idle" | "ok" | "fail">("idle");
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
+  const [copyErrIdx, setCopyErrIdx] = useState<number | null>(null);
 
   const [photos, setPhotos] = useState(data.photoUrls);
   const [photoMeta, setPhotoMeta] = useState(data.photoMeta);
@@ -164,19 +166,33 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
   async function handleCopy() {
     const str = data.promptTexts.join("\n\n");
     if (!str) return;
-    try {
-      await navigator.clipboard.writeText(str);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {}
+    if (copyTextSyncFallback(str)) {
+      setStickyCopy("ok");
+      window.setTimeout(() => setStickyCopy("idle"), 2200);
+      return;
+    }
+    const ok = await copyTextUniversal(str);
+    setStickyCopy(ok ? "ok" : "fail");
+    window.setTimeout(() => setStickyCopy("idle"), 2200);
   }
 
   async function handleCopySingle(text: string, idx: number) {
-    try {
-      await navigator.clipboard.writeText(text);
+    if (copyTextSyncFallback(text)) {
       setCopiedIdx(idx);
-      setTimeout(() => setCopiedIdx(null), 2000);
-    } catch {}
+      setCopyErrIdx(null);
+      window.setTimeout(() => setCopiedIdx(null), 2000);
+      return;
+    }
+    const ok = await copyTextUniversal(text);
+    if (ok) {
+      setCopiedIdx(idx);
+      setCopyErrIdx(null);
+      window.setTimeout(() => setCopiedIdx(null), 2000);
+    } else {
+      setCopyErrIdx(idx);
+      setCopiedIdx(null);
+      window.setTimeout(() => setCopyErrIdx(null), 2200);
+    }
   }
 
   async function handleShare() {
@@ -631,12 +647,24 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
               </div>
               <button
                 type="button"
-                onClick={() => handleCopySingle(text, i)}
-                className="absolute top-3 right-3 rounded-lg border border-zinc-200 bg-white p-1.5 text-zinc-400 opacity-0 shadow-sm transition-all group-hover/prompt:opacity-100 hover:text-zinc-700 hover:border-zinc-300"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  void handleCopySingle(text, i);
+                }}
+                className="absolute top-3 right-3 z-[2] rounded-lg border border-zinc-200 bg-white p-1.5 text-zinc-400 opacity-100 shadow-sm transition-all md:opacity-0 md:group-hover/prompt:opacity-100 md:group-focus-within/prompt:opacity-100 hover:text-zinc-700 hover:border-zinc-300"
                 title="Скопировать"
                 aria-label={`Скопировать промпт ${i + 1}`}
               >
-                {copiedIdx === i ? <CheckIcon size={14} /> : <CopyIcon size={14} />}
+                {copiedIdx === i ? (
+                  <CheckIcon size={14} />
+                ) : copyErrIdx === i ? (
+                  <span className="block min-w-[14px] text-center text-xs font-bold text-red-500" aria-hidden>
+                    !
+                  </span>
+                ) : (
+                  <CopyIcon size={14} />
+                )}
               </button>
             </div>
           ))}
@@ -652,17 +680,32 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
 
       {/* ── Sticky CTA — floating ── */}
       {hasPrompts && (
-        <div className="fixed inset-x-0 bottom-0 z-40 safe-area-pb pointer-events-none lg:left-60">
-          <div className="mx-auto max-w-2xl px-4 py-4 flex gap-2 pointer-events-auto">
+        <div className="fixed inset-x-0 bottom-0 z-[100] safe-area-pb pointer-events-none lg:left-60">
+          <div className="mx-auto max-w-2xl px-4 py-4 flex flex-col sm:flex-row gap-2 pointer-events-auto">
+            <LexyGptGenerateButton
+              promptText={data.promptTexts.join("\n\n")}
+              variant="sticky"
+            />
             <button
               type="button"
-              onClick={handleCopy}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                void handleCopy();
+              }}
               className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-zinc-900 px-4 py-3 text-sm font-semibold text-white shadow-lg transition-all hover:bg-zinc-800 active:scale-[0.98]"
             >
-              {copied ? (
+              {stickyCopy === "ok" ? (
                 <>
                   <CheckIcon size={16} />
                   Скопировано!
+                </>
+              ) : stickyCopy === "fail" ? (
+                <>
+                  <span className="text-amber-300" aria-hidden>
+                    !
+                  </span>
+                  Не удалось скопировать
                 </>
               ) : (
                 <>
@@ -673,12 +716,6 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
                 </>
               )}
             </button>
-            <GenerateButton
-              cardId={data.id}
-              sourceImageUrl={currentPhoto || undefined}
-              initialPrompt={data.promptTexts[0] || ""}
-              variant="mobile"
-            />
           </div>
         </div>
       )}

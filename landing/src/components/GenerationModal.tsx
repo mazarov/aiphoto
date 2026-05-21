@@ -56,7 +56,7 @@ export function GenerationModal() {
       />
 
       <aside
-        className={`absolute top-0 right-0 z-[121] flex h-[100dvh] max-h-[100vh] w-full max-w-[min(100%,440px)] flex-col border-l border-zinc-800/90 bg-zinc-950 shadow-[-12px_0_40px_rgba(0,0,0,0.45)] transition-transform duration-300 ease-out ${
+        className={`absolute top-0 right-0 z-[121] flex h-[100dvh] max-h-[100vh] w-full max-w-[min(100%,528px)] flex-col border-l border-zinc-800/90 bg-zinc-950 shadow-[-12px_0_40px_rgba(0,0,0,0.45)] transition-transform duration-300 ease-out ${
           panelIn ? "translate-x-0" : "translate-x-full"
         }`}
         aria-label="Генерация PromptShot"

@@ -14168,6 +14168,8 @@ var STRINGS = {
     user: "\u041F\u043E\u043B\u044C\u0437\u043E\u0432\u0430\u0442\u0435\u043B\u044C",
     api: "API",
     credits: "\u041A\u0440\u0435\u0434\u0438\u0442\u044B",
+    credits_pill_balance: "\u0411\u0430\u043B\u0430\u043D\u0441",
+    credits_pill_per_run: "\u0417\u0430 \u0437\u0430\u043F\u0443\u0441\u043A",
     cost_run: "\u0421\u0442\u043E\u0438\u043C\u043E\u0441\u0442\u044C \u0437\u0430\u043F\u0443\u0441\u043A\u0430",
     credit_word: "\u043A\u0440\u0435\u0434\u0438\u0442\u0430(\u043E\u0432)",
     insufficient_credits: "\u041D\u0435\u0434\u043E\u0441\u0442\u0430\u0442\u043E\u0447\u043D\u043E \u043A\u0440\u0435\u0434\u0438\u0442\u043E\u0432",
@@ -14289,7 +14291,7 @@ var STRINGS = {
     btn_stage_expand: "\u0413\u043E\u0442\u043E\u0432\u0438\u043C \u043F\u0440\u043E\u043C\u043F\u0442\u044B\u2026",
     btn_stage_assemble: "\u0421\u043E\u0431\u0438\u0440\u0430\u0435\u043C \u043F\u0440\u043E\u043C\u043F\u0442\u2026",
     btn_pipeline_spec: "\u0421\u0438\u0441\u0442\u0435\u043C\u043D\u044B\u0435 \u043F\u0440\u043E\u043C\u043F\u0442\u044B API",
-    step1_final_prompt_title: "\u0424\u0438\u043D\u0430\u043B\u044C\u043D\u044B\u0439 \u043F\u0440\u043E\u043C\u043F\u0442 (\u0443\u0445\u043E\u0434\u0438\u0442 \u0432 PromptShot \u2192 Gemini)",
+    step1_final_prompt_title: "\u0424\u0438\u043D\u0430\u043B\u044C\u043D\u044B\u0439 \u043F\u0440\u043E\u043C\u043F\u0442 (\u0443\u0445\u043E\u0434\u0438\u0442 \u0432 Prompt To Image \u2192 Gemini)",
     prompt_body_editable_hint: "\u041C\u043E\u0436\u043D\u043E \u043F\u0440\u0430\u0432\u0438\u0442\u044C \u0438 \u0432\u0441\u0442\u0430\u0432\u043B\u044F\u0442\u044C \u0441\u0432\u043E\u0439 \u0442\u0435\u043A\u0441\u0442. \u0412 \u0437\u0430\u043F\u0440\u043E\u0441 \u0443\u0445\u043E\u0434\u0438\u0442 \u044D\u0442\u043E \u043F\u043E\u043B\u0435; \u0441\u0435\u0440\u0432\u0435\u0440 \u0434\u043E\u0431\u0430\u0432\u043B\u044F\u0435\u0442 \u0441\u043B\u0443\u0436\u0435\u0431\u043D\u044B\u0435 \u043F\u0440\u0430\u0432\u0438\u043B\u0430 \u0438 \u043F\u0440\u0435\u0444\u0438\u043A\u0441 (\u0441\u043C. \u0440\u0430\u0441\u043A\u0440\u044B\u0442\u044B\u0439 \u0431\u043B\u043E\u043A \u043D\u0438\u0436\u0435, \u0435\u0441\u043B\u0438 \u043E\u043D \u0435\u0441\u0442\u044C).",
     custom_prompt_checkbox: "\u0421\u0432\u043E\u0439 \u043F\u0440\u043E\u043C\u043F\u0442",
     custom_prompt_mode_hint: "\u0420\u0435\u0436\u0438\u043C \u0441\u0432\u043E\u0435\u0433\u043E \u043F\u0440\u043E\u043C\u043F\u0442\u0430: expand \u043D\u0435 \u0432\u044B\u0437\u044B\u0432\u0430\u0435\u0442\u0441\u044F, \u0432 \u043C\u043E\u0434\u0435\u043B\u044C \u0443\u0445\u043E\u0434\u0438\u0442 \u0442\u043E\u043B\u044C\u043A\u043E \u0442\u0435\u043A\u0441\u0442 \u043D\u0438\u0436\u0435 (\u043F\u043B\u044E\u0441 \u0442\u043E, \u0447\u0442\u043E \u0434\u043E\u0431\u0430\u0432\u0438\u0442 \u0441\u0435\u0440\u0432\u0435\u0440). \u041D\u0443\u0436\u0435\u043D \u043D\u0435\u043F\u0443\u0441\u0442\u043E\u0439 \u0442\u0435\u043A\u0441\u0442 \u043E\u0442 8 \u0441\u0438\u043C\u0432\u043E\u043B\u043E\u0432.",
@@ -14322,6 +14324,12 @@ var STRINGS = {
     tab_prompt_custom_mode_hint: "\u0412\u043A\u043B\u044E\u0447\u0451\u043D \u0440\u0435\u0436\u0438\u043C \xAB\u0421\u0432\u043E\u0439 \u043F\u0440\u043E\u043C\u043F\u0442\xBB \u2014 \u0440\u0435\u0434\u0430\u043A\u0442\u0438\u0440\u0443\u0439\u0442\u0435 \u0442\u0435\u043A\u0441\u0442 \u043D\u0430 \u0432\u043A\u043B\u0430\u0434\u043A\u0435 \xAB\u0413\u0435\u043D\u0435\u0440\u0430\u0446\u0438\u044F\xBB. \u0411\u043B\u043E\u043A\u0438 \u0441\u0442\u0438\u043B\u044F \u0437\u0434\u0435\u0441\u044C \u043D\u0435\u0434\u043E\u0441\u0442\u0443\u043F\u043D\u044B.",
     btn_extract_prompt_only: "\u0418\u0437\u0432\u043B\u0435\u0447\u044C \u043F\u0440\u043E\u043C\u043F\u0442",
     btn_refresh_prompt_extract: "\u041E\u0431\u043D\u043E\u0432\u0438\u0442\u044C \u043F\u0440\u043E\u043C\u043F\u0442",
+    btn_test_extract_prompt: "\u0422\u0435\u0441\u0442 extract (\u0442\u043E\u043B\u044C\u043A\u043E \u0441\u0442\u0438\u043B\u044C)",
+    extract_override_checkbox: "\u0421\u0432\u043E\u0439 \u043F\u0440\u043E\u043C\u043F\u0442 \u0438\u0437\u0432\u043B\u0435\u0447\u0435\u043D\u0438\u044F (\u0432\u043C\u0435\u0441\u0442\u043E \u0441\u0435\u0440\u0432\u0435\u0440\u043D\u043E\u0433\u043E legacy)",
+    extract_override_hint: "\u0412\u043A\u043B\u044E\u0447\u0438\u0442\u0435, \u0447\u0442\u043E\u0431\u044B \u0432 extract \u0443\u0445\u043E\u0434\u0438\u043B \u0442\u0435\u043A\u0441\u0442 \u043D\u0438\u0436\u0435 (hybrid \u043F\u043E \u0443\u043C\u043E\u043B\u0447\u0430\u043D\u0438\u044E \u0438\u043B\u0438 \u0432\u0430\u0448). \xAB\u0422\u0435\u0441\u0442 extract\xBB \u2014 \u0442\u043E\u043B\u044C\u043A\u043E JSON \u0441\u0442\u0438\u043B\u044F; \xAB\u041E\u0431\u043D\u043E\u0432\u0438\u0442\u044C \u043F\u0440\u043E\u043C\u043F\u0442\xBB \u2014 \u043F\u043E\u043B\u043D\u044B\u0439 pipeline. \u0412\u044B\u043A\u043B\u044E\u0447\u0435\u043D\u043E \u2014 \u0441\u0438\u0441\u0442\u0435\u043C\u043D\u044B\u0439 \u043F\u0440\u043E\u043C\u043F\u0442 \u043D\u0430 \u0441\u0435\u0440\u0432\u0435\u0440\u0435.",
+    extract_override_text_aria: "\u0418\u043D\u0441\u0442\u0440\u0443\u043A\u0446\u0438\u044F \u0434\u043B\u044F extract (vision \u2192 JSON)",
+    err_extract_override_short: "\u041F\u0440\u043E\u043C\u043F\u0442 \u0438\u0437\u0432\u043B\u0435\u0447\u0435\u043D\u0438\u044F \u0441\u043B\u0438\u0448\u043A\u043E\u043C \u043A\u043E\u0440\u043E\u0442\u043A\u0438\u0439: \u043C\u0438\u043D\u0438\u043C\u0443\u043C 80 \u0441\u0438\u043C\u0432\u043E\u043B\u043E\u0432 \u0438\u043B\u0438 \u0432\u044B\u043A\u043B\u044E\u0447\u0438\u0442\u0435 \u0433\u0430\u043B\u043A\u0443.",
+    toast_extract_test_ok: "\u0421\u0442\u0438\u043B\u044C \u0438\u0437\u0432\u043B\u0435\u0447\u0451\u043D. \u041D\u0430\u0436\u043C\u0438\u0442\u0435 \xAB\u041E\u0431\u043D\u043E\u0432\u0438\u0442\u044C \u043F\u0440\u043E\u043C\u043F\u0442\xBB, \u0447\u0442\u043E\u0431\u044B \u0441\u043E\u0431\u0440\u0430\u0442\u044C \u0442\u0435\u043A\u0441\u0442 \u0434\u043B\u044F \u0433\u0435\u043D\u0435\u0440\u0430\u0446\u0438\u0438.",
     toast_prompt_ready: "\u041F\u0440\u043E\u043C\u043F\u0442 \u0433\u043E\u0442\u043E\u0432",
     btn_edit_prompt_blocks: "\u0420\u0435\u0434\u0430\u043A\u0442\u0438\u0440\u043E\u0432\u0430\u0442\u044C \u0431\u043B\u043E\u043A\u0438",
     btn_save_prompt_blocks: "\u0421\u043E\u0445\u0440\u0430\u043D\u0438\u0442\u044C",
@@ -14414,6 +14422,8 @@ var STRINGS = {
     user: "User",
     api: "API",
     credits: "Credits",
+    credits_pill_balance: "Balance",
+    credits_pill_per_run: "This run",
     cost_run: "Cost per run",
     credit_word: "credit(s)",
     insufficient_credits: "Not enough credits",
@@ -14535,7 +14545,7 @@ var STRINGS = {
     btn_stage_expand: "Building prompts\u2026",
     btn_stage_assemble: "Assembling prompt\u2026",
     btn_pipeline_spec: "API system prompts",
-    step1_final_prompt_title: "Final prompt (goes to PromptShot \u2192 Gemini)",
+    step1_final_prompt_title: "Final prompt (goes to Prompt To Image \u2192 Gemini)",
     prompt_body_editable_hint: "You can edit or paste text. This field is what the API receives; the server adds rules and a prefix (see expandable preview below if present).",
     custom_prompt_checkbox: "Custom prompt",
     custom_prompt_mode_hint: "Custom prompt: no expand call \u2014 only your text below goes to the model (plus server instructions). At least 8 characters.",
@@ -14568,6 +14578,12 @@ var STRINGS = {
     tab_prompt_custom_mode_hint: "Custom prompt is on \u2014 edit text on the Generate tab. Style blocks are disabled here.",
     btn_extract_prompt_only: "Extract prompt",
     btn_refresh_prompt_extract: "Refresh prompt",
+    btn_test_extract_prompt: "Test extract (style only)",
+    extract_override_checkbox: "Custom extract instruction (instead of server legacy)",
+    extract_override_hint: "When on, extract uses the text below (hybrid default or yours). \u201CTest extract\u201D runs vision only; \u201CRefresh prompt\u201D runs the full pipeline. Off \u2014 server default instruction.",
+    extract_override_text_aria: "Extract instruction (vision \u2192 JSON)",
+    err_extract_override_short: "Extract instruction too short: at least 80 characters, or turn the checkbox off.",
+    toast_extract_test_ok: "Style extracted. Tap \u201CRefresh prompt\u201D to build generation text.",
     toast_prompt_ready: "Prompt ready",
     btn_edit_prompt_blocks: "Edit blocks",
     btn_save_prompt_blocks: "Save",
@@ -14660,6 +14676,8 @@ var STRINGS = {
     user: "Nutzer",
     api: "API",
     credits: "Credits",
+    credits_pill_balance: "Guthaben",
+    credits_pill_per_run: "Dieser Lauf",
     cost_run: "Kosten pro Lauf",
     credit_word: "Credit(s)",
     insufficient_credits: "Nicht genug Credits",
@@ -14781,7 +14799,7 @@ var STRINGS = {
     btn_stage_expand: "Prompts werden erstellt\u2026",
     btn_stage_assemble: "Prompt wird zusammengesetzt\u2026",
     btn_pipeline_spec: "API-Systemprompts",
-    step1_final_prompt_title: "Finaler Prompt (geht an PromptShot \u2192 Gemini)",
+    step1_final_prompt_title: "Finaler Prompt (geht an Prompt To Image \u2192 Gemini)",
     prompt_body_editable_hint: "Du kannst den Text bearbeiten oder einf\xFCgen. Genau dieser Text geht in die API; der Server erg\xE4nzt Regeln und Pr\xE4fix (siehe aufklappbare Vorschau unten, falls vorhanden).",
     custom_prompt_checkbox: "Eigener Prompt",
     custom_prompt_mode_hint: "Eigener Prompt: kein Expand-Aufruf, nur dein Text unten geht an die API (plus Server-Anweisungen). Mindestens 8 Zeichen.",
@@ -14814,6 +14832,12 @@ var STRINGS = {
     tab_prompt_custom_mode_hint: "Eigener Prompt aktiv \u2014 Text auf der Registerkarte \u201EGenerierung\u201C bearbeiten. Stil-Bl\xF6cke hier sind deaktiviert.",
     btn_extract_prompt_only: "Prompt extrahieren",
     btn_refresh_prompt_extract: "Prompt aktualisieren",
+    btn_test_extract_prompt: "Test Extract (nur Stil)",
+    extract_override_checkbox: "Eigene Extract-Anweisung (statt Server-Legacy)",
+    extract_override_hint: "Wenn aktiv, nutzt Extract den Text unten (Hybrid-Standard oder deiner). \u201ETest Extract\u201C nur Vision; \u201EPrompt aktualisieren\u201C voller Ablauf. Aus \u2014 Server-Standard.",
+    extract_override_text_aria: "Extract-Anweisung (Vision \u2192 JSON)",
+    err_extract_override_short: "Extract-Text zu kurz: mindestens 80 Zeichen oder H\xE4kchen aus.",
+    toast_extract_test_ok: "Stil extrahiert. \u201EPrompt aktualisieren\u201C f\xFCr Generierungstext.",
     toast_prompt_ready: "Prompt bereit",
     btn_edit_prompt_blocks: "Bl\xF6cke bearbeiten",
     btn_save_prompt_blocks: "Speichern",
@@ -15195,8 +15219,6 @@ var state = {
   runStage: "idle",
   /** null = omit temperature on extract (provider default); else one of EXTRACT_TEMPERATURE_PRESETS */
   extractTemperature: null,
-  /** Skip expand/assemble; user types prompt in textarea (still runs extract for vibeId + style JSON). */
-  customPromptMode: false,
   /** Global shell tab: prompt | generate | history */
   panelTab: "generate",
   /** Prompt tab: expanded 9-field editor */
@@ -15213,7 +15235,6 @@ var state = {
 var toastTimer = null;
 var creditPollTimer = null;
 var assembleDebounceTimer = null;
-var promptBodyPersistTimer = null;
 var promptReadyFlashTimer = null;
 var topbarAccountCleanup = null;
 function schedulePromptReadyFlash() {
@@ -15270,9 +15291,9 @@ function langSelectHtml() {
   const cur = resolveUiLang();
   const aria = escapeHtml(t("lang_select_aria"));
   const opts = [
-    { v: "ru", l: "\u0420\u0443\u0441\u0441\u043A\u0438\u0439" },
-    { v: "en", l: "English" },
-    { v: "de", l: "Deutsch" }
+    { v: "ru", l: "ru" },
+    { v: "en", l: "en" },
+    { v: "de", l: "de" }
   ];
   const optionsHtml = opts.map(
     (o) => `<option value="${escapeHtml(o.v)}"${cur === o.v ? " selected" : ""}>${escapeHtml(o.l)}</option>`
@@ -15890,7 +15911,6 @@ function toSerializableState() {
     runHistory: state.runHistory,
     cooldownUntil: state.cooldownUntil,
     extractTemperature: normalizePersistedExtractTemperature(state.extractTemperature),
-    customPromptMode: Boolean(state.customPromptMode),
     panelTab: state.panelTab === "prompt" || state.panelTab === "history" ? state.panelTab : "generate",
     extractReferenceFingerprint: String(state.extractReferenceFingerprint || ""),
     historyFilter: ["all", "image", "prompt"].includes(state.historyFilter) ? state.historyFilter : "all",
@@ -16040,7 +16060,6 @@ function applyPersistedState(saved) {
   state.runHistory = Array.isArray(saved.runHistory) ? saved.runHistory : state.runHistory;
   state.cooldownUntil = Number(saved.cooldownUntil || 0);
   state.extractTemperature = normalizePersistedExtractTemperature(saved.extractTemperature);
-  state.customPromptMode = Boolean(saved.customPromptMode);
   const pt = saved.panelTab;
   state.panelTab = pt === "prompt" || pt === "history" || pt === "generate" ? pt : "generate";
   state.extractReferenceFingerprint = typeof saved.extractReferenceFingerprint === "string" ? saved.extractReferenceFingerprint : "";
@@ -16340,11 +16359,9 @@ async function runExtract() {
   state.vibeId = extractData.vibeId;
   state.style = extractData.style;
   state.extractModel = String(extractData.modelUsed || "");
-  if (!state.customPromptMode) {
-    state.mergedForSingleGeneration = "";
-    state.finalPromptForGeneration = "";
-    state.finalPromptAssumesTwoImages = false;
-  }
+  state.mergedForSingleGeneration = "";
+  state.finalPromptForGeneration = "";
+  state.finalPromptAssumesTwoImages = false;
   state.extractReferenceFingerprint = getReferenceFingerprint();
   await persistState();
 }
@@ -16392,7 +16409,7 @@ async function runAssemblePromptNow() {
   await persistState();
 }
 function scheduleAssemblePrompt() {
-  if (!state.vibeId || state.customPromptMode) return;
+  if (!state.vibeId) return;
   clearTimeout(assembleDebounceTimer);
   assembleDebounceTimer = setTimeout(async () => {
     assembleDebounceTimer = null;
@@ -16605,32 +16622,8 @@ async function clearRunHistory() {
   render();
 }
 async function completeGenerationAfterExpand(runStartedAt) {
-  const ta = document.getElementById("stv-gen-prompt-body");
-  if (ta && typeof ta.value === "string") {
-    applyGenerationPromptBodyFromUi(ta.value);
-  }
-  const bodyTrim = String(state.mergedForSingleGeneration || "").trim();
-  if (state.customPromptMode) {
-    if (!bodyTrim) {
-      state.generating = false;
-      state.runStage = "idle";
-      state.pipelinePrepPercent = 0;
-      throw new Error(t("err_custom_prompt_empty"));
-    }
-    if (bodyTrim.length < 8) {
-      state.generating = false;
-      state.runStage = "idle";
-      state.pipelinePrepPercent = 0;
-      throw new Error(t("err_custom_prompt_short"));
-    }
-  }
   const n = getPromptsPerRun();
   let allPrompts = Array.isArray(state.prompts) ? state.prompts : [];
-  if (n === 3 && state.customPromptMode && bodyTrim && allPrompts.length !== 3) {
-    const tripleAccents = ["lighting", "mood", "composition"];
-    state.prompts = tripleAccents.map((accent) => ({ accent, prompt: bodyTrim }));
-    allPrompts = state.prompts;
-  }
   if (n === 1) {
     const merged = String(state.mergedForSingleGeneration || "").trim();
     if (merged) {
@@ -16762,23 +16755,21 @@ async function generateAll() {
   try {
     await runExtract();
     state.prepNetworkPending = false;
-    if (!state.customPromptMode) {
-      state.pipelinePrepPercent = 36;
-      state.runStage = "expand";
-      state.info = t("run_expand_prep");
+    state.pipelinePrepPercent = 36;
+    state.runStage = "expand";
+    state.info = t("run_expand_prep");
+    state.prepNetworkPending = true;
+    render();
+    await runExpand();
+    state.prepNetworkPending = false;
+    if (state.vibeGroomingControlsAvailable) {
+      state.pipelinePrepPercent = 72;
+      state.runStage = "assemble";
+      state.info = t("run_assemble");
       state.prepNetworkPending = true;
       render();
-      await runExpand();
+      await runAssemblePromptNow();
       state.prepNetworkPending = false;
-      if (state.vibeGroomingControlsAvailable) {
-        state.pipelinePrepPercent = 72;
-        state.runStage = "assemble";
-        state.info = t("run_assemble");
-        state.prepNetworkPending = true;
-        render();
-        await runAssemblePromptNow();
-        state.prepNetworkPending = false;
-      }
     }
     state.pipelinePrepPercent = 100;
     state.runStage = "generate";
@@ -16791,7 +16782,6 @@ async function generateAll() {
 }
 async function continueGenerateAfterGrooming() {
   if (!state.awaitingContinueGenerate || state.generating) return;
-  if (state.customPromptMode) return;
   const runStartedAt = state.pendingRunStartedAt || Date.now();
   state.awaitingContinueGenerate = false;
   state.pendingRunStartedAt = 0;
@@ -16885,7 +16875,7 @@ function renderAuthRequired() {
         <div class="stv-brand">
           <span class="stv-brand-mark" aria-hidden="true">${STV_MARK_STAR_SVG}</span>
           <div class="stv-brand-text">
-            <span class="stv-brand-name">PromptShot</span>
+            <span class="stv-brand-name">Prompt To Image</span>
             <span class="stv-brand-sub">${escapeHtml(t("brand_sub"))}</span>
           </div>
         </div>
@@ -16995,7 +16985,7 @@ function syncPromptChainFromUnprefixedBody(unprefixed) {
   if (!v) return;
   state.mergedForSingleGeneration = v;
   const n = getPromptsPerRun();
-  if (n === 3 && !state.customPromptMode) {
+  if (n === 3) {
     const tripleAccents = ["lighting", "mood", "composition"];
     state.prompts = tripleAccents.map((accent) => ({ accent, prompt: v }));
   } else {
@@ -17021,23 +17011,21 @@ async function runExtractExpandOnly() {
   try {
     await runExtract();
     state.prepNetworkPending = false;
-    if (!state.customPromptMode) {
-      state.pipelinePrepPercent = 36;
-      state.runStage = "expand";
-      state.info = t("run_expand_prep");
+    state.pipelinePrepPercent = 36;
+    state.runStage = "expand";
+    state.info = t("run_expand_prep");
+    state.prepNetworkPending = true;
+    render();
+    await runExpand();
+    state.prepNetworkPending = false;
+    if (state.vibeGroomingControlsAvailable) {
+      state.pipelinePrepPercent = 72;
+      state.runStage = "assemble";
+      state.info = t("run_assemble");
       state.prepNetworkPending = true;
       render();
-      await runExpand();
+      await runAssemblePromptNow();
       state.prepNetworkPending = false;
-      if (state.vibeGroomingControlsAvailable) {
-        state.pipelinePrepPercent = 72;
-        state.runStage = "assemble";
-        state.info = t("run_assemble");
-        state.prepNetworkPending = true;
-        render();
-        await runAssemblePromptNow();
-        state.prepNetworkPending = false;
-      }
     }
     await appendPromptOnlyRunHistory(promptRunStartedAt);
     await persistState();
@@ -17090,6 +17078,7 @@ function renderMain() {
   const needsCredits = state.credits < requiredCredits;
   const sessionHealth = getSessionHealth();
   const overallProgress = getOverallProgressPercent();
+  const promptTabExtractActionsDisabled = !hasReference() || state.generating || state.preparingPromptOnly;
   const showFirstRunHint = !hasReference() && (!Array.isArray(state.runHistory) || state.runHistory.length === 0);
   const hasUserPhoto = hasUserPhotos();
   const userPhotosInner = buildUserPhotosBlockHtml();
@@ -17142,17 +17131,16 @@ function renderMain() {
         <div class="stv-history-list" id="stv-history-list">${runHistoryListHtml}</div>
         ${runCount === 0 ? `<p class="muted stv-history-empty">${escapeHtml(t("history_empty_hint"))}</p>` : historyEntries.length === 0 ? `<p class="muted stv-history-empty">${escapeHtml(t("history_filter_empty"))}</p>` : ""}
       </div>`;
-  const groomingHintKey = state.customPromptMode ? "grooming_custom_prompt_hint" : !state.vibeGroomingControlsAvailable ? "grooming_unlock_hint" : state.awaitingContinueGenerate ? "grooming_adjust_hint" : "grooming_ready_hint";
-  const groomDisabled = state.customPromptMode ? "disabled" : "";
+  const groomingHintKey = !state.vibeGroomingControlsAvailable ? "grooming_unlock_hint" : state.awaitingContinueGenerate ? "grooming_adjust_hint" : "grooming_ready_hint";
   const groomingMainSectionHtml = `<div class="stv-grooming-block stv-grooming-block--main">
           <p class="stv-subtitle">${escapeHtml(t("grooming_title"))}</p>
           <p class="muted stv-grooming-hint">${escapeHtml(t(groomingHintKey))}</p>
           <label class="stv-check stv-grooming-check">
-            <input type="checkbox" id="grooming-hair" ${state.groomingPolicy.applyHair ? "checked" : ""} ${groomDisabled} />
+            <input type="checkbox" id="grooming-hair" ${state.groomingPolicy.applyHair ? "checked" : ""} />
             <span>${escapeHtml(t("grooming_hair"))}</span>
           </label>
           <label class="stv-check stv-grooming-check">
-            <input type="checkbox" id="grooming-makeup" ${state.groomingPolicy.applyMakeup ? "checked" : ""} ${groomDisabled} />
+            <input type="checkbox" id="grooming-makeup" ${state.groomingPolicy.applyMakeup ? "checked" : ""} />
             <span>${escapeHtml(t("grooming_makeup"))}</span>
           </label>
           ${state.awaitingContinueGenerate ? `<div class="stv-grooming-continue">
@@ -17161,8 +17149,8 @@ function renderMain() {
         </div>`;
   const normStyle = normalizeLegacyStyleFromState(state.style);
   const unprefForPrompt = buildUnprefixedGenerationBodyFromStyle(state.style, state.groomingPolicy);
-  const promptSummaryText = state.customPromptMode ? String(getGenerationPromptBodyForUi() || "").trim() : String(unprefForPrompt || getGenerationPromptBodyForUi() || "").trim();
-  const showStyleBlocks = !state.customPromptMode && String(unprefForPrompt || "").trim().length > 0;
+  const promptSummaryText = String(unprefForPrompt || getGenerationPromptBodyForUi() || "").trim();
+  const showStyleBlocks = String(unprefForPrompt || "").trim().length > 0;
   const hasStyleExtracted = showStyleBlocks;
   const showStalePromptBanner = isPromptStaleVsExtract() && hasReference();
   const promptBlockFlashClass = state.promptReadyFlash ? " stv-prompt-block--flash" : "";
@@ -17174,16 +17162,7 @@ function renderMain() {
         <textarea id="stv-style-field-${escapeHtml(field)}" class="prompt-box stv-style-block-textarea" rows="3" spellcheck="false">${val}</textarea>
       </label>`;
   }).join("");
-  const modeToggleDisabled = state.generating || state.preparingPromptOnly;
-  const promptTabCustomToggleHtml = `<div class="stv-prompt-mode-toggle" role="group" aria-label="${escapeHtml(t("prompt_mode_group_aria"))}">
-          <button type="button" id="stv-prompt-mode-style" class="stv-prompt-mode-btn${!state.customPromptMode ? " stv-prompt-mode-btn--active" : ""}" ${modeToggleDisabled ? "disabled" : ""} aria-pressed="${!state.customPromptMode ? "true" : "false"}">${escapeHtml(t("prompt_mode_from_style"))}</button>
-          <button type="button" id="stv-prompt-mode-custom" class="stv-prompt-mode-btn${state.customPromptMode ? " stv-prompt-mode-btn--active" : ""}" ${modeToggleDisabled ? "disabled" : ""} aria-pressed="${state.customPromptMode ? "true" : "false"}">${escapeHtml(t("prompt_mode_custom"))}</button>
-        </div>`;
-  const promptTabBodyHtml = state.customPromptMode ? `<div class="stv-prompt-custom-editor">
-          <p class="muted stv-prompt-hint-top">${escapeHtml(t("custom_prompt_mode_hint"))}</p>
-          <textarea id="stv-gen-prompt-body" class="prompt-box prompt-box--final-prompt${state.promptReadyFlash ? " stv-prompt-summary--flash" : ""}" rows="14" spellcheck="false" autocomplete="off" aria-label="${escapeHtml(t("gen_prompt_label"))}" placeholder="${escapeHtml(t("custom_prompt_placeholder"))}"></textarea>
-          <p class="muted stv-prompt-edit-hint">${escapeHtml(t("custom_prompt_edit_hint"))}</p>
-        </div>` : state.promptBlocksExpanded ? `<div class="stv-prompt-editor">
+  const promptTabBodyHtml = state.promptBlocksExpanded ? `<div class="stv-prompt-editor">
           ${styleFieldsHtml}
           <div class="row stv-prompt-editor-actions">
             <button type="button" class="primary" id="btn-save-prompt-blocks">${escapeHtml(t("btn_save_prompt_blocks"))}</button>
@@ -17213,13 +17192,12 @@ function renderMain() {
               ${!hasReference() ? `<p class="muted stv-tab-hint">${escapeHtml(t("tab_prompt_no_reference"))}</p>` : ""}
               <div class="stv-prompt-tab-actions">
                 <div class="stv-prompt-extract-wrap">
-                  <button type="button" class="stv-btn-extract-prompt ${hasStyleExtracted ? "" : "primary"}${state.preparingPromptOnly ? " stv-btn-extract-prompt--busy stv-btn-loading" : ""}" id="btn-extract-prompt-only" aria-busy="${state.preparingPromptOnly ? "true" : "false"}" ${!hasReference() || state.generating || state.preparingPromptOnly ? "disabled" : ""}><span class="stv-btn-extract-prompt-label">${escapeHtml(hasStyleExtracted ? t("btn_refresh_prompt_extract") : t("btn_extract_prompt_only"))}</span>${promptTabButtonMeterHtml}</button>
+                  <button type="button" class="stv-btn-extract-prompt ${hasStyleExtracted ? "" : "primary"}${state.preparingPromptOnly ? " stv-btn-extract-prompt--busy stv-btn-loading" : ""}" id="btn-extract-prompt-only" aria-busy="${state.preparingPromptOnly ? "true" : "false"}" ${promptTabExtractActionsDisabled ? "disabled" : ""}><span class="stv-btn-extract-prompt-label">${escapeHtml(hasStyleExtracted ? t("btn_refresh_prompt_extract") : t("btn_extract_prompt_only"))}</span>${promptTabButtonMeterHtml}</button>
                   ${promptTabExtractStatusBelowHtml}
                 </div>
               </div>
             </div>
             <div class="stv-prompt-below-ref">
-              ${promptTabCustomToggleHtml}
               <span class="stv-field-label">${escapeHtml(t("tab_prompt_recognized_label"))}</span>
               ${promptTabBodyHtml}
             </div>
@@ -17339,7 +17317,7 @@ function renderMain() {
           <div class="stv-brand">
             <span class="stv-brand-mark" aria-hidden="true">${STV_MARK_STAR_SVG}</span>
             <div class="stv-brand-text">
-              <span class="stv-brand-name">PromptShot</span>
+              <span class="stv-brand-name">Prompt To Image</span>
               <span class="stv-brand-sub">${escapeHtml(t("brand_sub"))}</span>
             </div>
           </div>
@@ -17347,9 +17325,16 @@ function renderMain() {
         <div class="stv-topbar-end">
           <span class="stv-credits-pill${needsCredits ? " stv-credits-pill--warn" : ""}" title="${escapeHtml(creditsPillTitle)}">
             <span class="stv-sr-only">${escapeHtml(creditsPillTitle)}</span>
-            <span class="stv-credits-pill__n" aria-hidden="true">${escapeHtml(String(state.credits))}</span>
-            <span class="stv-credits-pill__sep" aria-hidden="true">\xB7</span>
-            <span class="stv-credits-pill__cost" aria-hidden="true">${escapeHtml(String(requiredCredits))}</span>
+            <span class="stv-credits-pill__grid" aria-hidden="true">
+              <span class="stv-credits-pill__col">
+                <span class="stv-credits-pill__label">${escapeHtml(t("credits_pill_balance"))}</span>
+                <span class="stv-credits-pill__n">${escapeHtml(String(state.credits))}</span>
+              </span>
+              <span class="stv-credits-pill__col">
+                <span class="stv-credits-pill__label">${escapeHtml(t("credits_pill_per_run"))}</span>
+                <span class="stv-credits-pill__cost">${escapeHtml(String(requiredCredits))}</span>
+              </span>
+            </span>
           </span>
           <details class="stv-topbar-account">
             <summary class="stv-tool-btn stv-topbar-account-summary">${escapeHtml(t("meta_account"))}</summary>
@@ -17374,59 +17359,6 @@ function renderMain() {
       </div>
     </div>
   `;
-  async function applyCustomPromptMode(next) {
-    if (state.customPromptMode === next) return;
-    if (next) {
-      state.customPromptMode = true;
-      applyGenerationPromptBodyFromUi("");
-      state.finalPromptForGeneration = "";
-      state.finalPromptAssumesTwoImages = false;
-      state.prompts = [];
-      await persistState();
-      render();
-      queueMicrotask(() => document.getElementById("stv-gen-prompt-body")?.focus());
-      return;
-    }
-    state.customPromptMode = false;
-    try {
-      if (state.vibeId && state.style) {
-        await runExpand();
-        setToast("info", t("custom_prompt_restored"));
-      }
-      await persistState();
-      render();
-    } catch (err) {
-      state.customPromptMode = true;
-      setToast("error", normalizeUiError(err, t("err_expand")));
-      render();
-    }
-  }
-  const promptModeStyleBtn = document.getElementById("stv-prompt-mode-style");
-  if (promptModeStyleBtn) {
-    promptModeStyleBtn.addEventListener("click", () => {
-      void applyCustomPromptMode(false);
-    });
-  }
-  const promptModeCustomBtn = document.getElementById("stv-prompt-mode-custom");
-  if (promptModeCustomBtn) {
-    promptModeCustomBtn.addEventListener("click", () => {
-      void applyCustomPromptMode(true);
-    });
-  }
-  const promptBodyTa = document.getElementById("stv-gen-prompt-body");
-  if (promptBodyTa) {
-    if (document.activeElement !== promptBodyTa) {
-      promptBodyTa.value = getGenerationPromptBodyForUi();
-    }
-    promptBodyTa.addEventListener("input", () => {
-      applyGenerationPromptBodyFromUi(promptBodyTa.value);
-      clearTimeout(promptBodyPersistTimer);
-      promptBodyPersistTimer = setTimeout(() => {
-        promptBodyPersistTimer = null;
-        void persistState();
-      }, 400);
-    });
-  }
   const groomingHair = document.getElementById("grooming-hair");
   if (groomingHair) {
     groomingHair.addEventListener("change", async () => {

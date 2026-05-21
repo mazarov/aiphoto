@@ -1,16 +1,21 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { SiteLogoMark } from "@/components/SiteLogoMark";
+import { ExtensionStvAccuracySection } from "@/components/extension-stv/ExtensionStvAccuracySection";
+import { ExtensionStvChromeBadge } from "@/components/extension-stv/ExtensionStvChromeBadge";
 import { ExtensionStvFaq } from "@/components/extension-stv/ExtensionStvFaq";
-import { PinterestOverlayMock } from "@/components/extension-stv/PinterestOverlayMock";
+import { ExtensionStvFloatingCta } from "@/components/extension-stv/ExtensionStvFloatingCta";
+import { ExtensionStvHowItWorks } from "@/components/extension-stv/ExtensionStvHowItWorks";
+import { ExtensionStvMarketingFooter } from "@/components/extension-stv/ExtensionStvMarketingFooter";
+import { ExtensionStvMarketingHeader } from "@/components/extension-stv/ExtensionStvMarketingHeader";
+import { ExtensionStvTestimonials } from "@/components/extension-stv/ExtensionStvTestimonials";
 import { PainReferenceVsDraftMock } from "@/components/extension-stv/PainReferenceVsDraftMock";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://promptshot.ru";
 
-const TITLE = "Image To Prompt – AI Photo Prompt Generator";
-const DESCRIPTION = "Recreate any image with AI. Image to prompt + style transfer.";
+const TITLE = "Image to Prompt Chrome Tool — AI Photo Prompts | PromptShot";
+const DESCRIPTION =
+  "Turn browsing into detailed AI image prompts in Chrome: lighting, palette, composition, and style cues from any reference—then refine or generate in PromptShot.";
 
-const storeUrl = process.env.NEXT_PUBLIC_STV_CHROME_STORE_URL || "#stv-chrome-store";
+const HERO_HEADLINE = "Build better AI image prompts from any reference on the page";
 
 export const metadata: Metadata = {
   title: TITLE,
@@ -25,92 +30,57 @@ export const metadata: Metadata = {
   },
 };
 
-/** Единственная CTA на странице — плавающая (как FAB). */
-function FloatingAddToChrome() {
-  return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-[60] flex justify-center px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-4 sm:pb-[max(2rem,env(safe-area-inset-bottom))]">
-      <a
-        href={storeUrl}
-        className="pointer-events-auto inline-flex items-center justify-center rounded-full bg-indigo-500 px-6 py-3 text-sm font-semibold text-white shadow-[0_8px_32px_rgba(0,0,0,0.5),0_2px_14px_rgba(99,102,241,0.5)] ring-1 ring-inset ring-white/20 transition hover:bg-indigo-600 hover:shadow-[0_12px_40px_rgba(0,0,0,0.55),0_4px_18px_rgba(99,102,241,0.55)]"
-      >
-        Add to Chrome
-      </a>
-    </div>
-  );
-}
-
-function ChromeBadge({ className }: { className?: string }) {
-  return (
-    <span
-      className={`inline-flex items-center gap-1.5 rounded-full border border-white/[0.12] bg-white/[0.06] px-2.5 py-1 text-xs font-medium text-zinc-300 ${className ?? ""}`}
-    >
-      <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden>
-        <circle cx="12" cy="12" r="10" fill="rgba(255,255,255,0.12)" />
-        <circle cx="12" cy="12" r="4" fill="#6366f1" />
-      </svg>
-      Chrome Extension
-    </span>
-  );
-}
-
 export default function ExtensionStvPreviewPage() {
   return (
-    <div className="pb-28">
-      <header className="sticky top-0 z-50 bg-[#09090b]/90 backdrop-blur-md">
-        <div className="mx-auto flex h-14 max-w-6xl items-center px-4 sm:px-6">
-          <Link
-            href="/"
-            className="flex items-center gap-2 text-lg font-bold tracking-tight text-zinc-50 transition-opacity hover:opacity-90"
-          >
-            <SiteLogoMark size={28} className="h-7 w-7 rounded-lg" />
-            <span>PromptShot</span>
-          </Link>
-        </div>
-      </header>
+    <div className="pb-32">
+      <ExtensionStvMarketingHeader />
 
-      {/* Hero */}
+      {/* 1. Hero — только заголовок + лид + бейдж (как на image-to-prompt: сверху текст) */}
       <section className="relative overflow-hidden">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-25%,rgba(99,102,241,0.18),transparent_55%)]" />
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_60%_40%_at_80%_20%,rgba(139,92,246,0.1),transparent_50%)]" />
-        <div className="relative mx-auto max-w-6xl px-4 pb-16 pt-12 text-center sm:px-6 sm:pb-20 sm:pt-16">
+        <div className="relative mx-auto max-w-6xl px-4 pb-8 pt-8 text-center sm:px-6 sm:pb-10 sm:pt-10">
           <h1 className="mx-auto max-w-3xl text-balance text-3xl font-bold tracking-tight text-zinc-50 sm:text-4xl lg:text-[2.5rem] lg:leading-tight">
-            {TITLE}
+            {HERO_HEADLINE}
           </h1>
-          <p className="mx-auto mt-4 max-w-xl text-pretty text-base text-zinc-400 sm:text-lg">
-            Recreate any image with AI. Image to prompt + style transfer.
+          <p className="mx-auto mt-3 max-w-2xl text-pretty text-base text-zinc-400 sm:text-lg">
+            Stop typing generic “4K cinematic” lines. Image To Prompt reads the reference in front of you and drafts
+            descriptive cues—subject, backdrop, color story, light, texture—so your next generation starts closer to the
+            look you want.
           </p>
-
-          <PinterestOverlayMock />
-          <ChromeBadge className="mx-auto mt-8 sm:mt-10" />
+          <ExtensionStvChromeBadge className="mx-auto mt-4 justify-center" />
         </div>
       </section>
 
-      {/* Pain */}
-      <section className="mx-auto max-w-6xl px-4 py-20 sm:px-6">
-        <div className="grid gap-12 lg:grid-cols-2 lg:items-start lg:gap-14">
+      {/* 2. Боль + live demo */}
+      <section className="mx-auto max-w-6xl px-4 py-10 sm:px-6 sm:py-12">
+        <div className="grid gap-8 lg:grid-cols-2 lg:items-start lg:gap-10">
           <div>
             <h2 className="text-2xl font-bold tracking-tight text-zinc-50 sm:text-3xl">
-              You don’t need &quot;a prompt.&quot; You need the same vibe.
+              Great AI art starts with a prompt that actually describes the scene
             </h2>
-            <ul className="mt-8 space-y-4 text-zinc-400">
+            <ul className="mt-5 space-y-3 text-zinc-400">
               <li className="flex gap-3">
                 <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-indigo-500/80" />
                 <span>
-                  You see a reference — it’s unclear <strong className="text-zinc-100">what</strong> to copy: light,
-                  palette, composition, texture.
+                  Strong prompts spell out the <strong className="text-zinc-100">hero subject</strong>,{" "}
+                  <strong className="text-zinc-100">environment</strong>, and{" "}
+                  <strong className="text-zinc-100">art direction</strong>—yet most people only remember a few adjectives
+                  when the tab is gone.
                 </span>
               </li>
               <li className="flex gap-3">
                 <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-indigo-500/80" />
                 <span>
-                  You write from scratch — results are{" "}
-                  <strong className="text-zinc-100">close but not it</strong>, many iterations.
+                  Guessing light direction, palette, lens feel, and mood burns time; models return{" "}
+                  <strong className="text-zinc-100">almost-right</strong> frames until you luck into the magic phrase.
                 </span>
               </li>
               <li className="flex gap-3">
                 <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-indigo-500/80" />
                 <span>
-                  Tab hopping, screenshots, paste — <strong className="text-zinc-100">friction</strong>, not flow.
+                  Manual screenshots and copy/paste across tools add <strong className="text-zinc-100">friction</strong>{" "}
+                  right when you should be iterating on the idea—not the window layout.
                 </span>
               </li>
             </ul>
@@ -119,30 +89,20 @@ export default function ExtensionStvPreviewPage() {
         </div>
       </section>
 
+      {/* 3. Точность / сравнение */}
+      <ExtensionStvAccuracySection />
+
+      {/* 4. Отзывы */}
+      <ExtensionStvTestimonials />
+
+      {/* 5. Как пользоваться + FAQ */}
+      <ExtensionStvHowItWorks />
+
       <ExtensionStvFaq />
 
-      {/* Footer */}
-      <footer className="bg-[#09090b] py-10">
-        <div className="mx-auto max-w-6xl px-4 text-center sm:px-6">
-          <p className="text-sm font-semibold text-zinc-50">{TITLE}</p>
-          <p className="mx-auto mt-2 max-w-md text-xs text-zinc-500">
-            Recreate any image with AI. Image to prompt + style transfer.
-          </p>
-          <div className="mt-6 flex flex-wrap justify-center gap-4 text-xs text-zinc-500">
-            <Link href="/" className="hover:text-zinc-300">
-              PromptShot home
-            </Link>
-            <a href={storeUrl} className="hover:text-zinc-300">
-              Chrome Web Store
-            </a>
-            <Link href="/privacy" className="hover:text-zinc-300">
-              Privacy
-            </Link>
-          </div>
-        </div>
-      </footer>
+      <ExtensionStvMarketingFooter />
 
-      <FloatingAddToChrome />
+      <ExtensionStvFloatingCta />
     </div>
   );
 }

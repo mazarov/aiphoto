@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Steal This Vibe",
   "version": "0.2.0",
-  "description": "Capture style from any image and generate one look on PromptShot. DE/RU UI, Google sign-in in panel.",
+  "description": "Capture style from any image and generate one look (Prompt To Image). DE/RU UI, Google sign-in in panel.",
   "permissions": ["sidePanel", "activeTab", "storage", "tabs"],
   "host_permissions": [
     "https://promptshot.ru/*",

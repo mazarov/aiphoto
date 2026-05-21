@@ -17,6 +17,8 @@ import {
   CARD_IMAGE_LISTING_NEXT_QUALITY,
   SIZES_CARD_GRID,
 } from "@/lib/card-image-presets";
+import { copyTextUniversal } from "@/lib/copy-text-to-clipboard";
+import { LexyGptGenerateButton } from "./LexyGptGenerateButton";
 
 type Props = {
   cards: PromptCardFull[];
@@ -40,7 +42,7 @@ export function GroupedCard({ cards, debug = false, priorityLoad = false }: Prop
   const currentPhotoUrl = photos[activePhotoIdx] || photos[0] || null;
 
   const [expanded, setExpanded] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const [copyHint, setCopyHint] = useState<"idle" | "success" | "error">("idle");
 
   const promptPreview =
     allPrompts[0]?.slice(0, 100) + (allPrompts[0]?.length > 100 ? "…" : "") || "";
@@ -71,14 +73,9 @@ export function GroupedCard({ cards, debug = false, priorityLoad = false }: Prop
     e.preventDefault();
     const str = allPrompts.join("\n\n");
     if (!str) return;
-    setCopied(true);
-    try {
-      await navigator.clipboard.writeText(str);
-    } catch {
-      setCopied(false);
-      return;
-    }
-    setTimeout(() => setCopied(false), 2000);
+    const ok = await copyTextUniversal(str);
+    setCopyHint(ok ? "success" : "error");
+    window.setTimeout(() => setCopyHint("idle"), 2200);
   }
 
   const secondPhoto = sorted.length > 1
@@ -167,12 +164,31 @@ export function GroupedCard({ cards, debug = false, priorityLoad = false }: Prop
               {!expanded && (
                 <div
                   className={`absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/80 via-black/40 to-transparent pt-20 px-3.5 pointer-events-none ${
-                    allPrompts.length > 0 ? "pb-14 sm:pb-[3.75rem]" : "pb-3.5"
+                    allPrompts.length > 0 ? "pb-[4.75rem] sm:pb-[4rem]" : "pb-3.5"
                   }`}
                 >
-                  <h3 className="text-[13px] font-semibold text-white leading-snug line-clamp-1 mb-0.5">{title}</h3>
+                  <h3
+                    className="text-[13px] font-semibold text-white leading-snug line-clamp-1 mb-0.5 pointer-events-auto cursor-pointer"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setExpanded(true);
+                    }}
+                  >
+                    {title}
+                  </h3>
                   {promptPreview && (
-                    <p className="text-[11px] text-white/60 leading-relaxed line-clamp-2 mb-1">{promptPreview}</p>
+                    <button
+                      type="button"
+                      className={`${OVERLAY_BUTTON_APPEARANCE_RESET} mb-1 max-w-full text-left text-[11px] text-white/60 leading-relaxed line-clamp-2 decoration-white/25 underline-offset-2 underline pointer-events-auto hover:text-white/80`}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setExpanded(true);
+                      }}
+                    >
+                      {promptPreview}
+                    </button>
                   )}
                 </div>
               )}
@@ -232,10 +248,19 @@ export function GroupedCard({ cards, debug = false, priorityLoad = false }: Prop
                 </div>
               )}
               {!expanded && allPrompts.length > 0 && (
-                <div className="absolute inset-x-0 bottom-0 z-[1] px-3.5 pb-3.5">
-                  <button type="button" onClick={(e) => { e.stopPropagation(); e.preventDefault(); setExpanded(true); }}
-                    className={`${OVERLAY_BUTTON_APPEARANCE_RESET} listing-card-chrome-target w-full rounded-full bg-white/15 backdrop-blur-md border border-white/10 px-2 py-1.5 sm:px-3 sm:py-2 text-[10px] sm:text-[11px] font-semibold text-white transition-all hover:bg-white/25 active:scale-[0.98] truncate`}
-                  >Скопировать</button>
+                <div className="absolute inset-x-0 bottom-0 z-[1] flex flex-col gap-2 px-3.5 pb-3.5 sm:flex-row [&>*]:pointer-events-auto">
+                  <LexyGptGenerateButton promptText={allPrompts.join("\n\n")} variant="listing" />
+                  <button
+                    type="button"
+                    onClick={handleCopy}
+                    className={`${OVERLAY_BUTTON_APPEARANCE_RESET} flex-1 min-w-0 rounded-full bg-white/15 backdrop-blur-md border border-white/10 px-2 py-1.5 sm:px-3 sm:py-2 text-[10px] sm:text-[11px] font-semibold text-white transition-all hover:bg-white/25 active:scale-[0.98]`}
+                  >
+                    {copyHint === "success"
+                      ? "Скопировано!"
+                      : copyHint === "error"
+                        ? "Не удалось"
+                        : "Скопировать"}
+                  </button>
                 </div>
               )}
             </div>
@@ -275,9 +300,18 @@ export function GroupedCard({ cards, debug = false, priorityLoad = false }: Prop
               {expandedTitle.rest ? (
                 <p className="mb-3 shrink-0 text-[11px] leading-relaxed text-white/50">{expandedTitle.rest}</p>
               ) : null}
-              <button type="button" onClick={handleCopy}
-                className={`${OVERLAY_BUTTON_UA_RESET} w-full shrink-0 rounded-xl bg-white px-3 py-2.5 text-xs font-semibold text-zinc-900 transition-all hover:bg-zinc-100 active:scale-[0.98]`}
-              >{copied ? "Промпт скопирован" : "Скопировать промт"}</button>
+              <div className="flex shrink-0 flex-col gap-2 sm:flex-row [&>*]:pointer-events-auto">
+                <LexyGptGenerateButton promptText={allPrompts.join("\n\n")} variant="expanded" />
+                <button type="button" onClick={handleCopy}
+                  className={`${OVERLAY_BUTTON_UA_RESET} flex-1 shrink-0 rounded-xl bg-white px-3 py-2.5 text-xs font-semibold text-zinc-900 transition-all hover:bg-zinc-100 active:scale-[0.98]`}
+                >
+                  {copyHint === "success"
+                    ? "Промпт скопирован"
+                    : copyHint === "error"
+                      ? "Не удалось скопировать"
+                      : "Скопировать промт"}
+                </button>
+              </div>
             </div>
           )}
         </div>

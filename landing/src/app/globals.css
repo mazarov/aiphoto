@@ -112,7 +112,9 @@ p {
 
   /**
    * Fast opacity (~55ms): metrics + reactions, photo arrows, frame counter,
-   * «Скопировать» — no lag vs slow ambient layer.
+   * «Сгенерировать» / «Скопировать» — no lag vs slow ambient layer.
+   * Нижний ряд CTA в JSX помечает детей классами `[&>*]:pointer-events-auto` — иначе
+   * у `.listing-card-chrome-target` вне `:hover`/fine-pointer клик не попадает в кнопку.
    */
   .listing-card-chrome-actions-fast,
   .listing-card-chrome-controls-fast {

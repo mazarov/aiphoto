@@ -153,22 +153,28 @@ export function PainReferenceVsDraftMock() {
   );
 
   return (
-    <div className="rounded-2xl border border-white/[0.08] bg-[rgb(24_24_27/0.45)] p-5 shadow-[0_20px_50px_-28px_rgba(0,0,0,0.5)] sm:p-6">
-      <div className="mb-5 flex flex-col gap-1.5 pb-4 sm:flex-row sm:items-end sm:justify-between">
+    <div className="rounded-2xl border border-white/[0.08] bg-[rgb(24_24_27/0.45)] p-4 shadow-[0_20px_50px_-28px_rgba(0,0,0,0.5)] sm:p-5">
+      <div className="mb-4 flex flex-col gap-1.5 pb-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-zinc-400">
-            Reference vs prompt
+            Image to prompt · live demo
           </span>
           <p className="mt-1 max-w-md text-[11px] leading-relaxed text-zinc-500">
-            What you see on the page — and the words you’d try to write without the extension.
+            Compare the pixels in front of you with the flat text most people type before they give up—then upload your
+            own frame to run the real pipeline.
           </p>
         </div>
-        <span className="shrink-0 text-[10px] text-zinc-600">Live extract + expand (signed in)</span>
+        <span className="shrink-0 text-xs text-zinc-600">Live image analysis (signed in)</span>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 sm:items-stretch sm:gap-8">
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-[1fr_auto_1fr] sm:items-stretch sm:gap-3 lg:gap-5">
         <div className="flex flex-col">
-          <p className="mb-2.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-400">Reference</p>
+          <p className="mb-2.5 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em] text-zinc-400">
+            <span className="inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded bg-white/[0.08] px-1 text-[10px] font-bold text-zinc-300">
+              1
+            </span>
+            Reference
+          </p>
           <div className="relative w-full overflow-hidden rounded-2xl border border-white/[0.08] bg-zinc-950 shadow-[0_16px_40px_-20px_rgba(0,0,0,0.65)] ring-1 ring-white/[0.04]">
             <div className="relative aspect-[3/4] w-full">
               <div className="absolute inset-0 p-1.5 sm:p-2">
@@ -222,8 +228,20 @@ export function PainReferenceVsDraftMock() {
           </div>
         </div>
 
+        <div
+          className="hidden items-center justify-center self-center sm:flex sm:min-h-[120px] sm:pt-8"
+          aria-hidden
+        >
+          <span className="text-lg font-medium text-zinc-500">→</span>
+        </div>
+
         <div className="flex min-h-[280px] flex-col sm:min-h-0">
-          <p className="mb-2.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-400">Prompt draft</p>
+          <p className="mb-2.5 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em] text-zinc-400">
+            <span className="inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded bg-white/[0.08] px-1 text-[10px] font-bold text-zinc-300">
+              2
+            </span>
+            Prompt draft
+          </p>
           <div className="flex min-h-0 flex-1 flex-col rounded-2xl bg-zinc-950/35 p-1 ring-1 ring-inset ring-white/[0.06] sm:p-1.5">
             <CopyablePromptField value={draftValue} label="Prompt draft to copy" className="min-h-0 flex-1" />
           </div>
@@ -231,7 +249,7 @@ export function PainReferenceVsDraftMock() {
       </div>
 
       {error === "sign_in_required" ? (
-        <p className="mt-3 text-center text-[10px] text-amber-200/90 sm:mt-4">
+        <p className="mt-3 text-center text-xs text-amber-200/90 sm:mt-4">
           Sign in with Google on the{" "}
           <Link href="/" className="font-semibold text-indigo-300 underline-offset-2 hover:underline">
             homepage
@@ -239,13 +257,13 @@ export function PainReferenceVsDraftMock() {
           first, then add your photo again.
         </p>
       ) : error ? (
-        <p className="mt-3 text-center text-[10px] text-red-400/90 sm:mt-4">{error}</p>
+        <p className="mt-3 text-center text-xs text-red-400/90 sm:mt-4">{error}</p>
       ) : null}
 
-      <p className="mt-5 text-center text-[11px] leading-relaxed text-zinc-500 sm:mt-6">
+      <p className="mt-4 text-center text-[11px] leading-relaxed text-zinc-500 sm:mt-5">
         {fromExtract
-          ? "Built with the same extract → expand path as Image To Prompt in the extension."
-          : "The sample text is intentionally off — add your photo to run the real pipeline."}
+          ? "Same extract → expand stack as the Chrome overlay—your descriptive AI image prompt, grounded in the upload."
+          : "Sample copy is deliberately generic—drop in a JPEG, PNG, or WebP to see a richer, reference-aware prompt."}
       </p>
     </div>
   );

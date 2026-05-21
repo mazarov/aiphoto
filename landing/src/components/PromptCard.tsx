@@ -18,6 +18,8 @@ import {
   CARD_IMAGE_LISTING_NEXT_QUALITY,
   SIZES_CARD_GRID,
 } from "@/lib/card-image-presets";
+import { copyTextUniversal } from "@/lib/copy-text-to-clipboard";
+import { LexyGptGenerateButton } from "./LexyGptGenerateButton";
 
 type Props = {
   card: PromptCardFull;
@@ -62,7 +64,7 @@ export function PromptCard({ card, debug = false, priorityLoad = false }: Props)
 
   const [photoIndex, setPhotoIndex] = useState(0);
   const [expanded, setExpanded] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const [copyHint, setCopyHint] = useState<"idle" | "success" | "error">("idle");
 
   const photos = card.photoUrls;
   const currentPhoto = photos[photoIndex] || null;
@@ -88,14 +90,9 @@ export function PromptCard({ card, debug = false, priorityLoad = false }: Props)
     e.preventDefault();
     const str = card.promptTexts.join("\n\n");
     if (!str) return;
-    setCopied(true);
-    try {
-      await navigator.clipboard.writeText(str);
-    } catch {
-      setCopied(false);
-      return;
-    }
-    setTimeout(() => setCopied(false), 2000);
+    const ok = await copyTextUniversal(str);
+    setCopyHint(ok ? "success" : "error");
+    window.setTimeout(() => setCopyHint("idle"), 2200);
   }
 
   const userReaction = reactions.get(card.id) ?? null;
@@ -175,16 +172,31 @@ export function PromptCard({ card, debug = false, priorityLoad = false }: Props)
             {!expanded && (
               <div
                 className={`absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/80 via-black/40 to-transparent pt-20 px-3.5 pointer-events-none ${
-                  card.promptTexts.length > 0 ? "pb-14 sm:pb-[3.75rem]" : "pb-3.5"
+                  card.promptTexts.length > 0 ? "pb-[4.75rem] sm:pb-[4rem]" : "pb-3.5"
                 }`}
               >
-                <h3 className="mb-0.5 text-[13px] font-semibold leading-snug text-white line-clamp-1">
+                <h3
+                  className="mb-0.5 cursor-pointer text-[13px] font-semibold leading-snug text-white line-clamp-1 pointer-events-auto"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setExpanded(true);
+                  }}
+                >
                   {title}
                 </h3>
                 {promptPreview && (
-                  <p className="mb-1 text-[11px] leading-relaxed text-white/60 line-clamp-2">
+                  <button
+                    type="button"
+                    className={`${OVERLAY_BUTTON_APPEARANCE_RESET} mb-1 max-w-full text-left text-[11px] leading-relaxed text-white/60 line-clamp-2 underline decoration-white/25 underline-offset-2 pointer-events-auto hover:text-white/80`}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setExpanded(true);
+                    }}
+                  >
                     {promptPreview}
-                  </p>
+                  </button>
                 )}
               </div>
             )}
@@ -219,13 +231,21 @@ export function PromptCard({ card, debug = false, priorityLoad = false }: Props)
               </div>
             )}
             {!expanded && card.promptTexts.length > 0 && (
-              <div className="absolute inset-x-0 bottom-0 z-[1] px-3.5 pb-3.5">
+              <div className="absolute inset-x-0 bottom-0 z-[1] flex flex-col gap-2 px-3.5 pb-3.5 sm:flex-row [&>*]:pointer-events-auto">
+                <LexyGptGenerateButton
+                  promptText={card.promptTexts.join("\n\n")}
+                  variant="listing"
+                />
                 <button
                   type="button"
-                  onClick={(e) => { e.stopPropagation(); e.preventDefault(); setExpanded(true); }}
-                  className={`${OVERLAY_BUTTON_APPEARANCE_RESET} listing-card-chrome-target w-full rounded-full border border-white/10 bg-white/15 px-2 py-1.5 text-[10px] font-semibold text-white backdrop-blur-md transition-all hover:bg-white/25 active:scale-[0.98] sm:px-3 sm:py-2 sm:text-[11px] truncate`}
+                  onClick={handleCopy}
+                  className={`${OVERLAY_BUTTON_APPEARANCE_RESET} flex-1 min-w-0 rounded-full border border-white/10 bg-white/15 px-2 py-1.5 text-[10px] font-semibold text-white backdrop-blur-md transition-all hover:bg-white/25 active:scale-[0.98] sm:px-3 sm:py-2 sm:text-[11px]`}
                 >
-                  Скопировать
+                  {copyHint === "success"
+                    ? "Скопировано!"
+                    : copyHint === "error"
+                      ? "Не удалось"
+                      : "Скопировать"}
                 </button>
               </div>
             )}
@@ -276,13 +296,23 @@ export function PromptCard({ card, debug = false, priorityLoad = false }: Props)
             {expandedTitle.rest ? (
               <p className="mb-3 shrink-0 text-[11px] leading-relaxed text-white/50">{expandedTitle.rest}</p>
             ) : null}
-            <button
-              type="button"
-              onClick={handleCopy}
-              className={`${OVERLAY_BUTTON_UA_RESET} w-full shrink-0 rounded-xl bg-white px-3 py-2.5 text-xs font-semibold text-zinc-900 transition-all hover:bg-zinc-100 active:scale-[0.98]`}
-            >
-              {copied ? "Промпт скопирован" : "Скопировать промт"}
-            </button>
+            <div className="flex shrink-0 flex-col gap-2 sm:flex-row [&>*]:pointer-events-auto">
+              <LexyGptGenerateButton
+                promptText={card.promptTexts.join("\n\n")}
+                variant="expanded"
+              />
+              <button
+                type="button"
+                onClick={handleCopy}
+                className={`${OVERLAY_BUTTON_UA_RESET} flex-1 shrink-0 rounded-xl bg-white px-3 py-2.5 text-xs font-semibold text-zinc-900 transition-all hover:bg-zinc-100 active:scale-[0.98]`}
+              >
+                {copyHint === "success"
+                  ? "Промпт скопирован"
+                  : copyHint === "error"
+                    ? "Не удалось скопировать"
+                    : "Скопировать промт"}
+              </button>
+            </div>
           </div>
         )}
       </div>

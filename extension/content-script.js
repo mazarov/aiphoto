@@ -21,17 +21,17 @@ const OVERLAY_I18N = {
   en: {
     line: "Steal this vibe",
     short: "Steal vibe",
-    aria: "Steal this vibe with PromptShot — send this image to the extension side panel",
+    aria: "Steal this vibe with Prompt To Image — send this image to the extension side panel",
   },
   de: {
     line: "Stil übernehmen",
     short: "Stil",
-    aria: "Stil mit PromptShot übernehmen — Bild an die Erweiterung senden",
+    aria: "Stil mit Prompt To Image übernehmen — Bild an die Erweiterung senden",
   },
   ru: {
     line: "Снять стиль с фото",
     short: "Снять стиль",
-    aria: "Снять стиль с фото в PromptShot — отправить изображение в расширение",
+    aria: "Снять стиль с фото в Prompt To Image — отправить изображение в расширение",
     reload_hint:
       "Расширение обновилось или перезагрузилось — обновите страницу (F5 или Cmd+R), затем снова наведите на фото.",
   },
