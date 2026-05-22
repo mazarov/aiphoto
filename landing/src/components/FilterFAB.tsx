@@ -40,7 +40,7 @@ export function FilterFAB({
           <button
             type="button"
             onClick={() => setOpen(true)}
-            className="fixed bottom-20 right-5 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-zinc-900 text-white shadow-lg transition-all hover:bg-zinc-800 active:scale-95 sm:bottom-6 sm:right-6"
+            className="fab-bottom-safe fixed right-5 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-zinc-900 text-white shadow-lg transition-all hover:bg-zinc-800 active:scale-95 sm:right-6"
             aria-label={activeCount > 0 ? `Фильтры (${activeCount})` : "Фильтры"}
           >
             {activeCount > 0 ? (

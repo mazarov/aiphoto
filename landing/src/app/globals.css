@@ -94,6 +94,21 @@ p {
   .safe-area-pb {
     padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
   }
+
+  /** Моб. FAB: меню / поиск / фильтр — низ экрана над home indicator */
+  .fab-bottom-safe {
+    bottom: max(0.75rem, env(safe-area-inset-bottom, 0px));
+  }
+
+  /** Панели, привязанные над рядом FAB (h-12 + safe inset + зазор) */
+  .fab-sheet-bottom-safe {
+    bottom: calc(0.5rem + 3rem + max(0.75rem, env(safe-area-inset-bottom, 0px)));
+  }
+
+  /** Debug-минипанель — чуть выше, чтобы не наезжать на FAB фильтров */
+  .fab-debug-panel-bottom-safe {
+    bottom: calc(1rem + 3rem + max(0.75rem, env(safe-area-inset-bottom, 0px)));
+  }
 }
 
 /**

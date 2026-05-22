@@ -75,7 +75,7 @@ function DebugMinimalPanel() {
         className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm"
         onClick={() => ctx.setPanelOpen(false)}
       />
-      <div className="fixed bottom-36 sm:bottom-20 right-6 z-50 w-[280px] rounded-2xl border border-zinc-200 bg-white p-5 shadow-2xl shadow-zinc-900/20">
+      <div className="fab-debug-panel-bottom-safe fixed right-6 z-50 w-[280px] rounded-2xl border border-zinc-200 bg-white p-5 shadow-2xl shadow-zinc-900/20">
         <div className="flex items-center justify-between mb-3">
           <span className="text-sm font-semibold text-zinc-900">Debug</span>
           <button

@@ -263,7 +263,7 @@ export function FilterableGrid({
       {debugMode && panelOpen && (
         <>
           <div className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm" onClick={() => debugCtx?.setPanelOpen(false)} />
-          <div className="fixed bottom-20 right-6 z-50 w-[340px] max-h-[calc(100vh-120px)] overflow-y-auto rounded-2xl border border-zinc-200 bg-white p-5 shadow-2xl shadow-zinc-900/20">
+          <div className="fab-sheet-bottom-safe fixed right-6 z-50 max-h-[calc(100vh-120px)] w-[340px] overflow-y-auto rounded-2xl border border-zinc-200 bg-white p-5 shadow-2xl shadow-zinc-900/20">
             <div className="flex items-center justify-between mb-4">
               <span className="text-sm font-semibold text-zinc-900">Фильтры</span>
               <div className="flex items-center gap-2">

@@ -132,7 +132,7 @@ export function FilterPanel({
         aria-hidden
       />
       <div
-        className="fixed bottom-4 right-4 z-50 w-[calc(100vw-2rem)] max-w-md max-h-[70vh] overflow-y-auto rounded-2xl border border-zinc-200 bg-white shadow-2xl animate-scale-in origin-bottom-right sm:bottom-6 sm:right-6"
+        className="fab-sheet-bottom-safe fixed right-4 z-50 max-h-[70vh] w-[calc(100vw-2rem)] max-w-md origin-bottom-right animate-scale-in overflow-y-auto rounded-2xl border border-zinc-200 bg-white shadow-2xl sm:right-6"
         role="dialog"
         aria-label="Фильтры"
       >

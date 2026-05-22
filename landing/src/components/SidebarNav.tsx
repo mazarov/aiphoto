@@ -240,7 +240,7 @@ export function SidebarNav({ menu }: { menu: MenuSectionWithCounts[] }) {
             <button
               type="button"
               onClick={() => setMobileOpen(true)}
-              className="fixed bottom-20 left-5 z-30 flex h-12 w-12 items-center justify-center rounded-full bg-zinc-900 text-white shadow-lg transition-all hover:bg-zinc-800 active:scale-95 sm:bottom-6 sm:left-6 lg:hidden"
+              className="fab-bottom-safe fixed left-5 z-30 flex h-12 w-12 items-center justify-center rounded-full bg-zinc-900 text-white shadow-lg transition-all hover:bg-zinc-800 active:scale-95 sm:left-6 lg:hidden"
               aria-label="Каталог"
             >
               <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

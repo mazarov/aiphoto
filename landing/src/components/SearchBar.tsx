@@ -285,7 +285,7 @@ export function SearchBar() {
             <button
               type="button"
               onClick={() => setMobileActive(true)}
-              className="fixed bottom-20 left-1/2 z-40 -translate-x-1/2 flex h-12 w-[188px] items-center justify-center gap-2.5 rounded-full bg-zinc-900 px-4 text-white shadow-lg transition-transform active:scale-[0.98] sm:bottom-6 sm:w-[220px] lg:hidden"
+              className="fab-bottom-safe fixed left-1/2 z-40 flex h-12 w-[188px] -translate-x-1/2 items-center justify-center gap-2.5 rounded-full bg-zinc-900 px-4 text-white shadow-lg transition-transform active:scale-[0.98] sm:w-[220px] lg:hidden"
               aria-label="Поиск"
             >
               <SearchIcon className="h-4 w-4 text-white/80" />
