@@ -165,12 +165,9 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
 
 
   const handleCloseMobileViewer = useCallback(() => {
-    if (typeof window !== "undefined" && window.history.length > 1) {
-      router.back();
-    } else {
-      router.push("/");
-    }
-  }, [router]);
+    const href = breadcrumbTag?.urlPath ?? "/";
+    router.replace(href);
+  }, [router, breadcrumbTag]);
 
 
 
@@ -189,7 +186,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
 
   const goListingNeighbor = useCallback(
     (slug: string) => {
-      router.push(`/p/${encodeURIComponent(slug)}`);
+      router.replace(`/p/${encodeURIComponent(slug)}`);
     },
     [router]
   );
