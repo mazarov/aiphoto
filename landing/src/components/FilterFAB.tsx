@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import { usePathname } from "next/navigation";
 import { FilterPanel } from "./FilterPanel";
 import type { FilterState } from "@/hooks/useListingFilters";
 import type { Dimension } from "@/lib/tag-registry";
@@ -26,6 +27,8 @@ export function FilterFAB({
   rpcParams,
   cardsForCounts,
 }: Props) {
+  const pathname = usePathname();
+  const onCardSlugPage = pathname?.startsWith("/p/") ?? false;
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
 
@@ -40,7 +43,11 @@ export function FilterFAB({
           <button
             type="button"
             onClick={() => setOpen(true)}
-            className="fab-bottom-safe fixed right-5 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-zinc-900 text-white shadow-lg transition-all hover:bg-zinc-800 active:scale-95 sm:right-6"
+            className={`fab-bottom-safe fixed right-5 z-40 flex h-12 w-12 items-center justify-center rounded-full text-white shadow-lg transition-all active:scale-[0.97] sm:right-6 ${
+              onCardSlugPage
+                ? "bg-zinc-800 hover:bg-zinc-700"
+                : "bg-zinc-900 hover:bg-zinc-800"
+            }`}
             aria-label={activeCount > 0 ? `Фильтры (${activeCount})` : "Фильтры"}
           >
             {activeCount > 0 ? (

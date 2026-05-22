@@ -16,16 +16,6 @@ const CardPageClient = nextDynamic(
     import("@/components/CardPageClient").then((m) => m.CardPageClient),
   {
     ssr: true,
-    loading: () => (
-      <div aria-busy="true" aria-label="Загрузка карточки">
-        <div className="h-[100dvh] animate-pulse bg-gradient-to-b from-zinc-200 via-zinc-100 to-white md:hidden" />
-        <div className="mx-auto max-w-2xl space-y-6 px-5 py-8 pb-28 md:py-10">
-          <div className="mx-auto hidden h-72 animate-pulse rounded-3xl bg-zinc-100 md:block md:mx-0" />
-          <div className="mx-auto h-8 w-2/3 animate-pulse rounded-lg bg-zinc-100" />
-          <div className="h-36 animate-pulse rounded-2xl bg-zinc-50 md:h-44" />
-        </div>
-      </div>
-    ),
   }
 );
 

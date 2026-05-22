@@ -717,11 +717,11 @@ export async function getCardPageData(
   options?: GetCardPageDataOptions,
 ): Promise<CardPageData | null> {
   const supabase = createSupabaseServer();
-  /** Core columns only — avoids 404 for all /p/ pages when migration 156 (`author_user_id`) is not applied yet. */
+  /** Включает `author_user_id` — колонка из миграции 156, обязательна в проде. */
   const { data: card, error: cardError } = await supabase
     .from("prompt_cards")
     .select(
-      "id,slug,title_ru,title_en,seo_tags,seo_readiness_score,hashtags,is_published,source_date,source_dataset_slug,source_message_id,card_split_index,card_split_total,likes_count,dislikes_count,view_count"
+      "id,slug,title_ru,title_en,seo_tags,seo_readiness_score,hashtags,is_published,source_date,source_dataset_slug,source_message_id,card_split_index,card_split_total,likes_count,dislikes_count,view_count,author_user_id"
     )
     .eq("slug", slug)
     .maybeSingle();
@@ -734,16 +734,8 @@ export async function getCardPageData(
 
   const isPublished = !!(card as { is_published?: boolean }).is_published;
 
-  let authorUserId: string | null = null;
-  const { data: authorRow, error: authorErr } = await supabase
-    .from("prompt_cards")
-    .select("author_user_id")
-    .eq("id", card.id)
-    .maybeSingle();
-  if (!authorErr && authorRow) {
-    authorUserId =
-      ((authorRow as { author_user_id?: string | null }).author_user_id ?? null) as string | null;
-  }
+  const authorUserId =
+    ((card as { author_user_id?: string | null }).author_user_id ?? null) as string | null;
   const viewerId = options?.viewerUserId ?? null;
   const viewerIsOwner = !!(viewerId && authorUserId && viewerId === authorUserId);
 

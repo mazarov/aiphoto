@@ -35,7 +35,6 @@ const MOBILE_FS_CHIP =
 /** То же — приглушённый текст для нессылочных чипов */
 const MOBILE_FS_CHIP_MUTED =
   "bg-black/15 text-white/80 backdrop-blur-md shadow-none transition-colors hover:bg-black/25";
-const MOBILE_FS_PANEL = `${MOBILE_FS_CHIP} rounded-2xl px-3 py-2.5 text-[13px] font-medium leading-snug`;
 /** Кнопки поверх фото (копировать) — без «полосы», тот же glass. */
 const MOBILE_FS_ACTION = `${MOBILE_FS_CHIP} rounded-xl font-semibold`;
 const MOBILE_FS_EXPAND = `${MOBILE_FS_CHIP} rounded-2xl px-4 py-3 text-[13px] font-medium leading-snug`;
@@ -688,9 +687,19 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
                 ) : null}
 
                 <header className="pointer-events-none relative z-[60] shrink-0 px-4 pt-[max(12px,env(safe-area-inset-top))]">
-                  <div className="pointer-events-auto flex min-h-[2.75rem] items-center gap-2 pb-2">
-                    <div className="h-11 w-11 shrink-0" aria-hidden />
-                    <div className="flex min-h-[2.75rem] min-w-0 flex-1 items-center justify-center px-1">
+                  {photos.length > 1 ? (
+                    <div className="pointer-events-none flex gap-1 px-1 pb-2 pt-0" aria-hidden>
+                      {photos.map((_, idx) => (
+                        <div
+                          key={idx}
+                          className={`h-1 min-h-1 min-w-[12px] flex-1 rounded-full ${idx === photoIndex ? "bg-white shadow-[0_0_12px_rgb(255_255_255/0.55)]" : "bg-white/32"}`}
+                        />
+                      ))}
+                    </div>
+                  ) : null}
+                  <div className="pointer-events-auto grid min-h-[2.75rem] grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-x-2 pb-2">
+                    <div className="h-11 w-11 shrink-0 justify-self-start" aria-hidden />
+                    <div className="flex min-h-[2.75rem] shrink-0 items-center justify-center px-1">
                       <div
                         className={`inline-flex max-w-[min(100%,18rem)] items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] ${MOBILE_FS_CHIP}`}
                         aria-label={`Просмотров: ${formatCompactCount(viewCount)}`}
@@ -702,31 +711,59 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
                         <span className="truncate font-normal text-white/75">просмотров</span>
                       </div>
                     </div>
-                    <div className="flex h-11 w-11 shrink-0 items-center justify-end">
+                    <div className="flex h-11 items-center justify-end justify-self-end">
                       <button
                         type="button"
                         aria-label="Закрыть"
                         onClick={handleCloseMobileViewer}
                         className={`${OVERLAY_BUTTON_UA_RESET} flex h-10 w-10 items-center justify-center rounded-full bg-black/15 p-2 text-white/90 backdrop-blur-md shadow-none transition-colors hover:bg-black/25 active:scale-[0.97]`}
                       >
-                        <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden>
                           <path d="M18 6L6 18M6 6l12 12"/>
                         </svg>
                       </button>
                     </div>
                   </div>
-
-                  {photos.length > 1 ? (
-                    <div className="pointer-events-none flex gap-1 px-1 pb-3 pt-1" aria-hidden>
-                      {photos.map((_, idx) => (
-                        <div
-                          key={idx}
-                          className={`h-1 min-h-1 min-w-[12px] flex-1 rounded-full ${idx === photoIndex ? "bg-white shadow-[0_0_12px_rgb(255_255_255/0.55)]" : "bg-white/32"}`}
-                        />
-                      ))}
-                    </div>
-                  ) : null}
                 </header>
+
+                {groupCards.length > 1 ? (
+                  <aside className="pointer-events-none absolute left-3 top-1/2 z-[73] flex max-h-[min(76dvh,100dvh-8rem)] -translate-y-1/2 flex-col items-start justify-center">
+                    <nav
+                      className="pointer-events-auto scrollbar-none flex flex-col gap-2 overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch] py-px"
+                      aria-label="Варианты подборки"
+                    >
+                      {groupCards.map((card) => {
+                        const isActive = card.id === data.id;
+                        return (
+                          <Link
+                            key={card.id}
+                            href={`/p/${card.slug}`}
+                            className={`flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors touch-manipulation ${
+                              isActive
+                                ? "bg-white/30 ring-1 ring-white/45 text-white"
+                                : `${MOBILE_FS_CHIP_MUTED} ring-1 ring-transparent`
+                            }`}
+                          >
+                            {card.mainPhotoUrl ? (
+                              <div className="relative h-4 w-4 shrink-0 overflow-hidden rounded-full ring-1 ring-white/25">
+                                <Image
+                                  src={card.mainPhotoUrl}
+                                  alt=""
+                                  width={16}
+                                  height={16}
+                                  className="h-full w-full object-cover"
+                                  sizes={SIZES_CARD_GRID}
+                                  quality={CARD_IMAGE_NEXT_QUALITY}
+                                />
+                              </div>
+                            ) : null}
+                            <span className="tabular-nums font-semibold">{card.card_split_index + 1}</span>
+                          </Link>
+                        );
+                      })}
+                    </nav>
+                  </aside>
+                ) : null}
 
                 <aside className="pointer-events-none absolute right-3 top-1/2 z-[73] flex max-h-[min(76dvh,100dvh-8rem)] -translate-y-1/2 flex-col items-end justify-center gap-2">
                   <div className="pointer-events-auto flex flex-col items-center gap-2">
@@ -759,20 +796,17 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
                 <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[80] flex max-h-[min(56dvh,calc(100dvh-env(safe-area-inset-bottom)-env(safe-area-inset-top)-6rem)] flex-col justify-end gap-3 overflow-hidden px-4 pb-[calc(env(safe-area-inset-bottom)+6.125rem)] pt-28">
                   <div className="pointer-events-auto min-h-0 w-full flex-1 space-y-3 overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch]">
                     {hasPrompts ? (
-                      <section aria-labelledby="mobile-prompt-preview-label">
-                        <h2 id="mobile-prompt-preview-label" className="sr-only">
-                          Превью промта
+                      <section aria-labelledby="mobile-prompt-cta-label">
+                        <h2 id="mobile-prompt-cta-label" className="sr-only">
+                          Промпт
                         </h2>
-                        <div className={MOBILE_FS_PANEL}>
-                          <p className="line-clamp-2 whitespace-pre-wrap leading-snug text-white/92">
-                            {data.promptTexts.join("\n\n")}
-                          </p>
+                        <div className="flex w-full flex-wrap justify-start gap-1.5">
                           <button
                             type="button"
                             onClick={() => setMobilePromptOverlay(true)}
-                            className={`${OVERLAY_BUTTON_UA_RESET} mt-2 touch-manipulation text-left text-[11px] font-medium leading-snug text-white/52 underline decoration-white/28 underline-offset-2 transition-colors hover:text-white/72`}
+                            className={`${OVERLAY_BUTTON_UA_RESET} touch-manipulation rounded-full px-2.5 py-1 text-[11px] font-medium text-white/90 ${MOBILE_FS_CHIP}`}
                           >
-                            Показать целиком
+                            Посмотреть промпт
                           </button>
                         </div>
                       </section>
@@ -799,40 +833,6 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
                               </span>
                             )
                           )}
-                        </div>
-                      </section>
-                    ) : null}
-                    {groupCards.length > 1 ? (
-                      <section className="" aria-label="Подборка">
-                        <h2 className="sr-only">Подборка</h2>
-                        <div className="scrollbar-none flex gap-1.5 overflow-x-auto pb-1 [-webkit-overflow-scrolling:touch]">
-                          {groupCards.map((card) => {
-                            const isActive = card.id === data.id;
-                            return (
-                              <Link
-                                key={card.id}
-                                href={`/p/${card.slug}`}
-                                className={`flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors ${
-                                  isActive ? "bg-white/30 ring-1 ring-white/45 text-white" : `${MOBILE_FS_CHIP_MUTED} ring-1 ring-transparent`
-                                }`}
-                              >
-                                {card.mainPhotoUrl ? (
-                                  <div className="relative h-4 w-4 shrink-0 overflow-hidden rounded-full ring-1 ring-white/25">
-                                    <Image
-                                      src={card.mainPhotoUrl}
-                                      alt=""
-                                      width={16}
-                                      height={16}
-                                      className="h-full w-full object-cover"
-                                      sizes={SIZES_CARD_GRID}
-                                      quality={CARD_IMAGE_NEXT_QUALITY}
-                                    />
-                                  </div>
-                                ) : null}
-                                <span className="tabular-nums font-semibold">{card.card_split_index + 1}</span>
-                              </Link>
-                            );
-                          })}
                         </div>
                       </section>
                     ) : null}
@@ -868,11 +868,6 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
                           onGo={goListingNeighbor}
                           floatingGlass
                         />
-                        <LexyGptGenerateButton
-                          promptText={data.promptTexts.join("\n\n")}
-                          variant="sticky"
-                          className="h-full min-h-11 min-w-0 !flex-initial px-2 text-[11px] shadow-none ring-2 ring-black/35 w-full"
-                        />
                         <button
                           type="button"
                           onClick={(e) => {
@@ -903,6 +898,11 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
                             </>
                           )}
                         </button>
+                        <LexyGptGenerateButton
+                          promptText={data.promptTexts.join("\n\n")}
+                          variant="sticky"
+                          className="h-full min-h-11 min-w-0 !flex-initial px-2 text-[11px] shadow-none ring-2 ring-black/35 w-full"
+                        />
                         <StickyListingNavButton
                           slug={listingNext}
                           direction="next"
@@ -914,11 +914,6 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
 
                     {hasPrompts && !listingNavInStickyBar ? (
                       <div className="flex flex-col gap-2 shadow-none">
-                        <LexyGptGenerateButton
-                          promptText={data.promptTexts.join("\n\n")}
-                          variant="sticky"
-                          className="min-h-11 text-[11px] shadow-none ring-2 ring-black/35"
-                        />
                         <button
                           type="button"
                           onClick={(e) => {
@@ -948,6 +943,11 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
                             </>
                           )}
                         </button>
+                        <LexyGptGenerateButton
+                          promptText={data.promptTexts.join("\n\n")}
+                          variant="sticky"
+                          className="min-h-11 text-[11px] shadow-none ring-2 ring-black/35"
+                        />
                       </div>
                     ) : null}
                   </div>
@@ -1114,11 +1114,6 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
             {listingNavInStickyBar ? (
               <div className="grid grid-cols-[minmax(0,3rem)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,3rem)] items-stretch gap-2">
                 <StickyListingNavButton slug={listingPrev} direction="prev" onGo={goListingNeighbor} />
-                <LexyGptGenerateButton
-                  promptText={data.promptTexts.join("\n\n")}
-                  variant="sticky"
-                  className="h-full min-w-0 !flex-initial px-2.5 w-full sm:px-3"
-                />
                 <button
                   type="button"
                   onClick={(e) => {
@@ -1150,14 +1145,15 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
                     </>
                   )}
                 </button>
+                <LexyGptGenerateButton
+                  promptText={data.promptTexts.join("\n\n")}
+                  variant="sticky"
+                  className="h-full min-w-0 !flex-initial px-2.5 w-full sm:px-3"
+                />
                 <StickyListingNavButton slug={listingNext} direction="next" onGo={goListingNeighbor} />
               </div>
             ) : (
               <div className="flex flex-col gap-2 sm:flex-row sm:items-stretch">
-                <LexyGptGenerateButton
-                  promptText={data.promptTexts.join("\n\n")}
-                  variant="sticky"
-                />
                 <button
                   type="button"
                   onClick={(e) => {
@@ -1187,6 +1183,10 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
                     </>
                   )}
                 </button>
+                <LexyGptGenerateButton
+                  promptText={data.promptTexts.join("\n\n")}
+                  variant="sticky"
+                />
               </div>
             )}
           </div>

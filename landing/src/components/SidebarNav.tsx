@@ -219,6 +219,8 @@ export function SidebarNav({ menu }: { menu: MenuSectionWithCounts[] }) {
     setExpandedIdx((prev) => (prev === idx ? null : idx));
   }, []);
 
+  const onCardSlugPage = pathname?.startsWith("/p/") ?? false;
+
   return (
     <>
       {/* Desktop sidebar */}
@@ -240,7 +242,11 @@ export function SidebarNav({ menu }: { menu: MenuSectionWithCounts[] }) {
             <button
               type="button"
               onClick={() => setMobileOpen(true)}
-              className="fab-bottom-safe fixed left-5 z-30 flex h-12 w-12 items-center justify-center rounded-full bg-zinc-900 text-white shadow-lg transition-all hover:bg-zinc-800 active:scale-95 sm:left-6 lg:hidden"
+              className={`fab-bottom-safe fixed left-5 z-30 flex h-12 w-12 items-center justify-center rounded-full text-white shadow-lg transition-all active:scale-95 sm:left-6 lg:hidden ${
+                onCardSlugPage
+                  ? "bg-zinc-800 hover:bg-zinc-700"
+                  : "bg-zinc-900 hover:bg-zinc-800"
+              }`}
               aria-label="Каталог"
             >
               <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

@@ -108,7 +108,7 @@ export function LexyGptGenerateButton({
           ? "Промпт скопирован — разрешите всплывающие окна для LexyGPT"
           : phase === "blocked"
             ? "Не удалось открыть LexyGPT"
-            : "Сгенерировать в LexyGPT: скопировать промпт и открыть вкладку";
+            : "Повторить в LexyGPT: скопировать промпт и открыть вкладку";
 
   const visibleLabel =
     variant === "sticky"
@@ -120,7 +120,7 @@ export function LexyGptGenerateButton({
             ? "Разрешите окна"
             : phase === "blocked"
               ? "Ошибка"
-              : "Сгенерировать"
+              : "Повторить"
       : phase === "opening"
         ? "Скопировано · новая вкладка"
         : phase === "tab_only"
