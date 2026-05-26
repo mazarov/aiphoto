@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, memo } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import type { PromptCardFull } from "@/lib/supabase";
@@ -58,7 +58,7 @@ function DebugOverlay({ card }: { card: PromptCardFull }) {
   );
 }
 
-export function PromptCard({ card, debug = false, priorityLoad = false }: Props) {
+function PromptCardBase({ card, debug = false, priorityLoad = false }: Props) {
   const { open } = usePromptCardModal();
   const { reactions, favorites, toggleReaction, toggleFavorite } = useCardInteractions();
   const title = card.title_ru || card.title_en || "Без названия";
@@ -68,12 +68,25 @@ export function PromptCard({ card, debug = false, priorityLoad = false }: Props)
   const [expanded, setExpanded] = useState(false);
   const [copyHint, setCopyHint] = useState<"idle" | "success" | "error">("idle");
 
+  // Controlled reveal state (set true either immediately for priorityLoad or after decode).
+  const [imageReady, setImageReady] = useState(() => !!priorityLoad);
+
   const photos = card.photoUrls;
   const currentPhoto = photos[photoIndex] || null;
   const promptPreview =
     card.promptTexts[0]?.slice(0, 100) + (card.promptTexts[0]?.length > 100 ? "…" : "") || "";
 
   const viewCount = card.viewCount ?? 0;
+
+  // Reset reveal when the actual photo to display changes (priority items stay ready).
+  // Runs after currentPhoto is declared.
+  useEffect(() => {
+    if (priorityLoad) {
+      setImageReady(true);
+      return;
+    }
+    setImageReady(false);
+  }, [currentPhoto, priorityLoad]);
 
   function nextPhoto(e: React.MouseEvent) {
     e.stopPropagation();
@@ -119,11 +132,32 @@ export function PromptCard({ card, debug = false, priorityLoad = false }: Props)
             priority={priorityLoad}
             fetchPriority={priorityLoad ? "high" : undefined}
             className={mainPhotoClass}
+            onLoadingComplete={(img) => {
+              if (priorityLoad) {
+                setImageReady(true);
+                return;
+              }
+              // decode() ensures the frame is GPU-ready before we remove the shimmer → no flash/pop.
+              if (typeof img.decode === "function") {
+                img.decode().then(() => setImageReady(true)).catch(() => setImageReady(true));
+              } else {
+                setImageReady(true);
+              }
+            }}
           />
         ) : (
           <div className="flex h-full items-center justify-center bg-zinc-100 text-zinc-400 text-sm">
             Нет фото
           </div>
+        )}
+
+        {/* Controlled shimmer overlay for smooth first reveal (client-side decode + cross-fade).
+            Hidden instantly for priorityLoad LCP items and after successful decode. */}
+        {!imageReady && currentPhoto && (
+          <div
+            className="absolute inset-0 z-[3] pointer-events-none rounded-t-2xl bg-zinc-300/45 listing-card-shimmer-bar"
+            aria-hidden
+          />
         )}
 
         {card.slug && (
@@ -325,3 +359,12 @@ export function PromptCard({ card, debug = false, priorityLoad = false }: Props)
     </article>
   );
 }
+
+function promptCardPropsAreEqual(prev: Props, next: Props): boolean {
+  if (prev.debug !== next.debug) return false;
+  if (prev.priorityLoad !== next.priorityLoad) return false;
+  if (prev.card?.id !== next.card?.id) return false;
+  return true;
+}
+
+export const PromptCard = memo(PromptCardBase, promptCardPropsAreEqual);

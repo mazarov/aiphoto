@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { createSupabaseBrowser } from "@/lib/supabase-browser";
 
@@ -19,6 +19,27 @@ export function useUserInteractions(): UserInteractions {
   const [reactions, setReactions] = useState<Map<string, Reaction>>(new Map());
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
   const loadedRef = useRef<Set<string>>(new Set());
+
+  // Refs for latest mutable values — allows action callbacks (toggle*) to keep stable identity
+  // across renders (critical for reducing re-renders of all cards in the provider tree).
+  const reactionsRef = useRef(reactions);
+  const favoritesRef = useRef(favorites);
+  const userRef = useRef(user);
+  const openAuthModalRef = useRef(openAuthModal);
+
+  // Keep refs updated (no extra renders)
+  useEffect(() => {
+    reactionsRef.current = reactions;
+  }, [reactions]);
+  useEffect(() => {
+    favoritesRef.current = favorites;
+  }, [favorites]);
+  useEffect(() => {
+    userRef.current = user;
+  }, [user]);
+  useEffect(() => {
+    openAuthModalRef.current = openAuthModal;
+  }, [openAuthModal]);
 
   const loadForCards = useCallback(
     (cardIds: string[]) => {
@@ -74,13 +95,14 @@ export function useUserInteractions(): UserInteractions {
 
   const toggleReaction = useCallback(
     async (cardId: string, reaction: Reaction) => {
-      if (!user) {
-        openAuthModal();
+      const currentUser = userRef.current;
+      if (!currentUser) {
+        openAuthModalRef.current?.();
         return;
       }
 
       const supabase = createSupabaseBrowser();
-      const current = reactions.get(cardId);
+      const current = reactionsRef.current.get(cardId);
 
       if (current === reaction) {
         // Remove reaction (toggle off)
@@ -92,7 +114,7 @@ export function useUserInteractions(): UserInteractions {
         await supabase
           .from("card_reactions")
           .delete()
-          .match({ user_id: user.id, card_id: cardId });
+          .match({ user_id: currentUser.id, card_id: cardId });
       } else {
         // Set or switch reaction
         setReactions((prev) => {
@@ -102,7 +124,7 @@ export function useUserInteractions(): UserInteractions {
         });
         await supabase.from("card_reactions").upsert(
           {
-            user_id: user.id,
+            user_id: currentUser.id,
             card_id: cardId,
             reaction,
             updated_at: new Date().toISOString(),
@@ -111,18 +133,19 @@ export function useUserInteractions(): UserInteractions {
         );
       }
     },
-    [user, reactions, openAuthModal]
+    [] // stable identity — all reads go through refs; no recreation on reactions/user changes
   );
 
   const toggleFavorite = useCallback(
     async (cardId: string) => {
-      if (!user) {
-        openAuthModal();
+      const currentUser = userRef.current;
+      if (!currentUser) {
+        openAuthModalRef.current?.();
         return;
       }
 
       const supabase = createSupabaseBrowser();
-      const isFavorited = favorites.has(cardId);
+      const isFavorited = favoritesRef.current.has(cardId);
 
       if (isFavorited) {
         setFavorites((prev) => {
@@ -133,7 +156,7 @@ export function useUserInteractions(): UserInteractions {
         await supabase
           .from("card_favorites")
           .delete()
-          .match({ user_id: user.id, card_id: cardId });
+          .match({ user_id: currentUser.id, card_id: cardId });
       } else {
         setFavorites((prev) => {
           const next = new Set(prev);
@@ -142,11 +165,15 @@ export function useUserInteractions(): UserInteractions {
         });
         await supabase
           .from("card_favorites")
-          .insert({ user_id: user.id, card_id: cardId });
+          .insert({ user_id: currentUser.id, card_id: cardId });
       }
     },
-    [user, favorites, openAuthModal]
+    [] // stable identity via refs
   );
 
-  return { reactions, favorites, toggleReaction, toggleFavorite, loadForCards };
+  const api = useMemo(
+    () => ({ reactions, favorites, toggleReaction, toggleFavorite, loadForCards }),
+    [reactions, favorites, toggleReaction, toggleFavorite, loadForCards]
+  );
+  return api;
 }

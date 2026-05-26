@@ -146,6 +146,23 @@ p {
     pointer-events: none;
   }
 
+  /**
+   * P1 perf: containment + content-visibility on card chrome and roots.
+   * Lets the browser skip layout/paint/work for offscreen or stable cards in long grids.
+   * Applied to the chrome layer and the article wrappers inside PromptCard/GroupedCard.
+   */
+  .listing-card-chrome {
+    content-visibility: auto;
+    contain: layout style paint;
+  }
+
+  /* Card root articles (both the outer in PromptCard and the inner articleEl in GroupedCard) */
+  article.relative.isolate.overflow-hidden.rounded-2xl,
+  article.relative.z-10.isolate.overflow-hidden.rounded-2xl {
+    content-visibility: auto;
+    contain: layout style paint;
+  }
+
   @media (hover: hover) and (pointer: fine) and (min-width: 768px) {
     .listing-card-chrome-ambient {
       transform: translateY(8px);
@@ -200,6 +217,8 @@ p {
       .listing-card-photo-hover {
         transform-origin: center;
         transition: transform 280ms cubic-bezier(0.4, 0, 0.2, 1);
+        /* Targeted will-change only for the promoted hover layer (not blanket on hundreds of cards) */
+        will-change: transform;
       }
 
       .group:hover .listing-card-photo-hover,
