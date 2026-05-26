@@ -49,9 +49,13 @@ type Props = {
   isModal?: boolean;
   /** When provided (client-side modal), neighbor navigation stays inside the same modal instance. */
   onListingNeighborGo?: (slug: string) => void;
+  /** Optional explicit close handler for the client-side single-instance modal.
+   * When present, the mobile photo header "Закрыть" button will use this instead of router.back().
+   */
+  onCloseModal?: () => void;
 };
 
-export function CardPageClient({ data, tagEntries, breadcrumbTag, isModal = false, onListingNeighborGo }: Props) {
+export function CardPageClient({ data, tagEntries, breadcrumbTag, isModal = false, onListingNeighborGo, onCloseModal }: Props) {
   const cardIds = useMemo(() => [data.id], [data.id]);
   return (
     <CardInteractionsProvider cardIds={cardIds}>
@@ -61,12 +65,13 @@ export function CardPageClient({ data, tagEntries, breadcrumbTag, isModal = fals
         breadcrumbTag={breadcrumbTag}
         isModal={isModal}
         onListingNeighborGo={onListingNeighborGo}
+        onCloseModal={onCloseModal}
       />
     </CardInteractionsProvider>
   );
 }
 
-function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListingNeighborGo }: Props) {
+function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListingNeighborGo, onCloseModal }: Props) {
   const router = useRouter();
   const title = data.title_ru || data.title_en || "Без названия";
   const [publishedLocal, setPublishedLocal] = useState(data.isPublished);
@@ -176,14 +181,18 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
 
 
   const handleCloseMobileViewer = useCallback(() => {
+    if (onCloseModal) {
+      onCloseModal();
+      return;
+    }
     if (onListingNeighborGo) {
-      // In client-side single-instance modal the parent (ClientCardModal) owns the close via CardModal.
-      // The actual close is triggered by the CardModal's own X / overlay / Escape.
+      // Legacy safety: if only neighbor navigation was passed (no explicit close),
+      // the parent modal owns close. Do nothing here.
       return;
     }
     // Server-rendered full page or intercepting modal: go back to listing
     router.back();
-  }, [router, onListingNeighborGo]);
+  }, [router, onListingNeighborGo, onCloseModal]);
 
 
 
@@ -644,7 +653,11 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
             </div>
           </div>
 
-          {/* Mobile: fullscreen-карточка (Chrome скрыт через CardPageLayout при наличии фото). */}
+          {/* Mobile: fullscreen-карточка (Chrome скрыт через CardPageLayout при наличии фото).
+              This block is rendered both for direct /p/[slug] pages and for the client-side single-instance
+              modal (when opened from a listing or search). The close button inside the photo header
+              respects onCloseModal (client modal) or falls back to router.back() (direct pages). */}
+          {hasPhotos && (
           <div className="fixed inset-0 z-[245] flex min-h-[100dvh] flex-col bg-transparent md:hidden motion-reduce:transition-none">
             {currentPhoto ? (
               <>
@@ -996,6 +1009,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
               <div className="flex flex-1 items-center justify-center px-6 text-zinc-500">Нет фото</div>
             )}
           </div>
+          )}
         </>
       )}
 

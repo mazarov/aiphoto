@@ -114,6 +114,9 @@ export function ClientCardModal() {
               // Pass the neighbor navigation that stays inside the *same* modal instance.
               // This makes left/right arrows work without full navigation or multiple modals.
               onListingNeighborGo={goToNeighbor}
+              // Make the mobile photo header "Закрыть" крестик actually close this client modal
+              // (same visual position and style as on direct /p/[slug] pages).
+              onCloseModal={handleClose}
             />
           </CardInteractionsProvider>
         )}
