@@ -33,7 +33,7 @@ const VARIANT_BASE: Record<Props["variant"], string> = {
   listing: `${OVERLAY_BUTTON_APPEARANCE_RESET} flex-1 min-w-0 rounded-full border border-emerald-400/40 bg-emerald-600/85 px-2 py-1.5 text-[10px] font-semibold text-white backdrop-blur-md shadow-sm transition-all hover:bg-emerald-600 active:scale-[0.98] sm:px-3 sm:py-2 sm:text-[11px]`,
   expanded: `${OVERLAY_BUTTON_UA_RESET} flex-1 shrink-0 min-w-0 rounded-xl bg-emerald-600 px-3 py-2.5 text-xs font-semibold text-white transition-all hover:bg-emerald-500 active:scale-[0.98] disabled:opacity-50`,
   sticky:
-    "inline-flex flex-1 min-h-[3rem] min-w-0 items-center justify-center gap-1 rounded-xl bg-emerald-600 px-2.5 py-2 text-center text-xs font-semibold leading-snug text-white shadow-lg transition-all hover:bg-emerald-700 active:scale-[0.98] disabled:opacity-50 sm:gap-2 sm:px-4 sm:py-3 sm:text-sm sm:leading-normal",
+    "flex min-h-[3rem] min-w-0 w-full items-center justify-center gap-1 rounded-xl bg-emerald-600 px-2.5 py-2 text-center text-xs font-semibold leading-snug text-white shadow-lg transition-all hover:bg-emerald-700 active:scale-[0.98] disabled:opacity-50 sm:gap-2 sm:px-4 sm:py-3 sm:text-sm sm:leading-normal",
 };
 
 const PHASE_MS = 2800;

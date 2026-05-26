@@ -21,11 +21,18 @@ export function ClientCardModal() {
   const [error, setError] = useState<string | null>(null);
 
   const fetchCard = useCallback(async (slug: string) => {
-    // Use cache if we have it (for fast neighbor switches)
+    // Fast path: use cache for instant neighbor switches inside the modal (no network, no loading flash).
     const cached = cardCache.get(slug);
     if (cached) {
-      // We still need to build the lightweight tag/breadcrumb entries client-side.
-      // For simplicity in v1 we re-fetch the full payload; caching can be improved later.
+      const loadedCard: LoadedCard = {
+        data: cached,
+        tagEntries: [],
+        breadcrumbTag: null,
+      };
+      setLoaded(loadedCard);
+      setError(null);
+      setLoading(false);
+      return;
     }
 
     setLoading(true);

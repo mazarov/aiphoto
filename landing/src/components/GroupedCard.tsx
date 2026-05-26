@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, memo } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import type { PromptCardFull } from "@/lib/supabase";
@@ -27,7 +27,7 @@ type Props = {
   priorityLoad?: boolean;
 };
 
-export function GroupedCard({ cards, debug = false, priorityLoad = false }: Props) {
+function GroupedCardBase({ cards, debug = false, priorityLoad = false }: Props) {
   const { open } = usePromptCardModal();
   const sorted = [...cards].sort((a, b) => a.cardSplitIndex - b.cardSplitIndex);
   const [activeCardIdx, setActiveCardIdx] = useState(0);
@@ -46,6 +46,9 @@ export function GroupedCard({ cards, debug = false, priorityLoad = false }: Prop
   const [expanded, setExpanded] = useState(false);
   const [copyHint, setCopyHint] = useState<"idle" | "success" | "error">("idle");
 
+  // Controlled reveal (see PromptCard for rationale). Reset primarily when the active variant (card) changes.
+  const [imageReady, setImageReady] = useState(() => !!priorityLoad);
+
   const promptPreview =
     allPrompts[0]?.slice(0, 100) + (allPrompts[0]?.length > 100 ? "…" : "") || "";
 
@@ -54,6 +57,16 @@ export function GroupedCard({ cards, debug = false, priorityLoad = false }: Prop
 
   const mainPhotoClass =
     "listing-card-photo-hover object-cover z-[2] opacity-100";
+
+  // Reset reveal when switching variants (activeCard.id). Keep ready for priority items.
+  // Per plan: do not reset on every internal photo arrow inside the same split.
+  useEffect(() => {
+    if (priorityLoad) {
+      setImageReady(true);
+      return;
+    }
+    setImageReady(false);
+  }, [activeCard.id, priorityLoad]);
 
   function handleCardSwitch(idx: number, photoIdx = 0) {
     setActiveCardIdx(idx);
@@ -129,9 +142,28 @@ export function GroupedCard({ cards, debug = false, priorityLoad = false }: Prop
               priority={priorityLoad}
               fetchPriority={priorityLoad ? "high" : undefined}
               className={mainPhotoClass}
+              onLoadingComplete={(img) => {
+                if (priorityLoad) {
+                  setImageReady(true);
+                  return;
+                }
+                if (typeof img.decode === "function") {
+                  img.decode().then(() => setImageReady(true)).catch(() => setImageReady(true));
+                } else {
+                  setImageReady(true);
+                }
+              }}
             />
           ) : (
             <div className="flex h-full items-center justify-center bg-zinc-100 text-zinc-400 text-sm">Нет фото</div>
+          )}
+
+          {/* Controlled shimmer for the active variant's photo (resets on variant switch per plan). */}
+          {!imageReady && currentPhotoUrl && (
+            <div
+              className="absolute inset-0 z-[3] pointer-events-none rounded-t-2xl bg-zinc-300/45 listing-card-shimmer-bar"
+              aria-hidden
+            />
           )}
 
           {activeSlug && (
@@ -348,3 +380,15 @@ export function GroupedCard({ cards, debug = false, priorityLoad = false }: Prop
     </div>
   );
 }
+
+function groupedCardPropsAreEqual(prev: Props, next: Props): boolean {
+  if (prev.debug !== next.debug) return false;
+  if (prev.priorityLoad !== next.priorityLoad) return false;
+  if (prev.cards.length !== next.cards.length) return false;
+  const prevIds = [...prev.cards].map((c) => c.id).sort().join("|");
+  const nextIds = [...next.cards].map((c) => c.id).sort().join("|");
+  if (prevIds !== nextIds) return false;
+  return true;
+}
+
+export const GroupedCard = memo(GroupedCardBase, groupedCardPropsAreEqual);

@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, type ReactNode } from "react";
 import { useUserInteractions } from "@/hooks/useUserInteractions";
 
 type Reaction = "like" | "dislike";
@@ -35,10 +35,13 @@ export function CardInteractionsProvider({
     }
   }, [cardIds, loadForCards]);
 
+  const value = useMemo(
+    () => ({ reactions, favorites, toggleReaction, toggleFavorite }),
+    [reactions, favorites, toggleReaction, toggleFavorite]
+  );
+
   return (
-    <CardInteractionsContext.Provider
-      value={{ reactions, favorites, toggleReaction, toggleFavorite }}
-    >
+    <CardInteractionsContext.Provider value={value}>
       {children}
     </CardInteractionsContext.Provider>
   );

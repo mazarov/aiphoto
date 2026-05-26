@@ -39,6 +39,10 @@ const MOBILE_FS_CHIP_MUTED =
 const MOBILE_FS_ACTION = `${MOBILE_FS_CHIP} rounded-xl font-semibold`;
 const MOBILE_FS_EXPAND = `${MOBILE_FS_CHIP} rounded-2xl px-4 py-3 text-[13px] font-medium leading-snug`;
 
+/** Sticky bar with listing prev/next: arrows + copy + Lexy on one row, full content width. */
+const LISTING_STICKY_ACTIONS_GRID =
+  "grid w-full grid-cols-[minmax(0,2.75rem)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,2.75rem)] items-stretch gap-2";
+
 type TagEntry = { slug: string; label: string; href: string | null };
 type BreadcrumbTag = { labelRu: string; urlPath: string } | null;
 
@@ -895,7 +899,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                     ) : null}
 
                     {hasPrompts && listingNavInStickyBar ? (
-                      <div className="grid grid-cols-[minmax(0,2.75rem)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,2.75rem)] items-stretch gap-2 shadow-none">
+                      <div className={`${LISTING_STICKY_ACTIONS_GRID} shadow-none`}>
                         <StickyListingNavButton
                           slug={listingPrev}
                           direction="prev"
@@ -935,7 +939,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                         <LexyGptGenerateButton
                           promptText={data.promptTexts.join("\n\n")}
                           variant="sticky"
-                          className="h-full min-h-11 min-w-0 !flex-initial px-2 text-[11px] shadow-none ring-2 ring-black/35 w-full"
+                          className="h-full min-h-11 min-w-0 w-full truncate px-2 text-[11px] shadow-none ring-2 ring-black/35"
                         />
                         <StickyListingNavButton
                           slug={listingNext}
@@ -1145,10 +1149,15 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
       {/* ── Sticky CTA — floating ── */}
       {hasPrompts && (
         <div className="fixed inset-x-0 bottom-0 z-[240] safe-area-pb pointer-events-none lg:left-60">
-          <div className="mx-auto max-w-2xl px-4 py-4 pointer-events-auto">
+          <div className="mx-auto w-full max-w-2xl px-5 py-4 pointer-events-auto">
             {listingNavInStickyBar ? (
-              <div className="grid grid-cols-[minmax(0,3rem)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,3rem)] items-stretch gap-2">
-                <StickyListingNavButton slug={listingPrev} direction="prev" onGo={goListingNeighbor} />
+              <div className={LISTING_STICKY_ACTIONS_GRID}>
+                <StickyListingNavButton
+                  slug={listingPrev}
+                  direction="prev"
+                  onGo={goListingNeighbor}
+                  floatingGlass
+                />
                 <button
                   type="button"
                   onClick={(e) => {
@@ -1156,25 +1165,25 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                     e.stopPropagation();
                     void handleCopy();
                   }}
-                  className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-zinc-900 px-3 py-2 text-xs font-semibold text-white shadow-lg transition-all hover:bg-zinc-800 active:scale-[0.98] sm:text-sm sm:px-4"
+                  className="flex min-h-12 min-w-0 w-full items-center justify-center gap-1.5 rounded-xl bg-zinc-900 px-2 py-2 text-xs font-semibold text-white shadow-lg transition-all hover:bg-zinc-800 active:scale-[0.98] sm:gap-2 sm:px-3 sm:text-sm"
                 >
                   {stickyCopy === "ok" ? (
                     <>
-                      <CheckIcon size={16} />
-                      <span className="max-sm:hidden">Скопировано!</span>
-                      <span className="sm:hidden">Готово</span>
+                      <CheckIcon size={16} className="shrink-0" />
+                      <span className="truncate max-sm:hidden">Скопировано!</span>
+                      <span className="truncate sm:hidden">Готово</span>
                     </>
                   ) : stickyCopy === "fail" ? (
                     <>
-                      <span className="text-amber-300" aria-hidden>
+                      <span className="shrink-0 text-amber-300" aria-hidden>
                         !
                       </span>
-                      Не удалось
+                      <span className="truncate">Не удалось</span>
                     </>
                   ) : (
                     <>
-                      <CopyIcon size={16} />
-                      <span className="max-sm:sr-only">
+                      <CopyIcon size={16} className="shrink-0" />
+                      <span className="truncate max-sm:sr-only">
                         {data.promptTexts.length > 1 ? "Все промпты" : "Копировать"}
                       </span>
                     </>
@@ -1183,9 +1192,14 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                 <LexyGptGenerateButton
                   promptText={data.promptTexts.join("\n\n")}
                   variant="sticky"
-                  className="h-full min-w-0 !flex-initial px-2.5 w-full sm:px-3"
+                  className="h-full min-h-12 min-w-0 w-full truncate px-2 sm:px-3"
                 />
-                <StickyListingNavButton slug={listingNext} direction="next" onGo={goListingNeighbor} />
+                <StickyListingNavButton
+                  slug={listingNext}
+                  direction="next"
+                  onGo={goListingNeighbor}
+                  floatingGlass
+                />
               </div>
             ) : (
               <div className="flex flex-col gap-2 sm:flex-row sm:items-stretch">
