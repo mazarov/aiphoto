@@ -46,18 +46,32 @@ type Props = {
   data: CardPageData;
   tagEntries: TagEntry[];
   breadcrumbTag: BreadcrumbTag;
+  isModal?: boolean;
+  /** When provided (client-side modal), neighbor navigation stays inside the same modal instance. */
+  onListingNeighborGo?: (slug: string) => void;
+  /** Optional explicit close handler for the client-side single-instance modal.
+   * When present, the mobile photo header "Закрыть" button will use this instead of router.back().
+   */
+  onCloseModal?: () => void;
 };
 
-export function CardPageClient({ data, tagEntries, breadcrumbTag }: Props) {
+export function CardPageClient({ data, tagEntries, breadcrumbTag, isModal = false, onListingNeighborGo, onCloseModal }: Props) {
   const cardIds = useMemo(() => [data.id], [data.id]);
   return (
     <CardInteractionsProvider cardIds={cardIds}>
-      <CardPageClientInner data={data} tagEntries={tagEntries} breadcrumbTag={breadcrumbTag} />
+      <CardPageClientInner
+        data={data}
+        tagEntries={tagEntries}
+        breadcrumbTag={breadcrumbTag}
+        isModal={isModal}
+        onListingNeighborGo={onListingNeighborGo}
+        onCloseModal={onCloseModal}
+      />
     </CardInteractionsProvider>
   );
 }
 
-function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
+function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListingNeighborGo, onCloseModal }: Props) {
   const router = useRouter();
   const title = data.title_ru || data.title_en || "Без названия";
   const [publishedLocal, setPublishedLocal] = useState(data.isPublished);
@@ -108,8 +122,11 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
   }, [data.slug]);
 
   useEffect(() => {
-    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
-  }, [data.slug]);
+    // Don't scroll to top in modal view — modal handles its own positioning
+    if (!isModal) {
+      window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    }
+  }, [data.slug, isModal]);
 
   async function handleVisibilityChange(nextPublished: boolean) {
     setPubSaving(true);
@@ -164,9 +181,18 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
 
 
   const handleCloseMobileViewer = useCallback(() => {
-    const href = breadcrumbTag?.urlPath ?? "/";
-    router.replace(href);
-  }, [router, breadcrumbTag]);
+    if (onCloseModal) {
+      onCloseModal();
+      return;
+    }
+    if (onListingNeighborGo) {
+      // Legacy safety: if only neighbor navigation was passed (no explicit close),
+      // the parent modal owns close. Do nothing here.
+      return;
+    }
+    // Server-rendered full page or intercepting modal: go back to listing
+    router.back();
+  }, [router, onListingNeighborGo, onCloseModal]);
 
 
 
@@ -185,9 +211,13 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
 
   const goListingNeighbor = useCallback(
     (slug: string) => {
-      router.replace(`/p/${encodeURIComponent(slug)}`);
+      if (onListingNeighborGo) {
+        onListingNeighborGo(slug);
+      } else {
+        router.push(`/p/${encodeURIComponent(slug)}`);
+      }
     },
-    [router]
+    [router, onListingNeighborGo]
   );
 
   const hasPrompts = data.promptTexts.length > 0;
@@ -623,7 +653,11 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
             </div>
           </div>
 
-          {/* Mobile: fullscreen-карточка (Chrome скрыт через CardPageLayout при наличии фото). */}
+          {/* Mobile: fullscreen-карточка (Chrome скрыт через CardPageLayout при наличии фото).
+              This block is rendered both for direct /p/[slug] pages and for the client-side single-instance
+              modal (when opened from a listing or search). The close button inside the photo header
+              respects onCloseModal (client modal) or falls back to router.back() (direct pages). */}
+          {hasPhotos && (
           <div className="fixed inset-0 z-[245] flex min-h-[100dvh] flex-col bg-transparent md:hidden motion-reduce:transition-none">
             {currentPhoto ? (
               <>
@@ -975,6 +1009,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
               <div className="flex flex-1 items-center justify-center px-6 text-zinc-500">Нет фото</div>
             )}
           </div>
+          )}
         </>
       )}
 

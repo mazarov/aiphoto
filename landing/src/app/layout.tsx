@@ -5,8 +5,10 @@ import "./globals.css";
 import { DebugProvider } from "@/components/DebugFAB";
 import { AuthProvider } from "@/context/AuthContext";
 import { GenerationProvider } from "@/context/GenerationContext";
+import { PromptCardModalProvider } from "@/context/PromptCardModalContext";
 import { AuthModal } from "@/components/AuthModal";
 import { GenerationModal } from "@/components/GenerationModal";
+import { ClientCardModal } from "@/components/ClientCardModal";
 
 const inter = Inter({
   subsets: ["latin", "cyrillic"],
@@ -39,8 +41,10 @@ export const viewport: Viewport = {
 
 export default function RootLayout({
   children,
+  modal,
 }: Readonly<{
   children: React.ReactNode;
+  modal: React.ReactNode;
 }>) {
   return (
     <html lang="ru" className={inter.className}>
@@ -48,8 +52,12 @@ export default function RootLayout({
         <AuthProvider>
           <DebugProvider>
             <GenerationProvider>
-              {children}
-              <GenerationModal />
+              <PromptCardModalProvider>
+                {children}
+                {modal}
+                <ClientCardModal />
+                <GenerationModal />
+              </PromptCardModalProvider>
             </GenerationProvider>
           </DebugProvider>
           <AuthModal />

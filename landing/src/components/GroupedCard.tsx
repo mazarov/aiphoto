@@ -5,6 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import type { PromptCardFull } from "@/lib/supabase";
 import { useCardInteractions } from "@/context/CardInteractionsContext";
+import { usePromptCardModal } from "@/context/PromptCardModalContext";
 import { ReactionButtons } from "./ReactionButtons";
 import { splitCardTitle } from "@/lib/format-view-count";
 import { CARD_OVERLAY_PHOTO_COUNTER_CLASS } from "@/lib/card-overlay-photo-counter";
@@ -27,6 +28,7 @@ type Props = {
 };
 
 export function GroupedCard({ cards, debug = false, priorityLoad = false }: Props) {
+  const { open } = usePromptCardModal();
   const sorted = [...cards].sort((a, b) => a.cardSplitIndex - b.cardSplitIndex);
   const [activeCardIdx, setActiveCardIdx] = useState(0);
   const activeCard = sorted[activeCardIdx];
@@ -138,8 +140,10 @@ export function GroupedCard({ cards, debug = false, priorityLoad = false }: Prop
               className="absolute inset-0 z-10"
               aria-label={title}
               prefetch
-              target="_blank"
-              rel="noopener noreferrer"
+              onClick={(e) => {
+                e.preventDefault();
+                open(activeSlug);
+              }}
             />
           )}
 

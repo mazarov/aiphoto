@@ -10,6 +10,8 @@ import { CardInteractionsProvider } from "@/context/CardInteractionsContext";
 import { FilterFAB } from "@/components/FilterFAB";
 import { useListingFilters } from "@/hooks/useListingFilters";
 import type { FilterState } from "@/hooks/useListingFilters";
+import { useListingScrollRestoration } from "@/lib/scroll-preservation";
+import { writeListingNavigationContext } from "@/lib/listing-card-navigation-context";
 
 const PAGE_SIZE = 24;
 
@@ -46,6 +48,10 @@ export function SearchResults({ initialQuery }: Props) {
   const hasMoreRef = useRef(false);
   const offsetRef = useRef(0);
   const queryRef = useRef(query);
+
+  // Centralized scroll restoration when returning from card modal / client modal.
+  // Replaces previous duplicated inline logic.
+  useListingScrollRestoration();
 
   queryRef.current = query;
 
@@ -113,6 +119,18 @@ export function SearchResults({ initialQuery }: Props) {
     if (activeCount === 0) return cards;
     return cards.filter((c) => cardMatchesFilters(c, filters));
   }, [cards, filters, activeCount]);
+
+  // Write navigation context so that when a card is opened from search results
+  // (via the client modal), the left/right arrows have the correct neighbor slugs
+  // in the *current filtered* order. Re-runs on client-side filter changes too.
+  useEffect(() => {
+    if (displayedCards.length > 0) {
+      const slugs = displayedCards.map((c) => c.slug).filter((s): s is string => !!s);
+      if (slugs.length > 0) {
+        writeListingNavigationContext(slugs);
+      }
+    }
+  }, [displayedCards]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

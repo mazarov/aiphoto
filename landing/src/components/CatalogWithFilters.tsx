@@ -6,6 +6,7 @@ import { FilterFAB } from "./FilterFAB";
 import { InfiniteGrid } from "./InfiniteGrid";
 import type { PromptCardFull } from "@/lib/supabase";
 import type { Dimension } from "@/lib/tag-registry";
+import { useListingScrollRestoration } from "@/lib/scroll-preservation";
 
 /** Stable React `key` — raw `JSON.stringify(mergedRpcParams)` can differ by object insertion order → remount grid on scroll/hydration churn. */
 function stableRpcParamsKey(r: Record<string, string | null>): string {
@@ -37,6 +38,10 @@ export function CatalogWithFilters({
     baseRpcParams,
     lockedDimensions,
   });
+
+  // Centralized scroll restoration when returning from card modal / client modal.
+  // Replaces the previous duplicated useLayoutEffect + manual scrollRestoration dance.
+  useListingScrollRestoration();
 
   const listingGridKey = useMemo(
     () => stableRpcParamsKey(mergedRpcParams),
