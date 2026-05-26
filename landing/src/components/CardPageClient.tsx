@@ -46,18 +46,27 @@ type Props = {
   data: CardPageData;
   tagEntries: TagEntry[];
   breadcrumbTag: BreadcrumbTag;
+  isModal?: boolean;
+  /** When provided (client-side modal), neighbor navigation stays inside the same modal instance. */
+  onListingNeighborGo?: (slug: string) => void;
 };
 
-export function CardPageClient({ data, tagEntries, breadcrumbTag }: Props) {
+export function CardPageClient({ data, tagEntries, breadcrumbTag, isModal = false, onListingNeighborGo }: Props) {
   const cardIds = useMemo(() => [data.id], [data.id]);
   return (
     <CardInteractionsProvider cardIds={cardIds}>
-      <CardPageClientInner data={data} tagEntries={tagEntries} breadcrumbTag={breadcrumbTag} />
+      <CardPageClientInner
+        data={data}
+        tagEntries={tagEntries}
+        breadcrumbTag={breadcrumbTag}
+        isModal={isModal}
+        onListingNeighborGo={onListingNeighborGo}
+      />
     </CardInteractionsProvider>
   );
 }
 
-function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
+function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListingNeighborGo }: Props) {
   const router = useRouter();
   const title = data.title_ru || data.title_en || "Без названия";
   const [publishedLocal, setPublishedLocal] = useState(data.isPublished);
@@ -108,8 +117,11 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
   }, [data.slug]);
 
   useEffect(() => {
-    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
-  }, [data.slug]);
+    // Don't scroll to top in modal view — modal handles its own positioning
+    if (!isModal) {
+      window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    }
+  }, [data.slug, isModal]);
 
   async function handleVisibilityChange(nextPublished: boolean) {
     setPubSaving(true);
@@ -164,9 +176,14 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
 
 
   const handleCloseMobileViewer = useCallback(() => {
-    const href = breadcrumbTag?.urlPath ?? "/";
-    router.replace(href);
-  }, [router, breadcrumbTag]);
+    if (onListingNeighborGo) {
+      // In client-side single-instance modal the parent (ClientCardModal) owns the close via CardModal.
+      // The actual close is triggered by the CardModal's own X / overlay / Escape.
+      return;
+    }
+    // Server-rendered full page or intercepting modal: go back to listing
+    router.back();
+  }, [router, onListingNeighborGo]);
 
 
 
@@ -185,9 +202,13 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag }: Props) {
 
   const goListingNeighbor = useCallback(
     (slug: string) => {
-      router.replace(`/p/${encodeURIComponent(slug)}`);
+      if (onListingNeighborGo) {
+        onListingNeighborGo(slug);
+      } else {
+        router.push(`/p/${encodeURIComponent(slug)}`);
+      }
     },
-    [router]
+    [router, onListingNeighborGo]
   );
 
   const hasPrompts = data.promptTexts.length > 0;

@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useRouter, usePathname } from "next/navigation";
 import Image from "next/image";
+import { usePromptCardModal } from "@/context/PromptCardModalContext";
 import {
   CARD_IMAGE_LISTING_NEXT_QUALITY,
   SIZES_CARD_GRID,
@@ -78,6 +79,7 @@ function ResultCard({
 
 export function SearchBar() {
   const router = useRouter();
+  const { open: openCardModal } = usePromptCardModal();
   const pathname = usePathname();
   const hideMobileBar = pathname === "/" || pathname.startsWith("/search") || pathname.startsWith("/p/");
   const [query, setQuery] = useState("");
@@ -139,9 +141,9 @@ export function SearchBar() {
   const handleCardClick = useCallback(
     (slug: string) => {
       closeAll();
-      router.push(`/p/${slug}`);
+      openCardModal(slug);
     },
-    [router, closeAll]
+    [openCardModal, closeAll]
   );
 
   const handleQuickSearch = useCallback(

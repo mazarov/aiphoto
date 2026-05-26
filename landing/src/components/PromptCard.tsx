@@ -7,6 +7,7 @@ import type { PromptCardFull } from "@/lib/supabase";
 import { ReactionButtons } from "./ReactionButtons";
 import { FavoriteButton } from "./FavoriteButton";
 import { useCardInteractions } from "@/context/CardInteractionsContext";
+import { usePromptCardModal } from "@/context/PromptCardModalContext";
 import { splitCardTitle } from "@/lib/format-view-count";
 import { CARD_OVERLAY_PHOTO_COUNTER_CLASS } from "@/lib/card-overlay-photo-counter";
 import {
@@ -58,6 +59,7 @@ function DebugOverlay({ card }: { card: PromptCardFull }) {
 }
 
 export function PromptCard({ card, debug = false, priorityLoad = false }: Props) {
+  const { open } = usePromptCardModal();
   const { reactions, favorites, toggleReaction, toggleFavorite } = useCardInteractions();
   const title = card.title_ru || card.title_en || "Без названия";
   const expandedTitle = splitCardTitle(title);
@@ -130,8 +132,11 @@ export function PromptCard({ card, debug = false, priorityLoad = false }: Props)
             className="absolute inset-0 z-10"
             aria-label={title}
             prefetch
-            target="_blank"
-            rel="noopener noreferrer"
+            onClick={(e) => {
+              e.preventDefault();
+              // Open the client-side single-instance modal (Solution B)
+              open(card.slug);
+            }}
           />
         )}
 

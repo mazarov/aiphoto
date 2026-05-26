@@ -711,12 +711,12 @@ export type GetCardPageDataOptions = {
   viewerUserId?: string | null;
 };
 
-/** Fetches full card data for /p/[slug] page and generateMetadata. */
-export async function getCardPageData(
+/** Internal core implementation. Accepts an already-created Supabase client so it can be reused by API routes. */
+async function fetchCardPageDataCore(
+  supabase: ReturnType<typeof createSupabaseServer>,
   slug: string,
-  options?: GetCardPageDataOptions,
+  viewerUserId?: string | null,
 ): Promise<CardPageData | null> {
-  const supabase = createSupabaseServer();
   /** Включает `author_user_id` — колонка из миграции 156, обязательна в проде. */
   const { data: card, error: cardError } = await supabase
     .from("prompt_cards")
@@ -727,7 +727,7 @@ export async function getCardPageData(
     .maybeSingle();
 
   if (cardError) {
-    console.error("[getCardPageData] prompt_cards select failed", cardError.message);
+    console.error("[fetchCardPageDataCore] prompt_cards select failed", cardError.message);
     return null;
   }
   if (!card) return null;
@@ -736,7 +736,7 @@ export async function getCardPageData(
 
   const authorUserId =
     ((card as { author_user_id?: string | null }).author_user_id ?? null) as string | null;
-  const viewerId = options?.viewerUserId ?? null;
+  const viewerId = viewerUserId ?? null;
   const viewerIsOwner = !!(viewerId && authorUserId && viewerId === authorUserId);
 
   if (!isPublished && !viewerIsOwner) return null;
@@ -925,3 +925,15 @@ export async function getCardPageData(
     viewerIsOwner,
   };
 }
+
+/** Fetches full card data for /p/[slug] page and generateMetadata. */
+export async function getCardPageData(
+  slug: string,
+  options?: GetCardPageDataOptions,
+): Promise<CardPageData | null> {
+  const supabase = createSupabaseServer();
+  return fetchCardPageDataCore(supabase, slug, options?.viewerUserId);
+}
+
+/** Public core for client-side API routes (reuses the same logic). */
+export { fetchCardPageDataCore };

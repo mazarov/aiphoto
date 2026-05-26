@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef, useLayoutEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { PromptCard } from "@/components/PromptCard";
@@ -10,6 +10,8 @@ import { CardInteractionsProvider } from "@/context/CardInteractionsContext";
 import { FilterFAB } from "@/components/FilterFAB";
 import { useListingFilters } from "@/hooks/useListingFilters";
 import type { FilterState } from "@/hooks/useListingFilters";
+
+const SCROLL_RESTORE_KEY = "card_modal_scroll_pos";
 
 const PAGE_SIZE = 24;
 
@@ -46,6 +48,24 @@ export function SearchResults({ initialQuery }: Props) {
   const hasMoreRef = useRef(false);
   const offsetRef = useRef(0);
   const queryRef = useRef(query);
+
+  // Restore scroll position when returning from card modal
+  useLayoutEffect(() => {
+    const savedScrollY = sessionStorage.getItem(SCROLL_RESTORE_KEY);
+    if (savedScrollY) {
+      const scrollY = parseInt(savedScrollY, 10);
+      // Synchronous restore before paint to avoid flicker
+      window.scrollTo(0, scrollY);
+      // Also set scrollRestoration to manual temporarily
+      const originalRestoration = window.history.scrollRestoration;
+      window.history.scrollRestoration = "manual";
+      sessionStorage.removeItem(SCROLL_RESTORE_KEY);
+      // Restore auto behavior after a short delay
+      setTimeout(() => {
+        window.history.scrollRestoration = originalRestoration;
+      }, 100);
+    }
+  }, []);
 
   queryRef.current = query;
 
