@@ -2,15 +2,17 @@
 
 import { useEffect, useCallback, useRef, useLayoutEffect } from "react";
 import { useRouter } from "next/navigation";
-
-const SCROLL_POS_KEY = "card_modal_scroll_pos";
+import { SCROLL_KEY as SCROLL_POS_KEY } from "@/lib/scroll-preservation";
 
 type Props = {
   children: React.ReactNode;
   onClose?: () => void;
+  /** When true (and on mobile), the modal becomes full-viewport immersive (no side padding, full height content area).
+   * Used to match the visual/behavior of direct /p/[slug] with photos on mobile. */
+  immersiveMobile?: boolean;
 };
 
-export function CardModal({ children, onClose }: Props) {
+export function CardModal({ children, onClose, immersiveMobile = false }: Props) {
   const router = useRouter();
   const overlayRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -58,12 +60,24 @@ export function CardModal({ children, onClose }: Props) {
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [handleClose]);
 
-  // Lock body scroll when modal is open
+  // Lock body scroll when modal is open.
+  // Compensation for scrollbar width prevents the classic layout shift / "прыжок"
+  // when the scrollbar disappears (the root cause of the jump on close reported by user).
+  // On mobile (no scrollbar or overlay) the diff is 0 → no padding added.
   useEffect(() => {
     const originalOverflow = document.body.style.overflow;
+    const originalPaddingRight = document.body.style.paddingRight;
+
+    // Calculate exact width the scrollbar was occupying (desktop only)
+    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+    if (scrollbarWidth > 0) {
+      document.body.style.paddingRight = `${scrollbarWidth}px`;
+    }
     document.body.style.overflow = "hidden";
+
     return () => {
       document.body.style.overflow = originalOverflow;
+      document.body.style.paddingRight = originalPaddingRight;
     };
   }, []);
 
@@ -81,13 +95,21 @@ export function CardModal({ children, onClose }: Props) {
     <div
       ref={overlayRef}
       onClick={handleOverlayClick}
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 backdrop-blur-sm p-4 md:p-8"
+      className={
+        immersiveMobile
+          ? "fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 backdrop-blur-sm md:p-8 max-md:p-0"
+          : "fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 backdrop-blur-sm p-4 md:p-8"
+      }
       aria-modal="true"
       role="dialog"
     >
       <div
         ref={contentRef}
-        className="relative w-full max-w-5xl animate-in fade-in zoom-in-95 duration-200"
+        className={
+          immersiveMobile
+            ? "relative w-full md:max-w-5xl animate-in fade-in zoom-in-95 duration-200"
+            : "relative w-full max-w-5xl animate-in fade-in zoom-in-95 duration-200"
+        }
       >
         {/* Close button */}
         <button

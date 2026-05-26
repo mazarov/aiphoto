@@ -6,8 +6,7 @@ import { CardModal } from "@/components/CardModal";
 import { CardPageClient } from "@/components/CardPageClient";
 import { CardInteractionsProvider } from "@/context/CardInteractionsContext";
 import { usePromptCardModal } from "@/context/PromptCardModalContext";
-
-const SCROLL_POS_KEY = "card_modal_scroll_pos";
+import { restoreListingScroll } from "@/lib/scroll-preservation";
 
 type LoadedCard = {
   data: CardPageData;
@@ -67,22 +66,11 @@ export function ClientCardModal() {
     fetchCard(currentSlug);
   }, [currentSlug, fetchCard]);
 
-  // Restore scroll position when the modal finally unmounts after close
+  // Restore scroll position when the modal finally unmounts after close.
+  // Delegates to centralized util (same safety timings, key, RAF + extra timeout).
   useEffect(() => {
     return () => {
-      if (typeof window === "undefined") return;
-      const saved = sessionStorage.getItem(SCROLL_POS_KEY);
-      if (saved) {
-        const y = parseInt(saved, 10);
-        requestAnimationFrame(() => {
-          window.scrollTo(0, y);
-          // Extra safety for Next.js layout shifts
-          setTimeout(() => window.scrollTo(0, y), 60);
-        });
-        try {
-          sessionStorage.removeItem(SCROLL_POS_KEY);
-        } catch {}
-      }
+      restoreListingScroll({ clear: true, useRAF: true, safetyDelayMs: 60 });
     };
   }, []);
 
@@ -92,9 +80,12 @@ export function ClientCardModal() {
     close();
   };
 
+  // Match the direct /p/[slug] behavior: photo cards on mobile get full immersive viewport.
+  const immersiveMobile = !!(loaded?.data?.photoUrls?.length);
+
   return (
-    <CardModal onClose={handleClose}>
-      <div className="max-h-[85vh] overflow-y-auto">
+    <CardModal onClose={handleClose} immersiveMobile={immersiveMobile}>
+      <div className={immersiveMobile ? "h-[100dvh] overflow-y-auto" : "max-h-[85vh] overflow-y-auto"}>
         {loading && !loaded && (
           <div className="flex min-h-[40vh] items-center justify-center p-8 text-sm text-zinc-500">
             Загрузка…
@@ -120,8 +111,9 @@ export function ClientCardModal() {
               tagEntries={loaded.tagEntries}
               breadcrumbTag={loaded.breadcrumbTag}
               isModal
-              // Pass the neighbor navigation that stays inside the same modal
-              // (the prop is handled in CardPageClient below)
+              // Pass the neighbor navigation that stays inside the *same* modal instance.
+              // This makes left/right arrows work without full navigation or multiple modals.
+              onListingNeighborGo={goToNeighbor}
             />
           </CardInteractionsProvider>
         )}

@@ -64,10 +64,13 @@ export default async function CardModalPage({ params }: Props) {
   const tagEntries = getSeoSlugsWithTags(data.seo_tags);
   const breadcrumbTag = getFirstTagFromSeoTags(data.seo_tags);
 
+  // Full immersive on mobile for photo cards — parity with direct /p/[slug] + client modal flow.
+  const immersiveMobile = data.photoUrls.length > 0;
+
   return (
     <CardInteractionsProvider cardIds={[data.id]}>
-      <CardModal>
-        <div className="max-h-[85vh] overflow-y-auto">
+      <CardModal immersiveMobile={immersiveMobile}>
+        <div className={immersiveMobile ? "h-[100dvh] overflow-y-auto" : "max-h-[85vh] overflow-y-auto"}>
           <CardPageClient
             data={data}
             tagEntries={tagEntries}

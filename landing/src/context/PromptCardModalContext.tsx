@@ -2,8 +2,7 @@
 
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from "react";
 import type { CardPageData } from "@/lib/supabase";
-
-const SCROLL_POS_KEY = "card_modal_scroll_pos";
+import { saveListingScroll } from "@/lib/scroll-preservation";
 
 type PromptCardModalContextType = {
   currentSlug: string | null;
@@ -34,12 +33,9 @@ export function PromptCardModalProvider({ children }: { children: ReactNode }) {
 
   const open = useCallback((slug: string) => {
     if (typeof window !== "undefined") {
-      // Save scroll position of the listing before we navigate into the modal
-      try {
-        sessionStorage.setItem(SCROLL_POS_KEY, String(window.scrollY));
-      } catch {
-        /* ignore storage quota / private mode */
-      }
+      // Save scroll position of the listing before we navigate into the modal.
+      // Centralized util ensures consistent key + error handling.
+      saveListingScroll();
       // Update address bar without a full navigation
       window.history.pushState(null, "", `/p/${encodeURIComponent(slug)}`);
     }

@@ -1,13 +1,12 @@
 "use client";
 
-import { useMemo, useLayoutEffect } from "react";
+import { useMemo } from "react";
 import { useListingFilters } from "@/hooks/useListingFilters";
 import { FilterFAB } from "./FilterFAB";
 import { InfiniteGrid } from "./InfiniteGrid";
 import type { PromptCardFull } from "@/lib/supabase";
 import type { Dimension } from "@/lib/tag-registry";
-
-const SCROLL_RESTORE_KEY = "card_modal_scroll_pos";
+import { useListingScrollRestoration } from "@/lib/scroll-preservation";
 
 /** Stable React `key` — raw `JSON.stringify(mergedRpcParams)` can differ by object insertion order → remount grid on scroll/hydration churn. */
 function stableRpcParamsKey(r: Record<string, string | null>): string {
@@ -40,28 +39,14 @@ export function CatalogWithFilters({
     lockedDimensions,
   });
 
+  // Centralized scroll restoration when returning from card modal / client modal.
+  // Replaces the previous duplicated useLayoutEffect + manual scrollRestoration dance.
+  useListingScrollRestoration();
+
   const listingGridKey = useMemo(
     () => stableRpcParamsKey(mergedRpcParams),
     [mergedRpcParams]
   );
-
-  // Restore scroll position when returning from card modal
-  useLayoutEffect(() => {
-    const savedScrollY = sessionStorage.getItem(SCROLL_RESTORE_KEY);
-    if (savedScrollY) {
-      const scrollY = parseInt(savedScrollY, 10);
-      // Synchronous restore before paint to avoid flicker
-      window.scrollTo(0, scrollY);
-      // Also set scrollRestoration to manual temporarily
-      const originalRestoration = window.history.scrollRestoration;
-      window.history.scrollRestoration = "manual";
-      sessionStorage.removeItem(SCROLL_RESTORE_KEY);
-      // Restore auto behavior after a short delay
-      setTimeout(() => {
-        window.history.scrollRestoration = originalRestoration;
-      }, 100);
-    }
-  }, []);
 
   return (
     <>
