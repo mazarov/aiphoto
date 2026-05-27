@@ -316,3 +316,34 @@ export const DIMENSION_LABELS: Record<Dimension, string> = {
   object_tag: "Сцены и объекты",
   doc_task_tag: "Задачи",
 };
+
+/** Dimensions used for visible tag chips on card pages (matches current /p/[slug] behavior) */
+const SEO_TAG_DIMENSIONS: Dimension[] = [
+  "audience_tag",
+  "style_tag",
+  "occasion_tag",
+  "object_tag",
+];
+
+/**
+ * Builds the enriched tag list for UI (chips + links) from raw seo_tags.
+ * Used both on server pages and now in the client-side modal for parity.
+ */
+export function getSeoSlugsWithTags(
+  seoTags: Record<string, unknown> | null
+): { slug: string; label: string; href: string | null }[] {
+  if (!seoTags) return [];
+  const result: { slug: string; label: string; href: string | null }[] = [];
+  for (const dim of SEO_TAG_DIMENSIONS) {
+    const arr = (seoTags[dim] || []) as string[];
+    for (const slug of arr) {
+      const entry = findTagBySlug(dim, slug);
+      result.push({
+        slug,
+        label: entry?.labelRu ?? slug,
+        href: entry ? entry.urlPath : null,
+      });
+    }
+  }
+  return result;
+}

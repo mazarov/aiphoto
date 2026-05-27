@@ -271,11 +271,6 @@ function PromptCardBase({ card, debug = false, priorityLoad = false }: Props) {
             )}
             {!expanded && card.promptTexts.length > 0 && (
               <div className="absolute inset-x-0 bottom-0 z-[1] flex flex-col gap-2 px-3.5 pb-3.5 sm:flex-row">
-                <LexyGptGenerateButton
-                  promptText={card.promptTexts.join("\n\n")}
-                  variant="listing"
-                  className="listing-card-chrome-target"
-                />
                 <button
                   type="button"
                   onClick={handleCopy}
@@ -287,6 +282,11 @@ function PromptCardBase({ card, debug = false, priorityLoad = false }: Props) {
                       ? "Не удалось"
                       : "Скопировать"}
                 </button>
+                <LexyGptGenerateButton
+                  promptText={card.promptTexts.join("\n\n")}
+                  variant="listing"
+                  className="listing-card-chrome-target"
+                />
               </div>
             )}
           </div>
@@ -337,10 +337,6 @@ function PromptCardBase({ card, debug = false, priorityLoad = false }: Props) {
               <p className="mb-3 shrink-0 text-[11px] leading-relaxed text-white/50">{expandedTitle.rest}</p>
             ) : null}
             <div className="flex shrink-0 flex-col gap-2 sm:flex-row [&>*]:pointer-events-auto">
-              <LexyGptGenerateButton
-                promptText={card.promptTexts.join("\n\n")}
-                variant="expanded"
-              />
               <button
                 type="button"
                 onClick={handleCopy}
@@ -352,6 +348,10 @@ function PromptCardBase({ card, debug = false, priorityLoad = false }: Props) {
                     ? "Не удалось скопировать"
                     : "Скопировать промт"}
               </button>
+              <LexyGptGenerateButton
+                promptText={card.promptTexts.join("\n\n")}
+                variant="expanded"
+              />
             </div>
           </div>
         )}

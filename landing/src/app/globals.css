@@ -129,7 +129,7 @@ p {
 
   /**
    * Fast opacity (~55ms): metrics + reactions, photo arrows, frame counter,
-   * «Сгенерировать» / «Скопировать» — no lag vs slow ambient layer.
+   * «Повторить» / «Скопировать» — no lag vs slow ambient layer.
    * Интерактивные элементы помечены `listing-card-chrome-target` — pointer-events включаются
    * только когда chrome показан (см. @media ниже).
    */

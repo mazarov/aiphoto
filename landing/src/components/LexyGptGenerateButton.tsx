@@ -129,7 +129,7 @@ export function LexyGptGenerateButton({
             ? "Промпт скопирован · разрешите окна"
             : phase === "blocked"
               ? "Не удалось открыть вкладку"
-              : "Сгенерировать";
+              : "Повторить";
 
   return (
     <button

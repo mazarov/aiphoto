@@ -918,7 +918,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                           {stickyCopy === "ok" ? (
                             <>
                               <CheckIcon size={18} />
-                              <span className="sr-only sm:not-sr-only">Готово</span>
+                              <span className="truncate">Готово</span>
                             </>
                           ) : stickyCopy === "fail" ? (
                             <>
@@ -928,12 +928,9 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                               <span className="truncate">Не удалось</span>
                             </>
                           ) : (
-                            <>
-                              <CopyIcon size={18} />
-                              <span className="max-sm:sr-only">
-                                {data.promptTexts.length > 1 ? "Все промпты" : "Копировать"}
-                              </span>
-                            </>
+                            <span className="truncate">
+                              {data.promptTexts.length > 1 ? "Все промпты" : "Скопировать"}
+                            </span>
                           )}
                         </button>
                         <LexyGptGenerateButton
@@ -1181,12 +1178,9 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                       <span className="truncate">Не удалось</span>
                     </>
                   ) : (
-                    <>
-                      <CopyIcon size={16} className="shrink-0" />
-                      <span className="truncate max-sm:sr-only">
-                        {data.promptTexts.length > 1 ? "Все промпты" : "Копировать"}
-                      </span>
-                    </>
+                    <span className="truncate">
+                      {data.promptTexts.length > 1 ? "Все промпты" : "Скопировать"}
+                    </span>
                   )}
                 </button>
                 <LexyGptGenerateButton
@@ -1228,7 +1222,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                   ) : (
                     <>
                       <CopyIcon size={16} />
-                      {data.promptTexts.length > 1 ? "Скопировать все промпты" : "Копировать промпт"}
+                      {data.promptTexts.length > 1 ? "Скопировать все промпты" : "Скопировать промпт"}
                     </>
                   )}
                 </button>

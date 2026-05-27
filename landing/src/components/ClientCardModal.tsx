@@ -7,6 +7,7 @@ import { CardPageClient } from "@/components/CardPageClient";
 import { CardInteractionsProvider } from "@/context/CardInteractionsContext";
 import { usePromptCardModal } from "@/context/PromptCardModalContext";
 import { restoreListingScroll } from "@/lib/scroll-preservation";
+import { getSeoSlugsWithTags, getFirstTagFromSeoTags } from "@/lib/tag-registry";
 
 type LoadedCard = {
   data: CardPageData;
@@ -24,10 +25,12 @@ export function ClientCardModal() {
     // Fast path: use cache for instant neighbor switches inside the modal (no network, no loading flash).
     const cached = cardCache.get(slug);
     if (cached) {
+      const tagEntries = getSeoSlugsWithTags(cached.seo_tags);
+      const firstTag = getFirstTagFromSeoTags(cached.seo_tags);
       const loadedCard: LoadedCard = {
         data: cached,
-        tagEntries: [],
-        breadcrumbTag: null,
+        tagEntries,
+        breadcrumbTag: firstTag ? { labelRu: firstTag.labelRu, urlPath: firstTag.urlPath } : null,
       };
       setLoaded(loadedCard);
       setError(null);
@@ -46,10 +49,13 @@ export function ClientCardModal() {
       const json = await res.json();
       const data: CardPageData = json.data;
 
-      // Build minimal tag/breadcrumb structures (same shape the server page builds)
-      // We keep it very light here — full enrichment can be added if needed for breadcrumbs inside the modal.
-      const tagEntries: { slug: string; label: string; href: string | null }[] = [];
-      const breadcrumbTag = null; // Can be enhanced later if required inside the modal
+      // Enrich with tags exactly like the server /p/[slug] pages do.
+      // This ensures tags (and breadcrumb) appear on first open from the listing grid.
+      const tagEntries = getSeoSlugsWithTags(data.seo_tags);
+      const firstTag = getFirstTagFromSeoTags(data.seo_tags);
+      const breadcrumbTag = firstTag
+        ? { labelRu: firstTag.labelRu, urlPath: firstTag.urlPath }
+        : null;
 
       const loadedCard: LoadedCard = { data, tagEntries, breadcrumbTag };
       setLoaded(loadedCard);

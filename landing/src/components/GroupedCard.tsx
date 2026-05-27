@@ -285,11 +285,6 @@ function GroupedCardBase({ cards, debug = false, priorityLoad = false }: Props) 
               )}
               {!expanded && allPrompts.length > 0 && (
                 <div className="absolute inset-x-0 bottom-0 z-[1] flex flex-col gap-2 px-3.5 pb-3.5 sm:flex-row">
-                  <LexyGptGenerateButton
-                    promptText={allPrompts.join("\n\n")}
-                    variant="listing"
-                    className="listing-card-chrome-target"
-                  />
                   <button
                     type="button"
                     onClick={handleCopy}
@@ -301,6 +296,11 @@ function GroupedCardBase({ cards, debug = false, priorityLoad = false }: Props) 
                         ? "Не удалось"
                         : "Скопировать"}
                   </button>
+                  <LexyGptGenerateButton
+                    promptText={allPrompts.join("\n\n")}
+                    variant="listing"
+                    className="listing-card-chrome-target"
+                  />
                 </div>
               )}
             </div>
@@ -341,7 +341,6 @@ function GroupedCardBase({ cards, debug = false, priorityLoad = false }: Props) 
                 <p className="mb-3 shrink-0 text-[11px] leading-relaxed text-white/50">{expandedTitle.rest}</p>
               ) : null}
               <div className="flex shrink-0 flex-col gap-2 sm:flex-row [&>*]:pointer-events-auto">
-                <LexyGptGenerateButton promptText={allPrompts.join("\n\n")} variant="expanded" />
                 <button type="button" onClick={handleCopy}
                   className={`${OVERLAY_BUTTON_UA_RESET} flex-1 shrink-0 rounded-xl bg-white px-3 py-2.5 text-xs font-semibold text-zinc-900 transition-all hover:bg-zinc-100 active:scale-[0.98]`}
                 >
@@ -351,6 +350,7 @@ function GroupedCardBase({ cards, debug = false, priorityLoad = false }: Props) 
                       ? "Не удалось скопировать"
                       : "Скопировать промт"}
                 </button>
+                <LexyGptGenerateButton promptText={allPrompts.join("\n\n")} variant="expanded" />
               </div>
             </div>
           )}
