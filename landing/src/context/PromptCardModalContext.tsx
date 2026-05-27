@@ -3,6 +3,7 @@
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from "react";
 import type { CardPageData } from "@/lib/supabase";
 import { saveListingScroll } from "@/lib/scroll-preservation";
+import { trackVirtualPageView } from "@/lib/yandex-metrika";
 
 type PromptCardModalContextType = {
   currentSlug: string | null;
@@ -36,16 +37,29 @@ export function PromptCardModalProvider({ children }: { children: ReactNode }) {
       // Save scroll position of the listing before we navigate into the modal.
       // Centralized util ensures consistent key + error handling.
       saveListingScroll();
+
+      // Capture current URL as referer BEFORE pushState (for correct virtual pageview attribution)
+      const referer = window.location.pathname + window.location.search;
+
       // Update address bar without a full navigation
       window.history.pushState(null, "", `/p/${encodeURIComponent(slug)}`);
+
+      // Virtual hit so Yandex Metrika / Webmaster sees "internal transition" listing/search → /p/slug
+      trackVirtualPageView(`/p/${encodeURIComponent(slug)}`, { referer });
     }
     setCurrentSlug(slug);
   }, []);
 
   const goToNeighbor = useCallback((slug: string) => {
     if (typeof window !== "undefined") {
+      // Capture the *current* virtual URL (previous card) before replaceState
+      const referer = window.location.pathname + window.location.search;
+
       // Replace the URL so the address bar always shows the current card
       window.history.replaceState(null, "", `/p/${encodeURIComponent(slug)}`);
+
+      // Virtual hit for neighbor navigation inside the modal (important for card-to-card chains)
+      trackVirtualPageView(`/p/${encodeURIComponent(slug)}`, { referer });
     }
     setCurrentSlug(slug);
   }, []);
