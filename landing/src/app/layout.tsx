@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import Script from "next/script";
+import { Suspense } from "react";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { DebugProvider } from "@/components/DebugFAB";
@@ -9,6 +10,7 @@ import { PromptCardModalProvider } from "@/context/PromptCardModalContext";
 import { AuthModal } from "@/components/AuthModal";
 import { GenerationModal } from "@/components/GenerationModal";
 import { ClientCardModal } from "@/components/ClientCardModal";
+import { YandexMetrikaRouteTracker } from "@/components/YandexMetrikaRouteTracker";
 
 const inter = Inter({
   subsets: ["latin", "cyrillic"],
@@ -53,6 +55,9 @@ export default function RootLayout({
           <DebugProvider>
             <GenerationProvider>
               <PromptCardModalProvider>
+                <Suspense fallback={null}>
+                  <YandexMetrikaRouteTracker />
+                </Suspense>
                 {children}
                 {modal}
                 <ClientCardModal />
