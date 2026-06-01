@@ -75,6 +75,7 @@ function ListingSearchHeader() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const registerSearchMobile = useListingMobileChromeOptional()?.registerSearchMobile;
+  const openMobileSearch = useListingMobileChromeOptional()?.openMobileSearch;
 
   const onSearchPage = pathname.startsWith("/search");
   const urlQuery = onSearchPage ? (searchParams.get("q")?.trim() ?? "") : "";
@@ -129,12 +130,16 @@ function ListingSearchHeader() {
     function onKeyDown(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
         e.preventDefault();
-        barInputRef.current?.focus();
+        if (window.matchMedia("(max-width: 1023px)").matches) {
+          openMobileSearch?.();
+        } else {
+          barInputRef.current?.focus();
+        }
       }
     }
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, []);
+  }, [openMobileSearch]);
 
   handleChangeRef.current = handleChange;
   handleClearRef.current = handleClear;

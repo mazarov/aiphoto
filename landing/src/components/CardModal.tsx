@@ -2,7 +2,7 @@
 
 import { useEffect, useCallback, useRef, useLayoutEffect } from "react";
 import { useRouter } from "next/navigation";
-import { SCROLL_KEY as SCROLL_POS_KEY } from "@/lib/scroll-preservation";
+import { SCROLL_KEY as SCROLL_POS_KEY, getListingScrollRoot, writeScrollTop } from "@/lib/scroll-preservation";
 
 type Props = {
   children: React.ReactNode;
@@ -40,8 +40,7 @@ export function CardModal({ children, onClose, immersiveMobile = false }: Props)
       // This runs synchronously when component unmounts (before paint)
       if (isNavigatingBack.current && savedScrollY) {
         const scrollY = parseInt(savedScrollY, 10);
-        // Synchronous scroll restore - no animation frame to avoid flicker
-        window.scrollTo(0, scrollY);
+        writeScrollTop(getListingScrollRoot(), scrollY);
         sessionStorage.removeItem(SCROLL_POS_KEY);
       }
       // Restore default scroll behavior

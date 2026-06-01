@@ -79,6 +79,10 @@ type Props = {
   loading?: boolean;
   rightSlot?: ReactNode;
   enterKeyHint?: "search" | "done";
+  inputMode?: "search" | "text";
+  readOnly?: boolean;
+  /** Suppress iOS Safari autofill / contact / password accessory rows */
+  mobileSearch?: boolean;
   autoComplete?: string;
   autoFocus?: boolean;
   className?: string;
@@ -98,6 +102,9 @@ export function ListingSearchField({
   loading = false,
   rightSlot,
   enterKeyHint,
+  inputMode,
+  readOnly,
+  mobileSearch = false,
   autoComplete = "off",
   autoFocus,
   className = "",
@@ -156,7 +163,7 @@ export function ListingSearchField({
       </span>
       <input
         ref={inputRef}
-        type="text"
+        type={mobileSearch ? "search" : "text"}
         value={value}
         onChange={handleInputChange}
         onKeyDown={onKeyDown}
@@ -164,10 +171,22 @@ export function ListingSearchField({
         onBlur={onBlur}
         placeholder={placeholder}
         enterKeyHint={enterKeyHint}
-        autoComplete={autoComplete}
+        inputMode={inputMode ?? (mobileSearch ? "search" : undefined)}
+        readOnly={readOnly}
+        autoComplete={mobileSearch ? "off" : autoComplete}
         autoFocus={autoFocus}
         autoCorrect="off"
-        className={`relative w-full ${accentStyles.field} ${styles.rounded} ${styles.field} ${paddingRight}`}
+        autoCapitalize="off"
+        spellCheck={false}
+        name={mobileSearch ? "listing-search-q" : undefined}
+        {...(mobileSearch
+          ? ({
+              "data-1p-ignore": true,
+              "data-lpignore": "true",
+              "data-form-type": "other",
+            } as const)
+          : {})}
+        className={`relative w-full ${accentStyles.field} ${styles.rounded} ${styles.field} ${paddingRight}${readOnly ? " cursor-pointer caret-transparent" : ""}`}
       />
       {hasTrailing && (
         <span className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-1">

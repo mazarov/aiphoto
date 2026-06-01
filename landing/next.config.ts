@@ -1,9 +1,23 @@
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import type { NextConfig } from "next";
 
 const landingDir = import.meta.dirname;
 const repoRoot = path.resolve(landingDir, "..");
+
+/** LAN IPs for mobile dev — Next.js 15 blocks cross-origin HMR without this. */
+function getLanDevOrigins(): string[] {
+  const origins = new Set<string>();
+  for (const ifaces of Object.values(os.networkInterfaces())) {
+    for (const iface of ifaces ?? []) {
+      if (iface.family === "IPv4" && !iface.internal) {
+        origins.add(iface.address);
+      }
+    }
+  }
+  return [...origins];
+}
 
 /**
  * Standalone tracing root (must match Docker `COPY` + `CMD node server.js`):
@@ -24,6 +38,7 @@ function resolveOutputFileTracingRoot(): string {
 const outputFileTracingRoot = resolveOutputFileTracingRoot();
 
 const nextConfig: NextConfig = {
+  allowedDevOrigins: getLanDevOrigins(),
   outputFileTracingRoot,
   output: "standalone",
   serverExternalPackages: ["@supabase/supabase-js"],

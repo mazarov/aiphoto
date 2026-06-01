@@ -39,6 +39,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
+  // Dock is read-only; keyboard opens in top sheet. Shell uses 100dvh on mobile.
   interactiveWidget: "resizes-content",
 };
 

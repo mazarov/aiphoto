@@ -112,20 +112,20 @@ function UserMenu() {
 
 export function HeaderClient() {
   return (
-    <header className="sticky top-0 z-40 border-b border-indigo-100/50 bg-white/80 backdrop-blur-xl">
+    <header className="sticky top-0 z-40 shrink-0 border-b border-indigo-100/50 bg-white/80 backdrop-blur-xl">
       {/* Mobile: menu + logo + auth */}
-      <div className="grid grid-cols-3 items-center px-4 py-3 lg:hidden">
-        <div className="flex justify-start">
+      <div className="grid grid-cols-[auto_1fr_auto] items-center gap-2 px-3 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] sm:px-4 lg:hidden">
+        <div className="flex shrink-0 justify-start">
           <MobileCatalogMenuButton />
         </div>
         <Link
           href="/"
-          className="flex items-center justify-center gap-2 text-lg font-bold tracking-tight text-zinc-900"
+          className="flex min-w-0 items-center justify-center gap-1.5 text-lg font-bold tracking-tight text-zinc-900"
         >
-          <SiteLogoMark size={28} className="h-7 w-7 rounded-lg" />
+          <SiteLogoMark size={28} className="h-7 w-7 shrink-0 rounded-lg" />
           <span className="truncate">PromptShot</span>
         </Link>
-        <div className="flex items-center justify-end">
+        <div className="flex shrink-0 items-center justify-end">
           <UserMenu />
         </div>
       </div>

@@ -6,11 +6,34 @@
 import { useLayoutEffect } from "react";
 
 export const SCROLL_KEY = "card_modal_scroll_pos";
+export const LISTING_SCROLL_ROOT_ID = "listing-scroll-root";
+
+type ScrollRoot = HTMLElement | Window;
+
+export function getListingScrollRoot(): ScrollRoot {
+  if (typeof window === "undefined") return window;
+  const useInnerScroll = window.matchMedia("(max-width: 1023px)").matches;
+  if (!useInnerScroll) return window;
+  return document.getElementById(LISTING_SCROLL_ROOT_ID) ?? window;
+}
+
+function readScrollTop(root: ScrollRoot): number {
+  if (root === window) return window.scrollY;
+  return (root as HTMLElement).scrollTop;
+}
+
+export function writeScrollTop(root: ScrollRoot, y: number): void {
+  if (root === window) {
+    window.scrollTo(0, y);
+    return;
+  }
+  root.scrollTo({ top: y, behavior: "auto" });
+}
 
 export function saveListingScroll(): void {
   if (typeof window === "undefined") return;
   try {
-    sessionStorage.setItem(SCROLL_KEY, String(window.scrollY));
+    sessionStorage.setItem(SCROLL_KEY, String(readScrollTop(getListingScrollRoot())));
   } catch {
     // квота / приватный режим / SSR
   }
@@ -51,10 +74,12 @@ export function restoreListingScroll(opts: RestoreOptions = {}): void {
     return;
   }
 
+  const root = getListingScrollRoot();
+
   const doScroll = () => {
-    window.scrollTo(0, y);
+    writeScrollTop(root, y);
     if (safetyDelayMs > 0) {
-      setTimeout(() => window.scrollTo(0, y), safetyDelayMs);
+      setTimeout(() => writeScrollTop(root, y), safetyDelayMs);
     }
   };
 

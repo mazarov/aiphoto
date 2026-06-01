@@ -44,6 +44,8 @@ type ListingMobileChromeContextValue = {
   menuOpenRef: React.RefObject<(() => void) | null>;
   menuRevision: number;
   registerMenu: (reg: MenuRegistration | null) => void;
+  registerMobileSearchOpen: (open: (() => void) | null) => void;
+  openMobileSearch: () => void;
 };
 
 const ListingMobileChromeContext = createContext<ListingMobileChromeContextValue | null>(null);
@@ -64,6 +66,16 @@ export function ListingMobileChromeProvider({ children }: { children: ReactNode 
 
   const menuOpenRef = useRef<(() => void) | null>(null);
   const [menuRevision, setMenuRevision] = useState(0);
+
+  const mobileSearchOpenRef = useRef<(() => void) | null>(null);
+
+  const registerMobileSearchOpen = useCallback((open: (() => void) | null) => {
+    mobileSearchOpenRef.current = open;
+  }, []);
+
+  const openMobileSearch = useCallback(() => {
+    mobileSearchOpenRef.current?.();
+  }, []);
 
   const registerSearchMobile = useCallback((reg: SearchMobileRegistration | null) => {
     searchMobileRef.current = reg;
@@ -107,6 +119,8 @@ export function ListingMobileChromeProvider({ children }: { children: ReactNode 
       menuOpenRef,
       menuRevision,
       registerMenu,
+      registerMobileSearchOpen,
+      openMobileSearch,
     }),
     [
       searchMobileRevision,
@@ -115,6 +129,8 @@ export function ListingMobileChromeProvider({ children }: { children: ReactNode 
       registerFilter,
       menuRevision,
       registerMenu,
+      registerMobileSearchOpen,
+      openMobileSearch,
     ],
   );
 
