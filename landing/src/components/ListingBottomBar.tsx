@@ -15,6 +15,7 @@ export function ListingBottomBar() {
     filterRevision,
   } = useListingMobileChrome();
   const [mounted, setMounted] = useState(false);
+  const [searchFocused, setSearchFocused] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -30,12 +31,20 @@ export function ListingBottomBar() {
     return null;
   }
 
+  const keyboardOpen = searchFocused;
+
   return createPortal(
     <div
-      className="listing-bottom-bar fixed inset-x-0 bottom-0 z-40 border-t border-indigo-100/60 bg-white/75 shadow-[0_-8px_32px_-12px_rgba(99,102,241,0.1)] backdrop-blur-2xl lg:inset-x-auto lg:left-60 lg:right-0"
-      style={{ paddingBottom: "max(0.625rem, env(safe-area-inset-bottom))" }}
+      className={`listing-bottom-bar fixed inset-x-0 bottom-0 z-40 border-t shadow-[0_-8px_32px_-12px_rgba(99,102,241,0.1)] backdrop-blur-2xl lg:inset-x-auto lg:left-60 lg:right-0 ${
+        keyboardOpen
+          ? "border-indigo-100/80 bg-white/95"
+          : "border-indigo-100/60 bg-white/75"
+      }`}
+      style={{
+        paddingBottom: keyboardOpen ? "0.5rem" : undefined,
+      }}
     >
-      <div className="flex items-center gap-2 px-3 pt-2.5 lg:gap-3 lg:px-5 lg:pt-3">
+      <div className="flex items-center gap-2 px-3 pt-2.5 pb-2.5 lg:gap-3 lg:px-5 lg:pt-3">
         <ListingSearchField
           className="min-w-0 flex-1"
           size="compact"
@@ -43,7 +52,11 @@ export function ListingBottomBar() {
           onChange={search.onChange}
           onClear={search.onClear}
           onKeyDown={search.onKeyDown}
-          onFocus={search.onFocus}
+          onFocus={() => {
+            setSearchFocused(true);
+            search.onFocus?.();
+          }}
+          onBlur={() => setSearchFocused(false)}
           placeholder={search.placeholder}
           inputRef={search.inputRef}
           accent="compact"

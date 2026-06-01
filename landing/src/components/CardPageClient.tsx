@@ -997,11 +997,40 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                       onClick={() => setMobilePromptOverlay(false)}
                     />
                     <div
-                      className={`absolute inset-x-4 bottom-[calc(env(safe-area-inset-bottom)+6rem)] z-[106] max-h-[min(68dvh,calc(100dvh-env(safe-area-inset-top)-8rem-env(safe-area-inset-bottom)))] overflow-hidden shadow-none ${MOBILE_FS_EXPAND}`}
+                      className={`pointer-events-auto absolute inset-x-4 bottom-[calc(env(safe-area-inset-bottom)+6rem)] z-[106] flex max-h-[min(68dvh,calc(100dvh-env(safe-area-inset-top)-8rem-env(safe-area-inset-bottom)))] flex-col overflow-hidden shadow-none ${MOBILE_FS_EXPAND}`}
                     >
-                      <div className="scrollbar-none max-h-full overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch]">
+                      <div className="scrollbar-none min-h-0 flex-1 overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch]">
                         <p className="whitespace-pre-wrap text-[13px] leading-relaxed text-white/92">{data.promptTexts.join("\n\n")}</p>
                       </div>
+                      <button
+                        type="button"
+                        aria-live="polite"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          void handleCopy();
+                        }}
+                        className={`${OVERLAY_BUTTON_UA_RESET} shadow-none mt-3 flex min-h-11 w-full shrink-0 items-center justify-center gap-2 px-4 py-3 text-[11px] font-semibold text-white ${MOBILE_FS_ACTION}`}
+                      >
+                        {stickyCopy === "ok" ? (
+                          <>
+                            <CheckIcon size={18} />
+                            <span>Готово</span>
+                          </>
+                        ) : stickyCopy === "fail" ? (
+                          <>
+                            <span className="text-amber-200" aria-hidden>
+                              !
+                            </span>
+                            Не удалось скопировать
+                          </>
+                        ) : (
+                          <>
+                            <CopyIcon size={18} />
+                            {data.promptTexts.length > 1 ? "Скопировать все промпты" : "Скопировать промпт"}
+                          </>
+                        )}
+                      </button>
                     </div>
                   </>
                 ) : null}

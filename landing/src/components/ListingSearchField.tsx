@@ -71,6 +71,7 @@ type Props = {
   onClear?: () => void;
   onKeyDown?: (e: KeyboardEvent<HTMLInputElement>) => void;
   onFocus?: () => void;
+  onBlur?: () => void;
   placeholder: string;
   inputRef?: RefObject<HTMLInputElement | null>;
   size?: keyof typeof SIZE_STYLES;
@@ -89,6 +90,7 @@ export function ListingSearchField({
   onClear,
   onKeyDown,
   onFocus,
+  onBlur,
   placeholder,
   inputRef,
   size = "header",
@@ -159,6 +161,7 @@ export function ListingSearchField({
         onChange={handleInputChange}
         onKeyDown={onKeyDown}
         onFocus={onFocus}
+        onBlur={onBlur}
         placeholder={placeholder}
         enterKeyHint={enterKeyHint}
         autoComplete={autoComplete}

@@ -95,9 +95,29 @@ p {
     padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
   }
 
+  /**
+   * Mobile fixed bottom bar — pin to dynamic viewport (Safari URL bar hide/show).
+   * 100vh = layout viewport, 100dvh = visible viewport; diff lifts bar to visible bottom.
+   */
+  @supports (height: 100dvh) {
+    @media (max-width: 1023px) {
+      .listing-bottom-bar {
+        bottom: calc(100vh - 100dvh);
+        padding-bottom: 0.625rem;
+      }
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .listing-bottom-bar {
+      bottom: 0;
+      padding-bottom: max(0.625rem, env(safe-area-inset-bottom, 0px));
+    }
+  }
+
   /** Listing pages — space for fixed bottom search bar */
   .listing-main-bottom-pad {
-    padding-bottom: calc(4.25rem + max(0.625rem, env(safe-area-inset-bottom, 0px)));
+    padding-bottom: calc(4.25rem + 0.625rem);
   }
 
   @media (min-width: 1024px) {
