@@ -9,7 +9,7 @@ import { CardInteractionsProvider } from "@/context/CardInteractionsContext";
 import { FilterFAB } from "@/components/FilterFAB";
 import { useListingFilters } from "@/hooks/useListingFilters";
 import type { FilterState } from "@/hooks/useListingFilters";
-import { useListingScrollRestoration } from "@/lib/scroll-preservation";
+import { resetListingScroll, useListingScrollRestoration } from "@/lib/scroll-preservation";
 import { writeListingNavigationContext } from "@/lib/listing-card-navigation-context";
 import { SearchEmptyState } from "@/components/SearchEmptyState";
 import { SearchMetrikaTracker } from "@/components/YandexMetrikaRouteTracker";
@@ -66,6 +66,9 @@ export function SearchResults({ initialQuery }: Props) {
     }
 
     const newOffset = append ? offsetRef.current + PAGE_SIZE : 0;
+    if (!append) {
+      resetListingScroll();
+    }
     setLoading(true);
     loadingRef.current = true;
     try {

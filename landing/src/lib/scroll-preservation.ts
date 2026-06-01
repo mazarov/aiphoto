@@ -39,6 +39,17 @@ export function saveListingScroll(): void {
   }
 }
 
+/** Scroll listing back to top and drop any saved modal-restore position. */
+export function resetListingScroll(): void {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.removeItem(SCROLL_KEY);
+  } catch {
+    /* ignore */
+  }
+  writeScrollTop(getListingScrollRoot(), 0);
+}
+
 export interface RestoreOptions {
   clear?: boolean;
   useRAF?: boolean;
