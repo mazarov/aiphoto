@@ -1,5 +1,6 @@
 "use client";
 
+import { Suspense } from "react";
 import { applyCountsToMenu } from "@/lib/menu";
 import { ListingMobileChromeProvider } from "@/context/ListingMobileChromeContext";
 import { HeaderClient } from "./HeaderClient";
@@ -21,7 +22,9 @@ export function PageLayout({ children }: { children: React.ReactNode }) {
           <Footer />
         </div>
       </div>
-      <ListingSearch variant="header" />
+      <Suspense fallback={null}>
+        <ListingSearch variant="header" />
+      </Suspense>
       <ListingBottomBar />
     </ListingMobileChromeProvider>
   );

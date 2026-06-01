@@ -12,6 +12,7 @@ import type { FilterState } from "@/hooks/useListingFilters";
 import { useListingScrollRestoration } from "@/lib/scroll-preservation";
 import { writeListingNavigationContext } from "@/lib/listing-card-navigation-context";
 import { SearchEmptyState } from "@/components/SearchEmptyState";
+import { SearchMetrikaTracker } from "@/components/YandexMetrikaRouteTracker";
 
 const PAGE_SIZE = 24;
 
@@ -164,6 +165,7 @@ export function SearchResults({ initialQuery }: Props) {
   return (
     <CardInteractionsProvider cardIds={cardIds}>
     <div>
+      <SearchMetrikaTracker query={query} />
       <h1 className="sr-only">Поиск промптов</h1>
 
       {/* Status */}

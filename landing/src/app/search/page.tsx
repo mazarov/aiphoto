@@ -1,4 +1,5 @@
 import { Metadata } from "next";
+import { Suspense } from "react";
 import { PageLayout } from "@/components/PageLayout";
 import { SearchResults } from "./SearchResults";
 
@@ -33,7 +34,9 @@ export default async function SearchPage({ searchParams }: Props) {
   return (
     <PageLayout>
       <main className="listing-main-bottom-pad w-full px-2 py-8 sm:px-5 lg:py-8">
-        <SearchResults initialQuery={query} />
+        <Suspense fallback={null}>
+          <SearchResults initialQuery={query} />
+        </Suspense>
       </main>
     </PageLayout>
   );
