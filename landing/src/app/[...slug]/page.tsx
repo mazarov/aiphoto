@@ -369,7 +369,7 @@ export default async function TagPage({ params, searchParams }: Props) {
         </div>
       </section>
 
-      <main className="w-full flex-1 px-2 sm:px-5 py-10 pb-24 lg:pb-10">
+      <main className="listing-main-bottom-pad w-full flex-1 px-2 py-10 sm:px-5 lg:py-10">
         <section aria-labelledby="catalog-heading">
           <h2 id="catalog-heading" className="sr-only">
             Промты в этой категории

@@ -95,7 +95,79 @@ p {
     padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
   }
 
-  /** Моб. FAB: меню / поиск / фильтр — низ экрана над home indicator */
+  /** Listing pages — space for fixed bottom search bar */
+  .listing-main-bottom-pad {
+    padding-bottom: calc(4.25rem + max(0.625rem, env(safe-area-inset-bottom, 0px)));
+  }
+
+  @media (min-width: 1024px) {
+    .listing-main-bottom-pad {
+      padding-bottom: 4.75rem;
+    }
+  }
+
+  /** Search dropdown anchored above the mobile bottom bar */
+  .listing-dropdown-above-bar {
+    bottom: calc(3.75rem + max(0.5rem, env(safe-area-inset-bottom, 0px)));
+  }
+
+  /** Hero search — indigo light shell (homepage primary CTA) */
+  .listing-search-hero-shell {
+    background: linear-gradient(
+      180deg,
+      rgba(165, 180, 252, 0.65) 0%,
+      rgba(199, 210, 254, 0.4) 45%,
+      rgba(238, 242, 255, 0.55) 100%
+    );
+    box-shadow:
+      0 14px 44px -14px rgba(99, 102, 241, 0.38),
+      0 2px 8px -2px rgba(99, 102, 241, 0.12);
+  }
+
+  .listing-search-hero-shell:focus-within {
+    box-shadow:
+      0 18px 52px -14px rgba(99, 102, 241, 0.48),
+      0 0 0 3px rgba(139, 92, 246, 0.1);
+  }
+
+  /** Mobile bottom bar search — same subtle violet glow as hero, no harsh input ring */
+  .listing-search-compact-shell:focus-within {
+    box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.09);
+  }
+
+  .listing-search-input {
+    -webkit-tap-highlight-color: transparent;
+    outline: none;
+  }
+
+  .listing-search-input:focus {
+    outline: none;
+  }
+
+  .listing-search-input:focus-visible {
+    outline: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .listing-search-hero-shell {
+      animation: none;
+    }
+  }
+
+  /** Listing chrome controls — menu, filter, auth (matches search field glass) */
+  .listing-chrome-btn {
+    -webkit-tap-highlight-color: transparent;
+    outline: none;
+    font-family: inherit;
+  }
+
+  .listing-chrome-btn:focus-visible {
+    box-shadow:
+      0 0 0 3px rgba(139, 92, 246, 0.09),
+      0 1px 2px rgba(99, 102, 241, 0.08);
+  }
+
+  /** Legacy FAB offsets (desktop filter FAB, debug panel) */
   .fab-bottom-safe {
     bottom: max(0.75rem, env(safe-area-inset-bottom, 0px));
   }

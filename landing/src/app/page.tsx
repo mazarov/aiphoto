@@ -165,14 +165,13 @@ export default async function HomePage() {
               {totalCategories} категорий
             </span>
           </div>
+          <div className="mx-auto mt-8 w-full max-w-2xl px-1 sm:px-0">
+            <HomeSearch />
+          </div>
         </div>
       </section>
 
       <main className="w-full flex-1 px-2 sm:px-5 pb-16">
-        <div className="mt-2 mb-10 px-2 sm:px-0">
-          <HomeSearch />
-        </div>
-
         {sectionBlocks.length > 0 ? (
           sectionBlocks.map((block, i) => (
             <CategorySection

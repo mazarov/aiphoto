@@ -1,8 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { PromptCard } from "@/components/PromptCard";
 import { LISTING_LCP_PRIORITY_GRID_ITEMS } from "@/lib/listing-lcp";
 import type { PromptCardFull } from "@/lib/supabase";
@@ -12,6 +11,7 @@ import { useListingFilters } from "@/hooks/useListingFilters";
 import type { FilterState } from "@/hooks/useListingFilters";
 import { useListingScrollRestoration } from "@/lib/scroll-preservation";
 import { writeListingNavigationContext } from "@/lib/listing-card-navigation-context";
+import { SearchEmptyState } from "@/components/SearchEmptyState";
 
 const PAGE_SIZE = 24;
 
@@ -29,14 +29,12 @@ type Props = {
 };
 
 export function SearchResults({ initialQuery }: Props) {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const { filters, applyFilters, activeCount } = useListingFilters({
     baseRpcParams: {},
     lockedDimensions: [],
   });
   const [query, setQuery] = useState(initialQuery);
-  const [inputValue, setInputValue] = useState(initialQuery);
   const [cards, setCards] = useState<PromptCardFull[]>([]);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
@@ -107,7 +105,6 @@ export function SearchResults({ initialQuery }: Props) {
     const q = searchParams.get("q")?.trim() || "";
     if (q !== query && q.length >= 2) {
       setQuery(q);
-      setInputValue(q);
       setOffset(0);
       offsetRef.current = 0;
       doSearch(q);
@@ -132,23 +129,6 @@ export function SearchResults({ initialQuery }: Props) {
     }
   }, [displayedCards]);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const q = inputValue.trim();
-    if (q.length >= 2) {
-      setQuery(q);
-      setOffset(0);
-      offsetRef.current = 0;
-      const sp = new URLSearchParams();
-      sp.set("q", q);
-      for (const [k, v] of Object.entries(filters)) {
-        if (v) sp.set(k, v);
-      }
-      router.push(`/search?${sp.toString()}`, { scroll: false });
-      doSearch(q);
-    }
-  };
-
   useEffect(() => {
     const el = sentinelRef.current;
     if (!el) return;
@@ -166,34 +146,25 @@ export function SearchResults({ initialQuery }: Props) {
 
   const cardIds = useMemo(() => cards.map((c) => c.id), [cards]);
 
+  const filtersEmpty =
+    searched && !loading && cards.length > 0 && displayedCards.length === 0 && activeCount > 0;
+  const searchEmpty =
+    searched && !loading && cards.length === 0 && query.length >= 2;
+  const showIdle = !searched && !loading && query.length < 2;
+
+  const clearFilters = () => {
+    applyFilters({
+      audience: null,
+      style: null,
+      occasion: null,
+      object: null,
+    });
+  };
+
   return (
     <CardInteractionsProvider cardIds={cardIds}>
     <div>
       <h1 className="sr-only">Поиск промптов</h1>
-      {/* Search input */}
-      <form onSubmit={handleSubmit} className="mb-8">
-        <div className="relative mx-auto max-w-xl">
-          <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400">
-            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
-            </svg>
-          </span>
-          <input
-            type="text"
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            placeholder="Введите запрос — например, «портрет девушки» или «GTA стиль»"
-            className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 py-3.5 pl-12 pr-24 text-base text-zinc-700 placeholder:text-zinc-400 transition-all focus:border-indigo-300 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-100"
-            autoFocus
-          />
-          <button
-            type="submit"
-            className="absolute right-2 top-1/2 -translate-y-1/2 rounded-xl bg-indigo-500 px-5 py-2 text-sm font-semibold text-white transition-all hover:bg-indigo-600 active:scale-95"
-          >
-            Найти
-          </button>
-        </div>
-      </form>
 
       {/* Status */}
       {searched && cards.length > 0 && (
@@ -247,45 +218,16 @@ export function SearchResults({ initialQuery }: Props) {
         />
       )}
 
-      {/* Empty state */}
-      {searched && displayedCards.length === 0 && !loading && (
-        <div className="mx-auto max-w-md py-16 text-center">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-zinc-100">
-            <svg className="h-7 w-7 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
-            </svg>
-          </div>
-          <h2 className="text-lg font-semibold text-zinc-900">
-            По запросу &laquo;{query}&raquo; ничего не найдено
-          </h2>
-          <p className="mt-2 text-sm text-zinc-500">
-            Попробуйте изменить запрос или перейдите в категории на главной
-          </p>
-          <Link
-            href="/"
-            className="mt-4 inline-block rounded-xl bg-indigo-500 px-6 py-2.5 text-sm font-semibold text-white transition-all hover:bg-indigo-600"
-          >
-            На главную
-          </Link>
-        </div>
+      {/* Empty states */}
+      {filtersEmpty && (
+        <SearchEmptyState variant="filters-empty" query={query} onClearFilters={clearFilters} />
       )}
 
-      {/* Initial state */}
-      {!searched && !loading && (
-        <div className="mx-auto max-w-md py-16 text-center">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-indigo-50">
-            <svg className="h-7 w-7 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
-            </svg>
-          </div>
-          <p className="text-lg font-semibold text-zinc-900">
-            Поиск промптов
-          </p>
-          <p className="mt-2 text-sm text-zinc-500">
-            Введите запрос — например, «портрет», «3D стиль» или «с котом»
-          </p>
-        </div>
+      {searchEmpty && !filtersEmpty && (
+        <SearchEmptyState variant="no-results" query={query} />
       )}
+
+      {showIdle && <SearchEmptyState variant="idle" />}
     </div>
     </CardInteractionsProvider>
   );

@@ -1,13 +1,18 @@
+"use client";
+
 import { applyCountsToMenu } from "@/lib/menu";
+import { ListingMobileChromeProvider } from "@/context/ListingMobileChromeContext";
 import { HeaderClient } from "./HeaderClient";
 import { SidebarNav } from "./SidebarNav";
 import { Footer } from "./Footer";
+import { ListingBottomBar } from "./ListingBottomBar";
+import { ListingSearch } from "./ListingSearch";
 
 const MENU_STRUCTURE = applyCountsToMenu({});
 
 export function PageLayout({ children }: { children: React.ReactNode }) {
   return (
-    <>
+    <ListingMobileChromeProvider>
       <HeaderClient />
       <div className="flex min-h-[calc(100vh-57px)]">
         <SidebarNav menu={MENU_STRUCTURE} />
@@ -16,6 +21,8 @@ export function PageLayout({ children }: { children: React.ReactNode }) {
           <Footer />
         </div>
       </div>
-    </>
+      <ListingSearch variant="header" />
+      <ListingBottomBar />
+    </ListingMobileChromeProvider>
   );
 }

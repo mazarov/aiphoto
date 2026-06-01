@@ -3,27 +3,40 @@
 import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { SearchBar } from "./SearchBar";
 import { SiteLogoMark } from "./SiteLogoMark";
+import { ListingChromeButton, ListingMenuIcon } from "./ListingChromeButton";
 import { useAuth } from "@/context/AuthContext";
+import { useListingMobileChromeOptional } from "@/context/ListingMobileChromeContext";
+
+function MobileCatalogMenuButton() {
+  const chrome = useListingMobileChromeOptional();
+  void chrome?.menuRevision;
+  const openMenu = chrome?.menuOpenRef.current;
+
+  if (!openMenu) return null;
+
+  return (
+    <ListingChromeButton variant="icon-sm" onClick={openMenu} aria-label="Каталог">
+      <ListingMenuIcon />
+    </ListingChromeButton>
+  );
+}
 
 function UserMenu() {
   const { user, loading, openAuthModal, signOut } = useAuth();
   const [open, setOpen] = useState(false);
 
   if (loading) {
-    return <div className="h-8 w-8 animate-pulse rounded-full bg-zinc-100" />;
+    return (
+      <div className="h-10 w-10 animate-pulse rounded-xl border border-indigo-200/40 bg-white/60" />
+    );
   }
 
   if (!user) {
     return (
-      <button
-        type="button"
-        onClick={openAuthModal}
-        className="rounded-lg bg-zinc-900 px-3 py-1.5 text-[13px] font-medium text-white transition-colors hover:bg-zinc-800"
-      >
+      <ListingChromeButton variant="pill" onClick={openAuthModal}>
         Войти
-      </button>
+      </ListingChromeButton>
     );
   }
 
@@ -32,10 +45,12 @@ function UserMenu() {
 
   return (
     <div className="relative">
-      <button
-        type="button"
+      <ListingChromeButton
+        variant="pill"
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-2 rounded-lg px-2 py-1 transition-colors hover:bg-zinc-100"
+        className="gap-2 px-2"
+        aria-expanded={open}
+        aria-haspopup="menu"
       >
         {avatarUrl ? (
           <Image
@@ -50,10 +65,10 @@ function UserMenu() {
             {displayName[0]?.toUpperCase()}
           </div>
         )}
-        <span className="hidden text-[13px] font-medium text-zinc-700 sm:block">
+        <span className="hidden text-[13px] font-medium text-zinc-800 sm:block">
           {displayName}
         </span>
-      </button>
+      </ListingChromeButton>
       {open && (
         <>
           <div className="absolute left-0 right-0 top-full z-40 h-2" />
@@ -97,35 +112,32 @@ function UserMenu() {
 
 export function HeaderClient() {
   return (
-    <header className="sticky top-0 z-40 border-b border-zinc-100 bg-white/80 backdrop-blur-xl">
-      {/* Mobile: centered logo + right auth */}
-      <div className="relative flex items-center justify-end px-4 py-3 lg:hidden">
+    <header className="sticky top-0 z-40 border-b border-indigo-100/50 bg-white/80 backdrop-blur-xl">
+      {/* Mobile: menu + logo + auth */}
+      <div className="grid grid-cols-3 items-center px-4 py-3 lg:hidden">
+        <div className="flex justify-start">
+          <MobileCatalogMenuButton />
+        </div>
         <Link
           href="/"
-          className="absolute left-1/2 flex -translate-x-1/2 items-center gap-2 text-lg font-bold tracking-tight text-zinc-900"
+          className="flex items-center justify-center gap-2 text-lg font-bold tracking-tight text-zinc-900"
         >
           <SiteLogoMark size={28} className="h-7 w-7 rounded-lg" />
-          <span>PromptShot</span>
+          <span className="truncate">PromptShot</span>
         </Link>
-        <div className="flex items-center">
+        <div className="flex items-center justify-end">
           <UserMenu />
         </div>
       </div>
 
-      {/* Desktop: logo + centered search + user menu */}
-      <div className="hidden items-center gap-4 px-5 py-3 lg:flex">
+      {/* Desktop: logo + user menu */}
+      <div className="hidden items-center justify-between gap-4 px-5 py-3 lg:flex">
         <Link href="/" className="flex flex-shrink-0 items-center gap-2 text-lg font-bold tracking-tight text-zinc-900">
           <SiteLogoMark size={28} className="h-7 w-7 rounded-lg" />
           <span>PromptShot</span>
         </Link>
 
-        <div className="flex flex-1 justify-center">
-          <SearchBar />
-        </div>
-
-        <div className="flex flex-shrink-0 items-center gap-2">
-          <UserMenu />
-        </div>
+        <UserMenu />
       </div>
     </header>
   );
