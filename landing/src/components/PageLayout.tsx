@@ -1,8 +1,9 @@
 "use client";
 
 import { Suspense, useEffect } from "react";
+import { usePathname } from "next/navigation";
 import { applyCountsToMenu } from "@/lib/menu";
-import { LISTING_SCROLL_ROOT_ID } from "@/lib/scroll-preservation";
+import { LISTING_SCROLL_ROOT_ID, useStandalonePageScrollTop } from "@/lib/scroll-preservation";
 import { ListingMobileChromeProvider } from "@/context/ListingMobileChromeContext";
 import { HeaderClient } from "./HeaderClient";
 import { SidebarNav } from "./SidebarNav";
@@ -19,6 +20,9 @@ export function PageLayout({
   children: React.ReactNode;
   hideBottomBar?: boolean;
 }) {
+  const pathname = usePathname();
+  useStandalonePageScrollTop(pathname);
+
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 1023px)");
     const sync = () => {

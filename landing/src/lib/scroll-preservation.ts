@@ -3,7 +3,7 @@
  * при открытии/закрытии карточек промтов (через клиентский модал Solution B).
  */
 
-import { useLayoutEffect } from "react";
+import { useEffect, useLayoutEffect } from "react";
 
 export const SCROLL_KEY = "card_modal_scroll_pos";
 export const LISTING_SCROLL_ROOT_ID = "listing-scroll-root";
@@ -127,4 +127,36 @@ export function useListingScrollRestoration(opts: RestoreOptions = {}): void {
   useLayoutEffect(() => {
     restoreListingScroll({ ...opts, clear: true });
   }, []);
+}
+
+/** Marketing/tool routes that must always open at scroll top. */
+export const STANDALONE_SCROLL_TOP_PATHS = new Set(["/foto-v-promt"]);
+
+/**
+ * Next.js scroll-to-top only affects `window`. On mobile the catalog shell scrolls
+ * inside `#listing-scroll-root`; browser history can also restore a stale position.
+ */
+export function useStandalonePageScrollTop(pathname: string): void {
+  useLayoutEffect(() => {
+    if (!STANDALONE_SCROLL_TOP_PATHS.has(pathname)) return;
+
+    const previousScrollRestoration = window.history.scrollRestoration;
+    window.history.scrollRestoration = "manual";
+    resetListingScroll();
+
+    const raf = requestAnimationFrame(() => {
+      writeScrollTop(getListingScrollRoot(), 0);
+    });
+
+    return () => {
+      cancelAnimationFrame(raf);
+      window.history.scrollRestoration = previousScrollRestoration;
+    };
+  }, [pathname]);
+
+  useEffect(() => {
+    if (!STANDALONE_SCROLL_TOP_PATHS.has(pathname)) return;
+    const timeout = window.setTimeout(() => writeScrollTop(getListingScrollRoot(), 0), 50);
+    return () => window.clearTimeout(timeout);
+  }, [pathname]);
 }
