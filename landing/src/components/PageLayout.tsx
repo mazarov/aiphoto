@@ -12,7 +12,13 @@ import { ListingSearch } from "./ListingSearch";
 
 const MENU_STRUCTURE = applyCountsToMenu({});
 
-export function PageLayout({ children }: { children: React.ReactNode }) {
+export function PageLayout({
+  children,
+  hideBottomBar = false,
+}: {
+  children: React.ReactNode;
+  hideBottomBar?: boolean;
+}) {
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 1023px)");
     const sync = () => {
@@ -44,7 +50,7 @@ export function PageLayout({ children }: { children: React.ReactNode }) {
           </div>
         </div>
 
-        <ListingBottomBar />
+        {!hideBottomBar ? <ListingBottomBar /> : null}
 
         <Suspense fallback={null}>
           <ListingSearch variant="header" />

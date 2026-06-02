@@ -47,7 +47,7 @@ export function Footer() {
               <div className="mb-3 text-[11px] font-semibold uppercase tracking-widest text-zinc-400">Навигация</div>
               <ul className="space-y-2">
                 <li><Link href="/" className="text-sm text-zinc-500 transition-colors hover:text-zinc-900">Главная</Link></li>
-                <li><Link href="/foto-v-promt" className="text-sm text-zinc-500 transition-colors hover:text-zinc-900">Фото в промпт</Link></li>
+                <li><Link href="/foto-v-promt" className="text-sm text-zinc-500 transition-colors hover:text-zinc-900">Фото в промт</Link></li>
               </ul>
             </div>
           </nav>

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { cache } from "react";
 import type { Metadata } from "next";
 import Script from "next/script";
@@ -168,6 +169,13 @@ export default async function HomePage() {
           <div className="mx-auto mt-8 w-full max-w-2xl px-1 sm:px-0">
             <HomeSearch />
           </div>
+          <p className="mx-auto mt-5 max-w-lg text-sm text-zinc-500">
+            Нужен промт из фото?{" "}
+            <Link href="/foto-v-promt" className="font-medium text-indigo-600 hover:text-indigo-700 hover:underline">
+              Фото в промт
+            </Link>
+            {" "}— загрузите картинку и получите текст онлайн.
+          </p>
         </div>
       </section>
 

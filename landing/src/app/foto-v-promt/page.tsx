@@ -6,7 +6,12 @@ import { FotoVPromtFloatingCta } from "@/components/foto-v-promt/FotoVPromtFloat
 import { FotoVPromtHowItWorks } from "@/components/foto-v-promt/FotoVPromtHowItWorks";
 import { PromptSceneLiteWidgetGate } from "@/components/foto-v-promt/PromptSceneLiteWidgetGate";
 import { getAiImageDescriberChromeUrl } from "@/lib/foto-v-promt-config";
-import { FOTO_V_PROMT_HERO, FOTO_V_PROMT_META } from "@/lib/foto-v-promt-copy";
+import {
+  FOTO_V_PROMT_FAQ,
+  FOTO_V_PROMT_HERO,
+  FOTO_V_PROMT_META,
+  FOTO_V_PROMT_WIDGET,
+} from "@/lib/foto-v-promt-copy";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://promptshot.ru";
 const PAGE_URL = `${SITE_URL}/foto-v-promt/`;
@@ -26,10 +31,10 @@ export const metadata: Metadata = {
 };
 
 export default function FotoVPromtPage() {
-  const jsonLd = {
+  const webAppJsonLd = {
     "@context": "https://schema.org",
     "@type": "WebApplication",
-    name: FOTO_V_PROMT_META.title,
+    name: FOTO_V_PROMT_META.jsonLdName,
     description: FOTO_V_PROMT_META.description,
     url: PAGE_URL,
     applicationCategory: "BrowserApplication",
@@ -41,8 +46,21 @@ export default function FotoVPromtPage() {
     downloadUrl: getAiImageDescriberChromeUrl(),
   };
 
+  const faqJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: FOTO_V_PROMT_FAQ.items.map((item) => ({
+      "@type": "Question",
+      name: item.q,
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: item.a,
+      },
+    })),
+  };
+
   return (
-    <PageLayout>
+    <PageLayout hideBottomBar>
       <div className="listing-main-bottom-pad pb-32">
         <section className="relative overflow-hidden">
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-25%,rgba(99,102,241,0.12),transparent_55%)]" />
@@ -59,8 +77,11 @@ export default function FotoVPromtPage() {
         <section
           id="foto-v-promt-widget"
           className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-10"
-          aria-label="Live-разбор фото в промпт"
+          aria-label={FOTO_V_PROMT_WIDGET.ariaLabel}
         >
+          <h2 className="mb-6 text-center text-xl font-bold tracking-tight text-zinc-900 sm:text-2xl">
+            {FOTO_V_PROMT_WIDGET.title}
+          </h2>
           <PromptSceneLiteWidgetGate />
         </section>
 
@@ -70,10 +91,16 @@ export default function FotoVPromtPage() {
       </div>
 
       <Script
-        id="foto-v-promt-json-ld"
+        id="foto-v-promt-webapp-json-ld"
         type="application/ld+json"
         strategy="afterInteractive"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c") }}
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(webAppJsonLd).replace(/</g, "\\u003c") }}
+      />
+      <Script
+        id="foto-v-promt-faq-json-ld"
+        type="application/ld+json"
+        strategy="afterInteractive"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd).replace(/</g, "\\u003c") }}
       />
     </PageLayout>
   );

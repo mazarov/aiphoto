@@ -9,6 +9,12 @@ export function getImagePromptApiOrigin(): string {
 }
 
 export function getImagePromptAnalyzeUrl(): string {
+  // In `next dev`, same-origin proxy avoids CORS (localhost, LAN IP, etc.).
+  // Prod / preview: direct cross-origin call; imageprompt CORS must allow promptshot.ru.
+  const forceDirect = process.env.NEXT_PUBLIC_IMAGEPROMPT_DIRECT === "1";
+  if (process.env.NODE_ENV === "development" && !forceDirect) {
+    return "/api/imageprompt-proxy/extension/analyze";
+  }
   return `${getImagePromptApiOrigin()}/api/extension/analyze`;
 }
 

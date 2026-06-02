@@ -30,7 +30,7 @@
 /p/[slug]               → Карточка промта
 /[...slug]              → Листинг по тегу (напр. /promty-dlya-foto-devushki, /stil/cherno-beloe)
 /search                 → Поиск (клиентский)
-/foto-v-promt           → «Фото в промпт» — RU-маркетинг AI Image Describer в **`PageLayout`** (светлая тема каталога); **`metadata.robots` index**; sitemap priority **0.8**; пункт **«Фото в промпт»** в **`SidebarNav`** сразу после «Главная»; секции: hero → **`PromptSceneLiteWidgetGate`** (lazy) → **`FotoVPromtHowItWorks`** → **`FotoVPromtFaq`** → FAB **`FotoVPromtFloatingCta`** (Chrome Web Store). Виджет вызывает **`getImagePromptAnalyzeUrl()`** (`landing/src/lib/foto-v-promt-config.ts`) с **`credentials: include`**; backend/rate limit/Gemini — **не** в aiphoto. RU-тексты — **`foto-v-promt-copy.ts`**. CORS на imageprompt: **`CORS_ALLOWED_ORIGINS`** должен включать `https://promptshot.ru`.
+/foto-v-promt           → «Фото в промт» — SEO-кластер image-to-prompt (ВЧ «фото в промт», СЧ «промт из фото», «промт по картинке»); тексты — **`foto-v-promt-copy.ts`**, ТЗ — **`docs/requirements/02-06-foto-v-promt-seo-copy.md`**. RU-маркетинг AI Image Describer в **`PageLayout`**; **`metadata.robots` index**; sitemap **0.8**; JSON-LD **WebApplication** + **FAQPage**; H2 над виджетом; перелинковка с **`/`** («Фото в промт»). Live-виджет → **`getImagePromptAnalyzeUrl()`** (prod cross-origin, dev **`/api/imageprompt-proxy/`**); CORS на imageprompt.
 /favorites              → Избранное (требует авторизации)
 /generations            → Мои генерации (auth): листинг как в каталоге (`PromptCard`), карточки UGC из `prompt_cards` с `author_user_id`
 /auth/callback          → OAuth callback (server-side)
