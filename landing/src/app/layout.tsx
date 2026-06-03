@@ -11,6 +11,7 @@ import { AuthModal } from "@/components/AuthModal";
 import { GenerationModal } from "@/components/GenerationModal";
 import { ClientCardModal } from "@/components/ClientCardModal";
 import { YandexMetrikaRouteTracker } from "@/components/YandexMetrikaRouteTracker";
+import { HOMEPAGE_SEO } from "@/lib/homepage-seo-copy";
 
 const inter = Inter({
   subsets: ["latin", "cyrillic"],
@@ -18,9 +19,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Промты для фото ИИ — готовые промпты для генерации фото",
-  description:
-    "Готовые промты для фото: девушки, пары, дети, студийное, чёрно-белое. Копируй и используй в ИИ для создания фото.",
+  title: HOMEPAGE_SEO.title,
+  description: HOMEPAGE_SEO.description,
   manifest: "/site.webmanifest",
   robots: {
     index: true,

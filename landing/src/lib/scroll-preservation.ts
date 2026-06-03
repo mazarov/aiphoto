@@ -3,7 +3,7 @@
  * при открытии/закрытии карточек промтов (через клиентский модал Solution B).
  */
 
-import { useEffect, useLayoutEffect } from "react";
+import { useLayoutEffect } from "react";
 
 export const SCROLL_KEY = "card_modal_scroll_pos";
 export const LISTING_SCROLL_ROOT_ID = "listing-scroll-root";
@@ -23,11 +23,13 @@ function readScrollTop(root: ScrollRoot): number {
 }
 
 export function writeScrollTop(root: ScrollRoot, y: number): void {
+  // Direct assignment — instant; scrollTo() respects html { scroll-behavior: smooth }.
   if (root === window) {
-    window.scrollTo(0, y);
+    document.documentElement.scrollTop = y;
+    document.body.scrollTop = y;
     return;
   }
-  root.scrollTo({ top: y, behavior: "auto" });
+  (root as HTMLElement).scrollTop = y;
 }
 
 export function saveListingScroll(): void {
@@ -129,8 +131,39 @@ export function useListingScrollRestoration(opts: RestoreOptions = {}): void {
   }, []);
 }
 
-/** Marketing/tool routes that must always open at scroll top. */
-export const STANDALONE_SCROLL_TOP_PATHS = new Set(["/foto-v-promt"]);
+/** Routes that must open at scroll top (catalog shell + window). Paths without trailing slash. */
+export const SCROLL_TOP_ON_NAV_PATHS = new Set(["/", "/foto-v-promt"]);
+
+/** @deprecated use SCROLL_TOP_ON_NAV_PATHS */
+export const STANDALONE_SCROLL_TOP_PATHS = SCROLL_TOP_ON_NAV_PATHS;
+
+export function normalizeNavPath(pathname: string): string {
+  if (!pathname || pathname === "/") return "/";
+  return pathname.endsWith("/") ? pathname.slice(0, -1) : pathname;
+}
+
+export function shouldScrollTopOnNav(pathname: string): boolean {
+  return SCROLL_TOP_ON_NAV_PATHS.has(normalizeNavPath(pathname));
+}
+
+/** Scroll catalog listing root and window to top; clears saved modal-restore position. */
+export function scrollCatalogToTop(): void {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.removeItem(SCROLL_KEY);
+  } catch {
+    /* ignore */
+  }
+  const root = getListingScrollRoot();
+  writeScrollTop(root, 0);
+  if (root !== window) {
+    writeScrollTop(window, 0);
+  }
+}
+
+export function isSameNavPath(pathname: string, href: string): boolean {
+  return normalizeNavPath(pathname) === normalizeNavPath(href);
+}
 
 /**
  * Next.js scroll-to-top only affects `window`. On mobile the catalog shell scrolls
@@ -138,25 +171,14 @@ export const STANDALONE_SCROLL_TOP_PATHS = new Set(["/foto-v-promt"]);
  */
 export function useStandalonePageScrollTop(pathname: string): void {
   useLayoutEffect(() => {
-    if (!STANDALONE_SCROLL_TOP_PATHS.has(pathname)) return;
+    if (!shouldScrollTopOnNav(pathname)) return;
 
     const previousScrollRestoration = window.history.scrollRestoration;
     window.history.scrollRestoration = "manual";
-    resetListingScroll();
-
-    const raf = requestAnimationFrame(() => {
-      writeScrollTop(getListingScrollRoot(), 0);
-    });
+    scrollCatalogToTop();
 
     return () => {
-      cancelAnimationFrame(raf);
       window.history.scrollRestoration = previousScrollRestoration;
     };
-  }, [pathname]);
-
-  useEffect(() => {
-    if (!STANDALONE_SCROLL_TOP_PATHS.has(pathname)) return;
-    const timeout = window.setTimeout(() => writeScrollTop(getListingScrollRoot(), 0), 50);
-    return () => window.clearTimeout(timeout);
   }, [pathname]);
 }

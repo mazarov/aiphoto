@@ -6,6 +6,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useListingMobileChromeOptional } from "@/context/ListingMobileChromeContext";
 import type { MenuSectionWithCounts } from "@/lib/menu";
+import { isSameNavPath, scrollCatalogToTop } from "@/lib/scroll-preservation";
 
 function enrichMenuWithCounts(
   menu: MenuSectionWithCounts[],
@@ -69,7 +70,14 @@ function SidebarContent({
     <nav className="flex flex-col gap-0.5 px-3 py-4">
       <Link
         href="/"
-        onClick={onItemClick}
+        scroll={false}
+        onClick={(e) => {
+          onItemClick?.();
+          if (isSameNavPath(pathname, "/")) {
+            e.preventDefault();
+            scrollCatalogToTop();
+          }
+        }}
         className={`flex items-center gap-2.5 rounded-xl px-3 py-2 text-[13px] font-medium transition-colors ${
           pathname === "/"
             ? "bg-indigo-50 text-indigo-700"
@@ -84,7 +92,14 @@ function SidebarContent({
 
       <Link
         href="/foto-v-promt"
-        onClick={onItemClick}
+        scroll={false}
+        onClick={(e) => {
+          onItemClick?.();
+          if (isSameNavPath(pathname, "/foto-v-promt")) {
+            e.preventDefault();
+            scrollCatalogToTop();
+          }
+        }}
         className={`flex items-center gap-2.5 rounded-xl px-3 py-2 text-[13px] font-medium transition-colors ${
           isHrefActive("/foto-v-promt", pathname)
             ? "bg-indigo-50 text-indigo-700"

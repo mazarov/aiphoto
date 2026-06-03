@@ -177,6 +177,17 @@
 | **Extension lite (AI Image Describer)** | `~/imageprompt/extension-lite/` | MV3 в Chrome Web Store; context menu, popup, вызов той же API |
 | **PromptSceneLiteWidget** | `~/imageprompt/landing/src/components/extension-stv/` | Клиент: upload, paste, URL, history, `fetch(..., credentials: "include")` |
 
+#### Rate limit: таблицы в Supabase (imageprompt)
+
+| Таблица | Роль | Ключ / поля |
+|---------|------|-------------|
+| **`extension_rate_limit`** | **Source of truth** — сколько analyze уже сделано за текущие сутки (UTC). Одна строка на bucket. | PK `ip_hash`: для гостя — хэш IP; для залогиненного — `user:<uuid>` из `imageprompt_users`. Колонки `window_start`, `count`. Инкремент: RPC `extension_rate_limit_check_and_increment`. |
+| **`extension_rate_limit_identity_merge`** | **Журнал слияний**, не счётчик. Запоминает, сколько гостевых попыток с данного IP уже перенесли в user-bucket при логине через Google на imageprompt. | PK `(user_id, ip_hash, window_start)`. Колонка `merged_count` — сколько раз уже учли с IP-bucket. Нужна, чтобы при повторных merge не дублировать count. RPC: `extension_rate_limit_merge_ip_to_user`. |
+
+**Сценарий:** пользователь без логина сделал 5 analyze с IP → в `extension_rate_limit` строка `ip_hash=<hash>`, `count=5`. Вошёл через Google → merge добавляет +5 к `user:<id>` и пишет в `identity_merge` «с этого IP уже перенесли 5». Дальнейшие analyze идут в user-bucket; лимит общий с extension-lite и promptshot.ru (если та же сессия imageprompt).
+
+Лимит в сутки: `aiid_app_config.extension_rate_limit_per_day` (дефолт 30). SQL: `docs/sql/13-05-extension-rate-limit.sql`, `13-06-extension-rate-limit-user-merge.sql` в репо **imageprompt**.
+
 Контракт API (без изменений):
 
 | Поле | Значение |

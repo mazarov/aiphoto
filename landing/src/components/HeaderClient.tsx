@@ -3,10 +3,12 @@
 import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { usePathname } from "next/navigation";
 import { SiteLogoMark } from "./SiteLogoMark";
 import { ListingChromeButton, ListingMenuIcon } from "./ListingChromeButton";
 import { useAuth } from "@/context/AuthContext";
 import { useListingMobileChromeOptional } from "@/context/ListingMobileChromeContext";
+import { isSameNavPath, scrollCatalogToTop } from "@/lib/scroll-preservation";
 
 function MobileCatalogMenuButton() {
   const chrome = useListingMobileChromeOptional();
@@ -111,6 +113,15 @@ function UserMenu() {
 }
 
 export function HeaderClient() {
+  const pathname = usePathname();
+
+  const handleHomeLogoClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    if (isSameNavPath(pathname, "/")) {
+      e.preventDefault();
+      scrollCatalogToTop();
+    }
+  };
+
   return (
     <header className="sticky top-0 z-40 shrink-0 border-b border-indigo-100/50 bg-white/80 backdrop-blur-xl">
       {/* Mobile: menu + logo + auth */}
@@ -120,6 +131,8 @@ export function HeaderClient() {
         </div>
         <Link
           href="/"
+          scroll={false}
+          onClick={handleHomeLogoClick}
           className="flex min-w-0 items-center justify-center gap-1.5 text-lg font-bold tracking-tight text-zinc-900"
         >
           <SiteLogoMark size={28} className="h-7 w-7 shrink-0 rounded-lg" />
@@ -132,7 +145,12 @@ export function HeaderClient() {
 
       {/* Desktop: logo + user menu */}
       <div className="hidden items-center justify-between gap-4 px-5 py-3 lg:flex">
-        <Link href="/" className="flex flex-shrink-0 items-center gap-2 text-lg font-bold tracking-tight text-zinc-900">
+        <Link
+          href="/"
+          scroll={false}
+          onClick={handleHomeLogoClick}
+          className="flex flex-shrink-0 items-center gap-2 text-lg font-bold tracking-tight text-zinc-900"
+        >
           <SiteLogoMark size={28} className="h-7 w-7 rounded-lg" />
           <span>PromptShot</span>
         </Link>

@@ -8,6 +8,11 @@ html {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Catalog shell scrolls inside this node on mobile — programmatic jumps must be instant. */
+#listing-scroll-root {
+  scroll-behavior: auto;
+}
+
 h1, h2, h3, h4 {
   text-wrap: balance;
   letter-spacing: -0.025em;

@@ -7,18 +7,16 @@ import {
   pickDeduplicatedPhotos,
 } from "@/lib/supabase";
 import { TAG_REGISTRY, DIMENSION_LABELS, type Dimension } from "@/lib/tag-registry";
+import { HOMEPAGE_SEO, HOMEPAGE_FAQ } from "@/lib/homepage-seo-copy";
 import { PageLayout } from "@/components/PageLayout";
 import { CategorySection } from "@/components/CategorySection";
 import { HomeSearch } from "@/components/HomeSearch";
+import { HomeSeoBlocks } from "@/components/HomeSeoBlocks";
 import { MENU } from "@/lib/menu";
 
 export const revalidate = 3600;
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://promptshot.ru";
-
-const TITLE = "Промты для фото с нейросетями — готовая библиотека промптов";
-const DESCRIPTION =
-  "Готовые промты для генерации и обработки фотографий с нейросетями. Копируй, вставляй, получай результат.";
 
 const getCachedSections = cache(async () => {
   try {
@@ -34,12 +32,12 @@ export async function generateMetadata(): Promise<Metadata> {
   const firstPhoto = sections.find((s) => s.cards.length > 0)?.cards[0]?.photoUrl ?? null;
 
   return {
-    title: TITLE,
-    description: DESCRIPTION,
+    title: HOMEPAGE_SEO.title,
+    description: HOMEPAGE_SEO.description,
     alternates: { canonical: SITE_URL + "/" },
     openGraph: {
-      title: TITLE,
-      description: DESCRIPTION,
+      title: HOMEPAGE_SEO.title,
+      description: HOMEPAGE_SEO.description,
       url: SITE_URL + "/",
       type: "website",
       siteName: "PromptShot",
@@ -47,8 +45,8 @@ export async function generateMetadata(): Promise<Metadata> {
     },
     twitter: {
       card: "summary_large_image",
-      title: TITLE,
-      description: DESCRIPTION,
+      title: HOMEPAGE_SEO.title,
+      description: HOMEPAGE_SEO.description,
       ...(firstPhoto ? { images: [firstPhoto] } : {}),
     },
   };
@@ -115,13 +113,18 @@ export default async function HomePage() {
 
   const homeOgImage = sections.find((s) => s.cards.length > 0)?.cards[0]?.photoUrl ?? null;
 
-  const jsonLd = {
+  const collectionPageLd = {
     "@context": "https://schema.org",
     "@type": "CollectionPage",
-    name: TITLE,
-    description: DESCRIPTION,
+    name: HOMEPAGE_SEO.title,
+    description: HOMEPAGE_SEO.description,
     url: SITE_URL + "/",
     ...(homeOgImage ? { image: homeOgImage } : {}),
+    isPartOf: {
+      "@type": "WebSite",
+      name: "PromptShot",
+      url: SITE_URL,
+    },
     hasPart: sections
       .filter((s) => s.total_count > 0)
       .slice(0, 50)
@@ -132,7 +135,7 @@ export default async function HomePage() {
         return tag
           ? {
               "@type": "CollectionPage",
-              name: tag.labelRu,
+              name: `Промты для фото ${tag.labelRu}`,
               url: `${SITE_URL}${tag.urlPath}/`,
             }
           : null;
@@ -140,26 +143,40 @@ export default async function HomePage() {
       .filter(Boolean),
   };
 
+  const faqPageLd = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: HOMEPAGE_FAQ.map((item) => ({
+      "@type": "Question",
+      name: item.q,
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: item.aPlain,
+      },
+    })),
+  };
+
+  const jsonLd = [collectionPageLd, faqPageLd];
+
   return (
     <PageLayout>
       {/* Hero */}
       <section className="relative overflow-hidden bg-gradient-to-b from-indigo-50/40 via-white to-white">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(99,102,241,0.12),transparent)]" />
         <div className="relative mx-auto max-w-5xl px-5 pt-16 pb-10 text-center">
-          <h1 className="mx-auto max-w-3xl text-3xl font-bold tracking-tight text-zinc-900 sm:text-4xl lg:text-5xl">
-            Промты для фото{" "}
+          <h1 className="mx-auto max-w-4xl text-3xl font-bold tracking-tight text-zinc-900 sm:text-4xl lg:text-5xl">
+            {HOMEPAGE_SEO.h1.main}{" "}
             <span className="bg-gradient-to-r from-indigo-500 to-violet-500 text-gradient">
-              с нейросетями
+              {HOMEPAGE_SEO.h1.accent}
             </span>
           </h1>
           <p className="mx-auto mt-4 max-w-lg text-base text-zinc-500 sm:text-lg">
-            Готовые промпты для генерации фотографий.
-            Копируй, вставляй, получай результат.
+            {HOMEPAGE_SEO.heroSubtitle}
           </p>
           <div className="mt-6 flex items-center justify-center gap-2 text-sm text-zinc-400">
             <span className="inline-flex items-center gap-1.5 rounded-full bg-zinc-100 px-3 py-1 text-zinc-600">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
-              {totalPrompts}+ промптов
+              {totalPrompts}+ промтов
             </span>
             <span className="inline-flex items-center gap-1.5 rounded-full bg-zinc-100 px-3 py-1 text-zinc-600">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
@@ -187,6 +204,7 @@ export default async function HomePage() {
               title={block!.title}
               items={block!.items}
               isFirstSection={i === 0}
+              sectionId={block!.dimension}
             />
           ))
         ) : (
@@ -203,6 +221,8 @@ export default async function HomePage() {
           </div>
         )}
       </main>
+
+      <HomeSeoBlocks />
 
       <Script
         id="homepage-json-ld"
