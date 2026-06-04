@@ -5,4 +5,4 @@ import { CARD_OVERLAY_ACTION_PILL } from "./card-overlay-action-pill";
  * Same glass pill as like/dislike/favorite/views — `CARD_OVERLAY_ACTION_PILL` + counter typography.
  */
 export const CARD_OVERLAY_PHOTO_COUNTER_CLASS =
-  `${CARD_OVERLAY_ACTION_PILL} text-[11px] font-medium text-white/90 tabular-nums`;
+  `${CARD_OVERLAY_ACTION_PILL} text-[13px] font-medium text-white/90 tabular-nums`;

@@ -29,15 +29,15 @@ import {
   type ListingCardNavNeighbors,
 } from "@/lib/listing-card-navigation-context";
 
-/** Glass как у «тегов» на этом экране: chip-подложка без отдельной нижней панели. */
+/** Glass как у «тегов» на этом экране: chip-подложка без отдельной нижней панели (tier A = 13px для mobile SEO). */
 const MOBILE_FS_CHIP =
-  "bg-black/15 text-white/90 backdrop-blur-md shadow-none transition-colors hover:bg-black/25";
+  "text-[13px] font-medium bg-black/15 text-white/90 backdrop-blur-md shadow-none transition-colors hover:bg-black/25";
 /** То же — приглушённый текст для нессылочных чипов */
 const MOBILE_FS_CHIP_MUTED =
-  "bg-black/15 text-white/80 backdrop-blur-md shadow-none transition-colors hover:bg-black/25";
+  "text-[13px] font-medium bg-black/15 text-white/80 backdrop-blur-md shadow-none transition-colors hover:bg-black/25";
 /** Кнопки поверх фото (копировать) — без «полосы», тот же glass. */
 const MOBILE_FS_ACTION = `${MOBILE_FS_CHIP} rounded-xl font-semibold`;
-const MOBILE_FS_EXPAND = `${MOBILE_FS_CHIP} rounded-2xl px-4 py-3 text-[13px] font-medium leading-snug`;
+const MOBILE_FS_EXPAND = `${MOBILE_FS_CHIP} rounded-2xl px-4 py-3 leading-snug`;
 
 /** Sticky bar with listing prev/next: arrows + copy + Lexy on one row, full content width. */
 const LISTING_STICKY_ACTIONS_GRID =
@@ -189,14 +189,34 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
       onCloseModal();
       return;
     }
-    if (onListingNeighborGo) {
-      // Legacy safety: if only neighbor navigation was passed (no explicit close),
-      // the parent modal owns close. Do nothing here.
+
+    const fallbackHref = breadcrumbTag?.urlPath ?? "/";
+
+    // Intercepting @modal route: pop soft-nav stack (listing → card).
+    if (isModal) {
+      router.back();
       return;
     }
-    // Server-rendered full page or intercepting modal: go back to listing
-    router.back();
-  }, [router, onListingNeighborGo, onCloseModal]);
+
+    // Full-page /p/[slug]: back when user arrived from same site; else category or home.
+    if (typeof window !== "undefined") {
+      let sameOriginReferrer = false;
+      try {
+        sameOriginReferrer = Boolean(
+          document.referrer &&
+            new URL(document.referrer).origin === window.location.origin
+        );
+      } catch {
+        sameOriginReferrer = false;
+      }
+      if (sameOriginReferrer && window.history.length > 1) {
+        router.back();
+        return;
+      }
+    }
+
+    router.replace(fallbackHref);
+  }, [router, onCloseModal, isModal, breadcrumbTag]);
 
 
 
@@ -367,10 +387,11 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
 
   const listingPrev = listingNavNeighbors?.prevSlug ?? null;
   const listingNext = listingNavNeighbors?.nextSlug ?? null;
-  const listingNavInStickyBar = !!(listingPrev || listingNext);
 
   return (
-    <div className="mx-auto max-w-2xl px-5 py-6 lg:py-10 pb-28">
+    <div
+      className={`mx-auto max-w-2xl px-5 py-6 pb-28 lg:py-10 ${hasPhotos ? "max-md:pb-6" : ""}`}
+    >
       {/* Breadcrumb — hidden on mobile */}
       <nav className="mb-6 hidden sm:flex items-center gap-1.5 text-sm text-zinc-500">
         <Link href="/" className="transition-colors hover:text-zinc-700">
@@ -609,14 +630,14 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                         <Link
                           key={slug}
                           href={href}
-                          className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${MOBILE_FS_CHIP}`}
+                          className={`rounded-full px-2.5 py-2 ${MOBILE_FS_CHIP}`}
                         >
                           {label}
                         </Link>
                       ) : (
                         <span
                           key={slug}
-                          className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${MOBILE_FS_CHIP_MUTED}`}
+                          className={`rounded-full px-2.5 py-2 ${MOBILE_FS_CHIP_MUTED}`}
                         >
                           {label}
                         </span>
@@ -660,7 +681,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
           {/* Mobile: fullscreen-карточка (Chrome скрыт через CardPageLayout при наличии фото).
               This block is rendered both for direct /p/[slug] pages and for the client-side single-instance
               modal (when opened from a listing or search). The close button inside the photo header
-              respects onCloseModal (client modal) or falls back to router.back() (direct pages). */}
+              respects onCloseModal (client modal), router.back() (soft modal), or category/home fallback (direct entry). */}
           {hasPhotos && (
           <div className="fixed inset-0 z-[245] flex min-h-[100dvh] flex-col bg-transparent md:hidden motion-reduce:transition-none">
             {currentPhoto ? (
@@ -708,16 +729,22 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
 
                 {beforePhotoUrl ? (
                   <div className="pointer-events-auto absolute left-4 top-[calc(env(safe-area-inset-top)+4.25rem)] z-[61] w-[26%] min-w-[52px] max-w-[92px]">
-                    <div className="relative aspect-square overflow-hidden rounded-br-xl bg-zinc-800 shadow-md ring-1 ring-black/35">
+                    <div
+                      className="relative aspect-square overflow-hidden rounded-br-xl bg-zinc-800 shadow-md ring-1 ring-black/35"
+                      aria-label="Фото «было»"
+                    >
                       <Image
                         src={beforePhotoUrl}
-                        alt="before"
+                        alt=""
                         fill
                         className="object-cover"
                         sizes={SIZES_CARD_GRID}
                         quality={CARD_IMAGE_NEXT_QUALITY}
                       />
-                      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/72 to-transparent py-px text-center text-[6px] font-bold uppercase tracking-wide text-white">
+                      <div
+                        className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/72 to-transparent py-0.5 text-center text-[10px] font-bold uppercase tracking-wide text-white"
+                        aria-hidden
+                      >
                         БЫЛО
                       </div>
                     </div>
@@ -739,7 +766,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                     <div className="h-11 w-11 shrink-0 justify-self-start" aria-hidden />
                     <div className="flex min-h-[2.75rem] shrink-0 items-center justify-center px-1">
                       <div
-                        className={`inline-flex max-w-[min(100%,18rem)] items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] ${MOBILE_FS_CHIP}`}
+                        className={`inline-flex max-w-[min(100%,18rem)] items-center gap-1.5 rounded-full px-3 py-2 ${MOBILE_FS_CHIP}`}
                         aria-label={`Просмотров: ${formatCompactCount(viewCount)}`}
                       >
                         <EyeIcon size={16} className="shrink-0 text-white/85" aria-hidden />
@@ -754,7 +781,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                         type="button"
                         aria-label="Закрыть"
                         onClick={handleCloseMobileViewer}
-                        className={`${OVERLAY_BUTTON_UA_RESET} flex h-10 w-10 items-center justify-center rounded-full bg-black/15 p-2 text-white/90 backdrop-blur-md shadow-none transition-colors hover:bg-black/25 active:scale-[0.97]`}
+                        className={`${OVERLAY_BUTTON_UA_RESET} flex h-11 w-11 items-center justify-center rounded-full bg-black/15 p-2 text-white/90 backdrop-blur-md shadow-none transition-colors hover:bg-black/25 active:scale-[0.97]`}
                       >
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden>
                           <path d="M18 6L6 18M6 6l12 12"/>
@@ -776,7 +803,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                           <Link
                             key={card.id}
                             href={`/p/${card.slug}`}
-                            className={`flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors touch-manipulation ${
+                            className={`flex shrink-0 items-center gap-1 rounded-full px-2.5 py-2 text-[13px] font-semibold transition-colors touch-manipulation ${
                               isActive
                                 ? "bg-white/30 ring-1 ring-white/45 text-white"
                                 : `${MOBILE_FS_CHIP_MUTED} ring-1 ring-transparent`
@@ -842,9 +869,9 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                           <button
                             type="button"
                             onClick={() => setMobilePromptOverlay(true)}
-                            className={`${OVERLAY_BUTTON_UA_RESET} touch-manipulation rounded-full px-2.5 py-1 text-[11px] font-medium text-white/90 ${MOBILE_FS_CHIP}`}
+                            className={`${OVERLAY_BUTTON_UA_RESET} touch-manipulation rounded-full px-2.5 py-2 ${MOBILE_FS_CHIP}`}
                           >
-                            Посмотреть промпт
+                            Посмотреть промт
                           </button>
                         </div>
                       </section>
@@ -858,14 +885,14 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                               <Link
                                 key={slug}
                                 href={href}
-                                className={`rounded-full px-2.5 py-1 text-[11px] font-medium text-white/90 ${MOBILE_FS_CHIP}`}
+                                className={`rounded-full px-2.5 py-2 ${MOBILE_FS_CHIP}`}
                               >
                                 {label}
                               </Link>
                             ) : (
                               <span
                                 key={slug}
-                                className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${MOBILE_FS_CHIP_MUTED}`}
+                                className={`rounded-full px-2.5 py-2 ${MOBILE_FS_CHIP_MUTED}`}
                               >
                                 {label}
                               </span>
@@ -881,7 +908,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                 <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[99] pb-[max(14px,env(safe-area-inset-bottom))] pt-6 md:hidden">
                   <div className="pointer-events-auto mx-auto flex w-full max-w-lg flex-col gap-2 px-3">
 
-                    {!hasPrompts && listingNavInStickyBar ? (
+                    {!hasPrompts ? (
                       <div className="grid grid-cols-2 gap-2">
                         <StickyListingNavButton
                           slug={listingPrev}
@@ -896,9 +923,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                           floatingGlass
                         />
                       </div>
-                    ) : null}
-
-                    {hasPrompts && listingNavInStickyBar ? (
+                    ) : (
                       <div className={`${LISTING_STICKY_ACTIONS_GRID} shadow-none`}>
                         <StickyListingNavButton
                           slug={listingPrev}
@@ -913,7 +938,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                             e.stopPropagation();
                             void handleCopy();
                           }}
-                          className={`${OVERLAY_BUTTON_UA_RESET} shadow-none flex min-h-11 flex-1 items-center justify-center gap-1 px-2 py-2 text-[11px] text-white ${MOBILE_FS_ACTION}`}
+                          className={`${OVERLAY_BUTTON_UA_RESET} shadow-none flex min-h-11 flex-1 items-center justify-center gap-1 px-2 py-2 text-white ${MOBILE_FS_ACTION}`}
                         >
                           {stickyCopy === "ok" ? (
                             <>
@@ -936,7 +961,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                         <LexyGptGenerateButton
                           promptText={data.promptTexts.join("\n\n")}
                           variant="sticky"
-                          className="h-full min-h-11 min-w-0 w-full truncate px-2 text-[11px] shadow-none ring-2 ring-black/35"
+                          className="h-full min-h-11 min-w-0 w-full truncate px-2 text-[13px] shadow-none ring-2 ring-black/35"
                         />
                         <StickyListingNavButton
                           slug={listingNext}
@@ -945,46 +970,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                           floatingGlass
                         />
                       </div>
-                    ) : null}
-
-                    {hasPrompts && !listingNavInStickyBar ? (
-                      <div className="flex flex-col gap-2 shadow-none">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            void handleCopy();
-                          }}
-                          className={`${OVERLAY_BUTTON_UA_RESET} shadow-none flex min-h-11 flex-1 items-center justify-center gap-2 px-4 py-3 text-[11px] text-white ${MOBILE_FS_ACTION}`}
-                        >
-                          {stickyCopy === "ok" ? (
-                            <>
-                              <CheckIcon size={18} />
-                              <span className="max-sm:hidden">Скопировано!</span>
-                              <span className="sm:hidden">Готово</span>
-                            </>
-                          ) : stickyCopy === "fail" ? (
-                            <>
-                              <span className="text-amber-200" aria-hidden>
-                                !
-                              </span>
-                              Не удалось скопировать
-                            </>
-                          ) : (
-                            <>
-                              <CopyIcon size={18} />
-                              {data.promptTexts.length > 1 ? "Скопировать все промпты" : "Скопировать промпт"}
-                            </>
-                          )}
-                        </button>
-                        <LexyGptGenerateButton
-                          promptText={data.promptTexts.join("\n\n")}
-                          variant="sticky"
-                          className="min-h-11 text-[11px] shadow-none ring-2 ring-black/35"
-                        />
-                      </div>
-                    ) : null}
+                    )}
                   </div>
                 </div>
 
@@ -1010,7 +996,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                           e.stopPropagation();
                           void handleCopy();
                         }}
-                        className={`${OVERLAY_BUTTON_UA_RESET} shadow-none mt-3 flex min-h-11 w-full shrink-0 items-center justify-center gap-2 px-4 py-3 text-[11px] font-semibold text-white ${MOBILE_FS_ACTION}`}
+                        className={`${OVERLAY_BUTTON_UA_RESET} shadow-none mt-3 flex min-h-11 w-full shrink-0 items-center justify-center gap-2 px-4 py-3 font-semibold text-white ${MOBILE_FS_ACTION}`}
                       >
                         {stickyCopy === "ok" ? (
                           <>
@@ -1172,95 +1158,59 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
         </p>
       )}
 
-      {/* ── Sticky CTA — floating ── */}
+      {/* ── Sticky CTA — floating (desktop + mobile без фото; на immersive mobile дубль glass-бара A) ── */}
       {hasPrompts && (
-        <div className="fixed inset-x-0 bottom-0 z-[240] safe-area-pb pointer-events-none lg:left-60">
+        <div
+          className={`fixed inset-x-0 bottom-0 z-[240] safe-area-pb pointer-events-none lg:left-60${hasPhotos ? " max-md:hidden" : ""}`}
+        >
           <div className="mx-auto w-full max-w-2xl px-5 py-4 pointer-events-auto">
-            {listingNavInStickyBar ? (
-              <div className={LISTING_STICKY_ACTIONS_GRID}>
-                <StickyListingNavButton
-                  slug={listingPrev}
-                  direction="prev"
-                  onGo={goListingNeighbor}
-                  floatingGlass
-                />
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    void handleCopy();
-                  }}
-                  className="flex min-h-12 min-w-0 w-full items-center justify-center gap-1.5 rounded-xl bg-zinc-900 px-2 py-2 text-xs font-semibold text-white shadow-lg transition-all hover:bg-zinc-800 active:scale-[0.98] sm:gap-2 sm:px-3 sm:text-sm"
-                >
-                  {stickyCopy === "ok" ? (
-                    <>
-                      <CheckIcon size={16} className="shrink-0" />
-                      <span className="truncate max-sm:hidden">Скопировано!</span>
-                      <span className="truncate sm:hidden">Готово</span>
-                    </>
-                  ) : stickyCopy === "fail" ? (
-                    <>
-                      <span className="shrink-0 text-amber-300" aria-hidden>
-                        !
-                      </span>
-                      <span className="truncate">Не удалось</span>
-                    </>
-                  ) : (
-                    <span className="truncate">
-                      {data.promptTexts.length > 1 ? "Все промпты" : "Скопировать"}
+            <div className={LISTING_STICKY_ACTIONS_GRID}>
+              <StickyListingNavButton
+                slug={listingPrev}
+                direction="prev"
+                onGo={goListingNeighbor}
+                floatingGlass
+              />
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  void handleCopy();
+                }}
+                className="flex min-h-12 min-w-0 w-full items-center justify-center gap-1.5 rounded-xl bg-zinc-900 px-2 py-2 text-xs font-semibold text-white shadow-lg transition-all hover:bg-zinc-800 active:scale-[0.98] sm:gap-2 sm:px-3 sm:text-sm"
+              >
+                {stickyCopy === "ok" ? (
+                  <>
+                    <CheckIcon size={16} className="shrink-0" />
+                    <span className="truncate max-sm:hidden">Скопировано!</span>
+                    <span className="truncate sm:hidden">Готово</span>
+                  </>
+                ) : stickyCopy === "fail" ? (
+                  <>
+                    <span className="shrink-0 text-amber-300" aria-hidden>
+                      !
                     </span>
-                  )}
-                </button>
-                <LexyGptGenerateButton
-                  promptText={data.promptTexts.join("\n\n")}
-                  variant="sticky"
-                  className="h-full min-h-12 min-w-0 w-full truncate px-2 sm:px-3"
-                />
-                <StickyListingNavButton
-                  slug={listingNext}
-                  direction="next"
-                  onGo={goListingNeighbor}
-                  floatingGlass
-                />
-              </div>
-            ) : (
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-stretch">
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    void handleCopy();
-                  }}
-                  className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-zinc-900 px-4 py-3 text-sm font-semibold text-white shadow-lg transition-all hover:bg-zinc-800 active:scale-[0.98]"
-                >
-                  {stickyCopy === "ok" ? (
-                    <>
-                      <CheckIcon size={16} />
-                      <span className="max-sm:hidden">Скопировано!</span>
-                      <span className="sm:hidden">Готово</span>
-                    </>
-                  ) : stickyCopy === "fail" ? (
-                    <>
-                      <span className="text-amber-300" aria-hidden>
-                        !
-                      </span>
-                      Не удалось скопировать
-                    </>
-                  ) : (
-                    <>
-                      <CopyIcon size={16} />
-                      {data.promptTexts.length > 1 ? "Скопировать все промпты" : "Скопировать промпт"}
-                    </>
-                  )}
-                </button>
-                <LexyGptGenerateButton
-                  promptText={data.promptTexts.join("\n\n")}
-                  variant="sticky"
-                />
-              </div>
-            )}
+                    <span className="truncate">Не удалось</span>
+                  </>
+                ) : (
+                  <span className="truncate">
+                    {data.promptTexts.length > 1 ? "Все промпты" : "Скопировать"}
+                  </span>
+                )}
+              </button>
+              <LexyGptGenerateButton
+                promptText={data.promptTexts.join("\n\n")}
+                variant="sticky"
+                className="h-full min-h-12 min-w-0 w-full truncate px-2 sm:px-3"
+              />
+              <StickyListingNavButton
+                slug={listingNext}
+                direction="next"
+                onGo={goListingNeighbor}
+                floatingGlass
+              />
+            </div>
           </div>
         </div>
       )}

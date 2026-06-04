@@ -15,4 +15,4 @@ export const OVERLAY_BUTTON_UA_RESET = "appearance-none border-0 shadow-none";
  */
 /** `transform-gpu` + explicit radius hint — reduces WebKit’s square flash before `rounded-full` paints. */
 export const CARD_OVERLAY_ACTION_PILL =
-  "inline-flex h-7 shrink-0 items-center justify-center gap-1 appearance-none rounded-full border-0 bg-black/15 px-2 leading-none shadow-none backdrop-blur-md transition-colors hover:bg-black/25 transform-gpu overflow-hidden [border-radius:9999px]";
+  "inline-flex min-h-11 shrink-0 items-center justify-center gap-1 appearance-none rounded-full border-0 bg-black/15 px-2.5 leading-none shadow-none backdrop-blur-md transition-colors hover:bg-black/25 transform-gpu overflow-hidden [border-radius:9999px]";
