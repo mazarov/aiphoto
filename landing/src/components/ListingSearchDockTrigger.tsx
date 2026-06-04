@@ -37,7 +37,7 @@ export function ListingSearchDockTrigger({
             onOpen();
           }
         }}
-        className="listing-search-input relative w-full rounded-xl border border-indigo-200/70 bg-white/82 py-2.5 pl-10 text-left text-[16px] text-zinc-900 shadow-sm shadow-indigo-500/[0.08] backdrop-blur-xl transition-[background,border-color,color] focus:border-indigo-200/70 focus:bg-white focus:outline-none focus:ring-0"
+        className="listing-search-input relative w-full rounded-xl border-0 bg-white/82 py-2.5 pl-10 text-left text-[16px] text-zinc-900 shadow-sm shadow-indigo-500/[0.08] backdrop-blur-xl transition-[background,color] focus:border-0 focus:bg-white focus:outline-none focus:ring-0"
       >
         <span className={hasValue ? "block truncate text-zinc-900" : "block truncate text-indigo-400/70"}>
           {hasValue ? value : placeholder}

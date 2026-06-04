@@ -52,7 +52,7 @@ const ACCENT_STYLES = {
   compact: {
     shell: "listing-search-compact-shell rounded-xl transition-[box-shadow]",
     field:
-      "listing-search-input border border-indigo-200/70 bg-white/82 text-zinc-900 placeholder:text-indigo-400/70 placeholder:font-normal shadow-sm shadow-indigo-500/[0.08] backdrop-blur-xl transition-[background,border-color,color] focus:border-indigo-200/70 focus:bg-white focus:text-zinc-900 focus:outline-none focus:ring-0 focus:shadow-none",
+      "listing-search-input border-0 bg-white/82 text-zinc-900 placeholder:text-indigo-400/70 placeholder:font-normal shadow-sm shadow-indigo-500/[0.08] backdrop-blur-xl transition-[background,color] focus:border-0 focus:bg-white focus:text-zinc-900 focus:outline-none focus:ring-0 focus:shadow-none",
     icon: "text-indigo-500",
   },
 } as const;

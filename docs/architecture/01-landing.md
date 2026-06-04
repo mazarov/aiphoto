@@ -20,6 +20,7 @@
 
 - Счётчик: **`107703100`** (дублируется в **`YANDEX_METRIKA_COUNTER_ID`**, файл `landing/src/lib/yandex-metrika.ts`; init — `landing/src/app/layout.tsx`).
 - Кнопка «Сгенерировать» → LexyGPT: **`reachGoal('lexygpt_generate_click')`**, в параметрах: **`placement`**: `listing` \| `expanded` \| `sticky` (`LexyGptGenerateButton`). В интерфейсе Метрики создайте **JavaScript-событие** с идентификатором **`lexygpt_generate_click`** (или поменяйте константу **`YM_GOAL_LEXYGPT_GENERATE`** под своё имя цели).
+- Мини-баннер «Фото в промт» → **`/foto-v-promt`**: **`reachGoal('foto_v_promt_banner_click')`** и **`foto_v_promt_banner_impression`** с **`placement`**: `listing` \| `card` (`landing/src/lib/foto-v-promt-banner-metrics.ts`, компоненты **`foto-v-promt-promo/`**). Impression — один раз на placement за сессию вкладки. ТЗ — **`docs/requirements/04-06-foto-v-promt-mini-banner.md`**.
 
 ---
 
@@ -311,7 +312,9 @@ SearchResults (client, infinite scroll)
 | CardOverlayMetricsChips | `components/CardOverlayMetricsChips.tsx` | Чип просмотров (база `CARD_OVERLAY_ACTION_PILL`); счётчик фото — `card-overlay-photo-counter.ts` (тот же pill) + разметка по центру |
 | CardPageClient | `components/CardPageClient.tsx` | Клиентская часть карточки |
 | PhotoCarousel | `components/PhotoCarousel.tsx` | Карусель фото |
-| CardFilters | `components/CardFilters.tsx` | Debug-фильтры (FilterableGrid) |
+| CardFilters | `components/CardFilters.tsx` | Debug-фильтры (FilterableGrid); над grid — **`ListingFotoVPromtBanner`** |
+| FotoVPromtMiniBanner | `components/foto-v-promt-promo/FotoVPromtMiniBanner.tsx` | Промо «Фото в промт» → `/foto-v-promt` (`listing` \| `card` \| `cardImmersive`) |
+| ListingFotoVPromtBanner | `components/foto-v-promt-promo/ListingFotoVPromtBanner.tsx` | Sticky + IntersectionObserver hide после первого экрана |
 | CatalogWithFilters | `components/CatalogWithFilters.tsx` | Листинг + FilterFAB, useListingFilters |
 | FilterFAB | `components/FilterFAB.tsx` | Плавающая кнопка фильтров, передаёт rpcParams в FilterPanel |
 | FilterPanel | `components/FilterPanel.tsx` | Панель с чипсами, при rpcParams — fetch filter-counts, только применимые теги с счётчиками |

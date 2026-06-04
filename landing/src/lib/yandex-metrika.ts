@@ -3,6 +3,8 @@ export const YANDEX_METRIKA_COUNTER_ID = 107703100;
 
 /** Идентификатор цели JS в кабинете Метрики (тип «JavaScript-событие») должен совпадать. */
 export const YM_GOAL_LEXYGPT_GENERATE = "lexygpt_generate_click";
+export const YM_GOAL_FOTO_V_PROMT_BANNER_CLICK = "foto_v_promt_banner_click";
+export const YM_GOAL_FOTO_V_PROMT_BANNER_IMPRESSION = "foto_v_promt_banner_impression";
 
 declare global {
   interface Window {

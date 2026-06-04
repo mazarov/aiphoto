@@ -13,6 +13,7 @@ import { resetListingScroll, useListingScrollRestoration } from "@/lib/scroll-pr
 import { writeListingNavigationContext } from "@/lib/listing-card-navigation-context";
 import { SearchEmptyState } from "@/components/SearchEmptyState";
 import { SearchMetrikaTracker } from "@/components/YandexMetrikaRouteTracker";
+import { ListingFotoVPromtBanner } from "@/components/foto-v-promt-promo/ListingFotoVPromtBanner";
 
 const PAGE_SIZE = 24;
 
@@ -190,6 +191,8 @@ export function SearchResults({ initialQuery }: Props) {
 
       {/* Grid */}
       {displayedCards.length > 0 && (
+        <>
+        <ListingFotoVPromtBanner />
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4 xl:grid-cols-5">
           {displayedCards.map((card, index) => (
             <div key={card.id} className="min-w-0">
@@ -200,6 +203,7 @@ export function SearchResults({ initialQuery }: Props) {
             </div>
           ))}
         </div>
+        </>
       )}
 
       {/* Autoload sentinel */}

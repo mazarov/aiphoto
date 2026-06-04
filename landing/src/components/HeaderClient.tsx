@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { syncHeaderHeightCssVar } from "@/lib/listing-header-offset";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
@@ -114,6 +115,17 @@ function UserMenu() {
 
 export function HeaderClient() {
   const pathname = usePathname();
+  const headerRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    const el = headerRef.current;
+    if (!el) return;
+    const update = () => syncHeaderHeightCssVar(el);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   const handleHomeLogoClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
     if (isSameNavPath(pathname, "/")) {
@@ -123,7 +135,10 @@ export function HeaderClient() {
   };
 
   return (
-    <header className="sticky top-0 z-40 shrink-0 border-b border-indigo-100/50 bg-white/80 backdrop-blur-xl">
+    <header
+      ref={headerRef}
+      className="sticky top-0 z-40 shrink-0 bg-white/80 backdrop-blur-xl"
+    >
       {/* Mobile: menu + logo + auth */}
       <div className="grid grid-cols-[auto_1fr_auto] items-center gap-2 px-3 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] sm:px-4 lg:hidden">
         <div className="flex shrink-0 justify-start">

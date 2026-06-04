@@ -28,6 +28,8 @@ import {
   resolveListingNavNeighbors,
   type ListingCardNavNeighbors,
 } from "@/lib/listing-card-navigation-context";
+import { FotoVPromtMiniBanner } from "@/components/foto-v-promt-promo/FotoVPromtMiniBanner";
+import { trackFotoVPromtBannerImpressionOnce } from "@/lib/foto-v-promt-banner-metrics";
 
 /** Glass как у «тегов» на этом экране: chip-подложка без отдельной нижней панели (tier A = 13px для mobile SEO). */
 const MOBILE_FS_CHIP =
@@ -246,6 +248,11 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
 
   const hasPrompts = data.promptTexts.length > 0;
   const hasPhotos = photos.length > 0;
+
+  useEffect(() => {
+    if (!hasPrompts) return;
+    trackFotoVPromtBannerImpressionOnce("card");
+  }, [hasPrompts, data.id]);
   const viewCount = useCardViewBeacon(data.slug, data.viewCount ?? 0);
 
   const groupCards = useMemo(() => {
@@ -907,6 +914,9 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                 {/* Низ: только лента / Lexy / копировать — без общей подложки, поверх фото */}
                 <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[99] pb-[max(14px,env(safe-area-inset-bottom))] pt-6 md:hidden">
                   <div className="pointer-events-auto mx-auto flex w-full max-w-lg flex-col gap-2 px-3">
+                    {hasPrompts ? (
+                      <FotoVPromtMiniBanner variant="cardImmersive" className="min-h-11" />
+                    ) : null}
 
                     {!hasPrompts ? (
                       <div className="grid grid-cols-2 gap-2">
@@ -1161,9 +1171,10 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
       {/* ── Sticky CTA — floating (desktop + mobile без фото; на immersive mobile дубль glass-бара A) ── */}
       {hasPrompts && (
         <div
-          className={`fixed inset-x-0 bottom-0 z-[240] safe-area-pb pointer-events-none lg:left-60${hasPhotos ? " max-md:hidden" : ""}`}
+          className={`fixed inset-x-0 bottom-0 z-[240] safe-area-pb pointer-events-none${isModal ? "" : " lg:left-60"}${hasPhotos ? " max-md:hidden" : ""}`}
         >
           <div className="mx-auto w-full max-w-2xl px-5 py-4 pointer-events-auto">
+            <FotoVPromtMiniBanner variant="card" className="mb-2 min-h-12" />
             <div className={LISTING_STICKY_ACTIONS_GRID}>
               <StickyListingNavButton
                 slug={listingPrev}

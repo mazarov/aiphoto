@@ -2,8 +2,12 @@
 
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 
+/** Semi-transparent glass surface — search field, chrome buttons, Foto-v-promt banner. */
+export const LISTING_CHROME_SURFACE =
+  "border border-indigo-200/70 bg-white/82 shadow-sm shadow-indigo-500/[0.08] backdrop-blur-xl transition-[background,border-color,box-shadow] hover:border-indigo-200 hover:bg-white/90";
+
 const SHELL =
-  "listing-chrome-btn inline-flex shrink-0 items-center justify-center border border-indigo-200/70 bg-white/82 font-inherit shadow-sm shadow-indigo-500/[0.08] backdrop-blur-xl transition-[background,border-color,box-shadow,color] hover:border-indigo-200 hover:bg-white active:bg-white focus:outline-none focus:ring-0";
+  `listing-chrome-btn inline-flex shrink-0 items-center justify-center font-inherit active:bg-white focus:outline-none focus:ring-0 ${LISTING_CHROME_SURFACE}`;
 
 const VARIANTS = {
   "icon-sm": "h-10 w-10 rounded-xl text-indigo-500",
