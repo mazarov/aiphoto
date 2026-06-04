@@ -10,6 +10,10 @@ import { ListingChromeButton, ListingMenuIcon } from "./ListingChromeButton";
 import { useAuth } from "@/context/AuthContext";
 import { useListingMobileChromeOptional } from "@/context/ListingMobileChromeContext";
 import { isSameNavPath, scrollCatalogToTop } from "@/lib/scroll-preservation";
+import {
+  LISTING_MOBILE_CHROME_INSET,
+  LISTING_NAV_SHELL_SURFACE,
+} from "@/lib/listing-shell-surface";
 
 function MobileCatalogMenuButton() {
   const chrome = useListingMobileChromeOptional();
@@ -137,10 +141,12 @@ export function HeaderClient() {
   return (
     <header
       ref={headerRef}
-      className="sticky top-0 z-40 shrink-0 bg-white/80 backdrop-blur-xl"
+      className={`sticky top-0 z-40 shrink-0 ${LISTING_NAV_SHELL_SURFACE}`}
     >
       {/* Mobile: menu + logo + auth */}
-      <div className="grid grid-cols-[auto_1fr_auto] items-center gap-2 px-3 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] sm:px-4 lg:hidden">
+      <div
+        className={`grid grid-cols-[auto_1fr_auto] items-center gap-2 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] ${LISTING_MOBILE_CHROME_INSET} lg:hidden`}
+      >
         <div className="flex shrink-0 justify-start">
           <MobileCatalogMenuButton />
         </div>

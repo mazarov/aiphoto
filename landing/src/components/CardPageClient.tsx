@@ -722,20 +722,20 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                     <button
                       type="button"
                       onClick={prevPhoto}
-                      className={`${OVERLAY_BUTTON_UA_RESET} absolute bottom-[calc(env(safe-area-inset-bottom)+5.875rem)] left-0 top-[calc(env(safe-area-inset-top)+6rem)] z-[58] w-[34%] touch-manipulation`}
+                      className={`${OVERLAY_BUTTON_UA_RESET} absolute bottom-[calc(env(safe-area-inset-bottom)+5.875rem)] left-0 top-[calc(env(safe-area-inset-top)+9rem)] z-[58] w-[34%] touch-manipulation`}
                       aria-label="Предыдущее фото"
                     />
                     <button
                       type="button"
                       onClick={nextPhoto}
-                      className={`${OVERLAY_BUTTON_UA_RESET} absolute bottom-[calc(env(safe-area-inset-bottom)+5.875rem)] right-0 top-[calc(env(safe-area-inset-top)+6rem)] z-[58] w-[34%] touch-manipulation`}
+                      className={`${OVERLAY_BUTTON_UA_RESET} absolute bottom-[calc(env(safe-area-inset-bottom)+5.875rem)] right-0 top-[calc(env(safe-area-inset-top)+9rem)] z-[58] w-[34%] touch-manipulation`}
                       aria-label="Следующее фото"
                     />
                   </>
                 ) : null}
 
                 {beforePhotoUrl ? (
-                  <div className="pointer-events-auto absolute left-4 top-[calc(env(safe-area-inset-top)+4.25rem)] z-[61] w-[26%] min-w-[52px] max-w-[92px]">
+                  <div className="pointer-events-auto absolute left-4 top-[calc(env(safe-area-inset-top)+8.25rem)] z-[61] w-[26%] min-w-[52px] max-w-[92px]">
                     <div
                       className="relative aspect-square overflow-hidden rounded-br-xl bg-zinc-800 shadow-md ring-1 ring-black/35"
                       aria-label="Фото «было»"
@@ -796,6 +796,11 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                       </button>
                     </div>
                   </div>
+                  {hasPrompts ? (
+                    <div className="pointer-events-auto pb-2">
+                      <FotoVPromtMiniBanner variant="cardImmersive" className="min-h-11" />
+                    </div>
+                  ) : null}
                 </header>
 
                 {groupCards.length > 1 ? (
@@ -914,10 +919,6 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                 {/* Низ: только лента / Lexy / копировать — без общей подложки, поверх фото */}
                 <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[99] pb-[max(14px,env(safe-area-inset-bottom))] pt-6 md:hidden">
                   <div className="pointer-events-auto mx-auto flex w-full max-w-lg flex-col gap-2 px-3">
-                    {hasPrompts ? (
-                      <FotoVPromtMiniBanner variant="cardImmersive" className="min-h-11" />
-                    ) : null}
-
                     {!hasPrompts ? (
                       <div className="grid grid-cols-2 gap-2">
                         <StickyListingNavButton

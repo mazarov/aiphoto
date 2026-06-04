@@ -37,7 +37,7 @@ export function ListingFotoVPromtBanner() {
             setVisible(false);
           }
         },
-        { root: getRoot(), threshold: 0 }
+        { root: getRoot(), threshold: 0 },
       );
       observer.observe(el);
     };

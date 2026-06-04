@@ -9,6 +9,8 @@ import {
 import { trackFotoVPromtBannerClick } from "@/lib/foto-v-promt-banner-metrics";
 import { FVP_FOCUS_RING } from "@/components/foto-v-promt/foto-v-promt-tokens";
 import {
+  LISTING_MOBILE_CHROME_INSET,
+  LISTING_MOBILE_CHROME_LEADING_CELL,
   LISTING_NAV_SHELL_SURFACE,
   LISTING_SEARCH_FIELD_SURFACE,
 } from "@/lib/listing-shell-surface";
@@ -57,7 +59,7 @@ const SKIN: Record<
   { shell: string; title: string; subtitle: string; ctaButton: string; icon: string }
 > = {
   listing: {
-    shell: `flex w-full font-inherit ${LISTING_NAV_SHELL_SURFACE} min-h-11 items-center gap-3 rounded-b-xl rounded-t-none px-3 py-2.5 transition-[background] hover:bg-white/90 sm:min-h-[3.25rem] sm:px-4`,
+    shell: `grid w-full grid-cols-[auto_1fr_auto] items-center gap-2 font-inherit ${LISTING_NAV_SHELL_SURFACE} ${LISTING_MOBILE_CHROME_INSET} min-h-11 rounded-b-xl rounded-t-none py-2.5 transition-[background] hover:bg-white/90 sm:min-h-[3.25rem]`,
     ...LIGHT_PROMO_TEXT,
   },
   card: {
@@ -72,7 +74,7 @@ const SKIN: Record<
     subtitle: "min-w-0 flex-1 truncate text-[11px] font-medium leading-snug text-white/85 antialiased",
     icon: "h-5 w-5 shrink-0 text-white",
     ctaButton:
-      "shrink-0 rounded-full bg-white/20 px-3 py-1.5 text-[11px] font-semibold text-white antialiased",
+      "shrink-0 rounded-full bg-indigo-600 px-3 py-1.5 text-[11px] font-semibold text-white antialiased transition-colors hover:bg-indigo-500 active:bg-indigo-700",
   },
 };
 
@@ -93,7 +95,13 @@ export function FotoVPromtMiniBanner({ variant, className = "" }: Props) {
       role="complementary"
       aria-label="Инструмент Фото в промт — открыть страницу сервиса в новой вкладке"
     >
-      <ImageToPromptIcon className={skin.icon} />
+      {variant === "listing" ? (
+        <span className={LISTING_MOBILE_CHROME_LEADING_CELL}>
+          <ImageToPromptIcon className={skin.icon} />
+        </span>
+      ) : (
+        <ImageToPromptIcon className={skin.icon} />
+      )}
       <span className="min-w-0 flex-1">
         <span className={`block ${skin.title}`}>{FOTO_V_PROMT_BANNER_COPY.title}</span>
         <span className={`mt-0.5 block truncate ${skin.subtitle}`}>{copy.subtitle}</span>

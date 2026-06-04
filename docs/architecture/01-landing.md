@@ -296,7 +296,7 @@ SearchResults (client, infinite scroll)
 
 | Компонент | Файл | Роль |
 |-----------|------|------|
-| PageLayout | `components/PageLayout.tsx` | Серверный: fetchMenuCounts → HeaderClient + SidebarNav + children + Footer |
+| PageLayout | `components/PageLayout.tsx` | Клиентский shell: `listing-mobile-shell` + `#listing-scroll-root`; моб. высота через `--ps-listing-shell-height` (`listing-shell-viewport.ts`, `visualViewport`); in-flow `ListingBottomBar` |
 | Header | `components/Header.tsx` | Legacy серверный (заменён PageLayout) |
 | Footer | `components/Footer.tsx` | Статический |
 | CardPage | `app/p/[slug]/page.tsx` | Серверный, SSR карточки |
@@ -315,6 +315,7 @@ SearchResults (client, infinite scroll)
 | CardFilters | `components/CardFilters.tsx` | Debug-фильтры (FilterableGrid); над grid — **`ListingFotoVPromtBanner`** |
 | FotoVPromtMiniBanner | `components/foto-v-promt-promo/FotoVPromtMiniBanner.tsx` | Промо «Фото в промт» → `/foto-v-promt` (`listing` \| `card` \| `cardImmersive`) |
 | ListingFotoVPromtBanner | `components/foto-v-promt-promo/ListingFotoVPromtBanner.tsx` | Sticky + IntersectionObserver hide после первого экрана |
+| ListingBottomBar | `components/ListingBottomBar.tsx` | Моб. dock (read-only trigger → `ListingMobileSearchSheet`); desktop — portal `fixed` |
 | CatalogWithFilters | `components/CatalogWithFilters.tsx` | Листинг + FilterFAB, useListingFilters |
 | FilterFAB | `components/FilterFAB.tsx` | Плавающая кнопка фильтров, передаёт rpcParams в FilterPanel |
 | FilterPanel | `components/FilterPanel.tsx` | Панель с чипсами, при rpcParams — fetch filter-counts, только применимые теги с счётчиками |

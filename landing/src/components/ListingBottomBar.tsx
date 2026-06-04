@@ -7,6 +7,8 @@ import { ListingSearchDockTrigger } from "./ListingSearchDockTrigger";
 import { ListingChromeButton, ListingFilterIcon } from "./ListingChromeButton";
 import { focusMobileSearchInput, ListingMobileSearchSheet } from "./ListingMobileSearchSheet";
 import { useListingMobileChrome } from "@/context/ListingMobileChromeContext";
+import { bumpListingShellViewportHeight } from "@/lib/listing-shell-viewport";
+import { LISTING_BOTTOM_BAR_SURFACE } from "@/lib/listing-shell-surface";
 
 export function ListingBottomBar() {
   const {
@@ -26,8 +28,12 @@ export function ListingBottomBar() {
     flushSync(() => setSheetOpen(true));
     focusMobileSearchInput(sheetInputRef.current);
     requestAnimationFrame(() => focusMobileSearchInput(sheetInputRef.current));
+    bumpListingShellViewportHeight();
   }, []);
-  const closeSheet = useCallback(() => setSheetOpen(false), []);
+  const closeSheet = useCallback(() => {
+    setSheetOpen(false);
+    bumpListingShellViewportHeight();
+  }, []);
 
   useEffect(() => {
     setMounted(true);
@@ -60,8 +66,8 @@ export function ListingBottomBar() {
     <div
       className={
         isDesktop
-          ? "listing-bottom-bar fixed inset-x-0 bottom-0 z-40 border-t border-indigo-100/60 bg-white/75 shadow-[0_-8px_32px_-12px_rgba(99,102,241,0.1)] backdrop-blur-2xl lg:inset-x-auto lg:left-60 lg:right-0"
-          : "listing-bottom-bar shrink-0 border-t border-indigo-100/60 bg-white/95 pb-[max(0px,env(safe-area-inset-bottom,0px))] shadow-[0_-8px_32px_-12px_rgba(99,102,241,0.1)]"
+          ? `listing-bottom-bar fixed inset-x-0 bottom-0 z-40 ${LISTING_BOTTOM_BAR_SURFACE} lg:inset-x-auto lg:left-60 lg:right-0`
+          : `listing-bottom-bar shrink-0 ${LISTING_BOTTOM_BAR_SURFACE} pb-[max(0px,env(safe-area-inset-bottom,0px))]`
       }
     >
       <div className="listing-bottom-bar-inner flex h-[3.75rem] items-center gap-2 px-3 lg:gap-3 lg:px-5 lg:h-auto lg:min-h-[3.75rem] lg:py-3">

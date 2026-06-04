@@ -39,8 +39,8 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  // Dock is read-only; keyboard opens in top sheet. Shell uses 100dvh on mobile.
-  interactiveWidget: "resizes-content",
+  // Keyboard opens in top sheet — avoid shrinking layout viewport (stale dvh dock gap on iOS).
+  interactiveWidget: "overlays-content",
 };
 
 export default function RootLayout({

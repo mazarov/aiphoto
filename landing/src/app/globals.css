@@ -100,15 +100,21 @@ p {
     padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
   }
 
-  /** Mobile listing shell — inner scroll, in-flow bottom dock (no fixed positioning) */
+  /** Mobile listing shell — inner scroll, in-flow bottom dock */
   html.listing-mobile-shell,
   html.listing-mobile-shell body {
-    height: 100dvh;
-    max-height: 100dvh;
+    height: var(--ps-listing-shell-height, 100dvh);
+    max-height: var(--ps-listing-shell-height, 100dvh);
     overflow: hidden;
   }
 
   @media (max-width: 1023px) {
+    .listing-shell-root {
+      height: var(--ps-listing-shell-height, 100dvh);
+      max-height: var(--ps-listing-shell-height, 100dvh);
+      min-height: var(--ps-listing-shell-height, 100dvh);
+    }
+
     .listing-main-bottom-pad {
       padding-bottom: 0;
     }

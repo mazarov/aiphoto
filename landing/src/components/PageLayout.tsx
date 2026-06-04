@@ -4,6 +4,7 @@ import { Suspense, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { applyCountsToMenu } from "@/lib/menu";
 import { LISTING_SCROLL_ROOT_ID, useStandalonePageScrollTop } from "@/lib/scroll-preservation";
+import { useListingShellViewportSync } from "@/lib/listing-shell-viewport";
 import { ListingMobileChromeProvider } from "@/context/ListingMobileChromeContext";
 import { HeaderClient } from "./HeaderClient";
 import { SidebarNav } from "./SidebarNav";
@@ -22,6 +23,7 @@ export function PageLayout({
 }) {
   const pathname = usePathname();
   useStandalonePageScrollTop(pathname);
+  useListingShellViewportSync();
 
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 1023px)");
@@ -38,7 +40,7 @@ export function PageLayout({
 
   return (
     <ListingMobileChromeProvider>
-      <div className="max-lg:flex max-lg:h-dvh max-lg:max-h-dvh max-lg:flex-col max-lg:overflow-hidden lg:contents">
+      <div className="listing-shell-root max-lg:flex max-lg:h-dvh max-lg:max-h-dvh max-lg:flex-col max-lg:overflow-hidden lg:contents">
         <HeaderClient />
 
         <div
