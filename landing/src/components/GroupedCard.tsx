@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, memo } from "react";
+import { useState, memo } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import type { PromptCardFull } from "@/lib/supabase";
@@ -20,6 +20,8 @@ import {
 } from "@/lib/card-image-presets";
 import { copyTextUniversal } from "@/lib/copy-text-to-clipboard";
 import { LexyGptGenerateButton } from "./LexyGptGenerateButton";
+import { ListingCardLoadingShell } from "./ListingCardLoadingShell";
+import { useListingCardImageReady } from "@/hooks/useListingCardImageReady";
 
 type Props = {
   cards: PromptCardFull[];
@@ -46,8 +48,9 @@ function GroupedCardBase({ cards, debug = false, priorityLoad = false }: Props) 
   const [expanded, setExpanded] = useState(false);
   const [copyHint, setCopyHint] = useState<"idle" | "success" | "error">("idle");
 
-  // Controlled reveal (see PromptCard for rationale). Reset primarily when the active variant (card) changes.
-  const [imageReady, setImageReady] = useState(() => !!priorityLoad);
+  const { imageReady, onImageLoadingComplete } = useListingCardImageReady({
+    resetKey: activeCard.id,
+  });
 
   const promptPreview =
     allPrompts[0]?.slice(0, 100) + (allPrompts[0]?.length > 100 ? "…" : "") || "";
@@ -57,16 +60,6 @@ function GroupedCardBase({ cards, debug = false, priorityLoad = false }: Props) 
 
   const mainPhotoClass =
     "listing-card-photo-hover object-cover z-[2] opacity-100";
-
-  // Reset reveal when switching variants (activeCard.id). Keep ready for priority items.
-  // Per plan: do not reset on every internal photo arrow inside the same split.
-  useEffect(() => {
-    if (priorityLoad) {
-      setImageReady(true);
-      return;
-    }
-    setImageReady(false);
-  }, [activeCard.id, priorityLoad]);
 
   function handleCardSwitch(idx: number, photoIdx = 0) {
     setActiveCardIdx(idx);
@@ -142,28 +135,14 @@ function GroupedCardBase({ cards, debug = false, priorityLoad = false }: Props) 
               priority={priorityLoad}
               fetchPriority={priorityLoad ? "high" : undefined}
               className={mainPhotoClass}
-              onLoadingComplete={(img) => {
-                if (priorityLoad) {
-                  setImageReady(true);
-                  return;
-                }
-                if (typeof img.decode === "function") {
-                  img.decode().then(() => setImageReady(true)).catch(() => setImageReady(true));
-                } else {
-                  setImageReady(true);
-                }
-              }}
+              onLoadingComplete={onImageLoadingComplete}
             />
           ) : (
             <div className="flex h-full items-center justify-center bg-zinc-100 text-zinc-400 text-sm">Нет фото</div>
           )}
 
-          {/* Controlled shimmer for the active variant's photo (resets on variant switch per plan). */}
           {!imageReady && currentPhotoUrl && (
-            <div
-              className="absolute inset-0 z-[3] pointer-events-none rounded-t-2xl bg-zinc-300/45 listing-card-shimmer-bar"
-              aria-hidden
-            />
+            <ListingCardLoadingShell hasPrompts={allPrompts.length > 0} />
           )}
 
           {activeSlug && (
@@ -179,7 +158,11 @@ function GroupedCardBase({ cards, debug = false, priorityLoad = false }: Props) 
             />
           )}
 
-          <div className="listing-card-chrome absolute inset-0 z-20">
+          <div
+            className={`listing-card-chrome absolute inset-0 z-20 transition-opacity duration-200 ${
+              imageReady ? "opacity-100" : "pointer-events-none invisible opacity-0"
+            }`}
+          >
             <div className="listing-card-chrome-ambient absolute inset-0">
               {(activeCard.beforePhotoUrl || groupBeforeUrl) && (
                 <div className="absolute top-0 left-0 w-[28%] min-w-[72px]">

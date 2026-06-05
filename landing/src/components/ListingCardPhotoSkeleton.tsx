@@ -20,7 +20,7 @@ export function ListingCardPhotoSkeleton({ overlay = false }: { overlay?: boolea
 }
 
 /** Bottom strip — title lines as pills; CTA as full-width capsule (not a sharp rectangle). */
-export function ListingCardChromeSkeleton() {
+export function ListingCardChromeSkeleton({ hasPrompts = true }: { hasPrompts?: boolean }) {
   return (
     <div
       className="pointer-events-none absolute inset-x-0 bottom-0 z-[2] bg-gradient-to-t from-black/78 via-black/38 to-transparent pt-20 pb-3.5 px-3.5"
@@ -28,8 +28,12 @@ export function ListingCardChromeSkeleton() {
     >
       <div className="mb-2 h-3 w-[88%] max-w-full rounded-full bg-white/18 ring-1 ring-white/[0.08]" />
       <div className="mb-1.5 h-2.5 w-[62%] rounded-full bg-white/12" />
-      <div className="mb-1 h-2.5 w-[48%] rounded-full bg-white/10" />
-      <div className="mt-2.5 flex h-10 w-full items-center justify-center overflow-hidden bg-white/16 ring-1 ring-white/14 shadow-sm backdrop-blur-[2px] [border-radius:9999px]" />
+      {hasPrompts ? (
+        <>
+          <div className="mb-1 h-2.5 w-[48%] rounded-full bg-white/10" />
+          <div className="mt-2.5 flex h-10 w-full items-center justify-center overflow-hidden bg-white/16 ring-1 ring-white/14 shadow-sm backdrop-blur-[2px] [border-radius:9999px]" />
+        </>
+      ) : null}
     </div>
   );
 }
