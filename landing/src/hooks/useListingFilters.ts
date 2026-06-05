@@ -39,13 +39,12 @@ export function useListingFilters(options: UseListingFiltersOptions = {}) {
   const { lockedDimensions = [], baseRpcParams = {} } = options;
 
   const filters = useMemo<FilterState>(() => {
-    const f: FilterState = {
+    return {
       audience: searchParams.get(QUERY_KEYS.audience) || null,
       style: searchParams.get(QUERY_KEYS.style) || null,
       occasion: searchParams.get(QUERY_KEYS.occasion) || null,
       object: searchParams.get(QUERY_KEYS.object) || null,
     };
-    return f;
   }, [searchParams]);
 
   const activeCount = useMemo(() => {
@@ -78,8 +77,7 @@ export function useListingFilters(options: UseListingFiltersOptions = {}) {
 
   const setFilter = useCallback(
     (key: keyof FilterState, value: string | null) => {
-      const next = { ...filters, [key]: value };
-      applyFilters(next);
+      applyFilters({ ...filters, [key]: value });
     },
     [filters, applyFilters]
   );

@@ -7,6 +7,7 @@ import { LISTING_LCP_PRIORITY_GRID_ITEMS } from "@/lib/listing-lcp";
 import type { PromptCardFull } from "@/lib/supabase";
 import { CardInteractionsProvider } from "@/context/CardInteractionsContext";
 import { FilterFAB } from "@/components/FilterFAB";
+import { ListingDesktopFilters } from "@/components/ListingDesktopFilters";
 import { useListingFilters } from "@/hooks/useListingFilters";
 import type { FilterState } from "@/hooks/useListingFilters";
 import { resetListingScroll, useListingScrollRestoration } from "@/lib/scroll-preservation";
@@ -32,10 +33,11 @@ type Props = {
 
 export function SearchResults({ initialQuery }: Props) {
   const searchParams = useSearchParams();
-  const { filters, applyFilters, activeCount } = useListingFilters({
-    baseRpcParams: {},
-    lockedDimensions: [],
-  });
+  const { filters, setFilter, applyFilters, resetFilters, activeCount } =
+    useListingFilters({
+      baseRpcParams: {},
+      lockedDimensions: [],
+    });
   const [query, setQuery] = useState(initialQuery);
   const [cards, setCards] = useState<PromptCardFull[]>([]);
   const [loading, setLoading] = useState(false);
@@ -157,14 +159,7 @@ export function SearchResults({ initialQuery }: Props) {
     searched && !loading && cards.length === 0 && query.length >= 2;
   const showIdle = !searched && !loading && query.length < 2;
 
-  const clearFilters = () => {
-    applyFilters({
-      audience: null,
-      style: null,
-      occasion: null,
-      object: null,
-    });
-  };
+  const clearFilters = resetFilters;
 
   return (
     <CardInteractionsProvider cardIds={cardIds}>
@@ -187,6 +182,17 @@ export function SearchResults({ initialQuery }: Props) {
             </span>
           )}
         </div>
+      )}
+
+      {searched && cards.length > 0 && (
+        <ListingDesktopFilters
+          filters={filters}
+          onSetFilter={setFilter}
+          onReset={resetFilters}
+          activeCount={activeCount}
+          hiddenDimensions={[]}
+          cardsForCounts={cards}
+        />
       )}
 
       {/* Grid */}

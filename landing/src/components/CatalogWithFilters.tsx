@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import { useListingFilters } from "@/hooks/useListingFilters";
 import { FilterFAB } from "./FilterFAB";
+import { ListingDesktopFilters } from "./ListingDesktopFilters";
 import { InfiniteGrid } from "./InfiniteGrid";
 import type { PromptCardFull } from "@/lib/supabase";
 import type { Dimension } from "@/lib/tag-registry";
@@ -34,10 +35,11 @@ export function CatalogWithFilters({
   baseRpcParams,
   lockedDimensions,
 }: Props) {
-  const { filters, applyFilters, activeCount, mergedRpcParams } = useListingFilters({
-    baseRpcParams,
-    lockedDimensions,
-  });
+  const { filters, setFilter, applyFilters, resetFilters, activeCount, mergedRpcParams } =
+    useListingFilters({
+      baseRpcParams,
+      lockedDimensions,
+    });
 
   // Centralized scroll restoration when returning from card modal / client modal.
   // Replaces the previous duplicated useLayoutEffect + manual scrollRestoration dance.
@@ -50,6 +52,14 @@ export function CatalogWithFilters({
 
   return (
     <>
+      <ListingDesktopFilters
+        filters={filters}
+        onSetFilter={setFilter}
+        onReset={resetFilters}
+        activeCount={activeCount}
+        hiddenDimensions={lockedDimensions}
+        rpcParams={mergedRpcParams}
+      />
       <InfiniteGrid
         key={listingGridKey}
         initialCards={initialCards}

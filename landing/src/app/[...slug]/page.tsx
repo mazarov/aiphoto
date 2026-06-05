@@ -52,7 +52,12 @@ const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://promptshot.ru";
 
 type Props = {
   params: Promise<{ slug: string[] }>;
-  searchParams?: Promise<{ audience?: string; style?: string; occasion?: string; object?: string }>;
+  searchParams?: Promise<{
+    audience?: string;
+    style?: string;
+    occasion?: string;
+    object?: string;
+  }>;
 };
 
 export async function generateMetadata({ params }: Props) {
@@ -292,7 +297,12 @@ function BreadcrumbSeparator() {
 
 function mergeFilterParams(
   routeParams: Record<string, string | null>,
-  searchParams: { audience?: string; style?: string; occasion?: string; object?: string } | null
+  searchParams: {
+    audience?: string;
+    style?: string;
+    occasion?: string;
+    object?: string;
+  } | null
 ): Record<string, string | null> {
   const out = { ...routeParams };
   if (searchParams?.audience) out.audience_tag = searchParams.audience;
@@ -300,6 +310,18 @@ function mergeFilterParams(
   if (searchParams?.occasion) out.occasion_tag = searchParams.occasion;
   if (searchParams?.object) out.object_tag = searchParams.object;
   return out;
+}
+
+function hasQueryFilters(searchParams: {
+  audience?: string;
+  style?: string;
+  occasion?: string;
+  object?: string;
+} | null | undefined): boolean {
+  if (!searchParams) return false;
+  return Boolean(
+    searchParams.audience || searchParams.style || searchParams.occasion || searchParams.object
+  );
 }
 
 export default async function TagPage({ params, searchParams }: Props) {
@@ -311,13 +333,13 @@ export default async function TagPage({ params, searchParams }: Props) {
 
   const offset = 0;
   const mergedParams = mergeFilterParams(route.rpcParams, qs ?? null);
-  const hasQueryFilters = Boolean(qs?.audience || qs?.style || qs?.occasion || qs?.object);
+  const hasQueryFiltersActive = hasQueryFilters(qs ?? null);
 
   const result = await fetchRouteCards({
     ...mergedParams,
     limit: LISTING_SSR_INITIAL_LIMIT,
     offset,
-    min_cards: hasQueryFilters ? 0 : 2,
+    min_cards: hasQueryFiltersActive ? 0 : 2,
   });
   const totalCount = result.total_count ?? result.cards_count;
   const cards = await enrichCardsWithDetails(result.cards);

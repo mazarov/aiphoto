@@ -18,6 +18,20 @@ type Props = {
   cardsForCounts?: PromptCardFull[];
 };
 
+function useIsMobileFilterViewport() {
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 1023px)");
+    const sync = () => setIsMobile(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
+
+  return isMobile;
+}
+
 export function FilterFAB({
   filters,
   activeCount,
@@ -27,18 +41,22 @@ export function FilterFAB({
   cardsForCounts,
 }: Props) {
   const registerFilter = useListingMobileChromeOptional()?.registerFilter;
+  const isMobile = useIsMobileFilterViewport();
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
-    if (!registerFilter) return;
+    if (!registerFilter || !isMobile) {
+      registerFilter?.(null);
+      return;
+    }
     registerFilter({
       activeCount,
       open: () => setOpen(true),
     });
     return () => registerFilter(null);
-  }, [registerFilter, activeCount]);
+  }, [registerFilter, activeCount, isMobile]);
 
-  if (!open) return null;
+  if (!isMobile || !open) return null;
 
   return (
     <FilterPanel

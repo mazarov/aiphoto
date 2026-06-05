@@ -1,6 +1,12 @@
 "use client";
 
 import type { TagEntry } from "@/lib/tag-registry";
+import {
+  FILTER_CHIP,
+  FILTER_CHIP_COUNT,
+  FILTER_CHIP_SELECTED,
+  FILTER_SEARCH_INPUT,
+} from "@/lib/listing-filter-styles";
 
 type Props = {
   tags: TagEntry[];
@@ -9,8 +15,8 @@ type Props = {
   searchQuery?: string;
   onSearchChange?: (q: string) => void;
   searchPlaceholder?: string;
-  /** When provided, shows count next to label e.g. "Портрет (42)" */
   countBySlug?: Record<string, number>;
+  searchMinCount?: number;
 };
 
 export function FilterChips({
@@ -21,6 +27,7 @@ export function FilterChips({
   onSearchChange,
   searchPlaceholder = "Найти...",
   countBySlug,
+  searchMinCount = 20,
 }: Props) {
   const filtered = searchQuery.trim()
     ? tags.filter(
@@ -33,44 +40,40 @@ export function FilterChips({
   const displayTags = filtered.slice(0, 50);
 
   return (
-    <div className="space-y-2">
-      {tags.length > 20 && onSearchChange && (
+    <div className="space-y-3">
+      {tags.length > searchMinCount && onSearchChange && (
         <input
           type="text"
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
           placeholder={searchPlaceholder}
-          className="w-full rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-700 placeholder:text-zinc-400 focus:border-indigo-300 focus:outline-none focus:ring-1 focus:ring-indigo-100"
-          readOnly
+          className={FILTER_SEARCH_INPUT}
         />
       )}
       <div className="flex flex-wrap gap-1.5 overflow-x-auto scrollbar-none">
         <button
           type="button"
           onClick={() => onSelect(null)}
-          className={`rounded-full px-3 py-1.5 text-sm transition-colors ${
-            !selectedSlug
-              ? "bg-zinc-900 text-white"
-              : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
-          }`}
+          className={!selectedSlug ? FILTER_CHIP_SELECTED : FILTER_CHIP}
         >
           Все
         </button>
         {displayTags.map((tag) => {
           const count = countBySlug?.[tag.slug];
-          const label = count != null ? `${tag.labelRu} (${count})` : tag.labelRu;
+          const isSelected = selectedSlug === tag.slug;
           return (
             <button
               key={tag.slug}
               type="button"
-              onClick={() => onSelect(selectedSlug === tag.slug ? null : tag.slug)}
-              className={`rounded-full px-3 py-1.5 text-sm transition-colors whitespace-nowrap ${
-                selectedSlug === tag.slug
-                  ? "bg-zinc-900 text-white"
-                  : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
-              }`}
+              onClick={() => onSelect(isSelected ? null : tag.slug)}
+              className={isSelected ? FILTER_CHIP_SELECTED : FILTER_CHIP}
             >
-              {label}
+              <span>{tag.labelRu}</span>
+              {count != null && (
+                <span className={isSelected ? FILTER_CHIP_COUNT : "text-xs tabular-nums text-zinc-400"}>
+                  {count}
+                </span>
+              )}
             </button>
           );
         })}
