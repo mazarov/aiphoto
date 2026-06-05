@@ -98,7 +98,6 @@ export type WidgetCopyKey =
   | "readFailed"
   | "noticeFetchFailed"
   | "noticePickerRejected"
-  | "pasteHint"
   | "resultScrollHint"
   | "errorInvalidUrl"
   | "tabAnalyze"
@@ -137,8 +136,6 @@ const WIDGET_COPY: Record<WidgetCopyKey, string> = {
   readFailed: "Не удалось прочитать файл. Попробуйте другой.",
   noticeFetchFailed: "Не удалось автоматически загрузить картинку. Загрузите файл вручную.",
   noticePickerRejected: "Браузер не принял файл. Попробуйте перетащить его в зону загрузки.",
-  pasteHint:
-    "Подсказка: можно вставить прямую ссылку на картинку (https://…) или скопировать картинку и нажать Ctrl+V (⌘V на Mac).",
   resultScrollHint: "Прокрутите, чтобы прочитать весь промпт",
   errorInvalidUrl: "Введите корректную http(s)-ссылку на изображение.",
   tabAnalyze: "Разбор",

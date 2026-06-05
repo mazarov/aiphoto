@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import Script from "next/script";
 import { PageLayout } from "@/components/PageLayout";
 import { FotoVPromtFaq } from "@/components/foto-v-promt/FotoVPromtFaq";
-import { FotoVPromtFloatingCta } from "@/components/foto-v-promt/FotoVPromtFloatingCta";
 import { FotoVPromtHowItWorks } from "@/components/foto-v-promt/FotoVPromtHowItWorks";
 import { PromptSceneLiteWidgetGate } from "@/components/foto-v-promt/PromptSceneLiteWidgetGate";
 import { getAiImageDescriberChromeUrl } from "@/lib/foto-v-promt-config";
@@ -61,7 +60,7 @@ export default function FotoVPromtPage() {
 
   return (
     <PageLayout hideBottomBar>
-      <div className="listing-main-bottom-pad pb-32">
+      <div className="listing-main-bottom-pad">
         <section className="relative overflow-hidden">
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-25%,rgba(99,102,241,0.12),transparent_55%)]" />
           <div className="relative mx-auto max-w-6xl px-4 pb-6 pt-8 text-center sm:px-6 sm:pb-8 sm:pt-10">
@@ -87,7 +86,6 @@ export default function FotoVPromtPage() {
 
         <FotoVPromtHowItWorks />
         <FotoVPromtFaq />
-        <FotoVPromtFloatingCta />
       </div>
 
       <Script

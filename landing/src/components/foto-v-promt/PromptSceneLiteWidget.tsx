@@ -705,8 +705,6 @@ export function PromptSceneLiteWidget() {
               })}
             </div>
           </div>
-
-          <p className="text-xs text-zinc-600">{t("pasteHint")}</p>
         </div>
       ) : null}
 
