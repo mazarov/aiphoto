@@ -888,31 +888,6 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                         </div>
                       </section>
                     ) : null}
-                    {tagEntries.length > 0 ? (
-                      <section className="" aria-label="Теги">
-                        <h2 className="sr-only">Теги</h2>
-                        <div className="flex flex-wrap gap-1.5">
-                          {tagEntries.map(({ slug, label, href }) =>
-                            href ? (
-                              <Link
-                                key={slug}
-                                href={href}
-                                className={`rounded-full px-2.5 py-2 ${MOBILE_FS_CHIP}`}
-                              >
-                                {label}
-                              </Link>
-                            ) : (
-                              <span
-                                key={slug}
-                                className={`rounded-full px-2.5 py-2 ${MOBILE_FS_CHIP_MUTED}`}
-                              >
-                                {label}
-                              </span>
-                            )
-                          )}
-                        </div>
-                      </section>
-                    ) : null}
                   </div>
                 </div>
 
