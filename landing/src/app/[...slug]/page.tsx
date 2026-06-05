@@ -40,11 +40,11 @@ import { getSeoForRoute } from "@/lib/seo-templates";
 import type { SeoContent } from "@/lib/seo-content";
 import {
   resolveSeoIllustrations,
-  illustrationsByFaqIndex,
-  introIllustrations,
   type ResolvedSeoIllustration,
 } from "@/lib/seo-illustrations";
-import { SeoIllustrationFigure } from "@/components/SeoIllustrationFigure";
+import { SeoHeroWithIllustrations } from "@/components/SeoHeroWithIllustrations";
+import { ListingPromptCountBadge } from "@/components/ListingPromptCountBadge";
+import { ListingFotoVPromtBanner } from "@/components/foto-v-promt-promo/ListingFotoVPromtBanner";
 import { LISTING_SSR_INITIAL_LIMIT } from "@/lib/listing-pagination";
 
 export const revalidate = 3600;
@@ -328,8 +328,6 @@ export default async function TagPage({ params, searchParams }: Props) {
     route.level === 1 && seo.illustrations?.length
       ? await resolveSeoIllustrations(seo.illustrations, mergedParams)
       : [];
-  const introIlls = introIllustrations(resolvedIllustrations);
-  const faqIllMap = illustrationsByFaqIndex(resolvedIllustrations);
 
   const pageOgImage = cards.length > 0
     ? cards.find((c) => c.photoUrls.length > 0)?.photoUrls[0] ?? null
@@ -349,9 +347,10 @@ export default async function TagPage({ params, searchParams }: Props) {
 
   return (
     <PageLayout>
+      <ListingFotoVPromtBanner attach="hero" />
       {/* Hero */}
-      <section className="border-b border-zinc-100 bg-gradient-to-b from-zinc-50 to-white">
-        <div className="px-5 pt-10 pb-8">
+      <section className="bg-gradient-to-b from-zinc-50 to-white">
+        <div className="px-5 pb-5 pt-5">
           {/* Breadcrumbs */}
           <nav className="mb-5 flex items-center gap-1.5 text-sm text-zinc-400">
             <Link href="/" className="transition-colors hover:text-zinc-700">
@@ -386,23 +385,30 @@ export default async function TagPage({ params, searchParams }: Props) {
             )}
           </nav>
 
-          <h1 className="text-3xl font-bold tracking-tight text-zinc-900 sm:text-4xl">
-            {seo.h1}
-          </h1>
-          <p className="mt-3 max-w-2xl text-zinc-600 leading-relaxed">
-            {seo.intro}
-          </p>
-          {introIlls.length > 0 && (
-            <div className="mt-6 flex flex-wrap gap-4">
-              {introIlls.map((ill) => (
-                <SeoIllustrationFigure key={ill.cardSlug} illustration={ill} />
-              ))}
+          {resolvedIllustrations.length > 0 ? (
+            <SeoHeroWithIllustrations
+              h1={seo.h1}
+              intro={seo.intro}
+              totalCount={totalCount}
+              illustrations={resolvedIllustrations}
+            />
+          ) : (
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                <h1 className="text-3xl font-bold tracking-tight text-zinc-900 sm:text-4xl">
+                  {seo.h1}
+                </h1>
+                <ListingPromptCountBadge count={totalCount} />
+              </div>
+              <p className="mt-3 max-w-2xl text-sm leading-relaxed text-zinc-600 sm:text-base">
+                {seo.intro}
+              </p>
             </div>
           )}
         </div>
       </section>
 
-      <main className="listing-main-bottom-pad w-full flex-1 px-2 py-10 sm:px-5 lg:py-10">
+      <main className="listing-main-bottom-pad w-full flex-1 px-2 pt-3 pb-8 sm:px-5 sm:pt-4 lg:pt-4">
         <section aria-labelledby="catalog-heading">
           <h2 id="catalog-heading" className="sr-only">
             Промты в этой категории
@@ -477,22 +483,12 @@ export default async function TagPage({ params, searchParams }: Props) {
         <section className="mt-12">
           <h2 className="text-xl font-bold text-zinc-900">Частые вопросы</h2>
           <dl className="mt-4 space-y-6">
-            {seo.faqItems.map((item, i) => {
-              const faqIll = faqIllMap.get(i);
-              return (
-                <div key={i} className="rounded-xl border border-zinc-200 bg-zinc-50/50 p-4">
-                  <div className={faqIll ? "flex flex-col gap-4 sm:flex-row sm:items-start" : undefined}>
-                    {faqIll && (
-                      <SeoIllustrationFigure illustration={faqIll} compact />
-                    )}
-                    <div className="min-w-0 flex-1">
-                      <dt className="font-semibold text-zinc-900">{item.q}</dt>
-                      <dd className="mt-2 text-zinc-600">{item.a}</dd>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+            {seo.faqItems.map((item, i) => (
+              <div key={i} className="rounded-xl border border-zinc-200 bg-zinc-50/50 p-4">
+                <dt className="font-semibold text-zinc-900">{item.q}</dt>
+                <dd className="mt-2 text-zinc-600">{item.a}</dd>
+              </div>
+            ))}
           </dl>
         </section>
 

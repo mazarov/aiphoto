@@ -5,10 +5,17 @@ import { FotoVPromtMiniBanner } from "./FotoVPromtMiniBanner";
 import { trackFotoVPromtBannerImpressionOnce } from "@/lib/foto-v-promt-banner-metrics";
 import { LISTING_SCROLL_ROOT_ID } from "@/lib/scroll-preservation";
 
+type Attach = "grid" | "hero";
+
+const WRAPPER_CLASS: Record<Attach, string> = {
+  grid: "sticky z-30 -mx-2 mb-0 contain-layout max-lg:top-0 sm:-mx-5 lg:top-[var(--ps-header-height,57px)] [transition:none] motion-reduce:transition-none",
+  hero: "sticky z-30 mb-0 contain-layout max-lg:top-0 lg:top-[var(--ps-header-height,57px)] [transition:none] motion-reduce:transition-none",
+};
+
 /**
  * Sticky promo for first screen of listing; unmounts after user scrolls past (IntersectionObserver).
  */
-export function ListingFotoVPromtBanner() {
+export function ListingFotoVPromtBanner({ attach = "grid" }: { attach?: Attach }) {
   const [visible, setVisible] = useState(true);
   const bannerRef = useRef<HTMLDivElement>(null);
 
@@ -56,7 +63,7 @@ export function ListingFotoVPromtBanner() {
   return (
     <div
       ref={bannerRef}
-      className="sticky z-30 -mx-2 mb-2 contain-layout max-lg:top-0 sm:-mx-5 lg:top-[var(--ps-header-height,57px)] [transition:none] motion-reduce:transition-none"
+      className={WRAPPER_CLASS[attach]}
     >
       <FotoVPromtMiniBanner variant="listing" />
     </div>

@@ -5,7 +5,6 @@ import type { PromptCardFull } from "@/lib/supabase";
 import { TAG_REGISTRY } from "@/lib/tag-registry";
 import { PromptCard } from "./PromptCard";
 import { GroupedCard } from "./GroupedCard";
-import { ListingFotoVPromtBanner } from "@/components/foto-v-promt-promo/ListingFotoVPromtBanner";
 import { useDebug } from "./DebugFAB";
 import { CardInteractionsProvider } from "@/context/CardInteractionsContext";
 import { LISTING_LCP_PRIORITY_GRID_ITEMS } from "@/lib/listing-lcp";
@@ -237,8 +236,6 @@ export function FilterableGrid({
           <p className="text-zinc-400">{isIdMode || isFilterMode ? "Карточки не найдены." : "Нет карточек по выбранным фильтрам."}</p>
         </div>
       ) : (
-        <>
-        <ListingFotoVPromtBanner />
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4 xl:grid-cols-5">
           {gridItems.map((item, index) =>
             item.type === "single" ? (
@@ -260,7 +257,6 @@ export function FilterableGrid({
             )
           )}
         </div>
-        </>
       )}
 
       {/* Floating filter panel overlay (FAB is in layout) */}

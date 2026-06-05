@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import type { PromptCardFull } from "@/lib/supabase";
 import { FilterableGrid } from "./CardFilters";
 import { ListingGridLoadingSkeleton } from "./ListingGridLoadingSkeleton";
@@ -101,22 +101,11 @@ export function InfiniteGrid({
     // caused extra layout/observer churn during scroll.
   }, [loadMore]);
 
-  const countText = useMemo(() => {
-    const n = totalCount;
-    if (n === 1) return "1 промпт";
-    if (n >= 2 && n <= 4) return `${n} промпта`;
-    return `${n} промптов`;
-  }, [totalCount]);
-
   return (
     <>
-      <div className="mt-4 mb-8 flex items-center gap-3">
-        <span className="inline-flex items-center rounded-full bg-zinc-100 px-3 py-1 text-sm tabular-nums text-zinc-600">
-          {countText}
-        </span>
+      <div className="mb-8">
+        <FilterableGrid cards={cards} />
       </div>
-
-      <FilterableGrid cards={cards} />
 
       <div ref={sentinelRef} className="h-px" />
 

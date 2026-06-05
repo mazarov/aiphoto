@@ -1,9 +1,10 @@
 export type SeoIllustration = {
   /** Alt с точным вхождением целевого запроса (Google Images). */
   alt: string;
+  /** Полная подпись для figcaption (sr-only) и JSON-LD. */
   caption: string;
-  /** Привязка к faqItems[i]; без поля — иллюстрация под intro. */
-  faqIndex?: number;
+  /** Короткий chip на экране (1–3 слова). */
+  label: string;
   /** Стабильный источник фото из каталога. */
   cardSlug?: string;
   /** Подстрока в title_ru для поиска в кластере, если cardSlug не задан. */
@@ -1062,24 +1063,27 @@ const SEO: Record<string, SeoContent> = {
         alt: "Промт для фото с машиной — пример ИИ-кадра у спорткара",
         caption:
           "Готовый промт для фото с машиной — скопируй текст и создай кадр в Nano Banana.",
-        cardSlug: "foto-ryadom-s-mashinami-2-45184",
+        label: "С машиной",
+        cardSlug: "molodoy-chelovek-v-chyornoy-tolstovke-u-kapota-avtomobilya-na-gornoy-doroge-s-tu-0376b",
       },
       {
         alt: "Промт для фото авто — готовый текст для нейросети",
         caption: "Промт для фото авто и автомобиля — кадры у капота и на фоне машины.",
-        faqIndex: 1,
-        cardSlug: "vintazhnoe-avto-549c8",
+        label: "Авто",
+        cardSlug: "muzhchina-v-dlinnom-chernom-palto-u-chernogo-vintazhnogo-avtomobilya-na-zimney-r-b29b4",
       },
       {
         alt: "Промт: машина с сиренью — трендовое ИИ-фото",
         caption: "Промт с машиной и сиренью — трендовый кадр для нейросети.",
-        faqIndex: 2,
+        label: "Сирень",
+        cardSlug: "molodaya-zhenshchina-v-vintazhnom-pidzhake-tyanetsya-k-tsvetushchey-sireni-iz-ok-0472c",
         titleIncludes: "сирен",
       },
       {
         alt: "Промт для фото с номерами у машины",
         caption: "Готовый промт для трендового фото с номерами у машины.",
-        faqIndex: 3,
+        label: "Номера",
+        cardSlug: "devushka-v-chernom-plate-s-buketom-na-zadnem-sidene-mercedes-v-nochnom-gorode-bbac4",
         titleIncludes: "номер",
       },
     ],
