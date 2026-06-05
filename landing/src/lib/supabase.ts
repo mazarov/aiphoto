@@ -365,6 +365,70 @@ export function pickDeduplicatedPhotos(
   };
 }
 
+export type CardPhotoRef = {
+  slug: string;
+  photoUrl: string;
+  width: number | null;
+  height: number | null;
+};
+
+/** Primary photo for published cards by slug (SEO-иллюстрации, batch). */
+export async function getCardPhotosBySlugs(
+  slugs: string[],
+): Promise<Map<string, CardPhotoRef>> {
+  const result = new Map<string, CardPhotoRef>();
+  if (slugs.length === 0) return result;
+
+  const supabase = createSupabaseServer();
+  const { data: cards, error: cardError } = await supabase
+    .from("prompt_cards")
+    .select("id,slug")
+    .in("slug", slugs)
+    .eq("is_published", true);
+
+  if (cardError || !cards?.length) return result;
+
+  const cardIds = cards.map((c) => c.id as string);
+  const { data: mediaRows } = await supabase
+    .from("prompt_card_media")
+    .select("card_id,storage_bucket,storage_path,width,height,is_primary")
+    .in("card_id", cardIds)
+    .eq("media_type", "photo")
+    .order("is_primary", { ascending: false });
+
+  const mediaByCard = new Map<
+    string,
+    { storage_bucket: string; storage_path: string; width: number | null; height: number | null }
+  >();
+  for (const row of mediaRows ?? []) {
+    const cardId = row.card_id as string;
+    if (mediaByCard.has(cardId)) continue;
+    mediaByCard.set(cardId, {
+      storage_bucket: row.storage_bucket as string,
+      storage_path: row.storage_path as string,
+      width: (row.width as number | null) ?? null,
+      height: (row.height as number | null) ?? null,
+    });
+  }
+
+  for (const card of cards) {
+    const media = mediaByCard.get(card.id as string);
+    if (!media) continue;
+    result.set(card.slug as string, {
+      slug: card.slug as string,
+      photoUrl: getStorageCardMediaUrl(
+        media.storage_bucket,
+        media.storage_path,
+        "grid",
+      ),
+      width: media.width,
+      height: media.height,
+    });
+  }
+
+  return result;
+}
+
 export async function getFirstCardPhotoUrl(
   cardIds: string[],
 ): Promise<string | null> {

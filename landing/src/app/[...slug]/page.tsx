@@ -38,6 +38,13 @@ import {
 import { resolveUrlToTags, getMinCardsForLevel, type ResolvedRoute } from "@/lib/route-resolver";
 import { getSeoForRoute } from "@/lib/seo-templates";
 import type { SeoContent } from "@/lib/seo-content";
+import {
+  resolveSeoIllustrations,
+  illustrationsByFaqIndex,
+  introIllustrations,
+  type ResolvedSeoIllustration,
+} from "@/lib/seo-illustrations";
+import { SeoIllustrationFigure } from "@/components/SeoIllustrationFigure";
 import { LISTING_SSR_INITIAL_LIMIT } from "@/lib/listing-pagination";
 
 export const revalidate = 3600;
@@ -104,6 +111,7 @@ function buildJsonLd(
   seo: SeoContent,
   siteUrl: string,
   ogImageUrl: string | null,
+  seoIllustrations: ResolvedSeoIllustration[] = [],
 ) {
   const canonicalUrl = `${siteUrl}${route.canonicalPath}`;
 
@@ -178,6 +186,17 @@ function buildJsonLd(
         name: item.q,
         acceptedAnswer: { "@type": "Answer", text: item.a },
       })),
+    });
+  }
+
+  for (const ill of seoIllustrations) {
+    schemas.push({
+      "@context": "https://schema.org",
+      "@type": "ImageObject",
+      contentUrl: ill.photoUrl,
+      description: ill.alt,
+      caption: ill.caption,
+      url: `${siteUrl}/p/${ill.cardSlug}/`,
     });
   }
 
@@ -305,6 +324,13 @@ export default async function TagPage({ params, searchParams }: Props) {
 
   const seo = getSeoForRoute(route);
 
+  const resolvedIllustrations =
+    route.level === 1 && seo.illustrations?.length
+      ? await resolveSeoIllustrations(seo.illustrations, mergedParams)
+      : [];
+  const introIlls = introIllustrations(resolvedIllustrations);
+  const faqIllMap = illustrationsByFaqIndex(resolvedIllustrations);
+
   const pageOgImage = cards.length > 0
     ? cards.find((c) => c.photoUrls.length > 0)?.photoUrls[0] ?? null
     : null;
@@ -366,6 +392,13 @@ export default async function TagPage({ params, searchParams }: Props) {
           <p className="mt-3 max-w-2xl text-zinc-600 leading-relaxed">
             {seo.intro}
           </p>
+          {introIlls.length > 0 && (
+            <div className="mt-6 flex flex-wrap gap-4">
+              {introIlls.map((ill) => (
+                <SeoIllustrationFigure key={ill.cardSlug} illustration={ill} />
+              ))}
+            </div>
+          )}
         </div>
       </section>
 
@@ -444,12 +477,22 @@ export default async function TagPage({ params, searchParams }: Props) {
         <section className="mt-12">
           <h2 className="text-xl font-bold text-zinc-900">Частые вопросы</h2>
           <dl className="mt-4 space-y-6">
-            {seo.faqItems.map((item, i) => (
-              <div key={i} className="rounded-xl border border-zinc-200 bg-zinc-50/50 p-4">
-                <dt className="font-semibold text-zinc-900">{item.q}</dt>
-                <dd className="mt-2 text-zinc-600">{item.a}</dd>
-              </div>
-            ))}
+            {seo.faqItems.map((item, i) => {
+              const faqIll = faqIllMap.get(i);
+              return (
+                <div key={i} className="rounded-xl border border-zinc-200 bg-zinc-50/50 p-4">
+                  <div className={faqIll ? "flex flex-col gap-4 sm:flex-row sm:items-start" : undefined}>
+                    {faqIll && (
+                      <SeoIllustrationFigure illustration={faqIll} compact />
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <dt className="font-semibold text-zinc-900">{item.q}</dt>
+                      <dd className="mt-2 text-zinc-600">{item.a}</dd>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </dl>
         </section>
 
@@ -498,7 +541,9 @@ export default async function TagPage({ params, searchParams }: Props) {
         type="application/ld+json"
         strategy="afterInteractive"
         dangerouslySetInnerHTML={{
-          __html: JSON.stringify(buildJsonLd(route, seo, SITE_URL, pageOgImage)).replace(/</g, "\\u003c"),
+          __html: JSON.stringify(
+            buildJsonLd(route, seo, SITE_URL, pageOgImage, resolvedIllustrations),
+          ).replace(/</g, "\\u003c"),
         }}
       />
     </PageLayout>
