@@ -1,21 +1,13 @@
 "use client";
 
 import { useAuth } from "@/context/AuthContext";
-import { createSupabaseBrowser } from "@/lib/supabase-browser";
+import { signInWithOAuthProvider } from "@/lib/auth-oauth";
+import { YandexAuthSuggestButton } from "@/components/YandexAuthSuggestButton";
 
 export function AuthModal() {
   const { showAuthModal, closeAuthModal } = useAuth();
 
   if (!showAuthModal) return null;
-
-  async function signInWithGoogle() {
-    const supabase = createSupabaseBrowser();
-    await supabase.auth.signInWithOAuth({
-      provider: "google",
-      // Return to current page; AuthProvider completes code exchange in browser.
-      options: { redirectTo: `${window.location.origin}${window.location.pathname}${window.location.search}` },
-    });
-  }
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center">
@@ -49,16 +41,19 @@ export function AuthModal() {
           </p>
         </div>
 
-        {/* Providers */}
+        {/* Providers — при нескольких кнопках Яндекс рекомендует подпись «Войти с помощью» */}
+        <p className="mb-3 text-center text-sm text-zinc-500">Войти с помощью</p>
         <div className="space-y-3">
           <button
             type="button"
-            onClick={signInWithGoogle}
+            onClick={() => signInWithOAuthProvider("google")}
             className="flex w-full items-center gap-3 rounded-xl border border-zinc-200 bg-white px-4 py-3 text-sm font-medium text-zinc-700 transition-all hover:border-zinc-300 hover:bg-zinc-50 active:scale-[0.98]"
           >
             <GoogleIcon />
             Войти через Google
           </button>
+
+          <YandexAuthSuggestButton buttonView="additional" />
 
           <button
             type="button"
@@ -67,15 +62,6 @@ export function AuthModal() {
           >
             <TelegramIcon />
             Telegram — скоро
-          </button>
-
-          <button
-            type="button"
-            disabled
-            className="flex w-full items-center gap-3 rounded-xl border border-zinc-200 bg-white px-4 py-3 text-sm font-medium text-zinc-400 opacity-60 cursor-not-allowed"
-          >
-            <YandexIcon />
-            Яндекс — скоро
           </button>
         </div>
       </div>
@@ -102,10 +88,3 @@ function TelegramIcon() {
   );
 }
 
-function YandexIcon() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="#9CA3AF">
-      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1.36 14.64h-1.82V7.36h1.04c1.88 0 3.1.9 3.1 2.56 0 1.22-.66 2.1-1.82 2.56l2.38 4.16h-2.04l-2.04-3.8h-.8v3.8h1zm-.8-5.18h.72c1.1 0 1.68-.52 1.68-1.46s-.58-1.42-1.68-1.42h-.72v2.88z" />
-    </svg>
-  );
-}
