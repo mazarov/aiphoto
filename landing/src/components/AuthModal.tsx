@@ -53,7 +53,7 @@ export function AuthModal() {
             Войти через Google
           </button>
 
-          <YandexAuthSuggestButton buttonView="additional" />
+          <YandexAuthSuggestButton />
 
           <button
             type="button"

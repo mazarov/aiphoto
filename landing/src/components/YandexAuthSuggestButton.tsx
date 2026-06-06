@@ -7,20 +7,17 @@ import {
   fetchYandexOAuthPublicConfig,
   getYandexOAuthClientId,
   getYandexOAuthRedirectUri,
+  YANDEX_AUTH_SUGGEST_BUTTON_HEIGHT_PX,
+  YANDEX_AUTH_SUGGEST_BUTTON_PARAMS,
   YANDEX_AUTH_SUGGEST_SDK_URL,
 } from "@/lib/yandex-auth-suggest";
-
-type Props = {
-  /** Дополнительная версия — рядом с кнопками других сервисов (рекомендация Яндекса). */
-  buttonView?: "additional" | "main";
-};
 
 /**
  * Официальная кнопка из конструктора YaAuthSuggest (sdk-suggest.js).
  * SDK только рисует кнопку; клик всегда идёт в Supabase OAuth (custom:yandex),
  * иначе YaAuthSuggest откроет свой token-flow с чужим redirect_uri.
  */
-export function YandexAuthSuggestButton({ buttonView = "additional" }: Props) {
+export function YandexAuthSuggestButton() {
   const reactId = useId().replace(/:/g, "");
   const containerId = `yandex-auth-suggest-${reactId}`;
   const mountedRef = useRef(true);
@@ -86,13 +83,8 @@ export function YandexAuthSuggestButton({ buttonView = "additional" }: Props) {
         },
         origin,
         {
-          view: "button",
+          ...YANDEX_AUTH_SUGGEST_BUTTON_PARAMS,
           parentId: containerId,
-          buttonView,
-          buttonTheme: "light",
-          buttonSize: "m",
-          buttonBorderRadius: 12,
-          buttonIcon: "ya",
         }
       )
       .then((result) => {
@@ -137,14 +129,23 @@ export function YandexAuthSuggestButton({ buttonView = "additional" }: Props) {
       cancelled = true;
       observer?.disconnect();
     };
-  }, [sdkReady, clientId, redirectUriOverride, containerId, buttonView]);
+  }, [sdkReady, clientId, redirectUriOverride, containerId]);
 
   const handleSignIn = () => {
     void signInWithOAuthProvider(YANDEX_OAUTH_PROVIDER);
   };
 
+  const minHeight = `${YANDEX_AUTH_SUGGEST_BUTTON_HEIGHT_PX}px`;
+  const overlayRadius = `${YANDEX_AUTH_SUGGEST_BUTTON_PARAMS.buttonBorderRadius}px`;
+
   if (!configResolved) {
-    return <div className="h-11 w-full animate-pulse rounded-xl bg-zinc-100" aria-hidden />;
+    return (
+      <div
+        className="w-full animate-pulse rounded-[22px] bg-zinc-100"
+        style={{ minHeight }}
+        aria-hidden
+      />
+    );
   }
 
   if (!clientId || renderFailed) {
@@ -152,9 +153,10 @@ export function YandexAuthSuggestButton({ buttonView = "additional" }: Props) {
       <button
         type="button"
         onClick={handleSignIn}
-        className="flex h-11 w-full items-center justify-center rounded-xl border border-black bg-white text-sm font-medium text-black"
+        className="flex w-full items-center justify-center rounded-[22px] bg-black text-base font-medium text-white"
+        style={{ minHeight }}
       >
-        Яндекс ID
+        Войти с Яндекс ID
       </button>
     );
   }
@@ -167,7 +169,7 @@ export function YandexAuthSuggestButton({ buttonView = "additional" }: Props) {
         onLoad={() => setSdkReady(true)}
         onError={() => setRenderFailed(true)}
       />
-      <div className="relative w-full min-h-[44px]">
+      <div className="relative w-full" style={{ minHeight }}>
         <div
           id={containerId}
           className="pointer-events-none w-full [&_.yaPersonalButton]:!w-full"
@@ -177,7 +179,8 @@ export function YandexAuthSuggestButton({ buttonView = "additional" }: Props) {
           type="button"
           aria-label="Войти с Яндекс ID"
           onClick={handleSignIn}
-          className="absolute inset-0 z-10 h-full w-full cursor-pointer rounded-xl bg-transparent"
+          className="absolute inset-0 z-10 h-full w-full cursor-pointer bg-transparent"
+          style={{ borderRadius: overlayRadius }}
         />
       </div>
     </>

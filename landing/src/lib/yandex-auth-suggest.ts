@@ -3,6 +3,19 @@ export const YANDEX_AUTH_SUGGEST_SDK_URL =
 
 export type YandexAuthSuggestButtonView = "main" | "additional" | "icon" | "iconBG";
 
+/** Параметры из конструктора https://yandex.ru/dev/id/doc/ru/suggest/but-const */
+export const YANDEX_AUTH_SUGGEST_BUTTON_PARAMS = {
+  view: "button" as const,
+  buttonSize: "xxl" as const,
+  buttonView: "main" as const,
+  buttonTheme: "light" as const,
+  buttonBorderRadius: 22,
+  buttonIcon: "ya" as const,
+};
+
+/** Высота кнопки xxl по гайду Яндекса */
+export const YANDEX_AUTH_SUGGEST_BUTTON_HEIGHT_PX = 56;
+
 export type YandexAuthSuggestInitParams = {
   view: "button";
   parentId: string;
