@@ -40,7 +40,9 @@ export function getYandexOAuthClientId(): string | undefined {
   return value || undefined;
 }
 
-export function getYandexOAuthRedirectUri(origin: string): string {
+export function getYandexOAuthRedirectUri(origin: string, override?: string): string {
+  const fromOverride = override?.trim();
+  if (fromOverride) return fromOverride;
   const fromEnv = process.env.NEXT_PUBLIC_YANDEX_OAUTH_REDIRECT_URI?.trim();
   if (fromEnv) return fromEnv;
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
@@ -48,4 +50,19 @@ export function getYandexOAuthRedirectUri(origin: string): string {
     return `${supabaseUrl.replace(/\/$/, "")}/auth/v1/callback`;
   }
   return `${origin}/auth/yandex-suggest-token`;
+}
+
+export type YandexOAuthPublicConfig = {
+  yandexOAuthClientId?: string;
+  yandexOAuthRedirectUri?: string;
+};
+
+export async function fetchYandexOAuthPublicConfig(): Promise<YandexOAuthPublicConfig> {
+  const res = await fetch("/api/public-config", { cache: "no-store" });
+  if (!res.ok) return {};
+  const data = (await res.json()) as YandexOAuthPublicConfig;
+  return {
+    yandexOAuthClientId: data.yandexOAuthClientId?.trim() || undefined,
+    yandexOAuthRedirectUri: data.yandexOAuthRedirectUri?.trim() || undefined,
+  };
 }

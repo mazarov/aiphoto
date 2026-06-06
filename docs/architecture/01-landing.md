@@ -181,7 +181,7 @@ AuthModal → signInWithOAuth(redirectTo: текущая страница)
 ```
 
 - Хелпер: `landing/src/lib/auth-oauth.ts` (`getOAuthReturnUrl`, `signInWithOAuthProvider`).
-- **Кнопка Яндекс ID:** официальный виджет [конструктора YaAuthSuggest](https://yandex.ru/dev/id/doc/ru/suggest/but-const) — `YandexAuthSuggestButton` (`sdk-suggest-with-polyfills-latest.js`, `buttonView: additional`); клик перенаправляется в Supabase OAuth (`custom:yandex`), не в suggest-token flow. Env: `NEXT_PUBLIC_YANDEX_OAUTH_CLIENT_ID` (публичный client_id из oauth.yandex.ru).
+- **Кнопка Яндекс ID:** официальный виджет [конструктора YaAuthSuggest](https://yandex.ru/dev/id/doc/ru/suggest/but-const) — `YandexAuthSuggestButton` (`sdk-suggest-with-polyfills-latest.js`, `buttonView: additional`); клик перенаправляется в Supabase OAuth (`custom:yandex`), не в suggest-token flow. Env: `NEXT_PUBLIC_YANDEX_OAUTH_CLIENT_ID` (публичный client_id из oauth.yandex.ru) — в **Docker build** (`landing/Dockerfile` ARG) и/или runtime env лендинга; если в клиентском бандле пусто, `client_id` подтягивается из `GET /api/public-config`.
 - `/auth/callback` (Next.js) модалкой **не** используется — только extension/STV.
 - **Self-hosted auth:** GoTrue **≥ v2.187.0**, `GOTRUE_CUSTOM_OAUTH_ENABLED=true`, `GOTRUE_SITE_URL=https://promptshot.ru`, `GOTRUE_URI_ALLOW_LIST=https://promptshot.ru/**`.
 - **Yandex OAuth app** (отдельно от API Метрики): Redirect URI `https://<NEXT_PUBLIC_SUPABASE_HOST>/auth/v1/callback`, scopes `login:info login:email login:avatar`.
@@ -599,6 +599,8 @@ landing/src/
 | `NEXT_STANDALONE_TRACING_ROOT` | Опционально при **`next build`** / Docker build: явный корень file tracing для `output: standalone` (см. § «Сборка Docker») |
 | `NEXT_PUBLIC_SUPABASE_URL` | Браузерный клиент |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Браузерный клиент |
+| `NEXT_PUBLIC_YANDEX_OAUTH_CLIENT_ID` | Официальная кнопка YaAuthSuggest (`YandexAuthSuggestButton`, `GET /api/public-config`) |
+| `NEXT_PUBLIC_YANDEX_OAUTH_REDIRECT_URI` | Опционально; по умолчанию `{NEXT_PUBLIC_SUPABASE_URL}/auth/v1/callback` |
 | `SUPABASE_SERVICE_ROLE_KEY` | Серверный клиент |
 | `NEXT_PUBLIC_SITE_URL` | Canonical URLs, OG |
 | `GEMINI_API_KEY` | Gemini вызовы в `generate-process`, `vibe/extract`, `vibe/expand` |

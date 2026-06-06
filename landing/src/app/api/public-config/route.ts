@@ -9,8 +9,15 @@ export async function GET() {
   if (!supabaseUrl || !supabaseAnonKey) {
     return NextResponse.json({ error: "not_configured" }, { status: 503 });
   }
+  const yandexOAuthClientId = process.env.NEXT_PUBLIC_YANDEX_OAUTH_CLIENT_ID?.trim() || "";
+  const yandexOAuthRedirectUri =
+    process.env.NEXT_PUBLIC_YANDEX_OAUTH_REDIRECT_URI?.trim() ||
+    `${supabaseUrl.replace(/\/$/, "")}/auth/v1/callback`;
+
   return NextResponse.json({
     supabaseUrl,
     supabaseAnonKey,
+    yandexOAuthClientId: yandexOAuthClientId || undefined,
+    yandexOAuthRedirectUri: yandexOAuthClientId ? yandexOAuthRedirectUri : undefined,
   });
 }
