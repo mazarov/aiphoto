@@ -17,7 +17,8 @@ type Props = {
 
 /**
  * Официальная кнопка из конструктора YaAuthSuggest (sdk-suggest.js).
- * Визуал и стили — от Яндекса; клик ведёт в Supabase OAuth (custom:yandex).
+ * SDK только рисует кнопку; клик всегда идёт в Supabase OAuth (custom:yandex),
+ * иначе YaAuthSuggest откроет свой token-flow с чужим redirect_uri.
  */
 export function YandexAuthSuggestButton({ buttonView = "additional" }: Props) {
   const reactId = useId().replace(/:/g, "");
@@ -29,6 +30,7 @@ export function YandexAuthSuggestButton({ buttonView = "additional" }: Props) {
   const [redirectUriOverride, setRedirectUriOverride] = useState<string | undefined>();
   const [configResolved, setConfigResolved] = useState(() => Boolean(getYandexOAuthClientId()));
   const [sdkReady, setSdkReady] = useState(false);
+  const [buttonRendered, setButtonRendered] = useState(false);
   const [renderFailed, setRenderFailed] = useState(false);
 
   useEffect(() => {
@@ -73,6 +75,7 @@ export function YandexAuthSuggestButton({ buttonView = "additional" }: Props) {
     }
 
     let cancelled = false;
+    let observer: MutationObserver | null = null;
 
     yaAuthSuggest
       .init(
@@ -100,12 +103,31 @@ export function YandexAuthSuggestButton({ buttonView = "additional" }: Props) {
         }
 
         void result.handler();
-        requestAnimationFrame(() => {
+
+        const container = document.getElementById(containerId);
+        if (!container) {
+          setRenderFailed(true);
+          return;
+        }
+
+        const markRendered = () => {
           if (cancelled || !mountedRef.current) return;
-          if (!hijackOfficialButton(containerId)) {
-            setRenderFailed(true);
+          if (container.querySelector(".yaPersonalButton")) {
+            setButtonRendered(true);
+            observer?.disconnect();
           }
-        });
+        };
+
+        observer = new MutationObserver(markRendered);
+        observer.observe(container, { childList: true, subtree: true });
+        markRendered();
+
+        window.setTimeout(() => {
+          if (!cancelled && mountedRef.current && !container.querySelector(".yaPersonalButton")) {
+            setRenderFailed(true);
+            observer?.disconnect();
+          }
+        }, 3000);
       })
       .catch(() => {
         if (!cancelled && mountedRef.current) setRenderFailed(true);
@@ -113,18 +135,23 @@ export function YandexAuthSuggestButton({ buttonView = "additional" }: Props) {
 
     return () => {
       cancelled = true;
+      observer?.disconnect();
     };
   }, [sdkReady, clientId, redirectUriOverride, containerId, buttonView]);
+
+  const handleSignIn = () => {
+    void signInWithOAuthProvider(YANDEX_OAUTH_PROVIDER);
+  };
 
   if (!configResolved) {
     return <div className="h-11 w-full animate-pulse rounded-xl bg-zinc-100" aria-hidden />;
   }
 
-  if (!clientId) {
+  if (!clientId || renderFailed) {
     return (
       <button
         type="button"
-        onClick={() => signInWithOAuthProvider(YANDEX_OAUTH_PROVIDER)}
+        onClick={handleSignIn}
         className="flex h-11 w-full items-center justify-center rounded-xl border border-black bg-white text-sm font-medium text-black"
       >
         Яндекс ID
@@ -140,33 +167,19 @@ export function YandexAuthSuggestButton({ buttonView = "additional" }: Props) {
         onLoad={() => setSdkReady(true)}
         onError={() => setRenderFailed(true)}
       />
-      <div id={containerId} className="w-full min-h-[44px] [&_.yaPersonalButton]:!w-full" />
-      {renderFailed ? (
+      <div className="relative w-full min-h-[44px]">
+        <div
+          id={containerId}
+          className="pointer-events-none w-full [&_.yaPersonalButton]:!w-full"
+          aria-hidden={buttonRendered}
+        />
         <button
           type="button"
-          onClick={() => signInWithOAuthProvider(YANDEX_OAUTH_PROVIDER)}
-          className="flex h-11 w-full items-center justify-center rounded-xl border border-black bg-white text-sm font-medium text-black"
-        >
-          Яндекс ID
-        </button>
-      ) : null}
+          aria-label="Войти с Яндекс ID"
+          onClick={handleSignIn}
+          className="absolute inset-0 z-10 h-full w-full cursor-pointer rounded-xl bg-transparent"
+        />
+      </div>
     </>
   );
-}
-
-function hijackOfficialButton(parentId: string): boolean {
-  const container = document.getElementById(parentId);
-  const button = container?.querySelector(".yaPersonalButton");
-  if (!(button instanceof HTMLButtonElement)) return false;
-
-  const clone = button.cloneNode(true);
-  if (!(clone instanceof HTMLButtonElement)) return false;
-
-  button.replaceWith(clone);
-  clone.addEventListener("click", (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    void signInWithOAuthProvider(YANDEX_OAUTH_PROVIDER);
-  });
-  return true;
 }
