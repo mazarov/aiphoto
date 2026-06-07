@@ -27,9 +27,16 @@ type Props = {
   cards: PromptCardFull[];
   debug?: boolean;
   priorityLoad?: boolean;
+  /** Catalog/search grids: no hover overlay (copy, LexyGPT, reactions, photo arrows). */
+  hideHoverChrome?: boolean;
 };
 
-function GroupedCardBase({ cards, debug = false, priorityLoad = false }: Props) {
+function GroupedCardBase({
+  cards,
+  debug = false,
+  priorityLoad = false,
+  hideHoverChrome = false,
+}: Props) {
   const { open } = usePromptCardModal();
   const sorted = [...cards].sort((a, b) => a.cardSplitIndex - b.cardSplitIndex);
   const [activeCardIdx, setActiveCardIdx] = useState(0);
@@ -142,7 +149,10 @@ function GroupedCardBase({ cards, debug = false, priorityLoad = false }: Props) 
           )}
 
           {!imageReady && currentPhotoUrl && (
-            <ListingCardLoadingShell hasPrompts={allPrompts.length > 0} />
+            <ListingCardLoadingShell
+              photoOnly={hideHoverChrome}
+              hasPrompts={allPrompts.length > 0}
+            />
           )}
 
           {activeSlug && (
@@ -158,6 +168,8 @@ function GroupedCardBase({ cards, debug = false, priorityLoad = false }: Props) 
             />
           )}
 
+          {!hideHoverChrome && (
+          <>
           <div
             className={`listing-card-chrome absolute inset-0 z-20 transition-opacity duration-200 ${
               imageReady ? "opacity-100" : "pointer-events-none invisible opacity-0"
@@ -337,6 +349,8 @@ function GroupedCardBase({ cards, debug = false, priorityLoad = false }: Props) 
               </div>
             </div>
           )}
+          </>
+          )}
         </div>
       </article>
   );
@@ -367,6 +381,7 @@ function GroupedCardBase({ cards, debug = false, priorityLoad = false }: Props) 
 function groupedCardPropsAreEqual(prev: Props, next: Props): boolean {
   if (prev.debug !== next.debug) return false;
   if (prev.priorityLoad !== next.priorityLoad) return false;
+  if (prev.hideHoverChrome !== next.hideHoverChrome) return false;
   if (prev.cards.length !== next.cards.length) return false;
   const prevIds = [...prev.cards].map((c) => c.id).sort().join("|");
   const nextIds = [...next.cards].map((c) => c.id).sort().join("|");

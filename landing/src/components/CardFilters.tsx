@@ -18,6 +18,8 @@ type Props = {
   cards: PromptCardFull[];
   /** First N grid cells use `priority` + no lazy on main photo (listing LCP). */
   lcpPriorityCount?: number;
+  /** Catalog/search grids: no hover overlay on cards. */
+  hideHoverChrome?: boolean;
 };
 
 function getSeoTagSlugs(seoTags: unknown): string[] {
@@ -45,6 +47,7 @@ type GridItem =
 export function FilterableGrid({
   cards,
   lcpPriorityCount = LISTING_LCP_PRIORITY_GRID_ITEMS,
+  hideHoverChrome = false,
 }: Props) {
   const debugCtx = useDebug();
   const debugMode = debugCtx?.debugOpen ?? false;
@@ -244,6 +247,7 @@ export function FilterableGrid({
                   card={item.card}
                   debug={debugMode}
                   priorityLoad={index < lcpPriorityCount}
+                  hideHoverChrome={hideHoverChrome}
                 />
               </div>
             ) : (
@@ -252,6 +256,7 @@ export function FilterableGrid({
                   cards={item.cards}
                   debug={debugMode}
                   priorityLoad={index < lcpPriorityCount}
+                  hideHoverChrome={hideHoverChrome}
                 />
               </div>
             )

@@ -4,10 +4,17 @@
  *
  * @param overlay — `true` when stacked above `next/image` (z-[3]); `false` in `ListingGridLoadingSkeleton` (z-[1], chrome stays on top).
  */
-export function ListingCardPhotoSkeleton({ overlay = false }: { overlay?: boolean }) {
+export function ListingCardPhotoSkeleton({
+  overlay = false,
+  /** Catalog/search cards without hover chrome — shimmer covers the full frame. */
+  fullFrame = false,
+}: {
+  overlay?: boolean;
+  fullFrame?: boolean;
+}) {
   return (
     <div
-      className={`pointer-events-none absolute inset-x-0 top-0 overflow-hidden rounded-t-2xl bg-zinc-300/45 shadow-[inset_0_1px_0_rgba(255,255,255,0.3)] [bottom:32%] ${overlay ? "z-[3]" : "z-[1]"}`}
+      className={`pointer-events-none absolute inset-x-0 top-0 overflow-hidden rounded-t-2xl bg-zinc-300/45 shadow-[inset_0_1px_0_rgba(255,255,255,0.3)] ${fullFrame ? "bottom-0 rounded-2xl" : "[bottom:32%]"} ${overlay ? "z-[3]" : "z-[1]"}`}
       aria-hidden
     >
       <div

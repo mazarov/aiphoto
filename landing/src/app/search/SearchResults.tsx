@@ -205,6 +205,7 @@ export function SearchResults({ initialQuery }: Props) {
               <PromptCard
                 card={card}
                 priorityLoad={index < LISTING_LCP_PRIORITY_GRID_ITEMS}
+                hideHoverChrome
               />
             </div>
           ))}

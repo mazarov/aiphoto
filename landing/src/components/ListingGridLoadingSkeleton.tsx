@@ -5,12 +5,14 @@ const GRID =
 
 type Props = {
   count?: number;
+  /** Match catalog/search cards — no chrome footer pills in placeholders. */
+  photoOnly?: boolean;
 };
 
 /**
  * Placeholders while fetching the next listing page — same outer shape as PromptCard / GroupedCard.
  */
-export function ListingGridLoadingSkeleton({ count = 8 }: Props) {
+export function ListingGridLoadingSkeleton({ count = 8, photoOnly = false }: Props) {
   return (
     <div className={`${GRID} py-6`} aria-busy="true" aria-live="polite">
       <span className="sr-only">Загрузка следующих карточек</span>
@@ -18,7 +20,7 @@ export function ListingGridLoadingSkeleton({ count = 8 }: Props) {
         <div key={i} className="min-w-0">
           <article className="relative isolate overflow-hidden rounded-2xl bg-transparent shadow-md shadow-zinc-900/[0.06] ring-1 ring-zinc-900/[0.06]">
             <div className="relative w-full overflow-hidden rounded-2xl bg-zinc-200/90 aspect-[3/4] ring-1 ring-black/[0.04]">
-              <ListingCardLoadingShell />
+              <ListingCardLoadingShell photoOnly={photoOnly} />
             </div>
           </article>
         </div>

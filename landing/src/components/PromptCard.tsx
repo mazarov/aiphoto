@@ -29,6 +29,8 @@ type Props = {
   debug?: boolean;
   /** First cells in category grid — eager image + LCP-friendly reveal. */
   priorityLoad?: boolean;
+  /** Catalog/search grids: no hover overlay (copy, LexyGPT, reactions, photo arrows). */
+  hideHoverChrome?: boolean;
 };
 
 function DebugOverlay({ card }: { card: PromptCardFull }) {
@@ -60,7 +62,12 @@ function DebugOverlay({ card }: { card: PromptCardFull }) {
   );
 }
 
-function PromptCardBase({ card, debug = false, priorityLoad = false }: Props) {
+function PromptCardBase({
+  card,
+  debug = false,
+  priorityLoad = false,
+  hideHoverChrome = false,
+}: Props) {
   const { open } = usePromptCardModal();
   const { reactions, favorites, toggleReaction, toggleFavorite } = useCardInteractions();
   const title = card.title_ru || card.title_en || "Без названия";
@@ -133,7 +140,10 @@ function PromptCardBase({ card, debug = false, priorityLoad = false }: Props) {
         )}
 
         {!imageReady && currentPhoto && (
-          <ListingCardLoadingShell hasPrompts={card.promptTexts.length > 0} />
+          <ListingCardLoadingShell
+            photoOnly={hideHoverChrome}
+            hasPrompts={card.promptTexts.length > 0}
+          />
         )}
 
         {card.slug && (
@@ -150,6 +160,8 @@ function PromptCardBase({ card, debug = false, priorityLoad = false }: Props) {
           />
         )}
 
+        {!hideHoverChrome && (
+        <>
         <div
           className={`listing-card-chrome absolute inset-0 z-20 transition-opacity duration-200 ${
             imageReady ? "opacity-100" : "pointer-events-none invisible opacity-0"
@@ -335,6 +347,8 @@ function PromptCardBase({ card, debug = false, priorityLoad = false }: Props) {
             </div>
           </div>
         )}
+        </>
+        )}
       </div>
     </article>
   );
@@ -343,6 +357,7 @@ function PromptCardBase({ card, debug = false, priorityLoad = false }: Props) {
 function promptCardPropsAreEqual(prev: Props, next: Props): boolean {
   if (prev.debug !== next.debug) return false;
   if (prev.priorityLoad !== next.priorityLoad) return false;
+  if (prev.hideHoverChrome !== next.hideHoverChrome) return false;
   if (prev.card?.id !== next.card?.id) return false;
   return true;
 }

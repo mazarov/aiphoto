@@ -104,12 +104,12 @@ export function InfiniteGrid({
   return (
     <>
       <div className="mb-8">
-        <FilterableGrid cards={cards} />
+        <FilterableGrid cards={cards} hideHoverChrome />
       </div>
 
       <div ref={sentinelRef} className="h-px" />
 
-      {loading && <ListingGridLoadingSkeleton />}
+      {loading && <ListingGridLoadingSkeleton photoOnly />}
     </>
   );
 }
