@@ -5,6 +5,9 @@ import {
   mapYandexUserinfoToOAuthClaims,
 } from "@/lib/yandex-userinfo-proxy";
 
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+
 /**
  * GoTrue custom:yandex userinfo adapter.
  * Yandex returns default_email and expects Authorization: OAuth <token>;
@@ -27,6 +30,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(claims);
   } catch (err) {
     const message = err instanceof Error ? err.message : "yandex_userinfo_failed";
+    if (message === "yandex_subject_missing") {
+      return NextResponse.json({ error: "yandex_subject_missing" }, { status: 422 });
+    }
     if (message.startsWith("yandex_userinfo_401")) {
       return NextResponse.json({ error: "yandex_unauthorized" }, { status: 401 });
     }
