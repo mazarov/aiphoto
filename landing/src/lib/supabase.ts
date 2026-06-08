@@ -219,6 +219,32 @@ export async function searchCardsFiltered(params: {
   return expandCardGroups(cards);
 }
 
+export async function countCardsFiltered(params: {
+  hasWarnings?: "all" | "yes" | "no";
+  scoreMin?: number;
+  scoreMax?: number;
+  hasRuPrompt?: "all" | "yes" | "no";
+  seoTag?: string | null;
+  hasBefore?: "all" | "yes";
+  dataset?: string | null;
+}): Promise<number> {
+  const supabase = createSupabaseServer();
+  const { data, error } = await supabase.rpc("search_cards_filtered", {
+    p_has_warnings: params.hasWarnings ?? "all",
+    p_score_min: params.scoreMin ?? 0,
+    p_score_max: params.scoreMax ?? 100,
+    p_has_ru_prompt: params.hasRuPrompt ?? "all",
+    p_seo_tag: params.seoTag || null,
+    p_has_before: params.hasBefore ?? "all",
+    p_dataset: params.dataset || null,
+    p_limit: 100000,
+    p_offset: 0,
+  });
+
+  if (error) throw new Error(`search_cards_filtered count: ${error.message}`);
+  return (data || []).length;
+}
+
 export type SearchTextResult = RouteCard & { match_type: string };
 
 export async function searchCardsByText(

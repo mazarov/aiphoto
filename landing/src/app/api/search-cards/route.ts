@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { searchCardsFiltered, enrichCardsWithDetails } from "@/lib/supabase";
+import { searchCardsFiltered, enrichCardsWithDetails, countCardsFiltered } from "@/lib/supabase";
+import { LISTING_INFINITE_PAGE_SIZE } from "@/lib/listing-pagination";
 
 export async function GET(req: NextRequest) {
   const params = req.nextUrl.searchParams;
@@ -10,10 +11,14 @@ export async function GET(req: NextRequest) {
   const seoTag = params.get("seoTag")?.trim() || null;
   const hasBefore = (params.get("hasBefore") || "all") as "all" | "yes";
   const dataset = params.get("dataset")?.trim() || null;
-  const limit = Math.min(200, Math.max(1, Number(params.get("limit")) || 100));
+  const limit = Math.min(
+    LISTING_INFINITE_PAGE_SIZE,
+    Math.max(1, Number(params.get("limit")) || LISTING_INFINITE_PAGE_SIZE)
+  );
   const offset = Math.max(0, Number(params.get("offset")) || 0);
+  const includeTotal = params.get("includeTotal") === "1";
 
-  const cards = await searchCardsFiltered({
+  const filterParams = {
     hasWarnings,
     scoreMin,
     scoreMax,
@@ -21,10 +26,19 @@ export async function GET(req: NextRequest) {
     seoTag,
     hasBefore,
     dataset,
-    limit,
-    offset,
-  });
+  };
+
+  const [cards, total] = await Promise.all([
+    searchCardsFiltered({ ...filterParams, limit, offset }),
+    includeTotal ? countCardsFiltered(filterParams) : Promise.resolve(undefined),
+  ]);
 
   const enriched = await enrichCardsWithDetails(cards);
-  return NextResponse.json({ cards: enriched });
+  const hasMore = total != null ? offset + enriched.length < total : enriched.length === limit;
+
+  return NextResponse.json({
+    cards: enriched,
+    ...(total != null ? { total } : {}),
+    hasMore,
+  });
 }
