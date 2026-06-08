@@ -22,16 +22,11 @@ export async function GET(req: NextRequest) {
   try {
     const yandexProfile = await fetchYandexUserinfo(accessToken);
     const claims = mapYandexUserinfoToOAuthClaims(yandexProfile);
-
-    if (!claims.email) {
-      return NextResponse.json({ error: "yandex_email_missing" }, { status: 422 });
-    }
-
     return NextResponse.json(claims);
   } catch (err) {
     const message = err instanceof Error ? err.message : "yandex_userinfo_failed";
-    if (message === "yandex_subject_missing") {
-      return NextResponse.json({ error: "yandex_subject_missing" }, { status: 422 });
+    if (message === "yandex_subject_missing" || message === "yandex_email_missing") {
+      return NextResponse.json({ error: message }, { status: 422 });
     }
     if (message.startsWith("yandex_userinfo_401")) {
       return NextResponse.json({ error: "yandex_unauthorized" }, { status: 401 });
