@@ -279,6 +279,23 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
     if (photos.length > 1) setPhotoIndex((i) => (i + 1) % photos.length);
   }
 
+  /** In client modal, group variant links must not use Next `<Link>` — it mounts `@modal` on top of `ClientCardModal`. */
+  function handleGroupVariantNav(
+    e: React.MouseEvent,
+    slug: string,
+    isActive: boolean
+  ) {
+    if (isActive) {
+      e.preventDefault();
+      return;
+    }
+    if (onListingNeighborGo) {
+      e.preventDefault();
+      e.stopPropagation();
+      onListingNeighborGo(slug);
+    }
+  }
+
   async function handleCopy() {
     const str = data.promptTexts.join("\n\n");
     if (!str) return;
@@ -596,6 +613,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                             <Link
                               key={card.id}
                               href={`/p/${card.slug}`}
+                              onClick={(e) => handleGroupVariantNav(e, card.slug, isActive)}
                               className={`flex flex-shrink-0 items-center gap-1 rounded-full px-2 py-1 text-[11px] font-semibold transition-colors ${
                                 isActive
                                   ? "bg-white/30 ring-1 ring-white/40 text-white"
@@ -822,6 +840,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                           <Link
                             key={card.id}
                             href={`/p/${card.slug}`}
+                            onClick={(e) => handleGroupVariantNav(e, card.slug, isActive)}
                             className={`flex shrink-0 items-center gap-1 rounded-full px-2.5 py-2 text-[13px] font-semibold transition-colors touch-manipulation ${
                               isActive
                                 ? "bg-white/30 ring-1 ring-white/45 text-white"
