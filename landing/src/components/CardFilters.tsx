@@ -1,12 +1,10 @@
 "use client";
 
 import { useState, useMemo, useEffect, useLayoutEffect, useCallback, useRef } from "react";
-import { usePathname, useRouter } from "next/navigation";
 import type { PromptCardFull } from "@/lib/supabase";
 import { TAG_REGISTRY } from "@/lib/tag-registry";
 import { PromptCard } from "./PromptCard";
 import { GroupedCard } from "./GroupedCard";
-import { useDebug } from "./DebugFAB";
 import { CardInteractionsProvider } from "@/context/CardInteractionsContext";
 import { LISTING_LCP_PRIORITY_GRID_ITEMS } from "@/lib/listing-lcp";
 import { LISTING_INFINITE_PAGE_SIZE } from "@/lib/listing-pagination";
@@ -24,11 +22,10 @@ type Props = {
   lcpPriorityCount?: number;
   /** Catalog/search grids: no hover overlay on cards. */
   hideHoverChrome?: boolean;
-  /** Debug filter panel — only on home debug catalog. */
-  enableDebugPanel?: boolean;
-  /** Prefill dataset filter (e.g. after redirect from listing). */
+  /** `debug` — internal tools at `/debug` only. */
+  variant?: "listing" | "debug";
+  /** Prefill dataset filter (`/debug?dataset=…`). */
   initialDataset?: string;
-  onInitialDatasetApplied?: () => void;
 };
 
 function getSeoTagSlugs(seoTags: unknown): string[] {
@@ -79,15 +76,11 @@ export function FilterableGrid({
   cards,
   lcpPriorityCount = LISTING_LCP_PRIORITY_GRID_ITEMS,
   hideHoverChrome = false,
-  enableDebugPanel = false,
+  variant = "listing",
   initialDataset,
-  onInitialDatasetApplied,
 }: Props) {
-  const debugCtx = useDebug();
-  const debugMode = debugCtx?.debugOpen ?? false;
-  const panelOpen = debugCtx?.panelOpen ?? false;
-  const pathname = usePathname();
-  const router = useRouter();
+  const isDebug = variant === "debug";
+  const [panelOpen, setPanelOpen] = useState(true);
 
   const [filters, setFilters] = useState<Filters>(() => ({
     ...DEFAULT_FILTERS,
@@ -121,31 +114,19 @@ export function FilterableGrid({
       filters.hasBefore !== "all" ||
       filters.dataset !== "");
 
-  const setHasFilterPanel = debugCtx?.setHasFilterPanel;
-  useEffect(() => {
-    if (!setHasFilterPanel) return;
-    if (enableDebugPanel && debugMode) {
-      setHasFilterPanel(true);
-      return () => setHasFilterPanel(false);
-    }
-    setHasFilterPanel(false);
-    return () => setHasFilterPanel(false);
-  }, [setHasFilterPanel, enableDebugPanel, debugMode]);
-
   useEffect(() => {
     if (!initialDataset) return;
     setFilters((f) => ({ ...f, dataset: initialDataset }));
-    onInitialDatasetApplied?.();
-  }, [initialDataset, onInitialDatasetApplied]);
+  }, [initialDataset]);
 
   useEffect(() => {
-    if (!debugMode || !enableDebugPanel) return;
+    if (!isDebug) return;
     if (datasets.length > 0) return;
     fetch("/api/datasets")
       .then((r) => r.json())
       .then((d) => setDatasets(d.datasets || []))
       .catch(() => {});
-  }, [debugMode, enableDebugPanel, datasets.length]);
+  }, [isDebug, datasets.length]);
 
   const doIdSearch = useCallback(async (q: string) => {
     const trimmed = q.trim();
@@ -254,10 +235,6 @@ export function FilterableGrid({
 
   const handleDatasetChange = (value: string) => {
     setFilters((f) => ({ ...f, dataset: value }));
-    if (value && pathname !== "/") {
-      debugCtx?.setPendingDataset(value);
-      router.push("/#debug-catalog");
-    }
   };
 
   const allTags = useMemo(() => {
@@ -392,7 +369,7 @@ export function FilterableGrid({
                   <div key={item.card.id} className="min-w-0">
                     <PromptCard
                       card={item.card}
-                      debug={debugMode}
+                      debug={isDebug}
                       priorityLoad={index < lcpPriorityCount}
                       hideHoverChrome={hideHoverChrome}
                     />
@@ -401,7 +378,7 @@ export function FilterableGrid({
                   <div key={item.key} className="min-w-0">
                     <GroupedCard
                       cards={item.cards}
-                      debug={debugMode}
+                      debug={isDebug}
                       priorityLoad={index < lcpPriorityCount}
                       hideHoverChrome={hideHoverChrome}
                     />
@@ -424,11 +401,21 @@ export function FilterableGrid({
           </>
         )}
 
-        {enableDebugPanel && debugMode && panelOpen && (
+        {isDebug && !panelOpen && (
+          <button
+            type="button"
+            onClick={() => setPanelOpen(true)}
+            className="fab-bottom-safe fixed right-6 z-50 rounded-full border border-zinc-200 bg-white px-4 py-2.5 text-sm font-medium text-zinc-700 shadow-lg"
+          >
+            Фильтры
+          </button>
+        )}
+
+        {isDebug && panelOpen && (
           <>
             <div
               className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm"
-              onClick={() => debugCtx?.setPanelOpen(false)}
+              onClick={() => setPanelOpen(false)}
             />
             <div className="fab-sheet-bottom-safe fixed right-6 z-50 max-h-[calc(100vh-120px)] w-[340px] overflow-y-auto rounded-2xl border border-zinc-200 bg-white p-5 shadow-2xl shadow-zinc-900/20">
               <div className="mb-4 flex items-center justify-between">
@@ -437,7 +424,7 @@ export function FilterableGrid({
                   <span className="text-xs tabular-nums text-zinc-400">{statsText}</span>
                   <button
                     type="button"
-                    onClick={() => debugCtx?.setPanelOpen(false)}
+                    onClick={() => setPanelOpen(false)}
                     className="rounded-full p-1 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-600"
                   >
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

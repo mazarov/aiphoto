@@ -12,7 +12,6 @@ import { PageLayout } from "@/components/PageLayout";
 import { CategorySection } from "@/components/CategorySection";
 import { HomeSearch } from "@/components/HomeSearch";
 import { HomeSeoBlocks } from "@/components/HomeSeoBlocks";
-import { HomeDebugCatalog } from "@/components/HomeDebugCatalog";
 import { MENU } from "@/lib/menu";
 
 export const revalidate = 3600;
@@ -196,8 +195,6 @@ export default async function HomePage() {
           </p>
         </div>
       </section>
-
-      <HomeDebugCatalog />
 
       <main className="w-full flex-1 px-2 sm:px-5 pb-16">
         {sectionBlocks.length > 0 ? (

@@ -10,7 +10,7 @@ import { CardInteractionsProvider, useCardInteractions } from "@/context/CardInt
 import { ReactionButtons } from "./ReactionButtons";
 import { FavoriteButton } from "./FavoriteButton";
 import { LexyGptGenerateButton } from "./LexyGptGenerateButton";
-import { useDebug } from "./DebugFAB";
+import { isDebugToolsSessionEnabled } from "@/lib/debug-tools-session";
 import { formatCompactCount } from "@/lib/format-view-count";
 import {
   CARD_OVERLAY_ACTION_PILL,
@@ -86,8 +86,10 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
   const { reactions, favorites, toggleReaction, toggleFavorite } = useCardInteractions();
   const userReaction = reactions.get(data.id) ?? null;
   const isFavorited = favorites.has(data.id);
-  const debugCtx = useDebug();
-  const debugMode = debugCtx?.debugOpen ?? false;
+  const [debugMode, setDebugMode] = useState(false);
+  useEffect(() => {
+    setDebugMode(isDebugToolsSessionEnabled());
+  }, []);
 
   const [photoIndex, setPhotoIndex] = useState(0);
   const [stickyCopy, setStickyCopy] = useState<"idle" | "ok" | "fail">("idle");

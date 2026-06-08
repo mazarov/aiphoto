@@ -9,13 +9,11 @@ import { SiteLogoMark } from "./SiteLogoMark";
 import { ListingChromeButton, ListingMenuIcon } from "./ListingChromeButton";
 import { useAuth } from "@/context/AuthContext";
 import { useListingMobileChromeOptional } from "@/context/ListingMobileChromeContext";
-import { isSameNavPath } from "@/lib/scroll-preservation";
+import { isSameNavPath, scrollCatalogToTop } from "@/lib/scroll-preservation";
 import {
   LISTING_MOBILE_CHROME_INSET,
   LISTING_NAV_SHELL_SURFACE,
 } from "@/lib/listing-shell-surface";
-import { useDebug } from "./DebugFAB";
-import { useDebugLogoToggle } from "@/hooks/useDebugLogoToggle";
 
 function MobileCatalogMenuButton() {
   const chrome = useListingMobileChromeOptional();
@@ -122,14 +120,6 @@ function UserMenu() {
 export function HeaderClient() {
   const pathname = usePathname();
   const headerRef = useRef<HTMLElement>(null);
-  const debug = useDebug();
-  const isHome = isSameNavPath(pathname, "/");
-  const handleDebugLogoClick = useDebugLogoToggle(
-    () => {
-      debug?.toggleDebug();
-    },
-    isHome
-  );
 
   useEffect(() => {
     const el = headerRef.current;
@@ -141,11 +131,10 @@ export function HeaderClient() {
     return () => ro.disconnect();
   }, []);
 
-  const logoRingClass = debug?.debugOpen ? "ring-2 ring-amber-400/70" : "";
-
   const handleHomeLogoClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
-    if (isHome) {
-      handleDebugLogoClick(e);
+    if (isSameNavPath(pathname, "/")) {
+      e.preventDefault();
+      scrollCatalogToTop();
     }
   };
 
@@ -167,7 +156,7 @@ export function HeaderClient() {
           onClick={handleHomeLogoClick}
           className="flex min-w-0 items-center justify-center gap-1.5 text-lg font-bold tracking-tight text-zinc-900"
         >
-          <SiteLogoMark size={28} className={`h-7 w-7 shrink-0 rounded-lg ${logoRingClass}`} />
+          <SiteLogoMark size={28} className="h-7 w-7 shrink-0 rounded-lg" />
           <span className="truncate">PromptShot</span>
         </Link>
         <div className="flex shrink-0 items-center justify-end">
@@ -183,7 +172,7 @@ export function HeaderClient() {
           onClick={handleHomeLogoClick}
           className="flex flex-shrink-0 items-center gap-2 text-lg font-bold tracking-tight text-zinc-900"
         >
-          <SiteLogoMark size={28} className={`h-7 w-7 rounded-lg ${logoRingClass}`} />
+          <SiteLogoMark size={28} className="h-7 w-7 rounded-lg" />
           <span>PromptShot</span>
         </Link>
 

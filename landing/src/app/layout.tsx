@@ -3,7 +3,6 @@ import Script from "next/script";
 import { Suspense } from "react";
 import { Inter } from "next/font/google";
 import "./globals.css";
-import { DebugProvider } from "@/components/DebugFAB";
 import { AuthProvider } from "@/context/AuthContext";
 import { GenerationProvider } from "@/context/GenerationContext";
 import { PromptCardModalProvider } from "@/context/PromptCardModalContext";
@@ -54,7 +53,6 @@ export default function RootLayout({
     <html lang="ru" className={inter.className}>
       <body className="min-h-screen bg-white text-zinc-900 antialiased">
         <AuthProvider>
-          <DebugProvider>
             <GenerationProvider>
               <PromptCardModalProvider>
                 <Suspense fallback={null}>
@@ -66,7 +64,6 @@ export default function RootLayout({
                 <GenerationModal />
               </PromptCardModalProvider>
             </GenerationProvider>
-          </DebugProvider>
           <AuthModal />
         </AuthProvider>
 

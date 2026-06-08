@@ -1,7 +1,6 @@
 "use client";
 
 import { useGeneration } from "@/context/GenerationContext";
-import { useDebug } from "./DebugFAB";
 
 function toAbsoluteImageUrl(url: string): string {
   const t = url.trim();
@@ -49,9 +48,8 @@ export function GenerateButton({
   variant = "desktop",
 }: Props) {
   const generation = useGeneration();
-  const debug = useDebug();
   const allowPublicTryLook = process.env.NEXT_PUBLIC_ENABLE_TRY_THIS_LOOK === "true";
-  const showGeneration = allowPublicTryLook || (debug?.debugOpen ?? false);
+  const showGeneration = allowPublicTryLook;
 
   if (!showGeneration) return null;
 

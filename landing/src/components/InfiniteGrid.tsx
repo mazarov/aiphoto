@@ -104,7 +104,7 @@ export function InfiniteGrid({
   return (
     <>
       <div className="mb-8">
-        <FilterableGrid cards={cards} hideHoverChrome enableDebugPanel={false} />
+        <FilterableGrid cards={cards} hideHoverChrome />
       </div>
 
       <div ref={sentinelRef} className="h-px" />
