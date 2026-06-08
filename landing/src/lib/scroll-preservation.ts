@@ -23,13 +23,13 @@ function isInnerListingScrollRoot(root: ScrollRoot): root is HTMLElement {
 }
 
 function readScrollTop(root: ScrollRoot): number {
-  if (root === window) return window.scrollY;
+  if (!isInnerListingScrollRoot(root)) return window.scrollY;
   return root.scrollTop;
 }
 
 export function writeScrollTop(root: ScrollRoot, y: number): void {
   // Direct assignment — instant; scrollTo() respects html { scroll-behavior: smooth }.
-  if (root === window) {
+  if (!isInnerListingScrollRoot(root)) {
     document.documentElement.scrollTop = y;
     document.body.scrollTop = y;
     return;
