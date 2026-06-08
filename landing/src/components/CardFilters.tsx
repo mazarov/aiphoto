@@ -13,6 +13,12 @@ import {
   writeListingNavigationContext,
   type ListingNavGridItem,
 } from "@/lib/listing-card-navigation-context";
+import {
+  DEBUG_CARD_DELETED_EVENT,
+  readDebugFilterState,
+  writeDebugFilterState,
+  type DebugCardDeletedDetail,
+} from "@/lib/debug-tools-session";
 
 const FILTER_PAGE_SIZE = LISTING_INFINITE_PAGE_SIZE;
 
@@ -72,6 +78,22 @@ type GridItem =
   | { type: "single"; card: PromptCardFull }
   | { type: "group"; key: string; cards: PromptCardFull[] };
 
+function readInitialDebugFilters(initialDataset?: string): Filters {
+  const saved = readDebugFilterState();
+  if (saved) {
+    return {
+      hasWarnings: saved.hasWarnings,
+      scoreMin: saved.scoreMin,
+      scoreMax: saved.scoreMax,
+      hasRuPrompt: saved.hasRuPrompt,
+      selectedTag: saved.selectedTag,
+      hasBefore: saved.hasBefore,
+      dataset: initialDataset || saved.dataset,
+    };
+  }
+  return { ...DEFAULT_FILTERS, dataset: initialDataset || "" };
+}
+
 export function FilterableGrid({
   cards,
   lcpPriorityCount = LISTING_LCP_PRIORITY_GRID_ITEMS,
@@ -80,15 +102,19 @@ export function FilterableGrid({
   initialDataset,
 }: Props) {
   const isDebug = variant === "debug";
-  const [panelOpen, setPanelOpen] = useState(true);
+  const [panelOpen, setPanelOpen] = useState(() => {
+    if (!isDebug) return true;
+    return readDebugFilterState()?.panelOpen ?? true;
+  });
 
-  const [filters, setFilters] = useState<Filters>(() => ({
-    ...DEFAULT_FILTERS,
-    dataset: initialDataset || "",
-  }));
+  const [filters, setFilters] = useState<Filters>(() =>
+    isDebug ? readInitialDebugFilters(initialDataset) : { ...DEFAULT_FILTERS, dataset: initialDataset || "" }
+  );
   const [datasets, setDatasets] = useState<string[]>([]);
 
-  const [idSearch, setIdSearch] = useState("");
+  const [idSearch, setIdSearch] = useState(() =>
+    isDebug ? (readDebugFilterState()?.idSearch ?? "") : ""
+  );
   const [searchResults, setSearchResults] = useState<PromptCardFull[] | null>(null);
   const [searching, setSearching] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -100,8 +126,13 @@ export function FilterableGrid({
   const [filterTotal, setFilterTotal] = useState<number | null>(null);
   const filterDebounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const filtersRef = useRef(filters);
-  const filterOffsetRef = useRef(0);
+  const filterRankedOffsetRef = useRef(0);
+  const filterSentinelRef = useRef<HTMLDivElement>(null);
+  const filterLoadingRef = useRef(false);
+  const filterHasMoreRef = useRef(false);
   filtersRef.current = filters;
+  filterLoadingRef.current = filterSearching || filterLoadingMore;
+  filterHasMoreRef.current = filterHasMore;
 
   const isIdMode = idSearch.trim().length >= 4;
   const isFilterMode =
@@ -118,6 +149,27 @@ export function FilterableGrid({
     if (!initialDataset) return;
     setFilters((f) => ({ ...f, dataset: initialDataset }));
   }, [initialDataset]);
+
+  useEffect(() => {
+    if (!isDebug) return;
+    writeDebugFilterState({
+      ...filters,
+      idSearch,
+      panelOpen,
+    });
+  }, [isDebug, filters, idSearch, panelOpen]);
+
+  useEffect(() => {
+    if (!isDebug) return;
+    const onDeleted = (event: Event) => {
+      const { cardId } = (event as CustomEvent<DebugCardDeletedDetail>).detail;
+      setFilterResults((prev) => prev?.filter((c) => c.id !== cardId) ?? null);
+      setSearchResults((prev) => prev?.filter((c) => c.id !== cardId) ?? null);
+      setFilterTotal((total) => (total != null ? Math.max(0, total - 1) : total));
+    };
+    window.addEventListener(DEBUG_CARD_DELETED_EVENT, onDeleted);
+    return () => window.removeEventListener(DEBUG_CARD_DELETED_EVENT, onDeleted);
+  }, [isDebug]);
 
   useEffect(() => {
     if (!isDebug) return;
@@ -149,7 +201,7 @@ export function FilterableGrid({
 
   const doFilterSearch = useCallback(async (append = false) => {
     const f = filtersRef.current;
-    const offset = append ? filterOffsetRef.current : 0;
+    const rankedOffset = append ? filterRankedOffsetRef.current : 0;
     if (append) {
       setFilterLoadingMore(true);
     } else {
@@ -163,7 +215,7 @@ export function FilterableGrid({
         hasRuPrompt: f.hasRuPrompt,
         hasBefore: f.hasBefore,
         limit: String(FILTER_PAGE_SIZE),
-        offset: String(offset),
+        offset: String(rankedOffset),
         includeTotal: append ? "0" : "1",
         ...(f.selectedTag && { seoTag: f.selectedTag }),
         ...(f.dataset && { dataset: f.dataset }),
@@ -171,6 +223,8 @@ export function FilterableGrid({
       const res = await fetch(`/api/search-cards?${u}`);
       const data = await res.json();
       const newCards = (data.cards || []) as PromptCardFull[];
+      const rankedBatchSize = Math.max(0, Number(data.ranked_batch_size) || 0);
+      const step = rankedBatchSize > 0 ? rankedBatchSize : newCards.length;
 
       if (append) {
         setFilterResults((prev) => [...(prev || []), ...newCards]);
@@ -179,8 +233,7 @@ export function FilterableGrid({
         setFilterTotal(typeof data.total === "number" ? data.total : null);
       }
 
-      const nextOffset = offset + newCards.length;
-      filterOffsetRef.current = nextOffset;
+      filterRankedOffsetRef.current = rankedOffset + step;
       setFilterHasMore(Boolean(data.hasMore));
     } catch {
       if (!append) setFilterResults([]);
@@ -209,14 +262,14 @@ export function FilterableGrid({
     if (!isFilterMode) {
       setFilterResults(null);
       setFilterSearching(false);
-      filterOffsetRef.current = 0;
+      filterRankedOffsetRef.current = 0;
       setFilterHasMore(false);
       setFilterTotal(null);
       return;
     }
     if (filterDebounceRef.current) clearTimeout(filterDebounceRef.current);
     setFilterSearching(true);
-    filterOffsetRef.current = 0;
+    filterRankedOffsetRef.current = 0;
     filterDebounceRef.current = setTimeout(() => doFilterSearch(false), 300);
     return () => {
       if (filterDebounceRef.current) clearTimeout(filterDebounceRef.current);
@@ -311,10 +364,26 @@ export function FilterableGrid({
     setIdSearch("");
     setSearchResults(null);
     setFilterResults(null);
-    filterOffsetRef.current = 0;
+    filterRankedOffsetRef.current = 0;
     setFilterHasMore(false);
     setFilterTotal(null);
   }
+
+  useEffect(() => {
+    if (!isDebug || !isFilterMode) return;
+    const el = filterSentinelRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting && filterHasMoreRef.current && !filterLoadingRef.current) {
+          void doFilterSearch(true);
+        }
+      },
+      { rootMargin: "600px", threshold: 0 }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [isDebug, isFilterMode, filterHasMore, doFilterSearch, filterResults?.length]);
 
   const statsText = isIdMode
     ? searching
@@ -387,7 +456,7 @@ export function FilterableGrid({
               )}
             </div>
             {isFilterMode && filterHasMore && (
-              <div className="mt-8 flex justify-center">
+              <div className="mt-8 flex flex-col items-center gap-4">
                 <button
                   type="button"
                   disabled={filterLoadingMore}
@@ -396,6 +465,7 @@ export function FilterableGrid({
                 >
                   {filterLoadingMore ? "Загрузка..." : "Загрузить ещё"}
                 </button>
+                <div ref={filterSentinelRef} className="h-px w-full" aria-hidden />
               </div>
             )}
           </>

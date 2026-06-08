@@ -10,7 +10,7 @@ import { CardInteractionsProvider, useCardInteractions } from "@/context/CardInt
 import { ReactionButtons } from "./ReactionButtons";
 import { FavoriteButton } from "./FavoriteButton";
 import { LexyGptGenerateButton } from "./LexyGptGenerateButton";
-import { isDebugToolsSessionEnabled } from "@/lib/debug-tools-session";
+import { isDebugToolsSessionEnabled, dispatchDebugCardDeleted } from "@/lib/debug-tools-session";
 import { formatCompactCount } from "@/lib/format-view-count";
 import {
   CARD_OVERLAY_ACTION_PILL,
@@ -383,6 +383,11 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
       const j = (await res.json()) as { error?: string };
       if (!res.ok) {
         setDeleteStatus(`Ошибка: ${j.error || res.statusText}`);
+        return;
+      }
+      if (isDebugToolsSessionEnabled()) {
+        dispatchDebugCardDeleted({ cardId: data.id, slug: data.slug });
+        onCloseModal?.();
         return;
       }
       router.push("/");

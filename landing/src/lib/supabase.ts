@@ -200,7 +200,7 @@ export async function searchCardsFiltered(params: {
   dataset?: string | null;
   limit?: number;
   offset?: number;
-}): Promise<RouteCard[]> {
+}): Promise<{ cards: RouteCard[]; rankedBatchSize: number }> {
   const supabase = createSupabaseServer();
   const { data, error } = await supabase.rpc("search_cards_filtered", {
     p_has_warnings: params.hasWarnings ?? "all",
@@ -215,8 +215,10 @@ export async function searchCardsFiltered(params: {
   });
 
   if (error) throw new Error(`search_cards_filtered: ${error.message}`);
-  const cards = (data || []) as RouteCard[];
-  return expandCardGroups(cards);
+  const ranked = (data || []) as RouteCard[];
+  const rankedBatchSize = ranked.length;
+  const cards = await expandCardGroups(ranked);
+  return { cards, rankedBatchSize };
 }
 
 export async function countCardsFiltered(params: {

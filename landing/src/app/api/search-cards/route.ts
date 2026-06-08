@@ -28,16 +28,20 @@ export async function GET(req: NextRequest) {
     dataset,
   };
 
-  const [cards, total] = await Promise.all([
+  const [{ cards, rankedBatchSize }, total] = await Promise.all([
     searchCardsFiltered({ ...filterParams, limit, offset }),
     includeTotal ? countCardsFiltered(filterParams) : Promise.resolve(undefined),
   ]);
 
   const enriched = await enrichCardsWithDetails(cards);
-  const hasMore = total != null ? offset + enriched.length < total : enriched.length === limit;
+  const hasMore =
+    total != null
+      ? offset + rankedBatchSize < total
+      : rankedBatchSize === limit;
 
   return NextResponse.json({
     cards: enriched,
+    ranked_batch_size: rankedBatchSize,
     ...(total != null ? { total } : {}),
     hasMore,
   });
