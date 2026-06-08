@@ -33,7 +33,7 @@ type Props = {
   className?: string;
 };
 
-function ImageToPromptIcon({ className }: { className?: string }) {
+function GeneratePhotoIcon({ className }: { className?: string }) {
   return (
     <svg
       className={className}
@@ -45,7 +45,11 @@ function ImageToPromptIcon({ className }: { className?: string }) {
     >
       <rect x="3" y="5" width="14" height="14" rx="2" />
       <path d="M7 15l3-3 2 2 4-5" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M14 5v-2h7v7h-2" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="M17 3l1.5 3 3 1.5-3 1.5L17 12l-1.5-3-3-1.5 3-1.5L17 3z"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
@@ -93,14 +97,14 @@ export function FotoVPromtMiniBanner({ variant, className = "" }: Props) {
       onClick={() => trackFotoVPromtBannerClick(placement)}
       className={`${skin.shell} ${FVP_FOCUS_RING} ${className}`}
       role="complementary"
-      aria-label="Инструмент Фото в промт — открыть страницу сервиса в новой вкладке"
+      aria-label="Сгенерировать аналог фото — открыть LexyGPT в новой вкладке"
     >
       {variant === "listing" ? (
         <span className={LISTING_MOBILE_CHROME_LEADING_CELL}>
-          <ImageToPromptIcon className={skin.icon} />
+          <GeneratePhotoIcon className={skin.icon} />
         </span>
       ) : (
-        <ImageToPromptIcon className={skin.icon} />
+        <GeneratePhotoIcon className={skin.icon} />
       )}
       <span className="min-w-0 flex-1">
         <span className={`block ${skin.title}`}>{FOTO_V_PROMT_BANNER_COPY.title}</span>

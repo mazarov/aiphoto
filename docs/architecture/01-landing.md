@@ -20,7 +20,7 @@
 
 - Счётчик: **`107703100`** (дублируется в **`YANDEX_METRIKA_COUNTER_ID`**, файл `landing/src/lib/yandex-metrika.ts`; init — `landing/src/app/layout.tsx`).
 - Кнопка «Сгенерировать» → LexyGPT: **`reachGoal('lexygpt_generate_click')`**, в параметрах: **`placement`**: `listing` \| `expanded` \| `sticky` (`LexyGptGenerateButton`). В интерфейсе Метрики создайте **JavaScript-событие** с идентификатором **`lexygpt_generate_click`** (или поменяйте константу **`YM_GOAL_LEXYGPT_GENERATE`** под своё имя цели).
-- Мини-баннер «Фото в промт» → **`/foto-v-promt`**: **`reachGoal('foto_v_promt_banner_click')`** и **`foto_v_promt_banner_impression`** с **`placement`**: `listing` \| `card` (`landing/src/lib/foto-v-promt-banner-metrics.ts`, компоненты **`foto-v-promt-promo/`**). Impression — один раз на placement за сессию вкладки. ТЗ — **`docs/requirements/04-06-foto-v-promt-mini-banner.md`**.
+- Мини-баннер LexyGPT «Сгенерировать аналог» → **`LEXYGPT_IMAGE_PLAYGROUND_URL`** (`lexygpt-generate.ts`): **`reachGoal('foto_v_promt_banner_click')`** и **`foto_v_promt_banner_impression`** с **`placement`**: `listing` \| `card` (`landing/src/lib/foto-v-promt-banner-metrics.ts`, компоненты **`foto-v-promt-promo/`**, копирайт **`foto-v-promt-banner-copy.ts`**). CTA «Подробнее». Impression — один раз на placement за сессию вкладки. ТЗ — **`docs/requirements/04-06-foto-v-promt-mini-banner.md`** (историческое имя).
 
 ---
 
@@ -352,7 +352,7 @@ SearchResults (client, infinite scroll)
 | CardFilters | `components/CardFilters.tsx` | `FilterableGrid`: prod listings (`variant="listing"`); debug at `/debug` (`variant="debug"`) |
 | DebugPageContent | `components/debug/DebugPageContent.tsx` | Client-обёртка `/debug`: session + grid |
 | debug-tools-session | `lib/debug-tools-session.ts` | `sessionStorage` для debug-tools на карточке из `/debug` |
-| FotoVPromtMiniBanner | `components/foto-v-promt-promo/FotoVPromtMiniBanner.tsx` | Промо «Фото в промт» → `/foto-v-promt` (`listing` \| `card` \| `cardImmersive`) |
+| FotoVPromtMiniBanner | `components/foto-v-promt-promo/FotoVPromtMiniBanner.tsx` | Промо LexyGPT «Сгенерировать аналог» → playground (`listing` \| `card` \| `cardImmersive`) |
 | ListingFotoVPromtBanner | `components/foto-v-promt-promo/ListingFotoVPromtBanner.tsx` | Sticky + IntersectionObserver hide после первого экрана |
 | ListingBottomBar | `components/ListingBottomBar.tsx` | Моб. dock (read-only trigger → `ListingMobileSearchSheet`); desktop — portal `fixed` |
 | CatalogWithFilters | `components/CatalogWithFilters.tsx` | Листинг + `ListingDesktopFilters` (desktop) + FilterFAB (mobile), useListingFilters |
