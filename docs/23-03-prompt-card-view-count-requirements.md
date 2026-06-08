@@ -43,7 +43,7 @@
 ### 3.2 Инкремент
 
 - Клиентский beacon после гидрации на `/p/[slug]` → `POST /api/card-view` → RPC `increment_prompt_card_view(p_slug)` (миграция **`sql/155_increment_prompt_card_view.sql`**).
-- Сервер: атомарный `UPDATE ... SET view_count = view_count + 1` только для `is_published`.
+- Сервер: атомарный `UPDATE ... SET view_count = view_count + 1` + INSERT в **`prompt_card_view_events`** только для `is_published` (миграция **`sql/160_*`**).
 
 ### 3.3 Ранжирование (решение 7.1)
 
@@ -58,6 +58,8 @@
 **Поиск по тексту** (`search_cards_text`): релевантность по запросу **не менять**; опционально позже — `view_count` только как тай-брейк при равной релевантности.
 
 **Реализация в БД (v1):** обновлены `resolve_route_cards`, `search_cards_filtered`, `get_homepage_sections` в миграции **154**.
+
+**Обновление (2026-06-08):** листинги категорий (`/[...slug]/`, `sort=popular|new`) используют **`popularity_score`** / **`created_at`**, см. **`docs/requirements/08-06-category-listing-sort.md`**. **`view_count`** остаётся для отображения на превью; **`search_cards_filtered`** и **`get_homepage_sections`** — по-прежнему **`view_count`** (154).
 
 ### 3.4 Консистентность
 

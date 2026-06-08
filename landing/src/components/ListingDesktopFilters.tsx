@@ -5,8 +5,11 @@ import { findTagBySlug, type Dimension } from "@/lib/tag-registry";
 import type { FilterState } from "@/hooks/useListingFilters";
 import { useListingFilterCounts } from "@/hooks/useListingFilterCounts";
 import { FilterChips } from "./FilterChips";
+import { ListingSortToggle } from "./ListingSortToggle";
 import type { PromptCardFull } from "@/lib/supabase";
+import type { ListingSort } from "@/lib/listing-sort";
 import {
+  FILTER_CHROME_SURFACE,
   FILTER_ICON_BTN,
   FILTER_MODAL_BACKDROP,
   FILTER_MODAL_FOOTER,
@@ -43,6 +46,9 @@ type Props = {
   hiddenDimensions: Dimension[];
   rpcParams?: Record<string, string | null>;
   cardsForCounts?: PromptCardFull[];
+  sort?: ListingSort;
+  onSortChange?: (sort: ListingSort) => void;
+  onOpenMobileFilters?: () => void;
 };
 
 function ChevronDownIcon({ className = "h-4 w-4" }: { className?: string }) {
@@ -62,12 +68,29 @@ function ChevronDownIcon({ className = "h-4 w-4" }: { className?: string }) {
   );
 }
 
+function FilterLinesIcon({ className = "h-4 w-4" }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      aria-hidden
+    >
+      <path d="M4 6h16M7 12h10M10 18h4" />
+    </svg>
+  );
+}
+
 function formatButtonLabel(dimLabel: string, selectedSlug: string | null, dim: Dimension): string {
   if (!selectedSlug) return dimLabel;
   const tag = findTagBySlug(dim, selectedSlug);
   return tag ? `${dimLabel}: ${tag.labelRu}` : dimLabel;
 }
 
+/** Unified catalog toolbar: tag filters + sort in one chrome block. */
 export function ListingDesktopFilters({
   filters,
   onSetFilter,
@@ -76,6 +99,9 @@ export function ListingDesktopFilters({
   hiddenDimensions,
   rpcParams,
   cardsForCounts,
+  sort,
+  onSortChange,
+  onOpenMobileFilters,
 }: Props) {
   const [openKey, setOpenKey] = useState<keyof FilterState | null>(null);
   const [modalSearch, setModalSearch] = useState("");
@@ -84,6 +110,13 @@ export function ListingDesktopFilters({
   const dimsToShow = DIMENSION_ORDER.filter(
     (k) => !hiddenDimensions.includes(DIM_TO_DIMENSION[k])
   );
+
+  const hasMobileFilters = dimsToShow.some((key) => {
+    const dim = DIM_TO_DIMENSION[key];
+    const selectedSlug = filters[key];
+    const { tags } = getTagsWithCounts(dim, selectedSlug);
+    return tags.length > 0 || selectedSlug != null;
+  });
 
   const closeModal = useCallback(() => {
     setOpenKey(null);
@@ -113,42 +146,78 @@ export function ListingDesktopFilters({
 
   return (
     <>
-      <div className="mb-5 hidden flex-wrap items-center gap-2 lg:flex">
-        {dimsToShow.map((key) => {
-          const dim = DIM_TO_DIMENSION[key];
-          const label = DIMENSION_UI_LABELS[dim] ?? dim;
-          const selectedSlug = filters[key];
-          const { tags } = getTagsWithCounts(dim, selectedSlug);
-
-          if (tags.length === 0 && !selectedSlug) return null;
-
-          const isActive = selectedSlug != null;
-
-          return (
+      <div
+        className={`mb-5 rounded-2xl px-3 py-2.5 sm:px-4 ${FILTER_CHROME_SURFACE}`}
+        role="toolbar"
+        aria-label="Фильтры и сортировка каталога"
+      >
+        <div className="flex flex-wrap items-center gap-2">
+          {hasMobileFilters && onOpenMobileFilters && (
             <button
-              key={key}
               type="button"
-              onClick={() => {
-                setModalSearch("");
-                setOpenKey(key);
-              }}
-              className={`${FILTER_TRIGGER} ${isActive ? FILTER_TRIGGER_ACTIVE : ""}`}
-              aria-expanded={openKey === key}
-              aria-haspopup="dialog"
+              onClick={onOpenMobileFilters}
+              className={`lg:hidden ${FILTER_TRIGGER} ${activeCount > 0 ? FILTER_TRIGGER_ACTIVE : ""}`}
+              aria-label={activeCount > 0 ? `Фильтры (${activeCount})` : "Фильтры"}
             >
-              <span>{formatButtonLabel(label, selectedSlug, dim)}</span>
-              <ChevronDownIcon
-                className={`h-4 w-4 shrink-0 ${isActive ? "text-indigo-500/80" : "text-zinc-400"}`}
-              />
+              <FilterLinesIcon className="h-4 w-4 shrink-0 text-zinc-500" />
+              <span>Фильтры</span>
+              {activeCount > 0 ? (
+                <span className="inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-indigo-600 px-1.5 text-xs font-semibold tabular-nums text-white">
+                  {activeCount}
+                </span>
+              ) : null}
             </button>
-          );
-        })}
+          )}
 
-        {activeCount > 0 && (
-          <button type="button" onClick={onReset} className={`ml-0.5 ${FILTER_RESET_LINK}`}>
-            Сбросить
-          </button>
-        )}
+          <div className="hidden min-w-0 flex-1 flex-wrap items-center gap-2 lg:flex">
+            {dimsToShow.map((key) => {
+              const dim = DIM_TO_DIMENSION[key];
+              const label = DIMENSION_UI_LABELS[dim] ?? dim;
+              const selectedSlug = filters[key];
+              const { tags } = getTagsWithCounts(dim, selectedSlug);
+
+              if (tags.length === 0 && !selectedSlug) return null;
+
+              const isActive = selectedSlug != null;
+
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => {
+                    setModalSearch("");
+                    setOpenKey(key);
+                  }}
+                  className={`${FILTER_TRIGGER} border-transparent bg-white/60 shadow-none hover:bg-white/90 ${isActive ? FILTER_TRIGGER_ACTIVE : ""}`}
+                  aria-expanded={openKey === key}
+                  aria-haspopup="dialog"
+                >
+                  <span>{formatButtonLabel(label, selectedSlug, dim)}</span>
+                  <ChevronDownIcon
+                    className={`h-4 w-4 shrink-0 ${isActive ? "text-indigo-500/80" : "text-zinc-400"}`}
+                  />
+                </button>
+              );
+            })}
+
+            {activeCount > 0 && (
+              <button type="button" onClick={onReset} className={FILTER_RESET_LINK}>
+                Сбросить
+              </button>
+            )}
+          </div>
+
+          <div className={`flex shrink-0 items-center gap-2 ${sort && onSortChange ? "ms-auto" : ""}`}>
+            {activeCount > 0 && (
+              <button type="button" onClick={onReset} className={`lg:hidden ${FILTER_RESET_LINK}`}>
+                Сбросить
+              </button>
+            )}
+            {sort && onSortChange ? (
+              <ListingSortToggle sort={sort} onSortChange={onSortChange} embedded />
+            ) : null}
+          </div>
+        </div>
       </div>
 
       {openKey && openTagsData && (

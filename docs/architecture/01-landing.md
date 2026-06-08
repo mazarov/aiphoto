@@ -80,8 +80,9 @@
 | Путь | Назначение |
 |------|-----------|
 | `/api/search` | Текстовый поиск (`search_cards_text` RPC) |
+| `/api/listing` | Листинг категории по тегам (`resolve_route_cards` RPC): `limit`, `offset`, `strict=1`, tag-фильтры, **`sort=popular\|new`** (default `popular`; невалидный → **400**). Ответ: `{ cards, total_count, ranked_batch_size, sort }` |
 | `/api/filter-counts` | Счётчики тегов для текущей выборки (`get_filter_counts` RPC) |
-| `/api/card-view` | POST: инкремент `view_count` по `slug` (beacon со страницы `/p/[slug]`, дедуп `sessionStorage`; RPC `increment_prompt_card_view`) |
+| `/api/card-view` | POST: инкремент `view_count` + событие в `prompt_card_view_events` по `slug` (beacon `/p/[slug]`, дедуп `sessionStorage`; RPC `increment_prompt_card_view`) |
 | `/api/search-card` | Карточка по ID / prefix / batch |
 | `/api/search-cards` | Фильтрованный поиск (`search_cards_filtered` RPC); query: `limit` (до 48), `offset`, `includeTotal=1` → `{ cards, total?, hasMore }` |
 | `/api/datasets` | Список датасетов (debug) |
@@ -458,7 +459,8 @@ type ResolvedRoute = {
 
 | Таблица | Что читает лендинг |
 |---------|-------------------|
-| `prompt_cards` | Основные карточки (slug, title, seo_tags, is_published, **view_count**, likes/dislikes, …) |
+| `prompt_cards` | Основные карточки (slug, title, seo_tags, is_published, **view_count**, **views_7d**, **popularity_score**, likes/dislikes, …) |
+| `prompt_card_view_events` | События просмотров (`card_id`, `viewed_at`); агрегируются в `views_7d` job'ом `recalculate_popularity_scores` |
 | `slug_redirects` | Карта 301 редиректов старых slug на новые |
 | `prompt_variants` | Тексты промтов (prompt_text_ru, prompt_text_en) |
 | `prompt_card_media` | Фото (storage_bucket, storage_path, is_primary) |
@@ -476,20 +478,30 @@ type ResolvedRoute = {
 
 | RPC | Назначение |
 |-----|-----------|
-| `resolve_route_cards` | Карточки по тегам (листинг + меню) |
+| `resolve_route_cards` | Карточки по тегам (листинг + меню); **`p_sort`**: `popular` (default) \| `new` |
+| `recalculate_popularity_scores` | Hourly batch: `views_7d` + `popularity_score` для опубликованных карточек; prune events >14d |
 | `get_filter_counts` | Счётчики тегов для текущей выборки (`useListingFilterCounts`) |
 | `get_homepage_sections` | Секции главной |
 | `search_cards_filtered` | Фильтрованный поиск |
 | `search_cards_text` | Полнотекстовый поиск |
 | `landing_add_credits` | Начисление кредитов в `landing_users.credits` после web-оплаты |
 
-**Сортировка карточек в сетках (после 154):** `resolve_route_cards`, `search_cards_filtered`, `get_homepage_sections` сортируют по **`view_count` DESC**, тай-брейк **`source_date` DESC**, **`id`**. Веса тегов / `seo_readiness_score` в **ORDER BY не используются** (поле `relevance_score` в JSON `resolve_route_cards` может оставаться для отладки).
+**Сортировка листингов категорий (`/[...slug]/`, миграции `158–161`):** UI — переключатель **`ListingSortToggle`** («Популярное» \| «Новое»), выбор в **`sessionStorage`** `promptshot_listing_sort` + опционально **`?sort=new`** в URL. SSR и API читают **`sort`**.
 
-**Пагинация листинга (`InfiniteGrid` + `GET /api/listing`):** константы **`LISTING_SSR_INITIAL_LIMIT` (10)** и **`LISTING_INFINITE_PAGE_SIZE` (48)** в `landing/src/lib/listing-pagination.ts` — первая порция с SSR на `[...slug]`, следующие запросы клиента по 48. В ответе API есть **`ranked_batch_size`** (число строк из RPC до `expandCardGroups`). Следующий **`offset`** увеличивается на это значение, а не на `cards.length`: иначе split-группы раздувают массив, OFFSET в SQL перескакивает через «недопоказанные» ранги и сетка листинга визуально «перемешивается». Условие «есть ещё страницы»: `offset + ranked_batch_size < total_count` (первая порция может быть меньше 48 — это не «конец списка»). Если после деплоя всё ещё будут дубликаты/пропуски при активных просмотрах, причина — **живой** `view_count` + `OFFSET` (см. ниже); тогда нужен keyset (`view_count`, `source_date`, `id`) или сортировка только по стабильным полям для листинга.
+| `sort` | ORDER BY в `resolve_route_cards` |
+|--------|----------------------------------|
+| `popular` (default) | **`popularity_score` DESC**, `created_at` DESC, `id` DESC |
+| `new` | **`created_at` DESC**, `id` DESC |
+
+**`popularity_score`** (материализованное поле, не считается на запросе): `views_7d / (age_hours + offset)^exponent`, где `age_hours` от `created_at`, `offset`/`exponent` — **`photo_app_config`** (`listing_popularity_age_offset_hours`=48, `listing_popularity_age_exponent`=1.2). **`views_7d`** — COUNT событий за 7 суток из **`prompt_card_view_events`**. Job: **`recalculate_popularity_scores()`** (hourly; standalone `src/standalone/recalculate-popularity-scores-standalone.mjs` на DO). UI по-прежнему показывает **`view_count`** (lifetime).
+
+**Не менялись:** `search_cards_text`, `search_cards_filtered`, `get_homepage_sections` — по-прежнему **`view_count`** (154).
+
+**Пагинация листинга (`InfiniteGrid` + `GET /api/listing`):** константы **`LISTING_SSR_INITIAL_LIMIT` (10)** и **`LISTING_INFINITE_PAGE_SIZE` (48)** в `landing/src/lib/listing-pagination.ts` — первая порция с SSR на `[...slug]`, следующие запросы клиента по 48. В ответе API есть **`ranked_batch_size`** (число строк из RPC до `expandCardGroups`) и **`sort`**. Следующий **`offset`** увеличивается на это значение, а не на `cards.length`: иначе split-группы раздувают массив, OFFSET в SQL перескакивает через «недопоказанные» ранги и сетка листинга визуально «перемешивается». Условие «есть ещё страницы»: `offset + ranked_batch_size < total_count`. Смена **`sort`** → remount `InfiniteGrid` (key включает sort), **`offset=0`**, **`resetListingScroll()`**. Empty state при `sort=new` и `total_count=0`: «Пока нет новых». Риск дубликатов/пропусков при живом **`popularity_score`** + OFFSET — как с `view_count`; follow-up: keyset pagination.
 
 **Loading shell карточек (`PromptCard` / `GroupedCard`):** двухфазный render — пока фото не декодировано, показывается **`ListingCardLoadingShell`** (photo shimmer `[bottom:32%]` + chrome-skeleton pills без glass-кнопок); real **`.listing-card-chrome`** скрыт (`invisible opacity-0 pointer-events-none`). После `onLoadingComplete` → **`HTMLImageElement.decode()`** → `imageReady=true` → crossfade ~200ms в hover-chrome. Хук **`useListingCardImageReady`**: reset по URL фото (`PromptCard`) или **`activeCard.id`** (`GroupedCard`). **`priorityLoad`** (`LISTING_LCP_PRIORITY_GRID_ITEMS` = 12) — только `next/image priority` / `fetchPriority`, shell **не** пропускается. Pagination: **`ListingGridLoadingSkeleton`** использует тот же shell.
 
-**Инкремент `view_count`:** клиент на `/p/[slug]` → `POST /api/card-view` + `useCardViewBeacon` (дедуп в `sessionStorage`); RPC `increment_prompt_card_view` (`sql/155_*`).
+**Инкремент `view_count`:** клиент на `/p/[slug]` → `POST /api/card-view` + `useCardViewBeacon` (дедуп в `sessionStorage`); RPC `increment_prompt_card_view` — **`view_count += 1`** + INSERT в **`prompt_card_view_events`** (`sql/160_*`).
 
 ---
 

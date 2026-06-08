@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import Script from "next/script";
 import { fetchRouteCards, enrichCardsWithDetails, getIndexableTagCombos, getFirstCardPhotoUrl } from "@/lib/supabase";
+import { parseListingSort } from "@/lib/listing-sort";
 import dynamic from "next/dynamic";
 import { PageLayout } from "@/components/PageLayout";
 
@@ -57,6 +58,7 @@ type Props = {
     style?: string;
     occasion?: string;
     object?: string;
+    sort?: string;
   }>;
 };
 
@@ -334,12 +336,14 @@ export default async function TagPage({ params, searchParams }: Props) {
   const offset = 0;
   const mergedParams = mergeFilterParams(route.rpcParams, qs ?? null);
   const hasQueryFiltersActive = hasQueryFilters(qs ?? null);
+  const listingSort = parseListingSort(qs?.sort);
 
   const result = await fetchRouteCards({
     ...mergedParams,
     limit: LISTING_SSR_INITIAL_LIMIT,
     offset,
     min_cards: hasQueryFiltersActive ? 0 : 2,
+    sort: listingSort,
   });
   const totalCount = result.total_count ?? result.cards_count;
   const cards = await enrichCardsWithDetails(result.cards);

@@ -166,7 +166,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
   const {
     containerStyle: heroFrameStyle,
     showTailwindFallback: heroFrameFallback,
-    onLoadingComplete: onHeroFrameFromHook,
+    onImageLoad: onHeroFrameFromHook,
   } = useCardPhotoFrame(
     currentDims?.width ?? null,
     currentDims?.height ?? null,
@@ -180,8 +180,8 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
   }, [currentPhoto]);
 
   const onHeroFrameLoad = useCallback(
-    (img: HTMLImageElement) => {
-      onHeroFrameFromHook(img);
+    (e: React.SyntheticEvent<HTMLImageElement>) => {
+      onHeroFrameFromHook(e);
       setBlurBackdropReady(true);
     },
     [onHeroFrameFromHook]
@@ -538,7 +538,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                     priority
                     fetchPriority="high"
                     decoding="async"
-                    onLoadingComplete={onHeroFrameLoad}
+                    onLoad={onHeroFrameLoad}
                   />
 
                   {photos.length > 1 && (
@@ -714,7 +714,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                     priority
                     fetchPriority="high"
                     decoding="async"
-                    onLoadingComplete={onHeroFrameLoad}
+                    onLoad={onHeroFrameLoad}
                   />
                 </div>
 

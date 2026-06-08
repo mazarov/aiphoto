@@ -6,7 +6,6 @@ import { CardModal } from "@/components/CardModal";
 import { CardPageClient } from "@/components/CardPageClient";
 import { CardInteractionsProvider } from "@/context/CardInteractionsContext";
 import { usePromptCardModal } from "@/context/PromptCardModalContext";
-import { restoreListingScroll } from "@/lib/scroll-preservation";
 import { getSeoSlugsWithTags, getFirstTagFromSeoTags } from "@/lib/tag-registry";
 
 type LoadedCard = {
@@ -78,14 +77,6 @@ export function ClientCardModal() {
     }
     fetchCard(currentSlug);
   }, [currentSlug, fetchCard]);
-
-  // Restore scroll position when the modal finally unmounts after close.
-  // Delegates to centralized util (same safety timings, key, RAF + extra timeout).
-  useEffect(() => {
-    return () => {
-      restoreListingScroll({ clear: true, useRAF: true, safetyDelayMs: 60 });
-    };
-  }, []);
 
   if (!currentSlug) return null;
 

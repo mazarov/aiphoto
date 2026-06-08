@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useListingMobileChromeOptional } from "@/context/ListingMobileChromeContext";
 import { FilterPanel } from "./FilterPanel";
 import type { FilterState } from "@/hooks/useListingFilters";
 import type { Dimension } from "@/lib/tag-registry";
 import type { PromptCardFull } from "@/lib/supabase";
+import type { ListingSort } from "@/lib/listing-sort";
 
 type Props = {
   filters: FilterState;
@@ -16,6 +17,10 @@ type Props = {
   rpcParams?: Record<string, string | null>;
   /** Search: compute counts from loaded cards */
   cardsForCounts?: PromptCardFull[];
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  sort?: ListingSort;
+  onSortChange?: (sort: ListingSort) => void;
 };
 
 function useIsMobileFilterViewport() {
@@ -39,10 +44,23 @@ export function FilterFAB({
   hiddenDimensions,
   rpcParams,
   cardsForCounts,
+  open: openProp,
+  onOpenChange,
+  sort,
+  onSortChange,
 }: Props) {
   const registerFilter = useListingMobileChromeOptional()?.registerFilter;
   const isMobile = useIsMobileFilterViewport();
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+
+  const panelOpen = openProp ?? internalOpen;
+  const setPanelOpen = useCallback(
+    (next: boolean) => {
+      onOpenChange?.(next);
+      if (openProp === undefined) setInternalOpen(next);
+    },
+    [onOpenChange, openProp]
+  );
 
   useEffect(() => {
     if (!registerFilter || !isMobile) {
@@ -51,21 +69,23 @@ export function FilterFAB({
     }
     registerFilter({
       activeCount,
-      open: () => setOpen(true),
+      open: () => setPanelOpen(true),
     });
     return () => registerFilter(null);
-  }, [registerFilter, activeCount, isMobile]);
+  }, [registerFilter, activeCount, isMobile, setPanelOpen]);
 
-  if (!isMobile || !open) return null;
+  if (!isMobile || !panelOpen) return null;
 
   return (
     <FilterPanel
       filters={filters}
       onApply={onApply}
-      onClose={() => setOpen(false)}
+      onClose={() => setPanelOpen(false)}
       hiddenDimensions={hiddenDimensions}
       rpcParams={rpcParams}
       cardsForCounts={cardsForCounts}
+      sort={sort}
+      onSortChange={onSortChange}
     />
   );
 }

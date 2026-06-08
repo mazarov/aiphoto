@@ -55,7 +55,7 @@ function GroupedCardBase({
   const [expanded, setExpanded] = useState(false);
   const [copyHint, setCopyHint] = useState<"idle" | "success" | "error">("idle");
 
-  const { imageReady, onImageLoadingComplete } = useListingCardImageReady({
+  const { imageReady, onImageLoad } = useListingCardImageReady({
     resetKey: activeCard.id,
   });
 
@@ -142,7 +142,7 @@ function GroupedCardBase({
               priority={priorityLoad}
               fetchPriority={priorityLoad ? "high" : undefined}
               className={mainPhotoClass}
-              onLoadingComplete={onImageLoadingComplete}
+              onLoad={onImageLoad}
             />
           ) : (
             <div className="flex h-full items-center justify-center bg-zinc-100 text-zinc-400 text-sm">Нет фото</div>

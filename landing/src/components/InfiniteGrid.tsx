@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import type { PromptCardFull } from "@/lib/supabase";
+import type { ListingSort } from "@/lib/listing-sort";
 import { FilterableGrid } from "./CardFilters";
 import { ListingGridLoadingSkeleton } from "./ListingGridLoadingSkeleton";
 import { LISTING_INFINITE_PAGE_SIZE } from "@/lib/listing-pagination";
@@ -15,6 +16,7 @@ type Props = {
   initialRankedBatchSize: number;
   rpcParams: Record<string, string | null>;
   strictMode?: boolean;
+  sort?: ListingSort;
 };
 
 /** Offset/step в единицах ranked RPC (`cards_count` / `ranked_batch_size`), `totalCount` = `total_count`. */
@@ -29,6 +31,7 @@ export function InfiniteGrid({
   initialRankedBatchSize,
   rpcParams,
   strictMode = false,
+  sort = "popular",
 }: Props) {
   const [cards, setCards] = useState(initialCards);
   const [loading, setLoading] = useState(false);
@@ -40,9 +43,11 @@ export function InfiniteGrid({
   const hasMoreRef = useRef(hasMore);
   const offsetRef = useRef(initialRankedBatchSize);
   const rpcParamsRef = useRef(rpcParams);
+  const sortRef = useRef(sort);
 
   hasMoreRef.current = hasMore;
   rpcParamsRef.current = rpcParams;
+  sortRef.current = sort;
 
   const loadMore = useCallback(async () => {
     if (loadingRef.current || !hasMoreRef.current) return;
@@ -53,6 +58,7 @@ export function InfiniteGrid({
       const sp = new URLSearchParams();
       sp.set("limit", String(PAGE_SIZE));
       sp.set("offset", String(oldOffset));
+      if (sortRef.current === "new") sp.set("sort", "new");
       for (const [k, v] of Object.entries(rpcParamsRef.current)) {
         if (v) sp.set(k, v);
       }

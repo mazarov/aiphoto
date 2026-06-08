@@ -79,7 +79,7 @@ function PromptCardBase({
 
   const photos = card.photoUrls;
   const currentPhoto = photos[photoIndex] || null;
-  const { imageReady, onImageLoadingComplete } = useListingCardImageReady({
+  const { imageReady, onImageLoad } = useListingCardImageReady({
     resetKey: currentPhoto,
   });
   const promptPreview =
@@ -131,7 +131,7 @@ function PromptCardBase({
             priority={priorityLoad}
             fetchPriority={priorityLoad ? "high" : undefined}
             className={mainPhotoClass}
-            onLoadingComplete={onImageLoadingComplete}
+            onLoad={onImageLoad}
           />
         ) : (
           <div className="flex h-full items-center justify-center bg-zinc-100 text-zinc-400 text-sm">

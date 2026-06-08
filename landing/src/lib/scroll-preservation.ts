@@ -4,6 +4,7 @@
  */
 
 import { useLayoutEffect } from "react";
+import { bumpListingShellViewportHeight } from "@/lib/listing-shell-viewport";
 
 export const SCROLL_KEY = "card_modal_scroll_pos";
 export const LISTING_SCROLL_ROOT_ID = "listing-scroll-root";
@@ -17,9 +18,13 @@ export function getListingScrollRoot(): ScrollRoot {
   return document.getElementById(LISTING_SCROLL_ROOT_ID) ?? window;
 }
 
+function isInnerListingScrollRoot(root: ScrollRoot): root is HTMLElement {
+  return root !== window;
+}
+
 function readScrollTop(root: ScrollRoot): number {
   if (root === window) return window.scrollY;
-  return (root as HTMLElement).scrollTop;
+  return root.scrollTop;
 }
 
 export function writeScrollTop(root: ScrollRoot, y: number): void {
@@ -29,7 +34,7 @@ export function writeScrollTop(root: ScrollRoot, y: number): void {
     document.body.scrollTop = y;
     return;
   }
-  (root as HTMLElement).scrollTop = y;
+  root.scrollTop = y;
 }
 
 export function saveListingScroll(): void {
@@ -38,6 +43,26 @@ export function saveListingScroll(): void {
     sessionStorage.setItem(SCROLL_KEY, String(readScrollTop(getListingScrollRoot())));
   } catch {
     // квота / приватный режим / SSR
+  }
+}
+
+/** Mobile catalog shell: freeze inner scroll root while modal is open. */
+export function lockListingScrollForModal(): void {
+  saveListingScroll();
+  if (typeof window === "undefined") return;
+  const root = getListingScrollRoot();
+  if (isInnerListingScrollRoot(root)) {
+    root.style.overflow = "hidden";
+    root.style.touchAction = "none";
+  }
+}
+
+export function unlockListingScrollStyles(): void {
+  if (typeof window === "undefined") return;
+  const root = getListingScrollRoot();
+  if (isInnerListingScrollRoot(root)) {
+    root.style.removeProperty("overflow");
+    root.style.removeProperty("touch-action");
   }
 }
 
@@ -87,6 +112,7 @@ export function restoreListingScroll(opts: RestoreOptions = {}): void {
     return;
   }
 
+  unlockListingScrollStyles();
   const root = getListingScrollRoot();
 
   const doScroll = () => {
@@ -123,6 +149,47 @@ export function restoreListingScroll(opts: RestoreOptions = {}): void {
       }
     }, Math.max(120, (safetyDelayMs || 0) + 80));
   }
+}
+
+/**
+ * After modal close via history.back(), Next.js popstate and layout settle asynchronously.
+ * Retry restore so #listing-scroll-root regains touch scroll on mobile.
+ */
+export function scheduleListingScrollRestore(): void {
+  if (typeof window === "undefined") return;
+
+  unlockListingScrollStyles();
+  window.history.scrollRestoration = "manual";
+
+  const saved = sessionStorage.getItem(SCROLL_KEY);
+  if (!saved) {
+    bumpListingShellViewportHeight();
+    return;
+  }
+
+  const y = parseInt(saved, 10);
+  if (Number.isNaN(y)) {
+    try { sessionStorage.removeItem(SCROLL_KEY); } catch {}
+    bumpListingShellViewportHeight();
+    return;
+  }
+
+  const apply = () => {
+    unlockListingScrollStyles();
+    writeScrollTop(getListingScrollRoot(), y);
+  };
+
+  apply();
+  requestAnimationFrame(apply);
+  requestAnimationFrame(() => requestAnimationFrame(apply));
+  window.setTimeout(apply, 50);
+  window.setTimeout(apply, 150);
+  window.setTimeout(() => {
+    apply();
+    try { sessionStorage.removeItem(SCROLL_KEY); } catch {}
+    bumpListingShellViewportHeight();
+    window.history.scrollRestoration = "auto";
+  }, 320);
 }
 
 export function useListingScrollRestoration(opts: RestoreOptions = {}): void {

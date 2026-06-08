@@ -3,6 +3,7 @@ import {
   buildStorageRenderImagePublicUrl,
   type CardImagePreset,
 } from "@/lib/card-image-presets";
+import type { ListingSort } from "@/lib/listing-sort";
 
 const supabaseUrl =
   process.env.NEXT_PUBLIC_SUPABASE_URL ||
@@ -63,6 +64,7 @@ export async function fetchRouteCards(params: {
   limit?: number;
   offset?: number;
   min_cards?: number;
+  sort?: ListingSort;
 }): Promise<RouteCardsResult> {
   const supabase = createSupabaseServer();
   const { data, error } = await supabase.rpc("resolve_route_cards", {
@@ -75,6 +77,7 @@ export async function fetchRouteCards(params: {
     p_limit: params.limit ?? 24,
     p_offset: params.offset ?? 0,
     p_min_cards: params.min_cards ?? 2,
+    p_sort: params.sort ?? "popular",
   });
 
   if (error) throw new Error(`resolve_route_cards: ${error.message}`);

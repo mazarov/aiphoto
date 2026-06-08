@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type SyntheticEvent } from "react";
 import type { CSSProperties } from "react";
 import {
   cardPhotoAspectRatioStyle,
@@ -10,7 +10,7 @@ import {
 
 /**
  * Frame for card photos: prefer `prompt_card_media.width/height`; if missing (common for
- * legacy ingest), derive aspect from `next/image` `onLoadingComplete` (natural dimensions).
+ * legacy ingest), derive aspect from `next/image` `onLoad` (natural dimensions).
  */
 export function useCardPhotoFrame(
   dbWidth: number | null | undefined,
@@ -35,14 +35,15 @@ export function useCardPhotoFrame(
   /** @deprecated Always apply `aspect-[3/4]` on the wrapper; inline `containerStyle` overrides it. Columns layout needs a stable class-based ratio. */
   const showTailwindFallback = containerStyle == null;
 
-  const onLoadingComplete = useCallback(
-    (img: HTMLImageElement) => {
+  const onImageLoad = useCallback(
+    (e: SyntheticEvent<HTMLImageElement>) => {
       if (hasDb) return;
+      const img = e.currentTarget;
       const r = clampMeasuredAspectRatio(img.naturalWidth, img.naturalHeight);
       setMeasuredStyle({ aspectRatio: r });
     },
     [hasDb]
   );
 
-  return { containerStyle, showTailwindFallback, onLoadingComplete };
+  return { containerStyle, showTailwindFallback, onImageLoad };
 }

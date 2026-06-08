@@ -1,8 +1,16 @@
 "use client";
 
-import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useState,
+  useCallback,
+  useEffect,
+  useRef,
+  type ReactNode,
+} from "react";
 import type { CardPageData } from "@/lib/supabase";
-import { saveListingScroll } from "@/lib/scroll-preservation";
+import { lockListingScrollForModal } from "@/lib/scroll-preservation";
 import { trackVirtualPageView } from "@/lib/yandex-metrika";
 
 type PromptCardModalContextType = {
@@ -31,20 +39,17 @@ const PromptCardModalContext = createContext<PromptCardModalContextType>({
 export function PromptCardModalProvider({ children }: { children: ReactNode }) {
   const [currentSlug, setCurrentSlug] = useState<string | null>(null);
   const [cardCache] = useState(() => new Map<string, CardPageData>());
+  const currentSlugRef = useRef<string | null>(null);
+  currentSlugRef.current = currentSlug;
 
   const open = useCallback((slug: string) => {
     if (typeof window !== "undefined") {
-      // Save scroll position of the listing before we navigate into the modal.
-      // Centralized util ensures consistent key + error handling.
-      saveListingScroll();
+      lockListingScrollForModal();
 
-      // Capture current URL as referer BEFORE pushState (for correct virtual pageview attribution)
       const referer = window.location.pathname + window.location.search;
 
-      // Update address bar without a full navigation
       window.history.pushState(null, "", `/p/${encodeURIComponent(slug)}`);
 
-      // Virtual hit so Yandex Metrika / Webmaster sees "internal transition" listing/search → /p/slug
       trackVirtualPageView(`/p/${encodeURIComponent(slug)}`, { referer });
     }
     setCurrentSlug(slug);
@@ -52,13 +57,10 @@ export function PromptCardModalProvider({ children }: { children: ReactNode }) {
 
   const goToNeighbor = useCallback((slug: string) => {
     if (typeof window !== "undefined") {
-      // Capture the *current* virtual URL (previous card) before replaceState
       const referer = window.location.pathname + window.location.search;
 
-      // Replace the URL so the address bar always shows the current card
       window.history.replaceState(null, "", `/p/${encodeURIComponent(slug)}`);
 
-      // Virtual hit for neighbor navigation inside the modal (important for card-to-card chains)
       trackVirtualPageView(`/p/${encodeURIComponent(slug)}`, { referer });
     }
     setCurrentSlug(slug);
@@ -66,9 +68,13 @@ export function PromptCardModalProvider({ children }: { children: ReactNode }) {
 
   const close = useCallback(() => {
     if (typeof window !== "undefined") {
-      // Prefer natural back so that the previous history entry (the listing) is restored
-      // The actual scroll restoration is performed by the modal unmount logic (ClientCardModal)
-      window.history.back();
+      // Unmount modal first so CardModal cleanup unlocks body (desktop) before history.back().
+      window.history.scrollRestoration = "manual";
+      setCurrentSlug(null);
+      window.setTimeout(() => {
+        window.history.back();
+      }, 0);
+      return;
     }
     setCurrentSlug(null);
   }, []);
@@ -77,17 +83,23 @@ export function PromptCardModalProvider({ children }: { children: ReactNode }) {
     cardCache.set(slug, data);
   }, [cardCache]);
 
-  // Handle browser back/forward when the modal is open
+  useEffect(() => {
+    if (!currentSlug) return;
+    const previous = window.history.scrollRestoration;
+    window.history.scrollRestoration = "manual";
+    return () => {
+      window.history.scrollRestoration = previous;
+    };
+  }, [currentSlug]);
+
   useEffect(() => {
     function onPopState() {
-      // If we still think a modal is open, close it (the back navigation already happened in history)
-      if (currentSlug) {
-        setCurrentSlug(null);
-      }
+      if (!currentSlugRef.current) return;
+      setCurrentSlug(null);
     }
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
-  }, [currentSlug]);
+  }, []);
 
   return (
     <PromptCardModalContext.Provider

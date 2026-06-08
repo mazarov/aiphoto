@@ -1,8 +1,11 @@
 "use client";
 
-import { useEffect, useCallback, useRef, useLayoutEffect } from "react";
+import { useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { SCROLL_KEY as SCROLL_POS_KEY, getListingScrollRoot, writeScrollTop } from "@/lib/scroll-preservation";
+import {
+  scheduleListingScrollRestore,
+  unlockListingScrollStyles,
+} from "@/lib/scroll-preservation";
 
 type Props = {
   children: React.ReactNode;
@@ -15,7 +18,6 @@ type Props = {
 export function CardModal({ children, onClose, immersiveMobile = false }: Props) {
   const router = useRouter();
   const overlayRef = useRef<HTMLDivElement>(null);
-  const contentRef = useRef<HTMLDivElement>(null);
   const isNavigatingBack = useRef(false);
 
   const handleClose = useCallback(() => {
@@ -23,30 +25,12 @@ export function CardModal({ children, onClose, immersiveMobile = false }: Props)
       onClose();
     } else {
       isNavigatingBack.current = true;
-      // Disable automatic scroll restoration before navigating back
       if (typeof window !== "undefined") {
         window.history.scrollRestoration = "manual";
       }
       router.back();
     }
   }, [onClose, router]);
-
-  // Restore scroll position synchronously before paint
-  useLayoutEffect(() => {
-    const originalScrollRestoration = window.history.scrollRestoration;
-    const savedScrollY = sessionStorage.getItem(SCROLL_POS_KEY);
-    
-    return () => {
-      // This runs synchronously when component unmounts (before paint)
-      if (isNavigatingBack.current && savedScrollY) {
-        const scrollY = parseInt(savedScrollY, 10);
-        writeScrollTop(getListingScrollRoot(), scrollY);
-        sessionStorage.removeItem(SCROLL_POS_KEY);
-      }
-      // Restore default scroll behavior
-      window.history.scrollRestoration = originalScrollRestoration;
-    };
-  }, []);
 
   // Close on Escape key
   useEffect(() => {
@@ -59,15 +43,20 @@ export function CardModal({ children, onClose, immersiveMobile = false }: Props)
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [handleClose]);
 
-  // Lock body scroll when modal is open.
-  // Compensation for scrollbar width prevents the classic layout shift / "прыжок"
-  // when the scrollbar disappears (the root cause of the jump on close reported by user).
-  // On mobile (no scrollbar or overlay) the diff is 0 → no padding added.
+  // Lock scroll while open; restore listing position only after unlock (critical on desktop).
   useEffect(() => {
+    const isMobileListingShell = window.matchMedia("(max-width: 1023px)").matches;
+
+    if (isMobileListingShell) {
+      return () => {
+        unlockListingScrollStyles();
+        scheduleListingScrollRestore();
+      };
+    }
+
     const originalOverflow = document.body.style.overflow;
     const originalPaddingRight = document.body.style.paddingRight;
 
-    // Calculate exact width the scrollbar was occupying (desktop only)
     const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
     if (scrollbarWidth > 0) {
       document.body.style.paddingRight = `${scrollbarWidth}px`;
@@ -77,6 +66,7 @@ export function CardModal({ children, onClose, immersiveMobile = false }: Props)
     return () => {
       document.body.style.overflow = originalOverflow;
       document.body.style.paddingRight = originalPaddingRight;
+      scheduleListingScrollRestore();
     };
   }, []);
 
@@ -103,7 +93,6 @@ export function CardModal({ children, onClose, immersiveMobile = false }: Props)
       role="dialog"
     >
       <div
-        ref={contentRef}
         className={
           immersiveMobile
             ? "relative w-full md:max-w-5xl animate-in fade-in zoom-in-95 duration-200"

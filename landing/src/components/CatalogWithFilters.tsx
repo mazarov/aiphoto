@@ -1,22 +1,24 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useListingFilters } from "@/hooks/useListingFilters";
+import { useListingSort } from "@/hooks/useListingSort";
 import { FilterFAB } from "./FilterFAB";
 import { ListingDesktopFilters } from "./ListingDesktopFilters";
 import { InfiniteGrid } from "./InfiniteGrid";
 import type { PromptCardFull } from "@/lib/supabase";
 import type { Dimension } from "@/lib/tag-registry";
+import type { ListingSort } from "@/lib/listing-sort";
 import { useListingScrollRestoration } from "@/lib/scroll-preservation";
 
 /** Stable React `key` — raw `JSON.stringify(mergedRpcParams)` can differ by object insertion order → remount grid on scroll/hydration churn. */
-function stableRpcParamsKey(r: Record<string, string | null>): string {
+function stableListingKey(r: Record<string, string | null>, sort: ListingSort): string {
   const sortedKeys = Object.keys(r).sort();
   const norm: Record<string, string | null> = {};
   for (const k of sortedKeys) {
     norm[k] = r[k] ?? null;
   }
-  return JSON.stringify(norm);
+  return `${JSON.stringify(norm)}|${sort}`;
 }
 
 type Props = {
@@ -35,20 +37,22 @@ export function CatalogWithFilters({
   baseRpcParams,
   lockedDimensions,
 }: Props) {
+  const [filterPanelOpen, setFilterPanelOpen] = useState(false);
   const { filters, setFilter, applyFilters, resetFilters, activeCount, mergedRpcParams } =
     useListingFilters({
       baseRpcParams,
       lockedDimensions,
     });
+  const { sort, setSort } = useListingSort();
 
-  // Centralized scroll restoration when returning from card modal / client modal.
-  // Replaces the previous duplicated useLayoutEffect + manual scrollRestoration dance.
   useListingScrollRestoration();
 
   const listingGridKey = useMemo(
-    () => stableRpcParamsKey(mergedRpcParams),
-    [mergedRpcParams]
+    () => stableListingKey(mergedRpcParams, sort),
+    [mergedRpcParams, sort]
   );
+
+  const showNewEmpty = sort === "new" && totalCount === 0;
 
   return (
     <>
@@ -59,21 +63,35 @@ export function CatalogWithFilters({
         activeCount={activeCount}
         hiddenDimensions={lockedDimensions}
         rpcParams={mergedRpcParams}
+        sort={sort}
+        onSortChange={setSort}
+        onOpenMobileFilters={() => setFilterPanelOpen(true)}
       />
-      <InfiniteGrid
-        key={listingGridKey}
-        initialCards={initialCards}
-        totalCount={totalCount}
-        initialRankedBatchSize={initialRankedBatchSize}
-        rpcParams={mergedRpcParams}
-        strictMode={activeCount > 0}
-      />
+
+      {showNewEmpty ? (
+        <p className="py-16 text-center text-sm text-zinc-500">Пока нет новых</p>
+      ) : (
+        <InfiniteGrid
+          key={listingGridKey}
+          initialCards={initialCards}
+          totalCount={totalCount}
+          initialRankedBatchSize={initialRankedBatchSize}
+          rpcParams={mergedRpcParams}
+          strictMode={activeCount > 0}
+          sort={sort}
+        />
+      )}
+
       <FilterFAB
         filters={filters}
         activeCount={activeCount}
         onApply={applyFilters}
         hiddenDimensions={lockedDimensions}
         rpcParams={mergedRpcParams}
+        open={filterPanelOpen}
+        onOpenChange={setFilterPanelOpen}
+        sort={sort}
+        onSortChange={setSort}
       />
     </>
   );

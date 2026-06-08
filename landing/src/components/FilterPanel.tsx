@@ -3,9 +3,11 @@
 import { useState, useEffect } from "react";
 import { type Dimension } from "@/lib/tag-registry";
 import { FilterChips } from "./FilterChips";
+import { ListingSortToggle } from "./ListingSortToggle";
 import type { FilterState } from "@/hooks/useListingFilters";
 import { useListingFilterCounts } from "@/hooks/useListingFilterCounts";
 import type { PromptCardFull } from "@/lib/supabase";
+import type { ListingSort } from "@/lib/listing-sort";
 import {
   FILTER_ICON_BTN,
   FILTER_MODAL_BACKDROP,
@@ -46,6 +48,8 @@ type Props = {
   hiddenDimensions: Dimension[];
   rpcParams?: Record<string, string | null>;
   cardsForCounts?: PromptCardFull[];
+  sort?: ListingSort;
+  onSortChange?: (sort: ListingSort) => void;
 };
 
 export function FilterPanel({
@@ -55,6 +59,8 @@ export function FilterPanel({
   hiddenDimensions,
   rpcParams,
   cardsForCounts,
+  sort,
+  onSortChange,
 }: Props) {
   const [draft, setDraft] = useState<FilterState>(filters);
   const [objectSearch, setObjectSearch] = useState("");
@@ -95,6 +101,13 @@ export function FilterPanel({
         </div>
 
         <div className="space-y-6 p-4">
+          {sort != null && onSortChange && (
+            <div className="border-b border-indigo-100/60 pb-5">
+              <p className={FILTER_SECTION_LABEL}>Сортировка</p>
+              <ListingSortToggle sort={sort} onSortChange={onSortChange} embedded />
+            </div>
+          )}
+
           {dimsToShow.map((key) => {
             const dim = DIM_TO_DIMENSION[key];
             const label = DIMENSION_UI_LABELS[dim] ?? dim;

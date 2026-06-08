@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type SyntheticEvent } from "react";
 
 type Options = {
   /** Resets reveal when this identity changes (photo URL, active split id, etc.). */
@@ -18,7 +18,8 @@ export function useListingCardImageReady({ resetKey }: Options) {
     setImageReady(false);
   }, [resetKey]);
 
-  const onImageLoadingComplete = useCallback((img: HTMLImageElement) => {
+  const onImageLoad = useCallback((e: SyntheticEvent<HTMLImageElement>) => {
+    const img = e.currentTarget;
     if (typeof img.decode === "function") {
       img.decode().then(() => setImageReady(true)).catch(() => setImageReady(true));
     } else {
@@ -26,5 +27,5 @@ export function useListingCardImageReady({ resetKey }: Options) {
     }
   }, []);
 
-  return { imageReady, onImageLoadingComplete };
+  return { imageReady, onImageLoad };
 }
