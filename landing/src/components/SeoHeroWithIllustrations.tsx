@@ -2,8 +2,10 @@
 
 import { useCallback, useRef, useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { CARD_IMAGE_LISTING_NEXT_QUALITY } from "@/lib/card-image-presets";
 import type { ResolvedSeoIllustration } from "@/lib/seo-illustrations";
+import type { SeoPopularLink } from "@/lib/seo-content";
 import { ListingPromptCountBadge } from "@/components/ListingPromptCountBadge";
 
 function illustrationLabel(ill: ResolvedSeoIllustration): string {
@@ -18,10 +20,17 @@ type Props = {
   intro: string;
   totalCount: number;
   illustrations: ResolvedSeoIllustration[];
+  popularLinks?: SeoPopularLink[];
 };
 
 /** Единый hero L1: текст + карусель примеров в одной панели. */
-export function SeoHeroWithIllustrations({ h1, intro, totalCount, illustrations }: Props) {
+export function SeoHeroWithIllustrations({
+  h1,
+  intro,
+  totalCount,
+  illustrations,
+  popularLinks,
+}: Props) {
   const [index, setIndex] = useState(0);
   const count = illustrations.length;
   const touchXRef = useRef(0);
@@ -46,6 +55,22 @@ export function SeoHeroWithIllustrations({ h1, intro, totalCount, illustrations 
           <p className="mt-3 text-sm leading-relaxed text-zinc-600 sm:text-base">
             {intro}
           </p>
+          {popularLinks?.length ? (
+            <nav className="mt-4" aria-label="Популярные подборки">
+              <p className="mb-2 text-sm font-medium text-zinc-700">Популярные сценарии</p>
+              <div className="flex flex-wrap gap-1.5">
+                {popularLinks.map((link) => (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    className="inline-flex items-center rounded-full border border-zinc-200 bg-white px-3 py-1.5 text-sm text-zinc-600 transition-colors hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700"
+                  >
+                    {link.label}
+                  </Link>
+                ))}
+              </div>
+            </nav>
+          ) : null}
         </div>
 
         <div

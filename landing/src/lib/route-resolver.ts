@@ -35,6 +35,11 @@ function tagsToRpcParams(tags: TagEntry[]) {
   return params;
 }
 
+/** Без трейлинг-слеша: Next (trailingSlash=false) отдаёт 200 только на slash-less URL, sitemap тоже без слеша. */
+function stripTrailingSlash(path: string): string {
+  return path.length > 1 && path.endsWith("/") ? path.slice(0, -1) : path;
+}
+
 function buildCanonicalPath(tags: TagEntry[]): string {
   const sorted = [...tags].sort(
     (a, b) =>
@@ -45,12 +50,11 @@ function buildCanonicalPath(tags: TagEntry[]): string {
   const primary = sorted[0];
   const rest = sorted.slice(1);
 
-  let path = primary.urlPath;
-  if (!path.endsWith("/")) path += "/";
+  let path = stripTrailingSlash(primary.urlPath);
 
   for (const tag of rest) {
     const lastSeg = tag.urlPath.split("/").filter(Boolean).pop()!;
-    path += lastSeg + "/";
+    path += "/" + lastSeg;
   }
 
   return path;
@@ -73,9 +77,7 @@ export function resolveUrlToTags(slugSegments: string[]): ResolvedRoute | null {
       tags: [directMatch],
       level: 1,
       rpcParams: tagsToRpcParams([directMatch]),
-      canonicalPath: directMatch.urlPath.endsWith("/")
-        ? directMatch.urlPath
-        : directMatch.urlPath + "/",
+      canonicalPath: stripTrailingSlash(directMatch.urlPath),
       parentPath: null,
       primaryTag: directMatch,
     };
@@ -101,9 +103,7 @@ export function resolveUrlToTags(slugSegments: string[]): ResolvedRoute | null {
         level: 2,
         rpcParams: tagsToRpcParams(tags),
         canonicalPath: buildCanonicalPath(tags),
-        parentPath: tag1.urlPath.endsWith("/")
-          ? tag1.urlPath
-          : tag1.urlPath + "/",
+        parentPath: stripTrailingSlash(tag1.urlPath),
         primaryTag: tag1,
       };
     }
@@ -121,9 +121,7 @@ export function resolveUrlToTags(slugSegments: string[]): ResolvedRoute | null {
         level: 3,
         rpcParams: tagsToRpcParams(tags),
         canonicalPath: buildCanonicalPath(tags),
-        parentPath: tag1.urlPath.endsWith("/")
-          ? tag1.urlPath
-          : tag1.urlPath + "/",
+        parentPath: stripTrailingSlash(tag1.urlPath),
         primaryTag: tag1,
       };
     }

@@ -16,6 +16,7 @@ seo/
 | URL | Папка | Последнее изменение |
 |-----|-------|---------------------|
 | [/s-mashinoy/](https://promptshot.ru/s-mashinoy/) | [s-mashinoy/](s-mashinoy/) | 2026-06-05 |
+| [/promty-dlya-foto-devushki/](https://promptshot.ru/promty-dlya-foto-devushki/) | [promty-dlya-foto-devushki/](promty-dlya-foto-devushki/) | 2026-06-11 |
 
 ## Где в коде
 

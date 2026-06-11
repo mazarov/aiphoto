@@ -222,9 +222,40 @@ type L2ChipGroup = {
   chips: L2Chip[];
 };
 
+function sortChipsByFeatured(chips: L2Chip[], featuredSlugs?: string[]): L2Chip[] {
+  if (!featuredSlugs?.length) return chips;
+  const order = new Map(featuredSlugs.map((slug, index) => [slug, index]));
+  return [...chips].sort((a, b) => {
+    const ai = order.get(a.tag.slug) ?? 999;
+    const bi = order.get(b.tag.slug) ?? 999;
+    if (ai !== bi) return ai - bi;
+    return b.count - a.count;
+  });
+}
+
+function SeoPopularLinks({ links }: { links: NonNullable<SeoContent["popularLinks"]> }) {
+  return (
+    <nav className="mt-4" aria-label="Популярные подборки">
+      <p className="mb-2 text-sm font-medium text-zinc-700">Популярные сценарии</p>
+      <div className="flex flex-wrap gap-1.5">
+        {links.map((link) => (
+          <Link
+            key={link.href}
+            href={link.href}
+            className="inline-flex items-center rounded-full border border-zinc-200 bg-white px-3 py-1.5 text-sm text-zinc-600 transition-colors hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700"
+          >
+            {link.label}
+          </Link>
+        ))}
+      </div>
+    </nav>
+  );
+}
+
 async function getL2ChipsForTag(
   tag: TagEntry,
   limit = 12,
+  featuredL2Slugs?: string[],
 ): Promise<L2ChipGroup[]> {
   const combos = await getIndexableTagCombos(6, "ru");
 
@@ -275,7 +306,7 @@ async function getL2ChipsForTag(
     groups.push({
       dimension: dim,
       label: DIMENSION_LABELS[dim],
-      chips: chips.slice(0, limit),
+      chips: sortChipsByFeatured(chips, featuredL2Slugs).slice(0, limit),
     });
   }
   return groups;
@@ -362,7 +393,8 @@ export default async function TagPage({ params, searchParams }: Props) {
   const primaryTag = route.primaryTag;
   const siblings = getSiblingTags(primaryTag, 6);
   const sectionLabel = DIMENSION_LABELS[primaryTag.dimension];
-  const l2ChipGroups = route.level === 1 ? await getL2ChipsForTag(primaryTag) : [];
+  const l2ChipGroups =
+    route.level === 1 ? await getL2ChipsForTag(primaryTag, 12, seo.featuredL2Slugs) : [];
 
   const baseRpcParams: Record<string, string | null> = {};
   for (const [k, v] of Object.entries(route.rpcParams)) {
@@ -417,6 +449,7 @@ export default async function TagPage({ params, searchParams }: Props) {
               intro={seo.intro}
               totalCount={totalCount}
               illustrations={resolvedIllustrations}
+              popularLinks={seo.popularLinks}
             />
           ) : (
             <div className="min-w-0">
@@ -429,6 +462,9 @@ export default async function TagPage({ params, searchParams }: Props) {
               <p className="mt-3 max-w-2xl text-sm leading-relaxed text-zinc-600 sm:text-base">
                 {seo.intro}
               </p>
+              {seo.popularLinks?.length ? (
+                <SeoPopularLinks links={seo.popularLinks} />
+              ) : null}
             </div>
           )}
         </div>
@@ -492,7 +528,9 @@ export default async function TagPage({ params, searchParams }: Props) {
 
         {/* How to use */}
         <section className="mt-16 rounded-2xl border border-zinc-200 bg-white p-6 sm:p-8">
-          <h2 className="text-xl font-bold text-zinc-900">Как использовать промт</h2>
+          <h2 className="text-xl font-bold text-zinc-900">
+            {seo.howToTitle ?? "Как использовать промт"}
+          </h2>
           <ol className="mt-4 space-y-3 text-zinc-600">
             {seo.howToSteps.map((step, i) => (
               <li key={i} className="flex gap-3">
@@ -517,6 +555,20 @@ export default async function TagPage({ params, searchParams }: Props) {
             ))}
           </dl>
         </section>
+
+        {/* SEO text blocks (текстовая релевантность L1) */}
+        {seo.seoTextBlocks?.map((block) => (
+          <section key={block.h2} className="mt-12">
+            <h2 className="text-xl font-bold text-zinc-900">{block.h2}</h2>
+            <div className="mt-4 max-w-3xl space-y-4">
+              {block.paragraphs.map((p, i) => (
+                <p key={i} className="text-sm leading-relaxed text-zinc-600 sm:text-base">
+                  {p}
+                </p>
+              ))}
+            </div>
+          </section>
+        ))}
 
         {/* Internal links — siblings of primary tag */}
         {siblings.length > 0 && (
