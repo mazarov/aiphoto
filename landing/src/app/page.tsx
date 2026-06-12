@@ -2,17 +2,14 @@ import Link from "next/link";
 import { cache } from "react";
 import type { Metadata } from "next";
 import Script from "next/script";
-import {
-  fetchHomepageSections,
-  pickDeduplicatedPhotos,
-} from "@/lib/supabase";
-import { TAG_REGISTRY, DIMENSION_LABELS, type Dimension } from "@/lib/tag-registry";
+import { fetchHomepageSections } from "@/lib/supabase";
+import { TAG_REGISTRY } from "@/lib/tag-registry";
 import { HOMEPAGE_SEO, HOMEPAGE_FAQ } from "@/lib/homepage-seo-copy";
 import { PageLayout } from "@/components/PageLayout";
 import { CategorySection } from "@/components/CategorySection";
 import { HomeSearch } from "@/components/HomeSearch";
 import { HomeSeoBlocks } from "@/components/HomeSeoBlocks";
-import { MENU } from "@/lib/menu";
+import { buildCategorySectionBlocks } from "@/lib/homepage-sections";
 
 export const revalidate = 3600;
 
@@ -52,64 +49,13 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-const SECTION_ORDER: Dimension[] = [
-  "audience_tag",
-  "style_tag",
-  "occasion_tag",
-  "object_tag",
-];
-
 export default async function HomePage() {
   const sections = await getCachedSections();
-
-  const sectionsByDimSlug = new Map<string, (typeof sections)[number]>();
-  for (const s of sections) {
-    sectionsByDimSlug.set(`${s.dimension}:${s.slug}`, s);
-  }
 
   const totalPrompts = sections.reduce((sum, s) => sum + s.total_count, 0);
   const totalCategories = sections.filter((s) => s.total_count > 0).length;
 
-  const usedCardIds = new Set<string>();
-
-  const sectionBlocks = SECTION_ORDER.map((dim) => {
-    const menuSection = MENU.find((m) => m.dimension === dim);
-    if (!menuSection) return null;
-
-    const tagSlugs = menuSection.groups.flatMap((g) =>
-      g.items.map((item) => {
-        const tag = TAG_REGISTRY.find((t) => t.urlPath + "/" === item.href);
-        return tag ?? null;
-      })
-    ).filter(Boolean);
-
-    const items = tagSlugs.map((tag) => {
-      const raw = sectionsByDimSlug.get(`${dim}:${tag!.slug}`);
-      const { photoUrl, secondPhotoUrl, usedIds } = pickDeduplicatedPhotos(
-        raw?.cards ?? [],
-        usedCardIds
-      );
-      for (const id of usedIds) usedCardIds.add(id);
-
-      return {
-        label: tag!.labelRu,
-        href: tag!.urlPath + "/",
-        data: {
-          dimension: dim,
-          slug: tag!.slug,
-          total_count: raw?.total_count ?? 0,
-          photoUrl,
-          secondPhotoUrl,
-        },
-      };
-    });
-
-    return {
-      title: DIMENSION_LABELS[dim],
-      dimension: dim,
-      items,
-    };
-  }).filter(Boolean);
+  const sectionBlocks = buildCategorySectionBlocks(sections);
 
   const homeOgImage = sections.find((s) => s.cards.length > 0)?.cards[0]?.photoUrl ?? null;
 
@@ -200,11 +146,11 @@ export default async function HomePage() {
         {sectionBlocks.length > 0 ? (
           sectionBlocks.map((block, i) => (
             <CategorySection
-              key={block!.dimension}
-              title={block!.title}
-              items={block!.items}
+              key={block.dimension}
+              title={block.title}
+              items={block.items}
               isFirstSection={i === 0}
-              sectionId={block!.dimension}
+              sectionId={block.dimension}
             />
           ))
         ) : (

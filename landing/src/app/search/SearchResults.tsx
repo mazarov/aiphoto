@@ -48,6 +48,7 @@ export function SearchResults({ initialQuery }: Props) {
   const [matchType, setMatchType] = useState<string | null>(null);
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(false);
+  const [filterPanelOpen, setFilterPanelOpen] = useState(false);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const loadingRef = useRef(false);
   const hasMoreRef = useRef(false);
@@ -197,6 +198,7 @@ export function SearchResults({ initialQuery }: Props) {
           activeCount={activeCount}
           hiddenDimensions={[]}
           cardsForCounts={cards}
+          onOpenMobileFilters={() => setFilterPanelOpen(true)}
         />
       )}
 
@@ -232,6 +234,8 @@ export function SearchResults({ initialQuery }: Props) {
           onApply={applyFilters}
           hiddenDimensions={[]}
           cardsForCounts={cards}
+          open={filterPanelOpen}
+          onOpenChange={setFilterPanelOpen}
         />
       )}
 

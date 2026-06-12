@@ -10,16 +10,15 @@ import { HeaderClient } from "./HeaderClient";
 import { SidebarNav } from "./SidebarNav";
 import { Footer } from "./Footer";
 import { ListingBottomBar } from "./ListingBottomBar";
+import { MobileTabBar } from "./MobileTabBar";
 import { ListingSearch } from "./ListingSearch";
 
 const MENU_STRUCTURE = applyCountsToMenu({});
 
 export function PageLayout({
   children,
-  hideBottomBar = false,
 }: {
   children: React.ReactNode;
-  hideBottomBar?: boolean;
 }) {
   const pathname = usePathname();
   useStandalonePageScrollTop(pathname);
@@ -56,7 +55,8 @@ export function PageLayout({
           </div>
         </div>
 
-        {!hideBottomBar ? <ListingBottomBar /> : null}
+        <ListingBottomBar />
+        <MobileTabBar />
 
         <Suspense fallback={null}>
           <ListingSearch variant="header" />
