@@ -68,17 +68,21 @@ export function CategoryCard({
               </div>
             )}
 
-            {/* Overlay with title */}
+            {/* Overlay with title + count */}
             <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent pt-16 pb-3 px-3 pointer-events-none">
-              <h3 className="text-[13px] font-semibold text-white leading-snug">{label}</h3>
+              <div className="flex items-end justify-between gap-2">
+                <h3 className="min-w-0 flex-1 text-[13px] font-semibold text-white leading-snug">
+                  {label}
+                </h3>
+                {totalCount > 0 && (
+                  <span className="shrink-0 rounded-full bg-white/15 px-2 py-0.5 text-[11px] font-medium tabular-nums text-white/90 backdrop-blur-sm">
+                    {pluralPrompts(totalCount)}
+                  </span>
+                )}
+              </div>
             </div>
           </div>
         </div>
-      </div>
-
-      {/* Count badge */}
-      <div className="mt-2 flex items-center gap-1.5">
-        <span className="text-xs text-zinc-500">{pluralPrompts(totalCount)}</span>
       </div>
     </Link>
   );

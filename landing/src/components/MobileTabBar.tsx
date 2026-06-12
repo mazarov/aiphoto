@@ -16,8 +16,15 @@ import {
   reachYandexMetrikaGoal,
   YM_GOAL_LEXYGPT_GENERATE,
 } from "@/lib/yandex-metrika";
-import { LISTING_BOTTOM_BAR_SURFACE } from "@/lib/listing-shell-surface";
 import { bumpListingShellViewportHeight } from "@/lib/listing-shell-viewport";
+
+function tabIconClass(active: boolean) {
+  return active ? "text-indigo-600" : "text-zinc-400";
+}
+
+function tabLabelClass(active: boolean) {
+  return active ? "font-semibold text-indigo-600" : "text-zinc-400";
+}
 
 function normalizePath(path: string): string {
   if (!path || path === "/") return "/";
@@ -116,8 +123,9 @@ export function MobileTabBar() {
   return (
     <>
       <div
-        className="mobile-tab-bar shrink-0 rounded-t-2xl border-t border-zinc-200/70 bg-white/95 shadow-[0_-8px_32px_-12px_rgba(99,102,241,0.12)] backdrop-blur-xl pb-[max(0px,env(safe-area-inset-bottom,0px))]"
+        className="mobile-tab-bar pointer-events-none absolute inset-x-0 bottom-0 z-40 max-lg:block lg:hidden"
       >
+        <div className="pointer-events-auto rounded-t-2xl border-t border-zinc-200/70 bg-white/95 shadow-[0_-8px_32px_-12px_rgba(99,102,241,0.12)] backdrop-blur-xl pb-[max(0px,env(safe-area-inset-bottom,0px))]">
         <div className="flex h-14 items-end justify-around px-1 pb-1">
           {/* Каталог */}
           <Link
@@ -126,7 +134,7 @@ export function MobileTabBar() {
             aria-label="Каталог"
           >
             <svg
-              className={`h-6 w-6 ${isActive("catalog") ? "text-zinc-900" : "text-zinc-400"}`}
+              className={`h-6 w-6 ${tabIconClass(isActive("catalog"))}`}
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
@@ -137,9 +145,7 @@ export function MobileTabBar() {
               <rect x="3" y="13" width="8" height="8" rx="1.5" />
               <rect x="13" y="13" width="8" height="8" rx="1.5" />
             </svg>
-            <span
-              className={`text-[11px] ${isActive("catalog") ? "font-semibold text-zinc-900" : "text-zinc-400"}`}
-            >
+            <span className={`text-[11px] ${tabLabelClass(isActive("catalog"))}`}>
               Каталог
             </span>
           </Link>
@@ -151,7 +157,7 @@ export function MobileTabBar() {
             aria-label="Фото в промт"
           >
             <svg
-              className={`h-6 w-6 ${isActive("foto") ? "text-zinc-900" : "text-zinc-400"}`}
+              className={`h-6 w-6 ${tabIconClass(isActive("foto"))}`}
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
@@ -164,7 +170,7 @@ export function MobileTabBar() {
               />
             </svg>
             <span
-              className={`text-[11px] whitespace-nowrap ${isActive("foto") ? "font-semibold text-zinc-900" : "text-zinc-400"}`}
+              className={`text-[11px] whitespace-nowrap ${tabLabelClass(isActive("foto"))}`}
             >
               Фото в промт
             </span>
@@ -176,7 +182,7 @@ export function MobileTabBar() {
               type="button"
               onClick={handleGenerate}
               aria-label="Сгенерировать"
-              className="-translate-y-3 flex h-11 w-16 items-center justify-center rounded-2xl bg-violet-600 text-white shadow-lg shadow-violet-500/30 transition-transform active:scale-[0.97]"
+              className="-translate-y-3 flex h-11 w-16 items-center justify-center rounded-2xl bg-indigo-600 text-white shadow-lg shadow-indigo-500/30 transition-transform active:scale-[0.97]"
             >
               {/* Sparkle / star icon */}
               <svg className="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
@@ -201,7 +207,7 @@ export function MobileTabBar() {
             aria-label="Поиск"
           >
             <svg
-              className={`h-6 w-6 ${isActive("search") ? "text-zinc-900" : "text-zinc-400"}`}
+              className={`h-6 w-6 ${tabIconClass(isActive("search"))}`}
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
@@ -210,9 +216,7 @@ export function MobileTabBar() {
               <circle cx="11" cy="11" r="7" />
               <path strokeLinecap="round" d="m16.5 16.5 3 3" />
             </svg>
-            <span
-              className={`text-[11px] ${isActive("search") ? "font-semibold text-zinc-900" : "text-zinc-400"}`}
-            >
+            <span className={`text-[11px] ${tabLabelClass(isActive("search"))}`}>
               Поиск
             </span>
           </button>
@@ -225,7 +229,7 @@ export function MobileTabBar() {
             aria-label="Профиль"
           >
             <svg
-              className={`h-6 w-6 ${isActive("profile") ? "text-zinc-900" : "text-zinc-400"}`}
+              className={`h-6 w-6 ${tabIconClass(isActive("profile"))}`}
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
@@ -238,12 +242,11 @@ export function MobileTabBar() {
                 d="M4 20c0-4 3.582-7 8-7s8 3 8 7"
               />
             </svg>
-            <span
-              className={`text-[11px] ${isActive("profile") ? "font-semibold text-zinc-900" : "text-zinc-400"}`}
-            >
+            <span className={`text-[11px] ${tabLabelClass(isActive("profile"))}`}>
               Профиль
             </span>
           </button>
+        </div>
         </div>
       </div>
 
