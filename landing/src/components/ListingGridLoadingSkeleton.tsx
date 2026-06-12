@@ -1,7 +1,5 @@
 import { ListingCardLoadingShell } from "./ListingCardLoadingShell";
-
-const GRID =
-  "grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4 xl:grid-cols-5";
+import { LISTING_GRID_CLASSES } from "./ListingGrid";
 
 type Props = {
   count?: number;
@@ -14,7 +12,7 @@ type Props = {
  */
 export function ListingGridLoadingSkeleton({ count = 8, photoOnly = false }: Props) {
   return (
-    <div className={`${GRID} py-6`} aria-busy="true" aria-live="polite">
+    <div className={`${LISTING_GRID_CLASSES} py-6`} aria-busy="true" aria-live="polite">
       <span className="sr-only">Загрузка следующих карточек</span>
       {Array.from({ length: count }, (_, i) => (
         <div key={i} className="min-w-0">

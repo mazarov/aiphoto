@@ -13,6 +13,7 @@ import {
   writeListingNavigationContext,
   type ListingNavGridItem,
 } from "@/lib/listing-card-navigation-context";
+import { ListingGrid } from "./ListingGrid";
 import {
   DEBUG_CARD_DELETED_EVENT,
   readDebugFilterState,
@@ -32,6 +33,11 @@ type Props = {
   variant?: "listing" | "debug";
   /** Prefill dataset filter (`/debug?dataset=…`). */
   initialDataset?: string;
+  /**
+   * When true, adds listing-grid-clamp to hide the incomplete last row.
+   * Pass hasMore from the parent infinite-scroll controller.
+   */
+  clamp?: boolean;
 };
 
 function getSeoTagSlugs(seoTags: unknown): string[] {
@@ -100,6 +106,7 @@ export function FilterableGrid({
   hideHoverChrome = false,
   variant = "listing",
   initialDataset,
+  clamp = false,
 }: Props) {
   const isDebug = variant === "debug";
   const [panelOpen, setPanelOpen] = useState(() => {
@@ -432,7 +439,7 @@ export function FilterableGrid({
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4 xl:grid-cols-5">
+            <ListingGrid clamp={clamp}>
               {gridItems.map((item, index) =>
                 item.type === "single" ? (
                   <div key={item.card.id} className="min-w-0">
@@ -454,7 +461,7 @@ export function FilterableGrid({
                   </div>
                 )
               )}
-            </div>
+            </ListingGrid>
             {isFilterMode && filterHasMore && (
               <div className="mt-8 flex flex-col items-center gap-4">
                 <button

@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
       sort,
     });
     const enriched = await enrichCardsWithDetails(result.cards);
-    return NextResponse.json({
+    const res = NextResponse.json({
       cards: enriched,
       total_count: result.total_count ?? result.cards_count,
       tier_used: result.tier_used,
@@ -36,6 +36,10 @@ export async function GET(req: NextRequest) {
       ranked_batch_size: result.cards_count,
       sort,
     });
+    // Allow CDN/Vercel edge cache to serve listing pages for 60 s;
+    // stale responses acceptable for up to 5 min while revalidating in background.
+    res.headers.set("Cache-Control", "public, s-maxage=60, stale-while-revalidate=300");
+    return res;
   } catch (err) {
     console.error("listing error:", err);
     return NextResponse.json({ cards: [], total_count: 0, error: "failed" }, { status: 500 });

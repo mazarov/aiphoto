@@ -79,7 +79,7 @@ function PromptCardBase({
 
   const photos = card.photoUrls;
   const currentPhoto = photos[photoIndex] || null;
-  const { imageReady, onImageLoad } = useListingCardImageReady({
+  const { imageReady, onImageLoad, imageRef } = useListingCardImageReady({
     resetKey: currentPhoto,
   });
   const promptPreview =
@@ -123,6 +123,7 @@ function PromptCardBase({
       <div className="relative w-full overflow-hidden rounded-2xl bg-zinc-200 aspect-[3/4]">
         {currentPhoto ? (
           <Image
+            ref={imageRef}
             src={currentPhoto}
             alt={title}
             fill

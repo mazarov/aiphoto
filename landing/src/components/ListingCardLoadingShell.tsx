@@ -14,7 +14,7 @@ type Props = {
 export function ListingCardLoadingShell({ hasPrompts = true, photoOnly = false }: Props) {
   return (
     <>
-      <ListingCardPhotoSkeleton overlay fullFrame={photoOnly} />
+      <ListingCardPhotoSkeleton fullFrame={photoOnly} />
       {!photoOnly && <ListingCardChromeSkeleton hasPrompts={hasPrompts} />}
     </>
   );

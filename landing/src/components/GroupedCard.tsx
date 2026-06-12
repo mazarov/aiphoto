@@ -55,7 +55,7 @@ function GroupedCardBase({
   const [expanded, setExpanded] = useState(false);
   const [copyHint, setCopyHint] = useState<"idle" | "success" | "error">("idle");
 
-  const { imageReady, onImageLoad } = useListingCardImageReady({
+  const { imageReady, onImageLoad, imageRef } = useListingCardImageReady({
     resetKey: activeCard.id,
   });
 
@@ -134,6 +134,7 @@ function GroupedCardBase({
         <div className="relative w-full overflow-hidden rounded-2xl bg-zinc-200 aspect-[3/4]">
           {currentPhotoUrl ? (
             <Image
+              ref={imageRef}
               src={currentPhotoUrl}
               alt={title}
               fill

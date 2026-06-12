@@ -96,6 +96,57 @@ p {
     }
   }
 
+  /**
+   * listing-grid-clamp: hide items in the incomplete last row while hasMore=true.
+   * Breakpoints mirror the listing grid column counts (2 / 3 / 4 / 5).
+   * Hidden items remain in DOM (images pre-loaded) and fill in automatically
+   * when the next batch arrives or when clamp is removed (hasMore=false).
+   *
+   * Selectors: `:nth-child(Nn+1)` picks the first cell of the last row.
+   * `:nth-last-child(-n+K)` picks the last K elements.
+   * Together they identify orphan items; `~ *` catches the siblings.
+   */
+
+  /* N=2 (base, <640px): 1 orphan possible */
+  @media (max-width: 639px) {
+    .listing-grid-clamp > *:nth-child(2n+1):last-child {
+      display: none;
+    }
+  }
+
+  /* N=3 (sm, 640–1023px): 1 or 2 orphans possible */
+  @media (min-width: 640px) and (max-width: 1023px) {
+    .listing-grid-clamp > *:nth-child(3n+1):last-child,
+    .listing-grid-clamp > *:nth-child(3n+1):nth-last-child(2),
+    .listing-grid-clamp > *:nth-child(3n+1):nth-last-child(2) ~ * {
+      display: none;
+    }
+  }
+
+  /* N=4 (lg, 1024–1279px): 1, 2, or 3 orphans possible */
+  @media (min-width: 1024px) and (max-width: 1279px) {
+    .listing-grid-clamp > *:nth-child(4n+1):last-child,
+    .listing-grid-clamp > *:nth-child(4n+1):nth-last-child(2),
+    .listing-grid-clamp > *:nth-child(4n+1):nth-last-child(2) ~ *,
+    .listing-grid-clamp > *:nth-child(4n+1):nth-last-child(3),
+    .listing-grid-clamp > *:nth-child(4n+1):nth-last-child(3) ~ * {
+      display: none;
+    }
+  }
+
+  /* N=5 (xl, ≥1280px): 1, 2, 3, or 4 orphans possible */
+  @media (min-width: 1280px) {
+    .listing-grid-clamp > *:nth-child(5n+1):last-child,
+    .listing-grid-clamp > *:nth-child(5n+1):nth-last-child(2),
+    .listing-grid-clamp > *:nth-child(5n+1):nth-last-child(2) ~ *,
+    .listing-grid-clamp > *:nth-child(5n+1):nth-last-child(3),
+    .listing-grid-clamp > *:nth-child(5n+1):nth-last-child(3) ~ *,
+    .listing-grid-clamp > *:nth-child(5n+1):nth-last-child(4),
+    .listing-grid-clamp > *:nth-child(5n+1):nth-last-child(4) ~ * {
+      display: none;
+    }
+  }
+
   .safe-area-pb {
     padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
   }

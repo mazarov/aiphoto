@@ -15,8 +15,11 @@ import { writeListingNavigationContext } from "@/lib/listing-card-navigation-con
 import { SearchEmptyState } from "@/components/SearchEmptyState";
 import { SearchMetrikaTracker } from "@/components/YandexMetrikaRouteTracker";
 import { ListingFotoVPromtBanner } from "@/components/foto-v-promt-promo/ListingFotoVPromtBanner";
+import { ListingGrid } from "@/components/ListingGrid";
+import { ListingGridLoadingSkeleton } from "@/components/ListingGridLoadingSkeleton";
 
-const PAGE_SIZE = 24;
+// Match catalog batch size so both listings feel consistent.
+const PAGE_SIZE = 48;
 
 function cardMatchesFilters(card: PromptCardFull, f: FilterState): boolean {
   const tags = (card.seo_tags || {}) as Record<string, string[]>;
@@ -51,8 +54,6 @@ export function SearchResults({ initialQuery }: Props) {
   const offsetRef = useRef(0);
   const queryRef = useRef(query);
 
-  // Centralized scroll restoration when returning from card modal / client modal.
-  // Replaces previous duplicated inline logic.
   useListingScrollRestoration();
 
   queryRef.current = query;
@@ -124,9 +125,6 @@ export function SearchResults({ initialQuery }: Props) {
     return cards.filter((c) => cardMatchesFilters(c, filters));
   }, [cards, filters, activeCount]);
 
-  // Write navigation context so that when a card is opened from search results
-  // (via the client modal), the left/right arrows have the correct neighbor slugs
-  // in the *current filtered* order. Re-runs on client-side filter changes too.
   useEffect(() => {
     if (displayedCards.length > 0) {
       const slugs = displayedCards.map((c) => c.slug).filter((s): s is string => !!s);
@@ -136,6 +134,7 @@ export function SearchResults({ initialQuery }: Props) {
     }
   }, [displayedCards]);
 
+  // Unified sentinel settings with catalog (600px lookahead).
   useEffect(() => {
     const el = sentinelRef.current;
     if (!el) return;
@@ -145,7 +144,7 @@ export function SearchResults({ initialQuery }: Props) {
           doSearch(queryRef.current, true);
         }
       },
-      { rootMargin: "400px" }
+      { rootMargin: "600px" }
     );
     observer.observe(el);
     return () => observer.disconnect();
@@ -199,7 +198,7 @@ export function SearchResults({ initialQuery }: Props) {
       {displayedCards.length > 0 && (
         <>
         <ListingFotoVPromtBanner />
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4 xl:grid-cols-5">
+        <ListingGrid clamp={hasMore}>
           {displayedCards.map((card, index) => (
             <div key={card.id} className="min-w-0">
               <PromptCard
@@ -209,19 +208,15 @@ export function SearchResults({ initialQuery }: Props) {
               />
             </div>
           ))}
-        </div>
+        </ListingGrid>
         </>
       )}
 
       {/* Autoload sentinel */}
       <div ref={sentinelRef} className="h-px" />
 
-      {/* Loading */}
-      {loading && (
-        <div className="flex justify-center py-12">
-          <span className="block h-6 w-6 animate-spin rounded-full border-2 border-zinc-300 border-t-indigo-500" />
-        </div>
-      )}
+      {/* Loading — skeleton cards matching the grid layout (instead of a centered spinner) */}
+      {loading && <ListingGridLoadingSkeleton photoOnly />}
 
       {/* Filter FAB */}
       {searched && cards.length > 0 && (

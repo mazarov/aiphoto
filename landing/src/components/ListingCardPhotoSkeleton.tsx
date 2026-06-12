@@ -1,20 +1,20 @@
 /**
  * Placeholder only in the **photo** band — stops above the footer/CTA so the semi-transparent
- * gradient never reveals a second “gray rectangle” under the pills (no rect → pill sequence).
+ * gradient never reveals a second "gray rectangle" under the pills (no rect → pill sequence).
  *
- * @param overlay — `true` when stacked above `next/image` (z-[3]); `false` in `ListingGridLoadingSkeleton` (z-[1], chrome stays on top).
+ * The skeleton lives at z-[1], always below the photo (z-[2]). Once the photo is decoded and
+ * painted opaque, it naturally covers the skeleton — a "defense in depth" against any residual
+ * imageReady state bugs (the shimmer plate can never show over an already-loaded photo).
  */
 export function ListingCardPhotoSkeleton({
-  overlay = false,
   /** Catalog/search cards without hover chrome — shimmer covers the full frame. */
   fullFrame = false,
 }: {
-  overlay?: boolean;
   fullFrame?: boolean;
 }) {
   return (
     <div
-      className={`pointer-events-none absolute inset-x-0 top-0 overflow-hidden rounded-t-2xl bg-zinc-300/45 shadow-[inset_0_1px_0_rgba(255,255,255,0.3)] ${fullFrame ? "bottom-0 rounded-2xl" : "[bottom:32%]"} ${overlay ? "z-[3]" : "z-[1]"}`}
+      className={`pointer-events-none absolute inset-x-0 top-0 z-[1] overflow-hidden rounded-t-2xl bg-zinc-300/45 shadow-[inset_0_1px_0_rgba(255,255,255,0.3)] ${fullFrame ? "bottom-0 rounded-2xl" : "[bottom:32%]"}`}
       aria-hidden
     >
       <div

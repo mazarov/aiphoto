@@ -49,8 +49,17 @@ export default function RootLayout({
   children: React.ReactNode;
   modal: React.ReactNode;
 }>) {
+  // Early connection to the Supabase / imgproxy image origin — shaves ~100 ms off
+  // the first card image request (DNS + TLS handshake done before fetch).
+  const supabaseOrigin = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+
   return (
     <html lang="ru" className={inter.className}>
+      <head>
+        {supabaseOrigin && (
+          <link rel="preconnect" href={supabaseOrigin} crossOrigin="anonymous" />
+        )}
+      </head>
       <body className="min-h-screen bg-white text-zinc-900 antialiased">
         <AuthProvider>
             <GenerationProvider>
