@@ -1,12 +1,17 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import Image from "next/image";
 import type { CardPageData } from "@/lib/supabase";
 import { CardModal } from "@/components/CardModal";
 import { CardPageClient } from "@/components/CardPageClient";
 import { CardInteractionsProvider } from "@/context/CardInteractionsContext";
 import { usePromptCardModal } from "@/context/PromptCardModalContext";
 import { getSeoSlugsWithTags, getFirstTagFromSeoTags } from "@/lib/tag-registry";
+import {
+  CARD_IMAGE_LISTING_NEXT_QUALITY,
+  SIZES_CARD_GRID,
+} from "@/lib/card-image-presets";
 
 type LoadedCard = {
   data: CardPageData;
@@ -15,7 +20,7 @@ type LoadedCard = {
 };
 
 export function ClientCardModal() {
-  const { currentSlug, close, goToNeighbor, cardCache, setCardInCache } = usePromptCardModal();
+  const { currentSlug, currentSeed, close, goToNeighbor, cardCache, setCardInCache } = usePromptCardModal();
   const [loaded, setLoaded] = useState<LoadedCard | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -85,14 +90,38 @@ export function ClientCardModal() {
   };
 
   // Match the direct /p/[slug] behavior: photo cards on mobile get full immersive viewport.
-  const immersiveMobile = !!(loaded?.data?.photoUrls?.length);
+  // Switch to immersive immediately if seed already tells us the card has photos —
+  // avoids the white-box flash before data arrives.
+  const hasSeedPhoto = !!(currentSeed?.photoUrl);
+  const immersiveMobile = !!(loaded?.data?.photoUrls?.length || hasSeedPhoto);
 
   return (
     <CardModal onClose={handleClose} immersiveMobile={immersiveMobile}>
       <div className={immersiveMobile ? "h-[100dvh] overflow-y-auto" : "max-h-[85vh] overflow-y-auto"}>
-        {loading && !loaded && (
+        {loading && !loaded && !hasSeedPhoto && (
           <div className="flex min-h-[40vh] items-center justify-center p-8 text-sm text-zinc-500">
             Загрузка…
+          </div>
+        )}
+
+        {loading && !loaded && hasSeedPhoto && (
+          // Dark fullscreen shell using the grid-sized photo — same URL the browser already cached
+          // from the listing, so the image appears instantly with no extra network round-trip.
+          // Shown only on mobile (md:hidden) — desktop falls through to the white modal box.
+          <div className="fixed inset-0 z-[244] md:hidden" aria-hidden>
+            <div className="absolute inset-0 bg-zinc-950" />
+            <div className="absolute inset-0">
+              <Image
+                src={currentSeed!.photoUrl!}
+                alt=""
+                fill
+                sizes={SIZES_CARD_GRID}
+                quality={CARD_IMAGE_LISTING_NEXT_QUALITY}
+                className="object-cover object-center"
+                priority
+                fetchPriority="high"
+              />
+            </div>
           </div>
         )}
 

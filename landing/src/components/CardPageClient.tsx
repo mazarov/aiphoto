@@ -17,6 +17,7 @@ import {
   OVERLAY_BUTTON_UA_RESET,
 } from "@/lib/card-overlay-action-pill";
 import { useCardPhotoFrame } from "@/hooks/useCardPhotoFrame";
+import { useListingCardImageReady } from "@/hooks/useListingCardImageReady";
 import { CARD_OVERLAY_PHOTO_COUNTER_CLASS } from "@/lib/card-overlay-photo-counter";
 import {
   CARD_IMAGE_NEXT_QUALITY,
@@ -179,12 +180,22 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
     setBlurBackdropReady(false);
   }, [currentPhoto]);
 
+  /**
+   * Mobile immersive hero readiness: uses decode() for pixel-perfect timing.
+   * Gates the glass chrome so buttons only appear once the photo is fully painted —
+   * eliminating the "black buttons → transparent" flash.
+   */
+  const { imageReady: heroImageReady, onImageLoad: onHeroImageLoad } = useListingCardImageReady({
+    resetKey: currentPhoto,
+  });
+
   const onHeroFrameLoad = useCallback(
     (e: React.SyntheticEvent<HTMLImageElement>) => {
       onHeroFrameFromHook(e);
       setBlurBackdropReady(true);
+      onHeroImageLoad(e);
     },
-    [onHeroFrameFromHook]
+    [onHeroFrameFromHook, onHeroImageLoad]
   );
 
 
@@ -250,6 +261,15 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
 
   const hasPrompts = data.promptTexts.length > 0;
   const hasPhotos = photos.length > 0;
+
+  /**
+   * Mobile immersive chrome gate: hide all glass UI until the hero photo is fully decoded,
+   * then reveal with a single smooth fade. Mirrors the listing grid's imageReady pattern
+   * (PromptCard.tsx) to eliminate the "black buttons → transparent glass" flash.
+   */
+  const mobileChromeClass = `transition-opacity duration-200 ${
+    heroImageReady ? "opacity-100" : "opacity-0 pointer-events-none invisible"
+  }`;
 
   useEffect(() => {
     if (!hasPrompts) return;
@@ -747,20 +767,20 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                     <button
                       type="button"
                       onClick={prevPhoto}
-                      className={`${OVERLAY_BUTTON_UA_RESET} absolute bottom-[calc(env(safe-area-inset-bottom)+5.875rem)] left-0 top-[calc(env(safe-area-inset-top)+9rem)] z-[58] w-[34%] touch-manipulation`}
+                      className={`${OVERLAY_BUTTON_UA_RESET} absolute bottom-[calc(env(safe-area-inset-bottom)+5.875rem)] left-0 top-[calc(env(safe-area-inset-top)+9rem)] z-[58] w-[34%] touch-manipulation ${mobileChromeClass}`}
                       aria-label="Предыдущее фото"
                     />
                     <button
                       type="button"
                       onClick={nextPhoto}
-                      className={`${OVERLAY_BUTTON_UA_RESET} absolute bottom-[calc(env(safe-area-inset-bottom)+5.875rem)] right-0 top-[calc(env(safe-area-inset-top)+9rem)] z-[58] w-[34%] touch-manipulation`}
+                      className={`${OVERLAY_BUTTON_UA_RESET} absolute bottom-[calc(env(safe-area-inset-bottom)+5.875rem)] right-0 top-[calc(env(safe-area-inset-top)+9rem)] z-[58] w-[34%] touch-manipulation ${mobileChromeClass}`}
                       aria-label="Следующее фото"
                     />
                   </>
                 ) : null}
 
                 {beforePhotoUrl ? (
-                  <div className="pointer-events-auto absolute left-4 top-[calc(env(safe-area-inset-top)+8.25rem)] z-[61] w-[26%] min-w-[52px] max-w-[92px]">
+                  <div className={`pointer-events-auto absolute left-4 top-[calc(env(safe-area-inset-top)+8.25rem)] z-[61] w-[26%] min-w-[52px] max-w-[92px] ${mobileChromeClass}`}>
                     <div
                       className="relative aspect-square overflow-hidden rounded-br-xl bg-zinc-800 shadow-md ring-1 ring-black/35"
                       aria-label="Фото «было»"
@@ -783,7 +803,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                   </div>
                 ) : null}
 
-                <header className="pointer-events-none relative z-[60] shrink-0 px-4 pt-[max(12px,env(safe-area-inset-top))]">
+                <header className={`pointer-events-none relative z-[60] shrink-0 px-4 pt-[max(12px,env(safe-area-inset-top))] ${mobileChromeClass}`}>
                   {photos.length > 1 ? (
                     <div className="pointer-events-none flex gap-1 px-1 pb-2 pt-0" aria-hidden>
                       {photos.map((_, idx) => (
@@ -829,7 +849,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                 </header>
 
                 {groupCards.length > 1 ? (
-                  <aside className="pointer-events-none absolute left-3 top-1/2 z-[73] flex max-h-[min(76dvh,100dvh-8rem)] -translate-y-1/2 flex-col items-start justify-center">
+                  <aside className={`pointer-events-none absolute left-3 top-1/2 z-[73] flex max-h-[min(76dvh,100dvh-8rem)] -translate-y-1/2 flex-col items-start justify-center ${mobileChromeClass}`}>
                     <nav
                       className="pointer-events-auto scrollbar-none flex flex-col gap-2 overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch] py-px"
                       aria-label="Варианты подборки"
@@ -868,7 +888,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                   </aside>
                 ) : null}
 
-                <aside className="pointer-events-none absolute right-3 top-1/2 z-[73] flex max-h-[min(76dvh,100dvh-8rem)] -translate-y-1/2 flex-col items-end justify-center gap-2">
+                <aside className={`pointer-events-none absolute right-3 top-1/2 z-[73] flex max-h-[min(76dvh,100dvh-8rem)] -translate-y-1/2 flex-col items-end justify-center gap-2 ${mobileChromeClass}`}>
                   <div className="pointer-events-auto flex flex-col items-center gap-2">
                     <ReactionButtons
                       cardId={data.id}
@@ -896,7 +916,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                     </button>
                   </div>
                 </aside>
-                <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[80] flex max-h-[min(56dvh,calc(100dvh-env(safe-area-inset-bottom)-env(safe-area-inset-top)-6rem)] flex-col justify-end gap-3 overflow-hidden px-4 pb-[calc(env(safe-area-inset-bottom)+6.125rem)] pt-28">
+                <div className={`pointer-events-none absolute inset-x-0 bottom-0 z-[80] flex max-h-[min(56dvh,calc(100dvh-env(safe-area-inset-bottom)-env(safe-area-inset-top)-6rem)] flex-col justify-end gap-3 overflow-hidden px-4 pb-[calc(env(safe-area-inset-bottom)+6.125rem)] pt-28 ${mobileChromeClass}`}>
                   <div className="pointer-events-auto min-h-0 w-full flex-1 space-y-3 overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch]">
                     {hasPrompts ? (
                       <section aria-labelledby="mobile-prompt-cta-label">
@@ -918,7 +938,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                 </div>
 
                 {/* Низ: только лента / Lexy / копировать — без общей подложки, поверх фото */}
-                <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[99] pb-[max(14px,env(safe-area-inset-bottom))] pt-6 md:hidden">
+                <div className={`pointer-events-none absolute inset-x-0 bottom-0 z-[99] pb-[max(14px,env(safe-area-inset-bottom))] pt-6 md:hidden ${mobileChromeClass}`}>
                   <div className="pointer-events-auto mx-auto flex w-full max-w-lg flex-col gap-2 px-3">
                     {!hasPrompts ? (
                       <div className="grid grid-cols-2 gap-2">

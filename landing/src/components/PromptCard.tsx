@@ -68,7 +68,7 @@ function PromptCardBase({
   priorityLoad = false,
   hideHoverChrome = false,
 }: Props) {
-  const { open } = usePromptCardModal();
+  const { open, prefetchCard } = usePromptCardModal();
   const { reactions, favorites, toggleReaction, toggleFavorite } = useCardInteractions();
   const title = card.title_ru || card.title_en || "Без названия";
   const expandedTitle = splitCardTitle(title);
@@ -152,10 +152,15 @@ function PromptCardBase({
             className="absolute inset-0 z-10"
             aria-label={title}
             prefetch
+            onPointerEnter={() => prefetchCard(card.slug)}
+            onTouchStart={() => prefetchCard(card.slug)}
             onClick={(e) => {
               e.preventDefault();
-              // Open the client-side single-instance modal (Solution B)
-              open(card.slug);
+              open(card.slug, {
+                photoUrl: currentPhoto,
+                photoCount: photos.length,
+                hasPrompts: card.promptTexts.length > 0,
+              });
             }}
           />
         )}

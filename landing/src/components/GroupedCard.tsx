@@ -37,7 +37,7 @@ function GroupedCardBase({
   priorityLoad = false,
   hideHoverChrome = false,
 }: Props) {
-  const { open } = usePromptCardModal();
+  const { open, prefetchCard } = usePromptCardModal();
   const sorted = [...cards].sort((a, b) => a.cardSplitIndex - b.cardSplitIndex);
   const [activeCardIdx, setActiveCardIdx] = useState(0);
   const activeCard = sorted[activeCardIdx];
@@ -161,9 +161,15 @@ function GroupedCardBase({
               className="absolute inset-0 z-10"
               aria-label={title}
               prefetch
+              onPointerEnter={() => prefetchCard(activeSlug)}
+              onTouchStart={() => prefetchCard(activeSlug)}
               onClick={(e) => {
                 e.preventDefault();
-                open(activeSlug);
+                open(activeSlug, {
+                  photoUrl: currentPhotoUrl,
+                  photoCount: photos.length,
+                  hasPrompts: allPrompts.length > 0,
+                });
               }}
             />
           )}
