@@ -10,7 +10,7 @@ import { FilterFAB } from "@/components/FilterFAB";
 import { ListingDesktopFilters } from "@/components/ListingDesktopFilters";
 import { useListingFilters } from "@/hooks/useListingFilters";
 import type { FilterState } from "@/hooks/useListingFilters";
-import { resetListingScroll, useListingScrollRestoration } from "@/lib/scroll-preservation";
+import { resetListingScroll, useListingScrollRestoration, getListingScrollRoot } from "@/lib/scroll-preservation";
 import { writeListingNavigationContext } from "@/lib/listing-card-navigation-context";
 import { SearchEmptyState } from "@/components/SearchEmptyState";
 import { SearchMetrikaTracker } from "@/components/YandexMetrikaRouteTracker";
@@ -77,7 +77,8 @@ export function SearchResults({ initialQuery }: Props) {
     loadingRef.current = true;
     try {
       const res = await fetch(
-        `/api/search?q=${encodeURIComponent(q)}&limit=${PAGE_SIZE}&offset=${newOffset}`
+        `/api/search?q=${encodeURIComponent(q)}&limit=${PAGE_SIZE}&offset=${newOffset}`,
+        { cache: "no-store" }
       );
       const data = await res.json();
       const newCards = (data.cards || []) as PromptCardFull[];
@@ -135,16 +136,21 @@ export function SearchResults({ initialQuery }: Props) {
   }, [displayedCards]);
 
   // Unified sentinel settings with catalog (600px lookahead).
+  // On mobile the scroll container is #listing-scroll-root, not the viewport.
   useEffect(() => {
     const el = sentinelRef.current;
     if (!el) return;
+    const scrollRoot = getListingScrollRoot();
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0]?.isIntersecting && !loadingRef.current && hasMoreRef.current) {
           doSearch(queryRef.current, true);
         }
       },
-      { rootMargin: "600px" }
+      {
+        root: scrollRoot instanceof HTMLElement ? scrollRoot : null,
+        rootMargin: "600px",
+      }
     );
     observer.observe(el);
     return () => observer.disconnect();
@@ -198,7 +204,7 @@ export function SearchResults({ initialQuery }: Props) {
       {displayedCards.length > 0 && (
         <>
         <ListingFotoVPromtBanner />
-        <ListingGrid clamp={hasMore}>
+        <ListingGrid clamp={hasMore && activeCount === 0}>
           {displayedCards.map((card, index) => (
             <div key={card.id} className="min-w-0">
               <PromptCard
