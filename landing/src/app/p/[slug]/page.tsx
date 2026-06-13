@@ -2,7 +2,7 @@ import { cache } from "react";
 import type { Metadata } from "next";
 import nextDynamic from "next/dynamic";
 import { notFound } from "next/navigation";
-import { getCardPageData } from "@/lib/supabase";
+import { getCardPageData, getIndexableImageUrl } from "@/lib/supabase";
 import { getSupabaseUserFromServerCookies } from "@/lib/supabase-route-auth";
 import {
   getFirstTagFromSeoTags,
@@ -106,13 +106,21 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       description: buildDescription(data),
       url: canonical,
       type: "article",
-      images: data.mainPhotoUrl ? [{ url: data.mainPhotoUrl }] : undefined,
+      images: data.photoMeta[0]
+        ? [{ url: getIndexableImageUrl(data.photoMeta[0].bucket, data.photoMeta[0].path) }]
+        : data.mainPhotoUrl
+          ? [{ url: data.mainPhotoUrl }]
+          : undefined,
     },
     twitter: {
       card: "summary_large_image",
       title: buildTitle(title),
       description: buildDescription(data),
-      images: data.mainPhotoUrl ? [data.mainPhotoUrl] : undefined,
+      images: data.photoMeta[0]
+        ? [getIndexableImageUrl(data.photoMeta[0].bucket, data.photoMeta[0].path)]
+        : data.mainPhotoUrl
+          ? [data.mainPhotoUrl]
+          : undefined,
     },
     robots:
       !data.isPublished
@@ -134,6 +142,16 @@ export default async function CardPage({ params }: Props) {
   const tagEntries = getSeoSlugsWithTags(data.seo_tags);
   const breadcrumbTag = getFirstTagFromSeoTags(data.seo_tags);
 
+  const imageObjects = data.photoMeta
+    .map((m, i) => ({
+      "@type": "ImageObject",
+      contentUrl: getIndexableImageUrl(m.bucket, m.path),
+      name: title,
+      caption: `${title} — промпт для фото в нейросети`,
+      representativeOfPage: i === 0,
+      ...(m.width && m.height ? { width: m.width, height: m.height } : {}),
+    }));
+
   const creativeWorkLd = {
     "@context": "https://schema.org",
     "@type": "CreativeWork",
@@ -142,7 +160,7 @@ export default async function CardPage({ params }: Props) {
       data.promptTexts[0]?.slice(0, 150) ??
       data.title_ru ??
       "Промт для фото ИИ",
-    image: data.mainPhotoUrl ?? undefined,
+    image: imageObjects.length > 0 ? imageObjects : (data.mainPhotoUrl ?? undefined),
     url: `${BASE_URL}/p/${data.slug}`,
     datePublished: data.source_date ?? undefined,
     keywords: tagEntries.map((t) => t.label).join(", "),

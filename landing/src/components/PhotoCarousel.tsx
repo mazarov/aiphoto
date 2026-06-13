@@ -8,6 +8,7 @@ import {
   SIZES_CARD_GRID,
   SIZES_CARD_HERO_VIEWPORT,
 } from "@/lib/card-image-presets";
+import { buildBeforeAlt, buildThumbAlt } from "@/lib/image-alt";
 
 type Props = {
   photoUrls: string[];
@@ -108,7 +109,7 @@ export function PhotoCarousel({
             <div className="aspect-square relative">
               <Image
                 src={beforeUrl}
-                alt="before"
+                alt={buildBeforeAlt(alt)}
                 fill
                 className="object-cover"
                 sizes={SIZES_CARD_GRID}
@@ -135,7 +136,7 @@ export function PhotoCarousel({
             >
               <Image
                 src={url}
-                alt={`thumb ${i + 1}`}
+                alt={buildThumbAlt(alt, i)}
                 width={44}
                 height={44}
                 className="object-cover w-full h-full"

@@ -22,6 +22,7 @@ import { copyTextUniversal } from "@/lib/copy-text-to-clipboard";
 import { LexyGptGenerateButton } from "./LexyGptGenerateButton";
 import { ListingCardLoadingShell } from "./ListingCardLoadingShell";
 import { useListingCardImageReady } from "@/hooks/useListingCardImageReady";
+import { buildCardImageAlt, buildBeforeAlt } from "@/lib/image-alt";
 
 type Props = {
   cards: PromptCardFull[];
@@ -136,7 +137,7 @@ function GroupedCardBase({
             <Image
               ref={imageRef}
               src={currentPhotoUrl}
-              alt={title}
+              alt={buildCardImageAlt(title)}
               fill
               sizes={SIZES_CARD_GRID}
               quality={CARD_IMAGE_LISTING_NEXT_QUALITY}
@@ -188,7 +189,7 @@ function GroupedCardBase({
                   <div className="aspect-square relative bg-zinc-800 rounded-br-xl overflow-hidden shadow-2xl ring-1 ring-black/10">
                     <Image
                       src={(activeCard.beforePhotoUrl || groupBeforeUrl)!}
-                      alt="before"
+                      alt={buildBeforeAlt(title)}
                       fill
                       className="object-cover"
                       sizes={SIZES_CARD_GRID}

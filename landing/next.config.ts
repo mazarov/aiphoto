@@ -51,6 +51,16 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  async rewrites() {
+    const supa = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/$/, "");
+    if (!supa) return [];
+    return [
+      {
+        source: "/img/:bucket/:path*",
+        destination: `${supa}/storage/v1/object/public/:bucket/:path*`,
+      },
+    ];
+  },
   images: {
     qualities: [45, 60, 75],
     remotePatterns: [

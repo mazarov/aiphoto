@@ -24,6 +24,14 @@ export function getStoragePublicUrl(bucket: string, path: string): string {
   return `${supabaseUrl}/storage/v1/object/public/${bucket}/${path}`;
 }
 
+const SITE_URL =
+  process.env.NEXT_PUBLIC_SITE_URL || "https://promptshot.ru";
+
+/** Индексируемый URL картинки на основном домене (для sitemap/ImageObject/OG). */
+export function getIndexableImageUrl(bucket: string, objectPath: string): string {
+  return `${SITE_URL}/img/${bucket}/${encodeURI(objectPath)}`;
+}
+
 /** Промо-фото карточек: опционально `render/image` (см. NEXT_PUBLIC_SUPABASE_STORAGE_IMAGE_TRANSFORM). */
 export function getStorageCardMediaUrl(
   bucket: string,
@@ -755,6 +763,57 @@ export async function getPublishedCardsForSitemap(): Promise<
         slug: (r as { slug: string }).slug,
         updated_at: (r as { updated_at: string }).updated_at,
       }));
+  } catch {
+    return [];
+  }
+}
+
+export type CardSitemapImageEntry = {
+  slug: string;
+  updated_at: string;
+  title: string;
+  images: { url: string; caption: string }[];
+};
+
+/** Fetches published cards with their media URLs for the image sitemap. */
+export async function getPublishedCardImagesForSitemap(): Promise<CardSitemapImageEntry[]> {
+  try {
+    const supabase = createSupabaseServer();
+    const { data } = await supabase
+      .from("prompt_cards")
+      .select(
+        "slug,updated_at,card_split_index,title_ru,title_en,prompt_card_media(storage_bucket,storage_path,is_primary)"
+      )
+      .eq("is_published", true)
+      .not("slug", "is", null);
+
+    if (!data) return [];
+
+    return (data as Array<{
+      slug: string;
+      updated_at: string;
+      card_split_index: number;
+      title_ru: string | null;
+      title_en: string | null;
+      prompt_card_media: Array<{ storage_bucket: string; storage_path: string; is_primary: boolean }>;
+    }>)
+      .filter((r) => {
+        const splitIdx = r.card_split_index ?? 0;
+        return splitIdx === 0 && !SITEMAP_EXCLUDED_CARD_SLUGS.has(r.slug);
+      })
+      .map((r) => {
+        const title = r.title_ru || r.title_en || "Промпт для фото";
+        const media = (r.prompt_card_media || []);
+        const sorted = [...media].sort((a, b) =>
+          a.is_primary === b.is_primary ? 0 : a.is_primary ? -1 : 1
+        );
+        const images = sorted.map((m) => ({
+          url: getIndexableImageUrl(m.storage_bucket, m.storage_path),
+          caption: `${title} — промпт для фото в нейросети`,
+        }));
+        return { slug: r.slug, updated_at: r.updated_at, title, images };
+      })
+      .filter((r) => r.images.length > 0);
   } catch {
     return [];
   }

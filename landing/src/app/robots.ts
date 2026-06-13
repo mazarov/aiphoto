@@ -11,6 +11,6 @@ export default function robots(): MetadataRoute.Robots {
       allow: "/",
       disallow: ["/debug", "/debug/"],
     },
-    sitemap: `${BASE_URL}/sitemap.xml`,
+    sitemap: [`${BASE_URL}/sitemap.xml`, `${BASE_URL}/image-sitemap.xml`],
   };
 }

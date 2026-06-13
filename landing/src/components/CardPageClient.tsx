@@ -25,6 +25,7 @@ import {
   SIZES_CARD_HERO,
 } from "@/lib/card-image-presets";
 import { copyTextSyncFallback, copyTextUniversal } from "@/lib/copy-text-to-clipboard";
+import { buildCardImageAlt, buildBeforeAlt } from "@/lib/image-alt";
 import {
   resolveListingNavNeighbors,
   type ListingCardNavNeighbors,
@@ -567,7 +568,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                 >
                   <Image
                     src={currentPhoto}
-                    alt={title}
+                    alt={buildCardImageAlt(title, [], photoIndex)}
                     fill
                     sizes={SIZES_CARD_HERO}
                     quality={CARD_IMAGE_NEXT_QUALITY}
@@ -604,7 +605,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                       <div className="aspect-square relative bg-zinc-800 rounded-br-xl overflow-hidden shadow-lg ring-1 ring-black/10">
                         <Image
                           src={beforePhotoUrl}
-                          alt="before"
+                          alt={buildBeforeAlt(title)}
                           fill
                           className="object-cover"
                           sizes={SIZES_CARD_GRID}
@@ -744,7 +745,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                 <div className="absolute inset-0 z-[2]">
                   <Image
                     src={currentPhoto}
-                    alt={title}
+                    alt={buildCardImageAlt(title, [], photoIndex)}
                     fill
                     sizes="100vw"
                     quality={CARD_IMAGE_NEXT_QUALITY}
