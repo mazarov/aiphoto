@@ -135,7 +135,6 @@ const SEO: Record<string, SeoContent> = {
         caption: "Промт на день рождения девушке — торт, свечи и праздничный кадр.",
         label: "День рождения",
         cardSlug: "devushka-v-zolotom-vechernem-plate-s-tortom-na-prazdnike-pri-vspyshke-fotokamery-c2c9b",
-        titleIncludes: "торт",
       },
       {
         alt: "Промт девушка с машиной",
