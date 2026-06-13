@@ -128,7 +128,7 @@ const SEO: Record<string, SeoContent> = {
         caption:
           "Готовый промт для ИИ-фотосессии девушки — скопируй текст и создай кадр в Nano Banana.",
         label: "Фотосессия",
-        titleIncludes: "студий",
+        cardSlug: "studiynye-foto-so-vspyshkoy-1-8a7a9",
       },
       {
         alt: "Промт на день рождения девушке",
@@ -147,7 +147,7 @@ const SEO: Record<string, SeoContent> = {
         alt: "Промт для портрета девушки",
         caption: "Промт для портрета девушки — студийный свет и детализация лица.",
         label: "Портрет",
-        titleIncludes: "портрет",
+        cardSlug: "portretnye-foto-s-mokrym-effektom-1-598eb",
       },
     ],
   },
