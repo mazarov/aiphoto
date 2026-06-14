@@ -53,6 +53,14 @@ async function resolveSlugRedirect(slug: string): Promise<string | null> {
 }
 
 export async function middleware(request: NextRequest) {
+  // 301: www.promptshot.ru → promptshot.ru (Cloudflare is DNS-only, so handled here)
+  const host = request.headers.get("host") ?? "";
+  if (host.startsWith("www.")) {
+    const url = request.nextUrl.clone();
+    url.host = host.slice(4);
+    return NextResponse.redirect(url, { status: 301 });
+  }
+
   if (isApiRequest(request)) {
     if (request.method === "OPTIONS") {
       return applyCorsHeaders(request, new NextResponse(null, { status: 204 }));
