@@ -54,6 +54,13 @@ export const SOURCE_PROFILES: SourceProfile[] = [
     groupingStrategy: "self-contained-split",
   },
   {
+    slugPrefix: "Lexy",
+    displayName: "Lexy | Промты • ИИ • Новости",
+    promptContainerSelector: "blockquote",
+    minPromptLength: 80,
+    groupingStrategy: "self-contained-split",
+  },
+  {
     slugPrefix: "bananogenpromt",
     displayName: "БананоГен Промты / Новости",
     promptContainerSelector: "blockquote, pre",

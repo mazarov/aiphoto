@@ -1,12 +1,73 @@
 # Дедубликация промтов: отдельная спецификация
 
-**Дата:** 10.03.2026  
-**Проект:** aiphoto  
-**Статус:** draft  
-**Связанные документы:**  
-- `10-03-telegram-prompt-collector-tz.md`  
-- `10-03-prompt-pinterest-web-tz.md`  
+**Дата:** 10.03.2026
+**Обновлено:** 14.06.2026
+**Проект:** aiphoto
+**Статус:** частично реализовано (Layer A image-dedup внедрён)
+**Связанные документы:**
+- `10-03-telegram-prompt-collector-tz.md`
+- `10-03-prompt-pinterest-web-tz.md`
 - `07-03-prompt-import-pipeline.md`
+- `14-06-image-dedup-implementation.md`
+
+---
+
+## Статус реализации
+
+| Layer | Описание | Статус |
+|---|---|---|
+| **Source dedup** | По `source_message_id` внутри supplier | ✅ реализован в ингесте |
+| **Image exact** | SHA-256 первичного фото | ✅ реализован (`sql/162`, `image-hash.ts`) |
+| **Image near** | pHash, порог Hamming ≤ 6 | ✅ реализован (`sql/162`, `image-hash.ts`) |
+| **Text exact** | Нормализация + hash prompt_text_ru | ⏳ не реализован |
+| **Text near** | n-gram / token set ratio | ⏳ не реализован |
+| **Semantic** | Embedding cosine similarity | ⏳ не реализован |
+
+### Реализованная схема (image dedup)
+
+**Колонки в `prompt_card_media`** (миграция `sql/162_prompt_card_image_dedup.sql`):
+- `image_sha256 text` — SHA-256 байт файла; индекс.
+- `image_phash text` — 64-битный перцептивный хеш (16 hex-символов); индекс.
+
+**Колонки в `prompt_cards`** (миграция `sql/162_prompt_card_image_dedup.sql`):
+- `dedup_status text` — `'unique'` (default) | `'duplicate'`.
+- `canonical_card_id uuid` — ссылка на canonical-карточку для дублей.
+- `dedup_reason text` — причина (`'image_match_on_ingest'`, `'image_match(phash<=6)'`).
+- `dedup_checked_at timestamptz` — время пометки.
+
+**Алгоритм pHash:**
+resize 32×32 grayscale → DCT-II → 8×8 low-freq блок → median threshold → 64 бита → 16 hex.
+Порог Hamming: `6` (из 64 бит). Ловит ресайз, пережатие, мелкие вотермарки.
+
+**Библиотека:** `src/lib/image-hash.ts` — `computeSha256`, `computePhash`, `hammingDistanceHex`.
+
+### Backfill существующих карточек
+
+```bash
+cd aiphoto
+# 1. dry-run: вычислить хеши и найти дубли (ничего не меняет в prompt_cards)
+npx tsx src/dedupe-prompt-cards.ts --dry-run --published-only
+
+# 2. подобрать порог при необходимости
+npx tsx src/dedupe-prompt-cards.ts --dry-run --threshold 4
+
+# 3. применить
+npx tsx src/dedupe-prompt-cards.ts --apply --published-only
+```
+
+Флаги: `--dry-run`, `--apply`, `--threshold N` (default 6), `--canonical-by oldest|views`, `--published-only`, `--no-hash-write`.
+
+### Интеграция в ингест
+
+В `ingest-telegram-export-to-supabase.ts`:
+- Хеши вычисляются из буфера при `uploadMedia` и сохраняются в `prompt_card_media`.
+- Перед ингестом загружаются существующие хеши (`fetchExistingImageHashes`).
+- При совпадении primary-фото карточка получает `dedup_status='duplicate'`, `is_published=false`.
+- Счётчик `imageDuplicates` в итоговом JSON.
+
+### Лендинг
+
+Дубли исключены через `is_published=false` — все листинговые запросы фильтруют `is_published=true`.
 
 ---
 

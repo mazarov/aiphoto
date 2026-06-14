@@ -20,7 +20,10 @@
     "backfill:media-dimensions": "tsx src/backfill-prompt-card-media-dimensions.ts",
     "backfill:media-dimensions:dry": "tsx src/backfill-prompt-card-media-dimensions.ts --dry-run",
     "backfill:ugc-from-generations": "cd landing && npx tsx scripts/backfill-ugc-from-generations.ts",
-    "backfill:ugc-from-generations:dry": "cd landing && npx tsx scripts/backfill-ugc-from-generations.ts --dry-run"
+    "backfill:ugc-from-generations:dry": "cd landing && npx tsx scripts/backfill-ugc-from-generations.ts --dry-run",
+    "dedupe:cards": "tsx src/dedupe-prompt-cards.ts",
+    "dedupe:cards:dry": "tsx src/dedupe-prompt-cards.ts --dry-run",
+    "dedupe:list-urls": "tsx src/list-duplicate-urls.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.48.0",
@@ -29,6 +32,7 @@
     "dotenv": "^16.4.5",
     "express": "^4.21.2",
     "image-size": "^1.2.1",
+    "sharp": "^0.33.5",
     "telegraf": "^4.16.3",
     "xlsx": "^0.18.5"
   },

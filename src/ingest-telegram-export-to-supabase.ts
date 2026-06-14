@@ -9,6 +9,7 @@ import {
   type MediaItem,
 } from "./lib/prompt-export-parser";
 import { enrichCardWithRetry, type EnrichResult } from "./lib/enrich-card";
+import { computeSha256, computePhash, hammingDistanceHex } from "./lib/image-hash";
 
 interface Args {
   datasetSlug: string;
@@ -19,6 +20,14 @@ interface Args {
   messageId?: number;
   skipLlm: boolean;
   concurrency: number;
+}
+
+const IMAGE_DEDUP_THRESHOLD = 6;
+
+interface ExistingImageHash {
+  cardId: string;
+  sha256: string | null;
+  phash: string | null;
 }
 
 const CYR_MAP: Record<string, string> = {
@@ -40,6 +49,7 @@ function translitSlug(text: string): string {
 // New datasets follow format: {SUPPLIER_KEY}_{Source}_{YYYY-MM-DD}
 const SUPPLIER_LEGACY_MAP: Record<string, string> = {
   'lexy_15.02.26': 'LEXYGPT',
+  'Lexy_ChatExport_03-14:06-07_2026': 'LEXYGPT',
 };
 
 function parseSupplierKey(datasetSlug: string): string {
@@ -182,6 +192,37 @@ async function fetchExistingSourceMessageIds(
   return ids;
 }
 
+async function fetchExistingImageHashes(
+  supabase: ReturnType<typeof createClient>,
+): Promise<ExistingImageHash[]> {
+  const pageSize = 1000;
+  const result: ExistingImageHash[] = [];
+  let from = 0;
+  while (true) {
+    const { data, error } = await supabase
+      .from("prompt_card_media")
+      .select("card_id, image_sha256, image_phash")
+      .eq("is_primary", true)
+      .eq("media_type", "photo")
+      .eq("prompt_cards.dedup_status", "unique")
+      .not("image_sha256", "is", null)
+      .order("id", { ascending: true })
+      .range(from, from + pageSize - 1);
+    if (error) throw new Error(`Failed load existing image hashes: ${error.message}`);
+    if (!data || data.length === 0) break;
+    for (const row of data as unknown as Array<{ card_id: string; image_sha256: string | null; image_phash: string | null }>) {
+      result.push({
+        cardId: row.card_id,
+        sha256: row.image_sha256 ?? null,
+        phash: row.image_phash ?? null,
+      });
+    }
+    if (data.length < pageSize) break;
+    from += pageSize;
+  }
+  return result;
+}
+
 function toIsoFromTelegramDate(raw: string): string {
   // Example: 29.01.2026 16:15:23 UTC+03:00
   const m = raw.match(/^(\d{2})\.(\d{2})\.(\d{4}) (\d{2}):(\d{2}):(\d{2}) UTC([+-]\d{2}):(\d{2})$/);
@@ -282,6 +323,8 @@ async function uploadMedia(
       storagePath: objectPath,
       mimeType,
       fileSizeBytes: 0,
+      imageSha256: null as string | null,
+      imagePhash: null as string | null,
     };
   }
 
@@ -289,6 +332,10 @@ async function uploadMedia(
   if (!file) {
     return null;
   }
+
+  // compute hashes before upload (buffer is already in memory)
+  const imageSha256 = media.mediaType === "photo" ? computeSha256(file) : null;
+  const imagePhash = media.mediaType === "photo" ? await computePhash(file) : null;
 
   for (let attempt = 1; attempt <= UPLOAD_RETRIES; attempt++) {
     try {
@@ -306,6 +353,8 @@ async function uploadMedia(
         storagePath: objectPath,
         mimeType,
         fileSizeBytes: file.byteLength,
+        imageSha256,
+        imagePhash,
       };
     } catch {
       if (attempt === UPLOAD_RETRIES) return null;
@@ -322,11 +371,12 @@ async function ingestCard(
   runId: string,
   dryRun: boolean,
   enrichment: EnrichResult | null = null,
+  existingHashes: ExistingImageHash[] = [],
 ) {
   const sourcePublishedIso = toIsoFromTelegramDate(card.sourcePublishedAt);
   const sourceGroupKey = `${card.datasetSlug}:message${card.sourceMessageId}`;
 
-  if (dryRun) return { cardId: "dry-run-card-id", mediaRows: [], variantRows: [] as Array<{ id: string; variant_index: number }> };
+  if (dryRun) return { cardId: "dry-run-card-id", mediaRows: [], variantRows: [] as Array<{ id: string; variant_index: number }>, isImageDuplicate: false };
 
   const { data: sourceGroup, error: sourceGroupErr } = await supabase
     .from("source_message_groups")
@@ -405,9 +455,19 @@ async function ingestCard(
   await supabase.from("prompt_card_media").delete().eq("card_id", promptCard.id);
 
   const mediaRows: Array<{ id: string; media_index: number }> = [];
+  let primarySha256: string | null = null;
+  let primaryPhash: string | null = null;
+
   for (const media of card.media) {
     const uploaded = await uploadMedia(supabase, card, media, false);
     if (!uploaded) continue;
+
+    // capture hashes from primary image for dedup check
+    if (media.isPrimary && media.mediaType === "photo") {
+      primarySha256 = uploaded.imageSha256 ?? null;
+      primaryPhash = uploaded.imagePhash ?? null;
+    }
+
     const { data: mediaRow, error: mediaErr } = await supabase
       .from("prompt_card_media")
       .insert({
@@ -421,11 +481,36 @@ async function ingestCard(
         is_primary: media.isPrimary,
         mime_type: uploaded.mimeType,
         file_size_bytes: uploaded.fileSizeBytes,
+        image_sha256: uploaded.imageSha256 ?? null,
+        image_phash: uploaded.imagePhash ?? null,
       })
       .select("id, media_index")
       .single();
     if (mediaErr || !mediaRow) continue;
     mediaRows.push(mediaRow);
+  }
+  // "before" media is managed manually by admin in prompt_card_before_media.
+  // Ingestion must not auto-fill or overwrite it.
+
+  // Image-based dedup: check primary photo against existing canonical cards
+  let isImageDuplicate = false;
+  if (primarySha256 || primaryPhash) {
+    const canonicalId = findCanonicalByImage(existingHashes, primarySha256, primaryPhash);
+    if (canonicalId) {
+      isImageDuplicate = true;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase.from("prompt_cards") as any).update({
+        dedup_status: "duplicate",
+        canonical_card_id: canonicalId,
+        dedup_reason: "image_match_on_ingest",
+        is_published: false,
+        dedup_checked_at: new Date().toISOString(),
+      }).eq("id", (promptCard as any).id);
+    } else {
+      // Register this card's hashes so duplicates within the same run are caught too
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      existingHashes.push({ cardId: (promptCard as any).id, sha256: primarySha256, phash: primaryPhash });
+    }
   }
   // "before" media is managed manually by admin in prompt_card_before_media.
   // Ingestion must not auto-fill or overwrite it.
@@ -476,7 +561,25 @@ async function ingestCard(
     }
   }
 
-  return { cardId: promptCard.id, mediaRows, variantRows };
+  return { cardId: promptCard.id, mediaRows, variantRows, isImageDuplicate };
+}
+
+function findCanonicalByImage(
+  existing: ExistingImageHash[],
+  sha256: string | null,
+  phash: string | null,
+): string | null {
+  if (sha256) {
+    const exact = existing.find((e) => e.sha256 === sha256);
+    if (exact) return exact.cardId;
+  }
+  if (phash) {
+    const near = existing.find(
+      (e) => hammingDistanceHex(e.phash, phash) <= IMAGE_DEDUP_THRESHOLD,
+    );
+    if (near) return near.cardId;
+  }
+  return null;
 }
 
 async function main() {
@@ -543,21 +646,27 @@ async function main() {
       const firstRuPrompt = card.variants.find((v) => v.promptTextRu)?.promptTextRu;
       if (!firstRuPrompt) return;
 
-      const result = await enrichCardWithRetry({
-        titleRu: card.titleNormalized,
-        promptTextRu: firstRuPrompt,
-        promptTextEn: card.variants.find((v) => v.promptTextEn)?.promptTextEn ?? null,
-      });
+      try {
+        const result = await enrichCardWithRetry({
+          titleRu: card.titleNormalized,
+          promptTextRu: firstRuPrompt,
+          promptTextEn: card.variants.find((v) => v.promptTextEn)?.promptTextEn ?? null,
+        });
 
-      if (result) {
-        enrichmentMap.set(card.sourceMessageId, result);
-        enriched++;
-        if (enriched <= 3 || enriched % 20 === 0) {
-          console.log(`  ✓ [${enriched}] ${result.titleRu}`);
+        if (result) {
+          enrichmentMap.set(card.sourceMessageId, result);
+          enriched++;
+          if (enriched <= 3 || enriched % 20 === 0) {
+            console.log(`  ✓ [${enriched}] ${result.titleRu}`);
+          }
+        } else {
+          enrichFailed++;
+          console.log(`  ✗ LLM failed for msg ${card.sourceMessageId}, will use parser title`);
         }
-      } else {
+      } catch (err) {
         enrichFailed++;
-        console.log(`  ✗ LLM failed for msg ${card.sourceMessageId}, will use parser title`);
+        const msg = err instanceof Error ? err.message : String(err);
+        console.log(`  ✗ LLM error for msg ${card.sourceMessageId}: ${msg.slice(0, 120)}`);
       }
     };
 
@@ -605,17 +714,24 @@ async function main() {
   const dataset = await upsertDataset(supabase, args.datasetSlug, channelTitle, args.dryRun);
   const run = await createRun(supabase, dataset.id, parsed.htmlFiles, cardsToIngest.length, args.dryRun);
 
+  // Load existing image hashes once for image-based dedup during this ingest run
+  console.log(`[image-dedup] Loading existing image hashes...`);
+  const existingHashes = await fetchExistingImageHashes(supabase);
+  console.log(`[image-dedup] Loaded ${existingHashes.length} existing hashes`);
+
   let success = 0;
   let failed = 0;
   let mediaSaved = 0;
+  let imageDuplicates = 0;
   const errors: string[] = [];
 
   for (const card of cardsToIngest) {
     try {
       const enrichment = enrichmentMap.get(card.sourceMessageId) ?? null;
-      const result = await ingestCard(supabase, card, dataset.id, run.id, args.dryRun, enrichment);
+      const result = await ingestCard(supabase, card, dataset.id, run.id, args.dryRun, enrichment, existingHashes);
       success += 1;
       mediaSaved += result.mediaRows.length;
+      if (result.isImageDuplicate) imageDuplicates += 1;
     } catch (error) {
       failed += 1;
       errors.push(`${card.sourceMessageId}: ${(error as Error).message}`);
@@ -652,6 +768,7 @@ async function main() {
         dryRun: args.dryRun,
         cardsTotal: parsed.cards.length,
         skippedDuplicates,
+        imageDuplicates,
         cardsSelected: cardsToIngest.length,
         enriched: enrichmentMap.size,
         parsedSuccess: success,

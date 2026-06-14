@@ -11,6 +11,10 @@ alwaysApply: false
 Telegram-экспорт → Parse → LLM Enrich (titles ru/en/de + prompt en/de) → Инжест в БД (с dedup) → LLM SEO-теги → Публикация
 ```
 
+Встроенный dedup при ингесте:
+1. **Source dedup** — по `source_message_id` внутри supplier (существующее поведение).
+2. **Image dedup** — по SHA-256 + pHash primary-фото (миграция 162, добавлено 14.06.2026).
+
 ## Именование датасетов
 
 Формат: `{SUPPLIER_KEY}_{Source}_{YYYY-MM-DD}`
@@ -60,6 +64,7 @@ npx tsx src/ingest-telegram-export-to-supabase.ts \
 3. Сохранение полной карточки в БД (titles + prompt translations)
 
 - **Автоматический dedup** — скрипт определяет supplier key из slug, находит ВСЕ датасеты этого supplier, проверяет `source_message_id` по ним. Дубли пропускаются автоматически.
+- **Image dedup** — для каждой карточки вычисляется pHash + SHA-256 primary-фото; при совпадении с уже существующей карточкой новая получает `dedup_status='duplicate'`, `is_published=false`. Счётчик `imageDuplicates` в итоговом JSON.
 - `--offset` — опционально, для пагинации по новым карточкам (dedup уже отфильтровал старые)
 - `--limit` — сколько новых загрузить за раз
 - `--dry-run` — сначала проверить без записи в БД
@@ -164,6 +169,7 @@ npx tsx src/analyze-source.ts <slug>
 # 2. Dry-run
 npx tsx src/ingest-telegram-export-to-supabase.ts --dataset <slug> --dry-run
 # 3. Инжест + LLM-обогащение (titles ru/en/de + prompt en/de — один LLM-вызов на карточку)
+#    Включает image dedup: sha256 + phash, дубли → is_published=false автоматически
 npx tsx src/ingest-telegram-export-to-supabase.ts --dataset <slug>
 # 4. LLM SEO-теги (на DO сервере если из РФ!)
 npx tsx src/fill-seo-tags.ts --dataset <slug>
@@ -171,6 +177,24 @@ npx tsx src/fill-seo-tags.ts --dataset <slug>
 # 6. Публикация (SQL)
 # 7. Проверить на лендинге
 ```
+
+## Разовый backfill image-dedup (существующие карточки)
+
+Запускать после применения миграции `sql/162_prompt_card_image_dedup.sql` в Supabase.
+
+```bash
+cd aiphoto
+# 1. Dry-run: вычислить хеши, найти группы дублей (не меняет is_published)
+npx tsx src/dedupe-prompt-cards.ts --dry-run --published-only
+
+# 2. При необходимости подобрать порог (default 6; меньше = строже)
+npx tsx src/dedupe-prompt-cards.ts --dry-run --threshold 4
+
+# 3. Применить: canonical остаётся, дубли → is_published=false
+npx tsx src/dedupe-prompt-cards.ts --apply --published-only
+```
+
+Флаги: `--dry-run` | `--apply`, `--threshold N` (default 6), `--canonical-by oldest|views`, `--published-only`, `--no-hash-write`.
 
 Шаг перевода `translate-en-prompts.ts` больше не нужен — переводы (en/de) создаются во время инжеста.
 Скрипт `fix-prompt-marker-titles.ts` не нужен для новых карточек — SEO titles генерируются при инжесте.

@@ -126,7 +126,14 @@ export async function enrichCardWithRetry(
       await sleep(delay);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      if (attempt < maxRetries - 1 && (msg.includes("429") || msg.includes("500") || msg.includes("503"))) {
+      const retryable =
+        msg.includes("429") ||
+        msg.includes("500") ||
+        msg.includes("503") ||
+        msg.includes("timeout") ||
+        msg.includes("TimeoutError") ||
+        err instanceof DOMException;
+      if (attempt < maxRetries - 1 && retryable) {
         const delay = 2000 * Math.pow(2, attempt) + Math.random() * 1000;
         await sleep(delay);
       } else {

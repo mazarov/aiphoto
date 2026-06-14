@@ -1,6 +1,6 @@
 # 03 — Пайплайн: парсинг → загрузка → публикация
 
-> Последнее обновление: 2026-03-23
+> Последнее обновление: 2026-06-14
 
 ## Обзор
 
@@ -114,7 +114,7 @@ npx tsx src/ingest-telegram-export-to-supabase.ts --dataset <slug> --message-id 
 | `--existing-only` | flag | Только re-ingest существующих |
 | `--message-id` | number | Одно сообщение |
 
-### Дедупликация (Supplier-Aware)
+### Дедупликация (Supplier-Aware + Image)
 
 Один канал может иметь несколько экспортов (разные даты). Дедупликация работает по `supplier key`:
 
@@ -125,10 +125,24 @@ ii_photolab_ChatExport_2026-03-13  ─┤ supplier = "ii_photolab"
                                     └→ общий пул source_message_id
 ```
 
+**Layer 1 — Source dedup (по message_id):**
 1. `parseSupplierKey(datasetSlug)` → извлекает ключ поставщика
 2. `findSupplierDatasetSlugs()` → все датасеты этого поставщика
 3. `fetchExistingSourceMessageIds()` → уже загруженные message_id
 4. Карточки с существующими message_id пропускаются
+
+**Layer 2 — Image dedup (SHA-256 + pHash):**
+1. При `uploadMedia` вычисляется `sha256` + `phash` из буфера primary-фото
+2. Хеши сохраняются в `prompt_card_media.image_sha256` / `image_phash`
+3. Перед ингестом загружаются существующие хеши (once per run)
+4. При совпадении SHA-256 или pHash (Hamming ≤ 6/64) → `dedup_status='duplicate'`, `is_published=false`
+5. Счётчик `imageDuplicates` в итоговом JSON
+
+**Backfill существующих карточек** (`src/dedupe-prompt-cards.ts`):
+```bash
+npx tsx src/dedupe-prompt-cards.ts --dry-run --published-only
+npx tsx src/dedupe-prompt-cards.ts --apply --published-only
+```
 
 ### Таблицы БД (запись)
 
@@ -370,7 +384,8 @@ node fill-seo-tags-standalone.mjs --dataset <slug>
 ```
 src/
 ├── analyze-source.ts                       ← CLI: анализ нового источника
-├── ingest-telegram-export-to-supabase.ts   ← CLI: парсинг + загрузка в БД
+├── ingest-telegram-export-to-supabase.ts   ← CLI: парсинг + загрузка в БД (+ image dedup)
+├── dedupe-prompt-cards.ts                  ← CLI: backfill image-dedup по существующим карточкам
 ├── translate-en-prompts.ts                 ← CLI: перевод EN→RU
 ├── fill-seo-tags.ts                        ← CLI: SEO-тегирование
 ├── fix-template-titles.ts                  ← CLI: замена шаблонных тайтлов
@@ -379,6 +394,7 @@ src/
 └── lib/
     ├── source-profiles.ts                  ← Профили источников
     ├── prompt-export-parser.ts             ← Парсер HTML
+    ├── image-hash.ts                       ← SHA-256, pHash, Hamming (image dedup)
     └── gemini-url.ts                       ← Хелпер URL для Gemini API
 
 scripts/
