@@ -52,13 +52,18 @@ async function resolveSlugRedirect(slug: string): Promise<string | null> {
   }
 }
 
+const CANONICAL_SITE_ORIGIN = (
+  process.env.NEXT_PUBLIC_SITE_URL || "https://promptshot.ru"
+).replace(/\/$/, "");
+
 export async function middleware(request: NextRequest) {
-  // 301: www.promptshot.ru → promptshot.ru (Cloudflare is DNS-only, so handled here)
+  // 301: www.promptshot.ru → promptshot.ru
+  // Use canonical origin — request.nextUrl may carry internal port :3001 from Dockhost routing.
   const host = request.headers.get("host") ?? "";
   if (host.startsWith("www.")) {
-    const url = request.nextUrl.clone();
-    url.host = host.slice(4);
-    return NextResponse.redirect(url, { status: 301 });
+    const path = `${request.nextUrl.pathname}${request.nextUrl.search}`;
+    const target = new URL(path, `${CANONICAL_SITE_ORIGIN}/`);
+    return NextResponse.redirect(target, { status: 301 });
   }
 
   if (isApiRequest(request)) {
