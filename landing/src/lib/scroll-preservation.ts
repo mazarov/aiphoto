@@ -9,6 +9,17 @@ import { bumpListingShellViewportHeight } from "@/lib/listing-shell-viewport";
 export const SCROLL_KEY = "card_modal_scroll_pos";
 export const LISTING_SCROLL_ROOT_ID = "listing-scroll-root";
 
+/**
+ * True пока идёт восстановление позиции листинга после закрытия модалки.
+ * Гриды используют это, чтобы не запускать авто-loadMore во время восстановления
+ * (иначе догрузка + пересчёт listing-grid-clamp двигают высоту и сбивают позицию).
+ */
+let restoreInProgress = false;
+
+export function isListingScrollRestoreInProgress(): boolean {
+  return restoreInProgress;
+}
+
 type ScrollRoot = HTMLElement | Window;
 
 export function getListingScrollRoot(): ScrollRoot {
@@ -154,6 +165,10 @@ export function restoreListingScroll(opts: RestoreOptions = {}): void {
 /**
  * After modal close via history.back(), Next.js popstate and layout settle asynchronously.
  * Retry restore so #listing-scroll-root regains touch scroll on mobile.
+ *
+ * Also sets restoreInProgress=true for the duration so IntersectionObserver-based
+ * auto-loadMore is blocked: fetching new cards during restore causes a reflow that
+ * shifts the viewport after the 320ms window expires (the main source of "subscroll").
  */
 export function scheduleListingScrollRestore(): void {
   if (typeof window === "undefined") return;
@@ -174,22 +189,34 @@ export function scheduleListingScrollRestore(): void {
     return;
   }
 
+  // Block auto-loadMore in grids for the entire restore window.
+  restoreInProgress = true;
+
   const apply = () => {
     unlockListingScrollStyles();
     writeScrollTop(getListingScrollRoot(), y);
   };
 
+  // Discrete reapply (NOT a continuous rAF loop — user must be able to scroll
+  // immediately after closing). Covers: sync frame, Next popstate, late layout settle.
   apply();
   requestAnimationFrame(apply);
   requestAnimationFrame(() => requestAnimationFrame(apply));
   window.setTimeout(apply, 50);
   window.setTimeout(apply, 150);
+  window.setTimeout(apply, 320);
+
+  // Final: reapply once more, drop the flag, clean up, restore native scroll mode.
+  // 500ms > previous 320ms so Next popstate reconciliation finishes before
+  // auto-loadMore is unblocked. After the flag drops, any new cards append below
+  // the viewport and the visible content does not shift.
   window.setTimeout(() => {
     apply();
+    restoreInProgress = false;
     try { sessionStorage.removeItem(SCROLL_KEY); } catch {}
     bumpListingShellViewportHeight();
     window.history.scrollRestoration = "auto";
-  }, 320);
+  }, 500);
 }
 
 export function useListingScrollRestoration(opts: RestoreOptions = {}): void {

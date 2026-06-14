@@ -6,7 +6,7 @@ import type { ListingSort } from "@/lib/listing-sort";
 import { FilterableGrid } from "./CardFilters";
 import { ListingGridLoadingSkeleton } from "./ListingGridLoadingSkeleton";
 import { LISTING_INFINITE_PAGE_SIZE } from "@/lib/listing-pagination";
-import { getListingScrollRoot } from "@/lib/scroll-preservation";
+import { getListingScrollRoot, isListingScrollRestoreInProgress } from "@/lib/scroll-preservation";
 
 const PAGE_SIZE = LISTING_INFINITE_PAGE_SIZE;
 
@@ -97,6 +97,7 @@ export function InfiniteGrid({
     const scrollRoot = getListingScrollRoot();
     const observer = new IntersectionObserver(
       (entries) => {
+        if (isListingScrollRestoreInProgress()) return;
         if (entries[0]?.isIntersecting && !loadingRef.current && hasMoreRef.current) {
           loadMore();
         }

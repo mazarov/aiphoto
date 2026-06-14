@@ -10,7 +10,7 @@ import { FilterFAB } from "@/components/FilterFAB";
 import { ListingDesktopFilters } from "@/components/ListingDesktopFilters";
 import { useListingFilters } from "@/hooks/useListingFilters";
 import type { FilterState } from "@/hooks/useListingFilters";
-import { resetListingScroll, useListingScrollRestoration, getListingScrollRoot } from "@/lib/scroll-preservation";
+import { resetListingScroll, useListingScrollRestoration, getListingScrollRoot, isListingScrollRestoreInProgress } from "@/lib/scroll-preservation";
 import { writeListingNavigationContext } from "@/lib/listing-card-navigation-context";
 import { SearchEmptyState } from "@/components/SearchEmptyState";
 import { SearchMetrikaTracker } from "@/components/YandexMetrikaRouteTracker";
@@ -144,6 +144,7 @@ export function SearchResults({ initialQuery }: Props) {
     const scrollRoot = getListingScrollRoot();
     const observer = new IntersectionObserver(
       (entries) => {
+        if (isListingScrollRestoreInProgress()) return;
         if (entries[0]?.isIntersecting && !loadingRef.current && hasMoreRef.current) {
           doSearch(queryRef.current, true);
         }
