@@ -20,7 +20,7 @@ export async function GET() {
     for (const row of (data ?? []) as { dimension: string; tag_slug: string; count: number }[]) {
       const tag = findTagBySlug(row.dimension as Dimension, row.tag_slug);
       if (tag) {
-        counts[tag.urlPath + "/"] = row.count;
+        counts[tag.urlPath] = row.count;
       }
     }
 

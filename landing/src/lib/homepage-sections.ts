@@ -47,7 +47,7 @@ export function buildCategorySectionBlocks(
     const tagSlugs = menuSection.groups
       .flatMap((g) =>
         g.items.map((item) => {
-          const tag = TAG_REGISTRY.find((t) => t.urlPath + "/" === item.href);
+          const tag = TAG_REGISTRY.find((t) => t.urlPath === item.href);
           return tag ?? null;
         })
       )
@@ -63,7 +63,7 @@ export function buildCategorySectionBlocks(
 
       return {
         label: tag.labelRu,
-        href: tag.urlPath + "/",
+        href: tag.urlPath,
         data: {
           dimension: dim,
           slug: tag.slug,

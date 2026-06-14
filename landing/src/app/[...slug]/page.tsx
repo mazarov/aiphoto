@@ -1,6 +1,5 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import Script from "next/script";
 import { fetchRouteCards, enrichCardsWithDetails, getIndexableTagCombos, getFirstCardPhotoUrl } from "@/lib/supabase";
 import { parseListingSort } from "@/lib/listing-sort";
 import dynamic from "next/dynamic";
@@ -65,7 +64,7 @@ type Props = {
 export async function generateMetadata({ params }: Props) {
   const { slug } = await params;
   const route = resolveUrlToTags(slug);
-  if (!route) return {};
+  if (!route) notFound();
 
   const seo = getSeoForRoute(route);
 
@@ -148,11 +147,14 @@ function buildJsonLd(
         item: canonicalUrl,
       });
     } else if (route.level === 3) {
+      // Build the L2 intermediate URL: parentPath + last segment of tags[1]
+      const tag1LastSeg = route.tags[1].urlPath.split("/").filter(Boolean).pop()!;
+      const l2Url = `${siteUrl}${route.parentPath}/${tag1LastSeg}`;
       breadcrumbItems.push({
         "@type": "ListItem",
         position: 3,
         name: route.tags[1].labelRu,
-        item: canonicalUrl,
+        item: l2Url,
       });
       breadcrumbItems.push({
         "@type": "ListItem",
@@ -203,7 +205,7 @@ function buildJsonLd(
       contentUrl: ill.photoUrl,
       description: ill.alt,
       caption: ill.caption,
-      url: `${siteUrl}/p/${ill.cardSlug}/`,
+      url: `${siteUrl}/p/${ill.cardSlug}`,
     });
   }
 
@@ -287,10 +289,10 @@ async function getL2ChipsForTag(
   const grouped = new Map<Dimension, L2Chip[]>();
   for (const { other, count } of matching) {
     const lastSeg = other.urlPath.split("/").filter(Boolean).pop()!;
-    const basePath = tag.urlPath.endsWith("/") ? tag.urlPath : tag.urlPath + "/";
+    const basePath = tag.urlPath.replace(/\/$/, "");
     const chip: L2Chip = {
       tag: other,
-      href: basePath + lastSeg + "/",
+      href: `${basePath}/${lastSeg}`,
       count,
     };
     const arr = grouped.get(other.dimension) ?? [];
@@ -578,7 +580,7 @@ export default async function TagPage({ params, searchParams }: Props) {
               {siblings.map((s) => (
                 <Link
                   key={s.slug}
-                  href={s.urlPath + "/"}
+                  href={s.urlPath}
                   className="rounded-lg border border-zinc-200 bg-white px-4 py-2 text-sm text-zinc-600 transition-colors hover:border-zinc-300 hover:bg-zinc-50 hover:text-zinc-900"
                 >
                   {s.labelRu}
@@ -598,7 +600,7 @@ export default async function TagPage({ params, searchParams }: Props) {
               {getSiblingTags(route.tags[1], 8).map((s) => (
                 <Link
                   key={s.slug}
-                  href={s.urlPath + "/"}
+                  href={s.urlPath}
                   className="rounded-lg border border-zinc-200 bg-white px-4 py-2 text-sm text-zinc-600 transition-colors hover:border-zinc-300 hover:bg-zinc-50 hover:text-zinc-900"
                 >
                   {s.labelRu}
@@ -609,11 +611,9 @@ export default async function TagPage({ params, searchParams }: Props) {
         )}
       </main>
 
-      {/* JSON-LD: BreadcrumbList + FAQPage */}
-      <Script
-        id="tag-page-json-ld"
+      {/* JSON-LD: BreadcrumbList + FAQPage — inline for SSR visibility */}
+      <script
         type="application/ld+json"
-        strategy="afterInteractive"
         dangerouslySetInnerHTML={{
           __html: JSON.stringify(
             buildJsonLd(route, seo, SITE_URL, pageOgImage, resolvedIllustrations),

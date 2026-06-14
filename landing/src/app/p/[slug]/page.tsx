@@ -32,6 +32,7 @@ const DIMENSIONS: Dimension[] = [
   "style_tag",
   "occasion_tag",
   "object_tag",
+  "doc_task_tag",
 ];
 
 function getSeoSlugsWithTags(
@@ -86,7 +87,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const viewer = await getSupabaseUserFromServerCookies();
   const data = await getCachedCardPageData(slug, viewer?.id ?? null);
-  if (!data) return {};
+  if (!data) notFound();
 
   const title = data.title_ru || data.title_en || "Промт";
   const isThin =

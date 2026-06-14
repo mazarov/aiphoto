@@ -1,6 +1,6 @@
 {
-  "name": "",
-  "short_name": "",
+  "name": "PromptShot — промты для фото ИИ",
+  "short_name": "PromptShot",
   "icons": [
     { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }
   ]

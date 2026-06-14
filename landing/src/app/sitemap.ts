@@ -1,6 +1,7 @@
 import type { MetadataRoute } from "next";
-import { getAllTagPaths, findTagBySlug, type Dimension } from "@/lib/tag-registry";
-import { getPublishedCardsForSitemap, getIndexableTagCombos } from "@/lib/supabase";
+import { TAG_REGISTRY, findTagBySlug, type Dimension } from "@/lib/tag-registry";
+import { getPublishedCardsForSitemap, getIndexableTagCombos, getFilterCounts } from "@/lib/supabase";
+import { getMinCardsForLevel } from "@/lib/route-resolver";
 
 const BASE_URL =
   process.env.NEXT_PUBLIC_SITE_URL ||
@@ -45,13 +46,28 @@ function comboToPath(
 export const revalidate = 3600;
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const tagPaths = getAllTagPaths();
-  const tagUrls: MetadataRoute.Sitemap = tagPaths.map((path) => ({
-    url: `${BASE_URL}/${path}`,
-    lastModified: new Date(),
-    changeFrequency: "weekly" as const,
-    priority: 0.9,
-  }));
+  // Filter L1 tags to only include those with enough cards to be indexed.
+  // This keeps sitemap in sync with the noindex threshold (getMinCardsForLevel(1) === 1),
+  // preventing "Submitted URL marked noindex" warnings in GSC/Yandex.
+  const filterCounts = await getFilterCounts({});
+  const countMap = new Map<string, number>();
+  for (const row of filterCounts) {
+    countMap.set(`${row.dimension}:${row.slug}`, row.cards_count);
+  }
+  const minL1 = getMinCardsForLevel(1);
+  const indexableL1Tags = TAG_REGISTRY.filter((tag) => {
+    const count = countMap.get(`${tag.dimension}:${tag.slug}`) ?? 0;
+    return count >= minL1;
+  });
+  const tagUrls: MetadataRoute.Sitemap = indexableL1Tags.map((tag) => {
+    const path = tag.urlPath.startsWith("/") ? tag.urlPath.slice(1) : tag.urlPath;
+    return {
+      url: `${BASE_URL}/${path}`,
+      lastModified: new Date(),
+      changeFrequency: "weekly" as const,
+      priority: 0.9,
+    };
+  });
 
   const combos = await getIndexableTagCombos(6, "ru");
   const l2Urls: MetadataRoute.Sitemap = [];

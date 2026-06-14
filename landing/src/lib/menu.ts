@@ -42,7 +42,7 @@ export type RouteParams = {
 function tagItem(slug: string): MenuItem {
   const entry = TAG_REGISTRY.find((t) => t.slug === slug);
   if (!entry) throw new Error(`Tag "${slug}" not found in TAG_REGISTRY`);
-  return { label: entry.labelRu, href: entry.urlPath + "/" };
+  return { label: entry.labelRu, href: entry.urlPath };
 }
 
 /**
@@ -54,7 +54,7 @@ function withAutoGroup(section: MenuSection): MenuSection {
   const placedSlugs = new Set<string>();
   for (const g of section.groups) {
     for (const item of g.items) {
-      const tag = TAG_REGISTRY.find((t) => t.urlPath + "/" === item.href);
+      const tag = TAG_REGISTRY.find((t) => t.urlPath === item.href);
       if (tag) placedSlugs.add(tag.slug);
     }
   }

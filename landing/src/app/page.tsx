@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { cache } from "react";
 import type { Metadata } from "next";
-import Script from "next/script";
 import { fetchHomepageSections } from "@/lib/supabase";
 import { TAG_REGISTRY } from "@/lib/tag-registry";
 import { HOMEPAGE_SEO, HOMEPAGE_FAQ } from "@/lib/homepage-seo-copy";
@@ -82,7 +81,7 @@ export default async function HomePage() {
           ? {
               "@type": "CollectionPage",
               name: `Промты для фото ${tag.labelRu}`,
-              url: `${SITE_URL}${tag.urlPath}/`,
+              url: `${SITE_URL}${tag.urlPath}`,
             }
           : null;
       })
@@ -158,7 +157,7 @@ export default async function HomePage() {
             {TAG_REGISTRY.map((tag) => (
               <a
                 key={tag.slug}
-                href={tag.urlPath + "/"}
+                href={tag.urlPath}
                 className="rounded-lg border border-zinc-200 bg-white px-4 py-2 text-sm text-zinc-600 transition-colors hover:border-zinc-300 hover:bg-zinc-50 hover:text-zinc-900"
               >
                 {tag.labelRu}
@@ -170,10 +169,8 @@ export default async function HomePage() {
 
       <HomeSeoBlocks />
 
-      <Script
-        id="homepage-json-ld"
+      <script
         type="application/ld+json"
-        strategy="afterInteractive"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c") }}
       />
     </PageLayout>

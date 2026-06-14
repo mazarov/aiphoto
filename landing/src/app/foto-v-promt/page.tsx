@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Script from "next/script";
 import { PageLayout } from "@/components/PageLayout";
 import { FotoVPromtFaq } from "@/components/foto-v-promt/FotoVPromtFaq";
 import { FotoVPromtHowItWorks } from "@/components/foto-v-promt/FotoVPromtHowItWorks";
@@ -13,7 +12,7 @@ import {
 } from "@/lib/foto-v-promt-copy";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://promptshot.ru";
-const PAGE_URL = `${SITE_URL}/foto-v-promt/`;
+const PAGE_URL = `${SITE_URL}/foto-v-promt`;
 
 export const metadata: Metadata = {
   title: FOTO_V_PROMT_META.title,
@@ -88,16 +87,12 @@ export default function FotoVPromtPage() {
         <FotoVPromtFaq />
       </div>
 
-      <Script
-        id="foto-v-promt-webapp-json-ld"
+      <script
         type="application/ld+json"
-        strategy="afterInteractive"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(webAppJsonLd).replace(/</g, "\\u003c") }}
       />
-      <Script
-        id="foto-v-promt-faq-json-ld"
+      <script
         type="application/ld+json"
-        strategy="afterInteractive"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd).replace(/</g, "\\u003c") }}
       />
     </PageLayout>
