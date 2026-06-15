@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useListingMobileChromeOptional } from "@/context/ListingMobileChromeContext";
+import { normalizeNavPath } from "@/lib/scroll-preservation";
 import { ListingSearchField } from "./ListingSearchField";
 import { SEARCH_PLACEHOLDERS, SEARCH_SUGGESTIONS } from "@/lib/search-suggestions";
 
@@ -79,7 +80,10 @@ function ListingSearchHeader() {
 
   const onSearchPage = pathname.startsWith("/search");
   const urlQuery = onSearchPage ? (searchParams.get("q")?.trim() ?? "") : "";
-  const hideBottomBar = pathname === "/" || pathname.startsWith("/p/");
+  const hideBottomBar =
+    pathname === "/" ||
+    pathname.startsWith("/p/") ||
+    normalizeNavPath(pathname) === "/foto-v-promt";
 
   const [query, setQuery] = useState(urlQuery);
   const barInputRef = useRef<HTMLInputElement>(null);

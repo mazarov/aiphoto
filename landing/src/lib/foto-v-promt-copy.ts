@@ -63,7 +63,7 @@ export const FOTO_V_PROMT_FAQ = {
 } as const;
 
 export const FOTO_V_PROMT_CTA = {
-  floatingLabel: "Добавить в Chrome",
+  floatingLabel: "Добавить в Google Chrome",
 } as const;
 
 export const FOTO_V_PROMT_META = {

@@ -1,7 +1,7 @@
 const DEFAULT_IMAGEPROMPT_ORIGIN = "https://imageprompt.tools";
 
 const DEFAULT_CHROME_STORE_URL =
-  "https://chromewebstore.google.com/detail/ai-image-describer/ccidgdhgephaicccgjenjilnjjippkkl";
+  "https://chromewebstore.google.com/detail/ai-image-describer/bebnhekhnoaacojmbjoajndkankmppoj";
 
 export function getImagePromptApiOrigin(): string {
   const raw = process.env.NEXT_PUBLIC_IMAGEPROMPT_API_ORIGIN?.trim();
