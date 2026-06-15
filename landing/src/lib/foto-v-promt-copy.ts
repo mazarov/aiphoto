@@ -63,7 +63,7 @@ export const FOTO_V_PROMT_FAQ = {
 } as const;
 
 export const FOTO_V_PROMT_CTA = {
-  floatingLabel: "Добавить в Google Chrome",
+  floatingLabel: "Промт из любой картинки",
 } as const;
 
 export const FOTO_V_PROMT_META = {
@@ -155,3 +155,33 @@ const WIDGET_COPY: Record<WidgetCopyKey, string> = {
 export function widgetCopy(key: WidgetCopyKey): string {
   return WIDGET_COPY[key];
 }
+
+export const PROMPT_REMIX_COPY = {
+  title: "Настройте этот промт под себя",
+  subtitle:
+    "Мы взяли промт из карточки. Опишите, что изменить — стиль, объект, фон, настроение или формат. Фото загружать не нужно.",
+  loadingCard: "Загружаем промт из карточки…",
+  cardLoadError:
+    "Не удалось загрузить промт из карточки. Откройте карточку заново.",
+  originalLabel: "Исходный промт",
+  changeLabel: "Что изменить?",
+  changePlaceholder:
+    "Например: сделай стиль более реалистичным, замени фон на вечерний город, добавь кинематографичный свет",
+  styleLabel: "Стиль промпта",
+  submit: "Переделать промт",
+  submitting: "Переделываем промт…",
+  resultLabel: "Изменённый промт",
+  copy: "Копировать промпт",
+  tryAgain: "Изменить ещё раз",
+  emptyChangeError: "Опишите, что нужно изменить в промте.",
+  errorGeneric: "Что-то пошло не так. Попробуйте ещё раз.",
+  errorRateLimited: "Слишком много запросов. Попробуйте чуть позже.",
+  installHint:
+    "Хотите делать так с любой картинкой в браузере? Установите расширение AI Image Describer.",
+} as const;
+
+export const PROMPT_REMIX_CARD_CTA = {
+  title: "Изменить промт под себя",
+  subtitle: "Перепишем этот промт под вашу идею",
+  cta: "Изменить",
+} as const;

@@ -27,3 +27,13 @@ export function getAiImageDescriberChromeUrl(): string {
     process.env.NEXT_PUBLIC_AI_IMAGE_DESCRIBER_CHROME_URL?.trim() || DEFAULT_CHROME_STORE_URL
   );
 }
+
+export function getPromptRemixUrl(): string {
+  // Mirror getImagePromptAnalyzeUrl: dev → same-origin proxy (avoids CORS),
+  // prod/preview → direct cross-origin call to imageprompt.tools.
+  const forceDirect = process.env.NEXT_PUBLIC_IMAGEPROMPT_DIRECT === "1";
+  if (process.env.NODE_ENV === "development" && !forceDirect) {
+    return "/api/imageprompt-proxy/extension/remix";
+  }
+  return `${getImagePromptApiOrigin()}/api/extension/remix`;
+}

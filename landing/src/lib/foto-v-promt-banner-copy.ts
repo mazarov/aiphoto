@@ -1,17 +1,15 @@
-/** RU copy for LexyGPT promo mini banner (listing vs card). */
+/** RU copy for Foto-v-promt promo mini banner (listing vs card). */
 
-import { LEXYGPT_IMAGE_PLAYGROUND_URL } from "@/lib/lexygpt-generate";
-
-export const FOTO_V_PROMT_BANNER_PATH = LEXYGPT_IMAGE_PLAYGROUND_URL;
+export const FOTO_V_PROMT_BANNER_PATH = "https://promptshot.ru/foto-v-promt";
 
 export const FOTO_V_PROMT_BANNER_COPY = {
-  title: "Сгенерировать аналог",
-  cta: "Подробнее",
+  title: "Промт не попадает в фото?",
+  cta: "Промт по фото",
   listing: {
-    subtitle: "Быстро и просто — фото по референсу за секунды",
+    subtitle: "Загрузи референс и получи промт под кадр",
   },
   card: {
-    subtitle: "Похожее фото за пару кликов",
+    subtitle: "Загрузи фото и получи промт под свой референс",
   },
 } as const;
 

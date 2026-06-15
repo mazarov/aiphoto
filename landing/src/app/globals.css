@@ -169,6 +169,10 @@ p {
     .listing-main-bottom-pad {
       padding-bottom: 0;
     }
+
+    .foto-v-promt-main-pad {
+      padding-bottom: calc(8.5rem + 3.5rem + max(0px, env(safe-area-inset-bottom, 0px)));
+    }
   }
 
   @media (min-width: 1024px) {
@@ -240,6 +244,19 @@ p {
     box-shadow:
       0 0 0 3px rgba(139, 92, 246, 0.09),
       0 1px 2px rgba(99, 102, 241, 0.08);
+  }
+
+  /** Floating CTAs above mobile tab bar (h-14 + center pill + safe inset + gap) */
+  .floating-cta-above-mobile-tab-bar {
+    bottom: max(1.25rem, env(safe-area-inset-bottom, 0px));
+  }
+
+  @media (max-width: 1023px) {
+    .floating-cta-above-mobile-tab-bar {
+      bottom: calc(
+        3.5rem + 0.75rem + 0.25rem + max(0px, env(safe-area-inset-bottom, 0px)) + 1rem
+      );
+    }
   }
 
   /** Legacy FAB offsets (desktop filter FAB, debug panel) */

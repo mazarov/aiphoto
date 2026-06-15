@@ -938,7 +938,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                   </div>
                 </div>
 
-                {/* Низ: только лента / Lexy / копировать — без общей подложки, поверх фото */}
+                {/* Низ: только лента / копировать — без общей подложки, поверх фото */}
                 <div className={`pointer-events-none absolute inset-x-0 bottom-0 z-[99] pb-[max(14px,env(safe-area-inset-bottom))] pt-6 md:hidden ${mobileChromeClass}`}>
                   <div className="pointer-events-auto mx-auto flex w-full max-w-lg flex-col gap-2 px-3">
                     {!hasPrompts ? (

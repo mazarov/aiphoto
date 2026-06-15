@@ -9,6 +9,11 @@ import {
   FVP_SURFACE_WIDGET_OUTER,
 } from "./foto-v-promt-tokens";
 
+const PromptRemixWidget = dynamic(
+  () => import("./PromptRemixWidget").then((m) => ({ default: m.PromptRemixWidget })),
+  { ssr: false, loading: () => <PromptSceneLiteSkeleton /> },
+);
+
 /** Static placeholder while the widget chunk loads or section is off-screen. */
 export function PromptSceneLiteSkeleton() {
   return (
@@ -41,10 +46,24 @@ const PromptSceneLiteWidget = dynamic(
 
 /**
  * Defers mounting the heavy client widget until the section is near the viewport.
+ * If ?card=<slug> is present in the URL, renders PromptRemixWidget immediately instead.
  */
 export function PromptSceneLiteWidgetGate() {
   const hostRef = useRef<HTMLDivElement>(null);
   const [mountWidget, setMountWidget] = useState(false);
+  const [cardSlug, setCardSlug] = useState<string | null>(null);
+  const [resolvedParams, setResolvedParams] = useState(false);
+
+  // Resolve ?card query param on the client (avoids useSearchParams + Suspense on SSR page)
+  useEffect(() => {
+    try {
+      const sp = new URLSearchParams(window.location.search);
+      const c = sp.get("card");
+      setCardSlug(c && c.trim() ? c.trim() : null);
+    } finally {
+      setResolvedParams(true);
+    }
+  }, []);
 
   useLayoutEffect(() => {
     if (typeof window !== "undefined" && window.location.hash === "#foto-v-promt-widget") {
@@ -60,8 +79,9 @@ export function PromptSceneLiteWidgetGate() {
     return () => window.removeEventListener("hashchange", onHashChange);
   }, []);
 
+  // IntersectionObserver only for the regular analyze mode (no ?card)
   useEffect(() => {
-    if (mountWidget) return;
+    if (mountWidget || cardSlug) return;
     const el = hostRef.current;
     if (!el) return;
     const io = new IntersectionObserver(
@@ -72,11 +92,19 @@ export function PromptSceneLiteWidgetGate() {
     );
     io.observe(el);
     return () => io.disconnect();
-  }, [mountWidget]);
+  }, [mountWidget, cardSlug]);
 
   return (
     <div ref={hostRef} className="mx-auto w-full max-w-3xl">
-      {mountWidget ? <PromptSceneLiteWidget /> : <PromptSceneLiteSkeleton />}
+      {!resolvedParams ? (
+        <PromptSceneLiteSkeleton />
+      ) : cardSlug ? (
+        <PromptRemixWidget cardSlug={cardSlug} />
+      ) : mountWidget ? (
+        <PromptSceneLiteWidget />
+      ) : (
+        <PromptSceneLiteSkeleton />
+      )}
     </div>
   );
 }

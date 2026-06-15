@@ -11,19 +11,17 @@ import { FVP_FOCUS_RING } from "@/components/foto-v-promt/foto-v-promt-tokens";
 import {
   LISTING_MOBILE_CHROME_INSET,
   LISTING_MOBILE_CHROME_LEADING_CELL,
-  LISTING_NAV_SHELL_SURFACE,
-  LISTING_SEARCH_FIELD_SURFACE,
 } from "@/lib/listing-shell-surface";
 
-/** Card sticky bar — same fill as catalog search field. */
-const CARD_PROMO_SURFACE = `${LISTING_SEARCH_FIELD_SURFACE} transition-[background,box-shadow] hover:bg-white/90`;
+const PROMO_GRADIENT_SURFACE =
+  "bg-gradient-to-r from-indigo-600 via-violet-600 to-fuchsia-500 shadow-lg shadow-indigo-500/25 ring-1 ring-inset ring-white/20 transition-[background,box-shadow,transform] hover:shadow-indigo-500/35";
 
 const LIGHT_PROMO_TEXT = {
-  title: "text-sm font-semibold leading-snug text-zinc-950 antialiased",
-  subtitle: "text-xs font-medium leading-snug text-zinc-800 antialiased",
-  icon: "h-5 w-5 shrink-0 text-indigo-700",
+  title: "text-sm font-semibold leading-snug text-white antialiased",
+  subtitle: "text-xs font-medium leading-snug text-white/90 antialiased",
+  icon: "h-5 w-5 shrink-0 text-white",
   ctaButton:
-    "shrink-0 rounded-full bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white antialiased",
+    "shrink-0 rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-indigo-700 shadow-sm antialiased transition-colors hover:bg-indigo-50",
 } as const;
 
 export type FotoVPromtMiniBannerVariant = "listing" | "card" | "cardImmersive";
@@ -63,22 +61,22 @@ const SKIN: Record<
   { shell: string; title: string; subtitle: string; ctaButton: string; icon: string }
 > = {
   listing: {
-    shell: `grid w-full grid-cols-[auto_1fr_auto] items-center gap-2 font-inherit ${LISTING_NAV_SHELL_SURFACE} ${LISTING_MOBILE_CHROME_INSET} min-h-11 rounded-b-xl rounded-t-none py-2.5 transition-[background] hover:bg-white/90 sm:min-h-[3.25rem]`,
+    shell: `grid w-full grid-cols-[auto_1fr_auto] items-center gap-2 font-inherit ${PROMO_GRADIENT_SURFACE} ${LISTING_MOBILE_CHROME_INSET} min-h-11 rounded-b-xl rounded-t-none py-2.5 sm:min-h-[3.25rem]`,
     ...LIGHT_PROMO_TEXT,
   },
   card: {
-    shell: `flex w-full font-inherit ${CARD_PROMO_SURFACE} min-h-12 items-center gap-2.5 rounded-xl px-3 py-2 sm:gap-3 sm:px-4`,
+    shell: `flex w-full font-inherit ${PROMO_GRADIENT_SURFACE} min-h-12 items-center gap-2.5 rounded-xl px-3 py-2 sm:gap-3 sm:px-4`,
     ...LIGHT_PROMO_TEXT,
     subtitle: `${LIGHT_PROMO_TEXT.subtitle} min-w-0 flex-1 sm:truncate`,
   },
   cardImmersive: {
     shell:
-      "flex min-h-11 w-full items-center gap-2.5 rounded-xl bg-black/25 px-3 py-2 backdrop-blur-md transition-colors hover:bg-black/32 sm:gap-3 sm:px-4",
+      "flex min-h-11 w-full items-center gap-2.5 rounded-xl bg-indigo-600/90 px-3 py-2 shadow-lg shadow-black/20 ring-1 ring-inset ring-white/20 backdrop-blur-md transition-colors hover:bg-indigo-600/95 sm:gap-3 sm:px-4",
     title: "text-[13px] font-semibold leading-snug text-white antialiased",
-    subtitle: "min-w-0 flex-1 truncate text-[11px] font-medium leading-snug text-white/85 antialiased",
+    subtitle: "min-w-0 flex-1 truncate text-[13px] font-medium leading-snug text-white/90 antialiased",
     icon: "h-5 w-5 shrink-0 text-white",
     ctaButton:
-      "shrink-0 rounded-full bg-indigo-600 px-3 py-1.5 text-[11px] font-semibold text-white antialiased transition-colors hover:bg-indigo-500 active:bg-indigo-700",
+      "shrink-0 rounded-full bg-white px-3 py-1.5 text-[13px] font-semibold text-indigo-700 shadow-sm antialiased transition-colors hover:bg-indigo-50 active:bg-white/90",
   },
 };
 
@@ -97,7 +95,7 @@ export function FotoVPromtMiniBanner({ variant, className = "" }: Props) {
       onClick={() => trackFotoVPromtBannerClick(placement)}
       className={`${skin.shell} ${FVP_FOCUS_RING} ${className}`}
       role="complementary"
-      aria-label="Сгенерировать аналог фото — открыть LexyGPT в новой вкладке"
+      aria-label="Получить промт по фото — открыть PromptShot в новой вкладке"
     >
       {variant === "listing" ? (
         <span className={LISTING_MOBILE_CHROME_LEADING_CELL}>

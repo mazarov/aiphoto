@@ -1,16 +1,24 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { getAiImageDescriberChromeUrl } from "@/lib/foto-v-promt-config";
 import { FOTO_V_PROMT_CTA } from "@/lib/foto-v-promt-copy";
 import { ChromeMark } from "./ChromeMark";
 import { FVP_FOCUS_RING, FVP_SECTION_CONTAINER } from "./foto-v-promt-tokens";
 
 export function FotoVPromtFloatingCta() {
-  return (
-    <div className="pointer-events-none fixed bottom-0 left-0 right-0 z-[60] lg:left-60 lg:right-0">
-      <div
-        className={`${FVP_SECTION_CONTAINER} pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-4 sm:pb-[max(2rem,env(safe-area-inset-bottom))]`}
-      >
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) return null;
+
+  return createPortal(
+    <div className="pointer-events-none fixed inset-x-0 z-[50] floating-cta-above-mobile-tab-bar lg:left-60 lg:right-0">
+      <div className={`${FVP_SECTION_CONTAINER} pt-4`}>
         <div className="flex justify-center">
           <a
             href={getAiImageDescriberChromeUrl()}
@@ -23,6 +31,7 @@ export function FotoVPromtFloatingCta() {
           </a>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
