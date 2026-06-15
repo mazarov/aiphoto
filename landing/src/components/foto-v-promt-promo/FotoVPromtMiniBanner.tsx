@@ -56,34 +56,29 @@ function placementFromVariant(variant: FotoVPromtMiniBannerVariant): FotoVPromtB
   return variant === "listing" ? "listing" : "card";
 }
 
+const LISTING_GRID_SHELL = `grid w-full grid-cols-[auto_1fr_auto] items-center gap-2 font-inherit ${PROMO_GRADIENT_SURFACE}`;
+
 const SKIN: Record<
   FotoVPromtMiniBannerVariant,
   { shell: string; title: string; subtitle: string; ctaButton: string; icon: string }
 > = {
   listing: {
-    shell: `grid w-full grid-cols-[auto_1fr_auto] items-center gap-2 font-inherit ${PROMO_GRADIENT_SURFACE} ${LISTING_MOBILE_CHROME_INSET} min-h-11 rounded-b-xl rounded-t-none py-2.5 sm:min-h-[3.25rem]`,
+    shell: `${LISTING_GRID_SHELL} ${LISTING_MOBILE_CHROME_INSET} min-h-11 rounded-b-xl rounded-t-none py-2.5 sm:min-h-[3.25rem]`,
     ...LIGHT_PROMO_TEXT,
   },
   card: {
-    shell: `flex w-full font-inherit ${PROMO_GRADIENT_SURFACE} min-h-12 items-center gap-2.5 rounded-xl px-3 py-2 sm:gap-3 sm:px-4`,
+    shell: `${LISTING_GRID_SHELL} min-h-11 rounded-xl px-3 py-2.5 sm:min-h-[3.25rem] sm:px-4`,
     ...LIGHT_PROMO_TEXT,
-    subtitle: `${LIGHT_PROMO_TEXT.subtitle} min-w-0 flex-1 sm:truncate`,
   },
   cardImmersive: {
-    shell:
-      "flex min-h-11 w-full items-center gap-2.5 rounded-xl bg-indigo-600/90 px-3 py-2 shadow-lg shadow-black/20 ring-1 ring-inset ring-white/20 backdrop-blur-md transition-colors hover:bg-indigo-600/95 sm:gap-3 sm:px-4",
-    title: "text-[13px] font-semibold leading-snug text-white antialiased",
-    subtitle: "min-w-0 flex-1 truncate text-[13px] font-medium leading-snug text-white/90 antialiased",
-    icon: "h-5 w-5 shrink-0 text-white",
-    ctaButton:
-      "shrink-0 rounded-full bg-white px-3 py-1.5 text-[13px] font-semibold text-indigo-700 shadow-sm antialiased transition-colors hover:bg-indigo-50 active:bg-white/90",
+    shell: `${LISTING_GRID_SHELL} min-h-11 rounded-xl px-3 py-2.5 sm:min-h-[3.25rem] sm:px-4`,
+    ...LIGHT_PROMO_TEXT,
   },
 };
 
 export function FotoVPromtMiniBanner({ variant, className = "" }: Props) {
   const placement = placementFromVariant(variant);
-  const copy =
-    placement === "listing" ? FOTO_V_PROMT_BANNER_COPY.listing : FOTO_V_PROMT_BANNER_COPY.card;
+  const copy = FOTO_V_PROMT_BANNER_COPY.listing;
   const skin = SKIN[variant];
 
   return (
@@ -97,13 +92,9 @@ export function FotoVPromtMiniBanner({ variant, className = "" }: Props) {
       role="complementary"
       aria-label="Получить промт по фото — открыть PromptShot в новой вкладке"
     >
-      {variant === "listing" ? (
-        <span className={LISTING_MOBILE_CHROME_LEADING_CELL}>
-          <GeneratePhotoIcon className={skin.icon} />
-        </span>
-      ) : (
+      <span className={LISTING_MOBILE_CHROME_LEADING_CELL}>
         <GeneratePhotoIcon className={skin.icon} />
-      )}
+      </span>
       <span className="min-w-0 flex-1">
         <span className={`block ${skin.title}`}>{FOTO_V_PROMT_BANNER_COPY.title}</span>
         <span className={`mt-0.5 block truncate ${skin.subtitle}`}>{copy.subtitle}</span>
