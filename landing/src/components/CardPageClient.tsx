@@ -30,9 +30,6 @@ import {
   resolveListingNavNeighbors,
   type ListingCardNavNeighbors,
 } from "@/lib/listing-card-navigation-context";
-import { FotoVPromtMiniBanner } from "@/components/foto-v-promt-promo/FotoVPromtMiniBanner";
-import { trackFotoVPromtBannerImpressionOnce } from "@/lib/foto-v-promt-banner-metrics";
-
 /** Glass как у «тегов» на этом экране: chip-подложка без отдельной нижней панели (tier A = 13px для mobile SEO). */
 const MOBILE_FS_CHIP =
   "text-[13px] font-medium bg-black/15 text-white/90 backdrop-blur-md shadow-none transition-colors hover:bg-black/25";
@@ -272,10 +269,6 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
     heroImageReady ? "opacity-100" : "opacity-0 pointer-events-none invisible"
   }`;
 
-  useEffect(() => {
-    if (!hasPrompts) return;
-    trackFotoVPromtBannerImpressionOnce("card");
-  }, [hasPrompts, data.id]);
   const viewCount = useCardViewBeacon(data.slug, data.viewCount ?? 0);
 
   const groupCards = useMemo(() => {
@@ -842,11 +835,6 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                       </button>
                     </div>
                   </div>
-                  {hasPrompts ? (
-                    <div className="pointer-events-auto pb-2">
-                      <FotoVPromtMiniBanner variant="cardImmersive" className="min-h-11" />
-                    </div>
-                  ) : null}
                 </header>
 
                 {groupCards.length > 1 ? (
@@ -1197,7 +1185,6 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
           className={`fixed inset-x-0 bottom-0 z-[240] safe-area-pb pointer-events-none${isModal ? "" : " lg:left-60"}${hasPhotos ? " max-md:hidden" : ""}`}
         >
           <div className="mx-auto w-full max-w-2xl px-5 py-4 pointer-events-auto">
-            <FotoVPromtMiniBanner variant="card" className="mb-2 min-h-12" />
             <div className={LISTING_STICKY_ACTIONS_GRID}>
               <StickyListingNavButton
                 slug={listingPrev}

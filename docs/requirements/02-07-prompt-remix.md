@@ -4,21 +4,21 @@
 
 ## Цель
 
-Дать пользователю точку входа с карточки промта `/p/[slug]`, где он может быстро переписать готовый промт под свою идею — без загрузки фото и без ручного редактирования текста. Побочная цель: ненавязчивая конверсия в установку расширения AI Image Describer.
+Дать пользователю возможность переписать готовый промт под свою идею — без загрузки фото и без ручного редактирования текста. Побочная цель: ненавязчивая конверсия в установку расширения AI Image Describer.
+
+**Статус точки входа:** CTA на `/p/[slug]` **скрыт** (не в проде). Remix доступен только по прямому URL `/foto-v-promt?card=<slug>`.
 
 ---
 
 ## Flow
 
 ```
-/p/[slug]
-  └─ CTA «Изменить промт под себя» (над FotoVPromtMiniBanner)
-       → /foto-v-promt?card=<slug>&src=card (новая вкладка / переход)
-            └─ PromptSceneLiteWidgetGate видит ?card → монтирует PromptRemixWidget
+/foto-v-promt?card=<slug>&src=card  (прямой URL, без CTA на карточке)
+  └─ PromptSceneLiteWidgetGate → PromptRemixWidget
                  ├─ GET /api/card/[slug] → promptTexts[] (оригинальный промт карточки)
                  ├─ показываем оригинальный промт (read-only)
                  ├─ textarea «Что изменить?» + выбор стиля (4 варианта)
-                 └─ POST /api/prompt-remix { originalPrompt, changeRequest, style }
+                 └─ POST imageprompt.tools/api/extension/remix { originalPrompt, changeRequest, style }
                       → Gemini text → { prompt }
                           └─ результат + «Копировать» + «Повторить в LexyGPT» + «Изменить ещё раз»
                                └─ хинт про расширение AI Image Describer
@@ -51,9 +51,7 @@ PromptRemixWidget
 | `landing/src/lib/foto-v-promt-copy.ts` | `PROMPT_REMIX_COPY`, `PROMPT_REMIX_CARD_CTA` |
 | `landing/src/app/api/imageprompt-proxy/extension/remix/route.ts` | Dev-only same-origin прокси к imageprompt.tools |
 | `landing/src/components/foto-v-promt/PromptRemixWidget.tsx` | Клиентский UI remix-режима |
-| `landing/src/components/foto-v-promt-promo/PromptRemixCardCta.tsx` | CTA «Изменить промт под себя» (card / cardImmersive) |
-| `landing/src/components/foto-v-promt/PromptSceneLiteWidgetGate.tsx` | Роутинг по `?card` → `PromptRemixWidget` |
-| `landing/src/components/CardPageClient.tsx` | Размещение CTA (sticky-бар + mobile immersive) |
+| `landing/src/components/CardPageClient.tsx` | Без promo/remix CTA на карточке (скрыто) |
 
 ### Репо imageprompt (`~/imageprompt`)
 
@@ -99,11 +97,7 @@ PromptRemixWidget
 
 ## CTA на карточке
 
-- Файл: `CardPageClient.tsx`, блок нижнего sticky-бара (desktop + mobile без hero).
-- Позиция: над `<FotoVPromtMiniBanner variant="card" />`.
-- Показывается только если `data.promptTexts.length > 0`.
-- URL: `/foto-v-promt?card=${slug}&src=card`.
-- Копии: `PROMPT_REMIX_CARD_CTA` из `foto-v-promt-copy.ts`.
+**Скрыто.** На `/p/[slug]` нет ни CTA «Изменить промт под себя», ни `FotoVPromtMiniBanner`. Промо foto-v-promt остаётся только в листинге (`ListingFotoVPromtBanner`).
 
 ---
 
@@ -155,11 +149,10 @@ PromptRemixWidget
 
 ## Тестирование
 
-1. `/p/<slug>` → виден CTA «Изменить промт под себя» (только если есть промты).
-2. Клик → `/foto-v-promt?card=<slug>&src=card` → remix-виджет грузит оригинальный промт.
-3. Поле «Что изменить?»: «сделай фон вечерним городом» → «Переделать промт» → изменённый промт на том же языке, что оригинал.
-4. Кнопка «Копировать промпт» кладёт результат в буфер.
-5. «Повторить в LexyGPT» открывает вкладку.
-6. «Изменить ещё раз» возвращает в input-панель.
-7. `/foto-v-promt` без `?card` — старый режим анализа фото работает без изменений (регрессия).
-8. > 20 запросов с одного IP → 429 с текстом `errorRateLimited`.
+1. `/foto-v-promt?card=<slug>` → remix-виджет грузит оригинальный промт.
+2. Поле «Что изменить?»: «сделай фон вечерним городом» → «Переделать промт» → изменённый промт на том же языке, что оригинал.
+3. Кнопка «Копировать промпт» кладёт результат в буфер.
+4. «Повторить в LexyGPT» открывает вкладку.
+5. «Изменить ещё раз» возвращает в input-панель.
+6. `/foto-v-promt` без `?card` — старый режим анализа фото работает без изменений (регрессия).
+7. `/p/<slug>` — нет promo/remix CTA на карточке.
