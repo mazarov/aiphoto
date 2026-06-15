@@ -844,7 +844,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                   </div>
                   {hasPrompts ? (
                     <div className="pointer-events-auto pb-2">
-                      <FotoVPromtMiniBanner variant="cardImmersive" className="min-h-11" />
+                      <FotoVPromtMiniBanner variant="cardImmersive" />
                     </div>
                   ) : null}
                 </header>
@@ -1197,7 +1197,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
           className={`fixed inset-x-0 bottom-0 z-[240] safe-area-pb pointer-events-none${isModal ? "" : " lg:left-60"}${hasPhotos ? " max-md:hidden" : ""}`}
         >
           <div className="mx-auto w-full max-w-2xl px-5 py-4 pointer-events-auto">
-            <FotoVPromtMiniBanner variant="card" className="mb-2 min-h-12" />
+            <FotoVPromtMiniBanner variant="card" className="mb-2" />
             <div className={LISTING_STICKY_ACTIONS_GRID}>
               <StickyListingNavButton
                 slug={listingPrev}

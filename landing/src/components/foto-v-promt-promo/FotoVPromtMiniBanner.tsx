@@ -8,20 +8,24 @@ import {
 } from "@/lib/foto-v-promt-banner-copy";
 import { trackFotoVPromtBannerClick } from "@/lib/foto-v-promt-banner-metrics";
 import { FVP_FOCUS_RING } from "@/components/foto-v-promt/foto-v-promt-tokens";
-import {
-  LISTING_MOBILE_CHROME_INSET,
-  LISTING_MOBILE_CHROME_LEADING_CELL,
-} from "@/lib/listing-shell-surface";
+import { LISTING_MOBILE_CHROME_INSET } from "@/lib/listing-shell-surface";
 
-const PROMO_GRADIENT_SURFACE =
+/** Solid gradient — listing bar and card sticky bar (white bg behind). */
+const GRADIENT_SOLID =
   "bg-gradient-to-r from-indigo-600 via-violet-600 to-fuchsia-500 shadow-lg shadow-indigo-500/25 ring-1 ring-inset ring-white/20 transition-[background,box-shadow,transform] hover:shadow-indigo-500/35";
 
-const LIGHT_PROMO_TEXT = {
+/** Glass gradient — sits over a photo (mobile immersive). */
+const GRADIENT_GLASS =
+  "bg-indigo-600/80 backdrop-blur-md ring-1 ring-inset ring-white/20 shadow-lg shadow-black/20 transition-[background,box-shadow,transform] hover:bg-indigo-600/90";
+
+const TEXT = {
   title: "text-sm font-semibold leading-snug text-white antialiased",
-  subtitle: "text-xs font-medium leading-snug text-white/90 antialiased",
+  subtitle: "text-xs font-medium leading-snug text-white/80 antialiased",
   icon: "h-5 w-5 shrink-0 text-white",
   ctaButton:
-    "shrink-0 rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-indigo-700 shadow-sm antialiased transition-colors hover:bg-indigo-50",
+    "foto-v-promt-mini-banner__cta shrink-0 rounded-full bg-white px-3 py-1 text-xs font-semibold text-indigo-700 shadow-sm antialiased transition-colors hover:bg-indigo-50",
+  ctaButtonGlass:
+    "foto-v-promt-mini-banner__cta shrink-0 rounded-full bg-white/20 px-3 py-1 text-xs font-semibold text-white shadow-sm antialiased ring-1 ring-inset ring-white/30 transition-colors hover:bg-white/30",
 } as const;
 
 export type FotoVPromtMiniBannerVariant = "listing" | "card" | "cardImmersive";
@@ -56,30 +60,30 @@ function placementFromVariant(variant: FotoVPromtMiniBannerVariant): FotoVPromtB
   return variant === "listing" ? "listing" : "card";
 }
 
-const LISTING_GRID_SHELL = `grid w-full grid-cols-[auto_1fr_auto] items-center gap-2 font-inherit ${PROMO_GRADIENT_SURFACE}`;
+type VariantConfig = {
+  shell: string;
+  ctaButton: string;
+};
 
-const SKIN: Record<
-  FotoVPromtMiniBannerVariant,
-  { shell: string; title: string; subtitle: string; ctaButton: string; icon: string }
-> = {
+const VARIANT: Record<FotoVPromtMiniBannerVariant, VariantConfig> = {
   listing: {
-    shell: `${LISTING_GRID_SHELL} ${LISTING_MOBILE_CHROME_INSET} min-h-11 rounded-b-xl rounded-t-none py-2.5 sm:min-h-[3.25rem]`,
-    ...LIGHT_PROMO_TEXT,
+    shell: `${GRADIENT_SOLID} ${LISTING_MOBILE_CHROME_INSET} rounded-b-xl rounded-t-none`,
+    ctaButton: TEXT.ctaButton,
   },
   card: {
-    shell: `${LISTING_GRID_SHELL} min-h-11 rounded-xl px-3 py-2.5 sm:min-h-[3.25rem] sm:px-4`,
-    ...LIGHT_PROMO_TEXT,
+    shell: `${GRADIENT_SOLID} rounded-xl px-3 sm:px-4`,
+    ctaButton: TEXT.ctaButton,
   },
   cardImmersive: {
-    shell: `${LISTING_GRID_SHELL} min-h-11 rounded-xl px-3 py-2.5 sm:min-h-[3.25rem] sm:px-4`,
-    ...LIGHT_PROMO_TEXT,
+    shell: `${GRADIENT_GLASS} rounded-xl px-3 sm:px-4`,
+    ctaButton: TEXT.ctaButtonGlass,
   },
 };
 
 export function FotoVPromtMiniBanner({ variant, className = "" }: Props) {
   const placement = placementFromVariant(variant);
   const copy = FOTO_V_PROMT_BANNER_COPY.listing;
-  const skin = SKIN[variant];
+  const { shell, ctaButton } = VARIANT[variant];
 
   return (
     <Link
@@ -88,18 +92,24 @@ export function FotoVPromtMiniBanner({ variant, className = "" }: Props) {
       rel="noopener noreferrer"
       prefetch={false}
       onClick={() => trackFotoVPromtBannerClick(placement)}
-      className={`${skin.shell} ${FVP_FOCUS_RING} ${className}`}
+      className={`foto-v-promt-mini-banner font-inherit ${shell} ${FVP_FOCUS_RING} ${className}`}
       role="complementary"
       aria-label="Получить промт по фото — открыть PromptShot в новой вкладке"
     >
-      <span className={LISTING_MOBILE_CHROME_LEADING_CELL}>
-        <GeneratePhotoIcon className={skin.icon} />
+      <span className="foto-v-promt-mini-banner__icon" aria-hidden>
+        <GeneratePhotoIcon className={TEXT.icon} />
       </span>
-      <span className="min-w-0 flex-1">
-        <span className={`block ${skin.title}`}>{FOTO_V_PROMT_BANNER_COPY.title}</span>
-        <span className={`mt-0.5 block truncate ${skin.subtitle}`}>{copy.subtitle}</span>
+      <span className="foto-v-promt-mini-banner__text">
+        <span className={`foto-v-promt-mini-banner__title ${TEXT.title}`}>
+          {FOTO_V_PROMT_BANNER_COPY.title}
+        </span>
+        <span className={`foto-v-promt-mini-banner__subtitle ${TEXT.subtitle}`}>
+          {copy.subtitle}
+        </span>
       </span>
-      <span className={skin.ctaButton}>{FOTO_V_PROMT_BANNER_COPY.cta}</span>
+      <span className={ctaButton}>
+        {FOTO_V_PROMT_BANNER_COPY.cta}
+      </span>
     </Link>
   );
 }

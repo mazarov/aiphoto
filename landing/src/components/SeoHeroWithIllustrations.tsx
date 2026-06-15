@@ -12,7 +12,7 @@ function illustrationLabel(ill: ResolvedSeoIllustration): string {
   if (ill.label) return ill.label;
   const dash = ill.caption.indexOf("—");
   const raw = dash > 0 ? ill.caption.slice(0, dash) : ill.caption;
-  return raw.trim().slice(0, 32);
+  return raw.trim().slice(0, 28);
 }
 
 type Props = {
@@ -42,9 +42,120 @@ export function SeoHeroWithIllustrations({
     [count],
   );
 
+  const carouselProps = {
+    onTouchStart: (e: React.TouchEvent) => {
+      touchXRef.current = e.changedTouches[0]?.clientX ?? 0;
+    },
+    onTouchEnd: (e: React.TouchEvent) => {
+      if (count < 2) return;
+      const dx = (e.changedTouches[0]?.clientX ?? 0) - touchXRef.current;
+      if (Math.abs(dx) < 36) return;
+      go(dx < 0 ? 1 : -1);
+    },
+    onKeyDown: (e: React.KeyboardEvent) => {
+      if (count < 2) return;
+      if (e.key === "ArrowLeft") { e.preventDefault(); go(-1); }
+      if (e.key === "ArrowRight") { e.preventDefault(); go(1); }
+    },
+    tabIndex: count > 1 ? 0 : undefined,
+    "aria-roledescription": "carousel" as const,
+  };
+
+  // Фото целиком (object-contain) поверх размытого дубля — без кропа и без серых полей.
+  const Slide = ({ sizes }: { sizes: string }) => (
+    <div
+      className="flex h-full motion-safe:transition-transform motion-safe:duration-300 motion-reduce:transition-none"
+      style={{ transform: `translateX(-${index * 100}%)` }}
+    >
+      {illustrations.map((ill) => (
+        <figure key={ill.cardSlug} className="relative h-full w-full shrink-0 overflow-hidden">
+          <Image
+            src={ill.photoUrl}
+            alt=""
+            aria-hidden
+            fill
+            sizes="64px"
+            quality={CARD_IMAGE_LISTING_NEXT_QUALITY}
+            className="scale-110 object-cover blur-2xl"
+          />
+          <div className="absolute inset-0 bg-white/30" aria-hidden />
+          <Image
+            src={ill.photoUrl}
+            alt={ill.alt}
+            fill
+            sizes={sizes}
+            quality={CARD_IMAGE_LISTING_NEXT_QUALITY}
+            className="object-contain"
+          />
+          <figcaption className="sr-only">{ill.caption}</figcaption>
+        </figure>
+      ))}
+    </div>
+  );
+
+  const Counter = () =>
+    count > 1 ? (
+      <p className="mt-1.5 text-center text-xs tabular-nums text-zinc-400">
+        {index + 1} / {count}
+      </p>
+    ) : null;
+
+  const Thumbnail = ({ ill, i }: { ill: ResolvedSeoIllustration; i: number }) => {
+    const active = i === index;
+    return (
+      <button
+        type="button"
+        role="tab"
+        aria-selected={active}
+        aria-label={`${illustrationLabel(ill)}, слайд ${i + 1}`}
+        onClick={() => setIndex(i)}
+        className={`relative aspect-[3/4] w-full shrink-0 overflow-hidden rounded-md transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${
+          active
+            ? "ring-2 ring-indigo-500 ring-offset-1 ring-offset-zinc-50"
+            : "opacity-60 hover:opacity-100"
+        }`}
+      >
+        <Image
+          src={ill.photoUrl}
+          alt=""
+          aria-hidden
+          fill
+          sizes="64px"
+          quality={CARD_IMAGE_LISTING_NEXT_QUALITY}
+          className="object-cover"
+        />
+      </button>
+    );
+  };
+
+  const Thumbnails = ({ orientation }: { orientation: "col" | "row" }) =>
+    count > 1 ? (
+      <div
+        role="tablist"
+        aria-label="Сценарии примеров"
+        className={
+          orientation === "col"
+            ? "flex w-14 shrink-0 flex-col gap-1.5"
+            : "flex flex-wrap gap-1.5"
+        }
+      >
+        {illustrations.map((ill, i) =>
+          orientation === "col" ? (
+            <Thumbnail key={ill.cardSlug} ill={ill} i={i} />
+          ) : (
+            <div key={ill.cardSlug} className="w-12">
+              <Thumbnail ill={ill} i={i} />
+            </div>
+          ),
+        )}
+      </div>
+    ) : null;
+
   return (
     <article className="overflow-hidden rounded-2xl border border-zinc-200/80 bg-white shadow-sm">
       <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_220px] sm:items-stretch">
+
+        {/* ── Text column (unchanged) ── */}
         <div className="min-w-0 p-5 sm:p-6 lg:p-8">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
             <h1 className="text-3xl font-bold tracking-tight text-zinc-900 sm:text-4xl">
@@ -73,92 +184,38 @@ export function SeoHeroWithIllustrations({
           ) : null}
         </div>
 
+        {/* ── Photo column ── */}
         <div
-          className="flex min-h-[200px] flex-col bg-zinc-50/40 px-2 pb-1.5 pt-2 sm:min-h-[120%] sm:px-2 sm:pb-1.5 sm:pt-2"
+          className="bg-zinc-50/60 px-2 py-2 sm:flex sm:flex-col sm:gap-1 sm:self-stretch sm:px-2 sm:pb-2 sm:pt-2"
           aria-label="Примеры промтов"
         >
-          <div
-            className="relative min-h-0 flex-1"
-            aria-roledescription="carousel"
-            onTouchStart={(e) => {
-              touchXRef.current = e.changedTouches[0]?.clientX ?? 0;
-            }}
-            onTouchEnd={(e) => {
-              if (count < 2) return;
-              const dx = (e.changedTouches[0]?.clientX ?? 0) - touchXRef.current;
-              if (Math.abs(dx) < 36) return;
-              go(dx < 0 ? 1 : -1);
-            }}
-            onKeyDown={(e) => {
-              if (count < 2) return;
-              if (e.key === "ArrowLeft") {
-                e.preventDefault();
-                go(-1);
-              } else if (e.key === "ArrowRight") {
-                e.preventDefault();
-                go(1);
-              }
-            }}
-            tabIndex={count > 1 ? 0 : undefined}
-          >
-            <div className="h-full min-h-[180px] overflow-hidden rounded-lg bg-zinc-100 sm:min-h-0">
-              <div
-                className="flex h-full motion-safe:transition-transform motion-safe:duration-300 motion-reduce:transition-none"
-                style={{ transform: `translateX(-${index * 100}%)` }}
-              >
-                {illustrations.map((ill) => (
-                  <figure key={ill.cardSlug} className="h-full w-full flex-shrink-0">
-                    <div className="relative h-full min-h-[180px] sm:min-h-0">
-                      <Image
-                        src={ill.photoUrl}
-                        alt={ill.alt}
-                        fill
-                        sizes="216px"
-                        quality={CARD_IMAGE_LISTING_NEXT_QUALITY}
-                        className="object-cover"
-                      />
-                    </div>
-                    <figcaption className="sr-only">{ill.caption}</figcaption>
-                  </figure>
-                ))}
+          {/* Mobile: thumbnails left / photo right */}
+          <div className="flex gap-2 sm:hidden">
+            <Thumbnails orientation="col" />
+            <div className="min-w-0 flex-1" {...carouselProps}>
+              <div className="aspect-[3/4] w-full overflow-hidden rounded-lg bg-zinc-100">
+                <Slide sizes="(max-width: 639px) calc(100vw - 5rem), 216px" />
               </div>
+              <Counter />
             </div>
           </div>
 
-          {count > 1 && (
-            <p className="mt-1 text-center text-xs tabular-nums text-zinc-400">
-              {index + 1} / {count}
-            </p>
-          )}
+          {/* Desktop: full-height photo */}
+          <div className="hidden min-h-0 flex-1 sm:block" {...carouselProps}>
+            <div className="h-full min-h-[200px] overflow-hidden rounded-lg bg-zinc-100">
+              <Slide sizes="216px" />
+            </div>
+            <Counter />
+          </div>
         </div>
       </div>
 
-      {count > 1 && (
-        <div className="bg-zinc-50/60 px-5 py-3 sm:px-6 lg:px-8">
-          <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="Сценарии примеров">
-            {illustrations.map((ill, i) => {
-              const active = i === index;
-              return (
-                <button
-                  key={ill.cardSlug}
-                  type="button"
-                  role="tab"
-                  aria-selected={active}
-                  aria-label={`${illustrationLabel(ill)}, слайд ${i + 1}`}
-                  onClick={() => setIndex(i)}
-                  className={`rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${
-                    active
-                      ? "bg-indigo-100 text-indigo-700"
-                      : "bg-white text-zinc-500 ring-1 ring-zinc-200/80 hover:text-zinc-700"
-                  }`}
-                >
-                  {illustrationLabel(ill)}
-                </button>
-              );
-            })}
-          </div>
+      {/* Desktop thumbnails row */}
+      {count > 1 ? (
+        <div className="hidden border-t border-zinc-100 bg-zinc-50/60 px-5 py-3 sm:block sm:px-6 lg:px-8">
+          <Thumbnails orientation="row" />
         </div>
-      )}
+      ) : null}
     </article>
   );
 }

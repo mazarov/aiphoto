@@ -391,4 +391,77 @@ p {
       }
     }
   }
+
+  /** Foto-v-promt mini banner — fixed height; drop CTA, then subtitle, before clipping title. */
+  .foto-v-promt-mini-banner {
+    container-type: inline-size;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto; /* icon | text | cta */
+    align-items: center;
+    min-width: 0;
+    column-gap: 0.625rem;
+    padding-block: 0.5rem;
+    height: 3.5rem;
+    max-height: 3.5rem;
+    overflow: hidden;
+  }
+
+  @media (min-width: 640px) {
+    .foto-v-promt-mini-banner {
+      padding-block: 0.625rem;
+      height: 3.75rem;
+      max-height: 3.75rem;
+    }
+  }
+
+  /* Иконка видна всегда — визуальный якорь. */
+  .foto-v-promt-mini-banner__icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    flex-shrink: 0;
+  }
+
+  /* Узко: убрать CTA (вся плашка кликабельна). Порог тюнится визуально. */
+  @container (max-width: 24rem) {
+    .foto-v-promt-mini-banner {
+      grid-template-columns: auto minmax(0, 1fr);
+    }
+    .foto-v-promt-mini-banner__cta {
+      display: none;
+    }
+  }
+
+  /* Очень узко: убрать подзаголовок, оставить иконку + заголовок. */
+  @container (max-width: 18rem) {
+    .foto-v-promt-mini-banner__subtitle {
+      display: none;
+    }
+  }
+
+  .foto-v-promt-mini-banner__text {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .foto-v-promt-mini-banner__cta {
+    white-space: nowrap;
+  }
+
+  .foto-v-promt-mini-banner__title,
+  .foto-v-promt-mini-banner__subtitle {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .foto-v-promt-mini-banner__subtitle {
+    margin-top: 0.1875rem;
+  }
 }
