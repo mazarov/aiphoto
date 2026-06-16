@@ -3,6 +3,33 @@ import { NextResponse, type NextRequest } from "next/server";
 const OLD_SLUG_RE = /^\/p\/([^/]+)\/?$/;
 const DEFAULT_ALLOWED_METHODS = "GET, POST, OPTIONS";
 const DEFAULT_ALLOWED_HEADERS = "Content-Type, Authorization";
+const DEFAULT_SITE_URL = "https://promptshot.ru";
+
+function getApexHostname(): string {
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || DEFAULT_SITE_URL;
+  try {
+    return new URL(siteUrl).hostname.toLowerCase();
+  } catch {
+    return "promptshot.ru";
+  }
+}
+
+function redirectWwwToApex(request: NextRequest): NextResponse | null {
+  const hostHeader =
+    request.headers.get("x-forwarded-host")?.split(",")[0]?.trim() ||
+    request.headers.get("host") ||
+    request.nextUrl.hostname;
+  const host = hostHeader.split(":")[0]?.toLowerCase();
+  if (!host) return null;
+
+  const apexHost = getApexHostname();
+  if (host !== `www.${apexHost}`) return null;
+
+  const url = request.nextUrl.clone();
+  url.protocol = "https:";
+  url.host = apexHost;
+  return NextResponse.redirect(url, 301);
+}
 
 function parseAllowedOrigins(): string[] {
   const fromEnv = (process.env.CORS_ALLOWED_ORIGINS || "")
@@ -53,6 +80,9 @@ async function resolveSlugRedirect(slug: string): Promise<string | null> {
 }
 
 export async function middleware(request: NextRequest) {
+  const wwwRedirect = redirectWwwToApex(request);
+  if (wwwRedirect) return wwwRedirect;
+
   if (isApiRequest(request)) {
     if (request.method === "OPTIONS") {
       return applyCorsHeaders(request, new NextResponse(null, { status: 204 }));
