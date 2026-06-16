@@ -42,6 +42,7 @@ export function MobileTabBar() {
   const [searchSheetOpen, setSearchSheetOpen] = useState(false);
   const [profileSheetOpen, setProfileSheetOpen] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const tabBarRef = useRef<HTMLDivElement>(null);
 
   void chrome?.searchMobileRevision;
   void chrome?.filterRevision;
@@ -80,6 +81,17 @@ export function MobileTabBar() {
     registerMobileSearchOpen(openSheet);
     return () => registerMobileSearchOpen(null);
   }, [registerMobileSearchOpen, openSheet]);
+
+  // iOS Safari ignores overscroll-behavior/touch-action for document-level bounce when the
+  // gesture starts on a non-scrollable element. Intercept touchmove on the bar itself with a
+  // non-passive listener so preventDefault() actually cancels the native scroll chain.
+  useEffect(() => {
+    const el = tabBarRef.current;
+    if (!el) return;
+    const block = (e: TouchEvent) => e.preventDefault();
+    el.addEventListener("touchmove", block, { passive: false });
+    return () => el.removeEventListener("touchmove", block);
+  });
 
   if (!mounted || isDesktop) return null;
 
@@ -125,7 +137,7 @@ export function MobileTabBar() {
       <div
         className="mobile-tab-bar pointer-events-none absolute inset-x-0 bottom-0 z-40 max-lg:block lg:hidden"
       >
-        <div className="pointer-events-auto rounded-t-2xl border-t border-zinc-200/70 bg-white/95 shadow-[0_-8px_32px_-12px_rgba(99,102,241,0.12)] backdrop-blur-xl pb-[max(0px,env(safe-area-inset-bottom,0px))]">
+        <div ref={tabBarRef} className="pointer-events-auto rounded-t-2xl border-t border-zinc-200/70 bg-white/95 shadow-[0_-8px_32px_-12px_rgba(99,102,241,0.12)] backdrop-blur-xl pb-[max(0px,env(safe-area-inset-bottom,0px))]">
         <div className="flex h-14 items-end justify-around px-1 pb-1">
           {/* Каталог */}
           <Link

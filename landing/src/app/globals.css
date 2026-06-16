@@ -157,6 +157,12 @@ p {
     height: var(--ps-listing-shell-height, 100dvh);
     max-height: var(--ps-listing-shell-height, 100dvh);
     overflow: hidden;
+    overscroll-behavior: none;
+  }
+
+  /** Prevent rubber-band bounce from pulling the tab bar off the bottom edge */
+  .mobile-tab-bar {
+    touch-action: none;
   }
 
   @media (max-width: 1023px) {
