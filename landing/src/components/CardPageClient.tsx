@@ -31,7 +31,6 @@ import {
   type ListingCardNavNeighbors,
 } from "@/lib/listing-card-navigation-context";
 import { FotoVPromtMiniBanner } from "@/components/foto-v-promt-promo/FotoVPromtMiniBanner";
-import { trackFotoVPromtBannerImpressionOnce } from "@/lib/foto-v-promt-banner-metrics";
 import { trackPromptCardOpen } from "@/lib/yandex-metrika";
 
 /** Glass как у «тегов» на этом экране: chip-подложка без отдельной нижней панели (tier A = 13px для mobile SEO). */
@@ -278,10 +277,6 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
     heroImageReady ? "opacity-100" : "opacity-0 pointer-events-none invisible"
   }`;
 
-  useEffect(() => {
-    if (!hasPrompts) return;
-    trackFotoVPromtBannerImpressionOnce("card");
-  }, [hasPrompts, data.id]);
   const viewCount = useCardViewBeacon(data.slug, data.viewCount ?? 0);
 
   const groupCards = useMemo(() => {

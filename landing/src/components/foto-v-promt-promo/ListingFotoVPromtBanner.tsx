@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import { FotoVPromtMiniBanner } from "./FotoVPromtMiniBanner";
-import { trackFotoVPromtBannerImpressionOnce } from "@/lib/foto-v-promt-banner-metrics";
 import { LISTING_SCROLL_ROOT_ID } from "@/lib/scroll-preservation";
 
 type Attach = "grid" | "hero";
@@ -18,10 +17,6 @@ const WRAPPER_CLASS: Record<Attach, string> = {
 export function ListingFotoVPromtBanner({ attach = "grid" }: { attach?: Attach }) {
   const [visible, setVisible] = useState(true);
   const bannerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    trackFotoVPromtBannerImpressionOnce("listing");
-  }, []);
 
   useEffect(() => {
     const el = bannerRef.current;

@@ -36,7 +36,7 @@
 | Файл | Назначение |
 |------|------------|
 | `landing/src/lib/foto-v-promt-banner-copy.ts` | Тексты и path |
-| `landing/src/lib/foto-v-promt-banner-metrics.ts` | Метрика клика / impression |
+| `landing/src/lib/foto-v-promt-banner-metrics.ts` | Метрика клика |
 | `landing/src/components/foto-v-promt-promo/FotoVPromtMiniBanner.tsx` | UI: `listing` \| `card` \| `cardImmersive` |
 | `landing/src/components/foto-v-promt-promo/ListingFotoVPromtBanner.tsx` | Sticky + IO hide |
 
@@ -52,10 +52,10 @@
 
 Константы: `landing/src/lib/yandex-metrika.ts`.
 
-| Цель | Параметры |
-|------|-----------|
-| `foto_v_promt_banner_click` | `placement`: `listing` \| `card` |
-| `foto_v_promt_banner_impression` | `placement`: `listing` \| `card` — **один раз на placement за сессию вкладки** (`sessionStorage`) |
+| Цель | Где |
+|------|-----|
+| `foto_v_promt_banner_click` | Sticky-баннер над grid каталога / поиска |
+| `foto_v_promt_banner_click_card` | Баннер на `/p/[slug]` (модалка и full page) |
 
 ---
 

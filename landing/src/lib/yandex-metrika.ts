@@ -5,7 +5,7 @@ export const YANDEX_METRIKA_COUNTER_ID = 107703100;
 export const YM_GOAL_PROMPT_CARD_OPEN = "prompt_card_open";
 export const YM_GOAL_LEXYGPT_GENERATE = "lexygpt_generate_click";
 export const YM_GOAL_FOTO_V_PROMT_BANNER_CLICK = "foto_v_promt_banner_click";
-export const YM_GOAL_FOTO_V_PROMT_BANNER_IMPRESSION = "foto_v_promt_banner_impression";
+export const YM_GOAL_FOTO_V_PROMT_BANNER_CLICK_CARD = "foto_v_promt_banner_click_card";
 export const YM_GOAL_FOTO_V_PROMT_ADD_TO_CHROME_CLICK = "foto_v_promt_add_to_chrome_click";
 
 export type PromptCardOpenEntry = "modal" | "page";

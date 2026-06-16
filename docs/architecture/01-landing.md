@@ -21,7 +21,8 @@
 - Счётчик: **`107703100`** (дублируется в **`YANDEX_METRIKA_COUNTER_ID`**, файл `landing/src/lib/yandex-metrika.ts`; init — `landing/src/app/layout.tsx`).
 - **Переход в карточку промта:** **`reachGoal('prompt_card_open')`**, параметры: **`entry`**: `modal` (клик с листинга → `PromptCardModalContext.open`) \| `page` (прямой заход на `/p/[slug]`); **`referer`** — путь до открытия (только `modal`); **`slug`**. Дополнительно для модалки — виртуальный hit `ym('hit')` на `/p/[slug]`.
 - **Кнопка «Сгенерировать»** (таб-бар и карточка → LexyGPT): **`reachGoal('lexygpt_generate_click')`**, параметр **`placement`**: `tabbar` (`MobileTabBar`) \| `listing` \| `expanded` \| `sticky` (`LexyGptGenerateButton`). В кабинете Метрики — цель типа **JavaScript-событие** с идентификатором **`lexygpt_generate_click`**.
-- **Баннер «Фото в промт»** (листинг и карточка): **`reachGoal('foto_v_promt_banner_click')`** и **`foto_v_promt_banner_impression`** с **`placement`**: `listing` \| `card` (`foto-v-promt-banner-metrics.ts`, `foto-v-promt-promo/`). Impression — один раз на placement за сессию вкладки. ТЗ — **`docs/requirements/04-06-foto-v-promt-mini-banner.md`**.
+- **Баннер «Фото в промт»** (листинг): **`reachGoal('foto_v_promt_banner_click')`** (`ListingFotoVPromtBanner`, sticky над сеткой).
+- **Баннер «Фото в промт»** (карточка): **`reachGoal('foto_v_promt_banner_click_card')`** (`FotoVPromtMiniBanner` на `/p/[slug]`). ТЗ — **`docs/requirements/04-06-foto-v-promt-mini-banner.md`**.
 - **Floating CTA «Add to Chrome»** на **`/foto-v-promt`**: **`reachGoal('foto_v_promt_add_to_chrome_click')`** (`FotoVPromtFloatingCta` → Chrome Web Store, `getAiImageDescriberChromeUrl()`).
 
 ---
