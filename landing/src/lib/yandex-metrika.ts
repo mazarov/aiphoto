@@ -2,9 +2,12 @@
 export const YANDEX_METRIKA_COUNTER_ID = 107703100;
 
 /** Идентификатор цели JS в кабинете Метрики (тип «JavaScript-событие») должен совпадать. */
+export const YM_GOAL_PROMPT_CARD_OPEN = "prompt_card_open";
 export const YM_GOAL_LEXYGPT_GENERATE = "lexygpt_generate_click";
 export const YM_GOAL_FOTO_V_PROMT_BANNER_CLICK = "foto_v_promt_banner_click";
 export const YM_GOAL_FOTO_V_PROMT_BANNER_IMPRESSION = "foto_v_promt_banner_impression";
+
+export type PromptCardOpenEntry = "modal" | "page";
 
 declare global {
   interface Window {
@@ -29,6 +32,17 @@ export function reachYandexMetrikaGoal(
   } catch {
     /* intentionally empty — аналитика не должна ломать UI */
   }
+}
+
+/** Открытие карточки промта: модалка с листинга или прямой заход на `/p/[slug]`. */
+export function trackPromptCardOpen(
+  slug: string,
+  options?: { entry?: PromptCardOpenEntry; referer?: string }
+): void {
+  const params: Record<string, string> = { slug };
+  if (options?.entry) params.entry = options.entry;
+  if (options?.referer) params.referer = options.referer;
+  reachYandexMetrikaGoal(YM_GOAL_PROMPT_CARD_OPEN, params);
 }
 
 /**

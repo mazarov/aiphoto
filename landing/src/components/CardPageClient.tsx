@@ -32,6 +32,7 @@ import {
 } from "@/lib/listing-card-navigation-context";
 import { FotoVPromtMiniBanner } from "@/components/foto-v-promt-promo/FotoVPromtMiniBanner";
 import { trackFotoVPromtBannerImpressionOnce } from "@/lib/foto-v-promt-banner-metrics";
+import { trackPromptCardOpen } from "@/lib/yandex-metrika";
 
 /** Glass как у «тегов» на этом экране: chip-подложка без отдельной нижней панели (tier A = 13px для mobile SEO). */
 const MOBILE_FS_CHIP =
@@ -136,6 +137,11 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
     if (!isModal) {
       window.scrollTo({ top: 0, left: 0, behavior: "auto" });
     }
+  }, [data.slug, isModal]);
+
+  useEffect(() => {
+    if (isModal) return;
+    trackPromptCardOpen(data.slug, { entry: "page" });
   }, [data.slug, isModal]);
 
   async function handleVisibilityChange(nextPublished: boolean) {

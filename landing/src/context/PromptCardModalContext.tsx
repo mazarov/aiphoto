@@ -11,7 +11,7 @@ import {
 } from "react";
 import type { CardPageData } from "@/lib/supabase";
 import { lockListingScrollForModal } from "@/lib/scroll-preservation";
-import { trackVirtualPageView } from "@/lib/yandex-metrika";
+import { trackPromptCardOpen, trackVirtualPageView } from "@/lib/yandex-metrika";
 
 /** Lightweight preview data available immediately from the listing grid on click. */
 export type CardModalSeed = {
@@ -65,6 +65,7 @@ export function PromptCardModalProvider({ children }: { children: ReactNode }) {
 
       window.history.pushState(null, "", `/p/${encodeURIComponent(slug)}`);
 
+      trackPromptCardOpen(slug, { entry: "modal", referer });
       trackVirtualPageView(`/p/${encodeURIComponent(slug)}`, { referer });
     }
     setCurrentSeed(seed ?? null);
