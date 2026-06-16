@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { getAiImageDescriberChromeUrl } from "@/lib/foto-v-promt-config";
 import { FOTO_V_PROMT_CTA } from "@/lib/foto-v-promt-copy";
+import { trackFotoVPromtAddToChromeClick } from "@/lib/yandex-metrika";
 import { ChromeMark } from "./ChromeMark";
 import { FVP_FOCUS_RING, FVP_SECTION_CONTAINER } from "./foto-v-promt-tokens";
 
@@ -24,6 +25,7 @@ export function FotoVPromtFloatingCta() {
             href={getAiImageDescriberChromeUrl()}
             target="_blank"
             rel="noopener noreferrer"
+            onClick={() => trackFotoVPromtAddToChromeClick()}
             className={`pointer-events-auto inline-flex items-center justify-center gap-2 rounded-full bg-indigo-600 px-6 py-3 text-sm font-semibold text-white shadow-[0_8px_32px_rgba(99,102,241,0.35)] ring-1 ring-inset ring-indigo-500/20 transition hover:bg-indigo-700 ${FVP_FOCUS_RING}`}
           >
             <ChromeMark className="h-5 w-5 shrink-0" />
