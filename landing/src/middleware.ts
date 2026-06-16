@@ -5,6 +5,15 @@ const DEFAULT_ALLOWED_METHODS = "GET, POST, OPTIONS";
 const DEFAULT_ALLOWED_HEADERS = "Content-Type, Authorization";
 const DEFAULT_SITE_URL = "https://promptshot.ru";
 
+function getSiteOrigin(): string {
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || DEFAULT_SITE_URL;
+  try {
+    return new URL(siteUrl).origin;
+  } catch {
+    return DEFAULT_SITE_URL;
+  }
+}
+
 function getApexHostname(): string {
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || DEFAULT_SITE_URL;
   try {
@@ -25,10 +34,11 @@ function redirectWwwToApex(request: NextRequest): NextResponse | null {
   const apexHost = getApexHostname();
   if (host !== `www.${apexHost}`) return null;
 
-  const url = request.nextUrl.clone();
-  url.protocol = "https:";
-  url.host = apexHost;
-  return NextResponse.redirect(url, 301);
+  const destination = new URL(
+    `${request.nextUrl.pathname}${request.nextUrl.search}`,
+    getSiteOrigin(),
+  );
+  return NextResponse.redirect(destination, 301);
 }
 
 function parseAllowedOrigins(): string[] {
