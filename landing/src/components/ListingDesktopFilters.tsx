@@ -12,8 +12,10 @@ import {
   FILTER_CHROME_SURFACE,
   FILTER_ICON_BTN,
   FILTER_MODAL_BACKDROP,
+  FILTER_MODAL_BODY,
   FILTER_MODAL_FOOTER,
   FILTER_MODAL_HEADER,
+  FILTER_MODAL_LAYOUT,
   FILTER_MODAL_SHELL,
   FILTER_PRIMARY_BTN,
   FILTER_RESET_LINK,
@@ -228,7 +230,7 @@ export function ListingDesktopFilters({
             aria-hidden
           />
           <div
-            className={`fixed left-1/2 top-1/2 z-50 hidden max-h-[min(70vh,32rem)] w-[calc(100vw-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 ${FILTER_MODAL_SHELL} lg:block`}
+            className={`fixed left-1/2 top-1/2 z-50 hidden max-h-[min(70vh,32rem)] w-[calc(100vw-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 ${FILTER_MODAL_LAYOUT} ${FILTER_MODAL_SHELL} lg:flex`}
             role="dialog"
             aria-modal="true"
             aria-label={openLabel}
@@ -247,7 +249,7 @@ export function ListingDesktopFilters({
               </button>
             </div>
 
-            <div className="overflow-y-auto p-4">
+            <div className={`p-4 ${FILTER_MODAL_BODY}`}>
               <FilterChips
                 tags={openTagsData.tags}
                 selectedSlug={openSelectedSlug}

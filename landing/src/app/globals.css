@@ -151,13 +151,15 @@ p {
     padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
   }
 
-  /** Mobile listing shell — inner scroll, in-flow bottom dock */
-  html.listing-mobile-shell,
-  html.listing-mobile-shell body {
-    height: var(--ps-listing-shell-height, 100dvh);
-    max-height: var(--ps-listing-shell-height, 100dvh);
-    overflow: hidden;
-    overscroll-behavior: none;
+  /** Mobile listing shell — inner scroll, in-flow bottom dock (never on desktop). */
+  @media (max-width: 1023px) {
+    html.listing-mobile-shell,
+    html.listing-mobile-shell body {
+      height: var(--ps-listing-shell-height, 100dvh);
+      max-height: var(--ps-listing-shell-height, 100dvh);
+      overflow: hidden;
+      overscroll-behavior: none;
+    }
   }
 
   /** Prevent rubber-band bounce from pulling the tab bar off the bottom edge */

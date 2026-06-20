@@ -28,6 +28,9 @@ export function PageLayout({
     const mq = window.matchMedia("(max-width: 1023px)");
     const sync = () => {
       document.documentElement.classList.toggle("listing-mobile-shell", mq.matches);
+      if (!mq.matches) {
+        document.documentElement.style.removeProperty("--ps-listing-shell-height");
+      }
     };
     sync();
     mq.addEventListener("change", sync);

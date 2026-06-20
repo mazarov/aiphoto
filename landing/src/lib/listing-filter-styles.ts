@@ -27,11 +27,18 @@ export const FILTER_MODAL_BACKDROP = "bg-zinc-900/30 backdrop-blur-[2px]";
 export const FILTER_MODAL_SHELL =
   "overflow-hidden rounded-2xl border border-indigo-100/80 bg-white/95 shadow-2xl shadow-indigo-500/[0.12] backdrop-blur-xl";
 
+/** Flex column shell for filter dialogs — keep on the dialog root, not global layout. */
+export const FILTER_MODAL_LAYOUT = "flex flex-col";
+
+/** Scrollable body between fixed header/footer — requires flex shell + max-height. */
+export const FILTER_MODAL_BODY =
+  "min-h-0 flex-1 overflow-y-auto overscroll-y-contain [-webkit-overflow-scrolling:touch]";
+
 export const FILTER_MODAL_HEADER =
-  "flex items-center justify-between border-b border-indigo-100/60 bg-white/90 px-4 py-3";
+  "flex shrink-0 items-center justify-between border-b border-indigo-100/60 bg-white/90 px-4 py-3";
 
 export const FILTER_MODAL_FOOTER =
-  "border-t border-indigo-100/60 bg-white/90 px-4 py-3";
+  "flex shrink-0 gap-2 border-t border-indigo-100/60 bg-white/90 px-4 py-3";
 
 export const FILTER_SECTION_LABEL =
   "mb-2 text-xs font-medium uppercase tracking-wider text-zinc-500";
