@@ -19,6 +19,13 @@ export function CardModal({ children, onClose, immersiveMobile = false }: Props)
   const router = useRouter();
   const overlayRef = useRef<HTMLDivElement>(null);
   const isNavigatingBack = useRef(false);
+  const deferredCleanupRef = useRef<number | null>(null);
+  const deferScrollRestore = useCallback(() => {
+    deferredCleanupRef.current = window.setTimeout(() => {
+      scheduleListingScrollRestore();
+      deferredCleanupRef.current = null;
+    }, 0);
+  }, []);
 
   const handleClose = useCallback(() => {
     if (onClose) {
@@ -45,12 +52,19 @@ export function CardModal({ children, onClose, immersiveMobile = false }: Props)
 
   // Lock scroll while open; restore listing position only after unlock (critical on desktop).
   useEffect(() => {
+    // React StrictMode (dev) intentionally does mount->cleanup->mount once.
+    // Cancel deferred cleanup from the synthetic unmount so restore runs only on real close.
+    if (deferredCleanupRef.current !== null) {
+      window.clearTimeout(deferredCleanupRef.current);
+      deferredCleanupRef.current = null;
+    }
+
     const isMobileListingShell = window.matchMedia("(max-width: 1023px)").matches;
 
     if (isMobileListingShell) {
       return () => {
         unlockListingScrollStyles();
-        scheduleListingScrollRestore();
+        deferScrollRestore();
       };
     }
 
@@ -64,11 +78,13 @@ export function CardModal({ children, onClose, immersiveMobile = false }: Props)
     document.body.style.overflow = "hidden";
 
     return () => {
+      // Restore layout-affecting body styles immediately to avoid visible width "jump"
+      // on close; only scroll restore stays deferred for StrictMode synthetic cleanup.
       document.body.style.overflow = originalOverflow;
       document.body.style.paddingRight = originalPaddingRight;
-      scheduleListingScrollRestore();
+      deferScrollRestore();
     };
-  }, []);
+  }, [deferScrollRestore]);
 
   // Handle click outside to close
   const handleOverlayClick = useCallback(
