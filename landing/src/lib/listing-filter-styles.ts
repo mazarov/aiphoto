@@ -25,13 +25,16 @@ export const FILTER_CHIP_COUNT = "text-xs font-normal tabular-nums text-indigo-4
 export const FILTER_MODAL_BACKDROP = "bg-zinc-900/30 backdrop-blur-[2px]";
 
 export const FILTER_MODAL_SHELL =
-  "overflow-hidden rounded-2xl border border-indigo-100/80 bg-white/95 shadow-2xl shadow-indigo-500/[0.12] backdrop-blur-xl";
+  "flex flex-col overflow-hidden rounded-2xl border border-indigo-100/80 bg-white/95 shadow-2xl shadow-indigo-500/[0.12] backdrop-blur-xl";
 
 export const FILTER_MODAL_HEADER =
-  "flex items-center justify-between border-b border-indigo-100/60 bg-white/90 px-4 py-3";
+  "flex shrink-0 items-center justify-between border-b border-indigo-100/60 bg-white/90 px-4 py-3";
+
+export const FILTER_MODAL_BODY =
+  "min-h-0 flex-1 overflow-y-auto overscroll-y-contain [-webkit-overflow-scrolling:touch]";
 
 export const FILTER_MODAL_FOOTER =
-  "border-t border-indigo-100/60 bg-white/90 px-4 py-3";
+  "shrink-0 border-t border-indigo-100/60 bg-white/90 px-4 py-3";
 
 export const FILTER_SECTION_LABEL =
   "mb-2 text-xs font-medium uppercase tracking-wider text-zinc-500";

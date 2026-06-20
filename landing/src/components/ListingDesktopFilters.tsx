@@ -12,6 +12,7 @@ import {
   FILTER_CHROME_SURFACE,
   FILTER_ICON_BTN,
   FILTER_MODAL_BACKDROP,
+  FILTER_MODAL_BODY,
   FILTER_MODAL_FOOTER,
   FILTER_MODAL_HEADER,
   FILTER_MODAL_SHELL,
@@ -247,7 +248,7 @@ export function ListingDesktopFilters({
               </button>
             </div>
 
-            <div className="overflow-y-auto p-4">
+            <div className={`p-4 ${FILTER_MODAL_BODY}`}>
               <FilterChips
                 tags={openTagsData.tags}
                 selectedSlug={openSelectedSlug}

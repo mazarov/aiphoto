@@ -11,6 +11,7 @@ import type { ListingSort } from "@/lib/listing-sort";
 import {
   FILTER_ICON_BTN,
   FILTER_MODAL_BACKDROP,
+  FILTER_MODAL_BODY,
   FILTER_MODAL_FOOTER,
   FILTER_MODAL_HEADER,
   FILTER_MODAL_SHELL,
@@ -82,11 +83,11 @@ export function FilterPanel({
         aria-hidden
       />
       <div
-        className={`fab-sheet-bottom-safe fixed right-4 z-50 max-h-[70vh] w-[calc(100vw-2rem)] max-w-md origin-bottom-right animate-scale-in overflow-y-auto sm:right-6 ${FILTER_MODAL_SHELL}`}
+        className={`fab-sheet-bottom-safe fixed right-4 z-50 max-h-[70vh] w-[calc(100vw-2rem)] max-w-md origin-bottom-right animate-scale-in sm:right-6 ${FILTER_MODAL_SHELL}`}
         role="dialog"
         aria-label="Фильтры"
       >
-        <div className={`sticky top-0 z-10 ${FILTER_MODAL_HEADER}`}>
+        <div className={FILTER_MODAL_HEADER}>
           <h2 className="text-base font-semibold tracking-tight text-zinc-900">Фильтры</h2>
           <button
             type="button"
@@ -100,7 +101,7 @@ export function FilterPanel({
           </button>
         </div>
 
-        <div className="space-y-6 p-4">
+        <div className={`space-y-6 p-4 ${FILTER_MODAL_BODY}`}>
           {sort != null && onSortChange && (
             <div className="border-b border-indigo-100/60 pb-5">
               <p className={FILTER_SECTION_LABEL}>Сортировка</p>
@@ -131,7 +132,7 @@ export function FilterPanel({
           })}
         </div>
 
-        <div className={`sticky bottom-0 flex gap-2 ${FILTER_MODAL_FOOTER}`}>
+        <div className={`flex gap-2 ${FILTER_MODAL_FOOTER}`}>
           <button
             type="button"
             onClick={() => {
