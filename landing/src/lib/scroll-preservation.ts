@@ -3,7 +3,7 @@
  * при открытии/закрытии карточек промтов (через клиентский модал Solution B).
  */
 
-import { useLayoutEffect } from "react";
+import { useLayoutEffect, useRef } from "react";
 import { bumpListingShellViewportHeight } from "@/lib/listing-shell-viewport";
 
 export const SCROLL_KEY = "card_modal_scroll_pos";
@@ -15,9 +15,35 @@ export const LISTING_SCROLL_ROOT_ID = "listing-scroll-root";
  * (иначе догрузка + пересчёт listing-grid-clamp двигают высоту и сбивают позицию).
  */
 let restoreInProgress = false;
+/** Bumped on cancel / new schedule — stale rAF and setTimeout callbacks no-op. */
+let restoreGeneration = 0;
+const pendingRestoreTimeouts = new Set<number>();
 
 export function isListingScrollRestoreInProgress(): boolean {
   return restoreInProgress;
+}
+
+/** Abort pending modal-restore timers/rAF and drop the in-progress flag. */
+export function cancelListingScrollRestore(): void {
+  if (typeof window === "undefined") return;
+  restoreGeneration += 1;
+  restoreInProgress = false;
+  for (const id of pendingRestoreTimeouts) {
+    window.clearTimeout(id);
+  }
+  pendingRestoreTimeouts.clear();
+  unlockListingScrollStyles();
+}
+
+function trackRestoreTimeout(fn: () => void, ms: number): number {
+  const generation = restoreGeneration;
+  const id = window.setTimeout(() => {
+    pendingRestoreTimeouts.delete(id);
+    if (generation !== restoreGeneration) return;
+    fn();
+  }, ms);
+  pendingRestoreTimeouts.add(id);
+  return id;
 }
 
 type ScrollRoot = HTMLElement | Window;
@@ -80,6 +106,7 @@ export function unlockListingScrollStyles(): void {
 /** Scroll listing back to top and drop any saved modal-restore position. */
 export function resetListingScroll(): void {
   if (typeof window === "undefined") return;
+  cancelListingScrollRestore();
   try {
     sessionStorage.removeItem(SCROLL_KEY);
   } catch {
@@ -173,6 +200,7 @@ export function restoreListingScroll(opts: RestoreOptions = {}): void {
 export function scheduleListingScrollRestore(): void {
   if (typeof window === "undefined") return;
 
+  cancelListingScrollRestore();
   unlockListingScrollStyles();
   window.history.scrollRestoration = "manual";
 
@@ -189,34 +217,49 @@ export function scheduleListingScrollRestore(): void {
     return;
   }
 
+  const generation = restoreGeneration;
+
   // Block auto-loadMore in grids for the entire restore window.
   restoreInProgress = true;
 
   const apply = () => {
+    if (generation !== restoreGeneration) return;
     unlockListingScrollStyles();
     writeScrollTop(getListingScrollRoot(), y);
   };
 
-  // Discrete reapply (NOT a continuous rAF loop — user must be able to scroll
-  // immediately after closing). Covers: sync frame, Next popstate, late layout settle.
-  apply();
-  requestAnimationFrame(apply);
-  requestAnimationFrame(() => requestAnimationFrame(apply));
-  window.setTimeout(apply, 50);
-  window.setTimeout(apply, 150);
-  window.setTimeout(apply, 320);
-
-  // Final: reapply once more, drop the flag, clean up, restore native scroll mode.
-  // 500ms > previous 320ms so Next popstate reconciliation finishes before
-  // auto-loadMore is unblocked. After the flag drops, any new cards append below
-  // the viewport and the visible content does not shift.
-  window.setTimeout(() => {
+  const finish = () => {
+    if (generation !== restoreGeneration) return;
     apply();
     restoreInProgress = false;
     try { sessionStorage.removeItem(SCROLL_KEY); } catch {}
     bumpListingShellViewportHeight();
     window.history.scrollRestoration = "auto";
-  }, 500);
+  };
+
+  // Discrete reapply (NOT a continuous rAF loop — user must be able to scroll
+  // immediately after closing). Covers: sync frame, Next popstate, late layout settle.
+  apply();
+  requestAnimationFrame(() => {
+    if (generation !== restoreGeneration) return;
+    apply();
+  });
+  requestAnimationFrame(() => {
+    if (generation !== restoreGeneration) return;
+    requestAnimationFrame(() => {
+      if (generation !== restoreGeneration) return;
+      apply();
+    });
+  });
+  trackRestoreTimeout(apply, 50);
+  trackRestoreTimeout(apply, 150);
+  trackRestoreTimeout(apply, 320);
+
+  // Final: reapply once more, drop the flag, clean up, restore native scroll mode.
+  // 500ms > previous 320ms so Next popstate reconciliation finishes before
+  // auto-loadMore is unblocked. After the flag drops, any new cards append below
+  // the viewport and the visible content does not shift.
+  trackRestoreTimeout(finish, 500);
 }
 
 export function useListingScrollRestoration(opts: RestoreOptions = {}): void {
@@ -243,6 +286,7 @@ export function shouldScrollTopOnNav(pathname: string): boolean {
 /** Scroll catalog listing root and window to top; clears saved modal-restore position. */
 export function scrollCatalogToTop(): void {
   if (typeof window === "undefined") return;
+  cancelListingScrollRestore();
   try {
     sessionStorage.removeItem(SCROLL_KEY);
   } catch {
@@ -260,12 +304,22 @@ export function isSameNavPath(pathname: string, href: string): boolean {
 }
 
 /**
- * Next.js scroll-to-top only affects `window`. On mobile the catalog shell scrolls
- * inside `#listing-scroll-root`; browser history can also restore a stale position.
+ * Reset listing scroll on Next.js route change. On mobile the shell scrolls inside
+ * `#listing-scroll-root` (persists across soft navigations); also cancels stale modal-restore timers.
+ * Modal close does not change pathname — restore stays on scheduleListingScrollRestore only.
  */
-export function useStandalonePageScrollTop(pathname: string): void {
+export function useListingScrollOnRouteChange(pathname: string): void {
+  const prevPathRef = useRef<string | null>(null);
+
   useLayoutEffect(() => {
-    if (!shouldScrollTopOnNav(pathname)) return;
+    const norm = normalizeNavPath(pathname);
+    const prev = prevPathRef.current;
+    prevPathRef.current = norm;
+
+    const pathChanged = prev !== null && prev !== norm;
+    const forceTopOnEnter = shouldScrollTopOnNav(norm);
+
+    if (!pathChanged && !(prev === null && forceTopOnEnter)) return;
 
     const previousScrollRestoration = window.history.scrollRestoration;
     window.history.scrollRestoration = "manual";
@@ -275,4 +329,11 @@ export function useStandalonePageScrollTop(pathname: string): void {
       window.history.scrollRestoration = previousScrollRestoration;
     };
   }, [pathname]);
+}
+
+/**
+ * @deprecated use useListingScrollOnRouteChange
+ */
+export function useStandalonePageScrollTop(pathname: string): void {
+  useListingScrollOnRouteChange(pathname);
 }

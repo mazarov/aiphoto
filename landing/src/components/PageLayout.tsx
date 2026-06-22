@@ -3,7 +3,7 @@
 import { Suspense, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { applyCountsToMenu } from "@/lib/menu";
-import { LISTING_SCROLL_ROOT_ID, useStandalonePageScrollTop } from "@/lib/scroll-preservation";
+import { LISTING_SCROLL_ROOT_ID, useListingScrollOnRouteChange } from "@/lib/scroll-preservation";
 import { useListingShellViewportSync } from "@/lib/listing-shell-viewport";
 import { ListingMobileChromeProvider } from "@/context/ListingMobileChromeContext";
 import { HeaderClient } from "./HeaderClient";
@@ -21,7 +21,7 @@ export function PageLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  useStandalonePageScrollTop(pathname);
+  useListingScrollOnRouteChange(pathname);
   useListingShellViewportSync();
 
   useEffect(() => {

@@ -9,7 +9,6 @@ import { InfiniteGrid } from "./InfiniteGrid";
 import type { PromptCardFull } from "@/lib/supabase";
 import type { Dimension } from "@/lib/tag-registry";
 import type { ListingSort } from "@/lib/listing-sort";
-import { useListingScrollRestoration } from "@/lib/scroll-preservation";
 
 /** Stable React `key` — raw `JSON.stringify(mergedRpcParams)` can differ by object insertion order → remount grid on scroll/hydration churn. */
 function stableListingKey(r: Record<string, string | null>, sort: ListingSort): string {
@@ -44,8 +43,6 @@ export function CatalogWithFilters({
       lockedDimensions,
     });
   const { sort, setSort } = useListingSort();
-
-  useListingScrollRestoration();
 
   const listingGridKey = useMemo(
     () => stableListingKey(mergedRpcParams, sort),

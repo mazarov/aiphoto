@@ -10,7 +10,7 @@ import { FilterFAB } from "@/components/FilterFAB";
 import { ListingDesktopFilters } from "@/components/ListingDesktopFilters";
 import { useListingFilters } from "@/hooks/useListingFilters";
 import type { FilterState } from "@/hooks/useListingFilters";
-import { resetListingScroll, useListingScrollRestoration, getListingScrollRoot, isListingScrollRestoreInProgress } from "@/lib/scroll-preservation";
+import { resetListingScroll, getListingScrollRoot, isListingScrollRestoreInProgress } from "@/lib/scroll-preservation";
 import { writeListingNavigationContext } from "@/lib/listing-card-navigation-context";
 import { SearchEmptyState } from "@/components/SearchEmptyState";
 import { SearchMetrikaTracker } from "@/components/YandexMetrikaRouteTracker";
@@ -54,8 +54,6 @@ export function SearchResults({ initialQuery }: Props) {
   const hasMoreRef = useRef(false);
   const offsetRef = useRef(0);
   const queryRef = useRef(query);
-
-  useListingScrollRestoration();
 
   queryRef.current = query;
 
