@@ -4,10 +4,12 @@
 -- Homepage category blocks previously ordered cards by source_date DESC,
 -- which never matched the listing (resolve_route_cards, sort=popular). Now the
 -- per-tag top cards use the SAME query-time popularity score as the listing
--- (migration 163), so each block's cover = card #1 of that category listing.
+-- (migration 163), so the top card of a tag = card #1 of that category listing.
 --
--- Cross-category deduplication of covers is handled in the app layer
--- (buildCategorySectionBlocks); this RPC just returns the top-5 per tag.
+-- Cross-category cover deduplication is done in the app layer
+-- (buildCategorySectionBlocks / pickDeduplicatedPhotos): the same popular card
+-- is #1 in many tags at once, so each block takes the first not-yet-used card.
+-- We return the top-10 per tag (was 5) to give that dedup enough headroom.
 -- ============================================================
 
 CREATE OR REPLACE FUNCTION get_homepage_sections(
@@ -85,7 +87,7 @@ BEGIN
                ) AS rn
         FROM (SELECT DISTINCT dimension, slug, card_id, created_at, popularity_score FROM tags_unnested) AS deduped
       ) ranked
-      WHERE rn <= 5
+      WHERE rn <= 10
     ),
 
     card_photos AS (
@@ -132,4 +134,4 @@ END;
 $$;
 
 COMMENT ON FUNCTION get_homepage_sections(text) IS
-  'Homepage category blocks: top-5 cards per tag ordered by query-time popularity score (matches resolve_route_cards sort=popular). Cross-block cover dedup is done in the app layer.';
+  'Homepage category blocks: top-10 cards per tag ordered by query-time popularity score (matches resolve_route_cards sort=popular). Cross-block cover dedup is done in the app layer.';

@@ -379,6 +379,34 @@ export async function fetchHomepageSections(
   });
 }
 
+/**
+ * Pick the front (cover) and back (decorative) photos for a homepage category
+ * block. `cards` is already ordered by popularity (get_homepage_sections);
+ * cross-category dedup picks the first card not yet used as a cover elsewhere,
+ * so the same popular photo does not repeat across blocks. Falls back to the
+ * top card if every candidate is already taken.
+ */
+export function pickDeduplicatedPhotos(
+  cards: { card_id: string; photoUrl: string }[],
+  usedCardIds: Set<string>
+): { photoUrl: string | null; secondPhotoUrl: string | null; usedIds: string[] } {
+  const unused = cards.filter((c) => !usedCardIds.has(c.card_id));
+  const primary = unused[0] ?? cards[0];
+  const secondary = unused[1] ?? unused[0] ?? null;
+  const usedIds: string[] = [];
+  if (primary) {
+    usedIds.push(primary.card_id);
+    if (secondary && secondary.card_id !== primary.card_id) {
+      usedIds.push(secondary.card_id);
+    }
+  }
+  return {
+    photoUrl: primary?.photoUrl ?? null,
+    secondPhotoUrl: secondary?.photoUrl ?? null,
+    usedIds,
+  };
+}
+
 export type CardPhotoRef = {
   slug: string;
   photoUrl: string;
