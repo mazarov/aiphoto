@@ -540,12 +540,13 @@ type ResolvedRoute = {
 | Event | Action |
 |-------|--------|
 | pathname change (Next router) | `cancelListingScrollRestore()` + `scrollCatalogToTop()` (`PageLayout` → `useListingScrollOnRouteChange`) |
+| card route `/p/...` (modal pushState или direct) | route hook **игнорирует** (`isCardPath`) — позицию листинга не трогаем |
 | modal open | `saveListingScroll()` + lock inner root |
-| modal close (same pathname) | `scheduleListingScrollRestore()` — единственный restore path (`CardModal` unmount) |
+| modal close (back на тот же pathname) | `scheduleListingScrollRestore()` — единственный restore path (`CardModal` unmount) |
 | sort change | `resetListingScroll()` (`useListingSort`) |
 | filter/query on same path | scroll не меняем |
 
-`lastListingNavPath` (module-level, переживает remount `PageLayout`) + `scheduleRouteScrollToTop` (rAF/50/150 ms) — сброс и `#listing-scroll-root`, и `window`; category links `scroll={false}`.
+`lastListingNavPath` (module-level, переживает remount `PageLayout`) + `scheduleRouteScrollToTop` (rAF/50/150 ms) — сброс и `#listing-scroll-root`, и `window`; category links `scroll={false}`. **Next 15** обновляет `usePathname()` на `history.pushState`, поэтому открытие модалки (`pushState /p/slug`) даёт смену пути — `useListingScrollOnRouteChange` ранним выходом по `isCardPath` не сбрасывает позицию (иначе `scrollCatalogToTop` стёр бы `SCROLL_KEY` сразу после `lockListingScrollForModal`).
 
 **Пагинация листинга (`InfiniteGrid` + `GET /api/listing`):** константы **`LISTING_SSR_INITIAL_LIMIT` (10)** и **`LISTING_INFINITE_PAGE_SIZE` (48)** в `landing/src/lib/listing-pagination.ts` — первая порция с SSR на `[...slug]`, следующие запросы клиента по 48. В ответе API есть **`ranked_batch_size`** (число строк из RPC до `expandCardGroups`) и **`sort`**. Следующий **`offset`** увеличивается на это значение, а не на `cards.length`: иначе split-группы раздувают массив, OFFSET в SQL перескакивает через «недопоказанные» ранги и сетка листинга визуально «перемешивается». Условие «есть ещё страницы»: `offset + ranked_batch_size < total_count`. Смена **`sort`** → remount `InfiniteGrid` (key включает sort), **`offset=0`**, **`resetListingScroll()`**. Empty state при `sort=new` и `total_count=0`: «Пока нет новых». Риск дубликатов/пропусков при живом **`popularity_score`** + OFFSET — как с `view_count`; follow-up: keyset pagination.
 
