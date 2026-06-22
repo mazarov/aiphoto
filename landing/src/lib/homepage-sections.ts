@@ -1,7 +1,4 @@
-import {
-  pickDeduplicatedPhotos,
-  type HomepageSectionItemWithUrls,
-} from "@/lib/supabase";
+import { type HomepageSectionItemWithUrls } from "@/lib/supabase";
 import { TAG_REGISTRY, DIMENSION_LABELS, type Dimension } from "@/lib/tag-registry";
 import { MENU } from "@/lib/menu";
 
@@ -38,8 +35,6 @@ export function buildCategorySectionBlocks(
     sectionsByDimSlug.set(`${s.dimension}:${s.slug}`, s);
   }
 
-  const usedCardIds = new Set<string>();
-
   return SECTION_ORDER.map((dim) => {
     const menuSection = MENU.find((m) => m.dimension === dim);
     if (!menuSection) return null;
@@ -55,11 +50,7 @@ export function buildCategorySectionBlocks(
 
     const items: SectionBlockItem[] = tagSlugs.map((tag) => {
       const raw = sectionsByDimSlug.get(`${dim}:${tag.slug}`);
-      const { photoUrl, secondPhotoUrl, usedIds } = pickDeduplicatedPhotos(
-        raw?.cards ?? [],
-        usedCardIds
-      );
-      for (const id of usedIds) usedCardIds.add(id);
+      const cards = raw?.cards ?? [];
 
       return {
         label: tag.labelRu,
@@ -68,8 +59,8 @@ export function buildCategorySectionBlocks(
           dimension: dim,
           slug: tag.slug,
           total_count: raw?.total_count ?? 0,
-          photoUrl,
-          secondPhotoUrl,
+          photoUrl: cards[0]?.photoUrl ?? null,
+          secondPhotoUrl: cards[1]?.photoUrl ?? null,
         },
       };
     });

@@ -379,31 +379,6 @@ export async function fetchHomepageSections(
   });
 }
 
-/**
- * Pick primary and secondary photos for a tag, avoiding cards already used.
- * Returns { photoUrl, secondPhotoUrl } for the category block.
- */
-export function pickDeduplicatedPhotos(
-  cards: { card_id: string; photoUrl: string }[],
-  usedCardIds: Set<string>
-): { photoUrl: string | null; secondPhotoUrl: string | null; usedIds: string[] } {
-  const unused = cards.filter((c) => !usedCardIds.has(c.card_id));
-  const primary = unused[0] ?? cards[0];
-  const secondary = unused[1] ?? unused[0] ?? null;
-  const usedIds: string[] = [];
-  if (primary) {
-    usedIds.push(primary.card_id);
-    if (secondary && secondary.card_id !== primary.card_id) {
-      usedIds.push(secondary.card_id);
-    }
-  }
-  return {
-    photoUrl: primary?.photoUrl ?? null,
-    secondPhotoUrl: secondary?.photoUrl ?? null,
-    usedIds,
-  };
-}
-
 export type CardPhotoRef = {
   slug: string;
   photoUrl: string;

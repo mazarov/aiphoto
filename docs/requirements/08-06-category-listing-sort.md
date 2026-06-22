@@ -20,9 +20,13 @@
 ## Режим «Популярное»
 
 - ORDER BY: **`popularity_score DESC`**, `created_at DESC`, `id DESC`
-- Формула: `views_7d / (age_hours + 48) ^ 1.2`
-- Константы 48 и 1.2 — **`photo_app_config`**
+- **Score считается на лету в `resolve_route_cards`** (миграция `163`), без cron и без материализации
+- Формула: `(view_count + react_weight·(likes_count − dislikes_count)) / (1 + age_days / half_life_days) ^ decay_exponent`
+- Константы — **`photo_app_config`**: `listing_popularity_react_weight`=3.0, `listing_popularity_half_life_days`=30, `listing_popularity_decay_exponent`=1.0
+- База — lifetime `view_count` (обновляется в реальном времени), лайки — лёгкий бонус, возраст — мягкое затухание
 - Карточка с 0 просмотров — внизу, не скрывается
+
+> **История:** изначально (миграции `158–161`) score был материализован (`prompt_cards.popularity_score`) и пересчитывался hourly job'ом `recalculate_popularity_scores()` по `views_7d` из `prompt_card_view_events`. Cron на DO **не был настроен** → score завис в 0 у всех карточек, и `popular` совпадал с `new`. Миграция `163` убрала зависимость от cron: score теперь query-time. Колонки `popularity_score`/`views_7d`, job и таблица событий оставлены как наследие (follow-up на чистку).
 
 ## Режим «Новое»
 
@@ -37,18 +41,18 @@
 
 | Объект | Назначение |
 |--------|------------|
-| `prompt_card_view_events` | Событие просмотра (`card_id`, `viewed_at`) |
-| `prompt_cards.views_7d` | Rolling 7d count |
-| `prompt_cards.popularity_score` | Материализованный score |
-| `recalculate_popularity_scores()` | Hourly batch |
-| `src/standalone/recalculate-popularity-scores-standalone.mjs` | Runner на DO |
+| `prompt_cards.view_count` | Lifetime просмотры (realtime, через `/api/card-view`) — база score |
+| `prompt_cards.likes_count` / `dislikes_count` | Реакции (триггер из `card_reactions`) — бонус в score |
+| `photo_app_config` | Константы формулы (`react_weight`, `half_life_days`, `decay_exponent`) |
+| ~~`prompt_card_view_events` / `views_7d` / `recalculate_popularity_scores()`~~ | **Наследие** (миграции 158–160): больше не участвуют в ранжировании |
 
 ## Миграции
 
-- `sql/158_prompt_cards_popularity_columns.sql`
-- `sql/159_prompt_card_view_events.sql`
-- `sql/160_popularity_recalculate_and_view_events.sql`
+- `sql/158_prompt_cards_popularity_columns.sql` *(наследие)*
+- `sql/159_prompt_card_view_events.sql` *(наследие)*
+- `sql/160_popularity_recalculate_and_view_events.sql` *(наследие)*
 - `sql/161_resolve_route_cards_listing_sort.sql`
+- `sql/163_resolve_route_cards_query_time_popularity.sql` — **query-time score, без cron**
 
 ## Out of scope (v2+)
 
