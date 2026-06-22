@@ -33,7 +33,7 @@ export function CategoryCard({
   const hasStack = !!secondPhotoUrl;
 
   return (
-    <Link href={href} className="group block">
+    <Link href={href} scroll={false} className="group block">
       <div className={`relative ${hasStack ? "pb-2 pr-2" : ""}`}>
         {/* Back card */}
         {hasStack && (

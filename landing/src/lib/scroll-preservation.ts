@@ -3,7 +3,7 @@
  * при открытии/закрытии карточек промтов (через клиентский модал Solution B).
  */
 
-import { useLayoutEffect, useRef } from "react";
+import { useLayoutEffect } from "react";
 import { bumpListingShellViewportHeight } from "@/lib/listing-shell-viewport";
 
 export const SCROLL_KEY = "card_modal_scroll_pos";
@@ -18,6 +18,10 @@ let restoreInProgress = false;
 /** Bumped on cancel / new schedule — stale rAF and setTimeout callbacks no-op. */
 let restoreGeneration = 0;
 const pendingRestoreTimeouts = new Set<number>();
+/** Survives PageLayout remount — useRef alone misses category→category navigations. */
+let lastListingNavPath: string | null = null;
+/** Bumped when a new route scroll-to-top sequence starts. */
+let routeScrollTopGeneration = 0;
 
 export function isListingScrollRestoreInProgress(): boolean {
   return restoreInProgress;
@@ -27,6 +31,7 @@ export function isListingScrollRestoreInProgress(): boolean {
 export function cancelListingScrollRestore(): void {
   if (typeof window === "undefined") return;
   restoreGeneration += 1;
+  routeScrollTopGeneration += 1;
   restoreInProgress = false;
   for (const id of pendingRestoreTimeouts) {
     window.clearTimeout(id);
@@ -40,6 +45,17 @@ function trackRestoreTimeout(fn: () => void, ms: number): number {
   const id = window.setTimeout(() => {
     pendingRestoreTimeouts.delete(id);
     if (generation !== restoreGeneration) return;
+    fn();
+  }, ms);
+  pendingRestoreTimeouts.add(id);
+  return id;
+}
+
+function trackRouteScrollTimeout(fn: () => void, ms: number): number {
+  const generation = routeScrollTopGeneration;
+  const id = window.setTimeout(() => {
+    pendingRestoreTimeouts.delete(id);
+    if (generation !== routeScrollTopGeneration) return;
     fn();
   }, ms);
   pendingRestoreTimeouts.add(id);
@@ -112,7 +128,7 @@ export function resetListingScroll(): void {
   } catch {
     /* ignore */
   }
-  writeScrollTop(getListingScrollRoot(), 0);
+  writeAllListingScrollTops(0);
 }
 
 export interface RestoreOptions {
@@ -292,11 +308,49 @@ export function scrollCatalogToTop(): void {
   } catch {
     /* ignore */
   }
-  const root = getListingScrollRoot();
-  writeScrollTop(root, 0);
-  if (root !== window) {
-    writeScrollTop(window, 0);
+  const inner = document.getElementById(LISTING_SCROLL_ROOT_ID);
+  if (inner) {
+    inner.scrollTop = 0;
   }
+  writeScrollTop(getListingScrollRoot(), 0);
+  writeScrollTop(window, 0);
+}
+
+function writeAllListingScrollTops(y: number): void {
+  const inner = document.getElementById(LISTING_SCROLL_ROOT_ID);
+  if (inner) {
+    inner.scrollTop = y;
+  }
+  writeScrollTop(getListingScrollRoot(), y);
+  writeScrollTop(window, y);
+}
+
+/** Reapply scroll-top after Next.js / layout may restore a stale position post-navigation. */
+function scheduleRouteScrollToTop(): void {
+  if (typeof window === "undefined") return;
+
+  routeScrollTopGeneration += 1;
+  const generation = routeScrollTopGeneration;
+
+  const apply = () => {
+    if (generation !== routeScrollTopGeneration) return;
+    writeAllListingScrollTops(0);
+  };
+
+  writeAllListingScrollTops(0);
+  requestAnimationFrame(() => {
+    if (generation !== routeScrollTopGeneration) return;
+    apply();
+  });
+  requestAnimationFrame(() => {
+    if (generation !== routeScrollTopGeneration) return;
+    requestAnimationFrame(() => {
+      if (generation !== routeScrollTopGeneration) return;
+      apply();
+    });
+  });
+  trackRouteScrollTimeout(apply, 50);
+  trackRouteScrollTimeout(apply, 150);
 }
 
 export function isSameNavPath(pathname: string, href: string): boolean {
@@ -309,25 +363,19 @@ export function isSameNavPath(pathname: string, href: string): boolean {
  * Modal close does not change pathname — restore stays on scheduleListingScrollRestore only.
  */
 export function useListingScrollOnRouteChange(pathname: string): void {
-  const prevPathRef = useRef<string | null>(null);
-
   useLayoutEffect(() => {
     const norm = normalizeNavPath(pathname);
-    const prev = prevPathRef.current;
-    prevPathRef.current = norm;
+    const prev = lastListingNavPath;
+    lastListingNavPath = norm;
 
     const pathChanged = prev !== null && prev !== norm;
     const forceTopOnEnter = shouldScrollTopOnNav(norm);
 
     if (!pathChanged && !(prev === null && forceTopOnEnter)) return;
 
-    const previousScrollRestoration = window.history.scrollRestoration;
     window.history.scrollRestoration = "manual";
     scrollCatalogToTop();
-
-    return () => {
-      window.history.scrollRestoration = previousScrollRestoration;
-    };
+    scheduleRouteScrollToTop();
   }, [pathname]);
 }
 

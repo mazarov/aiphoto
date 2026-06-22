@@ -545,7 +545,7 @@ type ResolvedRoute = {
 | sort change | `resetListingScroll()` (`useListingSort`) |
 | filter/query on same path | scroll не меняем |
 
-`cancelListingScrollRestore` инкрементирует **`restoreGeneration`** — stale `setTimeout` и nested `rAF` из предыдущего restore no-op. Restore-on-mount (`useListingScrollRestoration`) убран из листингов — давал прыжок при входе в категорию со stale `card_modal_scroll_pos`. Browser Back (A→B→Back) сбрасывает scroll в top (trade-off). Follow-up: pathname-scoped `sessionStorage` для multi-tab.
+`lastListingNavPath` (module-level, переживает remount `PageLayout`) + `scheduleRouteScrollToTop` (rAF/50/150 ms) — сброс и `#listing-scroll-root`, и `window`; category links `scroll={false}`.
 
 **Пагинация листинга (`InfiniteGrid` + `GET /api/listing`):** константы **`LISTING_SSR_INITIAL_LIMIT` (10)** и **`LISTING_INFINITE_PAGE_SIZE` (48)** в `landing/src/lib/listing-pagination.ts` — первая порция с SSR на `[...slug]`, следующие запросы клиента по 48. В ответе API есть **`ranked_batch_size`** (число строк из RPC до `expandCardGroups`) и **`sort`**. Следующий **`offset`** увеличивается на это значение, а не на `cards.length`: иначе split-группы раздувают массив, OFFSET в SQL перескакивает через «недопоказанные» ранги и сетка листинга визуально «перемешивается». Условие «есть ещё страницы»: `offset + ranked_batch_size < total_count`. Смена **`sort`** → remount `InfiniteGrid` (key включает sort), **`offset=0`**, **`resetListingScroll()`**. Empty state при `sort=new` и `total_count=0`: «Пока нет новых». Риск дубликатов/пропусков при живом **`popularity_score`** + OFFSET — как с `view_count`; follow-up: keyset pagination.
 
