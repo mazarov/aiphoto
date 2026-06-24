@@ -1,6 +1,13 @@
+import { cache } from "react";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { fetchRouteCards, enrichCardsWithDetails, getIndexableTagCombos, getFirstCardPhotoUrl } from "@/lib/supabase";
+import {
+  fetchRouteCards,
+  enrichCardsWithDetails,
+  getIndexableTagCombos,
+  getFirstCardPhotoUrl,
+  type RouteCardsResult,
+} from "@/lib/supabase";
 import { parseListingSort } from "@/lib/listing-sort";
 import dynamic from "next/dynamic";
 import { PageLayout } from "@/components/PageLayout";
@@ -50,6 +57,48 @@ import { LISTING_SSR_INITIAL_LIMIT } from "@/lib/listing-pagination";
 export const revalidate = 3600;
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://promptshot.ru";
 
+const EMPTY_ROUTE_RESULT: RouteCardsResult = {
+  cards: [],
+  tier_used: "error",
+  cards_count: 0,
+  total_count: 0,
+  has_minimum: false,
+  dimension_count: 0,
+};
+
+const getCachedRouteCards = cache(
+  async (params: Parameters<typeof fetchRouteCards>[0]): Promise<RouteCardsResult> => {
+    try {
+      return await fetchRouteCards(params);
+    } catch (err) {
+      console.error("[TagPage] fetchRouteCards failed:", err);
+      return EMPTY_ROUTE_RESULT;
+    }
+  },
+);
+
+function buildListingFetchParams(
+  routeParams: Record<string, string | null>,
+  searchParams: {
+    audience?: string;
+    style?: string;
+    occasion?: string;
+    object?: string;
+    sort?: string;
+  } | null | undefined,
+): Parameters<typeof fetchRouteCards>[0] {
+  const mergedParams = mergeFilterParams(routeParams, searchParams ?? null);
+  const hasQueryFiltersActive = hasQueryFilters(searchParams ?? null);
+  const listingSort = parseListingSort(searchParams?.sort);
+  return {
+    ...mergedParams,
+    limit: LISTING_SSR_INITIAL_LIMIT,
+    offset: 0,
+    min_cards: hasQueryFiltersActive ? 0 : 2,
+    sort: listingSort,
+  };
+}
+
 type Props = {
   params: Promise<{ slug: string[] }>;
   searchParams?: Promise<{
@@ -61,8 +110,9 @@ type Props = {
   }>;
 };
 
-export async function generateMetadata({ params }: Props) {
+export async function generateMetadata({ params, searchParams }: Props) {
   const { slug } = await params;
+  const qs = await searchParams;
   const route = resolveUrlToTags(slug);
   if (!route) notFound();
 
@@ -71,16 +121,18 @@ export async function generateMetadata({ params }: Props) {
   const canonicalUrl = `${SITE_URL}${route.canonicalPath}`;
   const title = seo.metaTitle;
 
-  const result = await fetchRouteCards({
-    ...route.rpcParams,
-    limit: 3,
-    offset: 0,
-  });
+  const result = await getCachedRouteCards(buildListingFetchParams(route.rpcParams, qs ?? null));
   const totalCount = result.total_count ?? result.cards_count;
   const minCards = getMinCardsForLevel(route.level);
-  const shouldIndex = totalCount >= minCards;
+  const dbUnavailable = result.tier_used === "error";
+  const shouldIndex = !dbUnavailable && totalCount >= minCards;
 
-  const ogImageUrl = await getFirstCardPhotoUrl(result.cards.map((c) => c.id));
+  let ogImageUrl: string | null = null;
+  try {
+    ogImageUrl = await getFirstCardPhotoUrl(result.cards.map((c) => c.id));
+  } catch (err) {
+    console.error("[TagPage] getFirstCardPhotoUrl failed in metadata:", err);
+  }
 
   return {
     title,
@@ -260,7 +312,13 @@ async function getL2ChipsForTag(
   limit = 12,
   featuredL2Slugs?: string[],
 ): Promise<L2ChipGroup[]> {
-  const combos = await getIndexableTagCombos(6, "ru");
+  let combos: Awaited<ReturnType<typeof getIndexableTagCombos>> = [];
+  try {
+    combos = await getIndexableTagCombos(6, "ru");
+  } catch (err) {
+    console.error("[TagPage] getIndexableTagCombos failed:", err);
+    return [];
+  }
 
   const matching: { other: TagEntry; count: number }[] = [];
   for (const c of combos) {
@@ -367,27 +425,27 @@ export default async function TagPage({ params, searchParams }: Props) {
 
   if (!route) notFound();
 
-  const offset = 0;
   const mergedParams = mergeFilterParams(route.rpcParams, qs ?? null);
-  const hasQueryFiltersActive = hasQueryFilters(qs ?? null);
-  const listingSort = parseListingSort(qs?.sort);
-
-  const result = await fetchRouteCards({
-    ...mergedParams,
-    limit: LISTING_SSR_INITIAL_LIMIT,
-    offset,
-    min_cards: hasQueryFiltersActive ? 0 : 2,
-    sort: listingSort,
-  });
+  const result = await getCachedRouteCards(buildListingFetchParams(route.rpcParams, qs ?? null));
   const totalCount = result.total_count ?? result.cards_count;
-  const cards = await enrichCardsWithDetails(result.cards);
+
+  let cards = result.cards;
+  try {
+    cards = await enrichCardsWithDetails(result.cards);
+  } catch (err) {
+    console.error("[TagPage] enrichCardsWithDetails failed:", err);
+  }
 
   const seo = getSeoForRoute(route);
 
-  const resolvedIllustrations =
-    route.level === 1 && seo.illustrations?.length
-      ? await resolveSeoIllustrations(seo.illustrations, mergedParams)
-      : [];
+  let resolvedIllustrations: ResolvedSeoIllustration[] = [];
+  if (route.level === 1 && seo.illustrations?.length) {
+    try {
+      resolvedIllustrations = await resolveSeoIllustrations(seo.illustrations, mergedParams);
+    } catch (err) {
+      console.error("[TagPage] resolveSeoIllustrations failed:", err);
+    }
+  }
 
   const pageOgImage = cards.length > 0
     ? cards.find((c) => c.photoUrls.length > 0)?.photoUrls[0] ?? null
@@ -396,8 +454,14 @@ export default async function TagPage({ params, searchParams }: Props) {
   const primaryTag = route.primaryTag;
   const siblings = getSiblingTags(primaryTag, 6);
   const sectionLabel = DIMENSION_LABELS[primaryTag.dimension];
-  const l2ChipGroups =
-    route.level === 1 ? await getL2ChipsForTag(primaryTag, 12, seo.featuredL2Slugs) : [];
+  let l2ChipGroups: L2ChipGroup[] = [];
+  if (route.level === 1) {
+    try {
+      l2ChipGroups = await getL2ChipsForTag(primaryTag, 12, seo.featuredL2Slugs);
+    } catch (err) {
+      console.error("[TagPage] getL2ChipsForTag failed:", err);
+    }
+  }
 
   const baseRpcParams: Record<string, string | null> = {};
   for (const [k, v] of Object.entries(route.rpcParams)) {
