@@ -193,7 +193,7 @@
 | Поле | Значение |
 |------|----------|
 | URL (prod) | `https://imageprompt.tools/api/extension/analyze` |
-| Body | `{ image_base64?: string, image_url?: string, style?: "photoreal" \| "midjourney" \| "sd" \| "flux" \| "nano" \| "dalle" }` — ровно одно из base64 / url |
+| Body | `{ image_base64?: string, image_url?: string, style?: "photoreal" \| …, locale?: string }` — на promptshot.ru landing **всегда** `style: "photoreal"`, **`locale: "ru"`** (тексты секций на русском, заголовки секций на EN); ровно одно из base64 / url |
 | Лимит размера | 10 MB |
 | Форматы | JPEG, PNG, WebP, GIF |
 | Успех | `{ prompt: string, style: string }` |
@@ -428,15 +428,6 @@ flowchart TB
 
 | Key | RU текст |
 |-----|----------|
-| styleBaseTitle | Фотореализм |
-| styleBaseHint | Базовый детальный промт по фото |
-| styleLabel | Оптимизировать под модель |
-| stylePhotoreal | Без настройки |
-| styleMidjourney | Midjourney |
-| styleSd | Stable Diffusion |
-| styleFlux | Flux |
-| styleNano | Nano Banana |
-| styleDalle | DALL·E |
 | emptyTitle | Перетащите изображение или вставьте из буфера |
 | emptyHint | JPG или PNG, до 10 МБ |
 | chooseFile | Выбрать файл |

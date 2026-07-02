@@ -1,5 +1,8 @@
 const DEFAULT_IMAGEPROMPT_ORIGIN = "https://imageprompt.tools";
 
+/** Locale for analyze/remix from promptshot.ru `/foto-v-promt` (section bodies in RU, headings EN). */
+export const FOTO_V_PROMT_ANALYZE_LOCALE = "ru";
+
 const DEFAULT_CHROME_STORE_URL =
   "https://chromewebstore.google.com/detail/ai-image-describer/bebnhekhnoaacojmbjoajndkankmppoj";
 

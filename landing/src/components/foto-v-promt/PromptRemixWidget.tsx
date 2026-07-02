@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { getAiImageDescriberChromeUrl, getPromptRemixUrl } from "@/lib/foto-v-promt-config";
+import { getAiImageDescriberChromeUrl, getPromptRemixUrl, FOTO_V_PROMT_ANALYZE_LOCALE } from "@/lib/foto-v-promt-config";
 import { PROMPT_REMIX_COPY } from "@/lib/foto-v-promt-copy";
 import { LexyGptGenerateButton } from "@/components/LexyGptGenerateButton";
 import {
@@ -11,17 +11,6 @@ import {
   FVP_SURFACE_WIDGET_INSET,
   FVP_SURFACE_WIDGET_OUTER,
 } from "./foto-v-promt-tokens";
-
-type AnalyzeStyle = "photoreal" | "midjourney" | "sd" | "flux" | "nano" | "dalle";
-
-const STYLE_OPTIONS: { value: AnalyzeStyle; label: string }[] = [
-  { value: "photoreal", label: "Без настройки" },
-  { value: "nano", label: "Nano Banana" },
-  { value: "flux", label: "Flux" },
-  { value: "midjourney", label: "Midjourney" },
-  { value: "sd", label: "Stable Diffusion" },
-  { value: "dalle", label: "DALL·E" },
-];
 
 type CardState = "loading" | "ready" | "error";
 type Panel = "input" | "loading" | "result" | "error";
@@ -33,7 +22,6 @@ export function PromptRemixWidget({ cardSlug }: Props) {
   const [originalPrompt, setOriginalPrompt] = useState("");
   const [cardTitle, setCardTitle] = useState<string | null>(null);
   const [changeRequest, setChangeRequest] = useState("");
-  const [style, setStyle] = useState<AnalyzeStyle>("photoreal");
   const [panel, setPanel] = useState<Panel>("input");
   const [resultPrompt, setResultPrompt] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
@@ -70,7 +58,12 @@ export function PromptRemixWidget({ cardSlug }: Props) {
       const res = await fetch(getPromptRemixUrl(), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ originalPrompt, changeRequest: changeRequest.trim(), style }),
+        body: JSON.stringify({
+          originalPrompt,
+          changeRequest: changeRequest.trim(),
+          style: "photoreal",
+          locale: FOTO_V_PROMT_ANALYZE_LOCALE,
+        }),
         credentials: "include",
       });
 
@@ -105,7 +98,7 @@ export function PromptRemixWidget({ cardSlug }: Props) {
       setErrorMessage(PROMPT_REMIX_COPY.errorGeneric);
       setPanel("error");
     }
-  }, [changeRequest, originalPrompt, panel, style]);
+  }, [changeRequest, originalPrompt, panel]);
 
   const copyPrompt = async (text: string) => {
     try {
@@ -176,39 +169,6 @@ export function PromptRemixWidget({ cardSlug }: Props) {
                   disabled={panel === "loading"}
                   className={`w-full resize-none rounded-lg ${FVP_BORDER_INPUT} bg-white p-3 text-sm leading-relaxed text-zinc-800 placeholder-zinc-400 transition focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 disabled:opacity-60`}
                 />
-              </div>
-
-              {/* Style selector */}
-              <div className="mb-5">
-                <div className="mb-2 rounded-xl border border-indigo-100 bg-indigo-50/60 px-3 py-2">
-                  <span className="block text-sm font-semibold text-zinc-900">{PROMPT_REMIX_COPY.styleBaseTitle}</span>
-                  <span className="block text-xs text-zinc-500">{PROMPT_REMIX_COPY.styleBaseHint}</span>
-                </div>
-                <span className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-zinc-500">
-                  {PROMPT_REMIX_COPY.styleLabel}
-                </span>
-                <div role="radiogroup" aria-label={PROMPT_REMIX_COPY.styleLabel} className="flex flex-wrap gap-1">
-                  {STYLE_OPTIONS.map(({ value, label }) => {
-                    const selected = style === value;
-                    return (
-                      <button
-                        key={value}
-                        type="button"
-                        role="radio"
-                        aria-checked={selected}
-                        disabled={panel === "loading"}
-                        onClick={() => setStyle(value)}
-                        className={`min-h-9 flex-1 basis-[calc(50%-0.125rem)] whitespace-nowrap rounded-full px-3 text-center text-xs font-semibold transition sm:basis-0 sm:text-sm ${FVP_FOCUS_RING} ${
-                          selected
-                            ? "bg-indigo-600 text-white shadow"
-                            : "border border-zinc-200 bg-zinc-50 text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900"
-                        } disabled:opacity-60`}
-                      >
-                        {label}
-                      </button>
-                    );
-                  })}
-                </div>
               </div>
 
               {/* Submit */}

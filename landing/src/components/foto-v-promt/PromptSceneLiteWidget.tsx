@@ -7,7 +7,7 @@ import {
   listLiteRecognitionHistory,
   type LiteRecognitionEntry,
 } from "@/lib/extension-lite-recognition-history";
-import { getImagePromptAnalyzeUrl, getImagePromptSiteUrl } from "@/lib/foto-v-promt-config";
+import { getImagePromptAnalyzeUrl, getImagePromptSiteUrl, FOTO_V_PROMT_ANALYZE_LOCALE } from "@/lib/foto-v-promt-config";
 import { widgetCopy, type WidgetCopyKey } from "@/lib/foto-v-promt-copy";
 import { prepareUploadFile, noticeForUploadError } from "@/lib/image-upload-prepare";
 import {
@@ -51,19 +51,7 @@ function uploadLog(step: string, data?: Record<string, unknown>) {
   else console.debug("[aid-upload]", step);
 }
 
-type AnalyzeStyle = "photoreal" | "midjourney" | "sd" | "flux" | "nano" | "dalle";
-
-const STYLE_OPTIONS: {
-  value: AnalyzeStyle;
-  labelKey: "stylePhotoreal" | "styleMidjourney" | "styleSd" | "styleFlux" | "styleNano" | "styleDalle";
-}[] = [
-  { value: "photoreal", labelKey: "stylePhotoreal" },
-  { value: "nano", labelKey: "styleNano" },
-  { value: "flux", labelKey: "styleFlux" },
-  { value: "midjourney", labelKey: "styleMidjourney" },
-  { value: "sd", labelKey: "styleSd" },
-  { value: "dalle", labelKey: "styleDalle" },
-];
+const ANALYZE_STYLE = "photoreal" as const;
 
 type Panel = "empty" | "loading" | "result" | "error";
 
@@ -111,7 +99,6 @@ export function PromptSceneLiteWidget() {
   const [errorMessage, setErrorMessage] = useState("");
   const [errorKind, setErrorKind] = useState<LiteErrorKind>("none");
   const [notice, setNotice] = useState("");
-  const [style, setStyle] = useState<AnalyzeStyle>("photoreal");
   const [historyTick, setHistoryTick] = useState(0);
   const ranPendingRef = useRef(false);
   const fileInputId = useId();
@@ -184,8 +171,8 @@ export function PromptSceneLiteWidget() {
     };
   }, [revokeObjectPreview]);
 
-  const analyzeDataUrlWithStyle = useCallback(
-    async (dataUrl: string, styleUsed: AnalyzeStyle) => {
+  const analyzeDataUrl = useCallback(
+    async (dataUrl: string) => {
       setPanel("loading");
       setPreviewUrl(dataUrl);
       setErrorMessage("");
@@ -196,7 +183,11 @@ export function PromptSceneLiteWidget() {
         res = await fetch(analyzeUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ image_base64: dataUrl, style: styleUsed }),
+          body: JSON.stringify({
+            image_base64: dataUrl,
+            style: ANALYZE_STYLE,
+            locale: FOTO_V_PROMT_ANALYZE_LOCALE,
+          }),
           credentials: "include",
         });
       } catch {
@@ -240,7 +231,7 @@ export function PromptSceneLiteWidget() {
       }
 
       appendLiteRecognitionHistory({
-        style: styleUsed,
+        style: ANALYZE_STYLE,
         prompt: data.prompt,
         image: { mode: "data_url", dataUrl },
       });
@@ -252,8 +243,8 @@ export function PromptSceneLiteWidget() {
     [analyzeUrl, bumpHistory],
   );
 
-  const analyzeImageUrlWithStyle = useCallback(
-    async (imageUrl: string, styleUsed: AnalyzeStyle) => {
+  const analyzeImageUrl = useCallback(
+    async (imageUrl: string) => {
       const trimmed = imageUrl.trim();
       if (!looksLikeHttpImageUrl(trimmed)) {
         setNotice(t("errorInvalidUrl"));
@@ -271,7 +262,11 @@ export function PromptSceneLiteWidget() {
         res = await fetch(analyzeUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ image_url: trimmed, style: styleUsed }),
+          body: JSON.stringify({
+            image_url: trimmed,
+            style: ANALYZE_STYLE,
+            locale: FOTO_V_PROMT_ANALYZE_LOCALE,
+          }),
           credentials: "include",
         });
       } catch {
@@ -315,7 +310,7 @@ export function PromptSceneLiteWidget() {
       }
 
       appendLiteRecognitionHistory({
-        style: styleUsed,
+        style: ANALYZE_STYLE,
         prompt: data.prompt,
         image: { mode: "image_url", imageUrl: trimmed },
       });
@@ -325,11 +320,6 @@ export function PromptSceneLiteWidget() {
       setPanel("result");
     },
     [analyzeUrl, bumpHistory],
-  );
-
-  const analyzeFromCurrentStyleDataUrl = useCallback(
-    (dataUrl: string) => analyzeDataUrlWithStyle(dataUrl, style),
-    [analyzeDataUrlWithStyle, style],
   );
 
   const tryConsumePendingFromStorage = useCallback(async () => {
@@ -363,9 +353,9 @@ export function PromptSceneLiteWidget() {
     if (parsed.dataUrl && typeof parsed.dataUrl === "string") {
       setMainTab("analyze");
       setPreviewUrl(parsed.dataUrl);
-      await analyzeFromCurrentStyleDataUrl(parsed.dataUrl);
+      await analyzeDataUrl(parsed.dataUrl);
     }
-  }, [analyzeFromCurrentStyleDataUrl]);
+  }, [analyzeDataUrl]);
 
   // Extension content script may fill sessionStorage after first paint; poll briefly so
   // we do not miss a one-shot CustomEvent if it fired before this listener attached.
@@ -425,7 +415,7 @@ export function PromptSceneLiteWidget() {
       revokeObjectPreview();
       setPreviewUrl(prepared.dataUrl);
       uploadLog("analyze start");
-      await analyzeFromCurrentStyleDataUrl(prepared.dataUrl);
+      await analyzeDataUrl(prepared.dataUrl);
       uploadLog("handleFile end", { ok: true });
     } catch (err) {
       uploadLog("handleFile error", {
@@ -439,7 +429,7 @@ export function PromptSceneLiteWidget() {
       processingFileRef.current = false;
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
-  }, [analyzeFromCurrentStyleDataUrl, revokeObjectPreview]);
+  }, [analyzeDataUrl, revokeObjectPreview]);
 
   const onFileInputEvent = useCallback(
     (e: React.ChangeEvent<HTMLInputElement> | React.FormEvent<HTMLInputElement>) => {
@@ -513,12 +503,12 @@ export function PromptSceneLiteWidget() {
     (entry: LiteRecognitionEntry) => {
       setMainTab("analyze");
       if (entry.image.mode === "image_url") {
-        void analyzeImageUrlWithStyle(entry.image.imageUrl, entry.style);
+        void analyzeImageUrl(entry.image.imageUrl);
       } else {
-        void analyzeDataUrlWithStyle(entry.image.dataUrl, entry.style);
+        void analyzeDataUrl(entry.image.dataUrl);
       }
     },
-    [analyzeDataUrlWithStyle, analyzeImageUrlWithStyle],
+    [analyzeDataUrl, analyzeImageUrl],
   );
 
   return (
@@ -576,7 +566,6 @@ export function PromptSceneLiteWidget() {
                         dateStyle: "short",
                         timeStyle: "short",
                       })}
-                      <span className="ml-2 normal-case text-zinc-600">{entry.style}</span>
                     </p>
                     <p className="mt-1 line-clamp-3 text-xs leading-snug text-zinc-700">{entry.prompt}</p>
                     <div className="mt-2 flex flex-wrap gap-2">
@@ -681,39 +670,6 @@ export function PromptSceneLiteWidget() {
               {t("chooseFile")}
             </span>
           </label>
-
-          <div>
-            <div className="mb-2 rounded-xl border border-indigo-100 bg-indigo-50/60 px-3 py-2">
-              <span className="block text-sm font-semibold text-zinc-900">{t("styleBaseTitle")}</span>
-              <span className="block text-xs text-zinc-500">{t("styleBaseHint")}</span>
-            </div>
-            <span className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-zinc-500">{t("styleLabel")}</span>
-            <div
-              role="radiogroup"
-              aria-label={t("styleLabel")}
-              className="flex flex-wrap gap-1"
-            >
-              {STYLE_OPTIONS.map(({ value, labelKey }) => {
-                const selected = style === value;
-                return (
-                  <button
-                    key={value}
-                    type="button"
-                    role="radio"
-                    aria-checked={selected}
-                    onClick={() => setStyle(value)}
-                    className={`min-h-9 flex-1 basis-[calc(50%-0.125rem)] whitespace-nowrap rounded-full px-3 text-center text-xs font-semibold transition sm:basis-0 sm:text-sm ${FVP_FOCUS_RING} ${
-                      selected
-                        ? "bg-indigo-600 text-white shadow"
-                        : "border border-zinc-200 bg-zinc-50 text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900"
-                    }`}
-                  >
-                    {t(labelKey)}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
         </div>
       ) : null}
 
