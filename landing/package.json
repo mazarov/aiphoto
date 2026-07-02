@@ -10,9 +10,10 @@
     "not dead"
   ],
   "scripts": {
-    "dev": "next dev -p 3001",
+    "dev": "next dev -p 3002",
     "dev:lan": "next dev -p 3002 -H 0.0.0.0",
     "dev:3002": "next dev -p 3002 -H 0.0.0.0",
+    "dev:clean": "rm -rf .next && next dev -p 3002",
     "build:stv-web": "node scripts/build-stv-web.mjs",
     "sync:stv-sidepanel": "node scripts/sync-stv-web-sidepanel.mjs",
     "build": "npm run build:stv-web && next build",

@@ -8,7 +8,7 @@ import {
 } from "@/lib/lexygpt-generate";
 import {
   reachYandexMetrikaGoal,
-  YM_GOAL_LEXYGPT_GENERATE,
+  YM_GOAL_LEXYGPT_GENERATE_PROMPTCARD,
 } from "@/lib/yandex-metrika";
 import {
   OVERLAY_BUTTON_APPEARANCE_RESET,
@@ -17,9 +17,13 @@ import {
 
 type Props = {
   promptText: string;
-  variant: "listing" | "expanded" | "sticky";
+  variant: "listing" | "expanded" | "sticky" | "widget-sm" | "widget-md";
   disabled?: boolean;
   className?: string;
+  /** Яндекс.Метрика: отдельная цель на placement (без params.placement). */
+  metricGoal?: string;
+  /** Подпись в idle-состоянии; по умолчанию «Повторить». */
+  idleLabel?: string;
 };
 
 type Phase =
@@ -34,6 +38,10 @@ const VARIANT_BASE: Record<Props["variant"], string> = {
   expanded: `${OVERLAY_BUTTON_UA_RESET} flex-1 shrink-0 min-w-0 rounded-xl bg-emerald-600 px-3 py-2.5 text-xs font-semibold text-white transition-all hover:bg-emerald-500 active:scale-[0.98] disabled:opacity-50`,
   sticky:
     "flex min-h-[3rem] min-w-0 w-full items-center justify-center gap-1 rounded-xl bg-emerald-600 px-2.5 py-2 text-center text-xs font-semibold leading-snug text-white shadow-lg transition-all hover:bg-emerald-700 active:scale-[0.98] disabled:opacity-50 sm:gap-2 sm:px-4 sm:py-3 sm:text-sm sm:leading-normal",
+  /** /foto-v-promt history row — как «Копировать промпт». */
+  "widget-sm": `${OVERLAY_BUTTON_UA_RESET} inline-flex min-h-9 shrink-0 items-center justify-center rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-emerald-500 active:scale-[0.98] disabled:opacity-50`,
+  /** /foto-v-promt result row — как «Копировать» / «Другой снимок». */
+  "widget-md": `${OVERLAY_BUTTON_UA_RESET} inline-flex min-h-11 w-full shrink-0 items-center justify-center rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-emerald-500 active:scale-[0.98] disabled:opacity-50 sm:w-auto sm:min-w-[10rem]`,
 };
 
 const PHASE_MS = 2800;
@@ -44,6 +52,8 @@ export function LexyGptGenerateButton({
   variant,
   disabled,
   className = "",
+  metricGoal = YM_GOAL_LEXYGPT_GENERATE_PROMPTCARD,
+  idleLabel = "Повторить",
 }: Props) {
   const [phase, setPhase] = useState<Phase>("idle");
   const [busy, setBusy] = useState(false);
@@ -62,9 +72,7 @@ export function LexyGptGenerateButton({
       const trimmed = promptText.trim();
       if (disabled || !trimmed || busy) return;
 
-      reachYandexMetrikaGoal(YM_GOAL_LEXYGPT_GENERATE, {
-        placement: variant,
-      });
+      reachYandexMetrikaGoal(metricGoal);
 
       setBusy(true);
 
@@ -96,7 +104,7 @@ export function LexyGptGenerateButton({
         }
       })();
     },
-    [busy, disabled, promptText, resetPhaseLater, variant]
+    [busy, disabled, metricGoal, promptText, resetPhaseLater, variant]
   );
 
   const ariaLabelDetailed =
@@ -111,7 +119,7 @@ export function LexyGptGenerateButton({
             : "Повторить в LexyGPT: скопировать промпт и открыть вкладку";
 
   const visibleLabel =
-    variant === "sticky"
+    variant === "sticky" || variant === "widget-sm" || variant === "widget-md"
       ? phase === "opening"
         ? "Готово"
         : phase === "tab_only"
@@ -120,7 +128,7 @@ export function LexyGptGenerateButton({
             ? "Разрешите окна"
             : phase === "blocked"
               ? "Ошибка"
-              : "Повторить"
+              : idleLabel
       : phase === "opening"
         ? "Скопировано · новая вкладка"
         : phase === "tab_only"
@@ -129,7 +137,7 @@ export function LexyGptGenerateButton({
             ? "Промпт скопирован · разрешите окна"
             : phase === "blocked"
               ? "Не удалось открыть вкладку"
-              : "Повторить";
+              : idleLabel;
 
   return (
     <button

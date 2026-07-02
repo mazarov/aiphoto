@@ -17,7 +17,10 @@ cp ../../.env .env.local
 # Dev (перед первым открытием /embed/stv или модалки генерации — собрать панель STV)
 npm run build:stv-web
 npm run dev
-# http://localhost:3001
+# http://localhost:3002  (3001 часто занят Dolphin/другими сервисами)
+
+# Если после npm run build dev падает с vendor-chunks — очистить кеш:
+npm run dev:clean
 
 # Build (включает build:stv-web автоматически)
 npm run build

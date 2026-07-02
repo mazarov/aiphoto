@@ -14,7 +14,7 @@ import { useAuth } from "@/context/AuthContext";
 import { openLexyGptPlaygroundTab } from "@/lib/lexygpt-generate";
 import {
   reachYandexMetrikaGoal,
-  YM_GOAL_LEXYGPT_GENERATE,
+  YM_GOAL_LEXYGPT_GENERATE_TABBAR,
 } from "@/lib/yandex-metrika";
 import { bumpListingShellViewportHeight } from "@/lib/listing-shell-viewport";
 
@@ -129,7 +129,7 @@ export function MobileTabBar() {
 
   const handleGenerate = () => {
     openLexyGptPlaygroundTab();
-    reachYandexMetrikaGoal(YM_GOAL_LEXYGPT_GENERATE, { placement: "tabbar" });
+    reachYandexMetrikaGoal(YM_GOAL_LEXYGPT_GENERATE_TABBAR);
   };
 
   return (

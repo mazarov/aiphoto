@@ -63,7 +63,7 @@ export const FOTO_V_PROMT_FAQ = {
 } as const;
 
 export const FOTO_V_PROMT_CTA = {
-  floatingLabel: "Промт из любой картинки",
+  floatingLabel: "Установить расширение",
 } as const;
 
 export const FOTO_V_PROMT_META = {
@@ -80,6 +80,7 @@ export type WidgetCopyKey =
   | "analyzing"
   | "resultTitle"
   | "copy"
+  | "generate"
   | "tryAgain"
   | "errorConnection"
   | "errorGeneric"
@@ -112,6 +113,7 @@ const WIDGET_COPY: Record<WidgetCopyKey, string> = {
   analyzing: "Делаем промт из фото…",
   resultTitle: "Ваш промт",
   copy: "Копировать промпт",
+  generate: "Сгенерировать",
   tryAgain: "Другой снимок",
   errorConnection: "Не удалось подключиться. Проверьте интернет и попробуйте снова.",
   errorGeneric: "Что-то пошло не так. Попробуйте другой файл.",

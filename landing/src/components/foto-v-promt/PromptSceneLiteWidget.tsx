@@ -8,6 +8,8 @@ import {
   type LiteRecognitionEntry,
 } from "@/lib/extension-lite-recognition-history";
 import { getImagePromptAnalyzeUrl, getImagePromptSiteUrl, FOTO_V_PROMT_ANALYZE_LOCALE } from "@/lib/foto-v-promt-config";
+import { YM_GOAL_LEXYGPT_GENERATE_PHOTOVPROMPT } from "@/lib/yandex-metrika";
+import { LexyGptGenerateButton } from "@/components/LexyGptGenerateButton";
 import { widgetCopy, type WidgetCopyKey } from "@/lib/foto-v-promt-copy";
 import { prepareUploadFile, noticeForUploadError } from "@/lib/image-upload-prepare";
 import {
@@ -583,6 +585,12 @@ export function PromptSceneLiteWidget() {
                       >
                         {t("historyCopyPrompt")}
                       </button>
+                      <LexyGptGenerateButton
+                        promptText={entry.prompt}
+                        variant="widget-sm"
+                        metricGoal={YM_GOAL_LEXYGPT_GENERATE_PHOTOVPROMPT}
+                        idleLabel={t("generate")}
+                      />
                     </div>
                   </div>
                 </li>
@@ -705,6 +713,12 @@ export function PromptSceneLiteWidget() {
             >
               {t("copy")}
             </button>
+            <LexyGptGenerateButton
+              promptText={promptText}
+              variant="widget-md"
+              metricGoal={YM_GOAL_LEXYGPT_GENERATE_PHOTOVPROMPT}
+              idleLabel={t("generate")}
+            />
             <button
               type="button"
               onClick={resetEmpty}

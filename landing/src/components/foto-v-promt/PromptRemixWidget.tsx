@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { getAiImageDescriberChromeUrl, getPromptRemixUrl, FOTO_V_PROMT_ANALYZE_LOCALE } from "@/lib/foto-v-promt-config";
+import { YM_GOAL_LEXYGPT_GENERATE_PHOTOVPROMPT } from "@/lib/yandex-metrika";
 import { PROMPT_REMIX_COPY } from "@/lib/foto-v-promt-copy";
 import { LexyGptGenerateButton } from "@/components/LexyGptGenerateButton";
 import {
@@ -212,8 +213,9 @@ export function PromptRemixWidget({ cardSlug }: Props) {
                 </button>
                 <LexyGptGenerateButton
                   promptText={resultPrompt}
-                  variant="expanded"
-                  className="sm:min-w-[10rem]"
+                  variant="widget-md"
+                  metricGoal={YM_GOAL_LEXYGPT_GENERATE_PHOTOVPROMPT}
+                  idleLabel="Сгенерировать"
                 />
                 <button
                   type="button"
