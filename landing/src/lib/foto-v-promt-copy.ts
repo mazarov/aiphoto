@@ -79,6 +79,8 @@ export type WidgetCopyKey =
   | "styleMidjourney"
   | "styleSd"
   | "styleFlux"
+  | "styleNano"
+  | "styleDalle"
   | "emptyTitle"
   | "emptyHint"
   | "chooseFile"
@@ -111,11 +113,13 @@ export type WidgetCopyKey =
   | "authRequiredHint";
 
 const WIDGET_COPY: Record<WidgetCopyKey, string> = {
-  styleLabel: "Стиль промпта",
+  styleLabel: "Модель генерации",
   stylePhotoreal: "Фотореализм",
   styleMidjourney: "Midjourney",
   styleSd: "Stable Diffusion",
   styleFlux: "Flux",
+  styleNano: "Nano Banana",
+  styleDalle: "DALL·E",
   emptyTitle: "Загрузите фото или картинку — получите промт",
   emptyHint: "JPG или PNG, до 10 МБ",
   chooseFile: "Выбрать файл",

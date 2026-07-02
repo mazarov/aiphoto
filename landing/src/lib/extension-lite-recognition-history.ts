@@ -4,7 +4,7 @@ export const EXTENSION_LITE_RECOGNITION_HISTORY_KEY = "extension_lite_recognitio
 
 const MAX_ENTRIES = 35;
 
-export type LiteRecognitionStyle = "photoreal" | "midjourney" | "sd" | "flux";
+export type LiteRecognitionStyle = "photoreal" | "midjourney" | "sd" | "flux" | "nano" | "dalle";
 
 export type LiteRecognitionImagePayload =
   | { mode: "data_url"; dataUrl: string }
@@ -40,7 +40,7 @@ function isLiteRecognitionEntry(o: unknown): o is LiteRecognitionEntry {
   const style = x.style as string;
   if (typeof x.id !== "string" || typeof x.createdAt !== "string") return false;
   if (typeof x.prompt !== "string") return false;
-  if (!["photoreal", "midjourney", "sd", "flux"].includes(style)) return false;
+  if (!["photoreal", "midjourney", "sd", "flux", "nano", "dalle"].includes(style)) return false;
   const img = x.image as Record<string, unknown> | null;
   if (!img || typeof img !== "object") return false;
   if (img.mode === "data_url" && typeof img.dataUrl === "string") return true;

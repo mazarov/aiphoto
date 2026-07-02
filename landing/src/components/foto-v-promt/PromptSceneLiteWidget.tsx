@@ -51,13 +51,18 @@ function uploadLog(step: string, data?: Record<string, unknown>) {
   else console.debug("[aid-upload]", step);
 }
 
-type AnalyzeStyle = "photoreal" | "midjourney" | "sd" | "flux";
+type AnalyzeStyle = "photoreal" | "midjourney" | "sd" | "flux" | "nano" | "dalle";
 
-const STYLE_OPTIONS: { value: AnalyzeStyle; labelKey: "stylePhotoreal" | "styleMidjourney" | "styleSd" | "styleFlux" }[] = [
+const STYLE_OPTIONS: {
+  value: AnalyzeStyle;
+  labelKey: "stylePhotoreal" | "styleMidjourney" | "styleSd" | "styleFlux" | "styleNano" | "styleDalle";
+}[] = [
   { value: "photoreal", labelKey: "stylePhotoreal" },
   { value: "midjourney", labelKey: "styleMidjourney" },
   { value: "sd", labelKey: "styleSd" },
   { value: "flux", labelKey: "styleFlux" },
+  { value: "nano", labelKey: "styleNano" },
+  { value: "dalle", labelKey: "styleDalle" },
 ];
 
 type Panel = "empty" | "loading" | "result" | "error";

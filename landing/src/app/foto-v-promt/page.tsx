@@ -42,7 +42,7 @@ export default function FotoVPromtPage() {
       price: "0",
       priceCurrency: "USD",
     },
-    downloadUrl: getAiImageDescriberChromeUrl(),
+    downloadUrl: getAiImageDescriberChromeUrl("foto_v_promt_json_ld"),
   };
 
   const faqJsonLd = {

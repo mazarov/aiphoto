@@ -12,13 +12,15 @@ import {
   FVP_SURFACE_WIDGET_OUTER,
 } from "./foto-v-promt-tokens";
 
-type AnalyzeStyle = "photoreal" | "midjourney" | "sd" | "flux";
+type AnalyzeStyle = "photoreal" | "midjourney" | "sd" | "flux" | "nano" | "dalle";
 
 const STYLE_OPTIONS: { value: AnalyzeStyle; label: string }[] = [
   { value: "photoreal", label: "Фотореализм" },
   { value: "midjourney", label: "Midjourney" },
   { value: "sd", label: "Stable Diffusion" },
   { value: "flux", label: "Flux" },
+  { value: "nano", label: "Nano Banana" },
+  { value: "dalle", label: "DALL·E" },
 ];
 
 type CardState = "loading" | "ready" | "error";
@@ -280,7 +282,7 @@ export function PromptRemixWidget({ cardSlug }: Props) {
             <p className="mt-5 border-t border-zinc-100 pt-4 text-center text-xs text-zinc-500">
               {PROMPT_REMIX_COPY.installHint}{" "}
               <a
-                href={getAiImageDescriberChromeUrl()}
+                href={getAiImageDescriberChromeUrl("foto_v_promt_remix_hint")}
                 target="_blank"
                 rel="noopener noreferrer"
                 className={`font-medium text-indigo-600 underline-offset-2 hover:underline ${FVP_FOCUS_RING}`}

@@ -22,10 +22,30 @@ export function getImagePromptSiteUrl(): string {
   return getImagePromptApiOrigin();
 }
 
-export function getAiImageDescriberChromeUrl(): string {
-  return (
-    process.env.NEXT_PUBLIC_AI_IMAGE_DESCRIBER_CHROME_URL?.trim() || DEFAULT_CHROME_STORE_URL
-  );
+/** Placement for Chrome Web Store UTM — forwarded to CWS GA4 on page_view + install. */
+export type AiImageDescriberChromePlacement =
+  | "foto_v_promt_floating_cta"
+  | "foto_v_promt_remix_hint"
+  | "foto_v_promt_json_ld";
+
+const CHROME_STORE_UTM = {
+  source: "promptshot.ru",
+  /** Рекламная разметка для отчётов GA4 Chrome Web Store (install attribution). */
+  medium: "cpc",
+  campaign: "foto_v_promt",
+} as const;
+
+export function getAiImageDescriberChromeUrl(
+  placement: AiImageDescriberChromePlacement = "foto_v_promt_floating_cta",
+): string {
+  const base =
+    process.env.NEXT_PUBLIC_AI_IMAGE_DESCRIBER_CHROME_URL?.trim() || DEFAULT_CHROME_STORE_URL;
+  const url = new URL(base);
+  url.searchParams.set("utm_source", CHROME_STORE_UTM.source);
+  url.searchParams.set("utm_medium", CHROME_STORE_UTM.medium);
+  url.searchParams.set("utm_campaign", CHROME_STORE_UTM.campaign);
+  url.searchParams.set("utm_content", placement);
+  return url.toString();
 }
 
 export function getPromptRemixUrl(): string {

@@ -22,7 +22,7 @@ export function FotoVPromtFloatingCta() {
       <div className={`${FVP_SECTION_CONTAINER} pt-4`}>
         <div className="flex justify-center">
           <a
-            href={getAiImageDescriberChromeUrl()}
+            href={getAiImageDescriberChromeUrl("foto_v_promt_floating_cta")}
             target="_blank"
             rel="noopener noreferrer"
             onClick={() => trackFotoVPromtAddToChromeClick()}
