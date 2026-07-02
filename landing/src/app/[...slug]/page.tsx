@@ -7,6 +7,7 @@ import {
   getIndexableTagCombos,
   getFirstCardPhotoUrl,
   type RouteCardsResult,
+  type PromptCardFull,
 } from "@/lib/supabase";
 import { parseListingSort } from "@/lib/listing-sort";
 import dynamic from "next/dynamic";
@@ -429,11 +430,12 @@ export default async function TagPage({ params, searchParams }: Props) {
   const result = await getCachedRouteCards(buildListingFetchParams(route.rpcParams, qs ?? null));
   const totalCount = result.total_count ?? result.cards_count;
 
-  let cards = result.cards;
+  let cards: PromptCardFull[];
   try {
     cards = await enrichCardsWithDetails(result.cards);
   } catch (err) {
     console.error("[TagPage] enrichCardsWithDetails failed:", err);
+    cards = [];
   }
 
   const seo = getSeoForRoute(route);
@@ -447,9 +449,12 @@ export default async function TagPage({ params, searchParams }: Props) {
     }
   }
 
-  const pageOgImage = cards.length > 0
-    ? cards.find((c) => c.photoUrls.length > 0)?.photoUrls[0] ?? null
-    : null;
+  let pageOgImage: string | null = null;
+  try {
+    pageOgImage = await getFirstCardPhotoUrl(result.cards.map((c) => c.id));
+  } catch (err) {
+    console.error("[TagPage] getFirstCardPhotoUrl failed:", err);
+  }
 
   const primaryTag = route.primaryTag;
   const siblings = getSiblingTags(primaryTag, 6);
