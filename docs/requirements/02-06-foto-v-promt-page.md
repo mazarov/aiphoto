@@ -428,8 +428,10 @@ flowchart TB
 
 | Key | RU текст |
 |-----|----------|
-| styleLabel | Модель генерации |
-| stylePhotoreal | Фотореализм |
+| styleBaseTitle | Фотореализм |
+| styleBaseHint | Базовый детальный промт по фото |
+| styleLabel | Оптимизировать под модель |
+| stylePhotoreal | Без настройки |
 | styleMidjourney | Midjourney |
 | styleSd | Stable Diffusion |
 | styleFlux | Flux |

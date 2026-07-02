@@ -74,6 +74,8 @@ export const FOTO_V_PROMT_META = {
 } as const;
 
 export type WidgetCopyKey =
+  | "styleBaseTitle"
+  | "styleBaseHint"
   | "styleLabel"
   | "stylePhotoreal"
   | "styleMidjourney"
@@ -113,8 +115,10 @@ export type WidgetCopyKey =
   | "authRequiredHint";
 
 const WIDGET_COPY: Record<WidgetCopyKey, string> = {
-  styleLabel: "Модель генерации",
-  stylePhotoreal: "Фотореализм",
+  styleBaseTitle: "Фотореализм",
+  styleBaseHint: "Базовый детальный промт по фото",
+  styleLabel: "Оптимизировать под модель",
+  stylePhotoreal: "Без настройки",
   styleMidjourney: "Midjourney",
   styleSd: "Stable Diffusion",
   styleFlux: "Flux",
@@ -171,7 +175,9 @@ export const PROMPT_REMIX_COPY = {
   changeLabel: "Что изменить?",
   changePlaceholder:
     "Например: сделай стиль более реалистичным, замени фон на вечерний город, добавь кинематографичный свет",
-  styleLabel: "Стиль промпта",
+  styleBaseTitle: "Фотореализм",
+  styleBaseHint: "Базовый детальный промт",
+  styleLabel: "Оптимизировать под модель",
   submit: "Переделать промт",
   submitting: "Переделываем промт…",
   resultLabel: "Изменённый промт",

@@ -15,11 +15,11 @@ import {
 type AnalyzeStyle = "photoreal" | "midjourney" | "sd" | "flux" | "nano" | "dalle";
 
 const STYLE_OPTIONS: { value: AnalyzeStyle; label: string }[] = [
-  { value: "photoreal", label: "Фотореализм" },
+  { value: "photoreal", label: "Без настройки" },
+  { value: "nano", label: "Nano Banana" },
+  { value: "flux", label: "Flux" },
   { value: "midjourney", label: "Midjourney" },
   { value: "sd", label: "Stable Diffusion" },
-  { value: "flux", label: "Flux" },
-  { value: "nano", label: "Nano Banana" },
   { value: "dalle", label: "DALL·E" },
 ];
 
@@ -180,6 +180,10 @@ export function PromptRemixWidget({ cardSlug }: Props) {
 
               {/* Style selector */}
               <div className="mb-5">
+                <div className="mb-2 rounded-xl border border-indigo-100 bg-indigo-50/60 px-3 py-2">
+                  <span className="block text-sm font-semibold text-zinc-900">{PROMPT_REMIX_COPY.styleBaseTitle}</span>
+                  <span className="block text-xs text-zinc-500">{PROMPT_REMIX_COPY.styleBaseHint}</span>
+                </div>
                 <span className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-zinc-500">
                   {PROMPT_REMIX_COPY.styleLabel}
                 </span>

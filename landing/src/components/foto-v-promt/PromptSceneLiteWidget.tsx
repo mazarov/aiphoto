@@ -58,10 +58,10 @@ const STYLE_OPTIONS: {
   labelKey: "stylePhotoreal" | "styleMidjourney" | "styleSd" | "styleFlux" | "styleNano" | "styleDalle";
 }[] = [
   { value: "photoreal", labelKey: "stylePhotoreal" },
+  { value: "nano", labelKey: "styleNano" },
+  { value: "flux", labelKey: "styleFlux" },
   { value: "midjourney", labelKey: "styleMidjourney" },
   { value: "sd", labelKey: "styleSd" },
-  { value: "flux", labelKey: "styleFlux" },
-  { value: "nano", labelKey: "styleNano" },
   { value: "dalle", labelKey: "styleDalle" },
 ];
 
@@ -683,6 +683,10 @@ export function PromptSceneLiteWidget() {
           </label>
 
           <div>
+            <div className="mb-2 rounded-xl border border-indigo-100 bg-indigo-50/60 px-3 py-2">
+              <span className="block text-sm font-semibold text-zinc-900">{t("styleBaseTitle")}</span>
+              <span className="block text-xs text-zinc-500">{t("styleBaseHint")}</span>
+            </div>
             <span className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-zinc-500">{t("styleLabel")}</span>
             <div
               role="radiogroup"
