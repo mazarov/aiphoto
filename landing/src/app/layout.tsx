@@ -6,9 +6,11 @@ import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
 import { GenerationProvider } from "@/context/GenerationContext";
 import { PromptCardModalProvider } from "@/context/PromptCardModalContext";
+import { FotoVPromtMobileModalProvider } from "@/context/FotoVPromtMobileModalContext";
 import { AuthModal } from "@/components/AuthModal";
 import { GenerationModal } from "@/components/GenerationModal";
 import { ClientCardModal } from "@/components/ClientCardModal";
+import { FotoVPromtMobileModal } from "@/components/foto-v-promt/FotoVPromtMobileModal";
 import { YandexMetrikaRouteTracker } from "@/components/YandexMetrikaRouteTracker";
 import { HOMEPAGE_SEO } from "@/lib/homepage-seo-copy";
 
@@ -64,13 +66,16 @@ export default function RootLayout({
         <AuthProvider>
             <GenerationProvider>
               <PromptCardModalProvider>
-                <Suspense fallback={null}>
-                  <YandexMetrikaRouteTracker />
-                </Suspense>
-                {children}
-                {modal}
-                <ClientCardModal />
-                <GenerationModal />
+                <FotoVPromtMobileModalProvider>
+                  <Suspense fallback={null}>
+                    <YandexMetrikaRouteTracker />
+                  </Suspense>
+                  {children}
+                  {modal}
+                  <ClientCardModal />
+                  <FotoVPromtMobileModal />
+                  <GenerationModal />
+                </FotoVPromtMobileModalProvider>
               </PromptCardModalProvider>
             </GenerationProvider>
           <AuthModal />

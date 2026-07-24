@@ -10,6 +10,7 @@ import {
 } from "./ListingMobileSearchSheet";
 import { MobileProfileSheet } from "./MobileProfileSheet";
 import { useListingMobileChromeOptional } from "@/context/ListingMobileChromeContext";
+import { useFotoVPromtMobileModal } from "@/context/FotoVPromtMobileModalContext";
 import { useAuth } from "@/context/AuthContext";
 import { bumpListingShellViewportHeight } from "@/lib/listing-shell-viewport";
 
@@ -31,6 +32,7 @@ export function MobileTabBar() {
   const router = useRouter();
   const chrome = useListingMobileChromeOptional();
   const { user, openAuthModal } = useAuth();
+  const { isOpen: fotoModalOpen, open: openFotoModal } = useFotoVPromtMobileModal();
 
   const [mounted, setMounted] = useState(false);
   const [isDesktop, setIsDesktop] = useState(false);
@@ -126,7 +128,12 @@ export function MobileTabBar() {
     }
   };
 
-  const fotoActive = isActive("foto");
+  const handleFotoTab = () => {
+    if (fotoModalOpen) return;
+    openFotoModal();
+  };
+
+  const fotoActive = isActive("foto") || fotoModalOpen;
 
   return (
     <>
@@ -187,11 +194,13 @@ export function MobileTabBar() {
             </span>
           </Link>
 
-          {/* Фото в промт — center accent */}
+          {/* Фото в промт — center accent → soft fullscreen modal + pushState */}
           <div className="flex flex-1 flex-col items-center justify-end pb-0.5">
-            <Link
-              href="/foto-v-promt"
+            <button
+              type="button"
+              onClick={handleFotoTab}
               aria-label="Фото в промт"
+              aria-pressed={fotoActive}
               className="flex flex-col items-center gap-0.5 transition-transform active:scale-[0.97]"
             >
               <span
@@ -222,7 +231,7 @@ export function MobileTabBar() {
               >
                 Фото в промт
               </span>
-            </Link>
+            </button>
           </div>
 
           {/* Поиск */}

@@ -75,6 +75,9 @@ export const FOTO_V_PROMT_META = {
 
 export type WidgetCopyKey =
   | "emptyTitle"
+  | "emptyLead"
+  | "emptyDo"
+  | "emptyDont"
   | "emptyHint"
   | "chooseFile"
   | "analyzing"
@@ -107,14 +110,18 @@ export type WidgetCopyKey =
   | "authRequiredHint";
 
 const WIDGET_COPY: Record<WidgetCopyKey, string> = {
-  emptyTitle: "Загрузите фото или картинку — получите промт",
-  emptyHint: "JPG или PNG, до 10 МБ",
-  chooseFile: "Выбрать файл",
-  analyzing: "Делаем промт из фото…",
+  emptyTitle: "Какая картинка вам нравится?",
+  emptyLead:
+    "Загрузите референс из Pinterest, Instagram или любого сайта. Получите готовый промт для любой модели генерации изображений",
+  emptyDo: "Pinterest или сайт",
+  emptyDont: "Своё селфи",
+  emptyHint: "JPG, PNG или WebP · до 10 МБ",
+  chooseFile: "Выбрать картинку",
+  analyzing: "Делаем промт из референса…",
   resultTitle: "Ваш промт",
   copy: "Копировать промпт",
   generate: "Сгенерировать",
-  tryAgain: "Другой снимок",
+  tryAgain: "Другой референс",
   errorConnection: "Не удалось подключиться. Проверьте интернет и попробуйте снова.",
   errorGeneric: "Что-то пошло не так. Попробуйте другой файл.",
   errorRateLimited: "Дневной лимит использован. Попробуйте через 24 часа.",

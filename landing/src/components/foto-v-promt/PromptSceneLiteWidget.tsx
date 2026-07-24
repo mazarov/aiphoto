@@ -16,11 +16,17 @@ import {
   FVP_BORDER_CARD,
   FVP_BORDER_INPUT,
   FVP_FOCUS_RING,
+  FVP_IMMERSIVE_FOCUS_RING,
+  FVP_IMMERSIVE_OVERLAY_BTN,
+  FVP_IMMERSIVE_OVERLAY_BTN_GREEN,
+  FVP_IMMERSIVE_OVERLAY_BTN_PRIMARY,
   FVP_RING_INSET_SOFT,
   FVP_SURFACE_IMAGE_FRAME,
   FVP_SURFACE_WIDGET_INSET,
   FVP_SURFACE_WIDGET_OUTER,
 } from "./foto-v-promt-tokens";
+
+export type PromptSceneLiteVariant = "catalog" | "immersive";
 
 const HISTORY_HASH_PREFIX = "#extension-lite-history";
 
@@ -92,8 +98,112 @@ function ImagePreviewFrame({
   );
 }
 
-export function PromptSceneLiteWidget() {
+/** Empty-state hero: a visual reference becomes a structured prompt. */
+function EmptyUploadHero({ immersive }: { immersive: boolean }) {
+  const titleClass = immersive
+    ? "text-lg font-semibold tracking-tight text-zinc-50"
+    : "text-lg font-semibold tracking-tight text-zinc-900";
+  const leadClass = immersive
+    ? "mt-2 max-w-[18rem] text-sm leading-relaxed text-zinc-400"
+    : "mt-2 max-w-[18rem] text-sm leading-relaxed text-zinc-600";
+  const arrowClass = immersive ? "text-zinc-300" : "text-zinc-400";
+  const tileGlow = immersive
+    ? "shadow-[0_0_28px_-4px_rgba(139,92,246,0.55)]"
+    : "shadow-[0_8px_28px_-6px_rgba(99,102,241,0.35)]";
+
+  return (
+    <div className="pointer-events-none flex w-full max-w-sm flex-col items-center text-center">
+      <div className="relative flex items-center gap-3 py-1" aria-hidden>
+        <div
+          className={`pointer-events-none absolute -inset-x-6 -inset-y-2 rounded-full blur-2xl ${
+            immersive
+              ? "bg-[radial-gradient(ellipse_at_center,rgba(139,92,246,0.28),rgba(59,130,246,0.12)_45%,transparent_70%)]"
+              : "bg-[radial-gradient(ellipse_at_center,rgba(139,92,246,0.18),rgba(59,130,246,0.1)_45%,transparent_70%)]"
+          }`}
+        />
+
+        {/* Reference tile: a small editorial scene, not a generic upload icon. */}
+        <div
+          className={`relative h-[4.5rem] w-[4.5rem] overflow-hidden rounded-[1.15rem] bg-gradient-to-b from-violet-400 via-indigo-400 to-sky-300 ring-1 ring-white/25 ${tileGlow}`}
+        >
+          <div className="absolute right-2 top-2 h-3 w-3 rounded-full bg-amber-200 shadow-[0_0_10px_rgba(253,230,138,0.9)]" />
+          <div className="absolute -bottom-5 -left-5 h-12 w-16 rotate-12 rounded-[50%] bg-violet-900/70" />
+          <div className="absolute -bottom-4 right-[-1rem] h-11 w-16 -rotate-12 rounded-[50%] bg-indigo-950/65" />
+          <div className="absolute bottom-0 left-1/2 h-9 w-3 -translate-x-1/2 rounded-t-full bg-zinc-950/85" />
+          <div className="absolute bottom-7 left-1/2 h-3 w-3 -translate-x-1/2 rounded-full bg-zinc-950/85" />
+          <div className="absolute inset-1 rounded-[0.9rem] ring-1 ring-inset ring-white/30" />
+        </div>
+
+        <svg className={`relative h-5 w-5 shrink-0 ${arrowClass}`} viewBox="0 0 24 24" fill="none" aria-hidden>
+          <path
+            d="M5 12h12m0 0l-4.5-4.5M17 12l-4.5 4.5"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+
+        {/* Prompt tile: document, text lines and AI sparkle. */}
+        <div
+          className={`relative flex h-[4.5rem] w-[4.5rem] items-center justify-center rounded-[1.15rem] bg-gradient-to-br from-violet-500 via-indigo-500 to-sky-400 ${tileGlow}`}
+        >
+          <div className="relative h-[3.3rem] w-[2.8rem] rounded-lg border border-white/75 bg-zinc-950/35 p-2 shadow-inner">
+            <span className="block text-left text-[10px] font-bold leading-none text-white">T</span>
+            <span className="mt-1.5 block h-0.5 w-full rounded-full bg-white/85" />
+            <span className="mt-1 block h-0.5 w-4/5 rounded-full bg-white/70" />
+            <span className="mt-1 block h-0.5 w-3/5 rounded-full bg-fuchsia-200/90" />
+          </div>
+          <svg className="absolute right-1.5 top-1.5 h-4 w-4 text-white" viewBox="0 0 16 16" fill="none">
+            <path d="M8 1.5l1.2 3.3L12.5 6 9.2 7.2 8 10.5 6.8 7.2 3.5 6l3.3-1.2L8 1.5z" fill="currentColor" />
+          </svg>
+        </div>
+      </div>
+
+      <p className={`mt-5 ${titleClass}`}>{t("emptyTitle")}</p>
+      <p className={leadClass}>{t("emptyLead")}</p>
+    </div>
+  );
+}
+
+function EmptyUploadGuidance({ immersive }: { immersive: boolean }) {
+  const chipBase =
+    "flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-xl px-2.5 text-xs font-medium";
+  const doChip = immersive
+    ? `${chipBase} bg-emerald-500/10 text-emerald-300 ring-1 ring-inset ring-emerald-400/20`
+    : `${chipBase} bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200`;
+  const dontChip = immersive
+    ? `${chipBase} bg-white/[0.035] text-zinc-400 ring-1 ring-inset ring-white/10`
+    : `${chipBase} bg-zinc-100 text-zinc-500 ring-1 ring-inset ring-zinc-200`;
+
+  return (
+    <div className="pointer-events-none mt-4 flex w-full max-w-[17rem] flex-col items-center">
+      <div className="flex w-full gap-2">
+        <div className={doChip}>
+          <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} aria-hidden>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+          </svg>
+          {t("emptyDo")}
+        </div>
+        <div className={dontChip}>
+          <svg className="h-4 w-4 shrink-0 opacity-80" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} aria-hidden>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 6l12 12M18 6L6 18" />
+          </svg>
+          {t("emptyDont")}
+        </div>
+      </div>
+      <p className="mt-3 text-xs text-zinc-500">{t("emptyHint")}</p>
+    </div>
+  );
+}
+
+export function PromptSceneLiteWidget({
+  variant = "catalog",
+}: {
+  variant?: PromptSceneLiteVariant;
+} = {}) {
   const analyzeUrl = getImagePromptAnalyzeUrl();
+  const immersive = variant === "immersive";
   const [mainTab, setMainTab] = useState<MainTab>("analyze");
   const [panel, setPanel] = useState<Panel>("empty");
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -513,6 +623,313 @@ export function PromptSceneLiteWidget() {
     [analyzeDataUrl, analyzeImageUrl],
   );
 
+  const showImmersiveBackdrop =
+    immersive &&
+    mainTab === "analyze" &&
+    Boolean(previewUrl) &&
+    (panel === "loading" || panel === "result" || panel === "error");
+
+  if (immersive) {
+    return (
+      <div className="relative flex h-full min-h-0 flex-col overflow-hidden bg-[#09090b] text-zinc-50">
+        {showImmersiveBackdrop && previewUrl ? (
+          <div className="pointer-events-none absolute inset-0 z-0" aria-hidden>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={previewUrl} alt="" className="h-full w-full object-cover" />
+            <div
+              className="absolute inset-0"
+              style={{
+                background:
+                  "linear-gradient(180deg, rgb(9 9 11 / 0.45) 0%, rgb(9 9 11 / 0.16) 42%, rgb(9 9 11 / 0.55) 100%), linear-gradient(90deg, rgb(9 9 11 / 0.3) 0%, rgb(9 9 11 / 0.1) 55%, rgb(9 9 11 / 0.34) 100%)",
+              }}
+            />
+          </div>
+        ) : null}
+
+        <nav
+          className="relative z-10 mx-3 mt-2 flex shrink-0 gap-1 rounded-xl bg-zinc-900/80 p-1 ring-1 ring-inset ring-white/10 backdrop-blur-md"
+          aria-label="Основная навигация"
+        >
+          <button
+            type="button"
+            onClick={() => setMainTab("analyze")}
+            className={`min-h-9 flex-1 rounded-lg px-3 text-sm font-medium transition ${FVP_IMMERSIVE_FOCUS_RING} ${
+              mainTab === "analyze"
+                ? "bg-indigo-600 text-white shadow"
+                : "text-zinc-400 hover:bg-white/5 hover:text-zinc-100"
+            }`}
+          >
+            {t("tabAnalyze")}
+          </button>
+          <button
+            type="button"
+            onClick={() => setMainTab("history")}
+            className={`min-h-9 flex-1 rounded-lg px-3 text-sm font-medium transition ${FVP_IMMERSIVE_FOCUS_RING} ${
+              mainTab === "history"
+                ? "bg-indigo-600 text-white shadow"
+                : "text-zinc-400 hover:bg-white/5 hover:text-zinc-100"
+            }`}
+          >
+            {t("tabHistory")}
+          </button>
+        </nav>
+
+        <div className="relative z-10 flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto overscroll-contain px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3">
+          {mainTab === "history" ? (
+            hasHistory ? (
+              <div className="flex flex-col gap-3">
+                <p className="text-xs text-zinc-400">{t("historyIntro")}</p>
+                <ul className="list-none space-y-3">
+                  {historyItems.map((entry) => (
+                    <li
+                      key={entry.id}
+                      className="flex gap-3 rounded-xl bg-zinc-900/70 p-3 ring-1 ring-inset ring-white/10 backdrop-blur-md"
+                    >
+                      <div className="relative h-[4.5rem] w-[4.5rem] shrink-0 overflow-hidden rounded-lg bg-zinc-800 ring-1 ring-inset ring-white/10">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={historyThumbnailSrc(entry)}
+                          alt=""
+                          className="h-full w-full object-contain"
+                        />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[0.65rem] font-medium uppercase tracking-wide text-zinc-500">
+                          {new Date(entry.createdAt).toLocaleString(undefined, {
+                            dateStyle: "short",
+                            timeStyle: "short",
+                          })}
+                        </p>
+                        <p className="mt-1 line-clamp-3 text-xs leading-snug text-zinc-200">
+                          {entry.prompt}
+                        </p>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => recognizeAgainFromHistory(entry)}
+                            className={`inline-flex min-h-9 items-center justify-center rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-500 ${FVP_IMMERSIVE_FOCUS_RING}`}
+                          >
+                            {t("historyRecognizeAgain")}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void copyHistoryPrompt(entry.prompt)}
+                            className={`inline-flex min-h-9 items-center justify-center rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs text-zinc-200 hover:bg-white/10 ${FVP_IMMERSIVE_FOCUS_RING}`}
+                          >
+                            {t("historyCopyPrompt")}
+                          </button>
+                          <LexyGptGenerateButton
+                            promptText={entry.prompt}
+                            variant="widget-sm"
+                            metricGoal={YM_GOAL_LEXYGPT_GENERATE_PHOTOVPROMPT}
+                            idleLabel={t("generate")}
+                          />
+                        </div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center px-4 py-10">
+                <div className="text-zinc-500" aria-hidden>
+                  <svg
+                    className="h-7 w-7"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.65"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <rect x="3" y="3" width="18" height="18" rx="2" opacity="0.35" />
+                    <circle cx="8.5" cy="8.5" r="1.5" />
+                    <path d="M21 15l-5-5L5 21" />
+                  </svg>
+                </div>
+                <h3 className="mt-4 text-center text-base font-semibold tracking-tight text-zinc-50">
+                  {t("historyEmptyTitle")}
+                </h3>
+                <p className="mx-auto mt-2 max-w-sm text-center text-sm leading-relaxed text-zinc-400">
+                  {t("historyEmptyDescription")}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setMainTab("analyze")}
+                  className={`mt-6 inline-flex min-h-11 w-full max-w-xs items-center justify-center rounded-lg border border-white/15 bg-white/5 px-5 py-2.5 text-sm font-medium text-zinc-100 transition hover:bg-white/10 ${FVP_IMMERSIVE_FOCUS_RING}`}
+                >
+                  {t("historyEmptyCta")}
+                </button>
+              </div>
+            )
+          ) : (
+            <>
+              {notice ? (
+                <p className="mb-3 text-sm text-amber-200/90">{notice}</p>
+              ) : null}
+
+              <input
+                ref={fileInputRef}
+                id={fileInputId}
+                type="file"
+                accept={FILE_INPUT_ACCEPT}
+                aria-label={t("chooseFile")}
+                className="sr-only"
+                onChange={onFileInputEvent}
+                onInput={onFileInputEvent}
+              />
+
+              {panel === "empty" ? (
+                <label
+                  htmlFor={fileInputId}
+                  className={`relative flex min-h-[16rem] flex-1 cursor-pointer flex-col items-center justify-center overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-b from-zinc-900/80 to-zinc-950/90 px-4 py-8 text-center shadow-[inset_0_1px_0_rgb(255_255_255/0.04)] transition-colors hover:border-indigo-400/40 hover:from-zinc-900 hover:to-zinc-950 ${FVP_IMMERSIVE_FOCUS_RING}`}
+                  onClick={(e) => {
+                    if (e.target instanceof HTMLInputElement) return;
+                    e.preventDefault();
+                    openFilePicker();
+                  }}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.currentTarget.classList.add("border-indigo-400/70");
+                  }}
+                  onDragLeave={(e) => {
+                    e.currentTarget.classList.remove("border-indigo-400/70");
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    e.currentTarget.classList.remove("border-indigo-400/70");
+                    const f = e.dataTransfer.files?.[0];
+                    if (f) void handleFile(f);
+                  }}
+                >
+                  <div
+                    className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-[radial-gradient(ellipse_at_top,rgba(99,102,241,0.18),transparent_70%)]"
+                    aria-hidden
+                  />
+                  <EmptyUploadHero immersive />
+                  <span
+                    className={`pointer-events-none relative mt-5 inline-flex min-h-11 w-full max-w-[17rem] items-center justify-center rounded-2xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-indigo-950/40 transition hover:bg-indigo-500 ${FVP_IMMERSIVE_FOCUS_RING}`}
+                  >
+                    {t("chooseFile")}
+                  </span>
+                  <EmptyUploadGuidance immersive />
+                </label>
+              ) : null}
+
+              {panel === "loading" && previewUrl ? (
+                <div className="flex flex-1 flex-col items-center justify-end gap-4 pb-6">
+                  <div className="w-full max-w-sm rounded-2xl bg-zinc-950/55 px-4 py-5 ring-1 ring-inset ring-white/10 backdrop-blur-xl">
+                    <p className="text-center text-sm text-zinc-200">{t("analyzing")}</p>
+                    <div className="mx-auto mt-3 h-1.5 w-full max-w-xs overflow-hidden rounded-full bg-zinc-700">
+                      <div className="h-full w-1/3 animate-pulse rounded-full bg-indigo-400/90" />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={resetEmpty}
+                      className={`mt-4 inline-flex min-h-10 w-full items-center justify-center rounded-lg border border-white/15 bg-white/5 px-4 text-sm text-zinc-200 hover:bg-white/10 ${FVP_IMMERSIVE_FOCUS_RING}`}
+                    >
+                      {t("tryAgain")}
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+
+              {panel === "result" && previewUrl ? (
+                <div className="flex min-h-0 flex-1 flex-col justify-end">
+                  <div className="relative flex max-h-full min-h-0 flex-col gap-2.5 overflow-hidden rounded-2xl bg-zinc-950/55 p-3 ring-1 ring-inset ring-white/12 backdrop-blur-xl">
+                    <div className="text-[11px] font-medium uppercase tracking-wide text-zinc-400">
+                      {t("resultTitle")}
+                    </div>
+                    <pre className="min-h-0 flex-1 overflow-auto whitespace-pre-wrap text-[13px] leading-relaxed text-zinc-200">
+                      {promptText}
+                    </pre>
+                    <div className="flex flex-wrap items-center justify-end gap-1.5 pt-1">
+                      <LexyGptGenerateButton
+                        promptText={promptText}
+                        variant="widget-sm"
+                        metricGoal={YM_GOAL_LEXYGPT_GENERATE_PHOTOVPROMPT}
+                        idleLabel={t("generate")}
+                        className={FVP_IMMERSIVE_OVERLAY_BTN_GREEN}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => void copyPrompt()}
+                        className={FVP_IMMERSIVE_OVERLAY_BTN_PRIMARY}
+                      >
+                        {t("copy")}
+                      </button>
+                      <button type="button" onClick={resetEmpty} className={FVP_IMMERSIVE_OVERLAY_BTN}>
+                        {t("tryAgain")}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+
+              {panel === "error" ? (
+                <div className="flex flex-1 flex-col items-center justify-center gap-4 px-2 py-6">
+                  <div className="w-full max-w-sm rounded-2xl bg-zinc-950/70 px-4 py-6 ring-1 ring-inset ring-white/10 backdrop-blur-xl">
+                    {errorKind === "rate_limited" || errorKind === "auth_required" ? (
+                      <div className="flex flex-col items-center text-center">
+                        <h3 className="text-base font-semibold tracking-tight text-zinc-50">
+                          {t("limitTitle")}
+                        </h3>
+                        <p className="mt-2 text-sm leading-relaxed text-zinc-400">
+                          {errorMessage || t("limitDescription")}
+                        </p>
+                        {errorKind === "auth_required" ? (
+                          <p className="mt-2 text-xs leading-relaxed text-zinc-500">
+                            {t("authRequiredHint")}
+                          </p>
+                        ) : (
+                          <p className="mt-2 text-xs leading-relaxed text-zinc-500">
+                            {t("limitResetLine")}
+                          </p>
+                        )}
+                        <div className="mt-6 flex w-full flex-col gap-2">
+                          {errorKind === "auth_required" ? (
+                            <a
+                              href={getImagePromptSiteUrl()}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className={`inline-flex min-h-11 w-full items-center justify-center rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-indigo-500 ${FVP_IMMERSIVE_FOCUS_RING}`}
+                            >
+                              imageprompt.tools
+                            </a>
+                          ) : null}
+                          <button
+                            type="button"
+                            onClick={resetEmpty}
+                            className={`inline-flex min-h-11 w-full items-center justify-center rounded-lg border border-white/15 bg-white/5 px-5 py-2.5 text-sm font-medium text-zinc-100 transition hover:bg-white/10 ${FVP_IMMERSIVE_FOCUS_RING}`}
+                          >
+                            {t("limitGotIt")}
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <p className="text-sm leading-relaxed text-red-300">
+                          {errorMessage || t("errorGeneric")}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={resetEmpty}
+                          className={`mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-indigo-500 ${FVP_IMMERSIVE_FOCUS_RING}`}
+                        >
+                          {t("tryAgain")}
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              ) : null}
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       className={`w-full max-w-3xl rounded-2xl ${FVP_BORDER_CARD} ${FVP_SURFACE_WIDGET_OUTER} p-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-md shadow-zinc-200/60 sm:p-5`}
@@ -650,7 +1067,7 @@ export function PromptSceneLiteWidget() {
         <div className="flex flex-col gap-4">
           <label
             htmlFor={fileInputId}
-            className={`relative flex min-h-[11rem] cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-zinc-300 bg-zinc-50 px-4 py-8 text-center transition-colors hover:border-indigo-400/60 hover:bg-indigo-50/30 sm:min-h-[10rem] ${FVP_FOCUS_RING}`}
+            className={`relative flex min-h-[14rem] cursor-pointer flex-col items-center justify-center overflow-hidden rounded-3xl border border-zinc-200 bg-gradient-to-b from-white to-zinc-50 px-4 py-8 text-center shadow-[inset_0_1px_0_rgb(255_255_255/0.8)] transition-colors hover:border-indigo-400/50 hover:from-indigo-50/40 hover:to-white sm:min-h-[12rem] ${FVP_FOCUS_RING}`}
             onClick={(e) => {
               if (e.target instanceof HTMLInputElement) return;
               e.preventDefault();
@@ -670,13 +1087,17 @@ export function PromptSceneLiteWidget() {
               if (f) void handleFile(f);
             }}
           >
-            <p className="pointer-events-none text-sm font-medium text-zinc-800">{t("emptyTitle")}</p>
-            <p className="pointer-events-none mt-1 text-xs text-zinc-500">{t("emptyHint")}</p>
+            <div
+              className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-[radial-gradient(ellipse_at_top,rgba(99,102,241,0.1),transparent_70%)]"
+              aria-hidden
+            />
+            <EmptyUploadHero immersive={false} />
             <span
-              className={`pointer-events-none relative z-0 mt-4 inline-flex min-h-11 w-full max-w-[20rem] items-center justify-center rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-500 ${FVP_FOCUS_RING}`}
+              className={`pointer-events-none relative z-0 mt-5 inline-flex min-h-11 w-full max-w-[17rem] items-center justify-center rounded-2xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-indigo-200/70 transition hover:bg-indigo-500 ${FVP_FOCUS_RING}`}
             >
               {t("chooseFile")}
             </span>
+            <EmptyUploadGuidance immersive={false} />
           </label>
         </div>
       ) : null}

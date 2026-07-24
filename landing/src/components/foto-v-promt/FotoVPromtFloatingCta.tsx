@@ -10,12 +10,26 @@ import { FVP_FOCUS_RING, FVP_SECTION_CONTAINER } from "./foto-v-promt-tokens";
 
 export function FotoVPromtFloatingCta() {
   const [mounted, setMounted] = useState(false);
+  const [widgetVisible, setWidgetVisible] = useState(false);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  if (!mounted) return null;
+  useEffect(() => {
+    if (!mounted) return;
+    const widget = document.getElementById("foto-v-promt-widget");
+    if (!widget) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => setWidgetVisible(entry.isIntersecting),
+      { threshold: 0.15 },
+    );
+    observer.observe(widget);
+    return () => observer.disconnect();
+  }, [mounted]);
+
+  if (!mounted || widgetVisible) return null;
 
   return createPortal(
     <div className="pointer-events-none fixed inset-x-0 z-[50] floating-cta-above-mobile-tab-bar lg:left-60 lg:right-0">
