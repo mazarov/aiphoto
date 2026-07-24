@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect, useLayoutEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useCardViewBeacon } from "@/hooks/useCardViewBeacon";
 import Image from "next/image";
@@ -32,6 +32,12 @@ import {
 } from "@/lib/listing-card-navigation-context";
 import { FotoVPromtMiniBanner } from "@/components/foto-v-promt-promo/FotoVPromtMiniBanner";
 import { trackPromptCardOpen } from "@/lib/yandex-metrika";
+
+/** Desktop dark panel chips (tier A = 13px). */
+const DESKTOP_PANEL_CHIP =
+  "text-[13px] font-medium rounded-full bg-zinc-800 px-2.5 py-1.5 text-zinc-200 transition-colors hover:bg-zinc-700";
+const DESKTOP_PANEL_CHIP_MUTED =
+  "text-[13px] font-medium rounded-full bg-zinc-800/80 px-2.5 py-1.5 text-zinc-400";
 
 /** Glass как у «тегов» на этом экране: chip-подложка без отдельной нижней панели (tier A = 13px для mobile SEO). */
 const MOBILE_FS_CHIP =
@@ -180,12 +186,6 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
     currentPhoto || ""
   );
 
-  /** Defer blur backdrop until hero `img` loaded so LCP is the main photo, not a full-bleed duplicate `<img>`. */
-  const [blurBackdropReady, setBlurBackdropReady] = useState(false);
-  useEffect(() => {
-    setBlurBackdropReady(false);
-  }, [currentPhoto]);
-
   /**
    * Mobile immersive hero readiness: uses decode() for pixel-perfect timing.
    * Gates the glass chrome so buttons only appear once the photo is fully painted —
@@ -198,7 +198,6 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
   const onHeroFrameLoad = useCallback(
     (e: React.SyntheticEvent<HTMLImageElement>) => {
       onHeroFrameFromHook(e);
-      setBlurBackdropReady(true);
       onHeroImageLoad(e);
     },
     [onHeroFrameFromHook, onHeroImageLoad]
@@ -440,32 +439,48 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
 
   const listingPrev = listingNavNeighbors?.prevSlug ?? null;
   const listingNext = listingNavNeighbors?.nextSlug ?? null;
+  const authorLabel = data.authorDisplayName || "Promptshot";
 
   return (
     <div
-      className={`mx-auto max-w-2xl px-5 py-6 pb-28 lg:py-10 ${hasPhotos ? "max-md:pb-6" : ""}`}
+      className={
+        hasPhotos
+          ? isModal
+            ? "max-md:mx-auto max-md:max-w-2xl max-md:px-5 max-md:py-6 max-md:pb-6"
+            : "mx-auto w-full max-w-7xl px-5 py-6 max-md:max-w-2xl max-md:pb-6 md:px-6 md:py-8 lg:py-10"
+          : "mx-auto max-w-2xl px-5 py-6 pb-28 lg:py-10"
+      }
     >
-      {/* Breadcrumb — hidden on mobile */}
-      <nav className="mb-6 hidden sm:flex items-center gap-1.5 text-sm text-zinc-500">
-        <Link href="/" className="transition-colors hover:text-zinc-700">
-          Главная
-        </Link>
-        <Chevron />
-        {breadcrumbTag ? (
-          <>
-            <Link
-              href={breadcrumbTag.urlPath}
-              className="transition-colors hover:text-zinc-700"
-            >
-              {breadcrumbTag.labelRu}
-            </Link>
-            <Chevron />
-            <span className="text-zinc-600 line-clamp-1">{title}</span>
-          </>
-        ) : (
-          <span className="text-zinc-600 line-clamp-1">{title}</span>
-        )}
-      </nav>
+      {/* Breadcrumb — direct /p page only (not in modal); hidden on mobile */}
+      {!isModal && (
+        <nav
+          className={`mb-6 hidden items-center gap-1.5 text-sm text-zinc-500 sm:flex ${
+            hasPhotos ? "md:mb-4 md:text-zinc-400" : ""
+          }`}
+        >
+          <Link
+            href="/"
+            className={`transition-colors ${hasPhotos ? "hover:text-zinc-600" : "hover:text-zinc-700"}`}
+          >
+            Главная
+          </Link>
+          <Chevron />
+          {breadcrumbTag ? (
+            <>
+              <Link
+                href={breadcrumbTag.urlPath}
+                className={`transition-colors ${hasPhotos ? "hover:text-zinc-600" : "hover:text-zinc-700"}`}
+              >
+                {breadcrumbTag.labelRu}
+              </Link>
+              <Chevron />
+              <span className="line-clamp-1 text-zinc-600">{title}</span>
+            </>
+          ) : (
+            <span className="line-clamp-1 text-zinc-600">{title}</span>
+          )}
+        </nav>
+      )}
 
       {/* Debug panel */}
       {debugMode && (
@@ -543,29 +558,20 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
         </div>
       )}
 
-      {/* ── Hero (desktop framed / mobile immersive) ── */}
+      {/* ── Hero (desktop split / mobile immersive) ── */}
       {hasPhotos && (
         <>
-          {/* Desktop первым — LCP для md+, mobile блок скрыт */}
-          <div className="relative mb-8 hidden overflow-hidden rounded-3xl bg-zinc-100 md:block">
-            {blurBackdropReady && currentPhoto && (
-              <>
-                <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
-                  <div
-                    className="absolute inset-0 scale-150 bg-cover bg-center opacity-50 blur-3xl saturate-150 brightness-110"
-                    style={{
-                      backgroundImage: `url(${JSON.stringify(currentPhoto)})`,
-                    }}
-                  />
-                </div>
-                <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/10 via-transparent to-white/15" />
-              </>
-            )}
-            <div className="group relative flex flex-col items-center justify-center gap-4 px-6 py-8 sm:px-10 sm:py-10">
+          {/* Desktop split: large photo | ↑↓ listing nav | dark panel — LCP for md+ */}
+          <div className="relative hidden md:flex md:max-h-[min(85vh,920px)] md:items-stretch md:gap-3 lg:gap-4">
+            {/* Left: photo */}
+            <div className="group relative flex min-h-0 min-w-0 flex-1 items-center justify-center">
               {currentPhoto ? (
                 <div
-                  className={`relative w-full max-w-[260px] sm:max-w-[300px] rounded-2xl overflow-hidden bg-zinc-200 shadow-2xl ring-1 ring-black/5${heroFrameFallback ? " aspect-[3/4]" : ""}`}
-                  style={heroFrameStyle}
+                  className={`relative mx-auto h-[min(85vh,920px)] max-w-full overflow-hidden rounded-2xl bg-zinc-900 shadow-2xl ring-1 ring-white/10${heroFrameFallback ? " aspect-[3/4]" : ""}`}
+                  style={{
+                    ...heroFrameStyle,
+                    width: "auto",
+                  }}
                 >
                   <Image
                     src={currentPhoto}
@@ -585,7 +591,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                       <button
                         type="button"
                         onClick={prevPhoto}
-                        className={`${OVERLAY_BUTTON_UA_RESET} absolute left-2 top-1/2 z-20 -translate-y-1/2 rounded-full bg-black/30 p-1.5 text-white opacity-0 backdrop-blur-md transition-all hover:bg-black/50 active:scale-90 max-md:opacity-100 md:group-hover:opacity-100`}
+                        className={`${OVERLAY_BUTTON_UA_RESET} absolute left-2 top-1/2 z-20 -translate-y-1/2 rounded-full bg-black/35 p-1.5 text-white opacity-0 backdrop-blur-md transition-all hover:bg-black/55 active:scale-90 group-hover:opacity-100`}
                         aria-label="Предыдущее фото"
                       >
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden><path d="M15 18l-6-6 6-6" /></svg>
@@ -593,7 +599,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                       <button
                         type="button"
                         onClick={nextPhoto}
-                        className={`${OVERLAY_BUTTON_UA_RESET} absolute right-2 top-1/2 z-20 -translate-y-1/2 rounded-full bg-black/30 p-1.5 text-white opacity-0 backdrop-blur-md transition-all hover:bg-black/50 active:scale-90 max-md:opacity-100 md:group-hover:opacity-100`}
+                        className={`${OVERLAY_BUTTON_UA_RESET} absolute right-2 top-1/2 z-20 -translate-y-1/2 rounded-full bg-black/35 p-1.5 text-white opacity-0 backdrop-blur-md transition-all hover:bg-black/55 active:scale-90 group-hover:opacity-100`}
                         aria-label="Следующее фото"
                       >
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden><path d="M9 18l6-6-6-6" /></svg>
@@ -603,7 +609,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
 
                   {beforePhotoUrl && (
                     <div className="absolute top-0 left-0 z-20 w-[28%] min-w-[56px]">
-                      <div className="aspect-square relative bg-zinc-800 rounded-br-xl overflow-hidden shadow-lg ring-1 ring-black/10">
+                      <div className="relative aspect-square overflow-hidden rounded-br-xl bg-zinc-800 shadow-lg ring-1 ring-black/10">
                         <Image
                           src={beforePhotoUrl}
                           alt={buildBeforeAlt(title)}
@@ -612,7 +618,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                           sizes={SIZES_CARD_GRID}
                           quality={CARD_IMAGE_NEXT_QUALITY}
                         />
-                        <div className="absolute inset-x-0 bottom-0 text-[7px] text-white font-bold text-center py-0.5 bg-gradient-to-t from-black/70 to-transparent tracking-wider">
+                        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent py-0.5 text-center text-[10px] font-bold tracking-wider text-white">
                           БЫЛО
                         </div>
                       </div>
@@ -636,9 +642,9 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                               key={card.id}
                               href={`/p/${card.slug}`}
                               onClick={(e) => handleGroupVariantNav(e, card.slug, isActive)}
-                              className={`flex flex-shrink-0 items-center gap-1 rounded-full px-2 py-1 text-[11px] font-semibold transition-colors ${
+                              className={`flex flex-shrink-0 items-center gap-1 rounded-full px-2 py-1 text-[13px] font-semibold transition-colors ${
                                 isActive
-                                  ? "bg-white/30 ring-1 ring-white/40 text-white"
+                                  ? "bg-white/30 text-white ring-1 ring-white/40"
                                   : `${MOBILE_FS_CHIP_MUTED} ring-1 ring-transparent`
                               }`}
                             >
@@ -670,40 +676,106 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                   )}
                 </div>
               ) : (
-                <div className="flex h-48 items-center justify-center text-sm text-zinc-400">
+                <div className="flex h-64 w-full max-w-sm items-center justify-center rounded-2xl bg-zinc-900 text-sm text-zinc-500">
                   Нет фото
                 </div>
               )}
+            </div>
 
-              {tagEntries.length > 0 && (
-                <div className="w-full space-y-2">
-                  <h2 className="sr-only">Теги</h2>
-                  <div className="flex flex-wrap justify-center gap-1.5">
-                    {tagEntries.map(({ slug, label, href }) =>
-                      href ? (
-                        <Link
-                          key={slug}
-                          href={href}
-                          className={`rounded-full px-2.5 py-2 ${MOBILE_FS_CHIP}`}
-                        >
-                          {label}
-                        </Link>
-                      ) : (
-                        <span
-                          key={slug}
-                          className={`rounded-full px-2.5 py-2 ${MOBILE_FS_CHIP_MUTED}`}
-                        >
-                          {label}
-                        </span>
-                      )
-                    )}
+            {/* Mid: listing prev/next (vertical) */}
+            <div className="flex shrink-0 flex-col items-center justify-center gap-2 self-center">
+              <StickyListingNavButton
+                slug={listingPrev}
+                direction="prev"
+                onGo={goListingNeighbor}
+                orientation="vertical"
+              />
+              <StickyListingNavButton
+                slug={listingNext}
+                direction="next"
+                onGo={goListingNeighbor}
+                orientation="vertical"
+              />
+            </div>
+
+            {/* Right: dark details panel */}
+            <aside className="flex w-[min(100%,340px)] min-h-0 shrink-0 flex-col overflow-hidden rounded-2xl bg-zinc-950 text-zinc-100 shadow-2xl ring-1 ring-white/10 lg:w-[360px]">
+              <div className="flex items-start gap-3 px-4 pb-3 pt-4">
+                <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-full bg-zinc-800 ring-1 ring-white/10">
+                  {data.authorAvatarUrl ? (
+                    <Image
+                      src={data.authorAvatarUrl}
+                      alt=""
+                      fill
+                      className="object-cover"
+                      sizes="40px"
+                      quality={60}
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center text-[13px] font-semibold text-zinc-300">
+                      {authorLabel.slice(0, 1).toUpperCase()}
+                    </div>
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-[13px] font-semibold text-white">
+                    {authorLabel}
+                  </div>
+                  <div className="mt-0.5 line-clamp-2 text-[13px] leading-snug text-zinc-400">
+                    {title}
+                  </div>
+                  {!publishedLocal && data.viewerIsOwner && (
+                    <div className="mt-1 text-[13px] text-amber-300/90">
+                      Черновик — виден только вам
+                    </div>
+                  )}
+                </div>
+                {data.viewerIsOwner && (
+                  <button
+                    type="button"
+                    disabled={pubSaving}
+                    onClick={() => handleVisibilityChange(!publishedLocal)}
+                    className={`${OVERLAY_BUTTON_UA_RESET} shrink-0 rounded-lg bg-zinc-800 px-2.5 py-1.5 text-[13px] font-semibold text-zinc-100 transition-colors hover:bg-zinc-700 disabled:opacity-50`}
+                  >
+                    {pubSaving ? "…" : publishedLocal ? "Скрыть" : "Опубл."}
+                  </button>
+                )}
+              </div>
+              {pubStatus && (
+                <p className="px-4 pb-2 text-[13px] text-red-400">{pubStatus}</p>
+              )}
+
+              {hasPrompts && (
+                <div className="flex min-h-0 flex-1 flex-col px-4">
+                  <div className="mb-2">
+                    <span className="text-[13px] font-medium text-zinc-400">Промпт</span>
+                  </div>
+                  <div
+                    id="card-prompt-full"
+                    className="min-h-0 flex-1 overflow-y-auto overscroll-contain rounded-xl bg-zinc-900/80 p-3 ring-1 ring-white/5 [-webkit-overflow-scrolling:touch]"
+                  >
+                    {data.promptTexts.map((text, i) => (
+                      <div key={i} className={i > 0 ? "mt-4 border-t border-white/10 pt-4" : ""}>
+                        {data.promptTexts.length > 1 && (
+                          <div className="mb-2 text-[13px] font-medium text-zinc-500">
+                            Промпт {i + 1}
+                          </div>
+                        )}
+                        <p className="whitespace-pre-wrap text-[13px] leading-relaxed text-zinc-300">
+                          {text}
+                        </p>
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}
 
-              <div className="flex w-full flex-col items-center gap-3">
+              {tagEntries.length > 0 && (
+                <DesktopPanelTags tags={tagEntries} resetKey={data.id} />
+              )}
+
+              <div className="mt-3 flex flex-wrap items-center gap-1.5 px-4">
                 <h2 className="sr-only">Отклики и шаринг</h2>
-                <div className="flex flex-wrap items-center justify-center gap-1.5">
                 <ReactionButtons
                   cardId={data.id}
                   likesCount={data.likesCount}
@@ -727,9 +799,55 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                 >
                   <ShareIcon className="block shrink-0" size={16} />
                 </button>
+                <span className="ml-auto inline-flex items-center gap-1.5 text-[13px] text-zinc-500">
+                  <EyeIcon
+                    className={`shrink-0 ${viewCount > 0 ? "text-zinc-400" : "text-zinc-600"}`}
+                    size={16}
+                    aria-hidden
+                  />
+                  <span className={`tabular-nums ${viewCount > 0 ? "text-zinc-300" : "text-zinc-600"}`}>
+                    {formatCompactCount(viewCount)}
+                  </span>
+                </span>
               </div>
+
+              <div className="mt-auto flex flex-col gap-2 px-4 pb-4 pt-3">
+                {hasPrompts && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        void handleCopy();
+                      }}
+                      className={`${OVERLAY_BUTTON_UA_RESET} flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl border border-zinc-700 bg-zinc-900 px-4 py-3 text-[15px] font-semibold text-zinc-100 transition-colors hover:border-zinc-500 hover:bg-zinc-800 active:scale-[0.98]`}
+                    >
+                      {stickyCopy === "ok" ? (
+                        <>
+                          <CheckIcon size={16} />
+                          Скопировано
+                        </>
+                      ) : stickyCopy === "fail" ? (
+                        <>
+                          <span className="text-amber-300" aria-hidden>!</span>
+                          Не удалось
+                        </>
+                      ) : (
+                        <>
+                          <CopyIcon size={16} />
+                          Скопировать
+                        </>
+                      )}
+                    </button>
+                    <LexyGptGenerateButton
+                      promptText={data.promptTexts.join("\n\n")}
+                      variant="desktop-panel"
+                    />
+                  </>
+                )}
               </div>
-            </div>
+            </aside>
           </div>
 
           {/* Mobile: fullscreen-карточка (Chrome скрыт через CardPageLayout при наличии фото).
@@ -1063,214 +1181,289 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
         </>
       )}
 
-      {/* ── Title: на мобиле без фото в герое — один видимый h1; если герой full-bleed, заголовок sr-only до md (SEO сохранён) ── */}
-      <h1
-        className={
-          hasPhotos
-            ? "mb-2 text-center text-2xl font-bold leading-tight text-zinc-900 sm:text-3xl max-md:sr-only"
-            : "mb-2 text-center text-2xl font-bold leading-tight text-zinc-900 sm:text-3xl"
-        }
-      >
+      {/* SEO h1: visually in desktop panel / mobile overlay; keep in DOM for crawlers */}
+      <h1 className={hasPhotos ? "sr-only" : "mb-2 text-center text-2xl font-bold leading-tight text-zinc-900 sm:text-3xl"}>
         {title}
       </h1>
 
-      {data.authorUserId && (
-        <div
-          className={`mb-5 flex flex-col items-center gap-3 sm:flex-row sm:justify-center ${hasPhotos ? "max-md:hidden" : ""}`}
-        >
-          <div className="flex items-center gap-3">
-            <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-full bg-zinc-200 ring-2 ring-zinc-100">
-              {data.authorAvatarUrl ? (
-                <Image
-                  src={data.authorAvatarUrl}
-                  alt=""
-                  fill
-                  className="object-cover"
-                  sizes="44px"
-                  quality={60}
-                />
-              ) : (
-                <div className="flex h-full w-full items-center justify-center text-sm font-semibold text-zinc-500">
-                  {(data.authorDisplayName || "?").slice(0, 1).toUpperCase()}
+      {/* Light column layout — cards without photos (desktop + mobile) */}
+      {!hasPhotos && (
+        <>
+          {data.authorUserId && (
+            <div className="mb-5 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
+              <div className="flex items-center gap-3">
+                <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-full bg-zinc-200 ring-2 ring-zinc-100">
+                  {data.authorAvatarUrl ? (
+                    <Image
+                      src={data.authorAvatarUrl}
+                      alt=""
+                      fill
+                      className="object-cover"
+                      sizes="44px"
+                      quality={60}
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center text-sm font-semibold text-zinc-500">
+                      {(data.authorDisplayName || "?").slice(0, 1).toUpperCase()}
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-            <div className="min-w-0 text-left">
-              <div className="truncate text-sm font-medium text-zinc-800">
-                {data.authorDisplayName || "Автор"}
+                <div className="min-w-0 text-left">
+                  <div className="truncate text-sm font-medium text-zinc-800">
+                    {data.authorDisplayName || "Автор"}
+                  </div>
+                  {!publishedLocal && data.viewerIsOwner && (
+                    <div className="text-xs text-amber-800">Черновик — виден только вам</div>
+                  )}
+                </div>
               </div>
-              {!publishedLocal && data.viewerIsOwner && (
-                <div className="text-xs text-amber-800">Черновик — виден только вам</div>
-              )}
-            </div>
-          </div>
-          {data.viewerIsOwner && (
-            <div className="flex flex-col items-center gap-1 sm:items-start">
-              <button
-                type="button"
-                disabled={pubSaving}
-                onClick={() => handleVisibilityChange(!publishedLocal)}
-                className="rounded-xl bg-zinc-900 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-zinc-800 disabled:opacity-50"
-              >
-                {pubSaving
-                  ? "Сохранение…"
-                  : publishedLocal
-                    ? "Скрыть"
-                    : "Опубликовать"}
-              </button>
-              {pubStatus && (
-                <span className="text-center text-xs text-red-600 sm:text-left">{pubStatus}</span>
+              {data.viewerIsOwner && (
+                <div className="flex flex-col items-center gap-1 sm:items-start">
+                  <button
+                    type="button"
+                    disabled={pubSaving}
+                    onClick={() => handleVisibilityChange(!publishedLocal)}
+                    className="rounded-xl bg-zinc-900 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-zinc-800 disabled:opacity-50"
+                  >
+                    {pubSaving
+                      ? "Сохранение…"
+                      : publishedLocal
+                        ? "Скрыть"
+                        : "Опубликовать"}
+                  </button>
+                  {pubStatus && (
+                    <span className="text-center text-xs text-red-600 sm:text-left">{pubStatus}</span>
+                  )}
+                </div>
               )}
             </div>
           )}
-        </div>
-      )}
 
-      <p
-        className={`mb-6 flex items-center justify-center gap-2 text-sm text-zinc-500 ${hasPhotos ? "max-md:hidden" : ""}`}
-      >
-        <EyeIcon
-          className={`shrink-0 ${viewCount > 0 ? "text-zinc-500" : "text-zinc-300"}`}
-          size={16}
-          aria-hidden
-        />
-        <span className={`tabular-nums ${viewCount > 0 ? "text-zinc-600" : "text-zinc-400"}`}>
-          {formatCompactCount(viewCount)}
-        </span>
-        <span className="font-normal text-zinc-500">просмотров</span>
-      </p>
+          <p className="mb-6 flex items-center justify-center gap-2 text-sm text-zinc-500">
+            <EyeIcon
+              className={`shrink-0 ${viewCount > 0 ? "text-zinc-500" : "text-zinc-300"}`}
+              size={16}
+              aria-hidden
+            />
+            <span className={`tabular-nums ${viewCount > 0 ? "text-zinc-600" : "text-zinc-400"}`}>
+              {formatCompactCount(viewCount)}
+            </span>
+            <span className="font-normal text-zinc-500">просмотров</span>
+          </p>
 
-      {/* ── Prompt Content ── */}
-      {hasPrompts && (
-        <div
-          id="card-prompt-full"
-          className={`mb-4 space-y-3 scroll-mt-36 ${hasPhotos ? "hidden md:block" : ""}`}
-        >
-          {data.promptTexts.map((text, i) => (
-            <div
-              key={i}
-              className="group/prompt relative rounded-2xl bg-zinc-50/80 border border-zinc-100 p-5 sm:p-6"
-            >
-              {data.promptTexts.length > 1 && (
-                <div className="mb-3 text-[11px] font-medium text-zinc-500 uppercase tracking-wide">
-                  Промпт {i + 1}
+          {hasPrompts && (
+            <div id="card-prompt-full" className="mb-4 space-y-3 scroll-mt-36">
+              {data.promptTexts.map((text, i) => (
+                <div
+                  key={i}
+                  className="group/prompt relative rounded-2xl border border-zinc-100 bg-zinc-50/80 p-5 sm:p-6"
+                >
+                  {data.promptTexts.length > 1 && (
+                    <div className="mb-3 text-[11px] font-medium uppercase tracking-wide text-zinc-500">
+                      Промпт {i + 1}
+                    </div>
+                  )}
+                  <div className="whitespace-pre-wrap text-sm leading-relaxed text-zinc-700">
+                    {text}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      void handleCopySingle(text, i);
+                    }}
+                    className="absolute top-3 right-3 z-[2] rounded-lg border border-zinc-200 bg-white p-1.5 text-zinc-400 opacity-100 shadow-sm transition-all hover:border-zinc-300 hover:text-zinc-700 md:opacity-0 md:group-hover/prompt:opacity-100 md:group-focus-within/prompt:opacity-100"
+                    title="Скопировать"
+                    aria-label={`Скопировать промпт ${i + 1}`}
+                  >
+                    {copiedIdx === i ? (
+                      <CheckIcon size={14} />
+                    ) : copyErrIdx === i ? (
+                      <span className="block min-w-[14px] text-center text-xs font-bold text-red-500" aria-hidden>
+                        !
+                      </span>
+                    ) : (
+                      <CopyIcon size={14} />
+                    )}
+                  </button>
                 </div>
-              )}
-              <div className="text-sm leading-relaxed text-zinc-700 whitespace-pre-wrap">
-                {text}
+              ))}
+            </div>
+          )}
+
+          {hasPrompts && (
+            <p className="mx-auto mb-6 hidden max-w-md text-center text-sm text-zinc-500 sm:block">
+              Готовый промт для генерации фото с помощью ИИ. Скопируй и используй в нейросети.
+            </p>
+          )}
+
+          {hasPrompts && (
+            <div
+              className={`pointer-events-none fixed inset-x-0 bottom-0 z-[240] safe-area-pb${isModal ? "" : " lg:left-60"}`}
+            >
+              <div className="pointer-events-auto mx-auto w-full max-w-2xl px-5 py-4">
+                <FotoVPromtMiniBanner variant="card" className="mb-2" />
+                <div className={LISTING_STICKY_ACTIONS_GRID}>
+                  <StickyListingNavButton
+                    slug={listingPrev}
+                    direction="prev"
+                    onGo={goListingNeighbor}
+                    floatingGlass
+                  />
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      void handleCopy();
+                    }}
+                    className="flex min-h-12 min-w-0 w-full items-center justify-center gap-1.5 rounded-xl bg-zinc-900 px-2 py-2 text-xs font-semibold text-white shadow-lg transition-all hover:bg-zinc-800 active:scale-[0.98] sm:gap-2 sm:px-3 sm:text-sm"
+                  >
+                    {stickyCopy === "ok" ? (
+                      <>
+                        <CheckIcon size={16} className="shrink-0" />
+                        <span className="truncate max-sm:hidden">Скопировано!</span>
+                        <span className="truncate sm:hidden">Готово</span>
+                      </>
+                    ) : stickyCopy === "fail" ? (
+                      <>
+                        <span className="shrink-0 text-amber-300" aria-hidden>
+                          !
+                        </span>
+                        <span className="truncate">Не удалось</span>
+                      </>
+                    ) : (
+                      <span className="truncate">
+                        {data.promptTexts.length > 1 ? "Все промпты" : "Скопировать"}
+                      </span>
+                    )}
+                  </button>
+                  <LexyGptGenerateButton
+                    promptText={data.promptTexts.join("\n\n")}
+                    variant="sticky"
+                    className="h-full min-h-12 min-w-0 w-full truncate px-2 sm:px-3"
+                  />
+                  <StickyListingNavButton
+                    slug={listingNext}
+                    direction="next"
+                    onGo={goListingNeighbor}
+                    floatingGlass
+                  />
+                </div>
               </div>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  void handleCopySingle(text, i);
-                }}
-                className="absolute top-3 right-3 z-[2] rounded-lg border border-zinc-200 bg-white p-1.5 text-zinc-400 opacity-100 shadow-sm transition-all md:opacity-0 md:group-hover/prompt:opacity-100 md:group-focus-within/prompt:opacity-100 hover:text-zinc-700 hover:border-zinc-300"
-                title="Скопировать"
-                aria-label={`Скопировать промпт ${i + 1}`}
-              >
-                {copiedIdx === i ? (
-                  <CheckIcon size={14} />
-                ) : copyErrIdx === i ? (
-                  <span className="block min-w-[14px] text-center text-xs font-bold text-red-500" aria-hidden>
-                    !
-                  </span>
-                ) : (
-                  <CopyIcon size={14} />
-                )}
-              </button>
             </div>
-          ))}
-        </div>
-      )}
-
-      {/* ── Subtitle ── */}
-      {hasPrompts && (
-        <p className="mx-auto mb-6 hidden max-w-md text-center text-sm text-zinc-500 sm:block">
-          Готовый промт для генерации фото с помощью ИИ. Скопируй и используй в нейросети.
-        </p>
-      )}
-
-      {/* ── Sticky CTA — floating (desktop + mobile без фото; на immersive mobile дубль glass-бара A) ── */}
-      {hasPrompts && (
-        <div
-          className={`fixed inset-x-0 bottom-0 z-[240] safe-area-pb pointer-events-none${isModal ? "" : " lg:left-60"}${hasPhotos ? " max-md:hidden" : ""}`}
-        >
-          <div className="mx-auto w-full max-w-2xl px-5 py-4 pointer-events-auto">
-            <FotoVPromtMiniBanner variant="card" className="mb-2" />
-            <div className={LISTING_STICKY_ACTIONS_GRID}>
-              <StickyListingNavButton
-                slug={listingPrev}
-                direction="prev"
-                onGo={goListingNeighbor}
-                floatingGlass
-              />
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  void handleCopy();
-                }}
-                className="flex min-h-12 min-w-0 w-full items-center justify-center gap-1.5 rounded-xl bg-zinc-900 px-2 py-2 text-xs font-semibold text-white shadow-lg transition-all hover:bg-zinc-800 active:scale-[0.98] sm:gap-2 sm:px-3 sm:text-sm"
-              >
-                {stickyCopy === "ok" ? (
-                  <>
-                    <CheckIcon size={16} className="shrink-0" />
-                    <span className="truncate max-sm:hidden">Скопировано!</span>
-                    <span className="truncate sm:hidden">Готово</span>
-                  </>
-                ) : stickyCopy === "fail" ? (
-                  <>
-                    <span className="shrink-0 text-amber-300" aria-hidden>
-                      !
-                    </span>
-                    <span className="truncate">Не удалось</span>
-                  </>
-                ) : (
-                  <span className="truncate">
-                    {data.promptTexts.length > 1 ? "Все промпты" : "Скопировать"}
-                  </span>
-                )}
-              </button>
-              <LexyGptGenerateButton
-                promptText={data.promptTexts.join("\n\n")}
-                variant="sticky"
-                className="h-full min-h-12 min-w-0 w-full truncate px-2 sm:px-3"
-              />
-              <StickyListingNavButton
-                slug={listingNext}
-                direction="next"
-                onGo={goListingNeighbor}
-                floatingGlass
-              />
-            </div>
-          </div>
-        </div>
+          )}
+        </>
       )}
     </div>
   );
 }
 
-/** Предыдущая / следующая карточка листинга (localStorage контекст) — в нижнем sticky-баре. */
+/** Desktop dark panel: tags capped to 2 rows, rest behind «Ещё». */
+function DesktopPanelTags({
+  tags,
+  resetKey,
+}: {
+  tags: TagEntry[];
+  resetKey: string;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const [needsMore, setNeedsMore] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const gapPx = 6; // gap-1.5
+
+  useLayoutEffect(() => {
+    setExpanded(false);
+  }, [resetKey]);
+
+  useLayoutEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+
+    const measure = () => {
+      const chip = el.querySelector<HTMLElement>("[data-tag-chip]");
+      if (!chip) {
+        setNeedsMore(false);
+        el.style.maxHeight = "";
+        return;
+      }
+      const maxH = chip.offsetHeight * 2 + gapPx;
+      if (expanded) {
+        el.style.maxHeight = "";
+        setNeedsMore(el.scrollHeight > maxH + 1);
+        return;
+      }
+      el.style.maxHeight = `${maxH}px`;
+      setNeedsMore(el.scrollHeight > maxH + 1);
+    };
+
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [tags, expanded, gapPx]);
+
+  return (
+    <div className="mt-3 px-4">
+      <h2 className="sr-only">Теги</h2>
+      <div
+        ref={wrapRef}
+        className={`flex flex-wrap gap-1.5 ${expanded ? "" : "overflow-hidden"}`}
+      >
+        {tags.map(({ slug, label, href }) =>
+          href ? (
+            <Link key={slug} href={href} data-tag-chip className={DESKTOP_PANEL_CHIP}>
+              {label}
+            </Link>
+          ) : (
+            <span key={slug} data-tag-chip className={DESKTOP_PANEL_CHIP_MUTED}>
+              {label}
+            </span>
+          )
+        )}
+      </div>
+      {needsMore && (
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className={`${OVERLAY_BUTTON_UA_RESET} mt-1.5 ${DESKTOP_PANEL_CHIP}`}
+          aria-expanded={expanded}
+        >
+          {expanded ? "Свернуть" : "Ещё"}
+        </button>
+      )}
+    </div>
+  );
+}
+
+/** Предыдущая / следующая карточка листинга (localStorage контекст). */
 function StickyListingNavButton({
   slug,
   direction,
   onGo,
   floatingGlass = false,
+  orientation = "horizontal",
 }: {
   slug: string | null;
   direction: "prev" | "next";
   onGo: (slug: string) => void;
   /** Мобила fullscreen над фото: круг-пилюля без «полосы-дока» (как тег‑glass). */
   floatingGlass?: boolean;
+  /** Desktop split: ↑/↓ between photo and panel. */
+  orientation?: "horizontal" | "vertical";
 }) {
   const enabled = slug != null;
+  const vertical = orientation === "vertical";
   const bar = `${OVERLAY_BUTTON_UA_RESET} flex h-auto min-h-12 w-full items-center justify-center rounded-xl bg-zinc-800 text-white shadow-lg transition-colors motion-reduce:transition-none`;
   const chip = `${OVERLAY_BUTTON_UA_RESET} flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-black/15 text-white/88 backdrop-blur-md shadow-none transition-colors motion-reduce:transition-none`;
-  const base = floatingGlass ? chip : bar;
-  const accent = floatingGlass ? "hover:bg-black/26 active:scale-[0.97]" : "hover:bg-zinc-700 active:scale-[0.97]";
+  const verticalChip = `${OVERLAY_BUTTON_UA_RESET} flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-zinc-900/85 text-white ring-1 ring-white/15 backdrop-blur-md transition-colors motion-reduce:transition-none`;
+  const base = vertical ? verticalChip : floatingGlass ? chip : bar;
+  const accent = vertical
+    ? "hover:bg-zinc-800 active:scale-[0.97]"
+    : floatingGlass
+      ? "hover:bg-black/26 active:scale-[0.97]"
+      : "hover:bg-zinc-700 active:scale-[0.97]";
   return (
     <button
       type="button"
@@ -1284,7 +1477,17 @@ function StickyListingNavButton({
       title={direction === "prev" ? "Предыдущая в ленте" : "Следующая в ленте"}
       onClick={() => slug && onGo(slug)}
     >
-      {direction === "prev" ? (
+      {vertical ? (
+        direction === "prev" ? (
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="shrink-0" aria-hidden>
+            <path d="M18 15l-6-6-6 6" />
+          </svg>
+        ) : (
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="shrink-0" aria-hidden>
+            <path d="M6 9l6 6 6-6" />
+          </svg>
+        )
+      ) : direction === "prev" ? (
         <svg
           width="18"
           height="18"

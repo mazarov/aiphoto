@@ -70,7 +70,13 @@ export default async function CardModalPage({ params }: Props) {
   return (
     <CardInteractionsProvider cardIds={[data.id]}>
       <CardModal immersiveMobile={immersiveMobile}>
-        <div className={immersiveMobile ? "h-[100dvh] overflow-y-auto" : "max-h-[85vh] overflow-y-auto"}>
+        <div
+          className={
+            immersiveMobile
+              ? "h-[100dvh] overflow-y-auto md:h-auto md:max-h-none md:overflow-visible"
+              : "max-h-[85vh] overflow-y-auto md:max-h-none md:overflow-visible"
+          }
+        >
           <CardPageClient
             data={data}
             tagEntries={tagEntries}

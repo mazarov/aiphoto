@@ -17,7 +17,7 @@ import {
 
 type Props = {
   promptText: string;
-  variant: "listing" | "expanded" | "sticky" | "widget-sm" | "widget-md";
+  variant: "listing" | "expanded" | "sticky" | "widget-sm" | "widget-md" | "desktop-panel";
   disabled?: boolean;
   className?: string;
   /** Яндекс.Метрика: отдельная цель на placement (без params.placement). */
@@ -42,6 +42,8 @@ const VARIANT_BASE: Record<Props["variant"], string> = {
   "widget-sm": `${OVERLAY_BUTTON_UA_RESET} inline-flex min-h-9 shrink-0 items-center justify-center rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-emerald-500 active:scale-[0.98] disabled:opacity-50`,
   /** /foto-v-promt result row — как «Копировать» / «Другой снимок». */
   "widget-md": `${OVERLAY_BUTTON_UA_RESET} inline-flex min-h-11 w-full shrink-0 items-center justify-center rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-emerald-500 active:scale-[0.98] disabled:opacity-50 sm:w-auto sm:min-w-[10rem]`,
+  /** Desktop prompt-card dark panel — mint CTA, dark label (reference). */
+  "desktop-panel": `${OVERLAY_BUTTON_UA_RESET} flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-300 px-4 py-3 text-[15px] font-semibold text-zinc-900 transition-all hover:bg-emerald-200 active:scale-[0.98] disabled:opacity-50`,
 };
 
 const PHASE_MS = 2800;
@@ -119,7 +121,10 @@ export function LexyGptGenerateButton({
             : "Повторить в LexyGPT: скопировать промпт и открыть вкладку";
 
   const visibleLabel =
-    variant === "sticky" || variant === "widget-sm" || variant === "widget-md"
+    variant === "sticky" ||
+    variant === "widget-sm" ||
+    variant === "widget-md" ||
+    variant === "desktop-panel"
       ? phase === "opening"
         ? "Готово"
         : phase === "tab_only"
@@ -139,6 +144,8 @@ export function LexyGptGenerateButton({
               ? "Не удалось открыть вкладку"
               : idleLabel;
 
+  const showSparkle = variant === "desktop-panel" && phase === "idle";
+
   return (
     <button
       type="button"
@@ -147,7 +154,28 @@ export function LexyGptGenerateButton({
       aria-label={ariaLabelDetailed}
       className={`${VARIANT_BASE[variant]} ${className}`.trim()}
     >
-      {visibleLabel}
+      {showSparkle ? (
+        <>
+          <span>{visibleLabel}</span>
+          <SparkleIcon className="h-4 w-4 shrink-0" />
+        </>
+      ) : (
+        visibleLabel
+      )}
     </button>
+  );
+}
+
+function SparkleIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      aria-hidden
+    >
+      <path d="M12 2.5l1.6 5.2L19 9.3l-5.2 1.6L12 16l-1.6-5.1L5 9.3l5.4-1.6L12 2.5z" />
+      <path d="M18.5 14.5l.7 2.2 2.3.7-2.3.7-.7 2.2-.7-2.2-2.2-.7 2.2-.7.7-2.2z" opacity="0.85" />
+    </svg>
   );
 }

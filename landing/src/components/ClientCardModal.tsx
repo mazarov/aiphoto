@@ -97,9 +97,15 @@ export function ClientCardModal() {
 
   return (
     <CardModal onClose={handleClose} immersiveMobile={immersiveMobile}>
-      <div className={immersiveMobile ? "h-[100dvh] overflow-y-auto" : "max-h-[85vh] overflow-y-auto"}>
+      <div
+        className={
+          immersiveMobile
+            ? "h-[100dvh] overflow-y-auto md:h-auto md:max-h-none md:overflow-visible"
+            : "max-h-[85vh] overflow-y-auto md:max-h-none md:overflow-visible"
+        }
+      >
         {loading && !loaded && !hasSeedPhoto && (
-          <div className="flex min-h-[40vh] items-center justify-center p-8 text-sm text-zinc-500">
+          <div className="flex min-h-[40vh] items-center justify-center p-8 text-sm text-zinc-400 md:text-zinc-300">
             Загрузка…
           </div>
         )}
@@ -107,7 +113,7 @@ export function ClientCardModal() {
         {loading && !loaded && hasSeedPhoto && (
           // Dark fullscreen shell using the grid-sized photo — same URL the browser already cached
           // from the listing, so the image appears instantly with no extra network round-trip.
-          // Shown only on mobile (md:hidden) — desktop falls through to the white modal box.
+          // Shown only on mobile (md:hidden) — desktop waits for loaded card (split UI).
           <div className="fixed inset-0 z-[244] md:hidden" aria-hidden>
             <div className="absolute inset-0 bg-zinc-950" />
             <div className="absolute inset-0">

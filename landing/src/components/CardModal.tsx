@@ -102,8 +102,8 @@ export function CardModal({ children, onClose, immersiveMobile = false }: Props)
       onClick={handleOverlayClick}
       className={
         immersiveMobile
-          ? "fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 backdrop-blur-sm md:p-8 max-md:p-0"
-          : "fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 backdrop-blur-sm p-4 md:p-8"
+          ? "fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 backdrop-blur-sm md:items-center md:p-6 lg:p-8 max-md:p-0"
+          : "fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 backdrop-blur-sm p-4 md:items-center md:p-6 lg:p-8"
       }
       aria-modal="true"
       role="dialog"
@@ -111,24 +111,31 @@ export function CardModal({ children, onClose, immersiveMobile = false }: Props)
       <div
         className={
           immersiveMobile
-            ? "relative w-full md:max-w-5xl animate-in fade-in zoom-in-95 duration-200"
-            : "relative w-full max-w-5xl animate-in fade-in zoom-in-95 duration-200"
+            ? "relative w-full md:max-w-7xl animate-in fade-in zoom-in-95 duration-200"
+            : "relative w-full max-w-7xl animate-in fade-in zoom-in-95 duration-200"
         }
       >
-        {/* Close button */}
+        {/* Close button — dark circle (reference); sits above the split, not on a white card */}
         <button
           type="button"
           onClick={handleClose}
-          className="absolute -top-3 -right-3 z-50 flex h-10 w-10 items-center justify-center rounded-full bg-white shadow-lg hover:bg-zinc-100 transition-colors md:-top-4 md:-right-4"
+          className="absolute -top-3 -right-3 z-50 flex h-10 w-10 items-center justify-center rounded-full bg-zinc-900/90 text-white shadow-lg ring-1 ring-white/15 backdrop-blur-md transition-colors hover:bg-zinc-800 md:-top-2 md:-right-2 max-md:bg-white max-md:text-zinc-700 max-md:ring-0 max-md:hover:bg-zinc-100"
           aria-label="Закрыть"
         >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-zinc-700">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="max-md:text-zinc-700">
             <path d="M18 6L6 18M6 6l12 12"/>
           </svg>
         </button>
 
-        {/* Modal content container */}
-        <div className="overflow-hidden rounded-2xl bg-white shadow-2xl">
+        {/* Photo cards (immersiveMobile): desktop shell is transparent so photo + dark panel float on the backdrop.
+            Text-only cards keep the white rounded card on all breakpoints. */}
+        <div
+          className={
+            immersiveMobile
+              ? "overflow-hidden rounded-2xl bg-white shadow-2xl md:overflow-visible md:rounded-none md:bg-transparent md:shadow-none"
+              : "overflow-hidden rounded-2xl bg-white shadow-2xl"
+          }
+        >
           {children}
         </div>
       </div>
