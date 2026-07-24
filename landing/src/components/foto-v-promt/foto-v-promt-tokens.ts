@@ -7,14 +7,15 @@ export const FVP_FOCUS_RING =
 export const FVP_IMMERSIVE_FOCUS_RING =
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#09090b]";
 
-export const FVP_IMMERSIVE_OVERLAY_BTN =
-  "inline-flex h-7 min-h-0 items-center justify-center rounded-full border border-white/20 bg-zinc-950/70 px-3 text-[11px] font-semibold tracking-wide text-zinc-100 backdrop-blur-md transition hover:border-indigo-400/55 hover:bg-zinc-950/80";
+/** Full-width mobile action stack after prompt result (tap targets ≥ 48px). */
+export const FVP_IMMERSIVE_ACTION =
+  "inline-flex min-h-12 w-full items-center justify-center rounded-2xl border border-white/15 bg-white/5 px-5 text-sm font-semibold text-zinc-100 transition hover:bg-white/10 active:scale-[0.99]";
 
-export const FVP_IMMERSIVE_OVERLAY_BTN_PRIMARY =
-  "inline-flex h-7 min-h-0 items-center justify-center rounded-full border border-indigo-400/65 bg-gradient-to-b from-indigo-600/92 to-indigo-700/90 px-3 text-[11px] font-semibold tracking-wide text-white backdrop-blur-md transition hover:border-indigo-300/80";
+export const FVP_IMMERSIVE_ACTION_PRIMARY =
+  "inline-flex min-h-12 w-full items-center justify-center rounded-2xl bg-indigo-600 px-5 text-sm font-semibold text-white shadow-lg shadow-indigo-950/40 transition hover:bg-indigo-500 active:scale-[0.99]";
 
-export const FVP_IMMERSIVE_OVERLAY_BTN_GREEN =
-  "!inline-flex !h-7 !min-h-0 !w-auto !items-center !justify-center !rounded-full !border !border-emerald-500/65 !bg-gradient-to-b !from-emerald-600/92 !to-emerald-700/90 !px-3 !py-0 !text-[11px] !font-semibold !tracking-wide !text-white !shadow-none !backdrop-blur-md transition hover:!border-emerald-400/80 disabled:opacity-50";
+export const FVP_IMMERSIVE_ACTION_GREEN =
+  "!inline-flex !min-h-12 !w-full !items-center !justify-center !rounded-2xl !border-0 !bg-emerald-600 !px-5 !py-0 !text-sm !font-semibold !leading-normal !text-white !shadow-lg !shadow-emerald-950/30 transition hover:!bg-emerald-500 active:scale-[0.99] disabled:opacity-50";
 
 export const FVP_BORDER_CARD = "border border-zinc-200";
 export const FVP_BORDER_INPUT = "border border-zinc-200";

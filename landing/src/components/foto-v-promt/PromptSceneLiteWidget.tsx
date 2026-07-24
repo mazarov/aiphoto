@@ -16,10 +16,10 @@ import {
   FVP_BORDER_CARD,
   FVP_BORDER_INPUT,
   FVP_FOCUS_RING,
+  FVP_IMMERSIVE_ACTION,
+  FVP_IMMERSIVE_ACTION_GREEN,
+  FVP_IMMERSIVE_ACTION_PRIMARY,
   FVP_IMMERSIVE_FOCUS_RING,
-  FVP_IMMERSIVE_OVERLAY_BTN,
-  FVP_IMMERSIVE_OVERLAY_BTN_GREEN,
-  FVP_IMMERSIVE_OVERLAY_BTN_PRIMARY,
   FVP_RING_INSET_SOFT,
   FVP_SURFACE_IMAGE_FRAME,
   FVP_SURFACE_WIDGET_INSET,
@@ -836,29 +836,33 @@ export function PromptSceneLiteWidget({
 
               {panel === "result" && previewUrl ? (
                 <div className="flex min-h-0 flex-1 flex-col justify-end">
-                  <div className="relative flex max-h-full min-h-0 flex-col gap-2.5 overflow-hidden rounded-2xl bg-zinc-950/55 p-3 ring-1 ring-inset ring-white/12 backdrop-blur-xl">
-                    <div className="text-[11px] font-medium uppercase tracking-wide text-zinc-400">
+                  <div className="relative mx-auto flex w-full max-w-md min-h-0 max-h-full flex-col overflow-hidden rounded-3xl bg-zinc-950/70 p-4 ring-1 ring-inset ring-white/12 backdrop-blur-xl">
+                    <div className="text-center text-xs font-semibold uppercase tracking-wide text-zinc-400">
                       {t("resultTitle")}
                     </div>
-                    <pre className="min-h-0 flex-1 overflow-auto whitespace-pre-wrap text-[13px] leading-relaxed text-zinc-200">
+                    <pre className="mt-3 min-h-0 flex-1 overflow-auto whitespace-pre-wrap text-left text-[13px] leading-relaxed text-zinc-100">
                       {promptText}
                     </pre>
-                    <div className="flex flex-wrap items-center justify-end gap-1.5 pt-1">
-                      <LexyGptGenerateButton
-                        promptText={promptText}
-                        variant="widget-sm"
-                        metricGoal={YM_GOAL_LEXYGPT_GENERATE_PHOTOVPROMPT}
-                        idleLabel={t("generate")}
-                        className={FVP_IMMERSIVE_OVERLAY_BTN_GREEN}
-                      />
+                    <div className="mt-4 flex w-full flex-col items-stretch gap-2.5">
                       <button
                         type="button"
                         onClick={() => void copyPrompt()}
-                        className={FVP_IMMERSIVE_OVERLAY_BTN_PRIMARY}
+                        className={`${FVP_IMMERSIVE_ACTION_PRIMARY} ${FVP_IMMERSIVE_FOCUS_RING}`}
                       >
                         {t("copy")}
                       </button>
-                      <button type="button" onClick={resetEmpty} className={FVP_IMMERSIVE_OVERLAY_BTN}>
+                      <LexyGptGenerateButton
+                        promptText={promptText}
+                        variant="widget-md"
+                        metricGoal={YM_GOAL_LEXYGPT_GENERATE_PHOTOVPROMPT}
+                        idleLabel={t("generate")}
+                        className={FVP_IMMERSIVE_ACTION_GREEN}
+                      />
+                      <button
+                        type="button"
+                        onClick={resetEmpty}
+                        className={`${FVP_IMMERSIVE_ACTION} ${FVP_IMMERSIVE_FOCUS_RING}`}
+                      >
                         {t("tryAgain")}
                       </button>
                     </div>
