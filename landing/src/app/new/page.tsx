@@ -6,6 +6,7 @@ import {
   enrichCardsWithDetails,
   getFirstCardPhotoUrl,
   type RouteCardsResult,
+  type PromptCardFull,
 } from "@/lib/supabase";
 import { PageLayout } from "@/components/PageLayout";
 import { ListingPromptCountBadge } from "@/components/ListingPromptCountBadge";
@@ -163,11 +164,12 @@ export default async function NewPage({ searchParams }: Props) {
   const result = await getCachedRouteCards(fetchParams);
   const totalCount = result.total_count ?? result.cards_count;
 
-  let cards = result.cards;
+  let cards: PromptCardFull[];
   try {
     cards = await enrichCardsWithDetails(result.cards);
   } catch (err) {
     console.error("[NewPage] enrichCardsWithDetails failed:", err);
+    cards = [];
   }
 
   return (
