@@ -91,6 +91,37 @@ function SidebarContent({
       </Link>
 
       <Link
+        href="/new"
+        scroll={false}
+        onClick={(e) => {
+          onItemClick?.();
+          if (isSameNavPath(pathname, "/new")) {
+            e.preventDefault();
+            scrollCatalogToTop();
+          }
+        }}
+        className={`flex items-center gap-2.5 rounded-xl px-3 py-2 text-[13px] font-medium transition-colors ${
+          isHrefActive("/new", pathname)
+            ? "bg-indigo-50 text-indigo-700"
+            : "text-zinc-700 hover:bg-zinc-50"
+        }`}
+      >
+        <svg className="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3z"
+          />
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M18.5 14.5l.75 2.25L21.5 17.5l-2.25.75L18.5 20.5l-.75-2.25L15.5 17.5l2.25-.75.75-2.25z"
+          />
+        </svg>
+        Новое
+      </Link>
+
+      <Link
         href="/foto-v-promt"
         scroll={false}
         onClick={(e) => {

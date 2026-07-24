@@ -27,6 +27,11 @@ type Props = {
   initialRankedBatchSize: number;
   baseRpcParams: Record<string, string | null>;
   lockedDimensions: Dimension[];
+  /**
+   * When set, listing is always sorted this way: no sort toggle, no sessionStorage / `?sort=` sync.
+   * Used by `/new` (always `created_at` / sort=new).
+   */
+  fixedSort?: ListingSort;
 };
 
 export function CatalogWithFilters({
@@ -35,6 +40,7 @@ export function CatalogWithFilters({
   initialRankedBatchSize,
   baseRpcParams,
   lockedDimensions,
+  fixedSort,
 }: Props) {
   const [filterPanelOpen, setFilterPanelOpen] = useState(false);
   const { filters, setFilter, applyFilters, resetFilters, activeCount, mergedRpcParams } =
@@ -42,7 +48,9 @@ export function CatalogWithFilters({
       baseRpcParams,
       lockedDimensions,
     });
-  const { sort, setSort } = useListingSort();
+  const { sort: urlSort, setSort } = useListingSort({ disabled: fixedSort != null });
+  const sort = fixedSort ?? urlSort;
+  const sortChangeHandler = fixedSort != null ? undefined : setSort;
 
   const listingGridKey = useMemo(
     () => stableListingKey(mergedRpcParams, sort),
@@ -60,8 +68,8 @@ export function CatalogWithFilters({
         activeCount={activeCount}
         hiddenDimensions={lockedDimensions}
         rpcParams={mergedRpcParams}
-        sort={sort}
-        onSortChange={setSort}
+        sort={sortChangeHandler ? sort : undefined}
+        onSortChange={sortChangeHandler}
         onOpenMobileFilters={() => setFilterPanelOpen(true)}
       />
 
@@ -87,8 +95,8 @@ export function CatalogWithFilters({
         rpcParams={mergedRpcParams}
         open={filterPanelOpen}
         onOpenChange={setFilterPanelOpen}
-        sort={sort}
-        onSortChange={setSort}
+        sort={sortChangeHandler ? sort : undefined}
+        onSortChange={sortChangeHandler}
       />
     </>
   );

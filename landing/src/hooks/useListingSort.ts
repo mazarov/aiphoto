@@ -10,18 +10,21 @@ import {
 } from "@/lib/listing-sort";
 import { resetListingScroll } from "@/lib/scroll-preservation";
 
-export function useListingSort() {
+export function useListingSort(options?: { disabled?: boolean }) {
+  const disabled = options?.disabled === true;
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
   const sort = useMemo(
-    () => parseListingSort(searchParams.get("sort")),
-    [searchParams]
+    () => (disabled ? ("popular" as ListingSort) : parseListingSort(searchParams.get("sort"))),
+    [disabled, searchParams]
   );
 
   // Restore session preference when landing on a category without ?sort=
   useLayoutEffect(() => {
+    if (disabled) return;
+
     const urlRaw = searchParams.get("sort");
     if (urlRaw === "new" || urlRaw === "popular") {
       writeListingSortToSession(urlRaw);
@@ -35,11 +38,11 @@ export function useListingSort() {
       sp.set("sort", "new");
       router.replace(`${pathname}?${sp}`, { scroll: false });
     }
-  }, [pathname, router, searchParams]);
+  }, [disabled, pathname, router, searchParams]);
 
   const setSort = useCallback(
     (next: ListingSort) => {
-      if (next === sort) return;
+      if (disabled || next === sort) return;
       writeListingSortToSession(next);
       resetListingScroll();
       const sp = new URLSearchParams(searchParams.toString());
@@ -48,7 +51,7 @@ export function useListingSort() {
       const q = sp.toString();
       router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false });
     },
-    [pathname, router, searchParams, sort]
+    [disabled, pathname, router, searchParams, sort]
   );
 
   return { sort, setSort };

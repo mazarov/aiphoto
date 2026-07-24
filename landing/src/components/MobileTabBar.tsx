@@ -11,11 +11,6 @@ import {
 import { MobileProfileSheet } from "./MobileProfileSheet";
 import { useListingMobileChromeOptional } from "@/context/ListingMobileChromeContext";
 import { useAuth } from "@/context/AuthContext";
-import { openLexyGptPlaygroundTab } from "@/lib/lexygpt-generate";
-import {
-  reachYandexMetrikaGoal,
-  YM_GOAL_LEXYGPT_GENERATE_TABBAR,
-} from "@/lib/yandex-metrika";
 import { bumpListingShellViewportHeight } from "@/lib/listing-shell-viewport";
 
 function tabIconClass(active: boolean) {
@@ -97,8 +92,12 @@ export function MobileTabBar() {
 
   const np = normalizePath(pathname);
 
-  const isActive = (key: "catalog" | "foto" | "search" | "profile"): boolean => {
+  const isActive = (
+    key: "new" | "catalog" | "foto" | "search" | "profile"
+  ): boolean => {
     switch (key) {
+      case "new":
+        return np === "/new";
       case "catalog":
         // Home (/) and /catalog both map to the catalog tab
         return np === "/" || np === "/catalog";
@@ -127,10 +126,7 @@ export function MobileTabBar() {
     }
   };
 
-  const handleGenerate = () => {
-    openLexyGptPlaygroundTab();
-    reachYandexMetrikaGoal(YM_GOAL_LEXYGPT_GENERATE_TABBAR);
-  };
+  const fotoActive = isActive("foto");
 
   return (
     <>
@@ -139,6 +135,35 @@ export function MobileTabBar() {
       >
         <div ref={tabBarRef} className="pointer-events-auto rounded-t-2xl border-t border-zinc-200/70 bg-white/95 shadow-[0_-8px_32px_-12px_rgba(99,102,241,0.12)] backdrop-blur-xl pb-[max(0px,env(safe-area-inset-bottom,0px))]">
         <div className="flex h-14 items-end justify-around px-1 pb-1">
+          {/* Новое */}
+          <Link
+            href="/new"
+            className="flex flex-1 flex-col items-center justify-end gap-0.5 pb-1 pt-2"
+            aria-label="Новое"
+          >
+            <svg
+              className={`h-6 w-6 ${tabIconClass(isActive("new"))}`}
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={isActive("new") ? 2 : 1.5}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3z"
+              />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M18.5 14.5l.75 2.25L21.5 17.5l-2.25.75L18.5 20.5l-.75-2.25L15.5 17.5l2.25-.75.75-2.25z"
+              />
+            </svg>
+            <span className={`text-[11px] ${tabLabelClass(isActive("new"))}`}>
+              Новое
+            </span>
+          </Link>
+
           {/* Каталог */}
           <Link
             href="/catalog"
@@ -162,53 +187,42 @@ export function MobileTabBar() {
             </span>
           </Link>
 
-          {/* Фото в промт */}
-          <Link
-            href="/foto-v-promt"
-            className="flex flex-1 flex-col items-center justify-end gap-0.5 pb-1 pt-2"
-            aria-label="Фото в промт"
-          >
-            <svg
-              className={`h-6 w-6 ${tabIconClass(isActive("foto"))}`}
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={isActive("foto") ? 2 : 1.5}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
-              />
-            </svg>
-            <span
-              className={`text-[11px] whitespace-nowrap ${tabLabelClass(isActive("foto"))}`}
-            >
-              Фото в промт
-            </span>
-          </Link>
-
-          {/* Сгенерировать — center accent pill */}
+          {/* Фото в промт — center accent */}
           <div className="flex flex-1 flex-col items-center justify-end pb-0.5">
-            <button
-              type="button"
-              onClick={handleGenerate}
-              aria-label="Сгенерировать"
-              className="-translate-y-3 flex h-11 w-16 items-center justify-center rounded-2xl bg-indigo-600 text-white shadow-lg shadow-indigo-500/30 transition-transform active:scale-[0.97]"
+            <Link
+              href="/foto-v-promt"
+              aria-label="Фото в промт"
+              className="flex flex-col items-center gap-0.5 transition-transform active:scale-[0.97]"
             >
-              {/* Sparkle / star icon */}
-              <svg className="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12 2.25l1.636 4.909L18.545 8.75l-4.909 1.636L12 15.295l-1.636-4.909L5.455 8.75l4.909-1.591L12 2.25z" />
-                <path
-                  d="M18.5 15.5l.818 2.454L21.773 18.75l-2.455.796L18.5 22l-.818-2.454L15.227 18.75l2.455-.796L18.5 15.5z"
-                  opacity="0.65"
-                />
-                <path
-                  d="M5.5 16l.545 1.636L7.682 18.25l-1.637.614L5.5 20.5l-.545-1.636L3.318 18.25l1.637-.614L5.5 16z"
-                  opacity="0.45"
-                />
-              </svg>
-            </button>
+              <span
+                className={`-translate-y-2 flex h-10 w-14 items-center justify-center rounded-2xl text-white shadow-lg shadow-indigo-500/30 ${
+                  fotoActive ? "bg-indigo-700" : "bg-indigo-600"
+                }`}
+              >
+                <svg
+                  className="h-5 w-5"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={1.75}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                  />
+                </svg>
+              </span>
+              <span
+                className={`max-w-[4.75rem] text-center text-[9px] leading-tight ${
+                  fotoActive
+                    ? "font-semibold text-indigo-600"
+                    : "font-medium text-indigo-600"
+                }`}
+              >
+                Фото в промт
+              </span>
+            </Link>
           </div>
 
           {/* Поиск */}
