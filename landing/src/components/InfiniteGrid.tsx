@@ -32,7 +32,7 @@ export function InfiniteGrid({
   initialRankedBatchSize,
   rpcParams,
   strictMode = false,
-  sort = "popular",
+  sort = "new",
 }: Props) {
   const [cards, setCards] = useState(initialCards);
   const [loading, setLoading] = useState(false);
@@ -59,7 +59,8 @@ export function InfiniteGrid({
       const sp = new URLSearchParams();
       sp.set("limit", String(PAGE_SIZE));
       sp.set("offset", String(oldOffset));
-      if (sortRef.current === "new") sp.set("sort", "new");
+      // Default sort is `new` (omit param); only non-default `popular` is sent.
+      if (sortRef.current === "popular") sp.set("sort", "popular");
       for (const [k, v] of Object.entries(rpcParamsRef.current)) {
         if (v) sp.set(k, v);
       }

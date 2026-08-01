@@ -11,8 +11,8 @@ type Props = {
 };
 
 const OPTIONS: { value: ListingSort; label: string }[] = [
-  { value: "popular", label: "Популярное" },
   { value: "new", label: "Новое" },
+  { value: "popular", label: "Популярное" },
 ];
 
 export function ListingSortToggle({ sort, onSortChange, embedded = false }: Props) {

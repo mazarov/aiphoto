@@ -85,7 +85,7 @@ export async function fetchRouteCards(params: {
     p_limit: params.limit ?? 24,
     p_offset: params.offset ?? 0,
     p_min_cards: params.min_cards ?? 2,
-    p_sort: params.sort ?? "popular",
+    p_sort: params.sort ?? "new",
   });
 
   if (error) throw new Error(`resolve_route_cards: ${error.message}`);

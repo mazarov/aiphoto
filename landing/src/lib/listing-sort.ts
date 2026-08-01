@@ -3,8 +3,8 @@ export type ListingSort = "popular" | "new";
 export const LISTING_SORT_STORAGE_KEY = "promptshot_listing_sort";
 
 export function parseListingSort(raw: string | null | undefined): ListingSort {
-  if (raw === "new") return "new";
-  return "popular";
+  if (raw === "popular") return "popular";
+  return "new";
 }
 
 /** Returns false when raw is present but not popular|new (API → 400). */

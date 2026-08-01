@@ -17,7 +17,7 @@ export function useListingSort(options?: { disabled?: boolean }) {
   const searchParams = useSearchParams();
 
   const sort = useMemo(
-    () => (disabled ? ("popular" as ListingSort) : parseListingSort(searchParams.get("sort"))),
+    () => (disabled ? ("new" as ListingSort) : parseListingSort(searchParams.get("sort"))),
     [disabled, searchParams]
   );
 
@@ -33,9 +33,10 @@ export function useListingSort(options?: { disabled?: boolean }) {
     if (urlRaw !== null && urlRaw !== "") return;
 
     const stored = readListingSortFromSession();
-    if (stored === "new") {
+    // Default is `new` (no query param); only non-default `popular` needs URL sync.
+    if (stored === "popular") {
       const sp = new URLSearchParams(searchParams.toString());
-      sp.set("sort", "new");
+      sp.set("sort", "popular");
       router.replace(`${pathname}?${sp}`, { scroll: false });
     }
   }, [disabled, pathname, router, searchParams]);
@@ -46,7 +47,7 @@ export function useListingSort(options?: { disabled?: boolean }) {
       writeListingSortToSession(next);
       resetListingScroll();
       const sp = new URLSearchParams(searchParams.toString());
-      if (next === "popular") sp.delete("sort");
+      if (next === "new") sp.delete("sort");
       else sp.set("sort", next);
       const q = sp.toString();
       router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false });
