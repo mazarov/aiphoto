@@ -15,6 +15,8 @@ import {
   OVERLAY_BUTTON_APPEARANCE_RESET,
   OVERLAY_BUTTON_UA_RESET,
 } from "@/lib/card-overlay-action-pill";
+import { useAuth } from "@/context/AuthContext";
+import { isInternalGenerateAllowlistedEmail } from "@/lib/internal-generate-allowlist";
 
 type Props = {
   promptText: string;
@@ -76,9 +78,11 @@ export function LexyGptGenerateButton({
   onInternalGenerate,
 }: Props) {
   const generation = useGeneration();
+  const { user } = useAuth();
   const [phase, setPhase] = useState<Phase>("idle");
   const [busy, setBusy] = useState(false);
-  const useInternalGeneration = Boolean(cardId);
+  const allowlisted = isInternalGenerateAllowlistedEmail(user?.email);
+  const useInternalGeneration = Boolean(cardId) && allowlisted;
 
   const resetPhaseLater = useCallback(() => {
     window.setTimeout(() => {
@@ -96,7 +100,7 @@ export function LexyGptGenerateButton({
 
       reachYandexMetrikaGoal(metricGoal);
 
-      if (onInternalGenerate) {
+      if (allowlisted && onInternalGenerate) {
         onInternalGenerate();
         return;
       }
@@ -143,6 +147,7 @@ export function LexyGptGenerateButton({
       })();
     },
     [
+      allowlisted,
       busy,
       cardId,
       disabled,

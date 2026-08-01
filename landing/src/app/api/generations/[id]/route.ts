@@ -8,8 +8,8 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const openDebug = isStvOpenGenerateDebugEnabled();
     const { user, error: authError } = await getSupabaseUserForApiRoute(req);
+    const openDebug = isStvOpenGenerateDebugEnabled(user?.email);
 
     if ((authError || !user) && !openDebug) {
       return NextResponse.json({ error: "unauthorized" }, { status: 401 });

@@ -11,6 +11,8 @@ import { ReactionButtons } from "./ReactionButtons";
 import { FavoriteButton } from "./FavoriteButton";
 import { LexyGptGenerateButton } from "./LexyGptGenerateButton";
 import { CardInlineGeneratePanel } from "./CardInlineGeneratePanel";
+import { useAuth } from "@/context/AuthContext";
+import { isInternalGenerateAllowlistedEmail } from "@/lib/internal-generate-allowlist";
 import { isDebugToolsSessionEnabled, dispatchDebugCardDeleted } from "@/lib/debug-tools-session";
 import { formatCompactCount } from "@/lib/format-view-count";
 import {
@@ -88,6 +90,8 @@ export function CardPageClient({ data, tagEntries, breadcrumbTag, isModal = fals
 
 function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListingNeighborGo, onCloseModal }: Props) {
   const router = useRouter();
+  const { user } = useAuth();
+  const canInlineGenerate = isInternalGenerateAllowlistedEmail(user?.email);
   const title = data.title_ru || data.title_en || "Без названия";
   const [publishedLocal, setPublishedLocal] = useState(data.isPublished);
   const [pubSaving, setPubSaving] = useState(false);
@@ -118,12 +122,17 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
   const [mobilePromptOverlay, setMobilePromptOverlay] = useState(false);
   const [inlineGenerateOpen, setInlineGenerateOpen] = useState(false);
   const openInlineGenerate = useCallback(() => {
+    if (!canInlineGenerate) return;
     setMobilePromptOverlay(false);
     setInlineGenerateOpen(true);
-  }, []);
+  }, [canInlineGenerate]);
   const closeInlineGenerate = useCallback(() => {
     setInlineGenerateOpen(false);
   }, []);
+
+  useEffect(() => {
+    if (!canInlineGenerate) setInlineGenerateOpen(false);
+  }, [canInlineGenerate]);
 
   // Reset local media only when opening another card (`id`), not on every `data` reference change.
   useEffect(() => {
@@ -710,7 +719,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
 
             {/* Right: dark details panel */}
             <aside className="flex w-[min(100%,340px)] min-h-0 shrink-0 flex-col overflow-hidden rounded-2xl bg-zinc-950 text-zinc-100 shadow-2xl ring-1 ring-white/10 lg:w-[360px]">
-              {inlineGenerateOpen && hasPrompts ? (
+              {canInlineGenerate && inlineGenerateOpen && hasPrompts ? (
                 <CardInlineGeneratePanel
                   promptText={data.promptTexts.join("\n\n")}
                   cardId={data.id}
@@ -864,7 +873,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                       cardId={data.id}
                       sourceImageUrl={currentPhoto ?? undefined}
                       variant="desktop-panel"
-                      onInternalGenerate={openInlineGenerate}
+                      onInternalGenerate={canInlineGenerate ? openInlineGenerate : undefined}
                     />
                   </>
                 )}
@@ -1140,7 +1149,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                           sourceImageUrl={currentPhoto ?? undefined}
                           variant="sticky"
                           className="h-full min-h-11 min-w-0 w-full truncate px-2 text-[13px] shadow-none ring-2 ring-black/35"
-                          onInternalGenerate={openInlineGenerate}
+                          onInternalGenerate={canInlineGenerate ? openInlineGenerate : undefined}
                         />
                         <StickyListingNavButton
                           slug={listingNext}
@@ -1200,7 +1209,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                   </>
                 ) : null}
 
-                {inlineGenerateOpen && hasPrompts && (
+                {canInlineGenerate && inlineGenerateOpen && hasPrompts && (
                   <>
                     <button
                       type="button"
@@ -1392,7 +1401,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                     cardId={data.id}
                     variant="sticky"
                     className="h-full min-h-12 min-w-0 w-full truncate px-2 sm:px-3"
-                    onInternalGenerate={openInlineGenerate}
+                    onInternalGenerate={canInlineGenerate ? openInlineGenerate : undefined}
                   />
                   <StickyListingNavButton
                     slug={listingNext}
@@ -1405,7 +1414,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
             </div>
           )}
 
-          {inlineGenerateOpen && hasPrompts && (
+          {canInlineGenerate && inlineGenerateOpen && hasPrompts && (
             <>
               <button
                 type="button"

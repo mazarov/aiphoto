@@ -14,8 +14,8 @@ const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp"];
 
 export async function POST(req: NextRequest) {
   try {
-    const openDebug = isStvOpenGenerateDebugEnabled();
     const { user, error: authError } = await getSupabaseUserForApiRoute(req);
+    const openDebug = isStvOpenGenerateDebugEnabled(user?.email);
 
     if ((authError || !user) && !openDebug) {
       return NextResponse.json({ error: "unauthorized" }, { status: 401 });

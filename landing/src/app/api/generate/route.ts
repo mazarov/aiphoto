@@ -27,8 +27,8 @@ function toErrorMeta(err: unknown) {
 export async function POST(req: NextRequest) {
   try {
     console.log("[generation.create] incoming request");
-    const openDebug = isStvOpenGenerateDebugEnabled();
     const { user, error: authError } = await getSupabaseUserForApiRoute(req);
+    const openDebug = isStvOpenGenerateDebugEnabled(user?.email);
 
     if ((authError || !user) && !openDebug) {
       console.warn("[generation.create] unauthorized", {
