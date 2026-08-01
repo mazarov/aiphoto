@@ -8,7 +8,9 @@ import {
   resolveGuestOwnerDbUserId,
 } from "@/lib/ensure-landing-user";
 import { isStvOpenGenerateDebugEnabled } from "@/lib/stv-open-generate-debug";
-import { resolveClientSource } from "@/lib/client-source";
+
+/** PromptShot paid generate is site-only for now (inline compose / same-origin). */
+const GENERATION_CLIENT_SOURCE = "site" as const;
 
 function toErrorMeta(err: unknown) {
   if (!(err instanceof Error)) return { message: String(err) };
@@ -37,9 +39,6 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json();
     const pipelineTrace = getStvPipelineTrace(req, body);
-    const clientSource = resolveClientSource(req, {
-      authenticated: Boolean(user) || openDebug,
-    });
     const {
       prompt,
       model,
@@ -304,7 +303,7 @@ export async function POST(req: NextRequest) {
         credits_spent: creditsCharged,
         input_photo_paths: photoStoragePaths,
         vibe_id: resolvedVibeId,
-        client_source: clientSource,
+        client_source: GENERATION_CLIENT_SOURCE,
       })
       .select("id")
       .single();
@@ -332,7 +331,7 @@ export async function POST(req: NextRequest) {
       usedGuestOwner,
       openDebug,
       pipelineTrace,
-      clientSource,
+      clientSource: GENERATION_CLIENT_SOURCE,
       status: "pending",
     });
     stvLog("generation.row_created", {
@@ -343,7 +342,7 @@ export async function POST(req: NextRequest) {
       openDebug,
       generationId: gen.id,
       vibeId: resolvedVibeId,
-      clientSource,
+      clientSource: GENERATION_CLIENT_SOURCE,
     });
 
     const baseUrl =

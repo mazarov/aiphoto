@@ -9,7 +9,6 @@ configureStv({
   platform: createWebPlatform(),
   createSupabaseClient: createSupabaseForWeb,
   getApiOrigin: () => window.location.origin,
-  getClientSource: () => "embed_stv",
   isGuestModeEnabled: isWebGuestModeEnabled
 });
 

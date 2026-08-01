@@ -5,11 +5,11 @@
 
 /** @typedef {import('./platform/types.js').StvPlatform} StvPlatform */
 
-/** @type {{ platform: StvPlatform; createSupabaseClient: (apiOrigin: string) => Promise<unknown>; getApiOrigin: () => string; getClientSource?: () => string; isGuestModeEnabled?: () => boolean } | null} */
+/** @type {{ platform: StvPlatform; createSupabaseClient: (apiOrigin: string) => Promise<unknown>; getApiOrigin: () => string; isGuestModeEnabled?: () => boolean } | null} */
 let runtime = null;
 
 /**
- * @param {{ platform: StvPlatform; createSupabaseClient: (apiOrigin: string) => Promise<unknown>; getApiOrigin: () => string; getClientSource?: () => string; isGuestModeEnabled?: () => boolean }} cfg
+ * @param {{ platform: StvPlatform; createSupabaseClient: (apiOrigin: string) => Promise<unknown>; getApiOrigin: () => string; isGuestModeEnabled?: () => boolean }} cfg
  */
 export function configureStv(cfg) {
   runtime = cfg;

@@ -1294,10 +1294,6 @@ async function api(path, init = {}) {
   if (tid && !headers["X-STV-Pipeline-Trace"] && !headers["x-stv-pipeline-trace"]) {
     headers["X-STV-Pipeline-Trace"] = tid;
   }
-  const cs = (rt().getClientSource && rt().getClientSource()) || "";
-  if (cs && !headers["X-Client"] && !headers["x-client"]) {
-    headers["X-Client"] = cs;
-  }
   const response = await fetch(`${rt().getApiOrigin()}${path}`, {
     ...init,
     headers,

@@ -6,8 +6,7 @@ import { boot } from "./stv-core.js";
 configureStv({
   platform: createChromePlatform(),
   createSupabaseClient: createSupabaseForExtension,
-  getApiOrigin: () => localStorage.getItem("stv_api_origin") || "https://promptshot.ru",
-  getClientSource: () => "extension_stv"
+  getApiOrigin: () => localStorage.getItem("stv_api_origin") || "https://promptshot.ru"
 });
 
 boot();
