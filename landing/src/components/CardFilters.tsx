@@ -53,6 +53,7 @@ type Filters = {
   scoreMin: number;
   scoreMax: number;
   hasRuPrompt: "all" | "yes" | "no";
+  published: "all" | "yes" | "no";
   selectedTag: string;
   hasBefore: "all" | "yes";
   dataset: string;
@@ -63,9 +64,15 @@ const DEFAULT_FILTERS: Filters = {
   scoreMin: 0,
   scoreMax: 100,
   hasRuPrompt: "all",
+  published: "yes",
   selectedTag: "",
   hasBefore: "all",
   dataset: "",
+};
+
+const DEFAULT_DEBUG_FILTERS: Filters = {
+  ...DEFAULT_FILTERS,
+  published: "all",
 };
 
 function isDatasetOnlyFilter(filters: Filters): boolean {
@@ -75,6 +82,7 @@ function isDatasetOnlyFilter(filters: Filters): boolean {
     filters.scoreMin === 0 &&
     filters.scoreMax === 100 &&
     filters.hasRuPrompt === "all" &&
+    filters.published === "yes" &&
     filters.selectedTag === "" &&
     filters.hasBefore === "all"
   );
@@ -92,12 +100,16 @@ function readInitialDebugFilters(initialDataset?: string): Filters {
       scoreMin: saved.scoreMin,
       scoreMax: saved.scoreMax,
       hasRuPrompt: saved.hasRuPrompt,
+      published:
+        saved.published === "yes" || saved.published === "no" || saved.published === "all"
+          ? saved.published
+          : "all",
       selectedTag: saved.selectedTag,
       hasBefore: saved.hasBefore,
       dataset: initialDataset || saved.dataset,
     };
   }
-  return { ...DEFAULT_FILTERS, dataset: initialDataset || "" };
+  return { ...DEFAULT_DEBUG_FILTERS, dataset: initialDataset || "" };
 }
 
 export function FilterableGrid({
@@ -142,12 +154,15 @@ export function FilterableGrid({
   filterHasMoreRef.current = filterHasMore;
 
   const isIdMode = idSearch.trim().length >= 4;
+  // Debug always searches via API (needs unpublished + full dataset list).
   const isFilterMode =
     !isIdMode &&
-    (filters.hasWarnings !== "all" ||
+    (isDebug ||
+      filters.hasWarnings !== "all" ||
       filters.scoreMin > 0 ||
       filters.scoreMax < 100 ||
       filters.hasRuPrompt !== "all" ||
+      filters.published !== "yes" ||
       filters.selectedTag !== "" ||
       filters.hasBefore !== "all" ||
       filters.dataset !== "");
@@ -181,7 +196,7 @@ export function FilterableGrid({
   useEffect(() => {
     if (!isDebug) return;
     if (datasets.length > 0) return;
-    fetch("/api/datasets")
+    fetch("/api/datasets?includeUnpublished=1")
       .then((r) => r.json())
       .then((d) => setDatasets(d.datasets || []))
       .catch(() => {});
@@ -221,6 +236,7 @@ export function FilterableGrid({
         scoreMax: String(f.scoreMax),
         hasRuPrompt: f.hasRuPrompt,
         hasBefore: f.hasBefore,
+        published: f.published,
         limit: String(FILTER_PAGE_SIZE),
         offset: String(rankedOffset),
         includeTotal: append ? "0" : "1",
@@ -287,6 +303,7 @@ export function FilterableGrid({
     filters.scoreMin,
     filters.scoreMax,
     filters.hasRuPrompt,
+    filters.published,
     filters.hasBefore,
     filters.selectedTag,
     filters.dataset,
@@ -367,7 +384,7 @@ export function FilterableGrid({
   }, [gridItems, isIdMode, isFilterMode]);
 
   function handleReset() {
-    setFilters({ ...DEFAULT_FILTERS });
+    setFilters({ ...(isDebug ? DEFAULT_DEBUG_FILTERS : DEFAULT_FILTERS) });
     setIdSearch("");
     setSearchResults(null);
     setFilterResults(null);
@@ -637,6 +654,29 @@ export function FilterableGrid({
                     {filters.hasBefore === "yes" ? "Только с «было»" : "Показать с «было»"}
                   </button>
                 </div>
+
+                {isDebug && (
+                  <div>
+                    <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-zinc-400">
+                      Публикация
+                    </label>
+                    <select
+                      value={filters.published}
+                      onChange={(e) =>
+                        setFilters((f) => ({
+                          ...f,
+                          published: e.target.value as "all" | "yes" | "no",
+                        }))
+                      }
+                      disabled={isIdMode}
+                      className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-700 disabled:opacity-40"
+                    >
+                      <option value="all">Все</option>
+                      <option value="yes">Только опубликованные</option>
+                      <option value="no">Только неопубликованные</option>
+                    </select>
+                  </div>
+                )}
 
                 {datasets.length > 0 && (
                   <div>

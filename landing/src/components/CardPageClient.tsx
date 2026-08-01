@@ -10,6 +10,7 @@ import { CardInteractionsProvider, useCardInteractions } from "@/context/CardInt
 import { ReactionButtons } from "./ReactionButtons";
 import { FavoriteButton } from "./FavoriteButton";
 import { LexyGptGenerateButton } from "./LexyGptGenerateButton";
+import { CardInlineGeneratePanel } from "./CardInlineGeneratePanel";
 import { isDebugToolsSessionEnabled, dispatchDebugCardDeleted } from "@/lib/debug-tools-session";
 import { formatCompactCount } from "@/lib/format-view-count";
 import {
@@ -115,6 +116,14 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
   const [listingNavNeighbors, setListingNavNeighbors] =
     useState<ListingCardNavNeighbors | null>(null);
   const [mobilePromptOverlay, setMobilePromptOverlay] = useState(false);
+  const [inlineGenerateOpen, setInlineGenerateOpen] = useState(false);
+  const openInlineGenerate = useCallback(() => {
+    setMobilePromptOverlay(false);
+    setInlineGenerateOpen(true);
+  }, []);
+  const closeInlineGenerate = useCallback(() => {
+    setInlineGenerateOpen(false);
+  }, []);
 
   // Reset local media only when opening another card (`id`), not on every `data` reference change.
   useEffect(() => {
@@ -126,6 +135,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
     setSetBeforeStatus(null);
     setDeleteStatus(null);
     setPubStatus(null);
+    setInlineGenerateOpen(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: [data.id] only
   }, [data.id]);
 
@@ -700,6 +710,15 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
 
             {/* Right: dark details panel */}
             <aside className="flex w-[min(100%,340px)] min-h-0 shrink-0 flex-col overflow-hidden rounded-2xl bg-zinc-950 text-zinc-100 shadow-2xl ring-1 ring-white/10 lg:w-[360px]">
+              {inlineGenerateOpen && hasPrompts ? (
+                <CardInlineGeneratePanel
+                  promptText={data.promptTexts.join("\n\n")}
+                  cardId={data.id}
+                  onBack={closeInlineGenerate}
+                  layout="desktop"
+                />
+              ) : (
+                <>
               <div className="flex items-start gap-3 px-4 pb-3 pt-4">
                 <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-full bg-zinc-800 ring-1 ring-white/10">
                   {data.authorAvatarUrl ? (
@@ -842,11 +861,16 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                     </button>
                     <LexyGptGenerateButton
                       promptText={data.promptTexts.join("\n\n")}
+                      cardId={data.id}
+                      sourceImageUrl={currentPhoto ?? undefined}
                       variant="desktop-panel"
+                      onInternalGenerate={openInlineGenerate}
                     />
                   </>
                 )}
               </div>
+                </>
+              )}
             </aside>
           </div>
 
@@ -1112,8 +1136,11 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                         </button>
                         <LexyGptGenerateButton
                           promptText={data.promptTexts.join("\n\n")}
+                          cardId={data.id}
+                          sourceImageUrl={currentPhoto ?? undefined}
                           variant="sticky"
                           className="h-full min-h-11 min-w-0 w-full truncate px-2 text-[13px] shadow-none ring-2 ring-black/35"
+                          onInternalGenerate={openInlineGenerate}
                         />
                         <StickyListingNavButton
                           slug={listingNext}
@@ -1172,6 +1199,27 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                     </div>
                   </>
                 ) : null}
+
+                {inlineGenerateOpen && hasPrompts && (
+                  <>
+                    <button
+                      type="button"
+                      aria-label="Закрыть генерацию"
+                      className={`${OVERLAY_BUTTON_UA_RESET} absolute inset-0 z-[120] bg-black/55 backdrop-blur-[2px]`}
+                      onClick={closeInlineGenerate}
+                    />
+                    <div className="pointer-events-auto absolute inset-x-0 bottom-0 z-[122] flex max-h-[min(88dvh,calc(100dvh-env(safe-area-inset-top)-1rem))] flex-col overflow-hidden rounded-t-3xl bg-zinc-950 text-zinc-100 shadow-2xl ring-1 ring-white/10">
+                      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-[env(safe-area-inset-bottom)]">
+                        <CardInlineGeneratePanel
+                          promptText={data.promptTexts.join("\n\n")}
+                          cardId={data.id}
+                          onBack={closeInlineGenerate}
+                          layout="mobile"
+                        />
+                      </div>
+                    </div>
+                  </>
+                )}
               </>
             ) : (
               <div className="flex flex-1 items-center justify-center px-6 text-zinc-500">Нет фото</div>
@@ -1341,8 +1389,10 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                   </button>
                   <LexyGptGenerateButton
                     promptText={data.promptTexts.join("\n\n")}
+                    cardId={data.id}
                     variant="sticky"
                     className="h-full min-h-12 min-w-0 w-full truncate px-2 sm:px-3"
+                    onInternalGenerate={openInlineGenerate}
                   />
                   <StickyListingNavButton
                     slug={listingNext}
@@ -1353,6 +1403,27 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                 </div>
               </div>
             </div>
+          )}
+
+          {inlineGenerateOpen && hasPrompts && (
+            <>
+              <button
+                type="button"
+                aria-label="Закрыть генерацию"
+                className={`${OVERLAY_BUTTON_UA_RESET} fixed inset-0 z-[120] bg-black/55 md:hidden`}
+                onClick={closeInlineGenerate}
+              />
+              <div className="pointer-events-auto fixed inset-x-0 bottom-0 z-[122] flex max-h-[min(88dvh,calc(100dvh-env(safe-area-inset-top)-1rem))] flex-col overflow-hidden rounded-t-3xl bg-zinc-950 text-zinc-100 shadow-2xl ring-1 ring-white/10 md:hidden">
+                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-[env(safe-area-inset-bottom)]">
+                  <CardInlineGeneratePanel
+                    promptText={data.promptTexts.join("\n\n")}
+                    cardId={data.id}
+                    onBack={closeInlineGenerate}
+                    layout="mobile"
+                  />
+                </div>
+              </div>
+            </>
           )}
         </>
       )}

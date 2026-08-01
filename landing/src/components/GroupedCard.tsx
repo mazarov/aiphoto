@@ -301,6 +301,8 @@ function GroupedCardBase({
                   </button>
                   <LexyGptGenerateButton
                     promptText={allPrompts.join("\n\n")}
+                    cardId={activeCard.id}
+                    sourceImageUrl={currentPhotoUrl ?? undefined}
                     variant="listing"
                     className="listing-card-chrome-target"
                   />
@@ -353,7 +355,12 @@ function GroupedCardBase({
                       ? "Не удалось скопировать"
                       : "Скопировать промт"}
                 </button>
-                <LexyGptGenerateButton promptText={allPrompts.join("\n\n")} variant="expanded" />
+                <LexyGptGenerateButton
+                  promptText={allPrompts.join("\n\n")}
+                  cardId={activeCard.id}
+                  sourceImageUrl={currentPhotoUrl ?? undefined}
+                  variant="expanded"
+                />
               </div>
             </div>
           )}

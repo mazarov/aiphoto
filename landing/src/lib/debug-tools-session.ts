@@ -1,11 +1,15 @@
 const SESSION_KEY = "promptshot_debug_tools";
 const FILTER_STATE_KEY = "promptshot_debug_filters";
+/** Cookie so SSR `/p/[slug]` can open unpublished cards while debug is on. */
+export const DEBUG_TOOLS_COOKIE = "promptshot_debug_tools";
 
 export type DebugFilterState = {
   hasWarnings: "all" | "yes" | "no";
   scoreMin: number;
   scoreMax: number;
   hasRuPrompt: "all" | "yes" | "no";
+  /** Publication filter — debug only. */
+  published: "all" | "yes" | "no";
   selectedTag: string;
   hasBefore: "all" | "yes";
   dataset: string;
@@ -17,10 +21,22 @@ export const DEBUG_CARD_DELETED_EVENT = "promptshot:debug-card-deleted";
 
 export type DebugCardDeletedDetail = { cardId: string; slug: string };
 
+function setDebugToolsCookie(enabled: boolean): void {
+  try {
+    if (typeof document === "undefined") return;
+    if (enabled) {
+      document.cookie = `${DEBUG_TOOLS_COOKIE}=1; path=/; max-age=86400; SameSite=Lax`;
+    } else {
+      document.cookie = `${DEBUG_TOOLS_COOKIE}=; path=/; max-age=0; SameSite=Lax`;
+    }
+  } catch {}
+}
+
 export function enableDebugToolsSession(): void {
   try {
     sessionStorage.setItem(SESSION_KEY, "1");
   } catch {}
+  setDebugToolsCookie(true);
 }
 
 export function disableDebugToolsSession(): void {
@@ -28,6 +44,7 @@ export function disableDebugToolsSession(): void {
     sessionStorage.removeItem(SESSION_KEY);
     sessionStorage.removeItem(FILTER_STATE_KEY);
   } catch {}
+  setDebugToolsCookie(false);
 }
 
 export function isDebugToolsSessionEnabled(): boolean {

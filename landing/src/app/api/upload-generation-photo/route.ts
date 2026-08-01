@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServer } from "@/lib/supabase";
 import { getSupabaseUserForApiRoute } from "@/lib/supabase-route-auth";
 import { getStvPipelineTrace, stvLog } from "@/lib/stv-pipeline-log";
+import { resolveGuestOwnerDbUserId } from "@/lib/ensure-landing-user";
+import { isStvOpenGenerateDebugEnabled } from "@/lib/stv-open-generate-debug";
 import sharp from "sharp";
 
 const BUCKET = "web-generation-uploads";
@@ -12,13 +14,27 @@ const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp"];
 
 export async function POST(req: NextRequest) {
   try {
+    const openDebug = isStvOpenGenerateDebugEnabled();
     const { user, error: authError } = await getSupabaseUserForApiRoute(req);
 
-    if (authError || !user) {
+    if ((authError || !user) && !openDebug) {
       return NextResponse.json({ error: "unauthorized" }, { status: 401 });
     }
 
     const pipelineTrace = getStvPipelineTrace(req);
+    const supabase = createSupabaseServer();
+
+    let storageUserId = user?.id ?? "";
+    if (!storageUserId) {
+      const owner = await resolveGuestOwnerDbUserId(supabase);
+      if ("error" in owner) {
+        return NextResponse.json(
+          { error: "guest_owner_unavailable", message: owner.error },
+          { status: 500 }
+        );
+      }
+      storageUserId = owner.userId;
+    }
 
     const formData = await req.formData();
     const file = formData.get("file") as File | null;
@@ -50,9 +66,8 @@ export async function POST(req: NextRequest) {
 
     const timestamp = Math.floor(Date.now() / 1000);
     const ext = "jpg";
-    const path = `${user.id}/${timestamp}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
+    const path = `${storageUserId}/${timestamp}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
 
-    const supabase = createSupabaseServer();
     const { error: uploadError } = await supabase.storage
       .from(BUCKET)
       .upload(path, resized, {
@@ -70,7 +85,8 @@ export async function POST(req: NextRequest) {
 
     stvLog("upload.reference_ok", {
       pipelineTrace,
-      userId: user.id,
+      userId: storageUserId,
+      openDebug,
       storagePath: path,
       bytesOut: resized.length,
     });

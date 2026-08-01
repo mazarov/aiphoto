@@ -2,6 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServer } from "@/lib/supabase";
 import { getSupabaseUserForApiRoute } from "@/lib/supabase-route-auth";
 import { getStvPipelineTrace, stvLog } from "@/lib/stv-pipeline-log";
+import { isStvGuestUser } from "@/lib/stv-guest-mode";
+import {
+  ensureLandingUserForGeneration,
+  resolveGuestOwnerDbUserId,
+} from "@/lib/ensure-landing-user";
+import { isStvOpenGenerateDebugEnabled } from "@/lib/stv-open-generate-debug";
+import { resolveClientSource } from "@/lib/client-source";
 
 function toErrorMeta(err: unknown) {
   if (!(err instanceof Error)) return { message: String(err) };
@@ -18,9 +25,10 @@ function toErrorMeta(err: unknown) {
 export async function POST(req: NextRequest) {
   try {
     console.log("[generation.create] incoming request");
+    const openDebug = isStvOpenGenerateDebugEnabled();
     const { user, error: authError } = await getSupabaseUserForApiRoute(req);
 
-    if (authError || !user) {
+    if ((authError || !user) && !openDebug) {
       console.warn("[generation.create] unauthorized", {
         authError: authError?.message ?? null,
       });
@@ -29,6 +37,9 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json();
     const pipelineTrace = getStvPipelineTrace(req, body);
+    const clientSource = resolveClientSource(req, {
+      authenticated: Boolean(user) || openDebug,
+    });
     const {
       prompt,
       model,
@@ -51,10 +62,11 @@ export async function POST(req: NextRequest) {
     const minPromptLength = 8;
     const validAspectRatios = ["1:1", "4:3", "3:4", "16:9", "9:16", "3:2", "2:3"];
     const validImageSizes = ["1K", "2K", "4K"];
+    const callerId = user?.id ?? "open-debug";
 
     if (!prompt || typeof prompt !== "string" || prompt.trim().length < minPromptLength) {
       console.warn("[generation.create] validation error: prompt too short", {
-        userId: user.id,
+        userId: callerId,
         promptLength: typeof prompt === "string" ? prompt.trim().length : null,
       });
       return NextResponse.json(
@@ -64,7 +76,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (!photoStoragePaths || !Array.isArray(photoStoragePaths) || photoStoragePaths.length < 1) {
-      console.warn("[generation.create] validation error: no photos", { userId: user.id });
+      console.warn("[generation.create] validation error: no photos", { userId: callerId });
       return NextResponse.json(
         { error: "validation_error", message: "Нужно минимум 1 фото" },
         { status: 400 }
@@ -73,7 +85,7 @@ export async function POST(req: NextRequest) {
 
     if (photoStoragePaths.length > 4) {
       console.warn("[generation.create] validation error: too many photos", {
-        userId: user.id,
+        userId: callerId,
         photos: photoStoragePaths.length,
       });
       return NextResponse.json(
@@ -86,7 +98,7 @@ export async function POST(req: NextRequest) {
     const sz = imageSize || "1K";
     if (!validAspectRatios.includes(ar)) {
       console.warn("[generation.create] validation error: invalid aspect ratio", {
-        userId: user.id,
+        userId: callerId,
         aspectRatio: ar,
       });
       return NextResponse.json(
@@ -96,7 +108,7 @@ export async function POST(req: NextRequest) {
     }
     if (!validImageSizes.includes(sz)) {
       console.warn("[generation.create] validation error: invalid image size", {
-        userId: user.id,
+        userId: callerId,
         imageSize: sz,
       });
       return NextResponse.json(
@@ -108,7 +120,8 @@ export async function POST(req: NextRequest) {
     const supabase = createSupabaseServer();
     let resolvedVibeId: string | null = null;
 
-    if (vibeId) {
+    // Open-debug skips vibe ownership; card inline generate always sends vibeId=null.
+    if (vibeId && user) {
       const { data: vibeRow, error: vibeError } = await supabase
         .from("vibes")
         .select("id,user_id")
@@ -154,20 +167,54 @@ export async function POST(req: NextRequest) {
 
     const modelConfig = models.find((m) => m.id === model) || models[0];
     const creditsNeeded = modelConfig.cost;
+    const guestMode = Boolean(user && isStvGuestUser(user));
+    /** Open-debug and guest: never charge. */
+    const creditsCharged = openDebug || guestMode ? 0 : creditsNeeded;
     const promptText = prompt.trim();
     const promptPreview =
       promptText.length > 800 ? `${promptText.slice(0, 800)}... [truncated]` : promptText;
+
+    let dbUserId: string;
+    let usedGuestOwner = false;
+    if (openDebug || !user) {
+      const owner = await resolveGuestOwnerDbUserId(supabase);
+      if ("error" in owner) {
+        console.error("[generation.create] open-debug owner failed", { error: owner.error });
+        return NextResponse.json(
+          {
+            error: "guest_owner_unavailable",
+            message:
+              "Нет FK-валидного профиля для open-debug. Войдите один раз через Google/Yandex.",
+          },
+          { status: 500 }
+        );
+      }
+      dbUserId = owner.userId;
+      usedGuestOwner = true;
+    } else {
+      const ensuredUser = await ensureLandingUserForGeneration(supabase, user);
+      if (!ensuredUser.ok) {
+        return NextResponse.json(
+          { error: ensuredUser.error, message: ensuredUser.message },
+          { status: ensuredUser.status }
+        );
+      }
+      dbUserId = ensuredUser.dbUserId;
+      usedGuestOwner = ensuredUser.usedGuestOwner;
+    }
+
     console.log("[generation.create] resolved config", {
-      userId: user.id,
+      userId: callerId,
+      dbUserId,
       pipelineTrace,
-      userEmail: user.email ?? null,
-      userName:
-        (user.user_metadata?.full_name as string | undefined) ??
-        (user.user_metadata?.name as string | undefined) ??
-        null,
+      userEmail: user?.email ?? null,
+      openDebug,
       modelRequested: model ?? null,
       modelResolved: modelConfig.id,
       creditsNeeded,
+      creditsCharged,
+      guestMode,
+      usedGuestOwner,
       aspectRatio: ar,
       imageSize: sz,
       photos: photoStoragePaths.length,
@@ -176,11 +223,16 @@ export async function POST(req: NextRequest) {
     });
     stvLog("generation.create", {
       pipelineTrace,
-      userId: user.id,
+      userId: callerId,
+      dbUserId,
       vibeId: resolvedVibeId,
       cardId: cardId || null,
       modelResolved: modelConfig.id,
       creditsNeeded,
+      creditsCharged,
+      guestMode,
+      openDebug,
+      usedGuestOwner,
       aspectRatio: ar,
       imageSize: sz,
       photos: photoStoragePaths.length,
@@ -188,78 +240,86 @@ export async function POST(req: NextRequest) {
       promptPreview,
     });
 
-    const { data: userRow } = await supabase
-      .from("landing_users")
-      .select("credits")
-      .eq("id", user.id)
-      .single();
+    if (!openDebug && !guestMode && creditsCharged > 0) {
+      const { data: userRow } = await supabase
+        .from("landing_users")
+        .select("credits")
+        .eq("id", dbUserId)
+        .maybeSingle();
+      const availableCredits = Number(userRow?.credits || 0);
+      if (availableCredits < creditsCharged) {
+        console.warn("[generation.create] insufficient credits", {
+          userId: callerId,
+          dbUserId,
+          availableCredits,
+          creditsNeeded: creditsCharged,
+        });
+        return NextResponse.json(
+          {
+            error: "insufficient_credits",
+            message: "Недостаточно кредитов",
+            required: creditsCharged,
+            available: availableCredits,
+          },
+          { status: 400 }
+        );
+      }
 
-    const availableCredits = (userRow as { credits?: number } | null)?.credits ?? 0;
-    if (availableCredits < creditsNeeded) {
-      console.warn("[generation.create] insufficient credits", {
-        userId: user.id,
-        availableCredits,
-        creditsNeeded,
-      });
-      return NextResponse.json(
-        {
-          error: "insufficient_credits",
-          message: "Недостаточно кредитов",
-          required: creditsNeeded,
-          available: availableCredits,
-        },
-        { status: 400 }
+      const { data: deductResult, error: deductError } = await supabase.rpc(
+        "landing_deduct_credits",
+        { p_user_id: dbUserId, p_amount: creditsCharged }
       );
-    }
 
-    const { data: deductResult, error: deductError } = await supabase.rpc(
-      "landing_deduct_credits",
-      { p_user_id: user.id, p_amount: creditsNeeded }
-    );
-
-    if (deductError || deductResult === -1) {
-      console.warn("[generation.create] credit deduction failed", {
-        userId: user.id,
-        availableCredits,
-        creditsNeeded,
-        deductError: deductError?.message ?? null,
-        deductResult,
-      });
-      return NextResponse.json(
-        {
-          error: "insufficient_credits",
-          message: "Недостаточно кредитов",
-          required: creditsNeeded,
-          available: availableCredits,
-        },
-        { status: 400 }
-      );
+      if (deductError || deductResult === -1) {
+        console.warn("[generation.create] credit deduction failed", {
+          userId: callerId,
+          dbUserId,
+          availableCredits,
+          creditsNeeded: creditsCharged,
+          deductError: deductError?.message ?? null,
+          deductResult,
+        });
+        return NextResponse.json(
+          {
+            error: "insufficient_credits",
+            message: "Недостаточно кредитов",
+            required: creditsCharged,
+            available: availableCredits,
+          },
+          { status: 400 }
+        );
+      }
     }
 
     const { data: gen, error: insertError } = await supabase
       .from("landing_generations")
       .insert({
-        user_id: user.id,
+        user_id: dbUserId,
         status: "pending",
         card_id: cardId || null,
         prompt_text: promptText,
         model: modelConfig.id,
         aspect_ratio: ar,
         image_size: sz,
-        credits_spent: creditsNeeded,
+        credits_spent: creditsCharged,
         input_photo_paths: photoStoragePaths,
         vibe_id: resolvedVibeId,
+        client_source: clientSource,
       })
       .select("id")
       .single();
 
     if (insertError || !gen) {
-      await supabase.rpc("landing_deduct_credits", {
-        p_user_id: user.id,
-        p_amount: -creditsNeeded,
-      });
+      if (!openDebug && !guestMode && creditsCharged > 0) {
+        await supabase.rpc("landing_deduct_credits", {
+          p_user_id: dbUserId,
+          p_amount: -creditsCharged,
+        });
+      }
       console.error("[generation.create] insert error", {
-        userId: user.id,
+        userId: callerId,
+        dbUserId,
+        usedGuestOwner,
         insertError: insertError?.message ?? null,
       });
       return NextResponse.json({ error: "Failed to create generation" }, { status: 500 });
@@ -267,15 +327,23 @@ export async function POST(req: NextRequest) {
 
     console.log("[generation.create] generation row created", {
       generationId: gen.id,
-      userId: user.id,
+      userId: callerId,
+      dbUserId,
+      usedGuestOwner,
+      openDebug,
       pipelineTrace,
+      clientSource,
       status: "pending",
     });
     stvLog("generation.row_created", {
       pipelineTrace,
-      userId: user.id,
+      userId: callerId,
+      dbUserId,
+      usedGuestOwner,
+      openDebug,
       generationId: gen.id,
       vibeId: resolvedVibeId,
+      clientSource,
     });
 
     const baseUrl =

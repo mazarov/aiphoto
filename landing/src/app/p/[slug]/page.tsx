@@ -1,9 +1,11 @@
 import { cache } from "react";
 import type { Metadata } from "next";
 import nextDynamic from "next/dynamic";
+import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import { getCardPageData, getIndexableImageUrl } from "@/lib/supabase";
 import { getSupabaseUserFromServerCookies } from "@/lib/supabase-route-auth";
+import { DEBUG_TOOLS_COOKIE } from "@/lib/debug-tools-session";
 import {
   getFirstTagFromSeoTags,
   findTagBySlug,
@@ -19,9 +21,19 @@ const CardPageClient = nextDynamic(
   }
 );
 
-const getCachedCardPageData = cache((slug: string, viewerUserId: string | null) =>
-  getCardPageData(slug, { viewerUserId }),
+const getCachedCardPageData = cache(
+  (slug: string, viewerUserId: string | null, allowDebugUnpublished: boolean) =>
+    getCardPageData(slug, { viewerUserId, allowDebugUnpublished }),
 );
+
+async function readAllowDebugUnpublished(): Promise<boolean> {
+  try {
+    const jar = await cookies();
+    return jar.get(DEBUG_TOOLS_COOKIE)?.value === "1";
+  } catch {
+    return false;
+  }
+}
 
 const BASE_URL =
   process.env.NEXT_PUBLIC_SITE_URL ||
@@ -86,7 +98,8 @@ export const dynamic = "force-dynamic";
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const viewer = await getSupabaseUserFromServerCookies();
-  const data = await getCachedCardPageData(slug, viewer?.id ?? null);
+  const allowDebugUnpublished = await readAllowDebugUnpublished();
+  const data = await getCachedCardPageData(slug, viewer?.id ?? null, allowDebugUnpublished);
   if (!data) notFound();
 
   const title = data.title_ru || data.title_en || "Промт";
@@ -135,7 +148,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function CardPage({ params }: Props) {
   const { slug } = await params;
   const viewer = await getSupabaseUserFromServerCookies();
-  const data = await getCachedCardPageData(slug, viewer?.id ?? null);
+  const allowDebugUnpublished = await readAllowDebugUnpublished();
+  const data = await getCachedCardPageData(slug, viewer?.id ?? null, allowDebugUnpublished);
 
   if (!data) notFound();
 

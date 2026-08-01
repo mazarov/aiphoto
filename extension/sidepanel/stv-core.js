@@ -150,6 +150,9 @@ const state = {
   vibeId: null,
   /** UGC card attribution when opened from landing embed */
   landingCardId: null,
+  /** Web embed only: editable prompt override shown in the bottom composer. */
+  webPromptDraft: "",
+  webPromptCardId: "",
   style: null,
   extractModel: "",
   expandModel: "",
@@ -201,6 +204,7 @@ let creditPollTimer = null;
 let assembleDebounceTimer = null;
 let promptReadyFlashTimer = null;
 let topbarAccountCleanup = null;
+let webEmbedMessageListenerBound = false;
 
 function schedulePromptReadyFlash() {
   state.promptReadyFlash = true;
@@ -1040,6 +1044,8 @@ function toSerializableState() {
     selectedImageSize: state.selectedImageSize,
     vibeId: state.vibeId,
     landingCardId: state.landingCardId,
+    webPromptDraft: String(state.webPromptDraft || ""),
+    webPromptCardId: String(state.webPromptCardId || ""),
     style: state.style,
     extractModel: state.extractModel,
     expandModel: state.expandModel,
@@ -1083,6 +1089,30 @@ async function initSupabaseAuth() {
     }
   });
   const { data } = await supabaseClient.auth.getSession();
+  accessTokenRef = data.session?.access_token ?? null;
+  await ensureGuestSession();
+}
+
+async function ensureGuestSession(options = {}) {
+  const force = Boolean(options?.force);
+  if (rt().platform.id !== "web" || !rt().isGuestModeEnabled?.() || !supabaseClient) {
+    return;
+  }
+  if (accessTokenRef && !force) {
+    return;
+  }
+
+  if (force) {
+    try {
+      await supabaseClient.auth.signOut();
+    } catch {
+      /* ignore */
+    }
+    accessTokenRef = null;
+  }
+
+  const { data, error } = await supabaseClient.auth.signInAnonymously();
+  if (error) throw error;
   accessTokenRef = data.session?.access_token ?? null;
 }
 
@@ -1216,6 +1246,10 @@ function applyPersistedState(saved) {
     typeof saved.landingCardId === "string" && saved.landingCardId.trim()
       ? saved.landingCardId.trim()
       : state.landingCardId;
+  state.webPromptDraft =
+    typeof saved.webPromptDraft === "string" ? saved.webPromptDraft : state.webPromptDraft;
+  state.webPromptCardId =
+    typeof saved.webPromptCardId === "string" ? saved.webPromptCardId : state.webPromptCardId;
   state.style = saved.style || state.style;
   state.extractModel = saved.extractModel || state.extractModel;
   state.expandModel = saved.expandModel || state.expandModel;
@@ -1260,6 +1294,10 @@ async function api(path, init = {}) {
   if (tid && !headers["X-STV-Pipeline-Trace"] && !headers["x-stv-pipeline-trace"]) {
     headers["X-STV-Pipeline-Trace"] = tid;
   }
+  const cs = (rt().getClientSource && rt().getClientSource()) || "";
+  if (cs && !headers["X-Client"] && !headers["x-client"]) {
+    headers["X-Client"] = cs;
+  }
   const response = await fetch(`${rt().getApiOrigin()}${path}`, {
     ...init,
     headers,
@@ -1267,21 +1305,34 @@ async function api(path, init = {}) {
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
-    if (response.status === 401 || response.status === 403) {
+    const errCode = String(data?.error || "").toLowerCase();
+    const guestSessionInvalid = errCode === "guest_session_invalid";
+    if (response.status === 401 || response.status === 403 || guestSessionInvalid) {
       try {
         await supabaseClient?.auth.signOut();
       } catch {
         /* ignore */
       }
       accessTokenRef = null;
-      state.user = null;
-      state.credits = 0;
+      if (guestSessionInvalid && rt().isGuestModeEnabled?.()) {
+        try {
+          await ensureGuestSession({ force: true });
+          await checkAuth();
+        } catch {
+          /* fall through to session error */
+        }
+      } else {
+        state.user = null;
+        state.credits = 0;
+      }
       state.generating = false;
       state.runStage = "idle";
       state.pipelinePrepPercent = 0;
       state.phase = "idle";
       state.info = "";
-      state.error = t("err_session");
+      state.error = guestSessionInvalid
+        ? String(data?.message || t("err_session"))
+        : t("err_session");
       render();
     }
     const err = new Error(data?.message || data?.error || `HTTP ${response.status}`);
@@ -1374,6 +1425,32 @@ async function applyEmbedQueryParams() {
   }
 }
 
+function bindWebEmbedMessages() {
+  if (
+    webEmbedMessageListenerBound ||
+    rt().platform.id !== "web" ||
+    typeof window === "undefined"
+  ) {
+    return;
+  }
+  webEmbedMessageListenerBound = true;
+  window.parent?.postMessage({ type: "STV_READY_FOR_PROMPT" }, window.location.origin);
+  window.addEventListener("message", (event) => {
+    if (event.origin !== window.location.origin || event.data?.type !== "STV_INITIAL_PROMPT") {
+      return;
+    }
+    const prompt = typeof event.data.prompt === "string" ? event.data.prompt.trim() : "";
+    const cardId = typeof event.data.cardId === "string" ? event.data.cardId.trim() : "";
+    const cardChanged = Boolean(cardId && cardId !== state.webPromptCardId);
+    if (cardChanged || !String(state.webPromptDraft || "").trim()) {
+      state.webPromptDraft = prompt;
+    }
+    state.webPromptCardId = cardId;
+    void persistState();
+    if (!state.loading) render();
+  });
+}
+
 async function loadConfig() {
   try {
     const data = await api("/api/generation-config");
@@ -1417,6 +1494,7 @@ async function loadConfig() {
 
 async function checkAuth() {
   try {
+    await ensureGuestSession();
     const data = await api("/api/me");
     state.user = data.user || null;
     state.credits = Number(data.credits || 0);
@@ -2015,7 +2093,12 @@ async function completeGenerationAfterExpand(runStartedAt) {
 
 async function generateAll() {
   if (state.generating || state.awaitingContinueGenerate) return;
-  if (!hasReference()) throw new Error(t("err_no_reference"));
+  const webPromptOverride =
+    rt().platform.id === "web" ? String(state.webPromptDraft || "").trim() : "";
+  /** Card/web composer already has prompt text — skip extract→expand (no vibe LLM). */
+  const useCardPromptDirect = Boolean(webPromptOverride);
+
+  if (!useCardPromptDirect && !hasReference()) throw new Error(t("err_no_reference"));
   if (!hasUserPhotos()) throw new Error(t("err_upload_photos_first"));
   if (getCooldownLeftSeconds() > 0) {
     throw new Error(tf("err_cooldown_wait", { n: getCooldownLeftSeconds() }));
@@ -2035,13 +2118,34 @@ async function generateAll() {
   const runStartedAt = Date.now();
   state.phase = "processing";
   state.error = "";
-  state.pipelinePrepPercent = 6;
-  state.runStage = "extract";
-  state.info = t("run_extract");
   state.prepNetworkPending = true;
   render();
 
   try {
+    if (useCardPromptDirect) {
+      state.vibeId = null;
+      state.style = null;
+      state.extractModel = "";
+      state.expandModel = "";
+      state.vibeGroomingControlsAvailable = false;
+      state.awaitingContinueGenerate = false;
+      state.finalPromptForGeneration = "";
+      state.finalPromptAssumesTwoImages = false;
+      state.mergedForSingleGeneration = webPromptOverride;
+      state.prompts = [{ accent: "scene", prompt: webPromptOverride }];
+      state.pipelinePrepPercent = 100;
+      state.runStage = "generate";
+      state.info = t("run_generate");
+      state.prepNetworkPending = false;
+      render();
+      await completeGenerationAfterExpand(runStartedAt);
+      return;
+    }
+
+    state.pipelinePrepPercent = 6;
+    state.runStage = "extract";
+    state.info = t("run_extract");
+    render();
     await runExtract();
     state.prepNetworkPending = false;
 
@@ -2813,8 +2917,120 @@ function renderMain() {
         </div>`;
 
   const creditsPillTitle = `${t("credits")}: ${state.credits} · ${t("cost_run")} ${requiredCredits} ${t("credit_word")}`;
+  const webPromptValue = String(state.webPromptDraft || promptSummaryText || "");
+  const webModelOptions = state.models
+    .map(
+      (m) =>
+        `<option value="${escapeHtml(m.id)}">${escapeHtml(`${m.label} · ${m.cost}`)}</option>`
+    )
+    .join("");
+  const webRatioOptions = state.aspectRatios
+    .map((a) => `<option value="${escapeHtml(a.value)}">${escapeHtml(a.label)}</option>`)
+    .join("");
+  const webSizeOptions = state.imageSizes
+    .map((s) => `<option value="${escapeHtml(s.value)}">${escapeHtml(s.label)}</option>`)
+    .join("");
 
-  app.innerHTML = `
+  app.innerHTML = rt().platform.id === "web"
+    ? `
+    <div class="stv-shell stv-web-shell">
+      <div class="stv-web-canvas">
+        ${
+          state.toast
+            ? `<div class="toast toast-${escapeHtml(state.toast.type)}">${escapeHtml(state.toast.message)}</div>`
+            : ""
+        }
+        <div class="stv-web-canvas-head">
+          <div>
+            <p class="stv-web-eyebrow">${escapeHtml(t("compare_col_result"))}</p>
+            <p class="stv-web-canvas-title">${escapeHtml(
+              state.generating ? primaryGenerateButtonLabel() : t("tab_generate")
+            )}</p>
+          </div>
+          <span class="stv-web-credit-chip" title="${escapeHtml(creditsPillTitle)}">
+            ${escapeHtml(String(state.credits))} ✦
+          </span>
+        </div>
+
+        <div class="stv-web-result-stage${state.results.length ? " has-results" : ""}">
+          ${resultsCompareColumnHtml}
+          ${compareProgressHtml}
+        </div>
+
+        <div class="stv-web-source-strip">
+          <div class="stv-web-source-card">
+            <span class="stv-field-label">${escapeHtml(t("compare_col_your_photo"))}</span>
+            <div class="stv-photo-frame stv-photo-frame--user stv-photo-frame--user-multi${hasUserPhoto ? " has-user-photos" : ""}">
+              <div class="stv-photo-frame-content stv-photo-frame-content--multi">${userPhotosInner}</div>
+            </div>
+          </div>
+          <div class="stv-web-source-card">
+            <span class="stv-field-label">${escapeHtml(t("compare_col_reference"))}</span>
+            <div class="stv-photo-frame stv-photo-frame--reference">${referenceFrameGenerate}</div>
+          </div>
+        </div>
+
+        ${
+          state.error
+            ? `<div class="stv-error-banner stv-web-error">
+                <p class="error-text stv-error-banner-text">${escapeHtml(state.error)}</p>
+                <button type="button" class="stv-tool-btn" id="stv-clear-error">${escapeHtml(t("btn_dismiss_error"))}</button>
+              </div>`
+            : ""
+        }
+      </div>
+
+      <div class="stv-web-composer">
+        <label class="stv-web-prompt-field" for="stv-web-prompt-input">
+          <span class="stv-sr-only">${escapeHtml(t("current_prompt_label"))}</span>
+          <textarea
+            id="stv-web-prompt-input"
+            rows="2"
+            spellcheck="false"
+            placeholder="Опишите изображение или измените промпт…"
+          >${escapeHtml(webPromptValue)}</textarea>
+        </label>
+
+        <div class="stv-web-composer-controls">
+          <label class="stv-web-select-control">
+            <span class="stv-sr-only">${escapeHtml(t("field_model"))}</span>
+            <select id="model" aria-label="${escapeHtml(t("field_model"))}">${webModelOptions}</select>
+          </label>
+          <label class="stv-web-select-control stv-web-select-control--compact">
+            <span class="stv-sr-only">${escapeHtml(t("field_ratio"))}</span>
+            <select id="aspect-ratio" aria-label="${escapeHtml(t("field_ratio"))}">${webRatioOptions}</select>
+          </label>
+          <label class="stv-web-select-control stv-web-select-control--compact">
+            <span class="stv-sr-only">${escapeHtml(t("field_size"))}</span>
+            <select id="image-size" aria-label="${escapeHtml(t("field_size"))}">${webSizeOptions}</select>
+          </label>
+        </div>
+
+        <details class="stv-web-appearance">
+          <summary>${escapeHtml(t("grooming_title"))}</summary>
+          ${groomingMainSectionHtml}
+        </details>
+
+        <div class="stv-web-primary-row">
+          <button type="button" id="run-generate" class="primary" ${canGenerate ? "" : "disabled"}>
+            ${escapeHtml(primaryGenerateButtonLabel())}
+            <span class="stv-web-run-cost">${escapeHtml(String(requiredCredits))} ✦</span>
+          </button>
+          <button type="button" id="buy-credits" class="stv-web-buy-credits${needsCredits ? " primary" : ""}" ${needsCredits && !state.generating ? "" : "disabled"}>
+            ${state.waitingForPayment ? escapeHtml(t("btn_waiting_payment")) : escapeHtml(t("btn_buy_credits"))}
+          </button>
+        </div>
+        ${
+          cooldownLeftSec > 0
+            ? `<p class="muted stv-web-status">${escapeHtml(t("cooldown"))}: ${escapeHtml(String(cooldownLeftSec))} ${escapeHtml(t("cooldown_sec"))}</p>`
+            : state.info
+              ? `<p class="muted stv-web-status">${escapeHtml(state.info)}</p>`
+              : ""
+        }
+      </div>
+    </div>
+  `
+    : `
     <div class="stv-shell">
       <header class="stv-topbar stv-topbar--compact">
         <div class="stv-topbar-left">
@@ -2994,6 +3210,16 @@ function renderMain() {
   if (saveBlocksBtn) {
     saveBlocksBtn.addEventListener("click", () => {
       applyStructuredStyleSaveFromDom();
+    });
+  }
+
+  const webPromptInput = document.getElementById("stv-web-prompt-input");
+  if (webPromptInput) {
+    webPromptInput.addEventListener("input", (e) => {
+      state.webPromptDraft = String(e.target.value || "");
+    });
+    webPromptInput.addEventListener("change", () => {
+      void persistState();
     });
   }
 
@@ -3185,6 +3411,7 @@ async function loadPersistedState() {
 }
 
 export async function boot() {
+  bindWebEmbedMessages();
   state.loading = true;
   render();
 

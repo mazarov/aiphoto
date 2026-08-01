@@ -209,6 +209,8 @@ export async function searchCardsFiltered(params: {
   seoTag?: string | null;
   hasBefore?: "all" | "yes";
   dataset?: string | null;
+  /** 'yes' (default) | 'no' | 'all' — debug can pass 'all' / 'no'. */
+  published?: "all" | "yes" | "no";
   limit?: number;
   offset?: number;
 }): Promise<{ cards: RouteCard[]; rankedBatchSize: number }> {
@@ -221,6 +223,7 @@ export async function searchCardsFiltered(params: {
     p_seo_tag: params.seoTag || null,
     p_has_before: params.hasBefore ?? "all",
     p_dataset: params.dataset || null,
+    p_published: params.published ?? "yes",
     p_limit: params.limit ?? 100,
     p_offset: params.offset ?? 0,
   });
@@ -240,6 +243,7 @@ export async function countCardsFiltered(params: {
   seoTag?: string | null;
   hasBefore?: "all" | "yes";
   dataset?: string | null;
+  published?: "all" | "yes" | "no";
 }): Promise<number> {
   const supabase = createSupabaseServer();
   const { data, error } = await supabase.rpc("search_cards_filtered", {
@@ -250,6 +254,7 @@ export async function countCardsFiltered(params: {
     p_seo_tag: params.seoTag || null,
     p_has_before: params.hasBefore ?? "all",
     p_dataset: params.dataset || null,
+    p_published: params.published ?? "yes",
     p_limit: 100000,
     p_offset: 0,
   });
@@ -278,13 +283,21 @@ export async function searchCardsByText(
   return (data || []) as SearchTextResult[];
 }
 
-export async function fetchDatasets(): Promise<string[]> {
+export async function fetchDatasets(options?: {
+  /** When true, include datasets that only have unpublished cards (debug). */
+  includeUnpublished?: boolean;
+}): Promise<string[]> {
   const supabase = createSupabaseServer();
-  const { data, error } = await supabase
+  let query = supabase
     .from("prompt_cards")
     .select("source_dataset_slug")
-    .eq("is_published", true)
     .not("source_dataset_slug", "is", null);
+
+  if (!options?.includeUnpublished) {
+    query = query.eq("is_published", true);
+  }
+
+  const { data, error } = await query;
 
   if (error) return [];
   const slugs = new Set<string>();
@@ -866,6 +879,8 @@ export type CardPageData = {
 export type GetCardPageDataOptions = {
   /** Logged-in user id from cookies; allows viewing own unpublished UGC. */
   viewerUserId?: string | null;
+  /** Debug tools cookie — allows viewing any unpublished card on `/p/[slug]`. */
+  allowDebugUnpublished?: boolean;
 };
 
 /** Internal core implementation. Accepts an already-created Supabase client so it can be reused by API routes. */
@@ -873,6 +888,7 @@ async function fetchCardPageDataCore(
   supabase: ReturnType<typeof createSupabaseServer>,
   slug: string,
   viewerUserId?: string | null,
+  allowDebugUnpublished = false,
 ): Promise<CardPageData | null> {
   /** Включает `author_user_id` — колонка из миграции 156, обязательна в проде. */
   const { data: card, error: cardError } = await supabase
@@ -896,7 +912,7 @@ async function fetchCardPageDataCore(
   const viewerId = viewerUserId ?? null;
   const viewerIsOwner = !!(viewerId && authorUserId && viewerId === authorUserId);
 
-  if (!isPublished && !viewerIsOwner) return null;
+  if (!isPublished && !viewerIsOwner && !allowDebugUnpublished) return null;
 
   let authorAvatarUrl: string | null = null;
   let authorDisplayName: string | null = null;
@@ -1089,7 +1105,12 @@ export async function getCardPageData(
   options?: GetCardPageDataOptions,
 ): Promise<CardPageData | null> {
   const supabase = createSupabaseServer();
-  return fetchCardPageDataCore(supabase, slug, options?.viewerUserId);
+  return fetchCardPageDataCore(
+    supabase,
+    slug,
+    options?.viewerUserId,
+    options?.allowDebugUnpublished === true,
+  );
 }
 
 /** Public core for client-side API routes (reuses the same logic). */

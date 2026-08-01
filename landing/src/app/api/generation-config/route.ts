@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServer } from "@/lib/supabase";
+import { displayLabelForGenerationModel } from "@/lib/generation-model-labels";
 
 const ASPECT_RATIOS = [
   { value: "1:1", label: "1:1, квадратный" },
@@ -45,14 +46,14 @@ export async function GET() {
         .filter((m: { enabled?: boolean }) => m.enabled !== false)
         .map((m: { id: string; label: string; cost: number }) => ({
           id: m.id,
-          label: m.label,
+          label: displayLabelForGenerationModel(m.id, m.label),
           cost: m.cost,
         }));
     } catch {
       models = [
-        { id: "gemini-2.5-flash-image", label: "Flash", cost: 1 },
-        { id: "gemini-3-pro-image-preview", label: "Pro", cost: 2 },
-        { id: "gemini-3.1-flash-image-preview", label: "Ultra", cost: 3 },
+        { id: "gemini-2.5-flash-image", label: displayLabelForGenerationModel("gemini-2.5-flash-image"), cost: 1 },
+        { id: "gemini-3-pro-image-preview", label: displayLabelForGenerationModel("gemini-3-pro-image-preview"), cost: 2 },
+        { id: "gemini-3.1-flash-image-preview", label: displayLabelForGenerationModel("gemini-3.1-flash-image-preview"), cost: 3 },
       ];
     }
 

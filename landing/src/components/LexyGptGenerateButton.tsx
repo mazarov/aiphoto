@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
+import { useGeneration } from "@/context/GenerationContext";
 import {
   copyLexyPromptSyncExec,
   copyLexyPromptToClipboard,
@@ -17,6 +18,9 @@ import {
 
 type Props = {
   promptText: string;
+  /** Card context enables the internal STV route for allowlisted users. */
+  cardId?: string;
+  sourceImageUrl?: string;
   variant: "listing" | "expanded" | "sticky" | "widget-sm" | "widget-md" | "desktop-panel";
   disabled?: boolean;
   className?: string;
@@ -24,6 +28,8 @@ type Props = {
   metricGoal?: string;
   /** Подпись в idle-состоянии; по умолчанию «Повторить». */
   idleLabel?: string;
+  /** When set (card page), opens inline compose instead of STV drawer. */
+  onInternalGenerate?: () => void;
 };
 
 type Phase =
@@ -48,17 +54,31 @@ const VARIANT_BASE: Record<Props["variant"], string> = {
 
 const PHASE_MS = 2800;
 
-/** Outbound CTA → LexyGPT: вкладка открывается синхронно по клику, промпт уходит в буфер когда возможно. */
+function toAbsoluteImageUrl(url: string): string {
+  const trimmed = url.trim();
+  if (!trimmed || /^https?:\/\//i.test(trimmed)) return trimmed;
+  if (typeof window !== "undefined" && trimmed.startsWith("/")) {
+    return `${window.location.origin}${trimmed}`;
+  }
+  return trimmed;
+}
+
+/** Card CTA routes to STV; calls without card context keep the outbound LexyGPT flow. */
 export function LexyGptGenerateButton({
   promptText,
+  cardId,
+  sourceImageUrl,
   variant,
   disabled,
   className = "",
   metricGoal = YM_GOAL_LEXYGPT_GENERATE_PROMPTCARD,
   idleLabel = "Повторить",
+  onInternalGenerate,
 }: Props) {
+  const generation = useGeneration();
   const [phase, setPhase] = useState<Phase>("idle");
   const [busy, setBusy] = useState(false);
+  const useInternalGeneration = Boolean(cardId);
 
   const resetPhaseLater = useCallback(() => {
     window.setTimeout(() => {
@@ -75,6 +95,22 @@ export function LexyGptGenerateButton({
       if (disabled || !trimmed || busy) return;
 
       reachYandexMetrikaGoal(metricGoal);
+
+      if (onInternalGenerate) {
+        onInternalGenerate();
+        return;
+      }
+
+      if (useInternalGeneration && cardId && generation) {
+        generation.openGenerationModal({
+          cardId,
+          initialPrompt: trimmed,
+          sourceImageUrl: sourceImageUrl
+            ? toAbsoluteImageUrl(sourceImageUrl)
+            : undefined,
+        });
+        return;
+      }
 
       setBusy(true);
 
@@ -106,11 +142,24 @@ export function LexyGptGenerateButton({
         }
       })();
     },
-    [busy, disabled, metricGoal, promptText, resetPhaseLater, variant]
+    [
+      busy,
+      cardId,
+      disabled,
+      generation,
+      metricGoal,
+      onInternalGenerate,
+      promptText,
+      resetPhaseLater,
+      sourceImageUrl,
+      useInternalGeneration,
+    ]
   );
 
   const ariaLabelDetailed =
-    phase === "opening"
+    useInternalGeneration
+      ? "Повторить во внутренней генерации Promptshot"
+      : phase === "opening"
       ? "Скопировано, новая вкладка LexyGPT открыта"
       : phase === "tab_only"
         ? "Вкладка LexyGPT открыта — скопируйте промпт из страницы"

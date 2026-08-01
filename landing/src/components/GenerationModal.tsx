@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef, useCallback } from "react";
 import { useGeneration } from "@/context/GenerationContext";
 
 /**
@@ -11,9 +11,11 @@ export function GenerationModal() {
   const isOpen = generation?.isOpen ?? false;
   const closeGenerationModal = generation?.closeGenerationModal ?? (() => {});
   const initialCardId = generation?.initialCardId ?? null;
+  const initialPrompt = generation?.initialPrompt ?? null;
   const sourceImageUrl = generation?.sourceImageUrl ?? null;
 
   const [panelIn, setPanelIn] = useState(false);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
 
   useEffect(() => {
     if (!isOpen) {
@@ -42,6 +44,32 @@ export function GenerationModal() {
     return q ? `/embed/stv?${q}` : "/embed/stv";
   }, [isOpen, initialCardId, sourceImageUrl]);
 
+  const sendInitialPrompt = useCallback(() => {
+    iframeRef.current?.contentWindow?.postMessage(
+      {
+        type: "STV_INITIAL_PROMPT",
+        cardId: initialCardId,
+        prompt: initialPrompt ?? "",
+      },
+      window.location.origin
+    );
+  }, [initialCardId, initialPrompt]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const onMessage = (event: MessageEvent) => {
+      if (
+        event.origin === window.location.origin &&
+        event.source === iframeRef.current?.contentWindow &&
+        event.data?.type === "STV_READY_FOR_PROMPT"
+      ) {
+        sendInitialPrompt();
+      }
+    };
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, [isOpen, sendInitialPrompt]);
+
   if (!isOpen) return null;
 
   return (
@@ -56,27 +84,32 @@ export function GenerationModal() {
       />
 
       <aside
-        className={`absolute top-0 right-0 z-[121] flex h-[100dvh] max-h-[100vh] w-full max-w-[min(100%,528px)] flex-col border-l border-zinc-800/90 bg-zinc-950 shadow-[-12px_0_40px_rgba(0,0,0,0.45)] transition-transform duration-300 ease-out ${
+        className={`absolute top-0 right-0 z-[121] flex h-[100dvh] max-h-[100vh] w-full max-w-[min(100%,600px)] flex-col border-l border-white/10 bg-[#09090b] shadow-[-20px_0_64px_rgba(0,0,0,0.56)] transition-transform duration-300 ease-out ${
           panelIn ? "translate-x-0" : "translate-x-full"
         }`}
         aria-label="Генерация PromptShot"
       >
-        <div className="flex shrink-0 items-center justify-between gap-2 border-b border-zinc-800/90 px-3 py-2.5">
-          <span className="truncate text-sm font-semibold tracking-tight text-zinc-200">
-            Steal This Vibe
+        <div className="flex min-h-16 shrink-0 items-center justify-between gap-3 border-b border-white/10 px-4 md:px-5">
+          <span className="truncate text-lg font-semibold tracking-tight text-zinc-100">
+            Генерация
           </span>
           <button
             type="button"
             onClick={closeGenerationModal}
-            className="shrink-0 rounded-lg border border-zinc-700/80 bg-zinc-900 px-3 py-1.5 text-xs font-semibold text-zinc-100 transition hover:bg-zinc-800"
+            aria-label="Закрыть генерацию"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/[0.05] text-zinc-300 transition hover:bg-white/10 hover:text-white active:scale-[0.97]"
           >
-            Закрыть
+            <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+              <path d="M6 6l12 12M18 6 6 18" strokeLinecap="round" />
+            </svg>
           </button>
         </div>
         <iframe
+          ref={iframeRef}
           key={iframeSrc}
           title="Генерация PromptShot"
           src={iframeSrc}
+          onLoad={sendInitialPrompt}
           className="min-h-0 w-full flex-1 border-0 bg-zinc-950"
         />
       </aside>

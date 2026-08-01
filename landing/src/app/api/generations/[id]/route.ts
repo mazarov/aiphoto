@@ -1,15 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServer, getStoragePublicUrl } from "@/lib/supabase";
 import { getSupabaseUserForApiRoute } from "@/lib/supabase-route-auth";
+import { isStvOpenGenerateDebugEnabled } from "@/lib/stv-open-generate-debug";
 
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const openDebug = isStvOpenGenerateDebugEnabled();
     const { user, error: authError } = await getSupabaseUserForApiRoute(req);
 
-    if (authError || !user) {
+    if ((authError || !user) && !openDebug) {
       return NextResponse.json({ error: "unauthorized" }, { status: 401 });
     }
 
@@ -19,12 +21,12 @@ export async function GET(
     }
 
     const supabase = createSupabaseServer();
-    const { data: gen, error } = await supabase
-      .from("landing_generations")
-      .select("*")
-      .eq("id", id)
-      .eq("user_id", user.id)
-      .single();
+    let query = supabase.from("landing_generations").select("*").eq("id", id);
+    // Open-debug generations are owned by guest-owner id, not the caller JWT.
+    if (!openDebug && user) {
+      query = query.eq("user_id", user.id);
+    }
+    const { data: gen, error } = await query.single();
 
     if (error || !gen) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });

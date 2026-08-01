@@ -283,6 +283,8 @@ function PromptCardBase({
                 </button>
                 <LexyGptGenerateButton
                   promptText={card.promptTexts.join("\n\n")}
+                  cardId={card.id}
+                  sourceImageUrl={currentPhoto ?? undefined}
                   variant="listing"
                   className="listing-card-chrome-target"
                 />
@@ -349,6 +351,8 @@ function PromptCardBase({
               </button>
               <LexyGptGenerateButton
                 promptText={card.promptTexts.join("\n\n")}
+                cardId={card.id}
+                sourceImageUrl={currentPhoto ?? undefined}
                 variant="expanded"
               />
             </div>

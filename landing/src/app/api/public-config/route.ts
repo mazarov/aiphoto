@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { isStvGuestModeEnabled } from "@/lib/stv-guest-mode";
 
 /**
  * Public values for Chrome extension (anon key is already public in the browser on the site).
@@ -17,6 +18,7 @@ export async function GET() {
   return NextResponse.json({
     supabaseUrl,
     supabaseAnonKey,
+    stvGuestMode: isStvGuestModeEnabled(),
     yandexOAuthClientId: yandexOAuthClientId || undefined,
     yandexOAuthRedirectUri: yandexOAuthClientId ? yandexOAuthRedirectUri : undefined,
   });

@@ -11,6 +11,11 @@ export async function GET(req: NextRequest) {
   const seoTag = params.get("seoTag")?.trim() || null;
   const hasBefore = (params.get("hasBefore") || "all") as "all" | "yes";
   const dataset = params.get("dataset")?.trim() || null;
+  const publishedRaw = (params.get("published") || "yes").trim().toLowerCase();
+  const published =
+    publishedRaw === "all" || publishedRaw === "no" || publishedRaw === "yes"
+      ? (publishedRaw as "all" | "yes" | "no")
+      : "yes";
   const limit = Math.min(
     LISTING_INFINITE_PAGE_SIZE,
     Math.max(1, Number(params.get("limit")) || LISTING_INFINITE_PAGE_SIZE)
@@ -26,6 +31,7 @@ export async function GET(req: NextRequest) {
     seoTag,
     hasBefore,
     dataset,
+    published,
   };
 
   const [{ cards, rankedBatchSize }, total] = await Promise.all([
