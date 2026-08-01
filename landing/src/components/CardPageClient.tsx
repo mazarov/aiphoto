@@ -799,7 +799,11 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
               )}
 
               {tagEntries.length > 0 && (
-                <DesktopPanelTags tags={tagEntries} resetKey={data.id} />
+                <DesktopPanelTags
+                  tags={tagEntries}
+                  resetKey={data.id}
+                  openInNewTab={isModal}
+                />
               )}
 
               <div className="mt-3 flex flex-wrap items-center gap-1.5 px-4">
@@ -1444,9 +1448,12 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
 function DesktopPanelTags({
   tags,
   resetKey,
+  openInNewTab = false,
 }: {
   tags: TagEntry[];
   resetKey: string;
+  /** Modal over listing: open category pages in a new tab so the overlay stays put. */
+  openInNewTab?: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [needsMore, setNeedsMore] = useState(false);
@@ -1493,7 +1500,15 @@ function DesktopPanelTags({
       >
         {tags.map(({ slug, label, href }) =>
           href ? (
-            <Link key={slug} href={href} data-tag-chip className={DESKTOP_PANEL_CHIP}>
+            <Link
+              key={slug}
+              href={href}
+              data-tag-chip
+              className={DESKTOP_PANEL_CHIP}
+              {...(openInNewTab
+                ? { target: "_blank", rel: "noopener noreferrer" }
+                : {})}
+            >
               {label}
             </Link>
           ) : (
