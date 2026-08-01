@@ -3,8 +3,9 @@ import type { Metadata } from "next";
 import nextDynamic from "next/dynamic";
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
-import { getCardPageData, getIndexableImageUrl } from "@/lib/supabase";
+import { createSupabaseServer, getCardPageData, getIndexableImageUrl } from "@/lib/supabase";
 import { getSupabaseUserFromServerCookies } from "@/lib/supabase-route-auth";
+import { resolveViewerDbUserId } from "@/lib/resolve-db-user-id";
 import { DEBUG_TOOLS_COOKIE } from "@/lib/debug-tools-session";
 import {
   getFirstTagFromSeoTags,
@@ -33,6 +34,12 @@ async function readAllowDebugUnpublished(): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+async function resolveViewerDbIdFromCookies(): Promise<string | null> {
+  const viewer = await getSupabaseUserFromServerCookies();
+  if (!viewer) return null;
+  return resolveViewerDbUserId(createSupabaseServer(), viewer);
 }
 
 const BASE_URL =
@@ -97,9 +104,9 @@ export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
-  const viewer = await getSupabaseUserFromServerCookies();
+  const viewerUserId = await resolveViewerDbIdFromCookies();
   const allowDebugUnpublished = await readAllowDebugUnpublished();
-  const data = await getCachedCardPageData(slug, viewer?.id ?? null, allowDebugUnpublished);
+  const data = await getCachedCardPageData(slug, viewerUserId, allowDebugUnpublished);
   if (!data) notFound();
 
   const title = data.title_ru || data.title_en || "Промт";
@@ -147,9 +154,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function CardPage({ params }: Props) {
   const { slug } = await params;
-  const viewer = await getSupabaseUserFromServerCookies();
+  const viewerUserId = await resolveViewerDbIdFromCookies();
   const allowDebugUnpublished = await readAllowDebugUnpublished();
-  const data = await getCachedCardPageData(slug, viewer?.id ?? null, allowDebugUnpublished);
+  const data = await getCachedCardPageData(slug, viewerUserId, allowDebugUnpublished);
 
   if (!data) notFound();
 

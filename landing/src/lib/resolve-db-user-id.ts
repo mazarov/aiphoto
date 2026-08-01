@@ -104,3 +104,13 @@ export async function resolveSharedDbUserId(
 
   return null;
 }
+
+/** Viewer id for author_user_id / ownership checks (JWT may ≠ shared DB id). */
+export async function resolveViewerDbUserId(
+  supabase: SupabaseClient,
+  user: User | null | undefined
+): Promise<string | null> {
+  if (!user) return null;
+  const resolved = await resolveSharedDbUserId(supabase, user);
+  return resolved?.dbUserId ?? user.id;
+}

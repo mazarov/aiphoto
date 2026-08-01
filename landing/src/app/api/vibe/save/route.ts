@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServer } from "@/lib/supabase";
 import { getSupabaseUserForApiRoute } from "@/lib/supabase-route-auth";
+import { resolveViewerDbUserId } from "@/lib/resolve-db-user-id";
 import { TAG_REGISTRY, type Dimension } from "@/lib/tag-registry";
 
 const ALLOWED_ACCENTS = ["scene", "lighting", "mood", "composition"] as const;
@@ -247,6 +248,7 @@ export async function POST(req: NextRequest) {
     }
 
     const supabase = createSupabaseServer();
+    const authorDbUserId = (await resolveViewerDbUserId(supabase, user)) ?? user.id;
 
     const { data: generation, error: generationError } = await supabase
       .from("landing_generations")
@@ -363,7 +365,7 @@ export async function POST(req: NextRequest) {
             parse_status: "parsed",
             parse_warnings: [],
             is_published: false,
-            author_user_id: user.id,
+            author_user_id: authorDbUserId,
           })
           .select("id,slug")
           .single();

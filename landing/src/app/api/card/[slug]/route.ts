@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { fetchCardPageDataCore, createSupabaseServer } from "@/lib/supabase";
 import { getSupabaseUserForApiRoute } from "@/lib/supabase-route-auth";
 import { DEBUG_TOOLS_COOKIE } from "@/lib/debug-tools-session";
+import { resolveViewerDbUserId } from "@/lib/resolve-db-user-id";
 
 export const dynamic = "force-dynamic";
 
@@ -13,10 +14,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     const { user } = await getSupabaseUserForApiRoute(request);
-    const viewerUserId = user?.id ?? null;
     const allowDebugUnpublished = request.cookies.get(DEBUG_TOOLS_COOKIE)?.value === "1";
 
     const supabase = createSupabaseServer();
+    const viewerUserId = await resolveViewerDbUserId(supabase, user);
     const data = await fetchCardPageDataCore(
       supabase,
       slug,
