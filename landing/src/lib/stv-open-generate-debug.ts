@@ -2,7 +2,8 @@ import { isInternalGenerateAllowlistedEmail } from "@/lib/internal-generate-allo
 
 /**
  * Temporary open generate for allowlisted card inline UI.
- * When enabled: upload/generate/poll skip credits (and may use guest DB owner).
+ * When enabled: generate skips credits; row is still owned by the session user.
+ * Auth is always required (no anonymous open-debug).
  *
  * Requires allowlisted session email. Flag:
  * - unset → on for allowlisted (dev and prod)

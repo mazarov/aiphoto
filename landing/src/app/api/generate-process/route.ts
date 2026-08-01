@@ -28,6 +28,76 @@ function toErrorMeta(err: unknown) {
   };
 }
 
+type GeminiCandidateLike = {
+  finishReason?: string;
+  finishMessage?: string;
+  content?: { parts?: Array<{ text?: string; inlineData?: { data?: string } }> };
+};
+
+/**
+ * Surface Gemini's own signals in error_message — no localized rewrite.
+ * Prefer API error.message, then blockReason(s), finishReason/Message, candidate text.
+ */
+function extractGeminiFailureMessage(
+  geminiData: Record<string, unknown>,
+  httpStatus: number
+): { errorType: string; errorMessage: string } {
+  const chunks: string[] = [];
+
+  const apiError = geminiData.error as
+    | { message?: string; status?: string; code?: number | string }
+    | undefined;
+  if (typeof apiError?.message === "string" && apiError.message.trim()) {
+    chunks.push(apiError.message.trim());
+  } else if (apiError?.status) {
+    chunks.push(String(apiError.status));
+  }
+  if (apiError?.code != null) chunks.push(`code=${apiError.code}`);
+
+  const promptFeedback = geminiData.promptFeedback as
+    | {
+        blockReason?: string;
+        blockReasonMessage?: string;
+      }
+    | undefined;
+  if (
+    typeof promptFeedback?.blockReasonMessage === "string" &&
+    promptFeedback.blockReasonMessage.trim()
+  ) {
+    chunks.push(promptFeedback.blockReasonMessage.trim());
+  }
+  if (typeof promptFeedback?.blockReason === "string" && promptFeedback.blockReason.trim()) {
+    chunks.push(`blockReason=${promptFeedback.blockReason.trim()}`);
+  }
+
+  const candidates = geminiData.candidates as GeminiCandidateLike[] | undefined;
+  const first = Array.isArray(candidates) ? candidates[0] : undefined;
+  if (typeof first?.finishMessage === "string" && first.finishMessage.trim()) {
+    chunks.push(first.finishMessage.trim());
+  }
+  if (typeof first?.finishReason === "string" && first.finishReason.trim()) {
+    chunks.push(`finishReason=${first.finishReason.trim()}`);
+  }
+  const text = first?.content?.parts?.find((p) => typeof p.text === "string")?.text?.trim();
+  if (text) chunks.push(text.slice(0, 500));
+
+  if (!chunks.length && httpStatus !== 200) {
+    chunks.push(`HTTP ${httpStatus}`);
+  }
+
+  const errorMessage = chunks.length
+    ? chunks.join(" | ").slice(0, 2000)
+    : JSON.stringify(geminiData).slice(0, 2000);
+
+  const errorType =
+    (typeof apiError?.status === "string" && apiError.status) ||
+    (typeof promptFeedback?.blockReason === "string" && promptFeedback.blockReason) ||
+    (typeof first?.finishReason === "string" && first.finishReason) ||
+    "gemini_error";
+
+  return { errorType, errorMessage };
+}
+
 function parseBooleanConfig(value: string | null | undefined, fallback: boolean): boolean {
   const raw = String(value ?? "").trim().toLowerCase();
   if (!raw) return fallback;
@@ -544,29 +614,23 @@ async function processGeneration(
       typeof firstTextPart?.text === "string" ? firstTextPart.text.slice(0, 200) : null,
   });
 
-  const blockReason = (geminiData?.promptFeedback as { blockReason?: string } | undefined)?.blockReason;
-  if (blockReason) {
-    console.warn("[generation.process] gemini blocked", {
-      generationId: id,
-      pipelineTrace: pt,
-      blockReason,
-    });
-    await refundAndFail("gemini_blocked", "Контент заблокирован модерацией");
-    return;
-  }
-
   const imagePart = firstCandidateParts.find((p: { inlineData?: { data: string } }) => p.inlineData);
   const imageBase64 = imagePart?.inlineData?.data;
 
   if (!imageBase64) {
-    const errMsg = (geminiData?.error as { message?: string } | undefined)?.message || "Gemini не вернул изображение";
+    const { errorType, errorMessage } = extractGeminiFailureMessage(
+      geminiData,
+      geminiRes.status
+    );
     console.error("[generation.process] no image in gemini response", {
       generationId: id,
       pipelineTrace: pt,
-      errMsg,
+      errorType,
+      errorMessage,
       status: geminiRes.status,
+      ok: geminiRes.ok,
     });
-    await refundAndFail("no_image", errMsg);
+    await refundAndFail(errorType, errorMessage);
     return;
   }
 

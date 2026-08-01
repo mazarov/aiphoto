@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServer } from "@/lib/supabase";
 import { getSupabaseUserForApiRoute } from "@/lib/supabase-route-auth";
 import { getStvPipelineTrace, stvLog } from "@/lib/stv-pipeline-log";
-import { resolveGuestOwnerDbUserId } from "@/lib/ensure-landing-user";
 import { isStvOpenGenerateDebugEnabled } from "@/lib/stv-open-generate-debug";
 import sharp from "sharp";
 
@@ -15,26 +14,15 @@ const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp"];
 export async function POST(req: NextRequest) {
   try {
     const { user, error: authError } = await getSupabaseUserForApiRoute(req);
-    const openDebug = isStvOpenGenerateDebugEnabled(user?.email);
 
-    if ((authError || !user) && !openDebug) {
+    if (authError || !user) {
       return NextResponse.json({ error: "unauthorized" }, { status: 401 });
     }
 
+    const openDebug = isStvOpenGenerateDebugEnabled(user.email);
     const pipelineTrace = getStvPipelineTrace(req);
     const supabase = createSupabaseServer();
-
-    let storageUserId = user?.id ?? "";
-    if (!storageUserId) {
-      const owner = await resolveGuestOwnerDbUserId(supabase);
-      if ("error" in owner) {
-        return NextResponse.json(
-          { error: "guest_owner_unavailable", message: owner.error },
-          { status: 500 }
-        );
-      }
-      storageUserId = owner.userId;
-    }
+    const storageUserId = user.id;
 
     const formData = await req.formData();
     const file = formData.get("file") as File | null;

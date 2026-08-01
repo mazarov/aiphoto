@@ -3,10 +3,7 @@ import { createSupabaseServer } from "@/lib/supabase";
 import { getSupabaseUserForApiRoute } from "@/lib/supabase-route-auth";
 import { getStvPipelineTrace, stvLog } from "@/lib/stv-pipeline-log";
 import { isStvGuestUser } from "@/lib/stv-guest-mode";
-import {
-  ensureLandingUserForGeneration,
-  resolveGuestOwnerDbUserId,
-} from "@/lib/ensure-landing-user";
+import { ensureLandingUserForGeneration } from "@/lib/ensure-landing-user";
 import { isStvOpenGenerateDebugEnabled } from "@/lib/stv-open-generate-debug";
 
 /** PromptShot paid generate is site-only for now (inline compose / same-origin). */
@@ -28,14 +25,14 @@ export async function POST(req: NextRequest) {
   try {
     console.log("[generation.create] incoming request");
     const { user, error: authError } = await getSupabaseUserForApiRoute(req);
-    const openDebug = isStvOpenGenerateDebugEnabled(user?.email);
-
-    if ((authError || !user) && !openDebug) {
+    if (authError || !user) {
       console.warn("[generation.create] unauthorized", {
         authError: authError?.message ?? null,
       });
       return NextResponse.json({ error: "unauthorized" }, { status: 401 });
     }
+    /** Allowlisted internal generate: free credits, still attributed to this session user. */
+    const openDebug = isStvOpenGenerateDebugEnabled(user.email);
 
     const body = await req.json();
     const pipelineTrace = getStvPipelineTrace(req, body);
@@ -61,7 +58,7 @@ export async function POST(req: NextRequest) {
     const minPromptLength = 8;
     const validAspectRatios = ["1:1", "4:3", "3:4", "16:9", "9:16", "3:2", "2:3"];
     const validImageSizes = ["1K", "2K", "4K"];
-    const callerId = user?.id ?? "open-debug";
+    const callerId = user.id;
 
     if (!prompt || typeof prompt !== "string" || prompt.trim().length < minPromptLength) {
       console.warn("[generation.create] validation error: prompt too short", {
@@ -173,40 +170,42 @@ export async function POST(req: NextRequest) {
     const promptPreview =
       promptText.length > 800 ? `${promptText.slice(0, 800)}... [truncated]` : promptText;
 
-    let dbUserId: string;
-    let usedGuestOwner = false;
-    if (openDebug || !user) {
-      const owner = await resolveGuestOwnerDbUserId(supabase);
-      if ("error" in owner) {
-        console.error("[generation.create] open-debug owner failed", { error: owner.error });
+    const ensuredUser = await ensureLandingUserForGeneration(supabase, user);
+    if (!ensuredUser.ok) {
+      return NextResponse.json(
+        { error: ensuredUser.error, message: ensuredUser.message },
+        { status: ensuredUser.status }
+      );
+    }
+
+    let dbUserId = ensuredUser.dbUserId;
+    let usedGuestOwner = ensuredUser.usedGuestOwner;
+    /** Open-debug / allowlisted internal generate: always own the row as the session user. */
+    if (openDebug) {
+      if (ensuredUser.usedGuestOwner || ensuredUser.dbUserId !== user.id) {
+        console.error("[generation.create] open-debug cannot bind to session user", {
+          userId: user.id,
+          dbUserId: ensuredUser.dbUserId,
+          usedGuestOwner: ensuredUser.usedGuestOwner,
+        });
         return NextResponse.json(
           {
-            error: "guest_owner_unavailable",
+            error: "profile_unavailable",
             message:
-              "Нет FK-валидного профиля для open-debug. Войдите один раз через Google/Yandex.",
+              "Не удалось привязать генерацию к вашему профилю. Проверьте landing_users для этого аккаунта.",
           },
           { status: 500 }
         );
       }
-      dbUserId = owner.userId;
-      usedGuestOwner = true;
-    } else {
-      const ensuredUser = await ensureLandingUserForGeneration(supabase, user);
-      if (!ensuredUser.ok) {
-        return NextResponse.json(
-          { error: ensuredUser.error, message: ensuredUser.message },
-          { status: ensuredUser.status }
-        );
-      }
-      dbUserId = ensuredUser.dbUserId;
-      usedGuestOwner = ensuredUser.usedGuestOwner;
+      dbUserId = user.id;
+      usedGuestOwner = false;
     }
 
     console.log("[generation.create] resolved config", {
       userId: callerId,
       dbUserId,
       pipelineTrace,
-      userEmail: user?.email ?? null,
+      userEmail: user.email ?? null,
       openDebug,
       modelRequested: model ?? null,
       modelResolved: modelConfig.id,
