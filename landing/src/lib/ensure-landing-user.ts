@@ -244,6 +244,21 @@ export async function ensureLandingUserForGeneration(
       userId: user.id,
       ensureError: ensureError.message,
     });
+    // Dockhost identity split: GoTrue user exists but FK to auth.users rejects upsert.
+    // Fall back to a proven landing_users row so allowlisted/internal generate can proceed.
+    const owner = await resolveGuestOwnerDbUserId(supabase);
+    if (!("error" in owner)) {
+      console.warn("[ensureLandingUser] upsert failed; using guest owner fallback", {
+        callerUserId: user.id,
+        ownerId: owner.userId,
+      });
+      return {
+        ok: true,
+        credits: 0,
+        dbUserId: owner.userId,
+        usedGuestOwner: true,
+      };
+    }
     return {
       ok: false,
       status: 500,
