@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServer, getStoragePublicUrl } from "@/lib/supabase";
 import { getSupabaseUserForApiRoute } from "@/lib/supabase-route-auth";
+import { resolveSharedDbUserId } from "@/lib/resolve-db-user-id";
 
 export async function GET(req: NextRequest) {
   try {
@@ -14,11 +15,13 @@ export async function GET(req: NextRequest) {
     const offset = Math.max(0, Number(req.nextUrl.searchParams.get("offset")) || 0);
 
     const supabase = createSupabaseServer();
+    const resolved = await resolveSharedDbUserId(supabase, user);
+    const dbUserId = resolved?.dbUserId ?? user.id;
 
     const { data: rows, error } = await supabase
       .from("landing_generations")
       .select("id, status, prompt_text, model, aspect_ratio, created_at, result_storage_bucket, result_storage_path")
-      .eq("user_id", user.id)
+      .eq("user_id", dbUserId)
       .order("created_at", { ascending: false })
       .range(offset, offset + limit - 1);
 
@@ -29,7 +32,7 @@ export async function GET(req: NextRequest) {
     const { count } = await supabase
       .from("landing_generations")
       .select("id", { count: "exact", head: true })
-      .eq("user_id", user.id);
+      .eq("user_id", dbUserId);
 
     const generations = (rows || []).map((g) => ({
       id: g.id,

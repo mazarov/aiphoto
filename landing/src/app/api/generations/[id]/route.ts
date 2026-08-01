@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServer, getStoragePublicUrl } from "@/lib/supabase";
 import { getSupabaseUserForApiRoute } from "@/lib/supabase-route-auth";
+import { resolveSharedDbUserId } from "@/lib/resolve-db-user-id";
 
 export async function GET(
   req: NextRequest,
@@ -19,11 +20,13 @@ export async function GET(
     }
 
     const supabase = createSupabaseServer();
+    const resolved = await resolveSharedDbUserId(supabase, user);
+    const dbUserId = resolved?.dbUserId ?? user.id;
     const { data: gen, error } = await supabase
       .from("landing_generations")
       .select("*")
       .eq("id", id)
-      .eq("user_id", user.id)
+      .eq("user_id", dbUserId)
       .single();
 
     if (error || !gen) {

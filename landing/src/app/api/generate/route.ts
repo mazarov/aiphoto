@@ -180,9 +180,12 @@ export async function POST(req: NextRequest) {
 
     let dbUserId = ensuredUser.dbUserId;
     let usedGuestOwner = ensuredUser.usedGuestOwner;
-    /** Open-debug / allowlisted internal generate: always own the row as the session user. */
+    /**
+     * Open-debug: must bind to the session owner's shared DB id (imageprompt_users),
+     * not guest-owner. JWT auth.users.id may differ from that id on the shared DB.
+     */
     if (openDebug) {
-      if (ensuredUser.usedGuestOwner || ensuredUser.dbUserId !== user.id) {
+      if (ensuredUser.usedGuestOwner) {
         console.error("[generation.create] open-debug cannot bind to session user", {
           userId: user.id,
           dbUserId: ensuredUser.dbUserId,
@@ -197,7 +200,7 @@ export async function POST(req: NextRequest) {
           { status: 500 }
         );
       }
-      dbUserId = user.id;
+      dbUserId = ensuredUser.dbUserId;
       usedGuestOwner = false;
     }
 

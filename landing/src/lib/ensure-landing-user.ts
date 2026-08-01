@@ -1,5 +1,9 @@
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { isStvGuestUser } from "@/lib/stv-guest-mode";
+import {
+  extractOauthProviderSubs,
+  resolveSharedDbUserId,
+} from "@/lib/resolve-db-user-id";
 
 const GUEST_OWNER_EMAIL = "stv-guest-owner@promptshot.internal";
 const GUEST_OWNER_CONFIG_KEY = "stv_guest_owner_user_id";
@@ -167,9 +171,43 @@ export async function resolveGuestOwnerDbUserId(
   return { userId: ownerId };
 }
 
+async function ensureLandingProfileForDbUser(
+  supabase: SupabaseClient,
+  dbUserId: string,
+  user: User
+): Promise<{ credits: number } | { error: string }> {
+  const { data: existing } = await supabase
+    .from("landing_users")
+    .select("credits")
+    .eq("id", dbUserId)
+    .maybeSingle();
+  if (existing) {
+    return { credits: Number(existing.credits || 0) };
+  }
+
+  const provider = String(
+    (user.app_metadata?.provider as string | undefined) ||
+      (user.app_metadata?.providers as string[] | undefined)?.[0] ||
+      "oauth"
+  );
+  const { error } = await supabase.from("landing_users").upsert(
+    {
+      id: dbUserId,
+      display_name: user.email ?? null,
+      provider,
+      credits: 0,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "id" }
+  );
+  if (error) return { error: error.message };
+  return { credits: 0 };
+}
+
 /**
  * Resolve the DB user id that may own landing_generations / credits.
  * For guests this is a stable FK-valid landing_users row; caller JWT remains capability.
+ * For OAuth: map JWT → imageprompt_users via google_sub when ids diverge (shared DB).
  */
 export async function ensureLandingUserForGeneration(
   supabase: SupabaseClient,
@@ -200,16 +238,33 @@ export async function ensureLandingUserForGeneration(
     };
   }
 
-  const { data: existingProfile } = await supabase
-    .from("landing_users")
-    .select("credits")
-    .eq("id", user.id)
-    .maybeSingle();
-  if (existingProfile) {
+  const resolved = await resolveSharedDbUserId(supabase, user);
+  if (resolved) {
+    if (resolved.dbUserId !== user.id) {
+      console.log("[ensureLandingUser] mapped auth user to shared db user", {
+        authUserId: user.id,
+        dbUserId: resolved.dbUserId,
+        source: resolved.source,
+      });
+    }
+    const profile = await ensureLandingProfileForDbUser(supabase, resolved.dbUserId, user);
+    if ("error" in profile) {
+      console.error("[ensureLandingUser] landing_users ensure failed", {
+        authUserId: user.id,
+        dbUserId: resolved.dbUserId,
+        ensureError: profile.error,
+      });
+      return {
+        ok: false,
+        status: 500,
+        error: "server_error",
+        message: "Не удалось создать профиль пользователя",
+      };
+    }
     return {
       ok: true,
-      credits: Number(existingProfile.credits || 0),
-      dbUserId: user.id,
+      credits: profile.credits,
+      dbUserId: resolved.dbUserId,
       usedGuestOwner: false,
     };
   }
@@ -224,25 +279,53 @@ export async function ensureLandingUserForGeneration(
     };
   }
 
-  const provider = String(
-    (user.app_metadata?.provider as string | undefined) ||
-      (user.app_metadata?.providers as string[] | undefined)?.[0] ||
-      "oauth"
-  );
-  const { error: ensureError } = await supabase.from("landing_users").upsert(
-    {
-      id: user.id,
-      display_name: user.email ?? null,
-      provider,
-      credits: 0,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: "id" }
-  );
-  if (ensureError) {
+  const subs = extractOauthProviderSubs(authLookup.user);
+  const googleSub = subs[0];
+  if (!googleSub) {
+    console.error("[ensureLandingUser] no oauth provider subject for new shared user", {
+      authUserId: user.id,
+    });
+    return {
+      ok: false,
+      status: 500,
+      error: "server_error",
+      message: "Не удалось создать профиль пользователя",
+    };
+  }
+
+  const { error: ipInsertError } = await supabase.from("imageprompt_users").insert({
+    id: user.id,
+    google_sub: googleSub,
+    email: user.email ?? null,
+    email_verified: true,
+    display_name: user.email ?? null,
+  });
+
+  let dbUserId = user.id;
+  if (ipInsertError) {
+    // Race / pre-existing google_sub on another id — resolve again.
+    const again = await resolveSharedDbUserId(supabase, authLookup.user);
+    if (!again) {
+      console.error("[ensureLandingUser] imageprompt_users insert failed", {
+        authUserId: user.id,
+        ensureError: ipInsertError.message,
+      });
+      return {
+        ok: false,
+        status: 500,
+        error: "server_error",
+        message: "Не удалось создать профиль пользователя",
+      };
+    }
+    dbUserId = again.dbUserId;
+  }
+
+  const profile = await ensureLandingProfileForDbUser(supabase, dbUserId, user);
+  if ("error" in profile) {
     console.error("[ensureLandingUser] landing_users upsert failed", {
-      userId: user.id,
-      ensureError: ensureError.message,
+      authUserId: user.id,
+      dbUserId,
+      ensureError: profile.error,
     });
     return {
       ok: false,
@@ -254,8 +337,8 @@ export async function ensureLandingUserForGeneration(
 
   return {
     ok: true,
-    credits: 0,
-    dbUserId: user.id,
+    credits: profile.credits,
+    dbUserId,
     usedGuestOwner: false,
   };
 }
