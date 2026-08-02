@@ -4,7 +4,16 @@ const BASE_URL =
   process.env.NEXT_PUBLIC_SITE_URL ||
   (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://promptshot.ru");
 
-const DISALLOWED = ["/api/", "/embed/", "/auth/", "/search", "/favorites", "/generations", "/debug"];
+const DISALLOWED = [
+  "/api/",
+  "/embed/",
+  "/auth/",
+  "/search",
+  "/favorites",
+  "/generations",
+  "/debug",
+  "/pricing",
+];
 
 export function GET() {
   const disallowLines = DISALLOWED.map((p) => `Disallow: ${p}`).join("\n");

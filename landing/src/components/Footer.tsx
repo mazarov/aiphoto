@@ -2,8 +2,13 @@
 
 import Link from "next/link";
 import { SiteLogoMark } from "./SiteLogoMark";
+import { useAuth } from "@/context/AuthContext";
+import { canAccessPricingPreview } from "@/lib/pricing-preview-access";
 
 export function Footer() {
+  const { user } = useAuth();
+  const hasPricingAccess = canAccessPricingPreview(user?.email);
+
   return (
     <footer className="mt-auto border-t border-zinc-100 bg-zinc-50/50">
       <div className="mx-auto max-w-7xl px-5 py-12">
@@ -19,10 +24,13 @@ export function Footer() {
           </div>
           <nav className="flex gap-12">
             <div>
-              <div className="mb-3 text-[11px] font-semibold uppercase tracking-widest text-zinc-400">Навигация</div>
+              <div className="mb-3 text-xs font-semibold uppercase tracking-widest text-zinc-400">Навигация</div>
               <ul className="space-y-2">
                 <li><Link href="/" className="text-sm text-zinc-500 transition-colors hover:text-zinc-900">Главная</Link></li>
                 <li><Link href="/foto-v-promt" className="text-sm text-zinc-500 transition-colors hover:text-zinc-900">Фото в промт</Link></li>
+                {hasPricingAccess && (
+                  <li><Link href="/pricing" className="text-sm text-zinc-500 transition-colors hover:text-zinc-900">Тарифы</Link></li>
+                )}
               </ul>
             </div>
           </nav>
@@ -31,9 +39,14 @@ export function Footer() {
           <p className="text-xs text-zinc-400">
             &copy; {new Date().getFullYear()} PromptShot. Все права защищены.
           </p>
-          <Link href="/privacy" className="text-xs text-zinc-400 transition-colors hover:text-zinc-600">
-            Политика конфиденциальности
-          </Link>
+          <div className="flex flex-wrap gap-x-5 gap-y-2">
+            <Link href="/terms" className="text-xs text-zinc-400 transition-colors hover:text-zinc-600">
+              Публичная оферта
+            </Link>
+            <Link href="/policy" className="text-xs text-zinc-400 transition-colors hover:text-zinc-600">
+              Политика обработки данных
+            </Link>
+          </div>
         </div>
       </div>
     </footer>

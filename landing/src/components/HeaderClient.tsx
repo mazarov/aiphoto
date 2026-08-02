@@ -14,6 +14,7 @@ import {
   LISTING_MOBILE_CHROME_INSET,
   LISTING_NAV_SHELL_SURFACE,
 } from "@/lib/listing-shell-surface";
+import { canAccessPricingPreview } from "@/lib/pricing-preview-access";
 
 function MobileCatalogMenuButton() {
   const chrome = useListingMobileChromeOptional();
@@ -26,6 +27,76 @@ function MobileCatalogMenuButton() {
     <ListingChromeButton variant="icon-sm" onClick={openMenu} aria-label="Каталог">
       <ListingMenuIcon />
     </ListingChromeButton>
+  );
+}
+
+function CreditBalance() {
+  const { user, loading } = useAuth();
+  const [credits, setCredits] = useState<number | null>(null);
+  const hasPricingAccess = canAccessPricingPreview(user?.email);
+
+  useEffect(() => {
+    if (loading || !user || user.is_anonymous === true || !hasPricingAccess) {
+      setCredits(null);
+      return;
+    }
+
+    const controller = new AbortController();
+    setCredits(null);
+
+    void fetch("/api/me", {
+      cache: "no-store",
+      credentials: "include",
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        if (!response.ok) throw new Error(`Balance request failed: ${response.status}`);
+        return response.json() as Promise<{ credits?: number }>;
+      })
+      .then((payload) => {
+        if (!controller.signal.aborted) {
+          setCredits(Number.isFinite(payload.credits) ? Number(payload.credits) : 0);
+        }
+      })
+      .catch((error: unknown) => {
+        if (!controller.signal.aborted) {
+          console.error("[header.balance] failed", error);
+        }
+      });
+
+    return () => controller.abort();
+  }, [hasPricingAccess, loading, user]);
+
+  if (loading || !user || user.is_anonymous === true || !hasPricingAccess) return null;
+
+  return (
+    <div className="flex shrink-0 items-center gap-1.5">
+      <div
+        className="inline-flex min-h-10 items-center gap-1.5 rounded-full border border-indigo-200/60 bg-indigo-50/80 px-2.5 text-sm font-semibold text-indigo-700"
+        aria-label={credits === null ? "Баланс загружается" : `Баланс: ${credits} токенов`}
+      >
+        <svg className="h-4 w-4" viewBox="0 0 20 20" fill="none" aria-hidden>
+          <path d="m10 2.5 5.5 7.5L10 17.5 4.5 10 10 2.5Z" stroke="currentColor" strokeWidth="1.5" />
+          <path d="m4.5 10 5.5 2.5 5.5-2.5M10 2.5v10" stroke="currentColor" strokeWidth="1.2" />
+        </svg>
+        {credits === null ? (
+          <span className="h-4 w-7 animate-pulse rounded bg-indigo-200/70" aria-hidden />
+        ) : (
+          <span>{new Intl.NumberFormat("ru-RU").format(credits)}</span>
+        )}
+      </div>
+
+      <Link
+        href="/pricing"
+        className="inline-flex min-h-10 min-w-10 items-center justify-center gap-1.5 rounded-full bg-indigo-600 px-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 lg:px-3.5"
+        aria-label="Пополнить баланс"
+      >
+        <svg className="h-4 w-4" viewBox="0 0 20 20" fill="none" aria-hidden>
+          <path d="M10 4v12M4 10h12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+        </svg>
+        <span className="hidden lg:inline">Пополнить</span>
+      </Link>
+    </div>
   );
 }
 
@@ -159,7 +230,8 @@ export function HeaderClient() {
           <SiteLogoMark size={28} className="h-7 w-7 shrink-0 rounded-lg" />
           <span className="truncate">PromptShot</span>
         </Link>
-        <div className="flex shrink-0 items-center justify-end">
+        <div className="flex shrink-0 items-center justify-end gap-2">
+          <CreditBalance />
           <UserMenu />
         </div>
       </div>
@@ -176,7 +248,10 @@ export function HeaderClient() {
           <span>PromptShot</span>
         </Link>
 
-        <UserMenu />
+        <div className="flex items-center gap-2">
+          <CreditBalance />
+          <UserMenu />
+        </div>
       </div>
     </header>
   );
