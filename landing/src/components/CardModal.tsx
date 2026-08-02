@@ -86,10 +86,17 @@ export function CardModal({ children, onClose, immersiveMobile = false }: Props)
     };
   }, [deferScrollRestore]);
 
-  // Handle click outside to close
+  // Close when the click lands outside a real card surface. The transparent
+  // desktop shell spans the full modal width, so checking only overlayRef would
+  // incorrectly treat gaps between the photo and details panel as content.
   const handleOverlayClick = useCallback(
     (e: React.MouseEvent) => {
-      if (e.target === overlayRef.current) {
+      const target = e.target;
+      const clickedCardSurface =
+        target instanceof Element &&
+        target.closest("[data-card-modal-surface]");
+
+      if (!clickedCardSurface) {
         handleClose();
       }
     },
@@ -119,6 +126,7 @@ export function CardModal({ children, onClose, immersiveMobile = false }: Props)
         <button
           type="button"
           onClick={handleClose}
+          data-card-modal-surface
           className="absolute -top-3 -right-3 z-50 flex h-10 w-10 items-center justify-center rounded-full bg-zinc-900/90 text-white shadow-lg ring-1 ring-white/15 backdrop-blur-md transition-colors hover:bg-zinc-800 md:-top-2 md:-right-2 max-md:bg-white max-md:text-zinc-700 max-md:ring-0 max-md:hover:bg-zinc-100"
           aria-label="Закрыть"
         >
@@ -130,6 +138,7 @@ export function CardModal({ children, onClose, immersiveMobile = false }: Props)
         {/* Photo cards (immersiveMobile): desktop shell is transparent so photo + dark panel float on the backdrop.
             Text-only cards keep the white rounded card on all breakpoints. */}
         <div
+          data-card-modal-surface={immersiveMobile ? undefined : ""}
           className={
             immersiveMobile
               ? "overflow-hidden rounded-2xl bg-white shadow-2xl md:overflow-visible md:rounded-none md:bg-transparent md:shadow-none"
