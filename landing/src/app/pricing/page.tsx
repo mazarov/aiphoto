@@ -30,10 +30,9 @@ export const metadata: Metadata = {
 export default async function PricingPage({ searchParams }: PricingPageProps) {
   const params = await searchParams;
   const testParam = Array.isArray(params?.test) ? params.test[0] : params?.test;
-  const hasLocalTestAccess =
-    process.env.NODE_ENV === "development" && testParam === "true";
+  const hasTestAccess = testParam === "true";
   const viewer = await getSupabaseUserFromServerCookies();
-  if (!hasLocalTestAccess && !canAccessPricingPreview(viewer?.email)) notFound();
+  if (!hasTestAccess && !canAccessPricingPreview(viewer?.email)) notFound();
 
   return (
     <PageLayout>
