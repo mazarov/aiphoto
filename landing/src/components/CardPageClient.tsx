@@ -504,6 +504,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
       {/* Debug panel */}
       {debugMode && (
         <div
+          data-card-modal-surface={isModal ? "" : undefined}
           className={`mb-4 rounded-xl border border-amber-300 bg-amber-50 p-4 font-mono text-xs text-zinc-700 space-y-1.5 ${hasPhotos ? "max-md:hidden" : ""}`}
         >
           <div className="flex items-center gap-2 mb-2">
@@ -586,6 +587,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
             <div className="group relative flex min-h-0 min-w-0 flex-1 items-center justify-center">
               {currentPhoto ? (
                 <div
+                  data-card-modal-surface={isModal ? "" : undefined}
                   className={`relative mx-auto h-[min(85vh,920px)] max-w-full overflow-hidden rounded-2xl bg-zinc-900 shadow-2xl ring-1 ring-white/10${heroFrameFallback ? " aspect-[3/4]" : ""}`}
                   style={{
                     ...heroFrameStyle,
@@ -695,14 +697,20 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                   )}
                 </div>
               ) : (
-                <div className="flex h-64 w-full max-w-sm items-center justify-center rounded-2xl bg-zinc-900 text-sm text-zinc-500">
+                <div
+                  data-card-modal-surface={isModal ? "" : undefined}
+                  className="flex h-64 w-full max-w-sm items-center justify-center rounded-2xl bg-zinc-900 text-sm text-zinc-500"
+                >
                   Нет фото
                 </div>
               )}
             </div>
 
             {/* Mid: listing prev/next (vertical) */}
-            <div className="flex shrink-0 flex-col items-center justify-center gap-2 self-center">
+            <div
+              data-card-modal-surface={isModal ? "" : undefined}
+              className="flex shrink-0 flex-col items-center justify-center gap-2 self-center"
+            >
               <StickyListingNavButton
                 slug={listingPrev}
                 direction="prev"
@@ -718,7 +726,10 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
             </div>
 
             {/* Right: dark details panel */}
-            <aside className="flex w-[min(100%,340px)] min-h-0 shrink-0 flex-col overflow-hidden rounded-2xl bg-zinc-950 text-zinc-100 shadow-2xl ring-1 ring-white/10 lg:w-[360px]">
+            <aside
+              data-card-modal-surface={isModal ? "" : undefined}
+              className="flex w-[min(100%,340px)] min-h-0 shrink-0 flex-col overflow-hidden rounded-2xl bg-zinc-950 text-zinc-100 shadow-2xl ring-1 ring-white/10 lg:w-[360px]"
+            >
               {canInlineGenerate && inlineGenerateOpen && hasPrompts ? (
                 <CardInlineGeneratePanel
                   promptText={data.promptTexts.join("\n\n")}
@@ -892,7 +903,10 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
               modal (when opened from a listing or search). The close button inside the photo header
               respects onCloseModal (client modal), router.back() (soft modal), or category/home fallback (direct entry). */}
           {hasPhotos && (
-          <div className="fixed inset-0 z-[245] flex min-h-[100dvh] flex-col bg-transparent md:hidden motion-reduce:transition-none">
+          <div
+            data-card-modal-surface={isModal ? "" : undefined}
+            className="fixed inset-0 z-[245] flex min-h-[100dvh] flex-col bg-transparent md:hidden motion-reduce:transition-none"
+          >
             {currentPhoto ? (
               <>
                 <div className="pointer-events-none absolute inset-0 z-[1] bg-zinc-950" aria-hidden />
