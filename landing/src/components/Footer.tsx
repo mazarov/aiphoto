@@ -1,13 +1,18 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { SiteLogoMark } from "./SiteLogoMark";
 import { useAuth } from "@/context/AuthContext";
 import { canAccessPricingPreview } from "@/lib/pricing-preview-access";
 
 export function Footer() {
+  const pathname = usePathname();
   const { user } = useAuth();
   const hasPricingAccess = canAccessPricingPreview(user?.email);
+
+  // Pricing keeps its own compact legal footer so the mobile layout fits one viewport.
+  if (pathname === "/pricing") return null;
 
   return (
     <footer className="mt-auto border-t border-zinc-100 bg-zinc-50/50">

@@ -5,18 +5,6 @@ import { PRICING_PLANS, type PricingPlan } from "./pricing-plans";
 
 const rubles = new Intl.NumberFormat("ru-RU");
 
-function CheckIcon({ included }: { included: boolean }) {
-  return included ? (
-    <svg className="h-4 w-4 shrink-0" viewBox="0 0 20 20" fill="none" aria-hidden>
-      <path d="m4 10 4 4 8-8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  ) : (
-    <svg className="h-4 w-4 shrink-0" viewBox="0 0 20 20" fill="none" aria-hidden>
-      <path d="m6 6 8 8m0-8-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-    </svg>
-  );
-}
-
 function PlanCard({
   plan,
   onSelect,
@@ -31,67 +19,55 @@ function PlanCard({
     <article
       aria-labelledby={headingId}
       className={[
-        "relative flex min-w-0 flex-col rounded-2xl border p-5 transition duration-200 sm:p-6",
+        "relative flex h-full min-h-0 min-w-0 flex-col rounded-2xl border p-3 transition duration-200 sm:p-5",
         recommended
-          ? "border-emerald-400/70 bg-emerald-950/30 shadow-[0_20px_70px_-35px_rgba(52,211,153,0.75)]"
-          : "border-white/10 bg-white/[0.045] hover:border-white/20 hover:bg-white/[0.065]",
+          ? "border-indigo-300 bg-gradient-to-b from-indigo-50/90 to-white shadow-[0_16px_40px_-28px_rgba(79,70,229,0.55)] ring-1 ring-indigo-200/70"
+          : "border-zinc-200/90 bg-white hover:border-zinc-300 hover:shadow-sm",
       ].join(" ")}
     >
       {recommended && (
-        <div className="-mx-5 -mt-5 mb-5 rounded-t-[15px] bg-emerald-300 px-4 py-2 text-center text-xs font-bold uppercase tracking-wide text-emerald-950 sm:-mx-6 sm:-mt-6">
-          Самый популярный
+        <div className="mb-2 inline-flex w-fit rounded-full bg-indigo-600 px-2 py-0.5 text-xs font-semibold text-white sm:mb-3">
+          Популярный
         </div>
       )}
 
-      <div className={recommended ? "" : "pt-1"}>
-        <h2 id={headingId} className="text-lg font-semibold text-white">
+      <div className="flex items-baseline justify-between gap-2">
+        <h2 id={headingId} className="text-base font-semibold tracking-tight text-zinc-900 sm:text-lg">
           {plan.name}
         </h2>
-        <p className="mt-1 text-sm text-zinc-500">{plan.level}</p>
+        <p className="text-xs text-zinc-400 sm:text-sm">{plan.level}</p>
       </div>
 
-      <div className="mt-6 flex flex-wrap items-center gap-2">
-        <span className="text-3xl font-bold tracking-tight text-white">
+      <div className="mt-2 flex flex-wrap items-end gap-1.5 sm:mt-3 sm:gap-2">
+        <span className="text-2xl font-bold tracking-tight text-zinc-900 sm:text-3xl">
           {rubles.format(plan.price)} ₽
         </span>
-        {plan.discount && (
-          <span className="rounded-full bg-emerald-400/15 px-2.5 py-1 text-xs font-bold text-emerald-300">
-            {plan.discount}% скидка
+        {plan.discount ? (
+          <span className="mb-0.5 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700">
+            −{plan.discount}%
           </span>
-        )}
+        ) : null}
       </div>
 
-      <p className="mt-1 text-base text-zinc-500">/ {rubles.format(plan.credits)} токенов</p>
-      <p className="mt-4 inline-flex w-fit rounded-md bg-white/10 px-2.5 py-1.5 text-xs text-zinc-200">
-        до {plan.photos} фото / {plan.videos} видео
+      <p className="mt-1 text-sm text-zinc-500">
+        {rubles.format(plan.credits)} токенов
       </p>
-
-      <div className="my-5 h-px bg-white/10" />
+      <p className="mt-0.5 text-xs text-zinc-400 sm:mt-1">
+        до {plan.photos} фото
+      </p>
 
       <button
         type="button"
         onClick={() => onSelect(plan)}
         className={[
-          "inline-flex min-h-11 w-full items-center justify-center rounded-xl px-4 py-2.5 text-sm font-semibold outline-none transition focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950",
+          "mt-auto inline-flex min-h-10 w-full items-center justify-center rounded-xl px-3 py-2 text-sm font-semibold outline-none transition focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 sm:min-h-11 sm:mt-5",
           recommended
-            ? "bg-emerald-300 text-emerald-950 hover:bg-emerald-200 focus-visible:ring-emerald-300"
-            : "bg-white text-zinc-950 hover:bg-zinc-100 focus-visible:ring-white",
+            ? "bg-indigo-600 text-white hover:bg-indigo-700"
+            : "bg-zinc-900 text-white hover:bg-zinc-800",
         ].join(" ")}
       >
-        Выбрать тариф
+        Выбрать
       </button>
-
-      <ul className="mt-6 flex flex-1 flex-col gap-3 text-sm">
-        {plan.features.map((feature) => (
-          <li
-            key={feature.label}
-            className={`flex items-start gap-2.5 ${feature.included ? "text-zinc-200" : "text-zinc-600"}`}
-          >
-            <CheckIcon included={feature.included} />
-            <span>{feature.label}</span>
-          </li>
-        ))}
-      </ul>
     </article>
   );
 }
@@ -115,22 +91,22 @@ export function PricingCards() {
 
   return (
     <>
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid min-h-0 flex-1 grid-cols-2 grid-rows-2 gap-2 sm:gap-3 lg:grid-cols-4 lg:grid-rows-1 lg:gap-4">
         {PRICING_PLANS.map((plan) => (
           <PlanCard key={plan.id} plan={plan} onSelect={showComingSoon} />
         ))}
       </div>
 
-      {notice && (
+      {notice ? (
         <div
-          className="pointer-events-none fixed bottom-20 left-1/2 z-[90] -translate-x-1/2 rounded-full border border-white/10 bg-zinc-900/95 px-5 py-3 text-sm font-medium text-white shadow-2xl backdrop-blur-xl lg:bottom-6"
+          className="pointer-events-none fixed bottom-20 left-1/2 z-[90] -translate-x-1/2 rounded-full border border-zinc-200 bg-white/95 px-5 py-3 text-sm font-medium text-zinc-800 shadow-xl backdrop-blur-xl lg:bottom-6"
           role="status"
           aria-live="polite"
           aria-atomic="true"
         >
           {notice}
         </div>
-      )}
+      ) : null}
     </>
   );
 }
