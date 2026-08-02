@@ -82,6 +82,7 @@ function ListingSearchHeader() {
   const urlQuery = onSearchPage ? (searchParams.get("q")?.trim() ?? "") : "";
   const hideBottomBar =
     pathname === "/" ||
+    pathname === "/pricing" ||
     pathname.startsWith("/p/") ||
     normalizeNavPath(pathname) === "/foto-v-promt";
 

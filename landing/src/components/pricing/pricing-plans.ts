@@ -1,49 +1,54 @@
 export type PricingPlan = {
-  id: "basic" | "standard" | "pro" | "ultimate";
+  id: "trial" | "start" | "pro" | "max";
   name: string;
-  level: string;
+  tagline: string;
   price: number;
   credits: number;
   photos: number;
   discount?: number;
   recommended?: boolean;
+  ctaLabel: string;
 };
 
 export const PRICING_PLANS: PricingPlan[] = [
   {
-    id: "basic",
-    name: "Basic",
-    level: "Новичок",
+    id: "trial",
+    name: "Проба",
+    tagline: "Чтобы попробовать PromptShot",
     price: 199,
     credits: 70,
     photos: 14,
+    ctaLabel: "Попробовать",
   },
   {
-    id: "standard",
-    name: "Standard",
-    level: "Базовый",
+    id: "start",
+    name: "Старт",
+    tagline: "Для личных идей",
     price: 399,
     credits: 175,
     photos: 35,
     discount: 20,
+    ctaLabel: "Купить пакет",
   },
   {
     id: "pro",
-    name: "Pro",
-    level: "Стандарт",
+    name: "Про",
+    tagline: "Для частых генераций",
     price: 899,
     credits: 700,
     photos: 140,
     discount: 55,
+    ctaLabel: "Купить пакет",
   },
   {
-    id: "ultimate",
-    name: "Ultimate",
-    level: "Продвинутый",
+    id: "max",
+    name: "Максимум",
+    tagline: "Максимум выгоды",
     price: 1499,
     credits: 1550,
     photos: 310,
     discount: 66,
     recommended: true,
+    ctaLabel: "Купить пакет",
   },
 ];

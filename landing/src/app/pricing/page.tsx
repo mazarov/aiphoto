@@ -8,65 +8,100 @@ import { getSupabaseUserFromServerCookies } from "@/lib/supabase-route-auth";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://promptshot.ru";
 
+type PricingPageProps = {
+  searchParams?: Promise<{
+    test?: string | string[];
+  }>;
+};
+
 export const metadata: Metadata = {
   title: "Тарифы и токены — PromptShot",
-  description: "Выберите пакет токенов PromptShot для генерации фото.",
+  description: "Пакеты токенов PromptShot: разовая покупка, токены без срока действия и более выгодная цена за фото в больших пакетах.",
   robots: { index: false, follow: false },
   alternates: { canonical: `${SITE_URL}/pricing` },
   openGraph: {
     title: "Тарифы и токены — PromptShot",
-    description: "Пакеты токенов PromptShot для генерации фото.",
+    description: "Покупайте токены один раз и создавайте фото в своём темпе.",
     url: `${SITE_URL}/pricing`,
     type: "website",
   },
 };
 
-export default async function PricingPage() {
+export default async function PricingPage({ searchParams }: PricingPageProps) {
+  const params = await searchParams;
+  const testParam = Array.isArray(params?.test) ? params.test[0] : params?.test;
+  const hasLocalTestAccess =
+    process.env.NODE_ENV === "development" && testParam === "true";
   const viewer = await getSupabaseUserFromServerCookies();
-  if (!canAccessPricingPreview(viewer?.email)) notFound();
+  if (!hasLocalTestAccess && !canAccessPricingPreview(viewer?.email)) notFound();
 
   return (
     <PageLayout>
-      <main className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-gradient-to-b from-indigo-50/50 via-white to-white">
+      <main className="relative isolate flex min-h-[calc(100vh-57px)] flex-1 flex-col bg-white max-lg:h-[calc(100dvh-var(--ps-header-height,57px)-3.5rem-env(safe-area-inset-bottom,0px))] max-lg:min-h-0 max-lg:overflow-hidden">
         <div
-          className="pointer-events-none absolute inset-x-0 top-0 h-64 bg-[radial-gradient(ellipse_70%_50%_at_50%_-10%,rgba(99,102,241,0.14),transparent_70%)]"
+          className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[440px] bg-[radial-gradient(ellipse_68%_66%_at_50%_0%,rgba(99,102,241,0.11),rgba(139,92,246,0.035)_44%,transparent_76%)]"
+          aria-hidden
+        />
+        <div
+          className="pointer-events-none absolute inset-x-[6%] top-0 -z-10 h-[340px] opacity-30 [background-image:radial-gradient(circle_at_1px_1px,rgba(99,102,241,0.12)_1px,transparent_0)] [background-size:28px_28px] [mask-image:linear-gradient(to_bottom,black,transparent)]"
           aria-hidden
         />
 
-        <div className="relative mx-auto flex w-full max-w-6xl min-h-0 flex-1 flex-col px-3 py-3 sm:px-6 sm:py-10 lg:px-8 lg:py-14 max-lg:h-[calc(100dvh-var(--ps-header-height,57px)-3.5rem-env(safe-area-inset-bottom,0px))] max-lg:max-h-[calc(100dvh-var(--ps-header-height,57px)-3.5rem-env(safe-area-inset-bottom,0px))]">
-          <header className="shrink-0 text-center">
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-indigo-600 sm:text-sm">
-              Тарифы
-            </p>
-            <h1 className="mt-1 text-xl font-bold tracking-tight text-zinc-900 sm:mt-2 sm:text-3xl lg:text-4xl">
-              Токены для генерации
-            </h1>
-            <p className="mx-auto mt-1 hidden max-w-xl text-sm text-zinc-500 sm:mt-3 sm:block sm:text-base">
-              Выберите пакет. Токены расходуются на готовые генерации.
-            </p>
-          </header>
+        <div className="relative mx-auto flex min-h-[calc(100vh-57px)] w-full max-w-7xl flex-col px-3 py-2 max-lg:h-full max-lg:min-h-0 sm:px-6 sm:py-5 lg:px-8 lg:py-14">
+          <div className="max-lg:flex max-lg:min-h-0 max-lg:flex-1 max-lg:flex-col max-lg:justify-center">
+            <header className="mx-auto max-w-2xl text-center">
+              <h1 className="text-xl font-bold tracking-[-0.035em] text-zinc-950 sm:text-3xl lg:text-[44px] lg:leading-tight">
+                Выберите пакет
+              </h1>
+              <p className="mx-auto mt-3 hidden max-w-xl text-sm leading-relaxed text-zinc-500 lg:block lg:text-base">
+                Покупаете один раз. Токены остаются на балансе без срока действия.
+              </p>
+              <div className="mt-5 hidden flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs font-medium text-zinc-600 lg:flex lg:text-sm">
+                <span className="inline-flex items-center gap-1.5">
+                  <svg className="h-4 w-4 text-indigo-600" viewBox="0 0 20 20" fill="none" aria-hidden>
+                    <path d="m4 10 4 4 8-8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  Разовая покупка
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <svg className="h-4 w-4 text-indigo-600" viewBox="0 0 20 20" fill="none" aria-hidden>
+                    <path d="m4 10 4 4 8-8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  Токены не сгорают
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <svg className="h-4 w-4 text-indigo-600" viewBox="0 0 20 20" fill="none" aria-hidden>
+                    <path d="m4 10 4 4 8-8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  Оплата через ЮKassa
+                </span>
+              </div>
+            </header>
 
-          <section
-            className="mt-3 flex min-h-0 flex-1 flex-col sm:mt-8 lg:mt-10"
-            aria-label="Пакеты токенов"
-          >
-            <PricingCards />
-          </section>
+            <section
+              className="mx-auto mt-2 flex h-[27rem] max-h-[calc(100%_-_2rem)] min-h-0 w-full max-w-6xl flex-none rounded-[22px] border border-zinc-100/90 bg-white/75 p-1.5 shadow-[0_24px_80px_-40px_rgba(79,70,229,0.22)] backdrop-blur-xl sm:mt-4 sm:p-3 lg:mt-10 lg:block lg:h-auto lg:max-h-none lg:rounded-[28px] xl:p-5"
+              aria-label="Пакеты токенов"
+            >
+              <PricingCards />
+            </section>
+          </div>
 
-          <footer className="mt-2 shrink-0 space-y-1 text-center sm:mt-8 sm:space-y-2">
-            <p className="text-xs leading-snug text-zinc-400">
-              Выбирая тариф, вы принимаете{" "}
+          <footer className="mt-auto shrink-0 space-y-0.5 px-2 pt-2 text-center lg:space-y-2 lg:pt-10">
+            <p className="max-w-full break-words text-xs leading-snug text-zinc-400">
+              Покупая пакет, вы принимаете условия{" "}
               <Link href="/terms" className="text-zinc-500 underline-offset-2 hover:text-zinc-800 hover:underline">
-                оферту
+                оферты
               </Link>{" "}
               и{" "}
               <Link href="/policy" className="text-zinc-500 underline-offset-2 hover:text-zinc-800 hover:underline">
-                политику данных
+                политики обработки данных
               </Link>
               .
             </p>
-            <p className="text-xs leading-snug text-zinc-400">
-              СМЗ Азарова Мария Петровна · ИНН 673201018413
+            <p className="max-w-full break-words text-xs leading-snug text-zinc-400">
+              <span className="block sm:inline">СМЗ Азарова Мария Петровна</span>
+              <span className="hidden sm:inline"> · </span>
+              <span className="block sm:inline">ИНН 673201018413</span>
             </p>
           </footer>
         </div>
