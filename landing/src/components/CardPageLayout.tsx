@@ -39,7 +39,7 @@ export function CardPageLayout({
         <HeaderClient />
       </div>
       <div className="flex min-h-[calc(100vh-57px)] min-h-0 flex-1 max-md:flex-1">
-        <div className="max-md:hidden">
+        <div className="max-lg:hidden">
           <SidebarNav menu={CARD_MENU} />
         </div>
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">

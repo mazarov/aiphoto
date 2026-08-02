@@ -45,13 +45,13 @@ const VARIANT_BASE: Record<Props["variant"], string> = {
   listing: `${OVERLAY_BUTTON_APPEARANCE_RESET} flex-1 min-w-0 rounded-full border border-emerald-400/40 bg-emerald-600/85 px-2 py-1.5 text-[10px] font-semibold text-white backdrop-blur-md shadow-sm transition-all hover:bg-emerald-600 active:scale-[0.98] sm:px-3 sm:py-2 sm:text-[11px]`,
   expanded: `${OVERLAY_BUTTON_UA_RESET} flex-1 shrink-0 min-w-0 rounded-xl bg-emerald-600 px-3 py-2.5 text-xs font-semibold text-white transition-all hover:bg-emerald-500 active:scale-[0.98] disabled:opacity-50`,
   sticky:
-    "flex min-h-[3rem] min-w-0 w-full items-center justify-center gap-1 rounded-xl bg-emerald-600 px-2.5 py-2 text-center text-xs font-semibold leading-snug text-white shadow-lg transition-all hover:bg-emerald-700 active:scale-[0.98] disabled:opacity-50 sm:gap-2 sm:px-4 sm:py-3 sm:text-sm sm:leading-normal",
+    "flex min-h-[3rem] min-w-0 w-full items-center justify-center gap-1 rounded-xl bg-gradient-to-br from-indigo-500 via-[#5b5cf0] to-violet-500 px-2.5 py-2 text-center text-xs font-semibold leading-snug text-white shadow-lg shadow-indigo-950/25 transition-[filter,box-shadow,transform] hover:brightness-[1.06] hover:shadow-indigo-950/35 active:scale-[0.98] disabled:opacity-50 sm:gap-2 sm:px-4 sm:py-3 sm:text-sm sm:leading-normal",
   /** /foto-v-promt history row — как «Копировать промпт». */
   "widget-sm": `${OVERLAY_BUTTON_UA_RESET} inline-flex min-h-9 shrink-0 items-center justify-center rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-emerald-500 active:scale-[0.98] disabled:opacity-50`,
   /** /foto-v-promt result row — как «Копировать» / «Другой снимок». */
   "widget-md": `${OVERLAY_BUTTON_UA_RESET} inline-flex min-h-11 w-full shrink-0 items-center justify-center rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-emerald-500 active:scale-[0.98] disabled:opacity-50 sm:w-auto sm:min-w-[10rem]`,
-  /** Desktop prompt-card dark panel — mint CTA, dark label (reference). */
-  "desktop-panel": `${OVERLAY_BUTTON_UA_RESET} flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-300 px-4 py-3 text-[15px] font-semibold text-zinc-900 transition-all hover:bg-emerald-200 active:scale-[0.98] disabled:opacity-50`,
+  /** Desktop prompt-card editorial panel — PromptShot indigo/violet primary CTA. */
+  "desktop-panel": `${OVERLAY_BUTTON_UA_RESET} prompt-detail-primary-cta flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl border border-transparent px-4 py-3 text-[15px] font-semibold text-white transition-[box-shadow,filter,transform] hover:brightness-[1.04] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2 disabled:opacity-50`,
 };
 
 const PHASE_MS = 2800;
@@ -206,7 +206,9 @@ export function LexyGptGenerateButton({
       onClick={onClick}
       disabled={disabled || !promptText.trim() || busy}
       aria-label={ariaLabelDetailed}
-      className={`${VARIANT_BASE[variant]} ${className}`.trim()}
+      className={`${VARIANT_BASE[variant]} ${
+        showSparkle ? "prompt-detail-primary-cta--idle" : ""
+      } ${className}`.trim()}
     >
       {showSparkle ? (
         <>
