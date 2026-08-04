@@ -768,17 +768,6 @@ export function PromptSceneLiteWidget({
                 <p className="mb-3 text-sm text-amber-200/90">{notice}</p>
               ) : null}
 
-              <input
-                ref={fileInputRef}
-                id={fileInputId}
-                type="file"
-                accept={FILE_INPUT_ACCEPT}
-                aria-label={t("chooseFile")}
-                className="sr-only"
-                onChange={onFileInputEvent}
-                onInput={onFileInputEvent}
-              />
-
               {panel === "empty" ? (
                 <label
                   htmlFor={fileInputId}
@@ -808,9 +797,19 @@ export function PromptSceneLiteWidget({
                   />
                   <EmptyUploadHero immersive />
                   <span
-                    className={`pointer-events-none relative mt-5 inline-flex min-h-11 w-full max-w-[17rem] items-center justify-center rounded-2xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-indigo-950/40 transition hover:bg-indigo-500 ${FVP_IMMERSIVE_FOCUS_RING}`}
+                    className={`relative mt-5 inline-flex min-h-11 w-full max-w-[17rem] items-center justify-center rounded-2xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-indigo-950/40 transition hover:bg-indigo-500 ${FVP_IMMERSIVE_FOCUS_RING}`}
                   >
                     {t("chooseFile")}
+                    <input
+                      ref={fileInputRef}
+                      id={fileInputId}
+                      type="file"
+                      accept={FILE_INPUT_ACCEPT}
+                      aria-label={t("chooseFile")}
+                      className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0"
+                      onChange={onFileInputEvent}
+                      onInput={onFileInputEvent}
+                    />
                   </span>
                   <EmptyUploadGuidance immersive />
                 </label>
@@ -1056,17 +1055,6 @@ export function PromptSceneLiteWidget({
         <>
           {notice ? <p className="mb-3 text-sm text-amber-700">{notice}</p> : null}
 
-          <input
-            ref={fileInputRef}
-            id={fileInputId}
-            type="file"
-            accept={FILE_INPUT_ACCEPT}
-            aria-label={t("chooseFile")}
-            className="sr-only"
-            onChange={onFileInputEvent}
-            onInput={onFileInputEvent}
-          />
-
           {panel === "empty" ? (
         <div className="flex flex-col gap-4">
           <label
@@ -1097,9 +1085,19 @@ export function PromptSceneLiteWidget({
             />
             <EmptyUploadHero immersive={false} />
             <span
-              className={`pointer-events-none relative z-0 mt-5 inline-flex min-h-11 w-full max-w-[17rem] items-center justify-center rounded-2xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-indigo-200/70 transition hover:bg-indigo-500 ${FVP_FOCUS_RING}`}
+              className={`relative z-0 mt-5 inline-flex min-h-11 w-full max-w-[17rem] items-center justify-center rounded-2xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-indigo-200/70 transition hover:bg-indigo-500 ${FVP_FOCUS_RING}`}
             >
               {t("chooseFile")}
+              <input
+                ref={fileInputRef}
+                id={fileInputId}
+                type="file"
+                accept={FILE_INPUT_ACCEPT}
+                aria-label={t("chooseFile")}
+                className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0"
+                onChange={onFileInputEvent}
+                onInput={onFileInputEvent}
+              />
             </span>
             <EmptyUploadGuidance immersive={false} />
           </label>
