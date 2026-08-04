@@ -63,15 +63,14 @@ export function FotoVPromtMobileModal() {
         </p>
       </header>
 
-      <div className="relative z-20 shrink-0 border-b border-white/10 px-3 py-2">
-        <FotoVPromtChromeCta
-          placement="foto_v_promt_mobile_header_cta"
-          variant="mobile"
-        />
-      </div>
-
       <div className="relative z-10 min-h-0 flex-1 overflow-hidden">
         <PromptSceneLiteWidget variant="immersive" />
+      </div>
+
+      <div className="pointer-events-none fixed inset-x-0 bottom-[max(1.25rem,env(safe-area-inset-bottom,0px))] z-[110] flex justify-center px-4">
+        <div className="pointer-events-auto">
+          <FotoVPromtChromeCta placement="foto_v_promt_mobile_floating_cta" />
+        </div>
       </div>
     </div>,
     document.body,
