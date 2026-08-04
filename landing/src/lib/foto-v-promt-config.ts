@@ -27,6 +27,8 @@ export function getImagePromptSiteUrl(): string {
 
 /** Placement for Chrome Web Store UTM — forwarded to CWS GA4 on page_view + install. */
 export type AiImageDescriberChromePlacement =
+  | "foto_v_promt_hero_cta"
+  | "foto_v_promt_mobile_header_cta"
   | "foto_v_promt_floating_cta"
   | "foto_v_promt_remix_hint"
   | "foto_v_promt_json_ld";

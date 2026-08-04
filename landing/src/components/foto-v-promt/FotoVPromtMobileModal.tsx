@@ -7,6 +7,7 @@ import {
   scheduleListingScrollRestore,
   unlockListingScrollStyles,
 } from "@/lib/scroll-preservation";
+import { FotoVPromtChromeCta } from "./FotoVPromtFloatingCta";
 import { PromptSceneLiteWidget } from "./PromptSceneLiteWidget";
 
 export function FotoVPromtMobileModal() {
@@ -61,6 +62,13 @@ export function FotoVPromtMobileModal() {
           Фото в промт
         </p>
       </header>
+
+      <div className="relative z-20 shrink-0 border-b border-white/10 px-3 py-2">
+        <FotoVPromtChromeCta
+          placement="foto_v_promt_mobile_header_cta"
+          variant="mobile"
+        />
+      </div>
 
       <div className="relative z-10 min-h-0 flex-1 overflow-hidden">
         <PromptSceneLiteWidget variant="immersive" />

@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
 import { PageLayout } from "@/components/PageLayout";
 import { FotoVPromtFaq } from "@/components/foto-v-promt/FotoVPromtFaq";
-import { FotoVPromtFloatingCta } from "@/components/foto-v-promt/FotoVPromtFloatingCta";
+import {
+  FotoVPromtChromeCta,
+  FotoVPromtFloatingCta,
+} from "@/components/foto-v-promt/FotoVPromtFloatingCta";
 import { FotoVPromtHowItWorks } from "@/components/foto-v-promt/FotoVPromtHowItWorks";
 import { PromptSceneLiteWidgetGate } from "@/components/foto-v-promt/PromptSceneLiteWidgetGate";
 import { getAiImageDescriberChromeUrl } from "@/lib/foto-v-promt-config";
@@ -70,6 +73,12 @@ export default function FotoVPromtPage() {
             <p className="mx-auto mt-3 max-w-2xl text-pretty text-base text-zinc-600 sm:text-lg">
               {FOTO_V_PROMT_HERO.subtitle}
             </p>
+            <div className="mt-5 flex justify-center">
+              <FotoVPromtChromeCta
+                placement="foto_v_promt_hero_cta"
+                variant="hero"
+              />
+            </div>
           </div>
         </section>
 
