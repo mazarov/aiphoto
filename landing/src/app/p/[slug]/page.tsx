@@ -9,8 +9,7 @@ import { resolveViewerDbUserId } from "@/lib/resolve-db-user-id";
 import { DEBUG_TOOLS_COOKIE } from "@/lib/debug-tools-session";
 import {
   getFirstTagFromSeoTags,
-  findTagBySlug,
-  type Dimension,
+  getSeoSlugsWithTags,
 } from "@/lib/tag-registry";
 import { CardPageLayout } from "@/components/CardPageLayout";
 
@@ -45,33 +44,6 @@ async function resolveViewerDbIdFromCookies(): Promise<string | null> {
 const BASE_URL =
   process.env.NEXT_PUBLIC_SITE_URL ||
   (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://promptshot.ru");
-
-const DIMENSIONS: Dimension[] = [
-  "audience_tag",
-  "style_tag",
-  "occasion_tag",
-  "object_tag",
-  "doc_task_tag",
-];
-
-function getSeoSlugsWithTags(
-  seoTags: Record<string, unknown> | null
-): { slug: string; label: string; href: string | null }[] {
-  if (!seoTags) return [];
-  const result: { slug: string; label: string; href: string | null }[] = [];
-  for (const dim of DIMENSIONS) {
-    const arr = (seoTags[dim] || []) as string[];
-    for (const slug of arr) {
-      const entry = findTagBySlug(dim, slug);
-      result.push({
-        slug,
-        label: entry?.labelRu ?? slug,
-        href: entry ? entry.urlPath : null,
-      });
-    }
-  }
-  return result;
-}
 
 function buildDescription(
   data: Awaited<ReturnType<typeof getCardPageData>>

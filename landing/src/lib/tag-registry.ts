@@ -323,6 +323,7 @@ const SEO_TAG_DIMENSIONS: Dimension[] = [
   "style_tag",
   "occasion_tag",
   "object_tag",
+  "doc_task_tag",
 ];
 
 /**
@@ -334,9 +335,13 @@ export function getSeoSlugsWithTags(
 ): { slug: string; label: string; href: string | null }[] {
   if (!seoTags) return [];
   const result: { slug: string; label: string; href: string | null }[] = [];
+  const seenSlugs = new Set<string>();
   for (const dim of SEO_TAG_DIMENSIONS) {
     const arr = (seoTags[dim] || []) as string[];
-    for (const slug of arr) {
+    for (const rawSlug of arr) {
+      const slug = typeof rawSlug === "string" ? rawSlug.trim() : "";
+      if (!slug || seenSlugs.has(slug)) continue;
+      seenSlugs.add(slug);
       const entry = findTagBySlug(dim, slug);
       result.push({
         slug,

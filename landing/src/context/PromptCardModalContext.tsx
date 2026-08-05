@@ -13,6 +13,8 @@ import type { CardPageData } from "@/lib/supabase";
 import { lockListingScrollForModal } from "@/lib/scroll-preservation";
 import { trackPromptCardOpen, trackVirtualPageView } from "@/lib/yandex-metrika";
 
+const CARD_CACHE_MAX_ENTRIES = 9;
+
 /** Lightweight preview data available immediately from the listing grid on click. */
 export type CardModalSeed = {
   photoUrl: string | null;
@@ -30,10 +32,12 @@ type PromptCardModalContextType = {
   close: () => void;
   /** Switch to a neighbor slug inside the same modal instance (arrows). */
   goToNeighbor: (slug: string) => void;
-  /** Optional small cache of recently loaded cards (for snappy neighbor switches). */
-  cardCache: Map<string, CardPageData>;
+  /** Synchronous cache lookup; successful reads refresh the LRU position. */
+  getCardFromCache: (slug: string) => CardPageData | null;
   /** Helper to prime the cache from server-fetched data. */
   setCardInCache: (slug: string, data: CardPageData) => void;
+  /** Shared request path with in-flight deduplication. */
+  loadCard: (slug: string) => Promise<CardPageData | null>;
   /** Fire-and-forget prefetch: fetches card data into cache with in-flight dedup. */
   prefetchCard: (slug: string) => void;
 };
@@ -44,8 +48,9 @@ const PromptCardModalContext = createContext<PromptCardModalContextType>({
   open: () => {},
   close: () => {},
   goToNeighbor: () => {},
-  cardCache: new Map(),
+  getCardFromCache: () => null,
   setCardInCache: () => {},
+  loadCard: async () => null,
   prefetchCard: () => {},
 });
 
@@ -55,7 +60,9 @@ export function PromptCardModalProvider({ children }: { children: ReactNode }) {
   const [cardCache] = useState(() => new Map<string, CardPageData>());
   const currentSlugRef = useRef<string | null>(null);
   currentSlugRef.current = currentSlug;
-  const inflightRef = useRef(new Map<string, true>());
+  const inflightRef = useRef(
+    new Map<string, Promise<CardPageData | null>>()
+  );
 
   const open = useCallback((slug: string, seed?: CardModalSeed) => {
     if (typeof window !== "undefined") {
@@ -99,21 +106,57 @@ export function PromptCardModalProvider({ children }: { children: ReactNode }) {
     setCurrentSeed(null);
   }, []);
 
-  const setCardInCache = useCallback((slug: string, data: CardPageData) => {
-    cardCache.set(slug, data);
+  const getCardFromCache = useCallback((slug: string) => {
+    const cached = cardCache.get(slug);
+    if (!cached) return null;
+    // Refresh recency without changing the Map identity exposed through callbacks.
+    cardCache.delete(slug);
+    cardCache.set(slug, cached);
+    return cached;
   }, [cardCache]);
 
-  const prefetchCard = useCallback((slug: string) => {
-    if (cardCache.has(slug) || inflightRef.current.has(slug)) return;
-    inflightRef.current.set(slug, true);
-    fetch(`/api/card/${encodeURIComponent(slug)}`, { credentials: "include" })
-      .then((res) => (res.ok ? res.json() : null))
-      .then((json: { data?: CardPageData } | null) => {
-        if (json?.data) cardCache.set(slug, json.data);
-      })
-      .catch(() => {})
-      .finally(() => inflightRef.current.delete(slug));
+  const setCardInCache = useCallback((slug: string, data: CardPageData) => {
+    cardCache.delete(slug);
+    cardCache.set(slug, data);
+    while (cardCache.size > CARD_CACHE_MAX_ENTRIES) {
+      const oldestSlug = cardCache.keys().next().value as string | undefined;
+      if (!oldestSlug) break;
+      cardCache.delete(oldestSlug);
+    }
   }, [cardCache]);
+
+  const loadCard = useCallback((slug: string): Promise<CardPageData | null> => {
+    const cached = getCardFromCache(slug);
+    if (cached) return Promise.resolve(cached);
+
+    const existing = inflightRef.current.get(slug);
+    if (existing) return existing;
+
+    let request: Promise<CardPageData | null>;
+    request = fetch(`/api/card/${encodeURIComponent(slug)}`, {
+      credentials: "include",
+    })
+      .then(async (res) => {
+        if (!res.ok) return null;
+        const json = (await res.json()) as { data?: CardPageData };
+        if (!json.data) return null;
+        setCardInCache(slug, json.data);
+        return json.data;
+      })
+      .catch(() => null)
+      .finally(() => {
+        if (inflightRef.current.get(slug) === request) {
+          inflightRef.current.delete(slug);
+        }
+      });
+
+    inflightRef.current.set(slug, request);
+    return request;
+  }, [getCardFromCache, setCardInCache]);
+
+  const prefetchCard = useCallback((slug: string) => {
+    void loadCard(slug);
+  }, [loadCard]);
 
   useEffect(() => {
     if (!currentSlug) return;
@@ -141,8 +184,9 @@ export function PromptCardModalProvider({ children }: { children: ReactNode }) {
         open,
         close,
         goToNeighbor,
-        cardCache,
+        getCardFromCache,
         setCardInCache,
+        loadCard,
         prefetchCard,
       }}
     >

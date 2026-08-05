@@ -19,7 +19,6 @@ import {
   CARD_OVERLAY_ACTION_PILL,
   OVERLAY_BUTTON_UA_RESET,
 } from "@/lib/card-overlay-action-pill";
-import { useListingCardImageReady } from "@/hooks/useListingCardImageReady";
 import { CARD_OVERLAY_PHOTO_COUNTER_CLASS } from "@/lib/card-overlay-photo-counter";
 import {
   CARD_IMAGE_NEXT_QUALITY,
@@ -29,15 +28,20 @@ import {
 import { copyTextSyncFallback, copyTextUniversal } from "@/lib/copy-text-to-clipboard";
 import { buildCardImageAlt, buildBeforeAlt } from "@/lib/image-alt";
 import {
+  requestListingNavigationLoadMore,
   resolveListingNavNeighbors,
+  subscribeListingNavigationUpdates,
   type ListingCardNavNeighbors,
 } from "@/lib/listing-card-navigation-context";
 import {
   hasSeenCardSwipeOnboarding,
   markCardSwipeOnboardingSeen,
 } from "@/lib/card-swipe-onboarding";
-import { useVerticalCardSwipe } from "@/hooks/useVerticalCardSwipe";
-import { FotoVPromtMiniBanner } from "@/components/foto-v-promt-promo/FotoVPromtMiniBanner";
+import { useMobileCardSnapFeed } from "@/hooks/useMobileCardSnapFeed";
+import {
+  getFirstTagFromSeoTags,
+  getSeoSlugsWithTags,
+} from "@/lib/tag-registry";
 import { trackPromptCardOpen } from "@/lib/yandex-metrika";
 
 /** Desktop editorial panel chips (tier A = 13px). */
@@ -80,23 +84,61 @@ type Props = {
   onCloseModal?: () => void;
 };
 
+type InnerProps = Props & {
+  onMobileNeighborCommit: (data: CardPageData) => void;
+};
+
 export function CardPageClient({ data, tagEntries, breadcrumbTag, isModal = false, onListingNeighborGo, onCloseModal }: Props) {
-  const cardIds = useMemo(() => [data.id], [data.id]);
+  const router = useRouter();
+  const [activeData, setActiveData] = useState(data);
+
+  useEffect(() => {
+    setActiveData(data);
+  }, [data]);
+
+  const activePresentation = useMemo(() => {
+    if (activeData.id === data.id) {
+      return { tagEntries, breadcrumbTag };
+    }
+    const activeTagEntries = getSeoSlugsWithTags(activeData.seo_tags);
+    const firstTag = getFirstTagFromSeoTags(activeData.seo_tags);
+    return {
+      tagEntries: activeTagEntries,
+      breadcrumbTag: firstTag
+        ? { labelRu: firstTag.labelRu, urlPath: firstTag.urlPath }
+        : null,
+    };
+  }, [activeData, breadcrumbTag, data.id, tagEntries]);
+
+  const handleMobileNeighborCommit = useCallback(
+    (nextData: CardPageData) => {
+      setActiveData(nextData);
+      if (onListingNeighborGo) {
+        onListingNeighborGo(nextData.slug);
+      } else {
+        router.push(`/p/${encodeURIComponent(nextData.slug)}`);
+      }
+    },
+    [onListingNeighborGo, router]
+  );
+
+  const cardIds = useMemo(() => [activeData.id], [activeData.id]);
   return (
     <CardInteractionsProvider cardIds={cardIds}>
       <CardPageClientInner
-        data={data}
-        tagEntries={tagEntries}
-        breadcrumbTag={breadcrumbTag}
+        data={activeData}
+        tagEntries={activePresentation.tagEntries}
+        breadcrumbTag={activePresentation.breadcrumbTag}
         isModal={isModal}
         onListingNeighborGo={onListingNeighborGo}
         onCloseModal={onCloseModal}
+        onMobileNeighborCommit={handleMobileNeighborCommit}
       />
     </CardInteractionsProvider>
   );
 }
 
-function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListingNeighborGo, onCloseModal }: Props) {
+function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListingNeighborGo, onCloseModal, onMobileNeighborCommit }: InnerProps) {
   const router = useRouter();
   const { user } = useAuth();
   const canInlineGenerate = isInternalGenerateAllowlistedEmail(user?.email);
@@ -162,7 +204,11 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
   }, [data.isPublished, data.id]);
 
   useEffect(() => {
-    setListingNavNeighbors(resolveListingNavNeighbors(data.slug));
+    const refreshNeighbors = () => {
+      setListingNavNeighbors(resolveListingNavNeighbors(data.slug));
+    };
+    refreshNeighbors();
+    return subscribeListingNavigationUpdates(refreshNeighbors);
   }, [data.slug]);
 
   useEffect(() => {
@@ -202,15 +248,6 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
   }
 
   const currentPhoto = photos[photoIndex] || null;
-
-  /**
-   * Mobile immersive hero readiness: uses decode() for pixel-perfect timing.
-   * Gates the glass chrome so buttons only appear once the photo is fully painted —
-   * eliminating the "black buttons → transparent" flash.
-   */
-  const { imageReady: heroImageReady, onImageLoad: onHeroImageLoad } = useListingCardImageReady({
-    resetKey: currentPhoto,
-  });
 
   const handleCloseMobileViewer = useCallback(() => {
     if (onCloseModal) {
@@ -280,10 +317,6 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
    * then reveal with a single smooth fade. Mirrors the listing grid's imageReady pattern
    * (PromptCard.tsx) to eliminate the "black buttons → transparent glass" flash.
    */
-  const mobileChromeClass = `transition-opacity duration-200 ${
-    heroImageReady ? "opacity-100" : "opacity-0 pointer-events-none invisible"
-  }`;
-
   const viewCount = useCardViewBeacon(data.slug, data.viewCount ?? 0);
 
   const groupCards = useMemo(() => {
@@ -451,6 +484,16 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
   const hasListingNeighbors = Boolean(listingPrev || listingNext);
 
   useEffect(() => {
+    if (
+      hasPhotos &&
+      listingNavNeighbors !== null &&
+      listingNavNeighbors.nextSlug === null
+    ) {
+      requestListingNavigationLoadMore();
+    }
+  }, [data.slug, hasPhotos, listingNavNeighbors]);
+
+  useEffect(() => {
     if (!hasPhotos || !hasListingNeighbors) {
       setShowSwipeOnboarding(false);
       return;
@@ -471,38 +514,22 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
     setShowSwipeOnboarding(false);
   }, []);
 
-  const goListingPrev = useCallback(() => {
-    if (listingPrev) {
-      dismissSwipeOnboarding();
-      goListingNeighbor(listingPrev);
-    }
-  }, [listingPrev, goListingNeighbor, dismissSwipeOnboarding]);
-
-  const goListingNext = useCallback(() => {
-    if (listingNext) {
-      dismissSwipeOnboarding();
-      goListingNeighbor(listingNext);
-    }
-  }, [listingNext, goListingNeighbor, dismissSwipeOnboarding]);
-
   const swipeEnabled =
     hasPhotos &&
     hasListingNeighbors &&
     !mobilePromptOverlay &&
     !inlineGenerateOpen;
 
-  const {
-    onTouchStart: onCardSwipeTouchStart,
-    onTouchMove: onCardSwipeTouchMove,
-    onTouchEnd: onCardSwipeTouchEnd,
-    onTouchCancel: onCardSwipeTouchCancel,
-    swipeOffset,
-  } = useVerticalCardSwipe({
+  const snapFeed = useMobileCardSnapFeed({
+    currentData: data,
+    prevSlug: listingPrev,
+    nextSlug: listingNext,
     enabled: swipeEnabled,
-    onSwipeUp: goListingNext,
-    onSwipeDown: goListingPrev,
-    onSwipeRecognized: dismissSwipeOnboarding,
+    onCommit: onMobileNeighborCommit,
   });
+  const mobileChromeClass = snapFeed.isInteracting
+    ? "pointer-events-none opacity-0 transition-none"
+    : "opacity-100 transition-none";
 
   return (
     <div
@@ -656,7 +683,6 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                     priority
                     fetchPriority="high"
                     decoding="async"
-                    onLoad={onHeroImageLoad}
                   />
 
                   {photos.length > 1 && (
@@ -951,30 +977,42 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
           {hasPhotos && (
           <div
             data-card-modal-surface={isModal ? "" : undefined}
-            className="fixed inset-0 z-[245] flex min-h-[100dvh] flex-col bg-transparent md:hidden motion-reduce:transition-none touch-pan-y"
-            onTouchStart={onCardSwipeTouchStart}
-            onTouchMove={onCardSwipeTouchMove}
-            onTouchEnd={onCardSwipeTouchEnd}
-            onTouchCancel={onCardSwipeTouchCancel}
+            className="fixed inset-0 z-[245] min-h-[100dvh] select-none overflow-hidden overscroll-none bg-zinc-950 [-webkit-touch-callout:none] [-webkit-user-drag:none] md:hidden"
+            onContextMenu={(e) => e.preventDefault()}
+            onDragStart={(e) => e.preventDefault()}
           >
-            {currentPhoto ? (
+            <div
+              ref={snapFeed.viewportRef}
+              data-card-snap-viewport
+              className={`scrollbar-none h-[100dvh] w-full overscroll-contain ${
+                swipeEnabled
+                  ? "snap-y snap-mandatory overflow-y-auto"
+                  : "overflow-hidden"
+              }`}
+              style={{ touchAction: swipeEnabled ? "pan-y" : "auto" }}
+              onScroll={snapFeed.onScroll}
+              onPointerDown={snapFeed.onPointerDown}
+              onPointerUp={snapFeed.onPointerUp}
+              onPointerCancel={snapFeed.onPointerCancel}
+              onClickCapture={snapFeed.onClickCapture}
+            >
+            {listingPrev ? (
+              <MobileSnapNeighborSlide
+                data={snapFeed.prevCard}
+                direction="prev"
+                fallbackPhotoUrl={currentPhoto}
+              />
+            ) : null}
+            <div
+              data-card-snap-slide="current"
+              className="relative h-[100dvh] w-full shrink-0 snap-start snap-always overflow-hidden bg-zinc-950"
+            >
+              {currentPhoto ? (
               <>
                 <div className="pointer-events-none absolute inset-0 z-[1] bg-zinc-950" aria-hidden />
 
                 {/* Полноэкранное фото (как в референсе), без framed 3:4 */}
-                <div
-                  className="absolute inset-0 z-[2] will-change-transform motion-reduce:transition-none"
-                  style={{
-                    transform:
-                      swipeOffset !== 0
-                        ? `translateY(${swipeOffset}px)`
-                        : undefined,
-                    transition:
-                      swipeOffset === 0
-                        ? "transform 180ms ease-out"
-                        : "none",
-                  }}
-                >
+                <div className="absolute inset-0 z-[2]">
                   <Image
                     src={currentPhoto}
                     alt={buildCardImageAlt(title, [], photoIndex)}
@@ -985,7 +1023,6 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                     priority
                     fetchPriority="high"
                     decoding="async"
-                    onLoad={onHeroImageLoad}
                   />
                 </div>
 
@@ -1076,11 +1113,6 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                       </button>
                     </div>
                   </div>
-                  {hasPrompts ? (
-                    <div className="pointer-events-auto pb-2">
-                      <FotoVPromtMiniBanner variant="cardImmersive" />
-                    </div>
-                  ) : null}
                 </header>
 
                 {groupCards.length > 1 ? (
@@ -1159,18 +1191,18 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                           <StickyListingNavButton
                             slug={listingPrev}
                             direction="prev"
-                            onGo={(slug) => {
+                            onGo={() => {
                               dismissSwipeOnboarding();
-                              goListingNeighbor(slug);
+                              snapFeed.scrollToPrev();
                             }}
                             orientation="vertical"
                           />
                           <StickyListingNavButton
                             slug={listingNext}
                             direction="next"
-                            onGo={(slug) => {
+                            onGo={() => {
                               dismissSwipeOnboarding();
-                              goListingNeighbor(slug);
+                              snapFeed.scrollToNext();
                             }}
                             orientation="vertical"
                           />
@@ -1318,9 +1350,18 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                   </>
                 )}
               </>
-            ) : (
-              <div className="flex flex-1 items-center justify-center px-6 text-zinc-500">Нет фото</div>
-            )}
+              ) : (
+                <div className="flex h-full items-center justify-center px-6 text-zinc-500">Нет фото</div>
+              )}
+            </div>
+            {listingNext ? (
+              <MobileSnapNeighborSlide
+                data={snapFeed.nextCard}
+                direction="next"
+                fallbackPhotoUrl={currentPhoto}
+              />
+            ) : null}
+            </div>
           </div>
           )}
         </>
@@ -1448,7 +1489,6 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
               className={`pointer-events-none fixed inset-x-0 bottom-0 z-[240] safe-area-pb${isModal ? "" : " lg:left-60"}`}
             >
               <div className="pointer-events-auto mx-auto w-full max-w-2xl px-5 py-4">
-                <FotoVPromtMiniBanner variant="card" className="mb-2" />
                 <div className={LISTING_STICKY_ACTIONS_GRID}>
                   <StickyListingNavButton
                     slug={listingPrev}
@@ -1618,6 +1658,50 @@ function DesktopPanelTags({
   );
 }
 
+function MobileSnapNeighborSlide({
+  data,
+  direction,
+  fallbackPhotoUrl,
+}: {
+  data: CardPageData | null;
+  direction: "prev" | "next";
+  fallbackPhotoUrl: string | null;
+}) {
+  const photoUrl = data?.photoUrls?.[0] ?? null;
+  return (
+    <div
+      data-card-snap-slide={direction}
+      className="pointer-events-none relative h-[100dvh] w-full shrink-0 snap-start snap-always overflow-hidden bg-zinc-950"
+      aria-hidden
+    >
+      {photoUrl ? (
+        <Image
+          src={photoUrl}
+          alt=""
+          fill
+          sizes="100vw"
+          quality={CARD_IMAGE_NEXT_QUALITY}
+          className="object-cover object-center"
+        />
+      ) : fallbackPhotoUrl ? (
+        <Image
+          src={fallbackPhotoUrl}
+          alt=""
+          fill
+          sizes="100vw"
+          quality={CARD_IMAGE_NEXT_QUALITY}
+          className="scale-105 object-cover object-center opacity-45 blur-sm"
+        />
+      ) : (
+        <div className="flex h-full items-center justify-center text-3xl text-white/35">
+          {direction === "next" ? "↑" : "↓"}
+        </div>
+      )}
+      <div className="absolute inset-x-0 bottom-0 h-[45%] bg-gradient-to-t from-black/55 to-transparent" />
+    </div>
+  );
+}
+
 /** One-time mobile tooltip next to ↑↓ listing arrows. */
 function CardSwipeOnboarding({ onDismiss }: { onDismiss: () => void }) {
   useEffect(() => {
@@ -1639,7 +1723,6 @@ function CardSwipeOnboarding({ onDismiss }: { onDismiss: () => void }) {
   return (
     <div
       data-card-swipe-onboarding
-      data-no-swipe
       role="status"
       className="pointer-events-auto absolute right-full top-1/2 z-[80] mr-2 w-[min(12.5rem,calc(100vw-5.5rem))] -translate-y-1/2 animate-in fade-in slide-in-from-right-2 duration-300"
     >

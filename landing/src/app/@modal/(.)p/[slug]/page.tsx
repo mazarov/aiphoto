@@ -5,8 +5,7 @@ import { getSupabaseUserFromServerCookies } from "@/lib/supabase-route-auth";
 import { resolveViewerDbUserId } from "@/lib/resolve-db-user-id";
 import {
   getFirstTagFromSeoTags,
-  findTagBySlug,
-  type Dimension,
+  getSeoSlugsWithTags,
 } from "@/lib/tag-registry";
 import { CardModal } from "@/components/CardModal";
 import { CardInteractionsProvider } from "@/context/CardInteractionsContext";
@@ -23,32 +22,6 @@ const CardPageClient = nextDynamic(
 const getCachedCardPageData = cache((slug: string, viewerUserId: string | null) =>
   getCardPageData(slug, { viewerUserId }),
 );
-
-const DIMENSIONS: Dimension[] = [
-  "audience_tag",
-  "style_tag",
-  "occasion_tag",
-  "object_tag",
-];
-
-function getSeoSlugsWithTags(
-  seoTags: Record<string, unknown> | null
-): { slug: string; label: string; href: string | null }[] {
-  if (!seoTags) return [];
-  const result: { slug: string; label: string; href: string | null }[] = [];
-  for (const dim of DIMENSIONS) {
-    const arr = (seoTags[dim] || []) as string[];
-    for (const slug of arr) {
-      const entry = findTagBySlug(dim, slug);
-      result.push({
-        slug,
-        label: entry?.labelRu ?? slug,
-        href: entry ? entry.urlPath : null,
-      });
-    }
-  }
-  return result;
-}
 
 type Props = { params: Promise<{ slug: string }> };
 

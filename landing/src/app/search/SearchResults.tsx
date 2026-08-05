@@ -11,7 +11,10 @@ import { ListingDesktopFilters } from "@/components/ListingDesktopFilters";
 import { useListingFilters } from "@/hooks/useListingFilters";
 import type { FilterState } from "@/hooks/useListingFilters";
 import { resetListingScroll, getListingScrollRoot, isListingScrollRestoreInProgress } from "@/lib/scroll-preservation";
-import { writeListingNavigationContext } from "@/lib/listing-card-navigation-context";
+import {
+  subscribeListingNavigationLoadMore,
+  writeListingNavigationContext,
+} from "@/lib/listing-card-navigation-context";
 import { SearchEmptyState } from "@/components/SearchEmptyState";
 import { SearchMetrikaTracker } from "@/components/YandexMetrikaRouteTracker";
 import { ListingFotoVPromtBanner } from "@/components/foto-v-promt-promo/ListingFotoVPromtBanner";
@@ -155,6 +158,16 @@ export function SearchResults({ initialQuery }: Props) {
     observer.observe(el);
     return () => observer.disconnect();
   }, [doSearch]);
+
+  useEffect(
+    () =>
+      subscribeListingNavigationLoadMore(() => {
+        if (!loadingRef.current && hasMoreRef.current) {
+          void doSearch(queryRef.current, true);
+        }
+      }),
+    [doSearch]
+  );
 
   const cardIds = useMemo(() => cards.map((c) => c.id), [cards]);
 

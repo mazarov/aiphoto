@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import Image from "next/image";
 import type { CardPageData } from "@/lib/supabase";
 import { CardModal } from "@/components/CardModal";
@@ -20,14 +20,23 @@ type LoadedCard = {
 };
 
 export function ClientCardModal() {
-  const { currentSlug, currentSeed, close, goToNeighbor, cardCache, setCardInCache } = usePromptCardModal();
+  const {
+    currentSlug,
+    currentSeed,
+    close,
+    goToNeighbor,
+    getCardFromCache,
+    loadCard,
+  } = usePromptCardModal();
   const [loaded, setLoaded] = useState<LoadedCard | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const requestIdRef = useRef(0);
 
   const fetchCard = useCallback(async (slug: string) => {
     // Fast path: use cache for instant neighbor switches inside the modal (no network, no loading flash).
-    const cached = cardCache.get(slug);
+    const requestId = ++requestIdRef.current;
+    const cached = getCardFromCache(slug);
     if (cached) {
       const tagEntries = getSeoSlugsWithTags(cached.seo_tags);
       const firstTag = getFirstTagFromSeoTags(cached.seo_tags);
@@ -46,12 +55,9 @@ export function ClientCardModal() {
     setError(null);
 
     try {
-      const res = await fetch(`/api/card/${encodeURIComponent(slug)}`, {
-        credentials: "include",
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = await res.json();
-      const data: CardPageData = json.data;
+      const data = await loadCard(slug);
+      if (requestId !== requestIdRef.current) return;
+      if (!data) throw new Error("No card data");
 
       // Enrich with tags exactly like the server /p/[slug] pages do.
       // This ensures tags (and breadcrumb) appear on first open from the listing grid.
@@ -63,15 +69,15 @@ export function ClientCardModal() {
 
       const loadedCard: LoadedCard = { data, tagEntries, breadcrumbTag };
       setLoaded(loadedCard);
-      setCardInCache(slug, data);
     } catch (e) {
+      if (requestId !== requestIdRef.current) return;
       console.error("ClientCardModal fetch failed", e);
       setError("Не удалось загрузить карточку");
       setLoaded(null);
     } finally {
-      setLoading(false);
+      if (requestId === requestIdRef.current) setLoading(false);
     }
-  }, [cardCache, setCardInCache]);
+  }, [getCardFromCache, loadCard]);
 
   // When the slug in context changes, load the corresponding card
   useEffect(() => {

@@ -7,6 +7,7 @@ import { FilterableGrid } from "./CardFilters";
 import { ListingGridLoadingSkeleton } from "./ListingGridLoadingSkeleton";
 import { LISTING_INFINITE_PAGE_SIZE } from "@/lib/listing-pagination";
 import { getListingScrollRoot, isListingScrollRestoreInProgress } from "@/lib/scroll-preservation";
+import { subscribeListingNavigationLoadMore } from "@/lib/listing-card-navigation-context";
 
 const PAGE_SIZE = LISTING_INFINITE_PAGE_SIZE;
 
@@ -114,6 +115,14 @@ export function InfiniteGrid({
     // Sentinel is the same node as items append; reconnecting on every cards.length tick
     // caused extra layout/observer churn during scroll.
   }, [loadMore]);
+
+  useEffect(
+    () =>
+      subscribeListingNavigationLoadMore(() => {
+        void loadMore();
+      }),
+    [loadMore]
+  );
 
   return (
     <>

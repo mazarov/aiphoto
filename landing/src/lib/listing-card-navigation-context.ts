@@ -7,6 +7,10 @@
 import type { PromptCardFull } from "@/lib/supabase";
 
 export const LISTING_CARD_NAV_STORAGE_KEY = "promptshot_listing_nav_v1";
+export const LISTING_CARD_NAV_UPDATED_EVENT =
+  "promptshot:listing-navigation-updated";
+export const LISTING_CARD_NAV_LOAD_MORE_EVENT =
+  "promptshot:listing-navigation-load-more";
 
 /** Верхний предел записи — защита localStorage от раздувания. */
 export const LISTING_CARD_NAV_MAX_SLUGS = 500;
@@ -69,9 +73,34 @@ export function writeListingNavigationContext(slugs: string[]): void {
       LISTING_CARD_NAV_STORAGE_KEY,
       JSON.stringify(payload)
     );
+    window.dispatchEvent(new Event(LISTING_CARD_NAV_UPDATED_EVENT));
   } catch {
     /* квота / приватный режим */
   }
+}
+
+/** Ask the currently mounted listing/search controller to append its next page. */
+export function requestListingNavigationLoadMore(): void {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new Event(LISTING_CARD_NAV_LOAD_MORE_EVENT));
+}
+
+export function subscribeListingNavigationUpdates(
+  listener: () => void
+): () => void {
+  if (typeof window === "undefined") return () => {};
+  window.addEventListener(LISTING_CARD_NAV_UPDATED_EVENT, listener);
+  return () =>
+    window.removeEventListener(LISTING_CARD_NAV_UPDATED_EVENT, listener);
+}
+
+export function subscribeListingNavigationLoadMore(
+  listener: () => void
+): () => void {
+  if (typeof window === "undefined") return () => {};
+  window.addEventListener(LISTING_CARD_NAV_LOAD_MORE_EVENT, listener);
+  return () =>
+    window.removeEventListener(LISTING_CARD_NAV_LOAD_MORE_EVENT, listener);
 }
 
 export function readListingNavigationContext(): string[] | null {
