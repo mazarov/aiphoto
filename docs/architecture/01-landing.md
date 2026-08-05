@@ -8,7 +8,7 @@
 
 > Коррекция 2026-08-05 (**native mobile card scroll-snap:** ручной Pointer Events track заменён на браузерный вертикальный `scroll-snap` с тремя виртуализированными viewport-слайдами `prev/current/next`. Соседи предварительно загружаются как полные `CardPageData` через единый promise-based LRU-кэш на 9 карточек в `PromptCardModalContext`; in-flight запросы дедуплицируются. После settle готовый сосед атомарно становится активной карточкой и обновляет URL, недогруженный сосед делает snap-back. `scrollend` дополнен debounce fallback для Safari 16.4. Chrome скрывается только во время touch/scroll и не зависит от decode hero, поэтому cache-hit изображения не могут оставить кнопки невидимыми. Стрелки используют тот же программный smooth-scroll; desktop-навигация не изменилась. iOS callout / selection / drag / context menu по-прежнему отключены. Общая правка действует для client modal, intercepted modal и direct `/p/`.)
 
-> Последнее обновление: 2026-08-05 (**mobile `/p` native scroll-snap:** `useMobileCardSnapFeed`, три viewport-слайда, атомарный commit готового соседа и bounded LRU-кэш полных карточек. Старый `useVerticalCardSwipe` удалён.)
+> Последнее обновление: 2026-08-05 (**inline user photo library:** `CardInlineGeneratePanel` загружает сохранённые фото пользователя newest-first, автоматически выбирает самое свежее, поддерживает выбор 1–10 фото, немедленное сохранение новых загрузок и удаление из private Storage. Таблица `landing_user_photos`, API `/api/user-generation-photos`, миграция `169`; STV/extension UI остаётся с отдельным лимитом 4.)
 
 > Коррекция 2026-08-05 (**scroll-snap pagination bridge:** когда активная карточка достигает последнего загруженного slug, `CardPageClient` через общий event-контракт `listing-card-navigation-context` просит mounted `InfiniteGrid` / `SearchResults` загрузить следующую страницу. После `writeListingNavigationContext` feed пересчитывает соседей без смены карточки. Несуществующие крайние snap-слайды не рендерятся, поэтому у фактического конца выдачи нет чёрного экрана и rollback.)
 
@@ -114,9 +114,11 @@
 | `/api/debug-delete-card` | POST: удаление строки `prompt_cards` (+ строки `slug_redirects` для slug карточки); body: `cardId`, `confirmSlug` (должен совпасть со slug в БД). После удаления — `revalidatePath('/sitemap.xml')` и `/p/[slug]`, чтобы URL сразу исчез из sitemap и кеша страницы (источник URL в sitemap — `getPublishedCardsForSitemap()`). Объекты в Storage не трогает |
 | `/api/generation-config` | Конфиг генерации (модели, лимиты) |
 | `/api/generation-prompt` | EN промпт карточки по cardId |
-| `/api/upload-generation-photo` | Загрузка фото для генерации |
+| `/api/upload-generation-photo` | Загрузка фото для генерации; `saveToLibrary=true` дополнительно регистрирует загрузку в `landing_user_photos` и возвращает объект `photo` с signed preview URL |
 | `/api/upload-generation-photo/signed-url` | GET: подписанный URL превью загруженного фото (auth, path в query) |
-| `/api/generate` | Запуск генерации (auth) |
+| `/api/user-generation-photos` | GET (auth): библиотека inline-фото текущего JWT user, newest-first, с signed preview URL |
+| `/api/user-generation-photos/[id]` | DELETE (auth): удаление принадлежащего пользователю фото из private Storage и библиотеки |
+| `/api/generate` | Запуск генерации (auth); 1–10 входных фото, лимит из `landing_generation_config.max_photos`, каждый Storage path проверяется по JWT user prefix |
 | `/api/generate-process` | Внутренний: обработка генерации |
 | `/api/generations` | Список строк `landing_generations` (legacy / отладка) |
 | `/api/generations/[id]` | Статус/результат генерации |
@@ -134,7 +136,8 @@
 
 - **Allowlist:** `isInternalGenerateAllowlistedEmail` (`landing/src/lib/internal-generate-allowlist.ts`) — default `azarov.maxim@gmail.com`, расширяется через `INTERNAL_GENERATE_ALLOWLIST`.
 - **Точка входа карточки `/p`:** только allowlisted — `CardPageClient` передаёт `onInternalGenerate` → inline compose (`CardInlineGeneratePanel`). Desktop aside / mobile sheet. Остальные — LexyGPT.
-- **Inline engine:** upload → `POST /api/generate` (`vibeId=null`, `cardId`) → poll `GET /api/generations/:id`. Без extract/expand и без iframe `/embed/stv`.
+- **Inline photo library:** `CardInlineGeneratePanel` при открытии читает `GET /api/user-generation-photos`, показывает компактную сетку квадратных preview по `created_at DESC` и автоматически выбирает самое свежее. Новые файлы сразу проходят client prepare → `POST /api/upload-generation-photo` с `saveToLibrary=true`; выбор отмечается галочками, для одной генерации разрешено 1–10 фото. Удаление идёт через `DELETE /api/user-generation-photos/[id]`.
+- **Inline engine:** выбранные `storagePath[]` → `POST /api/generate` (`vibeId=null`, `cardId`) → poll `GET /api/generations/:id`. Без extract/expand и без iframe `/embed/stv`.
 - **`LexyGptGenerateButton`:** internal path (inline override или STV drawer по `cardId`) только для allowlisted; иначе всегда LexyGPT. CTA `/foto-v-promt` без `cardId` → LexyGPT.
 - **STV drawer (legacy):** `GenerationContext.openGenerationModal` → **`GenerationModal`** (`/embed/stv`) — только allowlisted при `cardId` без inline override. Chrome extension без изменений.
 
@@ -166,8 +169,8 @@
 - **Атрибуция клиента (`client_source`):** при create всегда пишется **`site`** (PromptShot paid generate — site-only; без резолвера / `X-Client`). Миграция: `sql/168_landing_generations_client_source.sql`.
 - **Текст в Gemini (без `vibe_id`):** `generate-process` склеивает **`prompt_text`** + **`GENERATE_LANDING_CARD_CRITICAL_RULES`** (`assembleLandingCardFinalPrompt`) — идентичность с фото, **гардероб по тексту промпта**, не копировать одежду с загрузки.
 - **Gemini routing:** `generate-process` читает `photo_app_config.gemini_use_proxy`; при `true` использует `GEMINI_PROXY_BASE_URL`, при `false` ходит напрямую в `generativelanguage.googleapis.com`.
-- **Таблицы:** `landing_users.credits`, `landing_generations` (+ `client_source`), `landing_generation_config`.
-- **Storage:** `web-generation-uploads` (входные фото), `web-generation-results` (результаты).
+- **Таблицы:** `landing_users.credits`, `landing_generations` (+ `client_source`), `landing_generation_config`, `landing_user_photos` (server-only индекс private uploads по `auth_user_id`, newest-first).
+- **Storage:** `web-generation-uploads` (входные фото; inline-библиотека хранит ссылки, удаление синхронно удаляет объект), `web-generation-results` (результаты).
 - **Страница:** `/generations` — «Мои генерации» в меню пользователя; сетка `PromptCard` как в избранном.
 - **UGC-карточка:** после успешного `generate-process` создаётся черновик в `prompt_cards` (`author_user_id`, `is_published=false`, датасет `web_generation_ugc`), связь `landing_generations.ugc_card_id`. Публикация — на `/p/[slug]` (кнопка владельца) или PATCH visibility API; в индекс попадают только `is_published=true` (sitemap, поиск, RPC листингов).
 - **Бэкфилл до релиза UGC:** скрипт `landing/scripts/backfill-ugc-from-generations.ts` — для строк `landing_generations` со статусом `completed`, пустым `ugc_card_id` и заполненным результатом в Storage создаёт те же `prompt_cards`, что и runtime (`createUgcCardForCompletedGeneration`). Запуск из корня репо: `npm run backfill:ugc-from-generations:dry` затем `npm run backfill:ugc-from-generations` (или из `landing/`: `npm run backfill:ugc-from-generations:dry`). Env: **`SUPABASE_SERVICE_ROLE_KEY`**, URL (`NEXT_PUBLIC_SUPABASE_URL` / `SUPABASE_URL`). Аргументы: `--dry-run`, `--limit N`, `--user-id <uuid>`.

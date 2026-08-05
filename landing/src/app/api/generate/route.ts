@@ -5,6 +5,7 @@ import { getStvPipelineTrace, stvLog } from "@/lib/stv-pipeline-log";
 import { isStvGuestUser } from "@/lib/stv-guest-mode";
 import { ensureLandingUserForGeneration } from "@/lib/ensure-landing-user";
 import { isStvOpenGenerateDebugEnabled } from "@/lib/stv-open-generate-debug";
+import { isStoragePathOwnedByAuthUser } from "@/lib/user-generation-photos";
 
 /** PromptShot paid generate is site-only for now (inline compose / same-origin). */
 const GENERATION_CLIENT_SOURCE = "site" as const;
@@ -79,14 +80,18 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (photoStoragePaths.length > 4) {
-      console.warn("[generation.create] validation error: too many photos", {
+    if (
+      photoStoragePaths.some(
+        (path) =>
+          typeof path !== "string" || !isStoragePathOwnedByAuthUser(path, user.id)
+      )
+    ) {
+      console.warn("[generation.create] validation error: foreign photo path", {
         userId: callerId,
-        photos: photoStoragePaths.length,
       });
       return NextResponse.json(
-        { error: "validation_error", message: "Максимум 4 фото" },
-        { status: 400 }
+        { error: "forbidden", message: "Недоступное фото" },
+        { status: 403 }
       );
     }
 
@@ -140,11 +145,27 @@ export async function POST(req: NextRequest) {
     const { data: configRows } = await supabase
       .from("landing_generation_config")
       .select("key, value")
-      .in("key", ["models", "default_model"]);
+      .in("key", ["models", "default_model", "max_photos"]);
 
     const config: Record<string, string> = {};
     for (const row of configRows || []) {
       config[row.key] = row.value;
+    }
+
+    const configuredMaxPhotos = Number.parseInt(config.max_photos || "10", 10);
+    const maxPhotos = Number.isFinite(configuredMaxPhotos)
+      ? Math.max(1, Math.min(10, configuredMaxPhotos))
+      : 10;
+    if (photoStoragePaths.length > maxPhotos) {
+      console.warn("[generation.create] validation error: too many photos", {
+        userId: callerId,
+        photos: photoStoragePaths.length,
+        maxPhotos,
+      });
+      return NextResponse.json(
+        { error: "validation_error", message: `Максимум ${maxPhotos} фото` },
+        { status: 400 }
+      );
     }
 
     let models: { id: string; cost: number }[] = [];
