@@ -32,6 +32,11 @@ import {
   resolveListingNavNeighbors,
   type ListingCardNavNeighbors,
 } from "@/lib/listing-card-navigation-context";
+import {
+  hasSeenCardSwipeOnboarding,
+  markCardSwipeOnboardingSeen,
+} from "@/lib/card-swipe-onboarding";
+import { useVerticalCardSwipe } from "@/hooks/useVerticalCardSwipe";
 import { FotoVPromtMiniBanner } from "@/components/foto-v-promt-promo/FotoVPromtMiniBanner";
 import { trackPromptCardOpen } from "@/lib/yandex-metrika";
 
@@ -51,7 +56,11 @@ const MOBILE_FS_CHIP_MUTED =
 const MOBILE_FS_ACTION = `${MOBILE_FS_CHIP} rounded-xl font-semibold`;
 const MOBILE_FS_EXPAND = `${MOBILE_FS_CHIP} rounded-2xl px-4 py-3 leading-snug`;
 
-/** Sticky bar with listing prev/next: arrows + copy + Lexy on one row, full content width. */
+/** Mobile has-photos bottom bar: copy + Lexy only (listing arrows live in the right stack). */
+const MOBILE_PHOTO_ACTIONS_GRID =
+  "grid w-full grid-cols-2 items-stretch gap-2";
+
+/** No-photos sticky bar still uses listing prev/next on the sides. */
 const LISTING_STICKY_ACTIONS_GRID =
   "grid w-full grid-cols-[minmax(0,2.75rem)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,2.75rem)] items-stretch gap-2";
 
@@ -120,6 +129,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
     useState<ListingCardNavNeighbors | null>(null);
   const [mobilePromptOverlay, setMobilePromptOverlay] = useState(false);
   const [inlineGenerateOpen, setInlineGenerateOpen] = useState(false);
+  const [showSwipeOnboarding, setShowSwipeOnboarding] = useState(false);
   const openInlineGenerate = useCallback(() => {
     if (!canInlineGenerate) return;
     setMobilePromptOverlay(false);
@@ -438,6 +448,61 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
   const listingPrev = listingNavNeighbors?.prevSlug ?? null;
   const listingNext = listingNavNeighbors?.nextSlug ?? null;
   const authorLabel = data.authorDisplayName || "Promptshot";
+  const hasListingNeighbors = Boolean(listingPrev || listingNext);
+
+  useEffect(() => {
+    if (!hasPhotos || !hasListingNeighbors) {
+      setShowSwipeOnboarding(false);
+      return;
+    }
+    // Mobile-only hint; desktop already has ↑↓ on the photo.
+    const isMobile =
+      typeof window !== "undefined" &&
+      window.matchMedia("(max-width: 767px)").matches;
+    if (!isMobile) {
+      setShowSwipeOnboarding(false);
+      return;
+    }
+    setShowSwipeOnboarding(!hasSeenCardSwipeOnboarding());
+  }, [hasPhotos, hasListingNeighbors, data.slug]);
+
+  const dismissSwipeOnboarding = useCallback(() => {
+    markCardSwipeOnboardingSeen();
+    setShowSwipeOnboarding(false);
+  }, []);
+
+  const goListingPrev = useCallback(() => {
+    if (listingPrev) {
+      dismissSwipeOnboarding();
+      goListingNeighbor(listingPrev);
+    }
+  }, [listingPrev, goListingNeighbor, dismissSwipeOnboarding]);
+
+  const goListingNext = useCallback(() => {
+    if (listingNext) {
+      dismissSwipeOnboarding();
+      goListingNeighbor(listingNext);
+    }
+  }, [listingNext, goListingNeighbor, dismissSwipeOnboarding]);
+
+  const swipeEnabled =
+    hasPhotos &&
+    hasListingNeighbors &&
+    !mobilePromptOverlay &&
+    !inlineGenerateOpen;
+
+  const {
+    onTouchStart: onCardSwipeTouchStart,
+    onTouchMove: onCardSwipeTouchMove,
+    onTouchEnd: onCardSwipeTouchEnd,
+    onTouchCancel: onCardSwipeTouchCancel,
+    swipeOffset,
+  } = useVerticalCardSwipe({
+    enabled: swipeEnabled,
+    onSwipeUp: goListingNext,
+    onSwipeDown: goListingPrev,
+    onSwipeRecognized: dismissSwipeOnboarding,
+  });
 
   return (
     <div
@@ -886,14 +951,30 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
           {hasPhotos && (
           <div
             data-card-modal-surface={isModal ? "" : undefined}
-            className="fixed inset-0 z-[245] flex min-h-[100dvh] flex-col bg-transparent md:hidden motion-reduce:transition-none"
+            className="fixed inset-0 z-[245] flex min-h-[100dvh] flex-col bg-transparent md:hidden motion-reduce:transition-none touch-pan-y"
+            onTouchStart={onCardSwipeTouchStart}
+            onTouchMove={onCardSwipeTouchMove}
+            onTouchEnd={onCardSwipeTouchEnd}
+            onTouchCancel={onCardSwipeTouchCancel}
           >
             {currentPhoto ? (
               <>
                 <div className="pointer-events-none absolute inset-0 z-[1] bg-zinc-950" aria-hidden />
 
                 {/* Полноэкранное фото (как в референсе), без framed 3:4 */}
-                <div className="absolute inset-0 z-[2]">
+                <div
+                  className="absolute inset-0 z-[2] will-change-transform motion-reduce:transition-none"
+                  style={{
+                    transform:
+                      swipeOffset !== 0
+                        ? `translateY(${swipeOffset}px)`
+                        : undefined,
+                    transition:
+                      swipeOffset === 0
+                        ? "transform 180ms ease-out"
+                        : "none",
+                  }}
+                >
                   <Image
                     src={currentPhoto}
                     alt={buildCardImageAlt(title, [], photoIndex)}
@@ -918,12 +999,14 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                   <>
                     <button
                       type="button"
+                      data-swipe-ok
                       onClick={prevPhoto}
                       className={`${OVERLAY_BUTTON_UA_RESET} absolute bottom-[calc(env(safe-area-inset-bottom)+5.875rem)] left-0 top-[calc(env(safe-area-inset-top)+9rem)] z-[58] w-[34%] touch-manipulation ${mobileChromeClass}`}
                       aria-label="Предыдущее фото"
                     />
                     <button
                       type="button"
+                      data-swipe-ok
                       onClick={nextPhoto}
                       className={`${OVERLAY_BUTTON_UA_RESET} absolute bottom-[calc(env(safe-area-inset-bottom)+5.875rem)] right-0 top-[calc(env(safe-area-inset-top)+9rem)] z-[58] w-[34%] touch-manipulation ${mobileChromeClass}`}
                       aria-label="Следующее фото"
@@ -1041,7 +1124,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                 ) : null}
 
                 <aside className={`pointer-events-none absolute right-3 top-1/2 z-[73] flex max-h-[min(76dvh,100dvh-8rem)] -translate-y-1/2 flex-col items-end justify-center gap-2 ${mobileChromeClass}`}>
-                  <div className="pointer-events-auto flex flex-col items-center gap-2">
+                  <div className="pointer-events-auto relative flex flex-col items-center gap-2">
                     <ReactionButtons
                       cardId={data.id}
                       likesCount={data.likesCount}
@@ -1066,6 +1149,39 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                     >
                       <ShareIcon className="block shrink-0" size={16} />
                     </button>
+                    {hasListingNeighbors ? (
+                      <>
+                        <div
+                          className="my-0.5 h-px w-6 bg-white/25"
+                          aria-hidden
+                        />
+                        <div className="relative flex flex-col items-center gap-2">
+                          <StickyListingNavButton
+                            slug={listingPrev}
+                            direction="prev"
+                            onGo={(slug) => {
+                              dismissSwipeOnboarding();
+                              goListingNeighbor(slug);
+                            }}
+                            orientation="vertical"
+                          />
+                          <StickyListingNavButton
+                            slug={listingNext}
+                            direction="next"
+                            onGo={(slug) => {
+                              dismissSwipeOnboarding();
+                              goListingNeighbor(slug);
+                            }}
+                            orientation="vertical"
+                          />
+                          {showSwipeOnboarding ? (
+                            <CardSwipeOnboarding
+                              onDismiss={dismissSwipeOnboarding}
+                            />
+                          ) : null}
+                        </div>
+                      </>
+                    ) : null}
                   </div>
                 </aside>
                 <div className={`pointer-events-none absolute inset-x-0 bottom-0 z-[80] flex max-h-[min(56dvh,calc(100dvh-env(safe-area-inset-bottom)-env(safe-area-inset-top)-6rem)] flex-col justify-end gap-3 overflow-hidden px-4 pb-[calc(env(safe-area-inset-bottom)+6.125rem)] pt-28 ${mobileChromeClass}`}>
@@ -1089,32 +1205,11 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                   </div>
                 </div>
 
-                {/* Низ: только лента / копировать — без общей подложки, поверх фото */}
+                {/* Низ: копировать + Lexy — стрелки листинга в правом стеке */}
                 <div className={`pointer-events-none absolute inset-x-0 bottom-0 z-[99] pb-[max(14px,env(safe-area-inset-bottom))] pt-6 md:hidden ${mobileChromeClass}`}>
                   <div className="pointer-events-auto mx-auto flex w-full max-w-lg flex-col gap-2 px-3">
-                    {!hasPrompts ? (
-                      <div className="grid grid-cols-2 gap-2">
-                        <StickyListingNavButton
-                          slug={listingPrev}
-                          direction="prev"
-                          onGo={goListingNeighbor}
-                          floatingGlass
-                        />
-                        <StickyListingNavButton
-                          slug={listingNext}
-                          direction="next"
-                          onGo={goListingNeighbor}
-                          floatingGlass
-                        />
-                      </div>
-                    ) : (
-                      <div className={`${LISTING_STICKY_ACTIONS_GRID} shadow-none`}>
-                        <StickyListingNavButton
-                          slug={listingPrev}
-                          direction="prev"
-                          onGo={goListingNeighbor}
-                          floatingGlass
-                        />
+                    {hasPrompts ? (
+                      <div className={`${MOBILE_PHOTO_ACTIONS_GRID} shadow-none`}>
                         <button
                           type="button"
                           onClick={(e) => {
@@ -1150,14 +1245,8 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                           className="h-full min-h-11 min-w-0 w-full truncate px-2 text-[13px] shadow-none ring-2 ring-black/35"
                           onInternalGenerate={canInlineGenerate ? openInlineGenerate : undefined}
                         />
-                        <StickyListingNavButton
-                          slug={listingNext}
-                          direction="next"
-                          onGo={goListingNeighbor}
-                          floatingGlass
-                        />
                       </div>
-                    )}
+                    ) : null}
                   </div>
                 </div>
 
@@ -1525,6 +1614,54 @@ function DesktopPanelTags({
           {expanded ? "Свернуть" : "Ещё"}
         </button>
       )}
+    </div>
+  );
+}
+
+/** One-time mobile tooltip next to ↑↓ listing arrows. */
+function CardSwipeOnboarding({ onDismiss }: { onDismiss: () => void }) {
+  useEffect(() => {
+    const t = window.setTimeout(onDismiss, 8000);
+    return () => window.clearTimeout(t);
+  }, [onDismiss]);
+
+  useEffect(() => {
+    function onPointerDown(e: PointerEvent) {
+      const target = e.target;
+      if (!(target instanceof Element)) return;
+      if (target.closest("[data-card-swipe-onboarding]")) return;
+      onDismiss();
+    }
+    window.addEventListener("pointerdown", onPointerDown);
+    return () => window.removeEventListener("pointerdown", onPointerDown);
+  }, [onDismiss]);
+
+  return (
+    <div
+      data-card-swipe-onboarding
+      data-no-swipe
+      role="status"
+      className="pointer-events-auto absolute right-full top-1/2 z-[80] mr-2 w-[min(12.5rem,calc(100vw-5.5rem))] -translate-y-1/2 animate-in fade-in slide-in-from-right-2 duration-300"
+    >
+      <div
+        className={`relative rounded-2xl px-3 py-2.5 leading-snug shadow-lg ring-1 ring-white/20 ${MOBILE_FS_CHIP}`}
+      >
+        <p className="text-[13px] font-medium text-white/95">
+          Свайпай вверх/вниз или жми ↑/↓ — перелистывай карточки
+        </p>
+        <button
+          type="button"
+          onClick={onDismiss}
+          className={`${OVERLAY_BUTTON_UA_RESET} mt-2 text-[11px] font-semibold text-white/70 underline decoration-white/30 underline-offset-2 hover:text-white`}
+        >
+          Понятно
+        </button>
+        {/* Caret pointing at the arrow stack */}
+        <span
+          className="absolute top-1/2 -right-1.5 h-3 w-3 -translate-y-1/2 rotate-45 bg-black/15 ring-1 ring-white/20"
+          aria-hidden
+        />
+      </div>
     </div>
   );
 }
