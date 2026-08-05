@@ -386,7 +386,7 @@ SearchResults (client, infinite scroll)
 
 | Компонент | Файл | Роль |
 |-----------|------|------|
-| PageLayout | `components/PageLayout.tsx` | Клиентский shell: `listing-mobile-shell` + `#listing-scroll-root`; моб. высота через `--ps-listing-shell-height` (`listing-shell-viewport.ts`, `visualViewport`); in-flow `ListingBottomBar`; **`useListingScrollOnRouteChange(pathname)`** — сброс скролла при смене маршрута |
+| PageLayout | `components/PageLayout.tsx` | Клиентский shell: `listing-mobile-shell` + `#listing-scroll-root`; моб. высота через `--ps-listing-shell-height` (`listing-shell-viewport.ts`, нижняя граница `visualViewport = offsetTop + height`), повторная синхронизация после клавиатуры, browser chrome, history и смены маршрута; in-flow `ListingBottomBar`; **`useListingScrollOnRouteChange(pathname)`** — сброс скролла при смене маршрута |
 | Header | `components/Header.tsx` | Legacy серверный (заменён PageLayout) |
 | Footer | `components/Footer.tsx` | Статический |
 | CardPage | `app/p/[slug]/page.tsx` | Серверный, SSR карточки |
@@ -411,7 +411,7 @@ SearchResults (client, infinite scroll)
 | FotoVPromtMiniBanner | `components/foto-v-promt-promo/FotoVPromtMiniBanner.tsx` | Промо LexyGPT «Сгенерировать аналог» → playground (`listing` \| `card` \| `cardImmersive`) |
 | ListingFotoVPromtBanner | `components/foto-v-promt-promo/ListingFotoVPromtBanner.tsx` | Sticky + IntersectionObserver hide после первого экрана |
 | ListingBottomBar | `components/ListingBottomBar.tsx` | Только десктоп (lg+): portal `fixed` с `ListingSearchField` + кнопка фильтров. На mobile — `null`. |
-| MobileTabBar | `components/MobileTabBar.tsx` | 5-вкладочный таб-бар (max-lg): **Новое** (`/new`) / Каталог / **Фото в промт** (center accent → `open()` soft modal) / Поиск / Профиль. LexyGPT из таббара убран. Регистрирует `registerMobileSearchOpen`, рендерит `ListingMobileSearchSheet`, `MobileProfileSheet`. |
+| MobileTabBar | `components/MobileTabBar.tsx` | 5-вкладочный viewport-fixed таб-бар (max-lg): **Новое** (`/new`) / Каталог / **Фото в промт** (center accent → `open()` soft modal) / Поиск / Профиль. Независим от временно устаревшей высоты listing shell; регистрирует `registerMobileSearchOpen`, рендерит `ListingMobileSearchSheet`, `MobileProfileSheet`. |
 | FotoVPromtMobileModal | `components/foto-v-promt/FotoVPromtMobileModal.tsx` | Mobile fullscreen dialog (`lg:hidden`, root layout); host для `PromptSceneLiteWidget variant="immersive"`. |
 | FotoVPromtMobileModalContext | `context/FotoVPromtMobileModalContext.tsx` | Soft: scroll lock + `pushState` + virtual hit, close → `history.back()`. Route (hard mobile `/foto-v-promt`): auto-open, close → `replace('/')`. Desktop — без модалки. |
 | MobileProfileSheet | `components/MobileProfileSheet.tsx` | Нижний sheet профиля (portal): аватар + Избранное + Мои генерации + Выйти. |

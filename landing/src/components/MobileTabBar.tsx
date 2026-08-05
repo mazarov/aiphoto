@@ -138,7 +138,7 @@ export function MobileTabBar() {
   return (
     <>
       <div
-        className="mobile-tab-bar pointer-events-none absolute inset-x-0 bottom-0 z-40 max-lg:block lg:hidden"
+        className="mobile-tab-bar pointer-events-none fixed inset-x-0 bottom-0 z-40 max-lg:block lg:hidden"
       >
         <div ref={tabBarRef} className="pointer-events-auto rounded-t-2xl border-t border-zinc-200/70 bg-white/95 shadow-[0_-8px_32px_-12px_rgba(99,102,241,0.12)] backdrop-blur-xl pb-[max(0px,env(safe-area-inset-bottom,0px))]">
         <div className="flex h-14 items-end justify-around px-1 pb-1">

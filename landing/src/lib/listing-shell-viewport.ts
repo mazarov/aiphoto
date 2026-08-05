@@ -13,7 +13,12 @@ export function readListingShellViewportHeightPx(): number {
   if (typeof window === "undefined") return 0;
   const vv = window.visualViewport;
   if (vv && Number.isFinite(vv.height) && vv.height > 0) {
-    return Math.round(vv.height);
+    // `height` alone is only the size of the visual viewport. During browser
+    // zoom/chrome transitions it may be shifted inside the layout viewport,
+    // so the visible bottom edge is offsetTop + height.
+    const offsetTop =
+      Number.isFinite(vv.offsetTop) && vv.offsetTop > 0 ? vv.offsetTop : 0;
+    return Math.round(vv.height + offsetTop);
   }
   return Math.round(window.innerHeight);
 }
@@ -39,6 +44,9 @@ export function bumpListingShellViewportHeight(): void {
   });
   window.setTimeout(syncListingShellViewportHeight, 120);
   window.setTimeout(syncListingShellViewportHeight, 320);
+  // Mobile Chromium/Yandex keyboard and browser chrome animations can settle
+  // after the shorter retries, leaving the previous keyboard-sized viewport.
+  window.setTimeout(syncListingShellViewportHeight, 700);
 }
 
 export function useListingShellViewportSync(): void {
@@ -47,6 +55,12 @@ export function useListingShellViewportSync(): void {
 
     const onLayoutChange = () => syncListingShellViewportHeight();
     const onVvChange = () => syncListingShellViewportHeight();
+    const onSettledLayoutChange = () => {
+      if (mq.matches) bumpListingShellViewportHeight();
+    };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") onSettledLayoutChange();
+    };
 
     const attachVv = () => {
       const vv = window.visualViewport;
@@ -72,6 +86,10 @@ export function useListingShellViewportSync(): void {
     window.addEventListener("resize", onLayoutChange);
     window.addEventListener("orientationchange", onLayoutChange);
     window.addEventListener("pageshow", onLayoutChange);
+    window.addEventListener("focus", onSettledLayoutChange);
+    window.addEventListener("popstate", onSettledLayoutChange);
+    document.addEventListener("focusout", onSettledLayoutChange);
+    document.addEventListener("visibilitychange", onVisibilityChange);
 
     onLayoutChange();
     if (mq.matches) attachVv();
@@ -81,6 +99,10 @@ export function useListingShellViewportSync(): void {
       window.removeEventListener("resize", onLayoutChange);
       window.removeEventListener("orientationchange", onLayoutChange);
       window.removeEventListener("pageshow", onLayoutChange);
+      window.removeEventListener("focus", onSettledLayoutChange);
+      window.removeEventListener("popstate", onSettledLayoutChange);
+      document.removeEventListener("focusout", onSettledLayoutChange);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
       detachVv();
       document.documentElement.style.removeProperty(LISTING_SHELL_HEIGHT_VAR);
     };
