@@ -24,7 +24,7 @@ export function FotoVPromtChromeCta({ placement }: FotoVPromtChromeCtaProps) {
       href={getAiImageDescriberChromeUrl(placement)}
       target="_blank"
       rel="noopener noreferrer"
-      onClick={() => trackFotoVPromtAddToChromeClick()}
+      onClick={() => trackFotoVPromtAddToChromeClick(placement)}
       className={`inline-flex items-center justify-center gap-2 rounded-full bg-zinc-950 px-6 py-3 text-sm font-semibold text-white shadow-[0_10px_36px_rgba(0,0,0,0.5)] ring-1 ring-inset ring-white/25 transition hover:bg-zinc-800 ${FVP_FOCUS_RING}`}
     >
       <ChromeMark className="h-5 w-5 shrink-0" />

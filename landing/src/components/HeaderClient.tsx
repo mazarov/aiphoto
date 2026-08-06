@@ -5,16 +5,19 @@ import { syncHeaderHeightCssVar } from "@/lib/listing-header-offset";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
+import { ChromeMark } from "./foto-v-promt/ChromeMark";
 import { SiteLogoMark } from "./SiteLogoMark";
 import { ListingChromeButton, ListingMenuIcon } from "./ListingChromeButton";
 import { useAuth } from "@/context/AuthContext";
 import { useListingMobileChromeOptional } from "@/context/ListingMobileChromeContext";
+import { getAiImageDescriberChromeUrl } from "@/lib/foto-v-promt-config";
 import { isSameNavPath, scrollCatalogToTop } from "@/lib/scroll-preservation";
 import {
   LISTING_MOBILE_CHROME_INSET,
   LISTING_NAV_SHELL_SURFACE,
 } from "@/lib/listing-shell-surface";
 import { canAccessPricingPreview } from "@/lib/pricing-preview-access";
+import { trackDesktopHeaderAddToChromeClick } from "@/lib/yandex-metrika";
 
 function MobileCatalogMenuButton() {
   const chrome = useListingMobileChromeOptional();
@@ -237,7 +240,7 @@ export function HeaderClient() {
       </div>
 
       {/* Desktop: logo + user menu */}
-      <div className="hidden items-center justify-between gap-4 px-5 py-3 lg:flex">
+      <div className="relative hidden items-center justify-between gap-4 px-5 py-3 lg:flex">
         <Link
           href="/"
           scroll={false}
@@ -247,6 +250,19 @@ export function HeaderClient() {
           <SiteLogoMark size={28} className="h-7 w-7 rounded-lg" />
           <span>PromptShot</span>
         </Link>
+
+        <a
+          href={getAiImageDescriberChromeUrl("desktop_header")}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={trackDesktopHeaderAddToChromeClick}
+          className="absolute left-1/2 flex -translate-x-1/2 items-center gap-2 whitespace-nowrap rounded-full bg-indigo-600 px-3.5 py-2 text-white shadow-sm transition hover:bg-indigo-700 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2"
+        >
+          <ChromeMark className="h-4 w-4 shrink-0" />
+          <span className="text-[13px] font-semibold">Установи Chrome-расширение</span>
+          <span className="h-3.5 w-px bg-white/30" aria-hidden="true" />
+          <span className="text-xs text-indigo-100">Преврати фото с любого сайта в готовый промт</span>
+        </a>
 
         <div className="flex items-center gap-2">
           <CreditBalance />

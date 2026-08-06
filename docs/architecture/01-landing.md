@@ -1,5 +1,7 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Дополнение 2026-08-06 (**desktop extension header CTA:** компактный CTA «Установи Chrome-расширение · Преврати фото с любого сайта в готовый промт» расположен по центру desktop `HeaderClient`, в одной линии с логотипом. Ссылка получает `utm_content=desktop_header`; клик размечен отдельной целью Метрики `desktop_header_add_to_chrome_click`. В sidebar и на mobile CTA не показывается.)
+
 > Дополнение 2026-08-02 (**fix/card-modal-backdrop-dismiss:** общий `CardModal` закрывает оба варианта модалки карточки по клику на визуальный backdrop, включая прозрачные промежутки desktop split; реальные поверхности помечены `data-card-modal-surface` и не закрывают экран.)
 
 > Дополнение 2026-08-02 (**pricing-link-preview:** неавторизованный пользователь в любом окружении может открыть `/pricing?test=true`; без точного параметра действует общий email allowlist и маршрут отвечает 404.)
@@ -38,7 +40,7 @@
 - **Кнопка «Сгенерировать» → LexyGPT** (отдельные цели JS в Метрике): **`lexygpt_generate_promptcard`** (`LexyGptGenerateButton` на листинге / `/p/[slug]`); **`lexygpt_generate_photovprompt`** (результат и история на `/foto-v-promt`). Legacy **`lexygpt_generate_tabbar`** (таббар больше не вызывает) и **`lexygpt_generate_click`** + `placement` — deprecated.
 - **Баннер «Фото в промт»** (листинг): **`reachGoal('foto_v_promt_banner_click')`** (`ListingFotoVPromtBanner`, sticky над сеткой).
 - **Баннер «Фото в промт»** отображается только на листингах. Варианты `card` / `cardImmersive` сняты с `/p/[slug]`; legacy-цель **`foto_v_promt_banner_click_card`** больше не вызывается из детальной карточки. ТЗ — **`docs/requirements/04-06-foto-v-promt-mini-banner.md`**.
-- **Floating CTA «Add to Chrome»** на **`/foto-v-promt`**: **`reachGoal('foto_v_promt_add_to_chrome_click')`** (`FotoVPromtFloatingCta` всегда закреплён снизу desktop-страницы; mobile-модалка рендерит тот же `FotoVPromtChromeCta` фиксированно над safe area → Chrome Web Store). UTM для GA4 листинга CWS: `utm_source=promptshot.ru`, `utm_medium=cpc`, `utm_campaign=foto_v_promt`, `utm_content` по placement (`foto_v_promt_floating_cta` \| `foto_v_promt_mobile_floating_cta` \| `foto_v_promt_remix_hint` \| `foto_v_promt_json_ld`).
+- **CTA установки расширения**: desktop header вызывает отдельную цель **`reachGoal('desktop_header_add_to_chrome_click')`**. CTA страницы `/foto-v-promt` используют **`reachGoal('foto_v_promt_add_to_chrome_click', { placement })`**. UTM для GA4 Chrome Web Store остаются общими: `utm_source=promptshot.ru`, `utm_medium=cpc`, `utm_campaign=foto_v_promt`, `utm_content` по placement (`desktop_header` \| `foto_v_promt_floating_cta` \| `foto_v_promt_mobile_floating_cta` \| `foto_v_promt_remix_hint` \| `foto_v_promt_json_ld`).
 
 ---
 
