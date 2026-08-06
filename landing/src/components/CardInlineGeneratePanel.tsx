@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { OVERLAY_BUTTON_UA_RESET } from "@/lib/card-overlay-action-pill";
+import { requestCreditBalanceRefresh } from "@/lib/credit-balance-events";
 import { optionLabelForGenerationModel } from "@/lib/generation-model-labels";
 import { noticeForUploadError, prepareUploadFile } from "@/lib/image-upload-prepare";
 
@@ -292,6 +293,7 @@ export function CardInlineGeneratePanel({
       if (!genRes.ok || !genData.id) {
         throw new Error(genData.message || genData.error || "Не удалось создать генерацию");
       }
+      requestCreditBalanceRefresh();
 
       const started = Date.now();
       while (Date.now() - started < POLL_MAX_MS) {
@@ -314,9 +316,11 @@ export function CardInlineGeneratePanel({
           setResultUrl(poll.resultUrl);
           setProgress(100);
           setPhase("done");
+          requestCreditBalanceRefresh();
           return;
         }
         if (poll.status === "failed") {
+          requestCreditBalanceRefresh();
           throw new Error(poll.errorMessage || "Генерация не удалась");
         }
       }

@@ -1,5 +1,7 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-08-06 (**generation history + balance sync:** `/generations` читает канонические `landing_generations`, поэтому готовый результат не зависит от best-effort создания UGC-карточки. Бесплатный open-debug теперь выключен по умолчанию и включается только явным `STV_OPEN_GENERATE_DEBUG=true`; inline-клиент после списания/refund отправляет общий browser event, по которому navbar повторно читает `/api/me`.)
+
 > Дополнение 2026-08-06 (**desktop extension header CTA:** компактный CTA «Установи Chrome-расширение · Преврати фото с любого сайта в готовый промт» расположен по центру desktop `HeaderClient`, в одной линии с логотипом. Ссылка получает `utm_content=desktop_header`; клик размечен отдельной целью Метрики `desktop_header_add_to_chrome_click`. В sidebar и на mobile CTA не показывается.)
 
 > Дополнение 2026-08-02 (**fix/card-modal-backdrop-dismiss:** общий `CardModal` закрывает оба варианта модалки карточки по клику на визуальный backdrop, включая прозрачные промежутки desktop split; реальные поверхности помечены `data-card-modal-surface` и не закрывают экран.)
@@ -59,7 +61,7 @@
 /policy                 → Страница политики обработки данных; ссылка на `/docs/privacy.pdf`, если утверждённый файл присутствовал при сборке
 /privacy                → Permanent redirect на `/policy`
 /favorites              → Избранное (требует авторизации)
-/generations            → Мои генерации (auth): листинг как в каталоге (`PromptCard`), карточки UGC из `prompt_cards` с `author_user_id`
+/generations            → Мои генерации (auth): канонический список `landing_generations` текущего shared DB user; UGC-карточка необязательна
 /auth/callback          → OAuth callback (server-side)
 /embed/stv              → Steal This Vibe (клиент подгружает `/stv-panel/boot.mjs` + `styles.css`; та же логика, что side panel расширения)
 /extension-stv          → Превью маркетингового лендинга расширения (спека `docs/extension-landing-pain-hope-solution.md`); **`metadata.title` / `description`** — SEO; `metadata.robots` noindex; шапка **`ExtensionStvMarketingHeader`** (логотип + «Image to prompt» → `/extension-stv`, **Pricing** → `/extension-stv/pricing`, Chrome Web Store); FAB **`ExtensionStvFloatingCta`**. Порядок секций: hero (H1 + лид + `ExtensionStvChromeBadge`) → pain + **Reference** (`PainReferenceVsDraftMock`) → **Accuracy** (`ExtensionStvAccuracySection`) → **Testimonials** → **How it works** (`ExtensionStvHowItWorks`, 4 шага) → **FAQ** (`ExtensionStvFaq`). Футер **`ExtensionStvMarketingFooter`**. Блок **Reference**: upload → extract → expand. Общие константы: `landing/src/components/extension-stv/stv-marketing-shared.ts`.
@@ -122,9 +124,9 @@
 | `/api/user-generation-photos/[id]` | DELETE (auth): удаление принадлежащего пользователю фото из private Storage и библиотеки |
 | `/api/generate` | Запуск генерации (auth); 1–10 входных фото, лимит из `landing_generation_config.max_photos`, каждый Storage path проверяется по JWT user prefix |
 | `/api/generate-process` | Внутренний: обработка генерации |
-| `/api/generations` | Список строк `landing_generations` (legacy / отладка) |
+| `/api/generations` | Auth-список строк `landing_generations` текущего shared DB user для `/generations`; private no-store |
 | `/api/generations/[id]` | Статус/результат генерации |
-| `/api/my-prompt-cards` | GET (auth): карточки `prompt_cards` с `author_user_id = shared db id` (`resolveViewerDbUserId`), включая черновики (`is_published=false`), для `/generations` |
+| `/api/my-prompt-cards` | GET (auth): карточки `prompt_cards` с `author_user_id = shared db id` (`resolveViewerDbUserId`), включая черновики (`is_published=false`) |
 | `/api/my-cards/[slug]/visibility` | PATCH (auth): `{ published: boolean }` — владелец переключает видимость; при `published: true` — LLM/regex тегирование (`landing/src/lib/seo-tags-classify.ts`), затем `revalidatePath` |
 | `/api/me` | Текущий пользователь + credits; авторизованная глобальная шапка использует ответ для отображения баланса |
 | `/api/buy-credits-link` | Deep link в Telegram-бота для покупки web-кредитов |
@@ -143,11 +145,11 @@
 - **`LexyGptGenerateButton`:** internal path (inline override или STV drawer по `cardId`) только для allowlisted; иначе всегда LexyGPT. CTA `/foto-v-promt` без `cardId` → LexyGPT.
 - **STV drawer (legacy):** `GenerationContext.openGenerationModal` → **`GenerationModal`** (`/embed/stv`) — только allowlisted при `cardId` без inline override. Chrome extension без изменений.
 
-#### Временный open-generate debug (карточка)
+#### Open-generate debug (карточка)
 
-- **Условия:** обязательная auth-сессия + email в allowlist; `STV_OPEN_GENERATE_DEBUG` по умолчанию on для allowlisted (в т.ч. prod), `=0`/`false` выключает. Без логина → 401 (анонимный open-debug нет).
+- **Условия:** обязательная auth-сессия + email в allowlist; режим по умолчанию выключен и включается только явным `STV_OPEN_GENERATE_DEBUG=1`/`true`. Без логина → 401 (анонимный open-debug нет).
 - **Эффект:** generate с `creditsCharged=0`; `landing_generations.user_id` = shared `imageprompt_users.id` сессии (через `resolveSharedDbUserId` / `ensureLandingUserForGeneration`, не guest-owner); Storage upload по JWT; poll `/api/generations/:id` по shared db id.
-- **Назначение:** временный бесплатный generate для allowlisted аккаунта с нормальной историей на `/generations`.
+- **Обычный режим:** allowlisted inline UI остаётся доступен, но при выключенном debug использует общий атомарный `landing_deduct_credits`; navbar обновляет `/api/me` по `promptshot:credit-balance-refresh` после списания и refund.
 - **Ошибки Gemini:** `generate-process` пишет в `error_message` / `error_type` сырые сигналы ответа (`error.message`, `blockReason`, `finishReason`) без локализованной подмены.
 
 #### Shared DB identity (imageprompts + promptshot)
@@ -173,8 +175,8 @@
 - **Gemini routing:** `generate-process` читает `photo_app_config.gemini_use_proxy`; при `true` использует `GEMINI_PROXY_BASE_URL`, при `false` ходит напрямую в `generativelanguage.googleapis.com`.
 - **Таблицы:** `landing_users.credits`, `landing_generations` (+ `client_source`), `landing_generation_config`, `landing_user_photos` (server-only индекс private uploads по `auth_user_id`, newest-first).
 - **Storage:** `web-generation-uploads` (входные фото; inline-библиотека хранит ссылки, удаление синхронно удаляет объект), `web-generation-results` (результаты).
-- **Страница:** `/generations` — «Мои генерации» в меню пользователя; сетка `PromptCard` как в избранном.
-- **UGC-карточка:** после успешного `generate-process` создаётся черновик в `prompt_cards` (`author_user_id`, `is_published=false`, датасет `web_generation_ugc`), связь `landing_generations.ugc_card_id`. Публикация — на `/p/[slug]` (кнопка владельца) или PATCH visibility API; в индекс попадают только `is_published=true` (sitemap, поиск, RPC листингов).
+- **Страница:** `/generations` — «Мои генерации» в меню пользователя; source of truth — auth API `/api/generations` и строки `landing_generations` по shared DB user. UI показывает результат, prompt/model, стоимость и статусы `pending` / `processing` / `completed` / `failed`; ответ не кешируется.
+- **UGC-карточка:** после успешного `generate-process` best-effort создаётся черновик в `prompt_cards` (`author_user_id`, `is_published=false`, датасет `web_generation_ugc`), связь `landing_generations.ugc_card_id`. Это производный объект: его отсутствие не скрывает результат в `/generations`. Публикация — на `/p/[slug]` (кнопка владельца) или PATCH visibility API; в индекс попадают только `is_published=true` (sitemap, поиск, RPC листингов).
 - **Бэкфилл до релиза UGC:** скрипт `landing/scripts/backfill-ugc-from-generations.ts` — для строк `landing_generations` со статусом `completed`, пустым `ugc_card_id` и заполненным результатом в Storage создаёт те же `prompt_cards`, что и runtime (`createUgcCardForCompletedGeneration`). Запуск из корня репо: `npm run backfill:ugc-from-generations:dry` затем `npm run backfill:ugc-from-generations` (или из `landing/`: `npm run backfill:ugc-from-generations:dry`). Env: **`SUPABASE_SERVICE_ROLE_KEY`**, URL (`NEXT_PUBLIC_SUPABASE_URL` / `SUPABASE_URL`). Аргументы: `--dry-run`, `--limit N`, `--user-id <uuid>`.
 
 ### Vibe Pipeline (Steal This Vibe)

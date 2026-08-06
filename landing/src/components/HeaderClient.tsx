@@ -17,6 +17,7 @@ import {
   LISTING_NAV_SHELL_SURFACE,
 } from "@/lib/listing-shell-surface";
 import { canAccessPricingPreview } from "@/lib/pricing-preview-access";
+import { CREDIT_BALANCE_REFRESH_EVENT } from "@/lib/credit-balance-events";
 import { trackDesktopHeaderAddToChromeClick } from "@/lib/yandex-metrika";
 
 function MobileCatalogMenuButton() {
@@ -45,29 +46,38 @@ function CreditBalance() {
     }
 
     const controller = new AbortController();
-    setCredits(null);
-
-    void fetch("/api/me", {
-      cache: "no-store",
-      credentials: "include",
-      signal: controller.signal,
-    })
-      .then(async (response) => {
-        if (!response.ok) throw new Error(`Balance request failed: ${response.status}`);
-        return response.json() as Promise<{ credits?: number }>;
-      })
-      .then((payload) => {
+    const loadCredits = async (showLoading = false) => {
+      if (showLoading) setCredits(null);
+      try {
+        const response = await fetch("/api/me", {
+          cache: "no-store",
+          credentials: "include",
+          signal: controller.signal,
+        });
+        if (!response.ok) {
+          throw new Error(`Balance request failed: ${response.status}`);
+        }
+        const payload = (await response.json()) as { credits?: number };
         if (!controller.signal.aborted) {
           setCredits(Number.isFinite(payload.credits) ? Number(payload.credits) : 0);
         }
-      })
-      .catch((error: unknown) => {
+      } catch (error: unknown) {
         if (!controller.signal.aborted) {
           console.error("[header.balance] failed", error);
         }
-      });
+      }
+    };
 
-    return () => controller.abort();
+    void loadCredits(true);
+    const refreshBalance = () => {
+      void loadCredits();
+    };
+    window.addEventListener(CREDIT_BALANCE_REFRESH_EVENT, refreshBalance);
+
+    return () => {
+      controller.abort();
+      window.removeEventListener(CREDIT_BALANCE_REFRESH_EVENT, refreshBalance);
+    };
   }, [hasPricingAccess, loading, user]);
 
   if (loading || !user || user.is_anonymous === true || !hasPricingAccess) return null;

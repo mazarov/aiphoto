@@ -20,7 +20,9 @@ export async function GET(req: NextRequest) {
 
     const { data: rows, error } = await supabase
       .from("landing_generations")
-      .select("id, status, prompt_text, model, aspect_ratio, created_at, result_storage_bucket, result_storage_path")
+      .select(
+        "id, status, prompt_text, model, aspect_ratio, credits_spent, created_at, generation_completed_at, error_message, result_storage_bucket, result_storage_path"
+      )
       .eq("user_id", dbUserId)
       .order("created_at", { ascending: false })
       .range(offset, offset + limit - 1);
@@ -40,14 +42,20 @@ export async function GET(req: NextRequest) {
       prompt: g.prompt_text,
       model: g.model,
       aspectRatio: g.aspect_ratio,
+      creditsSpent: g.credits_spent,
       createdAt: g.created_at,
+      completedAt: g.generation_completed_at,
+      errorMessage: g.status === "failed" ? g.error_message : null,
       resultUrl:
         g.result_storage_bucket && g.result_storage_path
           ? getStoragePublicUrl(g.result_storage_bucket, g.result_storage_path)
           : null,
     }));
 
-    return NextResponse.json({ generations, total: count ?? 0 });
+    return NextResponse.json(
+      { generations, total: count ?? 0 },
+      { headers: { "Cache-Control": "private, no-store" } }
+    );
   } catch (err) {
     console.error("generations list error:", err);
     return NextResponse.json({ error: "Failed to fetch" }, { status: 500 });
