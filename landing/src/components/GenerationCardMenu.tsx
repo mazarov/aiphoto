@@ -14,6 +14,7 @@ export type GenerationMenuAction =
 type Props = {
   open: boolean;
   onClose: () => void;
+  showSelect?: boolean;
   hasResult: boolean;
   hasPrompt: boolean;
   canPublish: boolean;
@@ -121,6 +122,7 @@ function IconPublish({ className }: { className?: string }) {
 export function GenerationCardMenu({
   open,
   onClose,
+  showSelect = true,
   hasResult,
   hasPrompt,
   canPublish,
@@ -173,16 +175,18 @@ export function GenerationCardMenu({
         Действия с генерацией
       </span>
 
-      <button
-        type="button"
-        role="menuitem"
-        className={ITEM}
-        disabled={Boolean(busyAction)}
-        onClick={() => run("select")}
-      >
-        <IconSelect className="h-4 w-4 shrink-0" />
-        Выбрать
-      </button>
+      {showSelect ? (
+        <button
+          type="button"
+          role="menuitem"
+          className={ITEM}
+          disabled={Boolean(busyAction)}
+          onClick={() => run("select")}
+        >
+          <IconSelect className="h-4 w-4 shrink-0" />
+          Выбрать
+        </button>
+      ) : null}
       <button
         type="button"
         role="menuitem"

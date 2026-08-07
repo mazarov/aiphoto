@@ -12,6 +12,10 @@ import {
   GenerationCardMenu,
   type GenerationMenuAction,
 } from "@/components/GenerationCardMenu";
+import {
+  downloadGenerationResult,
+  shareGenerationResult,
+} from "@/lib/generation-result-client-actions";
 
 export type GenerationHistoryItem = {
   id: string;
@@ -49,33 +53,6 @@ const STATUS_LABELS: Record<GenerationHistoryItem["status"], string> = {
   completed: "Готово",
   failed: "Ошибка",
 };
-
-async function downloadResult(url: string, filename: string) {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error("download failed");
-  const blob = await res.blob();
-  const objectUrl = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = objectUrl;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(objectUrl);
-}
-
-async function shareResult(url: string): Promise<"shared" | "copied"> {
-  if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
-    try {
-      await navigator.share({ url });
-      return "shared";
-    } catch (err) {
-      if (err instanceof Error && err.name === "AbortError") throw err;
-    }
-  }
-  await navigator.clipboard.writeText(url);
-  return "copied";
-}
 
 export function GenerationHistoryCard({
   generation,
@@ -161,7 +138,7 @@ export function GenerationHistoryCard({
       if (!generation.resultUrl) return;
       setMenuOpen(false);
       try {
-        const mode = await shareResult(generation.resultUrl);
+        const mode = await shareGenerationResult(generation.resultUrl);
         if (mode === "copied") toast("Ссылка скопирована");
       } catch (err) {
         if (err instanceof Error && err.name === "AbortError") return;
@@ -174,7 +151,10 @@ export function GenerationHistoryCard({
       if (!generation.resultUrl) return;
       setBusyAction("download");
       try {
-        await downloadResult(generation.resultUrl, `promptshot-${generation.id}.jpg`);
+        await downloadGenerationResult(
+          generation.resultUrl,
+          `promptshot-${generation.id}.jpg`
+        );
         setMenuOpen(false);
       } catch {
         toast("Не удалось скачать");

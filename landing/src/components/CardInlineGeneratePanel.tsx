@@ -3,8 +3,20 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { OVERLAY_BUTTON_UA_RESET } from "@/lib/card-overlay-action-pill";
 import { requestCreditBalanceRefresh } from "@/lib/credit-balance-events";
-import { optionLabelForGenerationModel } from "@/lib/generation-model-labels";
+import {
+  GENERATION_MODEL_DISPLAY,
+  displayLabelForGenerationModel,
+} from "@/lib/generation-model-labels";
 import { noticeForUploadError, prepareUploadFile } from "@/lib/image-upload-prepare";
+import { copyTextUniversal } from "@/lib/copy-text-to-clipboard";
+import {
+  GenerationCardMenu,
+  type GenerationMenuAction,
+} from "@/components/GenerationCardMenu";
+import {
+  downloadGenerationResult,
+  shareGenerationResult,
+} from "@/lib/generation-result-client-actions";
 
 type ModelOpt = { id: string; label: string; cost: number };
 type RatioOpt = { value: string; label: string };
@@ -57,6 +69,18 @@ export function CardInlineGeneratePanel({
   const [error, setError] = useState("");
   const [progress, setProgress] = useState(0);
   const [resultUrl, setResultUrl] = useState<string | null>(null);
+  const [generationId, setGenerationId] = useState<string | null>(null);
+  const [submittedPrompt, setSubmittedPrompt] = useState("");
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [busyAction, setBusyAction] = useState<GenerationMenuAction | null>(null);
+  const [isPublished, setIsPublished] = useState(false);
+  const [toast, setToast] = useState("");
+
+  useEffect(() => {
+    if (!toast) return;
+    const timer = window.setTimeout(() => setToast(""), 2500);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
 
   useEffect(() => {
     let cancelled = false;
@@ -266,6 +290,10 @@ export function CardInlineGeneratePanel({
 
     setError("");
     setResultUrl(null);
+    setGenerationId(null);
+    setSubmittedPrompt(prompt);
+    setIsPublished(false);
+    setMenuOpen(false);
     setPhase("generating");
     setProgress(20);
 
@@ -296,6 +324,7 @@ export function CardInlineGeneratePanel({
       if (!genRes.ok || !genData.id) {
         throw new Error(genData.message || genData.error || "Не удалось создать генерацию");
       }
+      setGenerationId(genData.id);
       requestCreditBalanceRefresh();
 
       while (true) {
@@ -343,54 +372,231 @@ export function CardInlineGeneratePanel({
     }
   };
 
+  const handleResultAction = async (action: GenerationMenuAction) => {
+    if (!resultUrl || !generationId || busyAction) return;
+
+    if (action === "select") return;
+
+    if (action === "share") {
+      setMenuOpen(false);
+      try {
+        const mode = await shareGenerationResult(resultUrl);
+        if (mode === "copied") setToast("Ссылка скопирована");
+      } catch (err) {
+        if (err instanceof Error && err.name === "AbortError") return;
+        setToast("Не удалось поделиться");
+      }
+      return;
+    }
+
+    if (action === "download") {
+      setBusyAction("download");
+      try {
+        await downloadGenerationResult(resultUrl, `promptshot-${generationId}.jpg`);
+        setMenuOpen(false);
+      } catch {
+        setToast("Не удалось скачать");
+      } finally {
+        setBusyAction(null);
+      }
+      return;
+    }
+
+    if (action === "copyPrompt") {
+      setMenuOpen(false);
+      const ok = await copyTextUniversal(submittedPrompt || promptText);
+      setToast(ok ? "Промпт скопирован" : "Не удалось скопировать");
+      return;
+    }
+
+    if (action === "use") {
+      setBusyAction("use");
+      try {
+        const res = await fetch(`/api/generations/${generationId}/save-to-library`, {
+          method: "POST",
+          credentials: "include",
+        });
+        const data = (await res.json().catch(() => ({}))) as {
+          error?: string;
+          photo?: UserPhoto;
+        };
+        if (!res.ok) throw new Error(data.error || "Не удалось сохранить");
+        if (data.photo) {
+          setPhotos((current) => [
+            data.photo!,
+            ...current.filter((photo) => photo.id !== data.photo!.id),
+          ]);
+          setSelectedPhotoIds((current) => {
+            if (current.has(data.photo!.id) || current.size >= maxPhotos) return current;
+            return new Set([...current, data.photo!.id]);
+          });
+        }
+        setMenuOpen(false);
+        setToast("Сохранено для генерации");
+      } catch (err) {
+        setToast(err instanceof Error ? err.message : "Не удалось сохранить");
+      } finally {
+        setBusyAction(null);
+      }
+      return;
+    }
+
+    if (action === "publish") {
+      setBusyAction("publish");
+      try {
+        const res = await fetch(`/api/generations/${generationId}/publish`, {
+          method: "POST",
+          credentials: "include",
+        });
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        if (!res.ok) throw new Error(data.error || "Не удалось опубликовать");
+        setIsPublished(true);
+        setMenuOpen(false);
+        setToast("Карточка опубликована");
+      } catch (err) {
+        setToast(err instanceof Error ? err.message : "Не удалось опубликовать");
+      } finally {
+        setBusyAction(null);
+      }
+      return;
+    }
+
+    if (action === "delete") {
+      if (!window.confirm("Удалить эту генерацию?")) return;
+      setBusyAction("delete");
+      try {
+        const res = await fetch(`/api/generations/${generationId}`, {
+          method: "DELETE",
+          credentials: "include",
+        });
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        if (!res.ok) throw new Error(data.error || "Не удалось удалить");
+        setMenuOpen(false);
+        setResultUrl(null);
+        setGenerationId(null);
+        setSubmittedPrompt("");
+        setProgress(0);
+        setPhase("idle");
+        setToast("Генерация удалена");
+      } catch (err) {
+        setToast(err instanceof Error ? err.message : "Не удалось удалить");
+      } finally {
+        setBusyAction(null);
+      }
+    }
+  };
+
   const busy = phase === "uploading" || phase === "generating";
   const controlsBusy = busy || Boolean(deletingPhotoId);
   const isMobile = layout === "mobile";
+  const activePrompt = submittedPrompt || promptText;
 
   return (
     <div
-      className={`flex min-h-0 flex-1 flex-col ${isMobile ? "gap-3 p-4" : "gap-3 px-4 pb-4 pt-2"}`}
+      className="relative isolate flex min-h-0 flex-1 flex-col overflow-hidden bg-zinc-950 text-zinc-100"
     >
-      <div className="flex items-center justify-between gap-2">
+      {resultUrl ? (
+        <div className="pointer-events-none absolute inset-0 -z-10" aria-hidden>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={resultUrl} alt="" className="h-full w-full object-cover" />
+          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(9,9,11,0.68)_0%,rgba(9,9,11,0.22)_35%,rgba(9,9,11,0.72)_100%)]" />
+          <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(9,9,11,0.38)_0%,rgba(9,9,11,0.08)_55%,rgba(9,9,11,0.42)_100%)]" />
+        </div>
+      ) : (
+        <div
+          className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top,rgba(79,70,229,0.16),transparent_38%),#09090b]"
+          aria-hidden
+        />
+      )}
+
+      <header className="relative z-30 flex min-h-14 shrink-0 items-center justify-between gap-2 border-b border-white/10 bg-zinc-950/45 px-3 py-2 backdrop-blur-xl">
         <button
           type="button"
           onClick={onBack}
           disabled={busy}
-          className={`${OVERLAY_BUTTON_UA_RESET} rounded-xl bg-zinc-800 px-3 py-2 text-[13px] font-semibold text-zinc-100 transition hover:bg-zinc-700 disabled:opacity-50`}
+          className={`${OVERLAY_BUTTON_UA_RESET} flex min-h-11 items-center rounded-full bg-black/25 px-4 text-[13px] font-semibold text-white backdrop-blur-md transition hover:bg-black/40 disabled:opacity-50`}
         >
           Назад
         </button>
-        <span className="text-[13px] font-medium text-zinc-400">Генерация</span>
-      </div>
+        <span className="text-[13px] font-semibold text-white/85">
+          {resultUrl ? "Готово" : "Новая генерация"}
+        </span>
+        {resultUrl && generationId ? (
+          <div className="relative" data-generation-menu-root>
+            <button
+              type="button"
+              aria-label="Действия с фото"
+              aria-haspopup="menu"
+              aria-expanded={menuOpen}
+              className={`${OVERLAY_BUTTON_UA_RESET} flex h-11 w-11 items-center justify-center rounded-full bg-black/25 text-white backdrop-blur-md transition hover:bg-black/40`}
+              onClick={() => setMenuOpen((open) => !open)}
+            >
+              <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                <circle cx="12" cy="5" r="1.75" />
+                <circle cx="12" cy="12" r="1.75" />
+                <circle cx="12" cy="19" r="1.75" />
+              </svg>
+            </button>
+            <GenerationCardMenu
+              open={menuOpen}
+              onClose={() => setMenuOpen(false)}
+              showSelect={false}
+              hasResult
+              hasPrompt={Boolean(activePrompt.trim())}
+              canPublish
+              isPublished={isPublished}
+              busyAction={busyAction}
+              onAction={(action) => {
+                void handleResultAction(action);
+              }}
+            />
+          </div>
+        ) : (
+          <span className="h-11 w-11" aria-hidden />
+        )}
+      </header>
 
-      {resultUrl ? (
-        <div className="relative min-h-0 flex-1 overflow-hidden rounded-2xl bg-zinc-900 ring-1 ring-white/10">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={resultUrl} alt="Результат генерации" className="h-full w-full object-contain" />
-        </div>
-      ) : (
-        <section className="rounded-2xl border border-white/10 bg-zinc-900/65 p-3">
-          <div className="mb-2 flex min-h-11 items-center justify-between gap-2">
+      <div
+        className={`relative z-10 min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain ${
+          isMobile ? "px-3 py-3" : "px-3 py-2.5"
+        }`}
+      >
+        <section className="rounded-2xl border border-white/12 bg-zinc-950/58 p-3 shadow-lg shadow-black/10 backdrop-blur-xl">
+          <div className="mb-2 flex items-center justify-between gap-3">
+            <h3 className="text-[13px] font-semibold text-white">Промпт</h3>
+            <span className="text-[13px] font-medium text-zinc-400">
+              {submittedPrompt ? "отправлен в генерацию" : "готов к генерации"}
+            </span>
+          </div>
+          <div className="max-h-40 overflow-y-auto overscroll-contain rounded-xl bg-black/20 px-3 py-2.5 ring-1 ring-inset ring-white/8">
+            <p className="whitespace-pre-wrap text-[13px] font-medium leading-relaxed text-zinc-100/95">
+              {activePrompt}
+            </p>
+          </div>
+        </section>
+
+        <section className="rounded-2xl border border-white/12 bg-zinc-950/58 p-3 backdrop-blur-xl">
+          <div className="mb-2 flex min-h-11 items-center justify-between gap-3">
             <div>
-              <h3 className="text-[13px] font-semibold text-zinc-100">Ваши фото</h3>
-              <p className="text-[13px] font-medium text-zinc-500">
+              <h3 className="text-[13px] font-semibold text-white">Ваши фото</h3>
+              <p className="text-[13px] font-medium text-zinc-400">
                 Выбрано {selectedPhotos.length} из {maxPhotos}
               </p>
             </div>
-            {libraryLoading && (
-              <span className="text-[13px] font-medium text-zinc-500">Загрузка…</span>
-            )}
+            {libraryLoading ? (
+              <span className="text-[13px] font-medium text-zinc-400">Загрузка…</span>
+            ) : null}
           </div>
 
-          <div className="grid max-h-44 grid-cols-4 gap-2 overflow-y-auto pr-0.5">
+          <div className="flex gap-2 overflow-x-auto pb-1">
             {photos.map((photo) => {
               const selected = selectedPhotoIds.has(photo.id);
               const deleting = deletingPhotoId === photo.id;
               return (
                 <div
                   key={photo.id}
-                  className={`group relative aspect-square overflow-hidden rounded-xl bg-zinc-800 ring-2 transition ${
-                    selected ? "ring-emerald-300" : "ring-transparent"
+                  className={`group relative h-[4.75rem] w-[4.75rem] shrink-0 overflow-hidden rounded-xl bg-zinc-800 ring-2 transition ${
+                    selected ? "ring-indigo-300" : "ring-white/10"
                   }`}
                 >
                   <button
@@ -409,29 +615,30 @@ export function CardInlineGeneratePanel({
                         className="h-full w-full object-cover"
                       />
                     ) : (
-                      <span className="flex h-full items-center justify-center text-[13px] font-medium text-zinc-500">
+                      <span className="flex h-full items-center justify-center text-[13px] font-medium text-zinc-400">
                         Фото
                       </span>
                     )}
-                    {selected && (
+                    <span className="absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-black/65 to-transparent" />
+                    {selected ? (
                       <span
-                        aria-hidden="true"
-                        className="absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-emerald-300 text-[16px] font-bold text-zinc-950 shadow"
+                        aria-hidden
+                        className="absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-indigo-300 text-[13px] font-bold text-zinc-950 shadow"
                       >
                         ✓
                       </span>
-                    )}
+                    ) : null}
                   </button>
                   <button
                     type="button"
                     aria-label="Удалить фото"
                     disabled={busy || Boolean(deletingPhotoId)}
                     onClick={() => void deletePhoto(photo)}
-                    className={`${OVERLAY_BUTTON_UA_RESET} absolute bottom-0 left-0 flex h-11 w-11 items-end justify-start p-1.5 text-white transition disabled:opacity-50`}
+                    className={`${OVERLAY_BUTTON_UA_RESET} absolute bottom-0 left-0 z-10 flex h-11 w-11 items-end justify-start p-1.5 text-white disabled:opacity-50`}
                   >
                     <span
-                      aria-hidden="true"
-                      className="flex h-6 w-6 items-center justify-center rounded-full bg-black/65 text-[18px] font-medium leading-none backdrop-blur-sm"
+                      aria-hidden
+                      className="flex h-6 w-6 items-center justify-center rounded-full bg-black/55 text-[18px] leading-none backdrop-blur-md"
                     >
                       ×
                     </span>
@@ -443,119 +650,170 @@ export function CardInlineGeneratePanel({
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={controlsBusy || libraryLoading}
-              className={`${OVERLAY_BUTTON_UA_RESET} flex aspect-square min-h-11 flex-col items-center justify-center rounded-xl border border-dashed border-zinc-600 bg-zinc-950/45 text-center transition hover:border-zinc-400 hover:bg-zinc-900 disabled:opacity-50`}
+              className={`${OVERLAY_BUTTON_UA_RESET} flex h-[4.75rem] w-[4.75rem] shrink-0 flex-col items-center justify-center rounded-xl border border-dashed border-white/25 bg-black/20 text-center transition hover:border-indigo-300/70 hover:bg-black/30 disabled:opacity-50`}
             >
-              <span aria-hidden="true" className="text-[22px] leading-none text-zinc-400">
-                +
-              </span>
-              <span className="mt-1 text-[13px] font-semibold leading-tight text-zinc-300">
-                Загрузить
-                <br />
-                ещё
+              <svg
+                className="h-5 w-5 text-zinc-300"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                aria-hidden
+              >
+                <path d="M12 5v14M5 12h14" strokeLinecap="round" />
+              </svg>
+              <span className="mt-1 text-[13px] font-semibold leading-tight text-zinc-200">
+                Добавить
               </span>
             </button>
           </div>
-          {!libraryLoading && !photos.length && (
-            <p className="mt-2 text-[13px] font-medium text-zinc-500">
+          {!libraryLoading && !photos.length ? (
+            <p className="mt-2 text-[13px] font-medium text-zinc-400">
               Добавьте фото — оно сохранится для следующих генераций.
             </p>
-          )}
+          ) : null}
         </section>
-      )}
 
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/jpeg,image/png,image/webp"
-        multiple
-        className="hidden"
-        onChange={(e) => {
-          const files = Array.from(e.target.files ?? []);
-          void uploadFiles(files);
-          e.target.value = "";
-        }}
-      />
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          multiple
+          className="hidden"
+          onChange={(event) => {
+            const files = Array.from(event.target.files ?? []);
+            void uploadFiles(files);
+            event.target.value = "";
+          }}
+        />
 
-      <div className="grid grid-cols-1 gap-2">
-        <label className="block">
-          <span className="mb-1 block text-[13px] font-medium text-zinc-500">Модель</span>
-          <select
-            value={model}
-            onChange={(e) => setModel(e.target.value)}
-            disabled={controlsBusy || !models.length}
-            className="min-h-11 w-full rounded-xl border border-zinc-700 bg-zinc-900 px-3 text-[13px] font-semibold text-zinc-100"
-          >
-            {models.map((m) => (
-              <option key={m.id} value={m.id}>
-                {optionLabelForGenerationModel(m.id, m.label)}
-              </option>
-            ))}
-          </select>
-        </label>
-        <div className="grid grid-cols-2 gap-2">
-          <label className="block min-w-0">
-            <span className="mb-1 block text-[13px] font-medium text-zinc-500">Формат</span>
-            <select
-              value={aspectRatio}
-              onChange={(e) => setAspectRatio(e.target.value)}
-              disabled={controlsBusy || !aspectRatios.length}
-              className="min-h-11 w-full rounded-xl border border-zinc-700 bg-zinc-900 px-3 text-[13px] font-semibold text-zinc-100"
+        <section className="rounded-2xl border border-white/12 bg-zinc-950/58 p-3 backdrop-blur-xl">
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <h3 className="text-[13px] font-semibold text-white">Модель</h3>
+            <span className="text-[13px] font-medium text-zinc-400">выберите качество</span>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            {models.map((item) => {
+              const selected = model === item.id;
+              const display = GENERATION_MODEL_DISPLAY[item.id];
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  aria-pressed={selected}
+                  disabled={controlsBusy}
+                  title={display?.description || item.label}
+                  onClick={() => setModel(item.id)}
+                  className={`${OVERLAY_BUTTON_UA_RESET} relative flex aspect-square min-h-20 min-w-0 flex-col items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-indigo-500/25 via-violet-500/15 to-zinc-950/75 p-2 text-center ring-2 transition ${
+                    selected
+                      ? "ring-indigo-300 shadow-lg shadow-indigo-950/30"
+                      : "ring-white/10 hover:ring-white/25"
+                  } disabled:opacity-50`}
+                >
+                  <span className="absolute right-1.5 top-1.5 rounded-full bg-black/45 px-1.5 py-0.5 text-[10px] font-semibold text-white/90 backdrop-blur-md">
+                    {item.cost} кр.
+                  </span>
+                  <svg
+                    className="mb-1 h-6 w-6 text-indigo-200"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.6"
+                    aria-hidden
+                  >
+                    <path
+                      d="M12 3.5c.8 4.4 3.1 6.7 7.5 7.5-4.4.8-6.7 3.1-7.5 7.5-.8-4.4-3.1-6.7-7.5-7.5 4.4-.8 6.7-3.1 7.5-7.5Z"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                  <span className="line-clamp-2 text-[13px] font-semibold leading-tight text-white">
+                    {displayLabelForGenerationModel(item.id, item.label)}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <label className="block min-w-0">
+              <span className="mb-1 block text-[13px] font-medium text-zinc-400">Формат</span>
+              <select
+                value={aspectRatio}
+                onChange={(event) => setAspectRatio(event.target.value)}
+                disabled={controlsBusy || !aspectRatios.length}
+                className="min-h-11 w-full rounded-xl border border-white/12 bg-black/35 px-3 text-[13px] font-semibold text-white outline-none transition focus:border-indigo-300/70 disabled:opacity-50"
+              >
+                {aspectRatios.map((item) => (
+                  <option key={item.value} value={item.value}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block min-w-0">
+              <span className="mb-1 block text-[13px] font-medium text-zinc-400">Качество</span>
+              <select
+                value={imageSize}
+                onChange={(event) => setImageSize(event.target.value)}
+                disabled={controlsBusy || !imageSizes.length}
+                className="min-h-11 w-full rounded-xl border border-white/12 bg-black/35 px-3 text-[13px] font-semibold text-white outline-none transition focus:border-indigo-300/70 disabled:opacity-50"
+              >
+                {imageSizes.map((item) => (
+                  <option key={item.value} value={item.value}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+        </section>
+
+        {(busy || Boolean(error) || Boolean(configError)) ? (
+          <div className="rounded-xl border border-white/10 bg-black/35 p-3 backdrop-blur-xl">
+            {busy ? (
+              <div className="h-1.5 overflow-hidden rounded-full bg-zinc-700/80">
+                <div
+                  className="h-full rounded-full bg-indigo-400 transition-all"
+                  style={{ width: `${Math.min(100, Math.max(4, progress))}%` }}
+                />
+              </div>
+            ) : null}
+            <p
+              className={`text-[13px] font-medium ${
+                busy ? "mt-2 text-zinc-200" : "text-rose-200"
+              }`}
             >
-              {aspectRatios.map((a) => (
-                <option key={a.value} value={a.value}>
-                  {a.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="block min-w-0">
-            <span className="mb-1 block text-[13px] font-medium text-zinc-500">Качество</span>
-            <select
-              value={imageSize}
-              onChange={(e) => setImageSize(e.target.value)}
-              disabled={controlsBusy || !imageSizes.length}
-              className="min-h-11 w-full rounded-xl border border-zinc-700 bg-zinc-900 px-3 text-[13px] font-semibold text-zinc-100"
-            >
-              {imageSizes.map((s) => (
-                <option key={s.value} value={s.value}>
-                  {s.label}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
+              {phase === "uploading"
+                ? "Загружаем фото…"
+                : phase === "generating"
+                  ? "Генерируем фото…"
+                  : configError || error}
+            </p>
+          </div>
+        ) : null}
       </div>
 
-      {(busy || Boolean(error) || Boolean(configError)) && (
-        <div className="space-y-1">
-          {busy && (
-            <div className="h-1.5 overflow-hidden rounded-full bg-zinc-800">
-              <div
-                className="h-full rounded-full bg-emerald-400 transition-all"
-                style={{ width: `${Math.min(100, Math.max(4, progress))}%` }}
-              />
-            </div>
-          )}
-          <p className="text-[13px] font-medium text-zinc-400">
-            {phase === "uploading"
-              ? "Загружаем фото…"
-              : phase === "generating"
-                ? "Генерируем…"
-                : configError || error}
-          </p>
-        </div>
-      )}
+      <footer className="relative z-20 shrink-0 border-t border-white/10 bg-zinc-950/45 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur-xl">
+        <button
+          type="button"
+          disabled={
+            controlsBusy || libraryLoading || !selectedPhotos.length || Boolean(configError)
+          }
+          onClick={() => void runGenerate()}
+          className={`${OVERLAY_BUTTON_UA_RESET} flex min-h-12 w-full items-center justify-center rounded-2xl bg-gradient-to-r from-indigo-500 to-violet-500 px-4 py-3 text-[15px] font-semibold text-white shadow-lg shadow-indigo-950/35 transition hover:brightness-110 active:scale-[0.99] disabled:opacity-50`}
+        >
+          {phase === "done" ? "Сгенерировать ещё" : busy ? "Подождите…" : "Сгенерировать"}
+        </button>
+      </footer>
 
-      <button
-        type="button"
-        disabled={
-          controlsBusy || libraryLoading || !selectedPhotos.length || Boolean(configError)
-        }
-        onClick={() => void runGenerate()}
-        className={`${OVERLAY_BUTTON_UA_RESET} flex min-h-12 w-full items-center justify-center rounded-2xl bg-emerald-300 px-4 py-3 text-[15px] font-semibold text-zinc-900 transition hover:bg-emerald-200 active:scale-[0.98] disabled:opacity-50`}
-      >
-        {phase === "done" ? "Сгенерировать ещё" : busy ? "Подождите…" : "Сгенерировать"}
-      </button>
+      {toast ? (
+        <div
+          role="status"
+          className="pointer-events-none absolute bottom-20 left-1/2 z-50 max-w-[calc(100%-2rem)] -translate-x-1/2 rounded-full bg-zinc-900/95 px-4 py-2 text-center text-[13px] font-medium text-white shadow-xl ring-1 ring-white/10 backdrop-blur-md"
+        >
+          {toast}
+        </div>
+      ) : null}
     </div>
   );
 }
