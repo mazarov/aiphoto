@@ -1,8 +1,14 @@
 import { createClient } from "@supabase/supabase-js";
 import { config } from "../config";
 
+// Supabase initializes its Realtime client even though this worker only uses
+// PostgREST/Storage. Node 20 has no native WebSocket constructor, so provide
+// the supported ws transport explicitly.
+const WebSocketTransport = require("ws") as typeof WebSocket;
+
 export const supabase = createClient(config.supabaseUrl, config.supabaseServiceRoleKey, {
   auth: { persistSession: false, autoRefreshToken: false },
+  realtime: { transport: WebSocketTransport },
 });
 
 export async function checkSupabase(): Promise<boolean> {
