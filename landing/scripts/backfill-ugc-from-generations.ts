@@ -71,6 +71,7 @@ function parseArgs() {
 type GenRow = {
   id: string;
   user_id: string;
+  requester_auth_user_id: string;
   prompt_text: string;
   result_storage_bucket: string | null;
   result_storage_path: string | null;
@@ -90,9 +91,12 @@ async function main() {
 
   let q = supabase
     .from("landing_generations")
-    .select("id,user_id,prompt_text,result_storage_bucket,result_storage_path,ugc_card_id,status")
+    .select(
+      "id,user_id,requester_auth_user_id,prompt_text,result_storage_bucket,result_storage_path,ugc_card_id,status",
+    )
     .eq("status", "completed")
     .is("ugc_card_id", null)
+    .not("requester_auth_user_id", "is", null)
     .not("result_storage_bucket", "is", null)
     .not("result_storage_path", "is", null)
     .order("created_at", { ascending: true });
@@ -117,7 +121,9 @@ async function main() {
 
   if (dryRun) {
     for (const r of toProcess.slice(0, 20)) {
-      console.log(`  would process ${r.id} user=${r.user_id} bucket=${r.result_storage_bucket}`);
+      console.log(
+        `  would process ${r.id} owner=${r.user_id} author=${r.requester_auth_user_id} bucket=${r.result_storage_bucket}`,
+      );
     }
     if (toProcess.length > 20) console.log(`  ... and ${toProcess.length - 20} more`);
     return;
@@ -128,7 +134,7 @@ async function main() {
   for (const r of toProcess) {
     const result = await createUgcCardForCompletedGeneration(supabase, {
       generationId: r.id,
-      userId: r.user_id,
+      generationOwnerUserId: r.user_id,
       promptText: r.prompt_text || "",
       resultBucket: r.result_storage_bucket!,
       resultPath: r.result_storage_path!,

@@ -105,12 +105,12 @@ export async function resolveSharedDbUserId(
   return null;
 }
 
-/** Viewer id for author_user_id / ownership checks (JWT may ≠ shared DB id). */
-export async function resolveViewerDbUserId(
+/** Resolve an auth.users id to the shared profile/billing namespace when they differ. */
+export async function resolveSharedDbUserIdFromAuthId(
   supabase: SupabaseClient,
-  user: User | null | undefined
+  authUserId: string,
 ): Promise<string | null> {
-  if (!user) return null;
-  const resolved = await resolveSharedDbUserId(supabase, user);
-  return resolved?.dbUserId ?? user.id;
+  const { data, error } = await supabase.auth.admin.getUserById(authUserId);
+  if (error || !data?.user) return null;
+  return (await resolveSharedDbUserId(supabase, data.user))?.dbUserId ?? null;
 }

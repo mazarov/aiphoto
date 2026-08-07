@@ -197,7 +197,7 @@ async function runJob(job: GenerationJob): Promise<void> {
       }
       const ugc = await createUgcCard(supabase, {
         generationId: job.id,
-        userId: job.user_id,
+        generationOwnerUserId: job.user_id,
         promptText: result.rawPrompt,
         resultBucket: RESULTS_BUCKET,
         resultPath: result.resultPath,

@@ -3,9 +3,8 @@ import type { Metadata } from "next";
 import nextDynamic from "next/dynamic";
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
-import { createSupabaseServer, getCardPageData, getIndexableImageUrl } from "@/lib/supabase";
+import { getCardPageData, getIndexableImageUrl } from "@/lib/supabase";
 import { getSupabaseUserFromServerCookies } from "@/lib/supabase-route-auth";
-import { resolveViewerDbUserId } from "@/lib/resolve-db-user-id";
 import { DEBUG_TOOLS_COOKIE } from "@/lib/debug-tools-session";
 import {
   getFirstTagFromSeoTags,
@@ -35,10 +34,9 @@ async function readAllowDebugUnpublished(): Promise<boolean> {
   }
 }
 
-async function resolveViewerDbIdFromCookies(): Promise<string | null> {
+async function resolveViewerAuthIdFromCookies(): Promise<string | null> {
   const viewer = await getSupabaseUserFromServerCookies();
-  if (!viewer) return null;
-  return resolveViewerDbUserId(createSupabaseServer(), viewer);
+  return viewer?.id ?? null;
 }
 
 const BASE_URL =
@@ -76,7 +74,7 @@ export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
-  const viewerUserId = await resolveViewerDbIdFromCookies();
+  const viewerUserId = await resolveViewerAuthIdFromCookies();
   const allowDebugUnpublished = await readAllowDebugUnpublished();
   const data = await getCachedCardPageData(slug, viewerUserId, allowDebugUnpublished);
   if (!data) notFound();
@@ -126,7 +124,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function CardPage({ params }: Props) {
   const { slug } = await params;
-  const viewerUserId = await resolveViewerDbIdFromCookies();
+  const viewerUserId = await resolveViewerAuthIdFromCookies();
   const allowDebugUnpublished = await readAllowDebugUnpublished();
   const data = await getCachedCardPageData(slug, viewerUserId, allowDebugUnpublished);
 

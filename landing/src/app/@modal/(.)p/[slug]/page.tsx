@@ -1,8 +1,7 @@
 import { cache } from "react";
 import { notFound } from "next/navigation";
-import { createSupabaseServer, getCardPageData } from "@/lib/supabase";
+import { getCardPageData } from "@/lib/supabase";
 import { getSupabaseUserFromServerCookies } from "@/lib/supabase-route-auth";
-import { resolveViewerDbUserId } from "@/lib/resolve-db-user-id";
 import {
   getFirstTagFromSeoTags,
   getSeoSlugsWithTags,
@@ -30,9 +29,7 @@ export const dynamic = "force-dynamic";
 export default async function CardModalPage({ params }: Props) {
   const { slug } = await params;
   const viewer = await getSupabaseUserFromServerCookies();
-  const viewerUserId = viewer
-    ? await resolveViewerDbUserId(createSupabaseServer(), viewer)
-    : null;
+  const viewerUserId = viewer?.id ?? null;
   const data = await getCachedCardPageData(slug, viewerUserId);
 
   if (!data) notFound();

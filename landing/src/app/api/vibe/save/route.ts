@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServer } from "@/lib/supabase";
 import { getSupabaseUserForApiRoute } from "@/lib/supabase-route-auth";
-import { resolveViewerDbUserId } from "@/lib/resolve-db-user-id";
+import { resolveSharedDbUserId } from "@/lib/resolve-db-user-id";
+import { landingGenerationsOwnerOrFilter } from "@/lib/landing-generations-access";
 import { TAG_REGISTRY, type Dimension } from "@/lib/tag-registry";
 
 const ALLOWED_ACCENTS = ["scene", "lighting", "mood", "composition"] as const;
@@ -248,15 +249,20 @@ export async function POST(req: NextRequest) {
     }
 
     const supabase = createSupabaseServer();
-    const authorDbUserId = (await resolveViewerDbUserId(supabase, user)) ?? user.id;
+    const resolvedIdentity = await resolveSharedDbUserId(supabase, user);
+    const generationOwnerUserId = resolvedIdentity?.dbUserId ?? user.id;
+    const authorAuthUserId = user.id;
 
     const { data: generation, error: generationError } = await supabase
       .from("landing_generations")
-      .select("id,user_id,status,card_id,vibe_id,result_storage_bucket,result_storage_path")
+      .select(
+        "id,user_id,requester_auth_user_id,status,card_id,vibe_id,result_storage_bucket,result_storage_path",
+      )
       .eq("id", generationId)
+      .or(landingGenerationsOwnerOrFilter(user.id, generationOwnerUserId))
       .single();
 
-    if (generationError || !generation || generation.user_id !== user.id) {
+    if (generationError || !generation) {
       return NextResponse.json(
         { error: "not_found", message: "Генерация не найдена" },
         { status: 404 },
@@ -365,7 +371,7 @@ export async function POST(req: NextRequest) {
             parse_status: "parsed",
             parse_warnings: [],
             is_published: false,
-            author_user_id: authorDbUserId,
+            author_user_id: authorAuthUserId,
           })
           .select("id,slug")
           .single();

@@ -5,6 +5,7 @@ import { createUgcCardForCompletedGeneration } from "@/lib/web-ugc-card";
 export type OwnedGenerationForCardAction = {
   id: string;
   user_id: string;
+  requester_auth_user_id: string | null;
   status: string;
   prompt_text: string;
   result_storage_bucket: string | null;
@@ -29,7 +30,7 @@ export async function getOwnedGenerationForCardAction(
   const { data, error } = await supabase
     .from("landing_generations")
     .select(
-      "id,user_id,status,prompt_text,result_storage_bucket,result_storage_path,ugc_card_id"
+      "id,user_id,requester_auth_user_id,status,prompt_text,result_storage_bucket,result_storage_path,ugc_card_id"
     )
     .eq("id", params.generationId)
     .or(landingGenerationsOwnerOrFilter(params.authUserId, params.dbUserId))
@@ -83,7 +84,7 @@ export async function ensureCardForCompletedGeneration(
 
   const created = await createUgcCardForCompletedGeneration(supabase, {
     generationId: generation.id,
-    userId: generation.user_id,
+    generationOwnerUserId: generation.user_id,
     promptText: generation.prompt_text || "",
     resultBucket: generation.result_storage_bucket,
     resultPath: generation.result_storage_path,

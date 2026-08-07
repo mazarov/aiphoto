@@ -102,21 +102,40 @@ export async function createUgcCardForCompletedGeneration(
   supabase: SupabaseClient,
   params: {
     generationId: string;
-    userId: string;
+    generationOwnerUserId: string;
     promptText: string;
     resultBucket: string;
     resultPath: string;
   },
 ): Promise<{ cardId: string; slug: string | null } | null> {
-  const { generationId, userId, promptText, resultBucket, resultPath } = params;
+  const {
+    generationId,
+    generationOwnerUserId,
+    promptText,
+    resultBucket,
+    resultPath,
+  } = params;
 
   const { data: genRow, error: genErr } = await supabase
     .from("landing_generations")
-    .select("id,user_id,status,ugc_card_id")
+    .select("id,user_id,requester_auth_user_id,status,ugc_card_id")
     .eq("id", generationId)
     .single();
 
-  if (genErr || !genRow || genRow.user_id !== userId || genRow.status !== "completed") {
+  if (
+    genErr ||
+    !genRow ||
+    genRow.user_id !== generationOwnerUserId ||
+    genRow.status !== "completed"
+  ) {
+    return null;
+  }
+  const authorAuthUserId = genRow.requester_auth_user_id as string | null;
+  if (!authorAuthUserId) {
+    console.error("[web-ugc-card] requester auth user missing", {
+      generationId,
+      generationOwnerUserId,
+    });
     return null;
   }
 
@@ -158,7 +177,8 @@ export async function createUgcCardForCompletedGeneration(
       parse_status: "parsed",
       parse_warnings: [],
       is_published: false,
-      author_user_id: userId,
+      // prompt_cards.author_user_id FK → auth.users, never imageprompt_users.
+      author_user_id: authorAuthUserId,
     })
     .select("id,slug")
     .single();

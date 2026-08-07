@@ -4,6 +4,7 @@ import {
   type CardImagePreset,
 } from "@/lib/card-image-presets";
 import type { ListingSort } from "@/lib/listing-sort";
+import { resolveSharedDbUserIdFromAuthId } from "@/lib/resolve-db-user-id";
 
 const supabaseUrl =
   process.env.NEXT_PUBLIC_SUPABASE_URL ||
@@ -877,7 +878,7 @@ export type CardPageData = {
 };
 
 export type GetCardPageDataOptions = {
-  /** Logged-in user id from cookies; allows viewing own unpublished UGC. */
+  /** Logged-in auth.users id from cookies; allows viewing own unpublished UGC. */
   viewerUserId?: string | null;
   /** Debug tools cookie — allows viewing any unpublished card on `/p/[slug]`. */
   allowDebugUnpublished?: boolean;
@@ -917,11 +918,25 @@ async function fetchCardPageDataCore(
   let authorAvatarUrl: string | null = null;
   let authorDisplayName: string | null = null;
   if (authorUserId) {
-    const { data: profile } = await supabase
+    let { data: profile } = await supabase
       .from("landing_users")
       .select("avatar_url,display_name")
       .eq("id", authorUserId)
       .maybeSingle();
+    if (!profile) {
+      const sharedAuthorUserId = await resolveSharedDbUserIdFromAuthId(
+        supabase,
+        authorUserId,
+      );
+      if (sharedAuthorUserId && sharedAuthorUserId !== authorUserId) {
+        const { data: sharedProfile } = await supabase
+          .from("landing_users")
+          .select("avatar_url,display_name")
+          .eq("id", sharedAuthorUserId)
+          .maybeSingle();
+        profile = sharedProfile;
+      }
+    }
     authorAvatarUrl = (profile?.avatar_url as string | null) ?? null;
     authorDisplayName = (profile?.display_name as string | null) ?? null;
   }

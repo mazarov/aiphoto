@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServer, enrichCardsWithDetails, type RouteCard } from "@/lib/supabase";
 import { getSupabaseUserForApiRoute } from "@/lib/supabase-route-auth";
-import { resolveViewerDbUserId } from "@/lib/resolve-db-user-id";
 
 export async function GET(req: NextRequest) {
   try {
@@ -13,11 +12,10 @@ export async function GET(req: NextRequest) {
     const limit = Math.min(100, Math.max(1, Number(req.nextUrl.searchParams.get("limit")) || 50));
 
     const supabase = createSupabaseServer();
-    const authorUserId = (await resolveViewerDbUserId(supabase, user)) ?? user.id;
     const { data: rows, error } = await supabase
       .from("prompt_cards")
       .select("id,slug,title_ru,title_en,seo_tags,is_published")
-      .eq("author_user_id", authorUserId)
+      .eq("author_user_id", user.id)
       .order("updated_at", { ascending: false })
       .limit(limit);
 

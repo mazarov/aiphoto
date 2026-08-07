@@ -81,19 +81,38 @@ export async function createUgcCard(
   supabase: SupabaseClient,
   params: {
     generationId: string;
-    userId: string;
+    generationOwnerUserId: string;
     promptText: string;
     resultBucket: string;
     resultPath: string;
   },
 ): Promise<{ cardId: string; slug: string | null } | null> {
-  const { generationId, userId, promptText, resultBucket, resultPath } = params;
-  const { data: generation } = await supabase
+  const {
+    generationId,
+    generationOwnerUserId,
+    promptText,
+    resultBucket,
+    resultPath,
+  } = params;
+  const { data: generation, error: generationError } = await supabase
     .from("landing_generations")
-    .select("user_id,status,ugc_card_id")
+    .select("user_id,requester_auth_user_id,status,ugc_card_id")
     .eq("id", generationId)
     .single();
-  if (!generation || generation.user_id !== userId || generation.status !== "completed") return null;
+  if (generationError) {
+    throw new Error(`generation_lookup_failed:${generationError.message}`);
+  }
+  if (
+    !generation ||
+    generation.user_id !== generationOwnerUserId ||
+    generation.status !== "completed"
+  ) {
+    return null;
+  }
+  const authorAuthUserId = generation.requester_auth_user_id as string | null;
+  if (!authorAuthUserId) {
+    throw new Error("ugc_author_auth_user_missing");
+  }
   if (generation.ugc_card_id) {
     const { data } = await supabase
       .from("prompt_cards")
@@ -122,11 +141,14 @@ export async function createUgcCard(
       parse_status: "parsed",
       parse_warnings: [],
       is_published: false,
-      author_user_id: userId,
+      // prompt_cards.author_user_id FK → auth.users, never imageprompt_users.
+      author_user_id: authorAuthUserId,
     })
     .select("id,slug")
     .single();
-  if (cardError || !card?.id) return null;
+  if (cardError || !card?.id) {
+    throw new Error(`prompt_card_create_failed:${cardError?.message || "unknown"}`);
+  }
   const cardId = card.id as string;
 
   const { error: mediaError } = await supabase.from("prompt_card_media").insert({
@@ -150,7 +172,9 @@ export async function createUgcCard(
       });
   if (mediaError || variantError) {
     await supabase.from("prompt_cards").delete().eq("id", cardId);
-    return null;
+    throw new Error(
+      `prompt_card_content_create_failed:${mediaError?.message || variantError?.message || "unknown"}`,
+    );
   }
 
   const { data: linked, error: linkError } = await supabase
@@ -161,7 +185,7 @@ export async function createUgcCard(
     .select("id");
   if (linkError || !linked?.length) {
     await supabase.from("prompt_cards").delete().eq("id", cardId);
-    return null;
+    throw new Error(`generation_card_link_failed:${linkError?.message || "link_conflict"}`);
   }
   return { cardId, slug: (card.slug as string) ?? null };
 }

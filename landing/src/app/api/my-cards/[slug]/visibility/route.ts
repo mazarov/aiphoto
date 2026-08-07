@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { createSupabaseServer } from "@/lib/supabase";
 import { getSupabaseUserForApiRoute } from "@/lib/supabase-route-auth";
-import { resolveViewerDbUserId } from "@/lib/resolve-db-user-id";
 import { publishPromptCard } from "@/lib/prompt-card-publication";
 
 type Ctx = { params: Promise<{ slug: string }> };
@@ -19,7 +18,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     const published = !!body.published;
 
     const supabase = createSupabaseServer();
-    const authorUserId = await resolveViewerDbUserId(supabase, user);
+    const authorAuthUserId = user.id;
     const { data: card, error: cardErr } = await supabase
       .from("prompt_cards")
       .select("id,slug,title_ru,author_user_id,is_published")
@@ -30,7 +29,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
       return NextResponse.json({ error: "not_found" }, { status: 404 });
     }
 
-    if ((card as { author_user_id?: string }).author_user_id !== authorUserId) {
+    if ((card as { author_user_id?: string }).author_user_id !== authorAuthUserId) {
       return NextResponse.json({ error: "forbidden" }, { status: 403 });
     }
 
