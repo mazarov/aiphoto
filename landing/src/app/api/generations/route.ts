@@ -23,7 +23,9 @@ export async function GET(req: NextRequest) {
       .select(
         "id, status, prompt_text, model, aspect_ratio, credits_spent, created_at, generation_completed_at, error_message, result_storage_bucket, result_storage_path"
       )
-      .eq("user_id", dbUserId)
+      .or(
+        `requester_auth_user_id.eq.${user.id},and(requester_auth_user_id.is.null,credits_spent.gt.0,user_id.eq.${dbUserId})`
+      )
       .order("created_at", { ascending: false })
       .range(offset, offset + limit - 1);
 
@@ -34,7 +36,9 @@ export async function GET(req: NextRequest) {
     const { count } = await supabase
       .from("landing_generations")
       .select("id", { count: "exact", head: true })
-      .eq("user_id", dbUserId);
+      .or(
+        `requester_auth_user_id.eq.${user.id},and(requester_auth_user_id.is.null,credits_spent.gt.0,user_id.eq.${dbUserId})`
+      );
 
     const generations = (rows || []).map((g) => ({
       id: g.id,

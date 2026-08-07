@@ -26,7 +26,9 @@ export async function GET(
       .from("landing_generations")
       .select("*")
       .eq("id", id)
-      .eq("user_id", dbUserId)
+      .or(
+        `requester_auth_user_id.eq.${user.id},and(requester_auth_user_id.is.null,credits_spent.gt.0,user_id.eq.${dbUserId})`
+      )
       .single();
 
     if (error || !gen) {
@@ -47,6 +49,9 @@ export async function GET(
       model: gen.model,
       aspectRatio: gen.aspect_ratio,
       createdAt: gen.created_at,
+      attemptCount: Number(gen.attempts || 0),
+      maxAttempts: Number(gen.max_attempts || 3),
+      nextAttemptAt: gen.next_attempt_at,
     };
 
     if (status === "completed" && gen.result_storage_bucket && gen.result_storage_path) {
@@ -57,7 +62,7 @@ export async function GET(
     if (status === "failed") {
       result.errorType = gen.error_type;
       result.errorMessage = gen.error_message;
-      result.creditsRefunded = true;
+      result.creditsRefunded = Boolean(gen.credits_refunded);
     }
 
     return NextResponse.json(result);

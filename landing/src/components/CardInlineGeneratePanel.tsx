@@ -30,7 +30,6 @@ type Props = {
 };
 
 const POLL_MS = 2500;
-const POLL_MAX_MS = 120_000;
 
 export function CardInlineGeneratePanel({
   promptText,
@@ -271,9 +270,13 @@ export function CardInlineGeneratePanel({
     setProgress(20);
 
     try {
+      const idempotencyKey = crypto.randomUUID();
       const genRes = await fetch("/api/generate", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Idempotency-Key": idempotencyKey,
+        },
         credentials: "include",
         body: JSON.stringify({
           prompt,
@@ -295,12 +298,17 @@ export function CardInlineGeneratePanel({
       }
       requestCreditBalanceRefresh();
 
-      const started = Date.now();
-      while (Date.now() - started < POLL_MAX_MS) {
+      while (true) {
         await new Promise((r) => setTimeout(r, POLL_MS));
-        const pollRes = await fetch(`/api/generations/${genData.id}`, {
-          credentials: "include",
-        });
+        let pollRes: Response;
+        try {
+          pollRes = await fetch(`/api/generations/${genData.id}`, {
+            credentials: "include",
+          });
+        } catch {
+          setError("Связь прервана, генерация продолжается…");
+          continue;
+        }
         const poll = (await pollRes.json().catch(() => ({}))) as {
           status?: string;
           progress?: number;
@@ -309,8 +317,13 @@ export function CardInlineGeneratePanel({
           error?: string;
         };
         if (!pollRes.ok) {
+          if (pollRes.status >= 500) {
+            setError("Сервис временно недоступен, генерация продолжается…");
+            continue;
+          }
           throw new Error(poll.errorMessage || poll.error || "Ошибка статуса генерации");
         }
+        setError("");
         if (typeof poll.progress === "number") setProgress(Math.max(20, poll.progress));
         if (poll.status === "completed" && poll.resultUrl) {
           setResultUrl(poll.resultUrl);
@@ -324,7 +337,6 @@ export function CardInlineGeneratePanel({
           throw new Error(poll.errorMessage || "Генерация не удалась");
         }
       }
-      throw new Error("Таймаут генерации");
     } catch (err) {
       setPhase("error");
       setError(err instanceof Error ? err.message : "Ошибка генерации");

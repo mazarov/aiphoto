@@ -1,0 +1,22 @@
+{
+  "name": "promptshot-web-generation-worker",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "test": "tsx --test src/*.test.ts",
+    "start": "node dist/web-generation-worker/src/index.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.48.0",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.2"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.19.0",
+    "tsx": "^4.20.5",
+    "typescript": "5.6.3"
+  }
+}

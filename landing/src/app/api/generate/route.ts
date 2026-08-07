@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createHash } from "node:crypto";
 import { createSupabaseServer } from "@/lib/supabase";
 import { getSupabaseUserForApiRoute } from "@/lib/supabase-route-auth";
 import { getStvPipelineTrace, stvLog } from "@/lib/stv-pipeline-log";
@@ -32,6 +33,17 @@ export async function POST(req: NextRequest) {
       });
       return NextResponse.json({ error: "unauthorized" }, { status: 401 });
     }
+    if (["0", "false", "off"].includes(
+      String(process.env.GENERATION_QUEUE_ENABLED ?? "true").trim().toLowerCase()
+    )) {
+      return NextResponse.json(
+        {
+          error: "generation_temporarily_unavailable",
+          message: "Генерация временно недоступна",
+        },
+        { status: 503 }
+      );
+    }
     /** Allowlisted internal generate: free credits, still attributed to this session user. */
     const openDebug = isStvOpenGenerateDebugEnabled(user.email);
 
@@ -45,6 +57,7 @@ export async function POST(req: NextRequest) {
       cardId,
       photoStoragePaths,
       vibeId,
+      idempotencyKey: bodyIdempotencyKey,
     } = body as {
       prompt?: string;
       model?: string;
@@ -54,6 +67,7 @@ export async function POST(req: NextRequest) {
       photoStoragePaths?: string[];
       vibeId?: string | null;
       pipelineTraceId?: string;
+      idempotencyKey?: string;
     };
 
     const minPromptLength = 8;
@@ -183,11 +197,37 @@ export async function POST(req: NextRequest) {
     }
 
     const modelConfig = models.find((m) => m.id === model) || models[0];
+    if (
+      !modelConfig ||
+      !Number.isInteger(modelConfig.cost) ||
+      modelConfig.cost < 0
+    ) {
+      console.error("[generation.create] invalid generation model config", {
+        modelRequested: model ?? null,
+        modelConfig: modelConfig ?? null,
+      });
+      return NextResponse.json(
+        { error: "config_error", message: "Модель генерации временно недоступна" },
+        { status: 503 }
+      );
+    }
     const creditsNeeded = modelConfig.cost;
     const guestMode = Boolean(user && isStvGuestUser(user));
     /** Open-debug and guest: never charge. */
     const creditsCharged = openDebug || guestMode ? 0 : creditsNeeded;
     const promptText = prompt.trim();
+    const suppliedIdempotencyKey =
+      req.headers.get("Idempotency-Key") || bodyIdempotencyKey || "";
+    const idempotencyKey = suppliedIdempotencyKey.trim() || crypto.randomUUID();
+    if (
+      idempotencyKey.length > 128 ||
+      !/^[A-Za-z0-9:_-]{8,128}$/.test(idempotencyKey)
+    ) {
+      return NextResponse.json(
+        { error: "validation_error", message: "Некорректный Idempotency-Key" },
+        { status: 400 }
+      );
+    }
     const promptPreview =
       promptText.length > 800 ? `${promptText.slice(0, 800)}... [truncated]` : promptText;
 
@@ -224,6 +264,21 @@ export async function POST(req: NextRequest) {
       dbUserId = ensuredUser.dbUserId;
       usedGuestOwner = false;
     }
+    const requestFingerprint = createHash("sha256")
+      .update(
+        JSON.stringify({
+          requesterAuthUserId: callerId,
+          prompt: promptText,
+          model: modelConfig.id,
+          aspectRatio: ar,
+          imageSize: sz,
+          photoStoragePaths,
+          vibeId: resolvedVibeId,
+          cardId: cardId || null,
+          clientSource: GENERATION_CLIENT_SOURCE,
+        })
+      )
+      .digest("hex");
 
     console.log("[generation.create] resolved config", {
       userId: callerId,
@@ -262,98 +317,87 @@ export async function POST(req: NextRequest) {
       promptPreview,
     });
 
-    if (!openDebug && !guestMode && creditsCharged > 0) {
-      const { data: userRow } = await supabase
-        .from("landing_users")
-        .select("credits")
-        .eq("id", dbUserId)
-        .maybeSingle();
+    const { data: enqueueRows, error: enqueueError } = await supabase.rpc(
+      "landing_enqueue_generation",
+      {
+        p_user_id: dbUserId,
+        p_requester_auth_user_id: callerId,
+        p_idempotency_key: idempotencyKey,
+        p_request_fingerprint: requestFingerprint,
+        p_card_id: cardId || null,
+        p_prompt_text: promptText,
+        p_model: modelConfig.id,
+        p_aspect_ratio: ar,
+        p_image_size: sz,
+        p_credits_spent: creditsCharged,
+        p_input_photo_paths: photoStoragePaths,
+        p_vibe_id: resolvedVibeId,
+        p_client_source: GENERATION_CLIENT_SOURCE,
+        p_pipeline_trace_id: pipelineTrace,
+        p_create_ugc: !guestMode,
+      }
+    );
+    const enqueueRow = Array.isArray(enqueueRows) ? enqueueRows[0] : enqueueRows;
+    const generationId =
+      enqueueRow && typeof enqueueRow === "object" && "generation_id" in enqueueRow
+        ? String(enqueueRow.generation_id)
+        : "";
+    const generationCreated =
+      enqueueRow && typeof enqueueRow === "object" && "created" in enqueueRow
+        ? Boolean(enqueueRow.created)
+        : true;
+
+    if (enqueueError || !generationId) {
+      const insufficient = enqueueError?.message?.includes("insufficient_credits");
+      const idempotencyConflict =
+        enqueueError?.message?.includes("idempotency_conflict");
+      const { data: userRow } = insufficient
+        ? await supabase
+            .from("landing_users")
+            .select("credits")
+            .eq("id", dbUserId)
+            .maybeSingle()
+        : { data: null };
       const availableCredits = Number(userRow?.credits || 0);
-      if (availableCredits < creditsCharged) {
-        console.warn("[generation.create] insufficient credits", {
-          userId: callerId,
-          dbUserId,
-          availableCredits,
-          creditsNeeded: creditsCharged,
-        });
-        return NextResponse.json(
-          {
-            error: "insufficient_credits",
-            message: "Недостаточно кредитов",
-            required: creditsCharged,
-            available: availableCredits,
-          },
-          { status: 400 }
-        );
-      }
-
-      const { data: deductResult, error: deductError } = await supabase.rpc(
-        "landing_deduct_credits",
-        { p_user_id: dbUserId, p_amount: creditsCharged }
-      );
-
-      if (deductError || deductResult === -1) {
-        console.warn("[generation.create] credit deduction failed", {
-          userId: callerId,
-          dbUserId,
-          availableCredits,
-          creditsNeeded: creditsCharged,
-          deductError: deductError?.message ?? null,
-          deductResult,
-        });
-        return NextResponse.json(
-          {
-            error: "insufficient_credits",
-            message: "Недостаточно кредитов",
-            required: creditsCharged,
-            available: availableCredits,
-          },
-          { status: 400 }
-        );
-      }
-    }
-
-    const { data: gen, error: insertError } = await supabase
-      .from("landing_generations")
-      .insert({
-        user_id: dbUserId,
-        status: "pending",
-        card_id: cardId || null,
-        prompt_text: promptText,
-        model: modelConfig.id,
-        aspect_ratio: ar,
-        image_size: sz,
-        credits_spent: creditsCharged,
-        input_photo_paths: photoStoragePaths,
-        vibe_id: resolvedVibeId,
-        client_source: GENERATION_CLIENT_SOURCE,
-      })
-      .select("id")
-      .single();
-
-    if (insertError || !gen) {
-      if (!openDebug && !guestMode && creditsCharged > 0) {
-        await supabase.rpc("landing_deduct_credits", {
-          p_user_id: dbUserId,
-          p_amount: -creditsCharged,
-        });
-      }
-      console.error("[generation.create] insert error", {
+      console.error("[generation.create] enqueue error", {
         userId: callerId,
         dbUserId,
         usedGuestOwner,
-        insertError: insertError?.message ?? null,
+        idempotencyKey,
+        enqueueError: enqueueError?.message ?? null,
       });
-      return NextResponse.json({ error: "Failed to create generation" }, { status: 500 });
+      if (insufficient) {
+        return NextResponse.json(
+          {
+            error: "insufficient_credits",
+            message: "Недостаточно кредитов",
+            required: creditsCharged,
+            available: availableCredits,
+          },
+          { status: 400 }
+        );
+      }
+      if (idempotencyConflict) {
+        return NextResponse.json(
+          {
+            error: "idempotency_conflict",
+            message: "Idempotency-Key уже использован для другого запроса",
+          },
+          { status: 409 }
+        );
+      }
+      return NextResponse.json({ error: "Failed to enqueue generation" }, { status: 500 });
     }
 
-    console.log("[generation.create] generation row created", {
-      generationId: gen.id,
+    console.log("[generation.create] generation queued", {
+      generationId,
       userId: callerId,
       dbUserId,
       usedGuestOwner,
       openDebug,
       pipelineTrace,
+      idempotencyKey,
+      generationCreated,
       clientSource: GENERATION_CLIENT_SOURCE,
       status: "pending",
     });
@@ -363,44 +407,14 @@ export async function POST(req: NextRequest) {
       dbUserId,
       usedGuestOwner,
       openDebug,
-      generationId: gen.id,
+      generationId,
       vibeId: resolvedVibeId,
       clientSource: GENERATION_CLIENT_SOURCE,
     });
-
-    const baseUrl =
-      process.env.NEXT_PUBLIC_SITE_URL ||
-      (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null) ||
-      req.headers.get("origin") ||
-      req.nextUrl.origin;
-    console.log("[generation.create] kickoff generate-process", {
-      generationId: gen.id,
-      baseUrl,
-    });
-
-    fetch(`${baseUrl}/api/generate-process`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        id: gen.id,
-        ...(pipelineTrace ? { pipelineTraceId: pipelineTrace } : {}),
-      }),
-    })
-      .then((res) => {
-        console.log("[generation.create] generate-process kickoff response", {
-          generationId: gen.id,
-          status: res.status,
-          ok: res.ok,
-        });
-      })
-      .catch((err) =>
-        console.error("[generation.create] generate-process kickoff error", {
-          generationId: gen.id,
-          ...toErrorMeta(err),
-        })
-      );
-
-    return NextResponse.json({ id: gen.id });
+    return NextResponse.json(
+      { id: generationId, status: "pending", created: generationCreated },
+      { status: 202 }
+    );
   } catch (err) {
     console.error("[generation.create] unhandled error", toErrorMeta(err));
     return NextResponse.json({ error: "Generation failed" }, { status: 500 });

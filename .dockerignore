@@ -1,0 +1,11 @@
+.git
+.github
+.cursor
+**/.DS_Store
+**/node_modules
+**/.next
+**/dist
+**/*.log
+reports
+data
+tmp

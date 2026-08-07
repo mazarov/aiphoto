@@ -1,6 +1,6 @@
 # Steal This Vibe: цепочка промптов из `2c23ce94` → текущий прод (одна генерация)
 
-> **Версия документа:** 2026-03-23 (extract **`scene`** без биометрии референса; dual **CRITICAL** — Scene не меняет волосы B без hair transfer; §11.5)  
+> **Версия документа:** 2026-08-06 (image generation перенесена в durable Supabase queue + отдельный `web-generation-worker`; prompt semantics сохранены.)
 > **Цель:** зафиксировать, *как из пикселей референса получается текст и мультимодальный запрос*, из-за которого **фото пользователя визуально приближают к стилю референса**, на примере коммита **`2c23ce94`**, и описать, **как тот же смысл приземлить в текущем стеке через фиче-флаг**, сохранив **ровно один** `POST /api/generate` за запуск (без трёх параллельных джобов).
 
 **Не цель этого документа:** описывать UI кредитов, cooldown, Bearer vs cookie, историю запусков. Это побочные детали панели.
@@ -16,7 +16,7 @@
 1. **Референс** (картинка с сайта) — «как должно выглядеть» по свету, настроению, композиции, палитре и т.д.  
 2. **Субъект** (загруженное фото) — **чьё лицо/тело нужно сохранить**.
 
-Модель генерации не «копирует» референс в лоб: ей передают **(а)** структурированное текстовое описание стиля референса, **(б)** один или несколько **текстовых** сценариев генерации, **(в)** при включённой настройке — **сами пиксели референса и пользователя** плюс **текст после картинок**: тело сцены → **CRITICAL RULES** → при dual и блоках grooming в теле короткий хвост **LAST** (видимый hair/makeup transfer). Роли A/B — отдельные текстовые части перед изображениями в `generate-process`.
+Модель генерации не «копирует» референс в лоб: ей передают **(а)** структурированное текстовое описание стиля референса, **(б)** один или несколько **текстовых** сценариев генерации, **(в)** при включённой настройке — **сами пиксели референса и пользователя** плюс **текст после картинок**: тело сцены → **CRITICAL RULES** → при dual и блоках grooming в теле короткий хвост **LAST** (видимый hair/makeup transfer). Роли A/B — отдельные текстовые части перед изображениями в `web-generation-worker`.
 
 Именно эта **трёхслойная цепочка** (извлечь стиль → развернуть в промпт(ы) → собрать мультимодальный запрос) и есть «логика генерации» в смысле этого документа.
 
@@ -44,7 +44,7 @@ flowchart LR
 
   subgraph L3["Слой 3 — Generate"]
     API["POST /api/generate\nprompt + vibeId + photoStoragePaths"]
-    GP["generate-process"]
+    GP["web-generation-worker"]
     G[Gemini image]
     P --> API --> GP --> G
   end
@@ -70,7 +70,8 @@ sequenceDiagram
   participant XP as POST /api/vibe/expand
   participant AS as POST /api/vibe/assemble-prompt
   participant GN as POST /api/generate
-  participant GP as generate-process
+  participant DB as Supabase queue
+  participant GP as generation worker
   participant GM as Gemini
 
   SP->>EX: imageUrl (референс)
@@ -85,7 +86,9 @@ sequenceDiagram
   end
 
   SP->>GN: prompt (один текст), vibeId, photoStoragePaths
+  GN->>DB: atomic deduct + enqueue pending
   GN-->>SP: generation id
+  GP->>DB: atomic claim + lease
   GP->>GP: load vibe.source_image_url, user из Storage
   GP->>GM: parts: [A референс?], B пользователь, fullPrompt
   GM-->>GP: изображение
@@ -135,10 +138,10 @@ sequenceDiagram
 
 На входе — **JSON стиля** (и/или `vibeId` для подгрузки из БД). На выходе — **несколько коротких текстовых промптов**, каждый с **акцентом** (в `2c23ce94` строго три: lighting / mood / composition).
 
-Эти строки попадают в поле **`prompt`** при создании генерации. Они **не** содержат обёртку для image-gen — в **`generate-process`** вызывается **`assembleVibeFinalPrompt`**: тело сцены → **CRITICAL RULES** → при двух картинках и маркерах grooming опционально хвост **LAST** (`vibe-gemini-instructions.ts`).
+Эти строки попадают в поле **`prompt`** при создании генерации. Они **не** содержат обёртку для image-gen — worker вызывает **`assembleVibeFinalPrompt`**: тело сцены → **CRITICAL RULES** → при двух картинках и маркерах grooming опционально хвост **LAST** (`image-generation-prompt.ts`).
 
 **Важно: три строки не «собираются в один» сценарный текст.** Это **три альтернативных формулировки** одного и того же стиля с разным **акцентом** (свет / настроение / композиция). В **`2c23ce94`** для них создавались **три отдельные** задачи **`POST /api/generate`**, каждая со **своим** `prompt` из массива. В режиме **одной** генерации в запись уходит **одна** выбранная строка.  
-**«Единый промпт»** в смысле пайплайна — **одна** строка сцены в БД + в `generate-process` **`assembleVibeFinalPrompt`** добавляет **CRITICAL RULES** и при необходимости хвост **LAST** (роли A/B — отдельные части multimodal до текста). В БД у задачи генерации хранится одно поле **`prompt_text`** — тело сцены без этой обёртки.
+**«Единый промпт»** в смысле пайплайна — **одна** строка сцены в БД + worker через **`assembleVibeFinalPrompt`** добавляет **CRITICAL RULES** и при необходимости хвост **LAST** (роли A/B — отдельные части multimodal до текста). В БД у задачи генерации хранится одно поле **`prompt_text`** — тело сцены без этой обёртки.
 
 ### 5.2 Правила промптов в `2c23ce94` (суть инструкции к LLM)
 
@@ -146,7 +149,7 @@ sequenceDiagram
 
 Требования к **каждому** из трёх промптов (по смыслу старого кода):
 
-1. В тексте должна быть формулировка про **«the person in the provided reference photo»** — явная привязка к тому, что субъект задаётся **отдельным** входным фото, а референс задаёт **стиль** (в актуальной архитектуре это согласуется с двухкартиночным режимом в `generate-process`).
+1. В тексте должна быть формулировка про **«the person in the provided reference photo»** — явная привязка к тому, что субъект задаётся **отдельным** входным фото, а референс задаёт **стиль** (в актуальной архитектуре это согласуется с двухкартиночным режимом worker).
 2. Длина: **1–3 предложения**, **30–80 слов**.
 3. Три варианта с **разным акцентом**: A — **свет**, B — **настроение**, C — **композиция**; остальные аспекты стиля тоже включены, но акцент перевешивает.
 4. Текст должен быть **готовым промптом** для image-модели (как формулировал тогдаший промпт-инженерный блок).
@@ -212,7 +215,7 @@ sequenceDiagram
 **Инструкция модели (смыслловые требования, оформить в константе `VIBE_MERGE_ACCENT_PROMPTS_INSTRUCTION`):**
 
 1. Выход — **один** текст для image-generation, **1–4 предложения**, **без** JSON и **без** markdown.
-2. Сохранить информацию из **всех трёх** акцентов; **не** дублировать дословно одну и ту же фразу про «person in the reference photo» более **одного** раза (или заменить на нейтральную формулировку про subject + style reference, согласованную с двухкартиночным режимом в `generate-process`).
+2. Сохранить информацию из **всех трёх** акцентов; **не** дублировать дословно одну и ту же фразу про «person in the reference photo» более **одного** раза (или заменить на нейтральную формулировку про subject + style reference, согласованную с двухкартиночным режимом worker).
 3. Если формулировки **противоречат** — приоритет: **освещение и композиция** как якорь, настроение смягчить; либо явно описать компромисс одной фразой.
 4. Длина: настроить **мин/макс** символов (например 200–1200) под лимиты `validateVibePersistParts` / `landing_generations.prompt_text`.
 
@@ -248,7 +251,7 @@ flowchart TD
 
 ---
 
-## 6. Слой 3 — «Как фото пользователя становится похоже на референс» (Generate + generate-process)
+## 6. Слой 3 — «Как фото пользователя становится похоже на референс» (Generate + worker)
 
 ### 6.1 Что делает клиент
 
@@ -259,16 +262,18 @@ flowchart TD
 - **`photoStoragePaths`** — путь(и) к загруженному фото пользователя в bucket;
 - параметры модели, aspect ratio, image size.
 
-### 6.2 Что делает `generate-process` (текущая логика, совместимая по духу с `2c23ce94`)
+### 6.2 Что делает `web-generation-worker`
 
-Источник: `landing/src/app/api/generate-process/route.ts`.
+Источник: `web-generation-worker/src/process-generation.ts`; pure prompt assembly: `landing/src/lib/image-generation-prompt.ts`.
 
-1. Скачивает **фото пользователя** из Storage → `imageParts` (base64).
-2. Если **`vibe_id`** и в конфиге включено **`vibe_attach_reference_image_to_generation`**, скачивает **`vibes.source_image_url`** → **пиксели референса**.
-3. Собирает **`fullPrompt = assembleVibeFinalPrompt(rawPrompt, hasTwoImages)`**, где **`rawPrompt`** — то, что пришло в **`prompt`** из клиента (третий аргумент one-shot **убран**).
-4. Формирует **parts** для Gemini:
+1. Атомарно забирает `pending` job через `FOR UPDATE SKIP LOCKED`, устанавливает lease и heartbeat.
+2. Скачивает **фото пользователя** из Storage → `imageParts` (base64).
+3. Если **`vibe_id`** и включён **`vibe_attach_reference_image_to_generation`**, скачивает **`vibes.source_image_url`**.
+4. Собирает **`fullPrompt = assembleVibeFinalPrompt(rawPrompt, hasTwoImages)`**.
+5. Формирует **parts** для Gemini:
    - **Два изображения:** `[текст метка A]`, референс, `[текст метка B]`, пользователь, **`fullPrompt`**;
    - **Один (только пользователь):** пользователь + **`fullPrompt`** (если референс не скачался или флаг выкл.).
+6. Временные 429/5xx/network ошибки возвращает в очередь с backoff; terminal failure делает идемпотентный refund.
 
 Так достигается разделение: **A = стиль-референс**, **B = идентичность/субъект**, плюс длинный текст с правилами (см. `vibe-gemini-instructions.ts` и `docs/architecture/01-landing.md`, блок *Vibe Pipeline*).
 
@@ -305,7 +310,7 @@ flowchart TD
 
 - [ ] Миграция **`vibes.prompt_chain`** (или эквивалент) — **§11.5 п.5**.
 - [ ] Вынести в код тексты **`EXTRACT_PROMPT`** / **`EXPAND_PROMPT`** из `2c23ce94` + константа **merge** — **§5.4.1**.
-- [ ] Ветвление **`extract/route.ts`**, **`expand/route.ts`**, **`assemble-prompt`**, **`generate-process`** — **§11.5**.
+- [ ] Ветвление **`extract/route.ts`**, **`expand/route.ts`**, **`assemble-prompt`**, **generation worker** — **§11.5**.
 - [ ] Панель: **`prompt`** = **`mergedPrompt`** при наличии — **§7.2 п.3**.
 - [ ] e2e: legacy extract → expand (+merge) → один `generate` → лог **`vibe_generation_layout`**, **`oneShot`** выключен для legacy.
 - [ ] Флаг в **`photo_app_config`** выключен по умолчанию.
@@ -318,7 +323,7 @@ flowchart TD
 |------|------------|-------------------------|
 | Референс → стиль | Vision + JSON 9 полей (legacy) | Vision/OpenAI + расширенные/one-shot схемы |
 | Стиль → тексты | Один LLM-expand → **3** `{accent,prompt}` | Несколько путей + assemble + grooming |
-| Текст → картинка | `generate` + `generate-process`; ref pixels по конфигу | То же; больше веток в `assembleVibeFinalPrompt` |
+| Текст → картинка | `generate` + исторический inline process | `generate` enqueue + отдельный worker; ref pixels по конфигу |
 | Запусков generate с панели за клик | **3** параллельно | **1** (по умолчанию) |
 
 ---
@@ -330,8 +335,8 @@ flowchart TD
 | Extract | `landing/src/app/api/vibe/extract/route.ts` | тот же путь |
 | Expand | `landing/src/app/api/vibe/expand/route.ts` | тот же путь |
 | Generate entry | `landing/src/app/api/generate/route.ts` | тот же путь |
-| Multimodal сборка | — | `landing/src/app/api/generate-process/route.ts` |
-| Тексты инструкций Gemini | встроены в route expand/extract | `landing/src/lib/vibe-gemini-instructions.ts` и др. |
+| Multimodal сборка | — | `web-generation-worker/src/process-generation.ts` |
+| Тексты инструкций Gemini | встроены в route expand/extract | `landing/src/lib/image-generation-prompt.ts` |
 | Панель | `extension/sidepanel/app.js` | тот же путь |
 
 ---
@@ -339,7 +344,7 @@ flowchart TD
 ## 10. Архитектурная заметка (границы ответственности)
 
 - **Extract / Expand** отвечают за **семантику стиля** и **короткий текст сцены** под image-модель.
-- **generate-process** отвечает за **политику идентичности vs стиля**, **порядок изображений**, **`assembleVibeFinalPrompt`** (сцена → CRITICAL RULES → опционально **LAST** при dual+grooming) и устойчивость к отсутствию скачанного референса.
+- **Generation worker** отвечает за durable claim/retry/lease, **политику идентичности vs стиля**, порядок изображений и `assembleVibeFinalPrompt`.
 - Фиче-флаг **не** должен дублировать длинные инструкции на клиенте: клиент по-прежнему шлёт **короткий** `prompt` + `vibeId`.
 
 Так документ остаётся **единым ТЗ** для бэкенда и панели при внедрении legacy-цепочки с **одной** генерацией.
@@ -352,7 +357,7 @@ flowchart TD
 
 ### 11.1 Закрыто хорошо
 
-- Разделение **Extract / Expand / generate-process** и роль **двух картинок** в Gemini.
+- Разделение **Extract / Expand / generation worker** и роль **двух картинок** в Gemini.
 - Контракт **`2c23ce94`** по полям `style` и по **трём** `{ accent, prompt }`.
 - Разведение **оси A** (legacy-цепочка, 1× generate) и **оси B** (`stv_triple_variant_flow`).
 - Предложение хранить флаг в **`photo_app_config`** (единая точка для всех клиентов).

@@ -2,7 +2,8 @@ import { NextResponse, type NextRequest } from "next/server";
 
 const OLD_SLUG_RE = /^\/p\/([^/]+)\/?$/;
 const DEFAULT_ALLOWED_METHODS = "GET, POST, OPTIONS";
-const DEFAULT_ALLOWED_HEADERS = "Content-Type, Authorization";
+const DEFAULT_ALLOWED_HEADERS =
+  "Content-Type, Authorization, Idempotency-Key, X-STV-Pipeline-Trace";
 const DEFAULT_SITE_URL = "https://promptshot.ru";
 
 function getSiteOrigin(): string {

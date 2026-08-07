@@ -12,10 +12,16 @@ function rt() {
   return getStvRuntime();
 }
 
+function createIdempotencyKey() {
+  if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
+  return `stv-${Date.now()}-${Math.random().toString(36).slice(2, 14)}`;
+}
+
 let supabaseClient = null;
 let accessTokenRef = null;
+let generationResumeTimer = null;
 const POLL_INTERVAL_MS = 2500;
-const POLL_TIMEOUT_MS = 120000;
+const POLL_TIMEOUT_MS = 240000;
 const LONG_RUNNING_MS = 45000;
 const GENERATION_COOLDOWN_MS = 20000;
 const AUTH_REFRESH_MS = 30000;
@@ -1730,9 +1736,15 @@ function scheduleAssemblePrompt() {
 
 async function createGeneration(promptVariant) {
   const tid = String(state.pipelineTraceId || "").trim();
+  const idempotencyKey =
+    String(promptVariant.idempotencyKey || "").trim() || createIdempotencyKey();
+  promptVariant.idempotencyKey = idempotencyKey;
   const data = await api("/api/generate", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      "Idempotency-Key": idempotencyKey
+    },
     body: JSON.stringify({
       prompt: promptVariant.prompt,
       model: state.selectedModel,
@@ -1762,6 +1774,55 @@ async function pollOne(id, onTick) {
     await sleep(getAdaptivePollIntervalMs(elapsedMs));
   }
   throw new Error(t("err_generation_timeout"));
+}
+
+async function reconcileGenerationAfterPollError(row, err, failedStatusText) {
+  const localError = normalizeUiError(err, t("err_unknown"));
+  let latest = null;
+  if (row.id) {
+    try {
+      latest = await api(`/api/generations/${row.id}`);
+    } catch {
+      latest = null;
+    }
+  }
+  if (latest?.status === "completed") {
+    row.status = "completed";
+    row.progress = 100;
+    row.resultUrl = String(latest.resultUrl || "");
+    row.error = "";
+    row.errorType = "";
+    row.serverTerminalFailure = false;
+    row.statusDetail = t("result_ready");
+  } else if (latest?.status === "failed") {
+    row.status = "failed";
+    row.progress = 0;
+    row.error = latest.errorMessage || localError;
+    row.errorType = latest.errorType || classifyErrorType(row.error);
+    row.serverTerminalFailure = true;
+    row.statusDetail = failedStatusText;
+  } else if (row.id) {
+    row.status = "processing";
+    row.error = localError;
+    row.errorType = classifyErrorType(localError);
+    row.serverTerminalFailure = false;
+    row.statusDetail = t("gen_slow");
+  } else {
+    row.status = "failed";
+    row.progress = 0;
+    row.error = localError;
+    row.errorType = classifyErrorType(localError);
+    row.serverTerminalFailure = false;
+    row.statusDetail = failedStatusText;
+  }
+}
+
+function scheduleGenerationResume() {
+  if (generationResumeTimer) clearTimeout(generationResumeTimer);
+  generationResumeTimer = setTimeout(() => {
+    generationResumeTimer = null;
+    if (!state.resuming) void resumeInFlightGenerations();
+  }, 3000);
 }
 
 async function runRowPipeline(row) {
@@ -1805,13 +1866,11 @@ async function runRowPipeline(row) {
     row.resultUrl = String(poll.resultUrl || "");
     row.error = "";
     row.errorType = "";
+    row.serverTerminalFailure = false;
     row.statusDetail = t("result_ready");
   } catch (err) {
-    row.status = "failed";
-    row.progress = 0;
-    row.error = normalizeUiError(err, t("err_unknown"));
-    row.errorType = classifyErrorType(row.error);
-    row.statusDetail = t("gen_failed");
+    await reconcileGenerationAfterPollError(row, err, t("gen_failed"));
+    if (row.status === "processing") scheduleGenerationResume();
   }
 
   render();
@@ -1819,6 +1878,7 @@ async function runRowPipeline(row) {
 }
 
 async function resumeInFlightGenerations() {
+  if (state.resuming) return;
   const inFlight = state.results.filter(
     (row) =>
       row &&
@@ -1886,11 +1946,7 @@ async function resumeInFlightGenerations() {
         row.errorType = "";
         row.statusDetail = t("result_ready");
       } catch (err) {
-        row.status = "failed";
-        row.progress = 0;
-        row.error = normalizeUiError(err, t("err_unknown"));
-        row.errorType = classifyErrorType(row.error);
-        row.statusDetail = t("restore_failed");
+        await reconcileGenerationAfterPollError(row, err, t("restore_failed"));
       }
       await persistState();
       render();
@@ -1906,6 +1962,9 @@ async function resumeInFlightGenerations() {
   await persistState();
   setToast("info", `${t("restore_done")}: ${completed}`);
   render();
+  if (state.results.some((row) => row.status === "processing")) {
+    scheduleGenerationResume();
+  }
 }
 
 async function appendRunHistory(entry) {
@@ -1999,6 +2058,8 @@ async function completeGenerationAfterExpand(runStartedAt) {
     error: "",
     statusDetail: "",
     attempt: 0,
+    idempotencyKey: createIdempotencyKey(),
+    serverTerminalFailure: false,
     saving: false
   }));
   state.info = t("run_generate");
@@ -2210,6 +2271,9 @@ async function retryResultById(id) {
     render();
     return;
   }
+  if (row.id && row.serverTerminalFailure) {
+    row.idempotencyKey = createIdempotencyKey();
+  }
   await runRowPipeline(row);
   const completed = state.results.filter((r) => r.status === "completed").length;
   const failed = state.results.filter((r) => r.status === "failed").length;
@@ -2227,6 +2291,9 @@ async function retryAllFailed() {
   state.error = "";
   render();
   for (const row of failed) {
+    if (row.id && row.serverTerminalFailure) {
+      row.idempotencyKey = createIdempotencyKey();
+    }
     await runRowPipeline(row);
   }
   const completed = state.results.filter((r) => r.status === "completed").length;
