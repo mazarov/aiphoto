@@ -1,6 +1,10 @@
 # 01 — Лендинг (promptshot.ru)
 
-> Последнее обновление: 2026-08-06 (**generation history + balance sync:** `/generations` читает канонические `landing_generations`, поэтому готовый результат не зависит от best-effort создания UGC-карточки. Бесплатный open-debug теперь выключен по умолчанию и включается только явным `STV_OPEN_GENERATE_DEBUG=true`; inline-клиент после списания/refund отправляет общий browser event, по которому navbar повторно читает `/api/me`.)
+> Последнее обновление: 2026-08-07 (**`/generations` listing chrome + actions:** сетка как у каталога (`ListingGrid`, карточки `aspect-[3/4]` photo-only); overflow-меню ⋮ — Выбрать / Поделиться / Скачать / Скопировать промпт / Использовать / Удалить (без «Оживить»). «Выбрать» — bulk-select с чекбоксами и нижним баром «Удалить (N) / Отмена». API: `DELETE /api/generations/[id]`, bulk `DELETE /api/generations` `{ ids }`, `POST /api/generations/[id]/save-to-library` копирует result в `landing_user_photos`. UGC-карточки при удалении истории не трогаем.)
+
+> Последнее обновление: 2026-08-06 (**durable web-generation queue:** `POST /api/generate` атомарно списывает кредиты и создаёт `pending` job через `landing_enqueue_generation`; отдельный `web-generation-worker` забирает batch через `FOR UPDATE SKIP LOCKED`, держит lease/heartbeat, ограничивает concurrency, повторяет временные 429/5xx и возвращает кредит строго один раз после terminal failure. Публичный `/api/generate-process` закрыт с 410; миграция `170_landing_generation_queue.sql`.)
+
+> Последнее обновление: 2026-08-06 (**generation history + balance sync:** `/generations` читает канонические `landing_generations`, поэтому готовый результат не зависит от best-effort создания UGC-карточки. Бесплатный open-debug теперь выключен по умолчанию и включается только явным `STV_OPEN_GENERATE_DEBUG=true`; inline-клиент после списания/refund отправляет общий browser event, по которому navbar повторно читает `/api/me`.) + (**Yandex Metrika early queue:** root layout до hydration создаёт только лёгкий bounded `window.ym` queue и сразу ставит `init`; `tag.js` по-прежнему загружается через `lazyOnload`. До готовности SDK виртуальные `hit` и `reachGoal` не теряются; очередь ограничена init + 100 событий.)
 
 > Дополнение 2026-08-06 (**desktop extension header CTA:** компактный CTA «Установи Chrome-расширение · Преврати фото с любого сайта в готовый промт» расположен по центру desktop `HeaderClient`, в одной линии с логотипом. Ссылка получает `utm_content=desktop_header`; клик размечен отдельной целью Метрики `desktop_header_add_to_chrome_click`. В sidebar и на mobile CTA не показывается.)
 
@@ -32,11 +36,12 @@
 | Шрифт | Inter (latin + cyrillic) |
 | БД / API | Supabase (service role на сервере, anon key в браузере) |
 | Хостинг | Vercel |
-| Аналитика | Яндекс.Метрика (`layout.tsx`, `strategy="lazyOnload"`) |
+| Аналитика | Яндекс.Метрика (`layout.tsx`: bounded queue/init — `beforeInteractive`, тяжёлый `tag.js` — `lazyOnload`) |
 
 ### Яндекс.Метрика — цели (`reachGoal`)
 
 - Счётчик: **`107703100`** (дублируется в **`YANDEX_METRIKA_COUNTER_ID`**, файл `landing/src/lib/yandex-metrika.ts`; init — `landing/src/app/layout.tsx`).
+- **Загрузка без потери ранних событий:** до hydration создаётся совместимая с SDK очередь `window.ym` и первым элементом ставится `init`; максимум — 100 последующих событий с сохранением init. Внешний `tag.js` остаётся `lazyOnload`, поэтому не конкурирует с LCP; после загрузки SDK обрабатывает накопленные открытия карточек и цели по порядку.
 - **Переход в карточку промта:** **`reachGoal('prompt_card_open')`**, параметры: **`entry`**: `modal` (клик с листинга → `PromptCardModalContext.open`) \| `page` (прямой заход на `/p/[slug]`); **`referer`** — путь до открытия (только `modal`); **`slug`**. Дополнительно для модалки — виртуальный hit `ym('hit')` на `/p/[slug]`.
 - **Soft-open «Фото в промт» (mobile tab):** виртуальный hit `ym('hit')` на `/foto-v-promt` из `FotoVPromtMobileModalContext.open` (без Next-навигации). Hard mobile `/foto-v-promt` — auto `route`-mode shell (обычный page hit Метрики).
 - **Кнопка «Сгенерировать» → LexyGPT** (отдельные цели JS в Метрике): **`lexygpt_generate_promptcard`** (`LexyGptGenerateButton` на листинге / `/p/[slug]`); **`lexygpt_generate_photovprompt`** (результат и история на `/foto-v-promt`). Legacy **`lexygpt_generate_tabbar`** (таббар больше не вызывает) и **`lexygpt_generate_click`** + `placement` — deprecated.
@@ -122,10 +127,11 @@
 | `/api/upload-generation-photo/signed-url` | GET: подписанный URL превью загруженного фото (auth, path в query) |
 | `/api/user-generation-photos` | GET (auth): библиотека inline-фото текущего JWT user, newest-first, с signed preview URL |
 | `/api/user-generation-photos/[id]` | DELETE (auth): удаление принадлежащего пользователю фото из private Storage и библиотеки |
-| `/api/generate` | Запуск генерации (auth); 1–10 входных фото, лимит из `landing_generation_config.max_photos`, каждый Storage path проверяется по JWT user prefix |
-| `/api/generate-process` | Внутренний: обработка генерации |
-| `/api/generations` | Auth-список строк `landing_generations` текущего shared DB user для `/generations`; private no-store |
-| `/api/generations/[id]` | Статус/результат генерации |
+| `/api/generate` | Auth enqueue: 1–10 входных фото, проверка Storage ownership, `Idempotency-Key`, атомарные deduct + insert через `landing_enqueue_generation`; ответ `202 { id, status: pending }` |
+| `/api/generate-process` | Tombstone `410`: обработка перенесена в отдельный `web-generation-worker` |
+| `/api/generations` | Auth-список строк `landing_generations` текущего shared DB user для `/generations`; private no-store. **DELETE** `{ ids: uuid[] }` (≤50) — bulk hard-delete owned rows + best-effort cleanup `result_storage_*` |
+| `/api/generations/[id]` | GET: статус/результат генерации. **DELETE**: hard-delete owned row + result object в Storage (UGC `prompt_cards` не удаляется) |
+| `/api/generations/[id]/save-to-library` | POST (auth): completed result → JPEG в `web-generation-uploads` + insert `landing_user_photos` (как upload с `saveToLibrary`) |
 | `/api/my-prompt-cards` | GET (auth): карточки `prompt_cards` с `author_user_id = shared db id` (`resolveViewerDbUserId`), включая черновики (`is_published=false`) |
 | `/api/my-cards/[slug]/visibility` | PATCH (auth): `{ published: boolean }` — владелец переключает видимость; при `published: true` — LLM/regex тегирование (`landing/src/lib/seo-tags-classify.ts`), затем `revalidatePath` |
 | `/api/me` | Текущий пользователь + credits; авторизованная глобальная шапка использует ответ для отображения баланса |
@@ -149,8 +155,8 @@
 
 - **Условия:** обязательная auth-сессия + email в allowlist; режим по умолчанию выключен и включается только явным `STV_OPEN_GENERATE_DEBUG=1`/`true`. Без логина → 401 (анонимный open-debug нет).
 - **Эффект:** generate с `creditsCharged=0`; `landing_generations.user_id` = shared `imageprompt_users.id` сессии (через `resolveSharedDbUserId` / `ensureLandingUserForGeneration`, не guest-owner); Storage upload по JWT; poll `/api/generations/:id` по shared db id.
-- **Обычный режим:** allowlisted inline UI остаётся доступен, но при выключенном debug использует общий атомарный `landing_deduct_credits`; navbar обновляет `/api/me` по `promptshot:credit-balance-refresh` после списания и refund.
-- **Ошибки Gemini:** `generate-process` пишет в `error_message` / `error_type` сырые сигналы ответа (`error.message`, `blockReason`, `finishReason`) без локализованной подмены.
+- **Обычный режим:** allowlisted inline UI остаётся доступен, но при выключенном debug использует транзакционный `landing_enqueue_generation`; navbar обновляет `/api/me` по `promptshot:credit-balance-refresh` после списания и refund.
+- **Ошибки Gemini:** worker пишет в `error_message` / `error_type` сырые сигналы ответа (`error.message`, `blockReason`, `finishReason`) и повторяет только временные ошибки.
 
 #### Shared DB identity (imageprompts + promptshot)
 
@@ -167,16 +173,24 @@
 - **Кредиты / guest identity:** `/api/me` показывает гостю виртуальный баланс `999`; `/api/generate` при `user.is_anonymous=true` ставит `credits_spent=0` и пропускает `landing_deduct_credits`. **Guest owner:** берёт **уже существующий** `landing_users.id` (кэш `photo_app_config.stv_guest_owner_user_id` / `STV_GUEST_OWNER_USER_ID` / oldest row) как `landing_generations.user_id` (должен быть FK-валиден в `imageprompt_users`). Storage paths остаются под anonymous JWT `user.id`.
 - **Ограничение MVP:** rate limit и защита от abuse не добавлены; production-флаг нельзя включать надолго без отдельного лимитирования.
 
-### Модуль генерации (legacy-описание процесса без vibe)
+### Durable очередь web-генерации
 
-- **Flow после `POST /api/generate`:** создание записи → fire-and-forget fetch на /api/generate-process → Gemini → результат в Storage.
+- **Flow после `POST /api/generate`:** API через один SECURITY DEFINER RPC проверяет `Idempotency-Key`, списывает кредиты и создаёт `pending`; отдельный `web-generation-worker` poll-ит очередь, атомарно claim-ит batch, вызывает Gemini и сохраняет результат. HTTP self-fetch отсутствует.
+- **Claim / backpressure:** миграция `sql/170_landing_generation_queue.sql`; `FOR UPDATE SKIP LOCKED`, advisory lock для глобального cap, default worker concurrency 10, global processing cap 50, per-user cap 3.
+- **Lease / recovery:** lease 180 секунд, heartbeat 30 секунд, reaper 30 секунд. Потерянная job возвращается в `pending`, после `max_attempts=3` становится `failed`.
+- **Fencing:** каждый claim получает новый `lease_token`; heartbeat/retry/complete/fail требуют точного `worker_id + lease_token`. Result path immutable (`user/job/lease.png`), поэтому stale attempt не перезаписывает результат новой попытки.
+- **Retry:** 429, 5xx, network/timeout и временный Storage upload/reference download → 30/90 секунд с jitter; safety/config/input errors завершаются без retry. Refund выполняется только при terminal failure и защищён `credits_refunded`.
+- **Requester vs billing:** `requester_auth_user_id` определяет API/RLS access, idempotency и per-user cap; `user_id` остаётся владельцем кредитов/shared DB. Для guest `create_ugc=false`, поэтому общий billing-owner не получает чужие UGC-карточки. Legacy fallback действует только для старых платных строк без requester.
+- **Идемпотентность:** уникальный `(requester_auth_user_id, idempotency_key)` + `request_fingerprint` возвращает исходный generation id без повторного списания и даёт 409 при повторном ключе с другим payload.
+- **Эксплуатация:** `/health/live`, `/health/ready`, `/metrics`; JSON-логи содержат generation/trace/worker/attempt/duration/error. Kill switches: `GENERATION_QUEUE_ENABLED` на Landing и `WORKER_PROCESSING_ENABLED` на worker.
 - **Атрибуция клиента (`client_source`):** при create всегда пишется **`site`** (PromptShot paid generate — site-only; без резолвера / `X-Client`). Миграция: `sql/168_landing_generations_client_source.sql`.
-- **Текст в Gemini (без `vibe_id`):** `generate-process` склеивает **`prompt_text`** + **`GENERATE_LANDING_CARD_CRITICAL_RULES`** (`assembleLandingCardFinalPrompt`) — идентичность с фото, **гардероб по тексту промпта**, не копировать одежду с загрузки.
-- **Gemini routing:** `generate-process` читает `photo_app_config.gemini_use_proxy`; при `true` использует `GEMINI_PROXY_BASE_URL`, при `false` ходит напрямую в `generativelanguage.googleapis.com`.
+- **Текст в Gemini (без `vibe_id`):** worker склеивает **`prompt_text`** + **`GENERATE_LANDING_CARD_CRITICAL_RULES`** (`assembleLandingCardFinalPrompt`) — идентичность с фото, **гардероб по тексту промпта**, не копировать одежду с загрузки. Pure source of truth: `landing/src/lib/image-generation-prompt.ts`, он же компилируется в worker.
+- **Gemini routing:** worker читает `photo_app_config.gemini_use_proxy`; при `true` использует `GEMINI_PROXY_BASE_URL`, при `false` ходит напрямую в `generativelanguage.googleapis.com`.
 - **Таблицы:** `landing_users.credits`, `landing_generations` (+ `client_source`), `landing_generation_config`, `landing_user_photos` (server-only индекс private uploads по `auth_user_id`, newest-first).
 - **Storage:** `web-generation-uploads` (входные фото; inline-библиотека хранит ссылки, удаление синхронно удаляет объект), `web-generation-results` (результаты).
-- **Страница:** `/generations` — «Мои генерации» в меню пользователя; source of truth — auth API `/api/generations` и строки `landing_generations` по shared DB user. UI показывает результат, prompt/model, стоимость и статусы `pending` / `processing` / `completed` / `failed`; ответ не кешируется.
-- **UGC-карточка:** после успешного `generate-process` best-effort создаётся черновик в `prompt_cards` (`author_user_id`, `is_published=false`, датасет `web_generation_ugc`), связь `landing_generations.ugc_card_id`. Это производный объект: его отсутствие не скрывает результат в `/generations`. Публикация — на `/p/[slug]` (кнопка владельца) или PATCH visibility API; в индекс попадают только `is_published=true` (sitemap, поиск, RPC листингов).
+- **Страница:** `/generations` — «Мои генерации» в меню пользователя; source of truth — auth API `/api/generations` и строки `landing_generations` по shared DB user. UI — тот же photo-listing chrome, что каталог (`ListingGrid` + `GenerationHistoryCard` 3:4 `object-cover`); статусы `pending` / `processing` / `failed` как плейсхолдер в том же фрейме. Overflow-меню на карточке: выбрать (bulk delete), поделиться, скачать, скопировать промпт, использовать (в библиотеку для генерации), удалить. Ответ списка не кешируется.
+- **Polling:** inline-клиент продолжает polling через временные network/5xx без создания второй job; STV после timeout/status ambiguity перепроверяет серверный статус и автоматически возобновляет polling. Новый idempotency key создаётся только после подтверждённого server-side `failed`.
+- **UGC-карточка:** после успешного worker complete best-effort создаётся черновик в `prompt_cards` (`author_user_id`, `is_published=false`, датасет `web_generation_ugc`), связь `landing_generations.ugc_card_id`. Это производный объект: его отсутствие не скрывает результат в `/generations`. Публикация — на `/p/[slug]` (кнопка владельца) или PATCH visibility API; в индекс попадают только `is_published=true` (sitemap, поиск, RPC листингов).
 - **Бэкфилл до релиза UGC:** скрипт `landing/scripts/backfill-ugc-from-generations.ts` — для строк `landing_generations` со статусом `completed`, пустым `ugc_card_id` и заполненным результатом в Storage создаёт те же `prompt_cards`, что и runtime (`createUgcCardForCompletedGeneration`). Запуск из корня репо: `npm run backfill:ugc-from-generations:dry` затем `npm run backfill:ugc-from-generations` (или из `landing/`: `npm run backfill:ugc-from-generations:dry`). Env: **`SUPABASE_SERVICE_ROLE_KEY`**, URL (`NEXT_PUBLIC_SUPABASE_URL` / `SUPABASE_URL`). Аргументы: `--dry-run`, `--limit N`, `--user-id <uuid>`.
 
 ### Vibe Pipeline (Steal This Vibe)
@@ -189,14 +203,13 @@
 - **Save:** `POST /api/vibe/save` — сохраняет выбранную completed-генерацию в `landing_vibe_saves`, связывает с `vibe_id`/`card_id`, пишет `auto_seo_tags` и, если `card_id` отсутствует, пытается автосоздать `prompt_cards` + `prompt_card_media` + `prompt_variants` из `landing_generations.result_storage_*`. После этого обогащает `prompt_cards.seo_tags` на основе `vibes.style` (через `TAG_REGISTRY`).
 - **Generate:** `POST /api/generate` — по умолчанию расширение вызывает **один раз** за запуск (`prompts[0]` после expand/assemble, либо **`mergedPrompt`** из expand если поле задано). **`photoStoragePaths`**: панель может передать **1–4** пути (сетка «Ваше фото»), см. **`docs/23-03-stv-multi-user-photos-ui.md`**. Если в панели включён флаг **`stv_triple_variant_flow`** (`localStorage` = `1` / чекбокс «Для разработчиков»), за один запуск — **до трёх** параллельных вызовов при **ровно 3** элементах в `prompts`; детали — **`docs/22-03-stv-single-generation-flow.md`**.
 - **Панель extension/embed — промпт:** вкладка **«Промпт»** — превью собранного текста для генерации, **«Копировать»**, **«Редактировать блоки»** (девять полей стиля + **«Сохранить»** через **`stv-prompt-assembly.js`**), кнопка **«Извлечь / обновить промпт»** (extract → expand [/ assemble при необходимости] без image-gen). **`mergedForSingleGeneration`** и **`prompts`** приходят с сервера после expand; правки блоков обновляют цепочку на клиенте. Режима «свой текст» и UI для **`extractInstructionOverride`** в панели нет.
-- **generate-process (vibe):** при `vibe_id` и **`photo_app_config.vibe_attach_reference_image_to_generation`** = `true` (дефолт в миграции `sql/147_*.sql`) сервер качает `vibes.source_image_url` и шлёт в Gemini **два** изображения с метками **`VIBE_IMAGE_PART_LABEL_REFERENCE`**, референс, **`VIBE_IMAGE_PART_LABEL_SUBJECT`** (B = кто + натуральный цвет волос; укладка/макияж с A только если в тексте есть секции `Hair styling (transfer from reference)` / `Makeup and skin (transfer from reference)`), фото пользователя из Storage, затем **текстовую** часть. Если прикрепление референса **включено**, но скачать/закодировать пиксели не удалось — генерация **не вызывается**, **`vibe_reference_missing`**, кредиты возвращаются. **Сборка текста** — **`assembleVibeFinalPrompt(rawPrompt, hasTwoImages)`**: **(1)** тело (`prompt_text`), **(2)** **CRITICAL RULES** (**dual** / **single**), **(3)** при **dual** и наличии в теле маркеров grooming (legacy `Hair styling (transfer…)` / `Makeup and skin (transfer…)` или split-path `match reference shoot`) — короткий хвост **LAST — must show in the output image** (recency для image-моделей вроде Gemini 3.x Flash). Лог **`vibe_generation_layout`**: `architecture`, **`vibePromptChain`**, **`legacyPromptChain`**. Чтение: `getVibeAttachReferenceImageToGeneration` в `vibe-gemini-instructions.ts`.
-- **Логи полного промпта:** перед вызовом Gemini `generate-process` пишет **`console.warn` `[generation.process] full_prompt_text`** с полем `text` (весь `fullPrompt`) и метаданными. Отключить: `LANDING_LOG_FULL_GENERATION_PROMPT=0` (см. `.env.example`).
-- **Логи картинок в Gemini:** **`[generation.process] gemini_multimodal_images`** — `imagesSentToGemini` (роли `IMAGE_A_style_reference` / `IMAGE_B_user_subject_*` или `user_subject_*`, `storagePath`, URL превью референса, mime, bytes), плюс **`partsSequence`**.
+- **Generation worker (vibe):** при `vibe_id` и **`photo_app_config.vibe_attach_reference_image_to_generation`** = `true` worker качает `vibes.source_image_url` и шлёт в Gemini **два** изображения с метками **`VIBE_IMAGE_PART_LABEL_REFERENCE`**, референс, **`VIBE_IMAGE_PART_LABEL_SUBJECT`**, фото пользователя из Storage и текст. Если обязательный референс недоступен — terminal `vibe_reference_missing` с refund. **Сборка текста** — **`assembleVibeFinalPrompt(rawPrompt, hasTwoImages)`** из общего pure-модуля `image-generation-prompt.ts`.
+- **Логи worker:** JSON stdout без base64/full prompt: `generation_started`, `gemini_request_started`, `result_uploaded`, `generation_completed`, retry/fail/lease/reaper events; корреляция по `generationId`, `pipelineTrace`, `workerId`, `attempt`.
 - **Gemini routing:** при провайдере **gemini** для **extract** используют `photo_app_config.gemini_use_proxy` и `GEMINI_PROXY_BASE_URL`. **Expand** LLM не вызывает. OpenAI extract ходит на **`OPENAI_BASE_URL`** (или `https://api.openai.com/v1`) с **`Authorization: Bearer`**, proxy не используется.
-- **Сквозной trace STV:** панель (`extension/sidepanel/stv-core.js`, зеркало `landing/stv-web-sidepanel/`) при смене референса (upload с ПК или новый URL Steal/embed) выставляет **`pipelineTraceId`** (UUID), шлёт заголовок **`X-STV-Pipeline-Trace`** на API и **`pipelineTraceId`** в теле **`POST /api/generate`**. Сервер пишет **`[stv.pipeline]`** (`landing/src/lib/stv-pipeline-log.ts`: `stvLog`) на шагах upload / signed-url / extract / expand / assemble / create generation; **`POST /api/generate-process`** получает тот же id в JSON (внутренний `fetch` без браузерных заголовков). В логах Vercel/CLI фильтр по одному UUID связывает цепочку до **`generation.process.completed`**. Опционально: **`LANDING_LOG_GEMINI_GENERATE_CONTENT_BODY_REDACTED=1`** — redacted тело `generateContent` перед image-gen (`redactGenerateContentBody`).
+- **Сквозной trace STV:** панель (`extension/sidepanel/stv-core.js`, зеркало `landing/stv-web-sidepanel/`) создаёт **`pipelineTraceId`** и стабильный per-job **`Idempotency-Key`**. API сохраняет trace в `landing_generations.pipeline_trace_id`; worker включает его во все processing logs.
 - **Логи (extract/expand):** extract: `gemini_request` / `gemini_response` / `extract_parse_ok` и аналоги OpenAI. expand: **`[vibe.expand] legacy_full_style_passthrough_ok`**. Общие: **`PIPELINE_FAIL`**, `extract_pipeline_failed` / `expand_failed` (unhandled). При `GEMINI_VIBE_DEBUG=1` — превью текста extract и для OpenAI (`landing/src/lib/gemini-vibe-debug-log.ts`).
 - **Extension / embed — референс с ПК:** в той же колонке, что превью стиля с сайта, можно выбрать **одно** фото референса с диска («+») и снять «×»; состояние **`referencePhoto`** в `stv-core.js`, persist в **`stv_state_v2.referencePhoto`**; взаимоисключение с URL из Steal/embed.
-- **Extension (grooming):** блок **«Внешний вид (референс)»** (чекбоксы волосы/макияж) в UI **выше** полосы прогресса и кнопок «Сгенерировать» / «Купить кредиты». При запуске генерации: после **`expand`**, если **`vibeGroomingControlsAvailable`**, side panel **сразу** вызывает **`assemble-prompt`** с текущими чекбоксами (без паузы и без обязательного «Продолжить»). Debounced **`assemble-prompt`** остаётся для правок чекбоксов **вне** активного запуска. Прогресс и подпись primary-кнопки покрывают весь пайплайн: extract → expand → assemble (если есть) → polling **`/api/generations/:id`**. **`generate`** по-прежнему шлёт unprefixed **`prompt`** из `prompts[0]`; префикс добавляет **`generate-process`**. Детали v1 — **`docs/20-03-vibe-grooming-extension-controls.md` §3.4** (кнопка «Продолжить» — только для старых сохранённых сессий с **`awaitingContinueGenerate`**).
+- **Extension (grooming):** блок **«Внешний вид (референс)»** (чекбоксы волосы/макияж) в UI **выше** полосы прогресса и кнопок «Сгенерировать» / «Купить кредиты». Прогресс покрывает extract → expand → enqueue → polling **`/api/generations/:id`**. `generate` шлёт unprefixed `prompt`; worker добавляет общий image-generation prompt.
 - **Extension (история запусков):** листинг карточек в side panel: превью по сохранённому **`resultUrl`**, чипы **модель / aspect ratio / image size**, действия **скачать** (fetch→blob при успешном CORS, иначе открытие URL), **открыть**, **промпт** (копирование в буфер + раскрытие `<details>` с текстом). Персистенция в **`chrome.storage.local`** (`stv_state_v2.runHistory`), лимит **`MAX_RUN_HISTORY`** (10): только метаданные и строки (**`prompt`**, URL), **без** бинарников; опционально **`generationId`** для возможного будущего re-sign. Записи до этого изменения без **`resultUrl`/`prompt`** показывают заглушку и disabled-кнопки.
 - **Extension (прогресс):** общая полоса показывается только при **`generating` / `resuming`** или пока есть строки результата в **`queued` / `creating` / `processing`**. Расчёт: **0–50%** — этапы extract/expand/assemble по **`pipelinePrepPercent`** (на этих этапах **не** смешивают со старыми строками с прошлого запуска); **50–100%** — средний **`progress`** по строкам (polling **`/api/generations/:id`**). После завершения всех строк полоса скрывается (не залипает на 100%).
 
@@ -722,6 +735,7 @@ landing/src/
 |---------------|-----------|
 | Dockhost / CI | Контекст = каталог **`landing/`**. Команда: **`docker build -f landing/Dockerfile landing/`** (из корня клона) или эквивалент с путём к контексту `./landing`. В дереве есть **`landing/stv-web-sidepanel/`** (зеркало **`extension/sidepanel`**, в git). Трейсинг Next: обычно плоский **`standalone/server.js`**; runner Dockerfile копирует в **`/app`**. |
 | Локально `next build` из `landing/` | Если в родителе репо есть **`package-lock.json`** → **`next.config.ts`** может трейсить от корня монорепо → **`standalone/landing/server.js`**. **`build-stv-web`** сначала пробует **`../extension/sidepanel`**, иначе **`./stv-web-sidepanel`**. |
+| Generation worker | Отдельный Dockhost service, контекст = корень репозитория: `docker build -f Dockerfile.worker .`. Образ содержит `web-generation-worker` и pure helper `landing/src/lib/image-generation-prompt.ts`; health: `:3003/health/ready`. |
 
 ### Правила сборки (чеклист)
 
@@ -754,8 +768,14 @@ landing/src/
 | `NEXT_PUBLIC_YANDEX_OAUTH_REDIRECT_URI` | Опционально; по умолчанию `{NEXT_PUBLIC_SUPABASE_URL}/auth/v1/callback` |
 | `SUPABASE_SERVICE_ROLE_KEY` | Серверный клиент |
 | `NEXT_PUBLIC_SITE_URL` | Canonical URLs, OG |
-| `GEMINI_API_KEY` | Gemini вызовы в `generate-process`, `vibe/extract`, `vibe/expand` |
-| `GEMINI_PROXY_BASE_URL` | Прокси-маршрутизация Gemini при `gemini_use_proxy=true` |
+| `GEMINI_API_KEY` | Landing: `vibe/extract`; generation worker: image generation |
+| `GEMINI_PROXY_BASE_URL` | Landing/worker прокси-маршрутизация Gemini при `gemini_use_proxy=true` |
+| `GENERATION_QUEUE_ENABLED` | Landing admission kill switch; `false` → `/api/generate` отвечает 503 до списания |
+| `WORKER_PROCESSING_ENABLED` | Worker shadow/maintenance switch; `false` → health работает, claim/reaper выключены |
+| `WORKER_CONCURRENCY` | Локальный in-flight cap worker; default 10 |
+| `WORKER_GLOBAL_CAP` | Глобальный DB processing cap для всех реплик; default 50 |
+| `WORKER_PER_USER_CAP` | Одновременные processing jobs одного user; default 3 |
+| `WORKER_LEASE_SECONDS`, `WORKER_HEARTBEAT_MS` | Lease и период heartbeat; defaults 180s / 30s |
 | `photo_app_config.vibe_extract_model` | ID модели Gemini для `/api/vibe/extract` (дефолт `gemini-2.5-pro`, см. `sql/148_*.sql`) |
 | `photo_app_config.vibe_expand_model` | ID модели для `/api/vibe/expand` (дефолт `gemini-2.5-flash`) |
 | `GEMINI_VIBE_EXTRACT_MODEL` | Fallback, если строка в `photo_app_config` пуста или чтение не удалось |
@@ -763,8 +783,6 @@ landing/src/
 | `GEMINI_VIBE_DEBUG` | `1` / `true` — расширенные логи Gemini для vibe extract/expand |
 | `photo_app_config.vibe_attach_reference_image_to_generation` | `true` / `false` — слать пиксели референса в web image-gen (ключ в БД, см. `sql/147_*.sql`) |
 | `VIBE_ATTACH_REFERENCE_IMAGE_TO_GENERATION` | Fallback, если строка в `photo_app_config` недоступна или пуста (`0` = выкл.) |
-| `LANDING_LOG_FULL_GENERATION_PROMPT` | `0` — не логировать полный текст в `generate-process` |
-| `LANDING_LOG_GEMINI_GENERATE_CONTENT_BODY_REDACTED` | `1` — redacted JSON `generateContent` (image-gen) без base64 |
 | `CORS_ALLOWED_ORIGINS` | CSV allowlist origins для CORS API |
 | `CHROME_EXTENSION_ID` | Extension ID для `chrome-extension://` CORS origin |
 | `NEXT_PUBLIC_ENABLE_TRY_THIS_LOOK` | Если `true` и **`GenerateButton`** смонтирован на странице — Steal This Vibe (иначе только в debug FAB). Страница **`/p/[slug]`** в sticky-баре использует **LexyGPT** (`LexyGptGenerateButton`), не STV |

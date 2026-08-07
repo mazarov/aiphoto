@@ -3,39 +3,31 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
-
-type Generation = {
-  id: string;
-  status: "pending" | "processing" | "completed" | "failed";
-  prompt: string;
-  model: string;
-  aspectRatio: string;
-  creditsSpent: number;
-  createdAt: string;
-  completedAt: string | null;
-  errorMessage: string | null;
-  resultUrl: string | null;
-};
-
-const STATUS_LABELS: Record<Generation["status"], string> = {
-  pending: "В очереди",
-  processing: "Генерируется",
-  completed: "Готово",
-  failed: "Ошибка",
-};
-
-const STATUS_CLASSES: Record<Generation["status"], string> = {
-  pending: "bg-amber-50 text-amber-700 ring-amber-200",
-  processing: "bg-indigo-50 text-indigo-700 ring-indigo-200",
-  completed: "bg-emerald-50 text-emerald-700 ring-emerald-200",
-  failed: "bg-rose-50 text-rose-700 ring-rose-200",
-};
+import { ListingGrid } from "@/components/ListingGrid";
+import {
+  GenerationHistoryCard,
+  type GenerationHistoryItem,
+} from "@/components/GenerationHistoryCard";
 
 export function GenerationsContent() {
   const { user, loading: authLoading } = useAuth();
-  const [generations, setGenerations] = useState<Generation[]>([]);
+  const [generations, setGenerations] = useState<GenerationHistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [toast, setToast] = useState("");
+
+  const showToast = useCallback((message: string) => {
+    setToast(message);
+  }, []);
+
+  useEffect(() => {
+    if (!toast) return;
+    const timer = window.setTimeout(() => setToast(""), 2500);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
 
   const load = useCallback(async (signal?: AbortSignal) => {
     setError("");
@@ -46,7 +38,7 @@ export function GenerationsContent() {
         signal,
       });
       const data = (await res.json().catch(() => ({}))) as {
-        generations?: Generation[];
+        generations?: GenerationHistoryItem[];
         error?: string;
       };
       if (!res.ok) throw new Error(data.error || "Не удалось загрузить генерации");
@@ -91,11 +83,80 @@ export function GenerationsContent() {
     return () => window.clearInterval(timer);
   }, [generations, load, user]);
 
-  const formatDate = (value: string) =>
-    new Intl.DateTimeFormat("ru-RU", {
-      dateStyle: "medium",
-      timeStyle: "short",
-    }).format(new Date(value));
+  useEffect(() => {
+    if (!selectMode) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setSelectMode(false);
+        setSelectedIds(new Set());
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [selectMode]);
+
+  const exitSelectMode = () => {
+    setSelectMode(false);
+    setSelectedIds(new Set());
+  };
+
+  const enterSelectMode = (id: string) => {
+    setSelectMode(true);
+    setSelectedIds(new Set([id]));
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const handleDeleted = (id: string) => {
+    setGenerations((prev) => prev.filter((item) => item.id !== id));
+    setSelectedIds((prev) => {
+      if (!prev.has(id)) return prev;
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+  };
+
+  const handleBulkDelete = async () => {
+    const ids = [...selectedIds];
+    if (ids.length === 0 || bulkDeleting) return;
+    if (!window.confirm(`Удалить выбранные генерации (${ids.length})?`)) return;
+
+    setBulkDeleting(true);
+    try {
+      const res = await fetch("/api/generations", {
+        method: "DELETE",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        deleted?: number;
+      };
+      if (!res.ok) throw new Error(data.error || "Delete failed");
+
+      const idSet = new Set(ids);
+      setGenerations((prev) => prev.filter((item) => !idSet.has(item.id)));
+      exitSelectMode();
+      showToast(
+        data.deleted && data.deleted > 0
+          ? `Удалено: ${data.deleted}`
+          : "Удалено"
+      );
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Не удалось удалить");
+    } finally {
+      setBulkDeleting(false);
+    }
+  };
 
   if (authLoading || !user) {
     return (
@@ -139,62 +200,56 @@ export function GenerationsContent() {
     );
   }
 
+  const selectedCount = selectedIds.size;
+
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-      {generations.map((generation) => (
-        <article
-          key={generation.id}
-          className="min-w-0 overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm"
+    <>
+      <ListingGrid className={selectMode ? "pb-24" : undefined}>
+        {generations.map((generation) => (
+          <GenerationHistoryCard
+            key={generation.id}
+            generation={generation}
+            selectMode={selectMode}
+            selected={selectedIds.has(generation.id)}
+            onEnterSelectMode={enterSelectMode}
+            onToggleSelect={toggleSelect}
+            onDeleted={handleDeleted}
+            onToast={showToast}
+          />
+        ))}
+      </ListingGrid>
+
+      {selectMode ? (
+        <div className="pointer-events-none fixed inset-x-0 bottom-0 z-50 flex justify-center px-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+          <div className="pointer-events-auto flex w-full max-w-md items-center gap-2 rounded-2xl bg-zinc-950/95 p-2 shadow-2xl ring-1 ring-white/10 backdrop-blur-md">
+            <button
+              type="button"
+              disabled={selectedCount === 0 || bulkDeleting}
+              onClick={() => void handleBulkDelete()}
+              className="min-h-11 flex-1 rounded-xl bg-rose-600 px-4 text-sm font-semibold text-white transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {bulkDeleting ? "Удаляем…" : `Удалить (${selectedCount})`}
+            </button>
+            <button
+              type="button"
+              disabled={bulkDeleting}
+              onClick={exitSelectMode}
+              className="min-h-11 rounded-xl bg-zinc-800 px-4 text-sm font-semibold text-white transition hover:bg-zinc-700 disabled:opacity-50"
+            >
+              Отмена
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {toast ? (
+        <div
+          role="status"
+          className="fixed bottom-24 left-1/2 z-[60] -translate-x-1/2 rounded-full bg-zinc-900 px-4 py-2 text-[13px] font-medium text-white shadow-lg"
         >
-          <div className="flex aspect-square items-center justify-center bg-zinc-100">
-            {generation.resultUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={generation.resultUrl}
-                alt="Результат генерации"
-                className="h-full w-full object-contain"
-              />
-            ) : generation.status === "failed" ? (
-              <span className="px-4 text-center text-sm text-rose-600">
-                Генерация не завершена
-              </span>
-            ) : (
-              <span className="animate-pulse px-4 text-center text-sm text-zinc-500">
-                {STATUS_LABELS[generation.status]}…
-              </span>
-            )}
-          </div>
-
-          <div className="space-y-3 p-4">
-            <div className="flex items-center justify-between gap-2">
-              <span
-                className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ${STATUS_CLASSES[generation.status]}`}
-              >
-                {STATUS_LABELS[generation.status]}
-              </span>
-              <time className="text-xs text-zinc-500" dateTime={generation.createdAt}>
-                {formatDate(generation.createdAt)}
-              </time>
-            </div>
-
-            <p className="line-clamp-3 text-sm leading-relaxed text-zinc-700">
-              {generation.prompt}
-            </p>
-
-            <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-zinc-500">
-              <span>{generation.model}</span>
-              <span>{generation.aspectRatio}</span>
-              <span>{generation.creditsSpent} баллов</span>
-            </div>
-
-            {generation.status === "failed" && generation.errorMessage && (
-              <p className="line-clamp-3 text-xs text-rose-600">
-                {generation.errorMessage}
-              </p>
-            )}
-          </div>
-        </article>
-      ))}
-    </div>
+          {toast}
+        </div>
+      ) : null}
+    </>
   );
 }

@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServer, getStoragePublicUrl } from "@/lib/supabase";
 import { getSupabaseUserForApiRoute } from "@/lib/supabase-route-auth";
 import { resolveSharedDbUserId } from "@/lib/resolve-db-user-id";
+import {
+  landingGenerationsOwnerOrFilter,
+  removeGenerationResultObjects,
+} from "@/lib/landing-generations-access";
 
 export async function GET(
   req: NextRequest,
@@ -26,9 +30,7 @@ export async function GET(
       .from("landing_generations")
       .select("*")
       .eq("id", id)
-      .or(
-        `requester_auth_user_id.eq.${user.id},and(requester_auth_user_id.is.null,credits_spent.gt.0,user_id.eq.${dbUserId})`
-      )
+      .or(landingGenerationsOwnerOrFilter(user.id, dbUserId))
       .single();
 
     if (error || !gen) {
@@ -69,5 +71,58 @@ export async function GET(
   } catch (err) {
     console.error("generations/[id] error:", err);
     return NextResponse.json({ error: "Failed to fetch" }, { status: 500 });
+  }
+}
+
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { user, error: authError } = await getSupabaseUserForApiRoute(req);
+
+    if (authError || !user) {
+      return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    }
+
+    const { id } = await params;
+    if (!id) {
+      return NextResponse.json({ error: "Missing id" }, { status: 400 });
+    }
+
+    const supabase = createSupabaseServer();
+    const resolved = await resolveSharedDbUserId(supabase, user);
+    const dbUserId = resolved?.dbUserId ?? user.id;
+
+    const { data: gen, error: fetchError } = await supabase
+      .from("landing_generations")
+      .select("id, result_storage_bucket, result_storage_path")
+      .eq("id", id)
+      .or(landingGenerationsOwnerOrFilter(user.id, dbUserId))
+      .maybeSingle();
+
+    if (fetchError) {
+      return NextResponse.json({ error: fetchError.message }, { status: 500 });
+    }
+    if (!gen) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+
+    const { error: deleteError } = await supabase
+      .from("landing_generations")
+      .delete()
+      .eq("id", gen.id);
+
+    if (deleteError) {
+      console.error("generations/[id] delete error:", deleteError);
+      return NextResponse.json({ error: "Delete failed" }, { status: 500 });
+    }
+
+    await removeGenerationResultObjects(supabase, [gen]);
+
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    console.error("generations/[id] DELETE error:", err);
+    return NextResponse.json({ error: "Delete failed" }, { status: 500 });
   }
 }
