@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
     const { data: rows, error } = await supabase
       .from("landing_generations")
       .select(
-        "id, status, prompt_text, model, aspect_ratio, credits_spent, created_at, generation_completed_at, error_message, result_storage_bucket, result_storage_path"
+        "id, status, prompt_text, model, aspect_ratio, credits_spent, created_at, generation_completed_at, error_message, result_storage_bucket, result_storage_path, ugc_card_id"
       )
       .or(ownerFilter)
       .order("created_at", { ascending: false })
@@ -40,26 +40,65 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    const cardIds = [
+      ...new Set(
+        (rows || [])
+          .map((row) => row.ugc_card_id as string | null)
+          .filter((id): id is string => Boolean(id))
+      ),
+    ];
+    const cardsById = new Map<
+      string,
+      { id: string; slug: string | null; isPublished: boolean }
+    >();
+
+    if (cardIds.length > 0) {
+      const { data: cards, error: cardsError } = await supabase
+        .from("prompt_cards")
+        .select("id, slug, is_published")
+        .in("id", cardIds);
+
+      if (cardsError) {
+        console.error("generations card metadata error:", cardsError.message);
+      } else {
+        for (const card of cards || []) {
+          cardsById.set(card.id as string, {
+            id: card.id as string,
+            slug: (card.slug as string | null) ?? null,
+            isPublished: Boolean(card.is_published),
+          });
+        }
+      }
+    }
+
     const { count } = await supabase
       .from("landing_generations")
       .select("id", { count: "exact", head: true })
       .or(ownerFilter);
 
-    const generations = (rows || []).map((g) => ({
-      id: g.id,
-      status: g.status,
-      prompt: g.prompt_text,
-      model: g.model,
-      aspectRatio: g.aspect_ratio,
-      creditsSpent: g.credits_spent,
-      createdAt: g.created_at,
-      completedAt: g.generation_completed_at,
-      errorMessage: g.status === "failed" ? g.error_message : null,
-      resultUrl:
-        g.result_storage_bucket && g.result_storage_path
-          ? getStoragePublicUrl(g.result_storage_bucket, g.result_storage_path)
-          : null,
-    }));
+    const generations = (rows || []).map((g) => {
+      const card = g.ugc_card_id
+        ? cardsById.get(g.ugc_card_id as string) ?? null
+        : null;
+      return {
+        id: g.id,
+        status: g.status,
+        prompt: g.prompt_text,
+        model: g.model,
+        aspectRatio: g.aspect_ratio,
+        creditsSpent: g.credits_spent,
+        createdAt: g.created_at,
+        completedAt: g.generation_completed_at,
+        errorMessage: g.status === "failed" ? g.error_message : null,
+        resultUrl:
+          g.result_storage_bucket && g.result_storage_path
+            ? getStoragePublicUrl(g.result_storage_bucket, g.result_storage_path)
+            : null,
+        cardId: card?.id ?? null,
+        cardSlug: card?.slug ?? null,
+        isPublished: card?.isPublished ?? false,
+      };
+    });
 
     return NextResponse.json(
       { generations, total: count ?? 0 },

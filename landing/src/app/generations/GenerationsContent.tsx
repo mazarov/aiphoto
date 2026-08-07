@@ -124,6 +124,15 @@ export function GenerationsContent() {
     });
   };
 
+  const handleCardMetadataUpdated = (
+    id: string,
+    metadata: Pick<GenerationHistoryItem, "cardId" | "cardSlug" | "isPublished">
+  ) => {
+    setGenerations((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, ...metadata } : item))
+    );
+  };
+
   const handleBulkDelete = async () => {
     const ids = [...selectedIds];
     if (ids.length === 0 || bulkDeleting) return;
@@ -214,6 +223,7 @@ export function GenerationsContent() {
             onEnterSelectMode={enterSelectMode}
             onToggleSelect={toggleSelect}
             onDeleted={handleDeleted}
+            onCardMetadataUpdated={handleCardMetadataUpdated}
             onToast={showToast}
           />
         ))}

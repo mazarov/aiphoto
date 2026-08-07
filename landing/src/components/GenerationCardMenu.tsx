@@ -8,6 +8,7 @@ export type GenerationMenuAction =
   | "download"
   | "copyPrompt"
   | "use"
+  | "publish"
   | "delete";
 
 type Props = {
@@ -15,6 +16,8 @@ type Props = {
   onClose: () => void;
   hasResult: boolean;
   hasPrompt: boolean;
+  canPublish: boolean;
+  isPublished: boolean;
   busyAction: GenerationMenuAction | null;
   onAction: (action: GenerationMenuAction) => void;
 };
@@ -101,11 +104,27 @@ function IconTrash({ className }: { className?: string }) {
   );
 }
 
+function IconPublish({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M5 14v5h14v-5"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 export function GenerationCardMenu({
   open,
   onClose,
   hasResult,
   hasPrompt,
+  canPublish,
+  isPublished,
   busyAction,
   onAction,
 }: Props) {
@@ -206,6 +225,20 @@ export function GenerationCardMenu({
       >
         <IconUse className="h-4 w-4 shrink-0" />
         {busyAction === "use" ? "Сохраняем…" : "Использовать"}
+      </button>
+      <button
+        type="button"
+        role="menuitem"
+        className={ITEM}
+        disabled={!canPublish || isPublished || Boolean(busyAction)}
+        onClick={() => run("publish")}
+      >
+        <IconPublish className="h-4 w-4 shrink-0" />
+        {busyAction === "publish"
+          ? "Публикация…"
+          : isPublished
+            ? "Опубликовано"
+            : "Опубликовать"}
       </button>
 
       <div className="my-1.5 h-px bg-white/10" role="separator" />

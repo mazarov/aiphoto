@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { createSupabaseServer } from "@/lib/supabase";
 import { getSupabaseUserForApiRoute } from "@/lib/supabase-route-auth";
-import { classifySeoTagsForPublish } from "@/lib/seo-tags-classify";
 import { resolveViewerDbUserId } from "@/lib/resolve-db-user-id";
+import { publishPromptCard } from "@/lib/prompt-card-publication";
 
 type Ctx = { params: Promise<{ slug: string }> };
 
@@ -54,55 +54,30 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
       return NextResponse.json({ ok: true, is_published: false });
     }
 
-    const { data: variants } = await supabase
-      .from("prompt_variants")
-      .select("prompt_text_ru,prompt_text_en")
-      .eq("card_id", cardId)
-      .order("variant_index", { ascending: true });
-
-    const promptTexts = (variants || [])
-      .map((v) => {
-        const row = v as { prompt_text_ru: string | null; prompt_text_en: string | null };
-        return row.prompt_text_ru?.trim() || row.prompt_text_en?.trim() || null;
-      })
-      .filter((t): t is string => !!t);
-
-    const titleRu = (card as { title_ru?: string | null }).title_ru ?? null;
-    let seo_tags: Record<string, unknown>;
-    let seo_readiness_score: number;
     try {
-      const classified = await classifySeoTagsForPublish(titleRu, promptTexts);
-      seo_tags = classified.seo_tags;
-      seo_readiness_score = classified.seo_readiness_score;
-    } catch (tagErr) {
-      console.error("[my-cards.visibility] tagging failed", {
+      const result = await publishPromptCard(supabase, cardId);
+      console.log("[my-cards.visibility] publish", {
+        userId: user.id,
         cardId,
-        ...tagErr instanceof Error ? { message: tagErr.message } : {},
+        slug,
+        alreadyPublished: result.alreadyPublished,
       });
-      seo_tags = {};
-      seo_readiness_score = 0;
-    }
-
-    const { error: pubErr } = await supabase
-      .from("prompt_cards")
-      .update({
+      return NextResponse.json({
+        ok: true,
         is_published: true,
-        seo_tags,
-        seo_readiness_score,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", cardId);
-
-    if (pubErr) {
-      console.error("[my-cards.visibility] publish failed", { cardId, message: pubErr.message });
-      return NextResponse.json({ error: pubErr.message }, { status: 500 });
+        seo_readiness_score: result.seoReadinessScore,
+      });
+    } catch (publishError) {
+      console.error("[my-cards.visibility] publish failed", {
+        cardId,
+        slug,
+        message:
+          publishError instanceof Error
+            ? publishError.message
+            : String(publishError),
+      });
+      return NextResponse.json({ error: "publish_failed" }, { status: 502 });
     }
-
-    console.log("[my-cards.visibility] publish", { userId: user.id, cardId, slug });
-    revalidatePath(`/p/${slug}`);
-    revalidatePath("/sitemap.xml");
-
-    return NextResponse.json({ ok: true, is_published: true, seo_readiness_score });
   } catch (err) {
     console.error("my-cards visibility error:", err);
     return NextResponse.json({ error: "Failed" }, { status: 500 });
