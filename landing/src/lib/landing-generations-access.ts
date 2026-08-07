@@ -14,6 +14,39 @@ export type GenerationStorageRef = {
   result_storage_path: string | null;
 };
 
+/** Parent results must remain available while a queued child still consumes them. */
+export async function findGenerationIdsWithActiveChildren(
+  supabase: SupabaseClient,
+  generationIds: string[]
+): Promise<Set<string>> {
+  if (generationIds.length === 0) return new Set();
+  const { data, error } = await supabase
+    .from("landing_generations")
+    .select("parent_generation_id")
+    .in("parent_generation_id", generationIds)
+    .in("status", ["pending", "processing"]);
+  if (error) throw error;
+  return new Set(
+    (data || [])
+      .map((row) => row.parent_generation_id as string | null)
+      .filter((id): id is string => Boolean(id))
+  );
+}
+
+/** Terminal children no longer consume the parent image and may release the FK. */
+export async function detachTerminalGenerationChildren(
+  supabase: SupabaseClient,
+  generationIds: string[]
+): Promise<void> {
+  if (generationIds.length === 0) return;
+  const { error } = await supabase
+    .from("landing_generations")
+    .update({ parent_generation_id: null })
+    .in("parent_generation_id", generationIds)
+    .in("status", ["completed", "failed"]);
+  if (error) throw error;
+}
+
 function storageRefKey(bucket: string, path: string): string {
   return `${bucket}\n${path}`;
 }

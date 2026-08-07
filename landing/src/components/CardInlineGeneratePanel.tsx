@@ -17,6 +17,11 @@ import {
   downloadGenerationResult,
   shareGenerationResult,
 } from "@/lib/generation-result-client-actions";
+import {
+  FOTO_V_PROMT_ANALYZE_LOCALE,
+  getPromptRemixUrl,
+} from "@/lib/foto-v-promt-config";
+import { PROMPT_REMIX_COPY } from "@/lib/foto-v-promt-copy";
 
 type ModelOpt = { id: string; label: string; cost: number };
 type RatioOpt = { value: string; label: string };
@@ -77,6 +82,9 @@ export function CardInlineGeneratePanel({
   const [toast, setToast] = useState("");
   const [expandedControl, setExpandedControl] = useState<"photos" | "model" | null>(null);
   const [promptExpanded, setPromptExpanded] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [changeRequest, setChangeRequest] = useState("");
+  const [remixing, setRemixing] = useState(false);
 
   useEffect(() => {
     if (!toast) return;
@@ -279,22 +287,27 @@ export function CardInlineGeneratePanel({
     }
   };
 
-  const runGenerate = async () => {
-    if (!selectedPhotos.length) {
+  const runGenerate = async (options?: {
+    promptOverride?: string;
+    parentGenerationId?: string;
+  }): Promise<boolean> => {
+    const parentGenerationId = options?.parentGenerationId?.trim() || "";
+    const isContinuation = Boolean(parentGenerationId);
+    if (!isContinuation && !selectedPhotos.length) {
       setError("Выберите хотя бы одно фото");
-      return;
+      return false;
     }
-    const prompt = promptText.trim();
+    const prompt = (options?.promptOverride ?? promptText).trim();
     if (prompt.length < 8) {
       setError("Промпт слишком короткий");
-      return;
+      return false;
     }
 
     setError("");
-    setResultUrl(null);
-    setGenerationId(null);
-    setSubmittedPrompt(prompt);
-    setIsPublished(false);
+    if (!isContinuation) {
+      setResultUrl(null);
+      setGenerationId(null);
+    }
     setMenuOpen(false);
     setExpandedControl(null);
     setPromptExpanded(false);
@@ -316,7 +329,10 @@ export function CardInlineGeneratePanel({
           aspectRatio,
           imageSize,
           cardId,
-          photoStoragePaths: selectedPhotos.map((photo) => photo.storagePath),
+          photoStoragePaths: isContinuation
+            ? []
+            : selectedPhotos.map((photo) => photo.storagePath),
+          parentGenerationId: parentGenerationId || null,
           vibeId: null,
         }),
       });
@@ -329,6 +345,9 @@ export function CardInlineGeneratePanel({
         throw new Error(genData.message || genData.error || "Не удалось создать генерацию");
       }
       setGenerationId(genData.id);
+      setSubmittedPrompt(prompt);
+      setIsPublished(false);
+      setEditOpen(false);
       requestCreditBalanceRefresh();
 
       while (true) {
@@ -363,7 +382,7 @@ export function CardInlineGeneratePanel({
           setProgress(100);
           setPhase("done");
           requestCreditBalanceRefresh();
-          return;
+          return true;
         }
         if (poll.status === "failed") {
           requestCreditBalanceRefresh();
@@ -371,8 +390,63 @@ export function CardInlineGeneratePanel({
         }
       }
     } catch (err) {
-      setPhase("error");
+      setPhase(isContinuation ? "done" : "error");
       setError(err instanceof Error ? err.message : "Ошибка генерации");
+      return false;
+    }
+  };
+
+  const runImageEdit = async () => {
+    const requestedChange = changeRequest.trim();
+    const originalPrompt = (submittedPrompt || promptText).trim();
+    const parentGenerationId = generationId;
+    if (!requestedChange || remixing || !parentGenerationId || !resultUrl) return;
+
+    setRemixing(true);
+    setError("");
+    try {
+      const remixRes = await fetch(getPromptRemixUrl(), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          originalPrompt,
+          changeRequest: requestedChange,
+          style: "photoreal",
+          locale: FOTO_V_PROMT_ANALYZE_LOCALE,
+        }),
+      });
+      const remixData = (await remixRes.json().catch(() => ({}))) as {
+        prompt?: string;
+        error?: string;
+        message?: string;
+      };
+      if (!remixRes.ok) {
+        throw new Error(
+          remixRes.status === 429
+            ? remixData.message || PROMPT_REMIX_COPY.errorRateLimited
+            : remixData.message || PROMPT_REMIX_COPY.errorGeneric
+        );
+      }
+      const nextPrompt = remixData.prompt?.trim() || "";
+      if (nextPrompt.length < 8) {
+        throw new Error(PROMPT_REMIX_COPY.errorGeneric);
+      }
+
+      setEditOpen(false);
+      const completed = await runGenerate({
+        promptOverride: nextPrompt,
+        parentGenerationId,
+      });
+      if (completed) {
+        setChangeRequest("");
+      } else {
+        setEditOpen(true);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : PROMPT_REMIX_COPY.errorGeneric);
+    } finally {
+      setRemixing(false);
     }
   };
 
@@ -540,9 +614,9 @@ export function CardInlineGeneratePanel({
             resultUrl ? "text-white/85" : "text-zinc-700"
           }`}
         >
-          {resultUrl ? "Готово" : "Новая генерация"}
+          {phase === "generating" ? "Генерируем" : resultUrl ? "Готово" : "Новая генерация"}
         </span>
-        {resultUrl && generationId ? (
+        {resultUrl && generationId && phase === "done" ? (
           <div className="relative" data-generation-menu-root>
             <button
               type="button"
@@ -1005,6 +1079,82 @@ export function CardInlineGeneratePanel({
           ) : null}
         </section>
 
+        {editOpen && resultUrl && generationId ? (
+          <>
+            <button
+              type="button"
+              aria-label="Закрыть изменение картинки"
+              className={`${OVERLAY_BUTTON_UA_RESET} absolute inset-0 z-40 bg-black/45 backdrop-blur-[2px]`}
+              onClick={() => {
+                if (!remixing) setEditOpen(false);
+              }}
+            />
+            <section
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="inline-image-edit-title"
+              className="absolute inset-x-0 bottom-0 z-50 rounded-t-3xl bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))] text-zinc-900 shadow-[0_-20px_60px_-24px_rgba(0,0,0,0.45)]"
+            >
+              <div className="mx-auto mb-2 h-1 w-9 rounded-full bg-zinc-300" aria-hidden />
+              <div className="mb-2 flex min-h-11 items-center justify-between gap-3">
+                <h3 id="inline-image-edit-title" className="text-[13px] font-semibold">
+                  Изменить картинку
+                </h3>
+                <button
+                  type="button"
+                  aria-label="Закрыть"
+                  disabled={remixing}
+                  onClick={() => setEditOpen(false)}
+                  className={`${OVERLAY_BUTTON_UA_RESET} flex h-11 w-11 items-center justify-center rounded-full bg-zinc-100 text-zinc-700 transition hover:bg-zinc-200 disabled:opacity-50`}
+                >
+                  <svg
+                    className="h-5 w-5"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    aria-hidden
+                  >
+                    <path d="m6 6 12 12M18 6 6 18" />
+                  </svg>
+                </button>
+              </div>
+              <div className="mb-3 rounded-xl bg-zinc-100 p-3">
+                <p className="mb-1 text-[13px] font-semibold text-zinc-700">Текущий промпт</p>
+                <p className="line-clamp-3 whitespace-pre-wrap text-[13px] font-medium leading-relaxed text-zinc-600">
+                  {activePrompt}
+                </p>
+              </div>
+              <label className="block">
+                <span className="mb-1 block text-[13px] font-semibold text-zinc-700">
+                  {PROMPT_REMIX_COPY.changeLabel}
+                </span>
+                <textarea
+                  value={changeRequest}
+                  onChange={(event) => setChangeRequest(event.target.value)}
+                  placeholder={PROMPT_REMIX_COPY.changePlaceholder}
+                  maxLength={1000}
+                  rows={3}
+                  disabled={remixing}
+                  autoFocus
+                  className="w-full resize-none rounded-xl border border-zinc-200 bg-white p-3 text-[13px] font-medium leading-relaxed text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 disabled:opacity-60"
+                />
+              </label>
+              {error ? (
+                <p className="mt-2 text-[13px] font-medium text-rose-600">{error}</p>
+              ) : null}
+              <button
+                type="button"
+                disabled={!changeRequest.trim() || remixing}
+                onClick={() => void runImageEdit()}
+                className={`${OVERLAY_BUTTON_UA_RESET} mt-3 flex min-h-12 w-full items-center justify-center rounded-2xl bg-gradient-to-r from-indigo-500 to-violet-500 px-4 py-3 text-[13px] font-semibold text-white shadow-lg shadow-indigo-950/20 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50`}
+              >
+                {remixing ? "Готовим новый промпт…" : "Применить и сгенерировать"}
+              </button>
+            </section>
+          </>
+        ) : null}
+
         <input
           ref={fileInputRef}
           type="file"
@@ -1074,7 +1224,16 @@ export function CardInlineGeneratePanel({
             !selectedPhotos.length ||
             Boolean(configError)
           }
-          onClick={() => void runGenerate()}
+          onClick={() => {
+            if (phase === "done" && resultUrl && generationId) {
+              setError("");
+              setExpandedControl(null);
+              setPromptExpanded(false);
+              setEditOpen(true);
+              return;
+            }
+            void runGenerate();
+          }}
           className={`${OVERLAY_BUTTON_UA_RESET} relative flex min-h-12 min-w-0 items-center justify-center overflow-hidden rounded-2xl px-4 py-3 text-[15px] font-semibold text-white shadow-lg shadow-indigo-950/35 transition active:scale-[0.99] disabled:cursor-not-allowed ${
             phase === "done" && resultUrl ? "flex-1" : "w-full"
           } ${
@@ -1096,7 +1255,7 @@ export function CardInlineGeneratePanel({
               : phase === "generating"
                 ? `Генерируем · ${Math.round(progress)}%`
                 : phase === "done"
-                  ? "Сгенерировать ещё"
+                  ? "Изменить картинку"
                   : "Сгенерировать"}
           </span>
         </button>

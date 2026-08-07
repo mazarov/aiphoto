@@ -3,6 +3,8 @@ import { createSupabaseServer, getStoragePublicUrl } from "@/lib/supabase";
 import { getSupabaseUserForApiRoute } from "@/lib/supabase-route-auth";
 import { resolveSharedDbUserId } from "@/lib/resolve-db-user-id";
 import {
+  detachTerminalGenerationChildren,
+  findGenerationIdsWithActiveChildren,
   landingGenerationsOwnerOrFilter,
   removeGenerationResultObjects,
 } from "@/lib/landing-generations-access";
@@ -162,6 +164,18 @@ export async function DELETE(req: NextRequest) {
     }
 
     const ownedIds = owned.map((row) => row.id);
+    const activeParents = await findGenerationIdsWithActiveChildren(supabase, ownedIds);
+    if (activeParents.size > 0) {
+      return NextResponse.json(
+        {
+          error: "generation_in_use",
+          message: "Одна из генераций используется для создания следующей версии",
+          blockedIds: [...activeParents],
+        },
+        { status: 409 }
+      );
+    }
+    await detachTerminalGenerationChildren(supabase, ownedIds);
     const { error: deleteError } = await supabase
       .from("landing_generations")
       .delete()
@@ -169,6 +183,15 @@ export async function DELETE(req: NextRequest) {
 
     if (deleteError) {
       console.error("generations bulk delete error:", deleteError);
+      if (deleteError.code === "23503") {
+        return NextResponse.json(
+          {
+            error: "generation_in_use",
+            message: "Одна из генераций используется для создания следующей версии",
+          },
+          { status: 409 }
+        );
+      }
       return NextResponse.json({ error: "Delete failed" }, { status: 500 });
     }
 

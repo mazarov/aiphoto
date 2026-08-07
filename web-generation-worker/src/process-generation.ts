@@ -8,19 +8,25 @@ import {
 } from "../../landing/src/lib/image-generation-prompt";
 import { getVibeAttachReferenceImage } from "./lib/vibe-config";
 import { errorFields, log } from "./lib/logger";
+import {
+  ProcessingError,
+  resolveGenerationInputSource,
+  RESULTS_BUCKET,
+  type GenerationInputJob,
+  type GenerationInputSource,
+  type ParentGenerationInput,
+} from "./input-source";
 
-const UPLOADS_BUCKET = "web-generation-uploads";
-export const RESULTS_BUCKET = "web-generation-results";
+export { ProcessingError, RESULTS_BUCKET } from "./input-source";
 const DIRECT_GEMINI_BASE_URL = "https://generativelanguage.googleapis.com";
 
-export type GenerationJob = {
+export type GenerationJob = GenerationInputJob & {
   id: string;
   user_id: string;
   prompt_text: string | null;
   model: string;
   aspect_ratio: string;
   image_size: string;
-  input_photo_paths: string[] | null;
   vibe_id: string | null;
   pipeline_trace_id: string | null;
   attempts: number;
@@ -28,17 +34,6 @@ export type GenerationJob = {
   lease_token: string;
   create_ugc: boolean;
 };
-
-export class ProcessingError extends Error {
-  constructor(
-    readonly errorType: string,
-    message: string,
-    readonly retryable: boolean,
-  ) {
-    super(message);
-    this.name = "ProcessingError";
-  }
-}
 
 type ImagePart = { inlineData: { mimeType: string; data: string } };
 type RequestPart = { text?: string; inlineData?: { mimeType: string; data: string } };
@@ -118,15 +113,29 @@ async function geminiBaseUrl(supabase: SupabaseClient): Promise<{ url: string; p
   return { url: DIRECT_GEMINI_BASE_URL, proxy: false };
 }
 
-async function downloadInputs(
+async function resolveInputSource(
   supabase: SupabaseClient,
   job: GenerationJob,
+): Promise<GenerationInputSource> {
+  if (!job.parent_generation_id) return resolveGenerationInputSource(job);
+  const { data: parent, error } = await supabase
+    .from("landing_generations")
+    .select("requester_auth_user_id,status,result_storage_bucket,result_storage_path")
+    .eq("id", job.parent_generation_id)
+    .maybeSingle();
+  if (error) {
+    throw new ProcessingError("parent_generation_lookup_error", error.message, true);
+  }
+  return resolveGenerationInputSource(job, parent as ParentGenerationInput | null);
+}
+
+async function downloadInputs(
+  supabase: SupabaseClient,
+  source: GenerationInputSource,
 ): Promise<ImagePart[]> {
-  const paths = job.input_photo_paths || [];
-  if (!paths.length) throw new ProcessingError("input_missing", "No input photos", false);
   const parts: ImagePart[] = [];
-  for (const path of paths) {
-    const { data, error } = await supabase.storage.from(UPLOADS_BUCKET).download(path);
+  for (const path of source.paths) {
+    const { data, error } = await supabase.storage.from(source.bucket).download(path);
     if (error || !data) {
       const status = storageStatus(error);
       const missing = status === 400 || status === 404 || /not found|does not exist/i.test(error?.message || "");
@@ -197,7 +206,14 @@ export async function processGeneration(
     pipelineTrace: job.pipeline_trace_id,
   };
   log("info", "generation_started", context);
-  const inputParts = await downloadInputs(supabase, job);
+  const inputSource = await resolveInputSource(supabase, job);
+  log("info", "generation_input_resolved", {
+    ...context,
+    sourceType: inputSource.sourceType,
+    sourceCount: inputSource.paths.length,
+    parentGenerationId: job.parent_generation_id,
+  });
+  const inputParts = await downloadInputs(supabase, inputSource);
   await ensureLease();
 
   const rawPrompt = String(job.prompt_text || "");

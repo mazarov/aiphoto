@@ -10,6 +10,8 @@ import { isStoragePathOwnedByAuthUser } from "@/lib/user-generation-photos";
 
 /** PromptShot paid generate is site-only for now (inline compose / same-origin). */
 const GENERATION_CLIENT_SOURCE = "site" as const;
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function toErrorMeta(err: unknown) {
   if (!(err instanceof Error)) return { message: String(err) };
@@ -57,6 +59,7 @@ export async function POST(req: NextRequest) {
       cardId,
       photoStoragePaths,
       vibeId,
+      parentGenerationId,
       idempotencyKey: bodyIdempotencyKey,
     } = body as {
       prompt?: string;
@@ -66,6 +69,7 @@ export async function POST(req: NextRequest) {
       cardId?: string | null;
       photoStoragePaths?: string[];
       vibeId?: string | null;
+      parentGenerationId?: string | null;
       pipelineTraceId?: string;
       idempotencyKey?: string;
     };
@@ -86,8 +90,32 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (!photoStoragePaths || !Array.isArray(photoStoragePaths) || photoStoragePaths.length < 1) {
-      console.warn("[generation.create] validation error: no photos", { userId: callerId });
+    const normalizedParentGenerationId =
+      typeof parentGenerationId === "string" ? parentGenerationId.trim() : "";
+    const normalizedPhotoStoragePaths = Array.isArray(photoStoragePaths)
+      ? photoStoragePaths
+      : [];
+    const hasParentGeneration = Boolean(normalizedParentGenerationId);
+
+    if (hasParentGeneration && !UUID_RE.test(normalizedParentGenerationId)) {
+      return NextResponse.json(
+        { error: "validation_error", message: "Некорректный источник генерации" },
+        { status: 400 }
+      );
+    }
+    if (hasParentGeneration && normalizedPhotoStoragePaths.length > 0) {
+      return NextResponse.json(
+        {
+          error: "validation_error",
+          message: "Укажите либо исходные фото, либо предыдущую генерацию",
+        },
+        { status: 400 }
+      );
+    }
+    if (!hasParentGeneration && normalizedPhotoStoragePaths.length < 1) {
+      console.warn("[generation.create] validation error: no input source", {
+        userId: callerId,
+      });
       return NextResponse.json(
         { error: "validation_error", message: "Нужно минимум 1 фото" },
         { status: 400 }
@@ -95,7 +123,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (
-      photoStoragePaths.some(
+      normalizedPhotoStoragePaths.some(
         (path) =>
           typeof path !== "string" || !isStoragePathOwnedByAuthUser(path, user.id)
       )
@@ -107,6 +135,45 @@ export async function POST(req: NextRequest) {
         { error: "forbidden", message: "Недоступное фото" },
         { status: 403 }
       );
+    }
+
+    const supabase = createSupabaseServer();
+    if (hasParentGeneration) {
+      const { data: parent, error: parentError } = await supabase
+        .from("landing_generations")
+        .select(
+          "id,status,requester_auth_user_id,result_storage_bucket,result_storage_path"
+        )
+        .eq("id", normalizedParentGenerationId)
+        .eq("requester_auth_user_id", callerId)
+        .maybeSingle();
+      if (parentError) {
+        console.error("[generation.create] parent lookup failed", {
+          userId: callerId,
+          parentGenerationId: normalizedParentGenerationId,
+          error: parentError.message,
+        });
+        return NextResponse.json(
+          { error: "parent_lookup_failed", message: "Не удалось проверить исходную генерацию" },
+          { status: 500 }
+        );
+      }
+      if (!parent) {
+        return NextResponse.json(
+          { error: "forbidden", message: "Предыдущая генерация недоступна" },
+          { status: 403 }
+        );
+      }
+      if (
+        parent.status !== "completed" ||
+        !parent.result_storage_bucket ||
+        !parent.result_storage_path
+      ) {
+        return NextResponse.json(
+          { error: "parent_not_ready", message: "Предыдущая генерация ещё не готова" },
+          { status: 409 }
+        );
+      }
     }
 
     const ar = aspectRatio || "1:1";
@@ -132,7 +199,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const supabase = createSupabaseServer();
     let resolvedVibeId: string | null = null;
 
     // Open-debug skips vibe ownership; card inline generate always sends vibeId=null.
@@ -170,10 +236,10 @@ export async function POST(req: NextRequest) {
     const maxPhotos = Number.isFinite(configuredMaxPhotos)
       ? Math.max(1, Math.min(10, configuredMaxPhotos))
       : 10;
-    if (photoStoragePaths.length > maxPhotos) {
+    if (normalizedPhotoStoragePaths.length > maxPhotos) {
       console.warn("[generation.create] validation error: too many photos", {
         userId: callerId,
-        photos: photoStoragePaths.length,
+        photos: normalizedPhotoStoragePaths.length,
         maxPhotos,
       });
       return NextResponse.json(
@@ -272,7 +338,8 @@ export async function POST(req: NextRequest) {
           model: modelConfig.id,
           aspectRatio: ar,
           imageSize: sz,
-          photoStoragePaths,
+          photoStoragePaths: normalizedPhotoStoragePaths,
+          parentGenerationId: normalizedParentGenerationId || null,
           vibeId: resolvedVibeId,
           cardId: cardId || null,
           clientSource: GENERATION_CLIENT_SOURCE,
@@ -294,7 +361,9 @@ export async function POST(req: NextRequest) {
       usedGuestOwner,
       aspectRatio: ar,
       imageSize: sz,
-      photos: photoStoragePaths.length,
+      photos: normalizedPhotoStoragePaths.length,
+      sourceType: hasParentGeneration ? "generation_result" : "user_photos",
+      parentGenerationId: normalizedParentGenerationId || null,
       promptLength: promptText.length,
       promptPreview,
     });
@@ -312,7 +381,9 @@ export async function POST(req: NextRequest) {
       usedGuestOwner,
       aspectRatio: ar,
       imageSize: sz,
-      photos: photoStoragePaths.length,
+      photos: normalizedPhotoStoragePaths.length,
+      sourceType: hasParentGeneration ? "generation_result" : "user_photos",
+      parentGenerationId: normalizedParentGenerationId || null,
       promptLength: promptText.length,
       promptPreview,
     });
@@ -330,11 +401,12 @@ export async function POST(req: NextRequest) {
         p_aspect_ratio: ar,
         p_image_size: sz,
         p_credits_spent: creditsCharged,
-        p_input_photo_paths: photoStoragePaths,
+        p_input_photo_paths: normalizedPhotoStoragePaths,
         p_vibe_id: resolvedVibeId,
         p_client_source: GENERATION_CLIENT_SOURCE,
         p_pipeline_trace_id: pipelineTrace,
         p_create_ugc: !guestMode,
+        p_parent_generation_id: normalizedParentGenerationId || null,
       }
     );
     const enqueueRow = Array.isArray(enqueueRows) ? enqueueRows[0] : enqueueRows;
@@ -351,6 +423,10 @@ export async function POST(req: NextRequest) {
       const insufficient = enqueueError?.message?.includes("insufficient_credits");
       const idempotencyConflict =
         enqueueError?.message?.includes("idempotency_conflict");
+      const parentUnavailable =
+        enqueueError?.message?.includes("parent_generation_not_found") ||
+        enqueueError?.message?.includes("parent_generation_forbidden") ||
+        enqueueError?.message?.includes("parent_generation_not_ready");
       const { data: userRow } = insufficient
         ? await supabase
             .from("landing_users")
@@ -382,6 +458,15 @@ export async function POST(req: NextRequest) {
           {
             error: "idempotency_conflict",
             message: "Idempotency-Key уже использован для другого запроса",
+          },
+          { status: 409 }
+        );
+      }
+      if (parentUnavailable) {
+        return NextResponse.json(
+          {
+            error: "parent_unavailable",
+            message: "Предыдущая генерация больше недоступна",
           },
           { status: 409 }
         );
