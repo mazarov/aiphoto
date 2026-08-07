@@ -62,3 +62,8 @@ export function getPromptRemixUrl(): string {
   }
   return `${getImagePromptApiOrigin()}/api/extension/remix`;
 }
+
+/** Authenticated remix used by inline card generation; served by this Landing. */
+export function getGenerationPromptRemixUrl(): string {
+  return "/api/prompt-remix";
+}

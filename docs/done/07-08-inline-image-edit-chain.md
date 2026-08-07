@@ -16,7 +16,8 @@
   → POST /api/generate
   → completed generation
   → «Изменить картинку»
-  → imageprompt.tools /api/extension/remix
+  → Landing /api/prompt-remix
+  → Gemini 2.5 Flash
   → персональный prompt
   → POST /api/generate { parentGenerationId, prompt }
   → worker читает result parent generation
@@ -34,12 +35,14 @@
 - `prompt_cards` и `prompt_variants` исходной карточки не обновляются.
 - `landing_generations.card_id` сохраняет атрибуцию исходной карточки.
 - `landing_generations.parent_generation_id` задаёт owned source для следующей итерации.
+- Следующий remix принимает только `parentGenerationId + changeRequest`; сервер читает актуальный `landing_generations.prompt_text`. UGC-карточка создаётся best-effort и не является source of truth.
 - Клиент не передаёт bucket/path результата: API и worker резолвят их по owned generation ID.
 - Parent нельзя удалить, пока дочерняя генерация находится в `pending` или `processing`.
 
 ## Надёжность
 
 - API проверяет auth, ownership и completed status parent.
+- Локальный remix API требует auth и internal-generation allowlist; секрет Gemini остаётся на сервере.
 - `landing_enqueue_generation` повторяет проверку внутри транзакции до списания кредита.
 - Idempotency fingerprint включает `parentGenerationId`.
 - Worker принимает только `web-generation-results` как bucket parent result.

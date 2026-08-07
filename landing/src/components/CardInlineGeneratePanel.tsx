@@ -17,10 +17,7 @@ import {
   downloadGenerationResult,
   shareGenerationResult,
 } from "@/lib/generation-result-client-actions";
-import {
-  FOTO_V_PROMT_ANALYZE_LOCALE,
-  getPromptRemixUrl,
-} from "@/lib/foto-v-promt-config";
+import { getGenerationPromptRemixUrl } from "@/lib/foto-v-promt-config";
 import { PROMPT_REMIX_COPY } from "@/lib/foto-v-promt-copy";
 
 type ModelOpt = { id: string; label: string; cost: number };
@@ -398,22 +395,19 @@ export function CardInlineGeneratePanel({
 
   const runImageEdit = async () => {
     const requestedChange = changeRequest.trim();
-    const originalPrompt = (submittedPrompt || promptText).trim();
     const parentGenerationId = generationId;
     if (!requestedChange || remixing || !parentGenerationId || !resultUrl) return;
 
     setRemixing(true);
     setError("");
     try {
-      const remixRes = await fetch(getPromptRemixUrl(), {
+      const remixRes = await fetch(getGenerationPromptRemixUrl(), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({
-          originalPrompt,
+          parentGenerationId,
           changeRequest: requestedChange,
-          style: "photoreal",
-          locale: FOTO_V_PROMT_ANALYZE_LOCALE,
         }),
       });
       const remixData = (await remixRes.json().catch(() => ({}))) as {
