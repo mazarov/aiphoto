@@ -72,6 +72,7 @@ export function CardInlineGeneratePanel({
   const [progress, setProgress] = useState(0);
   const [resultUrl, setResultUrl] = useState<string | null>(null);
   const [generationId, setGenerationId] = useState<string | null>(null);
+  const [draftPrompt, setDraftPrompt] = useState(promptText);
   const [submittedPrompt, setSubmittedPrompt] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
   const [busyAction, setBusyAction] = useState<GenerationMenuAction | null>(null);
@@ -88,6 +89,10 @@ export function CardInlineGeneratePanel({
     const timer = window.setTimeout(() => setToast(""), 2500);
     return () => window.clearTimeout(timer);
   }, [toast]);
+
+  useEffect(() => {
+    setDraftPrompt(promptText);
+  }, [cardId, promptText]);
 
   useEffect(() => {
     let cancelled = false;
@@ -294,7 +299,7 @@ export function CardInlineGeneratePanel({
       setError("Выберите хотя бы одно фото");
       return false;
     }
-    const prompt = (options?.promptOverride ?? promptText).trim();
+    const prompt = (options?.promptOverride ?? draftPrompt).trim();
     if (prompt.length < 8) {
       setError("Промпт слишком короткий");
       return false;
@@ -342,6 +347,7 @@ export function CardInlineGeneratePanel({
         throw new Error(genData.message || genData.error || "Не удалось создать генерацию");
       }
       setGenerationId(genData.id);
+      setDraftPrompt(prompt);
       setSubmittedPrompt(prompt);
       setIsPublished(false);
       setEditOpen(false);
@@ -476,7 +482,7 @@ export function CardInlineGeneratePanel({
 
     if (action === "copyPrompt") {
       setMenuOpen(false);
-      const ok = await copyTextUniversal(submittedPrompt || promptText);
+      const ok = await copyTextUniversal(submittedPrompt || draftPrompt);
       setToast(ok ? "Промпт скопирован" : "Не удалось скопировать");
       return;
     }
@@ -561,7 +567,7 @@ export function CardInlineGeneratePanel({
   const busy = phase === "uploading" || phase === "generating";
   const controlsBusy = busy || Boolean(deletingPhotoId);
   const isMobile = layout === "mobile";
-  const activePrompt = submittedPrompt || promptText;
+  const activePrompt = submittedPrompt || draftPrompt;
 
   return (
     <div
@@ -697,9 +703,28 @@ export function CardInlineGeneratePanel({
                 </button>
               </div>
               <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-1 py-1">
-                <p className="whitespace-pre-wrap text-[13px] font-medium leading-relaxed">
-                  {activePrompt}
-                </p>
+                {resultUrl ? (
+                  <p className="whitespace-pre-wrap text-[13px] font-medium leading-relaxed">
+                    {activePrompt}
+                  </p>
+                ) : (
+                  <label className="block h-full">
+                    <span className="mb-2 block text-[13px] font-semibold text-zinc-700">
+                      Remix промпта
+                    </span>
+                    <textarea
+                      value={draftPrompt}
+                      onChange={(event) => setDraftPrompt(event.target.value)}
+                      maxLength={8000}
+                      disabled={busy}
+                      autoFocus
+                      className="min-h-[16rem] w-full resize-none rounded-xl border border-zinc-200 bg-zinc-50 p-3 text-[13px] font-medium leading-relaxed text-zinc-900 outline-none transition focus:border-indigo-400 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 disabled:opacity-60"
+                    />
+                    <span className="mt-2 block text-[13px] font-medium text-zinc-500">
+                      Изменения применятся к следующей генерации.
+                    </span>
+                  </label>
+                )}
               </div>
             </>
           ) : (
