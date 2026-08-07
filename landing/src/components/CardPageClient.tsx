@@ -801,7 +801,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
             {/* Right: light editorial details panel */}
             <aside
               data-card-modal-surface={isModal ? "" : undefined}
-              className="flex h-full min-h-0 w-[min(100%,340px)] shrink-0 flex-col overflow-hidden rounded-2xl border border-zinc-200/80 bg-white text-zinc-900 shadow-[0_18px_55px_-28px_rgba(24,24,27,0.32)] ring-1 ring-indigo-500/[0.04] lg:w-[360px]"
+              className="flex h-full min-h-0 w-[min(100%,510px)] shrink-0 flex-col overflow-hidden rounded-2xl bg-white text-zinc-900 shadow-[0_18px_55px_-28px_rgba(24,24,27,0.32)] lg:w-[540px]"
             >
               {canInlineGenerate && inlineGenerateOpen && hasPrompts ? (
                 <CardInlineGeneratePanel
@@ -1337,8 +1337,8 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                       className={`${OVERLAY_BUTTON_UA_RESET} absolute inset-0 z-[120] bg-black/55 backdrop-blur-[2px]`}
                       onClick={closeInlineGenerate}
                     />
-                    <div className="pointer-events-auto absolute inset-x-0 bottom-0 z-[122] flex max-h-[min(88dvh,calc(100dvh-env(safe-area-inset-top)-1rem))] flex-col overflow-hidden rounded-t-3xl bg-zinc-950 text-zinc-100 shadow-2xl ring-1 ring-white/10">
-                      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-[env(safe-area-inset-bottom)]">
+                    <div className="pointer-events-auto absolute inset-0 z-[122] flex h-full min-h-0 flex-col overflow-hidden bg-transparent text-zinc-100">
+                      <div className="flex h-full min-h-0 flex-1">
                         <CardInlineGeneratePanel
                           promptText={data.promptTexts.join("\n\n")}
                           cardId={data.id}
@@ -1550,8 +1550,8 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                 className={`${OVERLAY_BUTTON_UA_RESET} fixed inset-0 z-[120] bg-black/55 md:hidden`}
                 onClick={closeInlineGenerate}
               />
-              <div className="pointer-events-auto fixed inset-x-0 bottom-0 z-[122] flex max-h-[min(88dvh,calc(100dvh-env(safe-area-inset-top)-1rem))] flex-col overflow-hidden rounded-t-3xl bg-zinc-950 text-zinc-100 shadow-2xl ring-1 ring-white/10 md:hidden">
-                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-[env(safe-area-inset-bottom)]">
+              <div className="pointer-events-auto fixed inset-0 z-[122] flex h-screen min-h-0 flex-col overflow-hidden bg-transparent text-zinc-100 md:hidden md:h-auto supports-[height:100dvh]:h-[100dvh]">
+                <div className="flex h-full min-h-0 flex-1">
                   <CardInlineGeneratePanel
                     promptText={data.promptTexts.join("\n\n")}
                     cardId={data.id}

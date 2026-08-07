@@ -75,6 +75,8 @@ export function CardInlineGeneratePanel({
   const [busyAction, setBusyAction] = useState<GenerationMenuAction | null>(null);
   const [isPublished, setIsPublished] = useState(false);
   const [toast, setToast] = useState("");
+  const [expandedControl, setExpandedControl] = useState<"photos" | "model" | null>(null);
+  const [promptExpanded, setPromptExpanded] = useState(false);
 
   useEffect(() => {
     if (!toast) return;
@@ -294,6 +296,8 @@ export function CardInlineGeneratePanel({
     setSubmittedPrompt(prompt);
     setIsPublished(false);
     setMenuOpen(false);
+    setExpandedControl(null);
+    setPromptExpanded(false);
     setPhase("generating");
     setProgress(20);
 
@@ -493,14 +497,17 @@ export function CardInlineGeneratePanel({
 
   return (
     <div
-      className="relative isolate flex min-h-0 flex-1 flex-col overflow-hidden bg-zinc-950 text-zinc-100"
+      className={`relative isolate flex min-h-0 flex-1 flex-col overflow-hidden text-zinc-100 ${
+        isMobile ? "h-full min-h-[100dvh]" : ""
+      } ${
+        resultUrl ? "bg-transparent" : "bg-white text-zinc-900"
+      }`}
     >
       {resultUrl ? (
         <div className="pointer-events-none absolute inset-0 -z-10" aria-hidden>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={resultUrl} alt="" className="h-full w-full object-cover" />
-          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(9,9,11,0.68)_0%,rgba(9,9,11,0.22)_35%,rgba(9,9,11,0.72)_100%)]" />
-          <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(9,9,11,0.38)_0%,rgba(9,9,11,0.08)_55%,rgba(9,9,11,0.42)_100%)]" />
+          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(9,9,11,0.38)_0%,rgba(9,9,11,0.04)_42%,rgba(9,9,11,0.44)_100%)]" />
         </div>
       ) : (
         <div
@@ -509,16 +516,30 @@ export function CardInlineGeneratePanel({
         />
       )}
 
-      <header className="relative z-30 flex min-h-14 shrink-0 items-center justify-between gap-2 border-b border-white/10 bg-zinc-950/45 px-3 py-2 backdrop-blur-xl">
+      <header
+        className={`relative z-30 flex min-h-14 shrink-0 items-center justify-between gap-2 border-b px-3 backdrop-blur-md ${
+          isMobile ? "pb-2 pt-[max(0.5rem,env(safe-area-inset-top))]" : "py-2"
+        } ${
+          resultUrl ? "border-white/10 bg-black/15" : "border-zinc-200 bg-white/90"
+        }`}
+      >
         <button
           type="button"
           onClick={onBack}
           disabled={busy}
-          className={`${OVERLAY_BUTTON_UA_RESET} flex min-h-11 items-center rounded-full bg-black/25 px-4 text-[13px] font-semibold text-white backdrop-blur-md transition hover:bg-black/40 disabled:opacity-50`}
+          className={`${OVERLAY_BUTTON_UA_RESET} flex min-h-11 items-center rounded-full px-4 text-[13px] font-semibold backdrop-blur-md transition disabled:opacity-50 ${
+            resultUrl
+              ? "bg-black/25 text-white hover:bg-black/40"
+              : "bg-zinc-100 text-zinc-900 hover:bg-zinc-200"
+          }`}
         >
           Назад
         </button>
-        <span className="text-[13px] font-semibold text-white/85">
+        <span
+          className={`text-[13px] font-semibold ${
+            resultUrl ? "text-white/85" : "text-zinc-700"
+          }`}
+        >
           {resultUrl ? "Готово" : "Новая генерация"}
         </span>
         {resultUrl && generationId ? (
@@ -557,120 +578,430 @@ export function CardInlineGeneratePanel({
       </header>
 
       <div
-        className={`relative z-10 min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain ${
+        className={`flex min-h-0 flex-1 flex-col ${
           isMobile ? "px-3 py-3" : "px-3 py-2.5"
         }`}
       >
-        <section className="rounded-2xl border border-white/12 bg-zinc-950/58 p-3 shadow-lg shadow-black/10 backdrop-blur-xl">
-          <div className="mb-2 flex items-center justify-between gap-3">
-            <h3 className="text-[13px] font-semibold text-white">Промпт</h3>
-            <span className="text-[13px] font-medium text-zinc-400">
-              {submittedPrompt ? "отправлен в генерацию" : "готов к генерации"}
-            </span>
-          </div>
-          <div className="max-h-40 overflow-y-auto overscroll-contain rounded-xl bg-black/20 px-3 py-2.5 ring-1 ring-inset ring-white/8">
-            <p className="whitespace-pre-wrap text-[13px] font-medium leading-relaxed text-zinc-100/95">
-              {activePrompt}
-            </p>
-          </div>
-        </section>
+        <div className="mt-auto space-y-3">
+        {promptExpanded ? (
+          <button
+            type="button"
+            aria-label="Свернуть промпт"
+            className={`${OVERLAY_BUTTON_UA_RESET} absolute inset-0 z-40 bg-black/45 backdrop-blur-[2px]`}
+            onClick={() => setPromptExpanded(false)}
+          />
+        ) : null}
 
-        <section className="rounded-2xl border border-white/12 bg-zinc-950/58 p-3 backdrop-blur-xl">
-          <div className="mb-2 flex min-h-11 items-center justify-between gap-3">
-            <div>
-              <h3 className="text-[13px] font-semibold text-white">Ваши фото</h3>
-              <p className="text-[13px] font-medium text-zinc-400">
-                Выбрано {selectedPhotos.length} из {maxPhotos}
-              </p>
-            </div>
-            {libraryLoading ? (
-              <span className="text-[13px] font-medium text-zinc-400">Загрузка…</span>
-            ) : null}
-          </div>
-
-          <div className="flex gap-2 overflow-x-auto pb-1">
-            {photos.map((photo) => {
-              const selected = selectedPhotoIds.has(photo.id);
-              const deleting = deletingPhotoId === photo.id;
-              return (
-                <div
-                  key={photo.id}
-                  className={`group relative h-[4.75rem] w-[4.75rem] shrink-0 overflow-hidden rounded-xl bg-zinc-800 ring-2 transition ${
-                    selected ? "ring-indigo-300" : "ring-white/10"
-                  }`}
+        <section
+          className={`border shadow-none ${
+            promptExpanded
+              ? "absolute inset-0 z-50 flex flex-col border-transparent bg-white px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-[max(1rem,env(safe-area-inset-top))] text-zinc-900 shadow-[0_-20px_60px_-24px_rgba(0,0,0,0.45)]"
+              : "rounded-2xl px-3 py-1 backdrop-blur-md"
+          } ${
+            promptExpanded
+              ? ""
+              : resultUrl
+              ? "border-white/15 bg-black/15 text-white"
+              : "border-zinc-200 bg-white/95 text-zinc-900"
+          }`}
+        >
+          {promptExpanded ? (
+            <>
+              <div className="mx-auto mb-2 h-1 w-9 rounded-full bg-zinc-300" aria-hidden />
+              <div className="mb-2 flex min-h-11 items-center justify-between gap-3">
+                <h3 className="text-[13px] font-semibold">Промпт</h3>
+                <button
+                  type="button"
+                  aria-label="Свернуть промпт"
+                  onClick={() => setPromptExpanded(false)}
+                  className={`${OVERLAY_BUTTON_UA_RESET} flex h-11 w-11 items-center justify-center rounded-full bg-zinc-100 text-zinc-700 transition hover:bg-zinc-200`}
                 >
-                  <button
-                    type="button"
-                    aria-label={selected ? "Не использовать фото" : "Использовать фото"}
-                    aria-pressed={selected}
-                    disabled={controlsBusy || deleting}
-                    onClick={() => togglePhoto(photo.id)}
-                    className={`${OVERLAY_BUTTON_UA_RESET} absolute inset-0 h-full w-full disabled:opacity-50`}
+                  <svg
+                    className="h-5 w-5"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    aria-hidden
                   >
-                    {photo.previewUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={photo.previewUrl}
-                        alt={photo.originalFilename || "Сохранённое фото"}
-                        className="h-full w-full object-cover"
-                      />
-                    ) : (
-                      <span className="flex h-full items-center justify-center text-[13px] font-medium text-zinc-400">
-                        Фото
-                      </span>
-                    )}
-                    <span className="absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-black/65 to-transparent" />
-                    {selected ? (
-                      <span
-                        aria-hidden
-                        className="absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-indigo-300 text-[13px] font-bold text-zinc-950 shadow"
-                      >
-                        ✓
-                      </span>
-                    ) : null}
-                  </button>
-                  <button
-                    type="button"
-                    aria-label="Удалить фото"
-                    disabled={busy || Boolean(deletingPhotoId)}
-                    onClick={() => void deletePhoto(photo)}
-                    className={`${OVERLAY_BUTTON_UA_RESET} absolute bottom-0 left-0 z-10 flex h-11 w-11 items-end justify-start p-1.5 text-white disabled:opacity-50`}
-                  >
-                    <span
-                      aria-hidden
-                      className="flex h-6 w-6 items-center justify-center rounded-full bg-black/55 text-[18px] leading-none backdrop-blur-md"
-                    >
-                      ×
-                    </span>
-                  </button>
-                </div>
-              );
-            })}
+                    <path d="m6 9 6 6 6-6" />
+                  </svg>
+                </button>
+              </div>
+              <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-1 py-1">
+                <p className="whitespace-pre-wrap text-[13px] font-medium leading-relaxed">
+                  {activePrompt}
+                </p>
+              </div>
+            </>
+          ) : (
             <button
               type="button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={controlsBusy || libraryLoading}
-              className={`${OVERLAY_BUTTON_UA_RESET} flex h-[4.75rem] w-[4.75rem] shrink-0 flex-col items-center justify-center rounded-xl border border-dashed border-white/25 bg-black/20 text-center transition hover:border-indigo-300/70 hover:bg-black/30 disabled:opacity-50`}
+              aria-expanded="false"
+              onClick={() => {
+                setExpandedControl(null);
+                setPromptExpanded(true);
+              }}
+              className={`${OVERLAY_BUTTON_UA_RESET} flex min-h-11 w-full items-center gap-3 text-left`}
             >
+              <span className="shrink-0 text-[13px] font-semibold">Промпт</span>
+              <span
+                className={`min-w-0 flex-1 truncate text-[13px] font-medium ${
+                  resultUrl ? "text-white/70" : "text-zinc-500"
+                }`}
+              >
+                {activePrompt}
+              </span>
               <svg
-                className="h-5 w-5 text-zinc-300"
+                className="h-5 w-5 shrink-0"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
-                strokeWidth="1.8"
+                strokeWidth="2"
                 aria-hidden
               >
-                <path d="M12 5v14M5 12h14" strokeLinecap="round" />
+                <path d="m6 15 6-6 6 6" />
               </svg>
-              <span className="mt-1 text-[13px] font-semibold leading-tight text-zinc-200">
-                Добавить
+            </button>
+          )}
+        </section>
+
+        <section
+          className={`rounded-2xl border p-2 ${
+            resultUrl ? "border-white/15 bg-black/15" : "border-zinc-200 bg-white/95"
+          }`}
+        >
+          <div className="flex items-start gap-2">
+            <button
+              type="button"
+              aria-expanded={expandedControl === "photos"}
+              aria-controls="inline-generation-photos"
+              disabled={controlsBusy}
+              onClick={() => {
+                setPromptExpanded(false);
+                setExpandedControl((current) => (current === "photos" ? null : "photos"));
+              }}
+              className={`${OVERLAY_BUTTON_UA_RESET} relative flex h-[5.25rem] w-[5.25rem] shrink-0 overflow-hidden rounded-xl text-left ring-2 transition ${
+                expandedControl === "photos"
+                  ? "ring-indigo-300"
+                  : resultUrl
+                    ? "bg-black/20 ring-white/10 hover:ring-white/25"
+                    : "bg-zinc-100 ring-zinc-200 hover:ring-zinc-300"
+              } disabled:opacity-50`}
+            >
+              {selectedPhotos[0]?.previewUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={selectedPhotos[0].previewUrl}
+                  alt=""
+                  className="absolute inset-0 h-full w-full object-cover"
+                />
+              ) : (
+                <span className="absolute inset-0 flex items-center justify-center text-zinc-300">
+                  <svg
+                    className="h-6 w-6"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.7"
+                    aria-hidden
+                  >
+                    <rect x="3.5" y="4.5" width="17" height="15" rx="2.5" />
+                    <circle cx="9" cy="10" r="1.5" />
+                    <path d="m5 17 4.5-4 3.2 2.7 2.5-2.2L19 17" />
+                  </svg>
+                </span>
+              )}
+              <span className="absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-black/90 via-black/55 to-transparent" />
+              <span className="absolute inset-x-2 bottom-1.5 text-[13px] font-semibold text-white">
+                Ваши фото
+              </span>
+              <span className="absolute right-1.5 top-1.5 rounded-full bg-black/55 px-1.5 py-0.5 text-[10px] font-semibold text-white backdrop-blur-md">
+                {selectedPhotos.length}/{maxPhotos}
               </span>
             </button>
-          </div>
-          {!libraryLoading && !photos.length ? (
-            <p className="mt-2 text-[13px] font-medium text-zinc-400">
-              Добавьте фото — оно сохранится для следующих генераций.
+
+            <button
+              type="button"
+              aria-expanded={expandedControl === "model"}
+              aria-controls="inline-generation-models"
+              disabled={controlsBusy || !models.length}
+              onClick={() => {
+                setPromptExpanded(false);
+                setExpandedControl((current) => (current === "model" ? null : "model"));
+              }}
+              className={`${OVERLAY_BUTTON_UA_RESET} relative flex h-[5.25rem] w-[5.25rem] shrink-0 flex-col items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-indigo-500/35 via-violet-500/20 to-black/30 p-2 text-center ring-2 transition ${
+                expandedControl === "model"
+                  ? "ring-indigo-300"
+                  : "ring-white/10 hover:ring-white/25"
+              } disabled:opacity-50`}
+            >
+              <svg
+                className="mb-1 h-6 w-6 text-indigo-100"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                aria-hidden
+              >
+                <path
+                  d="M12 3.5c.8 4.4 3.1 6.7 7.5 7.5-4.4.8-6.7 3.1-7.5 7.5-.8-4.4-3.1-6.7-7.5-7.5 4.4-.8 6.7-3.1 7.5-7.5Z"
+                  strokeLinejoin="round"
+                />
+              </svg>
+              <span className="line-clamp-2 text-[13px] font-semibold leading-tight text-white">
+                {displayLabelForGenerationModel(
+                  model,
+                  models.find((item) => item.id === model)?.label
+                )}
+              </span>
+            </button>
+
+            <p
+              className={`min-w-0 flex-1 self-center text-[13px] font-medium leading-snug ${
+                resultUrl ? "text-white/70" : "text-zinc-500"
+              }`}
+            >
+              Нажмите на квадрат, чтобы изменить выбор.
             </p>
+          </div>
+
+          {expandedControl ? (
+            <button
+              type="button"
+              aria-label="Закрыть выбор"
+              className={`${OVERLAY_BUTTON_UA_RESET} absolute inset-0 z-40 bg-black/45 backdrop-blur-[2px]`}
+              onClick={() => setExpandedControl(null)}
+            />
+          ) : null}
+
+          {expandedControl === "photos" ? (
+            <div
+              id="inline-generation-photos"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Выбор фотографий"
+              className="absolute inset-x-0 bottom-0 z-50 max-h-[min(76dvh,38rem)] overflow-y-auto rounded-t-3xl bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))] text-zinc-900 shadow-[0_-20px_60px_-24px_rgba(0,0,0,0.45)]"
+            >
+              <div className="mx-auto mb-2 h-1 w-9 rounded-full bg-zinc-300" aria-hidden />
+              <div className="mb-2 flex min-h-11 items-center justify-between gap-3">
+                <span className="text-[13px] font-semibold text-zinc-900">
+                  Ваши фото · {selectedPhotos.length}/{maxPhotos}
+                </span>
+                {libraryLoading ? (
+                  <span className="text-[13px] font-medium text-zinc-500">Загрузка…</span>
+                ) : (
+                  <button
+                    type="button"
+                    aria-label="Закрыть выбор фотографий"
+                    onClick={() => setExpandedControl(null)}
+                    className={`${OVERLAY_BUTTON_UA_RESET} flex h-11 w-11 items-center justify-center rounded-full bg-zinc-100 text-zinc-700 transition hover:bg-zinc-200`}
+                  >
+                    <svg
+                      className="h-5 w-5"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      aria-hidden
+                    >
+                      <path d="m6 6 12 12M18 6 6 18" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                {photos.map((photo) => {
+                  const selected = selectedPhotoIds.has(photo.id);
+                  const deleting = deletingPhotoId === photo.id;
+                  return (
+                    <div
+                      key={photo.id}
+                      className={`group relative h-[4.75rem] w-[4.75rem] shrink-0 overflow-hidden rounded-xl bg-zinc-800 ring-2 transition ${
+                        selected ? "ring-indigo-300" : "ring-white/10"
+                      }`}
+                    >
+                      <button
+                        type="button"
+                        aria-label={selected ? "Не использовать фото" : "Использовать фото"}
+                        aria-pressed={selected}
+                        disabled={controlsBusy || deleting}
+                        onClick={() => togglePhoto(photo.id)}
+                        className={`${OVERLAY_BUTTON_UA_RESET} absolute inset-0 h-full w-full disabled:opacity-50`}
+                      >
+                        {photo.previewUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={photo.previewUrl}
+                            alt={photo.originalFilename || "Сохранённое фото"}
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <span className="flex h-full items-center justify-center text-[13px] font-medium text-zinc-400">
+                            Фото
+                          </span>
+                        )}
+                        {selected ? (
+                          <span
+                            aria-hidden
+                            className="absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-indigo-300 text-[13px] font-bold text-zinc-950 shadow"
+                          >
+                            ✓
+                          </span>
+                        ) : null}
+                      </button>
+                      <button
+                        type="button"
+                        aria-label="Удалить фото"
+                        disabled={busy || Boolean(deletingPhotoId)}
+                        onClick={() => void deletePhoto(photo)}
+                        className={`${OVERLAY_BUTTON_UA_RESET} absolute bottom-0 left-0 z-10 flex h-11 w-11 items-end justify-start p-1.5 text-white disabled:opacity-50`}
+                      >
+                        <span
+                          aria-hidden
+                          className="flex h-6 w-6 items-center justify-center rounded-full bg-black/55 text-[18px] leading-none backdrop-blur-md"
+                        >
+                          ×
+                        </span>
+                      </button>
+                    </div>
+                  );
+                })}
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={controlsBusy || libraryLoading}
+                  className={`${OVERLAY_BUTTON_UA_RESET} flex h-[4.75rem] w-[4.75rem] shrink-0 flex-col items-center justify-center rounded-xl border border-dashed border-white/25 bg-black/20 text-center transition hover:border-indigo-300/70 hover:bg-black/30 disabled:opacity-50`}
+                >
+                  <svg
+                    className="h-5 w-5 text-zinc-200"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    aria-hidden
+                  >
+                    <path d="M12 5v14M5 12h14" strokeLinecap="round" />
+                  </svg>
+                  <span className="mt-1 text-[13px] font-semibold text-white">Добавить</span>
+                </button>
+              </div>
+              {!libraryLoading && !photos.length ? (
+                <p className="mt-2 text-[13px] font-medium text-zinc-600">
+                  Добавьте фото — оно сохранится для следующих генераций.
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+
+          {expandedControl === "model" ? (
+            <div
+              id="inline-generation-models"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Выбор модели"
+              className="absolute inset-x-0 bottom-0 z-50 max-h-[min(82dvh,44rem)] overflow-y-auto rounded-t-3xl bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))] text-zinc-900 shadow-[0_-20px_60px_-24px_rgba(0,0,0,0.45)]"
+            >
+              <div className="mx-auto mb-2 h-1 w-9 rounded-full bg-zinc-300" aria-hidden />
+              <div className="mb-2 flex min-h-11 items-center justify-between gap-3">
+                <span className="text-[13px] font-semibold text-zinc-900">Модель генерации</span>
+                <button
+                  type="button"
+                  aria-label="Закрыть выбор модели"
+                  onClick={() => setExpandedControl(null)}
+                  className={`${OVERLAY_BUTTON_UA_RESET} flex h-11 w-11 items-center justify-center rounded-full bg-zinc-100 text-zinc-700 transition hover:bg-zinc-200`}
+                >
+                  <svg
+                    className="h-5 w-5"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    aria-hidden
+                  >
+                    <path d="m6 6 12 12M18 6 6 18" />
+                  </svg>
+                </button>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                {models.map((item) => {
+                  const selected = model === item.id;
+                  const display = GENERATION_MODEL_DISPLAY[item.id];
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      aria-pressed={selected}
+                      disabled={controlsBusy}
+                      title={display?.description || item.label}
+                      onClick={() => setModel(item.id)}
+                      className={`${OVERLAY_BUTTON_UA_RESET} relative flex aspect-square min-h-20 min-w-0 flex-col items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-indigo-500/30 via-violet-500/15 to-black/30 p-2 text-center ring-2 transition ${
+                        selected
+                          ? "ring-indigo-300 shadow-lg shadow-indigo-950/30"
+                          : "ring-white/10 hover:ring-white/25"
+                      } disabled:opacity-50`}
+                    >
+                      <span className="absolute right-1.5 top-1.5 rounded-full bg-black/45 px-1.5 py-0.5 text-[10px] font-semibold text-white/90 backdrop-blur-md">
+                        {item.cost} кр.
+                      </span>
+                      <svg
+                        className="mb-1 h-6 w-6 text-indigo-100"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.6"
+                        aria-hidden
+                      >
+                        <path
+                          d="M12 3.5c.8 4.4 3.1 6.7 7.5 7.5-4.4.8-6.7 3.1-7.5 7.5-.8-4.4-3.1-6.7-7.5-7.5 4.4-.8 6.7-3.1 7.5-7.5Z"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                      <span className="line-clamp-2 text-[13px] font-semibold leading-tight text-white">
+                        {displayLabelForGenerationModel(item.id, item.label)}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <label className="block min-w-0">
+                  <span className="mb-1 block text-[13px] font-medium text-zinc-600">
+                    Формат
+                  </span>
+                  <select
+                    value={aspectRatio}
+                    onChange={(event) => setAspectRatio(event.target.value)}
+                    disabled={controlsBusy || !aspectRatios.length}
+                    className="min-h-11 w-full rounded-xl border border-zinc-200 bg-zinc-100 px-3 text-[13px] font-semibold text-zinc-900 outline-none transition focus:border-indigo-400 disabled:opacity-50"
+                  >
+                    {aspectRatios.map((item) => (
+                      <option key={item.value} value={item.value}>
+                        {item.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="block min-w-0">
+                  <span className="mb-1 block text-[13px] font-medium text-zinc-600">
+                    Качество
+                  </span>
+                  <select
+                    value={imageSize}
+                    onChange={(event) => setImageSize(event.target.value)}
+                    disabled={controlsBusy || !imageSizes.length}
+                    className="min-h-11 w-full rounded-xl border border-zinc-200 bg-zinc-100 px-3 text-[13px] font-semibold text-zinc-900 outline-none transition focus:border-indigo-400 disabled:opacity-50"
+                  >
+                    {imageSizes.map((item) => (
+                      <option key={item.value} value={item.value}>
+                        {item.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+            </div>
           ) : null}
         </section>
 
@@ -687,123 +1018,89 @@ export function CardInlineGeneratePanel({
           }}
         />
 
-        <section className="rounded-2xl border border-white/12 bg-zinc-950/58 p-3 backdrop-blur-xl">
-          <div className="mb-2 flex items-center justify-between gap-2">
-            <h3 className="text-[13px] font-semibold text-white">Модель</h3>
-            <span className="text-[13px] font-medium text-zinc-400">выберите качество</span>
-          </div>
-          <div className="grid grid-cols-3 gap-2">
-            {models.map((item) => {
-              const selected = model === item.id;
-              const display = GENERATION_MODEL_DISPLAY[item.id];
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  aria-pressed={selected}
-                  disabled={controlsBusy}
-                  title={display?.description || item.label}
-                  onClick={() => setModel(item.id)}
-                  className={`${OVERLAY_BUTTON_UA_RESET} relative flex aspect-square min-h-20 min-w-0 flex-col items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-indigo-500/25 via-violet-500/15 to-zinc-950/75 p-2 text-center ring-2 transition ${
-                    selected
-                      ? "ring-indigo-300 shadow-lg shadow-indigo-950/30"
-                      : "ring-white/10 hover:ring-white/25"
-                  } disabled:opacity-50`}
-                >
-                  <span className="absolute right-1.5 top-1.5 rounded-full bg-black/45 px-1.5 py-0.5 text-[10px] font-semibold text-white/90 backdrop-blur-md">
-                    {item.cost} кр.
-                  </span>
-                  <svg
-                    className="mb-1 h-6 w-6 text-indigo-200"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.6"
-                    aria-hidden
-                  >
-                    <path
-                      d="M12 3.5c.8 4.4 3.1 6.7 7.5 7.5-4.4.8-6.7 3.1-7.5 7.5-.8-4.4-3.1-6.7-7.5-7.5 4.4-.8 6.7-3.1 7.5-7.5Z"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                  <span className="line-clamp-2 text-[13px] font-semibold leading-tight text-white">
-                    {displayLabelForGenerationModel(item.id, item.label)}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="mt-3 grid grid-cols-2 gap-2">
-            <label className="block min-w-0">
-              <span className="mb-1 block text-[13px] font-medium text-zinc-400">Формат</span>
-              <select
-                value={aspectRatio}
-                onChange={(event) => setAspectRatio(event.target.value)}
-                disabled={controlsBusy || !aspectRatios.length}
-                className="min-h-11 w-full rounded-xl border border-white/12 bg-black/35 px-3 text-[13px] font-semibold text-white outline-none transition focus:border-indigo-300/70 disabled:opacity-50"
-              >
-                {aspectRatios.map((item) => (
-                  <option key={item.value} value={item.value}>
-                    {item.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="block min-w-0">
-              <span className="mb-1 block text-[13px] font-medium text-zinc-400">Качество</span>
-              <select
-                value={imageSize}
-                onChange={(event) => setImageSize(event.target.value)}
-                disabled={controlsBusy || !imageSizes.length}
-                className="min-h-11 w-full rounded-xl border border-white/12 bg-black/35 px-3 text-[13px] font-semibold text-white outline-none transition focus:border-indigo-300/70 disabled:opacity-50"
-              >
-                {imageSizes.map((item) => (
-                  <option key={item.value} value={item.value}>
-                    {item.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-        </section>
-
-        {(busy || Boolean(error) || Boolean(configError)) ? (
-          <div className="rounded-xl border border-white/10 bg-black/35 p-3 backdrop-blur-xl">
-            {busy ? (
-              <div className="h-1.5 overflow-hidden rounded-full bg-zinc-700/80">
-                <div
-                  className="h-full rounded-full bg-indigo-400 transition-all"
-                  style={{ width: `${Math.min(100, Math.max(4, progress))}%` }}
-                />
-              </div>
-            ) : null}
+        {Boolean(error) || Boolean(configError) ? (
+          <div
+            className={`rounded-xl border p-3 backdrop-blur-md ${
+              resultUrl ? "border-white/15 bg-black/15" : "border-rose-200 bg-rose-50"
+            }`}
+          >
             <p
               className={`text-[13px] font-medium ${
-                busy ? "mt-2 text-zinc-200" : "text-rose-200"
+                resultUrl ? "text-rose-200" : "text-rose-700"
               }`}
             >
-              {phase === "uploading"
-                ? "Загружаем фото…"
-                : phase === "generating"
-                  ? "Генерируем фото…"
-                  : configError || error}
+              {configError || error}
             </p>
           </div>
         ) : null}
+        </div>
       </div>
 
-      <footer className="relative z-20 shrink-0 border-t border-white/10 bg-zinc-950/45 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur-xl">
+      <footer
+        className={`relative z-20 shrink-0 border-t p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur-md ${
+          resultUrl ? "border-white/10 bg-black/15" : "border-zinc-200 bg-white/90"
+        }`}
+      >
+        <div className="flex gap-2">
+        {phase === "done" && resultUrl && generationId ? (
+          <button
+            type="button"
+            disabled={Boolean(busyAction)}
+            onClick={() => void handleResultAction("download")}
+            className={`${OVERLAY_BUTTON_UA_RESET} flex min-h-12 min-w-0 basis-[38%] items-center justify-center gap-2 rounded-2xl bg-black/25 px-3 py-3 text-[13px] font-semibold text-white backdrop-blur-md transition hover:bg-black/40 active:scale-[0.99] disabled:opacity-50`}
+          >
+            <svg
+              className="h-5 w-5 shrink-0"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              aria-hidden
+            >
+              <path d="M12 3v12m0 0 4-4m-4 4-4-4M5 20h14" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            <span className="truncate">
+              {busyAction === "download" ? "Скачиваем…" : "Скачать"}
+            </span>
+          </button>
+        ) : null}
         <button
           type="button"
+          aria-busy={busy}
           disabled={
-            controlsBusy || libraryLoading || !selectedPhotos.length || Boolean(configError)
+            controlsBusy ||
+            libraryLoading ||
+            Boolean(busyAction) ||
+            !selectedPhotos.length ||
+            Boolean(configError)
           }
           onClick={() => void runGenerate()}
-          className={`${OVERLAY_BUTTON_UA_RESET} flex min-h-12 w-full items-center justify-center rounded-2xl bg-gradient-to-r from-indigo-500 to-violet-500 px-4 py-3 text-[15px] font-semibold text-white shadow-lg shadow-indigo-950/35 transition hover:brightness-110 active:scale-[0.99] disabled:opacity-50`}
+          className={`${OVERLAY_BUTTON_UA_RESET} relative flex min-h-12 min-w-0 items-center justify-center overflow-hidden rounded-2xl px-4 py-3 text-[15px] font-semibold text-white shadow-lg shadow-indigo-950/35 transition active:scale-[0.99] disabled:cursor-not-allowed ${
+            phase === "done" && resultUrl ? "flex-1" : "w-full"
+          } ${
+            busy
+              ? "bg-white/10"
+              : "bg-gradient-to-r from-indigo-500 to-violet-500 hover:brightness-110 disabled:opacity-50"
+          }`}
         >
-          {phase === "done" ? "Сгенерировать ещё" : busy ? "Подождите…" : "Сгенерировать"}
+          {busy ? (
+            <span
+              className="absolute inset-y-0 left-0 bg-gradient-to-r from-indigo-500 to-violet-500 transition-[width] duration-300"
+              style={{ width: `${Math.min(100, Math.max(4, progress))}%` }}
+              aria-hidden
+            />
+          ) : null}
+          <span className="relative z-10">
+            {phase === "uploading"
+              ? `Загружаем фото · ${Math.round(progress)}%`
+              : phase === "generating"
+                ? `Генерируем · ${Math.round(progress)}%`
+                : phase === "done"
+                  ? "Сгенерировать ещё"
+                  : "Сгенерировать"}
+          </span>
         </button>
+        </div>
       </footer>
 
       {toast ? (
