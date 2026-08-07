@@ -235,6 +235,7 @@ BEGIN
       LEFT JOIN processing_by_user p
         ON p.requester_key = COALESCE(g.requester_auth_user_id, g.user_id)
      WHERE g.status = 'pending'
+       AND g.requester_auth_user_id IS NOT NULL
        AND g.next_attempt_at <= now()
        AND g.attempts < g.max_attempts
   ),
