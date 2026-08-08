@@ -51,6 +51,17 @@ type Props = {
 
 const POLL_MS = 2500;
 
+function GoogleGenerationModelIcon({ className = "h-5 w-5" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" aria-hidden>
+      <path fill="#4285F4" d="M21.6 12.23c0-.71-.06-1.4-.18-2.07H12v3.92h5.38a4.6 4.6 0 0 1-2 3.02v2.54h3.24c1.9-1.75 2.98-4.33 2.98-7.41Z" />
+      <path fill="#34A853" d="M12 22c2.7 0 4.97-.9 6.62-2.36l-3.24-2.54c-.9.6-2.05.96-3.38.96-2.6 0-4.81-1.76-5.6-4.13H3.05v2.62A10 10 0 0 0 12 22Z" />
+      <path fill="#FBBC05" d="M6.4 13.93A6.02 6.02 0 0 1 6.08 12c0-.67.12-1.32.32-1.93V7.45H3.05A10 10 0 0 0 2 12c0 1.61.39 3.14 1.05 4.55l3.35-2.62Z" />
+      <path fill="#EA4335" d="M12 5.94c1.47 0 2.79.5 3.83 1.5l2.87-2.88A9.63 9.63 0 0 0 12 2a10 10 0 0 0-8.95 5.45l3.35 2.62c.79-2.37 3-4.13 5.6-4.13Z" />
+    </svg>
+  );
+}
+
 export function CardInlineGeneratePanel({
   promptText,
   cardId,
@@ -925,26 +936,16 @@ export function CardInlineGeneratePanel({
                 setPromptExpanded(false);
                 setExpandedControl((current) => (current === "model" ? null : "model"));
               }}
-              className={`${OVERLAY_BUTTON_UA_RESET} relative flex h-[5.25rem] w-[5.25rem] shrink-0 flex-col items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-indigo-500/35 via-violet-500/20 to-black/30 p-2 text-center ring-2 transition ${
+              className={`${OVERLAY_BUTTON_UA_RESET} relative flex h-[5.25rem] w-[5.25rem] shrink-0 flex-col items-center justify-center overflow-hidden rounded-xl bg-indigo-50 p-2 text-center text-zinc-900 ring-2 transition ${
                 expandedControl === "model"
-                  ? "ring-indigo-300"
-                  : "ring-white/10 hover:ring-white/25"
+                  ? "ring-indigo-500"
+                  : "ring-indigo-200 hover:bg-indigo-100 hover:ring-indigo-400"
               } disabled:opacity-50`}
             >
-              <svg
-                className="mb-1 h-6 w-6 text-indigo-100"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.6"
-                aria-hidden
-              >
-                <path
-                  d="M12 3.5c.8 4.4 3.1 6.7 7.5 7.5-4.4.8-6.7 3.1-7.5 7.5-.8-4.4-3.1-6.7-7.5-7.5 4.4-.8 6.7-3.1 7.5-7.5Z"
-                  strokeLinejoin="round"
-                />
-              </svg>
-              <span className="line-clamp-2 text-[13px] font-semibold leading-tight text-white">
+              <span className="mb-1 flex h-8 w-8 items-center justify-center rounded-full bg-white shadow-sm">
+                <GoogleGenerationModelIcon />
+              </span>
+              <span className="line-clamp-2 text-[13px] font-semibold leading-tight">
                 {displayLabelForGenerationModel(
                   model,
                   models.find((item) => item.id === model)?.label
@@ -1140,37 +1141,28 @@ export function CardInlineGeneratePanel({
                       onClick={() => setModel(item.id)}
                       className={`${OVERLAY_BUTTON_UA_RESET} relative flex min-h-20 min-w-0 items-center gap-3 overflow-hidden rounded-xl p-3 text-left ring-2 transition ${
                         selected
-                          ? "bg-zinc-800 text-white ring-indigo-400 shadow-lg shadow-indigo-950/20"
+                          ? "bg-indigo-50 text-zinc-900 ring-indigo-500 shadow-sm"
                           : "bg-zinc-100 text-zinc-900 ring-zinc-200 hover:bg-zinc-200 hover:ring-zinc-300"
                       } disabled:opacity-50`}
                     >
                       <span
                         aria-hidden
-                        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
-                          selected ? "bg-white/10 text-white" : "bg-white text-zinc-800"
-                        }`}
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white shadow-sm"
                       >
-                        <svg className="h-5 w-5" viewBox="0 0 24 24">
-                          <path fill="#4285F4" d="M21.6 12.23c0-.71-.06-1.4-.18-2.07H12v3.92h5.38a4.6 4.6 0 0 1-2 3.02v2.54h3.24c1.9-1.75 2.98-4.33 2.98-7.41Z" />
-                          <path fill="#34A853" d="M12 22c2.7 0 4.97-.9 6.62-2.36l-3.24-2.54c-.9.6-2.05.96-3.38.96-2.6 0-4.81-1.76-5.6-4.13H3.05v2.62A10 10 0 0 0 12 22Z" />
-                          <path fill="#FBBC05" d="M6.4 13.93A6.02 6.02 0 0 1 6.08 12c0-.67.12-1.32.32-1.93V7.45H3.05A10 10 0 0 0 2 12c0 1.61.39 3.14 1.05 4.55l3.35-2.62Z" />
-                          <path fill="#EA4335" d="M12 5.94c1.47 0 2.79.5 3.83 1.5l2.87-2.88A9.63 9.63 0 0 0 12 2a10 10 0 0 0-8.95 5.45l3.35 2.62c.79-2.37 3-4.13 5.6-4.13Z" />
-                        </svg>
+                        <GoogleGenerationModelIcon />
                       </span>
-                      <span className="min-w-0 flex-1">
+                      <span className="min-w-0 flex-1 pr-5">
                         <span className="block truncate text-[13px] font-semibold leading-tight">
                           {displayLabelForGenerationModel(item.id, item.label)}
                         </span>
                         <span
-                          className={`mt-1 block line-clamp-2 text-xs font-medium leading-tight ${
-                            selected ? "text-zinc-400" : "text-zinc-500"
-                          }`}
+                          className="mt-1 block line-clamp-2 text-xs font-medium leading-tight text-zinc-500"
                         >
                           {display?.description || "Генерация изображений"}
                         </span>
                       </span>
                       <span className={`absolute right-1.5 top-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
-                        selected ? "bg-black/30 text-white/80" : "bg-white text-zinc-500"
+                        selected ? "bg-indigo-100 text-indigo-700" : "bg-white text-zinc-500"
                       }`}>
                         {item.cost} кр.
                       </span>
