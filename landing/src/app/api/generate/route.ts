@@ -197,7 +197,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const ar = aspectRatio || "1:1";
+    const ar = aspectRatio || "9:16";
     const sz = imageSize || "1K";
     if (!validAspectRatios.includes(ar)) {
       console.warn("[generation.create] validation error: invalid aspect ratio", {
@@ -280,6 +280,7 @@ export async function POST(req: NextRequest) {
         { id: "gemini-2.5-flash-image", cost: 1 },
         { id: "gemini-3-pro-image-preview", cost: 2 },
         { id: "gemini-3.1-flash-image-preview", cost: 3 },
+        { id: "gemini-3.1-flash-lite-image", cost: 1 },
       ];
     }
 

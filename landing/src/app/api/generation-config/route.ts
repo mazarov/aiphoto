@@ -54,6 +54,7 @@ export async function GET() {
         { id: "gemini-2.5-flash-image", label: displayLabelForGenerationModel("gemini-2.5-flash-image"), cost: 1 },
         { id: "gemini-3-pro-image-preview", label: displayLabelForGenerationModel("gemini-3-pro-image-preview"), cost: 2 },
         { id: "gemini-3.1-flash-image-preview", label: displayLabelForGenerationModel("gemini-3.1-flash-image-preview"), cost: 3 },
+        { id: "gemini-3.1-flash-lite-image", label: displayLabelForGenerationModel("gemini-3.1-flash-lite-image"), cost: 1 },
       ];
     }
 
@@ -63,7 +64,7 @@ export async function GET() {
       imageSizes: IMAGE_SIZES,
       defaults: {
         model: config.default_model || "gemini-2.5-flash-image",
-        aspectRatio: config.default_aspect_ratio || "1:1",
+        aspectRatio: config.default_aspect_ratio || "9:16",
         imageSize: config.default_image_size || "1K",
       },
       limits: {

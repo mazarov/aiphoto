@@ -23,6 +23,12 @@ import { PROMPT_REMIX_COPY } from "@/lib/foto-v-promt-copy";
 type ModelOpt = { id: string; label: string; cost: number };
 type RatioOpt = { value: string; label: string };
 type SizeOpt = { value: string; label: string };
+type GenerationPreferences = {
+  model?: string;
+  aspectRatio?: string;
+  imageSize?: string;
+  selectedPhotoIds?: string[];
+};
 type UserPhoto = {
   id: string;
   storagePath: string;
@@ -57,10 +63,11 @@ export function CardInlineGeneratePanel({
   const [aspectRatios, setAspectRatios] = useState<RatioOpt[]>([]);
   const [imageSizes, setImageSizes] = useState<SizeOpt[]>([]);
   const [model, setModel] = useState("gemini-2.5-flash-image");
-  const [aspectRatio, setAspectRatio] = useState("1:1");
+  const [aspectRatio, setAspectRatio] = useState("9:16");
   const [imageSize, setImageSize] = useState("1K");
   const [configError, setConfigError] = useState("");
   const [maxPhotos, setMaxPhotos] = useState(10);
+  const [preferencesHydrated, setPreferencesHydrated] = useState(false);
 
   const [photos, setPhotos] = useState<UserPhoto[]>([]);
   const [selectedPhotoIds, setSelectedPhotoIds] = useState<Set<string>>(new Set());
@@ -97,33 +104,88 @@ export function CardInlineGeneratePanel({
     let cancelled = false;
     void (async () => {
       try {
-        const res = await fetch("/api/generation-config");
-        if (!res.ok) throw new Error("config_failed");
-        const data = (await res.json()) as {
+        const [configRes, photosRes, preferencesRes] = await Promise.all([
+          fetch("/api/generation-config"),
+          fetch("/api/user-generation-photos", { credentials: "include" }),
+          fetch("/api/generation-preferences", { credentials: "include" }),
+        ]);
+        if (!configRes.ok) throw new Error("config_failed");
+        const configData = (await configRes.json()) as {
           models?: ModelOpt[];
           aspectRatios?: RatioOpt[];
           imageSizes?: SizeOpt[];
           defaults?: { model?: string; aspectRatio?: string; imageSize?: string };
           limits?: { maxPhotos?: number };
         };
+        const photosData = (await photosRes.json().catch(() => ({}))) as {
+          photos?: UserPhoto[];
+          error?: string;
+        };
+        const preferencesData = preferencesRes.ok
+          ? ((await preferencesRes.json().catch(() => ({}))) as {
+              preferences?: GenerationPreferences | null;
+            })
+          : {};
+        if (!photosRes.ok) {
+          throw new Error(photosData.error || "Не удалось загрузить ваши фото");
+        }
         if (cancelled) return;
-        const nextModels = Array.isArray(data.models) ? data.models : [];
-        const nextRatios = Array.isArray(data.aspectRatios) ? data.aspectRatios : [];
-        const nextSizes = Array.isArray(data.imageSizes) ? data.imageSizes : [];
+        const nextModels = Array.isArray(configData.models) ? configData.models : [];
+        const nextRatios = Array.isArray(configData.aspectRatios)
+          ? configData.aspectRatios
+          : [];
+        const nextSizes = Array.isArray(configData.imageSizes) ? configData.imageSizes : [];
+        const nextPhotos = Array.isArray(photosData.photos) ? photosData.photos : [];
+        const preferences = preferencesData.preferences ?? null;
+        const preferredModel = preferences?.model;
+        const preferredRatio = preferences?.aspectRatio;
+        const preferredSize = preferences?.imageSize;
+        const defaultModel = configData.defaults?.model || nextModels[0]?.id;
+        const defaultRatio = configData.defaults?.aspectRatio || nextRatios[0]?.value;
+        const defaultSize = configData.defaults?.imageSize || nextSizes[0]?.value;
         setModels(nextModels);
         setAspectRatios(nextRatios);
         setImageSizes(nextSizes);
-        if (data.defaults?.model) setModel(data.defaults.model);
-        else if (nextModels[0]) setModel(nextModels[0].id);
-        if (data.defaults?.aspectRatio) setAspectRatio(data.defaults.aspectRatio);
-        else if (nextRatios[0]) setAspectRatio(nextRatios[0].value);
-        if (data.defaults?.imageSize) setImageSize(data.defaults.imageSize);
-        else if (nextSizes[0]) setImageSize(nextSizes[0].value);
-        if (typeof data.limits?.maxPhotos === "number") {
-          setMaxPhotos(Math.max(1, Math.min(10, data.limits.maxPhotos)));
+        setPhotos(nextPhotos);
+        if (preferredModel && nextModels.some((item) => item.id === preferredModel)) {
+          setModel(preferredModel);
+        } else if (defaultModel) {
+          setModel(defaultModel);
         }
-      } catch {
-        if (!cancelled) setConfigError("Не удалось загрузить параметры генерации");
+        if (preferredRatio && nextRatios.some((item) => item.value === preferredRatio)) {
+          setAspectRatio(preferredRatio);
+        } else if (defaultRatio) {
+          setAspectRatio(defaultRatio);
+        }
+        if (preferredSize && nextSizes.some((item) => item.value === preferredSize)) {
+          setImageSize(preferredSize);
+        } else if (defaultSize) {
+          setImageSize(defaultSize);
+        }
+        const availablePhotoIds = new Set(nextPhotos.map((photo) => photo.id));
+        const restoredPhotoIds = (preferences?.selectedPhotoIds ?? []).filter((id) =>
+          availablePhotoIds.has(id)
+        );
+        setSelectedPhotoIds(
+          restoredPhotoIds.length
+            ? new Set(restoredPhotoIds)
+            : nextPhotos[0]
+              ? new Set([nextPhotos[0].id])
+              : new Set()
+        );
+        if (typeof configData.limits?.maxPhotos === "number") {
+          setMaxPhotos(Math.max(1, Math.min(10, configData.limits.maxPhotos)));
+        }
+        setPreferencesHydrated(true);
+      } catch (err) {
+        if (!cancelled) {
+          if (err instanceof Error && err.message !== "config_failed") {
+            setError(err.message);
+          } else {
+            setConfigError("Не удалось загрузить параметры генерации");
+          }
+          setLibraryLoading(false);
+        }
       }
     })();
     return () => {
@@ -132,31 +194,25 @@ export function CardInlineGeneratePanel({
   }, []);
 
   useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      try {
-        const res = await fetch("/api/user-generation-photos", { credentials: "include" });
-        const data = (await res.json().catch(() => ({}))) as {
-          photos?: UserPhoto[];
-          error?: string;
-        };
-        if (!res.ok) throw new Error(data.error || "Не удалось загрузить ваши фото");
-        if (cancelled) return;
-        const nextPhotos = Array.isArray(data.photos) ? data.photos : [];
-        setPhotos(nextPhotos);
-        setSelectedPhotoIds(nextPhotos[0] ? new Set([nextPhotos[0].id]) : new Set());
-      } catch (err) {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : "Не удалось загрузить ваши фото");
-        }
-      } finally {
-        if (!cancelled) setLibraryLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    if (!preferencesHydrated) return;
+    setLibraryLoading(false);
+    const timer = window.setTimeout(() => {
+      void fetch("/api/generation-preferences", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          model,
+          aspectRatio,
+          imageSize,
+          selectedPhotoIds: Array.from(selectedPhotoIds),
+        }),
+      }).then((res) => {
+        if (!res.ok) console.warn("[generation-preferences] save failed", res.status);
+      });
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [aspectRatio, imageSize, model, preferencesHydrated, selectedPhotoIds]);
 
   const selectedPhotos = useMemo(
     () => photos.filter((photo) => selectedPhotoIds.has(photo.id)),
@@ -735,7 +791,6 @@ export function CardInlineGeneratePanel({
                   onChange={(event) => setDraftPrompt(event.target.value)}
                   maxLength={8000}
                   disabled={busy || remixing}
-                  autoFocus
                   className="min-h-0 w-full flex-1 resize-none rounded-xl border border-zinc-200 bg-zinc-50 p-3 text-[13px] font-medium leading-relaxed text-zinc-900 outline-none transition focus:border-indigo-400 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 disabled:opacity-60"
                 />
               </label>
@@ -750,6 +805,7 @@ export function CardInlineGeneratePanel({
                   maxLength={1000}
                   rows={3}
                   disabled={busy || remixing}
+                  autoFocus
                   className="w-full resize-none rounded-xl border border-zinc-200 bg-white p-3 text-[13px] font-medium leading-relaxed text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 disabled:opacity-60"
                 />
               </label>
@@ -950,6 +1006,24 @@ export function CardInlineGeneratePanel({
                 )}
               </div>
               <div className="flex gap-2 overflow-x-auto pb-1">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={controlsBusy || libraryLoading}
+                  className={`${OVERLAY_BUTTON_UA_RESET} flex h-[4.75rem] w-[4.75rem] shrink-0 flex-col items-center justify-center rounded-xl border border-dashed border-zinc-300 bg-zinc-100 text-center text-zinc-700 transition hover:border-indigo-400 hover:bg-indigo-50 disabled:opacity-50`}
+                >
+                  <svg
+                    className="h-5 w-5"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    aria-hidden
+                  >
+                    <path d="M12 5v14M5 12h14" strokeLinecap="round" />
+                  </svg>
+                  <span className="mt-1 text-[13px] font-semibold">Добавить</span>
+                </button>
                 {photos.map((photo) => {
                   const selected = selectedPhotoIds.has(photo.id);
                   const deleting = deletingPhotoId === photo.id;
@@ -998,32 +1072,22 @@ export function CardInlineGeneratePanel({
                       >
                         <span
                           aria-hidden
-                          className="flex h-6 w-6 items-center justify-center rounded-full bg-black/55 text-[18px] leading-none backdrop-blur-md"
+                          className="flex h-7 w-7 items-center justify-center rounded-full bg-black/60 backdrop-blur-md"
                         >
-                          ×
+                          <svg
+                            className="h-4 w-4"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.8"
+                          >
+                            <path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13M10 11v5m4-5v5" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
                         </span>
                       </button>
                     </div>
                   );
                 })}
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={controlsBusy || libraryLoading}
-                  className={`${OVERLAY_BUTTON_UA_RESET} flex h-[4.75rem] w-[4.75rem] shrink-0 flex-col items-center justify-center rounded-xl border border-dashed border-white/25 bg-black/20 text-center transition hover:border-indigo-300/70 hover:bg-black/30 disabled:opacity-50`}
-                >
-                  <svg
-                    className="h-5 w-5 text-zinc-200"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
-                    aria-hidden
-                  >
-                    <path d="M12 5v14M5 12h14" strokeLinecap="round" />
-                  </svg>
-                  <span className="mt-1 text-[13px] font-semibold text-white">Добавить</span>
-                </button>
               </div>
               {!libraryLoading && !photos.length ? (
                 <p className="mt-2 text-[13px] font-medium text-zinc-600">
@@ -1062,7 +1126,7 @@ export function CardInlineGeneratePanel({
                   </svg>
                 </button>
               </div>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 gap-2">
                 {models.map((item) => {
                   const selected = model === item.id;
                   const display = GENERATION_MODEL_DISPLAY[item.id];
@@ -1074,30 +1138,41 @@ export function CardInlineGeneratePanel({
                       disabled={controlsBusy}
                       title={display?.description || item.label}
                       onClick={() => setModel(item.id)}
-                      className={`${OVERLAY_BUTTON_UA_RESET} relative flex aspect-square min-h-20 min-w-0 flex-col items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-indigo-500/30 via-violet-500/15 to-black/30 p-2 text-center ring-2 transition ${
+                      className={`${OVERLAY_BUTTON_UA_RESET} relative flex min-h-20 min-w-0 items-center gap-3 overflow-hidden rounded-xl p-3 text-left ring-2 transition ${
                         selected
-                          ? "ring-indigo-300 shadow-lg shadow-indigo-950/30"
-                          : "ring-white/10 hover:ring-white/25"
+                          ? "bg-zinc-800 text-white ring-indigo-400 shadow-lg shadow-indigo-950/20"
+                          : "bg-zinc-100 text-zinc-900 ring-zinc-200 hover:bg-zinc-200 hover:ring-zinc-300"
                       } disabled:opacity-50`}
                     >
-                      <span className="absolute right-1.5 top-1.5 rounded-full bg-black/45 px-1.5 py-0.5 text-[10px] font-semibold text-white/90 backdrop-blur-md">
-                        {item.cost} кр.
-                      </span>
-                      <svg
-                        className="mb-1 h-6 w-6 text-indigo-100"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="1.6"
+                      <span
                         aria-hidden
+                        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
+                          selected ? "bg-white/10 text-white" : "bg-white text-zinc-800"
+                        }`}
                       >
-                        <path
-                          d="M12 3.5c.8 4.4 3.1 6.7 7.5 7.5-4.4.8-6.7 3.1-7.5 7.5-.8-4.4-3.1-6.7-7.5-7.5 4.4-.8 6.7-3.1 7.5-7.5Z"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
-                      <span className="line-clamp-2 text-[13px] font-semibold leading-tight text-white">
-                        {displayLabelForGenerationModel(item.id, item.label)}
+                        <svg className="h-5 w-5" viewBox="0 0 24 24">
+                          <path fill="#4285F4" d="M21.6 12.23c0-.71-.06-1.4-.18-2.07H12v3.92h5.38a4.6 4.6 0 0 1-2 3.02v2.54h3.24c1.9-1.75 2.98-4.33 2.98-7.41Z" />
+                          <path fill="#34A853" d="M12 22c2.7 0 4.97-.9 6.62-2.36l-3.24-2.54c-.9.6-2.05.96-3.38.96-2.6 0-4.81-1.76-5.6-4.13H3.05v2.62A10 10 0 0 0 12 22Z" />
+                          <path fill="#FBBC05" d="M6.4 13.93A6.02 6.02 0 0 1 6.08 12c0-.67.12-1.32.32-1.93V7.45H3.05A10 10 0 0 0 2 12c0 1.61.39 3.14 1.05 4.55l3.35-2.62Z" />
+                          <path fill="#EA4335" d="M12 5.94c1.47 0 2.79.5 3.83 1.5l2.87-2.88A9.63 9.63 0 0 0 12 2a10 10 0 0 0-8.95 5.45l3.35 2.62c.79-2.37 3-4.13 5.6-4.13Z" />
+                        </svg>
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-[13px] font-semibold leading-tight">
+                          {displayLabelForGenerationModel(item.id, item.label)}
+                        </span>
+                        <span
+                          className={`mt-1 block line-clamp-2 text-xs font-medium leading-tight ${
+                            selected ? "text-zinc-400" : "text-zinc-500"
+                          }`}
+                        >
+                          {display?.description || "Генерация изображений"}
+                        </span>
+                      </span>
+                      <span className={`absolute right-1.5 top-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
+                        selected ? "bg-black/30 text-white/80" : "bg-white text-zinc-500"
+                      }`}>
+                        {item.cost} кр.
                       </span>
                     </button>
                   );
