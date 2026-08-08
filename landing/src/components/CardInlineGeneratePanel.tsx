@@ -400,6 +400,8 @@ export function CardInlineGeneratePanel({
   const applyPromptRemix = async () => {
     const basePrompt = draftPrompt.trim();
     const requestedChange = changeRequest.trim();
+    const parentGenerationId =
+      resultUrl && generationId ? generationId : null;
     if (
       basePrompt.length < 8 ||
       !requestedChange ||
@@ -418,7 +420,7 @@ export function CardInlineGeneratePanel({
         credentials: "include",
         body: JSON.stringify({
           prompt: basePrompt,
-          parentGenerationId: resultUrl && generationId ? generationId : null,
+          parentGenerationId,
           changeRequest: requestedChange,
         }),
       });
@@ -440,6 +442,12 @@ export function CardInlineGeneratePanel({
       }
       setDraftPrompt(nextPrompt);
       setChangeRequest("");
+      if (parentGenerationId) {
+        await runGenerate({
+          promptOverride: nextPrompt,
+          parentGenerationId,
+        });
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : PROMPT_REMIX_COPY.errorGeneric);
     } finally {
@@ -750,7 +758,13 @@ export function CardInlineGeneratePanel({
                 onClick={() => void applyPromptRemix()}
                 className={`${OVERLAY_BUTTON_UA_RESET} mt-3 flex min-h-12 w-full items-center justify-center rounded-2xl bg-gradient-to-r from-indigo-500 to-violet-500 px-4 py-3 text-[13px] font-semibold text-white shadow-lg shadow-indigo-950/20 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50`}
               >
-                {remixing ? "Переписываем промпт…" : "Применить изменение"}
+                {remixing
+                  ? resultUrl && generationId
+                    ? "Применяем и генерируем…"
+                    : "Переписываем промпт…"
+                  : resultUrl && generationId
+                    ? "Применить и сгенерировать"
+                    : "Применить изменение"}
               </button>
             </>
           ) : (
@@ -1193,10 +1207,7 @@ export function CardInlineGeneratePanel({
           }
           onClick={() => {
             if (phase === "done" && resultUrl && generationId) {
-              void runGenerate({
-                promptOverride: draftPrompt,
-                parentGenerationId: generationId,
-              });
+              openPromptEditor();
               return;
             }
             void runGenerate({ promptOverride: draftPrompt });
@@ -1221,7 +1232,9 @@ export function CardInlineGeneratePanel({
               ? `Загружаем фото · ${Math.round(progress)}%`
               : phase === "generating"
                 ? `Генерируем · ${Math.round(progress)}%`
-                : "Сгенерировать"}
+                : phase === "done" && resultUrl
+                  ? "Что изменить"
+                  : "Сгенерировать"}
           </span>
         </button>
         </div>
