@@ -158,6 +158,12 @@ export async function POST(req: NextRequest) {
                 "- Do not shorten, summarize, translate, restructure, or creatively improve the prompt unless explicitly requested.",
                 "- Preserve names, numbers, placeholders, formatting, camera settings, composition, style, lighting, and negative constraints.",
                 "- If the requested change conflicts with the source, modify only the conflicting details.",
+                "- Treat CHANGE_REQUEST as higher priority than any conflicting source details.",
+                "- Integrate the requested change into every semantically affected section.",
+                "- Replace or remove details and negative constraints that conflict with the requested change.",
+                "- Do not satisfy the request by merely appending a sentence or adding a final rule.",
+                "- Keep the final prompt internally consistent, grammatically correct, and directly usable for image generation.",
+                "- Before returning, silently verify that no section contradicts CHANGE_REQUEST.",
                 "- Return the complete final prompt in the original language.",
                 "- Return only the prompt, without explanations, headings, quotes, or Markdown.",
               ].join("\n"),
@@ -185,7 +191,7 @@ export async function POST(req: NextRequest) {
           },
         ],
         generationConfig: {
-          temperature: 0.7,
+          temperature: 0.3,
           maxOutputTokens: 8192,
           responseModalities: ["TEXT"],
           thinkingConfig: {
