@@ -291,11 +291,17 @@ export function CardInlineGeneratePanel({
   const runGenerate = async (options?: {
     promptOverride?: string;
     parentGenerationId?: string;
+    editInstruction?: string;
   }): Promise<boolean> => {
     const parentGenerationId = options?.parentGenerationId?.trim() || "";
+    const editInstruction = options?.editInstruction?.trim() || "";
     const isContinuation = Boolean(parentGenerationId);
     if (!isContinuation && !selectedPhotos.length) {
       setError("Выберите хотя бы одно фото");
+      return false;
+    }
+    if (isContinuation && !editInstruction) {
+      setError("Опишите, что изменить");
       return false;
     }
     const prompt = (options?.promptOverride ?? draftPrompt).trim();
@@ -334,6 +340,7 @@ export function CardInlineGeneratePanel({
             ? []
             : selectedPhotos.map((photo) => photo.storagePath),
           parentGenerationId: parentGenerationId || null,
+          editInstruction: editInstruction || null,
           vibeId: null,
         }),
       });
@@ -345,7 +352,7 @@ export function CardInlineGeneratePanel({
       if (!genRes.ok || !genData.id) {
         throw new Error(genData.message || genData.error || "Не удалось создать генерацию");
       }
-      setGenerationId(genData.id);
+      if (!isContinuation) setGenerationId(genData.id);
       setDraftPrompt(prompt);
       setSubmittedPrompt(prompt);
       setIsPublished(false);
@@ -379,6 +386,7 @@ export function CardInlineGeneratePanel({
         setError("");
         if (typeof poll.progress === "number") setProgress(Math.max(20, poll.progress));
         if (poll.status === "completed" && poll.resultUrl) {
+          setGenerationId(genData.id);
           setResultUrl(poll.resultUrl);
           setProgress(100);
           setPhase("done");
@@ -446,6 +454,7 @@ export function CardInlineGeneratePanel({
         await runGenerate({
           promptOverride: nextPrompt,
           parentGenerationId,
+          editInstruction: requestedChange,
         });
       }
     } catch (err) {

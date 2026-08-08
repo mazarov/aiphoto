@@ -7,6 +7,11 @@ import { isStvGuestUser } from "@/lib/stv-guest-mode";
 import { ensureLandingUserForGeneration } from "@/lib/ensure-landing-user";
 import { isStvOpenGenerateDebugEnabled } from "@/lib/stv-open-generate-debug";
 import { isStoragePathOwnedByAuthUser } from "@/lib/user-generation-photos";
+import {
+  generationEditFingerprintFields,
+  normalizeEditInstruction,
+  validateGenerationEditContract,
+} from "@/lib/generation-edit-contract";
 
 /** PromptShot paid generate is site-only for now (inline compose / same-origin). */
 const GENERATION_CLIENT_SOURCE = "site" as const;
@@ -60,6 +65,7 @@ export async function POST(req: NextRequest) {
       photoStoragePaths,
       vibeId,
       parentGenerationId,
+      editInstruction,
       idempotencyKey: bodyIdempotencyKey,
     } = body as {
       prompt?: string;
@@ -70,6 +76,7 @@ export async function POST(req: NextRequest) {
       photoStoragePaths?: string[];
       vibeId?: string | null;
       parentGenerationId?: string | null;
+      editInstruction?: string | null;
       pipelineTraceId?: string;
       idempotencyKey?: string;
     };
@@ -95,6 +102,7 @@ export async function POST(req: NextRequest) {
     const normalizedPhotoStoragePaths = Array.isArray(photoStoragePaths)
       ? photoStoragePaths
       : [];
+    const normalizedEditInstruction = normalizeEditInstruction(editInstruction);
     const hasParentGeneration = Boolean(normalizedParentGenerationId);
 
     if (hasParentGeneration && !UUID_RE.test(normalizedParentGenerationId)) {
@@ -108,6 +116,19 @@ export async function POST(req: NextRequest) {
         {
           error: "validation_error",
           message: "Укажите либо исходные фото, либо предыдущую генерацию",
+        },
+        { status: 400 }
+      );
+    }
+    const editContractError = validateGenerationEditContract({
+      hasParentGeneration,
+      editInstruction: normalizedEditInstruction,
+    });
+    if (editContractError) {
+      return NextResponse.json(
+        {
+          error: "validation_error",
+          message: editContractError,
         },
         { status: 400 }
       );
@@ -294,9 +315,6 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
-    const promptPreview =
-      promptText.length > 800 ? `${promptText.slice(0, 800)}... [truncated]` : promptText;
-
     const ensuredUser = await ensureLandingUserForGeneration(supabase, user);
     if (!ensuredUser.ok) {
       return NextResponse.json(
@@ -339,7 +357,10 @@ export async function POST(req: NextRequest) {
           aspectRatio: ar,
           imageSize: sz,
           photoStoragePaths: normalizedPhotoStoragePaths,
-          parentGenerationId: normalizedParentGenerationId || null,
+          ...generationEditFingerprintFields(
+            normalizedParentGenerationId,
+            normalizedEditInstruction
+          ),
           vibeId: resolvedVibeId,
           cardId: cardId || null,
           clientSource: GENERATION_CLIENT_SOURCE,
@@ -363,9 +384,10 @@ export async function POST(req: NextRequest) {
       imageSize: sz,
       photos: normalizedPhotoStoragePaths.length,
       sourceType: hasParentGeneration ? "generation_result" : "user_photos",
+      generationMode: hasParentGeneration ? "local_edit" : "initial",
       parentGenerationId: normalizedParentGenerationId || null,
+      editInstructionLength: normalizedEditInstruction.length,
       promptLength: promptText.length,
-      promptPreview,
     });
     stvLog("generation.create", {
       pipelineTrace,
@@ -383,9 +405,10 @@ export async function POST(req: NextRequest) {
       imageSize: sz,
       photos: normalizedPhotoStoragePaths.length,
       sourceType: hasParentGeneration ? "generation_result" : "user_photos",
+      generationMode: hasParentGeneration ? "local_edit" : "initial",
       parentGenerationId: normalizedParentGenerationId || null,
+      editInstructionLength: normalizedEditInstruction.length,
       promptLength: promptText.length,
-      promptPreview,
     });
 
     const { data: enqueueRows, error: enqueueError } = await supabase.rpc(
@@ -407,6 +430,7 @@ export async function POST(req: NextRequest) {
         p_pipeline_trace_id: pipelineTrace,
         p_create_ugc: !guestMode,
         p_parent_generation_id: normalizedParentGenerationId || null,
+        p_edit_instruction: normalizedEditInstruction || null,
       }
     );
     const enqueueRow = Array.isArray(enqueueRows) ? enqueueRows[0] : enqueueRows;

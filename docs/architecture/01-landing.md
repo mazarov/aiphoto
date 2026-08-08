@@ -1,6 +1,6 @@
 # 01 — Лендинг (promptshot.ru)
 
-> Последнее обновление: 2026-08-08 (**conditional prompt edit chain:** до первого результата `Применить изменение` только переписывает draft, а отдельный CTA `Сгенерировать` создаёт initial generation. После success footer меняется на `Что изменить`, открывает ту же двухблочную prompt-шторку, а `Применить и сгенерировать` последовательно выполняет remix и child generation. Worker использует completed parent result как единственный image input. Миграция `171` добавляет owner-validated lineage, исходные `prompt_cards/prompt_variants` не изменяются.)
+> Последнее обновление: 2026-08-08 (**local image edit contract:** initial generation по-прежнему получает пользовательские фото + полный prompt. После success footer `Что изменить` открывает двухблочную шторку; `Применить и сгенерировать` сохраняет переписанный полный `prompt_text` для history/copy/UGC, но image worker получает только completed parent result + отдельную `edit_instruction` + preserve-everything-else rules. Миграция `172` добавляет nullable delta-поле; legacy child jobs без него временно используют full-prompt fallback. Fingerprint включает parent ID и edit instruction.)
 >
 > Коррекция 2026-08-07 (**post-result apply generates:** первый textarea можно менять вручную, второй `changeRequest` переписывает его. В initial state apply не enqueue-ит job. В completed state успешный remix немедленно передаёт новый prompt в `POST /api/generate` вместе с текущим `parentGenerationId`; кнопка и progress используют единый busy-state.)
 >
@@ -142,7 +142,7 @@
 | `/api/upload-generation-photo/signed-url` | GET: подписанный URL превью загруженного фото (auth, path в query) |
 | `/api/user-generation-photos` | GET (auth): библиотека inline-фото текущего JWT user, newest-first, с signed preview URL |
 | `/api/user-generation-photos/[id]` | DELETE (auth): удаление принадлежащего пользователю фото из private Storage и библиотеки |
-| `/api/generate` | Auth enqueue: либо 1–10 owned upload-фото, либо owned completed `parentGenerationId`; `Idempotency-Key`, атомарные source validation + deduct + insert через `landing_enqueue_generation`; ответ `202 { id, status: pending }` |
+| `/api/generate` | Auth enqueue: initial — 1–10 owned upload-фото без `editInstruction`; local edit — owned completed `parentGenerationId` + обязательная `editInstruction` (1–1000) + полный `prompt` snapshot. Fingerprint включает parent и delta; атомарные source validation + deduct + insert через `landing_enqueue_generation`; ответ `202 { id, status: pending }` |
 | `/api/generate-process` | Tombstone `410`: обработка перенесена в отдельный `web-generation-worker` |
 | `/api/generations` | Auth-список строк `landing_generations` текущего shared DB user для `/generations`; batch lookup связанных `prompt_cards` → `cardId/cardSlug/isPublished`; private no-store. **DELETE** `{ ids: uuid[] }` (≤50) — bulk hard-delete owned rows; result object удаляется только если не используется `prompt_card_media` |
 | `/api/generations/[id]` | GET: статус/результат генерации. **DELETE**: hard-delete owned row; `409 generation_in_use`, если result нужен active child; object сохраняется при ссылке из `prompt_card_media` (UGC `prompt_cards` не удаляется) |

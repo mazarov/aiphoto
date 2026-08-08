@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { config } from "./config";
 import {
+  assembleLandingCardEditPrompt,
   assembleLandingCardFinalPrompt,
   assembleVibeFinalPrompt,
   VIBE_IMAGE_PART_LABEL_REFERENCE,
@@ -33,6 +34,7 @@ export type GenerationJob = GenerationInputJob & {
   max_attempts: number;
   lease_token: string;
   create_ugc: boolean;
+  edit_instruction: string | null;
 };
 
 type ImagePart = { inlineData: { mimeType: string; data: string } };
@@ -219,6 +221,8 @@ export async function processGeneration(
   const rawPrompt = String(job.prompt_text || "");
   if (!rawPrompt.trim()) throw new ProcessingError("input_missing", "Prompt text is empty", false);
   const isVibe = Boolean(job.vibe_id);
+  const editInstruction = String(job.edit_instruction || "").trim();
+  const isLocalEdit = !isVibe && Boolean(job.parent_generation_id && editInstruction);
   let reference: ImagePart | null = null;
   let attachReference = false;
 
@@ -245,7 +249,19 @@ export async function processGeneration(
   const hasReference = isVibe && Boolean(reference);
   const fullPrompt = isVibe
     ? assembleVibeFinalPrompt(rawPrompt, hasReference)
-    : assembleLandingCardFinalPrompt(rawPrompt);
+    : isLocalEdit
+      ? assembleLandingCardEditPrompt(editInstruction)
+      : assembleLandingCardFinalPrompt(rawPrompt);
+  log("info", "generation_prompt_resolved", {
+    ...context,
+    generationMode: isLocalEdit
+      ? "local_edit"
+      : job.parent_generation_id
+        ? "legacy_continuation"
+        : "initial",
+    editInstructionLength: editInstruction.length,
+    promptLength: fullPrompt.length,
+  });
   if (!config.geminiApiKey) {
     throw new ProcessingError("config_error", "GEMINI_API_KEY is not configured", false);
   }

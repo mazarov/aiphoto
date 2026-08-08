@@ -38,6 +38,18 @@ The input image(s) show the SUBJECT (a real person). Output exactly one new phot
 ${IMAGE_QUALITY_CRITICAL_BULLET}
 `.trim();
 
+export const GENERATE_LANDING_CARD_EDIT_RULES = `
+LOCAL IMAGE EDIT RULES
+The provided image is the current result to edit, not a loose style reference.
+
+- Apply only the requested local change. The edit request has priority over conflicting pixels in the input image.
+- Keep everything else exactly the same: identity, face, body, hair, expression, pose, hands, wardrobe outside the edited item, background, objects, lighting, shadows, colors, composition, crop, camera angle, depth of field, and aspect ratio.
+- Do not redesign, restyle, re-pose, reframe, or regenerate unrelated parts of the image.
+- When removing an item, remove it completely and reconstruct the naturally visible area underneath without adding a replacement item.
+- When adding or changing an item, integrate it naturally with the existing perspective, lighting, occlusion, and materials.
+- Output exactly one photorealistic edited image.
+`.trim();
+
 const GENERATE_VIBE_CRITICAL_RULES_DUAL = `
 CRITICAL RULES
 Earlier parts were labeled: IMAGE A = style reference (not the output identity); IMAGE B = subject (only identity). Output one new photograph of B as if shot in A's session — A's pose, light, set, wardrobe, and grade on B. Not a face-swap or lazy crop.
@@ -99,4 +111,16 @@ export function assembleLandingCardFinalPrompt(rawCardPrompt: string): string {
     String(rawCardPrompt ?? "").trimEnd(),
     GENERATE_LANDING_CARD_CRITICAL_RULES
   );
+}
+
+export function assembleLandingCardEditPrompt(editInstruction: string): string {
+  const instruction = String(editInstruction ?? "").trim();
+  return [
+    "EDIT REQUEST (HIGHEST PRIORITY)",
+    instruction,
+    "",
+    GENERATE_LANDING_CARD_EDIT_RULES,
+  ]
+    .join("\n")
+    .trim();
 }
