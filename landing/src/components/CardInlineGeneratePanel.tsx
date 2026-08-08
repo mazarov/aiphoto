@@ -80,7 +80,6 @@ export function CardInlineGeneratePanel({
   const [toast, setToast] = useState("");
   const [expandedControl, setExpandedControl] = useState<"photos" | "model" | null>(null);
   const [promptExpanded, setPromptExpanded] = useState(false);
-  const [editOpen, setEditOpen] = useState(false);
   const [changeRequest, setChangeRequest] = useState("");
   const [remixing, setRemixing] = useState(false);
 
@@ -350,7 +349,6 @@ export function CardInlineGeneratePanel({
       setDraftPrompt(prompt);
       setSubmittedPrompt(prompt);
       setIsPublished(false);
-      setEditOpen(false);
       requestCreditBalanceRefresh();
 
       while (true) {
@@ -399,10 +397,17 @@ export function CardInlineGeneratePanel({
     }
   };
 
-  const runImageEdit = async () => {
+  const applyPromptRemix = async () => {
+    const basePrompt = draftPrompt.trim();
     const requestedChange = changeRequest.trim();
-    const parentGenerationId = generationId;
-    if (!requestedChange || remixing || !parentGenerationId || !resultUrl) return;
+    if (
+      basePrompt.length < 8 ||
+      !requestedChange ||
+      remixing ||
+      phase === "generating"
+    ) {
+      return;
+    }
 
     setRemixing(true);
     setError("");
@@ -412,7 +417,8 @@ export function CardInlineGeneratePanel({
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({
-          parentGenerationId,
+          prompt: basePrompt,
+          parentGenerationId: resultUrl && generationId ? generationId : null,
           changeRequest: requestedChange,
         }),
       });
@@ -432,17 +438,8 @@ export function CardInlineGeneratePanel({
       if (nextPrompt.length < 8) {
         throw new Error(PROMPT_REMIX_COPY.errorGeneric);
       }
-
-      setEditOpen(false);
-      const completed = await runGenerate({
-        promptOverride: nextPrompt,
-        parentGenerationId,
-      });
-      if (completed) {
-        setChangeRequest("");
-      } else {
-        setEditOpen(true);
-      }
+      setDraftPrompt(nextPrompt);
+      setChangeRequest("");
     } catch (err) {
       setError(err instanceof Error ? err.message : PROMPT_REMIX_COPY.errorGeneric);
     } finally {
@@ -567,7 +564,12 @@ export function CardInlineGeneratePanel({
   const busy = phase === "uploading" || phase === "generating";
   const controlsBusy = busy || Boolean(deletingPhotoId);
   const isMobile = layout === "mobile";
-  const activePrompt = submittedPrompt || draftPrompt;
+  const activePrompt = draftPrompt;
+  const openPromptEditor = () => {
+    setError("");
+    setExpandedControl(null);
+    setPromptExpanded(true);
+  };
 
   return (
     <div
@@ -667,9 +669,12 @@ export function CardInlineGeneratePanel({
         ) : null}
 
         <section
+          role={promptExpanded ? "dialog" : undefined}
+          aria-modal={promptExpanded ? "true" : undefined}
+          aria-labelledby={promptExpanded ? "inline-prompt-editor-title" : undefined}
           className={`border shadow-none ${
             promptExpanded
-              ? "absolute inset-0 z-50 flex flex-col border-transparent bg-white px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-[max(1rem,env(safe-area-inset-top))] text-zinc-900 shadow-[0_-20px_60px_-24px_rgba(0,0,0,0.45)]"
+              ? "absolute inset-x-0 bottom-0 top-[max(0.75rem,env(safe-area-inset-top))] z-50 flex min-h-0 flex-col rounded-t-3xl border-transparent bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))] text-zinc-900 shadow-[0_-20px_60px_-24px_rgba(0,0,0,0.45)]"
               : "rounded-2xl px-3 py-1 backdrop-blur-md"
           } ${
             promptExpanded
@@ -683,10 +688,12 @@ export function CardInlineGeneratePanel({
             <>
               <div className="mx-auto mb-2 h-1 w-9 rounded-full bg-zinc-300" aria-hidden />
               <div className="mb-2 flex min-h-11 items-center justify-between gap-3">
-                <h3 className="text-[13px] font-semibold">Промпт</h3>
+                <h3 id="inline-prompt-editor-title" className="text-[13px] font-semibold">
+                  {resultUrl ? "Изменить картинку" : "Промпт"}
+                </h3>
                 <button
                   type="button"
-                  aria-label="Свернуть промпт"
+                  aria-label="Закрыть"
                   onClick={() => setPromptExpanded(false)}
                   className={`${OVERLAY_BUTTON_UA_RESET} flex h-11 w-11 items-center justify-center rounded-full bg-zinc-100 text-zinc-700 transition hover:bg-zinc-200`}
                 >
@@ -698,43 +705,59 @@ export function CardInlineGeneratePanel({
                     strokeWidth="2"
                     aria-hidden
                   >
-                    <path d="m6 9 6 6 6-6" />
+                    <path d="m6 6 12 12M18 6 6 18" />
                   </svg>
                 </button>
               </div>
-              <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-1 py-1">
-                {resultUrl ? (
-                  <p className="whitespace-pre-wrap text-[13px] font-medium leading-relaxed">
-                    {activePrompt}
-                  </p>
-                ) : (
-                  <label className="block h-full">
-                    <span className="mb-2 block text-[13px] font-semibold text-zinc-700">
-                      Remix промпта
-                    </span>
-                    <textarea
-                      value={draftPrompt}
-                      onChange={(event) => setDraftPrompt(event.target.value)}
-                      maxLength={8000}
-                      disabled={busy}
-                      autoFocus
-                      className="min-h-[16rem] w-full resize-none rounded-xl border border-zinc-200 bg-zinc-50 p-3 text-[13px] font-medium leading-relaxed text-zinc-900 outline-none transition focus:border-indigo-400 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 disabled:opacity-60"
-                    />
-                    <span className="mt-2 block text-[13px] font-medium text-zinc-500">
-                      Изменения применятся к следующей генерации.
-                    </span>
-                  </label>
-                )}
-              </div>
+              <label className="flex min-h-0 flex-1 flex-col">
+                <span className="mb-2 block text-[13px] font-semibold text-zinc-700">
+                  Текущий промпт
+                </span>
+                <textarea
+                  value={draftPrompt}
+                  onChange={(event) => setDraftPrompt(event.target.value)}
+                  maxLength={8000}
+                  disabled={busy || remixing}
+                  autoFocus
+                  className="min-h-0 w-full flex-1 resize-none rounded-xl border border-zinc-200 bg-zinc-50 p-3 text-[13px] font-medium leading-relaxed text-zinc-900 outline-none transition focus:border-indigo-400 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 disabled:opacity-60"
+                />
+              </label>
+              <label className="mt-3 block shrink-0">
+                <span className="mb-2 block text-[13px] font-semibold text-zinc-700">
+                  {PROMPT_REMIX_COPY.changeLabel}
+                </span>
+                <textarea
+                  value={changeRequest}
+                  onChange={(event) => setChangeRequest(event.target.value)}
+                  placeholder={PROMPT_REMIX_COPY.changePlaceholder}
+                  maxLength={1000}
+                  rows={3}
+                  disabled={busy || remixing}
+                  className="w-full resize-none rounded-xl border border-zinc-200 bg-white p-3 text-[13px] font-medium leading-relaxed text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 disabled:opacity-60"
+                />
+              </label>
+              {error ? (
+                <p className="mt-2 text-[13px] font-medium text-rose-600">{error}</p>
+              ) : null}
+              <button
+                type="button"
+                disabled={
+                  controlsBusy ||
+                  draftPrompt.trim().length < 8 ||
+                  !changeRequest.trim() ||
+                  remixing
+                }
+                onClick={() => void applyPromptRemix()}
+                className={`${OVERLAY_BUTTON_UA_RESET} mt-3 flex min-h-12 w-full items-center justify-center rounded-2xl bg-gradient-to-r from-indigo-500 to-violet-500 px-4 py-3 text-[13px] font-semibold text-white shadow-lg shadow-indigo-950/20 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50`}
+              >
+                {remixing ? "Переписываем промпт…" : "Применить изменение"}
+              </button>
             </>
           ) : (
             <button
               type="button"
               aria-expanded="false"
-              onClick={() => {
-                setExpandedControl(null);
-                setPromptExpanded(true);
-              }}
+              onClick={openPromptEditor}
               className={`${OVERLAY_BUTTON_UA_RESET} flex min-h-11 w-full items-center gap-3 text-left`}
             >
               <span className="shrink-0 text-[13px] font-semibold">Промпт</span>
@@ -1098,82 +1121,6 @@ export function CardInlineGeneratePanel({
           ) : null}
         </section>
 
-        {editOpen && resultUrl && generationId ? (
-          <>
-            <button
-              type="button"
-              aria-label="Закрыть изменение картинки"
-              className={`${OVERLAY_BUTTON_UA_RESET} absolute inset-0 z-40 bg-black/45 backdrop-blur-[2px]`}
-              onClick={() => {
-                if (!remixing) setEditOpen(false);
-              }}
-            />
-            <section
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="inline-image-edit-title"
-              className="absolute inset-x-0 bottom-0 z-50 rounded-t-3xl bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))] text-zinc-900 shadow-[0_-20px_60px_-24px_rgba(0,0,0,0.45)]"
-            >
-              <div className="mx-auto mb-2 h-1 w-9 rounded-full bg-zinc-300" aria-hidden />
-              <div className="mb-2 flex min-h-11 items-center justify-between gap-3">
-                <h3 id="inline-image-edit-title" className="text-[13px] font-semibold">
-                  Изменить картинку
-                </h3>
-                <button
-                  type="button"
-                  aria-label="Закрыть"
-                  disabled={remixing}
-                  onClick={() => setEditOpen(false)}
-                  className={`${OVERLAY_BUTTON_UA_RESET} flex h-11 w-11 items-center justify-center rounded-full bg-zinc-100 text-zinc-700 transition hover:bg-zinc-200 disabled:opacity-50`}
-                >
-                  <svg
-                    className="h-5 w-5"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    aria-hidden
-                  >
-                    <path d="m6 6 12 12M18 6 6 18" />
-                  </svg>
-                </button>
-              </div>
-              <div className="mb-3 rounded-xl bg-zinc-100 p-3">
-                <p className="mb-1 text-[13px] font-semibold text-zinc-700">Текущий промпт</p>
-                <p className="line-clamp-3 whitespace-pre-wrap text-[13px] font-medium leading-relaxed text-zinc-600">
-                  {activePrompt}
-                </p>
-              </div>
-              <label className="block">
-                <span className="mb-1 block text-[13px] font-semibold text-zinc-700">
-                  {PROMPT_REMIX_COPY.changeLabel}
-                </span>
-                <textarea
-                  value={changeRequest}
-                  onChange={(event) => setChangeRequest(event.target.value)}
-                  placeholder={PROMPT_REMIX_COPY.changePlaceholder}
-                  maxLength={1000}
-                  rows={3}
-                  disabled={remixing}
-                  autoFocus
-                  className="w-full resize-none rounded-xl border border-zinc-200 bg-white p-3 text-[13px] font-medium leading-relaxed text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 disabled:opacity-60"
-                />
-              </label>
-              {error ? (
-                <p className="mt-2 text-[13px] font-medium text-rose-600">{error}</p>
-              ) : null}
-              <button
-                type="button"
-                disabled={!changeRequest.trim() || remixing}
-                onClick={() => void runImageEdit()}
-                className={`${OVERLAY_BUTTON_UA_RESET} mt-3 flex min-h-12 w-full items-center justify-center rounded-2xl bg-gradient-to-r from-indigo-500 to-violet-500 px-4 py-3 text-[13px] font-semibold text-white shadow-lg shadow-indigo-950/20 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50`}
-              >
-                {remixing ? "Готовим новый промпт…" : "Применить и сгенерировать"}
-              </button>
-            </section>
-          </>
-        ) : null}
-
         <input
           ref={fileInputRef}
           type="file"
@@ -1240,18 +1187,19 @@ export function CardInlineGeneratePanel({
             controlsBusy ||
             libraryLoading ||
             Boolean(busyAction) ||
-            !selectedPhotos.length ||
+            (!(phase === "done" && resultUrl && generationId) &&
+              !selectedPhotos.length) ||
             Boolean(configError)
           }
           onClick={() => {
             if (phase === "done" && resultUrl && generationId) {
-              setError("");
-              setExpandedControl(null);
-              setPromptExpanded(false);
-              setEditOpen(true);
+              void runGenerate({
+                promptOverride: draftPrompt,
+                parentGenerationId: generationId,
+              });
               return;
             }
-            void runGenerate();
+            void runGenerate({ promptOverride: draftPrompt });
           }}
           className={`${OVERLAY_BUTTON_UA_RESET} relative flex min-h-12 min-w-0 items-center justify-center overflow-hidden rounded-2xl px-4 py-3 text-[15px] font-semibold text-white shadow-lg shadow-indigo-950/35 transition active:scale-[0.99] disabled:cursor-not-allowed ${
             phase === "done" && resultUrl ? "flex-1" : "w-full"
@@ -1273,9 +1221,7 @@ export function CardInlineGeneratePanel({
               ? `Загружаем фото · ${Math.round(progress)}%`
               : phase === "generating"
                 ? `Генерируем · ${Math.round(progress)}%`
-                : phase === "done"
-                  ? "Изменить картинку"
-                  : "Сгенерировать"}
+                : "Сгенерировать"}
           </span>
         </button>
         </div>
