@@ -6,6 +6,7 @@ const BASE_URL =
 
 const DISALLOWED = [
   "/api/",
+  "/admin/",
   "/embed/",
   "/auth/",
   "/search",
