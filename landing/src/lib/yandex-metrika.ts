@@ -7,6 +7,16 @@ export const YM_GOAL_PROMPT_CARD_OPEN = "prompt_card_open";
 export const YM_GOAL_LEXYGPT_GENERATE = "lexygpt_generate_click";
 export const YM_GOAL_LEXYGPT_GENERATE_PROMPTCARD = "lexygpt_generate_promptcard";
 export const YM_GOAL_LEXYGPT_GENERATE_PHOTOVPROMPT = "lexygpt_generate_photovprompt";
+export const YM_GOAL_PROMPT_CARD_GENERATION_EXPOSURE =
+  "prompt_card_generation_exposure";
+export const YM_GOAL_PROMPT_CARD_GENERATION_AUTH =
+  "prompt_card_generation_auth";
+export const YM_GOAL_PROMPT_CARD_GENERATION_ACCEPTED =
+  "prompt_card_generation_accepted";
+export const YM_GOAL_PROMPT_CARD_GENERATION_NO_CREDITS =
+  "prompt_card_generation_no_credits";
+export const YM_GOAL_PROMPT_CARD_GENERATION_PRICING =
+  "prompt_card_generation_pricing";
 /** @deprecated Таббар больше не открывает LexyGPT — цель не вызывается. */
 export const YM_GOAL_LEXYGPT_GENERATE_TABBAR = "lexygpt_generate_tabbar";
 export const YM_GOAL_FOTO_V_PROMT_BANNER_CLICK = "foto_v_promt_banner_click";

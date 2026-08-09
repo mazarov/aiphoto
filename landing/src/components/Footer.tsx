@@ -3,13 +3,12 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { SiteLogoMark } from "./SiteLogoMark";
-import { useAuth } from "@/context/AuthContext";
-import { canAccessPricingPreview } from "@/lib/pricing-preview-access";
+import { useFeatureAccess } from "@/context/FeatureAccessContext";
 
 export function Footer() {
   const pathname = usePathname();
-  const { user } = useAuth();
-  const hasPricingAccess = canAccessPricingPreview(user?.email);
+  const { promptCardGenerationEnabled: hasPricingAccess } =
+    useFeatureAccess();
 
   // Pricing keeps its own compact legal footer so the mobile layout fits one viewport.
   if (pathname === "/pricing") return null;

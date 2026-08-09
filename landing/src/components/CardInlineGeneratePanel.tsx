@@ -19,6 +19,12 @@ import {
 } from "@/lib/generation-result-client-actions";
 import { getGenerationPromptRemixUrl } from "@/lib/foto-v-promt-config";
 import { PROMPT_REMIX_COPY } from "@/lib/foto-v-promt-copy";
+import {
+  reachYandexMetrikaGoal,
+  YM_GOAL_PROMPT_CARD_GENERATION_ACCEPTED,
+  YM_GOAL_PROMPT_CARD_GENERATION_NO_CREDITS,
+  YM_GOAL_PROMPT_CARD_GENERATION_PRICING,
+} from "@/lib/yandex-metrika";
 
 type ModelOpt = { id: string; label: string; cost: number };
 type RatioOpt = { value: string; label: string };
@@ -87,6 +93,7 @@ export function CardInlineGeneratePanel({
 
   const [phase, setPhase] = useState<Phase>("idle");
   const [error, setError] = useState("");
+  const [needsCredits, setNeedsCredits] = useState(false);
   const [progress, setProgress] = useState(0);
   const [resultUrl, setResultUrl] = useState<string | null>(null);
   const [generationId, setGenerationId] = useState<string | null>(null);
@@ -233,6 +240,7 @@ export function CardInlineGeneratePanel({
   const togglePhoto = (id: string) => {
     if (phase === "uploading" || phase === "generating") return;
     setError("");
+    setNeedsCredits(false);
     setSelectedPhotoIds((current) => {
       const next = new Set(current);
       if (next.has(id)) {
@@ -378,6 +386,7 @@ export function CardInlineGeneratePanel({
     }
 
     setError("");
+    setNeedsCredits(false);
     if (!isContinuation) {
       setResultUrl(null);
       setGenerationId(null);
@@ -398,6 +407,7 @@ export function CardInlineGeneratePanel({
         },
         credentials: "include",
         body: JSON.stringify({
+          generationSurface: "prompt_card",
           prompt,
           model,
           aspectRatio,
@@ -417,8 +427,19 @@ export function CardInlineGeneratePanel({
         message?: string;
       };
       if (!genRes.ok || !genData.id) {
+        if (genData.error === "insufficient_credits") {
+          setNeedsCredits(true);
+          reachYandexMetrikaGoal(
+            YM_GOAL_PROMPT_CARD_GENERATION_NO_CREDITS,
+            { feature_key: "prompt_card_generation", variant: "treatment" }
+          );
+        }
         throw new Error(genData.message || genData.error || "Не удалось создать генерацию");
       }
+      reachYandexMetrikaGoal(
+        YM_GOAL_PROMPT_CARD_GENERATION_ACCEPTED,
+        { feature_key: "prompt_card_generation", variant: "treatment" }
+      );
       if (!isContinuation) setGenerationId(genData.id);
       setDraftPrompt(prompt);
       setSubmittedPrompt(prompt);
@@ -1237,6 +1258,27 @@ export function CardInlineGeneratePanel({
             >
               {configError || error}
             </p>
+            {needsCredits ? (
+              <a
+                href="/pricing"
+                onClick={() =>
+                  reachYandexMetrikaGoal(
+                    YM_GOAL_PROMPT_CARD_GENERATION_PRICING,
+                    {
+                      feature_key: "prompt_card_generation",
+                      variant: "treatment",
+                    }
+                  )
+                }
+                className={`mt-2 inline-flex min-h-11 items-center justify-center rounded-xl px-4 text-[13px] font-semibold transition ${
+                  resultUrl
+                    ? "bg-white text-zinc-900 hover:bg-zinc-100"
+                    : "bg-indigo-600 text-white hover:bg-indigo-700"
+                }`}
+              >
+                Посмотреть тарифы
+              </a>
+            ) : null}
           </div>
         ) : null}
         </div>

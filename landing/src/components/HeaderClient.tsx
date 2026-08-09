@@ -9,6 +9,7 @@ import { ChromeMark } from "./foto-v-promt/ChromeMark";
 import { SiteLogoMark } from "./SiteLogoMark";
 import { ListingChromeButton, ListingMenuIcon } from "./ListingChromeButton";
 import { useAuth } from "@/context/AuthContext";
+import { useFeatureAccess } from "@/context/FeatureAccessContext";
 import { useListingMobileChromeOptional } from "@/context/ListingMobileChromeContext";
 import { getAiImageDescriberChromeUrl } from "@/lib/foto-v-promt-config";
 import { isSameNavPath, scrollCatalogToTop } from "@/lib/scroll-preservation";
@@ -16,9 +17,12 @@ import {
   LISTING_MOBILE_CHROME_INSET,
   LISTING_NAV_SHELL_SURFACE,
 } from "@/lib/listing-shell-surface";
-import { canAccessPricingPreview } from "@/lib/pricing-preview-access";
 import { CREDIT_BALANCE_REFRESH_EVENT } from "@/lib/credit-balance-events";
-import { trackDesktopHeaderAddToChromeClick } from "@/lib/yandex-metrika";
+import {
+  reachYandexMetrikaGoal,
+  trackDesktopHeaderAddToChromeClick,
+  YM_GOAL_PROMPT_CARD_GENERATION_PRICING,
+} from "@/lib/yandex-metrika";
 
 function MobileCatalogMenuButton() {
   const chrome = useListingMobileChromeOptional();
@@ -36,8 +40,9 @@ function MobileCatalogMenuButton() {
 
 function CreditBalance() {
   const { user, loading } = useAuth();
+  const { promptCardGenerationEnabled } = useFeatureAccess();
   const [credits, setCredits] = useState<number | null>(null);
-  const hasPricingAccess = canAccessPricingPreview(user?.email);
+  const hasPricingAccess = promptCardGenerationEnabled;
 
   useEffect(() => {
     if (loading || !user || user.is_anonymous === true || !hasPricingAccess) {
@@ -101,6 +106,15 @@ function CreditBalance() {
 
       <Link
         href="/pricing"
+        onClick={() =>
+          reachYandexMetrikaGoal(
+            YM_GOAL_PROMPT_CARD_GENERATION_PRICING,
+            {
+              feature_key: "prompt_card_generation",
+              variant: "treatment",
+            }
+          )
+        }
         className="inline-flex min-h-10 min-w-10 items-center justify-center gap-1.5 rounded-full bg-indigo-600 px-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 lg:px-3.5"
         aria-label="Пополнить баланс"
       >
