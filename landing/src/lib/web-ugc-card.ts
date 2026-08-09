@@ -266,3 +266,83 @@ export async function createUgcCardForCompletedGeneration(
 
   return { cardId, slug: (createdCard.slug as string) ?? null };
 }
+
+/** Create and atomically link a draft card for a private analyze-history image. */
+export async function createUgcCardForAnalyzeHistory(
+  supabase: SupabaseClient,
+  params: {
+    analyzeHistoryId: string;
+    authorAuthUserId: string;
+    promptText: string;
+    resultBucket: string;
+    resultPath: string;
+  },
+): Promise<{ cardId: string; slug: string | null } | null> {
+  const { data: history } = await supabase
+    .from("analyze_history")
+    .select("id,ugc_card_id")
+    .eq("id", params.analyzeHistoryId)
+    .maybeSingle();
+  if (!history) return null;
+  if (history.ugc_card_id) {
+    const { data: existing } = await supabase
+      .from("prompt_cards").select("id,slug").eq("id", history.ugc_card_id).maybeSingle();
+    if (existing?.id) return { cardId: existing.id as string, slug: existing.slug as string | null };
+  }
+
+  const datasetId = await ensureWebUgcDataset(supabase);
+  const { sourceGroupId, sourceMessageId } = await createSyntheticUgcSourceGroup(
+    supabase, datasetId, params.promptText, `analyze:${params.analyzeHistoryId}`,
+  );
+  const { data: card, error: cardError } = await supabase.from("prompt_cards").insert({
+    source_group_id: sourceGroupId,
+    title_ru: buildUgcCardTitle(params.promptText),
+    title_en: null,
+    hashtags: [],
+    tags: [],
+    seo_tags: {},
+    seo_readiness_score: 0,
+    source_channel: "admin_analyze",
+    source_dataset_slug: WEB_UGC_DATASET_SLUG,
+    source_message_id: sourceMessageId,
+    source_date: new Date().toISOString(),
+    parse_status: "parsed",
+    parse_warnings: [],
+    is_published: false,
+    author_user_id: params.authorAuthUserId,
+  }).select("id,slug").single();
+  if (cardError || !card?.id) throw new Error(`analyze_card_create_failed:${cardError?.message || "unknown"}`);
+
+  const cardId = card.id as string;
+  const [media, variant] = await Promise.all([
+    supabase.from("prompt_card_media").insert({
+      card_id: cardId, media_index: 0, media_type: "photo",
+      storage_bucket: params.resultBucket, storage_path: params.resultPath,
+      original_relative_path: params.resultPath, is_primary: true,
+    }),
+    supabase.from("prompt_variants").insert({
+      card_id: cardId, variant_index: 0, label_raw: "admin_analyze",
+      prompt_text_ru: params.promptText, prompt_text_en: null, match_strategy: "admin_analyze",
+    }),
+  ]);
+  if (media.error || variant.error) {
+    await supabase.from("prompt_cards").delete().eq("id", cardId);
+    throw new Error(`analyze_card_children_failed:${media.error?.message || variant.error?.message}`);
+  }
+
+  const { data: linked, error: linkError } = await supabase.from("analyze_history")
+    .update({ ugc_card_id: cardId }).eq("id", params.analyzeHistoryId).is("ugc_card_id", null).select("id");
+  if (linkError) throw new Error(`analyze_card_link_failed:${linkError.message}`);
+  if (!linked?.length) {
+    await supabase.from("prompt_cards").delete().eq("id", cardId);
+    const { data: current } = await supabase.from("analyze_history")
+      .select("ugc_card_id").eq("id", params.analyzeHistoryId).maybeSingle();
+    if (current?.ugc_card_id) {
+      const { data: existing } = await supabase.from("prompt_cards")
+        .select("id,slug").eq("id", current.ugc_card_id).maybeSingle();
+      if (existing?.id) return { cardId: existing.id as string, slug: existing.slug as string | null };
+    }
+    return null;
+  }
+  return { cardId, slug: card.slug as string | null };
+}
