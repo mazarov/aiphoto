@@ -31,6 +31,7 @@ const FeatureAccessContext = createContext<FeatureAccessContextValue>({
 
 export function FeatureAccessProvider({ children }: { children: ReactNode }) {
   const { user, loading: authLoading } = useAuth();
+  const authenticatedUserId = user?.id ?? null;
   const [enabled, setEnabled] = useState(false);
   const [variant, setVariant] = useState<FeatureVariant>("control");
   const [loading, setLoading] = useState(true);
@@ -72,7 +73,7 @@ export function FeatureAccessProvider({ children }: { children: ReactNode }) {
             }
           );
         }
-        if (user && payload.enabled === true) {
+        if (authenticatedUserId && payload.enabled === true) {
           const authKey = "promptshot_rollout_auth:prompt_card_generation";
           if (window.sessionStorage.getItem(authKey) !== "1") {
             window.sessionStorage.setItem(authKey, "1");
@@ -98,7 +99,7 @@ export function FeatureAccessProvider({ children }: { children: ReactNode }) {
     })();
 
     return () => controller.abort();
-  }, [authLoading, user?.id]);
+  }, [authLoading, authenticatedUserId]);
 
   const value = useMemo(
     () => ({
