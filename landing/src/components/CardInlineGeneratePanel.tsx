@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { OVERLAY_BUTTON_UA_RESET } from "@/lib/card-overlay-action-pill";
 import { requestCreditBalanceRefresh } from "@/lib/credit-balance-events";
 import {
@@ -1259,7 +1260,7 @@ export function CardInlineGeneratePanel({
               {configError || error}
             </p>
             {needsCredits ? (
-              <a
+              <Link
                 href="/pricing"
                 onClick={() =>
                   reachYandexMetrikaGoal(
@@ -1277,7 +1278,7 @@ export function CardInlineGeneratePanel({
                 }`}
               >
                 Посмотреть тарифы
-              </a>
+              </Link>
             ) : null}
           </div>
         ) : null}
