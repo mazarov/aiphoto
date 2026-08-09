@@ -1,6 +1,7 @@
 # 03 — Пайплайн: парсинг → загрузка → публикация
 
-> Последнее обновление: 2026-06-14
+> Последнее обновление: 2026-08-08 (**PromptShot admin publication:** успешные site analyze сохраняются в private 30-day `analyze_history`; admin analyze и durable admin generations публикуются идемпотентно через `prompt_cards` и общий SEO publish service. SQL `175` и production deploy не выполнялись.)
+>
 
 ## Обзор
 
@@ -295,6 +296,60 @@ WHERE source_dataset_slug = '<slug>'
 ```
 
 После этого карточки появляются на лендинге.
+
+---
+
+## Admin analyze/generation → публикация
+
+Это дополнительный runtime-путь публикации, не заменяющий Telegram ingest:
+
+```text
+Site analyze:
+  /foto-v-promt
+    → same-origin /api/extension/analyze
+    → rate-limit reserve
+    → Gemini
+    ├─ success → confirm → private analyze_history (retention 30 days)
+    └─ failure → release (quota count не увеличивается)
+
+Admin analyze publication:
+  /admin/analyze-history
+    → signed private preview
+    → copy image to web-generation-results
+    → create/reuse prompt_cards draft
+    → prompt variants + SEO tags/readiness
+    → is_published=true
+
+Admin generation publication:
+  /api/admin/generate
+    → landing_enqueue_generation (client_source=admin)
+    → durable web-generation-worker
+    → landing_generations completed
+    → create/reuse prompt_cards draft
+    → prompt variants + SEO tags/readiness
+    → is_published=true
+```
+
+- Все `/admin/*` и `/api/admin/*` требуют Supabase Auth и email из
+  `ANALYTICS_ADMIN_EMAILS`.
+- `auth.users.id` хранит requester/author identity, а
+  `landing_generations.user_id` указывает на shared `imageprompt_users.id`; эти UUID
+  могут различаться.
+- Analyze history приватна: исходник выдаётся admin UI только через signed URL и
+  удаляется retention-cleanup после 30 дней.
+- Оба publish endpoint используют связь `ugc_card_id` и общий publication service,
+  поэтому повторный запрос не создаёт вторую карточку и безопасно возвращает уже
+  опубликованный `prompt_cards`.
+- Extension Lite и remix остаются на `imageprompt.tools`. Также standalone
+  `regenerate-bad-prompts-via-analyze.ts` продолжает вызывать imageprompt origin; site
+  `/foto-v-promt` использует новый same-origin PromptShot route.
+
+**Cutover / rollback:** штатный cutover переключает только site analyze на
+same-origin `/api/extension/analyze`. Если нужен откат, site resolver возвращается на
+`NEXT_PUBLIC_IMAGEPROMPT_API_ORIGIN` / `imageprompt.tools/api/extension/analyze` с
+проверкой CORS; аддитивные данные/history/queue удалять не требуется. На
+2026-08-08 миграция `sql/175_promptshot_admin_analytics.sql` не применялась и deploy
+не выполнялся.
 
 ---
 

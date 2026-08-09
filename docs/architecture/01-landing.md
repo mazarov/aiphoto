@@ -2,6 +2,8 @@
 
 > Последнее обновление: 2026-08-08 (**local image edit contract:** initial generation по-прежнему получает пользовательские фото + полный prompt. После success footer `Что изменить` открывает двухблочную шторку; `Применить и сгенерировать` сохраняет переписанный полный `prompt_text` для history/copy/UGC, но image worker получает только completed parent result + отдельную `edit_instruction` + preserve-everything-else rules. Миграция `172` добавляет nullable delta-поле; legacy child jobs без него временно используют full-prompt fallback. Fingerprint включает parent ID и edit instruction.)
 >
+> Дополнение 2026-08-08 (**PromptShot admin/analyze migration, code complete — rollout pending:** `/foto-v-promt` переведён на same-origin `/api/extension/analyze`; добавлены Supabase Auth + `ANALYTICS_ADMIN_EMAILS` gated `/admin/analytics`, `/admin/analyze-history` и `/api/admin/*`; analyze использует атомарный reserve/confirm/release rate limit и приватную 30-дневную history. Admin generation переиспользует durable worker queue, а публикация analyze/generation идемпотентно создаёт `prompt_cards` и запускает общий SEO tagging. Extension Lite и remix остаются на `imageprompt.tools`. SQL `175` и production deploy этим изменением документации не применялись.)
+>
 > Дополнение 2026-08-08 (**auth-scoped generation preferences + Nano Banana 2 Lite:** миграция `173` добавляет `landing_generation_preferences` с последними model / aspect ratio / image size / выбранными photo IDs. Inline compose восстанавливает настройки для auth-пользователя на любом браузере и обновляет их с debounce; если сохранённых доступных фото нет, выбирается самое свежее. Глобальные defaults: Nano Banana (`gemini-2.5-flash-image`) и `9:16`. В models config добавлен официальный stable ID Nano Banana 2 Lite — `gemini-3.1-flash-lite-image`, 1 кредит.)
 >
 > Коррекция 2026-08-07 (**post-result apply generates:** первый textarea можно менять вручную, второй `changeRequest` переписывает его. В initial state apply не enqueue-ит job. В completed state успешный remix немедленно передаёт новый prompt в `POST /api/generate` вместе с текущим `parentGenerationId`; кнопка и progress используют единый busy-state.)
@@ -83,11 +85,17 @@
 /privacy                → Permanent redirect на `/policy`
 /favorites              → Избранное (требует авторизации)
 /generations            → Мои генерации (auth): канонический список `landing_generations` текущего shared DB user; UGC-карточка необязательна
+/admin/analytics        → Закрытый analytics dashboard и admin generation modal; Supabase Auth + email allowlist `ANALYTICS_ADMIN_EMAILS`
+/admin/analyze-history  → Закрытая 30-дневная история успешных analyze с signed preview и идемпотентной публикацией в `prompt_cards`
 /auth/callback          → OAuth callback (server-side)
 /embed/stv              → Steal This Vibe (клиент подгружает `/stv-panel/boot.mjs` + `styles.css`; та же логика, что side panel расширения)
 /extension-stv          → Превью маркетингового лендинга расширения (спека `docs/extension-landing-pain-hope-solution.md`); **`metadata.title` / `description`** — SEO; `metadata.robots` noindex; шапка **`ExtensionStvMarketingHeader`** (логотип + «Image to prompt» → `/extension-stv`, **Pricing** → `/extension-stv/pricing`, Chrome Web Store); FAB **`ExtensionStvFloatingCta`**. Порядок секций: hero (H1 + лид + `ExtensionStvChromeBadge`) → pain + **Reference** (`PainReferenceVsDraftMock`) → **Accuracy** (`ExtensionStvAccuracySection`) → **Testimonials** → **How it works** (`ExtensionStvHowItWorks`, 4 шага) → **FAQ** (`ExtensionStvFaq`). Футер **`ExtensionStvMarketingFooter`**. Блок **Reference**: upload → extract → expand. Общие константы: `landing/src/components/extension-stv/stv-marketing-shared.ts`.
 /extension-stv/pricing  → Только тарифы: **`ExtensionStvPricing`** ($0 / $14.99/mo), та же шапка/футер/FAB, ссылка «← Image to prompt»; `metadata.robots` noindex.
 ```
+
+> Актуальная коррекция для `/foto-v-promt` (2026-08-08): упомянутый выше legacy
+> cross-origin analyze заменён на same-origin `POST /api/extension/analyze`.
+> Cross-origin `imageprompt.tools` сохраняется только для Extension Lite и remix.
 
 ### UGC (веб-генерация, Steal This Vibe)
 
@@ -156,7 +164,16 @@
 | `/api/my-cards/[slug]/visibility` | PATCH (auth): `{ published: boolean }` — владелец переключает видимость; при `published: true` — LLM/regex тегирование (`landing/src/lib/seo-tags-classify.ts`), затем `revalidatePath` |
 | `/api/me` | Текущий пользователь + credits; авторизованная глобальная шапка использует ответ для отображения баланса |
 | `/api/buy-credits-link` | Deep link в Telegram-бота для покупки web-кредитов |
-| `/api/imageprompt-proxy/extension/remix` | Dev-only same-origin прокси к `imageprompt.tools/api/extension/remix` (как `extension/analyze`); прод — прямой cross-origin через `getPromptRemixUrl()`. Сам remix (Gemini text + прокси DO + rate-limit) реализован в проекте **imageprompt.tools** (`/api/extension/remix`), НЕ в этом репо; см. `docs/requirements/02-07-prompt-remix.md` |
+| `/api/extension/analyze` | Same-origin analyze для site `/foto-v-promt`: validation/SSRF protection → optional Auth/shared identity → atomic rate-limit reserve → Gemini proxy/direct → confirm при success или release при error; успешный результат best-effort сохраняется в private 30-day `analyze_history` |
+| `/api/admin/analytics` | GET, admin auth: no-store analytics rollups за `1…90` дней |
+| `/api/admin/analyze-history` | GET, admin auth: cursor pagination private analyze history, optional `client_source`, signed image URL |
+| `/api/admin/analyze-history/[id]/publish` | POST, admin auth: private analyze image → public result object → idempotent `prompt_cards` draft → общий SEO publish service |
+| `/api/admin/generation-photo` | GET/POST, admin auth: чтение signed URL или замена закреплённого reference photo для admin generation |
+| `/api/admin/generate` | POST, admin auth: idempotent enqueue `1…4` jobs в durable `landing_enqueue_generation`, `client_source=admin`, без списания кредитов |
+| `/api/admin/generations` | GET, admin auth: cursor-paginated durable generation queue (`unpublished` / `published` / `all`) |
+| `/api/admin/generations/[id]` | GET, admin auth: no-store polling статуса/result/error только для `client_source=admin` |
+| `/api/admin/generations/[id]/publish` | POST, admin auth: completed generation → idempotent `prompt_cards` draft → общий SEO publish service |
+| `/api/imageprompt-proxy/extension/remix` | Dev-only same-origin прокси к `imageprompt.tools/api/extension/remix`; prod remix — прямой cross-origin через `getPromptRemixUrl()`. Site analyze этот proxy больше не использует: он обслуживается локальным `/api/extension/analyze`. Сам remix реализован в проекте **imageprompt.tools**; см. `docs/requirements/02-07-prompt-remix.md` |
 | `/api/vibe/extract` | Извлечение style JSON из URL изображения (auth) |
 | `/api/vibe/expand` | Один rich prompt из style JSON (auth) |
 | `/api/vibe/assemble-prompt` | Legacy-only: **409** для всех вибров (grooming assemble отключён; см. ответ `assemble_not_applicable_legacy` / `vibe_not_legacy`) |
@@ -186,6 +203,57 @@
 - **Расхождение:** один Google-аккаунт может иметь `auth.users.id` (JWT PromptShot) ≠ `imageprompt_users.id` (создан раньше на imageprompts).
 - **Резолв shared id:** `landing/src/lib/resolve-db-user-id.ts` — `landing_users`/`imageprompt_users` по JWT id → иначе `google_sub` из OAuth identity → иначе email. Используется только там, где FK/баланс принадлежат shared namespace: `/api/me`, `ensureLandingUserForGeneration`, list/get generations и profile lookup. UGC ownership не резолвится: `prompt_cards.author_user_id`, draft viewer, visibility и `/api/my-prompt-cards` всегда используют исходный `auth.users.id`.
 - **Создание:** если shared row нет — insert `imageprompt_users` (jwt id + `google_sub`) затем `landing_users`; при конфликте `google_sub` — повторный resolve на существующий id.
+
+### PromptShot analyze и admin
+
+- **Граница доступа:** страницы `/admin/analytics`, `/admin/analyze-history` и каждый
+  `/api/admin/*` проверяют Supabase Auth session, затем нормализованный email против
+  `ANALYTICS_ADMIN_EMAILS`. Пустой allowlist означает fail-closed; service-role key
+  остаётся только на сервере.
+- **Analyze site flow:** `/foto-v-promt` всегда вызывает same-origin
+  `POST /api/extension/analyze`. До Gemini route валидирует единственный image input,
+  MIME/size и URL redirects против private/link-local/metadata адресов. Для
+  authenticated request `auth.users.id` резолвится в shared
+  `imageprompt_users.id`; anonymous request использует daily salted IP hash.
+- **Квота:** preflight объединяет IP usage с shared user bucket, затем атомарный
+  `reserve` проверяет `count + pending < max`. Успех выполняет `confirm`
+  (`pending - 1`, `count + 1`), timeout/upstream/error — `release`
+  (`pending - 1`), поэтому failed call не расходует дневной лимит.
+- **История:** только успешный analyze best-effort сохраняет уменьшенный JPEG и prompt
+  в private bucket/table `analyze-history` / `analyze_history`. Signed previews
+  выдаются только admin API; retention — 30 дней с opportunistic cleanup.
+- **Admin generation:** `/api/admin/generate` резолвит отдельно requester
+  `auth.users.id` и shared `imageprompt_users.id`, ставит `client_source='admin'` job
+  через существующий `landing_enqueue_generation`. Job обрабатывает тот же durable
+  `web-generation-worker`; admin UI только enqueue-ит и poll-ит status.
+- **Публикация:** analyze history и completed admin generation создают/восстанавливают
+  draft в `prompt_cards`, затем вызывают общий publish service: prompt variants →
+  SEO tags/readiness → `is_published=true` → revalidate card/sitemap. Связь с
+  `ugc_card_id` и publish service делают повторный запрос идемпотентным.
+- **Не перенесено:** Extension Lite analyze и prompt remix продолжают использовать
+  `imageprompt.tools`; перенос касается site analyze на PromptShot.
+
+```text
+site /foto-v-promt
+  → /api/extension/analyze
+  → auth/shared identity + reserve quota
+  → Gemini
+  ├─ success → confirm → analytics → private analyze_history (30 days)
+  └─ failure → release → outcome analytics
+
+admin pages
+  → Supabase Auth + ANALYTICS_ADMIN_EMAILS
+  ├─ analytics/history → server-only reads + signed previews
+  └─ generate → landing_enqueue_generation → durable worker → landing_generations
+       → publish → prompt_cards → SEO tagging → public card
+```
+
+**Cutover / rollback:** после применения миграции и деплоя site analyze должен
+оставаться на same-origin route. Для аварийного отката вернуть site resolver на
+`NEXT_PUBLIC_IMAGEPROMPT_API_ORIGIN` (`imageprompt.tools/api/extension/analyze`),
+проверить CORS и передеплоить landing; аддитивные таблицы миграции `175` удалять не
+нужно. На 2026-08-08 production cutover, deploy и применение SQL в рамках этой работы
+не выполнялись.
 
 #### Временный гостевой режим STV
 
