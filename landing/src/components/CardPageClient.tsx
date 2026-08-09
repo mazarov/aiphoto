@@ -12,7 +12,7 @@ import { FavoriteButton } from "./FavoriteButton";
 import { LexyGptGenerateButton } from "./LexyGptGenerateButton";
 import { CardInlineGeneratePanel } from "./CardInlineGeneratePanel";
 import { useAuth } from "@/context/AuthContext";
-import { isInternalGenerateAllowlistedEmail } from "@/lib/internal-generate-allowlist";
+import { useFeatureAccess } from "@/context/FeatureAccessContext";
 import { isDebugToolsSessionEnabled, dispatchDebugCardDeleted } from "@/lib/debug-tools-session";
 import { formatCompactCount } from "@/lib/format-view-count";
 import {
@@ -140,8 +140,9 @@ export function CardPageClient({ data, tagEntries, breadcrumbTag, isModal = fals
 
 function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListingNeighborGo, onCloseModal, onMobileNeighborCommit }: InnerProps) {
   const router = useRouter();
-  const { user } = useAuth();
-  const canInlineGenerate = isInternalGenerateAllowlistedEmail(user?.email);
+  const { user, openAuthModal } = useAuth();
+  const { promptCardGenerationEnabled } = useFeatureAccess();
+  const canInlineGenerate = promptCardGenerationEnabled;
   const title = data.title_ru || data.title_en || "Без названия";
   const [publishedLocal, setPublishedLocal] = useState(data.isPublished);
   const [pubSaving, setPubSaving] = useState(false);
@@ -174,9 +175,13 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
   const [showSwipeOnboarding, setShowSwipeOnboarding] = useState(false);
   const openInlineGenerate = useCallback(() => {
     if (!canInlineGenerate) return;
+    if (!user || user.is_anonymous === true) {
+      openAuthModal();
+      return;
+    }
     setMobilePromptOverlay(false);
     setInlineGenerateOpen(true);
-  }, [canInlineGenerate]);
+  }, [canInlineGenerate, openAuthModal, user]);
   const closeInlineGenerate = useCallback(() => {
     setInlineGenerateOpen(false);
   }, []);

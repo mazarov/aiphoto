@@ -12,6 +12,10 @@ import {
   normalizeEditInstruction,
   validateGenerationEditContract,
 } from "@/lib/generation-edit-contract";
+import {
+  FEATURE_VISITOR_COOKIE,
+  resolvePromptCardGenerationAccess,
+} from "@/lib/feature-rollout";
 
 /** PromptShot paid generate is site-only for now (inline compose / same-origin). */
 const GENERATION_CLIENT_SOURCE = "site" as const;
@@ -57,6 +61,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const pipelineTrace = getStvPipelineTrace(req, body);
     const {
+      generationSurface,
       prompt,
       model,
       aspectRatio,
@@ -68,6 +73,7 @@ export async function POST(req: NextRequest) {
       editInstruction,
       idempotencyKey: bodyIdempotencyKey,
     } = body as {
+      generationSurface?: string;
       prompt?: string;
       model?: string;
       aspectRatio?: string;
@@ -80,6 +86,28 @@ export async function POST(req: NextRequest) {
       pipelineTraceId?: string;
       idempotencyKey?: string;
     };
+    if (generationSurface === "prompt_card") {
+      const rollout = await resolvePromptCardGenerationAccess({
+        user,
+        visitorId: req.cookies.get(FEATURE_VISITOR_COOKIE)?.value,
+      });
+      if (!rollout.enabled) {
+        console.warn("[generation.create] feature not enabled", {
+          featureKey: "prompt_card_generation",
+          userId: user.id,
+          variant: rollout.variant,
+          bucketBand: rollout.bucketBand,
+          reason: rollout.reason,
+        });
+        return NextResponse.json(
+          {
+            error: "feature_not_enabled",
+            message: "Генерация из карточки пока недоступна",
+          },
+          { status: 403 }
+        );
+      }
+    }
 
     const minPromptLength = 8;
     const validAspectRatios = ["1:1", "4:3", "3:4", "16:9", "9:16", "3:2", "2:3"];

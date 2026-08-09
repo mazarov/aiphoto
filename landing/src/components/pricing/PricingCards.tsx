@@ -2,6 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import { PRICING_PLANS, type PricingPlan } from "./pricing-plans";
+import {
+  reachYandexMetrikaGoal,
+  YM_GOAL_PROMPT_CARD_GENERATION_PRICING,
+} from "@/lib/yandex-metrika";
 
 const rubles = new Intl.NumberFormat("ru-RU");
 
@@ -131,7 +135,7 @@ function PlanCard({
             : "border border-zinc-200 bg-white text-zinc-800 motion-safe:hover:border-indigo-300 motion-safe:hover:bg-indigo-50/50 motion-safe:hover:text-indigo-700",
         ].join(" ")}
       >
-        <span>{plan.ctaLabel}</span>
+        <span>Оплата скоро</span>
         <span className="motion-safe:transition-transform motion-safe:duration-200 motion-safe:group-hover:translate-x-0.5">
           <ArrowIcon />
         </span>
@@ -140,9 +144,23 @@ function PlanCard({
   );
 }
 
-export function PricingCards() {
+export function PricingCards({
+  rolloutVariant,
+}: {
+  rolloutVariant: "treatment" | "control";
+}) {
   const [notice, setNotice] = useState<string | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    reachYandexMetrikaGoal(
+      YM_GOAL_PROMPT_CARD_GENERATION_PRICING,
+      {
+        feature_key: "prompt_card_generation",
+        variant: rolloutVariant,
+      }
+    );
+  }, [rolloutVariant]);
 
   useEffect(
     () => () => {

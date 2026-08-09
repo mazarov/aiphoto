@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
+import { FeatureAccessProvider } from "@/context/FeatureAccessContext";
 import { GenerationProvider } from "@/context/GenerationContext";
 import { PromptCardModalProvider } from "@/context/PromptCardModalContext";
 import { FotoVPromtMobileModalProvider } from "@/context/FotoVPromtMobileModalContext";
@@ -13,6 +14,7 @@ import { ClientCardModal } from "@/components/ClientCardModal";
 import { FotoVPromtMobileModal } from "@/components/foto-v-promt/FotoVPromtMobileModal";
 import { YandexMetrikaRouteTracker } from "@/components/YandexMetrikaRouteTracker";
 import { HOMEPAGE_SEO } from "@/lib/homepage-seo-copy";
+import { YANDEX_METRIKA_COUNTER_ID } from "@/lib/yandex-metrika";
 
 const inter = Inter({
   subsets: ["latin", "cyrillic"],
@@ -61,9 +63,25 @@ export default function RootLayout({
         {supabaseOrigin && (
           <link rel="preconnect" href={supabaseOrigin} crossOrigin="anonymous" />
         )}
+        <Script id="yandex-metrika-queue" strategy="beforeInteractive">{`
+          (function(m,i,max){
+            if(typeof m[i]!=="function"){
+              var queue=function(){
+                var items=queue.a=queue.a||[];
+                items.push(arguments);
+                if(items.length>max+1){items.splice(1,items.length-(max+1));}
+              };
+              queue.a=[];
+              queue.l=1*new Date();
+              m[i]=queue;
+            }
+          })(window,"ym",100);
+          ym(${YANDEX_METRIKA_COUNTER_ID},"init",{ssr:true,webvisor:true,clickmap:true,ecommerce:"dataLayer",referrer:document.referrer,url:location.href,accurateTrackBounce:true,trackLinks:true});
+        `}</Script>
       </head>
       <body className="min-h-screen bg-white text-zinc-900 antialiased">
         <AuthProvider>
+          <FeatureAccessProvider>
             <GenerationProvider>
               <PromptCardModalProvider>
                 <FotoVPromtMobileModalProvider>
@@ -78,23 +96,21 @@ export default function RootLayout({
                 </FotoVPromtMobileModalProvider>
               </PromptCardModalProvider>
             </GenerationProvider>
+          </FeatureAccessProvider>
           <AuthModal />
         </AuthProvider>
 
-        <Script id="yandex-metrika" strategy="lazyOnload">{`
-          (function(m,e,t,r,i,k,a){
-            m[i]=m[i]||function(){(m[i].a=m[i].a||[]).push(arguments)};
-            m[i].l=1*new Date();
-            for(var j=0;j<document.scripts.length;j++){if(document.scripts[j].src===r){return;}}
-            k=e.createElement(t),a=e.getElementsByTagName(t)[0],k.async=1,k.src=r,a.parentNode.insertBefore(k,a)
-          })(window,document,'script','https://mc.yandex.ru/metrika/tag.js?id=107703100','ym');
-          ym(107703100,'init',{ssr:true,webvisor:true,clickmap:true,ecommerce:"dataLayer",referrer:document.referrer,url:location.href,accurateTrackBounce:true,trackLinks:true});
+        <Script id="yandex-metrika-loader" strategy="lazyOnload">{`
+          (function(e,t,r,k,a){
+            for(var j=0;j<e.scripts.length;j++){if(e.scripts[j].src===r){return;}}
+            k=e.createElement(t),a=e.getElementsByTagName(t)[0],k.async=1,k.src=r,a.parentNode.insertBefore(k,a);
+          })(document,"script","https://mc.yandex.ru/metrika/tag.js?id=${YANDEX_METRIKA_COUNTER_ID}");
         `}</Script>
         <noscript>
           <div>
             {/* Yandex noscript pixel — must stay a raw <img>, not next/image */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="https://mc.yandex.ru/watch/107703100" style={{position:"absolute",left:"-9999px"}} alt="" />
+            <img src={`https://mc.yandex.ru/watch/${YANDEX_METRIKA_COUNTER_ID}`} style={{position:"absolute",left:"-9999px"}} alt="" />
           </div>
         </noscript>
       </body>
