@@ -1253,7 +1253,7 @@ export function CardInlineGeneratePanel({
             type="button"
             disabled={Boolean(busyAction)}
             onClick={() => void handleResultAction("download")}
-            className={`${OVERLAY_BUTTON_UA_RESET} flex min-h-12 min-w-0 basis-[38%] items-center justify-center gap-2 rounded-2xl bg-black/25 px-3 py-3 text-[13px] font-semibold text-white backdrop-blur-md transition hover:bg-black/40 active:scale-[0.99] disabled:opacity-50`}
+            className={`${OVERLAY_BUTTON_UA_RESET} flex min-h-12 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-2xl bg-black/25 px-2 py-3 text-[13px] font-semibold text-white backdrop-blur-md transition hover:bg-black/40 active:scale-[0.99] disabled:opacity-50`}
           >
             <svg
               className="h-5 w-5 shrink-0"
@@ -1268,6 +1268,33 @@ export function CardInlineGeneratePanel({
             <span className="truncate">
               {busyAction === "download" ? "Скачиваем…" : "Скачать"}
             </span>
+          </button>
+        ) : null}
+        {phase === "done" && resultUrl && generationId ? (
+          <button
+            type="button"
+            disabled={
+              controlsBusy ||
+              libraryLoading ||
+              Boolean(busyAction) ||
+              !selectedPhotos.length ||
+              Boolean(configError)
+            }
+            onClick={() => void runGenerate({ promptOverride: draftPrompt })}
+            className={`${OVERLAY_BUTTON_UA_RESET} flex min-h-12 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-2xl bg-black/25 px-2 py-3 text-[13px] font-semibold text-white backdrop-blur-md transition hover:bg-black/40 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50`}
+          >
+            <svg
+              className="h-5 w-5 shrink-0"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              aria-hidden
+            >
+              <path d="M20 7v5h-5M4 17v-5h5" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M18.2 9A7 7 0 0 0 6.4 6.4L4 9m2 6a7 7 0 0 0 11.6 2.6L20 15" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            <span className="truncate">Повторить</span>
           </button>
         ) : null}
         <button
@@ -1288,8 +1315,10 @@ export function CardInlineGeneratePanel({
             }
             void runGenerate({ promptOverride: draftPrompt });
           }}
-          className={`${OVERLAY_BUTTON_UA_RESET} relative flex min-h-12 min-w-0 items-center justify-center overflow-hidden rounded-2xl px-4 py-3 text-[15px] font-semibold text-white shadow-lg shadow-indigo-950/35 transition active:scale-[0.99] disabled:cursor-not-allowed ${
-            phase === "done" && resultUrl ? "flex-1" : "w-full"
+          className={`${OVERLAY_BUTTON_UA_RESET} relative flex min-h-12 min-w-0 items-center justify-center overflow-hidden rounded-2xl py-3 font-semibold text-white shadow-lg shadow-indigo-950/35 transition active:scale-[0.99] disabled:cursor-not-allowed ${
+            phase === "done" && resultUrl
+              ? "flex-1 px-2 text-[13px]"
+              : "w-full px-4 text-[15px]"
           } ${
             busy
               ? "bg-white/10"
@@ -1303,14 +1332,29 @@ export function CardInlineGeneratePanel({
               aria-hidden
             />
           ) : null}
-          <span className="relative z-10">
-            {phase === "uploading"
-              ? `Загружаем фото · ${Math.round(progress)}%`
-              : phase === "generating"
-                ? `Генерируем · ${Math.round(progress)}%`
-                : phase === "done" && resultUrl
-                  ? "Что изменить"
-                  : "Сгенерировать"}
+          <span className="relative z-10 flex min-w-0 items-center justify-center gap-1.5">
+            {phase === "done" && resultUrl ? (
+              <svg
+                className="h-5 w-5 shrink-0"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                aria-hidden
+              >
+                <path d="m4 20 4.2-1 10.6-10.6a2.1 2.1 0 0 0-3-3L5.2 16 4 20Z" strokeLinecap="round" strokeLinejoin="round" />
+                <path d="m14.5 6.7 2.8 2.8" />
+              </svg>
+            ) : null}
+            <span className={phase === "done" && resultUrl ? "truncate" : undefined}>
+              {phase === "uploading"
+                ? `Загружаем фото · ${Math.round(progress)}%`
+                : phase === "generating"
+                  ? `Генерируем · ${Math.round(progress)}%`
+                  : phase === "done" && resultUrl
+                    ? "Что изменить"
+                    : "Сгенерировать"}
+            </span>
           </span>
         </button>
         </div>
