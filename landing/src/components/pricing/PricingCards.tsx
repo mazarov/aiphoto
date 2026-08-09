@@ -1,13 +1,34 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { PRICING_PLANS, type PricingPlan } from "./pricing-plans";
+import { useAuth } from "@/context/AuthContext";
+import { requestCreditBalanceRefresh } from "@/lib/credit-balance-events";
 import {
   reachYandexMetrikaGoal,
   YM_GOAL_PROMPT_CARD_GENERATION_PRICING,
+  YM_GOAL_YOOKASSA_CHECKOUT_REDIRECT,
+  YM_GOAL_YOOKASSA_CHECKOUT_STARTED,
+  YM_GOAL_YOOKASSA_PAYMENT_SUCCEEDED,
 } from "@/lib/yandex-metrika";
 
 const rubles = new Intl.NumberFormat("ru-RU");
+const PENDING_CHECKOUT_KEY = "promptshot:yookassa-pending-checkout";
+const PAYMENT_ID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+type CheckoutState =
+  | { kind: "idle" }
+  | { kind: "creating"; planId: string }
+  | { kind: "pending"; message: string }
+  | { kind: "success"; message: string }
+  | { kind: "canceled"; message: string }
+  | { kind: "error"; message: string };
+
+type PendingCheckout = {
+  planId: string;
+  checkoutAttemptId: string;
+};
 
 function perPhoto(price: number, photos: number): number {
   return Math.round(price / photos);
@@ -52,10 +73,14 @@ function PlanCard({
   plan,
   index,
   onSelect,
+  loading,
+  disabled,
 }: {
   plan: PricingPlan;
   index: number;
   onSelect: (plan: PricingPlan) => void;
+  loading: boolean;
+  disabled: boolean;
 }) {
   const headingId = `pricing-${plan.id}`;
   const recommended = plan.recommended === true;
@@ -128,14 +153,15 @@ function PlanCard({
       <button
         type="button"
         onClick={() => onSelect(plan)}
+        disabled={disabled}
         className={[
-          "inline-flex min-h-11 w-full items-center justify-center gap-1.5 rounded-xl px-2 py-2 text-xs font-semibold outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 motion-safe:transition-all motion-safe:duration-200 sm:gap-2 sm:px-4 sm:py-2.5 sm:text-sm",
+          "inline-flex min-h-11 w-full items-center justify-center gap-1.5 rounded-xl px-2 py-2 text-xs font-semibold outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-65 motion-safe:transition-all motion-safe:duration-200 sm:gap-2 sm:px-4 sm:py-2.5 sm:text-sm",
           recommended
             ? "bg-indigo-600 text-white shadow-sm shadow-indigo-500/20 motion-safe:hover:bg-indigo-700 motion-safe:hover:shadow-md motion-safe:hover:shadow-indigo-500/25"
             : "border border-zinc-200 bg-white text-zinc-800 motion-safe:hover:border-indigo-300 motion-safe:hover:bg-indigo-50/50 motion-safe:hover:text-indigo-700",
         ].join(" ")}
       >
-        <span>Оплата скоро</span>
+        <span>{loading ? "Переходим к оплате…" : plan.ctaLabel}</span>
         <span className="motion-safe:transition-transform motion-safe:duration-200 motion-safe:group-hover:translate-x-0.5">
           <ArrowIcon />
         </span>
@@ -149,8 +175,10 @@ export function PricingCards({
 }: {
   rolloutVariant: "treatment" | "control";
 }) {
-  const [notice, setNotice] = useState<string | null>(null);
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { user, loading: authLoading, openAuthModal } = useAuth();
+  const [checkout, setCheckout] = useState<CheckoutState>({ kind: "idle" });
+  const checkoutInFlightRef = useRef(false);
+  const successTrackedRef = useRef(false);
 
   useEffect(() => {
     reachYandexMetrikaGoal(
@@ -162,35 +190,214 @@ export function PricingCards({
     );
   }, [rolloutVariant]);
 
-  useEffect(
-    () => () => {
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+  const createCheckout = useCallback(async (pending: PendingCheckout) => {
+    if (checkoutInFlightRef.current) return;
+    const plan = PRICING_PLANS.find((item) => item.id === pending.planId);
+    if (!plan) {
+      sessionStorage.removeItem(PENDING_CHECKOUT_KEY);
+      setCheckout({ kind: "error", message: "Выбранный пакет не найден" });
+      return;
+    }
+
+    checkoutInFlightRef.current = true;
+    setCheckout({ kind: "creating", planId: plan.id });
+    reachYandexMetrikaGoal(YM_GOAL_YOOKASSA_CHECKOUT_STARTED, {
+      plan_id: plan.id,
+      price_rub: plan.price,
+    });
+    try {
+      const response = await fetch("/api/payments/yookassa/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          planId: plan.id,
+          checkoutAttemptId: pending.checkoutAttemptId,
+          testAccess:
+            new URL(window.location.href).searchParams.get("test") === "true",
+        }),
+      });
+      const payload = (await response.json().catch(() => null)) as
+        | { confirmationUrl?: string; message?: string }
+        | null;
+      if (!response.ok || !payload?.confirmationUrl) {
+        throw new Error(payload?.message || "Не удалось создать оплату");
+      }
+
+      sessionStorage.removeItem(PENDING_CHECKOUT_KEY);
+      reachYandexMetrikaGoal(YM_GOAL_YOOKASSA_CHECKOUT_REDIRECT, {
+        plan_id: plan.id,
+      });
+      window.location.assign(payload.confirmationUrl);
+    } catch (error) {
+      checkoutInFlightRef.current = false;
+      setCheckout({
+        kind: "error",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Не удалось создать оплату. Попробуйте ещё раз.",
+      });
+    }
+  }, []);
+
+  const selectPlan = useCallback(
+    (plan: PricingPlan) => {
+      if (checkoutInFlightRef.current) return;
+      const pending: PendingCheckout = {
+        planId: plan.id,
+        checkoutAttemptId: crypto.randomUUID(),
+      };
+      sessionStorage.setItem(PENDING_CHECKOUT_KEY, JSON.stringify(pending));
+      if (!user || user.is_anonymous === true) {
+        openAuthModal();
+        return;
+      }
+      void createCheckout(pending);
     },
-    [],
+    [createCheckout, openAuthModal, user],
   );
 
-  const showComingSoon = (plan: PricingPlan) => {
-    setNotice(`Пакет «${plan.name}»: оплата появится скоро`);
-    if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    timeoutRef.current = setTimeout(() => setNotice(null), 3500);
-  };
+  useEffect(() => {
+    if (authLoading || !user || user.is_anonymous === true) return;
+    const raw = sessionStorage.getItem(PENDING_CHECKOUT_KEY);
+    if (!raw) return;
+    try {
+      const pending = JSON.parse(raw) as Partial<PendingCheckout>;
+      if (
+        typeof pending.planId === "string" &&
+        typeof pending.checkoutAttemptId === "string" &&
+        PAYMENT_ID_PATTERN.test(pending.checkoutAttemptId)
+      ) {
+        void createCheckout(pending as PendingCheckout);
+      } else {
+        sessionStorage.removeItem(PENDING_CHECKOUT_KEY);
+      }
+    } catch {
+      sessionStorage.removeItem(PENDING_CHECKOUT_KEY);
+    }
+  }, [authLoading, createCheckout, user]);
+
+  useEffect(() => {
+    const paymentId = new URL(window.location.href).searchParams.get("payment");
+    if (!paymentId || !PAYMENT_ID_PATTERN.test(paymentId)) return;
+    if (authLoading) return;
+    if (!user || user.is_anonymous === true) {
+      setCheckout({
+        kind: "error",
+        message: "Войдите в аккаунт, чтобы проверить оплату",
+      });
+      openAuthModal();
+      return;
+    }
+
+    let canceled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let attempts = 0;
+    setCheckout({ kind: "pending", message: "Проверяем оплату…" });
+
+    const checkStatus = async () => {
+      attempts += 1;
+      try {
+        const response = await fetch(`/api/payments/yookassa/${paymentId}`, {
+          cache: "no-store",
+        });
+        const payload = (await response.json().catch(() => null)) as
+          | { status?: string; credits?: number; message?: string }
+          | null;
+        if (!response.ok) {
+          if (response.status === 401) {
+            setCheckout({
+              kind: "error",
+              message: "Войдите в аккаунт, чтобы проверить оплату",
+            });
+            openAuthModal();
+            return;
+          }
+          throw new Error(payload?.message || "Не удалось проверить оплату");
+        }
+        if (canceled) return;
+
+        if (payload?.status === "succeeded") {
+          const credits = Number(payload.credits || 0);
+          setCheckout({
+            kind: "success",
+            message: `Оплата прошла. Начислено ${rubles.format(credits)} токенов`,
+          });
+          requestCreditBalanceRefresh();
+          if (!successTrackedRef.current) {
+            successTrackedRef.current = true;
+            reachYandexMetrikaGoal(YM_GOAL_YOOKASSA_PAYMENT_SUCCEEDED, {
+              credits,
+            });
+          }
+          return;
+        }
+        if (payload?.status === "canceled") {
+          setCheckout({
+            kind: "canceled",
+            message: "Оплата отменена. Токены не списаны и не начислены.",
+          });
+          return;
+        }
+        if (attempts >= 15) {
+          setCheckout({
+            kind: "pending",
+            message: "Платёж обрабатывается. Баланс обновится после подтверждения.",
+          });
+          return;
+        }
+        timer = setTimeout(checkStatus, 2_000);
+      } catch (error) {
+        if (canceled) return;
+        if (attempts < 15) {
+          timer = setTimeout(checkStatus, 2_000);
+          return;
+        }
+        setCheckout({
+          kind: "error",
+          message:
+            error instanceof Error ? error.message : "Не удалось проверить оплату",
+        });
+      }
+    };
+
+    void checkStatus();
+    return () => {
+      canceled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [authLoading, openAuthModal, user]);
 
   return (
     <>
       <div className="mx-auto grid h-full w-full grid-cols-2 grid-rows-2 items-stretch gap-2 sm:max-w-none sm:gap-4 lg:h-auto lg:grid-rows-none lg:gap-5 xl:grid-cols-4">
         {PRICING_PLANS.map((plan, index) => (
-          <PlanCard key={plan.id} plan={plan} index={index} onSelect={showComingSoon} />
+          <PlanCard
+            key={plan.id}
+            plan={plan}
+            index={index}
+            onSelect={selectPlan}
+            loading={checkout.kind === "creating" && checkout.planId === plan.id}
+            disabled={checkout.kind === "creating"}
+          />
         ))}
       </div>
 
-      {notice ? (
+      {checkout.kind !== "idle" && checkout.kind !== "creating" ? (
         <div
-          className="pointer-events-none fixed bottom-20 left-1/2 z-[90] -translate-x-1/2 animate-scale-in rounded-full border border-zinc-200 bg-white/95 px-5 py-3 text-sm font-medium text-zinc-800 shadow-xl backdrop-blur-xl lg:bottom-6"
+          className={[
+            "fixed bottom-20 left-1/2 z-[90] w-[min(92vw,34rem)] -translate-x-1/2 animate-scale-in rounded-2xl border bg-white/95 px-5 py-3 text-center text-sm font-medium shadow-xl backdrop-blur-xl lg:bottom-6",
+            checkout.kind === "success"
+              ? "border-emerald-200 text-emerald-800"
+              : checkout.kind === "error"
+                ? "border-red-200 text-red-700"
+                : "border-zinc-200 text-zinc-800",
+          ].join(" ")}
           role="status"
           aria-live="polite"
           aria-atomic="true"
         >
-          {notice}
+          {checkout.message}
         </div>
       ) : null}
     </>

@@ -81,7 +81,7 @@ export default async function PricingPage({ searchParams }: PricingPageProps) {
                   <svg className="h-4 w-4 text-indigo-600" viewBox="0 0 20 20" fill="none" aria-hidden>
                     <path d="m4 10 4 4 8-8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
-                  Оплата появится скоро
+                  Карты и СБП через ЮKassa
                 </span>
               </div>
             </header>

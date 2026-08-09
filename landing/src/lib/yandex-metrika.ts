@@ -17,6 +17,9 @@ export const YM_GOAL_PROMPT_CARD_GENERATION_NO_CREDITS =
   "prompt_card_generation_no_credits";
 export const YM_GOAL_PROMPT_CARD_GENERATION_PRICING =
   "prompt_card_generation_pricing";
+export const YM_GOAL_YOOKASSA_CHECKOUT_STARTED = "yookassa_checkout_started";
+export const YM_GOAL_YOOKASSA_CHECKOUT_REDIRECT = "yookassa_checkout_redirect";
+export const YM_GOAL_YOOKASSA_PAYMENT_SUCCEEDED = "yookassa_payment_succeeded";
 /** @deprecated Таббар больше не открывает LexyGPT — цель не вызывается. */
 export const YM_GOAL_LEXYGPT_GENERATE_TABBAR = "lexygpt_generate_tabbar";
 export const YM_GOAL_FOTO_V_PROMT_BANNER_CLICK = "foto_v_promt_banner_click";

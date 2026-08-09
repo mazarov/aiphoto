@@ -1,6 +1,6 @@
 # 01 — Лендинг (promptshot.ru)
 
-> Последнее обновление: 2026-08-09 (**repeat generation action:** completed-state footer содержит `Скачать` / `Повторить` / `Что изменить`; повтор создаёт новую обычную платную генерацию из выбранных исходных фото с текущими prompt/model/aspect/size, без parent/edit chain.)
+> Последнее обновление: 2026-08-09 (**YooKassa checkout:** `/pricing` создаёт одностадийный redirect-платёж в RUB; подтверждённый через provider GET webhook атомарно и идемпотентно начисляет токены в `landing_users.credits`. Для СМЗ чеки регистрируются вручную в «Мой налог».)
 >
 > Предыдущее обновление: 2026-08-08 (**local image edit contract:** initial generation по-прежнему получает пользовательские фото + полный prompt. После success footer `Что изменить` открывает двухблочную шторку; `Применить и сгенерировать` сохраняет переписанный полный `prompt_text` для history/copy/UGC, но image worker получает только completed parent result + отдельную `edit_instruction` + preserve-everything-else rules. Миграция `172` добавляет nullable delta-поле; legacy child jobs без него временно используют full-prompt fallback. Fingerprint включает parent ID и edit instruction.)
 >
@@ -84,7 +84,7 @@
 /[...slug]              → Листинг по тегу (напр. /promty-dlya-foto-devushki, /stil/cherno-beloe)
 /search                 → Поиск (клиентский)
 /foto-v-promt           → «Фото в промт» — SEO-кластер image-to-prompt (ВЧ «фото в промт», СЧ «промт из фото», «промт по картинке»); тексты — **`foto-v-promt-copy.ts`**, ТЗ — **`docs/requirements/02-06-foto-v-promt-seo-copy.md`**. RU-маркетинг AI Image Describer в **`PageLayout`**; при входе **`useListingScrollOnRouteChange`** сбрасывает `#listing-scroll-root` (моб.) и stale sessionStorage — страница всегда с hero; **`metadata.robots` index**; sitemap **0.8**; JSON-LD **WebApplication** + **FAQPage**; H2 над виджетом; перелинковка с **`/`** («Фото в промт»). Общий Chrome CTA **`FotoVPromtChromeCta`** виден в hero на первом экране; **`FotoVPromtFloatingCta`** появляется после ухода виджета из viewport; обе ссылки ведут в Chrome Web Store через **`getAiImageDescriberChromeUrl()`** (id `bebnhekhnoaacojmbjoajndkankmppoj`). **`ListingSearch`** без нижней панели поиска (как на `/` и `/p/`). Live-виджет → **`getImagePromptAnalyzeUrl()`** (prod cross-origin, dev **`/api/imageprompt-proxy/`**); CORS на imageprompt. **Analyze:** landing всегда шлёт **`style: photoreal`**, **`locale: ru`** (описания секций на русском; заголовки Visual Hook / Scene / … и CRITICAL RULES — на EN/RU по backend), без pill-переключателя модели в UI. **Mobile modal:** на max-lg всегда immersive shell — soft `pushState` с таба **или** auto route при hard `/foto-v-promt` (главная, refresh, поиск); close soft → back, route → `/`; desktop SidebarNav / SSR — светлая SEO-страница (`variant="catalog"`). **Режим Prompt Remix (`?card=<slug>`):** при наличии query-параметра `card` **`PromptSceneLiteWidgetGate`** монтирует **`PromptRemixWidget`** (вместо обычного анализа фото): грузит промт через `GET /api/card/[slug]`, пользователь описывает изменения, результат — переписанный промт через `imageprompt.tools/api/extension/remix`. **Точка входа с `/p/[slug]` скрыта** (нет CTA и нет `FotoVPromtMiniBanner` на карточке); режим доступен только по прямому URL `/foto-v-promt?card=<slug>`. ТЗ — **`docs/requirements/02-07-prompt-remix.md`**.
-/pricing                → Preview для treatment-когорты `prompt_card_generation` и internal allowlist; без rollout-cookie доступен по `/pricing?test=true`, иначе 404. Пакеты: Проба, Старт, Про, Максимум; checkout пока отсутствует, кнопка показывает non-blocking статус «Оплата появится скоро»
+/pricing                → Treatment-когорта `prompt_card_generation` и internal allowlist; без rollout-cookie доступен по `/pricing?test=true`, иначе 404. Пакеты: Проба, Старт, Про, Максимум; auth-only разовая оплата в RUB через hosted redirect-страницу YooKassa
 /terms                  → Страница публичной оферты; ссылка на `/docs/offer.pdf`, если утверждённый файл присутствовал при сборке
 /policy                 → Страница политики обработки данных; ссылка на `/docs/privacy.pdf`, если утверждённый файл присутствовал при сборке
 /privacy                → Permanent redirect на `/policy`
@@ -177,6 +177,9 @@
 | `/api/my-cards/[slug]/visibility` | PATCH (auth): `{ published: boolean }` — владелец переключает видимость; при `published: true` — LLM/regex тегирование (`landing/src/lib/seo-tags-classify.ts`), затем `revalidatePath` |
 | `/api/me` | Текущий пользователь + credits; авторизованная глобальная шапка использует ответ для отображения баланса |
 | `/api/buy-credits-link` | Deep link в Telegram-бота для покупки web-кредитов |
+| `/api/payments/yookassa/create` | POST (auth): серверный plan lookup → локальная операция → `POST /v3/payments` с `capture=true`, `confirmation=redirect`; возвращает hosted `confirmationUrl` |
+| `/api/payments/yookassa/[id]` | GET (auth owner): статус операции; pending-платёж best-effort сверяется с YooKassa и при success атомарно начисляется |
+| `/api/payments/yookassa/webhook` | POST public callback: принимает `payment.succeeded` / `payment.canceled`, перечитывает объект через YooKassa API и идемпотентно обновляет ledger/баланс |
 | `/api/extension/analyze` | Same-origin analyze для site `/foto-v-promt`: validation/SSRF protection → optional Auth/shared identity → atomic rate-limit reserve → Gemini proxy/direct → confirm при success или release при error; успешный результат best-effort сохраняется в private 30-day `analyze_history` |
 | `/api/admin/analytics` | GET, admin auth: no-store analytics rollups за `1…90` дней |
 | `/api/admin/analyze-history` | GET, admin auth: cursor pagination private analyze history, optional `client_source`, signed image URL |
@@ -315,6 +318,16 @@ admin pages
 - **Extension (grooming):** блок **«Внешний вид (референс)»** (чекбоксы волосы/макияж) в UI **выше** полосы прогресса и кнопок «Сгенерировать» / «Купить кредиты». Прогресс покрывает extract → expand → enqueue → polling **`/api/generations/:id`**. `generate` шлёт unprefixed `prompt`; worker добавляет общий image-generation prompt.
 - **Extension (история запусков):** листинг карточек в side panel: превью по сохранённому **`resultUrl`**, чипы **модель / aspect ratio / image size**, действия **скачать** (fetch→blob при успешном CORS, иначе открытие URL), **открыть**, **промпт** (копирование в буфер + раскрытие `<details>` с текстом). Персистенция в **`chrome.storage.local`** (`stv_state_v2.runHistory`), лимит **`MAX_RUN_HISTORY`** (10): только метаданные и строки (**`prompt`**, URL), **без** бинарников; опционально **`generationId`** для возможного будущего re-sign. Записи до этого изменения без **`resultUrl`/`prompt`** показывают заглушку и disabled-кнопки.
 - **Extension (прогресс):** общая полоса показывается только при **`generating` / `resuming`** или пока есть строки результата в **`queued` / `creating` / `processing`**. Расчёт: **0–50%** — этапы extract/expand/assemble по **`pipelinePrepPercent`** (на этих этапах **не** смешивают со старыми строками с прошлого запуска); **50–100%** — средний **`progress`** по строкам (polling **`/api/generations/:id`**). После завершения всех строк полоса скрывается (не залипает на 100%).
+
+### Покупка токенов через YooKassa (`/pricing`)
+
+- **Сценарий:** «Умный платёж» с `confirmation.type=redirect` и `capture=true`. PromptShot не собирает реквизиты карты: клиент получает `confirmation_url` и уходит на hosted-страницу YooKassa.
+- **Каталог:** `landing/src/lib/pricing-plans.ts` — единый server-safe источник `plan_id`, RUB-цены и числа токенов. API никогда не принимает цену/credits от клиента.
+- **Auth/identity:** checkout требует Google/Yandex OAuth. Операция хранит исходный `auth_user_id`, а баланс начисляется на shared `landing_user_id`, полученный через `ensureLandingUserForGeneration`.
+- **Ledger:** `landing_yookassa_payments` (миграция `176`) фиксирует план, сумму, credits, idempotency key, provider ID/status и `credited_at`; RLS включён без client policies.
+- **Подтверждение:** `return_url` используется только для UX. Webhook и status-reconcile делают `GET /v3/payments/{id}`, сверяют provider ID, metadata, RUB-сумму и статус. `landing_fulfill_yookassa_payment` блокирует ledger row и в одной транзакции начисляет сохранённые credits ровно один раз.
+- **Webhook:** в кабинете YooKassa (Basic Auth shop) подписать `https://promptshot.ru/api/payments/yookassa/webhook` на `payment.succeeded` и `payment.canceled`.
+- **Чеки СМЗ:** объект `receipt` не отправляется. С 29.12.2025 YooKassa не регистрирует чеки самозанятых; каждую успешную оплату нужно вручную зарегистрировать в «Мой налог» и передать чек покупателю.
 
 ### Покупка web-кредитов через Telegram Stars
 
@@ -683,6 +696,7 @@ type ResolvedRoute = {
 | `landing_user_telegram_links` | Привязка web-пользователя к Telegram (`landing_user_id` ↔ `telegram_id`) |
 | `landing_link_tokens` | Одноразовые OTP для deep-link привязки (TTL 10 мин) |
 | `landing_web_transactions` | Платежи web-кредитов через Telegram Stars |
+| `landing_yookassa_payments` | Server-only ledger разовых RUB-покупок токенов через YooKassa |
 
 ### RPC
 
@@ -698,6 +712,7 @@ type ResolvedRoute = {
 | `search_cards_filtered` | Фильтрованный поиск |
 | `search_cards_text` | Полнотекстовый поиск |
 | `landing_add_credits` | Начисление кредитов в `landing_users.credits` после web-оплаты |
+| `landing_fulfill_yookassa_payment` | Атомарное идемпотентное завершение YooKassa-платежа и начисление сохранённых в ledger токенов |
 
 **Сортировка листингов категорий (`/[...slug]/`, миграции `158–161`):** UI — переключатель **`ListingSortToggle`** («Новое» \| «Популярное»), выбор в **`sessionStorage`** `promptshot_listing_sort` + опционально **`?sort=popular`** в URL (default `new` — без query-параметра). SSR и API читают **`sort`**. Страница **`/new`** всегда `sort=new` (`fixedSort`), без переключателя и без sessionStorage-sync (`useListingSort({ disabled: true })`).
 
@@ -890,3 +905,5 @@ landing/src/
 | `CHROME_EXTENSION_ID` | Extension ID для `chrome-extension://` CORS origin |
 | `NEXT_PUBLIC_ENABLE_TRY_THIS_LOOK` | Если `true` и **`GenerateButton`** смонтирован на странице — Steal This Vibe (иначе только в debug FAB). Страница **`/p/[slug]`** в sticky-баре использует **LexyGPT** (`LexyGptGenerateButton`), не STV |
 | `TELEGRAM_BOT_LINK` | `https://t.me/...`, `@bot` или `bot` — нормализуется до абсолютного URL для `/api/buy-credits-link` |
+| `YOOKASSA_SHOP_ID` | Server-only идентификатор магазина для Basic Auth YooKassa API |
+| `YOOKASSA_SECRET_KEY` | Server-only секрет магазина YooKassa; не передаётся клиенту и не логируется |
