@@ -1,6 +1,8 @@
 # 01 — Лендинг (promptshot.ru)
 
-> Последнее обновление: 2026-08-10 (**OAuth return path + pricing UX:** `AuthModal` редиректит на `/auth/callback?next=<path>`; после логина возврат на исходную страницу. Pricing: legal footer без акцента (`mt-auto`), клик по всей карточке тарифа, auth на CTA.)
+> Последнее обновление: 2026-08-10 (**OAuth PKCE client finish:** `/auth/callback` — client `page.tsx` + `finishOAuthCodeExchange` (браузерный `exchangeCodeForSession`); server `route.ts` убран — он давал дубль `POST /token` 200→404 `flow_state_not_found` и `auth_error` без session cookies. `AuthProvider` не обменивает `code` на `/auth/callback`.)
+>
+> Предыдущее обновление: 2026-08-10 (**OAuth return path + pricing UX:** `AuthModal` редиректит на `/auth/callback?next=<path>`; после логина возврат на исходную страницу. Pricing: legal footer без акцента (`mt-auto`), клик по всей карточке тарифа, auth на CTA.)
 >
 > Предыдущее обновление: 2026-08-10 (**paid generation CTA + credit costs:** inline generator читает текущий баланс через `/api/me` и при `0` кредитов заменяет действия, создающие generation job, на «Пополнить баланс» → `/pricing`; balance refresh event синхронизирует панель после списания/refund. Миграция `177` устанавливает стоимость Nano Banana / Nano Banana 2 Lite = 5 кредитов, Nano Banana PRO / Nano Banana 2 = 10 кредитов; API fallbacks используют те же значения.)
 >
@@ -101,7 +103,7 @@
 /admin/analytics        → Закрытый analytics dashboard и admin generation modal; Supabase Auth + email allowlist `ANALYTICS_ADMIN_EMAILS`
 /admin/analyze-history  → Закрытая история analyze + все non-admin user generations; private source previews выдаются signed, completed results публикуются идемпотентно
 /admin/payments         → Закрытый cursor-реестр YooKassa: payer identity, RUB/status/test, ожидаемые credits и факт `credited_at`
-/auth/callback          → OAuth callback (server-side); `?next=` возвращает на страницу старта логина
+/auth/callback          → OAuth callback (client page); PKCE exchange в браузере; `?next=` — возврат на страницу старта логина
 /embed/stv              → Steal This Vibe (клиент подгружает `/stv-panel/boot.mjs` + `styles.css`; та же логика, что side panel расширения)
 /extension-stv          → Превью маркетингового лендинга расширения (спека `docs/extension-landing-pain-hope-solution.md`); **`metadata.title` / `description`** — SEO; `metadata.robots` noindex; шапка **`ExtensionStvMarketingHeader`** (логотип + «Image to prompt» → `/extension-stv`, **Pricing** → `/extension-stv/pricing`, Chrome Web Store); FAB **`ExtensionStvFloatingCta`**. Порядок секций: hero (H1 + лид + `ExtensionStvChromeBadge`) → pain + **Reference** (`PainReferenceVsDraftMock`) → **Accuracy** (`ExtensionStvAccuracySection`) → **Testimonials** → **How it works** (`ExtensionStvHowItWorks`, 4 шага) → **FAQ** (`ExtensionStvFaq`). Футер **`ExtensionStvMarketingFooter`**. Блок **Reference**: upload → extract → expand. Общие константы: `landing/src/components/extension-stv/stv-marketing-shared.ts`.
 /extension-stv/pricing  → Только тарифы: **`ExtensionStvPricing`** ($0 / $14.99/mo), та же шапка/футер/FAB, ссылка «← Image to prompt»; `metadata.robots` noindex.
@@ -390,14 +392,16 @@ AuthModal → signInWithOAuth(redirectTo: /auth/callback?next=<path>)
   → remember path (sessionStorage + cookie ps_auth_next)
   → Supabase /auth/v1/authorize → IdP → /auth/v1/callback
   → promptshot.ru/auth/callback?code=…&next=/pricing?test=true
-  → exchangeCodeForSession → redirect на next
+  → client page: finishOAuthCodeExchange (browser cookies) → redirect на next
 ```
 
-Fallback: если `code` пришёл на произвольную страницу, `AuthProvider` делает client `exchangeCodeForSession` и при наличии сохранённого return path уводит туда.
+Почему не server route: дублирующий `GET /auth/callback` делал второй `POST /token` (`user_agent=node`) → `404 flow_state_not_found`, а ответ дубля отдавал `?auth_error=` без session cookies. В браузере первый обмен пишет cookies в document; replay с `invalid flow state` проверяет `getUser()` и при активной сессии считается успехом.
 
-- Хелпер: `landing/src/lib/auth-oauth.ts` + `auth-return-path.ts` (`getOAuthCallbackUrl`, `signInWithOAuthProvider`, sanitize `next`).
+Fallback: если `code` пришёл на произвольную страницу (не `/auth/callback`), `AuthProvider` делает client `exchangeCodeForSession` и при наличии сохранённого return path уводит туда. На `/auth/callback` `AuthProvider` **не** обменивает code (избегаем второго `/token`).
+
+- Хелпер: `landing/src/lib/auth-oauth.ts` + `auth-return-path.ts` + `auth-finish-oauth.ts` (`getOAuthCallbackUrl`, `signInWithOAuthProvider`, `finishOAuthCodeExchange`, sanitize `next`).
 - **Кнопка Яндекс ID:** официальный виджет [конструктора YaAuthSuggest](https://yandex.ru/dev/id/doc/ru/suggest/but-const) — `YandexAuthSuggestButton` (`sdk-suggest-with-polyfills-latest.js`; `YANDEX_AUTH_SUGGEST_BUTTON_PARAMS`: `buttonView: main`, `buttonSize: xxl`, `buttonTheme: light`, `buttonBorderRadius: 22`, `buttonIcon: ya`); клик перенаправляется в Supabase OAuth (`custom:yandex`), не в suggest-token flow. Env: `NEXT_PUBLIC_YANDEX_OAUTH_CLIENT_ID` (публичный client_id из oauth.yandex.ru) — в **Docker build** (`landing/Dockerfile` ARG) и/или runtime env лендинга; если в клиентском бандле пусто, `client_id` подтягивается из `GET /api/public-config`.
-- `/auth/callback` (Next.js) — основной return URL модалки; `next` обязан быть same-origin relative path.
+- `/auth/callback` (Next.js **client page**) — основной return URL модалки; `next` обязан быть same-origin relative path.
 - **Self-hosted auth:** GoTrue **≥ v2.187.0**, `GOTRUE_CUSTOM_OAUTH_ENABLED=true`, `GOTRUE_SITE_URL=https://promptshot.ru`, `GOTRUE_URI_ALLOW_LIST=https://promptshot.ru/**` (должен включать `/auth/callback`).
 - **Yandex OAuth app** (отдельно от API Метрики): Redirect URI `https://<NEXT_PUBLIC_SUPABASE_HOST>/auth/v1/callback`, scopes `login:info login:email login:avatar`.
 - **Userinfo adapter (обязательно):** GoTrue custom OAuth читает claim `email`, Яндекс отдаёт `default_email` + заголовок `Authorization: OAuth` (не `Bearer`). `attribute_mapping` в Admin API **не спасает** — поле теряется при разборе JSON в GoTrue. Поэтому в custom provider `userinfo_url` = `https://promptshot.ru/api/auth/yandex-userinfo` (`yandex-userinfo-proxy.ts`: JSON → при отсутствии email JWT `format=jwt` → fallback `{login}@yandex.ru`; ответ `{ sub, id, email, … }`). Повторный вход без `login:email` в токене иначе даёт auth log `422 yandex_email_missing` → `Error getting user profile from external provider`. Fallback co-host: `src/standalone/yandex-userinfo-proxy.mjs` + Kong `/yandex-userinfo`.
@@ -599,8 +603,9 @@ SearchResults (client, infinite scroll)
 | AuthModal | `components/AuthModal.tsx` | Модалка: Google + Yandex (+ Telegram скоро) |
 | YandexAuthSuggestButton | `components/YandexAuthSuggestButton.tsx` | Официальная кнопка YaAuthSuggest → Supabase OAuth |
 | auth-oauth | `lib/auth-oauth.ts` | `signInWithOAuthProvider`, `custom:yandex` |
+| auth-finish-oauth | `lib/auth-finish-oauth.ts` | `finishOAuthCodeExchange` (browser PKCE) |
 | yandex-auth-suggest | `lib/yandex-auth-suggest.ts` | URL SDK, client_id, redirect_uri для YaAuthSuggest |
-OAuth completion: `AuthProvider` завершает `code -> session` на клиенте через `exchangeCodeForSession()` и очищает auth-параметры из URL.
+OAuth completion: `/auth/callback` page вызывает `finishOAuthCodeExchange`; `AuthProvider` — только legacy fallback вне этого пути.
 
 ---
 
@@ -838,7 +843,7 @@ landing/src/
 │   ├── favorites/
 │   │   ├── page.tsx
 │   │   └── FavoritesContent.tsx
-│   ├── auth/callback/route.ts
+│   ├── auth/callback/page.tsx  ← client PKCE finish + redirect ?next=
 │   └── api/
 │       ├── search/route.ts
 │       ├── search-card/route.ts
@@ -852,6 +857,7 @@ landing/src/
 ├── lib/
 │   ├── supabase.ts             ← Серверный клиент + data fetching
 │   ├── auth-oauth.ts           ← signInWithOAuthProvider (google, custom:yandex)
+│   ├── auth-finish-oauth.ts    ← finishOAuthCodeExchange (browser PKCE)
 │   ├── supabase-browser.ts     ← Браузерный клиент (auth, reactions)
 │   ├── supabase-server-auth.ts ← Серверная авторизация
 │   ├── tag-registry.ts         ← Реестр SEO-тегов (5 измерений, 100+ тегов)

@@ -46,11 +46,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async function initAuth() {
       const url = new URL(window.location.href);
       const code = url.searchParams.get("code");
+      // `/auth/callback` owns PKCE exchange — do not race a second /token here.
+      const onAuthCallback = url.pathname === "/auth/callback";
 
-      // Complete OAuth on the client when the provider returned `code` on this page
-      // (fallback if `/auth/callback` was not used). Prefer returning to the page
-      // that opened the auth modal.
-      if (code && !handledAuthCodeRef.current) {
+      // Fallback when provider returned `code` on an arbitrary page (legacy redirectTo).
+      if (code && !onAuthCallback && !handledAuthCodeRef.current) {
         handledAuthCodeRef.current = true;
         const { error } = await supabase.auth.exchangeCodeForSession(code);
         if (error) {
@@ -70,6 +70,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return;
         }
         window.history.replaceState({}, "", cleaned);
+      }
+
+      if (onAuthCallback) {
+        // Session cookies are set by the callback page; stay in loading until navigation.
+        return;
       }
 
       const { data: { user } } = await supabase.auth.getUser();
