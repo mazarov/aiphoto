@@ -305,10 +305,10 @@ export async function POST(req: NextRequest) {
         .map((m: { id: string; cost: number }) => ({ id: m.id, cost: m.cost }));
     } catch {
       models = [
-        { id: "gemini-2.5-flash-image", cost: 1 },
-        { id: "gemini-3-pro-image-preview", cost: 2 },
-        { id: "gemini-3.1-flash-image-preview", cost: 3 },
-        { id: "gemini-3.1-flash-lite-image", cost: 1 },
+        { id: "gemini-2.5-flash-image", cost: 5 },
+        { id: "gemini-3-pro-image-preview", cost: 10 },
+        { id: "gemini-3.1-flash-image-preview", cost: 10 },
+        { id: "gemini-3.1-flash-lite-image", cost: 5 },
       ];
     }
 

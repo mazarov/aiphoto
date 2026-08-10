@@ -3,7 +3,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { OVERLAY_BUTTON_UA_RESET } from "@/lib/card-overlay-action-pill";
-import { requestCreditBalanceRefresh } from "@/lib/credit-balance-events";
+import {
+  CREDIT_BALANCE_REFRESH_EVENT,
+  requestCreditBalanceRefresh,
+} from "@/lib/credit-balance-events";
 import {
   GENERATION_MODEL_DISPLAY,
   displayLabelForGenerationModel,
@@ -86,6 +89,7 @@ export function CardInlineGeneratePanel({
   const [configError, setConfigError] = useState("");
   const [maxPhotos, setMaxPhotos] = useState(10);
   const [preferencesHydrated, setPreferencesHydrated] = useState(false);
+  const [credits, setCredits] = useState<number | null>(null);
 
   const [photos, setPhotos] = useState<UserPhoto[]>([]);
   const [selectedPhotoIds, setSelectedPhotoIds] = useState<Set<string>>(new Set());
@@ -123,10 +127,11 @@ export function CardInlineGeneratePanel({
     let cancelled = false;
     void (async () => {
       try {
-        const [configRes, photosRes, preferencesRes] = await Promise.all([
+        const [configRes, photosRes, preferencesRes, meRes] = await Promise.all([
           fetch("/api/generation-config"),
           fetch("/api/user-generation-photos", { credentials: "include" }),
           fetch("/api/generation-preferences", { credentials: "include" }),
+          fetch("/api/me", { cache: "no-store", credentials: "include" }),
         ]);
         if (!configRes.ok) throw new Error("config_failed");
         const configData = (await configRes.json()) as {
@@ -144,6 +149,9 @@ export function CardInlineGeneratePanel({
           ? ((await preferencesRes.json().catch(() => ({}))) as {
               preferences?: GenerationPreferences | null;
             })
+          : {};
+        const meData = meRes.ok
+          ? ((await meRes.json().catch(() => ({}))) as { credits?: number })
           : {};
         if (!photosRes.ok) {
           throw new Error(photosData.error || "Не удалось загрузить ваши фото");
@@ -166,6 +174,9 @@ export function CardInlineGeneratePanel({
         setAspectRatios(nextRatios);
         setImageSizes(nextSizes);
         setPhotos(nextPhotos);
+        if (Number.isFinite(meData.credits)) {
+          setCredits(Number(meData.credits));
+        }
         if (preferredModel && nextModels.some((item) => item.id === preferredModel)) {
           setModel(preferredModel);
         } else if (defaultModel) {
@@ -213,6 +224,30 @@ export function CardInlineGeneratePanel({
   }, []);
 
   useEffect(() => {
+    const refreshCredits = () => {
+      void fetch("/api/me", {
+        cache: "no-store",
+        credentials: "include",
+      })
+        .then(async (response) => {
+          if (!response.ok) return;
+          const payload = (await response.json().catch(() => ({}))) as {
+            credits?: number;
+          };
+          if (Number.isFinite(payload.credits)) {
+            setCredits(Number(payload.credits));
+          }
+        })
+        .catch((error) => {
+          console.error("[generation.balance] refresh failed", error);
+        });
+    };
+    window.addEventListener(CREDIT_BALANCE_REFRESH_EVENT, refreshCredits);
+    return () =>
+      window.removeEventListener(CREDIT_BALANCE_REFRESH_EVENT, refreshCredits);
+  }, []);
+
+  useEffect(() => {
     if (!preferencesHydrated) return;
     setLibraryLoading(false);
     const timer = window.setTimeout(() => {
@@ -237,6 +272,7 @@ export function CardInlineGeneratePanel({
     () => photos.filter((photo) => selectedPhotoIds.has(photo.id)),
     [photos, selectedPhotoIds]
   );
+  const hasZeroCredits = credits === 0;
 
   const togglePhoto = (id: string) => {
     if (phase === "uploading" || phase === "generating") return;
@@ -1313,7 +1349,7 @@ export function CardInlineGeneratePanel({
             </span>
           </button>
         ) : null}
-        {phase === "done" && resultUrl && generationId ? (
+        {phase === "done" && resultUrl && generationId && !hasZeroCredits ? (
           <button
             type="button"
             disabled={
@@ -1340,34 +1376,55 @@ export function CardInlineGeneratePanel({
             <span className="truncate">Повторить</span>
           </button>
         ) : null}
-        <button
-          type="button"
-          aria-busy={busy}
-          disabled={
-            controlsBusy ||
-            libraryLoading ||
-            Boolean(busyAction) ||
-            (!(phase === "done" && resultUrl && generationId) &&
-              !selectedPhotos.length) ||
-            Boolean(configError)
-          }
-          onClick={() => {
-            if (phase === "done" && resultUrl && generationId) {
-              openPromptEditor();
-              return;
+        {hasZeroCredits && !busy ? (
+          <Link
+            href="/pricing"
+            onClick={() =>
+              reachYandexMetrikaGoal(
+                YM_GOAL_PROMPT_CARD_GENERATION_PRICING,
+                {
+                  feature_key: "prompt_card_generation",
+                  variant: "treatment",
+                }
+              )
             }
-            void runGenerate({ promptOverride: draftPrompt });
-          }}
-          className={`${OVERLAY_BUTTON_UA_RESET} relative flex min-h-12 min-w-0 items-center justify-center overflow-hidden rounded-2xl py-3 font-semibold text-white shadow-lg shadow-indigo-950/35 transition active:scale-[0.99] disabled:cursor-not-allowed ${
-            phase === "done" && resultUrl
-              ? "flex-1 px-2 text-[13px]"
-              : "w-full px-4 text-[15px]"
-          } ${
-            busy
-              ? "bg-white/10"
-              : "bg-gradient-to-r from-indigo-500 to-violet-500 hover:brightness-110 disabled:opacity-50"
-          }`}
-        >
+            className={`flex min-h-12 min-w-0 items-center justify-center rounded-2xl bg-gradient-to-r from-indigo-500 to-violet-500 py-3 font-semibold text-white shadow-lg shadow-indigo-950/35 transition hover:brightness-110 ${
+              phase === "done" && resultUrl
+                ? "flex-1 px-2 text-[13px]"
+                : "w-full px-4 text-[15px]"
+            }`}
+          >
+            Пополнить баланс
+          </Link>
+        ) : (
+          <button
+            type="button"
+            aria-busy={busy}
+            disabled={
+              controlsBusy ||
+              libraryLoading ||
+              Boolean(busyAction) ||
+              (!(phase === "done" && resultUrl && generationId) &&
+                !selectedPhotos.length) ||
+              Boolean(configError)
+            }
+            onClick={() => {
+              if (phase === "done" && resultUrl && generationId) {
+                openPromptEditor();
+                return;
+              }
+              void runGenerate({ promptOverride: draftPrompt });
+            }}
+            className={`${OVERLAY_BUTTON_UA_RESET} relative flex min-h-12 min-w-0 items-center justify-center overflow-hidden rounded-2xl py-3 font-semibold text-white shadow-lg shadow-indigo-950/35 transition active:scale-[0.99] disabled:cursor-not-allowed ${
+              phase === "done" && resultUrl
+                ? "flex-1 px-2 text-[13px]"
+                : "w-full px-4 text-[15px]"
+            } ${
+              busy
+                ? "bg-white/10"
+                : "bg-gradient-to-r from-indigo-500 to-violet-500 hover:brightness-110 disabled:opacity-50"
+            }`}
+          >
           {busy ? (
             <span
               className="absolute inset-y-0 left-0 bg-gradient-to-r from-indigo-500 to-violet-500 transition-[width] duration-300"
@@ -1399,7 +1456,8 @@ export function CardInlineGeneratePanel({
                     : "Сгенерировать"}
             </span>
           </span>
-        </button>
+          </button>
+        )}
         </div>
       </footer>
 
