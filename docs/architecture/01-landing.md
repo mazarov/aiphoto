@@ -1,6 +1,8 @@
 # 01 — Лендинг (promptshot.ru)
 
-> Последнее обновление: 2026-08-10 (**OAuth PKCE client finish:** `/auth/callback` — client `page.tsx` + `finishOAuthCodeExchange` (браузерный `exchangeCodeForSession`); server `route.ts` убран — он давал дубль `POST /token` 200→404 `flow_state_not_found` и `auth_error` без session cookies. `AuthProvider` не обменивает `code` на `/auth/callback`.)
+> Последнее обновление: 2026-08-10 (**OAuth account picker:** `signInWithOAuthProvider` передаёт IdP `queryParams` — Yandex `force_confirm=yes`, Google `prompt=select_account` — чтобы при повторном входе можно было выбрать аккаунт.)
+>
+> Предыдущее обновление: 2026-08-10 (**OAuth PKCE client finish:** `/auth/callback` — client `page.tsx` + `finishOAuthCodeExchange` (браузерный `exchangeCodeForSession`); server `route.ts` убран — он давал дубль `POST /token` 200→404 `flow_state_not_found` и `auth_error` без session cookies. `AuthProvider` не обменивает `code` на `/auth/callback`.)
 >
 > Предыдущее обновление: 2026-08-10 (**OAuth return path + pricing UX:** `AuthModal` редиректит на `/auth/callback?next=<path>`; после логина возврат на исходную страницу. Pricing: legal footer без акцента (`mt-auto`), клик по всей карточке тарифа, auth на CTA.)
 >
@@ -399,7 +401,7 @@ AuthModal → signInWithOAuth(redirectTo: /auth/callback?next=<path>)
 
 Fallback: если `code` пришёл на произвольную страницу (не `/auth/callback`), `AuthProvider` делает client `exchangeCodeForSession` и при наличии сохранённого return path уводит туда. На `/auth/callback` `AuthProvider` **не** обменивает code (избегаем второго `/token`).
 
-- Хелпер: `landing/src/lib/auth-oauth.ts` + `auth-return-path.ts` + `auth-finish-oauth.ts` (`getOAuthCallbackUrl`, `signInWithOAuthProvider`, `finishOAuthCodeExchange`, sanitize `next`).
+- Хелпер: `landing/src/lib/auth-oauth.ts` + `auth-return-path.ts` + `auth-finish-oauth.ts` (`getOAuthCallbackUrl`, `signInWithOAuthProvider`, `finishOAuthCodeExchange`, sanitize `next`). При старте OAuth: Yandex → `force_confirm=yes`, Google → `prompt=select_account` (выбор аккаунта при повторном логине).
 - **Кнопка Яндекс ID:** официальный виджет [конструктора YaAuthSuggest](https://yandex.ru/dev/id/doc/ru/suggest/but-const) — `YandexAuthSuggestButton` (`sdk-suggest-with-polyfills-latest.js`; `YANDEX_AUTH_SUGGEST_BUTTON_PARAMS`: `buttonView: main`, `buttonSize: xxl`, `buttonTheme: light`, `buttonBorderRadius: 22`, `buttonIcon: ya`); клик перенаправляется в Supabase OAuth (`custom:yandex`), не в suggest-token flow. Env: `NEXT_PUBLIC_YANDEX_OAUTH_CLIENT_ID` (публичный client_id из oauth.yandex.ru) — в **Docker build** (`landing/Dockerfile` ARG) и/или runtime env лендинга; если в клиентском бандле пусто, `client_id` подтягивается из `GET /api/public-config`.
 - `/auth/callback` (Next.js **client page**) — основной return URL модалки; `next` обязан быть same-origin relative path.
 - **Self-hosted auth:** GoTrue **≥ v2.187.0**, `GOTRUE_CUSTOM_OAUTH_ENABLED=true`, `GOTRUE_SITE_URL=https://promptshot.ru`, `GOTRUE_URI_ALLOW_LIST=https://promptshot.ru/**` (должен включать `/auth/callback`).

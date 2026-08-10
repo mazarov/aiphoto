@@ -66,10 +66,25 @@ export function getOAuthReturnUrl(): string {
   return getOAuthCallbackUrl();
 }
 
+/** Extra authorize params so IdP shows account picker on re-login. */
+function getOAuthQueryParams(
+  provider: OAuthSignInProvider
+): Record<string, string> {
+  if (provider === YANDEX_OAUTH_PROVIDER) {
+    // https://yandex.ru/dev/id/doc/ru/codes/code-url — force account choose + re-consent
+    return { force_confirm: "yes" };
+  }
+  // Google: skip silent reuse of the last account
+  return { prompt: "select_account" };
+}
+
 export async function signInWithOAuthProvider(provider: OAuthSignInProvider) {
   const supabase = createSupabaseBrowser();
   await supabase.auth.signInWithOAuth({
     provider,
-    options: { redirectTo: getOAuthCallbackUrl() },
+    options: {
+      redirectTo: getOAuthCallbackUrl(),
+      queryParams: getOAuthQueryParams(provider),
+    },
   });
 }
