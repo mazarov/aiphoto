@@ -1,8 +1,10 @@
 "use client";
 
 import { useAuth } from "@/context/AuthContext";
-import { signInWithOAuthProvider } from "@/lib/auth-oauth";
-import { YandexAuthSuggestButton } from "@/components/YandexAuthSuggestButton";
+import { signInWithOAuthProvider, YANDEX_OAUTH_PROVIDER } from "@/lib/auth-oauth";
+
+const oauthButtonClass =
+  "flex h-12 w-full items-center gap-3 rounded-xl px-4 text-sm font-medium transition-all active:scale-[0.98]";
 
 export function AuthModal() {
   const { showAuthModal, closeAuthModal } = useAuth();
@@ -41,27 +43,28 @@ export function AuthModal() {
           </p>
         </div>
 
-        {/* Providers — при нескольких кнопках Яндекс рекомендует подпись «Войти с помощью» */}
         <p className="mb-3 text-center text-sm text-zinc-500">Войти с помощью</p>
         <div className="space-y-3">
           <button
             type="button"
             onClick={() => signInWithOAuthProvider("google")}
-            className="flex w-full items-center gap-3 rounded-xl border border-zinc-200 bg-white px-4 py-3 text-sm font-medium text-zinc-700 transition-all hover:border-zinc-300 hover:bg-zinc-50 active:scale-[0.98]"
+            className={`${oauthButtonClass} border border-zinc-200 bg-white text-zinc-700 hover:border-zinc-300 hover:bg-zinc-50`}
           >
-            <GoogleIcon />
-            Войти через Google
+            <span className="flex h-5 w-5 shrink-0 items-center justify-center" aria-hidden>
+              <GoogleIcon />
+            </span>
+            <span className="flex-1 text-left">Войти через Google</span>
           </button>
-
-          <YandexAuthSuggestButton />
 
           <button
             type="button"
-            disabled
-            className="flex w-full items-center gap-3 rounded-xl border border-zinc-200 bg-white px-4 py-3 text-sm font-medium text-zinc-400 opacity-60 cursor-not-allowed"
+            onClick={() => signInWithOAuthProvider(YANDEX_OAUTH_PROVIDER)}
+            className={`${oauthButtonClass} border border-zinc-200 bg-white text-zinc-700 hover:border-zinc-300 hover:bg-zinc-50`}
           >
-            <TelegramIcon />
-            Telegram — скоро
+            <span className="flex h-5 w-5 shrink-0 items-center justify-center" aria-hidden>
+              <YandexIcon />
+            </span>
+            <span className="flex-1 text-left">Войти через Яндекс</span>
           </button>
         </div>
       </div>
@@ -80,11 +83,15 @@ function GoogleIcon() {
   );
 }
 
-function TelegramIcon() {
+/** Логотип Яндекс ID: красный круг + «Я» */
+function YandexIcon() {
   return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="#9CA3AF">
-      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 0 0-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.74-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .38z" />
+    <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden>
+      <circle cx="12" cy="12" r="12" fill="#FC3F1D" />
+      <path
+        fill="#fff"
+        d="M13.32 18.4h-2.14V12.55L7.9 5.6h2.28l1.88 5.2c.18.52.35 1.05.48 1.58h.06c.13-.53.31-1.06.48-1.58L14.96 5.6h2.24l-3.28 6.95V18.4z"
+      />
     </svg>
   );
 }
-

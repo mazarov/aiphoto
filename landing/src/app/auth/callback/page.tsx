@@ -5,7 +5,10 @@ import {
   finishOAuthCodeExchange,
   resolveOAuthNextPath,
 } from "@/lib/auth-finish-oauth";
-import { appendAuthError } from "@/lib/auth-return-path";
+import {
+  appendAuthError,
+  resolveOAuthCallbackError,
+} from "@/lib/auth-return-path";
 
 /**
  * Browser-side OAuth finish. Server route exchange caused duplicate POST /token
@@ -24,7 +27,11 @@ export default function AuthCallbackPage() {
     const next = resolveOAuthNextPath(url.searchParams);
 
     if (!code) {
-      window.location.replace(appendAuthError(next, "no_code"));
+      // GoTrue often redirects with error= / error_description= and no code
+      // (e.g. signup trigger failure). Surface that instead of opaque no_code.
+      window.location.replace(
+        appendAuthError(next, resolveOAuthCallbackError(url.searchParams))
+      );
       return;
     }
 

@@ -1,6 +1,14 @@
 # 01 — Лендинг (promptshot.ru)
 
-> Последнее обновление: 2026-08-10 (**OAuth account picker:** `signInWithOAuthProvider` передаёт IdP `queryParams` — Yandex `force_confirm=yes`, Google `prompt=select_account` — чтобы при повторном входе можно было выбрать аккаунт.)
+> Последнее обновление: 2026-08-10 (**AuthModal UI:** убрана кнопка Telegram; Google и Яндекс — одинаковые кастомные кнопки (`h-12`, общий padding/иконка 20px) в фирменных стилях; виджет YaAuthSuggest удалён.)
+>
+> Предыдущее обновление: 2026-08-10 (**auth signup trigger FK:** `sql/180_fix_handle_new_auth_user_imageprompt_fk.sql` — `handle_new_auth_user` сначала upsert `imageprompt_users`, потом `landing_users`; иначе после 179 signup падает `landing_users_id_fkey` / `Database error saving new user` → `auth_error=no_code`.)
+>
+> Предыдущее обновление: 2026-08-10 (**auth signup trigger:** `sql/179_fix_handle_new_auth_user_search_path.sql` — `handle_new_auth_user` с `SET search_path = public` и `public.landing_users`, иначе новый OAuth signup падает `relation "landing_users" does not exist`.)
+>
+> Предыдущее обновление: 2026-08-10 (**Yandex OAuth host RU:** в GoTrue custom provider `custom:yandex` endpoints должны быть `https://oauth.yandex.ru/authorize` и `https://oauth.yandex.ru/token` (не `.com`); userinfo по-прежнему через адаптер лендинга / `login.yandex.ru`.)
+>
+> Предыдущее обновление: 2026-08-10 (**OAuth account picker:** `signInWithOAuthProvider` передаёт IdP `queryParams` — Yandex `force_confirm=yes`, Google `prompt=select_account` — чтобы при повторном входе можно было выбрать аккаунт.)
 >
 > Предыдущее обновление: 2026-08-10 (**OAuth PKCE client finish:** `/auth/callback` — client `page.tsx` + `finishOAuthCodeExchange` (браузерный `exchangeCodeForSession`); server `route.ts` убран — он давал дубль `POST /token` 200→404 `flow_state_not_found` и `auth_error` без session cookies. `AuthProvider` не обменивает `code` на `/auth/callback`.)
 >
@@ -385,7 +393,6 @@ admin pages
 |-----------|----------------|--------------|
 | Google | `google` | `GOTRUE_EXTERNAL_GOOGLE_*` в env auth (Dockhost) |
 | Yandex ID | `custom:yandex` | Custom OAuth Provider в GoTrue (Admin API `POST /auth/v1/admin/custom-providers`) |
-| Telegram | — | запланирован, кнопка disabled |
 
 **Flow (Google и Yandex — одинаковый в коде):**
 
@@ -402,13 +409,14 @@ AuthModal → signInWithOAuth(redirectTo: /auth/callback?next=<path>)
 Fallback: если `code` пришёл на произвольную страницу (не `/auth/callback`), `AuthProvider` делает client `exchangeCodeForSession` и при наличии сохранённого return path уводит туда. На `/auth/callback` `AuthProvider` **не** обменивает code (избегаем второго `/token`).
 
 - Хелпер: `landing/src/lib/auth-oauth.ts` + `auth-return-path.ts` + `auth-finish-oauth.ts` (`getOAuthCallbackUrl`, `signInWithOAuthProvider`, `finishOAuthCodeExchange`, sanitize `next`). При старте OAuth: Yandex → `force_confirm=yes`, Google → `prompt=select_account` (выбор аккаунта при повторном логине).
-- **Кнопка Яндекс ID:** официальный виджет [конструктора YaAuthSuggest](https://yandex.ru/dev/id/doc/ru/suggest/but-const) — `YandexAuthSuggestButton` (`sdk-suggest-with-polyfills-latest.js`; `YANDEX_AUTH_SUGGEST_BUTTON_PARAMS`: `buttonView: main`, `buttonSize: xxl`, `buttonTheme: light`, `buttonBorderRadius: 22`, `buttonIcon: ya`); клик перенаправляется в Supabase OAuth (`custom:yandex`), не в suggest-token flow. Env: `NEXT_PUBLIC_YANDEX_OAUTH_CLIENT_ID` (публичный client_id из oauth.yandex.ru) — в **Docker build** (`landing/Dockerfile` ARG) и/или runtime env лендинга; если в клиентском бандле пусто, `client_id` подтягивается из `GET /api/public-config`.
+- **UI кнопок в `AuthModal`:** две кастомные кнопки одной сетки (`h-12`, `px-4`, иконка 20×20, `rounded-xl`, белый фон) — Google (цветной G) и Яндекс (красный круг + «Я»); обе вызывают `signInWithOAuthProvider`. Виджет YaAuthSuggest больше не используется.
 - `/auth/callback` (Next.js **client page**) — основной return URL модалки; `next` обязан быть same-origin relative path.
 - **Self-hosted auth:** GoTrue **≥ v2.187.0**, `GOTRUE_CUSTOM_OAUTH_ENABLED=true`, `GOTRUE_SITE_URL=https://promptshot.ru`, `GOTRUE_URI_ALLOW_LIST=https://promptshot.ru/**` (должен включать `/auth/callback`).
 - **Yandex OAuth app** (отдельно от API Метрики): Redirect URI `https://<NEXT_PUBLIC_SUPABASE_HOST>/auth/v1/callback`, scopes `login:info login:email login:avatar`.
+- **GoTrue custom provider endpoints (RU):** `authorization_url=https://oauth.yandex.ru/authorize`, `token_url=https://oauth.yandex.ru/token`. Не использовать `oauth.yandex.com` — RU-доки и консоль приложения на `.ru`; иначе пользователь уходит на `.com`.
 - **Userinfo adapter (обязательно):** GoTrue custom OAuth читает claim `email`, Яндекс отдаёт `default_email` + заголовок `Authorization: OAuth` (не `Bearer`). `attribute_mapping` в Admin API **не спасает** — поле теряется при разборе JSON в GoTrue. Поэтому в custom provider `userinfo_url` = `https://promptshot.ru/api/auth/yandex-userinfo` (`yandex-userinfo-proxy.ts`: JSON → при отсутствии email JWT `format=jwt` → fallback `{login}@yandex.ru`; ответ `{ sub, id, email, … }`). Повторный вход без `login:email` в токене иначе даёт auth log `422 yandex_email_missing` → `Error getting user profile from external provider`. Fallback co-host: `src/standalone/yandex-userinfo-proxy.mjs` + Kong `/yandex-userinfo`.
 - **Self-hosted auth env:** на auth-сервисе `API_EXTERNAL_URL` должен быть `https://<SUPABASE_HOST>/auth/v1` (не `$SUPABASE_PUBLIC_URL` без `/auth/v1`), иначе custom:yandex шлёт `redirect_uri=…/callback` → Kong 401.
-- **Профиль:** trigger `handle_new_auth_user` — `sql/157_landing_users_yandex_provider.sql` нормализует `custom:yandex` → `yandex`, маппит `real_name` / аватар Yandex.
+- **Профиль:** trigger `handle_new_auth_user` на `auth.users` INSERT → сначала `public.imageprompt_users`, затем `public.landing_users` (`landing_users.id` FK → `imageprompt_users`, не `auth.users`). Нормализация Yandex (`custom:yandex` → `yandex`, `real_name` / аватар) — `sql/157_*`; `SET search_path = ''` + schema-qualified names — `sql/179_*` / `sql/180_*`. Без `imageprompt_users` GoTrue даёт `500 Database error saving new user` / `landing_users_id_fkey` → клиент видит `auth_error=no_code`.
 
 ### 301 редиректы карточек `/p/[slug]`
 
@@ -602,11 +610,9 @@ SearchResults (client, infinite scroll)
 | ReactionButtons | `components/ReactionButtons.tsx` | Like/dislike |
 | FavoriteButton | `components/FavoriteButton.tsx` | Избранное |
 | CopyPromptButton | `components/CopyPromptButton.tsx` | Копирование промта |
-| AuthModal | `components/AuthModal.tsx` | Модалка: Google + Yandex (+ Telegram скоро) |
-| YandexAuthSuggestButton | `components/YandexAuthSuggestButton.tsx` | Официальная кнопка YaAuthSuggest → Supabase OAuth |
+| AuthModal | `components/AuthModal.tsx` | Модалка: Google + Яндекс (единый UI кнопок) |
 | auth-oauth | `lib/auth-oauth.ts` | `signInWithOAuthProvider`, `custom:yandex` |
 | auth-finish-oauth | `lib/auth-finish-oauth.ts` | `finishOAuthCodeExchange` (browser PKCE) |
-| yandex-auth-suggest | `lib/yandex-auth-suggest.ts` | URL SDK, client_id, redirect_uri для YaAuthSuggest |
 OAuth completion: `/auth/callback` page вызывает `finishOAuthCodeExchange`; `AuthProvider` — только legacy fallback вне этого пути.
 
 ---
@@ -918,7 +924,7 @@ landing/src/
 | `NEXT_STANDALONE_TRACING_ROOT` | Опционально при **`next build`** / Docker build: явный корень file tracing для `output: standalone` (см. § «Сборка Docker») |
 | `NEXT_PUBLIC_SUPABASE_URL` | Браузерный клиент |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Браузерный клиент |
-| `NEXT_PUBLIC_YANDEX_OAUTH_CLIENT_ID` | Официальная кнопка YaAuthSuggest (`YandexAuthSuggestButton`, `GET /api/public-config`) |
+| `NEXT_PUBLIC_YANDEX_OAUTH_CLIENT_ID` | Опционально; ещё отдаётся в `GET /api/public-config` (UI модалки больше не зависит от YaAuthSuggest) |
 | `NEXT_PUBLIC_YANDEX_OAUTH_REDIRECT_URI` | Опционально; по умолчанию `{NEXT_PUBLIC_SUPABASE_URL}/auth/v1/callback` |
 | `SUPABASE_SERVICE_ROLE_KEY` | Серверный клиент |
 | `NEXT_PUBLIC_SITE_URL` | Canonical URLs, OG |
