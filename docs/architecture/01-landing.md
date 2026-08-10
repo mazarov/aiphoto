@@ -1,8 +1,10 @@
 # 01 — Лендинг (promptshot.ru)
 
-> Последнее обновление: 2026-08-10 (**paid generation CTA + credit costs:** inline generator читает текущий баланс через `/api/me` и при `0` кредитов заменяет действия, создающие generation job, на «Пополнить баланс» → `/pricing`; balance refresh event синхронизирует панель после списания/refund. Миграция `177` устанавливает стоимость Nano Banana / Nano Banana 2 Lite = 5 кредитов, Nano Banana PRO / Nano Banana 2 = 10 кредитов; API fallbacks используют те же значения.)
+> Последнее обновление: 2026-08-10 (**admin payment/user generation operations:** `/admin/payments` показывает server-only YooKassa ledger с payer identity, provider/local status и независимым состоянием credit fulfillment. В `/admin/analyze-history` добавлен cursor-list всех non-admin `landing_generations` со статусами, короткими signed source previews и модераторской публикацией completed results. Миграция `178` добавляет service-role read RPC и индексы.)
 >
-> Последнее обновление: 2026-08-09 (**YooKassa checkout:** `/pricing` создаёт одностадийный redirect-платёж в RUB; подтверждённый через provider GET webhook атомарно и идемпотентно начисляет токены в `landing_users.credits`. Для СМЗ чеки регистрируются вручную в «Мой налог».)
+> Предыдущее обновление: 2026-08-10 (**paid generation CTA + credit costs:** inline generator читает текущий баланс через `/api/me` и при `0` кредитов заменяет действия, создающие generation job, на «Пополнить баланс» → `/pricing`; balance refresh event синхронизирует панель после списания/refund. Миграция `177` устанавливает стоимость Nano Banana / Nano Banana 2 Lite = 5 кредитов, Nano Banana PRO / Nano Banana 2 = 10 кредитов; API fallbacks используют те же значения.)
+>
+> Предыдущее обновление: 2026-08-09 (**YooKassa checkout:** `/pricing` создаёт одностадийный redirect-платёж в RUB; подтверждённый через provider GET webhook атомарно и идемпотентно начисляет токены в `landing_users.credits`. Для СМЗ чеки регистрируются вручную в «Мой налог».)
 >
 > Предыдущее обновление: 2026-08-08 (**local image edit contract:** initial generation по-прежнему получает пользовательские фото + полный prompt. После success footer `Что изменить` открывает двухблочную шторку; `Применить и сгенерировать` сохраняет переписанный полный `prompt_text` для history/copy/UGC, но image worker получает только completed parent result + отдельную `edit_instruction` + preserve-everything-else rules. Миграция `172` добавляет nullable delta-поле; legacy child jobs без него временно используют full-prompt fallback. Fingerprint включает parent ID и edit instruction.)
 >
@@ -93,7 +95,8 @@
 /favorites              → Избранное (требует авторизации)
 /generations            → Мои генерации (auth): канонический список `landing_generations` текущего shared DB user; UGC-карточка необязательна
 /admin/analytics        → Закрытый analytics dashboard и admin generation modal; Supabase Auth + email allowlist `ANALYTICS_ADMIN_EMAILS`
-/admin/analyze-history  → Закрытая 30-дневная история успешных analyze с signed preview и идемпотентной публикацией в `prompt_cards`
+/admin/analyze-history  → Закрытая история analyze + все non-admin user generations; private source previews выдаются signed, completed results публикуются идемпотентно
+/admin/payments         → Закрытый cursor-реестр YooKassa: payer identity, RUB/status/test, ожидаемые credits и факт `credited_at`
 /auth/callback          → OAuth callback (server-side)
 /embed/stv              → Steal This Vibe (клиент подгружает `/stv-panel/boot.mjs` + `styles.css`; та же логика, что side panel расширения)
 /extension-stv          → Превью маркетингового лендинга расширения (спека `docs/extension-landing-pain-hope-solution.md`); **`metadata.title` / `description`** — SEO; `metadata.robots` noindex; шапка **`ExtensionStvMarketingHeader`** (логотип + «Image to prompt» → `/extension-stv`, **Pricing** → `/extension-stv/pricing`, Chrome Web Store); FAB **`ExtensionStvFloatingCta`**. Порядок секций: hero (H1 + лид + `ExtensionStvChromeBadge`) → pain + **Reference** (`PainReferenceVsDraftMock`) → **Accuracy** (`ExtensionStvAccuracySection`) → **Testimonials** → **How it works** (`ExtensionStvHowItWorks`, 4 шага) → **FAQ** (`ExtensionStvFaq`). Футер **`ExtensionStvMarketingFooter`**. Блок **Reference**: upload → extract → expand. Общие константы: `landing/src/components/extension-stv/stv-marketing-shared.ts`.
@@ -184,8 +187,11 @@
 | `/api/payments/yookassa/webhook` | POST public callback: принимает `payment.succeeded` / `payment.canceled`, перечитывает объект через YooKassa API и идемпотентно обновляет ledger/баланс |
 | `/api/extension/analyze` | Same-origin analyze для site `/foto-v-promt`: validation/SSRF protection → optional Auth/shared identity → atomic rate-limit reserve → Gemini proxy/direct → confirm при success или release при error; успешный результат best-effort сохраняется в private 30-day `analyze_history` |
 | `/api/admin/analytics` | GET, admin auth: no-store analytics rollups за `1…90` дней |
+| `/api/admin/payments` | GET, admin auth: cursor YooKassa ledger с status/test filters, payer auth/billing identity и credit fulfillment state |
 | `/api/admin/analyze-history` | GET, admin auth: cursor pagination private analyze history, optional `client_source`, signed image URL |
 | `/api/admin/analyze-history/[id]/publish` | POST, admin auth: private analyze image → public result object → idempotent `prompt_cards` draft → общий SEO publish service |
+| `/api/admin/user-generations` | GET, admin auth: cursor всех `client_source != admin` generation statuses, identity, public result и 15-минутные signed source previews |
+| `/api/admin/user-generations/[id]/publish` | POST, admin auth: completed non-admin generation → idempotent UGC draft исходного `requester_auth_user_id` → общий SEO publish service |
 | `/api/admin/generation-photo` | GET/POST, admin auth: чтение signed URL или замена закреплённого reference photo для admin generation |
 | `/api/admin/generate` | POST, admin auth: idempotent enqueue `1…4` jobs в durable `landing_enqueue_generation`, `client_source=admin`, без списания кредитов |
 | `/api/admin/generations` | GET, admin auth: cursor-paginated durable generation queue (`unpublished` / `published` / `all`) |
@@ -224,7 +230,8 @@
 
 ### PromptShot analyze и admin
 
-- **Граница доступа:** страницы `/admin/analytics`, `/admin/analyze-history` и каждый
+- **Граница доступа:** страницы `/admin/analytics`, `/admin/analyze-history`,
+  `/admin/payments` и каждый
   `/api/admin/*` проверяют Supabase Auth session, затем нормализованный email против
   `ANALYTICS_ADMIN_EMAILS`. Пустой allowlist означает fail-closed; service-role key
   остаётся только на сервере.
@@ -244,6 +251,16 @@
   `auth.users.id` и shared `imageprompt_users.id`, ставит `client_source='admin'` job
   через существующий `landing_enqueue_generation`. Job обрабатывает тот же durable
   `web-generation-worker`; admin UI только enqueue-ит и poll-ит status.
+- **Оплаты:** `/admin/payments` читает `landing_yookassa_payments` только через
+  service-role RPC `admin_yookassa_payments`. Keyset cursor использует
+  `(created_at,id)`; identity собирается одним SQL-read model из `auth.users`,
+  `landing_users` и shared `imageprompt_users`. `status='succeeded'` и
+  `credited_at IS NULL` показываются как discrepancy, а не считаются начислением.
+- **Генерации пользователей:** `admin_user_generations_queue` возвращает все
+  `client_source IS DISTINCT FROM 'admin'` и terminal/non-terminal statuses.
+  Private input paths не отдаются клиенту: API проверяет path, batch-подписывает до
+  четырёх preview на 15 минут и возвращает только URL. Публикация доступна лишь для
+  `completed` с явным `requester_auth_user_id`; автор карточки не подменяется admin.
 - **Публикация:** analyze history и completed admin generation создают/восстанавливают
   draft в `prompt_cards`, затем вызывают общий publish service: prompt variants →
   SEO tags/readiness → `is_published=true` → revalidate card/sitemap. Связь с

@@ -5,13 +5,14 @@ import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { AdminGenerateModal } from "./AdminGenerateModal";
 import { AdminGenerationQueue } from "./AdminGenerationQueue";
+import { AdminUserGenerationsList } from "./AdminUserGenerationsList";
 import { CLIENT_SOURCES_ORDER, clientSourceColor, clientSourceLabel } from "./analytics-constants";
 
 type Item = {
   id: string; created_at: string; client_source: string; prompt: string; image_url: string | null;
   style: string | null; model: string | null; is_published: boolean; card_url: string | null;
 };
-type View = "analyses" | "unpublished" | "published";
+type View = "analyses" | "user_generations" | "unpublished" | "published";
 const tabClass = (active: boolean) => `rounded-xl px-3 py-2 text-xs font-semibold ${
   active ? "bg-indigo-600 text-white" : "border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50"}`;
 
@@ -75,11 +76,15 @@ export function AnalyzeHistoryList() {
     </header>
     <nav className="flex flex-wrap gap-2">
       <button className={tabClass(view === "analyses")} onClick={() => setView("analyses")}>Анализы</button>
+      <button className={tabClass(view === "user_generations")} onClick={() => setView("user_generations")}>
+        Генерации других пользователей
+      </button>
       <button className={tabClass(view === "unpublished")} onClick={() => setView("unpublished")}>Не опубликовано</button>
       <button className={tabClass(view === "published")} onClick={() => setView("published")}>Опубликовано</button>
     </nav>
     {error && <p className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}
-    {view !== "analyses" ? <AdminGenerationQueue status={view} refreshKey={queueRefresh}
+    {view === "user_generations" ? <AdminUserGenerationsList onRegenerate={setGeneratePrompt} />
+      : view !== "analyses" ? <AdminGenerationQueue status={view} refreshKey={queueRefresh}
       onRegenerate={setGeneratePrompt} /> : <>
       <div className="flex flex-wrap gap-2">
         {["all", ...CLIENT_SOURCES_ORDER].map((item) => <button key={item} onClick={() => setSource(item)}

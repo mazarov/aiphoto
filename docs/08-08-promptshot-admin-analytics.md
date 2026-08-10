@@ -2,7 +2,7 @@
 
 > Дата: 2026-08-08  
 > Ветка: `feature/08-08-promptshot-admin-analytics`
-> Последнее обновление: 2026-08-08
+> Последнее обновление: 2026-08-10
 
 ## Цель
 
@@ -62,6 +62,23 @@
 - [x] Публиковать completed generation через существующий `prompt_cards` и общий SEO
   publish service; повторная публикация возвращает успешный идемпотентный результат.
 
+## Phase 5 — YooKassa operations и генерации пользователей
+
+- [x] Добавить `/admin/payments` и `/api/admin/payments`: cursor-реестр
+  `landing_yookassa_payments` с payer auth/billing identity, RUB, plan, local/provider
+  status, test flag, ожидаемыми credits и фактическим `credited_at`.
+- [x] Не считать `status='succeeded'` достаточным доказательством начисления:
+  `credited_at IS NULL` отображается как discrepancy для операционной проверки.
+- [x] Добавить вкладку «Генерации других пользователей» для всех
+  `landing_generations.client_source != 'admin'` и статусов `pending` / `processing` /
+  `completed` / `failed`.
+- [x] Выдавать private input previews только через batch signed URL с коротким TTL;
+  raw storage paths не возвращать в browser response.
+- [x] Разрешить admin-публикацию только completed generation с явным
+  `requester_auth_user_id`; исходный пользователь остаётся автором UGC-карточки.
+- [x] Миграция `178_admin_payments_user_generations.sql`: service-role-only cursor RPC
+  и индексы без изменения существующих payment/generation строк.
+
 ## Identity и границы миграции
 
 - Admin pages и все `/api/admin/*` требуют валидную Supabase Auth session и email из
@@ -102,6 +119,15 @@
   → durable web-generation-worker → landing_generations
   → /api/admin/generations queue/poll
   → publish → prompt_cards → SEO tags/readiness → public card
+
+/admin/payments
+  → admin_yookassa_payments (service role)
+  → payer identity + payment state + credited_at
+
+/admin/analyze-history → Генерации других пользователей
+  → admin_user_generations_queue (service role)
+  → signed private source previews + public result
+  → completed publish → original requester author → public card
 ```
 
 ## Cutover и rollback
@@ -120,11 +146,16 @@
 - [x] 13 targeted tests passed: admin allowlist matching, analyze/admin cursors and
   limits, publication-status resolution, rate-limit IP/day/hash/effective usage,
   admin generation model selection and enqueue idempotency/fingerprints.
+- [x] 7 targeted admin read-model tests passed: cursor/limit/publication regression,
+  YooKassa status/test filters and credit discrepancy, user-generation
+  status/source/publication filters and error sanitization.
 - [ ] Применить `sql/175_promptshot_admin_analytics.sql` в целевой Supabase.
+- [ ] Применить `sql/178_admin_payments_user_generations.sql` после `176`/`177`.
 - [ ] Задать `ANALYTICS_ADMIN_EMAILS` и остальные runtime env в целевом окружении.
 - [ ] Выполнить production deploy/cutover.
 - [ ] Провести post-deploy smoke `/foto-v-promt`, `/admin/analytics`,
-  `/admin/analyze-history` и admin generation publication.
+  `/admin/analyze-history`, `/admin/payments`, user-generation publication и admin
+  generation publication.
 
 ## Acceptance checks
 
