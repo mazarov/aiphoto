@@ -30,6 +30,60 @@ type PendingCheckout = {
   checkoutAttemptId: string;
 };
 
+function needsCheckoutAuth(user: { is_anonymous?: boolean } | null | undefined): boolean {
+  return !user || user.is_anonymous === true;
+}
+
+function createCheckoutAttemptId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx`.replace(/[xy]/g, (ch) => {
+    const n = (Math.random() * 16) | 0;
+    const v = ch === "x" ? n : (n & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
+function savePendingCheckout(pending: PendingCheckout): void {
+  try {
+    sessionStorage.setItem(PENDING_CHECKOUT_KEY, JSON.stringify(pending));
+  } catch {
+    // Private mode / blocked storage — auth + checkout can still proceed later.
+  }
+}
+
+function readPendingCheckout(): PendingCheckout | null {
+  try {
+    const raw = sessionStorage.getItem(PENDING_CHECKOUT_KEY);
+    if (!raw) return null;
+    const pending = JSON.parse(raw) as Partial<PendingCheckout>;
+    if (
+      typeof pending.planId === "string" &&
+      typeof pending.checkoutAttemptId === "string" &&
+      PAYMENT_ID_PATTERN.test(pending.checkoutAttemptId)
+    ) {
+      return pending as PendingCheckout;
+    }
+    sessionStorage.removeItem(PENDING_CHECKOUT_KEY);
+  } catch {
+    try {
+      sessionStorage.removeItem(PENDING_CHECKOUT_KEY);
+    } catch {
+      // ignore
+    }
+  }
+  return null;
+}
+
+function clearPendingCheckout(): void {
+  try {
+    sessionStorage.removeItem(PENDING_CHECKOUT_KEY);
+  } catch {
+    // ignore
+  }
+}
+
 function perPhoto(price: number, photos: number): number {
   return Math.round(price / photos);
 }
@@ -86,33 +140,50 @@ function PlanCard({
   const recommended = plan.recommended === true;
   const unit = perPhoto(plan.price, plan.photos);
 
+  const select = () => {
+    if (disabled) return;
+    onSelect(plan);
+  };
+
   return (
     <article
       aria-labelledby={headingId}
+      role="button"
+      tabIndex={disabled ? -1 : 0}
+      aria-disabled={disabled || undefined}
+      onClick={select}
+      onKeyDown={(event) => {
+        if (disabled) return;
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          select();
+        }
+      }}
       style={{ animationDelay: `${STAGGER[index] ?? 0}ms` }}
       className={[
-        "group relative flex h-full min-h-0 min-w-0 flex-col rounded-2xl border p-3 shadow-sm motion-safe:opacity-0 motion-safe:[animation-fill-mode:forwards] motion-safe:animate-slide-up motion-safe:transition-all motion-safe:duration-300 motion-safe:ease-out sm:p-5 xl:p-6",
+        "group relative flex h-full min-h-0 min-w-0 cursor-pointer flex-col overflow-visible rounded-2xl border p-3 shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 motion-safe:opacity-0 motion-safe:[animation-fill-mode:forwards] motion-safe:animate-slide-up motion-safe:transition-all motion-safe:duration-300 motion-safe:ease-out sm:p-5 xl:p-6",
+        disabled ? "cursor-wait opacity-65" : "",
         recommended
           ? "border-indigo-300 bg-gradient-to-b from-indigo-50/75 via-white to-white shadow-[0_18px_45px_-26px_rgba(79,70,229,0.48)] ring-1 ring-indigo-200/60 motion-safe:hover:-translate-y-0.5 motion-safe:hover:shadow-[0_22px_55px_-26px_rgba(79,70,229,0.55)]"
           : "border-zinc-200/90 bg-white motion-safe:hover:-translate-y-0.5 motion-safe:hover:border-indigo-200 motion-safe:hover:shadow-[0_18px_42px_-28px_rgba(79,70,229,0.35)]",
       ].join(" ")}
     >
       {recommended && (
-        <div className="absolute -top-2 left-3 z-10 inline-flex rounded-full bg-indigo-600 px-2 py-0.5 text-[10px] font-semibold text-white shadow-sm shadow-indigo-500/20 sm:-top-3 sm:left-5 sm:px-3 sm:py-1 sm:text-xs">
+        <div className="absolute -top-2.5 left-3 z-10 inline-flex rounded-full bg-indigo-600 px-2 py-0.5 text-[10px] font-semibold text-white shadow-sm shadow-indigo-500/20 sm:-top-3 sm:left-5 sm:px-3 sm:py-1 sm:text-xs">
           Популярный
         </div>
       )}
 
-      <div className="flex min-h-6 min-w-0 items-start justify-between gap-3 sm:min-h-[4.25rem]">
-        <div className="min-w-0">
-          <h2 id={headingId} className="text-base font-semibold tracking-tight text-zinc-950 sm:text-lg">
+      <div className="flex min-h-6 min-w-0 items-start justify-between gap-1.5 sm:min-h-[4.25rem] sm:gap-3">
+        <div className="min-w-0 flex-1">
+          <h2 id={headingId} className="text-base font-semibold leading-tight tracking-tight text-zinc-950 sm:text-lg">
             {plan.name}
           </h2>
           <p className="mt-1 hidden text-sm leading-snug text-zinc-500 sm:block">{plan.tagline}</p>
         </div>
         {plan.discount ? (
           <span
-            className="shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 ring-1 ring-emerald-100 sm:px-2.5 sm:py-1 sm:text-xs"
+            className="mt-0.5 shrink-0 rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700 ring-1 ring-emerald-100 sm:mt-0 sm:px-2.5 sm:py-1 sm:text-xs"
             title="Экономия на стоимости фото относительно пакета «Проба»"
           >
             −{plan.discount}%
@@ -120,7 +191,7 @@ function PlanCard({
         ) : null}
       </div>
 
-      <div className="mt-2 flex items-baseline gap-2 whitespace-nowrap sm:mt-5">
+      <div className="mt-2 flex min-w-0 items-baseline gap-2 sm:mt-5">
         <span
           className={[
             "text-2xl font-bold tracking-[-0.04em] sm:text-3xl",
@@ -133,7 +204,7 @@ function PlanCard({
         </span>
       </div>
 
-      <span className="mt-1.5 inline-flex w-fit items-center rounded-full bg-indigo-50/80 px-2 py-0.5 text-xs font-semibold text-indigo-700 ring-1 ring-indigo-100 sm:mt-3 sm:px-2.5 sm:py-1">
+      <span className="mt-1.5 inline-flex w-fit max-w-full items-center rounded-full bg-indigo-50/80 px-2 py-0.5 text-xs font-semibold text-indigo-700 ring-1 ring-indigo-100 sm:mt-3 sm:px-2.5 sm:py-1">
         ≈ {unit} ₽/фото
       </span>
 
@@ -150,22 +221,20 @@ function PlanCard({
 
       <div className="min-h-2 flex-1 sm:min-h-7" aria-hidden />
 
-      <button
-        type="button"
-        onClick={() => onSelect(plan)}
-        disabled={disabled}
+      <div
+        aria-hidden
         className={[
-          "inline-flex min-h-11 w-full items-center justify-center gap-1.5 rounded-xl px-2 py-2 text-xs font-semibold outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-65 motion-safe:transition-all motion-safe:duration-200 sm:gap-2 sm:px-4 sm:py-2.5 sm:text-sm",
+          "inline-flex min-h-11 w-full items-center justify-center gap-1 rounded-xl px-2 py-2 text-xs font-semibold motion-safe:transition-all motion-safe:duration-200 sm:gap-2 sm:px-4 sm:py-2.5 sm:text-sm",
           recommended
-            ? "bg-indigo-600 text-white shadow-sm shadow-indigo-500/20 motion-safe:hover:bg-indigo-700 motion-safe:hover:shadow-md motion-safe:hover:shadow-indigo-500/25"
-            : "border border-zinc-200 bg-white text-zinc-800 motion-safe:hover:border-indigo-300 motion-safe:hover:bg-indigo-50/50 motion-safe:hover:text-indigo-700",
+            ? "bg-indigo-600 text-white shadow-sm shadow-indigo-500/20 motion-safe:group-hover:bg-indigo-700 motion-safe:group-hover:shadow-md motion-safe:group-hover:shadow-indigo-500/25"
+            : "border border-zinc-200 bg-white text-zinc-800 motion-safe:group-hover:border-indigo-300 motion-safe:group-hover:bg-indigo-50/50 motion-safe:group-hover:text-indigo-700",
         ].join(" ")}
       >
-        <span>{loading ? "Переходим к оплате…" : plan.ctaLabel}</span>
-        <span className="motion-safe:transition-transform motion-safe:duration-200 motion-safe:group-hover:translate-x-0.5">
+        <span className="truncate">{loading ? "Переходим к оплате…" : plan.ctaLabel}</span>
+        <span className="shrink-0 motion-safe:transition-transform motion-safe:duration-200 motion-safe:group-hover:translate-x-0.5">
           <ArrowIcon />
         </span>
-      </button>
+      </div>
     </article>
   );
 }
@@ -194,7 +263,7 @@ export function PricingCards({
     if (checkoutInFlightRef.current) return;
     const plan = PRICING_PLANS.find((item) => item.id === pending.planId);
     if (!plan) {
-      sessionStorage.removeItem(PENDING_CHECKOUT_KEY);
+      clearPendingCheckout();
       setCheckout({ kind: "error", message: "Выбранный пакет не найден" });
       return;
     }
@@ -219,11 +288,17 @@ export function PricingCards({
       const payload = (await response.json().catch(() => null)) as
         | { confirmationUrl?: string; message?: string }
         | null;
+      if (response.status === 401) {
+        checkoutInFlightRef.current = false;
+        setCheckout({ kind: "idle" });
+        openAuthModal();
+        return;
+      }
       if (!response.ok || !payload?.confirmationUrl) {
         throw new Error(payload?.message || "Не удалось создать оплату");
       }
 
-      sessionStorage.removeItem(PENDING_CHECKOUT_KEY);
+      clearPendingCheckout();
       reachYandexMetrikaGoal(YM_GOAL_YOOKASSA_CHECKOUT_REDIRECT, {
         plan_id: plan.id,
       });
@@ -238,50 +313,43 @@ export function PricingCards({
             : "Не удалось создать оплату. Попробуйте ещё раз.",
       });
     }
-  }, []);
+  }, [openAuthModal]);
 
   const selectPlan = useCallback(
     (plan: PricingPlan) => {
       if (checkoutInFlightRef.current) return;
-      const pending: PendingCheckout = {
-        planId: plan.id,
-        checkoutAttemptId: crypto.randomUUID(),
-      };
-      sessionStorage.setItem(PENDING_CHECKOUT_KEY, JSON.stringify(pending));
-      if (!user || user.is_anonymous === true) {
+      // Auth first — do not depend on storage / UUID side effects.
+      if (needsCheckoutAuth(user)) {
+        const pending: PendingCheckout = {
+          planId: plan.id,
+          checkoutAttemptId: createCheckoutAttemptId(),
+        };
+        savePendingCheckout(pending);
         openAuthModal();
         return;
       }
+      const pending: PendingCheckout = {
+        planId: plan.id,
+        checkoutAttemptId: createCheckoutAttemptId(),
+      };
+      savePendingCheckout(pending);
       void createCheckout(pending);
     },
     [createCheckout, openAuthModal, user],
   );
 
   useEffect(() => {
-    if (authLoading || !user || user.is_anonymous === true) return;
-    const raw = sessionStorage.getItem(PENDING_CHECKOUT_KEY);
-    if (!raw) return;
-    try {
-      const pending = JSON.parse(raw) as Partial<PendingCheckout>;
-      if (
-        typeof pending.planId === "string" &&
-        typeof pending.checkoutAttemptId === "string" &&
-        PAYMENT_ID_PATTERN.test(pending.checkoutAttemptId)
-      ) {
-        void createCheckout(pending as PendingCheckout);
-      } else {
-        sessionStorage.removeItem(PENDING_CHECKOUT_KEY);
-      }
-    } catch {
-      sessionStorage.removeItem(PENDING_CHECKOUT_KEY);
-    }
+    if (authLoading || needsCheckoutAuth(user)) return;
+    const pending = readPendingCheckout();
+    if (!pending) return;
+    void createCheckout(pending);
   }, [authLoading, createCheckout, user]);
 
   useEffect(() => {
     const paymentId = new URL(window.location.href).searchParams.get("payment");
     if (!paymentId || !PAYMENT_ID_PATTERN.test(paymentId)) return;
     if (authLoading) return;
-    if (!user || user.is_anonymous === true) {
+    if (needsCheckoutAuth(user)) {
       setCheckout({
         kind: "error",
         message: "Войдите в аккаунт, чтобы проверить оплату",
@@ -306,10 +374,7 @@ export function PricingCards({
           | null;
         if (!response.ok) {
           if (response.status === 401) {
-            setCheckout({
-              kind: "error",
-              message: "Войдите в аккаунт, чтобы проверить оплату",
-            });
+            setCheckout({ kind: "idle" });
             openAuthModal();
             return;
           }
@@ -370,7 +435,7 @@ export function PricingCards({
 
   return (
     <>
-      <div className="mx-auto grid h-full w-full grid-cols-2 grid-rows-2 items-stretch gap-2 sm:max-w-none sm:gap-4 lg:h-auto lg:grid-rows-none lg:gap-5 xl:grid-cols-4">
+      <div className="mx-auto grid w-full grid-cols-2 items-stretch gap-x-2 gap-y-4 pt-1 sm:max-w-none sm:gap-4 sm:pt-0 lg:gap-5 xl:grid-cols-4">
         {PRICING_PLANS.map((plan, index) => (
           <PlanCard
             key={plan.id}
@@ -386,7 +451,7 @@ export function PricingCards({
       {checkout.kind !== "idle" && checkout.kind !== "creating" ? (
         <div
           className={[
-            "fixed bottom-20 left-1/2 z-[90] w-[min(92vw,34rem)] -translate-x-1/2 animate-scale-in rounded-2xl border bg-white/95 px-5 py-3 text-center text-sm font-medium shadow-xl backdrop-blur-xl lg:bottom-6",
+            "fixed bottom-[calc(3.5rem+0.75rem+max(0px,env(safe-area-inset-bottom,0px)))] left-1/2 z-[90] w-[min(92vw,34rem)] -translate-x-1/2 animate-scale-in rounded-2xl border bg-white/95 px-5 py-3 text-center text-sm font-medium shadow-xl backdrop-blur-xl lg:bottom-6",
             checkout.kind === "success"
               ? "border-emerald-200 text-emerald-800"
               : checkout.kind === "error"

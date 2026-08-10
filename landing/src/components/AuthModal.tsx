@@ -10,7 +10,7 @@ export function AuthModal() {
   if (!showAuthModal) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center">
+    <div className="fixed inset-0 z-[220] flex items-center justify-center">
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/50 backdrop-blur-sm"
@@ -37,7 +37,7 @@ export function AuthModal() {
           </div>
           <h2 className="text-lg font-semibold text-zinc-900">Войти в PromptShot</h2>
           <p className="mt-1 text-sm text-zinc-500">
-            Чтобы ставить лайки и сохранять промпты
+            Войдите, чтобы продолжить — лайки, сохранения и покупка токенов
           </p>
         </div>
 
