@@ -1,8 +1,10 @@
 # 01 — Лендинг (promptshot.ru)
 
-> Последнее обновление: 2026-08-10 (**admin payment/user generation operations:** `/admin/payments` показывает server-only YooKassa ledger с payer identity, provider/local status и независимым состоянием credit fulfillment. В `/admin/analyze-history` добавлен cursor-list всех non-admin `landing_generations` со статусами, короткими signed source previews и модераторской публикацией completed results. Миграция `178` добавляет service-role read RPC и индексы.)
+> Последнее обновление: 2026-08-10 (**OAuth return path + pricing UX:** `AuthModal` редиректит на `/auth/callback?next=<path>`; после логина возврат на исходную страницу. Pricing: legal footer без акцента (`mt-auto`), клик по всей карточке тарифа, auth на CTA.)
 >
 > Предыдущее обновление: 2026-08-10 (**paid generation CTA + credit costs:** inline generator читает текущий баланс через `/api/me` и при `0` кредитов заменяет действия, создающие generation job, на «Пополнить баланс» → `/pricing`; balance refresh event синхронизирует панель после списания/refund. Миграция `177` устанавливает стоимость Nano Banana / Nano Banana 2 Lite = 5 кредитов, Nano Banana PRO / Nano Banana 2 = 10 кредитов; API fallbacks используют те же значения.)
+>
+> Предыдущее обновление: 2026-08-10 (**admin payment/user generation operations:** `/admin/payments` показывает server-only YooKassa ledger с payer identity, provider/local status и независимым состоянием credit fulfillment. В `/admin/analyze-history` добавлен cursor-list всех non-admin `landing_generations` со статусами, короткими signed source previews и модераторской публикацией completed results. Миграция `178` добавляет service-role read RPC и индексы.)
 >
 > Предыдущее обновление: 2026-08-09 (**YooKassa checkout:** `/pricing` создаёт одностадийный redirect-платёж в RUB; подтверждённый через provider GET webhook атомарно и идемпотентно начисляет токены в `landing_users.credits`. Для СМЗ чеки регистрируются вручную в «Мой налог».)
 >
@@ -11,6 +13,8 @@
 > Дополнение 2026-08-08 (**PromptShot admin/analyze migration, code complete — rollout pending:** `/foto-v-promt` переведён на same-origin `/api/extension/analyze`; добавлены Supabase Auth + `ANALYTICS_ADMIN_EMAILS` gated `/admin/analytics`, `/admin/analyze-history` и `/api/admin/*`; analyze использует атомарный reserve/confirm/release rate limit и приватную 30-дневную history. Admin generation переиспользует durable worker queue, а публикация analyze/generation идемпотентно создаёт `prompt_cards` и запускает общий SEO tagging. Extension Lite и remix остаются на `imageprompt.tools`. SQL `175` и production deploy этим изменением документации не применялись.)
 >
 > Дополнение 2026-08-08 (**auth-scoped generation preferences + Nano Banana 2 Lite:** миграция `173` добавляет `landing_generation_preferences` с последними model / aspect ratio / image size / выбранными photo IDs. Inline compose восстанавливает настройки для auth-пользователя на любом браузере и обновляет их с debounce; если сохранённых доступных фото нет, выбирается самое свежее. Глобальные defaults: Nano Banana (`gemini-2.5-flash-image`) и `9:16`. В models config добавлен официальный stable ID Nano Banana 2 Lite — `gemini-3.1-flash-lite-image`; актуальная стоимость моделей задаётся последующими миграциями.)
+>
+> Дополнение 2026-08-08 (**sticky percentage rollout prompt-card generation:** миграция `174` добавляет `landing_feature_rollouts` (глобальный `enabled` + `rollout_bps`) и `landing_user_feature_assignments` (стабильный bucket auth-пользователя). Анонимный bucket вычисляется по годовой HttpOnly-cookie `promptshot_vid`, а при первом login атомарно закрепляется за `auth.users.id`. Единый server resolver управляет inline generation, prompt remix, балансом и `/pricing`; `POST /api/generate` повторно проверяет rollout для `generationSurface=prompt_card`. При нуле кредитов генерация блокируется и ведёт на preview тарифов; checkout пока не создаётся.)
 >
 > Дополнение 2026-08-08 (**sticky percentage rollout prompt-card generation:** миграция `174` добавляет `landing_feature_rollouts` (глобальный `enabled` + `rollout_bps`) и `landing_user_feature_assignments` (стабильный bucket auth-пользователя). Анонимный bucket вычисляется по годовой HttpOnly-cookie `promptshot_vid`, а при первом login атомарно закрепляется за `auth.users.id`. Единый server resolver управляет inline generation, prompt remix, балансом и `/pricing`; `POST /api/generate` повторно проверяет rollout для `generationSurface=prompt_card`. При нуле кредитов генерация блокируется и ведёт на preview тарифов; checkout пока не создаётся.)
 >
@@ -97,7 +101,7 @@
 /admin/analytics        → Закрытый analytics dashboard и admin generation modal; Supabase Auth + email allowlist `ANALYTICS_ADMIN_EMAILS`
 /admin/analyze-history  → Закрытая история analyze + все non-admin user generations; private source previews выдаются signed, completed results публикуются идемпотентно
 /admin/payments         → Закрытый cursor-реестр YooKassa: payer identity, RUB/status/test, ожидаемые credits и факт `credited_at`
-/auth/callback          → OAuth callback (server-side)
+/auth/callback          → OAuth callback (server-side); `?next=` возвращает на страницу старта логина
 /embed/stv              → Steal This Vibe (клиент подгружает `/stv-panel/boot.mjs` + `styles.css`; та же логика, что side panel расширения)
 /extension-stv          → Превью маркетингового лендинга расширения (спека `docs/extension-landing-pain-hope-solution.md`); **`metadata.title` / `description`** — SEO; `metadata.robots` noindex; шапка **`ExtensionStvMarketingHeader`** (логотип + «Image to prompt» → `/extension-stv`, **Pricing** → `/extension-stv/pricing`, Chrome Web Store); FAB **`ExtensionStvFloatingCta`**. Порядок секций: hero (H1 + лид + `ExtensionStvChromeBadge`) → pain + **Reference** (`PainReferenceVsDraftMock`) → **Accuracy** (`ExtensionStvAccuracySection`) → **Testimonials** → **How it works** (`ExtensionStvHowItWorks`, 4 шага) → **FAQ** (`ExtensionStvFaq`). Футер **`ExtensionStvMarketingFooter`**. Блок **Reference**: upload → extract → expand. Общие константы: `landing/src/components/extension-stv/stv-marketing-shared.ts`.
 /extension-stv/pricing  → Только тарифы: **`ExtensionStvPricing`** ($0 / $14.99/mo), та же шапка/футер/FAB, ссылка «← Image to prompt»; `metadata.robots` noindex.
@@ -341,6 +345,7 @@ admin pages
 ### Покупка токенов через YooKassa (`/pricing`)
 
 - **Сценарий:** «Умный платёж» с `confirmation.type=redirect` и `capture=true`. PromptShot не собирает реквизиты карты: клиент получает `confirmation_url` и уходит на hosted-страницу YooKassa.
+- **Mobile UI:** страница живёт в общем listing shell (`Header` + `listing-scroll-root` + `MobileTabBar`). Main на max-lg имеет `min-h` = высота над tab bar; legal footer (`mt-auto`, без border/blur) при достаточном месте сидит внизу, иначе скроллится вместе с карточками. Карточки — 2×2 до `xl`, клик по всей карточке.
 - **Каталог:** `landing/src/lib/pricing-plans.ts` — единый server-safe источник `plan_id`, RUB-цены и числа токенов. API никогда не принимает цену/credits от клиента.
 - **Auth/identity:** checkout требует Google/Yandex OAuth. Операция хранит исходный `auth_user_id`, а баланс начисляется на shared `landing_user_id`, полученный через `ensureLandingUserForGeneration`.
 - **Ledger:** `landing_yookassa_payments` (миграция `176`) фиксирует план, сумму, credits, idempotency key, provider ID/status и `credited_at`; RLS включён без client policies.
@@ -381,15 +386,19 @@ admin pages
 **Flow (Google и Yandex — одинаковый в коде):**
 
 ```
-AuthModal → signInWithOAuth(redirectTo: текущая страница)
+AuthModal → signInWithOAuth(redirectTo: /auth/callback?next=<path>)
+  → remember path (sessionStorage + cookie ps_auth_next)
   → Supabase /auth/v1/authorize → IdP → /auth/v1/callback
-  → promptshot.ru/…?code=… → AuthProvider.exchangeCodeForSession()
+  → promptshot.ru/auth/callback?code=…&next=/pricing?test=true
+  → exchangeCodeForSession → redirect на next
 ```
 
-- Хелпер: `landing/src/lib/auth-oauth.ts` (`getOAuthReturnUrl`, `signInWithOAuthProvider`).
+Fallback: если `code` пришёл на произвольную страницу, `AuthProvider` делает client `exchangeCodeForSession` и при наличии сохранённого return path уводит туда.
+
+- Хелпер: `landing/src/lib/auth-oauth.ts` + `auth-return-path.ts` (`getOAuthCallbackUrl`, `signInWithOAuthProvider`, sanitize `next`).
 - **Кнопка Яндекс ID:** официальный виджет [конструктора YaAuthSuggest](https://yandex.ru/dev/id/doc/ru/suggest/but-const) — `YandexAuthSuggestButton` (`sdk-suggest-with-polyfills-latest.js`; `YANDEX_AUTH_SUGGEST_BUTTON_PARAMS`: `buttonView: main`, `buttonSize: xxl`, `buttonTheme: light`, `buttonBorderRadius: 22`, `buttonIcon: ya`); клик перенаправляется в Supabase OAuth (`custom:yandex`), не в suggest-token flow. Env: `NEXT_PUBLIC_YANDEX_OAUTH_CLIENT_ID` (публичный client_id из oauth.yandex.ru) — в **Docker build** (`landing/Dockerfile` ARG) и/или runtime env лендинга; если в клиентском бандле пусто, `client_id` подтягивается из `GET /api/public-config`.
-- `/auth/callback` (Next.js) модалкой **не** используется — только extension/STV.
-- **Self-hosted auth:** GoTrue **≥ v2.187.0**, `GOTRUE_CUSTOM_OAUTH_ENABLED=true`, `GOTRUE_SITE_URL=https://promptshot.ru`, `GOTRUE_URI_ALLOW_LIST=https://promptshot.ru/**`.
+- `/auth/callback` (Next.js) — основной return URL модалки; `next` обязан быть same-origin relative path.
+- **Self-hosted auth:** GoTrue **≥ v2.187.0**, `GOTRUE_CUSTOM_OAUTH_ENABLED=true`, `GOTRUE_SITE_URL=https://promptshot.ru`, `GOTRUE_URI_ALLOW_LIST=https://promptshot.ru/**` (должен включать `/auth/callback`).
 - **Yandex OAuth app** (отдельно от API Метрики): Redirect URI `https://<NEXT_PUBLIC_SUPABASE_HOST>/auth/v1/callback`, scopes `login:info login:email login:avatar`.
 - **Userinfo adapter (обязательно):** GoTrue custom OAuth читает claim `email`, Яндекс отдаёт `default_email` + заголовок `Authorization: OAuth` (не `Bearer`). `attribute_mapping` в Admin API **не спасает** — поле теряется при разборе JSON в GoTrue. Поэтому в custom provider `userinfo_url` = `https://promptshot.ru/api/auth/yandex-userinfo` (`yandex-userinfo-proxy.ts`: JSON → при отсутствии email JWT `format=jwt` → fallback `{login}@yandex.ru`; ответ `{ sub, id, email, … }`). Повторный вход без `login:email` в токене иначе даёт auth log `422 yandex_email_missing` → `Error getting user profile from external provider`. Fallback co-host: `src/standalone/yandex-userinfo-proxy.mjs` + Kong `/yandex-userinfo`.
 - **Self-hosted auth env:** на auth-сервисе `API_EXTERNAL_URL` должен быть `https://<SUPABASE_HOST>/auth/v1` (не `$SUPABASE_PUBLIC_URL` без `/auth/v1`), иначе custom:yandex шлёт `redirect_uri=…/callback` → Kong 401.

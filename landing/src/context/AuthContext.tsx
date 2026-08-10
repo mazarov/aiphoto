@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from "react";
 import { createSupabaseBrowser } from "@/lib/supabase-browser";
+import { consumeAuthReturnPath } from "@/lib/auth-oauth";
 import type { User } from "@supabase/supabase-js";
 
 type AuthContextType = {
@@ -46,25 +47,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const url = new URL(window.location.href);
       const code = url.searchParams.get("code");
 
-      // Complete OAuth on the client to ensure browser session cookies are set.
+      // Complete OAuth on the client when the provider returned `code` on this page
+      // (fallback if `/auth/callback` was not used). Prefer returning to the page
+      // that opened the auth modal.
       if (code && !handledAuthCodeRef.current) {
         handledAuthCodeRef.current = true;
         const { error } = await supabase.auth.exchangeCodeForSession(code);
         if (error) {
           console.error("Client OAuth exchange failed:", error.message);
         }
-        // Always clean auth params from URL to avoid repeated exchange attempts.
+        const returnPath = consumeAuthReturnPath();
         const cleanUrl = new URL(window.location.href);
         cleanUrl.searchParams.delete("code");
         cleanUrl.searchParams.delete("state");
         cleanUrl.searchParams.delete("error");
         cleanUrl.searchParams.delete("error_code");
         cleanUrl.searchParams.delete("error_description");
-        window.history.replaceState(
-          {},
-          "",
-          `${cleanUrl.pathname}${cleanUrl.search}${cleanUrl.hash}`
-        );
+        const cleaned =
+          `${cleanUrl.pathname}${cleanUrl.search}${cleanUrl.hash}` || "/";
+        if (returnPath && returnPath !== cleaned) {
+          window.location.replace(returnPath);
+          return;
+        }
+        window.history.replaceState({}, "", cleaned);
       }
 
       const { data: { user } } = await supabase.auth.getUser();
@@ -77,9 +82,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
+      const nextUser = session?.user ?? null;
+      setUser(nextUser);
       setLoading(false);
-      if (session?.user) setShowAuthModal(false);
+      // Anonymous sessions still need the login modal for checkout / likes.
+      if (nextUser && nextUser.is_anonymous !== true) {
+        setShowAuthModal(false);
+      }
     });
 
     return () => subscription.unsubscribe();

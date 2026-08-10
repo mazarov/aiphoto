@@ -1,5 +1,10 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import {
+  AUTH_RETURN_COOKIE,
+  appendAuthError,
+  sanitizeAuthReturnPath,
+} from "@/lib/auth-return-path";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -17,12 +22,32 @@ function getSiteOrigin(request: NextRequest): string {
   return process.env.NEXT_PUBLIC_SITE_URL ?? new URL(request.url).origin;
 }
 
+function resolveNextPath(request: NextRequest): string {
+  const url = new URL(request.url);
+  if (url.searchParams.has("next")) {
+    return sanitizeAuthReturnPath(url.searchParams.get("next"));
+  }
+
+  const rawCookie = request.cookies.get(AUTH_RETURN_COOKIE)?.value;
+  if (!rawCookie) return "/";
+  try {
+    return sanitizeAuthReturnPath(decodeURIComponent(rawCookie));
+  } catch {
+    return sanitizeAuthReturnPath(rawCookie);
+  }
+}
+
 function redirectNoStore(url: string): NextResponse {
   const response = NextResponse.redirect(url);
   response.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, private, max-age=0");
   response.headers.set("Pragma", "no-cache");
   response.headers.set("Expires", "0");
   response.headers.set("Vary", "Cookie");
+  response.cookies.set(AUTH_RETURN_COOKIE, "", {
+    path: "/",
+    maxAge: 0,
+    sameSite: "lax",
+  });
   return response;
 }
 
@@ -30,9 +55,8 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const origin = getSiteOrigin(request);
   const code = searchParams.get("code");
-  const next = searchParams.get("next") ?? "/";
+  const next = resolveNextPath(request);
   const successRedirectUrl = `${origin}${next}`;
-  const noCodeRedirectUrl = `${origin}/?auth_error=no_code`;
 
   if (code) {
     // Keep response mutable so Supabase can attach Set-Cookie headers directly.
@@ -75,9 +99,9 @@ export async function GET(request: NextRequest) {
     }
     console.error("Auth callback exchangeCodeForSession failed:", error.message);
     return redirectNoStore(
-      `${origin}/?auth_error=${encodeURIComponent(error.message)}`
+      `${origin}${appendAuthError(next, error.message)}`
     );
   }
 
-  return redirectNoStore(noCodeRedirectUrl);
+  return redirectNoStore(`${origin}${appendAuthError(next, "no_code")}`);
 }

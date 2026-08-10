@@ -137,7 +137,7 @@ function UserMenu() {
     );
   }
 
-  if (!user) {
+  if (!user || user.is_anonymous === true) {
     return (
       <ListingChromeButton variant="pill" onClick={openAuthModal}>
         Войти
