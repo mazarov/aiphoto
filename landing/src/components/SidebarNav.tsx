@@ -12,6 +12,7 @@ import { getAiImageDescriberChromeUrl } from "@/lib/foto-v-promt-config";
 import { trackDesktopSidebarAddToChromeClick } from "@/lib/yandex-metrika";
 import { isSameNavPath, scrollCatalogToTop } from "@/lib/scroll-preservation";
 import { ChromeMark } from "./foto-v-promt/ChromeMark";
+import { SidebarAccountPanel } from "./AccountControls";
 
 function enrichMenuWithCounts(
   menu: MenuSectionWithCounts[],
@@ -385,14 +386,17 @@ export function SidebarNav({ menu }: { menu: MenuSectionWithCounts[] }) {
     <>
       {/* Desktop sidebar */}
       <aside className="hidden w-72 flex-shrink-0 lg:block">
-        <div className="sticky top-[57px] h-[calc(100vh-57px)] overflow-y-auto border-r border-zinc-100 bg-white">
-          <SidebarContent
-            menu={enrichedMenu}
-            pathname={normalizedPath}
-            expandedIdx={expandedIdx}
-            onToggle={handleToggle}
-            showGenerateCta={showGenerateCta}
-          />
+        <div className="sticky top-0 flex h-screen flex-col border-r border-zinc-100 bg-white">
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+            <SidebarContent
+              menu={enrichedMenu}
+              pathname={normalizedPath}
+              expandedIdx={expandedIdx}
+              onToggle={handleToggle}
+              showGenerateCta={showGenerateCta}
+            />
+          </div>
+          <SidebarAccountPanel />
         </div>
       </aside>
 

@@ -15,17 +15,20 @@ function SidebarSkeleton() {
 export default function ListingLoading() {
   return (
     <>
-      {/* Header skeleton */}
-      <div className="sticky top-0 z-40 flex h-[57px] items-center justify-between border-b border-zinc-100 bg-white px-5">
+      {/* Mobile header skeleton */}
+      <div className="sticky top-0 z-40 flex h-[57px] items-center justify-between border-b border-zinc-100 bg-white px-5 lg:hidden">
         <div className="h-7 w-28 animate-pulse rounded-lg bg-zinc-100" />
         <div className="hidden h-9 w-80 animate-pulse rounded-xl bg-zinc-50 lg:block" />
         <div className="h-8 w-8 animate-pulse rounded-full bg-zinc-100" />
       </div>
 
-      <div className="flex min-h-[calc(100vh-57px)]">
+      <div className="flex min-h-[calc(100vh-57px)] lg:min-h-screen">
         <SidebarSkeleton />
 
         <div className="flex min-w-0 flex-1 flex-col">
+          <div className="hidden justify-center pt-4 lg:flex">
+            <div className="h-7 w-32 animate-pulse rounded-lg bg-zinc-100" />
+          </div>
           {/* Hero skeleton */}
           <div className="border-b border-zinc-100 bg-gradient-to-b from-zinc-50 to-white px-5 pt-10 pb-8">
             <div className="mb-4 flex items-center gap-2">

@@ -45,7 +45,7 @@ export default async function PricingPage({ searchParams }: PricingPageProps) {
 
   return (
     <PageLayout>
-      <main className="relative isolate flex flex-1 flex-col bg-white max-lg:min-h-[calc(100dvh-var(--ps-header-height,57px)-3.5rem-max(0px,env(safe-area-inset-bottom,0px)))] lg:min-h-[calc(100vh-57px)]">
+      <main className="relative isolate flex flex-1 flex-col bg-white max-lg:min-h-[calc(100dvh-var(--ps-header-height,57px)-3.5rem-max(0px,env(safe-area-inset-bottom,0px)))] lg:min-h-screen">
         <div
           className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[440px] bg-[radial-gradient(ellipse_68%_66%_at_50%_0%,rgba(99,102,241,0.11),rgba(139,92,246,0.035)_44%,transparent_76%)]"
           aria-hidden

@@ -2,6 +2,7 @@ import { applyCountsToMenu } from "@/lib/menu";
 import { Footer } from "./Footer";
 import { HeaderClient } from "./HeaderClient";
 import { SidebarNav } from "./SidebarNav";
+import { SiteBrandLink } from "./SiteBrandLink";
 
 const CARD_MENU = applyCountsToMenu({});
 
@@ -38,11 +39,14 @@ export function CardPageLayout({
       <div className="max-md:hidden">
         <HeaderClient />
       </div>
-      <div className="flex min-h-[calc(100vh-57px)] min-h-0 flex-1 max-md:flex-1">
+      <div className="flex min-h-0 flex-1 max-md:flex-1 md:min-h-[calc(100vh-var(--ps-header-height,57px))] lg:min-h-screen">
         <div className="max-lg:hidden">
           <SidebarNav menu={CARD_MENU} />
         </div>
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          <div className="hidden shrink-0 justify-center pt-4 lg:flex">
+            <SiteBrandLink />
+          </div>
           {children}
           <div className="mt-auto max-md:hidden">
             <Footer />

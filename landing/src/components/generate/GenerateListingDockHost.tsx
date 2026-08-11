@@ -155,8 +155,8 @@ export function GenerateListingDockHost() {
       : // Full viewport above tab bar (z-40) and listing nav/header.
         "pointer-events-none fixed inset-0 z-[122] flex flex-col"
     : dockTall
-      ? "pointer-events-none fixed inset-x-0 bottom-0 top-[calc(var(--ps-header-height,57px)+0.75rem)] z-[52] flex flex-col px-3 pb-4 pt-2 lg:left-60 lg:px-5"
-      : "pointer-events-none fixed inset-x-0 bottom-0 z-[52] px-3 pb-4 pt-2 lg:left-60 lg:px-5";
+      ? "pointer-events-none fixed inset-x-0 bottom-0 top-[calc(var(--ps-header-height,57px)+0.75rem)] z-[52] flex flex-col px-3 pb-4 pt-2 lg:left-72 lg:top-3 lg:px-5"
+      : "pointer-events-none fixed inset-x-0 bottom-0 z-[52] px-3 pb-4 pt-2 lg:left-72 lg:px-5";
 
   return (
     <>
@@ -164,14 +164,14 @@ export function GenerateListingDockHost() {
         <button
           type="button"
           aria-label="Закрыть"
-          className={`${OVERLAY_BUTTON_UA_RESET} fixed inset-0 z-[51] bg-black/55 backdrop-blur-[2px] lg:left-60`}
+          className={`${OVERLAY_BUTTON_UA_RESET} fixed inset-0 z-[51] bg-black/55 backdrop-blur-[2px] lg:left-72`}
           onClick={closePlate}
         />
       ) : !collapsed && editorOpen && !isMobile ? (
         <button
           type="button"
           aria-label="Свернуть редактор"
-          className={`${OVERLAY_BUTTON_UA_RESET} fixed inset-0 z-[51] bg-black/35 backdrop-blur-[1px] lg:left-60`}
+          className={`${OVERLAY_BUTTON_UA_RESET} fixed inset-0 z-[51] bg-black/35 backdrop-blur-[1px] lg:left-72`}
           onClick={() => setDockSurface(null)}
         />
       ) : null}

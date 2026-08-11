@@ -1487,7 +1487,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
 
           {hasPrompts && (
             <div
-              className={`pointer-events-none fixed inset-x-0 bottom-0 z-[240] safe-area-pb${isModal ? "" : " lg:left-60"}`}
+              className={`pointer-events-none fixed inset-x-0 bottom-0 z-[240] safe-area-pb${isModal ? "" : " lg:left-72"}`}
             >
               <div className="pointer-events-auto mx-auto w-full max-w-2xl px-5 py-4">
                 <div className={LISTING_STICKY_ACTIONS_GRID}>

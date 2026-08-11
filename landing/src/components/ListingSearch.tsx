@@ -188,7 +188,7 @@ function ListingSearchHeader() {
   if (!onSearchPage || urlQuery.length < MIN_QUERY) return null;
 
   return (
-    <div className="pointer-events-none fixed inset-x-0 top-[var(--ps-header-height,57px)] z-30 hidden px-5 py-3 lg:block lg:left-60">
+    <div className="pointer-events-none fixed inset-x-0 top-0 z-30 hidden px-5 py-3 lg:left-72 lg:block lg:pl-44">
       <div className="pointer-events-auto mx-auto w-full max-w-3xl">
         <ListingSearchField
           value={query}

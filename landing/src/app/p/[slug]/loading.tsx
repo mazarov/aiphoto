@@ -1,6 +1,6 @@
 function SidebarSkeleton() {
   return (
-    <aside className="hidden w-72 flex-shrink-0 border-r border-zinc-100 md:block">
+    <aside className="hidden w-72 flex-shrink-0 border-r border-zinc-100 lg:block">
       <div className="space-y-3 px-4 py-5">
         <div className="h-8 w-28 animate-pulse rounded-xl bg-zinc-100" />
         <div className="h-px bg-zinc-100" />
@@ -31,16 +31,19 @@ export default function CardLoading() {
 
       {/* Планшет / десктоп — приближаемся к финальному layout с сайдбаром */}
       <div className="hidden md:block" aria-busy="true" aria-label="Загрузка карточки">
-        <div className="sticky top-0 z-40 flex h-[57px] items-center justify-between border-b border-zinc-100 bg-white px-5">
+        <div className="sticky top-0 z-40 flex h-[57px] items-center justify-between border-b border-zinc-100 bg-white px-5 lg:hidden">
           <div className="h-7 w-28 animate-pulse rounded-lg bg-zinc-100" />
           <div className="hidden h-9 w-80 animate-pulse rounded-xl bg-zinc-50 lg:block" />
           <div className="h-8 w-8 animate-pulse rounded-full bg-zinc-100" />
         </div>
 
-        <div className="flex min-h-[calc(100vh-57px)]">
+        <div className="flex min-h-[calc(100vh-57px)] lg:min-h-screen">
           <SidebarSkeleton />
 
           <div className="flex min-w-0 flex-1 flex-col">
+            <div className="hidden justify-center pt-4 lg:flex">
+              <div className="h-7 w-32 animate-pulse rounded-lg bg-zinc-100" />
+            </div>
             <main className="mx-auto w-full max-w-2xl flex-1 px-5 py-8">
               <div className="mb-6 hidden items-center gap-2 sm:flex">
                 <div className="h-4 w-16 animate-pulse rounded bg-zinc-200" />

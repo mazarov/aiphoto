@@ -7,8 +7,8 @@ import { LISTING_SCROLL_ROOT_ID } from "@/lib/scroll-preservation";
 type Attach = "grid" | "hero";
 
 const WRAPPER_CLASS: Record<Attach, string> = {
-  grid: "sticky z-30 -mx-2 mb-0 contain-layout max-lg:top-0 sm:-mx-5 lg:top-[var(--ps-header-height,57px)] [transition:none] motion-reduce:transition-none",
-  hero: "sticky z-30 mb-0 contain-layout max-lg:top-0 lg:top-[var(--ps-header-height,57px)] [transition:none] motion-reduce:transition-none",
+  grid: "sticky top-0 z-30 -mx-2 mb-0 contain-layout sm:-mx-5 [transition:none] motion-reduce:transition-none",
+  hero: "sticky top-0 z-30 mb-0 contain-layout [transition:none] motion-reduce:transition-none",
 };
 
 /**

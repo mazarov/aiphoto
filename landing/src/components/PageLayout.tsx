@@ -20,6 +20,7 @@ import { Footer } from "./Footer";
 import { ListingBottomBar } from "./ListingBottomBar";
 import { MobileTabBar } from "./MobileTabBar";
 import { ListingSearch } from "./ListingSearch";
+import { SiteBrandLink } from "./SiteBrandLink";
 
 const MENU_STRUCTURE = applyCountsToMenu({});
 
@@ -53,6 +54,7 @@ export function PageLayout({
       document.documentElement.classList.toggle("listing-mobile-shell", mq.matches);
       if (!mq.matches) {
         document.documentElement.style.removeProperty("--ps-listing-shell-height");
+        document.documentElement.style.removeProperty("--ps-header-height");
       }
     };
     sync();
@@ -76,9 +78,12 @@ export function PageLayout({
               : "max-lg:pb-[calc(3.5rem+max(0px,env(safe-area-inset-bottom,0px)))]"
           }`}
         >
-          <div className="flex min-h-0 lg:min-h-[calc(100vh-57px)]">
+          <div className="flex min-h-0 lg:min-h-screen">
             <SidebarNav menu={MENU_STRUCTURE} />
             <div className="flex min-w-0 flex-1 flex-col">
+              <div className="hidden shrink-0 justify-center pt-4 lg:flex">
+                <SiteBrandLink />
+              </div>
               {children}
               {/* Floating generate dock fights footer on listing routes */}
               {showGenerateDock || normalizePath(pathname) === "/generate" ? null : (
