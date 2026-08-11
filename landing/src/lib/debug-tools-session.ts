@@ -1,4 +1,5 @@
-const FILTER_STATE_KEY = "promptshot_debug_filters";
+/** v2: default published=yes (same listing as users); v1 forced published=all → search-cards. */
+const FILTER_STATE_KEY = "promptshot_admin_filters_v2";
 const TECH_INFO_KEY = "promptshot_admin_tech_info";
 
 export type DebugFilterState = {

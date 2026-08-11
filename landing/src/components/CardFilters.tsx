@@ -75,9 +75,9 @@ const DEFAULT_FILTERS: Filters = {
   dataset: "",
 };
 
+/** Same defaults as public listing; admin opts into published=all via the panel. */
 const DEFAULT_DEBUG_FILTERS: Filters = {
   ...DEFAULT_FILTERS,
-  published: "all",
 };
 
 function isDatasetOnlyFilter(filters: Filters): boolean {
@@ -108,7 +108,7 @@ function readInitialDebugFilters(initialDataset?: string): Filters {
       published:
         saved.published === "yes" || saved.published === "no" || saved.published === "all"
           ? saved.published
-          : "all",
+          : "yes",
       selectedTag: saved.selectedTag,
       hasBefore: saved.hasBefore,
       dataset: initialDataset || saved.dataset,

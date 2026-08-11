@@ -3,10 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import { syncHeaderHeightCssVar } from "@/lib/listing-header-offset";
 import Link from "next/link";
-import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { SiteLogoMark } from "./SiteLogoMark";
 import { ListingChromeButton, ListingMenuIcon } from "./ListingChromeButton";
+import { UserAvatarImage } from "./UserAvatarImage";
 import { useAuth } from "@/context/AuthContext";
 import { useFeatureAccess } from "@/context/FeatureAccessContext";
 import { useListingMobileChromeOptional } from "@/context/ListingMobileChromeContext";
@@ -155,7 +155,7 @@ function UserMenu() {
         aria-haspopup="menu"
       >
         {avatarUrl ? (
-          <Image
+          <UserAvatarImage
             src={avatarUrl}
             alt=""
             width={28}

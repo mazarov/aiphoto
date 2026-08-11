@@ -1,6 +1,10 @@
 # 01 — Лендинг (promptshot.ru)
 
-> Последнее обновление: 2026-08-11 (**sidebar nav:** блок **Инструменты** убран; порядок — **Добавить в Chrome** → [Генерация] → Главная / Тренды / Поиск / **Фото в промт** → accordion-каталог.
+> Последнее обновление: 2026-08-11 (**OAuth avatar hotlink:** `UserAvatarImage` — для `*.googleusercontent.com` / `avatars.yandex.net` `referrerPolicy=no-referrer` + `unoptimized` (Google часто отдаёт 403 с Referer / через `/_next/image`). Header / MobileProfileSheet / author chip на карточке. `next.config` `remotePatterns`: `*.googleusercontent.com`.
+>
+> Предыдущее обновление: 2026-08-11 (**admin listing = user listing:** catalog-admin default `published=yes` (как у пользователей) — без debug-фильтров сетка остаётся на SSR `resolve_route_cards`. Session key `promptshot_admin_filters_v2` сбрасывает старый default `published=all`. `search-cards` только при реальных фильтрах + `sort` с листинга; для корректного ORDER BY в filter-mode нужна миграция **`182`** (пока не применена → fallback `view_count`).
+>
+> Предыдущее обновление: 2026-08-11 (**sidebar nav:** блок **Инструменты** убран; порядок — **Добавить в Chrome** → [Генерация] → Главная / Тренды / Поиск / **Фото в промт** → accordion-каталог.
 >
 > Предыдущее обновление: 2026-08-11 (**sidebar Chrome CTA:** кнопка **«Добавить в Chrome»** (`ChromeMark` + border pill) вынесена на самый верх `SidebarNav`. UTM/Metrika без изменений (`desktop_sidebar`).
 >
@@ -8,7 +12,7 @@
 >
 > Предыдущее обновление: 2026-08-11 (**sidebar tools + trends:** «Новое» → **Тренды** (`/trends`); `301` `/new` → `/trends` в `next.config.ts`. В `SidebarNav` постоянный блок **Инструменты** (без collapse): Chrome-расширение (`utm_content=desktop_sidebar`, Metrika `desktop_sidebar_add_to_chrome_click`) + **Фото в промт**. CTA расширения убран из desktop `HeaderClient`. MobileTabBar / sitemap / generate-dock paths обновлены на `/trends`.
 >
-> Предыдущее обновление: 2026-08-11 (**catalog admin:** `/debug` убран; allowlist-email (`isCatalogAdminEmail` / `INTERNAL_GENERATE_ALLOWLIST`, default `azarov.maxim@gmail.com`) включает admin на всех `FilterableGrid` листингах: панель фильтров, `published=all`, unpublished `/p/[slug]` по auth. Свитч «Тех. информация» (default off) — оверлеи + жёлтая DEBUG-панель. Мутации `set-before` / `debug-delete-card` и unpublished search — только admin.)
+> Предыдущее обновление: 2026-08-11 (**catalog admin:** `/debug` убран; allowlist-email (`isCatalogAdminEmail` / `INTERNAL_GENERATE_ALLOWLIST`, default `azarov.maxim@gmail.com`) включает admin на всех `FilterableGrid` листингах: панель фильтров, unpublished `/p/[slug]` по auth. Свитч «Тех. информация» (default off) — оверлеи + жёлтая DEBUG-панель. Мутации `set-before` / `debug-delete-card` и unpublished search — только admin.)
 >
 > Предыдущее обновление: 2026-08-11 (**prefs persist flush:** `CardInlineGeneratePanel` — immediate PUT при любом выходе из шторки фото/модель (Готово, tile toggle, desktop scrim, switch→prompt) + flush snapshot на unmount (`seedToken` remount больше не глотает debounce). Убран auto-switch на дешёвую модель при нехватке кредитов (он перетирал prefs); unaffordable selection остаётся, CTA → `/pricing`.)
 >
@@ -472,6 +476,7 @@ Fallback: если `code` пришёл на произвольную стран�
 - **Userinfo adapter (обязательно):** GoTrue custom OAuth читает claim `email`, Яндекс отдаёт `default_email` + заголовок `Authorization: OAuth` (не `Bearer`). `attribute_mapping` в Admin API **не спасает** — поле теряется при разборе JSON в GoTrue. Поэтому в custom provider `userinfo_url` = `https://promptshot.ru/api/auth/yandex-userinfo` (`yandex-userinfo-proxy.ts`: JSON → при отсутствии email JWT `format=jwt` → fallback `{login}@yandex.ru`; ответ `{ sub, id, email, … }`). Повторный вход без `login:email` в токене иначе даёт auth log `422 yandex_email_missing` → `Error getting user profile from external provider`. Fallback co-host: `src/standalone/yandex-userinfo-proxy.mjs` + Kong `/yandex-userinfo`.
 - **Self-hosted auth env:** на auth-сервисе `API_EXTERNAL_URL` должен быть `https://<SUPABASE_HOST>/auth/v1` (не `$SUPABASE_PUBLIC_URL` без `/auth/v1`), иначе custom:yandex шлёт `redirect_uri=…/callback` → Kong 401.
 - **Профиль:** trigger `handle_new_auth_user` на `auth.users` INSERT → сначала `public.imageprompt_users`, затем `public.landing_users` (`landing_users.id` FK → `imageprompt_users`, не `auth.users`). Нормализация Yandex (`custom:yandex` → `yandex`, `real_name` / аватар) — `sql/157_*`; `SET search_path = ''` + schema-qualified names — `sql/179_*` / `sql/180_*`. Без `imageprompt_users` GoTrue даёт `500 Database error saving new user` / `landing_users_id_fkey` → клиент видит `auth_error=no_code`.
+- **Аватары OAuth в UI:** `components/UserAvatarImage.tsx` — URL из `user_metadata.avatar_url` / `landing_users.avatar_url`. Для Google/Yandex CDN не прогонять через image optimizer: hotlink 403 при Referer. `images.remotePatterns` включает `*.googleusercontent.com` и `avatars.yandex.net`.
 
 ### 301 редиректы карточек `/p/[slug]`
 
@@ -611,7 +616,7 @@ SearchResults (client, infinite scroll)
 ### Catalog admin (вместо `/debug`)
 
 - **Кто:** email в `INTERNAL_GENERATE_ALLOWLIST` / default `azarov.maxim@gmail.com` (`isCatalogAdminEmail` → `isInternalGenerateAllowlistedEmail`).
-- **Листинги:** на любом `FilterableGrid` для admin — панель «Фильтры» (всегда), API-поиск с `published=all` по умолчанию, датасеты `includeUnpublished=1`.
+- **Листинги:** на любом `FilterableGrid` для admin — панель «Фильтры» (всегда); default `published=yes` → тот же SSR-фид/`resolve_route_cards`, что у пользователей. `search-cards` только при debug-фильтрах (`published=all` и т.п.) с `sort` листинга; датасеты `includeUnpublished=1`. Session: `promptshot_admin_filters_v2`.
 - **Свитч «Тех. информация»** (default off, `sessionStorage` `promptshot_admin_tech_info`): оверлеи на `PromptCard`/`GroupedCard` + жёлтая DEBUG-панель (мета + «Сделать было» / удаление) на `CardPageClient`.
 - **Unpublished карточки:** `/p/[slug]` и `/api/card/[slug]` — `allowDebugUnpublished` по auth email, не cookie.
 - **API:** `published≠yes` в `/api/search-cards`, `includeUnpublished` в `/api/datasets`, ID-поиск unpublished в `/api/search-card`, `POST /api/set-before`, `POST /api/debug-delete-card` — только catalog admin.
@@ -673,6 +678,7 @@ SearchResults (client, infinite scroll)
 | FavoriteButton | `components/FavoriteButton.tsx` | Избранное |
 | CopyPromptButton | `components/CopyPromptButton.tsx` | Копирование промта |
 | AuthModal | `components/AuthModal.tsx` | Модалка: Google + Яндекс (единый UI кнопок) |
+| UserAvatarImage | `components/UserAvatarImage.tsx` | OAuth-аватар: no-referrer + unoptimized для Google/Yandex CDN |
 | auth-oauth | `lib/auth-oauth.ts` | `signInWithOAuthProvider`, `custom:yandex` |
 | auth-finish-oauth | `lib/auth-finish-oauth.ts` | `finishOAuthCodeExchange` (browser PKCE) |
 OAuth completion: `/auth/callback` page вызывает `finishOAuthCodeExchange`; `AuthProvider` — только legacy fallback вне этого пути.
@@ -839,7 +845,7 @@ Fallback без pg_cron: standalone `.mjs` на DO (`src/standalone/recalculate-
 
 **Блоки категорий на главной (`get_homepage_sections`, миграция `164`):** топ-**10** карточек на тег сортируются по **той же query-time popularity-формуле**, что листинг (мигр. `163`). **Кросс-категорийный дедуп обложек** (`buildCategorySectionBlocks` + `pickDeduplicatedPhotos`, общий `usedCardIds` в порядке `SECTION_ORDER`): один и тот же популярный кадр — #1 сразу в нескольких тегах, поэтому каждый блок берёт первую **ещё не использованную** карточку (передняя = первая свободная, задняя декоративная = следующая свободная), без повторов между блоками. Топ-10 (вместо 5) даёт дедупу запас кандидатов. Обложка блока = #1 листинга категории, если она не занята более ранним блоком; иначе — следующая по популярности.
 
-**Не менялись:** `search_cards_text`, `search_cards_filtered` — по-прежнему **`view_count`** (154).
+**`search_cards_text`:** по-прежнему **`view_count`** / relevance (154). **`search_cards_filtered`:** с миграцией **`182`** — `p_sort` как у `resolve_route_cards` (`new` / `popular`); до применения 182 — legacy `view_count`.
 
 **Scroll policy листинга (`scroll-preservation.ts`, fix/category-scroll-jump):** SSOT для позиции скролла каталога. На mobile скролл в **`#listing-scroll-root`** (shell переживает soft navigation между категориями в `[...slug]`).
 

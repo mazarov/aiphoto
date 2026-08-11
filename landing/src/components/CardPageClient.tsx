@@ -10,6 +10,7 @@ import { CardInteractionsProvider, useCardInteractions } from "@/context/CardInt
 import { ReactionButtons } from "./ReactionButtons";
 import { FavoriteButton } from "./FavoriteButton";
 import { LexyGptGenerateButton } from "./LexyGptGenerateButton";
+import { UserAvatarImage } from "./UserAvatarImage";
 import { useFeatureAccess } from "@/context/FeatureAccessContext";
 import { useGenerateDock } from "@/context/GenerateDockContext";
 import { usePromptCardModal } from "@/context/PromptCardModalContext";
@@ -837,7 +838,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
               <div className="flex items-start gap-3 border-b border-zinc-100 px-4 pb-4 pt-4">
                 <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-full bg-indigo-50 ring-1 ring-indigo-100">
                   {data.authorAvatarUrl ? (
-                    <Image
+                    <UserAvatarImage
                       src={data.authorAvatarUrl}
                       alt=""
                       fill
@@ -1380,7 +1381,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
               <div className="flex items-center gap-3">
                 <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-full bg-zinc-200 ring-2 ring-zinc-100">
                   {data.authorAvatarUrl ? (
-                    <Image
+                    <UserAvatarImage
                       src={data.authorAvatarUrl}
                       alt=""
                       fill

@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
-import Image from "next/image";
 import { useAuth } from "@/context/AuthContext";
+import { UserAvatarImage } from "./UserAvatarImage";
 
 type Props = {
   open: boolean;
@@ -59,7 +59,7 @@ export function MobileProfileSheet({ open, onClose }: Props) {
         {/* User header */}
         <div className="flex items-center gap-3 border-b border-zinc-100 px-5 py-4">
           {avatarUrl ? (
-            <Image
+            <UserAvatarImage
               src={avatarUrl}
               alt=""
               width={40}
