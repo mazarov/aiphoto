@@ -83,6 +83,7 @@ function ListingSearchHeader() {
   const hideBottomBar =
     pathname === "/" ||
     pathname === "/pricing" ||
+    pathname === "/generate" ||
     pathname.startsWith("/p/") ||
     normalizeNavPath(pathname) === "/foto-v-promt";
 
@@ -137,14 +138,26 @@ function ListingSearchHeader() {
         e.preventDefault();
         if (window.matchMedia("(max-width: 1023px)").matches) {
           openMobileSearch?.();
-        } else {
-          barInputRef.current?.focus();
+          return;
         }
+        // Desktop: same entry as sidebar «Поиск» — /search + focus field.
+        if (!onSearchPage) {
+          router.push("/search");
+          return;
+        }
+        const idleHero = document.querySelector<HTMLInputElement>(
+          "[data-listing-search-hero]"
+        );
+        if (idleHero) {
+          idleHero.focus();
+          return;
+        }
+        barInputRef.current?.focus();
       }
     }
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [openMobileSearch]);
+  }, [onSearchPage, openMobileSearch, router]);
 
   handleChangeRef.current = handleChange;
   handleClearRef.current = handleClear;
@@ -171,7 +184,27 @@ function ListingSearchHeader() {
     return () => registerSearchMobile(null);
   }, [registerSearchMobile]);
 
-  return null;
+  // Desktop compact field only after a query — idle /search uses centered hero (like home).
+  if (!onSearchPage || urlQuery.length < MIN_QUERY) return null;
+
+  return (
+    <div className="pointer-events-none fixed inset-x-0 top-[var(--ps-header-height,57px)] z-30 hidden px-5 py-3 lg:block lg:left-60">
+      <div className="pointer-events-auto mx-auto w-full max-w-3xl">
+        <ListingSearchField
+          value={query}
+          onChange={handleChange}
+          onClear={handleClear}
+          onKeyDown={handleKeyDown}
+          placeholder={PLACEHOLDERS.header}
+          size="compact"
+          accent="compact"
+          loading={false}
+          enterKeyHint="search"
+          inputRef={barInputRef}
+        />
+      </div>
+    </div>
+  );
 }
 
 export function ListingSearch({ variant = "header", className = "", autoFocus }: Props) {

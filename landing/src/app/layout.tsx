@@ -8,10 +8,13 @@ import { FeatureAccessProvider } from "@/context/FeatureAccessContext";
 import { GenerationProvider } from "@/context/GenerationContext";
 import { PromptCardModalProvider } from "@/context/PromptCardModalContext";
 import { FotoVPromtMobileModalProvider } from "@/context/FotoVPromtMobileModalContext";
+import { GenerateMobileModalProvider } from "@/context/GenerateMobileModalContext";
+import { GenerateDockProvider } from "@/context/GenerateDockContext";
 import { AuthModal } from "@/components/AuthModal";
 import { GenerationModal } from "@/components/GenerationModal";
 import { ClientCardModal } from "@/components/ClientCardModal";
 import { FotoVPromtMobileModal } from "@/components/foto-v-promt/FotoVPromtMobileModal";
+import { GenerateMobileModal } from "@/components/generate/GenerateMobileModal";
 import { YandexMetrikaRouteTracker } from "@/components/YandexMetrikaRouteTracker";
 import { HOMEPAGE_SEO } from "@/lib/homepage-seo-copy";
 import { YANDEX_METRIKA_COUNTER_ID } from "@/lib/yandex-metrika";
@@ -85,14 +88,19 @@ export default function RootLayout({
             <GenerationProvider>
               <PromptCardModalProvider>
                 <FotoVPromtMobileModalProvider>
-                  <Suspense fallback={null}>
-                    <YandexMetrikaRouteTracker />
-                  </Suspense>
-                  {children}
-                  {modal}
-                  <ClientCardModal />
-                  <FotoVPromtMobileModal />
-                  <GenerationModal />
+                  <GenerateMobileModalProvider>
+                    <GenerateDockProvider>
+                      <Suspense fallback={null}>
+                        <YandexMetrikaRouteTracker />
+                      </Suspense>
+                      {children}
+                      {modal}
+                      <ClientCardModal />
+                      <FotoVPromtMobileModal />
+                      <GenerateMobileModal />
+                      <GenerationModal />
+                    </GenerateDockProvider>
+                  </GenerateMobileModalProvider>
                 </FotoVPromtMobileModalProvider>
               </PromptCardModalProvider>
             </GenerationProvider>

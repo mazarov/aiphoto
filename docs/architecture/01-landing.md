@@ -1,6 +1,40 @@
 # 01 — Лендинг (promptshot.ru)
 
-> Последнее обновление: 2026-08-10 (**AuthModal UI:** убрана кнопка Telegram; Google и Яндекс — одинаковые кастомные кнопки (`h-12`, общий padding/иконка 20px) в фирменных стилях; виджет YaAuthSuggest удалён.)
+> Последнее обновление: 2026-08-11 (**prefs SSOT:** model/ratio/size/photos из `landing_generation_preferences`; last-completed hydrate больше не перетирает их; «Готово»/close шторки фото·модель → immediate PUT.)
+>
+> Предыдущее обновление: 2026-08-11 (**Повторить → compose reset:** footer `Повторить` сбрасывает result/`generationId` в `idle` (промпт/модель/фото сохраняются), не enqueue новую генерацию; новая gen — через `Сгенерировать`.)
+>
+> Предыдущее обновление: 2026-08-11 (**dock sheets opaque cover:** editor sheets `bg-zinc-950` (без blur); footer/controls `invisible` while `dockExpanded` — нет просвечивания CTA/плиток.)
+>
+> Предыдущее обновление: 2026-08-11 (**mobile generate tab fullscreen:** tab «Сгенерировать» → `fixed inset-0 z-[122]` поверх tab/nav bar; body scroll lock; desktop FAB collapse-on-generate без изменений.)
+>
+> Предыдущее обновление: 2026-08-11 (**dock sheets from plate bottom:** prompt/photos/model в `chrome=dock` — `absolute inset-0` от низа пластины (поверх контролов/CTA); не in-flow над кликнутым контролом.)
+>
+> Предыдущее обновление: 2026-08-11 (**dock reopen restores last gen:** blank listing dock при hydrate тянет `GET /api/generations?limit=12` + preferences — последний `completed` result/prompt/model/ratio и сохранённые фото/size; авто-open plate только после live `generating→done`.)
+>
+> Предыдущее обновление: 2026-08-11 (**listing FAB/tab progress:** `GenerateDockContext.runBusy/runProgress`; старт gen сворачивает plate → desktop FAB / mobile tab показывают `Генерируем · N%`; по `done` plate снова открывается.)
+>
+> Предыдущее обновление: 2026-08-11 (**CTA progress sticky:** `busy` лочит tall-plate (`plateLocked`) — без scroll-collapse; заливка на CTA через `scaleX` + `Генерируем · N%`.)
+>
+> Предыдущее обновление: 2026-08-11 (**CTA generate progress:** во время `uploading|generating` заливка прогресса + `%` на кнопке `Сгенерировать` / `Генерируем`; soft-tick между poll; при повторной генерации предыдущий result остаётся фоном пластины.)
+>
+> Предыдущее обновление: 2026-08-11 (**result photo clipped in dock plate:** после `phase=done` `resultUrl` рисуется внутри `CardInlineGeneratePanel` (`overflow-hidden` + `rounded-[1.75rem]`); fullscreen host-backdrop убран — фото не выходит за модалку.)
+>
+> Предыдущее обновление: 2026-08-11 (**generate glass plate restored:** plate = `bg-zinc-950/55 backdrop-blur-xl`; tab `focusBlank` открывает compact glass (без auto prompt sheet). Убран content-filter / чёрный экран.)
+>
+> Предыдущее обновление: 2026-08-11 (**desktop search nav:** поле поиска убрано из `ListingBottomBar`; desktop — пункт сайдбара **Поиск** → `/search` (Enter/`q` как раньше); поле ввода на `/search` (lg+). Mobile tab/sheet без изменений.)
+>
+> Предыдущее обновление: 2026-08-11 (**global listing generate dock:** `GenerateDockContext` + `GenerateListingDockHost` в `PageLayout` — плавающий `CardInlineGeneratePanel chrome=dock` на `/`, `/new`, `/catalog`, тегах, `/search`, `/favorites`, `/generate`, `/generations` (treatment). Tab «Сгенерировать» → `focusBlank` in-place. Card «Повторить» → `seedFromCard` + close modal/`history.back`. Фон dock = `resultUrl` только при `phase=done`. `/generate` = история (`GenerateBlankShell` без nested dock).)
+>
+> Предыдущее обновление: 2026-08-11 (**один generate-модуль:** `GenerateSurface` — `dock` на `/generate`, `modal` на карточке: desktop — в правой aside поверх описания/«Повторить»; mobile — portal soft `/generate`. Composer = `CardInlineGeneratePanel`. Open: `useGenerateSurface` / `soft|route`.)
+>
+> Предыдущее обновление: 2026-08-11 (**`/generate` dock surfaces:** SSOT `GenerateDockSurface` = `prompt|photos|model|null` — shell растягивает плавающий composer до хедера для любого редактора; pickers рендерятся внутри dock, без отдельных viewport overlay sheets. Card fullscreen по-прежнему absolute sheets.)
+>
+> Предыдущее обновление: 2026-08-11 (**`/generate` listing + dock:** blank shell — обычный листинг `GenerationsContent` + плавающий composer `CardInlineGeneratePanel chrome=dock` снизу; история не внутри compose-модалки. Card «Повторить» остаётся fullscreen.)
+>
+> Предыдущее обновление: 2026-08-11 (**mobile generate tab + `/generate`:** treatment `prompt_card_generation` — center tab «Сгенерировать» и sidebar CTA «Генерация фото»; control — 4 таба без center, CTA скрыт. Профиль убран из tab bar (Избранное/генерации/выход — хедер). Единый `CardInlineGeneratePanel` (`source=card|blank`); mobile soft/route shell `GenerateMobileModalContext` на `/generate` (noindex); desktop PageLayout blank page. Defense-in-depth: UI hide → `open()` no-op → server redirect → API `generationSurface=prompt_card`. Metrika `generate_shell_open` (`entry_source`: tab|card|route|sidebar).)
+>
+> Предыдущее обновление: 2026-08-10 (**AuthModal UI:** убрана кнопка Telegram; Google и Яндекс — одинаковые кастомные кнопки (`h-12`, общий padding/иконка 20px) в фирменных стилях; виджет YaAuthSuggest удалён.)
 >
 > Предыдущее обновление: 2026-08-10 (**auth signup trigger FK:** `sql/180_fix_handle_new_auth_user_imageprompt_fk.sql` — `handle_new_auth_user` сначала upsert `imageprompt_users`, потом `landing_users`; иначе после 179 signup падает `landing_users_id_fkey` / `Database error saving new user` → `auth_error=no_code`.)
 >
@@ -88,6 +122,7 @@
 - **Soft-open «Фото в промт» (mobile tab):** виртуальный hit `ym('hit')` на `/foto-v-promt` из `FotoVPromtMobileModalContext.open` (без Next-навигации). Hard mobile `/foto-v-promt` — auto `route`-mode shell (обычный page hit Метрики).
 - **Кнопка «Сгенерировать» → LexyGPT** (отдельные цели JS в Метрике): **`lexygpt_generate_promptcard`** (`LexyGptGenerateButton` на листинге / `/p/[slug]`); **`lexygpt_generate_photovprompt`** (результат и история на `/foto-v-promt`). Legacy **`lexygpt_generate_tabbar`** (таббар больше не вызывает) и **`lexygpt_generate_click`** + `placement` — deprecated.
 - **Rollout генерации из карточки:** `prompt_card_generation_exposure`, `prompt_card_generation_auth`, `prompt_card_generation_accepted`, `prompt_card_generation_no_credits`, `prompt_card_generation_pricing`; параметры — `feature_key`, `variant`, обезличенный `bucket_band` (1%-диапазон), без UUID/email.
+- **Открытие generate shell:** `generate_shell_open` — `entry_source` (`tab` \| `card` \| `route` \| `sidebar`), `feature_key`, `variant`, `bucket_band`.
 - **Баннер «Фото в промт»** (листинг): **`reachGoal('foto_v_promt_banner_click')`** (`ListingFotoVPromtBanner`, sticky над сеткой).
 - **Баннер «Фото в промт»** отображается только на листингах. Варианты `card` / `cardImmersive` сняты с `/p/[slug]`; legacy-цель **`foto_v_promt_banner_click_card`** больше не вызывается из детальной карточки. ТЗ — **`docs/requirements/04-06-foto-v-promt-mini-banner.md`**.
 - **CTA установки расширения**: desktop header вызывает отдельную цель **`reachGoal('desktop_header_add_to_chrome_click')`**. CTA страницы `/foto-v-promt` используют **`reachGoal('foto_v_promt_add_to_chrome_click', { placement })`**. UTM для GA4 Chrome Web Store остаются общими: `utm_source=promptshot.ru`, `utm_medium=cpc`, `utm_campaign=foto_v_promt`, `utm_content` по placement (`desktop_header` \| `foto_v_promt_floating_cta` \| `foto_v_promt_mobile_floating_cta` \| `foto_v_promt_remix_hint` \| `foto_v_promt_json_ld`).
@@ -105,6 +140,7 @@
 /search                 → Поиск (клиентский)
 /foto-v-promt           → «Фото в промт» — SEO-кластер image-to-prompt (ВЧ «фото в промт», СЧ «промт из фото», «промт по картинке»); тексты — **`foto-v-promt-copy.ts`**, ТЗ — **`docs/requirements/02-06-foto-v-promt-seo-copy.md`**. RU-маркетинг AI Image Describer в **`PageLayout`**; при входе **`useListingScrollOnRouteChange`** сбрасывает `#listing-scroll-root` (моб.) и stale sessionStorage — страница всегда с hero; **`metadata.robots` index**; sitemap **0.8**; JSON-LD **WebApplication** + **FAQPage**; H2 над виджетом; перелинковка с **`/`** («Фото в промт»). Общий Chrome CTA **`FotoVPromtChromeCta`** виден в hero на первом экране; **`FotoVPromtFloatingCta`** появляется после ухода виджета из viewport; обе ссылки ведут в Chrome Web Store через **`getAiImageDescriberChromeUrl()`** (id `bebnhekhnoaacojmbjoajndkankmppoj`). **`ListingSearch`** без нижней панели поиска (как на `/` и `/p/`). Live-виджет → **`getImagePromptAnalyzeUrl()`** (prod cross-origin, dev **`/api/imageprompt-proxy/`**); CORS на imageprompt. **Analyze:** landing всегда шлёт **`style: photoreal`**, **`locale: ru`** (описания секций на русском; заголовки Visual Hook / Scene / … и CRITICAL RULES — на EN/RU по backend), без pill-переключателя модели в UI. **Mobile modal:** на max-lg всегда immersive shell — soft `pushState` с таба **или** auto route при hard `/foto-v-promt` (главная, refresh, поиск); close soft → back, route → `/`; desktop SidebarNav / SSR — светлая SEO-страница (`variant="catalog"`). **Режим Prompt Remix (`?card=<slug>`):** при наличии query-параметра `card` **`PromptSceneLiteWidgetGate`** монтирует **`PromptRemixWidget`** (вместо обычного анализа фото): грузит промт через `GET /api/card/[slug]`, пользователь описывает изменения, результат — переписанный промт через `imageprompt.tools/api/extension/remix`. **Точка входа с `/p/[slug]` скрыта** (нет CTA и нет `FotoVPromtMiniBanner` на карточке); режим доступен только по прямому URL `/foto-v-promt?card=<slug>`. ТЗ — **`docs/requirements/02-07-prompt-remix.md`**.
 /pricing                → Treatment-когорта `prompt_card_generation` и internal allowlist; без rollout-cookie доступен по `/pricing?test=true`, иначе 404. Пакеты: Проба, Старт, Про, Максимум; auth-only разовая оплата в RUB через hosted redirect-страницу YooKassa
+/generate               → История генераций (treatment only, `robots: noindex`); control → redirect `/`. Composer = глобальный dock из `PageLayout`. Card «Повторить» → seed dock + закрытие карточки
 /terms                  → Страница публичной оферты; ссылка на `/docs/offer.pdf`, если утверждённый файл присутствовал при сборке
 /policy                 → Страница политики обработки данных; ссылка на `/docs/privacy.pdf`, если утверждённый файл присутствовал при сборке
 /privacy                → Permanent redirect на `/policy`
@@ -222,10 +258,11 @@
 ### Модуль генерации (карточка → inline / STV)
 
 - **Allowlist:** `isInternalGenerateAllowlistedEmail` (`landing/src/lib/internal-generate-allowlist.ts`) — default `azarov.maxim@gmail.com`, расширяется через `INTERNAL_GENERATE_ALLOWLIST`.
-- **Точка входа карточки `/p`:** только allowlisted — `CardPageClient` передаёт `onInternalGenerate` → inline compose (`CardInlineGeneratePanel`). Desktop aside / mobile sheet. Остальные — LexyGPT.
+- **Точка входа карточки `/p`:** treatment — `CardPageClient` → `onInternalGenerate` → `GenerateDock.seedFromCard` + close card (`PromptCardModal.close` / `router.back`). Control — LexyGPT.
+- **Глобальный generate-dock:** `GenerateDockContext` + `GenerateListingDockHost` в `PageLayout` (allowlist листингов, treatment). Composer = `CardInlineGeneratePanel chrome=dock`. Expand surfaces (`prompt|photos|model`) растягивают плашку. После `phase=done` `resultUrl` — фон **внутри** пластины (clip + radius) через `GenerationResultBackdrop`: follow-up gen держит предыдущий кадр в CSS-pixelate, по completed — preload + clip-path reveal нового (reduced-motion: blur + opacity). `needsCredits` / `credits===0` → soft-rose CTA на FAB, mobile tab и footer compose («Недостаточно кредитов») → `/pricing`, без error-баннера. Mobile tab open → fullscreen `inset-0 z-[122]` поверх tab/nav; desktop: старт gen → collapse + FAB progress, `done` → reopen (+ reveal). Повторное открытие blank-dock восстанавливает последний completed + prefs. Tab → `focusBlank`; sidebar → hard `/generate`. Guest tab/FAB → auth.
 - **Inline photo library:** `CardInlineGeneratePanel` при открытии параллельно читает `GET /api/user-generation-photos` и `GET /api/generation-preferences`, показывает persistent-карусель квадратных preview по `created_at DESC` и восстанавливает доступные выбранные photo IDs. Если preference отсутствует или выбранные фото удалены, автоматически выбирается самое свежее. Карусель остаётся доступна поверх готового result backdrop для повторной генерации. Плитка «Добавить» всегда первая; новые файлы сразу проходят client prepare → `POST /api/upload-generation-photo` с `saveToLibrary=true`; выбор отмечается галочками, для одной генерации разрешено 1–10 фото. Удаление идёт через `DELETE /api/user-generation-photos/[id]`.
-- **Inline generation preferences:** после hydration изменения model / aspect ratio / image size / photo IDs с debounce сохраняются через `PUT /api/generation-preferences`, owner-check photo IDs выполняется на сервере. Source of truth — `landing_generation_preferences.auth_user_id`, поэтому выбор привязан к авторизации, а не к браузерному storage. Default при отсутствии строки: Nano Banana + `9:16` + самое свежее фото.
-- **Inline compose UI:** исходный `promptText` карточки инициализирует локальный draft. Одна iOS-style prompt-шторка показывает два блока: flex-height editable `Текущий промпт` и compact `Что изменить?`. До первого result её CTA называется `Применить изменение` и только обновляет draft; initial generation запускает отдельный footer `Сгенерировать`. После completion footer показывает три действия: `Скачать`, `Повторить`, `Что изменить`. `Повторить` запускает новую независимую платную генерацию из выбранных исходных фото с текущими prompt/model/aspect/size; `Что изменить` открывает тот же editor, где CTA становится `Применить и сгенерировать` для parent-result edit chain. Controls `Ваши фото` / `Модель` и collapsed preview продолжают использовать текущий draft без мутации `prompt_cards`.
+- **Inline generation preferences:** SSOT = `landing_generation_preferences` (model / aspect / size / photo IDs). Hydrate через GET; debounce PUT + flush на «Готово»/close шторок фото·модель. Last-completed restore подставляет только result/prompt, не model/ratio. Owner-check photo IDs на сервере. Default: Nano Banana + `9:16` + самое свежее фото.
+- **Inline compose UI:** исходный `promptText` карточки инициализирует локальный draft. Одна iOS-style prompt-шторка показывает два блока: flex-height editable `Текущий промпт` и compact `Что изменить?`. До первого result её CTA называется `Применить изменение` и только обновляет draft; initial generation запускает отдельный footer `Сгенерировать`. После completion footer: `Посмотреть` / `Скачать` / `Повторить` / `Что изменить`. `Повторить` сбрасывает в idle compose (очищает result, сохраняет prompt/model/photos); новая генерация — снова через `Сгенерировать`. `Что изменить` — remix editor + `Применить и сгенерировать` (parent-result edit). Controls `Ваши фото` / `Модель` используют текущий draft без мутации `prompt_cards`.
 - **Inline engine:** initial prompt edit: `POST /api/prompt-remix { prompt: draft, changeRequest }` → только новый draft; initial generation отдельно отправляет draft + выбранные `storagePath[]` в `POST /api/generate`. Completed edit: `POST /api/prompt-remix { prompt: draft, changeRequest, parentGenerationId }` → новый prompt → сразу `POST /api/generate { parentGenerationId }`; worker использует parent result object. Enqueue сохраняет фактически отправленный текст в `landing_generations.prompt_text`, клиент синхронизирует `draftPrompt/submittedPrompt`. Result menu переиспользует `GenerationCardMenu` без bulk-select: share/download/copy, `save-to-library`, `publish`, `DELETE`.
 - **`LexyGptGenerateButton`:** internal path (inline override или STV drawer по `cardId`) только для allowlisted; иначе всегда LexyGPT. CTA `/foto-v-promt` без `cardId` → LexyGPT.
 - **STV drawer (legacy):** `GenerationContext.openGenerationModal` → **`GenerationModal`** (`/embed/stv`) — только allowlisted при `cardId` без inline override. Chrome extension без изменений.
@@ -580,7 +617,7 @@ SearchResults (client, infinite scroll)
 | Компонент | Файл | Роль |
 |-----------|------|------|
 | HeaderClient | `components/HeaderClient.tsx` | Тонкий sticky header: логотип + SearchBar + UserMenu |
-| SidebarNav | `components/SidebarNav.tsx` | Сквозной левый sidebar (desktop sticky, mobile FAB+slide-over): верх — Главная / **Новое** (`/new`) / Фото в промт; далее accordion-секции, подсветка активного URL |
+| SidebarNav | `components/SidebarNav.tsx` | Сквозной левый sidebar (desktop sticky, mobile FAB+slide-over): верх — Главная / **Новое** / **Поиск** (`/search`) / Фото в промт; далее accordion-секции; treatment CTA «Генерация фото» |
 | PromptCard | `components/PromptCard.tsx` | Карточка в листинге; двухфазный render: `ListingCardLoadingShell` → real chrome после `imageReady` |
 | GroupedCard | `components/GroupedCard.tsx` | Группа split-карточек; тот же loading shell, сброс `imageReady` по `activeCard.id` |
 | ListingCardLoadingShell | `components/ListingCardLoadingShell.tsx` | Единый loading shell (`ListingCardPhotoSkeleton overlay` + `ListingCardChromeSkeleton`) для карточек и pagination |
@@ -595,11 +632,18 @@ SearchResults (client, infinite scroll)
 | debug-tools-session | `lib/debug-tools-session.ts` | `sessionStorage` для debug-tools на карточке из `/debug` |
 | FotoVPromtMiniBanner | `components/foto-v-promt-promo/FotoVPromtMiniBanner.tsx` | Промо «Промпт не попадает в фото?»; смонтировано только на листингах (`variant="listing"`), на `/p/[slug]` скрыто |
 | ListingFotoVPromtBanner | `components/foto-v-promt-promo/ListingFotoVPromtBanner.tsx` | Sticky + IntersectionObserver hide после первого экрана |
-| ListingBottomBar | `components/ListingBottomBar.tsx` | Только десктоп (lg+): portal `fixed` с `ListingSearchField` + кнопка фильтров. На mobile — `null`. |
-| MobileTabBar | `components/MobileTabBar.tsx` | 5-вкладочный таб-бар (max-lg), закреплённый через `absolute bottom-0` внутри синхронизированного mobile shell: **Новое** (`/new`) / Каталог / **Фото в промт** (center accent → `open()` soft modal) / Поиск / Профиль. Регистрирует `registerMobileSearchOpen`, рендерит `ListingMobileSearchSheet`, `MobileProfileSheet`. |
+| ListingBottomBar | `components/ListingBottomBar.tsx` | No-op (desktop search → SidebarNav **Поиск** + поле на `/search`). |
+| MobileTabBar | `components/MobileTabBar.tsx` | Tab bar (max-lg): **Новое** / Каталог / [treatment: raised **Сгенерировать** → `GenerateDock.focusBlank`] / Поиск / **Фото в промт**. Control — 4 таба без center. |
+| GenerateDockContext | `context/GenerateDockContext.tsx` | SSOT seed/focus/dockSurface/historyRefresh для listing dock. |
+| GenerateListingDockHost | `components/generate/GenerateListingDockHost.tsx` | Плавающий composer на allowlist листингов (treatment); collapse FAB для гостя / при скролле. |
+| GenerationResultBackdrop | `components/generate/GenerationResultBackdrop.tsx` | Фон result: pixelate previous → reveal next (CSS); shared dock/card. |
+| useListingScrollActivity | `hooks/useListingScrollActivity.ts` | Скролл листинга с опциональным `minDeltaPx` (dock collapse только после заметного сдвига). |
+| GenerateBlankShell | `components/generate/GenerateBlankShell.tsx` | Только история `/generate` (без nested dock). |
+| GenerateMobileModalContext | `context/GenerateMobileModalContext.tsx` | Legacy soft card portal; blank compose → global dock / hard `/generate`. |
+| SidebarNav CTA | `components/SidebarNav.tsx` | Treatment: indigo CTA **«Генерация фото»** сверху меню → `/generate`. |
 | FotoVPromtMobileModal | `components/foto-v-promt/FotoVPromtMobileModal.tsx` | Mobile fullscreen dialog (`lg:hidden`, root layout); host для `PromptSceneLiteWidget variant="immersive"`. |
 | FotoVPromtMobileModalContext | `context/FotoVPromtMobileModalContext.tsx` | Soft: scroll lock + `pushState` + virtual hit, close → `history.back()`. Route (hard mobile `/foto-v-promt`): auto-open, close → `replace('/')`. Desktop — без модалки. |
-| MobileProfileSheet | `components/MobileProfileSheet.tsx` | Нижний sheet профиля (portal): аватар + Избранное + Мои генерации + Выйти. |
+| MobileProfileSheet | `components/MobileProfileSheet.tsx` | Legacy sheet профиля (Избранное / Мои генерации / Выйти); tab bar больше не открывает — доступ через хедер. |
 | CatalogWithFilters | `components/CatalogWithFilters.tsx` | Листинг + `ListingDesktopFilters` (desktop) + FilterFAB (mobile), useListingFilters |
 | ListingDesktopFilters | `components/ListingDesktopFilters.tsx` | Desktop: кнопки по измерениям → модалка, single-select (`setFilter`) |
 | FilterFAB | `components/FilterFAB.tsx` | Mobile: регистрация кнопки в bottom bar + `FilterPanel` |

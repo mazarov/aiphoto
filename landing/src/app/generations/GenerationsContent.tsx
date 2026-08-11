@@ -9,7 +9,17 @@ import {
   type GenerationHistoryItem,
 } from "@/components/GenerationHistoryCard";
 
-export function GenerationsContent() {
+type GenerationsContentProps = {
+  /** Bump to force-reload list (e.g. after blank generate completes). */
+  refreshToken?: number;
+  /** Extra bottom padding for floating composer dock on /generate. */
+  className?: string;
+};
+
+export function GenerationsContent({
+  refreshToken = 0,
+  className,
+}: GenerationsContentProps = {}) {
   const { user, loading: authLoading } = useAuth();
   const [generations, setGenerations] = useState<GenerationHistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -69,7 +79,7 @@ export function GenerationsContent() {
       controller.abort();
       window.removeEventListener("focus", refreshOnFocus);
     };
-  }, [authLoading, load, user]);
+  }, [authLoading, load, refreshToken, user]);
 
   useEffect(() => {
     const hasActiveGeneration = generations.some(
@@ -169,50 +179,60 @@ export function GenerationsContent() {
 
   if (authLoading || !user) {
     return (
-      <p className="text-zinc-500">
-        <Link href="/" className="text-indigo-600 hover:underline">
-          Войдите
-        </Link>
-        , чтобы увидеть свои генерации.
-      </p>
+      <div className={className}>
+        <p className="text-zinc-500">
+          <Link href="/" className="text-indigo-600 hover:underline">
+            Войдите
+          </Link>
+          , чтобы увидеть свои генерации.
+        </p>
+      </div>
     );
   }
 
   if (loading) {
-    return <div className="animate-pulse text-zinc-500">Загрузка...</div>;
+    return (
+      <div className={`animate-pulse text-zinc-500${className ? ` ${className}` : ""}`}>
+        Загрузка...
+      </div>
+    );
   }
 
   if (error) {
     return (
-      <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4">
-        <p className="text-sm text-rose-700">{error}</p>
-        <button
-          type="button"
-          onClick={() => {
-            setLoading(true);
-            void load();
-          }}
-          className="mt-3 min-h-11 rounded-xl bg-rose-600 px-4 text-sm font-semibold text-white transition hover:bg-rose-700"
-        >
-          Повторить
-        </button>
+      <div className={className}>
+        <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4">
+          <p className="text-sm text-rose-700">{error}</p>
+          <button
+            type="button"
+            onClick={() => {
+              setLoading(true);
+              void load();
+            }}
+            className="mt-3 min-h-11 rounded-xl bg-rose-600 px-4 text-sm font-semibold text-white transition hover:bg-rose-700"
+          >
+            Повторить
+          </button>
+        </div>
       </div>
     );
   }
 
   if (generations.length === 0) {
     return (
-      <p className="text-zinc-500">
-        У вас пока нет генераций. Откройте промт в каталоге и нажмите «Сгенерировать» — результат
-        появится здесь.
-      </p>
+      <div className={className}>
+        <p className="text-zinc-500">
+          У вас пока нет генераций. Опишите изображение ниже и нажмите «Сгенерировать» — результат
+          появится здесь.
+        </p>
+      </div>
     );
   }
 
   const selectedCount = selectedIds.size;
 
   return (
-    <>
+    <div className={className}>
       <ListingGrid className={selectMode ? "pb-24" : undefined}>
         {generations.map((generation) => (
           <GenerationHistoryCard
@@ -230,7 +250,7 @@ export function GenerationsContent() {
       </ListingGrid>
 
       {selectMode ? (
-        <div className="pointer-events-none fixed inset-x-0 bottom-0 z-50 flex justify-center px-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+        <div className="pointer-events-none fixed inset-x-0 bottom-0 z-50 flex justify-center px-4 pb-[max(1rem,env(safe-area-inset-bottom))] lg:left-60">
           <div className="pointer-events-auto flex w-full max-w-md items-center gap-2 rounded-2xl bg-zinc-950/95 p-2 shadow-2xl ring-1 ring-white/10 backdrop-blur-md">
             <button
               type="button"
@@ -260,6 +280,6 @@ export function GenerationsContent() {
           {toast}
         </div>
       ) : null}
-    </>
+    </div>
   );
 }

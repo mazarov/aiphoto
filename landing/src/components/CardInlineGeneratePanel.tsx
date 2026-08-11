@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { OVERLAY_BUTTON_UA_RESET } from "@/lib/card-overlay-action-pill";
 import {
@@ -23,12 +24,17 @@ import {
 } from "@/lib/generation-result-client-actions";
 import { getGenerationPromptRemixUrl } from "@/lib/foto-v-promt-config";
 import { PROMPT_REMIX_COPY } from "@/lib/foto-v-promt-copy";
+import { useAuth } from "@/context/AuthContext";
+import { useGenerateDock } from "@/context/GenerateDockContext";
+import { GenerationResultBackdrop } from "@/components/generate/GenerationResultBackdrop";
 import {
   reachYandexMetrikaGoal,
   YM_GOAL_PROMPT_CARD_GENERATION_ACCEPTED,
   YM_GOAL_PROMPT_CARD_GENERATION_NO_CREDITS,
   YM_GOAL_PROMPT_CARD_GENERATION_PRICING,
 } from "@/lib/yandex-metrika";
+
+const BLANK_PROMPT_PLACEHOLDER = "Опишите изображение или референс";
 
 type ModelOpt = { id: string; label: string; cost: number };
 type RatioOpt = { value: string; label: string };
@@ -51,12 +57,35 @@ type UserPhoto = {
 
 type Phase = "idle" | "uploading" | "generating" | "done" | "error";
 
+/** Blank dock editor surface — mutual exclusion SSOT for shell stretch. */
+export type GenerateDockSurface = "prompt" | "photos" | "model" | null;
+
 type Props = {
-  promptText: string;
-  cardId: string;
+  /** card = remix from prompt card; blank = freeform compose (/generate, tab) */
+  source?: "card" | "blank";
+  /**
+   * fullscreen — immersive card/result UI;
+   * dock — floating bottom composer over listing (blank /generate).
+   */
+  chrome?: "fullscreen" | "dock";
+  promptText?: string;
+  cardId?: string | null;
   onBack: () => void;
   /** desktop | mobile visual density */
   layout?: "desktop" | "mobile";
+  /** Called when a blank dock generation finishes (refresh listing). */
+  onGenerationComplete?: () => void;
+  /**
+   * Controlled dock surface (blank /generate). Parent stretches the floating
+   * sheet for prompt / photos / model — no separate viewport overlays.
+   */
+  dockSurface?: GenerateDockSurface;
+  onDockSurfaceChange?: (surface: GenerateDockSurface) => void;
+  /**
+   * Dock parent: keep plate tall + sticky (no scroll-collapse) while result
+   * chrome is shown or a generation is in flight.
+   */
+  onDockResultChromeChange?: (active: boolean) => void;
 };
 
 const POLL_MS = 2500;
@@ -73,12 +102,28 @@ function GoogleGenerationModelIcon({ className = "h-5 w-5" }: { className?: stri
 }
 
 export function CardInlineGeneratePanel({
-  promptText,
-  cardId,
+  source = "card",
+  chrome = "fullscreen",
+  promptText = "",
+  cardId = null,
   onBack,
   layout = "desktop",
+  onGenerationComplete,
+  dockSurface: dockSurfaceProp,
+  onDockSurfaceChange,
+  onDockResultChromeChange,
 }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { user, openAuthModal } = useAuth();
+  const {
+    setPlateOpen: setDockPlateOpen,
+    reportRunProgress,
+    reportNeedsCredits,
+  } = useGenerateDock();
+  const isDock = chrome === "dock";
+  const isBlank = source === "blank";
+  const resolvedCardId = cardId;
+  const dockControlled = isDock && typeof onDockSurfaceChange === "function";
 
   const [models, setModels] = useState<ModelOpt[]>([]);
   const [aspectRatios, setAspectRatios] = useState<RatioOpt[]>([]);
@@ -97,19 +142,88 @@ export function CardInlineGeneratePanel({
   const [deletingPhotoId, setDeletingPhotoId] = useState<string | null>(null);
 
   const [phase, setPhase] = useState<Phase>("idle");
+  const phaseRef = useRef<Phase>("idle");
+  /**
+   * After «Повторить» / delete — do not re-apply last completed result from the
+   * mount hydrate fetch (async race with stale resultUrl/generationId closures).
+   */
+  const suppressResultHydrateRef = useRef(false);
+  const resultUrlRef = useRef<string | null>(null);
+  const generationIdRef = useRef<string | null>(null);
   const [error, setError] = useState("");
   const [needsCredits, setNeedsCredits] = useState(false);
   const [progress, setProgress] = useState(0);
   const [resultUrl, setResultUrl] = useState<string | null>(null);
+  const [resultPreviewOpen, setResultPreviewOpen] = useState(false);
   const [generationId, setGenerationId] = useState<string | null>(null);
+  resultUrlRef.current = resultUrl;
+  generationIdRef.current = generationId;
   const [draftPrompt, setDraftPrompt] = useState(promptText);
   const [submittedPrompt, setSubmittedPrompt] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
   const [busyAction, setBusyAction] = useState<GenerationMenuAction | null>(null);
   const [isPublished, setIsPublished] = useState(false);
   const [toast, setToast] = useState("");
-  const [expandedControl, setExpandedControl] = useState<"photos" | "model" | null>(null);
-  const [promptExpanded, setPromptExpanded] = useState(false);
+  const [expandedControlLocal, setExpandedControlLocal] = useState<
+    "photos" | "model" | null
+  >(null);
+  const [promptExpandedLocal, setPromptExpandedLocal] = useState(false);
+
+  const activeDockSurface: GenerateDockSurface = dockControlled
+    ? (dockSurfaceProp ?? null)
+    : promptExpandedLocal
+      ? "prompt"
+      : expandedControlLocal;
+
+  const promptExpanded = activeDockSurface === "prompt";
+  const expandedControl =
+    activeDockSurface === "photos" || activeDockSurface === "model"
+      ? activeDockSurface
+      : null;
+
+  const setDockSurface = useCallback(
+    (next: GenerateDockSurface | ((prev: GenerateDockSurface) => GenerateDockSurface)) => {
+      const value = typeof next === "function" ? next(activeDockSurface) : next;
+      if (dockControlled) {
+        onDockSurfaceChange?.(value);
+        return;
+      }
+      if (value === "prompt") {
+        setExpandedControlLocal(null);
+        setPromptExpandedLocal(true);
+      } else if (value === "photos" || value === "model") {
+        setPromptExpandedLocal(false);
+        setExpandedControlLocal(value);
+      } else {
+        setPromptExpandedLocal(false);
+        setExpandedControlLocal(null);
+      }
+    },
+    [activeDockSurface, dockControlled, onDockSurfaceChange]
+  );
+
+  const setPromptExpanded = useCallback(
+    (next: boolean | ((prev: boolean) => boolean)) => {
+      const value = typeof next === "function" ? next(promptExpanded) : next;
+      setDockSurface(value ? "prompt" : null);
+    },
+    [promptExpanded, setDockSurface]
+  );
+
+  const setExpandedControl = useCallback(
+    (
+      next:
+        | "photos"
+        | "model"
+        | null
+        | ((prev: "photos" | "model" | null) => "photos" | "model" | null)
+    ) => {
+      const prev = expandedControl;
+      const value = typeof next === "function" ? next(prev) : next;
+      setDockSurface(value);
+    },
+    [expandedControl, setDockSurface]
+  );
   const [changeRequest, setChangeRequest] = useState("");
   const [remixing, setRemixing] = useState(false);
 
@@ -120,6 +234,32 @@ export function CardInlineGeneratePanel({
   }, [toast]);
 
   useEffect(() => {
+    if (!resultUrl) setResultPreviewOpen(false);
+  }, [resultUrl]);
+
+  useEffect(() => {
+    if (!resultPreviewOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setResultPreviewOpen(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [resultPreviewOpen]);
+
+  /** Soft-advance CTA fill between poll ticks so progress is always visible. */
+  useEffect(() => {
+    if (phase !== "uploading" && phase !== "generating") return;
+    const timer = window.setInterval(() => {
+      setProgress((current) => {
+        if (current >= 92) return current;
+        const step = current < 40 ? 2.5 : current < 70 ? 1.2 : 0.45;
+        return Math.min(92, current + step);
+      });
+    }, 450);
+    return () => window.clearInterval(timer);
+  }, [phase]);
+
+  useEffect(() => {
     setDraftPrompt(promptText);
   }, [cardId, promptText]);
 
@@ -127,12 +267,17 @@ export function CardInlineGeneratePanel({
     let cancelled = false;
     void (async () => {
       try {
-        const [configRes, photosRes, preferencesRes, meRes] = await Promise.all([
-          fetch("/api/generation-config"),
-          fetch("/api/user-generation-photos", { credentials: "include" }),
-          fetch("/api/generation-preferences", { credentials: "include" }),
-          fetch("/api/me", { cache: "no-store", credentials: "include" }),
-        ]);
+        const shouldHydrateLastDockResult = Boolean(isDock && isBlank && user);
+        const [configRes, photosRes, preferencesRes, meRes, generationsRes] =
+          await Promise.all([
+            fetch("/api/generation-config"),
+            fetch("/api/user-generation-photos", { credentials: "include" }),
+            fetch("/api/generation-preferences", { credentials: "include" }),
+            fetch("/api/me", { cache: "no-store", credentials: "include" }),
+            shouldHydrateLastDockResult
+              ? fetch("/api/generations?limit=12", { credentials: "include" })
+              : Promise.resolve(null),
+          ]);
         if (!configRes.ok) throw new Error("config_failed");
         const configData = (await configRes.json()) as {
           models?: ModelOpt[];
@@ -153,7 +298,22 @@ export function CardInlineGeneratePanel({
         const meData = meRes.ok
           ? ((await meRes.json().catch(() => ({}))) as { credits?: number })
           : {};
-        if (!photosRes.ok) {
+        const generationsData =
+          generationsRes && generationsRes.ok
+            ? ((await generationsRes.json().catch(() => ({}))) as {
+                generations?: Array<{
+                  id?: string;
+                  status?: string;
+                  prompt?: string;
+                  model?: string;
+                  aspectRatio?: string;
+                  resultUrl?: string | null;
+                  isPublished?: boolean;
+                }>;
+              })
+            : {};
+        // Unauth / blank: photo library is best-effort — do not block composer.
+        if (!photosRes.ok && !isBlank) {
           throw new Error(photosData.error || "Не удалось загрузить ваши фото");
         }
         if (cancelled) return;
@@ -162,7 +322,8 @@ export function CardInlineGeneratePanel({
           ? configData.aspectRatios
           : [];
         const nextSizes = Array.isArray(configData.imageSizes) ? configData.imageSizes : [];
-        const nextPhotos = Array.isArray(photosData.photos) ? photosData.photos : [];
+        const nextPhotos =
+          photosRes.ok && Array.isArray(photosData.photos) ? photosData.photos : [];
         const preferences = preferencesData.preferences ?? null;
         const preferredModel = preferences?.model;
         const preferredRatio = preferences?.aspectRatio;
@@ -206,7 +367,42 @@ export function CardInlineGeneratePanel({
         if (typeof configData.limits?.maxPhotos === "number") {
           setMaxPhotos(Math.max(1, Math.min(10, configData.limits.maxPhotos)));
         }
-        setPreferencesHydrated(true);
+
+        /**
+         * Blank listing dock: restore last completed result + prompt only.
+         * Model / ratio / size / photos stay from landing_generation_preferences
+         * (user can change them only via sheets → «Готово»).
+         */
+        const lastCompleted =
+          shouldHydrateLastDockResult &&
+          !cancelled &&
+          (generationsData.generations || []).find(
+            (item) =>
+              item.status === "completed" &&
+              Boolean(item.resultUrl) &&
+              Boolean(item.id)
+          );
+        if (
+          lastCompleted &&
+          !suppressResultHydrateRef.current &&
+          phaseRef.current === "idle" &&
+          !resultUrlRef.current &&
+          !generationIdRef.current
+        ) {
+          const prompt = (lastCompleted.prompt || "").trim();
+          setGenerationId(lastCompleted.id!);
+          setResultUrl(lastCompleted.resultUrl!);
+          setDraftPrompt(prompt);
+          setSubmittedPrompt(prompt);
+          setIsPublished(Boolean(lastCompleted.isPublished));
+          setProgress(100);
+          setPhase("done");
+          phaseRef.current = "done";
+        }
+
+        // Persist prefs only for authenticated library sessions.
+        setPreferencesHydrated(Boolean(user) && photosRes.ok);
+        setLibraryLoading(false);
       } catch (err) {
         if (!cancelled) {
           if (err instanceof Error && err.message !== "config_failed") {
@@ -221,7 +417,9 @@ export function CardInlineGeneratePanel({
     return () => {
       cancelled = true;
     };
-  }, []);
+    // Hydrate once per mount / auth identity — do not re-fetch on every result change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional mount hydrate
+  }, [isBlank, isDock, user]);
 
   useEffect(() => {
     const refreshCredits = () => {
@@ -247,37 +445,96 @@ export function CardInlineGeneratePanel({
       window.removeEventListener(CREDIT_BALANCE_REFRESH_EVENT, refreshCredits);
   }, []);
 
+  const persistGenerationPreferences = useCallback(() => {
+    if (!preferencesHydrated || !user) return;
+    void fetch("/api/generation-preferences", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({
+        model,
+        aspectRatio,
+        imageSize,
+        selectedPhotoIds: Array.from(selectedPhotoIds),
+      }),
+    }).then((res) => {
+      if (!res.ok) console.warn("[generation-preferences] save failed", res.status);
+    });
+  }, [
+    aspectRatio,
+    imageSize,
+    model,
+    preferencesHydrated,
+    selectedPhotoIds,
+    user,
+  ]);
+
+  /** Debounced backup while editing; «Готово» also flushes immediately. */
   useEffect(() => {
     if (!preferencesHydrated) return;
-    setLibraryLoading(false);
     const timer = window.setTimeout(() => {
-      void fetch("/api/generation-preferences", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          model,
-          aspectRatio,
-          imageSize,
-          selectedPhotoIds: Array.from(selectedPhotoIds),
-        }),
-      }).then((res) => {
-        if (!res.ok) console.warn("[generation-preferences] save failed", res.status);
-      });
+      persistGenerationPreferences();
     }, 300);
     return () => window.clearTimeout(timer);
-  }, [aspectRatio, imageSize, model, preferencesHydrated, selectedPhotoIds]);
+  }, [persistGenerationPreferences, preferencesHydrated]);
+
+  const closePrefsSheet = useCallback(() => {
+    persistGenerationPreferences();
+    setExpandedControl(null);
+  }, [persistGenerationPreferences, setExpandedControl]);
 
   const selectedPhotos = useMemo(
     () => photos.filter((photo) => selectedPhotoIds.has(photo.id)),
     [photos, selectedPhotoIds]
   );
-  const hasZeroCredits = credits === 0;
+  const minModelCost = useMemo(() => {
+    if (!models.length) return null;
+    return models.reduce(
+      (min, item) => Math.min(min, item.cost),
+      Number.POSITIVE_INFINITY
+    );
+  }, [models]);
+  /** Not enough for even the cheapest model → FAB/tab paywall, no compose open. */
+  const cannotAffordAny =
+    credits !== null &&
+    (credits <= 0 || (minModelCost !== null && credits < minModelCost));
+  const selectedModelCost =
+    models.find((item) => item.id === model)?.cost ?? null;
+  const cannotAffordSelected =
+    credits !== null &&
+    selectedModelCost !== null &&
+    credits < selectedModelCost;
+
+  useEffect(() => {
+    if (!cannotAffordAny) {
+      setNeedsCredits(false);
+    }
+  }, [cannotAffordAny]);
+
+  /** If prefs restored an unaffordable model, fall back to the cheapest affordable. */
+  useEffect(() => {
+    if (credits === null || !models.length) return;
+    const current = models.find((item) => item.id === model);
+    if (current && current.cost <= credits) return;
+    const affordable = models
+      .filter((item) => item.cost <= credits)
+      .sort((a, b) => a.cost - b.cost);
+    if (affordable[0]) setModel(affordable[0].id);
+  }, [credits, models, model]);
+
+  useEffect(() => {
+    if (!isDock) return;
+    reportNeedsCredits(cannotAffordAny || needsCredits);
+  }, [isDock, cannotAffordAny, needsCredits, reportNeedsCredits]);
+
+  useEffect(() => {
+    if (!isDock) return;
+    return () => reportNeedsCredits(false);
+  }, [isDock, reportNeedsCredits]);
 
   const togglePhoto = (id: string) => {
     if (phase === "uploading" || phase === "generating") return;
     setError("");
-    setNeedsCredits(false);
     setSelectedPhotoIds((current) => {
       const next = new Set(current);
       if (next.has(id)) {
@@ -424,15 +681,11 @@ export function CardInlineGeneratePanel({
 
     setError("");
     setNeedsCredits(false);
-    if (!isContinuation) {
-      setResultUrl(null);
-      setGenerationId(null);
-    }
     setMenuOpen(false);
     setExpandedControl(null);
     setPromptExpanded(false);
     setPhase("generating");
-    setProgress(20);
+    setProgress(8);
 
     try {
       const idempotencyKey = crypto.randomUUID();
@@ -449,7 +702,7 @@ export function CardInlineGeneratePanel({
           model,
           aspectRatio,
           imageSize,
-          cardId,
+          cardId: resolvedCardId,
           photoStoragePaths: isContinuation
             ? []
             : selectedPhotos.map((photo) => photo.storagePath),
@@ -466,10 +719,14 @@ export function CardInlineGeneratePanel({
       if (!genRes.ok || !genData.id) {
         if (genData.error === "insufficient_credits") {
           setNeedsCredits(true);
+          setError("");
+          setPhase(resultUrl || isContinuation ? "done" : "idle");
+          phaseRef.current = resultUrl || isContinuation ? "done" : "idle";
           reachYandexMetrikaGoal(
             YM_GOAL_PROMPT_CARD_GENERATION_NO_CREDITS,
             { feature_key: "prompt_card_generation", variant: "treatment" }
           );
+          return false;
         }
         throw new Error(genData.message || genData.error || "Не удалось создать генерацию");
       }
@@ -509,13 +766,16 @@ export function CardInlineGeneratePanel({
           throw new Error(poll.errorMessage || poll.error || "Ошибка статуса генерации");
         }
         setError("");
-        if (typeof poll.progress === "number") setProgress(Math.max(20, poll.progress));
+        if (typeof poll.progress === "number") {
+          setProgress((current) => Math.max(current, Math.min(96, poll.progress!)));
+        }
         if (poll.status === "completed" && poll.resultUrl) {
+          requestCreditBalanceRefresh();
           setGenerationId(genData.id);
           setResultUrl(poll.resultUrl);
           setProgress(100);
           setPhase("done");
-          requestCreditBalanceRefresh();
+          onGenerationComplete?.();
           return true;
         }
         if (poll.status === "failed") {
@@ -524,7 +784,7 @@ export function CardInlineGeneratePanel({
         }
       }
     } catch (err) {
-      setPhase(isContinuation ? "done" : "error");
+      setPhase(resultUrl || isContinuation ? "done" : "error");
       setError(err instanceof Error ? err.message : "Ошибка генерации");
       return false;
     }
@@ -689,12 +949,15 @@ export function CardInlineGeneratePanel({
         const data = (await res.json().catch(() => ({}))) as { error?: string };
         if (!res.ok) throw new Error(data.error || "Не удалось удалить");
         setMenuOpen(false);
+        suppressResultHydrateRef.current = true;
         setResultUrl(null);
         setGenerationId(null);
         setSubmittedPrompt("");
         setProgress(0);
         setPhase("idle");
+        phaseRef.current = "idle";
         setToast("Генерация удалена");
+        onGenerationComplete?.();
       } catch (err) {
         setToast(err instanceof Error ? err.message : "Не удалось удалить");
       } finally {
@@ -705,40 +968,221 @@ export function CardInlineGeneratePanel({
 
   const busy = phase === "uploading" || phase === "generating";
   const controlsBusy = busy || Boolean(deletingPhotoId);
+  const showCreditsCta =
+    (cannotAffordAny || cannotAffordSelected || needsCredits) && !busy;
   const isMobile = layout === "mobile";
   const activePrompt = draftPrompt;
   const openPromptEditor = () => {
     setError("");
-    setExpandedControl(null);
-    setPromptExpanded(true);
+    setDockSurface("prompt");
   };
+  /** Leave result chrome → idle compose (keep prompt / model / photos for editing). */
+  const resetToCompose = () => {
+    suppressResultHydrateRef.current = true;
+    setResultUrl(null);
+    setGenerationId(null);
+    setSubmittedPrompt("");
+    setChangeRequest("");
+    setProgress(0);
+    setError("");
+    setNeedsCredits(false);
+    setMenuOpen(false);
+    setResultPreviewOpen(false);
+    setIsPublished(false);
+    setExpandedControl(null);
+    setPromptExpanded(false);
+    setPhase("idle");
+    phaseRef.current = "idle";
+    onDockResultChromeChange?.(false);
+  };
+  /**
+   * Blank compose: single prompt field until a completed result exists.
+   * Card seed and «Что изменить» after generation use remix (changeRequest + parent).
+   */
+  const useBlankPromptEditor = isBlank && !(resultUrl && generationId);
+  /**
+   * Result photo as plate background after completion; keep it during a follow-up
+   * generate so the modal stays tall and the CTA progress stays readable.
+   */
+  const showResultChrome =
+    Boolean(resultUrl) &&
+    (!isDock || phase === "done" || phase === "generating");
+
+  useEffect(() => {
+    if (!showResultChrome) return;
+    setExpandedControl(null);
+  }, [showResultChrome]);
+  /**
+   * Glass compose chrome: listing shows through the dock plate (idle + after result).
+   * Fullscreen card keeps solid white until there is a result photo.
+   */
+  const glassChrome = isDock || showResultChrome;
+  /** Fullscreen card sheets cover the panel; dock uses in-sheet expand instead. */
+  const sheetPos = "absolute";
+  /** Dock: stretch floating sheet for any editor surface (no viewport overlay). */
+  const dockExpanded = isDock && activeDockSurface !== null;
+  /** Tall plate when editor / result / in-flight generate needs height. */
+  const dockTall = dockExpanded || (isDock && (showResultChrome || busy));
+  const dockPromptExpanded = dockExpanded && activeDockSurface === "prompt";
+  const dockPhotosExpanded = dockExpanded && activeDockSurface === "photos";
+  const dockModelExpanded = dockExpanded && activeDockSurface === "model";
+  /**
+   * Dock editor sheets: full plate height, light chrome (no solid black fill).
+   * Underlying tiles/footer are invisible while open — sheet stays transparent so
+   * the plate glass / listing show through; soft bottom fade keeps CTA readable.
+   */
+  const dockSheetPanelBase = isMobile
+    ? "absolute inset-0 z-50 flex h-full min-h-0 flex-col rounded-none bg-transparent bg-[linear-gradient(180deg,transparent_0%,transparent_58%,rgba(9,9,11,0.28)_100%)] p-3 pt-[max(0.75rem,env(safe-area-inset-top))] pb-[max(0.75rem,env(safe-area-inset-bottom))] text-zinc-100"
+    : "absolute inset-x-0 bottom-0 top-0 z-50 flex min-h-0 flex-col rounded-[1.75rem] bg-transparent bg-[linear-gradient(180deg,transparent_0%,transparent_58%,rgba(9,9,11,0.28)_100%)] p-3 pb-3 text-zinc-100";
+  const dockSheetPanel = `${dockSheetPanelBase} overflow-y-auto overscroll-contain`;
+  /** Prompt: pin CTA at bottom; fields scroll in an inner region. */
+  const dockPromptSheetPanel = `${dockSheetPanelBase} overflow-hidden`;
+  const dockSheetHandle = "h-1 w-9 rounded-full bg-white/35";
+  const dockSheetCloseBtn = `${OVERLAY_BUTTON_UA_RESET} flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/15`;
+  const dockSheetField =
+    "rounded-xl border border-white/15 bg-white/10 text-white outline-none transition placeholder:text-white/40 focus:border-indigo-300 focus:ring-2 focus:ring-indigo-400/25 disabled:opacity-60";
+  /** Dock actions: solid fills only — never backdrop-blur (GPU dim→blur double paint). */
+  const dockActionBtn = `${OVERLAY_BUTTON_UA_RESET} flex min-h-12 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-2xl bg-white/10 px-2 py-3 text-[13px] font-semibold text-white transition hover:bg-white/15 active:scale-[0.99]`;
+
+  useEffect(() => {
+    if (!isDock || !onDockResultChromeChange) return;
+    /** Sticky tall plate only for result chrome (in-flight gen uses listing FAB progress). */
+    onDockResultChromeChange(showResultChrome);
+  }, [isDock, onDockResultChromeChange, showResultChrome]);
+
+  useEffect(() => {
+    if (!isDock || !onDockResultChromeChange) return;
+    return () => onDockResultChromeChange(false);
+  }, [isDock, onDockResultChromeChange]);
+
+  /** Publish progress to listing FAB / mobile tab while generation runs. */
+  useEffect(() => {
+    if (!isDock) return;
+    reportRunProgress(busy, progress);
+  }, [isDock, busy, progress, reportRunProgress]);
+
+  useEffect(() => {
+    if (!isDock) return;
+    return () => reportRunProgress(false, 0);
+  }, [isDock, reportRunProgress]);
+
+  /**
+   * Desktop: collapse plate on generate so listing FAB shows progress; reopen on done.
+   * Mobile: keep fullscreen shell open (above tab/nav); CTA shows in-plate progress.
+   * Do not auto-open on hydrated last result.
+   */
+  useEffect(() => {
+    if (!isDock) return;
+    const previous = phaseRef.current;
+    phaseRef.current = phase;
+    if (phase === "uploading" || phase === "generating") {
+      if (!isMobile) setDockPlateOpen(false);
+      return;
+    }
+    if (
+      !isMobile &&
+      phase === "done" &&
+      resultUrl &&
+      (previous === "generating" || previous === "uploading")
+    ) {
+      setDockPlateOpen(true);
+    }
+  }, [isDock, isMobile, phase, resultUrl, setDockPlateOpen]);
 
   return (
     <div
-      className={`relative isolate flex min-h-0 flex-1 flex-col overflow-hidden text-zinc-100 ${
-        isMobile ? "h-full min-h-[100dvh]" : ""
-      } ${
-        resultUrl ? "bg-transparent" : "bg-white text-zinc-900"
+      className={`relative isolate flex min-h-0 flex-col overflow-hidden ${
+        isDock
+          ? showResultChrome
+            ? `${isMobile ? "rounded-none pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]" : "rounded-[1.75rem]"} border-0 bg-zinc-950 text-zinc-100${
+                isMobile ? "" : " shadow-[0_-12px_48px_-16px_rgba(24,24,27,0.28)]"
+              }${dockTall || isMobile ? " h-full min-h-0 flex-1" : ""}`
+            : // Frosted glass — listing shows through (mobile fullscreen + desktop plate).
+              `${isMobile ? "rounded-none pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]" : "rounded-[1.75rem]"} border-0 bg-zinc-950/55 text-zinc-100 shadow-[0_-12px_48px_-16px_rgba(24,24,27,0.28)] backdrop-blur-xl${
+                dockTall || isMobile ? " h-full min-h-0 flex-1" : ""
+              }`
+          : `${isMobile ? "h-full min-h-[100dvh] flex-1" : "flex-1"} ${
+              showResultChrome ? "bg-transparent text-zinc-100" : "bg-white text-zinc-900"
+            }`
       }`}
     >
-      {resultUrl ? (
-        <div className="pointer-events-none absolute inset-0 -z-10" aria-hidden>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={resultUrl} alt="" className="h-full w-full object-cover" />
-          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(9,9,11,0.38)_0%,rgba(9,9,11,0.04)_42%,rgba(9,9,11,0.44)_100%)]" />
-        </div>
-      ) : (
+      {showResultChrome ? (
+        <GenerationResultBackdrop
+          resultUrl={resultUrl}
+          phase={phase}
+          className={isDock && isMobile ? "" : "rounded-[1.75rem]"}
+        />
+      ) : !isDock ? (
         <div
           className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top,rgba(79,70,229,0.16),transparent_38%),#09090b]"
           aria-hidden
         />
-      )}
+      ) : null}
 
+      {isDock && showResultChrome && phase === "done" && !dockExpanded ? (
+        <div className="absolute right-2.5 top-2.5 z-30 flex items-center gap-2">
+          {resultUrl && generationId ? (
+            <div className="relative" data-generation-menu-root>
+              <button
+                type="button"
+                aria-label="Действия с фото"
+                aria-haspopup="menu"
+                aria-expanded={menuOpen}
+                className={`${OVERLAY_BUTTON_UA_RESET} flex h-10 w-10 items-center justify-center rounded-full bg-black/50 text-white shadow-lg ring-1 ring-white/25 backdrop-blur-md transition hover:bg-black/65 active:scale-[0.98]`}
+                onClick={() => setMenuOpen((open) => !open)}
+              >
+                <svg
+                  className="h-5 w-5"
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
+                  aria-hidden
+                >
+                  <circle cx="12" cy="5" r="1.75" />
+                  <circle cx="12" cy="12" r="1.75" />
+                  <circle cx="12" cy="19" r="1.75" />
+                </svg>
+              </button>
+              <GenerationCardMenu
+                open={menuOpen}
+                onClose={() => setMenuOpen(false)}
+                showSelect={false}
+                hasResult
+                hasPrompt={Boolean(activePrompt.trim())}
+                canPublish
+                isPublished={isPublished}
+                busyAction={busyAction}
+                onAction={(action) => {
+                  void handleResultAction(action);
+                }}
+              />
+            </div>
+          ) : null}
+          <button
+            type="button"
+            aria-label="Закрыть"
+            onClick={onBack}
+            className={`${OVERLAY_BUTTON_UA_RESET} flex h-10 w-10 items-center justify-center rounded-full bg-black/50 text-white shadow-lg ring-1 ring-white/25 backdrop-blur-md transition hover:bg-black/65 active:scale-[0.98]`}
+          >
+            <svg
+              className="h-5 w-5"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              aria-hidden
+            >
+              <path d="m6 6 12 12M18 6 6 18" />
+            </svg>
+          </button>
+        </div>
+      ) : null}
+
+      {!isDock ? (
       <header
         className={`relative z-30 flex min-h-14 shrink-0 items-center justify-between gap-2 border-b px-3 backdrop-blur-md ${
           isMobile ? "pb-2 pt-[max(0.5rem,env(safe-area-inset-top))]" : "py-2"
         } ${
-          resultUrl ? "border-white/10 bg-black/15" : "border-zinc-200 bg-white/90"
+          showResultChrome ? "border-white/10 bg-black/15" : "border-zinc-200 bg-white/90"
         }`}
       >
         <button
@@ -746,7 +1190,7 @@ export function CardInlineGeneratePanel({
           onClick={onBack}
           disabled={busy}
           className={`${OVERLAY_BUTTON_UA_RESET} flex min-h-11 items-center rounded-full px-4 text-[13px] font-semibold backdrop-blur-md transition disabled:opacity-50 ${
-            resultUrl
+            showResultChrome
               ? "bg-black/25 text-white hover:bg-black/40"
               : "bg-zinc-100 text-zinc-900 hover:bg-zinc-200"
           }`}
@@ -755,7 +1199,7 @@ export function CardInlineGeneratePanel({
         </button>
         <span
           className={`text-[13px] font-semibold ${
-            resultUrl ? "text-white/85" : "text-zinc-700"
+            showResultChrome ? "text-white/85" : "text-zinc-700"
           }`}
         >
           {phase === "generating" ? "Генерируем" : resultUrl ? "Готово" : "Новая генерация"}
@@ -794,42 +1238,142 @@ export function CardInlineGeneratePanel({
           <span className="h-11 w-11" aria-hidden />
         )}
       </header>
+      ) : null}
 
       <div
-        className={`flex min-h-0 flex-1 flex-col ${
-          isMobile ? "px-3 py-3" : "px-3 py-2.5"
+        className={`flex min-h-0 flex-col ${
+          isDock
+            ? // flex-1 only (no h-full) so footer actions stay inside the plate.
+              `min-h-0 flex-1 justify-end px-3 pb-0 ${
+                isMobile ? "pt-2" : "pt-3"
+              }`
+            : `relative z-10 flex-1 ${isMobile ? "px-3 py-3" : "px-3 py-2.5"}`
         }`}
       >
-        <div className="mt-auto space-y-3">
-        {promptExpanded ? (
+        <div
+          className={`${
+            isDock
+              ? "mt-auto flex w-full flex-col justify-end gap-2.5"
+              : dockTall
+                ? "mt-auto flex min-h-0 flex-1 flex-col justify-end gap-2.5"
+                : "mt-auto space-y-3"
+          }`}
+        >
+        {promptExpanded && !dockPromptExpanded ? (
           <button
             type="button"
             aria-label="Свернуть промпт"
-            className={`${OVERLAY_BUTTON_UA_RESET} absolute inset-0 z-40 bg-black/45 backdrop-blur-[2px]`}
+            className={`${OVERLAY_BUTTON_UA_RESET} ${sheetPos} inset-0 z-40 bg-black/45 backdrop-blur-[2px]`}
             onClick={() => setPromptExpanded(false)}
           />
         ) : null}
 
         <section
-          role={promptExpanded ? "dialog" : undefined}
-          aria-modal={promptExpanded ? "true" : undefined}
+          role={promptExpanded && !dockPromptExpanded ? "dialog" : undefined}
+          aria-modal={promptExpanded && !dockPromptExpanded ? "true" : undefined}
           aria-labelledby={promptExpanded ? "inline-prompt-editor-title" : undefined}
-          className={`border shadow-none ${
-            promptExpanded
-              ? "absolute inset-x-0 bottom-0 top-[max(0.75rem,env(safe-area-inset-top))] z-50 flex min-h-0 flex-col rounded-t-3xl border-transparent bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))] text-zinc-900 shadow-[0_-20px_60px_-24px_rgba(0,0,0,0.45)]"
-              : "rounded-2xl px-3 py-1 backdrop-blur-md"
+          aria-hidden={
+            isDock && dockExpanded && !dockPromptExpanded ? true : undefined
+          }
+          className={`shadow-none ${
+            dockPromptExpanded
+              ? dockPromptSheetPanel
+              : promptExpanded
+              ? `${sheetPos} inset-x-0 bottom-0 top-[max(0.75rem,env(safe-area-inset-top))] z-50 flex min-h-0 flex-col rounded-t-3xl border border-transparent bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))] text-zinc-900 shadow-[0_-20px_60px_-24px_rgba(0,0,0,0.45)]`
+              : isDock
+                ? `rounded-none border-0 bg-transparent px-1 py-0.5 text-white${
+                    // Transparent sheets: hide collapsed prompt under photos/model.
+                    dockExpanded ? " invisible pointer-events-none" : ""
+                  }`
+                : "rounded-2xl border px-3 py-1 backdrop-blur-md"
           } ${
-            promptExpanded
+            promptExpanded || isDock
               ? ""
-              : resultUrl
-              ? "border-white/15 bg-black/15 text-white"
+              : glassChrome
+              ? "border-white/15 bg-black/15 text-white backdrop-blur-md"
               : "border-zinc-200 bg-white/95 text-zinc-900"
           }`}
         >
           {promptExpanded ? (
+            useBlankPromptEditor ? (
+              <>
+                {dockPromptExpanded ? (
+                  <button
+                    type="button"
+                    aria-label="Свернуть промпт"
+                    onClick={() => setPromptExpanded(false)}
+                    className={`${OVERLAY_BUTTON_UA_RESET} mx-auto mb-1 flex w-full shrink-0 flex-col items-center gap-1 py-1`}
+                  >
+                    <span className={dockSheetHandle} aria-hidden />
+                  </button>
+                ) : (
+                  <div className="mx-auto mb-2 h-1 w-9 shrink-0 rounded-full bg-zinc-300" aria-hidden />
+                )}
+                <div className="mb-2 flex min-h-11 shrink-0 items-center justify-between gap-3">
+                  <h3 id="inline-prompt-editor-title" className="text-[13px] font-semibold">
+                    Промпт
+                  </h3>
+                  <button
+                    type="button"
+                    aria-label="Закрыть"
+                    onClick={() => setPromptExpanded(false)}
+                    className={
+                      dockPromptExpanded
+                        ? dockSheetCloseBtn
+                        : `${OVERLAY_BUTTON_UA_RESET} flex h-11 w-11 items-center justify-center rounded-full bg-zinc-100 text-zinc-700 transition hover:bg-zinc-200`
+                    }
+                  >
+                    <svg
+                      className="h-5 w-5"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      aria-hidden
+                    >
+                      <path d="m6 6 12 12M18 6 6 18" />
+                    </svg>
+                  </button>
+                </div>
+                <label className="flex min-h-0 flex-1 flex-col">
+                  <textarea
+                    value={draftPrompt}
+                    onChange={(event) => setDraftPrompt(event.target.value)}
+                    placeholder={BLANK_PROMPT_PLACEHOLDER}
+                    maxLength={8000}
+                    disabled={busy}
+                    autoFocus
+                    className={`min-h-0 w-full flex-1 resize-none overflow-y-auto p-3 text-[13px] font-medium leading-relaxed ${
+                      dockPromptExpanded
+                        ? dockSheetField
+                        : "rounded-xl border border-zinc-200 bg-white text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 disabled:opacity-60"
+                    }`}
+                  />
+                </label>
+                <button
+                  type="button"
+                  disabled={busy || draftPrompt.trim().length < 8}
+                  onClick={() => setPromptExpanded(false)}
+                  className={`${OVERLAY_BUTTON_UA_RESET} mt-3 flex min-h-12 w-full shrink-0 items-center justify-center rounded-2xl bg-indigo-600 px-4 py-3 text-[13px] font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50`}
+                >
+                  Готово
+                </button>
+              </>
+            ) : (
             <>
-              <div className="mx-auto mb-2 h-1 w-9 rounded-full bg-zinc-300" aria-hidden />
-              <div className="mb-2 flex min-h-11 items-center justify-between gap-3">
+              {dockPromptExpanded ? (
+                <button
+                  type="button"
+                  aria-label="Свернуть промпт"
+                  onClick={() => setPromptExpanded(false)}
+                  className={`${OVERLAY_BUTTON_UA_RESET} mx-auto mb-1 flex w-full shrink-0 flex-col items-center gap-1 py-1`}
+                >
+                  <span className={dockSheetHandle} aria-hidden />
+                </button>
+              ) : (
+                <div className="mx-auto mb-2 h-1 w-9 shrink-0 rounded-full bg-zinc-300" aria-hidden />
+              )}
+              <div className="mb-2 flex min-h-11 shrink-0 items-center justify-between gap-3">
                 <h3 id="inline-prompt-editor-title" className="text-[13px] font-semibold">
                   {resultUrl ? "Изменить картинку" : "Промпт"}
                 </h3>
@@ -837,7 +1381,11 @@ export function CardInlineGeneratePanel({
                   type="button"
                   aria-label="Закрыть"
                   onClick={() => setPromptExpanded(false)}
-                  className={`${OVERLAY_BUTTON_UA_RESET} flex h-11 w-11 items-center justify-center rounded-full bg-zinc-100 text-zinc-700 transition hover:bg-zinc-200`}
+                  className={
+                    dockPromptExpanded
+                      ? dockSheetCloseBtn
+                      : `${OVERLAY_BUTTON_UA_RESET} flex h-11 w-11 items-center justify-center rounded-full bg-zinc-100 text-zinc-700 transition hover:bg-zinc-200`
+                  }
                 >
                   <svg
                     className="h-5 w-5"
@@ -851,36 +1399,60 @@ export function CardInlineGeneratePanel({
                   </svg>
                 </button>
               </div>
-              <label className="flex min-h-0 flex-1 flex-col">
-                <span className="mb-2 block text-[13px] font-semibold text-zinc-700">
-                  Текущий промпт
-                </span>
-                <textarea
-                  value={draftPrompt}
-                  onChange={(event) => setDraftPrompt(event.target.value)}
-                  maxLength={8000}
-                  disabled={busy || remixing}
-                  className="min-h-0 w-full flex-1 resize-none rounded-xl border border-zinc-200 bg-zinc-50 p-3 text-[13px] font-medium leading-relaxed text-zinc-900 outline-none transition focus:border-indigo-400 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 disabled:opacity-60"
-                />
-              </label>
-              <label className="mt-3 block shrink-0">
-                <span className="mb-2 block text-[13px] font-semibold text-zinc-700">
-                  {PROMPT_REMIX_COPY.changeLabel}
-                </span>
-                <textarea
-                  value={changeRequest}
-                  onChange={(event) => setChangeRequest(event.target.value)}
-                  placeholder={PROMPT_REMIX_COPY.changePlaceholder}
-                  maxLength={1000}
-                  rows={3}
-                  disabled={busy || remixing}
-                  autoFocus
-                  className="w-full resize-none rounded-xl border border-zinc-200 bg-white p-3 text-[13px] font-medium leading-relaxed text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 disabled:opacity-60"
-                />
-              </label>
-              {error ? (
-                <p className="mt-2 text-[13px] font-medium text-rose-600">{error}</p>
-              ) : null}
+              <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+                <label className="flex min-h-0 flex-1 flex-col">
+                  <span
+                    className={`mb-2 block shrink-0 text-[13px] font-semibold ${
+                      dockPromptExpanded ? "text-white/70" : "text-zinc-700"
+                    }`}
+                  >
+                    Текущий промпт
+                  </span>
+                  <textarea
+                    value={draftPrompt}
+                    onChange={(event) => setDraftPrompt(event.target.value)}
+                    maxLength={8000}
+                    disabled={busy || remixing}
+                    className={`min-h-0 w-full flex-1 resize-none overflow-y-auto p-3 text-[13px] font-medium leading-relaxed ${
+                      dockPromptExpanded
+                        ? dockSheetField
+                        : "rounded-xl border border-zinc-200 bg-zinc-50 text-zinc-900 outline-none transition focus:border-indigo-400 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 disabled:opacity-60"
+                    }`}
+                  />
+                </label>
+                <label className="mt-3 block shrink-0">
+                  <span
+                    className={`mb-2 block text-[13px] font-semibold ${
+                      dockPromptExpanded ? "text-white/70" : "text-zinc-700"
+                    }`}
+                  >
+                    {PROMPT_REMIX_COPY.changeLabel}
+                  </span>
+                  <textarea
+                    value={changeRequest}
+                    onChange={(event) => setChangeRequest(event.target.value)}
+                    placeholder={PROMPT_REMIX_COPY.changePlaceholder}
+                    maxLength={1000}
+                    rows={3}
+                    disabled={busy || remixing}
+                    autoFocus
+                    className={`w-full resize-none p-3 text-[13px] font-medium leading-relaxed ${
+                      dockPromptExpanded
+                        ? dockSheetField
+                        : "rounded-xl border border-zinc-200 bg-white text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 disabled:opacity-60"
+                    }`}
+                  />
+                </label>
+                {error ? (
+                  <p
+                    className={`mt-2 text-[13px] font-medium ${
+                      dockPromptExpanded ? "text-rose-200" : "text-rose-600"
+                    }`}
+                  >
+                    {error}
+                  </p>
+                ) : null}
+              </div>
               <button
                 type="button"
                 disabled={
@@ -890,7 +1462,7 @@ export function CardInlineGeneratePanel({
                   remixing
                 }
                 onClick={() => void applyPromptRemix()}
-                className={`${OVERLAY_BUTTON_UA_RESET} mt-3 flex min-h-12 w-full items-center justify-center rounded-2xl bg-gradient-to-r from-indigo-500 to-violet-500 px-4 py-3 text-[13px] font-semibold text-white shadow-lg shadow-indigo-950/20 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50`}
+                className={`${OVERLAY_BUTTON_UA_RESET} mt-3 flex min-h-12 w-full shrink-0 items-center justify-center rounded-2xl bg-gradient-to-r from-indigo-500 to-violet-500 px-4 py-3 text-[13px] font-semibold text-white shadow-lg shadow-indigo-950/20 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50`}
               >
                 {remixing
                   ? resultUrl && generationId
@@ -901,6 +1473,7 @@ export function CardInlineGeneratePanel({
                     : "Применить изменение"}
               </button>
             </>
+            )
           ) : (
             <button
               type="button"
@@ -908,13 +1481,19 @@ export function CardInlineGeneratePanel({
               onClick={openPromptEditor}
               className={`${OVERLAY_BUTTON_UA_RESET} flex min-h-11 w-full items-center gap-3 text-left`}
             >
-              <span className="shrink-0 text-[13px] font-semibold">Промпт</span>
+              {isBlank ? null : (
+                <span className="shrink-0 text-[13px] font-semibold">Промпт</span>
+              )}
               <span
                 className={`min-w-0 flex-1 truncate text-[13px] font-medium ${
-                  resultUrl ? "text-white/70" : "text-zinc-500"
+                  glassChrome
+                    ? "text-white/70"
+                    : activePrompt.trim()
+                      ? "text-zinc-700"
+                      : "text-zinc-400"
                 }`}
               >
-                {activePrompt}
+                {activePrompt.trim() || (isBlank ? BLANK_PROMPT_PLACEHOLDER : "")}
               </span>
               <svg
                 className="h-5 w-5 shrink-0"
@@ -930,10 +1509,401 @@ export function CardInlineGeneratePanel({
           )}
         </section>
 
+        {expandedControl && !isDock && !showResultChrome ? (
+          <button
+            type="button"
+            aria-label="Закрыть выбор"
+            className={`${OVERLAY_BUTTON_UA_RESET} ${sheetPos} inset-0 z-40 bg-black/45 backdrop-blur-[2px]`}
+            onClick={closePrefsSheet}
+          />
+        ) : null}
+
+        {expandedControl === "photos" && !showResultChrome ? (
+          <div
+            id="inline-generation-photos"
+            role={isDock ? undefined : "dialog"}
+            aria-modal={isDock ? undefined : "true"}
+            aria-label="Выбор фотографий"
+            className={
+              dockPhotosExpanded
+                ? `${dockSheetPanel} overflow-y-auto`
+                : `${sheetPos} inset-x-0 bottom-0 z-50 max-h-[min(76dvh,38rem)] overflow-y-auto rounded-t-3xl bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))] text-zinc-900 shadow-[0_-20px_60px_-24px_rgba(0,0,0,0.45)]`
+            }
+          >
+            {dockPhotosExpanded ? (
+              <button
+                type="button"
+                aria-label="Свернуть выбор фотографий"
+                onClick={closePrefsSheet}
+                className={`${OVERLAY_BUTTON_UA_RESET} mx-auto mb-1 flex w-full flex-col items-center gap-1 py-1`}
+              >
+                <span className={dockSheetHandle} aria-hidden />
+              </button>
+            ) : (
+              <div className="mx-auto mb-2 h-1 w-9 rounded-full bg-zinc-300" aria-hidden />
+            )}
+            <div className="mb-2 flex min-h-11 items-center justify-between gap-3">
+              <span
+                className={`text-[13px] font-semibold ${
+                  dockPhotosExpanded ? "text-white" : "text-zinc-900"
+                }`}
+              >
+                Ваши фото · {selectedPhotos.length}/{maxPhotos}
+              </span>
+              {libraryLoading ? (
+                <span
+                  className={`text-[13px] font-medium ${
+                    dockPhotosExpanded ? "text-white/60" : "text-zinc-500"
+                  }`}
+                >
+                  Загрузка…
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  aria-label="Закрыть выбор фотографий"
+                  onClick={closePrefsSheet}
+                  className={
+                    dockPhotosExpanded
+                      ? dockSheetCloseBtn
+                      : `${OVERLAY_BUTTON_UA_RESET} flex h-11 w-11 items-center justify-center rounded-full bg-zinc-100 text-zinc-700 transition hover:bg-zinc-200`
+                  }
+                >
+                  <svg
+                    className="h-5 w-5"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    aria-hidden
+                  >
+                    <path d="m6 6 12 12M18 6 6 18" />
+                  </svg>
+                </button>
+              )}
+            </div>
+            <div className="flex gap-2 overflow-x-auto pb-1">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={controlsBusy || libraryLoading}
+                className={`${OVERLAY_BUTTON_UA_RESET} flex h-[4.75rem] w-[4.75rem] shrink-0 flex-col items-center justify-center rounded-xl border border-dashed text-center transition disabled:opacity-50 ${
+                  dockPhotosExpanded
+                    ? "border-white/25 bg-white/10 text-white hover:border-indigo-300 hover:bg-white/15"
+                    : "border-zinc-300 bg-zinc-100 text-zinc-700 hover:border-indigo-400 hover:bg-indigo-50"
+                }`}
+              >
+                <svg
+                  className="h-5 w-5"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  aria-hidden
+                >
+                  <path d="M12 5v14M5 12h14" strokeLinecap="round" />
+                </svg>
+                <span className="mt-1 text-[13px] font-semibold">Добавить</span>
+              </button>
+              {photos.map((photo) => {
+                const selected = selectedPhotoIds.has(photo.id);
+                const deleting = deletingPhotoId === photo.id;
+                return (
+                  <div
+                    key={photo.id}
+                    className={`group relative h-[4.75rem] w-[4.75rem] shrink-0 overflow-hidden rounded-xl bg-zinc-800 ring-2 transition ${
+                      selected ? "ring-indigo-300" : "ring-white/10"
+                    }`}
+                  >
+                    <button
+                      type="button"
+                      aria-label={selected ? "Не использовать фото" : "Использовать фото"}
+                      aria-pressed={selected}
+                      disabled={controlsBusy || deleting}
+                      onClick={() => togglePhoto(photo.id)}
+                      className={`${OVERLAY_BUTTON_UA_RESET} absolute inset-0 h-full w-full disabled:opacity-50`}
+                    >
+                      {photo.previewUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={photo.previewUrl}
+                          alt={photo.originalFilename || "Сохранённое фото"}
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <span className="flex h-full items-center justify-center text-[13px] font-medium text-zinc-400">
+                          Фото
+                        </span>
+                      )}
+                      {selected ? (
+                        <span
+                          aria-hidden
+                          className="absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-indigo-300 text-[13px] font-bold text-zinc-950 shadow"
+                        >
+                          ✓
+                        </span>
+                      ) : null}
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="Удалить фото"
+                      disabled={busy || Boolean(deletingPhotoId)}
+                      onClick={() => void deletePhoto(photo)}
+                      className={`${OVERLAY_BUTTON_UA_RESET} absolute bottom-0 left-0 z-10 flex h-11 w-11 items-end justify-start p-1.5 text-white disabled:opacity-50`}
+                    >
+                      <span
+                        aria-hidden
+                        className="flex h-7 w-7 items-center justify-center rounded-full bg-black/60 backdrop-blur-md"
+                      >
+                        <svg
+                          className="h-4 w-4"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.8"
+                        >
+                          <path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13M10 11v5m4-5v5" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      </span>
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+            {!libraryLoading && !photos.length ? (
+              <p
+                className={`mt-2 text-[13px] font-medium ${
+                  dockPhotosExpanded ? "text-white/65" : "text-zinc-600"
+                }`}
+              >
+                Добавьте фото — оно сохранится для следующих генераций.
+              </p>
+            ) : null}
+            <button
+              type="button"
+              onClick={closePrefsSheet}
+              className={`${OVERLAY_BUTTON_UA_RESET} ${
+                dockPhotosExpanded ? "mt-auto" : "mt-3"
+              } flex min-h-12 w-full shrink-0 items-center justify-center rounded-2xl bg-indigo-600 px-4 py-3 text-[13px] font-semibold text-white transition hover:bg-indigo-700`}
+            >
+              Готово
+            </button>
+          </div>
+        ) : null}
+
+        {expandedControl === "model" && !showResultChrome ? (
+          <div
+            id="inline-generation-models"
+            role={isDock ? undefined : "dialog"}
+            aria-modal={isDock ? undefined : "true"}
+            aria-label="Выбор модели"
+            className={
+              dockModelExpanded
+                ? `${dockSheetPanel} overflow-y-auto`
+                : `${sheetPos} inset-x-0 bottom-0 z-50 max-h-[min(82dvh,44rem)] overflow-y-auto rounded-t-3xl bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))] text-zinc-900 shadow-[0_-20px_60px_-24px_rgba(0,0,0,0.45)]`
+            }
+          >
+            {dockModelExpanded ? (
+              <button
+                type="button"
+                aria-label="Свернуть выбор модели"
+                onClick={closePrefsSheet}
+                className={`${OVERLAY_BUTTON_UA_RESET} mx-auto mb-1 flex w-full flex-col items-center gap-1 py-1`}
+              >
+                <span className={dockSheetHandle} aria-hidden />
+              </button>
+            ) : (
+              <div className="mx-auto mb-2 h-1 w-9 rounded-full bg-zinc-300" aria-hidden />
+            )}
+            <div className="mb-2 flex min-h-11 items-center justify-between gap-3">
+              <span
+                className={`text-[13px] font-semibold ${
+                  dockModelExpanded ? "text-white" : "text-zinc-900"
+                }`}
+              >
+                Модель генерации
+              </span>
+              <button
+                type="button"
+                aria-label="Закрыть выбор модели"
+                onClick={closePrefsSheet}
+                className={
+                  dockModelExpanded
+                    ? dockSheetCloseBtn
+                    : `${OVERLAY_BUTTON_UA_RESET} flex h-11 w-11 items-center justify-center rounded-full bg-zinc-100 text-zinc-700 transition hover:bg-zinc-200`
+                }
+              >
+                <svg
+                  className="h-5 w-5"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  aria-hidden
+                >
+                  <path d="m6 6 12 12M18 6 6 18" />
+                </svg>
+              </button>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              {models.map((item) => {
+                const selected = model === item.id;
+                const display = GENERATION_MODEL_DISPLAY[item.id];
+                const unaffordable =
+                  credits !== null && credits < item.cost;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    aria-pressed={selected}
+                    aria-disabled={unaffordable || undefined}
+                    disabled={controlsBusy}
+                    title={
+                      unaffordable
+                        ? "Не хватает кредитов"
+                        : display?.description || item.label
+                    }
+                    onClick={() => setModel(item.id)}
+                    className={`${OVERLAY_BUTTON_UA_RESET} relative flex min-h-20 min-w-0 items-center gap-3 overflow-hidden rounded-xl p-3 text-left ring-2 transition ${
+                      dockModelExpanded
+                        ? selected
+                          ? "bg-white/15 text-white ring-indigo-300 shadow-sm"
+                          : "bg-white/5 text-white ring-white/10 hover:bg-white/10 hover:ring-white/25"
+                        : selected
+                          ? "bg-indigo-50 text-zinc-900 ring-indigo-500 shadow-sm"
+                          : "bg-zinc-100 text-zinc-900 ring-zinc-200 hover:bg-zinc-200 hover:ring-zinc-300"
+                    } ${unaffordable ? "opacity-90" : ""} disabled:opacity-50`}
+                  >
+                    <span
+                      aria-hidden
+                      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full shadow-sm ${
+                        dockModelExpanded ? "bg-white/90" : "bg-white"
+                      }`}
+                    >
+                      <GoogleGenerationModelIcon />
+                    </span>
+                    <span className="min-w-0 flex-1 pr-5">
+                      <span className="block truncate text-[13px] font-semibold leading-tight">
+                        {displayLabelForGenerationModel(item.id, item.label)}
+                      </span>
+                      {unaffordable ? (
+                        <span
+                          className={`mt-1 block text-[13px] font-semibold leading-tight ${
+                            dockModelExpanded ? "text-rose-400" : "text-rose-600"
+                          }`}
+                        >
+                          Не хватает кредитов
+                        </span>
+                      ) : (
+                        <span
+                          className={`mt-1 block line-clamp-2 text-xs font-medium leading-tight ${
+                            dockModelExpanded ? "text-white/60" : "text-zinc-500"
+                          }`}
+                        >
+                          {display?.description || "Генерация изображений"}
+                        </span>
+                      )}
+                    </span>
+                    <span
+                      className={`absolute right-1.5 top-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
+                        unaffordable
+                          ? dockModelExpanded
+                            ? "bg-rose-400/20 text-rose-300"
+                            : "bg-rose-100 text-rose-600"
+                          : dockModelExpanded
+                            ? selected
+                              ? "bg-indigo-300/90 text-zinc-950"
+                              : "bg-white/10 text-white/70"
+                            : selected
+                              ? "bg-indigo-100 text-indigo-700"
+                              : "bg-white text-zinc-500"
+                      }`}
+                    >
+                      {item.cost} кр.
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <label className="block min-w-0">
+                <span
+                  className={`mb-1 block text-[13px] font-medium ${
+                    dockModelExpanded ? "text-white/65" : "text-zinc-600"
+                  }`}
+                >
+                  Формат
+                </span>
+                <select
+                  value={aspectRatio}
+                  onChange={(event) => setAspectRatio(event.target.value)}
+                  disabled={controlsBusy || !aspectRatios.length}
+                  className={`min-h-11 w-full px-3 text-[13px] font-semibold outline-none transition disabled:opacity-50 ${
+                    dockModelExpanded
+                      ? dockSheetField
+                      : "rounded-xl border border-zinc-200 bg-zinc-100 text-zinc-900 focus:border-indigo-400"
+                  }`}
+                >
+                  {aspectRatios.map((item) => (
+                    <option key={item.value} value={item.value}>
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block min-w-0">
+                <span
+                  className={`mb-1 block text-[13px] font-medium ${
+                    dockModelExpanded ? "text-white/65" : "text-zinc-600"
+                  }`}
+                >
+                  Качество
+                </span>
+                <select
+                  value={imageSize}
+                  onChange={(event) => setImageSize(event.target.value)}
+                  disabled={controlsBusy || !imageSizes.length}
+                  className={`min-h-11 w-full px-3 text-[13px] font-semibold outline-none transition disabled:opacity-50 ${
+                    dockModelExpanded
+                      ? dockSheetField
+                      : "rounded-xl border border-zinc-200 bg-zinc-100 text-zinc-900 focus:border-indigo-400"
+                  }`}
+                >
+                  {imageSizes.map((item) => (
+                    <option key={item.value} value={item.value}>
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <button
+              type="button"
+              onClick={closePrefsSheet}
+              className={`${OVERLAY_BUTTON_UA_RESET} ${
+                dockModelExpanded ? "mt-auto" : "mt-3"
+              } flex min-h-12 w-full shrink-0 items-center justify-center rounded-2xl bg-indigo-600 px-4 py-3 text-[13px] font-semibold text-white transition hover:bg-indigo-700`}
+            >
+              Готово
+            </button>
+          </div>
+        ) : null}
+
+        {!showResultChrome ? (
         <section
-          className={`rounded-2xl border p-2 ${
-            resultUrl ? "border-white/15 bg-black/15" : "border-zinc-200 bg-white/95"
+          className={`shrink-0 ${
+            isDock
+              ? `rounded-none border-0 bg-transparent p-1${
+                  dockExpanded ? " invisible pointer-events-none" : ""
+                }`
+              : `rounded-2xl border p-2 ${
+                  glassChrome
+                    ? "border-white/15 bg-black/15 backdrop-blur-md"
+                    : "border-zinc-200 bg-white/95"
+                }`
           }`}
+          aria-hidden={isDock && dockExpanded ? true : undefined}
         >
           <div className="flex items-start gap-2">
             <button
@@ -942,13 +1912,12 @@ export function CardInlineGeneratePanel({
               aria-controls="inline-generation-photos"
               disabled={controlsBusy}
               onClick={() => {
-                setPromptExpanded(false);
                 setExpandedControl((current) => (current === "photos" ? null : "photos"));
               }}
               className={`${OVERLAY_BUTTON_UA_RESET} relative flex h-[5.25rem] w-[5.25rem] shrink-0 overflow-hidden rounded-xl text-left ring-2 transition ${
                 expandedControl === "photos"
                   ? "ring-indigo-300"
-                  : resultUrl
+                  : glassChrome
                     ? "bg-black/20 ring-white/10 hover:ring-white/25"
                     : "bg-zinc-100 ring-zinc-200 hover:ring-zinc-300"
               } disabled:opacity-50`}
@@ -980,7 +1949,7 @@ export function CardInlineGeneratePanel({
               <span className="absolute inset-x-2 bottom-1.5 text-[13px] font-semibold text-white">
                 Ваши фото
               </span>
-              <span className="absolute right-1.5 top-1.5 rounded-full bg-black/55 px-1.5 py-0.5 text-[10px] font-semibold text-white backdrop-blur-md">
+              <span className="absolute right-1.5 top-1.5 rounded-full bg-zinc-900/90 px-1.5 py-0.5 text-[10px] font-semibold text-white">
                 {selectedPhotos.length}/{maxPhotos}
               </span>
             </button>
@@ -991,16 +1960,23 @@ export function CardInlineGeneratePanel({
               aria-controls="inline-generation-models"
               disabled={controlsBusy || !models.length}
               onClick={() => {
-                setPromptExpanded(false);
                 setExpandedControl((current) => (current === "model" ? null : "model"));
               }}
-              className={`${OVERLAY_BUTTON_UA_RESET} relative flex h-[5.25rem] w-[5.25rem] shrink-0 flex-col items-center justify-center overflow-hidden rounded-xl bg-indigo-50 p-2 text-center text-zinc-900 ring-2 transition ${
-                expandedControl === "model"
-                  ? "ring-indigo-500"
-                  : "ring-indigo-200 hover:bg-indigo-100 hover:ring-indigo-400"
+              className={`${OVERLAY_BUTTON_UA_RESET} relative flex h-[5.25rem] w-[5.25rem] shrink-0 flex-col items-center justify-center overflow-hidden rounded-xl p-2 text-center ring-2 transition ${
+                glassChrome
+                  ? expandedControl === "model"
+                    ? "bg-white/10 text-white ring-indigo-300"
+                    : "bg-white/5 text-white ring-white/10 hover:bg-white/10 hover:ring-white/25"
+                  : expandedControl === "model"
+                    ? "bg-indigo-50 text-zinc-900 ring-indigo-500"
+                    : "bg-indigo-50 text-zinc-900 ring-indigo-200 hover:bg-indigo-100 hover:ring-indigo-400"
               } disabled:opacity-50`}
             >
-              <span className="mb-1 flex h-8 w-8 items-center justify-center rounded-full bg-white shadow-sm">
+              <span
+                className={`mb-1 flex h-8 w-8 items-center justify-center rounded-full shadow-sm ${
+                  glassChrome ? "bg-white/90" : "bg-white"
+                }`}
+              >
                 <GoogleGenerationModelIcon />
               </span>
               <span className="line-clamp-2 text-[13px] font-semibold leading-tight">
@@ -1013,261 +1989,15 @@ export function CardInlineGeneratePanel({
 
             <p
               className={`min-w-0 flex-1 self-center text-[13px] font-medium leading-snug ${
-                resultUrl ? "text-white/70" : "text-zinc-500"
+                glassChrome ? "text-white/70" : "text-zinc-500"
               }`}
             >
               Нажмите на квадрат, чтобы изменить выбор.
             </p>
           </div>
 
-          {expandedControl ? (
-            <button
-              type="button"
-              aria-label="Закрыть выбор"
-              className={`${OVERLAY_BUTTON_UA_RESET} absolute inset-0 z-40 bg-black/45 backdrop-blur-[2px]`}
-              onClick={() => setExpandedControl(null)}
-            />
-          ) : null}
-
-          {expandedControl === "photos" ? (
-            <div
-              id="inline-generation-photos"
-              role="dialog"
-              aria-modal="true"
-              aria-label="Выбор фотографий"
-              className="absolute inset-x-0 bottom-0 z-50 max-h-[min(76dvh,38rem)] overflow-y-auto rounded-t-3xl bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))] text-zinc-900 shadow-[0_-20px_60px_-24px_rgba(0,0,0,0.45)]"
-            >
-              <div className="mx-auto mb-2 h-1 w-9 rounded-full bg-zinc-300" aria-hidden />
-              <div className="mb-2 flex min-h-11 items-center justify-between gap-3">
-                <span className="text-[13px] font-semibold text-zinc-900">
-                  Ваши фото · {selectedPhotos.length}/{maxPhotos}
-                </span>
-                {libraryLoading ? (
-                  <span className="text-[13px] font-medium text-zinc-500">Загрузка…</span>
-                ) : (
-                  <button
-                    type="button"
-                    aria-label="Закрыть выбор фотографий"
-                    onClick={() => setExpandedControl(null)}
-                    className={`${OVERLAY_BUTTON_UA_RESET} flex h-11 w-11 items-center justify-center rounded-full bg-zinc-100 text-zinc-700 transition hover:bg-zinc-200`}
-                  >
-                    <svg
-                      className="h-5 w-5"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      aria-hidden
-                    >
-                      <path d="m6 6 12 12M18 6 6 18" />
-                    </svg>
-                  </button>
-                )}
-              </div>
-              <div className="flex gap-2 overflow-x-auto pb-1">
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={controlsBusy || libraryLoading}
-                  className={`${OVERLAY_BUTTON_UA_RESET} flex h-[4.75rem] w-[4.75rem] shrink-0 flex-col items-center justify-center rounded-xl border border-dashed border-zinc-300 bg-zinc-100 text-center text-zinc-700 transition hover:border-indigo-400 hover:bg-indigo-50 disabled:opacity-50`}
-                >
-                  <svg
-                    className="h-5 w-5"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
-                    aria-hidden
-                  >
-                    <path d="M12 5v14M5 12h14" strokeLinecap="round" />
-                  </svg>
-                  <span className="mt-1 text-[13px] font-semibold">Добавить</span>
-                </button>
-                {photos.map((photo) => {
-                  const selected = selectedPhotoIds.has(photo.id);
-                  const deleting = deletingPhotoId === photo.id;
-                  return (
-                    <div
-                      key={photo.id}
-                      className={`group relative h-[4.75rem] w-[4.75rem] shrink-0 overflow-hidden rounded-xl bg-zinc-800 ring-2 transition ${
-                        selected ? "ring-indigo-300" : "ring-white/10"
-                      }`}
-                    >
-                      <button
-                        type="button"
-                        aria-label={selected ? "Не использовать фото" : "Использовать фото"}
-                        aria-pressed={selected}
-                        disabled={controlsBusy || deleting}
-                        onClick={() => togglePhoto(photo.id)}
-                        className={`${OVERLAY_BUTTON_UA_RESET} absolute inset-0 h-full w-full disabled:opacity-50`}
-                      >
-                        {photo.previewUrl ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={photo.previewUrl}
-                            alt={photo.originalFilename || "Сохранённое фото"}
-                            className="h-full w-full object-cover"
-                          />
-                        ) : (
-                          <span className="flex h-full items-center justify-center text-[13px] font-medium text-zinc-400">
-                            Фото
-                          </span>
-                        )}
-                        {selected ? (
-                          <span
-                            aria-hidden
-                            className="absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-indigo-300 text-[13px] font-bold text-zinc-950 shadow"
-                          >
-                            ✓
-                          </span>
-                        ) : null}
-                      </button>
-                      <button
-                        type="button"
-                        aria-label="Удалить фото"
-                        disabled={busy || Boolean(deletingPhotoId)}
-                        onClick={() => void deletePhoto(photo)}
-                        className={`${OVERLAY_BUTTON_UA_RESET} absolute bottom-0 left-0 z-10 flex h-11 w-11 items-end justify-start p-1.5 text-white disabled:opacity-50`}
-                      >
-                        <span
-                          aria-hidden
-                          className="flex h-7 w-7 items-center justify-center rounded-full bg-black/60 backdrop-blur-md"
-                        >
-                          <svg
-                            className="h-4 w-4"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="1.8"
-                          >
-                            <path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13M10 11v5m4-5v5" strokeLinecap="round" strokeLinejoin="round" />
-                          </svg>
-                        </span>
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-              {!libraryLoading && !photos.length ? (
-                <p className="mt-2 text-[13px] font-medium text-zinc-600">
-                  Добавьте фото — оно сохранится для следующих генераций.
-                </p>
-              ) : null}
-            </div>
-          ) : null}
-
-          {expandedControl === "model" ? (
-            <div
-              id="inline-generation-models"
-              role="dialog"
-              aria-modal="true"
-              aria-label="Выбор модели"
-              className="absolute inset-x-0 bottom-0 z-50 max-h-[min(82dvh,44rem)] overflow-y-auto rounded-t-3xl bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))] text-zinc-900 shadow-[0_-20px_60px_-24px_rgba(0,0,0,0.45)]"
-            >
-              <div className="mx-auto mb-2 h-1 w-9 rounded-full bg-zinc-300" aria-hidden />
-              <div className="mb-2 flex min-h-11 items-center justify-between gap-3">
-                <span className="text-[13px] font-semibold text-zinc-900">Модель генерации</span>
-                <button
-                  type="button"
-                  aria-label="Закрыть выбор модели"
-                  onClick={() => setExpandedControl(null)}
-                  className={`${OVERLAY_BUTTON_UA_RESET} flex h-11 w-11 items-center justify-center rounded-full bg-zinc-100 text-zinc-700 transition hover:bg-zinc-200`}
-                >
-                  <svg
-                    className="h-5 w-5"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    aria-hidden
-                  >
-                    <path d="m6 6 12 12M18 6 6 18" />
-                  </svg>
-                </button>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                {models.map((item) => {
-                  const selected = model === item.id;
-                  const display = GENERATION_MODEL_DISPLAY[item.id];
-                  return (
-                    <button
-                      key={item.id}
-                      type="button"
-                      aria-pressed={selected}
-                      disabled={controlsBusy}
-                      title={display?.description || item.label}
-                      onClick={() => setModel(item.id)}
-                      className={`${OVERLAY_BUTTON_UA_RESET} relative flex min-h-20 min-w-0 items-center gap-3 overflow-hidden rounded-xl p-3 text-left ring-2 transition ${
-                        selected
-                          ? "bg-indigo-50 text-zinc-900 ring-indigo-500 shadow-sm"
-                          : "bg-zinc-100 text-zinc-900 ring-zinc-200 hover:bg-zinc-200 hover:ring-zinc-300"
-                      } disabled:opacity-50`}
-                    >
-                      <span
-                        aria-hidden
-                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white shadow-sm"
-                      >
-                        <GoogleGenerationModelIcon />
-                      </span>
-                      <span className="min-w-0 flex-1 pr-5">
-                        <span className="block truncate text-[13px] font-semibold leading-tight">
-                          {displayLabelForGenerationModel(item.id, item.label)}
-                        </span>
-                        <span
-                          className="mt-1 block line-clamp-2 text-xs font-medium leading-tight text-zinc-500"
-                        >
-                          {display?.description || "Генерация изображений"}
-                        </span>
-                      </span>
-                      <span className={`absolute right-1.5 top-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
-                        selected ? "bg-indigo-100 text-indigo-700" : "bg-white text-zinc-500"
-                      }`}>
-                        {item.cost} кр.
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-
-              <div className="mt-3 grid grid-cols-2 gap-2">
-                <label className="block min-w-0">
-                  <span className="mb-1 block text-[13px] font-medium text-zinc-600">
-                    Формат
-                  </span>
-                  <select
-                    value={aspectRatio}
-                    onChange={(event) => setAspectRatio(event.target.value)}
-                    disabled={controlsBusy || !aspectRatios.length}
-                    className="min-h-11 w-full rounded-xl border border-zinc-200 bg-zinc-100 px-3 text-[13px] font-semibold text-zinc-900 outline-none transition focus:border-indigo-400 disabled:opacity-50"
-                  >
-                    {aspectRatios.map((item) => (
-                      <option key={item.value} value={item.value}>
-                        {item.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="block min-w-0">
-                  <span className="mb-1 block text-[13px] font-medium text-zinc-600">
-                    Качество
-                  </span>
-                  <select
-                    value={imageSize}
-                    onChange={(event) => setImageSize(event.target.value)}
-                    disabled={controlsBusy || !imageSizes.length}
-                    className="min-h-11 w-full rounded-xl border border-zinc-200 bg-zinc-100 px-3 text-[13px] font-semibold text-zinc-900 outline-none transition focus:border-indigo-400 disabled:opacity-50"
-                  >
-                    {imageSizes.map((item) => (
-                      <option key={item.value} value={item.value}>
-                        {item.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-            </div>
-          ) : null}
         </section>
+        ) : null}
 
         <input
           ref={fileInputRef}
@@ -1282,57 +2012,84 @@ export function CardInlineGeneratePanel({
           }}
         />
 
-        {Boolean(error) || Boolean(configError) ? (
+        {(Boolean(error) || Boolean(configError)) && !needsCredits ? (
           <div
-            className={`rounded-xl border p-3 backdrop-blur-md ${
-              resultUrl ? "border-white/15 bg-black/15" : "border-rose-200 bg-rose-50"
+            className={`rounded-xl border p-3 ${
+              isDock
+                ? `border-rose-300/25 bg-rose-950/35${
+                    dockExpanded ? " invisible pointer-events-none" : ""
+                  }`
+                : glassChrome
+                  ? "border-white/15 bg-black/15 backdrop-blur-md"
+                  : "border-rose-200 bg-rose-50"
             }`}
+            aria-hidden={isDock && dockExpanded ? true : undefined}
           >
             <p
               className={`text-[13px] font-medium ${
-                resultUrl ? "text-rose-200" : "text-rose-700"
+                isDock || glassChrome ? "text-rose-200" : "text-rose-700"
               }`}
             >
               {configError || error}
             </p>
-            {needsCredits ? (
-              <Link
-                href="/pricing"
-                onClick={() =>
-                  reachYandexMetrikaGoal(
-                    YM_GOAL_PROMPT_CARD_GENERATION_PRICING,
-                    {
-                      feature_key: "prompt_card_generation",
-                      variant: "treatment",
-                    }
-                  )
-                }
-                className={`mt-2 inline-flex min-h-11 items-center justify-center rounded-xl px-4 text-[13px] font-semibold transition ${
-                  resultUrl
-                    ? "bg-white text-zinc-900 hover:bg-zinc-100"
-                    : "bg-indigo-600 text-white hover:bg-indigo-700"
-                }`}
-              >
-                Посмотреть тарифы
-              </Link>
-            ) : null}
           </div>
         ) : null}
         </div>
       </div>
 
       <footer
-        className={`relative z-20 shrink-0 border-t p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur-md ${
-          resultUrl ? "border-white/10 bg-black/15" : "border-zinc-200 bg-white/90"
+        className={`relative z-20 shrink-0 p-3 ${
+          isDock
+            ? `mt-auto border-t border-white/10 bg-transparent pb-3${
+                // Avoid footer CTA bleeding through open editor sheets.
+                dockExpanded ? " invisible pointer-events-none" : ""
+              }`
+            : `border-t backdrop-blur-md pb-[max(0.75rem,env(safe-area-inset-bottom))] ${
+                showResultChrome
+                  ? "border-white/10 bg-black/15"
+                  : "border-zinc-200 bg-white/90"
+              }`
         }`}
       >
-        <div className="flex gap-2">
+        <div className="flex min-w-0 gap-2">
+        {phase === "done" && resultUrl && generationId ? (
+          <button
+            type="button"
+            onClick={() => setResultPreviewOpen(true)}
+            className={
+              isDock
+                ? dockActionBtn
+                : `${OVERLAY_BUTTON_UA_RESET} flex min-h-12 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-2xl bg-black/25 px-2 py-3 text-[13px] font-semibold text-white transition hover:bg-black/40 active:scale-[0.99]`
+            }
+          >
+            <svg
+              className="h-5 w-5 shrink-0"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              aria-hidden
+            >
+              <path
+                d="M2.5 12s3.5-6.5 9.5-6.5S21.5 12 21.5 12s-3.5 6.5-9.5 6.5S2.5 12 2.5 12Z"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <circle cx="12" cy="12" r="2.75" />
+            </svg>
+            <span className="truncate">Посмотреть</span>
+          </button>
+        ) : null}
         {phase === "done" && resultUrl && generationId ? (
           <button
             type="button"
             disabled={Boolean(busyAction)}
             onClick={() => void handleResultAction("download")}
-            className={`${OVERLAY_BUTTON_UA_RESET} flex min-h-12 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-2xl bg-black/25 px-2 py-3 text-[13px] font-semibold text-white backdrop-blur-md transition hover:bg-black/40 active:scale-[0.99] disabled:opacity-50`}
+            className={`${
+              isDock
+                ? dockActionBtn
+                : `${OVERLAY_BUTTON_UA_RESET} flex min-h-12 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-2xl bg-black/25 px-2 py-3 text-[13px] font-semibold text-white transition hover:bg-black/40 active:scale-[0.99]`
+            } disabled:opacity-50`}
           >
             <svg
               className="h-5 w-5 shrink-0"
@@ -1349,18 +2106,16 @@ export function CardInlineGeneratePanel({
             </span>
           </button>
         ) : null}
-        {phase === "done" && resultUrl && generationId && !hasZeroCredits ? (
+        {phase === "done" && resultUrl && generationId ? (
           <button
             type="button"
-            disabled={
-              controlsBusy ||
-              libraryLoading ||
-              Boolean(busyAction) ||
-              !selectedPhotos.length ||
-              Boolean(configError)
-            }
-            onClick={() => void runGenerate({ promptOverride: draftPrompt })}
-            className={`${OVERLAY_BUTTON_UA_RESET} flex min-h-12 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-2xl bg-black/25 px-2 py-3 text-[13px] font-semibold text-white backdrop-blur-md transition hover:bg-black/40 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50`}
+            disabled={busy || Boolean(busyAction)}
+            onClick={resetToCompose}
+            className={`${
+              isDock
+                ? dockActionBtn
+                : `${OVERLAY_BUTTON_UA_RESET} flex min-h-12 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-2xl bg-black/25 px-2 py-3 text-[13px] font-semibold text-white transition hover:bg-black/40 active:scale-[0.99]`
+            } disabled:cursor-not-allowed disabled:opacity-50`}
           >
             <svg
               className="h-5 w-5 shrink-0"
@@ -1376,7 +2131,7 @@ export function CardInlineGeneratePanel({
             <span className="truncate">Повторить</span>
           </button>
         ) : null}
-        {hasZeroCredits && !busy ? (
+        {showCreditsCta ? (
           <Link
             href="/pricing"
             onClick={() =>
@@ -1388,52 +2143,68 @@ export function CardInlineGeneratePanel({
                 }
               )
             }
-            className={`flex min-h-12 min-w-0 items-center justify-center rounded-2xl bg-gradient-to-r from-indigo-500 to-violet-500 py-3 font-semibold text-white shadow-lg shadow-indigo-950/35 transition hover:brightness-110 ${
+            className={`flex min-h-12 min-w-0 items-center justify-center rounded-2xl bg-rose-500/85 py-3 font-semibold text-white shadow-[0_12px_28px_-14px_rgba(244,63,94,0.45)] transition hover:bg-rose-500/95 ${
               phase === "done" && resultUrl
                 ? "flex-1 px-2 text-[13px]"
                 : "w-full px-4 text-[15px]"
             }`}
           >
-            Пополнить баланс
+            Недостаточно кредитов
           </Link>
         ) : (
           <button
             type="button"
             aria-busy={busy}
+            aria-valuemin={busy ? 0 : undefined}
+            aria-valuemax={busy ? 100 : undefined}
+            aria-valuenow={busy ? Math.round(progress) : undefined}
             disabled={
-              controlsBusy ||
-              libraryLoading ||
-              Boolean(busyAction) ||
-              (!(phase === "done" && resultUrl && generationId) &&
-                !selectedPhotos.length) ||
-              Boolean(configError)
+              busy ||
+              (Boolean(user) &&
+                (controlsBusy ||
+                  libraryLoading ||
+                  Boolean(busyAction) ||
+                  (!(phase === "done" && resultUrl && generationId) &&
+                    !selectedPhotos.length) ||
+                  Boolean(configError) ||
+                  draftPrompt.trim().length < 8))
             }
             onClick={() => {
+              if (!user) {
+                openAuthModal();
+                return;
+              }
+              if (busy) return;
               if (phase === "done" && resultUrl && generationId) {
                 openPromptEditor();
                 return;
               }
               void runGenerate({ promptOverride: draftPrompt });
             }}
-            className={`${OVERLAY_BUTTON_UA_RESET} relative flex min-h-12 min-w-0 items-center justify-center overflow-hidden rounded-2xl py-3 font-semibold text-white shadow-lg shadow-indigo-950/35 transition active:scale-[0.99] disabled:cursor-not-allowed ${
-              phase === "done" && resultUrl
-                ? "flex-1 px-2 text-[13px]"
-                : "w-full px-4 text-[15px]"
+            className={`${OVERLAY_BUTTON_UA_RESET} relative isolate flex min-h-12 min-w-0 items-center justify-center overflow-hidden rounded-2xl py-3 font-semibold text-white shadow-lg shadow-indigo-950/35 transition active:scale-[0.99] disabled:cursor-not-allowed ${
+              busy || !(phase === "done" && resultUrl)
+                ? "w-full px-4 text-[15px]"
+                : "flex-1 px-2 text-[13px]"
             } ${
               busy
-                ? "bg-white/10"
+                ? "opacity-100 disabled:opacity-100"
                 : "bg-gradient-to-r from-indigo-500 to-violet-500 hover:brightness-110 disabled:opacity-50"
             }`}
+            style={busy ? { backgroundColor: "rgba(39,39,42,0.95)" } : undefined}
           >
           {busy ? (
             <span
-              className="absolute inset-y-0 left-0 bg-gradient-to-r from-indigo-500 to-violet-500 transition-[width] duration-300"
-              style={{ width: `${Math.min(100, Math.max(4, progress))}%` }}
+              className="pointer-events-none absolute inset-y-0 left-0 z-0 origin-left transition-transform duration-300 ease-out"
+              style={{
+                width: "100%",
+                transform: `scaleX(${Math.min(1, Math.max(0.06, progress / 100))})`,
+                background: "linear-gradient(90deg, #6366f1 0%, #8b5cf6 100%)",
+              }}
               aria-hidden
             />
           ) : null}
-          <span className="relative z-10 flex min-w-0 items-center justify-center gap-1.5">
-            {phase === "done" && resultUrl ? (
+          <span className="relative z-10 flex min-w-0 items-center justify-center gap-1.5 drop-shadow-sm">
+            {phase === "done" && resultUrl && !busy ? (
               <svg
                 className="h-5 w-5 shrink-0"
                 viewBox="0 0 24 24"
@@ -1446,14 +2217,20 @@ export function CardInlineGeneratePanel({
                 <path d="m14.5 6.7 2.8 2.8" />
               </svg>
             ) : null}
-            <span className={phase === "done" && resultUrl ? "truncate" : undefined}>
+            <span
+              className={
+                phase === "done" && resultUrl && !busy ? "truncate" : undefined
+              }
+            >
               {phase === "uploading"
                 ? `Загружаем фото · ${Math.round(progress)}%`
                 : phase === "generating"
                   ? `Генерируем · ${Math.round(progress)}%`
                   : phase === "done" && resultUrl
                     ? "Что изменить"
-                    : "Сгенерировать"}
+                    : !user
+                      ? "Войти"
+                      : "Сгенерировать"}
             </span>
           </span>
           </button>
@@ -1469,6 +2246,44 @@ export function CardInlineGeneratePanel({
           {toast}
         </div>
       ) : null}
+
+      {resultPreviewOpen && resultUrl
+        ? createPortal(
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-label="Просмотр результата"
+              className="fixed inset-0 z-[130] flex items-center justify-center bg-black/80 p-4"
+              onClick={() => setResultPreviewOpen(false)}
+            >
+              <button
+                type="button"
+                aria-label="Закрыть просмотр"
+                className={`${OVERLAY_BUTTON_UA_RESET} absolute right-3 top-[max(0.75rem,env(safe-area-inset-top))] flex h-11 w-11 items-center justify-center rounded-full bg-black/40 text-white backdrop-blur-md transition hover:bg-black/55`}
+                onClick={() => setResultPreviewOpen(false)}
+              >
+                <svg
+                  className="h-5 w-5"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  aria-hidden
+                >
+                  <path d="m6 6 12 12M18 6 6 18" />
+                </svg>
+              </button>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={resultUrl}
+                alt="Результат генерации"
+                className="max-h-[min(90dvh,100%)] max-w-full object-contain"
+                onClick={(event) => event.stopPropagation()}
+              />
+            </div>,
+            document.body
+          )
+        : null}
     </div>
   );
 }

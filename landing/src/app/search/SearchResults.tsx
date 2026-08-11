@@ -16,6 +16,7 @@ import {
   writeListingNavigationContext,
 } from "@/lib/listing-card-navigation-context";
 import { SearchEmptyState } from "@/components/SearchEmptyState";
+import { ListingSearch } from "@/components/ListingSearch";
 import { SearchMetrikaTracker } from "@/components/YandexMetrikaRouteTracker";
 import { ListingFotoVPromtBanner } from "@/components/foto-v-promt-promo/ListingFotoVPromtBanner";
 import { ListingGrid } from "@/components/ListingGrid";
@@ -260,7 +261,11 @@ export function SearchResults({ initialQuery }: Props) {
         <SearchEmptyState variant="no-results" query={query} />
       )}
 
-      {showIdle && <SearchEmptyState variant="idle" />}
+      {showIdle ? (
+        <div className="flex min-h-[min(72vh,40rem)] flex-col items-center justify-center px-1 sm:px-0">
+          <ListingSearch variant="hero" autoFocus className="w-full" />
+        </div>
+      ) : null}
     </div>
     </CardInteractionsProvider>
   );

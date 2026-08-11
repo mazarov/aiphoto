@@ -179,6 +179,9 @@ export function ListingSearchField({
         autoCapitalize="off"
         spellCheck={false}
         name={mobileSearch ? "listing-search-q" : undefined}
+        {...(accent === "hero"
+          ? ({ "data-listing-search-hero": "" } as const)
+          : {})}
         {...(mobileSearch
           ? ({
               "data-1p-ignore": true,

@@ -17,6 +17,8 @@ export const YM_GOAL_PROMPT_CARD_GENERATION_NO_CREDITS =
   "prompt_card_generation_no_credits";
 export const YM_GOAL_PROMPT_CARD_GENERATION_PRICING =
   "prompt_card_generation_pricing";
+/** Soft/route/desktop open of unified generate shell (`/generate`). */
+export const YM_GOAL_GENERATE_SHELL_OPEN = "generate_shell_open";
 export const YM_GOAL_YOOKASSA_CHECKOUT_STARTED = "yookassa_checkout_started";
 export const YM_GOAL_YOOKASSA_CHECKOUT_REDIRECT = "yookassa_checkout_redirect";
 export const YM_GOAL_YOOKASSA_PAYMENT_SUCCEEDED = "yookassa_payment_succeeded";

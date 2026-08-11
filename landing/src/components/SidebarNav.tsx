@@ -5,6 +5,8 @@ import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useListingMobileChromeOptional } from "@/context/ListingMobileChromeContext";
+import { useFeatureAccess } from "@/context/FeatureAccessContext";
+import { markGenerateEntrySource } from "@/context/GenerateMobileModalContext";
 import type { MenuSectionWithCounts } from "@/lib/menu";
 import { isSameNavPath, scrollCatalogToTop } from "@/lib/scroll-preservation";
 
@@ -59,15 +61,51 @@ function SidebarContent({
   expandedIdx,
   onToggle,
   onItemClick,
+  showGenerateCta,
 }: {
   menu: MenuSectionWithCounts[];
   pathname: string;
   expandedIdx: number | null;
   onToggle: (idx: number) => void;
   onItemClick?: () => void;
+  showGenerateCta: boolean;
 }) {
+  const generateActive = isHrefActive("/generate", pathname);
+
   return (
     <nav className="flex flex-col gap-0.5 px-3 py-4">
+      {showGenerateCta ? (
+        <Link
+          href="/generate"
+          scroll={false}
+          onClick={() => {
+            markGenerateEntrySource("sidebar");
+            onItemClick?.();
+          }}
+          className={`mb-2 flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-[13px] font-semibold text-white shadow-sm shadow-indigo-500/25 transition ${
+            generateActive
+              ? "bg-indigo-700"
+              : "bg-indigo-600 hover:bg-indigo-700"
+          }`}
+        >
+          <svg
+            className="h-4 w-4 flex-shrink-0"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+            aria-hidden
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3z"
+            />
+          </svg>
+          Генерация фото
+        </Link>
+      ) : null}
+
       <Link
         href="/"
         scroll={false}
@@ -119,6 +157,26 @@ function SidebarContent({
           />
         </svg>
         Новое
+      </Link>
+
+      <Link
+        href="/search"
+        scroll={false}
+        onClick={onItemClick}
+        className={`flex items-center gap-2.5 rounded-xl px-3 py-2 text-[13px] font-medium transition-colors ${
+          isHrefActive("/search", pathname)
+            ? "bg-indigo-50 text-indigo-700"
+            : "text-zinc-700 hover:bg-zinc-50"
+        }`}
+      >
+        <svg className="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M21 21l-4.35-4.35M11 18a7 7 0 100-14 7 7 0 000 14z"
+          />
+        </svg>
+        Поиск
       </Link>
 
       <Link
@@ -229,6 +287,9 @@ function SidebarContent({
 export function SidebarNav({ menu }: { menu: MenuSectionWithCounts[] }) {
   const pathname = usePathname();
   const registerMenu = useListingMobileChromeOptional()?.registerMenu;
+  const { promptCardGenerationEnabled, loading: featureLoading } =
+    useFeatureAccess();
+  const showGenerateCta = !featureLoading && promptCardGenerationEnabled;
   const normalizedPath = normalizePath(pathname || "/");
 
   const [counts, setCounts] = useState<Record<string, number>>({});
@@ -306,6 +367,7 @@ export function SidebarNav({ menu }: { menu: MenuSectionWithCounts[] }) {
             pathname={normalizedPath}
             expandedIdx={expandedIdx}
             onToggle={handleToggle}
+            showGenerateCta={showGenerateCta}
           />
         </div>
       </aside>
@@ -334,6 +396,7 @@ export function SidebarNav({ menu }: { menu: MenuSectionWithCounts[] }) {
                 expandedIdx={expandedIdx}
                 onToggle={handleToggle}
                 onItemClick={() => setMobileOpen(false)}
+                showGenerateCta={showGenerateCta}
               />
             </div>
           </div>

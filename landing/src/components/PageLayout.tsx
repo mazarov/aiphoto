@@ -9,6 +9,11 @@ import {
   useListingShellViewportSync,
 } from "@/lib/listing-shell-viewport";
 import { ListingMobileChromeProvider } from "@/context/ListingMobileChromeContext";
+import {
+  isGenerateDockListingPath,
+} from "@/context/GenerateDockContext";
+import { useFeatureAccess } from "@/context/FeatureAccessContext";
+import { GenerateListingDockHost } from "@/components/generate/GenerateListingDockHost";
 import { HeaderClient } from "./HeaderClient";
 import { SidebarNav } from "./SidebarNav";
 import { Footer } from "./Footer";
@@ -18,12 +23,23 @@ import { ListingSearch } from "./ListingSearch";
 
 const MENU_STRUCTURE = applyCountsToMenu({});
 
+function normalizePath(path: string): string {
+  if (!path || path === "/") return "/";
+  return path.endsWith("/") ? path.slice(0, -1) : path;
+}
+
 export function PageLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const { promptCardGenerationEnabled, loading: featureLoading } =
+    useFeatureAccess();
+  const showGenerateDock =
+    !featureLoading &&
+    promptCardGenerationEnabled &&
+    isGenerateDockListingPath(pathname);
   useListingScrollOnRouteChange(pathname);
   useListingShellViewportSync();
 
@@ -54,19 +70,27 @@ export function PageLayout({
 
         <div
           id={LISTING_SCROLL_ROOT_ID}
-          className="listing-scroll-root max-lg:min-h-0 max-lg:flex-1 max-lg:overflow-y-auto max-lg:overscroll-y-contain max-lg:[-webkit-overflow-scrolling:touch] max-lg:pb-[calc(3.5rem+max(0px,env(safe-area-inset-bottom,0px)))]"
+          className={`listing-scroll-root max-lg:min-h-0 max-lg:flex-1 max-lg:overflow-y-auto max-lg:overscroll-y-contain max-lg:[-webkit-overflow-scrolling:touch] ${
+            showGenerateDock
+              ? "max-lg:pb-[calc(3.5rem+max(0px,env(safe-area-inset-bottom,0px))+12.5rem)] lg:pb-[min(42vh,22rem)]"
+              : "max-lg:pb-[calc(3.5rem+max(0px,env(safe-area-inset-bottom,0px)))]"
+          }`}
         >
           <div className="flex min-h-0 lg:min-h-[calc(100vh-57px)]">
             <SidebarNav menu={MENU_STRUCTURE} />
             <div className="flex min-w-0 flex-1 flex-col">
               {children}
-              <Footer />
+              {/* Floating generate dock fights footer on listing routes */}
+              {showGenerateDock || normalizePath(pathname) === "/generate" ? null : (
+                <Footer />
+              )}
             </div>
           </div>
         </div>
 
         <ListingBottomBar />
         <MobileTabBar />
+        <GenerateListingDockHost />
 
         <Suspense fallback={null}>
           <ListingSearch variant="header" />

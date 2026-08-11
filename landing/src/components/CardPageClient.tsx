@@ -10,9 +10,9 @@ import { CardInteractionsProvider, useCardInteractions } from "@/context/CardInt
 import { ReactionButtons } from "./ReactionButtons";
 import { FavoriteButton } from "./FavoriteButton";
 import { LexyGptGenerateButton } from "./LexyGptGenerateButton";
-import { CardInlineGeneratePanel } from "./CardInlineGeneratePanel";
-import { useAuth } from "@/context/AuthContext";
 import { useFeatureAccess } from "@/context/FeatureAccessContext";
+import { useGenerateDock } from "@/context/GenerateDockContext";
+import { usePromptCardModal } from "@/context/PromptCardModalContext";
 import { isDebugToolsSessionEnabled, dispatchDebugCardDeleted } from "@/lib/debug-tools-session";
 import { formatCompactCount } from "@/lib/format-view-count";
 import {
@@ -140,8 +140,9 @@ export function CardPageClient({ data, tagEntries, breadcrumbTag, isModal = fals
 
 function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListingNeighborGo, onCloseModal, onMobileNeighborCommit }: InnerProps) {
   const router = useRouter();
-  const { user, openAuthModal } = useAuth();
   const { promptCardGenerationEnabled } = useFeatureAccess();
+  const { seedFromCard } = useGenerateDock();
+  const { close: closeCardModal } = usePromptCardModal();
   const canInlineGenerate = promptCardGenerationEnabled;
   const title = data.title_ru || data.title_en || "Без названия";
   const [publishedLocal, setPublishedLocal] = useState(data.isPublished);
@@ -171,24 +172,34 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
   const [listingNavNeighbors, setListingNavNeighbors] =
     useState<ListingCardNavNeighbors | null>(null);
   const [mobilePromptOverlay, setMobilePromptOverlay] = useState(false);
-  const [inlineGenerateOpen, setInlineGenerateOpen] = useState(false);
   const [showSwipeOnboarding, setShowSwipeOnboarding] = useState(false);
   const openInlineGenerate = useCallback(() => {
     if (!canInlineGenerate) return;
-    if (!user || user.is_anonymous === true) {
-      openAuthModal();
+    setMobilePromptOverlay(false);
+    const promptText = data.promptTexts.join("\n\n");
+    // Seed global listing dock, then close card so dock is visible on the listing.
+    seedFromCard(
+      { promptText, cardId: data.id },
+      { entrySource: "card" }
+    );
+    if (isModal) {
+      closeCardModal();
       return;
     }
-    setMobilePromptOverlay(false);
-    setInlineGenerateOpen(true);
-  }, [canInlineGenerate, openAuthModal, user]);
-  const closeInlineGenerate = useCallback(() => {
-    setInlineGenerateOpen(false);
-  }, []);
-
-  useEffect(() => {
-    if (!canInlineGenerate) setInlineGenerateOpen(false);
-  }, [canInlineGenerate]);
+    if (typeof window !== "undefined" && window.history.length > 1) {
+      router.back();
+      return;
+    }
+    router.push("/");
+  }, [
+    canInlineGenerate,
+    closeCardModal,
+    data.id,
+    data.promptTexts,
+    isModal,
+    router,
+    seedFromCard,
+  ]);
 
   // Reset local media only when opening another card (`id`), not on every `data` reference change.
   useEffect(() => {
@@ -200,7 +211,6 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
     setSetBeforeStatus(null);
     setDeleteStatus(null);
     setPubStatus(null);
-    setInlineGenerateOpen(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: [data.id] only
   }, [data.id]);
 
@@ -520,10 +530,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
   }, []);
 
   const swipeEnabled =
-    hasPhotos &&
-    hasListingNeighbors &&
-    !mobilePromptOverlay &&
-    !inlineGenerateOpen;
+    hasPhotos && hasListingNeighbors && !mobilePromptOverlay;
 
   const snapFeed = useMobileCardSnapFeed({
     currentData: data,
@@ -808,15 +815,6 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
               data-card-modal-surface={isModal ? "" : undefined}
               className="flex h-full min-h-0 w-[min(100%,510px)] shrink-0 flex-col overflow-hidden rounded-2xl bg-white text-zinc-900 shadow-[0_18px_55px_-28px_rgba(24,24,27,0.32)] lg:w-[540px]"
             >
-              {canInlineGenerate && inlineGenerateOpen && hasPrompts ? (
-                <CardInlineGeneratePanel
-                  promptText={data.promptTexts.join("\n\n")}
-                  cardId={data.id}
-                  onBack={closeInlineGenerate}
-                  layout="desktop"
-                />
-              ) : (
-                <>
               <div className="flex items-start gap-3 border-b border-zinc-100 px-4 pb-4 pt-4">
                 <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-full bg-indigo-50 ring-1 ring-indigo-100">
                   {data.authorAvatarUrl ? (
@@ -970,8 +968,6 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                   />
                 )}
               </div>
-                </>
-              )}
             </aside>
           </div>
 
@@ -1334,26 +1330,6 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                   </>
                 ) : null}
 
-                {canInlineGenerate && inlineGenerateOpen && hasPrompts && (
-                  <>
-                    <button
-                      type="button"
-                      aria-label="Закрыть генерацию"
-                      className={`${OVERLAY_BUTTON_UA_RESET} absolute inset-0 z-[120] bg-black/55 backdrop-blur-[2px]`}
-                      onClick={closeInlineGenerate}
-                    />
-                    <div className="pointer-events-auto absolute inset-0 z-[122] flex h-full min-h-0 flex-col overflow-hidden bg-transparent text-zinc-100">
-                      <div className="flex h-full min-h-0 flex-1">
-                        <CardInlineGeneratePanel
-                          promptText={data.promptTexts.join("\n\n")}
-                          cardId={data.id}
-                          onBack={closeInlineGenerate}
-                          layout="mobile"
-                        />
-                      </div>
-                    </div>
-                  </>
-                )}
               </>
               ) : (
                 <div className="flex h-full items-center justify-center px-6 text-zinc-500">Нет фото</div>
@@ -1547,26 +1523,6 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
             </div>
           )}
 
-          {canInlineGenerate && inlineGenerateOpen && hasPrompts && (
-            <>
-              <button
-                type="button"
-                aria-label="Закрыть генерацию"
-                className={`${OVERLAY_BUTTON_UA_RESET} fixed inset-0 z-[120] bg-black/55 md:hidden`}
-                onClick={closeInlineGenerate}
-              />
-              <div className="pointer-events-auto fixed inset-0 z-[122] flex h-screen min-h-0 flex-col overflow-hidden bg-transparent text-zinc-100 md:hidden md:h-auto supports-[height:100dvh]:h-[100dvh]">
-                <div className="flex h-full min-h-0 flex-1">
-                  <CardInlineGeneratePanel
-                    promptText={data.promptTexts.join("\n\n")}
-                    cardId={data.id}
-                    onBack={closeInlineGenerate}
-                    layout="mobile"
-                  />
-                </div>
-              </div>
-            </>
-          )}
         </>
       )}
     </div>

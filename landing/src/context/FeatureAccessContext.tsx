@@ -20,12 +20,14 @@ type FeatureVariant = "treatment" | "control";
 type FeatureAccessContextValue = {
   promptCardGenerationEnabled: boolean;
   promptCardGenerationVariant: FeatureVariant;
+  promptCardGenerationBucketBand: number | null;
   loading: boolean;
 };
 
 const FeatureAccessContext = createContext<FeatureAccessContextValue>({
   promptCardGenerationEnabled: false,
   promptCardGenerationVariant: "control",
+  promptCardGenerationBucketBand: null,
   loading: true,
 });
 
@@ -34,6 +36,7 @@ export function FeatureAccessProvider({ children }: { children: ReactNode }) {
   const authenticatedUserId = user?.id ?? null;
   const [enabled, setEnabled] = useState(false);
   const [variant, setVariant] = useState<FeatureVariant>("control");
+  const [bucketBand, setBucketBand] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -58,10 +61,13 @@ export function FeatureAccessProvider({ children }: { children: ReactNode }) {
 
         const nextVariant =
           payload.variant === "treatment" ? "treatment" : "control";
+        const nextBucketBand =
+          typeof payload.bucketBand === "number" ? payload.bucketBand : null;
         setEnabled(payload.enabled === true);
         setVariant(nextVariant);
+        setBucketBand(nextBucketBand);
 
-        const exposureKey = `promptshot_rollout_exposure:${nextVariant}:${payload.bucketBand ?? "internal"}`;
+        const exposureKey = `promptshot_rollout_exposure:${nextVariant}:${nextBucketBand ?? "internal"}`;
         if (window.sessionStorage.getItem(exposureKey) !== "1") {
           window.sessionStorage.setItem(exposureKey, "1");
           reachYandexMetrikaGoal(
@@ -69,7 +75,7 @@ export function FeatureAccessProvider({ children }: { children: ReactNode }) {
             {
               feature_key: "prompt_card_generation",
               variant: nextVariant,
-              bucket_band: payload.bucketBand ?? "internal",
+              bucket_band: nextBucketBand ?? "internal",
             }
           );
         }
@@ -82,7 +88,7 @@ export function FeatureAccessProvider({ children }: { children: ReactNode }) {
               {
                 feature_key: "prompt_card_generation",
                 variant: "treatment",
-                bucket_band: payload.bucketBand ?? "internal",
+                bucket_band: nextBucketBand ?? "internal",
               }
             );
           }
@@ -92,6 +98,7 @@ export function FeatureAccessProvider({ children }: { children: ReactNode }) {
           console.error("[feature.access] failed", error);
           setEnabled(false);
           setVariant("control");
+          setBucketBand(null);
         }
       } finally {
         if (!controller.signal.aborted) setLoading(false);
@@ -105,9 +112,10 @@ export function FeatureAccessProvider({ children }: { children: ReactNode }) {
     () => ({
       promptCardGenerationEnabled: enabled,
       promptCardGenerationVariant: variant,
+      promptCardGenerationBucketBand: bucketBand,
       loading,
     }),
-    [enabled, loading, variant]
+    [bucketBand, enabled, loading, variant]
   );
 
   return (
