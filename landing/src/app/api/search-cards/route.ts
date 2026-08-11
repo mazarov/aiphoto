@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { searchCardsFiltered, enrichCardsWithDetails, countCardsFiltered } from "@/lib/supabase";
 import { LISTING_INFINITE_PAGE_SIZE } from "@/lib/listing-pagination";
+import { isListingSortParamValid, parseListingSort } from "@/lib/listing-sort";
 import { getSupabaseUserForApiRoute } from "@/lib/supabase-route-auth";
 import { isCatalogAdminEmail } from "@/lib/catalog-admin";
 
@@ -26,6 +27,12 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  const sortRaw = params.get("sort");
+  if (!isListingSortParamValid(sortRaw)) {
+    return NextResponse.json({ error: "invalid_sort" }, { status: 400 });
+  }
+  const sort = parseListingSort(sortRaw);
+
   const limit = Math.min(
     LISTING_INFINITE_PAGE_SIZE,
     Math.max(1, Number(params.get("limit")) || LISTING_INFINITE_PAGE_SIZE)
@@ -45,7 +52,7 @@ export async function GET(req: NextRequest) {
   };
 
   const [{ cards, rankedBatchSize }, total] = await Promise.all([
-    searchCardsFiltered({ ...filterParams, limit, offset }),
+    searchCardsFiltered({ ...filterParams, sort, limit, offset }),
     includeTotal ? countCardsFiltered(filterParams) : Promise.resolve(undefined),
   ]);
 

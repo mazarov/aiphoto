@@ -1,6 +1,14 @@
 # 01 — Лендинг (promptshot.ru)
 
-> Последнее обновление: 2026-08-11 (**catalog admin:** `/debug` убран; allowlist-email (`isCatalogAdminEmail` / `INTERNAL_GENERATE_ALLOWLIST`, default `azarov.maxim@gmail.com`) включает admin на всех `FilterableGrid` листингах: панель фильтров, `published=all`, unpublished `/p/[slug]` по auth. Свитч «Тех. информация» (default off) — оверлеи + жёлтая DEBUG-панель. Мутации `set-before` / `debug-delete-card` и unpublished search — только admin.)
+> Последнее обновление: 2026-08-11 (**sidebar nav:** блок **Инструменты** убран; порядок — **Добавить в Chrome** → [Генерация] → Главная / Тренды / Поиск / **Фото в промт** → accordion-каталог.
+>
+> Предыдущее обновление: 2026-08-11 (**sidebar Chrome CTA:** кнопка **«Добавить в Chrome»** (`ChromeMark` + border pill) вынесена на самый верх `SidebarNav`. UTM/Metrika без изменений (`desktop_sidebar`).
+>
+> Предыдущее обновление: 2026-08-11 (**admin listing sort:** catalog-admin `FilterableGrid` больше не форсит `search-cards` только из‑за `isAdmin`; при активных debug-фильтрах (`published=all` и т.п.) `/api/search-cards` передаёт `sort` с листинга. Миграция **`182_search_cards_filtered_listing_sort.sql`** — `search_cards_filtered(p_sort)`: `new` → `created_at DESC`, `popular` → `popularity_score` (раньше всегда `view_count`, из‑за этого `/trends` под admin показывал «не те» карточки).
+>
+> Предыдущее обновление: 2026-08-11 (**sidebar tools + trends:** «Новое» → **Тренды** (`/trends`); `301` `/new` → `/trends` в `next.config.ts`. В `SidebarNav` постоянный блок **Инструменты** (без collapse): Chrome-расширение (`utm_content=desktop_sidebar`, Metrika `desktop_sidebar_add_to_chrome_click`) + **Фото в промт**. CTA расширения убран из desktop `HeaderClient`. MobileTabBar / sitemap / generate-dock paths обновлены на `/trends`.
+>
+> Предыдущее обновление: 2026-08-11 (**catalog admin:** `/debug` убран; allowlist-email (`isCatalogAdminEmail` / `INTERNAL_GENERATE_ALLOWLIST`, default `azarov.maxim@gmail.com`) включает admin на всех `FilterableGrid` листингах: панель фильтров, `published=all`, unpublished `/p/[slug]` по auth. Свитч «Тех. информация» (default off) — оверлеи + жёлтая DEBUG-панель. Мутации `set-before` / `debug-delete-card` и unpublished search — только admin.)
 >
 > Предыдущее обновление: 2026-08-11 (**prefs persist flush:** `CardInlineGeneratePanel` — immediate PUT при любом выходе из шторки фото/модель (Готово, tile toggle, desktop scrim, switch→prompt) + flush snapshot на unmount (`seedToken` remount больше не глотает debounce). Убран auto-switch на дешёвую модель при нехватке кредитов (он перетирал prefs); unaffordable selection остаётся, CTA → `/pricing`.)
 >
@@ -32,7 +40,7 @@
 >
 > Предыдущее обновление: 2026-08-11 (**desktop search nav:** поле поиска убрано из `ListingBottomBar`; desktop — пункт сайдбара **Поиск** → `/search` (Enter/`q` как раньше); поле ввода на `/search` (lg+). Mobile tab/sheet без изменений.)
 >
-> Предыдущее обновление: 2026-08-11 (**global listing generate dock:** `GenerateDockContext` + `GenerateListingDockHost` в `PageLayout` — плавающий `CardInlineGeneratePanel chrome=dock` на `/`, `/new`, `/catalog`, тегах, `/search`, `/favorites`, `/generate`, `/generations` (treatment). Tab «Сгенерировать» → `focusBlank` in-place. Card «Повторить» → `seedFromCard` + close modal/`history.back`. Фон dock = `resultUrl` только при `phase=done`. `/generate` = история (`GenerateBlankShell` без nested dock).)
+> Предыдущее обновление: 2026-08-11 (**global listing generate dock:** `GenerateDockContext` + `GenerateListingDockHost` в `PageLayout` — плавающий `CardInlineGeneratePanel chrome=dock` на `/`, `/trends`, `/catalog`, тегах, `/search`, `/favorites`, `/generate`, `/generations` (treatment). Tab «Сгенерировать» → `focusBlank` in-place. Card «Повторить» → `seedFromCard` + close modal/`history.back`. Фон dock = `resultUrl` только при `phase=done`. `/generate` = история (`GenerateBlankShell` без nested dock).)
 >
 > Предыдущее обновление: 2026-08-11 (**один generate-модуль:** `GenerateSurface` — `dock` на `/generate`, `modal` на карточке: desktop — в правой aside поверх описания/«Повторить»; mobile — portal soft `/generate`. Composer = `CardInlineGeneratePanel`. Open: `useGenerateSurface` / `soft|route`.)
 >
@@ -90,7 +98,7 @@
 
 > Последнее обновление: 2026-08-06 (**generation history + balance sync:** `/generations` читает канонические `landing_generations`, поэтому готовый результат не зависит от best-effort создания UGC-карточки. Бесплатный open-debug теперь выключен по умолчанию и включается только явным `STV_OPEN_GENERATE_DEBUG=true`; inline-клиент после списания/refund отправляет общий browser event, по которому navbar повторно читает `/api/me`.) + (**Yandex Metrika early queue:** root layout до hydration создаёт только лёгкий bounded `window.ym` queue и сразу ставит `init`; `tag.js` по-прежнему загружается через `lazyOnload`. До готовности SDK виртуальные `hit` и `reachGoal` не теряются; очередь ограничена init + 100 событий.)
 
-> Дополнение 2026-08-06 (**desktop extension header CTA:** компактный CTA «Установи Chrome-расширение · Преврати фото с любого сайта в готовый промт» расположен по центру desktop `HeaderClient`, в одной линии с логотипом. Ссылка получает `utm_content=desktop_header`; клик размечен отдельной целью Метрики `desktop_header_add_to_chrome_click`. В sidebar и на mobile CTA не показывается.)
+> Дополнение 2026-08-06 (**desktop extension header CTA — superseded 2026-08-11:** CTA перенесён в сайдбар → блок **Инструменты**; см. последнее обновление про `desktop_sidebar`.)
 
 > Дополнение 2026-08-02 (**fix/card-modal-backdrop-dismiss:** общий `CardModal` закрывает оба варианта модалки карточки по клику на визуальный backdrop, включая прозрачные промежутки desktop split; реальные поверхности помечены `data-card-modal-surface` и не закрывают экран.)
 
@@ -133,7 +141,7 @@
 - **Открытие generate shell:** `generate_shell_open` — `entry_source` (`tab` \| `card` \| `route` \| `sidebar`), `feature_key`, `variant`, `bucket_band`.
 - **Баннер «Фото в промт»** (листинг): **`reachGoal('foto_v_promt_banner_click')`** (`ListingFotoVPromtBanner`, sticky над сеткой).
 - **Баннер «Фото в промт»** отображается только на листингах. Варианты `card` / `cardImmersive` сняты с `/p/[slug]`; legacy-цель **`foto_v_promt_banner_click_card`** больше не вызывается из детальной карточки. ТЗ — **`docs/requirements/04-06-foto-v-promt-mini-banner.md`**.
-- **CTA установки расширения**: desktop header вызывает отдельную цель **`reachGoal('desktop_header_add_to_chrome_click')`**. CTA страницы `/foto-v-promt` используют **`reachGoal('foto_v_promt_add_to_chrome_click', { placement })`**. UTM для GA4 Chrome Web Store остаются общими: `utm_source=promptshot.ru`, `utm_medium=cpc`, `utm_campaign=foto_v_promt`, `utm_content` по placement (`desktop_header` \| `foto_v_promt_floating_cta` \| `foto_v_promt_mobile_floating_cta` \| `foto_v_promt_remix_hint` \| `foto_v_promt_json_ld`).
+- **CTA установки расширения**: сайдбар (**Инструменты**) вызывает **`reachGoal('desktop_sidebar_add_to_chrome_click')`**. CTA страницы `/foto-v-promt` используют **`reachGoal('foto_v_promt_add_to_chrome_click', { placement })`**. UTM для GA4 Chrome Web Store остаются общими: `utm_source=promptshot.ru`, `utm_medium=cpc`, `utm_campaign=foto_v_promt`, `utm_content` по placement (`desktop_sidebar` \| `foto_v_promt_floating_cta` \| `foto_v_promt_mobile_floating_cta` \| `foto_v_promt_remix_hint` \| `foto_v_promt_json_ld`).
 
 ---
 
@@ -141,7 +149,7 @@
 
 ```
 /                       → Главная (категории + поиск)
-/new                    → «Новое» — глобальный фид всех карточек по `created_at DESC` (`resolve_route_cards` без path-тегов, `p_sort=new`); фильтры `audience|style|occasion|object` как на `[...slug]`; **без** переключателя Популярное/Новое (`CatalogWithFilters` `fixedSort="new"`); ISR `revalidate=3600`; index на чистом `/new` (при query-фильтрах — noindex, canonical `/new`); sitemap priority **0.85**
+/trends                 → «Тренды» — глобальный фид всех карточек по `created_at DESC` (`resolve_route_cards` без path-тегов, `p_sort=new`); фильтры `audience|style|occasion|object` как на `[...slug]`; **без** переключателя Популярное/Новое (`CatalogWithFilters` `fixedSort="new"`); ISR `revalidate=3600`; index на чистом `/trends` (при query-фильтрах — noindex, canonical `/trends`); sitemap priority **0.85**. Legacy **`/new` → 301 `/trends`** (`next.config.ts`)
 /catalog                → Каталог промтов (категориальная сетка, noindex, revalidate=3600)
 /p/[slug]               → Карточка промта
 /[...slug]              → Листинг по тегу (напр. /promty-dlya-foto-devushki, /stil/cherno-beloe)
@@ -499,7 +507,7 @@ Fallback: если `code` пришёл на произвольную стран�
 | Страница | Рендеринг | Кеш |
 |----------|-----------|-----|
 | `/` (главная) | ISR | `revalidate = 3600` |
-| `/new` | ISR | `revalidate = 3600`, index (noindex при query-фильтрах), `fixedSort=new` |
+| `/trends` | ISR | `revalidate = 3600`, index (noindex при query-фильтрах), `fixedSort=new`; `/new` → 301 |
 | `/catalog` | ISR | `revalidate = 3600`, `robots: noindex` |
 | `/p/[slug]` (карточка) | **Dynamic** | `dynamic = force-dynamic` (доступ владельца к черновикам UGC + cookies) |
 | `/[...slug]` (листинг) | ISR | `revalidate = 3600` |
@@ -627,7 +635,7 @@ SearchResults (client, infinite scroll)
 | Компонент | Файл | Роль |
 |-----------|------|------|
 | HeaderClient | `components/HeaderClient.tsx` | Тонкий sticky header: логотип + SearchBar + UserMenu |
-| SidebarNav | `components/SidebarNav.tsx` | Сквозной левый sidebar (desktop sticky, mobile FAB+slide-over): верх — Главная / **Новое** / **Поиск** (`/search`) / Фото в промт; далее accordion-секции; treatment CTA «Генерация фото» |
+| SidebarNav | `components/SidebarNav.tsx` | Сквозной левый sidebar (desktop sticky, mobile drawer): сверху pill **«Добавить в Chrome»** → CWS; затем treatment CTA «Генерация фото»; Главная / **Тренды** / **Поиск** / **Фото в промт**; далее accordion-секции |
 | PromptCard | `components/PromptCard.tsx` | Карточка в листинге; двухфазный render: `ListingCardLoadingShell` → real chrome после `imageReady` |
 | GroupedCard | `components/GroupedCard.tsx` | Группа split-карточек; тот же loading shell, сброс `imageReady` по `activeCard.id` |
 | ListingCardLoadingShell | `components/ListingCardLoadingShell.tsx` | Единый loading shell (`ListingCardPhotoSkeleton overlay` + `ListingCardChromeSkeleton`) для карточек и pagination |
@@ -643,7 +651,7 @@ SearchResults (client, infinite scroll)
 | FotoVPromtMiniBanner | `components/foto-v-promt-promo/FotoVPromtMiniBanner.tsx` | Промо «Промпт не попадает в фото?»; смонтировано только на листингах (`variant="listing"`), на `/p/[slug]` скрыто |
 | ListingFotoVPromtBanner | `components/foto-v-promt-promo/ListingFotoVPromtBanner.tsx` | Sticky + IntersectionObserver hide после первого экрана |
 | ListingBottomBar | `components/ListingBottomBar.tsx` | No-op (desktop search → SidebarNav **Поиск** + поле на `/search`). |
-| MobileTabBar | `components/MobileTabBar.tsx` | Tab bar (max-lg): **Новое** / Каталог / [treatment: raised **Сгенерировать** → `GenerateDock.focusBlank`] / Поиск / **Фото в промт**. Control — 4 таба без center. |
+| MobileTabBar | `components/MobileTabBar.tsx` | Tab bar (max-lg): **Тренды** (`/trends`) / Каталог / [treatment: raised **Сгенерировать** → `GenerateDock.focusBlank`] / Поиск / **Фото в промт**. Control — 4 таба без center. |
 | GenerateDockContext | `context/GenerateDockContext.tsx` | SSOT seed/focus/dockSurface/historyRefresh для listing dock. |
 | GenerateListingDockHost | `components/generate/GenerateListingDockHost.tsx` | Плавающий composer на allowlist листингов (treatment); collapse FAB для гостя / при скролле. |
 | GenerationResultBackdrop | `components/generate/GenerationResultBackdrop.tsx` | Фон result: pixelate previous → reveal next (CSS); shared dock/card. |
@@ -809,7 +817,7 @@ type ResolvedRoute = {
 | `landing_add_credits` | Начисление кредитов в `landing_users.credits` после web-оплаты |
 | `landing_fulfill_yookassa_payment` | Атомарное идемпотентное завершение YooKassa-платежа и начисление сохранённых в ledger токенов |
 
-**Сортировка листингов категорий (`/[...slug]/`, миграции `158–161`):** UI — переключатель **`ListingSortToggle`** («Новое» \| «Популярное»), выбор в **`sessionStorage`** `promptshot_listing_sort` + опционально **`?sort=popular`** в URL (default `new` — без query-параметра). SSR и API читают **`sort`**. Страница **`/new`** всегда `sort=new` (`fixedSort`), без переключателя и без sessionStorage-sync (`useListingSort({ disabled: true })`).
+**Сортировка листингов категорий (`/[...slug]/`, миграции `158–161`):** UI — переключатель **`ListingSortToggle`** («Новое» \| «Популярное»), выбор в **`sessionStorage`** `promptshot_listing_sort` + опционально **`?sort=popular`** в URL (default `new` — без query-параметра). SSR и API читают **`sort`**. Страница **`/trends`** всегда `sort=new` (`fixedSort`), без переключателя и без sessionStorage-sync (`useListingSort({ disabled: true })`).
 
 | `sort` | ORDER BY в `resolve_route_cards` |
 |--------|----------------------------------|

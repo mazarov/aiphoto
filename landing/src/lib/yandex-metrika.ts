@@ -27,7 +27,9 @@ export const YM_GOAL_LEXYGPT_GENERATE_TABBAR = "lexygpt_generate_tabbar";
 export const YM_GOAL_FOTO_V_PROMT_BANNER_CLICK = "foto_v_promt_banner_click";
 export const YM_GOAL_FOTO_V_PROMT_BANNER_CLICK_CARD = "foto_v_promt_banner_click_card";
 export const YM_GOAL_FOTO_V_PROMT_ADD_TO_CHROME_CLICK = "foto_v_promt_add_to_chrome_click";
+/** @deprecated CTA перенесён в сайдбар — используйте `YM_GOAL_DESKTOP_SIDEBAR_ADD_TO_CHROME_CLICK`. */
 export const YM_GOAL_DESKTOP_HEADER_ADD_TO_CHROME_CLICK = "desktop_header_add_to_chrome_click";
+export const YM_GOAL_DESKTOP_SIDEBAR_ADD_TO_CHROME_CLICK = "desktop_sidebar_add_to_chrome_click";
 
 export type PromptCardOpenEntry = "modal" | "page";
 
@@ -75,9 +77,14 @@ export function trackFotoVPromtAddToChromeClick(placement?: string): void {
   );
 }
 
-/** CTA расширения по центру desktop-хедера → Chrome Web Store. */
+/** @deprecated CTA перенесён в сайдбар — используйте `trackDesktopSidebarAddToChromeClick`. */
 export function trackDesktopHeaderAddToChromeClick(): void {
   reachYandexMetrikaGoal(YM_GOAL_DESKTOP_HEADER_ADD_TO_CHROME_CLICK);
+}
+
+/** CTA расширения в блоке «Инструменты» сайдбара → Chrome Web Store. */
+export function trackDesktopSidebarAddToChromeClick(): void {
+  reachYandexMetrikaGoal(YM_GOAL_DESKTOP_SIDEBAR_ADD_TO_CHROME_CLICK);
 }
 
 /**

@@ -116,7 +116,7 @@ export function MobileTabBar() {
   ): boolean => {
     switch (key) {
       case "new":
-        return np === "/new";
+        return np === "/trends";
       case "catalog":
         return np === "/" || np === "/catalog";
       case "generate":
@@ -174,9 +174,9 @@ export function MobileTabBar() {
         >
           <div className="flex h-14 items-end justify-around px-1 pb-1">
             <Link
-              href="/new"
+              href="/trends"
               className="flex flex-1 flex-col items-center justify-end gap-0.5 pb-1 pt-2"
-              aria-label="Новое"
+              aria-label="Тренды"
             >
               <svg
                 className={`h-6 w-6 ${tabIconClass(isActive("new"))}`}
@@ -197,7 +197,7 @@ export function MobileTabBar() {
                 />
               </svg>
               <span className={`text-[11px] ${tabLabelClass(isActive("new"))}`}>
-                Новое
+                Тренды
               </span>
             </Link>
 

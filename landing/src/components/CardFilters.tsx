@@ -10,6 +10,7 @@ import { useAuth } from "@/context/AuthContext";
 import { isCatalogAdminEmail } from "@/lib/catalog-admin";
 import { LISTING_LCP_PRIORITY_GRID_ITEMS } from "@/lib/listing-lcp";
 import { LISTING_INFINITE_PAGE_SIZE } from "@/lib/listing-pagination";
+import type { ListingSort } from "@/lib/listing-sort";
 import {
   buildListingSlugOrder,
   writeListingNavigationContext,
@@ -40,6 +41,8 @@ type Props = {
    * Pass hasMore from the parent infinite-scroll controller.
    */
   clamp?: boolean;
+  /** Listing sort — forwarded to admin `/api/search-cards` (default `new`). */
+  sort?: ListingSort;
 };
 
 function getSeoTagSlugs(seoTags: unknown): string[] {
@@ -120,10 +123,13 @@ export function FilterableGrid({
   hideHoverChrome = false,
   initialDataset,
   clamp = false,
+  sort = "new",
 }: Props) {
   const { user } = useAuth();
   const isAdmin = isCatalogAdminEmail(user?.email);
   const adminInitializedRef = useRef(false);
+  const sortRef = useRef(sort);
+  sortRef.current = sort;
 
   const [panelOpen, setPanelOpen] = useState(true);
   const [techInfoEnabled, setTechInfoEnabled] = useState(false);
@@ -155,11 +161,12 @@ export function FilterableGrid({
   filterHasMoreRef.current = filterHasMore;
 
   const isIdMode = idSearch.trim().length >= 4;
-  // Admin always searches via API (needs unpublished + full dataset list).
+  // Enter API filter mode only when filters diverge from the SSR listing
+  // (e.g. published=all for catalog admin). Bare admin login must not replace
+  // resolve_route_cards order with search_cards_filtered.
   const isFilterMode =
     !isIdMode &&
-    (isAdmin ||
-      filters.hasWarnings !== "all" ||
+    (filters.hasWarnings !== "all" ||
       filters.scoreMin > 0 ||
       filters.scoreMax < 100 ||
       filters.hasRuPrompt !== "all" ||
@@ -276,6 +283,8 @@ export function FilterableGrid({
         ...(f.selectedTag && { seoTag: f.selectedTag }),
         ...(f.dataset && { dataset: f.dataset }),
       });
+      // Default listing sort is `new` (omit param); only non-default `popular` is sent.
+      if (sortRef.current === "popular") u.set("sort", "popular");
       const res = await fetch(`/api/search-cards?${u}`, { credentials: "include" });
       const data = await res.json();
       const newCards = (data.cards || []) as PromptCardFull[];
@@ -332,6 +341,7 @@ export function FilterableGrid({
     };
   }, [
     isFilterMode,
+    sort,
     filters.hasWarnings,
     filters.scoreMin,
     filters.scoreMax,

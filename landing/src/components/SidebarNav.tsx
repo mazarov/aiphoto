@@ -8,7 +8,10 @@ import { useListingMobileChromeOptional } from "@/context/ListingMobileChromeCon
 import { useFeatureAccess } from "@/context/FeatureAccessContext";
 import { markGenerateEntrySource } from "@/context/GenerateMobileModalContext";
 import type { MenuSectionWithCounts } from "@/lib/menu";
+import { getAiImageDescriberChromeUrl } from "@/lib/foto-v-promt-config";
+import { trackDesktopSidebarAddToChromeClick } from "@/lib/yandex-metrika";
 import { isSameNavPath, scrollCatalogToTop } from "@/lib/scroll-preservation";
+import { ChromeMark } from "./foto-v-promt/ChromeMark";
 
 function enrichMenuWithCounts(
   menu: MenuSectionWithCounts[],
@@ -74,6 +77,27 @@ function SidebarContent({
 
   return (
     <nav className="flex flex-col gap-0.5 px-3 py-4">
+      <a
+        href={getAiImageDescriberChromeUrl("desktop_sidebar")}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={() => {
+          trackDesktopSidebarAddToChromeClick();
+          onItemClick?.();
+        }}
+        className="mb-2 flex w-full items-center gap-2.5 rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-left shadow-sm transition hover:border-zinc-300 hover:bg-zinc-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2"
+      >
+        <ChromeMark className="h-5 w-5 shrink-0" />
+        <span className="min-w-0 flex-1">
+          <span className="block text-[13px] font-semibold text-zinc-900">
+            Добавить в Chrome
+          </span>
+          <span className="mt-0.5 block text-xs font-normal leading-snug text-zinc-500 line-clamp-2">
+            Преврати фото с любого сайта в готовый промт
+          </span>
+        </span>
+      </a>
+
       {showGenerateCta ? (
         <Link
           href="/generate"
@@ -129,17 +153,17 @@ function SidebarContent({
       </Link>
 
       <Link
-        href="/new"
+        href="/trends"
         scroll={false}
         onClick={(e) => {
           onItemClick?.();
-          if (isSameNavPath(pathname, "/new")) {
+          if (isSameNavPath(pathname, "/trends")) {
             e.preventDefault();
             scrollCatalogToTop();
           }
         }}
         className={`flex items-center gap-2.5 rounded-xl px-3 py-2 text-[13px] font-medium transition-colors ${
-          isHrefActive("/new", pathname)
+          isHrefActive("/trends", pathname)
             ? "bg-indigo-50 text-indigo-700"
             : "text-zinc-700 hover:bg-zinc-50"
         }`}
@@ -156,7 +180,7 @@ function SidebarContent({
             d="M18.5 14.5l.75 2.25L21.5 17.5l-2.25.75L18.5 20.5l-.75-2.25L15.5 17.5l2.25-.75.75-2.25z"
           />
         </svg>
-        Новое
+        Тренды
       </Link>
 
       <Link
@@ -360,7 +384,7 @@ export function SidebarNav({ menu }: { menu: MenuSectionWithCounts[] }) {
   return (
     <>
       {/* Desktop sidebar */}
-      <aside className="hidden w-60 flex-shrink-0 lg:block">
+      <aside className="hidden w-72 flex-shrink-0 lg:block">
         <div className="sticky top-[57px] h-[calc(100vh-57px)] overflow-y-auto border-r border-zinc-100 bg-white">
           <SidebarContent
             menu={enrichedMenu}

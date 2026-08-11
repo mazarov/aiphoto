@@ -105,15 +105,15 @@ const getCachedRouteCards = cache(
     try {
       return await fetchRouteCards(params);
     } catch (err) {
-      console.error("[NewPage] fetchRouteCards failed:", err);
+      console.error("[TrendsPage] fetchRouteCards failed:", err);
       return EMPTY_ROUTE_RESULT;
     }
   }
 );
 
-const PAGE_TITLE = "Новые промты для фото";
+const PAGE_TITLE = "Тренды — промты для фото";
 const PAGE_DESCRIPTION =
-  "Свежие AI-промты для фото — новые карточки по дате публикации. Фильтруйте по аудитории, стилю, событию и сцене.";
+  "Актуальные AI-промты для фото — свежие карточки по дате публикации. Фильтруйте по аудитории, стилю, событию и сцене.";
 
 export async function generateMetadata({ searchParams }: Props): Promise<Metadata> {
   const qs = await searchParams;
@@ -127,10 +127,10 @@ export async function generateMetadata({ searchParams }: Props): Promise<Metadat
   try {
     ogImageUrl = await getFirstCardPhotoUrl(result.cards.map((c) => c.id));
   } catch (err) {
-    console.error("[NewPage] getFirstCardPhotoUrl failed in metadata:", err);
+    console.error("[TrendsPage] getFirstCardPhotoUrl failed in metadata:", err);
   }
 
-  const canonicalUrl = `${SITE_URL}/new`;
+  const canonicalUrl = `${SITE_URL}/trends`;
 
   return {
     title: PAGE_TITLE,
@@ -158,7 +158,7 @@ export async function generateMetadata({ searchParams }: Props): Promise<Metadat
   };
 }
 
-export default async function NewPage({ searchParams }: Props) {
+export default async function TrendsPage({ searchParams }: Props) {
   const qs = await searchParams;
   const fetchParams = buildListingFetchParams(qs ?? null);
   const result = await getCachedRouteCards(fetchParams);
@@ -168,7 +168,7 @@ export default async function NewPage({ searchParams }: Props) {
   try {
     cards = await enrichCardsWithDetails(result.cards);
   } catch (err) {
-    console.error("[NewPage] enrichCardsWithDetails failed:", err);
+    console.error("[TrendsPage] enrichCardsWithDetails failed:", err);
     cards = [];
   }
 
@@ -178,7 +178,7 @@ export default async function NewPage({ searchParams }: Props) {
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
             <h1 className="text-3xl font-bold tracking-tight text-zinc-900 sm:text-4xl">
-              Новое
+              Тренды
             </h1>
             <ListingPromptCountBadge count={totalCount} />
           </div>
@@ -190,9 +190,9 @@ export default async function NewPage({ searchParams }: Props) {
       </section>
 
       <main className="listing-main-bottom-pad w-full flex-1 px-2 pt-3 pb-8 sm:px-5 sm:pt-4 lg:pt-4">
-        <section aria-labelledby="new-catalog-heading">
-          <h2 id="new-catalog-heading" className="sr-only">
-            Новые промты
+        <section aria-labelledby="trends-catalog-heading">
+          <h2 id="trends-catalog-heading" className="sr-only">
+            Трендовые промты
           </h2>
           <CatalogWithFilters
             initialCards={cards}

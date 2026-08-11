@@ -49,6 +49,11 @@ const nextConfig: NextConfig = {
         destination: "/favicon.svg",
         permanent: true,
       },
+      {
+        source: "/new",
+        destination: "/trends",
+        permanent: true,
+      },
     ];
   },
   async rewrites() {

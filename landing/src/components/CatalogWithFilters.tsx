@@ -29,7 +29,7 @@ type Props = {
   lockedDimensions: Dimension[];
   /**
    * When set, listing is always sorted this way: no sort toggle, no sessionStorage / `?sort=` sync.
-   * Used by `/new` (always `created_at` / sort=new).
+   * Used by `/trends` (always `created_at` / sort=new).
    */
   fixedSort?: ListingSort;
 };

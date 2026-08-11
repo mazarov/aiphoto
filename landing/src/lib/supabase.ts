@@ -212,11 +212,13 @@ export async function searchCardsFiltered(params: {
   dataset?: string | null;
   /** 'yes' (default) | 'no' | 'all' — debug can pass 'all' / 'no'. */
   published?: "all" | "yes" | "no";
+  /** Align with resolve_route_cards / listing (`new` | `popular`). */
+  sort?: ListingSort;
   limit?: number;
   offset?: number;
 }): Promise<{ cards: RouteCard[]; rankedBatchSize: number }> {
   const supabase = createSupabaseServer();
-  const { data, error } = await supabase.rpc("search_cards_filtered", {
+  const baseArgs = {
     p_has_warnings: params.hasWarnings ?? "all",
     p_score_min: params.scoreMin ?? 0,
     p_score_max: params.scoreMax ?? 100,
@@ -227,7 +229,15 @@ export async function searchCardsFiltered(params: {
     p_published: params.published ?? "yes",
     p_limit: params.limit ?? 100,
     p_offset: params.offset ?? 0,
+  };
+  let { data, error } = await supabase.rpc("search_cards_filtered", {
+    ...baseArgs,
+    p_sort: params.sort ?? "new",
   });
+  // Pre-182 DBs have no p_sort — retry without (legacy view_count order).
+  if (error && /p_sort|Could not find the function/i.test(error.message)) {
+    ({ data, error } = await supabase.rpc("search_cards_filtered", baseArgs));
+  }
 
   if (error) throw new Error(`search_cards_filtered: ${error.message}`);
   const ranked = (data || []) as RouteCard[];
@@ -247,7 +257,7 @@ export async function countCardsFiltered(params: {
   published?: "all" | "yes" | "no";
 }): Promise<number> {
   const supabase = createSupabaseServer();
-  const { data, error } = await supabase.rpc("search_cards_filtered", {
+  const baseArgs = {
     p_has_warnings: params.hasWarnings ?? "all",
     p_score_min: params.scoreMin ?? 0,
     p_score_max: params.scoreMax ?? 100,
@@ -258,7 +268,14 @@ export async function countCardsFiltered(params: {
     p_published: params.published ?? "yes",
     p_limit: 100000,
     p_offset: 0,
+  };
+  let { data, error } = await supabase.rpc("search_cards_filtered", {
+    ...baseArgs,
+    p_sort: "new",
   });
+  if (error && /p_sort|Could not find the function/i.test(error.message)) {
+    ({ data, error } = await supabase.rpc("search_cards_filtered", baseArgs));
+  }
 
   if (error) throw new Error(`search_cards_filtered count: ${error.message}`);
   return (data || []).length;

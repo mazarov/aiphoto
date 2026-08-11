@@ -1,6 +1,6 @@
 function SidebarSkeleton() {
   return (
-    <aside className="hidden w-60 flex-shrink-0 border-r border-zinc-100 md:block">
+    <aside className="hidden w-72 flex-shrink-0 border-r border-zinc-100 md:block">
       <div className="space-y-3 px-4 py-5">
         <div className="h-8 w-28 animate-pulse rounded-xl bg-zinc-100" />
         <div className="h-px bg-zinc-100" />
