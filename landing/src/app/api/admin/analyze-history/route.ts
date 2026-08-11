@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
   const cursor = parseAnalyzeHistoryCursor(req.nextUrl.searchParams.get("cursor"));
   const source = req.nextUrl.searchParams.get("client_source")?.trim();
   let query = supabase.from("analyze_history")
-    .select("id,created_at,client_source,prompt,style,locale,model,image_path,ugc_card_id")
+    .select("id,created_at,kind,client_source,prompt,change_request,style,locale,model,image_path,ugc_card_id")
     .order("created_at", { ascending: false }).order("id", { ascending: false }).limit(limit + 1);
   if (source) query = query.eq("client_source", source);
   if (cursor) query = query.or(
@@ -40,9 +40,17 @@ export async function GET(req: NextRequest) {
       : null;
     const card = row.ugc_card_id ? cards.get(row.ugc_card_id) : null;
     return {
-      id: row.id, created_at: row.created_at, client_source: row.client_source, prompt: row.prompt,
-      style: row.style, locale: row.locale, model: row.model,
-      image_url: signed?.data?.signedUrl || null, is_published: Boolean(card?.published),
+      id: row.id,
+      created_at: row.created_at,
+      kind: row.kind === "remix" ? "remix" : "analyze",
+      client_source: row.client_source,
+      prompt: row.prompt,
+      change_request: row.change_request,
+      style: row.style,
+      locale: row.locale,
+      model: row.model,
+      image_url: signed?.data?.signedUrl || null,
+      is_published: Boolean(card?.published),
       card_url: card?.published && card.slug ? `/p/${card.slug}` : null,
     };
   }));

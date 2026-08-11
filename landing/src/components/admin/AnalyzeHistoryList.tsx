@@ -9,8 +9,17 @@ import { AdminUserGenerationsList } from "./AdminUserGenerationsList";
 import { CLIENT_SOURCES_ORDER, clientSourceColor, clientSourceLabel } from "./analytics-constants";
 
 type Item = {
-  id: string; created_at: string; client_source: string; prompt: string; image_url: string | null;
-  style: string | null; model: string | null; is_published: boolean; card_url: string | null;
+  id: string;
+  created_at: string;
+  kind: "analyze" | "remix";
+  client_source: string;
+  prompt: string;
+  change_request: string | null;
+  image_url: string | null;
+  style: string | null;
+  model: string | null;
+  is_published: boolean;
+  card_url: string | null;
 };
 type View = "analyses" | "user_generations" | "unpublished" | "published";
 const tabClass = (active: boolean) => `rounded-xl px-3 py-2 text-xs font-semibold ${
@@ -102,9 +111,17 @@ export function AnalyzeHistoryList() {
             <div className="flex flex-wrap items-center gap-2 text-[11px] text-zinc-500">
               <span className="rounded-full px-2 py-0.5 font-semibold text-white"
                 style={{ background: clientSourceColor(item.client_source) }}>{clientSourceLabel(item.client_source)}</span>
+              {item.kind === "remix" && (
+                <span className="rounded-full bg-violet-600 px-2 py-0.5 font-semibold text-white">Remix</span>
+              )}
               <span>{new Date(item.created_at).toLocaleString()}</span>
               {item.model && <span>{item.model}</span>}
             </div>
+            {item.kind === "remix" && item.change_request && (
+              <p className="mt-1 line-clamp-2 text-xs leading-4 text-violet-700">
+                <span className="font-semibold">Что изменить:</span> {item.change_request}
+              </p>
+            )}
             <button onClick={() => setFullPrompt(item.prompt)} className="mt-1 line-clamp-2 text-left text-sm leading-5 text-zinc-800">{item.prompt}</button>
             <div className="mt-2 flex flex-wrap gap-3 text-xs font-semibold">
               <button onClick={() => navigator.clipboard.writeText(item.prompt)} className="text-indigo-600">Копировать</button>

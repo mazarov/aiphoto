@@ -1,6 +1,8 @@
 # 03 — Пайплайн: парсинг → загрузка → публикация
 
-> Последнее обновление: 2026-08-08 (**PromptShot admin publication:** успешные site analyze сохраняются в private 30-day `analyze_history`; admin analyze и durable admin generations публикуются идемпотентно через `prompt_cards` и общий SEO publish service. SQL `175` и production deploy не выполнялись.)
+> Последнее обновление: 2026-08-11 (**analyze-history remix:** `POST /api/prompt-remix` пишет в ту же 30-day `analyze_history` с `kind=remix` + `change_request`; admin UI показывает Remix отдельно от analyze. SQL `181`.)
+>
+> Предыдущее обновление: 2026-08-08 (**PromptShot admin publication:** успешные site analyze сохраняются в private 30-day `analyze_history`; admin analyze и durable admin generations публикуются идемпотентно через `prompt_cards` и общий SEO publish service. SQL `175` и production deploy не выполнялись.)
 >
 
 ## Обзор
@@ -309,8 +311,14 @@ Site analyze:
     → same-origin /api/extension/analyze
     → rate-limit reserve
     → Gemini
-    ├─ success → confirm → private analyze_history (retention 30 days)
+    ├─ success → confirm → private analyze_history kind=analyze (retention 30 days)
     └─ failure → release (quota count не увеличивается)
+
+Site prompt remix (карточки / generate):
+  POST /api/prompt-remix
+    → auth + rollout
+    → Gemini rewrite
+    └─ success → private analyze_history kind=remix + change_request (без image)
 
 Admin analyze publication:
   /admin/analyze-history

@@ -6,10 +6,15 @@ import type { createSupabaseServer } from "@/lib/supabase";
 type SupabaseServer = ReturnType<typeof createSupabaseServer>;
 export const ANALYZE_HISTORY_BUCKET = "analyze-history";
 const RETENTION_DAYS = 30;
+const MAX_CHANGE_REQUEST_CHARS = 1_000;
+
+export type AnalyzeHistoryKind = "analyze" | "remix";
 
 type AnalyzeHistoryInput = {
-  imageBase64: string;
+  kind?: AnalyzeHistoryKind;
+  imageBase64?: string | null;
   prompt: string;
+  changeRequest?: string | null;
   style?: string | null;
   locale?: string | null;
   model?: string | null;
@@ -24,31 +29,48 @@ async function persist(
   req: NextRequest,
   input: AnalyzeHistoryInput,
 ): Promise<void> {
-  if (!input.imageBase64 || !input.prompt.trim()) return;
+  const kind: AnalyzeHistoryKind = input.kind === "remix" ? "remix" : "analyze";
+  const prompt = input.prompt.trim();
+  if (!prompt) return;
+
+  const changeRequest =
+    typeof input.changeRequest === "string" ? input.changeRequest.trim() : "";
+  if (kind === "remix") {
+    if (!changeRequest || changeRequest.length > MAX_CHANGE_REQUEST_CHARS) return;
+  } else if (changeRequest || !input.imageBase64) {
+    return;
+  }
+
   const id = crypto.randomUUID();
   const now = new Date();
-  const path = `${now.getUTCFullYear()}/${String(now.getUTCMonth() + 1).padStart(
-    2,
-    "0",
-  )}/${String(now.getUTCDate()).padStart(2, "0")}/${id}.jpg`;
-  const image = await sharp(Buffer.from(input.imageBase64, "base64"))
-    .resize(1024, 1024, { fit: "inside", withoutEnlargement: true })
-    .jpeg({ quality: 85 })
-    .toBuffer();
+  let path: string | null = null;
 
-  const { error: uploadError } = await supabase.storage
-    .from(ANALYZE_HISTORY_BUCKET)
-    .upload(path, image, { contentType: "image/jpeg", upsert: false });
-  if (uploadError) throw uploadError;
+  if (input.imageBase64) {
+    path = `${now.getUTCFullYear()}/${String(now.getUTCMonth() + 1).padStart(
+      2,
+      "0",
+    )}/${String(now.getUTCDate()).padStart(2, "0")}/${id}.jpg`;
+    const image = await sharp(Buffer.from(input.imageBase64, "base64"))
+      .resize(1024, 1024, { fit: "inside", withoutEnlargement: true })
+      .jpeg({ quality: 85 })
+      .toBuffer();
+
+    const { error: uploadError } = await supabase.storage
+      .from(ANALYZE_HISTORY_BUCKET)
+      .upload(path, image, { contentType: "image/jpeg", upsert: false });
+    if (uploadError) throw uploadError;
+  }
 
   const { error: insertError } = await supabase.from("analyze_history").insert({
     id,
+    kind,
     client_source: resolveClientSource(req, {
       authenticated: input.authenticated,
     }),
     image_path: path,
-    image_mime: "image/jpeg",
-    prompt: input.prompt.trim(),
+    image_mime: path ? "image/jpeg" : null,
+    prompt,
+    change_request: kind === "remix" ? changeRequest : null,
     style: input.style ?? null,
     locale: input.locale ?? null,
     model: input.model ?? null,
@@ -57,12 +79,12 @@ async function persist(
     correlation_id: input.correlationId ?? null,
   });
   if (insertError) {
-    void supabase.storage.from(ANALYZE_HISTORY_BUCKET).remove([path]);
+    if (path) void supabase.storage.from(ANALYZE_HISTORY_BUCKET).remove([path]);
     throw insertError;
   }
 }
 
-/** Fire-and-forget successful analyze history. */
+/** Fire-and-forget successful analyze / remix history. */
 export function recordAnalyzeHistory(
   supabase: SupabaseServer,
   req: NextRequest,
@@ -70,6 +92,7 @@ export function recordAnalyzeHistory(
 ): void {
   void persist(supabase, req, input).catch((error) => {
     console.warn("[analyze.history] persist failed", {
+      kind: input.kind === "remix" ? "remix" : "analyze",
       message: error instanceof Error ? error.message : String(error),
     });
   });
@@ -78,8 +101,10 @@ export function recordAnalyzeHistory(
 export type AnalyzeHistoryRow = {
   id: string;
   created_at: string;
+  kind: AnalyzeHistoryKind;
   client_source: string;
   prompt: string;
+  change_request: string | null;
   style: string | null;
   locale: string | null;
   model: string | null;

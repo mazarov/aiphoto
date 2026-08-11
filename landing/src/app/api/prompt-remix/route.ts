@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { recordAnalyzeHistory } from "@/lib/analyze-history";
 import { createSupabaseServer } from "@/lib/supabase";
 import { getSupabaseUserForApiRoute } from "@/lib/supabase-route-auth";
 import {
@@ -274,6 +275,14 @@ export async function POST(req: NextRequest) {
       changeChars: changeRequest.length,
       resultChars: prompt.length,
       durationMs: Date.now() - startedAt,
+    });
+    recordAnalyzeHistory(supabase, req, {
+      kind: "remix",
+      prompt,
+      changeRequest,
+      model,
+      userId: user.id,
+      authenticated: true,
     });
     return NextResponse.json({ prompt, model });
   } catch (error) {

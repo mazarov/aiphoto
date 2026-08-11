@@ -1,6 +1,8 @@
 # 01 — Лендинг (promptshot.ru)
 
-> Последнее обновление: 2026-08-11 (**prefs SSOT:** model/ratio/size/photos из `landing_generation_preferences`; last-completed hydrate больше не перетирает их; «Готово»/close шторки фото·модель → immediate PUT.)
+> Последнее обновление: 2026-08-11 (**analyze-history remix:** успешный `POST /api/prompt-remix` best-effort пишет в `analyze_history` с `kind=remix` и `change_request` (текст «Что изменить?»); `/admin/analyze-history` показывает бейдж Remix и это значение. Миграция `181`. Extension/foto-v-promt remix на imageprompt.tools не логируется.)
+>
+> Предыдущее обновление: 2026-08-11 (**prefs SSOT:** model/ratio/size/photos из `landing_generation_preferences`; last-completed hydrate больше не перетирает их; «Готово»/close шторки фото·модель → immediate PUT.)
 >
 > Предыдущее обновление: 2026-08-11 (**Повторить → compose reset:** footer `Повторить` сбрасывает result/`generationId` в `idle` (промпт/модель/фото сохраняются), не enqueue новую генерацию; новая gen — через `Сгенерировать`.)
 >
@@ -147,7 +149,7 @@
 /favorites              → Избранное (требует авторизации)
 /generations            → Мои генерации (auth): канонический список `landing_generations` текущего shared DB user; UGC-карточка необязательна
 /admin/analytics        → Закрытый analytics dashboard и admin generation modal; Supabase Auth + email allowlist `ANALYTICS_ADMIN_EMAILS`
-/admin/analyze-history  → Закрытая история analyze + все non-admin user generations; private source previews выдаются signed, completed results публикуются идемпотентно
+/admin/analyze-history  → Закрытая история analyze/remix + все non-admin user generations; remix помечается бейджем и `change_request`; private source previews выдаются signed, completed results публикуются идемпотентно
 /admin/payments         → Закрытый cursor-реестр YooKassa: payer identity, RUB/status/test, ожидаемые credits и факт `credited_at`
 /auth/callback          → OAuth callback (client page); PKCE exchange в браузере; `?next=` — возврат на страницу старта логина
 /embed/stv              → Steal This Vibe (клиент подгружает `/stv-panel/boot.mjs` + `styles.css`; та же логика, что side panel расширения)
@@ -218,7 +220,7 @@
 | `/api/generation-config` | Конфиг генерации (модели, лимиты) |
 | `/api/generation-preferences` | GET/PUT (auth): последние model / aspect ratio / image size / выбранные owned photo IDs текущего JWT user |
 | `/api/generation-prompt` | EN промпт карточки по cardId |
-| `/api/prompt-remix` | POST (auth + internal generation allowlist): принимает текущий editable `prompt + changeRequest` и optional owned completed `parentGenerationId`, возвращает только переписанный prompt без создания generation. System instruction требует интегрировать изменение во все затронутые секции и удалить противоречия, а не дописывать финальную строку. Модель `GEMINI_PROMPT_REMIX_MODEL` (default `gemini-2.5-flash`), `temperature=0.3`, `thinkingBudget=0`, `maxOutputTokens=8192`; ответ с `MAX_TOKENS` не принимается как готовый. Proxy определяется через `photo_app_config.gemini_use_proxy` + `GEMINI_PROXY_BASE_URL` |
+| `/api/prompt-remix` | POST (auth + internal generation allowlist): принимает текущий editable `prompt + changeRequest` и optional owned completed `parentGenerationId`, возвращает только переписанный prompt без создания generation. Успех best-effort сохраняется в `analyze_history` (`kind=remix`, `change_request`, итоговый `prompt`, без image). System instruction требует интегрировать изменение во все затронутые секции и удалить противоречия, а не дописывать финальную строку. Модель `GEMINI_PROMPT_REMIX_MODEL` (default `gemini-2.5-flash`), `temperature=0.3`, `thinkingBudget=0`, `maxOutputTokens=8192`; ответ с `MAX_TOKENS` не принимается как готовый. Proxy определяется через `photo_app_config.gemini_use_proxy` + `GEMINI_PROXY_BASE_URL` |
 | `/api/upload-generation-photo` | Загрузка фото для генерации; `saveToLibrary=true` дополнительно регистрирует загрузку в `landing_user_photos` и возвращает объект `photo` с signed preview URL |
 | `/api/upload-generation-photo/signed-url` | GET: подписанный URL превью загруженного фото (auth, path в query) |
 | `/api/user-generation-photos` | GET (auth): библиотека inline-фото текущего JWT user, newest-first, с signed preview URL |
@@ -240,7 +242,7 @@
 | `/api/extension/analyze` | Same-origin analyze для site `/foto-v-promt`: validation/SSRF protection → optional Auth/shared identity → atomic rate-limit reserve → Gemini proxy/direct → confirm при success или release при error; успешный результат best-effort сохраняется в private 30-day `analyze_history` |
 | `/api/admin/analytics` | GET, admin auth: no-store analytics rollups за `1…90` дней |
 | `/api/admin/payments` | GET, admin auth: cursor YooKassa ledger с status/test filters, payer auth/billing identity и credit fulfillment state |
-| `/api/admin/analyze-history` | GET, admin auth: cursor pagination private analyze history, optional `client_source`, signed image URL |
+| `/api/admin/analyze-history` | GET, admin auth: cursor pagination private analyze/remix history (`kind`, `change_request`), optional `client_source`, signed image URL (analyze only) |
 | `/api/admin/analyze-history/[id]/publish` | POST, admin auth: private analyze image → public result object → idempotent `prompt_cards` draft → общий SEO publish service |
 | `/api/admin/user-generations` | GET, admin auth: cursor всех `client_source != admin` generation statuses, identity, public result и 15-минутные signed source previews |
 | `/api/admin/user-generations/[id]/publish` | POST, admin auth: completed non-admin generation → idempotent UGC draft исходного `requester_auth_user_id` → общий SEO publish service |
@@ -297,9 +299,11 @@
   `reserve` проверяет `count + pending < max`. Успех выполняет `confirm`
   (`pending - 1`, `count + 1`), timeout/upstream/error — `release`
   (`pending - 1`), поэтому failed call не расходует дневной лимит.
-- **История:** только успешный analyze best-effort сохраняет уменьшенный JPEG и prompt
-  в private bucket/table `analyze-history` / `analyze_history`. Signed previews
-  выдаются только admin API; retention — 30 дней с opportunistic cleanup.
+- **История:** успешный analyze best-effort сохраняет уменьшенный JPEG и prompt
+  в private bucket/table `analyze-history` / `analyze_history` (`kind=analyze`).
+  Успешный site `POST /api/prompt-remix` пишет туда же `kind=remix` + `change_request`
+  (без image). Admin UI показывает бейдж Remix и текст «Что изменить?».
+  Signed previews выдаются только admin API; retention — 30 дней с opportunistic cleanup.
 - **Admin generation:** `/api/admin/generate` резолвит отдельно requester
   `auth.users.id` и shared `imageprompt_users.id`, ставит `client_source='admin'` job
   через существующий `landing_enqueue_generation`. Job обрабатывает тот же durable
