@@ -387,6 +387,7 @@ export function SidebarNav({ menu }: { menu: MenuSectionWithCounts[] }) {
       {/* Desktop sidebar */}
       <aside className="hidden w-72 flex-shrink-0 lg:block">
         <div className="sticky top-0 flex h-screen flex-col border-r border-zinc-100 bg-white">
+          <SidebarAccountPanel />
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
             <SidebarContent
               menu={enrichedMenu}
@@ -396,7 +397,6 @@ export function SidebarNav({ menu }: { menu: MenuSectionWithCounts[] }) {
               showGenerateCta={showGenerateCta}
             />
           </div>
-          <SidebarAccountPanel />
         </div>
       </aside>
 

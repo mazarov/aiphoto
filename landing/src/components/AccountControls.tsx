@@ -254,7 +254,7 @@ export function SidebarAccountPanel() {
 
   if (loading) {
     return (
-      <div className="border-t border-zinc-100 p-3">
+      <div className="border-b border-zinc-100 p-3">
         <div className="h-24 animate-pulse rounded-2xl bg-zinc-100" />
       </div>
     );
@@ -262,7 +262,7 @@ export function SidebarAccountPanel() {
 
   if (!user || user.is_anonymous === true) {
     return (
-      <div className="border-t border-zinc-100 p-3">
+      <div className="border-b border-zinc-100 p-3">
         <div className="rounded-2xl border border-indigo-100 bg-indigo-50/60 p-3">
           <p className="text-sm font-semibold text-zinc-900">Ваш PromptShot</p>
           <p className="mt-1 text-xs leading-relaxed text-zinc-500">
@@ -284,7 +284,7 @@ export function SidebarAccountPanel() {
   const displayName = user.user_metadata?.full_name || user.email?.split("@")[0] || "User";
 
   return (
-    <div className="border-t border-zinc-100 p-3">
+    <div className="border-b border-zinc-100 p-3">
       <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
         <div className="flex min-w-0 items-center gap-2.5 px-3 py-3">
           <AccountAvatar avatarUrl={avatarUrl} displayName={displayName} size={32} />

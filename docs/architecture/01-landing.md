@@ -642,7 +642,7 @@ SearchResults (client, infinite scroll)
 | Компонент | Файл | Роль |
 |-----------|------|------|
 | HeaderClient | `components/HeaderClient.tsx` | Только mobile sticky header: menu trigger + логотип + баланс + вход/avatar; на desktop не рендерит визуальный chrome |
-| SidebarNav | `components/SidebarNav.tsx` | Сквозной левый sidebar: desktop `h-screen` с отдельно прокручиваемым меню и закреплённым снизу `SidebarAccountPanel`; mobile drawer содержит меню. Сверху pill **«Добавить в Chrome»** → CWS; затем treatment CTA «Генерация фото»; Главная / **Тренды** / **Поиск** / **Фото в промт**; далее accordion-секции |
+| SidebarNav | `components/SidebarNav.tsx` | Сквозной левый sidebar: desktop `h-screen` с `SidebarAccountPanel` сверху и отдельно прокручиваемым меню ниже; mobile drawer содержит меню. Сверху меню pill **«Добавить в Chrome»** → CWS; затем treatment CTA «Генерация фото»; Главная / **Тренды** / **Поиск** / **Фото в промт**; далее accordion-секции |
 | SidebarAccountPanel | `components/AccountControls.tsx` | Единый desktop account-блок: для гостя — вход; для пользователя — профиль, текущие кредиты, «Пополнить», избранное, генерации и выход |
 | SiteBrandLink | `components/SiteBrandLink.tsx` | Общий home-link бренда; mobile — в header, desktop — в начале правой content-колонки `PageLayout` / `CardPageLayout` |
 | PromptCard | `components/PromptCard.tsx` | Карточка в листинге; двухфазный render: `ListingCardLoadingShell` → real chrome после `imageReady` |
