@@ -1,6 +1,8 @@
 # 01 — Лендинг (promptshot.ru)
 
-> Последнее обновление: 2026-08-11 (**analyze-history remix:** успешный `POST /api/prompt-remix` best-effort пишет в `analyze_history` с `kind=remix` и `change_request` (текст «Что изменить?»); `/admin/analyze-history` показывает бейдж Remix и это значение. Миграция `181`. Extension/foto-v-promt remix на imageprompt.tools не логируется.)
+> Последнее обновление: 2026-08-11 (**result clear X:** после `phase=done` в dock крестик → `clearResultAndPrompt`: снимает result chrome, очищает `draftPrompt`, закрывает plate (`onBack`); модель/фото сохраняются. Footer `Повторить` по-прежнему только сбрасывает result, промпт оставляет.)
+>
+> Предыдущее обновление: 2026-08-11 (**analyze-history remix:** успешный `POST /api/prompt-remix` best-effort пишет в `analyze_history` с `kind=remix` и `change_request` (текст «Что изменить?»); `/admin/analyze-history` показывает бейдж Remix и это значение. Миграция `181`. Extension/foto-v-promt remix на imageprompt.tools не логируется.)
 >
 > Предыдущее обновление: 2026-08-11 (**prefs SSOT:** model/ratio/size/photos из `landing_generation_preferences`; last-completed hydrate больше не перетирает их; «Готово»/close шторки фото·модель → immediate PUT.)
 >

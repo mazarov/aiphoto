@@ -995,6 +995,12 @@ export function CardInlineGeneratePanel({
     phaseRef.current = "idle";
     onDockResultChromeChange?.(false);
   };
+  /** Success X: dismiss result photo, wipe prompt, then close the plate/shell. */
+  const clearResultAndPrompt = () => {
+    resetToCompose();
+    setDraftPrompt("");
+    onBack();
+  };
   /**
    * Blank compose: single prompt field until a completed result exists.
    * Card seed and «Что изменить» after generation use remix (changeRequest + parent).
@@ -1159,8 +1165,8 @@ export function CardInlineGeneratePanel({
           ) : null}
           <button
             type="button"
-            aria-label="Закрыть"
-            onClick={onBack}
+            aria-label="Очистить результат и промпт"
+            onClick={clearResultAndPrompt}
             className={`${OVERLAY_BUTTON_UA_RESET} flex h-10 w-10 items-center justify-center rounded-full bg-black/50 text-white shadow-lg ring-1 ring-white/25 backdrop-blur-md transition hover:bg-black/65 active:scale-[0.98]`}
           >
             <svg
@@ -1526,23 +1532,32 @@ export function CardInlineGeneratePanel({
             aria-label="Выбор фотографий"
             className={
               dockPhotosExpanded
-                ? `${dockSheetPanel} overflow-y-auto`
+                ? isMobile
+                  ? `${dockSheetPanelBase} overflow-hidden`
+                  : `${dockSheetPanel} overflow-y-auto`
                 : `${sheetPos} inset-x-0 bottom-0 z-50 max-h-[min(76dvh,38rem)] overflow-y-auto rounded-t-3xl bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))] text-zinc-900 shadow-[0_-20px_60px_-24px_rgba(0,0,0,0.45)]`
             }
           >
+            <div
+              className={
+                dockPhotosExpanded && isMobile
+                  ? "mt-auto flex max-h-full min-h-0 w-full flex-col overflow-y-auto overscroll-contain"
+                  : "contents"
+              }
+            >
             {dockPhotosExpanded ? (
               <button
                 type="button"
                 aria-label="Свернуть выбор фотографий"
                 onClick={closePrefsSheet}
-                className={`${OVERLAY_BUTTON_UA_RESET} mx-auto mb-1 flex w-full flex-col items-center gap-1 py-1`}
+                className={`${OVERLAY_BUTTON_UA_RESET} mx-auto mb-1 flex w-full shrink-0 flex-col items-center gap-1 py-1`}
               >
                 <span className={dockSheetHandle} aria-hidden />
               </button>
             ) : (
               <div className="mx-auto mb-2 h-1 w-9 rounded-full bg-zinc-300" aria-hidden />
             )}
-            <div className="mb-2 flex min-h-11 items-center justify-between gap-3">
+            <div className="mb-2 flex min-h-11 shrink-0 items-center justify-between gap-3">
               <span
                 className={`text-[13px] font-semibold ${
                   dockPhotosExpanded ? "text-white" : "text-zinc-900"
@@ -1582,7 +1597,13 @@ export function CardInlineGeneratePanel({
                 </button>
               )}
             </div>
-            <div className="flex gap-2 overflow-x-auto pb-1">
+            <div
+              className={
+                dockPhotosExpanded && isMobile
+                  ? "flex flex-wrap gap-2 pb-1"
+                  : "flex gap-2 overflow-x-auto pb-1"
+              }
+            >
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
@@ -1672,7 +1693,7 @@ export function CardInlineGeneratePanel({
             </div>
             {!libraryLoading && !photos.length ? (
               <p
-                className={`mt-2 text-[13px] font-medium ${
+                className={`mt-2 shrink-0 text-[13px] font-medium ${
                   dockPhotosExpanded ? "text-white/65" : "text-zinc-600"
                 }`}
               >
@@ -1683,11 +1704,12 @@ export function CardInlineGeneratePanel({
               type="button"
               onClick={closePrefsSheet}
               className={`${OVERLAY_BUTTON_UA_RESET} ${
-                dockPhotosExpanded ? "mt-auto" : "mt-3"
+                dockPhotosExpanded && !isMobile ? "mt-auto" : "mt-3"
               } flex min-h-12 w-full shrink-0 items-center justify-center rounded-2xl bg-indigo-600 px-4 py-3 text-[13px] font-semibold text-white transition hover:bg-indigo-700`}
             >
               Готово
             </button>
+            </div>
           </div>
         ) : null}
 
@@ -1699,23 +1721,32 @@ export function CardInlineGeneratePanel({
             aria-label="Выбор модели"
             className={
               dockModelExpanded
-                ? `${dockSheetPanel} overflow-y-auto`
+                ? isMobile
+                  ? `${dockSheetPanelBase} overflow-hidden`
+                  : `${dockSheetPanel} overflow-y-auto`
                 : `${sheetPos} inset-x-0 bottom-0 z-50 max-h-[min(82dvh,44rem)] overflow-y-auto rounded-t-3xl bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))] text-zinc-900 shadow-[0_-20px_60px_-24px_rgba(0,0,0,0.45)]`
             }
           >
+            <div
+              className={
+                dockModelExpanded && isMobile
+                  ? "mt-auto flex max-h-full min-h-0 w-full flex-col overflow-y-auto overscroll-contain"
+                  : "contents"
+              }
+            >
             {dockModelExpanded ? (
               <button
                 type="button"
                 aria-label="Свернуть выбор модели"
                 onClick={closePrefsSheet}
-                className={`${OVERLAY_BUTTON_UA_RESET} mx-auto mb-1 flex w-full flex-col items-center gap-1 py-1`}
+                className={`${OVERLAY_BUTTON_UA_RESET} mx-auto mb-1 flex w-full shrink-0 flex-col items-center gap-1 py-1`}
               >
                 <span className={dockSheetHandle} aria-hidden />
               </button>
             ) : (
               <div className="mx-auto mb-2 h-1 w-9 rounded-full bg-zinc-300" aria-hidden />
             )}
-            <div className="mb-2 flex min-h-11 items-center justify-between gap-3">
+            <div className="mb-2 flex min-h-11 shrink-0 items-center justify-between gap-3">
               <span
                 className={`text-[13px] font-semibold ${
                   dockModelExpanded ? "text-white" : "text-zinc-900"
@@ -1745,7 +1776,7 @@ export function CardInlineGeneratePanel({
                 </svg>
               </button>
             </div>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid shrink-0 grid-cols-2 gap-2">
               {models.map((item) => {
                 const selected = model === item.id;
                 const display = GENERATION_MODEL_DISPLAY[item.id];
@@ -1826,7 +1857,7 @@ export function CardInlineGeneratePanel({
               })}
             </div>
 
-            <div className="mt-3 grid grid-cols-2 gap-2">
+            <div className="mt-3 grid shrink-0 grid-cols-2 gap-2">
               <label className="block min-w-0">
                 <span
                   className={`mb-1 block text-[13px] font-medium ${
@@ -1882,11 +1913,12 @@ export function CardInlineGeneratePanel({
               type="button"
               onClick={closePrefsSheet}
               className={`${OVERLAY_BUTTON_UA_RESET} ${
-                dockModelExpanded ? "mt-auto" : "mt-3"
+                dockModelExpanded && !isMobile ? "mt-auto" : "mt-3"
               } flex min-h-12 w-full shrink-0 items-center justify-center rounded-2xl bg-indigo-600 px-4 py-3 text-[13px] font-semibold text-white transition hover:bg-indigo-700`}
             >
               Готово
             </button>
+            </div>
           </div>
         ) : null}
 
