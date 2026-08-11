@@ -445,38 +445,83 @@ export function CardInlineGeneratePanel({
       window.removeEventListener(CREDIT_BALANCE_REFRESH_EVENT, refreshCredits);
   }, []);
 
-  const persistGenerationPreferences = useCallback(() => {
-    if (!preferencesHydrated || !user) return;
-    void fetch("/api/generation-preferences", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({
-        model,
-        aspectRatio,
-        imageSize,
-        selectedPhotoIds: Array.from(selectedPhotoIds),
-      }),
-    }).then((res) => {
-      if (!res.ok) console.warn("[generation-preferences] save failed", res.status);
-    });
-  }, [
+  /**
+   * Latest prefs snapshot for flush-on-unmount / sheet-collapse (debounce cancel
+   * otherwise loses edits when seedToken remounts within 300ms).
+   */
+  const prefsSnapshotRef = useRef({
+    model,
     aspectRatio,
     imageSize,
-    model,
-    preferencesHydrated,
     selectedPhotoIds,
-    user,
-  ]);
+    preferencesHydrated,
+    userId: user?.id ?? null,
+  });
+  prefsSnapshotRef.current = {
+    model,
+    aspectRatio,
+    imageSize,
+    selectedPhotoIds,
+    preferencesHydrated,
+    userId: user?.id ?? null,
+  };
 
-  /** Debounced backup while editing; «Готово» also flushes immediately. */
+  const persistGenerationPreferences = useCallback(
+    (snapshot?: typeof prefsSnapshotRef.current) => {
+      const s = snapshot ?? prefsSnapshotRef.current;
+      if (!s.preferencesHydrated || !s.userId) return;
+      void fetch("/api/generation-preferences", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          model: s.model,
+          aspectRatio: s.aspectRatio,
+          imageSize: s.imageSize,
+          selectedPhotoIds: Array.from(s.selectedPhotoIds),
+        }),
+      }).then((res) => {
+        if (!res.ok) console.warn("[generation-preferences] save failed", res.status);
+      });
+    },
+    []
+  );
+
+  /** Debounced backup while editing; sheet close / unmount also flush immediately. */
   useEffect(() => {
     if (!preferencesHydrated) return;
     const timer = window.setTimeout(() => {
       persistGenerationPreferences();
     }, 300);
     return () => window.clearTimeout(timer);
-  }, [persistGenerationPreferences, preferencesHydrated]);
+  }, [
+    aspectRatio,
+    imageSize,
+    model,
+    persistGenerationPreferences,
+    preferencesHydrated,
+    selectedPhotoIds,
+  ]);
+
+  /**
+   * Any exit from photos/model sheet (Готово, tile toggle, desktop scrim →
+   * setDockSurface(null), switch to prompt) must flush — not only «Готово».
+   */
+  const prevPrefsSurfaceRef = useRef<"photos" | "model" | null>(null);
+  useEffect(() => {
+    const prev = prevPrefsSurfaceRef.current;
+    prevPrefsSurfaceRef.current = expandedControl;
+    if (prev && !expandedControl) {
+      persistGenerationPreferences();
+    }
+  }, [expandedControl, persistGenerationPreferences]);
+
+  /** Remount (seedToken) cancels debounce — flush last snapshot on unmount. */
+  useEffect(() => {
+    return () => {
+      persistGenerationPreferences(prefsSnapshotRef.current);
+    };
+  }, [persistGenerationPreferences]);
 
   const closePrefsSheet = useCallback(() => {
     persistGenerationPreferences();
@@ -510,17 +555,6 @@ export function CardInlineGeneratePanel({
       setNeedsCredits(false);
     }
   }, [cannotAffordAny]);
-
-  /** If prefs restored an unaffordable model, fall back to the cheapest affordable. */
-  useEffect(() => {
-    if (credits === null || !models.length) return;
-    const current = models.find((item) => item.id === model);
-    if (current && current.cost <= credits) return;
-    const affordable = models
-      .filter((item) => item.cost <= credits)
-      .sort((a, b) => a.cost - b.cost);
-    if (affordable[0]) setModel(affordable[0].id);
-  }, [credits, models, model]);
 
   useEffect(() => {
     if (!isDock) return;
