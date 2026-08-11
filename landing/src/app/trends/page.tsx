@@ -1,6 +1,7 @@
 import { cache } from "react";
 import type { Metadata } from "next";
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import {
   fetchRouteCards,
   enrichCardsWithDetails,
@@ -11,6 +12,12 @@ import {
 import { PageLayout } from "@/components/PageLayout";
 import { ListingPromptCountBadge } from "@/components/ListingPromptCountBadge";
 import { LISTING_SSR_INITIAL_LIMIT } from "@/lib/listing-pagination";
+import {
+  TRENDS_FAQ,
+  TRENDS_POPULAR_LINKS,
+  TRENDS_SEO,
+  TRENDS_SEO_TEXT_BLOCKS,
+} from "@/lib/trends-seo-copy";
 
 export const revalidate = 3600;
 
@@ -111,9 +118,78 @@ const getCachedRouteCards = cache(
   }
 );
 
-const PAGE_TITLE = "Тренды — промты для фото";
-const PAGE_DESCRIPTION =
-  "Актуальные AI-промты для фото — свежие карточки по дате публикации. Фильтруйте по аудитории, стилю, событию и сцене.";
+/** Dedup OG/JSON-LD photo fetch across generateMetadata + page (stable string key). */
+const getCachedFirstCardPhotoUrl = cache(async (cardIdsKey: string): Promise<string | null> => {
+  if (!cardIdsKey) return null;
+  try {
+    return await getFirstCardPhotoUrl(cardIdsKey.split(","));
+  } catch (err) {
+    console.error("[TrendsPage] getFirstCardPhotoUrl failed:", err);
+    return null;
+  }
+});
+
+function buildJsonLdSchemas(ogImageUrl: string | null) {
+  const canonicalUrl = `${SITE_URL}/trends`;
+  const schemas: Record<string, unknown>[] = [
+    {
+      "@context": "https://schema.org",
+      "@type": "CollectionPage",
+      name: TRENDS_SEO.metaTitle,
+      description: TRENDS_SEO.metaDescription,
+      url: canonicalUrl,
+      ...(ogImageUrl ? { image: ogImageUrl } : {}),
+      isPartOf: {
+        "@type": "WebSite",
+        name: "PromptShot",
+        url: SITE_URL,
+      },
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      itemListElement: [
+        {
+          "@type": "ListItem",
+          position: 1,
+          name: "Главная",
+          item: SITE_URL,
+        },
+        {
+          "@type": "ListItem",
+          position: 2,
+          name: TRENDS_SEO.h1,
+          item: canonicalUrl,
+        },
+      ],
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "HowTo",
+      name: TRENDS_SEO.howToTitle,
+      description: TRENDS_SEO.metaDescription,
+      step: TRENDS_SEO.howToSteps.map((text, i) => ({
+        "@type": "HowToStep",
+        position: i + 1,
+        text,
+      })),
+    },
+  ];
+
+  if (TRENDS_FAQ.length > 0) {
+    schemas.push({
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      mainEntity: TRENDS_FAQ.map((item) => ({
+        "@type": "Question",
+        name: item.q,
+        acceptedAnswer: { "@type": "Answer", text: item.a },
+      })),
+    });
+  }
+
+  return schemas;
+}
 
 export async function generateMetadata({ searchParams }: Props): Promise<Metadata> {
   const qs = await searchParams;
@@ -123,18 +199,15 @@ export async function generateMetadata({ searchParams }: Props): Promise<Metadat
   const dbUnavailable = result.tier_used === "error";
   const shouldIndex = !filtered && !dbUnavailable && totalCount >= 1;
 
-  let ogImageUrl: string | null = null;
-  try {
-    ogImageUrl = await getFirstCardPhotoUrl(result.cards.map((c) => c.id));
-  } catch (err) {
-    console.error("[TrendsPage] getFirstCardPhotoUrl failed in metadata:", err);
-  }
+  const ogImageUrl = await getCachedFirstCardPhotoUrl(
+    result.cards.map((c) => c.id).join(",")
+  );
 
   const canonicalUrl = `${SITE_URL}/trends`;
 
   return {
-    title: PAGE_TITLE,
-    description: PAGE_DESCRIPTION,
+    title: TRENDS_SEO.metaTitle,
+    description: TRENDS_SEO.metaDescription,
     robots: shouldIndex
       ? { index: true, follow: true }
       : { index: false, follow: true },
@@ -142,8 +215,8 @@ export async function generateMetadata({ searchParams }: Props): Promise<Metadat
       canonical: canonicalUrl,
     },
     openGraph: {
-      title: PAGE_TITLE,
-      description: PAGE_DESCRIPTION,
+      title: TRENDS_SEO.metaTitle,
+      description: TRENDS_SEO.metaDescription,
       url: canonicalUrl,
       type: "website",
       siteName: "PromptShot",
@@ -151,8 +224,8 @@ export async function generateMetadata({ searchParams }: Props): Promise<Metadat
     },
     twitter: {
       card: "summary_large_image",
-      title: PAGE_TITLE,
-      description: PAGE_DESCRIPTION,
+      title: TRENDS_SEO.metaTitle,
+      description: TRENDS_SEO.metaDescription,
       ...(ogImageUrl ? { images: [ogImageUrl] } : {}),
     },
   };
@@ -172,20 +245,47 @@ export default async function TrendsPage({ searchParams }: Props) {
     cards = [];
   }
 
+  const ogImageUrl = await getCachedFirstCardPhotoUrl(
+    result.cards.map((c) => c.id).join(",")
+  );
+  const jsonLdSchemas = buildJsonLdSchemas(ogImageUrl);
+
   return (
     <PageLayout>
+      {jsonLdSchemas.map((schema, i) => (
+        <script
+          key={i}
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }}
+        />
+      ))}
+
       <section className="w-full px-2 pt-6 sm:px-5 sm:pt-8">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
             <h1 className="text-3xl font-bold tracking-tight text-zinc-900 sm:text-4xl">
-              Тренды
+              {TRENDS_SEO.h1}
             </h1>
             <ListingPromptCountBadge count={totalCount} />
           </div>
           <p className="mt-3 max-w-2xl text-sm leading-relaxed text-zinc-600 sm:text-base">
-            Свежие промты по дате публикации — от новых к более ранним. Используйте
-            фильтры, чтобы сузить подборку.
+            {TRENDS_SEO.intro}
           </p>
+          <nav className="mt-4" aria-label="Популярные подборки">
+            <p className="mb-2 text-sm font-medium text-zinc-700">Популярные сценарии</p>
+            <div className="flex flex-wrap gap-1.5">
+              {TRENDS_POPULAR_LINKS.map((link) => (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  scroll={false}
+                  className="inline-flex items-center rounded-full border border-zinc-200 bg-white px-3 py-1.5 text-sm text-zinc-600 transition-colors hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700"
+                >
+                  {link.label}
+                </Link>
+              ))}
+            </div>
+          </nav>
         </div>
       </section>
 
@@ -203,6 +303,48 @@ export default async function TrendsPage({ searchParams }: Props) {
             fixedSort="new"
           />
         </section>
+
+        <section className="mt-16 rounded-2xl border border-zinc-200 bg-white p-6 sm:p-8">
+          <h2 className="text-xl font-bold text-zinc-900">{TRENDS_SEO.howToTitle}</h2>
+          <ol className="mt-4 space-y-3 text-zinc-600">
+            {TRENDS_SEO.howToSteps.map((step, i) => (
+              <li key={i} className="flex gap-3">
+                <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-indigo-100 text-sm font-bold text-indigo-700">
+                  {i + 1}
+                </span>
+                {step}
+              </li>
+            ))}
+          </ol>
+        </section>
+
+        <section className="mt-12">
+          <h2 className="text-xl font-bold text-zinc-900">{TRENDS_SEO.faqTitle}</h2>
+          <dl className="mt-4 space-y-6">
+            {TRENDS_FAQ.map((item) => (
+              <div
+                key={item.q}
+                className="rounded-xl border border-zinc-200 bg-zinc-50/50 p-4"
+              >
+                <dt className="font-semibold text-zinc-900">{item.q}</dt>
+                <dd className="mt-2 text-zinc-600">{item.a}</dd>
+              </div>
+            ))}
+          </dl>
+        </section>
+
+        {TRENDS_SEO_TEXT_BLOCKS.map((block) => (
+          <section key={block.h2} className="mt-12">
+            <h2 className="text-xl font-bold text-zinc-900">{block.h2}</h2>
+            <div className="mt-4 max-w-3xl space-y-4">
+              {block.paragraphs.map((p, i) => (
+                <p key={i} className="text-sm leading-relaxed text-zinc-600 sm:text-base">
+                  {p}
+                </p>
+              ))}
+            </div>
+          </section>
+        ))}
       </main>
     </PageLayout>
   );

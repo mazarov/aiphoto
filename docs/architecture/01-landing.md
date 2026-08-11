@@ -1,6 +1,8 @@
 # 01 — Лендинг (promptshot.ru)
 
-> Последнее обновление: 2026-08-11 (**OAuth avatar hotlink:** `UserAvatarImage` — для `*.googleusercontent.com` / `avatars.yandex.net` `referrerPolicy=no-referrer` + `unoptimized` (Google часто отдаёт 403 с Referer / через `/_next/image`). Header / MobileProfileSheet / author chip на карточке. `next.config` `remotePatterns`: `*.googleusercontent.com`.
+> Последнее обновление: 2026-08-11 (**`/trends` SEO hub:** «промты для трендовых фото» / «трендовые фото ИИ»; SSOT **`trends-seo-copy.ts`** — title/H1/intro, outbound popularLinks (др/семья/пары/чёрный фон/портрет/девушка), HowTo + FAQ + 2 seoTextBlocks; JSON-LD CollectionPage+BreadcrumbList+HowTo+FAQPage; `getCachedFirstCardPhotoUrl` dedup metadata+page. Inbound: `/` hero link + `seo-content` popularLinks на `devushka`/`para`/`semya` → `/trends`. Nav label остаётся «Тренды». **Без** `/trends/*`. Catalog `fixedSort=new`.
+>
+> Предыдущее обновление: 2026-08-11 (**OAuth avatar hotlink:** `UserAvatarImage` — для `*.googleusercontent.com` / `avatars.yandex.net` `referrerPolicy=no-referrer` + `unoptimized` (Google часто отдаёт 403 с Referer / через `/_next/image`). Header / MobileProfileSheet / author chip на карточке. `next.config` `remotePatterns`: `*.googleusercontent.com`.
 >
 > Предыдущее обновление: 2026-08-11 (**admin listing = user listing:** catalog-admin default `published=yes` (как у пользователей) — без debug-фильтров сетка остаётся на SSR `resolve_route_cards`. Session key `promptshot_admin_filters_v2` сбрасывает старый default `published=all`. `search-cards` только при реальных фильтрах + `sort` с листинга; для корректного ORDER BY в filter-mode нужна миграция **`182`** (пока не применена → fallback `view_count`).
 >
@@ -153,7 +155,7 @@
 
 ```
 /                       → Главная (категории + поиск)
-/trends                 → «Тренды» — глобальный фид всех карточек по `created_at DESC` (`resolve_route_cards` без path-тегов, `p_sort=new`); фильтры `audience|style|occasion|object` как на `[...slug]`; **без** переключателя Популярное/Новое (`CatalogWithFilters` `fixedSort="new"`); ISR `revalidate=3600`; index на чистом `/trends` (при query-фильтрах — noindex, canonical `/trends`); sitemap priority **0.85**. Legacy **`/new` → 301 `/trends`** (`next.config.ts`)
+/trends                 → SEO-hub «промты для трендовых фото» + глобальный фид по `created_at DESC` (`resolve_route_cards` без path-тегов, `p_sort=new`); тексты/FAQ/HowTo — **`trends-seo-copy.ts`**; popularLinks на существующие L1/L2 (др, семья, пары, чёрный фон, портрет, девушка); JSON-LD CollectionPage+HowTo+FAQPage; фильтры `audience|style|occasion|object` как на `[...slug]`; **без** переключателя Популярное/Новое (`CatalogWithFilters` `fixedSort="new"`); ISR `revalidate=3600`; index на чистом `/trends` (при query-фильтрах — noindex, canonical `/trends`); sitemap priority **0.85**. Legacy **`/new` → 301 `/trends`** (`next.config.ts`). **Не** плодить `/trends/*` subpages
 /catalog                → Каталог промтов (категориальная сетка, noindex, revalidate=3600)
 /p/[slug]               → Карточка промта
 /[...slug]              → Листинг по тегу (напр. /promty-dlya-foto-devushki, /stil/cherno-beloe)
@@ -512,7 +514,7 @@ Fallback: если `code` пришёл на произвольную стран�
 | Страница | Рендеринг | Кеш |
 |----------|-----------|-----|
 | `/` (главная) | ISR | `revalidate = 3600` |
-| `/trends` | ISR | `revalidate = 3600`, index (noindex при query-фильтрах), `fixedSort=new`; `/new` → 301 |
+| `/trends` | ISR | `revalidate = 3600`, index (noindex при query-фильтрах), `fixedSort=new`; SEO copy `trends-seo-copy.ts` + FAQ/HowTo JSON-LD; `/new` → 301 |
 | `/catalog` | ISR | `revalidate = 3600`, `robots: noindex` |
 | `/p/[slug]` (карточка) | **Dynamic** | `dynamic = force-dynamic` (доступ владельца к черновикам UGC + cookies) |
 | `/[...slug]` (листинг) | ISR | `revalidate = 3600` |

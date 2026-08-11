@@ -138,6 +138,13 @@ export default async function HomePage() {
             </Link>
             {" "}— загрузите картинку и получите текст онлайн.
           </p>
+          <p className="mx-auto mt-2 max-w-lg text-sm text-zinc-500">
+            Ищете актуальные идеи?{" "}
+            <Link href="/trends" className="font-medium text-indigo-600 hover:text-indigo-700 hover:underline">
+              Трендовые промты
+            </Link>
+            {" "}для ИИ-фото — свежая лента.
+          </p>
         </div>
       </section>
 
