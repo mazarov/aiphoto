@@ -5,6 +5,13 @@ import {
   resolveOAuthCallbackError,
   sanitizeAuthReturnPath,
 } from "./auth-return-path";
+import {
+  clearOAuthExchangeInflightForTests,
+  finishOAuthCodeExchange,
+  isRecoverableOAuthExchangeError,
+  oauthExchangeStorageKey,
+  type FinishOAuthAuthClient,
+} from "./auth-finish-oauth";
 
 test("keeps same-origin next paths", () => {
   assert.equal(sanitizeAuthReturnPath("/admin/payments"), "/admin/payments");
@@ -44,4 +51,155 @@ test("resolves GoTrue callback error params", () => {
     "Database error saving new user"
   );
   assert.equal(resolveOAuthCallbackError(new URLSearchParams()), "no_code");
+});
+
+test("marks PKCE verifier and flow-state errors as recoverable", () => {
+  assert.equal(
+    isRecoverableOAuthExchangeError(
+      "PKCE code verifier not found in storage. This can happen if the auth flow was initiated in a different browser"
+    ),
+    true
+  );
+  assert.equal(
+    isRecoverableOAuthExchangeError("invalid flow state, no valid flow state found"),
+    true
+  );
+  assert.equal(
+    isRecoverableOAuthExchangeError("Database error saving new user"),
+    false
+  );
+});
+
+test("oauth exchange storage key is stable per code", () => {
+  assert.equal(
+    oauthExchangeStorageKey("abc"),
+    "promptshot:oauth-exchange:abc"
+  );
+});
+
+function memoryStorage(): Storage {
+  const map = new Map<string, string>();
+  return {
+    get length() {
+      return map.size;
+    },
+    clear() {
+      map.clear();
+    },
+    getItem(key: string) {
+      return map.has(key) ? map.get(key)! : null;
+    },
+    setItem(key: string, value: string) {
+      map.set(key, value);
+    },
+    removeItem(key: string) {
+      map.delete(key);
+    },
+    key() {
+      return null;
+    },
+  };
+}
+
+test("finishOAuthCodeExchange recovers PKCE verifier miss when session exists", async () => {
+  clearOAuthExchangeInflightForTests();
+  const storage = memoryStorage();
+  let exchanges = 0;
+  const auth: FinishOAuthAuthClient = {
+    async exchangeCodeForSession() {
+      exchanges += 1;
+      return {
+        error: {
+          message: "PKCE code verifier not found in storage.",
+        },
+      };
+    },
+    async getUser() {
+      return { data: { user: { id: "user-1" } } };
+    },
+  };
+
+  const destination = await finishOAuthCodeExchange("code-pkce", "/pricing", {
+    auth,
+    storage,
+  });
+  assert.equal(destination, "/pricing");
+  assert.equal(exchanges, 1);
+  assert.equal(storage.getItem(oauthExchangeStorageKey("code-pkce")), "done");
+});
+
+test("finishOAuthCodeExchange single-flights concurrent calls for the same code", async () => {
+  clearOAuthExchangeInflightForTests();
+  const storage = memoryStorage();
+  let exchanges = 0;
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const auth: FinishOAuthAuthClient = {
+    async exchangeCodeForSession() {
+      exchanges += 1;
+      await gate;
+      return { error: null };
+    },
+    async getUser() {
+      return { data: { user: { id: "user-1" } } };
+    },
+  };
+
+  const first = finishOAuthCodeExchange("code-race", "/pricing", { auth, storage });
+  const second = finishOAuthCodeExchange("code-race", "/pricing", { auth, storage });
+  release();
+  const [a, b] = await Promise.all([first, second]);
+  assert.equal(a, "/pricing");
+  assert.equal(b, "/pricing");
+  assert.equal(exchanges, 1);
+});
+
+test("finishOAuthCodeExchange skips /token when storage already done and session exists", async () => {
+  clearOAuthExchangeInflightForTests();
+  const storage = memoryStorage();
+  storage.setItem(oauthExchangeStorageKey("code-done"), "done");
+  let exchanges = 0;
+  const auth: FinishOAuthAuthClient = {
+    async exchangeCodeForSession() {
+      exchanges += 1;
+      return { error: null };
+    },
+    async getUser() {
+      return { data: { user: { id: "user-1" } } };
+    },
+  };
+
+  const destination = await finishOAuthCodeExchange("code-done", "/pricing", {
+    auth,
+    storage,
+  });
+  assert.equal(destination, "/pricing");
+  assert.equal(exchanges, 0);
+});
+
+test("finishOAuthCodeExchange keeps auth_error when PKCE fails without session", async () => {
+  clearOAuthExchangeInflightForTests();
+  const storage = memoryStorage();
+  const auth: FinishOAuthAuthClient = {
+    async exchangeCodeForSession() {
+      return {
+        error: { message: "PKCE code verifier not found in storage." },
+      };
+    },
+    async getUser() {
+      return { data: { user: null } };
+    },
+  };
+
+  const destination = await finishOAuthCodeExchange("code-fail", "/pricing", {
+    auth,
+    storage,
+  });
+  assert.equal(
+    destination,
+    "/pricing?auth_error=PKCE%20code%20verifier%20not%20found%20in%20storage."
+  );
+  assert.equal(storage.getItem(oauthExchangeStorageKey("code-fail")), null);
 });

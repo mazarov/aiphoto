@@ -1,6 +1,8 @@
 # 01 — Лендинг (promptshot.ru)
 
-> Последнее обновление: 2026-08-11 (**result clear X:** после `phase=done` в dock крестик → `clearResultAndPrompt`: снимает result chrome, очищает `draftPrompt`, закрывает plate (`onBack`); модель/фото сохраняются. Footer `Повторить` по-прежнему только сбрасывает result, промпт оставляет.)
+> Последнее обновление: 2026-08-11 (**OAuth PKCE replay + pricing funnel:** `finishOAuthCodeExchange` — module single-flight + `sessionStorage` state; recoverable `invalid flow state` / PKCE verifier miss при активной сессии без `auth_error`. `/pricing` — `resolvePricingPageAccess`: account treatment **или** visitor-cookie treatment (checkout mid-funnel); sticky generation cohort в БД не переписывается.)
+>
+> Предыдущее обновление: 2026-08-11 (**result clear X:** после `phase=done` в dock крестик → `clearResultAndPrompt`: снимает result chrome, очищает `draftPrompt`, закрывает plate (`onBack`); модель/фото сохраняются. Footer `Повторить` по-прежнему только сбрасывает result, промпт оставляет.)
 >
 > Предыдущее обновление: 2026-08-11 (**analyze-history remix:** успешный `POST /api/prompt-remix` best-effort пишет в `analyze_history` с `kind=remix` и `change_request` (текст «Что изменить?»); `/admin/analyze-history` показывает бейдж Remix и это значение. Миграция `181`. Extension/foto-v-promt remix на imageprompt.tools не логируется.)
 >
@@ -143,7 +145,7 @@
 /[...slug]              → Листинг по тегу (напр. /promty-dlya-foto-devushki, /stil/cherno-beloe)
 /search                 → Поиск (клиентский)
 /foto-v-promt           → «Фото в промт» — SEO-кластер image-to-prompt (ВЧ «фото в промт», СЧ «промт из фото», «промт по картинке»); тексты — **`foto-v-promt-copy.ts`**, ТЗ — **`docs/requirements/02-06-foto-v-promt-seo-copy.md`**. RU-маркетинг AI Image Describer в **`PageLayout`**; при входе **`useListingScrollOnRouteChange`** сбрасывает `#listing-scroll-root` (моб.) и stale sessionStorage — страница всегда с hero; **`metadata.robots` index**; sitemap **0.8**; JSON-LD **WebApplication** + **FAQPage**; H2 над виджетом; перелинковка с **`/`** («Фото в промт»). Общий Chrome CTA **`FotoVPromtChromeCta`** виден в hero на первом экране; **`FotoVPromtFloatingCta`** появляется после ухода виджета из viewport; обе ссылки ведут в Chrome Web Store через **`getAiImageDescriberChromeUrl()`** (id `bebnhekhnoaacojmbjoajndkankmppoj`). **`ListingSearch`** без нижней панели поиска (как на `/` и `/p/`). Live-виджет → **`getImagePromptAnalyzeUrl()`** (prod cross-origin, dev **`/api/imageprompt-proxy/`**); CORS на imageprompt. **Analyze:** landing всегда шлёт **`style: photoreal`**, **`locale: ru`** (описания секций на русском; заголовки Visual Hook / Scene / … и CRITICAL RULES — на EN/RU по backend), без pill-переключателя модели в UI. **Mobile modal:** на max-lg всегда immersive shell — soft `pushState` с таба **или** auto route при hard `/foto-v-promt` (главная, refresh, поиск); close soft → back, route → `/`; desktop SidebarNav / SSR — светлая SEO-страница (`variant="catalog"`). **Режим Prompt Remix (`?card=<slug>`):** при наличии query-параметра `card` **`PromptSceneLiteWidgetGate`** монтирует **`PromptRemixWidget`** (вместо обычного анализа фото): грузит промт через `GET /api/card/[slug]`, пользователь описывает изменения, результат — переписанный промт через `imageprompt.tools/api/extension/remix`. **Точка входа с `/p/[slug]` скрыта** (нет CTA и нет `FotoVPromtMiniBanner` на карточке); режим доступен только по прямому URL `/foto-v-promt?card=<slug>`. ТЗ — **`docs/requirements/02-07-prompt-remix.md`**.
-/pricing                → Treatment-когорта `prompt_card_generation` и internal allowlist; без rollout-cookie доступен по `/pricing?test=true`, иначе 404. Пакеты: Проба, Старт, Про, Максимум; auth-only разовая оплата в RUB через hosted redirect-страницу YooKassa
+/pricing                → Funnel access: treatment у account **или** у visitor-cookie `promptshot_vid` (или internal allowlist / `?test=true`); иначе 404. Generation CTA/API по-прежнему по sticky account assignment. Пакеты: Проба, Старт, Про, Максимум; auth-only разовая оплата в RUB через hosted redirect-страницу YooKassa
 /generate               → История генераций (treatment only, `robots: noindex`); control → redirect `/`. Composer = глобальный dock из `PageLayout`. Card «Повторить» → seed dock + закрытие карточки
 /terms                  → Страница публичной оферты; ссылка на `/docs/offer.pdf`, если утверждённый файл присутствовал при сборке
 /policy                 → Страница политики обработки данных; ссылка на `/docs/privacy.pdf`, если утверждённый файл присутствовал при сборке
@@ -172,7 +174,8 @@
 
 - Канонический feature key: `prompt_card_generation`. Управление без деплоя — строка `landing_feature_rollouts`: `enabled` и `rollout_bps` (`0…10000`, где 100 = 1%). Конфиг кешируется сервером на 30 секунд; ошибка чтения — fail-closed. `GENERATION_QUEUE_ENABLED` остаётся отдельным аварийным kill switch очереди.
 - Анонимный посетитель получает `promptshot_vid` через `GET /api/feature-access`; bucket `0…9999` детерминирован SHA-256 от feature key + visitor UUID. Cookie: HttpOnly, SameSite=Lax, Secure в production, TTL 1 год. Для anonymous в БД записи нет.
-- После авторизации `landing_user_feature_assignments` закрепляет текущий visitor bucket за `auth.users.id` через conflict-safe insert. На другом устройстве сохранённый account bucket имеет приоритет. Рост процента монотонно включает новые bucket; снижение процента/`enabled=false` немедленно выключает соответствующую часть когорты, не удаляя assignments.
+- После авторизации `landing_user_feature_assignments` закрепляет текущий visitor bucket за `auth.users.id` через conflict-safe insert. На другом устройстве сохранённый account bucket имеет приоритет для **generation** CTA/API. Рост процента монотонно включает новые bucket; снижение процента/`enabled=false` немедленно выключает соответствующую часть когорты, не удаляя assignments.
+- `/pricing` использует `resolvePricingPageAccess`: страница доступна, если treatment у account **или** у visitor-cookie (funnel continuity после OAuth, когда account уже control). Sticky assignment в БД при этом не переписывается — generation cohort остаётся account-sticky.
 - `FeatureAccessProvider` читает единый endpoint и управляет CTA карточки, балансом и ссылками на pricing. Internal email allowlist — явный treatment override. Control сохраняет прежний LexyGPT fallback.
 - Rollout — release-control, не security/payment boundary. `POST /api/generate` (для `generationSurface=prompt_card`) и `POST /api/prompt-remix` проверяют resolver серверно; затем остаются обязательными auth, ownership, idempotency и атомарное списание кредитов. STV/extension requests без prompt-card surface продолжают прежний flow.
 
@@ -447,7 +450,7 @@ AuthModal → signInWithOAuth(redirectTo: /auth/callback?next=<path>)
   → client page: finishOAuthCodeExchange (browser cookies) → redirect на next
 ```
 
-Почему не server route: дублирующий `GET /auth/callback` делал второй `POST /token` (`user_agent=node`) → `404 flow_state_not_found`, а ответ дубля отдавал `?auth_error=` без session cookies. В браузере первый обмен пишет cookies в document; replay с `invalid flow state` проверяет `getUser()` и при активной сессии считается успехом.
+Почему не server route: дублирующий `GET /auth/callback` делал второй `POST /token` (`user_agent=node`) → `404 flow_state_not_found`, а ответ дубля отдавал `?auth_error=` без session cookies. В браузере первый обмен пишет cookies в document. Replay (Strict Mode remount / повтор того же `code`): module in-flight Map + `sessionStorage` (`promptshot:oauth-exchange:<code>`) не делают второй `/token`; ошибки `invalid flow state` и `PKCE code verifier not found…` при активной сессии (`getUser()`) считаются успехом **без** `?auth_error=`.
 
 Fallback: если `code` пришёл на произвольную страницу (не `/auth/callback`), `AuthProvider` делает client `exchangeCodeForSession` и при наличии сохранённого return path уводит туда. На `/auth/callback` `AuthProvider` **не** обменивает code (избегаем второго `/token`).
 
@@ -662,7 +665,7 @@ SearchResults (client, infinite scroll)
 | CopyPromptButton | `components/CopyPromptButton.tsx` | Копирование промта |
 | AuthModal | `components/AuthModal.tsx` | Модалка: Google + Яндекс (единый UI кнопок) |
 | auth-oauth | `lib/auth-oauth.ts` | `signInWithOAuthProvider`, `custom:yandex` |
-| auth-finish-oauth | `lib/auth-finish-oauth.ts` | `finishOAuthCodeExchange` (browser PKCE) |
+| auth-finish-oauth | `lib/auth-finish-oauth.ts` | `finishOAuthCodeExchange` (browser PKCE, single-flight + recoverable replay) |
 OAuth completion: `/auth/callback` page вызывает `finishOAuthCodeExchange`; `AuthProvider` — только legacy fallback вне этого пути.
 
 ---

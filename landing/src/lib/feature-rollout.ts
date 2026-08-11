@@ -205,6 +205,40 @@ export async function resolvePromptCardGenerationAccess(params: {
   };
 }
 
+/**
+ * `/pricing` funnel access: allow if account treatment OR visitor cookie treatment.
+ * Does not rewrite sticky `landing_user_feature_assignments` (generation cohort stays).
+ */
+export async function resolvePricingPageAccess(params: {
+  user?: User | null;
+  visitorId?: string | null;
+  supabase?: SupabaseServer;
+}): Promise<{ allowed: boolean; rollout: FeatureRolloutDecision }> {
+  const supabase = params.supabase ?? createSupabaseServer();
+  const rollout = await resolvePromptCardGenerationAccess({
+    user: params.user,
+    visitorId: params.visitorId,
+    supabase,
+  });
+  if (rollout.enabled) {
+    return { allowed: true, rollout };
+  }
+
+  // Auth control + anonymous treatment cookie: keep checkout page open mid-funnel.
+  if (params.user && isValidFeatureVisitorId(params.visitorId)) {
+    const visitorRollout = await resolvePromptCardGenerationAccess({
+      user: null,
+      visitorId: params.visitorId,
+      supabase,
+    });
+    if (visitorRollout.enabled) {
+      return { allowed: true, rollout };
+    }
+  }
+
+  return { allowed: false, rollout };
+}
+
 export function clearFeatureRolloutConfigCacheForTests(): void {
   cachedConfig = undefined;
 }

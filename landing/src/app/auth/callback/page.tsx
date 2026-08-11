@@ -13,6 +13,8 @@ import {
 /**
  * Browser-side OAuth finish. Server route exchange caused duplicate POST /token
  * (200 then flow_state_not_found) and auth_error redirects without session cookies.
+ * `startedRef` is a same-mount fast-path; remount-safe single-flight lives in
+ * `finishOAuthCodeExchange` (module Map + sessionStorage).
  */
 export default function AuthCallbackPage() {
   const startedRef = useRef(false);

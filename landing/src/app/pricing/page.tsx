@@ -7,7 +7,7 @@ import { PricingCards } from "@/components/pricing/PricingCards";
 import { getSupabaseUserFromServerCookies } from "@/lib/supabase-route-auth";
 import {
   FEATURE_VISITOR_COOKIE,
-  resolvePromptCardGenerationAccess,
+  resolvePricingPageAccess,
 } from "@/lib/feature-rollout";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://promptshot.ru";
@@ -37,11 +37,11 @@ export default async function PricingPage({ searchParams }: PricingPageProps) {
   const hasTestAccess = testParam === "true";
   const viewer = await getSupabaseUserFromServerCookies();
   const cookieStore = await cookies();
-  const rollout = await resolvePromptCardGenerationAccess({
+  const { allowed, rollout } = await resolvePricingPageAccess({
     user: viewer,
     visitorId: cookieStore.get(FEATURE_VISITOR_COOKIE)?.value,
   });
-  if (!hasTestAccess && !rollout.enabled) notFound();
+  if (!hasTestAccess && !allowed) notFound();
 
   return (
     <PageLayout>
