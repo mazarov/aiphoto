@@ -1,25 +1,9 @@
 import Image, { type ImageProps } from "next/image";
+import { isHotlinkSensitiveAvatarUrl } from "@/lib/oauth-avatar-url";
 
 type Props = Omit<ImageProps, "referrerPolicy" | "unoptimized" | "src"> & {
   src: string;
 };
-
-function isHotlinkSensitiveAvatarHost(hostname: string): boolean {
-  return (
-    hostname === "avatars.yandex.net" ||
-    hostname.endsWith(".googleusercontent.com") ||
-    hostname === "googleusercontent.com"
-  );
-}
-
-/** True for Google/Yandex avatar CDNs that often 403 when a Referer is sent. */
-export function isHotlinkSensitiveAvatarUrl(src: string): boolean {
-  try {
-    return isHotlinkSensitiveAvatarHost(new URL(src).hostname);
-  } catch {
-    return false;
-  }
-}
 
 /**
  * Avatar image for OAuth profile photos.
