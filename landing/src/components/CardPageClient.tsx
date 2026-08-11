@@ -13,7 +13,13 @@ import { LexyGptGenerateButton } from "./LexyGptGenerateButton";
 import { useFeatureAccess } from "@/context/FeatureAccessContext";
 import { useGenerateDock } from "@/context/GenerateDockContext";
 import { usePromptCardModal } from "@/context/PromptCardModalContext";
-import { isDebugToolsSessionEnabled, dispatchDebugCardDeleted } from "@/lib/debug-tools-session";
+import { useAuth } from "@/context/AuthContext";
+import { isCatalogAdminEmail } from "@/lib/catalog-admin";
+import {
+  ADMIN_TECH_INFO_CHANGED_EVENT,
+  dispatchDebugCardDeleted,
+  readAdminTechInfoEnabled,
+} from "@/lib/debug-tools-session";
 import { formatCompactCount } from "@/lib/format-view-count";
 import {
   CARD_OVERLAY_ACTION_PILL,
@@ -151,10 +157,23 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
   const { reactions, favorites, toggleReaction, toggleFavorite } = useCardInteractions();
   const userReaction = reactions.get(data.id) ?? null;
   const isFavorited = favorites.has(data.id);
-  const [debugMode, setDebugMode] = useState(false);
+  const { user } = useAuth();
+  const isAdmin = isCatalogAdminEmail(user?.email);
+  const [techInfoEnabled, setTechInfoEnabled] = useState(false);
   useEffect(() => {
-    setDebugMode(isDebugToolsSessionEnabled());
+    setTechInfoEnabled(readAdminTechInfoEnabled());
+    const onChanged = (event: Event) => {
+      const detail = (event as CustomEvent<{ enabled?: boolean }>).detail;
+      if (typeof detail?.enabled === "boolean") {
+        setTechInfoEnabled(detail.enabled);
+      } else {
+        setTechInfoEnabled(readAdminTechInfoEnabled());
+      }
+    };
+    window.addEventListener(ADMIN_TECH_INFO_CHANGED_EVENT, onChanged);
+    return () => window.removeEventListener(ADMIN_TECH_INFO_CHANGED_EVENT, onChanged);
   }, []);
+  const debugMode = isAdmin && techInfoEnabled;
 
   const [photoIndex, setPhotoIndex] = useState(0);
   const [stickyCopy, setStickyCopy] = useState<"idle" | "ok" | "fail">("idle");
@@ -479,7 +498,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
         setDeleteStatus(`Ошибка: ${j.error || res.statusText}`);
         return;
       }
-      if (isDebugToolsSessionEnabled()) {
+      if (isAdmin) {
         dispatchDebugCardDeleted({ cardId: data.id, slug: data.slug });
         onCloseModal?.();
         return;

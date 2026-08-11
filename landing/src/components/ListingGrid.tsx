@@ -19,7 +19,7 @@ type Props = {
 };
 
 /**
- * Shared grid wrapper for all prompt-card listing surfaces (catalog, search, favorites, debug).
+ * Shared grid wrapper for all prompt-card listing surfaces (catalog, search, favorites).
  * Provides canonical column breakpoints and optional incomplete-row clamping.
  */
 export function ListingGrid({ children, clamp = false, className }: Props) {

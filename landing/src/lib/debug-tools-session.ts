@@ -1,14 +1,12 @@
-const SESSION_KEY = "promptshot_debug_tools";
 const FILTER_STATE_KEY = "promptshot_debug_filters";
-/** Cookie so SSR `/p/[slug]` can open unpublished cards while debug is on. */
-export const DEBUG_TOOLS_COOKIE = "promptshot_debug_tools";
+const TECH_INFO_KEY = "promptshot_admin_tech_info";
 
 export type DebugFilterState = {
   hasWarnings: "all" | "yes" | "no";
   scoreMin: number;
   scoreMax: number;
   hasRuPrompt: "all" | "yes" | "no";
-  /** Publication filter — debug only. */
+  /** Publication filter — catalog admin only. */
   published: "all" | "yes" | "no";
   selectedTag: string;
   hasBefore: "all" | "yes";
@@ -18,42 +16,9 @@ export type DebugFilterState = {
 };
 
 export const DEBUG_CARD_DELETED_EVENT = "promptshot:debug-card-deleted";
+export const ADMIN_TECH_INFO_CHANGED_EVENT = "promptshot:admin-tech-info-changed";
 
 export type DebugCardDeletedDetail = { cardId: string; slug: string };
-
-function setDebugToolsCookie(enabled: boolean): void {
-  try {
-    if (typeof document === "undefined") return;
-    if (enabled) {
-      document.cookie = `${DEBUG_TOOLS_COOKIE}=1; path=/; max-age=86400; SameSite=Lax`;
-    } else {
-      document.cookie = `${DEBUG_TOOLS_COOKIE}=; path=/; max-age=0; SameSite=Lax`;
-    }
-  } catch {}
-}
-
-export function enableDebugToolsSession(): void {
-  try {
-    sessionStorage.setItem(SESSION_KEY, "1");
-  } catch {}
-  setDebugToolsCookie(true);
-}
-
-export function disableDebugToolsSession(): void {
-  try {
-    sessionStorage.removeItem(SESSION_KEY);
-    sessionStorage.removeItem(FILTER_STATE_KEY);
-  } catch {}
-  setDebugToolsCookie(false);
-}
-
-export function isDebugToolsSessionEnabled(): boolean {
-  try {
-    return sessionStorage.getItem(SESSION_KEY) === "1";
-  } catch {
-    return false;
-  }
-}
 
 export function readDebugFilterState(): DebugFilterState | null {
   try {
@@ -68,6 +33,30 @@ export function readDebugFilterState(): DebugFilterState | null {
 export function writeDebugFilterState(state: DebugFilterState): void {
   try {
     sessionStorage.setItem(FILTER_STATE_KEY, JSON.stringify(state));
+  } catch {}
+}
+
+/** Tech overlays / yellow DEBUG panel. Default off. */
+export function readAdminTechInfoEnabled(): boolean {
+  try {
+    return sessionStorage.getItem(TECH_INFO_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+export function writeAdminTechInfoEnabled(enabled: boolean): void {
+  try {
+    if (enabled) {
+      sessionStorage.setItem(TECH_INFO_KEY, "1");
+    } else {
+      sessionStorage.removeItem(TECH_INFO_KEY);
+    }
+  } catch {}
+  try {
+    window.dispatchEvent(
+      new CustomEvent(ADMIN_TECH_INFO_CHANGED_EVENT, { detail: { enabled } })
+    );
   } catch {}
 }
 

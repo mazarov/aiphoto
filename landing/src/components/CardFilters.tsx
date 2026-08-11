@@ -6,6 +6,8 @@ import { TAG_REGISTRY } from "@/lib/tag-registry";
 import { PromptCard } from "./PromptCard";
 import { GroupedCard } from "./GroupedCard";
 import { CardInteractionsProvider } from "@/context/CardInteractionsContext";
+import { useAuth } from "@/context/AuthContext";
+import { isCatalogAdminEmail } from "@/lib/catalog-admin";
 import { LISTING_LCP_PRIORITY_GRID_ITEMS } from "@/lib/listing-lcp";
 import { LISTING_INFINITE_PAGE_SIZE } from "@/lib/listing-pagination";
 import {
@@ -16,7 +18,9 @@ import {
 import { ListingGrid } from "./ListingGrid";
 import {
   DEBUG_CARD_DELETED_EVENT,
+  readAdminTechInfoEnabled,
   readDebugFilterState,
+  writeAdminTechInfoEnabled,
   writeDebugFilterState,
   type DebugCardDeletedDetail,
 } from "@/lib/debug-tools-session";
@@ -29,9 +33,7 @@ type Props = {
   lcpPriorityCount?: number;
   /** Catalog/search grids: no hover overlay on cards. */
   hideHoverChrome?: boolean;
-  /** `debug` — internal tools at `/debug` only. */
-  variant?: "listing" | "debug";
-  /** Prefill dataset filter (`/debug?dataset=…`). */
+  /** Prefill dataset filter. */
   initialDataset?: string;
   /**
    * When true, adds listing-grid-clamp to hide the incomplete last row.
@@ -116,24 +118,23 @@ export function FilterableGrid({
   cards,
   lcpPriorityCount = LISTING_LCP_PRIORITY_GRID_ITEMS,
   hideHoverChrome = false,
-  variant = "listing",
   initialDataset,
   clamp = false,
 }: Props) {
-  const isDebug = variant === "debug";
-  const [panelOpen, setPanelOpen] = useState(() => {
-    if (!isDebug) return true;
-    return readDebugFilterState()?.panelOpen ?? true;
-  });
+  const { user } = useAuth();
+  const isAdmin = isCatalogAdminEmail(user?.email);
+  const adminInitializedRef = useRef(false);
 
-  const [filters, setFilters] = useState<Filters>(() =>
-    isDebug ? readInitialDebugFilters(initialDataset) : { ...DEFAULT_FILTERS, dataset: initialDataset || "" }
-  );
+  const [panelOpen, setPanelOpen] = useState(true);
+  const [techInfoEnabled, setTechInfoEnabled] = useState(false);
+
+  const [filters, setFilters] = useState<Filters>(() => ({
+    ...DEFAULT_FILTERS,
+    dataset: initialDataset || "",
+  }));
   const [datasets, setDatasets] = useState<string[]>([]);
 
-  const [idSearch, setIdSearch] = useState(() =>
-    isDebug ? (readDebugFilterState()?.idSearch ?? "") : ""
-  );
+  const [idSearch, setIdSearch] = useState("");
   const [searchResults, setSearchResults] = useState<PromptCardFull[] | null>(null);
   const [searching, setSearching] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -154,10 +155,10 @@ export function FilterableGrid({
   filterHasMoreRef.current = filterHasMore;
 
   const isIdMode = idSearch.trim().length >= 4;
-  // Debug always searches via API (needs unpublished + full dataset list).
+  // Admin always searches via API (needs unpublished + full dataset list).
   const isFilterMode =
     !isIdMode &&
-    (isDebug ||
+    (isAdmin ||
       filters.hasWarnings !== "all" ||
       filters.scoreMin > 0 ||
       filters.scoreMax < 100 ||
@@ -173,16 +174,46 @@ export function FilterableGrid({
   }, [initialDataset]);
 
   useEffect(() => {
-    if (!isDebug) return;
+    if (!isAdmin) {
+      if (adminInitializedRef.current) {
+        adminInitializedRef.current = false;
+        setFilters({ ...DEFAULT_FILTERS, dataset: initialDataset || "" });
+        setIdSearch("");
+        setTechInfoEnabled(false);
+        setFilterResults(null);
+        setSearchResults(null);
+        setDatasets([]);
+        filterRankedOffsetRef.current = 0;
+        setFilterHasMore(false);
+        setFilterTotal(null);
+      }
+      return;
+    }
+    if (adminInitializedRef.current) return;
+    adminInitializedRef.current = true;
+    const saved = readInitialDebugFilters(initialDataset);
+    setFilters(saved);
+    setIdSearch(readDebugFilterState()?.idSearch ?? "");
+    setPanelOpen(readDebugFilterState()?.panelOpen ?? true);
+    setTechInfoEnabled(readAdminTechInfoEnabled());
+  }, [isAdmin, initialDataset]);
+
+  useEffect(() => {
+    if (!isAdmin) return;
     writeDebugFilterState({
       ...filters,
       idSearch,
       panelOpen,
     });
-  }, [isDebug, filters, idSearch, panelOpen]);
+  }, [isAdmin, filters, idSearch, panelOpen]);
 
   useEffect(() => {
-    if (!isDebug) return;
+    if (!isAdmin) return;
+    writeAdminTechInfoEnabled(techInfoEnabled);
+  }, [isAdmin, techInfoEnabled]);
+
+  useEffect(() => {
+    if (!isAdmin) return;
     const onDeleted = (event: Event) => {
       const { cardId } = (event as CustomEvent<DebugCardDeletedDetail>).detail;
       setFilterResults((prev) => prev?.filter((c) => c.id !== cardId) ?? null);
@@ -191,16 +222,16 @@ export function FilterableGrid({
     };
     window.addEventListener(DEBUG_CARD_DELETED_EVENT, onDeleted);
     return () => window.removeEventListener(DEBUG_CARD_DELETED_EVENT, onDeleted);
-  }, [isDebug]);
+  }, [isAdmin]);
 
   useEffect(() => {
-    if (!isDebug) return;
+    if (!isAdmin) return;
     if (datasets.length > 0) return;
-    fetch("/api/datasets?includeUnpublished=1")
+    fetch("/api/datasets?includeUnpublished=1", { credentials: "include" })
       .then((r) => r.json())
       .then((d) => setDatasets(d.datasets || []))
       .catch(() => {});
-  }, [isDebug, datasets.length]);
+  }, [isAdmin, datasets.length]);
 
   const doIdSearch = useCallback(async (q: string) => {
     const trimmed = q.trim();
@@ -211,7 +242,9 @@ export function FilterableGrid({
     }
     setSearching(true);
     try {
-      const res = await fetch(`/api/search-card?q=${encodeURIComponent(trimmed)}`);
+      const res = await fetch(`/api/search-card?q=${encodeURIComponent(trimmed)}`, {
+        credentials: "include",
+      });
       const data = await res.json();
       setSearchResults(data.cards || []);
     } catch {
@@ -243,7 +276,7 @@ export function FilterableGrid({
         ...(f.selectedTag && { seoTag: f.selectedTag }),
         ...(f.dataset && { dataset: f.dataset }),
       });
-      const res = await fetch(`/api/search-cards?${u}`);
+      const res = await fetch(`/api/search-cards?${u}`, { credentials: "include" });
       const data = await res.json();
       const newCards = (data.cards || []) as PromptCardFull[];
       const rankedBatchSize = Math.max(0, Number(data.ranked_batch_size) || 0);
@@ -384,7 +417,7 @@ export function FilterableGrid({
   }, [gridItems, isIdMode, isFilterMode]);
 
   function handleReset() {
-    setFilters({ ...(isDebug ? DEFAULT_DEBUG_FILTERS : DEFAULT_FILTERS) });
+    setFilters({ ...(isAdmin ? DEFAULT_DEBUG_FILTERS : DEFAULT_FILTERS) });
     setIdSearch("");
     setSearchResults(null);
     setFilterResults(null);
@@ -394,7 +427,7 @@ export function FilterableGrid({
   }
 
   useEffect(() => {
-    if (!isDebug || !isFilterMode) return;
+    if (!isAdmin || !isFilterMode) return;
     const el = filterSentinelRef.current;
     if (!el) return;
     const observer = new IntersectionObserver(
@@ -407,7 +440,7 @@ export function FilterableGrid({
     );
     observer.observe(el);
     return () => observer.disconnect();
-  }, [isDebug, isFilterMode, filterHasMore, doFilterSearch, filterResults?.length]);
+  }, [isAdmin, isFilterMode, filterHasMore, doFilterSearch, filterResults?.length]);
 
   const statsText = isIdMode
     ? searching
@@ -462,7 +495,7 @@ export function FilterableGrid({
                   <div key={item.card.id} className="min-w-0">
                     <PromptCard
                       card={item.card}
-                      debug={isDebug}
+                      debug={isAdmin && techInfoEnabled}
                       priorityLoad={index < lcpPriorityCount}
                       hideHoverChrome={hideHoverChrome}
                     />
@@ -471,7 +504,7 @@ export function FilterableGrid({
                   <div key={item.key} className="min-w-0">
                     <GroupedCard
                       cards={item.cards}
-                      debug={isDebug}
+                      debug={isAdmin && techInfoEnabled}
                       priorityLoad={index < lcpPriorityCount}
                       hideHoverChrome={hideHoverChrome}
                     />
@@ -495,7 +528,7 @@ export function FilterableGrid({
           </>
         )}
 
-        {isDebug && !panelOpen && (
+        {isAdmin && !panelOpen && (
           <button
             type="button"
             onClick={() => setPanelOpen(true)}
@@ -505,7 +538,7 @@ export function FilterableGrid({
           </button>
         )}
 
-        {isDebug && panelOpen && (
+        {isAdmin && panelOpen && (
           <>
             <div
               className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm"
@@ -529,6 +562,28 @@ export function FilterableGrid({
               </div>
 
               <div className="space-y-4">
+                <div className="flex items-center justify-between gap-3 rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2.5">
+                  <div>
+                    <div className="text-sm font-medium text-zinc-800">Тех. информация</div>
+                    <div className="text-[11px] text-zinc-400">Оверлеи на карточках и DEBUG-панель</div>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={techInfoEnabled}
+                    onClick={() => setTechInfoEnabled((v) => !v)}
+                    className={`relative h-7 w-12 flex-shrink-0 rounded-full transition-colors ${
+                      techInfoEnabled ? "bg-amber-500" : "bg-zinc-300"
+                    }`}
+                  >
+                    <span
+                      className={`absolute top-0.5 left-0.5 h-6 w-6 rounded-full bg-white shadow transition-transform ${
+                        techInfoEnabled ? "translate-x-5" : "translate-x-0"
+                      }`}
+                    />
+                  </button>
+                </div>
+
                 <div>
                   <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-zinc-400">
                     ID (поиск по базе)
@@ -655,28 +710,26 @@ export function FilterableGrid({
                   </button>
                 </div>
 
-                {isDebug && (
-                  <div>
-                    <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-zinc-400">
-                      Публикация
-                    </label>
-                    <select
-                      value={filters.published}
-                      onChange={(e) =>
-                        setFilters((f) => ({
-                          ...f,
-                          published: e.target.value as "all" | "yes" | "no",
-                        }))
-                      }
-                      disabled={isIdMode}
-                      className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-700 disabled:opacity-40"
-                    >
-                      <option value="all">Все</option>
-                      <option value="yes">Только опубликованные</option>
-                      <option value="no">Только неопубликованные</option>
-                    </select>
-                  </div>
-                )}
+                <div>
+                  <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-widest text-zinc-400">
+                    Публикация
+                  </label>
+                  <select
+                    value={filters.published}
+                    onChange={(e) =>
+                      setFilters((f) => ({
+                        ...f,
+                        published: e.target.value as "all" | "yes" | "no",
+                      }))
+                    }
+                    disabled={isIdMode}
+                    className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-700 disabled:opacity-40"
+                  >
+                    <option value="all">Все</option>
+                    <option value="yes">Только опубликованные</option>
+                    <option value="no">Только неопубликованные</option>
+                  </select>
+                </div>
 
                 {datasets.length > 0 && (
                   <div>

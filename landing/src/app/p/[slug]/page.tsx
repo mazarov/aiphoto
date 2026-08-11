@@ -1,11 +1,10 @@
 import { cache } from "react";
 import type { Metadata } from "next";
 import nextDynamic from "next/dynamic";
-import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import { getCardPageData, getIndexableImageUrl } from "@/lib/supabase";
 import { getSupabaseUserFromServerCookies } from "@/lib/supabase-route-auth";
-import { DEBUG_TOOLS_COOKIE } from "@/lib/debug-tools-session";
+import { isCatalogAdminEmail } from "@/lib/catalog-admin";
 import {
   getFirstTagFromSeoTags,
   getSeoSlugsWithTags,
@@ -25,18 +24,15 @@ const getCachedCardPageData = cache(
     getCardPageData(slug, { viewerUserId, allowDebugUnpublished }),
 );
 
-async function readAllowDebugUnpublished(): Promise<boolean> {
-  try {
-    const jar = await cookies();
-    return jar.get(DEBUG_TOOLS_COOKIE)?.value === "1";
-  } catch {
-    return false;
-  }
-}
-
-async function resolveViewerAuthIdFromCookies(): Promise<string | null> {
+async function resolveViewerFromCookies(): Promise<{
+  viewerUserId: string | null;
+  allowDebugUnpublished: boolean;
+}> {
   const viewer = await getSupabaseUserFromServerCookies();
-  return viewer?.id ?? null;
+  return {
+    viewerUserId: viewer?.id ?? null,
+    allowDebugUnpublished: isCatalogAdminEmail(viewer?.email),
+  };
 }
 
 const BASE_URL =
@@ -74,8 +70,7 @@ export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
-  const viewerUserId = await resolveViewerAuthIdFromCookies();
-  const allowDebugUnpublished = await readAllowDebugUnpublished();
+  const { viewerUserId, allowDebugUnpublished } = await resolveViewerFromCookies();
   const data = await getCachedCardPageData(slug, viewerUserId, allowDebugUnpublished);
   if (!data) notFound();
 
@@ -124,8 +119,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function CardPage({ params }: Props) {
   const { slug } = await params;
-  const viewerUserId = await resolveViewerAuthIdFromCookies();
-  const allowDebugUnpublished = await readAllowDebugUnpublished();
+  const { viewerUserId, allowDebugUnpublished } = await resolveViewerFromCookies();
   const data = await getCachedCardPageData(slug, viewerUserId, allowDebugUnpublished);
 
   if (!data) notFound();

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServer, enrichCardsWithDetails } from "@/lib/supabase";
 import type { RouteCard } from "@/lib/supabase";
+import { getSupabaseUserForApiRoute } from "@/lib/supabase-route-auth";
+import { isCatalogAdminEmail } from "@/lib/catalog-admin";
 
 export async function GET(req: NextRequest) {
   // Batch fetch by comma-separated IDs (for favorites page)
@@ -26,6 +28,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ cards: [] });
   }
 
+  const { user } = await getSupabaseUserForApiRoute(req);
+  const isAdmin = isCatalogAdminEmail(user?.email);
+
   const supabase = createSupabaseServer();
 
   const isFullUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(q);
@@ -33,21 +38,25 @@ export async function GET(req: NextRequest) {
   let rows: RouteCard[];
 
   if (isFullUuid) {
-    const { data } = await supabase
+    let query = supabase
       .from("prompt_cards")
       .select("id,slug,title_ru,title_en,seo_tags,source_dataset_slug,source_message_id,card_split_total")
       .eq("id", q)
       .limit(1);
+    if (!isAdmin) query = query.eq("is_published", true);
+    const { data } = await query;
     rows = (data || []).map((r) => ({ ...r, relevance_score: 0 }));
   } else {
     const lower = q.toLowerCase();
     const upper = lower.slice(0, -1) + String.fromCharCode(lower.charCodeAt(lower.length - 1) + 1);
-    const { data } = await supabase
+    let query = supabase
       .from("prompt_cards")
       .select("id,slug,title_ru,title_en,seo_tags,source_dataset_slug,source_message_id,card_split_total")
       .gte("id", lower)
       .lt("id", upper)
       .limit(10);
+    if (!isAdmin) query = query.eq("is_published", true);
+    const { data } = await query;
     rows = (data || []).map((r) => ({ ...r, relevance_score: 0 }));
   }
 
@@ -63,11 +72,13 @@ export async function GET(req: NextRequest) {
       const gk = `${meta.source_dataset_slug}::${meta.source_message_id}`;
       if (seenGroups.has(gk)) continue;
       seenGroups.add(gk);
-      const { data: siblings } = await supabase
+      let siblingQuery = supabase
         .from("prompt_cards")
         .select("id,slug,title_ru,title_en,seo_tags")
         .eq("source_dataset_slug", meta.source_dataset_slug)
         .eq("source_message_id", meta.source_message_id);
+      if (!isAdmin) siblingQuery = siblingQuery.eq("is_published", true);
+      const { data: siblings } = await siblingQuery;
       for (const s of siblings || []) {
         if (!ids.has(s.id)) {
           ids.add(s.id);

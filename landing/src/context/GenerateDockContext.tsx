@@ -216,7 +216,7 @@ export function isGenerateDockListingPath(pathname: string): boolean {
 
   if (
     np === "/" ||
-    np === "/new" ||
+    np === "/trends" ||
     np === "/catalog" ||
     np === "/search" ||
     np === "/favorites" ||
@@ -233,7 +233,6 @@ export function isGenerateDockListingPath(pathname: string): boolean {
     "/embed",
     "/auth",
     "/extension-stv",
-    "/debug",
     "/privacy",
     "/terms",
     "/policy",
@@ -249,7 +248,6 @@ export function isGenerateDockListingPath(pathname: string): boolean {
     "/embed/",
     "/auth/",
     "/extension-stv/",
-    "/debug/",
   ];
   if (blockedPrefixes.some((prefix) => np.startsWith(prefix))) return false;
 

@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServer } from "@/lib/supabase";
+import { getSupabaseUserForApiRoute } from "@/lib/supabase-route-auth";
+import { isCatalogAdminEmail } from "@/lib/catalog-admin";
 
 export async function POST(req: NextRequest) {
+  const { user, error: authError } = await getSupabaseUserForApiRoute(req);
+  if (authError || !user || !isCatalogAdminEmail(user.email)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   const body = await req.json();
   const { cardId, storageBucket, storagePath } = body as {
     cardId: string;

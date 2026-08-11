@@ -1,13 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { createSupabaseServer } from "@/lib/supabase";
+import { getSupabaseUserForApiRoute } from "@/lib/supabase-route-auth";
+import { isCatalogAdminEmail } from "@/lib/catalog-admin";
 
 /**
- * Debug-only: hard-delete a prompt_cards row. Child rows CASCADE in DB.
+ * Catalog-admin only: hard-delete a prompt_cards row. Child rows CASCADE in DB.
  * Files in Storage are not removed (same as other admin-style routes).
  * confirmSlug must match the row’s slug (weak guard against mistaken id).
  */
 export async function POST(req: NextRequest) {
+  const { user, error: authError } = await getSupabaseUserForApiRoute(req);
+  if (authError || !user || !isCatalogAdminEmail(user.email)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   const body = await req.json();
   const { cardId, confirmSlug } = body as {
     cardId?: string;
@@ -57,7 +64,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: delErr.message }, { status: 500 });
   }
 
-  // Sitemap and card page use `revalidate = 3600`; drop cached routes immediately.
   revalidatePath("/sitemap.xml");
   revalidatePath(`/p/${slug}`);
 

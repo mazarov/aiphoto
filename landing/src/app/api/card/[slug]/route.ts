@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { fetchCardPageDataCore, createSupabaseServer } from "@/lib/supabase";
 import { getSupabaseUserForApiRoute } from "@/lib/supabase-route-auth";
-import { DEBUG_TOOLS_COOKIE } from "@/lib/debug-tools-session";
+import { isCatalogAdminEmail } from "@/lib/catalog-admin";
 
 export const dynamic = "force-dynamic";
 
@@ -13,7 +13,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     const { user } = await getSupabaseUserForApiRoute(request);
-    const allowDebugUnpublished = request.cookies.get(DEBUG_TOOLS_COOKIE)?.value === "1";
+    const allowDebugUnpublished = isCatalogAdminEmail(user?.email);
 
     const supabase = createSupabaseServer();
     const viewerUserId = user?.id ?? null;

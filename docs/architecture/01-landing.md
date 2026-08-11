@@ -1,6 +1,8 @@
 # 01 — Лендинг (promptshot.ru)
 
-> Последнее обновление: 2026-08-11 (**prefs persist flush:** `CardInlineGeneratePanel` — immediate PUT при любом выходе из шторки фото/модель (Готово, tile toggle, desktop scrim, switch→prompt) + flush snapshot на unmount (`seedToken` remount больше не глотает debounce). Убран auto-switch на дешёвую модель при нехватке кредитов (он перетирал prefs); unaffordable selection остаётся, CTA → `/pricing`.)
+> Последнее обновление: 2026-08-11 (**catalog admin:** `/debug` убран; allowlist-email (`isCatalogAdminEmail` / `INTERNAL_GENERATE_ALLOWLIST`, default `azarov.maxim@gmail.com`) включает admin на всех `FilterableGrid` листингах: панель фильтров, `published=all`, unpublished `/p/[slug]` по auth. Свитч «Тех. информация» (default off) — оверлеи + жёлтая DEBUG-панель. Мутации `set-before` / `debug-delete-card` и unpublished search — только admin.)
+>
+> Предыдущее обновление: 2026-08-11 (**prefs persist flush:** `CardInlineGeneratePanel` — immediate PUT при любом выходе из шторки фото/модель (Готово, tile toggle, desktop scrim, switch→prompt) + flush snapshot на unmount (`seedToken` remount больше не глотает debounce). Убран auto-switch на дешёвую модель при нехватке кредитов (он перетирал prefs); unaffordable selection остаётся, CTA → `/pricing`.)
 >
 > Предыдущее обновление: 2026-08-11 (**result clear X:** после `phase=done` в dock крестик → `clearResultAndPrompt`: снимает result chrome, очищает `draftPrompt`, закрывает plate (`onBack`); модель/фото сохраняются. Footer `Повторить` по-прежнему только сбрасывает result, промпт оставляет.)
 >
@@ -220,7 +222,7 @@
 | `/api/search-cards` | Фильтрованный поиск (`search_cards_filtered` RPC); query: `limit` (до 48), `offset`, `includeTotal=1` → `{ cards, total?, hasMore }` |
 | `/api/datasets` | Список датасетов (debug) |
 | `/api/set-before` | Before/after медиа |
-| `/api/debug-delete-card` | POST: удаление строки `prompt_cards` (+ строки `slug_redirects` для slug карточки); body: `cardId`, `confirmSlug` (должен совпасть со slug в БД). После удаления — `revalidatePath('/sitemap.xml')` и `/p/[slug]`, чтобы URL сразу исчез из sitemap и кеша страницы (источник URL в sitemap — `getPublishedCardsForSitemap()`). Объекты в Storage не трогает |
+| `/api/debug-delete-card` | POST (catalog admin): удаление строки `prompt_cards` (+ строки `slug_redirects` для slug карточки); body: `cardId`, `confirmSlug` (должен совпасть со slug в БД). После удаления — `revalidatePath('/sitemap.xml')` и `/p/[slug]`, чтобы URL сразу исчез из sitemap и кеша страницы (источник URL в sitemap — `getPublishedCardsForSitemap()`). Объекты в Storage не трогает |
 | `/api/generation-config` | Конфиг генерации (модели, лимиты) |
 | `/api/generation-preferences` | GET/PUT (auth): последние model / aspect ratio / image size / выбранные owned photo IDs текущего JWT user |
 | `/api/generation-prompt` | EN промпт карточки по cardId |
@@ -484,7 +486,7 @@ Fallback: если `code` пришёл на произвольную стран�
 
 - `sitemap.ts` — динамический sitemap (L1 теги, фильтрованные по `getFilterCounts` с порогом ≥ 1 карточки, + L2 комбинации + карточки)
 - `image-sitemap.xml/route.ts` — image sitemap для Google Images / Яндекс.Картинок; XML с `xmlns:image`; `<image:loc>` через `getIndexableImageUrl` (основной домен, без query); `<image:title>` + `<image:caption>`; чанкинг по 5000 карточек, при `totalPages > 1` — `<sitemapindex>` с `?page=N`; `revalidate = 3600`
-- `robots.txt/route.ts` — текстовый route handler; расширенный `Disallow` (`/api/`, `/embed/`, `/auth/`, `/search`, `/favorites`, `/generations`, `/debug`); `Clean-param` для Яндекса (`audience&style&occasion&object&sort`); две ссылки на sitemap
+- `robots.txt/route.ts` — текстовый route handler; расширенный `Disallow` (`/api/`, `/admin/`, `/embed/`, `/auth/`, `/search`, `/favorites`, `/generations`, `/generate`, `/pricing`); `Clean-param` для Яндекса (`audience&style&occasion&object&sort`); две ссылки на sitemap
 
 ---
 
@@ -502,7 +504,6 @@ Fallback: если `code` пришёл на произвольную стран�
 | `/p/[slug]` (карточка) | **Dynamic** | `dynamic = force-dynamic` (доступ владельца к черновикам UGC + cookies) |
 | `/[...slug]` (листинг) | ISR | `revalidate = 3600` |
 | `/search` | CSR | `robots: noindex` |
-| `/debug` | CSR | internal tools; `robots: noindex, nofollow`; `Disallow` in robots.txt |
 | `/favorites` | CSR | требует auth |
 | `/generations` | CSR | требует auth, `robots: noindex` |
 
@@ -580,7 +581,7 @@ getCachedCardPageData(slug)             ← React.cache(getCardPageData)
 getFirstTagFromSeoTags(seo_tags)        ← breadcrumb
 ```
 
-- **`getCardPageData`:** в ответе для клиента — `photoMeta[]` (bucket/path/url, параллельно `photoUrls`) для debug-действий. Жёлтая DEBUG-панель на `CardPageClient` — только при открытии карточки из вкладки `/debug` (`debug-tools-session`).
+- **`getCardPageData`:** в ответе для клиента — `photoMeta[]` (bucket/path/url, параллельно `photoUrls`) для admin-действий. Жёлтая DEBUG-панель на `CardPageClient` — catalog admin + включённый свитч «Тех. информация» (`promptshot_admin_tech_info`). Unpublished `/p/[slug]` — по auth email allowlist (`isCatalogAdminEmail`).
 - **Mobile SEO (Яндекс «мелкий текст»):** на `< md` при наличии фото — immersive fullscreen (`CardPageLayout` скрывает header/sidebar/footer). Оверлей: **`text-[13px]`** (`MOBILE_FS_*`), промпт за кнопкой «Посмотреть промт» (overlay по клику), `CARD_OVERLAY_ACTION_PILL` **`min-h-11`**. Нижний glass-бар — **«Копировать» + LexyGPT** (`grid-cols-2`); стрелки листинга **не** в доке. Дублирующий fixed sticky `z-[240]` с **`max-md:hidden`** при `hasPhotos`; колонка контента **`max-md:pb-6`** вместо `pb-28`. Desktop (`md+`): framed hero + sticky-bar как раньше. См. `.cursor/rules/ui-typography-icons-consistency.mdc` (tier A).
 - **Mobile listing nav (карточки с фото):** правый стек по центру — реакции → избранное → шаринг → ↑ prev / ↓ next (`StickyListingNavButton` `orientation="vertical"`). Свайп **вверх** → следующая карточка, **вниз** → предыдущая. `useMobileCardSnapFeed` управляет нативным `overflow-y-auto snap-y snap-mandatory` viewport максимум из трёх `100dvh` слайдов. Центральный содержит полный UI, существующие соседние — предзагруженные hero; отсутствующий крайний слайд не рендерится. Стрелки делают smooth-scroll к тем же snap-points. После `scrollend` (или debounce fallback) готовый `CardPageData` атомарно становится активным и URL обновляется; cache miss возвращает viewport в центр. При достижении последнего загруженного slug feed отправляет `promptshot:listing-navigation-load-more`; mounted `InfiniteGrid` / `SearchResults` использует свой единый `loadMore`, а событие `promptshot:listing-navigation-updated` добавляет нового соседа без закрытия модалки. Chrome скрывается на время touch/scroll и не зависит от image decode. Соседи — `promptshot_listing_nav_v1` / `resolveListingNavNeighbors`, загрузка — общий LRU на 9 записей с in-flight dedup в `PromptCardModalContext`. One-time тултип у стрелок (`CardSwipeOnboarding`, ключ `promptshot_card_swipe_onboarding_v1`) — скрытие по свайпу / клику стрелки / «Понятно» / таймауту 8с / клику вне.
 - **Закрытие модалки:** `CardModal` обрабатывает клик по backdrop для intercepting route и `ClientCardModal`. В desktop split кликабельным фоном считаются также прозрачные промежутки между фото, вертикальной навигацией и dark panel; сами поверхности помечены `data-card-modal-surface`. `Escape` и крестик используют тот же `handleClose`.
@@ -599,13 +600,14 @@ SearchResults (client, infinite scroll)
 - Ранжирование гибридное: морфология (`fts`) + fuzzy (`trigram` по `title_ru` и `prompt_text_ru`).
 - Стабильная сортировка: `has_fts DESC`, затем `relevance_score`, `source_date DESC`, `id`.
 
-### Debug-режим (`/debug`)
+### Catalog admin (вместо `/debug`)
 
-- **Маршрут:** `/debug` — изолированный internal catalog; prod-страницы (главная, листинги, поиск) **без** debug-overlays и без toggle.
-- **UI:** тот же shell, что у `/search` — `PageLayout` + `listing-main-bottom-pad` + grid (`FilterableGrid` с `variant="debug"`, `hideHoverChrome`).
-- **Фильтры:** панель справа (ID, warnings, score, RU prompt, тег, «было», **публикация** all/yes/no, **датасет**); `/api/search-cards?published=…` + мигр. `167` (`p_published`); датасеты — `/api/datasets?includeUnpublished=1`. Prefill: `/debug?dataset=slug`. По умолчанию `published=all`.
-- **Карточка из `/debug`:** `sessionStorage` + cookie `promptshot_debug_tools` (`debug-tools-session.ts`) — жёлтая панель на `CardPageClient`; cookie позволяет открыть unpublished `/p/[slug]` (остаётся `robots: noindex`).
-- **SEO:** `robots.txt/route.ts` — `Disallow: /debug`; metadata `noindex, nofollow`.
+- **Кто:** email в `INTERNAL_GENERATE_ALLOWLIST` / default `azarov.maxim@gmail.com` (`isCatalogAdminEmail` → `isInternalGenerateAllowlistedEmail`).
+- **Листинги:** на любом `FilterableGrid` для admin — панель «Фильтры» (всегда), API-поиск с `published=all` по умолчанию, датасеты `includeUnpublished=1`.
+- **Свитч «Тех. информация»** (default off, `sessionStorage` `promptshot_admin_tech_info`): оверлеи на `PromptCard`/`GroupedCard` + жёлтая DEBUG-панель (мета + «Сделать было» / удаление) на `CardPageClient`.
+- **Unpublished карточки:** `/p/[slug]` и `/api/card/[slug]` — `allowDebugUnpublished` по auth email, не cookie.
+- **API:** `published≠yes` в `/api/search-cards`, `includeUnpublished` в `/api/datasets`, ID-поиск unpublished в `/api/search-card`, `POST /api/set-before`, `POST /api/debug-delete-card` — только catalog admin.
+- **Удалено:** маршрут `/debug`, cookie/session `promptshot_debug_tools`.
 
 ---
 
@@ -635,9 +637,9 @@ SearchResults (client, infinite scroll)
 | CardPageClient | `components/CardPageClient.tsx` | Клиентская часть карточки; desktop `md+` (модалка и `/p/[slug]`): split photo \| ↑↓ listing nav \| dark panel; mobile — fullscreen immersive |
 | CardModal | `components/CardModal.tsx` | Overlay карточки; desktop — transparent wide shell (`max-w-7xl`), клик по backdrop/промежуткам закрывает модалку, `data-card-modal-surface` защищает контент; mobile — white card / immersive |
 | PhotoCarousel | `components/PhotoCarousel.tsx` | Карусель фото |
-| CardFilters | `components/CardFilters.tsx` | `FilterableGrid`: prod listings (`variant="listing"`); debug at `/debug` (`variant="debug"`) |
-| DebugPageContent | `components/debug/DebugPageContent.tsx` | Client-обёртка `/debug`: session + grid |
-| debug-tools-session | `lib/debug-tools-session.ts` | `sessionStorage` для debug-tools на карточке из `/debug` |
+| CardFilters | `components/CardFilters.tsx` | `FilterableGrid`: для catalog admin — панель фильтров + tech-info свитч на всех листингах |
+| catalog-admin | `lib/catalog-admin.ts` | `isCatalogAdminEmail` (allowlist) |
+| debug-tools-session | `lib/debug-tools-session.ts` | persistence фильтров admin + tech-info preference + delete event |
 | FotoVPromtMiniBanner | `components/foto-v-promt-promo/FotoVPromtMiniBanner.tsx` | Промо «Промпт не попадает в фото?»; смонтировано только на листингах (`variant="listing"`), на `/p/[slug]` скрыто |
 | ListingFotoVPromtBanner | `components/foto-v-promt-promo/ListingFotoVPromtBanner.tsx` | Sticky + IntersectionObserver hide после первого экрана |
 | ListingBottomBar | `components/ListingBottomBar.tsx` | No-op (desktop search → SidebarNav **Поиск** + поле на `/search`). |

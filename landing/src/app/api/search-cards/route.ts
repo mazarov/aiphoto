@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { searchCardsFiltered, enrichCardsWithDetails, countCardsFiltered } from "@/lib/supabase";
 import { LISTING_INFINITE_PAGE_SIZE } from "@/lib/listing-pagination";
+import { getSupabaseUserForApiRoute } from "@/lib/supabase-route-auth";
+import { isCatalogAdminEmail } from "@/lib/catalog-admin";
 
 export async function GET(req: NextRequest) {
   const params = req.nextUrl.searchParams;
@@ -12,10 +14,18 @@ export async function GET(req: NextRequest) {
   const hasBefore = (params.get("hasBefore") || "all") as "all" | "yes";
   const dataset = params.get("dataset")?.trim() || null;
   const publishedRaw = (params.get("published") || "yes").trim().toLowerCase();
-  const published =
+  let published =
     publishedRaw === "all" || publishedRaw === "no" || publishedRaw === "yes"
       ? (publishedRaw as "all" | "yes" | "no")
       : "yes";
+
+  if (published !== "yes") {
+    const { user } = await getSupabaseUserForApiRoute(req);
+    if (!isCatalogAdminEmail(user?.email)) {
+      published = "yes";
+    }
+  }
+
   const limit = Math.min(
     LISTING_INFINITE_PAGE_SIZE,
     Math.max(1, Number(params.get("limit")) || LISTING_INFINITE_PAGE_SIZE)
