@@ -37,6 +37,19 @@ export function Footer() {
                 )}
               </ul>
             </div>
+            <div>
+              <div className="mb-3 text-xs font-semibold uppercase tracking-widest text-zinc-400">Support</div>
+              <ul className="space-y-2">
+                <li>
+                  <a
+                    href="mailto:support_ru@promptshot.ru"
+                    className="text-sm text-zinc-500 transition-colors hover:text-zinc-900"
+                  >
+                    support_ru@promptshot.ru
+                  </a>
+                </li>
+              </ul>
+            </div>
           </nav>
         </div>
         <div className="mt-10 flex flex-col gap-3 border-t border-zinc-200/60 pt-6 sm:flex-row sm:items-center sm:justify-between">

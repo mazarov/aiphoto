@@ -105,6 +105,15 @@ export default async function PricingPage({ searchParams }: PricingPageProps) {
               .
             </p>
             <p className="mx-auto max-w-lg break-words text-xs leading-snug text-zinc-400/80">
+              Support:{" "}
+              <a
+                href="mailto:support_ru@promptshot.ru"
+                className="text-zinc-400 underline-offset-2 hover:text-zinc-600 hover:underline"
+              >
+                support_ru@promptshot.ru
+              </a>
+            </p>
+            <p className="mx-auto max-w-lg break-words text-xs leading-snug text-zinc-400/80">
               <span className="block sm:inline">СМЗ Азарова Мария Петровна</span>
               <span className="hidden sm:inline"> · </span>
               <span className="block sm:inline">ИНН 673201018413</span>
