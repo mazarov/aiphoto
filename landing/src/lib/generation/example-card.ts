@@ -24,8 +24,8 @@ export function toGenerationExampleCard(
     title: card.title_ru || card.title_en || "Промт для фото",
     seoTags: rawTags as Record<string, string[]>,
     photoUrl: card.photoUrls[0] || null,
-    photoWidth: card.photoDimensions?.[0]?.width ?? null,
-    photoHeight: card.photoDimensions?.[0]?.height ?? null,
+    photoWidth: card.photoMeta[0]?.width ?? null,
+    photoHeight: card.photoMeta[0]?.height ?? null,
     photoCount: card.photoUrls.length,
     hasPrompt: card.promptTexts.some((prompt) => prompt.trim().length > 0),
   };
