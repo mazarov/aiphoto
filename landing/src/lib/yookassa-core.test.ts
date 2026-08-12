@@ -44,6 +44,13 @@ test("provider payment must match local id, plan, amount and currency", () => {
       priceRub: 399,
     }),
   );
+  assert.doesNotThrow(() =>
+    assertYooKassaPaymentMatches(payment, {
+      localPaymentId: "263dd707-e1ee-46d9-9a97-c11ad34c289d",
+      planId: "start",
+      priceRub: Number("399.00"),
+    }),
+  );
 
   assert.throws(
     () =>

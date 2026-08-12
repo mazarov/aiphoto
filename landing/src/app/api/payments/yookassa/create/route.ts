@@ -151,7 +151,7 @@ export async function POST(request: NextRequest) {
       throw new Error("YooKassa did not return a secure redirect URL");
     }
 
-    const { error: updateError } = await supabase
+    const { data: updated, error: updateError } = await supabase
       .from("landing_yookassa_payments")
       .update({
         yookassa_payment_id: providerPayment.id,
@@ -161,17 +161,38 @@ export async function POST(request: NextRequest) {
         test: providerPayment.test,
         updated_at: new Date().toISOString(),
       })
-      .eq("id", local.id);
+      .eq("id", local.id)
+      .in("status", ["created", "pending"])
+      .select("id, confirmation_url, yookassa_payment_id")
+      .maybeSingle();
     if (updateError) {
       console.error("[yookassa] local payment update failed", {
         paymentId: local.id,
         message: updateError.message,
       });
+      throw new Error(`Payment local update failed: ${updateError.message}`);
+    }
+    if (!updated?.confirmation_url || !updated.yookassa_payment_id) {
+      const { data: current, error: rereadError } = await supabase
+        .from("landing_yookassa_payments")
+        .select("id, confirmation_url, yookassa_payment_id, status")
+        .eq("id", local.id)
+        .maybeSingle();
+      if (rereadError) {
+        throw new Error(`Payment reread failed: ${rereadError.message}`);
+      }
+      if (current?.confirmation_url && current.yookassa_payment_id) {
+        return NextResponse.json({
+          paymentId: current.id,
+          confirmationUrl: current.confirmation_url,
+        });
+      }
+      throw new Error("Payment is no longer open for checkout update");
     }
 
     return NextResponse.json({
       paymentId: local.id,
-      confirmationUrl,
+      confirmationUrl: updated.confirmation_url,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

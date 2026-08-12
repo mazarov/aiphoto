@@ -20,10 +20,42 @@ test("admin payment filters reject unsupported values", () => {
 });
 
 test("successful payment without credited_at is a discrepancy", () => {
-  assert.equal(resolvePaymentCreditState({ status: "succeeded", credited_at: null }), "discrepancy");
-  assert.equal(resolvePaymentCreditState({ status: "pending", credited_at: null }), "not_due");
+  const now = Date.parse("2026-08-12T12:00:00.000Z");
+  assert.equal(
+    resolvePaymentCreditState({
+      status: "succeeded",
+      credited_at: null,
+      created_at: "2026-08-12T11:00:00.000Z",
+    }, now),
+    "discrepancy",
+  );
+  assert.equal(
+    resolvePaymentCreditState({
+      status: "pending",
+      credited_at: null,
+      created_at: "2026-08-12T11:50:00.000Z",
+    }, now),
+    "not_due",
+  );
+  assert.equal(
+    resolvePaymentCreditState({
+      status: "pending",
+      credited_at: null,
+      created_at: "2026-08-12T11:40:00.000Z",
+    }, now),
+    "stale",
+  );
+  assert.equal(
+    resolvePaymentCreditState({
+      status: "created",
+      credited_at: null,
+      created_at: "2026-08-12T11:00:00.000Z",
+    }, now),
+    "stale",
+  );
   assert.equal(resolvePaymentCreditState({
     status: "succeeded",
     credited_at: "2026-08-10T07:00:00.000Z",
-  }), "credited");
+    created_at: "2026-08-10T06:59:00.000Z",
+  }, now), "credited");
 });

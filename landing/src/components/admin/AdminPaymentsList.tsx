@@ -20,7 +20,7 @@ type Payment = {
   providerStatus: string | null;
   test: boolean | null;
   creditedAt: string | null;
-  creditState: "credited" | "not_due" | "discrepancy";
+  creditState: "credited" | "not_due" | "discrepancy" | "stale";
   yookassaPaymentId: string | null;
 };
 
@@ -50,6 +50,9 @@ export function AdminPaymentsList() {
   const [items, setItems] = useState<Payment[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [state, setState] = useState({ loading: true, status: 0, error: "" });
+  const [actionMessage, setActionMessage] = useState("");
+  const [reconcilingId, setReconcilingId] = useState<string | null>(null);
+  const [staleBusy, setStaleBusy] = useState(false);
 
   const load = useCallback(async (next?: string) => {
     setState({ loading: true, status: 0, error: "" });
@@ -76,6 +79,61 @@ export function AdminPaymentsList() {
 
   useEffect(() => { void load(); }, [load, user]);
 
+  const reconcileOne = useCallback(async (payment: Payment) => {
+    setReconcilingId(payment.id);
+    setActionMessage("");
+    try {
+      const response = await fetch("/api/admin/payments/reconcile", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          paymentId: payment.id,
+          yookassaPaymentId: payment.yookassaPaymentId,
+        }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setActionMessage(body.message || body.error || "Не удалось сверить оплату");
+        return;
+      }
+      setActionMessage(
+        `Сверено ${shortId(payment.id)} → ${body.status}${body.credited ? ", кредиты начислены" : ""}`,
+      );
+      await load();
+    } catch {
+      setActionMessage("Ошибка сети при сверке");
+    } finally {
+      setReconcilingId(null);
+    }
+  }, [load]);
+
+  const reconcileStale = useCallback(async () => {
+    setStaleBusy(true);
+    setActionMessage("");
+    try {
+      const response = await fetch("/api/admin/payments/reconcile", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ stale: true }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setActionMessage(body.message || body.error || "Не удалось сверить зависшие");
+        return;
+      }
+      setActionMessage(
+        `Зависшие: scanned ${body.scanned ?? 0}, ok ${body.ok ?? 0}, failed ${body.failed ?? 0}`,
+      );
+      await load();
+    } catch {
+      setActionMessage("Ошибка сети при сверке зависших");
+    } finally {
+      setStaleBusy(false);
+    }
+  }, [load]);
+
   if (state.status === 401 || state.status === 403) {
     return <div className="mx-auto max-w-lg rounded-2xl border border-zinc-200 bg-white p-8 text-center shadow-sm">
       <h1 className="text-xl font-semibold text-zinc-900">
@@ -92,10 +150,20 @@ export function AdminPaymentsList() {
   }
 
   return <div className="mx-auto max-w-7xl space-y-6">
-    <header>
-      <p className="text-sm font-medium text-indigo-600">PromptShot Admin</p>
-      <h1 className="text-3xl font-bold tracking-tight text-zinc-900">Оплаты YooKassa</h1>
-      <p className="mt-1 text-sm text-zinc-500">Плательщики, статусы и начисление кредитов</p>
+    <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+      <div>
+        <p className="text-sm font-medium text-indigo-600">PromptShot Admin</p>
+        <h1 className="text-3xl font-bold tracking-tight text-zinc-900">Оплаты YooKassa</h1>
+        <p className="mt-1 text-sm text-zinc-500">Плательщики, статусы и начисление кредитов</p>
+      </div>
+      <button
+        type="button"
+        disabled={staleBusy || state.loading}
+        onClick={() => void reconcileStale()}
+        className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-900 disabled:opacity-50"
+      >
+        {staleBusy ? "Сверяем…" : "Сверить зависшие"}
+      </button>
     </header>
 
     <section className="flex flex-col gap-3 rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm">
@@ -113,13 +181,14 @@ export function AdminPaymentsList() {
       </div>
     </section>
 
+    {actionMessage && <p className="rounded-xl bg-zinc-50 p-3 text-sm text-zinc-700">{actionMessage}</p>}
     {state.error && <p className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{state.error}</p>}
     {state.loading && !items.length ? <p className="text-sm text-zinc-500">Загрузка…</p>
       : !items.length ? <div className="rounded-2xl border border-zinc-200 bg-white p-8 text-center text-sm text-zinc-500">
         Оплат пока нет
       </div>
       : <div className="overflow-x-auto rounded-2xl border border-zinc-200 bg-white shadow-sm">
-        <table className="w-full min-w-[1040px] text-left text-sm">
+        <table className="w-full min-w-[1120px] text-left text-sm">
           <thead className="bg-zinc-50 text-xs uppercase tracking-wide text-zinc-500">
             <tr>
               <th className="px-4 py-3">Дата / плательщик</th>
@@ -128,6 +197,7 @@ export function AdminPaymentsList() {
               <th className="px-4 py-3">Статус</th>
               <th className="px-4 py-3">Кредиты</th>
               <th className="px-4 py-3">Provider ID</th>
+              <th className="px-4 py-3">Действия</th>
             </tr>
           </thead>
           <tbody>{items.map((item) => <tr key={item.id} className="border-t border-zinc-100 align-top">
@@ -159,10 +229,22 @@ export function AdminPaymentsList() {
                 ? <p className="mt-1 text-xs text-emerald-700">Начислены {new Date(item.creditedAt!).toLocaleString()}</p>
                 : item.creditState === "discrepancy"
                   ? <p className="mt-1 font-semibold text-red-700">Оплата успешна, начисления нет</p>
-                  : <p className="mt-1 text-xs text-zinc-500">Не начислены</p>}
+                  : item.creditState === "stale"
+                    ? <p className="mt-1 font-semibold text-amber-700">Зависла сверка (&gt;15 мин)</p>
+                    : <p className="mt-1 text-xs text-zinc-500">Не начислены</p>}
             </td>
             <td className="px-4 py-4 font-mono text-xs text-zinc-500">
               {item.yookassaPaymentId || "—"}
+            </td>
+            <td className="px-4 py-4">
+              <button
+                type="button"
+                disabled={!item.yookassaPaymentId || reconcilingId === item.id || staleBusy}
+                onClick={() => void reconcileOne(item)}
+                className="rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-700 disabled:opacity-50"
+              >
+                {reconcilingId === item.id ? "…" : "Сверить"}
+              </button>
             </td>
           </tr>)}</tbody>
         </table>

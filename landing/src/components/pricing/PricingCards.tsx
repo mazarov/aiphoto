@@ -361,6 +361,12 @@ export function PricingCards({
     let canceled = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
     let attempts = 0;
+    const maxAttempts = 20;
+    const pollDelayMs = (attempt: number) => {
+      if (attempt <= 5) return 2_000;
+      if (attempt <= 12) return 5_000;
+      return 10_000;
+    };
     setCheckout({ kind: "pending", message: "Проверяем оплату…" });
 
     const checkStatus = async () => {
@@ -404,18 +410,18 @@ export function PricingCards({
           });
           return;
         }
-        if (attempts >= 15) {
+        if (attempts >= maxAttempts) {
           setCheckout({
             kind: "pending",
             message: "Платёж обрабатывается. Баланс обновится после подтверждения.",
           });
           return;
         }
-        timer = setTimeout(checkStatus, 2_000);
+        timer = setTimeout(checkStatus, pollDelayMs(attempts));
       } catch (error) {
         if (canceled) return;
-        if (attempts < 15) {
-          timer = setTimeout(checkStatus, 2_000);
+        if (attempts < maxAttempts) {
+          timer = setTimeout(checkStatus, pollDelayMs(attempts));
           return;
         }
         setCheckout({

@@ -49,9 +49,26 @@ export function paymentTestFilterToRpc(value: AdminPaymentTestFilter): boolean |
   return null;
 }
 
+export type AdminPaymentCreditState =
+  | "credited"
+  | "not_due"
+  | "discrepancy"
+  | "stale";
+
+export const ADMIN_PAYMENT_STALE_MINUTES = 15;
+
 export function resolvePaymentCreditState(
-  row: Pick<AdminPaymentRow, "status" | "credited_at">
-): "credited" | "not_due" | "discrepancy" {
+  row: Pick<AdminPaymentRow, "status" | "credited_at" | "created_at">,
+  nowMs: number = Date.now(),
+): AdminPaymentCreditState {
   if (row.credited_at) return "credited";
-  return row.status === "succeeded" ? "discrepancy" : "not_due";
+  if (row.status === "succeeded") return "discrepancy";
+  if (
+    (row.status === "created" || row.status === "pending") &&
+    Number.isFinite(Date.parse(row.created_at)) &&
+    nowMs - Date.parse(row.created_at) >= ADMIN_PAYMENT_STALE_MINUTES * 60_000
+  ) {
+    return "stale";
+  }
+  return "not_due";
 }

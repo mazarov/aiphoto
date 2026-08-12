@@ -145,3 +145,107 @@ export async function reconcileYooKassaPayment(
     creditsAfter: null,
   };
 }
+
+export type StaleReconcileOptions = {
+  olderThanMinutes?: number;
+  limit?: number;
+};
+
+export type StaleReconcileItem =
+  | {
+      ok: true;
+      providerPaymentId: string;
+      result: ReconcileResult;
+    }
+  | {
+      ok: false;
+      providerPaymentId: string;
+      paymentId: string | null;
+      message: string;
+    };
+
+export type StaleReconcileSummary = {
+  scanned: number;
+  ok: number;
+  failed: number;
+  olderThanMinutes: number;
+  limit: number;
+  results: StaleReconcileItem[];
+};
+
+const DEFAULT_STALE_OLDER_THAN_MINUTES = 5;
+const DEFAULT_STALE_LIMIT = 20;
+
+export async function reconcileStaleYooKassaPayments(
+  supabase: SupabaseClient,
+  options: StaleReconcileOptions = {},
+): Promise<StaleReconcileSummary> {
+  const olderThanMinutes = Math.max(
+    1,
+    Math.min(24 * 60, options.olderThanMinutes ?? DEFAULT_STALE_OLDER_THAN_MINUTES),
+  );
+  const limit = Math.max(1, Math.min(50, options.limit ?? DEFAULT_STALE_LIMIT));
+  const cutoffIso = new Date(Date.now() - olderThanMinutes * 60_000).toISOString();
+
+  const { data, error } = await supabase
+    .from("landing_yookassa_payments")
+    .select("id, yookassa_payment_id")
+    .in("status", ["created", "pending"])
+    .not("yookassa_payment_id", "is", null)
+    .lt("created_at", cutoffIso)
+    .order("created_at", { ascending: true })
+    .limit(limit);
+
+  if (error) {
+    throw new Error(`Stale payment lookup failed: ${error.message}`);
+  }
+
+  const rows = (data ?? []) as Array<{
+    id: string;
+    yookassa_payment_id: string | null;
+  }>;
+  const results: StaleReconcileItem[] = [];
+  let ok = 0;
+  let failed = 0;
+
+  for (const row of rows) {
+    const providerPaymentId = row.yookassa_payment_id;
+    if (!providerPaymentId) continue;
+    try {
+      const result = await reconcileYooKassaPayment(supabase, providerPaymentId);
+      ok += 1;
+      results.push({ ok: true, providerPaymentId, result });
+    } catch (error) {
+      failed += 1;
+      const message = error instanceof Error ? error.message : String(error);
+      console.error("[yookassa] stale_reconcile item failed", {
+        paymentId: row.id,
+        providerPaymentId,
+        message,
+      });
+      results.push({
+        ok: false,
+        providerPaymentId,
+        paymentId: row.id,
+        message,
+      });
+    }
+  }
+
+  console.info("[yookassa] stale_reconcile", {
+    scanned: rows.length,
+    ok,
+    failed,
+    olderThanMinutes,
+    limit,
+  });
+
+  return {
+    scanned: rows.length,
+    ok,
+    failed,
+    olderThanMinutes,
+    limit,
+    results,
+  };
+}

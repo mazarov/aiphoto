@@ -30,8 +30,13 @@ export async function GET(
     }
 
     if (
-      (initial.status === "created" || initial.status === "pending") &&
-      initial.yookassa_payment_id
+      (
+        initial.status === "created" ||
+        initial.status === "pending" ||
+        initial.status === "canceled"
+      ) &&
+      initial.yookassa_payment_id &&
+      !initial.credited_at
     ) {
       try {
         await reconcileYooKassaPayment(supabase, initial.yookassa_payment_id);

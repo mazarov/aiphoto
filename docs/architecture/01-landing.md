@@ -1,6 +1,8 @@
 # 01 — Лендинг (promptshot.ru)
 
-> Последнее обновление: 2026-08-12 (**SidebarNav:** убран indigo CTA **«Генерация фото»** → `/generate`; пункт меню на SEO-страницу `/generaciya-foto` (treatment) сохранён. Вход в blank generate — mobile tab / FAB dock / card «Повторить» / hard `/generate`.)
+> Последнее обновление: 2026-08-12 (**YooKassa payment reliability:** create не затирает terminal status; return-poll сверяет и `canceled`; admin/cron stale reconcile догоняет `created|pending` старше N минут; admin UI — «Сверить» / «Сверить зависшие»; creditState `stale` для pending старше 15 мин. Cron: `POST /api/cron/yookassa-reconcile` + `CRON_SECRET`.)
+>
+> Предыдущее обновление: 2026-08-12 (**SidebarNav:** убран indigo CTA **«Генерация фото»** → `/generate`; пункт меню на SEO-страницу `/generaciya-foto` (treatment) сохранён. Вход в blank generate — mobile tab / FAB dock / card «Повторить» / hard `/generate`.)
 >
 > Предыдущее обновление: 2026-08-12 (**`/generaciya-foto` Google SEO readiness:** route `robots` при index повторяет root `max-image-preview:large` / `max-snippet:-1` / `max-video-preview:-1`; visible breadcrumb `Главная → Генерация фото` совпадает с JSON-LD `BreadcrumbList`; `GeneraciyaFotoStarter` default = «По описанию» (вкладка первой), «По фото» остаётся вторым режимом с прежней воронкой `generation_photo_prompt_*`; hero/model foreground previews получают contextual `alt`, decorative backdrop остаётся `alt=""`; schema без fake `offers`/`aggregateRating`; `/sitemap.xml` и `/image-sitemap.xml` fail-soft (при ошибке БД — static hubs / пустой urlset вместо 500).)
 >
@@ -267,12 +269,14 @@
 | `/api/my-cards/[slug]/visibility` | PATCH (auth): `{ published: boolean }` — владелец переключает видимость; при `published: true` — LLM/regex тегирование (`landing/src/lib/seo-tags-classify.ts`), затем `revalidatePath` |
 | `/api/me` | Текущий пользователь + credits; авторизованная глобальная шапка использует ответ для отображения баланса |
 | `/api/buy-credits-link` | Deep link в Telegram-бота для покупки web-кредитов |
-| `/api/payments/yookassa/create` | POST (auth): серверный plan lookup → локальная операция → `POST /v3/payments` с `capture=true`, `confirmation=redirect`; возвращает hosted `confirmationUrl` |
-| `/api/payments/yookassa/[id]` | GET (auth owner): статус операции; pending-платёж best-effort сверяется с YooKassa и при success атомарно начисляется |
+| `/api/payments/yookassa/create` | POST (auth): серверный plan lookup → локальная операция → `POST /v3/payments` с `capture=true`, `confirmation=redirect`; update ledger только из `created|pending`; при ошибке update — 502 без fake success |
+| `/api/payments/yookassa/[id]` | GET (auth owner): статус операции; best-effort reconcile для `created|pending|canceled` без `credited_at` |
 | `/api/payments/yookassa/webhook` | POST public callback: принимает `payment.succeeded` / `payment.canceled`, перечитывает объект через YooKassa API и идемпотентно обновляет ledger/баланс |
+| `/api/cron/yookassa-reconcile` | POST, `Authorization: Bearer $CRON_SECRET`: batch `reconcileStaleYooKassaPayments` для `created|pending` старше 5 мин (limit 20) |
 | `/api/extension/analyze` | Same-origin analyze для site `/foto-v-promt`: validation/SSRF protection → optional Auth/shared identity → atomic rate-limit reserve → Gemini proxy/direct → confirm при success или release при error; успешный результат best-effort сохраняется в private 30-day `analyze_history` |
 | `/api/admin/analytics` | GET, admin auth: no-store analytics rollups за `1…90` дней |
-| `/api/admin/payments` | GET, admin auth: cursor YooKassa ledger с status/test filters, payer auth/billing identity и credit fulfillment state |
+| `/api/admin/payments` | GET, admin auth: cursor YooKassa ledger с status/test filters, payer auth/billing identity и credit fulfillment state (`credited` / `not_due` / `discrepancy` / `stale`) |
+| `/api/admin/payments/reconcile` | POST, admin auth: `{ paymentId \| yookassaPaymentId }` или `{ stale: true }` — ручной/batch reconcile через YooKassa GET |
 | `/api/admin/analyze-history` | GET, admin auth: cursor pagination private analyze/remix history (`kind`, `change_request`), optional `client_source`, signed image URL (analyze only) |
 | `/api/admin/analyze-history/[id]/publish` | POST, admin auth: private analyze image → public result object → idempotent `prompt_cards` draft → общий SEO publish service |
 | `/api/admin/user-generations` | GET, admin auth: cursor всех `client_source != admin` generation statuses, identity, public result и 15-минутные signed source previews |
@@ -342,8 +346,10 @@
 - **Оплаты:** `/admin/payments` читает `landing_yookassa_payments` только через
   service-role RPC `admin_yookassa_payments`. Keyset cursor использует
   `(created_at,id)`; identity собирается одним SQL-read model из `auth.users`,
-  `landing_users` и shared `imageprompt_users`. `status='succeeded'` и
-  `credited_at IS NULL` показываются как discrepancy, а не считаются начислением.
+  `landing_users` и shared `imageprompt_users`. Credit state: `credited`,
+  `discrepancy` (`succeeded` без `credited_at`), `stale` (`created|pending` старше
+  15 мин без начисления), иначе `not_due`. Ручная сверка —
+  `POST /api/admin/payments/reconcile`.
 - **Генерации пользователей:** `admin_user_generations_queue` возвращает все
   `client_source IS DISTINCT FROM 'admin'` и terminal/non-terminal statuses.
   Private input paths не отдаются клиенту: API проверяет path, batch-подписывает до
@@ -433,8 +439,12 @@ admin pages
 - **Каталог:** `landing/src/lib/pricing-plans.ts` — единый server-safe источник `plan_id`, RUB-цены и числа токенов. API никогда не принимает цену/credits от клиента.
 - **Auth/identity:** checkout требует Google/Yandex OAuth. Операция хранит исходный `auth_user_id`, а баланс начисляется на shared `landing_user_id`, полученный через `ensureLandingUserForGeneration`.
 - **Ledger:** `landing_yookassa_payments` (миграция `176`) фиксирует план, сумму, credits, idempotency key, provider ID/status и `credited_at`; RLS включён без client policies.
-- **Подтверждение:** `return_url` используется только для UX. Webhook и status-reconcile делают `GET /v3/payments/{id}`, сверяют provider ID, metadata, RUB-сумму и статус. `landing_fulfill_yookassa_payment` блокирует ledger row и в одной транзакции начисляет сохранённые credits ровно один раз.
+- **Подтверждение (три consumer’а):** (1) webhook, (2) return-poll на `/pricing?payment=`, (3) cron/admin stale sweep. Все пути делают `GET /v3/payments/{id}`, сверяют provider ID, metadata, RUB-сумму и статус. `landing_fulfill_yookassa_payment` блокирует ledger row и в одной транзакции начисляет сохранённые credits ровно один раз.
+- **Create-guard:** финальный update локальной операции только при `status in (created, pending)` — не затирает уже `succeeded`/`canceled` после гонки с webhook.
+- **Return UX:** клиент polling с backoff ~2→5→10 с до ~20 попыток (~2–3 мин). Сервер reconcile’ит и локальный `canceled`, если ещё нет `credited_at`.
+- **Stale sweep:** `reconcileStaleYooKassaPayments` — `created|pending` с `yookassa_payment_id`, старше 5 мин, batch ≤20. Admin: кнопки «Сверить» / «Сверить зависшие». Cron: `POST /api/cron/yookassa-reconcile` с `Authorization: Bearer $CRON_SECRET` каждые 5 мин (Dockhost cron или DO `curl`).
 - **Webhook:** в кабинете YooKassa (Basic Auth shop) подписать `https://promptshot.ru/api/payments/yookassa/webhook` на `payment.succeeded` и `payment.canceled`.
+- **Ops checklist после инцидента «YK succeeded / DB pending»:** проверить подписки webhook → выставить `CRON_SECRET` и cron → admin reconcile по provider id / «Сверить зависшие» → сверить счётчики `pending`/`canceled`/`succeeded`.
 - **Чеки СМЗ:** объект `receipt` не отправляется. С 29.12.2025 YooKassa не регистрирует чеки самозанятых; каждую успешную оплату нужно вручную зарегистрировать в «Мой налог» и передать чек покупателю.
 
 ### Покупка web-кредитов через Telegram Stars
@@ -1042,3 +1052,4 @@ landing/src/
 | `TELEGRAM_BOT_LINK` | `https://t.me/...`, `@bot` или `bot` — нормализуется до абсолютного URL для `/api/buy-credits-link` |
 | `YOOKASSA_SHOP_ID` | Server-only идентификатор магазина для Basic Auth YooKassa API |
 | `YOOKASSA_SECRET_KEY` | Server-only секрет магазина YooKassa; не передаётся клиенту и не логируется |
+| `CRON_SECRET` | Bearer-секрет для `POST /api/cron/yookassa-reconcile` (stale payment sweep) |

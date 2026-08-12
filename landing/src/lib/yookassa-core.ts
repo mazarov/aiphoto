@@ -94,7 +94,13 @@ export function assertYooKassaPaymentMatches(
   if (payment.amount.currency !== "RUB") {
     throw new Error("YooKassa payment currency mismatch");
   }
-  if (payment.amount.value !== expected.priceRub.toFixed(2)) {
+  const providerAmount = Number(payment.amount.value).toFixed(2);
+  const expectedAmount = Number(expected.priceRub).toFixed(2);
+  if (
+    !Number.isFinite(Number(payment.amount.value)) ||
+    !Number.isFinite(Number(expected.priceRub)) ||
+    providerAmount !== expectedAmount
+  ) {
     throw new Error("YooKassa payment amount mismatch");
   }
 }
