@@ -1,12 +1,13 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useCallback, useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { CardInlineGeneratePanel } from "@/components/CardInlineGeneratePanel";
 import { useAuth } from "@/context/AuthContext";
 import { useFeatureAccess } from "@/context/FeatureAccessContext";
 import {
   isGenerateDockListingPath,
+  isGenerateDockSeoPagePath,
   useGenerateDock,
 } from "@/context/GenerateDockContext";
 import { useListingScrollActivity } from "@/hooks/useListingScrollActivity";
@@ -19,6 +20,22 @@ import {
 const DOCK_MOTION =
   "motion-safe:transition-[opacity,transform,max-height] motion-safe:duration-300 motion-safe:ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none";
 
+const CardInlineGeneratePanel = dynamic(
+  () =>
+    import("@/components/CardInlineGeneratePanel").then(
+      (module) => module.CardInlineGeneratePanel
+    ),
+  {
+    ssr: false,
+    loading: () => (
+      <div
+        className="min-h-24 w-full animate-pulse rounded-[1.75rem] bg-zinc-200/80"
+        aria-label="Загружаем генератор"
+      />
+    ),
+  }
+);
+
 /**
  * Global floating generate composer on listing routes (treatment cohort).
  * Glass / result chrome lives on CardInlineGeneratePanel (photo clipped inside plate).
@@ -26,6 +43,7 @@ const DOCK_MOTION =
  */
 export function GenerateListingDockHost() {
   const pathname = usePathname();
+  const seoPage = isGenerateDockSeoPagePath(pathname);
   const router = useRouter();
   const { user, loading: authLoading, openAuthModal } = useAuth();
   const { promptCardGenerationEnabled, loading: featureLoading } =
@@ -122,15 +140,24 @@ export function GenerateListingDockHost() {
     setPlateOpen(true);
   }, [isAuthed, needsCredits, openAuthModal, router, setPlateOpen]);
 
-  if (featureLoading || !promptCardGenerationEnabled) return null;
+  if (
+    !seoPage &&
+    (featureLoading || !promptCardGenerationEnabled)
+  ) {
+    return null;
+  }
   if (!isGenerateDockListingPath(pathname)) return null;
 
   const collapsed = authLoading || !isAuthed || !plateOpen;
   const showFab = !isMobile && collapsed;
-  const keepPanelMounted = isAuthed && !authLoading;
+  const keepPanelMounted =
+    isAuthed &&
+    !authLoading &&
+    (plateOpen || runBusy || plateLocked || dockSurface !== null);
   const editorOpen = dockSurface !== null;
   /** Mobile tab open = always fullscreen; desktop tall for editor / result. */
-  const mobileFullscreen = isMobile && !collapsed && keepPanelMounted;
+  const mobileFullscreen =
+    isMobile && !collapsed && keepPanelMounted;
   const dockTall =
     !collapsed &&
     keepPanelMounted &&
@@ -147,7 +174,8 @@ export function GenerateListingDockHost() {
   const showCloseControl =
     !collapsed && isMobile && !plateLocked && !editorOpen;
   const showResultScrim = !collapsed && plateLocked && !isMobile;
-  const warmHidden = isMobile && collapsed && keepPanelMounted;
+  const warmHidden =
+    isMobile && collapsed && keepPanelMounted;
 
   const dockShellClass = isMobile
     ? warmHidden
@@ -234,6 +262,7 @@ export function GenerateListingDockHost() {
                   key={seedToken}
                   source={seed.source}
                   chrome="dock"
+                  generationSurface={seoPage ? "seo_page" : undefined}
                   promptText={seed.promptText}
                   cardId={seed.cardId}
                   onBack={closePlate}

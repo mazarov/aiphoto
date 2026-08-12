@@ -38,6 +38,15 @@ The input image(s) show the SUBJECT (a real person). Output exactly one new phot
 ${IMAGE_QUALITY_CRITICAL_BULLET}
 `.trim();
 
+export const GENERATE_TEXT_TO_IMAGE_CRITICAL_RULES = `
+TEXT-TO-IMAGE RULES
+There is no input or reference image. Create exactly one new image from the text description above.
+
+- Do not invent a requirement to preserve an existing person's identity, face, body, clothing, pose, or background.
+- Follow the requested subject, scene, medium, style, light, composition, and camera details.
+- Keep the result coherent and naturally integrated, with high textural detail and production-quality rendering.
+`.trim();
+
 export const GENERATE_LANDING_CARD_EDIT_RULES = `
 LOCAL IMAGE EDIT RULES
 The provided image is the current result to edit, not a loose style reference.
@@ -110,6 +119,13 @@ export function assembleLandingCardFinalPrompt(rawCardPrompt: string): string {
   return joinFinalPromptParts(
     String(rawCardPrompt ?? "").trimEnd(),
     GENERATE_LANDING_CARD_CRITICAL_RULES
+  );
+}
+
+export function assembleTextToImageFinalPrompt(rawPrompt: string): string {
+  return joinFinalPromptParts(
+    String(rawPrompt ?? "").trimEnd(),
+    GENERATE_TEXT_TO_IMAGE_CRITICAL_RULES
   );
 }
 

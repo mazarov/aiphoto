@@ -9,9 +9,12 @@ import {
 import { getAdminPinnedPhotoPath } from "@/lib/admin-generation-photo";
 import { ensureLandingUserForGeneration } from "@/lib/ensure-landing-user";
 import { createSupabaseServer } from "@/lib/supabase";
-
-const ASPECT_RATIOS = new Set(["1:1", "4:3", "3:4", "16:9", "9:16", "3:2", "2:3"]);
-const IMAGE_SIZES = new Set(["1K", "2K", "4K"]);
+import {
+  DEFAULT_IMAGE_ASPECT_RATIO,
+  DEFAULT_IMAGE_SIZE,
+  isImageAspectRatio,
+  isImageSize,
+} from "@/lib/generation/image-options";
 
 export async function POST(req: NextRequest) {
   const gate = await requireAnalyticsAdmin(req);
@@ -22,14 +25,14 @@ export async function POST(req: NextRequest) {
       count?: number; idempotencyKey?: string;
     };
     const prompt = String(body.prompt || "").trim();
-    const aspectRatio = body.aspectRatio || "9:16";
-    const imageSize = body.imageSize || "1K";
+    const aspectRatio = body.aspectRatio || DEFAULT_IMAGE_ASPECT_RATIO;
+    const imageSize = body.imageSize || DEFAULT_IMAGE_SIZE;
     const count = body.count ?? 1;
     if (prompt.length < 8) return NextResponse.json({ error: "prompt_too_short" }, { status: 400 });
     if (!Number.isInteger(count) || count < 1 || count > 4) {
       return NextResponse.json({ error: "invalid_count" }, { status: 400 });
     }
-    if (!ASPECT_RATIOS.has(aspectRatio) || !IMAGE_SIZES.has(imageSize)) {
+    if (!isImageAspectRatio(aspectRatio) || !isImageSize(imageSize)) {
       return NextResponse.json({ error: "invalid_generation_config" }, { status: 400 });
     }
 

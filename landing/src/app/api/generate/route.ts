@@ -16,6 +16,13 @@ import {
   FEATURE_VISITOR_COOKIE,
   resolvePromptCardGenerationAccess,
 } from "@/lib/feature-rollout";
+import {
+  DEFAULT_IMAGE_ASPECT_RATIO,
+  DEFAULT_IMAGE_SIZE,
+  IMAGE_GENERATION_MODALITY,
+  isImageAspectRatio,
+  isImageSize,
+} from "@/lib/generation/image-options";
 
 /** PromptShot paid generate is site-only for now (inline compose / same-origin). */
 const GENERATION_CLIENT_SOURCE = "site" as const;
@@ -62,6 +69,7 @@ export async function POST(req: NextRequest) {
     const pipelineTrace = getStvPipelineTrace(req, body);
     const {
       generationSurface,
+      modality,
       prompt,
       model,
       aspectRatio,
@@ -74,6 +82,7 @@ export async function POST(req: NextRequest) {
       idempotencyKey: bodyIdempotencyKey,
     } = body as {
       generationSurface?: string;
+      modality?: string;
       prompt?: string;
       model?: string;
       aspectRatio?: string;
@@ -86,7 +95,21 @@ export async function POST(req: NextRequest) {
       pipelineTraceId?: string;
       idempotencyKey?: string;
     };
-    if (generationSurface === "prompt_card") {
+    const requestedModality = modality || IMAGE_GENERATION_MODALITY;
+    if (requestedModality !== IMAGE_GENERATION_MODALITY) {
+      return NextResponse.json(
+        {
+          error: "unsupported_modality",
+          message: "Этот тип генерации пока недоступен",
+        },
+        { status: 400 }
+      );
+    }
+
+    if (
+      generationSurface === "prompt_card" ||
+      generationSurface === "seo_page"
+    ) {
       const rollout = await resolvePromptCardGenerationAccess({
         user,
         visitorId: req.cookies.get(FEATURE_VISITOR_COOKIE)?.value,
@@ -102,7 +125,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json(
           {
             error: "feature_not_enabled",
-            message: "Генерация из карточки пока недоступна",
+            message: "Генерация пока недоступна",
           },
           { status: 403 }
         );
@@ -110,8 +133,6 @@ export async function POST(req: NextRequest) {
     }
 
     const minPromptLength = 8;
-    const validAspectRatios = ["1:1", "4:3", "3:4", "16:9", "9:16", "3:2", "2:3"];
-    const validImageSizes = ["1K", "2K", "4K"];
     const callerId = user.id;
 
     if (!prompt || typeof prompt !== "string" || prompt.trim().length < minPromptLength) {
@@ -161,7 +182,12 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
-    if (!hasParentGeneration && normalizedPhotoStoragePaths.length < 1) {
+    const allowsTextOnlyGeneration = generationSurface === "seo_page";
+    if (
+      !hasParentGeneration &&
+      normalizedPhotoStoragePaths.length < 1 &&
+      !allowsTextOnlyGeneration
+    ) {
       console.warn("[generation.create] validation error: no input source", {
         userId: callerId,
       });
@@ -225,9 +251,9 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const ar = aspectRatio || "9:16";
-    const sz = imageSize || "1K";
-    if (!validAspectRatios.includes(ar)) {
+    const ar = aspectRatio || DEFAULT_IMAGE_ASPECT_RATIO;
+    const sz = imageSize || DEFAULT_IMAGE_SIZE;
+    if (!isImageAspectRatio(ar)) {
       console.warn("[generation.create] validation error: invalid aspect ratio", {
         userId: callerId,
         aspectRatio: ar,
@@ -237,7 +263,7 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
-    if (!validImageSizes.includes(sz)) {
+    if (!isImageSize(sz)) {
       console.warn("[generation.create] validation error: invalid image size", {
         userId: callerId,
         imageSize: sz,

@@ -11,6 +11,7 @@ import {
 import { ListingMobileChromeProvider } from "@/context/ListingMobileChromeContext";
 import {
   isGenerateDockListingPath,
+  isGenerateDockSeoPagePath,
 } from "@/context/GenerateDockContext";
 import { useFeatureAccess } from "@/context/FeatureAccessContext";
 import { GenerateListingDockHost } from "@/components/generate/GenerateListingDockHost";
@@ -31,16 +32,22 @@ function normalizePath(path: string): string {
 
 export function PageLayout({
   children,
+  showFooterWithGenerateDock = false,
 }: {
   children: React.ReactNode;
+  showFooterWithGenerateDock?: boolean;
 }) {
   const pathname = usePathname();
   const { promptCardGenerationEnabled, loading: featureLoading } =
     useFeatureAccess();
+  const generationSeoPage = isGenerateDockSeoPagePath(pathname);
   const showGenerateDock =
-    !featureLoading &&
-    promptCardGenerationEnabled &&
-    isGenerateDockListingPath(pathname);
+    isGenerateDockListingPath(pathname) &&
+    (generationSeoPage ||
+      (!featureLoading && promptCardGenerationEnabled));
+  const showFooter =
+    normalizePath(pathname) !== "/generate" &&
+    (!showGenerateDock || showFooterWithGenerateDock);
   useListingScrollOnRouteChange(pathname);
   useListingShellViewportSync();
 
@@ -85,10 +92,8 @@ export function PageLayout({
                 <SiteBrandLink />
               </div>
               {children}
-              {/* Floating generate dock fights footer on listing routes */}
-              {showGenerateDock || normalizePath(pathname) === "/generate" ? null : (
-                <Footer />
-              )}
+              {/* Listing routes hide the footer behind the floating dock unless a product page opts in. */}
+              {showFooter ? <Footer /> : null}
             </div>
           </div>
         </div>

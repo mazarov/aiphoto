@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { PageLayout } from "@/components/PageLayout";
 import { FotoVPromtFaq } from "@/components/foto-v-promt/FotoVPromtFaq";
 import { FotoVPromtFloatingCta } from "@/components/foto-v-promt/FotoVPromtFloatingCta";
@@ -11,6 +12,7 @@ import {
   FOTO_V_PROMT_META,
   FOTO_V_PROMT_WIDGET,
 } from "@/lib/foto-v-promt-copy";
+import { isPromptCardGenerationFullyRolledOut } from "@/lib/feature-rollout";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://promptshot.ru";
 const PAGE_URL = `${SITE_URL}/foto-v-promt`;
@@ -29,7 +31,9 @@ export const metadata: Metadata = {
   },
 };
 
-export default function FotoVPromtPage() {
+export default async function FotoVPromtPage() {
+  const generationSeoIndexable =
+    await isPromptCardGenerationFullyRolledOut();
   const webAppJsonLd = {
     "@context": "https://schema.org",
     "@type": "WebApplication",
@@ -70,6 +74,18 @@ export default function FotoVPromtPage() {
             <p className="mx-auto mt-3 max-w-2xl text-pretty text-base text-zinc-600 sm:text-lg">
               {FOTO_V_PROMT_HERO.subtitle}
             </p>
+            {generationSeoIndexable ? (
+              <p className="mx-auto mt-3 max-w-2xl text-sm text-zinc-500">
+                Уже есть описание?{" "}
+                <Link
+                  href="/generaciya-foto"
+                  className="font-semibold text-indigo-600 hover:text-indigo-700 hover:underline"
+                >
+                  Создайте фото по промту
+                </Link>
+                {" "}в онлайн-генераторе PromptShot.
+              </p>
+            ) : null}
           </div>
         </section>
 

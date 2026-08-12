@@ -9,6 +9,7 @@ import { CategorySection } from "@/components/CategorySection";
 import { HomeSearch } from "@/components/HomeSearch";
 import { HomeSeoBlocks } from "@/components/HomeSeoBlocks";
 import { buildCategorySectionBlocks } from "@/lib/homepage-sections";
+import { isPromptCardGenerationFullyRolledOut } from "@/lib/feature-rollout";
 
 export const revalidate = 3600;
 
@@ -49,7 +50,10 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function HomePage() {
-  const sections = await getCachedSections();
+  const [sections, generationSeoIndexable] = await Promise.all([
+    getCachedSections(),
+    isPromptCardGenerationFullyRolledOut(),
+  ]);
 
   const totalPrompts = sections.reduce((sum, s) => sum + s.total_count, 0);
   const totalCategories = sections.filter((s) => s.total_count > 0).length;
@@ -145,6 +149,15 @@ export default async function HomePage() {
             </Link>
             {" "}для ИИ-фото — свежая лента.
           </p>
+          {generationSeoIndexable ? (
+            <p className="mx-auto mt-2 max-w-lg text-sm text-zinc-500">
+              Готовы создать свой кадр?{" "}
+              <Link href="/generaciya-foto" className="font-medium text-indigo-600 hover:text-indigo-700 hover:underline">
+                Генерация фото с помощью ИИ
+              </Link>
+              {" "}по описанию или готовому промту.
+            </p>
+          ) : null}
         </div>
       </section>
 

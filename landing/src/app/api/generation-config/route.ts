@@ -1,25 +1,25 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServer } from "@/lib/supabase";
-import { displayLabelForGenerationModel } from "@/lib/generation-model-labels";
+import { parseEnabledGenerationModels } from "@/lib/generation-model-labels";
+import {
+  DEFAULT_IMAGE_ASPECT_RATIO,
+  DEFAULT_IMAGE_SIZE,
+  IMAGE_ASPECT_RATIO_OPTIONS,
+  IMAGE_GENERATION_MODALITY,
+  IMAGE_SIZE_OPTIONS,
+} from "@/lib/generation/image-options";
 
-const ASPECT_RATIOS = [
-  { value: "1:1", label: "1:1, квадратный" },
-  { value: "4:3", label: "4:3, горизонтальный" },
-  { value: "3:4", label: "3:4, вертикальный" },
-  { value: "16:9", label: "16:9, горизонтальный" },
-  { value: "9:16", label: "9:16, вертикальный" },
-  { value: "3:2", label: "3:2, горизонтальный" },
-  { value: "2:3", label: "2:3, вертикальный" },
-];
-
-const IMAGE_SIZES = [
-  { value: "1K", label: "1K (1024px)" },
-  { value: "2K", label: "2K (2048px)" },
-  { value: "4K", label: "4K (4096px)" },
-];
-
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
+    const modality =
+      req.nextUrl.searchParams.get("modality") || IMAGE_GENERATION_MODALITY;
+    if (modality !== IMAGE_GENERATION_MODALITY) {
+      return NextResponse.json(
+        { error: "unsupported_modality" },
+        { status: 400 }
+      );
+    }
+
     const supabase = createSupabaseServer();
     const { data: rows } = await supabase
       .from("landing_generation_config")
@@ -39,33 +39,18 @@ export async function GET() {
       config[row.key] = row.value;
     }
 
-    let models: { id: string; label: string; cost: number }[] = [];
-    try {
-      const parsed = JSON.parse(config.models || "[]");
-      models = parsed
-        .filter((m: { enabled?: boolean }) => m.enabled !== false)
-        .map((m: { id: string; label: string; cost: number }) => ({
-          id: m.id,
-          label: displayLabelForGenerationModel(m.id, m.label),
-          cost: m.cost,
-        }));
-    } catch {
-      models = [
-        { id: "gemini-2.5-flash-image", label: displayLabelForGenerationModel("gemini-2.5-flash-image"), cost: 5 },
-        { id: "gemini-3-pro-image-preview", label: displayLabelForGenerationModel("gemini-3-pro-image-preview"), cost: 10 },
-        { id: "gemini-3.1-flash-image-preview", label: displayLabelForGenerationModel("gemini-3.1-flash-image-preview"), cost: 10 },
-        { id: "gemini-3.1-flash-lite-image", label: displayLabelForGenerationModel("gemini-3.1-flash-lite-image"), cost: 5 },
-      ];
-    }
+    const models = parseEnabledGenerationModels(config.models);
 
     return NextResponse.json({
+      modality: IMAGE_GENERATION_MODALITY,
       models,
-      aspectRatios: ASPECT_RATIOS,
-      imageSizes: IMAGE_SIZES,
+      aspectRatios: IMAGE_ASPECT_RATIO_OPTIONS,
+      imageSizes: IMAGE_SIZE_OPTIONS,
       defaults: {
         model: config.default_model || "gemini-2.5-flash-image",
-        aspectRatio: config.default_aspect_ratio || "9:16",
-        imageSize: config.default_image_size || "1K",
+        aspectRatio:
+          config.default_aspect_ratio || DEFAULT_IMAGE_ASPECT_RATIO,
+        imageSize: config.default_image_size || DEFAULT_IMAGE_SIZE,
       },
       limits: {
         maxPhotos: parseInt(config.max_photos || "4", 10),

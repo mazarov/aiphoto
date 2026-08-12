@@ -456,6 +456,29 @@ p {
     }
   }
 
+  @keyframes generation-preview-enter {
+    from {
+      opacity: 0.35;
+      transform: scale(1.055);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1.02);
+    }
+  }
+
+  .generation-preview-enter {
+    animation: generation-preview-enter 700ms ease-out both;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .generation-preview-enter {
+      animation: none;
+      opacity: 1;
+      transform: none;
+    }
+  }
+
   /** Foto-v-promt mini banner — fixed height; drop CTA, then subtitle, before clipping title. */
   .foto-v-promt-mini-banner {
     container-type: inline-size;

@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServer } from "@/lib/supabase";
 import { getSupabaseUserForApiRoute } from "@/lib/supabase-route-auth";
-
-const VALID_ASPECT_RATIOS = new Set(["1:1", "4:3", "3:4", "16:9", "9:16", "3:2", "2:3"]);
-const VALID_IMAGE_SIZES = new Set(["1K", "2K", "4K"]);
+import {
+  isImageAspectRatio,
+  isImageSize,
+} from "@/lib/generation/image-options";
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -67,8 +68,8 @@ export async function PUT(req: NextRequest) {
 
     if (
       !model ||
-      !VALID_ASPECT_RATIOS.has(aspectRatio) ||
-      !VALID_IMAGE_SIZES.has(imageSize) ||
+      !isImageAspectRatio(aspectRatio) ||
+      !isImageSize(imageSize) ||
       selectedPhotoIds.length > 10 ||
       selectedPhotoIds.some((id) => !UUID_RE.test(id))
     ) {

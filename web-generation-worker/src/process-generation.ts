@@ -3,6 +3,7 @@ import { config } from "./config";
 import {
   assembleLandingCardEditPrompt,
   assembleLandingCardFinalPrompt,
+  assembleTextToImageFinalPrompt,
   assembleVibeFinalPrompt,
   VIBE_IMAGE_PART_LABEL_REFERENCE,
   VIBE_IMAGE_PART_LABEL_SUBJECT,
@@ -251,7 +252,9 @@ export async function processGeneration(
     ? assembleVibeFinalPrompt(rawPrompt, hasReference)
     : isLocalEdit
       ? assembleLandingCardEditPrompt(editInstruction)
-      : assembleLandingCardFinalPrompt(rawPrompt);
+      : inputParts.length
+        ? assembleLandingCardFinalPrompt(rawPrompt)
+        : assembleTextToImageFinalPrompt(rawPrompt);
   log("info", "generation_prompt_resolved", {
     ...context,
     generationMode: isLocalEdit

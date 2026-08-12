@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   assembleLandingCardEditPrompt,
   assembleLandingCardFinalPrompt,
+  assembleTextToImageFinalPrompt,
   assembleVibeFinalPrompt,
 } from "../../landing/src/lib/image-generation-prompt";
 
@@ -11,6 +12,16 @@ test("card prompt appends identity and wardrobe rules after user text", () => {
   assert.ok(prompt.startsWith("A red evening dress"));
   assert.match(prompt, /CRITICAL RULES/);
   assert.match(prompt, /fully replace clothing/);
+});
+
+test("text-to-image prompt does not append identity preservation rules", () => {
+  const prompt = assembleTextToImageFinalPrompt(
+    "A glass greenhouse in a pine forest"
+  );
+  assert.match(prompt, /TEXT-TO-IMAGE RULES/);
+  assert.match(prompt, /no input or reference image/i);
+  assert.doesNotMatch(prompt, /same person/);
+  assert.doesNotMatch(prompt, /fully replace clothing/);
 });
 
 test("local edit prompt contains only delta and preservation rules", () => {

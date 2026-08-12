@@ -33,6 +33,11 @@ import {
   YM_GOAL_PROMPT_CARD_GENERATION_NO_CREDITS,
   YM_GOAL_PROMPT_CARD_GENERATION_PRICING,
 } from "@/lib/yandex-metrika";
+import {
+  DEFAULT_IMAGE_ASPECT_RATIO,
+  DEFAULT_IMAGE_SIZE,
+  IMAGE_GENERATION_MODALITY,
+} from "@/lib/generation/image-options";
 
 const BLANK_PROMPT_PLACEHOLDER = "Опишите изображение или референс";
 
@@ -68,6 +73,7 @@ type Props = {
    * dock — floating bottom composer over listing (blank /generate).
    */
   chrome?: "fullscreen" | "dock";
+  generationSurface?: "prompt_card" | "seo_page";
   promptText?: string;
   cardId?: string | null;
   onBack: () => void;
@@ -112,25 +118,32 @@ export function CardInlineGeneratePanel({
   dockSurface: dockSurfaceProp,
   onDockSurfaceChange,
   onDockResultChromeChange,
+  generationSurface,
 }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { user, openAuthModal } = useAuth();
+  const isAuthed = Boolean(user && user.is_anonymous !== true);
   const {
     setPlateOpen: setDockPlateOpen,
     reportRunProgress,
     reportNeedsCredits,
+    requestedModelId,
   } = useGenerateDock();
   const isDock = chrome === "dock";
   const isBlank = source === "blank";
   const resolvedCardId = cardId;
+  const resolvedGenerationSurface =
+    generationSurface || "prompt_card";
+  const allowsTextOnlyGeneration =
+    resolvedGenerationSurface === "seo_page";
   const dockControlled = isDock && typeof onDockSurfaceChange === "function";
 
   const [models, setModels] = useState<ModelOpt[]>([]);
   const [aspectRatios, setAspectRatios] = useState<RatioOpt[]>([]);
   const [imageSizes, setImageSizes] = useState<SizeOpt[]>([]);
   const [model, setModel] = useState("gemini-2.5-flash-image");
-  const [aspectRatio, setAspectRatio] = useState("9:16");
-  const [imageSize, setImageSize] = useState("1K");
+  const [aspectRatio, setAspectRatio] = useState(DEFAULT_IMAGE_ASPECT_RATIO);
+  const [imageSize, setImageSize] = useState(DEFAULT_IMAGE_SIZE);
   const [configError, setConfigError] = useState("");
   const [maxPhotos, setMaxPhotos] = useState(10);
   const [preferencesHydrated, setPreferencesHydrated] = useState(false);
@@ -234,6 +247,23 @@ export function CardInlineGeneratePanel({
   }, [toast]);
 
   useEffect(() => {
+    if (!preferencesHydrated || !requestedModelId) return;
+    const selected = models.find((item) => item.id === requestedModelId);
+    if (!selected) return;
+
+    setModel(requestedModelId);
+    setExpandedControl(null);
+    setDockPlateOpen(true);
+    setToast(`${selected.label} выбрана`);
+  }, [
+    models,
+    preferencesHydrated,
+    requestedModelId,
+    setDockPlateOpen,
+    setExpandedControl,
+  ]);
+
+  useEffect(() => {
     if (!resultUrl) setResultPreviewOpen(false);
   }, [resultUrl]);
 
@@ -267,10 +297,12 @@ export function CardInlineGeneratePanel({
     let cancelled = false;
     void (async () => {
       try {
-        const shouldHydrateLastDockResult = Boolean(isDock && isBlank && user);
+        const shouldHydrateLastDockResult = Boolean(
+          isDock && isBlank && isAuthed
+        );
         const [configRes, photosRes, preferencesRes, meRes, generationsRes] =
           await Promise.all([
-            fetch("/api/generation-config"),
+            fetch(`/api/generation-config?modality=${IMAGE_GENERATION_MODALITY}`),
             fetch("/api/user-generation-photos", { credentials: "include" }),
             fetch("/api/generation-preferences", { credentials: "include" }),
             fetch("/api/me", { cache: "no-store", credentials: "include" }),
@@ -401,7 +433,7 @@ export function CardInlineGeneratePanel({
         }
 
         // Persist prefs only for authenticated library sessions.
-        setPreferencesHydrated(Boolean(user) && photosRes.ok);
+        setPreferencesHydrated(isAuthed && photosRes.ok);
         setLibraryLoading(false);
       } catch (err) {
         if (!cancelled) {
@@ -455,7 +487,7 @@ export function CardInlineGeneratePanel({
     imageSize,
     selectedPhotoIds,
     preferencesHydrated,
-    userId: user?.id ?? null,
+    userId: isAuthed ? (user?.id ?? null) : null,
   });
   prefsSnapshotRef.current = {
     model,
@@ -463,7 +495,7 @@ export function CardInlineGeneratePanel({
     imageSize,
     selectedPhotoIds,
     preferencesHydrated,
-    userId: user?.id ?? null,
+    userId: isAuthed ? (user?.id ?? null) : null,
   };
 
   const persistGenerationPreferences = useCallback(
@@ -541,11 +573,13 @@ export function CardInlineGeneratePanel({
   }, [models]);
   /** Not enough for even the cheapest model → FAB/tab paywall, no compose open. */
   const cannotAffordAny =
+    isAuthed &&
     credits !== null &&
     (credits <= 0 || (minModelCost !== null && credits < minModelCost));
   const selectedModelCost =
     models.find((item) => item.id === model)?.cost ?? null;
   const cannotAffordSelected =
+    isAuthed &&
     credits !== null &&
     selectedModelCost !== null &&
     credits < selectedModelCost;
@@ -699,7 +733,11 @@ export function CardInlineGeneratePanel({
     const parentGenerationId = options?.parentGenerationId?.trim() || "";
     const editInstruction = options?.editInstruction?.trim() || "";
     const isContinuation = Boolean(parentGenerationId);
-    if (!isContinuation && !selectedPhotos.length) {
+    if (
+      !isContinuation &&
+      !selectedPhotos.length &&
+      !allowsTextOnlyGeneration
+    ) {
       setError("Выберите хотя бы одно фото");
       return false;
     }
@@ -731,7 +769,8 @@ export function CardInlineGeneratePanel({
         },
         credentials: "include",
         body: JSON.stringify({
-          generationSurface: "prompt_card",
+          generationSurface: resolvedGenerationSurface,
+          modality: IMAGE_GENERATION_MODALITY,
           prompt,
           model,
           aspectRatio,
@@ -2226,17 +2265,18 @@ export function CardInlineGeneratePanel({
             aria-valuenow={busy ? Math.round(progress) : undefined}
             disabled={
               busy ||
-              (Boolean(user) &&
+              (isAuthed &&
                 (controlsBusy ||
                   libraryLoading ||
                   Boolean(busyAction) ||
                   (!(phase === "done" && resultUrl && generationId) &&
-                    !selectedPhotos.length) ||
+                    !selectedPhotos.length &&
+                    !allowsTextOnlyGeneration) ||
                   Boolean(configError) ||
                   draftPrompt.trim().length < 8))
             }
             onClick={() => {
-              if (!user) {
+              if (!isAuthed) {
                 openAuthModal();
                 return;
               }
@@ -2294,7 +2334,7 @@ export function CardInlineGeneratePanel({
                   ? `Генерируем · ${Math.round(progress)}%`
                   : phase === "done" && resultUrl
                     ? "Что изменить"
-                    : !user
+                    : !isAuthed
                       ? "Войти"
                       : "Сгенерировать"}
             </span>

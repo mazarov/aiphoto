@@ -26,7 +26,7 @@ export type ParentGenerationInput = {
 };
 
 export type GenerationInputSource = {
-  sourceType: "user_photos" | "generation_result";
+  sourceType: "text_only" | "user_photos" | "generation_result";
   bucket: string;
   paths: string[];
 };
@@ -37,8 +37,11 @@ export function resolveGenerationInputSource(
 ): GenerationInputSource {
   if (!job.parent_generation_id) {
     const paths = job.input_photo_paths || [];
-    if (!paths.length) throw new ProcessingError("input_missing", "No input photos", false);
-    return { sourceType: "user_photos", bucket: UPLOADS_BUCKET, paths };
+    return {
+      sourceType: paths.length ? "user_photos" : "text_only",
+      bucket: UPLOADS_BUCKET,
+      paths,
+    };
   }
 
   if (!parent) {

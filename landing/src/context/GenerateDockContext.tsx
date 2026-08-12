@@ -46,8 +46,19 @@ type GenerateDockContextType = {
   /** Soft paywall state on FAB / tab / compose CTA → /pricing. */
   needsCredits: boolean;
   reportNeedsCredits: (needs: boolean) => void;
+  /** Model explicitly requested by an acquisition/product surface. */
+  requestedModelId: string | null;
+  requestModelSelection: (
+    modelId: string,
+    options?: { entrySource?: GenerateDockEntrySource }
+  ) => void;
   /** Empty compose on current listing (tab / focus). */
   focusBlank: (options?: { entrySource?: GenerateDockEntrySource }) => void;
+  /** Seed a freeform prompt and open the composer. */
+  seedBlankPrompt: (
+    promptText: string,
+    options?: { entrySource?: GenerateDockEntrySource }
+  ) => void;
   /** Seed prompt from prompt card, then caller closes the card. */
   seedFromCard: (
     args: { promptText: string; cardId: string },
@@ -69,7 +80,10 @@ const GenerateDockContext = createContext<GenerateDockContextType>({
   reportRunProgress: () => {},
   needsCredits: false,
   reportNeedsCredits: () => {},
+  requestedModelId: null,
+  requestModelSelection: () => {},
   focusBlank: () => {},
+  seedBlankPrompt: () => {},
   seedFromCard: () => {},
 });
 
@@ -88,6 +102,7 @@ export function GenerateDockProvider({ children }: { children: ReactNode }) {
   const [runBusy, setRunBusy] = useState(false);
   const [runProgress, setRunProgress] = useState(0);
   const [needsCredits, setNeedsCredits] = useState(false);
+  const [requestedModelId, setRequestedModelId] = useState<string | null>(null);
 
   const trackOpen = useCallback(
     (entrySource: GenerateDockEntrySource) => {
@@ -109,6 +124,35 @@ export function GenerateDockProvider({ children }: { children: ReactNode }) {
   const reportNeedsCredits = useCallback((needs: boolean) => {
     setNeedsCredits(needs);
   }, []);
+
+  const requestModelSelection = useCallback(
+    (
+      modelId: string,
+      options?: { entrySource?: GenerateDockEntrySource }
+    ) => {
+      if (featureLoading || !promptCardGenerationEnabled || !modelId.trim()) {
+        return;
+      }
+      const alreadyBlank =
+        seed.source === "blank" && !seed.promptText && !seed.cardId;
+      if (!alreadyBlank) {
+        setSeed(DEFAULT_SEED);
+        setSeedToken((token) => token + 1);
+      }
+      setRequestedModelId(modelId);
+      setPlateOpen(true);
+      setDockSurface(null);
+      trackOpen(options?.entrySource ?? "route");
+    },
+    [
+      featureLoading,
+      promptCardGenerationEnabled,
+      seed.cardId,
+      seed.promptText,
+      seed.source,
+      trackOpen,
+    ]
+  );
 
   const focusBlank = useCallback(
     (options?: { entrySource?: GenerateDockEntrySource }) => {
@@ -155,6 +199,25 @@ export function GenerateDockProvider({ children }: { children: ReactNode }) {
     [featureLoading, promptCardGenerationEnabled, trackOpen]
   );
 
+  const seedBlankPrompt = useCallback(
+    (
+      promptText: string,
+      options?: { entrySource?: GenerateDockEntrySource }
+    ) => {
+      if (featureLoading || !promptCardGenerationEnabled) return;
+      setSeed({
+        source: "blank",
+        promptText: promptText.trim(),
+        cardId: null,
+      });
+      setSeedToken((token) => token + 1);
+      setPlateOpen(true);
+      setDockSurface(null);
+      trackOpen(options?.entrySource ?? "route");
+    },
+    [featureLoading, promptCardGenerationEnabled, trackOpen]
+  );
+
   const notifyGenerationComplete = useCallback(() => {
     setHistoryRefreshToken((token) => token + 1);
   }, []);
@@ -174,7 +237,10 @@ export function GenerateDockProvider({ children }: { children: ReactNode }) {
       reportRunProgress,
       needsCredits,
       reportNeedsCredits,
+      requestedModelId,
+      requestModelSelection,
       focusBlank,
+      seedBlankPrompt,
       seedFromCard,
     }),
     [
@@ -189,7 +255,10 @@ export function GenerateDockProvider({ children }: { children: ReactNode }) {
       reportRunProgress,
       needsCredits,
       reportNeedsCredits,
+      requestedModelId,
+      requestModelSelection,
       focusBlank,
+      seedBlankPrompt,
       seedFromCard,
     ]
   );
@@ -203,6 +272,17 @@ export function GenerateDockProvider({ children }: { children: ReactNode }) {
 
 export function useGenerateDock() {
   return useContext(GenerateDockContext);
+}
+
+/** SEO acquisition route where blank text-to-image is allowed. */
+export function isGenerateDockSeoPagePath(pathname: string): boolean {
+  const normalized =
+    !pathname || pathname === "/"
+      ? "/"
+      : pathname.endsWith("/")
+        ? pathname.slice(0, -1)
+        : pathname;
+  return normalized === "/generaciya-foto";
 }
 
 /** Listing routes where the floating generate dock is mounted. */
@@ -221,7 +301,8 @@ export function isGenerateDockListingPath(pathname: string): boolean {
     np === "/search" ||
     np === "/favorites" ||
     np === "/generate" ||
-    np === "/generations"
+    np === "/generations" ||
+    isGenerateDockSeoPagePath(np)
   ) {
     return true;
   }

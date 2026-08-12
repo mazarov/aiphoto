@@ -32,6 +32,10 @@ type Props = {
   priorityLoad?: boolean;
   /** Catalog/search grids: no hover overlay (copy, LexyGPT, reactions, photo arrows). */
   hideHoverChrome?: boolean;
+  /** Editorial collections: show only the primary repeat action on hover. */
+  repeatOnlyHoverChrome?: boolean;
+  /** Optional visual ratio for editorial/masonry collections. */
+  aspectClassName?: string;
 };
 
 function DebugOverlay({ card }: { card: PromptCardFull }) {
@@ -68,6 +72,8 @@ function PromptCardBase({
   debug = false,
   priorityLoad = false,
   hideHoverChrome = false,
+  repeatOnlyHoverChrome = false,
+  aspectClassName = "aspect-[3/4]",
 }: Props) {
   const { open, prefetchCard } = usePromptCardModal();
   const { reactions, favorites, toggleReaction, toggleFavorite } = useCardInteractions();
@@ -121,7 +127,9 @@ function PromptCardBase({
       className={`group relative isolate overflow-hidden rounded-2xl transition-all duration-200 hover:shadow-xl hover:shadow-zinc-900/10 hover:-translate-y-0.5 ${card.slug ? "cursor-pointer" : ""}`}
     >
       {debug && <DebugOverlay card={card} />}
-      <div className="relative w-full overflow-hidden rounded-2xl bg-zinc-200 aspect-[3/4]">
+      <div
+        className={`relative w-full overflow-hidden rounded-2xl bg-zinc-200 ${aspectClassName}`}
+      >
         {currentPhoto ? (
           <Image
             ref={imageRef}
@@ -143,7 +151,7 @@ function PromptCardBase({
 
         {!imageReady && currentPhoto && (
           <ListingCardLoadingShell
-            photoOnly={hideHoverChrome}
+            photoOnly={hideHoverChrome || repeatOnlyHoverChrome}
             hasPrompts={card.promptTexts.length > 0}
           />
         )}
@@ -167,7 +175,29 @@ function PromptCardBase({
           />
         )}
 
-        {!hideHoverChrome && (
+        {!hideHoverChrome &&
+          repeatOnlyHoverChrome &&
+          card.promptTexts.length > 0 && (
+            <div
+              className={`listing-card-chrome absolute inset-0 z-20 transition-opacity duration-200 ${
+                imageReady
+                  ? "opacity-100"
+                  : "pointer-events-none invisible opacity-0"
+              }`}
+            >
+              <div className="listing-card-chrome-controls-fast pointer-events-none absolute inset-x-0 bottom-0 z-[2] px-3.5 pb-3.5">
+                <LexyGptGenerateButton
+                  promptText={card.promptTexts.join("\n\n")}
+                  cardId={card.id}
+                  sourceImageUrl={currentPhoto ?? undefined}
+                  variant="listing"
+                  className="listing-card-chrome-target w-full border-white/15 bg-gradient-to-r from-indigo-500 via-[#5b5cf0] to-violet-500 shadow-lg shadow-indigo-950/30 hover:brightness-110"
+                />
+              </div>
+            </div>
+          )}
+
+        {!hideHoverChrome && !repeatOnlyHoverChrome && (
         <>
         <div
           className={`listing-card-chrome absolute inset-0 z-20 transition-opacity duration-200 ${
@@ -369,6 +399,8 @@ function promptCardPropsAreEqual(prev: Props, next: Props): boolean {
   if (prev.debug !== next.debug) return false;
   if (prev.priorityLoad !== next.priorityLoad) return false;
   if (prev.hideHoverChrome !== next.hideHoverChrome) return false;
+  if (prev.repeatOnlyHoverChrome !== next.repeatOnlyHoverChrome) return false;
+  if (prev.aspectClassName !== next.aspectClassName) return false;
   if (prev.card?.id !== next.card?.id) return false;
   return true;
 }

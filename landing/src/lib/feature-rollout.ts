@@ -205,6 +205,17 @@ export async function resolvePromptCardGenerationAccess(params: {
   };
 }
 
+/**
+ * SEO publication gate: acquisition links and indexing are enabled only when
+ * every regular visitor receives the generation feature.
+ */
+export async function isPromptCardGenerationFullyRolledOut(
+  supabase: SupabaseServer = createSupabaseServer()
+): Promise<boolean> {
+  const { config, failed } = await getRolloutConfig(supabase);
+  return !failed && config.enabled && config.rolloutBps >= 10_000;
+}
+
 export function clearFeatureRolloutConfigCacheForTests(): void {
   cachedConfig = undefined;
 }

@@ -32,6 +32,17 @@ test("initial generation reads owned upload paths", () => {
   });
 });
 
+test("text-only generation resolves without upload paths", () => {
+  assert.deepEqual(
+    resolveGenerationInputSource(job({ input_photo_paths: [] })),
+    {
+      sourceType: "text_only",
+      bucket: "web-generation-uploads",
+      paths: [],
+    },
+  );
+});
+
 test("continuation reads only the completed parent result", () => {
   assert.deepEqual(
     resolveGenerationInputSource(
