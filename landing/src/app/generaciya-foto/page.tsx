@@ -184,7 +184,13 @@ export async function generateMetadata(): Promise<Metadata> {
     title: GENERACIYA_FOTO_SEO.metaTitle,
     description: GENERACIYA_FOTO_SEO.metaDescription,
     robots: shouldIndex
-      ? { index: true, follow: true }
+      ? {
+          index: true,
+          follow: true,
+          "max-image-preview": "large" as const,
+          "max-snippet": -1,
+          "max-video-preview": -1,
+        }
       : { index: false, follow: true },
     alternates: { canonical: PAGE_URL },
     openGraph: {
@@ -233,7 +239,7 @@ function buildJsonLd(ogImage: string | null, cards: PromptCardFull[]) {
         {
           "@type": "ListItem",
           position: 2,
-          name: GENERACIYA_FOTO_SEO.h1,
+          name: "Генерация фото",
           item: PAGE_URL,
         },
       ],
@@ -338,6 +344,25 @@ export default async function GeneraciyaFotoPage() {
             aria-hidden
           />
           <div className="relative mx-auto w-full max-w-7xl px-3 pb-10 pt-8 text-center sm:px-5 sm:pb-14 sm:pt-12 xl:px-6">
+            <nav
+              aria-label="Хлебные крошки"
+              className="mb-5 flex items-center justify-center gap-1.5 text-sm text-zinc-400"
+            >
+              <Link href="/" className="transition-colors hover:text-zinc-700">
+                Главная
+              </Link>
+              <svg
+                className="h-3.5 w-3.5 shrink-0 text-zinc-300"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                aria-hidden
+              >
+                <path d="m9 18 6-6-6-6" />
+              </svg>
+              <span className="font-medium text-zinc-700">Генерация фото</span>
+            </nav>
             <h1 className="mx-auto max-w-3xl text-balance text-3xl font-bold tracking-tight text-zinc-900 sm:text-4xl lg:text-[2.75rem] lg:leading-tight">
               {GENERACIYA_FOTO_SEO.h1}
             </h1>

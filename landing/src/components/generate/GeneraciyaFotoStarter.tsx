@@ -31,7 +31,7 @@ export function GeneraciyaFotoStarter({
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const promptInputRef = useRef<HTMLTextAreaElement>(null);
-  const [mode, setMode] = useState<StarterMode>("photo");
+  const [mode, setMode] = useState<StarterMode>("text");
   const [prompt, setPrompt] = useState("");
   const [photoPhase, setPhotoPhase] = useState<PhotoPromptPhase>("empty");
   const [photoPreview, setPhotoPreview] = useState("");
@@ -195,19 +195,6 @@ export function GeneraciyaFotoStarter({
             <button
               type="button"
               role="tab"
-              aria-selected={mode === "photo"}
-              onClick={() => selectMode("photo")}
-              className={`min-h-10 rounded-lg px-3 text-sm font-semibold transition ${
-                mode === "photo"
-                  ? "bg-white text-indigo-700 shadow-sm"
-                  : "text-zinc-500 hover:text-indigo-700"
-              }`}
-            >
-              По фото
-            </button>
-            <button
-              type="button"
-              role="tab"
               aria-selected={mode === "text"}
               onClick={() => selectMode("text")}
               className={`min-h-10 rounded-lg px-3 text-sm font-semibold transition ${
@@ -217,6 +204,19 @@ export function GeneraciyaFotoStarter({
               }`}
             >
               По описанию
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mode === "photo"}
+              onClick={() => selectMode("photo")}
+              className={`min-h-10 rounded-lg px-3 text-sm font-semibold transition ${
+                mode === "photo"
+                  ? "bg-white text-indigo-700 shadow-sm"
+                  : "text-zinc-500 hover:text-indigo-700"
+              }`}
+            >
+              По фото
             </button>
           </div>
 
@@ -275,7 +275,7 @@ export function GeneraciyaFotoStarter({
                   <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-zinc-100">
                     <Image
                       src={photoPreview}
-                      alt=""
+                      alt="Загруженное фото"
                       fill
                       sizes="64px"
                       unoptimized
@@ -419,6 +419,10 @@ export function GeneraciyaFotoStarter({
             <div className="absolute inset-0 overflow-hidden bg-indigo-200">
               <CyclingPreviewImage
                 images={frames}
+                alt={
+                  activePreview?.title?.trim() ||
+                  "Пример генерации фото ИИ"
+                }
                 sizes="(max-width: 1023px) 40vw, 40vw"
                 priority
                 quality={75}

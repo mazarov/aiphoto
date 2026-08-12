@@ -44,57 +44,9 @@ function comboToPath(
   return `${base}/${secondaryLastSeg}`;
 }
 
-export const revalidate = 3600;
-
-export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  // Filter L1 tags to only include those with enough cards to be indexed.
-  // This keeps sitemap in sync with the noindex threshold (getMinCardsForLevel(1) === 1),
-  // preventing "Submitted URL marked noindex" warnings in GSC/Yandex.
-  const [filterCounts, generationSeoIndexable] = await Promise.all([
-    getFilterCounts({}),
-    isPromptCardGenerationFullyRolledOut(),
-  ]);
-  const countMap = new Map<string, number>();
-  for (const row of filterCounts) {
-    countMap.set(`${row.dimension}:${row.slug}`, row.cards_count);
-  }
-  const minL1 = getMinCardsForLevel(1);
-  const indexableL1Tags = TAG_REGISTRY.filter((tag) => {
-    const count = countMap.get(`${tag.dimension}:${tag.slug}`) ?? 0;
-    return count >= minL1;
-  });
-  const tagUrls: MetadataRoute.Sitemap = indexableL1Tags.map((tag) => {
-    const path = tag.urlPath.startsWith("/") ? tag.urlPath.slice(1) : tag.urlPath;
-    return {
-      url: `${BASE_URL}/${path}`,
-      lastModified: new Date(),
-      changeFrequency: "weekly" as const,
-      priority: 0.9,
-    };
-  });
-
-  const combos = await getIndexableTagCombos(6, "ru");
-  const l2Urls: MetadataRoute.Sitemap = [];
-  for (const c of combos) {
-    const path = comboToPath(c.dim1, c.slug1, c.dim2, c.slug2);
-    if (path) {
-      l2Urls.push({
-        url: `${BASE_URL}/${path}`,
-        lastModified: new Date(),
-        changeFrequency: "weekly" as const,
-        priority: 0.7,
-      });
-    }
-  }
-
-  const cards = await getPublishedCardsForSitemap();
-  const cardUrls: MetadataRoute.Sitemap = cards.map(({ slug, updated_at }) => ({
-    url: `${BASE_URL}/p/${slug}`,
-    lastModified: new Date(updated_at),
-    changeFrequency: "monthly" as const,
-    priority: 0.7,
-  }));
-
+function staticHubEntries(
+  generationSeoIndexable: boolean
+): MetadataRoute.Sitemap {
   return [
     {
       url: BASE_URL,
@@ -124,8 +76,70 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
           },
         ]
       : []),
-    ...tagUrls,
-    ...l2Urls,
-    ...cardUrls,
   ];
+}
+
+export const revalidate = 3600;
+
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  // Filter L1 tags to only include those with enough cards to be indexed.
+  // This keeps sitemap in sync with the noindex threshold (getMinCardsForLevel(1) === 1),
+  // preventing "Submitted URL marked noindex" warnings in GSC/Yandex.
+  let generationSeoIndexable = false;
+  try {
+    generationSeoIndexable = await isPromptCardGenerationFullyRolledOut();
+  } catch (error) {
+    console.error("[sitemap] generation rollout check failed", error);
+  }
+
+  const hubs = staticHubEntries(generationSeoIndexable);
+
+  try {
+    const filterCounts = await getFilterCounts({});
+    const countMap = new Map<string, number>();
+    for (const row of filterCounts) {
+      countMap.set(`${row.dimension}:${row.slug}`, row.cards_count);
+    }
+    const minL1 = getMinCardsForLevel(1);
+    const indexableL1Tags = TAG_REGISTRY.filter((tag) => {
+      const count = countMap.get(`${tag.dimension}:${tag.slug}`) ?? 0;
+      return count >= minL1;
+    });
+    const tagUrls: MetadataRoute.Sitemap = indexableL1Tags.map((tag) => {
+      const path = tag.urlPath.startsWith("/") ? tag.urlPath.slice(1) : tag.urlPath;
+      return {
+        url: `${BASE_URL}/${path}`,
+        lastModified: new Date(),
+        changeFrequency: "weekly" as const,
+        priority: 0.9,
+      };
+    });
+
+    const combos = await getIndexableTagCombos(6, "ru");
+    const l2Urls: MetadataRoute.Sitemap = [];
+    for (const c of combos) {
+      const path = comboToPath(c.dim1, c.slug1, c.dim2, c.slug2);
+      if (path) {
+        l2Urls.push({
+          url: `${BASE_URL}/${path}`,
+          lastModified: new Date(),
+          changeFrequency: "weekly" as const,
+          priority: 0.7,
+        });
+      }
+    }
+
+    const cards = await getPublishedCardsForSitemap();
+    const cardUrls: MetadataRoute.Sitemap = cards.map(({ slug, updated_at }) => ({
+      url: `${BASE_URL}/p/${slug}`,
+      lastModified: new Date(updated_at),
+      changeFrequency: "monthly" as const,
+      priority: 0.7,
+    }));
+
+    return [...hubs, ...tagUrls, ...l2Urls, ...cardUrls];
+  } catch (error) {
+    console.error("[sitemap] catalog fetch failed; returning static hubs only", error);
+    return hubs;
+  }
 }

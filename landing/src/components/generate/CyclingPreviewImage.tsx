@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 
 export function CyclingPreviewImage({
   images,
+  alt = "",
   sizes,
   priority = false,
   quality,
@@ -15,6 +16,7 @@ export function CyclingPreviewImage({
   className = "",
 }: {
   images: string[];
+  alt?: string;
   sizes: string;
   priority?: boolean;
   quality?: number;
@@ -70,7 +72,7 @@ export function CyclingPreviewImage({
       <Image
         key={imageUrl}
         src={imageUrl}
-        alt=""
+        alt={alt}
         fill
         sizes={sizes}
         priority={priority && frameIndex === 0}

@@ -83,6 +83,7 @@ export function GenerationModelsShowcase({
             >
               <CyclingPreviewImage
                 images={frames}
+                alt={`Пример результата ${model.label}`}
                 sizes="(max-width: 639px) calc(100vw - 3rem), (max-width: 1023px) 50vw, 25vw"
                 quality={60}
                 className="object-cover"

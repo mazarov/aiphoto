@@ -58,33 +58,41 @@ ${items}
 }
 
 export async function GET(request: Request): Promise<NextResponse> {
-  const { searchParams } = new URL(request.url);
-  const pageParam = searchParams.get("page");
-
-  const allCards = await getPublishedCardImagesForSitemap();
-  const totalPages = Math.ceil(allCards.length / PAGE_SIZE);
-
-  if (allCards.length === 0) {
-    return new NextResponse(buildImageSitemap([]), {
+  const emptyXml = () =>
+    new NextResponse(buildImageSitemap([]), {
       headers: { "Content-Type": "application/xml; charset=utf-8" },
     });
-  }
 
-  if (pageParam === null) {
-    if (totalPages <= 1) {
-      return new NextResponse(buildImageSitemap(allCards), {
+  try {
+    const { searchParams } = new URL(request.url);
+    const pageParam = searchParams.get("page");
+
+    const allCards = await getPublishedCardImagesForSitemap();
+    const totalPages = Math.ceil(allCards.length / PAGE_SIZE);
+
+    if (allCards.length === 0) {
+      return emptyXml();
+    }
+
+    if (pageParam === null) {
+      if (totalPages <= 1) {
+        return new NextResponse(buildImageSitemap(allCards), {
+          headers: { "Content-Type": "application/xml; charset=utf-8" },
+        });
+      }
+      return new NextResponse(buildSitemapIndex(totalPages), {
         headers: { "Content-Type": "application/xml; charset=utf-8" },
       });
     }
-    return new NextResponse(buildSitemapIndex(totalPages), {
+
+    const page = Math.max(1, Math.min(parseInt(pageParam, 10) || 1, totalPages));
+    const slice = allCards.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+    return new NextResponse(buildImageSitemap(slice), {
       headers: { "Content-Type": "application/xml; charset=utf-8" },
     });
+  } catch (error) {
+    console.error("[image-sitemap] fetch failed; returning empty urlset", error);
+    return emptyXml();
   }
-
-  const page = Math.max(1, Math.min(parseInt(pageParam, 10) || 1, totalPages));
-  const slice = allCards.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-
-  return new NextResponse(buildImageSitemap(slice), {
-    headers: { "Content-Type": "application/xml; charset=utf-8" },
-  });
 }
