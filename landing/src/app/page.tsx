@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { cache } from "react";
 import type { Metadata } from "next";
 import { fetchHomepageSections } from "@/lib/supabase";
@@ -7,6 +6,7 @@ import { HOMEPAGE_SEO, HOMEPAGE_FAQ } from "@/lib/homepage-seo-copy";
 import { PageLayout } from "@/components/PageLayout";
 import { CategorySection } from "@/components/CategorySection";
 import { HomeSearch } from "@/components/HomeSearch";
+import { HomeHeroDestinations } from "@/components/HomeHeroDestinations";
 import { HomeSeoBlocks } from "@/components/HomeSeoBlocks";
 import { buildCategorySectionBlocks } from "@/lib/homepage-sections";
 import { isPromptCardGenerationFullyRolledOut } from "@/lib/feature-rollout";
@@ -135,29 +135,7 @@ export default async function HomePage() {
           <div className="mx-auto mt-8 w-full max-w-2xl px-1 sm:px-0">
             <HomeSearch />
           </div>
-          <p className="mx-auto mt-5 max-w-lg text-sm text-zinc-500">
-            Нужен промт из фото?{" "}
-            <Link href="/foto-v-promt" className="font-medium text-indigo-600 hover:text-indigo-700 hover:underline">
-              Фото в промт
-            </Link>
-            {" "}— загрузите картинку и получите текст онлайн.
-          </p>
-          <p className="mx-auto mt-2 max-w-lg text-sm text-zinc-500">
-            Ищете актуальные идеи?{" "}
-            <Link href="/trends" className="font-medium text-indigo-600 hover:text-indigo-700 hover:underline">
-              Трендовые промты
-            </Link>
-            {" "}для ИИ-фото — свежая лента.
-          </p>
-          {generationSeoIndexable ? (
-            <p className="mx-auto mt-2 max-w-lg text-sm text-zinc-500">
-              Готовы создать свой кадр?{" "}
-              <Link href="/generaciya-foto" className="font-medium text-indigo-600 hover:text-indigo-700 hover:underline">
-                Генерация фото с помощью ИИ
-              </Link>
-              {" "}по описанию или готовому промту.
-            </p>
-          ) : null}
+          <HomeHeroDestinations showGeneration={generationSeoIndexable} />
         </div>
       </section>
 

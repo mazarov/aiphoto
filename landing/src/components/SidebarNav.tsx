@@ -6,7 +6,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useListingMobileChromeOptional } from "@/context/ListingMobileChromeContext";
 import { useFeatureAccess } from "@/context/FeatureAccessContext";
-import { markGenerateEntrySource } from "@/context/GenerateMobileModalContext";
 import type { MenuSectionWithCounts } from "@/lib/menu";
 import { getAiImageDescriberChromeUrl } from "@/lib/foto-v-promt-config";
 import { trackDesktopSidebarAddToChromeClick } from "@/lib/yandex-metrika";
@@ -74,8 +73,6 @@ function SidebarContent({
   onItemClick?: () => void;
   showGenerateCta: boolean;
 }) {
-  const generateActive = isHrefActive("/generate", pathname);
-
   return (
     <nav className="flex flex-col gap-0.5 px-3 py-4">
       <a
@@ -98,38 +95,6 @@ function SidebarContent({
           </span>
         </span>
       </a>
-
-      {showGenerateCta ? (
-        <Link
-          href="/generate"
-          scroll={false}
-          onClick={() => {
-            markGenerateEntrySource("sidebar");
-            onItemClick?.();
-          }}
-          className={`mb-2 flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-[13px] font-semibold text-white shadow-sm shadow-indigo-500/25 transition ${
-            generateActive
-              ? "bg-indigo-700"
-              : "bg-indigo-600 hover:bg-indigo-700"
-          }`}
-        >
-          <svg
-            className="h-4 w-4 flex-shrink-0"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2}
-            aria-hidden
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3z"
-            />
-          </svg>
-          Генерация фото
-        </Link>
-      ) : null}
 
       <Link
         href="/"
