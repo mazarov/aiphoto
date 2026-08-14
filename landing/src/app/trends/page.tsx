@@ -18,7 +18,6 @@ import {
   TRENDS_SEO,
   TRENDS_SEO_TEXT_BLOCKS,
 } from "@/lib/trends-seo-copy";
-import { isPromptCardGenerationFullyRolledOut } from "@/lib/feature-rollout";
 
 export const revalidate = 3600;
 
@@ -234,8 +233,6 @@ export async function generateMetadata({ searchParams }: Props): Promise<Metadat
 
 export default async function TrendsPage({ searchParams }: Props) {
   const qs = await searchParams;
-  const generationSeoIndexable =
-    await isPromptCardGenerationFullyRolledOut();
   const fetchParams = buildListingFetchParams(qs ?? null);
   const result = await getCachedRouteCards(fetchParams);
   const totalCount = result.total_count ?? result.cards_count;
@@ -277,11 +274,7 @@ export default async function TrendsPage({ searchParams }: Props) {
           <nav className="mt-4" aria-label="Популярные подборки">
             <p className="mb-2 text-sm font-medium text-zinc-700">Популярные сценарии</p>
             <div className="flex flex-wrap gap-1.5">
-              {TRENDS_POPULAR_LINKS.filter(
-                (link) =>
-                  generationSeoIndexable ||
-                  link.href !== "/generaciya-foto"
-              ).map((link) => (
+              {TRENDS_POPULAR_LINKS.map((link) => (
                 <Link
                   key={link.href}
                   href={link.href}

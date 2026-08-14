@@ -134,8 +134,6 @@ export function CardInlineGeneratePanel({
   const resolvedCardId = cardId;
   const resolvedGenerationSurface =
     generationSurface || "prompt_card";
-  const allowsTextOnlyGeneration =
-    resolvedGenerationSurface === "seo_page";
   const dockControlled = isDock && typeof onDockSurfaceChange === "function";
 
   const [models, setModels] = useState<ModelOpt[]>([]);
@@ -733,14 +731,6 @@ export function CardInlineGeneratePanel({
     const parentGenerationId = options?.parentGenerationId?.trim() || "";
     const editInstruction = options?.editInstruction?.trim() || "";
     const isContinuation = Boolean(parentGenerationId);
-    if (
-      !isContinuation &&
-      !selectedPhotos.length &&
-      !allowsTextOnlyGeneration
-    ) {
-      setError("Выберите хотя бы одно фото");
-      return false;
-    }
     if (isContinuation && !editInstruction) {
       setError("Опишите, что изменить");
       return false;
@@ -795,18 +785,12 @@ export function CardInlineGeneratePanel({
           setError("");
           setPhase(resultUrl || isContinuation ? "done" : "idle");
           phaseRef.current = resultUrl || isContinuation ? "done" : "idle";
-          reachYandexMetrikaGoal(
-            YM_GOAL_PROMPT_CARD_GENERATION_NO_CREDITS,
-            { feature_key: "prompt_card_generation", variant: "treatment" }
-          );
+          reachYandexMetrikaGoal(YM_GOAL_PROMPT_CARD_GENERATION_NO_CREDITS);
           return false;
         }
         throw new Error(genData.message || genData.error || "Не удалось создать генерацию");
       }
-      reachYandexMetrikaGoal(
-        YM_GOAL_PROMPT_CARD_GENERATION_ACCEPTED,
-        { feature_key: "prompt_card_generation", variant: "treatment" }
-      );
+      reachYandexMetrikaGoal(YM_GOAL_PROMPT_CARD_GENERATION_ACCEPTED);
       if (!isContinuation) setGenerationId(genData.id);
       setDraftPrompt(prompt);
       setSubmittedPrompt(prompt);
@@ -1770,7 +1754,7 @@ export function CardInlineGeneratePanel({
                   dockPhotosExpanded ? "text-white/65" : "text-zinc-600"
                 }`}
               >
-                Добавьте фото — оно сохранится для следующих генераций.
+                Фото необязательно. Если добавите — сохранится для следующих генераций и внешности.
               </p>
             ) : null}
             <button
@@ -2240,13 +2224,7 @@ export function CardInlineGeneratePanel({
           <Link
             href="/pricing"
             onClick={() =>
-              reachYandexMetrikaGoal(
-                YM_GOAL_PROMPT_CARD_GENERATION_PRICING,
-                {
-                  feature_key: "prompt_card_generation",
-                  variant: "treatment",
-                }
-              )
+              reachYandexMetrikaGoal(YM_GOAL_PROMPT_CARD_GENERATION_PRICING)
             }
             className={`flex min-h-12 min-w-0 items-center justify-center rounded-2xl bg-rose-500/85 py-3 font-semibold text-white shadow-[0_12px_28px_-14px_rgba(244,63,94,0.45)] transition hover:bg-rose-500/95 ${
               phase === "done" && resultUrl
@@ -2269,9 +2247,6 @@ export function CardInlineGeneratePanel({
                 (controlsBusy ||
                   libraryLoading ||
                   Boolean(busyAction) ||
-                  (!(phase === "done" && resultUrl && generationId) &&
-                    !selectedPhotos.length &&
-                    !allowsTextOnlyGeneration) ||
                   Boolean(configError) ||
                   draftPrompt.trim().length < 8))
             }

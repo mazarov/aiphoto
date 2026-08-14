@@ -5,7 +5,6 @@ import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useListingMobileChromeOptional } from "@/context/ListingMobileChromeContext";
-import { useFeatureAccess } from "@/context/FeatureAccessContext";
 import type { MenuSectionWithCounts } from "@/lib/menu";
 import { getAiImageDescriberChromeUrl } from "@/lib/foto-v-promt-config";
 import { trackDesktopSidebarAddToChromeClick } from "@/lib/yandex-metrika";
@@ -64,14 +63,12 @@ function SidebarContent({
   expandedIdx,
   onToggle,
   onItemClick,
-  showGenerateCta,
 }: {
   menu: MenuSectionWithCounts[];
   pathname: string;
   expandedIdx: number | null;
   onToggle: (idx: number) => void;
   onItemClick?: () => void;
-  showGenerateCta: boolean;
 }) {
   return (
     <nav className="flex flex-col gap-0.5 px-3 py-4">
@@ -149,32 +146,30 @@ function SidebarContent({
         Тренды
       </Link>
 
-      {showGenerateCta ? (
-        <Link
-          href="/generaciya-foto"
-          scroll={false}
-          onClick={onItemClick}
-          className={`flex items-center gap-2.5 rounded-xl px-3 py-2 text-[13px] font-medium transition-colors ${
-            isHrefActive("/generaciya-foto", pathname)
-              ? "bg-indigo-50 text-indigo-700"
-              : "text-zinc-700 hover:bg-zinc-50"
-          }`}
+      <Link
+        href="/generaciya-foto"
+        scroll={false}
+        onClick={onItemClick}
+        className={`flex items-center gap-2.5 rounded-xl px-3 py-2 text-[13px] font-medium transition-colors ${
+          isHrefActive("/generaciya-foto", pathname)
+            ? "bg-indigo-50 text-indigo-700"
+            : "text-zinc-700 hover:bg-zinc-50"
+        }`}
+      >
+        <svg
+          className="h-4 w-4 flex-shrink-0"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={2}
+          aria-hidden
         >
-          <svg
-            className="h-4 w-4 flex-shrink-0"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2}
-            aria-hidden
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" d="M4 16.5 8.5 12l3 3 3-3 5.5 5.5" />
-            <path strokeLinecap="round" strokeLinejoin="round" d="M5 20h14a1 1 0 0 0 1-1V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1Z" />
-            <path strokeLinecap="round" strokeLinejoin="round" d="m15 6 .75 2.25L18 9l-2.25.75L15 12l-.75-2.25L12 9l2.25-.75L15 6Z" />
-          </svg>
-          Генерация фото
-        </Link>
-      ) : null}
+          <path strokeLinecap="round" strokeLinejoin="round" d="M4 16.5 8.5 12l3 3 3-3 5.5 5.5" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M5 20h14a1 1 0 0 0 1-1V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1Z" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="m15 6 .75 2.25L18 9l-2.25.75L15 12l-.75-2.25L12 9l2.25-.75L15 6Z" />
+        </svg>
+        Генерация фото
+      </Link>
 
       <Link
         href="/search"
@@ -304,9 +299,6 @@ function SidebarContent({
 export function SidebarNav({ menu }: { menu: MenuSectionWithCounts[] }) {
   const pathname = usePathname();
   const registerMenu = useListingMobileChromeOptional()?.registerMenu;
-  const { promptCardGenerationEnabled, loading: featureLoading } =
-    useFeatureAccess();
-  const showGenerateCta = !featureLoading && promptCardGenerationEnabled;
   const normalizedPath = normalizePath(pathname || "/");
 
   const [counts, setCounts] = useState<Record<string, number>>({});
@@ -386,7 +378,6 @@ export function SidebarNav({ menu }: { menu: MenuSectionWithCounts[] }) {
               pathname={normalizedPath}
               expandedIdx={expandedIdx}
               onToggle={handleToggle}
-              showGenerateCta={showGenerateCta}
             />
           </div>
         </div>
@@ -416,7 +407,6 @@ export function SidebarNav({ menu }: { menu: MenuSectionWithCounts[] }) {
                 expandedIdx={expandedIdx}
                 onToggle={handleToggle}
                 onItemClick={() => setMobileOpen(false)}
-                showGenerateCta={showGenerateCta}
               />
             </div>
           </div>

@@ -4,7 +4,6 @@ import dynamic from "next/dynamic";
 import { useCallback, useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
-import { useFeatureAccess } from "@/context/FeatureAccessContext";
 import {
   isGenerateDockListingPath,
   isGenerateDockSeoPagePath,
@@ -37,7 +36,7 @@ const CardInlineGeneratePanel = dynamic(
 );
 
 /**
- * Global floating generate composer on listing routes (treatment cohort).
+ * Global floating generate composer on listing routes.
  * Glass / result chrome lives on CardInlineGeneratePanel (photo clipped inside plate).
  * Host only positions the shell and close control.
  */
@@ -46,8 +45,6 @@ export function GenerateListingDockHost() {
   const seoPage = isGenerateDockSeoPagePath(pathname);
   const router = useRouter();
   const { user, loading: authLoading, openAuthModal } = useAuth();
-  const { promptCardGenerationEnabled, loading: featureLoading } =
-    useFeatureAccess();
   const {
     seed,
     seedToken,
@@ -74,9 +71,7 @@ export function GenerateListingDockHost() {
     plateOpen &&
     !isMobile &&
     !plateLocked &&
-    dockSurface === null &&
-    !featureLoading &&
-    promptCardGenerationEnabled;
+    dockSurface === null;
   /** Collapse only after a deliberate scroll — not trackpad/touch jitter. */
   const scrolling = useListingScrollActivity({
     enabled: halfOpenCompose,
@@ -130,22 +125,13 @@ export function GenerateListingDockHost() {
       return;
     }
     if (needsCredits) {
-      reachYandexMetrikaGoal(YM_GOAL_PROMPT_CARD_GENERATION_PRICING, {
-        feature_key: "prompt_card_generation",
-        variant: "treatment",
-      });
+      reachYandexMetrikaGoal(YM_GOAL_PROMPT_CARD_GENERATION_PRICING);
       router.push("/pricing");
       return;
     }
     setPlateOpen(true);
   }, [isAuthed, needsCredits, openAuthModal, router, setPlateOpen]);
 
-  if (
-    !seoPage &&
-    (featureLoading || !promptCardGenerationEnabled)
-  ) {
-    return null;
-  }
   if (!isGenerateDockListingPath(pathname)) return null;
 
   const collapsed = authLoading || !isAuthed || !plateOpen;

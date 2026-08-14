@@ -3,12 +3,9 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { SiteLogoMark } from "./SiteLogoMark";
-import { useFeatureAccess } from "@/context/FeatureAccessContext";
 
 export function Footer() {
   const pathname = usePathname();
-  const { promptCardGenerationEnabled: hasPricingAccess } =
-    useFeatureAccess();
 
   // Pricing keeps its own compact legal footer so the mobile layout fits one viewport.
   if (pathname === "/pricing") return null;
@@ -32,9 +29,7 @@ export function Footer() {
               <ul className="space-y-2">
                 <li><Link href="/" className="text-sm text-zinc-500 transition-colors hover:text-zinc-900">Главная</Link></li>
                 <li><Link href="/foto-v-promt" className="text-sm text-zinc-500 transition-colors hover:text-zinc-900">Фото в промт</Link></li>
-                {hasPricingAccess && (
-                  <li><Link href="/pricing" className="text-sm text-zinc-500 transition-colors hover:text-zinc-900">Тарифы</Link></li>
-                )}
+                <li><Link href="/pricing" className="text-sm text-zinc-500 transition-colors hover:text-zinc-900">Тарифы</Link></li>
               </ul>
             </div>
             <div>

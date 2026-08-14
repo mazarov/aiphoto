@@ -15,7 +15,6 @@ import {
   OVERLAY_BUTTON_APPEARANCE_RESET,
   OVERLAY_BUTTON_UA_RESET,
 } from "@/lib/card-overlay-action-pill";
-import { useFeatureAccess } from "@/context/FeatureAccessContext";
 
 type Props = {
   promptText: string;
@@ -77,14 +76,9 @@ export function LexyGptGenerateButton({
   onInternalGenerate,
 }: Props) {
   const generation = useGeneration();
-  const {
-    promptCardGenerationEnabled,
-    promptCardGenerationVariant,
-  } = useFeatureAccess();
   const [phase, setPhase] = useState<Phase>("idle");
   const [busy, setBusy] = useState(false);
-  const useInternalGeneration =
-    Boolean(cardId) && promptCardGenerationEnabled;
+  const useInternalGeneration = Boolean(cardId);
 
   const resetPhaseLater = useCallback(() => {
     window.setTimeout(() => {
@@ -100,12 +94,9 @@ export function LexyGptGenerateButton({
       const trimmed = promptText.trim();
       if (disabled || !trimmed || busy) return;
 
-      reachYandexMetrikaGoal(metricGoal, cardId ? {
-        feature_key: "prompt_card_generation",
-        variant: promptCardGenerationVariant,
-      } : undefined);
+      reachYandexMetrikaGoal(metricGoal);
 
-      if (promptCardGenerationEnabled && onInternalGenerate) {
+      if (onInternalGenerate) {
         onInternalGenerate();
         return;
       }
@@ -158,8 +149,6 @@ export function LexyGptGenerateButton({
       generation,
       metricGoal,
       onInternalGenerate,
-      promptCardGenerationEnabled,
-      promptCardGenerationVariant,
       promptText,
       resetPhaseLater,
       sourceImageUrl,

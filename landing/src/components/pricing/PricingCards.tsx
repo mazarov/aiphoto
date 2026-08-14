@@ -239,25 +239,15 @@ function PlanCard({
   );
 }
 
-export function PricingCards({
-  rolloutVariant,
-}: {
-  rolloutVariant: "treatment" | "control";
-}) {
+export function PricingCards() {
   const { user, loading: authLoading, openAuthModal } = useAuth();
   const [checkout, setCheckout] = useState<CheckoutState>({ kind: "idle" });
   const checkoutInFlightRef = useRef(false);
   const successTrackedRef = useRef(false);
 
   useEffect(() => {
-    reachYandexMetrikaGoal(
-      YM_GOAL_PROMPT_CARD_GENERATION_PRICING,
-      {
-        feature_key: "prompt_card_generation",
-        variant: rolloutVariant,
-      }
-    );
-  }, [rolloutVariant]);
+    reachYandexMetrikaGoal(YM_GOAL_PROMPT_CARD_GENERATION_PRICING);
+  }, []);
 
   const createCheckout = useCallback(async (pending: PendingCheckout) => {
     if (checkoutInFlightRef.current) return;

@@ -12,7 +12,6 @@ import { useListingMobileChromeOptional } from "@/context/ListingMobileChromeCon
 import { useFotoVPromtMobileModal } from "@/context/FotoVPromtMobileModalContext";
 import { useAuth } from "@/context/AuthContext";
 import { useGenerateDock } from "@/context/GenerateDockContext";
-import { useFeatureAccess } from "@/context/FeatureAccessContext";
 import { bumpListingShellViewportHeight } from "@/lib/listing-shell-viewport";
 import {
   reachYandexMetrikaGoal,
@@ -47,8 +46,6 @@ export function MobileTabBar() {
     needsCredits: generateNeedsCredits,
   } = useGenerateDock();
   const { user, openAuthModal } = useAuth();
-  const { promptCardGenerationEnabled, loading: featureLoading } =
-    useFeatureAccess();
   const isAuthed = Boolean(user && user.is_anonymous !== true);
 
   const [mounted, setMounted] = useState(false);
@@ -109,7 +106,6 @@ export function MobileTabBar() {
   if (!mounted || isDesktop) return null;
 
   const np = normalizePath(pathname);
-  const showGenerateCenter = !featureLoading && promptCardGenerationEnabled;
 
   const isActive = (
     key: "new" | "catalog" | "generate" | "foto" | "search"
@@ -157,10 +153,7 @@ export function MobileTabBar() {
       return;
     }
     if (generateNeedsCredits) {
-      reachYandexMetrikaGoal(YM_GOAL_PROMPT_CARD_GENERATION_PRICING, {
-        feature_key: "prompt_card_generation",
-        variant: "treatment",
-      });
+      reachYandexMetrikaGoal(YM_GOAL_PROMPT_CARD_GENERATION_PRICING);
       router.push("/pricing");
       return;
     }
@@ -233,8 +226,7 @@ export function MobileTabBar() {
               </span>
             </Link>
 
-            {showGenerateCenter ? (
-              <div className="flex flex-1 flex-col items-center justify-end pb-0.5">
+            <div className="flex flex-1 flex-col items-center justify-end pb-0.5">
                 <button
                   type="button"
                   onClick={handleGenerateTab}
@@ -329,7 +321,6 @@ export function MobileTabBar() {
                   </span>
                 </button>
               </div>
-            ) : null}
 
             <button
               type="button"

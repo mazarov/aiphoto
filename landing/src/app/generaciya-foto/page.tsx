@@ -18,7 +18,6 @@ import {
   GENERACIYA_FOTO_FAQ,
   GENERACIYA_FOTO_SEO,
 } from "@/lib/generaciya-foto-seo-copy";
-import { isPromptCardGenerationFullyRolledOut } from "@/lib/feature-rollout";
 import {
   FALLBACK_GENERATION_MODELS,
   parseEnabledGenerationModels,
@@ -55,10 +54,6 @@ const EMPTY_RESULT: RouteCardsResult = {
   has_minimum: false,
   dimension_count: 0,
 };
-
-const getGenerationSeoIndexability = cache(
-  isPromptCardGenerationFullyRolledOut
-);
 
 const getGenerationExamples = cache(async (): Promise<RouteCardsResult> => {
   try {
@@ -175,23 +170,18 @@ const getExampleOgImage = cache(async (): Promise<string | null> => {
 });
 
 export async function generateMetadata(): Promise<Metadata> {
-  const [ogImage, shouldIndex] = await Promise.all([
-    getExampleOgImage(),
-    getGenerationSeoIndexability(),
-  ]);
+  const ogImage = await getExampleOgImage();
 
   return {
     title: GENERACIYA_FOTO_SEO.metaTitle,
     description: GENERACIYA_FOTO_SEO.metaDescription,
-    robots: shouldIndex
-      ? {
-          index: true,
-          follow: true,
-          "max-image-preview": "large" as const,
-          "max-snippet": -1,
-          "max-video-preview": -1,
-        }
-      : { index: false, follow: true },
+    robots: {
+      index: true,
+      follow: true,
+      "max-image-preview": "large" as const,
+      "max-snippet": -1,
+      "max-video-preview": -1,
+    },
     alternates: { canonical: PAGE_URL },
     openGraph: {
       title: GENERACIYA_FOTO_SEO.metaTitle,

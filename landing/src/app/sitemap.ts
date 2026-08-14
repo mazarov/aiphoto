@@ -2,7 +2,6 @@ import type { MetadataRoute } from "next";
 import { TAG_REGISTRY, findTagBySlug, type Dimension } from "@/lib/tag-registry";
 import { getPublishedCardsForSitemap, getIndexableTagCombos, getFilterCounts } from "@/lib/supabase";
 import { getMinCardsForLevel } from "@/lib/route-resolver";
-import { isPromptCardGenerationFullyRolledOut } from "@/lib/feature-rollout";
 
 const BASE_URL =
   process.env.NEXT_PUBLIC_SITE_URL ||
@@ -44,9 +43,7 @@ function comboToPath(
   return `${base}/${secondaryLastSeg}`;
 }
 
-function staticHubEntries(
-  generationSeoIndexable: boolean
-): MetadataRoute.Sitemap {
+function staticHubEntries(): MetadataRoute.Sitemap {
   return [
     {
       url: BASE_URL,
@@ -66,16 +63,12 @@ function staticHubEntries(
       changeFrequency: "weekly",
       priority: 0.8,
     },
-    ...(generationSeoIndexable
-      ? [
-          {
-            url: `${BASE_URL}/generaciya-foto`,
-            lastModified: new Date(),
-            changeFrequency: "weekly" as const,
-            priority: 0.9,
-          },
-        ]
-      : []),
+    {
+      url: `${BASE_URL}/generaciya-foto`,
+      lastModified: new Date(),
+      changeFrequency: "weekly",
+      priority: 0.9,
+    },
   ];
 }
 
@@ -85,14 +78,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // Filter L1 tags to only include those with enough cards to be indexed.
   // This keeps sitemap in sync with the noindex threshold (getMinCardsForLevel(1) === 1),
   // preventing "Submitted URL marked noindex" warnings in GSC/Yandex.
-  let generationSeoIndexable = false;
-  try {
-    generationSeoIndexable = await isPromptCardGenerationFullyRolledOut();
-  } catch (error) {
-    console.error("[sitemap] generation rollout check failed", error);
-  }
-
-  const hubs = staticHubEntries(generationSeoIndexable);
+  const hubs = staticHubEntries();
 
   try {
     const filterCounts = await getFilterCounts({});

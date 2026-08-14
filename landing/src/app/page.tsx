@@ -9,7 +9,6 @@ import { HomeSearch } from "@/components/HomeSearch";
 import { HomeHeroDestinations } from "@/components/HomeHeroDestinations";
 import { HomeSeoBlocks } from "@/components/HomeSeoBlocks";
 import { buildCategorySectionBlocks } from "@/lib/homepage-sections";
-import { isPromptCardGenerationFullyRolledOut } from "@/lib/feature-rollout";
 
 export const revalidate = 3600;
 
@@ -50,10 +49,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function HomePage() {
-  const [sections, generationSeoIndexable] = await Promise.all([
-    getCachedSections(),
-    isPromptCardGenerationFullyRolledOut(),
-  ]);
+  const sections = await getCachedSections();
 
   const totalPrompts = sections.reduce((sum, s) => sum + s.total_count, 0);
   const totalCategories = sections.filter((s) => s.total_count > 0).length;
@@ -135,7 +131,7 @@ export default async function HomePage() {
           <div className="mx-auto mt-8 w-full max-w-2xl px-1 sm:px-0">
             <HomeSearch />
           </div>
-          <HomeHeroDestinations showGeneration={generationSeoIndexable} />
+          <HomeHeroDestinations />
         </div>
       </section>
 

@@ -11,7 +11,6 @@ import { ReactionButtons } from "./ReactionButtons";
 import { FavoriteButton } from "./FavoriteButton";
 import { LexyGptGenerateButton } from "./LexyGptGenerateButton";
 import { UserAvatarImage } from "./UserAvatarImage";
-import { useFeatureAccess } from "@/context/FeatureAccessContext";
 import { useGenerateDock } from "@/context/GenerateDockContext";
 import { usePromptCardModal } from "@/context/PromptCardModalContext";
 import { useAuth } from "@/context/AuthContext";
@@ -147,10 +146,8 @@ export function CardPageClient({ data, tagEntries, breadcrumbTag, isModal = fals
 
 function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListingNeighborGo, onCloseModal, onMobileNeighborCommit }: InnerProps) {
   const router = useRouter();
-  const { promptCardGenerationEnabled } = useFeatureAccess();
   const { seedFromCard } = useGenerateDock();
   const { close: closeCardModal } = usePromptCardModal();
-  const canInlineGenerate = promptCardGenerationEnabled;
   const title = data.title_ru || data.title_en || "Без названия";
   const [publishedLocal, setPublishedLocal] = useState(data.isPublished);
   const [pubSaving, setPubSaving] = useState(false);
@@ -194,7 +191,6 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
   const [mobilePromptOverlay, setMobilePromptOverlay] = useState(false);
   const [showSwipeOnboarding, setShowSwipeOnboarding] = useState(false);
   const openInlineGenerate = useCallback(() => {
-    if (!canInlineGenerate) return;
     setMobilePromptOverlay(false);
     const promptText = data.promptTexts.join("\n\n");
     // Seed global listing dock, then close card so dock is visible on the listing.
@@ -212,7 +208,6 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
     }
     router.push("/");
   }, [
-    canInlineGenerate,
     closeCardModal,
     data.id,
     data.promptTexts,
@@ -984,7 +979,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                     cardId={data.id}
                     sourceImageUrl={currentPhoto ?? undefined}
                     variant="desktop-panel"
-                    onInternalGenerate={canInlineGenerate ? openInlineGenerate : undefined}
+                    onInternalGenerate={openInlineGenerate}
                   />
                 )}
               </div>
@@ -1296,7 +1291,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                           sourceImageUrl={currentPhoto ?? undefined}
                           variant="sticky"
                           className="h-full min-h-11 min-w-0 w-full truncate px-2 text-[13px] shadow-none ring-2 ring-black/35"
-                          onInternalGenerate={canInlineGenerate ? openInlineGenerate : undefined}
+                          onInternalGenerate={openInlineGenerate}
                         />
                       </div>
                     ) : null}
@@ -1530,7 +1525,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                     cardId={data.id}
                     variant="sticky"
                     className="h-full min-h-12 min-w-0 w-full truncate px-2 sm:px-3"
-                    onInternalGenerate={canInlineGenerate ? openInlineGenerate : undefined}
+                    onInternalGenerate={openInlineGenerate}
                   />
                   <StickyListingNavButton
                     slug={listingNext}

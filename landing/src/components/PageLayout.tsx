@@ -9,11 +9,7 @@ import {
   useListingShellViewportSync,
 } from "@/lib/listing-shell-viewport";
 import { ListingMobileChromeProvider } from "@/context/ListingMobileChromeContext";
-import {
-  isGenerateDockListingPath,
-  isGenerateDockSeoPagePath,
-} from "@/context/GenerateDockContext";
-import { useFeatureAccess } from "@/context/FeatureAccessContext";
+import { isGenerateDockListingPath } from "@/context/GenerateDockContext";
 import { GenerateListingDockHost } from "@/components/generate/GenerateListingDockHost";
 import { HeaderClient } from "./HeaderClient";
 import { SidebarNav } from "./SidebarNav";
@@ -38,13 +34,7 @@ export function PageLayout({
   showFooterWithGenerateDock?: boolean;
 }) {
   const pathname = usePathname();
-  const { promptCardGenerationEnabled, loading: featureLoading } =
-    useFeatureAccess();
-  const generationSeoPage = isGenerateDockSeoPagePath(pathname);
-  const showGenerateDock =
-    isGenerateDockListingPath(pathname) &&
-    (generationSeoPage ||
-      (!featureLoading && promptCardGenerationEnabled));
+  const showGenerateDock = isGenerateDockListingPath(pathname);
   const showFooter =
     normalizePath(pathname) !== "/generate" &&
     (!showGenerateDock || showFooterWithGenerateDock);

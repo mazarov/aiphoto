@@ -12,7 +12,6 @@ import {
   FOTO_V_PROMT_META,
   FOTO_V_PROMT_WIDGET,
 } from "@/lib/foto-v-promt-copy";
-import { isPromptCardGenerationFullyRolledOut } from "@/lib/feature-rollout";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://promptshot.ru";
 const PAGE_URL = `${SITE_URL}/foto-v-promt`;
@@ -31,9 +30,7 @@ export const metadata: Metadata = {
   },
 };
 
-export default async function FotoVPromtPage() {
-  const generationSeoIndexable =
-    await isPromptCardGenerationFullyRolledOut();
+export default function FotoVPromtPage() {
   const webAppJsonLd = {
     "@context": "https://schema.org",
     "@type": "WebApplication",
@@ -74,8 +71,7 @@ export default async function FotoVPromtPage() {
             <p className="mx-auto mt-3 max-w-2xl text-pretty text-base text-zinc-600 sm:text-lg">
               {FOTO_V_PROMT_HERO.subtitle}
             </p>
-            {generationSeoIndexable ? (
-              <p className="mx-auto mt-3 max-w-2xl text-sm text-zinc-500">
+            <p className="mx-auto mt-3 max-w-2xl text-sm text-zinc-500">
                 Уже есть описание?{" "}
                 <Link
                   href="/generaciya-foto"
@@ -85,7 +81,6 @@ export default async function FotoVPromtPage() {
                 </Link>
                 {" "}в онлайн-генераторе PromptShot.
               </p>
-            ) : null}
           </div>
         </section>
 

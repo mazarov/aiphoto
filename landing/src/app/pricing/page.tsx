@@ -1,22 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
-import { cookies } from "next/headers";
 import { PageLayout } from "@/components/PageLayout";
 import { PricingCards } from "@/components/pricing/PricingCards";
-import { getSupabaseUserFromServerCookies } from "@/lib/supabase-route-auth";
-import {
-  FEATURE_VISITOR_COOKIE,
-  resolvePromptCardGenerationAccess,
-} from "@/lib/feature-rollout";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://promptshot.ru";
-
-type PricingPageProps = {
-  searchParams?: Promise<{
-    test?: string | string[];
-  }>;
-};
 
 export const metadata: Metadata = {
   title: "Тарифы и токены — PromptShot",
@@ -31,18 +18,7 @@ export const metadata: Metadata = {
   },
 };
 
-export default async function PricingPage({ searchParams }: PricingPageProps) {
-  const params = await searchParams;
-  const testParam = Array.isArray(params?.test) ? params.test[0] : params?.test;
-  const hasTestAccess = testParam === "true";
-  const viewer = await getSupabaseUserFromServerCookies();
-  const cookieStore = await cookies();
-  const rollout = await resolvePromptCardGenerationAccess({
-    user: viewer,
-    visitorId: cookieStore.get(FEATURE_VISITOR_COOKIE)?.value,
-  });
-  if (!hasTestAccess && !rollout.enabled) notFound();
-
+export default function PricingPage() {
   return (
     <PageLayout>
       <main className="relative isolate flex flex-1 flex-col bg-white max-lg:min-h-[calc(100dvh-var(--ps-header-height,57px)-3.5rem-max(0px,env(safe-area-inset-bottom,0px)))] lg:min-h-screen">
@@ -89,7 +65,7 @@ export default async function PricingPage({ searchParams }: PricingPageProps) {
             className="mx-auto mt-3 w-full max-w-6xl shrink-0 overflow-visible rounded-[22px] border border-zinc-100/90 bg-white/75 p-2 shadow-[0_24px_80px_-40px_rgba(79,70,229,0.22)] backdrop-blur-xl sm:mt-4 sm:p-3 lg:mt-10 lg:rounded-[28px] xl:p-5"
             aria-label="Пакеты токенов"
           >
-            <PricingCards rolloutVariant={rollout.variant} />
+            <PricingCards />
           </section>
 
           <footer className="mt-auto shrink-0 space-y-0.5 px-1 pt-4 text-center lg:space-y-2 lg:pt-10">

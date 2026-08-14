@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
-import { useFeatureAccess } from "@/context/FeatureAccessContext";
 import { CREDIT_BALANCE_REFRESH_EVENT } from "@/lib/credit-balance-events";
 import {
   reachYandexMetrikaGoal,
@@ -42,13 +41,11 @@ function useIsDesktopLayout() {
 
 function useCreditBalance(enabled = true) {
   const { user, loading } = useAuth();
-  const { promptCardGenerationEnabled } = useFeatureAccess();
   const [credits, setCredits] = useState<number | null>(null);
   const canShowBalance =
     !loading &&
     Boolean(user) &&
     user?.is_anonymous !== true &&
-    promptCardGenerationEnabled &&
     enabled;
 
   useEffect(() => {
@@ -94,10 +91,7 @@ function useCreditBalance(enabled = true) {
 }
 
 function trackPricingClick() {
-  reachYandexMetrikaGoal(YM_GOAL_PROMPT_CARD_GENERATION_PRICING, {
-    feature_key: "prompt_card_generation",
-    variant: "treatment",
-  });
+  reachYandexMetrikaGoal(YM_GOAL_PROMPT_CARD_GENERATION_PRICING);
 }
 
 function CreditIcon({ className = "h-4 w-4" }: { className?: string }) {

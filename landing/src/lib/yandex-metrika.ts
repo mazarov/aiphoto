@@ -7,8 +7,10 @@ export const YM_GOAL_PROMPT_CARD_OPEN = "prompt_card_open";
 export const YM_GOAL_LEXYGPT_GENERATE = "lexygpt_generate_click";
 export const YM_GOAL_LEXYGPT_GENERATE_PROMPTCARD = "lexygpt_generate_promptcard";
 export const YM_GOAL_LEXYGPT_GENERATE_PHOTOVPROMPT = "lexygpt_generate_photovprompt";
+/** @deprecated Rollout exposure — no longer fired after GA ungating. */
 export const YM_GOAL_PROMPT_CARD_GENERATION_EXPOSURE =
   "prompt_card_generation_exposure";
+/** @deprecated Rollout auth — no longer fired after GA ungating. */
 export const YM_GOAL_PROMPT_CARD_GENERATION_AUTH =
   "prompt_card_generation_auth";
 export const YM_GOAL_PROMPT_CARD_GENERATION_ACCEPTED =

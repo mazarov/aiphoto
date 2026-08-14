@@ -4,7 +4,6 @@ import { Suspense } from "react";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
-import { FeatureAccessProvider } from "@/context/FeatureAccessContext";
 import { GenerationProvider } from "@/context/GenerationContext";
 import { PromptCardModalProvider } from "@/context/PromptCardModalContext";
 import { FotoVPromtMobileModalProvider } from "@/context/FotoVPromtMobileModalContext";
@@ -84,27 +83,25 @@ export default function RootLayout({
       </head>
       <body className="min-h-screen bg-white text-zinc-900 antialiased">
         <AuthProvider>
-          <FeatureAccessProvider>
-            <GenerationProvider>
-              <PromptCardModalProvider>
-                <FotoVPromtMobileModalProvider>
-                  <GenerateMobileModalProvider>
-                    <GenerateDockProvider>
-                      <Suspense fallback={null}>
-                        <YandexMetrikaRouteTracker />
-                      </Suspense>
-                      {children}
-                      {modal}
-                      <ClientCardModal />
-                      <FotoVPromtMobileModal />
-                      <GenerateMobileModal />
-                      <GenerationModal />
-                    </GenerateDockProvider>
-                  </GenerateMobileModalProvider>
-                </FotoVPromtMobileModalProvider>
-              </PromptCardModalProvider>
-            </GenerationProvider>
-          </FeatureAccessProvider>
+          <GenerationProvider>
+            <PromptCardModalProvider>
+              <FotoVPromtMobileModalProvider>
+                <GenerateMobileModalProvider>
+                  <GenerateDockProvider>
+                    <Suspense fallback={null}>
+                      <YandexMetrikaRouteTracker />
+                    </Suspense>
+                    {children}
+                    {modal}
+                    <ClientCardModal />
+                    <FotoVPromtMobileModal />
+                    <GenerateMobileModal />
+                    <GenerationModal />
+                  </GenerateDockProvider>
+                </GenerateMobileModalProvider>
+              </FotoVPromtMobileModalProvider>
+            </PromptCardModalProvider>
+          </GenerationProvider>
           <AuthModal />
         </AuthProvider>
 

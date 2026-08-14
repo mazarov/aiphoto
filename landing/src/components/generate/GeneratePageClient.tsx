@@ -3,7 +3,6 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { GenerateBlankShell } from "@/components/generate/GenerateBlankShell";
-import { useFeatureAccess } from "@/context/FeatureAccessContext";
 import {
   reachYandexMetrikaGoal,
   YM_GOAL_GENERATE_SHELL_OPEN,
@@ -27,41 +26,13 @@ function consumeEntrySource(): "sidebar" | "route" {
  */
 export function GeneratePageClient() {
   const router = useRouter();
-  const {
-    promptCardGenerationEnabled,
-    promptCardGenerationVariant,
-    promptCardGenerationBucketBand,
-    loading,
-  } = useFeatureAccess();
 
   useEffect(() => {
-    if (loading) return;
-    if (!promptCardGenerationEnabled) {
-      router.replace("/");
-      return;
-    }
     const entrySource = consumeEntrySource();
     reachYandexMetrikaGoal(YM_GOAL_GENERATE_SHELL_OPEN, {
       entry_source: entrySource,
-      variant: promptCardGenerationVariant,
-      bucket_band: promptCardGenerationBucketBand ?? "internal",
-      feature_key: "prompt_card_generation",
     });
-  }, [
-    loading,
-    promptCardGenerationBucketBand,
-    promptCardGenerationEnabled,
-    promptCardGenerationVariant,
-    router,
-  ]);
-
-  if (loading || !promptCardGenerationEnabled) {
-    return (
-      <div className="flex flex-1 items-center justify-center py-24 text-sm text-zinc-500">
-        Загрузка…
-      </div>
-    );
-  }
+  }, []);
 
   return (
     <main className="relative bg-white">

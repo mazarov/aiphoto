@@ -10,7 +10,6 @@ import {
   type ReactNode,
 } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { useFeatureAccess } from "@/context/FeatureAccessContext";
 import { lockListingScrollForModal } from "@/lib/scroll-preservation";
 import {
   reachYandexMetrikaGoal,
@@ -70,33 +69,17 @@ export function markGenerateEntrySource(source: GenerateEntrySource): void {
 export function GenerateMobileModalProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const {
-    promptCardGenerationEnabled,
-    promptCardGenerationVariant,
-    promptCardGenerationBucketBand,
-    loading: featureLoading,
-  } = useFeatureAccess();
   const [mode, setMode] = useState<ModalMode | null>(null);
   const [entry, setEntry] = useState<GenerateEntry>(DEFAULT_ENTRY);
   const [isMobile, setIsMobile] = useState(false);
   const modeRef = useRef<ModalMode | null>(null);
-  const enabledRef = useRef(false);
-  const featureLoadingRef = useRef(true);
   modeRef.current = mode;
-  enabledRef.current = promptCardGenerationEnabled;
-  featureLoadingRef.current = featureLoading;
 
-  const trackOpen = useCallback(
-    (entrySource: GenerateEntrySource) => {
-      reachYandexMetrikaGoal(YM_GOAL_GENERATE_SHELL_OPEN, {
-        entry_source: entrySource,
-        variant: promptCardGenerationVariant,
-        bucket_band: promptCardGenerationBucketBand ?? "internal",
-        feature_key: "prompt_card_generation",
-      });
-    },
-    [promptCardGenerationBucketBand, promptCardGenerationVariant]
-  );
+  const trackOpen = useCallback((entrySource: GenerateEntrySource) => {
+    reachYandexMetrikaGoal(YM_GOAL_GENERATE_SHELL_OPEN, {
+      entry_source: entrySource,
+    });
+  }, []);
 
   useEffect(() => {
     const mq = window.matchMedia(MOBILE_MQ);
@@ -106,7 +89,7 @@ export function GenerateMobileModalProvider({ children }: { children: ReactNode 
     return () => mq.removeEventListener("change", sync);
   }, []);
 
-  // Hard /generate: control → leave; treatment uses real page + global dock (no portal).
+  // Hard /generate uses the real page + global dock (no portal).
   useEffect(() => {
     if (!isMobile) {
       if (modeRef.current) {
@@ -115,32 +98,16 @@ export function GenerateMobileModalProvider({ children }: { children: ReactNode 
       }
       return;
     }
-    if (featureLoading) return;
 
-    if (isGeneratePath(pathname)) {
-      if (!promptCardGenerationEnabled) {
-        setMode(null);
-        setEntry(DEFAULT_ENTRY);
-        router.replace("/");
-        return;
-      }
-      if (modeRef.current) {
-        setMode(null);
-        setEntry(DEFAULT_ENTRY);
-      }
+    if (isGeneratePath(pathname) && modeRef.current) {
+      setMode(null);
+      setEntry(DEFAULT_ENTRY);
     }
-  }, [
-    featureLoading,
-    isMobile,
-    pathname,
-    promptCardGenerationEnabled,
-    router,
-  ]);
+  }, [isMobile, pathname]);
 
   const open = useCallback(
     (nextEntry: GenerateEntry = DEFAULT_ENTRY, options?: { entrySource?: GenerateEntrySource }) => {
       if (typeof window === "undefined") return;
-      if (featureLoadingRef.current || !enabledRef.current) return;
 
       // Blank compose: global dock / hard /generate — no soft portal.
       if (nextEntry.source === "blank") {

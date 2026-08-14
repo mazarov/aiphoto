@@ -2,10 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { recordAnalyzeHistory } from "@/lib/analyze-history";
 import { createSupabaseServer } from "@/lib/supabase";
 import { getSupabaseUserForApiRoute } from "@/lib/supabase-route-auth";
-import {
-  FEATURE_VISITOR_COOKIE,
-  resolvePromptCardGenerationAccess,
-} from "@/lib/feature-rollout";
 
 export const runtime = "nodejs";
 
@@ -64,26 +60,6 @@ export async function POST(req: NextRequest) {
     const { user, error: authError } = await getSupabaseUserForApiRoute(req);
     if (authError || !user) {
       return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-    }
-    const rollout = await resolvePromptCardGenerationAccess({
-      user,
-      visitorId: req.cookies.get(FEATURE_VISITOR_COOKIE)?.value,
-    });
-    if (!rollout.enabled) {
-      console.warn("[prompt.remix] feature not enabled", {
-        featureKey: "prompt_card_generation",
-        userId: user.id,
-        variant: rollout.variant,
-        bucketBand: rollout.bucketBand,
-        reason: rollout.reason,
-      });
-      return NextResponse.json(
-        {
-          error: "feature_not_enabled",
-          message: "Изменение промпта пока недоступно",
-        },
-        { status: 403 }
-      );
     }
 
     const body = (await req.json().catch(() => null)) as {

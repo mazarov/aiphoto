@@ -13,10 +13,6 @@ import {
   validateGenerationEditContract,
 } from "@/lib/generation-edit-contract";
 import {
-  FEATURE_VISITOR_COOKIE,
-  resolvePromptCardGenerationAccess,
-} from "@/lib/feature-rollout";
-import {
   DEFAULT_IMAGE_ASPECT_RATIO,
   DEFAULT_IMAGE_SIZE,
   IMAGE_GENERATION_MODALITY,
@@ -68,7 +64,6 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const pipelineTrace = getStvPipelineTrace(req, body);
     const {
-      generationSurface,
       modality,
       prompt,
       model,
@@ -104,32 +99,6 @@ export async function POST(req: NextRequest) {
         },
         { status: 400 }
       );
-    }
-
-    if (
-      generationSurface === "prompt_card" ||
-      generationSurface === "seo_page"
-    ) {
-      const rollout = await resolvePromptCardGenerationAccess({
-        user,
-        visitorId: req.cookies.get(FEATURE_VISITOR_COOKIE)?.value,
-      });
-      if (!rollout.enabled) {
-        console.warn("[generation.create] feature not enabled", {
-          featureKey: "prompt_card_generation",
-          userId: user.id,
-          variant: rollout.variant,
-          bucketBand: rollout.bucketBand,
-          reason: rollout.reason,
-        });
-        return NextResponse.json(
-          {
-            error: "feature_not_enabled",
-            message: "Генерация пока недоступна",
-          },
-          { status: 403 }
-        );
-      }
     }
 
     const minPromptLength = 8;
@@ -182,20 +151,11 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
-    const allowsTextOnlyGeneration = generationSurface === "seo_page";
-    if (
-      !hasParentGeneration &&
-      normalizedPhotoStoragePaths.length < 1 &&
-      !allowsTextOnlyGeneration
-    ) {
-      console.warn("[generation.create] validation error: no input source", {
-        userId: callerId,
-      });
-      return NextResponse.json(
-        { error: "validation_error", message: "Нужно минимум 1 фото" },
-        { status: 400 }
-      );
-    }
+    const sourceType = hasParentGeneration
+      ? "generation_result"
+      : normalizedPhotoStoragePaths.length > 0
+        ? "user_photos"
+        : "text_only";
 
     if (
       normalizedPhotoStoragePaths.some(
@@ -438,7 +398,7 @@ export async function POST(req: NextRequest) {
       aspectRatio: ar,
       imageSize: sz,
       photos: normalizedPhotoStoragePaths.length,
-      sourceType: hasParentGeneration ? "generation_result" : "user_photos",
+      sourceType,
       generationMode: hasParentGeneration ? "local_edit" : "initial",
       parentGenerationId: normalizedParentGenerationId || null,
       editInstructionLength: normalizedEditInstruction.length,
@@ -459,7 +419,7 @@ export async function POST(req: NextRequest) {
       aspectRatio: ar,
       imageSize: sz,
       photos: normalizedPhotoStoragePaths.length,
-      sourceType: hasParentGeneration ? "generation_result" : "user_photos",
+      sourceType,
       generationMode: hasParentGeneration ? "local_edit" : "initial",
       parentGenerationId: normalizedParentGenerationId || null,
       editInstructionLength: normalizedEditInstruction.length,

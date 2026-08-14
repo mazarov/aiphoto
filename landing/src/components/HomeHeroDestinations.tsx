@@ -45,11 +45,7 @@ function ArrowIcon() {
   );
 }
 
-export function HomeHeroDestinations({
-  showGeneration,
-}: {
-  showGeneration: boolean;
-}) {
+export function HomeHeroDestinations() {
   const items: Destination[] = [
     {
       href: "/foto-v-promt",
@@ -63,16 +59,12 @@ export function HomeHeroDestinations({
       description: "Свежая лента идей для ИИ-фото",
       icon: <TrendsIcon />,
     },
-    ...(showGeneration
-      ? [
-          {
-            href: "/generaciya-foto",
-            title: "Генерация фото с помощью ИИ",
-            description: "По описанию или готовому промту",
-            icon: <GenerateIcon />,
-          } satisfies Destination,
-        ]
-      : []),
+    {
+      href: "/generaciya-foto",
+      title: "Генерация фото с помощью ИИ",
+      description: "По описанию или готовому промту",
+      icon: <GenerateIcon />,
+    },
   ];
 
   return (

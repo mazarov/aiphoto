@@ -9,7 +9,6 @@ import {
   type ReactNode,
 } from "react";
 import type { GenerateDockSurface } from "@/components/CardInlineGeneratePanel";
-import { useFeatureAccess } from "@/context/FeatureAccessContext";
 import {
   reachYandexMetrikaGoal,
   YM_GOAL_GENERATE_SHELL_OPEN,
@@ -88,12 +87,6 @@ const GenerateDockContext = createContext<GenerateDockContextType>({
 });
 
 export function GenerateDockProvider({ children }: { children: ReactNode }) {
-  const {
-    promptCardGenerationEnabled,
-    promptCardGenerationVariant,
-    promptCardGenerationBucketBand,
-    loading: featureLoading,
-  } = useFeatureAccess();
   const [seed, setSeed] = useState<GenerateDockSeed>(DEFAULT_SEED);
   const [seedToken, setSeedToken] = useState(0);
   const [plateOpen, setPlateOpen] = useState(false);
@@ -104,17 +97,11 @@ export function GenerateDockProvider({ children }: { children: ReactNode }) {
   const [needsCredits, setNeedsCredits] = useState(false);
   const [requestedModelId, setRequestedModelId] = useState<string | null>(null);
 
-  const trackOpen = useCallback(
-    (entrySource: GenerateDockEntrySource) => {
-      reachYandexMetrikaGoal(YM_GOAL_GENERATE_SHELL_OPEN, {
-        entry_source: entrySource,
-        variant: promptCardGenerationVariant,
-        bucket_band: promptCardGenerationBucketBand ?? "internal",
-        feature_key: "prompt_card_generation",
-      });
-    },
-    [promptCardGenerationBucketBand, promptCardGenerationVariant]
-  );
+  const trackOpen = useCallback((entrySource: GenerateDockEntrySource) => {
+    reachYandexMetrikaGoal(YM_GOAL_GENERATE_SHELL_OPEN, {
+      entry_source: entrySource,
+    });
+  }, []);
 
   const reportRunProgress = useCallback((busy: boolean, progress = 0) => {
     setRunBusy(busy);
@@ -130,7 +117,7 @@ export function GenerateDockProvider({ children }: { children: ReactNode }) {
       modelId: string,
       options?: { entrySource?: GenerateDockEntrySource }
     ) => {
-      if (featureLoading || !promptCardGenerationEnabled || !modelId.trim()) {
+      if (!modelId.trim()) {
         return;
       }
       const alreadyBlank =
@@ -144,19 +131,11 @@ export function GenerateDockProvider({ children }: { children: ReactNode }) {
       setDockSurface(null);
       trackOpen(options?.entrySource ?? "route");
     },
-    [
-      featureLoading,
-      promptCardGenerationEnabled,
-      seed.cardId,
-      seed.promptText,
-      seed.source,
-      trackOpen,
-    ]
+    [seed.cardId, seed.promptText, seed.source, trackOpen]
   );
 
   const focusBlank = useCallback(
     (options?: { entrySource?: GenerateDockEntrySource }) => {
-      if (featureLoading || !promptCardGenerationEnabled) return;
       // Avoid remounting the composer on every tab tap — remount = empty shell → fetch → second paint.
       const alreadyBlank =
         seed.source === "blank" && !seed.promptText && !seed.cardId;
@@ -169,14 +148,7 @@ export function GenerateDockProvider({ children }: { children: ReactNode }) {
       setDockSurface(null);
       trackOpen(options?.entrySource ?? "tab");
     },
-    [
-      featureLoading,
-      promptCardGenerationEnabled,
-      seed.cardId,
-      seed.promptText,
-      seed.source,
-      trackOpen,
-    ]
+    [seed.cardId, seed.promptText, seed.source, trackOpen]
   );
 
   const seedFromCard = useCallback(
@@ -184,7 +156,6 @@ export function GenerateDockProvider({ children }: { children: ReactNode }) {
       args: { promptText: string; cardId: string },
       options?: { entrySource?: GenerateDockEntrySource }
     ) => {
-      if (featureLoading || !promptCardGenerationEnabled) return;
       setSeed({
         source: "card",
         promptText: args.promptText,
@@ -196,7 +167,7 @@ export function GenerateDockProvider({ children }: { children: ReactNode }) {
       setDockSurface(null);
       trackOpen(options?.entrySource ?? "card");
     },
-    [featureLoading, promptCardGenerationEnabled, trackOpen]
+    [trackOpen]
   );
 
   const seedBlankPrompt = useCallback(
@@ -204,7 +175,6 @@ export function GenerateDockProvider({ children }: { children: ReactNode }) {
       promptText: string,
       options?: { entrySource?: GenerateDockEntrySource }
     ) => {
-      if (featureLoading || !promptCardGenerationEnabled) return;
       setSeed({
         source: "blank",
         promptText: promptText.trim(),
@@ -215,7 +185,7 @@ export function GenerateDockProvider({ children }: { children: ReactNode }) {
       setDockSurface(null);
       trackOpen(options?.entrySource ?? "route");
     },
-    [featureLoading, promptCardGenerationEnabled, trackOpen]
+    [trackOpen]
   );
 
   const notifyGenerationComplete = useCallback(() => {
