@@ -7,11 +7,16 @@
 # After editing extension/sidepanel: from landing/ run npm run sync:stv-sidepanel and commit.
 #
 FROM node:20-alpine AS base
+# glibc compat for Alpine; Next.js official image note (nodejs/docker-node#nodealpine).
+RUN apk add --no-cache libc6-compat
 
 FROM base AS deps
 WORKDIR /app
 COPY package.json package-lock.json* ./
-RUN npm ci
+# `npm ci` can skip nested optional `@img/sharp-libvips-*`. Without it, `next build`
+# dies while collecting `/api/admin/generate` (`libvips-cpp.so.42` missing).
+RUN npm ci \
+  && npm install --no-save --os=linux --libc=musl --cpu=x64 --include=optional sharp@0.33.5
 
 FROM base AS builder
 WORKDIR /app

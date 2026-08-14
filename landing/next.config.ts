@@ -41,7 +41,9 @@ const nextConfig: NextConfig = {
   allowedDevOrigins: getLanDevOrigins(),
   outputFileTracingRoot,
   output: "standalone",
-  serverExternalPackages: ["@supabase/supabase-js"],
+  // Keep native sharp out of the Next bundle so Alpine libvips resolves at
+  // build (collect page data) and in the standalone runner.
+  serverExternalPackages: ["@supabase/supabase-js", "sharp"],
   async redirects() {
     return [
       {

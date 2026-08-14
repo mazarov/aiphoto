@@ -1,6 +1,8 @@
 # 01 — Лендинг (promptshot.ru)
 
-> Последнее обновление: 2026-08-14 (**mobile generate tab on `/generaciya-foto`:** таб «Сгенерировать» открывает/закрывает тот же dock, что и на листингах (`focusBlank`); больше не скроллит к `#generator`. SEO-страница не помечает таб активным сама по себе.)
+> Последнее обновление: 2026-08-14 (**Docker Alpine sharp:** `next build` падал на collect page data `/api/admin/generate` — `libvips-cpp.so.42` не найден. `landing/Dockerfile` ставит `libc6-compat` и после `npm ci` доустанавливает musl `sharp@0.33.5` (`--include=optional`); `next.config.ts` выносит `sharp` в `serverExternalPackages`.)
+>
+> Предыдущее обновление: 2026-08-14 (**mobile generate tab on `/generaciya-foto`:** таб «Сгенерировать» открывает/закрывает тот же dock, что и на листингах (`focusBlank`); больше не скроллит к `#generator`. SEO-страница не помечает таб активным сама по себе.)
 >
 > Предыдущее обновление: 2026-08-14 (**mobile generate dock portal:** `GenerateListingDockHost` на max-lg монтируется в `document.body` (`100dvh`), как `GenerateMobileModal` — шторки prompt/photos/model не сжимаются listing visualViewport/клавиатурой. Photo→prompt не autoFocus-ит textarea на мобиле.)
 >
@@ -1047,6 +1049,7 @@ landing/src/
 3. **После каждого изменения образа:** `landing/scripts/verify-docker-image.sh IMAGE:TAG` — падает, если нет `/app/server.js`.
 4. **В CI / перед деплоем:** `docker build` → `verify-docker-image.sh` → (опционально) `docker run` + `curl` на `:3001`.
 5. **Нестандартный CI:** при необходимости задать **`NEXT_STANDALONE_TRACING_ROOT`** на этапе `next build` (см. `next.config.ts`).
+6. **Alpine + sharp:** не полагаться только на `npm ci` — вложенный optional `@img/sharp-libvips-linuxmusl-x64` может не поставиться, и collect page data упадёт на `libvips-cpp.so.42`. После `npm ci` в deps-стадии нужен `npm install --os=linux --libc=musl --cpu=x64 --include=optional sharp@0.33.5`; `sharp` остаётся в `serverExternalPackages`.
 
 `landing/Dockerfile` при отсутствии `server.js` падает на этапе сборки с `find` — это предпочтительнее, чем «зелёный» билд и падение в рантайме.
 
