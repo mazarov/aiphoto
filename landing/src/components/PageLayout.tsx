@@ -64,7 +64,7 @@ export function PageLayout({
 
   return (
     <ListingMobileChromeProvider>
-      <div className="listing-shell-root max-lg:relative max-lg:flex max-lg:h-dvh max-lg:max-h-dvh max-lg:flex-col max-lg:overflow-hidden lg:contents">
+      <div className="listing-shell-root max-lg:flex max-lg:flex-col max-lg:overflow-hidden lg:contents">
         <HeaderClient />
 
         <div

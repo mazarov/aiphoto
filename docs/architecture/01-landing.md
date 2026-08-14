@@ -1,6 +1,12 @@
 # 01 — Лендинг (promptshot.ru)
 
-> Последнее обновление: 2026-08-14 (**Docker Alpine sharp:** `next build` падал на collect page data `/api/admin/generate` — `libvips-cpp.so.42` не найден. `landing/Dockerfile` ставит `libc6-compat` и после `npm ci` доустанавливает musl `sharp@0.33.5` (`--include=optional`); `next.config.ts` выносит `sharp` в `serverExternalPackages`.)
+> Последнее обновление: 2026-08-14 (**mobile search below midpoint:** Safari nudges a focused field in the lower half (~20–40px). Snapshot `#listing-scroll-root` scroll on touchstart, lock overflow, cancel `visualViewport.offsetTop` pan while focused. Keyboard still overlays; content does not move up.)
+>
+> Предыдущее обновление: 2026-08-14 (**mobile keyboard overlay, no content shift:** listing shell не сжимается под клавиатуру; таббар остаётся в подвале. Тап по полю в `#listing-scroll-root` — `focus({preventScroll:true})` + lock overflow (без translate/доскролла). Клавиатура оверлеем поверх chrome.)
+>
+> Предыдущее обновление: 2026-08-14 (**mobile tab bar vs keyboard:** listing shell больше не сжимается под `visualViewport` при клавиатуре (`interactive-widget=overlays-content`). `--ps-listing-shell-height` держит layout/`innerHeight` (клавиатура = оверлей); iOS `offsetTop`-pan компенсируется, инпут доскролливается внутри `#listing-scroll-root`. Таббар остаётся `absolute bottom` подвала, не всплывает над клавиатурой и не залипает до жеста.)
+>
+> Предыдущее обновление: 2026-08-14 (**Docker Alpine sharp:** `next build` падал на collect page data `/api/admin/generate` — `libvips-cpp.so.42` не найден. `landing/Dockerfile` ставит `libc6-compat` и после `npm ci` доустанавливает musl `sharp@0.33.5` (`--include=optional`); `next.config.ts` выносит `sharp` в `serverExternalPackages`.)
 >
 > Предыдущее обновление: 2026-08-14 (**mobile generate tab on `/generaciya-foto`:** таб «Сгенерировать» открывает/закрывает тот же dock, что и на листингах (`focusBlank`); больше не скроллит к `#generator`. SEO-страница не помечает таб активным сама по себе.)
 >
@@ -697,7 +703,7 @@ SearchResults (client, infinite scroll)
 
 | Компонент | Файл | Роль |
 |-----------|------|------|
-| PageLayout | `components/PageLayout.tsx` | Клиентский shell: `listing-mobile-shell` + `#listing-scroll-root`; моб. высота через `--ps-listing-shell-height` (`listing-shell-viewport.ts`, нижняя граница `visualViewport = offsetTop + height`), повторная синхронизация после клавиатуры, browser chrome, history и смены маршрута; in-flow `ListingBottomBar`; **`useListingScrollOnRouteChange(pathname)`** — сброс скролла при смене маршрута |
+| PageLayout | `components/PageLayout.tsx` | Клиентский shell: `listing-mobile-shell` + `#listing-scroll-root`; моб. высота через `--ps-listing-shell-height` (`listing-shell-viewport.ts`: только `innerHeight`, freeze на фокусе поля; `.listing-shell-root` `fixed` top-0); in-flow `ListingBottomBar`; **`useListingScrollOnRouteChange(pathname)`** — сброс скролла при смене маршрута |
 | Header | `components/Header.tsx` | Legacy серверный (заменён PageLayout) |
 | Footer | `components/Footer.tsx` | Статический |
 | CardPage | `app/p/[slug]/page.tsx` | Серверный, SSR карточки |
