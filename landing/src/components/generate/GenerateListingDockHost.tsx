@@ -65,6 +65,7 @@ export function GenerateListingDockHost() {
   );
   /** Tall + sticky plate: result chrome and/or in-flight generation. */
   const [plateLocked, setPlateLocked] = useState(false);
+  const [heroCtaInView, setHeroCtaInView] = useState(true);
 
   const isAuthed = Boolean(user && user.is_anonymous !== true);
   const halfOpenCompose =
@@ -86,6 +87,27 @@ export function GenerateListingDockHost() {
     mq.addEventListener("change", sync);
     return () => mq.removeEventListener("change", sync);
   }, []);
+
+  useEffect(() => {
+    if (!seoPage) {
+      setHeroCtaInView(false);
+      return;
+    }
+    setHeroCtaInView(true);
+    const cta = document.getElementById("generaciya-foto-starter-cta");
+    if (!cta) {
+      setHeroCtaInView(false);
+      return;
+    }
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setHeroCtaInView(Boolean(entry?.isIntersecting));
+      },
+      { threshold: 0.4 }
+    );
+    observer.observe(cta);
+    return () => observer.disconnect();
+  }, [seoPage]);
 
   useEffect(() => {
     if (!scrolling || !halfOpenCompose) return;
@@ -136,7 +158,7 @@ export function GenerateListingDockHost() {
   if (!isGenerateDockListingPath(pathname)) return null;
 
   const collapsed = authLoading || !isAuthed || !plateOpen;
-  const showFab = !isMobile && collapsed;
+  const showFab = !isMobile && collapsed && !(seoPage && heroCtaInView);
   const keepPanelMounted =
     isAuthed &&
     !authLoading &&

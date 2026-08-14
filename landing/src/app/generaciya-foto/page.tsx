@@ -306,7 +306,7 @@ export default async function GeneraciyaFotoPage() {
             className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_75%_65%_at_50%_-20%,rgba(99,102,241,0.14),transparent_62%)]"
             aria-hidden
           />
-          <div className="relative mx-auto w-full max-w-7xl px-3 pb-2 pt-8 text-center sm:px-5 sm:pt-12 xl:px-6">
+          <div className="relative mx-auto w-full max-w-7xl px-3 pb-0 pt-8 text-center sm:px-5 sm:pt-12 xl:px-6">
             <nav
               aria-label="Хлебные крошки"
               className="mb-5 flex items-center justify-center gap-1.5 text-sm text-zinc-400"
@@ -336,7 +336,7 @@ export default async function GeneraciyaFotoPage() {
           </div>
         </section>
 
-        <div className="mx-auto flex w-full max-w-7xl flex-col gap-10 px-3 pt-10 sm:gap-12 sm:px-5 sm:pt-12 lg:gap-16 lg:pt-16 xl:px-6">
+        <div className="mx-auto flex w-full max-w-7xl flex-col gap-12 px-3 pt-12 sm:gap-16 sm:px-5 sm:pt-16 lg:gap-20 lg:pt-20 xl:px-6">
           <section
             id="primery"
             className="scroll-mt-20"
@@ -360,7 +360,7 @@ export default async function GeneraciyaFotoPage() {
           </section>
 
           <section>
-            <div className="overflow-hidden rounded-[1.75rem] border border-indigo-100/90 bg-[linear-gradient(145deg,#f2f1ff_0%,#ffffff_48%,#faf7ff_100%)] px-5 py-7 shadow-[0_28px_80px_-46px_rgba(79,70,229,0.4)] sm:px-7 sm:py-9">
+            <div className="overflow-hidden rounded-[1.75rem] border border-indigo-100/90 bg-[linear-gradient(145deg,#f2f1ff_0%,#ffffff_48%,#faf7ff_100%)] px-3 py-6 shadow-[0_28px_80px_-46px_rgba(79,70,229,0.45)] sm:px-5 sm:py-8">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-indigo-600">
                 Четыре простых шага
               </p>
@@ -412,7 +412,7 @@ export default async function GeneraciyaFotoPage() {
           </section>
 
           <section>
-            <h2 className="text-2xl font-bold tracking-tight text-zinc-900">
+            <h2 className="text-2xl font-bold tracking-tight text-zinc-900 sm:text-3xl">
               {GENERACIYA_FOTO_SEO.faqTitle}
             </h2>
             <dl className="mt-6 space-y-3">

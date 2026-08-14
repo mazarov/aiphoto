@@ -258,6 +258,69 @@ export function CardInlineGeneratePanel({
   const [changeRequest, setChangeRequest] = useState("");
   const [remixing, setRemixing] = useState(false);
 
+  const analyzePhotoPrompt = useCallback(
+    async (imageBase64: string) => {
+      if (
+        !isBlank ||
+        !shouldAutoAnalyzePhoto({
+          intent: seed.intent,
+          prompt: draftPromptRef.current,
+        })
+      ) {
+        return;
+      }
+      if (analyzeInFlightRef.current) return;
+      analyzeInFlightRef.current = true;
+      analyzeAbortRef.current?.abort();
+      const controller = new AbortController();
+      analyzeAbortRef.current = controller;
+      const promptAtStart = draftPromptRef.current;
+      setPromptAnalyzing(true);
+      setError("");
+      setDockSurface("prompt");
+      reachYandexMetrikaGoal(YM_GOAL_GENERATION_PHOTO_PROMPT_UPLOAD);
+
+      try {
+        const result = await analyzeImageToPrompt(imageBase64, {
+          signal: controller.signal,
+        });
+        if (controller.signal.aborted) return;
+        if (seed.intent !== "photo_prompt") return;
+        if (draftPromptRef.current !== promptAtStart) return;
+        if (!result.ok) {
+          setError(result.message);
+          return;
+        }
+        setDraftPrompt(result.prompt);
+        reachYandexMetrikaGoal(YM_GOAL_GENERATION_PHOTO_PROMPT_READY);
+      } catch {
+        if (controller.signal.aborted) return;
+        if (draftPromptRef.current !== promptAtStart) return;
+        setError(
+          "Не удалось обработать фото. Проверьте соединение и попробуйте снова."
+        );
+      } finally {
+        if (analyzeAbortRef.current === controller) {
+          analyzeInFlightRef.current = false;
+          setPromptAnalyzing(false);
+        }
+      }
+    },
+    [isBlank, seed.intent, setDockSurface]
+  );
+
+  useEffect(() => {
+    return () => {
+      analyzeAbortRef.current?.abort();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (seed.intent !== "photo_prompt" && analyzeInFlightRef.current) {
+      analyzeAbortRef.current?.abort();
+    }
+  }, [seed.intent]);
+
   useEffect(() => {
     if (!toast) return;
     const timer = window.setTimeout(() => setToast(""), 2500);
@@ -316,7 +379,7 @@ export function CardInlineGeneratePanel({
     void (async () => {
       try {
         const shouldHydrateLastDockResult = Boolean(
-          isDock && isBlank && isAuthed
+          isDock && isBlank && isAuthed && seedAllowsLastDockHydrate(seed)
         );
         const [configRes, photosRes, preferencesRes, meRes, generationsRes] =
           await Promise.all([
@@ -423,7 +486,6 @@ export function CardInlineGeneratePanel({
          */
         const lastCompleted =
           shouldHydrateLastDockResult &&
-          promptText.trim().length < 8 &&
           !cancelled &&
           (generationsData.generations || []).find(
             (item) =>
@@ -620,17 +682,40 @@ export function CardInlineGeneratePanel({
   const togglePhoto = (id: string) => {
     if (phase === "uploading" || phase === "generating") return;
     setError("");
+    if (selectedPhotoIds.has(id)) {
+      setSelectedPhotoIds((current) => {
+        const next = new Set(current);
+        next.delete(id);
+        return next;
+      });
+      return;
+    }
+    if (selectedPhotoIds.size >= maxPhotos) {
+      setError(`Можно выбрать не больше ${maxPhotos} фото`);
+      return;
+    }
     setSelectedPhotoIds((current) => {
       const next = new Set(current);
-      if (next.has(id)) {
-        next.delete(id);
-      } else if (next.size < maxPhotos) {
-        next.add(id);
-      } else {
-        setError(`Можно выбрать не больше ${maxPhotos} фото`);
-      }
+      next.add(id);
       return next;
     });
+    const previewUrl = photos.find((photo) => photo.id === id)?.previewUrl;
+    if (!previewUrl) return;
+    void (async () => {
+      try {
+        const dataUrl = await dataUrlFromImageUrl(previewUrl);
+        await analyzePhotoPrompt(dataUrl);
+      } catch {
+        if (
+          shouldAutoAnalyzePhoto({
+            intent: seed.intent,
+            prompt: draftPromptRef.current,
+          })
+        ) {
+          setError("Не удалось прочитать фото для анализа.");
+        }
+      }
+    })();
   };
 
   const uploadFiles = async (files: File[]) => {
@@ -642,6 +727,7 @@ export function CardInlineGeneratePanel({
     setProgress(8);
 
     const uploaded: UserPhoto[] = [];
+    let firstAnalyzeDataUrl = "";
     try {
       for (let index = 0; index < files.length; index += 1) {
         const prepared = await prepareUploadFile(files[index]);
@@ -652,6 +738,9 @@ export function CardInlineGeneratePanel({
             return "Недопустимый тип файла";
           });
           throw new Error(message);
+        }
+        if (!firstAnalyzeDataUrl) {
+          firstAnalyzeDataUrl = prepared.dataUrl;
         }
 
         const blob = await (await fetch(prepared.dataUrl)).blob();
@@ -697,6 +786,9 @@ export function CardInlineGeneratePanel({
         setError(
           `Все фото сохранены. Для генерации можно выбрать не больше ${maxPhotos}.`
         );
+      }
+      if (firstAnalyzeDataUrl && uploaded.length) {
+        void analyzePhotoPrompt(firstAnalyzeDataUrl);
       }
     } catch (err) {
       if (uploaded.length) {
@@ -1431,7 +1523,11 @@ export function CardInlineGeneratePanel({
                   <textarea
                     value={draftPrompt}
                     onChange={(event) => setDraftPrompt(event.target.value)}
-                    placeholder={BLANK_PROMPT_PLACEHOLDER}
+                    placeholder={
+                      promptAnalyzing
+                        ? ANALYZE_PROMPT_PLACEHOLDER
+                        : BLANK_PROMPT_PLACEHOLDER
+                    }
                     maxLength={8000}
                     disabled={busy}
                     autoFocus
@@ -1442,6 +1538,16 @@ export function CardInlineGeneratePanel({
                     }`}
                   />
                 </label>
+                {error ? (
+                  <p
+                    className={`mt-2 text-[13px] font-medium ${
+                      dockPromptExpanded ? "text-rose-200" : "text-rose-600"
+                    }`}
+                    role="status"
+                  >
+                    {error}
+                  </p>
+                ) : null}
                 <button
                   type="button"
                   disabled={busy || draftPrompt.trim().length < 8}
@@ -1585,7 +1691,9 @@ export function CardInlineGeneratePanel({
                       : "text-zinc-400"
                 }`}
               >
-                {activePrompt.trim() || (isBlank ? BLANK_PROMPT_PLACEHOLDER : "")}
+                {promptAnalyzing
+                  ? ANALYZE_PROMPT_PLACEHOLDER
+                  : activePrompt.trim() || (isBlank ? BLANK_PROMPT_PLACEHOLDER : "")}
               </span>
               <svg
                 className="h-5 w-5 shrink-0"
