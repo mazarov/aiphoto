@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "yandex-mail": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["${workspaceFolder}/src/standalone/mcp-yandex-mail.mjs"],
+      "envFile": "${workspaceFolder}/.cursor/yandex-smtp.env"
+    }
+  }
+}
