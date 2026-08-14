@@ -336,7 +336,7 @@ export function MobileTabBar() {
             <button
               type="button"
               onClick={handleFotoTab}
-              className="flex flex-1 flex-col items-center justify-end gap-0.5 pb-1 pt-2"
+              className="flex min-w-[4.75rem] flex-[1.25] flex-col items-center justify-end gap-0.5 pb-1 pt-2"
               aria-label="Фото в промт"
               aria-pressed={fotoActive}
             >
@@ -354,7 +354,7 @@ export function MobileTabBar() {
                 />
               </svg>
               <span
-                className={`max-w-[4.5rem] text-center text-[10px] leading-tight ${tabLabelClass(fotoActive)}`}
+                className={`whitespace-nowrap text-center text-[11px] tracking-[-0.02em] ${tabLabelClass(fotoActive)}`}
               >
                 Фото в промт
               </span>
