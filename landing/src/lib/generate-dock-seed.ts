@@ -29,10 +29,10 @@ export function shouldHydrateLastDockResult(seed: GenerateDockSeed): boolean {
   return seed.source === "blank" && seed.intent === "resume";
 }
 
-/** Image-to-prompt auto-fill — photo_prompt intent with no usable prompt yet. */
-export function shouldAutoAnalyzePhoto(input: {
-  intent: GenerateDockComposeIntent;
-  prompt: string;
-}): boolean {
-  return input.intent === "photo_prompt" && input.prompt.trim().length < 8;
+/**
+ * User-photo library is a generation reference, not an analyze source.
+ * `photo_prompt` compose is text-only after ephemeral analyze on the starter.
+ */
+export function shouldAttachLibraryPhotos(seed: GenerateDockSeed): boolean {
+  return seed.intent !== "photo_prompt";
 }

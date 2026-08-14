@@ -21,42 +21,13 @@ export const GENERACIYA_FOTO_SEO = {
   faqTitle: "Вопросы о генерации фото",
 } as const;
 
+/** Quick filters on `/generaciya-foto`, ordered by user popularity (desc). */
 export const GENERACIYA_FOTO_SCENARIOS = [
   {
-    label: "Женские",
-    href: "/promty-dlya-foto-devushki",
-    dimension: "audience_tag",
-    value: "devushka",
-  },
-  {
-    label: "Мужские",
-    href: "/promty-dlya-foto-muzhchiny",
-    dimension: "audience_tag",
-    value: "muzhchina",
-  },
-  {
-    label: "Детские",
-    href: "/promty-dlya-detskih-foto",
-    dimension: "audience_tag",
-    value: "detskie",
-  },
-  {
-    label: "Семейные",
-    href: "/promty-dlya-semejnogo-foto",
-    dimension: "audience_tag",
-    value: "semya",
-  },
-  {
-    label: "Парные",
+    label: "Пары",
     href: "/promty-dlya-foto-par",
     dimension: "audience_tag",
     value: "para",
-  },
-  {
-    label: "С животными",
-    href: "/promty-dlya-foto-s-pitomcem",
-    dimension: "audience_tag",
-    value: "s_pitomcem",
   },
   {
     label: "День рождения",
@@ -65,16 +36,112 @@ export const GENERACIYA_FOTO_SCENARIOS = [
     value: "den_rozhdeniya",
   },
   {
-    label: "Портрет",
-    href: "/stil/portret",
-    dimension: "style_tag",
-    value: "portret",
+    label: "Семья",
+    href: "/promty-dlya-semejnogo-foto",
+    dimension: "audience_tag",
+    value: "semya",
   },
   {
-    label: "Аниме",
-    href: "/stil/anime",
+    label: "Девушки",
+    href: "/promty-dlya-foto-devushki",
+    dimension: "audience_tag",
+    value: "devushka",
+  },
+  {
+    label: "С машиной",
+    href: "/s-mashinoy",
+    dimension: "object_tag",
+    value: "s_mashinoy",
+  },
+  {
+    label: "Мужчины",
+    href: "/promty-dlya-foto-muzhchiny",
+    dimension: "audience_tag",
+    value: "muzhchina",
+  },
+  {
+    label: "Малыш",
+    href: "/promty-dlya-foto-malysh",
+    dimension: "audience_tag",
+    value: "malysh",
+  },
+  {
+    label: "В форме",
+    href: "/v-forme",
+    dimension: "object_tag",
+    value: "v_forme",
+  },
+  {
+    label: "Дети",
+    href: "/promty-dlya-detskih-foto",
+    dimension: "audience_tag",
+    value: "detskie",
+  },
+  {
+    label: "С дочкой",
+    href: "/promty-dlya-foto-s-dochkoy",
+    dimension: "audience_tag",
+    value: "s_dochkoy",
+  },
+  {
+    label: "На море",
+    href: "/na-more",
+    dimension: "object_tag",
+    value: "na_more",
+  },
+  {
+    label: "С мамой",
+    href: "/promty-dlya-foto-s-mamoy",
+    dimension: "audience_tag",
+    value: "s_mamoy",
+  },
+  {
+    label: "Чёрно-белое",
+    href: "/stil/cherno-beloe",
     dimension: "style_tag",
-    value: "anime",
+    value: "cherno_beloe",
+  },
+  {
+    label: "С подругой",
+    href: "/promty-dlya-foto-s-podrugoy",
+    dimension: "audience_tag",
+    value: "s_podrugoy",
+  },
+  {
+    label: "С шампанским",
+    href: "/s-shampanskim",
+    dimension: "object_tag",
+    value: "s_shampanskim",
+  },
+  {
+    label: "Селфи",
+    href: "/stil/selfi",
+    dimension: "style_tag",
+    value: "selfi",
+  },
+  {
+    label: "Беременная",
+    href: "/promty-dlya-foto-beremennaya",
+    dimension: "audience_tag",
+    value: "beremennaya",
+  },
+  {
+    label: "Студийное",
+    href: "/stil/studiynoe",
+    dimension: "style_tag",
+    value: "studiynoe",
+  },
+  {
+    label: "В зеркале",
+    href: "/v-zerkale",
+    dimension: "object_tag",
+    value: "v_zerkale",
+  },
+  {
+    label: "Коллаж",
+    href: "/stil/kollazh",
+    dimension: "style_tag",
+    value: "kollazh",
   },
 ] as const;
 

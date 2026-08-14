@@ -1,15 +1,36 @@
 "use client";
 
-import { useRef, useState, type KeyboardEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type KeyboardEvent,
+} from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { useGenerateDock } from "@/context/GenerateDockContext";
+import { analyzeImageToPrompt } from "@/lib/image-prompt-analyze-client";
+import {
+  noticeForUploadError,
+  prepareUploadFile,
+} from "@/lib/image-upload-prepare";
 import {
   reachYandexMetrikaGoal,
   YM_GOAL_GENERATION_PHOTO_PROMPT_OPEN,
+  YM_GOAL_GENERATION_PHOTO_PROMPT_READY,
   YM_GOAL_GENERATION_PHOTO_PROMPT_START,
+  YM_GOAL_GENERATION_PHOTO_PROMPT_UPLOAD,
   YM_GOAL_PROMPT_CARD_GENERATION_PRICING,
 } from "@/lib/yandex-metrika";
+
+const FILE_INPUT_ACCEPT =
+  ".jpg,.jpeg,.jpe,.png,.webp,image/jpeg,image/png,image/webp,image/*";
+
+function clonePickerFile(file: File): File {
+  const mime = file.type || "application/octet-stream";
+  return new File([file.slice(0, file.size, mime)], file.name, { type: mime });
+}
 
 type StarterMode = "text" | "photo";
 
@@ -70,22 +91,91 @@ function ModeIcon({ mode }: { mode: StarterMode }) {
 
 export function GeneraciyaFotoStarter() {
   const [mode, setMode] = useState<StarterMode>("text");
+  const [analyzing, setAnalyzing] = useState(false);
+  const [analyzeError, setAnalyzeError] = useState("");
   const textTabRef = useRef<HTMLButtonElement>(null);
   const photoTabRef = useRef<HTMLButtonElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const analyzeAbortRef = useRef<AbortController | null>(null);
   const router = useRouter();
   const { user, openAuthModal } = useAuth();
   const { seedBlankPrompt, needsCredits, runBusy, runProgress } =
     useGenerateDock();
   const isAuthed = Boolean(user && user.is_anonymous !== true);
 
+  useEffect(() => {
+    return () => {
+      analyzeAbortRef.current?.abort();
+    };
+  }, []);
+
   const selectMode = (nextMode: StarterMode) => {
     setMode(nextMode);
+    setAnalyzeError("");
+    if (nextMode === "text") {
+      analyzeAbortRef.current?.abort();
+      setAnalyzing(false);
+    }
     if (nextMode === "photo") {
       reachYandexMetrikaGoal(YM_GOAL_GENERATION_PHOTO_PROMPT_OPEN);
     }
   };
 
+  const analyzePhotoAndOpenComposer = async (file: File) => {
+    analyzeAbortRef.current?.abort();
+    const controller = new AbortController();
+    analyzeAbortRef.current = controller;
+    setAnalyzing(true);
+    setAnalyzeError("");
+    reachYandexMetrikaGoal(YM_GOAL_GENERATION_PHOTO_PROMPT_UPLOAD);
+
+    try {
+      const prepared = await prepareUploadFile(file);
+      if (!prepared.ok) {
+        setAnalyzeError(
+          noticeForUploadError(prepared.error, (key) => {
+            if (key === "tooLarge") return "Файл слишком большой (макс. 10 МБ)";
+            if (key === "readFailed") return "Не удалось прочитать файл";
+            return "Недопустимый тип файла";
+          })
+        );
+        return;
+      }
+      const result = await analyzeImageToPrompt(prepared.dataUrl, {
+        signal: controller.signal,
+      });
+      if (controller.signal.aborted) return;
+      if (!result.ok) {
+        setAnalyzeError(result.message);
+        return;
+      }
+      reachYandexMetrikaGoal(YM_GOAL_GENERATION_PHOTO_PROMPT_READY);
+      seedBlankPrompt(result.prompt, {
+        entrySource: "route",
+        intent: "photo_prompt",
+        dockSurface: "prompt",
+      });
+    } catch {
+      if (controller.signal.aborted) return;
+      setAnalyzeError(
+        "Не удалось обработать фото. Проверьте соединение и попробуйте снова."
+      );
+    } finally {
+      if (analyzeAbortRef.current === controller) {
+        setAnalyzing(false);
+      }
+    }
+  };
+
+  const onPhotoFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.currentTarget.files?.[0] ?? null;
+    event.currentTarget.value = "";
+    if (!file) return;
+    void analyzePhotoAndOpenComposer(clonePickerFile(file));
+  };
+
   const openComposer = (nextMode: StarterMode = mode) => {
+    if (analyzing) return;
     if (!isAuthed) {
       openAuthModal();
       return;
@@ -97,11 +187,7 @@ export function GeneraciyaFotoStarter() {
     }
     if (nextMode === "photo") {
       reachYandexMetrikaGoal(YM_GOAL_GENERATION_PHOTO_PROMPT_START);
-      seedBlankPrompt("", {
-        entrySource: "route",
-        intent: "photo_prompt",
-        dockSurface: "photos",
-      });
+      fileInputRef.current?.click();
       return;
     }
     seedBlankPrompt("", {
@@ -186,27 +272,38 @@ export function GeneraciyaFotoStarter() {
         })}
       </div>
 
-      <div className="mt-6 flex justify-center">
+      <div className="mt-6 flex flex-col items-center">
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept={FILE_INPUT_ACCEPT}
+          className="sr-only"
+          tabIndex={-1}
+          onChange={onPhotoFileChange}
+        />
         <button
           type="button"
           id="generaciya-foto-starter-cta"
           onClick={() => openComposer()}
-          aria-busy={runBusy || undefined}
+          disabled={analyzing}
+          aria-busy={analyzing || runBusy || undefined}
           aria-valuemin={runBusy ? 0 : undefined}
           aria-valuemax={runBusy ? 100 : undefined}
           aria-valuenow={runBusy ? Math.round(runProgress) : undefined}
-          className={`relative inline-flex min-h-11 items-center justify-center overflow-hidden rounded-full px-8 text-sm font-semibold text-white transition active:scale-[0.98] ${
-            runBusy
+          className={`relative inline-flex min-h-11 items-center justify-center overflow-hidden rounded-full px-8 text-sm font-semibold text-white transition active:scale-[0.98] disabled:cursor-wait ${
+            analyzing || runBusy
               ? ""
               : needsCredits
                 ? "bg-rose-500/85 shadow-lg shadow-rose-500/20 hover:bg-rose-500/95"
                 : "bg-gradient-to-r from-indigo-500 via-[#5b5cf0] to-violet-500 shadow-lg shadow-indigo-500/20 hover:brightness-105"
           }`}
           style={
-            runBusy ? { backgroundColor: "rgba(39,39,42,0.95)" } : undefined
+            analyzing || runBusy
+              ? { backgroundColor: "rgba(39,39,42,0.95)" }
+              : undefined
           }
         >
-          {runBusy ? (
+          {runBusy && !analyzing ? (
             <span
               className="pointer-events-none absolute inset-y-0 left-0 z-0 origin-left transition-transform duration-300 ease-out"
               style={{
@@ -219,7 +316,7 @@ export function GeneraciyaFotoStarter() {
             />
           ) : null}
           <span className="relative z-10 inline-flex items-center gap-2">
-            {runBusy || needsCredits ? null : (
+            {analyzing || runBusy || needsCredits ? null : (
               <svg
                 className="h-4 w-4 shrink-0"
                 viewBox="0 0 24 24"
@@ -235,15 +332,24 @@ export function GeneraciyaFotoStarter() {
                 />
               </svg>
             )}
-            {runBusy
-              ? `Генерируем · ${Math.round(runProgress)}%`
-              : needsCredits
-                ? "Недостаточно кредитов"
-                : isAuthed
-                  ? "Сгенерировать"
-                  : "Войти и сгенерировать"}
+            {analyzing
+              ? "Составляем промт…"
+              : runBusy
+                ? `Генерируем · ${Math.round(runProgress)}%`
+                : needsCredits
+                  ? "Недостаточно кредитов"
+                  : isAuthed
+                    ? mode === "photo"
+                      ? "Загрузить фото"
+                      : "Сгенерировать"
+                    : "Войти и сгенерировать"}
           </span>
         </button>
+        {analyzeError ? (
+          <p className="mt-3 max-w-md text-center text-sm text-rose-600" role="status">
+            {analyzeError}
+          </p>
+        ) : null}
       </div>
     </div>
   );

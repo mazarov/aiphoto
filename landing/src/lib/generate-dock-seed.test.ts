@@ -3,7 +3,7 @@ import test from "node:test";
 import {
   DEFAULT_GENERATE_DOCK_SEED,
   isResumeComposeSeed,
-  shouldAutoAnalyzePhoto,
+  shouldAttachLibraryPhotos,
   shouldHydrateLastDockResult,
   type GenerateDockSeed,
 } from "./generate-dock-seed";
@@ -55,28 +55,17 @@ test("shouldHydrateLastDockResult is true only for blank resume", () => {
   );
 });
 
-test("shouldAutoAnalyzePhoto only for photo_prompt with short prompt", () => {
+test("shouldAttachLibraryPhotos is false only for photo_prompt compose", () => {
+  assert.equal(shouldAttachLibraryPhotos(DEFAULT_GENERATE_DOCK_SEED), true);
+  assert.equal(shouldAttachLibraryPhotos(seed({ intent: "text" })), true);
   assert.equal(
-    shouldAutoAnalyzePhoto({ intent: "photo_prompt", prompt: "" }),
-    true
-  );
-  assert.equal(
-    shouldAutoAnalyzePhoto({ intent: "photo_prompt", prompt: "short" }),
-    true
-  );
-  assert.equal(
-    shouldAutoAnalyzePhoto({
-      intent: "photo_prompt",
-      prompt: "a complete scene prompt",
-    }),
+    shouldAttachLibraryPhotos(seed({ intent: "photo_prompt" })),
     false
   );
   assert.equal(
-    shouldAutoAnalyzePhoto({ intent: "resume", prompt: "" }),
-    false
-  );
-  assert.equal(
-    shouldAutoAnalyzePhoto({ intent: "text", prompt: "" }),
+    shouldAttachLibraryPhotos(
+      seed({ intent: "photo_prompt", promptText: "a ready prompt from analyze" })
+    ),
     false
   );
 });

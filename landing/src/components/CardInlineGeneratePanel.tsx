@@ -25,13 +25,9 @@ import {
 import { getGenerationPromptRemixUrl } from "@/lib/foto-v-promt-config";
 import { PROMPT_REMIX_COPY } from "@/lib/foto-v-promt-copy";
 import {
-  shouldAutoAnalyzePhoto,
+  shouldAttachLibraryPhotos,
   shouldHydrateLastDockResult as seedAllowsLastDockHydrate,
 } from "@/lib/generate-dock-seed";
-import {
-  analyzeImageToPrompt,
-  dataUrlFromImageUrl,
-} from "@/lib/image-prompt-analyze-client";
 import { useAuth } from "@/context/AuthContext";
 import {
   useGenerateDock,
@@ -40,8 +36,6 @@ import {
 import { GenerationResultBackdrop } from "@/components/generate/GenerationResultBackdrop";
 import {
   reachYandexMetrikaGoal,
-  YM_GOAL_GENERATION_PHOTO_PROMPT_READY,
-  YM_GOAL_GENERATION_PHOTO_PROMPT_UPLOAD,
   YM_GOAL_PROMPT_CARD_GENERATION_ACCEPTED,
   YM_GOAL_PROMPT_CARD_GENERATION_NO_CREDITS,
   YM_GOAL_PROMPT_CARD_GENERATION_PRICING,
@@ -54,7 +48,6 @@ import {
 import { restoreSelectedPhotoIds } from "@/lib/generation-enqueue-core";
 
 const BLANK_PROMPT_PLACEHOLDER = "Опишите изображение или референс";
-const ANALYZE_PROMPT_PLACEHOLDER = "Составляем промт…";
 
 type ModelOpt = { id: string; label: string; cost: number };
 type RatioOpt = { value: string; label: string };
@@ -162,6 +155,9 @@ export function CardInlineGeneratePanel({
 
   const [photos, setPhotos] = useState<UserPhoto[]>([]);
   const [selectedPhotoIds, setSelectedPhotoIds] = useState<Set<string>>(new Set());
+  const libraryPhotoIdsRef = useRef<string[]>([]);
+  const seedIntentRef = useRef(seed.intent);
+  seedIntentRef.current = seed.intent;
   const [libraryLoading, setLibraryLoading] = useState(true);
   const [deletingPhotoId, setDeletingPhotoId] = useState<string | null>(null);
 
@@ -187,9 +183,6 @@ export function CardInlineGeneratePanel({
   const [draftPrompt, setDraftPrompt] = useState(promptText);
   const draftPromptRef = useRef(draftPrompt);
   draftPromptRef.current = draftPrompt;
-  const analyzeInFlightRef = useRef(false);
-  const analyzeAbortRef = useRef<AbortController | null>(null);
-  const [promptAnalyzing, setPromptAnalyzing] = useState(false);
   const [submittedPrompt, setSubmittedPrompt] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
   const [busyAction, setBusyAction] = useState<GenerationMenuAction | null>(null);
@@ -257,69 +250,6 @@ export function CardInlineGeneratePanel({
   );
   const [changeRequest, setChangeRequest] = useState("");
   const [remixing, setRemixing] = useState(false);
-
-  const analyzePhotoPrompt = useCallback(
-    async (imageBase64: string) => {
-      if (
-        !isBlank ||
-        !shouldAutoAnalyzePhoto({
-          intent: seed.intent,
-          prompt: draftPromptRef.current,
-        })
-      ) {
-        return;
-      }
-      if (analyzeInFlightRef.current) return;
-      analyzeInFlightRef.current = true;
-      analyzeAbortRef.current?.abort();
-      const controller = new AbortController();
-      analyzeAbortRef.current = controller;
-      const promptAtStart = draftPromptRef.current;
-      setPromptAnalyzing(true);
-      setError("");
-      setDockSurface("prompt");
-      reachYandexMetrikaGoal(YM_GOAL_GENERATION_PHOTO_PROMPT_UPLOAD);
-
-      try {
-        const result = await analyzeImageToPrompt(imageBase64, {
-          signal: controller.signal,
-        });
-        if (controller.signal.aborted) return;
-        if (seed.intent !== "photo_prompt") return;
-        if (draftPromptRef.current !== promptAtStart) return;
-        if (!result.ok) {
-          setError(result.message);
-          return;
-        }
-        setDraftPrompt(result.prompt);
-        reachYandexMetrikaGoal(YM_GOAL_GENERATION_PHOTO_PROMPT_READY);
-      } catch {
-        if (controller.signal.aborted) return;
-        if (draftPromptRef.current !== promptAtStart) return;
-        setError(
-          "Не удалось обработать фото. Проверьте соединение и попробуйте снова."
-        );
-      } finally {
-        if (analyzeAbortRef.current === controller) {
-          analyzeInFlightRef.current = false;
-          setPromptAnalyzing(false);
-        }
-      }
-    },
-    [isBlank, seed.intent, setDockSurface]
-  );
-
-  useEffect(() => {
-    return () => {
-      analyzeAbortRef.current?.abort();
-    };
-  }, []);
-
-  useEffect(() => {
-    if (seed.intent !== "photo_prompt" && analyzeInFlightRef.current) {
-      analyzeAbortRef.current?.abort();
-    }
-  }, [seed.intent]);
 
   useEffect(() => {
     if (!toast) return;
@@ -467,13 +397,15 @@ export function CardInlineGeneratePanel({
           setImageSize(defaultSize);
         }
         const availablePhotoIds = nextPhotos.map((photo) => photo.id);
+        const restoredPhotoIds = restoreSelectedPhotoIds({
+          availablePhotoIds,
+          storedPhotoIds: preferences?.selectedPhotoIds,
+        });
+        libraryPhotoIdsRef.current = restoredPhotoIds;
         setSelectedPhotoIds(
-          new Set(
-            restoreSelectedPhotoIds({
-              availablePhotoIds,
-              storedPhotoIds: preferences?.selectedPhotoIds,
-            })
-          )
+          shouldAttachLibraryPhotos(seed)
+            ? new Set(restoredPhotoIds)
+            : new Set()
         );
         if (typeof configData.limits?.maxPhotos === "number") {
           setMaxPhotos(Math.max(1, Math.min(10, configData.limits.maxPhotos)));
@@ -581,6 +513,16 @@ export function CardInlineGeneratePanel({
     (snapshot?: typeof prefsSnapshotRef.current) => {
       const s = snapshot ?? prefsSnapshotRef.current;
       if (!s.preferencesHydrated || !s.userId) return;
+      const attachLibraryPhotos = shouldAttachLibraryPhotos({
+        source: "blank",
+        promptText: "",
+        cardId: null,
+        intent: seedIntentRef.current,
+      });
+      const selectedPhotoIds =
+        attachLibraryPhotos || s.selectedPhotoIds.size > 0
+          ? Array.from(s.selectedPhotoIds)
+          : libraryPhotoIdsRef.current;
       void fetch("/api/generation-preferences", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -589,7 +531,7 @@ export function CardInlineGeneratePanel({
           model: s.model,
           aspectRatio: s.aspectRatio,
           imageSize: s.imageSize,
-          selectedPhotoIds: Array.from(s.selectedPhotoIds),
+          selectedPhotoIds,
         }),
       }).then((res) => {
         if (!res.ok) console.warn("[generation-preferences] save failed", res.status);
@@ -682,40 +624,19 @@ export function CardInlineGeneratePanel({
   const togglePhoto = (id: string) => {
     if (phase === "uploading" || phase === "generating") return;
     setError("");
-    if (selectedPhotoIds.has(id)) {
-      setSelectedPhotoIds((current) => {
-        const next = new Set(current);
-        next.delete(id);
-        return next;
-      });
-      return;
-    }
-    if (selectedPhotoIds.size >= maxPhotos) {
-      setError(`Можно выбрать не больше ${maxPhotos} фото`);
-      return;
-    }
     setSelectedPhotoIds((current) => {
       const next = new Set(current);
+      if (next.has(id)) {
+        next.delete(id);
+        return next;
+      }
+      if (next.size >= maxPhotos) {
+        setError(`Можно выбрать не больше ${maxPhotos} фото`);
+        return current;
+      }
       next.add(id);
       return next;
     });
-    const previewUrl = photos.find((photo) => photo.id === id)?.previewUrl;
-    if (!previewUrl) return;
-    void (async () => {
-      try {
-        const dataUrl = await dataUrlFromImageUrl(previewUrl);
-        await analyzePhotoPrompt(dataUrl);
-      } catch {
-        if (
-          shouldAutoAnalyzePhoto({
-            intent: seed.intent,
-            prompt: draftPromptRef.current,
-          })
-        ) {
-          setError("Не удалось прочитать фото для анализа.");
-        }
-      }
-    })();
   };
 
   const uploadFiles = async (files: File[]) => {
@@ -727,7 +648,6 @@ export function CardInlineGeneratePanel({
     setProgress(8);
 
     const uploaded: UserPhoto[] = [];
-    let firstAnalyzeDataUrl = "";
     try {
       for (let index = 0; index < files.length; index += 1) {
         const prepared = await prepareUploadFile(files[index]);
@@ -738,9 +658,6 @@ export function CardInlineGeneratePanel({
             return "Недопустимый тип файла";
           });
           throw new Error(message);
-        }
-        if (!firstAnalyzeDataUrl) {
-          firstAnalyzeDataUrl = prepared.dataUrl;
         }
 
         const blob = await (await fetch(prepared.dataUrl)).blob();
@@ -786,9 +703,6 @@ export function CardInlineGeneratePanel({
         setError(
           `Все фото сохранены. Для генерации можно выбрать не больше ${maxPhotos}.`
         );
-      }
-      if (firstAnalyzeDataUrl && uploaded.length) {
-        void analyzePhotoPrompt(firstAnalyzeDataUrl);
       }
     } catch (err) {
       if (uploaded.length) {
@@ -1523,11 +1437,7 @@ export function CardInlineGeneratePanel({
                   <textarea
                     value={draftPrompt}
                     onChange={(event) => setDraftPrompt(event.target.value)}
-                    placeholder={
-                      promptAnalyzing
-                        ? ANALYZE_PROMPT_PLACEHOLDER
-                        : BLANK_PROMPT_PLACEHOLDER
-                    }
+                    placeholder={BLANK_PROMPT_PLACEHOLDER}
                     maxLength={8000}
                     disabled={busy}
                     autoFocus
@@ -1691,9 +1601,7 @@ export function CardInlineGeneratePanel({
                       : "text-zinc-400"
                 }`}
               >
-                {promptAnalyzing
-                  ? ANALYZE_PROMPT_PLACEHOLDER
-                  : activePrompt.trim() || (isBlank ? BLANK_PROMPT_PLACEHOLDER : "")}
+                {activePrompt.trim() || (isBlank ? BLANK_PROMPT_PLACEHOLDER : "")}
               </span>
               <svg
                 className="h-5 w-5 shrink-0"
