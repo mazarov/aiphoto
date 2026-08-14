@@ -64,6 +64,8 @@ const MOBILE_FS_CHIP_MUTED =
   "text-[13px] font-medium bg-black/15 text-white/80 backdrop-blur-md shadow-none transition-colors hover:bg-black/25";
 /** Кнопки поверх фото (промпт / Lexy) — без «полосы», тот же glass. */
 const MOBILE_FS_ACTION = `${MOBILE_FS_CHIP} rounded-xl font-semibold`;
+/** Полноэкранный текст промпта: та же glass-подложка, что у чипов. */
+const MOBILE_FS_EXPAND = `${MOBILE_FS_CHIP} leading-relaxed`;
 
 /** Mobile has-photos bottom bar: prompt + Lexy only (listing arrows live in the right stack). */
 const MOBILE_PHOTO_ACTIONS_GRID =
@@ -1266,60 +1268,62 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                     aria-modal="true"
                     aria-labelledby="mobile-prompt-overlay-title"
                     data-no-swipe
-                    className="absolute inset-0 z-[110] flex flex-col bg-zinc-950"
+                    className="absolute inset-0 z-[110] flex flex-col bg-black/48 backdrop-blur-md"
                     onPointerDown={(e) => e.stopPropagation()}
                     onClick={(e) => e.stopPropagation()}
                   >
-                    <header className="flex shrink-0 items-center justify-end px-4 pt-[max(12px,env(safe-area-inset-top))]">
-                      <h2 id="mobile-prompt-overlay-title" className="sr-only">
-                        Промпт
-                      </h2>
-                      <button
-                        type="button"
-                        aria-label="Закрыть промпт"
-                        onClick={() => setMobilePromptOverlay(false)}
-                        className={`${OVERLAY_BUTTON_UA_RESET} flex h-11 w-11 items-center justify-center rounded-full bg-white/10 p-2 text-white/90 transition-colors hover:bg-white/16 active:scale-[0.97]`}
-                      >
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden>
-                          <path d="M18 6L6 18M6 6l12 12"/>
-                        </svg>
-                      </button>
-                    </header>
-                    <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-3 [-webkit-overflow-scrolling:touch]">
-                      <p className="select-text whitespace-pre-wrap text-[13px] leading-relaxed text-white/92">
-                        {data.promptTexts.join("\n\n")}
-                      </p>
-                    </div>
-                    <div className="shrink-0 px-4 pb-[max(14px,env(safe-area-inset-bottom))] pt-3">
-                      <button
-                        type="button"
-                        aria-live="polite"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          void handleCopy();
-                        }}
-                        className={`${OVERLAY_BUTTON_UA_RESET} flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-[13px] font-semibold text-zinc-900 shadow-none transition-transform active:scale-[0.98]`}
-                      >
-                        {stickyCopy === "ok" ? (
-                          <>
-                            <CheckIcon size={20} />
-                            <span>Готово</span>
-                          </>
-                        ) : stickyCopy === "fail" ? (
-                          <>
-                            <span className="text-amber-600" aria-hidden>
-                              !
-                            </span>
-                            Не удалось скопировать
-                          </>
-                        ) : (
-                          <>
-                            <CopyIcon size={20} />
-                            {data.promptTexts.length > 1 ? "Скопировать все промпты" : "Скопировать промпт"}
-                          </>
-                        )}
-                      </button>
+                    <div className={`flex min-h-0 flex-1 flex-col rounded-none ${MOBILE_FS_EXPAND} px-4 py-0`}>
+                      <header className="flex shrink-0 items-center justify-end pt-[max(12px,env(safe-area-inset-top))]">
+                        <h2 id="mobile-prompt-overlay-title" className="sr-only">
+                          Промпт
+                        </h2>
+                        <button
+                          type="button"
+                          aria-label="Закрыть промпт"
+                          onClick={() => setMobilePromptOverlay(false)}
+                          className={`${OVERLAY_BUTTON_UA_RESET} flex h-11 w-11 items-center justify-center rounded-full bg-black/15 p-2 text-white/90 backdrop-blur-md shadow-none transition-colors hover:bg-black/25 active:scale-[0.97]`}
+                        >
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden>
+                            <path d="M18 6L6 18M6 6l12 12"/>
+                          </svg>
+                        </button>
+                      </header>
+                      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain py-3 [-webkit-overflow-scrolling:touch]">
+                        <p className="select-text whitespace-pre-wrap text-[13px] leading-relaxed text-white/92">
+                          {data.promptTexts.join("\n\n")}
+                        </p>
+                      </div>
+                      <div className="shrink-0 pb-[max(14px,env(safe-area-inset-bottom))] pt-3">
+                        <button
+                          type="button"
+                          aria-live="polite"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            void handleCopy();
+                          }}
+                          className={`${OVERLAY_BUTTON_UA_RESET} shadow-none flex min-h-11 w-full items-center justify-center gap-2 px-4 py-3 font-semibold text-white ${MOBILE_FS_ACTION}`}
+                        >
+                          {stickyCopy === "ok" ? (
+                            <>
+                              <CheckIcon size={20} />
+                              <span>Готово</span>
+                            </>
+                          ) : stickyCopy === "fail" ? (
+                            <>
+                              <span className="text-amber-200" aria-hidden>
+                                !
+                              </span>
+                              Не удалось скопировать
+                            </>
+                          ) : (
+                            <>
+                              <CopyIcon size={20} />
+                              {data.promptTexts.length > 1 ? "Скопировать все промпты" : "Скопировать промпт"}
+                            </>
+                          )}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ) : null}
