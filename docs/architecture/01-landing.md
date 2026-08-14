@@ -1,5 +1,7 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-08-14 (**header pay CTA:** в мобильной шапке `HeaderBalancePayChip` справа «+» вместо «Пополнить» / «Купить кредиты»; `aria-label` по-прежнему «пополнить».)
+>
 > Последнее обновление: 2026-08-14 (**pricing overlay:** `/pricing` как карточка промта — hard URL (refresh, YooKassa `?payment=`) + клиентская модалка `history.pushState` с любого места; close → `history.back()`. In-app CTA (чип баланса, «Пополнить», недостаточно кредитов, футер «Тарифы») открывают оверлей, не `router.push`.)
 >
 > Последнее обновление: 2026-08-14 (**mobile auth sheet SSOT:** `openAuthModal` на max-lg открывает ту же `MobileProfileSheet`, что таб Войти/Профиль — в т.ч. «Войти» на карточке промта. Desktop `AuthModal` без изменений.)
@@ -732,8 +734,8 @@ SearchResults (client, infinite scroll)
 
 | Компонент | Файл | Роль |
 |-----------|------|------|
-| HeaderClient | `components/HeaderClient.tsx` | Mobile sticky header: поиск слева \| логотип \| у авторизованного `HeaderBalancePayChip` (баланс + «Пополнить» / «Купить кредиты»). На desktop не рендерит визуальный chrome |
-| HeaderBalancePayChip | `components/AccountControls.tsx` | Split-pill шапки: кредиты + CTA «Пополнить» / «Купить кредиты» → `PricingEntryLink` (оверлей `/pricing`). Тот же кэш `GET /api/me`, что sidebar |
+| HeaderClient | `components/HeaderClient.tsx` | Mobile sticky header: поиск слева \| логотип \| у авторизованного `HeaderBalancePayChip` (баланс + «+»). На desktop не рендерит визуальный chrome |
+| HeaderBalancePayChip | `components/AccountControls.tsx` | Split-pill шапки: кредиты + CTA «+» → `PricingEntryLink` (оверлей `/pricing`). `aria-label` — «пополнить». Тот же кэш `GET /api/me`, что sidebar |
 | PricingModalContext | `context/PricingModalContext.tsx` | SSOT оверлея тарифов: `open` → pushState `/pricing`, `close` → back, `popstate` снимает модалку; на hard `/pricing` `open` no-op |
 | ClientPricingModal | `components/ClientPricingModal.tsx` | Overlay тарифов в root layout (portal `document.body`, `z-[260]`) |
 | PricingScreen | `components/pricing/PricingScreen.tsx` | Общий UI пакетов для hard page и модалки |

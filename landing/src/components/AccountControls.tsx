@@ -119,11 +119,10 @@ function CreditIcon({ className = "h-4 w-4" }: { className?: string }) {
 export function HeaderBalancePayChip() {
   const { credits } = useCreditBalance(true);
   const empty = credits === 0;
-  const cta = empty ? "Купить кредиты" : "Пополнить";
   const label =
     credits === null
       ? "Баланс загружается, пополнить"
-      : `Баланс ${new Intl.NumberFormat("ru-RU").format(credits)} токенов, ${cta.toLowerCase()}`;
+      : `Баланс ${new Intl.NumberFormat("ru-RU").format(credits)} токенов, пополнить`;
 
   return (
     <PricingEntryLink
@@ -149,13 +148,14 @@ export function HeaderBalancePayChip() {
         )}
       </span>
       <span
-        className={`inline-flex h-full items-center whitespace-nowrap px-2.5 text-[13px] font-semibold text-white transition-colors ${
+        className={`inline-flex h-full w-10 items-center justify-center text-[17px] font-semibold leading-none text-white transition-colors ${
           empty
             ? "bg-rose-500 group-hover:bg-rose-600"
             : "bg-indigo-600 group-hover:bg-indigo-700"
         }`}
+        aria-hidden
       >
-        {credits === null ? "Пополнить" : cta}
+        +
       </span>
     </PricingEntryLink>
   );
