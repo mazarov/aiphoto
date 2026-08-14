@@ -116,11 +116,7 @@ export function MobileTabBar() {
       case "catalog":
         return np === "/" || np === "/catalog";
       case "generate":
-        return (
-          np === "/generate" ||
-          np.startsWith("/generate/") ||
-          np === "/generaciya-foto"
-        );
+        return np === "/generate" || np.startsWith("/generate/");
       case "foto":
         return np === "/foto-v-promt" || np.startsWith("/foto-v-promt/");
       case "search":
@@ -142,12 +138,6 @@ export function MobileTabBar() {
   };
 
   const handleGenerateTab = () => {
-    if (np === "/generaciya-foto") {
-      document
-        .getElementById("generator")
-        ?.scrollIntoView({ behavior: "smooth", block: "start" });
-      return;
-    }
     if (!isAuthed) {
       openAuthModal();
       return;

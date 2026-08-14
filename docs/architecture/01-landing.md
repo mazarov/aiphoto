@@ -1,6 +1,10 @@
 # 01 — Лендинг (promptshot.ru)
 
-> Последнее обновление: 2026-08-14 (**`/generaciya-foto` photo→prompt:** стартер «По фото» повторяет `/foto-v-promt` — ephemeral file → `analyzeImageToPrompt` (`image_base64`) → `seedBlankPrompt` с готовым промтом в шторку `prompt`. Фото не пишется в `landing_user_photos` и не цепляется к генерации (`shouldAttachLibraryPhotos` false при `intent=photo_prompt`). Библиотека пользователя остаётся только generation-reference.)
+> Последнее обновление: 2026-08-14 (**mobile generate tab on `/generaciya-foto`:** таб «Сгенерировать» открывает/закрывает тот же dock, что и на листингах (`focusBlank`); больше не скроллит к `#generator`. SEO-страница не помечает таб активным сама по себе.)
+>
+> Предыдущее обновление: 2026-08-14 (**mobile generate dock portal:** `GenerateListingDockHost` на max-lg монтируется в `document.body` (`100dvh`), как `GenerateMobileModal` — шторки prompt/photos/model не сжимаются listing visualViewport/клавиатурой. Photo→prompt не autoFocus-ит textarea на мобиле.)
+>
+> Предыдущее обновление: 2026-08-14 (**`/generaciya-foto` photo→prompt:** стартер «По фото» повторяет `/foto-v-promt` — ephemeral file → `analyzeImageToPrompt` (`image_base64`) → `seedBlankPrompt` с готовым промтом в шторку `prompt`. Фото не пишется в `landing_user_photos` и не цепляется к генерации (`shouldAttachLibraryPhotos` false при `intent=photo_prompt`). Библиотека пользователя остаётся только generation-reference.)
 >
 > Предыдущее обновление: 2026-08-14 (**`/generaciya-foto` starter control:** две карточки входа «По описанию» / «По фото» + pill-CTA как у FAB, без градиентной оболочки и textarea. `seed.intent` (`resume` | `text` | `photo_prompt`) в `generate-dock-seed.ts` — SSOT шторки и last-completed hydrate. Analyze как на `/foto-v-promt` только при `intent=photo_prompt` и промте < 8 (`image-prompt-analyze-client.ts`, `image_base64`); не гейтить pathname / `generationSurface`. FAB `focusBlank` сбрасывает photo-сессию через `isResumeComposeSeed`.)
 >

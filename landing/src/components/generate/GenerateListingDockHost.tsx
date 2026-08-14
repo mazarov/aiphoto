@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import {
@@ -28,7 +29,7 @@ const CardInlineGeneratePanel = dynamic(
     ssr: false,
     loading: () => (
       <div
-        className="min-h-24 w-full animate-pulse rounded-[1.75rem] bg-zinc-200/80"
+        className="h-full min-h-0 w-full flex-1 bg-zinc-950/55"
         aria-label="Загружаем генератор"
       />
     ),
@@ -66,6 +67,7 @@ export function GenerateListingDockHost() {
   /** Tall + sticky plate: result chrome and/or in-flight generation. */
   const [plateLocked, setPlateLocked] = useState(false);
   const [heroCtaInView, setHeroCtaInView] = useState(true);
+  const [portalEl, setPortalEl] = useState<HTMLElement | null>(null);
 
   const isAuthed = Boolean(user && user.is_anonymous !== true);
   const halfOpenCompose =
@@ -86,6 +88,10 @@ export function GenerateListingDockHost() {
     sync();
     mq.addEventListener("change", sync);
     return () => mq.removeEventListener("change", sync);
+  }, []);
+
+  useEffect(() => {
+    setPortalEl(document.body);
   }, []);
 
   useEffect(() => {
@@ -189,13 +195,13 @@ export function GenerateListingDockHost() {
   const dockShellClass = isMobile
     ? warmHidden
       ? "pointer-events-none fixed inset-0 z-[-1] opacity-0"
-      : // Full viewport above tab bar (z-40) and listing nav/header.
-        "pointer-events-none fixed inset-0 z-[122] flex flex-col"
+      : // Viewport layer above tab bar (z-40) and listing nav/header.
+        "pointer-events-none fixed inset-0 z-[122] flex h-screen min-h-0 flex-col overflow-hidden supports-[height:100dvh]:h-[100dvh]"
     : dockTall
       ? "pointer-events-none fixed inset-x-0 bottom-0 top-[calc(var(--ps-header-height,57px)+0.75rem)] z-[52] flex flex-col px-3 pb-4 pt-2 lg:left-72 lg:top-3 lg:px-5"
       : "pointer-events-none fixed inset-x-0 bottom-0 z-[52] px-3 pb-4 pt-2 lg:left-72 lg:px-5";
 
-  return (
+  const overlay = (
     <>
       {showResultScrim ? (
         <button
@@ -351,4 +357,9 @@ export function GenerateListingDockHost() {
       </div>
     </>
   );
+
+  if (isMobile && portalEl) {
+    return createPortal(overlay, portalEl);
+  }
+  return overlay;
 }

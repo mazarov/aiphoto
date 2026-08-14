@@ -1098,6 +1098,8 @@ export function CardInlineGeneratePanel({
    * Card seed and «Что изменить» after generation use remix (changeRequest + parent).
    */
   const useBlankPromptEditor = isBlank && !(resultUrl && generationId);
+  /** Prefill (photo→prompt) must not steal focus on mobile — keyboard shrinks the sheet. */
+  const autofocusPromptEditor = !isMobile || draftPrompt.trim().length < 8;
   /**
    * Result photo as plate background after completion; keep it during a follow-up
    * generate so the modal stays tall and the CTA progress stays readable.
@@ -1131,7 +1133,7 @@ export function CardInlineGeneratePanel({
    */
   const dockSheetPanelBase = isMobile
     ? "absolute inset-0 z-50 flex h-full min-h-0 flex-col rounded-none bg-transparent bg-[linear-gradient(180deg,transparent_0%,transparent_58%,rgba(9,9,11,0.28)_100%)] p-3 pt-[max(0.75rem,env(safe-area-inset-top))] pb-[max(0.75rem,env(safe-area-inset-bottom))] text-zinc-100"
-    : "absolute inset-x-0 bottom-0 top-0 z-50 flex min-h-0 flex-col rounded-[1.75rem] bg-transparent bg-[linear-gradient(180deg,transparent_0%,transparent_58%,rgba(9,9,11,0.28)_100%)] p-3 pb-3 text-zinc-100";
+    : "absolute inset-0 z-50 flex h-full min-h-0 flex-col rounded-[1.75rem] bg-transparent bg-[linear-gradient(180deg,transparent_0%,transparent_58%,rgba(9,9,11,0.28)_100%)] p-3 pb-3 text-zinc-100";
   const dockSheetPanel = `${dockSheetPanelBase} overflow-y-auto overscroll-contain`;
   /** Prompt: pin CTA at bottom; fields scroll in an inner region. */
   const dockPromptSheetPanel = `${dockSheetPanelBase} overflow-hidden`;
@@ -1440,7 +1442,7 @@ export function CardInlineGeneratePanel({
                     placeholder={BLANK_PROMPT_PLACEHOLDER}
                     maxLength={8000}
                     disabled={busy}
-                    autoFocus
+                    autoFocus={autofocusPromptEditor}
                     className={`min-h-0 w-full flex-1 resize-none overflow-y-auto p-3 text-[13px] font-medium leading-relaxed ${
                       dockPromptExpanded
                         ? dockSheetField

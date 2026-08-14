@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
   type ChangeEvent,
+  type FormEvent,
   type KeyboardEvent,
 } from "react";
 import { useRouter } from "next/navigation";
@@ -26,11 +27,6 @@ import {
 
 const FILE_INPUT_ACCEPT =
   ".jpg,.jpeg,.jpe,.png,.webp,image/jpeg,image/png,image/webp,image/*";
-
-function clonePickerFile(file: File): File {
-  const mime = file.type || "application/octet-stream";
-  return new File([file.slice(0, file.size, mime)], file.name, { type: mime });
-}
 
 type StarterMode = "text" | "photo";
 
@@ -97,6 +93,7 @@ export function GeneraciyaFotoStarter() {
   const photoTabRef = useRef<HTMLButtonElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const analyzeAbortRef = useRef<AbortController | null>(null);
+  const processingFileRef = useRef(false);
   const router = useRouter();
   const { user, openAuthModal } = useAuth();
   const { seedBlankPrompt, needsCredits, runBusy, runProgress } =
@@ -161,17 +158,22 @@ export function GeneraciyaFotoStarter() {
         "Не удалось обработать фото. Проверьте соединение и попробуйте снова."
       );
     } finally {
+      processingFileRef.current = false;
+      if (fileInputRef.current) fileInputRef.current.value = "";
       if (analyzeAbortRef.current === controller) {
         setAnalyzing(false);
       }
     }
   };
 
-  const onPhotoFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+  const onPhotoFileChange = (
+    event: ChangeEvent<HTMLInputElement> | FormEvent<HTMLInputElement>
+  ) => {
+    if (processingFileRef.current) return;
     const file = event.currentTarget.files?.[0] ?? null;
-    event.currentTarget.value = "";
     if (!file) return;
-    void analyzePhotoAndOpenComposer(clonePickerFile(file));
+    processingFileRef.current = true;
+    void analyzePhotoAndOpenComposer(file);
   };
 
   const openComposer = (nextMode: StarterMode = mode) => {
@@ -280,6 +282,7 @@ export function GeneraciyaFotoStarter() {
           className="sr-only"
           tabIndex={-1}
           onChange={onPhotoFileChange}
+          onInput={onPhotoFileChange}
         />
         <button
           type="button"
