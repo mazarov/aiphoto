@@ -146,7 +146,7 @@ export function GeneraciyaFotoExamplesExplorer({
             : `/api/listing?${new URLSearchParams({
                 [activeFilter!.dimension]: activeFilter!.value,
                 limit: String(RESULT_LIMIT),
-                sort: "popular",
+                sort: "new",
                 strict: "1",
               })}`;
 
@@ -233,7 +233,7 @@ export function GeneraciyaFotoExamplesExplorer({
       : activeFilter?.href || "/";
 
   return (
-    <div className="overflow-hidden rounded-[1.75rem] border border-indigo-100/90 bg-[linear-gradient(145deg,#f2f1ff_0%,#ffffff_48%,#faf7ff_100%)] px-3 py-5 text-zinc-900 shadow-[0_28px_80px_-46px_rgba(79,70,229,0.45)] sm:px-5 sm:py-7">
+    <div className="overflow-hidden rounded-[1.75rem] border border-indigo-100/90 bg-[linear-gradient(145deg,#f2f1ff_0%,#ffffff_48%,#faf7ff_100%)] px-3 pb-0 pt-5 text-zinc-900 shadow-[0_28px_80px_-46px_rgba(79,70,229,0.45)] sm:px-5 sm:pt-7">
       <div className="w-full">
         <p className="text-xs font-semibold uppercase tracking-[0.16em] text-indigo-600">
           Библиотека образов
@@ -331,39 +331,72 @@ export function GeneraciyaFotoExamplesExplorer({
         </nav>
       </div>
 
-      <div
-        className={`mt-5 columns-2 gap-2 transition-opacity sm:columns-3 sm:gap-3 lg:columns-4 ${
-          loading ? "opacity-55" : "opacity-100"
-        }`}
-        aria-live="polite"
-        aria-busy={loading || undefined}
-      >
-        {cards.map((card, index) => (
-          <div
-            key={card.id}
-            className="mb-2 break-inside-avoid sm:mb-3"
-          >
-            <GenerationExampleTile
-              card={card}
-              repeating={repeatingCardId === card.id}
-              onRepeat={repeatCard}
-              aspectRatio={
-                card.photoWidth &&
-                card.photoHeight &&
-                card.photoWidth > 0 &&
-                card.photoHeight > 0
-                  ? card.photoWidth / card.photoHeight
-                  : FALLBACK_CARD_ASPECT_RATIOS[
-                      index % FALLBACK_CARD_ASPECT_RATIOS.length
-                    ]
-              }
+      <div className="relative mt-5 overflow-hidden">
+        <div
+          className={`-mb-2 columns-2 gap-2 transition-opacity sm:-mb-3 sm:columns-3 sm:gap-3 lg:columns-4 ${
+            loading ? "opacity-55" : "opacity-100"
+          }`}
+          aria-live="polite"
+          aria-busy={loading || undefined}
+        >
+          {cards.map((card, index) => (
+            <div
+              key={card.id}
+              className="mb-2 break-inside-avoid sm:mb-3"
+            >
+              <GenerationExampleTile
+                card={card}
+                repeating={repeatingCardId === card.id}
+                onRepeat={repeatCard}
+                aspectRatio={
+                  card.photoWidth &&
+                  card.photoHeight &&
+                  card.photoWidth > 0 &&
+                  card.photoHeight > 0
+                    ? card.photoWidth / card.photoHeight
+                    : FALLBACK_CARD_ASPECT_RATIOS[
+                        index % FALLBACK_CARD_ASPECT_RATIOS.length
+                      ]
+                }
+              />
+            </div>
+          ))}
+        </div>
+
+        {cards.length > 0 ? (
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30">
+            <div
+              className="absolute inset-x-0 bottom-0 h-32 backdrop-blur-[6px] [mask-image:linear-gradient(to_top,black,transparent)] sm:h-40"
+              aria-hidden
             />
+            <div
+              className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-white/50 via-white/15 to-transparent sm:h-40"
+              aria-hidden
+            />
+            <div className="relative flex justify-center pb-4 pt-16 sm:pb-5 sm:pt-20">
+              <Link
+                href={allPromptsHref}
+                className="pointer-events-auto inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-indigo-200 bg-white/95 px-5 text-sm font-semibold text-indigo-700 shadow-sm backdrop-blur-sm transition hover:border-indigo-300 hover:bg-white"
+              >
+                Все промты
+                <svg
+                  className="h-4 w-4"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  aria-hidden
+                >
+                  <path d="m9 18 6-6-6-6" />
+                </svg>
+              </Link>
+            </div>
           </div>
-        ))}
+        ) : null}
       </div>
 
       {!loading && cards.length === 0 ? (
-        <div className="flex min-h-56 flex-col items-center justify-center px-4 text-center">
+        <div className="flex min-h-56 flex-col items-center justify-center px-4 pb-8 text-center">
           <p className="text-base font-semibold text-zinc-900">
             {error || "Подходящих промтов пока не найдено"}
           </p>
@@ -372,30 +405,9 @@ export function GeneraciyaFotoExamplesExplorer({
           </p>
         </div>
       ) : error ? (
-        <p className="mt-4 text-center text-sm text-rose-600" role="status">
+        <p className="mt-4 pb-5 text-center text-sm text-rose-600" role="status">
           {error}
         </p>
-      ) : null}
-
-      {cards.length > 0 ? (
-        <div className="mt-3 flex justify-center sm:mt-5">
-          <Link
-            href={allPromptsHref}
-            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-indigo-200 bg-white px-5 text-sm font-semibold text-indigo-700 shadow-sm transition hover:border-indigo-300 hover:bg-indigo-50"
-          >
-            Все промты
-            <svg
-              className="h-4 w-4"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              aria-hidden
-            >
-              <path d="m9 18 6-6-6-6" />
-            </svg>
-          </Link>
-        </div>
       ) : null}
     </div>
   );

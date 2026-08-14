@@ -62,25 +62,10 @@ const getGenerationExamples = cache(async (): Promise<RouteCardsResult> => {
       limit: 16,
       offset: 0,
       min_cards: 1,
-      sort: "popular",
-    });
-  } catch (error) {
-    console.error("[GeneraciyaFotoPage] fetch examples failed", error);
-    return EMPTY_RESULT;
-  }
-});
-
-const getGenerationHeroCards = cache(async (): Promise<RouteCardsResult> => {
-  try {
-    return await fetchRouteCards({
-      ...BASE_RPC_PARAMS,
-      limit: 5,
-      offset: 0,
-      min_cards: 1,
       sort: "new",
     });
   } catch (error) {
-    console.error("[GeneraciyaFotoPage] fetch hero cards failed", error);
+    console.error("[GeneraciyaFotoPage] fetch examples failed", error);
     return EMPTY_RESULT;
   }
 });
@@ -275,16 +260,11 @@ function buildJsonLd(ogImage: string | null, cards: PromptCardFull[]) {
 }
 
 export default async function GeneraciyaFotoPage() {
-  const [result, heroResult, models] = await Promise.all([
+  const [result, models] = await Promise.all([
     getGenerationExamples(),
-    getGenerationHeroCards(),
     getGenerationModels(),
   ]);
-  const routeCards = Array.from(
-    new Map(
-      [...result.cards, ...heroResult.cards].map((card) => [card.id, card])
-    ).values()
-  );
+  const routeCards = result.cards;
   const [enrichedCards, fallbackOgImage, modelGenerationPreviews] =
     await Promise.all([
       enrichCardsWithDetails(routeCards).catch((error) => {
@@ -298,16 +278,9 @@ export default async function GeneraciyaFotoPage() {
   const cards = result.cards
     .map((card) => cardsById.get(card.id))
     .filter((card): card is PromptCardFull => Boolean(card));
-  const heroCards = heroResult.cards
-    .map((card) => cardsById.get(card.id))
-    .filter((card): card is PromptCardFull => Boolean(card));
   const ogImage = cards[0]?.photoUrls[0] || fallbackOgImage;
   const schemas = buildJsonLd(ogImage, cards);
   const exampleCards = cards.map(toGenerationExampleCard);
-  const heroPreviewCards = (heroCards.length ? heroCards : cards)
-    .map(toGenerationExampleCard)
-    .filter((card) => Boolean(card.photoUrl))
-    .slice(0, 5);
   const modelPreviewImages = Array.from(
     new Set(cards.flatMap((card) => card.photoUrls))
   ).slice(0, 12);
@@ -324,16 +297,16 @@ export default async function GeneraciyaFotoPage() {
         />
       ))}
 
-      <main className="listing-main-bottom-pad w-full flex-1 pb-20">
+      <main className="listing-main-bottom-pad w-full flex-1 pb-16 sm:pb-24">
         <section
           id="generator"
-          className="relative scroll-mt-20 overflow-hidden border-b border-zinc-100"
+          className="relative scroll-mt-20 overflow-hidden"
         >
           <div
             className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_75%_65%_at_50%_-20%,rgba(99,102,241,0.14),transparent_62%)]"
             aria-hidden
           />
-          <div className="relative mx-auto w-full max-w-7xl px-3 pb-10 pt-8 text-center sm:px-5 sm:pb-14 sm:pt-12 xl:px-6">
+          <div className="relative mx-auto w-full max-w-7xl px-3 pb-2 pt-8 text-center sm:px-5 sm:pt-12 xl:px-6">
             <nav
               aria-label="Хлебные крошки"
               className="mb-5 flex items-center justify-center gap-1.5 text-sm text-zinc-400"
@@ -359,105 +332,104 @@ export default async function GeneraciyaFotoPage() {
             <p className="mx-auto mt-4 max-w-2xl text-pretty text-base leading-relaxed text-zinc-600 sm:text-lg">
               {GENERACIYA_FOTO_SEO.intro}
             </p>
-            <GeneraciyaFotoStarter previewCards={heroPreviewCards} />
+            <GeneraciyaFotoStarter />
           </div>
         </section>
 
-        <section
-          id="primery"
-          className="mx-auto w-full max-w-7xl scroll-mt-20 px-3 py-12 sm:px-5 sm:py-16 xl:px-6"
-          aria-labelledby="examples-heading"
-        >
-          {cards.length ? (
-            <GeneraciyaFotoExamplesExplorer initialCards={exampleCards} />
-          ) : (
-            <div className="rounded-2xl border border-zinc-200 bg-zinc-50 px-6 py-12 text-center text-sm text-zinc-500">
-              Примеры временно загружаются. Панель генерации продолжает работать.
-            </div>
-          )}
-        </section>
-
-        <section
-          className="mx-auto w-full max-w-7xl px-3 pb-8 sm:px-5 sm:pb-12 xl:px-6"
-          aria-labelledby="generation-models-heading"
-        >
-          <GenerationModelsShowcase
-            models={models}
-            previewImages={modelPreviewImages}
-            generationPreviewByModel={modelGenerationPreviews}
-          />
-        </section>
-
-        <section className="mx-auto w-full max-w-7xl px-3 py-10 sm:px-5 sm:py-14 xl:px-6">
-          <div className="overflow-hidden rounded-[1.75rem] border border-indigo-100/90 bg-[linear-gradient(145deg,#f2f1ff_0%,#ffffff_48%,#faf7ff_100%)] px-5 py-7 shadow-[0_28px_80px_-46px_rgba(79,70,229,0.4)] sm:px-7 sm:py-9">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-indigo-600">
-              Четыре простых шага
-            </p>
-            <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <h2 className="text-2xl font-bold tracking-tight text-zinc-900 sm:text-3xl">
-                  {GENERACIYA_FOTO_SEO.howToTitle}
-                </h2>
-                <p className="mt-2 max-w-2xl text-sm leading-relaxed text-zinc-600 sm:text-base">
-                  От первого описания до готового изображения — без сложных
-                  настроек и переключения между сервисами.
-                </p>
+        <div className="mx-auto flex w-full max-w-7xl flex-col gap-10 px-3 pt-10 sm:gap-12 sm:px-5 sm:pt-12 lg:gap-16 lg:pt-16 xl:px-6">
+          <section
+            id="primery"
+            className="scroll-mt-20"
+            aria-labelledby="examples-heading"
+          >
+            {cards.length ? (
+              <GeneraciyaFotoExamplesExplorer initialCards={exampleCards} />
+            ) : (
+              <div className="rounded-2xl border border-zinc-200 bg-zinc-50 px-6 py-12 text-center text-sm text-zinc-500">
+                Примеры временно загружаются. Панель генерации продолжает работать.
               </div>
-              <Link
-                href="#generator"
-                className="inline-flex min-h-11 w-fit shrink-0 items-center justify-center rounded-full border border-indigo-200 bg-white px-5 text-sm font-semibold text-indigo-700 shadow-sm transition hover:border-indigo-300 hover:bg-indigo-50"
-              >
-                Начать с идеи
-              </Link>
-            </div>
+            )}
+          </section>
 
-            <div className="relative mt-8">
-              <div
-                className="absolute bottom-5 left-5 top-5 w-px bg-gradient-to-b from-indigo-400 via-violet-300 to-indigo-100 lg:bottom-auto lg:left-[12.5%] lg:right-[12.5%] lg:top-5 lg:h-px lg:w-auto lg:bg-gradient-to-r"
-                aria-hidden
-              />
-              <ol className="grid gap-7 lg:grid-cols-4 lg:gap-5">
-                {GENERACIYA_FOTO_SEO.howToSteps.map((step, index) => (
-                  <li
-                    key={step}
-                    className="relative z-10 flex gap-4 lg:block lg:text-center"
-                  >
-                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-4 border-white bg-gradient-to-br from-indigo-500 to-violet-500 text-sm font-bold text-white shadow-lg shadow-indigo-500/20 lg:mx-auto">
-                      {index + 1}
-                    </span>
-                    <div className="min-w-0 pt-1 lg:pt-4">
-                      <h3 className="text-base font-semibold text-zinc-900">
-                        {HOW_TO_TITLES[index]}
-                      </h3>
-                      <p className="mt-1.5 text-sm leading-relaxed text-zinc-600">
-                        {step}
-                      </p>
-                    </div>
-                  </li>
-                ))}
-              </ol>
-            </div>
-          </div>
-        </section>
+          <section aria-labelledby="generation-models-heading">
+            <GenerationModelsShowcase
+              models={models}
+              previewImages={modelPreviewImages}
+              generationPreviewByModel={modelGenerationPreviews}
+            />
+          </section>
 
-        <section className="mx-auto w-full max-w-7xl px-3 py-10 sm:px-5 xl:px-6">
-          <h2 className="text-2xl font-bold tracking-tight text-zinc-900">
-            {GENERACIYA_FOTO_SEO.faqTitle}
-          </h2>
-          <dl className="mt-6 space-y-3">
-            {GENERACIYA_FOTO_FAQ.map((item) => (
-              <div
-                key={item.q}
-                className="rounded-2xl border border-zinc-200 bg-zinc-50/60 p-5"
-              >
-                <dt className="font-semibold text-zinc-900">{item.q}</dt>
-                <dd className="mt-2 text-sm leading-relaxed text-zinc-600 sm:text-base">
-                  {item.a}
-                </dd>
+          <section>
+            <div className="overflow-hidden rounded-[1.75rem] border border-indigo-100/90 bg-[linear-gradient(145deg,#f2f1ff_0%,#ffffff_48%,#faf7ff_100%)] px-5 py-7 shadow-[0_28px_80px_-46px_rgba(79,70,229,0.4)] sm:px-7 sm:py-9">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-indigo-600">
+                Четыре простых шага
+              </p>
+              <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <h2 className="text-2xl font-bold tracking-tight text-zinc-900 sm:text-3xl">
+                    {GENERACIYA_FOTO_SEO.howToTitle}
+                  </h2>
+                  <p className="mt-2 max-w-2xl text-sm leading-relaxed text-zinc-600 sm:text-base">
+                    От первого описания до готового изображения — без сложных
+                    настроек и переключения между сервисами.
+                  </p>
+                </div>
+                <Link
+                  href="#generator"
+                  className="inline-flex min-h-11 w-fit shrink-0 items-center justify-center rounded-full border border-indigo-200 bg-white px-5 text-sm font-semibold text-indigo-700 shadow-sm transition hover:border-indigo-300 hover:bg-indigo-50"
+                >
+                  Начать с идеи
+                </Link>
               </div>
-            ))}
-          </dl>
-        </section>
+
+              <div className="relative mt-8">
+                <div
+                  className="absolute bottom-5 left-5 top-5 w-px bg-gradient-to-b from-indigo-400 via-violet-300 to-indigo-100 lg:bottom-auto lg:left-[12.5%] lg:right-[12.5%] lg:top-5 lg:h-px lg:w-auto lg:bg-gradient-to-r"
+                  aria-hidden
+                />
+                <ol className="grid gap-7 lg:grid-cols-4 lg:gap-5">
+                  {GENERACIYA_FOTO_SEO.howToSteps.map((step, index) => (
+                    <li
+                      key={step}
+                      className="relative z-10 flex gap-4 lg:block lg:text-center"
+                    >
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-4 border-white bg-gradient-to-br from-indigo-500 to-violet-500 text-sm font-bold text-white shadow-lg shadow-indigo-500/20 lg:mx-auto">
+                        {index + 1}
+                      </span>
+                      <div className="min-w-0 pt-1 lg:pt-4">
+                        <h3 className="text-base font-semibold text-zinc-900">
+                          {HOW_TO_TITLES[index]}
+                        </h3>
+                        <p className="mt-1.5 text-sm leading-relaxed text-zinc-600">
+                          {step}
+                        </p>
+                      </div>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            </div>
+          </section>
+
+          <section>
+            <h2 className="text-2xl font-bold tracking-tight text-zinc-900">
+              {GENERACIYA_FOTO_SEO.faqTitle}
+            </h2>
+            <dl className="mt-6 space-y-3">
+              {GENERACIYA_FOTO_FAQ.map((item) => (
+                <div
+                  key={item.q}
+                  className="rounded-2xl border border-zinc-200 bg-zinc-50/60 p-5"
+                >
+                  <dt className="font-semibold text-zinc-900">{item.q}</dt>
+                  <dd className="mt-2 text-sm leading-relaxed text-zinc-600 sm:text-base">
+                    {item.a}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          </section>
+        </div>
       </main>
     </PageLayout>
   );

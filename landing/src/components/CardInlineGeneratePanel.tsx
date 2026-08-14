@@ -24,11 +24,24 @@ import {
 } from "@/lib/generation-result-client-actions";
 import { getGenerationPromptRemixUrl } from "@/lib/foto-v-promt-config";
 import { PROMPT_REMIX_COPY } from "@/lib/foto-v-promt-copy";
+import {
+  shouldAutoAnalyzePhoto,
+  shouldHydrateLastDockResult as seedAllowsLastDockHydrate,
+} from "@/lib/generate-dock-seed";
+import {
+  analyzeImageToPrompt,
+  dataUrlFromImageUrl,
+} from "@/lib/image-prompt-analyze-client";
 import { useAuth } from "@/context/AuthContext";
-import { useGenerateDock } from "@/context/GenerateDockContext";
+import {
+  useGenerateDock,
+  type GenerateDockSurface,
+} from "@/context/GenerateDockContext";
 import { GenerationResultBackdrop } from "@/components/generate/GenerationResultBackdrop";
 import {
   reachYandexMetrikaGoal,
+  YM_GOAL_GENERATION_PHOTO_PROMPT_READY,
+  YM_GOAL_GENERATION_PHOTO_PROMPT_UPLOAD,
   YM_GOAL_PROMPT_CARD_GENERATION_ACCEPTED,
   YM_GOAL_PROMPT_CARD_GENERATION_NO_CREDITS,
   YM_GOAL_PROMPT_CARD_GENERATION_PRICING,
@@ -38,8 +51,10 @@ import {
   DEFAULT_IMAGE_SIZE,
   IMAGE_GENERATION_MODALITY,
 } from "@/lib/generation/image-options";
+import { restoreSelectedPhotoIds } from "@/lib/generation-enqueue-core";
 
 const BLANK_PROMPT_PLACEHOLDER = "Опишите изображение или референс";
+const ANALYZE_PROMPT_PLACEHOLDER = "Составляем промт…";
 
 type ModelOpt = { id: string; label: string; cost: number };
 type RatioOpt = { value: string; label: string };
@@ -61,9 +76,6 @@ type UserPhoto = {
 };
 
 type Phase = "idle" | "uploading" | "generating" | "done" | "error";
-
-/** Blank dock editor surface — mutual exclusion SSOT for shell stretch. */
-export type GenerateDockSurface = "prompt" | "photos" | "model" | null;
 
 type Props = {
   /** card = remix from prompt card; blank = freeform compose (/generate, tab) */
@@ -128,6 +140,7 @@ export function CardInlineGeneratePanel({
     reportRunProgress,
     reportNeedsCredits,
     requestedModelId,
+    seed,
   } = useGenerateDock();
   const isDock = chrome === "dock";
   const isBlank = source === "blank";
@@ -154,6 +167,8 @@ export function CardInlineGeneratePanel({
 
   const [phase, setPhase] = useState<Phase>("idle");
   const phaseRef = useRef<Phase>("idle");
+  const generateInFlightRef = useRef(false);
+  const [starting, setStarting] = useState(false);
   /**
    * After «Повторить» / delete — do not re-apply last completed result from the
    * mount hydrate fetch (async race with stale resultUrl/generationId closures).
@@ -170,6 +185,11 @@ export function CardInlineGeneratePanel({
   resultUrlRef.current = resultUrl;
   generationIdRef.current = generationId;
   const [draftPrompt, setDraftPrompt] = useState(promptText);
+  const draftPromptRef = useRef(draftPrompt);
+  draftPromptRef.current = draftPrompt;
+  const analyzeInFlightRef = useRef(false);
+  const analyzeAbortRef = useRef<AbortController | null>(null);
+  const [promptAnalyzing, setPromptAnalyzing] = useState(false);
   const [submittedPrompt, setSubmittedPrompt] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
   const [busyAction, setBusyAction] = useState<GenerationMenuAction | null>(null);
@@ -383,16 +403,14 @@ export function CardInlineGeneratePanel({
         } else if (defaultSize) {
           setImageSize(defaultSize);
         }
-        const availablePhotoIds = new Set(nextPhotos.map((photo) => photo.id));
-        const restoredPhotoIds = (preferences?.selectedPhotoIds ?? []).filter((id) =>
-          availablePhotoIds.has(id)
-        );
+        const availablePhotoIds = nextPhotos.map((photo) => photo.id);
         setSelectedPhotoIds(
-          restoredPhotoIds.length
-            ? new Set(restoredPhotoIds)
-            : nextPhotos[0]
-              ? new Set([nextPhotos[0].id])
-              : new Set()
+          new Set(
+            restoreSelectedPhotoIds({
+              availablePhotoIds,
+              storedPhotoIds: preferences?.selectedPhotoIds,
+            })
+          )
         );
         if (typeof configData.limits?.maxPhotos === "number") {
           setMaxPhotos(Math.max(1, Math.min(10, configData.limits.maxPhotos)));
@@ -405,6 +423,7 @@ export function CardInlineGeneratePanel({
          */
         const lastCompleted =
           shouldHydrateLastDockResult &&
+          promptText.trim().length < 8 &&
           !cancelled &&
           (generationsData.generations || []).find(
             (item) =>
@@ -713,7 +732,6 @@ export function CardInlineGeneratePanel({
       setSelectedPhotoIds((selected) => {
         const next = new Set(selected);
         next.delete(photo.id);
-        if (!next.size && remaining[0]) next.add(remaining[0].id);
         return next;
       });
     } catch (err) {
@@ -727,6 +745,7 @@ export function CardInlineGeneratePanel({
     promptOverride?: string;
     parentGenerationId?: string;
     editInstruction?: string;
+    forceTextOnly?: boolean;
   }): Promise<boolean> => {
     const parentGenerationId = options?.parentGenerationId?.trim() || "";
     const editInstruction = options?.editInstruction?.trim() || "";
@@ -740,14 +759,15 @@ export function CardInlineGeneratePanel({
       setError("Промпт слишком короткий");
       return false;
     }
+    if (generateInFlightRef.current) return false;
+    generateInFlightRef.current = true;
+    setStarting(true);
 
     setError("");
     setNeedsCredits(false);
     setMenuOpen(false);
     setExpandedControl(null);
     setPromptExpanded(false);
-    setPhase("generating");
-    setProgress(8);
 
     try {
       const idempotencyKey = crypto.randomUUID();
@@ -766,7 +786,7 @@ export function CardInlineGeneratePanel({
           aspectRatio,
           imageSize,
           cardId: resolvedCardId,
-          photoStoragePaths: isContinuation
+          photoStoragePaths: isContinuation || options?.forceTextOnly
             ? []
             : selectedPhotos.map((photo) => photo.storagePath),
           parentGenerationId: parentGenerationId || null,
@@ -790,6 +810,10 @@ export function CardInlineGeneratePanel({
         }
         throw new Error(genData.message || genData.error || "Не удалось создать генерацию");
       }
+      setPhase("generating");
+      phaseRef.current = "generating";
+      setProgress(8);
+      setStarting(false);
       reachYandexMetrikaGoal(YM_GOAL_PROMPT_CARD_GENERATION_ACCEPTED);
       if (!isContinuation) setGenerationId(genData.id);
       setDraftPrompt(prompt);
@@ -842,8 +866,12 @@ export function CardInlineGeneratePanel({
       }
     } catch (err) {
       setPhase(resultUrl || isContinuation ? "done" : "error");
+      phaseRef.current = resultUrl || isContinuation ? "done" : "error";
       setError(err instanceof Error ? err.message : "Ошибка генерации");
       return false;
+    } finally {
+      generateInFlightRef.current = false;
+      setStarting(false);
     }
   };
 
@@ -1023,7 +1051,8 @@ export function CardInlineGeneratePanel({
     }
   };
 
-  const busy = phase === "uploading" || phase === "generating";
+  const jobBusy = phase === "uploading" || phase === "generating";
+  const busy = jobBusy || starting;
   const controlsBusy = busy || Boolean(deletingPhotoId);
   const showCreditsCta =
     (cannotAffordAny || cannotAffordSelected || needsCredits) && !busy;
@@ -1121,8 +1150,8 @@ export function CardInlineGeneratePanel({
   /** Publish progress to listing FAB / mobile tab while generation runs. */
   useEffect(() => {
     if (!isDock) return;
-    reportRunProgress(busy, progress);
-  }, [isDock, busy, progress, reportRunProgress]);
+    reportRunProgress(jobBusy, progress);
+  }, [isDock, jobBusy, progress, reportRunProgress]);
 
   useEffect(() => {
     if (!isDock) return;
@@ -2238,9 +2267,9 @@ export function CardInlineGeneratePanel({
           <button
             type="button"
             aria-busy={busy}
-            aria-valuemin={busy ? 0 : undefined}
-            aria-valuemax={busy ? 100 : undefined}
-            aria-valuenow={busy ? Math.round(progress) : undefined}
+            aria-valuemin={jobBusy ? 0 : undefined}
+            aria-valuemax={jobBusy ? 100 : undefined}
+            aria-valuenow={jobBusy ? Math.round(progress) : undefined}
             disabled={
               busy ||
               (isAuthed &&
@@ -2271,9 +2300,9 @@ export function CardInlineGeneratePanel({
                 ? "opacity-100 disabled:opacity-100"
                 : "bg-gradient-to-r from-indigo-500 to-violet-500 hover:brightness-110 disabled:opacity-50"
             }`}
-            style={busy ? { backgroundColor: "rgba(39,39,42,0.95)" } : undefined}
+            style={jobBusy ? { backgroundColor: "rgba(39,39,42,0.95)" } : undefined}
           >
-          {busy ? (
+          {jobBusy ? (
             <span
               className="pointer-events-none absolute inset-y-0 left-0 z-0 origin-left transition-transform duration-300 ease-out"
               style={{
@@ -2303,7 +2332,9 @@ export function CardInlineGeneratePanel({
                 phase === "done" && resultUrl && !busy ? "truncate" : undefined
               }
             >
-              {phase === "uploading"
+              {starting
+                ? "Запускаем…"
+                : phase === "uploading"
                 ? `Загружаем фото · ${Math.round(progress)}%`
                 : phase === "generating"
                   ? `Генерируем · ${Math.round(progress)}%`

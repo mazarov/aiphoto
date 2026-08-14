@@ -103,6 +103,7 @@ Browser  ← polling GET /api/generations/[id] каждые 2-3 сек
 ### 3.4. Фото (опционально)
 
 - **0** фото = text-to-image (`sourceType=text_only`); **1–10** = image-to-image с identity-правилами.
+- RPC `landing_enqueue_generation` с миграции **183** принимает пустой `p_input_photo_paths` (`'{}'`). До 183 Postgres бросает `input_photos_required` — job не создаётся, worker пустой.
 - Загрузка в Supabase Storage (bucket: `web-generation-uploads`, путь: `{user_id}/{generation_id}/{index}.jpg`).
 - Перед отправкой в Gemini — resize на сервере до max 2048px по длинной стороне, JPEG quality 85 (экономия трафика через прокси и ускорение запроса).
 - Допустимые форматы: JPEG, PNG, WebP.

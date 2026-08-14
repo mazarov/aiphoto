@@ -56,6 +56,7 @@ export function GenerateListingDockHost() {
     runBusy,
     runProgress,
     needsCredits,
+    focusBlank,
   } = useGenerateDock();
   const [isMobile, setIsMobile] = useState(() =>
     typeof window !== "undefined"
@@ -129,8 +130,8 @@ export function GenerateListingDockHost() {
       router.push("/pricing");
       return;
     }
-    setPlateOpen(true);
-  }, [isAuthed, needsCredits, openAuthModal, router, setPlateOpen]);
+    focusBlank({ entrySource: "tab" });
+  }, [isAuthed, needsCredits, openAuthModal, router, focusBlank]);
 
   if (!isGenerateDockListingPath(pathname)) return null;
 

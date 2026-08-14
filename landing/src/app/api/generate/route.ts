@@ -13,6 +13,10 @@ import {
   validateGenerationEditContract,
 } from "@/lib/generation-edit-contract";
 import {
+  normalizeGenerationSurface,
+  resolveGenerationSourceType,
+} from "@/lib/generation-enqueue-core";
+import {
   DEFAULT_IMAGE_ASPECT_RATIO,
   DEFAULT_IMAGE_SIZE,
   IMAGE_GENERATION_MODALITY,
@@ -64,6 +68,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const pipelineTrace = getStvPipelineTrace(req, body);
     const {
+      generationSurface: rawGenerationSurface,
       modality,
       prompt,
       model,
@@ -151,11 +156,11 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
-    const sourceType = hasParentGeneration
-      ? "generation_result"
-      : normalizedPhotoStoragePaths.length > 0
-        ? "user_photos"
-        : "text_only";
+    const generationSurface = normalizeGenerationSurface(rawGenerationSurface);
+    const sourceType = resolveGenerationSourceType({
+      hasParentGeneration,
+      photoCount: normalizedPhotoStoragePaths.length,
+    });
 
     if (
       normalizedPhotoStoragePaths.some(
@@ -399,6 +404,7 @@ export async function POST(req: NextRequest) {
       imageSize: sz,
       photos: normalizedPhotoStoragePaths.length,
       sourceType,
+      generationSurface,
       generationMode: hasParentGeneration ? "local_edit" : "initial",
       parentGenerationId: normalizedParentGenerationId || null,
       editInstructionLength: normalizedEditInstruction.length,
@@ -420,6 +426,7 @@ export async function POST(req: NextRequest) {
       imageSize: sz,
       photos: normalizedPhotoStoragePaths.length,
       sourceType,
+      generationSurface,
       generationMode: hasParentGeneration ? "local_edit" : "initial",
       parentGenerationId: normalizedParentGenerationId || null,
       editInstructionLength: normalizedEditInstruction.length,

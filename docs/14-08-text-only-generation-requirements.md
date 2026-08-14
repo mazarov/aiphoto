@@ -1,7 +1,7 @@
 # Требования: генерация по тексту промпта без фото
 
 > Дата: 2026-08-14  
-> Статус: в реализации (`feature/14-08-text-only-generation-requirements`)  
+> Статус: RPC 183 применена; text-only enqueue на стороне БД разрешён. Проверка: модалка/dock без фото → `202` + worker `sourceType=text_only`.  
 > Контекст: worker уже умеет `sourceType=text_only` и `assembleTextToImageFinalPrompt`. Гейт «нужно фото» снят с `CardInlineGeneratePanel` и `POST /api/generate` для `prompt_card` и `seo_page`.
 
 ---
@@ -155,8 +155,8 @@ allowsTextOnlyGeneration = generationSurface === "seo_page"
 | parent без валидного edit contract | 400, без изменений |
 | photos ≥ 1, чужой path | 403, без изменений |
 | photos > max_photos | 400, без изменений |
-| нет parent, photos = 0, prompt ≥ 8 | **200 enqueue**, `sourceType=text_only` |
-| нет parent, photos ≥ 1, prompt ≥ 8 | 200 enqueue, `sourceType=user_photos` |
+| нет parent, photos = 0, prompt ≥ 8 | **202 enqueue**, `sourceType=text_only` |
+| нет parent, photos ≥ 1, prompt ≥ 8 | 202 enqueue, `sourceType=user_photos` |
 
 Feature flag `prompt_card_generation` **снят**. Генерация доступна всем; text-only не зависит от cohort. Операционный kill switch — `GENERATION_QUEUE_ENABLED`.
 
@@ -188,7 +188,7 @@ Feature flag `prompt_card_generation` **снят**. Генерация дост�
 
 ### F8. Регрессия `/generaciya-foto`
 
-Hero «По описанию» → `seedBlankPrompt` → dock → генерация без фото — как сейчас. Не завязывать разрешение на pathname.
+Hero «Создать изображение» → `seedBlankPrompt` → открывает dock, **не** enqueue. Генерация только из CTA композера. Не завязывать разрешение на pathname.
 
 ---
 
@@ -234,16 +234,17 @@ Text-only снижает friction → больше enqueue с тех же listin
 
 ## 7. Evolution (без big bang)
 
-Один PR, без миграции БД: схема уже принимает `input_photo_paths = []`.
+Один PR + миграция `sql/183_landing_enqueue_text_only.sql`: колонка `input_photo_paths` уже принимает `'{}'`, но RPC из 172 бросает `input_photos_required`. Без 183 enqueue не создаёт job — worker пустой.
 
 Порядок:
 
-1. API: снять фото-гейт для initial gen; починить `sourceType` в логах.
-2. UI: `allowsTextOnlyGeneration = true` для панели (или удалить флаг); CTA + `runGenerate`.
-3. Копирайт пустого фото-шита.
-4. Тесты: API 200 при `photos=[]` + `prompt_card`; UI не disabled без фото; worker-тест `text_only` уже есть — не ломать.
-5. Обновить `docs/architecture/01-landing.md` (дата + абзац: text-only на всех поверхностях панели, не только `seo_page`).
-6. В `docs/16-03-web-generation-module.md` §3.4 фото = опционально; пункт «Генерация без фото» убрать из вне scope.
+1. Применить `sql/183` на той же БД, куда пишет лендинг (DROP+CREATE `landing_enqueue_generation`, без ветки `input_photos_required`).
+2. API: снять фото-гейт для initial gen; починить `sourceType` в логах.
+3. UI: `allowsTextOnlyGeneration = true` для панели (или удалить флаг); CTA + `runGenerate`.
+4. Копирайт пустого фото-шита.
+5. Тесты: `generation-enqueue-core` — `photos=0` → `text_only`; явный `selectedPhotoIds=[]` остаётся пустым.
+6. Обновить `docs/architecture/01-landing.md` (дата + абзац: text-only на всех поверхностях панели, не только `seo_page`).
+7. В `docs/16-03-web-generation-module.md` §3.4 фото = опционально; пункт «Генерация без фото» убрать из вне scope.
 
 Откат: вернуть серверный 400 на пустые photos для `prompt_card` (UI снова начнёт получать ошибку). Предпочтительнее держать сервер источником правды.
 
@@ -251,6 +252,8 @@ Text-only снижает friction → больше enqueue с тех же listin
 
 ## 8. Acceptance
 
+- [ ] Тест `generation-enqueue-core`: `photos=0` → `text_only`; явный `selectedPhotoIds=[]` не автовыбирает фото.
+- [x] На БД лендинга применена `sql/183_landing_enqueue_text_only.sql` (enqueue без фото не падает с `input_photos_required`).
 - [ ] Модалка карточки: промпт ≥ 8, 0 фото → enqueue, статус completed, картинка по тексту.
 - [ ] Модалка карточки: ≥ 1 фото → по-прежнему identity image-to-image.
 - [ ] Dock `/generate` и листинг: то же.

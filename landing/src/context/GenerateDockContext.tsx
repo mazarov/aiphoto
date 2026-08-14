@@ -8,25 +8,28 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import type { GenerateDockSurface } from "@/components/CardInlineGeneratePanel";
+import {
+  DEFAULT_GENERATE_DOCK_SEED,
+  isResumeComposeSeed,
+  type GenerateDockComposeIntent,
+  type GenerateDockSeed,
+} from "@/lib/generate-dock-seed";
 import {
   reachYandexMetrikaGoal,
   YM_GOAL_GENERATE_SHELL_OPEN,
 } from "@/lib/yandex-metrika";
 
+export type {
+  GenerateDockComposeIntent,
+  GenerateDockSeed,
+} from "@/lib/generate-dock-seed";
+
+/** Blank dock editor surface — mutual exclusion SSOT for shell stretch. */
+export type GenerateDockSurface = "prompt" | "photos" | "model" | null;
+
 export type GenerateDockEntrySource = "tab" | "card" | "route" | "sidebar";
 
-export type GenerateDockSeed = {
-  source: "blank" | "card";
-  promptText: string;
-  cardId: string | null;
-};
-
-const DEFAULT_SEED: GenerateDockSeed = {
-  source: "blank",
-  promptText: "",
-  cardId: null,
-};
+const DEFAULT_SEED: GenerateDockSeed = DEFAULT_GENERATE_DOCK_SEED;
 
 type GenerateDockContextType = {
   seed: GenerateDockSeed;
@@ -56,7 +59,11 @@ type GenerateDockContextType = {
   /** Seed a freeform prompt and open the composer. */
   seedBlankPrompt: (
     promptText: string,
-    options?: { entrySource?: GenerateDockEntrySource }
+    options?: {
+      entrySource?: GenerateDockEntrySource;
+      intent?: GenerateDockComposeIntent;
+      dockSurface?: GenerateDockSurface;
+    }
   ) => void;
   /** Seed prompt from prompt card, then caller closes the card. */
   seedFromCard: (
@@ -120,9 +127,7 @@ export function GenerateDockProvider({ children }: { children: ReactNode }) {
       if (!modelId.trim()) {
         return;
       }
-      const alreadyBlank =
-        seed.source === "blank" && !seed.promptText && !seed.cardId;
-      if (!alreadyBlank) {
+      if (!isResumeComposeSeed(seed)) {
         setSeed(DEFAULT_SEED);
         setSeedToken((token) => token + 1);
       }
@@ -131,15 +136,13 @@ export function GenerateDockProvider({ children }: { children: ReactNode }) {
       setDockSurface(null);
       trackOpen(options?.entrySource ?? "route");
     },
-    [seed.cardId, seed.promptText, seed.source, trackOpen]
+    [seed, trackOpen]
   );
 
   const focusBlank = useCallback(
     (options?: { entrySource?: GenerateDockEntrySource }) => {
       // Avoid remounting the composer on every tab tap — remount = empty shell → fetch → second paint.
-      const alreadyBlank =
-        seed.source === "blank" && !seed.promptText && !seed.cardId;
-      if (!alreadyBlank) {
+      if (!isResumeComposeSeed(seed)) {
         setSeed(DEFAULT_SEED);
         setSeedToken((token) => token + 1);
       }
@@ -148,7 +151,7 @@ export function GenerateDockProvider({ children }: { children: ReactNode }) {
       setDockSurface(null);
       trackOpen(options?.entrySource ?? "tab");
     },
-    [seed.cardId, seed.promptText, seed.source, trackOpen]
+    [seed, trackOpen]
   );
 
   const seedFromCard = useCallback(
@@ -160,6 +163,7 @@ export function GenerateDockProvider({ children }: { children: ReactNode }) {
         source: "card",
         promptText: args.promptText,
         cardId: args.cardId,
+        intent: "resume",
       });
       setSeedToken((token) => token + 1);
       setPlateOpen(true);
@@ -173,16 +177,21 @@ export function GenerateDockProvider({ children }: { children: ReactNode }) {
   const seedBlankPrompt = useCallback(
     (
       promptText: string,
-      options?: { entrySource?: GenerateDockEntrySource }
+      options?: {
+        entrySource?: GenerateDockEntrySource;
+        intent?: GenerateDockComposeIntent;
+        dockSurface?: GenerateDockSurface;
+      }
     ) => {
       setSeed({
         source: "blank",
         promptText: promptText.trim(),
         cardId: null,
+        intent: options?.intent ?? "text",
       });
       setSeedToken((token) => token + 1);
       setPlateOpen(true);
-      setDockSurface(null);
+      setDockSurface(options?.dockSurface ?? null);
       trackOpen(options?.entrySource ?? "route");
     },
     [trackOpen]

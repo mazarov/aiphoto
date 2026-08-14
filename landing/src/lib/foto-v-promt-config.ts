@@ -12,6 +12,13 @@ export function getImagePromptApiOrigin(): string {
 }
 
 export function getImagePromptAnalyzeUrl(): string {
+  // In `next dev`, same-origin proxy avoids CORS and the local Gemini proxy
+  // timeout (gemini-proxy.imageprompt.tools is often unreachable from RF/dev).
+  // Prod / preview: PromptShot same-origin analyze.
+  const forceDirect = process.env.NEXT_PUBLIC_IMAGEPROMPT_DIRECT === "1";
+  if (process.env.NODE_ENV === "development" && !forceDirect) {
+    return "/api/imageprompt-proxy/extension/analyze";
+  }
   return "/api/extension/analyze";
 }
 
