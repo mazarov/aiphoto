@@ -11,6 +11,7 @@ import {
   type KeyboardEvent,
   type RefObject,
 } from "react";
+import { useRouter } from "next/navigation";
 
 export type SearchMobileRegistration = {
   hideMobileBar: boolean;
@@ -29,10 +30,6 @@ type FilterRegistration = {
   open: () => void;
 };
 
-type MenuRegistration = {
-  open: () => void;
-};
-
 type ListingMobileChromeContextValue = {
   searchMobileRef: React.RefObject<SearchMobileRegistration | null>;
   searchMobileRevision: number;
@@ -41,9 +38,6 @@ type ListingMobileChromeContextValue = {
   filterOpenRef: React.RefObject<(() => void) | null>;
   filterRevision: number;
   registerFilter: (reg: FilterRegistration | null) => void;
-  menuOpenRef: React.RefObject<(() => void) | null>;
-  menuRevision: number;
-  registerMenu: (reg: MenuRegistration | null) => void;
   registerMobileSearchOpen: (open: (() => void) | null) => void;
   openMobileSearch: () => void;
 };
@@ -63,9 +57,6 @@ export function ListingMobileChromeProvider({ children }: { children: ReactNode 
   const filterActiveCountRef = useRef(0);
   const filterRegisteredRef = useRef(false);
   const [filterRevision, setFilterRevision] = useState(0);
-
-  const menuOpenRef = useRef<(() => void) | null>(null);
-  const [menuRevision, setMenuRevision] = useState(0);
 
   const mobileSearchOpenRef = useRef<(() => void) | null>(null);
 
@@ -99,14 +90,6 @@ export function ListingMobileChromeProvider({ children }: { children: ReactNode 
     setFilterRevision((v) => v + 1);
   }, []);
 
-  const registerMenu = useCallback((reg: MenuRegistration | null) => {
-    const hadMenu = menuOpenRef.current !== null;
-    menuOpenRef.current = reg?.open ?? null;
-    const hasMenu = menuOpenRef.current !== null;
-    if (hadMenu === hasMenu) return;
-    setMenuRevision((v) => v + 1);
-  }, []);
-
   const value = useMemo(
     () => ({
       searchMobileRef,
@@ -116,9 +99,6 @@ export function ListingMobileChromeProvider({ children }: { children: ReactNode 
       filterOpenRef,
       filterRevision,
       registerFilter,
-      menuOpenRef,
-      menuRevision,
-      registerMenu,
       registerMobileSearchOpen,
       openMobileSearch,
     }),
@@ -127,8 +107,6 @@ export function ListingMobileChromeProvider({ children }: { children: ReactNode 
       registerSearchMobile,
       filterRevision,
       registerFilter,
-      menuRevision,
-      registerMenu,
       registerMobileSearchOpen,
       openMobileSearch,
     ],
@@ -151,4 +129,19 @@ export function useListingMobileChrome() {
 
 export function useListingMobileChromeOptional() {
   return useContext(ListingMobileChromeContext);
+}
+
+/** Header search + tab «Поиск»: listing sheet when registered, otherwise `/search`. */
+export function useOpenMobileSearchEntry() {
+  const chrome = useListingMobileChromeOptional();
+  const router = useRouter();
+
+  return useCallback(() => {
+    const search = chrome?.searchMobileRef.current;
+    if (search && !search.hideMobileBar) {
+      chrome?.openMobileSearch();
+      return;
+    }
+    router.push("/search");
+  }, [chrome, router]);
 }

@@ -8,9 +8,9 @@ import {
   type FormEvent,
   type KeyboardEvent,
 } from "react";
-import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { useGenerateDock } from "@/context/GenerateDockContext";
+import { usePricingModal } from "@/context/PricingModalContext";
 import { analyzeImageToPrompt } from "@/lib/image-prompt-analyze-client";
 import {
   noticeForUploadError,
@@ -94,7 +94,7 @@ export function GeneraciyaFotoStarter() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const analyzeAbortRef = useRef<AbortController | null>(null);
   const processingFileRef = useRef(false);
-  const router = useRouter();
+  const { open: openPricing } = usePricingModal();
   const { user, openAuthModal } = useAuth();
   const { seedBlankPrompt, needsCredits, runBusy, runProgress } =
     useGenerateDock();
@@ -184,7 +184,7 @@ export function GeneraciyaFotoStarter() {
     }
     if (needsCredits) {
       reachYandexMetrikaGoal(YM_GOAL_PROMPT_CARD_GENERATION_PRICING);
-      router.push("/pricing");
+      openPricing();
       return;
     }
     if (nextMode === "photo") {

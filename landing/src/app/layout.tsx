@@ -6,12 +6,14 @@ import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
 import { GenerationProvider } from "@/context/GenerationContext";
 import { PromptCardModalProvider } from "@/context/PromptCardModalContext";
+import { PricingModalProvider } from "@/context/PricingModalContext";
 import { FotoVPromtMobileModalProvider } from "@/context/FotoVPromtMobileModalContext";
 import { GenerateMobileModalProvider } from "@/context/GenerateMobileModalContext";
 import { GenerateDockProvider } from "@/context/GenerateDockContext";
 import { AuthModal } from "@/components/AuthModal";
 import { GenerationModal } from "@/components/GenerationModal";
 import { ClientCardModal } from "@/components/ClientCardModal";
+import { ClientPricingModal } from "@/components/ClientPricingModal";
 import { FotoVPromtMobileModal } from "@/components/foto-v-promt/FotoVPromtMobileModal";
 import { GenerateMobileModal } from "@/components/generate/GenerateMobileModal";
 import { YandexMetrikaRouteTracker } from "@/components/YandexMetrikaRouteTracker";
@@ -85,21 +87,24 @@ export default function RootLayout({
         <AuthProvider>
           <GenerationProvider>
             <PromptCardModalProvider>
-              <FotoVPromtMobileModalProvider>
-                <GenerateMobileModalProvider>
-                  <GenerateDockProvider>
-                    <Suspense fallback={null}>
-                      <YandexMetrikaRouteTracker />
-                    </Suspense>
-                    {children}
-                    {modal}
-                    <ClientCardModal />
-                    <FotoVPromtMobileModal />
-                    <GenerateMobileModal />
-                    <GenerationModal />
-                  </GenerateDockProvider>
-                </GenerateMobileModalProvider>
-              </FotoVPromtMobileModalProvider>
+              <PricingModalProvider>
+                <FotoVPromtMobileModalProvider>
+                  <GenerateMobileModalProvider>
+                    <GenerateDockProvider>
+                      <Suspense fallback={null}>
+                        <YandexMetrikaRouteTracker />
+                      </Suspense>
+                      {children}
+                      {modal}
+                      <ClientCardModal />
+                      <ClientPricingModal />
+                      <FotoVPromtMobileModal />
+                      <GenerateMobileModal />
+                      <GenerationModal />
+                    </GenerateDockProvider>
+                  </GenerateMobileModalProvider>
+                </FotoVPromtMobileModalProvider>
+              </PricingModalProvider>
             </PromptCardModalProvider>
           </GenerationProvider>
           <AuthModal />

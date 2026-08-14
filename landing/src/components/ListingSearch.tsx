@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
-import { useListingMobileChromeOptional } from "@/context/ListingMobileChromeContext";
+import { useListingMobileChromeOptional, useOpenMobileSearchEntry } from "@/context/ListingMobileChromeContext";
 import { normalizeNavPath } from "@/lib/scroll-preservation";
 import { ListingSearchField } from "./ListingSearchField";
 import { SEARCH_PLACEHOLDERS, SEARCH_SUGGESTIONS } from "@/lib/search-suggestions";
@@ -76,7 +76,7 @@ function ListingSearchHeader() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const registerSearchMobile = useListingMobileChromeOptional()?.registerSearchMobile;
-  const openMobileSearch = useListingMobileChromeOptional()?.openMobileSearch;
+  const openMobileSearchEntry = useOpenMobileSearchEntry();
 
   const onSearchPage = pathname.startsWith("/search");
   const urlQuery = onSearchPage ? (searchParams.get("q")?.trim() ?? "") : "";
@@ -137,7 +137,7 @@ function ListingSearchHeader() {
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
         e.preventDefault();
         if (window.matchMedia("(max-width: 1023px)").matches) {
-          openMobileSearch?.();
+          openMobileSearchEntry();
           return;
         }
         // Desktop: same entry as sidebar «Поиск» — /search + focus field.
@@ -157,7 +157,7 @@ function ListingSearchHeader() {
     }
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [onSearchPage, openMobileSearch, router]);
+  }, [onSearchPage, openMobileSearchEntry, router]);
 
   handleChangeRef.current = handleChange;
   handleClearRef.current = handleClear;

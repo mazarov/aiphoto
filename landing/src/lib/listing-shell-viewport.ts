@@ -160,6 +160,10 @@ function onVisualViewportChange(): void {
   applyPanCancel();
 }
 
+export function isListingShellKeyboardFrozen(): boolean {
+  return frozenHeightPx > 0;
+}
+
 export function readListingShellViewportHeightPx(): number {
   if (typeof window === "undefined") return 0;
   if (frozenHeightPx > 0) return frozenHeightPx;

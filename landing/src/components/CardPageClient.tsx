@@ -194,7 +194,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
   const openInlineGenerate = useCallback(() => {
     setMobilePromptOverlay(false);
     const promptText = data.promptTexts.join("\n\n");
-    // Seed global listing dock, then close card so dock is visible on the listing.
+    // Seed global listing dock; guest auth is GenerateDockGuestAuthReactor.
     seedFromCard(
       { promptText, cardId: data.id },
       { entrySource: "card" }

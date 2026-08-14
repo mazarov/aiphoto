@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { flushSync } from "react-dom";
 import {
@@ -13,10 +13,18 @@ import { useFotoVPromtMobileModal } from "@/context/FotoVPromtMobileModalContext
 import { useAuth } from "@/context/AuthContext";
 import { useGenerateDock } from "@/context/GenerateDockContext";
 import { bumpListingShellViewportHeight } from "@/lib/listing-shell-viewport";
+import { useListingIsMobile } from "@/hooks/useListingIsMobile";
+import {
+  holdListingChromeAutoHide,
+  releaseListingChromeAutoHide,
+} from "@/hooks/useListingChromeAutoHide";
 import {
   reachYandexMetrikaGoal,
   YM_GOAL_PROMPT_CARD_GENERATION_PRICING,
 } from "@/lib/yandex-metrika";
+import { MobileProfileSheet } from "./MobileProfileSheet";
+import { UserAvatarImage } from "./UserAvatarImage";
+import { usePricingModal } from "@/context/PricingModalContext";
 
 function tabIconClass(active: boolean) {
   return active ? "text-indigo-600" : "text-zinc-400";
@@ -33,7 +41,7 @@ function normalizePath(path: string): string {
 
 export function MobileTabBar() {
   const pathname = usePathname();
-  const router = useRouter();
+  const { open: openPricing } = usePricingModal();
   const chrome = useListingMobileChromeOptional();
   const { isOpen: fotoModalOpen, open: openFotoModal } = useFotoVPromtMobileModal();
   const {
@@ -45,12 +53,12 @@ export function MobileTabBar() {
     runProgress: generateRunProgress,
     needsCredits: generateNeedsCredits,
   } = useGenerateDock();
-  const { user, openAuthModal } = useAuth();
+  const { user } = useAuth();
   const isAuthed = Boolean(user && user.is_anonymous !== true);
 
-  const [mounted, setMounted] = useState(false);
-  const [isDesktop, setIsDesktop] = useState(false);
+  const isMobile = useListingIsMobile();
   const [searchSheetOpen, setSearchSheetOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const tabBarRef = useRef<HTMLDivElement>(null);
 
@@ -63,6 +71,7 @@ export function MobileTabBar() {
   const registerMobileSearchOpen = chrome?.registerMobileSearchOpen;
 
   const openSheet = useCallback(() => {
+    holdListingChromeAutoHide("search");
     flushSync(() => setSearchSheetOpen(true));
     focusMobileSearchInput(searchInputRef.current);
     requestAnimationFrame(() => focusMobileSearchInput(searchInputRef.current));
@@ -70,20 +79,13 @@ export function MobileTabBar() {
   }, []);
 
   const closeSheet = useCallback(() => {
+    releaseListingChromeAutoHide("search");
     setSearchSheetOpen(false);
     bumpListingShellViewportHeight();
   }, []);
 
   useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  useEffect(() => {
-    const mq = window.matchMedia("(min-width: 1024px)");
-    const sync = () => setIsDesktop(mq.matches);
-    sync();
-    mq.addEventListener("change", sync);
-    return () => mq.removeEventListener("change", sync);
+    return () => releaseListingChromeAutoHide("search");
   }, []);
 
   useEffect(() => {
@@ -103,12 +105,12 @@ export function MobileTabBar() {
     return () => el.removeEventListener("touchmove", block);
   });
 
-  if (!mounted || isDesktop) return null;
+  if (!isMobile) return null;
 
   const np = normalizePath(pathname);
 
   const isActive = (
-    key: "new" | "catalog" | "generate" | "foto" | "search"
+    key: "new" | "catalog" | "generate" | "foto"
   ): boolean => {
     switch (key) {
       case "new":
@@ -119,16 +121,6 @@ export function MobileTabBar() {
         return np === "/generate" || np.startsWith("/generate/");
       case "foto":
         return np === "/foto-v-promt" || np.startsWith("/foto-v-promt/");
-      case "search":
-        return np === "/search";
-    }
-  };
-
-  const handleSearchTab = () => {
-    if (search && !search.hideMobileBar) {
-      openSheet();
-    } else {
-      router.push("/search");
     }
   };
 
@@ -139,12 +131,12 @@ export function MobileTabBar() {
 
   const handleGenerateTab = () => {
     if (!isAuthed) {
-      openAuthModal();
+      setProfileOpen(true);
       return;
     }
     if (generateNeedsCredits) {
       reachYandexMetrikaGoal(YM_GOAL_PROMPT_CARD_GENERATION_PRICING);
-      router.push("/pricing");
+      openPricing();
       return;
     }
     if (generatePlateOpen) {
@@ -160,7 +152,7 @@ export function MobileTabBar() {
 
   return (
     <>
-      <div className="mobile-tab-bar pointer-events-none absolute inset-x-0 bottom-0 z-40 max-lg:block lg:hidden">
+      <div className="mobile-tab-bar pointer-events-none absolute inset-x-0 bottom-0 z-50 max-lg:block lg:hidden">
         <div
           ref={tabBarRef}
           className="pointer-events-auto rounded-t-2xl border-t border-zinc-200/70 bg-white/95 shadow-[0_-8px_32px_-12px_rgba(99,102,241,0.12)] backdrop-blur-xl pb-[max(0px,env(safe-area-inset-bottom,0px))]"
@@ -168,7 +160,7 @@ export function MobileTabBar() {
           <div className="flex h-14 items-end justify-around px-1 pb-1">
             <Link
               href="/trends"
-              className="flex flex-1 flex-col items-center justify-end gap-0.5 pb-1 pt-2"
+              className="flex min-w-0 flex-1 flex-col items-center justify-end gap-0.5 pb-1 pt-2"
               aria-label="Тренды"
             >
               <svg
@@ -196,7 +188,7 @@ export function MobileTabBar() {
 
             <Link
               href="/catalog"
-              className="flex flex-1 flex-col items-center justify-end gap-0.5 pb-1 pt-2"
+              className="flex min-w-0 flex-1 flex-col items-center justify-end gap-0.5 pb-1 pt-2"
               aria-label="Каталог"
             >
               <svg
@@ -216,7 +208,7 @@ export function MobileTabBar() {
               </span>
             </Link>
 
-            <div className="flex flex-1 flex-col items-center justify-end pb-0.5">
+            <div className="flex min-w-0 flex-1 flex-col items-center justify-end pb-0.5">
                 <button
                   type="button"
                   onClick={handleGenerateTab}
@@ -314,29 +306,8 @@ export function MobileTabBar() {
 
             <button
               type="button"
-              onClick={handleSearchTab}
-              className="flex flex-1 flex-col items-center justify-end gap-0.5 pb-1 pt-2"
-              aria-label="Поиск"
-            >
-              <svg
-                className={`h-6 w-6 ${tabIconClass(isActive("search"))}`}
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={isActive("search") ? 2 : 1.5}
-              >
-                <circle cx="11" cy="11" r="7" />
-                <path strokeLinecap="round" d="m16.5 16.5 3 3" />
-              </svg>
-              <span className={`text-[11px] ${tabLabelClass(isActive("search"))}`}>
-                Поиск
-              </span>
-            </button>
-
-            <button
-              type="button"
               onClick={handleFotoTab}
-              className="flex min-w-[4.75rem] flex-[1.25] flex-col items-center justify-end gap-0.5 pb-1 pt-2"
+              className="flex min-w-0 flex-1 flex-col items-center justify-end gap-0.5 pb-1 pt-2"
               aria-label="Фото в промт"
               aria-pressed={fotoActive}
             >
@@ -354,9 +325,49 @@ export function MobileTabBar() {
                 />
               </svg>
               <span
-                className={`whitespace-nowrap text-center text-[11px] tracking-[-0.02em] ${tabLabelClass(fotoActive)}`}
+                className={`max-w-full text-center text-[11px] leading-tight tracking-[-0.02em] ${tabLabelClass(fotoActive)}`}
               >
                 Фото в промт
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setProfileOpen(true)}
+              className="relative z-[1] flex min-h-11 min-w-0 flex-1 flex-col items-center justify-end gap-0.5 pb-1 pt-2"
+              aria-label={isAuthed ? "Профиль" : "Войти"}
+              aria-haspopup="dialog"
+              aria-pressed={profileOpen}
+            >
+              {isAuthed ? (
+                <TabAccountAvatar
+                  avatarUrl={user?.user_metadata?.avatar_url}
+                  displayName={
+                    user?.user_metadata?.full_name ||
+                    user?.email?.split("@")[0] ||
+                    "User"
+                  }
+                  active={profileOpen}
+                />
+              ) : (
+                <svg
+                  className={`h-6 w-6 ${tabIconClass(profileOpen)}`}
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={profileOpen ? 2 : 1.5}
+                  aria-hidden
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"
+                  />
+                  <circle cx="12" cy="7" r="4" />
+                </svg>
+              )}
+              <span className={`text-[11px] ${tabLabelClass(profileOpen)}`}>
+                {isAuthed ? "Профиль" : "Войти"}
               </span>
             </button>
           </div>
@@ -373,6 +384,39 @@ export function MobileTabBar() {
           inputRef={searchInputRef}
         />
       )}
+      <MobileProfileSheet open={profileOpen} onClose={() => setProfileOpen(false)} />
     </>
+  );
+}
+
+function TabAccountAvatar({
+  avatarUrl,
+  displayName,
+  active,
+}: {
+  avatarUrl?: string;
+  displayName: string;
+  active: boolean;
+}) {
+  if (avatarUrl) {
+    return (
+      <UserAvatarImage
+        src={avatarUrl}
+        alt=""
+        width={24}
+        height={24}
+        className={`h-6 w-6 rounded-full ${active ? "ring-2 ring-indigo-500" : ""}`}
+      />
+    );
+  }
+  return (
+    <span
+      className={`flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-semibold ${
+        active ? "bg-indigo-100 text-indigo-600" : "bg-zinc-200 text-zinc-500"
+      }`}
+      aria-hidden
+    >
+      {displayName[0]?.toUpperCase()}
+    </span>
   );
 }

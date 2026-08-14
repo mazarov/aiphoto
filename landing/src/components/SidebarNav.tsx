@@ -1,10 +1,8 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useListingMobileChromeOptional } from "@/context/ListingMobileChromeContext";
 import type { MenuSectionWithCounts } from "@/lib/menu";
 import { getAiImageDescriberChromeUrl } from "@/lib/foto-v-promt-config";
 import { trackDesktopSidebarAddToChromeClick } from "@/lib/yandex-metrika";
@@ -298,7 +296,6 @@ function SidebarContent({
 
 export function SidebarNav({ menu }: { menu: MenuSectionWithCounts[] }) {
   const pathname = usePathname();
-  const registerMenu = useListingMobileChromeOptional()?.registerMenu;
   const normalizedPath = normalizePath(pathname || "/");
 
   const [counts, setCounts] = useState<Record<string, number>>({});
@@ -319,10 +316,6 @@ export function SidebarNav({ menu }: { menu: MenuSectionWithCounts[] }) {
   const [expandedIdx, setExpandedIdx] = useState<number | null>(
     activeIdx >= 0 ? activeIdx : null,
   );
-  const [mobileOpen, setMobileOpen] = useState(false);
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => { setMounted(true); }, []);
 
   // Sync with active route; restore persisted expansion only after hydration.
   useEffect(() => {
@@ -345,23 +338,6 @@ export function SidebarNav({ menu }: { menu: MenuSectionWithCounts[] }) {
     window.localStorage.setItem(EXPANDED_SECTION_STORAGE_KEY, String(expandedIdx));
   }, [expandedIdx]);
 
-  useEffect(() => {
-    setMobileOpen(false);
-  }, [pathname]);
-
-  useEffect(() => {
-    if (mobileOpen) {
-      document.body.style.overflow = "hidden";
-      return () => { document.body.style.overflow = ""; };
-    }
-  }, [mobileOpen]);
-
-  useEffect(() => {
-    if (!registerMenu) return;
-    registerMenu({ open: () => setMobileOpen(true) });
-    return () => registerMenu(null);
-  }, [registerMenu]);
-
   const handleToggle = useCallback((idx: number) => {
     setExpandedIdx((prev) => (prev === idx ? null : idx));
   }, []);
@@ -382,37 +358,6 @@ export function SidebarNav({ menu }: { menu: MenuSectionWithCounts[] }) {
           </div>
         </div>
       </aside>
-
-      {/* Mobile drawer via portal */}
-      {mounted && mobileOpen && createPortal(
-        <div className="fixed inset-0 z-50 flex lg:hidden">
-          <div className="absolute inset-0 bg-black/30 backdrop-blur-[2px]" onClick={() => setMobileOpen(false)} />
-          <div className="relative z-10 flex h-full w-72 max-w-[85vw] flex-col bg-white shadow-2xl">
-            <div className="flex items-center justify-between border-b border-zinc-100 px-4 py-3">
-              <span className="text-sm font-semibold text-zinc-900">Каталог</span>
-              <button
-                type="button"
-                onClick={() => setMobileOpen(false)}
-                className="rounded-lg p-1.5 text-zinc-400 transition-colors hover:bg-zinc-100"
-              >
-                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto overscroll-contain">
-              <SidebarContent
-                menu={enrichedMenu}
-                pathname={normalizedPath}
-                expandedIdx={expandedIdx}
-                onToggle={handleToggle}
-                onItemClick={() => setMobileOpen(false)}
-              />
-            </div>
-          </div>
-        </div>,
-        document.body,
-      )}
     </>
   );
 }

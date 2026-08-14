@@ -189,6 +189,48 @@ p {
       height: var(--ps-listing-shell-height, 100dvh);
       max-height: var(--ps-listing-shell-height, 100dvh);
       min-height: var(--ps-listing-shell-height, 100dvh);
+      --ps-tabbar-reserve: calc(3.5rem + max(0px, env(safe-area-inset-bottom, 0px)));
+    }
+
+    /* Overlay chrome so hide-on-scroll cannot resize the scroller mid-gesture.
+       In-flow spacer at the top of the scroller offsets the first screen; it
+       scrolls away, so hiding the header does not leave a hole. */
+    .listing-shell-root .listing-mobile-header {
+      position: absolute;
+      top: 0;
+      right: 0;
+      left: 0;
+      z-index: 40;
+      transition: transform 0.2s ease;
+    }
+
+    .listing-shell-root .listing-header-flow-spacer {
+      height: var(--ps-header-height, 57px);
+      flex-shrink: 0;
+    }
+
+    .listing-shell-root .mobile-tab-bar {
+      transition: transform 0.2s ease;
+    }
+
+    .listing-shell-root.listing-chrome-hidden .listing-mobile-header,
+    .listing-shell-root.listing-chrome-hidden .mobile-tab-bar {
+      pointer-events: none;
+    }
+
+    .listing-shell-root.listing-chrome-hidden .listing-mobile-header {
+      transform: translateY(-100%);
+    }
+
+    .listing-shell-root.listing-chrome-hidden .mobile-tab-bar {
+      transform: translateY(100%);
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .listing-shell-root .listing-mobile-header,
+      .listing-shell-root .mobile-tab-bar {
+        transition: none;
+      }
     }
 
     .listing-main-bottom-pad {

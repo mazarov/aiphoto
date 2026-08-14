@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { SiteLogoMark } from "./SiteLogoMark";
+import { PricingEntryLink } from "./PricingEntryLink";
 
 export function Footer() {
   const pathname = usePathname();
@@ -29,7 +30,7 @@ export function Footer() {
               <ul className="space-y-2">
                 <li><Link href="/" className="text-sm text-zinc-500 transition-colors hover:text-zinc-900">Главная</Link></li>
                 <li><Link href="/foto-v-promt" className="text-sm text-zinc-500 transition-colors hover:text-zinc-900">Фото в промт</Link></li>
-                <li><Link href="/pricing" className="text-sm text-zinc-500 transition-colors hover:text-zinc-900">Тарифы</Link></li>
+                <li><PricingEntryLink href="/pricing" className="text-sm text-zinc-500 transition-colors hover:text-zinc-900">Тарифы</PricingEntryLink></li>
               </ul>
             </div>
             <div>

@@ -304,6 +304,11 @@ function isCardPath(normalizedPath: string): boolean {
   return normalizedPath === "/p" || normalizedPath.startsWith("/p/");
 }
 
+/** Pricing overlay (`pushState /pricing`) or hard `/pricing` page. */
+function isPricingPath(normalizedPath: string): boolean {
+  return normalizedPath === "/pricing";
+}
+
 /** Scroll catalog listing root and window to top; clears saved modal-restore position. */
 export function scrollCatalogToTop(): void {
   if (typeof window === "undefined") return;
@@ -371,10 +376,10 @@ export function useListingScrollOnRouteChange(pathname: string): void {
   useLayoutEffect(() => {
     const norm = normalizeNavPath(pathname);
 
-    // Card route (modal pushState `/p/slug` or direct /p/) — do NOT touch listing
+    // Card / pricing overlay (pushState) or their hard pages — do NOT touch listing
     // scroll: open saved the position, close restores it via scheduleListingScrollRestore.
     // Keep lastListingNavPath at the underlying listing so the modal round-trip is a no-op.
-    if (isCardPath(norm)) return;
+    if (isCardPath(norm) || isPricingPath(norm)) return;
 
     const prev = lastListingNavPath;
     lastListingNavPath = norm;

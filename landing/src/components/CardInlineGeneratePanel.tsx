@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import Link from "next/link";
 import { OVERLAY_BUTTON_UA_RESET } from "@/lib/card-overlay-action-pill";
 import {
   CREDIT_BALANCE_REFRESH_EVENT,
@@ -34,6 +33,7 @@ import {
   type GenerateDockSurface,
 } from "@/context/GenerateDockContext";
 import { GenerationResultBackdrop } from "@/components/generate/GenerationResultBackdrop";
+import { PricingEntryLink } from "@/components/PricingEntryLink";
 import {
   reachYandexMetrikaGoal,
   YM_GOAL_PROMPT_CARD_GENERATION_ACCEPTED,
@@ -2268,7 +2268,7 @@ export function CardInlineGeneratePanel({
           </button>
         ) : null}
         {showCreditsCta ? (
-          <Link
+          <PricingEntryLink
             href="/pricing"
             onClick={() =>
               reachYandexMetrikaGoal(YM_GOAL_PROMPT_CARD_GENERATION_PRICING)
@@ -2280,7 +2280,7 @@ export function CardInlineGeneratePanel({
             }`}
           >
             Недостаточно кредитов
-          </Link>
+          </PricingEntryLink>
         ) : (
           <button
             type="button"

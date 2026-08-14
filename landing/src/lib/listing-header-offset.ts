@@ -6,6 +6,6 @@ export const PS_HEADER_HEIGHT_FALLBACK_PX = 57;
 export function syncHeaderHeightCssVar(headerEl: HTMLElement): void {
   document.documentElement.style.setProperty(
     PS_HEADER_HEIGHT_VAR,
-    `${Math.round(headerEl.getBoundingClientRect().height)}px`
+    `${Math.round(headerEl.offsetHeight)}px`
   );
 }

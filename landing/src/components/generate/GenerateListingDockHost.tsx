@@ -3,14 +3,17 @@
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
+import { usePricingModal } from "@/context/PricingModalContext";
 import {
   isGenerateDockListingPath,
   isGenerateDockSeoPagePath,
   useGenerateDock,
 } from "@/context/GenerateDockContext";
 import { useListingScrollActivity } from "@/hooks/useListingScrollActivity";
+import { useListingIsMobile } from "@/hooks/useListingIsMobile";
+import { setListingChromeAutoHideBlocked } from "@/hooks/useListingChromeAutoHide";
 import { OVERLAY_BUTTON_UA_RESET } from "@/lib/card-overlay-action-pill";
 import {
   reachYandexMetrikaGoal,
@@ -44,7 +47,7 @@ const CardInlineGeneratePanel = dynamic(
 export function GenerateListingDockHost() {
   const pathname = usePathname();
   const seoPage = isGenerateDockSeoPagePath(pathname);
-  const router = useRouter();
+  const { open: openPricing } = usePricingModal();
   const { user, loading: authLoading, openAuthModal } = useAuth();
   const {
     seed,
@@ -59,11 +62,7 @@ export function GenerateListingDockHost() {
     needsCredits,
     focusBlank,
   } = useGenerateDock();
-  const [isMobile, setIsMobile] = useState(() =>
-    typeof window !== "undefined"
-      ? window.matchMedia("(max-width: 1023px)").matches
-      : false
-  );
+  const isMobile = useListingIsMobile();
   /** Tall + sticky plate: result chrome and/or in-flight generation. */
   const [plateLocked, setPlateLocked] = useState(false);
   const [heroCtaInView, setHeroCtaInView] = useState(true);
@@ -83,16 +82,13 @@ export function GenerateListingDockHost() {
   });
 
   useEffect(() => {
-    const mq = window.matchMedia("(max-width: 1023px)");
-    const sync = () => setIsMobile(mq.matches);
-    sync();
-    mq.addEventListener("change", sync);
-    return () => mq.removeEventListener("change", sync);
+    setPortalEl(document.body);
   }, []);
 
   useEffect(() => {
-    setPortalEl(document.body);
-  }, []);
+    setListingChromeAutoHideBlocked(plateOpen);
+    return () => setListingChromeAutoHideBlocked(false);
+  }, [plateOpen]);
 
   useEffect(() => {
     if (!seoPage) {
@@ -155,11 +151,11 @@ export function GenerateListingDockHost() {
     }
     if (needsCredits) {
       reachYandexMetrikaGoal(YM_GOAL_PROMPT_CARD_GENERATION_PRICING);
-      router.push("/pricing");
+      openPricing();
       return;
     }
     focusBlank({ entrySource: "tab" });
-  }, [isAuthed, needsCredits, openAuthModal, router, focusBlank]);
+  }, [isAuthed, needsCredits, openAuthModal, openPricing, focusBlank]);
 
   if (!isGenerateDockListingPath(pathname)) return null;
 

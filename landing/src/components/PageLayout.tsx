@@ -11,6 +11,7 @@ import {
 import { ListingMobileChromeProvider } from "@/context/ListingMobileChromeContext";
 import { isGenerateDockListingPath } from "@/context/GenerateDockContext";
 import { GenerateListingDockHost } from "@/components/generate/GenerateListingDockHost";
+import { useListingChromeAutoHide } from "@/hooks/useListingChromeAutoHide";
 import { HeaderClient } from "./HeaderClient";
 import { SidebarNav } from "./SidebarNav";
 import { Footer } from "./Footer";
@@ -40,6 +41,7 @@ export function PageLayout({
     (!showGenerateDock || showFooterWithGenerateDock);
   useListingScrollOnRouteChange(pathname);
   useListingShellViewportSync();
+  const shellRef = useListingChromeAutoHide();
 
   useEffect(() => {
     bumpListingShellViewportHeight();
@@ -64,17 +66,24 @@ export function PageLayout({
 
   return (
     <ListingMobileChromeProvider>
-      <div className="listing-shell-root max-lg:flex max-lg:flex-col max-lg:overflow-hidden lg:contents">
+      <div
+        ref={shellRef}
+        className="listing-shell-root max-lg:flex max-lg:flex-col max-lg:overflow-hidden lg:contents"
+      >
         <HeaderClient />
 
         <div
           id={LISTING_SCROLL_ROOT_ID}
           className={`listing-scroll-root max-lg:min-h-0 max-lg:flex-1 max-lg:overflow-y-auto max-lg:overscroll-y-contain max-lg:[-webkit-overflow-scrolling:touch] ${
             showGenerateDock
-              ? "max-lg:pb-[calc(3.5rem+max(0px,env(safe-area-inset-bottom,0px))+12.5rem)] lg:pb-[min(42vh,22rem)]"
-              : "max-lg:pb-[calc(3.5rem+max(0px,env(safe-area-inset-bottom,0px)))]"
+              ? "max-lg:pb-[calc(var(--ps-tabbar-reserve,3.5rem)+12.5rem)] lg:pb-[min(42vh,22rem)]"
+              : "max-lg:pb-[var(--ps-tabbar-reserve,calc(3.5rem+max(0px,env(safe-area-inset-bottom,0px))))]"
           }`}
         >
+          <div
+            className="listing-header-flow-spacer pointer-events-none hidden max-lg:block"
+            aria-hidden
+          />
           <div className="flex min-h-0 lg:min-h-screen">
             <SidebarNav menu={MENU_STRUCTURE} />
             <div className="flex min-w-0 flex-1 flex-col">

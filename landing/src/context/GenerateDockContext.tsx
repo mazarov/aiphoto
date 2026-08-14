@@ -4,10 +4,13 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
+import { useAuth } from "@/context/AuthContext";
 import {
   DEFAULT_GENERATE_DOCK_SEED,
   isResumeComposeSeed,
@@ -45,7 +48,7 @@ type GenerateDockContextType = {
   runBusy: boolean;
   runProgress: number;
   reportRunProgress: (busy: boolean, progress?: number) => void;
-  /** Soft paywall state on FAB / tab / compose CTA → /pricing. */
+  /** Soft paywall state on FAB / tab / compose CTA → pricing overlay (`/pricing`). */
   needsCredits: boolean;
   reportNeedsCredits: (needs: boolean) => void;
   /** Model explicitly requested by an acquisition/product surface. */
@@ -244,9 +247,38 @@ export function GenerateDockProvider({ children }: { children: ReactNode }) {
 
   return (
     <GenerateDockContext.Provider value={value}>
+      <GenerateDockGuestAuthReactor />
       {children}
     </GenerateDockContext.Provider>
   );
+}
+
+/**
+ * SSOT: guest compose (`plateOpen`) always opens auth. Dismiss without login
+ * closes the plate so a second «Повторить» can retrigger the modal.
+ */
+function GenerateDockGuestAuthReactor() {
+  const { user, loading, showAuthModal, openAuthModal } = useAuth();
+  const { plateOpen, setPlateOpen, setDockSurface } = useGenerateDock();
+  const isAuthed = Boolean(user && user.is_anonymous !== true);
+  const prevShowAuthRef = useRef(showAuthModal);
+
+  useEffect(() => {
+    if (loading || isAuthed || !plateOpen) return;
+    openAuthModal();
+  }, [loading, isAuthed, plateOpen, openAuthModal]);
+
+  useEffect(() => {
+    const wasShowing = prevShowAuthRef.current;
+    prevShowAuthRef.current = showAuthModal;
+    if (loading || isAuthed) return;
+    if (wasShowing && !showAuthModal && plateOpen) {
+      setPlateOpen(false);
+      setDockSurface(null);
+    }
+  }, [showAuthModal, loading, isAuthed, plateOpen, setPlateOpen, setDockSurface]);
+
+  return null;
 }
 
 export function useGenerateDock() {
