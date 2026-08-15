@@ -18,6 +18,7 @@ import {
   type GenerationInputSource,
   type ParentGenerationInput,
 } from "./input-source";
+import { encodeGenerationResult } from "./result-encode";
 
 export { ProcessingError, RESULTS_BUCKET } from "./input-source";
 const DIRECT_GEMINI_BASE_URL = "https://generativelanguage.googleapis.com";
@@ -333,11 +334,12 @@ export async function processGeneration(
 
   const imageBuffer = Buffer.from(imageBase64, "base64");
   if (!imageBuffer.length) throw new ProcessingError("gemini_error", "Gemini returned an empty image", false);
+  const encoded = await encodeGenerationResult(imageBuffer);
   await ensureLease();
-  const resultPath = `${job.user_id}/${job.id}/${job.lease_token}.png`;
+  const resultPath = `${job.user_id}/${job.id}/${job.lease_token}.${encoded.extension}`;
   const { error: uploadError } = await supabase.storage
     .from(RESULTS_BUCKET)
-    .upload(resultPath, imageBuffer, { contentType: "image/png", upsert: true });
+    .upload(resultPath, encoded.buffer, { contentType: encoded.contentType, upsert: true });
   if (uploadError) {
     throw new ProcessingError(
       "result_upload_error",
@@ -345,6 +347,15 @@ export async function processGeneration(
       isTemporary(uploadError),
     );
   }
-  log("info", "result_uploaded", { ...context, resultPath, bytes: imageBuffer.length });
+  log("info", "result_uploaded", {
+    ...context,
+    resultPath,
+    bytes: encoded.bytesOut,
+    bytesIn: encoded.bytesIn,
+    bytesOut: encoded.bytesOut,
+    outputFormat: encoded.outputFormat,
+    encodeMs: encoded.encodeMs,
+    skippedReason: encoded.skippedReason,
+  });
   return { resultPath, rawPrompt };
 }
