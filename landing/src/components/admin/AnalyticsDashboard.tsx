@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import type { AnalyticsDashboardData } from "@/lib/analytics-data";
+import { AdminExpandableCard } from "./AdminExpandableCard";
 import { ClientsDailyChart } from "./ClientsDailyChart";
 import { CreditLiabilitySection } from "./CreditLiabilitySection";
 import { CLIENT_SOURCES_ORDER, clientSourceLabel } from "./analytics-constants";
@@ -101,25 +102,34 @@ export function AnalyticsDashboard() {
           .map(([label, value]) => <div key={label} className={card}><p className="text-sm text-zinc-500">{label}</p>
             <p className="mt-1 text-2xl font-bold text-zinc-900">{value}</p></div>)}
       </section>
-      <section className={card}><h2 className="mb-4 font-semibold text-zinc-900">Топ пользователей</h2>
-        <div className="overflow-x-auto"><table className="w-full min-w-[600px] text-left text-sm">
+      <AdminExpandableCard
+        title="Топ пользователей"
+        summary={data.topUsers.length ? `${data.topUsers.length} за период` : "Нет запросов"}
+      >
+        <p className="mb-4 text-sm text-zinc-500">Запросы за выбранный период, не за всё время.</p>
+        {!data.topUsers.length ? <p className="text-sm text-zinc-500">За период нет запросов</p>
+          : <div className="overflow-x-auto"><table className="w-full min-w-[600px] text-left text-sm">
           <thead className="text-xs uppercase text-zinc-400"><tr><th className="pb-3">Email</th><th>Всего</th><th>Генерации</th><th>Анализы</th><th>Последняя активность</th></tr></thead>
           <tbody>{data.topUsers.map((row, index) => <tr key={`${row.email}-${index}`} className="border-t border-zinc-100">
             <td className="py-3 font-medium text-zinc-800">{row.email || "—"}</td><td>{row.total_requests}</td>
             <td>{row.generations}</td><td>{row.analyzes}</td><td className="text-zinc-500">{row.last_seen ? new Date(row.last_seen).toLocaleString() : "—"}</td>
           </tr>)}</tbody>
-        </table></div>
-      </section>
-      <section className={card}><h2 className="mb-4 font-semibold text-zinc-900">Последние analyze-события</h2>
-        <div className="overflow-x-auto"><table className="w-full min-w-[760px] text-left text-sm">
+        </table></div>}
+      </AdminExpandableCard>
+      <AdminExpandableCard
+        title="Последние analyze-события"
+        summary={data.recentEvents.length ? `${data.recentEvents.length} событий` : "Нет событий"}
+      >
+        {!data.recentEvents.length ? <p className="text-sm text-zinc-500">За период нет событий</p>
+          : <div className="overflow-x-auto"><table className="w-full min-w-[760px] text-left text-sm">
           <thead className="text-xs uppercase text-zinc-400"><tr><th className="pb-3">Время</th><th>Клиент</th><th>Outcome</th><th>Ошибка</th><th>Latency</th><th>Correlation</th></tr></thead>
           <tbody>{data.recentEvents.map((row, index) => <tr key={`${row.created_at}-${index}`} className="border-t border-zinc-100">
             <td className="py-3">{new Date(row.created_at).toLocaleString()}</td><td>{clientSourceLabel(row.client_source)}</td>
             <td>{row.outcome || "—"}</td><td className="font-mono text-xs text-zinc-500">{row.error_code || "—"}</td>
             <td>{row.latency_ms == null ? "—" : `${row.latency_ms} ms`}</td><td className="font-mono text-xs">{row.correlation_id?.slice(0, 8) || "—"}</td>
           </tr>)}</tbody>
-        </table></div>
-      </section>
+        </table></div>}
+      </AdminExpandableCard>
     </>}
   </div>;
 }

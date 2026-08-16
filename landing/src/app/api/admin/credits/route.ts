@@ -37,6 +37,7 @@ export async function GET(req: NextRequest) {
       p_cursor_id: cursor?.id ?? null,
       p_limit: limit,
       p_search: search,
+      p_days: days,
     }),
     supabase.rpc("admin_credit_daily_flow", { p_days: days }),
   ]);

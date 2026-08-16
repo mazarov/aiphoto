@@ -16,7 +16,8 @@
 ## Поведение
 
 - `/admin/analytics` — обзор и кредиты. `/admin/finance` — касса выгрузок. Старый `?tab=finance` редиректит.
-- p3: график остатка по дням (реконструкция от live-баланса) и отдельная разбивка по пользователям с колонкой **Осталось**.
+- p3: график остатка по дням (реконструкция от live-баланса) и разбивка тех, кто начислял/тратил за выбранный период; колонка **Осталось** — live-баланс.
+- SQL `186`: «Топ пользователей» и credit-разбивка режутся фильтром Сегодня/7/30/90.
 - p1 показывает gross / комиссия+НДС / налог 6% / Gemini RUB / **чистый доход**.
 - p2 — USD `Subtotal ($)` × статический курс **$1 = 90 ₽**.
 - Чистый доход = выручка (gross) − комиссия и НДС ЮKassa − УСН 6% с выручки − Gemini.
@@ -58,7 +59,7 @@
 
 ## Cutover
 
-1. Применить `sql/184_admin_finance_reporting.sql` и `sql/185_admin_credit_dynamics.sql` в целевой Supabase.
+1. Применить `sql/184_admin_finance_reporting.sql`, `sql/185_admin_credit_dynamics.sql` и `sql/186_admin_analytics_period_users.sql` в целевой Supabase.
 2. Задеплоить landing.
 3. На `/admin/finance` загрузить августовский реестр ЮKassa и Billing CSV.
 

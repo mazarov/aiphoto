@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { AdminExpandableCard } from "./AdminExpandableCard";
 import { CreditDynamicsChart } from "./CreditDynamicsChart";
 import type { CreditSeriesDay } from "@/lib/admin-credits";
 
@@ -115,26 +116,28 @@ export function CreditLiabilitySection({ days }: { days: number }) {
         </div>
       </div>
 
-      <div className={card}>
-        <h2 className="mb-1 font-semibold text-zinc-900">Динамика остатка кредитов</h2>
+      <AdminExpandableCard
+        title="Динамика остатка кредитов"
+        summary={data ? `${formatCredits(data.summary.creditsTotal)} кр. сейчас` : "Загрузка…"}
+      >
         <p className="mb-4 text-sm text-zinc-500">
-          Один график: сколько кредитов оставалось неиспользованными. Период как у обзора сверху.
+          Сколько кредитов оставалось неиспользованными. Период как у обзора сверху.
         </p>
         {state.loading && !data ? <p className="text-sm text-zinc-500">Загрузка…</p>
           : state.error && !data ? <p className="text-sm text-red-600">{state.error}</p>
           : <CreditDynamicsChart series={data?.flow.series || []} />}
-      </div>
+      </AdminExpandableCard>
 
-      <div className={card}>
+      <AdminExpandableCard
+        title="Разбивка по пользователям"
+        summary={data
+          ? `${data.items.length}${data.nextCursor ? "+" : ""} за период`
+          : "Загрузка…"}
+      >
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h2 className="font-semibold text-zinc-900">Разбивка по пользователям</h2>
-            <p className="mt-1 text-sm text-zinc-500">
-              {data
-                ? `${formatCredits(data.summary.usersWithCredits)} с балансом. В колонке «Осталось» — сколько кредитов ещё не потрачено.`
-                : "Сколько кредитов ещё лежит на балансе у каждого."}
-            </p>
-          </div>
+          <p className="text-sm text-zinc-500">
+            Кто начислял или тратил кредиты за период. «Осталось» — живой баланс.
+          </p>
           <label className="text-sm text-zinc-600">
             Поиск
             <input
@@ -148,7 +151,7 @@ export function CreditLiabilitySection({ days }: { days: number }) {
         </div>
         {state.loading && !data ? <p className="text-sm text-zinc-500">Загрузка…</p>
           : state.error ? <p className="text-sm text-red-600">{state.error}</p>
-          : !data?.items.length ? <p className="text-sm text-zinc-500">Ни у кого нет кредитов на балансе</p>
+          : !data?.items.length ? <p className="text-sm text-zinc-500">За период никто не начислял и не тратил кредиты</p>
           : <>
             <div className="overflow-x-auto">
               <table className="w-full min-w-[720px] text-left text-sm">
@@ -181,7 +184,7 @@ export function CreditLiabilitySection({ days }: { days: number }) {
                       </td>
                       <td className="align-top text-zinc-500">
                         <p>+{formatCredits(row.grantedTotal)} / −{formatCredits(row.spentTotal)}</p>
-                        <p className="text-xs text-zinc-400">за всё время</p>
+                        <p className="text-xs text-zinc-400">за период</p>
                       </td>
                       <td className="align-top text-zinc-500">
                         {row.updatedAt ? new Date(row.updatedAt).toLocaleString() : "—"}
@@ -202,7 +205,7 @@ export function CreditLiabilitySection({ days }: { days: number }) {
               </button>
             )}
           </>}
-      </div>
+      </AdminExpandableCard>
     </section>
   );
 }

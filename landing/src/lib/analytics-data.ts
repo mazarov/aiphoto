@@ -43,8 +43,7 @@ export async function fetchAnalyticsDashboard(days: number): Promise<AnalyticsDa
     supabase.from("analytics_user_activity").select("user_id", { count: "exact", head: true })
       .gte("last_seen", since).gt("total_requests", 0),
     supabase.from("analytics_clients_daily").select("*").gte("day", since).order("day"),
-    supabase.from("analytics_user_activity").select("email,total_requests,generations,analyzes,last_seen")
-      .gt("total_requests", 0).order("total_requests", { ascending: false }).limit(50),
+    supabase.rpc("admin_analytics_top_users", { p_days: days }),
     supabase.from("extension_analyze_events")
       .select("created_at,endpoint,client_source,allowed,outcome,error_code,latency_ms,style,correlation_id")
       .gte("created_at", since).order("created_at", { ascending: false }).limit(50),
