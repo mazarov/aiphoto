@@ -99,8 +99,9 @@ function videoRefFromContent(content: Record<string, unknown>): InteractionVideo
 }
 
 export function extractInteractionVideo(
-  payload: Record<string, unknown>
+  payload: Record<string, unknown> | null | undefined
 ): InteractionVideoRef | null {
+  if (!payload) return null;
   const buckets: unknown[] = [
     payload.output_video,
     payload.outputs,

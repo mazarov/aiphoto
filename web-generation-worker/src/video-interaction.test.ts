@@ -45,6 +45,7 @@ test("extractInteractionId reads id or name", () => {
 });
 
 test("extractInteractionVideo finds inline and uri payloads", () => {
+  assert.equal(extractInteractionVideo(null), null);
   assert.deepEqual(
     extractInteractionVideo({
       steps: [{ content: [{ type: "video", data: "AAAA", mime_type: "video/mp4" }] }],
