@@ -25,7 +25,7 @@ import type { Dimension } from "@/lib/tag-registry";
 import type { ListingSort } from "@/lib/listing-sort";
 
 const SEARCH_RESULT_LIMIT = 16;
-const SEARCH_DEBOUNCE_MS = 320;
+const SEARCH_DEBOUNCE_MS = 500;
 
 /** Stable React `key` — raw `JSON.stringify(mergedRpcParams)` can differ by object insertion order → remount grid on scroll/hydration churn. */
 function stableListingKey(r: Record<string, string | null>, sort: ListingSort): string {

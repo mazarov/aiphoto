@@ -34,7 +34,7 @@ import { listingPhotoAspectRatio } from "@/lib/listing-masonry";
 import type { PromptCardFull } from "@/lib/supabase";
 
 const RESULT_LIMIT = 16;
-const SEARCH_DEBOUNCE_MS = 320;
+const SEARCH_DEBOUNCE_MS = 500;
 
 const CHIP_CLASS =
   "inline-flex min-h-9 items-center rounded-full border px-3.5 text-sm font-medium transition";

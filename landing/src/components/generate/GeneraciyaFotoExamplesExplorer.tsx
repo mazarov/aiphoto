@@ -19,7 +19,7 @@ import {
 } from "@/lib/generaciya-foto-seo-copy";
 
 const RESULT_LIMIT = 16;
-const SEARCH_DEBOUNCE_MS = 320;
+const SEARCH_DEBOUNCE_MS = 500;
 
 type QuickFilter = (typeof GENERACIYA_FOTO_SCENARIOS)[number];
 

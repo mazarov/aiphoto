@@ -33,7 +33,7 @@ import { ListingGridLoadingSkeleton } from "@/components/ListingGridLoadingSkele
 
 // Match catalog batch size so both listings feel consistent.
 const PAGE_SIZE = 48;
-const SEARCH_DEBOUNCE_MS = 320;
+const SEARCH_DEBOUNCE_MS = 500;
 
 function cardMatchesFilters(card: PromptCardFull, f: FilterState): boolean {
   const tags = (card.seo_tags || {}) as Record<string, string[]>;
@@ -71,20 +71,28 @@ export function SearchResults({ initialQuery }: Props) {
   const queryRef = useRef(query);
   const lastSearchedRef = useRef<string | null>(null);
   const scheduleDrainRef = useRef(() => {});
+  const activeSearchRef = useRef<AbortController | null>(null);
 
   queryRef.current = query;
 
   const doSearch = useCallback(async (q: string, append = false) => {
     if (q.length < 2) {
       if (!append) {
+        activeSearchRef.current?.abort();
+        activeSearchRef.current = null;
         setCardPages([]);
         setSearched(false);
+        setLoading(false);
+        loadingRef.current = false;
         setHasMore(false);
         hasMoreRef.current = false;
       }
       return;
     }
 
+    const controller = new AbortController();
+    activeSearchRef.current?.abort();
+    activeSearchRef.current = controller;
     const newOffset = append ? offsetRef.current + PAGE_SIZE : 0;
     if (!append) {
       resetListingScroll();
@@ -94,8 +102,9 @@ export function SearchResults({ initialQuery }: Props) {
     try {
       const res = await fetch(
         `/api/search?q=${encodeURIComponent(q)}&limit=${PAGE_SIZE}&offset=${newOffset}`,
-        { cache: "no-store" }
+        { cache: "no-store", signal: controller.signal }
       );
+      if (!res.ok) throw new Error("search_failed");
       const data = await res.json();
       const newCards = (data.cards || []) as PromptCardFull[];
 
@@ -111,14 +120,25 @@ export function SearchResults({ initialQuery }: Props) {
       setHasMore(more);
       hasMoreRef.current = more;
       setSearched(true);
-    } catch {
+    } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") return;
       if (!append) setCardPages([]);
     } finally {
+      if (activeSearchRef.current !== controller) return;
+      activeSearchRef.current = null;
       setLoading(false);
       loadingRef.current = false;
       scheduleDrainRef.current();
     }
   }, []);
+
+  useEffect(
+    () => () => {
+      activeSearchRef.current?.abort();
+      activeSearchRef.current = null;
+    },
+    []
+  );
 
   const { sentinelRef, scheduleDrain } = useListingSentinelLoadMore(
     () => {

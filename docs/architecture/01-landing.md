@@ -1,5 +1,7 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-08-16 (**search latency:** миграция `190_search_cards_text_fast_path.sql` убрала дублирующий fuzzy-scan длинных `prompt_variants`: тексты промтов уже входят в `prompt_cards.fts`. Поиск объединяет GIN FTS с trigram только по коротким заголовкам; API ограничивает запрос 160 символами, отдаёт `Server-Timing` и пишет `[search:slow]` без текста запроса. Все публичные search surfaces используют debounce 500 мс и отменяют устаревшие browser requests.)
+>
 > Последнее обновление: 2026-08-16 (**card viewer close:** свайп/стрелки соседей — `replace`, не `push`. Крестик закрывает весь просмотр (все snap-слайды = один экран), а не предыдущую карточку в истории. `goToNeighbor` игнорируется после close.)
 >
 > Последнее обновление: 2026-08-16 (**animate identity lock:** worker помечает фото как `[# Sources @Image1]` starting frame и держит identity lock в `video-motion-prompt.ts`. Flash-сценарий описывает только motion, без внешности и без смены ракурса; исходный image-промпт в сценарий больше не подмешивается. Temperature 0.4.)
@@ -840,7 +842,7 @@ getFirstTagFromSeoTags(seo_tags)        ← breadcrumb
 ```
 SearchResults (client, infinite scroll)
   → /api/search?q=&limit=48&offset=N
-  → search_cards_text (hybrid rank: FTS + trigram)
+  → search_cards_text (indexed FTS + title-only trigram)
   → enrichCardsWithDetails(cards)
   → фильтры (desktop ListingDesktopFilters / mobile FilterFAB) только после выдачи,
     client-side по seo_tags
@@ -848,8 +850,9 @@ SearchResults (client, infinite scroll)
 
 - Desktop (`lg+`): тот же explorer-блок, что у `/[...slug]` и `/trends` (`ListingExplorerFrame` + `ListingExplorerSearch`). Компактное поле в шапке не показывается — одно поле ввода. `ListingDesktopFilters` и mobile `FilterFAB` только после выдачи (`searched && cards.length > 0`); до запроса и при пустом результате фильтры скрыты.
 - Пагинация детерминированная: `48` карточек на порцию (как каталог; без расширения групп в поиске).
-- Ранжирование гибридное: морфология (`fts`) + fuzzy (`trigram` по `title_ru` и `prompt_text_ru`).
+- Ранжирование гибридное: морфология (`prompt_cards.fts`, где уже денормализованы `title_ru` и RU-тексты промтов) + typo/substring fallback (`trigram` только по `title_ru`). Полные `prompt_variants.prompt_text_ru` на read path повторно не сканируются.
 - Стабильная сортировка: `has_fts DESC`, затем `relevance_score`, `source_date DESC`, `id`.
+- Защита нагрузки: максимум 160 символов, `limit ≤ 100`, debounce 500 мс; публичные клиенты отменяют устаревшие запросы. `/api/search` возвращает `Server-Timing: search-rpc, search-enrich`; запросы дольше 750 мс логируются как `[search:slow]` только с длиной строки и числовыми метриками.
 
 ### Catalog admin (вместо `/debug`)
 
