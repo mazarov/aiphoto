@@ -14,11 +14,15 @@ export type AnalyzeEventInput = {
     | "success"
     | "truncated"
     | "rate_limited"
+    | "auth_required"
+    | "no_credits"
+    | "quota_unavailable"
     | "upstream_error"
     | "empty_response"
     | "invalid_request"
     | "config_error";
   errorCode?: string | null;
+  quotaMode?: string | null;
   finishReason?: string | null;
   truncated?: boolean;
   httpStatus?: number | null;
@@ -55,6 +59,7 @@ export function recordAnalyzeEvent(
       model: event.model ?? null,
       missing_sections: event.missingSections ?? null,
       correlation_id: event.correlationId ?? null,
+      quota_mode: event.quotaMode ?? null,
     })
     .then(({ error }) => {
       if (error) {

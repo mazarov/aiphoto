@@ -43,7 +43,7 @@ export function FotoVPromtFloatingCta() {
   if (!mounted) return null;
 
   return createPortal(
-    <div className="pointer-events-none fixed inset-x-0 z-[50] floating-cta-above-mobile-tab-bar lg:left-72 lg:right-0">
+    <div className="pointer-events-none fixed inset-x-0 z-[50] hidden floating-cta-above-mobile-tab-bar lg:left-72 lg:right-0 lg:block">
       <div className={`${FVP_SECTION_CONTAINER} pt-4`}>
         <div className="flex justify-center">
           <div className="pointer-events-auto">

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { CREDIT_BALANCE_REFRESH_EVENT } from "@/lib/credit-balance-events";
+import { ANALYZE_QUOTA_AUTH_SUBTITLE } from "@/lib/foto-v-promt-copy";
 import { useListingIsDesktop } from "@/hooks/useListingIsMobile";
 import {
   reachYandexMetrikaGoal,
@@ -196,7 +197,7 @@ export function SidebarAccountPanel({
   onNavigate?: () => void;
   showBalance?: boolean;
 }) {
-  const { user, loading, signOut } = useAuth();
+  const { user, loading, signOut, authModalReason } = useAuth();
   const isDesktop = useListingIsDesktop();
   const { credits, canShowBalance } = useCreditBalance(showBalance ?? isDesktop);
 
@@ -214,7 +215,9 @@ export function SidebarAccountPanel({
         <div className="rounded-2xl border border-indigo-100 bg-indigo-50/60 p-3">
           <p className="text-sm font-semibold text-zinc-900">Ваш PromptShot</p>
           <p className="mt-1 text-xs leading-relaxed text-zinc-500">
-            Войдите, чтобы сохранять промты и создавать изображения.
+            {authModalReason === "analyze_quota"
+              ? ANALYZE_QUOTA_AUTH_SUBTITLE
+              : "Войдите, чтобы сохранять промты и создавать изображения."}
           </p>
           <OAuthSignInButtons className="mt-3 space-y-2" />
         </div>

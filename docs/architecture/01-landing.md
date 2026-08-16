@@ -1,5 +1,7 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-08-16 (**analyze quota credits:** site `POST /api/extension/analyze` — 10 бесплатных успешных разборов на идентичность в UTC-сутки, дальше 1 токен с `landing_users.credits` только у авторизованного. Гость после 10 → 401 + AuthModal PromptShot. Fail-closed `503 quota_unavailable`. SQL `187`. GET `/api/extension/analyze/quota`. imageprompt.tools / extension — без изменений.)
+>
 > Последнее обновление: 2026-08-16 (**admin analytics expandable cards:** динамика кредитов, разбивка, топ пользователей и analyze-события свёрнуты; клик раскрывает раскладку.)
 >
 > Последнее обновление: 2026-08-16 (**admin user-generations credits remaining:** `/admin/analyze-history` вкладка «Генерации других пользователей» показывает live-остаток `landing_users.credits` рядом со списанием по job.)
@@ -352,7 +354,8 @@
 | `/api/payments/yookassa/[id]` | GET (auth owner): статус операции; best-effort reconcile для `created|pending|canceled` без `credited_at` |
 | `/api/payments/yookassa/webhook` | POST public callback: принимает `payment.succeeded` / `payment.canceled`, перечитывает объект через YooKassa API и идемпотентно обновляет ledger/баланс |
 | `/api/cron/yookassa-reconcile` | POST, `Authorization: Bearer $CRON_SECRET`: batch `reconcileStaleYooKassaPayments` для `created|pending` старше 5 мин (limit 20) |
-| `/api/extension/analyze` | Same-origin analyze для site `/foto-v-promt`: validation/SSRF protection → optional Auth/shared identity → atomic rate-limit reserve → Gemini proxy/direct → confirm при success или release при error; успешный результат best-effort сохраняется в private 30-day `analyze_history` |
+| `/api/extension/analyze` | Same-origin analyze для site `/foto-v-promt` и «По фото»: validation/SSRF → identity (anonymous/STV-guest = гость) → RPC `analyze_quota_reserve` (free / 401 auth_required / 402 no_credits / paid hold 1 кредит) → Gemini → confirm или release+refund; fail-closed 503 если квота недоступна; успех пишет `analyze_history.credits_spent` |
+| `/api/extension/analyze/quota` | GET, cookie session, no-store: `remaining_free`, `next_mode`, `credit_cost`, реальный `credits` для авторизованного |
 | `/api/admin/analytics` | GET, admin auth: no-store analytics rollups за `1…90` дней; топ пользователей — `admin_analytics_top_users` за тот же период |
 | `/api/admin/credits` | GET, admin auth: live остаток + daily flow (`days=1\|7\|30\|90`) + keyset-список (`q`, remaining/granted/spent/share) |
 | `/api/admin/finance` | GET, admin auth: KPI и разбивки импортов ЮKassa/GCP за месяц `YYYY-MM` |
@@ -427,12 +430,22 @@
   `pushState` на `/foto-v-promt`). С веба принимаются только page-бакеты;
   иначе сервер мапит `Referer`. Исторические строки остаются `promptshot`.
   Paid generate по-прежнему пишет `site`, admin enqueue — `admin`.
-- **Квота:** preflight объединяет IP usage с shared user bucket, затем атомарный
-  `reserve` проверяет `count + pending < max`. Успех выполняет `confirm`
-  (`pending - 1`, `count + 1`), timeout/upstream/error — `release`
-  (`pending - 1`), поэтому failed call не расходует дневной лимит.
+- **Квота:** 10 успешных анализов в UTC-сутки на идентичность (гость = IP-hash,
+  юзер = `user:{landing/shared id}` после merge IP→user). Сверх 10 —
+  1 кредит с `landing_users.credits`, только у real session (не anonymous /
+  не STV-guest). Гость после 10 получает `401 auth_required` и AuthModal
+  PromptShot (не imageprompt.tools). Юзер с нулём токенов — `402 no_credits`
+  и pricing overlay. RPC `analyze_quota_reserve` атомарно держит free-слот
+  или списывает кредит до Gemini; success → `confirm`, fail → `release` +
+  идемпотентный refund. Ошибка RPC/identity → `503 quota_unavailable`, Gemini
+  не вызывается (fail-closed). Конфиг: `aiid_app_config.analyze_free_per_day`
+  / `analyze_credit_cost`. Старый `extension_rate_limit_per_day` (=30) для
+  этого эндпоинта больше не max. GET `/api/extension/analyze/quota` отдаёт
+  остаток до загрузки. Extension Lite / imageprompt.tools — follow-up.
 - **История:** успешный analyze best-effort сохраняет уменьшенный JPEG и prompt
-  в private bucket/table `analyze-history` / `analyze_history` (`kind=analyze`).
+  в private bucket/table `analyze-history` / `analyze_history` (`kind=analyze`,
+  `credits_spent` 0|1, `quota_mode` free|paid). Admin-список показывает бейдж
+  токена для paid.
   Успешный site `POST /api/prompt-remix` пишет туда же `kind=remix` + `change_request`
   (без image). Admin UI показывает бейдж Remix и текст «Что изменить?».
   Signed previews выдаются только admin API; retention — 30 дней с opportunistic cleanup.
@@ -480,10 +493,10 @@
 ```text
 site /foto-v-promt
   → /api/extension/analyze
-  → auth/shared identity + reserve quota
+  → identity + analyze_quota_reserve (free | auth_required | no_credits | paid)
   → Gemini
-  ├─ success → confirm → analytics → private analyze_history (30 days)
-  └─ failure → release → outcome analytics
+  ├─ success → confirm → analytics → private analyze_history (credits_spent)
+  └─ failure → release (+ refund if paid) → outcome analytics
 
 admin pages
   → Supabase Auth + ANALYTICS_ADMIN_EMAILS

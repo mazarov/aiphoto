@@ -22,6 +22,8 @@ type AnalyzeHistoryInput = {
   ipHash?: string | null;
   correlationId?: string | null;
   authenticated?: boolean;
+  creditsSpent?: number;
+  quotaMode?: string | null;
 };
 
 async function persist(
@@ -77,6 +79,8 @@ async function persist(
     user_id: input.userId ?? null,
     ip_hash: input.ipHash ?? null,
     correlation_id: input.correlationId ?? null,
+    credits_spent: input.creditsSpent ?? 0,
+    quota_mode: input.quotaMode ?? null,
   });
   if (insertError) {
     if (path) void supabase.storage.from(ANALYZE_HISTORY_BUCKET).remove([path]);
@@ -110,6 +114,8 @@ export type AnalyzeHistoryRow = {
   model: string | null;
   image_path: string | null;
   ugc_card_id: string | null;
+  credits_spent?: number | null;
+  quota_mode?: string | null;
 };
 
 export function encodeAnalyzeHistoryCursor(createdAt: string, id: string): string {

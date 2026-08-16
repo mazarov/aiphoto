@@ -1,11 +1,16 @@
 "use client";
 
 import { useAuth } from "@/context/AuthContext";
+import { ANALYZE_QUOTA_AUTH_SUBTITLE } from "@/lib/foto-v-promt-copy";
 import { OAuthSignInButtons } from "./OAuthSignInButtons";
 import { MobileProfileSheet } from "./MobileProfileSheet";
 
 export function AuthModal() {
-  const { showAuthModal, closeAuthModal } = useAuth();
+  const { showAuthModal, closeAuthModal, authModalReason } = useAuth();
+  const subtitle =
+    authModalReason === "analyze_quota"
+      ? ANALYZE_QUOTA_AUTH_SUBTITLE
+      : "Войдите, чтобы продолжить — лайки, сохранения и покупка токенов";
 
   if (!showAuthModal) return null;
 
@@ -33,9 +38,7 @@ export function AuthModal() {
               P
             </div>
             <h2 className="text-lg font-semibold text-zinc-900">Войти в PromptShot</h2>
-            <p className="mt-1 text-sm text-zinc-500">
-              Войдите, чтобы продолжить — лайки, сохранения и покупка токенов
-            </p>
+            <p className="mt-1 text-sm text-zinc-500">{subtitle}</p>
           </div>
 
           <p className="mb-3 text-center text-sm text-zinc-500">Войти с помощью</p>

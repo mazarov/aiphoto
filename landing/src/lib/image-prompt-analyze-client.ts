@@ -12,13 +12,27 @@ export type ImagePromptAnalyzeBody = {
   locale: typeof FOTO_V_PROMT_ANALYZE_LOCALE;
 };
 
+export type AnalyzeQuotaPayload = {
+  mode?: string;
+  free_max?: number;
+  remaining_free?: number;
+  credits_charged?: number;
+  authenticated?: boolean;
+  credit_cost?: number;
+  credits?: number;
+  next_mode?: string;
+};
+
 export type AnalyzeImageToPromptResult =
-  | { ok: true; prompt: string }
+  | { ok: true; prompt: string; quota?: AnalyzeQuotaPayload }
   | {
       ok: false;
       message: string;
       authRequired?: boolean;
+      noCredits?: boolean;
       rateLimited?: boolean;
+      quotaUnavailable?: boolean;
+      quota?: AnalyzeQuotaPayload;
     };
 
 export function buildImagePromptAnalyzeBody(
@@ -40,6 +54,24 @@ export function buildAnalyzeRequestHeaders(pathname?: string): Record<string, st
     "Content-Type": "application/json",
     "x-client": mapPromptshotPathToSource(path),
   };
+}
+
+export async function fetchAnalyzeQuota(
+  options?: { signal?: AbortSignal }
+): Promise<AnalyzeQuotaPayload | null> {
+  try {
+    const response = await fetch("/api/extension/analyze/quota", {
+      method: "GET",
+      credentials: "include",
+      cache: "no-store",
+      headers: buildAnalyzeRequestHeaders(),
+      signal: options?.signal,
+    });
+    if (!response.ok) return null;
+    return (await response.json()) as AnalyzeQuotaPayload;
+  } catch {
+    return null;
+  }
 }
 
 export async function analyzeImageToPrompt(
@@ -69,24 +101,40 @@ export async function analyzeImageToPrompt(
     message?: string;
     error?: string;
     auth_required?: boolean;
+    no_credits?: boolean;
+    quota?: AnalyzeQuotaPayload;
   };
 
   if (!response.ok || !payload.prompt?.trim()) {
-    const rateLimited = payload.error === "rate_limited";
-    const authRequired = Boolean(payload.auth_required);
+    const authRequired =
+      Boolean(payload.auth_required) || payload.error === "auth_required";
+    const noCredits =
+      Boolean(payload.no_credits) || payload.error === "no_credits";
+    const quotaUnavailable = payload.error === "quota_unavailable";
     return {
       ok: false,
       authRequired,
-      rateLimited,
+      noCredits,
+      quotaUnavailable,
+      rateLimited: payload.error === "rate_limited",
+      quota: payload.quota,
       message:
         payload.message ||
         (authRequired
-          ? "Войдите в PromptShot и повторите анализ."
-          : "Не удалось составить промт. Попробуйте другое фото."),
+          ? "Бесплатные разборы на сегодня закончились. Войдите, чтобы продолжить — дальше 1 токен за анализ."
+          : noCredits
+            ? "Бесплатные разборы на сегодня закончились. Пополните токены: анализ стоит 1 токен."
+            : quotaUnavailable
+              ? "Сервис лимитов временно недоступен. Попробуйте ещё раз."
+              : "Не удалось составить промт. Попробуйте другое фото."),
     };
   }
 
-  return { ok: true, prompt: payload.prompt.trim() };
+  return {
+    ok: true,
+    prompt: payload.prompt.trim(),
+    quota: payload.quota,
+  };
 }
 
 export async function dataUrlFromImageUrl(

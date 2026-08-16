@@ -3,7 +3,7 @@
 export const FOTO_V_PROMT_HERO = {
   title: "Фото в промт",
   subtitle:
-    "Создайте промт из фото или картинки за секунды: загрузите изображение в форму ниже — сервис сделает промт по картинке онлайн, без регистрации. Готовый текст можно вставить в Nano Banana, Midjourney или другую нейросеть. Нужен разбор прямо на сайтах? Установите расширение AI Image Describer для Chrome.",
+    "Создайте промт из фото или картинки за секунды: загрузите изображение в форму ниже — сервис сделает промт по картинке онлайн. Без регистрации доступны 10 бесплатных разборов в сутки; дальше нужен аккаунт PromptShot, каждый следующий разбор — 1 токен. Готовый текст можно вставить в Nano Banana, Midjourney или другую нейросеть. Нужен разбор прямо на сайтах? Установите расширение AI Image Describer для Chrome.",
 } as const;
 
 export const FOTO_V_PROMT_WIDGET = {
@@ -37,7 +37,7 @@ export const FOTO_V_PROMT_FAQ = {
     },
     {
       q: "Можно ли сделать промт по картинке бесплатно онлайн?",
-      a: "Да. На этой странице доступен бесплатный разбор с дневным лимитом — загрузите JPG, PNG или WebP и получите промт без регистрации. Текст подойдёт для Nano Banana и других генераторов изображений. Расширение для Chrome даёт тот же инструмент прямо в браузере.",
+      a: "Да. На этой странице доступны 10 бесплатных разборов в сутки без регистрации — загрузите JPG, PNG или WebP и получите промт. Дальше нужен аккаунт PromptShot, каждый следующий разбор стоит 1 токен. Текст подойдёт для Nano Banana и других генераторов изображений. Расширение для Chrome даёт тот же инструмент прямо в браузере.",
     },
     {
       q: "Чем отличается «промт из фото» от «картинка в промт»?",
@@ -69,7 +69,7 @@ export const FOTO_V_PROMT_CTA = {
 export const FOTO_V_PROMT_META = {
   title: "Фото в промт онлайн — промт из фото и картинки | PromptShot",
   description:
-    "Превратите фото или картинку в готовый промт онлайн: загрузите изображение на PromptShot и получите текст для Nano Banana, Midjourney, DALL·E и Stable Diffusion. Бесплатный разбор на странице и расширение для Chrome.",
+    "Превратите фото или картинку в готовый промт онлайн: 10 бесплатных разборов в сутки без регистрации, дальше аккаунт PromptShot и 1 токен за анализ. Текст для Nano Banana, Midjourney, DALL·E и Stable Diffusion.",
   jsonLdName: "Фото в промт — PromptShot",
 } as const;
 
@@ -107,7 +107,20 @@ export type WidgetCopyKey =
   | "historyEmptyTitle"
   | "historyEmptyDescription"
   | "historyEmptyCta"
-  | "authRequiredHint";
+  | "authRequiredHint"
+  | "quotaFreeLine"
+  | "quotaChipToday"
+  | "quotaChipPaid"
+  | "quotaChipSignIn"
+  | "quotaChipTopUp"
+  | "paidWarning"
+  | "paidSuccess"
+  | "retryAnalyze"
+  | "signInContinue"
+  | "noCreditsTitle"
+  | "noCreditsDescription"
+  | "topUpTokens"
+  | "quotaUnavailable";
 
 const WIDGET_COPY: Record<WidgetCopyKey, string> = {
   emptyTitle: "Какая картинка вам нравится?",
@@ -124,11 +137,11 @@ const WIDGET_COPY: Record<WidgetCopyKey, string> = {
   tryAgain: "Другой референс",
   errorConnection: "Не удалось подключиться. Проверьте интернет и попробуйте снова.",
   errorGeneric: "Что-то пошло не так. Попробуйте другой файл.",
-  errorRateLimited: "Дневной лимит использован. Попробуйте через 24 часа.",
-  limitTitle: "Дневной лимит использован",
-  limitDescription:
-    "Вы использовали бесплатные разборы на сегодня. Лимит сбрасывается каждые 24 часа, чтобы инструмент оставался быстрым для всех.",
-  limitResetLine: "Вы сможете разбирать снова примерно через 24 часа.",
+  errorRateLimited:
+    "Бесплатные разборы на сегодня закончились. Войдите, чтобы продолжить — дальше 1 токен за анализ.",
+  limitTitle: "Бесплатные разборы на сегодня закончились",
+  limitDescription: "Войдите в PromptShot — дальше каждый разбор стоит 1 токен.",
+  limitResetLine: "После входа следующий разбор спишет 1 токен с баланса.",
   limitGotIt: "Понятно",
   invalidType: "Нужен файл JPG, PNG или WebP.",
   tooLarge: "Файл больше 10 МБ — выберите меньший.",
@@ -148,12 +161,28 @@ const WIDGET_COPY: Record<WidgetCopyKey, string> = {
     "Разберите первое изображение — здесь появится история промптов. Всё хранится локально в браузере.",
   historyEmptyCta: "Разобрать изображение",
   authRequiredHint:
-    "Для единого лимита с расширением войдите через Google на imageprompt.tools",
+    "Дальше анализ доступен только после входа в PromptShot. Каждый следующий разбор — 1 токен.",
+  quotaFreeLine: "бесплатных сегодня",
+  quotaChipToday: "сегодня",
+  quotaChipPaid: "1 токен",
+  quotaChipSignIn: "Войти",
+  quotaChipTopUp: "Пополнить",
+  paidWarning: "Анализ спишет 1 токен",
+  paidSuccess: "Списан 1 токен",
+  retryAnalyze: "Повторить анализ",
+  signInContinue: "Войти и продолжить",
+  noCreditsTitle: "Недостаточно токенов",
+  noCreditsDescription: "Пополните баланс — разбор стоит 1 токен.",
+  topUpTokens: "Пополнить токены",
+  quotaUnavailable: "Сервис лимитов временно недоступен. Попробуйте ещё раз.",
 };
 
 export function widgetCopy(key: WidgetCopyKey): string {
   return WIDGET_COPY[key];
 }
+
+export const ANALYZE_QUOTA_AUTH_SUBTITLE =
+  "Лимит на сегодня исчерпан. Войдите — дальше 1 токен за разбор.";
 
 export const PROMPT_REMIX_COPY = {
   title: "Настройте этот промт под себя",

@@ -20,6 +20,8 @@ type Item = {
   model: string | null;
   is_published: boolean;
   card_url: string | null;
+  credits_spent?: number;
+  quota_mode?: string | null;
 };
 type View = "analyses" | "user_generations" | "unpublished" | "published";
 const tabClass = (active: boolean) => `rounded-xl px-3 py-2 text-xs font-semibold ${
@@ -113,6 +115,11 @@ export function AnalyzeHistoryList() {
                 style={{ background: clientSourceColor(item.client_source) }}>{clientSourceLabel(item.client_source)}</span>
               {item.kind === "remix" && (
                 <span className="rounded-full bg-violet-600 px-2 py-0.5 font-semibold text-white">Remix</span>
+              )}
+              {Number(item.credits_spent) > 0 && (
+                <span className="rounded-full bg-amber-600 px-2 py-0.5 font-semibold text-white">
+                  {item.credits_spent} токен
+                </span>
               )}
               <span>{new Date(item.created_at).toLocaleString()}</span>
               {item.model && <span>{item.model}</span>}

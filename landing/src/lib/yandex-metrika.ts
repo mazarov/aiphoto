@@ -37,6 +37,11 @@ export const YM_GOAL_GENERATION_PHOTO_PROMPT_READY =
   "generation_photo_prompt_ready";
 export const YM_GOAL_GENERATION_PHOTO_PROMPT_START =
   "generation_photo_prompt_start";
+export const YM_GOAL_ANALYZE_AUTH_REQUIRED = "analyze_auth_required";
+export const YM_GOAL_ANALYZE_NO_CREDITS = "analyze_no_credits";
+export const YM_GOAL_ANALYZE_FREE_SUCCESS = "analyze_free_success";
+export const YM_GOAL_ANALYZE_PAID_SUCCESS = "analyze_paid_success";
+export const YM_GOAL_ANALYZE_QUOTA_UNAVAILABLE = "analyze_quota_unavailable";
 /** @deprecated CTA перенесён в сайдбар — используйте `YM_GOAL_DESKTOP_SIDEBAR_ADD_TO_CHROME_CLICK`. */
 export const YM_GOAL_DESKTOP_HEADER_ADD_TO_CHROME_CLICK = "desktop_header_add_to_chrome_click";
 export const YM_GOAL_DESKTOP_SIDEBAR_ADD_TO_CHROME_CLICK = "desktop_sidebar_add_to_chrome_click";

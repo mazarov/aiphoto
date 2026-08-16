@@ -11,17 +11,25 @@ import {
 import { useAuth } from "@/context/AuthContext";
 import { useGenerateDock } from "@/context/GenerateDockContext";
 import { usePricingModal } from "@/context/PricingModalContext";
-import { analyzeImageToPrompt } from "@/lib/image-prompt-analyze-client";
+import { requestCreditBalanceRefresh } from "@/lib/credit-balance-events";
+import {
+  analyzeImageToPrompt,
+  fetchAnalyzeQuota,
+  type AnalyzeQuotaPayload,
+} from "@/lib/image-prompt-analyze-client";
 import {
   noticeForUploadError,
   prepareUploadFile,
 } from "@/lib/image-upload-prepare";
+import { AnalyzeQuotaChip } from "@/components/foto-v-promt/AnalyzeQuotaChip";
 import {
   reachYandexMetrikaGoal,
   YM_GOAL_GENERATION_PHOTO_PROMPT_OPEN,
   YM_GOAL_GENERATION_PHOTO_PROMPT_READY,
   YM_GOAL_GENERATION_PHOTO_PROMPT_START,
   YM_GOAL_GENERATION_PHOTO_PROMPT_UPLOAD,
+  YM_GOAL_ANALYZE_AUTH_REQUIRED,
+  YM_GOAL_ANALYZE_NO_CREDITS,
   YM_GOAL_PROMPT_CARD_GENERATION_PRICING,
 } from "@/lib/yandex-metrika";
 
@@ -89,6 +97,7 @@ export function GeneraciyaFotoStarter() {
   const [mode, setMode] = useState<StarterMode>("text");
   const [analyzing, setAnalyzing] = useState(false);
   const [analyzeError, setAnalyzeError] = useState("");
+  const [analyzeQuota, setAnalyzeQuota] = useState<AnalyzeQuotaPayload | null>(null);
   const textTabRef = useRef<HTMLButtonElement>(null);
   const photoTabRef = useRef<HTMLButtonElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -105,6 +114,12 @@ export function GeneraciyaFotoStarter() {
       analyzeAbortRef.current?.abort();
     };
   }, []);
+
+  useEffect(() => {
+    void fetchAnalyzeQuota().then((next) => {
+      if (next) setAnalyzeQuota(next);
+    });
+  }, [isAuthed]);
 
   const selectMode = (nextMode: StarterMode) => {
     setMode(nextMode);
@@ -143,8 +158,20 @@ export function GeneraciyaFotoStarter() {
       });
       if (controller.signal.aborted) return;
       if (!result.ok) {
+        if (result.quota) setAnalyzeQuota(result.quota);
+        if (result.authRequired) {
+          reachYandexMetrikaGoal(YM_GOAL_ANALYZE_AUTH_REQUIRED);
+          openAuthModal("analyze_quota");
+        } else if (result.noCredits) {
+          reachYandexMetrikaGoal(YM_GOAL_ANALYZE_NO_CREDITS);
+          openPricing();
+        }
         setAnalyzeError(result.message);
         return;
+      }
+      if (result.quota) setAnalyzeQuota(result.quota);
+      if (result.quota?.credits_charged) {
+        requestCreditBalanceRefresh();
       }
       reachYandexMetrikaGoal(YM_GOAL_GENERATION_PHOTO_PROMPT_READY);
       seedBlankPrompt(result.prompt, {
@@ -182,8 +209,12 @@ export function GeneraciyaFotoStarter() {
       openAuthModal();
       return;
     }
-    if (needsCredits) {
-      reachYandexMetrikaGoal(YM_GOAL_PROMPT_CARD_GENERATION_PRICING);
+    if (needsCredits || (nextMode === "photo" && analyzeQuota?.next_mode === "no_credits")) {
+      reachYandexMetrikaGoal(
+        nextMode === "photo" && analyzeQuota?.next_mode === "no_credits"
+          ? YM_GOAL_ANALYZE_NO_CREDITS
+          : YM_GOAL_PROMPT_CARD_GENERATION_PRICING,
+      );
       openPricing();
       return;
     }
@@ -296,7 +327,7 @@ export function GeneraciyaFotoStarter() {
           className={`relative inline-flex min-h-11 items-center justify-center overflow-hidden rounded-full px-8 text-sm font-semibold text-white transition active:scale-[0.98] disabled:cursor-wait ${
             analyzing || runBusy
               ? ""
-              : needsCredits
+              : needsCredits || analyzeQuota?.next_mode === "no_credits"
                 ? "bg-rose-500/85 shadow-lg shadow-rose-500/20 hover:bg-rose-500/95"
                 : "bg-gradient-to-r from-indigo-500 via-[#5b5cf0] to-violet-500 shadow-lg shadow-indigo-500/20 hover:brightness-105"
           }`}
@@ -343,11 +374,23 @@ export function GeneraciyaFotoStarter() {
                   ? "Недостаточно кредитов"
                   : isAuthed
                     ? mode === "photo"
-                      ? "Загрузить фото"
+                      ? analyzeQuota?.next_mode === "no_credits"
+                        ? "Пополнить токены"
+                        : "Загрузить фото"
                       : "Сгенерировать"
                     : "Войти и сгенерировать"}
           </span>
         </button>
+        {mode === "photo" && analyzeQuota ? (
+          <div className="mt-3">
+            <AnalyzeQuotaChip
+              quota={analyzeQuota}
+              tone="light"
+              onSignIn={() => openAuthModal("analyze_quota")}
+              onTopUp={() => openPricing()}
+            />
+          </div>
+        ) : null}
         {analyzeError ? (
           <p className="mt-3 max-w-md text-center text-sm text-rose-600" role="status">
             {analyzeError}

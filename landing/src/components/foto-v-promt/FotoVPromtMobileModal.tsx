@@ -7,7 +7,6 @@ import {
   scheduleListingScrollRestore,
   unlockListingScrollStyles,
 } from "@/lib/scroll-preservation";
-import { FotoVPromtChromeCta } from "./FotoVPromtFloatingCta";
 import { PromptSceneLiteWidget } from "./PromptSceneLiteWidget";
 
 export function FotoVPromtMobileModal() {
@@ -47,30 +46,8 @@ export function FotoVPromtMobileModal() {
       aria-modal="true"
       aria-label="Фото в промт"
     >
-      <header className="relative z-20 flex shrink-0 items-center gap-2 border-b border-white/10 px-3 pb-2.5 pt-[max(0.5rem,env(safe-area-inset-top))]">
-        <button
-          type="button"
-          onClick={close}
-          aria-label="Закрыть"
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-zinc-300 transition-colors hover:bg-white/10 hover:text-white"
-        >
-          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-          </svg>
-        </button>
-        <p className="min-w-0 flex-1 truncate text-[15px] font-semibold tracking-tight text-zinc-50">
-          Фото в промт
-        </p>
-      </header>
-
       <div className="relative z-10 min-h-0 flex-1 overflow-hidden">
-        <PromptSceneLiteWidget variant="immersive" />
-      </div>
-
-      <div className="pointer-events-none fixed inset-x-0 bottom-[max(1.25rem,env(safe-area-inset-bottom,0px))] z-[110] flex justify-center px-4">
-        <div className="pointer-events-auto">
-          <FotoVPromtChromeCta placement="foto_v_promt_mobile_floating_cta" />
-        </div>
+        <PromptSceneLiteWidget variant="immersive" onClose={close} />
       </div>
     </div>,
     document.body,

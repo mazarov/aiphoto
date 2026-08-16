@@ -7,12 +7,28 @@ import {
   listLiteRecognitionHistory,
   type LiteRecognitionEntry,
 } from "@/lib/extension-lite-recognition-history";
-import { getImagePromptAnalyzeUrl, getImagePromptSiteUrl, FOTO_V_PROMT_ANALYZE_LOCALE } from "@/lib/foto-v-promt-config";
-import { buildAnalyzeRequestHeaders } from "@/lib/image-prompt-analyze-client";
-import { YM_GOAL_LEXYGPT_GENERATE_PHOTOVPROMPT } from "@/lib/yandex-metrika";
+import { useAuth } from "@/context/AuthContext";
+import { usePricingModal } from "@/context/PricingModalContext";
+import { requestCreditBalanceRefresh } from "@/lib/credit-balance-events";
+import { getImagePromptAnalyzeUrl, FOTO_V_PROMT_ANALYZE_LOCALE } from "@/lib/foto-v-promt-config";
+import {
+  buildAnalyzeRequestHeaders,
+  fetchAnalyzeQuota,
+  type AnalyzeQuotaPayload,
+} from "@/lib/image-prompt-analyze-client";
+import {
+  reachYandexMetrikaGoal,
+  YM_GOAL_ANALYZE_AUTH_REQUIRED,
+  YM_GOAL_ANALYZE_FREE_SUCCESS,
+  YM_GOAL_ANALYZE_NO_CREDITS,
+  YM_GOAL_ANALYZE_PAID_SUCCESS,
+  YM_GOAL_ANALYZE_QUOTA_UNAVAILABLE,
+  YM_GOAL_LEXYGPT_GENERATE_PHOTOVPROMPT,
+} from "@/lib/yandex-metrika";
 import { LexyGptGenerateButton } from "@/components/LexyGptGenerateButton";
-import { widgetCopy, type WidgetCopyKey } from "@/lib/foto-v-promt-copy";
+import { FOTO_V_PROMT_HERO, widgetCopy, type WidgetCopyKey } from "@/lib/foto-v-promt-copy";
 import { prepareUploadFile, noticeForUploadError } from "@/lib/image-upload-prepare";
+import { AnalyzePaidNotice, AnalyzeQuotaChip } from "./AnalyzeQuotaChip";
 import {
   FVP_BORDER_CARD,
   FVP_BORDER_INPUT,
@@ -64,7 +80,17 @@ const ANALYZE_STYLE = "photoreal" as const;
 
 type Panel = "empty" | "loading" | "result" | "error";
 
-type LiteErrorKind = "none" | "rate_limited" | "auth_required" | "generic";
+type LiteErrorKind =
+  | "none"
+  | "rate_limited"
+  | "auth_required"
+  | "no_credits"
+  | "quota_unavailable"
+  | "generic";
+
+type PendingAnalyze =
+  | { kind: "data_url"; value: string }
+  | { kind: "image_url"; value: string };
 
 type MainTab = "analyze" | "history";
 
@@ -200,11 +226,16 @@ function EmptyUploadGuidance({ immersive }: { immersive: boolean }) {
 
 export function PromptSceneLiteWidget({
   variant = "catalog",
+  onClose,
 }: {
   variant?: PromptSceneLiteVariant;
+  onClose?: () => void;
 } = {}) {
   const analyzeUrl = getImagePromptAnalyzeUrl();
   const immersive = variant === "immersive";
+  const { user, openAuthModal } = useAuth();
+  const { open: openPricing } = usePricingModal();
+  const isAuthed = Boolean(user && user.is_anonymous !== true);
   const [mainTab, setMainTab] = useState<MainTab>("analyze");
   const [panel, setPanel] = useState<Panel>("empty");
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -212,8 +243,11 @@ export function PromptSceneLiteWidget({
   const [errorMessage, setErrorMessage] = useState("");
   const [errorKind, setErrorKind] = useState<LiteErrorKind>("none");
   const [notice, setNotice] = useState("");
+  const [quota, setQuota] = useState<AnalyzeQuotaPayload | null>(null);
+  const [paidNotice, setPaidNotice] = useState(false);
   const [historyTick, setHistoryTick] = useState(0);
   const ranPendingRef = useRef(false);
+  const pendingAnalyzeRef = useRef<PendingAnalyze | null>(null);
   const fileInputId = useId();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const objectPreviewRef = useRef<string | null>(null);
@@ -237,6 +271,15 @@ export function PromptSceneLiteWidget({
   }, []);
 
   const bumpHistory = useCallback(() => setHistoryTick((n) => n + 1), []);
+
+  const refreshQuota = useCallback(async () => {
+    const next = await fetchAnalyzeQuota();
+    if (next) setQuota(next);
+  }, []);
+
+  useEffect(() => {
+    void refreshQuota();
+  }, [refreshQuota, isAuthed]);
 
   const historyItems = useMemo(() => {
     void historyTick;
@@ -310,7 +353,14 @@ export function PromptSceneLiteWidget({
         return;
       }
 
-      let data: { prompt?: string; error?: string; message?: string; auth_required?: boolean };
+      let data: {
+        prompt?: string;
+        error?: string;
+        message?: string;
+        auth_required?: boolean;
+        no_credits?: boolean;
+        quota?: AnalyzeQuotaPayload;
+      };
       try {
         data = await res.json();
       } catch {
@@ -320,13 +370,26 @@ export function PromptSceneLiteWidget({
         return;
       }
 
+      if (data.quota) setQuota(data.quota);
+
       if (!res.ok) {
-        if (data?.error === "rate_limited") {
-          if (data.auth_required) {
-            setErrorKind("auth_required");
-          } else {
-            setErrorKind("rate_limited");
-          }
+        pendingAnalyzeRef.current = { kind: "data_url", value: dataUrl };
+        if (data?.error === "auth_required" || data?.auth_required) {
+          setErrorKind("auth_required");
+          setErrorMessage(data?.message || t("limitDescription"));
+          reachYandexMetrikaGoal(YM_GOAL_ANALYZE_AUTH_REQUIRED);
+          openAuthModal("analyze_quota");
+        } else if (data?.error === "no_credits" || data?.no_credits) {
+          setErrorKind("no_credits");
+          setErrorMessage(data?.message || t("noCreditsDescription"));
+          reachYandexMetrikaGoal(YM_GOAL_ANALYZE_NO_CREDITS);
+          openPricing();
+        } else if (data?.error === "quota_unavailable") {
+          setErrorKind("quota_unavailable");
+          setErrorMessage(data?.message || t("quotaUnavailable"));
+          reachYandexMetrikaGoal(YM_GOAL_ANALYZE_QUOTA_UNAVAILABLE);
+        } else if (data?.error === "rate_limited") {
+          setErrorKind(data.auth_required ? "auth_required" : "rate_limited");
           setErrorMessage(data?.message || t("errorRateLimited"));
         } else {
           setErrorKind("generic");
@@ -343,17 +406,25 @@ export function PromptSceneLiteWidget({
         return;
       }
 
+      pendingAnalyzeRef.current = null;
       appendLiteRecognitionHistory({
         style: ANALYZE_STYLE,
         prompt: data.prompt,
         image: { mode: "data_url", dataUrl },
       });
       bumpHistory();
-
+      if (data.quota?.credits_charged) {
+        setPaidNotice(true);
+        requestCreditBalanceRefresh();
+        reachYandexMetrikaGoal(YM_GOAL_ANALYZE_PAID_SUCCESS);
+      } else {
+        setPaidNotice(false);
+        reachYandexMetrikaGoal(YM_GOAL_ANALYZE_FREE_SUCCESS);
+      }
       setPromptText(data.prompt);
       setPanel("result");
     },
-    [analyzeUrl, bumpHistory],
+    [analyzeUrl, bumpHistory, openAuthModal, openPricing],
   );
 
   const analyzeImageUrl = useCallback(
@@ -389,7 +460,14 @@ export function PromptSceneLiteWidget({
         return;
       }
 
-      let data: { prompt?: string; error?: string; message?: string; auth_required?: boolean };
+      let data: {
+        prompt?: string;
+        error?: string;
+        message?: string;
+        auth_required?: boolean;
+        no_credits?: boolean;
+        quota?: AnalyzeQuotaPayload;
+      };
       try {
         data = await res.json();
       } catch {
@@ -399,13 +477,26 @@ export function PromptSceneLiteWidget({
         return;
       }
 
+      if (data.quota) setQuota(data.quota);
+
       if (!res.ok) {
-        if (data?.error === "rate_limited") {
-          if (data.auth_required) {
-            setErrorKind("auth_required");
-          } else {
-            setErrorKind("rate_limited");
-          }
+        pendingAnalyzeRef.current = { kind: "image_url", value: trimmed };
+        if (data?.error === "auth_required" || data?.auth_required) {
+          setErrorKind("auth_required");
+          setErrorMessage(data?.message || t("limitDescription"));
+          reachYandexMetrikaGoal(YM_GOAL_ANALYZE_AUTH_REQUIRED);
+          openAuthModal("analyze_quota");
+        } else if (data?.error === "no_credits" || data?.no_credits) {
+          setErrorKind("no_credits");
+          setErrorMessage(data?.message || t("noCreditsDescription"));
+          reachYandexMetrikaGoal(YM_GOAL_ANALYZE_NO_CREDITS);
+          openPricing();
+        } else if (data?.error === "quota_unavailable") {
+          setErrorKind("quota_unavailable");
+          setErrorMessage(data?.message || t("quotaUnavailable"));
+          reachYandexMetrikaGoal(YM_GOAL_ANALYZE_QUOTA_UNAVAILABLE);
+        } else if (data?.error === "rate_limited") {
+          setErrorKind(data.auth_required ? "auth_required" : "rate_limited");
           setErrorMessage(data?.message || t("errorRateLimited"));
         } else {
           setErrorKind("generic");
@@ -422,17 +513,25 @@ export function PromptSceneLiteWidget({
         return;
       }
 
+      pendingAnalyzeRef.current = null;
       appendLiteRecognitionHistory({
         style: ANALYZE_STYLE,
         prompt: data.prompt,
         image: { mode: "image_url", imageUrl: trimmed },
       });
       bumpHistory();
-
+      if (data.quota?.credits_charged) {
+        setPaidNotice(true);
+        requestCreditBalanceRefresh();
+        reachYandexMetrikaGoal(YM_GOAL_ANALYZE_PAID_SUCCESS);
+      } else {
+        setPaidNotice(false);
+        reachYandexMetrikaGoal(YM_GOAL_ANALYZE_FREE_SUCCESS);
+      }
       setPromptText(data.prompt);
       setPanel("result");
     },
-    [analyzeUrl, bumpHistory],
+    [analyzeUrl, bumpHistory, openAuthModal, openPricing],
   );
 
   const tryConsumePendingFromStorage = useCallback(async () => {
@@ -583,12 +682,27 @@ export function PromptSceneLiteWidget({
 
   const resetEmpty = () => {
     revokeObjectPreview();
+    pendingAnalyzeRef.current = null;
     setPanel("empty");
     setPreviewUrl(null);
     setPromptText("");
     setErrorMessage("");
     setErrorKind("none");
     setNotice("");
+    setPaidNotice(false);
+  };
+
+  const retryPendingAnalyze = () => {
+    const pending = pendingAnalyzeRef.current;
+    if (!pending) {
+      resetEmpty();
+      return;
+    }
+    if (pending.kind === "data_url") {
+      void analyzeDataUrl(pending.value);
+      return;
+    }
+    void analyzeImageUrl(pending.value);
   };
 
   const copyPrompt = async () => {
@@ -633,6 +747,29 @@ export function PromptSceneLiteWidget({
   if (immersive) {
     return (
       <div className="relative flex h-full min-h-0 flex-col overflow-hidden bg-[#09090b] text-zinc-50">
+        <header className="relative z-20 flex shrink-0 items-center gap-2 border-b border-white/10 bg-[#09090b]/90 px-3 pb-2.5 pt-[max(0.5rem,env(safe-area-inset-top))] backdrop-blur-md">
+          {onClose ? (
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Закрыть"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-zinc-300 transition-colors hover:bg-white/10 hover:text-white"
+            >
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+          ) : null}
+          <p className="min-w-0 flex-1 truncate text-[15px] font-semibold tracking-tight text-zinc-50">
+            {FOTO_V_PROMT_HERO.title}
+          </p>
+          <AnalyzeQuotaChip
+            quota={quota}
+            tone="dark"
+            onSignIn={() => openAuthModal("analyze_quota")}
+            onTopUp={() => openPricing()}
+          />
+        </header>
         {showImmersiveBackdrop && previewUrl ? (
           <div className="pointer-events-none absolute inset-0 z-0" aria-hidden>
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -840,6 +977,11 @@ export function PromptSceneLiteWidget({
                     <div className="text-center text-xs font-semibold uppercase tracking-wide text-zinc-400">
                       {t("resultTitle")}
                     </div>
+                    {paidNotice ? (
+                      <div className="mt-2 flex justify-center">
+                        <AnalyzePaidNotice tone="dark" />
+                      </div>
+                    ) : null}
                     <pre className="mt-3 min-h-0 flex-1 overflow-auto whitespace-pre-wrap text-left text-[13px] leading-relaxed text-zinc-100">
                       {promptText}
                     </pre>
@@ -873,40 +1015,61 @@ export function PromptSceneLiteWidget({
               {panel === "error" ? (
                 <div className="flex flex-1 flex-col items-center justify-center gap-4 px-2 py-6">
                   <div className="w-full max-w-sm rounded-2xl bg-zinc-950/70 px-4 py-6 ring-1 ring-inset ring-white/10 backdrop-blur-xl">
-                    {errorKind === "rate_limited" || errorKind === "auth_required" ? (
+                    {errorKind === "rate_limited" ||
+                    errorKind === "auth_required" ||
+                    errorKind === "no_credits" ||
+                    errorKind === "quota_unavailable" ? (
                       <div className="flex flex-col items-center text-center">
                         <h3 className="text-base font-semibold tracking-tight text-zinc-50">
-                          {t("limitTitle")}
+                          {errorKind === "no_credits"
+                            ? t("noCreditsTitle")
+                            : errorKind === "quota_unavailable"
+                              ? t("quotaUnavailable")
+                              : t("limitTitle")}
                         </h3>
                         <p className="mt-2 text-sm leading-relaxed text-zinc-400">
-                          {errorMessage || t("limitDescription")}
+                          {errorMessage ||
+                            (errorKind === "no_credits"
+                              ? t("noCreditsDescription")
+                              : t("limitDescription"))}
                         </p>
-                        {errorKind === "auth_required" ? (
-                          <p className="mt-2 text-xs leading-relaxed text-zinc-500">
-                            {t("authRequiredHint")}
-                          </p>
-                        ) : (
-                          <p className="mt-2 text-xs leading-relaxed text-zinc-500">
-                            {t("limitResetLine")}
-                          </p>
-                        )}
                         <div className="mt-6 flex w-full flex-col gap-2">
                           {errorKind === "auth_required" ? (
-                            <a
-                              href={getImagePromptSiteUrl()}
-                              target="_blank"
-                              rel="noopener noreferrer"
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (isAuthed) {
+                                  retryPendingAnalyze();
+                                  return;
+                                }
+                                openAuthModal("analyze_quota");
+                              }}
                               className={`inline-flex min-h-11 w-full items-center justify-center rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-indigo-500 ${FVP_IMMERSIVE_FOCUS_RING}`}
                             >
-                              imageprompt.tools
-                            </a>
+                              {isAuthed ? t("retryAnalyze") : t("signInContinue")}
+                            </button>
+                          ) : null}
+                          {errorKind === "no_credits" ? (
+                            <button
+                              type="button"
+                              onClick={() => openPricing()}
+                              className={`inline-flex min-h-11 w-full items-center justify-center rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-indigo-500 ${FVP_IMMERSIVE_FOCUS_RING}`}
+                            >
+                              {t("topUpTokens")}
+                            </button>
                           ) : null}
                           <button
                             type="button"
-                            onClick={resetEmpty}
+                            onClick={
+                              errorKind === "quota_unavailable"
+                                ? retryPendingAnalyze
+                                : resetEmpty
+                            }
                             className={`inline-flex min-h-11 w-full items-center justify-center rounded-lg border border-white/15 bg-white/5 px-5 py-2.5 text-sm font-medium text-zinc-100 transition hover:bg-white/10 ${FVP_IMMERSIVE_FOCUS_RING}`}
                           >
-                            {t("limitGotIt")}
+                            {errorKind === "quota_unavailable"
+                              ? t("retryAnalyze")
+                              : t("limitGotIt")}
                           </button>
                         </div>
                       </div>
@@ -938,29 +1101,37 @@ export function PromptSceneLiteWidget({
     <div
       className={`w-full max-w-3xl rounded-2xl ${FVP_BORDER_CARD} ${FVP_SURFACE_WIDGET_OUTER} p-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-md shadow-zinc-200/60 sm:p-5`}
     >
-      <div className="mb-4 flex flex-wrap gap-1">
-        <button
-          type="button"
-          onClick={() => setMainTab("analyze")}
-          className={`min-h-10 flex-1 rounded-md px-3 text-sm font-medium transition ${FVP_FOCUS_RING} ${
-            mainTab === "analyze"
-              ? "bg-indigo-600 text-white shadow"
-              : "border border-zinc-200 bg-zinc-50 text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900"
-          }`}
-        >
-          {t("tabAnalyze")}
-        </button>
-        <button
-          type="button"
-          onClick={() => setMainTab("history")}
-          className={`min-h-10 flex-1 rounded-md px-3 text-sm font-medium transition ${FVP_FOCUS_RING} ${
-            mainTab === "history"
-              ? "bg-indigo-600 text-white shadow"
-              : "border border-zinc-200 bg-zinc-50 text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900"
-          }`}
-        >
-          {t("tabHistory")}
-        </button>
+      <div className="mb-4 flex items-center gap-3">
+        <div className="flex min-w-0 flex-1 gap-1">
+          <button
+            type="button"
+            onClick={() => setMainTab("analyze")}
+            className={`min-h-10 flex-1 rounded-md px-3 text-sm font-medium transition ${FVP_FOCUS_RING} ${
+              mainTab === "analyze"
+                ? "bg-indigo-600 text-white shadow"
+                : "border border-zinc-200 bg-zinc-50 text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900"
+            }`}
+          >
+            {t("tabAnalyze")}
+          </button>
+          <button
+            type="button"
+            onClick={() => setMainTab("history")}
+            className={`min-h-10 flex-1 rounded-md px-3 text-sm font-medium transition ${FVP_FOCUS_RING} ${
+              mainTab === "history"
+                ? "bg-indigo-600 text-white shadow"
+                : "border border-zinc-200 bg-zinc-50 text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900"
+            }`}
+          >
+            {t("tabHistory")}
+          </button>
+        </div>
+        <AnalyzeQuotaChip
+          quota={quota}
+          tone="light"
+          onSignIn={() => openAuthModal("analyze_quota")}
+          onTopUp={() => openPricing()}
+        />
       </div>
 
       {mainTab === "history" ? (
@@ -1121,7 +1292,10 @@ export function PromptSceneLiteWidget({
         <div className="flex min-h-0 flex-col gap-4">
           <ImagePreviewFrame src={previewUrl} />
           <div className="min-h-0">
-            <div className="mb-1 text-xs font-medium uppercase tracking-wide text-zinc-500">{t("resultTitle")}</div>
+            <div className="mb-2 flex flex-wrap items-center gap-2">
+              <div className="text-xs font-medium uppercase tracking-wide text-zinc-500">{t("resultTitle")}</div>
+              {paidNotice ? <AnalyzePaidNotice tone="light" /> : null}
+            </div>
             <pre
               className={`max-h-[min(40vh,22rem)] min-h-0 overflow-auto whitespace-pre-wrap rounded-lg ${FVP_BORDER_CARD} bg-zinc-50 p-3 text-xs leading-relaxed text-zinc-800 sm:text-sm`}
             >
@@ -1157,7 +1331,10 @@ export function PromptSceneLiteWidget({
       {panel === "error" ? (
         <div className="flex flex-col gap-5">
           {previewUrl ? <ImagePreviewFrame src={previewUrl} variant="dimmed" /> : null}
-          {errorKind === "rate_limited" || errorKind === "auth_required" ? (
+          {errorKind === "rate_limited" ||
+          errorKind === "auth_required" ||
+          errorKind === "no_credits" ||
+          errorKind === "quota_unavailable" ? (
             <div className="flex flex-col items-center px-4 py-6">
               <div className="text-zinc-500" aria-hidden>
                 <svg
@@ -1174,37 +1351,51 @@ export function PromptSceneLiteWidget({
                 </svg>
               </div>
               <h3 className="mt-4 text-center text-base font-semibold tracking-tight text-zinc-900">
-                {t("limitTitle")}
+                {errorKind === "no_credits"
+                  ? t("noCreditsTitle")
+                  : errorKind === "quota_unavailable"
+                    ? t("quotaUnavailable")
+                    : t("limitTitle")}
               </h3>
               <p className="mx-auto mt-2 max-w-sm text-center text-sm leading-relaxed text-zinc-600">
-                {errorMessage || t("limitDescription")}
+                {errorMessage ||
+                  (errorKind === "no_credits"
+                    ? t("noCreditsDescription")
+                    : t("limitDescription"))}
               </p>
-              {errorKind === "auth_required" ? (
-                <p className="mx-auto mt-2 max-w-sm text-center text-xs leading-relaxed text-zinc-500">
-                  {t("authRequiredHint")}
-                </p>
-              ) : (
-                <p className="mx-auto mt-2 text-center text-xs leading-relaxed text-zinc-500">
-                  {t("limitResetLine")}
-                </p>
-              )}
               <div className="mx-auto mt-6 flex w-full max-w-xs flex-col gap-2">
                 {errorKind === "auth_required" ? (
-                  <a
-                    href={getImagePromptSiteUrl()}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (isAuthed) {
+                        retryPendingAnalyze();
+                        return;
+                      }
+                      openAuthModal("analyze_quota");
+                    }}
                     className={`inline-flex min-h-11 w-full items-center justify-center rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-indigo-500 ${FVP_FOCUS_RING}`}
                   >
-                    imageprompt.tools
-                  </a>
+                    {isAuthed ? t("retryAnalyze") : t("signInContinue")}
+                  </button>
+                ) : null}
+                {errorKind === "no_credits" ? (
+                  <button
+                    type="button"
+                    onClick={() => openPricing()}
+                    className={`inline-flex min-h-11 w-full items-center justify-center rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-indigo-500 ${FVP_FOCUS_RING}`}
+                  >
+                    {t("topUpTokens")}
+                  </button>
                 ) : null}
                 <button
                   type="button"
-                  onClick={resetEmpty}
+                  onClick={
+                    errorKind === "quota_unavailable" ? retryPendingAnalyze : resetEmpty
+                  }
                   className={`inline-flex min-h-11 w-full items-center justify-center rounded-lg px-5 py-2.5 text-sm font-medium text-zinc-700 transition hover:bg-zinc-100 ${FVP_BORDER_INPUT} ${FVP_FOCUS_RING}`}
                 >
-                  {t("limitGotIt")}
+                  {errorKind === "quota_unavailable" ? t("retryAnalyze") : t("limitGotIt")}
                 </button>
               </div>
             </div>

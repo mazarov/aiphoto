@@ -13,11 +13,14 @@ import { createSupabaseBrowser } from "@/lib/supabase-browser";
 import { consumeAuthReturnPath } from "@/lib/auth-oauth";
 import type { User } from "@supabase/supabase-js";
 
+export type AuthModalReason = "default" | "analyze_quota";
+
 type AuthContextType = {
   user: User | null;
   loading: boolean;
   showAuthModal: boolean;
-  openAuthModal: () => void;
+  authModalReason: AuthModalReason;
+  openAuthModal: (reason?: AuthModalReason) => void;
   closeAuthModal: () => void;
   signOut: () => Promise<void>;
 };
@@ -26,6 +29,7 @@ const AuthContext = createContext<AuthContextType>({
   user: null,
   loading: true,
   showAuthModal: false,
+  authModalReason: "default",
   openAuthModal: () => {},
   closeAuthModal: () => {},
   signOut: async () => {},
@@ -35,10 +39,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [authModalReason, setAuthModalReason] = useState<AuthModalReason>("default");
   const handledAuthCodeRef = useRef(false);
 
-  const openAuthModal = useCallback(() => setShowAuthModal(true), []);
-  const closeAuthModal = useCallback(() => setShowAuthModal(false), []);
+  const openAuthModal = useCallback((reason: AuthModalReason = "default") => {
+    setAuthModalReason(reason);
+    setShowAuthModal(true);
+  }, []);
+  const closeAuthModal = useCallback(() => {
+    setShowAuthModal(false);
+    setAuthModalReason("default");
+  }, []);
 
   useEffect(() => {
     const supabase = createSupabaseBrowser();
@@ -107,7 +118,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, loading, showAuthModal, openAuthModal, closeAuthModal, signOut }}
+      value={{
+        user,
+        loading,
+        showAuthModal,
+        authModalReason,
+        openAuthModal,
+        closeAuthModal,
+        signOut,
+      }}
     >
       {children}
     </AuthContext.Provider>

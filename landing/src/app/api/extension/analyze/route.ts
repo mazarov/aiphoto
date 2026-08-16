@@ -2,17 +2,19 @@ import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
 import { NextRequest, NextResponse } from "next/server";
 import sharp from "sharp";
+import { recordAnalyzeEvent } from "@/lib/analyze-events";
 import { recordAnalyzeHistory } from "@/lib/analyze-history";
 import {
-  beginExtensionRateLimit,
-  confirmExtensionRateLimitOnSuccess,
-  extensionRateLimit429Body,
-  extensionRateLimitCheckFromSession,
-  extensionRateLimitQuotaFields,
-  recordExtensionRateLimitEvent,
-  releaseExtensionRateLimitOnFailure,
-  reserveExtensionRateLimit,
-} from "@/lib/extension-rate-limit-flow";
+  ANALYZE_QUOTA_MESSAGES,
+  analyzeQuotaPublicFields,
+  confirmAnalyzeQuota,
+  releaseAnalyzeQuota,
+  reserveAnalyzeQuota,
+  resolveAnalyzeQuotaSnapshot,
+  type AnalyzeQuotaSession,
+  type AnalyzeQuotaSnapshot,
+} from "@/lib/analyze-quota";
+import { resolveClientSource } from "@/lib/client-source";
 import {
   inferAspectRatioFromDimensions,
   type ExtensionImageSettings,
@@ -328,14 +330,41 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const requestId = crypto.randomUUID();
   const correlationId = req.headers.get("x-correlation-id") || requestId;
   const supabase = createSupabaseServer();
-  const session = await beginExtensionRateLimit(req, supabase, "analyze");
-  const preflight = session?.check ?? null;
   const eventBase = {
     locale,
     style,
     model: GEMINI_MODEL,
     correlationId,
   } as const;
+
+  const recordQuotaEvent = (
+    snapshot: AnalyzeQuotaSnapshot | AnalyzeQuotaSession | null,
+    allowed: boolean,
+    extra: {
+      outcome: Parameters<typeof recordAnalyzeEvent>[1]["outcome"];
+      errorCode?: string;
+      httpStatus: number;
+      latencyMs?: number;
+      truncated?: boolean;
+      finishReason?: string;
+      missingSections?: number;
+    },
+  ) => {
+    recordAnalyzeEvent(supabase, {
+      endpoint: "analyze",
+      clientSource: resolveClientSource(req, {
+        authenticated: snapshot?.authenticated,
+      }),
+      ipHash: snapshot?.ipHash || "",
+      userId: snapshot?.userId ?? null,
+      allowed,
+      requestOrigin: req.headers.get("origin"),
+      quotaMode:
+        snapshot && "mode" in snapshot ? snapshot.mode : snapshot?.nextMode ?? null,
+      ...eventBase,
+      ...extra,
+    });
+  };
 
   extensionLog("analyze.start", {
     requestId,
@@ -345,29 +374,32 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     imageBase64Chars: image.data.length,
   });
 
-  if (session && !session.check.allowed) {
-    recordExtensionRateLimitEvent(
-      supabase,
-      req,
-      "analyze",
-      session.check,
-      false,
-      {
-        ...eventBase,
-        outcome: "rate_limited",
-        errorCode: "rate_limited",
-        httpStatus: 429,
-      },
-    );
-    return NextResponse.json(extensionRateLimit429Body(session.check), {
-      status: 429,
+  let snapshot: AnalyzeQuotaSnapshot;
+  try {
+    snapshot = await resolveAnalyzeQuotaSnapshot(req, supabase);
+  } catch (error) {
+    extensionLog("analyze.quota_unavailable", {
+      requestId,
+      phase: "snapshot",
+      message: error instanceof Error ? error.message : String(error),
     });
+    recordQuotaEvent(null, false, {
+      outcome: "quota_unavailable",
+      errorCode: "quota_unavailable",
+      httpStatus: 503,
+    });
+    return NextResponse.json(
+      {
+        error: "quota_unavailable",
+        message: ANALYZE_QUOTA_MESSAGES.quota_unavailable,
+      },
+      { status: 503 },
+    );
   }
 
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    recordExtensionRateLimitEvent(supabase, req, "analyze", preflight, false, {
-      ...eventBase,
+    recordQuotaEvent(snapshot, false, {
       outcome: "config_error",
       errorCode: "config",
       httpStatus: 500,
@@ -378,32 +410,50 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  let reserved = false;
-  let reservedCheck = preflight;
-  if (session) {
-    const reservation = await reserveExtensionRateLimit(supabase, session);
-    if (reservation && !reservation.allowed) {
-      recordExtensionRateLimitEvent(
-        supabase,
-        req,
-        "analyze",
-        reservation,
-        false,
-        {
-          ...eventBase,
-          outcome: "rate_limited",
-          errorCode: "rate_limited",
-          httpStatus: 429,
-        },
-      );
-      return NextResponse.json(extensionRateLimit429Body(reservation), {
-        status: 429,
+  let reservedSession: AnalyzeQuotaSession | null = null;
+  try {
+    const reservation = await reserveAnalyzeQuota(supabase, snapshot);
+    if (!reservation.ok) {
+      const denied = reservation.error;
+      const httpStatus = denied === "no_credits" ? 402 : 401;
+      recordQuotaEvent(reservation.snapshot, false, {
+        outcome: denied,
+        errorCode: denied,
+        httpStatus,
       });
+      return NextResponse.json(
+        {
+          error: denied,
+          auth_required: denied === "auth_required",
+          no_credits: denied === "no_credits",
+          message: ANALYZE_QUOTA_MESSAGES[denied],
+          quota: analyzeQuotaPublicFields(reservation.snapshot),
+        },
+        { status: httpStatus },
+      );
     }
-    if (reservation) {
-      reserved = true;
-      reservedCheck = reservation;
+    if (!reservation.session.holdId) {
+      throw new Error("analyze_quota_missing_hold");
     }
+    reservedSession = reservation.session;
+  } catch (error) {
+    extensionLog("analyze.quota_unavailable", {
+      requestId,
+      phase: "reserve",
+      message: error instanceof Error ? error.message : String(error),
+    });
+    recordQuotaEvent(snapshot, false, {
+      outcome: "quota_unavailable",
+      errorCode: "quota_unavailable",
+      httpStatus: 503,
+    });
+    return NextResponse.json(
+      {
+        error: "quota_unavailable",
+        message: ANALYZE_QUOTA_MESSAGES.quota_unavailable,
+      },
+      { status: 503 },
+    );
   }
 
   const localeInstruction =
@@ -444,23 +494,15 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     httpStatus: number,
     upstreamStatus?: number,
   ) => {
-    if (session && reserved) {
-      await releaseExtensionRateLimitOnFailure(supabase, session);
+    if (reservedSession) {
+      await releaseAnalyzeQuota(supabase, reservedSession);
     }
-    recordExtensionRateLimitEvent(
-      supabase,
-      req,
-      "analyze",
-      extensionRateLimitCheckFromSession(session, reservedCheck),
-      false,
-      {
-        ...eventBase,
-        outcome: "upstream_error",
-        errorCode,
-        httpStatus: upstreamStatus ?? httpStatus,
-        latencyMs: Date.now() - startedAt,
-      },
-    );
+    recordQuotaEvent(reservedSession ?? snapshot, false, {
+      outcome: "upstream_error",
+      errorCode,
+      httpStatus: upstreamStatus ?? httpStatus,
+      latencyMs: Date.now() - startedAt,
+    });
     return NextResponse.json(
       {
         error: "upstream_failed",
@@ -522,40 +564,39 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const promptText = `${rawText}\n\n${criticalRules}`;
   const promptDiagnostics = diagnostics(rawText, summary.finishReason);
   const settingsPromise = imageSettings(image.data);
-  const confirmed = session && reserved
-    ? await confirmExtensionRateLimitOnSuccess(supabase, session)
-    : null;
-  const finalCheck = extensionRateLimitCheckFromSession(
-    session,
-    confirmed ?? reservedCheck,
-  );
+  let finalSession = reservedSession;
+  if (reservedSession) {
+    try {
+      finalSession = await confirmAnalyzeQuota(supabase, reservedSession);
+    } catch (error) {
+      extensionLog("analyze.quota_confirm_failed", {
+        requestId,
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
 
-  recordExtensionRateLimitEvent(
-    supabase,
-    req,
-    "analyze",
-    finalCheck,
-    confirmed?.allowed ?? session?.check.allowed ?? false,
-    {
-      ...eventBase,
-      outcome: promptDiagnostics.truncated ? "truncated" : "success",
-      truncated: promptDiagnostics.truncated,
-      finishReason: String(summary.finishReason ?? ""),
-      missingSections: promptDiagnostics.missing.length,
-      httpStatus: 200,
-      latencyMs: Date.now() - startedAt,
-    },
-  );
+  recordQuotaEvent(finalSession ?? snapshot, true, {
+    outcome: promptDiagnostics.truncated ? "truncated" : "success",
+    errorCode: finalSession?.mode === "paid" ? "paid" : "free",
+    truncated: promptDiagnostics.truncated,
+    finishReason: String(summary.finishReason ?? ""),
+    missingSections: promptDiagnostics.missing.length,
+    httpStatus: 200,
+    latencyMs: Date.now() - startedAt,
+  });
   recordAnalyzeHistory(supabase, req, {
     imageBase64: image.data,
     prompt: promptText,
     style,
     locale,
     model: GEMINI_MODEL,
-    userId: finalCheck?.userId,
-    ipHash: finalCheck?.ipHash,
+    userId: finalSession?.userId ?? snapshot.userId,
+    ipHash: finalSession?.ipHash ?? snapshot.ipHash,
     correlationId,
-    authenticated: finalCheck?.authenticated,
+    authenticated: finalSession?.authenticated ?? snapshot.authenticated,
+    creditsSpent: finalSession?.creditsCharged ?? 0,
+    quotaMode: finalSession?.mode ?? "free",
   });
 
   extensionLog("analyze.gemini_response", {
@@ -571,6 +612,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   return NextResponse.json({
     prompt: promptText,
     ...(settings ? { imageSettings: settings } : {}),
-    ...extensionRateLimitQuotaFields(finalCheck),
+    quota: analyzeQuotaPublicFields(finalSession ?? snapshot, {
+      mode: finalSession?.mode ?? "free",
+      creditsCharged: finalSession?.creditsCharged ?? 0,
+    }),
   });
 }
