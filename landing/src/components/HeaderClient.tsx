@@ -5,7 +5,6 @@ import { usePathname } from "next/navigation";
 import {
   useListingMobileChromeOptional,
   useOpenMobileCatalogMenu,
-  useOpenMobileSearchEntry,
 } from "@/context/ListingMobileChromeContext";
 import { useAuth } from "@/context/AuthContext";
 import {
@@ -19,7 +18,7 @@ import {
 } from "@/lib/listing-shell-surface";
 import { HeaderBalancePayChip } from "./AccountControls";
 import { ListingChromeButton, ListingMenuIcon } from "./ListingChromeButton";
-import { ListingSearchField, ListingSearchIcon } from "./ListingSearchField";
+import { ListingSearchField } from "./ListingSearchField";
 import { SiteBrandLink } from "./SiteBrandLink";
 
 function normalizePath(path: string): string {
@@ -31,7 +30,6 @@ export function HeaderClient() {
   const headerRef = useRef<HTMLElement>(null);
   const pathname = usePathname();
   const isCatalog = normalizePath(pathname || "/") === "/catalog";
-  const openSearch = useOpenMobileSearchEntry();
   const openMenu = useOpenMobileCatalogMenu();
   const chrome = useListingMobileChromeOptional();
   void chrome?.catalogSearchRevision;
@@ -67,19 +65,13 @@ export function HeaderClient() {
         className={`grid grid-cols-[auto_1fr_auto] items-center gap-2 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] ${LISTING_MOBILE_CHROME_INSET}`}
       >
         <div className="flex shrink-0 justify-start">
-          {isCatalog ? (
-            <ListingChromeButton
-              variant="icon-sm"
-              onClick={openMenu}
-              aria-label="Меню категорий"
-            >
-              <ListingMenuIcon className="h-5 w-5" />
-            </ListingChromeButton>
-          ) : (
-            <ListingChromeButton variant="icon-sm" onClick={openSearch} aria-label="Поиск">
-              <ListingSearchIcon className="h-5 w-5" />
-            </ListingChromeButton>
-          )}
+          <ListingChromeButton
+            variant="icon-sm"
+            onClick={openMenu}
+            aria-label="Меню категорий"
+          >
+            <ListingMenuIcon className="h-5 w-5" />
+          </ListingChromeButton>
         </div>
         <div className="relative min-h-10 min-w-0">
           <SiteBrandLink

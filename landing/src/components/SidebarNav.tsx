@@ -306,7 +306,6 @@ export function SidebarNav({
 }) {
   const pathname = usePathname();
   const normalizedPath = normalizePath(pathname || "/");
-  const isCatalog = normalizedPath === "/catalog";
   const chrome = useListingMobileChromeOptional();
   const registerMenu = chrome?.registerMenu;
 
@@ -358,28 +357,26 @@ export function SidebarNav({
   const closeMenu = useCallback(() => setMenuOpen(false), []);
 
   useEffect(() => {
-    if (!isCatalog || !registerMenu) return;
+    if (!registerMenu) return;
     registerMenu(() => setMenuOpen(true));
     return () => registerMenu(null);
-  }, [isCatalog, registerMenu]);
+  }, [registerMenu]);
 
   useEffect(() => {
-    if (!isCatalog) setMenuOpen(false);
-  }, [isCatalog]);
+    setMenuOpen(false);
+  }, [normalizedPath]);
 
   return (
     <>
-      {isCatalog ? (
-        <MobileCatalogMenuDrawer open={menuOpen} onClose={closeMenu}>
-          <SidebarContent
-            menu={enrichedMenu}
-            pathname={normalizedPath}
-            expandedIdx={expandedIdx}
-            onToggle={handleToggle}
-            onItemClick={closeMenu}
-          />
-        </MobileCatalogMenuDrawer>
-      ) : null}
+      <MobileCatalogMenuDrawer open={menuOpen} onClose={closeMenu}>
+        <SidebarContent
+          menu={enrichedMenu}
+          pathname={normalizedPath}
+          expandedIdx={expandedIdx}
+          onToggle={handleToggle}
+          onItemClick={closeMenu}
+        />
+      </MobileCatalogMenuDrawer>
 
       {/* Desktop sidebar */}
       <aside className="hidden w-72 flex-shrink-0 lg:block">
