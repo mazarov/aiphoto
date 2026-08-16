@@ -25,7 +25,8 @@
 
 Text-only video и video-from-video запрещены.
 
-Провайдер: Gemini Interactions API (`POST /v1beta/interactions`, `background=true`, `video_config.task=image_to_video`).
+Провайдер: Gemini Interactions API (`POST /v1beta/interactions`, `background=true`).  
+Контракт тела: `generation_config.video_config = { task: "image_to_video" }` (только `task`); `aspect_ratio` — в `response_format: { type: "video", aspect_ratio }`. Не класть `aspect_ratio` / `duration_seconds` в `video_config` — Google отвечает `Unknown parameter`. Длительность 4с храним у себя; в Interactions API отдельного поля нет.
 
 ## Flow
 

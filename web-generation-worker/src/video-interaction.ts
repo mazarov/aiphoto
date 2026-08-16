@@ -1,3 +1,45 @@
+export type VideoInteractionRequest = {
+  model: string;
+  input: Array<Record<string, string>>;
+  background: true;
+  generation_config: {
+    video_config: {
+      task: "image_to_video";
+    };
+  };
+  response_format: {
+    type: "video";
+    aspect_ratio: string;
+  };
+};
+
+/** Official Omni Flash Interactions body. aspect_ratio lives on response_format, not video_config. */
+export function buildVideoInteractionRequest(input: {
+  model: string;
+  prompt: string;
+  image: { mimeType: string; data: string };
+  aspectRatio: string;
+}): VideoInteractionRequest {
+  const aspectRatio = input.aspectRatio === "16:9" ? "16:9" : "9:16";
+  return {
+    model: input.model,
+    input: [
+      { type: "image", data: input.image.data, mime_type: input.image.mimeType },
+      { type: "text", text: input.prompt },
+    ],
+    background: true,
+    generation_config: {
+      video_config: {
+        task: "image_to_video",
+      },
+    },
+    response_format: {
+      type: "video",
+      aspect_ratio: aspectRatio,
+    },
+  };
+}
+
 export type InteractionVideoRef = {
   kind: "inline" | "uri";
   data?: string;
@@ -52,6 +94,7 @@ export function extractInteractionVideo(
   payload: Record<string, unknown>
 ): InteractionVideoRef | null {
   const buckets: unknown[] = [
+    payload.output_video,
     payload.outputs,
     payload.output,
     payload.result,

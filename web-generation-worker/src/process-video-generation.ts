@@ -12,6 +12,7 @@ import {
 } from "./input-source";
 import type { GenerationJob } from "./process-generation";
 import {
+  buildVideoInteractionRequest,
   extractInteractionId,
   extractInteractionVideo,
   interactionErrorMessage,
@@ -137,7 +138,6 @@ async function submitInteraction(input: {
   prompt: string;
   image: { mimeType: string; data: string };
   aspectRatio: string;
-  durationSeconds: number;
   signal: AbortSignal;
 }): Promise<string> {
   const response = await fetch(`${input.baseUrl}/v1beta/interactions`, {
@@ -146,21 +146,14 @@ async function submitInteraction(input: {
       "Content-Type": "application/json",
       "x-goog-api-key": config.geminiApiKey,
     },
-    body: JSON.stringify({
-      model: input.model,
-      input: [
-        { type: "image", data: input.image.data, mime_type: input.image.mimeType },
-        { type: "text", text: input.prompt },
-      ],
-      background: true,
-      generation_config: {
-        video_config: {
-          task: "image_to_video",
-          aspect_ratio: input.aspectRatio,
-          duration_seconds: input.durationSeconds,
-        },
-      },
-    }),
+    body: JSON.stringify(
+      buildVideoInteractionRequest({
+        model: input.model,
+        prompt: input.prompt,
+        image: input.image,
+        aspectRatio: input.aspectRatio,
+      })
+    ),
     signal: AbortSignal.any([input.signal, AbortSignal.timeout(60000)]),
   });
   const payload = await readJson(response);
@@ -237,7 +230,6 @@ export async function processVideoGeneration(
   const rawPrompt = String(job.prompt_text || "").trim();
   if (!rawPrompt) throw new ProcessingError("input_missing", "Prompt text is empty", false);
   const motionPrompt = assembleVideoMotionPrompt(rawPrompt);
-  const durationSeconds = Number(job.duration_seconds || 4);
   const base = await geminiBaseUrl(supabase);
   let operationId = String(job.provider_operation_id || "").trim();
 
@@ -250,7 +242,6 @@ export async function processVideoGeneration(
         prompt: motionPrompt,
         image,
         aspectRatio: job.aspect_ratio || "9:16",
-        durationSeconds,
         signal,
       });
     } catch (error) {
