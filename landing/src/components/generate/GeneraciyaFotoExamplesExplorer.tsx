@@ -236,7 +236,7 @@ export function GeneraciyaFotoExamplesExplorer({
     <div className="overflow-hidden rounded-[1.75rem] border border-indigo-100/90 bg-[linear-gradient(145deg,#f2f1ff_0%,#ffffff_48%,#faf7ff_100%)] px-3 pb-0 pt-5 text-zinc-900 shadow-[0_28px_80px_-46px_rgba(79,70,229,0.45)] sm:px-5 sm:pt-7">
       <div className="w-full">
         <p className="text-xs font-semibold uppercase tracking-[0.16em] text-indigo-600">
-          Библиотека образов
+          Онлайн-генератор
         </p>
         <h2
           id="examples-heading"

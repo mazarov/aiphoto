@@ -2,7 +2,7 @@
 
 > Дата: 2026-08-16  
 > Статус: реализация в `feature/16-08-analyze-quota-credits` (бесплатных в сутки: **10**, не 5)  
-> Поверхности: `/foto-v-promt`, стартер «По фото» на `/generaciya-foto`, `POST /api/extension/analyze`
+> Поверхности: `/foto-v-promt`, `POST /api/extension/analyze`
 
 ## Цель
 
@@ -31,7 +31,6 @@
 | Сбой RPC квоты | **fail-open** → Gemini всё равно вызывается |
 | Кредиты | Анализ не списывает. Генерация: 5 или 10 токенов через `landing_deduct_credits` |
 | `/foto-v-promt` | Виджет работает без входа. При `auth_required` сейчас ссылка на **imageprompt.tools** — это баг относительно PromptShot |
-| `/generaciya-foto` «По фото» | Файл не выбирается, пока нет аккаунта (`openAuthModal`). Generate и так за логином |
 | Модель | `gemini-2.5-flash`, успех → private `analyze_history` |
 | Сутки | UTC (`extensionRateLimitDayWindowStartIso`) |
 
@@ -136,17 +135,16 @@ return { allowed, mode: "paid", remaining_free: 0, credits_charged: 1, credits_l
 ### 2.5 Data flow
 
 ```
-/foto-v-promt виджет ─┐
-/generaciya-foto «По фото» ─┼─► POST /api/extension/analyze
-                             │      ├─ resolve identity
-                             │      ├─ RPC reserve (free | auth_required | no_credits | paid)
-                             │      ├─ Gemini flash
-                             │      └─ confirm / release+refund
-                             ▼
-                      { prompt, quota... } | error
+/foto-v-promt виджет ──► POST /api/extension/analyze
+                           ├─ resolve identity
+                           ├─ RPC reserve (free | auth_required | no_credits | paid)
+                           ├─ Gemini flash
+                           └─ confirm / release+refund
+                           ▼
+                    { prompt, quota... } | error
 ```
 
-`/generaciya-foto`: в v1 **не снимать** текущий вход до выбора файла. Гостевые 5 живут на `/foto-v-promt`. Залогиненный на «По фото» ест **ту же** дневную квоту (если утром крутил `/foto-v-promt` с того же IP и потом вошёл — merge).
+Канон photo→prompt — `/foto-v-promt`. `/generaciya-foto` стартер «По фото» снят; залогиненный на `/foto-v-promt` ест ту же дневную квоту (merge IP → user при входе).
 
 ### 2.6 История
 
@@ -279,7 +277,6 @@ return { allowed, mode: "paid", remaining_free: 0, credits_charged: 1, credits_l
 |---|---|---|
 | Виджет `/foto-v-promt` | `PromptSceneLiteWidget.tsx` | 401 → `openAuthModal`; 402 → pricing; убрать CTA на imageprompt.tools; показать remaining |
 | Общий helper | `image-prompt-analyze-client.ts` | Распознать `no_credits`; прокинуть quota |
-| Стартер «По фото» | `GeneraciyaFotoStarter.tsx` | После auth: 402 → pricing; не глотать ошибку как generic; при 401 (не должно при isAuthed) — всё равно AuthModal |
 | Dev proxy | `imageprompt-proxy/.../analyze` | Либо гейтить так же (если dev ходит в tools — **расхождение квоты**). Для локальной проверки фичи в prod-логике нужен same-origin `/api/extension/analyze`, не tools |
 
 ---
@@ -293,14 +290,7 @@ return { allowed, mode: "paid", remaining_free: 0, credits_charged: 1, credits_l
 - После входа не сбрасывать выбранное фото, если оно ещё в памяти.
 - Paid: предупреждение про 1 токен **до** повторного сабмита, если quota уже известна.
 
-### 5.2 `/generaciya-foto` «По фото»
-
-- Вход до файла — как сейчас.
-- Если залогинен и `next_mode=paid` — подпись у CTA про 1 токен.
-- `no_credits` → pricing overlay, файл можно не терять.
-- Не открывать гостевой analyze на этой странице в v1.
-
-### 5.3 Баланс в шапке
+### 5.2 Баланс в шапке
 
 После paid-анализа обновить чип кредитов тем же событием, что генерация.
 
@@ -389,7 +379,6 @@ v1 закрывает **PromptShot site analyze**.
 - [ ] Параллельно два гостевых запроса на 5-й слот: один успех, второй auth_required (или строго не больше 5 success).
 - [ ] RPC квоты выключен/ошибка: 503, нет Gemini.
 - [ ] STV-guest / anonymous: не списывает 999.
-- [ ] `/generaciya-foto` «По фото»: залогиненный делит квоту с `/foto-v-promt`.
 - [ ] FAQ/hero/meta `/foto-v-promt`: 5 в сутки, далее аккаунт и 1 токен.
 - [ ] Admin analyze-history: у paid строки `credits_spent=1`.
 
