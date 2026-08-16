@@ -29,8 +29,6 @@ export function getImagePromptSiteUrl(): string {
 /** Placement for Chrome Web Store UTM — forwarded to CWS GA4 on page_view + install. */
 export type AiImageDescriberChromePlacement =
   | "desktop_sidebar"
-  | "foto_v_promt_floating_cta"
-  | "foto_v_promt_mobile_floating_cta"
   | "foto_v_promt_remix_hint"
   | "foto_v_promt_json_ld";
 
@@ -42,7 +40,7 @@ const CHROME_STORE_UTM = {
 } as const;
 
 export function getAiImageDescriberChromeUrl(
-  placement: AiImageDescriberChromePlacement = "foto_v_promt_floating_cta",
+  placement: AiImageDescriberChromePlacement = "desktop_sidebar",
 ): string {
   const base =
     process.env.NEXT_PUBLIC_AI_IMAGE_DESCRIBER_CHROME_URL?.trim() || DEFAULT_CHROME_STORE_URL;

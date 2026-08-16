@@ -62,10 +62,6 @@ export const FOTO_V_PROMT_FAQ = {
   ] as const,
 } as const;
 
-export const FOTO_V_PROMT_CTA = {
-  floatingLabel: "Установить расширение",
-} as const;
-
 export const FOTO_V_PROMT_META = {
   title: "Фото в промт онлайн — промт из фото и картинки | PromptShot",
   description:

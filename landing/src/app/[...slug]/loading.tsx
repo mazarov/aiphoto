@@ -1,7 +1,10 @@
 function SidebarSkeleton() {
   return (
     <aside className="hidden w-72 flex-shrink-0 border-r border-zinc-100 lg:block">
-      <div className="px-4 py-5 space-y-3">
+      <div className="px-3 pt-4 pb-2">
+        <div className="h-6 w-32 animate-pulse rounded-lg bg-zinc-100" />
+      </div>
+      <div className="space-y-3 px-4 py-5">
         <div className="h-8 w-28 animate-pulse rounded-xl bg-zinc-100" />
         <div className="h-px bg-zinc-100" />
         {Array.from({ length: 4 }).map((_, i) => (
@@ -26,9 +29,6 @@ export default function ListingLoading() {
         <SidebarSkeleton />
 
         <div className="flex min-w-0 flex-1 flex-col">
-          <div className="hidden justify-center pt-4 lg:flex">
-            <div className="h-7 w-32 animate-pulse rounded-lg bg-zinc-100" />
-          </div>
           {/* Hero skeleton */}
           <div className="border-b border-zinc-100 bg-gradient-to-b from-zinc-50 to-white px-5 pt-10 pb-8">
             <div className="mb-4 flex items-center gap-2">

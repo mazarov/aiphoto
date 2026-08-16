@@ -41,9 +41,6 @@ export default function CardLoading() {
           <SidebarSkeleton />
 
           <div className="flex min-w-0 flex-1 flex-col">
-            <div className="hidden justify-center pt-4 lg:flex">
-              <div className="h-7 w-32 animate-pulse rounded-lg bg-zinc-100" />
-            </div>
             <main className="mx-auto w-full max-w-2xl flex-1 px-5 py-8">
               <div className="mb-6 hidden items-center gap-2 sm:flex">
                 <div className="h-4 w-16 animate-pulse rounded bg-zinc-200" />

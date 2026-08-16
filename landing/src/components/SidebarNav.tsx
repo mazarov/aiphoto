@@ -9,6 +9,7 @@ import { trackDesktopSidebarAddToChromeClick } from "@/lib/yandex-metrika";
 import { isSameNavPath, scrollCatalogToTop } from "@/lib/scroll-preservation";
 import { ChromeMark } from "./foto-v-promt/ChromeMark";
 import { SidebarAccountPanel } from "./AccountControls";
+import { SiteBrandLink } from "./SiteBrandLink";
 
 function enrichMenuWithCounts(
   menu: MenuSectionWithCounts[],
@@ -294,7 +295,13 @@ function SidebarContent({
   );
 }
 
-export function SidebarNav({ menu }: { menu: MenuSectionWithCounts[] }) {
+export function SidebarNav({
+  menu,
+  showBrand = true,
+}: {
+  menu: MenuSectionWithCounts[];
+  showBrand?: boolean;
+}) {
   const pathname = usePathname();
   const normalizedPath = normalizePath(pathname || "/");
 
@@ -347,6 +354,9 @@ export function SidebarNav({ menu }: { menu: MenuSectionWithCounts[] }) {
       {/* Desktop sidebar */}
       <aside className="hidden w-72 flex-shrink-0 lg:block">
         <div className="sticky top-0 flex h-screen flex-col border-r border-zinc-100 bg-white">
+          {showBrand ? (
+            <SiteBrandLink className="px-3 pt-4 pb-2" markSize={24} />
+          ) : null}
           <SidebarAccountPanel />
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
             <SidebarContent

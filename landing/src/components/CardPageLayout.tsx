@@ -2,7 +2,6 @@ import { applyCountsToMenu } from "@/lib/menu";
 import { Footer } from "./Footer";
 import { HeaderClient } from "./HeaderClient";
 import { SidebarNav } from "./SidebarNav";
-import { SiteBrandLink } from "./SiteBrandLink";
 
 const CARD_MENU = applyCountsToMenu({});
 
@@ -31,7 +30,7 @@ export function CardPageLayout({
   }
 
   const mobileImmersive = hideMobileChrome
-    ? "max-md:flex max-md:h-[100dvh] max-md:min-h-0 max-md:max-h-[100dvh] max-md:flex-col max-md:overflow-hidden"
+    ? "max-md:flex max-md:h-[100svh] max-md:min-h-0 max-md:max-h-[100svh] max-md:flex-col max-md:overflow-hidden"
     : "";
 
   return (
@@ -41,12 +40,9 @@ export function CardPageLayout({
       </div>
       <div className="flex min-h-0 flex-1 max-md:flex-1 md:min-h-[calc(100vh-var(--ps-header-height,57px))] lg:min-h-screen">
         <div className="max-lg:hidden">
-          <SidebarNav menu={CARD_MENU} />
+          <SidebarNav menu={CARD_MENU} showBrand={false} />
         </div>
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-          <div className="hidden shrink-0 justify-center pt-4 lg:flex">
-            <SiteBrandLink />
-          </div>
           {children}
           <div className="mt-auto max-md:hidden">
             <Footer />

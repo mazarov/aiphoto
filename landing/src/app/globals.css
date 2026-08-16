@@ -8,6 +8,19 @@ html {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/**
+ * iOS/iPadOS Safari zooms the page when a focused text field is under 16px.
+ * Touch-only so desktop can keep text-sm / text-xs. !important beats Tailwind
+ * utilities (text-[13px], text-sm, …) without editing every field.
+ */
+@media (hover: none) and (pointer: coarse) {
+  input:not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]):not([type="range"]):not([type="color"]):not([type="image"]),
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
+
 /* Catalog shell scrolls inside this node on mobile — programmatic jumps must be instant. */
 #listing-scroll-root {
   scroll-behavior: auto;
@@ -164,6 +177,32 @@ p {
     padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
   }
 
+  /**
+   * Mobile prompt-card stage (Safari iPhone).
+   * Do not use `inset: 0` + `min-height: 100dvh`: iOS layout viewport is taller
+   * than the visible window, so bottom chrome (Промпт / Повторить) and the
+   * action stack sit below the fold. `100svh` is the visible window with
+   * browser chrome showing; JS pins snap-slide height to the same pixels.
+   */
+  .ps-mobile-card-stage {
+    position: fixed;
+    top: 0;
+    right: 0;
+    left: 0;
+    z-index: 245;
+    width: 100%;
+    height: 100vh;
+    height: 100dvh;
+    height: 100svh;
+    overflow: hidden;
+  }
+
+  [data-card-snap-slide] {
+    height: var(--card-snap-slide-h, 100%);
+    min-height: var(--card-snap-slide-h, 100%);
+    max-height: var(--card-snap-slide-h, 100%);
+  }
+
   /** Mobile listing shell — inner scroll; height follows layout viewport, not keyboard. */
   @media (max-width: 1023px) {
     html.listing-mobile-shell,
@@ -237,10 +276,6 @@ p {
       padding-bottom: 0;
     }
 
-    .foto-v-promt-main-pad {
-      padding-bottom: calc(8.5rem + 3.5rem + max(0px, env(safe-area-inset-bottom, 0px)));
-    }
-
   }
 
   @media (min-width: 1024px) {
@@ -312,19 +347,6 @@ p {
     box-shadow:
       0 0 0 3px rgba(139, 92, 246, 0.09),
       0 1px 2px rgba(99, 102, 241, 0.08);
-  }
-
-  /** Floating CTAs above mobile tab bar (h-14 + center pill + safe inset + gap) */
-  .floating-cta-above-mobile-tab-bar {
-    bottom: max(1.25rem, env(safe-area-inset-bottom, 0px));
-  }
-
-  @media (max-width: 1023px) {
-    .floating-cta-above-mobile-tab-bar {
-      bottom: calc(
-        3.5rem + 0.75rem + 0.25rem + max(0px, env(safe-area-inset-bottom, 0px)) + 1rem
-      );
-    }
   }
 
   /** Legacy FAB offsets (desktop filter FAB, debug panel) */

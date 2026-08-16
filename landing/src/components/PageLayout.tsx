@@ -18,7 +18,6 @@ import { Footer } from "./Footer";
 import { ListingBottomBar } from "./ListingBottomBar";
 import { MobileTabBar } from "./MobileTabBar";
 import { ListingSearch } from "./ListingSearch";
-import { SiteBrandLink } from "./SiteBrandLink";
 
 const MENU_STRUCTURE = applyCountsToMenu({});
 
@@ -87,9 +86,6 @@ export function PageLayout({
           <div className="flex min-h-0 lg:min-h-screen">
             <SidebarNav menu={MENU_STRUCTURE} />
             <div className="flex min-w-0 flex-1 flex-col">
-              <div className="hidden shrink-0 justify-center pt-4 lg:flex">
-                <SiteBrandLink />
-              </div>
               {children}
               {/* Listing routes hide the footer behind the floating dock unless a product page opts in. */}
               {showFooter ? <Footer /> : null}
