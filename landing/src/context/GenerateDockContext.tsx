@@ -18,6 +18,11 @@ import {
   type GenerateDockSeed,
 } from "@/lib/generate-dock-seed";
 import {
+  clearPendingGenerateDock,
+  consumePendingGenerateDock,
+  persistPendingGenerateDock,
+} from "@/lib/generate-dock-pending";
+import {
   reachYandexMetrikaGoal,
   YM_GOAL_GENERATE_SHELL_OPEN,
 } from "@/lib/yandex-metrika";
@@ -26,11 +31,21 @@ export type {
   GenerateDockComposeIntent,
   GenerateDockSeed,
 } from "@/lib/generate-dock-seed";
+export {
+  isGenerateDockListingPath,
+  isGenerateDockSeoPagePath,
+} from "@/lib/generate-dock-path";
 
 /** Blank dock editor surface — mutual exclusion SSOT for shell stretch. */
 export type GenerateDockSurface = "prompt" | "photos" | "model" | null;
 
-export type GenerateDockEntrySource = "tab" | "card" | "route" | "sidebar";
+export type GenerateDockEntrySource =
+  | "tab"
+  | "card"
+  | "route"
+  | "sidebar"
+  | "foto_v_promt"
+  | "analyses";
 
 const DEFAULT_SEED: GenerateDockSeed = DEFAULT_GENERATE_DOCK_SEED;
 
@@ -97,6 +112,8 @@ const GenerateDockContext = createContext<GenerateDockContextType>({
 });
 
 export function GenerateDockProvider({ children }: { children: ReactNode }) {
+  const { user, loading: authLoading } = useAuth();
+  const isAuthed = Boolean(user && user.is_anonymous !== true);
   const [seed, setSeed] = useState<GenerateDockSeed>(DEFAULT_SEED);
   const [seedToken, setSeedToken] = useState(0);
   const [plateOpen, setPlateOpen] = useState(false);
@@ -106,6 +123,18 @@ export function GenerateDockProvider({ children }: { children: ReactNode }) {
   const [runProgress, setRunProgress] = useState(0);
   const [needsCredits, setNeedsCredits] = useState(false);
   const [requestedModelId, setRequestedModelId] = useState<string | null>(null);
+  const restoredPendingRef = useRef(false);
+
+  useEffect(() => {
+    if (authLoading || restoredPendingRef.current) return;
+    restoredPendingRef.current = true;
+    const pending = consumePendingGenerateDock();
+    if (!pending) return;
+    setSeed(pending.seed);
+    setSeedToken((token) => token + 1);
+    setPlateOpen(true);
+    setDockSurface(pending.dockSurface);
+  }, [authLoading]);
 
   const trackOpen = useCallback((entrySource: GenerateDockEntrySource) => {
     reachYandexMetrikaGoal(YM_GOAL_GENERATE_SHELL_OPEN, {
@@ -137,9 +166,15 @@ export function GenerateDockProvider({ children }: { children: ReactNode }) {
       setRequestedModelId(modelId);
       setPlateOpen(true);
       setDockSurface(null);
+      if (!isAuthed) {
+        persistPendingGenerateDock({
+          seed: isResumeComposeSeed(seed) ? DEFAULT_SEED : seed,
+          dockSurface: null,
+        });
+      }
       trackOpen(options?.entrySource ?? "route");
     },
-    [seed, trackOpen]
+    [isAuthed, seed, trackOpen]
   );
 
   const focusBlank = useCallback(
@@ -152,9 +187,15 @@ export function GenerateDockProvider({ children }: { children: ReactNode }) {
       setPlateOpen(true);
       // Compact frosted plate (prompt expands on tap) — matches listing glass compose.
       setDockSurface(null);
+      if (!isAuthed) {
+        persistPendingGenerateDock({
+          seed: isResumeComposeSeed(seed) ? DEFAULT_SEED : seed,
+          dockSurface: null,
+        });
+      }
       trackOpen(options?.entrySource ?? "tab");
     },
-    [seed, trackOpen]
+    [isAuthed, seed, trackOpen]
   );
 
   const seedFromCard = useCallback(
@@ -162,19 +203,23 @@ export function GenerateDockProvider({ children }: { children: ReactNode }) {
       args: { promptText: string; cardId: string },
       options?: { entrySource?: GenerateDockEntrySource }
     ) => {
-      setSeed({
+      const nextSeed: GenerateDockSeed = {
         source: "card",
         promptText: args.promptText,
         cardId: args.cardId,
         intent: "resume",
-      });
+      };
+      setSeed(nextSeed);
       setSeedToken((token) => token + 1);
       setPlateOpen(true);
       // Base compose (collapsed prompt row) — sheet opens only on explicit tap.
       setDockSurface(null);
+      if (!isAuthed) {
+        persistPendingGenerateDock({ seed: nextSeed, dockSurface: null });
+      }
       trackOpen(options?.entrySource ?? "card");
     },
-    [trackOpen]
+    [isAuthed, trackOpen]
   );
 
   const seedBlankPrompt = useCallback(
@@ -186,18 +231,23 @@ export function GenerateDockProvider({ children }: { children: ReactNode }) {
         dockSurface?: GenerateDockSurface;
       }
     ) => {
-      setSeed({
+      const nextSeed: GenerateDockSeed = {
         source: "blank",
         promptText: promptText.trim(),
         cardId: null,
         intent: options?.intent ?? "text",
-      });
+      };
+      const nextSurface = options?.dockSurface ?? null;
+      setSeed(nextSeed);
       setSeedToken((token) => token + 1);
       setPlateOpen(true);
-      setDockSurface(options?.dockSurface ?? null);
+      setDockSurface(nextSurface);
+      if (!isAuthed) {
+        persistPendingGenerateDock({ seed: nextSeed, dockSurface: nextSurface });
+      }
       trackOpen(options?.entrySource ?? "route");
     },
-    [trackOpen]
+    [isAuthed, trackOpen]
   );
 
   const notifyGenerationComplete = useCallback(() => {
@@ -273,6 +323,7 @@ function GenerateDockGuestAuthReactor() {
     prevShowAuthRef.current = showAuthModal;
     if (loading || isAuthed) return;
     if (wasShowing && !showAuthModal && plateOpen) {
+      clearPendingGenerateDock();
       setPlateOpen(false);
       setDockSurface(null);
     }
@@ -285,64 +336,3 @@ export function useGenerateDock() {
   return useContext(GenerateDockContext);
 }
 
-/** SEO acquisition route where blank text-to-image is allowed. */
-export function isGenerateDockSeoPagePath(pathname: string): boolean {
-  const normalized =
-    !pathname || pathname === "/"
-      ? "/"
-      : pathname.endsWith("/")
-        ? pathname.slice(0, -1)
-        : pathname;
-  return normalized === "/generaciya-foto";
-}
-
-/** Listing routes where the floating generate dock is mounted. */
-export function isGenerateDockListingPath(pathname: string): boolean {
-  const np =
-    !pathname || pathname === "/"
-      ? "/"
-      : pathname.endsWith("/")
-        ? pathname.slice(0, -1)
-        : pathname;
-
-  if (
-    np === "/" ||
-    np === "/trends" ||
-    np === "/catalog" ||
-    np === "/search" ||
-    np === "/favorites" ||
-    np === "/generate" ||
-    np === "/generations" ||
-    isGenerateDockSeoPagePath(np)
-  ) {
-    return true;
-  }
-
-  const blockedExact = new Set([
-    "/pricing",
-    "/admin",
-    "/foto-v-promt",
-    "/embed",
-    "/auth",
-    "/extension-stv",
-    "/privacy",
-    "/terms",
-    "/policy",
-    "/p",
-  ]);
-  if (blockedExact.has(np)) return false;
-
-  const blockedPrefixes = [
-    "/p/",
-    "/pricing/",
-    "/admin/",
-    "/foto-v-promt/",
-    "/embed/",
-    "/auth/",
-    "/extension-stv/",
-  ];
-  if (blockedPrefixes.some((prefix) => np.startsWith(prefix))) return false;
-
-  // Tag / SEO listing catch-all (`app/[...slug]`)
-  return np.startsWith("/") && np.length > 1;
-}

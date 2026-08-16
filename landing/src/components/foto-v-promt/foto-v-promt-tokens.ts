@@ -14,8 +14,8 @@ export const FVP_IMMERSIVE_ACTION =
 export const FVP_IMMERSIVE_ACTION_PRIMARY =
   "inline-flex min-h-12 w-full items-center justify-center rounded-2xl bg-indigo-600 px-5 text-sm font-semibold text-white shadow-lg shadow-indigo-950/40 transition hover:bg-indigo-500 active:scale-[0.99]";
 
-export const FVP_IMMERSIVE_ACTION_GREEN =
-  "!inline-flex !min-h-12 !w-full !items-center !justify-center !rounded-2xl !border-0 !bg-emerald-600 !px-5 !py-0 !text-sm !font-semibold !leading-normal !text-white !shadow-lg !shadow-emerald-950/30 transition hover:!bg-emerald-500 active:scale-[0.99] disabled:opacity-50";
+export const FVP_IMMERSIVE_ACTION_BRAND =
+  "inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl border-0 bg-gradient-to-br from-indigo-500 via-[#5b5cf0] to-violet-500 px-5 text-sm font-semibold text-white shadow-lg shadow-indigo-950/40 transition hover:brightness-[1.06] active:scale-[0.99] disabled:opacity-50";
 
 export const FVP_BORDER_CARD = "border border-zinc-200";
 export const FVP_BORDER_INPUT = "border border-zinc-200";

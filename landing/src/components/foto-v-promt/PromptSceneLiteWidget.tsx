@@ -23,18 +23,21 @@ import {
   YM_GOAL_ANALYZE_NO_CREDITS,
   YM_GOAL_ANALYZE_PAID_SUCCESS,
   YM_GOAL_ANALYZE_QUOTA_UNAVAILABLE,
-  YM_GOAL_LEXYGPT_GENERATE_PHOTOVPROMPT,
 } from "@/lib/yandex-metrika";
-import { LexyGptGenerateButton } from "@/components/LexyGptGenerateButton";
 import { FOTO_V_PROMT_HERO, widgetCopy, type WidgetCopyKey } from "@/lib/foto-v-promt-copy";
 import { prepareUploadFile, noticeForUploadError } from "@/lib/image-upload-prepare";
+import {
+  clearFotoVPromtResultSnapshot,
+  persistFotoVPromtResultSnapshot,
+  readFotoVPromtResultSnapshot,
+} from "@/lib/foto-v-promt-result-snapshot";
 import { AnalyzePaidNotice, AnalyzeQuotaChip } from "./AnalyzeQuotaChip";
+import { FotoVPromtGenerateButton } from "./FotoVPromtGenerateButton";
 import {
   FVP_BORDER_CARD,
   FVP_BORDER_INPUT,
   FVP_FOCUS_RING,
   FVP_IMMERSIVE_ACTION,
-  FVP_IMMERSIVE_ACTION_GREEN,
   FVP_IMMERSIVE_ACTION_PRIMARY,
   FVP_IMMERSIVE_FOCUS_RING,
   FVP_RING_INSET_SOFT,
@@ -280,6 +283,25 @@ export function PromptSceneLiteWidget({
   useEffect(() => {
     void refreshQuota();
   }, [refreshQuota, isAuthed]);
+
+  useEffect(() => {
+    try {
+      if (sessionStorage.getItem(STORAGE_KEY)) return;
+    } catch {
+      // continue restore
+    }
+    const snap = readFotoVPromtResultSnapshot();
+    if (!snap) return;
+    setPromptText(snap.promptText);
+    if (snap.previewUrl) setPreviewUrl(snap.previewUrl);
+    setPanel("result");
+    setMainTab("analyze");
+  }, []);
+
+  useEffect(() => {
+    if (panel !== "result" || !promptText.trim()) return;
+    persistFotoVPromtResultSnapshot({ promptText, previewUrl });
+  }, [panel, promptText, previewUrl]);
 
   const historyItems = useMemo(() => {
     void historyTick;
@@ -683,6 +705,7 @@ export function PromptSceneLiteWidget({
   const resetEmpty = () => {
     revokeObjectPreview();
     pendingAnalyzeRef.current = null;
+    clearFotoVPromtResultSnapshot();
     setPanel("empty");
     setPreviewUrl(null);
     setPromptText("");
@@ -856,11 +879,10 @@ export function PromptSceneLiteWidget({
                           >
                             {t("historyCopyPrompt")}
                           </button>
-                          <LexyGptGenerateButton
+                          <FotoVPromtGenerateButton
                             promptText={entry.prompt}
-                            variant="widget-sm"
-                            metricGoal={YM_GOAL_LEXYGPT_GENERATE_PHOTOVPROMPT}
-                            idleLabel={t("generate")}
+                            variant="sm"
+                            label={t("generate")}
                           />
                         </div>
                       </div>
@@ -993,12 +1015,10 @@ export function PromptSceneLiteWidget({
                       >
                         {t("copy")}
                       </button>
-                      <LexyGptGenerateButton
+                      <FotoVPromtGenerateButton
                         promptText={promptText}
-                        variant="widget-md"
-                        metricGoal={YM_GOAL_LEXYGPT_GENERATE_PHOTOVPROMPT}
-                        idleLabel={t("generate")}
-                        className={FVP_IMMERSIVE_ACTION_GREEN}
+                        variant="immersive"
+                        label={t("generate")}
                       />
                       <button
                         type="button"
@@ -1177,11 +1197,10 @@ export function PromptSceneLiteWidget({
                       >
                         {t("historyCopyPrompt")}
                       </button>
-                      <LexyGptGenerateButton
+                      <FotoVPromtGenerateButton
                         promptText={entry.prompt}
-                        variant="widget-sm"
-                        metricGoal={YM_GOAL_LEXYGPT_GENERATE_PHOTOVPROMPT}
-                        idleLabel={t("generate")}
+                        variant="sm"
+                        label={t("generate")}
                       />
                     </div>
                   </div>
@@ -1311,11 +1330,10 @@ export function PromptSceneLiteWidget({
             >
               {t("copy")}
             </button>
-            <LexyGptGenerateButton
+            <FotoVPromtGenerateButton
               promptText={promptText}
-              variant="widget-md"
-              metricGoal={YM_GOAL_LEXYGPT_GENERATE_PHOTOVPROMPT}
-              idleLabel={t("generate")}
+              variant="md"
+              label={t("generate")}
             />
             <button
               type="button"

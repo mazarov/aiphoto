@@ -2,9 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { getAiImageDescriberChromeUrl, getPromptRemixUrl, FOTO_V_PROMT_ANALYZE_LOCALE } from "@/lib/foto-v-promt-config";
-import { YM_GOAL_LEXYGPT_GENERATE_PHOTOVPROMPT } from "@/lib/yandex-metrika";
 import { PROMPT_REMIX_COPY } from "@/lib/foto-v-promt-copy";
-import { LexyGptGenerateButton } from "@/components/LexyGptGenerateButton";
+import { FotoVPromtGenerateButton } from "./FotoVPromtGenerateButton";
 import {
   FVP_BORDER_CARD,
   FVP_BORDER_INPUT,
@@ -211,11 +210,10 @@ export function PromptRemixWidget({ cardSlug }: Props) {
                 >
                   {PROMPT_REMIX_COPY.copy}
                 </button>
-                <LexyGptGenerateButton
+                <FotoVPromtGenerateButton
                   promptText={resultPrompt}
-                  variant="widget-md"
-                  metricGoal={YM_GOAL_LEXYGPT_GENERATE_PHOTOVPROMPT}
-                  idleLabel="Сгенерировать"
+                  variant="md"
+                  label="Сгенерировать"
                 />
                 <button
                   type="button"

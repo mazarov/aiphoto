@@ -12,6 +12,7 @@ const DISALLOWED = [
   "/search",
   "/favorites",
   "/generations",
+  "/analyses",
   "/generate",
   "/pricing",
 ];

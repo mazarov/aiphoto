@@ -1,6 +1,10 @@
 # 03 — Пайплайн: парсинг → загрузка → публикация
 
-> Последнее обновление: 2026-08-11 (**analyze-history remix:** `POST /api/prompt-remix` пишет в ту же 30-day `analyze_history` с `kind=remix` + `change_request`; admin UI показывает Remix отдельно от analyze. SQL `181`.)
+> Последнее обновление: 2026-08-16 (**analyze_history owner index:** SQL `188` — `(user_id, created_at desc)` для `/analyses` / `GET /api/analyses`. Запись по-прежнему `recordAnalyzeHistory` с `user_id` только у авторизованного.)
+>
+> Последнее обновление: 2026-08-15 (**analyze-history retention:** 5 дней вместо 30; cleanup на admin read.)
+>
+> Последнее обновление: 2026-08-11 (**analyze-history remix:** `POST /api/prompt-remix` пишет в ту же `analyze_history` с `kind=remix` + `change_request`; admin UI показывает Remix отдельно от analyze. SQL `181`.)
 >
 > Предыдущее обновление: 2026-08-08 (**PromptShot admin publication:** успешные site analyze сохраняются в private 30-day `analyze_history`; admin analyze и durable admin generations публикуются идемпотентно через `prompt_cards` и общий SEO publish service. SQL `175` и production deploy не выполнялись.)
 >
@@ -311,7 +315,7 @@ Site analyze:
     → same-origin /api/extension/analyze
     → rate-limit reserve
     → Gemini
-    ├─ success → confirm → private analyze_history kind=analyze (retention 30 days)
+    ├─ success → confirm → private analyze_history kind=analyze (retention 5 days)
     └─ failure → release (quota count не увеличивается)
 
 Site prompt remix (карточки / generate):
@@ -344,7 +348,7 @@ Admin generation publication:
   `landing_generations.user_id` указывает на shared `imageprompt_users.id`; эти UUID
   могут различаться.
 - Analyze history приватна: исходник выдаётся admin UI только через signed URL и
-  удаляется retention-cleanup после 30 дней.
+  удаляется retention-cleanup после 5 дней.
 - Оба publish endpoint используют связь `ugc_card_id` и общий publication service,
   поэтому повторный запрос не создаёт вторую карточку и безопасно возвращает уже
   опубликованный `prompt_cards`.
