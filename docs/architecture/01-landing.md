@@ -1,5 +1,9 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-08-16 (**catalog sticky search:** на `/catalog` max-lg, когда поле поиска уходит под шапку, в навбаре вместо лого выезжает то же поле (`ListingSearchField` compact). IntersectionObserver по `#listing-scroll-root` + `holdListingChromeAutoHide("catalog-search")`, чтобы шапка не пряталась. Бургер и баланс остаются.)
+>
+> Последнее обновление: 2026-08-16 (**catalog mobile explorer:** `/catalog` на max-lg — `HomepageExamplesExplorer variant="catalog"`: поиск + Wordstat-чипы + 16 popular-карточек. Fade/CTA только при чипе («Все промты категории» → L1) или поиске («Все результаты» → `/search`). Desktop — плитки `CategorySection`. Шапка на `/catalog` — бургер → `MobileCatalogMenuDrawer` (`SidebarContent`). Таб / H1 / CTA главной: «Каталог и поиск». SEO title `/catalog` без изменений, `noindex`.)
+>
 > Последнее обновление: 2026-08-16 (**оживить фото / Veo Omni Flash:** sibling video job на `landing_generations`. `POST /api/generate` принимает `modality=video` (1 фото или owned completed image parent, без `editInstruction`, 30 кредитов из `video_models`). Config `?modality=video` отдаёт Veo Omni Flash / 9:16 / 4 сек / 720p; флаг `video_animate_enabled`. Worker claim отдельно (`p_modality=video`, cap 2). UI: «Оживить» после фото, dock-режим для одного фото, `<video>` в истории. UGC/библиотека для video в v1 выключены. SQL `189`.)
 >
 > Последнее обновление: 2026-08-16 (**listing card id dedup:** `expandCardGroups` может подтянуть sibling, который на следующей странице снова приходит как ranked row. `InfiniteGrid` / `SearchResults` / admin filter append склеивают порции через `appendUniqueCardsById`; `FilterableGrid` собирает ячейки через `buildListingGridItems`, чтобы React key и swipe-order не повторяли `card.id`.)
@@ -275,7 +279,7 @@
 ```
 /                       → Главная (категории + поиск)
 /trends                 → SEO-hub «промты для трендовых фото» + глобальный фид по `created_at DESC` (`resolve_route_cards` без path-тегов, `p_sort=new`); тексты/FAQ/HowTo — **`trends-seo-copy.ts`**; popularLinks на существующие L1/L2 (др, семья, пары, чёрный фон, портрет, девушка); JSON-LD CollectionPage+HowTo+FAQPage; фильтры `audience|style|occasion|object` как на `[...slug]`; **без** переключателя Популярное/Новое (`CatalogWithFilters` `fixedSort="new"`); ISR `revalidate=3600`; index на чистом `/trends` (при query-фильтрах — noindex, canonical `/trends`); sitemap priority **0.85**. Legacy **`/new` → 301 `/trends`** (`next.config.ts`). **Не** плодить `/trends/*` subpages
-/catalog                → Каталог промтов (категориальная сетка, noindex, revalidate=3600)
+/catalog                → Каталог и поиск: mobile — explorer (поиск + чипы + 16 промтов, без fade); desktop — категориальная сетка; шапка mobile — бургер категорий; noindex, revalidate=3600
 /p/[slug]               → Карточка промта
 /[...slug]              → Листинг по тегу (напр. /promty-dlya-foto-devushki, /stil/cherno-beloe)
 /search                 → Поиск (клиентский)
@@ -747,7 +751,7 @@ fetchRouteCards({ sort: "popular", limit: 16 })
   → HomepageExamplesExplorer
 ```
 
-Чипы: `homepage-explorer-chips.ts` («Все» + топ Wordstat без «На паспорт»; хвост включая `doc_task_tag` — `sr-only`). Каталог плитками остаётся на `/catalog`.
+Чипы: `homepage-explorer-chips.ts` («Все» + топ Wordstat без «На паспорт»; хвост включая `doc_task_tag` — `sr-only`). `/catalog` desktop — плитки `CategorySection`; mobile — тот же explorer (`variant="catalog"`, без fade/CTA). CTA главной без чипа: «Каталог и поиск».
 
 ### Листинг `/[...slug]` (L1 / L2 / L3)
 
@@ -836,7 +840,7 @@ SearchResults (client, infinite scroll)
 
 | Компонент | Файл | Роль |
 |-----------|------|------|
-| HeaderClient | `components/HeaderClient.tsx` | Mobile sticky header: поиск слева \| логотип \| у авторизованного `HeaderBalancePayChip` (баланс + «+»). На desktop не рендерит визуальный chrome |
+| HeaderClient | `components/HeaderClient.tsx` | Mobile sticky header: на `/catalog` бургер категорий, иначе поиск слева \| логотип (на `/catalog` после ухода in-page поиска — выезжающее поле) \| у авторизованного `HeaderBalancePayChip` (баланс + «+»). На desktop не рендерит визуальный chrome |
 | HeaderBalancePayChip | `components/AccountControls.tsx` | Split-pill шапки: кредиты + CTA «+» → `PricingEntryLink` (оверлей `/pricing`). `aria-label` — «пополнить». Тот же кэш `GET /api/me`, что sidebar |
 | PricingModalContext | `context/PricingModalContext.tsx` | SSOT оверлея тарифов: `open` → save origin + pushState `/pricing`, `close` → back (валидный `onClick`), `closeWithoutHistory` перед YooKassa, `popstate` снимает модалку; на hard `/pricing` `open` no-op |
 | ClientPricingModal | `components/ClientPricingModal.tsx` | Overlay тарифов в root layout (portal `document.body`, `z-[260]`) |
@@ -881,7 +885,8 @@ SearchResults (client, infinite scroll)
 | FilterPanel | `components/FilterPanel.tsx` | Mobile sheet с чипсами (draft + «Применить») |
 | FilterChips | `components/FilterChips.tsx` | Строка чипсов для одного измерения |
 | useListingFilterCounts | `hooks/useListingFilterCounts.ts` | Счётчики тегов: API или агрегация из cards |
-| HomepageExamplesExplorer | `components/home/HomepageExamplesExplorer.tsx` | Главная: popular-карточки, Wordstat-чипы, in-place search |
+| HomepageExamplesExplorer | `components/home/HomepageExamplesExplorer.tsx` | Главная (`variant=home`) и `/catalog` mobile (`variant=catalog`): popular-карточки, Wordstat-чипы, in-place search; catalog без fade/CTA |
+| MobileCatalogMenuDrawer | `components/MobileCatalogMenuDrawer.tsx` | Левая шторка категорий на `/catalog` (max-lg); контент — `SidebarContent`; открытие из шапки через `registerMenu` / `openMenu` |
 | ReactionButtons | `components/ReactionButtons.tsx` | Like/dislike |
 | FavoriteButton | `components/FavoriteButton.tsx` | Избранное |
 | CopyPromptButton | `components/CopyPromptButton.tsx` | Копирование промта |
@@ -1059,7 +1064,7 @@ NOTIFY pgrst, 'reload schema';
 
 Fallback без pg_cron: standalone `.mjs` на DO (`src/standalone/recalculate-popularity-scores-standalone.mjs` + аналоги для refresh).
 
-**Блоки категорий (`get_homepage_sections`, миграция `164`):** на `/` больше не рендерятся. RPC остаётся для счётчиков / OG / JSON-LD и для плиток на `/catalog`. Топ-**10** карточек на тег сортируются по **той же query-time popularity-формуле**, что листинг (мигр. `163`). **Кросс-категорийный дедуп обложек** (`buildCategorySectionBlocks` + `pickDeduplicatedPhotos`, общий `usedCardIds` в порядке `SECTION_ORDER`).
+**Блоки категорий (`get_homepage_sections`, миграция `164`):** на `/` больше не рендерятся. RPC остаётся для счётчиков / OG / JSON-LD и для desktop-плиток на `/catalog`. Mobile `/catalog` грузит ещё `fetchRouteCards({ sort: "popular", limit: 16 })` для explorer. Топ-**10** карточек на тег сортируются по **той же query-time popularity-формуле**, что листинг (мигр. `163`). **Кросс-категорийный дедуп обложек** (`buildCategorySectionBlocks` + `pickDeduplicatedPhotos`, общий `usedCardIds` в порядке `SECTION_ORDER`).
 
 **`search_cards_text`:** по-прежнему **`view_count`** / relevance (154). **`search_cards_filtered`:** с миграцией **`182`** — `p_sort` как у `resolve_route_cards` (`new` / `popular`); до применения 182 — legacy `view_count`.
 

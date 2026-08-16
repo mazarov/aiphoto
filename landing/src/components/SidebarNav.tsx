@@ -7,9 +7,11 @@ import type { MenuSectionWithCounts } from "@/lib/menu";
 import { getAiImageDescriberChromeUrl } from "@/lib/foto-v-promt-config";
 import { trackDesktopSidebarAddToChromeClick } from "@/lib/yandex-metrika";
 import { isSameNavPath, scrollCatalogToTop } from "@/lib/scroll-preservation";
+import { useListingMobileChromeOptional } from "@/context/ListingMobileChromeContext";
 import { ChromeMark } from "./foto-v-promt/ChromeMark";
 import { SidebarAccountPanel } from "./AccountControls";
 import { SiteBrandLink } from "./SiteBrandLink";
+import { MobileCatalogMenuDrawer } from "./MobileCatalogMenuDrawer";
 
 function enrichMenuWithCounts(
   menu: MenuSectionWithCounts[],
@@ -304,7 +306,11 @@ export function SidebarNav({
 }) {
   const pathname = usePathname();
   const normalizedPath = normalizePath(pathname || "/");
+  const isCatalog = normalizedPath === "/catalog";
+  const chrome = useListingMobileChromeOptional();
+  const registerMenu = chrome?.registerMenu;
 
+  const [menuOpen, setMenuOpen] = useState(false);
   const [counts, setCounts] = useState<Record<string, number>>({});
   const enrichedMenu = useMemo(() => enrichMenuWithCounts(menu, counts), [menu, counts]);
   const activeIdx = getActiveSectionIdx(enrichedMenu, normalizedPath);
@@ -349,8 +355,32 @@ export function SidebarNav({
     setExpandedIdx((prev) => (prev === idx ? null : idx));
   }, []);
 
+  const closeMenu = useCallback(() => setMenuOpen(false), []);
+
+  useEffect(() => {
+    if (!isCatalog || !registerMenu) return;
+    registerMenu(() => setMenuOpen(true));
+    return () => registerMenu(null);
+  }, [isCatalog, registerMenu]);
+
+  useEffect(() => {
+    if (!isCatalog) setMenuOpen(false);
+  }, [isCatalog]);
+
   return (
     <>
+      {isCatalog ? (
+        <MobileCatalogMenuDrawer open={menuOpen} onClose={closeMenu}>
+          <SidebarContent
+            menu={enrichedMenu}
+            pathname={normalizedPath}
+            expandedIdx={expandedIdx}
+            onToggle={handleToggle}
+            onItemClick={closeMenu}
+          />
+        </MobileCatalogMenuDrawer>
+      ) : null}
+
       {/* Desktop sidebar */}
       <aside className="hidden w-72 flex-shrink-0 lg:block">
         <div className="sticky top-0 flex h-screen flex-col border-r border-zinc-100 bg-white">

@@ -189,7 +189,7 @@ export function MobileTabBar() {
             <Link
               href="/catalog"
               className="flex min-w-0 flex-1 flex-col items-center justify-end gap-0.5 pb-1 pt-2"
-              aria-label="Каталог"
+              aria-label="Каталог и поиск"
             >
               <svg
                 className={`h-6 w-6 ${tabIconClass(isActive("catalog"))}`}
@@ -203,8 +203,8 @@ export function MobileTabBar() {
                 <rect x="3" y="13" width="8" height="8" rx="1.5" />
                 <rect x="13" y="13" width="8" height="8" rx="1.5" />
               </svg>
-              <span className={`text-[11px] ${tabLabelClass(isActive("catalog"))}`}>
-                Каталог
+              <span className={`text-center text-[11px] leading-tight ${tabLabelClass(isActive("catalog"))}`}>
+                Каталог и поиск
               </span>
             </Link>
 

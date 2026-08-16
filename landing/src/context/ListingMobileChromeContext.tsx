@@ -30,6 +30,13 @@ type FilterRegistration = {
   open: () => void;
 };
 
+export type CatalogSearchRegistration = {
+  value: string;
+  onChange: (value: string) => void;
+  onClear: () => void;
+  loading: boolean;
+};
+
 type ListingMobileChromeContextValue = {
   searchMobileRef: React.RefObject<SearchMobileRegistration | null>;
   searchMobileRevision: number;
@@ -40,12 +47,23 @@ type ListingMobileChromeContextValue = {
   registerFilter: (reg: FilterRegistration | null) => void;
   registerMobileSearchOpen: (open: (() => void) | null) => void;
   openMobileSearch: () => void;
+  registerMenu: (open: (() => void) | null) => void;
+  openMenu: () => void;
+  catalogSearchRef: React.RefObject<CatalogSearchRegistration | null>;
+  catalogSearchRevision: number;
+  registerCatalogSearch: (reg: CatalogSearchRegistration | null) => void;
+  catalogSearchPinned: boolean;
+  setCatalogSearchPinned: (pinned: boolean) => void;
 };
 
 const ListingMobileChromeContext = createContext<ListingMobileChromeContextValue | null>(null);
 
 function searchDisplayKey(reg: SearchMobileRegistration) {
   return `${reg.hideMobileBar}|${reg.value}|${reg.loading}|${reg.placeholder}`;
+}
+
+function catalogSearchDisplayKey(reg: CatalogSearchRegistration) {
+  return `${reg.value}|${reg.loading}`;
 }
 
 export function ListingMobileChromeProvider({ children }: { children: ReactNode }) {
@@ -59,6 +77,11 @@ export function ListingMobileChromeProvider({ children }: { children: ReactNode 
   const [filterRevision, setFilterRevision] = useState(0);
 
   const mobileSearchOpenRef = useRef<(() => void) | null>(null);
+  const menuOpenRef = useRef<(() => void) | null>(null);
+  const catalogSearchRef = useRef<CatalogSearchRegistration | null>(null);
+  const catalogSearchKeyRef = useRef<string | null>(null);
+  const [catalogSearchRevision, setCatalogSearchRevision] = useState(0);
+  const [catalogSearchPinned, setCatalogSearchPinnedState] = useState(false);
 
   const registerMobileSearchOpen = useCallback((open: (() => void) | null) => {
     mobileSearchOpenRef.current = open;
@@ -66,6 +89,26 @@ export function ListingMobileChromeProvider({ children }: { children: ReactNode 
 
   const openMobileSearch = useCallback(() => {
     mobileSearchOpenRef.current?.();
+  }, []);
+
+  const registerMenu = useCallback((open: (() => void) | null) => {
+    menuOpenRef.current = open;
+  }, []);
+
+  const openMenu = useCallback(() => {
+    menuOpenRef.current?.();
+  }, []);
+
+  const registerCatalogSearch = useCallback((reg: CatalogSearchRegistration | null) => {
+    catalogSearchRef.current = reg;
+    const nextKey = reg ? catalogSearchDisplayKey(reg) : null;
+    if (nextKey === catalogSearchKeyRef.current) return;
+    catalogSearchKeyRef.current = nextKey;
+    setCatalogSearchRevision((v) => v + 1);
+  }, []);
+
+  const setCatalogSearchPinned = useCallback((pinned: boolean) => {
+    setCatalogSearchPinnedState((current) => (current === pinned ? current : pinned));
   }, []);
 
   const registerSearchMobile = useCallback((reg: SearchMobileRegistration | null) => {
@@ -101,6 +144,13 @@ export function ListingMobileChromeProvider({ children }: { children: ReactNode 
       registerFilter,
       registerMobileSearchOpen,
       openMobileSearch,
+      registerMenu,
+      openMenu,
+      catalogSearchRef,
+      catalogSearchRevision,
+      registerCatalogSearch,
+      catalogSearchPinned,
+      setCatalogSearchPinned,
     }),
     [
       searchMobileRevision,
@@ -109,6 +159,12 @@ export function ListingMobileChromeProvider({ children }: { children: ReactNode 
       registerFilter,
       registerMobileSearchOpen,
       openMobileSearch,
+      registerMenu,
+      openMenu,
+      catalogSearchRevision,
+      registerCatalogSearch,
+      catalogSearchPinned,
+      setCatalogSearchPinned,
     ],
   );
 
@@ -144,4 +200,13 @@ export function useOpenMobileSearchEntry() {
     }
     router.push("/search");
   }, [chrome, router]);
+}
+
+/** Header burger on `/catalog`: opens the registered category drawer. */
+export function useOpenMobileCatalogMenu() {
+  const chrome = useListingMobileChromeOptional();
+
+  return useCallback(() => {
+    chrome?.openMenu();
+  }, [chrome]);
 }

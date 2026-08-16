@@ -2,8 +2,11 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useListingMobileChromeOptional } from "@/context/ListingMobileChromeContext";
 import { usePromptCardModal } from "@/context/PromptCardModalContext";
+import { PS_HEADER_HEIGHT_FALLBACK_PX } from "@/lib/listing-header-offset";
+import { getListingScrollRoot } from "@/lib/scroll-preservation";
 import {
   CARD_IMAGE_LISTING_NEXT_QUALITY,
   SIZES_CARD_GRID,
@@ -87,9 +90,16 @@ function chipKey(chip: HomepageExplorerChip): string {
 
 export function HomepageExamplesExplorer({
   initialCards,
+  variant = "home",
 }: {
   initialCards: GenerationExampleCard[];
+  variant?: "home" | "catalog";
 }) {
+  const isCatalog = variant === "catalog";
+  const chrome = useListingMobileChromeOptional();
+  const registerCatalogSearch = chrome?.registerCatalogSearch;
+  const setCatalogSearchPinned = chrome?.setCatalogSearchPinned;
+  const searchSentinelRef = useRef<HTMLDivElement>(null);
   const pinnedChips = useMemo(() => getPinnedChips(), []);
   const moreChips = useMemo(() => getMoreChips(), []);
   const [query, setQuery] = useState("");
@@ -99,6 +109,65 @@ export function HomepageExamplesExplorer({
   const [cards, setCards] = useState(initialCards);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  const setSearchQuery = useCallback((nextQuery: string) => {
+    setQuery(nextQuery);
+    if (nextQuery.trim()) setActiveFilter(null);
+  }, []);
+
+  const clearSearchQuery = useCallback(() => {
+    setQuery("");
+  }, []);
+
+  useEffect(() => {
+    if (!isCatalog || !registerCatalogSearch) return;
+    registerCatalogSearch({
+      value: query,
+      onChange: setSearchQuery,
+      onClear: clearSearchQuery,
+      loading,
+    });
+    return () => registerCatalogSearch(null);
+  }, [
+    clearSearchQuery,
+    isCatalog,
+    loading,
+    query,
+    registerCatalogSearch,
+    setSearchQuery,
+  ]);
+
+  useEffect(() => {
+    if (!isCatalog || !setCatalogSearchPinned) return;
+    const el = searchSentinelRef.current;
+    if (!el) return;
+
+    const root = getListingScrollRoot();
+    const rootEl = root instanceof Element ? root : null;
+    const headerH =
+      Number.parseInt(
+        getComputedStyle(document.documentElement).getPropertyValue(
+          "--ps-header-height"
+        ),
+        10
+      ) || PS_HEADER_HEIGHT_FALLBACK_PX;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setCatalogSearchPinned(!entry.isIntersecting);
+      },
+      {
+        root: rootEl,
+        rootMargin: `-${headerH}px 0px 0px 0px`,
+        threshold: 0,
+      }
+    );
+    observer.observe(el);
+    return () => {
+      observer.disconnect();
+      setCatalogSearchPinned(false);
+    };
+  }, [isCatalog, setCatalogSearchPinned]);
 
   useEffect(() => {
     const trimmed = query.trim();
@@ -176,32 +245,60 @@ export function HomepageExamplesExplorer({
     );
   };
 
+  const searchFieldId = isCatalog
+    ? "catalog-examples-search"
+    : "homepage-examples-search";
+  const showExplorerCta =
+    cards.length > 0 &&
+    (!isCatalog || Boolean(activeFilter) || query.trim().length >= 2);
+  const explorerCtaLabel = activeFilter
+    ? "Все промты категории"
+    : isCatalog
+      ? "Все результаты"
+      : "Каталог и поиск";
+
   return (
     <div
-      id="primery"
-      className="overflow-hidden rounded-[1.75rem] border border-indigo-100/90 bg-[linear-gradient(145deg,#f2f1ff_0%,#ffffff_48%,#faf7ff_100%)] px-3 pb-0 pt-5 text-zinc-900 shadow-[0_28px_80px_-46px_rgba(79,70,229,0.45)] sm:px-5 sm:pt-7"
+      id={isCatalog ? undefined : "primery"}
+      className={`overflow-hidden rounded-[1.75rem] border border-indigo-100/90 bg-[linear-gradient(145deg,#f2f1ff_0%,#ffffff_48%,#faf7ff_100%)] px-3 pt-5 text-zinc-900 shadow-[0_28px_80px_-46px_rgba(79,70,229,0.45)] sm:px-5 sm:pt-7 ${
+        showExplorerCta ? "pb-0" : "pb-5 sm:pb-7"
+      }`}
     >
       <div className="w-full">
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-indigo-600">
-          Каталог промтов
-        </p>
-        <h2
-          id="examples-heading"
-          className="mt-2 text-2xl font-bold tracking-tight text-zinc-900 sm:text-3xl"
-        >
-          {HOMEPAGE_SEO.examplesTitle}
-        </h2>
-        <p className="mt-2 max-w-3xl text-sm leading-relaxed text-zinc-600 sm:text-base">
-          {HOMEPAGE_SEO.examplesIntro}
-        </p>
-        <p className="mt-2 max-w-3xl text-sm leading-relaxed text-zinc-600 sm:text-base">
-          {HOMEPAGE_SEO.examplesIntroSecondary}
-        </p>
+        {isCatalog ? (
+          <h1
+            id="catalog-explorer-heading"
+            className="text-2xl font-bold tracking-tight text-zinc-900 sm:text-3xl"
+          >
+            Каталог и поиск
+          </h1>
+        ) : (
+          <>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-indigo-600">
+              Каталог промтов
+            </p>
+            <h2
+              id="examples-heading"
+              className="mt-2 text-2xl font-bold tracking-tight text-zinc-900 sm:text-3xl"
+            >
+              {HOMEPAGE_SEO.examplesTitle}
+            </h2>
+            <p className="mt-2 max-w-3xl text-sm leading-relaxed text-zinc-600 sm:text-base">
+              {HOMEPAGE_SEO.examplesIntro}
+            </p>
+            <p className="mt-2 max-w-3xl text-sm leading-relaxed text-zinc-600 sm:text-base">
+              {HOMEPAGE_SEO.examplesIntroSecondary}
+            </p>
+          </>
+        )}
 
-        <label htmlFor="homepage-examples-search" className="sr-only">
+        <label htmlFor={searchFieldId} className="sr-only">
           Найти промт для фото
         </label>
-        <div className="mt-5 flex min-h-12 items-center gap-3 rounded-2xl border border-indigo-100 bg-white px-4 shadow-sm transition focus-within:border-indigo-300 focus-within:ring-4 focus-within:ring-indigo-100/70">
+        <div
+          ref={isCatalog ? searchSentinelRef : undefined}
+          className="mt-5 flex min-h-12 items-center gap-3 rounded-2xl border border-indigo-100 bg-white px-4 shadow-sm transition focus-within:border-indigo-300 focus-within:ring-4 focus-within:ring-indigo-100/70"
+        >
           <svg
             className="h-4 w-4 shrink-0 text-zinc-400"
             viewBox="0 0 24 24"
@@ -214,13 +311,11 @@ export function HomepageExamplesExplorer({
             <path d="m20 20-3.5-3.5" />
           </svg>
           <input
-            id="homepage-examples-search"
+            id={searchFieldId}
             type="search"
             value={query}
             onChange={(event) => {
-              const nextQuery = event.target.value;
-              setQuery(nextQuery);
-              if (nextQuery.trim()) setActiveFilter(null);
+              setSearchQuery(event.target.value);
             }}
             placeholder="Найти промт, стиль или сюжет"
             className="min-w-0 flex-1 bg-transparent py-3 text-base text-zinc-900 outline-none placeholder:text-zinc-400 sm:text-sm"
@@ -234,7 +329,7 @@ export function HomepageExamplesExplorer({
           ) : query ? (
             <button
               type="button"
-              onClick={() => setQuery("")}
+              onClick={clearSearchQuery}
               className="flex h-8 w-8 items-center justify-center rounded-full text-zinc-400 transition hover:bg-indigo-50 hover:text-indigo-700"
               aria-label="Очистить поиск"
             >
@@ -322,7 +417,7 @@ export function HomepageExamplesExplorer({
           ))}
         </div>
 
-        {cards.length > 0 ? (
+        {showExplorerCta ? (
           <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30">
             <div
               className="absolute inset-x-0 bottom-0 h-32 backdrop-blur-[6px] [mask-image:linear-gradient(to_top,black,transparent)] sm:h-40"
@@ -337,7 +432,7 @@ export function HomepageExamplesExplorer({
                 href={allPromptsHref}
                 className="pointer-events-auto inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-indigo-200 bg-white/95 px-5 text-sm font-semibold text-indigo-700 shadow-sm backdrop-blur-sm transition hover:border-indigo-300 hover:bg-white"
               >
-                {activeFilter ? "Все промты категории" : "Каталог"}
+                {explorerCtaLabel}
                 <svg
                   className="h-4 w-4"
                   viewBox="0 0 24 24"
