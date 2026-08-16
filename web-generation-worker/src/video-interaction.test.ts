@@ -4,6 +4,8 @@ import {
   buildVideoInteractionRequest,
   extractInteractionId,
   extractInteractionVideo,
+  interactionErrorCode,
+  interactionErrorMessage,
   interactionStatus,
   isInteractionCompleted,
   isSafetyBlock,
@@ -22,7 +24,9 @@ test("Interactions payload puts aspect_ratio on response_format only", () => {
     type: "video",
     aspect_ratio: "9:16",
   });
-  assert.equal(body.background, true);
+  assert.equal(body.background, false);
+  assert.equal(body.store, false);
+  assert.equal(body.stream, false);
   assert.equal(
     buildVideoInteractionRequest({
       model: "gemini-omni-flash-preview",
@@ -58,4 +62,15 @@ test("extractInteractionVideo finds inline and uri payloads", () => {
 test("interaction status helpers", () => {
   assert.equal(isInteractionCompleted(interactionStatus({ status: "completed" })), true);
   assert.equal(isSafetyBlock({ error: { status: "SAFETY" } }, "blocked"), true);
+});
+
+test("interaction error extracts opaque invalid_request", () => {
+  const payload = {
+    error: {
+      message: "There was a problem processing your request. You will not be charged.",
+      code: "invalid_request",
+    },
+  };
+  assert.equal(interactionErrorCode(payload), "invalid_request");
+  assert.match(interactionErrorMessage(payload), /invalid_request/);
 });

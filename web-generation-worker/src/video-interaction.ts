@@ -1,7 +1,9 @@
 export type VideoInteractionRequest = {
   model: string;
   input: Array<Record<string, string>>;
-  background: true;
+  background: false;
+  store: false;
+  stream: false;
   generation_config: {
     video_config: {
       task: "image_to_video";
@@ -13,7 +15,11 @@ export type VideoInteractionRequest = {
   };
 };
 
-/** Official Omni Flash Interactions body. aspect_ratio lives on response_format, not video_config. */
+/**
+ * Official Omni Flash unary body.
+ * Docs: background=false, store=false, stream=false.
+ * aspect_ratio lives on response_format; video_config only has task.
+ */
 export function buildVideoInteractionRequest(input: {
   model: string;
   prompt: string;
@@ -27,7 +33,9 @@ export function buildVideoInteractionRequest(input: {
       { type: "image", data: input.image.data, mime_type: input.image.mimeType },
       { type: "text", text: input.prompt },
     ],
-    background: true,
+    background: false,
+    store: false,
+    stream: false,
     generation_config: {
       video_config: {
         task: "image_to_video",
@@ -130,11 +138,18 @@ export function extractInteractionVideo(
   return null;
 }
 
+export function interactionErrorCode(payload: Record<string, unknown>): string {
+  const error = asRecord(payload.error);
+  const code = error?.code || error?.status || payload.code;
+  return typeof code === "string" ? code : "";
+}
+
 export function interactionErrorMessage(payload: Record<string, unknown>): string {
   const error = asRecord(payload.error);
   const chunks = [
     typeof payload.message === "string" ? payload.message : "",
     typeof error?.message === "string" ? error.message : "",
+    interactionErrorCode(payload),
     typeof payload.status === "string" ? payload.status : "",
   ].filter(Boolean);
   return (chunks.join(" | ") || "Video generation failed").slice(0, 2000);

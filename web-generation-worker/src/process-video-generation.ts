@@ -15,6 +15,7 @@ import {
   buildVideoInteractionRequest,
   extractInteractionId,
   extractInteractionVideo,
+  interactionErrorCode,
   interactionErrorMessage,
   interactionStatus,
   isInteractionCompleted,
@@ -132,6 +133,11 @@ function failureFromPayload(payload: Record<string, unknown>, status: number): P
   return new ProcessingError("gemini_error", message, false);
 }
 
+type SubmittedInteraction = {
+  id: string;
+  payload: Record<string, unknown>;
+};
+
 async function submitInteraction(input: {
   baseUrl: string;
   model: string;
@@ -139,27 +145,39 @@ async function submitInteraction(input: {
   image: { mimeType: string; data: string };
   aspectRatio: string;
   signal: AbortSignal;
-}): Promise<string> {
+  context: Record<string, unknown>;
+}): Promise<SubmittedInteraction> {
+  const body = buildVideoInteractionRequest({
+    model: input.model,
+    prompt: input.prompt,
+    image: input.image,
+    aspectRatio: input.aspectRatio,
+  });
   const response = await fetch(`${input.baseUrl}/v1beta/interactions`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       "x-goog-api-key": config.geminiApiKey,
     },
-    body: JSON.stringify(
-      buildVideoInteractionRequest({
-        model: input.model,
-        prompt: input.prompt,
-        image: input.image,
-        aspectRatio: input.aspectRatio,
-      })
-    ),
-    signal: AbortSignal.any([input.signal, AbortSignal.timeout(60000)]),
+    body: JSON.stringify(body),
+    signal: AbortSignal.any([input.signal, AbortSignal.timeout(config.videoTimeoutMs)]),
   });
   const payload = await readJson(response);
   const id = extractInteractionId(payload);
-  if (!response.ok || !id) throw failureFromPayload(payload, response.status);
-  return id;
+  log(response.ok && id ? "info" : "warn", "video_submit_response", {
+    ...input.context,
+    httpStatus: response.status,
+    errorCode: interactionErrorCode(payload) || null,
+    interactionStatus: interactionStatus(payload) || null,
+    hasId: Boolean(id),
+    hasVideo: Boolean(extractInteractionVideo(payload)),
+    imageBytes: Buffer.byteLength(input.image.data, "base64"),
+    imageMime: input.image.mimeType,
+    aspectRatio: input.aspectRatio,
+  });
+  if (!response.ok) throw failureFromPayload(payload, response.status);
+  if (!id && !extractInteractionVideo(payload)) throw failureFromPayload(payload, response.status);
+  return { id, payload };
 }
 
 async function getInteraction(
@@ -232,50 +250,66 @@ export async function processVideoGeneration(
   const motionPrompt = assembleVideoMotionPrompt(rawPrompt);
   const base = await geminiBaseUrl(supabase);
   let operationId = String(job.provider_operation_id || "").trim();
+  let payload: Record<string, unknown> | null = null;
 
   if (!operationId) {
-    log("info", "video_submit", { ...context, model: job.model, proxy: base.proxy });
+    log("info", "video_submit", {
+      ...context,
+      model: job.model,
+      proxy: base.proxy,
+      imageBytes: Buffer.byteLength(image.data, "base64"),
+      imageMime: image.mimeType,
+    });
     try {
-      operationId = await submitInteraction({
+      const submitted = await submitInteraction({
         baseUrl: base.url,
         model: job.model,
         prompt: motionPrompt,
         image,
         aspectRatio: job.aspect_ratio || "9:16",
         signal,
+        context,
       });
+      operationId = submitted.id;
+      payload = submitted.payload;
     } catch (error) {
       if (error instanceof ProcessingError) throw error;
       if (signal.aborted) throw new ProcessingError("shutdown", "Worker is shutting down", true);
       const timeout = error instanceof Error && ["TimeoutError", "AbortError"].includes(error.name);
       throw new ProcessingError(timeout ? "timeout" : "network_error", String((error as Error)?.message || error), true);
     }
-    const { data: saved, error: saveError } = await supabase.rpc("landing_save_provider_operation", {
-      p_generation_id: job.id,
-      p_worker_id: config.workerId,
-      p_lease_token: job.lease_token,
-      p_provider_operation_id: operationId,
-    });
-    if (saveError || saved !== true) {
-      log("error", "video_operation_persist_failed", {
-        ...context,
-        operationId,
-        error: saveError?.message,
+    if (operationId) {
+      const { data: saved, error: saveError } = await supabase.rpc("landing_save_provider_operation", {
+        p_generation_id: job.id,
+        p_worker_id: config.workerId,
+        p_lease_token: job.lease_token,
+        p_provider_operation_id: operationId,
       });
-      throw new ProcessingError(
-        "provider_operation_persist_failed",
-        saveError?.message || "Failed to persist provider operation",
-        true,
-      );
+      if (saveError || saved !== true) {
+        log("error", "video_operation_persist_failed", {
+          ...context,
+          operationId,
+          error: saveError?.message,
+        });
+        throw new ProcessingError(
+          "provider_operation_persist_failed",
+          saveError?.message || "Failed to persist provider operation",
+          true,
+        );
+      }
+      job.provider_operation_id = operationId;
     }
-    job.provider_operation_id = operationId;
   } else {
     log("info", "video_resume", { ...context, operationId });
   }
 
   const startedAt = Date.now();
-  let payload: Record<string, unknown> | null = null;
-  while (Date.now() - startedAt < config.videoTimeoutMs) {
+  while (
+    !extractInteractionVideo(payload) &&
+    !isInteractionCompleted(interactionStatus(payload || {})) &&
+    Date.now() - startedAt < config.videoTimeoutMs
+  ) {
+    if (!operationId) break;
     if (signal.aborted) throw new ProcessingError("shutdown", "Worker is shutting down", true);
     await ensureLease();
     try {
