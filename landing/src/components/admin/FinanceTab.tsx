@@ -1,7 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useAuth } from "@/context/AuthContext";
 import type { FinanceMonthData, FinancePnl } from "@/lib/finance-types";
+import { FinanceDailyChart } from "./FinanceDailyChart";
+import { FinanceModelDailyChart } from "./FinanceModelDailyChart";
 
 const card = "rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm";
 
@@ -71,7 +74,11 @@ function NetIncomeCard({ pnl }: { pnl: FinancePnl }) {
         <p className="mt-2 text-xs text-zinc-500">Чтобы увидеть чистый доход, загрузите реестр ЮKassa.</p>
       ) : (
         <div className="mt-4 divide-y divide-zinc-100 border-t border-zinc-100">
-          <PnlRow label="Выручка" hint="gross ЮKassa" value={formatRub(pnl.grossRub)} />
+          <PnlRow
+            label="Выручка"
+            hint="сколько заплатили клиенты, до комиссии ЮKassa"
+            value={formatRub(pnl.grossRub)}
+          />
           <PnlRow
             label="Комиссия + НДС ЮKassa"
             value={pnl.yookassaFeesRub == null ? "—" : formatSignedRub(pnl.yookassaFeesRub)}
@@ -97,9 +104,10 @@ function NetIncomeCard({ pnl }: { pnl: FinancePnl }) {
 }
 
 export function FinanceTab() {
+  const { openAuthModal } = useAuth();
   const [month, setMonth] = useState(currentMonth);
   const [data, setData] = useState<FinanceMonthData | null>(null);
-  const [state, setState] = useState({ loading: true, error: "", message: "" });
+  const [state, setState] = useState({ loading: true, status: 0, error: "", message: "" });
   const [busy, setBusy] = useState<"revenue" | "cogs" | null>(null);
 
   const load = useCallback(async () => {
@@ -109,13 +117,18 @@ export function FinanceTab() {
       const body = await response.json().catch(() => ({}));
       if (!response.ok) {
         setData(null);
-        setState({ loading: false, error: body.error || "Не удалось загрузить финансы", message: "" });
+        setState({
+          loading: false,
+          status: response.status,
+          error: body.error || "Не удалось загрузить финансы",
+          message: "",
+        });
         return;
       }
       setData(body);
-      setState((current) => ({ ...current, loading: false, error: "" }));
+      setState((current) => ({ ...current, loading: false, status: 0, error: "" }));
     } catch {
-      setState({ loading: false, error: "Ошибка сети", message: "" });
+      setState({ loading: false, status: 0, error: "Ошибка сети", message: "" });
     }
   }, [month]);
 
@@ -155,8 +168,35 @@ export function FinanceTab() {
     }
   };
 
+  if (state.status === 401 || state.status === 403) {
+    return (
+      <div className="mx-auto max-w-lg rounded-2xl border border-zinc-200 bg-white p-8 text-center shadow-sm">
+        <h1 className="text-xl font-semibold text-zinc-900">
+          {state.status === 401 ? "Нужен вход" : "Доступ запрещён"}
+        </h1>
+        <p className="mt-2 text-sm text-zinc-500">
+          {state.status === 401 ? "Войдите через PromptShot." : "Ваш email не включён в allowlist."}
+        </p>
+        {state.status === 401 && (
+          <button
+            type="button"
+            onClick={openAuthModal}
+            className="mt-5 rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white"
+          >
+            Войти
+          </button>
+        )}
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-6">
+    <div className="mx-auto max-w-7xl space-y-6">
+      <header>
+        <p className="text-sm font-medium text-indigo-600">PromptShot Admin</p>
+        <h1 className="text-3xl font-bold tracking-tight text-zinc-900">Финансы</h1>
+        <p className="mt-1 text-sm text-zinc-500">Поступления, затраты Gemini и чистый доход</p>
+      </header>
       <section className={`${card} flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between`}>
         <label className="text-sm text-zinc-600">
           Месяц
@@ -218,9 +258,9 @@ export function FinanceTab() {
       {state.loading && !data ? <p className="text-sm text-zinc-500">Загрузка…</p> : data && <>
         <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {[
-            ["Получено gross", formatRub(data.revenue?.kpi.gross ?? null), null],
-            ["Комиссия + НДС ЮKassa", formatRub(data.pnl.yookassaFeesRub), null],
-            ["Налог 6% с выручки", formatRub(data.pnl.taxRub), null],
+            ["Выручка", formatRub(data.revenue?.kpi.gross ?? null), "заплатили клиенты"],
+            ["После комиссии ЮKassa", formatRub(data.revenue?.kpi.net ?? null), "то, что в кабинете ЮKassa часто называют выручкой"],
+            ["Налог 6% с выручки", formatRub(data.pnl.taxRub), "считается с суммы клиентов, не с net"],
             ["Потрачено Gemini", formatRub(data.pnl.spendRub), data.pnl.spendUsd != null ? `${formatUsd(data.pnl.spendUsd)} × ${data.pnl.usdRubRate}` : null],
           ].map(([label, value, hint]) => (
             <div key={label} className={card}>
@@ -231,6 +271,33 @@ export function FinanceTab() {
           ))}
         </section>
         <NetIncomeCard pnl={data.pnl} />
+        <section className={card}>
+          <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h2 className="font-semibold text-zinc-900">Динамика по дням</h2>
+              <p className="mt-1 text-sm text-zinc-500">
+                Выручка, косты и чистая прибыль. Пунктир — накопленные обязательства сейчас
+                {data.liability.creditsTotal
+                  ? ` (${data.liability.creditsTotal.toLocaleString("ru-RU")} кр.)`
+                  : ""}.
+              </p>
+            </div>
+            <p className="text-sm font-semibold tabular-nums text-amber-800">
+              {formatRub(data.liability.liabilityRubEstimate)}
+            </p>
+          </div>
+          <FinanceDailyChart
+            series={data.daily || []}
+            liabilityRub={data.liability?.liabilityRubEstimate ?? null}
+          />
+        </section>
+        <section className={card}>
+          <h2 className="font-semibold text-zinc-900">Затраты на модели</h2>
+          <p className="mb-4 mt-1 text-sm text-zinc-500">
+            Динамика Gemini по семействам. $1 = 90 ₽.
+          </p>
+          <FinanceModelDailyChart series={data.modelDaily || []} />
+        </section>
 
         <section className="grid gap-4 lg:grid-cols-2">
           <div className={card}>

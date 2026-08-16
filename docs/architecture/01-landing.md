@@ -1,8 +1,12 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-08-16 (**admin finance daily chart:** `/admin/finance` график выручка / косты / прибыль + затраты Gemini по моделям по дням; пунктир live-обязательств.)
+>
+> Последнее обновление: 2026-08-16 (**admin finance page:** касса выгрузок на `/admin/finance` в AdminNav после «Оплаты»; `/admin/analytics?tab=finance` редиректит туда. Кредиты остаются на Обзоре.)
+>
 > Последнее обновление: 2026-08-16 (**admin credit dynamics:** график остатка кредитов по дням + разбивка «осталось / доля / начислено-потрачено»; RPC `admin_credit_daily_flow`, SQL `185`.)
 >
-> Последнее обновление: 2026-08-16 (**admin finance reporting:** `/admin/analytics` вкладки Обзор/Финансы; live `landing_users.credits`; импорт ЮKassa/GCP; Gemini $1=90₽ статика; чистый доход = gross − комиссия ЮKassa − УСН 6% − Gemini; миграция `184`.)
+> Последнее обновление: 2026-08-16 (**admin finance reporting:** `/admin/analytics` live кредиты; `/admin/finance` импорт ЮKassa/GCP; Gemini $1=90₽ статика; чистый доход = gross − комиссия ЮKassa − УСН 6% − Gemini; миграция `184`.)
 >
 > Последнее обновление: 2026-08-15 (**web-generation results JPEG:** worker пишет новые объекты в `web-generation-results` как JPEG q=85 (`user/job/lease.jpg`). Старые `.png` валидны. Encode fail / no-gain заливает исходник с честным mime. Alpine worker ставит musl `sharp@0.33.5`.)
 >
@@ -240,9 +244,10 @@
 /privacy                → Permanent redirect на `/policy`
 /favorites              → Избранное (требует авторизации)
 /generations            → Мои генерации (auth): канонический список `landing_generations` текущего shared DB user; UGC-карточка необязательна
-/admin/analytics        → Закрытый analytics dashboard: вкладка Обзор (пользователи/клиенты + live непотраченные кредиты) и вкладка Финансы (`?tab=finance`, импорт ЮKassa/GCP); admin generation modal; Supabase Auth + email allowlist `ANALYTICS_ADMIN_EMAILS`
+/admin/analytics        → Закрытый analytics dashboard: пользователи/клиенты + live непотраченные кредиты; admin generation modal; Supabase Auth + email allowlist `ANALYTICS_ADMIN_EMAILS`
 /admin/analyze-history  → Закрытая история analyze/remix + все non-admin user generations; remix помечается бейджем и `change_request`; private source previews выдаются signed, completed results публикуются идемпотентно
 /admin/payments         → Закрытый cursor-реестр YooKassa: payer identity, RUB/status/test, ожидаемые credits и факт `credited_at`
+/admin/finance          → Касса выгрузок: импорт ЮKassa/GCP, чистый доход; `?tab=finance` с аналитики редиректит сюда
 /auth/callback          → OAuth callback (client page); PKCE exchange в браузере; `?next=` — возврат на страницу старта логина
 /embed/stv              → Steal This Vibe (клиент подгружает `/stv-panel/boot.mjs` + `styles.css`; та же логика, что side panel расширения)
 /extension-stv          → Превью маркетингового лендинга расширения (спека `docs/extension-landing-pain-hope-solution.md`); **`metadata.title` / `description`** — SEO; `metadata.robots` noindex; шапка **`ExtensionStvMarketingHeader`** (логотип + «Image to prompt» → `/extension-stv`, **Pricing** → `/extension-stv/pricing`, Chrome Web Store); FAB **`ExtensionStvFloatingCta`**. Порядок секций: hero (H1 + лид + `ExtensionStvChromeBadge`) → pain + **Reference** (`PainReferenceVsDraftMock`) → **Accuracy** (`ExtensionStvAccuracySection`) → **Testimonials** → **How it works** (`ExtensionStvHowItWorks`, 4 шага) → **FAQ** (`ExtensionStvFaq`). Футер **`ExtensionStvMarketingFooter`**. Блок **Reference**: upload → extract → expand. Общие константы: `landing/src/components/extension-stv/stv-marketing-shared.ts`.
@@ -383,7 +388,7 @@
 ### PromptShot analyze и admin
 
 - **Граница доступа:** страницы `/admin/analytics`, `/admin/analyze-history`,
-  `/admin/payments` и каждый
+  `/admin/payments`, `/admin/finance` и каждый
   `/api/admin/*` проверяют Supabase Auth session, затем нормализованный email против
   `ANALYTICS_ADMIN_EMAILS`. Пустой allowlist означает fail-closed; service-role key
   остаётся только на сервере.
@@ -419,11 +424,14 @@
   `discrepancy` (`succeeded` без `credited_at`), `stale` (`created|pending` старше
   15 мин без начисления), иначе `not_due`. Ручная сверка —
   `POST /api/admin/payments/reconcile`.
-- **Финансы (касса выгрузок):** вкладка `/admin/analytics?tab=finance` хранит
+- **Финансы (касса выгрузок):** страница `/admin/finance` хранит
   месячные импорты в `admin_finance_imports` + line tables. Source of truth для
   «получено» — реестр ЮKassa (gross/net/комиссия), для «потрачено» — GCP
   `Subtotal ($)` × статический курс **$1 = 90 ₽**. Чистый доход =
   gross − комиссия/НДС ЮKassa − **УСН 6% с выручки (gross)** − Gemini RUB.
+  Дневной график: выручка, косты (комиссия + налог + Gemini), прибыль;
+  пунктир — live оценка обязательств `admin_credit_liability_summary`.
+  Отдельный график — затраты Gemini по семействам моделей по дням.
   Повторный upload заменяет месяц через `admin_finance_replace_import`. Live
   остаток кредитов на Обзоре — график по `admin_credit_daily_flow` (реконструкция
   от текущего `landing_users.credits`) и разбивка `admin_credit_liabilities`
@@ -453,7 +461,7 @@ site /foto-v-promt
 admin pages
   → Supabase Auth + ANALYTICS_ADMIN_EMAILS
   ├─ analytics/history → server-only reads + signed previews
-  ├─ analytics?tab=finance → CSV/ZIP import → admin_finance_replace_import
+  ├─ finance → CSV/ZIP import → admin_finance_replace_import
   │                         live credits → admin_credit_liabilities
   └─ generate → landing_enqueue_generation → durable worker → landing_generations
        → publish → prompt_cards → SEO tagging → public card

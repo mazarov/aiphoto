@@ -1,10 +1,12 @@
-import { Suspense } from "react";
+import { redirect } from "next/navigation";
 import { AnalyticsDashboard } from "@/components/admin/AnalyticsDashboard";
 
-export default function AdminAnalyticsPage() {
-  return (
-    <Suspense fallback={<p className="mx-auto max-w-7xl text-sm text-zinc-500">Загрузка…</p>}>
-      <AnalyticsDashboard />
-    </Suspense>
-  );
+export default async function AdminAnalyticsPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ tab?: string }>;
+}) {
+  const params = searchParams ? await searchParams : {};
+  if (params.tab === "finance") redirect("/admin/finance");
+  return <AnalyticsDashboard />;
 }

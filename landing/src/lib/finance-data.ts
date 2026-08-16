@@ -1,9 +1,18 @@
 import type { createSupabaseServer } from "@/lib/supabase";
 import { classifyGeminiFamily } from "@/lib/finance-parse";
-import { computeFinancePnl, moneyRub, usdToRub } from "@/lib/finance-pnl";
+import {
+  buildFinanceDailySeries,
+  buildFinanceModelDailySeries,
+  clampFinanceDay,
+  computeFinancePnl,
+  moneyRub,
+  moscowDayKey,
+  usdToRub,
+} from "@/lib/finance-pnl";
 import {
   GEMINI_FAMILY_LABELS,
   type FinanceImportMeta,
+  type FinanceLiability,
   type FinanceMonthData,
   type GeminiFamilyId,
 } from "@/lib/finance-types";
@@ -66,12 +75,8 @@ function toMeta(row: ImportRow): FinanceImportMeta {
   };
 }
 
-function dayKey(iso: string | null): string {
-  if (!iso) return "unknown";
-  if (/^\d{4}-\d{2}-\d{2}/.test(iso)) return iso.slice(0, 10);
-  const parsed = Date.parse(iso);
-  if (!Number.isFinite(parsed)) return "unknown";
-  return new Date(parsed).toISOString().slice(0, 10);
+function dayKey(iso: string | null, periodMonth: string): string {
+  return clampFinanceDay(moscowDayKey(iso), periodMonth);
 }
 
 export async function fetchFinanceMonth(
@@ -98,7 +103,7 @@ export async function fetchFinanceMonth(
       .eq("import_id", revenueImport.id);
     if (error) throw new Error(error.message);
     const lines = (data || []) as RevenueRow[];
-    const dailyMap = new Map<string, { day: string; gross: number; net: number; count: number }>();
+    const dailyMap = new Map<string, { day: string; gross: number; net: number; fees: number; count: number }>();
     const typeMap = new Map<string, { paymentType: string; gross: number; net: number; count: number }>();
     let gross = 0;
     let net = 0;
@@ -111,10 +116,11 @@ export async function fetchFinanceMonth(
       net += lineNet;
       commission += money(line.commission);
       vat += money(line.vat_on_commission);
-      const day = dayKey(line.paid_at);
-      const daily = dailyMap.get(day) || { day, gross: 0, net: 0, count: 0 };
+      const day = dayKey(line.paid_at, periodMonth);
+      const daily = dailyMap.get(day) || { day, gross: 0, net: 0, fees: 0, count: 0 };
       daily.gross += lineGross;
       daily.net += lineNet;
+      daily.fees += money(line.commission) + money(line.vat_on_commission);
       daily.count += 1;
       dailyMap.set(day, daily);
       const paymentType = line.payment_type || "unknown";
@@ -135,7 +141,12 @@ export async function fetchFinanceMonth(
         currency: lines[0]?.currency || "RUB",
       },
       daily: [...dailyMap.values()]
-        .map((row) => ({ ...row, gross: money(row.gross), net: money(row.net) }))
+        .map((row) => ({
+          ...row,
+          gross: money(row.gross),
+          net: money(row.net),
+          fees: money(row.fees),
+        }))
         .sort((left, right) => left.day.localeCompare(right.day)),
       byType: [...typeMap.values()]
         .map((row) => ({ ...row, gross: money(row.gross), net: money(row.net) }))
@@ -152,6 +163,7 @@ export async function fetchFinanceMonth(
     if (error) throw new Error(error.message);
     const lines = (data || []) as CogsRow[];
     const dailyMap = new Map<string, { day: string; subtotalUsd: number }>();
+    const dailyFamilyMap = new Map<string, { day: string; family: GeminiFamilyId; subtotalUsd: number }>();
     const familyMap = new Map<GeminiFamilyId, number>();
     const skuMap = new Map<string, { skuId: string; skuDescription: string; subtotalUsd: number; usageAmount: number }>();
     let subtotalUsd = 0;
@@ -164,6 +176,10 @@ export async function fetchFinanceMonth(
       dailyMap.set(day, daily);
       const family = classifyGeminiFamily(line.sku_description || "");
       familyMap.set(family, (familyMap.get(family) || 0) + amount);
+      const familyKey = `${day}|${family}`;
+      const dailyFamily = dailyFamilyMap.get(familyKey) || { day, family, subtotalUsd: 0 };
+      dailyFamily.subtotalUsd += amount;
+      dailyFamilyMap.set(familyKey, dailyFamily);
       const sku = skuMap.get(line.sku_id) || {
         skuId: line.sku_id,
         skuDescription: line.sku_description,
@@ -187,6 +203,12 @@ export async function fetchFinanceMonth(
           return { ...row, subtotalUsd, subtotalRub: usdToRub(subtotalUsd) };
         })
         .sort((left, right) => left.day.localeCompare(right.day)),
+      dailyByFamily: [...dailyFamilyMap.values()]
+        .map((row) => {
+          const subtotalUsd = usd(row.subtotalUsd);
+          return { ...row, subtotalUsd, subtotalRub: usdToRub(subtotalUsd) };
+        })
+        .sort((left, right) => left.day.localeCompare(right.day) || left.family.localeCompare(right.family)),
       byFamily: [...familyMap.entries()]
         .map(([family, value]) => {
           const subtotalUsd = usd(value);
@@ -208,10 +230,33 @@ export async function fetchFinanceMonth(
     };
   }
 
+  const { data: liabilityRows } = await supabase.rpc("admin_credit_liability_summary");
+  const liabilityRow = (liabilityRows || [])[0] as {
+    credits_total?: number;
+    liability_rub_estimate?: number | null;
+  } | undefined;
+  const liabilityRub = liabilityRow?.liability_rub_estimate == null
+    ? null
+    : Number(liabilityRow.liability_rub_estimate);
+  const liability: FinanceLiability = {
+    creditsTotal: Number(liabilityRow?.credits_total || 0),
+    liabilityRubEstimate: liabilityRub != null && Number.isFinite(liabilityRub) ? liabilityRub : null,
+  };
+
   return {
     month: periodMonth,
     revenue,
     cogs,
+    daily: buildFinanceDailySeries({
+      periodMonth,
+      revenueDaily: revenue?.daily,
+      cogsDaily: cogs?.daily,
+    }),
+    modelDaily: buildFinanceModelDailySeries({
+      periodMonth,
+      dailyByFamily: cogs?.dailyByFamily,
+    }),
+    liability,
     pnl: computeFinancePnl({
       gross: revenue?.kpi.gross,
       commission: revenue?.kpi.commission,
