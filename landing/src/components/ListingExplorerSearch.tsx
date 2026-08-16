@@ -8,9 +8,11 @@ type Props = {
   value: string;
   onChange: (value: string) => void;
   onClear: () => void;
+  onSubmit?: () => void;
   placeholder?: string;
   loading?: boolean;
   label?: string;
+  autoFocus?: boolean;
   sentinelRef?: Ref<HTMLDivElement>;
 };
 
@@ -19,9 +21,11 @@ export function ListingExplorerSearch({
   value,
   onChange,
   onClear,
+  onSubmit,
   placeholder = "Найти промт, стиль или сюжет",
   loading = false,
   label = "Найти промт для фото",
+  autoFocus = false,
   sentinelRef,
 }: Props) {
   return (
@@ -33,12 +37,23 @@ export function ListingExplorerSearch({
         <ListingExplorerSearchIcon />
         <input
           id={id}
-          type="search"
+          type="text"
           value={value}
           onChange={(event) => onChange(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key !== "Enter") return;
+            event.preventDefault();
+            onSubmit?.();
+          }}
           placeholder={placeholder}
-          className="min-w-0 flex-1 bg-transparent py-3 text-base text-zinc-900 outline-none placeholder:text-zinc-400 sm:text-sm"
+          className="min-w-0 flex-1 bg-transparent py-3 text-base text-zinc-900 outline-none placeholder:text-zinc-400 sm:text-sm [&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden"
           autoComplete="off"
+          autoCorrect="off"
+          autoCapitalize="off"
+          spellCheck={false}
+          enterKeyHint="search"
+          inputMode="search"
+          autoFocus={autoFocus}
         />
         {loading ? (
           <span

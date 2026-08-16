@@ -19,7 +19,8 @@ import { FilterFAB } from "@/components/FilterFAB";
 import { ListingDesktopFilters } from "@/components/ListingDesktopFilters";
 import { useListingFilters } from "@/hooks/useListingFilters";
 import type { FilterState } from "@/hooks/useListingFilters";
-import { resetListingScroll, getListingScrollRoot, isListingScrollRestoreInProgress } from "@/lib/scroll-preservation";
+import { resetListingScroll } from "@/lib/scroll-preservation";
+import { useListingSentinelLoadMore } from "@/hooks/useListingSentinelLoadMore";
 import {
   subscribeListingNavigationLoadMore,
   writeListingNavigationContext,
@@ -31,6 +32,7 @@ import { ListingGridLoadingSkeleton } from "@/components/ListingGridLoadingSkele
 
 // Match catalog batch size so both listings feel consistent.
 const PAGE_SIZE = 48;
+const SEARCH_DEBOUNCE_MS = 320;
 
 function cardMatchesFilters(card: PromptCardFull, f: FilterState): boolean {
   const tags = (card.seo_tags || {}) as Record<string, string[]>;
@@ -62,11 +64,12 @@ export function SearchResults({ initialQuery }: Props) {
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const [filterPanelOpen, setFilterPanelOpen] = useState(false);
-  const sentinelRef = useRef<HTMLDivElement>(null);
   const loadingRef = useRef(false);
   const hasMoreRef = useRef(false);
   const offsetRef = useRef(0);
   const queryRef = useRef(query);
+  const lastSearchedRef = useRef<string | null>(null);
+  const scheduleDrainRef = useRef(() => {});
 
   queryRef.current = query;
 
@@ -112,39 +115,74 @@ export function SearchResults({ initialQuery }: Props) {
     } finally {
       setLoading(false);
       loadingRef.current = false;
+      scheduleDrainRef.current();
     }
   }, []);
 
-  useEffect(() => {
-    if (initialQuery.length >= 2) {
-      doSearch(initialQuery);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const { sentinelRef, scheduleDrain } = useListingSentinelLoadMore(
+    () => {
+      if (!loadingRef.current && hasMoreRef.current) {
+        void doSearch(queryRef.current, true);
+      }
+    },
+    () => loadingRef.current,
+    () => hasMoreRef.current
+  );
+  scheduleDrainRef.current = scheduleDrain;
 
-  useEffect(() => {
-    const q = searchParams.get("q")?.trim() || "";
-    if (q !== query && q.length >= 2) {
-      setQuery(q);
-      setOffset(0);
-      offsetRef.current = 0;
-      doSearch(q);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams]);
-
-  useEffect(() => {
-    const trimmed = query.trim();
-    const timer = window.setTimeout(() => {
+  const commitQueryToUrl = useCallback(
+    (trimmed: string) => {
       const current = searchParams.get("q")?.trim() || "";
       if (trimmed.length >= 2 && trimmed !== current) {
         router.replace(`/search?q=${encodeURIComponent(trimmed)}`, { scroll: false });
       } else if (trimmed.length === 0 && current) {
         router.replace("/search", { scroll: false });
       }
-    }, 320);
+    },
+    [router, searchParams]
+  );
+
+  const runSearch = useCallback(
+    (raw: string) => {
+      const trimmed = raw.trim();
+      commitQueryToUrl(trimmed);
+      if (trimmed === lastSearchedRef.current) return;
+      lastSearchedRef.current = trimmed;
+      setOffset(0);
+      offsetRef.current = 0;
+      void doSearch(trimmed);
+    },
+    [commitQueryToUrl, doSearch]
+  );
+
+  useEffect(() => {
+    if (initialQuery.length >= 2) {
+      lastSearchedRef.current = initialQuery;
+      void doSearch(initialQuery);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const q = searchParams.get("q")?.trim() || "";
+    if (q === lastSearchedRef.current) {
+      if (q !== query) setQuery(q);
+      return;
+    }
+    setQuery(q);
+    lastSearchedRef.current = q;
+    setOffset(0);
+    offsetRef.current = 0;
+    void doSearch(q);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      runSearch(query);
+    }, SEARCH_DEBOUNCE_MS);
     return () => window.clearTimeout(timer);
-  }, [query, router, searchParams]);
+  }, [query, runSearch]);
 
   const displayedPages = useMemo(
     () =>
@@ -171,28 +209,6 @@ export function SearchResults({ initialQuery }: Props) {
     }
   }, [displayedCards]);
 
-  // Unified sentinel settings with catalog (600px lookahead).
-  // On mobile the scroll container is #listing-scroll-root, not the viewport.
-  useEffect(() => {
-    const el = sentinelRef.current;
-    if (!el) return;
-    const scrollRoot = getListingScrollRoot();
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (isListingScrollRestoreInProgress()) return;
-        if (entries[0]?.isIntersecting && !loadingRef.current && hasMoreRef.current) {
-          doSearch(queryRef.current, true);
-        }
-      },
-      {
-        root: scrollRoot instanceof HTMLElement ? scrollRoot : null,
-        rootMargin: "600px",
-      }
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [doSearch]);
-
   useEffect(
     () =>
       subscribeListingNavigationLoadMore(() => {
@@ -213,25 +229,24 @@ export function SearchResults({ initialQuery }: Props) {
 
   const clearFilters = resetFilters;
 
+  const showFilters = searched && cards.length > 0;
+
   return (
     <CardInteractionsProvider cardIds={cardIds}>
-    <ListingExplorerFrame>
+    <ListingExplorerFrame className={displayedCards.length > 0 ? undefined : "pb-5 sm:pb-7"}>
       <SearchMetrikaTracker query={query} />
       <ListingExplorerHeading
         eyebrow="Поиск"
-        title={
-          searched && query.trim().length >= 2
-            ? `Результаты по запросу «${query.trim()}»`
-            : "Поиск промтов"
-        }
+        title="Поиск промтов"
         titleAs="h1"
+        titleId="search-explorer-heading"
         intro={
-          searched
+          query.trim().length >= 2
             ? undefined
             : "Найдите готовый промт по стилю, сюжету или запросу."
         }
         countBadge={
-          searched && displayedCards.length > 0 ? (
+          showFilters && displayedCards.length > 0 ? (
             <span className="inline-flex shrink-0 items-center rounded-full bg-zinc-100 px-3 py-1 text-sm tabular-nums text-zinc-600">
               {displayedCards.length}
               {hasMore ? "+" : ""}
@@ -245,22 +260,29 @@ export function SearchResults({ initialQuery }: Props) {
         id="search-explorer-search"
         value={query}
         onChange={setQuery}
-        onClear={() => setQuery("")}
+        onClear={() => {
+          setQuery("");
+          runSearch("");
+        }}
+        onSubmit={() => runSearch(query)}
         loading={loading}
+        autoFocus={initialQuery.length < 2}
       />
 
-      <ListingDesktopFilters
-        variant="explorer"
-        filters={filters}
-        onSetFilter={setFilter}
-        onReset={resetFilters}
-        activeCount={activeCount}
-        hiddenDimensions={[]}
-        cardsForCounts={cards}
-        onOpenMobileFilters={() => setFilterPanelOpen(true)}
-      />
+      {showFilters ? (
+        <ListingDesktopFilters
+          variant="explorer"
+          filters={filters}
+          onSetFilter={setFilter}
+          onReset={resetFilters}
+          activeCount={activeCount}
+          hiddenDimensions={[]}
+          cardsForCounts={cards}
+          onOpenMobileFilters={() => setFilterPanelOpen(true)}
+        />
+      ) : null}
 
-      <div className="relative mt-5 overflow-hidden">
+      <div className="relative mt-5">
         {displayedCards.length > 0 ? (
           <>
             <ListingFotoVPromtBanner />
@@ -288,7 +310,7 @@ export function SearchResults({ initialQuery }: Props) {
         ) : null}
       </div>
 
-      {searched && cards.length > 0 ? (
+      {showFilters ? (
         <FilterFAB
           filters={filters}
           activeCount={activeCount}

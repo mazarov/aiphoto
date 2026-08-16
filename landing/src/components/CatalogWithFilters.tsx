@@ -169,7 +169,7 @@ export function CatalogWithFilters({
         onOpenMobileFilters={() => setFilterPanelOpen(true)}
       />
 
-      <div className="relative mt-5 overflow-hidden">
+      <div className={`relative mt-5${isSearching ? " overflow-hidden" : ""}`}>
         {isSearching ? (
           <>
             <ListingMasonry loading={searchLoading}>

@@ -9,8 +9,12 @@ import {
   appendUniqueCardPage,
   appendUniqueCardsById,
 } from "@/lib/listing-cards";
-import { LISTING_INFINITE_PAGE_SIZE } from "@/lib/listing-pagination";
-import { getListingScrollRoot, isListingScrollRestoreInProgress } from "@/lib/scroll-preservation";
+import { useListingSentinelLoadMore } from "@/hooks/useListingSentinelLoadMore";
+import {
+  LISTING_INFINITE_PAGE_SIZE,
+  hasMoreRankedPages,
+  resolveListingPageStep,
+} from "@/lib/listing-pagination";
 import { subscribeListingNavigationLoadMore } from "@/lib/listing-card-navigation-context";
 
 const PAGE_SIZE = LISTING_INFINITE_PAGE_SIZE;
@@ -24,12 +28,6 @@ type Props = {
   strictMode?: boolean;
   sort?: ListingSort;
 };
-
-/** Offset/step в единицах ranked RPC (`cards_count` / `ranked_batch_size`), `totalCount` = `total_count`. */
-function hasMorePages(rankedBatchSize: number, rankedOffset: number, totalCount: number) {
-  if (rankedBatchSize <= 0) return false;
-  return rankedOffset + rankedBatchSize < totalCount;
-}
 
 export function InfiniteGrid({
   initialCards,
@@ -45,18 +43,21 @@ export function InfiniteGrid({
   const cards = useMemo(() => cardPages.flat(), [cardPages]);
   const [loading, setLoading] = useState(false);
   const [hasMore, setHasMore] = useState(() =>
-    hasMorePages(initialRankedBatchSize, 0, totalCount)
+    hasMoreRankedPages(0, initialRankedBatchSize, totalCount)
   );
-  const sentinelRef = useRef<HTMLDivElement>(null);
   const loadingRef = useRef(false);
   const hasMoreRef = useRef(hasMore);
   const offsetRef = useRef(initialRankedBatchSize);
   const rpcParamsRef = useRef(rpcParams);
   const sortRef = useRef(sort);
+  const totalCountRef = useRef(totalCount);
 
   hasMoreRef.current = hasMore;
   rpcParamsRef.current = rpcParams;
   sortRef.current = sort;
+  totalCountRef.current = totalCount;
+
+  const scheduleDrainRef = useRef(() => {});
 
   const loadMore = useCallback(async () => {
     if (loadingRef.current || !hasMoreRef.current) return;
@@ -84,11 +85,15 @@ export function InfiniteGrid({
         return;
       }
 
-      const step = rankedSize > 0 ? rankedSize : PAGE_SIZE;
+      const step = resolveListingPageStep(rankedSize);
       setCardPages((prev) => appendUniqueCardPage(prev, newCards));
       offsetRef.current = oldOffset + step;
 
-      const more = oldOffset + step < totalCount;
+      const apiTotal = Number(data.total_count);
+      if (Number.isFinite(apiTotal) && apiTotal > 0) {
+        totalCountRef.current = apiTotal;
+      }
+      const more = hasMoreRankedPages(oldOffset, step, totalCountRef.current);
       setHasMore(more);
       hasMoreRef.current = more;
     } catch {
@@ -97,31 +102,18 @@ export function InfiniteGrid({
     } finally {
       setLoading(false);
       loadingRef.current = false;
+      scheduleDrainRef.current();
     }
-  }, [strictMode, totalCount]);
+  }, [strictMode]);
 
-  useEffect(() => {
-    const el = sentinelRef.current;
-    if (!el) return;
-    const scrollRoot = getListingScrollRoot();
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (isListingScrollRestoreInProgress()) return;
-        if (entries[0]?.isIntersecting && !loadingRef.current && hasMoreRef.current) {
-          loadMore();
-        }
-      },
-      {
-        root: scrollRoot instanceof HTMLElement ? scrollRoot : null,
-        rootMargin: "600px",
-        threshold: 0,
-      }
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
-    // Sentinel is the same node as items append; reconnecting on every cards.length tick
-    // caused extra layout/observer churn during scroll.
-  }, [loadMore]);
+  const { sentinelRef, scheduleDrain } = useListingSentinelLoadMore(
+    () => {
+      void loadMore();
+    },
+    () => loadingRef.current,
+    () => hasMoreRef.current
+  );
+  scheduleDrainRef.current = scheduleDrain;
 
   useEffect(
     () =>

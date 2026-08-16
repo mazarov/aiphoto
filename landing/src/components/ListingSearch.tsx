@@ -145,14 +145,10 @@ function ListingSearchHeader() {
           router.push("/search");
           return;
         }
-        const idleHero = document.querySelector<HTMLInputElement>(
-          "[data-listing-search-hero]"
+        const explorerSearch = document.querySelector<HTMLInputElement>(
+          "#search-explorer-search"
         );
-        if (idleHero) {
-          idleHero.focus();
-          return;
-        }
-        barInputRef.current?.focus();
+        explorerSearch?.focus();
       }
     }
     document.addEventListener("keydown", onKeyDown);
@@ -184,27 +180,8 @@ function ListingSearchHeader() {
     return () => registerSearchMobile(null);
   }, [registerSearchMobile]);
 
-  // Desktop compact field only after a query — idle /search uses centered hero (like home).
-  if (!onSearchPage || urlQuery.length < MIN_QUERY) return null;
-
-  return (
-    <div className="pointer-events-none fixed inset-x-0 top-0 z-30 hidden px-5 py-3 lg:left-72 lg:block lg:pl-44">
-      <div className="pointer-events-auto mx-auto w-full max-w-3xl">
-        <ListingSearchField
-          value={query}
-          onChange={handleChange}
-          onClear={handleClear}
-          onKeyDown={handleKeyDown}
-          placeholder={PLACEHOLDERS.header}
-          size="compact"
-          accent="compact"
-          loading={false}
-          enterKeyHint="search"
-          inputRef={barInputRef}
-        />
-      </div>
-    </div>
-  );
+  // Desktop search field lives in ListingExplorerSearch (same chrome as listings).
+  return null;
 }
 
 export function ListingSearch({ variant = "header", className = "", autoFocus }: Props) {

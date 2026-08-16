@@ -239,10 +239,23 @@ p {
     overflow: hidden;
   }
 
+  [data-card-snap-viewport] {
+    scroll-behavior: auto;
+    overflow-anchor: none;
+    overscroll-behavior-y: contain;
+    touch-action: pan-y;
+  }
+
   [data-card-snap-slide] {
     height: var(--card-snap-slide-h, 100%);
     min-height: var(--card-snap-slide-h, 100%);
     max-height: var(--card-snap-slide-h, 100%);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    [data-card-snap-viewport] {
+      scroll-behavior: auto;
+    }
   }
 
   /** Mobile listing shell — inner scroll; height follows layout viewport, not keyboard. */

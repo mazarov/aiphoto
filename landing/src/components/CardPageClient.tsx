@@ -556,8 +556,8 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
     onCommit: onMobileNeighborCommit,
   });
   const mobileChromeClass = snapFeed.isInteracting
-    ? "pointer-events-none opacity-0 transition-none"
-    : "opacity-100 transition-none";
+    ? "pointer-events-none opacity-0 transition-opacity duration-100 ease-out motion-reduce:transition-none"
+    : "opacity-100 transition-opacity duration-100 ease-out motion-reduce:transition-none";
 
   return (
     <div
@@ -1001,6 +1001,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
             <div
               ref={snapFeed.viewportRef}
               data-card-snap-viewport
+              aria-label="Лента карточек промтов"
               className={`scrollbar-none h-full w-full overscroll-contain ${
                 swipeEnabled
                   ? "snap-y snap-mandatory overflow-y-auto [-webkit-overflow-scrolling:touch]"
@@ -1135,6 +1136,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                 {groupCards.length > 1 ? (
                   <aside className={`pointer-events-none absolute left-3 top-1/2 z-[73] flex max-h-[min(76svh,100svh-8rem)] -translate-y-1/2 flex-col items-start justify-center ${mobileChromeClass}`}>
                     <nav
+                      data-no-swipe
                       className="pointer-events-auto scrollbar-none flex flex-col gap-2 overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch] py-px"
                       aria-label="Варианты подборки"
                     >
@@ -1683,7 +1685,7 @@ function CardSwipeOnboarding({ onDismiss }: { onDismiss: () => void }) {
     <div
       data-card-swipe-onboarding
       role="status"
-      className="pointer-events-auto absolute right-full top-1/2 z-[80] mr-2 w-[min(12.5rem,calc(100vw-5.5rem))] -translate-y-1/2 animate-in fade-in slide-in-from-right-2 duration-300"
+      className="pointer-events-auto absolute right-full top-1/2 z-[80] mr-2 w-[min(12.5rem,calc(100vw-5.5rem))] -translate-y-1/2 animate-in fade-in slide-in-from-right-2 duration-300 motion-reduce:animate-none"
     >
       <div
         className={`relative rounded-2xl px-3 py-2.5 leading-snug shadow-lg ring-1 ring-white/20 ${MOBILE_FS_CHIP}`}
