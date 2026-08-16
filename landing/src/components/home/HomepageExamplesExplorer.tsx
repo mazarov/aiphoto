@@ -194,6 +194,9 @@ export function HomepageExamplesExplorer({
         <p className="mt-2 max-w-3xl text-sm leading-relaxed text-zinc-600 sm:text-base">
           {HOMEPAGE_SEO.examplesIntro}
         </p>
+        <p className="mt-2 max-w-3xl text-sm leading-relaxed text-zinc-600 sm:text-base">
+          {HOMEPAGE_SEO.examplesIntroSecondary}
+        </p>
 
         <label htmlFor="homepage-examples-search" className="sr-only">
           Найти промт для фото
