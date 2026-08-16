@@ -57,7 +57,7 @@ type Config = { freePerDay: number; creditCost: number };
 
 let configCache: { value: Config; expiresAt: number } | null = null;
 
-export function isAnalyzePaidIdentity(user: User | null): boolean {
+export function isAnalyzePaidIdentity(user: User | null): user is User {
   if (!user) return false;
   if (user.is_anonymous === true) return false;
   if (isStvGuestUser(user)) return false;
