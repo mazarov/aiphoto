@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   isVideoAnimateFlagOn,
   isVideoAnimateUnlocked,
+  isVideoGenerationResult,
   resolveVideoAspectRatio,
   resolveVideoModelId,
   resolveVideoResolution,
@@ -77,6 +78,18 @@ test("motion prompt keeps identity wrapper around user text", () => {
   assert.match(assembled, /Оживи изображение/);
   assert.match(assembled, /user scenario is the main action/i);
   assert.doesNotMatch(assembled, /only subtle natural motion/);
+});
+
+test("video result detection uses modality, mime, or mp4 path", () => {
+  assert.equal(isVideoGenerationResult({ modality: "video" }), true);
+  assert.equal(isVideoGenerationResult({ mimeType: "video/mp4" }), true);
+  assert.equal(
+    isVideoGenerationResult({
+      url: "https://cdn.example/user/job/lease.mp4?token=1",
+    }),
+    true
+  );
+  assert.equal(isVideoGenerationResult({ url: "https://cdn.example/job.jpg" }), false);
 });
 
 test("video animate flag is off unless explicitly enabled", () => {

@@ -86,6 +86,19 @@ export function isVideoModality(value: unknown): boolean {
   return value === VIDEO_GENERATION_MODALITY;
 }
 
+/** Admin/history thumbs: video jobs store mp4; detect without requiring RPC modality. */
+export function isVideoGenerationResult(input: {
+  modality?: string | null;
+  mimeType?: string | null;
+  url?: string | null;
+  path?: string | null;
+}): boolean {
+  if (isVideoModality(input.modality)) return true;
+  if (String(input.mimeType || "").toLowerCase().startsWith("video/")) return true;
+  const haystack = `${input.url || ""} ${input.path || ""}`.split("?")[0].toLowerCase();
+  return haystack.includes(".mp4") || haystack.includes(".webm");
+}
+
 export function isVideoAnimateFlagOn(value: string | undefined): boolean {
   return ["1", "true", "yes", "on"].includes(String(value || "").trim().toLowerCase());
 }

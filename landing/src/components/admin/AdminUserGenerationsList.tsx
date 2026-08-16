@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { AdminResultLightbox, AdminResultThumb } from "./AdminResultMedia";
 import { CLIENT_SOURCES_ORDER, clientSourceColor, clientSourceLabel } from "./analytics-constants";
 
 type Status = "pending" | "processing" | "completed" | "failed";
@@ -161,7 +162,7 @@ export function AdminUserGenerationsList({
           <button disabled={!item.resultUrl} onClick={() => item.resultUrl && setLightbox(item.resultUrl)}
             className="h-20 w-20 overflow-hidden rounded-xl bg-zinc-100 disabled:cursor-default">
             {item.resultUrl
-              ? <img src={item.resultUrl} alt="Результат генерации" className="h-full w-full object-cover" />
+              ? <AdminResultThumb url={item.resultUrl} alt="Результат генерации" />
               : <span className="flex h-full items-center justify-center px-2 text-center text-xs text-zinc-400">Нет результата</span>}
           </button>
           {item.sourcePhotoUrls[0] && <button onClick={() => setLightbox(item.sourcePhotoUrls[0])}
@@ -215,11 +216,7 @@ export function AdminUserGenerationsList({
       className="mx-auto block rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 disabled:opacity-50">
       {loading ? "Загрузка…" : "Показать ещё"}
     </button>}
-    {lightbox && <div onClick={() => setLightbox(null)}
-      className="fixed inset-0 z-[80] flex items-center justify-center bg-black/80 p-4">
-      <img src={lightbox} alt="" onClick={(event) => event.stopPropagation()}
-        className="max-h-[90vh] max-w-full rounded-2xl object-contain" />
-    </div>}
+    {lightbox && <AdminResultLightbox url={lightbox} onClose={() => setLightbox(null)} />}
     {fullPrompt && <div onClick={() => setFullPrompt(null)}
       className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 p-4">
       <div onClick={(event) => event.stopPropagation()}

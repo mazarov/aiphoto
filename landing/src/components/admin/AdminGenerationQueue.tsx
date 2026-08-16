@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { AdminResultLightbox, AdminResultThumb } from "./AdminResultMedia";
 
 type Item = {
   id: string; createdAt: string; completedAt: string | null; prompt: string; model: string | null;
@@ -51,7 +52,7 @@ export function AdminGenerationQueue({ status, refreshKey, onRegenerate }: {
     {items.map((item) => <article key={item.id} className="flex gap-3 rounded-2xl border border-zinc-200 bg-white p-3 shadow-sm">
       <button onClick={() => item.resultUrl && setLightbox(item.resultUrl)}
         className="h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-zinc-100">
-        {item.resultUrl && <img src={item.resultUrl} alt="" className="h-full w-full object-cover" />}
+        {item.resultUrl && <AdminResultThumb url={item.resultUrl} />}
       </button>
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap gap-2 text-[11px] text-zinc-500">
@@ -74,9 +75,7 @@ export function AdminGenerationQueue({ status, refreshKey, onRegenerate }: {
     </article>)}
     {cursor && <button disabled={loading} onClick={() => void load(cursor)}
       className="mx-auto block rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-700">Показать ещё</button>}
-    {lightbox && <div onClick={() => setLightbox(null)} className="fixed inset-0 z-[80] flex items-center justify-center bg-black/80 p-4">
-      <img src={lightbox} alt="" onClick={(event) => event.stopPropagation()} className="max-h-[90vh] max-w-full rounded-2xl object-contain" />
-    </div>}
+    {lightbox && <AdminResultLightbox url={lightbox} onClose={() => setLightbox(null)} />}
     {prompt && <div onClick={() => setPrompt(null)} className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 p-4">
       <div onClick={(event) => event.stopPropagation()} className="max-h-[80vh] w-full max-w-2xl overflow-auto rounded-2xl bg-white p-6 shadow-xl">
         <h2 className="font-semibold">Полный промпт</h2><p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-zinc-700">{prompt}</p>
