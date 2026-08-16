@@ -11,11 +11,22 @@ import {
   processGeneration,
   RESULTS_BUCKET,
 } from "./process-generation";
+import { processVideoGeneration } from "./process-video-generation";
 
 const app = express();
 const shutdownController = new AbortController();
 const inFlight = new Set<string>();
+const inFlightImage = new Set<string>();
+const inFlightVideo = new Set<string>();
 const tasks = new Set<Promise<void>>();
+
+function jobModality(job: GenerationJob): "image" | "video" {
+  return job.modality === "video" ? "video" : "image";
+}
+
+function leaseSecondsFor(job: GenerationJob): number {
+  return jobModality(job) === "video" ? config.videoLeaseSeconds : config.leaseSeconds;
+}
 let shuttingDown = false;
 let lastLoopAt = 0;
 let pollTimer: NodeJS.Timeout | null = null;
@@ -33,12 +44,16 @@ function rpcBoolean(data: unknown): boolean {
   return data === true;
 }
 
-async function heartbeat(generationId: string, leaseToken: string): Promise<boolean> {
+async function heartbeat(
+  generationId: string,
+  leaseToken: string,
+  leaseSeconds = config.leaseSeconds,
+): Promise<boolean> {
   const { data, error } = await supabase.rpc("landing_heartbeat_generation", {
     p_generation_id: generationId,
     p_worker_id: config.workerId,
     p_lease_token: leaseToken,
-    p_lease_seconds: config.leaseSeconds,
+    p_lease_seconds: leaseSeconds,
   });
   if (error) {
     log("warn", "heartbeat_failed", { generationId, error: error.message });
@@ -107,7 +122,7 @@ async function runJob(job: GenerationJob): Promise<void> {
   let heartbeatRunning = false;
   const ensureLease = async (): Promise<void> => {
     if (leaseLost) throw new LeaseLostError();
-    const owned = await heartbeat(job.id, job.lease_token);
+    const owned = await heartbeat(job.id, job.lease_token, leaseSecondsFor(job));
     if (!owned) {
       leaseLost = true;
       throw new LeaseLostError();
@@ -116,7 +131,7 @@ async function runJob(job: GenerationJob): Promise<void> {
   const heartbeatTimer = setInterval(() => {
     if (heartbeatRunning || leaseLost) return;
     heartbeatRunning = true;
-    heartbeat(job.id, job.lease_token)
+    heartbeat(job.id, job.lease_token, leaseSecondsFor(job))
       .then((owned) => {
         if (!owned) {
           leaseLost = true;
@@ -130,12 +145,19 @@ async function runJob(job: GenerationJob): Promise<void> {
   heartbeatTimer.unref();
 
   try {
-    const result = await processGeneration(
-      supabase,
-      job,
-      shutdownController.signal,
-      ensureLease,
-    );
+    const result = jobModality(job) === "video"
+      ? await processVideoGeneration(
+          supabase,
+          job,
+          shutdownController.signal,
+          ensureLease,
+        )
+      : await processGeneration(
+          supabase,
+          job,
+          shutdownController.signal,
+          ensureLease,
+        );
     await ensureLease();
     const { data: completed, error } = await supabase.rpc("landing_complete_generation", {
       p_generation_id: job.id,
@@ -143,6 +165,7 @@ async function runJob(job: GenerationJob): Promise<void> {
       p_lease_token: job.lease_token,
       p_result_bucket: RESULTS_BUCKET,
       p_result_path: result.resultPath,
+      p_result_mime_type: "mimeType" in result ? result.mimeType : "image/jpeg",
     });
     if (error || !rpcBoolean(completed)) {
       const { data: committedRow, error: verifyError } = await supabase
@@ -188,10 +211,10 @@ async function runJob(job: GenerationJob): Promise<void> {
       durationMs: Date.now() - startedAt,
     });
     try {
-      if (!job.create_ugc) {
+      if (!job.create_ugc || jobModality(job) === "video") {
         log("info", "ugc_creation_skipped", {
           generationId: job.id,
-          reason: "disabled_for_request",
+          reason: jobModality(job) === "video" ? "video_modality" : "disabled_for_request",
         });
         return;
       }
@@ -226,7 +249,7 @@ async function runJob(job: GenerationJob): Promise<void> {
             error instanceof Error ? error.message : String(error),
             false,
           );
-    const stillOwned = await heartbeat(job.id, job.lease_token);
+    const stillOwned = await heartbeat(job.id, job.lease_token, leaseSecondsFor(job));
     if (!stillOwned) {
       leaseLost = true;
       log("warn", "generation_failure_ignored_after_lease_loss", {
@@ -258,6 +281,8 @@ function startJob(job: GenerationJob): void {
     return;
   }
   inFlight.add(taskKey);
+  if (jobModality(job) === "video") inFlightVideo.add(taskKey);
+  else inFlightImage.add(taskKey);
   let task: Promise<void>;
   task = runJob(job)
     .catch((error) => {
@@ -265,9 +290,41 @@ function startJob(job: GenerationJob): void {
     })
     .finally(() => {
       inFlight.delete(taskKey);
+      inFlightImage.delete(taskKey);
+      inFlightVideo.delete(taskKey);
       tasks.delete(task);
     });
   tasks.add(task);
+}
+
+async function claimModality(input: {
+  modality: "image" | "video";
+  capacity: number;
+  leaseSeconds: number;
+  globalLimit: number;
+  maxPerUser: number;
+}): Promise<void> {
+  if (input.capacity <= 0) return;
+  const { data, error } = await supabase.rpc("landing_claim_generations", {
+    p_worker_id: config.workerId,
+    p_limit: input.capacity,
+    p_lease_seconds: input.leaseSeconds,
+    p_global_limit: input.globalLimit,
+    p_max_per_user: input.maxPerUser,
+    p_modality: input.modality,
+  });
+  if (error) {
+    log("error", "claim_failed", { modality: input.modality, error: error.message });
+    return;
+  }
+  for (const job of (data || []) as GenerationJob[]) startJob(job);
+  if (data?.length) {
+    log("info", "generations_claimed", {
+      modality: input.modality,
+      count: data.length,
+      inFlight: inFlight.size,
+    });
+  }
 }
 
 async function poll(): Promise<void> {
@@ -277,27 +334,20 @@ async function poll(): Promise<void> {
     pollTimer = setTimeout(poll, config.pollMs);
     return;
   }
-  const capacity = config.concurrency - inFlight.size;
-  if (capacity > 0) {
-    const { data, error } = await supabase.rpc("landing_claim_generations", {
-      p_worker_id: config.workerId,
-      p_limit: capacity,
-      p_lease_seconds: config.leaseSeconds,
-      p_global_limit: config.globalCap,
-      p_max_per_user: config.perUserCap,
-    });
-    if (error) {
-      log("error", "claim_failed", { error: error.message });
-    } else {
-      for (const job of (data || []) as GenerationJob[]) startJob(job);
-      if (data?.length) {
-        log("info", "generations_claimed", {
-          count: data.length,
-          inFlight: inFlight.size,
-        });
-      }
-    }
-  }
+  await claimModality({
+    modality: "image",
+    capacity: config.concurrency - inFlightImage.size,
+    leaseSeconds: config.leaseSeconds,
+    globalLimit: config.globalCap,
+    maxPerUser: config.perUserCap,
+  });
+  await claimModality({
+    modality: "video",
+    capacity: config.videoConcurrency - inFlightVideo.size,
+    leaseSeconds: config.videoLeaseSeconds,
+    globalLimit: config.videoGlobalCap,
+    maxPerUser: config.videoPerUserCap,
+  });
   if (!shuttingDown) pollTimer = setTimeout(poll, config.pollMs);
 }
 

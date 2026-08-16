@@ -8,6 +8,8 @@ import {
 } from "@/lib/card-overlay-action-pill";
 import { copyTextUniversal } from "@/lib/copy-text-to-clipboard";
 import { usePromptCardModal } from "@/context/PromptCardModalContext";
+import { useGenerateDock } from "@/context/GenerateDockContext";
+import { DEFAULT_VIDEO_PROMPT } from "@/lib/generation/image-options";
 import {
   GenerationCardMenu,
   type GenerationMenuAction,
@@ -23,6 +25,9 @@ export type GenerationHistoryItem = {
   prompt: string;
   model: string;
   aspectRatio: string;
+  modality?: "image" | "video" | string;
+  resultMimeType?: string | null;
+  durationSeconds?: number | null;
   creditsSpent: number;
   createdAt: string;
   completedAt: string | null;
@@ -65,12 +70,14 @@ export function GenerationHistoryCard({
   onToast,
 }: Props) {
   const { open, prefetchCard } = usePromptCardModal();
+  const { seedAnimate } = useGenerateDock();
   const [menuOpen, setMenuOpen] = useState(false);
   const [busyAction, setBusyAction] = useState<GenerationMenuAction | null>(null);
   const [openingCard, setOpeningCard] = useState(false);
   const hasResult = Boolean(generation.resultUrl);
   const hasPrompt = Boolean(generation.prompt?.trim());
-  const canOpenCard = generation.status === "completed" && hasResult;
+  const isVideo = generation.modality === "video" || generation.resultMimeType === "video/mp4";
+  const canOpenCard = generation.status === "completed" && hasResult && !isVideo;
 
   const toast = (message: string) => onToast?.(message);
 
@@ -153,7 +160,7 @@ export function GenerationHistoryCard({
       try {
         await downloadGenerationResult(
           generation.resultUrl,
-          `promptshot-${generation.id}.jpg`
+          isVideo ? `promptshot-${generation.id}.mp4` : `promptshot-${generation.id}.jpg`
         );
         setMenuOpen(false);
       } catch {
@@ -169,6 +176,17 @@ export function GenerationHistoryCard({
       setMenuOpen(false);
       const ok = await copyTextUniversal(generation.prompt);
       toast(ok ? "Промпт скопирован" : "Не удалось скопировать");
+      return;
+    }
+
+    if (action === "animate") {
+      if (!generation.resultUrl || isVideo) return;
+      setMenuOpen(false);
+      seedAnimate({
+        promptText: DEFAULT_VIDEO_PROMPT,
+        parentGenerationId: generation.id,
+        previewUrl: generation.resultUrl,
+      });
       return;
     }
 
@@ -254,13 +272,24 @@ export function GenerationHistoryCard({
     >
       <div className="relative w-full overflow-hidden rounded-2xl bg-zinc-200 aspect-[3/4]">
         {generation.resultUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={generation.resultUrl}
-            alt="Результат генерации"
-            className="listing-card-photo-hover absolute inset-0 z-[2] h-full w-full object-cover"
-            draggable={false}
-          />
+          isVideo ? (
+            <video
+              src={generation.resultUrl}
+              className="listing-card-photo-hover absolute inset-0 z-[2] h-full w-full object-cover"
+              muted
+              loop
+              playsInline
+              autoPlay
+            />
+          ) : (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={generation.resultUrl}
+              alt="Результат генерации"
+              className="listing-card-photo-hover absolute inset-0 z-[2] h-full w-full object-cover"
+              draggable={false}
+            />
+          )
         ) : (
           <div className="flex h-full items-center justify-center px-3 text-center">
             {generation.status === "failed" ? (
@@ -355,6 +384,8 @@ export function GenerationHistoryCard({
               hasPrompt={hasPrompt}
               canPublish={canOpenCard}
               isPublished={generation.isPublished}
+              canAnimate={!isVideo && generation.status === "completed" && hasResult}
+              canSaveToLibrary={!isVideo}
               busyAction={busyAction}
               onAction={(action) => {
                 void handleAction(action);

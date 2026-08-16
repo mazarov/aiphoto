@@ -33,6 +33,7 @@ import {
   type GenerateDockSurface,
 } from "@/context/GenerateDockContext";
 import { GenerationResultBackdrop } from "@/components/generate/GenerationResultBackdrop";
+import { VideoComposeBar } from "@/components/generate/VideoComposeBar";
 import { PricingEntryLink } from "@/components/PricingEntryLink";
 import {
   reachYandexMetrikaGoal,
@@ -43,7 +44,12 @@ import {
 import {
   DEFAULT_IMAGE_ASPECT_RATIO,
   DEFAULT_IMAGE_SIZE,
+  DEFAULT_VIDEO_ASPECT_RATIO,
+  DEFAULT_VIDEO_DURATION_SECONDS,
+  DEFAULT_VIDEO_PROMPT,
+  DEFAULT_VIDEO_RESOLUTION,
   IMAGE_GENERATION_MODALITY,
+  VIDEO_GENERATION_MODALITY,
 } from "@/lib/generation/image-options";
 import { restoreSelectedPhotoIds } from "@/lib/generation-enqueue-core";
 
@@ -134,6 +140,7 @@ export function CardInlineGeneratePanel({
     reportNeedsCredits,
     requestedModelId,
     seed,
+    seedAnimate,
     lastDockResultDismissed,
     dismissLastDockResult,
     clearLastDockResultDismiss,
@@ -153,6 +160,19 @@ export function CardInlineGeneratePanel({
   const [imageSize, setImageSize] = useState(DEFAULT_IMAGE_SIZE);
   const [configError, setConfigError] = useState("");
   const [maxPhotos, setMaxPhotos] = useState(10);
+  const [composeModality, setComposeModality] = useState<"image" | "video">(
+    seed.intent === "animate" ? "video" : "image"
+  );
+  const [videoEnabled, setVideoEnabled] = useState(false);
+  const [videoModels, setVideoModels] = useState<ModelOpt[]>([]);
+  const [videoAspectRatio, setVideoAspectRatio] = useState(DEFAULT_VIDEO_ASPECT_RATIO);
+  const [resultModality, setResultModality] = useState<"image" | "video">("image");
+  const [animateParentId, setAnimateParentId] = useState<string | null>(
+    seed.parentGenerationId || null
+  );
+  const [animatePreviewUrl, setAnimatePreviewUrl] = useState<string | null>(
+    seed.previewUrl || null
+  );
   const [preferencesHydrated, setPreferencesHydrated] = useState(false);
   const [credits, setCredits] = useState<number | null>(null);
 
@@ -320,9 +340,10 @@ export function CardInlineGeneratePanel({
               dismissedLastResult: lastDockResultDismissed,
             })
         );
-        const [configRes, photosRes, preferencesRes, meRes, generationsRes] =
+        const [configRes, videoConfigRes, photosRes, preferencesRes, meRes, generationsRes] =
           await Promise.all([
             fetch(`/api/generation-config?modality=${IMAGE_GENERATION_MODALITY}`),
+            fetch(`/api/generation-config?modality=${VIDEO_GENERATION_MODALITY}`),
             fetch("/api/user-generation-photos", { credentials: "include" }),
             fetch("/api/generation-preferences", { credentials: "include" }),
             fetch("/api/me", { cache: "no-store", credentials: "include" }),
@@ -361,6 +382,8 @@ export function CardInlineGeneratePanel({
                   aspectRatio?: string;
                   resultUrl?: string | null;
                   isPublished?: boolean;
+                  modality?: string;
+                  resultMimeType?: string | null;
                 }>;
               })
             : {};
@@ -369,6 +392,24 @@ export function CardInlineGeneratePanel({
           throw new Error(photosData.error || "Не удалось загрузить ваши фото");
         }
         if (cancelled) return;
+        const videoConfigData = videoConfigRes.ok
+          ? ((await videoConfigRes.json().catch(() => ({}))) as {
+              enabled?: boolean;
+              models?: ModelOpt[];
+              defaults?: { aspectRatio?: string };
+            })
+          : {};
+        setVideoEnabled(Boolean(videoConfigData.enabled));
+        setVideoModels(Array.isArray(videoConfigData.models) ? videoConfigData.models : []);
+        if (videoConfigData.defaults?.aspectRatio) {
+          setVideoAspectRatio(videoConfigData.defaults.aspectRatio);
+        }
+        if (seed.intent === "animate") {
+          setComposeModality("video");
+          setAnimateParentId(seed.parentGenerationId || null);
+          setAnimatePreviewUrl(seed.previewUrl || null);
+          if (seed.promptText.trim()) setDraftPrompt(seed.promptText);
+        }
         const nextModels = Array.isArray(configData.models) ? configData.models : [];
         const nextRatios = Array.isArray(configData.aspectRatios)
           ? configData.aspectRatios
@@ -444,6 +485,7 @@ export function CardInlineGeneratePanel({
           const prompt = (lastCompleted.prompt || "").trim();
           setGenerationId(lastCompleted.id!);
           setResultUrl(lastCompleted.resultUrl!);
+          setResultModality(lastCompleted.modality === "video" ? "video" : "image");
           setDraftPrompt(prompt);
           setSubmittedPrompt(prompt);
           setIsPublished(Boolean(lastCompleted.isPublished));
@@ -606,8 +648,11 @@ export function CardInlineGeneratePanel({
     isAuthed &&
     credits !== null &&
     (credits <= 0 || (minModelCost !== null && credits < minModelCost));
+  const activeVideoModel = videoModels[0] ?? null;
   const selectedModelCost =
-    models.find((item) => item.id === model)?.cost ?? null;
+    composeModality === "video"
+      ? activeVideoModel?.cost ?? null
+      : models.find((item) => item.id === model)?.cost ?? null;
   const cannotAffordSelected =
     isAuthed &&
     credits !== null &&
@@ -761,18 +806,30 @@ export function CardInlineGeneratePanel({
     parentGenerationId?: string;
     editInstruction?: string;
     forceTextOnly?: boolean;
+    modality?: "image" | "video";
   }): Promise<boolean> => {
-    const parentGenerationId = options?.parentGenerationId?.trim() || "";
-    const editInstruction = options?.editInstruction?.trim() || "";
-    const isContinuation = Boolean(parentGenerationId);
+    const requestedModality = options?.modality || composeModality;
+    const isVideo = requestedModality === "video";
+    const parentGenerationId = options?.parentGenerationId?.trim()
+      || (isVideo ? animateParentId || "" : "");
+    const editInstruction = isVideo ? "" : options?.editInstruction?.trim() || "";
+    const isContinuation = Boolean(parentGenerationId) && !isVideo;
     if (isContinuation && !editInstruction) {
       setError("Опишите, что изменить");
       return false;
     }
-    const prompt = (options?.promptOverride ?? draftPrompt).trim();
+    const prompt = (options?.promptOverride ?? draftPrompt).trim()
+      || (isVideo ? DEFAULT_VIDEO_PROMPT : "");
     if (prompt.length < 8) {
       setError("Промпт слишком короткий");
       return false;
+    }
+    if (isVideo) {
+      const photoCount = selectedPhotos.length;
+      if (!parentGenerationId && photoCount !== 1) {
+        setError("Для оживления нужно одно фото");
+        return false;
+      }
     }
     if (generateInFlightRef.current) return false;
     generateInFlightRef.current = true;
@@ -795,17 +852,22 @@ export function CardInlineGeneratePanel({
         credentials: "include",
         body: JSON.stringify({
           generationSurface: resolvedGenerationSurface,
-          modality: IMAGE_GENERATION_MODALITY,
+          modality: isVideo ? VIDEO_GENERATION_MODALITY : IMAGE_GENERATION_MODALITY,
           prompt,
-          model,
-          aspectRatio,
-          imageSize,
+          model: isVideo ? activeVideoModel?.id : model,
+          aspectRatio: isVideo ? videoAspectRatio : aspectRatio,
+          imageSize: isVideo ? DEFAULT_VIDEO_RESOLUTION : imageSize,
+          durationSeconds: isVideo ? DEFAULT_VIDEO_DURATION_SECONDS : undefined,
           cardId: resolvedCardId,
-          photoStoragePaths: isContinuation || options?.forceTextOnly
-            ? []
-            : selectedPhotos.map((photo) => photo.storagePath),
+          photoStoragePaths: isVideo
+            ? parentGenerationId
+              ? []
+              : selectedPhotos.slice(0, 1).map((photo) => photo.storagePath)
+            : isContinuation || options?.forceTextOnly
+              ? []
+              : selectedPhotos.map((photo) => photo.storagePath),
           parentGenerationId: parentGenerationId || null,
-          editInstruction: editInstruction || null,
+          editInstruction: isVideo ? null : editInstruction || null,
           vibeId: null,
         }),
       });
@@ -853,6 +915,7 @@ export function CardInlineGeneratePanel({
           resultUrl?: string;
           errorMessage?: string;
           error?: string;
+          modality?: string;
         };
         if (!pollRes.ok) {
           if (pollRes.status >= 500) {
@@ -870,6 +933,11 @@ export function CardInlineGeneratePanel({
           clearLastDockResultDismiss();
           setGenerationId(genData.id);
           setResultUrl(poll.resultUrl);
+          setResultModality(poll.modality === "video" || isVideo ? "video" : "image");
+          if (isVideo) {
+            setComposeModality("image");
+            setAnimateParentId(null);
+          }
           setProgress(100);
           setPhase("done");
           onGenerationComplete?.();
@@ -970,7 +1038,12 @@ export function CardInlineGeneratePanel({
     if (action === "download") {
       setBusyAction("download");
       try {
-        await downloadGenerationResult(resultUrl, `promptshot-${generationId}.jpg`);
+        await downloadGenerationResult(
+          resultUrl,
+          resultModality === "video"
+            ? `promptshot-${generationId}.mp4`
+            : `promptshot-${generationId}.jpg`
+        );
         setMenuOpen(false);
       } catch {
         setToast("Не удалось скачать");
@@ -984,6 +1057,12 @@ export function CardInlineGeneratePanel({
       setMenuOpen(false);
       const ok = await copyTextUniversal(submittedPrompt || draftPrompt);
       setToast(ok ? "Промпт скопирован" : "Не удалось скопировать");
+      return;
+    }
+
+    if (action === "animate") {
+      setMenuOpen(false);
+      enterAnimateFromResult();
       return;
     }
 
@@ -1080,6 +1159,24 @@ export function CardInlineGeneratePanel({
     setDockSurface("prompt");
   };
   /** Leave result chrome → idle compose (keep prompt / model / photos for editing). */
+  const enterAnimateFromResult = () => {
+    if (!generationId || !resultUrl || resultModality === "video" || !videoEnabled) return;
+    setComposeModality("video");
+    setAnimateParentId(generationId);
+    setAnimatePreviewUrl(resultUrl);
+    setDraftPrompt(DEFAULT_VIDEO_PROMPT);
+    setSubmittedPrompt("");
+    setChangeRequest("");
+    setError("");
+    setNeedsCredits(false);
+    setMenuOpen(false);
+    setResultPreviewOpen(false);
+    setExpandedControl(null);
+    setPromptExpanded(false);
+    setPhase("idle");
+    phaseRef.current = "idle";
+  };
+
   const resetToCompose = () => {
     dismissLastDockResult();
     suppressResultHydrateRef.current = true;
@@ -1093,6 +1190,10 @@ export function CardInlineGeneratePanel({
     setMenuOpen(false);
     setResultPreviewOpen(false);
     setIsPublished(false);
+    setResultModality("image");
+    setComposeModality("image");
+    setAnimateParentId(null);
+    setAnimatePreviewUrl(null);
     setExpandedControl(null);
     setPromptExpanded(false);
     setPhase("idle");
@@ -1105,11 +1206,13 @@ export function CardInlineGeneratePanel({
     setDraftPrompt("");
     onBack();
   };
+  const videoCompose = composeModality === "video";
   /**
    * Blank compose: single prompt field until a completed result exists.
    * Card seed and «Что изменить» after generation use remix (changeRequest + parent).
    */
-  const useBlankPromptEditor = isBlank && !(resultUrl && generationId);
+  const useBlankPromptEditor =
+    (isBlank && !(resultUrl && generationId)) || videoCompose;
   /** Prefill (photo→prompt) must not steal focus on mobile — keyboard shrinks the sheet. */
   const autofocusPromptEditor = !isMobile || draftPrompt.trim().length < 8;
   /**
@@ -1118,6 +1221,7 @@ export function CardInlineGeneratePanel({
    */
   const showResultChrome =
     Boolean(resultUrl) &&
+    !videoCompose &&
     (!isDock || phase === "done" || phase === "generating");
 
   useEffect(() => {
@@ -1222,6 +1326,7 @@ export function CardInlineGeneratePanel({
         <GenerationResultBackdrop
           resultUrl={resultUrl}
           phase={phase}
+          kind={resultModality}
           className={isDock && isMobile ? "" : "rounded-[1.75rem]"}
         />
       ) : !isDock ? (
@@ -1260,8 +1365,10 @@ export function CardInlineGeneratePanel({
                 showSelect={false}
                 hasResult
                 hasPrompt={Boolean(activePrompt.trim())}
-                canPublish
+                canPublish={resultModality !== "video"}
                 isPublished={isPublished}
+                canAnimate={videoEnabled && resultModality === "image"}
+                canSaveToLibrary={resultModality !== "video"}
                 busyAction={busyAction}
                 onAction={(action) => {
                   void handleResultAction(action);
@@ -1338,8 +1445,10 @@ export function CardInlineGeneratePanel({
               showSelect={false}
               hasResult
               hasPrompt={Boolean(activePrompt.trim())}
-              canPublish
+              canPublish={resultModality !== "video"}
               isPublished={isPublished}
+              canAnimate={videoEnabled && resultModality === "image"}
+              canSaveToLibrary={resultModality !== "video"}
               busyAction={busyAction}
               onAction={(action) => {
                 void handleResultAction(action);
@@ -2038,7 +2147,51 @@ export function CardInlineGeneratePanel({
           </div>
         ) : null}
 
-        {!showResultChrome ? (
+        {!showResultChrome && videoCompose ? (
+        <section
+          className={`shrink-0 ${
+            isDock
+              ? `rounded-none border-0 bg-transparent p-1${
+                  dockExpanded ? "invisible pointer-events-none" : ""
+                }`
+              : `rounded-2xl border p-2 ${
+                  glassChrome
+                    ? "border-white/15 bg-black/15 backdrop-blur-md"
+                    : "border-zinc-200 bg-white/95"
+                }`
+          }`}
+        >
+          <VideoComposeBar
+            previewUrl={
+              animatePreviewUrl
+              || selectedPhotos[0]?.previewUrl
+              || null
+            }
+            onClearPreview={
+              animateParentId
+                ? () => {
+                    setAnimateParentId(null);
+                    setAnimatePreviewUrl(null);
+                    setComposeModality("image");
+                  }
+                : selectedPhotos[0]
+                  ? () => {
+                      setSelectedPhotoIds(new Set());
+                    }
+                  : undefined
+            }
+            modelLabel={displayLabelForGenerationModel(
+              activeVideoModel?.id || "gemini-omni-flash-preview",
+              activeVideoModel?.label
+            )}
+            aspectRatio={videoAspectRatio}
+            durationLabel={`${DEFAULT_VIDEO_DURATION_SECONDS} сек`}
+            resolution={DEFAULT_VIDEO_RESOLUTION}
+            quantity={1}
+            glass={glassChrome}
+          />
+        </section>
+        ) : !showResultChrome ? (
         <section
           className={`shrink-0 ${
             isDock
@@ -2135,13 +2288,39 @@ export function CardInlineGeneratePanel({
               </span>
             </button>
 
-            <p
-              className={`min-w-0 flex-1 self-center text-[13px] font-medium leading-snug ${
-                glassChrome ? "text-white/70" : "text-zinc-500"
-              }`}
-            >
-              Нажмите на квадрат, чтобы изменить выбор.
-            </p>
+            <div className="min-w-0 flex-1 self-center">
+              <p
+                className={`text-[13px] font-medium leading-snug ${
+                  glassChrome ? "text-white/70" : "text-zinc-500"
+                }`}
+              >
+                Нажмите на квадрат, чтобы изменить выбор.
+              </p>
+              {videoEnabled ? (
+                <button
+                  type="button"
+                  disabled={controlsBusy}
+                  onClick={() => {
+                    if (selectedPhotos.length !== 1) {
+                      setError("Для оживления выберите одно фото");
+                      return;
+                    }
+                    setComposeModality("video");
+                    setAnimateParentId(null);
+                    setAnimatePreviewUrl(selectedPhotos[0]?.previewUrl || null);
+                    if (draftPrompt.trim().length < 8) {
+                      setDraftPrompt(DEFAULT_VIDEO_PROMPT);
+                    }
+                    setError("");
+                  }}
+                  className={`${OVERLAY_BUTTON_UA_RESET} mt-1.5 text-[13px] font-semibold ${
+                    glassChrome ? "text-indigo-200 hover:text-white" : "text-indigo-600 hover:text-indigo-700"
+                  }`}
+                >
+                  Оживить фото
+                </button>
+              ) : null}
+            </div>
           </div>
 
         </section>
@@ -2200,6 +2379,22 @@ export function CardInlineGeneratePanel({
         }`}
       >
         <div className="flex min-w-0 gap-2">
+        {phase === "done" && resultUrl && generationId && videoEnabled && resultModality === "image" ? (
+          <button
+            type="button"
+            onClick={enterAnimateFromResult}
+            className={
+              isDock
+                ? dockActionBtn
+                : `${OVERLAY_BUTTON_UA_RESET} flex min-h-12 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-2xl bg-black/25 px-2 py-3 text-[13px] font-semibold text-white transition hover:bg-black/40 active:scale-[0.99]`
+            }
+          >
+            <svg className="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+              <path d="M8 6.8v10.4L17.2 12 8 6.8Z" />
+            </svg>
+            <span className="truncate">Оживить</span>
+          </button>
+        ) : null}
         {phase === "done" && resultUrl && generationId ? (
           <button
             type="button"
@@ -2315,6 +2510,14 @@ export function CardInlineGeneratePanel({
                 return;
               }
               if (busy) return;
+              if (videoCompose) {
+                void runGenerate({
+                  promptOverride: draftPrompt.trim() || DEFAULT_VIDEO_PROMPT,
+                  modality: "video",
+                  parentGenerationId: animateParentId || undefined,
+                });
+                return;
+              }
               if (phase === "done" && resultUrl && generationId) {
                 openPromptEditor();
                 return;
@@ -2368,7 +2571,9 @@ export function CardInlineGeneratePanel({
                 ? `Загружаем фото · ${Math.round(progress)}%`
                 : phase === "generating"
                   ? `Генерируем · ${Math.round(progress)}%`
-                  : phase === "done" && resultUrl
+                  : videoCompose
+                    ? `Сгенерировать ${activeVideoModel?.cost ?? 30}✦`
+                    : phase === "done" && resultUrl
                     ? "Что изменить"
                     : !isAuthed
                       ? "Войти"
@@ -2415,13 +2620,24 @@ export function CardInlineGeneratePanel({
                   <path d="m6 6 12 12M18 6 6 18" />
                 </svg>
               </button>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={resultUrl}
-                alt="Результат генерации"
-                className="max-h-[min(90dvh,100%)] max-w-full object-contain"
-                onClick={(event) => event.stopPropagation()}
-              />
+              {resultModality === "video" ? (
+                <video
+                  src={resultUrl}
+                  controls
+                  autoPlay
+                  playsInline
+                  className="max-h-[min(90dvh,100%)] max-w-full"
+                  onClick={(event) => event.stopPropagation()}
+                />
+              ) : (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={resultUrl}
+                  alt="Результат генерации"
+                  className="max-h-[min(90dvh,100%)] max-w-full object-contain"
+                  onClick={(event) => event.stopPropagation()}
+                />
+              )}
             </div>,
             document.body
           )

@@ -8,6 +8,7 @@ type Props = {
   resultUrl: string | null;
   phase: Phase;
   className?: string;
+  kind?: "image" | "video";
 };
 
 function preloadImage(url: string): Promise<void> {
@@ -28,6 +29,7 @@ export function GenerationResultBackdrop({
   resultUrl,
   phase,
   className = "",
+  kind = "image",
 }: Props) {
   const [baseUrl, setBaseUrl] = useState<string | null>(resultUrl);
   const [overlayUrl, setOverlayUrl] = useState<string | null>(null);
@@ -124,6 +126,26 @@ export function GenerationResultBackdrop({
   };
 
   if (!baseUrl && !overlayUrl) return null;
+
+  if (kind === "video" && (baseUrl || resultUrl)) {
+    const src = resultUrl || baseUrl;
+    return (
+      <div
+        className={`ps-result-backdrop pointer-events-none absolute inset-0 z-0 overflow-hidden ${className}`}
+        aria-hidden
+      >
+        <video
+          src={src || undefined}
+          className="ps-result-backdrop__img h-full w-full object-cover"
+          autoPlay
+          muted
+          loop
+          playsInline
+        />
+        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(9,9,11,0.55)_0%,rgba(9,9,11,0.2)_45%,rgba(9,9,11,0.62)_100%)]" />
+      </div>
+    );
+  }
 
   const shownBase = baseUrl;
   const showOverlay = Boolean(overlayUrl && revealing);

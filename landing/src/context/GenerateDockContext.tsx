@@ -88,6 +88,14 @@ type GenerateDockContextType = {
     args: { promptText: string; cardId: string },
     options?: { entrySource?: GenerateDockEntrySource }
   ) => void;
+  seedAnimate: (
+    args: {
+      promptText?: string;
+      parentGenerationId?: string | null;
+      previewUrl?: string | null;
+    },
+    options?: { entrySource?: GenerateDockEntrySource }
+  ) => void;
   /**
    * User left result chrome («Повторить» / delete / result X). Survives panel
    * unmount so reopen does not restore the dismissed generation.
@@ -117,6 +125,7 @@ const GenerateDockContext = createContext<GenerateDockContextType>({
   focusBlank: () => {},
   seedBlankPrompt: () => {},
   seedFromCard: () => {},
+  seedAnimate: () => {},
   lastDockResultDismissed: false,
   dismissLastDockResult: () => {},
   clearLastDockResultDismiss: () => {},
@@ -234,6 +243,35 @@ export function GenerateDockProvider({ children }: { children: ReactNode }) {
     [isAuthed, trackOpen]
   );
 
+  const seedAnimate = useCallback(
+    (
+      args: {
+        promptText?: string;
+        parentGenerationId?: string | null;
+        previewUrl?: string | null;
+      },
+      options?: { entrySource?: GenerateDockEntrySource }
+    ) => {
+      const nextSeed: GenerateDockSeed = {
+        source: "blank",
+        promptText: (args.promptText || "Оживи изображение").trim(),
+        cardId: null,
+        intent: "animate",
+        parentGenerationId: args.parentGenerationId || null,
+        previewUrl: args.previewUrl || null,
+      };
+      setSeed(nextSeed);
+      setSeedToken((token) => token + 1);
+      setPlateOpen(true);
+      setDockSurface(null);
+      if (!isAuthed) {
+        persistPendingGenerateDock({ seed: nextSeed, dockSurface: null });
+      }
+      trackOpen(options?.entrySource ?? "tab");
+    },
+    [isAuthed, trackOpen]
+  );
+
   const seedBlankPrompt = useCallback(
     (
       promptText: string,
@@ -294,6 +332,7 @@ export function GenerateDockProvider({ children }: { children: ReactNode }) {
       focusBlank,
       seedBlankPrompt,
       seedFromCard,
+      seedAnimate,
       lastDockResultDismissed,
       dismissLastDockResult,
       clearLastDockResultDismiss,
@@ -315,6 +354,7 @@ export function GenerateDockProvider({ children }: { children: ReactNode }) {
       focusBlank,
       seedBlankPrompt,
       seedFromCard,
+      seedAnimate,
       lastDockResultDismissed,
       dismissLastDockResult,
       clearLastDockResultDismiss,

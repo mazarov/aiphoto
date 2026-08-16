@@ -74,3 +74,14 @@ export function resolveGenerationInputSource(
     paths: [parent.result_storage_path],
   };
 }
+
+export function assertVideoInputSource(source: GenerationInputSource): GenerationInputSource {
+  if (source.sourceType === "text_only" || source.paths.length !== 1) {
+    throw new ProcessingError(
+      "video_source_required",
+      "Video generation requires exactly one source image",
+      false,
+    );
+  }
+  return source;
+}

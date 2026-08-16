@@ -20,9 +20,20 @@ import {
   DEFAULT_IMAGE_ASPECT_RATIO,
   DEFAULT_IMAGE_SIZE,
   IMAGE_GENERATION_MODALITY,
+  VIDEO_GENERATION_MODALITY,
+  isGenerationModality,
   isImageAspectRatio,
   isImageSize,
 } from "@/lib/generation/image-options";
+import { parseEnabledVideoGenerationModels } from "@/lib/generation-model-labels";
+import {
+  normalizeVideoDurationSeconds,
+  resolveVideoAspectRatio,
+  resolveVideoResolution,
+  isVideoAnimateUnlocked,
+  validateVideoGenerationSource,
+  videoSourceErrorMessage,
+} from "@/lib/video-generation-contract";
 
 /** PromptShot paid generate is site-only for now (inline compose / same-origin). */
 const GENERATION_CLIENT_SOURCE = "site" as const;
@@ -79,6 +90,7 @@ export async function POST(req: NextRequest) {
       vibeId,
       parentGenerationId,
       editInstruction,
+      durationSeconds,
       idempotencyKey: bodyIdempotencyKey,
     } = body as {
       generationSurface?: string;
@@ -92,11 +104,12 @@ export async function POST(req: NextRequest) {
       vibeId?: string | null;
       parentGenerationId?: string | null;
       editInstruction?: string | null;
+      durationSeconds?: number;
       pipelineTraceId?: string;
       idempotencyKey?: string;
     };
     const requestedModality = modality || IMAGE_GENERATION_MODALITY;
-    if (requestedModality !== IMAGE_GENERATION_MODALITY) {
+    if (!isGenerationModality(requestedModality)) {
       return NextResponse.json(
         {
           error: "unsupported_modality",
@@ -105,6 +118,7 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
+    const isVideo = requestedModality === VIDEO_GENERATION_MODALITY;
 
     const minPromptLength = 8;
     const callerId = user.id;
@@ -143,10 +157,12 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
-    const editContractError = validateGenerationEditContract({
-      hasParentGeneration,
-      editInstruction: normalizedEditInstruction,
-    });
+    const editContractError = isVideo
+      ? null
+      : validateGenerationEditContract({
+          hasParentGeneration,
+          editInstruction: normalizedEditInstruction,
+        });
     if (editContractError) {
       return NextResponse.json(
         {
@@ -182,7 +198,7 @@ export async function POST(req: NextRequest) {
       const { data: parent, error: parentError } = await supabase
         .from("landing_generations")
         .select(
-          "id,status,requester_auth_user_id,result_storage_bucket,result_storage_path"
+          "id,status,requester_auth_user_id,result_storage_bucket,result_storage_path,modality"
         )
         .eq("id", normalizedParentGenerationId)
         .eq("requester_auth_user_id", callerId)
@@ -214,29 +230,55 @@ export async function POST(req: NextRequest) {
           { status: 409 }
         );
       }
+      if (isVideo && (parent.modality || "image") !== IMAGE_GENERATION_MODALITY) {
+        return NextResponse.json(
+          { error: "validation_error", message: "Оживить можно только готовое фото" },
+          { status: 400 }
+        );
+      }
     }
 
-    const ar = aspectRatio || DEFAULT_IMAGE_ASPECT_RATIO;
-    const sz = imageSize || DEFAULT_IMAGE_SIZE;
-    if (!isImageAspectRatio(ar)) {
-      console.warn("[generation.create] validation error: invalid aspect ratio", {
-        userId: callerId,
-        aspectRatio: ar,
+    const videoDuration = isVideo ? normalizeVideoDurationSeconds(durationSeconds) : null;
+    const ar = isVideo
+      ? resolveVideoAspectRatio(aspectRatio)
+      : aspectRatio || DEFAULT_IMAGE_ASPECT_RATIO;
+    const sz = isVideo
+      ? resolveVideoResolution(imageSize)
+      : imageSize || DEFAULT_IMAGE_SIZE;
+    if (isVideo) {
+      const sourceError = validateVideoGenerationSource({
+        hasParentGeneration,
+        photoCount: normalizedPhotoStoragePaths.length,
+        editInstruction: normalizedEditInstruction,
+        parentModality: IMAGE_GENERATION_MODALITY,
       });
-      return NextResponse.json(
-        { error: "validation_error", message: "Недопустимый формат" },
-        { status: 400 }
-      );
-    }
-    if (!isImageSize(sz)) {
-      console.warn("[generation.create] validation error: invalid image size", {
-        userId: callerId,
-        imageSize: sz,
-      });
-      return NextResponse.json(
-        { error: "validation_error", message: "Недопустимое качество" },
-        { status: 400 }
-      );
+      if (sourceError) {
+        return NextResponse.json(
+          { error: "validation_error", message: videoSourceErrorMessage(sourceError) },
+          { status: 400 }
+        );
+      }
+    } else {
+      if (!isImageAspectRatio(ar)) {
+        console.warn("[generation.create] validation error: invalid aspect ratio", {
+          userId: callerId,
+          aspectRatio: ar,
+        });
+        return NextResponse.json(
+          { error: "validation_error", message: "Недопустимый формат" },
+          { status: 400 }
+        );
+      }
+      if (!isImageSize(sz)) {
+        console.warn("[generation.create] validation error: invalid image size", {
+          userId: callerId,
+          imageSize: sz,
+        });
+        return NextResponse.json(
+          { error: "validation_error", message: "Недопустимое качество" },
+          { status: 400 }
+        );
+      }
     }
 
     let resolvedVibeId: string | null = null;
@@ -265,7 +307,13 @@ export async function POST(req: NextRequest) {
     const { data: configRows } = await supabase
       .from("landing_generation_config")
       .select("key, value")
-      .in("key", ["models", "default_model", "max_photos"]);
+      .in("key", [
+        "models",
+        "default_model",
+        "max_photos",
+        "video_models",
+        "video_animate_enabled",
+      ]);
 
     const config: Record<string, string> = {};
     for (const row of configRows || []) {
@@ -288,19 +336,39 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (isVideo) {
+      const enabled = isVideoAnimateUnlocked(config.video_animate_enabled);
+      if (!enabled && !openDebug) {
+        return NextResponse.json(
+          {
+            error: "video_disabled",
+            message: "Оживление фото пока недоступно",
+          },
+          { status: 503 }
+        );
+      }
+    }
+
     let models: { id: string; cost: number }[] = [];
-    try {
-      const parsed = JSON.parse(config.models || "[]");
-      models = parsed
-        .filter((m: { enabled?: boolean }) => m.enabled !== false)
-        .map((m: { id: string; cost: number }) => ({ id: m.id, cost: m.cost }));
-    } catch {
-      models = [
-        { id: "gemini-2.5-flash-image", cost: 5 },
-        { id: "gemini-3-pro-image-preview", cost: 10 },
-        { id: "gemini-3.1-flash-image-preview", cost: 10 },
-        { id: "gemini-3.1-flash-lite-image", cost: 5 },
-      ];
+    if (isVideo) {
+      models = parseEnabledVideoGenerationModels(config.video_models).map((item) => ({
+        id: item.id,
+        cost: item.cost,
+      }));
+    } else {
+      try {
+        const parsed = JSON.parse(config.models || "[]");
+        models = parsed
+          .filter((m: { enabled?: boolean }) => m.enabled !== false)
+          .map((m: { id: string; cost: number }) => ({ id: m.id, cost: m.cost }));
+      } catch {
+        models = [
+          { id: "gemini-2.5-flash-image", cost: 5 },
+          { id: "gemini-3-pro-image-preview", cost: 10 },
+          { id: "gemini-3.1-flash-image-preview", cost: 10 },
+          { id: "gemini-3.1-flash-lite-image", cost: 5 },
+        ];
+      }
     }
 
     const modelConfig = models.find((m) => m.id === model) || models[0];
@@ -384,6 +452,8 @@ export async function POST(req: NextRequest) {
           vibeId: resolvedVibeId,
           cardId: cardId || null,
           clientSource: GENERATION_CLIENT_SOURCE,
+          modality: requestedModality,
+          durationSeconds: videoDuration,
         })
       )
       .digest("hex");
@@ -450,9 +520,11 @@ export async function POST(req: NextRequest) {
         p_vibe_id: resolvedVibeId,
         p_client_source: GENERATION_CLIENT_SOURCE,
         p_pipeline_trace_id: pipelineTrace,
-        p_create_ugc: !guestMode,
+        p_create_ugc: isVideo ? false : !guestMode,
         p_parent_generation_id: normalizedParentGenerationId || null,
-        p_edit_instruction: normalizedEditInstruction || null,
+        p_edit_instruction: isVideo ? null : normalizedEditInstruction || null,
+        p_modality: requestedModality,
+        p_duration_seconds: videoDuration,
       }
     );
     const enqueueRow = Array.isArray(enqueueRows) ? enqueueRows[0] : enqueueRows;
@@ -472,7 +544,8 @@ export async function POST(req: NextRequest) {
       const parentUnavailable =
         enqueueError?.message?.includes("parent_generation_not_found") ||
         enqueueError?.message?.includes("parent_generation_forbidden") ||
-        enqueueError?.message?.includes("parent_generation_not_ready");
+        enqueueError?.message?.includes("parent_generation_not_ready") ||
+        enqueueError?.message?.includes("parent_generation_not_image");
       const { data: userRow } = insufficient
         ? await supabase
             .from("landing_users")

@@ -37,6 +37,9 @@ export type GenerationJob = GenerationInputJob & {
   lease_token: string;
   create_ugc: boolean;
   edit_instruction: string | null;
+  modality?: string | null;
+  duration_seconds?: number | null;
+  provider_operation_id?: string | null;
 };
 
 type ImagePart = { inlineData: { mimeType: string; data: string } };

@@ -1,10 +1,12 @@
-export type GenerateDockComposeIntent = "resume" | "text" | "photo_prompt";
+export type GenerateDockComposeIntent = "resume" | "text" | "photo_prompt" | "animate";
 
 export type GenerateDockSeed = {
   source: "blank" | "card";
   promptText: string;
   cardId: string | null;
   intent: GenerateDockComposeIntent;
+  parentGenerationId?: string | null;
+  previewUrl?: string | null;
 };
 
 export const DEFAULT_GENERATE_DOCK_SEED: GenerateDockSeed = {
@@ -30,6 +32,7 @@ export function shouldHydrateLastDockResult(
   options?: { dismissedLastResult?: boolean }
 ): boolean {
   if (options?.dismissedLastResult) return false;
+  if (seed.intent === "animate") return false;
   return seed.source === "blank" && seed.intent === "resume";
 }
 
@@ -38,5 +41,7 @@ export function shouldHydrateLastDockResult(
  * `photo_prompt` compose is text-only after ephemeral analyze on the starter.
  */
 export function shouldAttachLibraryPhotos(seed: GenerateDockSeed): boolean {
-  return seed.intent !== "photo_prompt";
+  if (seed.intent === "photo_prompt") return false;
+  if (seed.intent === "animate" && seed.parentGenerationId) return false;
+  return true;
 }

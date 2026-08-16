@@ -40,7 +40,19 @@ export const GENERATION_MODEL_DISPLAY: Record<string, GenerationModelDisplay> = 
     label: "Nano Banana 2 Lite",
     description: "Оптимизированная генерация",
   },
+  "gemini-omni-flash-preview": {
+    label: "Veo Omni Flash",
+    description: "Оживление фото в короткое видео",
+  },
 };
+
+export const FALLBACK_VIDEO_GENERATION_MODELS: GenerationModelOption[] = [
+  {
+    id: "gemini-omni-flash-preview",
+    label: GENERATION_MODEL_DISPLAY["gemini-omni-flash-preview"].label,
+    cost: 30,
+  },
+];
 
 export const FALLBACK_GENERATION_MODELS: GenerationModelOption[] = [
   {
@@ -81,16 +93,17 @@ export function optionLabelForGenerationModel(
   return fallbackLabel || id;
 }
 
-export function parseEnabledGenerationModels(
-  raw: string | null | undefined
+function parseGenerationModels(
+  raw: string | null | undefined,
+  fallback: GenerationModelOption[]
 ): GenerationModelOption[] {
-  if (!raw) return FALLBACK_GENERATION_MODELS;
+  if (!raw) return fallback;
 
   try {
     const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return FALLBACK_GENERATION_MODELS;
+    if (!Array.isArray(parsed)) return fallback;
 
-    return parsed
+    const models = parsed
       .filter(
         (model): model is {
           id: string;
@@ -107,7 +120,20 @@ export function parseEnabledGenerationModels(
         label: displayLabelForGenerationModel(model.id, model.label),
         cost: Number.isFinite(model.cost) ? Number(model.cost) : 0,
       }));
+    return models.length ? models : fallback;
   } catch {
-    return FALLBACK_GENERATION_MODELS;
+    return fallback;
   }
+}
+
+export function parseEnabledGenerationModels(
+  raw: string | null | undefined
+): GenerationModelOption[] {
+  return parseGenerationModels(raw, FALLBACK_GENERATION_MODELS);
+}
+
+export function parseEnabledVideoGenerationModels(
+  raw: string | null | undefined
+): GenerationModelOption[] {
+  return parseGenerationModels(raw, FALLBACK_VIDEO_GENERATION_MODELS);
 }

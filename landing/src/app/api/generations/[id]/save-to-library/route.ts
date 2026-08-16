@@ -36,7 +36,7 @@ export async function POST(
 
     const { data: gen, error: fetchError } = await supabase
       .from("landing_generations")
-      .select("id, status, result_storage_bucket, result_storage_path")
+      .select("id, status, result_storage_bucket, result_storage_path, modality")
       .eq("id", id)
       .or(ownerFilter)
       .maybeSingle();
@@ -50,6 +50,12 @@ export async function POST(
     if (gen.status !== "completed" || !gen.result_storage_bucket || !gen.result_storage_path) {
       return NextResponse.json(
         { error: "Generation result is not available" },
+        { status: 400 }
+      );
+    }
+    if ((gen.modality || "image") === "video") {
+      return NextResponse.json(
+        { error: "video_not_supported", message: "Видео пока нельзя сохранить в библиотеку" },
         { status: 400 }
       );
     }

@@ -1,6 +1,15 @@
 export const IMAGE_GENERATION_MODALITY = "image" as const;
+export const VIDEO_GENERATION_MODALITY = "video" as const;
 
-export type GenerationModality = typeof IMAGE_GENERATION_MODALITY | "video";
+export type GenerationModality = typeof IMAGE_GENERATION_MODALITY | typeof VIDEO_GENERATION_MODALITY;
+
+export const DEFAULT_VIDEO_PROMPT = "Оживи изображение";
+export const DEFAULT_VIDEO_MODEL = "gemini-omni-flash-preview";
+export const DEFAULT_VIDEO_ASPECT_RATIO = "9:16";
+export const DEFAULT_VIDEO_DURATION_SECONDS = 4;
+export const DEFAULT_VIDEO_RESOLUTION = "720p";
+export const DEFAULT_VIDEO_CREDIT_COST = 30;
+export const VIDEO_QUANTITY = 1;
 
 export const IMAGE_ASPECT_RATIO_OPTIONS = [
   { value: "1:1", label: "1:1, квадратный" },
@@ -36,6 +45,41 @@ export function isImageSize(value: unknown): value is string {
   return typeof value === "string" && IMAGE_SIZES.has(value);
 }
 
+export const VIDEO_ASPECT_RATIO_OPTIONS = [
+  { value: "9:16", label: "9:16, вертикальный" },
+  { value: "16:9", label: "16:9, горизонтальный" },
+] as const;
+
+export const VIDEO_DURATION_OPTIONS = [
+  { value: 4, label: "4 сек" },
+] as const;
+
+export const VIDEO_RESOLUTION_OPTIONS = [
+  { value: "720p", label: "720p" },
+] as const;
+
+const VIDEO_ASPECT_RATIOS = new Set<string>(
+  VIDEO_ASPECT_RATIO_OPTIONS.map((option) => option.value)
+);
+const VIDEO_DURATIONS = new Set<number>(
+  VIDEO_DURATION_OPTIONS.map((option) => option.value)
+);
+const VIDEO_RESOLUTIONS = new Set<string>(
+  VIDEO_RESOLUTION_OPTIONS.map((option) => option.value)
+);
+
+export function isVideoAspectRatio(value: unknown): value is string {
+  return typeof value === "string" && VIDEO_ASPECT_RATIOS.has(value);
+}
+
+export function isVideoDurationSeconds(value: unknown): value is number {
+  return typeof value === "number" && VIDEO_DURATIONS.has(value);
+}
+
+export function isVideoResolution(value: unknown): value is string {
+  return typeof value === "string" && VIDEO_RESOLUTIONS.has(value);
+}
+
 export function isGenerationModality(value: unknown): value is GenerationModality {
-  return value === IMAGE_GENERATION_MODALITY || value === "video";
+  return value === IMAGE_GENERATION_MODALITY || value === VIDEO_GENERATION_MODALITY;
 }

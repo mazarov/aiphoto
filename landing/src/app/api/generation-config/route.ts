@@ -1,19 +1,33 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServer } from "@/lib/supabase";
-import { parseEnabledGenerationModels } from "@/lib/generation-model-labels";
+import {
+  parseEnabledGenerationModels,
+  parseEnabledVideoGenerationModels,
+} from "@/lib/generation-model-labels";
+import { isVideoAnimateUnlocked } from "@/lib/video-generation-contract";
 import {
   DEFAULT_IMAGE_ASPECT_RATIO,
   DEFAULT_IMAGE_SIZE,
+  DEFAULT_VIDEO_ASPECT_RATIO,
+  DEFAULT_VIDEO_DURATION_SECONDS,
+  DEFAULT_VIDEO_MODEL,
+  DEFAULT_VIDEO_RESOLUTION,
   IMAGE_ASPECT_RATIO_OPTIONS,
   IMAGE_GENERATION_MODALITY,
   IMAGE_SIZE_OPTIONS,
+  VIDEO_ASPECT_RATIO_OPTIONS,
+  VIDEO_DURATION_OPTIONS,
+  VIDEO_GENERATION_MODALITY,
+  VIDEO_QUANTITY,
+  VIDEO_RESOLUTION_OPTIONS,
+  isGenerationModality,
 } from "@/lib/generation/image-options";
 
 export async function GET(req: NextRequest) {
   try {
     const modality =
       req.nextUrl.searchParams.get("modality") || IMAGE_GENERATION_MODALITY;
-    if (modality !== IMAGE_GENERATION_MODALITY) {
+    if (!isGenerationModality(modality)) {
       return NextResponse.json(
         { error: "unsupported_modality" },
         { status: 400 }
@@ -32,11 +46,38 @@ export async function GET(req: NextRequest) {
         "max_photos",
         "max_file_size_mb",
         "min_prompt_length",
+        "video_models",
+        "video_animate_enabled",
+        "default_video_model",
       ]);
 
     const config: Record<string, string> = {};
     for (const row of rows || []) {
       config[row.key] = row.value;
+    }
+
+    if (modality === VIDEO_GENERATION_MODALITY) {
+      const models = parseEnabledVideoGenerationModels(config.video_models);
+      return NextResponse.json({
+        modality: VIDEO_GENERATION_MODALITY,
+        enabled: isVideoAnimateUnlocked(config.video_animate_enabled),
+        models,
+        aspectRatios: VIDEO_ASPECT_RATIO_OPTIONS,
+        durations: VIDEO_DURATION_OPTIONS,
+        resolutions: VIDEO_RESOLUTION_OPTIONS,
+        imageSizes: VIDEO_RESOLUTION_OPTIONS,
+        defaults: {
+          model: config.default_video_model || DEFAULT_VIDEO_MODEL,
+          aspectRatio: DEFAULT_VIDEO_ASPECT_RATIO,
+          imageSize: DEFAULT_VIDEO_RESOLUTION,
+          durationSeconds: DEFAULT_VIDEO_DURATION_SECONDS,
+        },
+        limits: {
+          maxPhotos: 1,
+          quantity: VIDEO_QUANTITY,
+          minPromptLength: parseInt(config.min_prompt_length || "8", 10),
+        },
+      });
     }
 
     const models = parseEnabledGenerationModels(config.models);

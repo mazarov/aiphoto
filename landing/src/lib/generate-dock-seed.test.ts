@@ -84,3 +84,19 @@ test("shouldAttachLibraryPhotos is false only for photo_prompt compose", () => {
     false
   );
 });
+
+test("animate seed skips last-result hydrate and parent library photos", () => {
+  const animate = seed({
+    intent: "animate",
+    promptText: "Оживи изображение",
+    parentGenerationId: "parent-1",
+    previewUrl: "https://example/preview.jpg",
+  });
+  assert.equal(isResumeComposeSeed(animate), false);
+  assert.equal(shouldHydrateLastDockResult(animate), false);
+  assert.equal(shouldAttachLibraryPhotos(animate), false);
+  assert.equal(
+    shouldAttachLibraryPhotos(seed({ intent: "animate", parentGenerationId: null })),
+    true
+  );
+});

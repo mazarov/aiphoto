@@ -8,6 +8,7 @@ export type GenerationMenuAction =
   | "download"
   | "copyPrompt"
   | "use"
+  | "animate"
   | "publish"
   | "delete";
 
@@ -19,6 +20,8 @@ type Props = {
   hasPrompt: boolean;
   canPublish: boolean;
   isPublished: boolean;
+  canAnimate?: boolean;
+  canSaveToLibrary?: boolean;
   busyAction: GenerationMenuAction | null;
   onAction: (action: GenerationMenuAction) => void;
 };
@@ -81,6 +84,15 @@ function IconCopy({ className }: { className?: string }) {
   );
 }
 
+function IconAnimate({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <rect x="4" y="5" width="16" height="14" rx="2.5" stroke="currentColor" strokeWidth="1.75" />
+      <path d="m10 9 5 3-5 3V9Z" fill="currentColor" />
+    </svg>
+  );
+}
+
 function IconUse({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
@@ -127,6 +139,8 @@ export function GenerationCardMenu({
   hasPrompt,
   canPublish,
   isPublished,
+  canAnimate = false,
+  canSaveToLibrary = true,
   busyAction,
   onAction,
 }: Props) {
@@ -224,12 +238,24 @@ export function GenerationCardMenu({
         type="button"
         role="menuitem"
         className={ITEM}
-        disabled={!hasResult || Boolean(busyAction)}
+        disabled={!hasResult || !canSaveToLibrary || Boolean(busyAction)}
         onClick={() => run("use")}
       >
         <IconUse className="h-4 w-4 shrink-0" />
         {busyAction === "use" ? "Сохраняем…" : "Использовать"}
       </button>
+      {canAnimate ? (
+        <button
+          type="button"
+          role="menuitem"
+          className={ITEM}
+          disabled={!hasResult || Boolean(busyAction)}
+          onClick={() => run("animate")}
+        >
+          <IconAnimate className="h-4 w-4 shrink-0" />
+          Оживить
+        </button>
+      ) : null}
       <button
         type="button"
         role="menuitem"

@@ -18,8 +18,35 @@ test("parsePendingGenerateDock accepts a photo_prompt seed", () => {
       promptText: "neon alley at night",
       cardId: null,
       intent: "photo_prompt",
+      parentGenerationId: null,
+      previewUrl: null,
     },
     dockSurface: "prompt",
+  });
+});
+
+test("parsePendingGenerateDock accepts an animate seed", () => {
+  const raw = JSON.stringify({
+    seed: {
+      source: "blank",
+      promptText: "Оживи изображение",
+      cardId: null,
+      intent: "animate",
+      parentGenerationId: "gen-1",
+      previewUrl: "https://example/a.jpg",
+    },
+    dockSurface: null,
+  });
+  assert.deepEqual(parsePendingGenerateDock(raw), {
+    seed: {
+      source: "blank",
+      promptText: "Оживи изображение",
+      cardId: null,
+      intent: "animate",
+      parentGenerationId: "gen-1",
+      previewUrl: "https://example/a.jpg",
+    },
+    dockSurface: null,
   });
 });
 

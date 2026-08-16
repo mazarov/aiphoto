@@ -13,7 +13,12 @@ export type PendingGenerateDock = {
   dockSurface: PendingGenerateDockSurface;
 };
 
-const INTENTS = new Set<GenerateDockComposeIntent>(["resume", "text", "photo_prompt"]);
+const INTENTS = new Set<GenerateDockComposeIntent>([
+  "resume",
+  "text",
+  "photo_prompt",
+  "animate",
+]);
 
 function isSeed(value: unknown): value is GenerateDockSeed {
   if (!value || typeof value !== "object") return false;
@@ -42,6 +47,8 @@ export function parsePendingGenerateDock(raw: string | null): PendingGenerateDoc
         promptText: parsed.seed.promptText,
         cardId: parsed.seed.cardId,
         intent: parsed.seed.intent,
+        parentGenerationId: parsed.seed.parentGenerationId ?? null,
+        previewUrl: parsed.seed.previewUrl ?? null,
       },
       dockSurface: parsed.dockSurface ?? null,
     };

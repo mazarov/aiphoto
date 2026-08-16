@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   ProcessingError,
+  assertVideoInputSource,
   resolveGenerationInputSource,
   RESULTS_BUCKET,
   type GenerationInputJob,
@@ -83,6 +84,27 @@ test("continuation rejects a parent owned by another requester", () => {
     (error) =>
       error instanceof ProcessingError &&
       error.errorType === "parent_generation_forbidden",
+  );
+});
+
+test("video source rejects text-only and accepts a single image", () => {
+  assert.throws(
+    () =>
+      assertVideoInputSource({
+        sourceType: "text_only",
+        bucket: "web-generation-uploads",
+        paths: [],
+      }),
+    (error) =>
+      error instanceof ProcessingError && error.errorType === "video_source_required",
+  );
+  assert.equal(
+    assertVideoInputSource({
+      sourceType: "user_photos",
+      bucket: "web-generation-uploads",
+      paths: ["user/a.jpg"],
+    }).paths.length,
+    1,
   );
 });
 
