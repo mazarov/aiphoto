@@ -11,6 +11,7 @@ import {
 } from "react";
 import { usePathname } from "next/navigation";
 import { lockListingScrollForModal } from "@/lib/scroll-preservation";
+import { savePricingReturnPath } from "@/lib/yookassa-return-path";
 import { trackVirtualPageView } from "@/lib/yandex-metrika";
 
 const PRICING_PATH = "/pricing";
@@ -24,10 +25,15 @@ function isPricingPath(path: string): boolean {
   return normalizePath(path) === PRICING_PATH;
 }
 
+type PricingCloseOptions = {
+  /** `back` restores the listing URL. `none` for leaving to YooKassa. */
+  history?: "back" | "none";
+};
+
 type PricingModalContextType = {
   isOpen: boolean;
   open: () => void;
-  close: () => void;
+  close: (options?: PricingCloseOptions) => void;
 };
 
 const PricingModalContext = createContext<PricingModalContextType>({
@@ -51,6 +57,7 @@ export function PricingModalProvider({ children }: { children: ReactNode }) {
     if (typeof window !== "undefined") {
       lockListingScrollForModal();
       const referer = window.location.pathname + window.location.search;
+      savePricingReturnPath(referer);
       window.history.pushState(null, "", PRICING_PATH);
       trackVirtualPageView(PRICING_PATH, {
         referer,
@@ -61,18 +68,14 @@ export function PricingModalProvider({ children }: { children: ReactNode }) {
     setIsOpen(true);
   }, []);
 
-  const close = useCallback(() => {
-    if (typeof window !== "undefined") {
-      window.history.scrollRestoration = "manual";
-      isOpenRef.current = false;
-      setIsOpen(false);
-      window.setTimeout(() => {
-        window.history.back();
-      }, 0);
-      return;
-    }
+  const close = useCallback((options?: PricingCloseOptions) => {
     isOpenRef.current = false;
     setIsOpen(false);
+    if (typeof window === "undefined" || options?.history === "none") return;
+    window.history.scrollRestoration = "manual";
+    window.setTimeout(() => {
+      window.history.back();
+    }, 0);
   }, []);
 
   useEffect(() => {

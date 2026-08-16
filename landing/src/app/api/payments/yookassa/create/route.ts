@@ -5,6 +5,7 @@ import { ensureLandingUserForGeneration } from "@/lib/ensure-landing-user";
 import { getPricingPlan } from "@/lib/pricing-plans";
 import { createYooKassaPayment } from "@/lib/yookassa-client";
 import { assertYooKassaPaymentMatches } from "@/lib/yookassa-core";
+import { buildYooKassaReturnUrl } from "@/lib/yookassa-return-path";
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -19,15 +20,20 @@ type LocalPayment = {
   confirmation_url: string | null;
 };
 
-function buildReturnUrl(localPaymentId: string, preserveTestAccess: boolean): string {
+function buildReturnUrl(
+  localPaymentId: string,
+  preserveTestAccess: boolean,
+  returnPath: string | null,
+): string {
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim();
   if (!siteUrl) throw new Error("NEXT_PUBLIC_SITE_URL is not configured");
-  const url = new URL("/pricing", siteUrl);
-  if (preserveTestAccess || process.env.NODE_ENV !== "production") {
-    url.searchParams.set("test", "true");
-  }
-  url.searchParams.set("payment", localPaymentId);
-  return url.toString();
+  return buildYooKassaReturnUrl({
+    siteUrl,
+    localPaymentId,
+    returnPath,
+    preserveTestAccess:
+      preserveTestAccess || process.env.NODE_ENV !== "production",
+  });
 }
 
 async function readExistingPayment(
@@ -55,7 +61,12 @@ export async function POST(request: NextRequest) {
     }
 
     const body = (await request.json().catch(() => null)) as
-      | { planId?: unknown; checkoutAttemptId?: unknown; testAccess?: unknown }
+      | {
+          planId?: unknown;
+          checkoutAttemptId?: unknown;
+          testAccess?: unknown;
+          returnPath?: unknown;
+        }
       | null;
     const plan = getPricingPlan(body?.planId);
     const idempotencyKey =
@@ -134,7 +145,11 @@ export async function POST(request: NextRequest) {
       localPaymentId: local.id,
       idempotencyKey: local.idempotency_key,
       plan: fixedPlan,
-      returnUrl: buildReturnUrl(local.id, body?.testAccess === true),
+      returnUrl: buildReturnUrl(
+        local.id,
+        body?.testAccess === true,
+        typeof body?.returnPath === "string" ? body.returnPath : null,
+      ),
     });
     assertYooKassaPaymentMatches(providerPayment, {
       localPaymentId: local.id,

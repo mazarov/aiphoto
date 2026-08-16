@@ -107,6 +107,18 @@ function remainingFree(freeMax: number, count: number, pending: number): number 
   return Math.max(0, freeMax - (count + pending));
 }
 
+/** Timestamptz compare — never string-compare ISO (`+00:00` < `.000Z`). */
+export function isAnalyzeQuotaCurrentWindow(
+  rowWindow: string | null | undefined,
+  windowStart: string,
+): boolean {
+  if (!rowWindow) return false;
+  const rowMs = Date.parse(rowWindow);
+  const startMs = Date.parse(windowStart);
+  if (!Number.isFinite(rowMs) || !Number.isFinite(startMs)) return false;
+  return rowMs >= startMs;
+}
+
 function nextMode(
   remaining: number,
   authenticated: boolean,
@@ -130,7 +142,7 @@ async function readUsage(
     .eq("ip_hash", bucketKey)
     .maybeSingle();
   if (error) throw error;
-  if (!data || String(data.window_start) < windowStart) {
+  if (!data || !isAnalyzeQuotaCurrentWindow(String(data.window_start ?? ""), windowStart)) {
     return { count: 0, pending: 0 };
   }
   return {

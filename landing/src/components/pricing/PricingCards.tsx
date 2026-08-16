@@ -3,13 +3,16 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { PRICING_PLANS, type PricingPlan } from "./pricing-plans";
 import { useAuth } from "@/context/AuthContext";
-import { requestCreditBalanceRefresh } from "@/lib/credit-balance-events";
+import { usePricingModal } from "@/context/PricingModalContext";
+import {
+  clearPricingReturnPath,
+  readPricingReturnPath,
+} from "@/lib/yookassa-return-path";
 import {
   reachYandexMetrikaGoal,
   YM_GOAL_PROMPT_CARD_GENERATION_PRICING,
   YM_GOAL_YOOKASSA_CHECKOUT_REDIRECT,
   YM_GOAL_YOOKASSA_CHECKOUT_STARTED,
-  YM_GOAL_YOOKASSA_PAYMENT_SUCCEEDED,
 } from "@/lib/yandex-metrika";
 
 const rubles = new Intl.NumberFormat("ru-RU");
@@ -241,9 +244,9 @@ function PlanCard({
 
 export function PricingCards() {
   const { user, loading: authLoading, openAuthModal } = useAuth();
+  const { close: closePricing } = usePricingModal();
   const [checkout, setCheckout] = useState<CheckoutState>({ kind: "idle" });
   const checkoutInFlightRef = useRef(false);
-  const successTrackedRef = useRef(false);
 
   useEffect(() => {
     reachYandexMetrikaGoal(YM_GOAL_PROMPT_CARD_GENERATION_PRICING);
@@ -273,6 +276,7 @@ export function PricingCards() {
           checkoutAttemptId: pending.checkoutAttemptId,
           testAccess:
             new URL(window.location.href).searchParams.get("test") === "true",
+          returnPath: readPricingReturnPath(),
         }),
       });
       const payload = (await response.json().catch(() => null)) as
@@ -289,6 +293,10 @@ export function PricingCards() {
       }
 
       clearPendingCheckout();
+      const returnPath = readPricingReturnPath();
+      clearPricingReturnPath();
+      closePricing({ history: "none" });
+      window.history.replaceState(null, "", returnPath);
       reachYandexMetrikaGoal(YM_GOAL_YOOKASSA_CHECKOUT_REDIRECT, {
         plan_id: plan.id,
       });
@@ -303,7 +311,7 @@ export function PricingCards() {
             : "Не удалось создать оплату. Попробуйте ещё раз.",
       });
     }
-  }, [openAuthModal]);
+  }, [closePricing, openAuthModal]);
 
   const selectPlan = useCallback(
     (plan: PricingPlan) => {
@@ -334,100 +342,6 @@ export function PricingCards() {
     if (!pending) return;
     void createCheckout(pending);
   }, [authLoading, createCheckout, user]);
-
-  useEffect(() => {
-    const paymentId = new URL(window.location.href).searchParams.get("payment");
-    if (!paymentId || !PAYMENT_ID_PATTERN.test(paymentId)) return;
-    if (authLoading) return;
-    if (needsCheckoutAuth(user)) {
-      setCheckout({
-        kind: "error",
-        message: "Войдите в аккаунт, чтобы проверить оплату",
-      });
-      openAuthModal();
-      return;
-    }
-
-    let canceled = false;
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    let attempts = 0;
-    const maxAttempts = 20;
-    const pollDelayMs = (attempt: number) => {
-      if (attempt <= 5) return 2_000;
-      if (attempt <= 12) return 5_000;
-      return 10_000;
-    };
-    setCheckout({ kind: "pending", message: "Проверяем оплату…" });
-
-    const checkStatus = async () => {
-      attempts += 1;
-      try {
-        const response = await fetch(`/api/payments/yookassa/${paymentId}`, {
-          cache: "no-store",
-        });
-        const payload = (await response.json().catch(() => null)) as
-          | { status?: string; credits?: number; message?: string }
-          | null;
-        if (!response.ok) {
-          if (response.status === 401) {
-            setCheckout({ kind: "idle" });
-            openAuthModal();
-            return;
-          }
-          throw new Error(payload?.message || "Не удалось проверить оплату");
-        }
-        if (canceled) return;
-
-        if (payload?.status === "succeeded") {
-          const credits = Number(payload.credits || 0);
-          setCheckout({
-            kind: "success",
-            message: `Оплата прошла. Начислено ${rubles.format(credits)} токенов`,
-          });
-          requestCreditBalanceRefresh();
-          if (!successTrackedRef.current) {
-            successTrackedRef.current = true;
-            reachYandexMetrikaGoal(YM_GOAL_YOOKASSA_PAYMENT_SUCCEEDED, {
-              credits,
-            });
-          }
-          return;
-        }
-        if (payload?.status === "canceled") {
-          setCheckout({
-            kind: "canceled",
-            message: "Оплата отменена. Токены не списаны и не начислены.",
-          });
-          return;
-        }
-        if (attempts >= maxAttempts) {
-          setCheckout({
-            kind: "pending",
-            message: "Платёж обрабатывается. Баланс обновится после подтверждения.",
-          });
-          return;
-        }
-        timer = setTimeout(checkStatus, pollDelayMs(attempts));
-      } catch (error) {
-        if (canceled) return;
-        if (attempts < maxAttempts) {
-          timer = setTimeout(checkStatus, pollDelayMs(attempts));
-          return;
-        }
-        setCheckout({
-          kind: "error",
-          message:
-            error instanceof Error ? error.message : "Не удалось проверить оплату",
-        });
-      }
-    };
-
-    void checkStatus();
-    return () => {
-      canceled = true;
-      if (timer) clearTimeout(timer);
-    };
-  }, [authLoading, openAuthModal, user]);
 
   return (
     <>
