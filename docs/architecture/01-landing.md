@@ -1180,7 +1180,7 @@ landing/src/
 |---------------|-----------|
 | Dockhost / CI | Контекст = каталог **`landing/`**. Команда: **`docker build -f landing/Dockerfile landing/`** (из корня клона) или эквивалент с путём к контексту `./landing`. В дереве есть **`landing/stv-web-sidepanel/`** (зеркало **`extension/sidepanel`**, в git). Трейсинг Next: обычно плоский **`standalone/server.js`**; runner Dockerfile копирует в **`/app`**. |
 | Локально `next build` из `landing/` | Если в родителе репо есть **`package-lock.json`** → **`next.config.ts`** может трейсить от корня монорепо → **`standalone/landing/server.js`**. **`build-stv-web`** сначала пробует **`../extension/sidepanel`**, иначе **`./stv-web-sidepanel`**. |
-| Generation worker | Отдельный Dockhost service, контекст = корень репозитория: `docker build -f Dockerfile.worker .`. Образ содержит `web-generation-worker` и pure helper `landing/src/lib/image-generation-prompt.ts`; health: `:3003/health/ready`. |
+| Generation worker | Отдельный Dockhost service, контекст = корень репозитория: `docker build -f Dockerfile.worker .`. Образ содержит `web-generation-worker` и pure helpers `image-generation-prompt.ts`, `generation-edit-contract.ts`, `video-motion-prompt.ts`; health: `:3003/health/ready`. |
 
 ### Правила сборки (чеклист)
 

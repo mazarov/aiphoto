@@ -10,5 +10,10 @@
     "resolveJsonModule": true,
     "skipLibCheck": true
   },
-  "include": ["src/**/*", "../landing/src/lib/image-generation-prompt.ts"]
+  "include": [
+    "src/**/*",
+    "../landing/src/lib/image-generation-prompt.ts",
+    "../landing/src/lib/generation-edit-contract.ts",
+    "../landing/src/lib/video-motion-prompt.ts"
+  ]
 }
