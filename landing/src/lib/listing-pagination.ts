@@ -5,7 +5,7 @@
 export const LISTING_SSR_INITIAL_LIMIT = 10;
 
 /** Размер следующих порций (и шаг offset в пространстве ranked RPC). */
-export const LISTING_INFINITE_PAGE_SIZE = 48;
+export const LISTING_INFINITE_PAGE_SIZE = 24;
 
 /** Lookahead for listing/search sentinels. Same value for catalog and `/search`. */
 export const LISTING_SENTINEL_ROOT_MARGIN_PX = 600;
@@ -57,6 +57,21 @@ export function isListingSentinelInLoadRange(
   return (
     sentinelRect.bottom >= rootRect.top - rootMarginPx &&
     sentinelRect.top <= rootRect.bottom + rootMarginPx
+  );
+}
+
+/**
+ * Scroll fallback for fast gestures: unlike the bounded drain check above,
+ * a sentinel already skipped above the viewport still counts as reached.
+ */
+export function hasListingSentinelReachedLoadRange(
+  sentinel: Pick<Element, "getBoundingClientRect">,
+  rootRect: { bottom: number },
+  rootMarginPx = LISTING_SENTINEL_ROOT_MARGIN_PX
+): boolean {
+  return (
+    sentinel.getBoundingClientRect().top <=
+    rootRect.bottom + rootMarginPx
   );
 }
 

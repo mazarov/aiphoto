@@ -42,6 +42,7 @@ export function InfiniteGrid({
   ]);
   const cards = useMemo(() => cardPages.flat(), [cardPages]);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState(false);
   const [hasMore, setHasMore] = useState(() =>
     hasMoreRankedPages(0, initialRankedBatchSize, totalCount)
   );
@@ -63,6 +64,8 @@ export function InfiniteGrid({
     if (loadingRef.current || !hasMoreRef.current) return;
     loadingRef.current = true;
     setLoading(true);
+    setLoadError(false);
+    let shouldDrain = false;
     try {
       const oldOffset = offsetRef.current;
       const sp = new URLSearchParams();
@@ -75,41 +78,47 @@ export function InfiniteGrid({
       }
       if (strictMode) sp.set("strict", "1");
       const res = await fetch(`/api/listing?${sp}`);
+      if (!res.ok) {
+        throw new Error(`listing_request_failed:${res.status}`);
+      }
       const data = await res.json();
       const newCards = (data.cards || []) as PromptCardFull[];
       const rankedSize = Math.max(0, Number(data.ranked_batch_size) || 0);
 
-      if (newCards.length === 0) {
+      const apiTotal = Number(data.total_count);
+      if (Number.isFinite(apiTotal) && apiTotal >= 0) {
+        totalCountRef.current = apiTotal;
+      }
+      if (rankedSize === 0) {
         setHasMore(false);
         hasMoreRef.current = false;
         return;
       }
 
       const step = resolveListingPageStep(rankedSize);
-      setCardPages((prev) => appendUniqueCardPage(prev, newCards));
+      if (newCards.length > 0) {
+        setCardPages((prev) => appendUniqueCardPage(prev, newCards));
+      }
       offsetRef.current = oldOffset + step;
 
-      const apiTotal = Number(data.total_count);
-      if (Number.isFinite(apiTotal) && apiTotal > 0) {
-        totalCountRef.current = apiTotal;
-      }
       const more = hasMoreRankedPages(oldOffset, step, totalCountRef.current);
       setHasMore(more);
       hasMoreRef.current = more;
-    } catch {
-      setHasMore(false);
-      hasMoreRef.current = false;
+      shouldDrain = more;
+    } catch (error) {
+      console.error("[InfiniteGrid] load more failed", error);
+      // A transient request failure is not the end of the listing.
+      // Keep hasMore=true so the next scroll or explicit retry can recover.
+      setLoadError(true);
     } finally {
       setLoading(false);
       loadingRef.current = false;
-      scheduleDrainRef.current();
+      if (shouldDrain) scheduleDrainRef.current();
     }
   }, [strictMode]);
 
   const { sentinelRef, scheduleDrain } = useListingSentinelLoadMore(
-    () => {
-      void loadMore();
-    },
+    loadMore,
     () => loadingRef.current,
     () => hasMoreRef.current
   );
@@ -132,6 +141,23 @@ export function InfiniteGrid({
       <div ref={sentinelRef} className="h-px" />
 
       {loading && <ListingGridLoadingSkeleton photoOnly />}
+      {loadError && (
+        <div
+          className="flex flex-col items-center gap-3 py-6 text-center"
+          role="status"
+        >
+          <p className="text-sm text-zinc-600">
+            Не удалось загрузить следующие карточки.
+          </p>
+          <button
+            type="button"
+            onClick={() => void loadMore()}
+            className="min-h-11 rounded-full border border-zinc-300 bg-white px-5 text-sm font-semibold text-zinc-800 transition-colors hover:bg-zinc-50"
+          >
+            Повторить
+          </button>
+        </div>
+      )}
     </>
   );
 }
