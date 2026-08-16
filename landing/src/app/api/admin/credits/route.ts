@@ -11,15 +11,11 @@ import {
   type AdminCreditLiabilityRow,
   type AdminCreditLiabilitySummary,
 } from "@/lib/admin-credits";
+import { estimateCreditLiabilityRub } from "@/lib/finance-pnl";
+import { FINANCE_RUB_PER_CREDIT } from "@/lib/finance-types";
 import { createSupabaseServer } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
-
-function numberOrNull(value: unknown): number | null {
-  if (value == null) return null;
-  const amount = Number(value);
-  return Number.isFinite(amount) ? amount : null;
-}
 
 export async function GET(req: NextRequest) {
   const gate = await requireAnalyticsAdmin(req);
@@ -73,8 +69,8 @@ export async function GET(req: NextRequest) {
     summary: {
       usersWithCredits: Number(summaryRow?.users_with_credits || 0),
       creditsTotal,
-      blendedRubPerCredit: numberOrNull(summaryRow?.blended_rub_per_credit),
-      liabilityRubEstimate: numberOrNull(summaryRow?.liability_rub_estimate),
+      blendedRubPerCredit: FINANCE_RUB_PER_CREDIT,
+      liabilityRubEstimate: estimateCreditLiabilityRub(creditsTotal),
     },
     flow: {
       days,

@@ -54,6 +54,11 @@ export type FinanceImportMeta = {
 export const FINANCE_USD_RUB_RATE = 90;
 /** УСН 6% from YooKassa gross (выручка), not from net after acquiring. */
 export const FINANCE_REVENUE_TAX_RATE = 0.06;
+/** Fulfillment cost: 1 generation = 5 credits = 2.5 ₽. */
+export const FINANCE_CREDITS_PER_GENERATION = 5;
+export const FINANCE_GENERATION_COST_RUB = 2.5;
+export const FINANCE_RUB_PER_CREDIT =
+  FINANCE_GENERATION_COST_RUB / FINANCE_CREDITS_PER_GENERATION;
 
 export type FinancePnl = {
   usdRubRate: number;

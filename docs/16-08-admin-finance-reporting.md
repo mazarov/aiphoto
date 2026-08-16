@@ -37,7 +37,7 @@
 - RPC `admin_finance_replace_import`, `admin_credit_liability_summary`, `admin_credit_liabilities`, `admin_credit_daily_flow` — только `service_role`
 - SQL `185`: daily flow + granted/spent в списке пользователей
 
-Оценка обязательства в RUB = `credits_total * blended ₽/кредит` по боевым `landing_yookassa_payments` (`succeeded`, `credited_at`, не test). Это оценка, не касса.
+Оценка обязательства в RUB = `credits_total * 0,5 ₽`: 1 генерация = 5 кредитов = 2,5 ₽. Это себестоимость исполнения, не blended-цена покупки из ЮKassa и не касса.
 
 ## API
 

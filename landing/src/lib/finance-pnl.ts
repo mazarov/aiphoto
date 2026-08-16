@@ -1,5 +1,6 @@
 import {
   FINANCE_REVENUE_TAX_RATE,
+  FINANCE_RUB_PER_CREDIT,
   FINANCE_USD_RUB_RATE,
   type FinanceDailyPoint,
   type FinanceModelDailyPoint,
@@ -14,6 +15,10 @@ export function moneyRub(value: number | string | null | undefined): number {
 
 export function usdToRub(usd: number): number {
   return moneyRub(usd * FINANCE_USD_RUB_RATE);
+}
+
+export function estimateCreditLiabilityRub(credits: number): number {
+  return moneyRub(Math.max(0, Number(credits) || 0) * FINANCE_RUB_PER_CREDIT);
 }
 
 export function computeFinancePnl(input: {

@@ -278,8 +278,8 @@ export function FinanceTab() {
               <p className="mt-1 text-sm text-zinc-500">
                 Выручка, косты и чистая прибыль. Пунктир — накопленные обязательства сейчас
                 {data.liability.creditsTotal
-                  ? ` (${data.liability.creditsTotal.toLocaleString("ru-RU")} кр.)`
-                  : ""}.
+                  ? ` (${data.liability.creditsTotal.toLocaleString("ru-RU")} кр., 5 кр. = 2,5 ₽)`
+                  : " (5 кр. = 2,5 ₽)"}.
               </p>
             </div>
             <p className="text-sm font-semibold tabular-nums text-amber-800">

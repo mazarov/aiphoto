@@ -107,9 +107,10 @@ export function CreditLiabilitySection({ days }: { days: number }) {
             {formatRub(data?.summary.liabilityRubEstimate ?? null)}
           </p>
           <p className="mt-1 text-xs text-zinc-500">
+            5 кр. = 2,5 ₽
             {data?.summary.blendedRubPerCredit != null
-              ? `${data.summary.blendedRubPerCredit.toLocaleString("ru-RU", { maximumFractionDigits: 2 })} ₽ / кредит`
-              : "Нет боевых начислений для оценки"}
+              ? ` · ${data.summary.blendedRubPerCredit.toLocaleString("ru-RU", { maximumFractionDigits: 2 })} ₽ / кредит`
+              : ""}
           </p>
         </div>
       </div>

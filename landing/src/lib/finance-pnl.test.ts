@@ -5,10 +5,17 @@ import {
   buildFinanceModelDailySeries,
   clampFinanceDay,
   computeFinancePnl,
+  estimateCreditLiabilityRub,
   listFinanceMonthDays,
   moscowDayKey,
   usdToRub,
 } from "./finance-pnl";
+
+test("credit liability uses 5 credits = 2.5 RUB", () => {
+  assert.equal(estimateCreditLiabilityRub(5), 2.5);
+  assert.equal(estimateCreditLiabilityRub(3605), 1802.5);
+  assert.equal(estimateCreditLiabilityRub(0), 0);
+});
 
 test("Gemini spend uses static 90 RUB per USD", () => {
   assert.equal(usdToRub(10), 900);

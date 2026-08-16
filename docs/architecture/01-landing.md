@@ -1,5 +1,7 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-08-16 (**admin credit liability cost:** обязательство = live-кредиты × 0,5 ₽; 1 генерация = 5 кр. = 2,5 ₽, не blended ЮKassa.)
+>
 > Последнее обновление: 2026-08-16 (**admin finance daily chart:** `/admin/finance` график выручка / косты / прибыль + затраты Gemini по моделям по дням; пунктир live-обязательств.)
 >
 > Последнее обновление: 2026-08-16 (**admin finance page:** касса выгрузок на `/admin/finance` в AdminNav после «Оплаты»; `/admin/analytics?tab=finance` редиректит туда. Кредиты остаются на Обзоре.)
@@ -430,13 +432,14 @@
   `Subtotal ($)` × статический курс **$1 = 90 ₽**. Чистый доход =
   gross − комиссия/НДС ЮKassa − **УСН 6% с выручки (gross)** − Gemini RUB.
   Дневной график: выручка, косты (комиссия + налог + Gemini), прибыль;
-  пунктир — live оценка обязательств `admin_credit_liability_summary`.
+  пунктир — live оценка обязательств: `credits_total × 0,5 ₽`
+  (1 генерация = 5 кредитов = 2,5 ₽). RPC `admin_credit_liability_summary`
+  даёт только остаток кредитов; blended ЮKassa в оценку не входит.
   Отдельный график — затраты Gemini по семействам моделей по дням.
   Повторный upload заменяет месяц через `admin_finance_replace_import`. Live
   остаток кредитов на Обзоре — график по `admin_credit_daily_flow` (реконструкция
   от текущего `landing_users.credits`) и разбивка `admin_credit_liabilities`
-  с колонкой «Осталось». Оценка обязательства в RUB считается blended-ценой
-  боевых YooKassa и не подменяет кассу. Telegram Stars в кассе v1 нет; в
+  с колонкой «Осталось». Telegram Stars в кассе v1 нет; в
   динамике кредитов Stars `state=done` учитываются.
 - **Генерации пользователей:** `admin_user_generations_queue` возвращает все
   `client_source IS DISTINCT FROM 'admin'` и terminal/non-terminal statuses.
@@ -961,7 +964,7 @@ type ResolvedRoute = {
 | `landing_add_credits` | Начисление кредитов в `landing_users.credits` после web-оплаты |
 | `landing_fulfill_yookassa_payment` | Атомарное идемпотентное завершение YooKassa-платежа и начисление сохранённых в ledger токенов |
 | `admin_finance_replace_import` | Service-only replace месячного finance-импорта (`revenue` \| `cogs`) |
-| `admin_credit_liability_summary` | Service-only totals `landing_users.credits > 0` + blended RUB-оценка |
+| `admin_credit_liability_summary` | Service-only totals `landing_users.credits > 0`; RUB-оценка в админке = 5 кр. / 2,5 ₽ |
 | `admin_credit_liabilities` | Service-only keyset-список пользователей с `credits > 0`, lifetime granted/spent, optional search |
 | `admin_credit_daily_flow` | Service-only дневные начисления (ЮKassa/Stars), списания и возвраты генераций |
 

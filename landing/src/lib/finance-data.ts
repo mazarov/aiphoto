@@ -5,6 +5,7 @@ import {
   buildFinanceModelDailySeries,
   clampFinanceDay,
   computeFinancePnl,
+  estimateCreditLiabilityRub,
   moneyRub,
   moscowDayKey,
   usdToRub,
@@ -233,14 +234,11 @@ export async function fetchFinanceMonth(
   const { data: liabilityRows } = await supabase.rpc("admin_credit_liability_summary");
   const liabilityRow = (liabilityRows || [])[0] as {
     credits_total?: number;
-    liability_rub_estimate?: number | null;
   } | undefined;
-  const liabilityRub = liabilityRow?.liability_rub_estimate == null
-    ? null
-    : Number(liabilityRow.liability_rub_estimate);
+  const creditsTotal = Number(liabilityRow?.credits_total || 0);
   const liability: FinanceLiability = {
-    creditsTotal: Number(liabilityRow?.credits_total || 0),
-    liabilityRubEstimate: liabilityRub != null && Number.isFinite(liabilityRub) ? liabilityRub : null,
+    creditsTotal,
+    liabilityRubEstimate: estimateCreditLiabilityRub(creditsTotal),
   };
 
   return {
