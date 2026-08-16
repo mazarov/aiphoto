@@ -22,7 +22,7 @@ export const HOMEPAGE_SEO = {
   faqTitle: "Частые вопросы",
   examplesTitle: "Готовые промты для фото",
   examplesIntro:
-    "Выберите категорию или откройте карточку — скопируйте промт для GPT, ChatGPT (гпт), Nano Banana (нано банана, нано банано, nanobanana) или Gemini (гемини).",
+    "Выберите категорию или откройте карточку — скопируйте промт для GPT, ChatGPT (гпт, джипити), Nano Banana (нано банана, нано банано, nanobanana) или Gemini (гемини).",
 } as const;
 
 export type HomepageFaqItem = {
