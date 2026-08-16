@@ -4,10 +4,13 @@ import {
   hasListingSentinelReachedLoadRange,
   hasMoreRankedPages,
   isListingSentinelInLoadRange,
+  LISTING_FILL_LOOKAHEAD_PX,
   LISTING_INFINITE_PAGE_SIZE,
   LISTING_SSR_INITIAL_LIMIT,
+  listingContentRemainingPx,
   resolveListingPageStep,
   shouldDrainListingPage,
+  shouldFillListingPage,
 } from "./listing-pagination";
 
 test("hasMoreRankedPages uses ranked offset, not expanded card count", () => {
@@ -86,6 +89,41 @@ test("isListingSentinelInLoadRange includes the 600px lookahead", () => {
     isListingSentinelInLoadRange(sentinel, { top: 0, bottom: 800 }, 500),
     false
   );
+});
+
+test("fill uses last card bottom, not a tall empty masonry box", () => {
+  assert.equal(listingContentRemainingPx(400, 844), -444);
+  assert.equal(
+    shouldFillListingPage({
+      hasMore: true,
+      loading: false,
+      restoreInProgress: false,
+      remainingPx: listingContentRemainingPx(400, 844),
+      pagesLoadedThisPass: 0,
+    }),
+    true
+  );
+  assert.equal(
+    shouldFillListingPage({
+      hasMore: true,
+      loading: false,
+      restoreInProgress: false,
+      remainingPx: listingContentRemainingPx(3000, 844),
+      pagesLoadedThisPass: 0,
+    }),
+    false
+  );
+  assert.equal(
+    shouldFillListingPage({
+      hasMore: true,
+      loading: false,
+      restoreInProgress: false,
+      remainingPx: listingContentRemainingPx(400, 844),
+      pagesLoadedThisPass: 3,
+    }),
+    false
+  );
+  assert.ok(LISTING_FILL_LOOKAHEAD_PX >= 800);
 });
 
 test("fast-scroll fallback treats an already skipped sentinel as reached", () => {

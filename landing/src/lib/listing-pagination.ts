@@ -11,6 +11,14 @@ export const LISTING_INFINITE_PAGE_SIZE = 24;
 export const LISTING_SENTINEL_ROOT_MARGIN_PX = 600;
 
 /**
+ * Fill the viewport from the last visible card, not from the masonry box or
+ * a 1px sentinel. A tall empty container must not delay the next page.
+ */
+export const LISTING_FILL_LOOKAHEAD_PX = 1200;
+export const LISTING_FILL_MAX_PAGES_PER_PASS = 3;
+export const LISTING_FILL_ITEM_SELECTOR = "[data-listing-fill-item]";
+
+/**
  * Offset/step are ranked RPC units (`cards_count` / `ranked_batch_size`),
  * `totalCount` is `total_count`.
  */
@@ -73,6 +81,36 @@ export function hasListingSentinelReachedLoadRange(
     sentinel.getBoundingClientRect().top <=
     rootRect.bottom + rootMarginPx
   );
+}
+
+export function listingContentRemainingPx(
+  contentBottom: number,
+  viewportBottom: number
+): number {
+  return contentBottom - viewportBottom;
+}
+
+/**
+ * Load the next page while the last card is already inside or near the fold.
+ * `pagesLoadedThisPass` caps mount/chain fetches so a tall desktop does not
+ * pull the whole catalog at once.
+ */
+export function shouldFillListingPage(options: {
+  hasMore: boolean;
+  loading: boolean;
+  restoreInProgress: boolean;
+  remainingPx: number;
+  pagesLoadedThisPass: number;
+  lookaheadPx?: number;
+  maxPagesPerPass?: number;
+}): boolean {
+  if (!options.hasMore || options.loading || options.restoreInProgress) {
+    return false;
+  }
+  const lookahead = options.lookaheadPx ?? LISTING_FILL_LOOKAHEAD_PX;
+  const maxPages = options.maxPagesPerPass ?? LISTING_FILL_MAX_PAGES_PER_PASS;
+  if (options.pagesLoadedThisPass >= maxPages) return false;
+  return options.remainingPx < lookahead;
 }
 
 export function listingScrollRootRect(

@@ -106,6 +106,7 @@ export function StableListingMasonry({
           <div
             key={card.id}
             className="stable-listing-masonry-item"
+            data-listing-fill-item=""
             style={itemStyle}
           >
             <ListingPhotoTile

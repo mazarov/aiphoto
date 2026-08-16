@@ -33,7 +33,11 @@ export function ListingMasonry({
 }
 
 export function ListingMasonryItem({ children }: { children: ReactNode }) {
-  return <div className={LISTING_MASONRY_ITEM_CLASS}>{children}</div>;
+  return (
+    <div className={LISTING_MASONRY_ITEM_CLASS} data-listing-fill-item="">
+      {children}
+    </div>
+  );
 }
 
 type SkeletonProps = {

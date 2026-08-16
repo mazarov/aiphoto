@@ -2,21 +2,31 @@
 
 import { useCallback, useEffect, useRef } from "react";
 import {
-  hasListingSentinelReachedLoadRange,
-  LISTING_SENTINEL_ROOT_MARGIN_PX,
-  isListingSentinelInLoadRange,
+  LISTING_FILL_ITEM_SELECTOR,
+  LISTING_FILL_LOOKAHEAD_PX,
+  listingContentRemainingPx,
   listingScrollRootRect,
-  shouldDrainListingPage,
+  shouldFillListingPage,
 } from "@/lib/listing-pagination";
 import {
   getListingScrollRoot,
   isListingScrollRestoreInProgress,
 } from "@/lib/scroll-preservation";
 
+function readListingContentBottom(scope: ParentNode): number | null {
+  const items = scope.querySelectorAll(LISTING_FILL_ITEM_SELECTOR);
+  if (items.length === 0) return null;
+  let bottom = Number.NEGATIVE_INFINITY;
+  for (const item of items) {
+    bottom = Math.max(bottom, item.getBoundingClientRect().bottom);
+  }
+  return Number.isFinite(bottom) ? bottom : null;
+}
+
 /**
- * Shared listing/search infinite-scroll trigger.
- * IO only fires on crossing; after a page lands we drain if the sentinel
- * is still inside rootMargin (first-page fold, duplicate-ranked appends).
+ * Viewport-fill controller for listing/search infinite scroll.
+ * Wake-ups (scroll, resize, mount, request settle) only call ensureFilled.
+ * The decision uses the last card bottom, not a 1px sentinel crossing.
  */
 export function useListingSentinelLoadMore(
   loadMore: () => void | Promise<void>,
@@ -29,113 +39,91 @@ export function useListingSentinelLoadMore(
   const hasMoreRef = useRef(hasMore);
   const triggeringRef = useRef(false);
   const scrollCheckRafRef = useRef<number | null>(null);
-  const fallbackPausedUntilRef = useRef(0);
+  const pagesThisPassRef = useRef(0);
   loadMoreRef.current = loadMore;
   isBusyRef.current = isBusy;
   hasMoreRef.current = hasMore;
 
-  const triggerLoadMore = useCallback(async () => {
+  const ensureFilled = useCallback(() => {
     if (triggeringRef.current) return;
-    triggeringRef.current = true;
-    try {
-      await loadMoreRef.current();
-    } finally {
-      triggeringRef.current = false;
-      // Ignore the scroll event produced by browser scroll anchoring after append.
-      // IntersectionObserver remains active during this short fallback-only pause.
-      fallbackPausedUntilRef.current = performance.now() + 250;
-    }
-  }, []);
+    if (isListingScrollRestoreInProgress()) return;
+    if (isBusyRef.current() || !hasMoreRef.current()) return;
 
-  const drainIfNeeded = useCallback(() => {
-    const el = sentinelRef.current;
-    if (!el) return;
+    const scrollRoot = getListingScrollRoot();
+    const viewport = listingScrollRootRect(scrollRoot);
+    const scope =
+      scrollRoot instanceof HTMLElement ? scrollRoot : document;
+    const contentBottom =
+      readListingContentBottom(scope) ??
+      sentinelRef.current?.getBoundingClientRect().bottom ??
+      viewport.bottom;
+    const remainingPx = listingContentRemainingPx(
+      contentBottom,
+      viewport.bottom
+    );
+
+    if (remainingPx >= LISTING_FILL_LOOKAHEAD_PX) {
+      pagesThisPassRef.current = 0;
+      return;
+    }
+
     if (
-      !shouldDrainListingPage({
-        hasMore: hasMoreRef.current(),
-        loading: isBusyRef.current(),
-        restoreInProgress: isListingScrollRestoreInProgress(),
-        sentinelInRange: isListingSentinelInLoadRange(
-          el,
-          listingScrollRootRect(getListingScrollRoot())
-        ),
+      !shouldFillListingPage({
+        hasMore: true,
+        loading: false,
+        restoreInProgress: false,
+        remainingPx,
+        pagesLoadedThisPass: pagesThisPassRef.current,
       })
     ) {
       return;
     }
-    void triggerLoadMore();
-  }, [triggerLoadMore]);
 
-  const recoverSkippedSentinel = useCallback(() => {
-    if (performance.now() < fallbackPausedUntilRef.current) return;
-    const el = sentinelRef.current;
-    if (!el) return;
-    if (
-      isListingScrollRestoreInProgress() ||
-      isBusyRef.current() ||
-      !hasMoreRef.current()
-    ) {
-      return;
-    }
-    const scrollRoot = getListingScrollRoot();
-    if (
-      !hasListingSentinelReachedLoadRange(
-        el,
-        listingScrollRootRect(scrollRoot)
-      )
-    ) {
-      return;
-    }
-    void triggerLoadMore();
-  }, [triggerLoadMore]);
+    pagesThisPassRef.current += 1;
+    triggeringRef.current = true;
+    void Promise.resolve(loadMoreRef.current()).finally(() => {
+      triggeringRef.current = false;
+    });
+  }, []);
 
   const scheduleDrain = useCallback(() => {
     requestAnimationFrame(() => {
-      requestAnimationFrame(drainIfNeeded);
+      requestAnimationFrame(ensureFilled);
     });
-  }, [drainIfNeeded]);
+  }, [ensureFilled]);
 
   useEffect(() => {
-    const el = sentinelRef.current;
-    if (!el) return;
     const scrollRoot = getListingScrollRoot();
     const scrollTarget =
       scrollRoot instanceof HTMLElement ? scrollRoot : window;
     const onScroll = () => {
+      pagesThisPassRef.current = 0;
       if (scrollCheckRafRef.current != null) return;
       scrollCheckRafRef.current = requestAnimationFrame(() => {
         scrollCheckRafRef.current = null;
-        recoverSkippedSentinel();
+        ensureFilled();
       });
     };
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (isListingScrollRestoreInProgress()) return;
-        if (
-          entries[0]?.isIntersecting &&
-          !isBusyRef.current() &&
-          hasMoreRef.current()
-        ) {
-          void triggerLoadMore();
-        }
-      },
-      {
-        root: scrollRoot instanceof HTMLElement ? scrollRoot : null,
-        rootMargin: `${LISTING_SENTINEL_ROOT_MARGIN_PX}px`,
-        threshold: 0,
-      }
-    );
-    observer.observe(el);
+    const onResize = () => {
+      pagesThisPassRef.current = 0;
+      scheduleDrain();
+    };
+
     scrollTarget.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onResize);
+    window.visualViewport?.addEventListener("resize", onResize);
+    scheduleDrain();
+
     return () => {
-      observer.disconnect();
       scrollTarget.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onResize);
+      window.visualViewport?.removeEventListener("resize", onResize);
       if (scrollCheckRafRef.current != null) {
         cancelAnimationFrame(scrollCheckRafRef.current);
         scrollCheckRafRef.current = null;
       }
     };
-  }, [recoverSkippedSentinel, triggerLoadMore]);
+  }, [ensureFilled, scheduleDrain]);
 
   return { sentinelRef, scheduleDrain };
 }

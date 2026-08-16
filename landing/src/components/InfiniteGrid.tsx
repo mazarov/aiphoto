@@ -65,7 +65,6 @@ export function InfiniteGrid({
     loadingRef.current = true;
     setLoading(true);
     setLoadError(false);
-    let shouldDrain = false;
     try {
       const oldOffset = offsetRef.current;
       const sp = new URLSearchParams();
@@ -104,7 +103,6 @@ export function InfiniteGrid({
       const more = hasMoreRankedPages(oldOffset, step, totalCountRef.current);
       setHasMore(more);
       hasMoreRef.current = more;
-      shouldDrain = more;
     } catch (error) {
       console.error("[InfiniteGrid] load more failed", error);
       // A transient request failure is not the end of the listing.
@@ -113,7 +111,7 @@ export function InfiniteGrid({
     } finally {
       setLoading(false);
       loadingRef.current = false;
-      if (shouldDrain) scheduleDrainRef.current();
+      scheduleDrainRef.current();
     }
   }, [strictMode]);
 
