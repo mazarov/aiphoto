@@ -20,20 +20,16 @@ test("sanitizeAnimateScenario strips quotes and caps length", () => {
   assert.ok(sanitizeAnimateScenario(long).length <= 400);
 });
 
-test("user text includes original prompt only when it is specific", () => {
+test("user text asks for motion only and ignores the still prompt", () => {
   assert.doesNotMatch(
-    buildAnimateScenarioUserText("Оживи изображение"),
-    /ORIGINAL_IMAGE_PROMPT/
-  );
-  assert.match(
     buildAnimateScenarioUserText("Девушка в красном пальто на набережной"),
-    /красном пальто/
+    /ORIGINAL_IMAGE_PROMPT|красном пальто/
   );
-  assert.match(buildAnimateScenarioUserText("x"), /repost/);
+  assert.match(buildAnimateScenarioUserText(), /Do not describe the person's looks/);
 });
 
-test("scenario prompt forbids bland living-photo defaults", () => {
-  assert.match(ANIMATE_SCENARIO_SYSTEM_PROMPT, /shareable|send to a friend/i);
-  assert.match(ANIMATE_SCENARIO_SYSTEM_PROMPT, /Forbidden bland defaults/);
-  assert.match(ANIMATE_SCENARIO_SYSTEM_PROMPT, /hook/);
+test("scenario prompt forbids reframing and appearance restatement", () => {
+  assert.match(ANIMATE_SCENARIO_SYSTEM_PROMPT, /Do not restate appearance/);
+  assert.match(ANIMATE_SCENARIO_SYSTEM_PROMPT, /new camera angle/);
+  assert.doesNotMatch(ANIMATE_SCENARIO_SYSTEM_PROMPT, /shareable|hook and payoff/i);
 });

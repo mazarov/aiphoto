@@ -12,7 +12,7 @@
 
 | Параметр | Значение |
 |---|---|
-| Промпт по умолчанию | Gemini 2.5 Flash придумывает короткий сценарий по фото; fallback `Оживи изображение` |
+| Промпт по умолчанию | Gemini 2.5 Flash придумывает короткий motion-сценарий по фото (без описания внешности); fallback `Оживи изображение`. Worker помечает фото как `[# Sources @Image1]` starting frame и держит identity lock |
 | Модель UI | Veo Omni Flash |
 | Модель API | `gemini-omni-flash-preview` |
 | Кадр | `9:16` или `16:9` |

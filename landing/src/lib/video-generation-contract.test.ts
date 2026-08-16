@@ -72,11 +72,13 @@ test("video option resolvers fall back to v1 defaults", () => {
   );
 });
 
-test("motion prompt keeps identity wrapper around user text", () => {
+test("motion prompt locks the photo as the starting frame", () => {
   const assembled = assembleVideoMotionPrompt("Оживи изображение");
-  assert.match(assembled, /Preserve the same person/);
+  assert.match(assembled, /\[# Sources @Image1\]/);
+  assert.match(assembled, /starting frame/);
+  assert.match(assembled, /IDENTITY LOCK/);
   assert.match(assembled, /Оживи изображение/);
-  assert.match(assembled, /user scenario is the main action/i);
+  assert.doesNotMatch(assembled, /hook and payoff/);
   assert.doesNotMatch(assembled, /only subtle natural motion/);
 });
 
