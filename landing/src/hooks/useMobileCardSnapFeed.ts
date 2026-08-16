@@ -4,6 +4,7 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type MouseEvent as ReactMouseEvent,
@@ -12,11 +13,13 @@ import {
 } from "react";
 import type { CardPageData } from "@/lib/supabase";
 import { usePromptCardModal } from "@/context/PromptCardModalContext";
+import { resolveListingNavNeighbors } from "@/lib/listing-card-navigation-context";
 import {
   canCommitMobileCardSnap,
   mobileCardScrollBehavior,
   rebaseMobileCardScrollTop,
   resolveMobileCardSnapDirection,
+  resolveMobileCardSnapTargetSlug,
 } from "@/lib/mobile-card-snap";
 
 const SETTLE_DEBOUNCE_MS = 110;
@@ -24,6 +27,7 @@ const STABLE_SCROLL_FRAMES = 2;
 const STABLE_SCROLL_EPSILON_PX = 0.5;
 const CLICK_SUPPRESS_DISTANCE_PX = 8;
 const CLICK_SUPPRESS_MS = 400;
+const SNAP_BUFFER_PER_DIRECTION = 8;
 const INTERACTIVE_SELECTOR =
   "button, a, input, textarea, select, [role='button'], [data-no-swipe]";
 
@@ -36,12 +40,37 @@ type Options = {
 };
 
 type NeighborCards = {
+  prevPrev: CardPageData | null;
   prev: CardPageData | null;
   next: CardPageData | null;
+  nextNext: CardPageData | null;
 };
 
 type Direction = "prev" | "next";
 type InteractionPhase = "idle" | "interacting" | "settling" | "committing";
+type PendingTargetLoad = {
+  direction: Direction;
+  slug: string;
+  sourceSlug: string;
+  generation: number;
+};
+function collectListingSlugs(
+  currentSlug: string,
+  direction: Direction,
+  limit: number
+): string[] {
+  const slugs: string[] = [];
+  let cursor = currentSlug;
+  for (let index = 0; index < limit; index += 1) {
+    const neighbors = resolveListingNavNeighbors(cursor);
+    const slug =
+      direction === "prev" ? neighbors?.prevSlug : neighbors?.nextSlug;
+    if (!slug) break;
+    slugs.push(slug);
+    cursor = slug;
+  }
+  return slugs;
+}
 
 function readVisibleHeightPx(): number {
   const visual = window.visualViewport;
@@ -65,6 +94,8 @@ export function useMobileCardSnapFeed({
   const restoreSnapStylesRef = useRef<(() => void) | null>(null);
   const settleTokenRef = useRef(0);
   const loadGenerationRef = useRef(0);
+  const pendingTargetLoadRef = useRef<PendingTargetLoad | null>(null);
+  const pendingTargetGenerationRef = useRef(0);
   const currentSlugRef = useRef(currentData.slug);
   currentSlugRef.current = currentData.slug;
   const committingRef = useRef(false);
@@ -76,8 +107,10 @@ export function useMobileCardSnapFeed({
   const prefersReducedMotionRef = useRef(false);
   const [isInteracting, setIsInteracting] = useState(false);
   const [neighbors, setNeighbors] = useState<NeighborCards>({
+    prevPrev: null,
     prev: null,
     next: null,
+    nextNext: null,
   });
 
   const clearSettleWork = useCallback(() => {
@@ -91,6 +124,11 @@ export function useMobileCardSnapFeed({
     }
   }, []);
 
+  const cancelPendingTargetLoad = useCallback(() => {
+    pendingTargetGenerationRef.current += 1;
+    pendingTargetLoadRef.current = null;
+  }, []);
+
   const setPhase = useCallback((phase: InteractionPhase) => {
     if (phaseRef.current === phase) return;
     phaseRef.current = phase;
@@ -100,7 +138,34 @@ export function useMobileCardSnapFeed({
     );
   }, []);
 
-  const currentSlideIndex = prevSlug ? 1 : 0;
+  const prevBufferSlugs = useMemo(
+    () =>
+      collectListingSlugs(
+        currentData.slug,
+        "prev",
+        SNAP_BUFFER_PER_DIRECTION
+      ),
+    [currentData.slug]
+  );
+  const nextBufferSlugs = useMemo(
+    () =>
+      collectListingSlugs(
+        currentData.slug,
+        "next",
+        SNAP_BUFFER_PER_DIRECTION
+      ),
+    [currentData.slug]
+  );
+  const prevPrevSlug = prevBufferSlugs[1] ?? null;
+  const nextNextSlug = nextBufferSlugs[1] ?? null;
+  const currentSlideIndex = prevBufferSlugs.length;
+  const extraPrevSlides = prevBufferSlugs
+    .slice(2)
+    .reverse()
+    .map((slug) => ({ slug, data: getCardFromCache(slug) }));
+  const extraNextSlides = nextBufferSlugs
+    .slice(2)
+    .map((slug) => ({ slug, data: getCardFromCache(slug) }));
 
   const slideHeightPx = useCallback(() => {
     const viewport = viewportRef.current;
@@ -146,17 +211,14 @@ export function useMobileCardSnapFeed({
         return;
       }
 
-      // WebKit can retain a stale active snap point after children swap.
-      // Freeze overflow for one frame while updating the offset, then restore.
-      const overflowY = viewport.style.overflowY;
+      // Keep the WebKit scroll layer alive: toggling overflow forces a visible
+      // compositor repaint on physical iOS devices.
       const scrollSnapType = viewport.style.scrollSnapType;
       const scrollBehavior = viewport.style.scrollBehavior;
-      viewport.style.overflowY = "hidden";
       viewport.style.scrollSnapType = "none";
       viewport.style.scrollBehavior = "auto";
       viewport.scrollTop = top;
       restoreSnapStylesRef.current = () => {
-        viewport.style.overflowY = overflowY;
         viewport.style.scrollSnapType = scrollSnapType;
         viewport.style.scrollBehavior = scrollBehavior;
       };
@@ -176,10 +238,16 @@ export function useMobileCardSnapFeed({
   );
 
   useLayoutEffect(() => {
+    cancelPendingTargetLoad();
     committingRef.current = false;
     scrollToCenter("auto");
     setPhase("idle");
-  }, [currentData.id, scrollToCenter, setPhase]);
+  }, [
+    cancelPendingTargetLoad,
+    currentData.id,
+    scrollToCenter,
+    setPhase,
+  ]);
 
   useEffect(() => {
     setCardInCache(currentData.slug, currentData);
@@ -198,33 +266,55 @@ export function useMobileCardSnapFeed({
   useEffect(() => {
     if (enabled) return;
     settleTokenRef.current += 1;
+    cancelPendingTargetLoad();
     clearSettleWork();
     pointerActiveRef.current = false;
     pointerStartScrollTopRef.current = null;
     scrollToCenter("auto");
     setPhase("idle");
-  }, [enabled, clearSettleWork, scrollToCenter, setPhase]);
+  }, [
+    enabled,
+    cancelPendingTargetLoad,
+    clearSettleWork,
+    scrollToCenter,
+    setPhase,
+  ]);
 
   useEffect(() => {
     const generation = ++loadGenerationRef.current;
     setNeighbors({
+      prevPrev: prevPrevSlug
+        ? getCardFromCache(prevPrevSlug)
+        : null,
       prev: prevSlug ? getCardFromCache(prevSlug) : null,
       next: nextSlug ? getCardFromCache(nextSlug) : null,
+      nextNext: nextNextSlug
+        ? getCardFromCache(nextNextSlug)
+        : null,
     });
 
     async function loadNeighbor(
-      direction: Direction,
+      slot: keyof NeighborCards,
       slug: string | null
     ) {
       if (!slug) return;
       const data = await loadCard(slug);
       if (!data || generation !== loadGenerationRef.current) return;
-      setNeighbors((current) => ({ ...current, [direction]: data }));
+      setNeighbors((current) => ({ ...current, [slot]: data }));
     }
 
+    void loadNeighbor("prevPrev", prevPrevSlug);
     void loadNeighbor("prev", prevSlug);
     void loadNeighbor("next", nextSlug);
-  }, [prevSlug, nextSlug, getCardFromCache, loadCard]);
+    void loadNeighbor("nextNext", nextNextSlug);
+  }, [
+    prevPrevSlug,
+    prevSlug,
+    nextSlug,
+    nextNextSlug,
+    getCardFromCache,
+    loadCard,
+  ]);
 
   const finishScroll = useCallback(() => {
     settleTokenRef.current += 1;
@@ -233,6 +323,7 @@ export function useMobileCardSnapFeed({
     if (!viewport) return;
 
     const height = Math.max(1, viewport.clientHeight);
+    const settledSlideIndex = Math.round(viewport.scrollTop / height);
     const direction = resolveMobileCardSnapDirection({
       scrollTop: viewport.scrollTop,
       slideHeight: height,
@@ -240,12 +331,13 @@ export function useMobileCardSnapFeed({
       hasPrev: Boolean(prevSlug),
       hasNext: Boolean(nextSlug),
     });
-    const target =
-      direction === "prev"
-        ? neighbors.prev
-        : direction === "next"
-          ? neighbors.next
-          : null;
+    const targetSlug = resolveMobileCardSnapTargetSlug({
+      settledSlideIndex,
+      currentSlideIndex,
+      prevSlugs: prevBufferSlugs,
+      nextSlugs: nextBufferSlugs,
+    });
+    const target = targetSlug ? getCardFromCache(targetSlug) : null;
 
     if (
       canCommitMobileCardSnap({
@@ -255,6 +347,7 @@ export function useMobileCardSnapFeed({
       }) &&
       target
     ) {
+      cancelPendingTargetLoad();
       committingRef.current = true;
       setPhase("committing");
       onCommit(target);
@@ -262,7 +355,92 @@ export function useMobileCardSnapFeed({
     }
     if (committingRef.current) return;
 
+    if (direction !== "current" && targetSlug && !target) {
+      const sourceSlug = currentSlugRef.current;
+      const pending = pendingTargetLoadRef.current;
+      if (
+        pending?.direction === direction &&
+        pending.slug === targetSlug &&
+        pending.sourceSlug === sourceSlug
+      ) {
+        return;
+      }
+
+      const generation = ++pendingTargetGenerationRef.current;
+      pendingTargetLoadRef.current = {
+        direction,
+        slug: targetSlug,
+        sourceSlug,
+        generation,
+      };
+      setPhase("settling");
+      void loadCard(targetSlug).then((loadedTarget) => {
+        const activePending = pendingTargetLoadRef.current;
+        if (
+          !activePending ||
+          activePending.generation !== generation ||
+          pendingTargetGenerationRef.current !== generation ||
+          currentSlugRef.current !== sourceSlug
+        ) {
+          return;
+        }
+        pendingTargetLoadRef.current = null;
+        if (loadedTarget) {
+          setNeighbors((current) => ({
+            ...current,
+            [direction]: loadedTarget,
+          }));
+        }
+        if (pointerActiveRef.current) {
+          setPhase("interacting");
+          return;
+        }
+
+        const currentViewport = viewportRef.current;
+        if (!currentViewport) return;
+        const currentHeight = Math.max(1, currentViewport.clientHeight);
+        const settledSlideIndex = Math.round(
+          currentViewport.scrollTop / currentHeight
+        );
+        const settledDirection = resolveMobileCardSnapDirection({
+          scrollTop: currentViewport.scrollTop,
+          slideHeight: currentHeight,
+          currentSlideIndex,
+          hasPrev: Boolean(prevSlug),
+          hasNext: Boolean(nextSlug),
+        });
+        if (settledDirection !== direction) {
+          setPhase(
+            pointerActiveRef.current ? "interacting" : "idle"
+          );
+          return;
+        }
+
+        if (loadedTarget) {
+          committingRef.current = true;
+          setPhase("committing");
+          onCommit(loadedTarget);
+          return;
+        }
+
+        const behavior = mobileCardScrollBehavior(
+          prefersReducedMotionRef.current
+        );
+        scrollToCenter(behavior);
+        if (behavior === "auto") {
+          setPhase("idle");
+        } else {
+          settleTimerRef.current = window.setTimeout(
+            finishScroll,
+            SETTLE_DEBOUNCE_MS * 2
+          );
+        }
+      });
+      return;
+    }
+
     if (direction !== "current") {
+      cancelPendingTargetLoad();
       setPhase("settling");
       const behavior = mobileCardScrollBehavior(
         prefersReducedMotionRef.current
@@ -279,14 +457,18 @@ export function useMobileCardSnapFeed({
       return;
     }
 
+    cancelPendingTargetLoad();
     setPhase(pointerActiveRef.current ? "interacting" : "idle");
   }, [
+    cancelPendingTargetLoad,
     clearSettleWork,
     currentSlideIndex,
-    neighbors.next,
-    neighbors.prev,
+    getCardFromCache,
+    loadCard,
+    nextBufferSlugs,
     nextSlug,
     onCommit,
+    prevBufferSlugs,
     prevSlug,
     scrollToCenter,
     setPhase,
@@ -406,11 +588,12 @@ export function useMobileCardSnapFeed({
   useEffect(
     () => () => {
       settleTokenRef.current += 1;
+      cancelPendingTargetLoad();
       clearSettleWork();
       restoreSnapStyles();
       loadGenerationRef.current += 1;
     },
-    [clearSettleWork, restoreSnapStyles]
+    [cancelPendingTargetLoad, clearSettleWork, restoreSnapStyles]
   );
 
   const onScroll = useCallback(
@@ -457,6 +640,9 @@ export function useMobileCardSnapFeed({
     }
     pointerActiveRef.current = false;
     pointerStartScrollTopRef.current = null;
+    if (committingRef.current || pendingTargetLoadRef.current !== null) {
+      return;
+    }
     if (phaseRef.current !== "idle") {
       setPhase("settling");
       scheduleFinish();
@@ -543,8 +729,14 @@ export function useMobileCardSnapFeed({
 
   return {
     viewportRef,
+    extraPrevSlides,
+    prevPrevSlug,
+    prevPrevCard: neighbors.prevPrev,
     prevCard: neighbors.prev,
     nextCard: neighbors.next,
+    nextNextSlug,
+    nextNextCard: neighbors.nextNext,
+    extraNextSlides,
     isInteracting,
     onScroll,
     onPointerDown,

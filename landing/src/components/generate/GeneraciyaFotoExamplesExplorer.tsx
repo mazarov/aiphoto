@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
 import { ListingMasonry, ListingMasonryItem } from "@/components/ListingMasonry";
 import { ListingPhotoTile } from "@/components/ListingPhotoTile";
 import { useAuth } from "@/context/AuthContext";
@@ -9,6 +9,7 @@ import { useGenerateDock } from "@/context/GenerateDockContext";
 import {
   type GenerationExampleCard,
   toGenerationExampleCard,
+  writeGenerationExampleNavigation,
 } from "@/lib/generation/example-card";
 import { listingPhotoAspectRatio } from "@/lib/listing-masonry";
 import type { PromptCardFull } from "@/lib/supabase";
@@ -42,6 +43,10 @@ export function GeneraciyaFotoExamplesExplorer({
   const [error, setError] = useState("");
   const { user, openAuthModal } = useAuth();
   const { seedFromCard } = useGenerateDock();
+
+  useLayoutEffect(() => {
+    if (cards.length > 0) writeGenerationExampleNavigation(cards);
+  }, [cards]);
 
   useEffect(() => {
     const trimmed = query.trim();

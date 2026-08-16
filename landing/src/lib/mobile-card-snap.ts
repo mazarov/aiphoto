@@ -88,3 +88,21 @@ export function canCommitMobileCardSnap({
     direction !== "current" && targetAvailable && !alreadyCommitting
   );
 }
+
+export function resolveMobileCardSnapTargetSlug({
+  settledSlideIndex,
+  currentSlideIndex,
+  prevSlugs,
+  nextSlugs,
+}: {
+  settledSlideIndex: number;
+  currentSlideIndex: number;
+  prevSlugs: string[];
+  nextSlugs: string[];
+}): string | null {
+  const offset = settledSlideIndex - currentSlideIndex;
+  const bufferIndex = Math.abs(offset) - 1;
+  if (offset < 0) return prevSlugs[bufferIndex] ?? null;
+  if (offset > 0) return nextSlugs[bufferIndex] ?? null;
+  return null;
+}

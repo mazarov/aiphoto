@@ -1,10 +1,10 @@
 /**
  * Сохраняет порядок slug карточек с листинга (localStorage), чтобы на `/p/[slug]`
- * переключать соседей через router.push в той же вкладке.
+ * переключать соседей через router.replace в той же вкладке (один экран просмотра).
  * sessionStorage не подходит: листинг открывает карточку в новой вкладке (target="_blank").
  */
 
-import type { PromptCardFull } from "@/lib/supabase";
+import type { CardPageData, PromptCardFull } from "@/lib/supabase";
 
 export const LISTING_CARD_NAV_STORAGE_KEY = "promptshot_listing_nav_v1";
 export const LISTING_CARD_NAV_UPDATED_EVENT =
@@ -23,6 +23,8 @@ type StoredPayload = {
   slugs: string[];
   updatedAt: number;
 };
+
+const listingCardDataBySlug = new Map<string, CardPageData>();
 
 function normalizeSlug(slug: string | null | undefined): string | null {
   const t = slug?.trim();
@@ -78,6 +80,103 @@ export function writeListingNavigationContext(slugs: string[]): void {
   } catch {
     /* квота / приватный режим */
   }
+}
+
+export function primeListingNavigationCardData(cards: CardPageData[]): void {
+  listingCardDataBySlug.clear();
+  for (const card of cards.slice(-LISTING_CARD_NAV_MAX_SLUGS)) {
+    listingCardDataBySlug.set(card.slug, card);
+  }
+}
+
+export function toListingCardPageData(
+  card: PromptCardFull,
+  groupCards: PromptCardFull[] = []
+): CardPageData {
+  const isSplitGroup = card.cardSplitTotal > 1;
+  const normalizedGroupCards = isSplitGroup
+    ? groupCards.filter(
+        (sibling) =>
+          sibling.id !== card.id && sibling.cardSplitTotal > 1
+      )
+    : [];
+  const siblings = normalizedGroupCards.map((sibling) => ({
+    id: sibling.id,
+    slug: sibling.slug,
+    title_ru: sibling.title_ru,
+    card_split_index: sibling.cardSplitIndex,
+    mainPhotoUrl: sibling.photoUrls[0] || null,
+  }));
+  const seoTags =
+    card.seo_tags && typeof card.seo_tags === "object"
+      ? (card.seo_tags as Record<string, unknown>)
+      : null;
+
+  return {
+    id: card.id,
+    slug: card.slug,
+    title_ru: card.title_ru,
+    title_en: card.title_en,
+    seo_tags: seoTags,
+    hashtags: card.hashtags,
+    source_date: card.sourceDate,
+    source_dataset_slug: card.datasetSlug,
+    source_message_id: card.sourceMessageId,
+    seo_readiness_score: card.seoReadinessScore,
+    promptTexts: card.promptTexts,
+    photoUrls: card.photoUrls,
+    photoMeta: card.photoMeta,
+    photoDimensions: card.photoMeta.map((photo) => ({
+      width: photo.width,
+      height: photo.height,
+    })),
+    beforePhotoUrl: card.beforePhotoUrl,
+    mainPhotoUrl: card.photoUrls[0] || null,
+    card_split_index: card.cardSplitIndex,
+    card_split_total: card.cardSplitTotal,
+    siblings,
+    groupFirstSlug: isSplitGroup ? groupCards[0]?.slug ?? null : null,
+    likesCount: card.likesCount,
+    dislikesCount: card.dislikesCount,
+    viewCount: card.viewCount,
+    isPublished: card.isPublished ?? true,
+    authorUserId: null,
+    authorAvatarUrl: null,
+    authorDisplayName: null,
+    viewerIsOwner: false,
+  };
+}
+
+/**
+ * Keeps the already-fetched listing payload in memory for zero-network modal
+ * navigation. localStorage remains slug-only to avoid persisting large prompts.
+ */
+export function primeListingNavigationCards(cards: PromptCardFull[]): void {
+  const groups = new Map<string, PromptCardFull[]>();
+  for (const card of cards) {
+    if (!card.sourceGroupKey || card.cardSplitTotal <= 1) continue;
+    const group = groups.get(card.sourceGroupKey) ?? [];
+    group.push(card);
+    groups.set(card.sourceGroupKey, group);
+  }
+
+  const cardData = cards
+    .slice(-LISTING_CARD_NAV_MAX_SLUGS)
+    .map((card) => {
+    const groupCards = card.sourceGroupKey
+      ? [...(groups.get(card.sourceGroupKey) ?? [])].sort(
+          (a, b) => a.cardSplitIndex - b.cardSplitIndex
+        )
+      : [];
+      return toListingCardPageData(card, groupCards);
+    });
+  primeListingNavigationCardData(cardData);
+}
+
+export function readListingNavigationCard(
+  slug: string
+): CardPageData | null {
+  return listingCardDataBySlug.get(slug) ?? null;
 }
 
 /** Ask the currently mounted listing/search controller to append its next page. */

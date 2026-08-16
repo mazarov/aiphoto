@@ -10,10 +10,16 @@ import {
   type ReactNode,
 } from "react";
 import type { CardPageData } from "@/lib/supabase";
+import {
+  readListingNavigationCard,
+  readListingNavigationContext,
+} from "@/lib/listing-card-navigation-context";
 import { lockListingScrollForModal } from "@/lib/scroll-preservation";
 import { trackPromptCardOpen, trackVirtualPageView } from "@/lib/yandex-metrika";
 
 const CARD_CACHE_MAX_ENTRIES = 9;
+const CARD_PREFETCH_BEHIND = 2;
+const CARD_PREFETCH_AHEAD = 6;
 
 /** Lightweight preview data available immediately from the listing grid on click. */
 export type CardModalSeed = {
@@ -60,17 +66,25 @@ export function PromptCardModalProvider({ children }: { children: ReactNode }) {
   const [cardCache] = useState(() => new Map<string, CardPageData>());
   const currentSlugRef = useRef<string | null>(null);
   currentSlugRef.current = currentSlug;
+  const closingRef = useRef(false);
   const inflightRef = useRef(
     new Map<string, Promise<CardPageData | null>>()
   );
+  const prefetchWindowRef = useRef<(slug: string) => void>(() => {});
 
   const open = useCallback((slug: string, seed?: CardModalSeed) => {
+    closingRef.current = false;
+    prefetchWindowRef.current(slug);
     if (typeof window !== "undefined") {
       lockListingScrollForModal();
 
       const referer = window.location.pathname + window.location.search;
-
-      window.history.pushState(null, "", `/p/${encodeURIComponent(slug)}`);
+      const alreadyOpen = Boolean(currentSlugRef.current);
+      if (alreadyOpen) {
+        window.history.replaceState(null, "", `/p/${encodeURIComponent(slug)}`);
+      } else {
+        window.history.pushState(null, "", `/p/${encodeURIComponent(slug)}`);
+      }
 
       trackPromptCardOpen(slug, { entry: "modal", referer });
       trackVirtualPageView(`/p/${encodeURIComponent(slug)}`, { referer });
@@ -80,6 +94,7 @@ export function PromptCardModalProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const goToNeighbor = useCallback((slug: string) => {
+    if (closingRef.current || !currentSlugRef.current) return;
     if (typeof window !== "undefined") {
       const referer = window.location.pathname + window.location.search;
 
@@ -92,6 +107,7 @@ export function PromptCardModalProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const close = useCallback(() => {
+    closingRef.current = true;
     if (typeof window !== "undefined") {
       // Unmount modal first so CardModal cleanup unlocks body (desktop) before history.back().
       window.history.scrollRestoration = "manual";
@@ -108,7 +124,7 @@ export function PromptCardModalProvider({ children }: { children: ReactNode }) {
 
   const getCardFromCache = useCallback((slug: string) => {
     const cached = cardCache.get(slug);
-    if (!cached) return null;
+    if (!cached) return readListingNavigationCard(slug);
     // Refresh recency without changing the Map identity exposed through callbacks.
     cardCache.delete(slug);
     cardCache.set(slug, cached);
@@ -157,6 +173,24 @@ export function PromptCardModalProvider({ children }: { children: ReactNode }) {
   const prefetchCard = useCallback((slug: string) => {
     void loadCard(slug);
   }, [loadCard]);
+
+  const prefetchCardWindow = useCallback((currentSlug: string) => {
+    const slugs = readListingNavigationContext();
+    const currentIndex = slugs?.indexOf(currentSlug) ?? -1;
+    if (!slugs || currentIndex < 0) {
+      void loadCard(currentSlug);
+      return;
+    }
+    const start = Math.max(0, currentIndex - CARD_PREFETCH_BEHIND);
+    const end = Math.min(
+      slugs.length,
+      currentIndex + CARD_PREFETCH_AHEAD + 1
+    );
+    for (const slug of slugs.slice(start, end)) {
+      void loadCard(slug);
+    }
+  }, [loadCard]);
+  prefetchWindowRef.current = prefetchCardWindow;
 
   useEffect(() => {
     if (!currentSlug) return;

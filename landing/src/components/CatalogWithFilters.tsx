@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { useListingFilters } from "@/hooks/useListingFilters";
 import { useListingSort } from "@/hooks/useListingSort";
 import { FilterFAB } from "./FilterFAB";
@@ -15,7 +15,10 @@ import {
 import { ListingMasonry, ListingMasonryItem } from "./ListingMasonry";
 import { ListingPhotoTile } from "./ListingPhotoTile";
 import { ListingPromptCountBadge } from "./ListingPromptCountBadge";
-import { toGenerationExampleCard } from "@/lib/generation/example-card";
+import {
+  toGenerationExampleCard,
+  writeGenerationExampleNavigation,
+} from "@/lib/generation/example-card";
 import { listingPhotoAspectRatio } from "@/lib/listing-masonry";
 import type { PromptCardFull } from "@/lib/supabase";
 import type { Dimension } from "@/lib/tag-registry";
@@ -130,6 +133,12 @@ export function CatalogWithFilters({
     () => (searchCards ?? []).map(toGenerationExampleCard),
     [searchCards]
   );
+
+  useLayoutEffect(() => {
+    if (isSearching && searchExamples.length > 0) {
+      writeGenerationExampleNavigation(searchExamples);
+    }
+  }, [isSearching, searchExamples]);
 
   return (
     <ListingExplorerFrame>

@@ -1,7 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { ListingExplorerFrame } from "@/components/ListingExplorerFrame";
 import {
   ListingExplorerHeading,
@@ -21,6 +28,7 @@ import { HOMEPAGE_SEO } from "@/lib/homepage-seo-copy";
 import {
   type GenerationExampleCard,
   toGenerationExampleCard,
+  writeGenerationExampleNavigation,
 } from "@/lib/generation/example-card";
 import { listingPhotoAspectRatio } from "@/lib/listing-masonry";
 import type { PromptCardFull } from "@/lib/supabase";
@@ -60,6 +68,10 @@ export function HomepageExamplesExplorer({
   const [cards, setCards] = useState(initialCards);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  useLayoutEffect(() => {
+    if (cards.length > 0) writeGenerationExampleNavigation(cards);
+  }, [cards]);
 
   const setSearchQuery = useCallback((nextQuery: string) => {
     setQuery(nextQuery);

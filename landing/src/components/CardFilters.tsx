@@ -12,6 +12,7 @@ import { LISTING_INFINITE_PAGE_SIZE } from "@/lib/listing-pagination";
 import type { ListingSort } from "@/lib/listing-sort";
 import {
   buildListingSlugOrder,
+  primeListingNavigationCards,
   writeListingNavigationContext,
 } from "@/lib/listing-card-navigation-context";
 import { ListingCardDebugOverlay } from "./ListingCardDebugOverlay";
@@ -406,6 +407,7 @@ export function FilterableGrid({
     const order = buildListingSlugOrder(
       listingCards.map((card) => ({ type: "single" as const, card }))
     );
+    primeListingNavigationCards(listingCards);
     writeListingNavigationContext(order);
   }, [listingCards, isIdMode, isFilterMode]);
 

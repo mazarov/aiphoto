@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useLayoutEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import { createSupabaseBrowser } from "@/lib/supabase-browser";
@@ -10,11 +10,21 @@ import { ListingPhotoTile } from "@/components/ListingPhotoTile";
 import { toGenerationExampleCard } from "@/lib/generation/example-card";
 import { listingPhotoAspectRatio } from "@/lib/listing-masonry";
 import { CardInteractionsProvider } from "@/context/CardInteractionsContext";
+import {
+  primeListingNavigationCards,
+  writeListingNavigationContext,
+} from "@/lib/listing-card-navigation-context";
 
 export function FavoritesContent() {
   const { user, loading: authLoading, openAuthModal } = useAuth();
   const [cards, setCards] = useState<PromptCardFull[]>([]);
   const [loading, setLoading] = useState(true);
+
+  useLayoutEffect(() => {
+    if (cards.length === 0) return;
+    primeListingNavigationCards(cards);
+    writeListingNavigationContext(cards.map((card) => card.slug));
+  }, [cards]);
 
   useEffect(() => {
     if (authLoading) return;

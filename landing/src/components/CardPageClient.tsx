@@ -123,7 +123,8 @@ export function CardPageClient({ data, tagEntries, breadcrumbTag, isModal = fals
       if (onListingNeighborGo) {
         onListingNeighborGo(nextData.slug);
       } else {
-        router.push(`/p/${encodeURIComponent(nextData.slug)}`);
+        // One viewer = one history entry. push() stacks /p pages so ✕ only pops one card.
+        router.replace(`/p/${encodeURIComponent(nextData.slug)}`, { scroll: false });
       }
     },
     [onListingNeighborGo, router]
@@ -148,7 +149,7 @@ export function CardPageClient({ data, tagEntries, breadcrumbTag, isModal = fals
 function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListingNeighborGo, onCloseModal, onMobileNeighborCommit }: InnerProps) {
   const router = useRouter();
   const { seedFromCard } = useGenerateDock();
-  const { close: closeCardModal } = usePromptCardModal();
+  const { close: closeCardModal, currentSlug: modalSlug } = usePromptCardModal();
   const title = data.title_ru || data.title_en || "Без названия";
   const [publishedLocal, setPublishedLocal] = useState(data.isPublished);
   const [pubSaving, setPubSaving] = useState(false);
@@ -156,8 +157,11 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
   const { reactions, favorites, toggleReaction, toggleFavorite } = useCardInteractions();
   const userReaction = reactions.get(data.id) ?? null;
   const isFavorited = favorites.has(data.id);
-  const { user } = useAuth();
+  const { user, showAuthModal } = useAuth();
   const isAdmin = isCatalogAdminEmail(user?.email);
+  const isAuthed = Boolean(user && user.is_anonymous !== true);
+  const pendingRepeatAuthRef = useRef(false);
+  const repeatAuthWasOpenRef = useRef(false);
   const [techInfoEnabled, setTechInfoEnabled] = useState(false);
   useEffect(() => {
     setTechInfoEnabled(readAdminTechInfoEnabled());
@@ -191,14 +195,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
     useState<ListingCardNavNeighbors | null>(null);
   const [mobilePromptOverlay, setMobilePromptOverlay] = useState(false);
   const [showSwipeOnboarding, setShowSwipeOnboarding] = useState(false);
-  const openInlineGenerate = useCallback(() => {
-    setMobilePromptOverlay(false);
-    const promptText = data.promptTexts.join("\n\n");
-    // Seed global listing dock; guest auth is GenerateDockGuestAuthReactor.
-    seedFromCard(
-      { promptText, cardId: data.id },
-      { entrySource: "card" }
-    );
+  const leaveCardForGenerate = useCallback(() => {
     if (isModal) {
       closeCardModal();
       return;
@@ -210,12 +207,49 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
     router.push("/");
   }, [
     closeCardModal,
-    data.id,
-    data.promptTexts,
     isModal,
     router,
+  ]);
+
+  const openInlineGenerate = useCallback(() => {
+    setMobilePromptOverlay(false);
+    const promptText = data.promptTexts.join("\n\n");
+    // Keep the prompt card mounted while guest auth is shown above it.
+    seedFromCard(
+      { promptText, cardId: data.id },
+      { entrySource: "card" }
+    );
+    if (!isAuthed) {
+      pendingRepeatAuthRef.current = true;
+      repeatAuthWasOpenRef.current = false;
+      return;
+    }
+    leaveCardForGenerate();
+  }, [
+    data.id,
+    data.promptTexts,
+    isAuthed,
+    leaveCardForGenerate,
     seedFromCard,
   ]);
+
+  useEffect(() => {
+    if (!pendingRepeatAuthRef.current) return;
+    if (isAuthed) {
+      pendingRepeatAuthRef.current = false;
+      repeatAuthWasOpenRef.current = false;
+      leaveCardForGenerate();
+      return;
+    }
+    if (showAuthModal) {
+      repeatAuthWasOpenRef.current = true;
+      return;
+    }
+    if (repeatAuthWasOpenRef.current) {
+      pendingRepeatAuthRef.current = false;
+      repeatAuthWasOpenRef.current = false;
+    }
+  }, [isAuthed, leaveCardForGenerate, showAuthModal]);
 
   // Reset local media only when opening another card (`id`), not on every `data` reference change.
   useEffect(() => {
@@ -285,10 +319,14 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
       onCloseModal();
       return;
     }
+    if (modalSlug) {
+      closeCardModal();
+      return;
+    }
 
     const fallbackHref = breadcrumbTag?.urlPath ?? "/";
 
-    // Intercepting @modal route: pop soft-nav stack (listing → card).
+    // Intercepting @modal route: one viewer entry, so one back closes every snap slide.
     if (isModal) {
       router.back();
       return;
@@ -312,7 +350,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
     }
 
     router.replace(fallbackHref);
-  }, [router, onCloseModal, isModal, breadcrumbTag]);
+  }, [router, onCloseModal, isModal, breadcrumbTag, modalSlug, closeCardModal]);
 
 
 
@@ -334,7 +372,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
       if (onListingNeighborGo) {
         onListingNeighborGo(slug);
       } else {
-        router.push(`/p/${encodeURIComponent(slug)}`);
+        router.replace(`/p/${encodeURIComponent(slug)}`, { scroll: false });
       }
     },
     [router, onListingNeighborGo]
@@ -351,7 +389,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
   const viewCount = useCardViewBeacon(data.slug, data.viewCount ?? 0);
 
   const groupCards = useMemo(() => {
-    if (data.siblings.length === 0) return [];
+    if (data.card_split_total <= 1 || data.siblings.length === 0) return [];
     const current = {
       id: data.id,
       slug: data.slug,
@@ -359,7 +397,11 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
       card_split_index: data.card_split_index,
       mainPhotoUrl: data.mainPhotoUrl,
     };
-    return [current, ...data.siblings].sort(
+    const unique = new Map([[current.id, current]]);
+    for (const sibling of data.siblings) {
+      if (!unique.has(sibling.id)) unique.set(sibling.id, sibling);
+    }
+    return [...unique.values()].sort(
       (a, b) => a.card_split_index - b.card_split_index
     );
   }, [data]);
@@ -515,11 +557,16 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
   const hasListingNeighbors = Boolean(listingPrev || listingNext);
 
   useEffect(() => {
-    if (
-      hasPhotos &&
-      listingNavNeighbors !== null &&
-      listingNavNeighbors.nextSlug === null
-    ) {
+    if (!hasPhotos || listingNavNeighbors === null) return;
+    let lookahead = 0;
+    let cursor = data.slug;
+    while (lookahead < 16) {
+      const nextSlug = resolveListingNavNeighbors(cursor)?.nextSlug;
+      if (!nextSlug) break;
+      lookahead += 1;
+      cursor = nextSlug;
+    }
+    if (lookahead < 16) {
       requestListingNavigationLoadMore();
     }
   }, [data.slug, hasPhotos, listingNavNeighbors]);
@@ -556,8 +603,8 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
     onCommit: onMobileNeighborCommit,
   });
   const mobileChromeClass = snapFeed.isInteracting
-    ? "pointer-events-none opacity-0 transition-opacity duration-100 ease-out motion-reduce:transition-none"
-    : "opacity-100 transition-opacity duration-100 ease-out motion-reduce:transition-none";
+    ? "pointer-events-none"
+    : "";
 
   return (
     <div
@@ -1014,6 +1061,21 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
               onPointerCancel={snapFeed.onPointerCancel}
               onClickCapture={snapFeed.onClickCapture}
             >
+            {snapFeed.extraPrevSlides.map((slide) => (
+              <MobileSnapNeighborSlide
+                key={slide.slug}
+                data={slide.data}
+                direction="prev"
+                fallbackPhotoUrl={currentPhoto}
+              />
+            ))}
+            {snapFeed.prevPrevSlug ? (
+              <MobileSnapNeighborSlide
+                data={snapFeed.prevPrevCard}
+                direction="prev"
+                fallbackPhotoUrl={currentPhoto}
+              />
+            ) : null}
             {listingPrev ? (
               <MobileSnapNeighborSlide
                 data={snapFeed.prevCard}
@@ -1342,6 +1404,21 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                 fallbackPhotoUrl={currentPhoto}
               />
             ) : null}
+            {snapFeed.nextNextSlug ? (
+              <MobileSnapNeighborSlide
+                data={snapFeed.nextNextCard}
+                direction="next"
+                fallbackPhotoUrl={currentPhoto}
+              />
+            ) : null}
+            {snapFeed.extraNextSlides.map((slide) => (
+              <MobileSnapNeighborSlide
+                key={slide.slug}
+                data={slide.data}
+                direction="next"
+                fallbackPhotoUrl={currentPhoto}
+              />
+            ))}
             </div>
           </div>
           )}

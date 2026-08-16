@@ -39,6 +39,7 @@ const outputFileTracingRoot = resolveOutputFileTracingRoot();
 
 const nextConfig: NextConfig = {
   allowedDevOrigins: getLanDevOrigins(),
+  devIndicators: false,
   outputFileTracingRoot,
   output: "standalone",
   // Keep native sharp out of the Next bundle so Alpine libvips resolves at

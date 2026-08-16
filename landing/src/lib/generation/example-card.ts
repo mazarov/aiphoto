@@ -1,4 +1,9 @@
-import type { PromptCardFull } from "@/lib/supabase";
+import {
+  primeListingNavigationCardData,
+  toListingCardPageData,
+  writeListingNavigationContext,
+} from "@/lib/listing-card-navigation-context";
+import type { CardPageData, PromptCardFull } from "@/lib/supabase";
 
 export type GenerationExampleCard = {
   id: string;
@@ -10,6 +15,7 @@ export type GenerationExampleCard = {
   photoHeight: number | null;
   photoCount: number;
   hasPrompt: boolean;
+  navigationData: CardPageData;
 };
 
 export function toGenerationExampleCard(
@@ -28,5 +34,13 @@ export function toGenerationExampleCard(
     photoHeight: card.photoMeta[0]?.height ?? null,
     photoCount: card.photoUrls.length,
     hasPrompt: card.promptTexts.some((prompt) => prompt.trim().length > 0),
+    navigationData: toListingCardPageData(card),
   };
+}
+
+export function writeGenerationExampleNavigation(
+  cards: GenerationExampleCard[]
+): void {
+  primeListingNavigationCardData(cards.map((card) => card.navigationData));
+  writeListingNavigationContext(cards.map((card) => card.slug));
 }

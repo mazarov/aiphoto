@@ -5,6 +5,7 @@ import {
   mobileCardScrollBehavior,
   rebaseMobileCardScrollTop,
   resolveMobileCardSnapDirection,
+  resolveMobileCardSnapTargetSlug,
 } from "./mobile-card-snap";
 
 const BASE = {
@@ -122,5 +123,26 @@ test("commit guard rejects missing prefetch and duplicate settle", () => {
       alreadyCommitting: false,
     }),
     true
+  );
+});
+
+test("multi-slide settle commits the actual stopped card directly", () => {
+  assert.equal(
+    resolveMobileCardSnapTargetSlug({
+      settledSlideIndex: 8,
+      currentSlideIndex: 0,
+      prevSlugs: [],
+      nextSlugs: ["n1", "n2", "n3", "n4", "n5", "n6", "n7", "n8"],
+    }),
+    "n8"
+  );
+  assert.equal(
+    resolveMobileCardSnapTargetSlug({
+      settledSlideIndex: 1,
+      currentSlideIndex: 8,
+      prevSlugs: ["p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8"],
+      nextSlugs: [],
+    }),
+    "p7"
   );
 });

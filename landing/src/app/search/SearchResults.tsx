@@ -22,6 +22,7 @@ import type { FilterState } from "@/hooks/useListingFilters";
 import { resetListingScroll } from "@/lib/scroll-preservation";
 import { useListingSentinelLoadMore } from "@/hooks/useListingSentinelLoadMore";
 import {
+  primeListingNavigationCards,
   subscribeListingNavigationLoadMore,
   writeListingNavigationContext,
 } from "@/lib/listing-card-navigation-context";
@@ -204,6 +205,7 @@ export function SearchResults({ initialQuery }: Props) {
     if (displayedCards.length > 0) {
       const slugs = displayedCards.map((c) => c.slug).filter((s): s is string => !!s);
       if (slugs.length > 0) {
+        primeListingNavigationCards(displayedCards);
         writeListingNavigationContext(slugs);
       }
     }
