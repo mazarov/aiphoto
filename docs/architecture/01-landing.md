@@ -1,5 +1,7 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-08-16 (**admin finance reporting:** `/admin/analytics` вкладки Обзор/Финансы; live `landing_users.credits`; импорт ЮKassa CSV/ZIP и GCP Billing CSV; миграция `184`.)
+>
 > Последнее обновление: 2026-08-15 (**web-generation results JPEG:** worker пишет новые объекты в `web-generation-results` как JPEG q=85 (`user/job/lease.jpg`). Старые `.png` валидны. Encode fail / no-gain заливает исходник с честным mime. Alpine worker ставит musl `sharp@0.33.5`.)
 >
 > Последнее обновление: 2026-08-14 (**header pay CTA:** в мобильной шапке `HeaderBalancePayChip` справа «+» вместо «Пополнить» / «Купить кредиты»; `aria-label` по-прежнему «пополнить».)
@@ -236,7 +238,7 @@
 /privacy                → Permanent redirect на `/policy`
 /favorites              → Избранное (требует авторизации)
 /generations            → Мои генерации (auth): канонический список `landing_generations` текущего shared DB user; UGC-карточка необязательна
-/admin/analytics        → Закрытый analytics dashboard и admin generation modal; Supabase Auth + email allowlist `ANALYTICS_ADMIN_EMAILS`
+/admin/analytics        → Закрытый analytics dashboard: вкладка Обзор (пользователи/клиенты + live непотраченные кредиты) и вкладка Финансы (`?tab=finance`, импорт ЮKassa/GCP); admin generation modal; Supabase Auth + email allowlist `ANALYTICS_ADMIN_EMAILS`
 /admin/analyze-history  → Закрытая история analyze/remix + все non-admin user generations; remix помечается бейджем и `change_request`; private source previews выдаются signed, completed results публикуются идемпотентно
 /admin/payments         → Закрытый cursor-реестр YooKassa: payer identity, RUB/status/test, ожидаемые credits и факт `credited_at`
 /auth/callback          → OAuth callback (client page); PKCE exchange в браузере; `?next=` — возврат на страницу старта логина
@@ -329,6 +331,9 @@
 | `/api/cron/yookassa-reconcile` | POST, `Authorization: Bearer $CRON_SECRET`: batch `reconcileStaleYooKassaPayments` для `created|pending` старше 5 мин (limit 20) |
 | `/api/extension/analyze` | Same-origin analyze для site `/foto-v-promt`: validation/SSRF protection → optional Auth/shared identity → atomic rate-limit reserve → Gemini proxy/direct → confirm при success или release при error; успешный результат best-effort сохраняется в private 30-day `analyze_history` |
 | `/api/admin/analytics` | GET, admin auth: no-store analytics rollups за `1…90` дней |
+| `/api/admin/credits` | GET, admin auth: live summary `credits > 0` + keyset-список пользователей (email/provider/credits) |
+| `/api/admin/finance` | GET, admin auth: KPI и разбивки импортов ЮKassa/GCP за месяц `YYYY-MM` |
+| `/api/admin/finance/import` | POST, admin auth: multipart replace-импорт `kind=revenue\|cogs`, CSV/ZIP до 10 MB |
 | `/api/admin/payments` | GET, admin auth: cursor YooKassa ledger с status/test filters, payer auth/billing identity и credit fulfillment state (`credited` / `not_due` / `discrepancy` / `stale`) |
 | `/api/admin/payments/reconcile` | POST, admin auth: `{ paymentId \| yookassaPaymentId }` или `{ stale: true }` — ручной/batch reconcile через YooKassa GET |
 | `/api/admin/analyze-history` | GET, admin auth: cursor pagination private analyze/remix history (`kind`, `change_request`), optional `client_source`, signed image URL (analyze only) |
@@ -412,6 +417,14 @@
   `discrepancy` (`succeeded` без `credited_at`), `stale` (`created|pending` старше
   15 мин без начисления), иначе `not_due`. Ручная сверка —
   `POST /api/admin/payments/reconcile`.
+- **Финансы (касса выгрузок):** вкладка `/admin/analytics?tab=finance` хранит
+  месячные импорты в `admin_finance_imports` + line tables. Source of truth для
+  «получено» — реестр ЮKassa (gross/net/комиссия), для «потрачено» — GCP
+  `Subtotal ($)`. Повторный upload заменяет месяц через
+  `admin_finance_replace_import`. Live остаток кредитов на Обзоре —
+  `admin_credit_liability_summary` / `admin_credit_liabilities`, не период импорта.
+  Оценка обязательства в RUB считается blended-ценой боевых YooKassa и не
+  подменяет кассу. Telegram Stars и сверка CSV ↔ ledger — вне v1.
 - **Генерации пользователей:** `admin_user_generations_queue` возвращает все
   `client_source IS DISTINCT FROM 'admin'` и terminal/non-terminal statuses.
   Private input paths не отдаются клиенту: API проверяет path, batch-подписывает до
@@ -435,6 +448,8 @@ site /foto-v-promt
 admin pages
   → Supabase Auth + ANALYTICS_ADMIN_EMAILS
   ├─ analytics/history → server-only reads + signed previews
+  ├─ analytics?tab=finance → CSV/ZIP import → admin_finance_replace_import
+  │                         live credits → admin_credit_liabilities
   └─ generate → landing_enqueue_generation → durable worker → landing_generations
        → publish → prompt_cards → SEO tagging → public card
 ```
@@ -913,6 +928,9 @@ type ResolvedRoute = {
 | `landing_link_tokens` | Одноразовые OTP для deep-link привязки (TTL 10 мин) |
 | `landing_web_transactions` | Платежи web-кредитов через Telegram Stars |
 | `landing_yookassa_payments` | Server-only ledger разовых RUB-покупок токенов через YooKassa |
+| `admin_finance_imports` | Месячные admin-импорты ЮKassa (`revenue`) и GCP Billing (`cogs`); unique `(kind, period_month)` |
+| `admin_finance_revenue_lines` | Строки реестра ЮKassa без PII плательщика |
+| `admin_finance_cogs_lines` | Строки Google Cloud Billing (SKU / `subtotal_usd`) |
 
 ### RPC
 
@@ -929,6 +947,9 @@ type ResolvedRoute = {
 | `search_cards_text` | Полнотекстовый поиск |
 | `landing_add_credits` | Начисление кредитов в `landing_users.credits` после web-оплаты |
 | `landing_fulfill_yookassa_payment` | Атомарное идемпотентное завершение YooKassa-платежа и начисление сохранённых в ledger токенов |
+| `admin_finance_replace_import` | Service-only replace месячного finance-импорта (`revenue` \| `cogs`) |
+| `admin_credit_liability_summary` | Service-only totals `landing_users.credits > 0` + blended RUB-оценка |
+| `admin_credit_liabilities` | Service-only keyset-список пользователей с непотраченными кредитами |
 
 **Сортировка листингов категорий (`/[...slug]/`, миграции `158–161`):** UI — переключатель **`ListingSortToggle`** («Новое» \| «Популярное»), выбор в **`sessionStorage`** `promptshot_listing_sort` + опционально **`?sort=popular`** в URL (default `new` — без query-параметра). SSR и API читают **`sort`**. Страница **`/trends`** всегда `sort=new` (`fixedSort`), без переключателя и без sessionStorage-sync (`useListingSort({ disabled: true })`).
 

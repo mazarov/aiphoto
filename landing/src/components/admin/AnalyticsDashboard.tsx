@@ -1,10 +1,13 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import type { AnalyticsDashboardData } from "@/lib/analytics-data";
 import { ClientsDailyChart } from "./ClientsDailyChart";
+import { CreditLiabilitySection } from "./CreditLiabilitySection";
+import { FinanceTab } from "./FinanceTab";
 import { CLIENT_SOURCES_ORDER, clientSourceLabel } from "./analytics-constants";
 
 const PERIODS = [{ value: 1, label: "Сегодня" }, { value: 7, label: "7 дней" },
@@ -27,6 +30,17 @@ function AccessMessage({ status }: { status: number }) {
 
 export function AnalyticsDashboard() {
   const { user } = useAuth();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const tab = searchParams.get("tab") === "finance" ? "finance" : "overview";
+  const setTab = (next: "overview" | "finance") => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (next === "overview") params.delete("tab");
+    else params.set("tab", "finance");
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  };
   const [days, setDays] = useState(30);
   const [kind, setKind] = useState("all");
   const [source, setSource] = useState("all");
@@ -59,16 +73,28 @@ export function AnalyticsDashboard() {
     <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
       <div><p className="text-sm font-medium text-indigo-600">PromptShot Admin</p>
         <h1 className="text-3xl font-bold tracking-tight text-zinc-900">Аналитика</h1>
-        <p className="mt-1 text-sm text-zinc-500">Пользователи, клиенты и запросы</p></div>
+        <p className="mt-1 text-sm text-zinc-500">
+          {tab === "finance" ? "Поступления, затраты Gemini и импорт выгрузок" : "Пользователи, клиенты, запросы и непотраченные кредиты"}
+        </p></div>
       <div className="flex flex-wrap items-center gap-2">
         <Link href="/admin/analyze-history" className="mr-2 text-sm font-semibold text-indigo-600">История и публикации →</Link>
-        {PERIODS.map((period) => <button key={period.value} onClick={() => setDays(period.value)}
+        {tab === "overview" && PERIODS.map((period) => <button key={period.value} onClick={() => setDays(period.value)}
           className={`rounded-xl px-3 py-2 text-xs font-semibold ${days === period.value ? "bg-indigo-600 text-white" : "border border-zinc-200 bg-white text-zinc-600"}`}>
           {period.label}
         </button>)}
       </div>
     </header>
-    {state.loading && !data ? <p className="text-sm text-zinc-500">Загрузка…</p> : state.error ? <div className={`${card} text-red-600`}>{state.error}</div> : data && <>
+    <div className="flex flex-wrap gap-2">
+      {([["overview", "Обзор"], ["finance", "Финансы"]] as const).map(([id, label]) => (
+        <button key={id} type="button" onClick={() => setTab(id)}
+          className={`rounded-xl px-3 py-2 text-xs font-semibold ${tab === id ? "bg-indigo-600 text-white" : "border border-zinc-200 bg-white text-zinc-600"}`}>
+          {label}
+        </button>
+      ))}
+    </div>
+    {tab === "finance"
+      ? state.loading && !data ? <p className="text-sm text-zinc-500">Загрузка…</p> : <FinanceTab />
+      : state.loading && !data ? <p className="text-sm text-zinc-500">Загрузка…</p> : state.error ? <div className={`${card} text-red-600`}>{state.error}</div> : data && <>
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {[
           ["Всего пользователей", data.summary.totalUsers],
@@ -78,6 +104,7 @@ export function AnalyticsDashboard() {
         ].map(([label, value]) => <div key={label} className={card}><p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">{label}</p>
           <p className="mt-2 text-3xl font-bold tabular-nums text-zinc-900">{value}</p></div>)}
       </section>
+      <CreditLiabilitySection />
       <section className={card}>
         <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
           <h2 className="font-semibold text-zinc-900">Запросы по клиентам</h2>
