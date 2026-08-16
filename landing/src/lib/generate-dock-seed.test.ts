@@ -55,6 +55,21 @@ test("shouldHydrateLastDockResult is true only for blank resume", () => {
   );
 });
 
+test("shouldHydrateLastDockResult is false after explicit last-result dismiss", () => {
+  assert.equal(
+    shouldHydrateLastDockResult(DEFAULT_GENERATE_DOCK_SEED, {
+      dismissedLastResult: true,
+    }),
+    false
+  );
+  assert.equal(
+    shouldHydrateLastDockResult(DEFAULT_GENERATE_DOCK_SEED, {
+      dismissedLastResult: false,
+    }),
+    true
+  );
+});
+
 test("shouldAttachLibraryPhotos is false only for photo_prompt compose", () => {
   assert.equal(shouldAttachLibraryPhotos(DEFAULT_GENERATE_DOCK_SEED), true);
   assert.equal(shouldAttachLibraryPhotos(seed({ intent: "text" })), true);

@@ -134,6 +134,9 @@ export function CardInlineGeneratePanel({
     reportNeedsCredits,
     requestedModelId,
     seed,
+    lastDockResultDismissed,
+    dismissLastDockResult,
+    clearLastDockResultDismiss,
   } = useGenerateDock();
   const isDock = chrome === "dock";
   const isBlank = source === "blank";
@@ -167,7 +170,8 @@ export function CardInlineGeneratePanel({
   const [starting, setStarting] = useState(false);
   /**
    * After «Повторить» / delete — do not re-apply last completed result from the
-   * mount hydrate fetch (async race with stale resultUrl/generationId closures).
+   * in-flight mount hydrate fetch. Persist dismiss in GenerateDockContext so a
+   * later remount (close/reopen, auth flicker) also skips last-result hydrate.
    */
   const suppressResultHydrateRef = useRef(false);
   const resultUrlRef = useRef<string | null>(null);
@@ -309,7 +313,12 @@ export function CardInlineGeneratePanel({
     void (async () => {
       try {
         const shouldHydrateLastDockResult = Boolean(
-          isDock && isBlank && isAuthed && seedAllowsLastDockHydrate(seed)
+          isDock &&
+            isBlank &&
+            isAuthed &&
+            seedAllowsLastDockHydrate(seed, {
+              dismissedLastResult: lastDockResultDismissed,
+            })
         );
         const [configRes, photosRes, preferencesRes, meRes, generationsRes] =
           await Promise.all([
@@ -858,6 +867,7 @@ export function CardInlineGeneratePanel({
         }
         if (poll.status === "completed" && poll.resultUrl) {
           requestCreditBalanceRefresh();
+          clearLastDockResultDismiss();
           setGenerationId(genData.id);
           setResultUrl(poll.resultUrl);
           setProgress(100);
@@ -1040,6 +1050,7 @@ export function CardInlineGeneratePanel({
         const data = (await res.json().catch(() => ({}))) as { error?: string };
         if (!res.ok) throw new Error(data.error || "Не удалось удалить");
         setMenuOpen(false);
+        dismissLastDockResult();
         suppressResultHydrateRef.current = true;
         setResultUrl(null);
         setGenerationId(null);
@@ -1070,6 +1081,7 @@ export function CardInlineGeneratePanel({
   };
   /** Leave result chrome → idle compose (keep prompt / model / photos for editing). */
   const resetToCompose = () => {
+    dismissLastDockResult();
     suppressResultHydrateRef.current = true;
     setResultUrl(null);
     setGenerationId(null);

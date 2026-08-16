@@ -88,6 +88,14 @@ type GenerateDockContextType = {
     args: { promptText: string; cardId: string },
     options?: { entrySource?: GenerateDockEntrySource }
   ) => void;
+  /**
+   * User left result chrome («Повторить» / delete / result X). Survives panel
+   * unmount so reopen does not restore the dismissed generation.
+   */
+  lastDockResultDismissed: boolean;
+  dismissLastDockResult: () => void;
+  /** New completed generation may be resumed on the next blank-dock open. */
+  clearLastDockResultDismiss: () => void;
 };
 
 const GenerateDockContext = createContext<GenerateDockContextType>({
@@ -109,6 +117,9 @@ const GenerateDockContext = createContext<GenerateDockContextType>({
   focusBlank: () => {},
   seedBlankPrompt: () => {},
   seedFromCard: () => {},
+  lastDockResultDismissed: false,
+  dismissLastDockResult: () => {},
+  clearLastDockResultDismiss: () => {},
 });
 
 export function GenerateDockProvider({ children }: { children: ReactNode }) {
@@ -123,6 +134,7 @@ export function GenerateDockProvider({ children }: { children: ReactNode }) {
   const [runProgress, setRunProgress] = useState(0);
   const [needsCredits, setNeedsCredits] = useState(false);
   const [requestedModelId, setRequestedModelId] = useState<string | null>(null);
+  const [lastDockResultDismissed, setLastDockResultDismissed] = useState(false);
   const restoredPendingRef = useRef(false);
 
   useEffect(() => {
@@ -254,6 +266,14 @@ export function GenerateDockProvider({ children }: { children: ReactNode }) {
     setHistoryRefreshToken((token) => token + 1);
   }, []);
 
+  const dismissLastDockResult = useCallback(() => {
+    setLastDockResultDismissed(true);
+  }, []);
+
+  const clearLastDockResultDismiss = useCallback(() => {
+    setLastDockResultDismissed(false);
+  }, []);
+
   const value = useMemo(
     () => ({
       seed,
@@ -274,6 +294,9 @@ export function GenerateDockProvider({ children }: { children: ReactNode }) {
       focusBlank,
       seedBlankPrompt,
       seedFromCard,
+      lastDockResultDismissed,
+      dismissLastDockResult,
+      clearLastDockResultDismiss,
     }),
     [
       seed,
@@ -292,6 +315,9 @@ export function GenerateDockProvider({ children }: { children: ReactNode }) {
       focusBlank,
       seedBlankPrompt,
       seedFromCard,
+      lastDockResultDismissed,
+      dismissLastDockResult,
+      clearLastDockResultDismiss,
     ]
   );
 

@@ -25,7 +25,11 @@ export function isResumeComposeSeed(seed: GenerateDockSeed): boolean {
 }
 
 /** Last-completed dock hydrate is resume-only — never text / photo_prompt. */
-export function shouldHydrateLastDockResult(seed: GenerateDockSeed): boolean {
+export function shouldHydrateLastDockResult(
+  seed: GenerateDockSeed,
+  options?: { dismissedLastResult?: boolean }
+): boolean {
+  if (options?.dismissedLastResult) return false;
   return seed.source === "blank" && seed.intent === "resume";
 }
 
