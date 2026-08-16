@@ -13,6 +13,8 @@ type Item = {
   created_at: string;
   kind: "analyze" | "remix";
   client_source: string;
+  user_email?: string | null;
+  user_display_name?: string | null;
   prompt: string;
   change_request: string | null;
   image_url: string | null;
@@ -75,7 +77,7 @@ export function AnalyzeHistoryList() {
   if (status === 401 || status === 403) return <div className="mx-auto max-w-lg rounded-2xl border border-zinc-200 bg-white p-8 text-center shadow-sm">
     <h1 className="text-xl font-semibold">{status === 401 ? "Нужен вход" : "Доступ запрещён"}</h1>
     <p className="mt-2 text-sm text-zinc-500">{status === 401 ? "Войдите через PromptShot." : "Ваш email не включён в allowlist."}</p>
-    {status === 401 && <button onClick={openAuthModal} className="mt-5 rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white">Войти</button>}
+    {status === 401 && <button onClick={() => openAuthModal()} className="mt-5 rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white">Войти</button>}
   </div>;
 
   return <div className="mx-auto max-w-5xl space-y-6">
@@ -124,6 +126,13 @@ export function AnalyzeHistoryList() {
               <span>{new Date(item.created_at).toLocaleString()}</span>
               {item.model && <span>{item.model}</span>}
             </div>
+            {(item.user_email || item.user_display_name) && (
+              <p className="mt-1 text-xs text-zinc-500">
+                <span className="font-semibold text-zinc-700">
+                  {item.user_email || item.user_display_name}
+                </span>
+              </p>
+            )}
             {item.kind === "remix" && item.change_request && (
               <p className="mt-1 line-clamp-2 text-xs leading-4 text-violet-700">
                 <span className="font-semibold">Что изменить:</span> {item.change_request}

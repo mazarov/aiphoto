@@ -114,9 +114,54 @@ export type AnalyzeHistoryRow = {
   model: string | null;
   image_path: string | null;
   ugc_card_id: string | null;
+  user_id?: string | null;
   credits_spent?: number | null;
   quota_mode?: string | null;
 };
+
+export type AnalyzeHistoryIdentity = {
+  email: string | null;
+  displayName: string | null;
+};
+
+export async function loadAnalyzeHistoryIdentities(
+  supabase: SupabaseServer,
+  userIds: string[],
+): Promise<Map<string, AnalyzeHistoryIdentity>> {
+  const identities = new Map<string, AnalyzeHistoryIdentity>();
+  const ids = [...new Set(userIds.filter(Boolean))];
+  if (!ids.length) return identities;
+
+  const { data: shared } = await supabase
+    .from("imageprompt_users")
+    .select("id,email,display_name")
+    .in("id", ids);
+  for (const row of shared || []) {
+    identities.set(row.id, {
+      email: row.email || null,
+      displayName: row.display_name || null,
+    });
+  }
+
+  const missing = ids.filter((id) => !identities.get(id)?.email);
+  if (!missing.length) return identities;
+
+  await Promise.all(missing.map(async (id) => {
+    const { data } = await supabase.auth.admin.getUserById(id);
+    const email = data?.user?.email || null;
+    const name =
+      (data?.user?.user_metadata?.full_name as string | undefined)
+      || (data?.user?.user_metadata?.name as string | undefined)
+      || null;
+    if (!email && !name) return;
+    const current = identities.get(id);
+    identities.set(id, {
+      email: email || current?.email || null,
+      displayName: name || current?.displayName || null,
+    });
+  }));
+  return identities;
+}
 
 export function encodeAnalyzeHistoryCursor(createdAt: string, id: string): string {
   return `${createdAt}|${id}`;

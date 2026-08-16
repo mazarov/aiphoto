@@ -20,7 +20,7 @@ function AccessMessage({ status }: { status: number }) {
     <p className="mt-2 text-sm text-zinc-500">
       {status === 401 ? "Войдите через PromptShot с разрешённым аккаунтом." : "Аккаунт отсутствует в ANALYTICS_ADMIN_EMAILS."}
     </p>
-    {status === 401 && <button onClick={openAuthModal}
+    {status === 401 && <button onClick={() => openAuthModal()}
       className="mt-5 rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700">
       Войти
     </button>}

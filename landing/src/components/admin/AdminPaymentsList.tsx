@@ -142,7 +142,7 @@ export function AdminPaymentsList() {
       <p className="mt-2 text-sm text-zinc-500">
         {state.status === 401 ? "Войдите через PromptShot." : "Ваш email не включён в allowlist."}
       </p>
-      {state.status === 401 && <button onClick={openAuthModal}
+      {state.status === 401 && <button onClick={() => openAuthModal()}
         className="mt-5 rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white">
         Войти
       </button>}

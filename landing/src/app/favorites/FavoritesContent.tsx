@@ -73,7 +73,7 @@ export function FavoritesContent() {
         </p>
         <button
           type="button"
-          onClick={openAuthModal}
+          onClick={() => openAuthModal()}
           className="mt-4 inline-block rounded-xl bg-zinc-900 px-6 py-2.5 text-sm font-semibold text-white transition-all hover:bg-zinc-800"
         >
           Войти

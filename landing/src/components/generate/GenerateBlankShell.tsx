@@ -69,7 +69,7 @@ export function GenerateBlankShell({ onBack, layout = "desktop" }: Props) {
             </p>
             <button
               type="button"
-              onClick={openAuthModal}
+              onClick={() => openAuthModal()}
               className={`${OVERLAY_BUTTON_UA_RESET} mt-4 inline-flex min-h-11 items-center justify-center rounded-xl bg-zinc-900 px-6 text-[13px] font-semibold text-white transition hover:bg-zinc-800`}
             >
               Войти

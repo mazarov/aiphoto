@@ -180,7 +180,7 @@ export function FinanceTab() {
         {state.status === 401 && (
           <button
             type="button"
-            onClick={openAuthModal}
+            onClick={() => openAuthModal()}
             className="mt-5 rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white"
           >
             Войти
