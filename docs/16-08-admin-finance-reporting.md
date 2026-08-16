@@ -16,8 +16,10 @@
 ## Поведение
 
 - Вкладки на `/admin/analytics`: **Обзор** (как раньше + блок кредитов) и **Финансы** (`?tab=finance`).
-- p3 не за месяц, а snapshot `landing_users.credits > 0`.
-- p1 показывает gross / комиссия+НДС / net. p2 — USD `Subtotal ($)`.
+- p3: график остатка по дням (реконструкция от live-баланса) и отдельная разбивка по пользователям с колонкой **Осталось**.
+- p1 показывает gross / комиссия+НДС / налог 6% / Gemini RUB / **чистый доход**.
+- p2 — USD `Subtotal ($)` × статический курс **$1 = 90 ₽**.
+- Чистый доход = выручка (gross) − комиссия и НДС ЮKassa − УСН 6% с выручки − Gemini.
 - Повторная загрузка файла за тот же месяц и `kind` **заменяет** импорт в одной транзакции.
 - PII плательщика из реестра ЮKassa (ФИО, адрес, ИНН, идентификатор платёжного средства) не сохраняется.
 - Реальные выгрузки в git не кладутся.
@@ -30,7 +32,8 @@
 - `admin_finance_revenue_lines`
 - `admin_finance_cogs_lines`
 - index `landing_users (credits DESC, id) WHERE credits > 0`
-- RPC `admin_finance_replace_import`, `admin_credit_liability_summary`, `admin_credit_liabilities` — только `service_role`
+- RPC `admin_finance_replace_import`, `admin_credit_liability_summary`, `admin_credit_liabilities`, `admin_credit_daily_flow` — только `service_role`
+- SQL `185`: daily flow + granted/spent в списке пользователей
 
 Оценка обязательства в RUB = `credits_total * blended ₽/кредит` по боевым `landing_yookassa_payments` (`succeeded`, `credited_at`, не test). Это оценка, не касса.
 
@@ -40,9 +43,9 @@
 
 | Route | Назначение |
 |-------|------------|
-| `GET /api/admin/credits` | summary + cursor-список пользователей с кредитами |
+| `GET /api/admin/credits` | summary + daily flow + cursor-список (осталось / начислено / потрачено, `q`) |
 | `GET /api/admin/finance?month=YYYY-MM` | KPI и разбивки импортов месяца |
-| `POST /api/admin/finance/import` | multipart `kind`, `period`, `file`, optional `usdRubRate` |
+| `POST /api/admin/finance/import` | multipart `kind`, `period`, `file`; курс в UI не спрашиваем, P&L всегда $1=90 ₽ |
 
 Лимит файла 10 MB. ZIP ЮKassa: ищем CSV внутри; если только XLSX — 400 `yookassa_csv_required`.
 
@@ -53,7 +56,7 @@
 
 ## Cutover
 
-1. Применить `sql/184_admin_finance_reporting.sql` в целевой Supabase.
+1. Применить `sql/184_admin_finance_reporting.sql` и `sql/185_admin_credit_dynamics.sql` в целевой Supabase.
 2. Задеплоить landing.
 3. На `/admin/analytics?tab=finance` загрузить августовский реестр ЮKassa и Billing CSV.
 

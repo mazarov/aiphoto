@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { FinanceMonthData } from "@/lib/finance-types";
+import type { FinanceMonthData, FinancePnl } from "@/lib/finance-types";
 
 const card = "rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm";
 
@@ -20,6 +20,11 @@ function formatUsd(value: number | null | undefined): string {
   return `$${value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+function formatSignedRub(value: number): string {
+  const abs = formatRub(Math.abs(value));
+  return value > 0 ? `−${abs}` : value < 0 ? `+${formatRub(Math.abs(value))}` : formatRub(0);
+}
+
 function ImportMeta({ label, filename, at, email, missing }: {
   label: string;
   filename?: string;
@@ -34,9 +39,65 @@ function ImportMeta({ label, filename, at, email, missing }: {
   );
 }
 
+function PnlRow({ label, hint, value, muted }: {
+  label: string;
+  hint?: string;
+  value: string;
+  muted?: boolean;
+}) {
+  return (
+    <div className={`flex items-baseline justify-between gap-4 py-2 ${muted ? "text-zinc-400" : "text-zinc-800"}`}>
+      <div>
+        <p className="text-sm">{label}</p>
+        {hint ? <p className="text-xs text-zinc-400">{hint}</p> : null}
+      </div>
+      <p className="shrink-0 text-sm tabular-nums">{value}</p>
+    </div>
+  );
+}
+
+function NetIncomeCard({ pnl }: { pnl: FinancePnl }) {
+  return (
+    <section className={card}>
+      <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Чистый доход</p>
+      <p className="mt-2 text-3xl font-bold tabular-nums text-zinc-900">{formatRub(pnl.netIncomeRub)}</p>
+      <p className="mt-1 text-xs text-zinc-500">
+        $1 = {pnl.usdRubRate} ₽ · налог {(pnl.taxRate * 100).toFixed(0)}% с выручки · комиссия ЮKassa из реестра
+      </p>
+      {pnl.missingCogs ? (
+        <p className="mt-2 text-xs text-amber-700">Затраты Gemini не загружены — в расчёте 0 ₽.</p>
+      ) : null}
+      {pnl.netIncomeRub == null ? (
+        <p className="mt-2 text-xs text-zinc-500">Чтобы увидеть чистый доход, загрузите реестр ЮKassa.</p>
+      ) : (
+        <div className="mt-4 divide-y divide-zinc-100 border-t border-zinc-100">
+          <PnlRow label="Выручка" hint="gross ЮKassa" value={formatRub(pnl.grossRub)} />
+          <PnlRow
+            label="Комиссия + НДС ЮKassa"
+            value={pnl.yookassaFeesRub == null ? "—" : formatSignedRub(pnl.yookassaFeesRub)}
+          />
+          <PnlRow
+            label={`Налог ${(pnl.taxRate * 100).toFixed(0)}% с выручки`}
+            value={pnl.taxRub == null ? "—" : formatSignedRub(pnl.taxRub)}
+          />
+          <PnlRow
+            label="Потрачено Gemini"
+            hint={pnl.spendUsd == null ? "нет импорта" : `${formatUsd(pnl.spendUsd)} × ${pnl.usdRubRate}`}
+            value={pnl.spendRub == null ? "—" : formatSignedRub(pnl.spendRub)}
+            muted={pnl.spendRub == null}
+          />
+          <div className="flex items-baseline justify-between gap-4 pt-3">
+            <p className="text-sm font-semibold text-zinc-900">Чистый доход</p>
+            <p className="text-sm font-semibold tabular-nums text-zinc-900">{formatRub(pnl.netIncomeRub)}</p>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
 export function FinanceTab() {
   const [month, setMonth] = useState(currentMonth);
-  const [rate, setRate] = useState("");
   const [data, setData] = useState<FinanceMonthData | null>(null);
   const [state, setState] = useState({ loading: true, error: "", message: "" });
   const [busy, setBusy] = useState<"revenue" | "cogs" | null>(null);
@@ -52,9 +113,6 @@ export function FinanceTab() {
         return;
       }
       setData(body);
-      if (body.usdRubRate != null) {
-        setRate((current) => current || String(body.usdRubRate));
-      }
       setState((current) => ({ ...current, loading: false, error: "" }));
     } catch {
       setState({ loading: false, error: "Ошибка сети", message: "" });
@@ -72,7 +130,6 @@ export function FinanceTab() {
       form.set("kind", kind);
       form.set("period", month);
       form.set("file", file);
-      if (rate.trim()) form.set("usdRubRate", rate.trim());
       const response = await fetch("/api/admin/finance/import", {
         method: "POST",
         credentials: "include",
@@ -110,17 +167,9 @@ export function FinanceTab() {
             className="mt-1 block rounded-xl border border-zinc-200 px-3 py-2 text-sm text-zinc-900"
           />
         </label>
-        <label className="text-sm text-zinc-600">
-          Курс USD/RUB (оценка маржи)
-          <input
-            type="text"
-            inputMode="decimal"
-            value={rate}
-            onChange={(event) => setRate(event.target.value)}
-            placeholder="необязательно"
-            className="mt-1 block rounded-xl border border-zinc-200 px-3 py-2 text-sm text-zinc-900"
-          />
-        </label>
+        <p className="text-xs text-zinc-500">
+          Курс Gemini: $1 = 90 ₽ (статика). Налог: 6% с выручки.
+        </p>
       </section>
 
       <section className="grid gap-4 lg:grid-cols-2">
@@ -145,7 +194,7 @@ export function FinanceTab() {
         </div>
         <div className={card}>
           <h2 className="font-semibold text-zinc-900">Затраты Gemini</h2>
-          <p className="mt-1 text-sm text-zinc-500">CSV Google Cloud Billing Account Report. Subtotal $.</p>
+          <p className="mt-1 text-sm text-zinc-500">CSV Google Cloud Billing. Subtotal $ × 90 ₽.</p>
           <label className="mt-4 inline-flex cursor-pointer rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">
             {busy === "cogs" ? "Загрузка…" : "Загрузить billing CSV"}
             <input type="file" accept=".csv,text/csv" className="hidden"
@@ -169,30 +218,19 @@ export function FinanceTab() {
       {state.loading && !data ? <p className="text-sm text-zinc-500">Загрузка…</p> : data && <>
         <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {[
-            ["Получено gross", formatRub(data.revenue?.kpi.gross ?? null)],
-            ["Комиссия + НДС", formatRub(data.revenue ? data.revenue.kpi.commission + data.revenue.kpi.vat : null)],
-            ["Получено net", formatRub(data.revenue?.kpi.net ?? null)],
-            ["Потрачено Gemini", formatUsd(data.cogs?.kpi.subtotalUsd ?? null)],
-          ].map(([label, value]) => (
+            ["Получено gross", formatRub(data.revenue?.kpi.gross ?? null), null],
+            ["Комиссия + НДС ЮKassa", formatRub(data.pnl.yookassaFeesRub), null],
+            ["Налог 6% с выручки", formatRub(data.pnl.taxRub), null],
+            ["Потрачено Gemini", formatRub(data.pnl.spendRub), data.pnl.spendUsd != null ? `${formatUsd(data.pnl.spendUsd)} × ${data.pnl.usdRubRate}` : null],
+          ].map(([label, value, hint]) => (
             <div key={label} className={card}>
               <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">{label}</p>
               <p className="mt-2 text-2xl font-bold tabular-nums text-zinc-900">{value}</p>
+              {hint ? <p className="mt-1 text-xs text-zinc-500">{hint}</p> : null}
             </div>
           ))}
         </section>
-        {(data.spendRubEstimate != null || data.marginRubEstimate != null) && (
-          <section className="grid gap-4 sm:grid-cols-2">
-            <div className={card}>
-              <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Затраты в RUB (оценка)</p>
-              <p className="mt-2 text-2xl font-bold tabular-nums text-zinc-900">{formatRub(data.spendRubEstimate)}</p>
-              <p className="mt-1 text-xs text-zinc-500">курс {data.usdRubRate}</p>
-            </div>
-            <div className={card}>
-              <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Маржа net − spend (оценка)</p>
-              <p className="mt-2 text-2xl font-bold tabular-nums text-zinc-900">{formatRub(data.marginRubEstimate)}</p>
-            </div>
-          </section>
-        )}
+        <NetIncomeCard pnl={data.pnl} />
 
         <section className="grid gap-4 lg:grid-cols-2">
           <div className={card}>
@@ -220,13 +258,14 @@ export function FinanceTab() {
             {!data.cogs?.daily.length ? <p className="text-sm text-zinc-500">Нет данных</p> : (
               <table className="w-full text-left text-sm">
                 <thead className="text-xs uppercase text-zinc-400">
-                  <tr><th className="pb-2">День</th><th>USD</th></tr>
+                  <tr><th className="pb-2">День</th><th>USD</th><th>RUB</th></tr>
                 </thead>
                 <tbody>
                   {data.cogs.daily.map((row) => (
                     <tr key={row.day} className="border-t border-zinc-100">
                       <td className="py-2">{row.day}</td>
                       <td className="tabular-nums">{formatUsd(row.subtotalUsd)}</td>
+                      <td className="tabular-nums">{formatRub(row.subtotalRub)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -260,13 +299,14 @@ export function FinanceTab() {
             {!data.cogs?.byFamily.length ? <p className="text-sm text-zinc-500">Нет данных</p> : (
               <table className="w-full text-left text-sm">
                 <thead className="text-xs uppercase text-zinc-400">
-                  <tr><th className="pb-2">Семейство</th><th>USD</th></tr>
+                  <tr><th className="pb-2">Семейство</th><th>USD</th><th>RUB</th></tr>
                 </thead>
                 <tbody>
                   {data.cogs.byFamily.map((row) => (
                     <tr key={row.family} className="border-t border-zinc-100">
                       <td className="py-2">{row.label}</td>
                       <td className="tabular-nums">{formatUsd(row.subtotalUsd)}</td>
+                      <td className="tabular-nums">{formatRub(row.subtotalRub)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -281,7 +321,7 @@ export function FinanceTab() {
             <div className="overflow-x-auto">
               <table className="w-full min-w-[640px] text-left text-sm">
                 <thead className="text-xs uppercase text-zinc-400">
-                  <tr><th className="pb-2">SKU</th><th>USD</th></tr>
+                  <tr><th className="pb-2">SKU</th><th>USD</th><th>RUB</th></tr>
                 </thead>
                 <tbody>
                   {data.cogs.bySku.map((row) => (
@@ -291,6 +331,7 @@ export function FinanceTab() {
                         <p className="font-mono text-xs text-zinc-400">{row.skuId}</p>
                       </td>
                       <td className="tabular-nums">{formatUsd(row.subtotalUsd)}</td>
+                      <td className="tabular-nums">{formatRub(row.subtotalRub)}</td>
                     </tr>
                   ))}
                 </tbody>

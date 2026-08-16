@@ -1,13 +1,18 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { CreditDynamicsChart } from "./CreditDynamicsChart";
+import type { CreditSeriesDay } from "@/lib/admin-credits";
 
 type CreditItem = {
   landingUserId: string;
   email: string | null;
   displayName: string | null;
   provider: string | null;
-  credits: number;
+  remaining: number;
+  grantedTotal: number;
+  spentTotal: number;
+  sharePct: number;
   updatedAt: string;
 };
 
@@ -17,6 +22,13 @@ type CreditsResponse = {
     creditsTotal: number;
     blendedRubPerCredit: number | null;
     liabilityRubEstimate: number | null;
+  };
+  flow: {
+    days: number;
+    granted: number;
+    spent: number;
+    refunded: number;
+    series: CreditSeriesDay[];
   };
   items: CreditItem[];
   nextCursor: string | null;
@@ -33,15 +45,23 @@ function formatRub(value: number | null): string {
   return `${value.toLocaleString("ru-RU", { maximumFractionDigits: 2 })} ₽`;
 }
 
-export function CreditLiabilitySection() {
+export function CreditLiabilitySection({ days }: { days: number }) {
+  const [query, setQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
   const [data, setData] = useState<CreditsResponse | null>(null);
   const [state, setState] = useState({ loading: true, error: "" });
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedQuery(query.trim()), 300);
+    return () => window.clearTimeout(timer);
+  }, [query]);
 
   const load = useCallback(async (next?: string) => {
     setState({ loading: true, error: "" });
     try {
-      const params = new URLSearchParams({ limit: "30" });
+      const params = new URLSearchParams({ limit: "30", days: String(days) });
       if (next) params.set("cursor", next);
+      if (debouncedQuery) params.set("q", debouncedQuery);
       const response = await fetch(`/api/admin/credits?${params}`, { credentials: "include" });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) {
@@ -49,29 +69,36 @@ export function CreditLiabilitySection() {
         return;
       }
       setData((current) => next && current
-        ? { ...body, items: [...current.items, ...body.items] }
+        ? { ...body, items: [...current.items, ...body.items], flow: current.flow, summary: current.summary }
         : body);
       setState({ loading: false, error: "" });
     } catch {
       setState({ loading: false, error: "Ошибка сети" });
     }
-  }, []);
+  }, [days, debouncedQuery]);
 
   useEffect(() => { void load(); }, [load]);
 
   return (
     <section className="space-y-4">
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <div className={card}>
-          <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Непотраченные кредиты</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Сейчас на балансах</p>
           <p className="mt-2 text-3xl font-bold tabular-nums text-zinc-900">
             {data ? formatCredits(data.summary.creditsTotal) : "—"}
           </p>
+          <p className="mt-1 text-xs text-zinc-500">непотраченные кредиты</p>
         </div>
         <div className={card}>
-          <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Пользователей с балансом</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Начислено за период</p>
           <p className="mt-2 text-3xl font-bold tabular-nums text-zinc-900">
-            {data ? formatCredits(data.summary.usersWithCredits) : "—"}
+            {data ? formatCredits(data.flow.granted) : "—"}
+          </p>
+        </div>
+        <div className={card}>
+          <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Потрачено за период</p>
+          <p className="mt-2 text-3xl font-bold tabular-nums text-zinc-900">
+            {data ? formatCredits(data.flow.spent) : "—"}
           </p>
         </div>
         <div className={card}>
@@ -81,25 +108,55 @@ export function CreditLiabilitySection() {
           </p>
           <p className="mt-1 text-xs text-zinc-500">
             {data?.summary.blendedRubPerCredit != null
-              ? `${data.summary.blendedRubPerCredit.toLocaleString("ru-RU", { maximumFractionDigits: 2 })} ₽ / кредит по боевым YooKassa`
+              ? `${data.summary.blendedRubPerCredit.toLocaleString("ru-RU", { maximumFractionDigits: 2 })} ₽ / кредит`
               : "Нет боевых начислений для оценки"}
           </p>
         </div>
       </div>
 
       <div className={card}>
-        <h2 className="mb-4 font-semibold text-zinc-900">Пользователи с непотраченными кредитами</h2>
+        <h2 className="mb-1 font-semibold text-zinc-900">Динамика остатка кредитов</h2>
+        <p className="mb-4 text-sm text-zinc-500">
+          Один график: сколько кредитов оставалось неиспользованными. Период как у обзора сверху.
+        </p>
+        {state.loading && !data ? <p className="text-sm text-zinc-500">Загрузка…</p>
+          : state.error && !data ? <p className="text-sm text-red-600">{state.error}</p>
+          : <CreditDynamicsChart series={data?.flow.series || []} />}
+      </div>
+
+      <div className={card}>
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h2 className="font-semibold text-zinc-900">Разбивка по пользователям</h2>
+            <p className="mt-1 text-sm text-zinc-500">
+              {data
+                ? `${formatCredits(data.summary.usersWithCredits)} с балансом. В колонке «Осталось» — сколько кредитов ещё не потрачено.`
+                : "Сколько кредитов ещё лежит на балансе у каждого."}
+            </p>
+          </div>
+          <label className="text-sm text-zinc-600">
+            Поиск
+            <input
+              type="search"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="email или имя"
+              className="mt-1 block w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm text-zinc-900 sm:w-64"
+            />
+          </label>
+        </div>
         {state.loading && !data ? <p className="text-sm text-zinc-500">Загрузка…</p>
           : state.error ? <p className="text-sm text-red-600">{state.error}</p>
           : !data?.items.length ? <p className="text-sm text-zinc-500">Ни у кого нет кредитов на балансе</p>
           : <>
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[640px] text-left text-sm">
+              <table className="w-full min-w-[720px] text-left text-sm">
                 <thead className="text-xs uppercase text-zinc-400">
                   <tr>
                     <th className="pb-3">Пользователь</th>
-                    <th>Кредиты</th>
-                    <th>Провайдер</th>
+                    <th>Осталось</th>
+                    <th>Доля</th>
+                    <th>Начислено / потрачено</th>
                     <th>Обновлён</th>
                   </tr>
                 </thead>
@@ -111,9 +168,21 @@ export function CreditLiabilitySection() {
                         {row.email && row.displayName && row.displayName !== row.email
                           && <p className="text-xs text-zinc-500">{row.displayName}</p>}
                       </td>
-                      <td className="tabular-nums font-semibold">{formatCredits(row.credits)}</td>
-                      <td className="text-zinc-500">{row.provider || "—"}</td>
-                      <td className="text-zinc-500">
+                      <td className="align-top">
+                        <p className="text-lg font-bold tabular-nums text-zinc-900">{formatCredits(row.remaining)}</p>
+                        <p className="text-xs text-zinc-400">на балансе</p>
+                      </td>
+                      <td className="align-top">
+                        <p className="tabular-nums text-zinc-800">{row.sharePct.toLocaleString("ru-RU")}%</p>
+                        <div className="mt-1 h-1.5 w-24 overflow-hidden rounded-full bg-zinc-100">
+                          <div className="h-full rounded-full bg-indigo-500" style={{ width: `${Math.min(100, row.sharePct)}%` }} />
+                        </div>
+                      </td>
+                      <td className="align-top text-zinc-500">
+                        <p>+{formatCredits(row.grantedTotal)} / −{formatCredits(row.spentTotal)}</p>
+                        <p className="text-xs text-zinc-400">за всё время</p>
+                      </td>
+                      <td className="align-top text-zinc-500">
                         {row.updatedAt ? new Date(row.updatedAt).toLocaleString() : "—"}
                       </td>
                     </tr>

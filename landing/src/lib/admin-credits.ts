@@ -6,8 +6,19 @@ export type AdminCreditLiabilityRow = {
   display_name: string | null;
   provider: string | null;
   credits: number;
+  granted_total: number;
+  spent_total: number;
   updated_at: string;
 };
+
+export type AdminCreditFlowRow = {
+  day: string;
+  granted: number;
+  spent: number;
+  refunded: number;
+};
+
+export type CreditSeriesDay = AdminCreditFlowRow & { remaining: number };
 
 export type AdminCreditLiabilitySummary = {
   users_with_credits: number;
@@ -20,6 +31,34 @@ const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export const parseAdminCreditLimit = parseAdminGenerationLimit;
+
+const CREDIT_DAYS = new Set([1, 7, 30, 90]);
+
+export function parseAdminCreditDays(raw: string | null): number {
+  const value = Number(raw || 30);
+  return CREDIT_DAYS.has(value) ? value : 30;
+}
+
+export function parseAdminCreditSearch(raw: string | null): string | null {
+  const value = (raw || "").trim();
+  if (!value) return null;
+  return value.slice(0, 80);
+}
+
+export function reconstructCreditRemaining(
+  liveRemaining: number,
+  flow: AdminCreditFlowRow[],
+): CreditSeriesDay[] {
+  const sorted = [...flow].sort((left, right) => left.day.localeCompare(right.day));
+  const remaining: number[] = new Array(sorted.length);
+  let current = Math.max(0, Math.round(liveRemaining));
+  for (let index = sorted.length - 1; index >= 0; index -= 1) {
+    remaining[index] = current;
+    const row = sorted[index];
+    current = current - row.granted - row.refunded + row.spent;
+  }
+  return sorted.map((row, index) => ({ ...row, remaining: remaining[index] ?? 0 }));
+}
 
 export function encodeAdminCreditCursor(credits: number, id: string): string {
   return `${credits}|${id}`;

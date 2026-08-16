@@ -30,6 +30,23 @@ export type FinanceImportMeta = {
   updatedAt: string;
 };
 
+/** Static admin FX until a live rate is wired. */
+export const FINANCE_USD_RUB_RATE = 90;
+/** УСН 6% from YooKassa gross (выручка), not from net after acquiring. */
+export const FINANCE_REVENUE_TAX_RATE = 0.06;
+
+export type FinancePnl = {
+  usdRubRate: number;
+  taxRate: number;
+  grossRub: number | null;
+  yookassaFeesRub: number | null;
+  taxRub: number | null;
+  spendUsd: number | null;
+  spendRub: number | null;
+  netIncomeRub: number | null;
+  missingCogs: boolean;
+};
+
 export type FinanceMonthData = {
   month: string;
   revenue: {
@@ -47,12 +64,16 @@ export type FinanceMonthData = {
   } | null;
   cogs: {
     import: FinanceImportMeta;
-    kpi: { subtotalUsd: number; count: number };
-    daily: { day: string; subtotalUsd: number }[];
-    byFamily: { family: GeminiFamilyId; label: string; subtotalUsd: number }[];
-    bySku: { skuId: string; skuDescription: string; subtotalUsd: number; usageAmount: number }[];
+    kpi: { subtotalUsd: number; subtotalRub: number; count: number };
+    daily: { day: string; subtotalUsd: number; subtotalRub: number }[];
+    byFamily: { family: GeminiFamilyId; label: string; subtotalUsd: number; subtotalRub: number }[];
+    bySku: {
+      skuId: string;
+      skuDescription: string;
+      subtotalUsd: number;
+      subtotalRub: number;
+      usageAmount: number;
+    }[];
   } | null;
-  usdRubRate: number | null;
-  spendRubEstimate: number | null;
-  marginRubEstimate: number | null;
+  pnl: FinancePnl;
 };

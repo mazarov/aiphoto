@@ -104,7 +104,7 @@ export function AnalyticsDashboard() {
         ].map(([label, value]) => <div key={label} className={card}><p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">{label}</p>
           <p className="mt-2 text-3xl font-bold tabular-nums text-zinc-900">{value}</p></div>)}
       </section>
-      <CreditLiabilitySection />
+      <CreditLiabilitySection days={days} />
       <section className={card}>
         <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
           <h2 className="font-semibold text-zinc-900">Запросы по клиентам</h2>

@@ -1,6 +1,8 @@
 # 01 — Лендинг (promptshot.ru)
 
-> Последнее обновление: 2026-08-16 (**admin finance reporting:** `/admin/analytics` вкладки Обзор/Финансы; live `landing_users.credits`; импорт ЮKassa CSV/ZIP и GCP Billing CSV; миграция `184`.)
+> Последнее обновление: 2026-08-16 (**admin credit dynamics:** график остатка кредитов по дням + разбивка «осталось / доля / начислено-потрачено»; RPC `admin_credit_daily_flow`, SQL `185`.)
+>
+> Последнее обновление: 2026-08-16 (**admin finance reporting:** `/admin/analytics` вкладки Обзор/Финансы; live `landing_users.credits`; импорт ЮKassa/GCP; Gemini $1=90₽ статика; чистый доход = gross − комиссия ЮKassa − УСН 6% − Gemini; миграция `184`.)
 >
 > Последнее обновление: 2026-08-15 (**web-generation results JPEG:** worker пишет новые объекты в `web-generation-results` как JPEG q=85 (`user/job/lease.jpg`). Старые `.png` валидны. Encode fail / no-gain заливает исходник с честным mime. Alpine worker ставит musl `sharp@0.33.5`.)
 >
@@ -331,7 +333,7 @@
 | `/api/cron/yookassa-reconcile` | POST, `Authorization: Bearer $CRON_SECRET`: batch `reconcileStaleYooKassaPayments` для `created|pending` старше 5 мин (limit 20) |
 | `/api/extension/analyze` | Same-origin analyze для site `/foto-v-promt`: validation/SSRF protection → optional Auth/shared identity → atomic rate-limit reserve → Gemini proxy/direct → confirm при success или release при error; успешный результат best-effort сохраняется в private 30-day `analyze_history` |
 | `/api/admin/analytics` | GET, admin auth: no-store analytics rollups за `1…90` дней |
-| `/api/admin/credits` | GET, admin auth: live summary `credits > 0` + keyset-список пользователей (email/provider/credits) |
+| `/api/admin/credits` | GET, admin auth: live остаток + daily flow (`days=1\|7\|30\|90`) + keyset-список (`q`, remaining/granted/spent/share) |
 | `/api/admin/finance` | GET, admin auth: KPI и разбивки импортов ЮKassa/GCP за месяц `YYYY-MM` |
 | `/api/admin/finance/import` | POST, admin auth: multipart replace-импорт `kind=revenue\|cogs`, CSV/ZIP до 10 MB |
 | `/api/admin/payments` | GET, admin auth: cursor YooKassa ledger с status/test filters, payer auth/billing identity и credit fulfillment state (`credited` / `not_due` / `discrepancy` / `stale`) |
@@ -420,11 +422,14 @@
 - **Финансы (касса выгрузок):** вкладка `/admin/analytics?tab=finance` хранит
   месячные импорты в `admin_finance_imports` + line tables. Source of truth для
   «получено» — реестр ЮKassa (gross/net/комиссия), для «потрачено» — GCP
-  `Subtotal ($)`. Повторный upload заменяет месяц через
-  `admin_finance_replace_import`. Live остаток кредитов на Обзоре —
-  `admin_credit_liability_summary` / `admin_credit_liabilities`, не период импорта.
-  Оценка обязательства в RUB считается blended-ценой боевых YooKassa и не
-  подменяет кассу. Telegram Stars и сверка CSV ↔ ledger — вне v1.
+  `Subtotal ($)` × статический курс **$1 = 90 ₽**. Чистый доход =
+  gross − комиссия/НДС ЮKassa − **УСН 6% с выручки (gross)** − Gemini RUB.
+  Повторный upload заменяет месяц через `admin_finance_replace_import`. Live
+  остаток кредитов на Обзоре — график по `admin_credit_daily_flow` (реконструкция
+  от текущего `landing_users.credits`) и разбивка `admin_credit_liabilities`
+  с колонкой «Осталось». Оценка обязательства в RUB считается blended-ценой
+  боевых YooKassa и не подменяет кассу. Telegram Stars в кассе v1 нет; в
+  динамике кредитов Stars `state=done` учитываются.
 - **Генерации пользователей:** `admin_user_generations_queue` возвращает все
   `client_source IS DISTINCT FROM 'admin'` и terminal/non-terminal statuses.
   Private input paths не отдаются клиенту: API проверяет path, batch-подписывает до
@@ -949,7 +954,8 @@ type ResolvedRoute = {
 | `landing_fulfill_yookassa_payment` | Атомарное идемпотентное завершение YooKassa-платежа и начисление сохранённых в ledger токенов |
 | `admin_finance_replace_import` | Service-only replace месячного finance-импорта (`revenue` \| `cogs`) |
 | `admin_credit_liability_summary` | Service-only totals `landing_users.credits > 0` + blended RUB-оценка |
-| `admin_credit_liabilities` | Service-only keyset-список пользователей с непотраченными кредитами |
+| `admin_credit_liabilities` | Service-only keyset-список пользователей с `credits > 0`, lifetime granted/spent, optional search |
+| `admin_credit_daily_flow` | Service-only дневные начисления (ЮKassa/Stars), списания и возвраты генераций |
 
 **Сортировка листингов категорий (`/[...slug]/`, миграции `158–161`):** UI — переключатель **`ListingSortToggle`** («Новое» \| «Популярное»), выбор в **`sessionStorage`** `promptshot_listing_sort` + опционально **`?sort=popular`** в URL (default `new` — без query-параметра). SSR и API читают **`sort`**. Страница **`/trends`** всегда `sort=new` (`fixedSort`), без переключателя и без sessionStorage-sync (`useListingSort({ disabled: true })`).
 

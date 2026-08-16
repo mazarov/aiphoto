@@ -1,5 +1,6 @@
 import type { createSupabaseServer } from "@/lib/supabase";
 import { classifyGeminiFamily } from "@/lib/finance-parse";
+import { computeFinancePnl, moneyRub, usdToRub } from "@/lib/finance-pnl";
 import {
   GEMINI_FAMILY_LABELS,
   type FinanceImportMeta,
@@ -42,10 +43,7 @@ type CogsRow = {
   subtotal_usd: number | string;
 };
 
-function money(value: number | string | null | undefined): number {
-  const amount = Number(value || 0);
-  return Number.isFinite(amount) ? Math.round(amount * 100) / 100 : 0;
-}
+const money = moneyRub;
 
 function usd(value: number | string | null | undefined): number {
   const amount = Number(value || 0);
@@ -178,38 +176,47 @@ export async function fetchFinanceMonth(
     }
     cogs = {
       import: toMeta(cogsImport),
-      kpi: { subtotalUsd: usd(subtotalUsd), count: lines.length },
+      kpi: {
+        subtotalUsd: usd(subtotalUsd),
+        subtotalRub: usdToRub(usd(subtotalUsd)),
+        count: lines.length,
+      },
       daily: [...dailyMap.values()]
-        .map((row) => ({ ...row, subtotalUsd: usd(row.subtotalUsd) }))
+        .map((row) => {
+          const subtotalUsd = usd(row.subtotalUsd);
+          return { ...row, subtotalUsd, subtotalRub: usdToRub(subtotalUsd) };
+        })
         .sort((left, right) => left.day.localeCompare(right.day)),
       byFamily: [...familyMap.entries()]
-        .map(([family, value]) => ({
-          family,
-          label: GEMINI_FAMILY_LABELS[family],
-          subtotalUsd: usd(value),
-        }))
+        .map(([family, value]) => {
+          const subtotalUsd = usd(value);
+          return {
+            family,
+            label: GEMINI_FAMILY_LABELS[family],
+            subtotalUsd,
+            subtotalRub: usdToRub(subtotalUsd),
+          };
+        })
         .sort((left, right) => right.subtotalUsd - left.subtotalUsd),
       bySku: [...skuMap.values()]
-        .map((row) => ({ ...row, subtotalUsd: usd(row.subtotalUsd) }))
+        .map((row) => {
+          const subtotalUsd = usd(row.subtotalUsd);
+          return { ...row, subtotalUsd, subtotalRub: usdToRub(subtotalUsd) };
+        })
         .sort((left, right) => right.subtotalUsd - left.subtotalUsd)
         .slice(0, 30),
     };
   }
 
-  const usdRubRate = cogs?.import.usdRubRate ?? revenue?.import.usdRubRate ?? null;
-  const spendRubEstimate = usdRubRate != null && cogs
-    ? money(cogs.kpi.subtotalUsd * usdRubRate)
-    : null;
-  const marginRubEstimate = spendRubEstimate != null && revenue
-    ? money(revenue.kpi.net - spendRubEstimate)
-    : null;
-
   return {
     month: periodMonth,
     revenue,
     cogs,
-    usdRubRate,
-    spendRubEstimate,
-    marginRubEstimate,
+    pnl: computeFinancePnl({
+      gross: revenue?.kpi.gross,
+      commission: revenue?.kpi.commission,
+      vat: revenue?.kpi.vat,
+      spendUsd: cogs?.kpi.subtotalUsd,
+    }),
   };
 }
