@@ -49,7 +49,8 @@ Text-only video и video-from-video запрещены.
 ## Выключатель
 
 `landing_generation_config.video_animate_enabled` = `true` | `false`.  
-Пока `false` — API отвечает `video_disabled`, UI не показывает «Оживить».
+Пока `false` — API отвечает `video_disabled`, UI не показывает «Оживить».  
+Исключение: allowlist `INTERNAL_GENERATE_ALLOWLIST` / default `azarov.maxim@gmail.com` — CTA и enqueue доступны всегда. Локальный `next dev` тоже открыт.
 
 ## Rollback
 

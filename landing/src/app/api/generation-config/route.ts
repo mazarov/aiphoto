@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServer } from "@/lib/supabase";
+import { getSupabaseUserForApiRoute } from "@/lib/supabase-route-auth";
 import {
   parseEnabledGenerationModels,
   parseEnabledVideoGenerationModels,
@@ -34,6 +35,7 @@ export async function GET(req: NextRequest) {
       );
     }
 
+    const { user } = await getSupabaseUserForApiRoute(req);
     const supabase = createSupabaseServer();
     const { data: rows } = await supabase
       .from("landing_generation_config")
@@ -60,7 +62,7 @@ export async function GET(req: NextRequest) {
       const models = parseEnabledVideoGenerationModels(config.video_models);
       return NextResponse.json({
         modality: VIDEO_GENERATION_MODALITY,
-        enabled: isVideoAnimateUnlocked(config.video_animate_enabled),
+        enabled: isVideoAnimateUnlocked(config.video_animate_enabled, user?.email),
         models,
         aspectRatios: VIDEO_ASPECT_RATIO_OPTIONS,
         durations: VIDEO_DURATION_OPTIONS,

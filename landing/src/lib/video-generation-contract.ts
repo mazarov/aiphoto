@@ -8,6 +8,7 @@ import {
   isVideoDurationSeconds,
   isVideoResolution,
 } from "@/lib/generation/image-options";
+import { isInternalGenerateAllowlistedEmail } from "@/lib/internal-generate-allowlist";
 
 export const VIDEO_RESULT_MIME = "video/mp4";
 
@@ -89,7 +90,15 @@ export function isVideoAnimateFlagOn(value: string | undefined): boolean {
   return ["1", "true", "yes", "on"].includes(String(value || "").trim().toLowerCase());
 }
 
-/** Prod follows `video_animate_enabled`. Local `next dev` unlocks the CTA so we can smoke-test. */
-export function isVideoAnimateUnlocked(value: string | undefined): boolean {
-  return isVideoAnimateFlagOn(value) || process.env.NODE_ENV === "development";
+/**
+ * Prod follows `video_animate_enabled`.
+ * Allowlisted internals (default azarov.maxim@gmail.com) and local `next dev` stay unlocked.
+ */
+export function isVideoAnimateUnlocked(
+  value: string | undefined,
+  userEmail?: string | null
+): boolean {
+  if (isVideoAnimateFlagOn(value)) return true;
+  if (isInternalGenerateAllowlistedEmail(userEmail)) return true;
+  return process.env.NODE_ENV === "development";
 }

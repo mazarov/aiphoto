@@ -82,5 +82,9 @@ test("video animate flag is off unless explicitly enabled", () => {
   assert.equal(isVideoAnimateFlagOn("false"), false);
   assert.equal(isVideoAnimateFlagOn("true"), true);
   assert.equal(isVideoAnimateUnlocked("true"), true);
-  assert.equal(isVideoAnimateUnlocked("false"), process.env.NODE_ENV === "development");
+  assert.equal(
+    isVideoAnimateUnlocked("false", "someone@example.com"),
+    process.env.NODE_ENV === "development"
+  );
+  assert.equal(isVideoAnimateUnlocked("false", "azarov.maxim@gmail.com"), true);
 });

@@ -337,7 +337,10 @@ export async function POST(req: NextRequest) {
     }
 
     if (isVideo) {
-      const enabled = isVideoAnimateUnlocked(config.video_animate_enabled);
+      const enabled = isVideoAnimateUnlocked(
+        config.video_animate_enabled,
+        user.email
+      );
       if (!enabled && !openDebug) {
         return NextResponse.json(
           {
