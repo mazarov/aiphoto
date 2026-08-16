@@ -1,13 +1,9 @@
 /**
  * Shared masonry contract for prompt-card listings.
  * Homepage, generation examples, category/search/favorites all use the same
- * CSS columns + first-photo aspect (no 3:4 crop, no split-group cells).
+ * first-photo aspect (no 3:4 crop, no split-group cells).
+ * Tailwind class strings live in the scanned ListingMasonry component.
  */
-
-export const LISTING_MASONRY_COLUMNS_CLASS =
-  "-mb-2 columns-2 gap-2 sm:-mb-3 sm:columns-3 sm:gap-3 lg:columns-4";
-
-export const LISTING_MASONRY_ITEM_CLASS = "mb-2 break-inside-avoid sm:mb-3";
 
 export const FALLBACK_LISTING_ASPECT_RATIOS = [
   3 / 4,

@@ -1,9 +1,12 @@
 import { type ReactNode } from "react";
-import {
-  FALLBACK_LISTING_ASPECT_RATIOS,
-  LISTING_MASONRY_COLUMNS_CLASS,
-  LISTING_MASONRY_ITEM_CLASS,
-} from "@/lib/listing-masonry";
+import { FALLBACK_LISTING_ASPECT_RATIOS } from "@/lib/listing-masonry";
+
+// Keep Tailwind utility classes in a scanned component file. `src/lib` is not
+// part of tailwind.config.ts content, so moving these strings there strips the
+// masonry rules from the production CSS.
+const LISTING_MASONRY_COLUMNS_CLASS =
+  "-mb-2 columns-2 gap-2 sm:-mb-3 sm:columns-3 sm:gap-3 lg:columns-4";
+const LISTING_MASONRY_ITEM_CLASS = "mb-2 break-inside-avoid sm:mb-3";
 
 type MasonryProps = {
   children: ReactNode;
