@@ -75,7 +75,9 @@ export async function fetchAnalyticsDashboard(days: number): Promise<AnalyticsDa
       generationsInPeriod: generations, analyzesInPeriod: analyzes,
     },
     clientsDaily,
-    topUsers: (top.data || []).map((row) => numberFields(row, ["total_requests", "generations", "analyzes"])) as TopUserRow[],
+    topUsers: ((top.data || []) as TopUserRow[]).map((row) => numberFields(row, [
+      "total_requests", "generations", "analyzes",
+    ])),
     recentEvents: (recent.data || []) as RecentEventRow[],
     extensionFunnel: (funnel.data || []).map((row) => numberFields(row, [
       "clicks", "starts_ok", "starts_err", "results_shown", "errors_shown", "copies", "unique_users_clicked",
