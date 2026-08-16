@@ -47,7 +47,7 @@ export default async function CardModalPage({ params }: Props) {
         <div
           className={
             immersiveMobile
-              ? "h-[100dvh] overflow-y-auto md:h-auto md:max-h-none md:overflow-visible"
+              ? "h-full min-h-0 overflow-hidden md:h-auto md:max-h-none md:overflow-visible"
               : "max-h-[85vh] overflow-y-auto md:max-h-none md:overflow-visible"
           }
         >

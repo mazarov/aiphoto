@@ -1,10 +1,14 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import type { PromptCardFull } from "@/lib/supabase";
 import type { ListingSort } from "@/lib/listing-sort";
 import { FilterableGrid } from "./CardFilters";
 import { ListingGridLoadingSkeleton } from "./ListingGridLoadingSkeleton";
+import {
+  appendUniqueCardPage,
+  appendUniqueCardsById,
+} from "@/lib/listing-cards";
 import { LISTING_INFINITE_PAGE_SIZE } from "@/lib/listing-pagination";
 import { getListingScrollRoot, isListingScrollRestoreInProgress } from "@/lib/scroll-preservation";
 import { subscribeListingNavigationLoadMore } from "@/lib/listing-card-navigation-context";
@@ -35,7 +39,10 @@ export function InfiniteGrid({
   strictMode = false,
   sort = "new",
 }: Props) {
-  const [cards, setCards] = useState(initialCards);
+  const [cardPages, setCardPages] = useState<PromptCardFull[][]>(() => [
+    appendUniqueCardsById([], initialCards),
+  ]);
+  const cards = useMemo(() => cardPages.flat(), [cardPages]);
   const [loading, setLoading] = useState(false);
   const [hasMore, setHasMore] = useState(() =>
     hasMorePages(initialRankedBatchSize, 0, totalCount)
@@ -78,7 +85,7 @@ export function InfiniteGrid({
       }
 
       const step = rankedSize > 0 ? rankedSize : PAGE_SIZE;
-      setCards((prev) => [...prev, ...newCards]);
+      setCardPages((prev) => appendUniqueCardPage(prev, newCards));
       offsetRef.current = oldOffset + step;
 
       const more = oldOffset + step < totalCount;
@@ -127,7 +134,7 @@ export function InfiniteGrid({
   return (
     <>
       <div className="mb-8">
-        <FilterableGrid cards={cards} hideHoverChrome clamp={hasMore} sort={sort} />
+        <FilterableGrid cards={cards} cardPages={cardPages} sort={sort} />
       </div>
 
       <div ref={sentinelRef} className="h-px" />

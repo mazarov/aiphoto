@@ -564,7 +564,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
       className={
         hasPhotos
           ? isModal
-            ? "max-md:mx-auto max-md:max-w-2xl max-md:px-5 max-md:py-6 max-md:pb-6"
+            ? "max-md:h-full max-md:overflow-hidden"
             : "mx-auto w-full max-w-7xl px-5 py-6 max-md:max-w-2xl max-md:pb-6 md:px-6 md:py-8 lg:py-10"
           : "mx-auto max-w-2xl px-5 py-6 pb-28 lg:py-10"
       }
@@ -994,16 +994,16 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
           {hasPhotos && (
           <div
             data-card-modal-surface={isModal ? "" : undefined}
-            className="fixed inset-0 z-[245] min-h-[100dvh] select-none overflow-hidden overscroll-none bg-zinc-950 [-webkit-touch-callout:none] [-webkit-user-drag:none] md:hidden"
+            className="ps-mobile-card-stage select-none overscroll-none bg-zinc-950 [-webkit-touch-callout:none] [-webkit-user-drag:none] md:hidden"
             onContextMenu={(e) => e.preventDefault()}
             onDragStart={(e) => e.preventDefault()}
           >
             <div
               ref={snapFeed.viewportRef}
               data-card-snap-viewport
-              className={`scrollbar-none h-[100dvh] w-full overscroll-contain ${
+              className={`scrollbar-none h-full w-full overscroll-contain ${
                 swipeEnabled
-                  ? "snap-y snap-mandatory overflow-y-auto"
+                  ? "snap-y snap-mandatory overflow-y-auto [-webkit-overflow-scrolling:touch]"
                   : "overflow-hidden"
               }`}
               style={{ touchAction: swipeEnabled ? "pan-y" : "auto" }}
@@ -1022,7 +1022,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
             ) : null}
             <div
               data-card-snap-slide="current"
-              className="relative h-[100dvh] w-full shrink-0 snap-start snap-always overflow-hidden bg-zinc-950"
+              className="relative h-full w-full shrink-0 snap-start snap-always overflow-hidden bg-zinc-950"
             >
               {currentPhoto ? (
               <>
@@ -1133,7 +1133,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                 </header>
 
                 {groupCards.length > 1 ? (
-                  <aside className={`pointer-events-none absolute left-3 top-1/2 z-[73] flex max-h-[min(76dvh,100dvh-8rem)] -translate-y-1/2 flex-col items-start justify-center ${mobileChromeClass}`}>
+                  <aside className={`pointer-events-none absolute left-3 top-1/2 z-[73] flex max-h-[min(76svh,100svh-8rem)] -translate-y-1/2 flex-col items-start justify-center ${mobileChromeClass}`}>
                     <nav
                       className="pointer-events-auto scrollbar-none flex flex-col gap-2 overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch] py-px"
                       aria-label="Варианты подборки"
@@ -1172,7 +1172,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                   </aside>
                 ) : null}
 
-                <aside className={`pointer-events-none absolute right-3 top-1/2 z-[73] flex max-h-[min(76dvh,100dvh-8rem)] -translate-y-1/2 flex-col items-end justify-center gap-2 ${mobileChromeClass}`}>
+                <aside className={`pointer-events-none absolute right-3 top-1/2 z-[73] flex max-h-[min(76svh,100svh-8rem)] -translate-y-1/2 flex-col items-end justify-center gap-2 ${mobileChromeClass}`}>
                   <div className="pointer-events-auto relative flex flex-col items-center gap-2">
                     <ReactionButtons
                       cardId={data.id}
@@ -1630,7 +1630,7 @@ function MobileSnapNeighborSlide({
   return (
     <div
       data-card-snap-slide={direction}
-      className="pointer-events-none relative h-[100dvh] w-full shrink-0 snap-start snap-always overflow-hidden bg-zinc-950"
+      className="pointer-events-none relative h-full w-full shrink-0 snap-start snap-always overflow-hidden bg-zinc-950"
       aria-hidden
     >
       {photoUrl ? (

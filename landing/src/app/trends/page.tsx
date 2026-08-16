@@ -1,6 +1,5 @@
 import { cache } from "react";
 import type { Metadata } from "next";
-import dynamic from "next/dynamic";
 import Link from "next/link";
 import {
   fetchRouteCards,
@@ -9,8 +8,8 @@ import {
   type RouteCardsResult,
   type PromptCardFull,
 } from "@/lib/supabase";
+import { CatalogWithFilters } from "@/components/CatalogWithFilters";
 import { PageLayout } from "@/components/PageLayout";
-import { ListingPromptCountBadge } from "@/components/ListingPromptCountBadge";
 import { LISTING_SSR_INITIAL_LIMIT } from "@/lib/listing-pagination";
 import {
   TRENDS_FAQ,
@@ -39,28 +38,6 @@ const BASE_RPC_PARAMS: Record<string, string | null> = {
   object_tag: null,
   doc_task_tag: null,
 };
-
-const CatalogWithFilters = dynamic(
-  () =>
-    import("@/components/CatalogWithFilters").then((mod) => mod.CatalogWithFilters),
-  {
-    ssr: true,
-    loading: () => (
-      <div
-        className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 pb-8"
-        aria-busy="true"
-        aria-label="Загрузка каталога"
-      >
-        {Array.from({ length: 8 }, (_, i) => (
-          <div
-            key={i}
-            className="aspect-[3/4] rounded-2xl bg-zinc-100 animate-pulse"
-          />
-        ))}
-      </div>
-    ),
-  }
-);
 
 type SearchParams = {
   audience?: string;
@@ -260,40 +237,8 @@ export default async function TrendsPage({ searchParams }: Props) {
         />
       ))}
 
-      <section className="w-full px-2 pt-6 sm:px-5 sm:pt-8">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-            <h1 className="text-3xl font-bold tracking-tight text-zinc-900 sm:text-4xl">
-              {TRENDS_SEO.h1}
-            </h1>
-            <ListingPromptCountBadge count={totalCount} />
-          </div>
-          <p className="mt-3 max-w-2xl text-sm leading-relaxed text-zinc-600 sm:text-base">
-            {TRENDS_SEO.intro}
-          </p>
-          <nav className="mt-4" aria-label="Популярные подборки">
-            <p className="mb-2 text-sm font-medium text-zinc-700">Популярные сценарии</p>
-            <div className="flex flex-wrap gap-1.5">
-              {TRENDS_POPULAR_LINKS.map((link) => (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  scroll={false}
-                  className="inline-flex items-center rounded-full border border-zinc-200 bg-white px-3 py-1.5 text-sm text-zinc-600 transition-colors hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700"
-                >
-                  {link.label}
-                </Link>
-              ))}
-            </div>
-          </nav>
-        </div>
-      </section>
-
-      <main className="listing-main-bottom-pad w-full flex-1 px-2 pt-3 pb-8 sm:px-5 sm:pt-4 lg:pt-4">
-        <section aria-labelledby="trends-catalog-heading">
-          <h2 id="trends-catalog-heading" className="sr-only">
-            Трендовые промты
-          </h2>
+      <main className="listing-main-bottom-pad w-full flex-1 px-2 pt-5 pb-8 sm:px-5">
+        <section aria-labelledby="listing-explorer-heading">
           <CatalogWithFilters
             initialCards={cards}
             totalCount={totalCount}
@@ -301,7 +246,18 @@ export default async function TrendsPage({ searchParams }: Props) {
             baseRpcParams={BASE_RPC_PARAMS}
             lockedDimensions={[]}
             fixedSort="new"
+            heading={TRENDS_SEO.h1}
+            headingId="listing-explorer-heading"
+            eyebrow="Тренды"
+            intro={TRENDS_SEO.intro}
           />
+          <nav className="sr-only" aria-label="Популярные подборки">
+            {TRENDS_POPULAR_LINKS.map((link) => (
+              <Link key={link.href} href={link.href} scroll={false}>
+                {link.label}
+              </Link>
+            ))}
+          </nav>
         </section>
 
         <section className="mt-16 rounded-2xl border border-zinc-200 bg-white p-6 sm:p-8">

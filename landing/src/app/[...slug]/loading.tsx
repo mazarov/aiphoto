@@ -1,3 +1,5 @@
+import { ListingMasonrySkeleton } from "@/components/ListingMasonry";
+
 function SidebarSkeleton() {
   return (
     <aside className="hidden w-72 flex-shrink-0 border-r border-zinc-100 lg:block">
@@ -40,16 +42,9 @@ export default function ListingLoading() {
             <div className="mt-3 h-5 w-96 max-w-full animate-pulse rounded bg-zinc-100" />
           </div>
 
-          {/* Grid skeleton */}
+          {/* Masonry skeleton */}
           <main className="w-full flex-1 px-2 py-10 sm:px-5">
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-              {Array.from({ length: 12 }).map((_, i) => (
-                <div key={i} className="flex flex-col gap-2.5">
-                  <div className="aspect-[3/4] w-full animate-pulse rounded-2xl bg-zinc-100" />
-                  <div className="h-4 w-3/4 animate-pulse rounded bg-zinc-100" />
-                </div>
-              ))}
-            </div>
+            <ListingMasonrySkeleton count={12} />
           </main>
         </div>
       </div>

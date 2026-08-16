@@ -33,6 +33,12 @@ type NeighborCards = {
 
 type Direction = "prev" | "next";
 
+function readVisibleHeightPx(): number {
+  const visual = window.visualViewport;
+  if (visual && visual.height > 0) return Math.round(visual.height);
+  return Math.round(window.innerHeight);
+}
+
 export function useMobileCardSnapFeed({
   currentData,
   prevSlug,
@@ -50,6 +56,7 @@ export function useMobileCardSnapFeed({
   const pointerActiveRef = useRef(false);
   const pressStartedAtRef = useRef(0);
   const suppressClickUntilRef = useRef(0);
+  const lastHeightPxRef = useRef(0);
   const [isInteracting, setIsInteracting] = useState(false);
   const [neighbors, setNeighbors] = useState<NeighborCards>({
     prev: null,
@@ -65,14 +72,43 @@ export function useMobileCardSnapFeed({
 
   const currentSlideIndex = prevSlug ? 1 : 0;
 
+  const slideHeightPx = useCallback(() => {
+    const viewport = viewportRef.current;
+    return Math.max(1, viewport?.clientHeight || readVisibleHeightPx());
+  }, []);
+
+  const syncSlideMetrics = useCallback(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) return 0;
+    const height = Math.max(1, readVisibleHeightPx());
+    if (lastHeightPxRef.current !== height) {
+      lastHeightPxRef.current = height;
+      const stage = viewport.parentElement;
+      if (stage instanceof HTMLElement) {
+        stage.style.height = `${height}px`;
+      }
+      viewport.style.height = `${height}px`;
+      viewport.style.setProperty("--card-snap-slide-h", `${height}px`);
+    }
+    return height;
+  }, []);
+
   const scrollToCenter = useCallback((behavior: ScrollBehavior = "auto") => {
     const viewport = viewportRef.current;
     if (!viewport) return;
-    viewport.scrollTo({
-      top: viewport.clientHeight * currentSlideIndex,
-      behavior,
-    });
-  }, [currentSlideIndex]);
+    const height = syncSlideMetrics() || slideHeightPx();
+    const top = height * currentSlideIndex;
+    // Safari ignores scrollTo while snap is mandatory and children just swapped.
+    const snapType = viewport.style.scrollSnapType;
+    viewport.style.scrollSnapType = "none";
+    if (behavior === "smooth") {
+      viewport.style.scrollSnapType = snapType;
+      viewport.scrollTo({ top, behavior: "smooth" });
+      return;
+    }
+    viewport.scrollTop = top;
+    viewport.style.scrollSnapType = snapType;
+  }, [currentSlideIndex, slideHeightPx, syncSlideMetrics]);
 
   useLayoutEffect(() => {
     committingRef.current = false;
@@ -170,6 +206,29 @@ export function useMobileCardSnapFeed({
     return () => viewport.removeEventListener("scrollend", onScrollEnd);
   }, [finishScroll]);
 
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+
+    const onResize = () => {
+      const previous = lastHeightPxRef.current;
+      const height = syncSlideMetrics();
+      if (height === previous) return;
+      viewport.scrollTop = height * currentSlideIndex;
+    };
+
+    onResize();
+    const observer = new ResizeObserver(onResize);
+    observer.observe(viewport);
+    window.visualViewport?.addEventListener("resize", onResize);
+    window.addEventListener("resize", onResize);
+    return () => {
+      observer.disconnect();
+      window.visualViewport?.removeEventListener("resize", onResize);
+      window.removeEventListener("resize", onResize);
+    };
+  }, [currentSlideIndex, syncSlideMetrics]);
+
   useEffect(
     () => () => {
       clearSettleTimer();
@@ -199,7 +258,6 @@ export function useMobileCardSnapFeed({
         return;
       }
       pointerActiveRef.current = true;
-      setIsInteracting(true);
     },
     [enabled]
   );
@@ -215,6 +273,22 @@ export function useMobileCardSnapFeed({
     pointerActiveRef.current = false;
     scheduleFinish();
   }, [scheduleFinish]);
+
+  useEffect(() => {
+    if (!enabled) return;
+    const onUp = () => {
+      if (!pointerActiveRef.current && pressStartedAtRef.current === 0) return;
+      finishPointer();
+    };
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
+    window.addEventListener("blur", onUp);
+    return () => {
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+      window.removeEventListener("blur", onUp);
+    };
+  }, [enabled, finishPointer]);
 
   const onClickCapture = useCallback((event: ReactMouseEvent) => {
     if (performance.now() >= suppressClickUntilRef.current) return;
@@ -243,9 +317,10 @@ export function useMobileCardSnapFeed({
       window.requestAnimationFrame(() => {
         const viewport = viewportRef.current;
         if (!viewport) return;
+        const height = slideHeightPx();
         viewport.scrollTo({
           top:
-            viewport.clientHeight *
+            height *
             (direction === "prev"
               ? currentSlideIndex - 1
               : currentSlideIndex + 1),
@@ -264,6 +339,7 @@ export function useMobileCardSnapFeed({
       nextSlug,
       prevSlug,
       scheduleFinish,
+      slideHeightPx,
     ]
   );
 

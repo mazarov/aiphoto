@@ -109,7 +109,7 @@ export function CardModal({ children, onClose, immersiveMobile = false }: Props)
       onClick={handleOverlayClick}
       className={
         immersiveMobile
-          ? "fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 backdrop-blur-sm md:items-center md:p-6 lg:p-8 max-md:p-0"
+          ? "fixed inset-0 z-[245] flex items-stretch justify-center overflow-hidden bg-zinc-950 max-md:p-0 md:z-50 md:items-center md:overflow-y-auto md:bg-black/60 md:backdrop-blur-sm md:p-6 lg:p-8"
           : "fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 backdrop-blur-sm p-4 md:items-center md:p-6 lg:p-8"
       }
       aria-modal="true"
@@ -118,7 +118,7 @@ export function CardModal({ children, onClose, immersiveMobile = false }: Props)
       <div
         className={
           immersiveMobile
-            ? "relative w-full md:max-w-7xl animate-in fade-in zoom-in-95 duration-200"
+            ? "relative h-full min-h-0 w-full overflow-hidden md:h-auto md:max-w-7xl md:overflow-visible md:animate-in md:fade-in md:zoom-in-95 md:duration-200"
             : "relative w-full max-w-7xl animate-in fade-in zoom-in-95 duration-200"
         }
       >
@@ -127,7 +127,9 @@ export function CardModal({ children, onClose, immersiveMobile = false }: Props)
           type="button"
           onClick={handleClose}
           data-card-modal-surface
-          className="absolute -top-3 -right-3 z-50 flex h-10 w-10 items-center justify-center rounded-full bg-zinc-900/90 text-white shadow-lg ring-1 ring-white/15 backdrop-blur-md transition-colors hover:bg-zinc-800 md:-top-2 md:-right-2 max-md:bg-white max-md:text-zinc-700 max-md:ring-0 max-md:hover:bg-zinc-100"
+          className={`absolute -top-3 -right-3 z-50 flex h-10 w-10 items-center justify-center rounded-full bg-zinc-900/90 text-white shadow-lg ring-1 ring-white/15 backdrop-blur-md transition-colors hover:bg-zinc-800 md:-top-2 md:-right-2 max-md:bg-white max-md:text-zinc-700 max-md:ring-0 max-md:hover:bg-zinc-100${
+            immersiveMobile ? " max-md:hidden" : ""
+          }`}
           aria-label="Закрыть"
         >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="max-md:text-zinc-700">
@@ -141,7 +143,7 @@ export function CardModal({ children, onClose, immersiveMobile = false }: Props)
           data-card-modal-surface={immersiveMobile ? undefined : ""}
           className={
             immersiveMobile
-              ? "overflow-hidden rounded-2xl bg-white shadow-2xl md:overflow-visible md:rounded-none md:bg-transparent md:shadow-none"
+              ? "h-full min-h-0 overflow-hidden bg-zinc-950 md:h-auto md:overflow-visible md:rounded-none md:bg-transparent md:shadow-none"
               : "overflow-hidden rounded-2xl bg-white shadow-2xl"
           }
         >

@@ -30,8 +30,9 @@ function normalizeSlug(slug: string | null | undefined): string | null {
 }
 
 /**
- * DOM-порядок как у FilterableGrid: ячейка single → один slug;
- * группа → все варианты по возрастанию cardSplitIndex.
+ * DOM-порядок листинга: ячейка single → один slug;
+ * группа (legacy) → все варианты по возрастанию cardSplitIndex.
+ * Публичные ленты пишут только single — одна плитка на карточку.
  */
 export function buildListingSlugOrder(items: ListingNavGridItem[]): string[] {
   const out: string[] = [];

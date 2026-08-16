@@ -1,19 +1,16 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { ListingMasonry, ListingMasonryItem } from "@/components/ListingMasonry";
+import { ListingPhotoTile } from "@/components/ListingPhotoTile";
 import { useAuth } from "@/context/AuthContext";
 import { useGenerateDock } from "@/context/GenerateDockContext";
-import { usePromptCardModal } from "@/context/PromptCardModalContext";
-import {
-  CARD_IMAGE_LISTING_NEXT_QUALITY,
-  SIZES_CARD_GRID,
-} from "@/lib/card-image-presets";
 import {
   type GenerationExampleCard,
   toGenerationExampleCard,
 } from "@/lib/generation/example-card";
+import { listingPhotoAspectRatio } from "@/lib/listing-masonry";
 import type { PromptCardFull } from "@/lib/supabase";
 import {
   GENERACIYA_FOTO_SCENARIOS,
@@ -22,7 +19,6 @@ import {
 
 const RESULT_LIMIT = 16;
 const SEARCH_DEBOUNCE_MS = 320;
-const FALLBACK_CARD_ASPECT_RATIOS = [3 / 4, 4 / 5, 2 / 3, 1, 5 / 6] as const;
 
 type QuickFilter = (typeof GENERACIYA_FOTO_SCENARIOS)[number];
 
@@ -31,83 +27,6 @@ function matchesQuickFilter(
   filter: QuickFilter
 ): boolean {
   return (card.seoTags[filter.dimension] || []).includes(filter.value);
-}
-
-function GenerationExampleTile({
-  card,
-  aspectRatio,
-  repeating,
-  onRepeat,
-}: {
-  card: GenerationExampleCard;
-  aspectRatio: number;
-  repeating: boolean;
-  onRepeat: (card: GenerationExampleCard) => void;
-}) {
-  const { open, prefetchCard } = usePromptCardModal();
-
-  return (
-    <article
-      className="group relative isolate overflow-hidden rounded-2xl bg-zinc-100 transition duration-200 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-zinc-900/10"
-      style={{ aspectRatio }}
-    >
-      {card.photoUrl ? (
-        <Image
-          src={card.photoUrl}
-          alt={card.title}
-          fill
-          sizes={SIZES_CARD_GRID}
-          quality={CARD_IMAGE_LISTING_NEXT_QUALITY}
-          className="object-cover"
-        />
-      ) : (
-        <div
-          className="absolute inset-0 bg-gradient-to-br from-indigo-100 to-violet-100"
-          aria-hidden
-        />
-      )}
-
-      <Link
-        href={`/p/${card.slug}`}
-        className="absolute inset-0 z-10"
-        aria-label={card.title}
-        prefetch
-        onPointerEnter={() => prefetchCard(card.slug)}
-        onTouchStart={() => prefetchCard(card.slug)}
-        onClick={(event) => {
-          event.preventDefault();
-          open(card.slug, {
-            photoUrl: card.photoUrl,
-            photoCount: card.photoCount,
-            hasPrompts: card.hasPrompt,
-          });
-        }}
-      />
-
-      {card.hasPrompt ? (
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-zinc-950/65 to-transparent px-3.5 pb-3.5 pt-14 opacity-0 transition group-hover:opacity-100 group-focus-within:opacity-100">
-          <button
-            type="button"
-            disabled={repeating}
-            onClick={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              onRepeat(card);
-            }}
-            className="pointer-events-auto inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-500 via-[#5b5cf0] to-violet-500 px-4 text-sm font-semibold text-white shadow-lg shadow-indigo-950/25 transition hover:brightness-110 active:scale-[0.98] disabled:cursor-wait disabled:opacity-75"
-          >
-            {repeating ? (
-              <span
-                className="h-4 w-4 animate-spin rounded-full border-2 border-white/35 border-t-white"
-                aria-hidden
-              />
-            ) : null}
-            {repeating ? "Открываем…" : "Повторить"}
-          </button>
-        </div>
-      ) : null}
-    </article>
-  );
 }
 
 export function GeneraciyaFotoExamplesExplorer({
@@ -332,36 +251,22 @@ export function GeneraciyaFotoExamplesExplorer({
       </div>
 
       <div className="relative mt-5 overflow-hidden">
-        <div
-          className={`-mb-2 columns-2 gap-2 transition-opacity sm:-mb-3 sm:columns-3 sm:gap-3 lg:columns-4 ${
-            loading ? "opacity-55" : "opacity-100"
-          }`}
-          aria-live="polite"
-          aria-busy={loading || undefined}
-        >
+        <ListingMasonry loading={loading}>
           {cards.map((card, index) => (
-            <div
-              key={card.id}
-              className="mb-2 break-inside-avoid sm:mb-3"
-            >
-              <GenerationExampleTile
+            <ListingMasonryItem key={card.id}>
+              <ListingPhotoTile
                 card={card}
                 repeating={repeatingCardId === card.id}
                 onRepeat={repeatCard}
-                aspectRatio={
-                  card.photoWidth &&
-                  card.photoHeight &&
-                  card.photoWidth > 0 &&
-                  card.photoHeight > 0
-                    ? card.photoWidth / card.photoHeight
-                    : FALLBACK_CARD_ASPECT_RATIOS[
-                        index % FALLBACK_CARD_ASPECT_RATIOS.length
-                      ]
-                }
+                aspectRatio={listingPhotoAspectRatio(
+                  card.photoWidth,
+                  card.photoHeight,
+                  index
+                )}
               />
-            </div>
+            </ListingMasonryItem>
           ))}
-        </div>
+        </ListingMasonry>
 
         {cards.length > 0 ? (
           <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30">

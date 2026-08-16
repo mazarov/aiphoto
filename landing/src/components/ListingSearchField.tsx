@@ -16,7 +16,7 @@ export function ListingSearchIcon({ className = "h-4 w-4" }: { className?: strin
 
 const SIZE_STYLES = {
   header: {
-    field: "py-2.5 pl-11 text-[15px] sm:text-sm",
+    field: "py-2.5 pl-11 text-base sm:text-sm",
     icon: "left-3.5",
     iconSize: "h-4 w-4",
     rounded: "rounded-2xl",
@@ -44,7 +44,7 @@ const ACCENT_STYLES = {
   },
   hero: {
     shell:
-      "listing-search-hero-shell rounded-[1.25rem] p-px animate-pulse-glow transition-[box-shadow,transform] focus-within:scale-[1.005]",
+      "listing-search-hero-shell rounded-[1.25rem] p-px animate-pulse-glow transition-[box-shadow]",
     field:
       "listing-search-input border-0 bg-white/92 text-zinc-900 placeholder:text-indigo-400/75 placeholder:font-normal shadow-[inset_0_1px_0_rgba(255,255,255,0.85)] backdrop-blur-xl transition-[background,color] focus:border-0 focus:bg-white focus:text-zinc-900 focus:outline-none focus:ring-0 focus:shadow-none",
     icon: "text-indigo-500",

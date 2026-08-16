@@ -1,5 +1,5 @@
 /**
- * First N items in `FilterableGrid` DOM order (CSS grid: row-major, left-to-right)
+ * First N items in listing masonry DOM order (CSS columns, source order)
  * get eager `next/image` + high fetch priority — fixes LCP when tools flag `loading=lazy` on hero image.
  */
 export const LISTING_LCP_PRIORITY_GRID_ITEMS = 12;

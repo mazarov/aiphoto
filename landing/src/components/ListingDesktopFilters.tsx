@@ -51,6 +51,8 @@ type Props = {
   sort?: ListingSort;
   onSortChange?: (sort: ListingSort) => void;
   onOpenMobileFilters?: () => void;
+  /** Sit in the homepage explorer chip row: no extra toolbar surface. */
+  variant?: "toolbar" | "explorer";
 };
 
 function ChevronDownIcon({ className = "h-4 w-4" }: { className?: string }) {
@@ -104,6 +106,7 @@ export function ListingDesktopFilters({
   sort,
   onSortChange,
   onOpenMobileFilters,
+  variant = "toolbar",
 }: Props) {
   const [openKey, setOpenKey] = useState<keyof FilterState | null>(null);
   const [modalSearch, setModalSearch] = useState("");
@@ -146,10 +149,22 @@ export function ListingDesktopFilters({
     closeModal();
   };
 
+  const isExplorer = variant === "explorer";
+  const triggerClass = isExplorer
+    ? "inline-flex min-h-9 items-center gap-1.5 rounded-full border border-indigo-100 bg-white/80 px-3.5 text-sm font-medium text-zinc-600 transition hover:border-indigo-300 hover:bg-white hover:text-indigo-700"
+    : `${FILTER_TRIGGER} border-transparent bg-white/60 shadow-none hover:bg-white/90`;
+  const triggerActiveClass = isExplorer
+    ? "border-indigo-500 bg-indigo-500 text-white shadow-sm shadow-indigo-500/20 hover:border-indigo-500 hover:bg-indigo-500 hover:text-white"
+    : FILTER_TRIGGER_ACTIVE;
+
   return (
     <>
       <div
-        className={`mb-5 rounded-2xl px-3 py-2.5 sm:px-4 ${FILTER_CHROME_SURFACE}`}
+        className={
+          isExplorer
+            ? "mt-3"
+            : `mb-5 rounded-2xl px-3 py-2.5 sm:px-4 ${FILTER_CHROME_SURFACE}`
+        }
         role="toolbar"
         aria-label="Фильтры и сортировка каталога"
       >
@@ -158,7 +173,7 @@ export function ListingDesktopFilters({
             <button
               type="button"
               onClick={onOpenMobileFilters}
-              className={`lg:hidden ${FILTER_TRIGGER} ${activeCount > 0 ? FILTER_TRIGGER_ACTIVE : ""}`}
+              className={`lg:hidden ${triggerClass} ${activeCount > 0 ? triggerActiveClass : ""}`}
               aria-label={activeCount > 0 ? `Фильтры (${activeCount})` : "Фильтры"}
             >
               <FilterLinesIcon className="h-4 w-4 shrink-0 text-zinc-500" />
@@ -190,13 +205,19 @@ export function ListingDesktopFilters({
                     setModalSearch("");
                     setOpenKey(key);
                   }}
-                  className={`${FILTER_TRIGGER} border-transparent bg-white/60 shadow-none hover:bg-white/90 ${isActive ? FILTER_TRIGGER_ACTIVE : ""}`}
+                  className={`${triggerClass} ${isActive ? triggerActiveClass : ""}`}
                   aria-expanded={openKey === key}
                   aria-haspopup="dialog"
                 >
                   <span>{formatButtonLabel(label, selectedSlug, dim)}</span>
                   <ChevronDownIcon
-                    className={`h-4 w-4 shrink-0 ${isActive ? "text-indigo-500/80" : "text-zinc-400"}`}
+                    className={`h-4 w-4 shrink-0 ${
+                      isActive
+                        ? isExplorer
+                          ? "text-white/80"
+                          : "text-indigo-500/80"
+                        : "text-zinc-400"
+                    }`}
                   />
                 </button>
               );

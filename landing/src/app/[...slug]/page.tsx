@@ -10,30 +10,8 @@ import {
   type PromptCardFull,
 } from "@/lib/supabase";
 import { parseListingSort } from "@/lib/listing-sort";
-import dynamic from "next/dynamic";
+import { CatalogWithFilters } from "@/components/CatalogWithFilters";
 import { PageLayout } from "@/components/PageLayout";
-
-const CatalogWithFilters = dynamic(
-  () =>
-    import("@/components/CatalogWithFilters").then((mod) => mod.CatalogWithFilters),
-  {
-    ssr: true,
-    loading: () => (
-      <div
-        className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 pb-8"
-        aria-busy="true"
-        aria-label="Загрузка каталога"
-      >
-        {Array.from({ length: 8 }, (_, i) => (
-          <div
-            key={i}
-            className="aspect-[3/4] rounded-2xl bg-zinc-100 animate-pulse"
-          />
-        ))}
-      </div>
-    ),
-  }
-);
 import {
   getSiblingTags,
   getAllTagPaths,
@@ -50,8 +28,6 @@ import {
   resolveSeoIllustrations,
   type ResolvedSeoIllustration,
 } from "@/lib/seo-illustrations";
-import { SeoHeroWithIllustrations } from "@/components/SeoHeroWithIllustrations";
-import { ListingPromptCountBadge } from "@/components/ListingPromptCountBadge";
 import { ListingFotoVPromtBanner } from "@/components/foto-v-promt-promo/ListingFotoVPromtBanner";
 import { LISTING_SSR_INITIAL_LIMIT } from "@/lib/listing-pagination";
 
@@ -478,83 +454,60 @@ export default async function TagPage({ params, searchParams }: Props) {
   return (
     <PageLayout>
       <ListingFotoVPromtBanner attach="hero" />
-      {/* Hero */}
-      <section className="bg-gradient-to-b from-zinc-50 to-white">
-        <div className="px-5 pb-5 pt-5">
-          {/* Breadcrumbs */}
-          <nav className="mb-5 flex items-center gap-1.5 text-sm text-zinc-400">
-            <Link href="/" className="transition-colors hover:text-zinc-700">
-              Главная
-            </Link>
-            <BreadcrumbSeparator />
-            {route.level === 1 ? (
-              <>
-                <span>{sectionLabel}</span>
-                <BreadcrumbSeparator />
-                <span className="text-zinc-700 font-medium">{primaryTag.labelRu}</span>
-              </>
-            ) : (
-              <>
-                <Link
-                  href={route.parentPath!}
-                  scroll={false}
-                  className="transition-colors hover:text-zinc-700"
-                >
-                  {primaryTag.labelRu}
-                </Link>
-                <BreadcrumbSeparator />
-                {route.level === 2 ? (
-                  <span className="text-zinc-700 font-medium">{route.tags[1].labelRu}</span>
-                ) : (
-                  <>
-                    <span className="text-zinc-500">{route.tags[1].labelRu}</span>
-                    <BreadcrumbSeparator />
-                    <span className="text-zinc-700 font-medium">{route.tags[2].labelRu}</span>
-                  </>
-                )}
-              </>
-            )}
-          </nav>
-
-          {resolvedIllustrations.length > 0 ? (
-            <SeoHeroWithIllustrations
-              h1={seo.h1}
-              intro={seo.intro}
-              totalCount={totalCount}
-              illustrations={resolvedIllustrations}
-              popularLinks={seo.popularLinks}
-            />
+      <section className="w-full px-2 pt-5 sm:px-5">
+        <nav className="mb-4 flex items-center gap-1.5 text-sm text-zinc-400">
+          <Link href="/" className="transition-colors hover:text-zinc-700">
+            Главная
+          </Link>
+          <BreadcrumbSeparator />
+          {route.level === 1 ? (
+            <>
+              <span>{sectionLabel}</span>
+              <BreadcrumbSeparator />
+              <span className="text-zinc-700 font-medium">{primaryTag.labelRu}</span>
+            </>
           ) : (
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-                <h1 className="text-3xl font-bold tracking-tight text-zinc-900 sm:text-4xl">
-                  {seo.h1}
-                </h1>
-                <ListingPromptCountBadge count={totalCount} />
-              </div>
-              <p className="mt-3 max-w-2xl text-sm leading-relaxed text-zinc-600 sm:text-base">
-                {seo.intro}
-              </p>
-              {seo.popularLinks?.length ? (
-                <SeoPopularLinks links={seo.popularLinks} />
-              ) : null}
-            </div>
+            <>
+              <Link
+                href={route.parentPath!}
+                scroll={false}
+                className="transition-colors hover:text-zinc-700"
+              >
+                {primaryTag.labelRu}
+              </Link>
+              <BreadcrumbSeparator />
+              {route.level === 2 ? (
+                <span className="text-zinc-700 font-medium">{route.tags[1].labelRu}</span>
+              ) : (
+                <>
+                  <span className="text-zinc-500">{route.tags[1].labelRu}</span>
+                  <BreadcrumbSeparator />
+                  <span className="text-zinc-700 font-medium">{route.tags[2].labelRu}</span>
+                </>
+              )}
+            </>
           )}
-        </div>
+        </nav>
       </section>
 
-      <main className="listing-main-bottom-pad w-full flex-1 px-2 pt-3 pb-8 sm:px-5 sm:pt-4 lg:pt-4">
-        <section aria-labelledby="catalog-heading">
-          <h2 id="catalog-heading" className="sr-only">
-            Промты в этой категории
-          </h2>
+      <main className="listing-main-bottom-pad w-full flex-1 px-2 pb-8 sm:px-5">
+        <section aria-labelledby="listing-explorer-heading">
           <CatalogWithFilters
             initialCards={cards}
             totalCount={totalCount}
             initialRankedBatchSize={result.cards_count}
             baseRpcParams={baseRpcParams}
             lockedDimensions={lockedDimensions}
+            heading={seo.h1}
+            headingId="listing-explorer-heading"
+            eyebrow={sectionLabel}
+            intro={seo.intro}
           />
+          {seo.popularLinks?.length ? (
+            <div className="sr-only">
+              <SeoPopularLinks links={seo.popularLinks} />
+            </div>
+          ) : null}
         </section>
 
         {/* Parent link for L2/L3 */}

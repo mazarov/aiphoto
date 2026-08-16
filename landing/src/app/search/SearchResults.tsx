@@ -1,8 +1,17 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import { useSearchParams } from "next/navigation";
-import { PromptCard } from "@/components/PromptCard";
+import { useRouter, useSearchParams } from "next/navigation";
+import { ListingExplorerFrame } from "@/components/ListingExplorerFrame";
+import {
+  ListingExplorerHeading,
+  ListingExplorerSearch,
+} from "@/components/ListingExplorerSearch";
+import { StableListingMasonry } from "@/components/StableListingMasonry";
+import {
+  appendUniqueCardPage,
+  appendUniqueCardsById,
+} from "@/lib/listing-cards";
 import { LISTING_LCP_PRIORITY_GRID_ITEMS } from "@/lib/listing-lcp";
 import type { PromptCardFull } from "@/lib/supabase";
 import { CardInteractionsProvider } from "@/context/CardInteractionsContext";
@@ -16,10 +25,8 @@ import {
   writeListingNavigationContext,
 } from "@/lib/listing-card-navigation-context";
 import { SearchEmptyState } from "@/components/SearchEmptyState";
-import { ListingSearch } from "@/components/ListingSearch";
 import { SearchMetrikaTracker } from "@/components/YandexMetrikaRouteTracker";
 import { ListingFotoVPromtBanner } from "@/components/foto-v-promt-promo/ListingFotoVPromtBanner";
-import { ListingGrid } from "@/components/ListingGrid";
 import { ListingGridLoadingSkeleton } from "@/components/ListingGridLoadingSkeleton";
 
 // Match catalog batch size so both listings feel consistent.
@@ -39,6 +46,7 @@ type Props = {
 };
 
 export function SearchResults({ initialQuery }: Props) {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const { filters, setFilter, applyFilters, resetFilters, activeCount } =
     useListingFilters({
@@ -46,7 +54,8 @@ export function SearchResults({ initialQuery }: Props) {
       lockedDimensions: [],
     });
   const [query, setQuery] = useState(initialQuery);
-  const [cards, setCards] = useState<PromptCardFull[]>([]);
+  const [cardPages, setCardPages] = useState<PromptCardFull[][]>([]);
+  const cards = useMemo(() => cardPages.flat(), [cardPages]);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
   const [matchType, setMatchType] = useState<string | null>(null);
@@ -64,7 +73,7 @@ export function SearchResults({ initialQuery }: Props) {
   const doSearch = useCallback(async (q: string, append = false) => {
     if (q.length < 2) {
       if (!append) {
-        setCards([]);
+        setCardPages([]);
         setSearched(false);
         setHasMore(false);
         hasMoreRef.current = false;
@@ -87,9 +96,9 @@ export function SearchResults({ initialQuery }: Props) {
       const newCards = (data.cards || []) as PromptCardFull[];
 
       if (append) {
-        setCards((prev) => [...prev, ...newCards]);
+        setCardPages((prev) => appendUniqueCardPage(prev, newCards));
       } else {
-        setCards(newCards);
+        setCardPages([appendUniqueCardsById([], newCards)]);
       }
       setMatchType(data.matchType ?? null);
       setOffset(newOffset);
@@ -99,7 +108,7 @@ export function SearchResults({ initialQuery }: Props) {
       hasMoreRef.current = more;
       setSearched(true);
     } catch {
-      if (!append) setCards([]);
+      if (!append) setCardPages([]);
     } finally {
       setLoading(false);
       loadingRef.current = false;
@@ -124,10 +133,34 @@ export function SearchResults({ initialQuery }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
-  const displayedCards = useMemo(() => {
-    if (activeCount === 0) return cards;
-    return cards.filter((c) => cardMatchesFilters(c, filters));
-  }, [cards, filters, activeCount]);
+  useEffect(() => {
+    const trimmed = query.trim();
+    const timer = window.setTimeout(() => {
+      const current = searchParams.get("q")?.trim() || "";
+      if (trimmed.length >= 2 && trimmed !== current) {
+        router.replace(`/search?q=${encodeURIComponent(trimmed)}`, { scroll: false });
+      } else if (trimmed.length === 0 && current) {
+        router.replace("/search", { scroll: false });
+      }
+    }, 320);
+    return () => window.clearTimeout(timer);
+  }, [query, router, searchParams]);
+
+  const displayedPages = useMemo(
+    () =>
+      cardPages
+        .map((page) =>
+          activeCount === 0
+            ? page
+            : page.filter((card) => cardMatchesFilters(card, filters))
+        )
+        .filter((page) => page.length > 0),
+    [activeCount, cardPages, filters]
+  );
+  const displayedCards = useMemo(
+    () => displayedPages.flat(),
+    [displayedPages]
+  );
 
   useEffect(() => {
     if (displayedCards.length > 0) {
@@ -182,65 +215,80 @@ export function SearchResults({ initialQuery }: Props) {
 
   return (
     <CardInteractionsProvider cardIds={cardIds}>
-    <div>
+    <ListingExplorerFrame>
       <SearchMetrikaTracker query={query} />
-      <h1 className="sr-only">Поиск промптов</h1>
-
-      {/* Status */}
-      {searched && cards.length > 0 && (
-        <div className="mb-6 flex items-center gap-3">
-          <h2 className="text-lg font-semibold text-zinc-900">
-            Результаты по запросу &laquo;{query}&raquo;
-          </h2>
-          <span className="rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-medium text-zinc-500 tabular-nums">
-            {displayedCards.length}{hasMore ? "+" : ""}
-          </span>
-          {matchType === "trgm" && (
-            <span className="rounded-full bg-amber-50 border border-amber-200 px-2.5 py-0.5 text-xs text-amber-700">
-              Нечёткий поиск
+      <ListingExplorerHeading
+        eyebrow="Поиск"
+        title={
+          searched && query.trim().length >= 2
+            ? `Результаты по запросу «${query.trim()}»`
+            : "Поиск промтов"
+        }
+        titleAs="h1"
+        intro={
+          searched
+            ? undefined
+            : "Найдите готовый промт по стилю, сюжету или запросу."
+        }
+        countBadge={
+          searched && displayedCards.length > 0 ? (
+            <span className="inline-flex shrink-0 items-center rounded-full bg-zinc-100 px-3 py-1 text-sm tabular-nums text-zinc-600">
+              {displayedCards.length}
+              {hasMore ? "+" : ""}
+              {matchType === "trgm" ? " · нечёткий" : ""}
             </span>
-          )}
-        </div>
-      )}
+          ) : null
+        }
+      />
 
-      {searched && cards.length > 0 && (
-        <ListingDesktopFilters
-          filters={filters}
-          onSetFilter={setFilter}
-          onReset={resetFilters}
-          activeCount={activeCount}
-          hiddenDimensions={[]}
-          cardsForCounts={cards}
-          onOpenMobileFilters={() => setFilterPanelOpen(true)}
-        />
-      )}
+      <ListingExplorerSearch
+        id="search-explorer-search"
+        value={query}
+        onChange={setQuery}
+        onClear={() => setQuery("")}
+        loading={loading}
+      />
 
-      {/* Grid */}
-      {displayedCards.length > 0 && (
-        <>
-        <ListingFotoVPromtBanner />
-        <ListingGrid clamp={hasMore && activeCount === 0}>
-          {displayedCards.map((card, index) => (
-            <div key={card.id} className="min-w-0">
-              <PromptCard
-                card={card}
-                priorityLoad={index < LISTING_LCP_PRIORITY_GRID_ITEMS}
-                hideHoverChrome
-              />
-            </div>
-          ))}
-        </ListingGrid>
-        </>
-      )}
+      <ListingDesktopFilters
+        variant="explorer"
+        filters={filters}
+        onSetFilter={setFilter}
+        onReset={resetFilters}
+        activeCount={activeCount}
+        hiddenDimensions={[]}
+        cardsForCounts={cards}
+        onOpenMobileFilters={() => setFilterPanelOpen(true)}
+      />
 
-      {/* Autoload sentinel */}
-      <div ref={sentinelRef} className="h-px" />
+      <div className="relative mt-5 overflow-hidden">
+        {displayedCards.length > 0 ? (
+          <>
+            <ListingFotoVPromtBanner />
+            <StableListingMasonry
+              cardPages={displayedPages}
+              lcpPriorityCount={LISTING_LCP_PRIORITY_GRID_ITEMS}
+              loading={loading}
+            />
+          </>
+        ) : null}
 
-      {/* Loading — skeleton cards matching the grid layout (instead of a centered spinner) */}
-      {loading && <ListingGridLoadingSkeleton photoOnly />}
+        <div ref={sentinelRef} className="h-px" />
+        {loading && <ListingGridLoadingSkeleton photoOnly />}
 
-      {/* Filter FAB */}
-      {searched && cards.length > 0 && (
+        {filtersEmpty ? (
+          <SearchEmptyState variant="filters-empty" query={query} onClearFilters={clearFilters} />
+        ) : null}
+        {searchEmpty && !filtersEmpty ? (
+          <SearchEmptyState variant="no-results" query={query} />
+        ) : null}
+        {showIdle ? (
+          <p className="px-4 pb-8 pt-6 text-center text-sm text-zinc-500">
+            Введите запрос — покажем подходящие промты.
+          </p>
+        ) : null}
+      </div>
+
+      {searched && cards.length > 0 ? (
         <FilterFAB
           filters={filters}
           activeCount={activeCount}
@@ -250,23 +298,8 @@ export function SearchResults({ initialQuery }: Props) {
           open={filterPanelOpen}
           onOpenChange={setFilterPanelOpen}
         />
-      )}
-
-      {/* Empty states */}
-      {filtersEmpty && (
-        <SearchEmptyState variant="filters-empty" query={query} onClearFilters={clearFilters} />
-      )}
-
-      {searchEmpty && !filtersEmpty && (
-        <SearchEmptyState variant="no-results" query={query} />
-      )}
-
-      {showIdle ? (
-        <div className="flex min-h-[min(72vh,40rem)] flex-col items-center justify-center px-1 sm:px-0">
-          <ListingSearch variant="hero" autoFocus className="w-full" />
-        </div>
       ) : null}
-    </div>
+    </ListingExplorerFrame>
     </CardInteractionsProvider>
   );
 }

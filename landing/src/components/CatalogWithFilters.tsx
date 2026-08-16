@@ -1,14 +1,28 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
 import { useListingFilters } from "@/hooks/useListingFilters";
 import { useListingSort } from "@/hooks/useListingSort";
 import { FilterFAB } from "./FilterFAB";
 import { ListingDesktopFilters } from "./ListingDesktopFilters";
 import { InfiniteGrid } from "./InfiniteGrid";
+import { ListingExplorerFrame } from "./ListingExplorerFrame";
+import {
+  ListingExplorerHeading,
+  ListingExplorerSearch,
+} from "./ListingExplorerSearch";
+import { ListingMasonry, ListingMasonryItem } from "./ListingMasonry";
+import { ListingPhotoTile } from "./ListingPhotoTile";
+import { ListingPromptCountBadge } from "./ListingPromptCountBadge";
+import { toGenerationExampleCard } from "@/lib/generation/example-card";
+import { listingPhotoAspectRatio } from "@/lib/listing-masonry";
 import type { PromptCardFull } from "@/lib/supabase";
 import type { Dimension } from "@/lib/tag-registry";
 import type { ListingSort } from "@/lib/listing-sort";
+
+const SEARCH_RESULT_LIMIT = 16;
+const SEARCH_DEBOUNCE_MS = 320;
 
 /** Stable React `key` — raw `JSON.stringify(mergedRpcParams)` can differ by object insertion order → remount grid on scroll/hydration churn. */
 function stableListingKey(r: Record<string, string | null>, sort: ListingSort): string {
@@ -27,6 +41,11 @@ type Props = {
   initialRankedBatchSize: number;
   baseRpcParams: Record<string, string | null>;
   lockedDimensions: Dimension[];
+  heading: string;
+  headingId?: string;
+  eyebrow?: string;
+  intro?: string;
+  introSecondary?: string;
   /**
    * When set, listing is always sorted this way: no sort toggle, no sessionStorage / `?sort=` sync.
    * Used by `/trends` (always `created_at` / sort=new).
@@ -40,9 +59,18 @@ export function CatalogWithFilters({
   initialRankedBatchSize,
   baseRpcParams,
   lockedDimensions,
+  heading,
+  headingId = "listing-explorer-heading",
+  eyebrow,
+  intro,
+  introSecondary,
   fixedSort,
 }: Props) {
   const [filterPanelOpen, setFilterPanelOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [searchCards, setSearchCards] = useState<PromptCardFull[] | null>(null);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchError, setSearchError] = useState("");
   const { filters, setFilter, applyFilters, resetFilters, activeCount, mergedRpcParams } =
     useListingFilters({
       baseRpcParams,
@@ -57,11 +85,79 @@ export function CatalogWithFilters({
     [mergedRpcParams, sort]
   );
 
-  const showNewEmpty = sort === "new" && totalCount === 0;
+  const trimmedQuery = query.trim();
+  const isSearching = trimmedQuery.length >= 2;
+
+  useEffect(() => {
+    if (!isSearching) {
+      setSearchCards(null);
+      setSearchLoading(false);
+      setSearchError("");
+      return;
+    }
+
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => {
+      setSearchLoading(true);
+      setSearchError("");
+      void fetch(
+        `/api/search?q=${encodeURIComponent(trimmedQuery)}&limit=${SEARCH_RESULT_LIMIT}`,
+        { cache: "no-store", signal: controller.signal }
+      )
+        .then(async (response) => {
+          if (!response.ok) throw new Error("search_failed");
+          const payload = (await response.json()) as { cards?: PromptCardFull[] };
+          setSearchCards(payload.cards ?? []);
+        })
+        .catch((error: unknown) => {
+          if (error instanceof DOMException && error.name === "AbortError") return;
+          setSearchCards([]);
+          setSearchError("Не удалось загрузить подборку. Попробуйте ещё раз.");
+        })
+        .finally(() => {
+          if (!controller.signal.aborted) setSearchLoading(false);
+        });
+    }, SEARCH_DEBOUNCE_MS);
+
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [isSearching, trimmedQuery]);
+
+  const showNewEmpty = !isSearching && sort === "new" && totalCount === 0;
+  const searchExamples = useMemo(
+    () => (searchCards ?? []).map(toGenerationExampleCard),
+    [searchCards]
+  );
 
   return (
-    <>
+    <ListingExplorerFrame>
+      <ListingExplorerHeading
+        eyebrow={eyebrow}
+        title={heading}
+        titleAs="h1"
+        titleId={headingId}
+        intro={intro}
+        introSecondary={introSecondary}
+        collapseIntroOnMobile
+        countBadge={
+          !isSearching && totalCount > 0 ? (
+            <ListingPromptCountBadge count={totalCount} />
+          ) : null
+        }
+      />
+
+      <ListingExplorerSearch
+        id="listing-explorer-search"
+        value={query}
+        onChange={setQuery}
+        onClear={() => setQuery("")}
+        loading={searchLoading}
+      />
+
       <ListingDesktopFilters
+        variant="explorer"
         filters={filters}
         onSetFilter={setFilter}
         onReset={resetFilters}
@@ -73,19 +169,78 @@ export function CatalogWithFilters({
         onOpenMobileFilters={() => setFilterPanelOpen(true)}
       />
 
-      {showNewEmpty ? (
-        <p className="py-16 text-center text-sm text-zinc-500">Пока нет новых</p>
-      ) : (
-        <InfiniteGrid
-          key={listingGridKey}
-          initialCards={initialCards}
-          totalCount={totalCount}
-          initialRankedBatchSize={initialRankedBatchSize}
-          rpcParams={mergedRpcParams}
-          strictMode={activeCount > 0}
-          sort={sort}
-        />
-      )}
+      <div className="relative mt-5 overflow-hidden">
+        {isSearching ? (
+          <>
+            <ListingMasonry loading={searchLoading}>
+              {searchExamples.map((card, index) => (
+                <ListingMasonryItem key={card.id}>
+                  <ListingPhotoTile
+                    card={card}
+                    aspectRatio={listingPhotoAspectRatio(
+                      card.photoWidth,
+                      card.photoHeight,
+                      index
+                    )}
+                  />
+                </ListingMasonryItem>
+              ))}
+            </ListingMasonry>
+            {searchExamples.length > 0 ? (
+              <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30">
+                <div
+                  className="absolute inset-x-0 bottom-0 h-32 backdrop-blur-[6px] [mask-image:linear-gradient(to_top,black,transparent)] sm:h-40"
+                  aria-hidden
+                />
+                <div
+                  className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-white/50 via-white/15 to-transparent sm:h-40"
+                  aria-hidden
+                />
+                <div className="relative flex justify-center pb-4 pt-16 sm:pb-5 sm:pt-20">
+                  <Link
+                    href={`/search?q=${encodeURIComponent(trimmedQuery)}`}
+                    className="pointer-events-auto inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-indigo-200 bg-white/95 px-5 text-sm font-semibold text-indigo-700 shadow-sm backdrop-blur-sm transition hover:border-indigo-300 hover:bg-white"
+                  >
+                    Все результаты
+                    <svg
+                      className="h-4 w-4"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      aria-hidden
+                    >
+                      <path d="m9 18 6-6-6-6" />
+                    </svg>
+                  </Link>
+                </div>
+              </div>
+            ) : null}
+            {!searchLoading && searchExamples.length === 0 ? (
+              <div className="flex min-h-56 flex-col items-center justify-center px-4 pb-8 text-center">
+                <p className="text-base font-semibold text-zinc-900">
+                  {searchError || "Подходящих промтов пока не найдено"}
+                </p>
+                <p className="mt-2 max-w-sm text-sm leading-relaxed text-zinc-500">
+                  Измените формулировку или сбросьте поиск.
+                </p>
+              </div>
+            ) : null}
+          </>
+        ) : showNewEmpty ? (
+          <p className="py-16 text-center text-sm text-zinc-500">Пока нет новых</p>
+        ) : (
+          <InfiniteGrid
+            key={listingGridKey}
+            initialCards={initialCards}
+            totalCount={totalCount}
+            initialRankedBatchSize={initialRankedBatchSize}
+            rpcParams={mergedRpcParams}
+            strictMode={activeCount > 0}
+            sort={sort}
+          />
+        )}
+      </div>
 
       <FilterFAB
         filters={filters}
@@ -98,6 +253,6 @@ export function CatalogWithFilters({
         sort={sortChangeHandler ? sort : undefined}
         onSortChange={sortChangeHandler}
       />
-    </>
+    </ListingExplorerFrame>
   );
 }

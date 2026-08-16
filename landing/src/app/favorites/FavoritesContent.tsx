@@ -5,7 +5,10 @@ import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import { createSupabaseBrowser } from "@/lib/supabase-browser";
 import type { PromptCardFull } from "@/lib/supabase";
-import { PromptCard } from "@/components/PromptCard";
+import { ListingMasonry, ListingMasonryItem } from "@/components/ListingMasonry";
+import { ListingPhotoTile } from "@/components/ListingPhotoTile";
+import { toGenerationExampleCard } from "@/lib/generation/example-card";
+import { listingPhotoAspectRatio } from "@/lib/listing-masonry";
 import { CardInteractionsProvider } from "@/context/CardInteractionsContext";
 
 export function FavoritesContent() {
@@ -108,13 +111,23 @@ export function FavoritesContent() {
 
   return (
     <CardInteractionsProvider cardIds={cardIds}>
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4 xl:grid-cols-5">
-        {cards.map((card) => (
-          <div key={card.id} className="min-w-0">
-            <PromptCard card={card} />
-          </div>
-        ))}
-      </div>
+      <ListingMasonry>
+        {cards.map((card, index) => {
+          const example = toGenerationExampleCard(card);
+          return (
+            <ListingMasonryItem key={card.id}>
+              <ListingPhotoTile
+                card={example}
+                aspectRatio={listingPhotoAspectRatio(
+                  example.photoWidth,
+                  example.photoHeight,
+                  index
+                )}
+              />
+            </ListingMasonryItem>
+          );
+        })}
+      </ListingMasonry>
     </CardInteractionsProvider>
   );
 }

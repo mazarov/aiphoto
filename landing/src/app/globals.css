@@ -123,6 +123,48 @@ p {
   }
 
   /**
+   * Stable prompt-card masonry.
+   * Positions are deterministic for 2/3/4 lanes and expressed in container
+   * query units, so infinite-scroll append never moves the existing prefix.
+   */
+  .stable-listing-masonry {
+    position: relative;
+    container-type: inline-size;
+    height: var(--masonry-height-2);
+  }
+
+  .stable-listing-masonry-item {
+    position: absolute;
+    left: var(--masonry-left-2);
+    top: var(--masonry-top-2);
+    width: var(--masonry-width-2);
+  }
+
+  @media (min-width: 640px) {
+    .stable-listing-masonry {
+      height: var(--masonry-height-3);
+    }
+
+    .stable-listing-masonry-item {
+      left: var(--masonry-left-3);
+      top: var(--masonry-top-3);
+      width: var(--masonry-width-3);
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .stable-listing-masonry {
+      height: var(--masonry-height-4);
+    }
+
+    .stable-listing-masonry-item {
+      left: var(--masonry-left-4);
+      top: var(--masonry-top-4);
+      width: var(--masonry-width-4);
+    }
+  }
+
+  /**
    * listing-grid-clamp: hide items in the incomplete last row while hasMore=true.
    * Breakpoints mirror the listing grid column counts (2 / 3 / 4 / 5).
    * Hidden items remain in DOM (images pre-loaded) and fill in automatically

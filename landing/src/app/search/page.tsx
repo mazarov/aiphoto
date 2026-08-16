@@ -33,13 +33,7 @@ export default async function SearchPage({ searchParams }: Props) {
 
   return (
     <PageLayout>
-      <main
-        className={`listing-main-bottom-pad w-full px-2 sm:px-5 ${
-          query
-            ? "py-8 lg:pt-20 lg:pb-8"
-            : "py-4 lg:py-6"
-        }`}
-      >
+      <main className="listing-main-bottom-pad w-full px-2 pt-5 pb-8 sm:px-5">
         <Suspense fallback={null}>
           <SearchResults initialQuery={query} />
         </Suspense>

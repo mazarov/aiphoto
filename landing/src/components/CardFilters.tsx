@@ -3,20 +3,19 @@
 import { useState, useMemo, useEffect, useLayoutEffect, useCallback, useRef } from "react";
 import type { PromptCardFull } from "@/lib/supabase";
 import { TAG_REGISTRY } from "@/lib/tag-registry";
-import { PromptCard } from "./PromptCard";
-import { GroupedCard } from "./GroupedCard";
 import { CardInteractionsProvider } from "@/context/CardInteractionsContext";
 import { useAuth } from "@/context/AuthContext";
 import { isCatalogAdminEmail } from "@/lib/catalog-admin";
 import { LISTING_LCP_PRIORITY_GRID_ITEMS } from "@/lib/listing-lcp";
+import { appendUniqueCardsById } from "@/lib/listing-cards";
 import { LISTING_INFINITE_PAGE_SIZE } from "@/lib/listing-pagination";
 import type { ListingSort } from "@/lib/listing-sort";
 import {
   buildListingSlugOrder,
   writeListingNavigationContext,
-  type ListingNavGridItem,
 } from "@/lib/listing-card-navigation-context";
-import { ListingGrid } from "./ListingGrid";
+import { ListingCardDebugOverlay } from "./ListingCardDebugOverlay";
+import { StableListingMasonry } from "./StableListingMasonry";
 import {
   DEBUG_CARD_DELETED_EVENT,
   readAdminTechInfoEnabled,
@@ -30,17 +29,12 @@ const FILTER_PAGE_SIZE = LISTING_INFINITE_PAGE_SIZE;
 
 type Props = {
   cards: PromptCardFull[];
+  /** Stable infinite-scroll batches; each batch gets its own CSS-columns context. */
+  cardPages?: readonly (readonly PromptCardFull[])[];
   /** First N grid cells use `priority` + no lazy on main photo (listing LCP). */
   lcpPriorityCount?: number;
-  /** Catalog/search grids: no hover overlay on cards. */
-  hideHoverChrome?: boolean;
   /** Prefill dataset filter. */
   initialDataset?: string;
-  /**
-   * When true, adds listing-grid-clamp to hide the incomplete last row.
-   * Pass hasMore from the parent infinite-scroll controller.
-   */
-  clamp?: boolean;
   /** Listing sort — forwarded to admin `/api/search-cards` (default `new`). */
   sort?: ListingSort;
 };
@@ -93,10 +87,6 @@ function isDatasetOnlyFilter(filters: Filters): boolean {
   );
 }
 
-type GridItem =
-  | { type: "single"; card: PromptCardFull }
-  | { type: "group"; key: string; cards: PromptCardFull[] };
-
 function readInitialDebugFilters(initialDataset?: string): Filters {
   const saved = readDebugFilterState();
   if (saved) {
@@ -119,10 +109,9 @@ function readInitialDebugFilters(initialDataset?: string): Filters {
 
 export function FilterableGrid({
   cards,
+  cardPages,
   lcpPriorityCount = LISTING_LCP_PRIORITY_GRID_ITEMS,
-  hideHoverChrome = false,
   initialDataset,
-  clamp = false,
   sort = "new",
 }: Props) {
   const { user } = useAuth();
@@ -292,7 +281,7 @@ export function FilterableGrid({
       const step = rankedBatchSize > 0 ? rankedBatchSize : newCards.length;
 
       if (append) {
-        setFilterResults((prev) => [...(prev || []), ...newCards]);
+        setFilterResults((prev) => appendUniqueCardsById(prev || [], newCards));
       } else {
         setFilterResults(newCards);
         setFilterTotal(typeof data.total === "number" ? data.total : null);
@@ -390,41 +379,35 @@ export function FilterableGrid({
     });
   }, [isIdMode, searchResults, isFilterMode, filterResults, cards, filters]);
 
-  const shouldGroup = true;
-
-  const gridItems: GridItem[] = useMemo(() => {
-    if (!shouldGroup) return filtered.map((card) => ({ type: "single" as const, card }));
-    const groupMap = new Map<string, PromptCardFull[]>();
-    for (const card of filtered) {
-      if (card.sourceGroupKey && card.cardSplitTotal > 1) {
-        const arr = groupMap.get(card.sourceGroupKey) || [];
-        arr.push(card);
-        groupMap.set(card.sourceGroupKey, arr);
-      }
+  const listingCards = useMemo(
+    () => appendUniqueCardsById([], filtered),
+    [filtered]
+  );
+  const listingPages = useMemo(() => {
+    if (!cardPages || isIdMode || isFilterMode) {
+      return listingCards.length > 0 ? [listingCards] : [];
     }
-    const items: GridItem[] = [];
+
+    const allowedIds = new Set(listingCards.map((card) => card.id));
     const seen = new Set<string>();
-    for (const card of filtered) {
-      if (card.sourceGroupKey && card.cardSplitTotal > 1) {
-        if (seen.has(card.sourceGroupKey)) continue;
-        seen.add(card.sourceGroupKey);
-        items.push({ type: "group", key: card.sourceGroupKey, cards: groupMap.get(card.sourceGroupKey)! });
-      } else {
-        items.push({ type: "single", card });
-      }
-    }
-    return items;
-  }, [filtered, shouldGroup]);
-
-  const groupCount = useMemo(() => {
-    return gridItems.filter((i) => i.type === "group").length;
-  }, [gridItems]);
+    return cardPages
+      .map((page) =>
+        page.filter((card) => {
+          if (!allowedIds.has(card.id) || seen.has(card.id)) return false;
+          seen.add(card.id);
+          return true;
+        })
+      )
+      .filter((page) => page.length > 0);
+  }, [cardPages, isFilterMode, isIdMode, listingCards]);
 
   useLayoutEffect(() => {
     if (isIdMode || isFilterMode) return;
-    const order = buildListingSlugOrder(gridItems as ListingNavGridItem[]);
+    const order = buildListingSlugOrder(
+      listingCards.map((card) => ({ type: "single" as const, card }))
+    );
     writeListingNavigationContext(order);
-  }, [gridItems, isIdMode, isFilterMode]);
+  }, [listingCards, isIdMode, isFilterMode]);
 
   function handleReset() {
     setFilters({ ...(isAdmin ? DEFAULT_DEBUG_FILTERS : DEFAULT_FILTERS) });
@@ -462,7 +445,7 @@ export function FilterableGrid({
         : filterTotal != null
           ? `${filtered.length} / ${filterTotal}`
           : `${filtered.length} найдено`
-      : `${gridItems.length} (${groupCount} групп) из ${cards.length}`;
+      : `${listingCards.length} из ${cards.length}`;
 
   const datasetOnly = isFilterMode && isDatasetOnlyFilter(filters);
 
@@ -491,7 +474,7 @@ export function FilterableGrid({
               Поиск по базе...
             </div>
           </div>
-        ) : gridItems.length === 0 ? (
+        ) : listingPages.length === 0 ? (
           <div className="py-24 text-center">
             <p className="text-zinc-400">
               {isIdMode || isFilterMode ? "Карточки не найдены." : "Нет карточек по выбранным фильтрам."}
@@ -499,29 +482,15 @@ export function FilterableGrid({
           </div>
         ) : (
           <>
-            <ListingGrid clamp={clamp}>
-              {gridItems.map((item, index) =>
-                item.type === "single" ? (
-                  <div key={item.card.id} className="min-w-0">
-                    <PromptCard
-                      card={item.card}
-                      debug={isAdmin && techInfoEnabled}
-                      priorityLoad={index < lcpPriorityCount}
-                      hideHoverChrome={hideHoverChrome}
-                    />
-                  </div>
-                ) : (
-                  <div key={item.key} className="min-w-0">
-                    <GroupedCard
-                      cards={item.cards}
-                      debug={isAdmin && techInfoEnabled}
-                      priorityLoad={index < lcpPriorityCount}
-                      hideHoverChrome={hideHoverChrome}
-                    />
-                  </div>
-                )
-              )}
-            </ListingGrid>
+            <StableListingMasonry
+              cardPages={listingPages}
+              lcpPriorityCount={lcpPriorityCount}
+              debugOverlay={
+                isAdmin && techInfoEnabled
+                  ? (card) => <ListingCardDebugOverlay card={card} />
+                  : undefined
+              }
+            />
             {isFilterMode && filterHasMore && (
               <div className="mt-8 flex flex-col items-center gap-4">
                 <button
