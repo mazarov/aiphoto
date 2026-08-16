@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildImagePromptAnalyzeBody } from "./image-prompt-analyze-client";
+import {
+  buildAnalyzeRequestHeaders,
+  buildImagePromptAnalyzeBody,
+} from "./image-prompt-analyze-client";
 
 test("analyze body is photoreal RU data URL without image_url", () => {
   const body = buildImagePromptAnalyzeBody("data:image/jpeg;base64,abc");
@@ -8,4 +11,12 @@ test("analyze body is photoreal RU data URL without image_url", () => {
   assert.equal(body.style, "photoreal");
   assert.equal(body.locale, "ru");
   assert.equal("image_url" in body, false);
+});
+
+test("analyze request headers set x-client from the calling page", () => {
+  const headers = buildAnalyzeRequestHeaders("/generaciya-foto");
+  assert.equal(headers["Content-Type"], "application/json");
+  assert.equal(headers["x-client"], "generaciya_foto");
+  assert.equal(buildAnalyzeRequestHeaders("/foto-v-promt")["x-client"], "foto_v_promt");
+  assert.equal(buildAnalyzeRequestHeaders("/admin/analytics")["x-client"], "admin");
 });

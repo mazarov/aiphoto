@@ -16,6 +16,7 @@ type Item = {
   imageSize: string | null;
   creditsSpent: number;
   creditsRefunded: boolean;
+  creditsRemaining: number | null;
   errorType: string | null;
   errorMessage: string | null;
   clientSource: string;
@@ -185,8 +186,9 @@ export function AdminUserGenerationsList({
             {" · "}{item.userProvider || "provider —"}
             {item.requesterAuthUserId && <> · auth {shortId(item.requesterAuthUserId)}</>}
             {item.identityMismatch && <> · billing {shortId(item.userId)}</>}
-            {" · "}{item.creditsSpent} кредитов
+            {" · "}списано {item.creditsSpent}
             {item.creditsRefunded && " · возвращены"}
+            {" · "}остаток {item.creditsRemaining == null ? "—" : item.creditsRemaining}
           </p>
           <button onClick={() => setFullPrompt(item.prompt)}
             className="mt-1 line-clamp-2 text-left text-sm leading-5 text-zinc-800">

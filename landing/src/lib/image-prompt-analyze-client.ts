@@ -1,3 +1,4 @@
+import { mapPromptshotPathToSource } from "./client-source";
 import {
   FOTO_V_PROMT_ANALYZE_LOCALE,
   getImagePromptAnalyzeUrl,
@@ -30,6 +31,17 @@ export function buildImagePromptAnalyzeBody(
   };
 }
 
+/** Same-origin analyze headers; `x-client` comes from the calling page path. */
+export function buildAnalyzeRequestHeaders(pathname?: string): Record<string, string> {
+  const path =
+    pathname ??
+    (typeof window !== "undefined" ? window.location.pathname : "");
+  return {
+    "Content-Type": "application/json",
+    "x-client": mapPromptshotPathToSource(path),
+  };
+}
+
 export async function analyzeImageToPrompt(
   imageBase64: string,
   options?: { signal?: AbortSignal }
@@ -38,7 +50,7 @@ export async function analyzeImageToPrompt(
   try {
     response = await fetch(getImagePromptAnalyzeUrl(), {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: buildAnalyzeRequestHeaders(),
       credentials: "include",
       signal: options?.signal,
       body: JSON.stringify(buildImagePromptAnalyzeBody(imageBase64)),

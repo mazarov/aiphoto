@@ -8,6 +8,7 @@ import {
   type LiteRecognitionEntry,
 } from "@/lib/extension-lite-recognition-history";
 import { getImagePromptAnalyzeUrl, getImagePromptSiteUrl, FOTO_V_PROMT_ANALYZE_LOCALE } from "@/lib/foto-v-promt-config";
+import { buildAnalyzeRequestHeaders } from "@/lib/image-prompt-analyze-client";
 import { YM_GOAL_LEXYGPT_GENERATE_PHOTOVPROMPT } from "@/lib/yandex-metrika";
 import { LexyGptGenerateButton } from "@/components/LexyGptGenerateButton";
 import { widgetCopy, type WidgetCopyKey } from "@/lib/foto-v-promt-copy";
@@ -294,7 +295,7 @@ export function PromptSceneLiteWidget({
       try {
         res = await fetch(analyzeUrl, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: buildAnalyzeRequestHeaders(),
           body: JSON.stringify({
             image_base64: dataUrl,
             style: ANALYZE_STYLE,
@@ -373,7 +374,7 @@ export function PromptSceneLiteWidget({
       try {
         res = await fetch(analyzeUrl, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: buildAnalyzeRequestHeaders(),
           body: JSON.stringify({
             image_url: trimmed,
             style: ANALYZE_STYLE,

@@ -7,6 +7,7 @@ import {
   parseAdminUserGenerationLimit,
   parseAdminUserGenerationPublicationFilter,
   parseAdminUserGenerationStatus,
+  creditsRemainingByUserId,
   resolveUserGenerationPublicationStatus,
   sanitizeGenerationError,
   type AdminUserGenerationRow,
@@ -83,6 +84,19 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  const userIds = [...new Set(page.map((row) => row.user_id).filter(Boolean))];
+  const { data: creditRows, error: creditError } = userIds.length
+    ? await supabase.from("landing_users").select("id, credits").in("id", userIds)
+    : { data: [], error: null };
+  if (creditError) {
+    console.error("[admin.user-generations] credits_fetch_failed", {
+      adminEmail: gate.email,
+      count: userIds.length,
+      message: creditError.message,
+    });
+  }
+  const creditsByUser = creditsRemainingByUserId(creditRows);
+
   const items = page.map((row) => {
     const publicationStatus = resolveUserGenerationPublicationStatus(row);
     const sourcePhotoUrls = (row.input_photo_paths || [])
@@ -101,6 +115,7 @@ export async function GET(req: NextRequest) {
       imageSize: row.image_size,
       creditsSpent: row.credits_spent,
       creditsRefunded: row.credits_refunded,
+      creditsRemaining: creditsByUser.get(row.user_id) ?? null,
       errorType: row.error_type,
       errorMessage: sanitizeGenerationError(row.error_message),
       clientSource: row.client_source,

@@ -72,3 +72,21 @@ export function sanitizeGenerationError(value: string | null): string | null {
   if (!value) return null;
   return value.replace(/\s+/g, " ").trim().slice(0, 300) || null;
 }
+
+export function parseUserCreditsRemaining(value: unknown): number | null {
+  if (value == null || value === "") return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? Math.max(0, Math.floor(parsed)) : null;
+}
+
+export function creditsRemainingByUserId(
+  rows: Array<{ id?: unknown; credits?: unknown }> | null | undefined,
+): Map<string, number> {
+  const byUser = new Map<string, number>();
+  for (const row of rows || []) {
+    const id = typeof row.id === "string" ? row.id : "";
+    const credits = parseUserCreditsRemaining(row.credits);
+    if (id && credits != null) byUser.set(id, credits);
+  }
+  return byUser;
+}

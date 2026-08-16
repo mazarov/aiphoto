@@ -1,5 +1,13 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-08-16 (**admin analytics expandable cards:** динамика кредитов, разбивка, топ пользователей и analyze-события свёрнуты; клик раскрывает раскладку.)
+>
+> Последнее обновление: 2026-08-16 (**admin user-generations credits remaining:** `/admin/analyze-history` вкладка «Генерации других пользователей» показывает live-остаток `landing_users.credits` рядом со списанием по job.)
+>
+> Последнее обновление: 2026-08-16 (**analyze client_source by page:** `POST /api/extension/analyze` больше не пишет один `promptshot` для всего promptshot.ru. Source режется по странице вызова: `/foto-v-promt` → `foto_v_promt`, `/generaciya-foto` → `generaciya_foto`, `/admin/*` → `admin`, иначе `promptshot`. Клиент шлёт `x-client` из `window.location.pathname`; сервер принимает только эти page-бакеты и иначе мапит `Referer`. Генерации по-прежнему `site` / `admin`.)
+>
+> Последнее обновление: 2026-08-16 (**admin analytics period users:** «Топ пользователей» и «Разбивка по пользователям» режутся фильтром Сегодня/7/30/90; SQL `186`.)
+>
 > Последнее обновление: 2026-08-16 (**admin credit liability cost:** обязательство = live-кредиты × 0,5 ₽; 1 генерация = 5 кр. = 2,5 ₽, не blended ЮKassa.)
 >
 > Последнее обновление: 2026-08-16 (**admin finance daily chart:** `/admin/finance` график выручка / косты / прибыль + затраты Gemini по моделям по дням; пунктир live-обязательств.)
@@ -11,6 +19,12 @@
 > Последнее обновление: 2026-08-16 (**admin finance reporting:** `/admin/analytics` live кредиты; `/admin/finance` импорт ЮKassa/GCP; Gemini $1=90₽ статика; чистый доход = gross − комиссия ЮKassa − УСН 6% − Gemini; миграция `184`.)
 >
 > Последнее обновление: 2026-08-15 (**web-generation results JPEG:** worker пишет новые объекты в `web-generation-results` как JPEG q=85 (`user/job/lease.jpg`). Старые `.png` валидны. Encode fail / no-gain заливает исходник с честным mime. Alpine worker ставит musl `sharp@0.33.5`.)
+>
+> Последнее обновление: 2026-08-15 (**analyze-history retention:** private `analyze_history` / bucket `analyze-history` хранятся 5 дней; cleanup на каждом admin read, до 1000 строк за запрос.)
+>
+> Последнее обновление: 2026-08-14 (**iOS focus zoom:** на touch (`hover: none` + `pointer: coarse`) у `input`/`textarea`/`select` минимум `font-size: 16px`, иначе Safari зумит страницу. Без `maximum-scale=1`. Hero search больше не `focus-within:scale-[1.005]`.)
+>
+> Последнее обновление: 2026-08-14 (**Safari iPhone prompt card:** immersive stage uses `100svh` + pixel-synced snap slides (`--card-snap-slide-h` = `visualViewport.height`), not `min-h-[100dvh]` / nested `overflow-y-auto`. Bottom chrome («Промпт» / «Повторить») and the action stack stay in the visible window. After a swipe settle the 3-slide window recenters (`scroll-snap` briefly off, `scrollTop` assignment) so listing neighbors keep advancing past the first three cards.)
 >
 > Последнее обновление: 2026-08-14 (**header pay CTA:** в мобильной шапке `HeaderBalancePayChip` справа «+» вместо «Пополнить» / «Купить кредиты»; `aria-label` по-прежнему «пополнить».)
 >
@@ -246,7 +260,7 @@
 /privacy                → Permanent redirect на `/policy`
 /favorites              → Избранное (требует авторизации)
 /generations            → Мои генерации (auth): канонический список `landing_generations` текущего shared DB user; UGC-карточка необязательна
-/admin/analytics        → Закрытый analytics dashboard: пользователи/клиенты + live непотраченные кредиты; admin generation modal; Supabase Auth + email allowlist `ANALYTICS_ADMIN_EMAILS`
+/admin/analytics        → Закрытый analytics dashboard: пользователи/клиенты + live непотраченные кредиты; таблицы кредитов/топа/analyze свёрнуты до клика; admin generation modal; Supabase Auth + email allowlist `ANALYTICS_ADMIN_EMAILS`
 /admin/analyze-history  → Закрытая история analyze/remix + все non-admin user generations; remix помечается бейджем и `change_request`; private source previews выдаются signed, completed results публикуются идемпотентно
 /admin/payments         → Закрытый cursor-реестр YooKassa: payer identity, RUB/status/test, ожидаемые credits и факт `credited_at`
 /admin/finance          → Касса выгрузок: импорт ЮKassa/GCP, чистый доход; `?tab=finance` с аналитики редиректит сюда
@@ -339,7 +353,7 @@
 | `/api/payments/yookassa/webhook` | POST public callback: принимает `payment.succeeded` / `payment.canceled`, перечитывает объект через YooKassa API и идемпотентно обновляет ledger/баланс |
 | `/api/cron/yookassa-reconcile` | POST, `Authorization: Bearer $CRON_SECRET`: batch `reconcileStaleYooKassaPayments` для `created|pending` старше 5 мин (limit 20) |
 | `/api/extension/analyze` | Same-origin analyze для site `/foto-v-promt`: validation/SSRF protection → optional Auth/shared identity → atomic rate-limit reserve → Gemini proxy/direct → confirm при success или release при error; успешный результат best-effort сохраняется в private 30-day `analyze_history` |
-| `/api/admin/analytics` | GET, admin auth: no-store analytics rollups за `1…90` дней |
+| `/api/admin/analytics` | GET, admin auth: no-store analytics rollups за `1…90` дней; топ пользователей — `admin_analytics_top_users` за тот же период |
 | `/api/admin/credits` | GET, admin auth: live остаток + daily flow (`days=1\|7\|30\|90`) + keyset-список (`q`, remaining/granted/spent/share) |
 | `/api/admin/finance` | GET, admin auth: KPI и разбивки импортов ЮKassa/GCP за месяц `YYYY-MM` |
 | `/api/admin/finance/import` | POST, admin auth: multipart replace-импорт `kind=revenue\|cogs`, CSV/ZIP до 10 MB |
@@ -347,7 +361,7 @@
 | `/api/admin/payments/reconcile` | POST, admin auth: `{ paymentId \| yookassaPaymentId }` или `{ stale: true }` — ручной/batch reconcile через YooKassa GET |
 | `/api/admin/analyze-history` | GET, admin auth: cursor pagination private analyze/remix history (`kind`, `change_request`), optional `client_source`, signed image URL (analyze only) |
 | `/api/admin/analyze-history/[id]/publish` | POST, admin auth: private analyze image → public result object → idempotent `prompt_cards` draft → общий SEO publish service |
-| `/api/admin/user-generations` | GET, admin auth: cursor всех `client_source != admin` generation statuses, identity, public result и 15-минутные signed source previews |
+| `/api/admin/user-generations` | GET, admin auth: cursor всех `client_source != admin` generation statuses, identity, live `creditsRemaining` из `landing_users.credits`, public result и 15-минутные signed source previews |
 | `/api/admin/user-generations/[id]/publish` | POST, admin auth: completed non-admin generation → idempotent UGC draft исходного `requester_auth_user_id` → общий SEO publish service |
 | `/api/admin/generation-photo` | GET/POST, admin auth: чтение signed URL или замена закреплённого reference photo для admin generation |
 | `/api/admin/generate` | POST, admin auth: idempotent enqueue `1…4` jobs в durable `landing_enqueue_generation`, `client_source=admin`, без списания кредитов |
@@ -406,6 +420,13 @@
   MIME/size и URL redirects против private/link-local/metadata адресов. Для
   authenticated request `auth.users.id` резолвится в shared
   `imageprompt_users.id`; anonymous request использует daily salted IP hash.
+  **`client_source` analyze/remix:** `resolveClientSource` режет promptshot.ru
+  по странице вызова (`foto_v_promt` / `generaciya_foto` / `admin` / fallback
+  `promptshot`). Виджет и `analyzeImageToPrompt` шлют `x-client` из
+  `window.location.pathname` (не Next pathname: mobile soft-modal делает
+  `pushState` на `/foto-v-promt`). С веба принимаются только page-бакеты;
+  иначе сервер мапит `Referer`. Исторические строки остаются `promptshot`.
+  Paid generate по-прежнему пишет `site`, admin enqueue — `admin`.
 - **Квота:** preflight объединяет IP usage с shared user bucket, затем атомарный
   `reserve` проверяет `count + pending < max`. Успех выполняет `confirm`
   (`pending - 1`, `count + 1`), timeout/upstream/error — `release`
@@ -439,12 +460,15 @@
   Повторный upload заменяет месяц через `admin_finance_replace_import`. Live
   остаток кредитов на Обзоре — график по `admin_credit_daily_flow` (реконструкция
   от текущего `landing_users.credits`) и разбивка `admin_credit_liabilities`
-  с колонкой «Осталось». Telegram Stars в кассе v1 нет; в
+  за тот же период, что фильтр Сегодня/7/30/90: в списке те, кто начислял
+  или тратил, колонка «Осталось» — live. Telegram Stars в кассе v1 нет; в
   динамике кредитов Stars `state=done` учитываются.
 - **Генерации пользователей:** `admin_user_generations_queue` возвращает все
   `client_source IS DISTINCT FROM 'admin'` и terminal/non-terminal statuses.
   Private input paths не отдаются клиенту: API проверяет path, batch-подписывает до
-  четырёх preview на 15 минут и возвращает только URL. Публикация доступна лишь для
+  четырёх preview на 15 минут и возвращает только URL. Для строк страницы API
+  batch-читает live `landing_users.credits` и отдаёт `creditsRemaining` (остаток
+  пользователя сейчас, не баланс на момент job). Публикация доступна лишь для
   `completed` с явным `requester_auth_user_id`; автор карточки не подменяется admin.
 - **Публикация:** analyze history и completed admin generation создают/восстанавливают
   draft в `prompt_cards`, затем вызывают общий publish service: prompt variants →
@@ -965,7 +989,8 @@ type ResolvedRoute = {
 | `landing_fulfill_yookassa_payment` | Атомарное идемпотентное завершение YooKassa-платежа и начисление сохранённых в ledger токенов |
 | `admin_finance_replace_import` | Service-only replace месячного finance-импорта (`revenue` \| `cogs`) |
 | `admin_credit_liability_summary` | Service-only totals `landing_users.credits > 0`; RUB-оценка в админке = 5 кр. / 2,5 ₽ |
-| `admin_credit_liabilities` | Service-only keyset-список пользователей с `credits > 0`, lifetime granted/spent, optional search |
+| `admin_credit_liabilities` | Service-only keyset-список тех, кто начислял/тратил кредиты за `p_days`, plus live remaining |
+| `admin_analytics_top_users` | Service-only топ-50 по allowed-запросам за `p_days` |
 | `admin_credit_daily_flow` | Service-only дневные начисления (ЮKassa/Stars), списания и возвраты генераций |
 
 **Сортировка листингов категорий (`/[...slug]/`, миграции `158–161`):** UI — переключатель **`ListingSortToggle`** («Новое» \| «Популярное»), выбор в **`sessionStorage`** `promptshot_listing_sort` + опционально **`?sort=popular`** в URL (default `new` — без query-параметра). SSR и API читают **`sort`**. Страница **`/trends`** всегда `sort=new` (`fixedSort`), без переключателя и без sessionStorage-sync (`useListingSort({ disabled: true })`).
