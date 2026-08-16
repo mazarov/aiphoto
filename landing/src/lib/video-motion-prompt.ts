@@ -1,5 +1,5 @@
 const MOTION_WRAPPER =
-  "Animate this still photograph into a short living-photo video. Preserve the same person, face, clothing, composition, camera distance, and background. Add only subtle natural motion: breathing, hair, fabric, light, and a nearly static camera. Do not change identity, outfit, scene, or add new objects.";
+  "Animate this still photograph into a 4-second video people would want to share. Preserve the same person, face, clothing, setting, and camera distance. Do not change identity, outfit, or location, and do not add new people or objects unless already implied by the frame. The user scenario is the main action: play it with a clear hook and payoff. Do not reduce it to breathing, blinking, or idle fabric motion.";
 
 export function assembleVideoMotionPrompt(rawPrompt: string): string {
   const user = rawPrompt.trim();

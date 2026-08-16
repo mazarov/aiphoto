@@ -75,6 +75,8 @@ test("motion prompt keeps identity wrapper around user text", () => {
   const assembled = assembleVideoMotionPrompt("Оживи изображение");
   assert.match(assembled, /Preserve the same person/);
   assert.match(assembled, /Оживи изображение/);
+  assert.match(assembled, /user scenario is the main action/i);
+  assert.doesNotMatch(assembled, /only subtle natural motion/);
 });
 
 test("video animate flag is off unless explicitly enabled", () => {

@@ -232,7 +232,7 @@ export async function POST(req: NextRequest) {
           },
         ],
         generationConfig: {
-          temperature: 0.55,
+          temperature: 0.85,
           maxOutputTokens: 256,
           responseModalities: ["TEXT"],
           thinkingConfig: { thinkingBudget: 0 },

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  ANIMATE_SCENARIO_SYSTEM_PROMPT,
   buildAnimateScenarioUserText,
   isGenericVideoPrompt,
   sanitizeAnimateScenario,
@@ -28,4 +29,11 @@ test("user text includes original prompt only when it is specific", () => {
     buildAnimateScenarioUserText("Девушка в красном пальто на набережной"),
     /красном пальто/
   );
+  assert.match(buildAnimateScenarioUserText("x"), /repost/);
+});
+
+test("scenario prompt forbids bland living-photo defaults", () => {
+  assert.match(ANIMATE_SCENARIO_SYSTEM_PROMPT, /shareable|send to a friend/i);
+  assert.match(ANIMATE_SCENARIO_SYSTEM_PROMPT, /Forbidden bland defaults/);
+  assert.match(ANIMATE_SCENARIO_SYSTEM_PROMPT, /hook/);
 });

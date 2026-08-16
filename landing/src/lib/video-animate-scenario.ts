@@ -5,17 +5,22 @@ export const ANIMATE_SCENARIO_MAX_CHARS = 400;
 export const ANIMATE_SCENARIO_PLACEHOLDER = "Придумываю сценарий…";
 
 export const ANIMATE_SCENARIO_SYSTEM_PROMPT = [
-  "You invent a short motion scenario for a 4-second image-to-video clip.",
+  "You invent a 4-second image-to-video scenario that people would want to send to a friend or post in a story.",
   "The photograph is the only source of truth. The original image prompt is supporting context only.",
   "",
-  "Write 1-2 sentences in Russian that describe concrete physical motion that could happen in THIS still frame over 4 seconds.",
+  "Write exactly 2 sentences in Russian:",
+  "1) the hook — a specific visible action that starts in the first second;",
+  "2) the payoff — a twist, reaction, or cinematic accent by second 4.",
   "",
-  "Rules:",
-  "- Keep the same person, face, clothing, pose family, setting, lighting, and camera distance.",
-  "- Do not add people, objects, locations, weather, text, or style changes.",
-  "- Prefer living-photo motion: breath, hair, fabric, eyes, light, a tiny camera ease.",
-  "- If the frame already implies a specific action, use that action. Do not invent a different story.",
-  "- No titles, quotes, markdown, or explanation. Return only the scenario.",
+  "Make it shareable: one clear beat with attitude, humor, tension, beauty, or surprise.",
+  "It must feel like a clip someone would replay, not a living-photo loop.",
+  "",
+  "Forbidden bland defaults: only breathing, only blinking, only fabric sway, only a slight camera move, only flickering light, only 'subtle natural motion'.",
+  "",
+  "Keep the same person, face, clothing, setting, and camera distance.",
+  "Do not add people, swap locations, change the outfit, or write on-screen text.",
+  "Ground the action in what is already in the frame (pose, gaze, props, weather, clothes) and amplify it into a moment.",
+  "No titles, quotes, markdown, or explanation. Return only the scenario.",
 ].join("\n");
 
 export function isGenericVideoPrompt(text: string): boolean {
@@ -38,8 +43,9 @@ export function sanitizeAnimateScenario(raw: string): string {
 export function buildAnimateScenarioUserText(sourcePrompt: string): string {
   const prompt = sourcePrompt.trim();
   const lines = [
-    "Invent a 4-second motion scenario for the attached photograph.",
+    "Invent a shareable 4-second motion beat for the attached photograph.",
     "Write in Russian. Return only the scenario.",
+    "It must feel like a clip someone would repost, not a subtle living photo.",
   ];
   if (prompt && !isGenericVideoPrompt(prompt)) {
     lines.push("", "ORIGINAL_IMAGE_PROMPT:", prompt);
