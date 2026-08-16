@@ -10,15 +10,15 @@ function FaqAnswer({ index }: { index: number }) {
       return (
         <>
           В каталоге PromptShot — разделы{" "}
-          <Link href="/#audience_tag" className={linkClass}>
+          <Link href="/promty-dlya-foto-devushki" className={linkClass}>
             «Люди и отношения»
           </Link>
           ,{" "}
-          <Link href="/#style_tag" className={linkClass}>
+          <Link href="/stil/portret" className={linkClass}>
             «Стили»
           </Link>
           ,{" "}
-          <Link href="/#occasion_tag" className={linkClass}>
+          <Link href="/sobytiya/den-rozhdeniya" className={linkClass}>
             «События»
           </Link>{" "}
           с промтами для портретов, парных и студийных фотосессий в нейросетях.
@@ -28,7 +28,7 @@ function FaqAnswer({ index }: { index: number }) {
       return (
         <>
           Скопируйте промт{" "}
-          <Link href="/#audience_tag" className={linkClass}>
+          <Link href="/#primery" className={linkClass}>
             с карточки в каталоге
           </Link>
           , откройте Nano Banana или другую нейросеть, вставьте текст и при

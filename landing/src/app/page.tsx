@@ -1,14 +1,18 @@
 import { cache } from "react";
 import type { Metadata } from "next";
-import { fetchHomepageSections } from "@/lib/supabase";
+import {
+  enrichCardsWithDetails,
+  fetchHomepageSections,
+  fetchRouteCards,
+  type PromptCardFull,
+} from "@/lib/supabase";
 import { TAG_REGISTRY } from "@/lib/tag-registry";
 import { HOMEPAGE_SEO, HOMEPAGE_FAQ } from "@/lib/homepage-seo-copy";
+import { toGenerationExampleCard } from "@/lib/generation/example-card";
 import { PageLayout } from "@/components/PageLayout";
-import { CategorySection } from "@/components/CategorySection";
-import { HomeSearch } from "@/components/HomeSearch";
 import { HomeHeroDestinations } from "@/components/HomeHeroDestinations";
 import { HomeSeoBlocks } from "@/components/HomeSeoBlocks";
-import { buildCategorySectionBlocks } from "@/lib/homepage-sections";
+import { HomepageExamplesExplorer } from "@/components/home/HomepageExamplesExplorer";
 
 export const revalidate = 3600;
 
@@ -19,6 +23,30 @@ const getCachedSections = cache(async () => {
     return await fetchHomepageSections();
   } catch (err) {
     console.error("[HomePage] fetchHomepageSections failed:", err);
+    return [];
+  }
+});
+
+const getCachedPopularCards = cache(async (): Promise<PromptCardFull[]> => {
+  try {
+    const result = await fetchRouteCards({
+      audience_tag: null,
+      style_tag: null,
+      occasion_tag: null,
+      object_tag: null,
+      doc_task_tag: null,
+      limit: 16,
+      offset: 0,
+      min_cards: 1,
+      sort: "popular",
+    });
+    const enriched = await enrichCardsWithDetails(result.cards);
+    const cardsById = new Map(enriched.map((card) => [card.id, card]));
+    return result.cards
+      .map((card) => cardsById.get(card.id))
+      .filter((card): card is PromptCardFull => Boolean(card));
+  } catch (err) {
+    console.error("[HomePage] fetch popular cards failed:", err);
     return [];
   }
 });
@@ -49,14 +77,18 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function HomePage() {
-  const sections = await getCachedSections();
+  const [sections, popularCards] = await Promise.all([
+    getCachedSections(),
+    getCachedPopularCards(),
+  ]);
 
   const totalPrompts = sections.reduce((sum, s) => sum + s.total_count, 0);
   const totalCategories = sections.filter((s) => s.total_count > 0).length;
-
-  const sectionBlocks = buildCategorySectionBlocks(sections);
-
-  const homeOgImage = sections.find((s) => s.cards.length > 0)?.cards[0]?.photoUrl ?? null;
+  const homeOgImage =
+    popularCards[0]?.photoUrls[0] ??
+    sections.find((s) => s.cards.length > 0)?.cards[0]?.photoUrl ??
+    null;
+  const exampleCards = popularCards.map(toGenerationExampleCard);
 
   const collectionPageLd = {
     "@context": "https://schema.org",
@@ -101,11 +133,25 @@ export default async function HomePage() {
     })),
   };
 
-  const jsonLd = [collectionPageLd, faqPageLd];
+  const itemListLd = popularCards.length
+    ? {
+        "@context": "https://schema.org",
+        "@type": "ItemList",
+        name: HOMEPAGE_SEO.examplesTitle,
+        numberOfItems: popularCards.length,
+        itemListElement: popularCards.map((card, index) => ({
+          "@type": "ListItem",
+          position: index + 1,
+          name: card.title_ru || card.title_en || "Промт для фото",
+          ...(card.slug ? { url: `${SITE_URL}/p/${card.slug}` } : {}),
+        })),
+      }
+    : null;
+
+  const jsonLd = [collectionPageLd, faqPageLd, ...(itemListLd ? [itemListLd] : [])];
 
   return (
-    <PageLayout>
-      {/* Hero */}
+    <PageLayout showFooterWithGenerateDock>
       <section className="relative overflow-hidden bg-gradient-to-b from-indigo-50/40 via-white to-white">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(99,102,241,0.12),transparent)]" />
         <div className="relative mx-auto max-w-5xl px-5 pt-16 pb-10 text-center">
@@ -128,37 +174,14 @@ export default async function HomePage() {
               {totalCategories} категорий
             </span>
           </div>
-          <div className="mx-auto mt-8 w-full max-w-2xl px-1 sm:px-0">
-            <HomeSearch />
-          </div>
           <HomeHeroDestinations />
         </div>
       </section>
 
       <main className="w-full flex-1 px-2 sm:px-5 pb-16">
-        {sectionBlocks.length > 0 ? (
-          sectionBlocks.map((block, i) => (
-            <CategorySection
-              key={block.dimension}
-              title={block.title}
-              items={block.items}
-              isFirstSection={i === 0}
-              sectionId={block.dimension}
-            />
-          ))
-        ) : (
-          <div className="mt-12 flex flex-wrap gap-2">
-            {TAG_REGISTRY.map((tag) => (
-              <a
-                key={tag.slug}
-                href={tag.urlPath}
-                className="rounded-lg border border-zinc-200 bg-white px-4 py-2 text-sm text-zinc-600 transition-colors hover:border-zinc-300 hover:bg-zinc-50 hover:text-zinc-900"
-              >
-                {tag.labelRu}
-              </a>
-            ))}
-          </div>
-        )}
+        <div className="mx-auto w-full max-w-7xl">
+          <HomepageExamplesExplorer initialCards={exampleCards} />
+        </div>
       </main>
 
       <HomeSeoBlocks />

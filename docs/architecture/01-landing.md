@@ -1,5 +1,11 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-08-16 (**homepage chips:** в блоке «Готовые промты для фото» сняты кнопка «Ещё» и чип «На паспорт»; видны «Все» + топ Wordstat, остальные категории включая паспорт — `sr-only` ссылки.)
+>
+> Последнее обновление: 2026-08-16 (**homepage footer:** `/` передаёт `showFooterWithGenerateDock` в `PageLayout`, чтобы общий `Footer` был виден вместе с generate dock — как на `/generaciya-foto` и `/foto-v-promt`.)
+>
+> Последнее обновление: 2026-08-16 (**homepage examples explorer:** `/` больше не показывает `HomeSearch` и `CategorySection`. После hero destinations — `HomepageExamplesExplorer`: popular-карточки, Wordstat-чипы + «Ещё», in-place `/api/search` и `/api/listing?sort=popular`. Клик по карточке открывает модалку (без «Повторить»). Новые тексты только в блоке (`HOMEPAGE_SEO.examplesTitle/Intro`); title/H1/intro/FAQ не менялись. `get_homepage_sections` остаётся для счётчиков, OG и JSON-LD `hasPart`; добавлен `ItemList` на 16 карточек. FAQ-якоря `#audience_tag` заменены на L1 / `#primery`.)
+>
 > Последнее обновление: 2026-08-16 (**analyze quota GET window:** `readUsage` больше не сравнивает `window_start` строками. Postgres `+00:00` < JS `.000Z`, из-за этого GET `/api/extension/analyze/quota` для гостя всегда отдавал 10/10. Сравнение — `Date.parse`, как SQL timestamptz в reserve.)
 >
 > Последнее обновление: 2026-08-16 (**YooKassa return to origin:** checkout из оверлея запоминает listing-path (`promptshot:pricing-return-path`), `return_url` = origin + `?payment=`, не hard `/pricing`. Перед редиректом оверлей закрывается без `history.back()`, URL возвращается на origin. Poll статуса — `YooKassaReturnStatus` в root layout. Hard `/pricing` и прямые заходы без origin по-прежнему возвращаются на `/pricing`.)
@@ -584,7 +590,7 @@ admin pages
 ### Покупка токенов через YooKassa (`/pricing`)
 
 - **Сценарий:** «Умный платёж» с `confirmation.type=redirect` и `capture=true`. PromptShot не собирает реквизиты карты: клиент получает `confirmation_url` и уходит на hosted-страницу YooKassa.
-- **Страница / модалка:** hard `/pricing` — `PageLayout` + `PricingScreen`. In-app CTA открывают `ClientPricingModal` (root layout): `lockListingScrollForModal` + `history.pushState('/pricing')` + virtual `ym('hit')` + `sessionStorage` origin; close / Back — unmount затем `history.back()`. Checkout: `close({ history: "none" })` + `replaceState(origin)` + YooKassa `return_url` на origin + `?payment=`. Return poll — `YooKassaReturnStatus` (не hard `/pricing`). Прямой заход / refresh `/pricing` без origin по-прежнему возвращается на `/pricing?payment=`. Cmd/Ctrl-click по `PricingEntryLink` — hard navigation.
+- **Страница / модалка:** hard `/pricing` — `PageLayout` + `PricingScreen`. In-app CTA открывают `ClientPricingModal` (root layout): `lockListingScrollForModal` + `history.pushState('/pricing')` + virtual `ym('hit')` + `sessionStorage` origin; close / Back — unmount затем `history.back()`. Checkout: `closeWithoutHistory()` + `replaceState(origin)` + YooKassa `return_url` на origin + `?payment=`. Return poll — `YooKassaReturnStatus` (не hard `/pricing`). Прямой заход / refresh `/pricing` без origin по-прежнему возвращается на `/pricing?payment=`. Cmd/Ctrl-click по `PricingEntryLink` — hard navigation.
 - **Mobile UI (hard page):** живёт в общем listing shell (`Header` + `listing-scroll-root` + `MobileTabBar`). Main на max-lg имеет `min-h` = высота над tab bar; legal footer (`mt-auto`, без border/blur) при достаточном месте сидит внизу, иначе скроллится вместе с карточками. Карточки — 2×2 до `xl`, клик по всей карточке.
 - **Mobile UI (overlay):** fullscreen white (`z-[260]`, выше generate dock `122` и карточки `50`, ниже auth/profile sheet `270`); desktop — backdrop + белая карточка. Контент — тот же `PricingScreen`.
 - **Каталог:** `landing/src/lib/pricing-plans.ts` — единый server-safe источник `plan_id`, RUB-цены и числа токенов. API никогда не принимает цену/credits от клиента.
@@ -730,11 +736,13 @@ Fallback: если `code` пришёл на произвольную стран�
 
 ```
 fetchHomepageSections(siteLang)          ← RPC get_homepage_sections
-  → sections[] с фото-URL
-  → buildMenuCountsFromSections()       ← без доп. запросов
-  → pickDeduplicatedPhotos()
-  → CategorySection[]
+  → счётчики hero, OG, JSON-LD hasPart
+fetchRouteCards({ sort: "popular", limit: 16 })
+  → enrichCardsWithDetails
+  → HomepageExamplesExplorer
 ```
+
+Чипы: `homepage-explorer-chips.ts` («Все» + топ Wordstat без «На паспорт»; хвост включая `doc_task_tag` — `sr-only`). Каталог плитками остаётся на `/catalog`.
 
 ### Листинг `/[...slug]` (L1 / L2 / L3)
 
@@ -825,7 +833,7 @@ SearchResults (client, infinite scroll)
 |-----------|------|------|
 | HeaderClient | `components/HeaderClient.tsx` | Mobile sticky header: поиск слева \| логотип \| у авторизованного `HeaderBalancePayChip` (баланс + «+»). На desktop не рендерит визуальный chrome |
 | HeaderBalancePayChip | `components/AccountControls.tsx` | Split-pill шапки: кредиты + CTA «+» → `PricingEntryLink` (оверлей `/pricing`). `aria-label` — «пополнить». Тот же кэш `GET /api/me`, что sidebar |
-| PricingModalContext | `context/PricingModalContext.tsx` | SSOT оверлея тарифов: `open` → save origin + pushState `/pricing`, `close` → back (`history: "none"` перед YooKassa), `popstate` снимает модалку; на hard `/pricing` `open` no-op |
+| PricingModalContext | `context/PricingModalContext.tsx` | SSOT оверлея тарифов: `open` → save origin + pushState `/pricing`, `close` → back (валидный `onClick`), `closeWithoutHistory` перед YooKassa, `popstate` снимает модалку; на hard `/pricing` `open` no-op |
 | ClientPricingModal | `components/ClientPricingModal.tsx` | Overlay тарифов в root layout (portal `document.body`, `z-[260]`) |
 | PricingScreen | `components/pricing/PricingScreen.tsx` | Общий UI пакетов для hard page и модалки |
 | PricingEntryLink | `components/PricingEntryLink.tsx` | Клик → оверлей; modified click / уже на `/pricing` → hard URL |
@@ -868,7 +876,7 @@ SearchResults (client, infinite scroll)
 | FilterPanel | `components/FilterPanel.tsx` | Mobile sheet с чипсами (draft + «Применить») |
 | FilterChips | `components/FilterChips.tsx` | Строка чипсов для одного измерения |
 | useListingFilterCounts | `hooks/useListingFilterCounts.ts` | Счётчики тегов: API или агрегация из cards |
-| HomeSearch | `components/HomeSearch.tsx` | Поиск на главной |
+| HomepageExamplesExplorer | `components/home/HomepageExamplesExplorer.tsx` | Главная: popular-карточки, Wordstat-чипы, in-place search |
 | ReactionButtons | `components/ReactionButtons.tsx` | Like/dislike |
 | FavoriteButton | `components/FavoriteButton.tsx` | Избранное |
 | CopyPromptButton | `components/CopyPromptButton.tsx` | Копирование промта |
@@ -885,7 +893,7 @@ OAuth completion: `/auth/callback` page вызывает `finishOAuthCodeExchang
 ### Метаданные
 
 - **Root layout:** fallback title + description из `homepage-seo-copy.ts` (`HOMEPAGE_SEO`)
-- **Главная (`/`):** `generateMetadata` → `HOMEPAGE_SEO.title` / `description`; canonical; H1 + hero из copy-модуля; блоки **intro**, **HowTo**, **FAQ** (`HomeSeoBlocks.tsx`) после `CategorySection` в конце страницы; JSON-LD **`CollectionPage`** (`isPartOf: WebSite`, `hasPart[].name` = «Промты для фото {label}») + **`FAQPage`** (plain text в schema, ссылки в HTML FAQ); якоря каталога: `#audience_tag`, `#style_tag`, `#occasion_tag`, `#object_tag`
+- **Главная (`/`):** `generateMetadata` → `HOMEPAGE_SEO.title` / `description`; canonical; H1 + hero из copy-модуля; после destinations — **`HomepageExamplesExplorer`** (`#primery`); блоки **intro**, **HowTo**, **FAQ** (`HomeSeoBlocks.tsx`) в конце страницы; JSON-LD **`CollectionPage`** (`isPartOf: WebSite`, `hasPart[].name` = «Промты для фото {label}») + **`FAQPage`** + **`ItemList`** popular-карточек; FAQ-ссылки на L1 / `#primery`
 - **Листинг L1:** `generateMetadata` → title/description из `getSeoContent(tag.slug)`
 - **Листинг L2/L3:** `generateMetadata` → title/description из `getSeoForRoute(route)` (шаблоны)
 - **JSON-LD:** `BreadcrumbList` + `FAQPage` на всех листингах; на главной — `CollectionPage` + `FAQPage`; все JSON-LD вставляются как inline `<script type="application/ld+json">` в SSR HTML (не через `next/script strategy="afterInteractive"`)
@@ -1046,7 +1054,7 @@ NOTIFY pgrst, 'reload schema';
 
 Fallback без pg_cron: standalone `.mjs` на DO (`src/standalone/recalculate-popularity-scores-standalone.mjs` + аналоги для refresh).
 
-**Блоки категорий на главной (`get_homepage_sections`, миграция `164`):** топ-**10** карточек на тег сортируются по **той же query-time popularity-формуле**, что листинг (мигр. `163`). **Кросс-категорийный дедуп обложек** (`buildCategorySectionBlocks` + `pickDeduplicatedPhotos`, общий `usedCardIds` в порядке `SECTION_ORDER`): один и тот же популярный кадр — #1 сразу в нескольких тегах, поэтому каждый блок берёт первую **ещё не использованную** карточку (передняя = первая свободная, задняя декоративная = следующая свободная), без повторов между блоками. Топ-10 (вместо 5) даёт дедупу запас кандидатов. Обложка блока = #1 листинга категории, если она не занята более ранним блоком; иначе — следующая по популярности.
+**Блоки категорий (`get_homepage_sections`, миграция `164`):** на `/` больше не рендерятся. RPC остаётся для счётчиков / OG / JSON-LD и для плиток на `/catalog`. Топ-**10** карточек на тег сортируются по **той же query-time popularity-формуле**, что листинг (мигр. `163`). **Кросс-категорийный дедуп обложек** (`buildCategorySectionBlocks` + `pickDeduplicatedPhotos`, общий `usedCardIds` в порядке `SECTION_ORDER`).
 
 **`search_cards_text`:** по-прежнему **`view_count`** / relevance (154). **`search_cards_filtered`:** с миграцией **`182`** — `p_sort` как у `resolve_route_cards` (`new` / `popular`); до применения 182 — legacy `view_count`.
 
@@ -1146,6 +1154,7 @@ landing/src/
 │   ├── seo-content-from-tag.ts ← Шаблон L1 из TagEntry (npm run seo:sync)
 │   ├── seo-content.ts          ← SEO для L1 (кураторский + автодобавленный)
 │   ├── homepage-sections.ts    ← buildCategorySectionBlocks(), SECTION_ORDER, SectionBlock
+│   ├── homepage-explorer-chips.ts ← Wordstat-чипы главной (pinned + «Ещё»)
 │   └── menu.ts                 ← Структура меню
 ├── context/
 │   ├── AuthContext.tsx          ← Контекст авторизации
