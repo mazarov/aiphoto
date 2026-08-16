@@ -12,7 +12,7 @@
 
 | Параметр | Значение |
 |---|---|
-| Промпт по умолчанию | `Оживи изображение` |
+| Промпт по умолчанию | Gemini 2.5 Flash придумывает короткий сценарий по фото; fallback `Оживи изображение` |
 | Модель UI | Veo Omni Flash |
 | Модель API | `gemini-omni-flash-preview` |
 | Кадр | `9:16` или `16:9` |
@@ -32,6 +32,8 @@ Text-only video и video-from-video запрещены.
 
 ```text
 фото (generation result или библиотека)
+  → клик «Оживить» → POST /api/generate/animate-scenario (Flash 2.5 + фото + исходный промпт)
+  → короткий сценарий в поле промпта
   → POST /api/generate { modality: "video" }
   → landing_enqueue_generation (30 кредитов, create_ugc=false)
   → web-generation-worker claim (video cap)

@@ -51,6 +51,10 @@ import {
   IMAGE_GENERATION_MODALITY,
   VIDEO_GENERATION_MODALITY,
 } from "@/lib/generation/image-options";
+import {
+  ANIMATE_SCENARIO_PLACEHOLDER,
+  isGenericVideoPrompt,
+} from "@/lib/video-animate-scenario";
 import { restoreSelectedPhotoIds } from "@/lib/generation-enqueue-core";
 
 const BLANK_PROMPT_PLACEHOLDER = "Опишите изображение или референс";
@@ -173,6 +177,8 @@ export function CardInlineGeneratePanel({
   const [animatePreviewUrl, setAnimatePreviewUrl] = useState<string | null>(
     seed.previewUrl || null
   );
+  const [scenarioLoading, setScenarioLoading] = useState(seed.intent === "animate");
+  const scenarioRequestRef = useRef(0);
   const [preferencesHydrated, setPreferencesHydrated] = useState(false);
   const [credits, setCredits] = useState<number | null>(null);
 
@@ -207,6 +213,52 @@ export function CardInlineGeneratePanel({
   const [draftPrompt, setDraftPrompt] = useState(promptText);
   const draftPromptRef = useRef(draftPrompt);
   draftPromptRef.current = draftPrompt;
+
+  const loadAnimateScenario = useCallback(
+    async (input: {
+      parentGenerationId?: string | null;
+      photoStoragePath?: string | null;
+      sourcePrompt?: string | null;
+    }) => {
+      if (!isAuthed || (!input.parentGenerationId && !input.photoStoragePath)) {
+        setScenarioLoading(false);
+        if (!draftPromptRef.current.trim()) setDraftPrompt(DEFAULT_VIDEO_PROMPT);
+        return;
+      }
+      const requestId = ++scenarioRequestRef.current;
+      setScenarioLoading(true);
+      try {
+        const res = await fetch("/api/generate/animate-scenario", {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            parentGenerationId: input.parentGenerationId || undefined,
+            photoStoragePath: input.photoStoragePath || undefined,
+            sourcePrompt: input.sourcePrompt || undefined,
+          }),
+        });
+        const data = (await res.json().catch(() => ({}))) as { scenario?: string };
+        if (requestId !== scenarioRequestRef.current) return;
+        const scenario = typeof data.scenario === "string" ? data.scenario.trim() : "";
+        const current = draftPromptRef.current.trim();
+        if (res.ok && scenario && (!current || isGenericVideoPrompt(current))) {
+          setDraftPrompt(scenario);
+        } else if (!current || isGenericVideoPrompt(current)) {
+          setDraftPrompt(DEFAULT_VIDEO_PROMPT);
+        }
+      } catch {
+        if (requestId !== scenarioRequestRef.current) return;
+        const current = draftPromptRef.current.trim();
+        if (!current || isGenericVideoPrompt(current)) {
+          setDraftPrompt(DEFAULT_VIDEO_PROMPT);
+        }
+      } finally {
+        if (requestId === scenarioRequestRef.current) setScenarioLoading(false);
+      }
+    },
+    [isAuthed]
+  );
   const [submittedPrompt, setSubmittedPrompt] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
   const [busyAction, setBusyAction] = useState<GenerationMenuAction | null>(null);
@@ -408,7 +460,11 @@ export function CardInlineGeneratePanel({
           setComposeModality("video");
           setAnimateParentId(seed.parentGenerationId || null);
           setAnimatePreviewUrl(seed.previewUrl || null);
-          if (seed.promptText.trim()) setDraftPrompt(seed.promptText);
+          if (seed.promptText.trim() && !isGenericVideoPrompt(seed.promptText)) {
+            setDraftPrompt(seed.promptText);
+          } else {
+            setDraftPrompt("");
+          }
         }
         const nextModels = Array.isArray(configData.models) ? configData.models : [];
         const nextRatios = Array.isArray(configData.aspectRatios)
@@ -514,6 +570,14 @@ export function CardInlineGeneratePanel({
     // Hydrate once per mount / auth identity — do not re-fetch on every result change.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional mount hydrate
   }, [isBlank, isDock, user]);
+
+  useEffect(() => {
+    if (seed.intent !== "animate" || !isAuthed) return;
+    void loadAnimateScenario({
+      parentGenerationId: seed.parentGenerationId,
+      sourcePrompt: seed.promptText,
+    });
+  }, [isAuthed, loadAnimateScenario, seed.intent, seed.parentGenerationId, seed.promptText]);
 
   useEffect(() => {
     const refreshCredits = () => {
@@ -1164,7 +1228,7 @@ export function CardInlineGeneratePanel({
     setComposeModality("video");
     setAnimateParentId(generationId);
     setAnimatePreviewUrl(resultUrl);
-    setDraftPrompt(DEFAULT_VIDEO_PROMPT);
+    setDraftPrompt("");
     setSubmittedPrompt("");
     setChangeRequest("");
     setError("");
@@ -1175,6 +1239,10 @@ export function CardInlineGeneratePanel({
     setPromptExpanded(false);
     setPhase("idle");
     phaseRef.current = "idle";
+    void loadAnimateScenario({
+      parentGenerationId: generationId,
+      sourcePrompt: submittedPrompt || draftPromptRef.current,
+    });
   };
 
   const resetToCompose = () => {
@@ -1560,7 +1628,11 @@ export function CardInlineGeneratePanel({
                   <textarea
                     value={draftPrompt}
                     onChange={(event) => setDraftPrompt(event.target.value)}
-                    placeholder={BLANK_PROMPT_PLACEHOLDER}
+                    placeholder={
+                      videoCompose && scenarioLoading
+                        ? ANIMATE_SCENARIO_PLACEHOLDER
+                        : BLANK_PROMPT_PLACEHOLDER
+                    }
                     maxLength={8000}
                     disabled={busy}
                     autoFocus={autofocusPromptEditor}
@@ -1724,7 +1796,12 @@ export function CardInlineGeneratePanel({
                       : "text-zinc-400"
                 }`}
               >
-                {activePrompt.trim() || (isBlank ? BLANK_PROMPT_PLACEHOLDER : "")}
+                {activePrompt.trim()
+                  || (videoCompose && scenarioLoading
+                    ? ANIMATE_SCENARIO_PLACEHOLDER
+                    : isBlank
+                      ? BLANK_PROMPT_PLACEHOLDER
+                      : "")}
               </span>
               <svg
                 className="h-5 w-5 shrink-0"
@@ -2308,10 +2385,15 @@ export function CardInlineGeneratePanel({
                     setComposeModality("video");
                     setAnimateParentId(null);
                     setAnimatePreviewUrl(selectedPhotos[0]?.previewUrl || null);
-                    if (draftPrompt.trim().length < 8) {
-                      setDraftPrompt(DEFAULT_VIDEO_PROMPT);
+                    const sourcePrompt = draftPromptRef.current;
+                    if (isGenericVideoPrompt(sourcePrompt)) {
+                      setDraftPrompt("");
                     }
                     setError("");
+                    void loadAnimateScenario({
+                      photoStoragePath: selectedPhotos[0]?.storagePath || null,
+                      sourcePrompt,
+                    });
                   }}
                   className={`${OVERLAY_BUTTON_UA_RESET} mt-1.5 text-[13px] font-semibold ${
                     glassChrome ? "text-indigo-200 hover:text-white" : "text-indigo-600 hover:text-indigo-700"
@@ -2500,6 +2582,7 @@ export function CardInlineGeneratePanel({
               (isAuthed &&
                 (controlsBusy ||
                   libraryLoading ||
+                  scenarioLoading ||
                   Boolean(busyAction) ||
                   Boolean(configError) ||
                   draftPrompt.trim().length < 8))
@@ -2571,6 +2654,8 @@ export function CardInlineGeneratePanel({
                 ? `Загружаем фото · ${Math.round(progress)}%`
                 : phase === "generating"
                   ? `Генерируем · ${Math.round(progress)}%`
+                  : videoCompose && scenarioLoading
+                    ? ANIMATE_SCENARIO_PLACEHOLDER
                   : videoCompose
                     ? `Сгенерировать ${activeVideoModel?.cost ?? 30}✦`
                     : phase === "done" && resultUrl

@@ -1,5 +1,9 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-08-16 (**mobile header burger:** на всех max-lg экранах слева в шапке бургер → `MobileCatalogMenuDrawer` (`SidebarContent`). Иконка поиска из навбара снята; на `/catalog` поиск остаётся в контенте и выезжает вместо лого при скролле.)
+>
+> Последнее обновление: 2026-08-16 (**animate scenario:** клик «Оживить» вызывает `POST /api/generate/animate-scenario` — Gemini 2.5 Flash смотрит фото и исходный промпт и подставляет короткий RU-сценарий в поле. Кредиты не списывает. Fallback `Оживи изображение`.)
+>
 > Последнее обновление: 2026-08-16 (**catalog sticky search:** на `/catalog` max-lg, когда поле поиска уходит под шапку, в навбаре вместо лого выезжает то же поле (`ListingSearchField` compact). IntersectionObserver по `#listing-scroll-root` + `holdListingChromeAutoHide("catalog-search")`, чтобы шапка не пряталась. Бургер и баланс остаются.)
 >
 > Последнее обновление: 2026-08-16 (**catalog mobile explorer:** `/catalog` на max-lg — `HomepageExamplesExplorer variant="catalog"`: поиск + Wordstat-чипы + 16 popular-карточек. Fade/CTA только при чипе («Все промты категории» → L1) или поиске («Все результаты» → `/search`). Desktop — плитки `CategorySection`. Шапка на `/catalog` — бургер → `MobileCatalogMenuDrawer` (`SidebarContent`). Таб / H1 / CTA главной: «Каталог и поиск». SEO title `/catalog` без изменений, `noindex`.)
@@ -370,6 +374,7 @@
 | `/api/upload-generation-photo/signed-url` | GET: подписанный URL превью загруженного фото (auth, path в query) |
 | `/api/user-generation-photos` | GET (auth): библиотека inline-фото текущего JWT user, newest-first, с signed preview URL |
 | `/api/user-generation-photos/[id]` | DELETE (auth): удаление принадлежащего пользователю фото из private Storage и библиотеки |
+| `/api/generate/animate-scenario` | POST (auth): по клику «Оживить» — `gemini-2.5-flash` смотрит owned image (parent generation XOR upload path) и исходный промпт, возвращает короткий RU-сценарий (1–2 предложения). Не списывает кредиты. SSOT `lib/video-animate-scenario.ts`. Proxy как у remix. |
 | `/api/generate` | Auth enqueue: image — **0–10** owned upload-фото без `editInstruction` (0 = text-only) или local edit (`parentGenerationId` + `editInstruction`). Video — `modality=video`, ровно одно фото **или** owned completed image parent, без edit; 4 сек / 720p / `gemini-omni-flash-preview`; `create_ugc=false`. Fingerprint включает modality и duration. RPC `landing_enqueue_generation` (миграция **189**); ответ `202 { id, status: pending }` |
 | `/api/generate-process` | Tombstone `410`: обработка перенесена в отдельный `web-generation-worker` |
 | `/api/analyses` | GET, auth: cursor-список своих `analyze_history` (`user_id` in auth/shared db id), signed image URL, no-store |
@@ -840,7 +845,7 @@ SearchResults (client, infinite scroll)
 
 | Компонент | Файл | Роль |
 |-----------|------|------|
-| HeaderClient | `components/HeaderClient.tsx` | Mobile sticky header: на `/catalog` бургер категорий, иначе поиск слева \| логотип (на `/catalog` после ухода in-page поиска — выезжающее поле) \| у авторизованного `HeaderBalancePayChip` (баланс + «+»). На desktop не рендерит визуальный chrome |
+| HeaderClient | `components/HeaderClient.tsx` | Mobile sticky header: бургер категорий слева на всех экранах \| логотип (на `/catalog` после ухода in-page поиска — выезжающее поле) \| у авторизованного `HeaderBalancePayChip` (баланс + «+»). На desktop не рендерит визуальный chrome |
 | HeaderBalancePayChip | `components/AccountControls.tsx` | Split-pill шапки: кредиты + CTA «+» → `PricingEntryLink` (оверлей `/pricing`). `aria-label` — «пополнить». Тот же кэш `GET /api/me`, что sidebar |
 | PricingModalContext | `context/PricingModalContext.tsx` | SSOT оверлея тарифов: `open` → save origin + pushState `/pricing`, `close` → back (валидный `onClick`), `closeWithoutHistory` перед YooKassa, `popstate` снимает модалку; на hard `/pricing` `open` no-op |
 | ClientPricingModal | `components/ClientPricingModal.tsx` | Overlay тарифов в root layout (portal `document.body`, `z-[260]`) |
@@ -886,7 +891,7 @@ SearchResults (client, infinite scroll)
 | FilterChips | `components/FilterChips.tsx` | Строка чипсов для одного измерения |
 | useListingFilterCounts | `hooks/useListingFilterCounts.ts` | Счётчики тегов: API или агрегация из cards |
 | HomepageExamplesExplorer | `components/home/HomepageExamplesExplorer.tsx` | Главная (`variant=home`) и `/catalog` mobile (`variant=catalog`): popular-карточки, Wordstat-чипы, in-place search; catalog без fade/CTA |
-| MobileCatalogMenuDrawer | `components/MobileCatalogMenuDrawer.tsx` | Левая шторка категорий на `/catalog` (max-lg); контент — `SidebarContent`; открытие из шапки через `registerMenu` / `openMenu` |
+| MobileCatalogMenuDrawer | `components/MobileCatalogMenuDrawer.tsx` | Левая шторка категорий на max-lg; контент — `SidebarContent`; открытие из шапки через `registerMenu` / `openMenu` |
 | ReactionButtons | `components/ReactionButtons.tsx` | Like/dislike |
 | FavoriteButton | `components/FavoriteButton.tsx` | Избранное |
 | CopyPromptButton | `components/CopyPromptButton.tsx` | Копирование промта |
