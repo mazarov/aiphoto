@@ -244,7 +244,7 @@ function PlanCard({
 
 export function PricingCards() {
   const { user, loading: authLoading, openAuthModal } = useAuth();
-  const { close: closePricing } = usePricingModal();
+  const { closeWithoutHistory } = usePricingModal();
   const [checkout, setCheckout] = useState<CheckoutState>({ kind: "idle" });
   const checkoutInFlightRef = useRef(false);
 
@@ -295,7 +295,7 @@ export function PricingCards() {
       clearPendingCheckout();
       const returnPath = readPricingReturnPath();
       clearPricingReturnPath();
-      closePricing({ history: "none" });
+      closeWithoutHistory();
       window.history.replaceState(null, "", returnPath);
       reachYandexMetrikaGoal(YM_GOAL_YOOKASSA_CHECKOUT_REDIRECT, {
         plan_id: plan.id,
@@ -311,7 +311,7 @@ export function PricingCards() {
             : "Не удалось создать оплату. Попробуйте ещё раз.",
       });
     }
-  }, [closePricing, openAuthModal]);
+  }, [closeWithoutHistory, openAuthModal]);
 
   const selectPlan = useCallback(
     (plan: PricingPlan) => {

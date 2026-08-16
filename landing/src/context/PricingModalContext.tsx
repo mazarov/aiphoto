@@ -25,21 +25,20 @@ function isPricingPath(path: string): boolean {
   return normalizePath(path) === PRICING_PATH;
 }
 
-type PricingCloseOptions = {
-  /** `back` restores the listing URL. `none` for leaving to YooKassa. */
-  history?: "back" | "none";
-};
-
 type PricingModalContextType = {
   isOpen: boolean;
   open: () => void;
-  close: (options?: PricingCloseOptions) => void;
+  /** Close overlay and history.back() to the listing. Safe as onClick={close}. */
+  close: () => void;
+  /** Close overlay without history.back — caller already restored the origin URL. */
+  closeWithoutHistory: () => void;
 };
 
 const PricingModalContext = createContext<PricingModalContextType>({
   isOpen: false,
   open: () => {},
   close: () => {},
+  closeWithoutHistory: () => {},
 });
 
 export function PricingModalProvider({ children }: { children: ReactNode }) {
@@ -68,15 +67,18 @@ export function PricingModalProvider({ children }: { children: ReactNode }) {
     setIsOpen(true);
   }, []);
 
-  const close = useCallback((options?: PricingCloseOptions) => {
+  const dismiss = useCallback((restoreHistory: boolean) => {
     isOpenRef.current = false;
     setIsOpen(false);
-    if (typeof window === "undefined" || options?.history === "none") return;
+    if (!restoreHistory || typeof window === "undefined") return;
     window.history.scrollRestoration = "manual";
     window.setTimeout(() => {
       window.history.back();
     }, 0);
   }, []);
+
+  const close = useCallback(() => dismiss(true), [dismiss]);
+  const closeWithoutHistory = useCallback(() => dismiss(false), [dismiss]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -107,7 +109,7 @@ export function PricingModalProvider({ children }: { children: ReactNode }) {
   }, [pathname]);
 
   return (
-    <PricingModalContext.Provider value={{ isOpen, open, close }}>
+    <PricingModalContext.Provider value={{ isOpen, open, close, closeWithoutHistory }}>
       {children}
     </PricingModalContext.Provider>
   );
