@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 
 export default function AnalysesPage() {
   return (
-    <PageLayout showFooterWithGenerateDock>
+    <PageLayout>
       <main className="w-full px-5 py-8">
         <h1 className="mb-8 text-2xl font-bold text-zinc-900">Мои анализы</h1>
         <AnalysesContent />

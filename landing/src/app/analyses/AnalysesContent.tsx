@@ -3,34 +3,39 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
-import { FotoVPromtGenerateButton } from "@/components/foto-v-promt/FotoVPromtGenerateButton";
-
-type AnalysisItem = {
-  id: string;
-  created_at: string;
-  kind: "analyze" | "remix";
-  prompt: string;
-  change_request: string | null;
-  image_url: string | null;
-};
+import { ListingGrid } from "@/components/ListingGrid";
+import {
+  AnalysisHistoryCard,
+  type AnalysisHistoryItem,
+} from "@/components/AnalysisHistoryCard";
 
 export function AnalysesContent() {
-  const { user, loading: authLoading, openAuthModal } = useAuth();
-  const [items, setItems] = useState<AnalysisItem[]>([]);
+  const { user, loading: authLoading } = useAuth();
+  const [items, setItems] = useState<AnalysisHistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const isAuthed = Boolean(user && user.is_anonymous !== true);
+  const [toast, setToast] = useState("");
+
+  const showToast = useCallback((message: string) => {
+    setToast(message);
+  }, []);
+
+  useEffect(() => {
+    if (!toast) return;
+    const timer = window.setTimeout(() => setToast(""), 2500);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
 
   const load = useCallback(async (signal?: AbortSignal) => {
     setError("");
     try {
-      const res = await fetch("/api/analyses?limit=30", {
+      const res = await fetch("/api/analyses?limit=50", {
         cache: "no-store",
         credentials: "include",
         signal,
       });
       const data = (await res.json().catch(() => ({}))) as {
-        items?: AnalysisItem[];
+        items?: AnalysisHistoryItem[];
         error?: string;
       };
       if (!res.ok) throw new Error(data.error || "Не удалось загрузить анализы");
@@ -45,35 +50,30 @@ export function AnalysesContent() {
 
   useEffect(() => {
     if (authLoading) return;
-    if (!isAuthed) {
+    if (!user) {
       setLoading(false);
       setItems([]);
       return;
     }
+
     const controller = new AbortController();
     setLoading(true);
     void load(controller.signal);
-    return () => controller.abort();
-  }, [authLoading, isAuthed, load]);
 
-  const copyPrompt = async (prompt: string) => {
-    try {
-      await navigator.clipboard.writeText(prompt);
-    } catch {
-      /* ignore */
-    }
-  };
+    const refreshOnFocus = () => void load();
+    window.addEventListener("focus", refreshOnFocus);
+    return () => {
+      controller.abort();
+      window.removeEventListener("focus", refreshOnFocus);
+    };
+  }, [authLoading, load, user]);
 
-  if (authLoading || !isAuthed) {
+  if (authLoading || !user) {
     return (
       <p className="text-zinc-500">
-        <button
-          type="button"
-          onClick={() => openAuthModal()}
-          className="font-medium text-indigo-600 hover:underline"
-        >
+        <Link href="/" className="text-indigo-600 hover:underline">
           Войдите
-        </button>
+        </Link>
         , чтобы увидеть свои анализы.
       </p>
     );
@@ -104,9 +104,9 @@ export function AnalysesContent() {
   if (items.length === 0) {
     return (
       <p className="text-zinc-500">
-        Пока нет сохранённых анализов. Разберите фото на{" "}
-        <Link href="/foto-v-promt" className="font-medium text-indigo-600 hover:underline">
-          /foto-v-promt
+        У вас пока нет анализов. Разберите фото на{" "}
+        <Link href="/foto-v-promt" className="text-indigo-600 hover:underline">
+          «Фото в промт»
         </Link>{" "}
         после входа — результат появится здесь.
       </p>
@@ -114,49 +114,21 @@ export function AnalysesContent() {
   }
 
   return (
-    <ul className="mx-auto grid max-w-3xl list-none gap-4">
-      {items.map((item) => (
-        <li
-          key={item.id}
-          className="flex gap-4 rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm"
+    <div>
+      <ListingGrid>
+        {items.map((item) => (
+          <AnalysisHistoryCard key={item.id} item={item} onToast={showToast} />
+        ))}
+      </ListingGrid>
+
+      {toast ? (
+        <div
+          role="status"
+          className="fixed bottom-24 left-1/2 z-[60] -translate-x-1/2 rounded-full bg-zinc-900 px-4 py-2 text-[13px] font-medium text-white shadow-lg"
         >
-          <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-xl bg-zinc-100 ring-1 ring-inset ring-zinc-200">
-            {item.image_url ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={item.image_url} alt="" className="h-full w-full object-contain" />
-            ) : (
-              <div className="flex h-full items-center justify-center text-xs text-zinc-400">
-                {item.kind === "remix" ? "Remix" : "Нет фото"}
-              </div>
-            )}
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="text-[0.65rem] font-medium uppercase tracking-wide text-zinc-500">
-              {new Date(item.created_at).toLocaleString("ru-RU", {
-                dateStyle: "short",
-                timeStyle: "short",
-              })}
-              {item.kind === "remix" ? " · Remix" : ""}
-            </p>
-            <p className="mt-1 line-clamp-4 text-sm leading-snug text-zinc-800">{item.prompt}</p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => void copyPrompt(item.prompt)}
-                className="inline-flex min-h-9 items-center justify-center rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50"
-              >
-                Копировать
-              </button>
-              <FotoVPromtGenerateButton
-                promptText={item.prompt}
-                variant="sm"
-                label="Сгенерировать"
-                entrySource="analyses"
-              />
-            </div>
-          </div>
-        </li>
-      ))}
-    </ul>
+          {toast}
+        </div>
+      ) : null}
+    </div>
   );
 }
