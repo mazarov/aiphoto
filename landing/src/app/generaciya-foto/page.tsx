@@ -18,6 +18,10 @@ import {
   GENERACIYA_FOTO_SEO,
 } from "@/lib/generaciya-foto-seo-copy";
 import {
+  GENERACIYA_FOTO_SCENARIO_ROUTES,
+  getGeneraciyaFotoScenarioPath,
+} from "@/lib/generaciya-foto-routes";
+import {
   FALLBACK_GENERATION_MODELS,
   parseEnabledGenerationModels,
   type GenerationModelOption,
@@ -341,7 +345,15 @@ export default async function GeneraciyaFotoPage() {
             aria-labelledby="examples-heading"
           >
             {cards.length ? (
-              <GeneraciyaFotoExamplesExplorer initialCards={exampleCards} />
+              <GeneraciyaFotoExamplesExplorer
+                initialCards={exampleCards}
+                scenarioNavigation={GENERACIYA_FOTO_SCENARIO_ROUTES.map(
+                  (scenario) => ({
+                    label: scenario.label,
+                    href: getGeneraciyaFotoScenarioPath(scenario.slug),
+                  })
+                )}
+              />
             ) : (
               <div className="rounded-2xl border border-zinc-200 bg-zinc-50 px-6 py-12 text-center text-sm text-zinc-500">
                 Примеры временно загружаются. Панель генерации продолжает работать.

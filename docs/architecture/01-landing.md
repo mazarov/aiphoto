@@ -1,5 +1,7 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-08-17 (**SEO-сценарии генерации фото:** `/generaciya-foto/[scenario]` обслуживает allowlist из 22 страниц: все 20 популярных чипов хаба плюс портрет и аниме. SSOT маршрутов/тегов — `generaciya-foto-routes.ts`, copy/FAQ/HowTo — `generaciya-foto-scenario-copy.ts`. Начальная SSR-выдача содержит до 16 карточек только своего тега; поле поиска от 2 символов может временно заменить её результатами `/api/search`, очистка возвращает тематическую выдачу. Чипы не меняют фильтр in-place, а ведут на `/generaciya-foto/*`. Self-canonical и JSON-LD; `index` и sitemap включаются от 8 карточек. Blank Generate Dock разрешён только для allowlist.)
+>
 > Последнее обновление: 2026-08-17 (**visual search RPC fix:** миграция `193` квалифицирует `prompt_card_visual_search_config.id` в `search_cards_visual`; без неё PL/pgSQL конфликтует с output-колонкой `id` (`SQLSTATE 42702`) и hybrid search уходит в text fallback.)
 >
 > Последнее обновление: 2026-08-17 (**visual embeddings via Gemini proxy:** query/image `embedContent` идёт на `GEMINI_PROXY_BASE_URL` по умолчанию, как generate/analyze. Opt-out: `GEMINI_EMBEDDING_USE_PROXY=0`.)

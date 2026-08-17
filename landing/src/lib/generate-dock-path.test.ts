@@ -12,9 +12,12 @@ test("normalizeGenerateDockPath strips trailing slash", () => {
   assert.equal(normalizeGenerateDockPath("/foto-v-promt/"), "/foto-v-promt");
 });
 
-test("isGenerateDockSeoPagePath is only /generaciya-foto", () => {
+test("isGenerateDockSeoPagePath includes approved scenario pages", () => {
   assert.equal(isGenerateDockSeoPagePath("/generaciya-foto"), true);
   assert.equal(isGenerateDockSeoPagePath("/generaciya-foto/"), true);
+  assert.equal(isGenerateDockSeoPagePath("/generaciya-foto/devushki"), true);
+  assert.equal(isGenerateDockSeoPagePath("/generaciya-foto/kollazh/"), true);
+  assert.equal(isGenerateDockSeoPagePath("/generaciya-foto/neizvestno"), false);
   assert.equal(isGenerateDockSeoPagePath("/foto-v-promt"), false);
 });
 
@@ -24,6 +27,7 @@ test("isGenerateDockListingPath includes foto-v-promt and analyses", () => {
   assert.equal(isGenerateDockListingPath("/analyses"), true);
   assert.equal(isGenerateDockListingPath("/generations"), true);
   assert.equal(isGenerateDockListingPath("/generaciya-foto"), true);
+  assert.equal(isGenerateDockListingPath("/generaciya-foto/pary"), true);
 });
 
 test("isGenerateDockListingPath still blocks admin, pricing, and cards", () => {

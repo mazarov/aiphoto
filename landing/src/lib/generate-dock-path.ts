@@ -1,6 +1,12 @@
+import { isGeneraciyaFotoScenarioPath } from "./generaciya-foto-routes";
+
 /** SEO acquisition route where blank text-to-image is allowed. */
 export function isGenerateDockSeoPagePath(pathname: string): boolean {
-  return normalizeGenerateDockPath(pathname) === "/generaciya-foto";
+  const normalized = normalizeGenerateDockPath(pathname);
+  return (
+    normalized === "/generaciya-foto" ||
+    isGeneraciyaFotoScenarioPath(normalized)
+  );
 }
 
 export function normalizeGenerateDockPath(pathname: string): string {

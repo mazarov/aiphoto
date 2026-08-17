@@ -2,6 +2,11 @@ import type { MetadataRoute } from "next";
 import { TAG_REGISTRY, findTagBySlug, type Dimension } from "@/lib/tag-registry";
 import { getPublishedCardsForSitemap, getIndexableTagCombos, getFilterCounts } from "@/lib/supabase";
 import { getMinCardsForLevel } from "@/lib/route-resolver";
+import {
+  GENERACIYA_FOTO_SCENARIO_ROUTES,
+  MIN_GENERACIYA_FOTO_SCENARIO_CARDS,
+  getGeneraciyaFotoScenarioPath,
+} from "@/lib/generaciya-foto-routes";
 
 const BASE_URL =
   process.env.NEXT_PUBLIC_SITE_URL ||
@@ -86,6 +91,17 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     for (const row of filterCounts) {
       countMap.set(`${row.dimension}:${row.slug}`, row.cards_count);
     }
+    const generationScenarioUrls: MetadataRoute.Sitemap =
+      GENERACIYA_FOTO_SCENARIO_ROUTES.filter((scenario) => {
+        const count =
+          countMap.get(`${scenario.dimension}:${scenario.tagValue}`) ?? 0;
+        return count >= MIN_GENERACIYA_FOTO_SCENARIO_CARDS;
+      }).map((scenario) => ({
+        url: `${BASE_URL}${getGeneraciyaFotoScenarioPath(scenario.slug)}`,
+        lastModified: new Date(),
+        changeFrequency: "weekly" as const,
+        priority: 0.85,
+      }));
     const minL1 = getMinCardsForLevel(1);
     const indexableL1Tags = TAG_REGISTRY.filter((tag) => {
       const count = countMap.get(`${tag.dimension}:${tag.slug}`) ?? 0;
@@ -123,7 +139,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.7,
     }));
 
-    return [...hubs, ...tagUrls, ...l2Urls, ...cardUrls];
+    return [
+      ...hubs,
+      ...generationScenarioUrls,
+      ...tagUrls,
+      ...l2Urls,
+      ...cardUrls,
+    ];
   } catch (error) {
     console.error("[sitemap] catalog fetch failed; returning static hubs only", error);
     return hubs;

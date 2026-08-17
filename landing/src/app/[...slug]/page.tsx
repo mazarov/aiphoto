@@ -30,6 +30,10 @@ import {
 } from "@/lib/seo-illustrations";
 import { ListingFotoVPromtBanner } from "@/components/foto-v-promt-promo/ListingFotoVPromtBanner";
 import { LISTING_SSR_INITIAL_LIMIT } from "@/lib/listing-pagination";
+import {
+  findGeneraciyaFotoScenarioByTag,
+  getGeneraciyaFotoScenarioPath,
+} from "@/lib/generaciya-foto-routes";
 
 export const revalidate = 3600;
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://promptshot.ru";
@@ -433,6 +437,10 @@ export default async function TagPage({ params, searchParams }: Props) {
   }
 
   const primaryTag = route.primaryTag;
+  const generationScenario = findGeneraciyaFotoScenarioByTag(
+    primaryTag.dimension,
+    primaryTag.slug
+  );
   const siblings = getSiblingTags(primaryTag, 6);
   const sectionLabel = DIMENSION_LABELS[primaryTag.dimension];
   let l2ChipGroups: L2ChipGroup[] = [];
@@ -509,6 +517,24 @@ export default async function TagPage({ params, searchParams }: Props) {
             </div>
           ) : null}
         </section>
+
+        {generationScenario ? (
+          <section className="mt-8 rounded-2xl border border-indigo-100 bg-indigo-50/60 p-5 sm:p-6">
+            <h2 className="text-lg font-bold text-zinc-900">
+              Хотите создать своё изображение?
+            </h2>
+            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-zinc-600">
+              Откройте тематический генератор, выберите пример и измените промт
+              под свою внешность, сюжет и формат.
+            </p>
+            <Link
+              href={getGeneraciyaFotoScenarioPath(generationScenario.slug)}
+              className="mt-4 inline-flex min-h-11 items-center justify-center rounded-full bg-indigo-600 px-5 text-sm font-semibold text-white transition hover:bg-indigo-700"
+            >
+              {generationScenario.label}: сгенерировать фото
+            </Link>
+          </section>
+        ) : null}
 
         {/* Parent link for L2/L3 */}
         {route.parentPath && (
