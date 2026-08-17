@@ -19,6 +19,7 @@ export type RobokassaCheckoutPayload = {
   Description: string;
   Culture: "ru";
   Encoding: "utf-8";
+  Email?: string;
   IsTest: 0 | 1;
   Receipt: string;
   Shp_payment_id: string;
@@ -72,6 +73,15 @@ export function formatRobokassaAmount(value: number): string {
   return value.toFixed(2);
 }
 
+export function sanitizeRobokassaEmail(
+  value: string | null | undefined,
+): string | null {
+  const email = value?.trim() || "";
+  return email.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+    ? email
+    : null;
+}
+
 export function hashRobokassaSignature(
   source: string,
   algorithm: RobokassaHashAlgorithm,
@@ -109,11 +119,13 @@ export function buildRobokassaCheckoutPayload(input: {
   paymentId: string;
   invoiceId: number;
   plan: PricingPlan;
+  email?: string | null;
   config?: RobokassaConfig;
 }): RobokassaCheckoutPayload {
   const config = input.config ?? getRobokassaConfig();
   const outSum = formatRobokassaAmount(input.plan.price);
   const receipt = buildRobokassaReceipt(input.plan, config.receiptTax);
+  const email = sanitizeRobokassaEmail(input.email);
   const shp: Array<[string, string]> = [["Shp_payment_id", input.paymentId]];
   const signatureSource = appendShp(
     [
@@ -133,6 +145,7 @@ export function buildRobokassaCheckoutPayload(input: {
     Description: `PromptShot: пакет «${input.plan.name}»`,
     Culture: "ru",
     Encoding: "utf-8",
+    ...(email ? { Email: email } : {}),
     IsTest: config.testMode ? 1 : 0,
     Receipt: receipt,
     Shp_payment_id: input.paymentId,
