@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
+import { captureFirstTouchYclidFromLocation } from "@/lib/yandex-attribution-browser";
 import { trackVirtualPageView } from "@/lib/yandex-metrika";
 
 function pageTitleFromUrl(url: string): string | undefined {
@@ -30,6 +31,7 @@ export function YandexMetrikaRouteTracker() {
 
   useEffect(() => {
     const url = currentUrl();
+    captureFirstTouchYclidFromLocation();
 
     if (skipInitialRef.current) {
       skipInitialRef.current = false;

@@ -4,6 +4,7 @@ import {
   assertYooKassaPaymentMatches,
   getYooKassaReconciliationAction,
 } from "@/lib/yookassa-core";
+import { reportYandexYooKassaPurchase } from "@/lib/yandex-metrika-measurement";
 
 type LocalPayment = {
   id: string;
@@ -15,6 +16,9 @@ type LocalPayment = {
   yookassa_payment_id: string | null;
   status: "created" | "pending" | "succeeded" | "canceled";
   credited_at: string | null;
+  ym_client_id: string | null;
+  yandex_conversion_sent_at: string | null;
+  yandex_conversion_attempts: number | null;
 };
 
 export type ReconcileResult = {
@@ -37,7 +41,7 @@ export async function reconcileYooKassaPayment(
   const { data, error } = await supabase
     .from("landing_yookassa_payments")
     .select(
-      "id, auth_user_id, landing_user_id, plan_id, credits, amount_rub, yookassa_payment_id, status, credited_at",
+      "id, auth_user_id, landing_user_id, plan_id, credits, amount_rub, yookassa_payment_id, status, credited_at, ym_client_id, yandex_conversion_sent_at, yandex_conversion_attempts",
     )
     .eq("id", localPaymentId)
     .maybeSingle();
@@ -89,6 +93,14 @@ export async function reconcileYooKassaPayment(
     }
 
     const result = Array.isArray(fulfilled) ? fulfilled[0] : fulfilled;
+    try {
+      await reportYandexYooKassaPurchase(supabase, local);
+    } catch (error) {
+      console.warn("[metrika] purchase report failed", {
+        paymentId: local.id,
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
     return {
       paymentId: local.id,
       status: "succeeded",

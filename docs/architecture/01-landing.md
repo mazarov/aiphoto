@@ -1,5 +1,7 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-08-17 (**Yandex Direct purchases:** YooKassa fulfillment шлёт Measurement Protocol `purchase` с ClientID; return-poll дублирует JS-цель + ecommerce `dataLayer`. Спека `docs/17-08-yandex-direct-purchases.md`, SQL `191`.)
+>
 > Последнее обновление: 2026-08-17 (**homepage examples sort:** блок «Готовые промты для ИИ-фотосессии» на `/` ранжирует `resolve_route_cards` / `/api/listing` по `sort=new` (`created_at DESC`), не `popular`. `/catalog` explorer без изменений — `sort=popular`.)
 >
 > Последнее обновление: 2026-08-16 (**search latency:** миграция `190_search_cards_text_fast_path.sql` убрала дублирующий fuzzy-scan длинных `prompt_variants`: тексты промтов уже входят в `prompt_cards.fts`. Поиск объединяет GIN FTS с trigram только по коротким заголовкам; API ограничивает запрос 160 символами, отдаёт `Server-Timing` и пишет `[search:slow]` без текста запроса. Все публичные search surfaces используют debounce 500 мс и отменяют устаревшие browser requests.)
@@ -309,6 +311,8 @@
 - **Баннер «Фото в промт»** (листинг): **`reachGoal('foto_v_promt_banner_click')`** (`ListingFotoVPromtBanner`, sticky над сеткой).
 - **Баннер «Фото в промт»** отображается только на листингах. Варианты `card` / `cardImmersive` сняты с `/p/[slug]`; legacy-цель **`foto_v_promt_banner_click_card`** больше не вызывается из детальной карточки. ТЗ — **`docs/requirements/04-06-foto-v-promt-mini-banner.md`**.
 - **CTA установки расширения**: сайдбар (**Инструменты**) вызывает **`reachGoal('desktop_sidebar_add_to_chrome_click')`**. Remix-hint на `/foto-v-promt?card=` использует **`reachGoal('foto_v_promt_add_to_chrome_click', { placement })`**. Плавающая кнопка на `/foto-v-promt` снята. UTM для GA4 Chrome Web Store: `utm_source=promptshot.ru`, `utm_medium=cpc`, `utm_campaign=foto_v_promt`, `utm_content` по placement (`desktop_sidebar` \| `foto_v_promt_remix_hint` \| `foto_v_promt_json_ld`).
+- **Checkout YooKassa (воронка):** `yookassa_checkout_started`, `yookassa_checkout_redirect`, `yookassa_payment_succeeded` (return-poll, параметр `credits`). Не класть в автостратегию Директа.
+- **Покупка для Директа:** `reachGoal('purchase')` + `dataLayer` ecommerce `purchase` на возврате (`order_id`, `price`, `plan_id`, `credits`). Серверный дубль — Measurement Protocol из `reconcileYooKassaPayment` (антидубль `yandex_conversion_sent_at`). Спека **`docs/17-08-yandex-direct-purchases.md`**.
 
 ---
 
@@ -643,7 +647,9 @@ admin pages
 - **Mobile UI (overlay):** fullscreen white (`z-[260]`, выше generate dock `122` и карточки `50`, ниже auth/profile sheet `270`); desktop — backdrop + белая карточка. Контент — тот же `PricingScreen`.
 - **Каталог:** `landing/src/lib/pricing-plans.ts` — единый server-safe источник `plan_id`, RUB-цены и числа токенов. API никогда не принимает цену/credits от клиента.
 - **Auth/identity:** checkout требует Google/Yandex OAuth. Операция хранит исходный `auth_user_id`, а баланс начисляется на shared `landing_user_id`, полученный через `ensureLandingUserForGeneration`.
-- **Ledger:** `landing_yookassa_payments` (миграция `176`) фиксирует план, сумму, credits, idempotency key, provider ID/status и `credited_at`; RLS включён без client policies.
+- **Ledger:** `landing_yookassa_payments` (миграция `176`, атрибуция `191`) фиксирует план, сумму, credits, idempotency key, provider ID/status, `credited_at`, `ym_client_id`, `yclid` и статус выгрузки в Метрику; RLS включён без client policies.
+- **Атрибуция Директа:** `YandexMetrikaRouteTracker` пишет first-touch `yclid` в cookie `promptshot_yclid` (21 день). Checkout (`PricingCards`) читает ClientID (`ym getClientID` / `_ym_uid`) и `yclid`, create-payment сохраняет в ledger. Без идентификаторов оплату не блокируем.
+- **Конверсия в Метрику:** после `landing_fulfill_yookassa_payment` `reconcileYooKassaPayment` ждёт Measurement Protocol (`ea=purchase` + ecommerce, `ti=payment.id`, `tr=amount_rub`) на `mc.yandex.ru/collect`, ошибки Метрики оплату не роняют. Токен `YANDEX_METRIKA_MP_TOKEN`. Повторные reconcile ретраят, пока `yandex_conversion_sent_at` пуст (cap 5 для skip без ClientID/токена). Return-poll дополнительно стреляет JS `purchase` + `dataLayer`.
 - **Подтверждение (три consumer’а):** (1) webhook, (2) return-poll `YooKassaReturnStatus` на любой странице с `?payment=`, (3) cron/admin stale sweep. Все пути делают `GET /v3/payments/{id}`, сверяют provider ID, metadata, RUB-сумму и статус. `landing_fulfill_yookassa_payment` блокирует ledger row и в одной транзакции начисляет сохранённые credits ровно один раз.
 - **Create-guard:** финальный update локальной операции только при `status in (created, pending)` — не затирает уже `succeeded`/`canceled` после гонки с webhook.
 - **Return UX:** клиент polling с backoff ~2→5→10 с до ~20 попыток (~2–3 мин). Сервер reconcile’ит и локальный `canceled`, если ещё нет `credited_at`.
@@ -1066,7 +1072,7 @@ type ResolvedRoute = {
 | `landing_user_telegram_links` | Привязка web-пользователя к Telegram (`landing_user_id` ↔ `telegram_id`) |
 | `landing_link_tokens` | Одноразовые OTP для deep-link привязки (TTL 10 мин) |
 | `landing_web_transactions` | Платежи web-кредитов через Telegram Stars |
-| `landing_yookassa_payments` | Server-only ledger разовых RUB-покупок токенов через YooKassa |
+| `landing_yookassa_payments` | Server-only ledger разовых RUB-покупок токенов через YooKassa; `191` — `ym_client_id`, `yclid`, `yandex_conversion_*` |
 | `admin_finance_imports` | Месячные admin-импорты ЮKassa (`revenue`) и GCP Billing (`cogs`); unique `(kind, period_month)` |
 | `admin_finance_revenue_lines` | Строки реестра ЮKassa без PII плательщика |
 | `admin_finance_cogs_lines` | Строки Google Cloud Billing (SKU / `subtotal_usd`) |
@@ -1289,4 +1295,5 @@ landing/src/
 | `TELEGRAM_BOT_LINK` | `https://t.me/...`, `@bot` или `bot` — нормализуется до абсолютного URL для `/api/buy-credits-link` |
 | `YOOKASSA_SHOP_ID` | Server-only идентификатор магазина для Basic Auth YooKassa API |
 | `YOOKASSA_SECRET_KEY` | Server-only секрет магазина YooKassa; не передаётся клиенту и не логируется |
+| `YANDEX_METRIKA_MP_TOKEN` | Server-only токен Measurement Protocol счётчика `107703100`; без него покупки в Директ не уходят |
 | `CRON_SECRET` | Bearer-секрет для `POST /api/cron/yookassa-reconcile` (stale payment sweep) |

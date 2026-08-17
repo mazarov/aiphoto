@@ -6,6 +6,7 @@ import { requestCreditBalanceRefresh } from "@/lib/credit-balance-events";
 import { isYooKassaPaymentId } from "@/lib/yookassa-return-path";
 import {
   reachYandexMetrikaGoal,
+  trackYandexPurchase,
   YM_GOAL_YOOKASSA_PAYMENT_SUCCEEDED,
 } from "@/lib/yandex-metrika";
 
@@ -72,7 +73,14 @@ export function YooKassaReturnStatus() {
           cache: "no-store",
         });
         const payload = (await response.json().catch(() => null)) as
-          | { status?: string; credits?: number; message?: string }
+          | {
+              status?: string;
+              credits?: number;
+              amountRub?: number;
+              planId?: string;
+              paymentId?: string;
+              message?: string;
+            }
           | null;
         if (!response.ok) {
           if (response.status === 401) {
@@ -96,6 +104,21 @@ export function YooKassaReturnStatus() {
             reachYandexMetrikaGoal(YM_GOAL_YOOKASSA_PAYMENT_SUCCEEDED, {
               credits,
             });
+            const priceRub = Number(payload.amountRub);
+            const orderId = payload.paymentId || paymentId;
+            if (
+              Number.isFinite(priceRub) &&
+              priceRub > 0 &&
+              payload.planId &&
+              orderId
+            ) {
+              trackYandexPurchase({
+                orderId,
+                priceRub,
+                planId: payload.planId,
+                credits,
+              });
+            }
           }
           stripPaymentQuery();
           return;

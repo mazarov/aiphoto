@@ -8,6 +8,7 @@ import {
   clearPricingReturnPath,
   readPricingReturnPath,
 } from "@/lib/yookassa-return-path";
+import { readYandexCheckoutAttribution } from "@/lib/yandex-attribution-browser";
 import {
   reachYandexMetrikaGoal,
   YM_GOAL_PROMPT_CARD_GENERATION_PRICING,
@@ -268,6 +269,7 @@ export function PricingCards() {
       price_rub: plan.price,
     });
     try {
+      const attribution = await readYandexCheckoutAttribution();
       const response = await fetch("/api/payments/yookassa/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -277,6 +279,8 @@ export function PricingCards() {
           testAccess:
             new URL(window.location.href).searchParams.get("test") === "true",
           returnPath: readPricingReturnPath(),
+          ymClientId: attribution.ymClientId,
+          yclid: attribution.yclid,
         }),
       });
       const payload = (await response.json().catch(() => null)) as

@@ -24,6 +24,8 @@ export const YM_GOAL_GENERATE_SHELL_OPEN = "generate_shell_open";
 export const YM_GOAL_YOOKASSA_CHECKOUT_STARTED = "yookassa_checkout_started";
 export const YM_GOAL_YOOKASSA_CHECKOUT_REDIRECT = "yookassa_checkout_redirect";
 export const YM_GOAL_YOOKASSA_PAYMENT_SUCCEEDED = "yookassa_payment_succeeded";
+/** Direct optimization goal — JS on return + Measurement Protocol from webhook. */
+export const YM_GOAL_PURCHASE = "purchase";
 /** @deprecated Таббар больше не открывает LexyGPT — цель не вызывается. */
 export const YM_GOAL_LEXYGPT_GENERATE_TABBAR = "lexygpt_generate_tabbar";
 export const YM_GOAL_FOTO_V_PROMT_BANNER_CLICK = "foto_v_promt_banner_click";
@@ -51,6 +53,7 @@ export type PromptCardOpenEntry = "modal" | "page";
 declare global {
   interface Window {
     ym?: (counterId: number, method: string, ...rest: unknown[]) => void;
+    dataLayer?: Array<Record<string, unknown>>;
   }
 }
 
@@ -68,6 +71,45 @@ export function reachYandexMetrikaGoal(
     } else {
       ym(YANDEX_METRIKA_COUNTER_ID, "reachGoal", goal);
     }
+  } catch {
+    /* intentionally empty — аналитика не должна ломать UI */
+  }
+}
+
+export function trackYandexPurchase(params: {
+  orderId: string;
+  priceRub: number;
+  planId: string;
+  credits: number;
+}): void {
+  reachYandexMetrikaGoal(YM_GOAL_PURCHASE, {
+    order_id: params.orderId,
+    price: params.priceRub,
+    plan_id: params.planId,
+    credits: params.credits,
+  });
+  if (typeof window === "undefined") return;
+  try {
+    window.dataLayer = window.dataLayer || [];
+    window.dataLayer.push({
+      ecommerce: {
+        currencyCode: "RUB",
+        purchase: {
+          actionField: {
+            id: params.orderId,
+            revenue: params.priceRub,
+          },
+          products: [
+            {
+              id: params.planId,
+              name: params.planId,
+              price: params.priceRub,
+              quantity: 1,
+            },
+          ],
+        },
+      },
+    });
   } catch {
     /* intentionally empty — аналитика не должна ломать UI */
   }

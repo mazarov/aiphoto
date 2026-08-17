@@ -6,6 +6,10 @@ import { getPricingPlan } from "@/lib/pricing-plans";
 import { createYooKassaPayment } from "@/lib/yookassa-client";
 import { assertYooKassaPaymentMatches } from "@/lib/yookassa-core";
 import { buildYooKassaReturnUrl } from "@/lib/yookassa-return-path";
+import {
+  sanitizeYclid,
+  sanitizeYmClientId,
+} from "@/lib/yandex-attribution";
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -66,8 +70,12 @@ export async function POST(request: NextRequest) {
           checkoutAttemptId?: unknown;
           testAccess?: unknown;
           returnPath?: unknown;
+          ymClientId?: unknown;
+          yclid?: unknown;
         }
       | null;
+    const ymClientId = sanitizeYmClientId(body?.ymClientId);
+    const yclid = sanitizeYclid(body?.yclid);
     const plan = getPricingPlan(body?.planId);
     const idempotencyKey =
       typeof body?.checkoutAttemptId === "string"
@@ -111,6 +119,8 @@ export async function POST(request: NextRequest) {
           amount_rub: plan.price,
           idempotency_key: idempotencyKey,
           status: "created",
+          ym_client_id: ymClientId,
+          yclid,
         })
         .select(
           "id, plan_id, amount_rub, credits, idempotency_key, yookassa_payment_id, confirmation_url",
@@ -126,6 +136,36 @@ export async function POST(request: NextRequest) {
         }
       } else {
         local = inserted as LocalPayment;
+      }
+    }
+
+    if (ymClientId || yclid) {
+      const now = new Date().toISOString();
+      if (ymClientId) {
+        const { error: clientIdError } = await supabase
+          .from("landing_yookassa_payments")
+          .update({ ym_client_id: ymClientId, updated_at: now })
+          .eq("id", local.id)
+          .is("ym_client_id", null);
+        if (clientIdError) {
+          console.warn("[yookassa] ym_client_id backfill skipped", {
+            paymentId: local.id,
+            message: clientIdError.message,
+          });
+        }
+      }
+      if (yclid) {
+        const { error: yclidError } = await supabase
+          .from("landing_yookassa_payments")
+          .update({ yclid, updated_at: now })
+          .eq("id", local.id)
+          .is("yclid", null);
+        if (yclidError) {
+          console.warn("[yookassa] yclid backfill skipped", {
+            paymentId: local.id,
+            message: yclidError.message,
+          });
+        }
       }
     }
 

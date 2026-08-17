@@ -18,7 +18,7 @@ export async function GET(
     const { data: initial, error: readError } = await supabase
       .from("landing_yookassa_payments")
       .select(
-        "id, landing_user_id, plan_id, credits, status, credited_at, yookassa_payment_id",
+        "id, landing_user_id, plan_id, credits, amount_rub, status, credited_at, yookassa_payment_id",
       )
       .eq("id", id)
       .eq("auth_user_id", user.id)
@@ -50,7 +50,7 @@ export async function GET(
 
     const { data: payment, error: finalReadError } = await supabase
       .from("landing_yookassa_payments")
-      .select("id, landing_user_id, plan_id, credits, status, credited_at")
+      .select("id, landing_user_id, plan_id, credits, amount_rub, status, credited_at")
       .eq("id", id)
       .eq("auth_user_id", user.id)
       .single();
@@ -73,6 +73,7 @@ export async function GET(
         paymentId: payment.id,
         planId: payment.plan_id,
         credits: payment.credits,
+        amountRub: Number(payment.amount_rub),
         status: payment.status,
         creditedAt: payment.credited_at,
         balance,
