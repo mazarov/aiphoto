@@ -15,6 +15,7 @@ import { GenerationModal } from "@/components/GenerationModal";
 import { ClientCardModal } from "@/components/ClientCardModal";
 import { ClientPricingModal } from "@/components/ClientPricingModal";
 import { YooKassaReturnStatus } from "@/components/YooKassaReturnStatus";
+import { RobokassaPaymentStatus } from "@/components/RobokassaPaymentStatus";
 import { FotoVPromtMobileModal } from "@/components/foto-v-promt/FotoVPromtMobileModal";
 import { GenerateMobileModal } from "@/components/generate/GenerateMobileModal";
 import { YandexMetrikaRouteTracker } from "@/components/YandexMetrikaRouteTracker";
@@ -100,6 +101,7 @@ export default function RootLayout({
                       <ClientCardModal />
                       <ClientPricingModal />
                       <YooKassaReturnStatus />
+                      <RobokassaPaymentStatus />
                       <FotoVPromtMobileModal />
                       <GenerateMobileModal />
                       <GenerationModal />

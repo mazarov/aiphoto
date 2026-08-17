@@ -5,6 +5,8 @@ import { useAuth } from "@/context/AuthContext";
 
 type Payment = {
   id: string;
+  provider: "yookassa" | "robokassa";
+  providerPaymentId: string | null;
   createdAt: string;
   updatedAt: string;
   authUserId: string;
@@ -21,7 +23,6 @@ type Payment = {
   test: boolean | null;
   creditedAt: string | null;
   creditState: "credited" | "not_due" | "discrepancy" | "stale";
-  yookassaPaymentId: string | null;
 };
 
 const STATUS_OPTIONS = [
@@ -89,7 +90,7 @@ export function AdminPaymentsList() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           paymentId: payment.id,
-          yookassaPaymentId: payment.yookassaPaymentId,
+          yookassaPaymentId: payment.providerPaymentId,
         }),
       });
       const body = await response.json().catch(() => ({}));
@@ -153,7 +154,7 @@ export function AdminPaymentsList() {
     <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
       <div>
         <p className="text-sm font-medium text-indigo-600">PromptShot Admin</p>
-        <h1 className="text-3xl font-bold tracking-tight text-zinc-900">Оплаты YooKassa</h1>
+        <h1 className="text-3xl font-bold tracking-tight text-zinc-900">Оплаты</h1>
         <p className="mt-1 text-sm text-zinc-500">Плательщики, статусы и начисление кредитов</p>
       </div>
       <button
@@ -162,7 +163,7 @@ export function AdminPaymentsList() {
         onClick={() => void reconcileStale()}
         className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-900 disabled:opacity-50"
       >
-        {staleBusy ? "Сверяем…" : "Сверить зависшие"}
+        {staleBusy ? "Сверяем…" : "Сверить зависшие YooKassa"}
       </button>
     </header>
 
@@ -234,12 +235,19 @@ export function AdminPaymentsList() {
                     : <p className="mt-1 text-xs text-zinc-500">Не начислены</p>}
             </td>
             <td className="px-4 py-4 font-mono text-xs text-zinc-500">
-              {item.yookassaPaymentId || "—"}
+              <span className="font-sans font-semibold text-zinc-700">{item.provider}</span>
+              <br />
+              {item.providerPaymentId || "—"}
             </td>
             <td className="px-4 py-4">
               <button
                 type="button"
-                disabled={!item.yookassaPaymentId || reconcilingId === item.id || staleBusy}
+                disabled={
+                  item.provider !== "yookassa" ||
+                  !item.providerPaymentId ||
+                  reconcilingId === item.id ||
+                  staleBusy
+                }
                 onClick={() => void reconcileOne(item)}
                 className="rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-700 disabled:opacity-50"
               >

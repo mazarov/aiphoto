@@ -24,6 +24,9 @@ export const YM_GOAL_GENERATE_SHELL_OPEN = "generate_shell_open";
 export const YM_GOAL_YOOKASSA_CHECKOUT_STARTED = "yookassa_checkout_started";
 export const YM_GOAL_YOOKASSA_CHECKOUT_REDIRECT = "yookassa_checkout_redirect";
 export const YM_GOAL_YOOKASSA_PAYMENT_SUCCEEDED = "yookassa_payment_succeeded";
+export const YM_GOAL_PAYMENT_CHECKOUT_STARTED = "payment_checkout_started";
+export const YM_GOAL_PAYMENT_IFRAME_OPENED = "payment_iframe_opened";
+export const YM_GOAL_PAYMENT_SUCCEEDED = "payment_succeeded";
 /** Direct optimization goal — JS on return + Measurement Protocol from webhook. */
 export const YM_GOAL_PURCHASE = "purchase";
 /** @deprecated Таббар больше не открывает LexyGPT — цель не вызывается. */
