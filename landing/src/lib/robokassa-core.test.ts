@@ -67,11 +67,13 @@ test("checkout payload is server-priced, fiscalized and modal", () => {
     paymentId: "263dd707-e1ee-46d9-9a97-c11ad34c289d",
     invoiceId: 42,
     plan,
+    email: " azarov.maxim@gmail.com ",
     config,
   });
   assert.equal(payload.OutSum, "199.00");
   assert.equal(payload.InvId, 42);
   assert.equal(payload.IsTest, 1);
+  assert.equal(payload.Email, "azarov.maxim@gmail.com");
   assert.deepEqual(JSON.parse(payload.Settings), {
     Mode: "modal",
   });
@@ -79,6 +81,19 @@ test("checkout payload is server-priced, fiscalized and modal", () => {
   assert.equal(receipt.items[0].sum, 199);
   assert.equal(typeof receipt.items[0].sum, "number");
   assert.equal(receipt.items[0].payment_object, "service");
+});
+
+test("invalid checkout email is omitted from provider payload", () => {
+  const plan = getPricingPlan("trial");
+  assert.ok(plan);
+  const payload = buildRobokassaCheckoutPayload({
+    paymentId: "263dd707-e1ee-46d9-9a97-c11ad34c289d",
+    invoiceId: 43,
+    plan,
+    email: "not-an-email",
+    config,
+  });
+  assert.equal(payload.Email, undefined);
 });
 
 test("ResultURL signature includes sorted Shp parameters and rejects tampering", () => {

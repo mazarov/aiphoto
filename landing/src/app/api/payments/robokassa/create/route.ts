@@ -132,6 +132,7 @@ export async function POST(request: NextRequest) {
       paymentId: local.id,
       invoiceId: Number(local.invoice_id),
       plan: fixedPlan,
+      email: user.email,
       config,
     });
     const { error: updateError } = await supabase

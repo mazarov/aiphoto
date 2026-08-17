@@ -7,6 +7,7 @@ export type RobokassaBrowserPayload = {
   Description: string;
   Culture: "ru";
   Encoding: "utf-8";
+  Email?: string;
   IsTest: 0 | 1;
   Receipt: string;
   Shp_payment_id: string;
