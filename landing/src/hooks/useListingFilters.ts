@@ -2,6 +2,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useMemo } from "react";
+import { resetListingScroll } from "@/lib/scroll-preservation";
 import type { Dimension } from "@/lib/tag-registry";
 
 export type FilterState = {
@@ -70,6 +71,7 @@ export function useListingFilters(options: UseListingFiltersOptions = {}) {
       }
       const qs = sp.toString();
       const path = typeof window !== "undefined" ? window.location.pathname : "";
+      resetListingScroll();
       router.push(qs ? `${path}?${qs}` : path, { scroll: false });
     },
     [router, searchParams]
