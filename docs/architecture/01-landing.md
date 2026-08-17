@@ -1,5 +1,7 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-08-17 (**visual search RPC fix:** миграция `193` квалифицирует `prompt_card_visual_search_config.id` в `search_cards_visual`; без неё PL/pgSQL конфликтует с output-колонкой `id` (`SQLSTATE 42702`) и hybrid search уходит в text fallback.)
+>
 > Последнее обновление: 2026-08-17 (**visual embeddings via Gemini proxy:** query/image `embedContent` идёт на `GEMINI_PROXY_BASE_URL` по умолчанию, как generate/analyze. Opt-out: `GEMINI_EMBEDDING_USE_PROXY=0`.)
 >
 > Последнее обновление: 2026-08-17 (**hybrid visual search:** `GET /api/search` параллельно вызывает `search_cards_text` и Gemini Embedding 2 → `search_cards_visual`. Ranker: exact title / strong FTS выше visual-only, иначе weighted RRF. Gemini timeout 800 мс, IP/global budget, in-memory cache/single-flight, circuit breaker. Flag `SEARCH_VISUAL_ENABLED` (default off). SQL `192`, jobs/cron `POST /api/cron/visual-embeddings`. Спека `docs/17-08-gemini-visual-search.md`.)
@@ -1101,7 +1103,7 @@ type ResolvedRoute = {
 | `get_homepage_sections` | Секции главной |
 | `search_cards_filtered` | Фильтрованный поиск |
 | `search_cards_text` | Полнотекстовый поиск |
-| `search_cards_visual` | ANN по active generation image embeddings (миграция `192`) |
+| `search_cards_visual` | ANN по active generation image embeddings (миграция `192`; исправление ambiguous config `id` — `193`) |
 | `claim_visual_embedding_jobs` / `complete_visual_embedding_job` / `fail_visual_embedding_job` | Lease-outbox для backfill фото |
 | `visual_embedding_coverage` | Coverage published+photo vs ready embeddings |
 | `visual_search_rate_limit_increment` | Атомарный IP + global бюджет Gemini query embeds |
