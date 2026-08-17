@@ -1,5 +1,7 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-08-17 (**hybrid visual search:** `GET /api/search` параллельно вызывает `search_cards_text` и Gemini Embedding 2 → `search_cards_visual`. Ranker: exact title / strong FTS выше visual-only, иначе weighted RRF. Gemini timeout 800 мс, IP/global budget, in-memory cache/single-flight, circuit breaker. Flag `SEARCH_VISUAL_ENABLED` (default off). SQL `192`, jobs/cron `POST /api/cron/visual-embeddings`. Спека `docs/17-08-gemini-visual-search.md`.)
+>
 > Последнее обновление: 2026-08-17 (**Yandex Direct purchases:** YooKassa fulfillment шлёт Measurement Protocol `purchase` с ClientID; return-poll дублирует JS-цель + ecommerce `dataLayer`. Спека `docs/17-08-yandex-direct-purchases.md`, SQL `191`.)
 >
 > Последнее обновление: 2026-08-17 (**homepage examples sort:** блок «Готовые промты для ИИ-фотосессии» на `/` ранжирует `resolve_route_cards` / `/api/listing` по `sort=new` (`created_at DESC`), не `popular`. `/catalog` explorer без изменений — `sort=popular`.)
@@ -395,7 +397,7 @@
 
 | Путь | Назначение |
 |------|-----------|
-| `/api/search` | Текстовый поиск (`search_cards_text` RPC) |
+| `/api/search` | Гибридный поиск: `search_cards_text` + optional Gemini Embedding 2 / `search_cards_visual`. Fallback на FTS. `Server-Timing`: `search-text`, `search-embed`, `search-vector`, `search-rank`, `search-enrich` |
 | `/api/listing` | Листинг категории по тегам (`resolve_route_cards` RPC): `limit`, `offset`, `strict=1`, tag-фильтры, **`sort=popular\|new`** (default `new`; невалидный → **400**). Ответ: `{ cards, total_count, ranked_batch_size, sort }` |
 | `/api/filter-counts` | Счётчики тегов для текущей выборки (`get_filter_counts` RPC) |
 | `/api/card-view` | POST: инкремент `view_count` + событие в `prompt_card_view_events` по `slug` (beacon `/p/[slug]`, дедуп `sessionStorage`; RPC `increment_prompt_card_view`) |
@@ -429,6 +431,7 @@
 | `/api/payments/yookassa/[id]` | GET (auth owner): статус операции; best-effort reconcile для `created|pending|canceled` без `credited_at` |
 | `/api/payments/yookassa/webhook` | POST public callback: принимает `payment.succeeded` / `payment.canceled`, перечитывает объект через YooKassa API и идемпотентно обновляет ledger/баланс |
 | `/api/cron/yookassa-reconcile` | POST, `Authorization: Bearer $CRON_SECRET`: batch `reconcileStaleYooKassaPayments` для `created|pending` старше 5 мин (limit 20) |
+| `/api/cron/visual-embeddings` | POST, `Authorization: Bearer $CRON_SECRET`: enqueue missing canonical-photo embeddings + claim/lease Gemini Embedding 2 batch |
 | `/api/extension/analyze` | Same-origin analyze для site `/foto-v-promt` и «По фото»: validation/SSRF → identity (anonymous/STV-guest = гость) → RPC `analyze_quota_reserve` (free / 401 auth_required / 402 no_credits / paid hold 1 кредит) → Gemini → confirm или release+refund; fail-closed 503 если квота недоступна; успех пишет `analyze_history.credits_spent` |
 | `/api/extension/analyze/quota` | GET, cookie session, no-store: `remaining_free`, `next_mode`, `credit_cost`, реальный `credits` для авторизованного |
 | `/api/admin/analytics` | GET, admin auth: no-store analytics rollups за `1…90` дней; топ пользователей — `admin_analytics_top_users` за тот же период |
@@ -850,17 +853,19 @@ getFirstTagFromSeoTags(seo_tags)        ← breadcrumb
 ```
 SearchResults (client, infinite scroll)
   → /api/search?q=&limit=48&offset=N
-  → search_cards_text (indexed FTS + title-only trigram)
+  → параллельно: search_cards_text + (если SEARCH_VISUAL_ENABLED) Gemini embed → search_cards_visual
+  → lexical guard + weighted RRF (окно ≤ 500)
   → enrichCardsWithDetails(cards)
   → фильтры (desktop ListingDesktopFilters / mobile FilterFAB) только после выдачи,
     client-side по seo_tags
 ```
 
 - Desktop (`lg+`): тот же explorer-блок, что у `/[...slug]` и `/trends` (`ListingExplorerFrame` + `ListingExplorerSearch`). Компактное поле в шапке не показывается — одно поле ввода. `ListingDesktopFilters` и mobile `FilterFAB` только после выдачи (`searched && cards.length > 0`); до запроса и при пустом результате фильтры скрыты.
-- Пагинация детерминированная: `48` карточек на порцию (как каталог; без расширения групп в поиске).
-- Ранжирование гибридное: морфология (`prompt_cards.fts`, где уже денормализованы `title_ru` и RU-тексты промтов) + typo/substring fallback (`trigram` только по `title_ru`). Полные `prompt_variants.prompt_text_ru` на read path повторно не сканируются.
-- Стабильная сортировка: `has_fts DESC`, затем `relevance_score`, `source_date DESC`, `id`.
-- Защита нагрузки: максимум 160 символов, `limit ≤ 100`, debounce 500 мс; публичные клиенты отменяют устаревшие запросы. `/api/search` возвращает `Server-Timing: search-rpc, search-enrich`; запросы дольше 750 мс логируются как `[search:slow]` только с длиной строки и числовыми метриками.
+- Пагинация детерминированная: `48` карточек на порцию (как каталог; без расширения групп в поиске). Hybrid собирает окно с offset 0 и режет страницу в приложении.
+- Текстовое ранжирование: морфология (`prompt_cards.fts`, где уже денормализованы `title_ru` и RU-тексты промтов) + typo/substring fallback (`trigram` только по `title_ru`). Полные `prompt_variants.prompt_text_ru` на read path повторно не сканируются.
+- Visual branch: `gemini-embedding-2` 768-d, timeout 800 мс, IP/global daily budget, LRU/single-flight, circuit breaker. Любой сбой → текущий FTS без HTTP 429.
+- Hybrid rank: exact title и strong FTS выше visual-only; остальные — weighted RRF. `matchType`: `fts` / `trgm` / `visual` / `fts+visual` / `trgm+visual`.
+- Защита нагрузки: максимум 160 символов, `limit ≤ 100`, debounce 500 мс; публичные клиенты отменяют устаревшие запросы. `/api/search` возвращает `Server-Timing: search-text, search-embed, search-vector, search-rank, search-enrich`; медленные и fallback-запросы логируются без текста запроса.
 
 ### Catalog admin (вместо `/debug`)
 
@@ -1063,6 +1068,10 @@ type ResolvedRoute = {
 | `slug_redirects` | Карта 301 редиректов старых slug на новые |
 | `prompt_variants` | Тексты промтов (prompt_text_ru, prompt_text_en) |
 | `prompt_card_media` | Фото (storage_bucket, storage_path, is_primary) |
+| `prompt_card_visual_embeddings` | 768-d Gemini image embeddings, versioned by `generation` (SQL `192`) |
+| `prompt_card_visual_embedding_jobs` | Outbox/lease для индексации канонического фото |
+| `prompt_card_visual_search_config` | Active generation / model singleton |
+| `visual_search_rate_limit` | IP + global дневной бюджет query embeddings |
 | `prompt_card_before_media` | Before/after фото |
 | `card_reactions` | Лайки/дизлайки (через supabase-browser) |
 | `card_favorites` | Избранное (через supabase-browser) |
@@ -1090,6 +1099,10 @@ type ResolvedRoute = {
 | `get_homepage_sections` | Секции главной |
 | `search_cards_filtered` | Фильтрованный поиск |
 | `search_cards_text` | Полнотекстовый поиск |
+| `search_cards_visual` | ANN по active generation image embeddings (миграция `192`) |
+| `claim_visual_embedding_jobs` / `complete_visual_embedding_job` / `fail_visual_embedding_job` | Lease-outbox для backfill фото |
+| `visual_embedding_coverage` | Coverage published+photo vs ready embeddings |
+| `visual_search_rate_limit_increment` | Атомарный IP + global бюджет Gemini query embeds |
 | `landing_add_credits` | Начисление кредитов в `landing_users.credits` после web-оплаты |
 | `landing_fulfill_yookassa_payment` | Атомарное идемпотентное завершение YooKassa-платежа и начисление сохранённых в ledger токенов |
 | `admin_finance_replace_import` | Service-only replace месячного finance-импорта (`revenue` \| `cogs`) |
@@ -1296,4 +1309,9 @@ landing/src/
 | `YOOKASSA_SHOP_ID` | Server-only идентификатор магазина для Basic Auth YooKassa API |
 | `YOOKASSA_SECRET_KEY` | Server-only секрет магазина YooKassa; не передаётся клиенту и не логируется |
 | `YANDEX_METRIKA_MP_TOKEN` | Server-only токен Measurement Protocol счётчика `107703100`; без него покупки в Директ не уходят |
-| `CRON_SECRET` | Bearer-секрет для `POST /api/cron/yookassa-reconcile` (stale payment sweep) |
+| `CRON_SECRET` | Bearer-секрет для `POST /api/cron/yookassa-reconcile` и `POST /api/cron/visual-embeddings` |
+| `SEARCH_VISUAL_ENABLED` | `1` включает Gemini visual branch в `/api/search`; default off |
+| `GEMINI_EMBEDDING_MODEL` | Default `gemini-embedding-2` |
+| `SEARCH_VISUAL_GENERATION` | Active embedding generation (default 1) |
+| `SEARCH_VISUAL_TIMEOUT_MS` | Query embed timeout, default 800 |
+| `SEARCH_VISUAL_IP_DAILY_LIMIT` / `SEARCH_VISUAL_GLOBAL_DAILY_LIMIT` | Бюджет Gemini-вызовов поиска |

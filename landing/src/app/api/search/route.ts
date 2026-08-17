@@ -1,5 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { searchCardsByText, enrichCardsWithDetails } from "@/lib/supabase";
+import {
+  createSupabaseServer,
+  enrichCardsWithDetails,
+  searchCardsByText,
+  searchCardsByVisualEmbedding,
+} from "@/lib/supabase";
+import { embedSearchQueryWithGuards } from "@/lib/visual-search-guard";
+import { runHybridCardSearch } from "@/lib/visual-search";
 
 const MAX_SEARCH_QUERY_LENGTH = 160;
 const SLOW_SEARCH_MS = 750;
@@ -21,30 +28,63 @@ export async function GET(req: NextRequest) {
 
   try {
     const startedAt = performance.now();
-    const cards = await searchCardsByText(q, limit, offset);
+    const supabase = createSupabaseServer();
+    const hybrid = await runHybridCardSearch({
+      query: q,
+      limit,
+      offset,
+      headers: req.headers,
+      supabase,
+      deps: {
+        searchText: searchCardsByText,
+        searchVisual: searchCardsByVisualEmbedding,
+        embedQuery: embedSearchQueryWithGuards,
+      },
+    });
     const searchMs = performance.now() - startedAt;
-    const enriched = await enrichCardsWithDetails(cards);
+    const enriched = await enrichCardsWithDetails(hybrid.cards);
     const totalMs = performance.now() - startedAt;
     const enrichMs = totalMs - searchMs;
-    const matchType = cards.length > 0 ? (cards[0] as { match_type?: string }).match_type ?? "fts" : null;
-    const res = NextResponse.json({ cards: enriched, query: q, matchType });
-    // Short edge cache for search — queries are user-specific but results change slowly.
+    const res = NextResponse.json({
+      cards: enriched,
+      query: q,
+      matchType: hybrid.matchType,
+    });
     res.headers.set("Cache-Control", "public, s-maxage=30, stale-while-revalidate=120");
     res.headers.set(
       "Server-Timing",
-      `search-rpc;dur=${searchMs.toFixed(1)}, search-enrich;dur=${enrichMs.toFixed(1)}`
+      [
+        `search-text;dur=${hybrid.timings.textMs.toFixed(1)}`,
+        `search-embed;dur=${hybrid.timings.embedMs.toFixed(1)}`,
+        `search-vector;dur=${hybrid.timings.vectorMs.toFixed(1)}`,
+        `search-rank;dur=${hybrid.timings.rankMs.toFixed(1)}`,
+        `search-enrich;dur=${enrichMs.toFixed(1)}`,
+      ].join(", "),
     );
 
-    if (totalMs >= SLOW_SEARCH_MS) {
-      console.warn("[search:slow]", {
-        queryLength: q.length,
-        limit,
-        offset,
-        resultCount: enriched.length,
-        searchMs: Math.round(searchMs),
-        enrichMs: Math.round(enrichMs),
-        totalMs: Math.round(totalMs),
-      });
+    if (totalMs >= SLOW_SEARCH_MS || hybrid.outcome === "text_fallback") {
+      console.warn(
+        hybrid.outcome === "text_fallback" ? "[search:fallback]" : "[search:slow]",
+        {
+          queryLength: q.length,
+          limit,
+          offset,
+          resultCount: enriched.length,
+          textCount: hybrid.textCount,
+          visualCount: hybrid.visualCount,
+          outcome: hybrid.outcome,
+          fallbackReason: hybrid.fallbackReason ?? null,
+          cacheHit: hybrid.cacheHit,
+          circuitState: hybrid.circuitState,
+          searchMs: Math.round(searchMs),
+          enrichMs: Math.round(enrichMs),
+          totalMs: Math.round(totalMs),
+          textMs: Math.round(hybrid.timings.textMs),
+          embedMs: Math.round(hybrid.timings.embedMs),
+          vectorMs: Math.round(hybrid.timings.vectorMs),
+          rankMs: Math.round(hybrid.timings.rankMs),
+        },
+      );
     }
 
     return res;

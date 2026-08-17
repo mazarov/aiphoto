@@ -301,6 +301,29 @@ export async function searchCardsByText(
   return (data || []) as SearchTextResult[];
 }
 
+export type SearchVisualResult = SearchTextResult & {
+  visual_distance: number;
+  source_date: string | null;
+};
+
+export async function searchCardsByVisualEmbedding(
+  embedding: number[],
+  limit = 24,
+  offset = 0,
+  generation?: number
+): Promise<SearchVisualResult[]> {
+  const supabase = createSupabaseServer();
+  const { data, error } = await supabase.rpc("search_cards_visual", {
+    p_embedding: `[${embedding.join(",")}]`,
+    p_limit: limit,
+    p_offset: offset,
+    p_generation: generation ?? null,
+  });
+
+  if (error) throw new Error(`search_cards_visual: ${error.message}`);
+  return (data || []) as SearchVisualResult[];
+}
+
 export async function fetchDatasets(options?: {
   /** When true, include datasets that only have unpublished cards (debug). */
   includeUnpublished?: boolean;

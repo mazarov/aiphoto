@@ -1,5 +1,7 @@
 # 03 — Пайплайн: парсинг → загрузка → публикация
 
+> Последнее обновление: 2026-08-17 (**visual embeddings:** после publish каноническое фото ставится в `prompt_card_visual_embedding_jobs` (SQL `192`). Индексация асинхронная: cron `POST /api/cron/visual-embeddings` или standalone `src/standalone/backfill-card-image-embeddings.mjs`. Публикация Gemini не ждёт.)
+>
 > Последнее обновление: 2026-08-16 (**analyze_history owner index:** SQL `188` — `(user_id, created_at desc)` для `/analyses` / `GET /api/analyses`. Запись по-прежнему `recordAnalyzeHistory` с `user_id` только у авторизованного.)
 >
 > Последнее обновление: 2026-08-15 (**analyze-history retention:** 5 дней вместо 30; cleanup на admin read.)
@@ -51,6 +53,7 @@
 │                                                                  │
 │  11. UPDATE prompt_cards SET is_published = true                  │
 │      WHERE source_dataset_slug = '<slug>'                        │
+│  12. visual embeddings: trigger → jobs; cron/standalone backfill  │
 └──────────────────────────────────────────────────────────────────┘
 ```
 
@@ -410,7 +413,8 @@ node fill-seo-tags-standalone.mjs --dataset <slug>
 □ 9.  npx tsx src/fix-prompt-marker-titles.ts
 □ 10. ⚠️ ПРОВЕРИТЬ НОВЫЕ ТЕГИ (см. ниже)
 □ 11. SQL: UPDATE prompt_cards SET is_published = true WHERE ...
-□ 12. Проверить на лендинге
+□ 12. Visual embeddings: cron или standalone backfill (coverage ≥ 95% до SEARCH_VISUAL_ENABLED)
+□ 13. Проверить на лендинге
 ```
 
 ### Шаг 9: Проверка новых тегов
@@ -441,7 +445,7 @@ node fill-seo-tags-standalone.mjs --dataset <slug>
 | `OPENAI_API_KEY` | translate, fill-seo-tags, fix-template-titles, fix-prompt-marker-titles, discover-new-tags |
 | `OPENAI_BASE_URL` | Опционально: кастомный endpoint (default: `api.openai.com/v1`) |
 | `LLM_MODEL` | Опционально: модель (default: `gpt-4.1-mini`) |
-| `GEMINI_API_KEY` | Бот (worker, ai-chat) — НЕ используется в SEO-пайплайне |
+| `GEMINI_API_KEY` | Бот + visual embedding backfill (`gemini-embedding-2`) |
 | `GEMINI_PROXY_BASE_URL` | Опционально: прокси для бота |
 
 ---
@@ -463,6 +467,9 @@ src/
     ├── prompt-export-parser.ts             ← Парсер HTML
     ├── image-hash.ts                       ← SHA-256, pHash, Hamming (image dedup)
     └── gemini-url.ts                       ← Хелпер URL для Gemini API
+
+src/standalone/
+├── backfill-card-image-embeddings.mjs      ← DO: enqueue/process Gemini image embeddings
 
 scripts/
 ├── translate-en-standalone.mjs             ← Standalone: перевод (без npm)

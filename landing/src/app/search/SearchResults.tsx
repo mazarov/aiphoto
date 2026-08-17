@@ -273,6 +273,10 @@ export function SearchResults({ initialQuery }: Props) {
               {displayedCards.length}
               {hasMore ? "+" : ""}
               {matchType === "trgm" ? " · нечёткий" : ""}
+              {matchType === "visual" ? " · по фото" : ""}
+              {matchType === "fts+visual" || matchType === "trgm+visual"
+                ? " · гибрид"
+                : ""}
             </span>
           ) : null
         }
