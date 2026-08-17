@@ -32,7 +32,8 @@ test("embedSearchQuery sends 768-d request and validates the response", async ()
     const body = JSON.parse(String(init?.body));
     assert.equal(body.output_dimensionality, 768);
     assert.equal(body.content.parts[0].text, "task: search result | query: неон");
-    assert.ok(String(init?.headers?.["x-goog-api-key"] ?? "").length > 0);
+    const headers = init?.headers as Record<string, string> | undefined;
+    assert.ok(String(headers?.["x-goog-api-key"] ?? "").length > 0);
     return new Response(JSON.stringify({ embedding: { values } }), { status: 200 });
   };
 

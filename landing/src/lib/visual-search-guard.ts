@@ -21,6 +21,7 @@ import {
   VISUAL_CIRCUIT_OPEN_MS,
   VISUAL_CIRCUIT_WINDOW_MS,
   getVisualSearchConfig,
+  type VisualRpcClient,
   type VisualSearchConfig,
 } from "@/lib/visual-search-config";
 
@@ -38,12 +39,7 @@ export type VisualEmbedOutcome =
   | { ok: true; vector: number[]; cacheHit: boolean; circuitState: string }
   | { ok: false; reason: VisualGuardReason; cacheHit: boolean; circuitState: string };
 
-type RateLimitClient = {
-  rpc(
-    fn: string,
-    args: Record<string, unknown>,
-  ): Promise<{ data: unknown; error: { message: string } | null }>;
-};
+type RateLimitClient = VisualRpcClient;
 
 const queryCache = createTtlLruCache<number[]>(
   VISUAL_CACHE_MAX_ENTRIES,

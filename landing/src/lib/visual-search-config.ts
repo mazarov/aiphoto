@@ -1,3 +1,10 @@
+export type VisualRpcClient = {
+  rpc(
+    fn: string,
+    args?: Record<string, unknown>,
+  ): PromiseLike<{ data: unknown; error: { message: string } | null }>;
+};
+
 export const VISUAL_EMBEDDING_DIMENSIONS = 768;
 export const VISUAL_EMBEDDING_MODEL_DEFAULT = "gemini-embedding-2";
 export const VISUAL_EMBED_TIMEOUT_MS_DEFAULT = 800;

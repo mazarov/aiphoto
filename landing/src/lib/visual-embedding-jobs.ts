@@ -5,6 +5,7 @@ import {
   VISUAL_IMAGE_MAX_EDGE,
   VISUAL_MAX_IMAGE_BYTES,
   getVisualSearchConfig,
+  type VisualRpcClient,
 } from "@/lib/visual-search-config";
 
 export type VisualEmbeddingJob = {
@@ -20,12 +21,7 @@ export type VisualEmbeddingJob = {
   source_fingerprint: string | null;
 };
 
-type JobsClient = {
-  rpc(
-    fn: string,
-    args: Record<string, unknown>,
-  ): Promise<{ data: unknown; error: { message: string } | null }>;
-};
+type JobsClient = VisualRpcClient;
 
 const ALLOWED_MIME = new Set([
   "image/jpeg",
