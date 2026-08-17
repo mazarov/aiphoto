@@ -133,13 +133,13 @@ export default async function HomePage() {
     })),
   };
 
-  const itemListLd = popularCards.length
+  const itemListLd = newCards.length
     ? {
         "@context": "https://schema.org",
         "@type": "ItemList",
         name: HOMEPAGE_SEO.examplesTitle,
-        numberOfItems: popularCards.length,
-        itemListElement: popularCards.map((card, index) => ({
+        numberOfItems: newCards.length,
+        itemListElement: newCards.map((card, index) => ({
           "@type": "ListItem",
           position: index + 1,
           name: card.title_ru || card.title_en || "Промт для фото",
