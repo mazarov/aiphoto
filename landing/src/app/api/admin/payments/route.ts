@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
   const cursor = parseAdminPaymentCursor(req.nextUrl.searchParams.get("cursor"));
   const limit = parseAdminPaymentLimit(req.nextUrl.searchParams.get("limit"));
   const supabase = createSupabaseServer();
-  const { data, error } = await supabase.rpc("admin_yookassa_payments", {
+  const { data, error } = await supabase.rpc("admin_landing_payments", {
     p_status: status,
     p_test: paymentTestFilterToRpc(testFilter),
     p_cursor_created_at: cursor?.createdAt || null,
@@ -49,6 +49,8 @@ export async function GET(req: NextRequest) {
   const page = rows.slice(0, limit);
   const items = page.map((row) => ({
     id: row.id,
+    provider: row.provider,
+    providerPaymentId: row.provider_payment_id,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     authUserId: row.auth_user_id,
@@ -65,7 +67,6 @@ export async function GET(req: NextRequest) {
     test: row.test,
     creditedAt: row.credited_at,
     creditState: resolvePaymentCreditState(row),
-    yookassaPaymentId: row.yookassa_payment_id,
   }));
   const last = page.at(-1);
 

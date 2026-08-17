@@ -10,6 +10,7 @@ import {
   sanitizeYclid,
   sanitizeYmClientId,
 } from "@/lib/yandex-attribution";
+import { getPaymentProviderForEmail } from "@/lib/payment-provider";
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -62,6 +63,9 @@ export async function POST(request: NextRequest) {
     const { user, error: authError } = await getSupabaseUserForApiRoute(request);
     if (authError || !user || user.is_anonymous === true) {
       return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    }
+    if (getPaymentProviderForEmail(user.email) !== "yookassa") {
+      return NextResponse.json({ error: "provider_disabled" }, { status: 409 });
     }
 
     const body = (await request.json().catch(() => null)) as
@@ -171,6 +175,7 @@ export async function POST(request: NextRequest) {
 
     if (local.confirmation_url && local.yookassa_payment_id) {
       return NextResponse.json({
+        provider: "yookassa",
         paymentId: local.id,
         confirmationUrl: local.confirmation_url,
       });
@@ -238,6 +243,7 @@ export async function POST(request: NextRequest) {
       }
       if (current?.confirmation_url && current.yookassa_payment_id) {
         return NextResponse.json({
+          provider: "yookassa",
           paymentId: current.id,
           confirmationUrl: current.confirmation_url,
         });
@@ -246,6 +252,7 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({
+      provider: "yookassa",
       paymentId: local.id,
       confirmationUrl: updated.confirmation_url,
     });

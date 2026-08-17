@@ -102,20 +102,42 @@ type ConversionPayment = {
   yandex_conversion_attempts: number | null;
 };
 
-export async function reportYandexYooKassaPurchase(
+export async function reportYandexPurchase(
   supabase: SupabaseClient,
   payment: ConversionPayment,
+  table: "landing_yookassa_payments" | "landing_robokassa_payments",
 ): Promise<void> {
   if (payment.yandex_conversion_sent_at) return;
 
   const attempts = payment.yandex_conversion_attempts ?? 0;
+  if (attempts >= MAX_RETRY_ATTEMPTS) return;
+  const claimAt = new Date().toISOString();
+  const staleBefore = new Date(Date.now() - 60_000).toISOString();
+  const { data: claimed, error: claimError } = await supabase
+    .from(table)
+    .update({
+      yandex_conversion_claimed_at: claimAt,
+      yandex_conversion_attempts: attempts + 1,
+      updated_at: claimAt,
+    })
+    .eq("id", payment.id)
+    .is("yandex_conversion_sent_at", null)
+    .or(
+      `yandex_conversion_claimed_at.is.null,yandex_conversion_claimed_at.lt.${staleBefore}`,
+    )
+    .select("id")
+    .maybeSingle();
+  if (claimError) {
+    throw new Error(`Purchase conversion claim failed: ${claimError.message}`);
+  }
+  if (!claimed) return;
+
   const clientId = sanitizeYmClientId(payment.ym_client_id);
   const token = getYandexMetrikaMpToken();
 
   if (!clientId || !token) {
     const reason = !token ? "no_token" : "no_client_id";
-    if (attempts >= MAX_RETRY_ATTEMPTS) return;
-    await markConversionAttempt(supabase, payment.id, attempts, reason);
+    await releaseConversionClaim(supabase, table, payment.id, claimAt, reason);
     console.info("[metrika] purchase skipped", {
       paymentId: payment.id,
       reason,
@@ -133,14 +155,15 @@ export async function reportYandexYooKassaPurchase(
 
   if (result.ok) {
     const { error } = await supabase
-      .from("landing_yookassa_payments")
+      .from(table)
       .update({
         yandex_conversion_sent_at: new Date().toISOString(),
+        yandex_conversion_claimed_at: null,
         yandex_conversion_error: null,
-        yandex_conversion_attempts: attempts + 1,
         updated_at: new Date().toISOString(),
       })
       .eq("id", payment.id)
+      .eq("yandex_conversion_claimed_at", claimAt)
       .is("yandex_conversion_sent_at", null);
     if (error) {
       console.error("[metrika] purchase mark-sent failed", {
@@ -153,10 +176,11 @@ export async function reportYandexYooKassaPurchase(
     return;
   }
 
-  await markConversionAttempt(
+  await releaseConversionClaim(
     supabase,
+    table,
     payment.id,
-    attempts,
+    claimAt,
     result.message || result.reason,
   );
   console.warn("[metrika] purchase send failed", {
@@ -165,20 +189,22 @@ export async function reportYandexYooKassaPurchase(
   });
 }
 
-async function markConversionAttempt(
+async function releaseConversionClaim(
   supabase: SupabaseClient,
+  table: "landing_yookassa_payments" | "landing_robokassa_payments",
   paymentId: string,
-  attempts: number,
+  claimAt: string,
   error: string,
 ): Promise<void> {
   const { error: updateError } = await supabase
-    .from("landing_yookassa_payments")
+    .from(table)
     .update({
       yandex_conversion_error: error.slice(0, 500),
-      yandex_conversion_attempts: attempts + 1,
+      yandex_conversion_claimed_at: null,
       updated_at: new Date().toISOString(),
     })
     .eq("id", paymentId)
+    .eq("yandex_conversion_claimed_at", claimAt)
     .is("yandex_conversion_sent_at", null);
   if (updateError) {
     console.error("[metrika] purchase attempt update failed", {
@@ -186,4 +212,11 @@ async function markConversionAttempt(
       message: updateError.message,
     });
   }
+}
+
+export function reportYandexYooKassaPurchase(
+  supabase: SupabaseClient,
+  payment: ConversionPayment,
+): Promise<void> {
+  return reportYandexPurchase(supabase, payment, "landing_yookassa_payments");
 }

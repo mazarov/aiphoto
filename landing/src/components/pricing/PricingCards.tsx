@@ -10,14 +10,20 @@ import {
 } from "@/lib/yookassa-return-path";
 import { readYandexCheckoutAttribution } from "@/lib/yandex-attribution-browser";
 import {
+  openRobokassaPayment,
+  type RobokassaBrowserPayload,
+} from "@/lib/robokassa-browser";
+import { announceRobokassaPayment } from "@/lib/robokassa-payment-events";
+import {
   reachYandexMetrikaGoal,
+  YM_GOAL_PAYMENT_CHECKOUT_STARTED,
+  YM_GOAL_PAYMENT_IFRAME_OPENED,
   YM_GOAL_PROMPT_CARD_GENERATION_PRICING,
   YM_GOAL_YOOKASSA_CHECKOUT_REDIRECT,
-  YM_GOAL_YOOKASSA_CHECKOUT_STARTED,
 } from "@/lib/yandex-metrika";
 
 const rubles = new Intl.NumberFormat("ru-RU");
-const PENDING_CHECKOUT_KEY = "promptshot:yookassa-pending-checkout";
+const PENDING_CHECKOUT_KEY = "promptshot:payment-pending-checkout";
 const PAYMENT_ID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -264,13 +270,13 @@ export function PricingCards() {
 
     checkoutInFlightRef.current = true;
     setCheckout({ kind: "creating", planId: plan.id });
-    reachYandexMetrikaGoal(YM_GOAL_YOOKASSA_CHECKOUT_STARTED, {
+    reachYandexMetrikaGoal(YM_GOAL_PAYMENT_CHECKOUT_STARTED, {
       plan_id: plan.id,
       price_rub: plan.price,
     });
     try {
       const attribution = await readYandexCheckoutAttribution();
-      const response = await fetch("/api/payments/yookassa/create", {
+      const response = await fetch("/api/payments/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -284,7 +290,17 @@ export function PricingCards() {
         }),
       });
       const payload = (await response.json().catch(() => null)) as
-        | { confirmationUrl?: string; message?: string }
+        | {
+            provider?: "yookassa";
+            confirmationUrl?: string;
+            message?: string;
+          }
+        | {
+            provider?: "robokassa";
+            paymentId?: string;
+            payload?: RobokassaBrowserPayload;
+            message?: string;
+          }
         | null;
       if (response.status === 401) {
         checkoutInFlightRef.current = false;
@@ -292,11 +308,36 @@ export function PricingCards() {
         openAuthModal();
         return;
       }
-      if (!response.ok || !payload?.confirmationUrl) {
+      if (!response.ok || !payload) {
         throw new Error(payload?.message || "Не удалось создать оплату");
       }
 
       clearPendingCheckout();
+      if (
+        payload.provider === "robokassa" &&
+        payload.paymentId &&
+        payload.payload
+      ) {
+        await openRobokassaPayment(payload.payload);
+        announceRobokassaPayment(payload.paymentId);
+        const returnPath = readPricingReturnPath();
+        clearPricingReturnPath();
+        closeWithoutHistory();
+        window.history.replaceState(null, "", returnPath);
+        reachYandexMetrikaGoal(YM_GOAL_PAYMENT_IFRAME_OPENED, {
+          provider: "robokassa",
+          plan_id: plan.id,
+        });
+        checkoutInFlightRef.current = false;
+        setCheckout({
+          kind: "pending",
+          message: "Форма оплаты открыта поверх страницы",
+        });
+        return;
+      }
+      if (payload.provider !== "yookassa" || !payload.confirmationUrl) {
+        throw new Error("Платёжный провайдер не вернул форму оплаты");
+      }
       const returnPath = readPricingReturnPath();
       clearPricingReturnPath();
       closeWithoutHistory();

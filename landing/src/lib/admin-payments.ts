@@ -9,6 +9,8 @@ export type AdminPaymentTestFilter = "all" | "live" | "test";
 
 export type AdminPaymentRow = {
   id: string;
+  provider: "yookassa" | "robokassa";
+  provider_payment_id: string | null;
   created_at: string;
   updated_at: string;
   auth_user_id: string;
@@ -23,7 +25,6 @@ export type AdminPaymentRow = {
   provider_status: string | null;
   test: boolean | null;
   credited_at: string | null;
-  yookassa_payment_id: string | null;
 };
 
 export const encodeAdminPaymentCursor = encodeAdminGenerationCursor;
