@@ -30,6 +30,10 @@ import { SearchEmptyState } from "@/components/SearchEmptyState";
 import { SearchMetrikaTracker } from "@/components/YandexMetrikaRouteTracker";
 import { ListingFotoVPromtBanner } from "@/components/foto-v-promt-promo/ListingFotoVPromtBanner";
 import { ListingGridLoadingSkeleton } from "@/components/ListingGridLoadingSkeleton";
+import {
+  buildSearchApiParams,
+  searchRequestKey,
+} from "@/lib/search-request";
 
 // Match catalog batch size so both listings feel consistent.
 const PAGE_SIZE = 48;
@@ -69,11 +73,13 @@ export function SearchResults({ initialQuery }: Props) {
   const hasMoreRef = useRef(false);
   const offsetRef = useRef(0);
   const queryRef = useRef(query);
+  const filtersRef = useRef(filters);
   const lastSearchedRef = useRef<string | null>(null);
   const scheduleDrainRef = useRef(() => {});
   const activeSearchRef = useRef<AbortController | null>(null);
 
   queryRef.current = query;
+  filtersRef.current = filters;
 
   const doSearch = useCallback(async (q: string, append = false) => {
     if (q.length < 2) {
@@ -100,8 +106,15 @@ export function SearchResults({ initialQuery }: Props) {
     setLoading(true);
     loadingRef.current = true;
     try {
+      const activeFilters = filtersRef.current;
+      const params = buildSearchApiParams({
+        query: q,
+        limit: PAGE_SIZE,
+        offset: newOffset,
+        filters: activeFilters,
+      });
       const res = await fetch(
-        `/api/search?q=${encodeURIComponent(q)}&limit=${PAGE_SIZE}&offset=${newOffset}`,
+        `/api/search?${params.toString()}`,
         { cache: "no-store", signal: controller.signal }
       );
       if (!res.ok) throw new Error("search_failed");
@@ -154,10 +167,14 @@ export function SearchResults({ initialQuery }: Props) {
   const commitQueryToUrl = useCallback(
     (trimmed: string) => {
       const current = searchParams.get("q")?.trim() || "";
+      const params = new URLSearchParams(searchParams.toString());
       if (trimmed.length >= 2 && trimmed !== current) {
-        router.replace(`/search?q=${encodeURIComponent(trimmed)}`, { scroll: false });
+        params.set("q", trimmed);
+        router.replace(`/search?${params.toString()}`, { scroll: false });
       } else if (trimmed.length === 0 && current) {
-        router.replace("/search", { scroll: false });
+        params.delete("q");
+        const nextQuery = params.toString();
+        router.replace(nextQuery ? `/search?${nextQuery}` : "/search", { scroll: false });
       }
     },
     [router, searchParams]
@@ -167,8 +184,9 @@ export function SearchResults({ initialQuery }: Props) {
     (raw: string) => {
       const trimmed = raw.trim();
       commitQueryToUrl(trimmed);
-      if (trimmed === lastSearchedRef.current) return;
-      lastSearchedRef.current = trimmed;
+      const requestKey = searchRequestKey(trimmed, filtersRef.current);
+      if (requestKey === lastSearchedRef.current) return;
+      lastSearchedRef.current = requestKey;
       setOffset(0);
       offsetRef.current = 0;
       void doSearch(trimmed);
@@ -178,7 +196,7 @@ export function SearchResults({ initialQuery }: Props) {
 
   useEffect(() => {
     if (initialQuery.length >= 2) {
-      lastSearchedRef.current = initialQuery;
+      lastSearchedRef.current = searchRequestKey(initialQuery, filtersRef.current);
       void doSearch(initialQuery);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -186,12 +204,13 @@ export function SearchResults({ initialQuery }: Props) {
 
   useEffect(() => {
     const q = searchParams.get("q")?.trim() || "";
-    if (q === lastSearchedRef.current) {
+    const requestKey = searchRequestKey(q, filters);
+    if (requestKey === lastSearchedRef.current) {
       if (q !== query) setQuery(q);
       return;
     }
     setQuery(q);
-    lastSearchedRef.current = q;
+    lastSearchedRef.current = requestKey;
     setOffset(0);
     offsetRef.current = 0;
     void doSearch(q);

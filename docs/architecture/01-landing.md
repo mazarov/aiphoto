@@ -1,5 +1,7 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-08-17 (**search filters before rank:** `/search` передаёт `audience/style/occasion/object` в `/api/search`; overload-RPC из миграции `194` ограничивают text и visual candidates по `seo_tags` до hybrid ranking и pagination. Client-side проверка остаётся защитной, но больше не формирует выборку из обрезанного top-N.)
+>
 > Последнее обновление: 2026-08-17 (**SEO-сценарии генерации фото:** `/generaciya-foto/[scenario]` обслуживает allowlist из 22 страниц: все 20 популярных чипов хаба плюс портрет и аниме. SSOT маршрутов/тегов — `generaciya-foto-routes.ts`, copy/FAQ/HowTo — `generaciya-foto-scenario-copy.ts`. Начальная SSR-выдача содержит до 16 карточек только своего тега; поле поиска от 2 символов может временно заменить её результатами `/api/search`, очистка возвращает тематическую выдачу. Чипы не меняют фильтр in-place, а ведут на `/generaciya-foto/*`. Self-canonical и JSON-LD; `index` и sitemap включаются от 8 карточек. Blank Generate Dock разрешён только для allowlist.)
 >
 > Последнее обновление: 2026-08-17 (**listing filter scroll:** смена query-фильтра на том же pathname вызывает `resetListingScroll()` в `useListingFilters`, как сортировка. Иначе remount `InfiniteGrid` схлопывает masonry и браузер зажимает старый `scrollTop` в низ страницы.)
@@ -405,7 +407,7 @@
 
 | Путь | Назначение |
 |------|-----------|
-| `/api/search` | Гибридный поиск: `search_cards_text` + optional Gemini Embedding 2 / `search_cards_visual`. Fallback на FTS. `Server-Timing`: `search-text`, `search-embed`, `search-vector`, `search-rank`, `search-enrich` |
+| `/api/search` | Гибридный поиск: `search_cards_text` + optional Gemini Embedding 2 / `search_cards_visual`; `audience/style/occasion/object` применяются в RPC до rank/pagination (миграция `194`). Fallback на FTS. `Server-Timing`: `search-text`, `search-embed`, `search-vector`, `search-rank`, `search-enrich` |
 | `/api/listing` | Листинг категории по тегам (`resolve_route_cards` RPC): `limit`, `offset`, `strict=1`, tag-фильтры, **`sort=popular\|new`** (default `new`; невалидный → **400**). Ответ: `{ cards, total_count, ranked_batch_size, sort }` |
 | `/api/filter-counts` | Счётчики тегов для текущей выборки (`get_filter_counts` RPC) |
 | `/api/card-view` | POST: инкремент `view_count` + событие в `prompt_card_view_events` по `slug` (beacon `/p/[slug]`, дедуп `sessionStorage`; RPC `increment_prompt_card_view`) |
@@ -860,16 +862,17 @@ getFirstTagFromSeoTags(seo_tags)        ← breadcrumb
 
 ```
 SearchResults (client, infinite scroll)
-  → /api/search?q=&limit=48&offset=N
-  → параллельно: search_cards_text + (если SEARCH_VISUAL_ENABLED) Gemini embed → search_cards_visual
+  → /api/search?q=&audience=&style=&occasion=&object=&limit=48&offset=N
+  → параллельно: filtered search_cards_text + (если SEARCH_VISUAL_ENABLED)
+    Gemini embed → filtered search_cards_visual
   → lexical guard + weighted RRF (окно ≤ 500)
   → enrichCardsWithDetails(cards)
-  → фильтры (desktop ListingDesktopFilters / mobile FilterFAB) только после выдачи,
-    client-side по seo_tags
+  → защитная client-side проверка seo_tags
 ```
 
 - Desktop (`lg+`): тот же explorer-блок, что у `/[...slug]` и `/trends` (`ListingExplorerFrame` + `ListingExplorerSearch`). Компактное поле в шапке не показывается — одно поле ввода. `ListingDesktopFilters` и mobile `FilterFAB` только после выдачи (`searched && cards.length > 0`); до запроса и при пустом результате фильтры скрыты.
 - Пагинация детерминированная: `48` карточек на порцию (как каталог; без расширения групп в поиске). Hybrid собирает окно с offset 0 и режет страницу в приложении.
+- Фильтры `audience/style/occasion/object` входят в request identity и применяются в text/visual RPC до ранжирования и пагинации. Изменение только фильтра запускает новый server search; ввод нового query сохраняет фильтры URL.
 - Текстовое ранжирование: морфология (`prompt_cards.fts`, где уже денормализованы `title_ru` и RU-тексты промтов) + typo/substring fallback (`trigram` только по `title_ru`). Полные `prompt_variants.prompt_text_ru` на read path повторно не сканируются.
 - Visual branch: `gemini-embedding-2` 768-d, timeout 800 мс, IP/global daily budget, LRU/single-flight, circuit breaker. Любой сбой → текущий FTS без HTTP 429.
 - Hybrid rank: exact title и strong FTS выше visual-only; остальные — weighted RRF. `matchType`: `fts` / `trgm` / `visual` / `fts+visual` / `trgm+visual`.
@@ -1106,8 +1109,8 @@ type ResolvedRoute = {
 | `get_filter_counts` | Счётчики тегов для текущей выборки (`useListingFilterCounts`) |
 | `get_homepage_sections` | Секции главной |
 | `search_cards_filtered` | Фильтрованный поиск |
-| `search_cards_text` | Полнотекстовый поиск |
-| `search_cards_visual` | ANN по active generation image embeddings (миграция `192`; исправление ambiguous config `id` — `193`) |
+| `search_cards_text` | Полнотекстовый поиск; overload с dimension-фильтрами до rank/pagination — миграция `194` |
+| `search_cards_visual` | ANN по active generation image embeddings (миграция `192`; исправление ambiguous config `id` — `193`; overload с dimension-фильтрами — `194`) |
 | `claim_visual_embedding_jobs` / `complete_visual_embedding_job` / `fail_visual_embedding_job` | Lease-outbox для backfill фото |
 | `visual_embedding_coverage` | Coverage published+photo vs ready embeddings |
 | `visual_search_rate_limit_increment` | Атомарный IP + global бюджет Gemini query embeds |

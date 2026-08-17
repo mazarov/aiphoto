@@ -283,17 +283,48 @@ export async function countCardsFiltered(params: {
 
 export type SearchTextResult = RouteCard & { match_type: string };
 
+export type SearchCardFilters = {
+  audience_tag?: string | null;
+  style_tag?: string | null;
+  occasion_tag?: string | null;
+  object_tag?: string | null;
+};
+
+function searchFilterRpcArgs(filters: SearchCardFilters) {
+  return {
+    p_audience_tag: filters.audience_tag ?? null,
+    p_style_tag: filters.style_tag ?? null,
+    p_occasion_tag: filters.occasion_tag ?? null,
+    p_object_tag: filters.object_tag ?? null,
+  };
+}
+
+function isMissingFilteredSearchRpc(message: string): boolean {
+  return /Could not find the function|PGRST202/i.test(message);
+}
+
 export async function searchCardsByText(
   query: string,
   limit = 24,
-  offset = 0
+  offset = 0,
+  filters: SearchCardFilters = {},
 ): Promise<SearchTextResult[]> {
   const supabase = createSupabaseServer();
-  const { data, error } = await supabase.rpc("search_cards_text", {
+  let { data, error } = await supabase.rpc("search_cards_text", {
     p_query: query,
     p_limit: limit,
     p_offset: offset,
+    ...searchFilterRpcArgs(filters),
   });
+
+  // Keep deploy order safe when app code reaches production before migration 194.
+  if (error && isMissingFilteredSearchRpc(error.message)) {
+    ({ data, error } = await supabase.rpc("search_cards_text", {
+      p_query: query,
+      p_limit: limit,
+      p_offset: offset,
+    }));
+  }
 
   if (error) throw new Error(`search_cards_text: ${error.message}`);
   // Keep search pagination deterministic (24/48/72...).
@@ -310,15 +341,27 @@ export async function searchCardsByVisualEmbedding(
   embedding: number[],
   limit = 24,
   offset = 0,
-  generation?: number
+  generation?: number,
+  filters: SearchCardFilters = {},
 ): Promise<SearchVisualResult[]> {
   const supabase = createSupabaseServer();
-  const { data, error } = await supabase.rpc("search_cards_visual", {
+  let { data, error } = await supabase.rpc("search_cards_visual", {
     p_embedding: `[${embedding.join(",")}]`,
     p_limit: limit,
     p_offset: offset,
     p_generation: generation ?? null,
+    ...searchFilterRpcArgs(filters),
   });
+
+  // Keep deploy order safe when app code reaches production before migration 194.
+  if (error && isMissingFilteredSearchRpc(error.message)) {
+    ({ data, error } = await supabase.rpc("search_cards_visual", {
+      p_embedding: `[${embedding.join(",")}]`,
+      p_limit: limit,
+      p_offset: offset,
+      p_generation: generation ?? null,
+    }));
+  }
 
   if (error) throw new Error(`search_cards_visual: ${error.message}`);
   return (data || []) as SearchVisualResult[];

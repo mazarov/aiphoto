@@ -9,7 +9,13 @@ import { embedSearchQueryWithGuards } from "@/lib/visual-search-guard";
 import { runHybridCardSearch } from "@/lib/visual-search";
 
 const MAX_SEARCH_QUERY_LENGTH = 160;
+const MAX_SEARCH_FILTER_LENGTH = 80;
 const SLOW_SEARCH_MS = 750;
+
+function optionalSearchFilter(req: NextRequest, key: string): string | null {
+  const value = req.nextUrl.searchParams.get(key)?.trim();
+  return value ? value.slice(0, MAX_SEARCH_FILTER_LENGTH) : null;
+}
 
 export async function GET(req: NextRequest) {
   const q = req.nextUrl.searchParams.get("q")?.trim();
@@ -25,6 +31,12 @@ export async function GET(req: NextRequest) {
 
   const limit = Math.min(100, Math.max(1, Number(req.nextUrl.searchParams.get("limit")) || 24));
   const offset = Math.max(0, Number(req.nextUrl.searchParams.get("offset")) || 0);
+  const filters = {
+    audience_tag: optionalSearchFilter(req, "audience"),
+    style_tag: optionalSearchFilter(req, "style"),
+    occasion_tag: optionalSearchFilter(req, "occasion"),
+    object_tag: optionalSearchFilter(req, "object"),
+  };
 
   try {
     const startedAt = performance.now();
@@ -36,8 +48,16 @@ export async function GET(req: NextRequest) {
       headers: req.headers,
       supabase,
       deps: {
-        searchText: searchCardsByText,
-        searchVisual: searchCardsByVisualEmbedding,
+        searchText: (query, searchLimit, searchOffset) =>
+          searchCardsByText(query, searchLimit, searchOffset, filters),
+        searchVisual: (embedding, searchLimit, searchOffset, generation) =>
+          searchCardsByVisualEmbedding(
+            embedding,
+            searchLimit,
+            searchOffset,
+            generation,
+            filters,
+          ),
         embedQuery: embedSearchQueryWithGuards,
       },
     });
