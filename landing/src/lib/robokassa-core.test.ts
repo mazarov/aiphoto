@@ -73,7 +73,6 @@ test("checkout payload is server-priced, fiscalized and modal", () => {
   assert.equal(payload.InvId, 42);
   assert.equal(payload.IsTest, 1);
   assert.deepEqual(JSON.parse(payload.Settings), {
-    PaymentMethods: ["BankCard", "SBP"],
     Mode: "modal",
   });
   const receipt = JSON.parse(decodeURIComponent(payload.Receipt));
