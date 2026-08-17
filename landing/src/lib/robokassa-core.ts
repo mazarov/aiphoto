@@ -136,10 +136,7 @@ export function buildRobokassaCheckoutPayload(input: {
     IsTest: config.testMode ? 1 : 0,
     Receipt: receipt,
     Shp_payment_id: input.paymentId,
-    Settings: JSON.stringify({
-      PaymentMethods: ["BankCard", "SBP"],
-      Mode: "modal",
-    }),
+    Settings: JSON.stringify({ Mode: "modal" }),
     SignatureValue: hashRobokassaSignature(signatureSource, config.hashAlgorithm),
   };
 }
