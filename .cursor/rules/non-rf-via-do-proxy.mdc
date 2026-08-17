@@ -1,0 +1,40 @@
+---
+description: Все запросы к не-РФ сервисам идут через прокси на DigitalOcean.
+alwaysApply: true
+---
+
+# Не-РФ API — только через прокси DigitalOcean
+
+Прямые вызовы Google / OpenAI / других не-РФ API из РФ, локальной машины и Dockhost дают `400 FAILED_PRECONDITION` («User location is not supported») или таймаут.
+
+## Правило
+
+**Все исходящие запросы к не-РФ сервисам — через прокси на DigitalOcean.** Не хардкодить vendor-host как единственный URL.
+
+| Сервис | Куда слать | Env |
+|---|---|---|
+| Gemini / Google AI | `GEMINI_PROXY_BASE_URL` + тот же path (`/v1beta/models/...`) | уже на лендинге, worker, DO |
+| Другой Google API (OAuth, BQ, …) | отдельный location на том же DO-прокси | не подменять `GEMINI_PROXY_BASE_URL` |
+| OpenAI | `OPENAI_BASE_URL` на DO-прокси, не `api.openai.com` | если прокси ещё нет — добавить, не звать напрямую |
+| РФ-сервисы | напрямую | ЮKassa, Яндекс (Метрика, Директ, OAuth, Почта) |
+
+## Как писать код
+
+```typescript
+// ❌ ЗАПРЕЩЕНО
+const url = "https://generativelanguage.googleapis.com/v1beta/models/...";
+
+// ✅ ПРАВИЛЬНО — прокси по умолчанию, direct только явный opt-out
+const base = (process.env.GEMINI_PROXY_BASE_URL || "").replace(/\/+$/, "")
+  || "https://generativelanguage.googleapis.com";
+```
+
+- Лендинг / worker / бот / standalone / cron — один и тот же контракт.
+- Default **proxy on**. Opt-out только явный (`GEMINI_EMBEDDING_USE_PROXY=0` и аналоги).
+- Если `GEMINI_PROXY_BASE_URL` пуст — остановиться и напомнить добавить env, не «тихо» идти в Google.
+- Скрипты на DO тоже используют proxy URL (он уже в `.bashrc`). Не писать `export` секретов.
+
+## Не путать
+
+- DO-прокси ≠ DO-раннер скриптов. Раннер качает `.mjs` и крутит jobs; прокси — nginx/VPN в поддерживаемом регионе.
+- Не логировать полный proxy URL с credentials. Host в логах — достаточно.

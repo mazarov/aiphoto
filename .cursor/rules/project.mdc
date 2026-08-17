@@ -31,6 +31,7 @@
 - Новые фичи документировать перед реализацией
 - Формат коммитов: `type: description` (feat, fix, docs, refactor)
 - Пушить сразу после коммита
+- **Не-РФ API (Gemini, Google, OpenAI и т.п.) — только через прокси DigitalOcean.** Не хардкодить `generativelanguage.googleapis.com` / `api.openai.com`. Подробно: `.cursor/rules/non-rf-via-do-proxy.mdc`. РФ-сервисы (ЮKassa, Яндекс) — напрямую.
 
 ## Деплой
 

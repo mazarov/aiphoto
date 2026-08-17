@@ -109,7 +109,7 @@ export async function embedGeminiContent(options: {
 
   try {
     const fetchImpl = options.fetchImpl ?? fetch;
-    const url = `${geminiBaseUrl(options.useProxy === true)}/v1beta/models/${model}:embedContent`;
+    const url = `${geminiBaseUrl(options.useProxy !== false)}/v1beta/models/${model}:embedContent`;
     const response = await fetchImpl(url, {
       method: "POST",
       headers: {

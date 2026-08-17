@@ -26,6 +26,32 @@ test("rejects malformed embedding vectors", () => {
   assert.equal(embeddingToRpcLiteral([1, 2]), "[1,2]");
 });
 
+test("embedSearchQuery uses GEMINI_PROXY_BASE_URL by default", async () => {
+  const previous = process.env.GEMINI_PROXY_BASE_URL;
+  process.env.GEMINI_PROXY_BASE_URL = "https://gemini-proxy.example.test";
+  try {
+    const fetchImpl: typeof fetch = async (url) => {
+      assert.equal(
+        String(url),
+        "https://gemini-proxy.example.test/v1beta/models/gemini-embedding-2:embedContent",
+      );
+      return new Response(
+        JSON.stringify({ embedding: { values: Array.from({ length: 768 }, () => 0.1) } }),
+        { status: 200 },
+      );
+    };
+    await embedSearchQuery({
+      query: "неон",
+      timeoutMs: 200,
+      apiKey: "test-key",
+      fetchImpl,
+    });
+  } finally {
+    if (previous == null) delete process.env.GEMINI_PROXY_BASE_URL;
+    else process.env.GEMINI_PROXY_BASE_URL = previous;
+  }
+});
+
 test("embedSearchQuery sends 768-d request and validates the response", async () => {
   const values = Array.from({ length: 768 }, (_, i) => i / 768);
   const fetchImpl: typeof fetch = async (_url, init) => {

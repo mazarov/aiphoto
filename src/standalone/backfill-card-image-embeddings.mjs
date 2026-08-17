@@ -9,14 +9,20 @@
  *   ps aux | grep backfill-card-image-embeddings
  *   tail -f backfill-card-image-embeddings.log
  *
- * Env (already on DO): SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, GEMINI_API_KEY
+ * Env (already on DO): SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, GEMINI_API_KEY,
+ * GEMINI_PROXY_BASE_URL. Embeddings go through the proxy when the URL is set.
  */
 
 const SUPABASE_URL = (process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || "").replace(/\/+$/, "");
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 const GEMINI_API_KEY = (process.env.GEMINI_API_KEY || "").trim();
 const MODEL = (process.env.GEMINI_EMBEDDING_MODEL || "gemini-embedding-2").trim();
-const GEMINI_BASE = "https://generativelanguage.googleapis.com";
+const DIRECT_GEMINI_BASE = "https://generativelanguage.googleapis.com";
+const GEMINI_PROXY_BASE = (process.env.GEMINI_PROXY_BASE_URL || "").replace(/\/+$/, "");
+const USE_GEMINI_PROXY = envFlag("GEMINI_EMBEDDING_USE_PROXY", true);
+const GEMINI_BASE = USE_GEMINI_PROXY && GEMINI_PROXY_BASE
+  ? GEMINI_PROXY_BASE
+  : DIRECT_GEMINI_BASE;
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 
 const args = process.argv.slice(2);
@@ -39,6 +45,14 @@ const SB = {
   Authorization: `Bearer ${SUPABASE_KEY}`,
   "Content-Type": "application/json",
 };
+
+function envFlag(name, fallback) {
+  const raw = String(process.env[name] ?? "").trim().toLowerCase();
+  if (!raw) return fallback;
+  if (["1", "true", "yes", "on"].includes(raw)) return true;
+  if (["0", "false", "no", "off"].includes(raw)) return false;
+  return fallback;
+}
 
 function intArg(name, fallback) {
   const i = args.indexOf(name);
@@ -125,7 +139,7 @@ async function mapPool(items, worker) {
 async function main() {
   const started = Date.now();
   console.log(
-    `[${new Date().toISOString()}] visual embeddings dry_run=${DRY_RUN} limit=${limit} concurrency=${concurrency} generation=${generationArg ?? "active"}`,
+    `[${new Date().toISOString()}] visual embeddings dry_run=${DRY_RUN} limit=${limit} concurrency=${concurrency} generation=${generationArg ?? "active"} gemini_host=${new URL(GEMINI_BASE).hostname}`,
   );
 
   const coverageBefore = await rpc("visual_embedding_coverage", {

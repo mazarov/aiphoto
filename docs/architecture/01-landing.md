@@ -1,5 +1,7 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-08-17 (**visual embeddings via Gemini proxy:** query/image `embedContent` идёт на `GEMINI_PROXY_BASE_URL` по умолчанию, как generate/analyze. Opt-out: `GEMINI_EMBEDDING_USE_PROXY=0`.)
+>
 > Последнее обновление: 2026-08-17 (**hybrid visual search:** `GET /api/search` параллельно вызывает `search_cards_text` и Gemini Embedding 2 → `search_cards_visual`. Ranker: exact title / strong FTS выше visual-only, иначе weighted RRF. Gemini timeout 800 мс, IP/global budget, in-memory cache/single-flight, circuit breaker. Flag `SEARCH_VISUAL_ENABLED` (default off). SQL `192`, jobs/cron `POST /api/cron/visual-embeddings`. Спека `docs/17-08-gemini-visual-search.md`.)
 >
 > Последнее обновление: 2026-08-17 (**Yandex Direct purchases:** YooKassa fulfillment шлёт Measurement Protocol `purchase` с ClientID; return-poll дублирует JS-цель + ecommerce `dataLayer`. Спека `docs/17-08-yandex-direct-purchases.md`, SQL `191`.)
@@ -1312,6 +1314,7 @@ landing/src/
 | `CRON_SECRET` | Bearer-секрет для `POST /api/cron/yookassa-reconcile` и `POST /api/cron/visual-embeddings` |
 | `SEARCH_VISUAL_ENABLED` | `1` включает Gemini visual branch в `/api/search`; default off |
 | `GEMINI_EMBEDDING_MODEL` | Default `gemini-embedding-2` |
+| `GEMINI_EMBEDDING_USE_PROXY` | Default on: `embedContent` через `GEMINI_PROXY_BASE_URL`. `0` — напрямую в Google |
 | `SEARCH_VISUAL_GENERATION` | Active embedding generation (default 1) |
 | `SEARCH_VISUAL_TIMEOUT_MS` | Query embed timeout, default 800 |
 | `SEARCH_VISUAL_IP_DAILY_LIMIT` / `SEARCH_VISUAL_GLOBAL_DAILY_LIMIT` | Бюджет Gemini-вызовов поиска |

@@ -1,5 +1,7 @@
 # 03 — Пайплайн: парсинг → загрузка → публикация
 
+> Последнее обновление: 2026-08-17 (**visual embeddings via Gemini proxy:** backfill/cron `embedContent` через `GEMINI_PROXY_BASE_URL`, если задан. Прямой Google из РФ даёт `FAILED_PRECONDITION`.)
+>
 > Последнее обновление: 2026-08-17 (**visual embeddings:** после publish каноническое фото ставится в `prompt_card_visual_embedding_jobs` (SQL `192`). Индексация асинхронная: cron `POST /api/cron/visual-embeddings` или standalone `src/standalone/backfill-card-image-embeddings.mjs`. Публикация Gemini не ждёт.)
 >
 > Последнее обновление: 2026-08-16 (**analyze_history owner index:** SQL `188` — `(user_id, created_at desc)` для `/analyses` / `GET /api/analyses`. Запись по-прежнему `recordAnalyzeHistory` с `user_id` только у авторизованного.)
@@ -446,7 +448,7 @@ node fill-seo-tags-standalone.mjs --dataset <slug>
 | `OPENAI_BASE_URL` | Опционально: кастомный endpoint (default: `api.openai.com/v1`) |
 | `LLM_MODEL` | Опционально: модель (default: `gpt-4.1-mini`) |
 | `GEMINI_API_KEY` | Бот + visual embedding backfill (`gemini-embedding-2`) |
-| `GEMINI_PROXY_BASE_URL` | Опционально: прокси для бота |
+| `GEMINI_PROXY_BASE_URL` | Бот + visual embedding backfill (`embedContent`) |
 
 ---
 

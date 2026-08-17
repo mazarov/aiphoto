@@ -67,7 +67,7 @@ export function getVisualSearchConfig(): VisualSearchConfig {
       2_000,
     ),
     useTaskPrefix: envFlag("SEARCH_VISUAL_TASK_PREFIX", true),
-    useProxy: envFlag("GEMINI_EMBEDDING_USE_PROXY", false),
+    useProxy: envFlag("GEMINI_EMBEDDING_USE_PROXY", true),
     ipDailyLimit: envInt(
       "SEARCH_VISUAL_IP_DAILY_LIMIT",
       VISUAL_IP_DAILY_LIMIT_DEFAULT,

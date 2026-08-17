@@ -34,7 +34,7 @@ Gemini не критичен: timeout / 429 / 5xx / deny / пустой visual �
 | `SEARCH_VISUAL_GENERATION` | `1` | Active generation |
 | `SEARCH_VISUAL_TIMEOUT_MS` | `800` | Timeout query embed |
 | `SEARCH_VISUAL_TASK_PREFIX` | `1` | `task: search result \| query:` |
-| `GEMINI_EMBEDDING_USE_PROXY` | `0` | Proxy только после contract test |
+| `GEMINI_EMBEDDING_USE_PROXY` | `1` | Query/image embed через `GEMINI_PROXY_BASE_URL` |
 | `SEARCH_VISUAL_IP_DAILY_LIMIT` | `60` | Gemini-вызовы на IP/сутки |
 | `SEARCH_VISUAL_GLOBAL_DAILY_LIMIT` | `4000` | Глобальный бюджет/сутки |
 | `CRON_SECRET` | — | `POST /api/cron/visual-embeddings` |
