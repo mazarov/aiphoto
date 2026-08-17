@@ -154,7 +154,7 @@ export function HomepageExamplesExplorer({
             : `/api/listing?${new URLSearchParams({
                 [activeFilter!.dimension]: activeFilter!.slug,
                 limit: String(RESULT_LIMIT),
-                sort: "popular",
+                sort: isCatalog ? "popular" : "new",
                 strict: "1",
               })}`;
 
@@ -194,7 +194,7 @@ export function HomepageExamplesExplorer({
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [activeFilter, initialCards, query]);
+  }, [activeFilter, initialCards, isCatalog, query]);
 
   const allPromptsHref =
     query.trim().length >= 2

@@ -27,7 +27,7 @@ const getCachedSections = cache(async () => {
   }
 });
 
-const getCachedPopularCards = cache(async (): Promise<PromptCardFull[]> => {
+const getCachedNewCards = cache(async (): Promise<PromptCardFull[]> => {
   try {
     const result = await fetchRouteCards({
       audience_tag: null,
@@ -38,7 +38,7 @@ const getCachedPopularCards = cache(async (): Promise<PromptCardFull[]> => {
       limit: 16,
       offset: 0,
       min_cards: 1,
-      sort: "popular",
+      sort: "new",
     });
     const enriched = await enrichCardsWithDetails(result.cards);
     const cardsById = new Map(enriched.map((card) => [card.id, card]));
@@ -46,7 +46,7 @@ const getCachedPopularCards = cache(async (): Promise<PromptCardFull[]> => {
       .map((card) => cardsById.get(card.id))
       .filter((card): card is PromptCardFull => Boolean(card));
   } catch (err) {
-    console.error("[HomePage] fetch popular cards failed:", err);
+    console.error("[HomePage] fetch new cards failed:", err);
     return [];
   }
 });
@@ -77,18 +77,18 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function HomePage() {
-  const [sections, popularCards] = await Promise.all([
+  const [sections, newCards] = await Promise.all([
     getCachedSections(),
-    getCachedPopularCards(),
+    getCachedNewCards(),
   ]);
 
   const totalPrompts = sections.reduce((sum, s) => sum + s.total_count, 0);
   const totalCategories = sections.filter((s) => s.total_count > 0).length;
   const homeOgImage =
-    popularCards[0]?.photoUrls[0] ??
+    newCards[0]?.photoUrls[0] ??
     sections.find((s) => s.cards.length > 0)?.cards[0]?.photoUrl ??
     null;
-  const exampleCards = popularCards.map(toGenerationExampleCard);
+  const exampleCards = newCards.map(toGenerationExampleCard);
 
   const collectionPageLd = {
     "@context": "https://schema.org",

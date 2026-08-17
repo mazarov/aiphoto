@@ -1,5 +1,7 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-08-17 (**homepage examples sort:** блок «Готовые промты для ИИ-фотосессии» на `/` ранжирует `resolve_route_cards` / `/api/listing` по `sort=new` (`created_at DESC`), не `popular`. `/catalog` explorer без изменений — `sort=popular`.)
+>
 > Последнее обновление: 2026-08-16 (**search latency:** миграция `190_search_cards_text_fast_path.sql` убрала дублирующий fuzzy-scan длинных `prompt_variants`: тексты промтов уже входят в `prompt_cards.fts`. Поиск объединяет GIN FTS с trigram только по коротким заголовкам; API ограничивает запрос 160 символами, отдаёт `Server-Timing` и пишет `[search:slow]` без текста запроса. Все публичные search surfaces используют debounce 500 мс и отменяют устаревшие browser requests.)
 >
 > Последнее обновление: 2026-08-16 (**card viewer close:** свайп/стрелки соседей — `replace`, не `push`. Крестик закрывает весь просмотр (все snap-слайды = один экран), а не предыдущую карточку в истории. `goToNeighbor` игнорируется после close.)
@@ -48,7 +50,7 @@
 >
 > Последнее обновление: 2026-08-16 (**homepage footer:** `/` передаёт `showFooterWithGenerateDock` в `PageLayout`, чтобы общий `Footer` был виден вместе с generate dock — как на `/generaciya-foto` и `/foto-v-promt`.)
 >
-> Последнее обновление: 2026-08-16 (**homepage examples explorer:** `/` больше не показывает `HomeSearch` и `CategorySection`. После hero destinations — `HomepageExamplesExplorer`: popular-карточки, Wordstat-чипы + «Ещё», in-place `/api/search` и `/api/listing?sort=popular`. Клик по карточке открывает модалку (без «Повторить»). Новые тексты только в блоке (`HOMEPAGE_SEO.examplesTitle/Intro`); title/H1/intro/FAQ не менялись. `get_homepage_sections` остаётся для счётчиков, OG и JSON-LD `hasPart`; добавлен `ItemList` на 16 карточек. FAQ-якоря `#audience_tag` заменены на L1 / `#primery`.)
+> Последнее обновление: 2026-08-16 (**homepage examples explorer:** `/` больше не показывает `HomeSearch` и `CategorySection`. После hero destinations — `HomepageExamplesExplorer`: карточки `sort=new`, Wordstat-чипы + «Ещё», in-place `/api/search` и `/api/listing?sort=new`. Клик по карточке открывает модалку (без «Повторить»). Новые тексты только в блоке (`HOMEPAGE_SEO.examplesTitle/Intro`); title/H1/intro/FAQ не менялись. `get_homepage_sections` остаётся для счётчиков, OG и JSON-LD `hasPart`; добавлен `ItemList` на 16 карточек. FAQ-якоря `#audience_tag` заменены на L1 / `#primery`.)
 >
 > Последнее обновление: 2026-08-16 (**analyze quota GET window:** `readUsage` больше не сравнивает `window_start` строками. Postgres `+00:00` < JS `.000Z`, из-за этого GET `/api/extension/analyze/quota` для гостя всегда отдавал 10/10. Сравнение — `Date.parse`, как SQL timestamptz в reserve.)
 >
@@ -783,7 +785,7 @@ Fallback: если `code` пришёл на произвольную стран�
 ```
 fetchHomepageSections(siteLang)          ← RPC get_homepage_sections
   → счётчики hero, OG, JSON-LD hasPart
-fetchRouteCards({ sort: "popular", limit: 16 })
+fetchRouteCards({ sort: "new", limit: 16 })
   → enrichCardsWithDetails
   → HomepageExamplesExplorer
 ```
