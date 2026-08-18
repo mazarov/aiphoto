@@ -2,7 +2,7 @@ import { cache } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { PageLayout } from "@/components/PageLayout";
-import { CatalogWithFilters } from "@/components/CatalogWithFilters";
+import { CatalogExplorer } from "@/components/CatalogExplorer";
 import { ListingClusterChipGroup } from "@/components/ListingClusterChipGroup";
 import { ListingFotoVPromtBanner } from "@/components/foto-v-promt-promo/ListingFotoVPromtBanner";
 import {
@@ -31,6 +31,28 @@ const SITE_URL =
 const PAGE_URL = `${SITE_URL}${SOBYTIYA_1_SENTYABRYA_PATH}`;
 const seo = requireSeoContent(SOBYTIYA_1_SENTYABRYA_TAG);
 
+type SearchParams = {
+  audience?: string;
+  style?: string;
+  occasion?: string;
+  object?: string;
+  sort?: string;
+};
+
+type Props = {
+  searchParams?: Promise<SearchParams>;
+};
+
+function hasQueryFilters(searchParams: SearchParams | null | undefined): boolean {
+  if (!searchParams) return false;
+  return Boolean(
+    searchParams.audience ||
+      searchParams.style ||
+      searchParams.occasion ||
+      searchParams.object
+  );
+}
+
 const getPageCards = cache(async (): Promise<PromptCardFull[]> => {
   try {
     const hits = await searchCardsByText(
@@ -57,10 +79,14 @@ const getPageOgImage = cache(async (): Promise<string | null> => {
   }
 });
 
-export async function generateMetadata(): Promise<Metadata> {
+export async function generateMetadata({
+  searchParams,
+}: Props): Promise<Metadata> {
+  const qs = await searchParams;
   const cards = await getPageCards();
   const ogImage = await getPageOgImage();
-  const shouldIndex = cards.length >= getMinCardsForLevel(1);
+  const shouldIndex =
+    !hasQueryFilters(qs) && cards.length >= getMinCardsForLevel(1);
 
   return {
     title: seo.metaTitle,
@@ -164,7 +190,10 @@ function BreadcrumbSeparator() {
   );
 }
 
-export default async function Sobytiya1SentyabryaPage() {
+export default async function Sobytiya1SentyabryaPage({
+  searchParams,
+}: Props) {
+  await searchParams;
   const cards = await getPageCards();
   const ogImage = cards[0]?.photoUrls[0] || (await getPageOgImage());
   const schemas = buildJsonLd(ogImage);
@@ -201,7 +230,7 @@ export default async function Sobytiya1SentyabryaPage() {
 
       <main className="listing-main-bottom-pad w-full flex-1 px-2 pb-8 sm:px-5">
         <section aria-labelledby="listing-explorer-heading">
-          <CatalogWithFilters
+          <CatalogExplorer
             initialCards={cards}
             totalCount={cards.length}
             initialRankedBatchSize={cards.length}

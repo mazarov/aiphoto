@@ -8,7 +8,7 @@ import {
   type RouteCardsResult,
   type PromptCardFull,
 } from "@/lib/supabase";
-import { CatalogWithFilters } from "@/components/CatalogWithFilters";
+import { CatalogExplorer } from "@/components/CatalogExplorer";
 import { PageLayout } from "@/components/PageLayout";
 import { LISTING_SSR_INITIAL_LIMIT } from "@/lib/listing-pagination";
 import {
@@ -239,7 +239,7 @@ export default async function TrendsPage({ searchParams }: Props) {
 
       <main className="listing-main-bottom-pad w-full flex-1 px-2 pt-5 pb-8 sm:px-5">
         <section aria-labelledby="listing-explorer-heading">
-          <CatalogWithFilters
+          <CatalogExplorer
             initialCards={cards}
             totalCount={totalCount}
             initialRankedBatchSize={result.cards_count}

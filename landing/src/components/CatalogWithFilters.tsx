@@ -37,7 +37,7 @@ function stableListingKey(r: Record<string, string | null>, sort: ListingSort): 
   return `${JSON.stringify(norm)}|${sort}`;
 }
 
-type Props = {
+export type CatalogWithFiltersProps = {
   initialCards: PromptCardFull[];
   totalCount: number;
   /** Ranked rows returned by resolve_route_cards for the first page (before sibling expansion). */
@@ -71,7 +71,7 @@ export function CatalogWithFilters({
   introSecondary,
   fixedSort,
   preGrid,
-}: Props) {
+}: CatalogWithFiltersProps) {
   const [filterPanelOpen, setFilterPanelOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [searchCards, setSearchCards] = useState<PromptCardFull[] | null>(null);

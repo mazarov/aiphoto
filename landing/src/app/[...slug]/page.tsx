@@ -10,7 +10,7 @@ import {
   type PromptCardFull,
 } from "@/lib/supabase";
 import { parseListingSort } from "@/lib/listing-sort";
-import { CatalogWithFilters } from "@/components/CatalogWithFilters";
+import { CatalogExplorer } from "@/components/CatalogExplorer";
 import { ListingClusterChipGroup } from "@/components/ListingClusterChipGroup";
 import { PageLayout } from "@/components/PageLayout";
 import {
@@ -568,7 +568,7 @@ export default async function TagPage({ params, searchParams }: Props) {
 
       <main className="listing-main-bottom-pad w-full flex-1 px-2 pb-8 sm:px-5">
         <section aria-labelledby="listing-explorer-heading">
-          <CatalogWithFilters
+          <CatalogExplorer
             initialCards={cards}
             totalCount={totalCount}
             initialRankedBatchSize={result.cards_count}
