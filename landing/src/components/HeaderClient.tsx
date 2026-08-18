@@ -62,9 +62,9 @@ export function HeaderClient() {
       className={`listing-mobile-header sticky top-0 z-40 shrink-0 lg:hidden ${LISTING_NAV_SHELL_SURFACE}`}
     >
       <div
-        className={`grid grid-cols-[auto_1fr_auto] items-center gap-2 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] ${LISTING_MOBILE_CHROME_INSET}`}
+        className={`relative grid grid-cols-[auto_1fr_auto] items-center gap-2 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] ${LISTING_MOBILE_CHROME_INSET}`}
       >
-        <div className="flex shrink-0 justify-start">
+        <div className="relative z-10 flex shrink-0 justify-start">
           <ListingChromeButton
             variant="icon-sm"
             onClick={openMenu}
@@ -73,12 +73,7 @@ export function HeaderClient() {
             <ListingMenuIcon className="h-5 w-5" />
           </ListingChromeButton>
         </div>
-        <div className="relative min-h-10 min-w-0">
-          <SiteBrandLink
-            className={`min-w-0 justify-center gap-1.5 transition-opacity duration-200 ${
-              searchPinned ? "pointer-events-none opacity-0" : "opacity-100"
-            }`}
-          />
+        <div className="relative z-10 min-h-10 min-w-0">
           {isCatalog && catalogSearch ? (
             <div
               className={`absolute inset-y-0 left-0 right-0 flex items-center transition-all duration-200 ${
@@ -101,7 +96,7 @@ export function HeaderClient() {
             </div>
           ) : null}
         </div>
-        <div className="flex min-w-0 shrink-0 items-center justify-end">
+        <div className="relative z-10 flex min-w-0 shrink-0 items-center justify-end">
           {loading ? (
             <div className="h-10 w-10" aria-hidden />
           ) : isAuthed ? (
@@ -109,6 +104,17 @@ export function HeaderClient() {
           ) : (
             <div className="h-10 w-10" aria-hidden />
           )}
+        </div>
+        <div
+          className={`pointer-events-none absolute inset-x-0 top-[max(0.75rem,env(safe-area-inset-top))] bottom-3 z-[1] flex items-center justify-center transition-opacity duration-200 ${
+            searchPinned ? "opacity-0" : "opacity-100"
+          }`}
+        >
+          <SiteBrandLink
+            className={`min-w-0 justify-center gap-1.5 ${
+              searchPinned ? "pointer-events-none" : "pointer-events-auto"
+            }`}
+          />
         </div>
       </div>
     </header>
