@@ -1,5 +1,7 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-08-18 (**embedding after publish:** общий `publishPromptCard` покрывает analyze/admin/user-generation/visibility publish routes: DB trigger создаёт visual job, а Next `after()` best-effort обрабатывает один job после HTTP-ответа. Ошибка Gemini не откатывает публикацию; `/api/cron/visual-embeddings` остаётся обязательным retry/backlog consumer.)
+>
 > Последнее обновление: 2026-08-17 (**search filters before rank:** `/search` передаёт `audience/style/occasion/object` в `/api/search`; overload-RPC из миграции `194` ограничивают text и visual candidates по `seo_tags` до hybrid ranking и pagination. Client-side проверка остаётся защитной, но больше не формирует выборку из обрезанного top-N.)
 >
 > Последнее обновление: 2026-08-17 (**SEO-сценарии генерации фото:** `/generaciya-foto/[scenario]` обслуживает allowlist из 22 страниц: все 20 популярных чипов хаба плюс портрет и аниме. SSOT маршрутов/тегов — `generaciya-foto-routes.ts`, copy/FAQ/HowTo — `generaciya-foto-scenario-copy.ts`. Начальная SSR-выдача содержит до 16 карточек только своего тега; поле поиска от 2 символов может временно заменить её результатами `/api/search`, очистка возвращает тематическую выдачу. Чипы не меняют фильтр in-place, а ведут на `/generaciya-foto/*`. Self-canonical и JSON-LD; `index` и sitemap включаются от 8 карточек. Blank Generate Dock разрешён только для allowlist.)

@@ -1,5 +1,7 @@
 # 03 — Пайплайн: парсинг → загрузка → публикация
 
+> Последнее обновление: 2026-08-18 (**publish embedding kick:** общий `publishPromptCard` после commit идемпотентно enqueue-ит карточку и через Next `after()` обрабатывает один visual embedding job. Это покрывает analyze/admin/user-generation visibility flows без задержки HTTP-ответа; recurring cron остаётся source of truth для retry/backlog.)
+>
 > Последнее обновление: 2026-08-17 (**visual embeddings via Gemini proxy:** backfill/cron `embedContent` через `GEMINI_PROXY_BASE_URL`, если задан. Прямой Google из РФ даёт `FAILED_PRECONDITION`.)
 >
 > Последнее обновление: 2026-08-17 (**visual embeddings:** после publish каноническое фото ставится в `prompt_card_visual_embedding_jobs` (SQL `192`). Индексация асинхронная: cron `POST /api/cron/visual-embeddings` или standalone `src/standalone/backfill-card-image-embeddings.mjs`. Публикация Gemini не ждёт.)
@@ -55,7 +57,8 @@
 │                                                                  │
 │  11. UPDATE prompt_cards SET is_published = true                  │
 │      WHERE source_dataset_slug = '<slug>'                        │
-│  12. visual embeddings: trigger → jobs; cron/standalone backfill  │
+│  12. visual embeddings: trigger → job → publish after() kick      │
+│      cron/standalone остаются retry/backlog consumer              │
 └──────────────────────────────────────────────────────────────────┘
 ```
 

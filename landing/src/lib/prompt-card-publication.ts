@@ -1,8 +1,10 @@
 import "server-only";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { classifySeoTagsForPublish } from "@/lib/seo-tags-classify";
+import { processPublishedCardEmbedding } from "@/lib/visual-embedding-publish";
 
 export type PromptCardPublicationResult = {
   cardId: string;
@@ -11,6 +13,31 @@ export type PromptCardPublicationResult = {
   alreadyPublished: boolean;
   seoReadinessScore: number | null;
 };
+
+function scheduleVisualEmbeddingProcessing(
+  supabase: SupabaseClient,
+  cardId: string,
+): void {
+  after(async () => {
+    try {
+      const result = await processPublishedCardEmbedding({
+        supabase,
+        cardId,
+      });
+      console.info("[visual-embeddings] publish kick completed", {
+        cardId,
+        ...result,
+      });
+    } catch (error) {
+      // Publication is already committed. The recurring cron remains the
+      // source of truth for retrying pending embedding jobs.
+      console.warn("[visual-embeddings] publish kick failed", {
+        cardId,
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  });
+}
 
 export async function publishPromptCard(
   supabase: SupabaseClient,
@@ -30,6 +57,7 @@ export async function publishPromptCard(
   }
 
   if (card.is_published) {
+    scheduleVisualEmbeddingProcessing(supabase, card.id as string);
     return {
       cardId: card.id as string,
       slug: card.slug as string,
@@ -98,6 +126,7 @@ export async function publishPromptCard(
   const slug = card.slug as string;
   revalidatePath(`/p/${slug}`);
   revalidatePath("/sitemap.xml");
+  scheduleVisualEmbeddingProcessing(supabase, card.id as string);
 
   return {
     cardId: card.id as string,
