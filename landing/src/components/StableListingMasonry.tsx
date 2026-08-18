@@ -85,39 +85,41 @@ export function StableListingMasonry({
       aria-busy={loading || undefined}
       data-masonry-pages={cardPages.length}
     >
-      {cards.map((card, index) => {
-        const example = toGenerationExampleCard(card);
-        const mobile = layouts.mobile.placements[index];
-        const tablet = layouts.tablet.placements[index];
-        const desktop = layouts.desktop.placements[index];
-        const itemStyle: ItemCustomProperties = {
-          "--masonry-left-2": mobile.left,
-          "--masonry-top-2": mobile.top,
-          "--masonry-width-2": mobile.width,
-          "--masonry-left-3": tablet.left,
-          "--masonry-top-3": tablet.top,
-          "--masonry-width-3": tablet.width,
-          "--masonry-left-4": desktop.left,
-          "--masonry-top-4": desktop.top,
-          "--masonry-width-4": desktop.width,
-        };
+      <div className="stable-listing-masonry-canvas">
+        {cards.map((card, index) => {
+          const example = toGenerationExampleCard(card);
+          const mobile = layouts.mobile.placements[index];
+          const tablet = layouts.tablet.placements[index];
+          const desktop = layouts.desktop.placements[index];
+          const itemStyle: ItemCustomProperties = {
+            "--masonry-left-2": mobile.left,
+            "--masonry-top-2": mobile.top,
+            "--masonry-width-2": mobile.width,
+            "--masonry-left-3": tablet.left,
+            "--masonry-top-3": tablet.top,
+            "--masonry-width-3": tablet.width,
+            "--masonry-left-4": desktop.left,
+            "--masonry-top-4": desktop.top,
+            "--masonry-width-4": desktop.width,
+          };
 
-        return (
-          <div
-            key={card.id}
-            className="stable-listing-masonry-item"
-            data-listing-fill-item=""
-            style={itemStyle}
-          >
-            <ListingPhotoTile
-              card={example}
-              aspectRatio={aspects[index]}
-              priority={index < lcpPriorityCount}
-              debugOverlay={debugOverlay?.(card)}
-            />
-          </div>
-        );
-      })}
+          return (
+            <div
+              key={card.id}
+              className="stable-listing-masonry-item"
+              data-listing-fill-item=""
+              style={itemStyle}
+            >
+              <ListingPhotoTile
+                card={example}
+                aspectRatio={aspects[index]}
+                priority={index < lcpPriorityCount}
+                debugOverlay={debugOverlay?.(card)}
+              />
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

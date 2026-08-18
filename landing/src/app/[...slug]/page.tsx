@@ -632,28 +632,15 @@ export default async function TagPage({ params, searchParams }: Props) {
         {l2ChipGroupsBelow.length > 0 && (
           <section className="mt-12 space-y-4">
             {l2ChipGroupsBelow.map((group) => (
-              <div key={group.dimension}>
-                <p className="mb-2 text-xs font-medium uppercase tracking-wider text-zinc-600">
-                  {group.label}
-                </p>
-                <div className="flex flex-wrap gap-1.5">
-                  {group.chips.map((chip) => (
-                    <Link
-                      key={chip.tag.slug}
-                      href={chip.href}
-                      scroll={false}
-                      className="inline-flex items-center gap-1.5 rounded-full border border-zinc-200 bg-white px-3 py-1.5 text-sm text-zinc-600 transition-colors hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700"
-                    >
-                      {chip.tag.labelRu}
-                      {chip.count != null && chip.count > 0 ? (
-                        <span className="text-[11px] tabular-nums text-zinc-500">
-                          {chip.count}
-                        </span>
-                      ) : null}
-                    </Link>
-                  ))}
-                </div>
-              </div>
+              <ListingClusterChipGroup
+                key={group.dimension}
+                label={group.label}
+                items={group.chips.map((chip) => ({
+                  label: chip.tag.labelRu,
+                  href: chip.href,
+                  count: chip.count,
+                }))}
+              />
             ))}
           </section>
         )}

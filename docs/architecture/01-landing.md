@@ -1,5 +1,9 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-08-18 (**stable masonry cqw split:** `StableListingMasonry` держит `container-type: inline-size` на внешней обёртке, а `height: *cqw` — на внутреннем `.stable-listing-masonry-canvas`. Иначе браузер считает `cqw` высоты от viewport, и под последним рядом карточек остаётся пустой хвост внутри explorer-рамки.)
+>
+> Последнее обновление: 2026-08-18 (**cluster chips «Ещё»:** `ListingClusterChipGroup` сравнивает `scrollHeight` с высотой 3 строк (`chipHeight * 3 + gap * 2`). Тот же компонент стоит над masonry и в L2-группах под сеткой.)
+>
 > Последнее обновление: 2026-08-18 (**search listing position:** `/search` не перезапускает выдачу при `pushState /p/slug`. Next 15 синхронизирует overlay в `useSearchParams` (пустой `q`) — `resolveSearchUrlSync` игнорирует overlay, snapshot (`search-listing-session.ts`) ключуется `searchRequestKey` и переживает remount, `resetListingScroll()` только на новый запрос/фильтр. `useListingFilters` замораживает query-фильтры на overlay.)
 >
 > Последнее обновление: 2026-08-18 (**cluster chips above grid:** на L1 «Люди и отношения», «Стили», «Сцены и объекты» и `/sobytiya/*` перелинковка внутри кластера — над masonry (`getClusterChipNavigation` + `preGrid`). Если чипы занимают больше 3 строк, `ListingClusterChipGroup` показывает «Ещё». Тексты страниц не менялись.)
@@ -932,7 +936,7 @@ SearchResults (client, infinite scroll)
 | ListingExplorerFrame | `components/ListingExplorerFrame.tsx` | Общая рамка блока как на главной (градиент, скругление) |
 | ListingExplorerSearch | `components/ListingExplorerSearch.tsx` | Поле поиска + SEO-заголовок/intro внутри рамки |
 | ListingMasonry | `components/ListingMasonry.tsx` | SSOT CSS-columns сетки промтов (`columns-2/3/4`) + skeleton |
-| StableListingMasonry | `components/StableListingMasonry.tsx` | Infinite masonry: детерминированные 2/3/4 lanes без reflow prefix и дыр между порциями |
+| StableListingMasonry | `components/StableListingMasonry.tsx` | Infinite masonry: детерминированные 2/3/4 lanes без reflow prefix и дыр между порциями. Query container и `height: *cqw` — разные узлы (`.stable-listing-masonry` / `.stable-listing-masonry-canvas`) |
 | ListingPhotoTile | `components/ListingPhotoTile.tsx` | Плитка листинга: первое фото, живой aspect, клик → модалка; опционально «Повторить» |
 | listing-masonry | `lib/listing-masonry.ts` | Классы колонок и `listingPhotoAspectRatio` (DB width/height, иначе rotating fallback) |
 | PromptCard | `components/PromptCard.tsx` | Legacy chrome-карточка 3:4; публичные ленты больше не используют |
