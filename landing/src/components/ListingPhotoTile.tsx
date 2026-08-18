@@ -15,8 +15,6 @@ type Props = {
   aspectRatio: number;
   priority?: boolean;
   debugOverlay?: ReactNode;
-  repeating?: boolean;
-  onRepeat?: (card: GenerationExampleCard) => void;
 };
 
 export function ListingPhotoTile({
@@ -24,11 +22,8 @@ export function ListingPhotoTile({
   aspectRatio,
   priority = false,
   debugOverlay,
-  repeating = false,
-  onRepeat,
 }: Props) {
   const { open, prefetchCard } = usePromptCardModal();
-  const showRepeat = Boolean(onRepeat && card.hasPrompt);
 
   return (
     <article
@@ -71,29 +66,6 @@ export function ListingPhotoTile({
           });
         }}
       />
-
-      {showRepeat ? (
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-zinc-950/65 to-transparent px-3.5 pb-3.5 pt-14 opacity-0 transition group-hover:opacity-100 group-focus-within:opacity-100">
-          <button
-            type="button"
-            disabled={repeating}
-            onClick={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              onRepeat?.(card);
-            }}
-            className="pointer-events-auto inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-500 via-[#5b5cf0] to-violet-500 px-4 text-sm font-semibold text-white shadow-lg shadow-indigo-950/25 transition hover:brightness-110 active:scale-[0.98] disabled:cursor-wait disabled:opacity-75"
-          >
-            {repeating ? (
-              <span
-                className="h-4 w-4 animate-spin rounded-full border-2 border-white/35 border-t-white"
-                aria-hidden
-              />
-            ) : null}
-            {repeating ? "Открываем…" : "Повторить"}
-          </button>
-        </div>
-      ) : null}
     </article>
   );
 }

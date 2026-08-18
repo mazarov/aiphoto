@@ -4,8 +4,6 @@ import Link from "next/link";
 import { useEffect, useLayoutEffect, useState } from "react";
 import { ListingMasonry, ListingMasonryItem } from "@/components/ListingMasonry";
 import { ListingPhotoTile } from "@/components/ListingPhotoTile";
-import { useAuth } from "@/context/AuthContext";
-import { useGenerateDock } from "@/context/GenerateDockContext";
 import {
   type GenerationExampleCard,
   toGenerationExampleCard,
@@ -56,10 +54,7 @@ export function GeneraciyaFotoExamplesExplorer({
   const [activeFilter, setActiveFilter] = useState<QuickFilter | null>(null);
   const [cards, setCards] = useState(initialCards);
   const [loading, setLoading] = useState(false);
-  const [repeatingCardId, setRepeatingCardId] = useState<string | null>(null);
   const [error, setError] = useState("");
-  const { user, openAuthModal } = useAuth();
-  const { seedFromCard } = useGenerateDock();
   const usesScenarioNavigation = Boolean(scenarioNavigation?.length);
   const lockedToScenario = usesScenarioNavigation && lockCardsToScenario;
 
@@ -144,38 +139,6 @@ export function GeneraciyaFotoExamplesExplorer({
       controller.abort();
     };
   }, [activeFilter, initialCards, lockedToScenario, query]);
-
-  const repeatCard = async (card: GenerationExampleCard) => {
-    if (!user || user.is_anonymous === true) {
-      openAuthModal();
-      return;
-    }
-
-    setRepeatingCardId(card.id);
-    setError("");
-    try {
-      const response = await fetch(`/api/card/${encodeURIComponent(card.slug)}`, {
-        credentials: "include",
-      });
-      if (!response.ok) throw new Error("card_fetch_failed");
-      const payload = (await response.json()) as {
-        data?: { promptTexts?: string[] };
-      };
-      const promptText = (payload.data?.promptTexts ?? [])
-        .filter((prompt) => prompt.trim())
-        .join("\n\n");
-      if (!promptText) throw new Error("prompt_missing");
-
-      seedFromCard(
-        { promptText, cardId: card.id },
-        { entrySource: "card" }
-      );
-    } catch {
-      setError("Не удалось открыть промт. Попробуйте ещё раз.");
-    } finally {
-      setRepeatingCardId(null);
-    }
-  };
 
   const allPromptsHref =
     query.trim().length >= 2
@@ -309,8 +272,6 @@ export function GeneraciyaFotoExamplesExplorer({
             <ListingMasonryItem key={card.id}>
               <ListingPhotoTile
                 card={card}
-                repeating={repeatingCardId === card.id}
-                onRepeat={repeatCard}
                 aspectRatio={listingPhotoAspectRatio(
                   card.photoWidth,
                   card.photoHeight,
