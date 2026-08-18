@@ -89,7 +89,7 @@ export function ClientPricingModal() {
     >
       <div
         data-pricing-modal-surface
-        className="relative flex min-h-0 w-full max-w-[36rem] flex-col max-h-[calc(100dvh-1.5rem)] sm:max-h-[min(94dvh,60rem)]"
+        className="relative flex h-[calc(100dvh-1.5rem)] min-h-0 w-full max-w-[36rem] flex-col sm:h-[min(94dvh,60rem)]"
       >
         <button
           type="button"
@@ -101,7 +101,7 @@ export function ClientPricingModal() {
             <path d="M18 6L6 18M6 6l12 12" />
           </svg>
         </button>
-        <div className="min-h-0 max-h-[calc(100dvh-1.5rem)] flex-1 overflow-y-auto overscroll-contain rounded-[28px] bg-white shadow-2xl sm:max-h-[min(94dvh,60rem)]">
+        <div className="h-full min-h-0 flex-1 overflow-hidden rounded-[28px] bg-white shadow-2xl">
           <PricingScreen
             variant="modal"
             paywallVariant={paywallVariant}

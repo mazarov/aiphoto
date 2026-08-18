@@ -21,6 +21,29 @@ html {
   }
 }
 
+/*
+ * Compact paywall overrides live in the utilities layer so they outrank the
+ * component's regular spacing/grid utilities without !important.
+ */
+@layer utilities {
+  @media (max-height: 720px) {
+    .pricing-paywall-body {
+      padding-top: 0.75rem;
+    }
+
+    .pricing-paywall-plan {
+      min-height: 6.125rem;
+      padding-top: 0.5rem;
+      padding-bottom: 0.5rem;
+    }
+
+    .pricing-paywall-secondary,
+    .pricing-paywall-legal {
+      display: none;
+    }
+  }
+}
+
 /* Catalog shell scrolls inside this node on mobile — programmatic jumps must be instant. */
 #listing-scroll-root {
   scroll-behavior: auto;
@@ -436,6 +459,73 @@ p {
  * opacity is 0 — hits would not reach the card Link (`listing-card-chrome-target` is auto only here).
  */
 @layer components {
+  /**
+   * Pricing paywall layout contract.
+   * One bounded shell owns viewport sizing; only offer details scroll.
+   * Hero and purchase CTA never participate in that scroll.
+   */
+  .pricing-paywall-shell[data-mode="modal"] {
+    height: 100%;
+    max-height: 100%;
+  }
+
+  .pricing-paywall-shell[data-mode="page"] {
+    height: calc(100dvh - var(--ps-header-height, 57px) - 3rem);
+    max-height: 60rem;
+  }
+
+  .pricing-paywall-hero {
+    flex: 0 0 clamp(12rem, 26dvh, 14rem);
+  }
+
+  .pricing-paywall-body {
+    min-height: 0;
+    flex: 1 1 auto;
+  }
+
+  @media (max-width: 1023px) {
+    .pricing-paywall-shell[data-mode="page"] {
+      height: calc(
+        100dvh - var(--ps-header-height, 57px) - 6.5rem -
+          max(0px, env(safe-area-inset-bottom, 0px))
+      );
+    }
+  }
+
+  @media (max-height: 720px) {
+    .pricing-paywall-hero {
+      flex-basis: 12rem;
+    }
+
+    .pricing-paywall-body {
+      margin-top: -4rem;
+      border-radius: 1.5rem 1.5rem 0 0;
+      background: rgb(255 255 255 / 0.95);
+      padding-top: 0.75rem;
+      backdrop-filter: blur(12px);
+    }
+
+    .pricing-paywall-plan {
+      min-height: 6.125rem;
+      padding-top: 0.5rem;
+      padding-bottom: 0.5rem;
+    }
+
+    .pricing-paywall-secondary {
+      display: none;
+    }
+  }
+
+  @media (max-height: 620px) {
+    .pricing-paywall-hero {
+      display: none;
+    }
+
+    .pricing-paywall-body {
+      margin-top: 0;
+    }
+  }
+
   /**
    * Primary action on the desktop prompt detail panel.
    * Two background layers keep the brand gradient stable while a restrained

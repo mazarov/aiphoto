@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import Link from "next/link";
 import {
   getDefaultPricingPlanId,
@@ -145,29 +151,26 @@ function PaywallPlanCard({
       disabled={disabled}
       onClick={() => onSelect(plan)}
       className={[
-        "relative flex min-h-[98px] min-w-0 flex-col items-start justify-center rounded-xl border bg-white/90 px-3 py-3 text-left shadow-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-indigo-400 disabled:cursor-wait disabled:opacity-60 sm:min-h-[102px] sm:px-4",
+        "pricing-paywall-plan relative flex min-h-[98px] min-w-0 flex-col items-start justify-center rounded-xl border bg-white/90 px-3 py-3 text-left shadow-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-indigo-400 disabled:cursor-wait disabled:opacity-60 sm:min-h-[102px] sm:px-4",
         selected
           ? "border-indigo-500 ring-1 ring-indigo-500"
-          : "border-zinc-200 hover:border-indigo-300",
+          : plan.badge
+            ? "border-indigo-200 bg-indigo-50/60 hover:border-indigo-400"
+            : "border-zinc-200 hover:border-indigo-300",
       ].join(" ")}
     >
-      <div className="flex w-full min-w-0 items-center gap-1.5 pr-7">
-        <h2 id={headingId} className="shrink-0 text-xl font-bold tracking-tight text-zinc-950 sm:text-2xl">
-          {rubles.format(plan.price)} ₽
-        </h2>
-        {plan.badge ? (
+      {plan.badge ? (
+        <>
           <span
-            className={[
-              "min-w-0 truncate rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none sm:px-2 sm:text-xs",
-              plan.id === "max"
-                ? "bg-emerald-400/15 text-emerald-300 ring-1 ring-emerald-400/30"
-                : "bg-sky-400/15 text-sky-300 ring-1 ring-sky-400/30",
-            ].join(" ")}
-          >
-            {plan.badge}
-          </span>
-        ) : null}
-      </div>
+            className="absolute inset-x-3 top-0 h-1 rounded-b-full bg-indigo-500"
+            aria-hidden
+          />
+          <span className="sr-only">{plan.badge}</span>
+        </>
+      ) : null}
+      <h2 id={headingId} className="shrink-0 text-xl font-bold tracking-tight text-zinc-950 sm:text-2xl">
+        {rubles.format(plan.price)} ₽
+      </h2>
       <div className="mt-1.5 flex items-center gap-1 text-sm text-zinc-500 sm:text-base">
         <TokenIcon />
         <span>{rubles.format(plan.credits)} токенов</span>
@@ -192,8 +195,10 @@ function PaywallPlanCard({
 
 export function PricingCards({
   variant,
+  legalFooter,
 }: {
   variant: PricingPaywallVariant;
+  legalFooter?: ReactNode;
 }) {
   const { user, loading: authLoading, openAuthModal } = useAuth();
   const { closeWithoutHistory } = usePricingModal();
@@ -370,24 +375,25 @@ export function PricingCards({
     ) : null;
 
   return (
-    <>
-      <div
-        className="grid w-full min-w-0 grid-cols-2 gap-2 sm:gap-3"
-        role="radiogroup"
-        aria-label="Выберите пакет токенов"
-      >
-        {plans.map((plan) => (
-          <PaywallPlanCard
-            key={plan.id}
-            plan={plan}
-            selected={plan.id === selectedPlan.id}
-            onSelect={(nextPlan) => setSelectedPlanId(nextPlan.id)}
-            disabled={checkout.kind === "creating"}
-          />
-        ))}
-      </div>
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1">
+        <div
+          className="grid w-full min-w-0 grid-cols-2 gap-2 sm:gap-3"
+          role="radiogroup"
+          aria-label="Выберите пакет токенов"
+        >
+          {plans.map((plan) => (
+            <PaywallPlanCard
+              key={plan.id}
+              plan={plan}
+              selected={plan.id === selectedPlan.id}
+              onSelect={(nextPlan) => setSelectedPlanId(nextPlan.id)}
+              disabled={checkout.kind === "creating"}
+            />
+          ))}
+        </div>
 
-      <div className="mt-4 grid grid-cols-3 rounded-xl border border-zinc-100 bg-zinc-50/90 px-2 py-2.5 text-center">
+        <div className="pricing-paywall-secondary mt-4 grid grid-cols-3 rounded-xl border border-zinc-100 bg-zinc-50/90 px-2 py-2.5 text-center">
         <div className="px-1">
           <strong className="block text-xs font-semibold text-zinc-900 sm:text-sm">
             Разовая
@@ -412,9 +418,12 @@ export function PricingCards({
             и автосписаний
           </span>
         </div>
-      </div>
+        </div>
 
-      <section className="mt-4" aria-labelledby="pricing-benefits-heading">
+        <section
+          className="pricing-paywall-secondary mt-4 pb-1"
+          aria-labelledby="pricing-benefits-heading"
+        >
         <h2
           id="pricing-benefits-heading"
           className="text-base font-semibold text-zinc-950 sm:text-lg"
@@ -460,13 +469,15 @@ export function PricingCards({
             <span>Без водяных знаков</span>
           </li>
         </ul>
-      </section>
+        </section>
+        <div className="pricing-paywall-legal">{legalFooter}</div>
+      </div>
 
       <button
         type="button"
         onClick={() => selectPlan(selectedPlan)}
         disabled={checkout.kind === "creating" || authLoading}
-        className="mt-5 inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-indigo-600 via-[#5b5cf0] to-violet-500 px-5 text-base font-bold text-white shadow-lg shadow-indigo-500/25 transition hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:cursor-wait disabled:opacity-65 sm:text-lg"
+        className="relative z-20 mt-3 inline-flex min-h-14 w-full shrink-0 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-indigo-600 via-[#5b5cf0] to-violet-500 px-5 text-base font-bold text-white shadow-lg shadow-indigo-500/25 transition hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:cursor-wait disabled:opacity-65 sm:text-lg"
       >
         <TokenIcon />
         <span>
@@ -477,6 +488,6 @@ export function PricingCards({
       </button>
 
       {checkoutNotice}
-    </>
+    </div>
   );
 }

@@ -52,13 +52,14 @@ function CompactPricingScreen({
 }) {
   const paywall = (
     <main
-      className="relative isolate flex min-h-0 w-full max-w-[36rem] flex-col overflow-x-hidden rounded-[28px] border border-indigo-100/80 bg-white text-zinc-900 shadow-[0_30px_90px_-38px_rgba(79,70,229,0.42)]"
+      data-mode={isModal ? "modal" : "page"}
+      className="pricing-paywall-shell relative isolate flex min-h-0 w-full max-w-[36rem] flex-col overflow-hidden rounded-[28px] border border-indigo-100/80 bg-white text-zinc-900 shadow-[0_30px_90px_-38px_rgba(79,70,229,0.42)]"
     >
       <div
         className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[440px] bg-[radial-gradient(ellipse_75%_65%_at_50%_0%,rgba(99,102,241,0.13),rgba(139,92,246,0.035)_52%,transparent_78%)]"
         aria-hidden
       />
-      <div className="relative m-2 mb-0 h-52 shrink-0 overflow-hidden rounded-[22px] bg-zinc-100 sm:h-56">
+      <div className="pricing-paywall-hero relative m-2 mb-0 shrink-0 overflow-hidden rounded-[22px] bg-zinc-100">
         <Image
           src="/pricing/paywall-hero-v2.jpg"
           alt="Примеры индивидуальной, семейной и парной ИИ-фотосессии"
@@ -85,12 +86,16 @@ function CompactPricingScreen({
         <div className="absolute inset-0 ring-1 ring-inset ring-black/5" />
       </div>
 
-      <div className="relative z-10 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4 sm:px-6 sm:pb-6 sm:pt-5">
-        <section aria-label="Пакеты токенов">
-          <PricingCards variant={paywallVariant} />
+      <div className="pricing-paywall-body relative z-10 flex min-h-0 flex-1 flex-col overflow-hidden px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4 sm:px-6 sm:pb-6 sm:pt-5">
+        <section
+          className="flex min-h-0 flex-1 flex-col"
+          aria-label="Пакеты токенов"
+        >
+          <PricingCards
+            variant={paywallVariant}
+            legalFooter={<LegalFooter />}
+          />
         </section>
-
-        <LegalFooter />
       </div>
     </main>
   );

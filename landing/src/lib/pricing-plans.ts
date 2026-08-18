@@ -53,7 +53,6 @@ export const CONTROL_PRICING_PLANS: readonly PricingPlan[] = [
     tagline: "Чтобы попробовать PromptShot",
     price: 199,
     credits: 70,
-    badge: "Пробный",
     ctaLabel: "Попробовать",
   },
   {
@@ -93,7 +92,6 @@ export const TREATMENT_PRICING_PLANS: readonly PricingPlan[] = [
     tagline: "Чтобы попробовать PromptShot",
     price: 99,
     credits: 30,
-    badge: "Пробный",
     ctaLabel: "Получить 30 токенов",
   },
   {
