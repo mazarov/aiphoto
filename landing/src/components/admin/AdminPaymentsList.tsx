@@ -21,6 +21,7 @@ type Payment = {
   status: "created" | "pending" | "succeeded" | "canceled";
   providerStatus: string | null;
   test: boolean | null;
+  paywallVariant: "control" | "treatment" | null;
   creditedAt: string | null;
   creditState: "credited" | "not_due" | "discrepancy" | "stale";
 };
@@ -43,6 +44,12 @@ const statusClass: Record<Payment["status"], string> = {
   canceled: "bg-red-100 text-red-700",
 };
 const shortId = (value: string) => `${value.slice(0, 8)}…`;
+const paywallLabel = (variant: Payment["paywallVariant"]) =>
+  variant === "control"
+    ? "A · старый"
+    : variant === "treatment"
+      ? "B · новый"
+      : "Не определён";
 
 export function AdminPaymentsList() {
   const { user, openAuthModal } = useAuth();
@@ -189,11 +196,12 @@ export function AdminPaymentsList() {
         Оплат пока нет
       </div>
       : <div className="overflow-x-auto rounded-2xl border border-zinc-200 bg-white shadow-sm">
-        <table className="w-full min-w-[1120px] text-left text-sm">
+        <table className="w-full min-w-[1220px] text-left text-sm">
           <thead className="bg-zinc-50 text-xs uppercase tracking-wide text-zinc-500">
             <tr>
               <th className="px-4 py-3">Дата / плательщик</th>
               <th className="px-4 py-3">Тариф</th>
+              <th className="px-4 py-3">Пейвол</th>
               <th className="px-4 py-3">Сумма</th>
               <th className="px-4 py-3">Статус</th>
               <th className="px-4 py-3">Кредиты</th>
@@ -213,6 +221,18 @@ export function AdminPaymentsList() {
               </p>}
             </td>
             <td className="px-4 py-4 font-medium text-zinc-800">{item.planId}</td>
+            <td className="px-4 py-4">
+              <span className={[
+                "inline-flex rounded-full px-2 py-1 text-xs font-semibold",
+                item.paywallVariant === "treatment"
+                  ? "bg-indigo-100 text-indigo-700"
+                  : item.paywallVariant === "control"
+                    ? "bg-zinc-100 text-zinc-700"
+                    : "bg-amber-50 text-amber-700",
+              ].join(" ")}>
+                {paywallLabel(item.paywallVariant)}
+              </span>
+            </td>
             <td className="px-4 py-4 font-semibold tabular-nums text-zinc-900">
               {item.amountRub.toLocaleString("ru-RU")} ₽
               {item.test === true && <span className="ml-2 rounded-full bg-violet-100 px-2 py-0.5 text-xs text-violet-700">test</span>}

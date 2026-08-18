@@ -11,6 +11,7 @@ import {
   sanitizeYmClientId,
 } from "@/lib/yandex-attribution";
 import { getPaymentProviderForEmail } from "@/lib/payment-provider";
+import { sanitizePricingPaywallVariant } from "@/lib/pricing-paywall-attribution";
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -76,11 +77,16 @@ export async function POST(request: NextRequest) {
           returnPath?: unknown;
           ymClientId?: unknown;
           yclid?: unknown;
+          paywallVariant?: unknown;
         }
       | null;
     const ymClientId = sanitizeYmClientId(body?.ymClientId);
     const yclid = sanitizeYclid(body?.yclid);
-    const plan = getPricingPlan(body?.planId);
+    const paywallVariant = sanitizePricingPaywallVariant(body?.paywallVariant);
+    const plan = getPricingPlan(
+      body?.planId,
+      paywallVariant ?? "treatment",
+    );
     const idempotencyKey =
       typeof body?.checkoutAttemptId === "string"
         ? body.checkoutAttemptId.trim()
@@ -125,6 +131,7 @@ export async function POST(request: NextRequest) {
           status: "created",
           ym_client_id: ymClientId,
           yclid,
+          paywall_variant: paywallVariant,
         })
         .select(
           "id, plan_id, amount_rub, credits, idempotency_key, yookassa_payment_id, confirmation_url",
@@ -143,7 +150,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    if (ymClientId || yclid) {
+    if (ymClientId || yclid || paywallVariant) {
       const now = new Date().toISOString();
       if (ymClientId) {
         const { error: clientIdError } = await supabase
@@ -168,6 +175,19 @@ export async function POST(request: NextRequest) {
           console.warn("[yookassa] yclid backfill skipped", {
             paymentId: local.id,
             message: yclidError.message,
+          });
+        }
+      }
+      if (paywallVariant) {
+        const { error: variantError } = await supabase
+          .from("landing_yookassa_payments")
+          .update({ paywall_variant: paywallVariant, updated_at: now })
+          .eq("id", local.id)
+          .is("paywall_variant", null);
+        if (variantError) {
+          console.warn("[yookassa] paywall_variant backfill skipped", {
+            paymentId: local.id,
+            message: variantError.message,
           });
         }
       }

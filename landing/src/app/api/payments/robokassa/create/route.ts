@@ -9,6 +9,7 @@ import {
 import { createSupabaseServer } from "@/lib/supabase";
 import { getSupabaseUserForApiRoute } from "@/lib/supabase-route-auth";
 import { sanitizeYclid, sanitizeYmClientId } from "@/lib/yandex-attribution";
+import { sanitizePricingPaywallVariant } from "@/lib/pricing-paywall-attribution";
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -55,9 +56,11 @@ export async function POST(request: NextRequest) {
           checkoutAttemptId?: unknown;
           ymClientId?: unknown;
           yclid?: unknown;
+          paywallVariant?: unknown;
         }
       | null;
-    const plan = getPricingPlan(body?.planId);
+    const paywallVariant = sanitizePricingPaywallVariant(body?.paywallVariant);
+    const plan = getPricingPlan(body?.planId, paywallVariant ?? "treatment");
     const idempotencyKey =
       typeof body?.checkoutAttemptId === "string" ? body.checkoutAttemptId.trim() : "";
     if (!plan || !UUID_PATTERN.test(idempotencyKey)) {
@@ -108,6 +111,7 @@ export async function POST(request: NextRequest) {
           test: config.testMode,
           ym_client_id: ymClientId,
           yclid,
+          paywall_variant: paywallVariant,
         })
         .select("id, invoice_id, plan_id, amount_rub, credits, idempotency_key, status")
         .single();
@@ -120,6 +124,23 @@ export async function POST(request: NextRequest) {
         }
       } else {
         local = inserted as LocalPayment;
+      }
+    }
+
+    if (paywallVariant) {
+      const { error: variantError } = await supabase
+        .from("landing_robokassa_payments")
+        .update({
+          paywall_variant: paywallVariant,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", local.id)
+        .is("paywall_variant", null);
+      if (variantError) {
+        console.warn("[robokassa] paywall_variant backfill skipped", {
+          paymentId: local.id,
+          message: variantError.message,
+        });
       }
     }
 

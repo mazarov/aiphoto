@@ -3,6 +3,7 @@ import {
   parseAdminGenerationCursor,
   parseAdminGenerationLimit,
 } from "@/lib/admin-generation-queue";
+import type { PricingPaywallVariant } from "@/lib/pricing-paywall-attribution";
 
 export type AdminPaymentStatus = "all" | "created" | "pending" | "succeeded" | "canceled";
 export type AdminPaymentTestFilter = "all" | "live" | "test";
@@ -24,6 +25,7 @@ export type AdminPaymentRow = {
   status: Exclude<AdminPaymentStatus, "all">;
   provider_status: string | null;
   test: boolean | null;
+  paywall_variant: PricingPaywallVariant | null;
   credited_at: string | null;
 };
 

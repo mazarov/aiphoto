@@ -14,7 +14,7 @@ function providerPayment(
     id: "2f11b090-000f-5000-9000-1e9a31f4e51a",
     status: "pending",
     paid: false,
-    amount: { value: "399.00", currency: "RUB" },
+    amount: { value: "299.00", currency: "RUB" },
     confirmation: {
       type: "redirect",
       confirmation_url: "https://yoomoney.ru/checkout/example",
@@ -30,7 +30,7 @@ function providerPayment(
 
 test("pricing catalog resolves only known server-side plans", () => {
   assert.equal(PRICING_PLANS.length, 4);
-  assert.equal(getPricingPlan("start")?.credits, 175);
+  assert.equal(getPricingPlan("start")?.credits, 100);
   assert.equal(getPricingPlan("unknown"), null);
   assert.equal(getPricingPlan({ id: "start" }), null);
 });
@@ -41,14 +41,14 @@ test("provider payment must match local id, plan, amount and currency", () => {
     assertYooKassaPaymentMatches(payment, {
       localPaymentId: "263dd707-e1ee-46d9-9a97-c11ad34c289d",
       planId: "start",
-      priceRub: 399,
+      priceRub: 299,
     }),
   );
   assert.doesNotThrow(() =>
     assertYooKassaPaymentMatches(payment, {
       localPaymentId: "263dd707-e1ee-46d9-9a97-c11ad34c289d",
       planId: "start",
-      priceRub: Number("399.00"),
+      priceRub: Number("299.00"),
     }),
   );
 

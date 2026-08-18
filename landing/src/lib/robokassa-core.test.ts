@@ -70,7 +70,7 @@ test("checkout payload is server-priced, fiscalized and modal", () => {
     email: " azarov.maxim@gmail.com ",
     config,
   });
-  assert.equal(payload.OutSum, "199.00");
+  assert.equal(payload.OutSum, "99.00");
   assert.equal(payload.InvId, 42);
   assert.equal(payload.IsTest, 1);
   assert.equal(payload.Email, "azarov.maxim@gmail.com");
@@ -78,7 +78,7 @@ test("checkout payload is server-priced, fiscalized and modal", () => {
     Mode: "modal",
   });
   const receipt = JSON.parse(decodeURIComponent(payload.Receipt));
-  assert.equal(receipt.items[0].sum, 199);
+  assert.equal(receipt.items[0].sum, 99);
   assert.equal(typeof receipt.items[0].sum, "number");
   assert.equal(receipt.items[0].payment_object, "service");
 });

@@ -1,7 +1,19 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { PRICING_PLANS, type PricingPlan } from "./pricing-plans";
+import Link from "next/link";
+import {
+  getDefaultPricingPlanId,
+  getPricingPlan,
+  getPricingPlanPhotoEconomics,
+  getPricingPlans,
+  type PricingPlan,
+  type PricingPlanId,
+} from "./pricing-plans";
+import {
+  PRICING_PAYWALL_EXPERIMENT_ID,
+  type PricingPaywallVariant,
+} from "@/lib/pricing-paywall-experiment";
 import { useAuth } from "@/context/AuthContext";
 import { usePricingModal } from "@/context/PricingModalContext";
 import {
@@ -94,174 +106,117 @@ function clearPendingCheckout(): void {
   }
 }
 
-function perPhoto(price: number, photos: number): number {
-  return Math.round(price / photos);
-}
-
 function TokenIcon() {
   return (
-    <svg className="h-4 w-4 shrink-0" viewBox="0 0 20 20" fill="none" aria-hidden>
-      <path d="m10 2.5 5.5 7.5L10 17.5 4.5 10 10 2.5Z" stroke="currentColor" strokeWidth="1.5" />
-      <path d="m4.5 10 5.5 2.5 5.5-2.5M10 2.5v10" stroke="currentColor" strokeWidth="1.2" />
+    <svg className="h-5 w-5 shrink-0 text-yellow-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
+      <path d="M11.4 1.75 4.7 10.2a.8.8 0 0 0 .63 1.3h3.5l-.65 6a.75.75 0 0 0 1.34.54l6.15-8.25a.8.8 0 0 0-.64-1.28H11.7l.99-6.13a.75.75 0 0 0-1.29-.63Z" />
     </svg>
   );
 }
 
-function PhotoIcon() {
+function CheckIcon({ className = "text-zinc-100" }: { className?: string }) {
   return (
-    <svg className="h-4 w-4 shrink-0" viewBox="0 0 20 20" fill="none" aria-hidden>
-      <rect x="2.75" y="3.75" width="14.5" height="12.5" rx="2.25" stroke="currentColor" strokeWidth="1.5" />
-      <circle cx="7" cy="8" r="1.25" stroke="currentColor" strokeWidth="1.25" />
-      <path d="m4.5 14 3.25-3 2.25 2 2.25-2 3.25 3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+    <svg className={`mt-0.5 h-4 w-4 shrink-0 ${className}`} viewBox="0 0 20 20" fill="none" aria-hidden>
+      <path d="m3.5 10.5 4 4 9-9" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
 
-function ArrowIcon() {
-  return (
-    <svg className="h-4 w-4" viewBox="0 0 20 20" fill="none" aria-hidden>
-      <path
-        d="M4 10h12m-4.5-4.5L16 10l-4.5 4.5"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-const STAGGER = [0, 45, 90, 135];
-
-function PlanCard({
+function PaywallPlanCard({
   plan,
-  index,
+  selected,
   onSelect,
-  loading,
   disabled,
 }: {
   plan: PricingPlan;
-  index: number;
+  selected: boolean;
   onSelect: (plan: PricingPlan) => void;
-  loading: boolean;
   disabled: boolean;
 }) {
   const headingId = `pricing-${plan.id}`;
-  const recommended = plan.recommended === true;
-  const unit = perPhoto(plan.price, plan.photos);
-
-  const select = () => {
-    if (disabled) return;
-    onSelect(plan);
-  };
+  const economics = getPricingPlanPhotoEconomics(plan);
 
   return (
-    <article
+    <button
+      type="button"
       aria-labelledby={headingId}
-      role="button"
-      tabIndex={disabled ? -1 : 0}
-      aria-disabled={disabled || undefined}
-      onClick={select}
-      onKeyDown={(event) => {
-        if (disabled) return;
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault();
-          select();
-        }
-      }}
-      style={{ animationDelay: `${STAGGER[index] ?? 0}ms` }}
+      role="radio"
+      aria-checked={selected}
+      disabled={disabled}
+      onClick={() => onSelect(plan)}
       className={[
-        "group relative flex h-full min-h-0 min-w-0 cursor-pointer flex-col overflow-visible rounded-2xl border p-3 shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 motion-safe:opacity-0 motion-safe:[animation-fill-mode:forwards] motion-safe:animate-slide-up motion-safe:transition-all motion-safe:duration-300 motion-safe:ease-out sm:p-5 xl:p-6",
-        disabled ? "cursor-wait opacity-65" : "",
-        recommended
-          ? "border-indigo-300 bg-gradient-to-b from-indigo-50/75 via-white to-white shadow-[0_18px_45px_-26px_rgba(79,70,229,0.48)] ring-1 ring-indigo-200/60 motion-safe:hover:-translate-y-0.5 motion-safe:hover:shadow-[0_22px_55px_-26px_rgba(79,70,229,0.55)]"
-          : "border-zinc-200/90 bg-white motion-safe:hover:-translate-y-0.5 motion-safe:hover:border-indigo-200 motion-safe:hover:shadow-[0_18px_42px_-28px_rgba(79,70,229,0.35)]",
+        "relative flex min-h-[98px] min-w-0 flex-col items-start justify-center rounded-xl border bg-white/90 px-3 py-3 text-left shadow-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-indigo-400 disabled:cursor-wait disabled:opacity-60 sm:min-h-[102px] sm:px-4",
+        selected
+          ? "border-indigo-500 ring-1 ring-indigo-500"
+          : "border-zinc-200 hover:border-indigo-300",
       ].join(" ")}
     >
-      {recommended && (
-        <div className="absolute -top-2.5 left-3 z-10 inline-flex rounded-full bg-indigo-600 px-2 py-0.5 text-[10px] font-semibold text-white shadow-sm shadow-indigo-500/20 sm:-top-3 sm:left-5 sm:px-3 sm:py-1 sm:text-xs">
-          Популярный
-        </div>
-      )}
-
-      <div className="flex min-h-6 min-w-0 items-start justify-between gap-1.5 sm:min-h-[4.25rem] sm:gap-3">
-        <div className="min-w-0 flex-1">
-          <h2 id={headingId} className="text-base font-semibold leading-tight tracking-tight text-zinc-950 sm:text-lg">
-            {plan.name}
-          </h2>
-          <p className="mt-1 hidden text-sm leading-snug text-zinc-500 sm:block">{plan.tagline}</p>
-        </div>
-        {plan.discount ? (
+      <div className="flex w-full min-w-0 items-center gap-1.5 pr-7">
+        <h2 id={headingId} className="shrink-0 text-xl font-bold tracking-tight text-zinc-950 sm:text-2xl">
+          {rubles.format(plan.price)} ₽
+        </h2>
+        {plan.badge ? (
           <span
-            className="mt-0.5 shrink-0 rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700 ring-1 ring-emerald-100 sm:mt-0 sm:px-2.5 sm:py-1 sm:text-xs"
-            title="Экономия на стоимости фото относительно пакета «Проба»"
+            className={[
+              "min-w-0 truncate rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none sm:px-2 sm:text-xs",
+              plan.id === "max"
+                ? "bg-emerald-400/15 text-emerald-300 ring-1 ring-emerald-400/30"
+                : "bg-sky-400/15 text-sky-300 ring-1 ring-sky-400/30",
+            ].join(" ")}
           >
-            −{plan.discount}%
+            {plan.badge}
           </span>
         ) : null}
       </div>
-
-      <div className="mt-2 flex min-w-0 items-baseline gap-2 sm:mt-5">
-        <span
-          className={[
-            "text-2xl font-bold tracking-[-0.04em] sm:text-3xl",
-            recommended
-              ? "bg-gradient-to-r from-indigo-600 to-violet-600 text-gradient"
-              : "text-zinc-950",
-          ].join(" ")}
-        >
-          {rubles.format(plan.price)} ₽
-        </span>
+      <div className="mt-1.5 flex items-center gap-1 text-sm text-zinc-500 sm:text-base">
+        <TokenIcon />
+        <span>{rubles.format(plan.credits)} токенов</span>
       </div>
-
-      <span className="mt-1.5 inline-flex w-fit max-w-full items-center rounded-full bg-indigo-50/80 px-2 py-0.5 text-xs font-semibold text-indigo-700 ring-1 ring-indigo-100 sm:mt-3 sm:px-2.5 sm:py-1">
-        ≈ {unit} ₽/фото
+      <span className="mt-0.5 text-xs font-semibold text-indigo-600">
+        от {economics.fromRubPerPhoto} ₽/фото
       </span>
-
-      <div className="mt-2 space-y-1 text-xs sm:mt-5 sm:space-y-2.5 sm:text-sm">
-        <p className="flex min-w-0 items-center gap-2 text-zinc-700 sm:gap-2.5">
-          <TokenIcon />
-          <span>{rubles.format(plan.credits)} токенов</span>
-        </p>
-        <p className="flex min-w-0 items-center gap-2 text-zinc-600 sm:gap-2.5">
-          <PhotoIcon />
-          <span>до {plan.photos} фото</span>
-        </p>
-      </div>
-
-      <div className="min-h-2 flex-1 sm:min-h-7" aria-hidden />
-
-      <div
+      <span
         aria-hidden
         className={[
-          "inline-flex min-h-11 w-full items-center justify-center gap-1 rounded-xl px-2 py-2 text-xs font-semibold motion-safe:transition-all motion-safe:duration-200 sm:gap-2 sm:px-4 sm:py-2.5 sm:text-sm",
-          recommended
-            ? "bg-indigo-600 text-white shadow-sm shadow-indigo-500/20 motion-safe:group-hover:bg-indigo-700 motion-safe:group-hover:shadow-md motion-safe:group-hover:shadow-indigo-500/25"
-            : "border border-zinc-200 bg-white text-zinc-800 motion-safe:group-hover:border-indigo-300 motion-safe:group-hover:bg-indigo-50/50 motion-safe:group-hover:text-indigo-700",
+          "absolute right-3 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full border",
+          selected
+            ? "border-indigo-500 bg-indigo-500 text-white"
+            : "border-zinc-300 text-transparent",
         ].join(" ")}
       >
-        <span className="truncate">{loading ? "Переходим к оплате…" : plan.ctaLabel}</span>
-        <span className="shrink-0 motion-safe:transition-transform motion-safe:duration-200 motion-safe:group-hover:translate-x-0.5">
-          <ArrowIcon />
-        </span>
-      </div>
-    </article>
+        <CheckIcon />
+      </span>
+    </button>
   );
 }
 
-export function PricingCards() {
+export function PricingCards({
+  variant,
+}: {
+  variant: PricingPaywallVariant;
+}) {
   const { user, loading: authLoading, openAuthModal } = useAuth();
   const { closeWithoutHistory } = usePricingModal();
   const [checkout, setCheckout] = useState<CheckoutState>({ kind: "idle" });
+  const [selectedPlanId, setSelectedPlanId] = useState<PricingPlanId>(
+    getDefaultPricingPlanId(variant),
+  );
   const checkoutInFlightRef = useRef(false);
+  const plans = getPricingPlans(variant);
+  const selectedPlan =
+    plans.find((plan) => plan.id === selectedPlanId) ?? plans[0]!;
+  const selectedEconomics = getPricingPlanPhotoEconomics(selectedPlan);
 
   useEffect(() => {
-    reachYandexMetrikaGoal(YM_GOAL_PROMPT_CARD_GENERATION_PRICING);
-  }, []);
+    reachYandexMetrikaGoal(YM_GOAL_PROMPT_CARD_GENERATION_PRICING, {
+      experiment_id: PRICING_PAYWALL_EXPERIMENT_ID,
+      paywall_variant: variant,
+    });
+  }, [variant]);
 
   const createCheckout = useCallback(async (pending: PendingCheckout) => {
     if (checkoutInFlightRef.current) return;
-    const plan = PRICING_PLANS.find((item) => item.id === pending.planId);
+    const plan = getPricingPlan(pending.planId, variant);
     if (!plan) {
       clearPendingCheckout();
       setCheckout({ kind: "error", message: "Выбранный пакет не найден" });
@@ -273,6 +228,8 @@ export function PricingCards() {
     reachYandexMetrikaGoal(YM_GOAL_PAYMENT_CHECKOUT_STARTED, {
       plan_id: plan.id,
       price_rub: plan.price,
+      experiment_id: PRICING_PAYWALL_EXPERIMENT_ID,
+      paywall_variant: variant,
     });
     try {
       const attribution = await readYandexCheckoutAttribution();
@@ -287,6 +244,7 @@ export function PricingCards() {
           returnPath: readPricingReturnPath(),
           ymClientId: attribution.ymClientId,
           yclid: attribution.yclid,
+          paywallVariant: variant,
         }),
       });
       const payload = (await response.json().catch(() => null)) as
@@ -327,6 +285,8 @@ export function PricingCards() {
         reachYandexMetrikaGoal(YM_GOAL_PAYMENT_IFRAME_OPENED, {
           provider: "robokassa",
           plan_id: plan.id,
+          experiment_id: PRICING_PAYWALL_EXPERIMENT_ID,
+          paywall_variant: variant,
         });
         checkoutInFlightRef.current = false;
         setCheckout({
@@ -344,6 +304,8 @@ export function PricingCards() {
       window.history.replaceState(null, "", returnPath);
       reachYandexMetrikaGoal(YM_GOAL_YOOKASSA_CHECKOUT_REDIRECT, {
         plan_id: plan.id,
+        experiment_id: PRICING_PAYWALL_EXPERIMENT_ID,
+        paywall_variant: variant,
       });
       window.location.assign(payload.confirmationUrl);
     } catch (error) {
@@ -356,7 +318,7 @@ export function PricingCards() {
             : "Не удалось создать оплату. Попробуйте ещё раз.",
       });
     }
-  }, [closeWithoutHistory, openAuthModal]);
+  }, [closeWithoutHistory, openAuthModal, variant]);
 
   const selectPlan = useCallback(
     (plan: PricingPlan) => {
@@ -388,38 +350,133 @@ export function PricingCards() {
     void createCheckout(pending);
   }, [authLoading, createCheckout, user]);
 
+  const checkoutNotice =
+    checkout.kind !== "idle" && checkout.kind !== "creating" ? (
+      <div
+        className={[
+          "fixed bottom-[calc(1rem+max(0px,env(safe-area-inset-bottom,0px)))] left-1/2 z-[300] w-[min(92vw,30rem)] -translate-x-1/2 animate-scale-in rounded-2xl border bg-zinc-900/95 px-5 py-3 text-center text-sm font-medium shadow-xl backdrop-blur-xl",
+          checkout.kind === "success"
+            ? "border-emerald-500/40 text-emerald-200"
+            : checkout.kind === "error"
+              ? "border-red-500/40 text-red-200"
+              : "border-zinc-700 text-zinc-100",
+        ].join(" ")}
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+      >
+        {checkout.message}
+      </div>
+    ) : null;
+
   return (
     <>
-      <div className="mx-auto grid w-full grid-cols-2 items-stretch gap-x-2 gap-y-4 pt-1 sm:max-w-none sm:gap-4 sm:pt-0 lg:gap-5 xl:grid-cols-4">
-        {PRICING_PLANS.map((plan, index) => (
-          <PlanCard
+      <div
+        className="grid w-full min-w-0 grid-cols-2 gap-2 sm:gap-3"
+        role="radiogroup"
+        aria-label="Выберите пакет токенов"
+      >
+        {plans.map((plan) => (
+          <PaywallPlanCard
             key={plan.id}
             plan={plan}
-            index={index}
-            onSelect={selectPlan}
-            loading={checkout.kind === "creating" && checkout.planId === plan.id}
+            selected={plan.id === selectedPlan.id}
+            onSelect={(nextPlan) => setSelectedPlanId(nextPlan.id)}
             disabled={checkout.kind === "creating"}
           />
         ))}
       </div>
 
-      {checkout.kind !== "idle" && checkout.kind !== "creating" ? (
-        <div
-          className={[
-            "fixed bottom-[calc(3.5rem+0.75rem+max(0px,env(safe-area-inset-bottom,0px)))] left-1/2 z-[90] w-[min(92vw,34rem)] -translate-x-1/2 animate-scale-in rounded-2xl border bg-white/95 px-5 py-3 text-center text-sm font-medium shadow-xl backdrop-blur-xl lg:bottom-6",
-            checkout.kind === "success"
-              ? "border-emerald-200 text-emerald-800"
-              : checkout.kind === "error"
-                ? "border-red-200 text-red-700"
-                : "border-zinc-200 text-zinc-800",
-          ].join(" ")}
-          role="status"
-          aria-live="polite"
-          aria-atomic="true"
-        >
-          {checkout.message}
+      <div className="mt-4 grid grid-cols-3 rounded-xl border border-zinc-100 bg-zinc-50/90 px-2 py-2.5 text-center">
+        <div className="px-1">
+          <strong className="block text-xs font-semibold text-zinc-900 sm:text-sm">
+            Разовая
+          </strong>
+          <span className="block text-[10px] leading-tight text-zinc-500 sm:text-xs">
+            покупка
+          </span>
         </div>
-      ) : null}
+        <div className="border-x border-zinc-200 px-1">
+          <strong className="block text-xs font-semibold text-zinc-900 sm:text-sm">
+            Без срока
+          </strong>
+          <span className="block text-[10px] leading-tight text-zinc-500 sm:text-xs">
+            токены не сгорают
+          </span>
+        </div>
+        <div className="px-1">
+          <strong className="block text-xs font-semibold text-zinc-900 sm:text-sm">
+            Без подписки
+          </strong>
+          <span className="block text-[10px] leading-tight text-zinc-500 sm:text-xs">
+            и автосписаний
+          </span>
+        </div>
+      </div>
+
+      <section className="mt-4" aria-labelledby="pricing-benefits-heading">
+        <h2
+          id="pricing-benefits-heading"
+          className="text-base font-semibold text-zinc-950 sm:text-lg"
+        >
+          Что вы получите:
+        </h2>
+        <ul className="mt-2 space-y-1.5 text-sm leading-snug text-zinc-600 sm:text-base">
+          <li className="flex gap-1.5">
+            <CheckIcon className="text-indigo-600" />
+            <span>
+              <strong className="font-semibold text-zinc-950">
+                {selectedEconomics.minPhotos}–{selectedEconomics.maxPhotos} фото
+              </strong>{" "}
+              в зависимости от модели
+            </span>
+          </li>
+          <li className="flex gap-1.5">
+            <CheckIcon className="text-indigo-600" />
+            <span>
+              Доступ к{" "}
+              <Link
+                href="/generaciya-foto"
+                className="text-indigo-600 underline decoration-indigo-300 underline-offset-2 hover:text-indigo-500"
+              >
+                готовым ИИ-фотосессиям
+              </Link>
+            </span>
+          </li>
+          <li className="flex gap-1.5">
+            <CheckIcon className="text-indigo-600" />
+            <span>Вернём токены за неудачные фото</span>
+          </li>
+          <li className="flex gap-1.5">
+            <CheckIcon className="text-indigo-600" />
+            <span>Повторяйте тренды в несколько кликов</span>
+          </li>
+          <li className="flex gap-1.5">
+            <CheckIcon className="text-indigo-600" />
+            <span>Семейные и парные портреты</span>
+          </li>
+          <li className="flex gap-1.5">
+            <CheckIcon className="text-indigo-600" />
+            <span>Без водяных знаков</span>
+          </li>
+        </ul>
+      </section>
+
+      <button
+        type="button"
+        onClick={() => selectPlan(selectedPlan)}
+        disabled={checkout.kind === "creating" || authLoading}
+        className="mt-5 inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-indigo-600 via-[#5b5cf0] to-violet-500 px-5 text-base font-bold text-white shadow-lg shadow-indigo-500/25 transition hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:cursor-wait disabled:opacity-65 sm:text-lg"
+      >
+        <TokenIcon />
+        <span>
+          {checkout.kind === "creating"
+            ? "Переходим к оплате…"
+            : `Получить ${rubles.format(selectedPlan.credits)} токенов`}
+        </span>
+      </button>
+
+      {checkoutNotice}
     </>
   );
 }

@@ -1,107 +1,133 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { PricingCards } from "@/components/pricing/PricingCards";
+import {
+  usePricingPaywallVariant,
+  type PricingPaywallVariant,
+} from "@/lib/pricing-paywall-experiment";
 
 type Props = {
   /** page = listing-shell offsets; modal = overlay, no header/tabbar reserve. */
   variant: "page" | "modal";
+  paywallVariant?: PricingPaywallVariant | null;
 };
 
-export function PricingScreen({ variant }: Props) {
-  const isModal = variant === "modal";
+function LegalFooter({ dark = false }: { dark?: boolean }) {
+  const textClass = dark ? "text-zinc-600" : "text-zinc-400/90";
+  const linkClass = dark
+    ? "text-zinc-500 underline-offset-2 hover:text-zinc-300 hover:underline"
+    : "text-zinc-400 underline-offset-2 hover:text-zinc-600 hover:underline";
 
   return (
+    <footer className={`space-y-0.5 px-1 pt-5 text-center text-[10px] leading-snug sm:text-xs ${textClass}`}>
+      <p>
+        Покупая пакет, вы принимаете условия{" "}
+        <Link href="/terms" className={linkClass}>
+          оферты
+        </Link>{" "}
+        и{" "}
+        <Link href="/policy" className={linkClass}>
+          политики обработки данных
+        </Link>
+        .
+      </p>
+      <p>
+        <a href="mailto:support_ru@promptshot.ru" className={linkClass}>
+          support_ru@promptshot.ru
+        </a>
+      </p>
+      <p>СМЗ Азарова Мария Петровна · ИНН 673201018413</p>
+    </footer>
+  );
+}
+
+function CompactPricingScreen({
+  isModal,
+  paywallVariant,
+}: {
+  isModal: boolean;
+  paywallVariant: PricingPaywallVariant;
+}) {
+  const paywall = (
     <main
-      className={
-        isModal
-          ? "relative isolate flex min-h-0 flex-1 flex-col bg-white"
-          : "relative isolate flex flex-1 flex-col bg-white max-lg:min-h-[calc(100dvh-var(--ps-header-height,57px)-3.5rem-max(0px,env(safe-area-inset-bottom,0px)))] lg:min-h-screen"
-      }
+      className="relative isolate flex min-h-0 w-full max-w-[36rem] flex-col overflow-x-hidden rounded-[28px] border border-indigo-100/80 bg-white text-zinc-900 shadow-[0_30px_90px_-38px_rgba(79,70,229,0.42)]"
     >
       <div
-        className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[440px] bg-[radial-gradient(ellipse_68%_66%_at_50%_0%,rgba(99,102,241,0.11),rgba(139,92,246,0.035)_44%,transparent_76%)]"
+        className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[440px] bg-[radial-gradient(ellipse_75%_65%_at_50%_0%,rgba(99,102,241,0.13),rgba(139,92,246,0.035)_52%,transparent_78%)]"
         aria-hidden
       />
-      <div
-        className="pointer-events-none absolute inset-x-[6%] top-0 -z-10 h-[340px] opacity-30 [background-image:radial-gradient(circle_at_1px_1px,rgba(99,102,241,0.12)_1px,transparent_0)] [background-size:28px_28px] [mask-image:linear-gradient(to_bottom,black,transparent)]"
-        aria-hidden
-      />
-
-      <div
-        className={
-          isModal
-            ? "relative mx-auto flex w-full max-w-7xl flex-1 flex-col px-3 pb-3 pt-2 sm:px-6 sm:py-5 lg:px-8 lg:py-10"
-            : "relative mx-auto flex w-full max-w-7xl flex-1 flex-col px-3 pb-3 pt-3 sm:px-6 sm:py-5 lg:px-8 lg:py-14"
-        }
-      >
-        <header className="mx-auto max-w-2xl shrink-0 text-center">
+      <div className="relative m-2 mb-0 h-52 shrink-0 overflow-hidden rounded-[22px] bg-zinc-100 sm:h-56">
+        <Image
+          src="/pricing/paywall-hero-v2.jpg"
+          alt="Примеры индивидуальной, семейной и парной ИИ-фотосессии"
+          fill
+          priority
+          sizes="(max-width: 640px) 100vw, 544px"
+          className="object-cover object-top"
+        />
+        <div
+          className="absolute inset-x-0 bottom-0 h-[72%] bg-gradient-to-t from-black/85 via-black/45 to-transparent"
+          aria-hidden
+        />
+        <header className="absolute inset-x-0 bottom-0 px-4 pb-4 text-center text-white sm:px-6 sm:pb-5">
           <h1
             id="pricing-heading"
-            className="text-xl font-bold tracking-[-0.035em] text-zinc-950 sm:text-3xl lg:text-[44px] lg:leading-tight"
+            className="text-2xl font-bold leading-tight tracking-[-0.035em] drop-shadow-sm sm:text-3xl"
           >
-            Выберите пакет
+            Теперь фотосессия — это просто
           </h1>
-          <p className="mx-auto mt-3 hidden max-w-xl text-sm leading-relaxed text-zinc-500 lg:block lg:text-base">
-            Покупаете один раз. Токены остаются на балансе без срока действия.
+          <p className="mx-auto mt-1.5 max-w-sm text-sm leading-snug text-white/85 drop-shadow-sm sm:text-base">
+            Создавайте красивые фото себя по готовым шаблонам в несколько кликов
           </p>
-          <div className="mt-5 hidden flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs font-medium text-zinc-600 lg:flex lg:text-sm">
-            <span className="inline-flex items-center gap-1.5">
-              <svg className="h-4 w-4 text-indigo-600" viewBox="0 0 20 20" fill="none" aria-hidden>
-                <path d="m4 10 4 4 8-8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-              Разовая покупка
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <svg className="h-4 w-4 text-indigo-600" viewBox="0 0 20 20" fill="none" aria-hidden>
-                <path d="m4 10 4 4 8-8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-              Токены не сгорают
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <svg className="h-4 w-4 text-indigo-600" viewBox="0 0 20 20" fill="none" aria-hidden>
-                <path d="m4 10 4 4 8-8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-              Карты и СБП через ЮKassa
-            </span>
-          </div>
         </header>
+        <div className="absolute inset-0 ring-1 ring-inset ring-black/5" />
+      </div>
 
-        <section
-          className="mx-auto mt-3 w-full max-w-6xl shrink-0 overflow-visible rounded-[22px] border border-zinc-100/90 bg-white/75 p-2 shadow-[0_24px_80px_-40px_rgba(79,70,229,0.22)] backdrop-blur-xl sm:mt-4 sm:p-3 lg:mt-10 lg:rounded-[28px] xl:p-5"
-          aria-label="Пакеты токенов"
-        >
-          <PricingCards />
+      <div className="relative z-10 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4 sm:px-6 sm:pb-6 sm:pt-5">
+        <section aria-label="Пакеты токенов">
+          <PricingCards variant={paywallVariant} />
         </section>
 
-        <footer className="mt-auto shrink-0 space-y-0.5 px-1 pt-4 text-center lg:space-y-2 lg:pt-10">
-          <p className="mx-auto max-w-lg break-words text-xs leading-snug text-zinc-400/90">
-            Покупая пакет, вы принимаете условия{" "}
-            <Link href="/terms" className="text-zinc-400 underline-offset-2 hover:text-zinc-600 hover:underline">
-              оферты
-            </Link>{" "}
-            и{" "}
-            <Link href="/policy" className="text-zinc-400 underline-offset-2 hover:text-zinc-600 hover:underline">
-              политики обработки данных
-            </Link>
-            .
-          </p>
-          <p className="mx-auto max-w-lg break-words text-xs leading-snug text-zinc-400/80">
-            Support:{" "}
-            <a
-              href="mailto:support_ru@promptshot.ru"
-              className="text-zinc-400 underline-offset-2 hover:text-zinc-600 hover:underline"
-            >
-              support_ru@promptshot.ru
-            </a>
-          </p>
-          <p className="mx-auto max-w-lg break-words text-xs leading-snug text-zinc-400/80">
-            <span className="block sm:inline">СМЗ Азарова Мария Петровна</span>
-            <span className="hidden sm:inline"> · </span>
-            <span className="block sm:inline">ИНН 673201018413</span>
-          </p>
-        </footer>
+        <LegalFooter />
       </div>
     </main>
+  );
+
+  if (isModal) return paywall;
+
+  return (
+    <div className="flex min-h-[calc(100dvh-var(--ps-header-height,57px))] w-full items-start justify-center bg-[linear-gradient(145deg,#f2f1ff_0%,#ffffff_48%,#faf7ff_100%)] px-3 py-6 sm:px-6 sm:py-10">
+      {paywall}
+    </div>
+  );
+}
+
+export function PricingScreen({
+  variant,
+  paywallVariant: providedPaywallVariant,
+}: Props) {
+  const assignedPaywallVariant = usePricingPaywallVariant();
+  const paywallVariant = providedPaywallVariant ?? assignedPaywallVariant;
+  const isModal = variant === "modal";
+
+  if (!paywallVariant) {
+    return (
+      <main
+        className="flex min-h-[70dvh] w-full items-center justify-center bg-white"
+        aria-busy="true"
+      >
+        <span className="h-7 w-7 animate-spin rounded-full border-2 border-zinc-200 border-t-indigo-600" />
+        <span className="sr-only">Загружаем тарифы</span>
+      </main>
+    );
+  }
+
+  return (
+    <CompactPricingScreen
+      isModal={isModal}
+      paywallVariant={paywallVariant}
+    />
   );
 }

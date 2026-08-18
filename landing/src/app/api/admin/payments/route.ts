@@ -65,6 +65,7 @@ export async function GET(req: NextRequest) {
     status: row.status,
     providerStatus: row.provider_status,
     test: row.test,
+    paywallVariant: row.paywall_variant,
     creditedAt: row.credited_at,
     creditState: resolvePaymentCreditState(row),
   }));

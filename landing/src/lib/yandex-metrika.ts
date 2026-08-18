@@ -1,3 +1,9 @@
+import {
+  PRICING_PAYWALL_EXPERIMENT_ID,
+  PRICING_PAYWALL_STORAGE_KEY,
+  sanitizePricingPaywallVariant,
+} from "@/lib/pricing-paywall-attribution";
+
 /** Счётчик совпадает с init в `landing/src/app/layout.tsx`. При смене ID синхронизируйте оба места. */
 export const YANDEX_METRIKA_COUNTER_ID = 107703100;
 
@@ -85,11 +91,27 @@ export function trackYandexPurchase(params: {
   planId: string;
   credits: number;
 }): void {
+  let paywallVariant: "control" | "treatment" | null = null;
+  if (typeof window !== "undefined") {
+    try {
+      paywallVariant = sanitizePricingPaywallVariant(
+        localStorage.getItem(PRICING_PAYWALL_STORAGE_KEY),
+      );
+    } catch {
+      // Attribution is optional; purchase tracking must still succeed.
+    }
+  }
   reachYandexMetrikaGoal(YM_GOAL_PURCHASE, {
     order_id: params.orderId,
     price: params.priceRub,
     plan_id: params.planId,
     credits: params.credits,
+    ...(paywallVariant
+      ? {
+          experiment_id: PRICING_PAYWALL_EXPERIMENT_ID,
+          paywall_variant: paywallVariant,
+        }
+      : {}),
   });
   if (typeof window === "undefined") return;
   try {
@@ -101,6 +123,12 @@ export function trackYandexPurchase(params: {
           actionField: {
             id: params.orderId,
             revenue: params.priceRub,
+            ...(paywallVariant
+              ? {
+                  experiment_id: PRICING_PAYWALL_EXPERIMENT_ID,
+                  paywall_variant: paywallVariant,
+                }
+              : {}),
           },
           products: [
             {
