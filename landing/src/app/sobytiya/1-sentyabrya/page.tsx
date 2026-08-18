@@ -12,7 +12,7 @@ import {
   type PromptCardFull,
 } from "@/lib/supabase";
 import { getMinCardsForLevel } from "@/lib/route-resolver";
-import { getSeoContent } from "@/lib/seo-content";
+import { requireSeoContent } from "@/lib/seo-content";
 import { DIMENSION_LABELS } from "@/lib/tag-registry";
 import {
   getSobytiyaChipNavigation,
@@ -29,10 +29,7 @@ export const revalidate = 3600;
 const SITE_URL =
   process.env.NEXT_PUBLIC_SITE_URL || "https://promptshot.ru";
 const PAGE_URL = `${SITE_URL}${SOBYTIYA_1_SENTYABRYA_PATH}`;
-const seo = getSeoContent(SOBYTIYA_1_SENTYABRYA_TAG);
-if (!seo) {
-  throw new Error(`Missing seo-content for ${SOBYTIYA_1_SENTYABRYA_TAG}`);
-}
+const seo = requireSeoContent(SOBYTIYA_1_SENTYABRYA_TAG);
 
 const getPageCards = cache(async (): Promise<PromptCardFull[]> => {
   try {

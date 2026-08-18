@@ -3417,4 +3417,12 @@ export function getSeoContent(slug: string): SeoContent | null {
   return SEO[slug] ?? null;
 }
 
+export function requireSeoContent(slug: string): SeoContent {
+  const seo = getSeoContent(slug);
+  if (!seo) {
+    throw new Error(`Missing seo-content for ${slug}`);
+  }
+  return seo;
+}
+
 export default SEO;
