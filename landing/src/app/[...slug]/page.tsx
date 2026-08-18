@@ -11,6 +11,7 @@ import {
 } from "@/lib/supabase";
 import { parseListingSort } from "@/lib/listing-sort";
 import { CatalogWithFilters } from "@/components/CatalogWithFilters";
+import { ListingClusterChipGroup } from "@/components/ListingClusterChipGroup";
 import { PageLayout } from "@/components/PageLayout";
 import {
   getSiblingTags,
@@ -22,6 +23,7 @@ import {
   DIMENSION_PRIORITY,
 } from "@/lib/tag-registry";
 import { resolveUrlToTags, getMinCardsForLevel, type ResolvedRoute } from "@/lib/route-resolver";
+import { getClusterChipNavigation } from "@/lib/menu";
 import { getSeoForRoute } from "@/lib/seo-templates";
 import type { SeoContent } from "@/lib/seo-content";
 import {
@@ -34,6 +36,10 @@ import {
   findGeneraciyaFotoScenarioByTag,
   getGeneraciyaFotoScenarioPath,
 } from "@/lib/generaciya-foto-routes";
+import {
+  SOBYTIYA_1_SENTYABRYA_PATH,
+  SOBYTIYA_1_SENTYABRYA_TAG,
+} from "@/lib/sobytiya-1-sentyabrya";
 
 export const revalidate = 3600;
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://promptshot.ru";
@@ -248,7 +254,7 @@ function buildJsonLd(
 type L2Chip = {
   tag: TagEntry;
   href: string;
-  count: number;
+  count?: number;
 };
 
 type L2ChipGroup = {
@@ -264,7 +270,7 @@ function sortChipsByFeatured(chips: L2Chip[], featuredSlugs?: string[]): L2Chip[
     const ai = order.get(a.tag.slug) ?? 999;
     const bi = order.get(b.tag.slug) ?? 999;
     if (ai !== bi) return ai - bi;
-    return b.count - a.count;
+    return (b.count ?? 0) - (a.count ?? 0);
   });
 }
 
@@ -352,6 +358,49 @@ async function getL2ChipsForTag(
     });
   }
   return groups;
+}
+
+/** Visible cluster link on style L1 pages. Does not change copy or URLs. */
+function withSobytiya1SentyabryaStyleCrosslink(
+  groups: L2ChipGroup[],
+  tag: TagEntry
+): L2ChipGroup[] {
+  if (tag.dimension !== "style_tag") return groups;
+
+  const eventTag = findTagBySlug("occasion_tag", SOBYTIYA_1_SENTYABRYA_TAG);
+  if (!eventTag) return groups;
+
+  const chip: L2Chip = {
+    tag: eventTag,
+    href: SOBYTIYA_1_SENTYABRYA_PATH,
+  };
+
+  const occasion = groups.find((group) => group.dimension === "occasion_tag");
+  if (!occasion) {
+    return [
+      {
+        dimension: "occasion_tag",
+        label: DIMENSION_LABELS.occasion_tag,
+        chips: [chip],
+      },
+      ...groups,
+    ];
+  }
+
+  return groups.map((group) => {
+    if (group.dimension !== "occasion_tag") return group;
+    if (group.chips.some((item) => item.tag.slug === SOBYTIYA_1_SENTYABRYA_TAG)) {
+      return {
+        ...group,
+        chips: group.chips.map((item) =>
+          item.tag.slug === SOBYTIYA_1_SENTYABRYA_TAG
+            ? { ...item, href: SOBYTIYA_1_SENTYABRYA_PATH }
+            : item
+        ),
+      };
+    }
+    return { ...group, chips: [chip, ...group.chips] };
+  });
 }
 
 function BreadcrumbSeparator() {
@@ -446,7 +495,10 @@ export default async function TagPage({ params, searchParams }: Props) {
   let l2ChipGroups: L2ChipGroup[] = [];
   if (route.level === 1) {
     try {
-      l2ChipGroups = await getL2ChipsForTag(primaryTag, 12, seo.featuredL2Slugs);
+      l2ChipGroups = withSobytiya1SentyabryaStyleCrosslink(
+        await getL2ChipsForTag(primaryTag, 12, seo.featuredL2Slugs),
+        primaryTag
+      );
     } catch (err) {
       console.error("[TagPage] getL2ChipsForTag failed:", err);
     }
@@ -458,9 +510,25 @@ export default async function TagPage({ params, searchParams }: Props) {
   }
 
   const lockedDimensions = route.tags.map((t) => t.dimension);
+  const isSobytiyaL1 =
+    route.level === 1 &&
+    primaryTag.dimension === "occasion_tag" &&
+    primaryTag.urlPath.startsWith("/sobytiya/");
+  const isSiblingClusterL1 =
+    route.level === 1 &&
+    (primaryTag.dimension === "audience_tag" ||
+      primaryTag.dimension === "style_tag" ||
+      primaryTag.dimension === "object_tag");
+  const clusterChipsAboveGrid =
+    isSobytiyaL1 || isSiblingClusterL1
+      ? getClusterChipNavigation(primaryTag.dimension, primaryTag.urlPath)
+      : [];
+  const l2ChipGroupsBelow = isSobytiyaL1
+    ? l2ChipGroups.filter((group) => group.dimension !== "occasion_tag")
+    : l2ChipGroups;
 
   return (
-    <PageLayout>
+    <PageLayout showFooterWithGenerateDock>
       <ListingFotoVPromtBanner attach="hero" />
       <section className="w-full px-2 pt-5 sm:px-5">
         <nav className="mb-4 flex items-center gap-1.5 text-sm text-zinc-400">
@@ -510,6 +578,14 @@ export default async function TagPage({ params, searchParams }: Props) {
             headingId="listing-explorer-heading"
             eyebrow={sectionLabel}
             intro={seo.intro}
+            preGrid={
+              clusterChipsAboveGrid.length > 0 ? (
+                <ListingClusterChipGroup
+                  label={DIMENSION_LABELS[primaryTag.dimension]}
+                  items={clusterChipsAboveGrid}
+                />
+              ) : undefined
+            }
           />
           {seo.popularLinks?.length ? (
             <div className="sr-only">
@@ -553,9 +629,9 @@ export default async function TagPage({ params, searchParams }: Props) {
         )}
 
         {/* L2 chips — only on L1 pages */}
-        {l2ChipGroups.length > 0 && (
+        {l2ChipGroupsBelow.length > 0 && (
           <section className="mt-12 space-y-4">
-            {l2ChipGroups.map((group) => (
+            {l2ChipGroupsBelow.map((group) => (
               <div key={group.dimension}>
                 <p className="mb-2 text-xs font-medium uppercase tracking-wider text-zinc-600">
                   {group.label}
@@ -569,9 +645,11 @@ export default async function TagPage({ params, searchParams }: Props) {
                       className="inline-flex items-center gap-1.5 rounded-full border border-zinc-200 bg-white px-3 py-1.5 text-sm text-zinc-600 transition-colors hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700"
                     >
                       {chip.tag.labelRu}
-                      <span className="text-[11px] tabular-nums text-zinc-500">
-                        {chip.count}
-                      </span>
+                      {chip.count != null && chip.count > 0 ? (
+                        <span className="text-[11px] tabular-nums text-zinc-500">
+                          {chip.count}
+                        </span>
+                      ) : null}
                     </Link>
                   ))}
                 </div>

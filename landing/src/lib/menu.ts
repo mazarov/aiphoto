@@ -213,6 +213,7 @@ const CURATED_SECTIONS: MenuSection[] = [
           tagItem("23_fevralya"),
           tagItem("14_fevralya"),
           tagItem("8_marta"),
+          tagItem("1_sentyabrya"),
           tagItem("maslenica"),
           tagItem("svadba"),
           tagItem("novyy_god"),
@@ -296,3 +297,47 @@ function buildMenu(): MenuSection[] {
 }
 
 export const MENU: MenuSection[] = buildMenu();
+
+export type ClusterChipNavigationItem = {
+  label: string;
+  href: string;
+  active: boolean;
+};
+
+export type SobytiyaChipNavigationItem = ClusterChipNavigationItem;
+
+/** Cluster chips in curated menu order, not sorted by count. */
+export function getClusterChipNavigation(
+  dimension: MenuSection["dimension"],
+  activeHref?: string
+): ClusterChipNavigationItem[] {
+  const section = MENU.find((item) => item.dimension === dimension);
+  if (!section) return [];
+
+  const seen = new Set<string>();
+  const chips: ClusterChipNavigationItem[] = [];
+  for (const group of section.groups) {
+    for (const item of group.items) {
+      if (seen.has(item.href)) continue;
+      seen.add(item.href);
+      chips.push({
+        label: item.label,
+        href: item.href,
+        active: item.href === activeHref,
+      });
+    }
+  }
+  return chips;
+}
+
+export function getSobytiyaChipNavigation(
+  activeHref: string
+): ClusterChipNavigationItem[] {
+  return getClusterChipNavigation("occasion_tag", activeHref);
+}
+
+export function getStilChipNavigation(
+  activeHref?: string
+): ClusterChipNavigationItem[] {
+  return getClusterChipNavigation("style_tag", activeHref);
+}

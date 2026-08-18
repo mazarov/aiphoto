@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useLayoutEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useState, type ReactNode } from "react";
 import { useListingFilters } from "@/hooks/useListingFilters";
 import { useListingSort } from "@/hooks/useListingSort";
 import { FilterFAB } from "./FilterFAB";
@@ -54,6 +54,8 @@ type Props = {
    * Used by `/trends` (always `created_at` / sort=new).
    */
   fixedSort?: ListingSort;
+  /** Rendered above the masonry — e.g. event cross-link chips. */
+  preGrid?: ReactNode;
 };
 
 export function CatalogWithFilters({
@@ -68,6 +70,7 @@ export function CatalogWithFilters({
   intro,
   introSecondary,
   fixedSort,
+  preGrid,
 }: Props) {
   const [filterPanelOpen, setFilterPanelOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -177,6 +180,8 @@ export function CatalogWithFilters({
         onSortChange={sortChangeHandler}
         onOpenMobileFilters={() => setFilterPanelOpen(true)}
       />
+
+      {preGrid ? <div className="mt-3">{preGrid}</div> : null}
 
       <div className={`relative mt-5${isSearching ? " overflow-hidden" : ""}`}>
         {isSearching ? (

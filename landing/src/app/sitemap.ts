@@ -1,12 +1,17 @@
 import type { MetadataRoute } from "next";
 import { TAG_REGISTRY, findTagBySlug, type Dimension } from "@/lib/tag-registry";
-import { getPublishedCardsForSitemap, getIndexableTagCombos, getFilterCounts } from "@/lib/supabase";
+import { getPublishedCardsForSitemap, getIndexableTagCombos, getFilterCounts, searchCardsByText } from "@/lib/supabase";
 import { getMinCardsForLevel } from "@/lib/route-resolver";
 import {
   GENERACIYA_FOTO_SCENARIO_ROUTES,
   MIN_GENERACIYA_FOTO_SCENARIO_CARDS,
   getGeneraciyaFotoScenarioPath,
 } from "@/lib/generaciya-foto-routes";
+import {
+  SOBYTIYA_1_SENTYABRYA_PATH,
+  SOBYTIYA_1_SENTYABRYA_SEARCH_QUERY,
+  SOBYTIYA_1_SENTYABRYA_TAG,
+} from "@/lib/sobytiya-1-sentyabrya";
 
 const BASE_URL =
   process.env.NEXT_PUBLIC_SITE_URL ||
@@ -104,9 +109,31 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       }));
     const minL1 = getMinCardsForLevel(1);
     const indexableL1Tags = TAG_REGISTRY.filter((tag) => {
+      if (
+        tag.dimension === "occasion_tag" &&
+        tag.slug === SOBYTIYA_1_SENTYABRYA_TAG
+      ) {
+        return false;
+      }
       const count = countMap.get(`${tag.dimension}:${tag.slug}`) ?? 0;
       return count >= minL1;
     });
+    const eventSearchHits = await searchCardsByText(
+      SOBYTIYA_1_SENTYABRYA_SEARCH_QUERY,
+      getMinCardsForLevel(1),
+      0
+    );
+    const eventGenerationUrls: MetadataRoute.Sitemap =
+      eventSearchHits.length >= getMinCardsForLevel(1)
+        ? [
+            {
+              url: `${BASE_URL}${SOBYTIYA_1_SENTYABRYA_PATH}`,
+              lastModified: new Date(),
+              changeFrequency: "weekly",
+              priority: 0.85,
+            },
+          ]
+        : [];
     const tagUrls: MetadataRoute.Sitemap = indexableL1Tags.map((tag) => {
       const path = tag.urlPath.startsWith("/") ? tag.urlPath.slice(1) : tag.urlPath;
       return {
@@ -142,6 +169,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     return [
       ...hubs,
       ...generationScenarioUrls,
+      ...eventGenerationUrls,
       ...tagUrls,
       ...l2Urls,
       ...cardUrls,

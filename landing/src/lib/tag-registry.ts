@@ -71,6 +71,7 @@ export const TAG_REGISTRY: TagEntry[] = [
   // ── occasion_tag ──
   { slug: "den_rozhdeniya", dimension: "occasion_tag", labelRu: "День рождения", labelEn: "Birthday", urlPath: "/sobytiya/den-rozhdeniya", patterns: [/день рождения|на др(?![а-яё])/i] },
   { slug: "8_marta", dimension: "occasion_tag", labelRu: "8 марта", labelEn: "March 8", urlPath: "/sobytiya/8-marta", patterns: [/8 марта/i] },
+  { slug: "1_sentyabrya", dimension: "occasion_tag", labelRu: "1 сентября", labelEn: "September 1", urlPath: "/sobytiya/1-sentyabrya", patterns: [/1\s*сентябр|первое\s*сентябр|день\s*знан/i] },
   { slug: "14_fevralya", dimension: "occasion_tag", labelRu: "14 февраля", labelEn: "Valentine's Day", urlPath: "/sobytiya/14-fevralya", patterns: [/14 февраля|день влюбленных|валентин/i] },
   { slug: "23_fevralya", dimension: "occasion_tag", labelRu: "23 февраля", labelEn: "Feb 23", urlPath: "/sobytiya/23-fevralya", patterns: [/23 февраля/i] },
   { slug: "maslenica", dimension: "occasion_tag", labelRu: "Масленица", labelEn: "Maslenitsa", urlPath: "/sobytiya/maslenica", patterns: [/маслениц/i] },

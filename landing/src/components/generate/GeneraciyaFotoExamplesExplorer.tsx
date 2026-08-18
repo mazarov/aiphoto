@@ -41,6 +41,7 @@ export function GeneraciyaFotoExamplesExplorer({
   intro = GENERACIYA_FOTO_SEO.examplesIntro,
   defaultAllPromptsHref = "/",
   scenarioNavigation,
+  navigationAriaLabel,
   lockCardsToScenario = false,
 }: {
   initialCards: GenerationExampleCard[];
@@ -48,6 +49,7 @@ export function GeneraciyaFotoExamplesExplorer({
   intro?: string;
   defaultAllPromptsHref?: string;
   scenarioNavigation?: ScenarioNavigationItem[];
+  navigationAriaLabel?: string;
   lockCardsToScenario?: boolean;
 }) {
   const [query, setQuery] = useState("");
@@ -255,9 +257,10 @@ export function GeneraciyaFotoExamplesExplorer({
         <nav
           className="mt-3 flex flex-wrap gap-2"
           aria-label={
-            usesScenarioNavigation
+            navigationAriaLabel ??
+            (usesScenarioNavigation
               ? "Другие генераторы фото"
-              : "Быстрые подборки промтов"
+              : "Быстрые подборки промтов")
           }
         >
           {usesScenarioNavigation

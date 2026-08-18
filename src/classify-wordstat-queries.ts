@@ -63,6 +63,7 @@ const OCCASION: [string, RegExp, string][] = [
   ["14_fevralya", /14\s*феврал|валентин|день\s*влюбл/i, "/sobytiya/14-fevralya/"],
   ["maslenica", /маслениц/i, "/sobytiya/maslenica/"],
   ["8_marta", /8\s*март/i, "/sobytiya/8-marta/"],
+  ["1_sentyabrya", /1\s*сентябр|первое\s*сентябр|день\s*знан/i, "/sobytiya/1-sentyabrya/"],
   ["svadba", /свадьб|свадеб/i, "/sobytiya/svadba/"],
   ["novyy_god", /новый\s*год|новогод|рождеств/i, "/sobytiya/novyj-god/"],
 ];

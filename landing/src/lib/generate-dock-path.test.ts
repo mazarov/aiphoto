@@ -19,6 +19,8 @@ test("isGenerateDockSeoPagePath includes approved scenario pages", () => {
   assert.equal(isGenerateDockSeoPagePath("/generaciya-foto/kollazh/"), true);
   assert.equal(isGenerateDockSeoPagePath("/generaciya-foto/neizvestno"), false);
   assert.equal(isGenerateDockSeoPagePath("/foto-v-promt"), false);
+  assert.equal(isGenerateDockSeoPagePath("/sobytiya/1-sentyabrya"), false);
+  assert.equal(isGenerateDockSeoPagePath("/sobytiya/den-rozhdeniya"), false);
 });
 
 test("isGenerateDockListingPath includes foto-v-promt and analyses", () => {
