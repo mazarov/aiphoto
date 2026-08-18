@@ -1,7 +1,14 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import {
+  useState,
+  useEffect,
+  useLayoutEffect,
+  useCallback,
+  useMemo,
+  useRef,
+} from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ListingExplorerFrame } from "@/components/ListingExplorerFrame";
 import {
   ListingExplorerHeading,
@@ -19,7 +26,19 @@ import { FilterFAB } from "@/components/FilterFAB";
 import { ListingDesktopFilters } from "@/components/ListingDesktopFilters";
 import { useListingFilters } from "@/hooks/useListingFilters";
 import type { FilterState } from "@/hooks/useListingFilters";
-import { resetListingScroll } from "@/lib/scroll-preservation";
+import {
+  isListingOverlayPath,
+  normalizeNavPath,
+  resetListingScroll,
+  scheduleListingScrollRestore,
+} from "@/lib/scroll-preservation";
+import {
+  clearSearchListingSnapshot,
+  readSearchListingSnapshot,
+  resolveSearchUrlSync,
+  writeSearchListingSnapshot,
+  type SearchListingSnapshot,
+} from "@/lib/search-listing-session";
 import { useListingSentinelLoadMore } from "@/hooks/useListingSentinelLoadMore";
 import {
   primeListingNavigationCards,
@@ -54,6 +73,7 @@ type Props = {
 
 export function SearchResults({ initialQuery }: Props) {
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const { filters, setFilter, applyFilters, resetFilters, activeCount } =
     useListingFilters({
@@ -164,8 +184,25 @@ export function SearchResults({ initialQuery }: Props) {
   );
   scheduleDrainRef.current = scheduleDrain;
 
+  const restoreSnapshot = useCallback((snapshot: SearchListingSnapshot) => {
+    setQuery(snapshot.query);
+    setCardPages(snapshot.cardPages);
+    setOffset(snapshot.offset);
+    offsetRef.current = snapshot.offset;
+    setHasMore(snapshot.hasMore);
+    hasMoreRef.current = snapshot.hasMore;
+    setMatchType(snapshot.matchType);
+    setSearched(snapshot.searched);
+    lastSearchedRef.current = snapshot.requestKey;
+    setLoading(false);
+    loadingRef.current = false;
+    scheduleListingScrollRestore();
+  }, []);
+
   const commitQueryToUrl = useCallback(
     (trimmed: string) => {
+      if (isListingOverlayPath(pathname)) return;
+      if (normalizeNavPath(pathname) !== "/search") return;
       const current = searchParams.get("q")?.trim() || "";
       const params = new URLSearchParams(searchParams.toString());
       if (trimmed.length >= 2 && trimmed !== current) {
@@ -177,7 +214,7 @@ export function SearchResults({ initialQuery }: Props) {
         router.replace(nextQuery ? `/search?${nextQuery}` : "/search", { scroll: false });
       }
     },
-    [router, searchParams]
+    [pathname, router, searchParams]
   );
 
   const runSearch = useCallback(
@@ -193,36 +230,73 @@ export function SearchResults({ initialQuery }: Props) {
     },
     [commitQueryToUrl, doSearch]
   );
+  const runSearchRef = useRef(runSearch);
+  runSearchRef.current = runSearch;
 
   useEffect(() => {
-    if (initialQuery.length >= 2) {
-      lastSearchedRef.current = searchRequestKey(initialQuery, filtersRef.current);
-      void doSearch(initialQuery);
+    if (!searched && cardPages.length === 0) {
+      if (query.trim().length < 2) clearSearchListingSnapshot();
+      return;
+    }
+    writeSearchListingSnapshot({
+      requestKey:
+        lastSearchedRef.current ??
+        searchRequestKey(query, filtersRef.current),
+      query: queryRef.current,
+      cardPages,
+      offset,
+      hasMore,
+      matchType,
+      searched,
+    });
+  }, [cardPages, hasMore, matchType, offset, query, searched]);
+
+  useLayoutEffect(() => {
+    const urlQuery = searchParams.get("q")?.trim() || initialQuery;
+    const requestKey = searchRequestKey(urlQuery, filtersRef.current);
+    const cached = readSearchListingSnapshot(requestKey);
+    if (cached) {
+      restoreSnapshot(cached);
+      return;
+    }
+    if (urlQuery.length >= 2) {
+      lastSearchedRef.current = requestKey;
+      void doSearch(urlQuery);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
-    const q = searchParams.get("q")?.trim() || "";
-    const requestKey = searchRequestKey(q, filters);
-    if (requestKey === lastSearchedRef.current) {
-      if (q !== query) setQuery(q);
+    const urlQuery = searchParams.get("q")?.trim() || "";
+    const requestKey = searchRequestKey(urlQuery, filters);
+    const action = resolveSearchUrlSync({
+      pathname,
+      urlRequestKey: requestKey,
+      lastSearched: lastSearchedRef.current,
+    });
+    if (action === "ignore") return;
+    if (action === "keep") {
+      if (urlQuery !== queryRef.current) setQuery(urlQuery);
       return;
     }
-    setQuery(q);
+    const cached = readSearchListingSnapshot(requestKey);
+    if (cached) {
+      restoreSnapshot(cached);
+      return;
+    }
+    setQuery(urlQuery);
     lastSearchedRef.current = requestKey;
     setOffset(0);
     offsetRef.current = 0;
-    void doSearch(q);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams]);
+    void doSearch(urlQuery);
+  }, [doSearch, filters, pathname, restoreSnapshot, searchParams]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      runSearch(query);
+      runSearchRef.current(query);
     }, SEARCH_DEBOUNCE_MS);
     return () => window.clearTimeout(timer);
-  }, [query, runSearch]);
+  }, [query]);
 
   const displayedPages = useMemo(
     () =>

@@ -309,6 +309,15 @@ function isPricingPath(normalizedPath: string): boolean {
   return normalizedPath === "/pricing";
 }
 
+/**
+ * Soft overlay (`pushState /p/slug` or `/pricing`). Next 15 syncs these into
+ * `usePathname` / `useSearchParams` without the listing being a new search.
+ */
+export function isListingOverlayPath(pathname: string): boolean {
+  const norm = normalizeNavPath(pathname);
+  return isCardPath(norm) || isPricingPath(norm);
+}
+
 /** Scroll catalog listing root and window to top; clears saved modal-restore position. */
 export function scrollCatalogToTop(): void {
   if (typeof window === "undefined") return;

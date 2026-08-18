@@ -1,8 +1,11 @@
 "use client";
 
-import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useMemo } from "react";
-import { resetListingScroll } from "@/lib/scroll-preservation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useMemo, useRef } from "react";
+import {
+  isListingOverlayPath,
+  resetListingScroll,
+} from "@/lib/scroll-preservation";
 import type { Dimension } from "@/lib/tag-registry";
 
 export type FilterState = {
@@ -36,10 +39,12 @@ export type UseListingFiltersOptions = {
 
 export function useListingFilters(options: UseListingFiltersOptions = {}) {
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const { lockedDimensions = [], baseRpcParams = {} } = options;
+  const overlayOpen = isListingOverlayPath(pathname);
 
-  const filters = useMemo<FilterState>(() => {
+  const liveFilters = useMemo<FilterState>(() => {
     return {
       audience: searchParams.get(QUERY_KEYS.audience) || null,
       style: searchParams.get(QUERY_KEYS.style) || null,
@@ -47,6 +52,9 @@ export function useListingFilters(options: UseListingFiltersOptions = {}) {
       object: searchParams.get(QUERY_KEYS.object) || null,
     };
   }, [searchParams]);
+  const frozenFiltersRef = useRef(liveFilters);
+  if (!overlayOpen) frozenFiltersRef.current = liveFilters;
+  const filters = overlayOpen ? frozenFiltersRef.current : liveFilters;
 
   const activeCount = useMemo(() => {
     return [filters.audience, filters.style, filters.occasion, filters.object].filter(Boolean).length;
