@@ -29,7 +29,6 @@ import {
   readPricingReturnPath,
 } from "@/lib/yookassa-return-path";
 import { readYandexCheckoutAttribution } from "@/lib/yandex-attribution-browser";
-import { captureBrowserAcquisitionContext } from "@/lib/traffic-source-attribution-browser";
 import {
   openRobokassaPayment,
   type RobokassaBrowserPayload,
@@ -320,8 +319,7 @@ export function PricingCards({
       paywall_variant: variant,
     });
     try {
-      const yandexAttribution = await readYandexCheckoutAttribution();
-      const acquisition = captureBrowserAcquisitionContext();
+      const attribution = await readYandexCheckoutAttribution();
       const response = await fetch("/api/payments/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -331,11 +329,8 @@ export function PricingCards({
           testAccess:
             new URL(window.location.href).searchParams.get("test") === "true",
           returnPath: readPricingReturnPath(),
-          ymClientId: yandexAttribution.ymClientId,
-          yclid: yandexAttribution.yclid ?? acquisition.yclid,
-          visitorId: acquisition.visitorId,
-          sessionId: acquisition.sessionId,
-          ...acquisition.attribution,
+          ymClientId: attribution.ymClientId,
+          yclid: attribution.yclid,
           paywallVariant: variant,
         }),
       });
