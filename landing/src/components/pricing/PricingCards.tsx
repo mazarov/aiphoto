@@ -3,6 +3,7 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type ReactNode,
@@ -10,6 +11,7 @@ import {
 import Link from "next/link";
 import {
   getDefaultPricingPlanId,
+  getPaywallSwipePlans,
   getPricingPlan,
   getPricingPlanPhotoEconomics,
   getPricingPlans,
@@ -120,6 +122,25 @@ function TokenIcon() {
   );
 }
 
+function SwipeHintIcon({ direction }: { direction: "prev" | "next" }) {
+  return (
+    <svg
+      className={["h-5 w-5", direction === "prev" ? "-scale-x-100" : ""].join(" ")}
+      viewBox="0 0 20 20"
+      fill="none"
+      aria-hidden
+    >
+      <path
+        d="M7.5 4.5 13 10l-5.5 5.5"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 function CheckIcon({ className = "text-zinc-100" }: { className?: string }) {
   return (
     <svg className={`mt-0.5 h-4 w-4 shrink-0 ${className}`} viewBox="0 0 20 20" fill="none" aria-hidden>
@@ -127,6 +148,8 @@ function CheckIcon({ className = "text-zinc-100" }: { className?: string }) {
     </svg>
   );
 }
+
+const PAYWALL_SWIPE_MQ = "(max-width: 639px)";
 
 function PaywallPlanCard({
   plan,
@@ -145,6 +168,7 @@ function PaywallPlanCard({
   return (
     <button
       type="button"
+      data-plan-id={plan.id}
       aria-labelledby={headingId}
       role="radio"
       aria-checked={selected}
@@ -207,10 +231,26 @@ export function PricingCards({
     getDefaultPricingPlanId(variant),
   );
   const checkoutInFlightRef = useRef(false);
-  const plans = getPricingPlans(variant);
+  const plansScrollerRef = useRef<HTMLDivElement>(null);
+  const plans = useMemo(
+    () => getPaywallSwipePlans(getPricingPlans(variant)),
+    [variant],
+  );
   const selectedPlan =
     plans.find((plan) => plan.id === selectedPlanId) ?? plans[0]!;
   const selectedEconomics = getPricingPlanPhotoEconomics(selectedPlan);
+  const selectedPlanIndex = plans.findIndex((plan) => plan.id === selectedPlan.id);
+  const previousPlan = selectedPlanIndex > 0 ? plans[selectedPlanIndex - 1] ?? null : null;
+  const nextPlan = plans[selectedPlanIndex + 1] ?? null;
+
+  const scrollPlanIntoView = useCallback((planId: PricingPlanId) => {
+    const root = plansScrollerRef.current;
+    const card = root?.querySelector<HTMLElement>(`[data-plan-id="${planId}"]`);
+    if (!root || !card) return;
+    if (!window.matchMedia(PAYWALL_SWIPE_MQ).matches) return;
+    const left = card.offsetLeft - (root.clientWidth - card.offsetWidth) / 2;
+    root.scrollTo({ left: Math.max(0, left), behavior: "smooth" });
+  }, []);
 
   useEffect(() => {
     reachYandexMetrikaGoal(YM_GOAL_PROMPT_CARD_GENERATION_PRICING, {
@@ -218,6 +258,48 @@ export function PricingCards({
       paywall_variant: variant,
     });
   }, [variant]);
+
+  useEffect(() => {
+    const mq = window.matchMedia(PAYWALL_SWIPE_MQ);
+    const syncLeadPlan = () => {
+      if (!mq.matches) {
+        setSelectedPlanId(getDefaultPricingPlanId(variant));
+        return;
+      }
+      const leadId = plans[0]?.id;
+      if (leadId) setSelectedPlanId(leadId);
+    };
+    syncLeadPlan();
+    mq.addEventListener("change", syncLeadPlan);
+    return () => mq.removeEventListener("change", syncLeadPlan);
+  }, [plans, variant]);
+
+  useEffect(() => {
+    const root = plansScrollerRef.current;
+    if (!root) return;
+
+    const syncFromScroll = () => {
+      if (!window.matchMedia(PAYWALL_SWIPE_MQ).matches) return;
+      const cards = [...root.querySelectorAll<HTMLElement>("[data-plan-id]")];
+      if (cards.length === 0) return;
+      const midpoint = root.scrollLeft + root.clientWidth / 2;
+      let closest = cards[0]!;
+      let closestDistance = Number.POSITIVE_INFINITY;
+      for (const card of cards) {
+        const center = card.offsetLeft + card.offsetWidth / 2;
+        const distance = Math.abs(center - midpoint);
+        if (distance < closestDistance) {
+          closest = card;
+          closestDistance = distance;
+        }
+      }
+      const planId = closest.dataset.planId;
+      if (planId) setSelectedPlanId(planId as PricingPlanId);
+    };
+
+    root.addEventListener("scroll", syncFromScroll, { passive: true });
+    return () => root.removeEventListener("scroll", syncFromScroll);
+  }, [plans]);
 
   const createCheckout = useCallback(async (pending: PendingCheckout) => {
     if (checkoutInFlightRef.current) return;
@@ -376,9 +458,14 @@ export function PricingCards({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1">
+      <div
+        className="pricing-paywall-plans-wrap shrink-0"
+        data-has-prev={previousPlan ? "true" : "false"}
+        data-has-next={nextPlan ? "true" : "false"}
+      >
         <div
-          className="grid w-full min-w-0 grid-cols-2 gap-2 sm:gap-3"
+          ref={plansScrollerRef}
+          className="pricing-paywall-plans scrollbar-none"
           role="radiogroup"
           aria-label="Выберите пакет токенов"
         >
@@ -387,13 +474,60 @@ export function PricingCards({
               key={plan.id}
               plan={plan}
               selected={plan.id === selectedPlan.id}
-              onSelect={(nextPlan) => setSelectedPlanId(nextPlan.id)}
+              onSelect={(planToSelect) => {
+                setSelectedPlanId(planToSelect.id);
+                scrollPlanIntoView(planToSelect.id);
+              }}
               disabled={checkout.kind === "creating"}
             />
           ))}
         </div>
+        {previousPlan ? (
+          <button
+            type="button"
+            className="pricing-paywall-swipe-hint absolute top-1/2 left-1 z-10 h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-white text-indigo-600 shadow-md ring-1 ring-indigo-100"
+            aria-label={`Предыдущий тариф: ${previousPlan.name}`}
+            onClick={() => {
+              setSelectedPlanId(previousPlan.id);
+              scrollPlanIntoView(previousPlan.id);
+            }}
+          >
+            <SwipeHintIcon direction="prev" />
+          </button>
+        ) : null}
+        {nextPlan ? (
+          <button
+            type="button"
+            className="pricing-paywall-swipe-hint absolute top-1/2 right-1 z-10 h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-white text-indigo-600 shadow-md ring-1 ring-indigo-100"
+            aria-label={`Следующий тариф: ${nextPlan.name}`}
+            onClick={() => {
+              setSelectedPlanId(nextPlan.id);
+              scrollPlanIntoView(nextPlan.id);
+            }}
+          >
+            <SwipeHintIcon direction="next" />
+          </button>
+        ) : null}
+      </div>
+      <div
+        className="pricing-paywall-dots mt-2 flex shrink-0 items-center justify-center gap-1.5"
+        aria-hidden
+      >
+        {plans.map((plan) => (
+          <span
+            key={plan.id}
+            className={[
+              "h-2 rounded-full transition-all",
+              plan.id === selectedPlan.id
+                ? "w-5 bg-indigo-500"
+                : "w-2 bg-zinc-300",
+            ].join(" ")}
+          />
+        ))}
+      </div>
 
-        <div className="pricing-paywall-secondary mt-4 grid grid-cols-3 rounded-xl border border-zinc-100 bg-zinc-50/90 px-2 py-2.5 text-center">
+      <div className="mt-3 min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1">
+        <div className="pricing-paywall-secondary grid grid-cols-3 rounded-xl border border-zinc-100 bg-zinc-50/90 px-2 py-2.5 text-center">
         <div className="px-1">
           <strong className="block text-xs font-semibold text-zinc-900 sm:text-sm">
             Разовая

@@ -7,6 +7,7 @@ import {
   PRICING_PLANS,
   TREATMENT_PRICING_PLANS,
   getDefaultPricingPlanId,
+  getPaywallSwipePlans,
   getPricingPlanPhotoEconomics,
   getPricingPlan,
 } from "./pricing-plans";
@@ -49,6 +50,17 @@ test("control pricing catalog preserves the previous offer", () => {
   );
   assert.equal(getPricingPlan("trial", "control")?.price, 199);
   assert.equal(getPricingPlan("trial", "treatment")?.price, 99);
+});
+
+test("paywall swipe leads with a higher-priced pack, then the cheapest", () => {
+  assert.deepEqual(
+    getPaywallSwipePlans(TREATMENT_PRICING_PLANS).map((plan) => plan.id),
+    ["pro", "trial", "start", "max"],
+  );
+  assert.deepEqual(
+    getPaywallSwipePlans(CONTROL_PRICING_PLANS).map((plan) => plan.id),
+    ["pro", "trial", "start", "max"],
+  );
 });
 
 test("treatment photo economics derive from 5 and 10 token image models", () => {

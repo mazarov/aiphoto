@@ -26,7 +26,57 @@ html {
  * component's regular spacing/grid utilities without !important.
  */
 @layer utilities {
-  @media (max-height: 720px) {
+  @media (max-width: 639px) {
+    .pricing-paywall-plans {
+      display: flex;
+      flex-wrap: nowrap;
+      gap: 0.5rem;
+      overflow-x: auto;
+      overscroll-behavior-x: contain;
+      scroll-snap-type: x mandatory;
+      touch-action: pan-x;
+    }
+
+    .pricing-paywall-plan {
+      flex: 0 0 72%;
+      scroll-snap-align: center;
+      touch-action: pan-x;
+    }
+
+    .pricing-paywall-plans-wrap[data-has-prev="true"]::before,
+    .pricing-paywall-plans-wrap[data-has-next="true"]::after {
+      content: "";
+      pointer-events: none;
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 2.75rem;
+    }
+
+    .pricing-paywall-plans-wrap[data-has-prev="true"]::before {
+      left: 0;
+      border-radius: 0.75rem 0 0 0.75rem;
+      background: linear-gradient(to left, rgb(255 255 255 / 0), rgb(255 255 255 / 0.88) 72%);
+    }
+
+    .pricing-paywall-plans-wrap[data-has-next="true"]::after {
+      right: 0;
+      border-radius: 0 0.75rem 0.75rem 0;
+      background: linear-gradient(to right, rgb(255 255 255 / 0), rgb(255 255 255 / 0.88) 72%);
+    }
+
+    .pricing-paywall-swipe-hint {
+      display: flex;
+    }
+  }
+
+  @media (min-width: 640px) {
+    .pricing-paywall-dots {
+      display: none;
+    }
+  }
+
+  @media (max-height: 720px) and (min-width: 640px) {
     .pricing-paywall-body {
       padding-top: 0.75rem;
     }
@@ -37,6 +87,13 @@ html {
       padding-bottom: 0.5rem;
     }
 
+    .pricing-paywall-secondary,
+    .pricing-paywall-legal {
+      display: none;
+    }
+  }
+
+  @media (max-height: 560px) {
     .pricing-paywall-secondary,
     .pricing-paywall-legal {
       display: none;
@@ -149,19 +206,10 @@ p {
    * Stable prompt-card masonry.
    * Positions are deterministic for 2/3/4 lanes and expressed in container
    * query units, so infinite-scroll append never moves the existing prefix.
-   *
-   * `container-type` and `height: *cqw` MUST live on different nodes.
-   * If the query container sizes its own block size with `cqw`, browsers
-   * treat that as cyclic and resolve `cqw` against the viewport — the box
-   * grows taller than the absolutely positioned cards.
    */
   .stable-listing-masonry {
-    container-type: inline-size;
-    width: 100%;
-  }
-
-  .stable-listing-masonry-canvas {
     position: relative;
+    container-type: inline-size;
     height: var(--masonry-height-2);
   }
 
@@ -173,7 +221,7 @@ p {
   }
 
   @media (min-width: 640px) {
-    .stable-listing-masonry-canvas {
+    .stable-listing-masonry {
       height: var(--masonry-height-3);
     }
 
@@ -185,7 +233,7 @@ p {
   }
 
   @media (min-width: 1024px) {
-    .stable-listing-masonry-canvas {
+    .stable-listing-masonry {
       height: var(--masonry-height-4);
     }
 
@@ -483,6 +531,28 @@ p {
     flex: 1 1 auto;
   }
 
+  .pricing-paywall-plans-wrap {
+    position: relative;
+  }
+
+  .pricing-paywall-swipe-hint {
+    display: none;
+  }
+
+  .pricing-paywall-plans {
+    display: grid;
+    width: 100%;
+    min-width: 0;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+  }
+
+  @media (min-width: 640px) {
+    .pricing-paywall-plans {
+      gap: 0.75rem;
+    }
+  }
+
   @media (max-width: 1023px) {
     .pricing-paywall-shell[data-mode="page"] {
       height: calc(
@@ -510,7 +580,9 @@ p {
       padding-top: 0.5rem;
       padding-bottom: 0.5rem;
     }
+  }
 
+  @media (max-height: 720px) and (min-width: 640px) {
     .pricing-paywall-secondary {
       display: none;
     }

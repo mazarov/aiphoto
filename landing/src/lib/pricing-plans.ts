@@ -130,6 +130,28 @@ export function getPricingPlans(
     : TREATMENT_PRICING_PLANS;
 }
 
+/**
+ * Mobile swipe order: a higher-priced pack first, then the cheapest,
+ * then the remaining catalog order. Checkout still keys plans by id.
+ */
+export function getPaywallSwipePlans(
+  plans: readonly PricingPlan[],
+): PricingPlan[] {
+  if (plans.length < 2) return [...plans];
+  const cheapest = plans.reduce((lead, plan) =>
+    plan.price < lead.price ? plan : lead,
+  );
+  const expensiveLead =
+    plans.find((plan) => plan.id !== cheapest.id) ?? cheapest;
+  return [
+    expensiveLead,
+    cheapest,
+    ...plans.filter(
+      (plan) => plan.id !== expensiveLead.id && plan.id !== cheapest.id,
+    ),
+  ];
+}
+
 export function getDefaultPricingPlanId(
   variant: PricingPaywallVariant,
 ): PricingPlanId {
