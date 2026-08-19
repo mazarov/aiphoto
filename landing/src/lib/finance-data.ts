@@ -1,4 +1,8 @@
 import type { createSupabaseServer } from "@/lib/supabase";
+import {
+  deriveDeliveryMetrics,
+  mapAcquisitionRpcPayload,
+} from "@/lib/finance-acquisition";
 import { classifyGeminiFamily } from "@/lib/finance-parse";
 import {
   buildFinanceDailySeries,
@@ -12,6 +16,8 @@ import {
 } from "@/lib/finance-pnl";
 import {
   GEMINI_FAMILY_LABELS,
+  type FinanceAdsVatMode,
+  type FinanceImportKind,
   type FinanceImportMeta,
   type FinanceLiability,
   type FinanceMonthData,
@@ -22,7 +28,7 @@ type SupabaseServer = ReturnType<typeof createSupabaseServer>;
 
 type ImportRow = {
   id: string;
-  kind: "revenue" | "cogs";
+  kind: FinanceImportKind;
   period_month: string;
   source_filename: string;
   file_sha256: string;
@@ -53,6 +59,19 @@ type CogsRow = {
   subtotal_usd: number | string;
 };
 
+type AdsRow = {
+  spend_date: string;
+  campaign_id: string;
+  campaign_name: string | null;
+  ad_group_id: string | null;
+  ad_id: string | null;
+  criterion_id: string | null;
+  impressions: number | string;
+  clicks: number | string;
+  cost_rub: number | string;
+  currency: string | null;
+};
+
 const money = moneyRub;
 
 function usd(value: number | string | null | undefined): number {
@@ -80,6 +99,59 @@ function dayKey(iso: string | null, periodMonth: string): string {
   return clampFinanceDay(moscowDayKey(iso), periodMonth);
 }
 
+function isMissingBackend(error: { message?: string; code?: string } | null | undefined): boolean {
+  if (!error) return false;
+  const code = error.code || "";
+  const message = (error.message || "").toLowerCase();
+  return (
+    code === "42P01"
+    || code === "42883"
+    || code === "PGRST202"
+    || code === "PGRST205"
+    || message.includes("does not exist")
+    || message.includes("could not find the function")
+    || message.includes("could not find the table")
+    || message.includes("schema cache")
+  );
+}
+
+function parseAdsVatMode(value: unknown): FinanceAdsVatMode {
+  return value === "included" || value === "excluded" ? value : "unknown";
+}
+
+function monthDateRange(periodMonth: string): { from: string; to: string } {
+  const prefix = periodMonth.slice(0, 7);
+  const [year, month] = prefix.split("-").map(Number);
+  const last = new Date(year, month, 0).getDate();
+  return { from: `${prefix}-01`, to: `${prefix}-${String(last).padStart(2, "0")}` };
+}
+
+function adsBreakdownMetrics(input: {
+  campaignId: string;
+  campaignName: string;
+  adId?: string | null;
+  costRub: number;
+  clicks: number;
+  impressions: number;
+}) {
+  const derived = deriveDeliveryMetrics({
+    day: "1970-01-01",
+    spendRub: input.costRub,
+    clicks: input.clicks,
+    impressions: input.impressions,
+  });
+  return {
+    campaignId: input.campaignId,
+    campaignName: input.campaignName,
+    adId: input.adId,
+    costRub: derived.spendRub,
+    clicks: derived.clicks,
+    impressions: derived.impressions,
+    ctr: derived.ctr,
+    cpc: derived.cpc,
+  };
+}
+
 export async function fetchFinanceMonth(
   supabase: SupabaseServer,
   periodMonth: string,
@@ -95,6 +167,7 @@ export async function fetchFinanceMonth(
   const rows = (imports || []) as ImportRow[];
   const revenueImport = rows.find((row) => row.kind === "revenue") || null;
   const cogsImport = rows.find((row) => row.kind === "cogs") || null;
+  const adsImport = rows.find((row) => row.kind === "ads") || null;
 
   let revenue: FinanceMonthData["revenue"] = null;
   if (revenueImport) {
@@ -231,6 +304,110 @@ export async function fetchFinanceMonth(
     };
   }
 
+  let ads: FinanceMonthData["ads"] = null;
+  if (adsImport) {
+    const { data, error } = await supabase
+      .from("admin_finance_ads_lines")
+      .select("spend_date,campaign_id,campaign_name,ad_group_id,ad_id,criterion_id,impressions,clicks,cost_rub,currency")
+      .eq("import_id", adsImport.id);
+    if (error && !isMissingBackend(error)) throw new Error(error.message);
+    if (!error) {
+      const lines = (data || []) as AdsRow[];
+      const dailyMap = new Map<string, { day: string; costRub: number; clicks: number; impressions: number }>();
+      const campaignMap = new Map<string, { campaignId: string; campaignName: string; costRub: number; clicks: number; impressions: number }>();
+      const adMap = new Map<string, { campaignId: string; campaignName: string; adId: string; costRub: number; clicks: number; impressions: number }>();
+      let costRub = 0;
+      let clicks = 0;
+      let impressions = 0;
+      for (const line of lines) {
+        const lineCost = money(line.cost_rub);
+        const lineClicks = Number(line.clicks || 0);
+        const lineImpressions = Number(line.impressions || 0);
+        costRub += lineCost;
+        clicks += lineClicks;
+        impressions += lineImpressions;
+        const day = String(line.spend_date).slice(0, 10);
+        const daily = dailyMap.get(day) || { day, costRub: 0, clicks: 0, impressions: 0 };
+        daily.costRub += lineCost;
+        daily.clicks += lineClicks;
+        daily.impressions += lineImpressions;
+        dailyMap.set(day, daily);
+        const campaignId = line.campaign_id || "unknown";
+        const campaign = campaignMap.get(campaignId) || {
+          campaignId,
+          campaignName: line.campaign_name || campaignId,
+          costRub: 0,
+          clicks: 0,
+          impressions: 0,
+        };
+        campaign.costRub += lineCost;
+        campaign.clicks += lineClicks;
+        campaign.impressions += lineImpressions;
+        if (!campaign.campaignName && line.campaign_name) campaign.campaignName = line.campaign_name;
+        campaignMap.set(campaignId, campaign);
+        if (line.ad_id) {
+          const adKey = `${campaignId}|${line.ad_id}`;
+          const ad = adMap.get(adKey) || {
+            campaignId,
+            campaignName: line.campaign_name || campaignId,
+            adId: line.ad_id,
+            costRub: 0,
+            clicks: 0,
+            impressions: 0,
+          };
+          ad.costRub += lineCost;
+          ad.clicks += lineClicks;
+          ad.impressions += lineImpressions;
+          adMap.set(adKey, ad);
+        }
+      }
+      const totals = adsImport.totals || {};
+      const kpi = deriveDeliveryMetrics({
+        day: periodMonth.slice(0, 10),
+        spendRub: costRub,
+        clicks,
+        impressions,
+      });
+      ads = {
+        import: toMeta(adsImport),
+        kpi: {
+          costRub: kpi.spendRub,
+          clicks: kpi.clicks,
+          impressions: kpi.impressions,
+          count: lines.length,
+          currency: "RUB",
+          vatMode: parseAdsVatMode(totals.vatMode),
+          droppedOutsideMonth: Number(totals.droppedOutsideMonth || 0),
+          ctr: kpi.ctr,
+          cpc: kpi.cpc,
+        },
+        daily: [...dailyMap.values()]
+          .map((row) => deriveDeliveryMetrics({
+            day: row.day,
+            spendRub: row.costRub,
+            clicks: row.clicks,
+            impressions: row.impressions,
+          }))
+          .map((row) => ({
+            day: row.day,
+            costRub: row.spendRub,
+            clicks: row.clicks,
+            impressions: row.impressions,
+            ctr: row.ctr,
+            cpc: row.cpc,
+          }))
+          .sort((left, right) => left.day.localeCompare(right.day)),
+        byCampaign: [...campaignMap.values()]
+          .map(adsBreakdownMetrics)
+          .sort((left, right) => right.costRub - left.costRub),
+        byAd: [...adMap.values()]
+          .map(adsBreakdownMetrics)
+          .sort((left, right) => right.costRub - left.costRub)
+          .slice(0, 30),
+      };
+    }
+  }
+
   const { data: liabilityRows } = await supabase.rpc("admin_credit_liability_summary");
   const liabilityRow = (liabilityRows || [])[0] as {
     credits_total?: number;
@@ -241,10 +418,53 @@ export async function fetchFinanceMonth(
     liabilityRubEstimate: estimateCreditLiabilityRub(creditsTotal),
   };
 
+  const range = monthDateRange(periodMonth);
+  let acquisition: FinanceMonthData["acquisition"] = null;
+  const { data: cohortRaw, error: cohortError } = await supabase.rpc("admin_acquisition_cohort", {
+    p_from: range.from,
+    p_to: range.to,
+  });
+  if (cohortError && !isMissingBackend(cohortError)) {
+    console.error("[admin.finance] acquisition_cohort_failed", {
+      periodMonth,
+      message: cohortError.message,
+    });
+  }
+  const mapped = !cohortError && cohortRaw != null
+    ? mapAcquisitionRpcPayload(cohortRaw)
+    : { delivery: [], cohorts: [], quality: null };
+  const localDelivery = (ads?.daily || []).map((row) => deriveDeliveryMetrics({
+    day: row.day,
+    spendRub: row.costRub,
+    clicks: row.clicks,
+    impressions: row.impressions,
+  }));
+  const deliveryByDay = new Map(localDelivery.map((row) => [row.day, row]));
+  for (const row of mapped.delivery) {
+    const current = deliveryByDay.get(row.day);
+    deliveryByDay.set(row.day, current
+      ? {
+        ...current,
+        payments: row.payments ?? current.payments,
+        revenueRub: row.revenueRub ?? current.revenueRub,
+      }
+      : row);
+  }
+  const delivery = [...deliveryByDay.values()].sort((left, right) => left.day.localeCompare(right.day));
+  if (delivery.length || mapped.cohorts.length || mapped.quality) {
+    acquisition = {
+      delivery,
+      cohorts: mapped.cohorts,
+      quality: mapped.quality,
+    };
+  }
+
   return {
     month: periodMonth,
     revenue,
     cogs,
+    ads,
+    acquisition,
     daily: buildFinanceDailySeries({
       periodMonth,
       revenueDaily: revenue?.daily,

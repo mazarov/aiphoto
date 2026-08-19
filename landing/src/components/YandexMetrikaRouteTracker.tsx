@@ -2,7 +2,8 @@
 
 import { useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
-import { captureFirstTouchYclidFromLocation } from "@/lib/yandex-attribution-browser";
+import { recordAcquisitionClientEvent } from "@/lib/acquisition-client-events";
+import { captureBrowserAcquisitionContext } from "@/lib/traffic-source-attribution-browser";
 import { trackVirtualPageView } from "@/lib/yandex-metrika";
 
 function pageTitleFromUrl(url: string): string | undefined {
@@ -31,7 +32,13 @@ export function YandexMetrikaRouteTracker() {
 
   useEffect(() => {
     const url = currentUrl();
-    captureFirstTouchYclidFromLocation();
+    captureBrowserAcquisitionContext();
+    try {
+      if (!sessionStorage.getItem("promptshot_landing_view_recorded")) {
+        sessionStorage.setItem("promptshot_landing_view_recorded", "1");
+        recordAcquisitionClientEvent("landing_view", { path: window.location.pathname });
+      }
+    } catch {}
 
     if (skipInitialRef.current) {
       skipInitialRef.current = false;

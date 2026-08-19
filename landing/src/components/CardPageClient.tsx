@@ -32,6 +32,7 @@ import {
   SIZES_CARD_HERO,
 } from "@/lib/card-image-presets";
 import { copyTextSyncFallback, copyTextUniversal } from "@/lib/copy-text-to-clipboard";
+import { recordAcquisitionClientEvent } from "@/lib/acquisition-client-events";
 import { buildCardImageAlt, buildBeforeAlt } from "@/lib/image-alt";
 import {
   requestListingNavigationLoadMore,
@@ -436,10 +437,12 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
     if (!str) return;
     if (copyTextSyncFallback(str)) {
       setStickyCopy("ok");
+      recordAcquisitionClientEvent("prompt_copy", { cardSlug: data.slug });
       window.setTimeout(() => setStickyCopy("idle"), 2200);
       return;
     }
     const ok = await copyTextUniversal(str);
+    if (ok) recordAcquisitionClientEvent("prompt_copy", { cardSlug: data.slug });
     setStickyCopy(ok ? "ok" : "fail");
     window.setTimeout(() => setStickyCopy("idle"), 2200);
   }
@@ -448,6 +451,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
     if (copyTextSyncFallback(text)) {
       setCopiedIdx(idx);
       setCopyErrIdx(null);
+      recordAcquisitionClientEvent("prompt_copy", { cardSlug: data.slug });
       window.setTimeout(() => setCopiedIdx(null), 2000);
       return;
     }
@@ -455,6 +459,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
     if (ok) {
       setCopiedIdx(idx);
       setCopyErrIdx(null);
+      recordAcquisitionClientEvent("prompt_copy", { cardSlug: data.slug });
       window.setTimeout(() => setCopiedIdx(null), 2000);
     } else {
       setCopyErrIdx(idx);

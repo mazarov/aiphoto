@@ -26,6 +26,15 @@ export type AdminPaymentRow = {
   provider_status: string | null;
   test: boolean | null;
   paywall_variant: PricingPaywallVariant | null;
+  visitor_id: string | null;
+  session_id: string | null;
+  yclid: string | null;
+  utm_source: string | null;
+  utm_medium: string | null;
+  utm_campaign: string | null;
+  utm_content: string | null;
+  utm_term: string | null;
+  utm_landing_path: string | null;
   credited_at: string | null;
 };
 
@@ -50,6 +59,39 @@ export function paymentTestFilterToRpc(value: AdminPaymentTestFilter): boolean |
   if (value === "live") return false;
   if (value === "test") return true;
   return null;
+}
+
+export function parseAdminPaymentAttributionFilter(raw: string | null): string | null {
+  const value = (raw || "").trim().replace(/[\u0000-\u001f\u007f]/g, "");
+  return value ? value.slice(0, 64) : null;
+}
+
+export function formatPaymentTrafficSource(
+  row: Pick<
+    AdminPaymentRow,
+    "utm_source" | "utm_medium" | "utm_campaign" | "utm_content" | "utm_landing_path"
+  >,
+): {
+  primary: string;
+  campaign: string | null;
+  landingPath: string | null;
+  isDirect: boolean;
+} {
+  const source = row.utm_source?.trim() || "";
+  const medium = row.utm_medium?.trim() || "";
+  const normalizedSource = source.toLowerCase() === "ya" ? "yandex" : source.toLowerCase();
+  const primary = source
+    ? `${source}${medium ? ` / ${medium}` : ""}`
+    : "Не указан";
+  const campaignParts = [row.utm_campaign, row.utm_content]
+    .map((value) => value?.trim())
+    .filter((value): value is string => Boolean(value));
+  return {
+    primary,
+    campaign: campaignParts.length ? campaignParts.join(" · ") : null,
+    landingPath: row.utm_landing_path?.trim() || null,
+    isDirect: normalizedSource === "yandex" && medium.toLowerCase() === "cpc",
+  };
 }
 
 export type AdminPaymentCreditState =

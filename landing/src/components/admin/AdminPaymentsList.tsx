@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
+import { formatPaymentTrafficSource } from "@/lib/admin-payments";
 
 type Payment = {
   id: string;
@@ -22,6 +23,15 @@ type Payment = {
   providerStatus: string | null;
   test: boolean | null;
   paywallVariant: "control" | "treatment" | null;
+  visitorId: string | null;
+  sessionId: string | null;
+  yclid: string | null;
+  utmSource: string | null;
+  utmMedium: string | null;
+  utmCampaign: string | null;
+  utmContent: string | null;
+  utmTerm: string | null;
+  utmLandingPath: string | null;
   creditedAt: string | null;
   creditState: "credited" | "not_due" | "discrepancy" | "stale";
 };
@@ -50,11 +60,20 @@ const paywallLabel = (variant: Payment["paywallVariant"]) =>
     : variant === "treatment"
       ? "B · новый"
       : "Не определён";
+const paymentSource = (payment: Payment) => formatPaymentTrafficSource({
+  utm_source: payment.utmSource,
+  utm_medium: payment.utmMedium,
+  utm_campaign: payment.utmCampaign,
+  utm_content: payment.utmContent,
+  utm_landing_path: payment.utmLandingPath,
+});
 
 export function AdminPaymentsList() {
   const { user, openAuthModal } = useAuth();
   const [statusFilter, setStatusFilter] = useState("all");
   const [testFilter, setTestFilter] = useState("all");
+  const [sourceFilter, setSourceFilter] = useState("");
+  const [campaignFilter, setCampaignFilter] = useState("");
   const [items, setItems] = useState<Payment[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [state, setState] = useState({ loading: true, status: 0, error: "" });
@@ -70,6 +89,8 @@ export function AdminPaymentsList() {
         test: testFilter,
         limit: "30",
       });
+      if (sourceFilter.trim()) params.set("source", sourceFilter.trim());
+      if (campaignFilter.trim()) params.set("campaign", campaignFilter.trim());
       if (next) params.set("cursor", next);
       const response = await fetch(`/api/admin/payments?${params}`, { credentials: "include" });
       const body = await response.json().catch(() => ({}));
@@ -83,7 +104,7 @@ export function AdminPaymentsList() {
     } catch {
       setState({ loading: false, status: 0, error: "Ошибка сети" });
     }
-  }, [statusFilter, testFilter]);
+  }, [campaignFilter, sourceFilter, statusFilter, testFilter]);
 
   useEffect(() => { void load(); }, [load, user]);
 
@@ -187,6 +208,22 @@ export function AdminPaymentsList() {
           {label}
         </button>)}
       </div>
+      <div className="grid gap-2 sm:grid-cols-2">
+        <input
+          value={sourceFilter}
+          onChange={(event) => setSourceFilter(event.target.value)}
+          placeholder="Источник, например yandex"
+          maxLength={64}
+          className="rounded-xl border border-zinc-200 px-3 py-2 text-sm outline-none focus:border-indigo-400"
+        />
+        <input
+          value={campaignFilter}
+          onChange={(event) => setCampaignFilter(event.target.value)}
+          placeholder="Campaign ID"
+          maxLength={64}
+          className="rounded-xl border border-zinc-200 px-3 py-2 text-sm outline-none focus:border-indigo-400"
+        />
+      </div>
     </section>
 
     {actionMessage && <p className="rounded-xl bg-zinc-50 p-3 text-sm text-zinc-700">{actionMessage}</p>}
@@ -196,12 +233,13 @@ export function AdminPaymentsList() {
         Оплат пока нет
       </div>
       : <div className="overflow-x-auto rounded-2xl border border-zinc-200 bg-white shadow-sm">
-        <table className="w-full min-w-[1220px] text-left text-sm">
+        <table className="w-full min-w-[1420px] text-left text-sm">
           <thead className="bg-zinc-50 text-xs uppercase tracking-wide text-zinc-500">
             <tr>
               <th className="px-4 py-3">Дата / плательщик</th>
               <th className="px-4 py-3">Тариф</th>
               <th className="px-4 py-3">Пейвол</th>
+              <th className="px-4 py-3">Источник</th>
               <th className="px-4 py-3">Сумма</th>
               <th className="px-4 py-3">Статус</th>
               <th className="px-4 py-3">Кредиты</th>
@@ -232,6 +270,20 @@ export function AdminPaymentsList() {
               ].join(" ")}>
                 {paywallLabel(item.paywallVariant)}
               </span>
+            </td>
+            <td className="px-4 py-4">
+              <div className="flex items-center gap-2">
+                <p className="font-semibold text-zinc-900">{paymentSource(item).primary}</p>
+                {paymentSource(item).isDirect && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-800">
+                  Direct
+                </span>}
+              </div>
+              {paymentSource(item).campaign && <p className="mt-1 text-xs text-zinc-500">
+                {paymentSource(item).campaign}
+              </p>}
+              {paymentSource(item).landingPath && <p className="mt-1 max-w-[220px] truncate font-mono text-[11px] text-zinc-400">
+                {paymentSource(item).landingPath}
+              </p>}
             </td>
             <td className="px-4 py-4 font-semibold tabular-nums text-zinc-900">
               {item.amountRub.toLocaleString("ru-RU")} ₽

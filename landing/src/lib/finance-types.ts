@@ -37,9 +37,12 @@ export const GEMINI_FAMILY_COLORS: Record<GeminiFamilyId, string> = {
   other: "#71717a",
 };
 
+export type FinanceImportKind = "revenue" | "cogs" | "ads";
+export type FinanceAdsVatMode = "unknown" | "included" | "excluded";
+
 export type FinanceImportMeta = {
   id: string;
-  kind: "revenue" | "cogs";
+  kind: FinanceImportKind;
   periodMonth: string;
   sourceFilename: string;
   fileSha256: string;
@@ -90,6 +93,100 @@ export type FinanceLiability = {
   liabilityRubEstimate: number | null;
 };
 
+export type FinanceAdsDailyPoint = {
+  day: string;
+  costRub: number;
+  clicks: number;
+  impressions: number;
+  ctr: number | null;
+  cpc: number | null;
+};
+
+export type FinanceAdsBreakdownRow = {
+  campaignId: string;
+  campaignName: string;
+  adId?: string | null;
+  costRub: number;
+  clicks: number;
+  impressions: number;
+  ctr: number | null;
+  cpc: number | null;
+};
+
+export type FinanceAcquisitionDeliveryRow = {
+  day: string;
+  spendRub: number;
+  impressions: number;
+  clicks: number;
+  ctr: number | null;
+  cpc: number | null;
+  payments: number | null;
+  revenueRub: number | null;
+};
+
+export type FinanceAcquisitionCohortRow = {
+  cohortDate: string;
+  source: string | null;
+  campaignId: string | null;
+  campaignName: string | null;
+  adId: string | null;
+  landingPath: string | null;
+  visitors: number;
+  ahaVisitors: number;
+  signupUsers: number;
+  firstPayers: number;
+  firstPayments: number;
+  repeatPayments: number;
+  spendRub: number;
+  impressions: number;
+  clicks: number;
+  revenueD0: number;
+  revenueD7: number;
+  revenueD30: number;
+  ctr: number | null;
+  cpc: number | null;
+  activationRate: number | null;
+  signupRate: number | null;
+  payerConversion: number | null;
+  cpaAha: number | null;
+  cac: number | null;
+  grossRoasD0: number | null;
+  grossRoasD7: number | null;
+  grossRoasD30: number | null;
+  grossRomiD0: number | null;
+  grossRomiD7: number | null;
+  grossRomiD30: number | null;
+  ltvD0: number | null;
+  ltvD7: number | null;
+  ltvD30: number | null;
+  retainedD1: number | null;
+  retainedD7: number | null;
+  maturity: { d0: boolean; d7: boolean; d30: boolean };
+};
+
+export type FinanceDataQuality = {
+  directVisitsWithYclidRate: number | null;
+  directVisitsWithNumericCampaignRate: number | null;
+  funnelFactsWithVisitorRate: number | null;
+  oauthUsersWithVisitorLinkRate: number | null;
+  livePaymentsWithSnapshotRate: number | null;
+  guestOwnerFactsInUniqueUsers: number | null;
+  livePurchases: number | null;
+  mpSent: number | null;
+  mpError: number | null;
+  duplicateVisitorCount: number | null;
+  duplicateSessionCount: number | null;
+  duplicateLandingViewCount: number | null;
+  unmatchedSpendCampaigns: string[];
+  timeToFirstAhaHours: number | null;
+};
+
+export type FinanceAcquisitionReport = {
+  delivery: FinanceAcquisitionDeliveryRow[];
+  cohorts: FinanceAcquisitionCohortRow[];
+  quality: FinanceDataQuality | null;
+};
+
 export type FinanceMonthData = {
   month: string;
   revenue: {
@@ -119,6 +216,24 @@ export type FinanceMonthData = {
       usageAmount: number;
     }[];
   } | null;
+  ads: {
+    import: FinanceImportMeta;
+    kpi: {
+      costRub: number;
+      clicks: number;
+      impressions: number;
+      count: number;
+      currency: string;
+      vatMode: FinanceAdsVatMode;
+      droppedOutsideMonth: number;
+      ctr: number | null;
+      cpc: number | null;
+    };
+    daily: FinanceAdsDailyPoint[];
+    byCampaign: FinanceAdsBreakdownRow[];
+    byAd: FinanceAdsBreakdownRow[];
+  } | null;
+  acquisition: FinanceAcquisitionReport | null;
   daily: FinanceDailyPoint[];
   modelDaily: FinanceModelDailyPoint[];
   liability: FinanceLiability;

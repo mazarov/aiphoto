@@ -13,6 +13,7 @@ import {
 } from "@/lib/generation-model-labels";
 import { noticeForUploadError, prepareUploadFile } from "@/lib/image-upload-prepare";
 import { copyTextUniversal } from "@/lib/copy-text-to-clipboard";
+import { browserAcquisitionHeaders } from "@/lib/acquisition-client-events";
 import {
   GenerationCardMenu,
   type GenerationMenuAction,
@@ -912,6 +913,7 @@ export function CardInlineGeneratePanel({
         headers: {
           "Content-Type": "application/json",
           "Idempotency-Key": idempotencyKey,
+          ...browserAcquisitionHeaders(),
         },
         credentials: "include",
         body: JSON.stringify({

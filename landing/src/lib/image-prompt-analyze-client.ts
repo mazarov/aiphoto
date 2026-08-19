@@ -1,4 +1,5 @@
 import { mapPromptshotPathToSource } from "./client-source";
+import { browserAcquisitionHeaders } from "./acquisition-client-events";
 import {
   FOTO_V_PROMT_ANALYZE_LOCALE,
   getImagePromptAnalyzeUrl,
@@ -53,6 +54,7 @@ export function buildAnalyzeRequestHeaders(pathname?: string): Record<string, st
   return {
     "Content-Type": "application/json",
     "x-client": mapPromptshotPathToSource(path),
+    ...browserAcquisitionHeaders(),
   };
 }
 

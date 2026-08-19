@@ -8,6 +8,8 @@ export type AnalyzeEventInput = {
   clientSource: ClientSource;
   ipHash: string;
   userId: string | null;
+  visitorId?: string | null;
+  sessionId?: string | null;
   allowed: boolean;
   requestOrigin?: string | null;
   outcome?:
@@ -46,6 +48,8 @@ export function recordAnalyzeEvent(
       client_source: event.clientSource,
       ip_hash: event.ipHash,
       user_id: event.userId,
+      visitor_id: event.visitorId ?? null,
+      session_id: event.sessionId ?? null,
       allowed: event.allowed,
       request_origin: event.requestOrigin ?? null,
       outcome: event.outcome ?? null,

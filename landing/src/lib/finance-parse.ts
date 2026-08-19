@@ -16,7 +16,8 @@ export class FinanceParseError extends Error {
   }
 }
 
-export type FinanceKind = "revenue" | "cogs";
+export type FinanceKind = "revenue" | "cogs" | "ads";
+export type FinanceAdsVatMode = "unknown" | "included" | "excluded";
 
 export type RevenueLine = {
   provider_payment_id: string;
@@ -57,6 +58,36 @@ export type ParsedCogsImport = {
   totals: { subtotalUsd: number; count: number };
 };
 
+export type AdsLine = {
+  spend_date: string;
+  campaign_id: string;
+  campaign_name: string;
+  ad_group_id: string | null;
+  ad_id: string | null;
+  criterion_id: string | null;
+  impressions: number;
+  clicks: number;
+  cost_rub: number;
+  currency: "RUB";
+};
+
+export const FINANCE_ADS_GRAIN = "campaign_ad_criterion_day" as const;
+
+export type ParsedAdsImport = {
+  kind: "ads";
+  lines: AdsLine[];
+  totals: {
+    costRub: number;
+    clicks: number;
+    impressions: number;
+    count: number;
+    currency: "RUB";
+    vatMode: FinanceAdsVatMode;
+    droppedOutsideMonth: number;
+    grain: typeof FINANCE_ADS_GRAIN;
+  };
+};
+
 const PAYMENT_ID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const GCP_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -66,7 +97,7 @@ const ZIP_EOCD = 0x06054b50;
 
 export function parseFinanceKind(raw: string | null | undefined): FinanceKind | null {
   const value = (raw || "").trim().toLowerCase();
-  return value === "revenue" || value === "cogs" ? value : null;
+  return value === "revenue" || value === "cogs" || value === "ads" ? value : null;
 }
 
 export function parseFinancePeriod(raw: string | null | undefined): string | null {
@@ -138,7 +169,7 @@ export function decodeFinanceText(buffer: Uint8Array): string {
 }
 
 function looksLikeFinanceCsv(text: string): boolean {
-  return /Идентификатор платежа|Date,Service description|Сумма платежа/i.test(text);
+  return /Идентификатор платежа|Date,Service description|Сумма платежа|CampaignId|CampaignName|ID кампании|Название кампании|Показы|Impressions|Расход/i.test(text);
 }
 
 function decodeWindows1251(buffer: Uint8Array): string {
@@ -412,7 +443,7 @@ export function parseGcpCogsCsv(text: string): ParsedCogsImport {
   const skuIdIdx = header.findIndex((name) => /^sku id$/i.test(name));
   const skuIdx = header.findIndex((name) => /^sku description$/i.test(name));
   const usageIdx = header.findIndex((name) => /^usage amount$/i.test(name));
-  const subtotalIdx = header.findIndex((name) => /subtotal \(\$\)$/i.test(name));
+  const subtotalIdx = header.findIndex((name) => /^subtotal \(\$\)$/i.test(name));
   if (dateIdx < 0 || skuIdIdx < 0 || skuIdx < 0 || subtotalIdx < 0) {
     throw new FinanceParseError("gcp_header_missing", "Нет колонок Date / SKU / Subtotal ($) в Billing CSV");
   }
@@ -460,7 +491,302 @@ export function parseGcpCogsCsv(text: string): ParsedCogsImport {
   };
 }
 
-export function parseFinanceUpload(kind: FinanceKind, filename: string, bytes: Uint8Array): ParsedRevenueImport | ParsedCogsImport {
+type AdsHeaderBind = {
+  dateIdx: number;
+  campaignIdIdx: number;
+  campaignNameIdx: number;
+  adGroupIdx: number;
+  adIdx: number;
+  criterionIdx: number;
+  impressionsIdx: number;
+  clicksIdx: number;
+  costIdx: number;
+  currencyIdx: number;
+};
+
+function normalizeAdsHeader(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/ё/g, "е")
+    .replace(/["']/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isAdsDateHeader(name: string): boolean {
+  return name === "date" || name === "дата" || name === "день" || name === "spend date" || name === "spend_date";
+}
+
+function isAdsCampaignIdHeader(name: string): boolean {
+  return (
+    name === "campaignid"
+    || name === "campaign id"
+    || name === "campaign_id"
+    || name === "id кампании"
+    || name === "№ кампании"
+    || name === "номер кампании"
+    || name === "кампания id"
+    || name.includes("id кампании")
+    || name.includes("номер кампании")
+  );
+}
+
+function isAdsCampaignNameHeader(name: string): boolean {
+  return (
+    name === "campaignname"
+    || name === "campaign name"
+    || name === "campaign_name"
+    || name === "название кампании"
+    || name === "имя кампании"
+    || name === "кампания"
+    || name === "campaign"
+  );
+}
+
+function isAdsAdGroupHeader(name: string): boolean {
+  return (
+    name === "adgroupid"
+    || name === "ad group id"
+    || name === "ad_group_id"
+    || name === "id группы"
+    || name === "номер группы"
+    || name.includes("id группы")
+  );
+}
+
+function isAdsAdIdHeader(name: string): boolean {
+  return (
+    name === "adid"
+    || name === "ad id"
+    || name === "ad_id"
+    || name === "id объявления"
+    || name === "номер объявления"
+    || name === "№ объявления"
+    || name.includes("id объявления")
+  );
+}
+
+function isAdsCriterionHeader(name: string): boolean {
+  return /criterion|keyword id|keywordid|id условия|id фразы|условие показа/.test(name);
+}
+
+function isAdsImpressionsHeader(name: string): boolean {
+  return name === "impressions" || name === "показы" || name.startsWith("показы");
+}
+
+function isAdsClicksHeader(name: string): boolean {
+  return name === "clicks" || name === "клики";
+}
+
+function isAdsCostHeader(name: string): boolean {
+  return name === "cost" || name.startsWith("cost ") || name.startsWith("cost(")
+    || name === "cost_rub" || name.startsWith("расход") || name === "стоимость";
+}
+
+function isAdsCurrencyHeader(name: string): boolean {
+  return name === "currency" || name === "валюта";
+}
+
+function detectAdsDelimiter(line: string): string {
+  const semicolon = parseDelimitedLine(line, ";").length;
+  const comma = parseDelimitedLine(line, ",").length;
+  return semicolon > comma ? ";" : ",";
+}
+
+function parseAdsDate(raw: string): string | null {
+  const value = raw.trim();
+  const dotted = /^(\d{2})\.(\d{2})\.(\d{4})/.exec(value);
+  if (dotted) {
+    const iso = `${dotted[3]}-${dotted[2]}-${dotted[1]}`;
+    return isValidCalendarDate(iso) ? iso : null;
+  }
+  const iso = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
+  if (!iso) return null;
+  const date = `${iso[1]}-${iso[2]}-${iso[3]}`;
+  return isValidCalendarDate(date) ? date : null;
+}
+
+function isValidCalendarDate(value: string): boolean {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return false;
+  const date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
+  return date.toISOString().slice(0, 10) === value;
+}
+
+function optionalAdsId(raw: string): string | null {
+  const value = raw.trim();
+  if (!value || value === "—" || value === "-" || value === "–" || /^n\/?a$/i.test(value)) return null;
+  return clipText(value, 64);
+}
+
+function detectAdsVatMode(text: string): FinanceAdsVatMode {
+  const normalized = text.toLowerCase().replace(/ё/g, "е");
+  if (/включая ндс|с ндс|vat included|including vat|with vat/.test(normalized)) return "included";
+  if (/без ндс|vat excluded|excluding vat|without vat/.test(normalized)) return "excluded";
+  return "unknown";
+}
+
+function assertAdsRub(raw: string, context: string): void {
+  const value = raw.trim().toUpperCase();
+  if (!value || value === "RUB" || value === "RUR" || value === "₽" || value === "РУБ") return;
+  throw new FinanceParseError(
+    "ads_currency_not_supported",
+    `Директ v1 принимает только RUB, получено ${raw || context}`,
+  );
+}
+
+function bindAdsHeaders(row: string[]): AdsHeaderBind | null {
+  const normalized = row.map(normalizeAdsHeader);
+  const dateIdx = normalized.findIndex(isAdsDateHeader);
+  const campaignIdIdx = normalized.findIndex(isAdsCampaignIdHeader);
+  const costIdx = normalized.findIndex(isAdsCostHeader);
+  if (dateIdx < 0 || campaignIdIdx < 0 || costIdx < 0) return null;
+  const costName = normalized[costIdx];
+  if (/(usd|eur|\$)/i.test(costName) && !/rub|руб/.test(costName)) {
+    throw new FinanceParseError("ads_currency_not_supported", "Директ v1 принимает только расход в RUB");
+  }
+  return {
+    dateIdx,
+    campaignIdIdx,
+    campaignNameIdx: normalized.findIndex(isAdsCampaignNameHeader),
+    adGroupIdx: normalized.findIndex(isAdsAdGroupHeader),
+    adIdx: normalized.findIndex(isAdsAdIdHeader),
+    criterionIdx: normalized.findIndex(isAdsCriterionHeader),
+    impressionsIdx: normalized.findIndex(isAdsImpressionsHeader),
+    clicksIdx: normalized.findIndex(isAdsClicksHeader),
+    costIdx,
+    currencyIdx: normalized.findIndex(isAdsCurrencyHeader),
+  };
+}
+
+function isAdsFooterLine(line: string): boolean {
+  const trimmed = line.trim().replace(/^"+|"+$/g, "");
+  return /^(итого|всего|total)\b/i.test(trimmed);
+}
+
+function adsGrainKey(line: Pick<AdsLine, "spend_date" | "campaign_id" | "ad_id" | "criterion_id">): string {
+  return `${line.spend_date}|${line.campaign_id}|${line.ad_id || ""}|${line.criterion_id || ""}`;
+}
+
+export function parseDirectAdsCsv(text: string, periodMonth?: string | null): ParsedAdsImport {
+  const lines = splitLines(text);
+  if (!lines.some((line) => line.trim())) {
+    throw new FinanceParseError("ads_header_missing", "Пустой отчёт Яндекс Директа");
+  }
+
+  let headers: AdsHeaderBind | null = null;
+  let delimiter = ",";
+  let seenHeader = false;
+  let vatMode: FinanceAdsVatMode = detectAdsVatMode(text.slice(0, 2_000));
+  let droppedOutsideMonth = 0;
+  const merged = new Map<string, AdsLine>();
+  const periodPrefix = periodMonth ? periodMonth.slice(0, 7) : null;
+
+  for (const line of lines) {
+    if (!line.trim()) continue;
+    if (isAdsFooterLine(line)) continue;
+    if (!headers) {
+      vatMode = vatMode === "unknown" ? detectAdsVatMode(line) : vatMode;
+      const candidateDelimiter = detectAdsDelimiter(line);
+      const headerRow = parseDelimitedLine(line, candidateDelimiter);
+      const bound = bindAdsHeaders(headerRow);
+      if (bound) {
+        headers = bound;
+        delimiter = candidateDelimiter;
+        seenHeader = true;
+      }
+      continue;
+    }
+    const row = parseDelimitedLine(line, delimiter);
+    if (row.some((value) => isAdsDateHeader(normalizeAdsHeader(value)) && /campaignid|id кампании/i.test(line))) {
+      const rebound = bindAdsHeaders(row);
+      if (rebound) {
+        headers = rebound;
+        continue;
+      }
+    }
+
+    const campaignId = clipText(cell(row, headers.campaignIdIdx), 64);
+    if (!campaignId) continue;
+    const spendDate = parseAdsDate(cell(row, headers.dateIdx));
+    if (!spendDate) continue;
+    if (periodPrefix && !spendDate.startsWith(periodPrefix)) {
+      droppedOutsideMonth += 1;
+      continue;
+    }
+
+    const cost = parseFinanceNumber(cell(row, headers.costIdx));
+    const impressionsRaw = headers.impressionsIdx >= 0 ? parseFinanceNumber(cell(row, headers.impressionsIdx)) : 0;
+    const clicksRaw = headers.clicksIdx >= 0 ? parseFinanceNumber(cell(row, headers.clicksIdx)) : 0;
+    if (!Number.isFinite(cost)) {
+      throw new FinanceParseError("ads_invalid_number", `Нет расхода у кампании ${campaignId} за ${spendDate}`);
+    }
+    const impressions = Number.isFinite(impressionsRaw) ? Math.round(impressionsRaw) : 0;
+    const clicks = Number.isFinite(clicksRaw) ? Math.round(clicksRaw) : 0;
+    if (cost < 0 || impressions < 0 || clicks < 0) {
+      throw new FinanceParseError("ads_invalid_number", `Отрицательные метрики у кампании ${campaignId}`);
+    }
+    assertAdsRub(cell(row, headers.currencyIdx), cell(row, headers.costIdx));
+
+    const next: AdsLine = {
+      spend_date: spendDate,
+      campaign_id: campaignId,
+      campaign_name: clipText(cell(row, headers.campaignNameIdx), 240) || campaignId,
+      ad_group_id: optionalAdsId(cell(row, headers.adGroupIdx)),
+      ad_id: optionalAdsId(cell(row, headers.adIdx)),
+      criterion_id: optionalAdsId(cell(row, headers.criterionIdx)),
+      impressions,
+      clicks,
+      cost_rub: roundMoney(cost),
+      currency: "RUB",
+    };
+    const key = adsGrainKey(next);
+    const current = merged.get(key);
+    if (current) {
+      current.impressions += next.impressions;
+      current.clicks += next.clicks;
+      current.cost_rub = roundMoney(current.cost_rub + next.cost_rub);
+      if (!current.campaign_name && next.campaign_name) current.campaign_name = next.campaign_name;
+      if (!current.ad_group_id && next.ad_group_id) current.ad_group_id = next.ad_group_id;
+    } else {
+      merged.set(key, next);
+    }
+    if (merged.size > FINANCE_MAX_ROWS) {
+      throw new FinanceParseError("too_many_rows", `Больше ${FINANCE_MAX_ROWS} строк в отчёте Директа`);
+    }
+  }
+
+  if (!seenHeader) {
+    throw new FinanceParseError("ads_header_missing", "Нет колонок Date / CampaignId / Cost в CSV Директа");
+  }
+
+  const parsed = [...merged.values()].sort((left, right) => {
+    if (left.spend_date !== right.spend_date) return left.spend_date.localeCompare(right.spend_date);
+    if (left.campaign_id !== right.campaign_id) return left.campaign_id.localeCompare(right.campaign_id);
+    return (left.ad_id || "").localeCompare(right.ad_id || "");
+  });
+  return {
+    kind: "ads",
+    lines: parsed,
+    totals: {
+      costRub: roundMoney(parsed.reduce((sum, line) => sum + line.cost_rub, 0)),
+      clicks: parsed.reduce((sum, line) => sum + line.clicks, 0),
+      impressions: parsed.reduce((sum, line) => sum + line.impressions, 0),
+      count: parsed.length,
+      currency: "RUB",
+      vatMode,
+      droppedOutsideMonth,
+      grain: FINANCE_ADS_GRAIN,
+    },
+  };
+}
+
+export function parseFinanceUpload(
+  kind: FinanceKind,
+  filename: string,
+  bytes: Uint8Array,
+  periodMonth?: string | null,
+): ParsedRevenueImport | ParsedCogsImport | ParsedAdsImport {
   if (bytes.length === 0) {
     throw new FinanceParseError("empty_file", "Файл пустой");
   }
@@ -473,6 +799,12 @@ export function parseFinanceUpload(kind: FinanceKind, filename: string, bytes: U
       ? pickYookassaCsv(extractZipEntries(bytes))
       : Buffer.from(bytes);
     return parseYookassaRevenueCsv(decodeFinanceText(csvBytes));
+  }
+  if (kind === "ads") {
+    if (isZipBuffer(bytes) || /\.(zip|xlsx|xls)$/i.test(lower)) {
+      throw new FinanceParseError("ads_csv_required", "Для Директа нужен CSV, не ZIP или Excel");
+    }
+    return parseDirectAdsCsv(decodeFinanceText(bytes), periodMonth);
   }
   if (isZipBuffer(bytes) || lower.endsWith(".zip")) {
     throw new FinanceParseError("gcp_csv_required", "Для затрат нужен CSV Google Cloud Billing, не ZIP");

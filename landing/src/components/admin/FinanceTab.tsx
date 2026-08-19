@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import type { FinanceMonthData, FinancePnl } from "@/lib/finance-types";
+import { YANDEX_TWO_CLUSTER_LAUNCH } from "@/lib/yandex-two-cluster-launch";
 import { FinanceDailyChart } from "./FinanceDailyChart";
 import { FinanceModelDailyChart } from "./FinanceModelDailyChart";
 
@@ -21,6 +22,21 @@ function formatRub(value: number | null | undefined): string {
 function formatUsd(value: number | null | undefined): string {
   if (value == null) return "—";
   return `$${value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function formatInt(value: number | null | undefined): string {
+  if (value == null) return "—";
+  return value.toLocaleString("ru-RU");
+}
+
+function formatPct(value: number | null | undefined): string {
+  if (value == null) return "—";
+  return `${(value * 100).toLocaleString("ru-RU", { maximumFractionDigits: 2 })}%`;
+}
+
+function formatRatio(value: number | null | undefined): string {
+  if (value == null) return "—";
+  return value.toLocaleString("ru-RU", { maximumFractionDigits: 2 });
 }
 
 function formatSignedRub(value: number): string {
@@ -108,7 +124,7 @@ export function FinanceTab() {
   const [month, setMonth] = useState(currentMonth);
   const [data, setData] = useState<FinanceMonthData | null>(null);
   const [state, setState] = useState({ loading: true, status: 0, error: "", message: "" });
-  const [busy, setBusy] = useState<"revenue" | "cogs" | null>(null);
+  const [busy, setBusy] = useState<"revenue" | "cogs" | "ads" | null>(null);
 
   const load = useCallback(async () => {
     setState((current) => ({ ...current, loading: true, error: "" }));
@@ -134,7 +150,7 @@ export function FinanceTab() {
 
   useEffect(() => { void load(); }, [load]);
 
-  const upload = async (kind: "revenue" | "cogs", file?: File) => {
+  const upload = async (kind: "revenue" | "cogs" | "ads", file?: File) => {
     if (!file) return;
     setBusy(kind);
     setState((current) => ({ ...current, error: "", message: "" }));
@@ -158,7 +174,9 @@ export function FinanceTab() {
       }
       setState((current) => ({
         ...current,
-        message: `Загружено ${body.rowCount ?? 0} строк (${kind === "revenue" ? "поступления" : "затраты"})`,
+        message: `Загружено ${body.rowCount ?? 0} строк (${
+          kind === "revenue" ? "поступления" : kind === "cogs" ? "затраты" : "Директ"
+        })`,
       }));
       await load();
     } catch {
@@ -190,12 +208,25 @@ export function FinanceTab() {
     );
   }
 
+  const deliveryRows = data?.acquisition?.delivery.length
+    ? data.acquisition.delivery
+    : (data?.ads?.daily || []).map((row) => ({
+        day: row.day,
+        spendRub: row.costRub,
+        clicks: row.clicks,
+        impressions: row.impressions,
+        ctr: row.ctr,
+        cpc: row.cpc,
+        payments: null,
+        revenueRub: null,
+      }));
+
   return (
     <div className="mx-auto max-w-7xl space-y-6">
       <header>
         <p className="text-sm font-medium text-indigo-600">PromptShot Admin</p>
         <h1 className="text-3xl font-bold tracking-tight text-zinc-900">Финансы</h1>
-        <p className="mt-1 text-sm text-zinc-500">Поступления, затраты Gemini и чистый доход</p>
+        <p className="mt-1 text-sm text-zinc-500">Поступления, затраты Gemini, Директ и чистый доход</p>
       </header>
       <section className={`${card} flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between`}>
         <label className="text-sm text-zinc-600">
@@ -212,7 +243,7 @@ export function FinanceTab() {
         </p>
       </section>
 
-      <section className="grid gap-4 lg:grid-cols-2">
+      <section className="grid gap-4 lg:grid-cols-3">
         <div className={card}>
           <h2 className="font-semibold text-zinc-900">Поступления ЮKassa</h2>
           <p className="mt-1 text-sm text-zinc-500">CSV или ZIP реестра за месяц. Gross / комиссия / net.</p>
@@ -249,6 +280,30 @@ export function FinanceTab() {
               at={data?.cogs?.import.updatedAt}
               email={data?.cogs?.import.uploadedByEmail}
             />
+          </div>
+        </div>
+        <div className={card}>
+          <h2 className="font-semibold text-zinc-900">Яндекс Директ</h2>
+          <p className="mt-1 text-sm text-zinc-500">CSV статистики за месяц. Только RUB, без ZIP/Excel.</p>
+          <label className="mt-4 inline-flex cursor-pointer rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">
+            {busy === "ads" ? "Загрузка…" : "Загрузить CSV Директа"}
+            <input type="file" accept=".csv,text/csv" className="hidden"
+              disabled={busy !== null}
+              onChange={(event) => { void upload("ads", event.target.files?.[0]); event.target.value = ""; }} />
+          </label>
+          <div className="mt-3">
+            <ImportMeta
+              label="Последний импорт"
+              missing={!data?.ads}
+              filename={data?.ads?.import.sourceFilename}
+              at={data?.ads?.import.updatedAt}
+              email={data?.ads?.import.uploadedByEmail}
+            />
+            {data?.ads?.kpi.droppedOutsideMonth ? (
+              <p className="mt-1 text-xs text-amber-700">
+                Пропущено строк вне месяца: {data.ads.kpi.droppedOutsideMonth}
+              </p>
+            ) : null}
           </div>
         </div>
       </section>
@@ -406,6 +461,224 @@ export function FinanceTab() {
             </div>
           )}
         </section>
+
+        <section className={card}>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-indigo-600">
+                Launch scorecard
+              </p>
+              <h2 className="mt-1 font-semibold text-zinc-900">
+                Кластер «Фото на день рождения»
+              </h2>
+              <p className="mt-1 max-w-3xl text-sm text-zinc-500">
+                Одна кампания · одна группа · одно объявление · поиск · вся Россия ·{" "}
+                {YANDEX_TWO_CLUSTER_LAUNCH.testWindowDays.min}–
+                {YANDEX_TWO_CLUSTER_LAUNCH.testWindowDays.max} дней
+              </p>
+            </div>
+            <span className="w-fit rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
+              CAC временный
+            </span>
+          </div>
+          <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <div>
+              <p className="text-xs text-zinc-500">Общий бюджет с НДС</p>
+              <p className="mt-1 text-xl font-bold tabular-nums text-zinc-900">
+                {formatRub(YANDEX_TWO_CLUSTER_LAUNCH.budget.totalWithVatRub)}
+              </p>
+              <p className="mt-1 text-xs text-zinc-500">
+                Первый транш{" "}
+                {formatRub(
+                  YANDEX_TWO_CLUSTER_LAUNCH.budget.initialPilotWithVatRub,
+                )}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-zinc-500">CAC_max до зрелого D30</p>
+              <p className="mt-1 text-xl font-bold tabular-nums text-zinc-900">
+                {formatRub(YANDEX_TWO_CLUSTER_LAUNCH.economics.cacMaxRub)}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-zinc-500">Маржа августа MTD</p>
+              <p className="mt-1 text-xl font-bold tabular-nums text-zinc-900">
+                {formatPct(
+                  YANDEX_TWO_CLUSTER_LAUNCH.economics.contributionMarginRate,
+                )}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-zinc-500">Зрелых D30 плательщиков</p>
+              <p className="mt-1 text-xl font-bold tabular-nums text-zinc-900">
+                {formatInt(
+                  YANDEX_TWO_CLUSTER_LAUNCH.economics.matureD30Payers,
+                )}
+              </p>
+            </div>
+          </div>
+          <p className="mt-4 text-sm text-amber-700">
+            {YANDEX_TWO_CLUSTER_LAUNCH.economics.note}
+          </p>
+        </section>
+
+        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {[
+            ["Расход Директа", formatRub(data.ads?.kpi.costRub ?? null), data.ads ? `НДС: ${data.ads.kpi.vatMode}` : "нет импорта"],
+            ["Клики", formatInt(data.ads?.kpi.clicks ?? null), data.ads?.kpi.cpc != null ? `CPC ${formatRub(data.ads.kpi.cpc)}` : null],
+            ["Показы", formatInt(data.ads?.kpi.impressions ?? null), data.ads?.kpi.ctr != null ? `CTR ${formatPct(data.ads.kpi.ctr)}` : null],
+            ["Кампаний", formatInt(data.ads?.byCampaign.length ?? null), data.ads ? `${data.ads.kpi.count} строк` : null],
+          ].map(([label, value, hint]) => (
+            <div key={label} className={card}>
+              <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">{label}</p>
+              <p className="mt-2 text-2xl font-bold tabular-nums text-zinc-900">{value}</p>
+              {hint ? <p className="mt-1 text-xs text-zinc-500">{hint}</p> : null}
+            </div>
+          ))}
+        </section>
+
+        <section className="grid gap-4 lg:grid-cols-2">
+          <div className={card}>
+            <h2 className="mb-4 font-semibold text-zinc-900">
+              Delivery по дням
+            </h2>
+            {!deliveryRows.length ? <p className="text-sm text-zinc-500">Нет данных</p> : (
+              <table className="w-full text-left text-sm">
+                <thead className="text-xs uppercase text-zinc-400">
+                  <tr>
+                    <th className="pb-2">День</th>
+                    <th>Расход</th>
+                    <th>Клики</th>
+                    <th>Платежи</th>
+                    <th>Выручка</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {deliveryRows.map((row) => (
+                    <tr key={row.day} className="border-t border-zinc-100">
+                      <td className="py-2">{row.day}</td>
+                      <td className="tabular-nums">{formatRub(row.spendRub)}</td>
+                      <td className="tabular-nums">{formatInt(row.clicks)}</td>
+                      <td className="tabular-nums">{formatInt(row.payments)}</td>
+                      <td className="tabular-nums">{formatRub(row.revenueRub)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+          <div className={card}>
+            <h2 className="mb-4 font-semibold text-zinc-900">Директ по кампаниям</h2>
+            {!data.ads?.byCampaign.length ? <p className="text-sm text-zinc-500">Нет данных</p> : (
+              <table className="w-full text-left text-sm">
+                <thead className="text-xs uppercase text-zinc-400">
+                  <tr><th className="pb-2">Кампания</th><th>Расход</th><th>Клики</th><th>CTR</th></tr>
+                </thead>
+                <tbody>
+                  {data.ads.byCampaign.map((row) => (
+                    <tr key={row.campaignId} className="border-t border-zinc-100">
+                      <td className="py-2">
+                        <p>{row.campaignName}</p>
+                        <p className="font-mono text-xs text-zinc-400">{row.campaignId}</p>
+                      </td>
+                      <td className="tabular-nums">{formatRub(row.costRub)}</td>
+                      <td className="tabular-nums">{formatInt(row.clicks)}</td>
+                      <td className="tabular-nums">{formatPct(row.ctr)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </section>
+
+        {data.ads?.byAd.length ? (
+          <section className={card}>
+            <h2 className="mb-4 font-semibold text-zinc-900">Директ по объявлениям</h2>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[640px] text-left text-sm">
+                <thead className="text-xs uppercase text-zinc-400">
+                  <tr><th className="pb-2">Объявление</th><th>Расход</th><th>Клики</th><th>CPC</th></tr>
+                </thead>
+                <tbody>
+                  {data.ads.byAd.map((row) => (
+                    <tr key={`${row.campaignId}:${row.adId}`} className="border-t border-zinc-100">
+                      <td className="py-2">
+                        <p className="font-mono text-zinc-800">{row.adId}</p>
+                        <p className="text-xs text-zinc-400">{row.campaignName}</p>
+                      </td>
+                      <td className="tabular-nums">{formatRub(row.costRub)}</td>
+                      <td className="tabular-nums">{formatInt(row.clicks)}</td>
+                      <td className="tabular-nums">{formatRub(row.cpc)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        ) : null}
+
+        {data.acquisition && (data.acquisition.cohorts.length || data.acquisition.quality) ? (
+          <section className={card}>
+            <h2 className="mb-1 font-semibold text-zinc-900">Когорты и качество данных</h2>
+            <p className="mb-4 text-sm text-zinc-500">Gross CAC / ROAS / LTV. Незрелые D7/D30 не для масштаба бюджета.</p>
+            {data.acquisition.quality ? (
+              <div className="mb-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4 text-sm">
+                <p>Direct + yclid: {formatPct(data.acquisition.quality.directVisitsWithYclidRate)}</p>
+                <p>Numeric campaign: {formatPct(data.acquisition.quality.directVisitsWithNumericCampaignRate)}</p>
+                <p>Facts + visitor: {formatPct(data.acquisition.quality.funnelFactsWithVisitorRate)}</p>
+                <p>OAuth + visitor: {formatPct(data.acquisition.quality.oauthUsersWithVisitorLinkRate)}</p>
+                <p>Payments + snapshot: {formatPct(data.acquisition.quality.livePaymentsWithSnapshotRate)}</p>
+                <p>Time to first aha: {data.acquisition.quality.timeToFirstAhaHours == null ? "—" : `${formatRatio(data.acquisition.quality.timeToFirstAhaHours)} ч`}</p>
+                <p>MP sent / error: {formatInt(data.acquisition.quality.mpSent)} / {formatInt(data.acquisition.quality.mpError)}</p>
+                <p>Unmatched spend: {formatInt(data.acquisition.quality.unmatchedSpendCampaigns.length)}</p>
+                <p>Duplicate sessions: {formatInt(data.acquisition.quality.duplicateSessionCount)}</p>
+                <p>Guest-owner facts: {formatInt(data.acquisition.quality.guestOwnerFactsInUniqueUsers)}</p>
+              </div>
+            ) : null}
+            {!data.acquisition.cohorts.length ? <p className="text-sm text-zinc-500">Нет когорт RPC</p> : (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[1120px] text-left text-sm">
+                  <thead className="text-xs uppercase text-zinc-400">
+                    <tr>
+                      <th className="pb-2">Когорта</th>
+                      <th>Визиты</th>
+                      <th>Aha</th>
+                      <th>Activation</th>
+                      <th>Payer CVR</th>
+                      <th>CPA Aha</th>
+                      <th>CAC</th>
+                      <th>ROAS D0</th>
+                      <th>ROAS D7</th>
+                      <th>ROAS D30</th>
+                      <th>LTV D30</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.acquisition.cohorts.map((row) => (
+                      <tr key={`${row.cohortDate}:${row.source || ""}:${row.campaignId || ""}:${row.landingPath || ""}`} className="border-t border-zinc-100">
+                        <td className="py-2">
+                          <p>{row.cohortDate}{row.maturity.d7 ? "" : " · D7 незрелая"}{row.maturity.d30 ? "" : " · D30 незрелая"}</p>
+                          <p className="text-xs text-zinc-400">{[row.source, row.campaignId, row.landingPath].filter(Boolean).join(" · ") || "без источника"}</p>
+                        </td>
+                        <td className="tabular-nums">{formatInt(row.visitors)}</td>
+                        <td className="tabular-nums">{formatInt(row.ahaVisitors)}</td>
+                        <td className="tabular-nums">{formatPct(row.activationRate)}</td>
+                        <td className="tabular-nums">{formatPct(row.payerConversion)}</td>
+                        <td className="tabular-nums">{formatRub(row.cpaAha)}</td>
+                        <td className="tabular-nums">{formatRub(row.cac)}</td>
+                        <td className="tabular-nums">{formatRatio(row.grossRoasD0)}</td>
+                        <td className="tabular-nums">{formatRatio(row.grossRoasD7)}</td>
+                        <td className="tabular-nums">{formatRatio(row.grossRoasD30)}</td>
+                        <td className="tabular-nums">{formatRub(row.ltvD30)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+        ) : null}
       </>}
     </div>
   );

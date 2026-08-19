@@ -1,14 +1,19 @@
 # Яндекс Директ — передача покупок PromptShot
 
 **Дата:** 2026-08-17
-**Статус:** Реализовано (веб / YooKassa)
+**Статус:** Реализовано (веб / YooKassa и Robokassa)
 **Ветка:** `feature/17-08-yandex-direct-purchases`
+
+Сохранение UTM на пользователе и покупке — отдельная задача:
+[19-08-traffic-source-attribution.md](./19-08-traffic-source-attribution.md).
+Импорт расходов и CAC-dashboard:
+[19-08-yandex-direct-acquisition.md](./19-08-yandex-direct-acquisition.md).
 
 ## Зачем
 
 Директ должен оптимизироваться на **оплаченные пакеты токенов**, а не на клики и не на «начали checkout».
 
-В photo2sticker покупка в Telegram — там только офлайн-CSV + `yclid`. У PromptShot оплата на сайте (YooKassa), поэтому основной путь — **Measurement Protocol** с ClientID того же визита. Офлайн-конверсии не используем.
+В photo2sticker покупка в Telegram — там только офлайн-CSV + `yclid`. У PromptShot оплата на сайте (YooKassa и Robokassa), поэтому основной путь — **Measurement Protocol** с ClientID того же визита. Офлайн-конверсии не используем.
 
 ## Поток
 
@@ -22,7 +27,7 @@
   → (если пользователь вернулся) JS reachGoal('purchase') + dataLayer ecommerce
 ```
 
-Источник правды по факту оплаты — `reconcileYooKassaPayment`. JS на возврате — дополнение, тот же `order_id` = `landing_yookassa_payments.id`.
+Источник правды по факту оплаты — fulfill/reconcile провайдера (`reconcileYooKassaPayment` / Robokassa ResultURL). JS на возврате — дополнение, тот же `order_id` = id строки ledger.
 
 ## Цель для кампании
 
@@ -30,7 +35,7 @@
 |------|------|-------------|
 | `purchase` | JS + Measurement Protocol, выручка `amount_rub` | **Да — автостратегия** |
 | ecommerce `purchase` | `dataLayer` + MP `pa=purchase` | Да, ценность |
-| `yookassa_checkout_started` / `_redirect` / `_payment_succeeded` | Воронка продукта | Нет |
+| `yookassa_checkout_started` / `_redirect` / `_payment_succeeded` и аналоги Robokassa | Воронка продукта | Нет |
 
 В кабинете Метрики создать JS-цель с идентификатором **`purchase`**.
 

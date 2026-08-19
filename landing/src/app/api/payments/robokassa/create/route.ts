@@ -10,6 +10,8 @@ import { createSupabaseServer } from "@/lib/supabase";
 import { getSupabaseUserForApiRoute } from "@/lib/supabase-route-auth";
 import { sanitizeYclid, sanitizeYmClientId } from "@/lib/yandex-attribution";
 import { sanitizePricingPaywallVariant } from "@/lib/pricing-paywall-attribution";
+import { resolvePaymentTrafficSource } from "@/lib/payment-attribution";
+import { sanitizeUuid } from "@/lib/visitor-id";
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -57,6 +59,14 @@ export async function POST(request: NextRequest) {
           ymClientId?: unknown;
           yclid?: unknown;
           paywallVariant?: unknown;
+          visitorId?: unknown;
+          sessionId?: unknown;
+          utm_source?: unknown;
+          utm_medium?: unknown;
+          utm_campaign?: unknown;
+          utm_content?: unknown;
+          utm_term?: unknown;
+          utm_landing_path?: unknown;
         }
       | null;
     const paywallVariant = sanitizePricingPaywallVariant(body?.paywallVariant);
@@ -72,7 +82,28 @@ export async function POST(request: NextRequest) {
 
     const ymClientId = sanitizeYmClientId(body?.ymClientId);
     const yclid = sanitizeYclid(body?.yclid);
+    const visitorId = sanitizeUuid(body?.visitorId);
+    const sessionId = sanitizeUuid(body?.sessionId);
     const supabase = createSupabaseServer();
+    const ensured = await ensureLandingUserForGeneration(supabase, user);
+    if (!ensured.ok || ensured.usedGuestOwner) {
+      const status = ensured.ok ? 401 : ensured.status;
+      return NextResponse.json(
+        {
+          error: ensured.ok ? "unauthorized" : ensured.error,
+          message: ensured.ok
+            ? "Для оплаты войдите через Google или Яндекс"
+            : ensured.message,
+        },
+        { status },
+      );
+    }
+    const { data: landingUser } = await supabase
+      .from("landing_users")
+      .select("utm_source, utm_medium, utm_campaign, utm_content, utm_term, utm_landing_path")
+      .eq("id", ensured.dbUserId)
+      .maybeSingle();
+    const trafficSource = resolvePaymentTrafficSource(body, landingUser);
     let local = await readExistingPayment(supabase, user.id, idempotencyKey);
     if (local && local.plan_id !== plan.id) {
       return NextResponse.json({ error: "idempotency_conflict" }, { status: 409 });
@@ -85,19 +116,6 @@ export async function POST(request: NextRequest) {
     }
 
     if (!local) {
-      const ensured = await ensureLandingUserForGeneration(supabase, user);
-      if (!ensured.ok || ensured.usedGuestOwner) {
-        const status = ensured.ok ? 401 : ensured.status;
-        return NextResponse.json(
-          {
-            error: ensured.ok ? "unauthorized" : ensured.error,
-            message: ensured.ok
-              ? "Для оплаты войдите через Google или Яндекс"
-              : ensured.message,
-          },
-          { status },
-        );
-      }
       const { data: inserted, error: insertError } = await supabase
         .from("landing_robokassa_payments")
         .insert({
@@ -111,6 +129,9 @@ export async function POST(request: NextRequest) {
           test: config.testMode,
           ym_client_id: ymClientId,
           yclid,
+          visitor_id: visitorId,
+          session_id: sessionId,
+          ...trafficSource,
           paywall_variant: paywallVariant,
         })
         .select("id, invoice_id, plan_id, amount_rub, credits, idempotency_key, status")
@@ -127,6 +148,34 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    if (trafficSource.utm_source) {
+      await supabase
+        .from("landing_users")
+        .update({ ...trafficSource, attribution_captured_at: new Date().toISOString() })
+        .eq("id", ensured.dbUserId)
+        .is("utm_source", null);
+    }
+    if (yclid) {
+      await supabase.from("landing_users").update({ yclid }).eq("id", ensured.dbUserId).is("yclid", null);
+    }
+    if (visitorId) {
+      await supabase.rpc("upsert_landing_acquisition_visitor", {
+        p_visitor_id: visitorId,
+        p_utm_source: trafficSource.utm_source,
+        p_utm_medium: trafficSource.utm_medium,
+        p_utm_campaign: trafficSource.utm_campaign,
+        p_utm_content: trafficSource.utm_content,
+        p_utm_term: trafficSource.utm_term,
+        p_utm_landing_path: trafficSource.utm_landing_path,
+        p_yclid: yclid,
+      });
+      await supabase.rpc("attach_landing_visitor_to_user", {
+        p_visitor_id: visitorId,
+        p_landing_user_id: ensured.dbUserId,
+        p_auth_user_id: user.id,
+      });
+    }
+
     if (paywallVariant) {
       const { error: variantError } = await supabase
         .from("landing_robokassa_payments")
@@ -140,6 +189,36 @@ export async function POST(request: NextRequest) {
         console.warn("[robokassa] paywall_variant backfill skipped", {
           paymentId: local.id,
           message: variantError.message,
+        });
+      }
+    }
+    for (const [field, value] of Object.entries({
+      ym_client_id: ymClientId,
+      yclid,
+    })) {
+      if (value == null) continue;
+      await supabase
+        .from("landing_robokassa_payments")
+        .update({ [field]: value, updated_at: new Date().toISOString() })
+        .eq("id", local.id)
+        .is(field, null);
+    }
+    for (const [field, value] of Object.entries({
+      visitor_id: visitorId,
+      session_id: sessionId,
+      ...trafficSource,
+    })) {
+      if (value == null) continue;
+      const { error: attributionError } = await supabase
+        .from("landing_robokassa_payments")
+        .update({ [field]: value, updated_at: new Date().toISOString() })
+        .eq("id", local.id)
+        .is(field, null);
+      if (attributionError) {
+        console.warn("[robokassa] attribution backfill skipped", {
+          paymentId: local.id,
+          field,
+          message: attributionError.message,
         });
       }
     }

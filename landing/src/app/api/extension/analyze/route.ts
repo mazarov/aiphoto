@@ -2,6 +2,7 @@ import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
 import { NextRequest, NextResponse } from "next/server";
 import sharp from "sharp";
+import { readAcquisitionRequestIds } from "@/lib/acquisition-request";
 import { recordAnalyzeEvent } from "@/lib/analyze-events";
 import { recordAnalyzeHistory } from "@/lib/analyze-history";
 import {
@@ -329,6 +330,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const locale = normalizeLocale(body.locale);
   const requestId = crypto.randomUUID();
   const correlationId = req.headers.get("x-correlation-id") || requestId;
+  const acquisition = readAcquisitionRequestIds(req);
   const supabase = createSupabaseServer();
   const eventBase = {
     locale,
@@ -357,6 +359,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       }),
       ipHash: snapshot?.ipHash || "",
       userId: snapshot?.userId ?? null,
+      visitorId: acquisition.visitorId,
+      sessionId: acquisition.sessionId,
       allowed,
       requestOrigin: req.headers.get("origin"),
       quotaMode:
@@ -369,6 +373,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   extensionLog("analyze.start", {
     requestId,
     correlationId,
+    visitorId: acquisition.visitorId,
+    sessionId: acquisition.sessionId,
     locale,
     mimeType: image.mimeType,
     imageBase64Chars: image.data.length,

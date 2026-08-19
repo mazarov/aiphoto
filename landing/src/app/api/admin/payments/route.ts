@@ -3,6 +3,7 @@ import { requireAnalyticsAdmin } from "@/lib/analytics-admin";
 import {
   encodeAdminPaymentCursor,
   parseAdminPaymentCursor,
+  parseAdminPaymentAttributionFilter,
   parseAdminPaymentLimit,
   parseAdminPaymentStatus,
   parseAdminPaymentTestFilter,
@@ -20,6 +21,8 @@ export async function GET(req: NextRequest) {
 
   const status = parseAdminPaymentStatus(req.nextUrl.searchParams.get("status"));
   const testFilter = parseAdminPaymentTestFilter(req.nextUrl.searchParams.get("test"));
+  const source = parseAdminPaymentAttributionFilter(req.nextUrl.searchParams.get("source"));
+  const campaign = parseAdminPaymentAttributionFilter(req.nextUrl.searchParams.get("campaign"));
   if (!status || !testFilter) {
     return NextResponse.json({ error: "invalid_filter" }, { status: 400 });
   }
@@ -30,6 +33,8 @@ export async function GET(req: NextRequest) {
   const { data, error } = await supabase.rpc("admin_landing_payments", {
     p_status: status,
     p_test: paymentTestFilterToRpc(testFilter),
+    p_source: source,
+    p_campaign: campaign,
     p_cursor_created_at: cursor?.createdAt || null,
     p_cursor_id: cursor?.id || null,
     p_limit: limit,
@@ -39,6 +44,8 @@ export async function GET(req: NextRequest) {
       adminEmail: gate.email,
       status,
       testFilter,
+      source,
+      campaign,
       message: error.message,
     });
     return NextResponse.json({ error: "payments_fetch_failed" }, { status: 500 });
@@ -66,6 +73,15 @@ export async function GET(req: NextRequest) {
     providerStatus: row.provider_status,
     test: row.test,
     paywallVariant: row.paywall_variant,
+    visitorId: row.visitor_id,
+    sessionId: row.session_id,
+    yclid: row.yclid,
+    utmSource: row.utm_source,
+    utmMedium: row.utm_medium,
+    utmCampaign: row.utm_campaign,
+    utmContent: row.utm_content,
+    utmTerm: row.utm_term,
+    utmLandingPath: row.utm_landing_path,
     creditedAt: row.credited_at,
     creditState: resolvePaymentCreditState(row),
   }));

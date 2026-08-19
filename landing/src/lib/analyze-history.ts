@@ -21,6 +21,8 @@ type AnalyzeHistoryInput = {
   userId?: string | null;
   ipHash?: string | null;
   correlationId?: string | null;
+  visitorId?: string | null;
+  sessionId?: string | null;
   authenticated?: boolean;
   creditsSpent?: number;
   quotaMode?: string | null;
@@ -77,6 +79,8 @@ async function persist(
     locale: input.locale ?? null,
     model: input.model ?? null,
     user_id: input.userId ?? null,
+    visitor_id: input.visitorId ?? null,
+    session_id: input.sessionId ?? null,
     ip_hash: input.ipHash ?? null,
     correlation_id: input.correlationId ?? null,
     credits_spent: input.creditsSpent ?? 0,

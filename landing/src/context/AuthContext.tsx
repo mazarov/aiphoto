@@ -11,6 +11,11 @@ import {
 } from "react";
 import { createSupabaseBrowser } from "@/lib/supabase-browser";
 import { consumeAuthReturnPath } from "@/lib/auth-oauth";
+import { captureBrowserAcquisitionContext } from "@/lib/traffic-source-attribution-browser";
+import {
+  shouldAttemptClientAttributionPersist,
+  toAttributionPersistPayload,
+} from "@/lib/traffic-source-attribution";
 import type { User } from "@supabase/supabase-js";
 
 export type AuthModalReason = "default" | "analyze_quota";
@@ -35,12 +40,47 @@ const AuthContext = createContext<AuthContextType>({
   signOut: async () => {},
 });
 
+function persistAttributionForUser(
+  nextUser: User | null,
+  persistedUserIdRef: { current: string | null },
+): void {
+  if (!nextUser) {
+    persistedUserIdRef.current = null;
+    return;
+  }
+  if (
+    !shouldAttemptClientAttributionPersist({
+      userId: nextUser.id,
+      isAnonymous: nextUser.is_anonymous,
+      pathname: window.location.pathname,
+      alreadyPersistedUserId: persistedUserIdRef.current,
+    })
+  ) {
+    return;
+  }
+  persistedUserIdRef.current = nextUser.id;
+  void (async () => {
+    try {
+      const captured = captureBrowserAcquisitionContext();
+      await fetch("/api/me/attribution", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify(toAttributionPersistPayload(captured)),
+      });
+    } catch (err) {
+      console.warn("[attribution] client persist failed", err);
+    }
+  })();
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authModalReason, setAuthModalReason] = useState<AuthModalReason>("default");
   const handledAuthCodeRef = useRef(false);
+  const persistedAttributionUserIdRef = useRef<string | null>(null);
 
   const openAuthModal = useCallback((reason: AuthModalReason = "default") => {
     setAuthModalReason(reason);
@@ -91,6 +131,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { data: { user } } = await supabase.auth.getUser();
       setUser(user);
       setLoading(false);
+      persistAttributionForUser(user, persistedAttributionUserIdRef);
     }
 
     void initAuth();
@@ -101,6 +142,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const nextUser = session?.user ?? null;
       setUser(nextUser);
       setLoading(false);
+      persistAttributionForUser(nextUser, persistedAttributionUserIdRef);
       // Anonymous sessions still need the login modal for checkout / likes.
       if (nextUser && nextUser.is_anonymous !== true) {
         setShowAuthModal(false);
@@ -113,6 +155,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = useCallback(async () => {
     const supabase = createSupabaseBrowser();
     await supabase.auth.signOut();
+    persistedAttributionUserIdRef.current = null;
     setUser(null);
   }, []);
 

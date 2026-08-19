@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { recordAcquisitionClientEvent } from "@/lib/acquisition-client-events";
 
 type Props = {
   texts: string[];
@@ -16,6 +17,7 @@ export function CopyPromptButton({ texts, className = "", variant = "default" }:
     if (!str) return;
     try {
       await navigator.clipboard.writeText(str);
+      recordAcquisitionClientEvent("prompt_copy");
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {

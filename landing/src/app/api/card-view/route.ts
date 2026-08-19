@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { createSupabaseServer } from "@/lib/supabase";
 
 const MAX_SLUG_LEN = 280;
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function normalizeViewCount(raw: unknown): number | null {
   if (typeof raw === "number" && Number.isFinite(raw)) return Math.trunc(raw);
@@ -21,17 +23,28 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: "invalid_json" }, { status: 400 });
   }
 
-  const raw = (body as { slug?: unknown }).slug;
+  const input = body as { slug?: unknown; visitorId?: unknown; sessionId?: unknown };
+  const raw = input.slug;
   const slug =
     typeof raw === "string" ? raw.trim().slice(0, MAX_SLUG_LEN) : "";
   if (!slug) {
     return NextResponse.json({ ok: false, error: "bad_slug" }, { status: 400 });
   }
+  const visitorId =
+    typeof input.visitorId === "string" && UUID_PATTERN.test(input.visitorId.trim())
+      ? input.visitorId.trim().toLowerCase()
+      : null;
+  const sessionId =
+    typeof input.sessionId === "string" && UUID_PATTERN.test(input.sessionId.trim())
+      ? input.sessionId.trim().toLowerCase()
+      : null;
 
   try {
     const supabase = createSupabaseServer();
     const { data, error } = await supabase.rpc("increment_prompt_card_view", {
       p_slug: slug,
+      p_visitor_id: visitorId,
+      p_session_id: sessionId,
     });
 
     if (error) {

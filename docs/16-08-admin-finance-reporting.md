@@ -13,6 +13,10 @@
 
 Первый период — август 2026. API ЮKassa/GCP и Telegram Stars в v1 нет.
 
+Расход Яндекс Директа (`kind=ads`) и когортный CAC описаны отдельно:
+[19-08-yandex-direct-acquisition.md](./19-08-yandex-direct-acquisition.md).
+Ads не смешивается с Gemini `cogs` и не меняет существующий `netIncomeRub`.
+
 ## Поведение
 
 - `/admin/analytics` — обзор и кредиты. `/admin/finance` — касса выгрузок. Старый `?tab=finance` редиректит.

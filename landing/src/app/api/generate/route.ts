@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createHash } from "node:crypto";
+import { readAcquisitionRequestIds } from "@/lib/acquisition-request";
 import { createSupabaseServer } from "@/lib/supabase";
 import { getSupabaseUserForApiRoute } from "@/lib/supabase-route-auth";
 import { getStvPipelineTrace, stvLog } from "@/lib/stv-pipeline-log";
@@ -53,6 +54,7 @@ function toErrorMeta(err: unknown) {
 }
 
 export async function POST(req: NextRequest) {
+  const acquisition = readAcquisitionRequestIds(req);
   try {
     console.log("[generation.create] incoming request");
     const { user, error: authError } = await getSupabaseUserForApiRoute(req);
@@ -528,6 +530,8 @@ export async function POST(req: NextRequest) {
         p_edit_instruction: isVideo ? null : normalizedEditInstruction || null,
         p_modality: requestedModality,
         p_duration_seconds: videoDuration,
+        p_visitor_id: acquisition.visitorId,
+        p_session_id: acquisition.sessionId,
       }
     );
     const enqueueRow = Array.isArray(enqueueRows) ? enqueueRows[0] : enqueueRows;

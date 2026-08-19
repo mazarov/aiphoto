@@ -4,6 +4,7 @@ import {
   classifyGeminiFamily,
   extractZipEntries,
   parseDelimitedLine,
+  parseDirectAdsCsv,
   parseFinanceKind,
   parseFinanceNumber,
   parseFinancePeriod,
@@ -18,7 +19,7 @@ const YOOKASSA = `РЕЕСТР ПЛАТЕЖЕЙ ПО ДОГОВОРУ НЭК.113
 Дата платежей: 2022-12-15
 Идентификатор платежа;Сумма платежа;Валюта платежа;Сумма за вычетом комиссии и НДС;Сумма комиссии без НДС;Время платежа;Идентификатор платежного средства;Описание;Тип платежа;Имя плательщика;Адрес плательщика;ИНН плательщика;НДС с комиссии
 276a9776-000f-5000-a000-179a4d5c6bad;2.00;RUB;1.91;0.07;15.12.2022 12:37:07;41001860899377;Заказ №72;AC;Иван;Москва;7700000000;0,02
-21b212e1-0016-50fb-9000-07aebf184c41;8.00;RUB;7.66;0.28;15.12.2022 15:43:01;41001860899377;Заказ №73;PC;;;0,06
+21b212e1-0016-50fb-9000-07aebf184c41;8.00;RUB;7.66;0.28;15.12.2022 15:43:01;41001860899377;Заказ №73;PC;;;;0,06
 
 Сумма принятых платежей: 10.00 RUB
 Сумма принятых платежей за вычетом комиссии и НДС: 9.57 RUB
@@ -75,6 +76,7 @@ test("finance period kind and rate reject unsupported values", () => {
   assert.equal(parseFinancePeriod("2026-13"), null);
   assert.equal(parseFinancePeriod("08-2026"), null);
   assert.equal(parseFinanceKind("REVENUE"), "revenue");
+  assert.equal(parseFinanceKind("ADS"), "ads");
   assert.equal(parseFinanceKind("spend"), null);
   assert.equal(parseUsdRubRate(""), null);
   assert.equal(parseUsdRubRate("92.5"), 92.5);
@@ -123,10 +125,12 @@ test("gcp billing parser uses Subtotal and quoted usage", () => {
   const parsed = parseGcpCogsCsv(GCP);
   assert.equal(parsed.totals.count, 3);
   assert.equal(parsed.totals.subtotalUsd, 10.05);
-  assert.equal(parsed.lines[0].usage_amount, 260580);
-  assert.equal(classifyGeminiFamily(parsed.lines[0].sku_description), "gemini-2.5-flash-image");
-  assert.equal(classifyGeminiFamily(parsed.lines[1].sku_description), "gemini-2.5-flash-text");
-  assert.equal(classifyGeminiFamily(parsed.lines[2].sku_description), "gemini-3-pro-image");
+  const byFamily = new Map(
+    parsed.lines.map((line) => [classifyGeminiFamily(line.sku_description), line]),
+  );
+  assert.equal(byFamily.get("gemini-2.5-flash-image")?.usage_amount, 260580);
+  assert.ok(byFamily.has("gemini-2.5-flash-text"));
+  assert.ok(byFamily.has("gemini-3-pro-image"));
 });
 
 test("zip extract finds csv and parseFinanceUpload accepts yookassa zip", () => {
@@ -143,5 +147,100 @@ test("xlsx-only zip asks for csv", () => {
   assert.throws(
     () => parseFinanceUpload("revenue", "report.zip", zip),
     (error: unknown) => error instanceof FinanceParseError && error.code === "yookassa_csv_required",
+  );
+});
+
+const DIRECT_EN = `Date,CampaignId,CampaignName,AdId,CriterionId,Impressions,Clicks,Cost,Currency
+01.08.2026,100,Brand,10,77,1000,20,500.50,RUB
+01.08.2026,100,Brand,10,77,200,5,100.25,RUB
+02.08.2026,200,Promo,,,50,2,80,RUB
+`;
+
+const DIRECT_RU = `Дата;ID кампании;Название кампании;ID объявления;ID условия показа;Показы;Клики;Расход (руб.);Валюта
+01.08.2026;100;Бренд;10;77;1000;20;500,50;RUB
+03.07.2026;100;Бренд;10;77;10;1;5,00;RUB
+Итого;;;;;—;1010;21;505,50;
+`;
+
+function encodeWindows1251(text: string): Buffer {
+  const bytes: number[] = [];
+  for (const char of text) {
+    const code = char.charCodeAt(0);
+    if (code < 0x80) bytes.push(code);
+    else if (char === "Ё") bytes.push(0xa8);
+    else if (char === "ё") bytes.push(0xb8);
+    else if (code >= 0x410 && code <= 0x44f) bytes.push(0xc0 + (code - 0x410));
+    else bytes.push(0x3f);
+  }
+  return Buffer.from(bytes);
+}
+
+test("direct parser merges duplicate grain and accepts EN headers", () => {
+  const parsed = parseDirectAdsCsv(DIRECT_EN, "2026-08-01");
+  assert.equal(parsed.kind, "ads");
+  assert.equal(parsed.totals.count, 2);
+  assert.equal(parsed.totals.costRub, 680.75);
+  assert.equal(parsed.totals.clicks, 27);
+  assert.equal(parsed.totals.impressions, 1250);
+  assert.equal(parsed.totals.droppedOutsideMonth, 0);
+  assert.equal(parsed.totals.grain, "campaign_ad_criterion_day");
+  assert.equal(parsed.lines[0].campaign_id, "100");
+  assert.equal(parsed.lines[0].cost_rub, 600.75);
+  assert.equal(parsed.lines[0].ad_id, "10");
+  assert.equal(parsed.lines[1].ad_id, null);
+});
+
+test("direct parser skips footer empty campaign and outside-month rows", () => {
+  const parsed = parseDirectAdsCsv(DIRECT_RU, "2026-08-01");
+  assert.equal(parsed.totals.count, 1);
+  assert.equal(parsed.totals.costRub, 500.5);
+  assert.equal(parsed.totals.droppedOutsideMonth, 1);
+  assert.equal(parsed.lines[0].spend_date, "2026-08-01");
+});
+
+test("direct parser ignores title lines before the header", () => {
+  const parsed = parseDirectAdsCsv(
+    `Отчет по кампаниям\nПериод: 01.08.2026 - 31.08.2026\n${DIRECT_RU}`,
+    "2026-08-01",
+  );
+  assert.equal(parsed.totals.count, 1);
+  assert.equal(parsed.lines[0].campaign_name, "Бренд");
+});
+
+test("empty direct header-only csv is a valid replace", () => {
+  const parsed = parseDirectAdsCsv("Date;CampaignId;CampaignName;Impressions;Clicks;Cost\n", "2026-08-01");
+  assert.equal(parsed.totals.count, 0);
+  assert.equal(parsed.totals.costRub, 0);
+  assert.equal(parsed.totals.droppedOutsideMonth, 0);
+});
+
+test("direct parser skips impossible calendar dates before database import", () => {
+  const parsed = parseDirectAdsCsv(
+    "Date,CampaignId,Cost\n31.02.2026,100,10\n",
+    "2026-02-01",
+  );
+  assert.equal(parsed.totals.count, 0);
+});
+
+test("direct parser reads windows-1251 russian headers", () => {
+  const parsed = parseFinanceUpload("ads", "direct.csv", encodeWindows1251(DIRECT_RU), "2026-08-01");
+  assert.equal(parsed.kind, "ads");
+  assert.equal(parsed.totals.count, 1);
+  assert.equal(parsed.totals.droppedOutsideMonth, 1);
+});
+
+test("direct parser rejects non-RUB zip and excel", () => {
+  assert.throws(
+    () => parseDirectAdsCsv("Date,CampaignId,Cost,Currency\n01.08.2026,100,10,USD\n"),
+    (error: unknown) => error instanceof FinanceParseError && error.code === "ads_currency_not_supported",
+  );
+  const zip = createStoredZip("direct.csv", Buffer.from(DIRECT_EN, "utf8"));
+  assert.throws(
+    () => parseFinanceUpload("ads", "direct.zip", zip, "2026-08-01"),
+    (error: unknown) => error instanceof FinanceParseError && error.code === "ads_csv_required",
+  );
+  assert.throws(
+    () => parseFinanceUpload("ads", "direct.xlsx", Buffer.from(DIRECT_EN, "utf8"), "2026-08-01"),
+    (error: unknown) => error instanceof FinanceParseError && error.code === "ads_csv_required",
   );
 });

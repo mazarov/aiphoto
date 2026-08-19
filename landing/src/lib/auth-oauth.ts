@@ -4,6 +4,7 @@ import {
   AUTH_RETURN_PATH_KEY,
   sanitizeAuthReturnPath,
 } from "@/lib/auth-return-path";
+import { captureBrowserAcquisitionContext } from "@/lib/traffic-source-attribution-browser";
 
 export const YANDEX_OAUTH_PROVIDER = "custom:yandex" as const;
 export type OAuthSignInProvider = "google" | typeof YANDEX_OAUTH_PROVIDER;
@@ -79,6 +80,7 @@ function getOAuthQueryParams(
 }
 
 export async function signInWithOAuthProvider(provider: OAuthSignInProvider) {
+  captureBrowserAcquisitionContext();
   const supabase = createSupabaseBrowser();
   await supabase.auth.signInWithOAuth({
     provider,

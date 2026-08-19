@@ -41,10 +41,12 @@ export async function POST(req: NextRequest) {
   }
 
   const bytes = new Uint8Array(await file.arrayBuffer());
-  const filename = file.name || (kind === "revenue" ? "yookassa.csv" : "gcp-billing.csv");
+  const filename = file.name || (
+    kind === "revenue" ? "yookassa.csv" : kind === "ads" ? "yandex-direct.csv" : "gcp-billing.csv"
+  );
   let parsed;
   try {
-    parsed = parseFinanceUpload(kind, filename, bytes);
+    parsed = parseFinanceUpload(kind, filename, bytes, periodMonth);
   } catch (error) {
     if (error instanceof FinanceParseError) {
       return NextResponse.json(
@@ -68,6 +70,7 @@ export async function POST(req: NextRequest) {
     p_usd_rub_rate: rate,
     p_revenue_lines: parsed.kind === "revenue" ? parsed.lines : null,
     p_cogs_lines: parsed.kind === "cogs" ? parsed.lines : null,
+    p_ads_lines: parsed.kind === "ads" ? parsed.lines : null,
   });
   if (error) {
     console.error("[admin.finance] import_failed", {

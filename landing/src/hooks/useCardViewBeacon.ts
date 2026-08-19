@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { browserAcquisitionIds } from "@/lib/acquisition-client-events";
 
 const STORAGE_PREFIX = "promptshot_view_";
 
@@ -28,10 +29,11 @@ export function useCardViewBeacon(slug: string, initialViewCount: number): numbe
 
     (async () => {
       try {
+        const { visitorId, sessionId } = browserAcquisitionIds();
         const res = await fetch("/api/card-view", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ slug }),
+          body: JSON.stringify({ slug, visitorId, sessionId }),
         });
         const data = (await res.json()) as ApiOk | ApiErr;
         if (cancelled) return;
