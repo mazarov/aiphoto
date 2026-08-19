@@ -87,6 +87,7 @@ html {
       padding-bottom: 0.5rem;
     }
 
+    .pricing-paywall-trust,
     .pricing-paywall-secondary,
     .pricing-paywall-legal {
       display: none;
@@ -583,6 +584,7 @@ p {
   }
 
   @media (max-height: 720px) and (min-width: 640px) {
+    .pricing-paywall-trust,
     .pricing-paywall-secondary {
       display: none;
     }

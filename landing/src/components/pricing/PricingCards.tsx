@@ -29,6 +29,7 @@ import {
   readPricingReturnPath,
 } from "@/lib/yookassa-return-path";
 import { readYandexCheckoutAttribution } from "@/lib/yandex-attribution-browser";
+import { captureBrowserAcquisitionContext } from "@/lib/traffic-source-attribution-browser";
 import {
   openRobokassaPayment,
   type RobokassaBrowserPayload,
@@ -319,7 +320,8 @@ export function PricingCards({
       paywall_variant: variant,
     });
     try {
-      const attribution = await readYandexCheckoutAttribution();
+      const yandexAttribution = await readYandexCheckoutAttribution();
+      const acquisition = captureBrowserAcquisitionContext();
       const response = await fetch("/api/payments/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -329,8 +331,11 @@ export function PricingCards({
           testAccess:
             new URL(window.location.href).searchParams.get("test") === "true",
           returnPath: readPricingReturnPath(),
-          ymClientId: attribution.ymClientId,
-          yclid: attribution.yclid,
+          ymClientId: yandexAttribution.ymClientId,
+          yclid: yandexAttribution.yclid ?? acquisition.yclid,
+          visitorId: acquisition.visitorId,
+          sessionId: acquisition.sessionId,
+          ...acquisition.attribution,
           paywallVariant: variant,
         }),
       });
@@ -456,10 +461,40 @@ export function PricingCards({
       </div>
     ) : null;
 
+  const trustStrip = (
+    <div className="pricing-paywall-trust order-1 mb-3 grid shrink-0 grid-cols-3 rounded-xl border border-zinc-100 bg-zinc-50/90 px-2 py-2.5 text-center sm:order-3 sm:mb-0 sm:mt-3">
+      <div className="px-1">
+        <strong className="block text-xs font-semibold text-zinc-900 sm:text-sm">
+          Разовая
+        </strong>
+        <span className="block text-[10px] leading-tight text-zinc-500 sm:text-xs">
+          покупка
+        </span>
+      </div>
+      <div className="border-x border-zinc-200 px-1">
+        <strong className="block text-xs font-semibold text-zinc-900 sm:text-sm">
+          Без срока
+        </strong>
+        <span className="block text-[10px] leading-tight text-zinc-500 sm:text-xs">
+          токены не сгорают
+        </span>
+      </div>
+      <div className="px-1">
+        <strong className="block text-xs font-semibold text-zinc-900 sm:text-sm">
+          Без подписки
+        </strong>
+        <span className="block text-[10px] leading-tight text-zinc-500 sm:text-xs">
+          и автосписаний
+        </span>
+      </div>
+    </div>
+  );
+
   return (
     <div className="flex min-h-0 flex-1 flex-col">
+      {trustStrip}
       <div
-        className="pricing-paywall-plans-wrap shrink-0"
+        className="pricing-paywall-plans-wrap order-2 shrink-0 sm:order-1"
         data-has-prev={previousPlan ? "true" : "false"}
         data-has-next={nextPlan ? "true" : "false"}
       >
@@ -510,7 +545,7 @@ export function PricingCards({
         ) : null}
       </div>
       <div
-        className="pricing-paywall-dots mt-2 flex shrink-0 items-center justify-center gap-1.5"
+        className="pricing-paywall-dots order-3 mt-2 flex shrink-0 items-center justify-center gap-1.5 sm:order-2"
         aria-hidden
       >
         {plans.map((plan) => (
@@ -526,36 +561,9 @@ export function PricingCards({
         ))}
       </div>
 
-      <div className="mt-3 min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1">
-        <div className="pricing-paywall-secondary grid grid-cols-3 rounded-xl border border-zinc-100 bg-zinc-50/90 px-2 py-2.5 text-center">
-        <div className="px-1">
-          <strong className="block text-xs font-semibold text-zinc-900 sm:text-sm">
-            Разовая
-          </strong>
-          <span className="block text-[10px] leading-tight text-zinc-500 sm:text-xs">
-            покупка
-          </span>
-        </div>
-        <div className="border-x border-zinc-200 px-1">
-          <strong className="block text-xs font-semibold text-zinc-900 sm:text-sm">
-            Без срока
-          </strong>
-          <span className="block text-[10px] leading-tight text-zinc-500 sm:text-xs">
-            токены не сгорают
-          </span>
-        </div>
-        <div className="px-1">
-          <strong className="block text-xs font-semibold text-zinc-900 sm:text-sm">
-            Без подписки
-          </strong>
-          <span className="block text-[10px] leading-tight text-zinc-500 sm:text-xs">
-            и автосписаний
-          </span>
-        </div>
-        </div>
-
+      <div className="order-4 mt-3 min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1">
         <section
-          className="pricing-paywall-secondary mt-4 pb-1"
+          className="pricing-paywall-secondary pb-1"
           aria-labelledby="pricing-benefits-heading"
         >
         <h2
@@ -611,7 +619,7 @@ export function PricingCards({
         type="button"
         onClick={() => selectPlan(selectedPlan)}
         disabled={checkout.kind === "creating" || authLoading}
-        className="relative z-20 mt-3 inline-flex min-h-14 w-full shrink-0 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-indigo-600 via-[#5b5cf0] to-violet-500 px-5 text-base font-bold text-white shadow-lg shadow-indigo-500/25 transition hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:cursor-wait disabled:opacity-65 sm:text-lg"
+        className="relative z-20 order-5 mt-3 inline-flex min-h-14 w-full shrink-0 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-indigo-600 via-[#5b5cf0] to-violet-500 px-5 text-base font-bold text-white shadow-lg shadow-indigo-500/25 transition hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:cursor-wait disabled:opacity-65 sm:text-lg"
       >
         <TokenIcon />
         <span>
