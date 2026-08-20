@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useLayoutEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { useListingFilters } from "@/hooks/useListingFilters";
 import { useListingSort } from "@/hooks/useListingSort";
 import { FilterFAB } from "./FilterFAB";
