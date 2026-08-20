@@ -19,6 +19,20 @@ test("audience-first birthday L2 canonicalizes to hub child", () => {
   assert.equal(route.rpcParams.occasion_tag, "den_rozhdeniya");
 });
 
+test("audience-first birthday L3 canonicalizes to hub child", () => {
+  const route = resolveUrlToTags([
+    "promty-dlya-foto-devushki",
+    "den-rozhdeniya",
+    "s-tortom",
+  ]);
+  assert.ok(route);
+  assert.equal(route.level, 3);
+  assert.equal(
+    route.canonicalPath,
+    "/sobytiya/den-rozhdeniya/devushki/s-tortom",
+  );
+});
+
 test("short birthday children resolve and stay occasion-first", () => {
   const route = resolveUrlToTags(["sobytiya", "den-rozhdeniya", "deti"]);
   assert.ok(route);

@@ -6,6 +6,7 @@ import {
   DEN_ROZHDENIYA_PERMANENT_REDIRECTS,
   DEN_ROZHDENIYA_SEARCH_QUERY,
   birthdayAliasForAudienceSlug,
+  birthdayClusterSitemapPages,
   birthdayListingSearchQueries,
   birthdayListingSearchQuery,
   isBirthdayListingSearchQuery,
@@ -91,8 +92,9 @@ test("hub itself is not in the 301 list", () => {
     ),
     false,
   );
+  const sources = DEN_ROZHDENIYA_PERMANENT_REDIRECTS.map((item) => item.source);
   assert.deepEqual(
-    DEN_ROZHDENIYA_PERMANENT_REDIRECTS.map((item) => item.source),
+    sources.filter((source) => !source.includes(":object")),
     [
       "/promty-dlya-foto-devushki/den-rozhdeniya",
       "/promty-dlya-detskih-foto/den-rozhdeniya",
@@ -101,6 +103,31 @@ test("hub itself is not in the 301 list", () => {
       "/promty-dlya-foto-devochka/den-rozhdeniya",
       "/promty-dlya-foto-malysh/den-rozhdeniya",
     ],
+  );
+});
+
+test("audience-first L3 permanently redirects onto hub children", () => {
+  const girlCake = DEN_ROZHDENIYA_PERMANENT_REDIRECTS.find(
+    (item) => item.source === "/promty-dlya-foto-devushki/den-rozhdeniya/:object",
+  );
+  assert.deepEqual(girlCake, {
+    source: "/promty-dlya-foto-devushki/den-rozhdeniya/:object",
+    destination: "/sobytiya/den-rozhdeniya/devushki/:object",
+  });
+  const girlCakeLast = DEN_ROZHDENIYA_PERMANENT_REDIRECTS.find(
+    (item) =>
+      item.source === "/promty-dlya-foto-devushki/:object/den-rozhdeniya",
+  );
+  assert.deepEqual(girlCakeLast, {
+    source: "/promty-dlya-foto-devushki/:object/den-rozhdeniya",
+    destination: "/sobytiya/den-rozhdeniya/devushki/:object",
+  });
+  const manObject = DEN_ROZHDENIYA_PERMANENT_REDIRECTS.find(
+    (item) => item.source === "/promty-dlya-foto-muzhchiny/den-rozhdeniya/:object",
+  );
+  assert.equal(
+    manObject?.destination,
+    "/sobytiya/den-rozhdeniya/muzhchiny/:object",
   );
 });
 
@@ -189,4 +216,32 @@ test("hybrid listing allowlist is the birthday SSOT, not arbitrary search", () =
   }
   assert.equal(isBirthdayListingSearchQuery("ночной портрет"), false);
   assert.equal(isBirthdayListingSearchQuery("день рождения"), true);
+});
+
+test("sitemap pages follow SSOT listing queries, including L3", () => {
+  const pages = birthdayClusterSitemapPages();
+  const byPath = new Map(pages.map((page) => [page.path, page]));
+  assert.deepEqual(byPath.get("/sobytiya/den-rozhdeniya"), {
+    path: "/sobytiya/den-rozhdeniya",
+    query: DEN_ROZHDENIYA_SEARCH_QUERY,
+    level: 1,
+  });
+  assert.deepEqual(byPath.get("/sobytiya/den-rozhdeniya/muzhchiny"), {
+    path: "/sobytiya/den-rozhdeniya/muzhchiny",
+    query: "мужской день рождения",
+    level: 2,
+  });
+  assert.deepEqual(byPath.get("/sobytiya/den-rozhdeniya/devushki/s-tortom"), {
+    path: "/sobytiya/den-rozhdeniya/devushki/s-tortom",
+    query: "день рождения девушке с тортом",
+    level: 3,
+  });
+  assert.equal(
+    pages.filter((page) => page.level === 2).length,
+    7,
+  );
+  assert.equal(
+    pages.filter((page) => page.level === 3).length,
+    12,
+  );
 });

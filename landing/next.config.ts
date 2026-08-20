@@ -58,6 +58,7 @@ const nextConfig: NextConfig = {
         destination: "/trends",
         permanent: true,
       },
+      // Audience-first L2 + L3 wildcards (`/:object`) from den-rozhdeniya-cluster SSOT.
       ...DEN_ROZHDENIYA_PERMANENT_REDIRECTS.map((item) => ({
         source: item.source,
         destination: item.destination,

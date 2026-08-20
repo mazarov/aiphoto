@@ -109,32 +109,116 @@ export type BirthdayPermanentRedirect = {
 };
 
 /** Audience-first L2 → hub children. Hub itself is never redirected. */
+export const DEN_ROZHDENIYA_AUDIENCE_FIRST_L2_REDIRECTS: BirthdayPermanentRedirect[] =
+  [
+    {
+      source: "/promty-dlya-foto-devushki/den-rozhdeniya",
+      destination: `${DEN_ROZHDENIYA_HUB_PATH}/devushki`,
+    },
+    {
+      source: "/promty-dlya-detskih-foto/den-rozhdeniya",
+      destination: `${DEN_ROZHDENIYA_HUB_PATH}/deti`,
+    },
+    {
+      source: "/promty-dlya-foto-muzhchiny/den-rozhdeniya",
+      destination: `${DEN_ROZHDENIYA_HUB_PATH}/muzhchiny`,
+    },
+    {
+      source: "/promty-dlya-foto-malchika/den-rozhdeniya",
+      destination: `${DEN_ROZHDENIYA_HUB_PATH}/deti`,
+    },
+    {
+      source: "/promty-dlya-foto-devochka/den-rozhdeniya",
+      destination: `${DEN_ROZHDENIYA_HUB_PATH}/deti`,
+    },
+    {
+      source: "/promty-dlya-foto-malysh/den-rozhdeniya",
+      destination: `${DEN_ROZHDENIYA_HUB_PATH}/deti`,
+    },
+  ];
+
+/** L3: occasion in the middle or last → same hub child + object. */
+export function denRozhdeniyaAudienceFirstL3Redirects(): BirthdayPermanentRedirect[] {
+  return DEN_ROZHDENIYA_AUDIENCE_FIRST_L2_REDIRECTS.flatMap((item) => {
+    const audiencePath = item.source.replace(/\/den-rozhdeniya$/, "");
+    return [
+      {
+        source: `${item.source}/:object`,
+        destination: `${item.destination}/:object`,
+      },
+      {
+        source: `${audiencePath}/:object/den-rozhdeniya`,
+        destination: `${item.destination}/:object`,
+      },
+    ];
+  });
+}
+
 export const DEN_ROZHDENIYA_PERMANENT_REDIRECTS: BirthdayPermanentRedirect[] = [
-  {
-    source: "/promty-dlya-foto-devushki/den-rozhdeniya",
-    destination: `${DEN_ROZHDENIYA_HUB_PATH}/devushki`,
-  },
-  {
-    source: "/promty-dlya-detskih-foto/den-rozhdeniya",
-    destination: `${DEN_ROZHDENIYA_HUB_PATH}/deti`,
-  },
-  {
-    source: "/promty-dlya-foto-muzhchiny/den-rozhdeniya",
-    destination: `${DEN_ROZHDENIYA_HUB_PATH}/muzhchiny`,
-  },
-  {
-    source: "/promty-dlya-foto-malchika/den-rozhdeniya",
-    destination: `${DEN_ROZHDENIYA_HUB_PATH}/deti`,
-  },
-  {
-    source: "/promty-dlya-foto-devochka/den-rozhdeniya",
-    destination: `${DEN_ROZHDENIYA_HUB_PATH}/deti`,
-  },
-  {
-    source: "/promty-dlya-foto-malysh/den-rozhdeniya",
-    destination: `${DEN_ROZHDENIYA_HUB_PATH}/deti`,
-  },
+  ...DEN_ROZHDENIYA_AUDIENCE_FIRST_L2_REDIRECTS,
+  ...denRozhdeniyaAudienceFirstL3Redirects(),
 ];
+
+export type BirthdaySitemapPage = {
+  path: string;
+  query: string;
+  level: 1 | 2 | 3;
+};
+
+/** Hub + featured children + audience×object L3. Sitemap gates by search hits. */
+export function birthdayClusterSitemapPages(): BirthdaySitemapPage[] {
+  const occasion = findTagBySlug("occasion_tag", DEN_ROZHDENIYA_TAG_SLUG);
+  const pages: BirthdaySitemapPage[] = [
+    {
+      path: DEN_ROZHDENIYA_HUB_PATH,
+      query: DEN_ROZHDENIYA_SEARCH_QUERY,
+      level: 1,
+    },
+  ];
+  if (!occasion) return pages;
+
+  const childRows = DEN_ROZHDENIYA_CHILDREN.map((child) => ({
+    child,
+    tag: findTagBySlug(child.dimension, child.tagSlug),
+  })).filter(
+    (row): row is { child: BirthdayClusterChild; tag: TagEntry } =>
+      Boolean(row.tag),
+  );
+
+  for (const { child, tag } of childRows) {
+    const query = birthdayListingSearchQuery([occasion, tag]);
+    if (!query) continue;
+    pages.push({
+      path: birthdayChildPath(child.alias),
+      query,
+      level: 2,
+    });
+  }
+
+  const audienceRows = childRows.filter(
+    (row) => row.child.dimension === "audience_tag",
+  );
+  const objectRows = childRows.filter(
+    (row) => row.child.dimension === "object_tag",
+  );
+  for (const audience of audienceRows) {
+    for (const object of objectRows) {
+      const query = birthdayListingSearchQuery([
+        occasion,
+        audience.tag,
+        object.tag,
+      ]);
+      if (!query) continue;
+      pages.push({
+        path: `${birthdayChildPath(audience.child.alias)}/${object.child.alias}`,
+        query,
+        level: 3,
+      });
+    }
+  }
+
+  return pages;
+}
 
 export function isDenRozhdeniyaHubPath(pathname: string): boolean {
   const normalized = stripTrailingSlash(pathname);

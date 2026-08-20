@@ -1,7 +1,13 @@
 import type { MetadataRoute } from "next";
 import { TAG_REGISTRY, findTagBySlug, type Dimension } from "@/lib/tag-registry";
-import { getPublishedCardsForSitemap, getIndexableTagCombos, getFilterCounts, searchCardsByText } from "@/lib/supabase";
+import {
+  getPublishedCardsForSitemap,
+  getIndexableTagCombos,
+  getFilterCounts,
+  searchCardsByText,
+} from "@/lib/supabase";
 import { buildCanonicalPath, getMinCardsForLevel } from "@/lib/route-resolver";
+import { birthdayClusterSitemapPages } from "@/lib/den-rozhdeniya-cluster";
 import {
   GENERACIYA_FOTO_SCENARIO_ROUTES,
   MIN_GENERACIYA_FOTO_SCENARIO_CARDS,
@@ -58,6 +64,57 @@ function staticHubEntries(): MetadataRoute.Sitemap {
   ];
 }
 
+type SearchBackedSitemapPage = {
+  path: string;
+  query: string;
+  level: 1 | 2 | 3;
+  priority: number;
+};
+
+function birthdaySitemapPriority(level: 1 | 2 | 3): number {
+  if (level === 1) return 0.9;
+  if (level === 2) return 0.7;
+  return 0.6;
+}
+
+function uniqueSitemapEntries(entries: MetadataRoute.Sitemap): MetadataRoute.Sitemap {
+  const seen = new Set<string>();
+  const unique: MetadataRoute.Sitemap = [];
+  for (const entry of entries) {
+    if (seen.has(entry.url)) continue;
+    seen.add(entry.url);
+    unique.push(entry);
+  }
+  return unique;
+}
+
+/** FTS-only: sitemap must not spend Gemini budget. Fail-soft per URL. */
+async function searchBackedSitemapUrls(
+  pages: SearchBackedSitemapPage[],
+): Promise<MetadataRoute.Sitemap> {
+  const entries = await Promise.all(
+    pages.map(async (page) => {
+      const min = getMinCardsForLevel(page.level);
+      try {
+        const hits = await searchCardsByText(page.query, min, 0);
+        if (hits.length < min) return null;
+        return {
+          url: `${BASE_URL}${page.path}`,
+          lastModified: new Date(),
+          changeFrequency: "weekly" as const,
+          priority: page.priority,
+        };
+      } catch (error) {
+        console.error("[sitemap] search-backed page failed", page.path, error);
+        return null;
+      }
+    }),
+  );
+  return entries.filter((entry): entry is NonNullable<typeof entry> =>
+    Boolean(entry),
+  );
+}
+
 export const revalidate = 3600;
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
@@ -94,22 +151,18 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       const count = countMap.get(`${tag.dimension}:${tag.slug}`) ?? 0;
       return count >= minL1;
     });
-    const eventSearchHits = await searchCardsByText(
-      SOBYTIYA_1_SENTYABRYA_SEARCH_QUERY,
-      getMinCardsForLevel(1),
-      0
-    );
-    const eventGenerationUrls: MetadataRoute.Sitemap =
-      eventSearchHits.length >= getMinCardsForLevel(1)
-        ? [
-            {
-              url: `${BASE_URL}${SOBYTIYA_1_SENTYABRYA_PATH}`,
-              lastModified: new Date(),
-              changeFrequency: "weekly",
-              priority: 0.85,
-            },
-          ]
-        : [];
+    const searchBackedUrls = await searchBackedSitemapUrls([
+      ...birthdayClusterSitemapPages().map((page) => ({
+        ...page,
+        priority: birthdaySitemapPriority(page.level),
+      })),
+      {
+        path: SOBYTIYA_1_SENTYABRYA_PATH,
+        query: SOBYTIYA_1_SENTYABRYA_SEARCH_QUERY,
+        level: 1,
+        priority: 0.85,
+      },
+    ]);
     const tagUrls: MetadataRoute.Sitemap = indexableL1Tags.map((tag) => {
       const path = tag.urlPath.startsWith("/") ? tag.urlPath.slice(1) : tag.urlPath;
       return {
@@ -146,9 +199,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     return [
       ...hubs,
       ...generationScenarioUrls,
-      ...eventGenerationUrls,
-      ...tagUrls,
-      ...l2Urls,
+      ...uniqueSitemapEntries([
+        ...searchBackedUrls,
+        ...tagUrls,
+        ...l2Urls,
+      ]),
       ...cardUrls,
     ];
   } catch (error) {
