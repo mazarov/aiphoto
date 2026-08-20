@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { assembleVideoMotionPrompt } from "../../landing/src/lib/video-motion-prompt";
 import {
   buildVideoInteractionRequest,
   extractInteractionId,
@@ -36,6 +37,31 @@ test("Interactions payload puts aspect_ratio on response_format only", () => {
     }).response_format.aspect_ratio,
     "16:9",
   );
+});
+
+test("motion prompt tags Image2 when identity reference is present", () => {
+  const assembled = assembleVideoMotionPrompt("Оживи изображение", {
+    hasIdentityReference: true,
+  });
+  assert.match(assembled, /\[# Sources @Image1\] \[# References @Image2\]/);
+  assert.match(assembled, /Image2 as a reference for the person's identity/);
+  assert.doesNotMatch(assembleVideoMotionPrompt("Оживи изображение"), /@Image2/);
+});
+
+test("Interactions payload appends identity photo as Image2", () => {
+  const body = buildVideoInteractionRequest({
+    model: "gemini-omni-flash-preview",
+    prompt: "[# Sources @Image1] [# References @Image2]",
+    image: { mimeType: "image/jpeg", data: "frame" },
+    identityImage: { mimeType: "image/png", data: "face" },
+    aspectRatio: "9:16",
+  });
+  assert.deepEqual(body.input, [
+    { type: "image", data: "frame", mime_type: "image/jpeg" },
+    { type: "image", data: "face", mime_type: "image/png" },
+    { type: "text", text: "[# Sources @Image1] [# References @Image2]" },
+  ]);
+  assert.deepEqual(body.generation_config.video_config, { task: "image_to_video" });
 });
 
 test("extractInteractionId reads id or name", () => {

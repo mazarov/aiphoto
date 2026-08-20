@@ -57,6 +57,7 @@ import {
   isGenericVideoPrompt,
 } from "@/lib/video-animate-scenario";
 import { restoreSelectedPhotoIds } from "@/lib/generation-enqueue-core";
+import { resolveVideoEnqueueParentGenerationId } from "@/lib/user-generation-photos";
 
 const BLANK_PROMPT_PLACEHOLDER = "Опишите изображение или референс";
 
@@ -875,8 +876,12 @@ export function CardInlineGeneratePanel({
   }): Promise<boolean> => {
     const requestedModality = options?.modality || composeModality;
     const isVideo = requestedModality === "video";
-    const parentGenerationId = options?.parentGenerationId?.trim()
-      || (isVideo ? animateParentId || "" : "");
+    const parentGenerationId = isVideo
+      ? resolveVideoEnqueueParentGenerationId(
+          options?.parentGenerationId?.trim() || animateParentId,
+          selectedPhotos[0]?.originalFilename,
+        )
+      : options?.parentGenerationId?.trim() || "";
     const editInstruction = isVideo ? "" : options?.editInstruction?.trim() || "";
     const isContinuation = Boolean(parentGenerationId) && !isVideo;
     if (isContinuation && !editInstruction) {
@@ -2384,16 +2389,22 @@ export function CardInlineGeneratePanel({
                       setError("Для оживления выберите одно фото");
                       return;
                     }
+                    const photo = selectedPhotos[0];
+                    const linkedParentId = resolveVideoEnqueueParentGenerationId(
+                      null,
+                      photo?.originalFilename,
+                    );
                     setComposeModality("video");
-                    setAnimateParentId(null);
-                    setAnimatePreviewUrl(selectedPhotos[0]?.previewUrl || null);
+                    setAnimateParentId(linkedParentId || null);
+                    setAnimatePreviewUrl(photo?.previewUrl || null);
                     const sourcePrompt = draftPromptRef.current;
                     if (isGenericVideoPrompt(sourcePrompt)) {
                       setDraftPrompt("");
                     }
                     setError("");
                     void loadAnimateScenario({
-                      photoStoragePath: selectedPhotos[0]?.storagePath || null,
+                      parentGenerationId: linkedParentId || undefined,
+                      photoStoragePath: linkedParentId ? null : photo?.storagePath || null,
                       sourcePrompt,
                     });
                   }}

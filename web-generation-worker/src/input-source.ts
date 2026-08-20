@@ -1,5 +1,8 @@
+import { isStoragePathOwnedByAuthUser } from "../../landing/src/lib/user-generation-photos";
+
 export const UPLOADS_BUCKET = "web-generation-uploads";
 export const RESULTS_BUCKET = "web-generation-results";
+export const VIDEO_IDENTITY_WALK_LIMIT = 8;
 
 export class ProcessingError extends Error {
   constructor(
@@ -23,6 +26,8 @@ export type ParentGenerationInput = {
   status: string;
   result_storage_bucket: string | null;
   result_storage_path: string | null;
+  input_photo_paths?: string[] | null;
+  parent_generation_id?: string | null;
 };
 
 export type GenerationInputSource = {
@@ -86,15 +91,58 @@ export function assertVideoInputSource(source: GenerationInputSource): Generatio
   return source;
 }
 
+export function pickOwnedIdentityPhotoPath(
+  requesterAuthUserId: string | null,
+  paths: string[] | null | undefined,
+): string | null {
+  if (!requesterAuthUserId) return null;
+  for (const raw of paths || []) {
+    const path = String(raw || "").trim();
+    if (isStoragePathOwnedByAuthUser(path, requesterAuthUserId)) return path;
+  }
+  return null;
+}
+
+export function resolveVideoIdentityReference(
+  source: GenerationInputSource,
+  requesterAuthUserId: string | null,
+  ancestors: Array<Pick<ParentGenerationInput, "input_photo_paths">>,
+): GenerationInputSource | null {
+  for (const ancestor of ancestors) {
+    const path = pickOwnedIdentityPhotoPath(requesterAuthUserId, ancestor.input_photo_paths);
+    if (path) {
+      return {
+        sourceType: "user_photos",
+        bucket: UPLOADS_BUCKET,
+        paths: [path],
+      };
+    }
+  }
+  if (source.sourceType === "user_photos" && source.paths[0]) {
+    return {
+      sourceType: "user_photos",
+      bucket: source.bucket || UPLOADS_BUCKET,
+      paths: [source.paths[0]],
+    };
+  }
+  return null;
+}
+
 export function videoInputLogFields(
   source: GenerationInputSource,
   job: Pick<GenerationInputJob, "parent_generation_id">,
+  identity: GenerationInputSource | null = null,
+  linkedGenerationId: string | null = null,
 ): {
   sourceType: GenerationInputSource["sourceType"];
   sourceCount: number;
   sourcePath: string | null;
   sourceBucket: string;
   parentGenerationId: string | null;
+  linkedGenerationId: string | null;
+  hasIdentityReference: boolean;
+  identityPath: string | null;
+  identityBucket: string | null;
 } {
   return {
     sourceType: source.sourceType,
@@ -102,5 +150,9 @@ export function videoInputLogFields(
     sourcePath: source.paths[0] || null,
     sourceBucket: source.bucket,
     parentGenerationId: job.parent_generation_id,
+    linkedGenerationId,
+    hasIdentityReference: Boolean(identity?.paths[0]),
+    identityPath: identity?.paths[0] || null,
+    identityBucket: identity?.bucket || null,
   };
 }

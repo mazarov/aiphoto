@@ -107,6 +107,7 @@ export async function POST(
         auth_user_id: user.id,
         storage_path: path,
         original_filename: `generation-${gen.id}.jpg`,
+        source_generation_id: gen.id,
         byte_size: resized.data.length,
         width: resized.info.width,
         height: resized.info.height,

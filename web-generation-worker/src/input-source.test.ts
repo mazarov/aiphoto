@@ -1,10 +1,16 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  parseLibrarySourceGenerationId,
+  resolveVideoEnqueueParentGenerationId,
+} from "../../landing/src/lib/user-generation-photos";
+import {
   ProcessingError,
   assertVideoInputSource,
   resolveGenerationInputSource,
   RESULTS_BUCKET,
+  pickOwnedIdentityPhotoPath,
+  resolveVideoIdentityReference,
   videoInputLogFields,
   type GenerationInputJob,
   type ParentGenerationInput,
@@ -104,6 +110,10 @@ test("video input log fields distinguish upload vs parent result", () => {
       sourcePath: "auth-user-id/input.jpg",
       sourceBucket: "web-generation-uploads",
       parentGenerationId: null,
+      linkedGenerationId: null,
+      hasIdentityReference: false,
+      identityPath: null,
+      identityBucket: null,
     },
   );
   assert.deepEqual(
@@ -114,6 +124,11 @@ test("video input log fields distinguish upload vs parent result", () => {
         paths: ["db-user-id/parent/result.png"],
       },
       job({ parent_generation_id: "parent-id", input_photo_paths: [] }),
+      {
+        sourceType: "user_photos",
+        bucket: "web-generation-uploads",
+        paths: ["auth-user-id/input.jpg"],
+      },
     ),
     {
       sourceType: "generation_result",
@@ -121,7 +136,64 @@ test("video input log fields distinguish upload vs parent result", () => {
       sourcePath: "db-user-id/parent/result.png",
       sourceBucket: RESULTS_BUCKET,
       parentGenerationId: "parent-id",
+      linkedGenerationId: null,
+      hasIdentityReference: true,
+      identityPath: "auth-user-id/input.jpg",
+      identityBucket: "web-generation-uploads",
     },
+  );
+});
+
+test("library filename recovers the source generation id", () => {
+  assert.equal(
+    parseLibrarySourceGenerationId("generation-3d1b3c6c-7565-4ae8-bb01-338863065d83.jpg"),
+    "3d1b3c6c-7565-4ae8-bb01-338863065d83",
+  );
+  assert.equal(parseLibrarySourceGenerationId("1786898245_pt4p8b.jpg"), null);
+  assert.equal(
+    resolveVideoEnqueueParentGenerationId(null, "generation-3d1b3c6c-7565-4ae8-bb01-338863065d83.jpg"),
+    "3d1b3c6c-7565-4ae8-bb01-338863065d83",
+  );
+  assert.equal(
+    resolveVideoEnqueueParentGenerationId("explicit-parent", "generation-3d1b3c6c-7565-4ae8-bb01-338863065d83.jpg"),
+    "explicit-parent",
+  );
+});
+
+test("identity reference uses the owned upload from the parent chain", () => {
+  const source = {
+    sourceType: "generation_result" as const,
+    bucket: RESULTS_BUCKET,
+    paths: ["db-user-id/parent/result.png"],
+  };
+  assert.equal(pickOwnedIdentityPhotoPath("auth-user-id", ["other/a.jpg", "auth-user-id/face.jpg"]), "auth-user-id/face.jpg");
+  assert.equal(pickOwnedIdentityPhotoPath("auth-user-id", ["other/a.jpg"]), null);
+  assert.equal(
+    resolveVideoIdentityReference(source, "auth-user-id", [
+      { input_photo_paths: [] },
+      { input_photo_paths: ["auth-user-id/face.jpg"] },
+    ])?.paths[0],
+    "auth-user-id/face.jpg",
+  );
+  assert.deepEqual(
+    resolveVideoIdentityReference(
+      { sourceType: "user_photos", bucket: "web-generation-uploads", paths: ["auth-user-id/face.jpg"] },
+      "auth-user-id",
+      [],
+    ),
+    {
+      sourceType: "user_photos",
+      bucket: "web-generation-uploads",
+      paths: ["auth-user-id/face.jpg"],
+    },
+  );
+  assert.equal(
+    resolveVideoIdentityReference(
+      { sourceType: "user_photos", bucket: "web-generation-uploads", paths: ["auth-user-id/copy.jpg"] },
+      "auth-user-id",
+      [{ input_photo_paths: ["auth-user-id/face.jpg"] }],
+    )?.paths[0],
+    "auth-user-id/face.jpg",
   );
 });
 

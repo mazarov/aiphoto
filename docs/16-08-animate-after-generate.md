@@ -12,7 +12,7 @@
 
 | Параметр | Значение |
 |---|---|
-| Промпт по умолчанию | Gemini 2.5 Flash придумывает короткий motion-сценарий по фото (без описания внешности); fallback `Оживи изображение`. Worker помечает фото как `[# Sources @Image1]` starting frame и держит identity lock |
+| Промпт по умолчанию | Gemini 2.5 Flash придумывает короткий motion-сценарий по фото (без описания внешности); fallback `Оживи изображение`. Worker: Image1 = кадр для оживления (`[# Sources]`), Image2 = исходный аплоад с parent generation (`[# References]`, только если оживляем результат генерации) |
 | Модель UI | Veo Omni Flash |
 | Модель API | `gemini-omni-flash-preview` |
 | Кадр | `9:16` или `16:9` |
@@ -20,7 +20,7 @@
 | Разрешение | 720p (`image_size`) |
 | Количество | 1 |
 | Кредиты | 30 из `landing_generation_config.video_models` |
-| Источник | ровно одно фото: parent image generation **или** одно upload-фото |
+| Источник | ровно одно фото: parent image generation **или** одно upload-фото. Копия из библиотеки `generation-<uuid>.jpg` поднимается обратно в ту генерацию |
 | UGC / библиотека | нет |
 
 Text-only video и video-from-video запрещены.
