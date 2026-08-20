@@ -5,6 +5,7 @@ import {
   buildVideoInteractionRequest,
   extractInteractionId,
   extractInteractionVideo,
+  formatVideoResponseDuration,
   interactionErrorCode,
   interactionErrorMessage,
   interactionStatus,
@@ -24,7 +25,19 @@ test("Interactions payload puts aspect_ratio on response_format only", () => {
   assert.deepEqual(body.response_format, {
     type: "video",
     aspect_ratio: "9:16",
+    duration: "4s",
   });
+  assert.equal(formatVideoResponseDuration(8), "8s");
+  assert.equal(
+    buildVideoInteractionRequest({
+      model: "gemini-omni-flash-preview",
+      prompt: "x",
+      image: { mimeType: "image/jpeg", data: "abc" },
+      aspectRatio: "16:9",
+      durationSeconds: 10,
+    }).response_format.duration,
+    "10s",
+  );
   assert.equal(body.background, false);
   assert.equal(body.store, false);
   assert.equal(body.stream, false);

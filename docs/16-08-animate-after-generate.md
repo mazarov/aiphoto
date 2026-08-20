@@ -16,17 +16,17 @@
 | Модель UI | Veo Omni Flash |
 | Модель API | `gemini-omni-flash-preview` |
 | Кадр | `9:16` или `16:9` |
-| Длительность | 4 сек |
+| Длительность | 4 / 6 / 8 / 10 сек (`response_format.duration`) |
 | Разрешение | 720p (`image_size`) |
 | Количество | 1 |
-| Кредиты | 30 из `landing_generation_config.video_models` |
+| Кредиты | база 30 из `video_models` + длительность +0/+10/+20/+30 (см. `docs/20-08-video-compose-params.md`) |
 | Источник | ровно одно фото: parent image generation **или** одно upload-фото. Копия из библиотеки `generation-<uuid>.jpg` поднимается обратно в ту генерацию |
 | UGC / библиотека | нет |
 
 Text-only video и video-from-video запрещены.
 
 Провайдер: Gemini Interactions API (`POST /v1beta/interactions`).  
-Официальный Omni unary: `background=false`, `store=false`, `stream=false`. `video_config` — только `{ task: "image_to_video" }`; `aspect_ratio` — в `response_format`. `background=true` на consumer API даёт opaque `invalid_request` («You will not be charged»). Длительность 4с храним у себя.
+Официальный Omni unary: `background=false`, `store=false`, `stream=false`. `video_config` — только `{ task: "image_to_video" }`; `aspect_ratio` и `duration` (`"4s"`…`"10s"`) — в `response_format`. `background=true` на consumer API даёт opaque `invalid_request` («You will not be charged»). Allowlist длительности — SQL `200`.
 
 ## Flow
 
@@ -35,7 +35,7 @@ Text-only video и video-from-video запрещены.
   → клик «Оживить» → POST /api/generate/animate-scenario (Flash 2.5 + фото + исходный промпт)
   → короткий сценарий в поле промпта
   → POST /api/generate { modality: "video" }
-  → landing_enqueue_generation (30 кредитов, create_ugc=false)
+  → landing_enqueue_generation (30–60 кредитов, create_ugc=false)
   → web-generation-worker claim (video cap)
   → Interactions create → provider_operation_id
   → poll / resume

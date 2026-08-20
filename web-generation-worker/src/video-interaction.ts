@@ -12,8 +12,22 @@ export type VideoInteractionRequest = {
   response_format: {
     type: "video";
     aspect_ratio: string;
+    duration: string;
   };
 };
+
+const VIDEO_INTERACTION_DURATIONS = new Set([4, 6, 8, 10]);
+
+export function normalizeInteractionDurationSeconds(value: unknown): number {
+  const parsed = typeof value === "string" ? Number(value) : value;
+  return typeof parsed === "number" && VIDEO_INTERACTION_DURATIONS.has(parsed)
+    ? parsed
+    : 4;
+}
+
+export function formatVideoResponseDuration(value: unknown): string {
+  return `${normalizeInteractionDurationSeconds(value)}s`;
+}
 
 /**
  * Official Omni Flash unary body.
@@ -27,6 +41,7 @@ export function buildVideoInteractionRequest(input: {
   prompt: string;
   image: { mimeType: string; data: string };
   aspectRatio: string;
+  durationSeconds?: number | null;
 }): VideoInteractionRequest {
   const aspectRatio = input.aspectRatio === "16:9" ? "16:9" : "9:16";
   return {
@@ -46,6 +61,7 @@ export function buildVideoInteractionRequest(input: {
     response_format: {
       type: "video",
       aspect_ratio: aspectRatio,
+      duration: formatVideoResponseDuration(input.durationSeconds),
     },
   };
 }

@@ -28,6 +28,7 @@ import {
 } from "@/lib/generation/image-options";
 import { parseEnabledVideoGenerationModels } from "@/lib/generation-model-labels";
 import {
+  calculateVideoCreditCost,
   normalizeVideoDurationSeconds,
   resolveVideoAspectRatio,
   resolveVideoResolution,
@@ -391,7 +392,9 @@ export async function POST(req: NextRequest) {
         { status: 503 }
       );
     }
-    const creditsNeeded = modelConfig.cost;
+    const creditsNeeded = isVideo
+      ? calculateVideoCreditCost(modelConfig.cost, videoDuration)
+      : modelConfig.cost;
     const guestMode = Boolean(user && isStvGuestUser(user));
     /** Open-debug and guest: never charge. */
     const creditsCharged = openDebug || guestMode ? 0 : creditsNeeded;

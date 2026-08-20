@@ -56,6 +56,7 @@ import {
   ANIMATE_SCENARIO_PLACEHOLDER,
   isGenericVideoPrompt,
 } from "@/lib/video-animate-scenario";
+import { calculateVideoCreditCost } from "@/lib/video-generation-contract";
 import { restoreSelectedPhotoIds } from "@/lib/generation-enqueue-core";
 import { resolveVideoEnqueueParentGenerationId } from "@/lib/user-generation-photos";
 
@@ -172,6 +173,9 @@ export function CardInlineGeneratePanel({
   const [videoEnabled, setVideoEnabled] = useState(false);
   const [videoModels, setVideoModels] = useState<ModelOpt[]>([]);
   const [videoAspectRatio, setVideoAspectRatio] = useState(DEFAULT_VIDEO_ASPECT_RATIO);
+  const [videoDurationSeconds, setVideoDurationSeconds] = useState(
+    DEFAULT_VIDEO_DURATION_SECONDS
+  );
   const [resultModality, setResultModality] = useState<"image" | "video">("image");
   const [animateParentId, setAnimateParentId] = useState<string | null>(
     seed.parentGenerationId || null
@@ -179,6 +183,7 @@ export function CardInlineGeneratePanel({
   const [animatePreviewUrl, setAnimatePreviewUrl] = useState<string | null>(
     seed.previewUrl || null
   );
+  const [animateReferenceUrl, setAnimateReferenceUrl] = useState<string | null>(null);
   const [scenarioLoading, setScenarioLoading] = useState(seed.intent === "animate");
   const scenarioRequestRef = useRef(0);
   const [preferencesHydrated, setPreferencesHydrated] = useState(false);
@@ -462,6 +467,7 @@ export function CardInlineGeneratePanel({
           setComposeModality("video");
           setAnimateParentId(seed.parentGenerationId || null);
           setAnimatePreviewUrl(seed.previewUrl || null);
+          setAnimateReferenceUrl(null);
           if (seed.promptText.trim() && !isGenericVideoPrompt(seed.promptText)) {
             setDraftPrompt(seed.promptText);
           } else {
@@ -580,6 +586,28 @@ export function CardInlineGeneratePanel({
       sourcePrompt: seed.promptText,
     });
   }, [isAuthed, loadAnimateScenario, seed.intent, seed.parentGenerationId, seed.promptText]);
+
+  useEffect(() => {
+    if (composeModality !== "video" || !animateParentId || !isAuthed) return;
+    let cancelled = false;
+    void fetch(`/api/generations/${encodeURIComponent(animateParentId)}`, {
+      credentials: "include",
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { resultUrl?: string; inputPhotoUrl?: string } | null) => {
+        if (cancelled || !data) return;
+        if (typeof data.resultUrl === "string" && data.resultUrl) {
+          setAnimatePreviewUrl(data.resultUrl);
+        }
+        if (typeof data.inputPhotoUrl === "string" && data.inputPhotoUrl) {
+          setAnimateReferenceUrl((current) => current || data.inputPhotoUrl || null);
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [animateParentId, composeModality, isAuthed]);
 
   useEffect(() => {
     const refreshCredits = () => {
@@ -715,9 +743,13 @@ export function CardInlineGeneratePanel({
     credits !== null &&
     (credits <= 0 || (minModelCost !== null && credits < minModelCost));
   const activeVideoModel = videoModels[0] ?? null;
+  const selectedVideoCost =
+    activeVideoModel != null
+      ? calculateVideoCreditCost(activeVideoModel.cost, videoDurationSeconds)
+      : null;
   const selectedModelCost =
     composeModality === "video"
-      ? activeVideoModel?.cost ?? null
+      ? selectedVideoCost
       : models.find((item) => item.id === model)?.cost ?? null;
   const cannotAffordSelected =
     isAuthed &&
@@ -928,7 +960,7 @@ export function CardInlineGeneratePanel({
           model: isVideo ? activeVideoModel?.id : model,
           aspectRatio: isVideo ? videoAspectRatio : aspectRatio,
           imageSize: isVideo ? DEFAULT_VIDEO_RESOLUTION : imageSize,
-          durationSeconds: isVideo ? DEFAULT_VIDEO_DURATION_SECONDS : undefined,
+          durationSeconds: isVideo ? videoDurationSeconds : undefined,
           cardId: resolvedCardId,
           photoStoragePaths: isVideo
             ? parentGenerationId
@@ -1008,6 +1040,8 @@ export function CardInlineGeneratePanel({
           if (isVideo) {
             setComposeModality("image");
             setAnimateParentId(null);
+            setAnimatePreviewUrl(null);
+            setAnimateReferenceUrl(null);
           }
           setProgress(100);
           setPhase("done");
@@ -1235,6 +1269,7 @@ export function CardInlineGeneratePanel({
     setComposeModality("video");
     setAnimateParentId(generationId);
     setAnimatePreviewUrl(resultUrl);
+    setAnimateReferenceUrl(null);
     setDraftPrompt("");
     setSubmittedPrompt("");
     setChangeRequest("");
@@ -1269,6 +1304,7 @@ export function CardInlineGeneratePanel({
     setComposeModality("image");
     setAnimateParentId(null);
     setAnimatePreviewUrl(null);
+    setAnimateReferenceUrl(null);
     setExpandedControl(null);
     setPromptExpanded(false);
     setPhase("idle");
@@ -2234,10 +2270,10 @@ export function CardInlineGeneratePanel({
         {!showResultChrome && videoCompose ? (
         <section
           className={`shrink-0 ${
-            isDock
-              ? `rounded-none border-0 bg-transparent p-1${
-                  dockExpanded ? "invisible pointer-events-none" : ""
-                }`
+            promptExpanded || (isDock && dockExpanded)
+              ? "hidden"
+              : isDock
+              ? "rounded-none border-0 bg-transparent p-1"
               : `rounded-2xl border p-2 ${
                   glassChrome
                     ? "border-white/15 bg-black/15 backdrop-blur-md"
@@ -2246,16 +2282,18 @@ export function CardInlineGeneratePanel({
           }`}
         >
           <VideoComposeBar
-            previewUrl={
+            generationPreviewUrl={
               animatePreviewUrl
               || selectedPhotos[0]?.previewUrl
               || null
             }
+            referencePreviewUrl={animateReferenceUrl}
             onClearPreview={
               animateParentId
                 ? () => {
                     setAnimateParentId(null);
                     setAnimatePreviewUrl(null);
+                    setAnimateReferenceUrl(null);
                     setComposeModality("image");
                   }
                 : selectedPhotos[0]
@@ -2269,10 +2307,13 @@ export function CardInlineGeneratePanel({
               activeVideoModel?.label
             )}
             aspectRatio={videoAspectRatio}
-            durationLabel={`${DEFAULT_VIDEO_DURATION_SECONDS} сек`}
+            onAspectRatioChange={setVideoAspectRatio}
+            durationSeconds={videoDurationSeconds}
+            onDurationChange={setVideoDurationSeconds}
             resolution={DEFAULT_VIDEO_RESOLUTION}
             quantity={1}
             glass={glassChrome}
+            disabled={controlsBusy}
           />
         </section>
         ) : !showResultChrome ? (
@@ -2396,7 +2437,13 @@ export function CardInlineGeneratePanel({
                     );
                     setComposeModality("video");
                     setAnimateParentId(linkedParentId || null);
-                    setAnimatePreviewUrl(photo?.previewUrl || null);
+                    if (linkedParentId) {
+                      setAnimatePreviewUrl(null);
+                      setAnimateReferenceUrl(photo?.previewUrl || null);
+                    } else {
+                      setAnimatePreviewUrl(photo?.previewUrl || null);
+                      setAnimateReferenceUrl(null);
+                    }
                     const sourcePrompt = draftPromptRef.current;
                     if (isGenericVideoPrompt(sourcePrompt)) {
                       setDraftPrompt("");
@@ -2461,11 +2508,10 @@ export function CardInlineGeneratePanel({
 
       <footer
         className={`relative z-20 shrink-0 p-3 ${
-          isDock
-            ? `mt-auto border-t border-white/10 bg-transparent pb-3${
-                // Avoid footer CTA bleeding through open editor sheets.
-                dockExpanded ? " invisible pointer-events-none" : ""
-              }`
+          promptExpanded || (isDock && dockExpanded)
+            ? "hidden"
+            : isDock
+            ? "mt-auto border-t border-white/10 bg-transparent pb-3"
             : `border-t backdrop-blur-md pb-[max(0.75rem,env(safe-area-inset-bottom))] ${
                 showResultChrome
                   ? "border-white/10 bg-black/15"
@@ -2670,7 +2716,7 @@ export function CardInlineGeneratePanel({
                   : videoCompose && scenarioLoading
                     ? ANIMATE_SCENARIO_PLACEHOLDER
                   : videoCompose
-                    ? `Сгенерировать ${activeVideoModel?.cost ?? 30}✦`
+                    ? `Сгенерировать ${selectedVideoCost ?? 30}✦`
                     : phase === "done" && resultUrl
                     ? "Что изменить"
                     : !isAuthed

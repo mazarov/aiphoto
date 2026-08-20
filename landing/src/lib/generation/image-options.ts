@@ -52,6 +52,9 @@ export const VIDEO_ASPECT_RATIO_OPTIONS = [
 
 export const VIDEO_DURATION_OPTIONS = [
   { value: 4, label: "4 сек" },
+  { value: 6, label: "6 сек" },
+  { value: 8, label: "8 сек" },
+  { value: 10, label: "10 сек" },
 ] as const;
 
 export const VIDEO_RESOLUTION_OPTIONS = [

@@ -8,6 +8,23 @@ import {
   landingGenerationsOwnerOrFilter,
   removeGenerationResultObjects,
 } from "@/lib/landing-generations-access";
+import {
+  isStoragePathOwnedByAuthUser,
+  USER_GENERATION_PHOTOS_BUCKET,
+  USER_GENERATION_PHOTO_SIGNED_TTL_SEC,
+} from "@/lib/user-generation-photos";
+
+function firstOwnedInputPhotoPath(
+  paths: unknown,
+  authUserId: string
+): string | null {
+  if (!Array.isArray(paths)) return null;
+  for (const raw of paths) {
+    const path = String(raw || "").trim();
+    if (isStoragePathOwnedByAuthUser(path, authUserId)) return path;
+  }
+  return null;
+}
 
 export async function GET(
   req: NextRequest,
@@ -70,6 +87,18 @@ export async function GET(
       result.errorType = gen.error_type;
       result.errorMessage = gen.error_message;
       result.creditsRefunded = Boolean(gen.credits_refunded);
+    }
+
+    const inputPath = firstOwnedInputPhotoPath(gen.input_photo_paths, user.id);
+    if (inputPath) {
+      const { data: signed, error: signedError } = await supabase.storage
+        .from(USER_GENERATION_PHOTOS_BUCKET)
+        .createSignedUrl(inputPath, USER_GENERATION_PHOTO_SIGNED_TTL_SEC);
+      if (signedError) {
+        console.warn("generations/[id] inputPhotoUrl failed", signedError.message);
+      } else if (signed?.signedUrl) {
+        result.inputPhotoUrl = signed.signedUrl;
+      }
     }
 
     return NextResponse.json(result);

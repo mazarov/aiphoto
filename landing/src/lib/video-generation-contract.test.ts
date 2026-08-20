@@ -1,13 +1,16 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  calculateVideoCreditCost,
   isVideoAnimateFlagOn,
   isVideoAnimateUnlocked,
   isVideoGenerationResult,
+  normalizeVideoDurationSeconds,
   resolveVideoAspectRatio,
   resolveVideoModelId,
   resolveVideoResolution,
   validateVideoGenerationSource,
+  videoDurationExtraCredits,
   videoSourceErrorMessage,
 } from "./video-generation-contract";
 import { assembleVideoMotionPrompt } from "./video-motion-prompt";
@@ -66,10 +69,26 @@ test("video option resolvers fall back to v1 defaults", () => {
   assert.equal(resolveVideoAspectRatio("3:4"), "9:16");
   assert.equal(resolveVideoAspectRatio("16:9"), "16:9");
   assert.equal(resolveVideoResolution("4K"), "720p");
+  assert.equal(normalizeVideoDurationSeconds(8), 8);
+  assert.equal(normalizeVideoDurationSeconds("10"), 10);
+  assert.equal(normalizeVideoDurationSeconds(5), 4);
   assert.equal(
     resolveVideoModelId("unknown", ["gemini-omni-flash-preview"]),
     "gemini-omni-flash-preview"
   );
+});
+
+test("video credit cost adds duration extras on top of base 30", () => {
+  assert.equal(videoDurationExtraCredits(4), 0);
+  assert.equal(videoDurationExtraCredits(6), 10);
+  assert.equal(videoDurationExtraCredits(8), 20);
+  assert.equal(videoDurationExtraCredits(10), 30);
+  assert.equal(calculateVideoCreditCost(30, 4), 30);
+  assert.equal(calculateVideoCreditCost(30, 6), 40);
+  assert.equal(calculateVideoCreditCost(30, 8), 50);
+  assert.equal(calculateVideoCreditCost(30, 10), 60);
+  assert.equal(calculateVideoCreditCost(30, 7), 30);
+  assert.equal(calculateVideoCreditCost(-1, 10), 30);
 });
 
 test("motion prompt locks the photo as the starting frame", () => {

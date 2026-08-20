@@ -241,6 +241,7 @@ async function submitInteraction(input: {
   prompt: string;
   image: { mimeType: string; data: string };
   aspectRatio: string;
+  durationSeconds?: number | null;
   signal: AbortSignal;
   context: Record<string, unknown>;
 }): Promise<SubmittedInteraction> {
@@ -249,6 +250,7 @@ async function submitInteraction(input: {
     prompt: input.prompt,
     image: input.image,
     aspectRatio: input.aspectRatio,
+    durationSeconds: input.durationSeconds,
   });
   const response = await fetch(`${input.baseUrl}/v1beta/interactions`, {
     method: "POST",
@@ -272,6 +274,8 @@ async function submitInteraction(input: {
     imageMime: input.image.mimeType,
     imageCount: 1,
     aspectRatio: input.aspectRatio,
+    durationSeconds: input.durationSeconds ?? null,
+    duration: body.response_format.duration,
   });
   if (!response.ok) throw failureFromPayload(payload, response.status);
   if (!id && !extractInteractionVideo(payload)) throw failureFromPayload(payload, response.status);
@@ -375,6 +379,7 @@ export async function processVideoGeneration(
         prompt: motionPrompt,
         image,
         aspectRatio: job.aspect_ratio || "9:16",
+        durationSeconds: job.duration_seconds,
         signal,
         context: { ...context, ...sourceFields },
       });

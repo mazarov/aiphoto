@@ -19,9 +19,30 @@ export type VideoGenerationSourceError =
   | "video_edit_forbidden"
   | "video_parent_must_be_image";
 
+export const VIDEO_DURATION_EXTRA_CREDITS: Record<number, number> = {
+  4: 0,
+  6: 10,
+  8: 20,
+  10: 30,
+};
+
 export function normalizeVideoDurationSeconds(value: unknown): number {
   const parsed = typeof value === "string" ? Number(value) : value;
   return isVideoDurationSeconds(parsed) ? parsed : DEFAULT_VIDEO_DURATION_SECONDS;
+}
+
+export function videoDurationExtraCredits(durationSeconds: unknown): number {
+  const duration = normalizeVideoDurationSeconds(durationSeconds);
+  return VIDEO_DURATION_EXTRA_CREDITS[duration] ?? 0;
+}
+
+/** Server-authoritative video price: model base + duration extra. Invalid duration → 4s. */
+export function calculateVideoCreditCost(
+  baseCost: number,
+  durationSeconds: unknown
+): number {
+  const base = Number.isInteger(baseCost) && baseCost >= 0 ? baseCost : 0;
+  return base + videoDurationExtraCredits(durationSeconds);
 }
 
 export function resolveVideoAspectRatio(value: unknown): string {
