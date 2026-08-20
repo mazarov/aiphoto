@@ -80,12 +80,7 @@ test("motion prompt locks the photo as the starting frame", () => {
   assert.match(assembled, /Оживи изображение/);
   assert.doesNotMatch(assembled, /hook and payoff/);
   assert.doesNotMatch(assembled, /only subtle natural motion/);
-  const withIdentity = assembleVideoMotionPrompt("Оживи изображение", {
-    hasIdentityReference: true,
-  });
-  assert.match(withIdentity, /\[# Sources @Image1\] \[# References @Image2\]/);
-  assert.match(withIdentity, /Image2 as a reference for the person's identity/);
-  assert.match(withIdentity, /Оживи изображение/);
+  assert.doesNotMatch(assembled, /@Image2|References/);
 });
 
 test("video result detection uses modality, mime, or mp4 path", () => {

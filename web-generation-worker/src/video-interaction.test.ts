@@ -39,28 +39,24 @@ test("Interactions payload puts aspect_ratio on response_format only", () => {
   );
 });
 
-test("motion prompt tags Image2 when identity reference is present", () => {
-  const assembled = assembleVideoMotionPrompt("Оживи изображение", {
-    hasIdentityReference: true,
-  });
-  assert.match(assembled, /\[# Sources @Image1\] \[# References @Image2\]/);
-  assert.match(assembled, /Image2 as a reference for the person's identity/);
-  assert.doesNotMatch(assembleVideoMotionPrompt("Оживи изображение"), /@Image2/);
+test("motion prompt locks Image1 and never mentions Image2", () => {
+  const assembled = assembleVideoMotionPrompt("Оживи изображение");
+  assert.match(assembled, /\[# Sources @Image1\]/);
+  assert.doesNotMatch(assembled, /@Image2|References/);
 });
 
-test("Interactions payload appends identity photo as Image2", () => {
+test("Interactions payload sends exactly one image for image_to_video", () => {
   const body = buildVideoInteractionRequest({
     model: "gemini-omni-flash-preview",
-    prompt: "[# Sources @Image1] [# References @Image2]",
+    prompt: "[# Sources @Image1]",
     image: { mimeType: "image/jpeg", data: "frame" },
-    identityImage: { mimeType: "image/png", data: "face" },
     aspectRatio: "9:16",
   });
   assert.deepEqual(body.input, [
     { type: "image", data: "frame", mime_type: "image/jpeg" },
-    { type: "image", data: "face", mime_type: "image/png" },
-    { type: "text", text: "[# Sources @Image1] [# References @Image2]" },
+    { type: "text", text: "[# Sources @Image1]" },
   ]);
+  assert.equal(body.input.filter((part) => part.type === "image").length, 1);
   assert.deepEqual(body.generation_config.video_config, { task: "image_to_video" });
 });
 

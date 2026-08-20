@@ -5,10 +5,8 @@ import { config } from "./config";
 import { errorFields, log } from "./lib/logger";
 import {
   ProcessingError,
-  VIDEO_IDENTITY_WALK_LIMIT,
   assertVideoInputSource,
   resolveGenerationInputSource,
-  resolveVideoIdentityReference,
   RESULTS_BUCKET,
   videoInputLogFields,
   type GenerationInputSource,
@@ -86,36 +84,6 @@ async function loadParentGeneration(
   return (data as (ParentGenerationInput & { modality?: string | null }) | null) || null;
 }
 
-async function loadIdentityAncestors(
-  supabase: SupabaseClient,
-  job: GenerationJob,
-  parent: ParentGenerationInput | null,
-): Promise<Array<Pick<ParentGenerationInput, "input_photo_paths">>> {
-  const ancestors: Array<Pick<ParentGenerationInput, "input_photo_paths">> = [];
-  if (parent) ancestors.push(parent);
-  let nextId = parent?.parent_generation_id || null;
-  const seen = new Set<string>(job.parent_generation_id ? [job.parent_generation_id] : []);
-  for (let i = 0; i < VIDEO_IDENTITY_WALK_LIMIT && nextId; i++) {
-    if (seen.has(nextId)) break;
-    seen.add(nextId);
-    const row = await loadParentGeneration(supabase, nextId);
-    if (!row) break;
-    if (
-      job.requester_auth_user_id &&
-      row.requester_auth_user_id !== job.requester_auth_user_id
-    ) {
-      throw new ProcessingError(
-        "parent_generation_forbidden",
-        "Parent generation belongs to another requester",
-        false,
-      );
-    }
-    ancestors.push(row);
-    nextId = row.parent_generation_id || null;
-  }
-  return ancestors;
-}
-
 async function loadLibraryLinkedGeneration(
   supabase: SupabaseClient,
   job: GenerationJob,
@@ -163,7 +131,6 @@ async function resolveVideoInputs(
   job: GenerationJob,
 ): Promise<{
   source: GenerationInputSource;
-  identity: GenerationInputSource | null;
   linkedGenerationId: string | null;
 }> {
   let parent: ParentGenerationInput | null = null;
@@ -197,7 +164,6 @@ async function resolveVideoInputs(
         );
         if (promoted.sourceType === "generation_result") {
           source = assertVideoInputSource(promoted);
-          parent = linked.parent;
           linkedGenerationId = linked.id;
         }
       } catch (error) {
@@ -207,23 +173,11 @@ async function resolveVideoInputs(
           linkedGenerationId: linked.id,
           error: error instanceof Error ? error.message : String(error),
         });
-        parent = linked.parent;
         linkedGenerationId = linked.id;
       }
     }
   }
-  const ancestors = parent
-    ? await loadIdentityAncestors(
-        supabase,
-        { ...job, parent_generation_id: linkedGenerationId || job.parent_generation_id },
-        parent,
-      )
-    : [];
-  return {
-    source,
-    identity: resolveVideoIdentityReference(source, job.requester_auth_user_id, ancestors),
-    linkedGenerationId,
-  };
+  return { source, linkedGenerationId };
 }
 
 async function downloadStorageImage(
@@ -251,25 +205,6 @@ async function downloadSourceImage(
   source: GenerationInputSource,
 ): Promise<{ mimeType: string; data: string }> {
   return downloadStorageImage(supabase, source.bucket, source.paths[0]);
-}
-
-async function downloadIdentityImage(
-  supabase: SupabaseClient,
-  identity: GenerationInputSource,
-  context: Record<string, unknown>,
-): Promise<{ mimeType: string; data: string } | null> {
-  try {
-    return await downloadStorageImage(supabase, identity.bucket, identity.paths[0]);
-  } catch (error) {
-    if (error instanceof ProcessingError && error.retryable) throw error;
-    log("warn", "video_identity_reference_missing", {
-      ...context,
-      identityPath: identity.paths[0],
-      identityBucket: identity.bucket,
-      error: error instanceof Error ? error.message : String(error),
-    });
-    return null;
-  }
 }
 
 async function readJson(response: Response): Promise<Record<string, unknown>> {
@@ -305,7 +240,6 @@ async function submitInteraction(input: {
   model: string;
   prompt: string;
   image: { mimeType: string; data: string };
-  identityImage?: { mimeType: string; data: string } | null;
   aspectRatio: string;
   signal: AbortSignal;
   context: Record<string, unknown>;
@@ -314,7 +248,6 @@ async function submitInteraction(input: {
     model: input.model,
     prompt: input.prompt,
     image: input.image,
-    identityImage: input.identityImage,
     aspectRatio: input.aspectRatio,
   });
   const response = await fetch(`${input.baseUrl}/v1beta/interactions`, {
@@ -337,10 +270,7 @@ async function submitInteraction(input: {
     hasVideo: Boolean(extractInteractionVideo(payload)),
     imageBytes: Buffer.byteLength(input.image.data, "base64"),
     imageMime: input.image.mimeType,
-    identityBytes: input.identityImage
-      ? Buffer.byteLength(input.identityImage.data, "base64")
-      : 0,
-    identityMime: input.identityImage?.mimeType || null,
+    imageCount: 1,
     aspectRatio: input.aspectRatio,
   });
   if (!response.ok) throw failureFromPayload(payload, response.status);
@@ -409,31 +339,21 @@ export async function processVideoGeneration(
   if (!config.geminiApiKey) {
     throw new ProcessingError("config_error", "GEMINI_API_KEY is not configured", false);
   }
-  const { source, identity: resolvedIdentity, linkedGenerationId } = await resolveVideoInputs(
+  const { source, linkedGenerationId } = await resolveVideoInputs(
     supabase,
     job,
   );
   log("info", "video_input_resolved", {
     ...context,
-    ...videoInputLogFields(source, job, resolvedIdentity, linkedGenerationId),
+    ...videoInputLogFields(source, job, linkedGenerationId),
   });
   const image = await downloadSourceImage(supabase, source);
-  const identityImage = resolvedIdentity
-    ? await downloadIdentityImage(supabase, resolvedIdentity, context)
-    : null;
-  const sourceFields = videoInputLogFields(
-    source,
-    job,
-    identityImage ? resolvedIdentity : null,
-    linkedGenerationId,
-  );
+  const sourceFields = videoInputLogFields(source, job, linkedGenerationId);
   await ensureLease();
 
   const rawPrompt = String(job.prompt_text || "").trim();
   if (!rawPrompt) throw new ProcessingError("input_missing", "Prompt text is empty", false);
-  const motionPrompt = assembleVideoMotionPrompt(rawPrompt, {
-    hasIdentityReference: Boolean(identityImage),
-  });
+  const motionPrompt = assembleVideoMotionPrompt(rawPrompt);
   const base = await geminiBaseUrl(supabase);
   let operationId = String(job.provider_operation_id || "").trim();
   let payload: Record<string, unknown> | null = null;
@@ -446,8 +366,7 @@ export async function processVideoGeneration(
       proxy: base.proxy,
       imageBytes: Buffer.byteLength(image.data, "base64"),
       imageMime: image.mimeType,
-      identityBytes: identityImage ? Buffer.byteLength(identityImage.data, "base64") : 0,
-      identityMime: identityImage?.mimeType || null,
+      imageCount: 1,
     });
     try {
       const submitted = await submitInteraction({
@@ -455,7 +374,6 @@ export async function processVideoGeneration(
         model: job.model,
         prompt: motionPrompt,
         image,
-        identityImage,
         aspectRatio: job.aspect_ratio || "9:16",
         signal,
         context: { ...context, ...sourceFields },

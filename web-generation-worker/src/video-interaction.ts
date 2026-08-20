@@ -19,24 +19,22 @@ export type VideoInteractionRequest = {
  * Official Omni Flash unary body.
  * Docs: background=false, store=false, stream=false.
  * aspect_ratio lives on response_format; video_config only has task.
+ * image_to_video rejects more than one image (invalid_request).
+ * Official Image2 / [# References] tags are for reference_to_video, not this task.
  */
 export function buildVideoInteractionRequest(input: {
   model: string;
   prompt: string;
   image: { mimeType: string; data: string };
-  identityImage?: { mimeType: string; data: string } | null;
   aspectRatio: string;
 }): VideoInteractionRequest {
   const aspectRatio = input.aspectRatio === "16:9" ? "16:9" : "9:16";
-  const images = [
-    { type: "image", data: input.image.data, mime_type: input.image.mimeType },
-    ...(input.identityImage
-      ? [{ type: "image", data: input.identityImage.data, mime_type: input.identityImage.mimeType }]
-      : []),
-  ];
   return {
     model: input.model,
-    input: [...images, { type: "text", text: input.prompt }],
+    input: [
+      { type: "image", data: input.image.data, mime_type: input.image.mimeType },
+      { type: "text", text: input.prompt },
+    ],
     background: false,
     store: false,
     stream: false,
