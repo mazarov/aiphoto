@@ -8,6 +8,7 @@ import {
   GenerationHistoryCard,
   type GenerationHistoryItem,
 } from "@/components/GenerationHistoryCard";
+import { VIDEO_GENERATION_MODALITY } from "@/lib/generation/image-options";
 
 type GenerationsContentProps = {
   /** Bump to force-reload list (e.g. after blank generate completes). */
@@ -28,6 +29,7 @@ export function GenerationsContent({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [toast, setToast] = useState("");
+  const [videoEnabled, setVideoEnabled] = useState(false);
 
   const showToast = useCallback((message: string) => {
     setToast(message);
@@ -60,6 +62,30 @@ export function GenerationsContent({
       if (!signal?.aborted) setLoading(false);
     }
   }, []);
+
+  useEffect(() => {
+    if (authLoading) return;
+    if (!user) {
+      setLoading(false);
+      setGenerations([]);
+      setVideoEnabled(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    void fetch(`/api/generation-config?modality=${VIDEO_GENERATION_MODALITY}`, {
+      credentials: "include",
+      signal: controller.signal,
+    })
+      .then(async (res) => {
+        const data = (await res.json().catch(() => ({}))) as { enabled?: boolean };
+        if (res.ok) setVideoEnabled(Boolean(data.enabled));
+      })
+      .catch(() => {
+        /* keep default false */
+      });
+    return () => controller.abort();
+  }, [authLoading, user]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -240,6 +266,7 @@ export function GenerationsContent({
             generation={generation}
             selectMode={selectMode}
             selected={selectedIds.has(generation.id)}
+            videoEnabled={videoEnabled}
             onEnterSelectMode={enterSelectMode}
             onToggleSelect={toggleSelect}
             onDeleted={handleDeleted}

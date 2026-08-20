@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import {
   CARD_OVERLAY_ACTION_PILL,
@@ -42,6 +43,7 @@ type Props = {
   generation: GenerationHistoryItem;
   selectMode: boolean;
   selected: boolean;
+  videoEnabled?: boolean;
   onEnterSelectMode: (id: string) => void;
   onToggleSelect: (id: string) => void;
   onDeleted: (id: string) => void;
@@ -63,6 +65,7 @@ export function GenerationHistoryCard({
   generation,
   selectMode,
   selected,
+  videoEnabled = false,
   onEnterSelectMode,
   onToggleSelect,
   onDeleted,
@@ -74,12 +77,25 @@ export function GenerationHistoryCard({
   const [menuOpen, setMenuOpen] = useState(false);
   const [busyAction, setBusyAction] = useState<GenerationMenuAction | null>(null);
   const [openingCard, setOpeningCard] = useState(false);
+  const [videoPreviewOpen, setVideoPreviewOpen] = useState(false);
   const hasResult = Boolean(generation.resultUrl);
   const hasPrompt = Boolean(generation.prompt?.trim());
   const isVideo = generation.modality === "video" || generation.resultMimeType === "video/mp4";
   const canOpenCard = generation.status === "completed" && hasResult && !isVideo;
+  const canPreviewVideo = generation.status === "completed" && hasResult && isVideo;
+  const canAnimate =
+    videoEnabled && !isVideo && generation.status === "completed" && hasResult;
 
   const toast = (message: string) => onToast?.(message);
+
+  useEffect(() => {
+    if (!videoPreviewOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setVideoPreviewOpen(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [videoPreviewOpen]);
 
   const openCard = (slug: string) => {
     open(slug, {
@@ -262,9 +278,10 @@ export function GenerationHistoryCard({
   };
 
   return (
+    <>
     <article
       className={`group relative isolate rounded-2xl transition-all duration-200 hover:shadow-xl hover:shadow-zinc-900/10 hover:-translate-y-0.5 ${menuOpen ? "z-40" : ""} ${
-        selectMode || canOpenCard ? "cursor-pointer" : ""
+        selectMode || canOpenCard || canPreviewVideo ? "cursor-pointer" : ""
       }`}
       onClick={() => {
         if (selectMode) onToggleSelect(generation.id);
@@ -302,7 +319,14 @@ export function GenerationHistoryCard({
           </div>
         )}
 
-        {!selectMode && canOpenCard && generation.cardSlug ? (
+        {!selectMode && canPreviewVideo ? (
+          <button
+            type="button"
+            className="absolute inset-0 z-10 cursor-pointer appearance-none border-0 bg-transparent p-0"
+            aria-label="Открыть видео"
+            onClick={() => setVideoPreviewOpen(true)}
+          />
+        ) : !selectMode && canOpenCard && generation.cardSlug ? (
           <Link
             href={`/p/${generation.cardSlug}`}
             className="absolute inset-0 z-10"
@@ -323,6 +347,23 @@ export function GenerationHistoryCard({
             disabled={openingCard}
             onClick={() => void handleOpenMissingCard()}
           />
+        ) : null}
+
+        {!selectMode && canAnimate ? (
+          <button
+            type="button"
+            className={`${OVERLAY_BUTTON_UA_RESET} ${CARD_OVERLAY_ACTION_PILL} absolute bottom-2 left-1/2 z-20 -translate-x-1/2 px-3.5 text-[13px] font-semibold text-white`}
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              void handleAction("animate");
+            }}
+          >
+            <svg className="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+              <path d="M8 6.8v10.4L17.2 12 8 6.8Z" />
+            </svg>
+            Оживить
+          </button>
         ) : null}
 
         {selectMode ? (
@@ -384,7 +425,7 @@ export function GenerationHistoryCard({
               hasPrompt={hasPrompt}
               canPublish={canOpenCard}
               isPublished={generation.isPublished}
-              canAnimate={!isVideo && generation.status === "completed" && hasResult}
+              canAnimate={false}
               canSaveToLibrary={!isVideo}
               busyAction={busyAction}
               onAction={(action) => {
@@ -395,5 +436,44 @@ export function GenerationHistoryCard({
         </div>
       ) : null}
     </article>
+    {videoPreviewOpen && generation.resultUrl
+      ? createPortal(
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Просмотр видео"
+            className="fixed inset-0 z-[130] flex items-center justify-center bg-black/80 p-4"
+            onClick={() => setVideoPreviewOpen(false)}
+          >
+            <button
+              type="button"
+              aria-label="Закрыть просмотр"
+              className={`${OVERLAY_BUTTON_UA_RESET} absolute right-3 top-[max(0.75rem,env(safe-area-inset-top))] flex h-11 w-11 items-center justify-center rounded-full bg-black/40 text-white backdrop-blur-md transition hover:bg-black/55`}
+              onClick={() => setVideoPreviewOpen(false)}
+            >
+              <svg
+                className="h-5 w-5"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                aria-hidden
+              >
+                <path d="m6 6 12 12M18 6 6 18" />
+              </svg>
+            </button>
+            <video
+              src={generation.resultUrl}
+              controls
+              autoPlay
+              playsInline
+              className="max-h-[min(90dvh,100%)] max-w-full"
+              onClick={(event) => event.stopPropagation()}
+            />
+          </div>,
+          document.body
+        )
+      : null}
+    </>
   );
 }
