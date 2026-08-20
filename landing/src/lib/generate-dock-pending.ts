@@ -18,6 +18,7 @@ const INTENTS = new Set<GenerateDockComposeIntent>([
   "text",
   "photo_prompt",
   "animate",
+  "result",
 ]);
 
 function isSeed(value: unknown): value is GenerateDockSeed {
@@ -49,6 +50,12 @@ export function parsePendingGenerateDock(raw: string | null): PendingGenerateDoc
         intent: parsed.seed.intent,
         parentGenerationId: parsed.seed.parentGenerationId ?? null,
         previewUrl: parsed.seed.previewUrl ?? null,
+        resultGenerationId: parsed.seed.resultGenerationId ?? null,
+        resultModality:
+          parsed.seed.resultModality === "video" || parsed.seed.resultModality === "image"
+            ? parsed.seed.resultModality
+            : null,
+        isPublished: Boolean(parsed.seed.isPublished),
       },
       dockSurface: parsed.dockSurface ?? null,
     };

@@ -20,6 +20,9 @@ test("parsePendingGenerateDock accepts a photo_prompt seed", () => {
       intent: "photo_prompt",
       parentGenerationId: null,
       previewUrl: null,
+      resultGenerationId: null,
+      resultModality: null,
+      isPublished: false,
     },
     dockSurface: "prompt",
   });
@@ -45,6 +48,39 @@ test("parsePendingGenerateDock accepts an animate seed", () => {
       intent: "animate",
       parentGenerationId: "gen-1",
       previewUrl: "https://example/a.jpg",
+      resultGenerationId: null,
+      resultModality: null,
+      isPublished: false,
+    },
+    dockSurface: null,
+  });
+});
+
+test("parsePendingGenerateDock accepts a completed result seed", () => {
+  const raw = JSON.stringify({
+    seed: {
+      source: "blank",
+      promptText: "Ветер в волосах",
+      cardId: null,
+      intent: "result",
+      resultGenerationId: "gen-video-1",
+      previewUrl: "https://example/a.mp4",
+      resultModality: "video",
+      isPublished: false,
+    },
+    dockSurface: null,
+  });
+  assert.deepEqual(parsePendingGenerateDock(raw), {
+    seed: {
+      source: "blank",
+      promptText: "Ветер в волосах",
+      cardId: null,
+      intent: "result",
+      parentGenerationId: null,
+      previewUrl: "https://example/a.mp4",
+      resultGenerationId: "gen-video-1",
+      resultModality: "video",
+      isPublished: false,
     },
     dockSurface: null,
   });

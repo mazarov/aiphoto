@@ -1,4 +1,9 @@
-export type GenerateDockComposeIntent = "resume" | "text" | "photo_prompt" | "animate";
+export type GenerateDockComposeIntent =
+  | "resume"
+  | "text"
+  | "photo_prompt"
+  | "animate"
+  | "result";
 
 export type GenerateDockSeed = {
   source: "blank" | "card";
@@ -7,6 +12,9 @@ export type GenerateDockSeed = {
   intent: GenerateDockComposeIntent;
   parentGenerationId?: string | null;
   previewUrl?: string | null;
+  resultGenerationId?: string | null;
+  resultModality?: "image" | "video" | null;
+  isPublished?: boolean;
 };
 
 export const DEFAULT_GENERATE_DOCK_SEED: GenerateDockSeed = {
@@ -26,14 +34,22 @@ export function isResumeComposeSeed(seed: GenerateDockSeed): boolean {
   );
 }
 
-/** Last-completed dock hydrate is resume-only — never text / photo_prompt. */
+/** Last-completed dock hydrate is resume-only — never text / photo_prompt / result. */
 export function shouldHydrateLastDockResult(
   seed: GenerateDockSeed,
   options?: { dismissedLastResult?: boolean }
 ): boolean {
   if (options?.dismissedLastResult) return false;
-  if (seed.intent === "animate") return false;
+  if (seed.intent === "animate" || seed.intent === "result") return false;
   return seed.source === "blank" && seed.intent === "resume";
+}
+
+export function isCompletedResultSeed(seed: GenerateDockSeed): boolean {
+  return (
+    seed.intent === "result" &&
+    Boolean(seed.resultGenerationId?.trim()) &&
+    Boolean(seed.previewUrl?.trim())
+  );
 }
 
 /**

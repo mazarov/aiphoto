@@ -96,6 +96,17 @@ type GenerateDockContextType = {
     },
     options?: { entrySource?: GenerateDockEntrySource }
   ) => void;
+  /** Open dock on a completed generation (history video/image result chrome). */
+  seedCompletedResult: (
+    args: {
+      generationId: string;
+      resultUrl: string;
+      promptText?: string;
+      modality?: "image" | "video";
+      isPublished?: boolean;
+    },
+    options?: { entrySource?: GenerateDockEntrySource }
+  ) => void;
   /**
    * User left result chrome («Повторить» / delete / result X). Survives panel
    * unmount so reopen does not restore the dismissed generation.
@@ -126,6 +137,7 @@ const GenerateDockContext = createContext<GenerateDockContextType>({
   seedBlankPrompt: () => {},
   seedFromCard: () => {},
   seedAnimate: () => {},
+  seedCompletedResult: () => {},
   lastDockResultDismissed: false,
   dismissLastDockResult: () => {},
   clearLastDockResultDismiss: () => {},
@@ -272,6 +284,43 @@ export function GenerateDockProvider({ children }: { children: ReactNode }) {
     [isAuthed, trackOpen]
   );
 
+  const seedCompletedResult = useCallback(
+    (
+      args: {
+        generationId: string;
+        resultUrl: string;
+        promptText?: string;
+        modality?: "image" | "video";
+        isPublished?: boolean;
+      },
+      options?: { entrySource?: GenerateDockEntrySource }
+    ) => {
+      const generationId = args.generationId.trim();
+      const resultUrl = args.resultUrl.trim();
+      if (!generationId || !resultUrl) return;
+      const nextSeed: GenerateDockSeed = {
+        source: "blank",
+        promptText: (args.promptText || "").trim(),
+        cardId: null,
+        intent: "result",
+        previewUrl: resultUrl,
+        resultGenerationId: generationId,
+        resultModality: args.modality === "video" ? "video" : "image",
+        isPublished: Boolean(args.isPublished),
+      };
+      setLastDockResultDismissed(false);
+      setSeed(nextSeed);
+      setSeedToken((token) => token + 1);
+      setPlateOpen(true);
+      setDockSurface(null);
+      if (!isAuthed) {
+        persistPendingGenerateDock({ seed: nextSeed, dockSurface: null });
+      }
+      trackOpen(options?.entrySource ?? "card");
+    },
+    [isAuthed, trackOpen]
+  );
+
   const seedBlankPrompt = useCallback(
     (
       promptText: string,
@@ -333,6 +382,7 @@ export function GenerateDockProvider({ children }: { children: ReactNode }) {
       seedBlankPrompt,
       seedFromCard,
       seedAnimate,
+      seedCompletedResult,
       lastDockResultDismissed,
       dismissLastDockResult,
       clearLastDockResultDismiss,
@@ -355,6 +405,7 @@ export function GenerateDockProvider({ children }: { children: ReactNode }) {
       seedBlankPrompt,
       seedFromCard,
       seedAnimate,
+      seedCompletedResult,
       lastDockResultDismissed,
       dismissLastDockResult,
       clearLastDockResultDismiss,

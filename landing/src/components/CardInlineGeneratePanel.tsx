@@ -25,6 +25,7 @@ import {
 import { getGenerationPromptRemixUrl } from "@/lib/foto-v-promt-config";
 import { PROMPT_REMIX_COPY } from "@/lib/foto-v-promt-copy";
 import {
+  isCompletedResultSeed,
   shouldAttachLibraryPhotos,
   shouldHydrateLastDockResult as seedAllowsLastDockHydrate,
 } from "@/lib/generate-dock-seed";
@@ -176,7 +177,10 @@ export function CardInlineGeneratePanel({
   const [videoDurationSeconds, setVideoDurationSeconds] = useState(
     DEFAULT_VIDEO_DURATION_SECONDS
   );
-  const [resultModality, setResultModality] = useState<"image" | "video">("image");
+  const seededResult = isCompletedResultSeed(seed);
+  const [resultModality, setResultModality] = useState<"image" | "video">(
+    seed.resultModality === "video" ? "video" : "image"
+  );
   const [animateParentId, setAnimateParentId] = useState<string | null>(
     seed.parentGenerationId || null
   );
@@ -196,8 +200,8 @@ export function CardInlineGeneratePanel({
   const [libraryLoading, setLibraryLoading] = useState(true);
   const [deletingPhotoId, setDeletingPhotoId] = useState<string | null>(null);
 
-  const [phase, setPhase] = useState<Phase>("idle");
-  const phaseRef = useRef<Phase>("idle");
+  const [phase, setPhase] = useState<Phase>(seededResult ? "done" : "idle");
+  const phaseRef = useRef<Phase>(seededResult ? "done" : "idle");
   const generateInFlightRef = useRef(false);
   const [starting, setStarting] = useState(false);
   /**
@@ -211,9 +215,13 @@ export function CardInlineGeneratePanel({
   const [error, setError] = useState("");
   const [needsCredits, setNeedsCredits] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [resultUrl, setResultUrl] = useState<string | null>(null);
+  const [resultUrl, setResultUrl] = useState<string | null>(
+    seededResult ? seed.previewUrl || null : null
+  );
   const [resultPreviewOpen, setResultPreviewOpen] = useState(false);
-  const [generationId, setGenerationId] = useState<string | null>(null);
+  const [generationId, setGenerationId] = useState<string | null>(
+    seededResult ? seed.resultGenerationId || null : null
+  );
   resultUrlRef.current = resultUrl;
   generationIdRef.current = generationId;
   const [draftPrompt, setDraftPrompt] = useState(promptText);
@@ -265,10 +273,12 @@ export function CardInlineGeneratePanel({
     },
     [isAuthed]
   );
-  const [submittedPrompt, setSubmittedPrompt] = useState("");
+  const [submittedPrompt, setSubmittedPrompt] = useState(
+    seededResult ? seed.promptText.trim() : ""
+  );
   const [menuOpen, setMenuOpen] = useState(false);
   const [busyAction, setBusyAction] = useState<GenerationMenuAction | null>(null);
-  const [isPublished, setIsPublished] = useState(false);
+  const [isPublished, setIsPublished] = useState(Boolean(seededResult && seed.isPublished));
   const [toast, setToast] = useState("");
   const [expandedControlLocal, setExpandedControlLocal] = useState<
     "photos" | "model" | null
@@ -479,6 +489,18 @@ export function CardInlineGeneratePanel({
           } else {
             setDraftPrompt("");
           }
+        } else if (isCompletedResultSeed(seed)) {
+          const prompt = seed.promptText.trim();
+          setComposeModality("image");
+          setGenerationId(seed.resultGenerationId!);
+          setResultUrl(seed.previewUrl!);
+          setResultModality(seed.resultModality === "video" ? "video" : "image");
+          setDraftPrompt(prompt);
+          setSubmittedPrompt(prompt);
+          setIsPublished(Boolean(seed.isPublished));
+          setProgress(100);
+          setPhase("done");
+          phaseRef.current = "done";
         }
         const nextModels = Array.isArray(configData.models) ? configData.models : [];
         const nextRatios = Array.isArray(configData.aspectRatios)

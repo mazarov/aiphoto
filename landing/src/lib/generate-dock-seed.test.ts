@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   DEFAULT_GENERATE_DOCK_SEED,
+  isCompletedResultSeed,
   isResumeComposeSeed,
   shouldAttachLibraryPhotos,
   shouldHydrateLastDockResult,
@@ -83,6 +84,20 @@ test("shouldAttachLibraryPhotos is false only for photo_prompt compose", () => {
     ),
     false
   );
+});
+
+test("completed result seed skips last-result hydrate", () => {
+  const result = seed({
+    intent: "result",
+    promptText: "Ветер в волосах",
+    resultGenerationId: "gen-video-1",
+    previewUrl: "https://example/a.mp4",
+    resultModality: "video",
+  });
+  assert.equal(isResumeComposeSeed(result), false);
+  assert.equal(isCompletedResultSeed(result), true);
+  assert.equal(shouldHydrateLastDockResult(result), false);
+  assert.equal(shouldAttachLibraryPhotos(result), true);
 });
 
 test("animate seed skips last-result hydrate and parent library photos", () => {
