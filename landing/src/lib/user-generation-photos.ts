@@ -1,5 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+export {
+  isSafeStoragePath,
+  isStoragePathOwnedByAuthUser,
+  parseLibrarySourceGenerationId,
+  resolveVideoEnqueueParentGenerationId,
+} from "./user-generation-photo-paths";
+
 export const USER_GENERATION_PHOTOS_BUCKET = "web-generation-uploads";
 export const USER_GENERATION_PHOTO_SIGNED_TTL_SEC = 60 * 60 * 24;
 
@@ -23,42 +30,6 @@ export type UserGenerationPhoto = {
   height: number | null;
   createdAt: string;
 };
-
-export function isSafeStoragePath(path: string): boolean {
-  if (!path || path.length > 512) return false;
-  return !path.includes("..") && !path.includes("\\") && !path.startsWith("/");
-}
-
-export function isStoragePathOwnedByAuthUser(path: string, authUserId: string): boolean {
-  return isSafeStoragePath(path) && path.startsWith(`${authUserId}/`);
-}
-
-const LIBRARY_GENERATION_FILENAME_RE =
-  /^generation-([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\.jpe?g$/i;
-
-/** Library copies from «Использовать» are named `generation-<uuid>.jpg`. */
-export function parseLibrarySourceGenerationId(
-  originalFilename: string | null | undefined,
-  sourceGenerationId?: string | null,
-): string | null {
-  const fromColumn = String(sourceGenerationId || "").trim();
-  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(fromColumn)) {
-    return fromColumn.toLowerCase();
-  }
-  const match = String(originalFilename || "").trim().match(LIBRARY_GENERATION_FILENAME_RE);
-  return match?.[1]?.toLowerCase() || null;
-}
-
-/** Prefer an explicit parent; otherwise recover it from a saved generation copy. */
-export function resolveVideoEnqueueParentGenerationId(
-  parentGenerationId: string | null | undefined,
-  libraryOriginalFilename?: string | null,
-  librarySourceGenerationId?: string | null,
-): string {
-  const parent = String(parentGenerationId || "").trim();
-  if (parent) return parent;
-  return parseLibrarySourceGenerationId(libraryOriginalFilename, librarySourceGenerationId) || "";
-}
 
 export async function toUserGenerationPhotos(
   supabase: SupabaseClient,

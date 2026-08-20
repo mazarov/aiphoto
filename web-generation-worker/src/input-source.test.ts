@@ -3,7 +3,7 @@ import test from "node:test";
 import {
   parseLibrarySourceGenerationId,
   resolveVideoEnqueueParentGenerationId,
-} from "../../landing/src/lib/user-generation-photos";
+} from "../../landing/src/lib/user-generation-photo-paths";
 import {
   ProcessingError,
   assertVideoInputSource,

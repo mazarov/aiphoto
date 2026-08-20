@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { assembleVideoMotionPrompt } from "../../landing/src/lib/video-motion-prompt";
-import { parseLibrarySourceGenerationId } from "../../landing/src/lib/user-generation-photos";
+import { parseLibrarySourceGenerationId } from "../../landing/src/lib/user-generation-photo-paths";
 import { config } from "./config";
 import { errorFields, log } from "./lib/logger";
 import {

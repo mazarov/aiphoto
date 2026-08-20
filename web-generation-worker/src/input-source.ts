@@ -1,4 +1,4 @@
-import { isStoragePathOwnedByAuthUser } from "../../landing/src/lib/user-generation-photos";
+import { isStoragePathOwnedByAuthUser } from "../../landing/src/lib/user-generation-photo-paths";
 
 export const UPLOADS_BUCKET = "web-generation-uploads";
 export const RESULTS_BUCKET = "web-generation-results";

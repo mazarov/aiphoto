@@ -1,5 +1,7 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-08-20 (**worker Docker helpers:** в образ копируется только pure `user-generation-photo-paths.ts` (без `@supabase/supabase-js`). `user-generation-photos.ts` остаётся landing-only: signed URL + реэкспорт path helpers.)
+>
 > Последнее обновление: 2026-08-20 (**worker Docker copy:** `Dockerfile.worker` копирует `user-generation-photos.ts` вместе с другими landing helpers — иначе `tsc` в образе падает на `TS2307`.)
 >
 > Последнее обновление: 2026-08-20 (**video library→generation:** «Оживить фото» по копии из «Использовать» (`generation-<uuid>.jpg` / `source_generation_id`, SQL 199) поднимает исходную генерацию: Image1 = result, Image2 = исходный аплоад. Обычный аплоад без генерации шлёт то же фото и как Source, и как Reference. UI: `resolveVideoEnqueueParentGenerationId`.)
@@ -1327,7 +1329,7 @@ landing/src/
 |---------------|-----------|
 | Dockhost / CI | Контекст = каталог **`landing/`**. Команда: **`docker build -f landing/Dockerfile landing/`** (из корня клона) или эквивалент с путём к контексту `./landing`. В дереве есть **`landing/stv-web-sidepanel/`** (зеркало **`extension/sidepanel`**, в git). Трейсинг Next: обычно плоский **`standalone/server.js`**; runner Dockerfile копирует в **`/app`**. |
 | Локально `next build` из `landing/` | Если в родителе репо есть **`package-lock.json`** → **`next.config.ts`** может трейсить от корня монорепо → **`standalone/landing/server.js`**. **`build-stv-web`** сначала пробует **`../extension/sidepanel`**, иначе **`./stv-web-sidepanel`**. |
-| Generation worker | Отдельный Dockhost service, контекст = корень репозитория: `docker build -f Dockerfile.worker .`. Образ содержит `web-generation-worker` и pure helpers `image-generation-prompt.ts`, `generation-edit-contract.ts`, `video-motion-prompt.ts`, `user-generation-photos.ts`; health: `:3003/health/ready`. |
+| Generation worker | Отдельный Dockhost service, контекст = корень репозитория: `docker build -f Dockerfile.worker .`. Образ содержит `web-generation-worker` и pure helpers `image-generation-prompt.ts`, `generation-edit-contract.ts`, `video-motion-prompt.ts`, `user-generation-photo-paths.ts`; health: `:3003/health/ready`. |
 
 ### Правила сборки (чеклист)
 
