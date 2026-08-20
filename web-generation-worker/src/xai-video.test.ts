@@ -22,6 +22,7 @@ test("isGrokVideoModel matches imagine-video ids only", () => {
   assert.equal(isGrokVideoModel("grok-imagine-video-1.5"), true);
   assert.equal(isGrokVideoModel("grok-imagine-video-1.5-preview"), true);
   assert.equal(isGrokVideoModel("gemini-omni-flash-preview"), false);
+  assert.equal(isGrokVideoModel("veo-3.1-lite-generate-preview"), false);
 });
 
 test("XAI_BASE_URL is required and never falls back to api.x.ai", () => {

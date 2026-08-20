@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   assembleGrokVideoMotionPrompt,
+  assembleVeoVideoMotionPrompt,
   assembleVideoMotionPrompt,
 } from "../../landing/src/lib/video-motion-prompt";
 import { parseLibrarySourceGenerationId } from "../../landing/src/lib/user-generation-photo-paths";
@@ -22,6 +23,19 @@ import {
   xaiStatus,
   xaiSubmitUrl,
 } from "./xai-video";
+import {
+  buildVeoLiteSubmitBody,
+  extractVeoOperationName,
+  extractVeoVideo,
+  isVeoLiteVideoModel,
+  isVeoOperationDone,
+  isVeoOperationFailed,
+  isVeoSafetyBlock,
+  rewriteGeminiMediaUrl,
+  veoErrorMessage,
+  veoPollUrl,
+  veoSubmitUrl,
+} from "./veo-video";
 import {
   ProcessingError,
   assertVideoInputSource,
@@ -655,6 +669,189 @@ async function processGrokVideoGeneration(
   return { resultPath, rawPrompt, mimeType: VIDEO_MIME };
 }
 
+function veoFailureFromPayload(payload: Record<string, unknown>, status: number): ProcessingError {
+  const message = veoErrorMessage(payload);
+  if (isVeoSafetyBlock(payload, message)) {
+    return new ProcessingError("safety_block", message, false);
+  }
+  if (status === 429 || status >= 500) {
+    return new ProcessingError(`gemini_http_${status}`, message, true);
+  }
+  return new ProcessingError("gemini_error", message, false);
+}
+
+async function downloadVeoVideoRef(
+  baseUrl: string,
+  ref: NonNullable<ReturnType<typeof extractVeoVideo>>,
+  signal: AbortSignal,
+): Promise<Buffer> {
+  if (ref.kind === "inline" && ref.data) {
+    const buffer = Buffer.from(ref.data, "base64");
+    if (!buffer.length) throw new ProcessingError("gemini_error", "Empty inline video", false);
+    return buffer;
+  }
+  if (!ref.uri) throw new ProcessingError("gemini_error", "Video URI is missing", false);
+  const uri = ref.uri.startsWith("http")
+    ? rewriteGeminiMediaUrl(ref.uri, baseUrl)
+    : `${baseUrl}${ref.uri.startsWith("/") ? "" : "/"}${ref.uri}`;
+  const response = await fetch(uri, {
+    headers: { "x-goog-api-key": config.geminiApiKey },
+    signal: AbortSignal.any([signal, AbortSignal.timeout(60000)]),
+  });
+  if (!response.ok) {
+    throw new ProcessingError(
+      `gemini_http_${response.status}`,
+      `Video download failed (HTTP ${response.status})`,
+      response.status === 429 || response.status >= 500,
+    );
+  }
+  const buffer = Buffer.from(await response.arrayBuffer());
+  if (!buffer.length) throw new ProcessingError("gemini_error", "Downloaded video is empty", false);
+  return buffer;
+}
+
+async function processVeoLiteVideoGeneration(
+  supabase: SupabaseClient,
+  job: GenerationJob,
+  source: GenerationInputSource,
+  sourceFields: Record<string, unknown>,
+  context: Record<string, unknown>,
+  signal: AbortSignal,
+  ensureLease: () => Promise<void>,
+): Promise<{ resultPath: string; rawPrompt: string; mimeType: string }> {
+  if (!config.geminiApiKey) {
+    throw new ProcessingError("config_error", "GEMINI_API_KEY is not configured", false);
+  }
+  const rawPrompt = String(job.prompt_text || "").trim();
+  if (!rawPrompt) throw new ProcessingError("input_missing", "Prompt text is empty", false);
+  const motionPrompt = assembleVeoVideoMotionPrompt(rawPrompt);
+  const base = await geminiBaseUrl(supabase);
+  const providerContext = {
+    ...context,
+    ...sourceFields,
+    provider: "veo",
+    model: job.model,
+    proxy: base.proxy,
+    durationSeconds: job.duration_seconds ?? null,
+  };
+  let operationId = String(job.provider_operation_id || "").trim();
+  let payload: Record<string, unknown> | null = null;
+
+  if (!operationId) {
+    const { image, crop } = await prepareInlineVideoFrame(
+      supabase,
+      source,
+      job.aspect_ratio || "9:16",
+    );
+    await ensureLease();
+    log("info", "video_submit", {
+      ...providerContext,
+      ...crop,
+      imageBytes: Buffer.byteLength(image.data, "base64"),
+      imageMime: image.mimeType,
+      imageCount: 1,
+    });
+    try {
+      const response = await fetch(veoSubmitUrl(base.url, job.model), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-goog-api-key": config.geminiApiKey,
+        },
+        body: JSON.stringify(
+          buildVeoLiteSubmitBody({
+            prompt: motionPrompt,
+            image,
+            aspectRatio: job.aspect_ratio || "9:16",
+            durationSeconds: job.duration_seconds,
+            resolution: job.image_size || "720p",
+          }),
+        ),
+        signal: AbortSignal.any([signal, AbortSignal.timeout(config.videoTimeoutMs)]),
+      });
+      payload = await readJson(response);
+      operationId = extractVeoOperationName(payload);
+      log(response.ok && (operationId || extractVeoVideo(payload)) ? "info" : "warn", "video_submit_response", {
+        ...providerContext,
+        httpStatus: response.status,
+        hasId: Boolean(operationId),
+        hasVideo: Boolean(extractVeoVideo(payload)),
+        done: isVeoOperationDone(payload),
+      });
+      if (!response.ok) throw veoFailureFromPayload(payload, response.status);
+      if (isVeoOperationFailed(payload)) throw veoFailureFromPayload(payload, response.status);
+      if (!operationId && !extractVeoVideo(payload)) throw veoFailureFromPayload(payload, response.status);
+    } catch (error) {
+      if (error instanceof ProcessingError) throw error;
+      if (signal.aborted) throw new ProcessingError("shutdown", "Worker is shutting down", true);
+      const timeout = error instanceof Error && ["TimeoutError", "AbortError"].includes(error.name);
+      throw new ProcessingError(timeout ? "timeout" : "network_error", String((error as Error)?.message || error), true);
+    }
+    if (operationId) {
+      await persistProviderOperation(supabase, job, operationId, providerContext);
+    }
+  } else {
+    log("info", "video_resume", { ...providerContext, operationId });
+  }
+
+  const startedAt = Date.now();
+  while (
+    !extractVeoVideo(payload || {}) &&
+    !isVeoOperationDone(payload || {}) &&
+    Date.now() - startedAt < config.videoTimeoutMs
+  ) {
+    if (!operationId) break;
+    if (signal.aborted) throw new ProcessingError("shutdown", "Worker is shutting down", true);
+    await ensureLease();
+    try {
+      const response = await fetch(veoPollUrl(base.url, operationId), {
+        headers: { "x-goog-api-key": config.geminiApiKey },
+        signal: AbortSignal.any([signal, AbortSignal.timeout(30000)]),
+      });
+      payload = await readJson(response);
+      if (!response.ok) throw veoFailureFromPayload(payload, response.status);
+    } catch (error) {
+      if (error instanceof ProcessingError) throw error;
+      if (signal.aborted) throw new ProcessingError("shutdown", "Worker is shutting down", true);
+      throw new ProcessingError("network_error", String((error as Error)?.message || error), true);
+    }
+    if (isVeoOperationFailed(payload)) throw veoFailureFromPayload(payload, 200);
+    if (isVeoOperationDone(payload) || extractVeoVideo(payload)) break;
+    await new Promise((resolve) => setTimeout(resolve, config.videoPollMs));
+  }
+  if (!payload) throw new ProcessingError("timeout", "Video generation timed out", true);
+  if (isVeoOperationFailed(payload)) throw veoFailureFromPayload(payload, 200);
+  if (!isVeoOperationDone(payload) && !extractVeoVideo(payload)) {
+    log("warn", "video_poll_lag", { ...providerContext, operationId, elapsedMs: Date.now() - startedAt });
+    throw new ProcessingError("timeout", "Video generation timed out", true);
+  }
+  const videoRef = extractVeoVideo(payload);
+  if (!videoRef) {
+    const message = veoErrorMessage(payload);
+    throw new ProcessingError(
+      isVeoSafetyBlock(payload, message) ? "safety_block" : "gemini_error",
+      message || "Generation completed without video",
+      false,
+    );
+  }
+  const videoBuffer = await downloadVeoVideoRef(base.url, videoRef, signal);
+  await ensureLease();
+  const resultPath = `${job.user_id}/${job.id}/${job.lease_token}.mp4`;
+  const { error: uploadError } = await supabase.storage
+    .from(RESULTS_BUCKET)
+    .upload(resultPath, videoBuffer, { contentType: VIDEO_MIME, upsert: true });
+  if (uploadError) {
+    throw new ProcessingError("result_upload_error", uploadError.message, isTemporary(uploadError));
+  }
+  log("info", "video_result_uploaded", {
+    ...providerContext,
+    resultPath,
+    bytes: videoBuffer.length,
+    operationId,
+  });
+  return { resultPath, rawPrompt, mimeType: VIDEO_MIME };
+}
+
 export async function processVideoGeneration(
   supabase: SupabaseClient,
   job: GenerationJob,
@@ -669,7 +866,11 @@ export async function processVideoGeneration(
   };
   log("info", "video_generation_started", {
     ...context,
-    provider: isGrokVideoModel(job.model) ? "xai" : "gemini",
+    provider: isGrokVideoModel(job.model)
+      ? "xai"
+      : isVeoLiteVideoModel(job.model)
+        ? "veo"
+        : "gemini",
     model: job.model,
   });
   const { source, linkedGenerationId } = await resolveVideoInputs(
@@ -683,6 +884,17 @@ export async function processVideoGeneration(
   });
   if (isGrokVideoModel(job.model)) {
     return processGrokVideoGeneration(
+      supabase,
+      job,
+      source,
+      sourceFields,
+      context,
+      signal,
+      ensureLease,
+    );
+  }
+  if (isVeoLiteVideoModel(job.model)) {
+    return processVeoLiteVideoGeneration(
       supabase,
       job,
       source,

@@ -37,9 +37,18 @@ const GROK_MOTION_WRAPPER = [
   "- The user request describes motion of this same shot, not a new scene.",
 ].join("\n");
 
-/** Grok/xAI image-to-video prompt. No Gemini [# Sources] tags. */
-export function assembleGrokVideoMotionPrompt(rawPrompt: string): string {
+function assemblePlainMotionPrompt(rawPrompt: string): string {
   const user = rawPrompt.trim();
   if (!user) return GROK_MOTION_WRAPPER;
   return `${GROK_MOTION_WRAPPER}\nUser motion request: ${user}`;
+}
+
+/** Grok/xAI image-to-video prompt. No Gemini [# Sources] tags. */
+export function assembleGrokVideoMotionPrompt(rawPrompt: string): string {
+  return assemblePlainMotionPrompt(rawPrompt);
+}
+
+/** Veo 3.1 Lite image-to-video prompt. Same identity lock, no Gemini source tags. */
+export function assembleVeoVideoMotionPrompt(rawPrompt: string): string {
+  return assemblePlainMotionPrompt(rawPrompt);
 }

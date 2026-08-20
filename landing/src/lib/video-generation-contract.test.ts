@@ -15,9 +15,15 @@ import {
 } from "./video-generation-contract";
 import {
   assembleGrokVideoMotionPrompt,
+  assembleVeoVideoMotionPrompt,
   assembleVideoMotionPrompt,
 } from "./video-motion-prompt";
-import { DEFAULT_VIDEO_MODEL, isGrokVideoModel } from "./generation/image-options";
+import {
+  DEFAULT_VIDEO_MODEL,
+  isGrokVideoModel,
+  isVeoLiteVideoModel,
+  videoDurationOptionsForModel,
+} from "./generation/image-options";
 
 test("video source rejects text-only and mixed parent+photos", () => {
   assert.equal(
@@ -97,6 +103,14 @@ test("video option resolvers fall back to v1 defaults", () => {
   assert.equal(DEFAULT_VIDEO_MODEL, "grok-imagine-video-1.5");
   assert.equal(isGrokVideoModel("grok-imagine-video-1.5"), true);
   assert.equal(isGrokVideoModel("gemini-omni-flash-preview"), false);
+  assert.equal(isVeoLiteVideoModel("veo-3.1-lite-generate-preview"), true);
+  assert.equal(isVeoLiteVideoModel("gemini-omni-flash-preview"), false);
+  assert.deepEqual(
+    videoDurationOptionsForModel("veo-3.1-lite-generate-preview").map((item) => item.value),
+    [4, 6, 8]
+  );
+  assert.equal(normalizeVideoDurationSeconds(10, "veo-3.1-lite-generate-preview"), 8);
+  assert.equal(normalizeVideoDurationSeconds(6, "veo-3.1-lite-generate-preview"), 6);
 });
 
 test("video credit cost adds duration extras on top of base 30", () => {
@@ -110,6 +124,9 @@ test("video credit cost adds duration extras on top of base 30", () => {
   assert.equal(calculateVideoCreditCost(30, 10), 60);
   assert.equal(calculateVideoCreditCost(30, 7), 30);
   assert.equal(calculateVideoCreditCost(-1, 10), 30);
+  assert.equal(calculateVideoCreditCost(15, 4, "veo-3.1-lite-generate-preview"), 15);
+  assert.equal(calculateVideoCreditCost(15, 8, "veo-3.1-lite-generate-preview"), 35);
+  assert.equal(calculateVideoCreditCost(15, 10, "veo-3.1-lite-generate-preview"), 35);
 });
 
 test("motion prompt locks the photo as the starting frame", () => {
@@ -129,6 +146,13 @@ test("Grok motion prompt has identity lock without Gemini source tags", () => {
   assert.doesNotMatch(assembled, /@Image2|References/);
   assert.match(assembled, /starting frame/);
   assert.match(assembled, /Identity lock/i);
+  assert.match(assembled, /Оживи изображение/);
+});
+
+test("Veo Lite motion prompt matches plain identity lock", () => {
+  const assembled = assembleVeoVideoMotionPrompt("Оживи изображение");
+  assert.doesNotMatch(assembled, /\[# Sources @Image1\]/);
+  assert.match(assembled, /starting frame/);
   assert.match(assembled, /Оживи изображение/);
 });
 

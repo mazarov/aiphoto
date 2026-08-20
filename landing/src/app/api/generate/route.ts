@@ -242,7 +242,6 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const videoDuration = isVideo ? normalizeVideoDurationSeconds(durationSeconds) : null;
     const ar = isVideo
       ? resolveVideoAspectRatio(aspectRatio)
       : aspectRatio || DEFAULT_IMAGE_ASPECT_RATIO;
@@ -385,6 +384,9 @@ export async function POST(req: NextRequest) {
           models.map((item) => item.id)
         )
       : null;
+    const videoDuration = isVideo
+      ? normalizeVideoDurationSeconds(durationSeconds, resolvedVideoModelId)
+      : null;
     const modelConfig = isVideo
       ? models.find((item) => item.id === resolvedVideoModelId) || models[0]
       : models.find((m) => m.id === model) || models[0];
@@ -403,7 +405,7 @@ export async function POST(req: NextRequest) {
       );
     }
     const creditsNeeded = isVideo
-      ? calculateVideoCreditCost(modelConfig.cost, videoDuration)
+      ? calculateVideoCreditCost(modelConfig.cost, videoDuration, modelConfig.id)
       : modelConfig.cost;
     const guestMode = Boolean(user && isStvGuestUser(user));
     /** Open-debug and guest: never charge. */

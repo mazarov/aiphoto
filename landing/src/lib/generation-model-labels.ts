@@ -48,6 +48,10 @@ export const GENERATION_MODEL_DISPLAY: Record<string, GenerationModelDisplay> = 
     label: "Grok 1.5",
     description: "Оживление фото в короткое видео",
   },
+  "veo-3.1-lite-generate-preview": {
+    label: "Veo 3.1 Lite",
+    description: "Быстрое оживление фото",
+  },
 };
 
 export const FALLBACK_VIDEO_GENERATION_MODELS: GenerationModelOption[] = [
@@ -60,6 +64,11 @@ export const FALLBACK_VIDEO_GENERATION_MODELS: GenerationModelOption[] = [
     id: "gemini-omni-flash-preview",
     label: GENERATION_MODEL_DISPLAY["gemini-omni-flash-preview"].label,
     cost: 30,
+  },
+  {
+    id: "veo-3.1-lite-generate-preview",
+    label: GENERATION_MODEL_DISPLAY["veo-3.1-lite-generate-preview"].label,
+    cost: 15,
   },
 ];
 
