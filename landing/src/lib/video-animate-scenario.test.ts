@@ -26,9 +26,12 @@ test("user text asks for motion only and ignores the still prompt", () => {
     /ORIGINAL_IMAGE_PROMPT|красном пальто/
   );
   assert.match(buildAnimateScenarioUserText(), /Do not describe the person's looks/);
+  assert.match(buildAnimateScenarioUserText(), /Сюжет начинается с этого кадра/);
 });
 
-test("scenario prompt forbids reframing and appearance restatement", () => {
+test("scenario prompt starts from this still and forbids reframing", () => {
+  assert.match(ANIMATE_SCENARIO_SYSTEM_PROMPT, /frame 0|story starts here/);
+  assert.match(ANIMATE_SCENARIO_SYSTEM_PROMPT, /Do not invent a lead-in/);
   assert.match(ANIMATE_SCENARIO_SYSTEM_PROMPT, /Do not restate appearance/);
   assert.match(ANIMATE_SCENARIO_SYSTEM_PROMPT, /new camera angle/);
   assert.doesNotMatch(ANIMATE_SCENARIO_SYSTEM_PROMPT, /shareable|hook and payoff/i);

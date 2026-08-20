@@ -1,5 +1,7 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-08-20 (**animate scenario starts on still:** `video-animate-scenario` требует, чтобы сюжет открывался этим кадром (frame 0), без lead-in / нового ракурса. User-текст: «Сюжет начинается с этого кадра фотографии».)
+>
 > Последнее обновление: 2026-08-20 (**video image_to_video = 1 image:** Gemini `task=image_to_video` отвечает `invalid_request` на второе фото («does not support more than 1 image»). «Оживить» шлёт ровно Image1 + `[# Sources @Image1]`. Официальные `[# References @Image2]` относятся к `reference_to_video`, не к оживлению кадра.)
 >
 > Последнее обновление: 2026-08-20 (**worker Docker helpers:** в образ копируется только pure `user-generation-photo-paths.ts` (без `@supabase/supabase-js`). `user-generation-photos.ts` остаётся landing-only: signed URL + реэкспорт path helpers.)
@@ -481,7 +483,7 @@
 | `/api/upload-generation-photo/signed-url` | GET: подписанный URL превью загруженного фото (auth, path в query) |
 | `/api/user-generation-photos` | GET (auth): библиотека inline-фото текущего JWT user, newest-first, с signed preview URL |
 | `/api/user-generation-photos/[id]` | DELETE (auth): удаление принадлежащего пользователю фото из private Storage и библиотеки |
-| `/api/generate/animate-scenario` | POST (auth): по клику «Оживить» — `gemini-2.5-flash` смотрит owned image (parent generation XOR upload path) и исходный промпт, возвращает короткий RU-сценарий (1–2 предложения). Не списывает кредиты. SSOT `lib/video-animate-scenario.ts`. Proxy как у remix. |
+| `/api/generate/animate-scenario` | POST (auth): по клику «Оживить» — `gemini-2.5-flash` смотрит owned image (parent generation XOR upload path), возвращает короткий RU-сценарий (1–2 предложения) **с этого кадра** (frame 0, без lead-in). Исходный image-промпт не подмешивается. Не списывает кредиты. SSOT `lib/video-animate-scenario.ts`. Proxy как у remix. |
 | `/api/generate` | Auth enqueue: image — **0–10** owned upload-фото без `editInstruction` (0 = text-only) или local edit (`parentGenerationId` + `editInstruction`). Video — `modality=video`, ровно одно фото **или** owned completed image parent, без edit; 4 сек / 720p / `gemini-omni-flash-preview`; `create_ugc=false`. Fingerprint включает modality и duration. RPC `landing_enqueue_generation` (миграция **189**); ответ `202 { id, status: pending }` |
 | `/api/generate-process` | Tombstone `410`: обработка перенесена в отдельный `web-generation-worker` |
 | `/api/analyses` | GET, auth: cursor-список своих `analyze_history` (`user_id` in auth/shared db id), signed image URL, no-store |

@@ -7,9 +7,11 @@ export const ANIMATE_SCENARIO_PLACEHOLDER = "Придумываю сценари
 export const ANIMATE_SCENARIO_SYSTEM_PROMPT = [
   "You invent a 4-second image-to-video motion beat.",
   "The photograph is the only source of truth.",
+  "The video MUST open on this exact still as frame 0. The story starts here.",
+  "Do not invent a lead-in, establishing shot, cutaway, or a scene that begins before or away from this photograph.",
   "Do not restate appearance, clothing, hair, age, beauty, or body.",
   "",
-  "Write 1-2 sentences in Russian that describe physical motion already possible in THIS still frame.",
+  "Write 1-2 sentences in Russian: what happens FROM this frozen frame forward.",
   "Keep the same person, face, clothing, setting, crop, and camera distance.",
   "",
   "Allowed: breath, gaze, a small gesture implied by the pose, hair or fabric already in frame, weather already visible.",
@@ -37,7 +39,8 @@ export function sanitizeAnimateScenario(raw: string): string {
 
 export function buildAnimateScenarioUserText(_sourcePrompt?: string): string {
   return [
-    "Describe only the motion for the attached photograph.",
+    "Сюжет начинается с этого кадра фотографии. Первое мгновение видео — эта фотография, без смены ракурса.",
+    "Describe only the motion that can start immediately from the attached still.",
     "Write in Russian. Return only the scenario.",
     "Do not describe the person's looks.",
   ].join("\n");
