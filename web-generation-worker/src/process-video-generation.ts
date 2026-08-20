@@ -33,6 +33,11 @@ import {
 } from "./input-source";
 import type { GenerationJob } from "./process-generation";
 import {
+  coverCropVideoFrame,
+  videoSourceFrameLogFields,
+  type VideoSourceFrame,
+} from "./video-source-frame";
+import {
   buildVideoInteractionRequest,
   extractInteractionId,
   extractInteractionVideo,
@@ -219,11 +224,75 @@ async function downloadStorageImage(
   return { mimeType: mimeForPath(path), data: buffer.toString("base64") };
 }
 
-async function downloadSourceImage(
+async function downloadSourceBuffer(
   supabase: SupabaseClient,
   source: GenerationInputSource,
-): Promise<{ mimeType: string; data: string }> {
-  return downloadStorageImage(supabase, source.bucket, source.paths[0]);
+): Promise<Buffer> {
+  const downloaded = await downloadStorageImage(supabase, source.bucket, source.paths[0]);
+  return Buffer.from(downloaded.data, "base64");
+}
+
+async function cropVideoSourceFrame(
+  supabase: SupabaseClient,
+  source: GenerationInputSource,
+  aspectRatio: string,
+): Promise<VideoSourceFrame> {
+  try {
+    return await coverCropVideoFrame(await downloadSourceBuffer(supabase, source), aspectRatio);
+  } catch (error) {
+    throw new ProcessingError(
+      "input_invalid",
+      `Video source crop failed: ${error instanceof Error ? error.message : String(error)}`,
+      false,
+    );
+  }
+}
+
+async function prepareInlineVideoFrame(
+  supabase: SupabaseClient,
+  source: GenerationInputSource,
+  aspectRatio: string,
+): Promise<{ image: { mimeType: string; data: string }; crop: Record<string, unknown> }> {
+  const frame = await cropVideoSourceFrame(supabase, source, aspectRatio);
+  return {
+    image: { mimeType: frame.mimeType, data: frame.buffer.toString("base64") },
+    crop: videoSourceFrameLogFields(frame),
+  };
+}
+
+async function prepareSignedVideoFrameUrl(
+  supabase: SupabaseClient,
+  job: GenerationJob,
+  source: GenerationInputSource,
+  aspectRatio: string,
+): Promise<{ imageUrl: string; crop: Record<string, unknown> }> {
+  const frame = await cropVideoSourceFrame(supabase, source, aspectRatio);
+  const crop = videoSourceFrameLogFields(frame);
+  if (!frame.cropped) {
+    return { imageUrl: await createSourceSignedUrl(supabase, source), crop };
+  }
+  const path = `${job.user_id}/${job.id}/video-source-frame.jpg`;
+  const { error: uploadError } = await supabase.storage
+    .from(RESULTS_BUCKET)
+    .upload(path, frame.buffer, { contentType: "image/jpeg", upsert: true });
+  if (uploadError) {
+    throw new ProcessingError(
+      "result_upload_error",
+      `Cropped video frame upload failed: ${uploadError.message}`,
+      isTemporary(uploadError),
+    );
+  }
+  const { data, error } = await supabase.storage
+    .from(RESULTS_BUCKET)
+    .createSignedUrl(path, SOURCE_SIGNED_TTL_SEC);
+  if (error || !data?.signedUrl) {
+    throw new ProcessingError(
+      "storage_signed_url_error",
+      `Cropped video frame signed URL failed: ${error?.message || "empty response"}`,
+      isTemporary(error),
+    );
+  }
+  return { imageUrl: data.signedUrl, crop };
 }
 
 async function readJson(response: Response): Promise<Record<string, unknown>> {
@@ -456,9 +525,6 @@ async function processGrokVideoGeneration(
   const rawPrompt = String(job.prompt_text || "").trim();
   if (!rawPrompt) throw new ProcessingError("input_missing", "Prompt text is empty", false);
   const motionPrompt = assembleGrokVideoMotionPrompt(rawPrompt);
-  const imageUrl = await createSourceSignedUrl(supabase, source);
-  await ensureLease();
-
   const providerContext = {
     ...context,
     ...sourceFields,
@@ -471,7 +537,14 @@ async function processGrokVideoGeneration(
   let payload: Record<string, unknown> | null = null;
 
   if (!operationId) {
-    log("info", "video_submit", providerContext);
+    const { imageUrl, crop } = await prepareSignedVideoFrameUrl(
+      supabase,
+      job,
+      source,
+      job.aspect_ratio || "9:16",
+    );
+    await ensureLease();
+    log("info", "video_submit", { ...providerContext, ...crop });
     try {
       const response = await fetch(xaiSubmitUrl(config.xaiBaseUrl), {
         method: "POST",
@@ -622,8 +695,6 @@ export async function processVideoGeneration(
   if (!config.geminiApiKey) {
     throw new ProcessingError("config_error", "GEMINI_API_KEY is not configured", false);
   }
-  const image = await downloadSourceImage(supabase, source);
-  await ensureLease();
 
   const rawPrompt = String(job.prompt_text || "").trim();
   if (!rawPrompt) throw new ProcessingError("input_missing", "Prompt text is empty", false);
@@ -633,9 +704,16 @@ export async function processVideoGeneration(
   let payload: Record<string, unknown> | null = null;
 
   if (!operationId) {
+    const { image, crop } = await prepareInlineVideoFrame(
+      supabase,
+      source,
+      job.aspect_ratio || "9:16",
+    );
+    await ensureLease();
     log("info", "video_submit", {
       ...context,
       ...sourceFields,
+      ...crop,
       provider: "gemini",
       model: job.model,
       proxy: base.proxy,
