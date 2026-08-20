@@ -13,7 +13,11 @@ import {
   videoDurationExtraCredits,
   videoSourceErrorMessage,
 } from "./video-generation-contract";
-import { assembleVideoMotionPrompt } from "./video-motion-prompt";
+import {
+  assembleGrokVideoMotionPrompt,
+  assembleVideoMotionPrompt,
+} from "./video-motion-prompt";
+import { DEFAULT_VIDEO_MODEL, isGrokVideoModel } from "./generation/image-options";
 
 test("video source rejects text-only and mixed parent+photos", () => {
   assert.equal(
@@ -76,6 +80,23 @@ test("video option resolvers fall back to v1 defaults", () => {
     resolveVideoModelId("unknown", ["gemini-omni-flash-preview"]),
     "gemini-omni-flash-preview"
   );
+  assert.equal(
+    resolveVideoModelId("unknown", [
+      "gemini-omni-flash-preview",
+      "grok-imagine-video-1.5",
+    ]),
+    "grok-imagine-video-1.5"
+  );
+  assert.equal(
+    resolveVideoModelId("gemini-omni-flash-preview", [
+      "grok-imagine-video-1.5",
+      "gemini-omni-flash-preview",
+    ]),
+    "gemini-omni-flash-preview"
+  );
+  assert.equal(DEFAULT_VIDEO_MODEL, "grok-imagine-video-1.5");
+  assert.equal(isGrokVideoModel("grok-imagine-video-1.5"), true);
+  assert.equal(isGrokVideoModel("gemini-omni-flash-preview"), false);
 });
 
 test("video credit cost adds duration extras on top of base 30", () => {
@@ -100,6 +121,15 @@ test("motion prompt locks the photo as the starting frame", () => {
   assert.doesNotMatch(assembled, /hook and payoff/);
   assert.doesNotMatch(assembled, /only subtle natural motion/);
   assert.doesNotMatch(assembled, /@Image2|References/);
+});
+
+test("Grok motion prompt has identity lock without Gemini source tags", () => {
+  const assembled = assembleGrokVideoMotionPrompt("Оживи изображение");
+  assert.doesNotMatch(assembled, /\[# Sources @Image1\]/);
+  assert.doesNotMatch(assembled, /@Image2|References/);
+  assert.match(assembled, /starting frame/);
+  assert.match(assembled, /Identity lock/i);
+  assert.match(assembled, /Оживи изображение/);
 });
 
 test("video result detection uses modality, mime, or mp4 path", () => {

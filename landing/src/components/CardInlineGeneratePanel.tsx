@@ -34,6 +34,7 @@ import {
   type GenerateDockSurface,
 } from "@/context/GenerateDockContext";
 import { GenerationResultBackdrop } from "@/components/generate/GenerationResultBackdrop";
+import { GenerationModelIcon } from "@/components/generate/GenerationModelIcon";
 import { VideoComposeBar } from "@/components/generate/VideoComposeBar";
 import { PricingEntryLink } from "@/components/PricingEntryLink";
 import {
@@ -47,6 +48,7 @@ import {
   DEFAULT_IMAGE_SIZE,
   DEFAULT_VIDEO_ASPECT_RATIO,
   DEFAULT_VIDEO_DURATION_SECONDS,
+  DEFAULT_VIDEO_MODEL,
   DEFAULT_VIDEO_PROMPT,
   DEFAULT_VIDEO_RESOLUTION,
   IMAGE_GENERATION_MODALITY,
@@ -61,6 +63,7 @@ import {
 } from "@/lib/video-animate-scenario";
 import {
   calculateVideoCreditCost,
+  resolveVideoModelId,
   videoDurationExtraCredits,
 } from "@/lib/video-generation-contract";
 import { restoreSelectedPhotoIds } from "@/lib/generation-enqueue-core";
@@ -120,17 +123,6 @@ type Props = {
 
 const POLL_MS = 2500;
 
-function GoogleGenerationModelIcon({ className = "h-5 w-5" }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" aria-hidden>
-      <path fill="#4285F4" d="M21.6 12.23c0-.71-.06-1.4-.18-2.07H12v3.92h5.38a4.6 4.6 0 0 1-2 3.02v2.54h3.24c1.9-1.75 2.98-4.33 2.98-7.41Z" />
-      <path fill="#34A853" d="M12 22c2.7 0 4.97-.9 6.62-2.36l-3.24-2.54c-.9.6-2.05.96-3.38.96-2.6 0-4.81-1.76-5.6-4.13H3.05v2.62A10 10 0 0 0 12 22Z" />
-      <path fill="#FBBC05" d="M6.4 13.93A6.02 6.02 0 0 1 6.08 12c0-.67.12-1.32.32-1.93V7.45H3.05A10 10 0 0 0 2 12c0 1.61.39 3.14 1.05 4.55l3.35-2.62Z" />
-      <path fill="#EA4335" d="M12 5.94c1.47 0 2.79.5 3.83 1.5l2.87-2.88A9.63 9.63 0 0 0 12 2a10 10 0 0 0-8.95 5.45l3.35 2.62c.79-2.37 3-4.13 5.6-4.13Z" />
-    </svg>
-  );
-}
-
 export function CardInlineGeneratePanel({
   source = "card",
   chrome = "fullscreen",
@@ -178,6 +170,7 @@ export function CardInlineGeneratePanel({
   );
   const [videoEnabled, setVideoEnabled] = useState(false);
   const [videoModels, setVideoModels] = useState<ModelOpt[]>([]);
+  const [videoModel, setVideoModel] = useState(DEFAULT_VIDEO_MODEL);
   const [videoAspectRatio, setVideoAspectRatio] = useState(DEFAULT_VIDEO_ASPECT_RATIO);
   const [videoDurationSeconds, setVideoDurationSeconds] = useState(
     DEFAULT_VIDEO_DURATION_SECONDS
@@ -460,11 +453,19 @@ export function CardInlineGeneratePanel({
           ? ((await videoConfigRes.json().catch(() => ({}))) as {
               enabled?: boolean;
               models?: ModelOpt[];
-              defaults?: { aspectRatio?: string };
+              defaults?: { aspectRatio?: string; model?: string };
             })
           : {};
         setVideoEnabled(Boolean(videoConfigData.enabled));
-        setVideoModels(Array.isArray(videoConfigData.models) ? videoConfigData.models : []);
+        const nextVideoModels = Array.isArray(videoConfigData.models)
+          ? videoConfigData.models
+          : [];
+        setVideoModels(nextVideoModels);
+        const resolvedVideoModel = resolveVideoModelId(
+          videoConfigData.defaults?.model,
+          nextVideoModels.map((item) => item.id)
+        );
+        if (resolvedVideoModel) setVideoModel(resolvedVideoModel);
         if (videoConfigData.defaults?.aspectRatio) {
           setVideoAspectRatio(videoConfigData.defaults.aspectRatio);
         }
@@ -743,7 +744,8 @@ export function CardInlineGeneratePanel({
     isAuthed &&
     credits !== null &&
     (credits <= 0 || (minModelCost !== null && credits < minModelCost));
-  const activeVideoModel = videoModels[0] ?? null;
+  const activeVideoModel =
+    videoModels.find((item) => item.id === videoModel) ?? videoModels[0] ?? null;
   const selectedVideoCost =
     activeVideoModel != null
       ? calculateVideoCreditCost(activeVideoModel.cost, videoDurationSeconds)
@@ -2121,38 +2123,61 @@ export function CardInlineGeneratePanel({
             </div>
             {videoCompose ? (
               <>
-                <div className="grid shrink-0 grid-cols-1 gap-2">
-                  <div
-                    className={`relative flex min-h-20 min-w-0 items-center gap-3 overflow-hidden rounded-xl p-3 text-left ring-2 ${
-                      dockModelExpanded
-                        ? "bg-white/15 text-white ring-indigo-300 shadow-sm"
-                        : "bg-indigo-50 text-zinc-900 ring-indigo-500 shadow-sm"
-                    }`}
-                  >
-                    <span
-                      aria-hidden
-                      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full shadow-sm ${
-                        dockModelExpanded ? "bg-white/90" : "bg-white"
-                      }`}
-                    >
-                      <GoogleGenerationModelIcon />
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[13px] font-semibold leading-tight">
-                        {displayLabelForGenerationModel(
-                          activeVideoModel?.id || "gemini-omni-flash-preview",
-                          activeVideoModel?.label
-                        )}
-                      </span>
-                      <span
-                        className={`mt-1 block text-[13px] font-medium leading-tight ${
-                          dockModelExpanded ? "text-white/60" : "text-zinc-500"
-                        }`}
+                <div className="grid shrink-0 grid-cols-2 gap-2">
+                  {videoModels.map((item) => {
+                    const selected = activeVideoModel?.id === item.id;
+                    const itemCost = calculateVideoCreditCost(item.cost, videoDurationSeconds);
+                    const unaffordable = credits !== null && credits < itemCost;
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        aria-pressed={selected}
+                        aria-disabled={unaffordable || undefined}
+                        disabled={controlsBusy}
+                        title={unaffordable ? "Не хватает кредитов" : item.label}
+                        onClick={() => setVideoModel(item.id)}
+                        className={`${OVERLAY_BUTTON_UA_RESET} relative flex min-h-20 min-w-0 items-center gap-3 overflow-hidden rounded-xl p-3 text-left ring-2 transition ${
+                          dockModelExpanded
+                            ? selected
+                              ? "bg-white/15 text-white ring-indigo-300 shadow-sm"
+                              : "bg-white/5 text-white ring-white/10 hover:bg-white/10 hover:ring-white/25"
+                            : selected
+                              ? "bg-indigo-50 text-zinc-900 ring-indigo-500 shadow-sm"
+                              : "bg-zinc-100 text-zinc-900 ring-zinc-200 hover:bg-zinc-200 hover:ring-zinc-300"
+                        } ${unaffordable ? "opacity-90" : ""} disabled:opacity-50`}
                       >
-                        Оживление фото · {selectedVideoCost ?? 30} кр.
-                      </span>
-                    </span>
-                  </div>
+                        <span
+                          aria-hidden
+                          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full shadow-sm ${
+                            dockModelExpanded ? "bg-white/90" : "bg-white"
+                          }`}
+                        >
+                          <GenerationModelIcon modelId={item.id} />
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-[13px] font-semibold leading-tight">
+                            {displayLabelForGenerationModel(item.id, item.label)}
+                          </span>
+                          <span
+                            className={`mt-1 block text-[13px] font-medium leading-tight ${
+                              unaffordable
+                                ? dockModelExpanded
+                                  ? "text-rose-400"
+                                  : "text-rose-600"
+                                : dockModelExpanded
+                                  ? "text-white/60"
+                                  : "text-zinc-500"
+                            }`}
+                          >
+                            {unaffordable
+                              ? "Не хватает кредитов"
+                              : `Оживление · ${itemCost} кр.`}
+                          </span>
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
                 <div className="mt-3 grid shrink-0 grid-cols-2 gap-2">
                   <label className="block min-w-0">
@@ -2273,7 +2298,7 @@ export function CardInlineGeneratePanel({
                         dockModelExpanded ? "bg-white/90" : "bg-white"
                       }`}
                     >
-                      <GoogleGenerationModelIcon />
+                      <GenerationModelIcon modelId={item.id} />
                     </span>
                     <span className="min-w-0 flex-1 pr-5">
                       <span className="block truncate text-[13px] font-semibold leading-tight">
@@ -2419,8 +2444,9 @@ export function CardInlineGeneratePanel({
                     }
                   : undefined
             }
+            modelId={activeVideoModel?.id || DEFAULT_VIDEO_MODEL}
             modelLabel={displayLabelForGenerationModel(
-              activeVideoModel?.id || "gemini-omni-flash-preview",
+              activeVideoModel?.id || DEFAULT_VIDEO_MODEL,
               activeVideoModel?.label
             )}
             settingsOpen={expandedControl === "model"}
@@ -2518,7 +2544,7 @@ export function CardInlineGeneratePanel({
                   glassChrome ? "bg-white/90" : "bg-white"
                 }`}
               >
-                <GoogleGenerationModelIcon />
+                <GenerationModelIcon modelId={model} />
               </span>
               <span className="line-clamp-2 text-[13px] font-semibold leading-tight">
                 {displayLabelForGenerationModel(

@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { assembleVideoMotionPrompt } from "../../landing/src/lib/video-motion-prompt";
+import {
+  assembleGrokVideoMotionPrompt,
+  assembleVideoMotionPrompt,
+} from "../../landing/src/lib/video-motion-prompt";
 import {
   buildVideoInteractionRequest,
   extractInteractionId,
@@ -56,6 +59,12 @@ test("motion prompt locks Image1 and never mentions Image2", () => {
   const assembled = assembleVideoMotionPrompt("Оживи изображение");
   assert.match(assembled, /\[# Sources @Image1\]/);
   assert.doesNotMatch(assembled, /@Image2|References/);
+});
+
+test("Grok motion prompt does not use Gemini source tags", () => {
+  const assembled = assembleGrokVideoMotionPrompt("wave");
+  assert.doesNotMatch(assembled, /\[# Sources/);
+  assert.match(assembled, /starting frame/);
 });
 
 test("Interactions payload sends exactly one image for image_to_video", () => {

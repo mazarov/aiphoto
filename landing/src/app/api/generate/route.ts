@@ -31,6 +31,7 @@ import {
   calculateVideoCreditCost,
   normalizeVideoDurationSeconds,
   resolveVideoAspectRatio,
+  resolveVideoModelId,
   resolveVideoResolution,
   isVideoAnimateUnlocked,
   validateVideoGenerationSource,
@@ -316,6 +317,7 @@ export async function POST(req: NextRequest) {
         "max_photos",
         "video_models",
         "video_animate_enabled",
+        "default_video_model",
       ]);
 
     const config: Record<string, string> = {};
@@ -377,7 +379,15 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const modelConfig = models.find((m) => m.id === model) || models[0];
+    const resolvedVideoModelId = isVideo
+      ? resolveVideoModelId(
+          model || config.default_video_model,
+          models.map((item) => item.id)
+        )
+      : null;
+    const modelConfig = isVideo
+      ? models.find((item) => item.id === resolvedVideoModelId) || models[0]
+      : models.find((m) => m.id === model) || models[0];
     if (
       !modelConfig ||
       !Number.isInteger(modelConfig.cost) ||

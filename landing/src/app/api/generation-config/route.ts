@@ -5,7 +5,7 @@ import {
   parseEnabledGenerationModels,
   parseEnabledVideoGenerationModels,
 } from "@/lib/generation-model-labels";
-import { isVideoAnimateUnlocked } from "@/lib/video-generation-contract";
+import { isVideoAnimateUnlocked, resolveVideoModelId } from "@/lib/video-generation-contract";
 import {
   DEFAULT_IMAGE_ASPECT_RATIO,
   DEFAULT_IMAGE_SIZE,
@@ -69,7 +69,10 @@ export async function GET(req: NextRequest) {
         resolutions: VIDEO_RESOLUTION_OPTIONS,
         imageSizes: VIDEO_RESOLUTION_OPTIONS,
         defaults: {
-          model: config.default_video_model || DEFAULT_VIDEO_MODEL,
+          model: resolveVideoModelId(
+            config.default_video_model || DEFAULT_VIDEO_MODEL,
+            models.map((item) => item.id)
+          ),
           aspectRatio: DEFAULT_VIDEO_ASPECT_RATIO,
           imageSize: DEFAULT_VIDEO_RESOLUTION,
           durationSeconds: DEFAULT_VIDEO_DURATION_SECONDS,

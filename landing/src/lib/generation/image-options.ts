@@ -4,7 +4,14 @@ export const VIDEO_GENERATION_MODALITY = "video" as const;
 export type GenerationModality = typeof IMAGE_GENERATION_MODALITY | typeof VIDEO_GENERATION_MODALITY;
 
 export const DEFAULT_VIDEO_PROMPT = "Оживи изображение";
-export const DEFAULT_VIDEO_MODEL = "gemini-omni-flash-preview";
+export const GROK_IMAGINE_VIDEO_MODEL = "grok-imagine-video-1.5";
+export const DEFAULT_VIDEO_MODEL = GROK_IMAGINE_VIDEO_MODEL;
+export const GEMINI_OMNI_VIDEO_MODEL = "gemini-omni-flash-preview";
+
+export function isGrokVideoModel(model: unknown): boolean {
+  return typeof model === "string" && model.startsWith("grok-imagine-video");
+}
+
 export const DEFAULT_VIDEO_ASPECT_RATIO = "9:16";
 export const DEFAULT_VIDEO_DURATION_SECONDS = 4;
 export const DEFAULT_VIDEO_RESOLUTION = "720p";

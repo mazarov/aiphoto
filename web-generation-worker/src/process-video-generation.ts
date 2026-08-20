@@ -1,8 +1,27 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { assembleVideoMotionPrompt } from "../../landing/src/lib/video-motion-prompt";
+import {
+  assembleGrokVideoMotionPrompt,
+  assembleVideoMotionPrompt,
+} from "../../landing/src/lib/video-motion-prompt";
 import { parseLibrarySourceGenerationId } from "../../landing/src/lib/user-generation-photo-paths";
 import { config } from "./config";
-import { errorFields, log } from "./lib/logger";
+import { log } from "./lib/logger";
+import {
+  buildXaiVideoSubmitBody,
+  extractXaiRequestId,
+  extractXaiVideoUrl,
+  isGrokVideoModel,
+  isXaiDone,
+  isXaiExpired,
+  isXaiFailed,
+  isXaiSafetyBlock,
+  rewriteXaiDownloadUrl,
+  xaiErrorMessage,
+  xaiPollUrl,
+  xaiProxyHost,
+  xaiStatus,
+  xaiSubmitUrl,
+} from "./xai-video";
 import {
   ProcessingError,
   assertVideoInputSource,
@@ -213,7 +232,7 @@ async function readJson(response: Response): Promise<Record<string, unknown>> {
   } catch {
     throw new ProcessingError(
       "gemini_response_parse",
-      `Gemini returned non-JSON response (HTTP ${response.status})`,
+      `Video API returned non-JSON response (HTTP ${response.status})`,
       response.status === 429 || response.status >= 500,
     );
   }
@@ -327,6 +346,242 @@ async function downloadVideoRef(
   return buffer;
 }
 
+const SOURCE_SIGNED_TTL_SEC = 900;
+
+function xaiFailureFromPayload(payload: Record<string, unknown>, status: number): ProcessingError {
+  const message = xaiErrorMessage(payload);
+  if (isXaiSafetyBlock(payload, message) || isXaiExpired(xaiStatus(payload))) {
+    return new ProcessingError(
+      isXaiExpired(xaiStatus(payload)) ? "provider_expired" : "safety_block",
+      message,
+      false,
+    );
+  }
+  if (status === 429 || status >= 500) {
+    return new ProcessingError(`xai_http_${status}`, message, true);
+  }
+  return new ProcessingError("xai_error", message, false);
+}
+
+async function persistProviderOperation(
+  supabase: SupabaseClient,
+  job: GenerationJob,
+  operationId: string,
+  context: Record<string, unknown>,
+): Promise<void> {
+  const { data: saved, error: saveError } = await supabase.rpc("landing_save_provider_operation", {
+    p_generation_id: job.id,
+    p_worker_id: config.workerId,
+    p_lease_token: job.lease_token,
+    p_provider_operation_id: operationId,
+  });
+  if (saveError || saved !== true) {
+    log("error", "video_operation_persist_failed", {
+      ...context,
+      operationId,
+      error: saveError?.message,
+    });
+    throw new ProcessingError(
+      "provider_operation_persist_failed",
+      saveError?.message || "Failed to persist provider operation",
+      true,
+    );
+  }
+  job.provider_operation_id = operationId;
+}
+
+async function createSourceSignedUrl(
+  supabase: SupabaseClient,
+  source: GenerationInputSource,
+): Promise<string> {
+  const { data, error } = await supabase.storage
+    .from(source.bucket)
+    .createSignedUrl(source.paths[0], SOURCE_SIGNED_TTL_SEC);
+  if (error || !data?.signedUrl) {
+    const status = storageStatus(error);
+    const missing = status === 400 || status === 404 || /not found|does not exist/i.test(error?.message || "");
+    throw new ProcessingError(
+      missing ? "input_missing" : "storage_signed_url_error",
+      `Signed URL failed: ${source.paths[0]}: ${error?.message || "empty response"}`,
+      !missing && isTemporary(error),
+    );
+  }
+  return data.signedUrl;
+}
+
+async function downloadXaiVideo(
+  videoUrl: string,
+  signal: AbortSignal,
+): Promise<Buffer> {
+  const rewritten = rewriteXaiDownloadUrl(videoUrl, config.xaiBaseUrl);
+  const headers: Record<string, string> = {};
+  try {
+    if (new URL(rewritten).host === xaiProxyHost(config.xaiBaseUrl)) {
+      headers.Authorization = `Bearer ${config.xaiApiKey}`;
+    }
+  } catch {
+    /* keep unauthenticated CDN download */
+  }
+  const response = await fetch(rewritten, {
+    headers,
+    signal: AbortSignal.any([signal, AbortSignal.timeout(60000)]),
+  });
+  if (!response.ok) {
+    throw new ProcessingError(
+      `xai_http_${response.status}`,
+      `Video download failed (HTTP ${response.status})`,
+      response.status === 429 || response.status >= 500,
+    );
+  }
+  const buffer = Buffer.from(await response.arrayBuffer());
+  if (!buffer.length) throw new ProcessingError("xai_error", "Downloaded video is empty", false);
+  return buffer;
+}
+
+async function processGrokVideoGeneration(
+  supabase: SupabaseClient,
+  job: GenerationJob,
+  source: GenerationInputSource,
+  sourceFields: Record<string, unknown>,
+  context: Record<string, unknown>,
+  signal: AbortSignal,
+  ensureLease: () => Promise<void>,
+): Promise<{ resultPath: string; rawPrompt: string; mimeType: string }> {
+  if (!config.xaiApiKey) {
+    throw new ProcessingError("config_error", "XAI_API_KEY is not configured", false);
+  }
+  if (!config.xaiBaseUrl) {
+    throw new ProcessingError("config_error", "XAI_BASE_URL is not configured", false);
+  }
+  const rawPrompt = String(job.prompt_text || "").trim();
+  if (!rawPrompt) throw new ProcessingError("input_missing", "Prompt text is empty", false);
+  const motionPrompt = assembleGrokVideoMotionPrompt(rawPrompt);
+  const imageUrl = await createSourceSignedUrl(supabase, source);
+  await ensureLease();
+
+  const providerContext = {
+    ...context,
+    ...sourceFields,
+    provider: "xai",
+    proxyHost: xaiProxyHost(config.xaiBaseUrl),
+    model: job.model,
+    durationSeconds: job.duration_seconds ?? null,
+  };
+  let operationId = String(job.provider_operation_id || "").trim();
+  let payload: Record<string, unknown> | null = null;
+
+  if (!operationId) {
+    log("info", "video_submit", providerContext);
+    try {
+      const response = await fetch(xaiSubmitUrl(config.xaiBaseUrl), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${config.xaiApiKey}`,
+        },
+        body: JSON.stringify(
+          buildXaiVideoSubmitBody({
+            model: job.model,
+            prompt: motionPrompt,
+            imageUrl,
+            durationSeconds: job.duration_seconds || 4,
+            aspectRatio: job.aspect_ratio || "9:16",
+            resolution: job.image_size || "720p",
+          }),
+        ),
+        signal: AbortSignal.any([signal, AbortSignal.timeout(config.videoTimeoutMs)]),
+      });
+      payload = await readJson(response);
+      operationId = extractXaiRequestId(payload);
+      log(response.ok && operationId ? "info" : "warn", "video_submit_response", {
+        ...providerContext,
+        httpStatus: response.status,
+        hasId: Boolean(operationId),
+        hasVideo: Boolean(extractXaiVideoUrl(payload)),
+        interactionStatus: xaiStatus(payload) || null,
+      });
+      if (!response.ok) throw xaiFailureFromPayload(payload, response.status);
+      if (!operationId && !extractXaiVideoUrl(payload)) {
+        throw xaiFailureFromPayload(payload, response.status);
+      }
+    } catch (error) {
+      if (error instanceof ProcessingError) throw error;
+      if (signal.aborted) throw new ProcessingError("shutdown", "Worker is shutting down", true);
+      const timeout = error instanceof Error && ["TimeoutError", "AbortError"].includes(error.name);
+      throw new ProcessingError(timeout ? "timeout" : "network_error", String((error as Error)?.message || error), true);
+    }
+    if (operationId) {
+      await persistProviderOperation(supabase, job, operationId, providerContext);
+    }
+  } else {
+    log("info", "video_resume", { ...providerContext, operationId });
+  }
+
+  const startedAt = Date.now();
+  while (
+    !extractXaiVideoUrl(payload || {}) &&
+    !isXaiDone(xaiStatus(payload || {})) &&
+    Date.now() - startedAt < config.videoTimeoutMs
+  ) {
+    if (!operationId) break;
+    if (signal.aborted) throw new ProcessingError("shutdown", "Worker is shutting down", true);
+    await ensureLease();
+    try {
+      const response = await fetch(xaiPollUrl(config.xaiBaseUrl, operationId), {
+        headers: { Authorization: `Bearer ${config.xaiApiKey}` },
+        signal: AbortSignal.any([signal, AbortSignal.timeout(30000)]),
+      });
+      payload = await readJson(response);
+      if (!response.ok) throw xaiFailureFromPayload(payload, response.status);
+    } catch (error) {
+      if (error instanceof ProcessingError) throw error;
+      if (signal.aborted) throw new ProcessingError("shutdown", "Worker is shutting down", true);
+      throw new ProcessingError("network_error", String((error as Error)?.message || error), true);
+    }
+    const status = xaiStatus(payload);
+    if (isXaiDone(status) || extractXaiVideoUrl(payload)) break;
+    if (isXaiExpired(status)) {
+      throw new ProcessingError("provider_expired", xaiErrorMessage(payload), false);
+    }
+    if (isXaiFailed(status)) {
+      const message = xaiErrorMessage(payload);
+      throw new ProcessingError(
+        isXaiSafetyBlock(payload, message) ? "safety_block" : "xai_error",
+        message,
+        !isXaiSafetyBlock(payload, message),
+      );
+    }
+    await new Promise((resolve) => setTimeout(resolve, config.videoPollMs));
+  }
+  if (!payload) throw new ProcessingError("timeout", "Video generation timed out", true);
+  const status = xaiStatus(payload);
+  if (isXaiExpired(status)) {
+    throw new ProcessingError("provider_expired", xaiErrorMessage(payload), false);
+  }
+  if (!isXaiDone(status) && !extractXaiVideoUrl(payload)) {
+    log("warn", "video_poll_lag", { ...providerContext, operationId, elapsedMs: Date.now() - startedAt });
+    throw new ProcessingError("timeout", "Video generation timed out", true);
+  }
+  const videoUrl = extractXaiVideoUrl(payload);
+  if (!videoUrl) throw new ProcessingError("xai_error", "Generation completed without video", false);
+  const videoBuffer = await downloadXaiVideo(videoUrl, signal);
+  await ensureLease();
+  const resultPath = `${job.user_id}/${job.id}/${job.lease_token}.mp4`;
+  const { error: uploadError } = await supabase.storage
+    .from(RESULTS_BUCKET)
+    .upload(resultPath, videoBuffer, { contentType: VIDEO_MIME, upsert: true });
+  if (uploadError) {
+    throw new ProcessingError("result_upload_error", uploadError.message, isTemporary(uploadError));
+  }
+  log("info", "video_result_uploaded", {
+    ...providerContext,
+    resultPath,
+    bytes: videoBuffer.length,
+    operationId,
+  });
+  return { resultPath, rawPrompt, mimeType: VIDEO_MIME };
+}
+
 export async function processVideoGeneration(
   supabase: SupabaseClient,
   job: GenerationJob,
@@ -339,20 +594,35 @@ export async function processVideoGeneration(
     attempt: job.attempts,
     pipelineTrace: job.pipeline_trace_id,
   };
-  log("info", "video_generation_started", context);
-  if (!config.geminiApiKey) {
-    throw new ProcessingError("config_error", "GEMINI_API_KEY is not configured", false);
-  }
+  log("info", "video_generation_started", {
+    ...context,
+    provider: isGrokVideoModel(job.model) ? "xai" : "gemini",
+    model: job.model,
+  });
   const { source, linkedGenerationId } = await resolveVideoInputs(
     supabase,
     job,
   );
+  const sourceFields = videoInputLogFields(source, job, linkedGenerationId);
   log("info", "video_input_resolved", {
     ...context,
-    ...videoInputLogFields(source, job, linkedGenerationId),
+    ...sourceFields,
   });
+  if (isGrokVideoModel(job.model)) {
+    return processGrokVideoGeneration(
+      supabase,
+      job,
+      source,
+      sourceFields,
+      context,
+      signal,
+      ensureLease,
+    );
+  }
+  if (!config.geminiApiKey) {
+    throw new ProcessingError("config_error", "GEMINI_API_KEY is not configured", false);
+  }
   const image = await downloadSourceImage(supabase, source);
-  const sourceFields = videoInputLogFields(source, job, linkedGenerationId);
   await ensureLease();
 
   const rawPrompt = String(job.prompt_text || "").trim();
@@ -366,6 +636,7 @@ export async function processVideoGeneration(
     log("info", "video_submit", {
       ...context,
       ...sourceFields,
+      provider: "gemini",
       model: job.model,
       proxy: base.proxy,
       imageBytes: Buffer.byteLength(image.data, "base64"),
@@ -392,25 +663,7 @@ export async function processVideoGeneration(
       throw new ProcessingError(timeout ? "timeout" : "network_error", String((error as Error)?.message || error), true);
     }
     if (operationId) {
-      const { data: saved, error: saveError } = await supabase.rpc("landing_save_provider_operation", {
-        p_generation_id: job.id,
-        p_worker_id: config.workerId,
-        p_lease_token: job.lease_token,
-        p_provider_operation_id: operationId,
-      });
-      if (saveError || saved !== true) {
-        log("error", "video_operation_persist_failed", {
-          ...context,
-          operationId,
-          error: saveError?.message,
-        });
-        throw new ProcessingError(
-          "provider_operation_persist_failed",
-          saveError?.message || "Failed to persist provider operation",
-          true,
-        );
-      }
-      job.provider_operation_id = operationId;
+      await persistProviderOperation(supabase, job, operationId, context);
     }
   } else {
     log("info", "video_resume", { ...context, operationId });
