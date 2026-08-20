@@ -1,6 +1,6 @@
 # 01 — Лендинг (promptshot.ru)
 
-> Последнее обновление: 2026-08-20 (**video compose params:** кликабельные формат / длительность / 720p в `VideoComposeBar`. Цена = `video_models.cost` + +0/+10/+20/+30 за 4/6/8/10 сек (`calculateVideoCreditCost`). Worker шлёт `response_format.duration`. SQL `200`. Два превью: кадр + `inputPhotoUrl` референс. `promptExpanded` прячет compose/footer через `hidden`.)
+> Последнее обновление: 2026-08-20 (**video compose params:** кликабельные формат / длительность / 720p в шите «Параметры видео». Цена = `video_models.cost` + +0/+10/+20/+30 за 4/6/8/10 сек (`calculateVideoCreditCost`). Worker шлёт `response_format.duration`. SQL `200`. UI: одна плитка кадра (Omni `image_to_video` = 1 фото). `promptExpanded` прячет compose/footer через `hidden`.)
 >
 > Последнее обновление: 2026-08-20 (**animate scenario starts on still:** `video-animate-scenario` требует, чтобы сюжет открывался этим кадром (frame 0), без lead-in / нового ракурса. User-текст: «Сюжет начинается с этого кадра фотографии».)
 >

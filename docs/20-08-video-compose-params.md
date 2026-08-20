@@ -23,12 +23,10 @@ Gemini Interactions: `response_format.duration` вида `"6s"`. `video_config` 
 
 ## Превью
 
-- **Для генерации** — кадр (result parent / linked generation).
-- **Референс** — исходный аплоад (`GET /api/generations/:id` → `inputPhotoUrl`).
-- Одно фото без parent — только «Для генерации».
+Одно фото — кадр для оживления (`image_to_video` принимает только Image1).
 
 ## UI
 
-Чипы формат / время / качество открывают непрозрачный поповер (один за раз), который перекрывает ряд. Модель и quantity=1 — display-only.
+Плитки как у фото-compose: 84px «Кадр» + плитка модели. Формат, длительность и 720p — в том же шите «Параметры видео», что «Модель генерации» у фото (`select` + «Готово»). Цена на CTA обновляется от длительности.
 
 `promptExpanded` скрывает `VideoComposeBar` и footer через `hidden` (dock и modal).

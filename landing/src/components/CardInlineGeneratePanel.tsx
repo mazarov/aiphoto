@@ -50,13 +50,19 @@ import {
   DEFAULT_VIDEO_PROMPT,
   DEFAULT_VIDEO_RESOLUTION,
   IMAGE_GENERATION_MODALITY,
+  VIDEO_ASPECT_RATIO_OPTIONS,
+  VIDEO_DURATION_OPTIONS,
   VIDEO_GENERATION_MODALITY,
+  VIDEO_RESOLUTION_OPTIONS,
 } from "@/lib/generation/image-options";
 import {
   ANIMATE_SCENARIO_PLACEHOLDER,
   isGenericVideoPrompt,
 } from "@/lib/video-animate-scenario";
-import { calculateVideoCreditCost } from "@/lib/video-generation-contract";
+import {
+  calculateVideoCreditCost,
+  videoDurationExtraCredits,
+} from "@/lib/video-generation-contract";
 import { restoreSelectedPhotoIds } from "@/lib/generation-enqueue-core";
 import { resolveVideoEnqueueParentGenerationId } from "@/lib/user-generation-photos";
 
@@ -183,7 +189,6 @@ export function CardInlineGeneratePanel({
   const [animatePreviewUrl, setAnimatePreviewUrl] = useState<string | null>(
     seed.previewUrl || null
   );
-  const [animateReferenceUrl, setAnimateReferenceUrl] = useState<string | null>(null);
   const [scenarioLoading, setScenarioLoading] = useState(seed.intent === "animate");
   const scenarioRequestRef = useRef(0);
   const [preferencesHydrated, setPreferencesHydrated] = useState(false);
@@ -467,7 +472,6 @@ export function CardInlineGeneratePanel({
           setComposeModality("video");
           setAnimateParentId(seed.parentGenerationId || null);
           setAnimatePreviewUrl(seed.previewUrl || null);
-          setAnimateReferenceUrl(null);
           if (seed.promptText.trim() && !isGenericVideoPrompt(seed.promptText)) {
             setDraftPrompt(seed.promptText);
           } else {
@@ -594,13 +598,10 @@ export function CardInlineGeneratePanel({
       credentials: "include",
     })
       .then((res) => (res.ok ? res.json() : null))
-      .then((data: { resultUrl?: string; inputPhotoUrl?: string } | null) => {
+      .then((data: { resultUrl?: string } | null) => {
         if (cancelled || !data) return;
         if (typeof data.resultUrl === "string" && data.resultUrl) {
           setAnimatePreviewUrl(data.resultUrl);
-        }
-        if (typeof data.inputPhotoUrl === "string" && data.inputPhotoUrl) {
-          setAnimateReferenceUrl((current) => current || data.inputPhotoUrl || null);
         }
       })
       .catch(() => undefined);
@@ -1041,7 +1042,6 @@ export function CardInlineGeneratePanel({
             setComposeModality("image");
             setAnimateParentId(null);
             setAnimatePreviewUrl(null);
-            setAnimateReferenceUrl(null);
           }
           setProgress(100);
           setPhase("done");
@@ -1269,7 +1269,6 @@ export function CardInlineGeneratePanel({
     setComposeModality("video");
     setAnimateParentId(generationId);
     setAnimatePreviewUrl(resultUrl);
-    setAnimateReferenceUrl(null);
     setDraftPrompt("");
     setSubmittedPrompt("");
     setChangeRequest("");
@@ -1304,7 +1303,6 @@ export function CardInlineGeneratePanel({
     setComposeModality("image");
     setAnimateParentId(null);
     setAnimatePreviewUrl(null);
-    setAnimateReferenceUrl(null);
     setExpandedControl(null);
     setPromptExpanded(false);
     setPhase("idle");
@@ -2063,7 +2061,7 @@ export function CardInlineGeneratePanel({
             id="inline-generation-models"
             role={isDock ? undefined : "dialog"}
             aria-modal={isDock ? undefined : "true"}
-            aria-label="Выбор модели"
+            aria-label={videoCompose ? "Параметры видео" : "Выбор модели"}
             className={
               dockModelExpanded
                 ? isMobile
@@ -2097,7 +2095,7 @@ export function CardInlineGeneratePanel({
                   dockModelExpanded ? "text-white" : "text-zinc-900"
                 }`}
               >
-                Модель генерации
+                {videoCompose ? "Параметры видео" : "Модель генерации"}
               </span>
               <button
                 type="button"
@@ -2121,6 +2119,125 @@ export function CardInlineGeneratePanel({
                 </svg>
               </button>
             </div>
+            {videoCompose ? (
+              <>
+                <div className="grid shrink-0 grid-cols-1 gap-2">
+                  <div
+                    className={`relative flex min-h-20 min-w-0 items-center gap-3 overflow-hidden rounded-xl p-3 text-left ring-2 ${
+                      dockModelExpanded
+                        ? "bg-white/15 text-white ring-indigo-300 shadow-sm"
+                        : "bg-indigo-50 text-zinc-900 ring-indigo-500 shadow-sm"
+                    }`}
+                  >
+                    <span
+                      aria-hidden
+                      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full shadow-sm ${
+                        dockModelExpanded ? "bg-white/90" : "bg-white"
+                      }`}
+                    >
+                      <GoogleGenerationModelIcon />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[13px] font-semibold leading-tight">
+                        {displayLabelForGenerationModel(
+                          activeVideoModel?.id || "gemini-omni-flash-preview",
+                          activeVideoModel?.label
+                        )}
+                      </span>
+                      <span
+                        className={`mt-1 block text-[13px] font-medium leading-tight ${
+                          dockModelExpanded ? "text-white/60" : "text-zinc-500"
+                        }`}
+                      >
+                        Оживление фото · {selectedVideoCost ?? 30} кр.
+                      </span>
+                    </span>
+                  </div>
+                </div>
+                <div className="mt-3 grid shrink-0 grid-cols-2 gap-2">
+                  <label className="block min-w-0">
+                    <span
+                      className={`mb-1 block text-[13px] font-medium ${
+                        dockModelExpanded ? "text-white/65" : "text-zinc-600"
+                      }`}
+                    >
+                      Формат
+                    </span>
+                    <select
+                      value={videoAspectRatio}
+                      onChange={(event) => setVideoAspectRatio(event.target.value)}
+                      disabled={controlsBusy}
+                      className={`min-h-11 w-full px-3 text-[13px] font-semibold outline-none transition disabled:opacity-50 ${
+                        dockModelExpanded
+                          ? dockSheetField
+                          : "rounded-xl border border-zinc-200 bg-zinc-100 text-zinc-900 focus:border-indigo-400"
+                      }`}
+                    >
+                      {VIDEO_ASPECT_RATIO_OPTIONS.map((item) => (
+                        <option key={item.value} value={item.value}>
+                          {item.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="block min-w-0">
+                    <span
+                      className={`mb-1 block text-[13px] font-medium ${
+                        dockModelExpanded ? "text-white/65" : "text-zinc-600"
+                      }`}
+                    >
+                      Длительность
+                    </span>
+                    <select
+                      value={String(videoDurationSeconds)}
+                      onChange={(event) =>
+                        setVideoDurationSeconds(Number(event.target.value))
+                      }
+                      disabled={controlsBusy}
+                      className={`min-h-11 w-full px-3 text-[13px] font-semibold outline-none transition disabled:opacity-50 ${
+                        dockModelExpanded
+                          ? dockSheetField
+                          : "rounded-xl border border-zinc-200 bg-zinc-100 text-zinc-900 focus:border-indigo-400"
+                      }`}
+                    >
+                      {VIDEO_DURATION_OPTIONS.map((item) => {
+                        const extra = videoDurationExtraCredits(item.value);
+                        return (
+                          <option key={item.value} value={item.value}>
+                            {extra > 0 ? `${item.label} · +${extra}` : item.label}
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </label>
+                  <label className="col-span-2 block min-w-0">
+                    <span
+                      className={`mb-1 block text-[13px] font-medium ${
+                        dockModelExpanded ? "text-white/65" : "text-zinc-600"
+                      }`}
+                    >
+                      Качество
+                    </span>
+                    <select
+                      value={DEFAULT_VIDEO_RESOLUTION}
+                      disabled
+                      className={`min-h-11 w-full px-3 text-[13px] font-semibold outline-none transition disabled:opacity-50 ${
+                        dockModelExpanded
+                          ? dockSheetField
+                          : "rounded-xl border border-zinc-200 bg-zinc-100 text-zinc-900 focus:border-indigo-400"
+                      }`}
+                    >
+                      {VIDEO_RESOLUTION_OPTIONS.map((item) => (
+                        <option key={item.value} value={item.value}>
+                          {item.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+              </>
+            ) : (
+              <>
             <div className="grid shrink-0 grid-cols-2 gap-2">
               {models.map((item) => {
                 const selected = model === item.id;
@@ -2254,6 +2371,8 @@ export function CardInlineGeneratePanel({
                 </select>
               </label>
             </div>
+              </>
+            )}
             <button
               type="button"
               onClick={closePrefsSheet}
@@ -2282,18 +2401,16 @@ export function CardInlineGeneratePanel({
           }`}
         >
           <VideoComposeBar
-            generationPreviewUrl={
+            previewUrl={
               animatePreviewUrl
               || selectedPhotos[0]?.previewUrl
               || null
             }
-            referencePreviewUrl={animateReferenceUrl}
             onClearPreview={
               animateParentId
                 ? () => {
                     setAnimateParentId(null);
                     setAnimatePreviewUrl(null);
-                    setAnimateReferenceUrl(null);
                     setComposeModality("image");
                   }
                 : selectedPhotos[0]
@@ -2306,12 +2423,10 @@ export function CardInlineGeneratePanel({
               activeVideoModel?.id || "gemini-omni-flash-preview",
               activeVideoModel?.label
             )}
-            aspectRatio={videoAspectRatio}
-            onAspectRatioChange={setVideoAspectRatio}
-            durationSeconds={videoDurationSeconds}
-            onDurationChange={setVideoDurationSeconds}
-            resolution={DEFAULT_VIDEO_RESOLUTION}
-            quantity={1}
+            settingsOpen={expandedControl === "model"}
+            onOpenSettings={() => {
+              setExpandedControl((current) => (current === "model" ? null : "model"));
+            }}
             glass={glassChrome}
             disabled={controlsBusy}
           />
@@ -2437,13 +2552,7 @@ export function CardInlineGeneratePanel({
                     );
                     setComposeModality("video");
                     setAnimateParentId(linkedParentId || null);
-                    if (linkedParentId) {
-                      setAnimatePreviewUrl(null);
-                      setAnimateReferenceUrl(photo?.previewUrl || null);
-                    } else {
-                      setAnimatePreviewUrl(photo?.previewUrl || null);
-                      setAnimateReferenceUrl(null);
-                    }
+                    setAnimatePreviewUrl(photo?.previewUrl || null);
                     const sourcePrompt = draftPromptRef.current;
                     if (isGenericVideoPrompt(sourcePrompt)) {
                       setDraftPrompt("");
