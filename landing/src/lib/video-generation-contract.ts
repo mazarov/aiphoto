@@ -4,6 +4,7 @@ import {
   DEFAULT_VIDEO_MODEL,
   DEFAULT_VIDEO_RESOLUTION,
   VIDEO_GENERATION_MODALITY,
+  isVeoLiteVideoModel,
   isVideoAspectRatio,
   isVideoDurationSeconds,
   isVideoResolution,
@@ -26,23 +27,35 @@ export const VIDEO_DURATION_EXTRA_CREDITS: Record<number, number> = {
   10: 30,
 };
 
-export function normalizeVideoDurationSeconds(value: unknown): number {
+export function normalizeVideoDurationSeconds(
+  value: unknown,
+  model?: unknown
+): number {
   const parsed = typeof value === "string" ? Number(value) : value;
+  if (isVeoLiteVideoModel(model)) {
+    if (parsed === 6 || parsed === 8) return parsed;
+    if (parsed === 10) return 8;
+    return DEFAULT_VIDEO_DURATION_SECONDS;
+  }
   return isVideoDurationSeconds(parsed) ? parsed : DEFAULT_VIDEO_DURATION_SECONDS;
 }
 
-export function videoDurationExtraCredits(durationSeconds: unknown): number {
-  const duration = normalizeVideoDurationSeconds(durationSeconds);
+export function videoDurationExtraCredits(
+  durationSeconds: unknown,
+  model?: unknown
+): number {
+  const duration = normalizeVideoDurationSeconds(durationSeconds, model);
   return VIDEO_DURATION_EXTRA_CREDITS[duration] ?? 0;
 }
 
-/** Server-authoritative video price: model base + duration extra. Invalid duration → 4s. */
+/** Server-authoritative video price: model base + duration extra. Invalid duration → 4s. Lite 10s → 8s. */
 export function calculateVideoCreditCost(
   baseCost: number,
-  durationSeconds: unknown
+  durationSeconds: unknown,
+  model?: unknown
 ): number {
   const base = Number.isInteger(baseCost) && baseCost >= 0 ? baseCost : 0;
-  return base + videoDurationExtraCredits(durationSeconds);
+  return base + videoDurationExtraCredits(durationSeconds, model);
 }
 
 export function resolveVideoAspectRatio(value: unknown): string {

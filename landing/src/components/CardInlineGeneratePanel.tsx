@@ -53,9 +53,10 @@ import {
   DEFAULT_VIDEO_RESOLUTION,
   IMAGE_GENERATION_MODALITY,
   VIDEO_ASPECT_RATIO_OPTIONS,
-  VIDEO_DURATION_OPTIONS,
   VIDEO_GENERATION_MODALITY,
   VIDEO_RESOLUTION_OPTIONS,
+  isVeoLiteVideoModel,
+  videoDurationOptionsForModel,
 } from "@/lib/generation/image-options";
 import {
   ANIMATE_SCENARIO_PLACEHOLDER,
@@ -746,9 +747,14 @@ export function CardInlineGeneratePanel({
     (credits <= 0 || (minModelCost !== null && credits < minModelCost));
   const activeVideoModel =
     videoModels.find((item) => item.id === videoModel) ?? videoModels[0] ?? null;
+  const videoDurationChoices = videoDurationOptionsForModel(activeVideoModel?.id);
   const selectedVideoCost =
     activeVideoModel != null
-      ? calculateVideoCreditCost(activeVideoModel.cost, videoDurationSeconds)
+      ? calculateVideoCreditCost(
+          activeVideoModel.cost,
+          videoDurationSeconds,
+          activeVideoModel.id
+        )
       : null;
   const selectedModelCost =
     composeModality === "video"
@@ -765,6 +771,11 @@ export function CardInlineGeneratePanel({
       setNeedsCredits(false);
     }
   }, [cannotAffordAny]);
+
+  useEffect(() => {
+    if (!isVeoLiteVideoModel(videoModel)) return;
+    if (videoDurationSeconds > 8) setVideoDurationSeconds(8);
+  }, [videoModel, videoDurationSeconds]);
 
   useEffect(() => {
     if (!isDock) return;
@@ -2126,7 +2137,11 @@ export function CardInlineGeneratePanel({
                 <div className="grid shrink-0 grid-cols-2 gap-2">
                   {videoModels.map((item) => {
                     const selected = activeVideoModel?.id === item.id;
-                    const itemCost = calculateVideoCreditCost(item.cost, videoDurationSeconds);
+                    const itemCost = calculateVideoCreditCost(
+                      item.cost,
+                      videoDurationSeconds,
+                      item.id
+                    );
                     const unaffordable = credits !== null && credits < itemCost;
                     return (
                       <button
@@ -2136,7 +2151,12 @@ export function CardInlineGeneratePanel({
                         aria-disabled={unaffordable || undefined}
                         disabled={controlsBusy}
                         title={unaffordable ? "Не хватает кредитов" : item.label}
-                        onClick={() => setVideoModel(item.id)}
+                        onClick={() => {
+                          setVideoModel(item.id);
+                          if (isVeoLiteVideoModel(item.id) && videoDurationSeconds > 8) {
+                            setVideoDurationSeconds(8);
+                          }
+                        }}
                         className={`${OVERLAY_BUTTON_UA_RESET} relative flex min-h-20 min-w-0 items-center gap-3 overflow-hidden rounded-xl p-3 text-left ring-2 transition ${
                           dockModelExpanded
                             ? selected
@@ -2225,8 +2245,11 @@ export function CardInlineGeneratePanel({
                           : "rounded-xl border border-zinc-200 bg-zinc-100 text-zinc-900 focus:border-indigo-400"
                       }`}
                     >
-                      {VIDEO_DURATION_OPTIONS.map((item) => {
-                        const extra = videoDurationExtraCredits(item.value);
+                      {videoDurationChoices.map((item) => {
+                        const extra = videoDurationExtraCredits(
+                          item.value,
+                          activeVideoModel?.id
+                        );
                         return (
                           <option key={item.value} value={item.value}>
                             {extra > 0 ? `${item.label} · +${extra}` : item.label}

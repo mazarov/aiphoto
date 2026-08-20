@@ -7,9 +7,14 @@ export const DEFAULT_VIDEO_PROMPT = "Оживи изображение";
 export const GROK_IMAGINE_VIDEO_MODEL = "grok-imagine-video-1.5";
 export const DEFAULT_VIDEO_MODEL = GROK_IMAGINE_VIDEO_MODEL;
 export const GEMINI_OMNI_VIDEO_MODEL = "gemini-omni-flash-preview";
+export const VEO_LITE_VIDEO_MODEL = "veo-3.1-lite-generate-preview";
 
 export function isGrokVideoModel(model: unknown): boolean {
   return typeof model === "string" && model.startsWith("grok-imagine-video");
+}
+
+export function isVeoLiteVideoModel(model: unknown): boolean {
+  return typeof model === "string" && model.startsWith("veo-3.1-lite");
 }
 
 export const DEFAULT_VIDEO_ASPECT_RATIO = "9:16";
@@ -84,6 +89,16 @@ export function isVideoAspectRatio(value: unknown): value is string {
 
 export function isVideoDurationSeconds(value: unknown): value is number {
   return typeof value === "number" && VIDEO_DURATIONS.has(value);
+}
+
+/** Veo 3.1 Lite accepts 4/6/8s only. 10s is clamped to 8. */
+export function videoDurationOptionsForModel(
+  model?: string | null
+): readonly { value: number; label: string }[] {
+  if (isVeoLiteVideoModel(model)) {
+    return VIDEO_DURATION_OPTIONS.filter((option) => option.value <= 8);
+  }
+  return VIDEO_DURATION_OPTIONS;
 }
 
 export function isVideoResolution(value: unknown): value is string {
