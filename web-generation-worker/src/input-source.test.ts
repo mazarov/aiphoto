@@ -5,6 +5,7 @@ import {
   assertVideoInputSource,
   resolveGenerationInputSource,
   RESULTS_BUCKET,
+  videoInputLogFields,
   type GenerationInputJob,
   type ParentGenerationInput,
 } from "./input-source";
@@ -84,6 +85,43 @@ test("continuation rejects a parent owned by another requester", () => {
     (error) =>
       error instanceof ProcessingError &&
       error.errorType === "parent_generation_forbidden",
+  );
+});
+
+test("video input log fields distinguish upload vs parent result", () => {
+  assert.deepEqual(
+    videoInputLogFields(
+      {
+        sourceType: "user_photos",
+        bucket: "web-generation-uploads",
+        paths: ["auth-user-id/input.jpg"],
+      },
+      job(),
+    ),
+    {
+      sourceType: "user_photos",
+      sourceCount: 1,
+      sourcePath: "auth-user-id/input.jpg",
+      sourceBucket: "web-generation-uploads",
+      parentGenerationId: null,
+    },
+  );
+  assert.deepEqual(
+    videoInputLogFields(
+      {
+        sourceType: "generation_result",
+        bucket: RESULTS_BUCKET,
+        paths: ["db-user-id/parent/result.png"],
+      },
+      job({ parent_generation_id: "parent-id", input_photo_paths: [] }),
+    ),
+    {
+      sourceType: "generation_result",
+      sourceCount: 1,
+      sourcePath: "db-user-id/parent/result.png",
+      sourceBucket: RESULTS_BUCKET,
+      parentGenerationId: "parent-id",
+    },
   );
 });
 

@@ -85,3 +85,22 @@ export function assertVideoInputSource(source: GenerationInputSource): Generatio
   }
   return source;
 }
+
+export function videoInputLogFields(
+  source: GenerationInputSource,
+  job: Pick<GenerationInputJob, "parent_generation_id">,
+): {
+  sourceType: GenerationInputSource["sourceType"];
+  sourceCount: number;
+  sourcePath: string | null;
+  sourceBucket: string;
+  parentGenerationId: string | null;
+} {
+  return {
+    sourceType: source.sourceType,
+    sourceCount: source.paths.length,
+    sourcePath: source.paths[0] || null,
+    sourceBucket: source.bucket,
+    parentGenerationId: job.parent_generation_id,
+  };
+}

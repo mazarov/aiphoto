@@ -7,6 +7,7 @@ import {
   assertVideoInputSource,
   resolveGenerationInputSource,
   RESULTS_BUCKET,
+  videoInputLogFields,
   type GenerationInputSource,
   type ParentGenerationInput,
 } from "./input-source";
@@ -242,6 +243,11 @@ export async function processVideoGeneration(
     throw new ProcessingError("config_error", "GEMINI_API_KEY is not configured", false);
   }
   const source = await resolveVideoInput(supabase, job);
+  const sourceFields = videoInputLogFields(source, job);
+  log("info", "video_input_resolved", {
+    ...context,
+    ...sourceFields,
+  });
   const image = await downloadSourceImage(supabase, source);
   await ensureLease();
 
@@ -255,6 +261,7 @@ export async function processVideoGeneration(
   if (!operationId) {
     log("info", "video_submit", {
       ...context,
+      ...sourceFields,
       model: job.model,
       proxy: base.proxy,
       imageBytes: Buffer.byteLength(image.data, "base64"),
@@ -268,7 +275,7 @@ export async function processVideoGeneration(
         image,
         aspectRatio: job.aspect_ratio || "9:16",
         signal,
-        context,
+        context: { ...context, ...sourceFields },
       });
       operationId = submitted.id;
       payload = submitted.payload;
