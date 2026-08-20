@@ -207,10 +207,19 @@ p {
    * Stable prompt-card masonry.
    * Positions are deterministic for 2/3/4 lanes and expressed in container
    * query units, so infinite-scroll append never moves the existing prefix.
+   *
+   * `container-type` and `height: *cqw` MUST live on different nodes.
+   * If the query container sizes its own block size with `cqw`, browsers
+   * treat that as cyclic and resolve `cqw` against the viewport — the box
+   * grows taller than the absolutely positioned cards.
    */
   .stable-listing-masonry {
-    position: relative;
     container-type: inline-size;
+    width: 100%;
+  }
+
+  .stable-listing-masonry-canvas {
+    position: relative;
     height: var(--masonry-height-2);
   }
 
@@ -222,7 +231,7 @@ p {
   }
 
   @media (min-width: 640px) {
-    .stable-listing-masonry {
+    .stable-listing-masonry-canvas {
       height: var(--masonry-height-3);
     }
 
@@ -234,7 +243,7 @@ p {
   }
 
   @media (min-width: 1024px) {
-    .stable-listing-masonry {
+    .stable-listing-masonry-canvas {
       height: var(--masonry-height-4);
     }
 

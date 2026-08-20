@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { embedSearchQueryWithGuards, resetVisualSearchGuardsForTests } from "./visual-search-guard";
+import { extensionRateLimitIpHash } from "./extension-rate-limit-ip";
+import {
+  embedSearchQueryWithGuards,
+  reserveVisualSearchBudget,
+  resetVisualSearchGuardsForTests,
+} from "./visual-search-guard";
+import { VISUAL_BUDGET_SYSTEM_IP, VISUAL_SYSTEM_DAILY_LIMIT_DEFAULT } from "./visual-search-config";
 
 function supabaseAllowed() {
   return {
@@ -90,4 +96,26 @@ test("guard caches a successful query embedding", async () => {
     process.env.GEMINI_API_KEY = prevKey;
     resetVisualSearchGuardsForTests();
   }
+});
+
+test("system budget actor does not share the request IP bucket", async () => {
+  const now = new Date("2026-08-20T07:00:00.000Z");
+  let ipHash = "";
+  let ipMax = 0;
+  const result = await reserveVisualSearchBudget({
+    headers: new Headers({ "x-forwarded-for": "203.0.113.10" }),
+    budgetActor: "system",
+    now,
+    supabase: {
+      async rpc(_fn, args) {
+        ipHash = String(args?.p_ip_hash ?? "");
+        ipMax = Number(args?.p_ip_max ?? 0);
+        return { data: { allowed: true }, error: null };
+      },
+    },
+  });
+  assert.equal(result.allowed, true);
+  assert.equal(ipHash, extensionRateLimitIpHash(VISUAL_BUDGET_SYSTEM_IP, now));
+  assert.notEqual(ipHash, extensionRateLimitIpHash("203.0.113.10", now));
+  assert.equal(ipMax, VISUAL_SYSTEM_DAILY_LIMIT_DEFAULT);
 });

@@ -1,5 +1,5 @@
 import { cache } from "react";
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 import Link from "next/link";
 import {
   fetchRouteCards,
@@ -15,23 +15,36 @@ import { ListingClusterChipGroup } from "@/components/ListingClusterChipGroup";
 import { PageLayout } from "@/components/PageLayout";
 import {
   getSiblingTags,
-  getAllTagPaths,
   DIMENSION_LABELS,
   findTagBySlug,
   type Dimension,
   type TagEntry,
   DIMENSION_PRIORITY,
 } from "@/lib/tag-registry";
-import { resolveUrlToTags, getMinCardsForLevel, type ResolvedRoute } from "@/lib/route-resolver";
+import { buildCanonicalPath, resolveUrlToTags, getMinCardsForLevel, type ResolvedRoute } from "@/lib/route-resolver";
 import { getClusterChipNavigation } from "@/lib/menu";
 import { getSeoForRoute } from "@/lib/seo-templates";
 import type { SeoContent } from "@/lib/seo-content";
+import {
+  birthdayActiveAliasFromTags,
+  birthdayListingSearchQuery,
+  getFeaturedBirthdayNavItems,
+  isDenRozhdeniyaClusterPath,
+  isDenRozhdeniyaHubPath,
+} from "@/lib/den-rozhdeniya-cluster";
 import {
   resolveSeoIllustrations,
   type ResolvedSeoIllustration,
 } from "@/lib/seo-illustrations";
 import { ListingFotoVPromtBanner } from "@/components/foto-v-promt-promo/ListingFotoVPromtBanner";
-import { LISTING_SSR_INITIAL_LIMIT } from "@/lib/listing-pagination";
+import {
+  LISTING_SEARCH_PAGE_SIZE,
+  LISTING_SSR_INITIAL_LIMIT,
+} from "@/lib/listing-pagination";
+import {
+  logListingHybridSearch,
+  searchListingCardsHybrid,
+} from "@/lib/listing-hybrid-search";
 import {
   findGeneraciyaFotoScenarioByTag,
   getGeneraciyaFotoScenarioPath,
@@ -63,6 +76,65 @@ const getCachedRouteCards = cache(
     }
   },
 );
+
+const getCachedSearchCards = cache(
+  async (query: string): Promise<RouteCardsResult> => {
+    try {
+      const startedAt = performance.now();
+      const page = await searchListingCardsHybrid({
+        query,
+        limit: LISTING_SEARCH_PAGE_SIZE,
+        offset: 0,
+        headers: new Headers(),
+      });
+      logListingHybridSearch({
+        source: "ssr",
+        queryLength: query.length,
+        limit: LISTING_SEARCH_PAGE_SIZE,
+        offset: 0,
+        resultCount: page.cards.length,
+        hasMore: page.hasMore,
+        outcome: page.outcome,
+        fallbackReason: page.fallbackReason,
+        allowlisted: page.allowlisted,
+        resultCacheHit: page.resultCacheHit,
+        vectorCacheHit: page.vectorCacheHit,
+        textCount: page.textCount,
+        visualCount: page.visualCount,
+        timings: page.timings,
+        totalMs: performance.now() - startedAt,
+      });
+      return {
+        cards: page.cards,
+        tier_used: "search",
+        cards_count: page.cards.length,
+        total_count: page.hasMore
+          ? page.cards.length + 1
+          : page.cards.length,
+        has_minimum: page.cards.length >= 1,
+        dimension_count: 0,
+      };
+    } catch (err) {
+      console.error("[TagPage] searchListingCardsHybrid failed:", err);
+      return { ...EMPTY_ROUTE_RESULT, tier_used: "error" };
+    }
+  },
+);
+
+function getListingCards(
+  route: ResolvedRoute,
+  searchParams: {
+    audience?: string;
+    style?: string;
+    occasion?: string;
+    object?: string;
+    sort?: string;
+  } | null | undefined,
+): Promise<RouteCardsResult> {
+  const query = birthdayListingSearchQuery(route.tags);
+  if (query) return getCachedSearchCards(query);
+  return getCachedRouteCards(buildListingFetchParams(route.rpcParams, searchParams ?? null));
+}
 
 function buildListingFetchParams(
   routeParams: Record<string, string | null>,
@@ -97,18 +169,30 @@ type Props = {
   }>;
 };
 
+function listingPathname(slug: string[]): string {
+  return `/${slug.join("/")}`;
+}
+
+function redirectIfNotCanonical(slug: string[], route: ResolvedRoute) {
+  const current = listingPathname(slug);
+  if (current !== route.canonicalPath) {
+    permanentRedirect(route.canonicalPath);
+  }
+}
+
 export async function generateMetadata({ params, searchParams }: Props) {
   const { slug } = await params;
   const qs = await searchParams;
   const route = resolveUrlToTags(slug);
   if (!route) notFound();
+  redirectIfNotCanonical(slug, route);
 
   const seo = getSeoForRoute(route);
 
   const canonicalUrl = `${SITE_URL}${route.canonicalPath}`;
   const title = seo.metaTitle;
 
-  const result = await getCachedRouteCards(buildListingFetchParams(route.rpcParams, qs ?? null));
+  const result = await getListingCards(route, qs ?? null);
   const totalCount = result.total_count ?? result.cards_count;
   const minCards = getMinCardsForLevel(route.level);
   const dbUnavailable = result.tier_used === "error";
@@ -187,8 +271,8 @@ function buildJsonLd(
       });
     } else if (route.level === 3) {
       // Build the L2 intermediate URL: parentPath + last segment of tags[1]
-      const tag1LastSeg = route.tags[1].urlPath.split("/").filter(Boolean).pop()!;
-      const l2Url = `${siteUrl}${route.parentPath}/${tag1LastSeg}`;
+      const l2Path = buildCanonicalPath(route.tags.slice(0, 2));
+      const l2Url = `${siteUrl}${l2Path}`;
       breadcrumbItems.push({
         "@type": "ListItem",
         position: 3,
@@ -336,9 +420,13 @@ async function getL2ChipsForTag(
   for (const { other, count } of matching) {
     const lastSeg = other.urlPath.split("/").filter(Boolean).pop()!;
     const basePath = tag.urlPath.replace(/\/$/, "");
+    const birthdayHref =
+      tag.slug === "den_rozhdeniya"
+        ? buildCanonicalPath([tag, other])
+        : `${basePath}/${lastSeg}`;
     const chip: L2Chip = {
       tag: other,
-      href: `${basePath}/${lastSeg}`,
+      href: birthdayHref,
       count,
     };
     const arr = grouped.get(other.dimension) ?? [];
@@ -454,9 +542,11 @@ export default async function TagPage({ params, searchParams }: Props) {
   const route = resolveUrlToTags(slug);
 
   if (!route) notFound();
+  redirectIfNotCanonical(slug, route);
 
   const mergedParams = mergeFilterParams(route.rpcParams, qs ?? null);
-  const result = await getCachedRouteCards(buildListingFetchParams(route.rpcParams, qs ?? null));
+  const listingSearchQuery = birthdayListingSearchQuery(route.tags);
+  const result = await getListingCards(route, qs ?? null);
   const totalCount = result.total_count ?? result.cards_count;
 
   let cards: PromptCardFull[];
@@ -470,7 +560,7 @@ export default async function TagPage({ params, searchParams }: Props) {
   const seo = getSeoForRoute(route);
 
   let resolvedIllustrations: ResolvedSeoIllustration[] = [];
-  if (route.level === 1 && seo.illustrations?.length) {
+  if (seo.illustrations?.length) {
     try {
       resolvedIllustrations = await resolveSeoIllustrations(seo.illustrations, mergedParams);
     } catch (err) {
@@ -519,8 +609,17 @@ export default async function TagPage({ params, searchParams }: Props) {
     (primaryTag.dimension === "audience_tag" ||
       primaryTag.dimension === "style_tag" ||
       primaryTag.dimension === "object_tag");
+  const currentPath = listingPathname(slug);
+  const isBirthdayCluster = isDenRozhdeniyaClusterPath(currentPath);
+  const birthdayNav = isBirthdayCluster
+    ? getFeaturedBirthdayNavItems(
+        isDenRozhdeniyaHubPath(currentPath)
+          ? null
+          : birthdayActiveAliasFromTags(route.tags),
+      )
+    : [];
   const clusterChipsAboveGrid =
-    isSobytiyaL1 || isSiblingClusterL1
+    !isBirthdayCluster && (isSobytiyaL1 || isSiblingClusterL1)
       ? getClusterChipNavigation(primaryTag.dimension, primaryTag.urlPath)
       : [];
   const l2ChipGroupsBelow = isSobytiyaL1
@@ -586,8 +685,20 @@ export default async function TagPage({ params, searchParams }: Props) {
                 />
               ) : undefined
             }
+            afterIntro={
+              birthdayNav.length > 0 ? (
+                <ListingClusterChipGroup
+                  label="Сценарии на день рождения"
+                  items={birthdayNav}
+                />
+              ) : undefined
+            }
+            listingSearchQuery={listingSearchQuery}
+            listingSearchHasMore={
+              Boolean(listingSearchQuery && totalCount > result.cards_count)
+            }
           />
-          {seo.popularLinks?.length ? (
+          {seo.popularLinks?.length && !isBirthdayCluster ? (
             <div className="sr-only">
               <SeoPopularLinks links={seo.popularLinks} />
             </div>
@@ -607,7 +718,7 @@ export default async function TagPage({ params, searchParams }: Props) {
               href={getGeneraciyaFotoScenarioPath(generationScenario.slug)}
               className="mt-4 inline-flex min-h-11 items-center justify-center rounded-full bg-indigo-600 px-5 text-sm font-semibold text-white transition hover:bg-indigo-700"
             >
-              {generationScenario.label}: сгенерировать фото
+              {`${generationScenario.label}: сгенерировать фото`}
             </Link>
           </section>
         ) : null}

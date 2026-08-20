@@ -7,6 +7,16 @@ export const LISTING_SSR_INITIAL_LIMIT = 10;
 /** Размер следующих порций (и шаг offset в пространстве ranked RPC). */
 export const LISTING_INFINITE_PAGE_SIZE = 24;
 
+/** Search-backed listings (`/search` and birthday cluster): hybrid page size. */
+export const LISTING_SEARCH_PAGE_SIZE = 48;
+
+/**
+ * `search_cards_text` caps each request at `least(100, p_limit)`.
+ * Fetch `limit + 1` to know hasMore, so the client limit must stay at 99.
+ */
+export const LISTING_SEARCH_RPC_MAX_LIMIT = 100;
+export const LISTING_SEARCH_API_MAX_LIMIT = LISTING_SEARCH_RPC_MAX_LIMIT - 1;
+
 /** Lookahead for listing/search sentinels. Same value for catalog and `/search`. */
 export const LISTING_SENTINEL_ROOT_MARGIN_PX = 600;
 
@@ -29,6 +39,28 @@ export function hasMoreRankedPages(
 ): boolean {
   if (rankedStep <= 0 || totalCount <= 0) return false;
   return rankedOffset + rankedStep < totalCount;
+}
+
+/** Text-search listings have no total_count — a full page means another fetch. */
+export function hasMoreSearchPages(
+  receivedCount: number,
+  requestedLimit: number
+): boolean {
+  if (requestedLimit <= 0 || receivedCount <= 0) return false;
+  return receivedCount >= requestedLimit;
+}
+
+/** Fetch `limit + 1` from search RPC, then keep a deterministic page. */
+export function takeSearchPage<T>(
+  rows: readonly T[],
+  requestedLimit: number
+): { cards: T[]; hasMore: boolean } {
+  const limit = Math.max(0, requestedLimit);
+  if (limit <= 0) return { cards: [], hasMore: false };
+  return {
+    cards: rows.slice(0, limit) as T[],
+    hasMore: rows.length > limit,
+  };
 }
 
 export function resolveListingPageStep(

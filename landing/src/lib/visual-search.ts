@@ -1,4 +1,7 @@
-import { embedSearchQueryWithGuards } from "@/lib/visual-search-guard";
+import {
+  embedSearchQueryWithGuards,
+  type VisualBudgetActor,
+} from "@/lib/visual-search-guard";
 import { mergeHybridSearchResults, type SearchRankCard } from "@/lib/visual-search-rank";
 import {
   TEXT_SEARCH_MAX_WINDOW,
@@ -54,6 +57,7 @@ export async function runHybridCardSearch(options: {
   supabase: Parameters<typeof embedSearchQueryWithGuards>[0]["supabase"];
   deps: HybridSearchDeps;
   now?: Date;
+  budgetActor?: VisualBudgetActor;
 }): Promise<HybridSearchResult> {
   const config = getVisualSearchConfig();
   const started = performance.now();
@@ -90,6 +94,7 @@ export async function runHybridCardSearch(options: {
     supabase: options.supabase,
     config,
     now: options.now,
+    budgetActor: options.budgetActor,
   });
 
   const [textCards, embed] = await Promise.all([textPromise, embedPromise]);

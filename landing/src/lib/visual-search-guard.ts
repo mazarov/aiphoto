@@ -15,6 +15,7 @@ import {
 } from "@/lib/visual-search-cache";
 import { createCircuitBreaker } from "@/lib/visual-search-circuit";
 import {
+  VISUAL_BUDGET_SYSTEM_IP,
   VISUAL_CACHE_MAX_ENTRIES,
   VISUAL_CACHE_TTL_MS,
   VISUAL_CIRCUIT_FAILURES,
@@ -24,6 +25,8 @@ import {
   type VisualRpcClient,
   type VisualSearchConfig,
 } from "@/lib/visual-search-config";
+
+export type VisualBudgetActor = "user" | "system";
 
 export type VisualGuardReason =
   | "disabled"
@@ -102,20 +105,27 @@ export async function reserveVisualSearchBudget(options: {
   headers: Headers;
   config?: VisualSearchConfig;
   now?: Date;
+  budgetActor?: VisualBudgetActor;
 }): Promise<
   | { allowed: true; ipHash: string }
   | { allowed: false; reason: "rate_limited" | "guard_unavailable"; ipHash: string }
 > {
   const config = options.config ?? getVisualSearchConfig();
-  const ip = extensionRateLimitParsedIp(options.headers);
+  const actor = options.budgetActor ?? "user";
+  const ip =
+    actor === "system"
+      ? VISUAL_BUDGET_SYSTEM_IP
+      : extensionRateLimitParsedIp(options.headers);
   const ipHash = extensionRateLimitIpHash(ip, options.now);
+  const ipMax =
+    actor === "system" ? config.systemDailyLimit : config.ipDailyLimit;
   try {
     const { data, error } = await options.supabase.rpc(
       "visual_search_rate_limit_increment",
       {
         p_ip_hash: ipHash,
         p_window_start: extensionRateLimitDayWindowStartIso(options.now),
-        p_ip_max: config.ipDailyLimit,
+        p_ip_max: ipMax,
         p_global_max: config.globalDailyLimit,
       },
     );
@@ -138,6 +148,7 @@ export async function embedSearchQueryWithGuards(options: {
   supabase: RateLimitClient;
   config?: VisualSearchConfig;
   now?: Date;
+  budgetActor?: VisualBudgetActor;
   embed?: typeof embedSearchQuery;
 }): Promise<VisualEmbedOutcome> {
   const config = options.config ?? getVisualSearchConfig();
@@ -168,6 +179,7 @@ export async function embedSearchQueryWithGuards(options: {
         headers: options.headers,
         config,
         now: options.now,
+        budgetActor: options.budgetActor,
       });
       if (!budget.allowed) {
         const deny = new Error(budget.reason);

@@ -1,6 +1,8 @@
 import type { TagEntry, Dimension } from "./tag-registry";
+import { DIMENSION_PRIORITY } from "./tag-registry";
 import { type SeoContent, getSeoContent } from "./seo-content";
 import type { ResolvedRoute } from "./route-resolver";
+import { seoComboKey } from "./den-rozhdeniya-cluster";
 
 type DimensionPair = `${Dimension}+${Dimension}`;
 
@@ -102,9 +104,13 @@ const DEFAULT_HOW_TO = [
 
 /**
  * Get SEO content for a resolved route.
- * Priority: manual (seo-content.ts for L1) → template (L2/L3).
+ * Priority: combo key / L1 slug in seo-content.ts → template (L2/L3).
  */
 export function getSeoForRoute(route: ResolvedRoute): SeoContent {
+  const comboManual =
+    route.level >= 2 ? getSeoContent(seoComboKey(route.tags)) : null;
+  if (comboManual) return comboManual;
+
   if (route.level === 1) {
     const manual = getSeoContent(route.primaryTag.slug);
     if (manual) return manual;
@@ -120,8 +126,8 @@ export function getSeoForRoute(route: ResolvedRoute): SeoContent {
 
   const sorted = [...route.tags].sort(
     (a, b) =>
-      (["audience_tag", "style_tag", "occasion_tag", "object_tag", "doc_task_tag"] as Dimension[]).indexOf(a.dimension) -
-      (["audience_tag", "style_tag", "occasion_tag", "object_tag", "doc_task_tag"] as Dimension[]).indexOf(b.dimension),
+      DIMENSION_PRIORITY.indexOf(a.dimension) -
+      DIMENSION_PRIORITY.indexOf(b.dimension),
   );
 
   if (route.level === 2 && sorted.length === 2) {

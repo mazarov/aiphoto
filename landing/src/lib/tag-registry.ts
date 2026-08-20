@@ -109,7 +109,7 @@ export const TAG_REGISTRY: TagEntry[] = [
   { slug: "s_shuboj", dimension: "object_tag", labelRu: "В шубе", labelEn: "In fur coat", urlPath: "/s-shuboj", patterns: [/в шубе|шуба|шубой|меховой|меховая|меховую/i] },
   { slug: "so_svechami", dimension: "object_tag", labelRu: "Со свечами", labelEn: "With candles", urlPath: "/so-svechami", patterns: [/со свеч|при свечах|свечой|свечей|свечи|свечам|свечу|свеча/i] },
   { slug: "v_platye", dimension: "object_tag", labelRu: "В платье", labelEn: "In dress", urlPath: "/v-platye", patterns: [/в платье|платья|платьем/i] },
-  { slug: "s_bokalom", dimension: "object_tag", labelRu: "С бокалом", labelEn: "With glass", urlPath: "/s-bokalom", patterns: [/бокал|шампанск/i] },
+  { slug: "s_bokalom", dimension: "object_tag", labelRu: "С бокалом", labelEn: "With glass", urlPath: "/s-bokalom", patterns: [/бокал/i] },
   { slug: "s_kofe", dimension: "object_tag", labelRu: "С кофе", labelEn: "With coffee", urlPath: "/s-kofe", patterns: [/кофе|чашечк/i] },
 
   { slug: "na_avatarku", dimension: "object_tag", labelRu: "На аватарку", labelEn: "For avatar", urlPath: "/foto-na-avatarku", patterns: [/на аватарк|на аву|аватар/i] },
@@ -198,6 +198,8 @@ export const TAG_REGISTRY: TagEntry[] = [
   { slug: "s_tulpanami", dimension: "object_tag", labelRu: "С тюльпанами", labelEn: "With tulips", urlPath: "/s-tulpanami", patterns: [/тюльпан/i] },
   // Drinks
   { slug: "s_shampanskim", dimension: "object_tag", labelRu: "С шампанским", labelEn: "With champagne", urlPath: "/s-shampanskim", patterns: [/шампанск/i] },
+  { slug: "s_detskim_foto", dimension: "object_tag", labelRu: "С детским фото", labelEn: "With childhood photo", urlPath: "/s-detskim-foto", patterns: [/детск(?:им|ой)\s+фото|детской\s+фотографи|маленькой\s+собой|с\s+собой\s+маленьк/i] },
+  { slug: "so_lvom", dimension: "object_tag", labelRu: "Со львом", labelEn: "With lion", urlPath: "/so-lvom", patterns: [/со\s+львом|с\s+львом|львом(?![а-яё])/i] },
   // Props
   { slug: "s_zontom", dimension: "object_tag", labelRu: "С зонтом", labelEn: "With umbrella", urlPath: "/s-zontom", patterns: [/с\s+зонт|зонтик|зонтом|umbrella/i] },
   { slug: "s_knigoy", dimension: "object_tag", labelRu: "С книгой", labelEn: "With book", urlPath: "/s-knigoy", patterns: [/с\s+книг|книга|книжк/i] },

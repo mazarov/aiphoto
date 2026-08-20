@@ -2,6 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import type { NextConfig } from "next";
+import { DEN_ROZHDENIYA_PERMANENT_REDIRECTS } from "./src/lib/den-rozhdeniya-cluster";
 
 const landingDir = import.meta.dirname;
 const repoRoot = path.resolve(landingDir, "..");
@@ -57,6 +58,11 @@ const nextConfig: NextConfig = {
         destination: "/trends",
         permanent: true,
       },
+      ...DEN_ROZHDENIYA_PERMANENT_REDIRECTS.map((item) => ({
+        source: item.source,
+        destination: item.destination,
+        permanent: true,
+      })),
     ];
   },
   async rewrites() {

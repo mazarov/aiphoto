@@ -50,6 +50,8 @@ const RULES: Rule[] = [
 
   // events
   { tag: "den_rozhdeniya", patterns: [/день\s+рожден|на\s+др\b/i, /\bbirthday\b/i] },
+  { tag: "s_detskim_foto", patterns: [/детск(?:им|ой)\s+фото|маленькой\s+собой|с\s+собой\s+маленьк/i] },
+  { tag: "so_lvom", patterns: [/со\s+львом|с\s+львом/i] },
   { tag: "vosmoe_marta", patterns: [/8\s*март/i] },
   { tag: "valentines_day", patterns: [/14\s*феврал|день\s+влюблен|valentine/i] },
   { tag: "svadba", patterns: [/свадьб/i, /\bwedding\b/i] },

@@ -109,6 +109,7 @@ export function ListingExplorerHeading({
   introSecondary,
   countBadge,
   collapseIntroOnMobile = false,
+  afterIntro,
 }: {
   eyebrow?: string;
   title: string;
@@ -118,6 +119,7 @@ export function ListingExplorerHeading({
   introSecondary?: string;
   countBadge?: ReactNode;
   collapseIntroOnMobile?: boolean;
+  afterIntro?: ReactNode;
 }) {
   const TitleTag = titleAs;
   const [introExpanded, setIntroExpanded] = useState(false);
@@ -168,6 +170,7 @@ export function ListingExplorerHeading({
           {introSecondary}
         </p>
       ) : null}
+      {afterIntro ? <div className="mt-4">{afterIntro}</div> : null}
     </div>
   );
 }

@@ -23,6 +23,7 @@ import { listingPhotoAspectRatio } from "@/lib/listing-masonry";
 import type { PromptCardFull } from "@/lib/supabase";
 import type { Dimension } from "@/lib/tag-registry";
 import type { ListingSort } from "@/lib/listing-sort";
+import type { ReactNode } from "react";
 
 const SEARCH_RESULT_LIMIT = 16;
 const SEARCH_DEBOUNCE_MS = 500;
@@ -49,6 +50,7 @@ export type CatalogWithFiltersProps = {
   eyebrow?: string;
   intro?: string;
   introSecondary?: string;
+  afterIntro?: ReactNode;
   /**
    * When set, listing is always sorted this way: no sort toggle, no sessionStorage / `?sort=` sync.
    * Used by `/trends` (always `created_at` / sort=new).
@@ -56,6 +58,12 @@ export type CatalogWithFiltersProps = {
   fixedSort?: ListingSort;
   /** Rendered above the masonry — e.g. event cross-link chips. */
   preGrid?: ReactNode;
+  /**
+   * Birthday-cluster pages: masonry is hybrid listing search, not `resolve_route_cards`.
+   * Category filters are hidden because they would switch the source back to tags.
+   */
+  listingSearchQuery?: string | null;
+  listingSearchHasMore?: boolean;
 };
 
 export function CatalogWithFilters({
@@ -69,8 +77,11 @@ export function CatalogWithFilters({
   eyebrow,
   intro,
   introSecondary,
+  afterIntro,
   fixedSort,
   preGrid,
+  listingSearchQuery = null,
+  listingSearchHasMore = false,
 }: CatalogWithFiltersProps) {
   const [filterPanelOpen, setFilterPanelOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -82,13 +93,18 @@ export function CatalogWithFilters({
       baseRpcParams,
       lockedDimensions,
     });
-  const { sort: urlSort, setSort } = useListingSort({ disabled: fixedSort != null });
+  const searchListing = Boolean(listingSearchQuery?.trim());
+  const { sort: urlSort, setSort } = useListingSort({
+    disabled: fixedSort != null || searchListing,
+  });
   const sort = fixedSort ?? urlSort;
-  const sortChangeHandler = fixedSort != null ? undefined : setSort;
+  const sortChangeHandler =
+    fixedSort != null || searchListing ? undefined : setSort;
 
   const listingGridKey = useMemo(
-    () => stableListingKey(mergedRpcParams, sort),
-    [mergedRpcParams, sort]
+    () =>
+      `${stableListingKey(mergedRpcParams, sort)}|q:${listingSearchQuery?.trim() ?? ""}`,
+    [mergedRpcParams, sort, listingSearchQuery]
   );
 
   const trimmedQuery = query.trim();
@@ -131,7 +147,8 @@ export function CatalogWithFilters({
     };
   }, [isSearching, trimmedQuery]);
 
-  const showNewEmpty = !isSearching && sort === "new" && totalCount === 0;
+  const showNewEmpty =
+    !isSearching && !searchListing && sort === "new" && totalCount === 0;
   const searchExamples = useMemo(
     () => (searchCards ?? []).map(toGenerationExampleCard),
     [searchCards]
@@ -152,9 +169,10 @@ export function CatalogWithFilters({
         titleId={headingId}
         intro={intro}
         introSecondary={introSecondary}
+        afterIntro={afterIntro}
         collapseIntroOnMobile
         countBadge={
-          !isSearching && totalCount > 0 ? (
+          !isSearching && !searchListing && totalCount > 0 ? (
             <ListingPromptCountBadge count={totalCount} />
           ) : null
         }
@@ -168,18 +186,20 @@ export function CatalogWithFilters({
         loading={searchLoading}
       />
 
-      <ListingDesktopFilters
-        variant="explorer"
-        filters={filters}
-        onSetFilter={setFilter}
-        onReset={resetFilters}
-        activeCount={activeCount}
-        hiddenDimensions={lockedDimensions}
-        rpcParams={mergedRpcParams}
-        sort={sortChangeHandler ? sort : undefined}
-        onSortChange={sortChangeHandler}
-        onOpenMobileFilters={() => setFilterPanelOpen(true)}
-      />
+      {searchListing ? null : (
+        <ListingDesktopFilters
+          variant="explorer"
+          filters={filters}
+          onSetFilter={setFilter}
+          onReset={resetFilters}
+          activeCount={activeCount}
+          hiddenDimensions={lockedDimensions}
+          rpcParams={mergedRpcParams}
+          sort={sortChangeHandler ? sort : undefined}
+          onSortChange={sortChangeHandler}
+          onOpenMobileFilters={() => setFilterPanelOpen(true)}
+        />
+      )}
 
       {preGrid ? <div className="mt-3">{preGrid}</div> : null}
 
@@ -243,6 +263,10 @@ export function CatalogWithFilters({
           </>
         ) : showNewEmpty ? (
           <p className="py-16 text-center text-sm text-zinc-500">Пока нет новых</p>
+        ) : searchListing && initialCards.length === 0 ? (
+          <p className="py-16 text-center text-sm text-zinc-500">
+            Подходящих промтов пока не найдено
+          </p>
         ) : (
           <InfiniteGrid
             key={listingGridKey}
@@ -252,21 +276,25 @@ export function CatalogWithFilters({
             rpcParams={mergedRpcParams}
             strictMode={activeCount > 0}
             sort={sort}
+            searchQuery={listingSearchQuery}
+            searchHasMore={listingSearchHasMore}
           />
         )}
       </div>
 
-      <FilterFAB
-        filters={filters}
-        activeCount={activeCount}
-        onApply={applyFilters}
-        hiddenDimensions={lockedDimensions}
-        rpcParams={mergedRpcParams}
-        open={filterPanelOpen}
-        onOpenChange={setFilterPanelOpen}
-        sort={sortChangeHandler ? sort : undefined}
-        onSortChange={sortChangeHandler}
-      />
+      {searchListing ? null : (
+        <FilterFAB
+          filters={filters}
+          activeCount={activeCount}
+          onApply={applyFilters}
+          hiddenDimensions={lockedDimensions}
+          rpcParams={mergedRpcParams}
+          open={filterPanelOpen}
+          onOpenChange={setFilterPanelOpen}
+          sort={sortChangeHandler ? sort : undefined}
+          onSortChange={sortChangeHandler}
+        />
+      )}
     </ListingExplorerFrame>
   );
 }

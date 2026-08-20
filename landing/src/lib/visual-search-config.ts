@@ -24,6 +24,8 @@ export const VISUAL_CIRCUIT_WINDOW_MS = 60_000;
 export const VISUAL_CIRCUIT_OPEN_MS = 30_000;
 export const VISUAL_IP_DAILY_LIMIT_DEFAULT = 60;
 export const VISUAL_GLOBAL_DAILY_LIMIT_DEFAULT = 4000;
+export const VISUAL_SYSTEM_DAILY_LIMIT_DEFAULT = 10_000;
+export const VISUAL_BUDGET_SYSTEM_IP = "system";
 export const VISUAL_MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 export const VISUAL_IMAGE_MAX_EDGE = 768;
 
@@ -50,6 +52,7 @@ export type VisualSearchConfig = {
   useProxy: boolean;
   ipDailyLimit: number;
   globalDailyLimit: number;
+  systemDailyLimit: number;
   geminiConcurrency: number;
 };
 
@@ -77,6 +80,12 @@ export function getVisualSearchConfig(): VisualSearchConfig {
     globalDailyLimit: envInt(
       "SEARCH_VISUAL_GLOBAL_DAILY_LIMIT",
       VISUAL_GLOBAL_DAILY_LIMIT_DEFAULT,
+      1,
+      1_000_000,
+    ),
+    systemDailyLimit: envInt(
+      "SEARCH_VISUAL_SYSTEM_DAILY_LIMIT",
+      VISUAL_SYSTEM_DAILY_LIMIT_DEFAULT,
       1,
       1_000_000,
     ),

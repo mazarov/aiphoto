@@ -66,6 +66,19 @@ test("generation scenarios map to existing tag dimensions", () => {
   );
 });
 
+test("birthday generation page owns the generate query", () => {
+  const copy = GENERACIYA_FOTO_SCENARIO_COPY.find(
+    (scenario) => scenario.slug === "na-den-rozhdeniya",
+  );
+  assert.ok(copy);
+  assert.match(copy.metaTitle, /Сгенерировать фото на день рождения/);
+  assert.match(copy.h1, /Сгенерировать фото на день рождения/);
+  assert.match(
+    `${copy.intro} ${copy.faq.map((item) => `${item.q} ${item.a}`).join(" ")}`,
+    /сгенерировать фото на день рождения/i,
+  );
+});
+
 test("every scenario has unique, complete SEO copy", () => {
   assert.equal(GENERACIYA_FOTO_SCENARIO_COPY.length, 22);
   assert.equal(

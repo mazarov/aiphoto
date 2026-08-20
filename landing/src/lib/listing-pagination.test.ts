@@ -3,6 +3,11 @@ import test from "node:test";
 import {
   hasListingSentinelReachedLoadRange,
   hasMoreRankedPages,
+  hasMoreSearchPages,
+  LISTING_SEARCH_API_MAX_LIMIT,
+  LISTING_SEARCH_PAGE_SIZE,
+  LISTING_SEARCH_RPC_MAX_LIMIT,
+  takeSearchPage,
   isListingSentinelInLoadRange,
   LISTING_FILL_LOOKAHEAD_PX,
   LISTING_INFINITE_PAGE_SIZE,
@@ -19,6 +24,29 @@ test("hasMoreRankedPages uses ranked offset, not expanded card count", () => {
   assert.equal(hasMoreRankedPages(58, 24, 80), false);
   assert.equal(hasMoreRankedPages(10, 0, 80), false);
   assert.equal(hasMoreRankedPages(0, 10, 0), false);
+});
+
+test("hasMoreSearchPages treats a full page as a signal to fetch again", () => {
+  assert.equal(hasMoreSearchPages(10, 10), true);
+  assert.equal(hasMoreSearchPages(24, 24), true);
+  assert.equal(hasMoreSearchPages(7, 10), false);
+  assert.equal(hasMoreSearchPages(0, 10), false);
+  assert.equal(hasMoreSearchPages(10, 0), false);
+});
+
+test("takeSearchPage uses the extra row as hasMore, not as a visible card", () => {
+  assert.equal(LISTING_SEARCH_PAGE_SIZE, 48);
+  assert.equal(LISTING_SEARCH_RPC_MAX_LIMIT, 100);
+  assert.equal(LISTING_SEARCH_API_MAX_LIMIT, 99);
+  assert.ok(LISTING_SEARCH_PAGE_SIZE + 1 <= LISTING_SEARCH_RPC_MAX_LIMIT);
+  const rows = Array.from({ length: 49 }, (_, index) => index);
+  const page = takeSearchPage(rows, 48);
+  assert.equal(page.cards.length, 48);
+  assert.equal(page.hasMore, true);
+  assert.deepEqual(takeSearchPage(rows.slice(0, 20), 48), {
+    cards: rows.slice(0, 20),
+    hasMore: false,
+  });
 });
 
 test("listing starts with 10 ranked rows and then advances by 24", () => {

@@ -5,6 +5,10 @@ import {
   findTagByLastSegment,
   DIMENSION_PRIORITY,
 } from "./tag-registry";
+import {
+  buildBirthdayClusterCanonical,
+  resolveDenRozhdeniyaClusterSegments,
+} from "./den-rozhdeniya-cluster";
 
 export type ResolvedRoute = {
   tags: TagEntry[];
@@ -40,7 +44,10 @@ function stripTrailingSlash(path: string): string {
   return path.length > 1 && path.endsWith("/") ? path.slice(0, -1) : path;
 }
 
-function buildCanonicalPath(tags: TagEntry[]): string {
+export function buildCanonicalPath(tags: TagEntry[]): string {
+  const birthdayPath = buildBirthdayClusterCanonical(tags);
+  if (birthdayPath) return birthdayPath;
+
   const sorted = [...tags].sort(
     (a, b) =>
       DIMENSION_PRIORITY.indexOf(a.dimension) -
@@ -68,6 +75,18 @@ function buildCanonicalPath(tags: TagEntry[]): string {
  */
 export function resolveUrlToTags(slugSegments: string[]): ResolvedRoute | null {
   if (slugSegments.length === 0) return null;
+
+  const birthday = resolveDenRozhdeniyaClusterSegments(slugSegments);
+  if (birthday) {
+    return {
+      tags: birthday.tags,
+      level: birthday.level,
+      rpcParams: tagsToRpcParams(birthday.tags),
+      canonicalPath: birthday.canonicalPath,
+      parentPath: birthday.parentPath,
+      primaryTag: birthday.primaryTag,
+    };
+  }
 
   const fullPath = "/" + slugSegments.join("/");
 

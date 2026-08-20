@@ -1,7 +1,7 @@
 import type { MetadataRoute } from "next";
 import { TAG_REGISTRY, findTagBySlug, type Dimension } from "@/lib/tag-registry";
 import { getPublishedCardsForSitemap, getIndexableTagCombos, getFilterCounts, searchCardsByText } from "@/lib/supabase";
-import { getMinCardsForLevel } from "@/lib/route-resolver";
+import { buildCanonicalPath, getMinCardsForLevel } from "@/lib/route-resolver";
 import {
   GENERACIYA_FOTO_SCENARIO_ROUTES,
   MIN_GENERACIYA_FOTO_SCENARIO_CARDS,
@@ -17,40 +17,16 @@ const BASE_URL =
   process.env.NEXT_PUBLIC_SITE_URL ||
   (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://promptshot.ru");
 
-const DIMENSION_PRIORITY: Dimension[] = [
-  "audience_tag",
-  "style_tag",
-  "occasion_tag",
-  "object_tag",
-  "doc_task_tag",
-];
-
 function comboToPath(
   dim1: string,
   slug1: string,
   dim2: string,
   slug2: string,
 ): string | null {
-  const sorted = [
-    { dim: dim1, slug: slug1 },
-    { dim: dim2, slug: slug2 },
-  ].sort(
-    (a, b) =>
-      DIMENSION_PRIORITY.indexOf(a.dim as Dimension) -
-      DIMENSION_PRIORITY.indexOf(b.dim as Dimension),
-  );
-
-  const primary = findTagBySlug(sorted[0].dim as Dimension, sorted[0].slug);
-  const secondary = findTagBySlug(sorted[1].dim as Dimension, sorted[1].slug);
+  const primary = findTagBySlug(dim1 as Dimension, slug1);
+  const secondary = findTagBySlug(dim2 as Dimension, slug2);
   if (!primary || !secondary) return null;
-
-  const base = primary.urlPath.startsWith("/")
-    ? primary.urlPath.slice(1)
-    : primary.urlPath;
-  const secondaryLastSeg = secondary.urlPath.split("/").filter(Boolean).pop();
-  if (!secondaryLastSeg) return null;
-
-  return `${base}/${secondaryLastSeg}`;
+  return buildCanonicalPath([primary, secondary]).replace(/^\//, "");
 }
 
 function staticHubEntries(): MetadataRoute.Sitemap {
@@ -146,16 +122,17 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
     const combos = await getIndexableTagCombos(6, "ru");
     const l2Urls: MetadataRoute.Sitemap = [];
+    const seenL2 = new Set<string>();
     for (const c of combos) {
       const path = comboToPath(c.dim1, c.slug1, c.dim2, c.slug2);
-      if (path) {
-        l2Urls.push({
-          url: `${BASE_URL}/${path}`,
-          lastModified: new Date(),
-          changeFrequency: "weekly" as const,
-          priority: 0.7,
-        });
-      }
+      if (!path || seenL2.has(path)) continue;
+      seenL2.add(path);
+      l2Urls.push({
+        url: `${BASE_URL}/${path}`,
+        lastModified: new Date(),
+        changeFrequency: "weekly" as const,
+        priority: 0.7,
+      });
     }
 
     const cards = await getPublishedCardsForSitemap();

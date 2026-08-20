@@ -1,5 +1,19 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-08-20 (**listing hybrid hardening:** birthday `q` allowlist (`isBirthdayListingSearchQuery`); in-memory result cache 1h только для `outcome=hybrid`; Gemini budget actor `system` (не IP `unknown` / user-60); fallback не кэшируется. `/api/listing?q=` чужой запрос — FTS-only. Логи `[listing-search:fallback|slow]` без текста q + `Server-Timing`. `InfiniteGrid` для `q=` больше не шлёт `cache: no-store`.)
+>
+> Последнее обновление: 2026-08-20 (**birthday listing = hybrid search:** search-backed листинги (`birthdayListingSearchQuery`) идут через `searchListingCardsHybrid` — тот же `runHybridCardSearch`, что `GET /api/search` (FTS + Gemini embeddings / `search_cards_visual` при `SEARCH_VISUAL_ENABLED=1`). SSR и `GET /api/listing?q=` больше не зовут только `search_cards_text`; peek `limit+1` и `has_more` сохранены. Без флага — text fallback, как у сайта.)
+>
+> Последнее обновление: 2026-08-19 (**birthday search pagination:** search-backed листинги (`birthdayListingSearchQuery` → `search_cards_text`) больше не обрываются на SSR-срезе. Первая страница — `LISTING_SEARCH_PAGE_SIZE` (48) с peek `limit+1`; `GET /api/listing?q=` отдаёт `has_more`; `InfiniteGrid` грузит следующие offset-страницы (RPC `search_cards_text` режет только порцию, не всю выдачу, cap 100/request) и показывает «Показать ещё».)
+>
+> Последнее обновление: 2026-08-19 (**birthday anti-cannibal copy:** title/description/H2 хаба больше не перечисляют «девушке / детям / с тортом» и do-глаголы. Каждый L2 держит свой модификатор; «девушке с тортом» только на L3; генерация — `/generaciya-foto/na-den-rozhdeniya`. H1 хаба не менялся.)
+>
+> Последнее обновление: 2026-08-19 (**stable masonry cqw split restored:** `container-type: inline-size` на `.stable-listing-masonry`, `height: *cqw` на внутреннем `.stable-listing-masonry-canvas`. На `origin/main` CSS-часть фикса `a2dcde00` была случайно откатана pricing-коммитом `09663124`, из-за этого explorer снова держал пустой хвост под последним рядом.)
+>
+> Последнее обновление: 2026-08-19 (**birthday listing = search query:** сетка хаба и детей `/sobytiya/den-rozhdeniya*` строится через поисковый запрос, не через AND `seo_tags`. SSOT запросов — `birthdayListingSearchQuery` (`день рождения`, `день рождения девушке`, …). С 2026-08-20 путь тот же hybrid, что `/search`. SSR и `InfiniteGrid` пагинируют `GET /api/listing?q=`; категорийные фильтры на этих URL скрыты. Index/noindex смотрит на число поисковых хитов первой страницы. Sitemap combo-кэш по-прежнему теговый.)
+>
+> Последнее обновление: 2026-08-19 (**birthday cluster hub:** URL хаба `/sobytiya/den-rozhdeniya` не меняется. Дети occasion-first: `/devushki`, `/deti`, `/muzhchiny`, `/s-tortom`, `/s-detskim-foto`, `/s-shampanskim`, `/so-lvom`. SSOT — `den-rozhdeniya-cluster.ts`. Audience-first L2 (`/promty-dlya-foto-devushki/den-rozhdeniya` и узкие детские) — 301 на детей хаба. `getSeoForRoute` сначала ищет combo-ключ в `seo-content.ts`. Хаб остаётся листингом; под H1 — видимые чипы сценариев + generate `/generaciya-foto/na-den-rozhdeniya`. Новые object-теги `s_detskim_foto`, `so_lvom`; у `s_bokalom` убран паттерн «шампанск».)
+>
 > Последнее обновление: 2026-08-19 (**Yandex birthday launch:** `landing_view` до OAuth создаёт `landing_acquisition_visitors`, поэтому cohort date соответствует первому визиту; `/admin/finance` показывает delivery с live revenue, полное data quality и launch scorecard. Тест сужен до одной кампании / группы / объявления «Создать фото на день рождения»; SSOT — `yandex-two-cluster-launch.ts`, `CAC_max=82 ₽`, scale gate требует mature D30. Миграции `196` → `197` → `198` применены; browser, visitor/link, funnel, ledger/admin и ads replace smoke пройдены с очисткой данных. До расхода остаются web deploy, внешний test purchase/MP и настройка кабинета. Спека: `docs/19-08-yandex-two-cluster-launch.md`.)
 >
 > Последнее обновление: 2026-08-19 (**pricing mobile trust strip:** на viewport ≤639px блок «Разовая / Без срока / Без подписки» стоит над каруселью тарифов, поэтому пакеты смещаются ближе к центру между trust и CTA. На `sm+` полоса остаётся под сеткой 2×2.)
@@ -437,7 +451,7 @@
 | Путь | Назначение |
 |------|-----------|
 | `/api/search` | Гибридный поиск: `search_cards_text` + optional Gemini Embedding 2 / `search_cards_visual`; `audience/style/occasion/object` применяются в RPC до rank/pagination (миграция `194`). Fallback на FTS. `Server-Timing`: `search-text`, `search-embed`, `search-vector`, `search-rank`, `search-enrich` |
-| `/api/listing` | Листинг категории по тегам (`resolve_route_cards` RPC): `limit`, `offset`, `strict=1`, tag-фильтры, **`sort=popular\|new`** (default `new`; невалидный → **400**). Ответ: `{ cards, total_count, ranked_batch_size, sort }` |
+| `/api/listing` | Листинг категории по тегам (`resolve_route_cards` RPC): `limit`, `offset`, `strict=1`, tag-фильтры, **`sort=popular\|new`** (default `new`; невалидный → **400**). Если есть **`q`** (≥2 символа, ≤160) — `searchListingCardsHybrid`: birthday SSOT → hybrid + result cache 1h + system budget; любой другой `q` → FTS-only. Peek `limit+1`, ответ `{ cards, total_count, ranked_batch_size, has_more, query, matchType }`. `limit` для `q` ≤ 99. |
 | `/api/filter-counts` | Счётчики тегов для текущей выборки (`get_filter_counts` RPC) |
 | `/api/card-view` | POST: инкремент `view_count` + событие в `prompt_card_view_events` по `slug` (beacon `/p/[slug]`, дедуп `sessionStorage`; RPC `increment_prompt_card_view`) |
 | `/api/search-card` | Карточка по ID / prefix / batch |
@@ -873,6 +887,8 @@ getSeoForRoute(route)                   ← seo-templates.ts → seo-content.ts 
 
 **L2 чипы на L1:** На L1 страницах отображаются чипы-ссылки на L2 комбинации, сгруппированные по измерениям. Данные из RPC `get_indexable_tag_combos(min_cards=6)` — **чтение из `indexable_tag_combos_cache`** (мигр. `165`, refresh `refresh_indexable_tag_combos()` по pg_cron */30 мин); фильтруются для текущего L1 тега. Чипы показывают label + количество карточек.
 
+**Кластер «день рождения»:** хаб остаётся `/sobytiya/den-rozhdeniya` (не переезжает на `/den-rozhdeniya`). Дети — `/sobytiya/den-rozhdeniya/{alias}` (`devushki`, `deti`, `muzhchiny` и object-сегменты). Каноникал audience+ДР occasion-first; 301 только со старых audience-first L2, не с хаба. Если pathname ≠ `canonicalPath`, листинг отвечает 301. Ручной SEO L2 — combo-ключи `devushka+den_rozhdeniya` и т.п. в `seo-content.ts`. Видимый роутер под H1 — `ListingClusterChipGroup` из SSOT. Выдача карточек — hybrid-поиск только для SSOT-запросов кластера (`isBirthdayListingSearchQuery` → `searchListingCardsHybrid`). Успешная hybrid-выдача материализуется до 200 id на 1 час в процессе; Gemini идёт с budget actor `system` (`SEARCH_VISUAL_SYSTEM_DAILY_LIMIT`, default 10000), не в user IP-60. `text_fallback` не кэшируется. Чужой `/api/listing?q=` — FTS без эмбеддингов. SSR первая страница 48 + `has_more`, дальше `InfiniteGrid` → `GET /api/listing?q=` (HTTP cache default). Без `SEARCH_VISUAL_ENABLED` — FTS-only. Поле поиска в explorer остаётся: от 2 символов временно подменяет сетку через `/api/search`. Кластерные URL включают общий `Footer` вместе с generate dock (`showFooterWithGenerateDock`), как `/sobytiya/1-sentyabrya`. **Антиканнибализация copy:** хаб держит только «промты для фото на день рождения»; L2 не повторяют чужие модификаторы в title/description; do-интент («сделать/создать фото») — только `/generaciya-foto/na-den-rozhdeniya`; H1 хаба не меняется.
+
 **Фильтрация:** query params `?audience=devushka&style=portret` — **одно значение на измерение**. На tag-страницах измерения, уже заданные URL-путём, скрыты. Каталог: серверный merge `route.rpcParams` + `searchParams`, refetch при смене фильтров. **Desktop (`lg+`):** `ListingDesktopFilters` — кнопка на измерение (`Label: Value`); модалка с чипсами (поиск при >10), выбор сразу пишет URL и закрывает модалку (`setFilter`). **Mobile:** `FilterFAB` → `FilterPanel` (draft + «Применить»). **Применимые теги:** `useListingFilterCounts`; каталог — `/api/filter-counts`; поиск — client-side по `seo_tags`.
 
 ### Карточка `/p/[slug]`
@@ -1011,7 +1027,7 @@ OAuth completion: `/auth/callback` page вызывает `finishOAuthCodeExchang
 - **Root layout:** fallback title + description из `homepage-seo-copy.ts` (`HOMEPAGE_SEO`)
 - **Главная (`/`):** `generateMetadata` → `HOMEPAGE_SEO.title` / `description`; canonical; H1 + hero из copy-модуля; после destinations — **`HomepageExamplesExplorer`** (`#primery`); блоки **intro**, **HowTo**, **FAQ** (`HomeSeoBlocks.tsx`) в конце страницы; JSON-LD **`CollectionPage`** (`isPartOf: WebSite`, `hasPart[].name` = «Промты для фото {label}») + **`FAQPage`** + **`ItemList`** popular-карточек; FAQ-ссылки на L1 / `#primery`
 - **Листинг L1:** `generateMetadata` → title/description из `getSeoContent(tag.slug)`
-- **Листинг L2/L3:** `generateMetadata` → title/description из `getSeoForRoute(route)` (шаблоны)
+- **Листинг L2/L3:** `generateMetadata` → title/description из `getSeoForRoute(route)` (combo-ключ в `seo-content.ts`, иначе шаблоны)
 - **JSON-LD:** `BreadcrumbList` + `FAQPage` на всех листингах; на главной — `CollectionPage` + `FAQPage`; все JSON-LD вставляются как inline `<script type="application/ld+json">` в SSR HTML (не через `next/script strategy="afterInteractive"`)
 - **Trailing slash:** единая политика — **без trailing slash** во всех внутренних ссылках; canonical и sitemap тоже без slash; `menu.ts`, `homepage-sections.ts`, `[...slug]/page.tsx`, `page.tsx` — все `href` без `/` в конце
 - **Index/noindex:** L1 >= 1 карточки, L2/L3 >= 6 карточек
@@ -1099,7 +1115,7 @@ type ResolvedRoute = {
 ### SEO Templates (`src/lib/seo-templates.ts`)
 
 Шаблонная генерация SEO-контента для L2/L3:
-- Приоритет: контент из `seo-content.ts` (L1 по `primaryTag.slug`) → шаблон по паре измерений → generic fallback
+- Приоритет: combo-ключ тегов в `seo-content.ts` (`devushka+den_rozhdeniya`) → L1 по `primaryTag.slug` → шаблон по паре измерений → generic fallback
 - Шаблоны для всех пар измерений (audience+style, audience+occasion, style+object и т.д.)
 - Шаблонные `metaTitle` для fallback-страниц приведены к единому формату: `... — Nano Banana, ИИ-генератор | Бесплатно 2026`
 - JSON-LD: `BreadcrumbList` + `FAQPage` на всех листингах
@@ -1196,7 +1212,7 @@ Fallback без pg_cron: standalone `.mjs` на DO (`src/standalone/recalculate-
 
 `lastListingNavPath` (module-level, переживает remount `PageLayout`) + `scheduleRouteScrollToTop` (rAF/50/150 ms) — сброс и `#listing-scroll-root`, и `window`; category links `scroll={false}`. **Next 15** обновляет `usePathname()` / `useSearchParams()` на `history.pushState`, поэтому открытие модалки (`pushState /p/slug`) даёт смену пути — `useListingScrollOnRouteChange` ранним выходом по `isCardPath` / `isPricingPath` не сбрасывает позицию (иначе `scrollCatalogToTop` стёр бы `SCROLL_KEY` сразу после `lockListingScrollForModal`). Тот же overlay не должен выглядеть как новый `/search` без `q`: `resolveSearchUrlSync` + snapshot в `search-listing-session.ts`; `useListingFilters` замораживает query-фильтры, пока открыт overlay.
 
-**Пагинация листинга (`InfiniteGrid` + `GET /api/listing`):** константы **`LISTING_SSR_INITIAL_LIMIT` (10)** и **`LISTING_INFINITE_PAGE_SIZE` (48)** в `landing/src/lib/listing-pagination.ts` — первая порция с SSR на `[...slug]`, следующие запросы клиента по 48. В ответе API есть **`ranked_batch_size`** (число строк из RPC до `expandCardGroups`) и **`sort`**. Следующий **`offset`** увеличивается на это значение, а не на `cards.length`: иначе split-группы раздувают массив, OFFSET в SQL перескакивает через «недопоказанные» ранги и сетка листинга визуально «перемешивается». Условие «есть ещё страницы»: `hasMoreRankedPages` = `offset + ranked_batch_size < total_count`. Автодогрузка — **`useListingSentinelLoadMore`**: IO + drain после settle, если сенсор всё ещё в `LISTING_SENTINEL_ROOT_MARGIN_PX`. Смена **`sort`** или query-фильтра → remount `InfiniteGrid` (key включает `mergedRpcParams` + sort), **`offset=0`**, **`resetListingScroll()`**. Empty state при `sort=new` и `total_count=0`: «Пока нет новых». Риск дубликатов/пропусков при живом **`popularity_score`** + OFFSET — как с `view_count`; follow-up: keyset pagination. Повтор `card.id` между страницами (sibling с прошлой порции + ranked row) снимается в **`appendUniqueCardPage`** (`landing/src/lib/listing-cards.ts`) — offset по ranked не откатываем, чтобы не зациклить infinite scroll; drain продолжает, если порция целиком схлопнулась в дубли. `StableListingMasonry` последовательно продолжает детерминированные 2/3/4 lanes: добавление порции не меняет placement prefix и не создаёт page-boundary gaps. Публичный рендер — **одна masonry-плитка на `card.id`**, без `GroupedCard`.
+**Пагинация листинга (`InfiniteGrid` + `GET /api/listing`):** для теговых URL — **`LISTING_SSR_INITIAL_LIMIT` (10)** и **`LISTING_INFINITE_PAGE_SIZE` (24)**. Для search-backed (кластер «день рождения») — **`LISTING_SEARCH_PAGE_SIZE` (48)** на SSR и в клиенте; SSOT-запрос материализуется hybrid-ом до 200 id на 1 час, страницы режутся из кэша, peek `limit+1`, флаг **`has_more`**. Текстовое окно по-прежнему `least(100, p_limit)`, visual — отдельный RPC только на cache miss. В теговом ответе API есть **`ranked_batch_size`** (число строк из RPC до `expandCardGroups`) и **`sort`**. Следующий **`offset`** увеличивается на это значение, а не на `cards.length`: иначе split-группы раздувают массив, OFFSET в SQL перескакивает через «недопоказанные» ранги и сетка листинга визуально «перемешивается». Условие «есть ещё страницы»: `hasMoreRankedPages` = `offset + ranked_batch_size < total_count`. Автодогрузка — **`useListingSentinelLoadMore`**: IO + drain после settle, если сенсор всё ещё в `LISTING_SENTINEL_ROOT_MARGIN_PX`. Смена **`sort`** или query-фильтра → remount `InfiniteGrid` (key включает `mergedRpcParams` + sort), **`offset=0`**, **`resetListingScroll()`**. Empty state при `sort=new` и `total_count=0`: «Пока нет новых». Риск дубликатов/пропусков при живом **`popularity_score`** + OFFSET — как с `view_count`; follow-up: keyset pagination. Повтор `card.id` между страницами (sibling с прошлой порции + ranked row) снимается в **`appendUniqueCardPage`** (`landing/src/lib/listing-cards.ts`) — offset по ranked не откатываем, чтобы не зациклить infinite scroll; drain продолжает, если порция целиком схлопнулась в дубли. `StableListingMasonry` последовательно продолжает детерминированные 2/3/4 lanes: добавление порции не меняет placement prefix и не создаёт page-boundary gaps. Публичный рендер — **одна masonry-плитка на `card.id`**, без `GroupedCard`.
 
 **Плитки листинга (`ListingPhotoTile`):** то же визуальное правило, что главная и блок генерации — aspect первого фото, клик → модалка. Главная/короткие блоки используют CSS columns; infinite-листинги — `StableListingMasonry` с абсолютными lanes в container-query units. Hover-chrome / `listing-grid-clamp` на этих лентах не используются (`ListingGrid` 3:4 остаётся у `/generations` и `/analyses`). **`priority`** (`LISTING_LCP_PRIORITY_GRID_ITEMS` = 12) — `next/image priority` / `fetchPriority` у первых плиток. Pagination skeleton — **`ListingMasonrySkeleton`**. Legacy **`PromptCard` / `GroupedCard`** + `ListingCardLoadingShell` сохранены в коде, но публичные ленты их не монтируют.
 
@@ -1274,9 +1290,10 @@ landing/src/
 │   ├── supabase-server-auth.ts ← Серверная авторизация
 │   ├── tag-registry.ts         ← Реестр SEO-тегов (5 измерений, 100+ тегов)
 │   ├── route-resolver.ts       ← Резолвинг URL → теги (L1/L2/L3)
-│   ├── seo-templates.ts        ← Шаблонный SEO для L2/L3
+│   ├── den-rozhdeniya-cluster.ts ← SSOT хаба ДР, child-alias, 301, combo-ключи
+│   ├── seo-templates.ts        ← SEO для L2/L3: combo-ключ, иначе шаблон
 │   ├── seo-content-from-tag.ts ← Шаблон L1 из TagEntry (npm run seo:sync)
-│   ├── seo-content.ts          ← SEO для L1 (кураторский + автодобавленный)
+│   ├── seo-content.ts          ← SEO для L1 и combo-ключей L2 (кураторский + автодобавленный)
 │   ├── homepage-sections.ts    ← buildCategorySectionBlocks(), SECTION_ORDER, SectionBlock
 │   ├── homepage-explorer-chips.ts ← Wordstat-чипы главной (pinned + «Ещё»)
 │   └── menu.ts                 ← Структура меню
@@ -1357,7 +1374,8 @@ landing/src/
 | `YOOKASSA_SECRET_KEY` | Server-only секрет магазина YooKassa; не передаётся клиенту и не логируется |
 | `YANDEX_METRIKA_MP_TOKEN` | Server-only токен Measurement Protocol счётчика `107703100`; без него покупки в Директ не уходят |
 | `CRON_SECRET` | Bearer-секрет для `POST /api/cron/yookassa-reconcile` и `POST /api/cron/visual-embeddings` |
-| `SEARCH_VISUAL_ENABLED` | `1` включает Gemini visual branch в `/api/search`; default off |
+| `SEARCH_VISUAL_ENABLED` | `1` включает Gemini visual branch в `/api/search` и birthday SSOT `/api/listing?q=` / SSR; default off |
+| `SEARCH_VISUAL_SYSTEM_DAILY_LIMIT` | Дневной IP-лимит actor `system` (listing SSR/cache refresh); default 10000. Не делит user-60 |
 | `GEMINI_EMBEDDING_MODEL` | Default `gemini-embedding-2` |
 | `GEMINI_EMBEDDING_USE_PROXY` | Default on: `embedContent` через `GEMINI_PROXY_BASE_URL`. `0` — напрямую в Google |
 | `SEARCH_VISUAL_GENERATION` | Active embedding generation (default 1) |

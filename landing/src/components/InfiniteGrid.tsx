@@ -12,7 +12,9 @@ import {
 import { useListingSentinelLoadMore } from "@/hooks/useListingSentinelLoadMore";
 import {
   LISTING_INFINITE_PAGE_SIZE,
+  LISTING_SEARCH_PAGE_SIZE,
   hasMoreRankedPages,
+  hasMoreSearchPages,
   resolveListingPageStep,
 } from "@/lib/listing-pagination";
 import { subscribeListingNavigationLoadMore } from "@/lib/listing-card-navigation-context";
@@ -27,6 +29,9 @@ type Props = {
   rpcParams: Record<string, string | null>;
   strictMode?: boolean;
   sort?: ListingSort;
+  /** When set, pages come from hybrid listing search via `/api/listing?q=`, not tag RPC. */
+  searchQuery?: string | null;
+  searchHasMore?: boolean;
 };
 
 export function InfiniteGrid({
@@ -36,6 +41,8 @@ export function InfiniteGrid({
   rpcParams,
   strictMode = false,
   sort = "new",
+  searchQuery = null,
+  searchHasMore = false,
 }: Props) {
   const [cardPages, setCardPages] = useState<PromptCardFull[][]>(() => [
     appendUniqueCardsById([], initialCards),
@@ -44,7 +51,9 @@ export function InfiniteGrid({
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState(false);
   const [hasMore, setHasMore] = useState(() =>
-    hasMoreRankedPages(0, initialRankedBatchSize, totalCount)
+    searchQuery
+      ? searchHasMore
+      : hasMoreRankedPages(0, initialRankedBatchSize, totalCount)
   );
   const loadingRef = useRef(false);
   const hasMoreRef = useRef(hasMore);
@@ -52,11 +61,13 @@ export function InfiniteGrid({
   const rpcParamsRef = useRef(rpcParams);
   const sortRef = useRef(sort);
   const totalCountRef = useRef(totalCount);
+  const searchQueryRef = useRef(searchQuery);
 
   hasMoreRef.current = hasMore;
   rpcParamsRef.current = rpcParams;
   sortRef.current = sort;
   totalCountRef.current = totalCount;
+  searchQueryRef.current = searchQuery;
 
   const scheduleDrainRef = useRef(() => {});
 
@@ -67,16 +78,25 @@ export function InfiniteGrid({
     setLoadError(false);
     try {
       const oldOffset = offsetRef.current;
+      const listingQuery = searchQueryRef.current?.trim();
+      const pageSize = listingQuery ? LISTING_SEARCH_PAGE_SIZE : PAGE_SIZE;
       const sp = new URLSearchParams();
-      sp.set("limit", String(PAGE_SIZE));
+      sp.set("limit", String(pageSize));
       sp.set("offset", String(oldOffset));
       // Default sort is `new` (omit param); only non-default `popular` is sent.
-      if (sortRef.current === "popular") sp.set("sort", "popular");
-      for (const [k, v] of Object.entries(rpcParamsRef.current)) {
-        if (v) sp.set(k, v);
+      if (listingQuery) {
+        sp.set("q", listingQuery);
+      } else {
+        if (sortRef.current === "popular") sp.set("sort", "popular");
+        for (const [k, v] of Object.entries(rpcParamsRef.current)) {
+          if (v) sp.set(k, v);
+        }
+        if (strictMode) sp.set("strict", "1");
       }
-      if (strictMode) sp.set("strict", "1");
-      const res = await fetch(`/api/listing?${sp}`);
+      const res = await fetch(
+        `/api/listing?${sp}`,
+        listingQuery ? { cache: "default" } : { cache: "no-store" },
+      );
       if (!res.ok) {
         throw new Error(`listing_request_failed:${res.status}`);
       }
@@ -88,19 +108,26 @@ export function InfiniteGrid({
       if (Number.isFinite(apiTotal) && apiTotal >= 0) {
         totalCountRef.current = apiTotal;
       }
-      if (rankedSize === 0) {
+      if (rankedSize === 0 && newCards.length === 0) {
         setHasMore(false);
         hasMoreRef.current = false;
         return;
       }
 
-      const step = resolveListingPageStep(rankedSize);
+      const step = listingQuery
+        ? rankedSize || newCards.length
+        : resolveListingPageStep(rankedSize);
       if (newCards.length > 0) {
         setCardPages((prev) => appendUniqueCardPage(prev, newCards));
       }
       offsetRef.current = oldOffset + step;
 
-      const more = hasMoreRankedPages(oldOffset, step, totalCountRef.current);
+      const more =
+        listingQuery && typeof data.has_more === "boolean"
+          ? data.has_more
+          : listingQuery
+            ? hasMoreSearchPages(rankedSize || newCards.length, pageSize)
+            : hasMoreRankedPages(oldOffset, step, totalCountRef.current);
       setHasMore(more);
       hasMoreRef.current = more;
     } catch (error) {
@@ -137,6 +164,18 @@ export function InfiniteGrid({
       </div>
 
       <div ref={sentinelRef} className="h-px" />
+
+      {hasMore && !loading && searchQuery ? (
+        <div className="flex justify-center py-4">
+          <button
+            type="button"
+            onClick={() => void loadMore()}
+            className="min-h-11 rounded-full border border-zinc-300 bg-white px-5 text-sm font-semibold text-zinc-800 transition-colors hover:bg-zinc-50"
+          >
+            Показать ещё
+          </button>
+        </div>
+      ) : null}
 
       {loading && <ListingGridLoadingSkeleton photoOnly />}
       {loadError && (
