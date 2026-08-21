@@ -1,5 +1,7 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-08-21 (**SEO watchlist:** `/admin/seo` — топ-30 URL Вебмастера, раскрытие запросов, дневные показы/спрос/CTR/клики, фильтр дней и график динамики по запросу. Снимок `landing/src/data/seo-watchlist-snapshot.json`, refresh `src/standalone/refresh-seo-watchlist.mjs`, API `GET /api/admin/seo-watchlist`. Спека `docs/21-08-seo-page-watchlist.md`.)
+>
 > Последнее обновление: 2026-08-21 (**admin payments CSV:** `/admin/payments` кнопка «Скачать CSV» → `GET /api/admin/payments?format=csv` с теми же фильтрами status/test/source/campaign. Сервер листает `admin_landing_payments` до 10 000 строк, UTF-8 BOM + `;`, formula-safe quoting.)
 >
 > Последнее обновление: 2026-08-21 (**foto-v-promt SEO copy:** Title/H1 = «фото в промт»; H2 виджета = «промт по фото». Hero укорочен. FAQ без синонимов-вопросов. SSOT `landing/src/lib/foto-v-promt-copy.ts`, спека `docs/21-08-foto-v-promt-seo.md`. URL, виджет и лимиты без изменений.)
@@ -438,6 +440,7 @@
 /admin/analyze-history  → Закрытая история analyze/remix + все non-admin user generations; remix помечается бейджем и `change_request`; private source previews выдаются signed, completed results публикуются идемпотентно
 /admin/payments         → Закрытый cursor-реестр YooKassa/Robokassa: payer identity, RUB/status/test, credits/`credited_at`; кнопка «Скачать CSV» выгружает все строки текущих фильтров
 /admin/finance          → Касса выгрузок: импорт ЮKassa/GCP, чистый доход; `?tab=finance` с аналитики редиректит сюда
+/admin/seo              → Вотчлист топ-30 URL: фильтр дней, таблица + раскрытие запросов и график динамики
 /auth/callback          → OAuth callback (client page); PKCE exchange в браузере; `?next=` — возврат на страницу старта логина
 /embed/stv              → Steal This Vibe (клиент подгружает `/stv-panel/boot.mjs` + `styles.css`; та же логика, что side panel расширения)
 /extension-stv          → Превью маркетингового лендинга расширения (спека `docs/extension-landing-pain-hope-solution.md`); **`metadata.title` / `description`** — SEO; `metadata.robots` noindex; шапка **`ExtensionStvMarketingHeader`** (логотип + «Image to prompt» → `/extension-stv`, **Pricing** → `/extension-stv/pricing`, Chrome Web Store); FAB **`ExtensionStvFloatingCta`**. Порядок секций: hero (H1 + лид + `ExtensionStvChromeBadge`) → pain + **Reference** (`PainReferenceVsDraftMock`) → **Accuracy** (`ExtensionStvAccuracySection`) → **Testimonials** → **How it works** (`ExtensionStvHowItWorks`, 4 шага) → **FAQ** (`ExtensionStvFaq`). Футер **`ExtensionStvMarketingFooter`**. Блок **Reference**: upload → extract → expand. Общие константы: `landing/src/components/extension-stv/stv-marketing-shared.ts`.
@@ -534,6 +537,7 @@
 | `/api/admin/analytics` | GET, admin auth: no-store analytics rollups за `1…90` дней; топ пользователей — `admin_analytics_top_users` за тот же период |
 | `/api/admin/credits` | GET, admin auth: live остаток + daily flow (`days=1\|7\|30\|90`) + keyset-список (`q`, remaining/granted/spent/share) |
 | `/api/admin/finance` | GET, admin auth: KPI и разбивки импортов ЮKassa/GCP за месяц `YYYY-MM` |
+| `/api/admin/seo-watchlist` | GET, admin auth: снимок топ-30 URL + запросы/дни из `seo-watchlist-snapshot.json` |
 | `/api/admin/finance/import` | POST, admin auth: multipart replace-импорт `kind=revenue\|cogs`, CSV/ZIP до 10 MB |
 | `/api/admin/payments` | GET, admin auth: cursor YooKassa/Robokassa ledger с status/test/source/campaign filters, payer identity и credit state (`credited` / `not_due` / `discrepancy` / `stale`); `format=csv` — полная выгрузка тех же фильтров (до 10 000 строк, `;` + UTF-8 BOM) |
 | `/api/admin/payments/reconcile` | POST, admin auth: `{ paymentId \| yookassaPaymentId }` или `{ stale: true }` — ручной/batch reconcile через YooKassa GET |
@@ -583,7 +587,7 @@
 ### PromptShot analyze и admin
 
 - **Граница доступа:** страницы `/admin/analytics`, `/admin/analyze-history`,
-  `/admin/payments`, `/admin/finance` и каждый
+  `/admin/payments`, `/admin/finance`, `/admin/seo` и каждый
   `/api/admin/*` проверяют Supabase Auth session, затем нормализованный email против
   `ANALYTICS_ADMIN_EMAILS`. Пустой allowlist означает fail-closed; service-role key
   остаётся только на сервере.

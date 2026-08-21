@@ -8,6 +8,7 @@ const ITEMS = [
   { href: "/admin/analyze-history", label: "История" },
   { href: "/admin/payments", label: "Оплаты" },
   { href: "/admin/finance", label: "Финансы" },
+  { href: "/admin/seo", label: "SEO" },
 ] as const;
 
 export function AdminNav() {

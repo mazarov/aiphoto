@@ -5,6 +5,18 @@
       "command": "node",
       "args": ["${workspaceFolder}/src/standalone/mcp-yandex-mail.mjs"],
       "envFile": "${workspaceFolder}/.cursor/yandex-smtp.env"
+    },
+    "yandex-metrica": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["${workspaceFolder}/src/standalone/mcp-yandex-metrica.mjs"],
+      "envFile": "${workspaceFolder}/.cursor/yandex-seo.env"
+    },
+    "yandex-webmaster": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["${workspaceFolder}/src/standalone/mcp-yandex-webmaster.mjs"],
+      "envFile": "${workspaceFolder}/.cursor/yandex-seo.env"
     }
   }
 }

@@ -12,3 +12,4 @@ scripts/broadcast*sh-thd-*
 docs/export/
 tmp/
 .cursor/yandex-smtp.env
+.cursor/yandex-seo.env
