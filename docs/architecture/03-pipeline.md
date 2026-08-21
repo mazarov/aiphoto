@@ -1,5 +1,7 @@
 # 03 — Пайплайн: парсинг → загрузка → публикация
 
+> Последнее обновление: 2026-08-21 (**prompt remix always generates:** успешный remix на клиенте сразу зовёт `POST /api/generate`; без parent — обычный enqueue, с parent — continuation.)
+>
 > Последнее обновление: 2026-08-21 (**prompt remix history identity:** успешный `POST /api/prompt-remix` пишет `analyze_history.user_id` как shared `dbUserId`; эхо источника не пишется (`422 unchanged_prompt`).)
 >
 > Последнее обновление: 2026-08-18 (**publish embedding kick:** общий `publishPromptCard` после commit идемпотентно enqueue-ит карточку и через Next `after()` обрабатывает один visual embedding job. Это покрывает analyze/admin/user-generation visibility flows без задержки HTTP-ответа; recurring cron остаётся source of truth для retry/backlog.)
@@ -333,7 +335,8 @@ Site prompt remix (карточки / generate):
     → auth + resolveSharedDbUserId
     → Gemini rewrite
     ├─ echo / empty / MAX_TOKENS → 422, history не пишется
-    └─ changed → private analyze_history kind=remix + change_request + dbUserId (без image)
+    └─ changed → private analyze_history kind=remix + change_request + dbUserId
+         → клиент сразу POST /api/generate (parent, если есть completed result)
 
 Admin analyze publication:
   /admin/analyze-history

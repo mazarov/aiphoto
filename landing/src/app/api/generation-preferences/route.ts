@@ -1,10 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
+import { serializeUnknownError } from "@/lib/analyze-history";
 import { createSupabaseServer } from "@/lib/supabase";
 import { getSupabaseUserForApiRoute } from "@/lib/supabase-route-auth";
 import {
   isImageAspectRatio,
   isImageSize,
 } from "@/lib/generation/image-options";
+
+function isMissingPreferencesTable(error: unknown): boolean {
+  const serialized = serializeUnknownError(error);
+  return /does not exist|42P01|PGRST205/i.test(
+    `${serialized.message} ${serialized.code} ${serialized.details}`
+  );
+}
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -30,7 +38,11 @@ export async function GET(req: NextRequest) {
       .maybeSingle();
 
     if (error) {
-      console.error("[generation-preferences] read failed", error.message);
+      if (isMissingPreferencesTable(error)) {
+        console.warn("[generation-preferences] table missing, using defaults");
+        return NextResponse.json({ preferences: null });
+      }
+      console.error("[generation-preferences] read failed", serializeUnknownError(error));
       return NextResponse.json({ error: "preferences_failed" }, { status: 500 });
     }
 
@@ -131,7 +143,11 @@ export async function PUT(req: NextRequest) {
     );
 
     if (error) {
-      console.error("[generation-preferences] write failed", error.message);
+      if (isMissingPreferencesTable(error)) {
+        console.warn("[generation-preferences] table missing, skip persist");
+        return NextResponse.json({ ok: true, persisted: false });
+      }
+      console.error("[generation-preferences] write failed", serializeUnknownError(error));
       return NextResponse.json({ error: "preferences_failed" }, { status: 500 });
     }
 

@@ -1146,13 +1146,11 @@ export function CardInlineGeneratePanel({
       }
       setDraftPrompt(nextPrompt);
       setChangeRequest("");
-      if (parentGenerationId) {
-        await runGenerate({
-          promptOverride: nextPrompt,
-          parentGenerationId,
-          editInstruction: requestedChange,
-        });
-      }
+      await runGenerate({
+        promptOverride: nextPrompt,
+        parentGenerationId: parentGenerationId || undefined,
+        editInstruction: parentGenerationId ? requestedChange : undefined,
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : PROMPT_REMIX_COPY.errorGeneric);
     } finally {
@@ -1845,13 +1843,7 @@ export function CardInlineGeneratePanel({
                 onClick={() => void applyPromptRemix()}
                 className={`${OVERLAY_BUTTON_UA_RESET} mt-3 flex min-h-12 w-full shrink-0 items-center justify-center rounded-2xl bg-gradient-to-r from-indigo-500 to-violet-500 px-4 py-3 text-[13px] font-semibold text-white shadow-lg shadow-indigo-950/20 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50`}
               >
-                {remixing
-                  ? resultUrl && generationId
-                    ? "Применяем и генерируем…"
-                    : "Переписываем промпт…"
-                  : resultUrl && generationId
-                    ? "Применить и сгенерировать"
-                    : "Применить изменение"}
+                {remixing ? "Применяем и генерируем…" : "Применить и сгенерировать"}
               </button>
             </>
             )
