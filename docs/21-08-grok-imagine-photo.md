@@ -151,19 +151,12 @@ Safety xAI (`respect_moderation=false` / policy text) → `safety_block`, `retry
 
 **Кто может быть primary:** любая enabled image-модель, которая **не** `isGrokImageModel`.
 
-**Eligible (провайдерный сбой):**
-
-- HTTP 429 / 5xx
-- timeout / network / parse non-JSON при 429/5xx
-- пустой кадр / нет image candidate **без** safety
-- `gemini_http_*`, `gemini_error` без safety/recitation/blockReason
+**Eligible:** любая ошибка после вызова Gemini image (`IMAGE_OTHER`, safety, 429/5xx, timeout, пустой кадр, `gemini_error`, `config_error` ключа).
 
 **Не eligible:**
 
-- `safety_block`, recitation, policy, prohibited
-- `input_missing`, `config_error`, `vibe_reference_missing`
-- чужой path / validation (до worker не доходят)
-- shutdown / lease lost
+- `shutdown` (воркер гасится — второй vendor-вызов не стартуем)
+- ошибка до Gemini (input/parent/vibe) — в catch Gemini не попадает
 - primary уже Grok
 - `fallback_used=true` на job (второй фолбек запрещён)
 - circuit open
@@ -295,7 +288,7 @@ Enqueue: `requested_model = model`. Complete: `executed_model = фактичес
 5. Смоук (allowlist / свой аккаунт):
    - прямой Grok: text-only 1K 9:16; 1 фото 2K 1:1; local edit; 4 фото (ожидаем clamp 3);
    - выбран Flash, инъекция 503 Gemini → completed через Grok, `fallback_used`, credits=5, без второго списания;
-   - safety Gemini → **failed**, Grok не звали;
+   - safety / `IMAGE_OTHER` Gemini → тот же job один раз зовёт Grok;
    - выбран Grok, xAI 500 → retry Grok, не Gemini;
    - fail обоих → refund;
    - 4K + Grok в пикере → ушло как 2K.

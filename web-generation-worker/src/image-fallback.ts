@@ -1,30 +1,11 @@
 import { ProcessingError } from "./input-source";
 import { isGrokImageModel } from "./xai-image";
 
-const NOT_ELIGIBLE_TYPES = new Set([
-  "safety_block",
-  "input_missing",
-  "config_error",
-  "vibe_reference_missing",
-  "shutdown",
-  "parent_generation_missing",
-  "parent_generation_forbidden",
-  "parent_generation_not_ready",
-  "parent_generation_lookup_error",
-]);
+/** Only skip Grok when the worker is dying — do not start another vendor call. */
+const NOT_ELIGIBLE_TYPES = new Set(["shutdown"]);
 
 export function isImageFallbackEligible(error: ProcessingError): boolean {
-  if (NOT_ELIGIBLE_TYPES.has(error.errorType)) return false;
-  const haystack = `${error.errorType} ${error.message}`;
-  if (/safety|recitation|policy|prohibited|blocklist|blockreason/i.test(haystack)) {
-    return false;
-  }
-  if (error.retryable) return true;
-  if (/^gemini_http_/.test(error.errorType)) return true;
-  if (error.errorType === "gemini_error") return true;
-  if (error.errorType === "gemini_response_parse") return true;
-  if (error.errorType === "timeout" || error.errorType === "network_error") return true;
-  return false;
+  return !NOT_ELIGIBLE_TYPES.has(error.errorType);
 }
 
 export function shouldAttemptImageFallback(input: {
