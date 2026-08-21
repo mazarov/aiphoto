@@ -1,5 +1,7 @@
 # 03 — Пайплайн: парсинг → загрузка → публикация
 
+> Последнее обновление: 2026-08-21 (**prompt remix history identity:** успешный `POST /api/prompt-remix` пишет `analyze_history.user_id` как shared `dbUserId`; эхо источника не пишется (`422 unchanged_prompt`).)
+>
 > Последнее обновление: 2026-08-18 (**publish embedding kick:** общий `publishPromptCard` после commit идемпотентно enqueue-ит карточку и через Next `after()` обрабатывает один visual embedding job. Это покрывает analyze/admin/user-generation visibility flows без задержки HTTP-ответа; recurring cron остаётся source of truth для retry/backlog.)
 >
 > Последнее обновление: 2026-08-17 (**visual embeddings via Gemini proxy:** backfill/cron `embedContent` через `GEMINI_PROXY_BASE_URL`, если задан. Прямой Google из РФ даёт `FAILED_PRECONDITION`.)
@@ -328,9 +330,10 @@ Site analyze:
 
 Site prompt remix (карточки / generate):
   POST /api/prompt-remix
-    → auth + rollout
+    → auth + resolveSharedDbUserId
     → Gemini rewrite
-    └─ success → private analyze_history kind=remix + change_request (без image)
+    ├─ echo / empty / MAX_TOKENS → 422, history не пишется
+    └─ changed → private analyze_history kind=remix + change_request + dbUserId (без image)
 
 Admin analyze publication:
   /admin/analyze-history

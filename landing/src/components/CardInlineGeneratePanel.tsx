@@ -1135,7 +1135,9 @@ export function CardInlineGeneratePanel({
         throw new Error(
           remixRes.status === 429
             ? remixData.message || PROMPT_REMIX_COPY.errorRateLimited
-            : remixData.message || PROMPT_REMIX_COPY.errorGeneric
+            : remixData.error === "unchanged_prompt"
+              ? remixData.message || PROMPT_REMIX_COPY.errorUnchanged
+              : remixData.message || PROMPT_REMIX_COPY.errorGeneric
         );
       }
       const nextPrompt = remixData.prompt?.trim() || "";

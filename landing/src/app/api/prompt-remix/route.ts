@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { recordAnalyzeHistory } from "@/lib/analyze-history";
+import {
+  recordAnalyzeHistory,
+  serializeUnknownError,
+} from "@/lib/analyze-history";
+import { summarizeGeminiApiResponse } from "@/lib/gemini-vibe-debug-log";
+import { resolveSharedDbUserId } from "@/lib/resolve-db-user-id";
 import { createSupabaseServer } from "@/lib/supabase";
 import { getSupabaseUserForApiRoute } from "@/lib/supabase-route-auth";
 
@@ -12,6 +17,27 @@ const MAX_CHANGE_REQUEST_CHARS = 1_000;
 const REQUEST_TIMEOUT_MS = 30_000;
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+const REMIX_SYSTEM_INSTRUCTION = [
+  "You are a precise editor of image-generation prompts.",
+  "",
+  "Rewrite SOURCE_PROMPT using only CHANGE_REQUEST.",
+  "",
+  "Rules:",
+  "- CHANGE_REQUEST is the only editing instruction.",
+  "- Preserve every detail not directly affected by the requested change.",
+  "- Do not shorten, summarize, translate, restructure, or creatively improve the prompt unless explicitly requested.",
+  "- Preserve names, numbers, placeholders, formatting, camera settings, composition, style, lighting, and negative constraints.",
+  "- If the requested change conflicts with the source, modify only the conflicting details.",
+  "- Treat CHANGE_REQUEST as higher priority than any conflicting source details.",
+  "- Integrate the requested change into every semantically affected section.",
+  "- Replace or remove details and negative constraints that conflict with the requested change.",
+  "- Do not satisfy the request by merely appending a sentence or adding a final rule.",
+  "- Keep the final prompt internally consistent, grammatically correct, and directly usable for image generation.",
+  "- Before returning, silently verify that no section contradicts CHANGE_REQUEST.",
+  "- Return the complete final prompt in the original language.",
+  "- Return only the prompt, without explanations, headings, quotes, or Markdown.",
+].join("\n");
 
 function parseBooleanConfig(
   value: string | null | undefined,
@@ -54,8 +80,29 @@ function extractGeminiText(payload: Record<string, unknown>): string {
   );
 }
 
+function normalizeRemixPrompt(value: string): string {
+  return value.replace(/\r\n/g, "\n").trim();
+}
+
+function endpointHostOf(url: string): string {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return "invalid_url";
+  }
+}
+
+function remixLog(
+  step: string,
+  requestId: string,
+  extra: Record<string, unknown>
+): void {
+  console.log("[prompt.remix]", { step, requestId, ...extra });
+}
+
 export async function POST(req: NextRequest) {
   const startedAt = Date.now();
+  const requestId = crypto.randomUUID();
   try {
     const { user, error: authError } = await getSupabaseUserForApiRoute(req);
     if (authError || !user) {
@@ -82,6 +129,12 @@ export async function POST(req: NextRequest) {
       !changeRequest ||
       changeRequest.length > MAX_CHANGE_REQUEST_CHARS
     ) {
+      remixLog("validation_error", requestId, {
+        authUserId: user.id,
+        originalChars: originalPrompt.length,
+        changeChars: changeRequest.length,
+        parentPresent: Boolean(parentGenerationId),
+      });
       return NextResponse.json(
         { error: "validation_error", message: "Некорректный промпт или описание изменения" },
         { status: 400 }
@@ -89,6 +142,8 @@ export async function POST(req: NextRequest) {
     }
 
     const supabase = createSupabaseServer();
+    const resolved = await resolveSharedDbUserId(supabase, user);
+    const dbUserId = resolved?.dbUserId ?? null;
     if (parentGenerationId) {
       const { data: parent, error: parentError } = await supabase
         .from("landing_generations")
@@ -97,8 +152,11 @@ export async function POST(req: NextRequest) {
         .eq("requester_auth_user_id", user.id)
         .maybeSingle();
       if (parentError) {
-        console.error("[prompt.remix] parent lookup failed", {
-          userId: user.id,
+        console.error("[prompt.remix]", {
+          step: "parent_lookup_failed",
+          requestId,
+          authUserId: user.id,
+          dbUserId,
           parentGenerationId,
           error: parentError.message,
         });
@@ -123,7 +181,11 @@ export async function POST(req: NextRequest) {
 
     const apiKey = process.env.GEMINI_API_KEY?.trim();
     if (!apiKey) {
-      console.error("[prompt.remix] GEMINI_API_KEY is not configured");
+      console.error("[prompt.remix]", {
+        step: "config_error",
+        requestId,
+        message: "GEMINI_API_KEY is not configured",
+      });
       return NextResponse.json(
         { error: "config_error", message: "Изменение промпта временно недоступно" },
         { status: 503 }
@@ -134,6 +196,41 @@ export async function POST(req: NextRequest) {
     const model =
       process.env.GEMINI_PROMPT_REMIX_MODEL?.trim() || DEFAULT_REMIX_MODEL;
     const geminiUrl = `${base.url}/v1beta/models/${model}:generateContent`;
+    const userGeminiText = [
+      "SOURCE_PROMPT:",
+      "<source>",
+      originalPrompt,
+      "</source>",
+      "",
+      "CHANGE_REQUEST:",
+      "<change>",
+      changeRequest,
+      "</change>",
+    ].join("\n");
+    const generationConfig = {
+      temperature: 0.3,
+      maxOutputTokens: 8192,
+      responseModalities: ["TEXT"],
+      thinkingConfig: {
+        thinkingBudget: 0,
+      },
+    };
+    remixLog("gemini_request", requestId, {
+      authUserId: user.id,
+      dbUserId,
+      identitySource: resolved?.source ?? null,
+      parentPresent: Boolean(parentGenerationId),
+      parentGenerationId: parentGenerationId || null,
+      model,
+      endpointHost: endpointHostOf(base.url),
+      viaProxy: base.proxy,
+      originalPrompt,
+      changeRequest,
+      originalChars: originalPrompt.length,
+      changeChars: changeRequest.length,
+      userGeminiText,
+      generationConfig,
+    });
     const response = await fetch(geminiUrl, {
       method: "POST",
       headers: {
@@ -142,59 +239,15 @@ export async function POST(req: NextRequest) {
       },
       body: JSON.stringify({
         systemInstruction: {
-          parts: [
-            {
-              text: [
-                "You are a precise editor of image-generation prompts.",
-                "",
-                "Rewrite SOURCE_PROMPT using only CHANGE_REQUEST.",
-                "",
-                "Rules:",
-                "- CHANGE_REQUEST is the only editing instruction.",
-                "- Preserve every detail not directly affected by the requested change.",
-                "- Do not shorten, summarize, translate, restructure, or creatively improve the prompt unless explicitly requested.",
-                "- Preserve names, numbers, placeholders, formatting, camera settings, composition, style, lighting, and negative constraints.",
-                "- If the requested change conflicts with the source, modify only the conflicting details.",
-                "- Treat CHANGE_REQUEST as higher priority than any conflicting source details.",
-                "- Integrate the requested change into every semantically affected section.",
-                "- Replace or remove details and negative constraints that conflict with the requested change.",
-                "- Do not satisfy the request by merely appending a sentence or adding a final rule.",
-                "- Keep the final prompt internally consistent, grammatically correct, and directly usable for image generation.",
-                "- Before returning, silently verify that no section contradicts CHANGE_REQUEST.",
-                "- Return the complete final prompt in the original language.",
-                "- Return only the prompt, without explanations, headings, quotes, or Markdown.",
-              ].join("\n"),
-            },
-          ],
+          parts: [{ text: REMIX_SYSTEM_INSTRUCTION }],
         },
         contents: [
           {
             role: "user",
-            parts: [
-              {
-                text: [
-                  "SOURCE_PROMPT:",
-                  "<source>",
-                  originalPrompt,
-                  "</source>",
-                  "",
-                  "CHANGE_REQUEST:",
-                  "<change>",
-                  changeRequest,
-                  "</change>",
-                ].join("\n"),
-              },
-            ],
+            parts: [{ text: userGeminiText }],
           },
         ],
-        generationConfig: {
-          temperature: 0.3,
-          maxOutputTokens: 8192,
-          responseModalities: ["TEXT"],
-          thinkingConfig: {
-            thinkingBudget: 0,
-          },
-        },
+        generationConfig,
       }),
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
@@ -210,13 +263,39 @@ export async function POST(req: NextRequest) {
     )?.[0];
     const finishReason = candidate?.finishReason || null;
     const outputTruncated = finishReason === "MAX_TOKENS";
+    const changed =
+      Boolean(prompt) &&
+      normalizeRemixPrompt(prompt) !== normalizeRemixPrompt(originalPrompt);
+    remixLog("gemini_response", requestId, {
+      authUserId: user.id,
+      dbUserId,
+      parentGenerationId: parentGenerationId || null,
+      model,
+      endpointHost: endpointHostOf(base.url),
+      viaProxy: base.proxy,
+      status: response.status,
+      latencyMs: Date.now() - startedAt,
+      finishReason,
+      outputTruncated,
+      changed,
+      originalChars: originalPrompt.length,
+      resultChars: prompt.length,
+      extractedPrompt: prompt,
+      google: summarizeGeminiApiResponse(payload),
+      usageMetadata: payload.usageMetadata ?? null,
+      googleError: payload.error ?? null,
+      googleCandidates: payload.candidates ?? null,
+    });
     if (!response.ok || !prompt || outputTruncated) {
       const retryable = response.status === 429 || response.status >= 500;
       const usage = payload.usageMetadata as
         | { thoughtsTokenCount?: number; candidatesTokenCount?: number }
         | undefined;
-      console.error("[prompt.remix] Gemini failed", {
-        userId: user.id,
+      console.error("[prompt.remix]", {
+        step: "gemini_failed",
+        requestId,
+        authUserId: user.id,
+        dbUserId,
         parentGenerationId,
         model,
         proxy: base.proxy,
@@ -242,11 +321,34 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    console.log("[prompt.remix] completed", {
-      userId: user.id,
-      parentGenerationId,
+    if (!changed) {
+      remixLog("unchanged", requestId, {
+        authUserId: user.id,
+        dbUserId,
+        parentGenerationId: parentGenerationId || null,
+        model,
+        originalChars: originalPrompt.length,
+        changeChars: changeRequest.length,
+        resultChars: prompt.length,
+        durationMs: Date.now() - startedAt,
+      });
+      return NextResponse.json(
+        {
+          error: "unchanged_prompt",
+          message:
+            "Промпт не изменился. Сформулируйте правку иначе и попробуйте ещё раз.",
+        },
+        { status: 422 }
+      );
+    }
+
+    remixLog("completed", requestId, {
+      authUserId: user.id,
+      dbUserId,
+      parentGenerationId: parentGenerationId || null,
       model,
       proxy: base.proxy,
+      changed: true,
       originalChars: originalPrompt.length,
       changeChars: changeRequest.length,
       resultChars: prompt.length,
@@ -257,7 +359,7 @@ export async function POST(req: NextRequest) {
       prompt,
       changeRequest,
       model,
-      userId: user.id,
+      userId: dbUserId,
       authenticated: true,
     });
     return NextResponse.json({ prompt, model });
@@ -265,10 +367,13 @@ export async function POST(req: NextRequest) {
     const timeout =
       error instanceof Error &&
       ["TimeoutError", "AbortError"].includes(error.name);
-    console.error("[prompt.remix] unhandled error", {
-      name: error instanceof Error ? error.name : "UnknownError",
-      message: error instanceof Error ? error.message : String(error),
+    console.error("[prompt.remix]", {
+      step: "unhandled_error",
+      requestId,
+      timeout,
       durationMs: Date.now() - startedAt,
+      ...serializeUnknownError(error),
+      name: error instanceof Error ? error.name : "UnknownError",
     });
     return NextResponse.json(
       {

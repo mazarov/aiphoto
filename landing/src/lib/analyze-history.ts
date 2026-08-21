@@ -92,6 +92,25 @@ async function persist(
   }
 }
 
+export function serializeUnknownError(error: unknown): {
+  message: string;
+  code: string | null;
+  details: string | null;
+} {
+  if (error instanceof Error) {
+    return { message: error.message, code: error.name || null, details: null };
+  }
+  if (error && typeof error === "object") {
+    const row = error as { message?: unknown; code?: unknown; details?: unknown };
+    return {
+      message: typeof row.message === "string" ? row.message : JSON.stringify(error),
+      code: typeof row.code === "string" ? row.code : null,
+      details: typeof row.details === "string" ? row.details : null,
+    };
+  }
+  return { message: String(error), code: null, details: null };
+}
+
 /** Fire-and-forget successful analyze / remix history. */
 export function recordAnalyzeHistory(
   supabase: SupabaseServer,
@@ -101,7 +120,7 @@ export function recordAnalyzeHistory(
   void persist(supabase, req, input).catch((error) => {
     console.warn("[analyze.history] persist failed", {
       kind: input.kind === "remix" ? "remix" : "analyze",
-      message: error instanceof Error ? error.message : String(error),
+      ...serializeUnknownError(error),
     });
   });
 }
