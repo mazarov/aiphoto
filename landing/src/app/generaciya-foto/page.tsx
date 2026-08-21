@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { PageLayout } from "@/components/PageLayout";
 import { GeneraciyaFotoExamplesExplorer } from "@/components/generate/GeneraciyaFotoExamplesExplorer";
+import { GeneraciyaFotoStarter } from "@/components/generate/GeneraciyaFotoStarter";
 import { GenerationModelsShowcase } from "@/components/generate/GenerationModelsShowcase";
 import {
   createSupabaseServer,
@@ -335,6 +336,7 @@ export default async function GeneraciyaFotoPage() {
             <p className="mx-auto mt-4 max-w-2xl text-pretty text-base leading-relaxed text-zinc-600 sm:text-lg">
               {GENERACIYA_FOTO_SEO.intro}
             </p>
+            <GeneraciyaFotoStarter />
           </div>
         </section>
 
