@@ -4,6 +4,18 @@ import {
   serializeUnknownError,
 } from "@/lib/analyze-history";
 import { summarizeGeminiApiResponse } from "@/lib/gemini-vibe-debug-log";
+import {
+  buildRemixGenerationConfig,
+  buildRemixUserText,
+  hasStructuredRemixSections,
+  listRemixHeadings,
+  normalizeRemixPrompt,
+  parseRemixModelJson,
+  remixPromptsEqual,
+  remixSystemInstruction,
+  resolveRemixPrompt,
+  type RemixAttemptMode,
+} from "@/lib/prompt-remix";
 import { resolveSharedDbUserId } from "@/lib/resolve-db-user-id";
 import { createSupabaseServer } from "@/lib/supabase";
 import { getSupabaseUserForApiRoute } from "@/lib/supabase-route-auth";
@@ -15,29 +27,9 @@ const DEFAULT_REMIX_MODEL = "gemini-2.5-flash";
 const MAX_ORIGINAL_PROMPT_CHARS = 8_000;
 const MAX_CHANGE_REQUEST_CHARS = 1_000;
 const REQUEST_TIMEOUT_MS = 30_000;
+const MAX_REMIX_ATTEMPTS = 2;
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-
-const REMIX_SYSTEM_INSTRUCTION = [
-  "You are a precise editor of image-generation prompts.",
-  "",
-  "Rewrite SOURCE_PROMPT using only CHANGE_REQUEST.",
-  "",
-  "Rules:",
-  "- CHANGE_REQUEST is the only editing instruction.",
-  "- Preserve every detail not directly affected by the requested change.",
-  "- Do not shorten, summarize, translate, restructure, or creatively improve the prompt unless explicitly requested.",
-  "- Preserve names, numbers, placeholders, formatting, camera settings, composition, style, lighting, and negative constraints.",
-  "- If the requested change conflicts with the source, modify only the conflicting details.",
-  "- Treat CHANGE_REQUEST as higher priority than any conflicting source details.",
-  "- Integrate the requested change into every semantically affected section.",
-  "- Replace or remove details and negative constraints that conflict with the requested change.",
-  "- Do not satisfy the request by merely appending a sentence or adding a final rule.",
-  "- Keep the final prompt internally consistent, grammatically correct, and directly usable for image generation.",
-  "- Before returning, silently verify that no section contradicts CHANGE_REQUEST.",
-  "- Return the complete final prompt in the original language.",
-  "- Return only the prompt, without explanations, headings, quotes, or Markdown.",
-].join("\n");
 
 function parseBooleanConfig(
   value: string | null | undefined,
@@ -78,10 +70,6 @@ function extractGeminiText(payload: Record<string, unknown>): string {
       .join("")
       .trim() || ""
   );
-}
-
-function normalizeRemixPrompt(value: string): string {
-  return value.replace(/\r\n/g, "\n").trim();
 }
 
 function endpointHostOf(url: string): string {
@@ -196,26 +184,14 @@ export async function POST(req: NextRequest) {
     const model =
       process.env.GEMINI_PROMPT_REMIX_MODEL?.trim() || DEFAULT_REMIX_MODEL;
     const geminiUrl = `${base.url}/v1beta/models/${model}:generateContent`;
-    const userGeminiText = [
-      "SOURCE_PROMPT:",
-      "<source>",
+    const headings = listRemixHeadings(originalPrompt);
+    const structured = hasStructuredRemixSections(originalPrompt);
+    const userGeminiText = buildRemixUserText({
       originalPrompt,
-      "</source>",
-      "",
-      "CHANGE_REQUEST:",
-      "<change>",
       changeRequest,
-      "</change>",
-    ].join("\n");
-    const generationConfig = {
-      temperature: 0.3,
-      maxOutputTokens: 8192,
-      responseModalities: ["TEXT"],
-      thinkingConfig: {
-        thinkingBudget: 0,
-      },
-    };
-    remixLog("gemini_request", requestId, {
+      headings,
+    });
+    const identity = {
       authUserId: user.id,
       dbUserId,
       identitySource: resolved?.source ?? null,
@@ -224,112 +200,157 @@ export async function POST(req: NextRequest) {
       model,
       endpointHost: endpointHostOf(base.url),
       viaProxy: base.proxy,
-      originalPrompt,
-      changeRequest,
-      originalChars: originalPrompt.length,
-      changeChars: changeRequest.length,
-      userGeminiText,
-      generationConfig,
-    });
-    const response = await fetch(geminiUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-goog-api-key": apiKey,
-      },
-      body: JSON.stringify({
-        systemInstruction: {
-          parts: [{ text: REMIX_SYSTEM_INSTRUCTION }],
-        },
-        contents: [
-          {
-            role: "user",
-            parts: [{ text: userGeminiText }],
-          },
-        ],
-        generationConfig,
-      }),
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-    });
-    const payload = (await response.json().catch(() => ({}))) as Record<
-      string,
-      unknown
-    >;
-    const prompt = extractGeminiText(payload);
-    const candidate = (
-      payload.candidates as
-        | Array<{ finishReason?: string; content?: { parts?: unknown[] } }>
-        | undefined
-    )?.[0];
-    const finishReason = candidate?.finishReason || null;
-    const outputTruncated = finishReason === "MAX_TOKENS";
-    const changed =
-      Boolean(prompt) &&
-      normalizeRemixPrompt(prompt) !== normalizeRemixPrompt(originalPrompt);
-    remixLog("gemini_response", requestId, {
-      authUserId: user.id,
-      dbUserId,
-      parentGenerationId: parentGenerationId || null,
-      model,
-      endpointHost: endpointHostOf(base.url),
-      viaProxy: base.proxy,
-      status: response.status,
-      latencyMs: Date.now() - startedAt,
-      finishReason,
-      outputTruncated,
-      changed,
-      originalChars: originalPrompt.length,
-      resultChars: prompt.length,
-      extractedPrompt: prompt,
-      google: summarizeGeminiApiResponse(payload),
-      usageMetadata: payload.usageMetadata ?? null,
-      googleError: payload.error ?? null,
-      googleCandidates: payload.candidates ?? null,
-    });
-    if (!response.ok || !prompt || outputTruncated) {
-      const retryable = response.status === 429 || response.status >= 500;
-      const usage = payload.usageMetadata as
-        | { thoughtsTokenCount?: number; candidatesTokenCount?: number }
-        | undefined;
-      console.error("[prompt.remix]", {
-        step: "gemini_failed",
-        requestId,
-        authUserId: user.id,
-        dbUserId,
-        parentGenerationId,
-        model,
-        proxy: base.proxy,
-        status: response.status,
-        retryable,
-        finishReason,
-        candidateCount: Array.isArray(payload.candidates)
-          ? payload.candidates.length
-          : 0,
-        resultChars: prompt.length,
-        thoughtsTokens: usage?.thoughtsTokenCount ?? null,
-        candidateTokens: usage?.candidatesTokenCount ?? null,
-        durationMs: Date.now() - startedAt,
-      });
-      return NextResponse.json(
-        {
-          error: "remix_failed",
-          message: retryable
-            ? "Сервис временно недоступен. Попробуйте ещё раз."
-            : "Не удалось изменить промпт",
-        },
-        { status: retryable ? 503 : 422 }
-      );
-    }
+    };
 
-    if (!changed) {
-      remixLog("unchanged", requestId, {
-        authUserId: user.id,
-        dbUserId,
-        parentGenerationId: parentGenerationId || null,
-        model,
+    let nextPrompt = "";
+    let lastMode: RemixAttemptMode = structured ? "section_edits" : "full_rewrite";
+    let lastAppliedHeadings: string[] = [];
+    let lastUnknownHeadings: string[] = [];
+    let lastResultChars = 0;
+    let lastChanged = false;
+
+    for (let attempt = 1; attempt <= MAX_REMIX_ATTEMPTS; attempt++) {
+      const mode: RemixAttemptMode =
+        attempt === 1 && structured ? "section_edits" : "full_rewrite";
+      lastMode = mode;
+      const generationConfig = buildRemixGenerationConfig(mode, {
+        temperature: attempt === 1 ? 0.2 : 0.45,
+      });
+      remixLog("gemini_request", requestId, {
+        ...identity,
+        attempt,
+        remixMode: mode,
+        structured,
+        headings,
+        originalPrompt,
+        changeRequest,
         originalChars: originalPrompt.length,
         changeChars: changeRequest.length,
-        resultChars: prompt.length,
+        userGeminiText,
+        generationConfig,
+      });
+      const response = await fetch(geminiUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-goog-api-key": apiKey,
+        },
+        body: JSON.stringify({
+          systemInstruction: {
+            parts: [{ text: remixSystemInstruction(mode) }],
+          },
+          contents: [
+            {
+              role: "user",
+              parts: [{ text: userGeminiText }],
+            },
+          ],
+          generationConfig,
+        }),
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      });
+      const payload = (await response.json().catch(() => ({}))) as Record<
+        string,
+        unknown
+      >;
+      const rawText = extractGeminiText(payload);
+      const candidate = (
+        payload.candidates as
+          | Array<{ finishReason?: string; content?: { parts?: unknown[] } }>
+          | undefined
+      )?.[0];
+      const finishReason = candidate?.finishReason || null;
+      const outputTruncated = finishReason === "MAX_TOKENS";
+      const plan = parseRemixModelJson(rawText);
+      const resolvedPrompt = resolveRemixPrompt(originalPrompt, plan, rawText);
+      lastAppliedHeadings = resolvedPrompt.appliedHeadings;
+      lastUnknownHeadings = resolvedPrompt.unknownHeadings;
+      lastResultChars = resolvedPrompt.prompt.length;
+      lastChanged = Boolean(resolvedPrompt.prompt) &&
+        !remixPromptsEqual(resolvedPrompt.prompt, originalPrompt);
+      remixLog("gemini_response", requestId, {
+        ...identity,
+        attempt,
+        remixMode: mode,
+        status: response.status,
+        latencyMs: Date.now() - startedAt,
+        finishReason,
+        outputTruncated,
+        parseOk: Boolean(plan),
+        changeApplied: plan?.changeApplied ?? null,
+        resolveMode: resolvedPrompt.mode,
+        appliedHeadings: resolvedPrompt.appliedHeadings,
+        unknownHeadings: resolvedPrompt.unknownHeadings,
+        changed: lastChanged,
+        originalChars: originalPrompt.length,
+        resultChars: lastResultChars,
+        extractedPrompt: rawText,
+        resolvedPrompt: lastChanged ? resolvedPrompt.prompt : undefined,
+        google: summarizeGeminiApiResponse(payload),
+        usageMetadata: payload.usageMetadata ?? null,
+        googleError: payload.error ?? null,
+        googleCandidates: payload.candidates ?? null,
+      });
+      if (!response.ok || !rawText || outputTruncated) {
+        const retryable = response.status === 429 || response.status >= 500;
+        const usage = payload.usageMetadata as
+          | { thoughtsTokenCount?: number; candidatesTokenCount?: number }
+          | undefined;
+        console.error("[prompt.remix]", {
+          step: "gemini_failed",
+          requestId,
+          ...identity,
+          attempt,
+          remixMode: mode,
+          status: response.status,
+          retryable,
+          finishReason,
+          candidateCount: Array.isArray(payload.candidates)
+            ? payload.candidates.length
+            : 0,
+          resultChars: rawText.length,
+          thoughtsTokens: usage?.thoughtsTokenCount ?? null,
+          candidateTokens: usage?.candidatesTokenCount ?? null,
+          durationMs: Date.now() - startedAt,
+        });
+        return NextResponse.json(
+          {
+            error: "remix_failed",
+            message: retryable
+              ? "Сервис временно недоступен. Попробуйте ещё раз."
+              : "Не удалось изменить промпт",
+          },
+          { status: retryable ? 503 : 422 }
+        );
+      }
+
+      if (lastChanged) {
+        nextPrompt = normalizeRemixPrompt(resolvedPrompt.prompt);
+        break;
+      }
+
+      remixLog("unchanged_attempt", requestId, {
+        ...identity,
+        attempt,
+        remixMode: mode,
+        resolveMode: resolvedPrompt.mode,
+        appliedHeadings: resolvedPrompt.appliedHeadings,
+        unknownHeadings: resolvedPrompt.unknownHeadings,
+        originalChars: originalPrompt.length,
+        changeChars: changeRequest.length,
+        resultChars: lastResultChars,
+      });
+    }
+
+    if (!lastChanged || !nextPrompt) {
+      remixLog("unchanged", requestId, {
+        ...identity,
+        remixMode: lastMode,
+        appliedHeadings: lastAppliedHeadings,
+        unknownHeadings: lastUnknownHeadings,
+        originalChars: originalPrompt.length,
+        changeChars: changeRequest.length,
+        resultChars: lastResultChars,
         durationMs: Date.now() - startedAt,
       });
       return NextResponse.json(
@@ -343,26 +364,24 @@ export async function POST(req: NextRequest) {
     }
 
     remixLog("completed", requestId, {
-      authUserId: user.id,
-      dbUserId,
-      parentGenerationId: parentGenerationId || null,
-      model,
-      proxy: base.proxy,
+      ...identity,
+      remixMode: lastMode,
+      appliedHeadings: lastAppliedHeadings,
       changed: true,
       originalChars: originalPrompt.length,
       changeChars: changeRequest.length,
-      resultChars: prompt.length,
+      resultChars: nextPrompt.length,
       durationMs: Date.now() - startedAt,
     });
     recordAnalyzeHistory(supabase, req, {
       kind: "remix",
-      prompt,
+      prompt: nextPrompt,
       changeRequest,
       model,
       userId: dbUserId,
       authenticated: true,
     });
-    return NextResponse.json({ prompt, model });
+    return NextResponse.json({ prompt: nextPrompt, model });
   } catch (error) {
     const timeout =
       error instanceof Error &&

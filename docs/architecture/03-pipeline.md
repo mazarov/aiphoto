@@ -1,5 +1,7 @@
 # 03 — Пайплайн: парсинг → загрузка → публикация
 
+> Последнее обновление: 2026-08-21 (**prompt remix section patches:** Gemini возвращает JSON-правки секций, merge в `lib/prompt-remix.ts`; echo → один `full_rewrite` retry, затем `422 unchanged_prompt`.)
+>
 > Последнее обновление: 2026-08-21 (**prompt remix always generates:** успешный remix на клиенте сразу зовёт `POST /api/generate`; без parent — обычный enqueue, с parent — continuation.)
 >
 > Последнее обновление: 2026-08-21 (**prompt remix history identity:** успешный `POST /api/prompt-remix` пишет `analyze_history.user_id` как shared `dbUserId`; эхо источника не пишется (`422 unchanged_prompt`).)
@@ -333,8 +335,10 @@ Site analyze:
 Site prompt remix (карточки / generate):
   POST /api/prompt-remix
     → auth + resolveSharedDbUserId
-    → Gemini rewrite
-    ├─ echo / empty / MAX_TOKENS → 422, history не пишется
+    → Gemini JSON (section edits, else full rewrite)
+    → lib/prompt-remix merge / resolve
+    ├─ empty / MAX_TOKENS / HTTP fail → 422/503, history не пишется
+    ├─ echo → 1 rewrite retry; всё ещё echo → 422 unchanged_prompt
     └─ changed → private analyze_history kind=remix + change_request + dbUserId
          → клиент сразу POST /api/generate (parent, если есть completed result)
 
