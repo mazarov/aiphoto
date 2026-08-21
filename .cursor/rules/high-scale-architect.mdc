@@ -44,3 +44,7 @@ When answering, structure output as:
 - Propose code and configs only when they speed up delivery; otherwise use crisp specs and diagrams (text/mermaid).
 
 When this rule is active, prioritize scalable, reliable, observable designs over local optimizations unless the user’s scope is explicitly small.
+
+## Delivery isolation
+
+A spec is not a license to edit the current checkout. Name the feature branch in the spec (`feature/<doc-filename-without-.md>`). Implementation of that spec must start only after checkout/create of that branch from `origin/main`. If this session is on another chat’s branch or a dirty foreign tree — switch first; do not mix. Details: `.cursor/rules/git-workflow.mdc`.
