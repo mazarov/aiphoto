@@ -2,7 +2,7 @@
 
 > Последнее обновление: 2026-08-21 (**`/generaciya-foto` starter restored:** `GeneraciyaFotoStarter` снова под H1 — карточки «По описанию» / «По фото» и pill-CTA `#generaciya-foto-starter-cta`. Desktop FAB прячется, пока CTA в зоне видимости (`heroCtaInView`). Eyebrow библиотеки: «Библиотека образов». Photo→prompt канон остаётся `/foto-v-promt`.)
 >
-> Последнее обновление: 2026-08-21 (**SEO watchlist:** `/admin/seo` — топ-30 URL Вебмастера, раскрытие запросов, дневные показы/спрос/CTR/клики, фильтр дней и график динамики по запросу. Снимок `landing/src/data/seo-watchlist-snapshot.json`, refresh `src/standalone/refresh-seo-watchlist.mjs`, API `GET /api/admin/seo-watchlist`. Спека `docs/21-08-seo-page-watchlist.md`.)
+> Последнее обновление: 2026-08-21 (**SEO watchlist:** `/admin/seo` — топ-30 URL Вебмастера, раскрытие запросов, дневные показы/спрос/CTR/клики, фильтр дней и график динамики по запросу. Запросы: complementary URL = страница, до 100 строк, сорт по показам/кликам. Снимок `landing/src/data/seo-watchlist-snapshot.json`, refresh `src/standalone/refresh-seo-watchlist.mjs`, API `GET /api/admin/seo-watchlist`. Спека `docs/21-08-seo-page-watchlist.md`.)
 >
 > Последнее обновление: 2026-08-21 (**admin payments CSV:** `/admin/payments` кнопка «Скачать CSV» → `GET /api/admin/payments?format=csv` с теми же фильтрами status/test/source/campaign. Сервер листает `admin_landing_payments` до 10 000 строк, UTF-8 BOM + `;`, formula-safe quoting.)
 >

@@ -10,7 +10,13 @@ import type {
   SeoPageRow,
   SeoWatchlistSnapshot,
 } from "@/lib/seo-watchlist";
-import { projectPageToRange, snapshotDates } from "@/lib/seo-watchlist";
+import {
+  mappedQueryCoverage,
+  projectPageToRange,
+  snapshotDates,
+  sortQueryRows,
+  type SeoQuerySort,
+} from "@/lib/seo-watchlist";
 
 const card = "rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm";
 
@@ -135,6 +141,7 @@ export function SeoWatchlistDashboard() {
   const [openCharts, setOpenCharts] = useState<Record<string, boolean>>({});
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
+  const [querySort, setQuerySort] = useState<SeoQuerySort>("impressions");
   const [state, setState] = useState({ loading: true, status: 0, error: "" });
 
   const load = useCallback(async () => {
@@ -174,15 +181,7 @@ export function SeoWatchlistDashboard() {
     const end = to || maxDate;
     if (!start || !end) return data.pages;
     return data.pages
-      .map((page) => {
-        const projected = projectPageToRange(page, start, end, allDates);
-        return {
-          ...projected,
-          queries: [...projected.queries].sort(
-            (a, b) => b.current.impressions - a.current.impressions,
-          ),
-        };
-      })
+      .map((page) => projectPageToRange(page, start, end, allDates))
       .sort((a, b) => b.current.impressions - a.current.impressions);
   }, [allDates, data, from, maxDate, minDate, to]);
 
@@ -300,6 +299,8 @@ export function SeoWatchlistDashboard() {
                   onToggle={() =>
                     setOpenPath((current) => (current === page.path ? null : page.path))
                   }
+                  querySort={querySort}
+                  onQuerySort={setQuerySort}
                   onToggleChart={(query) =>
                     setOpenCharts((current) => {
                       const key = `${page.path}::${query}`;
@@ -342,15 +343,21 @@ function PageBlock({
   page,
   open,
   openCharts,
+  querySort,
+  onQuerySort,
   onToggle,
   onToggleChart,
 }: {
   page: SeoPageRow;
   open: boolean;
   openCharts: Record<string, boolean>;
+  querySort: SeoQuerySort;
+  onQuerySort: (sort: SeoQuerySort) => void;
   onToggle: () => void;
   onToggleChart: (query: string) => void;
 }) {
+  const queries = sortQueryRows(page.queries, querySort);
+  const coverage = mappedQueryCoverage({ ...page, queries: page.queries });
   return (
     <>
       <tr className="border-t border-zinc-100 hover:bg-zinc-50">
@@ -397,32 +404,86 @@ function PageBlock({
             {page.queries.length === 0 ? (
               <p className="text-sm text-zinc-500">Запросов в окне Вебмастера нет.</p>
             ) : (
-              <table className="min-w-full text-sm">
-                <thead className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-                  <tr>
-                    <th className="py-2 text-left">Запрос</th>
-                    <th className="py-2 text-right">Показы</th>
-                    <th className="py-2 text-right">Спрос</th>
-                    <th className="py-2 text-right">Клики</th>
-                    <th className="py-2 text-right">CTR</th>
-                    <th className="py-2 text-right">Позиция</th>
-                    <th className="py-2 text-right">Дни</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {page.queries.map((row) => {
-                    const chartOpen = Boolean(openCharts[`${page.path}::${row.query}`]);
-                    return (
-                      <QueryBlock
-                        key={row.query}
-                        row={row}
-                        chartOpen={chartOpen}
-                        onToggleChart={() => onToggleChart(row.query)}
-                      />
-                    );
-                  })}
-                </tbody>
-              </table>
+              <>
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                  <p className="text-xs text-zinc-500">
+                    Смаплено {coverage.queries} запросов · {formatInt(coverage.impressions)} /{" "}
+                    {formatInt(page.current.impressions)} показов
+                    {coverage.impressionShare != null
+                      ? ` (${Math.round(coverage.impressionShare * 100)}%)`
+                      : ""}{" "}
+                    · {formatInt(coverage.clicks)} / {formatInt(page.current.clicks)} кликов
+                    {coverage.clickShare != null
+                      ? ` (${Math.round(coverage.clickShare * 100)}%)`
+                      : ""}
+                    . Остальное — хвост вне лимита API.
+                  </p>
+                  <div className="flex gap-2">
+                    <FilterChip
+                      active={querySort === "impressions"}
+                      onClick={() => onQuerySort("impressions")}
+                    >
+                      По показам
+                    </FilterChip>
+                    <FilterChip
+                      active={querySort === "clicks"}
+                      onClick={() => onQuerySort("clicks")}
+                    >
+                      По кликам
+                    </FilterChip>
+                  </div>
+                </div>
+                <table className="min-w-full text-sm">
+                  <thead className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                    <tr>
+                      <th className="py-2 text-left">Запрос</th>
+                      <th className="py-2 text-right">
+                        <button
+                          type="button"
+                          onClick={() => onQuerySort("impressions")}
+                          className={
+                            querySort === "impressions"
+                              ? "font-semibold text-indigo-700"
+                              : "font-semibold text-zinc-500"
+                          }
+                        >
+                          Показы
+                        </button>
+                      </th>
+                      <th className="py-2 text-right">Спрос</th>
+                      <th className="py-2 text-right">
+                        <button
+                          type="button"
+                          onClick={() => onQuerySort("clicks")}
+                          className={
+                            querySort === "clicks"
+                              ? "font-semibold text-indigo-700"
+                              : "font-semibold text-zinc-500"
+                          }
+                        >
+                          Клики
+                        </button>
+                      </th>
+                      <th className="py-2 text-right">CTR</th>
+                      <th className="py-2 text-right">Позиция</th>
+                      <th className="py-2 text-right">Дни</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {queries.map((row) => {
+                      const chartOpen = Boolean(openCharts[`${page.path}::${row.query}`]);
+                      return (
+                        <QueryBlock
+                          key={row.query}
+                          row={row}
+                          chartOpen={chartOpen}
+                          onToggleChart={() => onToggleChart(row.query)}
+                        />
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </>
             )}
           </td>
         </tr>

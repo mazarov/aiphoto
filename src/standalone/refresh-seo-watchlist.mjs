@@ -132,6 +132,28 @@ function rowsOf(data) {
     : [];
 }
 
+const QUERY_PAGE_SIZE = 20;
+const MAX_MAPPED_QUERIES = 100;
+
+function normalizeSeoPath(value) {
+  if (value == null) return null;
+  let path = String(value).trim();
+  if (!path) return null;
+  try {
+    if (/^https?:\/\//i.test(path)) path = new URL(path).pathname || "/";
+  } catch {
+    return null;
+  }
+  if (path.length > 1) path = path.replace(/\/+$/, "");
+  return path || "/";
+}
+
+function queryBelongsToPath(complementaryUrl, path) {
+  const owner = normalizeSeoPath(complementaryUrl);
+  if (owner == null) return true;
+  return owner === normalizeSeoPath(path);
+}
+
 const { userId, host } = await resolveWebmasterHost();
 process.stderr.write(`[seo-watchlist] host=${host.host_id} pages=${PATHS.length}\n`);
 
@@ -164,38 +186,54 @@ for (const path of PATHS) {
     await sleep(150);
   }
 
-  const queryData = await queryAnalytics(userId, host.host_id, {
-    offset: 0,
-    limit: 20,
-    device_type_indicator: "ALL",
-    text_indicator: "QUERY",
-    filters: {
-      text_filters: [
-        { text_indicator: "URL", operation: "TEXT_MATCH", value: path },
-      ],
-    },
-  });
-  await sleep(150);
+  const queryRowsRaw = [];
+  const seenQueries = new Set();
+  for (let offset = 0; offset < MAX_MAPPED_QUERIES; offset += QUERY_PAGE_SIZE) {
+    const queryData = await queryAnalytics(userId, host.host_id, {
+      offset,
+      limit: QUERY_PAGE_SIZE,
+      device_type_indicator: "ALL",
+      text_indicator: "QUERY",
+      filters: {
+        text_filters: [
+          { text_indicator: "URL", operation: "TEXT_MATCH", value: path },
+        ],
+      },
+    });
+    const batch = rowsOf(queryData);
+    for (const row of batch) {
+      const query = row.text_indicator?.value || "";
+      const complementaryUrl = row.popular_complementary_indicator?.value || null;
+      if (!query || seenQueries.has(query)) continue;
+      if (!queryBelongsToPath(complementaryUrl, path)) continue;
+      seenQueries.add(query);
+      queryRowsRaw.push(row);
+    }
+    await sleep(150);
+    if (batch.length < QUERY_PAGE_SIZE) break;
+  }
 
   const pagePoints = pointsFromStatistics(urlRow?.statistics || []);
-  const queryRows = rowsOf(queryData).map((row) =>
+  const querySeries = queryRowsRaw.map((row) =>
     pointsFromStatistics(row.statistics || []),
   );
   const allDates = uniqueSortedDates(
-    [...pagePoints, ...queryRows.flat()].map((point) => ({ date: point.date })),
+    [...pagePoints, ...querySeries.flat()].map((point) => ({ date: point.date })),
   );
   const split = splitCompareWindows(allDates);
   const page = summarize(pagePoints, split);
   pages.push({
     path,
     ...page,
-    queries: rowsOf(queryData).map((row, index) => ({
+    queries: queryRowsRaw.map((row, index) => ({
       query: row.text_indicator?.value || "",
       complementaryUrl: row.popular_complementary_indicator?.value || null,
-      ...summarize(queryRows[index] || [], split),
+      ...summarize(querySeries[index] || [], split),
     })),
   });
-  process.stderr.write(`[seo-watchlist] ${path} queries=${rowsOf(queryData).length}\n`);
+  process.stderr.write(
+    `[seo-watchlist] ${path} queries=${queryRowsRaw.length}\n`,
+  );
 }
 
 const allDates = uniqueSortedDates(

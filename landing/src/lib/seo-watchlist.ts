@@ -236,3 +236,63 @@ export function projectPageToRange(
     })),
   };
 }
+
+export const SEO_QUERY_SORTS = ["impressions", "clicks"] as const;
+export type SeoQuerySort = (typeof SEO_QUERY_SORTS)[number];
+
+export function normalizeSeoPath(value: string | null | undefined): string | null {
+  if (value == null) return null;
+  let path = String(value).trim();
+  if (!path) return null;
+  try {
+    if (/^https?:\/\//i.test(path)) path = new URL(path).pathname || "/";
+  } catch {
+    return null;
+  }
+  if (path.length > 1) path = path.replace(/\/+$/, "");
+  return path || "/";
+}
+
+/** Keep a query if Webmaster named this URL as owner, or left complementary empty. */
+export function queryBelongsToPath(
+  complementaryUrl: string | null | undefined,
+  path: string,
+): boolean {
+  const owner = normalizeSeoPath(complementaryUrl);
+  if (owner == null) return true;
+  return owner === normalizeSeoPath(path);
+}
+
+export function sortQueryRows(
+  rows: SeoQueryRow[],
+  sort: SeoQuerySort,
+): SeoQueryRow[] {
+  return [...rows].sort((a, b) => {
+    const left = sort === "clicks" ? a.current.clicks : a.current.impressions;
+    const right = sort === "clicks" ? b.current.clicks : b.current.impressions;
+    return right - left || a.query.localeCompare(b.query, "ru");
+  });
+}
+
+export function mappedQueryCoverage(page: SeoPageRow): {
+  queries: number;
+  clicks: number;
+  impressions: number;
+  clickShare: number | null;
+  impressionShare: number | null;
+} {
+  const clicks = page.queries.reduce((sum, row) => sum + row.current.clicks, 0);
+  const impressions = page.queries.reduce(
+    (sum, row) => sum + row.current.impressions,
+    0,
+  );
+  return {
+    queries: page.queries.length,
+    clicks,
+    impressions,
+    clickShare:
+      page.current.clicks > 0 ? clicks / page.current.clicks : null,
+    impressionShare:
+      page.current.impressions > 0 ? impressions / page.current.impressions : null,
+  };
+}

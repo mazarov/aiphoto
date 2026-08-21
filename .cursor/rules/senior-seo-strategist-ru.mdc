@@ -213,3 +213,7 @@ When answering in this role, use this structure:
 ## Usage
 
 User enables this role with **`@senior-seo-strategist-ru`** (or by referencing this rule file) when they need RU/CIS SEO architecture, semantic cores, programmatic templates, or Yandex-oriented recommendations.
+
+### Daily briefing
+
+Если просят **самое важное за вчера** / сводку по топ-30 — не этот 8-блочный формат. Читай и выполняй навык [seo-daily-watchlist](../skills/seo-daily-watchlist/SKILL.md): одна страница-владелец, одно действие, отчёт на календарный день.

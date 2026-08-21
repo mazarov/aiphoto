@@ -4,9 +4,12 @@ import {
   aggregatePoints,
   datesInRange,
   deltaBlocks,
+  mappedQueryCoverage,
   pointsFromStatistics,
   previousEqualWindow,
   projectPageToRange,
+  queryBelongsToPath,
+  sortQueryRows,
   splitCompareWindows,
 } from "./seo-watchlist";
 
@@ -177,4 +180,78 @@ test("projectPageToRange recomputes page and query totals for selected days", ()
   assert.equal(page.delta.impressions, 100);
   assert.equal(page.queries[0]?.current.demand, 90);
   assert.equal(page.queries[0]?.series.length, 1);
+});
+
+test("queryBelongsToPath keeps owner URL and empty complementary", () => {
+  assert.equal(queryBelongsToPath("/", "/"), true);
+  assert.equal(queryBelongsToPath("https://promptshot.ru/", "/"), true);
+  assert.equal(queryBelongsToPath("/promty-dlya-foto-par/", "/promty-dlya-foto-par"), true);
+  assert.equal(queryBelongsToPath("/foto-v-promt", "/"), false);
+  assert.equal(queryBelongsToPath(null, "/"), true);
+});
+
+test("sortQueryRows orders by impressions or clicks", () => {
+  const empty = {
+    impressions: 0,
+    clicks: 0,
+    ctr: null,
+    position: null,
+    demand: null,
+  };
+  const rows = [
+    {
+      query: "промты",
+      complementaryUrl: "/",
+      current: { ...empty, impressions: 100, clicks: 40 },
+      previous: empty,
+      delta: empty,
+      series: [],
+    },
+    {
+      query: "промты для фото",
+      complementaryUrl: "/",
+      current: { ...empty, impressions: 300, clicks: 10 },
+      previous: empty,
+      delta: empty,
+      series: [],
+    },
+  ];
+  assert.deepEqual(
+    sortQueryRows(rows, "impressions").map((row) => row.query),
+    ["промты для фото", "промты"],
+  );
+  assert.deepEqual(
+    sortQueryRows(rows, "clicks").map((row) => row.query),
+    ["промты", "промты для фото"],
+  );
+});
+
+test("mappedQueryCoverage compares query sum to page total", () => {
+  const empty = {
+    impressions: 0,
+    clicks: 0,
+    ctr: null,
+    position: null,
+    demand: null,
+  };
+  const coverage = mappedQueryCoverage({
+    path: "/",
+    current: { ...empty, impressions: 1000, clicks: 100 },
+    previous: empty,
+    delta: empty,
+    series: [],
+    queries: [
+      {
+        query: "а",
+        complementaryUrl: "/",
+        current: { ...empty, impressions: 200, clicks: 20 },
+        previous: empty,
+        delta: empty,
+        series: [],
+      },
+    ],
+  });
+  assert.equal(coverage.queries, 1);
+  assert.equal(coverage.clickShare, 0.2);
+  assert.equal(coverage.impressionShare, 0.2);
 });
