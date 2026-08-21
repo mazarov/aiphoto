@@ -80,6 +80,7 @@ export function AdminPaymentsList() {
   const [actionMessage, setActionMessage] = useState("");
   const [reconcilingId, setReconcilingId] = useState<string | null>(null);
   const [staleBusy, setStaleBusy] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   const load = useCallback(async (next?: string) => {
     setState({ loading: true, status: 0, error: "" });
@@ -163,6 +164,47 @@ export function AdminPaymentsList() {
     }
   }, [load]);
 
+  const exportCsv = useCallback(async () => {
+    setExporting(true);
+    setActionMessage("");
+    try {
+      const params = new URLSearchParams({
+        status: statusFilter,
+        test: testFilter,
+        format: "csv",
+      });
+      if (sourceFilter.trim()) params.set("source", sourceFilter.trim());
+      if (campaignFilter.trim()) params.set("campaign", campaignFilter.trim());
+      const response = await fetch(`/api/admin/payments?${params}`, { credentials: "include" });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        setActionMessage(body.error || "Не удалось выгрузить CSV");
+        return;
+      }
+      const blob = await response.blob();
+      const downloadUrl = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      const disposition = response.headers.get("Content-Disposition");
+      const filename = disposition?.match(/filename="([^"]+)"/)?.[1]
+        || `promptshot-payments-${new Date().toISOString().slice(0, 10)}.csv`;
+      link.href = downloadUrl;
+      link.download = filename;
+      link.click();
+      URL.revokeObjectURL(downloadUrl);
+      const count = Number(response.headers.get("X-Export-Count") || 0);
+      const truncated = response.headers.get("X-Export-Truncated") === "1";
+      setActionMessage(
+        truncated
+          ? `CSV: выгружено ${count} оплат, лимит достигнут. Сузьте фильтры.`
+          : `CSV: выгружено ${count} оплат`,
+      );
+    } catch {
+      setActionMessage("Ошибка сети при выгрузке CSV");
+    } finally {
+      setExporting(false);
+    }
+  }, [campaignFilter, sourceFilter, statusFilter, testFilter]);
+
   if (state.status === 401 || state.status === 403) {
     return <div className="mx-auto max-w-lg rounded-2xl border border-zinc-200 bg-white p-8 text-center shadow-sm">
       <h1 className="text-xl font-semibold text-zinc-900">
@@ -185,14 +227,24 @@ export function AdminPaymentsList() {
         <h1 className="text-3xl font-bold tracking-tight text-zinc-900">Оплаты</h1>
         <p className="mt-1 text-sm text-zinc-500">Плательщики, статусы и начисление кредитов</p>
       </div>
-      <button
-        type="button"
-        disabled={staleBusy || state.loading}
-        onClick={() => void reconcileStale()}
-        className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-900 disabled:opacity-50"
-      >
-        {staleBusy ? "Сверяем…" : "Сверить зависшие YooKassa"}
-      </button>
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          disabled={exporting || state.loading}
+          onClick={() => void exportCsv()}
+          className="rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 disabled:opacity-50"
+        >
+          {exporting ? "Выгружаем…" : "Скачать CSV"}
+        </button>
+        <button
+          type="button"
+          disabled={staleBusy || state.loading}
+          onClick={() => void reconcileStale()}
+          className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-900 disabled:opacity-50"
+        >
+          {staleBusy ? "Сверяем…" : "Сверить зависшие YooKassa"}
+        </button>
+      </div>
     </header>
 
     <section className="flex flex-col gap-3 rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm">

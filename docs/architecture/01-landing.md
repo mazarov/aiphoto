@@ -1,5 +1,7 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-08-21 (**admin payments CSV:** `/admin/payments` кнопка «Скачать CSV» → `GET /api/admin/payments?format=csv` с теми же фильтрами status/test/source/campaign. Сервер листает `admin_landing_payments` до 10 000 строк, UTF-8 BOM + `;`, formula-safe quoting.)
+>
 > Последнее обновление: 2026-08-21 (**foto-v-promt SEO copy:** Title/H1 = «фото в промт»; H2 виджета = «промт по фото». Hero укорочен. FAQ без синонимов-вопросов. SSOT `landing/src/lib/foto-v-promt-copy.ts`, спека `docs/21-08-foto-v-promt-seo.md`. URL, виджет и лимиты без изменений.)
 >
 > Последнее обновление: 2026-08-21 (**prompt remix section patches:** `POST /api/prompt-remix` больше не просит Flash переписать весь 4k+ промпт. SSOT `lib/prompt-remix.ts`: JSON-правки секций → детерминированный merge. Structured analyze-промпт → attempt 1 `section_edits` (`thinkingBudget=256`, JSON schema); echo/no-op → attempt 2 `full_rewrite`. Эхо после двух попыток → `422 unchanged_prompt`. Логи: `remixMode`, `appliedHeadings`, `unchanged_attempt`.)
@@ -434,7 +436,7 @@
 /analyses               → Мои анализы (auth, noindex): свои строки `analyze_history` (`user_id` = JWT или shared db id); signed preview из private bucket; CTA копирует промт и открывает dock. Гостевые анализы (`user_id` null) не попадают. SQL `188`
 /admin/analytics        → Закрытый analytics dashboard: пользователи/клиенты + live непотраченные кредиты; таблицы кредитов/топа/analyze свёрнуты до клика; admin generation modal; Supabase Auth + email allowlist `ANALYTICS_ADMIN_EMAILS`
 /admin/analyze-history  → Закрытая история analyze/remix + все non-admin user generations; remix помечается бейджем и `change_request`; private source previews выдаются signed, completed results публикуются идемпотентно
-/admin/payments         → Закрытый cursor-реестр YooKassa: payer identity, RUB/status/test, ожидаемые credits и факт `credited_at`
+/admin/payments         → Закрытый cursor-реестр YooKassa/Robokassa: payer identity, RUB/status/test, credits/`credited_at`; кнопка «Скачать CSV» выгружает все строки текущих фильтров
 /admin/finance          → Касса выгрузок: импорт ЮKassa/GCP, чистый доход; `?tab=finance` с аналитики редиректит сюда
 /auth/callback          → OAuth callback (client page); PKCE exchange в браузере; `?next=` — возврат на страницу старта логина
 /embed/stv              → Steal This Vibe (клиент подгружает `/stv-panel/boot.mjs` + `styles.css`; та же логика, что side panel расширения)
@@ -533,7 +535,7 @@
 | `/api/admin/credits` | GET, admin auth: live остаток + daily flow (`days=1\|7\|30\|90`) + keyset-список (`q`, remaining/granted/spent/share) |
 | `/api/admin/finance` | GET, admin auth: KPI и разбивки импортов ЮKassa/GCP за месяц `YYYY-MM` |
 | `/api/admin/finance/import` | POST, admin auth: multipart replace-импорт `kind=revenue\|cogs`, CSV/ZIP до 10 MB |
-| `/api/admin/payments` | GET, admin auth: cursor YooKassa ledger с status/test filters, payer auth/billing identity и credit fulfillment state (`credited` / `not_due` / `discrepancy` / `stale`) |
+| `/api/admin/payments` | GET, admin auth: cursor YooKassa/Robokassa ledger с status/test/source/campaign filters, payer identity и credit state (`credited` / `not_due` / `discrepancy` / `stale`); `format=csv` — полная выгрузка тех же фильтров (до 10 000 строк, `;` + UTF-8 BOM) |
 | `/api/admin/payments/reconcile` | POST, admin auth: `{ paymentId \| yookassaPaymentId }` или `{ stale: true }` — ручной/batch reconcile через YooKassa GET |
 | `/api/admin/analyze-history` | GET, admin auth: cursor pagination private analyze/remix history (`kind`, `change_request`, `user_email` если был `user_id`), optional `client_source`, signed image URL (analyze only) |
 | `/api/admin/analyze-history/[id]/publish` | POST, admin auth: private analyze image → public result object → idempotent `prompt_cards` draft → общий SEO publish service |
@@ -627,13 +629,14 @@
   `auth.users.id` и shared `imageprompt_users.id`, ставит `client_source='admin'` job
   через существующий `landing_enqueue_generation`. Job обрабатывает тот же durable
   `web-generation-worker`; admin UI только enqueue-ит и poll-ит status.
-- **Оплаты:** `/admin/payments` читает `landing_yookassa_payments` только через
-  service-role RPC `admin_yookassa_payments`. Keyset cursor использует
+- **Оплаты:** `/admin/payments` читает объединённый ledger через
+  service-role RPC `admin_landing_payments` (YooKassa + Robokassa). Keyset cursor использует
   `(created_at,id)`; identity собирается одним SQL-read model из `auth.users`,
   `landing_users` и shared `imageprompt_users`. Credit state: `credited`,
   `discrepancy` (`succeeded` без `credited_at`), `stale` (`created|pending` старше
   15 мин без начисления), иначе `not_due`. Ручная сверка —
-  `POST /api/admin/payments/reconcile`.
+  `POST /api/admin/payments/reconcile`. CSV: `GET /api/admin/payments?format=csv`
+  с теми же фильтрами, серверная keyset-пагинация до 10 000 строк.
 - **Финансы (касса выгрузок):** страница `/admin/finance` хранит
   месячные импорты в `admin_finance_imports` + line tables. Source of truth для
   «получено» — реестр ЮKassa (gross/net/комиссия), для «потрачено» — GCP
