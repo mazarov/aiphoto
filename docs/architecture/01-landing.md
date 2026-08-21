@@ -1,7 +1,5 @@
 # 01 — Лендинг (promptshot.ru)
 
-> Последнее обновление: 2026-08-21 (**foto-v-promt SEO copy:** Title/H1 = «фото в промт»; H2 виджета = «промт по фото». Hero укорочен. FAQ без синонимов-вопросов. SSOT `landing/src/lib/foto-v-promt-copy.ts`, спека `docs/21-08-foto-v-promt-seo.md`. URL, виджет и лимиты без изменений.)
->
 > Последнее обновление: 2026-08-21 (**prompt remix section patches:** `POST /api/prompt-remix` больше не просит Flash переписать весь 4k+ промпт. SSOT `lib/prompt-remix.ts`: JSON-правки секций → детерминированный merge. Structured analyze-промпт → attempt 1 `section_edits` (`thinkingBudget=256`, JSON schema); echo/no-op → attempt 2 `full_rewrite`. Эхо после двух попыток → `422 unchanged_prompt`. Логи: `remixMode`, `appliedHeadings`, `unchanged_attempt`.)
 >
 > Последнее обновление: 2026-08-21 (**Grok image fallback = any Gemini fail:** после ошибки Gemini на фото (`IMAGE_OTHER`, safety, 5xx, …) тот же job один раз зовёт Grok. Skip только `shutdown` / уже Grok / circuit / нет `XAI_*` / выключенный fallback.)
