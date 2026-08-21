@@ -71,15 +71,14 @@ export default function FotoVPromtPage() {
               {FOTO_V_PROMT_HERO.subtitle}
             </p>
             <p className="mx-auto mt-3 max-w-2xl text-sm text-zinc-500">
-                Уже есть описание?{" "}
-                <Link
-                  href="/generaciya-foto"
-                  className="font-semibold text-indigo-600 hover:text-indigo-700 hover:underline"
-                >
-                  Создайте фото по промту
-                </Link>
-                {" "}в онлайн-генераторе PromptShot.
-              </p>
+              {FOTO_V_PROMT_HERO.generateLead}{" "}
+              <Link
+                href={FOTO_V_PROMT_HERO.generateHref}
+                className="font-semibold text-indigo-600 hover:text-indigo-700 hover:underline"
+              >
+                {FOTO_V_PROMT_HERO.generateLinkLabel}
+              </Link>
+            </p>
           </div>
         </section>
 
@@ -88,9 +87,12 @@ export default function FotoVPromtPage() {
           className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-10"
           aria-label={FOTO_V_PROMT_WIDGET.ariaLabel}
         >
-          <h2 className="mb-6 text-center text-xl font-bold tracking-tight text-zinc-900 sm:text-2xl">
+          <h2 className="text-center text-xl font-bold tracking-tight text-zinc-900 sm:text-2xl">
             {FOTO_V_PROMT_WIDGET.title}
           </h2>
+          <p className="mx-auto mb-6 mt-2 max-w-xl text-center text-sm text-zinc-500">
+            {FOTO_V_PROMT_WIDGET.subtitle}
+          </p>
           <PromptSceneLiteWidgetGate />
         </section>
 
