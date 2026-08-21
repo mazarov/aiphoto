@@ -105,7 +105,8 @@ function getPromptsPerRun() {
 const DEFAULT_MODELS = [
   { id: "gemini-2.5-flash-image", label: "Flash", cost: 1 },
   { id: "gemini-3-pro-image-preview", label: "Pro", cost: 2 },
-  { id: "gemini-3.1-flash-image-preview", label: "Ultra", cost: 3 }
+  { id: "gemini-3.1-flash-image-preview", label: "Ultra", cost: 3 },
+  { id: "grok-imagine-image-2.0", label: "Grok Imagine", cost: 5 }
 ];
 const DEFAULT_ASPECT_RATIOS = [
   { value: "1:1", label: "1:1" },
@@ -121,6 +122,21 @@ const DEFAULT_IMAGE_SIZES = [
   { value: "2K", label: "2K (2048)" },
   { value: "4K", label: "4K (4096)" }
 ];
+
+function isGrokImageModel(model) {
+  return typeof model === "string" && model.indexOf("grok-imagine-image") === 0;
+}
+
+function imageSizesForSelectedModel() {
+  if (!isGrokImageModel(state.selectedModel)) return state.imageSizes;
+  return state.imageSizes.filter((item) => item.value !== "4K");
+}
+
+function clampImageSizeForSelectedModel() {
+  if (isGrokImageModel(state.selectedModel) && state.selectedImageSize === "4K") {
+    state.selectedImageSize = "2K";
+  }
+}
 
 const app = document.getElementById("app");
 
@@ -1489,6 +1505,7 @@ async function loadConfig() {
     if (!availableSizes.has(state.selectedImageSize) && data.defaults?.imageSize) {
       state.selectedImageSize = String(data.defaults.imageSize);
     }
+    clampImageSizeForSelectedModel();
   } catch {
     // Silent fallback to defaults.
   }
@@ -2941,7 +2958,7 @@ function renderMain() {
               <label class="stv-field" for="image-size">
                 <span class="stv-field-label">${escapeHtml(t("field_size"))}</span>
                 <select id="image-size">
-                  ${state.imageSizes
+                  ${imageSizesForSelectedModel()
                     .map((s) => `<option value="${escapeHtml(s.value)}">${escapeHtml(s.label)}</option>`)
                     .join("")}
                 </select>
@@ -2990,7 +3007,7 @@ function renderMain() {
   const webRatioOptions = state.aspectRatios
     .map((a) => `<option value="${escapeHtml(a.value)}">${escapeHtml(a.label)}</option>`)
     .join("");
-  const webSizeOptions = state.imageSizes
+  const webSizeOptions = imageSizesForSelectedModel()
     .map((s) => `<option value="${escapeHtml(s.value)}">${escapeHtml(s.label)}</option>`)
     .join("");
 
@@ -3291,6 +3308,7 @@ function renderMain() {
     modelEl.value = state.selectedModel;
     modelEl.addEventListener("change", async (e) => {
       state.selectedModel = e.target.value;
+      clampImageSizeForSelectedModel();
       await persistState();
       render();
     });

@@ -5,6 +5,7 @@ export type GeminiFamilyId =
   | "gemini-2.5-flash-lite"
   | "gemini-3-pro-text"
   | "gemini-2.5-flash-text"
+  | "grok-imagine-image"
   | "other";
 
 export const GEMINI_FAMILY_LABELS: Record<GeminiFamilyId, string> = {
@@ -14,6 +15,7 @@ export const GEMINI_FAMILY_LABELS: Record<GeminiFamilyId, string> = {
   "gemini-2.5-flash-lite": "Gemini 2.5 Flash Lite",
   "gemini-3-pro-text": "Gemini 3 Pro text",
   "gemini-2.5-flash-text": "Gemini 2.5 Flash text",
+  "grok-imagine-image": "Grok Imagine Image",
   other: "Прочее",
 };
 
@@ -24,6 +26,7 @@ export const GEMINI_FAMILY_ORDER: GeminiFamilyId[] = [
   "gemini-2.5-flash-lite",
   "gemini-3-pro-text",
   "gemini-2.5-flash-text",
+  "grok-imagine-image",
   "other",
 ];
 
@@ -34,6 +37,7 @@ export const GEMINI_FAMILY_COLORS: Record<GeminiFamilyId, string> = {
   "gemini-2.5-flash-lite": "#16a34a",
   "gemini-3-pro-text": "#d97706",
   "gemini-2.5-flash-text": "#7c3aed",
+  "grok-imagine-image": "#111111",
   other: "#71717a",
 };
 

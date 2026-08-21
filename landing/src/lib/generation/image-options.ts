@@ -9,8 +9,14 @@ export const DEFAULT_VIDEO_MODEL = GROK_IMAGINE_VIDEO_MODEL;
 export const GEMINI_OMNI_VIDEO_MODEL = "gemini-omni-flash-preview";
 export const VEO_LITE_VIDEO_MODEL = "veo-3.1-lite-generate-preview";
 
+export const GROK_IMAGINE_IMAGE_MODEL = "grok-imagine-image-2.0";
+
 export function isGrokVideoModel(model: unknown): boolean {
   return typeof model === "string" && model.startsWith("grok-imagine-video");
+}
+
+export function isGrokImageModel(model: unknown): boolean {
+  return typeof model === "string" && model.startsWith("grok-imagine-image");
 }
 
 export function isVeoLiteVideoModel(model: unknown): boolean {
@@ -55,6 +61,24 @@ export function isImageAspectRatio(value: unknown): value is string {
 
 export function isImageSize(value: unknown): value is string {
   return typeof value === "string" && IMAGE_SIZES.has(value);
+}
+
+/** Grok Imagine image API accepts 1k/2k only. */
+export function imageSizeOptionsForModel(
+  model?: string | null
+): readonly { value: string; label: string }[] {
+  if (isGrokImageModel(model)) {
+    return IMAGE_SIZE_OPTIONS.filter((option) => option.value !== "4K");
+  }
+  return IMAGE_SIZE_OPTIONS;
+}
+
+export function clampImageSizeForModel(
+  model: string | null | undefined,
+  imageSize: string
+): string {
+  if (isGrokImageModel(model) && imageSize === "4K") return "2K";
+  return imageSize;
 }
 
 export const VIDEO_ASPECT_RATIO_OPTIONS = [

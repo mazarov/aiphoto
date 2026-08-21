@@ -56,6 +56,8 @@ import {
   VIDEO_ASPECT_RATIO_OPTIONS,
   VIDEO_GENERATION_MODALITY,
   VIDEO_RESOLUTION_OPTIONS,
+  clampImageSizeForModel,
+  isGrokImageModel,
   isVeoLiteVideoModel,
   videoDurationOptionsForModel,
 } from "@/lib/generation/image-options";
@@ -523,20 +525,22 @@ export function CardInlineGeneratePanel({
         if (Number.isFinite(meData.credits)) {
           setCredits(Number(meData.credits));
         }
-        if (preferredModel && nextModels.some((item) => item.id === preferredModel)) {
-          setModel(preferredModel);
-        } else if (defaultModel) {
-          setModel(defaultModel);
-        }
+        const resolvedModel =
+          preferredModel && nextModels.some((item) => item.id === preferredModel)
+            ? preferredModel
+            : defaultModel;
+        if (resolvedModel) setModel(resolvedModel);
         if (preferredRatio && nextRatios.some((item) => item.value === preferredRatio)) {
           setAspectRatio(preferredRatio);
         } else if (defaultRatio) {
           setAspectRatio(defaultRatio);
         }
-        if (preferredSize && nextSizes.some((item) => item.value === preferredSize)) {
-          setImageSize(preferredSize);
-        } else if (defaultSize) {
-          setImageSize(defaultSize);
+        const resolvedSize =
+          preferredSize && nextSizes.some((item) => item.value === preferredSize)
+            ? preferredSize
+            : defaultSize;
+        if (resolvedSize) {
+          setImageSize(clampImageSizeForModel(resolvedModel, resolvedSize));
         }
         const availablePhotoIds = nextPhotos.map((photo) => photo.id);
         const restoredPhotoIds = restoreSelectedPhotoIds({
@@ -798,6 +802,19 @@ export function CardInlineGeneratePanel({
     if (!isVeoLiteVideoModel(videoModel)) return;
     if (videoDurationSeconds > 8) setVideoDurationSeconds(8);
   }, [videoModel, videoDurationSeconds]);
+
+  const visibleImageSizes = useMemo(
+    () =>
+      isGrokImageModel(model)
+        ? imageSizes.filter((item) => item.value !== "4K")
+        : imageSizes,
+    [model, imageSizes]
+  );
+
+  useEffect(() => {
+    if (!isGrokImageModel(model)) return;
+    if (imageSize === "4K") setImageSize("2K");
+  }, [model, imageSize]);
 
   useEffect(() => {
     if (!isDock) return;
@@ -2427,7 +2444,7 @@ export function CardInlineGeneratePanel({
                       : "rounded-xl border border-zinc-200 bg-zinc-100 text-zinc-900 focus:border-indigo-400"
                   }`}
                 >
-                  {imageSizes.map((item) => (
+                  {visibleImageSizes.map((item) => (
                     <option key={item.value} value={item.value}>
                       {item.label}
                     </option>

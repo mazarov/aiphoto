@@ -121,6 +121,11 @@ test("duplicate yookassa payment id fails closed", () => {
   );
 });
 
+test("classifyGeminiFamily maps Grok Imagine image SKUs", () => {
+  assert.equal(classifyGeminiFamily("Grok Imagine Image 2.0"), "grok-imagine-image");
+  assert.equal(classifyGeminiFamily("xAI Grok Imagine image output"), "grok-imagine-image");
+});
+
 test("gcp billing parser uses Subtotal and quoted usage", () => {
   const parsed = parseGcpCogsCsv(GCP);
   assert.equal(parsed.totals.count, 3);

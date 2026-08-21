@@ -12,6 +12,7 @@ import { createSupabaseServer } from "@/lib/supabase";
 import {
   DEFAULT_IMAGE_ASPECT_RATIO,
   DEFAULT_IMAGE_SIZE,
+  clampImageSizeForModel,
   isImageAspectRatio,
   isImageSize,
 } from "@/lib/generation/image-options";
@@ -26,13 +27,13 @@ export async function POST(req: NextRequest) {
     };
     const prompt = String(body.prompt || "").trim();
     const aspectRatio = body.aspectRatio || DEFAULT_IMAGE_ASPECT_RATIO;
-    const imageSize = body.imageSize || DEFAULT_IMAGE_SIZE;
+    const requestedImageSize = body.imageSize || DEFAULT_IMAGE_SIZE;
     const count = body.count ?? 1;
     if (prompt.length < 8) return NextResponse.json({ error: "prompt_too_short" }, { status: 400 });
     if (!Number.isInteger(count) || count < 1 || count > 4) {
       return NextResponse.json({ error: "invalid_count" }, { status: 400 });
     }
-    if (!isImageAspectRatio(aspectRatio) || !isImageSize(imageSize)) {
+    if (!isImageAspectRatio(aspectRatio) || !isImageSize(requestedImageSize)) {
       return NextResponse.json({ error: "invalid_generation_config" }, { status: 400 });
     }
 
@@ -58,6 +59,7 @@ export async function POST(req: NextRequest) {
       models = [];
     }
     const model = resolveAdminGenerationModel(models, body.model, config.default_model);
+    const imageSize = clampImageSizeForModel(model, requestedImageSize);
     if (!model) {
       return NextResponse.json(
         { error: body.model ? "invalid_model" : "generation_model_unavailable" },

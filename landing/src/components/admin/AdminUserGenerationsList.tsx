@@ -13,6 +13,9 @@ type Item = {
   status: Status;
   prompt: string;
   model: string | null;
+  requestedModel?: string | null;
+  executedModel?: string | null;
+  fallbackUsed?: boolean;
   aspectRatio: string | null;
   imageSize: string | null;
   creditsSpent: number;
@@ -180,7 +183,14 @@ export function AdminUserGenerationsList({
               {clientSourceLabel(item.clientSource)}
             </span>
             <span>{new Date(item.completedAt || item.createdAt).toLocaleString()}</span>
-            <span>{item.model || "model —"} · {item.aspectRatio || "ratio —"}</span>
+            <span>
+              {item.executedModel && item.executedModel !== (item.requestedModel || item.model)
+                ? `${item.requestedModel || item.model} → ${item.executedModel}`
+                : item.model || "model —"}
+              {item.fallbackUsed ? " · fallback" : ""}
+              {" · "}
+              {item.aspectRatio || "ratio —"}
+            </span>
           </div>
           <p className="mt-1 text-xs text-zinc-500">
             <span className="font-semibold text-zinc-700">{item.userEmail || item.userDisplayName || "Пользователь неизвестен"}</span>

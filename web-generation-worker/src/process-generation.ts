@@ -8,6 +8,12 @@ import {
   VIBE_IMAGE_PART_LABEL_REFERENCE,
   VIBE_IMAGE_PART_LABEL_SUBJECT,
 } from "../../landing/src/lib/image-generation-prompt";
+import {
+  assembleGrokImageEditPrompt,
+  assembleGrokImageToImagePrompt,
+  assembleGrokTextToImagePrompt,
+  assembleGrokVibePrompt,
+} from "../../landing/src/lib/grok-image-prompt";
 import { getVibeAttachReferenceImage } from "./lib/vibe-config";
 import { errorFields, log } from "./lib/logger";
 import {
@@ -19,6 +25,25 @@ import {
   type ParentGenerationInput,
 } from "./input-source";
 import { encodeGenerationResult } from "./result-encode";
+import { grokImageCircuit } from "./grok-image-circuit";
+import { shouldAttemptImageFallback } from "./image-fallback";
+import {
+  GROK_IMAGINE_IMAGE_MODEL,
+  buildXaiImageEditBody,
+  buildXaiImageGenerateBody,
+  clampGrokImageParts,
+  extractXaiImageBase64,
+  extractXaiImageUrl,
+  isGrokImageModel,
+  isXaiImageSafetyBlock,
+  mapGrokImageResolution,
+  rewriteXaiImageDownloadUrl,
+  xaiImageEditUrl,
+  xaiImageGenerateUrl,
+  xaiImageErrorMessage,
+  xaiProxyHost,
+  type GrokImagePart,
+} from "./xai-image";
 
 export { ProcessingError, RESULTS_BUCKET } from "./input-source";
 const DIRECT_GEMINI_BASE_URL = "https://generativelanguage.googleapis.com";
@@ -28,6 +53,9 @@ export type GenerationJob = GenerationInputJob & {
   user_id: string;
   prompt_text: string | null;
   model: string;
+  requested_model?: string | null;
+  executed_model?: string | null;
+  fallback_used?: boolean | null;
   aspect_ratio: string;
   image_size: string;
   vibe_id: string | null;
@@ -205,7 +233,7 @@ export async function processGeneration(
   job: GenerationJob,
   signal: AbortSignal,
   ensureLease: () => Promise<void>,
-): Promise<{ resultPath: string; rawPrompt: string }> {
+): Promise<{ resultPath: string; rawPrompt: string; executedModel: string; fallbackUsed: boolean }> {
   const context = {
     generationId: job.id,
     userId: job.user_id,
@@ -252,91 +280,108 @@ export async function processGeneration(
   }
 
   const hasReference = isVibe && Boolean(reference);
-  const fullPrompt = isVibe
+  const generationMode = isLocalEdit
+    ? "local_edit"
+    : job.parent_generation_id
+      ? "legacy_continuation"
+      : "initial";
+  const geminiPrompt = isVibe
     ? assembleVibeFinalPrompt(rawPrompt, hasReference)
     : isLocalEdit
       ? assembleLandingCardEditPrompt(editInstruction)
       : inputParts.length
         ? assembleLandingCardFinalPrompt(rawPrompt)
         : assembleTextToImageFinalPrompt(rawPrompt);
+  const grokPrompt = isVibe
+    ? assembleGrokVibePrompt(rawPrompt, hasReference)
+    : isLocalEdit
+      ? assembleGrokImageEditPrompt(editInstruction)
+      : inputParts.length
+        ? assembleGrokImageToImagePrompt(rawPrompt)
+        : assembleGrokTextToImagePrompt(rawPrompt);
   log("info", "generation_prompt_resolved", {
     ...context,
-    generationMode: isLocalEdit
-      ? "local_edit"
-      : job.parent_generation_id
-        ? "legacy_continuation"
-        : "initial",
+    generationMode,
     editInstructionLength: editInstruction.length,
-    promptLength: fullPrompt.length,
+    promptLength: geminiPrompt.length,
   });
-  if (!config.geminiApiKey) {
-    throw new ProcessingError("config_error", "GEMINI_API_KEY is not configured", false);
-  }
   if (!job.model || !job.aspect_ratio || !job.image_size) {
     throw new ProcessingError("config_error", "Generation model, aspect ratio, or image size is missing", false);
   }
-  const parts: RequestPart[] =
-    hasReference && reference
-      ? [
-          { text: VIBE_IMAGE_PART_LABEL_REFERENCE },
-          reference,
-          { text: VIBE_IMAGE_PART_LABEL_SUBJECT },
-          ...inputParts,
-          { text: fullPrompt },
-        ]
-      : [...inputParts, { text: fullPrompt }];
-  const base = await geminiBaseUrl(supabase);
-  const geminiUrl = `${base.url}/v1beta/models/${job.model}:generateContent`;
-  await ensureLease();
-  log("info", "gemini_request_started", {
-    ...context,
-    model: job.model,
-    proxy: base.proxy,
-    partCount: parts.length,
-    hasReference,
-  });
 
-  let response: Response;
-  try {
-    response = await fetch(geminiUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-goog-api-key": config.geminiApiKey,
-      },
-      body: JSON.stringify({
-        contents: [{ role: "user", parts }],
-        generationConfig: {
-          responseModalities: ["IMAGE"],
-          imageConfig: { aspectRatio: job.aspect_ratio, imageSize: job.image_size },
-        },
-      }),
-      signal: AbortSignal.any([signal, AbortSignal.timeout(120000)]),
+  const requestedModel = job.requested_model || job.model;
+  const startOnGrok = isGrokImageModel(requestedModel) || Boolean(job.fallback_used);
+  const grokParts: GrokImagePart[] = [
+    ...(hasReference && reference ? [{ mimeType: reference.inlineData.mimeType, data: reference.inlineData.data }] : []),
+    ...inputParts.map((part) => ({ mimeType: part.inlineData.mimeType, data: part.inlineData.data })),
+  ];
+
+  let imageBuffer: Buffer;
+  let executedModel = startOnGrok ? GROK_IMAGINE_IMAGE_MODEL : requestedModel;
+  let fallbackUsed = Boolean(job.fallback_used);
+
+  if (startOnGrok) {
+    imageBuffer = await generateGrokImage({
+      job,
+      prompt: grokPrompt,
+      images: grokParts,
+      signal,
+      context,
+      ensureLease,
     });
-  } catch (error) {
-    if (signal.aborted) throw new ProcessingError("shutdown", "Worker is shutting down", true);
-    const timeout = error instanceof Error && ["TimeoutError", "AbortError"].includes(error.name);
-    throw new ProcessingError(timeout ? "timeout" : "network_error", String((error as Error)?.message || error), true);
+  } else {
+    try {
+      imageBuffer = await generateGeminiImage({
+        job,
+        prompt: geminiPrompt,
+        inputParts,
+        reference: hasReference ? reference : null,
+        signal,
+        context,
+        ensureLease,
+        supabase,
+      });
+    } catch (error) {
+      if (!(error instanceof ProcessingError)) throw error;
+      const fallbackModel = await resolveImageFallbackModel(supabase);
+      const decision = shouldAttemptImageFallback({
+        requestedModel,
+        fallbackUsed,
+        error,
+        xaiConfigured: Boolean(config.xaiApiKey && config.xaiBaseUrl),
+        fallbackModel,
+        circuitOpen: grokImageCircuit.isOpen(),
+      });
+      if (!decision.ok) {
+        log("info", "generation_fallback_skipped", {
+          ...context,
+          reason: decision.reason,
+          errorType: error.errorType,
+        });
+        throw error;
+      }
+      fallbackUsed = true;
+      job.fallback_used = true;
+      executedModel = decision.model;
+      await persistImageFallback(supabase, job.id, requestedModel);
+      log("warn", "generation_fallback_used", {
+        ...context,
+        from: requestedModel,
+        to: decision.model,
+        errorType: error.errorType,
+      });
+      imageBuffer = await generateGrokImage({
+        job,
+        model: decision.model,
+        prompt: grokPrompt,
+        images: grokParts,
+        signal,
+        context,
+        ensureLease,
+      });
+    }
   }
 
-  let payload: Record<string, unknown>;
-  try {
-    payload = (await response.json()) as Record<string, unknown>;
-  } catch {
-    throw new ProcessingError(
-      "gemini_response_parse",
-      `Gemini returned non-JSON response (HTTP ${response.status})`,
-      response.status === 429 || response.status >= 500,
-    );
-  }
-  const candidate = (payload.candidates as Array<{
-    content?: { parts?: Array<{ inlineData?: { data?: string } }> };
-  }> | undefined)?.[0];
-  const imageBase64 = candidate?.content?.parts?.find((part) => part.inlineData?.data)?.inlineData?.data;
-  if (!response.ok || !imageBase64) throw geminiFailure(payload, response.status);
-
-  const imageBuffer = Buffer.from(imageBase64, "base64");
-  if (!imageBuffer.length) throw new ProcessingError("gemini_error", "Gemini returned an empty image", false);
   const encoded = await encodeGenerationResult(imageBuffer);
   await ensureLease();
   const resultPath = `${job.user_id}/${job.id}/${job.lease_token}.${encoded.extension}`;
@@ -359,6 +404,275 @@ export async function processGeneration(
     outputFormat: encoded.outputFormat,
     encodeMs: encoded.encodeMs,
     skippedReason: encoded.skippedReason,
+    executedModel,
+    fallbackUsed,
   });
-  return { resultPath, rawPrompt };
+  return { resultPath, rawPrompt, executedModel, fallbackUsed };
+}
+
+type ProviderContext = {
+  generationId: string;
+  userId: string;
+  attempt: number;
+  pipelineTrace: string | null;
+};
+
+async function generateGeminiImage(input: {
+  job: GenerationJob;
+  prompt: string;
+  inputParts: ImagePart[];
+  reference: ImagePart | null;
+  signal: AbortSignal;
+  context: ProviderContext;
+  ensureLease: () => Promise<void>;
+  supabase: SupabaseClient;
+}): Promise<Buffer> {
+  if (!config.geminiApiKey) {
+    throw new ProcessingError("config_error", "GEMINI_API_KEY is not configured", false);
+  }
+  const parts: RequestPart[] =
+    input.reference
+      ? [
+          { text: VIBE_IMAGE_PART_LABEL_REFERENCE },
+          input.reference,
+          { text: VIBE_IMAGE_PART_LABEL_SUBJECT },
+          ...input.inputParts,
+          { text: input.prompt },
+        ]
+      : [...input.inputParts, { text: input.prompt }];
+  const base = await geminiBaseUrl(input.supabase);
+  const geminiUrl = `${base.url}/v1beta/models/${input.job.model}:generateContent`;
+  await input.ensureLease();
+  log("info", "gemini_request_started", {
+    ...input.context,
+    model: input.job.model,
+    proxy: base.proxy,
+    partCount: parts.length,
+    hasReference: Boolean(input.reference),
+  });
+
+  let response: Response;
+  try {
+    response = await fetch(geminiUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": config.geminiApiKey,
+      },
+      body: JSON.stringify({
+        contents: [{ role: "user", parts }],
+        generationConfig: {
+          responseModalities: ["IMAGE"],
+          imageConfig: { aspectRatio: input.job.aspect_ratio, imageSize: input.job.image_size },
+        },
+      }),
+      signal: AbortSignal.any([input.signal, AbortSignal.timeout(120000)]),
+    });
+  } catch (error) {
+    if (input.signal.aborted) throw new ProcessingError("shutdown", "Worker is shutting down", true);
+    const timeout = error instanceof Error && ["TimeoutError", "AbortError"].includes(error.name);
+    throw new ProcessingError(timeout ? "timeout" : "network_error", String((error as Error)?.message || error), true);
+  }
+
+  let payload: Record<string, unknown>;
+  try {
+    payload = (await response.json()) as Record<string, unknown>;
+  } catch {
+    throw new ProcessingError(
+      "gemini_response_parse",
+      `Gemini returned non-JSON response (HTTP ${response.status})`,
+      response.status === 429 || response.status >= 500,
+    );
+  }
+  const candidate = (payload.candidates as Array<{
+    content?: { parts?: Array<{ inlineData?: { data?: string } }> };
+  }> | undefined)?.[0];
+  const imageBase64 = candidate?.content?.parts?.find((part) => part.inlineData?.data)?.inlineData?.data;
+  if (!response.ok || !imageBase64) throw geminiFailure(payload, response.status);
+  const imageBuffer = Buffer.from(imageBase64, "base64");
+  if (!imageBuffer.length) throw new ProcessingError("gemini_error", "Gemini returned an empty image", false);
+  return imageBuffer;
+}
+
+async function generateGrokImage(input: {
+  job: GenerationJob;
+  model?: string;
+  prompt: string;
+  images: GrokImagePart[];
+  signal: AbortSignal;
+  context: ProviderContext;
+  ensureLease: () => Promise<void>;
+}): Promise<Buffer> {
+  if (!config.xaiApiKey || !config.xaiBaseUrl) {
+    throw new ProcessingError("config_error", "XAI_BASE_URL is not configured", false);
+  }
+  const model = input.model || GROK_IMAGINE_IMAGE_MODEL;
+  const mapped = mapGrokImageResolution(input.job.image_size);
+  const clamped = clampGrokImageParts(input.images);
+  if (mapped.clamped) {
+    log("info", "grok_image_size_clamped", {
+      ...input.context,
+      from: input.job.image_size,
+      to: mapped.resolution,
+    });
+  }
+  if (clamped.clamped) {
+    log("info", "grok_input_clamped", {
+      ...input.context,
+      from: input.images.length,
+      to: clamped.parts.length,
+    });
+  }
+  const endpoint = clamped.parts.length ? "edits" : "generations";
+  const url = clamped.parts.length
+    ? xaiImageEditUrl(config.xaiBaseUrl)
+    : xaiImageGenerateUrl(config.xaiBaseUrl);
+  const body = clamped.parts.length
+    ? buildXaiImageEditBody({
+        model,
+        prompt: input.prompt,
+        aspectRatio: input.job.aspect_ratio,
+        resolution: mapped.resolution,
+        images: clamped.parts,
+      })
+    : buildXaiImageGenerateBody({
+        model,
+        prompt: input.prompt,
+        aspectRatio: input.job.aspect_ratio,
+        resolution: mapped.resolution,
+      });
+  await input.ensureLease();
+  log("info", "grok_image_request_started", {
+    ...input.context,
+    model,
+    endpoint,
+    proxyHost: xaiProxyHost(config.xaiBaseUrl),
+    partCount: clamped.parts.length,
+    clampedPhotos: clamped.clamped,
+    clampedSize: mapped.clamped,
+  });
+
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${config.xaiApiKey}`,
+      },
+      body: JSON.stringify(body),
+      signal: AbortSignal.any([input.signal, AbortSignal.timeout(120000)]),
+    });
+  } catch (error) {
+    grokImageCircuit.record(false);
+    if (input.signal.aborted) throw new ProcessingError("shutdown", "Worker is shutting down", true);
+    const timeout = error instanceof Error && ["TimeoutError", "AbortError"].includes(error.name);
+    throw new ProcessingError(timeout ? "timeout" : "network_error", String((error as Error)?.message || error), true);
+  }
+
+  let payload: Record<string, unknown> = {};
+  try {
+    payload = (await response.json()) as Record<string, unknown>;
+  } catch {
+    grokImageCircuit.record(false);
+    throw new ProcessingError(
+      "grok_image_response_parse",
+      `xAI returned non-JSON response (HTTP ${response.status})`,
+      response.status === 429 || response.status >= 500,
+    );
+  }
+
+  const message = xaiImageErrorMessage(payload);
+  if (isXaiImageSafetyBlock(payload, message)) {
+    grokImageCircuit.record(false);
+    throw new ProcessingError("safety_block", message, false);
+  }
+  if (!response.ok) {
+    grokImageCircuit.record(false);
+    if (response.status === 429 || response.status >= 500) {
+      throw new ProcessingError(`grok_http_${response.status}`, message, true);
+    }
+    throw new ProcessingError("grok_image_error", message, false);
+  }
+
+  let imageBase64 = extractXaiImageBase64(payload);
+  if (!imageBase64) {
+    const imageUrl = extractXaiImageUrl(payload);
+    if (imageUrl) {
+      try {
+        imageBase64 = await downloadXaiImageBase64(imageUrl, input.signal);
+      } catch (error) {
+        grokImageCircuit.record(false);
+        throw error;
+      }
+    }
+  }
+  if (!imageBase64) {
+    grokImageCircuit.record(false);
+    throw new ProcessingError("grok_image_error", message || "xAI returned an empty image", false);
+  }
+  const imageBuffer = Buffer.from(imageBase64, "base64");
+  if (!imageBuffer.length) {
+    grokImageCircuit.record(false);
+    throw new ProcessingError("grok_image_error", "xAI returned an empty image", false);
+  }
+  grokImageCircuit.record(true);
+  return imageBuffer;
+}
+
+async function downloadXaiImageBase64(imageUrl: string, signal: AbortSignal): Promise<string> {
+  const rewritten = rewriteXaiImageDownloadUrl(imageUrl, config.xaiBaseUrl);
+  const response = await fetch(rewritten, {
+    headers: { Authorization: `Bearer ${config.xaiApiKey}` },
+    signal: AbortSignal.any([signal, AbortSignal.timeout(15000)]),
+  });
+  if (!response.ok) {
+    throw new ProcessingError(
+      response.status === 429 || response.status >= 500 ? `grok_http_${response.status}` : "grok_image_error",
+      `xAI image download HTTP ${response.status}`,
+      response.status === 429 || response.status >= 500,
+    );
+  }
+  const buffer = Buffer.from(await response.arrayBuffer());
+  return buffer.toString("base64");
+}
+
+async function resolveImageFallbackModel(supabase: SupabaseClient): Promise<string | null> {
+  const { data, error } = await supabase
+    .from("landing_generation_config")
+    .select("key,value")
+    .in("key", ["image_fallback_model", "models"]);
+  if (error || !data?.length) return GROK_IMAGINE_IMAGE_MODEL;
+  const configMap = Object.fromEntries(data.map((row) => [row.key, String(row.value || "")]));
+  const rawTarget = configMap.image_fallback_model?.trim();
+  if (!rawTarget || ["0", "false", "off", "no"].includes(rawTarget.toLowerCase())) return null;
+  const target = isGrokImageModel(rawTarget) ? rawTarget : GROK_IMAGINE_IMAGE_MODEL;
+  try {
+    const parsed = JSON.parse(configMap.models || "[]") as Array<{ id?: string; enabled?: boolean }>;
+    const enabled = parsed.find((item) => item.id === target && item.enabled !== false);
+    if (parsed.length && !enabled) return null;
+  } catch {
+    // Config parse failure: still allow the documented default target.
+  }
+  return target;
+}
+
+async function persistImageFallback(
+  supabase: SupabaseClient,
+  generationId: string,
+  requestedModel: string,
+): Promise<void> {
+  const { error } = await supabase
+    .from("landing_generations")
+    .update({
+      fallback_used: true,
+      requested_model: requestedModel,
+    })
+    .eq("id", generationId);
+  if (error) {
+    log("warn", "generation_fallback_persist_failed", {
+      generationId,
+      error: error.message,
+    });
+  }
 }

@@ -3,6 +3,7 @@ import { serializeUnknownError } from "@/lib/analyze-history";
 import { createSupabaseServer } from "@/lib/supabase";
 import { getSupabaseUserForApiRoute } from "@/lib/supabase-route-auth";
 import {
+  clampImageSizeForModel,
   isImageAspectRatio,
   isImageSize,
 } from "@/lib/generation/image-options";
@@ -51,7 +52,7 @@ export async function GET(req: NextRequest) {
         ? {
             model: data.model,
             aspectRatio: data.aspect_ratio,
-            imageSize: data.image_size,
+            imageSize: clampImageSizeForModel(data.model, data.image_size),
             selectedPhotoIds: data.selected_photo_ids ?? [],
           }
         : null,
@@ -130,12 +131,14 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: "validation_error" }, { status: 400 });
     }
 
+    const persistedImageSize = clampImageSizeForModel(model, imageSize);
+
     const { error } = await supabase.from("landing_generation_preferences").upsert(
       {
         auth_user_id: user.id,
         model,
         aspect_ratio: aspectRatio,
-        image_size: imageSize,
+        image_size: persistedImageSize,
         selected_photo_ids: selectedPhotoIds,
         updated_at: new Date().toISOString(),
       },

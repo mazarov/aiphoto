@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
     const { data: rows, error } = await supabase
       .from("landing_generations")
       .select(
-        "id, status, prompt_text, model, aspect_ratio, credits_spent, created_at, generation_completed_at, error_message, result_storage_bucket, result_storage_path, ugc_card_id, modality, result_mime_type, duration_seconds"
+        "id, status, prompt_text, model, executed_model, fallback_used, aspect_ratio, credits_spent, created_at, generation_completed_at, error_message, result_storage_bucket, result_storage_path, ugc_card_id, modality, result_mime_type, duration_seconds"
       )
       .or(ownerFilter)
       .order("created_at", { ascending: false })
@@ -87,6 +87,8 @@ export async function GET(req: NextRequest) {
         status: g.status,
         prompt: g.prompt_text,
         model: g.model,
+        executedModel: g.executed_model || null,
+        fallbackUsed: Boolean(g.fallback_used),
         aspectRatio: g.aspect_ratio,
         modality: g.modality || "image",
         resultMimeType: g.result_mime_type || null,

@@ -44,6 +44,10 @@ export const GENERATION_MODEL_DISPLAY: Record<string, GenerationModelDisplay> = 
     label: "Veo Omni Flash",
     description: "Оживление фото в короткое видео",
   },
+  "grok-imagine-image-2.0": {
+    label: "Grok Imagine",
+    description: "Альтернативная генерация xAI",
+  },
   "grok-imagine-video-1.5": {
     label: "Grok 1.5",
     description: "Оживление фото в короткое видео",
@@ -91,6 +95,11 @@ export const FALLBACK_GENERATION_MODELS: GenerationModelOption[] = [
   {
     id: "gemini-3.1-flash-lite-image",
     label: GENERATION_MODEL_DISPLAY["gemini-3.1-flash-lite-image"].label,
+    cost: 5,
+  },
+  {
+    id: "grok-imagine-image-2.0",
+    label: GENERATION_MODEL_DISPLAY["grok-imagine-image-2.0"].label,
     cost: 5,
   },
 ];

@@ -97,6 +97,31 @@ export async function GET(req: NextRequest) {
   }
   const creditsByUser = creditsRemainingByUserId(creditRows);
 
+  const extrasById = new Map<
+    string,
+    { requestedModel: string | null; executedModel: string | null; fallbackUsed: boolean }
+  >();
+  if (page.length) {
+    const { data: extras, error: extrasError } = await supabase
+      .from("landing_generations")
+      .select("id, requested_model, executed_model, fallback_used")
+      .in("id", page.map((row) => row.id));
+    if (extrasError) {
+      console.error("[admin.user-generations] extras_fetch_failed", {
+        adminEmail: gate.email,
+        message: extrasError.message,
+      });
+    } else {
+      for (const extra of extras || []) {
+        extrasById.set(extra.id, {
+          requestedModel: extra.requested_model ?? null,
+          executedModel: extra.executed_model ?? null,
+          fallbackUsed: Boolean(extra.fallback_used),
+        });
+      }
+    }
+  }
+
   const items = page.map((row) => {
     const publicationStatus = resolveUserGenerationPublicationStatus(row);
     const sourcePhotoUrls = (row.input_photo_paths || [])
@@ -111,6 +136,9 @@ export async function GET(req: NextRequest) {
       status: row.status,
       prompt: row.prompt_text,
       model: row.model,
+      requestedModel: extrasById.get(row.id)?.requestedModel ?? row.model,
+      executedModel: extrasById.get(row.id)?.executedModel ?? null,
+      fallbackUsed: extrasById.get(row.id)?.fallbackUsed ?? false,
       aspectRatio: row.aspect_ratio,
       imageSize: row.image_size,
       creditsSpent: row.credits_spent,

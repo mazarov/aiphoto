@@ -155,6 +155,9 @@ export function classifyGeminiFamily(skuDescription: string): GeminiFamilyId {
   if (text.includes("flash lite")) return "gemini-2.5-flash-lite";
   if (text.includes("3 pro")) return "gemini-3-pro-text";
   if (text.includes("2.5 flash")) return "gemini-2.5-flash-text";
+  if (text.includes("grok") && text.includes("imagine") && text.includes("image")) {
+    return "grok-imagine-image";
+  }
   return "other";
 }
 

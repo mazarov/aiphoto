@@ -1,4 +1,4 @@
-import { isGrokVideoModel } from "@/lib/generation/image-options";
+import { isGrokImageModel, isGrokVideoModel } from "@/lib/generation/image-options";
 
 export function GoogleGenerationModelIcon({ className = "h-5 w-5" }: { className?: string }) {
   return (
@@ -29,7 +29,7 @@ export function GenerationModelIcon({
   modelId?: string | null;
   className?: string;
 }) {
-  if (isGrokVideoModel(modelId)) {
+  if (isGrokImageModel(modelId) || isGrokVideoModel(modelId)) {
     return <GrokGenerationModelIcon className={className} />;
   }
   return <GoogleGenerationModelIcon className={className} />;

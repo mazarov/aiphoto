@@ -12,6 +12,7 @@ import {
   RESULTS_BUCKET,
 } from "./process-generation";
 import { processVideoGeneration } from "./process-video-generation";
+import { GROK_IMAGINE_IMAGE_MODEL, isGrokImageModel } from "./xai-image";
 
 const app = express();
 const shutdownController = new AbortController();
@@ -81,7 +82,27 @@ async function terminalFail(job: GenerationJob, error: ProcessingError): Promise
   });
 }
 
+async function persistExecutedModel(job: GenerationJob, executedModel: string, fallbackUsed: boolean): Promise<void> {
+  const { error } = await supabase
+    .from("landing_generations")
+    .update({
+      executed_model: executedModel,
+      fallback_used: fallbackUsed,
+    })
+    .eq("id", job.id);
+  if (error) {
+    log("warn", "generation_executed_model_persist_failed", {
+      generationId: job.id,
+      error: error.message,
+    });
+  }
+}
+
 async function handleFailure(job: GenerationJob, error: ProcessingError): Promise<void> {
+  const fallbackUsed = Boolean(job.fallback_used);
+  const executedModel =
+    fallbackUsed || isGrokImageModel(job.model) ? GROK_IMAGINE_IMAGE_MODEL : job.model;
+  await persistExecutedModel(job, executedModel, fallbackUsed);
   if (shouldRetry(error.retryable, job.attempts, job.max_attempts)) {
     const delay = retryDelaySeconds(job.attempts);
     const { data, error: rpcError } = await supabase.rpc("landing_retry_generation", {
@@ -159,6 +180,9 @@ async function runJob(job: GenerationJob): Promise<void> {
           ensureLease,
         );
     await ensureLease();
+    if ("executedModel" in result && result.executedModel) {
+      await persistExecutedModel(job, result.executedModel, Boolean(result.fallbackUsed));
+    }
     const { data: completed, error } = await supabase.rpc("landing_complete_generation", {
       p_generation_id: job.id,
       p_worker_id: config.workerId,
@@ -209,6 +233,8 @@ async function runJob(job: GenerationJob): Promise<void> {
       resultPath: result.resultPath,
       attempt: job.attempts,
       durationMs: Date.now() - startedAt,
+      executedModel: "executedModel" in result ? result.executedModel : job.model,
+      fallbackUsed: "fallbackUsed" in result ? result.fallbackUsed : false,
     });
     try {
       if (!job.create_ugc || jobModality(job) === "video") {

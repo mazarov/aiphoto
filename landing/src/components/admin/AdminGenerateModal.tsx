@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { isGrokImageModel } from "@/lib/generation/image-options";
 
 type Config = {
   models: { id: string; label: string }[]; aspectRatios: { value: string; label: string }[];
@@ -35,6 +36,18 @@ export function AdminGenerateModal({ initialPrompt, onClose, onCompleted }: {
     } catch (reason) { setError(reason instanceof Error ? reason.message : "Ошибка загрузки"); }
   }, []);
   useEffect(() => { void init(); }, [init]);
+
+  const visibleImageSizes = useMemo(
+    () =>
+      (config?.imageSizes ?? []).filter(
+        (item) => !isGrokImageModel(model) || item.value !== "4K"
+      ),
+    [config, model]
+  );
+
+  useEffect(() => {
+    if (isGrokImageModel(model) && size === "4K") setSize("2K");
+  }, [model, size]);
 
   const upload = async (file?: File) => {
     if (!file) return;
@@ -116,7 +129,7 @@ export function AdminGenerateModal({ initialPrompt, onClose, onCompleted }: {
             {config?.aspectRatios.map((item) => <option key={item.value}>{item.value}</option>)}
           </select>
           <select value={size} onChange={(event) => setSize(event.target.value)} className="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs">
-            {config?.imageSizes.map((item) => <option key={item.value}>{item.value}</option>)}
+            {visibleImageSizes.map((item) => <option key={item.value}>{item.value}</option>)}
           </select>
         </div>
         <div className="flex gap-3">

@@ -22,11 +22,15 @@ import {
   DEFAULT_IMAGE_SIZE,
   IMAGE_GENERATION_MODALITY,
   VIDEO_GENERATION_MODALITY,
+  clampImageSizeForModel,
   isGenerationModality,
   isImageAspectRatio,
   isImageSize,
 } from "@/lib/generation/image-options";
-import { parseEnabledVideoGenerationModels } from "@/lib/generation-model-labels";
+import {
+  FALLBACK_GENERATION_MODELS,
+  parseEnabledVideoGenerationModels,
+} from "@/lib/generation-model-labels";
 import {
   calculateVideoCreditCost,
   normalizeVideoDurationSeconds,
@@ -245,7 +249,7 @@ export async function POST(req: NextRequest) {
     const ar = isVideo
       ? resolveVideoAspectRatio(aspectRatio)
       : aspectRatio || DEFAULT_IMAGE_ASPECT_RATIO;
-    const sz = isVideo
+    let sz = isVideo
       ? resolveVideoResolution(imageSize)
       : imageSize || DEFAULT_IMAGE_SIZE;
     if (isVideo) {
@@ -369,12 +373,10 @@ export async function POST(req: NextRequest) {
           .filter((m: { enabled?: boolean }) => m.enabled !== false)
           .map((m: { id: string; cost: number }) => ({ id: m.id, cost: m.cost }));
       } catch {
-        models = [
-          { id: "gemini-2.5-flash-image", cost: 5 },
-          { id: "gemini-3-pro-image-preview", cost: 10 },
-          { id: "gemini-3.1-flash-image-preview", cost: 10 },
-          { id: "gemini-3.1-flash-lite-image", cost: 5 },
-        ];
+        models = FALLBACK_GENERATION_MODELS.map((item) => ({
+          id: item.id,
+          cost: item.cost,
+        }));
       }
     }
 
@@ -387,9 +389,21 @@ export async function POST(req: NextRequest) {
     const videoDuration = isVideo
       ? normalizeVideoDurationSeconds(durationSeconds, resolvedVideoModelId)
       : null;
+    const requestedImageModel = typeof model === "string" ? model.trim() : "";
     const modelConfig = isVideo
       ? models.find((item) => item.id === resolvedVideoModelId) || models[0]
-      : models.find((m) => m.id === model) || models[0];
+      : requestedImageModel
+        ? models.find((item) => item.id === requestedImageModel)
+        : models.find((item) => item.id === config.default_model) || models[0];
+    if (!isVideo && requestedImageModel && !modelConfig) {
+      return NextResponse.json(
+        { error: "validation_error", message: "Неизвестная модель генерации" },
+        { status: 400 }
+      );
+    }
+    if (!isVideo && modelConfig) {
+      sz = clampImageSizeForModel(modelConfig.id, sz);
+    }
     if (
       !modelConfig ||
       !Number.isInteger(modelConfig.cost) ||
