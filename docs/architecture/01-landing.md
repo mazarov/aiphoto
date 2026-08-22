@@ -1,5 +1,7 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-08-22 (**admin image generate/edit:** `/admin/analyze-history` → «Генерации других пользователей» показывает бейдж `Gemini generate` / `Gemini edit` / `xAI generate` / `xAI edit`. SSOT `inferProviderImageMode`: фото/parent/vibe/local edit → edit, иначе generate; вендор по `executed_model` / `fallback_used`. Поле `providerImageMode` в `GET /api/admin/user-generations`.)
+>
 > Последнее обновление: 2026-08-22 (**lifecycle-почта в коде:** `sql/206`, `mail-catalog.ts`, due-очередь `POST /api/cron/mail-due`, гранты `landing_pricing_offers` 10/20%, приоритетный claim outbox, бюджет кампаний, вкладка «Каталог» на `/admin/mail`. Welcome/402/ЮKassa/gen/credited ставят due, не SMTP. Спека `docs/22-08-lifecycle-mail.md`. Транспорт: `docs/21-08-yandex-postbox-mail.md`, ops `docs/ops/yandex-cloud-postbox.md`.)
 >
 > Последнее обновление: 2026-08-22 (**Yandex Cloud Postbox:** исходящая почта через SESv2 `postbox.cloud.yandex.net` (без `GEMINI_PROXY`). Outbox `sql/205`, cron `POST /api/cron/mail-outbox`, enqueue после YooKassa/Robokassa `credited` и one-shot welcome. Админка `/admin/mail` (dry-run → send), `/unsubscribe` + `POST /api/mail/unsubscribe`, bounce `POST /api/mail/postbox-events`. Спека `docs/21-08-yandex-postbox-mail.md`, ops `docs/ops/yandex-cloud-postbox.md`. GoTrue auth-письма и MCP `support_ru` не трогаем.)
@@ -444,7 +446,7 @@
 /generations            → Мои генерации (auth): канонический список `landing_generations` текущего shared DB user; UGC-карточка необязательна
 /analyses               → Мои анализы (auth, noindex): свои строки `analyze_history` (`user_id` = JWT или shared db id); signed preview из private bucket; CTA копирует промт и открывает dock. Гостевые анализы (`user_id` null) не попадают. SQL `188`
 /admin/analytics        → Закрытый analytics dashboard: пользователи/клиенты + live непотраченные кредиты; таблицы кредитов/топа/analyze свёрнуты до клика; admin generation modal; Supabase Auth + email allowlist `ANALYTICS_ADMIN_EMAILS`
-/admin/analyze-history  → Закрытая история analyze/remix + все non-admin user generations; remix помечается бейджем и `change_request`; private source previews выдаются signed, completed results публикуются идемпотентно
+/admin/analyze-history  → Закрытая история analyze/remix + все non-admin user generations; remix помечается бейджем и `change_request`; image job — бейдж `Gemini|xAI generate|edit`; private source previews выдаются signed, completed results публикуются идемпотентно
 /admin/payments         → Закрытый cursor-реестр YooKassa/Robokassa: payer identity, RUB/status/test, credits/`credited_at`; кнопка «Скачать CSV» выгружает все строки текущих фильтров
 /admin/finance          → Касса выгрузок: импорт ЮKassa/GCP, чистый доход; `?tab=finance` с аналитики редиректит сюда
 /admin/seo              → Вотчлист топ-30 URL: фильтр дней, таблица + раскрытие запросов и график динамики
@@ -557,7 +559,7 @@
 | `/api/admin/payments/reconcile` | POST, admin auth: `{ paymentId \| yookassaPaymentId }` или `{ stale: true }` — ручной/batch reconcile через YooKassa GET |
 | `/api/admin/analyze-history` | GET, admin auth: cursor pagination private analyze/remix history (`kind`, `change_request`, `user_email` если был `user_id`), optional `client_source`, signed image URL (analyze only) |
 | `/api/admin/analyze-history/[id]/publish` | POST, admin auth: private analyze image → public result object → idempotent `prompt_cards` draft → общий SEO publish service |
-| `/api/admin/user-generations` | GET, admin auth: cursor всех `client_source != admin` generation statuses, identity, live `creditsRemaining` из `landing_users.credits`, public result и 15-минутные signed source previews |
+| `/api/admin/user-generations` | GET, admin auth: cursor всех `client_source != admin` generation statuses, identity, live `creditsRemaining` из `landing_users.credits`, `providerImageMode` (`gemini|xai` × `generate|edit`), public result и 15-минутные signed source previews |
 | `/api/admin/user-generations/[id]/publish` | POST, admin auth: completed non-admin generation → idempotent UGC draft исходного `requester_auth_user_id` → общий SEO publish service |
 | `/api/admin/generation-photo` | GET/POST, admin auth: чтение signed URL или замена закреплённого reference photo для admin generation |
 | `/api/admin/generate` | POST, admin auth: idempotent enqueue `1…4` jobs в durable `landing_enqueue_generation`, `client_source=admin`, без списания кредитов |

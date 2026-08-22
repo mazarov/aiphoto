@@ -19,6 +19,12 @@ export function isGrokImageModel(model: unknown): boolean {
   return typeof model === "string" && model.startsWith("grok-imagine-image");
 }
 
+export function isGeminiImageModel(model: unknown): boolean {
+  return typeof model === "string"
+    && model.startsWith("gemini-")
+    && model.includes("image");
+}
+
 export function isVeoLiteVideoModel(model: unknown): boolean {
   return typeof model === "string" && model.startsWith("veo-3.1-lite");
 }

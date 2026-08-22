@@ -17,6 +17,7 @@ import {
   USER_GENERATION_PHOTOS_BUCKET,
 } from "@/lib/user-generation-photos";
 import { createSupabaseServer, getStoragePublicUrl } from "@/lib/supabase";
+import { inferProviderImageMode } from "@/lib/provider-image-mode";
 
 export const dynamic = "force-dynamic";
 const ADMIN_SOURCE_PREVIEW_TTL_SEC = 15 * 60;
@@ -99,12 +100,22 @@ export async function GET(req: NextRequest) {
 
   const extrasById = new Map<
     string,
-    { requestedModel: string | null; executedModel: string | null; fallbackUsed: boolean }
+    {
+      requestedModel: string | null;
+      executedModel: string | null;
+      fallbackUsed: boolean;
+      modality: string | null;
+      hasParent: boolean;
+      hasVibe: boolean;
+      hasEditInstruction: boolean;
+    }
   >();
   if (page.length) {
     const { data: extras, error: extrasError } = await supabase
       .from("landing_generations")
-      .select("id, requested_model, executed_model, fallback_used")
+      .select(
+        "id, requested_model, executed_model, fallback_used, modality, parent_generation_id, vibe_id, edit_instruction"
+      )
       .in("id", page.map((row) => row.id));
     if (extrasError) {
       console.error("[admin.user-generations] extras_fetch_failed", {
@@ -117,6 +128,10 @@ export async function GET(req: NextRequest) {
           requestedModel: extra.requested_model ?? null,
           executedModel: extra.executed_model ?? null,
           fallbackUsed: Boolean(extra.fallback_used),
+          modality: extra.modality ?? null,
+          hasParent: Boolean(extra.parent_generation_id),
+          hasVibe: Boolean(extra.vibe_id),
+          hasEditInstruction: Boolean(String(extra.edit_instruction || "").trim()),
         });
       }
     }
@@ -124,6 +139,18 @@ export async function GET(req: NextRequest) {
 
   const items = page.map((row) => {
     const publicationStatus = resolveUserGenerationPublicationStatus(row);
+    const extra = extrasById.get(row.id);
+    const providerImageMode = inferProviderImageMode({
+      model: row.model,
+      requestedModel: extra?.requestedModel ?? row.model,
+      executedModel: extra?.executedModel ?? null,
+      fallbackUsed: extra?.fallbackUsed ?? false,
+      modality: extra?.modality ?? null,
+      inputPhotoCount: (row.input_photo_paths || []).length,
+      hasParent: extra?.hasParent ?? false,
+      hasVibe: extra?.hasVibe ?? false,
+      hasEditInstruction: extra?.hasEditInstruction ?? false,
+    });
     const sourcePhotoUrls = (row.input_photo_paths || [])
       .filter(isSafeStoragePath)
       .slice(0, MAX_SOURCE_PREVIEWS)
@@ -136,9 +163,10 @@ export async function GET(req: NextRequest) {
       status: row.status,
       prompt: row.prompt_text,
       model: row.model,
-      requestedModel: extrasById.get(row.id)?.requestedModel ?? row.model,
-      executedModel: extrasById.get(row.id)?.executedModel ?? null,
-      fallbackUsed: extrasById.get(row.id)?.fallbackUsed ?? false,
+      requestedModel: extra?.requestedModel ?? row.model,
+      executedModel: extra?.executedModel ?? null,
+      fallbackUsed: extra?.fallbackUsed ?? false,
+      providerImageMode,
       aspectRatio: row.aspect_ratio,
       imageSize: row.image_size,
       creditsSpent: row.credits_spent,

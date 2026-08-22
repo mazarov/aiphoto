@@ -1,6 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import {
+  providerImageModeBadgeClass,
+  providerImageModeLabel,
+  type ProviderImageMode,
+} from "@/lib/provider-image-mode";
 import { AdminResultLightbox, AdminResultThumb } from "./AdminResultMedia";
 import { CLIENT_SOURCES_ORDER, clientSourceColor, clientSourceLabel } from "./analytics-constants";
 
@@ -16,6 +21,7 @@ type Item = {
   requestedModel?: string | null;
   executedModel?: string | null;
   fallbackUsed?: boolean;
+  providerImageMode?: ProviderImageMode | null;
   aspectRatio: string | null;
   imageSize: string | null;
   creditsSpent: number;
@@ -178,6 +184,11 @@ export function AdminUserGenerationsList({
             <span className={`rounded-full px-2 py-0.5 font-semibold ${statusClass[item.status]}`}>
               {item.status}
             </span>
+            {item.providerImageMode && (
+              <span className={`rounded-full px-2 py-0.5 font-semibold ${providerImageModeBadgeClass(item.providerImageMode)}`}>
+                {providerImageModeLabel(item.providerImageMode)}
+              </span>
+            )}
             <span className="rounded-full px-2 py-0.5 font-semibold text-white"
               style={{ background: clientSourceColor(item.clientSource) }}>
               {clientSourceLabel(item.clientSource)}
