@@ -1,4 +1,5 @@
 import type { SupabaseClient, User } from "@supabase/supabase-js";
+import { scheduleWelcomeMail } from "@/lib/mail-outbox";
 import { isStvGuestUser } from "@/lib/stv-guest-mode";
 import {
   extractOauthProviderSubs,
@@ -11,6 +12,26 @@ const GUEST_OWNER_CONFIG_KEY = "stv_guest_owner_user_id";
 type EnsureResult =
   | { ok: true; credits: number; dbUserId: string; usedGuestOwner: boolean }
   | { ok: false; status: number; error: string; message: string };
+
+function userDisplayName(user: User): string | null {
+  const metadata = user.user_metadata || {};
+  const name = [metadata.full_name, metadata.name, metadata.display_name, user.email]
+    .find((value) => typeof value === "string" && value.trim());
+  return typeof name === "string" ? name.trim() : null;
+}
+
+function scheduleWelcomeIfNeeded(
+  supabase: SupabaseClient,
+  user: User,
+  dbUserId: string,
+): void {
+  scheduleWelcomeMail(supabase, {
+    authUserId: user.id,
+    sharedUserId: dbUserId,
+    email: user.email,
+    displayName: userDisplayName(user),
+  });
+}
 
 async function readCachedGuestOwnerId(supabase: SupabaseClient): Promise<string | null> {
   const envId = process.env.STV_GUEST_OWNER_USER_ID?.trim();
@@ -261,6 +282,7 @@ export async function ensureLandingUserForGeneration(
         message: "Не удалось создать профиль пользователя",
       };
     }
+    scheduleWelcomeIfNeeded(supabase, user, resolved.dbUserId);
     return {
       ok: true,
       credits: profile.credits,
@@ -335,6 +357,7 @@ export async function ensureLandingUserForGeneration(
     };
   }
 
+  scheduleWelcomeIfNeeded(supabase, user, dbUserId);
   return {
     ok: true,
     credits: profile.credits,

@@ -4,6 +4,7 @@ import {
   assertYooKassaPaymentMatches,
   getYooKassaReconciliationAction,
 } from "@/lib/yookassa-core";
+import { enqueueTokensCreditedMail } from "@/lib/mail-outbox";
 import { reportYandexYooKassaPurchase } from "@/lib/yandex-metrika-measurement";
 
 type LocalPayment = {
@@ -93,6 +94,23 @@ export async function reconcileYooKassaPayment(
     }
 
     const result = Array.isArray(fulfilled) ? fulfilled[0] : fulfilled;
+    if (result?.credited === true) {
+      try {
+        await enqueueTokensCreditedMail(supabase, {
+          provider: "yookassa",
+          paymentId: local.id,
+          authUserId: local.auth_user_id,
+          landingUserId: local.landing_user_id,
+          planId: local.plan_id,
+          credits: local.credits,
+        });
+      } catch (error) {
+        console.warn("[mail] yookassa credited enqueue failed", {
+          paymentId: local.id,
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
     try {
       await reportYandexYooKassaPurchase(supabase, local);
     } catch (error) {

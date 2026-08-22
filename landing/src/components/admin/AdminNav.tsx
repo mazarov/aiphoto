@@ -9,6 +9,7 @@ const ITEMS = [
   { href: "/admin/payments", label: "Оплаты" },
   { href: "/admin/finance", label: "Финансы" },
   { href: "/admin/seo", label: "SEO" },
+  { href: "/admin/mail", label: "Почта" },
 ] as const;
 
 export function AdminNav() {

@@ -48,3 +48,19 @@ When this rule is active, prioritize scalable, reliable, observable designs over
 ## Delivery isolation
 
 A spec is not a license to edit the current checkout. Name the feature branch in the spec (`feature/<doc-filename-without-.md>`). Implementation of that spec must start only after checkout/create of that branch from `origin/main`. If this session is on another chat’s branch or a dirty foreign tree — switch first; do not mix. Details: `.cursor/rules/git-workflow.mdc`.
+
+## One open project only
+
+Develop **only** in the workspace the user has open. Do not implement, write files, run `git worktree add`, or `move_agent_to_root` into another project, clone, or sibling worktree.
+
+Forbidden even when the current tree is dirty or on the wrong branch:
+
+- a path like `../aiphoto-<feature>` while the open root is `aiphoto`
+- a second clone “just for this chat”
+- shell/`Write` into any path outside the open workspace root
+
+If this repo is blocked (wrong branch, foreign dirty WIP, checkout fails): **stop and ask the user** to switch or clean **this** project. Isolation is a pause, not a reason to leave the project. Another directory is allowed only when the user names that exact path in the same message.
+
+## Delivery unit
+
+A change that alters a contract, API, or data flow is **one delivery unit**: implementation + tests + SSOT architecture docs in the **same commit**. A follow-up docs commit is a process failure, not cleanup. If a doc file has foreign dirty hunks — take only this change’s lines; do not ship code without docs. Details: `.cursor/rules/git-workflow.mdc`, `.cursor/rules/update-architecture-docs.mdc`.

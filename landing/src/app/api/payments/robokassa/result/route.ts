@@ -5,6 +5,7 @@ import {
   robokassaAmountsEqual,
   verifyRobokassaResult,
 } from "@/lib/robokassa-core";
+import { enqueueTokensCreditedMail } from "@/lib/mail-outbox";
 import { createSupabaseServer } from "@/lib/supabase";
 import { reportYandexPurchase } from "@/lib/yandex-metrika-measurement";
 
@@ -13,6 +14,8 @@ export const runtime = "nodejs";
 type LocalPayment = {
   id: string;
   invoice_id: number | string;
+  auth_user_id: string;
+  landing_user_id: string;
   plan_id: string;
   credits: number;
   amount_rub: number | string;
@@ -39,7 +42,7 @@ async function handleResult(request: Request) {
     const { data, error } = await supabase
       .from("landing_robokassa_payments")
       .select(
-        "id, invoice_id, plan_id, credits, amount_rub, test, ym_client_id, yandex_conversion_sent_at, yandex_conversion_attempts",
+        "id, invoice_id, auth_user_id, landing_user_id, plan_id, credits, amount_rub, test, ym_client_id, yandex_conversion_sent_at, yandex_conversion_attempts",
       )
       .eq("id", result.paymentId)
       .eq("invoice_id", result.invoiceId)
@@ -64,6 +67,23 @@ async function handleResult(request: Request) {
     const fulfillment = Array.isArray(fulfilled) ? fulfilled[0] : fulfilled;
 
     after(async () => {
+      if (fulfillment?.credited === true) {
+        try {
+          await enqueueTokensCreditedMail(supabase, {
+            provider: "robokassa",
+            paymentId: local.id,
+            authUserId: local.auth_user_id,
+            landingUserId: local.landing_user_id,
+            planId: local.plan_id,
+            credits: local.credits,
+          });
+        } catch (error) {
+          console.warn("[mail] robokassa credited enqueue failed", {
+            paymentId: local.id,
+            message: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
       try {
         await reportYandexPurchase(
           supabase,

@@ -1,5 +1,7 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-08-22 (**Yandex Cloud Postbox:** исходящая почта через SESv2 `postbox.cloud.yandex.net` (без `GEMINI_PROXY`). Outbox `sql/205`, cron `POST /api/cron/mail-outbox`, enqueue после YooKassa/Robokassa `credited` и one-shot welcome. Админка `/admin/mail` (dry-run → send), `/unsubscribe` + `POST /api/mail/unsubscribe`, bounce `POST /api/mail/postbox-events`. Спека `docs/21-08-yandex-postbox-mail.md`, ops `docs/ops/yandex-cloud-postbox.md`. GoTrue auth-письма и MCP `support_ru` не трогаем.)
+>
 > Последнее обновление: 2026-08-21 (**`/generaciya-foto` starter restored:** `GeneraciyaFotoStarter` снова под H1 — карточки «По описанию» / «По фото» и pill-CTA `#generaciya-foto-starter-cta`. Desktop FAB прячется, пока CTA в зоне видимости (`heroCtaInView`). Eyebrow библиотеки: «Библиотека образов». Photo→prompt канон остаётся `/foto-v-promt`.)
 >
 > Последнее обновление: 2026-08-21 (**SEO watchlist:** `/admin/seo` — топ-30 URL Вебмастера, раскрытие запросов, дневные показы/спрос/CTR/клики, фильтр дней и график динамики по запросу. Запросы: complementary URL = страница, до 100 строк, сорт по показам/кликам. Снимок `landing/src/data/seo-watchlist-snapshot.json`, refresh `src/standalone/refresh-seo-watchlist.mjs`, API `GET /api/admin/seo-watchlist`. Спека `docs/21-08-seo-page-watchlist.md`.)
@@ -435,6 +437,7 @@
 /terms                  → Страница публичной оферты; ссылка на `/docs/offer.pdf`, если утверждённый файл присутствовал при сборке
 /policy                 → Страница политики обработки данных; ссылка на `/docs/privacy.pdf`, если утверждённый файл присутствовал при сборке
 /privacy                → Permanent redirect на `/policy`
+/unsubscribe            → Публичная отписка от маркетинга (`?t=` HMAC). One-click POST — `/api/mail/unsubscribe`. noindex
 /favorites              → Избранное (требует авторизации)
 /generations            → Мои генерации (auth): канонический список `landing_generations` текущего shared DB user; UGC-карточка необязательна
 /analyses               → Мои анализы (auth, noindex): свои строки `analyze_history` (`user_id` = JWT или shared db id); signed preview из private bucket; CTA копирует промт и открывает dock. Гостевые анализы (`user_id` null) не попадают. SQL `188`
@@ -443,6 +446,7 @@
 /admin/payments         → Закрытый cursor-реестр YooKassa/Robokassa: payer identity, RUB/status/test, credits/`credited_at`; кнопка «Скачать CSV» выгружает все строки текущих фильтров
 /admin/finance          → Касса выгрузок: импорт ЮKassa/GCP, чистый доход; `?tab=finance` с аналитики редиректит сюда
 /admin/seo              → Вотчлист топ-30 URL: фильтр дней, таблица + раскрытие запросов и график динамики
+/admin/mail             → Dry-run/send маркетинговых кампаний Postbox + очередь outbox. Тот же admin allowlist
 /auth/callback          → OAuth callback (client page); PKCE exchange в браузере; `?next=` — возврат на страницу старта логина
 /embed/stv              → Steal This Vibe (клиент подгружает `/stv-panel/boot.mjs` + `styles.css`; та же логика, что side panel расширения)
 /extension-stv          → Превью маркетингового лендинга расширения (спека `docs/extension-landing-pain-hope-solution.md`); **`metadata.title` / `description`** — SEO; `metadata.robots` noindex; шапка **`ExtensionStvMarketingHeader`** (логотип + «Image to prompt» → `/extension-stv`, **Pricing** → `/extension-stv/pricing`, Chrome Web Store); FAB **`ExtensionStvFloatingCta`**. Порядок секций: hero (H1 + лид + `ExtensionStvChromeBadge`) → pain + **Reference** (`PainReferenceVsDraftMock`) → **Accuracy** (`ExtensionStvAccuracySection`) → **Testimonials** → **How it works** (`ExtensionStvHowItWorks`, 4 шага) → **FAQ** (`ExtensionStvFaq`). Футер **`ExtensionStvMarketingFooter`**. Блок **Reference**: upload → extract → expand. Общие константы: `landing/src/components/extension-stv/stv-marketing-shared.ts`.
@@ -534,6 +538,10 @@
 | `/api/payments/yookassa/webhook` | POST public callback: принимает `payment.succeeded` / `payment.canceled`, перечитывает объект через YooKassa API и идемпотентно обновляет ledger/баланс |
 | `/api/cron/yookassa-reconcile` | POST, `Authorization: Bearer $CRON_SECRET`: batch `reconcileStaleYooKassaPayments` для `created|pending` старше 5 мин (limit 20) |
 | `/api/cron/visual-embeddings` | POST, `Authorization: Bearer $CRON_SECRET`: enqueue missing canonical-photo embeddings + claim/lease Gemini Embedding 2 batch |
+| `/api/cron/mail-outbox` | POST, `Authorization: Bearer $CRON_SECRET`: claim/lease `landing_mail_outbox` → Postbox SESv2 (1 To / call, ≥1.1s gap, circuit 3/60s). Без ключей — `{ configured: false }` |
+| `/api/mail/postbox-events` | POST, `POSTBOX_WEBHOOK_SECRET`: hard bounce / complaint → `landing_mail_suppress`. Transient bounce игнорируется |
+| `/api/mail/unsubscribe` | POST one-click (`List-Unsubscribe=One-Click` или `t=`): `landing_mail_unsubscribe` |
+| `/api/admin/mail/campaigns` | GET/POST, admin auth: список кампаний + stats; `action=preview` (dry-run, 5 адресов) затем `action=send` |
 | `/api/extension/analyze` | Same-origin analyze для site `/foto-v-promt` и «По фото»: validation/SSRF → identity (anonymous/STV-guest = гость) → RPC `analyze_quota_reserve` (free / 401 auth_required / 402 no_credits / paid hold 1 кредит) → Gemini → confirm или release+refund; fail-closed 503 если квота недоступна; успех пишет `analyze_history.credits_spent` |
 | `/api/extension/analyze/quota` | GET, cookie session, no-store: `remaining_free`, `next_mode`, `credit_cost`, реальный `credits` для авторизованного |
 | `/api/admin/analytics` | GET, admin auth: no-store analytics rollups за `1…90` дней; топ пользователей — `admin_analytics_top_users` за тот же период |
@@ -589,7 +597,7 @@
 ### PromptShot analyze и admin
 
 - **Граница доступа:** страницы `/admin/analytics`, `/admin/analyze-history`,
-  `/admin/payments`, `/admin/finance`, `/admin/seo` и каждый
+  `/admin/payments`, `/admin/finance`, `/admin/seo`, `/admin/mail` и каждый
   `/api/admin/*` проверяют Supabase Auth session, затем нормализованный email против
   `ANALYTICS_ADMIN_EMAILS`. Пустой allowlist означает fail-closed; service-role key
   остаётся только на сервере.
@@ -643,6 +651,15 @@
   15 мин без начисления), иначе `not_due`. Ручная сверка —
   `POST /api/admin/payments/reconcile`. CSV: `GET /api/admin/payments?format=csv`
   с теми же фильтрами, серверная keyset-пагинация до 10 000 строк.
+- **Почта:** Yandex Cloud Postbox (SESv2, `ru-central1`, без proxy). Fulfill
+  YooKassa/Robokassa и `ensureLandingUserForGeneration` только ставят outbox
+  (`landing_enqueue_mail`); send делает `POST /api/cron/mail-outbox`.
+  Welcome — `welcome:{shared_user_id}`; токены —
+  `{yookassa\|robokassa}_credited:{payment_id}`. Кампании: dry-run на
+  `/admin/mail`, затем fan-out `campaign:{id}:{email}`. Email =
+  `COALESCE(auth.users.email, imageprompt_users.email)`, internal
+  `@promptshot.internal` skip. Маркетинг требует `List-Unsubscribe`.
+  Спека `docs/21-08-yandex-postbox-mail.md`.
 - **Финансы (касса выгрузок):** страница `/admin/finance` хранит
   месячные импорты в `admin_finance_imports` + line tables. Source of truth для
   «получено» — реестр ЮKassa (gross/net/комиссия), для «потрачено» — GCP
@@ -1428,7 +1445,14 @@ landing/src/
 | `YOOKASSA_SHOP_ID` | Server-only идентификатор магазина для Basic Auth YooKassa API |
 | `YOOKASSA_SECRET_KEY` | Server-only секрет магазина YooKassa; не передаётся клиенту и не логируется |
 | `YANDEX_METRIKA_MP_TOKEN` | Server-only токен Measurement Protocol счётчика `107703100`; без него покупки в Директ не уходят |
-| `CRON_SECRET` | Bearer-секрет для `POST /api/cron/yookassa-reconcile` и `POST /api/cron/visual-embeddings` |
+| `CRON_SECRET` | Bearer-секрет для `POST /api/cron/yookassa-reconcile`, `POST /api/cron/visual-embeddings` и `POST /api/cron/mail-outbox` |
+| `POSTBOX_ENDPOINT` | Host Postbox, default `https://postbox.cloud.yandex.net`. РФ, без `GEMINI_PROXY` |
+| `POSTBOX_REGION` | SigV4 region, default `ru-central1` |
+| `POSTBOX_ACCESS_KEY_ID` / `POSTBOX_SECRET_ACCESS_KEY` | Статические ключи YC. Пустые — cron не claim-ит |
+| `POSTBOX_FROM` / `POSTBOX_REPLY_TO` | Default `noreply@promptshot.ru` / `support_ru@promptshot.ru` |
+| `MAIL_UNSUBSCRIBE_SECRET` | HMAC для `/unsubscribe` и one-click |
+| `POSTBOX_WEBHOOK_SECRET` | Bearer / `X-Postbox-Secret` для bounce webhook |
+| `POSTBOX_TEST_ALLOWLIST` | Пока задан, cron шлёт только эти адреса; остальные claimed → `skipped/allowlist` |
 | `SEARCH_VISUAL_ENABLED` | `1` включает Gemini visual branch в `/api/search` и birthday SSOT `/api/listing?q=` / SSR; default off |
 | `SEARCH_VISUAL_SYSTEM_DAILY_LIMIT` | Дневной IP-лимит actor `system` (listing SSR/cache refresh); default 10000. Не делит user-60 |
 | `GEMINI_EMBEDDING_MODEL` | Default `gemini-embedding-2` |
