@@ -5,11 +5,14 @@ export type GenerationModality = typeof IMAGE_GENERATION_MODALITY | typeof VIDEO
 
 export const DEFAULT_VIDEO_PROMPT = "Оживи изображение";
 export const GROK_IMAGINE_VIDEO_MODEL = "grok-imagine-video-1.5";
-export const DEFAULT_VIDEO_MODEL = GROK_IMAGINE_VIDEO_MODEL;
 export const GEMINI_OMNI_VIDEO_MODEL = "gemini-omni-flash-preview";
 export const VEO_LITE_VIDEO_MODEL = "veo-3.1-lite-generate-preview";
+/** Default «Оживить» model. Code SSOT; DB `default_video_model` should match. */
+export const DEFAULT_VIDEO_MODEL = VEO_LITE_VIDEO_MODEL;
 
 export const GROK_IMAGINE_IMAGE_MODEL = "grok-imagine-image-2.0";
+/** PromptShot credits for the Grok Imagine photo model. SSOT for picker + enqueue. */
+export const GROK_IMAGINE_IMAGE_CREDIT_COST = 10;
 
 export function isGrokVideoModel(model: unknown): boolean {
   return typeof model === "string" && model.startsWith("grok-imagine-video");

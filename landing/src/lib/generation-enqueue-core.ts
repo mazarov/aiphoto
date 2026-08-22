@@ -20,16 +20,17 @@ export function resolveGenerationSourceType(input: {
 
 /**
  * Restore composer photo selection.
- * Explicit stored `[]` stays empty (text-only). Missing prefs default to the
- * newest library photo when one exists (identity image-to-image).
+ * Explicit stored `[]` stays empty (text-only). Missing prefs, or a stored
+ * list whose photos all left the library, default to the newest library photo.
  */
 export function restoreSelectedPhotoIds(input: {
   availablePhotoIds: string[];
   storedPhotoIds: string[] | undefined;
 }): string[] {
+  const newest = input.availablePhotoIds[0] ? [input.availablePhotoIds[0]] : [];
+  if (!Array.isArray(input.storedPhotoIds)) return newest;
   const available = new Set(input.availablePhotoIds);
-  if (Array.isArray(input.storedPhotoIds)) {
-    return input.storedPhotoIds.filter((id) => available.has(id));
-  }
-  return input.availablePhotoIds[0] ? [input.availablePhotoIds[0]] : [];
+  const kept = input.storedPhotoIds.filter((id) => available.has(id));
+  if (input.storedPhotoIds.length > 0 && kept.length === 0) return newest;
+  return kept;
 }

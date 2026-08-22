@@ -1,13 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import {
   CARD_OVERLAY_ACTION_PILL,
   OVERLAY_BUTTON_UA_RESET,
 } from "@/lib/card-overlay-action-pill";
 import { copyTextUniversal } from "@/lib/copy-text-to-clipboard";
-import { usePromptCardModal } from "@/context/PromptCardModalContext";
 import { useGenerateDock } from "@/context/GenerateDockContext";
 import { DEFAULT_VIDEO_PROMPT } from "@/lib/generation/image-options";
 import {
@@ -71,86 +69,31 @@ export function GenerationHistoryCard({
   onCardMetadataUpdated,
   onToast,
 }: Props) {
-  const { open, prefetchCard } = usePromptCardModal();
   const { seedAnimate, seedCompletedResult } = useGenerateDock();
   const [menuOpen, setMenuOpen] = useState(false);
   const [busyAction, setBusyAction] = useState<GenerationMenuAction | null>(null);
-  const [openingCard, setOpeningCard] = useState(false);
   const hasResult = Boolean(generation.resultUrl);
   const hasPrompt = Boolean(generation.prompt?.trim());
   const isVideo = generation.modality === "video" || generation.resultMimeType === "video/mp4";
   const canOpenCard = generation.status === "completed" && hasResult && !isVideo;
-  const canPreviewVideo = generation.status === "completed" && hasResult && isVideo;
+  const canOpenResult = generation.status === "completed" && hasResult;
   const canAnimate =
     videoEnabled && !isVideo && generation.status === "completed" && hasResult;
 
   const toast = (message: string) => onToast?.(message);
 
-  const openVideoResult = () => {
+  const openResult = () => {
     if (!generation.resultUrl) return;
     seedCompletedResult(
       {
         generationId: generation.id,
         resultUrl: generation.resultUrl,
         promptText: generation.prompt,
-        modality: "video",
+        modality: isVideo ? "video" : "image",
         isPublished: generation.isPublished,
       },
       { entrySource: "card" }
     );
-  };
-
-  const openCard = (slug: string) => {
-    open(slug, {
-      photoUrl: generation.resultUrl,
-      photoCount: generation.resultUrl ? 1 : 0,
-      hasPrompts: hasPrompt,
-    });
-  };
-
-  const ensureCard = async () => {
-    if (generation.cardSlug && generation.cardId) {
-      return {
-        cardId: generation.cardId,
-        cardSlug: generation.cardSlug,
-        isPublished: generation.isPublished,
-      };
-    }
-
-    const res = await fetch(`/api/generations/${generation.id}/ensure-card`, {
-      method: "POST",
-      credentials: "include",
-    });
-    const data = (await res.json().catch(() => ({}))) as {
-      error?: string;
-      cardId?: string;
-      slug?: string;
-      isPublished?: boolean;
-    };
-    if (!res.ok || !data.cardId || !data.slug) {
-      throw new Error(data.error || "Не удалось подготовить карточку");
-    }
-
-    const metadata = {
-      cardId: data.cardId,
-      cardSlug: data.slug,
-      isPublished: Boolean(data.isPublished),
-    };
-    onCardMetadataUpdated(generation.id, metadata);
-    return metadata;
-  };
-
-  const handleOpenMissingCard = async () => {
-    if (!canOpenCard || openingCard) return;
-    setOpeningCard(true);
-    try {
-      const card = await ensureCard();
-      openCard(card.cardSlug);
-    } catch (err) {
-      toast(err instanceof Error ? err.message : "Не удалось открыть карточку");
-    } finally {
-      setOpeningCard(false);
-    }
   };
 
   const handleAction = async (action: GenerationMenuAction) => {
@@ -283,7 +226,7 @@ export function GenerationHistoryCard({
   return (
     <article
       className={`group relative isolate rounded-2xl transition-all duration-200 hover:shadow-xl hover:shadow-zinc-900/10 hover:-translate-y-0.5 ${menuOpen ? "z-40" : ""} ${
-        selectMode || canOpenCard || canPreviewVideo ? "cursor-pointer" : ""
+        selectMode || canOpenResult ? "cursor-pointer" : ""
       }`}
       onClick={() => {
         if (selectMode) onToggleSelect(generation.id);
@@ -321,33 +264,12 @@ export function GenerationHistoryCard({
           </div>
         )}
 
-        {!selectMode && canPreviewVideo ? (
+        {!selectMode && canOpenResult ? (
           <button
             type="button"
             className="absolute inset-0 z-10 cursor-pointer appearance-none border-0 bg-transparent p-0"
-            aria-label="Открыть видео"
-            onClick={openVideoResult}
-          />
-        ) : !selectMode && canOpenCard && generation.cardSlug ? (
-          <Link
-            href={`/p/${generation.cardSlug}`}
-            className="absolute inset-0 z-10"
-            aria-label="Открыть карточку"
-            prefetch
-            onPointerEnter={() => prefetchCard(generation.cardSlug!)}
-            onTouchStart={() => prefetchCard(generation.cardSlug!)}
-            onClick={(event) => {
-              event.preventDefault();
-              openCard(generation.cardSlug!);
-            }}
-          />
-        ) : !selectMode && canOpenCard ? (
-          <button
-            type="button"
-            className="absolute inset-0 z-10 cursor-pointer appearance-none border-0 bg-transparent p-0"
-            aria-label={openingCard ? "Подготавливаем карточку" : "Открыть карточку"}
-            disabled={openingCard}
-            onClick={() => void handleOpenMissingCard()}
+            aria-label={isVideo ? "Открыть видео" : "Открыть результат"}
+            onClick={openResult}
           />
         ) : null}
 

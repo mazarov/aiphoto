@@ -652,6 +652,130 @@ p {
     }
   }
 
+  /**
+   * Result «Оживить»: one calm attention beat, then a contour comet.
+   * Glow + sheen once (~1.6s). Stripe runs 8s and fades. No hover loop.
+   */
+  .result-animate-cta {
+    animation: result-animate-cta-glow 1.7s ease-out 1;
+  }
+
+  @keyframes result-animate-cta-glow {
+    0% {
+      box-shadow: 0 0 0 0 rgba(139, 92, 246, 0);
+    }
+    22% {
+      box-shadow:
+        0 0 0 3px rgba(167, 139, 250, 0.34),
+        0 0 22px 2px rgba(139, 92, 246, 0.28);
+    }
+    100% {
+      box-shadow: 0 0 0 0 rgba(139, 92, 246, 0);
+    }
+  }
+
+  .result-animate-cta__sheen {
+    pointer-events: none;
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: linear-gradient(
+      105deg,
+      transparent 28%,
+      rgba(221, 214, 254, 0.34) 48%,
+      transparent 64%
+    );
+    background-size: 220% 100%;
+    opacity: 0;
+    animation: result-animate-cta-sheen 1.35s ease-out 1;
+  }
+
+  @keyframes result-animate-cta-sheen {
+    0% {
+      opacity: 0;
+      background-position: 110% 0;
+    }
+    18% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0;
+      background-position: -30% 0;
+    }
+  }
+
+  .result-animate-cta__orbit {
+    pointer-events: none;
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 2px;
+    overflow: hidden;
+    opacity: 0;
+    -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    mask-composite: exclude;
+    animation: result-animate-orbit-fade 8s linear 1 forwards;
+  }
+
+  .result-animate-cta__spin {
+    position: absolute;
+    inset: -60%;
+    background: conic-gradient(
+      from 0deg,
+      transparent 0deg,
+      transparent 286deg,
+      rgba(167, 139, 250, 0.28) 308deg,
+      #ede9fe 330deg,
+      #a78bfa 344deg,
+      #7c3aed 352deg,
+      #f5f3ff 358deg,
+      transparent 360deg
+    );
+    animation: result-animate-orbit-spin 1.5s linear infinite;
+  }
+
+  @keyframes result-animate-orbit-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  @keyframes result-animate-orbit-fade {
+    0%,
+    72% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0;
+    }
+  }
+
+  .result-animate-cta:disabled .result-animate-cta__orbit,
+  .result-animate-cta:disabled .result-animate-cta__sheen {
+    animation: none;
+    opacity: 0;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .result-animate-cta,
+    .result-animate-cta__orbit,
+    .result-animate-cta__spin,
+    .result-animate-cta__sheen {
+      animation: none;
+    }
+
+    .result-animate-cta__orbit,
+    .result-animate-cta__sheen {
+      opacity: 0;
+    }
+  }
+
   .listing-card-chrome {
     pointer-events: none;
   }

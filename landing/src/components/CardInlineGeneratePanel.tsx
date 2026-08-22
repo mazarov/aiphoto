@@ -9,6 +9,7 @@ import {
 } from "@/lib/credit-balance-events";
 import {
   GENERATION_MODEL_DISPLAY,
+  displayDescriptionForGenerationModel,
   displayLabelForGenerationModel,
 } from "@/lib/generation-model-labels";
 import { noticeForUploadError, prepareUploadFile } from "@/lib/image-upload-prepare";
@@ -35,8 +36,9 @@ import {
   type GenerateDockSurface,
 } from "@/context/GenerateDockContext";
 import { GenerationResultBackdrop } from "@/components/generate/GenerationResultBackdrop";
+import { GenerationCreditCostBadge } from "@/components/generate/GenerationCreditCostBadge";
 import { GenerationModelIcon } from "@/components/generate/GenerationModelIcon";
-import { VideoComposeBar } from "@/components/generate/VideoComposeBar";
+import { GenerationResultActionRail } from "@/components/generate/GenerationResultActionRail";
 import { PricingEntryLink } from "@/components/PricingEntryLink";
 import {
   reachYandexMetrikaGoal,
@@ -62,15 +64,30 @@ import {
   videoDurationOptionsForModel,
 } from "@/lib/generation/image-options";
 import {
+  composeVideoScenarioKey,
+  emptyComposePromptStash,
+  switchComposeModalityPrompt,
+} from "@/lib/compose-modality-prompt";
+import {
   ANIMATE_SCENARIO_PLACEHOLDER,
   isGenericVideoPrompt,
 } from "@/lib/video-animate-scenario";
 import {
   calculateVideoCreditCost,
-  resolveVideoModelId,
   videoDurationExtraCredits,
 } from "@/lib/video-generation-contract";
-import { restoreSelectedPhotoIds } from "@/lib/generation-enqueue-core";
+import {
+  readCachedVideoAnimateEnabled,
+  writeCachedVideoAnimateEnabled,
+} from "@/lib/video-animate-availability";
+import {
+  parseStoredGenerationPreferences,
+  pickFresherPreferences,
+  readCachedGenerationPreferences,
+  resolveComposerPreferences,
+  writeCachedGenerationPreferences,
+  type StoredGenerationPreferences,
+} from "@/lib/generation-preferences";
 import { resolveVideoEnqueueParentGenerationId } from "@/lib/user-generation-photos";
 
 const BLANK_PROMPT_PLACEHOLDER = "Опишите изображение или референс";
@@ -78,12 +95,6 @@ const BLANK_PROMPT_PLACEHOLDER = "Опишите изображение или �
 type ModelOpt = { id: string; label: string; cost: number };
 type RatioOpt = { value: string; label: string };
 type SizeOpt = { value: string; label: string };
-type GenerationPreferences = {
-  model?: string;
-  aspectRatio?: string;
-  imageSize?: string;
-  selectedPhotoIds?: string[];
-};
 type UserPhoto = {
   id: string;
   storagePath: string;
@@ -172,7 +183,9 @@ export function CardInlineGeneratePanel({
   const [composeModality, setComposeModality] = useState<"image" | "video">(
     seed.intent === "animate" ? "video" : "image"
   );
-  const [videoEnabled, setVideoEnabled] = useState(false);
+  const [videoEnabled, setVideoEnabled] = useState(
+    () => readCachedVideoAnimateEnabled() === true
+  );
   const [videoModels, setVideoModels] = useState<ModelOpt[]>([]);
   const [videoModel, setVideoModel] = useState(DEFAULT_VIDEO_MODEL);
   const [videoAspectRatio, setVideoAspectRatio] = useState(DEFAULT_VIDEO_ASPECT_RATIO);
@@ -196,7 +209,8 @@ export function CardInlineGeneratePanel({
 
   const [photos, setPhotos] = useState<UserPhoto[]>([]);
   const [selectedPhotoIds, setSelectedPhotoIds] = useState<Set<string>>(new Set());
-  const libraryPhotoIdsRef = useRef<string[]>([]);
+  const prefsDirtyRef = useRef(false);
+  const skipNextPrefsPersistRef = useRef(false);
   const seedIntentRef = useRef(seed.intent);
   seedIntentRef.current = seed.intent;
   const [libraryLoading, setLibraryLoading] = useState(true);
@@ -229,6 +243,34 @@ export function CardInlineGeneratePanel({
   const [draftPrompt, setDraftPrompt] = useState(promptText);
   const draftPromptRef = useRef(draftPrompt);
   draftPromptRef.current = draftPrompt;
+  const composeModalityRef = useRef(composeModality);
+  composeModalityRef.current = composeModality;
+  const promptStashRef = useRef(
+    emptyComposePromptStash({
+      imagePrompt: seed.intent === "animate" ? "" : promptText,
+      videoPrompt:
+        seed.intent === "animate" &&
+        seed.promptText.trim() &&
+        !isGenericVideoPrompt(seed.promptText)
+          ? seed.promptText
+          : "",
+      lastScenarioKey:
+        seed.intent === "animate"
+          ? composeVideoScenarioKey({
+              parentGenerationId: seed.parentGenerationId,
+            })
+          : null,
+    })
+  );
+
+  const rememberVideoPrompt = (next: string) => {
+    setDraftPrompt(next);
+    if (composeModalityRef.current !== "video") return;
+    promptStashRef.current = {
+      ...promptStashRef.current,
+      videoPrompt: next,
+    };
+  };
 
   const loadAnimateScenario = useCallback(
     async (input: {
@@ -238,7 +280,7 @@ export function CardInlineGeneratePanel({
     }) => {
       if (!isAuthed || (!input.parentGenerationId && !input.photoStoragePath)) {
         setScenarioLoading(false);
-        if (!draftPromptRef.current.trim()) setDraftPrompt(DEFAULT_VIDEO_PROMPT);
+        if (!draftPromptRef.current.trim()) rememberVideoPrompt(DEFAULT_VIDEO_PROMPT);
         return;
       }
       const requestId = ++scenarioRequestRef.current;
@@ -256,18 +298,20 @@ export function CardInlineGeneratePanel({
         });
         const data = (await res.json().catch(() => ({}))) as { scenario?: string };
         if (requestId !== scenarioRequestRef.current) return;
+        if (composeModalityRef.current !== "video") return;
         const scenario = typeof data.scenario === "string" ? data.scenario.trim() : "";
         const current = draftPromptRef.current.trim();
         if (res.ok && scenario && (!current || isGenericVideoPrompt(current))) {
-          setDraftPrompt(scenario);
+          rememberVideoPrompt(scenario);
         } else if (!current || isGenericVideoPrompt(current)) {
-          setDraftPrompt(DEFAULT_VIDEO_PROMPT);
+          rememberVideoPrompt(DEFAULT_VIDEO_PROMPT);
         }
       } catch {
         if (requestId !== scenarioRequestRef.current) return;
+        if (composeModalityRef.current !== "video") return;
         const current = draftPromptRef.current.trim();
         if (!current || isGenericVideoPrompt(current)) {
-          setDraftPrompt(DEFAULT_VIDEO_PROMPT);
+          rememberVideoPrompt(DEFAULT_VIDEO_PROMPT);
         }
       } finally {
         if (requestId === scenarioRequestRef.current) setScenarioLoading(false);
@@ -342,6 +386,58 @@ export function CardInlineGeneratePanel({
     },
     [expandedControl, setDockSurface]
   );
+
+  const enterVideoCompose = useCallback(
+    (input: {
+      parentGenerationId?: string | null;
+      previewUrl?: string | null;
+      photoStoragePath?: string | null;
+      scenarioKey: string | null;
+      sourcePrompt?: string;
+    }) => {
+      const switched = switchComposeModalityPrompt({
+        from: composeModalityRef.current,
+        to: "video",
+        currentDraft: draftPromptRef.current,
+        stash: promptStashRef.current,
+        scenarioKey: input.scenarioKey,
+      });
+      promptStashRef.current = switched.stash;
+      setDraftPrompt(switched.draft);
+      setComposeModality("video");
+      setAnimateParentId(input.parentGenerationId || null);
+      setAnimatePreviewUrl(input.previewUrl || null);
+      setError("");
+      if (switched.shouldLoadScenario) {
+        void loadAnimateScenario({
+          parentGenerationId: input.parentGenerationId,
+          photoStoragePath: input.photoStoragePath,
+          sourcePrompt: input.sourcePrompt ?? switched.stash.imagePrompt,
+        });
+      }
+    },
+    [loadAnimateScenario]
+  );
+
+  const enterImageCompose = useCallback(() => {
+    if (composeModalityRef.current !== "video") return;
+    const switched = switchComposeModalityPrompt({
+      from: "video",
+      to: "image",
+      currentDraft: draftPromptRef.current,
+      stash: promptStashRef.current,
+      scenarioKey: promptStashRef.current.lastScenarioKey,
+    });
+    promptStashRef.current = switched.stash;
+    scenarioRequestRef.current += 1;
+    setScenarioLoading(false);
+    setDraftPrompt(switched.draft);
+    setComposeModality("image");
+    setAnimateParentId(null);
+    setAnimatePreviewUrl(null);
+    setError("");
+  }, []);
+
   const [changeRequest, setChangeRequest] = useState("");
   const [remixing, setRemixing] = useState(false);
 
@@ -435,7 +531,7 @@ export function CardInlineGeneratePanel({
         };
         const preferencesData = preferencesRes.ok
           ? ((await preferencesRes.json().catch(() => ({}))) as {
-              preferences?: GenerationPreferences | null;
+              preferences?: StoredGenerationPreferences | null;
             })
           : {};
         const meData = meRes.ok
@@ -469,19 +565,13 @@ export function CardInlineGeneratePanel({
               defaults?: { aspectRatio?: string; model?: string };
             })
           : {};
-        setVideoEnabled(Boolean(videoConfigData.enabled));
+        const nextVideoEnabled = Boolean(videoConfigData.enabled);
+        writeCachedVideoAnimateEnabled(nextVideoEnabled);
+        setVideoEnabled(nextVideoEnabled);
         const nextVideoModels = Array.isArray(videoConfigData.models)
           ? videoConfigData.models
           : [];
         setVideoModels(nextVideoModels);
-        const resolvedVideoModel = resolveVideoModelId(
-          videoConfigData.defaults?.model,
-          nextVideoModels.map((item) => item.id)
-        );
-        if (resolvedVideoModel) setVideoModel(resolvedVideoModel);
-        if (videoConfigData.defaults?.aspectRatio) {
-          setVideoAspectRatio(videoConfigData.defaults.aspectRatio);
-        }
         if (seed.intent === "animate") {
           setComposeModality("video");
           setAnimateParentId(seed.parentGenerationId || null);
@@ -498,6 +588,10 @@ export function CardInlineGeneratePanel({
           setResultUrl(seed.previewUrl!);
           setResultModality(seed.resultModality === "video" ? "video" : "image");
           setDraftPrompt(prompt);
+          promptStashRef.current = {
+            ...promptStashRef.current,
+            imagePrompt: prompt,
+          };
           setSubmittedPrompt(prompt);
           setIsPublished(Boolean(seed.isPublished));
           setProgress(100);
@@ -511,10 +605,6 @@ export function CardInlineGeneratePanel({
         const nextSizes = Array.isArray(configData.imageSizes) ? configData.imageSizes : [];
         const nextPhotos =
           photosRes.ok && Array.isArray(photosData.photos) ? photosData.photos : [];
-        const preferences = preferencesData.preferences ?? null;
-        const preferredModel = preferences?.model;
-        const preferredRatio = preferences?.aspectRatio;
-        const preferredSize = preferences?.imageSize;
         const defaultModel = configData.defaults?.model || nextModels[0]?.id;
         const defaultRatio = configData.defaults?.aspectRatio || nextRatios[0]?.value;
         const defaultSize = configData.defaults?.imageSize || nextSizes[0]?.value;
@@ -525,34 +615,41 @@ export function CardInlineGeneratePanel({
         if (Number.isFinite(meData.credits)) {
           setCredits(Number(meData.credits));
         }
-        const resolvedModel =
-          preferredModel && nextModels.some((item) => item.id === preferredModel)
-            ? preferredModel
-            : defaultModel;
-        if (resolvedModel) setModel(resolvedModel);
-        if (preferredRatio && nextRatios.some((item) => item.value === preferredRatio)) {
-          setAspectRatio(preferredRatio);
-        } else if (defaultRatio) {
-          setAspectRatio(defaultRatio);
-        }
-        const resolvedSize =
-          preferredSize && nextSizes.some((item) => item.value === preferredSize)
-            ? preferredSize
-            : defaultSize;
-        if (resolvedSize) {
-          setImageSize(clampImageSizeForModel(resolvedModel, resolvedSize));
-        }
-        const availablePhotoIds = nextPhotos.map((photo) => photo.id);
-        const restoredPhotoIds = restoreSelectedPhotoIds({
-          availablePhotoIds,
-          storedPhotoIds: preferences?.selectedPhotoIds,
+        const userId = isAuthed ? user?.id ?? null : null;
+        const storedPrefs = pickFresherPreferences(
+          parseStoredGenerationPreferences(preferencesData.preferences),
+          userId ? readCachedGenerationPreferences(userId) : null
+        );
+        const resolvedPrefs = resolveComposerPreferences({
+          stored: storedPrefs,
+          imageModelIds: nextModels.map((item) => item.id),
+          videoModelIds: nextVideoModels.map((item) => item.id),
+          availablePhotoIds: nextPhotos.map((photo) => photo.id),
+          defaults: {
+            model: defaultModel || undefined,
+            aspectRatio: defaultRatio || undefined,
+            imageSize: defaultSize || undefined,
+            videoModel: videoConfigData.defaults?.model || DEFAULT_VIDEO_MODEL,
+            videoAspectRatio:
+              videoConfigData.defaults?.aspectRatio || DEFAULT_VIDEO_ASPECT_RATIO,
+          },
         });
-        libraryPhotoIdsRef.current = restoredPhotoIds;
+        setModel(resolvedPrefs.model);
+        setAspectRatio(resolvedPrefs.aspectRatio);
+        setImageSize(resolvedPrefs.imageSize);
+        setVideoModel(resolvedPrefs.videoModel);
+        setVideoAspectRatio(resolvedPrefs.videoAspectRatio);
+        setVideoDurationSeconds(resolvedPrefs.videoDurationSeconds);
         setSelectedPhotoIds(
           shouldAttachLibraryPhotos(seed)
-            ? new Set(restoredPhotoIds)
+            ? new Set(resolvedPrefs.selectedPhotoIds)
             : new Set()
         );
+        if (userId && storedPrefs) {
+          writeCachedGenerationPreferences(userId, resolvedPrefs);
+        }
+        skipNextPrefsPersistRef.current = true;
+        prefsDirtyRef.current = false;
         if (typeof configData.limits?.maxPhotos === "number") {
           setMaxPhotos(Math.max(1, Math.min(10, configData.limits.maxPhotos)));
         }
@@ -583,6 +680,10 @@ export function CardInlineGeneratePanel({
           setResultUrl(lastCompleted.resultUrl!);
           setResultModality(lastCompleted.modality === "video" ? "video" : "image");
           setDraftPrompt(prompt);
+          promptStashRef.current = {
+            ...promptStashRef.current,
+            imagePrompt: prompt,
+          };
           setSubmittedPrompt(prompt);
           setIsPublished(Boolean(lastCompleted.isPublished));
           setProgress(100);
@@ -671,6 +772,9 @@ export function CardInlineGeneratePanel({
     aspectRatio,
     imageSize,
     selectedPhotoIds,
+    videoModel,
+    videoAspectRatio,
+    videoDurationSeconds,
     preferencesHydrated,
     userId: isAuthed ? (user?.id ?? null) : null,
   });
@@ -679,44 +783,64 @@ export function CardInlineGeneratePanel({
     aspectRatio,
     imageSize,
     selectedPhotoIds,
+    videoModel,
+    videoAspectRatio,
+    videoDurationSeconds,
     preferencesHydrated,
     userId: isAuthed ? (user?.id ?? null) : null,
   };
 
   const persistGenerationPreferences = useCallback(
-    (snapshot?: typeof prefsSnapshotRef.current) => {
+    (snapshot?: typeof prefsSnapshotRef.current, options?: { force?: boolean }) => {
       const s = snapshot ?? prefsSnapshotRef.current;
       if (!s.preferencesHydrated || !s.userId) return;
+      if (!options?.force && !prefsDirtyRef.current) return;
       const attachLibraryPhotos = shouldAttachLibraryPhotos({
         source: "blank",
         promptText: "",
         cardId: null,
         intent: seedIntentRef.current,
       });
-      const selectedPhotoIds =
-        attachLibraryPhotos || s.selectedPhotoIds.size > 0
+      const selectedPhotoIds = attachLibraryPhotos
+        ? Array.from(s.selectedPhotoIds)
+        : s.selectedPhotoIds.size > 0
           ? Array.from(s.selectedPhotoIds)
-          : libraryPhotoIdsRef.current;
+          : readCachedGenerationPreferences(s.userId)?.selectedPhotoIds ?? [];
+      const payload: StoredGenerationPreferences = {
+        model: s.model,
+        aspectRatio: s.aspectRatio,
+        imageSize: s.imageSize,
+        selectedPhotoIds,
+        videoModel: s.videoModel,
+        videoAspectRatio: s.videoAspectRatio,
+        videoDurationSeconds: s.videoDurationSeconds,
+        updatedAt: new Date().toISOString(),
+      };
+      writeCachedGenerationPreferences(s.userId, payload);
+      prefsDirtyRef.current = false;
       void fetch("/api/generation-preferences", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({
-          model: s.model,
-          aspectRatio: s.aspectRatio,
-          imageSize: s.imageSize,
-          selectedPhotoIds,
-        }),
+        body: JSON.stringify(payload),
       }).then((res) => {
-        if (!res.ok) console.warn("[generation-preferences] save failed", res.status);
+        if (!res.ok) {
+          prefsDirtyRef.current = true;
+          console.warn("[generation-preferences] save failed", res.status);
+        }
       });
     },
     []
   );
 
-  /** Debounced backup while editing; sheet close / unmount also flush immediately. */
+  /** Debounced backup while editing; hydrate itself must not rewrite prefs. */
   useEffect(() => {
     if (!preferencesHydrated) return;
+    if (skipNextPrefsPersistRef.current) {
+      skipNextPrefsPersistRef.current = false;
+      return;
+    }
+    prefsDirtyRef.current = true;
     const timer = window.setTimeout(() => {
       persistGenerationPreferences();
     }, 300);
@@ -728,6 +852,9 @@ export function CardInlineGeneratePanel({
     persistGenerationPreferences,
     preferencesHydrated,
     selectedPhotoIds,
+    videoAspectRatio,
+    videoDurationSeconds,
+    videoModel,
   ]);
 
   /**
@@ -759,6 +886,40 @@ export function CardInlineGeneratePanel({
     () => photos.filter((photo) => selectedPhotoIds.has(photo.id)),
     [photos, selectedPhotoIds]
   );
+  const selectImageModel = (modelId: string) => {
+    setModel(modelId);
+    if (composeModalityRef.current === "video") {
+      enterImageCompose();
+    }
+  };
+  const selectVideoModel = (modelId: string) => {
+    if (composeModalityRef.current !== "video") {
+      if (selectedPhotos.length !== 1) {
+        setError("Для оживления выберите одно фото");
+        setExpandedControl("photos");
+        return;
+      }
+      const photo = selectedPhotos[0];
+      const linkedParentId = resolveVideoEnqueueParentGenerationId(
+        null,
+        photo.originalFilename
+      );
+      enterVideoCompose({
+        parentGenerationId: linkedParentId || null,
+        previewUrl: photo.previewUrl || null,
+        photoStoragePath: linkedParentId ? null : photo.storagePath || null,
+        scenarioKey: composeVideoScenarioKey({
+          parentGenerationId: linkedParentId,
+          photoId: photo.id,
+        }),
+        sourcePrompt: draftPromptRef.current,
+      });
+    }
+    setVideoModel(modelId);
+    if (isVeoLiteVideoModel(modelId) && videoDurationSeconds > 8) {
+      setVideoDurationSeconds(8);
+    }
+  };
   const minModelCost = useMemo(() => {
     if (!models.length) return null;
     return models.reduce(
@@ -1091,9 +1252,7 @@ export function CardInlineGeneratePanel({
           setResultUrl(poll.resultUrl);
           setResultModality(poll.modality === "video" || isVideo ? "video" : "image");
           if (isVideo) {
-            setComposeModality("image");
-            setAnimateParentId(null);
-            setAnimatePreviewUrl(null);
+            enterImageCompose();
           }
           setProgress(100);
           setPhase("done");
@@ -1318,13 +1477,15 @@ export function CardInlineGeneratePanel({
   /** Leave result chrome → idle compose (keep prompt / model / photos for editing). */
   const enterAnimateFromResult = () => {
     if (!generationId || !resultUrl || resultModality === "video" || !videoEnabled) return;
-    setComposeModality("video");
-    setAnimateParentId(generationId);
-    setAnimatePreviewUrl(resultUrl);
-    setDraftPrompt("");
+    const sourcePrompt = submittedPrompt || draftPromptRef.current;
+    enterVideoCompose({
+      parentGenerationId: generationId,
+      previewUrl: resultUrl,
+      scenarioKey: composeVideoScenarioKey({ parentGenerationId: generationId }),
+      sourcePrompt,
+    });
     setSubmittedPrompt("");
     setChangeRequest("");
-    setError("");
     setNeedsCredits(false);
     setMenuOpen(false);
     setResultPreviewOpen(false);
@@ -1332,10 +1493,6 @@ export function CardInlineGeneratePanel({
     setPromptExpanded(false);
     setPhase("idle");
     phaseRef.current = "idle";
-    void loadAnimateScenario({
-      parentGenerationId: generationId,
-      sourcePrompt: submittedPrompt || draftPromptRef.current,
-    });
   };
 
   const resetToCompose = () => {
@@ -1352,9 +1509,13 @@ export function CardInlineGeneratePanel({
     setResultPreviewOpen(false);
     setIsPublished(false);
     setResultModality("image");
-    setComposeModality("image");
-    setAnimateParentId(null);
-    setAnimatePreviewUrl(null);
+    if (composeModalityRef.current === "video") {
+      enterImageCompose();
+    } else {
+      setComposeModality("image");
+      setAnimateParentId(null);
+      setAnimatePreviewUrl(null);
+    }
     setExpandedControl(null);
     setPromptExpanded(false);
     setPhase("idle");
@@ -1368,6 +1529,15 @@ export function CardInlineGeneratePanel({
     onBack();
   };
   const videoCompose = composeModality === "video";
+  const composeModelId = videoCompose
+    ? activeVideoModel?.id || DEFAULT_VIDEO_MODEL
+    : model;
+  const composeModelLabel = displayLabelForGenerationModel(
+    composeModelId,
+    videoCompose
+      ? activeVideoModel?.label
+      : models.find((item) => item.id === model)?.label
+  );
   /**
    * Blank compose: single prompt field until a completed result exists.
    * Card seed and «Что изменить» after generation use remix (changeRequest + parent).
@@ -1418,8 +1588,12 @@ export function CardInlineGeneratePanel({
   const dockSheetCloseBtn = `${OVERLAY_BUTTON_UA_RESET} flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/15`;
   const dockSheetField =
     "rounded-xl border border-white/15 bg-white/10 text-white outline-none transition placeholder:text-white/40 focus:border-indigo-300 focus:ring-2 focus:ring-indigo-400/25 disabled:opacity-60";
-  /** Dock actions: solid fills only — never backdrop-blur (GPU dim→blur double paint). */
-  const dockActionBtn = `${OVERLAY_BUTTON_UA_RESET} flex min-h-12 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-2xl bg-white/10 px-2 py-3 text-[13px] font-semibold text-white transition hover:bg-white/15 active:scale-[0.99]`;
+  const showResultActions =
+    showResultChrome &&
+    phase === "done" &&
+    Boolean(resultUrl) &&
+    Boolean(generationId) &&
+    !(isDock && dockExpanded);
 
   useEffect(() => {
     if (!isDock || !onDockResultChromeChange) return;
@@ -1557,12 +1731,88 @@ export function CardInlineGeneratePanel({
         </div>
       ) : null}
 
+      {showResultActions ? (
+        <GenerationResultActionRail
+          className="absolute bottom-[max(0.75rem,env(safe-area-inset-bottom))] right-2.5 z-30"
+          actions={[
+            {
+              id: "view",
+              label: "Посмотреть",
+              onClick: () => setResultPreviewOpen(true),
+              icon: (
+                <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <path
+                    d="M2.5 12s3.5-6.5 9.5-6.5S21.5 12 21.5 12s-3.5 6.5-9.5 6.5S2.5 12 2.5 12Z"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                  <circle cx="12" cy="12" r="2.75" />
+                </svg>
+              ),
+            },
+            {
+              id: "download",
+              label: busyAction === "download" ? "Скачиваем…" : "Скачать",
+              disabled: Boolean(busyAction),
+              onClick: () => void handleResultAction("download"),
+              icon: (
+                <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <path d="M12 3v12m0 0 4-4m-4 4-4-4M5 20h14" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              ),
+            },
+            {
+              id: "repeat",
+              label: "Повторить",
+              disabled: busy || Boolean(busyAction),
+              onClick: resetToCompose,
+              icon: (
+                <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <path d="M21 12a9 9 0 1 1-3.25-6.8" strokeLinecap="round" />
+                  <path d="M21 3v6h-6" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              ),
+            },
+            ...(videoEnabled && resultModality === "image"
+              ? [
+                  {
+                    id: "animate",
+                    label: "Оживить",
+                    accent: "orbit" as const,
+                    onClick: enterAnimateFromResult,
+                    icon: (
+                      <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M8 6.8v10.4L17.2 12 8 6.8Z" />
+                      </svg>
+                    ),
+                  },
+                ]
+              : []),
+            {
+              id: "edit",
+              label: "Что изменить",
+              primary: true,
+              disabled: busy || Boolean(busyAction),
+              onClick: openPromptEditor,
+              icon: (
+                <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <path d="m4 20 4.2-1 10.6-10.6a2.1 2.1 0 0 0-3-3L5.2 16 4 20Z" strokeLinecap="round" strokeLinejoin="round" />
+                  <path d="m14.5 6.7 2.8 2.8" />
+                </svg>
+              ),
+            },
+          ]}
+        />
+      ) : null}
+
       {!isDock ? (
       <header
-        className={`relative z-30 flex min-h-14 shrink-0 items-center justify-between gap-2 border-b px-3 backdrop-blur-md ${
+        className={`relative z-30 flex min-h-14 shrink-0 items-center justify-between gap-2 border-b px-3 ${
           isMobile ? "pb-2 pt-[max(0.5rem,env(safe-area-inset-top))]" : "py-2"
         } ${
-          showResultChrome ? "border-white/10 bg-black/15" : "border-zinc-200 bg-white/90"
+          showResultChrome
+            ? "border-transparent bg-transparent"
+            : "border-zinc-200 bg-white/90 backdrop-blur-md"
         }`}
       >
         <button
@@ -1579,7 +1829,7 @@ export function CardInlineGeneratePanel({
         </button>
         <span
           className={`text-[13px] font-semibold ${
-            showResultChrome ? "text-white/85" : "text-zinc-700"
+            showResultChrome ? "text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.55)]" : "text-zinc-700"
           }`}
         >
           {phase === "generating" ? "Генерируем" : resultUrl ? "Готово" : "Новая генерация"}
@@ -1664,10 +1914,12 @@ export function CardInlineGeneratePanel({
               ? `${sheetPos} inset-x-0 bottom-0 top-[max(0.75rem,env(safe-area-inset-top))] z-50 flex min-h-0 flex-col rounded-t-3xl border border-transparent bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))] text-zinc-900 shadow-[0_-20px_60px_-24px_rgba(0,0,0,0.45)]`
               : isDock
                 ? `rounded-none border-0 bg-transparent px-1 py-0.5 text-white${
-                    // Transparent sheets: hide collapsed prompt under photos/model.
-                    dockExpanded ? " invisible pointer-events-none" : ""
+                    // Transparent sheets / result rail: hide collapsed prompt at the bottom.
+                    dockExpanded || showResultActions ? " invisible pointer-events-none" : ""
                   }`
-                : "rounded-2xl border px-3 py-1 backdrop-blur-md"
+                : showResultActions
+                  ? "hidden"
+                  : "rounded-2xl border px-3 py-1 backdrop-blur-md"
           } ${
             promptExpanded || isDock
               ? ""
@@ -2018,7 +2270,7 @@ export function CardInlineGeneratePanel({
                     Один человек, лицо крупно и хорошо видно.
                   </p>
                   <div
-                    className={`relative mt-3 overflow-hidden rounded-2xl bg-zinc-800 ring-1 ${
+                    className={`relative mt-3 rounded-2xl ring-1 ${
                       dockPhotosExpanded ? "ring-white/15" : "ring-zinc-200"
                     } ${
                       isMobile || dockPhotosExpanded
@@ -2026,12 +2278,14 @@ export function CardInlineGeneratePanel({
                         : "h-24 w-[4.5rem] shrink-0"
                     }`}
                   >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src="/generate/photo-guide-portrait.webp"
-                      alt="Пример подходящего фото: одиночный студийный портрет с открытым лицом"
-                      className="h-full w-full object-cover object-top"
-                    />
+                    <div className="absolute inset-0 overflow-hidden rounded-2xl bg-zinc-800">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src="/generate/photo-guide-portrait.webp"
+                        alt="Пример подходящего фото: одиночный студийный портрет с открытым лицом"
+                        className="h-full w-full object-cover"
+                      />
+                    </div>
                   </div>
                   <p
                     className={`mt-2 text-[13px] font-medium ${
@@ -2044,7 +2298,7 @@ export function CardInlineGeneratePanel({
               </section>
             ) : null}
             <div className={isMobile || dockPhotosExpanded ? "shrink-0" : "contents"}>
-            <div className="flex gap-2 overflow-x-auto pb-1">
+            <div className="flex gap-2 overflow-x-auto px-0.5 py-1">
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
@@ -2073,7 +2327,7 @@ export function CardInlineGeneratePanel({
                 return (
                   <div
                     key={photo.id}
-                    className={`group relative h-[4.75rem] w-[4.75rem] shrink-0 overflow-hidden rounded-xl bg-zinc-800 ring-2 transition ${
+                    className={`group relative h-[4.75rem] w-[4.75rem] shrink-0 rounded-xl ring-2 transition ${
                       selected ? "ring-indigo-300" : "ring-white/10"
                     }`}
                   >
@@ -2083,7 +2337,7 @@ export function CardInlineGeneratePanel({
                       aria-pressed={selected}
                       disabled={controlsBusy || deleting}
                       onClick={() => togglePhoto(photo.id)}
-                      className={`${OVERLAY_BUTTON_UA_RESET} absolute inset-0 h-full w-full disabled:opacity-50`}
+                      className={`${OVERLAY_BUTTON_UA_RESET} absolute inset-0 overflow-hidden rounded-xl bg-zinc-800 disabled:opacity-50`}
                     >
                       {photo.previewUrl ? (
                         // eslint-disable-next-line @next/next/no-img-element
@@ -2160,7 +2414,7 @@ export function CardInlineGeneratePanel({
             id="inline-generation-models"
             role={isDock ? undefined : "dialog"}
             aria-modal={isDock ? undefined : "true"}
-            aria-label={videoCompose ? "Параметры видео" : "Выбор модели"}
+            aria-label="Выбор модели"
             className={
               dockModelExpanded
                 ? isMobile
@@ -2196,7 +2450,7 @@ export function CardInlineGeneratePanel({
                   dockModelExpanded ? "text-white" : "text-zinc-900"
                 }`}
               >
-                {videoCompose ? "Параметры видео" : "Модель генерации"}
+                Модель генерации
               </span>
               <button
                 type="button"
@@ -2223,21 +2477,109 @@ export function CardInlineGeneratePanel({
             <div
               className={
                 isMobile
-                  ? "min-h-0 flex-1 overflow-y-auto overscroll-contain pb-1"
+                  ? "min-h-0 flex-1 overflow-y-auto overscroll-contain px-0.5 pt-1 pb-1"
                   : "contents"
               }
             >
-            {videoCompose ? (
+            {videoEnabled ? (
+              <p
+                className={`mb-2 text-[13px] font-semibold ${
+                  dockModelExpanded ? "text-white/70" : "text-zinc-500"
+                }`}
+              >
+                Фото
+              </p>
+            ) : null}
+            <div className="grid shrink-0 grid-cols-2 gap-2">
+              {models.map((item) => {
+                const selected = !videoCompose && model === item.id;
+                const display = GENERATION_MODEL_DISPLAY[item.id];
+                const unaffordable =
+                  credits !== null && credits < item.cost;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    aria-pressed={selected}
+                    aria-disabled={unaffordable || undefined}
+                    disabled={controlsBusy}
+                    title={
+                      unaffordable
+                        ? "Не хватает кредитов"
+                        : display?.description || item.label
+                    }
+                    onClick={() => selectImageModel(item.id)}
+                    className={`${OVERLAY_BUTTON_UA_RESET} relative flex min-h-20 min-w-0 items-center gap-3 rounded-xl p-3 text-left ring-2 transition ${
+                      dockModelExpanded
+                        ? selected
+                          ? "bg-white/15 text-white ring-indigo-300 shadow-sm"
+                          : "bg-white/5 text-white ring-white/10 hover:bg-white/10 hover:ring-white/25"
+                        : selected
+                          ? "bg-indigo-50 text-zinc-900 ring-indigo-500 shadow-sm"
+                          : "bg-zinc-100 text-zinc-900 ring-zinc-200 hover:bg-zinc-200 hover:ring-zinc-300"
+                    } ${unaffordable ? "opacity-90" : ""} disabled:opacity-50`}
+                  >
+                    <span
+                      aria-hidden
+                      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full shadow-sm ${
+                        dockModelExpanded ? "bg-white/90" : "bg-white"
+                      }`}
+                    >
+                      <GenerationModelIcon modelId={item.id} />
+                    </span>
+                    <span className="min-w-0 flex-1 pr-9">
+                      <span className="block truncate text-[13px] font-semibold leading-tight">
+                        {displayLabelForGenerationModel(item.id, item.label)}
+                      </span>
+                      {unaffordable ? (
+                        <span
+                          className={`mt-1 block text-[13px] font-semibold leading-tight ${
+                            dockModelExpanded ? "text-rose-400" : "text-rose-600"
+                          }`}
+                        >
+                          Не хватает кредитов
+                        </span>
+                      ) : (
+                        <span
+                          className={`mt-1 block line-clamp-2 text-[13px] font-medium leading-tight ${
+                            dockModelExpanded ? "text-white/60" : "text-zinc-500"
+                          }`}
+                        >
+                          {display?.description || "Генерация изображений"}
+                        </span>
+                      )}
+                    </span>
+                    <GenerationCreditCostBadge
+                      cost={item.cost}
+                      unaffordable={unaffordable}
+                      className="absolute right-1.5 top-1.5"
+                    />
+                  </button>
+                );
+              })}
+            </div>
+            {videoEnabled ? (
               <>
+                <p
+                  className={`mb-2 mt-4 text-[13px] font-semibold ${
+                    dockModelExpanded ? "text-white/70" : "text-zinc-500"
+                  }`}
+                >
+                  Видео
+                </p>
                 <div className="grid shrink-0 grid-cols-2 gap-2">
                   {videoModels.map((item) => {
-                    const selected = activeVideoModel?.id === item.id;
+                    const selected = videoCompose && activeVideoModel?.id === item.id;
                     const itemCost = calculateVideoCreditCost(
                       item.cost,
                       videoDurationSeconds,
                       item.id
                     );
                     const unaffordable = credits !== null && credits < itemCost;
+                    const description = displayDescriptionForGenerationModel(
+                      item.id,
+                      "Видео из фото"
+                    );
                     return (
                       <button
                         key={item.id}
@@ -2245,14 +2587,9 @@ export function CardInlineGeneratePanel({
                         aria-pressed={selected}
                         aria-disabled={unaffordable || undefined}
                         disabled={controlsBusy}
-                        title={unaffordable ? "Не хватает кредитов" : item.label}
-                        onClick={() => {
-                          setVideoModel(item.id);
-                          if (isVeoLiteVideoModel(item.id) && videoDurationSeconds > 8) {
-                            setVideoDurationSeconds(8);
-                          }
-                        }}
-                        className={`${OVERLAY_BUTTON_UA_RESET} relative flex min-h-20 min-w-0 items-center gap-3 overflow-hidden rounded-xl p-3 text-left ring-2 transition ${
+                        title={unaffordable ? "Не хватает кредитов" : description}
+                        onClick={() => selectVideoModel(item.id)}
+                        className={`${OVERLAY_BUTTON_UA_RESET} relative flex min-h-20 min-w-0 items-center gap-3 rounded-xl p-3 text-left ring-2 transition ${
                           dockModelExpanded
                             ? selected
                               ? "bg-white/15 text-white ring-indigo-300 shadow-sm"
@@ -2270,30 +2607,41 @@ export function CardInlineGeneratePanel({
                         >
                           <GenerationModelIcon modelId={item.id} />
                         </span>
-                        <span className="min-w-0 flex-1">
+                        <span className="min-w-0 flex-1 pr-9">
                           <span className="block truncate text-[13px] font-semibold leading-tight">
                             {displayLabelForGenerationModel(item.id, item.label)}
                           </span>
-                          <span
-                            className={`mt-1 block text-[13px] font-medium leading-tight ${
-                              unaffordable
-                                ? dockModelExpanded
-                                  ? "text-rose-400"
-                                  : "text-rose-600"
-                                : dockModelExpanded
-                                  ? "text-white/60"
-                                  : "text-zinc-500"
-                            }`}
-                          >
-                            {unaffordable
-                              ? "Не хватает кредитов"
-                              : `Оживление · ${itemCost} кр.`}
-                          </span>
+                          {unaffordable ? (
+                            <span
+                              className={`mt-1 block text-[13px] font-semibold leading-tight ${
+                                dockModelExpanded ? "text-rose-400" : "text-rose-600"
+                              }`}
+                            >
+                              Не хватает кредитов
+                            </span>
+                          ) : (
+                            <span
+                              className={`mt-1 block line-clamp-2 text-[13px] font-medium leading-tight ${
+                                dockModelExpanded ? "text-white/60" : "text-zinc-500"
+                              }`}
+                            >
+                              {description}
+                            </span>
+                          )}
                         </span>
+                        <GenerationCreditCostBadge
+                          cost={itemCost}
+                          unaffordable={unaffordable}
+                          className="absolute right-1.5 top-1.5"
+                        />
                       </button>
                     );
                   })}
                 </div>
+              </>
+            ) : null}
+            {videoCompose ? (
+              <>
                 <div className="mt-3 grid shrink-0 grid-cols-2 gap-2">
                   <label className="block min-w-0">
                     <span
@@ -2381,87 +2729,6 @@ export function CardInlineGeneratePanel({
               </>
             ) : (
               <>
-            <div className="grid shrink-0 grid-cols-2 gap-2">
-              {models.map((item) => {
-                const selected = model === item.id;
-                const display = GENERATION_MODEL_DISPLAY[item.id];
-                const unaffordable =
-                  credits !== null && credits < item.cost;
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    aria-pressed={selected}
-                    aria-disabled={unaffordable || undefined}
-                    disabled={controlsBusy}
-                    title={
-                      unaffordable
-                        ? "Не хватает кредитов"
-                        : display?.description || item.label
-                    }
-                    onClick={() => setModel(item.id)}
-                    className={`${OVERLAY_BUTTON_UA_RESET} relative flex min-h-20 min-w-0 items-center gap-3 overflow-hidden rounded-xl p-3 text-left ring-2 transition ${
-                      dockModelExpanded
-                        ? selected
-                          ? "bg-white/15 text-white ring-indigo-300 shadow-sm"
-                          : "bg-white/5 text-white ring-white/10 hover:bg-white/10 hover:ring-white/25"
-                        : selected
-                          ? "bg-indigo-50 text-zinc-900 ring-indigo-500 shadow-sm"
-                          : "bg-zinc-100 text-zinc-900 ring-zinc-200 hover:bg-zinc-200 hover:ring-zinc-300"
-                    } ${unaffordable ? "opacity-90" : ""} disabled:opacity-50`}
-                  >
-                    <span
-                      aria-hidden
-                      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full shadow-sm ${
-                        dockModelExpanded ? "bg-white/90" : "bg-white"
-                      }`}
-                    >
-                      <GenerationModelIcon modelId={item.id} />
-                    </span>
-                    <span className="min-w-0 flex-1 pr-5">
-                      <span className="block truncate text-[13px] font-semibold leading-tight">
-                        {displayLabelForGenerationModel(item.id, item.label)}
-                      </span>
-                      {unaffordable ? (
-                        <span
-                          className={`mt-1 block text-[13px] font-semibold leading-tight ${
-                            dockModelExpanded ? "text-rose-400" : "text-rose-600"
-                          }`}
-                        >
-                          Не хватает кредитов
-                        </span>
-                      ) : (
-                        <span
-                          className={`mt-1 block line-clamp-2 text-xs font-medium leading-tight ${
-                            dockModelExpanded ? "text-white/60" : "text-zinc-500"
-                          }`}
-                        >
-                          {display?.description || "Генерация изображений"}
-                        </span>
-                      )}
-                    </span>
-                    <span
-                      className={`absolute right-1.5 top-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
-                        unaffordable
-                          ? dockModelExpanded
-                            ? "bg-rose-400/20 text-rose-300"
-                            : "bg-rose-100 text-rose-600"
-                          : dockModelExpanded
-                            ? selected
-                              ? "bg-indigo-300/90 text-zinc-950"
-                              : "bg-white/10 text-white/70"
-                            : selected
-                              ? "bg-indigo-100 text-indigo-700"
-                              : "bg-white text-zinc-500"
-                      }`}
-                    >
-                      {item.cost} кр.
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-
             <div className="mt-3 grid shrink-0 grid-cols-2 gap-2">
               <label className="block min-w-0">
                 <span
@@ -2530,53 +2797,7 @@ export function CardInlineGeneratePanel({
           </div>
         ) : null}
 
-        {!showResultChrome && videoCompose ? (
-        <section
-          className={`shrink-0 ${
-            promptExpanded || (isDock && dockExpanded)
-              ? "hidden"
-              : isDock
-              ? "rounded-none border-0 bg-transparent p-1"
-              : `rounded-2xl border p-2 ${
-                  glassChrome
-                    ? "border-white/15 bg-black/15 backdrop-blur-md"
-                    : "border-zinc-200 bg-white/95"
-                }`
-          }`}
-        >
-          <VideoComposeBar
-            previewUrl={
-              animatePreviewUrl
-              || selectedPhotos[0]?.previewUrl
-              || null
-            }
-            onClearPreview={
-              animateParentId
-                ? () => {
-                    setAnimateParentId(null);
-                    setAnimatePreviewUrl(null);
-                    setComposeModality("image");
-                  }
-                : selectedPhotos[0]
-                  ? () => {
-                      setSelectedPhotoIds(new Set());
-                    }
-                  : undefined
-            }
-            modelId={activeVideoModel?.id || DEFAULT_VIDEO_MODEL}
-            modelLabel={displayLabelForGenerationModel(
-              activeVideoModel?.id || DEFAULT_VIDEO_MODEL,
-              activeVideoModel?.label
-            )}
-            settingsOpen={expandedControl === "model"}
-            onOpenSettings={() => {
-              setExpandedControl((current) => (current === "model" ? null : "model"));
-            }}
-            glass={glassChrome}
-            disabled={controlsBusy}
-          />
-        </section>
-        ) : !showResultChrome ? (
+        {!showResultChrome ? (
         <section
           className={`shrink-0 ${
             isDock
@@ -2600,7 +2821,7 @@ export function CardInlineGeneratePanel({
               onClick={() => {
                 setExpandedControl((current) => (current === "photos" ? null : "photos"));
               }}
-              className={`${OVERLAY_BUTTON_UA_RESET} relative flex h-[5.25rem] w-[5.25rem] shrink-0 overflow-hidden rounded-xl text-left ring-2 transition ${
+              className={`${OVERLAY_BUTTON_UA_RESET} relative flex h-[5.25rem] w-[5.25rem] shrink-0 rounded-xl text-left ring-2 transition ${
                 expandedControl === "photos"
                   ? "ring-indigo-300"
                   : glassChrome
@@ -2608,6 +2829,7 @@ export function CardInlineGeneratePanel({
                     : "bg-zinc-100 ring-zinc-200 hover:ring-zinc-300"
               } disabled:opacity-50`}
             >
+              <span className="absolute inset-0 overflow-hidden rounded-xl">
               {selectedPhotos[0]?.previewUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
@@ -2638,17 +2860,21 @@ export function CardInlineGeneratePanel({
               <span className="absolute right-1.5 top-1.5 rounded-full bg-zinc-900/90 px-1.5 py-0.5 text-[10px] font-semibold text-white">
                 {selectedPhotos.length}/{maxPhotos}
               </span>
+              </span>
             </button>
 
             <button
               type="button"
               aria-expanded={expandedControl === "model"}
               aria-controls="inline-generation-models"
-              disabled={controlsBusy || !models.length}
+              disabled={
+                controlsBusy ||
+                (!models.length && !videoModels.length)
+              }
               onClick={() => {
                 setExpandedControl((current) => (current === "model" ? null : "model"));
               }}
-              className={`${OVERLAY_BUTTON_UA_RESET} relative flex h-[5.25rem] w-[5.25rem] shrink-0 flex-col items-center justify-center overflow-hidden rounded-xl p-2 text-center ring-2 transition ${
+              className={`${OVERLAY_BUTTON_UA_RESET} relative flex h-[5.25rem] w-[5.25rem] shrink-0 flex-col items-center justify-center rounded-xl p-2 text-center ring-2 transition ${
                 glassChrome
                   ? expandedControl === "model"
                     ? "bg-white/10 text-white ring-indigo-300"
@@ -2663,14 +2889,16 @@ export function CardInlineGeneratePanel({
                   glassChrome ? "bg-white/90" : "bg-white"
                 }`}
               >
-                <GenerationModelIcon modelId={model} />
+                <GenerationModelIcon modelId={composeModelId} />
               </span>
               <span className="line-clamp-2 text-[13px] font-semibold leading-tight">
-                {displayLabelForGenerationModel(
-                  model,
-                  models.find((item) => item.id === model)?.label
-                )}
+                {composeModelLabel}
               </span>
+              {videoCompose ? (
+                <span className="absolute right-1 top-1 rounded-full bg-indigo-500 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                  Видео
+                </span>
+              ) : null}
             </button>
 
             <div className="min-w-0 flex-1 self-center">
@@ -2681,41 +2909,6 @@ export function CardInlineGeneratePanel({
               >
                 Нажмите на квадрат, чтобы изменить выбор.
               </p>
-              {videoEnabled ? (
-                <button
-                  type="button"
-                  disabled={controlsBusy}
-                  onClick={() => {
-                    if (selectedPhotos.length !== 1) {
-                      setError("Для оживления выберите одно фото");
-                      return;
-                    }
-                    const photo = selectedPhotos[0];
-                    const linkedParentId = resolveVideoEnqueueParentGenerationId(
-                      null,
-                      photo?.originalFilename,
-                    );
-                    setComposeModality("video");
-                    setAnimateParentId(linkedParentId || null);
-                    setAnimatePreviewUrl(photo?.previewUrl || null);
-                    const sourcePrompt = draftPromptRef.current;
-                    if (isGenericVideoPrompt(sourcePrompt)) {
-                      setDraftPrompt("");
-                    }
-                    setError("");
-                    void loadAnimateScenario({
-                      parentGenerationId: linkedParentId || undefined,
-                      photoStoragePath: linkedParentId ? null : photo?.storagePath || null,
-                      sourcePrompt,
-                    });
-                  }}
-                  className={`${OVERLAY_BUTTON_UA_RESET} mt-1.5 text-[13px] font-semibold ${
-                    glassChrome ? "text-indigo-200 hover:text-white" : "text-indigo-600 hover:text-indigo-700"
-                  }`}
-                >
-                  Оживить фото
-                </button>
-              ) : null}
             </div>
           </div>
 
@@ -2762,124 +2955,25 @@ export function CardInlineGeneratePanel({
 
       <footer
         className={`relative z-20 shrink-0 p-3 ${
-          promptExpanded || (isDock && dockExpanded)
+          promptExpanded || (isDock && dockExpanded) || (showResultActions && !showCreditsCta)
             ? "hidden"
             : isDock
-            ? "mt-auto border-t border-white/10 bg-transparent pb-3"
-            : `border-t backdrop-blur-md pb-[max(0.75rem,env(safe-area-inset-bottom))] ${
+            ? "mt-auto border-0 bg-transparent pb-3"
+            : `pb-[max(0.75rem,env(safe-area-inset-bottom))] ${
                 showResultChrome
-                  ? "border-white/10 bg-black/15"
-                  : "border-zinc-200 bg-white/90"
+                  ? "border-transparent bg-transparent"
+                  : "border-t border-zinc-200 bg-white/90 backdrop-blur-md"
               }`
         }`}
       >
         <div className="flex min-w-0 gap-2">
-        {phase === "done" && resultUrl && generationId && videoEnabled && resultModality === "image" ? (
-          <button
-            type="button"
-            onClick={enterAnimateFromResult}
-            className={
-              isDock
-                ? dockActionBtn
-                : `${OVERLAY_BUTTON_UA_RESET} flex min-h-12 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-2xl bg-black/25 px-2 py-3 text-[13px] font-semibold text-white transition hover:bg-black/40 active:scale-[0.99]`
-            }
-          >
-            <svg className="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-              <path d="M8 6.8v10.4L17.2 12 8 6.8Z" />
-            </svg>
-            <span className="truncate">Оживить</span>
-          </button>
-        ) : null}
-        {phase === "done" && resultUrl && generationId ? (
-          <button
-            type="button"
-            onClick={() => setResultPreviewOpen(true)}
-            className={
-              isDock
-                ? dockActionBtn
-                : `${OVERLAY_BUTTON_UA_RESET} flex min-h-12 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-2xl bg-black/25 px-2 py-3 text-[13px] font-semibold text-white transition hover:bg-black/40 active:scale-[0.99]`
-            }
-          >
-            <svg
-              className="h-5 w-5 shrink-0"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              aria-hidden
-            >
-              <path
-                d="M2.5 12s3.5-6.5 9.5-6.5S21.5 12 21.5 12s-3.5 6.5-9.5 6.5S2.5 12 2.5 12Z"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-              <circle cx="12" cy="12" r="2.75" />
-            </svg>
-            <span className="truncate">Посмотреть</span>
-          </button>
-        ) : null}
-        {phase === "done" && resultUrl && generationId ? (
-          <button
-            type="button"
-            disabled={Boolean(busyAction)}
-            onClick={() => void handleResultAction("download")}
-            className={`${
-              isDock
-                ? dockActionBtn
-                : `${OVERLAY_BUTTON_UA_RESET} flex min-h-12 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-2xl bg-black/25 px-2 py-3 text-[13px] font-semibold text-white transition hover:bg-black/40 active:scale-[0.99]`
-            } disabled:opacity-50`}
-          >
-            <svg
-              className="h-5 w-5 shrink-0"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              aria-hidden
-            >
-              <path d="M12 3v12m0 0 4-4m-4 4-4-4M5 20h14" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-            <span className="truncate">
-              {busyAction === "download" ? "Скачиваем…" : "Скачать"}
-            </span>
-          </button>
-        ) : null}
-        {phase === "done" && resultUrl && generationId ? (
-          <button
-            type="button"
-            disabled={busy || Boolean(busyAction)}
-            onClick={resetToCompose}
-            className={`${
-              isDock
-                ? dockActionBtn
-                : `${OVERLAY_BUTTON_UA_RESET} flex min-h-12 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-2xl bg-black/25 px-2 py-3 text-[13px] font-semibold text-white transition hover:bg-black/40 active:scale-[0.99]`
-            } disabled:cursor-not-allowed disabled:opacity-50`}
-          >
-            <svg
-              className="h-5 w-5 shrink-0"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              aria-hidden
-            >
-              <path d="M20 7v5h-5M4 17v-5h5" strokeLinecap="round" strokeLinejoin="round" />
-              <path d="M18.2 9A7 7 0 0 0 6.4 6.4L4 9m2 6a7 7 0 0 0 11.6 2.6L20 15" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-            <span className="truncate">Повторить</span>
-          </button>
-        ) : null}
         {showCreditsCta ? (
           <PricingEntryLink
             href="/pricing"
             onClick={() =>
               reachYandexMetrikaGoal(YM_GOAL_PROMPT_CARD_GENERATION_PRICING)
             }
-            className={`flex min-h-12 min-w-0 items-center justify-center rounded-2xl bg-rose-500/85 py-3 font-semibold text-white shadow-[0_12px_28px_-14px_rgba(244,63,94,0.45)] transition hover:bg-rose-500/95 ${
-              phase === "done" && resultUrl
-                ? "flex-1 px-2 text-[13px]"
-                : "w-full px-4 text-[15px]"
-            }`}
+            className="flex min-h-12 min-w-0 w-full items-center justify-center rounded-2xl bg-rose-500/85 px-4 py-3 text-[15px] font-semibold text-white shadow-[0_12px_28px_-14px_rgba(244,63,94,0.45)] transition hover:bg-rose-500/95"
           >
             Недостаточно кредитов
           </PricingEntryLink>
@@ -2920,11 +3014,7 @@ export function CardInlineGeneratePanel({
               }
               void runGenerate({ promptOverride: draftPrompt });
             }}
-            className={`${OVERLAY_BUTTON_UA_RESET} relative isolate flex min-h-12 min-w-0 items-center justify-center overflow-hidden rounded-2xl py-3 font-semibold text-white shadow-lg shadow-indigo-950/35 transition active:scale-[0.99] disabled:cursor-not-allowed ${
-              busy || !(phase === "done" && resultUrl)
-                ? "w-full px-4 text-[15px]"
-                : "flex-1 px-2 text-[13px]"
-            } ${
+            className={`${OVERLAY_BUTTON_UA_RESET} relative isolate flex min-h-12 min-w-0 w-full items-center justify-center overflow-hidden rounded-2xl px-4 py-3 text-[15px] font-semibold text-white shadow-lg shadow-indigo-950/35 transition active:scale-[0.99] disabled:cursor-not-allowed ${
               busy
                 ? "opacity-100 disabled:opacity-100"
                 : "bg-gradient-to-r from-indigo-500 to-violet-500 hover:brightness-110 disabled:opacity-50"

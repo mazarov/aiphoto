@@ -91,7 +91,15 @@ test("video option resolvers fall back to v1 defaults", () => {
       "gemini-omni-flash-preview",
       "grok-imagine-video-1.5",
     ]),
-    "grok-imagine-video-1.5"
+    "gemini-omni-flash-preview"
+  );
+  assert.equal(
+    resolveVideoModelId("unknown", [
+      "gemini-omni-flash-preview",
+      "grok-imagine-video-1.5",
+      "veo-3.1-lite-generate-preview",
+    ]),
+    "veo-3.1-lite-generate-preview"
   );
   assert.equal(
     resolveVideoModelId("gemini-omni-flash-preview", [
@@ -100,7 +108,7 @@ test("video option resolvers fall back to v1 defaults", () => {
     ]),
     "gemini-omni-flash-preview"
   );
-  assert.equal(DEFAULT_VIDEO_MODEL, "grok-imagine-video-1.5");
+  assert.equal(DEFAULT_VIDEO_MODEL, "veo-3.1-lite-generate-preview");
   assert.equal(isGrokVideoModel("grok-imagine-video-1.5"), true);
   assert.equal(isGrokVideoModel("gemini-omni-flash-preview"), false);
   assert.equal(isVeoLiteVideoModel("veo-3.1-lite-generate-preview"), true);

@@ -1,3 +1,8 @@
+import {
+  GROK_IMAGINE_IMAGE_CREDIT_COST,
+  isGrokImageModel,
+} from "./generation/image-options";
+
 /**
  * Product-facing names for Gemini image models (LexyGPT / Google “Nano Banana” naming).
  * API ids stay Gemini; only UI labels change.
@@ -42,19 +47,19 @@ export const GENERATION_MODEL_DISPLAY: Record<string, GenerationModelDisplay> = 
   },
   "gemini-omni-flash-preview": {
     label: "Veo Omni Flash",
-    description: "Оживление фото в короткое видео",
+    description: "Фото оживает по твоему сценарию",
   },
   "grok-imagine-image-2.0": {
     label: "Grok Imagine",
     description: "Альтернативная генерация xAI",
   },
   "grok-imagine-video-1.5": {
-    label: "Grok 1.5",
-    description: "Оживление фото в короткое видео",
+    label: "Grok Imagine 1.5",
+    description: "Динамичное видео из фото",
   },
   "veo-3.1-lite-generate-preview": {
     label: "Veo 3.1 Lite",
-    description: "Быстрое оживление фото",
+    description: "Озвученное видео из фото",
   },
 };
 
@@ -100,7 +105,7 @@ export const FALLBACK_GENERATION_MODELS: GenerationModelOption[] = [
   {
     id: "grok-imagine-image-2.0",
     label: GENERATION_MODEL_DISPLAY["grok-imagine-image-2.0"].label,
-    cost: 5,
+    cost: GROK_IMAGINE_IMAGE_CREDIT_COST,
   },
 ];
 
@@ -109,6 +114,13 @@ export function displayLabelForGenerationModel(
   fallbackLabel?: string
 ): string {
   return GENERATION_MODEL_DISPLAY[id]?.label || fallbackLabel || id;
+}
+
+export function displayDescriptionForGenerationModel(
+  id: string,
+  fallback = ""
+): string {
+  return GENERATION_MODEL_DISPLAY[id]?.description || fallback;
 }
 
 export function optionLabelForGenerationModel(
@@ -145,7 +157,11 @@ function parseGenerationModels(
       .map((model) => ({
         id: model.id,
         label: displayLabelForGenerationModel(model.id, model.label),
-        cost: Number.isFinite(model.cost) ? Number(model.cost) : 0,
+        cost: isGrokImageModel(model.id)
+          ? GROK_IMAGINE_IMAGE_CREDIT_COST
+          : Number.isFinite(model.cost)
+            ? Number(model.cost)
+            : 0,
       }));
     return models.length ? models : fallback;
   } catch {

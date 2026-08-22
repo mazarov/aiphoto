@@ -70,7 +70,7 @@ export async function GET(req: NextRequest) {
         imageSizes: VIDEO_RESOLUTION_OPTIONS,
         defaults: {
           model: resolveVideoModelId(
-            config.default_video_model || DEFAULT_VIDEO_MODEL,
+            DEFAULT_VIDEO_MODEL,
             models.map((item) => item.id)
           ),
           aspectRatio: DEFAULT_VIDEO_ASPECT_RATIO,

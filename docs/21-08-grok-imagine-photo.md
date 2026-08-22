@@ -8,7 +8,7 @@
 
 1. Пользователь может **выбрать Grok Imagine** в пикере модели при генерации фото.
 2. Если выбранная **другая** image-модель падает с ошибкой провайдера — **тот же job** один раз пробует Grok Imagine.
-3. Стоимость выбора Grok Imagine — **5 кредитов**.
+3. Стоимость выбора Grok Imagine — **10 кредитов**.
 
 Не путать с уже живым video-провайдером `grok-imagine-video-1.5` («Оживить»). Это отдельная **image**-модель в том же durable job `landing_generations` / `web-generation-worker`.
 
@@ -198,7 +198,7 @@ Circuit breaker (in-process на worker, без Redis):
 
 - Пункт в том же пикере, что Flash / Pro / Lite. Иконка Grok.
 - При выбранном Grok: размер **1K / 2K**; 4K скрыт или disabled с подписью «до 2K».
-- Стоимость на CTA: 5 кредитов; `needsCredits` считает `min(models.cost)` как сейчас.
+- Стоимость на CTA: 10 кредитов; `needsCredits` считает `min(models.cost)` как сейчас.
 - `/generaciya-foto` showcase подхватывает enabled-модели из конфига — отдельный хардкод не нужен, если витрина уже читает config.
 - STV sidepanel сейчас хардкодит Flash/Pro — **либо** читать `/api/generation-config`, **либо** добавить третий пункт. Предпочтение: config, не второй каталог.
 - Admin generate: тот же `models` JSON — Grok появится сам, если id валиден.
@@ -210,7 +210,7 @@ Circuit breaker (in-process на worker, без Redis):
 1. `UPDATE landing_generation_config` key=`models`: append
 
 ```json
-{"id":"grok-imagine-image-2.0","label":"Grok Imagine","cost":5,"enabled":true}
+{"id":"grok-imagine-image-2.0","label":"Grok Imagine","cost":10,"enabled":true}
 ```
 
 Порядок: после Lite / в конце списка. Дефолт не менять.
@@ -311,7 +311,7 @@ Grok Imagine — enabled-элемент `models` со `cost=5`. Пикер, dock
 
 ### F3. Стоимость
 
-Выбор Grok = 5 кредитов на enqueue. Фолбек не меняет `credits_spent`.
+Выбор Grok = 10 кредитов на enqueue. Фолбек не меняет `credits_spent`.
 
 ### F4. Паритет входов
 

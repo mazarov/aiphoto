@@ -142,7 +142,6 @@ export function GenerationResultBackdrop({
           loop
           playsInline
         />
-        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(9,9,11,0.55)_0%,rgba(9,9,11,0.2)_45%,rgba(9,9,11,0.62)_100%)]" />
       </div>
     );
   }
@@ -181,8 +180,6 @@ export function GenerationResultBackdrop({
           />
         </div>
       ) : null}
-
-      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(9,9,11,0.55)_0%,rgba(9,9,11,0.2)_45%,rgba(9,9,11,0.62)_100%)]" />
     </div>
   );
 }

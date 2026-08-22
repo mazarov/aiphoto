@@ -21,6 +21,7 @@ import {
 import {
   DEFAULT_IMAGE_ASPECT_RATIO,
   DEFAULT_IMAGE_SIZE,
+  DEFAULT_VIDEO_MODEL,
   IMAGE_GENERATION_MODALITY,
   VIDEO_GENERATION_MODALITY,
   clampImageSizeForModel,
@@ -29,7 +30,7 @@ import {
   isImageSize,
 } from "@/lib/generation/image-options";
 import {
-  FALLBACK_GENERATION_MODELS,
+  parseEnabledGenerationModels,
   parseEnabledVideoGenerationModels,
 } from "@/lib/generation-model-labels";
 import {
@@ -368,22 +369,15 @@ export async function POST(req: NextRequest) {
         cost: item.cost,
       }));
     } else {
-      try {
-        const parsed = JSON.parse(config.models || "[]");
-        models = parsed
-          .filter((m: { enabled?: boolean }) => m.enabled !== false)
-          .map((m: { id: string; cost: number }) => ({ id: m.id, cost: m.cost }));
-      } catch {
-        models = FALLBACK_GENERATION_MODELS.map((item) => ({
-          id: item.id,
-          cost: item.cost,
-        }));
-      }
+      models = parseEnabledGenerationModels(config.models).map((item) => ({
+        id: item.id,
+        cost: item.cost,
+      }));
     }
 
     const resolvedVideoModelId = isVideo
       ? resolveVideoModelId(
-          model || config.default_video_model,
+          model || DEFAULT_VIDEO_MODEL,
           models.map((item) => item.id)
         )
       : null;

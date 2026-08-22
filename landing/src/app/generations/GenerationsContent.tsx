@@ -9,6 +9,10 @@ import {
   type GenerationHistoryItem,
 } from "@/components/GenerationHistoryCard";
 import { VIDEO_GENERATION_MODALITY } from "@/lib/generation/image-options";
+import {
+  readCachedVideoAnimateEnabled,
+  writeCachedVideoAnimateEnabled,
+} from "@/lib/video-animate-availability";
 
 type GenerationsContentProps = {
   /** Bump to force-reload list (e.g. after blank generate completes). */
@@ -29,7 +33,9 @@ export function GenerationsContent({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [toast, setToast] = useState("");
-  const [videoEnabled, setVideoEnabled] = useState(false);
+  const [videoEnabled, setVideoEnabled] = useState(
+    () => readCachedVideoAnimateEnabled() === true
+  );
 
   const showToast = useCallback((message: string) => {
     setToast(message);
@@ -68,6 +74,7 @@ export function GenerationsContent({
     if (!user) {
       setLoading(false);
       setGenerations([]);
+      writeCachedVideoAnimateEnabled(false);
       setVideoEnabled(false);
       return;
     }
@@ -79,7 +86,11 @@ export function GenerationsContent({
     })
       .then(async (res) => {
         const data = (await res.json().catch(() => ({}))) as { enabled?: boolean };
-        if (res.ok) setVideoEnabled(Boolean(data.enabled));
+        if (res.ok) {
+          const enabled = Boolean(data.enabled);
+          writeCachedVideoAnimateEnabled(enabled);
+          setVideoEnabled(enabled);
+        }
       })
       .catch(() => {
         /* keep default false */

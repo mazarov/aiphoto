@@ -63,3 +63,13 @@ test("stored photo ids that left the library are dropped", () => {
     ["b"]
   );
 });
+
+test("all stored photos gone falls back to the newest library photo", () => {
+  assert.deepEqual(
+    restoreSelectedPhotoIds({
+      availablePhotoIds: ["newest", "older"],
+      storedPhotoIds: ["gone"],
+    }),
+    ["newest"]
+  );
+});
