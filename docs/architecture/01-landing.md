@@ -1,5 +1,7 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-08-22 (**mobile generate preference sheets:** выбор фото и модели в `CardInlineGeneratePanel` на mobile занимает всю высоту compose viewport в `chrome=dock` и `chrome=fullscreen`. Header и нижняя CTA фиксированы, прокручивается средняя область; в photo sheet контролы добавления закреплены снизу. Инструкция — тот же 13px / indigo-zinc слой, что и шторка: заголовок, одна строка правила, локальный портрет `public/generate/photo-guide-portrait.webp` (карточка `visual-hook-yarkiy-neonovo-rozovyy-tsvet-volos-i-makiyazha-sozdaet-smelyy-stiliz-42add`), без emerald-бейджей. Показывается в dock и mobile/desktop sheet независимо от библиотеки.)
+>
 > Последнее обновление: 2026-08-22 (**admin image generate/edit:** `/admin/analyze-history` → «Генерации других пользователей» показывает бейдж `Gemini generate` / `Gemini edit` / `xAI generate` / `xAI edit`. SSOT `inferProviderImageMode`: фото/parent/vibe/local edit → edit, иначе generate; вендор по `executed_model` / `fallback_used`. Поле `providerImageMode` в `GET /api/admin/user-generations`.)
 >
 > Последнее обновление: 2026-08-22 (**lifecycle-почта в коде:** `sql/206`, `mail-catalog.ts`, due-очередь `POST /api/cron/mail-due`, гранты `landing_pricing_offers` 10/20%, приоритетный claim outbox, бюджет кампаний, вкладка «Каталог» на `/admin/mail`. Welcome/402/ЮKassa/gen/credited ставят due, не SMTP. Спека `docs/22-08-lifecycle-mail.md`. Транспорт: `docs/21-08-yandex-postbox-mail.md`, ops `docs/ops/yandex-cloud-postbox.md`.)

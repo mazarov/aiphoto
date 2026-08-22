@@ -1921,16 +1921,16 @@ export function CardInlineGeneratePanel({
             aria-label="Выбор фотографий"
             className={
               dockPhotosExpanded
-                ? isMobile
-                  ? `${dockSheetPanelBase} overflow-hidden`
-                  : `${dockSheetPanel} overflow-y-auto`
-                : `${sheetPos} inset-x-0 bottom-0 z-50 max-h-[min(76dvh,38rem)] overflow-y-auto rounded-t-3xl bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))] text-zinc-900 shadow-[0_-20px_60px_-24px_rgba(0,0,0,0.45)]`
+                ? `${dockSheetPanelBase} overflow-hidden`
+                : isMobile
+                  ? `${sheetPos} inset-0 z-50 flex h-full min-h-0 flex-col overflow-hidden bg-white p-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))] text-zinc-900`
+                  : `${sheetPos} inset-x-0 bottom-0 z-50 max-h-[min(76dvh,38rem)] overflow-y-auto rounded-t-3xl bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))] text-zinc-900 shadow-[0_-20px_60px_-24px_rgba(0,0,0,0.45)]`
             }
           >
             <div
               className={
-                dockPhotosExpanded && isMobile
-                  ? "mt-auto flex max-h-full min-h-0 w-full flex-col overflow-y-auto overscroll-contain"
+                isMobile || dockPhotosExpanded
+                  ? "flex h-full min-h-0 w-full flex-col"
                   : "contents"
               }
             >
@@ -1986,13 +1986,65 @@ export function CardInlineGeneratePanel({
                 </button>
               )}
             </div>
-            <div
-              className={
-                dockPhotosExpanded && isMobile
-                  ? "flex flex-wrap gap-2 pb-1"
-                  : "flex gap-2 overflow-x-auto pb-1"
-              }
-            >
+            {!libraryLoading ? (
+              <section
+                aria-labelledby="generation-photo-guide-title"
+                className={
+                  isMobile || dockPhotosExpanded
+                    ? "flex min-h-0 flex-1 flex-col items-center justify-center overflow-y-auto overscroll-contain py-3"
+                    : "mb-3"
+                }
+              >
+                <div
+                  className={`flex w-full flex-col ${
+                    isMobile || dockPhotosExpanded
+                      ? "max-w-[13.5rem] items-center text-center"
+                      : "items-start"
+                  }`}
+                >
+                  <h3
+                    id="generation-photo-guide-title"
+                    className={`text-[13px] font-semibold ${
+                      dockPhotosExpanded ? "text-white" : "text-zinc-900"
+                    }`}
+                  >
+                    Какое фото добавить
+                  </h3>
+                  <p
+                    className={`mt-1 text-[13px] font-medium leading-relaxed ${
+                      dockPhotosExpanded ? "text-white/65" : "text-zinc-600"
+                    }`}
+                  >
+                    Один человек, лицо крупно и хорошо видно.
+                  </p>
+                  <div
+                    className={`relative mt-3 overflow-hidden rounded-2xl bg-zinc-800 ring-1 ${
+                      dockPhotosExpanded ? "ring-white/15" : "ring-zinc-200"
+                    } ${
+                      isMobile || dockPhotosExpanded
+                        ? "aspect-square w-full"
+                        : "h-24 w-[4.5rem] shrink-0"
+                    }`}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src="/generate/photo-guide-portrait.webp"
+                      alt="Пример подходящего фото: одиночный студийный портрет с открытым лицом"
+                      className="h-full w-full object-cover object-top"
+                    />
+                  </div>
+                  <p
+                    className={`mt-2 text-[13px] font-medium ${
+                      dockPhotosExpanded ? "text-white/50" : "text-zinc-500"
+                    }`}
+                  >
+                    Без групп, очков и съёмки издалека
+                  </p>
+                </div>
+              </section>
+            ) : null}
+            <div className={isMobile || dockPhotosExpanded ? "shrink-0" : "contents"}>
+            <div className="flex gap-2 overflow-x-auto pb-1">
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
@@ -2080,7 +2132,7 @@ export function CardInlineGeneratePanel({
                 );
               })}
             </div>
-            {!libraryLoading && !photos.length ? (
+            {!isMobile && !libraryLoading && !photos.length ? (
               <p
                 className={`mt-2 shrink-0 text-[13px] font-medium ${
                   dockPhotosExpanded ? "text-white/65" : "text-zinc-600"
@@ -2099,6 +2151,7 @@ export function CardInlineGeneratePanel({
               Готово
             </button>
             </div>
+            </div>
           </div>
         ) : null}
 
@@ -2113,13 +2166,15 @@ export function CardInlineGeneratePanel({
                 ? isMobile
                   ? `${dockSheetPanelBase} overflow-hidden`
                   : `${dockSheetPanel} overflow-y-auto`
-                : `${sheetPos} inset-x-0 bottom-0 z-50 max-h-[min(82dvh,44rem)] overflow-y-auto rounded-t-3xl bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))] text-zinc-900 shadow-[0_-20px_60px_-24px_rgba(0,0,0,0.45)]`
+                : isMobile
+                  ? `${sheetPos} inset-0 z-50 flex h-full min-h-0 flex-col overflow-hidden bg-white p-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))] text-zinc-900`
+                  : `${sheetPos} inset-x-0 bottom-0 z-50 max-h-[min(82dvh,44rem)] overflow-y-auto rounded-t-3xl bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))] text-zinc-900 shadow-[0_-20px_60px_-24px_rgba(0,0,0,0.45)]`
             }
           >
             <div
               className={
-                dockModelExpanded && isMobile
-                  ? "mt-auto flex max-h-full min-h-0 w-full flex-col overflow-y-auto overscroll-contain"
+                isMobile
+                  ? "flex h-full min-h-0 w-full flex-col"
                   : "contents"
               }
             >
@@ -2165,6 +2220,13 @@ export function CardInlineGeneratePanel({
                 </svg>
               </button>
             </div>
+            <div
+              className={
+                isMobile
+                  ? "min-h-0 flex-1 overflow-y-auto overscroll-contain pb-1"
+                  : "contents"
+              }
+            >
             {videoCompose ? (
               <>
                 <div className="grid shrink-0 grid-cols-2 gap-2">
@@ -2454,6 +2516,7 @@ export function CardInlineGeneratePanel({
             </div>
               </>
             )}
+            </div>
             <button
               type="button"
               onClick={closePrefsSheet}
