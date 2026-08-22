@@ -54,7 +54,13 @@ type PreferencesBody = {
   videoDurationSeconds?: unknown;
 };
 
-function mapRow(data: Record<string, unknown> | null): StoredGenerationPreferences | null {
+type PreferencesTableRow = Record<string, unknown>;
+
+function asPreferencesTableRow(row: object | null): PreferencesTableRow | null {
+  return row ? ({ ...row } as PreferencesTableRow) : null;
+}
+
+function mapRow(data: PreferencesTableRow | null): StoredGenerationPreferences | null {
   if (!data) return null;
   return parseStoredGenerationPreferences({
     model: data.model,
@@ -68,6 +74,27 @@ function mapRow(data: Record<string, unknown> | null): StoredGenerationPreferenc
   });
 }
 
+async function loadPreferencesRow(
+  supabase: ReturnType<typeof createSupabaseServer>,
+  authUserId: string
+) {
+  const full = await supabase
+    .from("landing_generation_preferences")
+    .select(PREFS_SELECT_FULL)
+    .eq("auth_user_id", authUserId)
+    .maybeSingle();
+  if (!full.error || !isMissingVideoPreferenceColumns(full.error)) {
+    return { data: asPreferencesTableRow(full.data), error: full.error };
+  }
+
+  const core = await supabase
+    .from("landing_generation_preferences")
+    .select(PREFS_SELECT_CORE)
+    .eq("auth_user_id", authUserId)
+    .maybeSingle();
+  return { data: asPreferencesTableRow(core.data), error: core.error };
+}
+
 export async function GET(req: NextRequest) {
   try {
     const { user, error: authError } = await getSupabaseUserForApiRoute(req);
@@ -76,21 +103,7 @@ export async function GET(req: NextRequest) {
     }
 
     const supabase = createSupabaseServer();
-    let { data, error } = await supabase
-      .from("landing_generation_preferences")
-      .select(PREFS_SELECT_FULL)
-      .eq("auth_user_id", user.id)
-      .maybeSingle();
-
-    if (error && isMissingVideoPreferenceColumns(error)) {
-      const fallback = await supabase
-        .from("landing_generation_preferences")
-        .select(PREFS_SELECT_CORE)
-        .eq("auth_user_id", user.id)
-        .maybeSingle();
-      data = fallback.data;
-      error = fallback.error;
-    }
+    const { data, error } = await loadPreferencesRow(supabase, user.id);
 
     if (error) {
       if (isMissingPreferencesTable(error)) {
