@@ -1,5 +1,7 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-08-22 (**admin mail daily stats:** `/admin/mail` → вкладка «Статистика». `GET /api/admin/mail/stats?days=1…30` (default 14, `Cache-Control: no-store`). RPC `landing_mail_admin_daily_stats` (`sql/210`) группирует `landing_mail_outbox` по `landing_mail_moscow_day`: sent по `sent_at`, skip/fail по `updated_at`. `queued` / `remaining` только у сегодняшней строки из `landing_mail_daily_budget`. Partial indexes `sent_at` и skip/fail `updated_at`. JSON без email / user id / payload. Спека `docs/22-08-mail-admin-daily-stats.md`.
+>
 > Последнее обновление: 2026-08-22 (**Google SERP favicon pack:** SSOT `public/favicon.svg`. Растры `favicon.ico` (16/32/48 PNG), `favicon-48x48.png`, `favicon-96x96.png`, `apple-touch-icon.png` (180), `icon-192.png` / `icon-512.png`. `layout.tsx` metadata + `site.webmanifest`. Редиректа `/favicon.ico` → SVG больше нет — Googlebot-Image и неявный `/apple-touch-icon.png` должны получать картинку, не HTML/308. Пересборка: `node scripts/build-favicons.mjs`.)
 >
 > Последнее обновление: 2026-08-22 (**library add ≠ generate job:** плитка «Добавить» в шторке фото пишет только `libraryUploading` + `POST /api/upload-generation-photo`. Не ставит `phase=uploading` — иначе desktop dock считает это стартом генерации и закрывает пластину (`setPlateOpen(false)` + FAB progress). Overlay dismiss шторки/scrim — `pointerdown`, не `click` (ghost-click после file picker). SSOT `generate-compose-job.ts`.)
@@ -470,7 +472,7 @@
 /admin/payments         → Закрытый cursor-реестр YooKassa/Robokassa: payer identity, RUB/status/test, credits/`credited_at`; кнопка «Скачать CSV» выгружает все строки текущих фильтров
 /admin/finance          → Касса выгрузок: импорт ЮKassa/GCP, чистый доход; `?tab=finance` с аналитики редиректит сюда
 /admin/seo              → Вотчлист топ-30 URL: фильтр дней, таблица + раскрытие запросов и график динамики
-/admin/mail             → Две вкладки: «Каталог» (превью `renderMailTemplate` + правила `mail-catalog.ts`, без отправки) и «Кампании» (dry-run → send). Сегменты: `all_email`, `paid`, `exploring`, `paid_active`, `paid_quiet`, `empty`, `trial_only`. Тот же admin allowlist. Очередь outbox + due/квота в stats
+/admin/mail             → Три вкладки: «Каталог» (превью `renderMailTemplate` + правила `mail-catalog.ts`, без отправки), «Кампании» (dry-run → send) и «Статистика» (14 суток Moscow, sent/skip/fail по шаблону, сегодня ещё queued и остаток / 5000). Сегменты: `all_email`, `paid`, `exploring`, `paid_active`, `paid_quiet`, `empty`, `trial_only`. Тот же admin allowlist. Очередь outbox + due/квота внизу страницы не зависит от вкладки статистики
 /auth/callback          → OAuth callback (client page); PKCE exchange в браузере; `?next=` — возврат на страницу старта логина
 /embed/stv              → Steal This Vibe (клиент подгружает `/stv-panel/boot.mjs` + `styles.css`; та же логика, что side panel расширения)
 /extension-stv          → Превью маркетингового лендинга расширения (спека `docs/extension-landing-pain-hope-solution.md`); **`metadata.title` / `description`** — SEO; `metadata.robots` noindex; шапка **`ExtensionStvMarketingHeader`** (логотип + «Image to prompt» → `/extension-stv`, **Pricing** → `/extension-stv/pricing`, Chrome Web Store); FAB **`ExtensionStvFloatingCta`**. Порядок секций: hero (H1 + лид + `ExtensionStvChromeBadge`) → pain + **Reference** (`PainReferenceVsDraftMock`) → **Accuracy** (`ExtensionStvAccuracySection`) → **Testimonials** → **How it works** (`ExtensionStvHowItWorks`, 4 шага) → **FAQ** (`ExtensionStvFaq`). Футер **`ExtensionStvMarketingFooter`**. Блок **Reference**: upload → extract → expand. Общие константы: `landing/src/components/extension-stv/stv-marketing-shared.ts`.
@@ -565,6 +567,7 @@
 | `/api/cron/mail-outbox` | POST, `Authorization: Bearer $CRON_SECRET`: claim/lease `landing_mail_outbox` → Postbox SESv2 (1 To / call, ≥1.1s gap, circuit 3/60s). Claim: transactional → lifecycle marketing → campaign. Без ключей — `{ configured: false }` |
 | `/api/cron/mail-due` | POST, `Authorization: Bearer $CRON_SECRET`: claim `landing_mail_due` (один user / тик) → `evaluateMailDue` → грант при % → `landing_enqueue_mail`. Generate SMTP не ждёт |
 | `/api/admin/mail/catalog` | GET, admin: превью всех писем из `mail-catalog.ts` |
+| `/api/admin/mail/stats` | GET, admin, no-store: дневные агрегаты outbox за `days=1…30` (default 14). RPC `landing_mail_admin_daily_stats` + `landing_mail_daily_budget` для сегодняшнего queued/remaining. Без PII |
 | `/api/mail/postbox-events` | POST, `POSTBOX_WEBHOOK_SECRET`: hard bounce / complaint → `landing_mail_suppress`. Transient bounce игнорируется |
 | `/api/mail/unsubscribe` | POST one-click (`List-Unsubscribe=One-Click` или `t=`): `landing_mail_unsubscribe` |
 | `/api/admin/mail/campaigns` | GET/POST, admin auth: список кампаний + stats; `action=preview` (dry-run, 5 адресов) затем `action=send` |
@@ -691,7 +694,10 @@
   сегмента или после send tx-резерв < 500. Email =
   `COALESCE(auth.users.email, imageprompt_users.email)`, internal
   `@promptshot.internal` skip. Маркетинг требует `List-Unsubscribe`.
-  Квота Postbox **5000 / 24 ч**, 1 rps. Спека `docs/22-08-lifecycle-mail.md`.
+  Квота Postbox **5000 / 24 ч**, 1 rps. Дневная статистика админки —
+  `GET /api/admin/mail/stats` / RPC `landing_mail_admin_daily_stats` (`sql/210`):
+  только outbox, due не сканируется; today.sent = `landing_mail_daily_budget().sent`.
+  Спека `docs/22-08-lifecycle-mail.md`, UI-статы `docs/22-08-mail-admin-daily-stats.md`.
   Транспорт: `docs/21-08-yandex-postbox-mail.md`.
 - **Финансы (касса выгрузок):** страница `/admin/finance` хранит
   месячные импорты в `admin_finance_imports` + line tables. Source of truth для
@@ -1251,6 +1257,7 @@ type ResolvedRoute = {
 | `admin_finance_imports` | Месячные admin-импорты ЮKassa (`revenue`) и GCP Billing (`cogs`); unique `(kind, period_month)` |
 | `admin_finance_revenue_lines` | Строки реестра ЮKassa без PII плательщика |
 | `admin_finance_cogs_lines` | Строки Google Cloud Billing (SKU / `subtotal_usd`) |
+| `landing_mail_outbox` | Очередь исходящей почты (Postbox). Админ-статы читают sent/skip/fail; cron claim не зависит от вкладки статистики |
 
 ### RPC
 
@@ -1276,6 +1283,8 @@ type ResolvedRoute = {
 | `admin_credit_liabilities` | Service-only keyset-список тех, кто начислял/тратил кредиты за `p_days`, plus live remaining |
 | `admin_analytics_top_users` | Service-only топ-50 по allowed-запросам за `p_days` |
 | `admin_credit_daily_flow` | Service-only дневные начисления (ЮKassa/Stars), списания и возвраты генераций |
+| `landing_mail_admin_daily_stats` | Service-only GROUP BY Moscow day × template × kind × status из `landing_mail_outbox`; окно ≤ 30 суток; `sql/210` |
+| `landing_mail_daily_budget` | Service-only квота суток (cap 5000, queued pending+processing, remaining) |
 
 **Сортировка листингов категорий (`/[...slug]/`, миграции `158–161`):** UI — переключатель **`ListingSortToggle`** («Новое» \| «Популярное»), выбор в **`sessionStorage`** `promptshot_listing_sort` + опционально **`?sort=popular`** в URL (default `new` — без query-параметра). SSR и API читают **`sort`**. Страница **`/trends`** всегда `sort=new` (`fixedSort`), без переключателя и без sessionStorage-sync (`useListingSort({ disabled: true })`).
 

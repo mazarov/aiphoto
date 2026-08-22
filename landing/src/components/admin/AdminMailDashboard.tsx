@@ -32,7 +32,33 @@ type CatalogRow = {
   text: string;
 };
 
-type MailTab = "catalog" | "campaigns";
+type DailyTemplate = {
+  template_id: string;
+  kind: string;
+  sent: number;
+  skipped: number;
+  failed: number;
+};
+
+type DailyRow = {
+  day: string;
+  sent: number;
+  skipped: number;
+  failed: number;
+  queued: number;
+  remaining: number | null;
+  by_template: DailyTemplate[];
+};
+
+type DailyPayload = {
+  timezone: string;
+  from: string;
+  to: string;
+  cap: number;
+  days: DailyRow[];
+};
+
+type MailTab = "catalog" | "campaigns" | "stats";
 const CAMPAIGN_SEGMENTS = [
   { id: "all_email", label: "Все с email" },
   { id: "paid", label: "Оплатившие" },
@@ -61,6 +87,9 @@ export function AdminMailDashboard() {
   const [preview, setPreview] = useState<PreviewRow[]>([]);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [stats, setStats] = useState<Record<string, unknown> | null>(null);
+  const [daily, setDaily] = useState<DailyPayload | null>(null);
+  const [dailyError, setDailyError] = useState(false);
+  const [dailyBusy, setDailyBusy] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
 
@@ -82,10 +111,32 @@ export function AdminMailDashboard() {
     }
   }, []);
 
+  const loadDaily = useCallback(async () => {
+    setDailyBusy(true);
+    setDailyError(false);
+    try {
+      const response = await fetch("/api/admin/mail/stats?days=14", { cache: "no-store" });
+      if (!response.ok) {
+        setDailyError(true);
+        return;
+      }
+      setDaily((await response.json()) as DailyPayload);
+    } catch {
+      setDailyError(true);
+    } finally {
+      setDailyBusy(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (!user) return;
     void load();
   }, [user, load]);
+
+  useEffect(() => {
+    if (!user || tab !== "stats" || daily || dailyBusy || dailyError) return;
+    void loadDaily();
+  }, [user, tab, daily, dailyBusy, dailyError, loadDaily]);
 
   async function post(action: "preview" | "send") {
     setBusy(true);
@@ -153,6 +204,16 @@ export function AdminMailDashboard() {
         >
           Кампании
         </button>
+        <button
+          type="button"
+          className={tab === "stats" ? buttonClass : secondaryClass}
+          onClick={() => {
+            setTab("stats");
+            if (dailyError) void loadDaily();
+          }}
+        >
+          Статистика
+        </button>
       </div>
 
       {tab === "catalog" ? (
@@ -205,7 +266,7 @@ export function AdminMailDashboard() {
             </div>
           ) : null}
         </section>
-      ) : (
+      ) : tab === "campaigns" ? (
       <section className="rounded-2xl border border-zinc-200 bg-white p-6">
         <h1 className="text-lg font-semibold text-zinc-900">Почта</h1>
         <p className="mt-1 text-sm text-zinc-600">
@@ -277,6 +338,64 @@ export function AdminMailDashboard() {
           </ul>
         ) : null}
       </section>
+      ) : (
+        <section className="rounded-2xl border border-zinc-200 bg-white p-6">
+          <h1 className="text-lg font-semibold text-zinc-900">Статистика</h1>
+          <p className="mt-1 text-sm text-zinc-600">
+            Отправки за 14 суток, {daily?.timezone || "Europe/Moscow"}. День считается по{" "}
+            <code>sent_at</code>, не по постановке в очередь.
+          </p>
+          {dailyError ? (
+            <p className="mt-3 text-sm text-zinc-600">не загрузилось</p>
+          ) : dailyBusy && !daily ? (
+            <p className="mt-3 text-sm text-zinc-600">Загрузка…</p>
+          ) : daily ? (
+            <div className="mt-4 space-y-2">
+              {daily.days.map((row) => {
+                const isToday = row.remaining != null;
+                return (
+                  <details key={row.day} className="rounded-xl border border-zinc-100 px-3 py-2">
+                    <summary className="cursor-pointer text-sm text-zinc-800">
+                      <span className="font-semibold">{row.day}</span>
+                      {isToday ? " · сегодня" : ""}
+                      {` · sent ${row.sent} · skip ${row.skipped} · fail ${row.failed}`}
+                      {isToday ? ` · queued ${row.queued} · остаток ${row.remaining} / ${daily.cap}` : ""}
+                    </summary>
+                    {row.by_template.length > 0 ? (
+                      <table className="mt-2 min-w-full text-left text-xs">
+                        <thead className="text-zinc-500">
+                          <tr>
+                            <th className="py-1 pr-3">Шаблон</th>
+                            <th className="py-1 pr-3">Класс</th>
+                            <th className="py-1 pr-3">sent</th>
+                            <th className="py-1 pr-3">skip</th>
+                            <th className="py-1">fail</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {row.by_template.map((template) => (
+                            <tr
+                              key={`${template.template_id}:${template.kind}`}
+                              className="border-t border-zinc-100 text-zinc-700"
+                            >
+                              <td className="py-1 pr-3">{template.template_id}</td>
+                              <td className="py-1 pr-3">{template.kind}</td>
+                              <td className="py-1 pr-3">{template.sent}</td>
+                              <td className="py-1 pr-3">{template.skipped}</td>
+                              <td className="py-1">{template.failed}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    ) : (
+                      <p className="mt-2 text-xs text-zinc-500">Нет событий</p>
+                    )}
+                  </details>
+                );
+              })}
+            </div>
+          ) : null}
+        </section>
       )}
 
       <section className="rounded-2xl border border-zinc-200 bg-white p-6">
