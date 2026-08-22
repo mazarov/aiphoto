@@ -10,10 +10,10 @@ import { createCircuitBreaker, type CircuitBreaker } from "@/lib/visual-search-c
 export type MailKind = "transactional" | "marketing";
 
 export type MailRpcClient = {
-  rpc: (
+  rpc(
     fn: string,
     args?: Record<string, unknown>,
-  ) => Promise<{ data: unknown; error: { message: string } | null }>;
+  ): PromiseLike<{ data: unknown; error: { message: string } | null }>;
 };
 
 export type MailEnqueueInput = {
