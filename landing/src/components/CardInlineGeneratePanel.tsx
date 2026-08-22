@@ -26,6 +26,11 @@ import {
 import { getGenerationPromptRemixUrl } from "@/lib/foto-v-promt-config";
 import { PROMPT_REMIX_COPY } from "@/lib/foto-v-promt-copy";
 import {
+  isGenerateComposeJobBusy,
+  isPrimaryOverlayDismissPointer,
+  type GenerateComposeJobPhase,
+} from "@/lib/generate-compose-job";
+import {
   isCompletedResultSeed,
   shouldAttachLibraryPhotos,
   shouldHydrateLastDockResult as seedAllowsLastDockHydrate,
@@ -105,7 +110,7 @@ type UserPhoto = {
   createdAt: string;
 };
 
-type Phase = "idle" | "uploading" | "generating" | "done" | "error";
+type Phase = GenerateComposeJobPhase;
 
 type Props = {
   /** card = remix from prompt card; blank = freeform compose (/generate, tab) */
@@ -214,6 +219,7 @@ export function CardInlineGeneratePanel({
   const seedIntentRef = useRef(seed.intent);
   seedIntentRef.current = seed.intent;
   const [libraryLoading, setLibraryLoading] = useState(true);
+  const [libraryUploading, setLibraryUploading] = useState(false);
   const [deletingPhotoId, setDeletingPhotoId] = useState<string | null>(null);
 
   const [phase, setPhase] = useState<Phase>(seededResult ? "done" : "idle");
@@ -988,7 +994,7 @@ export function CardInlineGeneratePanel({
   }, [isDock, reportNeedsCredits]);
 
   const togglePhoto = (id: string) => {
-    if (phase === "uploading" || phase === "generating") return;
+    if (isGenerateComposeJobBusy(phase) || libraryUploading) return;
     setError("");
     setSelectedPhotoIds((current) => {
       const next = new Set(current);
@@ -1009,9 +1015,7 @@ export function CardInlineGeneratePanel({
     if (!files.length) return;
     const availableSelectionSlots = Math.max(0, maxPhotos - selectedPhotoIds.size);
     setError("");
-    setResultUrl(null);
-    setPhase("uploading");
-    setProgress(8);
+    setLibraryUploading(true);
 
     const uploaded: UserPhoto[] = [];
     try {
@@ -1051,7 +1055,6 @@ export function CardInlineGeneratePanel({
           throw new Error(upData.message || upData.error || "Ошибка загрузки фото");
         }
         uploaded.push(upData.photo);
-        setProgress(8 + Math.round(((index + 1) / files.length) * 72));
       }
 
       setPhotos((current) => [...uploaded.reverse(), ...current]);
@@ -1063,8 +1066,6 @@ export function CardInlineGeneratePanel({
         }
         return next;
       });
-      setPhase("idle");
-      setProgress(0);
       if (uploaded.length > availableSelectionSlots) {
         setError(
           `Все фото сохранены. Для генерации можно выбрать не больше ${maxPhotos}.`
@@ -1082,8 +1083,9 @@ export function CardInlineGeneratePanel({
           return next;
         });
       }
-      setPhase("error");
       setError(err instanceof Error ? err.message : "Ошибка загрузки фото");
+    } finally {
+      setLibraryUploading(false);
     }
   };
 
@@ -1463,9 +1465,9 @@ export function CardInlineGeneratePanel({
     }
   };
 
-  const jobBusy = phase === "uploading" || phase === "generating";
+  const jobBusy = isGenerateComposeJobBusy(phase);
   const busy = jobBusy || starting;
-  const controlsBusy = busy || Boolean(deletingPhotoId);
+  const controlsBusy = busy || Boolean(deletingPhotoId) || libraryUploading;
   const showCreditsCta =
     (cannotAffordAny || cannotAffordSelected || needsCredits) && !busy;
   const isMobile = layout === "mobile";
@@ -1626,7 +1628,7 @@ export function CardInlineGeneratePanel({
     if (!isDock) return;
     const previous = phaseRef.current;
     phaseRef.current = phase;
-    if (phase === "uploading" || phase === "generating") {
+    if (isGenerateComposeJobBusy(phase)) {
       if (!isMobile) setDockPlateOpen(false);
       return;
     }
@@ -2161,7 +2163,10 @@ export function CardInlineGeneratePanel({
             type="button"
             aria-label="Закрыть выбор"
             className={`${OVERLAY_BUTTON_UA_RESET} ${sheetPos} inset-0 z-40 bg-black/45 backdrop-blur-[2px]`}
-            onClick={closePrefsSheet}
+            onPointerDown={(event) => {
+              if (!isPrimaryOverlayDismissPointer(event)) return;
+              closePrefsSheet();
+            }}
           />
         ) : null}
 
@@ -2301,7 +2306,11 @@ export function CardInlineGeneratePanel({
             <div className="flex gap-2 overflow-x-auto px-0.5 py-1">
               <button
                 type="button"
-                onClick={() => fileInputRef.current?.click()}
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  fileInputRef.current?.click();
+                }}
                 disabled={controlsBusy || libraryLoading}
                 className={`${OVERLAY_BUTTON_UA_RESET} flex h-[4.75rem] w-[4.75rem] shrink-0 flex-col items-center justify-center rounded-xl border border-dashed text-center transition disabled:opacity-50 ${
                   dockPhotosExpanded
@@ -2921,6 +2930,7 @@ export function CardInlineGeneratePanel({
           accept="image/jpeg,image/png,image/webp"
           multiple
           className="hidden"
+          onClick={(event) => event.stopPropagation()}
           onChange={(event) => {
             const files = Array.from(event.target.files ?? []);
             void uploadFiles(files);

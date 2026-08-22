@@ -15,6 +15,7 @@ import { useListingScrollActivity } from "@/hooks/useListingScrollActivity";
 import { useListingIsMobile } from "@/hooks/useListingIsMobile";
 import { setListingChromeAutoHideBlocked } from "@/hooks/useListingChromeAutoHide";
 import { OVERLAY_BUTTON_UA_RESET } from "@/lib/card-overlay-action-pill";
+import { isPrimaryOverlayDismissPointer } from "@/lib/generate-compose-job";
 import {
   reachYandexMetrikaGoal,
   YM_GOAL_PROMPT_CARD_GENERATION_PRICING,
@@ -211,7 +212,10 @@ export function GenerateListingDockHost() {
           type="button"
           aria-label="Свернуть редактор"
           className={`${OVERLAY_BUTTON_UA_RESET} fixed inset-0 z-[51] bg-black/35 backdrop-blur-[1px] lg:left-72`}
-          onClick={() => setDockSurface(null)}
+          onPointerDown={(event) => {
+            if (!isPrimaryOverlayDismissPointer(event)) return;
+            setDockSurface(null);
+          }}
         />
       ) : null}
 
