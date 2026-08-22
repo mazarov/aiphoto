@@ -1,5 +1,7 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-08-22 (**Google SERP favicon pack:** SSOT `public/favicon.svg`. Растры `favicon.ico` (16/32/48 PNG), `favicon-48x48.png`, `favicon-96x96.png`, `apple-touch-icon.png` (180), `icon-192.png` / `icon-512.png`. `layout.tsx` metadata + `site.webmanifest`. Редиректа `/favicon.ico` → SVG больше нет — Googlebot-Image и неявный `/apple-touch-icon.png` должны получать картинку, не HTML/308. Пересборка: `node scripts/build-favicons.mjs`.)
+>
 > Последнее обновление: 2026-08-22 (**library add ≠ generate job:** плитка «Добавить» в шторке фото пишет только `libraryUploading` + `POST /api/upload-generation-photo`. Не ставит `phase=uploading` — иначе desktop dock считает это стартом генерации и закрывает пластину (`setPlateOpen(false)` + FAB progress). Overlay dismiss шторки/scrim — `pointerdown`, не `click` (ghost-click после file picker). SSOT `generate-compose-job.ts`.)
 >
 > Последнее обновление: 2026-08-22 (**`/generations` click → result chrome:** клик по completed фото или видео открывает тот же generate-dock `intent=result` (`seedCompletedResult`), что после генерации: кадр + rail Посмотреть / Скачать / Повторить / Оживить / Что изменить. Карточка `/p/[slug]` с клика больше не открывается; publish остаётся в ⋮.)
