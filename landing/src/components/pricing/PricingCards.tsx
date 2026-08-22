@@ -35,6 +35,7 @@ import {
   type RobokassaBrowserPayload,
 } from "@/lib/robokassa-browser";
 import { announceRobokassaPayment } from "@/lib/robokassa-payment-events";
+import { applyMailOfferPercent } from "@/lib/mail-offer-price";
 import {
   reachYandexMetrikaGoal,
   YM_GOAL_PAYMENT_CHECKOUT_STARTED,
@@ -157,14 +158,20 @@ function PaywallPlanCard({
   selected,
   onSelect,
   disabled,
+  offerPercent,
 }: {
   plan: PricingPlan;
   selected: boolean;
   onSelect: (plan: PricingPlan) => void;
   disabled: boolean;
+  offerPercent: number | null;
 }) {
   const headingId = `pricing-${plan.id}`;
-  const economics = getPricingPlanPhotoEconomics(plan);
+  const salePrice = offerPercent ? applyMailOfferPercent(plan.price, offerPercent) : plan.price;
+  const economics = getPricingPlanPhotoEconomics({
+    credits: plan.credits,
+    price: salePrice,
+  });
 
   return (
     <button
@@ -194,7 +201,16 @@ function PaywallPlanCard({
         </>
       ) : null}
       <h2 id={headingId} className="shrink-0 text-xl font-bold tracking-tight text-zinc-950 sm:text-2xl">
-        {rubles.format(plan.price)} ₽
+        {offerPercent && salePrice < plan.price ? (
+          <>
+            <span className="mr-2 text-base font-medium text-zinc-400 line-through">
+              {rubles.format(plan.price)} ₽
+            </span>
+            {rubles.format(salePrice)} ₽
+          </>
+        ) : (
+          <>{rubles.format(plan.price)} ₽</>
+        )}
       </h2>
       <div className="mt-1.5 flex items-center gap-1 text-sm text-zinc-500 sm:text-base">
         <TokenIcon />
@@ -231,6 +247,7 @@ export function PricingCards({
   const [selectedPlanId, setSelectedPlanId] = useState<PricingPlanId>(
     getDefaultPricingPlanId(variant),
   );
+  const [offerPercent, setOfferPercent] = useState<number | null>(null);
   const checkoutInFlightRef = useRef(false);
   const plansScrollerRef = useRef<HTMLDivElement>(null);
   const plans = useMemo(
@@ -239,7 +256,13 @@ export function PricingCards({
   );
   const selectedPlan =
     plans.find((plan) => plan.id === selectedPlanId) ?? plans[0]!;
-  const selectedEconomics = getPricingPlanPhotoEconomics(selectedPlan);
+  const selectedSalePrice = offerPercent
+    ? applyMailOfferPercent(selectedPlan.price, offerPercent)
+    : selectedPlan.price;
+  const selectedEconomics = getPricingPlanPhotoEconomics({
+    credits: selectedPlan.credits,
+    price: selectedSalePrice,
+  });
   const selectedPlanIndex = plans.findIndex((plan) => plan.id === selectedPlan.id);
   const previousPlan = selectedPlanIndex > 0 ? plans[selectedPlanIndex - 1] ?? null : null;
   const nextPlan = plans[selectedPlanIndex + 1] ?? null;
@@ -252,6 +275,27 @@ export function PricingCards({
     const left = card.offsetLeft - (root.clientWidth - card.offsetWidth) / 2;
     root.scrollTo({ left: Math.max(0, left), behavior: "smooth" });
   }, []);
+
+  useEffect(() => {
+    if (!user || user.is_anonymous === true) {
+      setOfferPercent(null);
+      return;
+    }
+    let cancelled = false;
+    void fetch("/api/me", { cache: "no-store" })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data: { offer?: { percent?: unknown } | null } | null) => {
+        if (cancelled) return;
+        const percent = Number(data?.offer?.percent);
+        setOfferPercent(percent === 10 || percent === 20 ? percent : null);
+      })
+      .catch(() => {
+        if (!cancelled) setOfferPercent(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
 
   useEffect(() => {
     reachYandexMetrikaGoal(YM_GOAL_PROMPT_CARD_GENERATION_PRICING, {
@@ -514,6 +558,7 @@ export function PricingCards({
                 scrollPlanIntoView(planToSelect.id);
               }}
               disabled={checkout.kind === "creating"}
+              offerPercent={offerPercent}
             />
           ))}
         </div>

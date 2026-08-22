@@ -18,10 +18,12 @@
 
 ## 3. Квота
 
-Дефолт: **200 писем / сутки** и **1 письмо / сек**. Для кампаний этого мало.
+Сейчас: **5000 писем / сутки**, **1 письмо / сек**. Lifecycle-цепочки влезают; rps по-прежнему узкий (~1.5 ч на 5000).
 
-1. Запросить у поддержки YC лимит выше 200/day и >1 rps.
-2. Пока квоту не подняли — не жать «Отправить» на сегмент `all_email` / `paid`.
+1. Кампанию на большой сегмент не жать, если в сутках мало слотов: claim сначала transactional, потом lifecycle, потом campaign.
+2. Бюджет: резерв **500** tx / сутки, затем lifecycle, затем кампании. Send стоп, если получателей больше остатка квоты или после send резерв < 500. Win-back — cap 200/сутки.
+3. Спека цепочек: [`docs/22-08-lifecycle-mail.md`](../22-08-lifecycle-mail.md).
+4. Пока задан `POSTBOX_TEST_ALLOWLIST` — в прод-сегменты не слать.
 
 ## 4. Dockhost env
 
@@ -35,13 +37,13 @@
 - `MAIL_UNSUBSCRIBE_SECRET` — длинный случайный HMAC
 - `POSTBOX_WEBHOOK_SECRET` — Bearer для `/api/mail/postbox-events`
 - `POSTBOX_TEST_ALLOWLIST` — свои адреса до прогрева
-- `CRON_SECRET` уже есть; добавить вызов `POST /api/cron/mail-outbox` раз в минуту
+- `CRON_SECRET` уже есть; `POST /api/cron/mail-outbox` и `POST /api/cron/mail-due` раз в минуту (due можно реже, но не реже outbox). После выката — применить `sql/206_landing_mail_lifecycle.sql`
 
 Postbox не проксировать через `GEMINI_PROXY`.
 
 ## 5. Прогрев
 
-1. Применить `sql/205_landing_mail.sql`.
+1. Применить `sql/205_landing_mail.sql` и `sql/206_landing_mail_lifecycle.sql`.
 2. Оставить allowlist. Сделать dry-run в `/admin/mail`, затем send на 1–2 своих адреса.
 3. Проверить DKIM/SPF в заголовках полученного письма.
 4. Подключить webhook bounce/complaint на `https://promptshot.ru/api/mail/postbox-events`.

@@ -18,6 +18,31 @@ type Campaign = {
 
 type PreviewRow = { email: string; displayName: string | null };
 
+type CatalogRow = {
+  id: string;
+  kind: string;
+  title: string;
+  audience: string;
+  when: string;
+  stop: string;
+  discountPercent: number;
+  cta: string;
+  idempotencyKey: string;
+  subject: string;
+  text: string;
+};
+
+type MailTab = "catalog" | "campaigns";
+const CAMPAIGN_SEGMENTS = [
+  { id: "all_email", label: "Все с email" },
+  { id: "paid", label: "Оплатившие" },
+  { id: "exploring", label: "Exploring" },
+  { id: "paid_active", label: "Paid active" },
+  { id: "paid_quiet", label: "Paid quiet" },
+  { id: "empty", label: "Токены 0" },
+  { id: "trial_only", label: "Только пробный" },
+] as const;
+
 const buttonClass =
   "rounded-xl bg-indigo-600 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-50";
 const secondaryClass =
@@ -25,7 +50,10 @@ const secondaryClass =
 
 export function AdminMailDashboard() {
   const { user, openAuthModal } = useAuth();
-  const [segment, setSegment] = useState<"all_email" | "paid">("all_email");
+  const [tab, setTab] = useState<MailTab>("catalog");
+  const [catalog, setCatalog] = useState<CatalogRow[]>([]);
+  const [catalogId, setCatalogId] = useState("welcome");
+  const [segment, setSegment] = useState<(typeof CAMPAIGN_SEGMENTS)[number]["id"]>("all_email");
   const [subject, setSubject] = useState("");
   const [bodyText, setBodyText] = useState("");
   const [campaignId, setCampaignId] = useState("");
@@ -37,14 +65,21 @@ export function AdminMailDashboard() {
   const [message, setMessage] = useState("");
 
   const load = useCallback(async () => {
-    const response = await fetch("/api/admin/mail/campaigns", { cache: "no-store" });
-    if (!response.ok) {
-      setMessage(response.status === 401 ? "Нужен вход" : "Не удалось загрузить очередь");
+    const [campaignsRes, catalogRes] = await Promise.all([
+      fetch("/api/admin/mail/campaigns", { cache: "no-store" }),
+      fetch("/api/admin/mail/catalog", { cache: "no-store" }),
+    ]);
+    if (!campaignsRes.ok) {
+      setMessage(campaignsRes.status === 401 ? "Нужен вход" : "Не удалось загрузить очередь");
       return;
     }
-    const data = (await response.json()) as { campaigns: Campaign[]; stats: Record<string, unknown> };
+    const data = (await campaignsRes.json()) as { campaigns: Campaign[]; stats: Record<string, unknown> };
     setCampaigns(data.campaigns || []);
     setStats(data.stats || null);
+    if (catalogRes.ok) {
+      const catalogData = (await catalogRes.json()) as { templates?: CatalogRow[] };
+      setCatalog(catalogData.templates || []);
+    }
   }, []);
 
   useEffect(() => {
@@ -98,8 +133,79 @@ export function AdminMailDashboard() {
     );
   }
 
+  const selectedCatalog = catalog.find((row) => row.id === catalogId) || catalog[0] || null;
+  const budget = (stats?.budget as Record<string, unknown> | undefined) || null;
+
   return (
     <div className="mx-auto max-w-3xl space-y-6">
+      <div className="flex gap-2">
+        <button
+          type="button"
+          className={tab === "catalog" ? buttonClass : secondaryClass}
+          onClick={() => setTab("catalog")}
+        >
+          Каталог
+        </button>
+        <button
+          type="button"
+          className={tab === "campaigns" ? buttonClass : secondaryClass}
+          onClick={() => setTab("campaigns")}
+        >
+          Кампании
+        </button>
+      </div>
+
+      {tab === "catalog" ? (
+        <section className="rounded-2xl border border-zinc-200 bg-white p-6">
+          <h1 className="text-lg font-semibold text-zinc-900">Каталог писем</h1>
+          <p className="mt-1 text-sm text-zinc-600">
+            Превью из тех же шаблонов, что уходят в Postbox. Письмо отсюда не отправляется.
+          </p>
+          <label className="mt-4 block text-xs font-semibold text-zinc-500">
+            Письмо
+            <select
+              className="mt-1 w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm text-zinc-800"
+              value={selectedCatalog?.id || ""}
+              onChange={(event) => setCatalogId(event.target.value)}
+            >
+              {catalog.map((row) => (
+                <option key={row.id} value={row.id}>
+                  {row.id} · {row.title}
+                </option>
+              ))}
+            </select>
+          </label>
+          {selectedCatalog ? (
+            <div className="mt-4 space-y-2 text-sm text-zinc-700">
+              <p>
+                <span className="font-semibold">Класс:</span> {selectedCatalog.kind}
+                {selectedCatalog.discountPercent
+                  ? ` · скидка ${selectedCatalog.discountPercent}%`
+                  : ""}
+              </p>
+              <p>
+                <span className="font-semibold">Кому:</span> {selectedCatalog.audience}
+              </p>
+              <p>
+                <span className="font-semibold">Когда:</span> {selectedCatalog.when}
+              </p>
+              <p>
+                <span className="font-semibold">Стоп:</span> {selectedCatalog.stop}
+              </p>
+              <p>
+                <span className="font-semibold">CTA:</span> {selectedCatalog.cta}
+              </p>
+              <p>
+                <span className="font-semibold">Ключ:</span> {selectedCatalog.idempotencyKey}
+              </p>
+              <p className="pt-2 font-semibold text-zinc-900">{selectedCatalog.subject}</p>
+              <pre className="whitespace-pre-wrap rounded-xl bg-zinc-50 p-3 text-xs text-zinc-700">
+                {selectedCatalog.text}
+              </pre>
+            </div>
+          ) : null}
+        </section>
+      ) : (
       <section className="rounded-2xl border border-zinc-200 bg-white p-6">
         <h1 className="text-lg font-semibold text-zinc-900">Почта</h1>
         <p className="mt-1 text-sm text-zinc-600">
@@ -111,10 +217,15 @@ export function AdminMailDashboard() {
           <select
             className="mt-1 w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm text-zinc-800"
             value={segment}
-            onChange={(event) => setSegment(event.target.value as "all_email" | "paid")}
+            onChange={(event) =>
+              setSegment(event.target.value as (typeof CAMPAIGN_SEGMENTS)[number]["id"])
+            }
           >
-            <option value="all_email">Все с email</option>
-            <option value="paid">Оплатившие</option>
+            {CAMPAIGN_SEGMENTS.map((row) => (
+              <option key={row.id} value={row.id}>
+                {row.label}
+              </option>
+            ))}
           </select>
         </label>
         <label className="mt-3 block text-xs font-semibold text-zinc-500">
@@ -166,6 +277,7 @@ export function AdminMailDashboard() {
           </ul>
         ) : null}
       </section>
+      )}
 
       <section className="rounded-2xl border border-zinc-200 bg-white p-6">
         <h2 className="text-sm font-semibold text-zinc-900">Очередь</h2>
@@ -173,6 +285,8 @@ export function AdminMailDashboard() {
           <p className="mt-2 text-xs text-zinc-600">
             pending {String(stats.pending ?? 0)} · processing {String(stats.processing ?? 0)} · sent{" "}
             {String(stats.sent ?? 0)} · skipped {String(stats.skipped ?? 0)} · failed {String(stats.failed ?? 0)}
+            {stats.due_ready != null ? ` · due ready ${String(stats.due_ready)}` : ""}
+            {budget?.remaining != null ? ` · остаток квоты ${String(budget.remaining)}` : ""}
           </p>
         ) : null}
         <div className="mt-3 overflow-x-auto">

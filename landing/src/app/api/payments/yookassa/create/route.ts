@@ -14,6 +14,7 @@ import { getPaymentProviderForEmail } from "@/lib/payment-provider";
 import { sanitizePricingPaywallVariant } from "@/lib/pricing-paywall-attribution";
 import { resolvePaymentTrafficSource } from "@/lib/payment-attribution";
 import { sanitizeUuid } from "@/lib/visitor-id";
+import { applyCheckoutOffer } from "@/lib/mail-checkout-offer";
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -265,6 +266,16 @@ export async function POST(request: NextRequest) {
           });
         }
       }
+    }
+
+    if (!local.confirmation_url) {
+      const quote = await applyCheckoutOffer(supabase, {
+        sharedUserId: ensured.dbUserId,
+        paymentId: local.id,
+        provider: "yookassa",
+        catalogAmount: plan.price,
+      });
+      local = { ...local, amount_rub: quote.amountRub };
     }
 
     if (local.confirmation_url && local.yookassa_payment_id) {

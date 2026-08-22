@@ -5,6 +5,7 @@ import sharp from "sharp";
 import { readAcquisitionRequestIds } from "@/lib/acquisition-request";
 import { recordAnalyzeEvent } from "@/lib/analyze-events";
 import { recordAnalyzeHistory } from "@/lib/analyze-history";
+import { scheduleNoCreditsMail } from "@/lib/mail-credit-block";
 import {
   ANALYZE_QUOTA_MESSAGES,
   analyzeQuotaPublicFields,
@@ -421,6 +422,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const reservation = await reserveAnalyzeQuota(supabase, snapshot);
     if (!reservation.ok) {
       const denied = reservation.error;
+      if (denied === "no_credits" && snapshot.userId) {
+        scheduleNoCreditsMail(supabase, snapshot.userId, "analyze");
+      }
       const httpStatus = denied === "no_credits" ? 402 : 401;
       recordQuotaEvent(reservation.snapshot, false, {
         outcome: denied,

@@ -6,6 +6,7 @@ import { getSupabaseUserForApiRoute } from "@/lib/supabase-route-auth";
 import { getStvPipelineTrace, stvLog } from "@/lib/stv-pipeline-log";
 import { isStvGuestUser } from "@/lib/stv-guest-mode";
 import { ensureLandingUserForGeneration } from "@/lib/ensure-landing-user";
+import { scheduleNoCreditsMail } from "@/lib/mail-credit-block";
 import { isStvOpenGenerateDebugEnabled } from "@/lib/stv-open-generate-debug";
 import { isStoragePathOwnedByAuthUser } from "@/lib/user-generation-photos";
 import {
@@ -598,6 +599,9 @@ export async function POST(req: NextRequest) {
         enqueueError: enqueueError?.message ?? null,
       });
       if (insufficient) {
+        if (!usedGuestOwner) {
+          scheduleNoCreditsMail(supabase, dbUserId, "generate");
+        }
         return NextResponse.json(
           {
             error: "insufficient_credits",

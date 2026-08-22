@@ -1,5 +1,7 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-08-22 (**lifecycle-почта в коде:** `sql/206`, `mail-catalog.ts`, due-очередь `POST /api/cron/mail-due`, гранты `landing_pricing_offers` 10/20%, приоритетный claim outbox, бюджет кампаний, вкладка «Каталог» на `/admin/mail`. Welcome/402/ЮKassa/gen/credited ставят due, не SMTP. Спека `docs/22-08-lifecycle-mail.md`. Транспорт: `docs/21-08-yandex-postbox-mail.md`, ops `docs/ops/yandex-cloud-postbox.md`.)
+>
 > Последнее обновление: 2026-08-22 (**Yandex Cloud Postbox:** исходящая почта через SESv2 `postbox.cloud.yandex.net` (без `GEMINI_PROXY`). Outbox `sql/205`, cron `POST /api/cron/mail-outbox`, enqueue после YooKassa/Robokassa `credited` и one-shot welcome. Админка `/admin/mail` (dry-run → send), `/unsubscribe` + `POST /api/mail/unsubscribe`, bounce `POST /api/mail/postbox-events`. Спека `docs/21-08-yandex-postbox-mail.md`, ops `docs/ops/yandex-cloud-postbox.md`. GoTrue auth-письма и MCP `support_ru` не трогаем.)
 >
 > Последнее обновление: 2026-08-21 (**`/generaciya-foto` starter restored:** `GeneraciyaFotoStarter` снова под H1 — карточки «По описанию» / «По фото» и pill-CTA `#generaciya-foto-starter-cta`. Desktop FAB прячется, пока CTA в зоне видимости (`heroCtaInView`). Eyebrow библиотеки: «Библиотека образов». Photo→prompt канон остаётся `/foto-v-promt`.)
@@ -446,7 +448,7 @@
 /admin/payments         → Закрытый cursor-реестр YooKassa/Robokassa: payer identity, RUB/status/test, credits/`credited_at`; кнопка «Скачать CSV» выгружает все строки текущих фильтров
 /admin/finance          → Касса выгрузок: импорт ЮKassa/GCP, чистый доход; `?tab=finance` с аналитики редиректит сюда
 /admin/seo              → Вотчлист топ-30 URL: фильтр дней, таблица + раскрытие запросов и график динамики
-/admin/mail             → Dry-run/send маркетинговых кампаний Postbox + очередь outbox. Тот же admin allowlist
+/admin/mail             → Две вкладки: «Каталог» (превью `renderMailTemplate` + правила `mail-catalog.ts`, без отправки) и «Кампании» (dry-run → send). Сегменты: `all_email`, `paid`, `exploring`, `paid_active`, `paid_quiet`, `empty`, `trial_only`. Тот же admin allowlist. Очередь outbox + due/квота в stats
 /auth/callback          → OAuth callback (client page); PKCE exchange в браузере; `?next=` — возврат на страницу старта логина
 /embed/stv              → Steal This Vibe (клиент подгружает `/stv-panel/boot.mjs` + `styles.css`; та же логика, что side panel расширения)
 /extension-stv          → Превью маркетингового лендинга расширения (спека `docs/extension-landing-pain-hope-solution.md`); **`metadata.title` / `description`** — SEO; `metadata.robots` noindex; шапка **`ExtensionStvMarketingHeader`** (логотип + «Image to prompt» → `/extension-stv`, **Pricing** → `/extension-stv/pricing`, Chrome Web Store); FAB **`ExtensionStvFloatingCta`**. Порядок секций: hero (H1 + лид + `ExtensionStvChromeBadge`) → pain + **Reference** (`PainReferenceVsDraftMock`) → **Accuracy** (`ExtensionStvAccuracySection`) → **Testimonials** → **How it works** (`ExtensionStvHowItWorks`, 4 шага) → **FAQ** (`ExtensionStvFaq`). Футер **`ExtensionStvMarketingFooter`**. Блок **Reference**: upload → extract → expand. Общие константы: `landing/src/components/extension-stv/stv-marketing-shared.ts`.
@@ -531,14 +533,16 @@
 | `/api/generations/[id]/save-to-library` | POST (auth): completed **image** result → JPEG в `web-generation-uploads` + insert `landing_user_photos`; video отвечает `400 video_not_supported` |
 | `/api/my-prompt-cards` | GET (auth): карточки `prompt_cards` с `author_user_id = auth.users.id` текущей JWT-сессии, включая черновики (`is_published=false`) |
 | `/api/my-cards/[slug]/visibility` | PATCH (auth): `{ published: boolean }` — владелец переключает видимость; при `published: true` — LLM/regex тегирование (`landing/src/lib/seo-tags-classify.ts`), затем `revalidatePath` |
-| `/api/me` | Текущий пользователь + credits; авторизованная глобальная шапка использует ответ для отображения баланса |
+| `/api/me` | Текущий пользователь + credits + живой грант `{ offer: { percent, expiresAt } \| null }`. Гость — полная цена, `offer: null`. Шапка читает баланс; `PricingCards` рисует зачёркнутый каталог |
 | `/api/buy-credits-link` | Deep link в Telegram-бота для покупки web-кредитов |
 | `/api/payments/yookassa/create` | POST (auth): серверный plan lookup → локальная операция → `POST /v3/payments` с `capture=true`, `confirmation=redirect`; update ledger только из `created|pending`; при ошибке update — 502 без fake success |
 | `/api/payments/yookassa/[id]` | GET (auth owner): статус операции; best-effort reconcile для `created|pending|canceled` без `credited_at` |
 | `/api/payments/yookassa/webhook` | POST public callback: принимает `payment.succeeded` / `payment.canceled`, перечитывает объект через YooKassa API и идемпотентно обновляет ledger/баланс |
 | `/api/cron/yookassa-reconcile` | POST, `Authorization: Bearer $CRON_SECRET`: batch `reconcileStaleYooKassaPayments` для `created|pending` старше 5 мин (limit 20) |
 | `/api/cron/visual-embeddings` | POST, `Authorization: Bearer $CRON_SECRET`: enqueue missing canonical-photo embeddings + claim/lease Gemini Embedding 2 batch |
-| `/api/cron/mail-outbox` | POST, `Authorization: Bearer $CRON_SECRET`: claim/lease `landing_mail_outbox` → Postbox SESv2 (1 To / call, ≥1.1s gap, circuit 3/60s). Без ключей — `{ configured: false }` |
+| `/api/cron/mail-outbox` | POST, `Authorization: Bearer $CRON_SECRET`: claim/lease `landing_mail_outbox` → Postbox SESv2 (1 To / call, ≥1.1s gap, circuit 3/60s). Claim: transactional → lifecycle marketing → campaign. Без ключей — `{ configured: false }` |
+| `/api/cron/mail-due` | POST, `Authorization: Bearer $CRON_SECRET`: claim `landing_mail_due` (один user / тик) → `evaluateMailDue` → грант при % → `landing_enqueue_mail`. Generate SMTP не ждёт |
+| `/api/admin/mail/catalog` | GET, admin: превью всех писем из `mail-catalog.ts` |
 | `/api/mail/postbox-events` | POST, `POSTBOX_WEBHOOK_SECRET`: hard bounce / complaint → `landing_mail_suppress`. Transient bounce игнорируется |
 | `/api/mail/unsubscribe` | POST one-click (`List-Unsubscribe=One-Click` или `t=`): `landing_mail_unsubscribe` |
 | `/api/admin/mail/campaigns` | GET/POST, admin auth: список кампаний + stats; `action=preview` (dry-run, 5 адресов) затем `action=send` |
@@ -651,15 +655,22 @@
   15 мин без начисления), иначе `not_due`. Ручная сверка —
   `POST /api/admin/payments/reconcile`. CSV: `GET /api/admin/payments?format=csv`
   с теми же фильтрами, серверная keyset-пагинация до 10 000 строк.
-- **Почта:** Yandex Cloud Postbox (SESv2, `ru-central1`, без proxy). Fulfill
-  YooKassa/Robokassa и `ensureLandingUserForGeneration` только ставят outbox
-  (`landing_enqueue_mail`); send делает `POST /api/cron/mail-outbox`.
-  Welcome — `welcome:{shared_user_id}`; токены —
-  `{yookassa\|robokassa}_credited:{payment_id}`. Кампании: dry-run на
-  `/admin/mail`, затем fan-out `campaign:{id}:{email}`. Email =
+- **Почта:** Yandex Cloud Postbox (SESv2, `ru-central1`, без proxy). События
+  пишут `landing_mail_due` (`sql/206`); `POST /api/cron/mail-due` оценивает
+  одного user через `mail-catalog.ts` и ставит `landing_enqueue_mail`.
+  Send — `POST /api/cron/mail-outbox`. Welcome — `welcome:{shared_user_id}`
+  и due onboard +1/+3/+7d. Токены —
+  `{yookassa\|robokassa}_credited:{payment_id}`. ЮKassa insert → abandon
+  40m/24h на `payment_id`. 402 generate/analyze → `landing_mail_credit_blocks`
+  + `no_credits` +2ч. Грант: один живой `landing_pricing_offers`; create
+  ЮKassa/Robokassa делает `landing_apply_checkout_offer` (цена серверная);
+  `credited_at` ставит `consumed_at`. Кампании: dry-run на `/admin/mail`,
+  fan-out `campaign:{id}:{email}`; enqueue стоп, если остаток квоты меньше
+  сегмента или после send tx-резерв < 500. Email =
   `COALESCE(auth.users.email, imageprompt_users.email)`, internal
   `@promptshot.internal` skip. Маркетинг требует `List-Unsubscribe`.
-  Спека `docs/21-08-yandex-postbox-mail.md`.
+  Квота Postbox **5000 / 24 ч**, 1 rps. Спека `docs/22-08-lifecycle-mail.md`.
+  Транспорт: `docs/21-08-yandex-postbox-mail.md`.
 - **Финансы (касса выгрузок):** страница `/admin/finance` хранит
   месячные импорты в `admin_finance_imports` + line tables. Source of truth для
   «получено» — реестр ЮKassa (gross/net/комиссия), для «потрачено» — GCP
@@ -1445,7 +1456,7 @@ landing/src/
 | `YOOKASSA_SHOP_ID` | Server-only идентификатор магазина для Basic Auth YooKassa API |
 | `YOOKASSA_SECRET_KEY` | Server-only секрет магазина YooKassa; не передаётся клиенту и не логируется |
 | `YANDEX_METRIKA_MP_TOKEN` | Server-only токен Measurement Protocol счётчика `107703100`; без него покупки в Директ не уходят |
-| `CRON_SECRET` | Bearer-секрет для `POST /api/cron/yookassa-reconcile`, `POST /api/cron/visual-embeddings` и `POST /api/cron/mail-outbox` |
+| `CRON_SECRET` | Bearer-секрет для `POST /api/cron/yookassa-reconcile`, `POST /api/cron/visual-embeddings`, `POST /api/cron/mail-outbox` и `POST /api/cron/mail-due` |
 | `POSTBOX_ENDPOINT` | Host Postbox, default `https://postbox.cloud.yandex.net`. РФ, без `GEMINI_PROXY` |
 | `POSTBOX_REGION` | SigV4 region, default `ru-central1` |
 | `POSTBOX_ACCESS_KEY_ID` / `POSTBOX_SECRET_ACCESS_KEY` | Статические ключи YC. Пустые — cron не claim-ит |

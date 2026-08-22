@@ -5,7 +5,15 @@ import { createSupabaseServer } from "@/lib/supabase";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-const SEGMENTS = new Set(["all_email", "paid"]);
+const SEGMENTS = new Set([
+  "all_email",
+  "paid",
+  "exploring",
+  "paid_active",
+  "paid_quiet",
+  "empty",
+  "trial_only",
+]);
 
 type CampaignRow = {
   id: string;

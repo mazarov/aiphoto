@@ -3,9 +3,9 @@ import test from "node:test";
 import { planLabel, renderMailTemplate } from "./mail-templates";
 
 test("plan labels match PromptShot packages", () => {
-  assert.equal(planLabel("trial"), "Проба");
-  assert.equal(planLabel("start"), "Старт");
-  assert.equal(planLabel("pro"), "Про");
+  assert.equal(planLabel("trial"), "Пробный");
+  assert.equal(planLabel("start"), "Оптимальный");
+  assert.equal(planLabel("pro"), "Большой");
   assert.equal(planLabel("max"), "Максимум");
 });
 
@@ -16,8 +16,16 @@ test("transactional templates do not add List-Unsubscribe", () => {
     "user@example.com",
   );
   assert.equal(mail.subject, "Токены PromptShot зачислены");
-  assert.match(mail.text, /пакет «Старт»/);
+  assert.match(mail.text, /пакет «Оптимальный»/);
   assert.match(mail.text, /100/);
+  assert.match(mail.text, /generaciya-foto/);
+  assert.deepEqual(mail.headers, []);
+});
+
+test("welcome names the free daily analyzes", () => {
+  const mail = renderMailTemplate("welcome", { display_name: "Максим" }, "user@example.com");
+  assert.match(mail.text, /10 разборов/);
+  assert.match(mail.text, /Пробный/);
   assert.deepEqual(mail.headers, []);
 });
 
