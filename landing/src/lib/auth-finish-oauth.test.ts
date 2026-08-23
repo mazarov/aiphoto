@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   appendAuthError,
+  appendAuthReturnMarker,
+  consumeAuthReturnMarkerFromHref,
   resolveOAuthCallbackError,
   sanitizeAuthReturnPath,
 } from "./auth-return-path";
@@ -23,6 +25,13 @@ test("rejects absolute / protocol-relative next", () => {
   assert.equal(sanitizeAuthReturnPath("//evil.test"), "/");
 });
 
+test("auth_error path drops a leftover return marker", () => {
+  assert.equal(
+    appendAuthError("/catalog?ps_auth=1", "no_code"),
+    "/catalog?auth_error=no_code"
+  );
+});
+
 test("appends auth_error without breaking existing query", () => {
   assert.equal(
     appendAuthError("/admin/payments", "no_code"),
@@ -32,6 +41,33 @@ test("appends auth_error without breaking existing query", () => {
     appendAuthError("/pricing?test=true", "no_code"),
     "/pricing?test=true&auth_error=no_code"
   );
+});
+
+test("strips leftover ps_auth from remembered return paths", () => {
+  assert.equal(
+    sanitizeAuthReturnPath("/catalog?ps_auth=1&sort=new"),
+    "/catalog?sort=new"
+  );
+});
+
+test("appends a one-shot return marker without dropping query or hash", () => {
+  assert.equal(appendAuthReturnMarker("/catalog"), "/catalog?ps_auth=1");
+  assert.equal(
+    appendAuthReturnMarker("/pricing?test=true#pay"),
+    "/pricing?test=true&ps_auth=1#pay"
+  );
+  assert.equal(appendAuthReturnMarker("/catalog?ps_auth=1"), "/catalog?ps_auth=1");
+});
+
+test("consumes the return marker from an absolute or relative href", () => {
+  assert.deepEqual(
+    consumeAuthReturnMarkerFromHref("https://promptshot.ru/catalog?ps_auth=1&sort=new"),
+    { found: true, nextHref: "/catalog?sort=new" }
+  );
+  assert.deepEqual(consumeAuthReturnMarkerFromHref("/catalog"), {
+    found: false,
+    nextHref: "/catalog",
+  });
 });
 
 test("resolves GoTrue callback error params", () => {

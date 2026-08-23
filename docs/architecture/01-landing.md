@@ -1,5 +1,7 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-08-23 (**OAuth return hydrate without F5:** после PKCE `finishOAuthCodeExchange` уводит на `next?ps_auth=1` + cookie `ps_auth_done` (60 с), чтобы не восстановить гостевой bfcache того же URL. `AuthProvider` — SSOT: `getSession` overlay → `getUser` JWT; сеть к GoTrue упала, cookie живы → UI не гость. `pageshow` (`persisted` / живой `ps_auth_done`) и `visibilitychange` при `user === null` перечитывают сессию; маркер сразу `replaceState`. Спека `docs/23-08-oauth-return-session-hydrate.md`.
+>
 > Последнее обновление: 2026-08-23 (**YooKassa open-reconcile + cron 1 мин:** четвёртый consumer того же `reconcileYooKassaPayment` — `POST /api/payments/yookassa/open-reconcile` на возврат без `?payment=` (auth + visibility, debounce 30 с). Create перед новым checkout сверяет открытые; тот же план только что credited → `alreadyCredited`, без второго `confirmation_url`. Stale cron default 1 мин (limit 20). Не вешать на `GET /api/me`. Спека `docs/23-08-yookassa-return-reconcile.md`. Ops: сменить pg_cron `yookassa-reconcile` с `*/5` на `* * * * *`.
 >
 > Последнее обновление: 2026-08-22 (**admin mail daily stats:** `/admin/mail` → вкладка «Статистика». `GET /api/admin/mail/stats?days=1…30` (default 14, `Cache-Control: no-store`). RPC `landing_mail_admin_daily_stats` (`sql/210`) группирует `landing_mail_outbox` по `landing_mail_moscow_day`: sent по `sent_at`, skip/fail по `updated_at`. `queued` / `remaining` только у сегодняшней строки из `landing_mail_daily_budget`. Partial indexes `sent_at` и skip/fail `updated_at`. JSON без email / user id / payload. Спека `docs/22-08-mail-admin-daily-stats.md`.
@@ -867,14 +869,17 @@ AuthModal / SidebarAccountPanel → OAuthSignInButtons → signInWithOAuth(redir
   → remember path (sessionStorage + cookie ps_auth_next)
   → Supabase /auth/v1/authorize → IdP → /auth/v1/callback
   → promptshot.ru/auth/callback?code=…&next=/pricing?test=true
-  → client page: finishOAuthCodeExchange (browser cookies) → redirect на next
+  → client page: finishOAuthCodeExchange (browser cookies) → redirect на next?ps_auth=1
+  → AuthProvider снимает маркер (replaceState) и гидратит сессию
 ```
 
 Почему не server route: дублирующий `GET /auth/callback` делал второй `POST /token` (`user_agent=node`) → `404 flow_state_not_found`, а ответ дубля отдавал `?auth_error=` без session cookies. В браузере первый обмен пишет cookies в document; replay с `invalid flow state` проверяет `getUser()` и при активной сессии считается успехом.
 
-Fallback: если `code` пришёл на произвольную страницу (не `/auth/callback`), `AuthProvider` делает client `exchangeCodeForSession` и при наличии сохранённого return path уводит туда. На `/auth/callback` `AuthProvider` **не** обменивает code (избегаем второго `/token`).
+Почему не «просто getUser на mount»: `location.replace(next)` часто достаёт **bfcache** исходной гостевой страницы (`pageshow.persisted`). Cookie уже есть, React-state — нет, F5 лечит. Return URL поэтому одноразово отличается (`ps_auth=1` + `ps_auth_done`); `AuthProvider` перечитывает сессию на restore и на `visibilitychange`, если chrome ещё гость. `getUser()` упал, `getSession()` жив → оставить cookie-user, не гостевую модалку.
 
-- Хелпер: `landing/src/lib/auth-oauth.ts` + `auth-return-path.ts` + `auth-finish-oauth.ts` (`getOAuthCallbackUrl`, `signInWithOAuthProvider`, `finishOAuthCodeExchange`, sanitize `next`). При старте OAuth: Yandex → `force_confirm=yes`, Google → `prompt=select_account` (выбор аккаунта при повторном логине).
+Fallback: если `code` пришёл на произвольную страницу (не `/auth/callback`), `AuthProvider` делает client `exchangeCodeForSession` и при наличии сохранённого return path уводит туда с тем же маркером. На `/auth/callback` `AuthProvider` **не** обменивает code (избегаем второго `/token`).
+
+- Хелпер: `landing/src/lib/auth-oauth.ts` + `auth-return-path.ts` + `auth-finish-oauth.ts` + `auth-session-hydrate.ts` (`getOAuthCallbackUrl`, `signInWithOAuthProvider`, `finishOAuthCodeExchange`, `appendAuthReturnMarker`, `resolveHydratedAuthUser`, sanitize `next`). При старте OAuth: Yandex → `force_confirm=yes`, Google → `prompt=select_account` (выбор аккаунта при повторном логине).
 - **UI кнопок (`OAuthSignInButtons`):** две кастомные кнопки одной сетки (`h-12`, `px-4`, иконка 20×20, `rounded-xl`, белый фон) — Google (цветной G) и Яндекс (красный круг + «Я»); обе вызывают `signInWithOAuthProvider`. Используются в `AuthModal` и в guest-состоянии `SidebarAccountPanel` (mobile profile sheet + desktop sidebar). Виджет YaAuthSuggest больше не используется.
 - `/auth/callback` (Next.js **client page**) — основной return URL модалки; `next` обязан быть same-origin relative path.
 - **Self-hosted auth:** GoTrue **≥ v2.187.0**, `GOTRUE_CUSTOM_OAUTH_ENABLED=true`, `GOTRUE_SITE_URL=https://promptshot.ru`, `GOTRUE_URI_ALLOW_LIST=https://promptshot.ru/**` (должен включать `/auth/callback`).
@@ -1127,8 +1132,9 @@ SearchResults (client, infinite scroll)
 | OAuthSignInButtons | `components/OAuthSignInButtons.tsx` | SSOT кнопок Google + Яндекс → `signInWithOAuthProvider` |
 | UserAvatarImage | `components/UserAvatarImage.tsx` | OAuth-аватар: no-referrer + unoptimized для Google/Yandex CDN |
 | auth-oauth | `lib/auth-oauth.ts` | `signInWithOAuthProvider`, `custom:yandex` |
-| auth-finish-oauth | `lib/auth-finish-oauth.ts` | `finishOAuthCodeExchange` (browser PKCE) |
-OAuth completion: `/auth/callback` page вызывает `finishOAuthCodeExchange`; `AuthProvider` — только legacy fallback вне этого пути.
+| auth-finish-oauth | `lib/auth-finish-oauth.ts` | `finishOAuthCodeExchange` (browser PKCE) + `?ps_auth=1` |
+| auth-session-hydrate | `lib/auth-session-hydrate.ts` | `resolveHydratedAuthUser`, pageshow / visibility gates |
+OAuth completion: `/auth/callback` page вызывает `finishOAuthCodeExchange`; `AuthProvider` гидратит сессию на return / bfcache. Legacy `code` fallback — только вне `/auth/callback`.
 
 ---
 
@@ -1401,6 +1407,7 @@ landing/src/
 │   ├── supabase.ts             ← Серверный клиент + data fetching
 │   ├── auth-oauth.ts           ← signInWithOAuthProvider (google, custom:yandex)
 │   ├── auth-finish-oauth.ts    ← finishOAuthCodeExchange (browser PKCE)
+│   ├── auth-session-hydrate.ts ← getSession overlay vs getUser; pageshow/visibility
 │   ├── supabase-browser.ts     ← Браузерный клиент (auth, reactions)
 │   ├── supabase-server-auth.ts ← Серверная авторизация
 │   ├── tag-registry.ts         ← Реестр SEO-тегов (5 измерений, 100+ тегов)

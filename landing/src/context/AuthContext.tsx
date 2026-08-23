@@ -11,6 +11,17 @@ import {
 } from "react";
 import { createSupabaseBrowser } from "@/lib/supabase-browser";
 import { consumeAuthReturnPath } from "@/lib/auth-oauth";
+import {
+  appendAuthReturnMarker,
+  consumeAuthReturnMarkerInWindow,
+  markAuthReturnComplete,
+  peekAuthReturnDoneCookie,
+} from "@/lib/auth-return-path";
+import {
+  resolveHydratedAuthUser,
+  shouldHydrateAuthOnPageShow,
+  shouldHydrateAuthOnVisible,
+} from "@/lib/auth-session-hydrate";
 import { captureBrowserAcquisitionContext } from "@/lib/traffic-source-attribution-browser";
 import {
   shouldAttemptClientAttributionPersist,
@@ -81,6 +92,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [authModalReason, setAuthModalReason] = useState<AuthModalReason>("default");
   const handledAuthCodeRef = useRef(false);
   const persistedAttributionUserIdRef = useRef<string | null>(null);
+  const userRef = useRef<User | null>(null);
 
   const openAuthModal = useCallback((reason: AuthModalReason = "default") => {
     setAuthModalReason(reason);
@@ -93,6 +105,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const supabase = createSupabaseBrowser();
+    let cancelled = false;
+
+    const applyUser = (nextUser: User | null) => {
+      if (cancelled) return;
+      userRef.current = nextUser;
+      setUser(nextUser);
+      setLoading(false);
+      persistAttributionForUser(nextUser, persistedAttributionUserIdRef);
+      if (nextUser && nextUser.is_anonymous !== true) {
+        setShowAuthModal(false);
+      }
+    };
+
+    async function hydrateUser() {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const sessionUser = sessionData.session?.user ?? null;
+      if (sessionUser) {
+        applyUser(sessionUser);
+      }
+
+      let verifiedUser: User | null = null;
+      let verifyFailed = false;
+      try {
+        const { data, error } = await supabase.auth.getUser();
+        if (error) {
+          verifyFailed = true;
+        } else {
+          verifiedUser = data.user ?? null;
+        }
+      } catch {
+        verifyFailed = true;
+      }
+
+      applyUser(
+        resolveHydratedAuthUser({
+          sessionUser,
+          verifiedUser,
+          verifyFailed,
+        }),
+      );
+    }
 
     async function initAuth() {
       const url = new URL(window.location.href);
@@ -106,6 +159,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const { error } = await supabase.auth.exchangeCodeForSession(code);
         if (error) {
           console.error("Client OAuth exchange failed:", error.message);
+        } else {
+          markAuthReturnComplete();
         }
         const returnPath = consumeAuthReturnPath();
         const cleanUrl = new URL(window.location.href);
@@ -117,7 +172,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const cleaned =
           `${cleanUrl.pathname}${cleanUrl.search}${cleanUrl.hash}` || "/";
         if (returnPath && returnPath !== cleaned) {
-          window.location.replace(returnPath);
+          window.location.replace(appendAuthReturnMarker(returnPath));
           return;
         }
         window.history.replaceState({}, "", cleaned);
@@ -128,34 +183,52 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      const { data: { user } } = await supabase.auth.getUser();
-      setUser(user);
-      setLoading(false);
-      persistAttributionForUser(user, persistedAttributionUserIdRef);
+      consumeAuthReturnMarkerInWindow();
+      await hydrateUser();
     }
-
-    void initAuth();
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      const nextUser = session?.user ?? null;
-      setUser(nextUser);
-      setLoading(false);
-      persistAttributionForUser(nextUser, persistedAttributionUserIdRef);
-      // Anonymous sessions still need the login modal for checkout / likes.
-      if (nextUser && nextUser.is_anonymous !== true) {
-        setShowAuthModal(false);
-      }
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      // First paint is hydrateUser (getSession overlay + getUser). INITIAL_SESSION
+      // can arrive as null before cookies are readable and would flash guest.
+      if (event === "INITIAL_SESSION") return;
+      applyUser(session?.user ?? null);
     });
 
-    return () => subscription.unsubscribe();
+    void initAuth();
+
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (
+        !shouldHydrateAuthOnPageShow(event.persisted, peekAuthReturnDoneCookie())
+      ) {
+        return;
+      }
+      consumeAuthReturnMarkerInWindow();
+      void hydrateUser();
+    };
+    const onVisible = () => {
+      if (!shouldHydrateAuthOnVisible(document.visibilityState, Boolean(userRef.current))) {
+        return;
+      }
+      void hydrateUser();
+    };
+    window.addEventListener("pageshow", onPageShow);
+    document.addEventListener("visibilitychange", onVisible);
+
+    return () => {
+      cancelled = true;
+      subscription.unsubscribe();
+      window.removeEventListener("pageshow", onPageShow);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, []);
 
   const signOut = useCallback(async () => {
     const supabase = createSupabaseBrowser();
     await supabase.auth.signOut();
     persistedAttributionUserIdRef.current = null;
+    userRef.current = null;
     setUser(null);
   }, []);
 

@@ -3,6 +3,8 @@ import {
   AUTH_RETURN_COOKIE,
   AUTH_RETURN_PATH_KEY,
   appendAuthError,
+  appendAuthReturnMarker,
+  markAuthReturnComplete,
   sanitizeAuthReturnPath,
 } from "@/lib/auth-return-path";
 
@@ -46,7 +48,8 @@ export async function finishOAuthCodeExchange(code: string, next: string): Promi
 
   if (!error) {
     clearAuthReturnCookie();
-    return safeNext;
+    markAuthReturnComplete();
+    return appendAuthReturnMarker(safeNext);
   }
 
   // One-time PKCE state: replay after a successful first exchange.
@@ -54,7 +57,8 @@ export async function finishOAuthCodeExchange(code: string, next: string): Promi
     const { data } = await supabase.auth.getUser();
     if (data.user) {
       clearAuthReturnCookie();
-      return safeNext;
+      markAuthReturnComplete();
+      return appendAuthReturnMarker(safeNext);
     }
   }
 
