@@ -176,6 +176,131 @@ export async function reconcileYooKassaPayment(
   };
 }
 
+export type OpenReconcileSource = "open" | "create";
+
+export type OpenReconcileCredited = {
+  paymentId: string;
+  planId: string;
+  credits: number;
+  creditsAfter: number | null;
+};
+
+export type OpenReconcileSummary = {
+  scanned: number;
+  credited: OpenReconcileCredited[];
+  skippedByCooldown: boolean;
+};
+
+export type OpenReconcileOptions = {
+  limit?: number;
+  source?: OpenReconcileSource;
+  nowMs?: number;
+  cooldownMs?: number;
+  cooldownStore?: Map<string, number>;
+  skipCooldown?: boolean;
+  reconcilePayment?: (
+    supabase: SupabaseClient,
+    providerPaymentId: string,
+  ) => Promise<ReconcileResult>;
+};
+
+export const DEFAULT_OPEN_RECONCILE_LIMIT = 5;
+export const OPEN_RECONCILE_COOLDOWN_MS = 15_000;
+
+const openReconcileCooldown = new Map<string, number>();
+
+export function pickAlreadyCreditedOpenPayment(
+  credited: OpenReconcileCredited[],
+  planId: string,
+): OpenReconcileCredited | null {
+  return credited.find((item) => item.planId === planId) ?? null;
+}
+
+export async function reconcileOpenYooKassaPaymentsForAuthUser(
+  supabase: SupabaseClient,
+  authUserId: string,
+  options: OpenReconcileOptions = {},
+): Promise<OpenReconcileSummary> {
+  const source = options.source ?? "open";
+  const nowMs = options.nowMs ?? Date.now();
+  const cooldownStore = options.cooldownStore ?? openReconcileCooldown;
+  const cooldownMs = options.skipCooldown
+    ? 0
+    : (options.cooldownMs ?? (source === "create" ? 0 : OPEN_RECONCILE_COOLDOWN_MS));
+  const limit = Math.max(
+    1,
+    Math.min(DEFAULT_OPEN_RECONCILE_LIMIT, options.limit ?? DEFAULT_OPEN_RECONCILE_LIMIT),
+  );
+  const reconcilePayment = options.reconcilePayment ?? reconcileYooKassaPayment;
+
+  if (cooldownMs > 0) {
+    const last = cooldownStore.get(authUserId);
+    if (last != null && nowMs - last < cooldownMs) {
+      console.info("[yookassa] open_reconcile", {
+        source,
+        scanned: 0,
+        credited: 0,
+        skippedByCooldown: true,
+      });
+      return { scanned: 0, credited: [], skippedByCooldown: true };
+    }
+    cooldownStore.set(authUserId, nowMs);
+  }
+
+  const { data, error } = await supabase
+    .from("landing_yookassa_payments")
+    .select("id, plan_id, credits, yookassa_payment_id")
+    .eq("auth_user_id", authUserId)
+    .in("status", ["created", "pending"])
+    .not("yookassa_payment_id", "is", null)
+    .order("created_at", { ascending: true })
+    .limit(limit);
+
+  if (error) {
+    throw new Error(`Open payment lookup failed: ${error.message}`);
+  }
+
+  const rows = (data ?? []) as Array<{
+    id: string;
+    plan_id: string;
+    credits: number;
+    yookassa_payment_id: string | null;
+  }>;
+  const credited: OpenReconcileCredited[] = [];
+
+  for (const row of rows) {
+    const providerPaymentId = row.yookassa_payment_id;
+    if (!providerPaymentId) continue;
+    try {
+      const result = await reconcilePayment(supabase, providerPaymentId);
+      if (result.credited) {
+        credited.push({
+          paymentId: result.paymentId,
+          planId: row.plan_id,
+          credits: row.credits,
+          creditsAfter: result.creditsAfter,
+        });
+      }
+    } catch (error) {
+      console.warn("[yookassa] open_reconcile item failed", {
+        paymentId: row.id,
+        providerPaymentId,
+        source,
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  console.info("[yookassa] open_reconcile", {
+    source,
+    scanned: rows.length,
+    credited: credited.length,
+    skippedByCooldown: false,
+  });
+
+  return { scanned: rows.length, credited, skippedByCooldown: false };
+}
+
 export type StaleReconcileOptions = {
   olderThanMinutes?: number;
   limit?: number;
@@ -203,7 +328,7 @@ export type StaleReconcileSummary = {
   results: StaleReconcileItem[];
 };
 
-const DEFAULT_STALE_OLDER_THAN_MINUTES = 5;
+export const DEFAULT_STALE_OLDER_THAN_MINUTES = 1;
 const DEFAULT_STALE_LIMIT = 20;
 
 export async function reconcileStaleYooKassaPayments(
@@ -268,6 +393,7 @@ export async function reconcileStaleYooKassaPayments(
     failed,
     olderThanMinutes,
     limit,
+    source: "cron",
   });
 
   return {

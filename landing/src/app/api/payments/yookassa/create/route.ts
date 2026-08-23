@@ -15,6 +15,10 @@ import { sanitizePricingPaywallVariant } from "@/lib/pricing-paywall-attribution
 import { resolvePaymentTrafficSource } from "@/lib/payment-attribution";
 import { sanitizeUuid } from "@/lib/visitor-id";
 import { applyCheckoutOffer } from "@/lib/mail-checkout-offer";
+import {
+  pickAlreadyCreditedOpenPayment,
+  reconcileOpenYooKassaPaymentsForAuthUser,
+} from "@/lib/yookassa-payments";
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -112,6 +116,34 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = createSupabaseServer();
+    try {
+      const open = await reconcileOpenYooKassaPaymentsForAuthUser(
+        supabase,
+        user.id,
+        { source: "create" },
+      );
+      const credited = pickAlreadyCreditedOpenPayment(open.credited, plan.id);
+      if (credited) {
+        console.info("[yookassa] create already_credited", {
+          paymentId: credited.paymentId,
+          planId: plan.id,
+          source: "create",
+        });
+        return NextResponse.json({
+          provider: "yookassa",
+          alreadyCredited: true,
+          paymentId: credited.paymentId,
+          planId: credited.planId,
+          credits: credited.credits,
+          creditsAfter: credited.creditsAfter,
+        });
+      }
+    } catch (error) {
+      console.warn("[yookassa] create open_reconcile deferred", {
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+
     const ensured = await ensureLandingUserForGeneration(supabase, user);
     if (!ensured.ok || ensured.usedGuestOwner) {
       const status = ensured.ok ? 401 : ensured.status;

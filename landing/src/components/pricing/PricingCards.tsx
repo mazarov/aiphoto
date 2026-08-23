@@ -35,6 +35,7 @@ import {
   type RobokassaBrowserPayload,
 } from "@/lib/robokassa-browser";
 import { announceRobokassaPayment } from "@/lib/robokassa-payment-events";
+import { requestCreditBalanceRefresh } from "@/lib/credit-balance-events";
 import { applyMailOfferPercent } from "@/lib/mail-offer-price";
 import {
   reachYandexMetrikaGoal,
@@ -387,6 +388,8 @@ export function PricingCards({
         | {
             provider?: "yookassa";
             confirmationUrl?: string;
+            alreadyCredited?: boolean;
+            credits?: number;
             message?: string;
           }
         | {
@@ -428,6 +431,18 @@ export function PricingCards({
         setCheckout({
           kind: "pending",
           message: "Форма оплаты открыта поверх страницы",
+        });
+        return;
+      }
+      if (payload.provider === "yookassa" && payload.alreadyCredited === true) {
+        const credits = Number(payload.credits || 0);
+        clearPricingReturnPath();
+        closeWithoutHistory();
+        requestCreditBalanceRefresh();
+        checkoutInFlightRef.current = false;
+        setCheckout({
+          kind: "success",
+          message: `Оплата прошла. Начислено ${rubles.format(credits)} токенов`,
         });
         return;
       }

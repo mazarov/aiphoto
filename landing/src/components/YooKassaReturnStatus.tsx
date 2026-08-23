@@ -3,6 +3,11 @@
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { requestCreditBalanceRefresh } from "@/lib/credit-balance-events";
+import {
+  markOpenReconcileRunAt,
+  readOpenReconcileLastRunAt,
+  shouldRunClientOpenReconcile,
+} from "@/lib/yookassa-open-reconcile";
 import { isYooKassaPaymentId } from "@/lib/yookassa-return-path";
 import {
   reachYandexMetrikaGoal,
@@ -159,6 +164,59 @@ export function YooKassaReturnStatus() {
       if (timer) clearTimeout(timer);
     };
   }, [authLoading, isAuthed, openAuthModal]);
+
+  useEffect(() => {
+    const paymentId = new URL(window.location.href).searchParams.get("payment");
+    if (isYooKassaPaymentId(paymentId)) return;
+    if (authLoading || !isAuthed) return;
+
+    let canceled = false;
+    const run = async () => {
+      const nowMs = Date.now();
+      if (!shouldRunClientOpenReconcile(readOpenReconcileLastRunAt(window.sessionStorage), nowMs)) {
+        return;
+      }
+      markOpenReconcileRunAt(window.sessionStorage, nowMs);
+      try {
+        const response = await fetch("/api/payments/yookassa/open-reconcile", {
+          method: "POST",
+          cache: "no-store",
+        });
+        if (response.status === 401 || canceled) return;
+        const payload = (await response.json().catch(() => null)) as
+          | {
+              credited?: Array<{ credits?: number }>;
+            }
+          | null;
+        const first = payload?.credited?.[0];
+        if (!first || canceled) return;
+        const credits = Number(first.credits || 0);
+        setStatus({
+          kind: "success",
+          message: `Оплата прошла. Начислено ${rubles.format(credits)} токенов`,
+        });
+        requestCreditBalanceRefresh();
+        if (!successTrackedRef.current) {
+          successTrackedRef.current = true;
+          reachYandexMetrikaGoal(YM_GOAL_YOOKASSA_PAYMENT_SUCCEEDED, {
+            credits,
+          });
+        }
+      } catch {
+        // Best-effort: cron still catches succeeded payments.
+      }
+    };
+
+    void run();
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") void run();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      canceled = true;
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [authLoading, isAuthed]);
 
   if (status.kind === "idle") return null;
 

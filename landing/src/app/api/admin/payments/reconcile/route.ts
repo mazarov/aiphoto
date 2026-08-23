@@ -101,6 +101,7 @@ export async function POST(req: NextRequest) {
       paymentId: result.paymentId,
       status: result.status,
       credited: result.credited,
+      source: "admin",
     });
     return NextResponse.json(result, {
       headers: { "Cache-Control": "no-store" },

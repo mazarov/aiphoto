@@ -31,6 +31,7 @@ export async function POST(request: Request) {
       event: body.event,
       status: result.status,
       credited: result.credited,
+      source: "webhook",
     });
     return NextResponse.json({ ok: true });
   } catch (error) {
