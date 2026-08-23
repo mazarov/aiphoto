@@ -1,4 +1,3 @@
-import { createClient } from "@supabase/supabase-js";
 import {
   buildStorageRenderImagePublicUrl,
   type CardImagePreset,
@@ -6,20 +5,12 @@ import {
 import type { ListingSort } from "@/lib/listing-sort";
 import { resolveSharedDbUserIdFromAuthId } from "@/lib/resolve-db-user-id";
 
+export { createSupabaseServer } from "./supabase-server-client";
+
 const supabaseUrl =
   process.env.NEXT_PUBLIC_SUPABASE_URL ||
   process.env.SUPABASE_SUPABASE_PUBLIC_URL ||
   process.env.SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-
-export function createSupabaseServer() {
-  if (!supabaseUrl || !supabaseServiceKey) {
-    throw new Error("Missing SUPABASE env vars for server");
-  }
-  return createClient(supabaseUrl, supabaseServiceKey, {
-    auth: { persistSession: false },
-  });
-}
 
 export function getStoragePublicUrl(bucket: string, path: string): string {
   return `${supabaseUrl}/storage/v1/object/public/${bucket}/${path}`;
