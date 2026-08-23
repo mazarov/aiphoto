@@ -19,6 +19,7 @@ type LocalPayment = {
   credited_at: string | null;
   ym_client_id: string | null;
   yandex_conversion_sent_at: string | null;
+  yandex_conversion_claimed_at: string | null;
   yandex_conversion_attempts: number | null;
 };
 
@@ -42,7 +43,7 @@ export async function reconcileYooKassaPayment(
   const { data, error } = await supabase
     .from("landing_yookassa_payments")
     .select(
-      "id, auth_user_id, landing_user_id, plan_id, credits, amount_rub, yookassa_payment_id, status, credited_at, ym_client_id, yandex_conversion_sent_at, yandex_conversion_attempts",
+      "id, auth_user_id, landing_user_id, plan_id, credits, amount_rub, yookassa_payment_id, status, credited_at, ym_client_id, yandex_conversion_sent_at, yandex_conversion_claimed_at, yandex_conversion_attempts",
     )
     .eq("id", localPaymentId)
     .maybeSingle();

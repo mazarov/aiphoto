@@ -22,6 +22,7 @@ type LocalPayment = {
   test: boolean;
   ym_client_id: string | null;
   yandex_conversion_sent_at: string | null;
+  yandex_conversion_claimed_at: string | null;
   yandex_conversion_attempts: number | null;
 };
 
@@ -42,7 +43,7 @@ async function handleResult(request: Request) {
     const { data, error } = await supabase
       .from("landing_robokassa_payments")
       .select(
-        "id, invoice_id, auth_user_id, landing_user_id, plan_id, credits, amount_rub, test, ym_client_id, yandex_conversion_sent_at, yandex_conversion_attempts",
+        "id, invoice_id, auth_user_id, landing_user_id, plan_id, credits, amount_rub, test, ym_client_id, yandex_conversion_sent_at, yandex_conversion_claimed_at, yandex_conversion_attempts",
       )
       .eq("id", result.paymentId)
       .eq("invoice_id", result.invoiceId)

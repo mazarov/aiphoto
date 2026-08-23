@@ -57,7 +57,7 @@
 | `sql/191_yookassa_yandex_attribution.sql` | `ym_client_id`, `yclid`, `yandex_conversion_*` |
 | `landing/src/lib/yandex-attribution.ts` | sanitize ClientID / yclid |
 | `landing/src/lib/yandex-attribution-browser.ts` | cookie + `getClientID` |
-| `landing/src/lib/yandex-metrika-measurement.ts` | MP collect + антидубль |
+| `landing/src/lib/yandex-metrika-measurement.ts` | MP collect, claim UPDATE только по `id` + `sent_at IS NULL`, cron flush unsent |
 | `landing/src/lib/yookassa-payments.ts` | dispatch после fulfill |
 | `landing/src/components/pricing/PricingCards.tsx` | отправка атрибуции в create |
 | `landing/src/components/YooKassaReturnStatus.tsx` | JS purchase + ecommerce |
