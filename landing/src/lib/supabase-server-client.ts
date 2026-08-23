@@ -1,9 +1,9 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 /**
- * Service-role client is process-wide. A new `createClient` per call leaves a
- * GoTrue `setInterval` (autoRefreshToken default true) that pins the client
- * forever — heap grows until OOM. Same key, no user session, so one client.
+ * Server-side GoTrue must not start a refresh timer. Default `autoRefreshToken`
+ * pins every `createClient` / `createServerClient` via `setInterval` until OOM.
+ * Service-role is also a process-wide singleton (same key, no user session).
  * @see https://github.com/supabase/supabase-js/issues/926
  */
 export const SUPABASE_SERVER_AUTH = {

@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import type { NextConfig } from "next";
 import { DEN_ROZHDENIYA_PERMANENT_REDIRECTS } from "./src/lib/den-rozhdeniya-cluster";
+import { NEXT_CACHE_MAX_MEMORY_BYTES } from "./src/lib/next-cache-memory";
 
 const landingDir = import.meta.dirname;
 const repoRoot = path.resolve(landingDir, "..");
@@ -43,6 +44,8 @@ const nextConfig: NextConfig = {
   devIndicators: false,
   outputFileTracingRoot,
   output: "standalone",
+  // Unique SEO / `_next/image` keys must evict; unset LRU can fill the 2 GiB cgroup.
+  cacheMaxMemorySize: NEXT_CACHE_MAX_MEMORY_BYTES,
   // Keep native sharp out of the Next bundle so Alpine libvips resolves at
   // build (collect page data) and in the standalone runner.
   serverExternalPackages: ["@supabase/supabase-js", "sharp"],

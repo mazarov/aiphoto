@@ -1,5 +1,7 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-08-23 (**cookie auth + Next cache cap:** все серверные `createServerClient` / Bearer `createClient` берут `SUPABASE_SERVER_AUTH` (`autoRefreshToken=false`) через `supabase-cookie-client.ts`. Иначе каждый `/api/me`, `open-reconcile`, SSR `/p` оставлял GoTrue timer. `next.config.ts` `cacheMaxMemorySize` = 32 МБ (`next-cache-memory.ts`) — потолок in-process ISR/image cache в 2 GiB контейнере.
+>
 > Последнее обновление: 2026-08-23 (**scout analyze:** `POST /api/scout/analyze` — открытая ручка без auth и без `landing_users.credits`. Квота 100 успешных / UTC-сутки на бакет `scout:v1` (`analyze_quota_reserve`); сверх лимита `429`. Gemini extract общий с `/api/extension/analyze`. History `client_source=scout`. Публичную analyze-квоту не меняет. Спека `docs/23-08-scout-analyze.md`.
 >
 > Последнее обновление: 2026-08-23 (**generaciya-foto chip scroll:** клик по чипу `/generaciya-foto/*` больше не показывает подвал и не анимирует возврат наверх. Next 15 `handlePotentialScroll` делал `scrollIntoView` на `<next-route-announcer>` (в потоке у конца `body`); `html { scroll-behavior: smooth }` + `writeScrollTop(0)` давали видимый подскрол. SSOT: `LISTING_SHELL_LINK_SCROLL` на чипах explorer, announcer `position: fixed` в `globals.css`, `writeScrollTop` через `pinInstantDocumentScroll`.
@@ -1416,12 +1418,14 @@ landing/src/
 │   └── verify-docker-image.sh  ← smoke: есть ли /app/server.js в собранном образе
 ├── lib/
 │   ├── supabase-server-client.ts ← Singleton service-role `createSupabaseServer` (без GoTrue timer)
+│   ├── supabase-cookie-client.ts ← Cookie/Bearer `createServerClient` с тем же `SUPABASE_SERVER_AUTH`
+│   ├── next-cache-memory.ts    ← `cacheMaxMemorySize` 32 МБ для Next in-process cache
 │   ├── supabase.ts             ← Реэкспорт клиента + data fetching
 │   ├── auth-oauth.ts           ← signInWithOAuthProvider (google, custom:yandex)
 │   ├── auth-finish-oauth.ts    ← finishOAuthCodeExchange (browser PKCE)
 │   ├── auth-session-hydrate.ts ← getSession overlay vs getUser; pageshow/visibility
 │   ├── supabase-browser.ts     ← Браузерный клиент (auth, reactions)
-│   ├── supabase-server-auth.ts ← Серверная авторизация
+│   ├── supabase-server-auth.ts ← Серверная авторизация (cookie client)
 │   ├── tag-registry.ts         ← Реестр SEO-тегов (5 измерений, 100+ тегов)
 │   ├── route-resolver.ts       ← Резолвинг URL → теги (L1/L2/L3)
 │   ├── den-rozhdeniya-cluster.ts ← SSOT хаба ДР, child-alias, 301, combo-ключи
