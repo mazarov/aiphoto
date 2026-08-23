@@ -4,8 +4,9 @@ import {
 } from "@/lib/card-image-presets";
 import type { ListingSort } from "@/lib/listing-sort";
 import { resolveSharedDbUserIdFromAuthId } from "@/lib/resolve-db-user-id";
+import { createSupabaseServer } from "./supabase-server-client";
 
-export { createSupabaseServer } from "./supabase-server-client";
+export { createSupabaseServer };
 
 const supabaseUrl =
   process.env.NEXT_PUBLIC_SUPABASE_URL ||
