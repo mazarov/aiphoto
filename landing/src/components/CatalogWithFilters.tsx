@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useLayoutEffect, useMemo, useState } from "react";
+import { resolveAdLandingTitle } from "@/lib/ad-landing-title";
 import { useListingFilters } from "@/hooks/useListingFilters";
 import { useListingSort } from "@/hooks/useListingSort";
 import { FilterFAB } from "./FilterFAB";
@@ -83,6 +85,14 @@ export function CatalogWithFilters({
   listingSearchQuery = null,
   listingSearchHasMore = false,
 }: CatalogWithFiltersProps) {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const adLandingTitle = resolveAdLandingTitle({
+    path: pathname,
+    search: searchParams.toString(),
+  });
+  const visibleHeading = adLandingTitle ?? heading;
+
   const [filterPanelOpen, setFilterPanelOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [searchCards, setSearchCards] = useState<PromptCardFull[] | null>(null);
@@ -160,11 +170,16 @@ export function CatalogWithFilters({
     }
   }, [isSearching, searchExamples]);
 
+  useEffect(() => {
+    if (!adLandingTitle) return;
+    document.title = adLandingTitle;
+  }, [adLandingTitle]);
+
   return (
     <ListingExplorerFrame>
       <ListingExplorerHeading
         eyebrow={eyebrow}
-        title={heading}
+        title={visibleHeading}
         titleAs="h1"
         titleId={headingId}
         intro={intro}

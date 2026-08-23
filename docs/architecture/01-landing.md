@@ -1,5 +1,7 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-08-23 (**Direct birthday landing title:** посадочная кампании — `/sobytiya/den-rozhdeniya`. При `yclid` или `utm_source=yandex&utm_medium=cpc` клиент подменяет H1 и `document.title` на заголовок объявления из `yandex-two-cluster-launch.ts`. `generateMetadata` / `og:title` не трогаем. Органика без меток — SEO H1 «Промты для фото на день рождения».
+>
 > Последнее обновление: 2026-08-23 (**Metrika MP purchase claim:** PostgREST PATCH фильтрует *новую* строку — нельзя писать `yandex_conversion_claimed_at`/`sent_at` и фильтровать те же колонки, плюс `.or()` с ISO-временем ломал claim с 17.08. Claim: `id` + `sent_at IS NULL`. Mark/release: только `id`. Cron `yookassa-reconcile` после stale sweep досылает unsent YooKassa/Robokassa (limit 20). JS `purchase` на возврате без изменений.
 >
 > Последнее обновление: 2026-08-23 (**OAuth return hydrate without F5:** после PKCE `finishOAuthCodeExchange` уводит на `next?ps_auth=1` + cookie `ps_auth_done` (60 с), чтобы не восстановить гостевой bfcache того же URL. `AuthProvider` — SSOT: `getSession` overlay → `getUser` JWT; сеть к GoTrue упала, cookie живы → UI не гость. `pageshow` (`persisted` / живой `ps_auth_done`) и `visibilitychange` при `user === null` перечитывают сессию; маркер сразу `replaceState`. Спека `docs/23-08-oauth-return-session-hydrate.md`.

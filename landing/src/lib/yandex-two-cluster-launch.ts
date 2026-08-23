@@ -32,8 +32,7 @@ export const YANDEX_TWO_CLUSTER_LAUNCH = {
     {
       key: "birthday",
       name: "PS_Search_Birthday_RF_2026-08",
-      landingUrl:
-        "https://promptshot.ru/generaciya-foto/na-den-rozhdeniya",
+      landingUrl: "https://promptshot.ru/sobytiya/den-rozhdeniya",
       budgetWithVatRub: 31_500,
       mediaBudgetRub: 25_819.67,
       groups: [

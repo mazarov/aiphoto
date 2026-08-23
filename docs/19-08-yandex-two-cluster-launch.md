@@ -64,7 +64,11 @@ Source of truth для параметров запуска:
 ## Кампания «День рождения»
 
 Посадочная:
-`https://promptshot.ru/generaciya-foto/na-den-rozhdeniya`.
+`https://promptshot.ru/sobytiya/den-rozhdeniya`.
+
+Рекламный заход (`yclid` или `utm_source=yandex&utm_medium=cpc`) на клиенте
+подменяет видимый H1 и `document.title` на заголовок объявления. SEO
+`metaTitle` / `og:title` не меняются.
 
 ### Группа «Создать фото на день рождения»
 
@@ -193,13 +197,14 @@ Source of truth минус-фраз хранится в
 utm_source=yandex&utm_medium=cpc&utm_campaign={campaign_id}&utm_content={ad_id}&utm_term={keyword}
 ```
 
-11. Добавить быстрые ссылки: `Примеры`, `Как создать`, `Тарифы`.
+11. Добавить быстрые ссылки: `Примеры` → хаб, `Сделать фото` →
+    `/generaciya-foto/na-den-rozhdeniya`, `Тарифы` → `/pricing`.
 12. Сохранить кампанию как черновик и пройти предпросмотр desktop/mobile.
 
 ### 3. Проверить перед модерацией
 
 - группа ведёт на
-  `https://promptshot.ru/generaciya-foto/na-den-rozhdeniya`;
+  `https://promptshot.ru/sobytiya/den-rozhdeniya`;
 - UTM открывает страницу без редиректа и сохраняется после OAuth;
 - в объявлениях нет «бесплатно» и «без регистрации»;
 - изображения, видео и товарные фиды не добавлены;

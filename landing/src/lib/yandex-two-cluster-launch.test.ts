@@ -25,7 +25,7 @@ test("launch has one birthday group with one focused ad", () => {
   assert.equal(YANDEX_TWO_CLUSTER_LAUNCH.campaigns.length, 1);
   const campaign = YANDEX_TWO_CLUSTER_LAUNCH.campaigns[0];
   assert.equal(campaign.key, "birthday");
-  assert.match(campaign.landingUrl, /\/generaciya-foto\/na-den-rozhdeniya$/);
+  assert.match(campaign.landingUrl, /\/sobytiya\/den-rozhdeniya$/);
   assert.equal(campaign.groups.length, 1);
   assert.equal(campaign.groups[0].name, "Создать фото на день рождения");
   assert.deepEqual(campaign.groups[0].phrases, [
