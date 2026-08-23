@@ -80,11 +80,44 @@ function readScrollTop(root: ScrollRoot): number {
   return root.scrollTop;
 }
 
+/**
+ * Next `<Link>` on listing / SEO-shell pages. Default `scroll={true}` lets
+ * App Router `handlePotentialScroll` call `scrollIntoView` on
+ * `<next-route-announcer>` (in-flow at document end) → jump to the footer.
+ * Then `html { scroll-behavior: smooth }` + `writeScrollTop(0)` animates back.
+ */
+export const LISTING_SHELL_LINK_SCROLL = false;
+
+type InlineScrollBehaviorStyle = {
+  scrollBehavior: string;
+  setProperty: (name: string, value: string) => void;
+  removeProperty: (name: string) => void;
+};
+
+/** Force instant document scroll; assignment to `scrollTop` follows CSS `scroll-behavior`. */
+export function pinInstantDocumentScroll(
+  style: InlineScrollBehaviorStyle
+): () => void {
+  const previous = style.scrollBehavior;
+  style.setProperty("scroll-behavior", "auto");
+  return () => {
+    if (previous) {
+      style.scrollBehavior = previous;
+    } else {
+      style.removeProperty("scroll-behavior");
+    }
+  };
+}
+
 export function writeScrollTop(root: ScrollRoot, y: number): void {
-  // Direct assignment — instant; scrollTo() respects html { scroll-behavior: smooth }.
   if (!isInnerListingScrollRoot(root)) {
-    document.documentElement.scrollTop = y;
-    document.body.scrollTop = y;
+    const restore = pinInstantDocumentScroll(document.documentElement.style);
+    try {
+      document.documentElement.scrollTop = y;
+      document.body.scrollTop = y;
+    } finally {
+      restore();
+    }
     return;
   }
   root.scrollTop = y;

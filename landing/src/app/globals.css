@@ -8,6 +8,29 @@ html {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/*
+ * Next 15 App Router announcer sits in-flow at the end of <body>.
+ * handlePotentialScroll → scrollIntoView(next-route-announcer) jumps to the
+ * footer; html { scroll-behavior: smooth } then animates back to top.
+ * Pin it off-screen so scrollIntoView is a no-op. Keep it in the a11y tree.
+ */
+next-route-announcer,
+#__next-route-announcer__ {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  overflow: hidden !important;
+  clip: rect(0 0 0 0) !important;
+  clip-path: inset(50%) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+  pointer-events: none;
+}
+
 /**
  * iOS/iPadOS Safari zooms the page when a focused text field is under 16px.
  * Touch-only so desktop can keep text-sm / text-xs. !important beats Tailwind

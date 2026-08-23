@@ -15,6 +15,7 @@ import {
   GENERACIYA_FOTO_SCENARIOS,
   GENERACIYA_FOTO_SEO,
 } from "@/lib/generaciya-foto-seo-copy";
+import { LISTING_SHELL_LINK_SCROLL } from "@/lib/scroll-preservation";
 
 const RESULT_LIMIT = 16;
 const SEARCH_DEBOUNCE_MS = 500;
@@ -231,6 +232,7 @@ export function GeneraciyaFotoExamplesExplorer({
               <Link
                 key={item.href}
                 href={item.href}
+                scroll={LISTING_SHELL_LINK_SCROLL}
                 aria-current={item.active ? "page" : undefined}
                 className={`inline-flex min-h-9 items-center rounded-full border px-3.5 text-sm font-medium transition ${
                   item.active
@@ -247,6 +249,7 @@ export function GeneraciyaFotoExamplesExplorer({
                   <Link
                     key={filter.value}
                     href={filter.href}
+                    scroll={LISTING_SHELL_LINK_SCROLL}
                     aria-pressed={active}
                     onClick={(event) => {
                       event.preventDefault();
@@ -295,6 +298,7 @@ export function GeneraciyaFotoExamplesExplorer({
             <div className="relative flex justify-center pb-4 pt-16 sm:pb-5 sm:pt-20">
               <Link
                 href={allPromptsHref}
+                scroll={LISTING_SHELL_LINK_SCROLL}
                 className="pointer-events-auto inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-indigo-200 bg-white/95 px-5 text-sm font-semibold text-indigo-700 shadow-sm backdrop-blur-sm transition hover:border-indigo-300 hover:bg-white"
               >
                 Все промты
