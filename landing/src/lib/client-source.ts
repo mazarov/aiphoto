@@ -9,6 +9,7 @@ export const CLIENT_SOURCES = [
   "generaciya_foto",
   "promptshot",
   "admin",
+  "scout",
   "unknown",
 ] as const;
 

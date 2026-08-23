@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
 import sharp from "sharp";
-import { resolveClientSource } from "@/lib/client-source";
+import { resolveClientSource, type ClientSource } from "@/lib/client-source";
 import type { createSupabaseServer } from "@/lib/supabase";
 
 type SupabaseServer = ReturnType<typeof createSupabaseServer>;
@@ -26,6 +26,7 @@ type AnalyzeHistoryInput = {
   authenticated?: boolean;
   creditsSpent?: number;
   quotaMode?: string | null;
+  clientSource?: ClientSource;
 };
 
 async function persist(
@@ -68,9 +69,11 @@ async function persist(
   const { error: insertError } = await supabase.from("analyze_history").insert({
     id,
     kind,
-    client_source: resolveClientSource(req, {
-      authenticated: input.authenticated,
-    }),
+    client_source:
+      input.clientSource ??
+      resolveClientSource(req, {
+        authenticated: input.authenticated,
+      }),
     image_path: path,
     image_mime: path ? "image/jpeg" : null,
     prompt,

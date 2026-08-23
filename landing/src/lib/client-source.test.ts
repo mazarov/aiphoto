@@ -111,6 +111,14 @@ test("resolveClientSource accepts only page x-client from the web", () => {
     })),
     "promptshot",
   );
+  assert.equal(
+    resolveClientSource(req({
+      origin: "https://promptshot.ru",
+      referer: "https://promptshot.ru/foto-v-promt",
+      xClient: "scout",
+    })),
+    "foto_v_promt",
+  );
 });
 
 test("resolveClientSource keeps extension and site hosts", () => {

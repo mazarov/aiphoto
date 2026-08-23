@@ -1,5 +1,7 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-08-23 (**scout analyze:** `POST /api/scout/analyze` — открытая ручка без auth и без `landing_users.credits`. Квота 100 успешных / UTC-сутки на бакет `scout:v1` (`analyze_quota_reserve`); сверх лимита `429`. Gemini extract общий с `/api/extension/analyze`. History `client_source=scout`. Публичную analyze-квоту не меняет. Спека `docs/23-08-scout-analyze.md`.
+>
 > Последнее обновление: 2026-08-23 (**generaciya-foto chip scroll:** клик по чипу `/generaciya-foto/*` больше не показывает подвал и не анимирует возврат наверх. Next 15 `handlePotentialScroll` делал `scrollIntoView` на `<next-route-announcer>` (в потоке у конца `body`); `html { scroll-behavior: smooth }` + `writeScrollTop(0)` давали видимый подскрол. SSOT: `LISTING_SHELL_LINK_SCROLL` на чипах explorer, announcer `position: fixed` в `globals.css`, `writeScrollTop` через `pinInstantDocumentScroll`.
 >
 > Последнее обновление: 2026-08-23 (**service-role client singleton:** `createSupabaseServer` — один процесс-wide клиент (`supabase-server-client.ts`), `autoRefreshToken/persistSession/detectSessionInUrl=false`. Новый `createClient` на каждый вызов оставлял GoTrue `setInterval` → OOM (~1 ГБ / 20–40 мин). Импорты `@/lib/supabase` без изменений.
@@ -585,6 +587,7 @@
 | `/api/mail/unsubscribe` | POST one-click (`List-Unsubscribe=One-Click` или `t=`): `landing_mail_unsubscribe` |
 | `/api/admin/mail/campaigns` | GET/POST, admin auth: список кампаний + stats; `action=preview` (dry-run, 5 адресов) затем `action=send` |
 | `/api/extension/analyze` | Same-origin analyze для site `/foto-v-promt` и «По фото»: validation/SSRF → identity (anonymous/STV-guest = гость) → RPC `analyze_quota_reserve` (free / 401 auth_required / 402 no_credits / paid hold 1 кредит) → Gemini → confirm или release+refund; fail-closed 503 если квота недоступна; успех пишет `analyze_history.credits_spent` |
+| `/api/scout/analyze` | Открытый analyze для бота: без auth, бакет `scout:v1`, 100 успешных / UTC-день, без кредитов пользователя. GET — остаток. `client_source=scout`. Не в sitemap |
 | `/api/extension/analyze/quota` | GET, cookie session, no-store: `remaining_free`, `next_mode`, `credit_cost`, реальный `credits` для авторизованного |
 | `/api/admin/analytics` | GET, admin auth: no-store analytics rollups за `1…90` дней; топ пользователей — `admin_analytics_top_users` за тот же период |
 | `/api/admin/credits` | GET, admin auth: live остаток + daily flow (`days=1\|7\|30\|90`) + keyset-список (`q`, remaining/granted/spent/share) |

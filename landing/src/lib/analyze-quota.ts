@@ -151,6 +151,35 @@ async function readUsage(
   };
 }
 
+export const SCOUT_ANALYZE_BUCKET = "scout:v1";
+export const SCOUT_ANALYZE_FREE_PER_DAY = 100;
+
+export async function resolveScoutAnalyzeQuotaSnapshot(
+  supabase: SupabaseServer,
+): Promise<AnalyzeQuotaSnapshot> {
+  const windowStart = extensionRateLimitDayWindowStartIso();
+  const usage = await readUsage(supabase, SCOUT_ANALYZE_BUCKET, windowStart);
+  const remaining = remainingFree(
+    SCOUT_ANALYZE_FREE_PER_DAY,
+    usage.count,
+    usage.pending,
+  );
+  return {
+    authenticated: false,
+    userId: null,
+    bucketKey: SCOUT_ANALYZE_BUCKET,
+    ipHash: SCOUT_ANALYZE_BUCKET,
+    windowStart,
+    freeMax: SCOUT_ANALYZE_FREE_PER_DAY,
+    creditCost: 1,
+    count: usage.count,
+    pending: usage.pending,
+    remainingFree: remaining,
+    nextMode: remaining > 0 ? "free" : "auth_required",
+    credits: null,
+  };
+}
+
 export async function resolveAnalyzeQuotaSnapshot(
   req: NextRequest,
   supabase: SupabaseServer,

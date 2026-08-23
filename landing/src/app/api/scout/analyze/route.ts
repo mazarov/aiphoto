@@ -1,19 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { readAcquisitionRequestIds } from "@/lib/acquisition-request";
 import { recordAnalyzeEvent } from "@/lib/analyze-events";
 import { recordAnalyzeHistory } from "@/lib/analyze-history";
-import { scheduleNoCreditsMail } from "@/lib/mail-credit-block";
 import {
   ANALYZE_QUOTA_MESSAGES,
   analyzeQuotaPublicFields,
   confirmAnalyzeQuota,
   releaseAnalyzeQuota,
   reserveAnalyzeQuota,
-  resolveAnalyzeQuotaSnapshot,
+  resolveScoutAnalyzeQuotaSnapshot,
   type AnalyzeQuotaSession,
   type AnalyzeQuotaSnapshot,
 } from "@/lib/analyze-quota";
-import { resolveClientSource } from "@/lib/client-source";
 import { extensionLog } from "@/lib/extension-pipeline-log";
 import {
   ANALYZE_GEMINI_MODEL,
@@ -28,9 +25,52 @@ import {
 import { createSupabaseServer } from "@/lib/supabase";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
-function errorResponse(message: string, status = 400) {
-  return NextResponse.json({ error: "invalid_image", message }, { status });
+const SCOUT_CLIENT_SOURCE = "scout" as const;
+const SCOUT_RATE_LIMITED_MESSAGE =
+  "Daily scout analyze limit reached (100 successful analyses per UTC day).";
+
+function noStore(init?: ResponseInit): ResponseInit {
+  return {
+    ...init,
+    headers: {
+      "Cache-Control": "no-store",
+      ...(init?.headers ?? {}),
+    },
+  };
+}
+
+function scoutQuotaFields(snapshot: AnalyzeQuotaSnapshot, extras?: {
+  mode?: "free";
+  creditsCharged?: number;
+}) {
+  return {
+    ...analyzeQuotaPublicFields(snapshot, extras),
+    daily_limit: snapshot.freeMax,
+  };
+}
+
+export async function GET(): Promise<NextResponse> {
+  try {
+    const snapshot = await resolveScoutAnalyzeQuotaSnapshot(createSupabaseServer());
+    return NextResponse.json(
+      { quota: scoutQuotaFields(snapshot) },
+      noStore({ status: 200 }),
+    );
+  } catch (error) {
+    extensionLog("scout.analyze.quota_unavailable", {
+      phase: "get",
+      message: error instanceof Error ? error.message : String(error),
+    });
+    return NextResponse.json(
+      {
+        error: "quota_unavailable",
+        message: ANALYZE_QUOTA_MESSAGES.quota_unavailable,
+      },
+      noStore({ status: 503 }),
+    );
+  }
 }
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
@@ -38,27 +78,35 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   try {
     const parsedBody: unknown = await req.json();
     if (!parsedBody || typeof parsedBody !== "object" || Array.isArray(parsedBody)) {
-      return errorResponse("Request body must be a JSON object.");
+      return NextResponse.json(
+        { error: "invalid_image", message: "Request body must be a JSON object." },
+        noStore({ status: 400 }),
+      );
     }
     body = parsedBody as Record<string, unknown>;
   } catch {
-    return errorResponse("Request body must be valid JSON.");
+    return NextResponse.json(
+      { error: "invalid_image", message: "Request body must be valid JSON." },
+      noStore({ status: 400 }),
+    );
   }
 
   const resolvedImage = await resolveAnalyzeImageFromBody(body);
   if (!resolvedImage.ok) {
     if (resolvedImage.code && resolvedImage.code !== "too_large") {
-      extensionLog("analyze.image_fetch_failed", { code: resolvedImage.code });
+      extensionLog("scout.analyze.image_fetch_failed", { code: resolvedImage.code });
     }
-    return errorResponse(resolvedImage.message);
+    return NextResponse.json(
+      { error: "invalid_image", message: resolvedImage.message },
+      noStore({ status: 400 }),
+    );
   }
   const image = resolvedImage.image;
 
   const style = "photoreal" as const;
-  const locale = normalizeAnalyzeLocale(body.locale);
+  const locale = normalizeAnalyzeLocale(body.locale ?? "ru");
   const requestId = crypto.randomUUID();
   const correlationId = req.headers.get("x-correlation-id") || requestId;
-  const acquisition = readAcquisitionRequestIds(req);
   const supabase = createSupabaseServer();
   const eventBase = {
     locale,
@@ -82,13 +130,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   ) => {
     recordAnalyzeEvent(supabase, {
       endpoint: "analyze",
-      clientSource: resolveClientSource(req, {
-        authenticated: snapshot?.authenticated,
-      }),
+      clientSource: SCOUT_CLIENT_SOURCE,
       ipHash: snapshot?.ipHash || "",
-      userId: snapshot?.userId ?? null,
-      visitorId: acquisition.visitorId,
-      sessionId: acquisition.sessionId,
+      userId: null,
       allowed,
       requestOrigin: req.headers.get("origin"),
       quotaMode:
@@ -98,11 +142,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     });
   };
 
-  extensionLog("analyze.start", {
+  extensionLog("scout.analyze.start", {
     requestId,
     correlationId,
-    visitorId: acquisition.visitorId,
-    sessionId: acquisition.sessionId,
     locale,
     mimeType: image.mimeType,
     imageBase64Chars: image.data.length,
@@ -110,9 +152,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   let snapshot: AnalyzeQuotaSnapshot;
   try {
-    snapshot = await resolveAnalyzeQuotaSnapshot(req, supabase);
+    snapshot = await resolveScoutAnalyzeQuotaSnapshot(supabase);
   } catch (error) {
-    extensionLog("analyze.quota_unavailable", {
+    extensionLog("scout.analyze.quota_unavailable", {
       requestId,
       phase: "snapshot",
       message: error instanceof Error ? error.message : String(error),
@@ -127,7 +169,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         error: "quota_unavailable",
         message: ANALYZE_QUOTA_MESSAGES.quota_unavailable,
       },
-      { status: 503 },
+      noStore({ status: 503 }),
     );
   }
 
@@ -140,7 +182,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     });
     return NextResponse.json(
       { error: "upstream_failed", message: "Service configuration error." },
-      { status: 500 },
+      noStore({ status: 500 }),
     );
   }
 
@@ -148,25 +190,18 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   try {
     const reservation = await reserveAnalyzeQuota(supabase, snapshot);
     if (!reservation.ok) {
-      const denied = reservation.error;
-      if (denied === "no_credits" && snapshot.userId) {
-        scheduleNoCreditsMail(supabase, snapshot.userId, "analyze");
-      }
-      const httpStatus = denied === "no_credits" ? 402 : 401;
       recordQuotaEvent(reservation.snapshot, false, {
-        outcome: denied,
-        errorCode: denied,
-        httpStatus,
+        outcome: "rate_limited",
+        errorCode: "rate_limited",
+        httpStatus: 429,
       });
       return NextResponse.json(
         {
-          error: denied,
-          auth_required: denied === "auth_required",
-          no_credits: denied === "no_credits",
-          message: ANALYZE_QUOTA_MESSAGES[denied],
-          quota: analyzeQuotaPublicFields(reservation.snapshot),
+          error: "rate_limited",
+          message: SCOUT_RATE_LIMITED_MESSAGE,
+          quota: scoutQuotaFields(reservation.snapshot),
         },
-        { status: httpStatus },
+        noStore({ status: 429 }),
       );
     }
     if (!reservation.session.holdId) {
@@ -174,7 +209,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     }
     reservedSession = reservation.session;
   } catch (error) {
-    extensionLog("analyze.quota_unavailable", {
+    extensionLog("scout.analyze.quota_unavailable", {
       requestId,
       phase: "reserve",
       message: error instanceof Error ? error.message : String(error),
@@ -189,7 +224,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         error: "quota_unavailable",
         message: ANALYZE_QUOTA_MESSAGES.quota_unavailable,
       },
-      { status: 503 },
+      noStore({ status: 503 }),
     );
   }
 
@@ -213,7 +248,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         error: "upstream_failed",
         message: "Something went wrong. Please try another image.",
       },
-      { status: httpStatus },
+      noStore({ status: httpStatus }),
     );
   };
 
@@ -224,7 +259,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       locale,
       supabase,
       apiKey,
-      logPrefix: "analyze",
+      logPrefix: "scout.analyze",
       requestId,
       correlationId,
     });
@@ -237,20 +272,18 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   const settingsPromise = analyzeImageSettings(image.data);
   let finalSession = reservedSession;
-  if (reservedSession) {
-    try {
-      finalSession = await confirmAnalyzeQuota(supabase, reservedSession);
-    } catch (error) {
-      extensionLog("analyze.quota_confirm_failed", {
-        requestId,
-        message: error instanceof Error ? error.message : String(error),
-      });
-    }
+  try {
+    finalSession = await confirmAnalyzeQuota(supabase, reservedSession);
+  } catch (error) {
+    extensionLog("scout.analyze.quota_confirm_failed", {
+      requestId,
+      message: error instanceof Error ? error.message : String(error),
+    });
   }
 
-  recordQuotaEvent(finalSession ?? snapshot, true, {
+  recordQuotaEvent(finalSession, true, {
     outcome: generated.truncated ? "truncated" : "success",
-    errorCode: finalSession?.mode === "paid" ? "paid" : "free",
+    errorCode: "free",
     truncated: generated.truncated,
     finishReason: String(generated.summary.finishReason ?? ""),
     missingSections: generated.missing.length,
@@ -263,30 +296,32 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     style,
     locale,
     model: ANALYZE_GEMINI_MODEL,
-    userId: finalSession?.userId ?? snapshot.userId,
-    ipHash: finalSession?.ipHash ?? snapshot.ipHash,
+    userId: null,
+    ipHash: finalSession.ipHash,
     correlationId,
-    authenticated: finalSession?.authenticated ?? snapshot.authenticated,
-    creditsSpent: finalSession?.creditsCharged ?? 0,
-    quotaMode: finalSession?.mode ?? "free",
+    authenticated: false,
+    creditsSpent: 0,
+    quotaMode: "free",
+    clientSource: SCOUT_CLIENT_SOURCE,
   });
 
-  extensionLog("analyze.gemini_response", {
+  extensionLog("scout.analyze.gemini_response", {
     requestId,
     correlationId,
     latencyMs: Date.now() - startedAt,
     promptChars: generated.promptText.length,
+    remainingFree: finalSession.remainingFree,
     missingSections: generated.missing,
     ...generated.summary,
   });
 
   const settings = await settingsPromise;
-  return NextResponse.json({
-    prompt: generated.promptText,
-    ...(settings ? { imageSettings: settings } : {}),
-    quota: analyzeQuotaPublicFields(finalSession ?? snapshot, {
-      mode: finalSession?.mode ?? "free",
-      creditsCharged: finalSession?.creditsCharged ?? 0,
-    }),
-  });
+  return NextResponse.json(
+    {
+      prompt: generated.promptText,
+      ...(settings ? { imageSettings: settings } : {}),
+      quota: scoutQuotaFields(finalSession, { mode: "free", creditsCharged: 0 }),
+    },
+    noStore({ status: 200 }),
+  );
 }
