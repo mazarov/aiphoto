@@ -67,8 +67,9 @@ Source of truth для параметров запуска:
 `https://promptshot.ru/sobytiya/den-rozhdeniya`.
 
 Рекламный заход (`yclid` или `utm_source=yandex&utm_medium=cpc`) на клиенте
-подменяет видимый H1 и `document.title` на заголовок объявления. SEO
-`metaTitle` / `og:title` не меняются.
+подменяет видимый H1 и `document.title` на заголовок объявления на всём
+кластере `/sobytiya/den-rozhdeniya` и детях (девушка / дети / торт и т.д.).
+SEO `metaTitle` / `og:title` не меняются.
 
 ### Группа «Создать фото на день рождения»
 
@@ -197,8 +198,8 @@ Source of truth минус-фраз хранится в
 utm_source=yandex&utm_medium=cpc&utm_campaign={campaign_id}&utm_content={ad_id}&utm_term={keyword}
 ```
 
-11. Добавить быстрые ссылки: `Примеры` → хаб, `Сделать фото` →
-    `/generaciya-foto/na-den-rozhdeniya`, `Тарифы` → `/pricing`.
+11. Быстрые ссылки — дети хаба, не тарифы и не генератор:
+    Девушке, Детям, Мужчине, С тортом, С детским фото, С шампанским.
 12. Сохранить кампанию как черновик и пройти предпросмотр desktop/mobile.
 
 ### 3. Проверить перед модерацией

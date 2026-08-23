@@ -8,7 +8,7 @@
 >
 > Последнее обновление: 2026-08-23 (**service-role client singleton:** `createSupabaseServer` — один процесс-wide клиент (`supabase-server-client.ts`), `autoRefreshToken/persistSession/detectSessionInUrl=false`. Новый `createClient` на каждый вызов оставлял GoTrue `setInterval` → OOM (~1 ГБ / 20–40 мин). Импорты `@/lib/supabase` без изменений.
 >
-> Последнее обновление: 2026-08-23 (**Direct birthday landing title:** посадочная кампании — `/sobytiya/den-rozhdeniya`. При `yclid` или `utm_source=yandex&utm_medium=cpc` клиент подменяет H1 и `document.title` на заголовок объявления из `yandex-two-cluster-launch.ts`. `generateMetadata` / `og:title` не трогаем. Органика без меток — SEO H1 «Промты для фото на день рождения».
+> Последнее обновление: 2026-08-23 (**Direct birthday landing title:** посадочная кампании — `/sobytiya/den-rozhdeniya`. При `yclid` или `utm_source=yandex&utm_medium=cpc` клиент подменяет H1 и `document.title` на заголовок объявления на всём кластере `/sobytiya/den-rozhdeniya/*`. `generateMetadata` / `og:title` не трогаем. Органика без меток — SEO H1 страницы.
 >
 > Последнее обновление: 2026-08-23 (**Metrika MP purchase claim:** PostgREST PATCH фильтрует *новую* строку — нельзя писать `yandex_conversion_claimed_at`/`sent_at` и фильтровать те же колонки, плюс `.or()` с ISO-временем ломал claim с 17.08. Claim: `id` + `sent_at IS NULL`. Mark/release: только `id`. Cron `yookassa-reconcile` после stale sweep досылает unsent YooKassa/Robokassa (limit 20). JS `purchase` на возврате без изменений.
 >

@@ -1,3 +1,4 @@
+import { isDenRozhdeniyaClusterPath } from "@/lib/den-rozhdeniya-cluster";
 import { readYclidFromSearch } from "@/lib/yandex-attribution";
 import { YANDEX_TWO_CLUSTER_LAUNCH } from "@/lib/yandex-two-cluster-launch";
 import {
@@ -30,7 +31,7 @@ export function resolveAdLandingTitle(input: {
   search: string;
 }): string | null {
   const path = (sanitizeLandingPath(input.path) ?? "").replace(/\/+$/, "") || "/";
-  if (path !== birthdayAdLandingPath()) return null;
+  if (!isDenRozhdeniyaClusterPath(path)) return null;
   if (!isPaidAdClickSearch(input.search)) return null;
   return birthdayAdTitle();
 }

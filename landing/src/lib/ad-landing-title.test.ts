@@ -30,7 +30,7 @@ test("paid ad click is yclid or yandex cpc, not a cookie leftover", () => {
   assert.equal(isPaidAdClickSearch(""), false);
 });
 
-test("ad title applies only on the hub with a paid click", () => {
+test("ad title applies on the birthday cluster with a paid click", () => {
   assert.equal(
     resolveAdLandingTitle({
       path: "/sobytiya/den-rozhdeniya",
@@ -45,6 +45,21 @@ test("ad title applies only on the hub with a paid click", () => {
     }),
     birthdayAdTitle(),
   );
+  for (const path of [
+    "/sobytiya/den-rozhdeniya/devushki",
+    "/sobytiya/den-rozhdeniya/deti",
+    "/sobytiya/den-rozhdeniya/muzhchiny",
+    "/sobytiya/den-rozhdeniya/s-tortom",
+    "/sobytiya/den-rozhdeniya/s-detskim-foto",
+    "/sobytiya/den-rozhdeniya/s-shampanskim",
+    "/sobytiya/den-rozhdeniya/devushki/s-tortom",
+  ]) {
+    assert.equal(
+      resolveAdLandingTitle({ path, search: AD_SEARCH }),
+      birthdayAdTitle(),
+      path,
+    );
+  }
   assert.equal(
     resolveAdLandingTitle({
       path: "/sobytiya/den-rozhdeniya",
@@ -54,7 +69,7 @@ test("ad title applies only on the hub with a paid click", () => {
   );
   assert.equal(
     resolveAdLandingTitle({
-      path: "/sobytiya/den-rozhdeniya/devushki",
+      path: "/sobytiya/8-marta",
       search: AD_SEARCH,
     }),
     null,
