@@ -32,6 +32,7 @@ import {
   readFotoVPromtResultSnapshot,
 } from "@/lib/foto-v-promt-result-snapshot";
 import { AnalyzePaidNotice, AnalyzeQuotaChip } from "./AnalyzeQuotaChip";
+import { FotoVPromtCopyButton } from "./FotoVPromtCopyButton";
 import { FotoVPromtGenerateButton } from "./FotoVPromtGenerateButton";
 import {
   FVP_BORDER_CARD,
@@ -728,24 +729,6 @@ export function PromptSceneLiteWidget({
     void analyzeImageUrl(pending.value);
   };
 
-  const copyPrompt = async () => {
-    if (!promptText) return;
-    try {
-      await navigator.clipboard.writeText(promptText);
-    } catch {
-      /* ignore */
-    }
-  };
-
-  const copyHistoryPrompt = async (prompt: string) => {
-    if (!prompt) return;
-    try {
-      await navigator.clipboard.writeText(prompt);
-    } catch {
-      /* ignore */
-    }
-  };
-
   const historyThumbnailSrc = (entry: LiteRecognitionEntry) =>
     entry.image.mode === "image_url" ? entry.image.imageUrl : entry.image.dataUrl;
 
@@ -872,13 +855,11 @@ export function PromptSceneLiteWidget({
                           >
                             {t("historyRecognizeAgain")}
                           </button>
-                          <button
-                            type="button"
-                            onClick={() => void copyHistoryPrompt(entry.prompt)}
+                          <FotoVPromtCopyButton
+                            text={entry.prompt}
+                            idleLabel={t("historyCopyPrompt")}
                             className={`inline-flex min-h-9 items-center justify-center rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs text-zinc-200 hover:bg-white/10 ${FVP_IMMERSIVE_FOCUS_RING}`}
-                          >
-                            {t("historyCopyPrompt")}
-                          </button>
+                          />
                           <FotoVPromtGenerateButton
                             promptText={entry.prompt}
                             variant="sm"
@@ -1008,13 +989,11 @@ export function PromptSceneLiteWidget({
                       {promptText}
                     </pre>
                     <div className="mt-4 flex w-full flex-col items-stretch gap-2.5">
-                      <button
-                        type="button"
-                        onClick={() => void copyPrompt()}
+                      <FotoVPromtCopyButton
+                        text={promptText}
+                        idleLabel={t("copy")}
                         className={`${FVP_IMMERSIVE_ACTION_PRIMARY} ${FVP_IMMERSIVE_FOCUS_RING}`}
-                      >
-                        {t("copy")}
-                      </button>
+                      />
                       <FotoVPromtGenerateButton
                         promptText={promptText}
                         variant="immersive"
@@ -1190,13 +1169,11 @@ export function PromptSceneLiteWidget({
                       >
                         {t("historyRecognizeAgain")}
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => void copyHistoryPrompt(entry.prompt)}
+                      <FotoVPromtCopyButton
+                        text={entry.prompt}
+                        idleLabel={t("historyCopyPrompt")}
                         className={`inline-flex min-h-9 items-center justify-center rounded-lg px-3 py-1.5 text-xs text-zinc-700 hover:bg-zinc-100 ${FVP_BORDER_INPUT} ${FVP_FOCUS_RING}`}
-                      >
-                        {t("historyCopyPrompt")}
-                      </button>
+                      />
                       <FotoVPromtGenerateButton
                         promptText={entry.prompt}
                         variant="sm"
@@ -1323,13 +1300,11 @@ export function PromptSceneLiteWidget({
             <p className="mt-1.5 text-center text-[0.65rem] text-zinc-600 sm:hidden">{t("resultScrollHint")}</p>
           </div>
           <div className="flex w-full flex-col gap-2.5 sm:flex-row sm:flex-wrap">
-            <button
-              type="button"
-              onClick={() => void copyPrompt()}
+            <FotoVPromtCopyButton
+              text={promptText}
+              idleLabel={t("copy")}
               className={`inline-flex min-h-11 w-full shrink-0 items-center justify-center rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-indigo-500 sm:w-auto sm:min-w-[10rem] ${FVP_FOCUS_RING}`}
-            >
-              {t("copy")}
-            </button>
+            />
             <FotoVPromtGenerateButton
               promptText={promptText}
               variant="md"

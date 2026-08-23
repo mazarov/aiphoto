@@ -71,6 +71,8 @@ export type WidgetCopyKey =
   | "analyzing"
   | "resultTitle"
   | "copy"
+  | "copied"
+  | "copyFailed"
   | "generate"
   | "tryAgain"
   | "errorConnection"
@@ -121,6 +123,8 @@ const WIDGET_COPY: Record<WidgetCopyKey, string> = {
   analyzing: "Делаем промт из референса…",
   resultTitle: "Ваш промт",
   copy: "Копировать промпт",
+  copied: "Скопировано",
+  copyFailed: "Не удалось скопировать",
   generate: "Сгенерировать",
   tryAgain: "Другой референс",
   errorConnection: "Не удалось подключиться. Проверьте интернет и попробуйте снова.",
@@ -187,6 +191,8 @@ export const PROMPT_REMIX_COPY = {
   submitting: "Переделываем промт…",
   resultLabel: "Изменённый промт",
   copy: "Копировать промпт",
+  copied: "Скопировано",
+  copyFailed: "Не удалось скопировать",
   tryAgain: "Изменить ещё раз",
   emptyChangeError: "Опишите, что нужно изменить в промте.",
   errorGeneric: "Что-то пошло не так. Попробуйте ещё раз.",

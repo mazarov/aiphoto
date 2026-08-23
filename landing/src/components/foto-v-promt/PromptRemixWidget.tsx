@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { getAiImageDescriberChromeUrl, getPromptRemixUrl, FOTO_V_PROMT_ANALYZE_LOCALE } from "@/lib/foto-v-promt-config";
 import { PROMPT_REMIX_COPY } from "@/lib/foto-v-promt-copy";
+import { FotoVPromtCopyButton } from "./FotoVPromtCopyButton";
 import { FotoVPromtGenerateButton } from "./FotoVPromtGenerateButton";
 import {
   FVP_BORDER_CARD,
@@ -100,14 +101,6 @@ export function PromptRemixWidget({ cardSlug }: Props) {
     }
   }, [changeRequest, originalPrompt, panel]);
 
-  const copyPrompt = async (text: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-    } catch {
-      /* ignore */
-    }
-  };
-
   const resetInput = () => {
     setChangeRequest("");
     setResultPrompt("");
@@ -203,13 +196,13 @@ export function PromptRemixWidget({ cardSlug }: Props) {
                 </pre>
               </div>
               <div className="flex w-full flex-col gap-2 sm:flex-row sm:flex-wrap">
-                <button
-                  type="button"
-                  onClick={() => void copyPrompt(resultPrompt)}
+                <FotoVPromtCopyButton
+                  text={resultPrompt}
+                  idleLabel={PROMPT_REMIX_COPY.copy}
+                  copiedLabel={PROMPT_REMIX_COPY.copied}
+                  failedLabel={PROMPT_REMIX_COPY.copyFailed}
                   className={`inline-flex min-h-11 w-full shrink-0 items-center justify-center rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-indigo-500 sm:w-auto sm:min-w-[10rem] ${FVP_FOCUS_RING}`}
-                >
-                  {PROMPT_REMIX_COPY.copy}
-                </button>
+                />
                 <FotoVPromtGenerateButton
                   promptText={resultPrompt}
                   variant="md"
