@@ -60,6 +60,29 @@ import {
 const GENERATION_CLIENT_SOURCE = "site" as const;
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+/** One select shape — a ternary here becomes a string union and breaks PostgREST types. */
+const PARENT_GENERATION_SELECT: string =
+  "id,status,requester_auth_user_id,result_storage_bucket,result_storage_path,modality,edit_kind,scene_root_id,model,aspect_ratio,image_size,prompt_text";
+
+type ParentGenerationRow = {
+  id: string;
+  status: string | null;
+  requester_auth_user_id: string | null;
+  result_storage_bucket: string | null;
+  result_storage_path: string | null;
+  modality: string | null;
+  edit_kind: string | null;
+  scene_root_id: string | null;
+  model: string | null;
+  aspect_ratio: string | null;
+  image_size: string | null;
+  prompt_text: string | null;
+};
+
+function asParentGenerationRow(row: unknown): ParentGenerationRow | null {
+  if (!row || typeof row !== "object") return null;
+  return row as ParentGenerationRow;
+}
 
 function toErrorMeta(err: unknown) {
   if (!(err instanceof Error)) return { message: String(err) };
@@ -276,16 +299,13 @@ export async function POST(req: NextRequest) {
 
     const supabase = createSupabaseServer();
     if (hasParentGeneration) {
-      const { data: parent, error: parentError } = await supabase
+      const { data: parentRaw, error: parentError } = await supabase
         .from("landing_generations")
-        .select(
-          isCameraOrbit
-            ? "id,status,requester_auth_user_id,result_storage_bucket,result_storage_path,modality,edit_kind,scene_root_id,model,aspect_ratio,image_size,prompt_text"
-            : "id,status,requester_auth_user_id,result_storage_bucket,result_storage_path,modality,model,aspect_ratio,image_size,prompt_text"
-        )
+        .select(PARENT_GENERATION_SELECT)
         .eq("id", normalizedParentGenerationId)
         .eq("requester_auth_user_id", callerId)
         .maybeSingle();
+      const parent = asParentGenerationRow(parentRaw);
       if (parentError) {
         console.error("[generation.create] parent lookup failed", {
           userId: callerId,
@@ -329,14 +349,13 @@ export async function POST(req: NextRequest) {
         const rootId = resolveSceneRootId(parent);
         let root = parent;
         if (rootId !== parent.id) {
-          const { data: rootRow, error: rootError } = await supabase
+          const { data: rootRaw, error: rootError } = await supabase
             .from("landing_generations")
-            .select(
-              "id,status,requester_auth_user_id,result_storage_bucket,result_storage_path,modality,edit_kind,scene_root_id,model,aspect_ratio,image_size,prompt_text"
-            )
+            .select(PARENT_GENERATION_SELECT)
             .eq("id", rootId)
             .eq("requester_auth_user_id", callerId)
             .maybeSingle();
+          const rootRow = asParentGenerationRow(rootRaw);
           if (rootError || !rootRow) {
             return NextResponse.json(
               { error: "forbidden", message: "Исходный кадр сцены недоступен" },
@@ -580,7 +599,7 @@ export async function POST(req: NextRequest) {
       ? (typeof prompt === "string" && prompt.trim().length >= minPromptLength
           ? prompt.trim()
           : inheritedRootPrompt)
-      : prompt.trim();
+      : String(prompt ?? "").trim();
     if (!promptText || promptText.length < minPromptLength) {
       return NextResponse.json(
         { error: "validation_error", message: "Промпт должен быть минимум 8 символов" },

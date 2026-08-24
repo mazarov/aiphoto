@@ -1251,9 +1251,9 @@ export function CardInlineGeneratePanel({
       }
       if (isCameraOrbit) {
         reachYandexMetrikaGoal(YM_GOAL_CAMERA_ORBIT_SUBMIT, {
-          azimuth: options?.cameraPose?.azimuthDeg,
-          elevation: options?.cameraPose?.elevationDeg,
-          distance: options?.cameraPose?.distanceRel,
+          azimuth: options?.cameraPose?.azimuthDeg ?? 0,
+          elevation: options?.cameraPose?.elevationDeg ?? 0,
+          distance: options?.cameraPose?.distanceRel ?? 1,
         });
       }
       setPhase("generating");
