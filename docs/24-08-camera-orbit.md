@@ -161,28 +161,21 @@ Worker держит копию контракта (`web-generation-worker/src/ca
 
 Не подмешивать `GENERATE_LANDING_CARD_EDIT_RULES` и Grok `EDIT_RULES` (там «keep camera»). Если кадр визуально тот же — промпт требует FAIL.
 
+Абстрактных «Azimuth: N°» Flash недостаточно: джоб `55f97a43` уже шёл как `camera_orbit`, модель скопировала кроп. Сериализация добавляет walk/reveal (LEFT cheek / shoulder). MUST CHANGE раньше LOCK. Gemini: `systemInstruction` + текст до картинки + подпись «SOURCE PHOTO… do not copy this crop». Local-edit и vibe — по-прежнему image-then-text.
+
 Gemini и Grok — один смысл, разный враппер:
 
 ```
 CAMERA ORBIT (HIGHEST PRIORITY)
-Rephotograph the SAME scene from a new camera position.
-This is a camera move only, not a new photoshoot.
+New photograph. Copying this crop is a failure.
 
 Camera (absolute vs the source photo):
-- Azimuth: {azimuthDeg} degrees ({left|right|on axis} of the subject).
-- Elevation: {elevationDeg} degrees ({higher|lower|same height}).
-- Distance: {distanceRel}× the source camera distance.
+- Azimuth: {azimuthDeg} degrees ({left|right|on axis}). Walk N° LEFT/RIGHT around the person.
+- Elevation / distance: raise/lower/step closer in plain language.
 
-LOCK — must survive:
-- Same person, face, body, hair, wardrobe, set, props, lighting, shadows, color grade.
-- Subject body facing, head pose, and gaze stay on the ORIGINAL world direction from the source photo.
-- Subject must NOT turn toward the new camera and must NOT make eye contact with the new lens.
-- Do not change expression.
+MUST CHANGE: new silhouette; more of the requested side; mirror selfie rebuilds room/phone.
 
-FORBIDDEN:
-- New identity, clothes, furniture, people, time of day, or restyle.
-- Head yaw/pitch to track the camera.
-- Inventing the back of the head beyond what the angle requires; if unseen, reconstruct conservatively without turning the head.
+LOCK: same person, clothes, room, light, expression; original world gaze; no head-turn to the new lens.
 ```
 
 `edit_instruction` в БД = эта сериализация (≤1000, сейчас ~500). `prompt_text` child = копия `prompt_text` корня (история / UGC / min 8 символов). Worker при `edit_kind=camera_orbit` **игнорирует** `prompt_text` как инструкцию съёмки.

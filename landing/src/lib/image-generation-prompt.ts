@@ -146,16 +146,23 @@ export function assembleLandingCardEditPrompt(editInstruction: string): string {
     .trim();
 }
 
+export const GEMINI_CAMERA_ORBIT_SYSTEM_INSTRUCTION =
+  "You operate a virtual camera. The attached photo is identity and set reference only. Output a different photograph from the requested viewpoint. Never return the input crop.";
+
 export const GENERATE_CAMERA_ORBIT_RULES = `
 CAMERA ORBIT RULES
-The provided image is the source photograph. Output exactly one new photorealistic photograph of the same scene from the requested camera position.
+The image is a reference for identity and set, not a crop to retouch. Output exactly one new photorealistic photograph.
 
-- This is a camera move, not a local retouch and not a new photoshoot.
-- The output MUST look like a different photograph. If crop, angle, and framing match the input, you FAILED. Show more of the requested side of the subject and different background occlusion.
-- Keep identity, wardrobe, set, lighting, shadows, color grade, and expression.
+MUST CHANGE first:
+- Walk the camera around the person. This is an orbit, not a pan and not a local edit.
+- The output MUST look like a different photograph. If crop, angle, and framing match the input, you FAILED.
+- New silhouette, new background occlusion, more of the requested side of the body.
+- Mirror or phone selfie: rebuild the room from the new viewpoint. Phone, mirror frame, and reflection must move or leave the frame. Do not paste the original mirror rectangle.
+
+Then lock:
+- Same person, wardrobe, set, lighting, shadows, color grade, and expression.
 - Keep the subject's body facing, head pose, and gaze on the original world direction. Do not turn the head to the new camera. Do not make eye contact with the new lens.
 - Do not invent new people, clothes, furniture, or a different time of day.
-- If the source is a mirror or phone selfie, reconstruct the reflection and device for the new camera. Do not paste the original mirror crop.
 `.trim();
 
 export function assembleCameraOrbitEditPrompt(editInstruction: string): string {

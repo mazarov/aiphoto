@@ -59,13 +59,13 @@ export function assembleGrokImageEditPrompt(editInstruction: string): string {
 }
 
 const CAMERA_ORBIT_RULES = [
-  "The provided image is the source photograph.",
-  "Output one new photorealistic photograph of the same scene from the requested camera position.",
-  "This is a camera move, not a local retouch. If crop and viewpoint match the input, you FAILED.",
+  "The image is identity and set reference only, not a crop to retouch.",
+  "Walk the camera around the person. Orbit, not pan, not local edit.",
+  "If crop and viewpoint match the input, you FAILED. New silhouette required.",
+  "Mirror selfie: rebuild room, phone, and reflection. Do not paste the same mirror rectangle.",
   "Keep identity, wardrobe, set, lighting, and expression.",
   "Keep the original head pose and gaze. Do not turn the subject toward the new camera.",
   "Do not make the subject look at the new lens.",
-  "If the source is a mirror selfie, update the reflection and phone to the new viewpoint.",
 ].join("\n");
 
 export function assembleGrokCameraOrbitPrompt(editInstruction: string): string {

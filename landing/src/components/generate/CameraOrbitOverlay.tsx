@@ -115,6 +115,7 @@ export function CameraOrbitOverlay({
   }, []);
 
   useEffect(() => {
+    if (capturing) return;
     let cancelled = false;
     void (async () => {
       try {
@@ -137,7 +138,16 @@ export function CameraOrbitOverlay({
         if (typeof data.creditCost === "number") setCreditCost(data.creditCost);
         const current =
           nextShots.find((shot) => shot.id === data.displayedId) || nextShots[0];
-        if (current) setPose(current.cameraPose);
+        if (!current) return;
+        // Missing camera_pose on an orbit row must not wipe the pose we just shot.
+        if (
+          current.role === "orbit" &&
+          isNeutralCameraPose(current.cameraPose) &&
+          !isNeutralCameraPose(poseRef.current)
+        ) {
+          return;
+        }
+        setPose(current.cameraPose);
       } catch (err) {
         if (!cancelled) {
           setError(err instanceof Error ? err.message : "Не удалось загрузить сцену");
@@ -147,7 +157,7 @@ export function CameraOrbitOverlay({
     return () => {
       cancelled = true;
     };
-  }, [generationId]);
+  }, [generationId, capturing]);
 
   const restoreRootAndClose = useCallback(() => {
     const root = shots.find((shot) => shot.role === "root") || shots[0];
@@ -329,8 +339,12 @@ export function CameraOrbitOverlay({
       />
 
       <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center px-3">
-        <p className="max-w-[min(100%,20rem)] rounded-full bg-black/50 px-4 py-2 text-center text-[13px] font-semibold text-white shadow-lg ring-1 ring-white/20 backdrop-blur-md">
-          {formatCameraOrbitGhost(pose)}
+        <p className="max-w-[min(100%,22rem)] rounded-full bg-black/50 px-4 py-2 text-center text-[13px] font-semibold text-white shadow-lg ring-1 ring-white/20 backdrop-blur-md">
+          {capturing
+            ? `Снимаем: ${formatCameraOrbitGhost(pose)}`
+            : isNeutralCameraPose(pose)
+              ? "Исходный ракурс · сдвиньте камеру, затем «Снять кадр»"
+              : formatCameraOrbitGhost(pose)}
         </p>
       </div>
 

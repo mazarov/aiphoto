@@ -55,6 +55,7 @@ test("camera orbit prompt does not reuse local-edit keep-camera rules", () => {
     "CAMERA ORBIT (HIGHEST PRIORITY)\nAzimuth: 30 degrees",
   );
   assert.match(prompt, /CAMERA ORBIT RULES/);
+  assert.match(prompt, /MUST CHANGE first/);
   assert.match(prompt, /Do not turn the head/);
   assert.doesNotMatch(prompt, /LOCAL IMAGE EDIT RULES/);
   assert.doesNotMatch(prompt, /Keep everything else exactly the same/);
@@ -64,7 +65,7 @@ test("camera orbit prompt does not reuse local-edit keep-camera rules", () => {
 test("grok camera orbit prompt does not keep the source camera", () => {
   const orbit = assembleGrokCameraOrbitPrompt("Azimuth: 30 degrees");
   const local = assembleGrokImageEditPrompt("Add glasses");
-  assert.match(orbit, /camera move/i);
+  assert.match(orbit, /Walk the camera/i);
   assert.doesNotMatch(orbit, /Keep everything else the same[\s\S]*camera/);
   assert.match(local, /crop, and camera/);
 });

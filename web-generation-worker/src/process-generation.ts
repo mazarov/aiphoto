@@ -6,6 +6,7 @@ import {
   assembleLandingCardFinalPrompt,
   assembleTextToImageFinalPrompt,
   assembleVibeFinalPrompt,
+  GEMINI_CAMERA_ORBIT_SYSTEM_INSTRUCTION,
   VIBE_IMAGE_PART_LABEL_REFERENCE,
   VIBE_IMAGE_PART_LABEL_SUBJECT,
 } from "../../landing/src/lib/image-generation-prompt";
@@ -69,6 +70,7 @@ export type GenerationJob = GenerationInputJob & {
   create_ugc: boolean;
   edit_instruction: string | null;
   edit_kind?: string | null;
+  camera_pose?: { azimuthDeg?: number; elevationDeg?: number; distanceRel?: number } | null;
   modality?: string | null;
   duration_seconds?: number | null;
   provider_operation_id?: string | null;
@@ -313,6 +315,7 @@ export async function processGeneration(
     ...context,
     generationMode,
     editKind: job.edit_kind ?? null,
+    cameraPose: job.camera_pose ?? null,
     editInstructionLength: editInstruction.length,
     promptLength: geminiPrompt.length,
   });
@@ -347,6 +350,8 @@ export async function processGeneration(
         prompt: geminiPrompt,
         inputParts,
         reference: hasReference ? reference : null,
+        promptFirst: isCameraOrbit,
+        systemInstruction: isCameraOrbit ? GEMINI_CAMERA_ORBIT_SYSTEM_INSTRUCTION : null,
         signal,
         context,
         ensureLease,
@@ -433,6 +438,8 @@ async function generateGeminiImage(input: {
   prompt: string;
   inputParts: ImagePart[];
   reference: ImagePart | null;
+  promptFirst?: boolean;
+  systemInstruction?: string | null;
   signal: AbortSignal;
   context: ProviderContext;
   ensureLease: () => Promise<void>;
@@ -441,6 +448,9 @@ async function generateGeminiImage(input: {
   if (!config.geminiApiKey) {
     throw new ProcessingError("config_error", "GEMINI_API_KEY is not configured", false);
   }
+  const sourceLabel = {
+    text: "SOURCE PHOTO (identity and set reference only — do not copy this crop):",
+  };
   const parts: RequestPart[] =
     input.reference
       ? [
@@ -450,7 +460,13 @@ async function generateGeminiImage(input: {
           ...input.inputParts,
           { text: input.prompt },
         ]
-      : [...input.inputParts, { text: input.prompt }];
+      : input.promptFirst
+        ? [
+            { text: input.prompt },
+            sourceLabel,
+            ...input.inputParts,
+          ]
+        : [...input.inputParts, { text: input.prompt }];
   const base = await geminiBaseUrl(input.supabase);
   const geminiUrl = `${base.url}/v1beta/models/${input.job.model}:generateContent`;
   await input.ensureLease();
@@ -460,6 +476,7 @@ async function generateGeminiImage(input: {
     proxy: base.proxy,
     partCount: parts.length,
     hasReference: Boolean(input.reference),
+    promptFirst: Boolean(input.promptFirst),
   });
 
   let response: Response;
@@ -471,6 +488,14 @@ async function generateGeminiImage(input: {
         "x-goog-api-key": config.geminiApiKey,
       },
       body: JSON.stringify({
+        ...(input.systemInstruction
+          ? {
+              systemInstruction: {
+                role: "system",
+                parts: [{ text: input.systemInstruction }],
+              },
+            }
+          : {}),
         contents: [{ role: "user", parts }],
         generationConfig: {
           responseModalities: ["IMAGE"],

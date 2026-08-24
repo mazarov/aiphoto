@@ -1,5 +1,11 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-08-24 (**camera orbit panel:** бейдж — задание следующего кадра, не live-3D. После съёмки не сбрасывать позу в нейтраль, если у orbit-ряда нет `camera_pose`. Снимок меняет фото, не клик оси. Спека `docs/24-08-camera-orbit.md`.
+>
+> Последнее обновление: 2026-08-24 (**camera orbit SQL 213:** повторный прогон `212` падает с `42723` — `CREATE FUNCTION` после DROP только старой 22-arg сигнатуры. На проде гонять `sql/213_camera_orbit_enqueue_replace.sql` (`CREATE OR REPLACE` + DROP обеих сигнатур). `212` не перезапускать.
+>
+> Последнее обновление: 2026-08-24 (**camera orbit I2I:** после верной классификации `camera_orbit` Gemini Flash всё ещё копировал кроп (джоб `55f97a43`, корень `8dcda05d`). Контракт орбиты теперь описывает walk/reveal, MUST CHANGE раньше LOCK; Gemini: systemInstruction + текст до картинки. Local-edit не трогаем. Спека `docs/24-08-camera-orbit.md`.
+>
 > Последнее обновление: 2026-08-24 (**worker Docker camera-orbit:** Dockhost собирает `docker build -f Dockerfile.worker .`. В образ надо копировать каждый файл из `web-generation-worker/tsconfig.json` include, включая `camera-orbit.ts`. Иначе `tsc` в образе — `TS2307`. Тот же список — в `web-generation-worker/Dockerfile`.
 >
 > Последнее обновление: 2026-08-24 (**camera orbit UI:** оверлей ракурса использует тот же `GenerationResultActionRail`. Клик оси += 30° (повтор копит, clamp ±60). Ghost по центру на подложке (`Камера слева 30°, высота как была`). Одна CTA `Снять кадр · N`. «Выйти» / X возвращают на исходник сцены. Спека `docs/24-08-camera-orbit.md`.

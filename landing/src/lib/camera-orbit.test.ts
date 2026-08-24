@@ -59,6 +59,11 @@ test("parseCameraPose requires three finite numbers", () => {
     elevationDeg: -2,
     distanceRel: 0.9,
   });
+  assert.deepEqual(parseCameraPose({ azimuth_deg: 10, elevation_deg: -2, distance_rel: 0.9 }), {
+    azimuthDeg: 10,
+    elevationDeg: -2,
+    distanceRel: 0.9,
+  });
 });
 
 test("resolveSceneRootId walks camera children and keeps remix as root", () => {
@@ -91,8 +96,17 @@ test("serializeCameraOrbitInstruction locks gaze and stays under 1000 chars", ()
   assert.match(text, /must NOT turn toward the new camera/);
   assert.match(text, /must NOT make eye contact/);
   assert.match(text, /you FAILED/);
-  assert.match(text, /mirror selfie/);
+  assert.match(text, /mirror selfie/i);
+  assert.match(text, /MUST CHANGE/);
+  assert.match(text, /Walk 30° LEFT/);
+  assert.match(text, /LEFT cheek/);
   assert.doesNotMatch(text, /look at the new camera as a requirement/i);
+  const wide = serializeCameraOrbitInstruction({
+    azimuthDeg: 60,
+    elevationDeg: -48,
+    distanceRel: 0.75,
+  });
+  assert.ok(wide.length <= 1000, `orbit instruction ${wide.length} > 1000`);
 });
 
 test("resolveImageEditMode treats CAMERA ORBIT text as orbit even without edit_kind", () => {

@@ -93,9 +93,9 @@ export function resolveImageEditMode(input: {
 export function parseCameraPose(raw: unknown): CameraPose | null {
   if (!raw || typeof raw !== "object") return null;
   const row = raw as Record<string, unknown>;
-  const azimuthDeg = Number(row.azimuthDeg);
-  const elevationDeg = Number(row.elevationDeg);
-  const distanceRel = Number(row.distanceRel);
+  const azimuthDeg = Number(row.azimuthDeg ?? row.azimuth_deg);
+  const elevationDeg = Number(row.elevationDeg ?? row.elevation_deg);
+  const distanceRel = Number(row.distanceRel ?? row.distance_rel);
   if (![azimuthDeg, elevationDeg, distanceRel].every(Number.isFinite)) {
     return null;
   }
@@ -218,6 +218,26 @@ export function formatCameraOrbitGhost(pose: CameraPose): string {
   return parts.join(", ");
 }
 
+function orbitWalkLine(pose: CameraPose): string {
+  if (pose.azimuthDeg > 0) {
+    return `Walk ${pose.azimuthDeg}° LEFT around the person (orbit, not a pan).`;
+  }
+  if (pose.azimuthDeg < 0) {
+    return `Walk ${-pose.azimuthDeg}° RIGHT around the person (orbit, not a pan).`;
+  }
+  return "Stay on the original left-right axis.";
+}
+
+function orbitRevealLine(pose: CameraPose): string {
+  if (pose.azimuthDeg > 0) {
+    return "more LEFT cheek, left ear, left shoulder, and left background";
+  }
+  if (pose.azimuthDeg < 0) {
+    return "more RIGHT cheek, right ear, right shoulder, and right background";
+  }
+  return "a new silhouette via height/distance (do not keep the source outline)";
+}
+
 export function serializeCameraOrbitInstruction(pose: CameraPose): string {
   const q = clampCameraPose(pose);
   const side =
@@ -232,22 +252,27 @@ export function serializeCameraOrbitInstruction(pose: CameraPose): string {
       : q.elevationDeg < 0
         ? "lower than the source"
         : "same height";
+  const lift =
+    q.elevationDeg > 0
+      ? `Raise ${q.elevationDeg}° (more ceiling).`
+      : q.elevationDeg < 0
+        ? `Lower ${-q.elevationDeg}° (more floor).`
+        : "Same height.";
+  const zoom =
+    q.distanceRel < 0.97
+      ? `Closer (${q.distanceRel}×).`
+      : q.distanceRel > 1.03
+        ? `Farther (${q.distanceRel}×).`
+        : "Same distance.";
   return [
     "CAMERA ORBIT (HIGHEST PRIORITY)",
-    "Output a NEW photograph of the SAME scene from a DIFFERENT camera. If crop and viewpoint match the input, you FAILED.",
-    "",
-    "Camera (absolute vs the source photo):",
-    `- Azimuth: ${q.azimuthDeg} degrees (${side}).`,
-    `- Elevation: ${q.elevationDeg} degrees (${height}).`,
-    `- Distance: ${q.distanceRel}× the source camera distance.`,
-    "",
-    "LOCK — must survive:",
-    "- Same person, face, body, hair, wardrobe, set, props, lighting, shadows, color grade, expression.",
-    "- Subject body facing, head pose, and gaze stay on the ORIGINAL world direction from the source photo.",
-    "- Subject must NOT turn toward the new camera and must NOT make eye contact with the new lens.",
-    "If the source is a mirror selfie, update the mirror, phone, and reflection. Do not copy the same mirror crop.",
-    "",
-    "FORBIDDEN: new identity, clothes, furniture, people, restyle, or turning the head to track the camera.",
+    "NEW photograph of the same scene. If crop and viewpoint match the input, you FAILED.",
+    `- Azimuth: ${q.azimuthDeg} degrees (${side}). ${orbitWalkLine(q)}`,
+    `- Elevation: ${q.elevationDeg} degrees (${height}). ${lift}`,
+    `- Distance: ${q.distanceRel}×. ${zoom}`,
+    `MUST CHANGE: ${orbitRevealLine(q)}; new silhouette. Mirror selfie: rebuild room, phone, reflection; do not paste the same mirror crop.`,
+    "LOCK: same person, wardrobe, set, light, expression. Body and gaze stay on the ORIGINAL world direction. Subject must NOT turn toward the new camera and must NOT make eye contact with the new lens.",
+    "FORBIDDEN: new identity, restyle, or the source crop.",
   ].join("\n");
 }
 
