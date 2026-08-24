@@ -10,6 +10,7 @@
     "resolveJsonModule": true,
     "skipLibCheck": true
   },
+  // COPY every path below in Dockerfile.worker and web-generation-worker/Dockerfile.
   "include": [
     "src/**/*",
     "../landing/src/lib/image-generation-prompt.ts",
