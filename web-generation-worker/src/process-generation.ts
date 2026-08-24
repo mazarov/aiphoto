@@ -17,7 +17,10 @@ import {
   assembleGrokTextToImagePrompt,
   assembleGrokVibePrompt,
 } from "../../landing/src/lib/grok-image-prompt";
-import { resolveImageEditMode } from "../../landing/src/lib/camera-orbit";
+import {
+  resolveCameraOrbitScenePrompt,
+  resolveImageEditMode,
+} from "../../landing/src/lib/camera-orbit";
 import { getVibeAttachReferenceImage } from "./lib/vibe-config";
 import { errorFields, log } from "./lib/logger";
 import {
@@ -296,7 +299,13 @@ export async function processGeneration(
   const geminiPrompt = isVibe
     ? assembleVibeFinalPrompt(rawPrompt, hasReference)
     : isCameraOrbit
-      ? assembleCameraOrbitEditPrompt(editInstruction)
+      ? assembleCameraOrbitEditPrompt(
+          resolveCameraOrbitScenePrompt({
+            promptText: rawPrompt,
+            editInstruction,
+            cameraPose: job.camera_pose,
+          }),
+        )
       : isLocalEdit
         ? assembleLandingCardEditPrompt(editInstruction)
         : inputParts.length
@@ -305,7 +314,13 @@ export async function processGeneration(
   const grokPrompt = isVibe
     ? assembleGrokVibePrompt(rawPrompt, hasReference)
     : isCameraOrbit
-      ? assembleGrokCameraOrbitPrompt(editInstruction)
+      ? assembleGrokCameraOrbitPrompt(
+          resolveCameraOrbitScenePrompt({
+            promptText: rawPrompt,
+            editInstruction,
+            cameraPose: job.camera_pose,
+          }),
+        )
       : isLocalEdit
         ? assembleGrokImageEditPrompt(editInstruction)
         : inputParts.length
@@ -317,6 +332,7 @@ export async function processGeneration(
     editKind: job.edit_kind ?? null,
     cameraPose: job.camera_pose ?? null,
     editInstructionLength: editInstruction.length,
+    scenePromptLength: rawPrompt.length,
     promptLength: geminiPrompt.length,
   });
   if (!job.model || !job.aspect_ratio || !job.image_size) {

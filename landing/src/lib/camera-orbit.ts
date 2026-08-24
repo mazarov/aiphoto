@@ -290,3 +290,165 @@ export function cameraOrbitFingerprintFields(
     cameraPose: quantizeCameraPose(pose),
   };
 }
+
+const SECTION_HEADING_RE = /^([A-Za-z][A-Za-z0-9 /&-]{0,60}):\s*$/;
+
+type LabeledSection = {
+  heading: string | null;
+  headingLine: string | null;
+  body: string;
+};
+
+function splitLabeledSections(prompt: string): LabeledSection[] {
+  const lines = String(prompt || "").replace(/\r\n/g, "\n").split("\n");
+  const sections: LabeledSection[] = [];
+  let current: LabeledSection = { heading: null, headingLine: null, body: "" };
+  const flush = () => {
+    const body = current.body.replace(/^\n+/, "").replace(/\n+$/, "");
+    if (current.heading || body) sections.push({ ...current, body });
+  };
+  for (const line of lines) {
+    const match = line.trim().match(SECTION_HEADING_RE);
+    if (match) {
+      flush();
+      current = { heading: match[1], headingLine: line.trim(), body: "" };
+      continue;
+    }
+    current.body = current.body ? `${current.body}\n${line}` : line;
+  }
+  flush();
+  return sections;
+}
+
+function joinLabeledSections(sections: LabeledSection[]): string {
+  return sections
+    .map((section) =>
+      section.headingLine
+        ? `${section.headingLine}\n${section.body}`.trim()
+        : section.body,
+    )
+    .filter((block) => block.trim().length > 0)
+    .join("\n\n")
+    .trim();
+}
+
+export function buildCameraOrbitChangeRequest(pose: CameraPose): string {
+  const q = clampCameraPose(pose);
+  return [
+    `Rephotograph the same scene from a new camera. ${orbitWalkLine(q)}`,
+    q.elevationDeg > 0
+      ? `Raise the camera ${q.elevationDeg}°.`
+      : q.elevationDeg < 0
+        ? `Lower the camera ${-q.elevationDeg}°.`
+        : "Keep the same camera height.",
+    q.distanceRel < 0.97
+      ? `Step closer (${q.distanceRel}×).`
+      : q.distanceRel > 1.03
+        ? `Step back (${q.distanceRel}×).`
+        : "Keep the same camera distance.",
+    `Framing must show ${orbitRevealLine(q)}.`,
+    "Rewrite Camera, Composition, Pose, Scene, Visual Hook, and Avoid for this viewpoint.",
+    "Remove front-on, mirror-selfie-centered, and looking-at-the-lens language.",
+    "Body and gaze stay on the original world direction. Do not turn the subject to the new camera.",
+  ].join(" ");
+}
+
+export function neutralizeFrontalPromptLanguage(text: string, pose: CameraPose): string {
+  const q = clampCameraPose(pose);
+  const view =
+    q.azimuthDeg > 0
+      ? "a three-quarter view from the left"
+      : q.azimuthDeg < 0
+        ? "a three-quarter view from the right"
+        : "a viewpoint that does not copy the source crop";
+  return String(text || "")
+    .replace(/\bfacing the (?:camera|lens)\b/gi, "facing the original world direction")
+    .replace(/\blook(?:s|ing)? (?:at|into|to) the (?:camera|lens)\b/gi, "gaze locked on the original world direction")
+    .replace(/\beye contact with the (?:camera|lens|viewer)\b/gi, "no eye contact with the new lens")
+    .replace(/\blooking (?:directly )?at the viewer\b/gi, "gaze on the original world direction")
+    .replace(/\bfront(?:al)?(?:-on)? (?:view|portrait|shot|angle)\b/gi, view)
+    .replace(/\bhead[- ]on\b/gi, view)
+    .replace(/\bmirror selfie\b/gi, `the same room, photographed as ${view}; not a pasted mirror crop`)
+    .replace(/\bselfie\b/gi, "photograph from the new camera")
+    .replace(/\bcentered in (?:the )?frame\b/gi, "placed for the new camera crop");
+}
+
+function orbitCameraSection(pose: CameraPose): string {
+  const q = clampCameraPose(pose);
+  return [
+    `${orbitWalkLine(q)} Elevation ${q.elevationDeg}°. Distance ${q.distanceRel}× the source.`,
+    `This is a new photograph, not a crop of the source. Show ${orbitRevealLine(q)}.`,
+  ].join(" ");
+}
+
+function orbitCompositionSection(pose: CameraPose): string {
+  return [
+    `New silhouette and background occlusion. Show ${orbitRevealLine(pose)}.`,
+    "The opposite edge of the source crop may leave the frame. Do not keep the source framing.",
+  ].join(" ");
+}
+
+/** Full scene brief for I2I. Not just the camera field — Camera/Pose/Composition/Avoid adapt too. */
+export function rewriteScenePromptForCameraOrbit(
+  rootPrompt: string,
+  pose: CameraPose,
+): string {
+  const q = clampCameraPose(pose);
+  const source = String(rootPrompt || "").trim();
+  const neutralized = neutralizeFrontalPromptLanguage(source, q);
+  const sections = splitLabeledSections(neutralized);
+  const hasLabels = sections.some((section) => Boolean(section.heading));
+  const scene = hasLabels
+    ? joinLabeledSections(
+        sections.map((section) => {
+          const heading = String(section.heading || "").trim().toLowerCase();
+          if (heading === "camera") {
+            return { ...section, body: orbitCameraSection(q) };
+          }
+          if (heading === "composition") {
+            return { ...section, body: orbitCompositionSection(q) };
+          }
+          if (heading === "pose") {
+            return {
+              ...section,
+              body: [
+                section.body.trim(),
+                "Torso, head, and gaze stay on the original world direction. Do not turn toward the new lens.",
+                `New camera reveals ${orbitRevealLine(q)}.`,
+              ]
+                .filter(Boolean)
+                .join(" "),
+            };
+          }
+          if (heading === "avoid") {
+            return {
+              ...section,
+              body: `${section.body.trim()} Copying the source crop, keeping the original camera, turning the head to the new lens.`,
+            };
+          }
+          if (heading === "visual hook") {
+            return {
+              ...section,
+              body: `${section.body.trim()} Photographed from the new camera, not the source crop.`,
+            };
+          }
+          return section;
+        }),
+      )
+    : neutralized;
+  return [serializeCameraOrbitInstruction(q), "", scene].join("\n").trim();
+}
+
+/** Worker: use rewritten prompt_text when present; otherwise rewrite the root brief now. */
+export function resolveCameraOrbitScenePrompt(input: {
+  promptText?: string | null;
+  editInstruction?: string | null;
+  cameraPose?: unknown;
+}): string {
+  const scene = String(input.promptText || "").trim();
+  const instruction = String(input.editInstruction || "").trim();
+  const pose = parseCameraPose(input.cameraPose);
+  if (looksLikeCameraOrbitInstruction(scene)) return scene;
+  if (pose && scene) return rewriteScenePromptForCameraOrbit(scene, pose);
+  return [instruction, scene].filter(Boolean).join("\n\n").trim();
+}

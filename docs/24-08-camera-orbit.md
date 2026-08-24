@@ -178,7 +178,7 @@ MUST CHANGE: new silhouette; more of the requested side; mirror selfie rebuilds 
 LOCK: same person, clothes, room, light, expression; original world gaze; no head-turn to the new lens.
 ```
 
-`edit_instruction` в БД = эта сериализация (≤1000, сейчас ~500). `prompt_text` child = копия `prompt_text` корня (история / UGC / min 8 символов). Worker при `edit_kind=camera_orbit` **игнорирует** `prompt_text` как инструкцию съёмки.
+`edit_instruction` в БД = короткая сериализация позы (≤1000, классификация). `prompt_text` child = **полный бриф, переписанный под ракурс** (не копия корня и не одно поле Camera). На enqueue: LLM rewrite секций Camera/Pose/Composition/Scene/Avoid, fallback `rewriteScenePromptForCameraOrbit`. Worker: `resolveCameraOrbitScenePrompt` — если `prompt_text` уже с `CAMERA ORBIT`, брать его; иначе переписать root-бриф по `camera_pose`. I2I = этот бриф + `CAMERA ORBIT RULES`.
 
 ### 2.6 Модель, кадр, кредиты
 

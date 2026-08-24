@@ -12,7 +12,9 @@ import {
   isNeutralCameraPose,
   parseCameraPose,
   quantizeCameraPose,
+  resolveCameraOrbitScenePrompt,
   resolveSceneRootId,
+  rewriteScenePromptForCameraOrbit,
   serializeCameraOrbitInstruction,
   validateCameraPoseRange,
 } from "./camera-orbit";
@@ -197,4 +199,46 @@ test("ghost copy is Russian and marks the source frame", () => {
     "Камера слева 30°, выше 30°, ближе",
   );
   assert.equal(isNeutralCameraPose({ azimuthDeg: 0, elevationDeg: 0, distanceRel: 1.001 }), true);
+});
+
+test("rewriteScenePromptForCameraOrbit rewrites Camera and frontal language", () => {
+  const rewritten = rewriteScenePromptForCameraOrbit(
+    [
+      "Visual Hook:",
+      "A defiant mirror selfie.",
+      "",
+      "Scene:",
+      "The subject is taking a mirror selfie facing the camera.",
+      "",
+      "Pose:",
+      "Torso facing the camera, looking at the lens.",
+      "",
+      "Camera:",
+      "Front-on phone selfie, 26mm, subject centered in frame.",
+      "",
+      "Composition:",
+      "Tight frontal crop.",
+      "",
+      "Avoid:",
+      "Cartoon look.",
+    ].join("\n"),
+    { azimuthDeg: 60, elevationDeg: 0, distanceRel: 1.15 },
+  );
+  assert.match(rewritten, /CAMERA ORBIT/);
+  assert.match(rewritten, /Walk 60° LEFT/);
+  assert.match(rewritten, /three-quarter view from the left/i);
+  assert.match(rewritten, /original world direction/);
+  assert.doesNotMatch(rewritten, /Front-on phone selfie/);
+  assert.match(rewritten, /New silhouette/);
+});
+
+test("resolveCameraOrbitScenePrompt rewrites a stale root brief", () => {
+  const resolved = resolveCameraOrbitScenePrompt({
+    promptText: "Front-on portrait facing the camera in a bathroom.",
+    editInstruction: "CAMERA ORBIT leftover",
+    cameraPose: { azimuthDeg: 30, elevationDeg: 0, distanceRel: 1 },
+  });
+  assert.match(resolved, /CAMERA ORBIT \(HIGHEST PRIORITY\)/);
+  assert.match(resolved, /Walk 30° LEFT/);
+  assert.match(resolved, /original world direction/);
 });

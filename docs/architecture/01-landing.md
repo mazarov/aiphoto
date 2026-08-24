@@ -1,5 +1,7 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-08-24 (**camera orbit full prompt:** орбита больше не шлёт в I2I только поле камеры. `prompt_text` child = переписанный бриф сцены (Camera/Pose/Composition/Avoid + нейтрализация frontal/selfie). Worker собирает I2I из этого брифа. LLM-rewrite на enqueue, fallback детерминированный. Спека `docs/24-08-camera-orbit.md`.
+>
 > Последнее обновление: 2026-08-24 (**camera orbit panel:** бейдж — задание следующего кадра, не live-3D. После съёмки не сбрасывать позу в нейтраль, если у orbit-ряда нет `camera_pose`. Снимок меняет фото, не клик оси. Спека `docs/24-08-camera-orbit.md`.
 >
 > Последнее обновление: 2026-08-24 (**camera orbit SQL 213:** повторный прогон `212` падает с `42723` — `CREATE FUNCTION` после DROP только старой 22-arg сигнатуры. На проде гонять `sql/213_camera_orbit_enqueue_replace.sql` (`CREATE OR REPLACE` + DROP обеих сигнатур). `212` не перезапускать.

@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+
+export const maxDuration = 60;
 import { createHash } from "node:crypto";
 import { readAcquisitionRequestIds } from "@/lib/acquisition-request";
 import { createSupabaseServer } from "@/lib/supabase";
@@ -22,9 +24,11 @@ import {
   parseCameraPose,
   resolveSceneRootId,
   serializeCameraOrbitInstruction,
+  rewriteScenePromptForCameraOrbit,
   validateCameraPoseRange,
   type CameraPose,
 } from "@/lib/camera-orbit";
+import { rewriteCameraOrbitScenePrompt } from "@/lib/camera-orbit-rewrite";
 import { isCameraOrbitUnlocked } from "@/lib/camera-orbit-access";
 import {
   normalizeGenerationSurface,
@@ -595,11 +599,18 @@ export async function POST(req: NextRequest) {
     const guestMode = Boolean(user && isStvGuestUser(user));
     /** Open-debug and guest: never charge. */
     const creditsCharged = openDebug || guestMode ? 0 : creditsNeeded;
-    const promptText = isCameraOrbit
-      ? (typeof prompt === "string" && prompt.trim().length >= minPromptLength
-          ? prompt.trim()
-          : inheritedRootPrompt)
-      : String(prompt ?? "").trim();
+    let orbitPromptRewrite: "llm" | "deterministic" | "none" = "none";
+    let promptText = String(prompt ?? "").trim();
+    if (isCameraOrbit && cameraOrbitPose) {
+      const rootBrief = inheritedRootPrompt || promptText;
+      const rewritten = await rewriteCameraOrbitScenePrompt({
+        rootPrompt: rootBrief,
+        pose: cameraOrbitPose,
+        supabase,
+      });
+      promptText = rewritten.prompt || rewriteScenePromptForCameraOrbit(rootBrief, cameraOrbitPose);
+      orbitPromptRewrite = rewritten.mode;
+    }
     if (!promptText || promptText.length < minPromptLength) {
       return NextResponse.json(
         { error: "validation_error", message: "Промпт должен быть минимум 8 символов" },
@@ -700,6 +711,7 @@ export async function POST(req: NextRequest) {
       parentGenerationId: normalizedParentGenerationId || null,
       sceneRootId: cameraOrbitSceneRootId,
       cameraPose: cameraOrbitPose,
+      orbitPromptRewrite,
       editInstructionLength: normalizedEditInstruction.length,
       promptLength: promptText.length,
     });
@@ -728,6 +740,7 @@ export async function POST(req: NextRequest) {
       parentGenerationId: normalizedParentGenerationId || null,
       sceneRootId: cameraOrbitSceneRootId,
       cameraPose: cameraOrbitPose,
+      orbitPromptRewrite,
       editInstructionLength: normalizedEditInstruction.length,
       promptLength: promptText.length,
     });
