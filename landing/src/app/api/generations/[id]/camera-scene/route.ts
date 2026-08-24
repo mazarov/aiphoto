@@ -10,7 +10,7 @@ import {
   resolveSceneRootId,
 } from "@/lib/camera-orbit";
 import { parseEnabledGenerationModels } from "@/lib/generation-model-labels";
-import { isCameraOrbitUnlocked } from "@/lib/camera-orbit-access";
+import { isCameraOrbitUnlocked, resolveCameraOrbitModel } from "@/lib/camera-orbit-access";
 
 export async function GET(
   req: NextRequest,
@@ -96,15 +96,11 @@ export async function GET(
     const { data: configRows } = await supabase
       .from("landing_generation_config")
       .select("key, value")
-      .in("key", ["models", "default_model", "camera_orbit_enabled"]);
+      .in("key", ["models", "camera_orbit_enabled", "camera_orbit_model"]);
     const config: Record<string, string> = {};
     for (const row of configRows || []) config[row.key] = row.value;
     const models = parseEnabledGenerationModels(config.models);
-    const rootModel = String(root.model || "");
-    const modelConfig =
-      models.find((item) => item.id === rootModel)
-      || models.find((item) => item.id === config.default_model)
-      || models[0];
+    const modelConfig = resolveCameraOrbitModel(config.camera_orbit_model, models);
 
     const toShot = (
       row: {
@@ -141,7 +137,7 @@ export async function GET(
       {
         rootId: root.id,
         displayedId: displayed.id,
-        creditCost: modelConfig?.cost ?? 5,
+        creditCost: modelConfig?.cost ?? 10,
         cameraOrbitEnabled: isCameraOrbitUnlocked(
           config.camera_orbit_enabled,
           user.email,

@@ -213,6 +213,7 @@ export function CardInlineGeneratePanel({
     () => readCachedCameraOrbitEnabled() === true
   );
   const [cameraOrbitOpen, setCameraOrbitOpen] = useState(false);
+  const [cameraOrbitCreditCost, setCameraOrbitCreditCost] = useState(10);
   const [videoModels, setVideoModels] = useState<ModelOpt[]>([]);
   const [videoModel, setVideoModel] = useState(DEFAULT_VIDEO_MODEL);
   const [videoAspectRatio, setVideoAspectRatio] = useState(DEFAULT_VIDEO_ASPECT_RATIO);
@@ -553,6 +554,7 @@ export function CardInlineGeneratePanel({
           defaults?: { model?: string; aspectRatio?: string; imageSize?: string };
           limits?: { maxPhotos?: number };
           cameraOrbitEnabled?: boolean;
+          cameraOrbitModel?: { id?: string; cost?: number } | null;
         };
         const photosData = (await photosRes.json().catch(() => ({}))) as {
           photos?: UserPhoto[];
@@ -600,6 +602,11 @@ export function CardInlineGeneratePanel({
         const nextCameraOrbitEnabled = Boolean(configData.cameraOrbitEnabled);
         writeCachedCameraOrbitEnabled(nextCameraOrbitEnabled);
         setCameraOrbitEnabled(nextCameraOrbitEnabled);
+        setCameraOrbitCreditCost(
+          typeof configData.cameraOrbitModel?.cost === "number"
+            ? configData.cameraOrbitModel.cost
+            : 10,
+        );
         const nextVideoModels = Array.isArray(videoConfigData.models)
           ? videoConfigData.models
           : [];
@@ -1165,9 +1172,11 @@ export function CardInlineGeneratePanel({
       setError("Опишите, что изменить");
       return false;
     }
-    const prompt = (options?.promptOverride ?? draftPrompt).trim()
-      || (isVideo ? DEFAULT_VIDEO_PROMPT : "");
-    if (prompt.length < 8) {
+    const prompt = isCameraOrbit
+      ? "CAMERA ORBIT"
+      : (options?.promptOverride ?? draftPrompt).trim()
+        || (isVideo ? DEFAULT_VIDEO_PROMPT : "");
+    if (!isCameraOrbit && prompt.length < 8) {
       setError("Промпт слишком короткий");
       return false;
     }
@@ -1247,6 +1256,9 @@ export function CardInlineGeneratePanel({
           reachYandexMetrikaGoal(YM_GOAL_CAMERA_ORBIT_DISABLED);
           throw new Error(genData.message || "Смена ракурса пока недоступна");
         }
+        if (isCameraOrbit && genData.error === "camera_orbit_model_unavailable") {
+          throw new Error(genData.message || "Модель смены ракурса временно недоступна");
+        }
         throw new Error(genData.message || genData.error || "Не удалось создать генерацию");
       }
       if (isCameraOrbit) {
@@ -1262,8 +1274,10 @@ export function CardInlineGeneratePanel({
       setStarting(false);
       reachYandexMetrikaGoal(YM_GOAL_PROMPT_CARD_GENERATION_ACCEPTED);
       if (!isContinuation) setGenerationId(genData.id);
-      setDraftPrompt(prompt);
-      setSubmittedPrompt(prompt);
+      if (!isCameraOrbit) {
+        setDraftPrompt(prompt);
+        setSubmittedPrompt(prompt);
+      }
       setIsPublished(false);
       requestCreditBalanceRefresh();
 
@@ -1891,14 +1905,13 @@ export function CardInlineGeneratePanel({
         <CameraOrbitOverlay
           generationId={generationId}
           displayedResultUrl={resultUrl}
-          creditCostFallback={models.find((item) => item.id === model)?.cost ?? 5}
+          creditCostFallback={cameraOrbitCreditCost}
           hideCreditCost={!isAuthed}
           capturing={phase === "generating"}
           progress={progress}
           onClose={() => setCameraOrbitOpen(false)}
           onCapture={(pose) =>
             runGenerate({
-              promptOverride: submittedPrompt || draftPrompt,
               parentGenerationId: generationId,
               editKind: CAMERA_ORBIT_EDIT_KIND,
               cameraPose: pose,

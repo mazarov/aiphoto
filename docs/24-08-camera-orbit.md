@@ -2,7 +2,7 @@
 
 > Дата: 2026-08-24  
 > Ветка: `feature/24-08-camera-orbit`  
-> Статус: код готов; выкат: SQL 212 → worker → landing → `camera_orbit_enabled=true`  
+> Статус: код готов; выкат: SQL 212/213 + **214** (`camera_orbit_model`) → worker → landing → `camera_orbit_enabled=true`  
 > Поверхности: generate-dock result chrome (`CardInlineGeneratePanel` + `GenerationResultActionRail`), `/generations` → `seedCompletedResult`
 
 ## Цель
@@ -11,7 +11,7 @@
 
 Это не remix («Что изменить»), не video («Оживить»), не 3D-мир и не прогулка по комнате.
 
-Генерация — обычный image job: та же очередь, та же цена выбранной модели (5/10), тот же poll.
+Генерация — обычный image job: та же очередь, тот же poll. Модель орбиты — **не** модель исходника: ключ `camera_orbit_model` (дефолт `grok-imagine-image-2.0`, 10 кредитов). I2I = корневое фото + короткая пометка камеры, без брифа карточки.
 
 Реализация — только на ветке `feature/24-08-camera-orbit` от `origin/main`. Не писать код на чужой feature-ветке.
 
@@ -23,12 +23,12 @@
 |---|---|
 | D1 | Кейс v1 — **орбита вокруг человека**, не walkthrough комнаты |
 | D2 | **Взгляд и поза lock.** Голова, тело, глаза смотрят туда же, что на корневом кадре. В новую камеру не смотрят. Тоггла «смотреть в камеру» нет |
-| D3 | Цена = **обычная image-генерация** (стоимость модели корня: Flash/Lite 5, Pro/Grok 10). Не дешевле «вариации» |
+| D3 | Цена = cost модели из `camera_orbit_model` (дефолт Grok = 10). Не модель исходника и не дешевле «вариации» |
 | D4 | Камера — **отдельный intent** `camera_orbit`. Не переиспользовать `GENERATE_LANDING_CARD_EDIT_RULES` (они запрещают менять camera/crop) |
 | D5 | I2I всегда с **scene root** (первая не-orbit генерация сцены). Hop→hop запрещён |
 | D6 | Поза камеры **абсолютная** относительно корневого кадра `(0, 0, 1.0)`, не дельта от предыдущего орбита |
 | D7 | Generate только по CTA **«Снять кадр»**. Не на pointerup / не на чип |
-| D8 | Угол в v1: yaw **±60°**, pitch **±60°**, distance **0.75–1.35×**. Клик оси = **+30°** (повтор копит). Чипа «Сзади» нет |
+| D8 | Угол в v1: yaw **±180°**, pitch **±60°**, distance **0.75–1.35×**. Клик оси = **+30°** (повтор копит). Чипа «Сзади» нет: 6× Слева/Справа = ±180° |
 | D9 | Канон UI — **оверлей на result в generate-dock**. Новой SEO-страницы нет |
 | D10 | Видео-результат: кнопки «Камера» нет. С орбита «Оживить» по-прежнему запрещает новый ракурс |
 | D11 | Флаг `camera_orbit_enabled` (default `false`) + тот же internal allowlist, что у video. Выкат: SQL → worker → landing → флаг |
@@ -77,8 +77,8 @@
 1. Резолвит `scene_root_id` (не доверяет клиенту).
 2. Ставит `parent_generation_id = scene_root_id`.
 3. Сериализует `edit_instruction` из позы (клиентский текст игнорируется).
-4. Списывает кредиты модели корня (или fallback, §5.1).
-5. Enqueue в ту же очередь image.
+4. Списывает кредиты модели из `camera_orbit_model` (пустое/чужой id → 503, не Flash).
+5. Enqueue в ту же очередь image. `prompt_text` = короткая сериализация позы, не бриф карточки.
 
 ```
 result chrome
@@ -91,8 +91,8 @@ result chrome
          parentGenerationId=<displayed>   // сервер сам сведёт к root
        ├─ resolve scene root (image, owned, completed)
        ├─ busy? 409
-       ├─ serializeCameraOrbit(pose) → edit_instruction
-       ├─ credits = cost(root.model)
+       ├─ serializeCameraOrbit(pose) → edit_instruction и prompt_text
+       ├─ model + credits = camera_orbit_model (дефолт Grok)
        └─ landing_enqueue_generation
             parent=root, edit_kind=camera_orbit,
             scene_root_id=root, camera_pose=json
@@ -130,7 +130,7 @@ Remix/edit/новая генерация = новый корень. Орбиты
 
 | Поле | Тип | Диапазон | Смысл |
 |---|---|---|---|
-| `azimuthDeg` | number | **−60…+60** | + = камера **слева от субъекта** (чип «Слева») |
+| `azimuthDeg` | number | **−180…+180** | + = камера **слева от субъекта** (чип «Слева»). 180° = сзади |
 | `elevationDeg` | number | **−60…+60** | + = камера выше; шаг кнопки 30° |
 | `distanceRel` | number | **0.75…1.35** | 1.0 = как в корне; <1 ближе |
 
@@ -178,21 +178,21 @@ MUST CHANGE: new silhouette; more of the requested side; mirror selfie rebuilds 
 LOCK: same person, clothes, room, light, expression; original world gaze; no head-turn to the new lens.
 ```
 
-`edit_instruction` в БД = короткая сериализация позы (≤1000, классификация). `prompt_text` child = **полный бриф, переписанный под ракурс** (не копия корня и не одно поле Camera). На enqueue: LLM rewrite секций Camera/Pose/Composition/Scene/Avoid, fallback `rewriteScenePromptForCameraOrbit`. Worker: `resolveCameraOrbitScenePrompt` — если `prompt_text` уже с `CAMERA ORBIT`, брать его; иначе переписать root-бриф по `camera_pose`. I2I = этот бриф + `CAMERA ORBIT RULES`.
+`edit_instruction` и `prompt_text` child = одна короткая сериализация позы (≤1000). Бриф карточки **не** кладём в I2I: он спорит с орбитой («анфас / смотрит в камеру»). Worker: `resolveCameraOrbitScenePrompt` берёт текст с префиксом `CAMERA ORBIT`, иначе `edit_instruction`; корневой бриф не дописывает. I2I = фото корня + эта пометка + `CAMERA ORBIT RULES`.
 
 ### 2.6 Модель, кадр, кредиты
 
-Из **корня**, не из текущего пикера compose:
+Кадр — из **корня**. Модель орбиты — из БД, не из пикера и не с исходника:
 
 | Параметр | Откуда |
 |---|---|
-| `model` | `root.model`, если ещё enabled; иначе `default_model` |
+| `model` | `landing_generation_config.camera_orbit_model`, если id есть в enabled `models`. Пусто → `grok-imagine-image-2.0`. Чужой/выключенный id → 503 |
 | `aspect_ratio` | `root.aspect_ratio` |
-| `image_size` | `root.image_size`, clamp модели |
-| credits | `cost(resolved model)` как у обычного generate |
+| `image_size` | `root.image_size`, clamp модели (Grok: 4K → 2K) |
+| credits | `cost(orbit model)` |
 | guest / open-debug | `credits_spent=0`, как generate |
 
-Пикер модели в оверлее камеры **скрыт**. Смена модели — только новым generate, не орбитом.
+Пикер модели в оверлее камеры **скрыт**. Сменить модель орбиты: `UPDATE landing_generation_config SET value = '…' WHERE key = 'camera_orbit_model'`.
 
 ---
 
@@ -204,7 +204,7 @@ LOCK: same person, clothes, room, light, expression; original world gaze; no hea
 |---|---|---|
 | COGS | 2–3 орбита на completed ≈ +200–300% image с этого кадра | полная цена; CTA; 1 in-flight на сцену |
 | Очередь | те же image-воркеры | не отдельный cap; тот же `WORKER_GLOBAL_CAP` |
-| Identity / head-turn | не infra | промпт lock + лимит ±60°; hop от root |
+| Identity / head-turn | не infra | промпт lock + hop от root; yaw до ±180° (спина — отдельный reveal) |
 | Память | 1 jpeg как у local edit | без второго ref и без depth |
 
 SLO как у image-edit: p95 как текущий generate, abort/retry те же. Отдельный latency budget не заводим.
@@ -236,7 +236,9 @@ Fingerprint += `editKind`, `sceneRootId`, округлённая поза. Од�
 
 Пока `false`: CTA в rail нет, `POST` с `editKind=camera_orbit` → **503** `camera_orbit_disabled` (кроме allowlist `INTERNAL_GENERATE_ALLOWLIST` / `azarov.maxim@gmail.com` и local `next dev` — как video).
 
-`GET /api/generation-config` (image) отдаёт `cameraOrbitEnabled: boolean`.
+`GET /api/generation-config` (image) отдаёт `cameraOrbitEnabled: boolean` и `cameraOrbitModel: { id, cost } | null`.
+
+`landing_generation_config.camera_orbit_model` = id image-модели (default **`grok-imagine-image-2.0`**). Нет строки / пусто → код подставляет Grok. Id не из enabled `models` → `cameraOrbitModel=null`, `POST` → **503** `camera_orbit_model_unavailable`. Не fallback на Flash.
 
 ### F2. Кто видит «Камера»
 
@@ -268,14 +270,14 @@ Fingerprint += `editKind`, `sceneRootId`, округлённая поза. Од�
 
 | Кнопка | Дельта за клик | Clamp |
 |---|---|---|
-| Слева | `azimuthDeg += 30` | ±60 |
-| Справа | `azimuthDeg −= 30` | ±60 |
+| Слева | `azimuthDeg += 30` | ±180 |
+| Справа | `azimuthDeg −= 30` | ±180 |
 | Выше | `elevationDeg += 30` | ±60 |
 | Ниже | `elevationDeg −= 30` | ±60 |
 | Ближе | `distanceRel −= 0.15` | 0.75…1.35 |
 | Дальше | `distanceRel += 0.15` | 0.75…1.35 |
 
-Чипа «Сзади» нет. В том же rail: **Выйти** (на корень) и primary **Снять кадр · N** (кредиты в той же кнопке, отдельного credit badge нет).
+Чипа «Сзади» нет: шесть раз «Слева» или «Справа» = ±180°. В том же rail: **Выйти** (на корень) и primary **Снять кадр · N** (кредиты в той же кнопке, отдельного credit badge нет).
 
 ### F5. Пад
 
@@ -283,7 +285,7 @@ Fingerprint += `editKind`, `sceneRootId`, округлённая поза. Од�
 
 | Жест | Ось | Чувствительность |
 |---|---|---|
-| drag по X | azimuth | ширина кадра ≈ 120°, clamp ±60 |
+| drag по X | azimuth | ширина кадра ≈ 120°, clamp ±180 |
 | drag по Y | elevation | высота кадра ≈ 120°, clamp ±60 |
 | pinch | distance | 0.75…1.35 |
 
@@ -388,10 +390,11 @@ CTA активна только если поза ≠ `(0,0,1.0)` и нет busy
 | поза вне диапазона / не число | 400 `invalid_camera_pose` |
 | (0,0,1) | 400 `pose_unchanged` |
 | флаг выключен | 503 `camera_orbit_disabled` |
+| модель орбиты не в `models` | 503 `camera_orbit_model_unavailable` |
 | in-flight на сцену | 409 `camera_orbit_busy` |
 | `generationMode` в логах | `camera_orbit` |
 
-`prompt` в body: клиент шлёт `root.prompt_text` (уже в dock). Если пусто — сервер подставляет prompt корня. Worker всё равно собирает orbit-промпт из позы.
+`prompt` и `model` с клиента при орбите **игнорировать**. Сервер пишет сериализацию позы и модель из `camera_orbit_model`.
 
 ### 5.2 `GET /api/generations/:id/camera-scene`
 
@@ -420,7 +423,7 @@ Auth, owned, `Cache-Control: no-store`.
 
 ### 5.3 `GET /api/generation-config`
 
-`cameraOrbitEnabled` рядом с image defaults. Не смешивать с `video` enabled.
+`cameraOrbitEnabled` и `cameraOrbitModel` рядом с image defaults. Не смешивать с `video` enabled. CTA «Снять кадр · N» берёт `cameraOrbitModel.cost`.
 
 ### 5.4 Что не трогать
 
@@ -591,16 +594,22 @@ Enqueue: параметры `p_edit_kind`, `p_scene_root_id`, `p_camera_pose`. �
 ```sql
 INSERT INTO landing_generation_config (key, value)
 VALUES ('camera_orbit_enabled', 'false');
+
+INSERT INTO landing_generation_config (key, value)
+VALUES ('camera_orbit_model', 'grok-imagine-image-2.0');
 ```
+
+`214_camera_orbit_model.sql` — только ключ модели. Старые `212`/`213` не править.
 
 Выкат:
 
-1. SQL на БД лендинга.  
+1. SQL на БД лендинга (`212`/`213` если ещё нет, плюс `214`).  
 2. Worker (orbit-промпт; старые job без `edit_kind` = local_edit как сейчас).  
 3. Landing.  
-4. Allowlist smoke.  
+4. Allowlist smoke на Grok (взгляд/лицо).  
 5. `camera_orbit_enabled=true`.  
-6. В **том же коммите**, что код: `docs/architecture/01-landing.md` (дата в шапке) + чеклист этой спеки.
+6. Смена модели без редеплоя: `UPDATE … SET value = 'gemini-3-pro-image-preview' WHERE key = 'camera_orbit_model'`.  
+7. В **том же коммите**, что код: `docs/architecture/01-landing.md` (дата в шапке) + чеклист этой спеки.
 
 Откат: флаг `false`. Колонки аддитивны.
 
@@ -612,14 +621,15 @@ VALUES ('camera_orbit_enabled', 'false');
 
 | Риск | Как закрываем |
 |---|---|
-| Модель разворачивает лицо в камеру | отдельный промпт + D2 в сериализации; лимит ±60° |
+| Модель разворачивает лицо в камеру | отдельный промпт + D2 в сериализации; на 180° — reveal «спина», не щека |
 | Telephone identity | parent/I2I всегда root |
 | Local-edit rules бьют орбит | `resolveImageEditMode` + префикс `CAMERA ORBIT`; local-edit assembler редиректит; тесты «промпт не содержит keep camera» |
 | `vibe_id` на child | принудительно NULL |
 | Двойной тап = 2 списания | 409 busy + in-flight fingerprint |
 | Путаница с «Оживить» | разные глаголы; accent orbit только у video |
 | Обещание 3D | копирайт D12 |
-| Клиент шлёт свой промпт «look at camera» | сервер перезаписывает instruction |
+| Клиент шлёт свой промпт «look at camera» | сервер отбрасывает prompt/model; пишет только сериализацию позы |
+| Grok крутит голову / плывёт лицо | дефолт Grok ради смены кадра; откат модели в БД на Pro |
 | Remix в плёнке | фильтр `edit_kind=camera_orbit` |
 | Флаг забыли | default false, 503 |
 
@@ -630,11 +640,12 @@ VALUES ('camera_orbit_enabled', 'false');
 - `clampCameraPose` / quantize: границы, NaN, (0,0,1) |
 - `serializeCameraOrbit`: есть LOCK gaze, нет «look at camera» как требования, ≤1000 |
 - `resolveSceneRoot`: root / child / remix не является орбитом |
-- API unit: happy path пишет root+kind+pose; child parent сведён к root; pose 61° → 400; zero → 400; video parent → 400; флаг off → 503; busy → 409; client `editInstruction` не попадает в БД |
+- API unit: happy path пишет root+kind+pose; child parent сведён к root; pose 181° → 400; 180° ок; zero → 400; video parent → 400; флаг off → 503; busy → 409; client `editInstruction` не попадает в БД |
 - Fingerprint: та же поза = тот же hash |
 - Worker: `camera_orbit` → orbit assembler, не `assembleLandingCardEditPrompt`; vibe_id null |
 - Grok-ветка: не `assembleGrokImageEditPrompt` (keep camera) |
-- Config: `cameraOrbitEnabled` true/false |
+- Config: `cameraOrbitEnabled` true/false; `resolveCameraOrbitModel` — пусто=Grok, чужой id=null |
+- Worker: `resolveCameraOrbitScenePrompt` не дописывает бриф карточки |
 - Клиент: CTA disabled на нуле; чип Слева = +30; отображаемый child не становится parent в body без серверного резолва (клиент может слать displayed id — сервер чинит) |
 
 Браузерная приёмка — §11, не e2e в CI.
@@ -655,7 +666,7 @@ VALUES ('camera_orbit_enabled', 'false');
 - [ ] Video result — кнопки нет  
 - [ ] Оверлей: drag/чипы меняют строку ghost, generate нет  
 - [ ] Нулевая поза — CTA disabled  
-- [ ] «Слева» → списание как у модели корня (5 или 10), poll, новый jpeg  
+- [ ] «Слева» → списание по `camera_orbit_model` (дефолт Grok 10), poll, новый jpeg  
 - [ ] Второй орбит с child всё ещё похож на **первый** кадр, не на первый орбит (проверка глазами: одежда/сет с корня)  
 - [ ] Голова не «приветствует» новую камеру на ±30° (ручная оценка)  
 - [ ] Плёнка: исходник + 2 орбита, тап по исходному возвращает риг в 0  

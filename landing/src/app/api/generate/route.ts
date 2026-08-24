@@ -24,12 +24,10 @@ import {
   parseCameraPose,
   resolveSceneRootId,
   serializeCameraOrbitInstruction,
-  rewriteScenePromptForCameraOrbit,
   validateCameraPoseRange,
   type CameraPose,
 } from "@/lib/camera-orbit";
-import { rewriteCameraOrbitScenePrompt } from "@/lib/camera-orbit-rewrite";
-import { isCameraOrbitUnlocked } from "@/lib/camera-orbit-access";
+import { isCameraOrbitUnlocked, resolveCameraOrbitModel } from "@/lib/camera-orbit-access";
 import {
   normalizeGenerationSurface,
   resolveGenerationSourceType,
@@ -214,8 +212,6 @@ export async function POST(req: NextRequest) {
     const hasParentGeneration = Boolean(normalizedParentGenerationId);
     let cameraOrbitPose: CameraPose | null = null;
     let cameraOrbitSceneRootId: string | null = null;
-    let inheritedRootPrompt = "";
-    let inheritedRootModel = "";
     let inheritedRootAspect = "";
     let inheritedRootSize = "";
 
@@ -399,8 +395,6 @@ export async function POST(req: NextRequest) {
         }
         normalizedParentGenerationId = root.id;
         cameraOrbitSceneRootId = root.id;
-        inheritedRootPrompt = String(root.prompt_text || "").trim();
-        inheritedRootModel = String(root.model || "").trim();
         inheritedRootAspect = String(root.aspect_ratio || "").trim();
         inheritedRootSize = String(root.image_size || "").trim();
         normalizedEditInstruction = serializeCameraOrbitInstruction(cameraOrbitPose);
@@ -483,6 +477,7 @@ export async function POST(req: NextRequest) {
         "video_animate_enabled",
         "default_video_model",
         "camera_orbit_enabled",
+        "camera_orbit_model",
       ]);
 
     const config: Record<string, string> = {};
@@ -559,18 +554,29 @@ export async function POST(req: NextRequest) {
     const videoDuration = isVideo
       ? normalizeVideoDurationSeconds(durationSeconds, resolvedVideoModelId)
       : null;
-    const requestedImageModel = isCameraOrbit && inheritedRootModel
-      ? inheritedRootModel
+    const requestedImageModel = isCameraOrbit
+      ? ""
       : typeof model === "string" ? model.trim() : "";
+    const orbitModelConfig = isCameraOrbit
+      ? resolveCameraOrbitModel(config.camera_orbit_model, models)
+      : null;
+    if (isCameraOrbit && !orbitModelConfig) {
+      return NextResponse.json(
+        {
+          error: "camera_orbit_model_unavailable",
+          message: "Модель смены ракурса временно недоступна",
+        },
+        { status: 503 }
+      );
+    }
     const modelConfig = isVideo
       ? models.find((item) => item.id === resolvedVideoModelId) || models[0]
-      : requestedImageModel
-        ? models.find((item) => item.id === requestedImageModel)
-          || (isCameraOrbit
-            ? models.find((item) => item.id === config.default_model) || models[0]
-            : undefined)
-        : models.find((item) => item.id === config.default_model) || models[0];
-    if (!isVideo && requestedImageModel && !modelConfig) {
+      : isCameraOrbit
+        ? orbitModelConfig
+        : requestedImageModel
+          ? models.find((item) => item.id === requestedImageModel)
+          : models.find((item) => item.id === config.default_model) || models[0];
+    if (!isVideo && !isCameraOrbit && requestedImageModel && !modelConfig) {
       return NextResponse.json(
         { error: "validation_error", message: "Неизвестная модель генерации" },
         { status: 400 }
@@ -599,17 +605,9 @@ export async function POST(req: NextRequest) {
     const guestMode = Boolean(user && isStvGuestUser(user));
     /** Open-debug and guest: never charge. */
     const creditsCharged = openDebug || guestMode ? 0 : creditsNeeded;
-    let orbitPromptRewrite: "llm" | "deterministic" | "none" = "none";
     let promptText = String(prompt ?? "").trim();
     if (isCameraOrbit && cameraOrbitPose) {
-      const rootBrief = inheritedRootPrompt || promptText;
-      const rewritten = await rewriteCameraOrbitScenePrompt({
-        rootPrompt: rootBrief,
-        pose: cameraOrbitPose,
-        supabase,
-      });
-      promptText = rewritten.prompt || rewriteScenePromptForCameraOrbit(rootBrief, cameraOrbitPose);
-      orbitPromptRewrite = rewritten.mode;
+      promptText = serializeCameraOrbitInstruction(cameraOrbitPose);
     }
     if (!promptText || promptText.length < minPromptLength) {
       return NextResponse.json(
@@ -711,7 +709,7 @@ export async function POST(req: NextRequest) {
       parentGenerationId: normalizedParentGenerationId || null,
       sceneRootId: cameraOrbitSceneRootId,
       cameraPose: cameraOrbitPose,
-      orbitPromptRewrite,
+      orbitModel: isCameraOrbit ? modelConfig.id : null,
       editInstructionLength: normalizedEditInstruction.length,
       promptLength: promptText.length,
     });
@@ -740,7 +738,7 @@ export async function POST(req: NextRequest) {
       parentGenerationId: normalizedParentGenerationId || null,
       sceneRootId: cameraOrbitSceneRootId,
       cameraPose: cameraOrbitPose,
-      orbitPromptRewrite,
+      orbitModel: isCameraOrbit ? modelConfig.id : null,
       editInstructionLength: normalizedEditInstruction.length,
       promptLength: promptText.length,
     });
