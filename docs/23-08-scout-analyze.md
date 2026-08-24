@@ -13,9 +13,9 @@
 GET/POST https://promptshot.ru/api/scout/analyze
 ```
 
-Авторизации нет. Единственная защита — **100 успешных разборов на UTC-сутки** на бакете `scout:v1` (общий пул на всю ручку). Дальше `429`. Ошибка Gemini слот не сжигает.
+Авторизации нет. Единственная защита — **200 успешных разборов на UTC-сутки** на бакете `scout:v1` (общий пул на всю ручку). Дальше `429`. Ошибка Gemini слот не сжигает.
 
-Кто знает URL, делит эти 100 слотов. Не публиковать в sitemap.
+Кто знает URL, делит эти 200 слотов. Не публиковать в sitemap.
 
 ### Body (POST)
 
@@ -31,9 +31,9 @@ GET/POST https://promptshot.ru/api/scout/analyze
   "prompt": "...",
   "quota": {
     "mode": "free",
-    "free_max": 100,
-    "remaining_free": 94,
-    "daily_limit": 100,
+    "free_max": 200,
+    "remaining_free": 194,
+    "daily_limit": 200,
     "credits_charged": 0
   }
 }

@@ -8,6 +8,7 @@ import {
   releaseAnalyzeQuota,
   reserveAnalyzeQuota,
   resolveScoutAnalyzeQuotaSnapshot,
+  SCOUT_ANALYZE_FREE_PER_DAY,
   type AnalyzeQuotaSession,
   type AnalyzeQuotaSnapshot,
 } from "@/lib/analyze-quota";
@@ -29,7 +30,7 @@ export const dynamic = "force-dynamic";
 
 const SCOUT_CLIENT_SOURCE = "scout" as const;
 const SCOUT_RATE_LIMITED_MESSAGE =
-  "Daily scout analyze limit reached (100 successful analyses per UTC day).";
+  `Daily scout analyze limit reached (${SCOUT_ANALYZE_FREE_PER_DAY} successful analyses per UTC day).`;
 
 function noStore(init?: ResponseInit): ResponseInit {
   return {

@@ -1,5 +1,7 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-08-24 (**scout analyze 200/day:** `POST /api/scout/analyze` — общий бакет `scout:v1`, 200 успешных / UTC-сутки. Публичный `/api/extension/analyze` не меняется. Спека `docs/23-08-scout-analyze.md`.
+>
 > Последнее обновление: 2026-08-24 (**camera orbit full prompt:** орбита больше не шлёт в I2I только поле камеры. `prompt_text` child = переписанный бриф сцены (Camera/Pose/Composition/Avoid + нейтрализация frontal/selfie). Worker собирает I2I из этого брифа. LLM-rewrite на enqueue, fallback детерминированный. Спека `docs/24-08-camera-orbit.md`.
 >
 > Последнее обновление: 2026-08-24 (**camera orbit panel:** бейдж — задание следующего кадра, не live-3D. После съёмки не сбрасывать позу в нейтраль, если у orbit-ряда нет `camera_pose`. Снимок меняет фото, не клик оси. Спека `docs/24-08-camera-orbit.md`.
@@ -611,7 +613,7 @@
 | `/api/mail/unsubscribe` | POST one-click (`List-Unsubscribe=One-Click` или `t=`): `landing_mail_unsubscribe` |
 | `/api/admin/mail/campaigns` | GET/POST, admin auth: список кампаний + stats; `action=preview` (dry-run, 5 адресов) затем `action=send` |
 | `/api/extension/analyze` | Same-origin analyze для site `/foto-v-promt` и «По фото»: validation/SSRF → identity (anonymous/STV-guest = гость) → RPC `analyze_quota_reserve` (free / 401 auth_required / 402 no_credits / paid hold 1 кредит) → Gemini → confirm или release+refund; fail-closed 503 если квота недоступна; успех пишет `analyze_history.credits_spent` |
-| `/api/scout/analyze` | Открытый analyze для бота: без auth, бакет `scout:v1`, 100 успешных / UTC-день, без кредитов пользователя. GET — остаток. `client_source=scout`. Не в sitemap |
+| `/api/scout/analyze` | Открытый analyze для бота: без auth, бакет `scout:v1`, 200 успешных / UTC-день, без кредитов пользователя. GET — остаток. `client_source=scout`. Не в sitemap |
 | `/api/extension/analyze/quota` | GET, cookie session, no-store: `remaining_free`, `next_mode`, `credit_cost`, реальный `credits` для авторизованного |
 | `/api/admin/analytics` | GET, admin auth: no-store analytics rollups за `1…90` дней; топ пользователей — `admin_analytics_top_users` за тот же период |
 | `/api/admin/credits` | GET, admin auth: live остаток + daily flow (`days=1\|7\|30\|90`) + keyset-список (`q`, remaining/granted/spent/share) |

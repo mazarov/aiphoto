@@ -20,9 +20,9 @@ test("current UTC window matches Postgres +00:00 and JS .000Z", () => {
   );
 });
 
-test("scout analyze quota is a dedicated 100/day bucket", () => {
+test("scout analyze quota is a dedicated 200/day bucket", () => {
   assert.equal(SCOUT_ANALYZE_BUCKET, "scout:v1");
-  assert.equal(SCOUT_ANALYZE_FREE_PER_DAY, 100);
+  assert.equal(SCOUT_ANALYZE_FREE_PER_DAY, 200);
 });
 
 test("previous UTC day is not the current window", () => {

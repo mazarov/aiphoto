@@ -152,7 +152,7 @@ async function readUsage(
 }
 
 export const SCOUT_ANALYZE_BUCKET = "scout:v1";
-export const SCOUT_ANALYZE_FREE_PER_DAY = 100;
+export const SCOUT_ANALYZE_FREE_PER_DAY = 200;
 
 export async function resolveScoutAnalyzeQuotaSnapshot(
   supabase: SupabaseServer,
