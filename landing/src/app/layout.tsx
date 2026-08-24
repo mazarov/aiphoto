@@ -11,6 +11,7 @@ import { FotoVPromtMobileModalProvider } from "@/context/FotoVPromtMobileModalCo
 import { GenerateMobileModalProvider } from "@/context/GenerateMobileModalContext";
 import { GenerateDockProvider } from "@/context/GenerateDockContext";
 import { AuthModal } from "@/components/AuthModal";
+import { AuthReturnScreenRestorer } from "@/components/AuthReturnScreenRestorer";
 import { GenerationModal } from "@/components/GenerationModal";
 import { ClientCardModal } from "@/components/ClientCardModal";
 import { ClientPricingModal } from "@/components/ClientPricingModal";
@@ -103,6 +104,7 @@ export default function RootLayout({
                       </Suspense>
                       {children}
                       {modal}
+                      <AuthReturnScreenRestorer />
                       <ClientCardModal />
                       <ClientPricingModal />
                       <YooKassaReturnStatus />

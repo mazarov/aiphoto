@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from "react";
 import { usePathname } from "next/navigation";
+import { setLiveAuthReturnOverlay } from "@/lib/auth-return-screen";
 import { lockListingScrollForModal } from "@/lib/scroll-preservation";
 import { savePricingReturnPath } from "@/lib/yookassa-return-path";
 import { trackVirtualPageView } from "@/lib/yandex-metrika";
@@ -56,6 +57,10 @@ export function PricingModalProvider({ children }: { children: ReactNode }) {
     if (typeof window !== "undefined") {
       lockListingScrollForModal();
       const referer = window.location.pathname + window.location.search;
+      setLiveAuthReturnOverlay({
+        originPath: referer,
+        overlay: { type: "pricing" },
+      });
       savePricingReturnPath(referer);
       window.history.pushState(null, "", PRICING_PATH);
       trackVirtualPageView(PRICING_PATH, {
@@ -69,6 +74,7 @@ export function PricingModalProvider({ children }: { children: ReactNode }) {
 
   const dismiss = useCallback((restoreHistory: boolean) => {
     isOpenRef.current = false;
+    setLiveAuthReturnOverlay(null);
     setIsOpen(false);
     if (!restoreHistory || typeof window === "undefined") return;
     window.history.scrollRestoration = "manual";
@@ -93,6 +99,7 @@ export function PricingModalProvider({ children }: { children: ReactNode }) {
     function onPopState() {
       if (!isOpenRef.current) return;
       isOpenRef.current = false;
+      setLiveAuthReturnOverlay(null);
       setIsOpen(false);
     }
     window.addEventListener("popstate", onPopState);
@@ -105,6 +112,7 @@ export function PricingModalProvider({ children }: { children: ReactNode }) {
     if (!isOpenRef.current) return;
     if (isPricingPath(pathname)) return;
     isOpenRef.current = false;
+    setLiveAuthReturnOverlay(null);
     setIsOpen(false);
   }, [pathname]);
 

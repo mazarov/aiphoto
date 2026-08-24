@@ -1,5 +1,7 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-08-24 (**OAuth return screen:** после Google/Yandex пользователь остаётся на том же листинге / карточке. SSOT `auth-return-screen.ts`: `path` = listing origin (или hard `/p/slug`), overlay = `card:<slug>` / `pricing` / `foto-v-promt`. Cookie `ps_auth_next` **читается**, если sessionStorage пуст. `?next=` пустой или `/p/slug` при живом overlay → listing path. `AuthReturnScreenRestorer` открывает модалку; `useListingScrollOnRouteChange` не скроллит наверх при `?ps_auth=1`. Generate-from-card overlay не восстанавливает карточку (dock pending). Спека `docs/24-08-auth-return-screen.md`.
+>
 > Последнее обновление: 2026-08-23 (**cookie auth + Next cache cap:** все серверные `createServerClient` / Bearer `createClient` берут `SUPABASE_SERVER_AUTH` (`autoRefreshToken=false`) через `supabase-cookie-client.ts`. Иначе каждый `/api/me`, `open-reconcile`, SSR `/p` оставлял GoTrue timer. `next.config.ts` `cacheMaxMemorySize` = 32 МБ (`next-cache-memory.ts`) — потолок in-process ISR/image cache в 2 GiB контейнере.
 >
 > Последнее обновление: 2026-08-23 (**scout analyze:** `POST /api/scout/analyze` — открытая ручка без auth и без `landing_users.credits`. Квота 100 успешных / UTC-сутки на бакет `scout:v1` (`analyze_quota_reserve`); сверх лимита `429`. Gemini extract общий с `/api/extension/analyze`. History `client_source=scout`. Публичную analyze-квоту не меняет. Спека `docs/23-08-scout-analyze.md`.
@@ -878,12 +880,13 @@ admin pages
 **Flow (Google и Yandex — одинаковый в коде):**
 
 ```
-AuthModal / SidebarAccountPanel → OAuthSignInButtons → signInWithOAuth(redirectTo: /auth/callback?next=<path>)
-  → remember path (sessionStorage + cookie ps_auth_next)
+AuthModal / SidebarAccountPanel → OAuthSignInButtons → signInWithOAuth(redirectTo: /auth/callback?next=<listing-or-hard-page>)
+  → remember screen: listing path (sessionStorage + cookie ps_auth_next) + overlay (ps_auth_ov)
   → Supabase /auth/v1/authorize → IdP → /auth/v1/callback
-  → promptshot.ru/auth/callback?code=…&next=/pricing?test=true
+  → promptshot.ru/auth/callback?code=…&next=/promty-dlya-foto-zhenshchiny
   → client page: finishOAuthCodeExchange (browser cookies) → redirect на next?ps_auth=1
   → AuthProvider снимает маркер (replaceState) и гидратит сессию
+  → AuthReturnScreenRestorer открывает card/pricing/foto-v-promt overlay на том же листинге
 ```
 
 Почему не server route: дублирующий `GET /auth/callback` делал второй `POST /token` (`user_agent=node`) → `404 flow_state_not_found`, а ответ дубля отдавал `?auth_error=` без session cookies. В браузере первый обмен пишет cookies в document; replay с `invalid flow state` проверяет `getUser()` и при активной сессии считается успехом.
@@ -892,7 +895,7 @@ AuthModal / SidebarAccountPanel → OAuthSignInButtons → signInWithOAuth(redir
 
 Fallback: если `code` пришёл на произвольную страницу (не `/auth/callback`), `AuthProvider` делает client `exchangeCodeForSession` и при наличии сохранённого return path уводит туда с тем же маркером. На `/auth/callback` `AuthProvider` **не** обменивает code (избегаем второго `/token`).
 
-- Хелпер: `landing/src/lib/auth-oauth.ts` + `auth-return-path.ts` + `auth-finish-oauth.ts` + `auth-session-hydrate.ts` (`getOAuthCallbackUrl`, `signInWithOAuthProvider`, `finishOAuthCodeExchange`, `appendAuthReturnMarker`, `resolveHydratedAuthUser`, sanitize `next`). При старте OAuth: Yandex → `force_confirm=yes`, Google → `prompt=select_account` (выбор аккаунта при повторном логине).
+- Хелпер: `landing/src/lib/auth-oauth.ts` + `auth-return-path.ts` + `auth-return-screen.ts` + `auth-finish-oauth.ts` + `auth-session-hydrate.ts` (`getOAuthCallbackUrl`, `signInWithOAuthProvider`, `captureAuthReturnScreen`, `finishOAuthCodeExchange`, `appendAuthReturnMarker`, `resolveHydratedAuthUser`, sanitize `next`). `ps_auth_next` читается, если sessionStorage пуст (Safari / SITE_URL fallback на `/`). Soft overlay регистрирует listing origin в `setLiveAuthReturnOverlay`. При старте OAuth: Yandex → `force_confirm=yes`, Google → `prompt=select_account` (выбор аккаунта при повторном логине).
 - **UI кнопок (`OAuthSignInButtons`):** две кастомные кнопки одной сетки (`h-12`, `px-4`, иконка 20×20, `rounded-xl`, белый фон) — Google (цветной G) и Яндекс (красный круг + «Я»); обе вызывают `signInWithOAuthProvider`. Используются в `AuthModal` и в guest-состоянии `SidebarAccountPanel` (mobile profile sheet + desktop sidebar). Виджет YaAuthSuggest больше не используется.
 - `/auth/callback` (Next.js **client page**) — основной return URL модалки; `next` обязан быть same-origin relative path.
 - **Self-hosted auth:** GoTrue **≥ v2.187.0**, `GOTRUE_CUSTOM_OAUTH_ENABLED=true`, `GOTRUE_SITE_URL=https://promptshot.ru`, `GOTRUE_URI_ALLOW_LIST=https://promptshot.ru/**` (должен включать `/auth/callback`).
@@ -1145,9 +1148,11 @@ SearchResults (client, infinite scroll)
 | OAuthSignInButtons | `components/OAuthSignInButtons.tsx` | SSOT кнопок Google + Яндекс → `signInWithOAuthProvider` |
 | UserAvatarImage | `components/UserAvatarImage.tsx` | OAuth-аватар: no-referrer + unoptimized для Google/Yandex CDN |
 | auth-oauth | `lib/auth-oauth.ts` | `signInWithOAuthProvider`, `custom:yandex` |
+| auth-return-screen | `lib/auth-return-screen.ts` | listing path + overlay (`card` / `pricing` / `foto-v-promt`) |
+| AuthReturnScreenRestorer | `components/AuthReturnScreenRestorer.tsx` | после `?ps_auth=1` открывает overlay на листинге |
 | auth-finish-oauth | `lib/auth-finish-oauth.ts` | `finishOAuthCodeExchange` (browser PKCE) + `?ps_auth=1` |
 | auth-session-hydrate | `lib/auth-session-hydrate.ts` | `resolveHydratedAuthUser`, pageshow / visibility gates |
-OAuth completion: `/auth/callback` page вызывает `finishOAuthCodeExchange`; `AuthProvider` гидратит сессию на return / bfcache. Legacy `code` fallback — только вне `/auth/callback`.
+OAuth completion: `/auth/callback` page вызывает `finishOAuthCodeExchange`; `AuthProvider` гидратит сессию на return / bfcache. `AuthReturnScreenRestorer` восстанавливает soft overlay. Legacy `code` fallback — только вне `/auth/callback`. Cookie `ps_auth_next` — fallback, если sessionStorage пуст.
 
 ---
 
@@ -1422,6 +1427,8 @@ landing/src/
 │   ├── next-cache-memory.ts    ← `cacheMaxMemorySize` 32 МБ для Next in-process cache
 │   ├── supabase.ts             ← Реэкспорт клиента + data fetching
 │   ├── auth-oauth.ts           ← signInWithOAuthProvider (google, custom:yandex)
+│   ├── auth-return-path.ts     ← sanitize next, ps_auth_next read/write
+│   ├── auth-return-screen.ts   ← listing + overlay snapshot after OAuth
 │   ├── auth-finish-oauth.ts    ← finishOAuthCodeExchange (browser PKCE)
 │   ├── auth-session-hydrate.ts ← getSession overlay vs getUser; pageshow/visibility
 │   ├── supabase-browser.ts     ← Браузерный клиент (auth, reactions)

@@ -1,6 +1,7 @@
 /** Cookie + sessionStorage key for post-OAuth return path. */
 export const AUTH_RETURN_PATH_KEY = "promptshot:auth-return-path";
 export const AUTH_RETURN_COOKIE = "ps_auth_next";
+export const AUTH_RETURN_TTL_SEC = 10 * 60;
 
 /** One-shot query + cookie so the return document is not the pre-login bfcache entry. */
 export const AUTH_RETURN_FLAG = "ps_auth";
@@ -62,12 +63,18 @@ export function consumeAuthReturnMarkerFromHref(href: string): {
   }
 }
 
-function writeAuthCookie(name: string, value: string, maxAgeSec: number): void {
-  if (typeof document === "undefined") return;
-  document.cookie = `${name}=${encodeURIComponent(value)}; Path=/; Max-Age=${maxAgeSec}; SameSite=Lax`;
+function cookieSecureSuffix(): string {
+  return typeof location !== "undefined" && location.protocol === "https:"
+    ? "; Secure"
+    : "";
 }
 
-function readAuthCookie(name: string): string | null {
+export function writeAuthCookie(name: string, value: string, maxAgeSec: number): void {
+  if (typeof document === "undefined") return;
+  document.cookie = `${name}=${encodeURIComponent(value)}; Path=/; Max-Age=${maxAgeSec}; SameSite=Lax${cookieSecureSuffix()}`;
+}
+
+export function readAuthCookie(name: string): string | null {
   if (typeof document === "undefined") return null;
   const prefix = `${name}=`;
   for (const part of document.cookie.split(";")) {
@@ -77,6 +84,77 @@ function readAuthCookie(name: string): string | null {
     }
   }
   return null;
+}
+
+export function isBlockedAuthReturnPath(path: string): boolean {
+  const pathname = (path.split("?")[0] ?? path).split("#")[0] ?? path;
+  const norm =
+    pathname.endsWith("/") && pathname !== "/" ? pathname.slice(0, -1) : pathname;
+  return (
+    norm === "/auth" ||
+    norm.startsWith("/auth/") ||
+    norm === "/api" ||
+    norm.startsWith("/api/")
+  );
+}
+
+/** Same-origin destination; auth/api callbacks collapse to home. */
+export function sanitizeAuthReturnDestination(
+  raw: string | null | undefined
+): string {
+  const safe = sanitizeAuthReturnPath(raw);
+  return isBlockedAuthReturnPath(safe) ? "/" : safe;
+}
+
+/**
+ * sessionStorage first, then `ps_auth_next`. Either missing → null
+ * (do not treat that as `/` — caller may have a better `?next=`).
+ */
+export function resolveRememberedReturnPath(
+  sessionValue: string | null | undefined,
+  cookieValue: string | null | undefined
+): string | null {
+  const raw = sessionValue || cookieValue;
+  if (!raw) return null;
+  return sanitizeAuthReturnDestination(raw);
+}
+
+export function persistAuthReturnPath(path: string): void {
+  const safe = sanitizeAuthReturnDestination(path);
+  try {
+    sessionStorage.setItem(AUTH_RETURN_PATH_KEY, safe);
+  } catch {
+    // private mode / quota
+  }
+  writeAuthCookie(AUTH_RETURN_COOKIE, safe, AUTH_RETURN_TTL_SEC);
+}
+
+export function peekAuthReturnPath(): string | null {
+  let stored: string | null = null;
+  try {
+    stored = sessionStorage.getItem(AUTH_RETURN_PATH_KEY);
+  } catch {
+    // ignore
+  }
+  return resolveRememberedReturnPath(stored, readAuthCookie(AUTH_RETURN_COOKIE));
+}
+
+export function consumeAuthReturnPath(): string | null {
+  const path = peekAuthReturnPath();
+  try {
+    sessionStorage.removeItem(AUTH_RETURN_PATH_KEY);
+  } catch {
+    // ignore
+  }
+  writeAuthCookie(AUTH_RETURN_COOKIE, "", 0);
+  return path;
+}
+
+/** True on the post-OAuth document (`?ps_auth=1` or leftover `ps_auth_done`). */
+export function isAuthReturnRestorePending(): boolean {
+  if (typeof window === "undefined") return false;
+  const { found } = consumeAuthReturnMarkerFromHref(window.location.href);
+  return found || peekAuthReturnDoneCookie();
 }
 
 export function markAuthReturnComplete(): void {

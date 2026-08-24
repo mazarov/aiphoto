@@ -10,7 +10,7 @@ import {
   type ReactNode,
 } from "react";
 import { createSupabaseBrowser } from "@/lib/supabase-browser";
-import { consumeAuthReturnPath } from "@/lib/auth-oauth";
+import { consumeAuthReturnPath } from "@/lib/auth-return-path";
 import {
   appendAuthReturnMarker,
   consumeAuthReturnMarkerInWindow,

@@ -4,6 +4,7 @@
  */
 
 import { useLayoutEffect } from "react";
+import { isAuthReturnRestorePending } from "@/lib/auth-return-path";
 import { bumpListingShellViewportHeight } from "@/lib/listing-shell-viewport";
 
 export const SCROLL_KEY = "card_modal_scroll_pos";
@@ -414,22 +415,40 @@ export function isSameNavPath(pathname: string, href: string): boolean {
  * `#listing-scroll-root` (persists across soft navigations); also cancels stale modal-restore timers.
  * Modal close does not change pathname — restore stays on scheduleListingScrollRestore only.
  */
+export function shouldResetListingScrollOnRouteEnter(input: {
+  normalizedPath: string;
+  previousPath: string | null;
+  isAuthReturn: boolean;
+}): boolean {
+  if (input.isAuthReturn) return false;
+  if (isListingOverlayPath(input.normalizedPath)) return false;
+  const pathChanged =
+    input.previousPath !== null && input.previousPath !== input.normalizedPath;
+  return (
+    pathChanged ||
+    (input.previousPath === null && shouldScrollTopOnNav(input.normalizedPath))
+  );
+}
+
 export function useListingScrollOnRouteChange(pathname: string): void {
   useLayoutEffect(() => {
     const norm = normalizeNavPath(pathname);
+    const isAuthReturn = isAuthReturnRestorePending();
 
-    // Card / pricing overlay (pushState) or their hard pages — do NOT touch listing
-    // scroll: open saved the position, close restores it via scheduleListingScrollRestore.
-    // Keep lastListingNavPath at the underlying listing so the modal round-trip is a no-op.
-    if (isCardPath(norm) || isPricingPath(norm)) return;
+    if (
+      !shouldResetListingScrollOnRouteEnter({
+        normalizedPath: norm,
+        previousPath: lastListingNavPath,
+        isAuthReturn,
+      })
+    ) {
+      if (!isListingOverlayPath(norm)) {
+        lastListingNavPath = norm;
+      }
+      return;
+    }
 
-    const prev = lastListingNavPath;
     lastListingNavPath = norm;
-
-    const pathChanged = prev !== null && prev !== norm;
-    const forceTopOnEnter = shouldScrollTopOnNav(norm);
-
-    if (!pathChanged && !(prev === null && forceTopOnEnter)) return;
 
     window.history.scrollRestoration = "manual";
     scrollCatalogToTop();

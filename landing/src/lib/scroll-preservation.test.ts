@@ -4,6 +4,7 @@ import {
   LISTING_SHELL_LINK_SCROLL,
   normalizeNavPath,
   pinInstantDocumentScroll,
+  shouldResetListingScrollOnRouteEnter,
   shouldScrollTopOnNav,
 } from "./scroll-preservation";
 
@@ -67,4 +68,31 @@ test("shouldScrollTopOnNav only forces home and foto-v-promt on first enter", ()
   assert.equal(shouldScrollTopOnNav("/"), true);
   assert.equal(shouldScrollTopOnNav("/foto-v-promt/"), true);
   assert.equal(shouldScrollTopOnNav("/generaciya-foto/malysh"), false);
+});
+
+test("auth return does not force listing scroll to top", () => {
+  assert.equal(
+    shouldResetListingScrollOnRouteEnter({
+      normalizedPath: "/",
+      previousPath: null,
+      isAuthReturn: true,
+    }),
+    false
+  );
+  assert.equal(
+    shouldResetListingScrollOnRouteEnter({
+      normalizedPath: "/",
+      previousPath: null,
+      isAuthReturn: false,
+    }),
+    true
+  );
+  assert.equal(
+    shouldResetListingScrollOnRouteEnter({
+      normalizedPath: "/p/visual-hook-neon",
+      previousPath: "/catalog",
+      isAuthReturn: false,
+    }),
+    false
+  );
 });

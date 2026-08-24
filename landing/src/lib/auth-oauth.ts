@@ -1,9 +1,8 @@
 import { createSupabaseBrowser } from "@/lib/supabase-browser";
 import {
-  AUTH_RETURN_COOKIE,
-  AUTH_RETURN_PATH_KEY,
-  sanitizeAuthReturnPath,
-} from "@/lib/auth-return-path";
+  captureAuthReturnScreen,
+  rememberAuthReturnScreen,
+} from "@/lib/auth-return-screen";
 import { captureBrowserAcquisitionContext } from "@/lib/traffic-source-attribution-browser";
 
 export const YANDEX_OAUTH_PROVIDER = "custom:yandex" as const;
@@ -12,50 +11,23 @@ export type OAuthSignInProvider = "google" | typeof YANDEX_OAUTH_PROVIDER;
 export {
   AUTH_RETURN_COOKIE,
   AUTH_RETURN_PATH_KEY,
+  consumeAuthReturnPath,
   sanitizeAuthReturnPath,
 } from "@/lib/auth-return-path";
 
 export function getCurrentReturnPath(): string {
   if (typeof window === "undefined") return "/";
-  return sanitizeAuthReturnPath(
-    `${window.location.pathname}${window.location.search}${window.location.hash}`
-  );
+  return captureAuthReturnScreen().path;
 }
 
-/** Persist return path for callback / client restore after OAuth. */
+/** Persist return screen (listing + overlay) for callback / client restore after OAuth. */
 export function rememberAuthReturnPath(path?: string): string {
-  const safe = sanitizeAuthReturnPath(path ?? getCurrentReturnPath());
-  try {
-    sessionStorage.setItem(AUTH_RETURN_PATH_KEY, safe);
-  } catch {
-    // ignore
-  }
-  if (typeof document !== "undefined") {
-    const maxAge = 10 * 60;
-    document.cookie = `${AUTH_RETURN_COOKIE}=${encodeURIComponent(safe)}; Path=/; Max-Age=${maxAge}; SameSite=Lax`;
-  }
-  return safe;
-}
-
-export function consumeAuthReturnPath(): string | null {
-  let stored: string | null = null;
-  try {
-    stored = sessionStorage.getItem(AUTH_RETURN_PATH_KEY);
-    sessionStorage.removeItem(AUTH_RETURN_PATH_KEY);
-  } catch {
-    // ignore
-  }
-  if (typeof document !== "undefined") {
-    document.cookie = `${AUTH_RETURN_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax`;
-  }
-  if (!stored) return null;
-  const safe = sanitizeAuthReturnPath(stored);
-  return safe;
+  return rememberAuthReturnScreen(path);
 }
 
 /**
  * Supabase redirect target. Always go through `/auth/callback` so allowlisted
- * redirect URLs stay stable, and pass the original page as `next`.
+ * redirect URLs stay stable, and pass the listing/hard page as `next`.
  */
 export function getOAuthCallbackUrl(): string {
   const next = rememberAuthReturnPath();

@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { setLiveAuthReturnOverlay } from "@/lib/auth-return-screen";
 import { lockListingScrollForModal } from "@/lib/scroll-preservation";
 import { trackVirtualPageView } from "@/lib/yandex-metrika";
 
@@ -88,6 +89,10 @@ export function FotoVPromtMobileModalProvider({ children }: { children: ReactNod
 
     lockListingScrollForModal();
     const referer = window.location.pathname + window.location.search;
+    setLiveAuthReturnOverlay({
+      originPath: referer,
+      overlay: { type: "foto-v-promt" },
+    });
     window.history.pushState(null, "", FOTO_V_PROMT_PATH);
     trackVirtualPageView(FOTO_V_PROMT_PATH, { referer });
     setMode("soft");
@@ -95,6 +100,7 @@ export function FotoVPromtMobileModalProvider({ children }: { children: ReactNod
 
   const close = useCallback(() => {
     if (typeof window === "undefined") {
+      setLiveAuthReturnOverlay(null);
       setMode(null);
       return;
     }
@@ -102,6 +108,7 @@ export function FotoVPromtMobileModalProvider({ children }: { children: ReactNod
     const current = modeRef.current;
     if (current === "soft") {
       window.history.scrollRestoration = "manual";
+      setLiveAuthReturnOverlay(null);
       setMode(null);
       window.setTimeout(() => {
         window.history.back();
@@ -110,6 +117,7 @@ export function FotoVPromtMobileModalProvider({ children }: { children: ReactNod
     }
 
     // Hard page / search entry: leave the route (avoid empty SEO flash under modal).
+    setLiveAuthReturnOverlay(null);
     setMode(null);
     router.replace("/");
   }, [router]);
@@ -126,6 +134,7 @@ export function FotoVPromtMobileModalProvider({ children }: { children: ReactNod
   useEffect(() => {
     function onPopState() {
       if (modeRef.current !== "soft") return;
+      setLiveAuthReturnOverlay(null);
       setMode(null);
     }
     window.addEventListener("popstate", onPopState);

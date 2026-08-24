@@ -14,6 +14,10 @@ import {
   readListingNavigationCard,
   readListingNavigationContext,
 } from "@/lib/listing-card-navigation-context";
+import {
+  getLiveAuthReturnOverlay,
+  setLiveAuthReturnOverlay,
+} from "@/lib/auth-return-screen";
 import { lockListingScrollForModal } from "@/lib/scroll-preservation";
 import { trackPromptCardOpen, trackVirtualPageView } from "@/lib/yandex-metrika";
 
@@ -80,6 +84,13 @@ export function PromptCardModalProvider({ children }: { children: ReactNode }) {
 
       const referer = window.location.pathname + window.location.search;
       const alreadyOpen = Boolean(currentSlugRef.current);
+      const originPath = alreadyOpen
+        ? (getLiveAuthReturnOverlay()?.originPath ?? referer)
+        : referer;
+      setLiveAuthReturnOverlay({
+        originPath,
+        overlay: { type: "card", slug },
+      });
       if (alreadyOpen) {
         window.history.replaceState(null, "", `/p/${encodeURIComponent(slug)}`);
       } else {
@@ -100,6 +111,12 @@ export function PromptCardModalProvider({ children }: { children: ReactNode }) {
 
       window.history.replaceState(null, "", `/p/${encodeURIComponent(slug)}`);
 
+      const originPath =
+        getLiveAuthReturnOverlay()?.originPath ?? referer;
+      setLiveAuthReturnOverlay({
+        originPath,
+        overlay: { type: "card", slug },
+      });
       trackVirtualPageView(`/p/${encodeURIComponent(slug)}`, { referer });
     }
     setCurrentSeed(null);
@@ -108,6 +125,7 @@ export function PromptCardModalProvider({ children }: { children: ReactNode }) {
 
   const close = useCallback(() => {
     closingRef.current = true;
+    setLiveAuthReturnOverlay(null);
     if (typeof window !== "undefined") {
       // Unmount modal first so CardModal cleanup unlocks body (desktop) before history.back().
       window.history.scrollRestoration = "manual";
@@ -204,6 +222,7 @@ export function PromptCardModalProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     function onPopState() {
       if (!currentSlugRef.current) return;
+      setLiveAuthReturnOverlay(null);
       setCurrentSlug(null);
     }
     window.addEventListener("popstate", onPopState);

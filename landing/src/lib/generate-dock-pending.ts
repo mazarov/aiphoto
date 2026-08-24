@@ -73,6 +73,19 @@ export function persistPendingGenerateDock(pending: PendingGenerateDock): void {
   }
 }
 
+export function peekPendingGenerateDock(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return (
+      parsePendingGenerateDock(
+        window.sessionStorage.getItem(PENDING_GENERATE_DOCK_KEY)
+      ) !== null
+    );
+  } catch {
+    return false;
+  }
+}
+
 export function consumePendingGenerateDock(): PendingGenerateDock | null {
   if (typeof window === "undefined") return null;
   try {

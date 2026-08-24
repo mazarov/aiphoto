@@ -1,34 +1,45 @@
 import { createSupabaseBrowser } from "@/lib/supabase-browser";
 import {
   AUTH_RETURN_COOKIE,
-  AUTH_RETURN_PATH_KEY,
   appendAuthError,
   appendAuthReturnMarker,
+  consumeAuthReturnPath,
   markAuthReturnComplete,
-  sanitizeAuthReturnPath,
+  sanitizeAuthReturnDestination,
 } from "@/lib/auth-return-path";
-
-function consumeRememberedReturnPath(): string | null {
-  let stored: string | null = null;
-  try {
-    stored = sessionStorage.getItem(AUTH_RETURN_PATH_KEY);
-    sessionStorage.removeItem(AUTH_RETURN_PATH_KEY);
-  } catch {
-    // ignore
-  }
-  if (typeof document !== "undefined") {
-    document.cookie = `${AUTH_RETURN_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax`;
-  }
-  if (!stored) return null;
-  return sanitizeAuthReturnPath(stored);
-}
+import {
+  peekAuthReturnOverlay,
+  preferListingPathOverOverlayNext,
+  type AuthReturnOverlay,
+} from "@/lib/auth-return-screen";
 
 /** Resolve post-OAuth destination from `?next=` or remembered return path. */
-export function resolveOAuthNextPath(searchParams: URLSearchParams): string {
-  if (searchParams.has("next")) {
-    return sanitizeAuthReturnPath(searchParams.get("next"));
+export function resolveOAuthNextPath(
+  searchParams: URLSearchParams,
+  options?: {
+    rememberedPath?: string | null;
+    overlay?: AuthReturnOverlay | null;
   }
-  return consumeRememberedReturnPath() ?? "/";
+): string {
+  const fromQuery = searchParams.has("next")
+    ? sanitizeAuthReturnDestination(searchParams.get("next"))
+    : null;
+  const remembered =
+    options && "rememberedPath" in options
+      ? options.rememberedPath
+        ? sanitizeAuthReturnDestination(options.rememberedPath)
+        : null
+      : consumeAuthReturnPath();
+  const overlay =
+    options && "overlay" in options
+      ? options.overlay ?? null
+      : peekAuthReturnOverlay();
+
+  return preferListingPathOverOverlayNext({
+    fromQuery,
+    rememberedPath: remembered,
+    overlay,
+  });
 }
 
 function clearAuthReturnCookie(): void {
@@ -42,7 +53,7 @@ function clearAuthReturnCookie(): void {
  * session is treated as success.
  */
 export async function finishOAuthCodeExchange(code: string, next: string): Promise<string> {
-  const safeNext = sanitizeAuthReturnPath(next);
+  const safeNext = sanitizeAuthReturnDestination(next);
   const supabase = createSupabaseBrowser();
   const { error } = await supabase.auth.exchangeCodeForSession(code);
 
