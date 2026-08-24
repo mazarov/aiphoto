@@ -2,6 +2,8 @@
  * Grok Imagine image prompts. No Gemini [# Sources] / IMAGE A/B tags.
  */
 
+import { looksLikeCameraOrbitInstruction } from "./camera-orbit";
+
 const IDENTITY_RULES = [
   "The provided photo(s) show the SUBJECT (a real person).",
   "Output exactly one new photorealistic photograph of that same person following the text description.",
@@ -47,10 +49,28 @@ export function assembleGrokImageToImagePrompt(rawPrompt: string): string {
 
 export function assembleGrokImageEditPrompt(editInstruction: string): string {
   const instruction = String(editInstruction ?? "").trim();
+  if (looksLikeCameraOrbitInstruction(instruction)) {
+    return assembleGrokCameraOrbitPrompt(instruction);
+  }
   return joinPrompt(
     instruction ? `EDIT REQUEST (HIGHEST PRIORITY)\n${instruction}` : "",
     EDIT_RULES,
   );
+}
+
+const CAMERA_ORBIT_RULES = [
+  "The provided image is the source photograph.",
+  "Output one new photorealistic photograph of the same scene from the requested camera position.",
+  "This is a camera move, not a local retouch. If crop and viewpoint match the input, you FAILED.",
+  "Keep identity, wardrobe, set, lighting, and expression.",
+  "Keep the original head pose and gaze. Do not turn the subject toward the new camera.",
+  "Do not make the subject look at the new lens.",
+  "If the source is a mirror selfie, update the reflection and phone to the new viewpoint.",
+].join("\n");
+
+export function assembleGrokCameraOrbitPrompt(editInstruction: string): string {
+  const instruction = String(editInstruction ?? "").trim();
+  return joinPrompt(instruction, CAMERA_ORBIT_RULES);
 }
 
 export function assembleGrokVibePrompt(

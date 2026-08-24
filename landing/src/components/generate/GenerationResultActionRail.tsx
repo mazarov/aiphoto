@@ -10,6 +10,7 @@ export type GenerationResultAction = {
   onClick: () => void;
   disabled?: boolean;
   primary?: boolean;
+  ariaLabel?: string;
   /** Thin violet stripe along the border; plays ~8s on show, then fades. */
   accent?: "orbit";
 };
@@ -46,6 +47,7 @@ export function GenerationResultActionRail({ actions, className = "" }: Props) {
           key={action.id}
           type="button"
           disabled={action.disabled}
+          aria-label={action.ariaLabel}
           onClick={action.onClick}
           className={railButtonClass(action)}
         >

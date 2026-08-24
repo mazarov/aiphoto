@@ -108,13 +108,16 @@ export async function GET(req: NextRequest) {
       hasParent: boolean;
       hasVibe: boolean;
       hasEditInstruction: boolean;
+      editKind: string | null;
+      sceneRootId: string | null;
+      cameraPose: unknown;
     }
   >();
   if (page.length) {
     const { data: extras, error: extrasError } = await supabase
       .from("landing_generations")
       .select(
-        "id, requested_model, executed_model, fallback_used, modality, parent_generation_id, vibe_id, edit_instruction"
+        "id, requested_model, executed_model, fallback_used, modality, parent_generation_id, vibe_id, edit_instruction, edit_kind, scene_root_id, camera_pose"
       )
       .in("id", page.map((row) => row.id));
     if (extrasError) {
@@ -132,6 +135,9 @@ export async function GET(req: NextRequest) {
           hasParent: Boolean(extra.parent_generation_id),
           hasVibe: Boolean(extra.vibe_id),
           hasEditInstruction: Boolean(String(extra.edit_instruction || "").trim()),
+          editKind: extra.edit_kind ?? null,
+          sceneRootId: extra.scene_root_id ?? null,
+          cameraPose: extra.camera_pose ?? null,
         });
       }
     }
@@ -167,6 +173,9 @@ export async function GET(req: NextRequest) {
       executedModel: extra?.executedModel ?? null,
       fallbackUsed: extra?.fallbackUsed ?? false,
       providerImageMode,
+      editKind: extra?.editKind ?? null,
+      sceneRootId: extra?.sceneRootId ?? null,
+      cameraPose: extra?.cameraPose ?? null,
       aspectRatio: row.aspect_ratio,
       imageSize: row.image_size,
       creditsSpent: row.credits_spent,

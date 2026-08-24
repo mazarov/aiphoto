@@ -22,6 +22,9 @@ type Item = {
   executedModel?: string | null;
   fallbackUsed?: boolean;
   providerImageMode?: ProviderImageMode | null;
+  editKind?: string | null;
+  sceneRootId?: string | null;
+  cameraPose?: { azimuthDeg?: number; elevationDeg?: number; distanceRel?: number } | null;
   aspectRatio: string | null;
   imageSize: string | null;
   creditsSpent: number;
@@ -189,6 +192,11 @@ export function AdminUserGenerationsList({
                 {providerImageModeLabel(item.providerImageMode)}
               </span>
             )}
+            {item.editKind === "camera_orbit" && (
+              <span className="rounded-full bg-sky-100 px-2 py-0.5 font-semibold text-sky-800">
+                Камера
+              </span>
+            )}
             <span className="rounded-full px-2 py-0.5 font-semibold text-white"
               style={{ background: clientSourceColor(item.clientSource) }}>
               {clientSourceLabel(item.clientSource)}
@@ -212,6 +220,12 @@ export function AdminUserGenerationsList({
             {item.creditsRefunded && " · возвращены"}
             {" · "}остаток {item.creditsRemaining == null ? "—" : item.creditsRemaining}
           </p>
+          {item.editKind === "camera_orbit" && item.cameraPose && (
+            <p className="mt-1 text-xs text-zinc-500">
+              ракурс {item.cameraPose.azimuthDeg ?? 0}° / {item.cameraPose.elevationDeg ?? 0}° / ×{item.cameraPose.distanceRel ?? 1}
+              {item.sceneRootId ? ` · root ${shortId(item.sceneRootId)}` : ""}
+            </p>
+          )}
           <button onClick={() => setFullPrompt(item.prompt)}
             className="mt-1 line-clamp-2 text-left text-sm leading-5 text-zinc-800">
             {item.prompt}

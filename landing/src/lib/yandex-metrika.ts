@@ -25,6 +25,14 @@ export const YM_GOAL_PROMPT_CARD_GENERATION_NO_CREDITS =
   "prompt_card_generation_no_credits";
 export const YM_GOAL_PROMPT_CARD_GENERATION_PRICING =
   "prompt_card_generation_pricing";
+export const YM_GOAL_CAMERA_ORBIT_OPEN = "camera_orbit_open";
+export const YM_GOAL_CAMERA_ORBIT_CHIP = "camera_orbit_chip";
+export const YM_GOAL_CAMERA_ORBIT_SUBMIT = "camera_orbit_submit";
+export const YM_GOAL_CAMERA_ORBIT_READY = "camera_orbit_ready";
+export const YM_GOAL_CAMERA_ORBIT_FAIL = "camera_orbit_fail";
+export const YM_GOAL_CAMERA_ORBIT_BUSY = "camera_orbit_busy";
+export const YM_GOAL_CAMERA_ORBIT_NO_CREDITS = "camera_orbit_no_credits";
+export const YM_GOAL_CAMERA_ORBIT_DISABLED = "camera_orbit_disabled";
 /** Soft/route/desktop open of unified generate shell (`/generate`). */
 export const YM_GOAL_GENERATE_SHELL_OPEN = "generate_shell_open";
 export const YM_GOAL_YOOKASSA_CHECKOUT_STARTED = "yookassa_checkout_started";

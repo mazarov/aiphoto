@@ -1,0 +1,53 @@
+---
+description: Продуктовые фичефлаги (открывают функционал) — только из БД, не из env
+alwaysApply: true
+---
+
+# Фичефлаги — только БД
+
+Продуктовый флаг (кнопка, API, пайплайн, админка) **открывается и закрывается строкой в БД**. Env для этого **не использовать**.
+
+## Где хранить
+
+Таблица **`landing_generation_config`** (`key` / `value` text).
+
+- Новый флаг = **новая SQL-миграция** (`INSERT … ON CONFLICT DO NOTHING`).
+- Default для закрытой фичи: **`false`**.
+- Нет строки / пустое значение = **выключено**. Не «тихо» включать.
+- Старые миграции не править.
+
+Примеры ключей: `video_animate_enabled`, `camera_orbit_enabled`.
+
+## Как читать
+
+Один unlock-хелпер на фичу. Источник — **только** `value` из БД (+ опционально email из allowlist **тоже из БД или зашитый default в коде**).
+
+```typescript
+// ✅ флаг из landing_generation_config
+isCameraOrbitUnlocked(config.camera_orbit_enabled, user.email);
+
+// ❌ ЗАПРЕЩЕНО — env открывает продукт
+process.env.CAMERA_ORBIT_ENABLED === "1"
+process.env.NODE_ENV === "development" // не unlock для всех
+process.env.INTERNAL_GENERATE_ALLOWLIST // не список, кто видит фичу
+process.env.STV_OPEN_GENERATE_DEBUG     // не обход paywall/гейта
+```
+
+UI, `POST /api/generate` и соседние ручки читают **один и тот же ключ**. Иначе кнопка есть, а API 503 — или наоборот.
+
+## Что остаётся в env
+
+Только секреты и инфра: API keys, Supabase, proxy URL, `WORKER_ID`, SMTP. Не видимость фичи.
+
+## Выкат
+
+1. SQL: ключ = `false`.
+2. Задеплоить код (кнопка/API смотрят ключ).
+3. Когда готово — `UPDATE landing_generation_config SET value = 'true' WHERE key = '…'`.
+4. Откат — тот же `UPDATE` на `false`, без редеплоя.
+
+Allowlist внутренних (сейчас `azarov.maxim@gmail.com`) — **не** способ открыть фичу всем. Расширять список тестеров — ключ в `landing_generation_config`, не `INTERNAL_*` env.
+
+## Не добавлять
+
+Новые `*_ENABLED`, `*_ALLOWLIST`, `OPEN_*_DEBUG` в `.env` / Dockhost для продукта. Уже существующие env-гейты (`SEARCH_VISUAL_ENABLED` и т.п.) при правке переносить в `landing_generation_config`, не размножать.

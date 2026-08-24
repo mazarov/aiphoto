@@ -6,6 +6,7 @@ import {
   parseEnabledVideoGenerationModels,
 } from "@/lib/generation-model-labels";
 import { isVideoAnimateUnlocked, resolveVideoModelId } from "@/lib/video-generation-contract";
+import { isCameraOrbitUnlocked } from "@/lib/camera-orbit-access";
 import {
   DEFAULT_IMAGE_ASPECT_RATIO,
   DEFAULT_IMAGE_SIZE,
@@ -51,6 +52,7 @@ export async function GET(req: NextRequest) {
         "video_models",
         "video_animate_enabled",
         "default_video_model",
+        "camera_orbit_enabled",
       ]);
 
     const config: Record<string, string> = {};
@@ -89,6 +91,10 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       modality: IMAGE_GENERATION_MODALITY,
+      cameraOrbitEnabled: isCameraOrbitUnlocked(
+        config.camera_orbit_enabled,
+        user?.email,
+      ),
       models,
       aspectRatios: IMAGE_ASPECT_RATIO_OPTIONS,
       imageSizes: IMAGE_SIZE_OPTIONS,

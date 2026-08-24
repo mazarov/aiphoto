@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { config } from "./config";
 import {
+  assembleCameraOrbitEditPrompt,
   assembleLandingCardEditPrompt,
   assembleLandingCardFinalPrompt,
   assembleTextToImageFinalPrompt,
@@ -9,11 +10,13 @@ import {
   VIBE_IMAGE_PART_LABEL_SUBJECT,
 } from "../../landing/src/lib/image-generation-prompt";
 import {
+  assembleGrokCameraOrbitPrompt,
   assembleGrokImageEditPrompt,
   assembleGrokImageToImagePrompt,
   assembleGrokTextToImagePrompt,
   assembleGrokVibePrompt,
 } from "../../landing/src/lib/grok-image-prompt";
+import { resolveImageEditMode } from "../../landing/src/lib/camera-orbit";
 import { getVibeAttachReferenceImage } from "./lib/vibe-config";
 import { errorFields, log } from "./lib/logger";
 import {
@@ -65,6 +68,7 @@ export type GenerationJob = GenerationInputJob & {
   lease_token: string;
   create_ugc: boolean;
   edit_instruction: string | null;
+  edit_kind?: string | null;
   modality?: string | null;
   duration_seconds?: number | null;
   provider_operation_id?: string | null;
@@ -255,7 +259,14 @@ export async function processGeneration(
   if (!rawPrompt.trim()) throw new ProcessingError("input_missing", "Prompt text is empty", false);
   const isVibe = Boolean(job.vibe_id);
   const editInstruction = String(job.edit_instruction || "").trim();
-  const isLocalEdit = !isVibe && Boolean(job.parent_generation_id && editInstruction);
+  const generationMode = resolveImageEditMode({
+    vibeId: job.vibe_id,
+    parentGenerationId: job.parent_generation_id,
+    editKind: job.edit_kind,
+    editInstruction,
+  });
+  const isCameraOrbit = generationMode === "camera_orbit";
+  const isLocalEdit = generationMode === "local_edit";
   let reference: ImagePart | null = null;
   let attachReference = false;
 
@@ -280,28 +291,28 @@ export async function processGeneration(
   }
 
   const hasReference = isVibe && Boolean(reference);
-  const generationMode = isLocalEdit
-    ? "local_edit"
-    : job.parent_generation_id
-      ? "legacy_continuation"
-      : "initial";
   const geminiPrompt = isVibe
     ? assembleVibeFinalPrompt(rawPrompt, hasReference)
-    : isLocalEdit
-      ? assembleLandingCardEditPrompt(editInstruction)
-      : inputParts.length
-        ? assembleLandingCardFinalPrompt(rawPrompt)
-        : assembleTextToImageFinalPrompt(rawPrompt);
+    : isCameraOrbit
+      ? assembleCameraOrbitEditPrompt(editInstruction)
+      : isLocalEdit
+        ? assembleLandingCardEditPrompt(editInstruction)
+        : inputParts.length
+          ? assembleLandingCardFinalPrompt(rawPrompt)
+          : assembleTextToImageFinalPrompt(rawPrompt);
   const grokPrompt = isVibe
     ? assembleGrokVibePrompt(rawPrompt, hasReference)
-    : isLocalEdit
-      ? assembleGrokImageEditPrompt(editInstruction)
-      : inputParts.length
-        ? assembleGrokImageToImagePrompt(rawPrompt)
-        : assembleGrokTextToImagePrompt(rawPrompt);
+    : isCameraOrbit
+      ? assembleGrokCameraOrbitPrompt(editInstruction)
+      : isLocalEdit
+        ? assembleGrokImageEditPrompt(editInstruction)
+        : inputParts.length
+          ? assembleGrokImageToImagePrompt(rawPrompt)
+          : assembleGrokTextToImagePrompt(rawPrompt);
   log("info", "generation_prompt_resolved", {
     ...context,
     generationMode,
+    editKind: job.edit_kind ?? null,
     editInstructionLength: editInstruction.length,
     promptLength: geminiPrompt.length,
   });

@@ -3,6 +3,8 @@
  * standalone generation worker. Keep database/env access out of this module.
  */
 
+import { looksLikeCameraOrbitInstruction } from "./camera-orbit";
+
 export const VIBE_IMAGE_PART_LABEL_REFERENCE = `
 [IMAGE A — STYLE REFERENCE ONLY]
 The NEXT part is a photograph used ONLY as a recipe: pose, lighting, wardrobe style, hair styling, makeup/beauty look, background, camera, color grade, mood.
@@ -131,6 +133,9 @@ export function assembleTextToImageFinalPrompt(rawPrompt: string): string {
 
 export function assembleLandingCardEditPrompt(editInstruction: string): string {
   const instruction = String(editInstruction ?? "").trim();
+  if (looksLikeCameraOrbitInstruction(instruction)) {
+    return assembleCameraOrbitEditPrompt(instruction);
+  }
   return [
     "EDIT REQUEST (HIGHEST PRIORITY)",
     instruction,
@@ -139,4 +144,21 @@ export function assembleLandingCardEditPrompt(editInstruction: string): string {
   ]
     .join("\n")
     .trim();
+}
+
+export const GENERATE_CAMERA_ORBIT_RULES = `
+CAMERA ORBIT RULES
+The provided image is the source photograph. Output exactly one new photorealistic photograph of the same scene from the requested camera position.
+
+- This is a camera move, not a local retouch and not a new photoshoot.
+- The output MUST look like a different photograph. If crop, angle, and framing match the input, you FAILED. Show more of the requested side of the subject and different background occlusion.
+- Keep identity, wardrobe, set, lighting, shadows, color grade, and expression.
+- Keep the subject's body facing, head pose, and gaze on the original world direction. Do not turn the head to the new camera. Do not make eye contact with the new lens.
+- Do not invent new people, clothes, furniture, or a different time of day.
+- If the source is a mirror or phone selfie, reconstruct the reflection and device for the new camera. Do not paste the original mirror crop.
+`.trim();
+
+export function assembleCameraOrbitEditPrompt(editInstruction: string): string {
+  const instruction = String(editInstruction ?? "").trim();
+  return [instruction, "", GENERATE_CAMERA_ORBIT_RULES].join("\n").trim();
 }
