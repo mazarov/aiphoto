@@ -1,5 +1,7 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-08-24 (**worker replica identity:** JSON-логи, `/health/live`, `/health/ready` и `/metrics` всегда отдают `workerId` этой реплики. Пустой `WORKER_ID` → `hostname:pid:hex`. Очередь уже multi-replica (`SKIP LOCKED` + lease); вторая Dockhost-реплика того же образа не меняет claim RPC. `WORKER_GLOBAL_CAP` / `WORKER_VIDEO_GLOBAL_CAP` не умножать на число реплик.
+>
 > Последнее обновление: 2026-08-24 (**SEO traffic attribution:** органика/direct/referral пишутся в те же `utm_*`, что и Директ. Source `yandex_seo`/`google_seo`/`bing_seo`/`direct`/`referral`, medium `organic`/`none`/`referral`, страница только в `utm_landing_path`. Приоритет пустой < бесплатный < платный: `yclid`/`cpc` может перетереть SEO, обратно нельзя. SSOT `isPaidAttribution` / SQL `landing_should_replace_attribution` (`sql/211_seo_traffic_attribution_upgrade.sql`). `yandex_seo` не Директ. Спека `docs/24-08-seo-traffic-attribution.md`.
 >
 > Последнее обновление: 2026-08-24 (**OAuth return screen:** после Google/Yandex пользователь остаётся на том же листинге / карточке. SSOT `auth-return-screen.ts`: `path` = listing origin (или hard `/p/slug`), overlay = `card:<slug>` / `pricing` / `foto-v-promt`. Cookie `ps_auth_next` **читается**, если sessionStorage пуст. `?next=` пустой или `/p/slug` при живом overlay → listing path. `AuthReturnScreenRestorer` открывает модалку; `useListingScrollOnRouteChange` не скроллит наверх при `?ps_auth=1`. Generate-from-card overlay не восстанавливает карточку (dock pending). Спека `docs/24-08-auth-return-screen.md`.
@@ -794,7 +796,7 @@ admin pages
 - **Retry:** 429, 5xx, network/timeout и временный Storage upload/reference download → 30/90 секунд с jitter; safety/config/input errors завершаются без retry. Refund выполняется только при terminal failure и защищён `credits_refunded`.
 - **Requester vs billing:** `requester_auth_user_id` определяет API/RLS access, idempotency, per-user cap и `prompt_cards.author_user_id`; `user_id` остаётся владельцем кредитов/shared DB. Для guest `create_ugc=false`, поэтому общий billing-owner не получает чужие UGC-карточки. Legacy fallback действует только для доступа к старым платным generation-строкам без requester, но не для создания новой UGC-карточки.
 - **Идемпотентность:** уникальный `(requester_auth_user_id, idempotency_key)` + `request_fingerprint` возвращает исходный generation id без повторного списания и даёт 409 при повторном ключе с другим payload.
-- **Эксплуатация:** `/health/live`, `/health/ready`, `/metrics`; JSON-логи содержат generation/trace/worker/attempt/duration/error. Kill switches: `GENERATION_QUEUE_ENABLED` на Landing и `WORKER_PROCESSING_ENABLED` на worker.
+- **Эксплуатация:** `/health/live`, `/health/ready`, `/metrics` отдают `workerId` и local in-flight (`inFlight`, `inFlightImage`, `inFlightVideo`); JSON-логи всегда содержат `workerId` плюс generation/trace/attempt/duration/error. N одинаковых реплик безопасны. Kill switches: `GENERATION_QUEUE_ENABLED` на Landing и `WORKER_PROCESSING_ENABLED` на worker.
 - **Атрибуция клиента (`client_source`):** при create всегда пишется **`site`** (PromptShot paid generate — site-only; без резолвера / `X-Client`). Миграция: `sql/168_landing_generations_client_source.sql`.
 - **Текст в Gemini (без `vibe_id`):** если есть входные фото — worker склеивает **`prompt_text`** + **`GENERATE_LANDING_CARD_CRITICAL_RULES`** (`assembleLandingCardFinalPrompt`) — идентичность с фото, **гардероб по тексту промпта**. Если фото нет (`sourceType=text_only`) — **`assembleTextToImageFinalPrompt`** без identity-preservation. Pure source of truth: `landing/src/lib/image-generation-prompt.ts`, он же компилируется в worker.
 - **Gemini routing:** worker читает `photo_app_config.gemini_use_proxy`; при `true` использует `GEMINI_PROXY_BASE_URL`, при `false` ходит напрямую в `generativelanguage.googleapis.com`.
@@ -1464,7 +1466,7 @@ landing/src/
 |---------------|-----------|
 | Dockhost / CI | Контекст = каталог **`landing/`**. Команда: **`docker build -f landing/Dockerfile landing/`** (из корня клона) или эквивалент с путём к контексту `./landing`. В дереве есть **`landing/stv-web-sidepanel/`** (зеркало **`extension/sidepanel`**, в git). Трейсинг Next: обычно плоский **`standalone/server.js`**; runner Dockerfile копирует в **`/app`**. |
 | Локально `next build` из `landing/` | Если в родителе репо есть **`package-lock.json`** → **`next.config.ts`** может трейсить от корня монорепо → **`standalone/landing/server.js`**. **`build-stv-web`** сначала пробует **`../extension/sidepanel`**, иначе **`./stv-web-sidepanel`**. |
-| Generation worker | Отдельный Dockhost service, контекст = корень репозитория: `docker build -f Dockerfile.worker .`. Образ содержит `web-generation-worker` и pure helpers `image-generation-prompt.ts`, `grok-image-prompt.ts`, `generation-edit-contract.ts`, `video-motion-prompt.ts`, `user-generation-photo-paths.ts`; health: `:3003/health/ready`. |
+| Generation worker | Отдельный Dockhost service, N реплик одного образа. Контекст = корень репозитория: `docker build -f Dockerfile.worker .`. Образ содержит `web-generation-worker` и pure helpers `image-generation-prompt.ts`, `grok-image-prompt.ts`, `generation-edit-contract.ts`, `video-motion-prompt.ts`, `user-generation-photo-paths.ts`; health/metrics: `:3003/health/ready`, `:3003/metrics` (`workerId`). `WORKER_ID` пустой. |
 
 ### Правила сборки (чеклист)
 
@@ -1504,8 +1506,9 @@ landing/src/
 | `XAI_BASE_URL` | Worker: `{GEMINI_PROXY_ORIGIN}/u/api.x.ai`. Пустой — Grok-job `config_error`, без прямого `api.x.ai` |
 | `GENERATION_QUEUE_ENABLED` | Landing admission kill switch; `false` → `/api/generate` отвечает 503 до списания |
 | `WORKER_PROCESSING_ENABLED` | Worker shadow/maintenance switch; `false` → health работает, claim/reaper выключены |
-| `WORKER_CONCURRENCY` | Локальный in-flight cap worker; default 10 |
-| `WORKER_GLOBAL_CAP` | Глобальный DB processing cap для всех реплик; default 50 |
+| `WORKER_ID` | Идентичность реплики в логах/health/metrics. Пустой → `hostname:pid:hex`. Не задавать одно значение на все реплики |
+| `WORKER_CONCURRENCY` | Локальный in-flight cap одной реплики; default 10 |
+| `WORKER_GLOBAL_CAP` | Глобальный DB processing cap для всех реплик; default 50; не умножать при scale |
 | `WORKER_PER_USER_CAP` | Одновременные processing jobs одного user; default 3 |
 | `WORKER_LEASE_SECONDS`, `WORKER_HEARTBEAT_MS` | Lease и период heartbeat; defaults 180s / 30s |
 | `photo_app_config.vibe_extract_model` | ID модели Gemini для `/api/vibe/extract` (дефолт `gemini-2.5-pro`, см. `sql/148_*.sql`) |

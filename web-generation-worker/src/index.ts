@@ -386,8 +386,15 @@ async function reap(): Promise<void> {
   else if (data?.length) log("warn", "stale_generations_reaped", { jobs: data });
 }
 
+function replicaIdentity() {
+  return {
+    service: "web-generation-worker",
+    workerId: config.workerId,
+  };
+}
+
 app.get("/health/live", (_request, response) => {
-  response.status(200).json({ ok: true, service: "web-generation-worker" });
+  response.status(200).json({ ok: true, ...replicaIdentity() });
 });
 
 app.get("/health/ready", async (_request, response) => {
@@ -397,9 +404,12 @@ app.get("/health/ready", async (_request, response) => {
   const ready = loopFresh && databaseReady;
   response.status(ready ? 200 : 503).json({
     ok: ready,
+    ...replicaIdentity(),
     supabase: databaseReady,
     loopFresh,
     inFlight: inFlight.size,
+    inFlightImage: inFlightImage.size,
+    inFlightVideo: inFlightVideo.size,
     processingEnabled: config.processingEnabled,
   });
 });
@@ -408,15 +418,21 @@ app.get("/metrics", async (_request, response) => {
   try {
     const metrics = await readQueueMetrics();
     response.status(200).json({
-      service: "web-generation-worker",
+      ...replicaIdentity(),
       timestamp: new Date().toISOString(),
       inFlight: inFlight.size,
+      inFlightImage: inFlightImage.size,
+      inFlightVideo: inFlightVideo.size,
       processingEnabled: config.processingEnabled,
       ...metrics,
     });
   } catch (error) {
     log("error", "queue_metrics_failed", errorFields(error));
-    response.status(503).json({ ok: false, error: "queue_metrics_unavailable" });
+    response.status(503).json({
+      ok: false,
+      ...replicaIdentity(),
+      error: "queue_metrics_unavailable",
+    });
   }
 });
 

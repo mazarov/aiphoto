@@ -1,5 +1,11 @@
 type LogLevel = "debug" | "info" | "warn" | "error";
 
+let workerId = "";
+
+export function configureLogger(input: { workerId: string }): void {
+  workerId = input.workerId.trim();
+}
+
 function serializeError(error: unknown): Record<string, unknown> {
   if (!(error instanceof Error)) return { error: String(error) };
   const caused = error as Error & { cause?: { code?: string | number } };
@@ -22,6 +28,7 @@ export function log(
     service: "web-generation-worker",
     event,
     ...fields,
+    workerId,
   });
   if (level === "error") console.error(line);
   else if (level === "warn") console.warn(line);

@@ -1,6 +1,7 @@
 import "dotenv/config";
 import os from "node:os";
 import crypto from "node:crypto";
+import { configureLogger } from "./lib/logger";
 
 function required(name: string): string {
   const value = process.env[name]?.trim();
@@ -60,3 +61,5 @@ if (config.heartbeatMs >= (config.leaseSeconds * 1000) / 2) {
     "WORKER_HEARTBEAT_MS must be less than half of WORKER_LEASE_SECONDS"
   );
 }
+
+configureLogger({ workerId: config.workerId });
