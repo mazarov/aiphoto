@@ -2,8 +2,14 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   attributionFromLocation,
+  attributionFromUnpaidReferrer,
+  attributionTier,
+  classifyReferrerHost,
   EMPTY_TRAFFIC_SOURCE_ATTRIBUTION,
   hasFirstKnownSource,
+  incomingAttributionFromLocation,
+  isExcludedLandingPath,
+  isPaidAttribution,
   normalizeUtmSourceForReport,
   parseAttributionCookie,
   readAttributionFromSearch,
@@ -14,6 +20,7 @@ import {
   serializeAttributionCookie,
   shouldAttemptClientAttributionPersist,
   shouldPersistAttributionOnServer,
+  shouldReplaceAttribution,
   toAttributionPersistPayload,
   UTM_COOKIE_MAX_AGE_SEC,
   UTM_COOKIE_NAME,
@@ -26,6 +33,15 @@ const PAID = {
   utm_content: "456.premium.1",
   utm_term: "промпт",
   utm_landing_path: "/generaciya-foto",
+};
+
+const SEO = {
+  utm_source: "yandex_seo",
+  utm_medium: "organic",
+  utm_campaign: null,
+  utm_content: null,
+  utm_term: null,
+  utm_landing_path: "/sobytiya/den-rozhdeniya",
 };
 
 test("sanitizeUtmField strips controls and caps length", () => {
@@ -183,6 +199,169 @@ test("server persist skips anonymous, guest owner, and missing visitor", () => {
       isAnonymous: false,
       usedGuestOwner: false,
       visitorId: null,
+    }),
+    false,
+  );
+});
+
+test("yandex_seo is unpaid and never Direct-paid", () => {
+  assert.equal(isPaidAttribution(SEO), false);
+  assert.equal(attributionTier(SEO), "unpaid");
+  assert.equal(isPaidAttribution(PAID), true);
+  assert.equal(isPaidAttribution(EMPTY_TRAFFIC_SOURCE_ATTRIBUTION, "14264778086066946047"), true);
+  assert.equal(isPaidAttribution({ ...SEO, utm_medium: "organic" }, null), false);
+});
+
+test("paid replaces SEO; SEO cannot replace paid", () => {
+  const upgraded = resolveFirstKnownAttribution(PAID, SEO);
+  assert.deepEqual(upgraded.attribution, PAID);
+  assert.deepEqual(upgraded.persist, PAID);
+  const locked = resolveFirstKnownAttribution(SEO, PAID);
+  assert.deepEqual(locked.attribution, PAID);
+  assert.equal(locked.persist, null);
+  const laterPaid = { ...PAID, utm_campaign: "999", utm_landing_path: "/pricing" };
+  const firstPaid = resolveFirstKnownAttribution(laterPaid, PAID);
+  assert.deepEqual(firstPaid.attribution, PAID);
+  assert.equal(firstPaid.persist, null);
+});
+
+test("yclid on a later hit upgrades stored SEO", () => {
+  const resolved = resolveFirstKnownAttribution(
+    {
+      ...EMPTY_TRAFFIC_SOURCE_ATTRIBUTION,
+      utm_landing_path: "/generaciya-foto",
+    },
+    SEO,
+    { incomingYclid: "14264778086066946047", storedYclid: null },
+  );
+  assert.equal(resolved.persist?.utm_landing_path, "/generaciya-foto");
+  assert.equal(resolved.attribution.utm_source, null);
+});
+
+test("stored yclid keeps unpaid incoming from overwriting", () => {
+  const resolved = resolveFirstKnownAttribution(SEO, EMPTY_TRAFFIC_SOURCE_ATTRIBUTION, {
+    incomingYclid: null,
+    storedYclid: "14264778086066946047",
+  });
+  assert.equal(resolved.persist, null);
+});
+
+test("synthetic SEO cookie round-trips", () => {
+  const parsed = parseAttributionCookie(serializeAttributionCookie(SEO));
+  assert.deepEqual(parsed, SEO);
+});
+
+test("referrer host maps to search / identity / referral", () => {
+  assert.equal(classifyReferrerHost("yandex.ru"), "yandex_seo");
+  assert.equal(classifyReferrerHost("www.yandex.by"), "yandex_seo");
+  assert.equal(classifyReferrerHost("ya.ru"), "yandex_seo");
+  assert.equal(classifyReferrerHost("www.google.com"), "google_seo");
+  assert.equal(classifyReferrerHost("google.ru"), "google_seo");
+  assert.equal(classifyReferrerHost("www.bing.com"), "bing_seo");
+  assert.equal(classifyReferrerHost("oauth.yandex.ru"), "identity");
+  assert.equal(classifyReferrerHost("accounts.google.com"), "identity");
+  assert.equal(classifyReferrerHost("t.me"), "referral");
+  assert.equal(classifyReferrerHost("googleusercontent.com"), "referral");
+});
+
+test("unpaid referrer writes first page, not same-origin or auth return", () => {
+  assert.deepEqual(
+    attributionFromUnpaidReferrer({
+      referrer: "https://yandex.ru/search/?text=promt",
+      pageOrigin: "https://promptshot.ru",
+      pathname: "/sobytiya/den-rozhdeniya",
+    }),
+    SEO,
+  );
+  assert.deepEqual(
+    attributionFromUnpaidReferrer({
+      referrer: "",
+      pageOrigin: "https://promptshot.ru",
+      pathname: "/",
+    }),
+    {
+      ...EMPTY_TRAFFIC_SOURCE_ATTRIBUTION,
+      utm_source: "direct",
+      utm_medium: "none",
+      utm_landing_path: "/",
+    },
+  );
+  assert.deepEqual(
+    attributionFromUnpaidReferrer({
+      referrer: "https://t.me/foo",
+      pageOrigin: "https://promptshot.ru",
+      pathname: "/p/card",
+    }),
+    {
+      ...EMPTY_TRAFFIC_SOURCE_ATTRIBUTION,
+      utm_source: "referral",
+      utm_medium: "referral",
+      utm_content: "t.me",
+      utm_landing_path: "/p/card",
+    },
+  );
+  assert.equal(
+    attributionFromUnpaidReferrer({
+      referrer: "https://promptshot.ru/sobytiya/den-rozhdeniya",
+      pageOrigin: "https://promptshot.ru",
+      pathname: "/pricing",
+    }),
+    null,
+  );
+  assert.equal(
+    attributionFromUnpaidReferrer({
+      referrer: "https://oauth.yandex.ru/authorize",
+      pageOrigin: "https://promptshot.ru",
+      pathname: "/",
+    }),
+    null,
+  );
+  assert.equal(
+    attributionFromUnpaidReferrer({
+      referrer: "https://yandex.ru/",
+      pageOrigin: "https://promptshot.ru",
+      pathname: "/auth/callback",
+    }),
+    null,
+  );
+});
+
+test("incoming location prefers real UTM over referrer", () => {
+  const paid = incomingAttributionFromLocation({
+    search: "?utm_source=yandex&utm_medium=cpc",
+    pathname: "/generaciya-foto",
+    referrer: "https://yandex.ru/",
+    pageOrigin: "https://promptshot.ru",
+  });
+  assert.equal(paid.utm_source, "yandex");
+  assert.equal(paid.utm_medium, "cpc");
+  assert.equal(paid.utm_landing_path, "/generaciya-foto");
+  const seo = incomingAttributionFromLocation({
+    search: "",
+    pathname: "/sobytiya/den-rozhdeniya",
+    referrer: "https://yandex.ru/",
+    pageOrigin: "https://promptshot.ru",
+  });
+  assert.deepEqual(seo, SEO);
+});
+
+test("excluded auth and api paths are not landings", () => {
+  assert.equal(isExcludedLandingPath("/auth/callback"), true);
+  assert.equal(isExcludedLandingPath("/api/me"), true);
+  assert.equal(isExcludedLandingPath("/sobytiya/den-rozhdeniya"), false);
+});
+
+test("shouldReplace matches empty < unpaid < paid", () => {
+  assert.equal(
+    shouldReplaceAttribution({ stored: EMPTY_TRAFFIC_SOURCE_ATTRIBUTION, incoming: SEO }),
+    true,
+  );
+  assert.equal(shouldReplaceAttribution({ stored: SEO, incoming: PAID }), true);
+  assert.equal(shouldReplaceAttribution({ stored: PAID, incoming: SEO }), false);
+  assert.equal(
+    shouldReplaceAttribution({
+      stored: SEO,
+      incoming: { ...SEO, utm_landing_path: "/pricing" },
     }),
     false,
   );

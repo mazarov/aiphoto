@@ -48,6 +48,18 @@ test("payment source formatter identifies Yandex Direct", () => {
     landingPath: null,
     isDirect: false,
   });
+  assert.deepEqual(formatPaymentTrafficSource({
+    utm_source: "yandex_seo",
+    utm_medium: "organic",
+    utm_campaign: null,
+    utm_content: null,
+    utm_landing_path: "/sobytiya/den-rozhdeniya",
+  }), {
+    primary: "yandex_seo / organic",
+    campaign: null,
+    landingPath: "/sobytiya/den-rozhdeniya",
+    isDirect: false,
+  });
 });
 
 test("admin payment filters reject unsupported values", () => {

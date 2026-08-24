@@ -17,6 +17,7 @@ import {
   isLiveAcquisitionPayment,
   isRevenueInWindow,
   mapAcquisitionRpcPayload,
+  normalizeAcquisitionSource,
   revenueWindowDay,
   sumLiveGrossRevenue,
   buildAcquisitionQuality,
@@ -104,6 +105,12 @@ test("D7 and D30 stay immature until the window closes", () => {
     d7: true,
     d30: true,
   });
+});
+
+test("yandex_seo is not a Direct source or spend-join key", () => {
+  assert.equal(normalizeAcquisitionSource("yandex_seo"), "yandex_seo");
+  assert.equal(normalizeAcquisitionSource("yandex"), "yandex");
+  assert.equal(campaignIdForSpendJoin({ utmCampaign: null, yclid: "999" }), null);
 });
 
 test("yclid alone does not become a campaign join key", () => {

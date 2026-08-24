@@ -1,7 +1,21 @@
+import { sanitizeYclid } from "./yandex-attribution";
+
 export const UTM_COOKIE_NAME = "promptshot_utm";
 export const UTM_COOKIE_MAX_AGE_SEC = 21 * 24 * 60 * 60;
 export const UTM_FIELD_MAX_LENGTH = 64;
 export const UTM_LANDING_PATH_MAX_LENGTH = 200;
+
+export const PAID_UTM_MEDIUMS = ["cpc", "cpm", "ppc"] as const;
+export const SYNTHETIC_UNPAID_SOURCES = [
+  "yandex_seo",
+  "google_seo",
+  "bing_seo",
+  "direct",
+  "referral",
+] as const;
+
+export type AttributionTier = "empty" | "unpaid" | "paid";
+export type SyntheticUnpaidSource = (typeof SYNTHETIC_UNPAID_SOURCES)[number];
 
 export type TrafficSourceAttribution = {
   utm_source: string | null;
@@ -72,6 +86,184 @@ export function hasFirstKnownSource(bag: TrafficSourceAttribution): boolean {
   return bag.utm_source != null;
 }
 
+export function hasAttributionSnapshot(bag: TrafficSourceAttribution): boolean {
+  return bag.utm_source != null || bag.utm_landing_path != null;
+}
+
+const PAID_MEDIUM_SET = new Set<string>(PAID_UTM_MEDIUMS);
+
+export function isPaidAttribution(
+  bag: TrafficSourceAttribution,
+  yclid?: string | null,
+): boolean {
+  if (sanitizeYclid(yclid)) return true;
+  const medium = (bag.utm_medium || "").trim().toLowerCase();
+  if (PAID_MEDIUM_SET.has(medium)) return true;
+  const source = (bag.utm_source || "").trim().toLowerCase();
+  return (source === "yandex" || source === "ya") && medium === "cpc";
+}
+
+export function attributionTier(
+  bag: TrafficSourceAttribution,
+  yclid?: string | null,
+): AttributionTier {
+  if (isPaidAttribution(bag, yclid)) return "paid";
+  if (bag.utm_source != null) return "unpaid";
+  return "empty";
+}
+
+function tierRank(tier: AttributionTier): number {
+  if (tier === "paid") return 2;
+  if (tier === "unpaid") return 1;
+  return 0;
+}
+
+export function shouldReplaceAttribution(input: {
+  stored: TrafficSourceAttribution;
+  incoming: TrafficSourceAttribution;
+  storedYclid?: string | null;
+  incomingYclid?: string | null;
+}): boolean {
+  const incomingRank = tierRank(
+    attributionTier(input.incoming, input.incomingYclid),
+  );
+  const storedRank = tierRank(attributionTier(input.stored, input.storedYclid));
+  if (incomingRank > storedRank) return true;
+  return (
+    input.stored.utm_source == null &&
+    input.incoming.utm_source != null &&
+    isPaidAttribution(input.incoming, null)
+  );
+}
+
+export function isExcludedLandingPath(pathname: string): boolean {
+  const path = sanitizeLandingPath(pathname);
+  if (!path) return true;
+  return (
+    path === "/auth" ||
+    path.startsWith("/auth/") ||
+    path === "/api" ||
+    path.startsWith("/api/")
+  );
+}
+
+function normalizeReferrerHost(host: string): string {
+  return host.trim().toLowerCase().replace(/\.$/, "");
+}
+
+export function isIdentityReferrerHost(host: string): boolean {
+  const h = normalizeReferrerHost(host);
+  if (!h) return false;
+  if (h === "accounts.google.com" || h.endsWith(".accounts.google.com")) {
+    return true;
+  }
+  if (h === "accounts.youtube.com" || h.endsWith(".accounts.youtube.com")) {
+    return true;
+  }
+  if (h === "appleid.apple.com") return true;
+  return /^(oauth|passport|login|id|social)\.yandex\./.test(h);
+}
+
+export function classifyReferrerHost(
+  host: string | null | undefined,
+): SyntheticUnpaidSource | "identity" | null {
+  if (!host || typeof host !== "string") return null;
+  const h = normalizeReferrerHost(host);
+  if (!h) return null;
+  if (isIdentityReferrerHost(h)) return "identity";
+  if (h === "ya.ru" || h === "www.ya.ru" || /(^|\.)yandex\.[a-z.]+$/.test(h)) {
+    return "yandex_seo";
+  }
+  if (/(^|\.)google\.[a-z.]+$/.test(h)) return "google_seo";
+  if (h === "bing.com" || h === "www.bing.com" || /(^|\.)bing\.[a-z.]+$/.test(h)) {
+    return "bing_seo";
+  }
+  return "referral";
+}
+
+function unpaidBagFromSource(
+  source: SyntheticUnpaidSource,
+  pathname: string,
+  referrerHost: string | null,
+): TrafficSourceAttribution {
+  const path = isExcludedLandingPath(pathname) ? null : sanitizeLandingPath(pathname);
+  if (source === "direct") {
+    return {
+      ...EMPTY_TRAFFIC_SOURCE_ATTRIBUTION,
+      utm_source: "direct",
+      utm_medium: "none",
+      utm_landing_path: path,
+    };
+  }
+  if (source === "referral") {
+    return {
+      ...EMPTY_TRAFFIC_SOURCE_ATTRIBUTION,
+      utm_source: "referral",
+      utm_medium: "referral",
+      utm_content: sanitizeUtmField(referrerHost),
+      utm_landing_path: path,
+    };
+  }
+  return {
+    ...EMPTY_TRAFFIC_SOURCE_ATTRIBUTION,
+    utm_source: source,
+    utm_medium: "organic",
+    utm_landing_path: path,
+  };
+}
+
+export function attributionFromUnpaidReferrer(input: {
+  referrer: string | null | undefined;
+  pageOrigin: string;
+  pathname: string;
+}): TrafficSourceAttribution | null {
+  if (isExcludedLandingPath(input.pathname)) return null;
+  const referrer = (input.referrer || "").trim();
+  if (!referrer || referrer.toLowerCase().startsWith("android-app:")) {
+    return unpaidBagFromSource("direct", input.pathname, null);
+  }
+  let parsed: URL;
+  try {
+    parsed = new URL(referrer);
+  } catch {
+    return unpaidBagFromSource("direct", input.pathname, null);
+  }
+  if (!parsed.hostname) {
+    return unpaidBagFromSource("direct", input.pathname, null);
+  }
+  let pageOrigin: URL;
+  try {
+    pageOrigin = new URL(input.pageOrigin);
+  } catch {
+    return null;
+  }
+  if (parsed.origin === pageOrigin.origin) return null;
+  const kind = classifyReferrerHost(parsed.hostname);
+  if (kind == null || kind === "identity") return null;
+  return unpaidBagFromSource(kind, input.pathname, parsed.hostname);
+}
+
+export function incomingAttributionFromLocation(input: {
+  search: string;
+  pathname: string;
+  referrer?: string | null;
+  pageOrigin?: string;
+  yclid?: string | null;
+}): TrafficSourceAttribution {
+  const fromUrl = attributionFromLocation(input.search, input.pathname);
+  if (isPaidAttribution(fromUrl, input.yclid) || hasFirstKnownSource(fromUrl)) {
+    return fromUrl;
+  }
+  if (!input.pageOrigin) return { ...EMPTY_TRAFFIC_SOURCE_ATTRIBUTION };
+  return (
+    attributionFromUnpaidReferrer({
+      referrer: input.referrer,
+      pageOrigin: input.pageOrigin,
+      pathname: input.pathname,
+    }) ?? { ...EMPTY_TRAFFIC_SOURCE_ATTRIBUTION }
+  );
+}
+
 export function readAttributionFromSearch(search: string): TrafficSourceAttribution {
   const normalized = search.startsWith("?") ? search.slice(1) : search;
   try {
@@ -98,9 +290,15 @@ export function attributionFromLocation(
   };
 }
 
+export type AttributionResolveOptions = {
+  incomingYclid?: string | null;
+  storedYclid?: string | null;
+};
+
 export function resolveFirstKnownAttribution(
-  urlAttribution: TrafficSourceAttribution,
+  incomingAttribution: TrafficSourceAttribution,
   storedAttribution: TrafficSourceAttribution | null,
+  options?: AttributionResolveOptions,
 ): {
   attribution: TrafficSourceAttribution;
   persist: TrafficSourceAttribution | null;
@@ -108,12 +306,21 @@ export function resolveFirstKnownAttribution(
   const stored = storedAttribution
     ? sanitizeAttributionBag(storedAttribution)
     : { ...EMPTY_TRAFFIC_SOURCE_ATTRIBUTION };
-  if (hasFirstKnownSource(stored)) {
-    return { attribution: stored, persist: null };
+  const incoming = sanitizeAttributionBag(incomingAttribution);
+  if (
+    shouldReplaceAttribution({
+      stored,
+      incoming,
+      storedYclid: options?.storedYclid,
+      incomingYclid: options?.incomingYclid,
+    }) &&
+    (hasAttributionSnapshot(incoming) ||
+      isPaidAttribution(incoming, options?.incomingYclid))
+  ) {
+    return { attribution: incoming, persist: incoming };
   }
-  const fromUrl = sanitizeAttributionBag(urlAttribution);
-  if (hasFirstKnownSource(fromUrl)) {
-    return { attribution: fromUrl, persist: fromUrl };
+  if (attributionTier(stored, options?.storedYclid) !== "empty") {
+    return { attribution: stored, persist: null };
   }
   return {
     attribution: { ...EMPTY_TRAFFIC_SOURCE_ATTRIBUTION },
@@ -126,7 +333,7 @@ export function parseAttributionCookie(raw: string | null): TrafficSourceAttribu
   try {
     const parsed = JSON.parse(raw) as unknown;
     const bag = sanitizeAttributionBag(parsed);
-    return hasFirstKnownSource(bag) ? bag : null;
+    return hasAttributionSnapshot(bag) ? bag : null;
   } catch {
     return null;
   }
@@ -159,10 +366,7 @@ export function shouldAttemptClientAttributionPersist(input: {
 }): boolean {
   if (!input.userId) return false;
   if (input.isAnonymous === true) return false;
-  if (
-    input.pathname === "/auth/callback" ||
-    input.pathname.startsWith("/auth/callback/")
-  ) {
+  if (isExcludedLandingPath(input.pathname)) {
     return false;
   }
   return input.alreadyPersistedUserId !== input.userId;

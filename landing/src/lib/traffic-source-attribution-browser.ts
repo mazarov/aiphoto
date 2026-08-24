@@ -1,6 +1,6 @@
 import { readOrCreateBrowserSessionId } from "./browser-session-id";
 import {
-  attributionFromLocation,
+  incomingAttributionFromLocation,
   parseAttributionCookie,
   resolveFirstKnownAttribution,
   serializeAttributionCookie,
@@ -8,6 +8,11 @@ import {
   UTM_COOKIE_NAME,
   type TrafficSourceAttribution,
 } from "./traffic-source-attribution";
+import {
+  readYclidFromSearch,
+  sanitizeYclid,
+  YCLID_COOKIE_NAME,
+} from "./yandex-attribution";
 import { captureFirstTouchYclidFromLocation } from "./yandex-attribution-browser";
 import { readOrCreateBrowserVisitorId } from "./visitor-id-browser";
 
@@ -51,9 +56,19 @@ export function captureFirstTouchAttributionFromLocation(): TrafficSourceAttribu
       utm_landing_path: null,
     };
   }
+  const incomingYclid = readYclidFromSearch(window.location.search);
+  const storedYclid = sanitizeYclid(readCookie(YCLID_COOKIE_NAME));
+  const incoming = incomingAttributionFromLocation({
+    search: window.location.search,
+    pathname: window.location.pathname,
+    referrer: document.referrer,
+    pageOrigin: window.location.origin,
+    yclid: incomingYclid,
+  });
   const resolved = resolveFirstKnownAttribution(
-    attributionFromLocation(window.location.search, window.location.pathname),
+    incoming,
     parseAttributionCookie(readCookie(UTM_COOKIE_NAME)),
+    { incomingYclid, storedYclid },
   );
   if (resolved.persist) {
     writeFirstPartyCookie(

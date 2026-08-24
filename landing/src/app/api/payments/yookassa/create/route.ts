@@ -12,7 +12,10 @@ import {
 } from "@/lib/yandex-attribution";
 import { getPaymentProviderForEmail } from "@/lib/payment-provider";
 import { sanitizePricingPaywallVariant } from "@/lib/pricing-paywall-attribution";
-import { resolvePaymentTrafficSource } from "@/lib/payment-attribution";
+import {
+  resolvePaymentTrafficSource,
+  shouldWriteLandingUserAttribution,
+} from "@/lib/payment-attribution";
 import { sanitizeUuid } from "@/lib/visitor-id";
 import { applyCheckoutOffer } from "@/lib/mail-checkout-offer";
 import {
@@ -159,10 +162,13 @@ export async function POST(request: NextRequest) {
     }
     const { data: landingUser } = await supabase
       .from("landing_users")
-      .select("utm_source, utm_medium, utm_campaign, utm_content, utm_term, utm_landing_path")
+      .select("utm_source, utm_medium, utm_campaign, utm_content, utm_term, utm_landing_path, yclid")
       .eq("id", ensured.dbUserId)
       .maybeSingle();
-    const trafficSource = resolvePaymentTrafficSource(body, landingUser);
+    const trafficSource = resolvePaymentTrafficSource(body, landingUser, {
+      checkoutYclid: yclid,
+      userYclid: landingUser?.yclid ?? null,
+    });
     let local = await readExistingPayment(supabase, user.id, idempotencyKey);
     if (local && local.plan_id !== plan.id) {
       return NextResponse.json({ error: "idempotency_conflict" }, { status: 409 });
@@ -203,15 +209,15 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    if (trafficSource.utm_source) {
+    if (shouldWriteLandingUserAttribution(trafficSource, yclid)) {
       await supabase
         .from("landing_users")
-        .update({ ...trafficSource, attribution_captured_at: new Date().toISOString() })
-        .eq("id", ensured.dbUserId)
-        .is("utm_source", null);
-    }
-    if (yclid) {
-      await supabase.from("landing_users").update({ yclid }).eq("id", ensured.dbUserId).is("yclid", null);
+        .update({
+          ...trafficSource,
+          ...(yclid ? { yclid } : {}),
+          attribution_captured_at: new Date().toISOString(),
+        })
+        .eq("id", ensured.dbUserId);
     }
     if (visitorId) {
       await supabase.rpc("upsert_landing_acquisition_visitor", {
@@ -282,7 +288,6 @@ export async function POST(request: NextRequest) {
       for (const [field, value] of Object.entries({
         visitor_id: visitorId,
         session_id: sessionId,
-        ...trafficSource,
       })) {
         if (value == null) continue;
         const { error: attributionError } = await supabase
@@ -295,6 +300,18 @@ export async function POST(request: NextRequest) {
             paymentId: local.id,
             field,
             message: attributionError.message,
+          });
+        }
+      }
+      if (shouldWriteLandingUserAttribution(trafficSource, yclid)) {
+        const { error: trafficError } = await supabase
+          .from("landing_yookassa_payments")
+          .update({ ...trafficSource, updated_at: now })
+          .eq("id", local.id);
+        if (trafficError) {
+          console.warn("[yookassa] traffic source update skipped", {
+            paymentId: local.id,
+            message: trafficError.message,
           });
         }
       }
