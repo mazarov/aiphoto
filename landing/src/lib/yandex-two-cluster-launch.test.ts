@@ -21,10 +21,12 @@ test("birthday launch budget reconciles to 35k with VAT", () => {
   assert.equal(YANDEX_TWO_CLUSTER_LAUNCH.budget.vatRate, 0.22);
 });
 
-test("launch has one birthday group with one focused ad", () => {
-  assert.equal(YANDEX_TWO_CLUSTER_LAUNCH.campaigns.length, 1);
-  const campaign = YANDEX_TWO_CLUSTER_LAUNCH.campaigns[0];
-  assert.equal(campaign.key, "birthday");
+test("launch has birthday plus draft pairs campaigns", () => {
+  assert.equal(YANDEX_TWO_CLUSTER_LAUNCH.campaigns.length, 3);
+  const campaign = YANDEX_TWO_CLUSTER_LAUNCH.campaigns.find(
+    (item) => item.key === "birthday",
+  );
+  assert.ok(campaign);
   assert.match(campaign.landingUrl, /\/sobytiya\/den-rozhdeniya$/);
   assert.equal(campaign.groups.length, 1);
   assert.equal(campaign.groups[0].name, "Создать фото на день рождения");
@@ -40,6 +42,20 @@ test("launch has one birthday group with one focused ad", () => {
   );
   assert.ok(ad.title.length <= 56);
   assert.ok(ad.text.length <= 81);
+
+  const pairsGenerate = YANDEX_TWO_CLUSTER_LAUNCH.campaigns.find(
+    (item) => item.key === "pairs_generate",
+  );
+  const pairsPrompts = YANDEX_TWO_CLUSTER_LAUNCH.campaigns.find(
+    (item) => item.key === "pairs_prompts",
+  );
+  assert.ok(pairsGenerate && pairsPrompts);
+  assert.equal(pairsGenerate.budgetWithVatRub, 0);
+  assert.equal(pairsPrompts.budgetWithVatRub, 0);
+  assert.match(pairsGenerate.landingUrl, /\/generaciya-foto\/pary$/);
+  assert.match(pairsPrompts.landingUrl, /\/promty-dlya-foto-par$/);
+  assert.ok(pairsGenerate.groups[0].ads[0].title.length <= 56);
+  assert.ok(pairsPrompts.groups[0].ads[0].title.length <= 56);
 });
 
 test("paid ads do not promise free access or no registration", () => {

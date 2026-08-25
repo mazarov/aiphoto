@@ -33,6 +33,12 @@ import {
   isDenRozhdeniyaHubPath,
 } from "@/lib/den-rozhdeniya-cluster";
 import {
+  getFeaturedPairsNavItems,
+  isFeaturedPairsChildAlias,
+  isPromtyDlyaFotoParClusterPath,
+  pairsActiveAliasFromPath,
+} from "@/lib/promty-dlya-foto-par-cluster";
+import {
   resolveSeoIllustrations,
   type ResolvedSeoIllustration,
 } from "@/lib/seo-illustrations";
@@ -611,6 +617,7 @@ export default async function TagPage({ params, searchParams }: Props) {
       primaryTag.dimension === "object_tag");
   const currentPath = listingPathname(slug);
   const isBirthdayCluster = isDenRozhdeniyaClusterPath(currentPath);
+  const isPairsCluster = isPromtyDlyaFotoParClusterPath(currentPath);
   const birthdayNav = isBirthdayCluster
     ? getFeaturedBirthdayNavItems(
         isDenRozhdeniyaHubPath(currentPath)
@@ -618,13 +625,30 @@ export default async function TagPage({ params, searchParams }: Props) {
           : birthdayActiveAliasFromTags(route.tags),
       )
     : [];
+  const pairsNav = isPairsCluster
+    ? getFeaturedPairsNavItems(pairsActiveAliasFromPath(currentPath))
+    : [];
   const clusterChipsAboveGrid =
-    !isBirthdayCluster && (isSobytiyaL1 || isSiblingClusterL1)
+    !isBirthdayCluster &&
+    !isPairsCluster &&
+    (isSobytiyaL1 || isSiblingClusterL1)
       ? getClusterChipNavigation(primaryTag.dimension, primaryTag.urlPath)
       : [];
-  const l2ChipGroupsBelow = isSobytiyaL1
-    ? l2ChipGroups.filter((group) => group.dimension !== "occasion_tag")
-    : l2ChipGroups;
+  const l2ChipGroupsBelow = (
+    isSobytiyaL1
+      ? l2ChipGroups.filter((group) => group.dimension !== "occasion_tag")
+      : l2ChipGroups
+  )
+    .map((group) => ({
+      ...group,
+      chips: isPairsCluster
+        ? group.chips.filter((chip) => {
+            const alias = chip.href.split("/").filter(Boolean).pop() ?? "";
+            return !isFeaturedPairsChildAlias(alias);
+          })
+        : group.chips,
+    }))
+    .filter((group) => group.chips.length > 0);
 
   return (
     <PageLayout showFooterWithGenerateDock>
@@ -691,6 +715,11 @@ export default async function TagPage({ params, searchParams }: Props) {
                   label="Сценарии на день рождения"
                   items={birthdayNav}
                 />
+              ) : pairsNav.length > 0 ? (
+                <ListingClusterChipGroup
+                  label="Сценарии для фото пары"
+                  items={pairsNav}
+                />
               ) : undefined
             }
             listingSearchQuery={listingSearchQuery}
@@ -698,7 +727,7 @@ export default async function TagPage({ params, searchParams }: Props) {
               Boolean(listingSearchQuery && totalCount > result.cards_count)
             }
           />
-          {seo.popularLinks?.length && !isBirthdayCluster ? (
+          {seo.popularLinks?.length && !isBirthdayCluster && !isPairsCluster ? (
             <div className="sr-only">
               <SeoPopularLinks links={seo.popularLinks} />
             </div>

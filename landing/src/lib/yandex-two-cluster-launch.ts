@@ -52,6 +52,54 @@ export const YANDEX_TWO_CLUSTER_LAUNCH = {
         },
       ],
     },
+    {
+      key: "pairs_generate",
+      name: "ГЕНЕРАЦИЯ-ПАРЫ",
+      landingUrl: "https://promptshot.ru/generaciya-foto/pary",
+      budgetWithVatRub: 0,
+      mediaBudgetRub: 0,
+      groups: [
+        {
+          name: "Сделать парное фото",
+          phrases: [
+            "сделать парное фото",
+            "создать парные фото",
+            "сделать парное фото ии",
+          ],
+          ads: [
+            {
+              title: "Сделайте парное фото с ИИ по вашим фото",
+              text:
+                "Загрузите два снимка и выберите сюжет. Получите совместное фото пары.",
+            },
+          ],
+        },
+      ],
+    },
+    {
+      key: "pairs_prompts",
+      name: "ПРОМТЫ-ПАРЫ",
+      landingUrl: "https://promptshot.ru/promty-dlya-foto-par",
+      budgetWithVatRub: 0,
+      mediaBudgetRub: 0,
+      groups: [
+        {
+          name: "Промты для парных фото",
+          phrases: [
+            "промты для фото пары",
+            "промты для парных фото",
+            "промт для парного фото",
+          ],
+          ads: [
+            {
+              title: "Промты для фото пары с ИИ",
+              text:
+                "Откройте готовый парный пример и запустите генерацию на сайте.",
+            },
+          ],
+        },
+      ],
+    },
   ],
   negativePhrases: [
     "бесплатно",

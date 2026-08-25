@@ -1,7 +1,8 @@
-import { cache } from "react";
+import { cache, Suspense } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { AdLandingHeading } from "@/components/AdLandingHeading";
 import { PageLayout } from "@/components/PageLayout";
 import { GeneraciyaFotoExamplesExplorer } from "@/components/generate/GeneraciyaFotoExamplesExplorer";
 import {
@@ -307,9 +308,19 @@ export default async function GeneraciyaFotoScenarioPage({ params }: Props) {
               <BreadcrumbSeparator />
               <span className="font-medium text-zinc-700">{copy.label}</span>
             </nav>
-            <h1 className="mx-auto max-w-3xl text-balance text-3xl font-bold tracking-tight text-zinc-900 sm:text-4xl lg:text-[2.75rem] lg:leading-tight">
-              {copy.h1}
-            </h1>
+            <Suspense
+              fallback={
+                <h1 className="mx-auto max-w-3xl text-balance text-3xl font-bold tracking-tight text-zinc-900 sm:text-4xl lg:text-[2.75rem] lg:leading-tight">
+                  {copy.h1}
+                </h1>
+              }
+            >
+              <AdLandingHeading
+                path={getGeneraciyaFotoScenarioPath(copy.slug)}
+                fallback={copy.h1}
+                className="mx-auto max-w-3xl text-balance text-3xl font-bold tracking-tight text-zinc-900 sm:text-4xl lg:text-[2.75rem] lg:leading-tight"
+              />
+            </Suspense>
             <p className="mx-auto mt-4 max-w-2xl text-pretty text-base leading-relaxed text-zinc-600 sm:text-lg">
               {copy.intro}
             </p>
