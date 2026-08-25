@@ -7,6 +7,17 @@ import {
   type ProviderImageMode,
 } from "@/lib/provider-image-mode";
 import { AdminResultLightbox, AdminResultThumb } from "./AdminResultMedia";
+import {
+  adminDenseActionsClass,
+  adminDenseBadgeClass,
+  adminDenseFilterClass,
+  adminDenseListClass,
+  adminDenseMetaClass,
+  adminDensePromptClass,
+  adminDenseRowClass,
+  adminDenseThumbClass,
+  formatAdminRowWhen,
+} from "./admin-dense-row";
 import { CLIENT_SOURCES_ORDER, clientSourceColor, clientSourceLabel } from "./analytics-constants";
 
 type Status = "pending" | "processing" | "completed" | "failed";
@@ -64,9 +75,6 @@ const statusClass: Record<Status, string> = {
   completed: "bg-emerald-100 text-emerald-700",
   failed: "bg-red-100 text-red-700",
 };
-const filterClass = (active: boolean) => `rounded-xl px-3 py-2 text-xs font-semibold ${
-  active ? "bg-indigo-600 text-white" : "border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50"
-}`;
 const shortId = (value: string) => `${value.slice(0, 8)}…`;
 
 export function AdminUserGenerationsList({
@@ -137,27 +145,27 @@ export function AdminUserGenerationsList({
     }
   };
 
-  return <div className="space-y-4">
-    <div className="flex flex-col gap-3 rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm">
-      <div className="flex flex-wrap gap-2">
+  return <div className="space-y-3 sm:space-y-4">
+    <div className="flex flex-col gap-2 rounded-xl border border-zinc-200 bg-white p-2.5 sm:gap-3 sm:rounded-2xl sm:p-4 sm:shadow-sm">
+      <div className="flex flex-wrap gap-1.5 sm:gap-2">
         {STATUS_OPTIONS.map(([value, label]) => <button key={value}
-          className={filterClass(status === value)} onClick={() => setStatus(value)}>
+          className={adminDenseFilterClass(status === value)} onClick={() => setStatus(value)}>
           {label}
         </button>)}
       </div>
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-1.5 sm:gap-2">
         {PUBLICATION_OPTIONS.map(([value, label]) => <button key={value}
-          className={filterClass(publication === value)} onClick={() => setPublication(value)}>
+          className={adminDenseFilterClass(publication === value)} onClick={() => setPublication(value)}>
           {label}
         </button>)}
       </div>
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
         {["all", ...CLIENT_SOURCES_ORDER.filter((item) => item !== "admin")].map((value) =>
-          <button key={value} className={filterClass(source === value)} onClick={() => setSource(value)}>
+          <button key={value} className={adminDenseFilterClass(source === value)} onClick={() => setSource(value)}>
             {value === "all" ? "Все клиенты" : clientSourceLabel(value)}
           </button>)}
         <button disabled={loading} onClick={() => void load()}
-          className="ml-auto rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-semibold text-zinc-600 disabled:opacity-50">
+          className="ml-auto rounded-lg border border-zinc-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-zinc-600 disabled:opacity-50 sm:rounded-xl sm:px-3 sm:py-2">
           Обновить
         </button>
       </div>
@@ -168,41 +176,51 @@ export function AdminUserGenerationsList({
       : !items.length ? <div className="rounded-2xl border border-zinc-200 bg-white p-8 text-center text-sm text-zinc-500">
         Генераций нет
       </div>
-      : <div className="space-y-3">{items.map((item) => <article key={item.id}
-        className="flex gap-3 rounded-2xl border border-zinc-200 bg-white p-3 shadow-sm">
-        <div className="flex shrink-0 gap-2">
+      : <div className={adminDenseListClass}>{items.map((item) => <article key={item.id}
+        className={adminDenseRowClass}>
+        <div className="relative flex shrink-0 gap-1.5 sm:gap-2">
           <button disabled={!item.resultUrl} onClick={() => item.resultUrl && setLightbox(item.resultUrl)}
-            className="h-20 w-20 overflow-hidden rounded-xl bg-zinc-100 disabled:cursor-default">
+            className={`${adminDenseThumbClass} disabled:cursor-default`}>
             {item.resultUrl
               ? <AdminResultThumb url={item.resultUrl} alt="Результат генерации" />
-              : <span className="flex h-full items-center justify-center px-2 text-center text-xs text-zinc-400">Нет результата</span>}
+              : <span className="flex h-full items-center justify-center px-1 text-center text-[10px] text-zinc-400 sm:px-2 sm:text-xs">Нет</span>}
           </button>
+          {item.sourcePhotoUrls[0] ? (
+            <button
+              type="button"
+              onClick={() => setLightbox(item.sourcePhotoUrls[0])}
+              className="absolute bottom-0.5 right-0.5 h-5 w-5 overflow-hidden rounded border border-white bg-zinc-100 sm:hidden"
+              aria-label="Исходное фото"
+            >
+              <img src={item.sourcePhotoUrls[0]} alt="" className="h-full w-full object-cover" />
+            </button>
+          ) : null}
           {item.sourcePhotoUrls[0] && <button onClick={() => setLightbox(item.sourcePhotoUrls[0])}
-            className="h-20 w-20 overflow-hidden rounded-xl border border-zinc-200 bg-zinc-100">
+            className={`${adminDenseThumbClass} hidden border border-zinc-200 sm:block`}>
             <img src={item.sourcePhotoUrls[0]} alt="Исходное фото" className="h-full w-full object-cover" />
           </button>}
         </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-500">
-            <span className={`rounded-full px-2 py-0.5 font-semibold ${statusClass[item.status]}`}>
+        <div className="flex min-w-0 flex-1 flex-col gap-0.5 sm:gap-0">
+          <div className={adminDenseMetaClass}>
+            <span className={`${adminDenseBadgeClass} ${statusClass[item.status]}`}>
               {item.status}
             </span>
             {item.providerImageMode && (
-              <span className={`rounded-full px-2 py-0.5 font-semibold ${providerImageModeBadgeClass(item.providerImageMode)}`}>
+              <span className={`${adminDenseBadgeClass} ${providerImageModeBadgeClass(item.providerImageMode)}`}>
                 {providerImageModeLabel(item.providerImageMode)}
               </span>
             )}
             {item.editKind === "camera_orbit" && (
-              <span className="rounded-full bg-sky-100 px-2 py-0.5 font-semibold text-sky-800">
+              <span className={`${adminDenseBadgeClass} bg-sky-100 text-sky-800`}>
                 Камера
               </span>
             )}
-            <span className="rounded-full px-2 py-0.5 font-semibold text-white"
+            <span className={`${adminDenseBadgeClass} text-white`}
               style={{ background: clientSourceColor(item.clientSource) }}>
               {clientSourceLabel(item.clientSource)}
             </span>
-            <span>{new Date(item.completedAt || item.createdAt).toLocaleString()}</span>
-            <span>
+            <span>{formatAdminRowWhen(item.completedAt || item.createdAt)}</span>
+            <span className="hidden max-w-[16rem] truncate sm:inline">
               {item.executedModel && item.executedModel !== (item.requestedModel || item.model)
                 ? `${item.requestedModel || item.model} → ${item.executedModel}`
                 : item.model || "model —"}
@@ -211,29 +229,30 @@ export function AdminUserGenerationsList({
               {item.aspectRatio || "ratio —"}
             </span>
           </div>
-          <p className="mt-1 text-xs text-zinc-500">
+          <p className="truncate text-[10px] text-zinc-500 sm:mt-1 sm:text-xs">
             <span className="font-semibold text-zinc-700">{item.userEmail || item.userDisplayName || "Пользователь неизвестен"}</span>
-            {" · "}{item.userProvider || "provider —"}
-            {item.requesterAuthUserId && <> · auth {shortId(item.requesterAuthUserId)}</>}
-            {item.identityMismatch && <> · billing {shortId(item.userId)}</>}
-            {" · "}списано {item.creditsSpent}
-            {item.creditsRefunded && " · возвращены"}
-            {" · "}остаток {item.creditsRemaining == null ? "—" : item.creditsRemaining}
+            <span className="hidden sm:inline">
+              {" · "}{item.userProvider || "provider —"}
+              {item.requesterAuthUserId && <> · auth {shortId(item.requesterAuthUserId)}</>}
+              {item.identityMismatch && <> · billing {shortId(item.userId)}</>}
+            </span>
+            {" · "}{item.creditsSpent}
+            {item.creditsRefunded ? " возвр" : ""}
+            {" / "}{item.creditsRemaining == null ? "—" : item.creditsRemaining}
           </p>
           {item.editKind === "camera_orbit" && item.cameraPose && (
-            <p className="mt-1 text-xs text-zinc-500">
+            <p className="hidden text-xs text-zinc-500 sm:mt-1 sm:block">
               ракурс {item.cameraPose.azimuthDeg ?? 0}° / {item.cameraPose.elevationDeg ?? 0}° / ×{item.cameraPose.distanceRel ?? 1}
               {item.sceneRootId ? ` · root ${shortId(item.sceneRootId)}` : ""}
             </p>
           )}
-          <button onClick={() => setFullPrompt(item.prompt)}
-            className="mt-1 line-clamp-2 text-left text-sm leading-5 text-zinc-800">
+          <button onClick={() => setFullPrompt(item.prompt)} className={adminDensePromptClass}>
             {item.prompt}
           </button>
-          {item.status === "failed" && <p className="mt-2 text-xs text-red-700">
+          {item.status === "failed" && <p className="line-clamp-1 text-[11px] text-red-700 sm:mt-2 sm:line-clamp-none sm:text-xs">
             {item.errorType || "generation_failed"}{item.errorMessage ? `: ${item.errorMessage}` : ""}
           </p>}
-          {item.status === "completed" && <div className="mt-2 flex flex-wrap gap-3 text-xs font-semibold">
+          {item.status === "completed" && <div className={adminDenseActionsClass}>
             <button onClick={() => navigator.clipboard.writeText(item.prompt)} className="text-indigo-600">Копировать</button>
             <button onClick={() => onRegenerate(item.prompt)} className="text-violet-600">Повторить</button>
             {item.publicationStatus !== "published" && <button

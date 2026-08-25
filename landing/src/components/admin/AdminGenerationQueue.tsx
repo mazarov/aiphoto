@@ -2,6 +2,16 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { AdminResultLightbox, AdminResultThumb } from "./AdminResultMedia";
+import {
+  adminDenseActionsClass,
+  adminDenseBadgeClass,
+  adminDenseListClass,
+  adminDenseMetaClass,
+  adminDensePromptClass,
+  adminDenseRowClass,
+  adminDenseThumbClass,
+  formatAdminRowWhen,
+} from "./admin-dense-row";
 
 type Item = {
   id: string; createdAt: string; completedAt: string | null; prompt: string; model: string | null;
@@ -47,23 +57,23 @@ export function AdminGenerationQueue({ status, refreshKey, onRegenerate }: {
   };
   if (loading && !items.length) return <p className="text-sm text-zinc-500">Загрузка…</p>;
   if (!items.length) return <div className="rounded-2xl border border-zinc-200 bg-white p-8 text-center text-sm text-zinc-500">{error || "Список пуст"}</div>;
-  return <div className="space-y-3">
+  return <div className={adminDenseListClass}>
     {error && <p className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}
-    {items.map((item) => <article key={item.id} className="flex gap-3 rounded-2xl border border-zinc-200 bg-white p-3 shadow-sm">
+    {items.map((item) => <article key={item.id} className={adminDenseRowClass}>
       <button onClick={() => item.resultUrl && setLightbox(item.resultUrl)}
-        className="h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-zinc-100">
+        className={adminDenseThumbClass}>
         {item.resultUrl && <AdminResultThumb url={item.resultUrl} />}
       </button>
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap gap-2 text-[11px] text-zinc-500">
-          <span className={`rounded-full px-2 py-0.5 font-semibold ${item.publicationStatus === "published" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
+      <div className="flex min-w-0 flex-1 flex-col gap-0.5 sm:gap-0">
+        <div className={adminDenseMetaClass}>
+          <span className={`${adminDenseBadgeClass} ${item.publicationStatus === "published" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
             {item.publicationStatus}
           </span>
-          <span>{new Date(item.completedAt || item.createdAt).toLocaleString()}</span>
-          <span>{item.model} · {item.aspectRatio}</span>
+          <span>{formatAdminRowWhen(item.completedAt || item.createdAt)}</span>
+          <span className="hidden sm:inline">{item.model} · {item.aspectRatio}</span>
         </div>
-        <button onClick={() => setPrompt(item.prompt)} className="mt-1 line-clamp-2 text-left text-sm text-zinc-800">{item.prompt}</button>
-        <div className="mt-2 flex flex-wrap gap-3 text-xs font-semibold">
+        <button onClick={() => setPrompt(item.prompt)} className={adminDensePromptClass}>{item.prompt}</button>
+        <div className={adminDenseActionsClass}>
           <button onClick={() => navigator.clipboard.writeText(item.prompt)} className="text-indigo-600">Копировать</button>
           <button onClick={() => onRegenerate(item.prompt)} className="text-violet-600">Повторить</button>
           {item.publicationStatus !== "published" && <button disabled={Boolean(busy)} onClick={() => void publish(item.id)} className="text-amber-700 disabled:opacity-40">

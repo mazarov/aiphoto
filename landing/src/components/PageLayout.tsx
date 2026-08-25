@@ -34,10 +34,13 @@ export function PageLayout({
   showFooterWithGenerateDock?: boolean;
 }) {
   const pathname = usePathname();
+  const isAdminPath = pathname === "/admin" || pathname.startsWith("/admin/");
   const showGenerateDock = isGenerateDockListingPath(pathname);
   const showFooter =
+    !isAdminPath &&
     normalizePath(pathname) !== "/generate" &&
     (!showGenerateDock || showFooterWithGenerateDock);
+  const showProductChrome = !isAdminPath;
   useListingScrollOnRouteChange(pathname);
   useListingShellViewportSync();
   const shellRef = useListingChromeAutoHide();
@@ -76,7 +79,9 @@ export function PageLayout({
           className={`listing-scroll-root max-lg:min-h-0 max-lg:flex-1 max-lg:overflow-y-auto max-lg:overscroll-y-contain max-lg:[-webkit-overflow-scrolling:touch] ${
             showGenerateDock
               ? "max-lg:pb-[calc(var(--ps-tabbar-reserve,3.5rem)+12.5rem)] lg:pb-[min(42vh,22rem)]"
-              : "max-lg:pb-[var(--ps-tabbar-reserve,calc(3.5rem+max(0px,env(safe-area-inset-bottom,0px))))]"
+              : showProductChrome
+                ? "max-lg:pb-[var(--ps-tabbar-reserve,calc(3.5rem+max(0px,env(safe-area-inset-bottom,0px))))]"
+                : ""
           }`}
         >
           <div
@@ -93,8 +98,8 @@ export function PageLayout({
           </div>
         </div>
 
-        <ListingBottomBar />
-        <MobileTabBar />
+        {showProductChrome ? <ListingBottomBar /> : null}
+        {showProductChrome ? <MobileTabBar /> : null}
         <GenerateListingDockHost />
 
         <Suspense fallback={null}>

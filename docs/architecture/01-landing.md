@@ -1,5 +1,7 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-08-25 (**admin analyze-history mobile density:** строки анализов/генераций на мобилке как на imageprompt.tools — превью 56px, промпт 1 строка, дата без секунд, действия в одну прокручиваемую полосу. `/admin/*` не показывает Footer / MobileTabBar / ListingBottomBar и не резервирует tabbar padding. Desktop `sm+` без изменений плотности. SSOT классы `admin-dense-row.ts`.
+>
 > Последнее обновление: 2026-08-24 (**camera orbit photo+note / Grok:** I2I = корневое фото + короткая пометка камеры, бриф карточки не шлём. Модель из `camera_orbit_model` (SQL `214`, дефолт `grok-imagine-image-2.0`), не модель исходника. Чужой id → 503, не Flash. CTA считает кредиты этой модели. Спека `docs/24-08-camera-orbit.md`.
 >
 > Последнее обновление: 2026-08-24 (**scout analyze 200/day:** `POST /api/scout/analyze` — общий бакет `scout:v1`, 200 успешных / UTC-сутки. Публичный `/api/extension/analyze` не меняется. Спека `docs/23-08-scout-analyze.md`.
@@ -512,7 +514,7 @@
 /generations            → Мои генерации (auth): канонический список `landing_generations` текущего shared DB user; UGC-карточка необязательна
 /analyses               → Мои анализы (auth, noindex): свои строки `analyze_history` (`user_id` = JWT или shared db id); signed preview из private bucket; CTA копирует промт и открывает dock. Гостевые анализы (`user_id` null) не попадают. SQL `188`
 /admin/analytics        → Закрытый analytics dashboard: пользователи/клиенты + live непотраченные кредиты; таблицы кредитов/топа/analyze свёрнуты до клика; admin generation modal; Supabase Auth + email allowlist `ANALYTICS_ADMIN_EMAILS`
-/admin/analyze-history  → Закрытая история analyze/remix + все non-admin user generations; remix помечается бейджем и `change_request`; image job — бейдж `Gemini|xAI generate|edit`; private source previews выдаются signed, completed results публикуются идемпотентно
+/admin/analyze-history  → Закрытая история analyze/remix + все non-admin user generations; remix помечается бейджем и `change_request`; image job — бейдж `Gemini|xAI generate|edit`; private source previews выдаются signed, completed results публикуются идемпотентно. Mobile rows: dense (56px thumb, 1-line prompt) via `admin-dense-row.ts`
 /admin/payments         → Закрытый cursor-реестр YooKassa/Robokassa: payer identity, RUB/status/test, credits/`credited_at`; кнопка «Скачать CSV» выгружает все строки текущих фильтров
 /admin/finance          → Касса выгрузок: импорт ЮKassa/GCP, чистый доход; `?tab=finance` с аналитики редиректит сюда
 /admin/seo              → Вотчлист топ-30 URL: фильтр дней, таблица + раскрытие запросов и график динамики
@@ -1105,7 +1107,7 @@ SearchResults (client, infinite scroll)
 
 | Компонент | Файл | Роль |
 |-----------|------|------|
-| PageLayout | `components/PageLayout.tsx` | Клиентский shell: `listing-mobile-shell` + `#listing-scroll-root`; моб. высота через `--ps-listing-shell-height` (`listing-shell-viewport.ts`: только `innerHeight`, freeze на фокусе поля; `.listing-shell-root` `fixed` top-0); hide-on-scroll шапки/таббара (`.listing-chrome-hidden` через DOM/rAF, без React state); in-flow `listing-header-flow-spacer` + `ListingBottomBar`; **`useListingScrollOnRouteChange(pathname)`** — сброс скролла при смене маршрута |
+| PageLayout | `components/PageLayout.tsx` | Клиентский shell: `listing-mobile-shell` + `#listing-scroll-root`; моб. высота через `--ps-listing-shell-height` (`listing-shell-viewport.ts`: только `innerHeight`, freeze на фокусе поля; `.listing-shell-root` `fixed` top-0); hide-on-scroll шапки/таббара (`.listing-chrome-hidden` через DOM/rAF, без React state); in-flow `listing-header-flow-spacer` + `ListingBottomBar`; **`useListingScrollOnRouteChange(pathname)`** — сброс скролла при смене маршрута. На `/admin` и `/admin/*` продуктовый chrome выключен: нет Footer / MobileTabBar / ListingBottomBar и нет `tabbar-reserve` padding |
 | Header | `components/Header.tsx` | Legacy серверный (заменён PageLayout) |
 | Footer | `components/Footer.tsx` | Статический |
 | CardPage | `app/p/[slug]/page.tsx` | Серверный, SSR карточки |

@@ -6,6 +6,17 @@ import { useAuth } from "@/context/AuthContext";
 import { AdminGenerateModal } from "./AdminGenerateModal";
 import { AdminGenerationQueue } from "./AdminGenerationQueue";
 import { AdminUserGenerationsList } from "./AdminUserGenerationsList";
+import {
+  adminDenseActionsClass,
+  adminDenseBadgeClass,
+  adminDenseFilterClass,
+  adminDenseListClass,
+  adminDenseMetaClass,
+  adminDensePromptClass,
+  adminDenseRowClass,
+  adminDenseThumbClass,
+  formatAdminRowWhen,
+} from "./admin-dense-row";
 import { CLIENT_SOURCES_ORDER, clientSourceColor, clientSourceLabel } from "./analytics-constants";
 
 type Item = {
@@ -26,8 +37,6 @@ type Item = {
   quota_mode?: string | null;
 };
 type View = "analyses" | "user_generations" | "unpublished" | "published";
-const tabClass = (active: boolean) => `rounded-xl px-3 py-2 text-xs font-semibold ${
-  active ? "bg-indigo-600 text-white" : "border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50"}`;
 
 export function AnalyzeHistoryList() {
   const { user, openAuthModal } = useAuth();
@@ -80,66 +89,67 @@ export function AnalyzeHistoryList() {
     {status === 401 && <button onClick={() => openAuthModal()} className="mt-5 rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white">Войти</button>}
   </div>;
 
-  return <div className="mx-auto max-w-5xl space-y-6">
-    <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-      <div><p className="text-sm font-medium text-indigo-600">PromptShot Admin</p>
-        <h1 className="text-3xl font-bold tracking-tight text-zinc-900">История и публикации</h1>
-        <p className="mt-1 text-sm text-zinc-500">Анализы, генерации и карточки</p></div>
-      <Link href="/admin/analytics" className="text-sm font-semibold text-indigo-600">← Аналитика</Link>
+  return <div className="mx-auto max-w-5xl space-y-3 sm:space-y-6">
+    <header className="flex items-end justify-between gap-3">
+      <div>
+        <p className="hidden text-sm font-medium text-indigo-600 sm:block">PromptShot Admin</p>
+        <h1 className="text-xl font-bold tracking-tight text-zinc-900 sm:text-3xl">История и публикации</h1>
+        <p className="mt-0.5 hidden text-sm text-zinc-500 sm:mt-1 sm:block">Анализы, генерации и карточки</p>
+      </div>
+      <Link href="/admin/analytics" className="shrink-0 text-xs font-semibold text-indigo-600 sm:text-sm">← Аналитика</Link>
     </header>
-    <nav className="flex flex-wrap gap-2">
-      <button className={tabClass(view === "analyses")} onClick={() => setView("analyses")}>Анализы</button>
-      <button className={tabClass(view === "user_generations")} onClick={() => setView("user_generations")}>
-        Генерации других пользователей
+    <nav className="flex flex-wrap gap-1.5 sm:gap-2">
+      <button className={adminDenseFilterClass(view === "analyses")} onClick={() => setView("analyses")}>Анализы</button>
+      <button className={adminDenseFilterClass(view === "user_generations")} onClick={() => setView("user_generations")}>
+        <span className="sm:hidden">Генерации</span>
+        <span className="hidden sm:inline">Генерации других пользователей</span>
       </button>
-      <button className={tabClass(view === "unpublished")} onClick={() => setView("unpublished")}>Не опубликовано</button>
-      <button className={tabClass(view === "published")} onClick={() => setView("published")}>Опубликовано</button>
+      <button className={adminDenseFilterClass(view === "unpublished")} onClick={() => setView("unpublished")}>Не опубликовано</button>
+      <button className={adminDenseFilterClass(view === "published")} onClick={() => setView("published")}>Опубликовано</button>
     </nav>
     {error && <p className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}
     {view === "user_generations" ? <AdminUserGenerationsList onRegenerate={setGeneratePrompt} />
       : view !== "analyses" ? <AdminGenerationQueue status={view} refreshKey={queueRefresh}
       onRegenerate={setGeneratePrompt} /> : <>
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-1.5 sm:gap-2">
         {["all", ...CLIENT_SOURCES_ORDER].map((item) => <button key={item} onClick={() => setSource(item)}
-          className={tabClass(source === item)}>{item === "all" ? "Все" : clientSourceLabel(item)}</button>)}
+          className={adminDenseFilterClass(source === item)}>{item === "all" ? "Все" : clientSourceLabel(item)}</button>)}
       </div>
       {loading && !items.length ? <p className="text-sm text-zinc-500">Загрузка…</p> : !items.length
         ? <div className="rounded-2xl border border-zinc-200 bg-white p-8 text-center text-sm text-zinc-500">История пуста</div>
-        : <div className="space-y-3">{items.map((item) => <article key={item.id}
-          className="flex gap-3 rounded-2xl border border-zinc-200 bg-white p-3 shadow-sm">
+        : <div className={adminDenseListClass}>{items.map((item) => <article key={item.id}
+          className={adminDenseRowClass}>
           <button onClick={() => item.image_url && setLightbox(item.image_url)}
-            className="h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-zinc-100">
+            className={adminDenseThumbClass}>
             {item.image_url && <img src={item.image_url} alt="" className="h-full w-full object-cover" />}
           </button>
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2 text-[11px] text-zinc-500">
-              <span className="rounded-full px-2 py-0.5 font-semibold text-white"
+          <div className="flex min-w-0 flex-1 flex-col gap-0.5 sm:gap-0">
+            <div className={adminDenseMetaClass}>
+              <span className={`${adminDenseBadgeClass} text-white`}
                 style={{ background: clientSourceColor(item.client_source) }}>{clientSourceLabel(item.client_source)}</span>
               {item.kind === "remix" && (
-                <span className="rounded-full bg-violet-600 px-2 py-0.5 font-semibold text-white">Remix</span>
+                <span className={`${adminDenseBadgeClass} bg-violet-600 text-white`}>Remix</span>
               )}
               {Number(item.credits_spent) > 0 && (
-                <span className="rounded-full bg-amber-600 px-2 py-0.5 font-semibold text-white">
+                <span className={`${adminDenseBadgeClass} bg-amber-600 text-white`}>
                   {item.credits_spent} токен
                 </span>
               )}
-              <span>{new Date(item.created_at).toLocaleString()}</span>
-              {item.model && <span>{item.model}</span>}
-            </div>
-            {(item.user_email || item.user_display_name) && (
-              <p className="mt-1 text-xs text-zinc-500">
-                <span className="font-semibold text-zinc-700">
+              <span>{formatAdminRowWhen(item.created_at)}</span>
+              {item.model && <span className="hidden max-w-[10rem] truncate sm:inline">{item.model}</span>}
+              {(item.user_email || item.user_display_name) && (
+                <span className="max-w-[12rem] truncate font-semibold text-zinc-700">
                   {item.user_email || item.user_display_name}
                 </span>
-              </p>
-            )}
+              )}
+            </div>
             {item.kind === "remix" && item.change_request && (
-              <p className="mt-1 line-clamp-2 text-xs leading-4 text-violet-700">
+              <p className="line-clamp-1 text-[11px] leading-4 text-violet-700 sm:mt-1 sm:line-clamp-2 sm:text-xs">
                 <span className="font-semibold">Что изменить:</span> {item.change_request}
               </p>
             )}
-            <button onClick={() => setFullPrompt(item.prompt)} className="mt-1 line-clamp-2 text-left text-sm leading-5 text-zinc-800">{item.prompt}</button>
-            <div className="mt-2 flex flex-wrap gap-3 text-xs font-semibold">
+            <button onClick={() => setFullPrompt(item.prompt)} className={adminDensePromptClass}>{item.prompt}</button>
+            <div className={adminDenseActionsClass}>
               <button onClick={() => navigator.clipboard.writeText(item.prompt)} className="text-indigo-600">Копировать</button>
               <button onClick={() => setGeneratePrompt(item.prompt)} className="text-violet-600">Сгенерировать</button>
               {!item.is_published ? <button disabled={Boolean(publishing) || !item.image_url}
