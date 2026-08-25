@@ -74,7 +74,7 @@ import {
   VIDEO_GENERATION_MODALITY,
   VIDEO_RESOLUTION_OPTIONS,
   clampImageSizeForModel,
-  isGrokImageModel,
+  imageSizeOptionsForModel,
   isVeoLiteVideoModel,
   videoDurationOptionsForModel,
 } from "@/lib/generation/image-options";
@@ -1003,17 +1003,14 @@ export function CardInlineGeneratePanel({
     if (videoDurationSeconds > 8) setVideoDurationSeconds(8);
   }, [videoModel, videoDurationSeconds]);
 
-  const visibleImageSizes = useMemo(
-    () =>
-      isGrokImageModel(model)
-        ? imageSizes.filter((item) => item.value !== "4K")
-        : imageSizes,
-    [model, imageSizes]
-  );
+  const visibleImageSizes = useMemo(() => {
+    const allowed = new Set(imageSizeOptionsForModel(model).map((item) => item.value));
+    return imageSizes.filter((item) => allowed.has(item.value));
+  }, [model, imageSizes]);
 
   useEffect(() => {
-    if (!isGrokImageModel(model)) return;
-    if (imageSize === "4K") setImageSize("2K");
+    const next = clampImageSizeForModel(model, imageSize);
+    if (next !== imageSize) setImageSize(next);
   }, [model, imageSize]);
 
   useEffect(() => {

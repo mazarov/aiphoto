@@ -1,4 +1,5 @@
 import { ProcessingError } from "./input-source";
+import { isSeedreamImageModel } from "./replicate-seedream";
 import { isGrokImageModel } from "./xai-image";
 
 /** Only skip Grok when the worker is dying — do not start another vendor call. */
@@ -18,6 +19,9 @@ export function shouldAttemptImageFallback(input: {
 }): { ok: true; model: string } | { ok: false; reason: string } {
   if (isGrokImageModel(input.requestedModel)) {
     return { ok: false, reason: "primary_is_grok" };
+  }
+  if (isSeedreamImageModel(input.requestedModel)) {
+    return { ok: false, reason: "primary_is_seedream" };
   }
   if (input.fallbackUsed) return { ok: false, reason: "already_used" };
   if (!isImageFallbackEligible(input.error)) return { ok: false, reason: "not_eligible" };

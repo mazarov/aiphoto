@@ -14,12 +14,21 @@ export const GROK_IMAGINE_IMAGE_MODEL = "grok-imagine-image-2.0";
 /** PromptShot credits for the Grok Imagine photo model. SSOT for picker + enqueue. */
 export const GROK_IMAGINE_IMAGE_CREDIT_COST = 10;
 
+export const SEEDREAM_45_IMAGE_MODEL = "seedream-4.5";
+export const SEEDREAM_45_REPLICATE_MODEL = "bytedance/seedream-4.5";
+/** PromptShot credits for Seedream 4.5. SSOT for picker + enqueue. */
+export const SEEDREAM_45_CREDIT_COST = 10;
+
 export function isGrokVideoModel(model: unknown): boolean {
   return typeof model === "string" && model.startsWith("grok-imagine-video");
 }
 
 export function isGrokImageModel(model: unknown): boolean {
   return typeof model === "string" && model.startsWith("grok-imagine-image");
+}
+
+export function isSeedreamImageModel(model: unknown): boolean {
+  return typeof model === "string" && model.startsWith("seedream-");
 }
 
 export function isGeminiImageModel(model: unknown): boolean {
@@ -72,12 +81,15 @@ export function isImageSize(value: unknown): value is string {
   return typeof value === "string" && IMAGE_SIZES.has(value);
 }
 
-/** Grok Imagine image API accepts 1k/2k only. */
+/** Grok Imagine image API accepts 1k/2k only. Seedream 4.5 has 2K/4K, no 1K. */
 export function imageSizeOptionsForModel(
   model?: string | null
 ): readonly { value: string; label: string }[] {
   if (isGrokImageModel(model)) {
     return IMAGE_SIZE_OPTIONS.filter((option) => option.value !== "4K");
+  }
+  if (isSeedreamImageModel(model)) {
+    return IMAGE_SIZE_OPTIONS.filter((option) => option.value !== "1K");
   }
   return IMAGE_SIZE_OPTIONS;
 }
@@ -87,6 +99,7 @@ export function clampImageSizeForModel(
   imageSize: string
 ): string {
   if (isGrokImageModel(model) && imageSize === "4K") return "2K";
+  if (isSeedreamImageModel(model) && imageSize === "1K") return "2K";
   return imageSize;
 }
 

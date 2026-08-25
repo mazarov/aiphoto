@@ -15,6 +15,7 @@
     "src/**/*",
     "../landing/src/lib/image-generation-prompt.ts",
     "../landing/src/lib/grok-image-prompt.ts",
+    "../landing/src/lib/seedream-image-prompt.ts",
     "../landing/src/lib/generation-edit-contract.ts",
     "../landing/src/lib/camera-orbit.ts",
     "../landing/src/lib/video-motion-prompt.ts",

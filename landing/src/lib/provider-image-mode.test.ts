@@ -69,3 +69,12 @@ test("Grok and Gemini→Grok fallback stay xAI", () => {
     "bg-indigo-100 text-indigo-800"
   );
 });
+
+test("Seedream jobs are replicate vendor", () => {
+  assert.deepEqual(inferProviderImageMode({
+    requestedModel: "seedream-4.5",
+    executedModel: "seedream-4.5",
+    inputPhotoCount: 1,
+  }), { vendor: "replicate", mode: "edit" });
+  assert.equal(providerImageModeLabel({ vendor: "replicate", mode: "edit" }), "Seedream edit");
+});

@@ -13,6 +13,7 @@ COPY web-generation-worker/src ./src
 # Keep this list in sync with tsconfig.json "include" and root Dockerfile.worker.
 COPY landing/src/lib/image-generation-prompt.ts /repo/landing/src/lib/image-generation-prompt.ts
 COPY landing/src/lib/grok-image-prompt.ts /repo/landing/src/lib/grok-image-prompt.ts
+COPY landing/src/lib/seedream-image-prompt.ts /repo/landing/src/lib/seedream-image-prompt.ts
 COPY landing/src/lib/generation-edit-contract.ts /repo/landing/src/lib/generation-edit-contract.ts
 COPY landing/src/lib/camera-orbit.ts /repo/landing/src/lib/camera-orbit.ts
 COPY landing/src/lib/video-motion-prompt.ts /repo/landing/src/lib/video-motion-prompt.ts

@@ -17,9 +17,10 @@ alwaysApply: true
 | Другой Google API (OAuth, BQ, …) | `{GEMINI_PROXY_ORIGIN}/u/oauth2.googleapis.com/...` или `/u/bigquery.googleapis.com/...` | не подменять `GEMINI_PROXY_BASE_URL` |
 | OpenAI | `OPENAI_BASE_URL={GEMINI_PROXY_ORIGIN}/u/api.openai.com` | не звать `api.openai.com` напрямую |
 | xAI / Grok Imagine Video | `XAI_BASE_URL={GEMINI_PROXY_ORIGIN}/u/api.x.ai` + path `/v1/videos/...` | не подменять `GEMINI_PROXY_BASE_URL`. Пустой env — стоп, не fallback на `api.x.ai` |
+| Replicate / Seedream | `REPLICATE_BASE_URL={GEMINI_PROXY_ORIGIN}/u/api.replicate.com` + path `/v1/models/.../predictions` | не подменять `GEMINI_PROXY_BASE_URL`. Пустой env — стоп, не fallback на `api.replicate.com`. Download: `/u/replicate.delivery` |
 | РФ-сервисы | напрямую | ЮKassa, Яндекс (Метрика, Директ, OAuth, Почта) |
 
-`GEMINI_PROXY_ORIGIN` — тот же host, что у `GEMINI_PROXY_BASE_URL` (без path). Шлюз `/u/<allowlisted-host>/...` на том же vhost: nginx снимает `/u/<host>` и проксирует только allowlist (`api.x.ai`, `api.openai.com`, `generativelanguage.googleapis.com`, `oauth2.googleapis.com`, `bigquery.googleapis.com`). Чужой host → 403.
+`GEMINI_PROXY_ORIGIN` — тот же host, что у `GEMINI_PROXY_BASE_URL` (без path). Шлюз `/u/<allowlisted-host>/...` на том же vhost: nginx снимает `/u/<host>` и проксирует только allowlist (`api.x.ai`, `api.openai.com`, `generativelanguage.googleapis.com`, `oauth2.googleapis.com`, `bigquery.googleapis.com`, `api.replicate.com`, `replicate.delivery`). Чужой host → 403.
 
 ## Как писать код
 

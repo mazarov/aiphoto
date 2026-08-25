@@ -1,6 +1,8 @@
 import {
   GROK_IMAGINE_IMAGE_CREDIT_COST,
+  SEEDREAM_45_CREDIT_COST,
   isGrokImageModel,
+  isSeedreamImageModel,
 } from "./generation/image-options";
 
 /**
@@ -52,6 +54,10 @@ export const GENERATION_MODEL_DISPLAY: Record<string, GenerationModelDisplay> = 
   "grok-imagine-image-2.0": {
     label: "Grok Imagine",
     description: "Альтернативная генерация xAI",
+  },
+  "seedream-4.5": {
+    label: "Seedream 4.5",
+    description: "Реализм и лицо по референсу",
   },
   "grok-imagine-video-1.5": {
     label: "Grok Imagine 1.5",
@@ -159,9 +165,11 @@ function parseGenerationModels(
         label: displayLabelForGenerationModel(model.id, model.label),
         cost: isGrokImageModel(model.id)
           ? GROK_IMAGINE_IMAGE_CREDIT_COST
-          : Number.isFinite(model.cost)
-            ? Number(model.cost)
-            : 0,
+          : isSeedreamImageModel(model.id)
+            ? SEEDREAM_45_CREDIT_COST
+            : Number.isFinite(model.cost)
+              ? Number(model.cost)
+              : 0,
       }));
     return models.length ? models : fallback;
   } catch {

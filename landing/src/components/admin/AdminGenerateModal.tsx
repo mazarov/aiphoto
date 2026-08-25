@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { isGrokImageModel } from "@/lib/generation/image-options";
+import { clampImageSizeForModel, imageSizeOptionsForModel } from "@/lib/generation/image-options";
 
 type Config = {
   models: { id: string; label: string }[]; aspectRatios: { value: string; label: string }[];
@@ -37,16 +37,14 @@ export function AdminGenerateModal({ initialPrompt, onClose, onCompleted }: {
   }, []);
   useEffect(() => { void init(); }, [init]);
 
-  const visibleImageSizes = useMemo(
-    () =>
-      (config?.imageSizes ?? []).filter(
-        (item) => !isGrokImageModel(model) || item.value !== "4K"
-      ),
-    [config, model]
-  );
+  const visibleImageSizes = useMemo(() => {
+    const allowed = new Set(imageSizeOptionsForModel(model).map((item) => item.value));
+    return (config?.imageSizes ?? []).filter((item) => allowed.has(item.value));
+  }, [config, model]);
 
   useEffect(() => {
-    if (isGrokImageModel(model) && size === "4K") setSize("2K");
+    const next = clampImageSizeForModel(model, size);
+    if (next !== size) setSize(next);
   }, [model, size]);
 
   const upload = async (file?: File) => {

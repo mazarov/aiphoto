@@ -53,3 +53,4 @@ export class GrokImageCircuit {
 }
 
 export const grokImageCircuit = new GrokImageCircuit();
+export const seedreamImageCircuit = new GrokImageCircuit();

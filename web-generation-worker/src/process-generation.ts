@@ -18,6 +18,13 @@ import {
   assembleGrokVibePrompt,
 } from "../../landing/src/lib/grok-image-prompt";
 import {
+  assembleSeedreamCameraOrbitPrompt,
+  assembleSeedreamImageEditPrompt,
+  assembleSeedreamImageToImagePrompt,
+  assembleSeedreamTextToImagePrompt,
+  assembleSeedreamVibePrompt,
+} from "../../landing/src/lib/seedream-image-prompt";
+import {
   resolveCameraOrbitScenePrompt,
   resolveImageEditMode,
 } from "../../landing/src/lib/camera-orbit";
@@ -32,7 +39,7 @@ import {
   type ParentGenerationInput,
 } from "./input-source";
 import { encodeGenerationResult } from "./result-encode";
-import { grokImageCircuit } from "./grok-image-circuit";
+import { grokImageCircuit, seedreamImageCircuit } from "./grok-image-circuit";
 import { shouldAttemptImageFallback } from "./image-fallback";
 import {
   GROK_IMAGINE_IMAGE_MODEL,
@@ -51,6 +58,19 @@ import {
   xaiProxyHost,
   type GrokImagePart,
 } from "./xai-image";
+import {
+  SEEDREAM_45_IMAGE_MODEL,
+  SEEDREAM_45_REPLICATE_MODEL,
+  SEEDREAM_SIGNED_TTL_SEC,
+  buildSeedreamPredictionBody,
+  clampSeedreamImageUrls,
+  isProxiedReferenceUrl,
+  isSeedreamImageModel,
+  mapSeedreamImageSize,
+  replicateProxyHost,
+  requireReplicateBaseUrl,
+  runSeedreamPrediction,
+} from "./replicate-seedream";
 
 export { ProcessingError, RESULTS_BUCKET } from "./input-source";
 const DIRECT_GEMINI_BASE_URL = "https://generativelanguage.googleapis.com";
@@ -257,11 +277,12 @@ export async function processGeneration(
     sourceCount: inputSource.paths.length,
     parentGenerationId: job.parent_generation_id,
   });
-  const inputParts = await downloadInputs(supabase, inputSource);
-  await ensureLease();
-
   const rawPrompt = String(job.prompt_text || "");
   if (!rawPrompt.trim()) throw new ProcessingError("input_missing", "Prompt text is empty", false);
+  if (!job.model || !job.aspect_ratio || !job.image_size) {
+    throw new ProcessingError("config_error", "Generation model, aspect ratio, or image size is missing", false);
+  }
+  const requestedModel = job.requested_model || job.model;
   const isVibe = Boolean(job.vibe_id);
   const editInstruction = String(job.edit_instruction || "").trim();
   const generationMode = resolveImageEditMode({
@@ -272,7 +293,7 @@ export async function processGeneration(
   });
   const isCameraOrbit = generationMode === "camera_orbit";
   const isLocalEdit = generationMode === "local_edit";
-  let reference: ImagePart | null = null;
+  let vibeSourceUrl: string | null = null;
   let attachReference = false;
 
   if (job.vibe_id) {
@@ -284,8 +305,106 @@ export async function processGeneration(
       .single();
     if (error || !vibe) throw new ProcessingError("input_missing", "Vibe configuration not found", false);
     if (attachReference && vibe.source_image_url) {
-      reference = await downloadReference(String(vibe.source_image_url), signal);
+      vibeSourceUrl = String(vibe.source_image_url);
     }
+    if (attachReference && !vibeSourceUrl) {
+      throw new ProcessingError(
+        "vibe_reference_missing",
+        "Steal This Vibe reference image is required but unavailable",
+        false,
+      );
+    }
+  }
+
+  if (isSeedreamImageModel(requestedModel)) {
+    if (vibeSourceUrl && isProxiedReferenceUrl(vibeSourceUrl)) {
+      throw new ProcessingError(
+        "config_error",
+        "Seedream reference must be a public signed URL, not a /u/ proxy path",
+        false,
+      );
+    }
+    const seedreamPrompt = isVibe
+      ? assembleSeedreamVibePrompt(rawPrompt, Boolean(vibeSourceUrl))
+      : isCameraOrbit
+        ? assembleSeedreamCameraOrbitPrompt(
+            resolveCameraOrbitScenePrompt({
+              promptText: rawPrompt,
+              editInstruction,
+              cameraPose: job.camera_pose,
+            }),
+          )
+        : isLocalEdit
+          ? assembleSeedreamImageEditPrompt(editInstruction)
+          : inputSource.paths.length
+            ? assembleSeedreamImageToImagePrompt(rawPrompt)
+            : assembleSeedreamTextToImagePrompt(rawPrompt);
+    log("info", "generation_prompt_resolved", {
+      ...context,
+      generationMode,
+      editKind: job.edit_kind ?? null,
+      cameraPose: job.camera_pose ?? null,
+      editInstructionLength: editInstruction.length,
+      scenePromptLength: rawPrompt.length,
+      promptLength: seedreamPrompt.length,
+      provider: "seedream",
+    });
+    const signedUrls = await createSeedreamSignedUrls(supabase, inputSource);
+    const imageInput = clampSeedreamImageUrls([
+      ...(vibeSourceUrl ? [vibeSourceUrl] : []),
+      ...signedUrls,
+    ]);
+    const imageBuffer = await generateSeedreamImage({
+      job,
+      prompt: seedreamPrompt,
+      imageInput: imageInput.urls,
+      imageInputClamped: imageInput.clamped,
+      signal,
+      context,
+      ensureLease,
+      supabase,
+    });
+    const encodedSeedream = await encodeGenerationResult(imageBuffer);
+    await ensureLease();
+    const seedreamResultPath = `${job.user_id}/${job.id}/${job.lease_token}.${encodedSeedream.extension}`;
+    const { error: seedreamUploadError } = await supabase.storage
+      .from(RESULTS_BUCKET)
+      .upload(seedreamResultPath, encodedSeedream.buffer, {
+        contentType: encodedSeedream.contentType,
+        upsert: true,
+      });
+    if (seedreamUploadError) {
+      throw new ProcessingError(
+        "result_upload_error",
+        seedreamUploadError.message,
+        isTemporary(seedreamUploadError),
+      );
+    }
+    log("info", "result_uploaded", {
+      ...context,
+      resultPath: seedreamResultPath,
+      bytes: encodedSeedream.bytesOut,
+      bytesIn: encodedSeedream.bytesIn,
+      bytesOut: encodedSeedream.bytesOut,
+      outputFormat: encodedSeedream.outputFormat,
+      encodeMs: encodedSeedream.encodeMs,
+      skippedReason: encodedSeedream.skippedReason,
+      executedModel: SEEDREAM_45_IMAGE_MODEL,
+      fallbackUsed: false,
+    });
+    return {
+      resultPath: seedreamResultPath,
+      rawPrompt,
+      executedModel: SEEDREAM_45_IMAGE_MODEL,
+      fallbackUsed: false,
+    };
+  }
+
+  const inputParts = await downloadInputs(supabase, inputSource);
+  await ensureLease();
+  let reference: ImagePart | null = null;
+  if (vibeSourceUrl) {
+    reference = await downloadReference(vibeSourceUrl, signal);
     if (attachReference && !reference) {
       throw new ProcessingError(
         "vibe_reference_missing",
@@ -335,11 +454,7 @@ export async function processGeneration(
     scenePromptLength: rawPrompt.length,
     promptLength: geminiPrompt.length,
   });
-  if (!job.model || !job.aspect_ratio || !job.image_size) {
-    throw new ProcessingError("config_error", "Generation model, aspect ratio, or image size is missing", false);
-  }
 
-  const requestedModel = job.requested_model || job.model;
   const startOnGrok = isGrokImageModel(requestedModel) || Boolean(job.fallback_used);
   const grokParts: GrokImagePart[] = [
     ...(hasReference && reference ? [{ mimeType: reference.inlineData.mimeType, data: reference.inlineData.data }] : []),
@@ -448,6 +563,167 @@ type ProviderContext = {
   attempt: number;
   pipelineTrace: string | null;
 };
+
+function toProcessingError(error: unknown): ProcessingError {
+  if (error instanceof ProcessingError) return error;
+  const typed = error as { errorType?: string; retryable?: boolean; message?: string };
+  return new ProcessingError(
+    typed.errorType || "provider_error",
+    error instanceof Error ? error.message : String(error),
+    Boolean(typed.retryable),
+  );
+}
+
+async function persistSeedreamOperation(
+  supabase: SupabaseClient,
+  job: GenerationJob,
+  operationId: string,
+  context: ProviderContext,
+): Promise<void> {
+  const { data: saved, error: saveError } = await supabase.rpc("landing_save_provider_operation", {
+    p_generation_id: job.id,
+    p_worker_id: config.workerId,
+    p_lease_token: job.lease_token,
+    p_provider_operation_id: operationId,
+  });
+  job.provider_operation_id = operationId;
+  if (saveError || saved !== true) {
+    log("error", "seedream_submit_lost", {
+      ...context,
+      persistFailed: true,
+      error: saveError?.message,
+    });
+    throw new ProcessingError(
+      "provider_operation_persist_failed",
+      saveError?.message || "Failed to persist Seedream prediction id",
+      true,
+    );
+  }
+}
+
+async function createSeedreamSignedUrls(
+  supabase: SupabaseClient,
+  source: GenerationInputSource,
+): Promise<string[]> {
+  const urls: string[] = [];
+  for (const path of source.paths) {
+    const { data, error } = await supabase.storage
+      .from(source.bucket)
+      .createSignedUrl(path, SEEDREAM_SIGNED_TTL_SEC);
+    if (error || !data?.signedUrl) {
+      const status = storageStatus(error);
+      const missing = status === 400 || status === 404 || /not found|does not exist/i.test(error?.message || "");
+      throw new ProcessingError(
+        missing ? "input_missing" : "storage_signed_url_error",
+        `Signed URL failed: ${path}: ${error?.message || "empty response"}`,
+        !missing && isTemporary(error),
+      );
+    }
+    if (isProxiedReferenceUrl(data.signedUrl)) {
+      throw new ProcessingError(
+        "config_error",
+        "Seedream signed URL must be public Storage, not a /u/ proxy path",
+        false,
+      );
+    }
+    urls.push(data.signedUrl);
+  }
+  return urls;
+}
+
+async function generateSeedreamImage(input: {
+  job: GenerationJob;
+  prompt: string;
+  imageInput: string[];
+  imageInputClamped: boolean;
+  signal: AbortSignal;
+  context: ProviderContext;
+  ensureLease: () => Promise<void>;
+  supabase: SupabaseClient;
+}): Promise<Buffer> {
+  if (!config.replicateApiToken || !config.replicateBaseUrl) {
+    log("error", "seedream_config_error", {
+      ...input.context,
+      missingToken: !config.replicateApiToken,
+      missingBase: !config.replicateBaseUrl,
+    });
+    throw new ProcessingError("config_error", "REPLICATE_BASE_URL is not configured", false);
+  }
+  try {
+    requireReplicateBaseUrl(config.replicateBaseUrl);
+  } catch (error) {
+    log("error", "seedream_config_error", {
+      ...input.context,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    throw new ProcessingError("config_error", "REPLICATE_BASE_URL must use /u/ proxy", false);
+  }
+  const mapped = mapSeedreamImageSize(input.job.image_size);
+  if (mapped.clamped) {
+    log("info", "seedream_size_clamped", {
+      ...input.context,
+      from: input.job.image_size,
+      to: mapped.size,
+    });
+  }
+  if (input.imageInputClamped) {
+    log("info", "seedream_input_clamped", {
+      ...input.context,
+      to: input.imageInput.length,
+    });
+  }
+  const body = buildSeedreamPredictionBody({
+    prompt: input.prompt,
+    size: mapped.size,
+    aspectRatio: input.job.aspect_ratio,
+    imageInput: input.imageInput,
+  });
+  const startedAt = Date.now();
+  log("info", "seedream_request_started", {
+    ...input.context,
+    model: SEEDREAM_45_REPLICATE_MODEL,
+    proxyHost: replicateProxyHost(config.replicateBaseUrl),
+    size: mapped.size,
+    clampedSize: mapped.clamped,
+    partCount: input.imageInput.length,
+    resume: Boolean(input.job.provider_operation_id),
+  });
+  try {
+    const result = await runSeedreamPrediction({
+      apiToken: config.replicateApiToken,
+      baseUrl: config.replicateBaseUrl,
+      existingOperationId: input.job.provider_operation_id,
+      body,
+      persistOperationId: (operationId) =>
+        persistSeedreamOperation(input.supabase, input.job, operationId, input.context),
+      ensureLease: input.ensureLease,
+      signal: input.signal,
+      circuitOpen: seedreamImageCircuit.isOpen(),
+      onLog: (event, fields) => {
+        log(event === "seedream_circuit_open" || event === "seedream_submit_lost" ? "warn" : "info", event, {
+          ...input.context,
+          ...fields,
+        });
+      },
+    });
+    seedreamImageCircuit.record(true);
+    log("info", "seedream_completed", {
+      ...input.context,
+      durationMs: Date.now() - startedAt,
+      submitted: result.submitted,
+    });
+    return result.buffer;
+  } catch (error) {
+    const processing = toProcessingError(error);
+    if (processing.errorType !== "shutdown") seedreamImageCircuit.record(false);
+    log("warn", "seedream_failed", {
+      ...input.context,
+      errorType: processing.errorType,
+      durationMs: Date.now() - startedAt,
+    });
+    throw processing;
+  }
+}
 
 async function generateGeminiImage(input: {
   job: GenerationJob;

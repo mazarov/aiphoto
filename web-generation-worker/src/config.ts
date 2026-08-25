@@ -35,6 +35,8 @@ export const config = {
   geminiProxyBaseUrl: (process.env.GEMINI_PROXY_BASE_URL || "").replace(/\/+$/, ""),
   xaiApiKey: process.env.XAI_API_KEY?.trim() || "",
   xaiBaseUrl: (process.env.XAI_BASE_URL || "").trim().replace(/\/+$/, ""),
+  replicateApiToken: process.env.REPLICATE_API_TOKEN?.trim() || "",
+  replicateBaseUrl: (process.env.REPLICATE_BASE_URL || "").trim().replace(/\/+$/, ""),
   workerId:
     process.env.WORKER_ID?.trim() ||
     `${os.hostname()}:${process.pid}:${crypto.randomBytes(4).toString("hex")}`,

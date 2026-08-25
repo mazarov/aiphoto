@@ -64,6 +64,17 @@ test("fallback is one-way Gemini to Grok", () => {
     }),
     { ok: false, reason: "circuit_open" },
   );
+  assert.deepEqual(
+    shouldAttemptImageFallback({
+      requestedModel: "seedream-4.5",
+      fallbackUsed: false,
+      error,
+      xaiConfigured: true,
+      fallbackModel: "grok-imagine-image-2.0",
+      circuitOpen: false,
+    }),
+    { ok: false, reason: "primary_is_seedream" },
+  );
 });
 
 test("circuit opens at 50% errors over 8 samples and cools down", () => {
