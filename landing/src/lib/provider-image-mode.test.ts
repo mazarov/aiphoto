@@ -76,5 +76,11 @@ test("Seedream jobs are openrouter vendor", () => {
     executedModel: "seedream-4.5",
     inputPhotoCount: 1,
   }), { vendor: "openrouter", mode: "edit" });
+  assert.deepEqual(inferProviderImageMode({
+    requestedModel: "gemini-2.5-flash-image",
+    executedModel: "seedream-4.5",
+    fallbackUsed: true,
+    inputPhotoCount: 1,
+  }), { vendor: "openrouter", mode: "edit" });
   assert.equal(providerImageModeLabel({ vendor: "openrouter", mode: "edit" }), "Seedream edit");
 });

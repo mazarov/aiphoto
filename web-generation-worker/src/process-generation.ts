@@ -40,7 +40,7 @@ import {
 } from "./input-source";
 import { encodeGenerationResult } from "./result-encode";
 import { grokImageCircuit, seedreamImageCircuit } from "./grok-image-circuit";
-import { shouldAttemptImageFallback } from "./image-fallback";
+import { shouldAttemptGrokFallback, shouldAttemptSeedreamFallback } from "./image-fallback";
 import {
   GROK_IMAGINE_IMAGE_MODEL,
   buildXaiImageEditBody,
@@ -316,49 +316,17 @@ export async function processGeneration(
     }
   }
 
-  if (isSeedreamImageModel(requestedModel)) {
-    if (vibeSourceUrl && isProxiedReferenceUrl(vibeSourceUrl)) {
-      throw new ProcessingError(
-        "config_error",
-        "Seedream reference must be a public signed URL, not a /u/ proxy path",
-        false,
-      );
-    }
-    const seedreamPrompt = isVibe
-      ? assembleSeedreamVibePrompt(rawPrompt, Boolean(vibeSourceUrl))
-      : isCameraOrbit
-        ? assembleSeedreamCameraOrbitPrompt(
-            resolveCameraOrbitScenePrompt({
-              promptText: rawPrompt,
-              editInstruction,
-              cameraPose: job.camera_pose,
-            }),
-          )
-        : isLocalEdit
-          ? assembleSeedreamImageEditPrompt(editInstruction)
-          : inputSource.paths.length
-            ? assembleSeedreamImageToImagePrompt(rawPrompt)
-            : assembleSeedreamTextToImagePrompt(rawPrompt);
-    log("info", "generation_prompt_resolved", {
-      ...context,
-      generationMode,
-      editKind: job.edit_kind ?? null,
-      cameraPose: job.camera_pose ?? null,
-      editInstructionLength: editInstruction.length,
-      scenePromptLength: rawPrompt.length,
-      promptLength: seedreamPrompt.length,
-      provider: "seedream",
-    });
-    const signedUrls = await createSeedreamSignedUrls(supabase, inputSource);
-    const imageInput = clampSeedreamImageUrls([
-      ...(vibeSourceUrl ? [vibeSourceUrl] : []),
-      ...signedUrls,
-    ]);
-    const imageBuffer = await generateSeedreamImage({
+  if (isSeedreamImageModel(requestedModel) || isSeedreamImageModel(job.executed_model)) {
+    const imageBuffer = await generateSeedreamFromJob({
       job,
-      prompt: seedreamPrompt,
-      imageInput: imageInput.urls,
-      imageInputClamped: imageInput.clamped,
+      rawPrompt,
+      editInstruction,
+      isVibe,
+      isCameraOrbit,
+      isLocalEdit,
+      vibeSourceUrl,
+      inputSource,
+      generationMode,
       signal,
       context,
       ensureLease,
@@ -390,13 +358,13 @@ export async function processGeneration(
       encodeMs: encodedSeedream.encodeMs,
       skippedReason: encodedSeedream.skippedReason,
       executedModel: SEEDREAM_45_IMAGE_MODEL,
-      fallbackUsed: false,
+      fallbackUsed: Boolean(job.fallback_used),
     });
     return {
       resultPath: seedreamResultPath,
       rawPrompt,
       executedModel: SEEDREAM_45_IMAGE_MODEL,
-      fallbackUsed: false,
+      fallbackUsed: Boolean(job.fallback_used) || !isSeedreamImageModel(requestedModel),
     };
   }
 
@@ -466,14 +434,40 @@ export async function processGeneration(
   let fallbackUsed = Boolean(job.fallback_used);
 
   if (startOnGrok) {
-    imageBuffer = await generateGrokImage({
-      job,
-      prompt: grokPrompt,
-      images: grokParts,
-      signal,
-      context,
-      ensureLease,
-    });
+    try {
+      imageBuffer = await generateGrokImage({
+        job,
+        prompt: grokPrompt,
+        images: grokParts,
+        signal,
+        context,
+        ensureLease,
+      });
+    } catch (error) {
+      const processing = toProcessingError(error);
+      const seedream = await trySeedreamImageFallback({
+        job,
+        requestedModel,
+        error: processing,
+        rawPrompt,
+        editInstruction,
+        isVibe,
+        isCameraOrbit,
+        isLocalEdit,
+        vibeSourceUrl,
+        inputSource,
+        generationMode,
+        signal,
+        context,
+        ensureLease,
+        supabase,
+        fromModel: executedModel,
+      });
+      if (!seedream) throw processing;
+      imageBuffer = seedream.buffer;
+      executedModel = seedream.model;
+      fallbackUsed = true;
+    }
   } else {
     try {
       imageBuffer = await generateGeminiImage({
@@ -490,42 +484,91 @@ export async function processGeneration(
       });
     } catch (error) {
       if (!(error instanceof ProcessingError)) throw error;
-      const fallbackModel = await resolveImageFallbackModel(supabase);
-      const decision = shouldAttemptImageFallback({
+      const targets = await resolveImageFallbackTargets(supabase);
+      const grokDecision = shouldAttemptGrokFallback({
         requestedModel,
         fallbackUsed,
         error,
         xaiConfigured: Boolean(config.xaiApiKey && config.xaiBaseUrl),
-        fallbackModel,
+        fallbackModel: targets.grok,
         circuitOpen: grokImageCircuit.isOpen(),
       });
-      if (!decision.ok) {
-        log("info", "generation_fallback_skipped", {
+      if (grokDecision.ok) {
+        fallbackUsed = true;
+        job.fallback_used = true;
+        job.executed_model = grokDecision.model;
+        executedModel = grokDecision.model;
+        await persistImageFallback(supabase, job.id, requestedModel, grokDecision.model);
+        log("warn", "generation_fallback_used", {
           ...context,
-          reason: decision.reason,
+          from: requestedModel,
+          to: grokDecision.model,
           errorType: error.errorType,
         });
-        throw error;
+        try {
+          imageBuffer = await generateGrokImage({
+            job,
+            model: grokDecision.model,
+            prompt: grokPrompt,
+            images: grokParts,
+            signal,
+            context,
+            ensureLease,
+          });
+        } catch (grokError) {
+          const processing = toProcessingError(grokError);
+          const seedream = await trySeedreamImageFallback({
+            job,
+            requestedModel,
+            error: processing,
+            rawPrompt,
+            editInstruction,
+            isVibe,
+            isCameraOrbit,
+            isLocalEdit,
+            vibeSourceUrl,
+            inputSource,
+            generationMode,
+            signal,
+            context,
+            ensureLease,
+            supabase,
+            fromModel: grokDecision.model,
+          });
+          if (!seedream) throw processing;
+          imageBuffer = seedream.buffer;
+          executedModel = seedream.model;
+          fallbackUsed = true;
+        }
+      } else {
+        log("info", "generation_fallback_skipped", {
+          ...context,
+          reason: grokDecision.reason,
+          errorType: error.errorType,
+        });
+        const seedream = await trySeedreamImageFallback({
+          job,
+          requestedModel,
+          error,
+          rawPrompt,
+          editInstruction,
+          isVibe,
+          isCameraOrbit,
+          isLocalEdit,
+          vibeSourceUrl,
+          inputSource,
+          generationMode,
+          signal,
+          context,
+          ensureLease,
+          supabase,
+          fromModel: requestedModel,
+        });
+        if (!seedream) throw error;
+        imageBuffer = seedream.buffer;
+        executedModel = seedream.model;
+        fallbackUsed = true;
       }
-      fallbackUsed = true;
-      job.fallback_used = true;
-      executedModel = decision.model;
-      await persistImageFallback(supabase, job.id, requestedModel);
-      log("warn", "generation_fallback_used", {
-        ...context,
-        from: requestedModel,
-        to: decision.model,
-        errorType: error.errorType,
-      });
-      imageBuffer = await generateGrokImage({
-        job,
-        model: decision.model,
-        prompt: grokPrompt,
-        images: grokParts,
-        signal,
-        context,
-        ensureLease,
-      });
     }
   }
 
@@ -572,6 +615,120 @@ function toProcessingError(error: unknown): ProcessingError {
     error instanceof Error ? error.message : String(error),
     Boolean(typed.retryable),
   );
+}
+
+async function generateSeedreamFromJob(input: {
+  job: GenerationJob;
+  rawPrompt: string;
+  editInstruction: string;
+  isVibe: boolean;
+  isCameraOrbit: boolean;
+  isLocalEdit: boolean;
+  vibeSourceUrl: string | null;
+  inputSource: GenerationInputSource;
+  generationMode: string;
+  signal: AbortSignal;
+  context: ProviderContext;
+  ensureLease: () => Promise<void>;
+  supabase: SupabaseClient;
+}): Promise<Buffer> {
+  if (input.vibeSourceUrl && isProxiedReferenceUrl(input.vibeSourceUrl)) {
+    throw new ProcessingError(
+      "config_error",
+      "Seedream reference must be a public signed URL, not a /u/ proxy path",
+      false,
+    );
+  }
+  const seedreamPrompt = input.isVibe
+    ? assembleSeedreamVibePrompt(input.rawPrompt, Boolean(input.vibeSourceUrl))
+    : input.isCameraOrbit
+      ? assembleSeedreamCameraOrbitPrompt(
+          resolveCameraOrbitScenePrompt({
+            promptText: input.rawPrompt,
+            editInstruction: input.editInstruction,
+            cameraPose: input.job.camera_pose,
+          }),
+        )
+      : input.isLocalEdit
+        ? assembleSeedreamImageEditPrompt(input.editInstruction)
+        : input.inputSource.paths.length
+          ? assembleSeedreamImageToImagePrompt(input.rawPrompt)
+          : assembleSeedreamTextToImagePrompt(input.rawPrompt);
+  log("info", "generation_prompt_resolved", {
+    ...input.context,
+    generationMode: input.generationMode,
+    editKind: input.job.edit_kind ?? null,
+    cameraPose: input.job.camera_pose ?? null,
+    editInstructionLength: input.editInstruction.length,
+    scenePromptLength: input.rawPrompt.length,
+    promptLength: seedreamPrompt.length,
+    provider: "seedream",
+  });
+  const signedUrls = await createSeedreamSignedUrls(input.supabase, input.inputSource);
+  const imageInput = clampSeedreamImageUrls([
+    ...(input.vibeSourceUrl ? [input.vibeSourceUrl] : []),
+    ...signedUrls,
+  ]);
+  return generateSeedreamImage({
+    job: input.job,
+    prompt: seedreamPrompt,
+    imageInput: imageInput.urls,
+    imageInputClamped: imageInput.clamped,
+    signal: input.signal,
+    context: input.context,
+    ensureLease: input.ensureLease,
+    supabase: input.supabase,
+  });
+}
+
+async function trySeedreamImageFallback(input: {
+  job: GenerationJob;
+  requestedModel: string;
+  error: ProcessingError;
+  rawPrompt: string;
+  editInstruction: string;
+  isVibe: boolean;
+  isCameraOrbit: boolean;
+  isLocalEdit: boolean;
+  vibeSourceUrl: string | null;
+  inputSource: GenerationInputSource;
+  generationMode: string;
+  signal: AbortSignal;
+  context: ProviderContext;
+  ensureLease: () => Promise<void>;
+  supabase: SupabaseClient;
+  fromModel: string;
+}): Promise<{ buffer: Buffer; model: string } | null> {
+  const targets = await resolveImageFallbackTargets(input.supabase);
+  const decision = shouldAttemptSeedreamFallback({
+    requestedModel: input.requestedModel,
+    executedModel: input.job.executed_model,
+    error: input.error,
+    openrouterConfigured: Boolean(config.openrouterApiKey && config.openrouterBaseUrl),
+    secondaryModel: targets.seedream,
+    circuitOpen: seedreamImageCircuit.isOpen(),
+  });
+  if (!decision.ok) {
+    log("info", "generation_fallback_skipped", {
+      ...input.context,
+      reason: decision.reason,
+      errorType: input.error.errorType,
+      hop: "seedream",
+    });
+    return null;
+  }
+  input.job.fallback_used = true;
+  input.job.executed_model = decision.model;
+  await persistImageFallback(input.supabase, input.job.id, input.requestedModel, decision.model);
+  log("warn", "generation_fallback_used", {
+    ...input.context,
+    from: input.fromModel,
+    to: decision.model,
+    errorType: input.error.errorType,
+    hop: "seedream",
+  });
+  const buffer = await generateSeedreamFromJob(input);
+  return { buffer, model: decision.model };
 }
 
 async function persistSeedreamOperation(
@@ -957,36 +1114,62 @@ async function downloadXaiImageBase64(imageUrl: string, signal: AbortSignal): Pr
   return buffer.toString("base64");
 }
 
-async function resolveImageFallbackModel(supabase: SupabaseClient): Promise<string | null> {
+async function resolveImageFallbackTargets(supabase: SupabaseClient): Promise<{
+  grok: string | null;
+  seedream: string | null;
+}> {
   const { data, error } = await supabase
     .from("landing_generation_config")
     .select("key,value")
-    .in("key", ["image_fallback_model", "models"]);
-  if (error || !data?.length) return GROK_IMAGINE_IMAGE_MODEL;
-  const configMap = Object.fromEntries(data.map((row) => [row.key, String(row.value || "")]));
-  const rawTarget = configMap.image_fallback_model?.trim();
-  if (!rawTarget || ["0", "false", "off", "no"].includes(rawTarget.toLowerCase())) return null;
-  const target = isGrokImageModel(rawTarget) ? rawTarget : GROK_IMAGINE_IMAGE_MODEL;
-  try {
-    const parsed = JSON.parse(configMap.models || "[]") as Array<{ id?: string; enabled?: boolean }>;
-    const enabled = parsed.find((item) => item.id === target && item.enabled !== false);
-    if (parsed.length && !enabled) return null;
-  } catch {
-    // Config parse failure: still allow the documented default target.
+    .in("key", ["image_fallback_model", "image_fallback_secondary_model", "models"]);
+  if (error || !data?.length) {
+    return { grok: GROK_IMAGINE_IMAGE_MODEL, seedream: null };
   }
-  return target;
+  const configMap = Object.fromEntries(data.map((row) => [row.key, String(row.value || "")]));
+  let models: Array<{ id?: string; enabled?: boolean }> = [];
+  try {
+    models = JSON.parse(configMap.models || "[]") as Array<{ id?: string; enabled?: boolean }>;
+  } catch {
+    models = [];
+  }
+
+  const pick = (
+    raw: string | undefined,
+    isTarget: (id: string) => boolean,
+    fallbackId: string | null,
+  ): string | null => {
+    const value = raw?.trim() || "";
+    if (!value || ["0", "false", "off", "no"].includes(value.toLowerCase())) return null;
+    const target = isTarget(value) ? value : fallbackId;
+    if (!target || !isTarget(target)) return null;
+    if (models.length && !models.find((item) => item.id === target && item.enabled !== false)) {
+      return null;
+    }
+    return target;
+  };
+
+  return {
+    grok: pick(configMap.image_fallback_model, isGrokImageModel, GROK_IMAGINE_IMAGE_MODEL),
+    seedream: pick(
+      configMap.image_fallback_secondary_model,
+      isSeedreamImageModel,
+      SEEDREAM_45_IMAGE_MODEL,
+    ),
+  };
 }
 
 async function persistImageFallback(
   supabase: SupabaseClient,
   generationId: string,
   requestedModel: string,
+  executedModel: string,
 ): Promise<void> {
   const { error } = await supabase
     .from("landing_generations")
     .update({
       fallback_used: true,
       requested_model: requestedModel,
+      executed_model: executedModel,
     })
     .eq("id", generationId);
   if (error) {

@@ -1,26 +1,32 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { ProcessingError } from "./input-source";
-import { isImageFallbackEligible, shouldAttemptImageFallback } from "./image-fallback";
+import {
+  isImageFallbackEligible,
+  shouldAttemptGrokFallback,
+  shouldAttemptSeedreamFallback,
+} from "./image-fallback";
 import { GrokImageCircuit } from "./grok-image-circuit";
+
+const grokError = new ProcessingError("grok_http_500", "x", true);
+const geminiError = new ProcessingError("IMAGE_OTHER", "finishReason=IMAGE_OTHER", false);
 
 test("fallback eligible for any Gemini image error except shutdown", () => {
   assert.equal(isImageFallbackEligible(new ProcessingError("gemini_http_503", "down", true)), true);
   assert.equal(isImageFallbackEligible(new ProcessingError("timeout", "t", true)), true);
   assert.equal(isImageFallbackEligible(new ProcessingError("gemini_error", "empty", false)), true);
-  assert.equal(isImageFallbackEligible(new ProcessingError("IMAGE_OTHER", "finishReason=IMAGE_OTHER", false)), true);
+  assert.equal(isImageFallbackEligible(geminiError), true);
   assert.equal(isImageFallbackEligible(new ProcessingError("safety_block", "SAFETY", false)), true);
-  assert.equal(isImageFallbackEligible(new ProcessingError("gemini_error", "blockReason=SAFETY", false)), true);
   assert.equal(isImageFallbackEligible(new ProcessingError("config_error", "no key", false)), true);
   assert.equal(isImageFallbackEligible(new ProcessingError("shutdown", "Worker is shutting down", true)), false);
 });
 
 test("IMAGE_OTHER from Flash attempts Grok", () => {
   assert.deepEqual(
-    shouldAttemptImageFallback({
+    shouldAttemptGrokFallback({
       requestedModel: "gemini-2.5-flash-image",
       fallbackUsed: false,
-      error: new ProcessingError("IMAGE_OTHER", "finishReason=IMAGE_OTHER", false),
+      error: geminiError,
       xaiConfigured: true,
       fallbackModel: "grok-imagine-image-2.0",
       circuitOpen: false,
@@ -29,24 +35,12 @@ test("IMAGE_OTHER from Flash attempts Grok", () => {
   );
 });
 
-test("fallback is one-way Gemini to Grok", () => {
-  const error = new ProcessingError("gemini_http_500", "x", true);
+test("Grok hop is one-way Gemini to Grok", () => {
   assert.equal(
-    shouldAttemptImageFallback({
-      requestedModel: "gemini-2.5-flash-image",
-      fallbackUsed: false,
-      error,
-      xaiConfigured: true,
-      fallbackModel: "grok-imagine-image-2.0",
-      circuitOpen: false,
-    }).ok,
-    true,
-  );
-  assert.equal(
-    shouldAttemptImageFallback({
+    shouldAttemptGrokFallback({
       requestedModel: "grok-imagine-image-2.0",
       fallbackUsed: false,
-      error,
+      error: geminiError,
       xaiConfigured: true,
       fallbackModel: "grok-imagine-image-2.0",
       circuitOpen: false,
@@ -54,10 +48,10 @@ test("fallback is one-way Gemini to Grok", () => {
     false,
   );
   assert.deepEqual(
-    shouldAttemptImageFallback({
+    shouldAttemptGrokFallback({
       requestedModel: "gemini-2.5-flash-image",
       fallbackUsed: false,
-      error,
+      error: geminiError,
       xaiConfigured: true,
       fallbackModel: "grok-imagine-image-2.0",
       circuitOpen: true,
@@ -65,15 +59,83 @@ test("fallback is one-way Gemini to Grok", () => {
     { ok: false, reason: "circuit_open" },
   );
   assert.deepEqual(
-    shouldAttemptImageFallback({
+    shouldAttemptGrokFallback({
       requestedModel: "seedream-4.5",
       fallbackUsed: false,
-      error,
+      error: geminiError,
       xaiConfigured: true,
       fallbackModel: "grok-imagine-image-2.0",
       circuitOpen: false,
     }),
     { ok: false, reason: "primary_is_seedream" },
+  );
+});
+
+test("Seedream hop runs after Grok primary or Grok fallback fail", () => {
+  assert.deepEqual(
+    shouldAttemptSeedreamFallback({
+      requestedModel: "grok-imagine-image-2.0",
+      error: grokError,
+      openrouterConfigured: true,
+      secondaryModel: "seedream-4.5",
+      circuitOpen: false,
+    }),
+    { ok: true, model: "seedream-4.5" },
+  );
+  assert.deepEqual(
+    shouldAttemptSeedreamFallback({
+      requestedModel: "gemini-2.5-flash-image",
+      executedModel: "grok-imagine-image-2.0",
+      error: grokError,
+      openrouterConfigured: true,
+      secondaryModel: "seedream-4.5",
+      circuitOpen: false,
+    }),
+    { ok: true, model: "seedream-4.5" },
+  );
+});
+
+test("Seedream hop skips when already Seedream or kill-switch", () => {
+  assert.deepEqual(
+    shouldAttemptSeedreamFallback({
+      requestedModel: "seedream-4.5",
+      error: grokError,
+      openrouterConfigured: true,
+      secondaryModel: "seedream-4.5",
+      circuitOpen: false,
+    }),
+    { ok: false, reason: "already_seedream" },
+  );
+  assert.deepEqual(
+    shouldAttemptSeedreamFallback({
+      requestedModel: "gemini-2.5-flash-image",
+      executedModel: "seedream-4.5",
+      error: grokError,
+      openrouterConfigured: true,
+      secondaryModel: "seedream-4.5",
+      circuitOpen: false,
+    }),
+    { ok: false, reason: "already_seedream" },
+  );
+  assert.deepEqual(
+    shouldAttemptSeedreamFallback({
+      requestedModel: "grok-imagine-image-2.0",
+      error: grokError,
+      openrouterConfigured: true,
+      secondaryModel: null,
+      circuitOpen: false,
+    }),
+    { ok: false, reason: "secondary_disabled" },
+  );
+  assert.deepEqual(
+    shouldAttemptSeedreamFallback({
+      requestedModel: "grok-imagine-image-2.0",
+      error: new ProcessingError("shutdown", "down", true),
+      openrouterConfigured: true,
+      secondaryModel: "seedream-4.5",
+      circuitOpen: false,
+    }),
+    { ok: false, reason: "not_eligible" },
   );
 });
 

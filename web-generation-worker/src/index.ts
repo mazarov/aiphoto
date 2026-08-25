@@ -100,8 +100,8 @@ async function persistExecutedModel(job: GenerationJob, executedModel: string, f
 
 async function handleFailure(job: GenerationJob, error: ProcessingError): Promise<void> {
   const fallbackUsed = Boolean(job.fallback_used);
-  const executedModel =
-    fallbackUsed || isGrokImageModel(job.model) ? GROK_IMAGINE_IMAGE_MODEL : job.model;
+  const executedModel = job.executed_model
+    || (isGrokImageModel(job.model) ? GROK_IMAGINE_IMAGE_MODEL : job.model);
   await persistExecutedModel(job, executedModel, fallbackUsed);
   if (shouldRetry(error.retryable, job.attempts, job.max_attempts)) {
     const delay = retryDelaySeconds(job.attempts);

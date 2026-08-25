@@ -74,9 +74,10 @@ function resolveImageApiVendor(input: {
   executedModel?: string | null;
   fallbackUsed?: boolean | null;
 }): ImageApiVendor | null {
-  if (isGrokImageModel(input.executedModel) || Boolean(input.fallbackUsed)) return "xai";
+  if (isGrokImageModel(input.executedModel)) return "xai";
   if (isSeedreamImageModel(input.executedModel)) return "openrouter";
   if (isGeminiImageModel(input.executedModel)) return "gemini";
+  if (Boolean(input.fallbackUsed) && !input.executedModel) return "xai";
   if (isGrokImageModel(input.requestedModel) || isGrokImageModel(input.model)) return "xai";
   if (isSeedreamImageModel(input.requestedModel) || isSeedreamImageModel(input.model)) {
     return "openrouter";
