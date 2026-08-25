@@ -1,7 +1,9 @@
 # 25-08 — Seedream 4.5 (Replicate) для генерации фото
 
+> **Снято:** вендор сменён на OpenRouter. Актуальная спека — `docs/25-08-seedream-45-openrouter.md`. Этот файл — история контракта Replicate.
+
 > Дата: 2026-08-25  
-> Статус: реализация (код + тесты + `01-landing.md`; флип `enabled` после прокси)  
+> Статус: superseded  
 > Ветка: `feature/25-08-seedream-45-replicate`
 
 ## Цель

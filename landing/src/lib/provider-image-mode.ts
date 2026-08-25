@@ -6,7 +6,7 @@ import {
 } from "@/lib/generation/image-options";
 
 export type ImageApiMode = "generate" | "edit";
-export type ImageApiVendor = "xai" | "gemini" | "replicate";
+export type ImageApiVendor = "xai" | "gemini" | "openrouter";
 
 export type ProviderImageMode = {
   vendor: ImageApiVendor;
@@ -54,7 +54,7 @@ export function inferProviderImageMode(input: {
 export function providerImageModeLabel(value: ProviderImageMode | null): string | null {
   if (!value) return null;
   const vendor =
-    value.vendor === "xai" ? "xAI" : value.vendor === "replicate" ? "Seedream" : "Gemini";
+    value.vendor === "xai" ? "xAI" : value.vendor === "openrouter" ? "Seedream" : "Gemini";
   return `${vendor} ${value.mode}`;
 }
 
@@ -62,7 +62,7 @@ export function providerImageModeBadgeClass(value: ProviderImageMode): string {
   if (value.vendor === "xai") {
     return value.mode === "edit" ? "bg-teal-100 text-teal-800" : "bg-orange-100 text-orange-800";
   }
-  if (value.vendor === "replicate") {
+  if (value.vendor === "openrouter") {
     return value.mode === "edit" ? "bg-sky-100 text-sky-800" : "bg-blue-100 text-blue-800";
   }
   return value.mode === "edit" ? "bg-indigo-100 text-indigo-800" : "bg-violet-100 text-violet-800";
@@ -75,11 +75,11 @@ function resolveImageApiVendor(input: {
   fallbackUsed?: boolean | null;
 }): ImageApiVendor | null {
   if (isGrokImageModel(input.executedModel) || Boolean(input.fallbackUsed)) return "xai";
-  if (isSeedreamImageModel(input.executedModel)) return "replicate";
+  if (isSeedreamImageModel(input.executedModel)) return "openrouter";
   if (isGeminiImageModel(input.executedModel)) return "gemini";
   if (isGrokImageModel(input.requestedModel) || isGrokImageModel(input.model)) return "xai";
   if (isSeedreamImageModel(input.requestedModel) || isSeedreamImageModel(input.model)) {
-    return "replicate";
+    return "openrouter";
   }
   if (isGeminiImageModel(input.requestedModel) || isGeminiImageModel(input.model)) return "gemini";
   return null;

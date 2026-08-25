@@ -1,6 +1,6 @@
 /**
  * Seedream 4.5 image prompts. No Gemini [# Sources] / IMAGE A/B tags.
- * Identity rules match Grok; clamp to Replicate's 4000-char prompt limit.
+ * Identity rules match Grok; clamp to OpenRouter/Seedream 4000-char prompt limit.
  */
 
 import {

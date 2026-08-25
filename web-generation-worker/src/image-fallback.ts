@@ -1,5 +1,5 @@
 import { ProcessingError } from "./input-source";
-import { isSeedreamImageModel } from "./replicate-seedream";
+import { isSeedreamImageModel } from "./openrouter-seedream";
 import { isGrokImageModel } from "./xai-image";
 
 /** Only skip Grok when the worker is dying — do not start another vendor call. */

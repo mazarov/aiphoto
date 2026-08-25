@@ -15,7 +15,7 @@ export const GROK_IMAGINE_IMAGE_MODEL = "grok-imagine-image-2.0";
 export const GROK_IMAGINE_IMAGE_CREDIT_COST = 10;
 
 export const SEEDREAM_45_IMAGE_MODEL = "seedream-4.5";
-export const SEEDREAM_45_REPLICATE_MODEL = "bytedance/seedream-4.5";
+export const SEEDREAM_45_OPENROUTER_MODEL = "bytedance-seed/seedream-4.5";
 /** PromptShot credits for Seedream 4.5. SSOT for picker + enqueue. */
 export const SEEDREAM_45_CREDIT_COST = 10;
 

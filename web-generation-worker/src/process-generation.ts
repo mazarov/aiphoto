@@ -60,17 +60,17 @@ import {
 } from "./xai-image";
 import {
   SEEDREAM_45_IMAGE_MODEL,
-  SEEDREAM_45_REPLICATE_MODEL,
+  SEEDREAM_45_OPENROUTER_MODEL,
   SEEDREAM_SIGNED_TTL_SEC,
-  buildSeedreamPredictionBody,
+  buildSeedreamImageBody,
   clampSeedreamImageUrls,
   isProxiedReferenceUrl,
   isSeedreamImageModel,
   mapSeedreamImageSize,
-  replicateProxyHost,
-  requireReplicateBaseUrl,
-  runSeedreamPrediction,
-} from "./replicate-seedream";
+  openrouterProxyHost,
+  requireOpenRouterBaseUrl,
+  runSeedreamImage,
+} from "./openrouter-seedream";
 
 export { ProcessingError, RESULTS_BUCKET } from "./input-source";
 const DIRECT_GEMINI_BASE_URL = "https://generativelanguage.googleapis.com";
@@ -588,16 +588,11 @@ async function persistSeedreamOperation(
   });
   job.provider_operation_id = operationId;
   if (saveError || saved !== true) {
-    log("error", "seedream_submit_lost", {
+    log("warn", "seedream_persist_failed", {
       ...context,
       persistFailed: true,
       error: saveError?.message,
     });
-    throw new ProcessingError(
-      "provider_operation_persist_failed",
-      saveError?.message || "Failed to persist Seedream prediction id",
-      true,
-    );
   }
 }
 
@@ -641,22 +636,22 @@ async function generateSeedreamImage(input: {
   ensureLease: () => Promise<void>;
   supabase: SupabaseClient;
 }): Promise<Buffer> {
-  if (!config.replicateApiToken || !config.replicateBaseUrl) {
+  if (!config.openrouterApiKey || !config.openrouterBaseUrl) {
     log("error", "seedream_config_error", {
       ...input.context,
-      missingToken: !config.replicateApiToken,
-      missingBase: !config.replicateBaseUrl,
+      missingToken: !config.openrouterApiKey,
+      missingBase: !config.openrouterBaseUrl,
     });
-    throw new ProcessingError("config_error", "REPLICATE_BASE_URL is not configured", false);
+    throw new ProcessingError("config_error", "OPENROUTER_BASE_URL is not configured", false);
   }
   try {
-    requireReplicateBaseUrl(config.replicateBaseUrl);
+    requireOpenRouterBaseUrl(config.openrouterBaseUrl);
   } catch (error) {
     log("error", "seedream_config_error", {
       ...input.context,
       error: error instanceof Error ? error.message : String(error),
     });
-    throw new ProcessingError("config_error", "REPLICATE_BASE_URL must use /u/ proxy", false);
+    throw new ProcessingError("config_error", "OPENROUTER_BASE_URL must use /u/ proxy", false);
   }
   const mapped = mapSeedreamImageSize(input.job.image_size);
   if (mapped.clamped) {
@@ -672,7 +667,7 @@ async function generateSeedreamImage(input: {
       to: input.imageInput.length,
     });
   }
-  const body = buildSeedreamPredictionBody({
+  const body = buildSeedreamImageBody({
     prompt: input.prompt,
     size: mapped.size,
     aspectRatio: input.job.aspect_ratio,
@@ -681,18 +676,16 @@ async function generateSeedreamImage(input: {
   const startedAt = Date.now();
   log("info", "seedream_request_started", {
     ...input.context,
-    model: SEEDREAM_45_REPLICATE_MODEL,
-    proxyHost: replicateProxyHost(config.replicateBaseUrl),
+    model: SEEDREAM_45_OPENROUTER_MODEL,
+    proxyHost: openrouterProxyHost(config.openrouterBaseUrl),
     size: mapped.size,
     clampedSize: mapped.clamped,
     partCount: input.imageInput.length,
-    resume: Boolean(input.job.provider_operation_id),
   });
   try {
-    const result = await runSeedreamPrediction({
-      apiToken: config.replicateApiToken,
-      baseUrl: config.replicateBaseUrl,
-      existingOperationId: input.job.provider_operation_id,
+    const result = await runSeedreamImage({
+      apiKey: config.openrouterApiKey,
+      baseUrl: config.openrouterBaseUrl,
       body,
       persistOperationId: (operationId) =>
         persistSeedreamOperation(input.supabase, input.job, operationId, input.context),
@@ -700,7 +693,7 @@ async function generateSeedreamImage(input: {
       signal: input.signal,
       circuitOpen: seedreamImageCircuit.isOpen(),
       onLog: (event, fields) => {
-        log(event === "seedream_circuit_open" || event === "seedream_submit_lost" ? "warn" : "info", event, {
+        log(event === "seedream_circuit_open" || event === "seedream_persist_failed" ? "warn" : "info", event, {
           ...input.context,
           ...fields,
         });
@@ -710,7 +703,6 @@ async function generateSeedreamImage(input: {
     log("info", "seedream_completed", {
       ...input.context,
       durationMs: Date.now() - startedAt,
-      submitted: result.submitted,
     });
     return result.buffer;
   } catch (error) {

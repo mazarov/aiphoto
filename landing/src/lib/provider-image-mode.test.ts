@@ -70,11 +70,11 @@ test("Grok and Gemini→Grok fallback stay xAI", () => {
   );
 });
 
-test("Seedream jobs are replicate vendor", () => {
+test("Seedream jobs are openrouter vendor", () => {
   assert.deepEqual(inferProviderImageMode({
     requestedModel: "seedream-4.5",
     executedModel: "seedream-4.5",
     inputPhotoCount: 1,
-  }), { vendor: "replicate", mode: "edit" });
-  assert.equal(providerImageModeLabel({ vendor: "replicate", mode: "edit" }), "Seedream edit");
+  }), { vendor: "openrouter", mode: "edit" });
+  assert.equal(providerImageModeLabel({ vendor: "openrouter", mode: "edit" }), "Seedream edit");
 });
