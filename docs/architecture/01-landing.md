@@ -1,5 +1,7 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-08-26 (**OAuth keeps the prompt card open:** `redirectTo` = `/auth/callback` без `?next=`. После PKCE destination = `path?ps_auth=1&ps_ov=card:<slug>`. `/p/slug` без live overlay всё равно card. SITE_URL `/?code=` всегда `location.replace` с маркером, даже если path `/`. Restorer читает `ps_ov` из URL первым. Карточку не закрываем ради generate-dock. Спека `docs/26-08-auth-return-card.md`.
+>
 > Последнее обновление: 2026-08-26 (**Seedream 5.0 Pro + Flux 2 Flex:** пикер `seedream-5.0-pro` / `flux-2-flex`, оба 10 кредитов, OpenRouter Image API. Seedream 5.0 Pro: `bytedance-seed/seedream-5-0-pro`, 1K\|2K (4K→2K). Flux: `black-forest-labs/flux.2-flex`, без `resolution` в теле. Фолбек после Grok: `image_fallback_secondary_model` = `seedream-5.0-pro` (SQL `218`). `executed_model` = продукт-id, не хардкод 4.5. Seedream 4.5 остаётся в пикере. Спека `docs/26-08-seedream-50-flux-flex.md`.
 >
 > Последнее обновление: 2026-08-25 (**Seedream after Grok fallback:** image-job цепочка Gemini → Grok → Seedream 4.5 в том же attempt. Primary Grok fail тоже идёт в Seedream. Primary Seedream без следующего хопа. Кредиты не пересчитываются. Kill-switch `image_fallback_secondary_model` (SQL `217`) или `enabled:false` у `seedream-4.5`. Спека `docs/25-08-seedream-after-grok-fallback.md`.
@@ -917,13 +919,13 @@ admin pages
 **Flow (Google и Yandex — одинаковый в коде):**
 
 ```
-AuthModal / SidebarAccountPanel → OAuthSignInButtons → signInWithOAuth(redirectTo: /auth/callback?next=<listing-or-hard-page>)
-  → remember screen: listing path (sessionStorage + cookie ps_auth_next) + overlay (ps_auth_ov)
+AuthModal / SidebarAccountPanel → OAuthSignInButtons → signInWithOAuth(redirectTo: /auth/callback)
+  → remember screen: listing path (cookie ps_auth_next) + overlay (ps_auth_ov)
   → Supabase /auth/v1/authorize → IdP → /auth/v1/callback
-  → promptshot.ru/auth/callback?code=…&next=/promty-dlya-foto-zhenshchiny
-  → client page: finishOAuthCodeExchange (browser cookies) → redirect на next?ps_auth=1
+  → promptshot.ru/auth/callback?code=…
+  → client page: finishOAuthCodeExchange → path?ps_auth=1&ps_ov=card:<slug>
   → AuthProvider снимает маркер (replaceState) и гидратит сессию
-  → AuthReturnScreenRestorer открывает card/pricing/foto-v-promt overlay на том же листинге
+  → AuthReturnScreenRestorer открывает карточку с ?ps_ov= (URL важнее cookie)
 ```
 
 Почему не server route: дублирующий `GET /auth/callback` делал второй `POST /token` (`user_agent=node`) → `404 flow_state_not_found`, а ответ дубля отдавал `?auth_error=` без session cookies. В браузере первый обмен пишет cookies в document; replay с `invalid flow state` проверяет `getUser()` и при активной сессии считается успехом.
@@ -932,7 +934,7 @@ AuthModal / SidebarAccountPanel → OAuthSignInButtons → signInWithOAuth(redir
 
 Fallback: если `code` пришёл на произвольную страницу (не `/auth/callback`), `AuthProvider` делает client `exchangeCodeForSession` и при наличии сохранённого return path уводит туда с тем же маркером. На `/auth/callback` `AuthProvider` **не** обменивает code (избегаем второго `/token`).
 
-- Хелпер: `landing/src/lib/auth-oauth.ts` + `auth-return-path.ts` + `auth-return-screen.ts` + `auth-finish-oauth.ts` + `auth-session-hydrate.ts` (`getOAuthCallbackUrl`, `signInWithOAuthProvider`, `captureAuthReturnScreen`, `finishOAuthCodeExchange`, `appendAuthReturnMarker`, `resolveHydratedAuthUser`, sanitize `next`). `ps_auth_next` читается, если sessionStorage пуст (Safari / SITE_URL fallback на `/`). Soft overlay регистрирует listing origin в `setLiveAuthReturnOverlay`. При старте OAuth: Yandex → `force_confirm=yes`, Google → `prompt=select_account` (выбор аккаунта при повторном логине).
+- Хелпер: `landing/src/lib/auth-oauth.ts` + `auth-return-path.ts` + `auth-return-screen.ts` + `auth-finish-oauth.ts` + `auth-session-hydrate.ts`. `redirectTo` без `?next=` — иначе GoTrue часто срывает query и падает на `SITE_URL=/`. Overlay карточки едет в `?ps_ov=card:<slug>` на destination. `/p/slug` без live overlay всё равно card. SITE_URL `/?code=` всегда `location.replace` с маркером. При старте OAuth: Yandex → `force_confirm=yes`, Google → `prompt=select_account`.
 - **UI кнопок (`OAuthSignInButtons`):** две кастомные кнопки одной сетки (`h-12`, `px-4`, иконка 20×20, `rounded-xl`, белый фон) — Google (цветной G) и Яндекс (красный круг + «Я»); обе вызывают `signInWithOAuthProvider`. Используются в `AuthModal` и в guest-состоянии `SidebarAccountPanel` (mobile profile sheet + desktop sidebar). Виджет YaAuthSuggest больше не используется.
 - `/auth/callback` (Next.js **client page**) — основной return URL модалки; `next` обязан быть same-origin relative path.
 - **Self-hosted auth:** GoTrue **≥ v2.187.0**, `GOTRUE_CUSTOM_OAUTH_ENABLED=true`, `GOTRUE_SITE_URL=https://promptshot.ru`, `GOTRUE_URI_ALLOW_LIST=https://promptshot.ru/**` (должен включать `/auth/callback`).
@@ -1188,10 +1190,10 @@ SearchResults (client, infinite scroll)
 | UserAvatarImage | `components/UserAvatarImage.tsx` | OAuth-аватар: no-referrer + unoptimized для Google/Yandex CDN |
 | auth-oauth | `lib/auth-oauth.ts` | `signInWithOAuthProvider`, `custom:yandex` |
 | auth-return-screen | `lib/auth-return-screen.ts` | listing path + overlay (`card` / `pricing` / `foto-v-promt`) |
-| AuthReturnScreenRestorer | `components/AuthReturnScreenRestorer.tsx` | после `?ps_auth=1` открывает overlay на листинге |
+| AuthReturnScreenRestorer | `components/AuthReturnScreenRestorer.tsx` | после `?ps_auth=1` / `?ps_ov=` открывает карточку |
 | auth-finish-oauth | `lib/auth-finish-oauth.ts` | `finishOAuthCodeExchange` (browser PKCE) + `?ps_auth=1` |
 | auth-session-hydrate | `lib/auth-session-hydrate.ts` | `resolveHydratedAuthUser`, pageshow / visibility gates |
-OAuth completion: `/auth/callback` page вызывает `finishOAuthCodeExchange`; `AuthProvider` гидратит сессию на return / bfcache. `AuthReturnScreenRestorer` восстанавливает soft overlay. Legacy `code` fallback — только вне `/auth/callback`. Cookie `ps_auth_next` — fallback, если sessionStorage пуст.
+OAuth completion: `/auth/callback` → `finishOAuthCodeExchange` → `path?ps_auth=1&ps_ov=`. `AuthReturnScreenRestorer` открывает карточку с URL `ps_ov` (cookie — запасной). Legacy `code` на SITE_URL всегда `location.replace` с тем же маркером, не `replaceState`.
 
 ---
 

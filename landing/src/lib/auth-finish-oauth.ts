@@ -2,12 +2,12 @@ import { createSupabaseBrowser } from "@/lib/supabase-browser";
 import {
   AUTH_RETURN_COOKIE,
   appendAuthError,
-  appendAuthReturnMarker,
   consumeAuthReturnPath,
   markAuthReturnComplete,
   sanitizeAuthReturnDestination,
 } from "@/lib/auth-return-path";
 import {
+  appendAuthReturnDestination,
   peekAuthReturnOverlay,
   preferListingPathOverOverlayNext,
   type AuthReturnOverlay,
@@ -54,13 +54,14 @@ function clearAuthReturnCookie(): void {
  */
 export async function finishOAuthCodeExchange(code: string, next: string): Promise<string> {
   const safeNext = sanitizeAuthReturnDestination(next);
+  const overlay = peekAuthReturnOverlay();
   const supabase = createSupabaseBrowser();
   const { error } = await supabase.auth.exchangeCodeForSession(code);
 
   if (!error) {
     clearAuthReturnCookie();
     markAuthReturnComplete();
-    return appendAuthReturnMarker(safeNext);
+    return appendAuthReturnDestination(safeNext, overlay);
   }
 
   // One-time PKCE state: replay after a successful first exchange.
@@ -69,7 +70,7 @@ export async function finishOAuthCodeExchange(code: string, next: string): Promi
     if (data.user) {
       clearAuthReturnCookie();
       markAuthReturnComplete();
-      return appendAuthReturnMarker(safeNext);
+      return appendAuthReturnDestination(safeNext, overlay);
     }
   }
 

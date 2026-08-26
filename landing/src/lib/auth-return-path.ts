@@ -6,6 +6,7 @@ export const AUTH_RETURN_TTL_SEC = 10 * 60;
 /** One-shot query + cookie so the return document is not the pre-login bfcache entry. */
 export const AUTH_RETURN_FLAG = "ps_auth";
 export const AUTH_RETURN_FLAG_VALUE = "1";
+export const AUTH_RETURN_OVERLAY_QUERY = "ps_ov";
 export const AUTH_RETURN_DONE_COOKIE = "ps_auth_done";
 const AUTH_RETURN_DONE_MAX_AGE_SEC = 60;
 
@@ -22,6 +23,7 @@ export function sanitizeAuthReturnPath(raw: string | null | undefined): string {
     const url = new URL(path, "https://promptshot.local");
     url.searchParams.delete("auth_error");
     url.searchParams.delete(AUTH_RETURN_FLAG);
+    url.searchParams.delete(AUTH_RETURN_OVERLAY_QUERY);
     const search = url.searchParams.toString();
     return `${url.pathname}${search ? `?${search}` : ""}${url.hash}`;
   } catch {
@@ -35,15 +37,50 @@ function pathFromLocalUrl(url: URL): string {
 }
 
 /** After a successful PKCE exchange — different URL than the frozen guest page. */
-export function appendAuthReturnMarker(path: string): string {
+export function appendAuthReturnMarker(
+  path: string,
+  overlayRaw?: string | null
+): string {
   const safe = sanitizeAuthReturnPath(path);
   try {
     const url = new URL(safe, "https://promptshot.local");
     url.searchParams.set(AUTH_RETURN_FLAG, AUTH_RETURN_FLAG_VALUE);
+    const overlay = overlayRaw?.trim();
+    if (overlay) {
+      url.searchParams.set(AUTH_RETURN_OVERLAY_QUERY, overlay);
+    }
     return pathFromLocalUrl(url);
   } catch {
     return safe;
   }
+}
+
+export function readAuthReturnOverlayFromHref(href: string): string | null {
+  try {
+    const url = new URL(href, "https://promptshot.local");
+    const overlay = url.searchParams.get(AUTH_RETURN_OVERLAY_QUERY)?.trim();
+    return overlay || null;
+  } catch {
+    return null;
+  }
+}
+
+export function hasAuthReturnRestoreSignal(
+  href: string,
+  hasDoneCookie: boolean
+): boolean {
+  try {
+    const url = new URL(href, "https://promptshot.local");
+    if (url.searchParams.get(AUTH_RETURN_FLAG) === AUTH_RETURN_FLAG_VALUE) {
+      return true;
+    }
+    if (url.searchParams.get(AUTH_RETURN_OVERLAY_QUERY)?.trim()) {
+      return true;
+    }
+  } catch {
+    // ignore
+  }
+  return hasDoneCookie;
 }
 
 export function consumeAuthReturnMarkerFromHref(href: string): {
@@ -52,11 +89,14 @@ export function consumeAuthReturnMarkerFromHref(href: string): {
 } {
   try {
     const url = new URL(href, "https://promptshot.local");
-    const found = url.searchParams.get(AUTH_RETURN_FLAG) === AUTH_RETURN_FLAG_VALUE;
+    const found =
+      url.searchParams.get(AUTH_RETURN_FLAG) === AUTH_RETURN_FLAG_VALUE ||
+      Boolean(url.searchParams.get(AUTH_RETURN_OVERLAY_QUERY)?.trim());
     if (!found) {
       return { found: false, nextHref: `${url.pathname}${url.search}${url.hash}` };
     }
     url.searchParams.delete(AUTH_RETURN_FLAG);
+    url.searchParams.delete(AUTH_RETURN_OVERLAY_QUERY);
     return { found: true, nextHref: pathFromLocalUrl(url) };
   } catch {
     return { found: false, nextHref: "/" };
@@ -150,11 +190,13 @@ export function consumeAuthReturnPath(): string | null {
   return path;
 }
 
-/** True on the post-OAuth document (`?ps_auth=1` or leftover `ps_auth_done`). */
+/** True on the post-OAuth document (`?ps_auth=1` / `?ps_ov=` or leftover `ps_auth_done`). */
 export function isAuthReturnRestorePending(): boolean {
   if (typeof window === "undefined") return false;
-  const { found } = consumeAuthReturnMarkerFromHref(window.location.href);
-  return found || peekAuthReturnDoneCookie();
+  return hasAuthReturnRestoreSignal(
+    window.location.href,
+    peekAuthReturnDoneCookie()
+  );
 }
 
 export function markAuthReturnComplete(): void {

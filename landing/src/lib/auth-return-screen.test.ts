@@ -1,11 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  hasAuthReturnRestoreSignal,
   sanitizeAuthReturnDestination,
   resolveRememberedReturnPath,
 } from "./auth-return-path";
 import {
+  appendAuthReturnDestination,
   captureAuthReturnScreen,
+  cardSlugFromPath,
   parseAuthReturnOverlay,
   preferListingPathOverOverlayNext,
   resetLiveAuthReturnOverlayForTests,
@@ -85,31 +88,59 @@ test("card overlay returns to listing origin, not /p/slug", () => {
   });
 });
 
-test("generate-from-card drops card overlay so dock can resume on listing", () => {
+test("generate-from-card keeps the prompt card open", () => {
   const screen = captureAuthReturnScreen({
     currentPath: "/p/visual-hook-neon",
     live: {
       originPath: "/catalog",
       overlay: { type: "card", slug: "visual-hook-neon" },
     },
-    hasPendingGenerateDock: true,
   });
   assert.deepEqual(screen, {
     path: "/catalog",
-    overlay: null,
+    overlay: { type: "card", slug: "visual-hook-neon" },
   });
 });
 
-test("hard card page without live overlay stays on /p/slug", () => {
+test("hard /p/slug without live overlay still restores the card", () => {
+  assert.equal(cardSlugFromPath("/p/visual-hook-neon?ps_auth=1"), "visual-hook-neon");
   const screen = captureAuthReturnScreen({
     currentPath: "/p/visual-hook-neon",
     live: null,
-    hasPendingGenerateDock: false,
+    lastListingPath: null,
   });
   assert.deepEqual(screen, {
     path: "/p/visual-hook-neon",
-    overlay: null,
+    overlay: { type: "card", slug: "visual-hook-neon" },
   });
+});
+
+test("hard /p/slug with last listing returns to listing and keeps card overlay", () => {
+  const screen = captureAuthReturnScreen({
+    currentPath: "/p/visual-hook-neon",
+    live: null,
+    lastListingPath: "/promty-dlya-foto-zhenshchiny?sort=new",
+  });
+  assert.deepEqual(screen, {
+    path: "/promty-dlya-foto-zhenshchiny?sort=new",
+    overlay: { type: "card", slug: "visual-hook-neon" },
+  });
+});
+
+test("destination URL carries the card overlay so restorer cannot miss it", () => {
+  assert.equal(
+    appendAuthReturnDestination("/catalog", {
+      type: "card",
+      slug: "visual-hook-neon",
+    }),
+    "/catalog?ps_auth=1&ps_ov=card%3Avisual-hook-neon"
+  );
+  assert.equal(
+    hasAuthReturnRestoreSignal("/catalog?ps_ov=card:visual-hook-neon", false),
+    true
+  );
+  assert.equal(hasAuthReturnRestoreSignal("/catalog", false), false);
+  assert.equal(hasAuthReturnRestoreSignal("/catalog", true), true);
 });
 
 test("prefer listing path when next is the overlay URL", () => {

@@ -48,6 +48,10 @@ test("strips leftover ps_auth from remembered return paths", () => {
     sanitizeAuthReturnPath("/catalog?ps_auth=1&sort=new"),
     "/catalog?sort=new"
   );
+  assert.equal(
+    sanitizeAuthReturnPath("/catalog?ps_ov=card:foo&sort=new"),
+    "/catalog?sort=new"
+  );
 });
 
 test("appends a one-shot return marker without dropping query or hash", () => {
@@ -57,6 +61,10 @@ test("appends a one-shot return marker without dropping query or hash", () => {
     "/pricing?test=true&ps_auth=1#pay"
   );
   assert.equal(appendAuthReturnMarker("/catalog?ps_auth=1"), "/catalog?ps_auth=1");
+  assert.equal(
+    appendAuthReturnMarker("/catalog", "card:visual-hook-neon"),
+    "/catalog?ps_auth=1&ps_ov=card%3Avisual-hook-neon"
+  );
 });
 
 test("consumes the return marker from an absolute or relative href", () => {
@@ -68,6 +76,10 @@ test("consumes the return marker from an absolute or relative href", () => {
     found: false,
     nextHref: "/catalog",
   });
+  assert.deepEqual(
+    consumeAuthReturnMarkerFromHref("/catalog?ps_ov=card:visual-hook-neon"),
+    { found: true, nextHref: "/catalog" }
+  );
 });
 
 test("resolves GoTrue callback error params", () => {

@@ -9,6 +9,7 @@ import { bumpListingShellViewportHeight } from "@/lib/listing-shell-viewport";
 
 export const SCROLL_KEY = "card_modal_scroll_pos";
 export const LISTING_SCROLL_ROOT_ID = "listing-scroll-root";
+export const LAST_LISTING_PATH_KEY = "promptshot:last-listing-path";
 
 /**
  * True пока идёт восстановление позиции листинга после закрытия модалки.
@@ -352,6 +353,27 @@ export function isListingOverlayPath(pathname: string): boolean {
   return isCardPath(norm) || isPricingPath(norm);
 }
 
+export function persistLastListingPath(path: string): void {
+  if (typeof window === "undefined") return;
+  const safe = path.trim();
+  if (!safe.startsWith("/") || isListingOverlayPath(safe)) return;
+  try {
+    sessionStorage.setItem(LAST_LISTING_PATH_KEY, safe);
+  } catch {
+    // private mode / quota
+  }
+}
+
+export function peekLastListingPath(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const stored = sessionStorage.getItem(LAST_LISTING_PATH_KEY);
+    return stored && stored.startsWith("/") ? stored : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Scroll catalog listing root and window to top; clears saved modal-restore position. */
 export function scrollCatalogToTop(): void {
   if (typeof window === "undefined") return;
@@ -444,11 +466,17 @@ export function useListingScrollOnRouteChange(pathname: string): void {
     ) {
       if (!isListingOverlayPath(norm)) {
         lastListingNavPath = norm;
+        persistLastListingPath(
+          `${window.location.pathname}${window.location.search}`
+        );
       }
       return;
     }
 
     lastListingNavPath = norm;
+    persistLastListingPath(
+      `${window.location.pathname}${window.location.search}`
+    );
 
     window.history.scrollRestoration = "manual";
     scrollCatalogToTop();

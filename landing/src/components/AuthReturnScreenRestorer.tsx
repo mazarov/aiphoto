@@ -5,7 +5,10 @@ import { useFotoVPromtMobileModal } from "@/context/FotoVPromtMobileModalContext
 import { usePricingModal } from "@/context/PricingModalContext";
 import { usePromptCardModal } from "@/context/PromptCardModalContext";
 import { isAuthReturnRestorePending } from "@/lib/auth-return-path";
-import { consumeAuthReturnOverlay } from "@/lib/auth-return-screen";
+import {
+  consumeAuthReturnOverlay,
+  resolveAuthReturnOverlay,
+} from "@/lib/auth-return-screen";
 import {
   SCROLL_KEY,
   scheduleListingScrollRestore,
@@ -29,9 +32,9 @@ function writeSavedListingScroll(value: string | null): void {
 }
 
 /**
- * After OAuth, reopen the soft overlay (card / pricing / foto-v-promt) on the
- * listing that `?next=` restored. Scroll key is rewritten so card `open()`
- * does not replace the pre-login listing position with 0.
+ * After OAuth, reopen the prompt card (or pricing / foto-v-promt) on the
+ * listing. Overlay is taken from `?ps_ov=` first, then the cookie — so a
+ * lost sessionStorage cannot close the card the user started from.
  */
 export function AuthReturnScreenRestorer() {
   const { open: openCard } = usePromptCardModal();
@@ -44,7 +47,8 @@ export function AuthReturnScreenRestorer() {
     if (!isAuthReturnRestorePending()) return;
     ranRef.current = true;
 
-    const overlay = consumeAuthReturnOverlay();
+    const overlay = resolveAuthReturnOverlay();
+    consumeAuthReturnOverlay();
     const saved = peekSavedListingScroll();
 
     if (overlay?.type === "card") {

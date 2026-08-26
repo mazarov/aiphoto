@@ -10,13 +10,16 @@ import {
   type ReactNode,
 } from "react";
 import { createSupabaseBrowser } from "@/lib/supabase-browser";
-import { consumeAuthReturnPath } from "@/lib/auth-return-path";
 import {
-  appendAuthReturnMarker,
   consumeAuthReturnMarkerInWindow,
+  consumeAuthReturnPath,
   markAuthReturnComplete,
   peekAuthReturnDoneCookie,
 } from "@/lib/auth-return-path";
+import {
+  appendAuthReturnDestination,
+  peekAuthReturnOverlay,
+} from "@/lib/auth-return-screen";
 import {
   resolveHydratedAuthUser,
   shouldHydrateAuthOnPageShow,
@@ -163,6 +166,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           markAuthReturnComplete();
         }
         const returnPath = consumeAuthReturnPath();
+        const overlay = peekAuthReturnOverlay();
         const cleanUrl = new URL(window.location.href);
         cleanUrl.searchParams.delete("code");
         cleanUrl.searchParams.delete("state");
@@ -171,11 +175,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         cleanUrl.searchParams.delete("error_description");
         const cleaned =
           `${cleanUrl.pathname}${cleanUrl.search}${cleanUrl.hash}` || "/";
-        if (returnPath && returnPath !== cleaned) {
-          window.location.replace(appendAuthReturnMarker(returnPath));
-          return;
-        }
-        window.history.replaceState({}, "", cleaned);
+        window.location.replace(
+          appendAuthReturnDestination(returnPath ?? cleaned, overlay)
+        );
+        return;
       }
 
       if (onAuthCallback) {
