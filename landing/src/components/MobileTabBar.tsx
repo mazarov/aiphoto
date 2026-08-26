@@ -217,7 +217,7 @@ export function MobileTabBar() {
                       ? `Генерируем ${Math.round(generateRunProgress)}%`
                       : generateNeedsCredits
                         ? "Недостаточно кредитов"
-                        : "Сгенерировать"
+                        : "Создать фото"
                   }
                   aria-busy={generateRunBusy || undefined}
                   aria-pressed={generateActive}
@@ -299,7 +299,7 @@ export function MobileTabBar() {
                       ? "Генерируем"
                       : generateNeedsCredits
                         ? "Нет кредитов"
-                        : "Сгенерировать"}
+                        : "Создать фото"}
                   </span>
                 </button>
               </div>

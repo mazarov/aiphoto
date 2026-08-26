@@ -377,8 +377,8 @@ export function GeneraciyaFotoStarter() {
                       ? analyzeQuota?.next_mode === "no_credits"
                         ? "Пополнить токены"
                         : "Загрузить фото"
-                      : "Сгенерировать"
-                    : "Войти и сгенерировать"}
+                      : "Создать фото"
+                    : "Войти и создать фото"}
           </span>
         </button>
         {mode === "photo" && analyzeQuota ? (

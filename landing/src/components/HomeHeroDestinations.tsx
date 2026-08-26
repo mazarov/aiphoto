@@ -61,8 +61,8 @@ export function HomeHeroDestinations() {
     },
     {
       href: "/generaciya-foto",
-      title: "Генерация фото с помощью ИИ",
-      description: "По описанию или готовому промту",
+      title: "Сделать фото ИИ",
+      description: "По описанию или своему снимку",
       icon: <GenerateIcon />,
     },
   ];

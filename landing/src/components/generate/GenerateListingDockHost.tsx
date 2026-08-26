@@ -347,8 +347,8 @@ export function GenerateListingDockHost() {
                     : needsCredits
                       ? "Недостаточно кредитов"
                       : isAuthed
-                        ? "Сгенерировать"
-                        : "Войти и сгенерировать"}
+                        ? "Создать фото"
+                        : "Войти и создать фото"}
                 </span>
               </button>
             </div>

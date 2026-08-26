@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { YANDEX_TWO_CLUSTER_LAUNCH } from "./yandex-two-cluster-launch";
+import {
+  YANDEX_TWO_CLUSTER_LAUNCH,
+  getYandexCampaignNegativePhrases,
+} from "./yandex-two-cluster-launch";
 
 test("birthday launch budget reconciles to 35k with VAT", () => {
   const campaignBudget = YANDEX_TWO_CLUSTER_LAUNCH.campaigns.reduce(
@@ -80,6 +83,89 @@ test("birthday negative phrases exclude greeting and template intent", () => {
   ]) {
     assert.ok(YANDEX_TWO_CLUSTER_LAUNCH.negativePhrases.includes(phrase));
   }
+});
+
+test("shared negatives match live birthday campaign export without campaign id", () => {
+  const fromBirthdayCabinet = [
+    "!как пользоваться",
+    "18",
+    "canva",
+    "chatgpt",
+    "gif",
+    "gpt",
+    "nsfw",
+    "photoshop",
+    "алиса",
+    "анимация",
+    "без регистрации",
+    "бесплатно",
+    "бот",
+    "видео",
+    "гиф",
+    "голые",
+    "дипфейк",
+    "документы",
+    "коллаж",
+    "конкурс",
+    "лучшие",
+    "музыка",
+    "обзор",
+    "обработка",
+    "оживить",
+    "открытка",
+    "паспорт",
+    "песня",
+    "печать",
+    "пожелание",
+    "поздравление",
+    "порно",
+    "приглашение",
+    "приложение",
+    "программа",
+    "проза",
+    "раздеть",
+    "рамка",
+    "раскраска",
+    "редактор",
+    "скачать",
+    "слайд",
+    "стих",
+    "сценарий",
+    "тг",
+    "телеграм",
+    "топ",
+    "тост",
+    "улучшить качество",
+    "фоторамка",
+    "фотошоп",
+    "шаблон",
+    "шедеврум",
+  ];
+  assert.deepEqual(
+    [...YANDEX_TWO_CLUSTER_LAUNCH.negativePhrases],
+    fromBirthdayCabinet,
+  );
+  assert.equal(
+    YANDEX_TWO_CLUSTER_LAUNCH.negativePhrases.includes("713780805"),
+    false,
+  );
+});
+
+test("pairs campaigns add brand and Wordstat minuses on top of birthday package", () => {
+  const pairs = getYandexCampaignNegativePhrases("pairs_generate");
+  const birthday = getYandexCampaignNegativePhrases("birthday");
+  assert.deepEqual(birthday, [...YANDEX_TWO_CLUSTER_LAUNCH.negativePhrases]);
+  for (const phrase of YANDEX_TWO_CLUSTER_LAUNCH.negativePhrases) {
+    assert.ok(pairs.includes(phrase));
+  }
+  for (const phrase of ["нано", "midjourney", "аву", "смотреть", "кольца"]) {
+    assert.ok(pairs.includes(phrase));
+    assert.equal(birthday.includes(phrase), false);
+  }
+  assert.deepEqual(
+    getYandexCampaignNegativePhrases("pairs_prompts"),
+    pairs,
+  );
 });
 
 test("provisional CAC is used consistently in stop-loss and scale gate", () => {

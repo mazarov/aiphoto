@@ -23,6 +23,7 @@ import {
   type GeneraciyaFotoScenarioCopy,
 } from "@/lib/generaciya-foto-scenario-copy";
 import { toGenerationExampleCard } from "@/lib/generation/example-card";
+import { GENERACIYA_FOTO_SEO } from "@/lib/generaciya-foto-seo-copy";
 
 export const revalidate = 3600;
 export const dynamicParams = false;
@@ -184,7 +185,7 @@ function buildJsonLd(
         {
           "@type": "ListItem",
           position: 2,
-          name: "Генерация фото",
+          name: GENERACIYA_FOTO_SEO.breadcrumb,
           item: `${SITE_URL}/generaciya-foto`,
         },
         {
@@ -303,7 +304,7 @@ export default async function GeneraciyaFotoScenarioPage({ params }: Props) {
                 href="/generaciya-foto"
                 className="transition-colors hover:text-zinc-700"
               >
-                Генерация фото
+                {GENERACIYA_FOTO_SEO.breadcrumb}
               </Link>
               <BreadcrumbSeparator />
               <span className="font-medium text-zinc-700">{copy.label}</span>

@@ -3,6 +3,17 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { PageLayout } from "@/components/PageLayout";
 import { GeneraciyaFotoExamplesExplorer } from "@/components/generate/GeneraciyaFotoExamplesExplorer";
+import {
+  GeneraciyaFotoBottomCta,
+  GeneraciyaFotoHowTo,
+  GeneraciyaFotoMore,
+  GeneraciyaFotoPacks,
+  GeneraciyaFotoReviews,
+  GeneraciyaFotoThemes,
+  GeneraciyaFotoTools,
+  GeneraciyaFotoTopics,
+  GeneraciyaFotoTrends,
+} from "@/components/generate/GeneraciyaFotoLandingSections";
 import { GeneraciyaFotoStarter } from "@/components/generate/GeneraciyaFotoStarter";
 import { GenerationModelsShowcase } from "@/components/generate/GenerationModelsShowcase";
 import {
@@ -16,6 +27,7 @@ import {
 } from "@/lib/supabase";
 import {
   GENERACIYA_FOTO_FAQ,
+  GENERACIYA_FOTO_HOW_TO_STEPS,
   GENERACIYA_FOTO_SEO,
 } from "@/lib/generaciya-foto-seo-copy";
 import {
@@ -42,13 +54,6 @@ const BASE_RPC_PARAMS: Record<string, string | null> = {
   object_tag: null,
   doc_task_tag: null,
 };
-
-const HOW_TO_TITLES = [
-  "Опишите идею",
-  "Выберите настройки",
-  "Запустите генерацию",
-  "Скачайте результат",
-] as const;
 
 const EMPTY_RESULT: RouteCardsResult = {
   cards: [],
@@ -197,7 +202,7 @@ function buildJsonLd(ogImage: string | null, cards: PromptCardFull[]) {
     {
       "@context": "https://schema.org",
       "@type": "WebApplication",
-      name: "Генерация фото ИИ — PromptShot",
+      name: "Сделать фото ИИ — PromptShot",
       description: GENERACIYA_FOTO_SEO.metaDescription,
       url: PAGE_URL,
       applicationCategory: "MultimediaApplication",
@@ -218,7 +223,7 @@ function buildJsonLd(ogImage: string | null, cards: PromptCardFull[]) {
         {
           "@type": "ListItem",
           position: 2,
-          name: "Генерация фото",
+          name: GENERACIYA_FOTO_SEO.breadcrumb,
           item: PAGE_URL,
         },
       ],
@@ -227,10 +232,11 @@ function buildJsonLd(ogImage: string | null, cards: PromptCardFull[]) {
       "@context": "https://schema.org",
       "@type": "HowTo",
       name: GENERACIYA_FOTO_SEO.howToTitle,
-      step: GENERACIYA_FOTO_SEO.howToSteps.map((text, index) => ({
+      step: GENERACIYA_FOTO_HOW_TO_STEPS.map((step, index) => ({
         "@type": "HowToStep",
         position: index + 1,
-        text,
+        name: step.title,
+        text: step.text,
       })),
     },
     {
@@ -328,19 +334,41 @@ export default async function GeneraciyaFotoPage() {
               >
                 <path d="m9 18 6-6-6-6" />
               </svg>
-              <span className="font-medium text-zinc-700">Генерация фото</span>
+              <span className="font-medium text-zinc-700">
+                {GENERACIYA_FOTO_SEO.breadcrumb}
+              </span>
             </nav>
             <h1 className="mx-auto max-w-3xl text-balance text-3xl font-bold tracking-tight text-zinc-900 sm:text-4xl lg:text-[2.75rem] lg:leading-tight">
               {GENERACIYA_FOTO_SEO.h1}
             </h1>
+            <p className="mx-auto mt-3 text-sm font-medium text-indigo-700 sm:text-base">
+              {GENERACIYA_FOTO_SEO.socialProof}
+            </p>
             <p className="mx-auto mt-4 max-w-2xl text-pretty text-base leading-relaxed text-zinc-600 sm:text-lg">
               {GENERACIYA_FOTO_SEO.intro}
             </p>
+            <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+              <Link
+                href="#generaciya-foto-starter-cta"
+                className="inline-flex min-h-11 items-center justify-center rounded-full bg-indigo-600 px-5 text-sm font-semibold text-white hover:bg-indigo-700"
+              >
+                {GENERACIYA_FOTO_SEO.primaryCta}
+              </Link>
+              <Link
+                href="#primery"
+                className="inline-flex min-h-11 items-center justify-center rounded-full border border-indigo-200 bg-white px-5 text-sm font-semibold text-indigo-700 hover:bg-indigo-50"
+              >
+                {GENERACIYA_FOTO_SEO.secondaryCta}
+              </Link>
+            </div>
             <GeneraciyaFotoStarter />
           </div>
         </section>
 
         <div className="mx-auto flex w-full max-w-7xl flex-col gap-12 px-3 pt-12 sm:gap-16 sm:px-5 sm:pt-16 lg:gap-20 lg:pt-20 xl:px-6">
+          <GeneraciyaFotoThemes />
+          <GeneraciyaFotoTrends />
+
           <section
             id="primery"
             className="scroll-mt-20"
@@ -363,64 +391,19 @@ export default async function GeneraciyaFotoPage() {
             )}
           </section>
 
+          <GeneraciyaFotoTools />
+          <GeneraciyaFotoPacks cards={exampleCards} />
+          <GeneraciyaFotoTopics />
+          <GeneraciyaFotoHowTo />
+          <GeneraciyaFotoReviews />
+          <GeneraciyaFotoMore />
+
           <section aria-labelledby="generation-models-heading">
             <GenerationModelsShowcase
               models={models}
               previewImages={modelPreviewImages}
               generationPreviewByModel={modelGenerationPreviews}
             />
-          </section>
-
-          <section>
-            <div className="overflow-hidden rounded-[1.75rem] border border-indigo-100/90 bg-[linear-gradient(145deg,#f2f1ff_0%,#ffffff_48%,#faf7ff_100%)] px-3 py-6 shadow-[0_28px_80px_-46px_rgba(79,70,229,0.45)] sm:px-5 sm:py-8">
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-indigo-600">
-                Четыре простых шага
-              </p>
-              <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-                <div>
-                  <h2 className="text-2xl font-bold tracking-tight text-zinc-900 sm:text-3xl">
-                    {GENERACIYA_FOTO_SEO.howToTitle}
-                  </h2>
-                  <p className="mt-2 max-w-2xl text-sm leading-relaxed text-zinc-600 sm:text-base">
-                    От первого описания до готового изображения — без сложных
-                    настроек и переключения между сервисами.
-                  </p>
-                </div>
-                <Link
-                  href="#generator"
-                  className="inline-flex min-h-11 w-fit shrink-0 items-center justify-center rounded-full border border-indigo-200 bg-white px-5 text-sm font-semibold text-indigo-700 shadow-sm transition hover:border-indigo-300 hover:bg-indigo-50"
-                >
-                  Начать с идеи
-                </Link>
-              </div>
-
-              <div className="relative mt-8">
-                <div
-                  className="absolute bottom-5 left-5 top-5 w-px bg-gradient-to-b from-indigo-400 via-violet-300 to-indigo-100 lg:bottom-auto lg:left-[12.5%] lg:right-[12.5%] lg:top-5 lg:h-px lg:w-auto lg:bg-gradient-to-r"
-                  aria-hidden
-                />
-                <ol className="grid gap-7 lg:grid-cols-4 lg:gap-5">
-                  {GENERACIYA_FOTO_SEO.howToSteps.map((step, index) => (
-                    <li
-                      key={step}
-                      className="relative z-10 flex gap-4 lg:block lg:text-center"
-                    >
-                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-4 border-white bg-gradient-to-br from-indigo-500 to-violet-500 text-sm font-bold text-white shadow-lg shadow-indigo-500/20 lg:mx-auto">
-                        {index + 1}
-                      </span>
-                      <div className="min-w-0 pt-1 lg:pt-4">
-                        <h3 className="text-base font-semibold text-zinc-900">
-                          {HOW_TO_TITLES[index]}
-                        </h3>
-                        <p className="mt-1.5 text-sm leading-relaxed text-zinc-600">
-                          {step}
-                        </p>
-                      </div>
-                    </li>
-                  ))}
-                </ol>
-              </div>
-            </div>
           </section>
 
           <section>
@@ -441,6 +424,8 @@ export default async function GeneraciyaFotoPage() {
               ))}
             </dl>
           </section>
+
+          <GeneraciyaFotoBottomCta />
         </div>
       </main>
     </PageLayout>
