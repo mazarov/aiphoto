@@ -67,6 +67,17 @@ test("visible H1 and HowTo keep Facee wording", () => {
   assert.match(GENERACIYA_FOTO_HOW_TO_STEPS[0].text, /1 до 5 фото/);
 });
 
+test("starter block uses generate-cluster queries, not the Title key", () => {
+  assert.equal(GENERACIYA_FOTO_SEO.starterEyebrow, "ИИ генератор фото");
+  assert.equal(GENERACIYA_FOTO_SEO.starterTitle, "Сгенерировать фото ИИ");
+  assert.match(GENERACIYA_FOTO_SEO.starterLead, /создайте фото по описанию/i);
+  assert.match(GENERACIYA_FOTO_SEO.starterLead, /снимку/i);
+  assert.equal(countPhrase(GENERACIYA_FOTO_SEO.starterTitle.toLowerCase(), "сделать фото ии"), 0);
+  assert.equal(countPhrase(GENERACIYA_FOTO_SEO.starterLead.toLowerCase(), "сделать фото ии"), 0);
+  assert.doesNotMatch(GENERACIYA_FOTO_SEO.starterTitle, BANNED_META);
+  assert.doesNotMatch(GENERACIYA_FOTO_SEO.starterLead, BANNED_META);
+});
+
 test("hub blocks keep Facee homepage copy", () => {
   assert.equal(GENERACIYA_FOTO_THEMES.title, "Подборки шаблонов по темам");
   assert.equal(GENERACIYA_FOTO_THEMES.items[0].title, "Идеи для женских ИИ-фото");
