@@ -1,9 +1,4 @@
-import {
-  GROK_IMAGINE_IMAGE_CREDIT_COST,
-  SEEDREAM_45_CREDIT_COST,
-  isGrokImageModel,
-  isSeedreamImageModel,
-} from "./generation/image-options";
+import { GROK_IMAGINE_IMAGE_CREDIT_COST, forcedImageCreditCost } from "./generation/image-options";
 
 /**
  * Product-facing names for Gemini image models (LexyGPT / Google “Nano Banana” naming).
@@ -58,6 +53,14 @@ export const GENERATION_MODEL_DISPLAY: Record<string, GenerationModelDisplay> = 
   "seedream-4.5": {
     label: "Seedream 4.5",
     description: "Реализм и лицо по референсу",
+  },
+  "seedream-5.0-pro": {
+    label: "Seedream 5.0 Pro",
+    description: "Реализм, текст и точный edit",
+  },
+  "flux-2-flex": {
+    label: "Flux 2 Flex",
+    description: "Типографика и мелкие детали",
   },
   "grok-imagine-video-1.5": {
     label: "Grok Imagine 1.5",
@@ -163,13 +166,8 @@ function parseGenerationModels(
       .map((model) => ({
         id: model.id,
         label: displayLabelForGenerationModel(model.id, model.label),
-        cost: isGrokImageModel(model.id)
-          ? GROK_IMAGINE_IMAGE_CREDIT_COST
-          : isSeedreamImageModel(model.id)
-            ? SEEDREAM_45_CREDIT_COST
-            : Number.isFinite(model.cost)
-              ? Number(model.cost)
-              : 0,
+        cost: forcedImageCreditCost(model.id)
+          ?? (Number.isFinite(model.cost) ? Number(model.cost) : 0),
       }));
     return models.length ? models : fallback;
   } catch {

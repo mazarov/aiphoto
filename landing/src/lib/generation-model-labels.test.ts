@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { GROK_IMAGINE_IMAGE_CREDIT_COST, SEEDREAM_45_CREDIT_COST } from "./generation/image-options";
+import {
+  FLUX_2_FLEX_CREDIT_COST,
+  GROK_IMAGINE_IMAGE_CREDIT_COST,
+  SEEDREAM_45_CREDIT_COST,
+  SEEDREAM_50_PRO_CREDIT_COST,
+} from "./generation/image-options";
 import {
   displayLabelForGenerationModel,
   parseEnabledGenerationModels,
@@ -37,6 +42,21 @@ test("Seedream 4.5 always costs 10 credits and stays disabled in raw JSON until 
   assert.equal(SEEDREAM_45_CREDIT_COST, 10);
   assert.equal(shown[0]?.cost, 10);
   assert.equal(displayLabelForGenerationModel("seedream-4.5"), "Seedream 4.5");
+});
+
+test("Seedream 5.0 Pro and Flux 2 Flex cost 10 and use product labels", () => {
+  const models = parseEnabledGenerationModels(
+    JSON.stringify([
+      { id: "seedream-5.0-pro", label: "Seedream 5.0 Pro", cost: 3, enabled: true },
+      { id: "flux-2-flex", label: "Flux 2 Flex", cost: 3, enabled: true },
+    ])
+  );
+  assert.equal(SEEDREAM_50_PRO_CREDIT_COST, 10);
+  assert.equal(FLUX_2_FLEX_CREDIT_COST, 10);
+  assert.equal(models.find((item) => item.id === "seedream-5.0-pro")?.cost, 10);
+  assert.equal(models.find((item) => item.id === "flux-2-flex")?.cost, 10);
+  assert.equal(displayLabelForGenerationModel("seedream-5.0-pro"), "Seedream 5.0 Pro");
+  assert.equal(displayLabelForGenerationModel("flux-2-flex"), "Flux 2 Flex");
 });
 
 test("Veo 3.1 Lite keeps Lite in the product label", () => {

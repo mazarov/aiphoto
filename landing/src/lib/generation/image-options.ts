@@ -16,8 +16,15 @@ export const GROK_IMAGINE_IMAGE_CREDIT_COST = 10;
 
 export const SEEDREAM_45_IMAGE_MODEL = "seedream-4.5";
 export const SEEDREAM_45_OPENROUTER_MODEL = "bytedance-seed/seedream-4.5";
-/** PromptShot credits for Seedream 4.5. SSOT for picker + enqueue. */
-export const SEEDREAM_45_CREDIT_COST = 10;
+export const SEEDREAM_50_PRO_IMAGE_MODEL = "seedream-5.0-pro";
+export const SEEDREAM_50_PRO_OPENROUTER_MODEL = "bytedance-seed/seedream-5-0-pro";
+export const FLUX_2_FLEX_IMAGE_MODEL = "flux-2-flex";
+export const FLUX_2_FLEX_OPENROUTER_MODEL = "black-forest-labs/flux.2-flex";
+/** PromptShot credits for OpenRouter image models. SSOT for picker + enqueue. */
+export const OPENROUTER_IMAGE_CREDIT_COST = 10;
+export const SEEDREAM_45_CREDIT_COST = OPENROUTER_IMAGE_CREDIT_COST;
+export const SEEDREAM_50_PRO_CREDIT_COST = OPENROUTER_IMAGE_CREDIT_COST;
+export const FLUX_2_FLEX_CREDIT_COST = OPENROUTER_IMAGE_CREDIT_COST;
 
 export function isGrokVideoModel(model: unknown): boolean {
   return typeof model === "string" && model.startsWith("grok-imagine-video");
@@ -29,6 +36,45 @@ export function isGrokImageModel(model: unknown): boolean {
 
 export function isSeedreamImageModel(model: unknown): boolean {
   return typeof model === "string" && model.startsWith("seedream-");
+}
+
+export function isSeedream45ImageModel(model: unknown): boolean {
+  return model === SEEDREAM_45_IMAGE_MODEL;
+}
+
+export function isSeedream50ProImageModel(model: unknown): boolean {
+  return model === SEEDREAM_50_PRO_IMAGE_MODEL;
+}
+
+export function isFluxImageModel(model: unknown): boolean {
+  return typeof model === "string" && model.startsWith("flux-");
+}
+
+export function isOpenRouterImageModel(model: unknown): boolean {
+  return isSeedreamImageModel(model) || isFluxImageModel(model);
+}
+
+export function openRouterVendorModel(productId: string): string {
+  if (productId === SEEDREAM_50_PRO_IMAGE_MODEL) return SEEDREAM_50_PRO_OPENROUTER_MODEL;
+  if (productId === FLUX_2_FLEX_IMAGE_MODEL) return FLUX_2_FLEX_OPENROUTER_MODEL;
+  return SEEDREAM_45_OPENROUTER_MODEL;
+}
+
+export function openRouterMaxImageInputs(productId: string): number {
+  if (productId === SEEDREAM_50_PRO_IMAGE_MODEL) return 14;
+  if (productId === FLUX_2_FLEX_IMAGE_MODEL) return 8;
+  return 10;
+}
+
+/** Flux Image API does not list `resolution`; Seedream does. */
+export function openRouterSendsResolution(productId: string): boolean {
+  return !isFluxImageModel(productId);
+}
+
+export function forcedImageCreditCost(modelId: string): number | null {
+  if (isGrokImageModel(modelId)) return GROK_IMAGINE_IMAGE_CREDIT_COST;
+  if (isOpenRouterImageModel(modelId)) return OPENROUTER_IMAGE_CREDIT_COST;
+  return null;
 }
 
 export function isGeminiImageModel(model: unknown): boolean {
@@ -81,11 +127,14 @@ export function isImageSize(value: unknown): value is string {
   return typeof value === "string" && IMAGE_SIZES.has(value);
 }
 
-/** Grok Imagine image API accepts 1k/2k only. Seedream 4.5 has 2K/4K, no 1K. */
+/**
+ * Grok / Flux / Seedream 5.0 Pro: 1K|2K.
+ * Seedream 4.5: 2K|4K.
+ */
 export function imageSizeOptionsForModel(
   model?: string | null
 ): readonly { value: string; label: string }[] {
-  if (isGrokImageModel(model)) {
+  if (isGrokImageModel(model) || isFluxImageModel(model) || isSeedream50ProImageModel(model)) {
     return IMAGE_SIZE_OPTIONS.filter((option) => option.value !== "4K");
   }
   if (isSeedreamImageModel(model)) {
@@ -98,9 +147,31 @@ export function clampImageSizeForModel(
   model: string | null | undefined,
   imageSize: string
 ): string {
-  if (isGrokImageModel(model) && imageSize === "4K") return "2K";
-  if (isSeedreamImageModel(model) && imageSize === "1K") return "2K";
+  if (
+    (isGrokImageModel(model) || isFluxImageModel(model) || isSeedream50ProImageModel(model))
+    && imageSize === "4K"
+  ) {
+    return "2K";
+  }
+  if (isSeedream45ImageModel(model) && imageSize === "1K") return "2K";
+  if (isSeedreamImageModel(model) && !isSeedream50ProImageModel(model) && imageSize === "1K") {
+    return "2K";
+  }
   return imageSize;
+}
+
+export type OpenRouterImageSize = "1K" | "2K" | "4K";
+
+export function mapOpenRouterImageSize(
+  model: string,
+  imageSize: string,
+): { size: OpenRouterImageSize; clamped: boolean } {
+  const requested = String(imageSize || "").trim().toUpperCase();
+  const mapped = clampImageSizeForModel(model, requested);
+  if (mapped === "1K" || mapped === "2K" || mapped === "4K") {
+    return { size: mapped, clamped: mapped !== requested };
+  }
+  return { size: "2K", clamped: true };
 }
 
 export const VIDEO_ASPECT_RATIO_OPTIONS = [

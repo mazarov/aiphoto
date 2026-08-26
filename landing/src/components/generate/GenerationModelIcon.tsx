@@ -1,4 +1,9 @@
-import { isGrokImageModel, isGrokVideoModel, isSeedreamImageModel } from "@/lib/generation/image-options";
+import {
+  isFluxImageModel,
+  isGrokImageModel,
+  isGrokVideoModel,
+  isSeedreamImageModel,
+} from "@/lib/generation/image-options";
 
 export function GoogleGenerationModelIcon({ className = "h-5 w-5" }: { className?: string }) {
   return (
@@ -37,6 +42,21 @@ export function SeedreamGenerationModelIcon({ className = "h-5 w-5" }: { classNa
   );
 }
 
+export function FluxGenerationModelIcon({ className = "h-5 w-5" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" aria-hidden>
+      <path
+        fill="#FF6B2C"
+        d="M12 2.3 20.2 7v10L12 21.7 3.8 17V7L12 2.3Z"
+      />
+      <path
+        fill="#1A1A1A"
+        d="M12 6.4 16.6 9v6L12 17.6 7.4 15V9L12 6.4Z"
+      />
+    </svg>
+  );
+}
+
 export function GenerationModelIcon({
   modelId,
   className = "h-5 w-5",
@@ -46,6 +66,9 @@ export function GenerationModelIcon({
 }) {
   if (isGrokImageModel(modelId) || isGrokVideoModel(modelId)) {
     return <GrokGenerationModelIcon className={className} />;
+  }
+  if (isFluxImageModel(modelId)) {
+    return <FluxGenerationModelIcon className={className} />;
   }
   if (isSeedreamImageModel(modelId)) {
     return <SeedreamGenerationModelIcon className={className} />;

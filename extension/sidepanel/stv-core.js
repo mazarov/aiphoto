@@ -131,8 +131,20 @@ function isSeedreamImageModel(model) {
   return typeof model === "string" && model.indexOf("seedream-") === 0;
 }
 
+function isFluxImageModel(model) {
+  return typeof model === "string" && model.indexOf("flux-") === 0;
+}
+
+function isSeedream50ProImageModel(model) {
+  return model === "seedream-5.0-pro";
+}
+
 function imageSizesForSelectedModel() {
-  if (isGrokImageModel(state.selectedModel)) {
+  if (
+    isGrokImageModel(state.selectedModel)
+    || isFluxImageModel(state.selectedModel)
+    || isSeedream50ProImageModel(state.selectedModel)
+  ) {
     return state.imageSizes.filter((item) => item.value !== "4K");
   }
   if (isSeedreamImageModel(state.selectedModel)) {
@@ -142,10 +154,16 @@ function imageSizesForSelectedModel() {
 }
 
 function clampImageSizeForSelectedModel() {
-  if (isGrokImageModel(state.selectedModel) && state.selectedImageSize === "4K") {
+  if (
+    (isGrokImageModel(state.selectedModel)
+      || isFluxImageModel(state.selectedModel)
+      || isSeedream50ProImageModel(state.selectedModel))
+    && state.selectedImageSize === "4K"
+  ) {
     state.selectedImageSize = "2K";
   }
-  if (isSeedreamImageModel(state.selectedModel) && state.selectedImageSize === "1K") {
+  if (isSeedreamImageModel(state.selectedModel) && !isSeedream50ProImageModel(state.selectedModel)
+    && state.selectedImageSize === "1K") {
     state.selectedImageSize = "2K";
   }
 }

@@ -47,6 +47,8 @@ test("size maps 2K/4K and clamps 1K", () => {
   assert.deepEqual(mapSeedreamImageSize("1K"), { size: "2K", clamped: true });
   assert.deepEqual(mapSeedreamImageSize("2K"), { size: "2K", clamped: false });
   assert.deepEqual(mapSeedreamImageSize("4K"), { size: "4K", clamped: false });
+  assert.deepEqual(mapSeedreamImageSize("4K", "seedream-5.0-pro"), { size: "2K", clamped: true });
+  assert.deepEqual(mapSeedreamImageSize("1K", "seedream-5.0-pro"), { size: "1K", clamped: false });
 });
 
 test("image body is OpenRouter Image API and rejects /u/ refs", () => {
@@ -77,6 +79,25 @@ test("image body is OpenRouter Image API and rejects /u/ refs", () => {
     }),
     /public_url/,
   );
+});
+
+test("Seedream 5.0 Pro and Flux 2 Flex use vendor slugs", () => {
+  const seedream = buildSeedreamImageBody({
+    prompt: "a face",
+    size: "2K",
+    aspectRatio: "9:16",
+    model: "seedream-5.0-pro",
+  });
+  assert.equal(seedream.model, "bytedance-seed/seedream-5-0-pro");
+  assert.equal(seedream.resolution, "2K");
+  const flux = buildSeedreamImageBody({
+    prompt: "a face",
+    size: "2K",
+    aspectRatio: "9:16",
+    model: "flux-2-flex",
+  });
+  assert.equal(flux.model, "black-forest-labs/flux.2-flex");
+  assert.equal(flux.resolution, undefined);
 });
 
 test("extracts inline image, url, operation id and safety", () => {

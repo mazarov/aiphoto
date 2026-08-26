@@ -1,4 +1,4 @@
-import { isSeedreamImageModel } from "./openrouter-seedream";
+import { isFluxImageModel, isSeedreamImageModel } from "./openrouter-seedream";
 import { ProcessingError } from "./input-source";
 import { isGrokImageModel } from "./xai-image";
 
@@ -22,6 +22,9 @@ export function shouldAttemptGrokFallback(input: {
   }
   if (isSeedreamImageModel(input.requestedModel)) {
     return { ok: false, reason: "primary_is_seedream" };
+  }
+  if (isFluxImageModel(input.requestedModel)) {
+    return { ok: false, reason: "primary_is_flux" };
   }
   if (input.fallbackUsed) return { ok: false, reason: "already_used" };
   if (!isImageFallbackEligible(input.error)) return { ok: false, reason: "not_eligible" };

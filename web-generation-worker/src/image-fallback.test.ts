@@ -69,9 +69,30 @@ test("Grok hop is one-way Gemini to Grok", () => {
     }),
     { ok: false, reason: "primary_is_seedream" },
   );
+  assert.deepEqual(
+    shouldAttemptGrokFallback({
+      requestedModel: "flux-2-flex",
+      fallbackUsed: false,
+      error: geminiError,
+      xaiConfigured: true,
+      fallbackModel: "grok-imagine-image-2.0",
+      circuitOpen: false,
+    }),
+    { ok: false, reason: "primary_is_flux" },
+  );
 });
 
 test("Seedream hop runs after Grok primary or Grok fallback fail", () => {
+  assert.deepEqual(
+    shouldAttemptSeedreamFallback({
+      requestedModel: "grok-imagine-image-2.0",
+      error: grokError,
+      openrouterConfigured: true,
+      secondaryModel: "seedream-5.0-pro",
+      circuitOpen: false,
+    }),
+    { ok: true, model: "seedream-5.0-pro" },
+  );
   assert.deepEqual(
     shouldAttemptSeedreamFallback({
       requestedModel: "grok-imagine-image-2.0",

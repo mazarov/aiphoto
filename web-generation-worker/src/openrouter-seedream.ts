@@ -1,5 +1,35 @@
-export const SEEDREAM_45_IMAGE_MODEL = "seedream-4.5";
-export const SEEDREAM_45_OPENROUTER_MODEL = "bytedance-seed/seedream-4.5";
+import {
+  FLUX_2_FLEX_IMAGE_MODEL,
+  FLUX_2_FLEX_OPENROUTER_MODEL,
+  SEEDREAM_45_IMAGE_MODEL,
+  SEEDREAM_45_OPENROUTER_MODEL,
+  SEEDREAM_50_PRO_IMAGE_MODEL,
+  SEEDREAM_50_PRO_OPENROUTER_MODEL,
+  isFluxImageModel,
+  isOpenRouterImageModel,
+  isSeedreamImageModel,
+  mapOpenRouterImageSize,
+  openRouterMaxImageInputs,
+  openRouterSendsResolution,
+  openRouterVendorModel,
+} from "../../landing/src/lib/generation/image-options";
+
+export {
+  FLUX_2_FLEX_IMAGE_MODEL,
+  FLUX_2_FLEX_OPENROUTER_MODEL,
+  SEEDREAM_45_IMAGE_MODEL,
+  SEEDREAM_45_OPENROUTER_MODEL,
+  SEEDREAM_50_PRO_IMAGE_MODEL,
+  SEEDREAM_50_PRO_OPENROUTER_MODEL,
+  isFluxImageModel,
+  isOpenRouterImageModel,
+  isSeedreamImageModel,
+  mapOpenRouterImageSize,
+  openRouterMaxImageInputs,
+  openRouterSendsResolution,
+  openRouterVendorModel,
+};
+
 export const OPENROUTER_API_HOST = "openrouter.ai";
 export const SEEDREAM_MAX_INPUTS = 10;
 export const SEEDREAM_PROMPT_MAX_CHARS = 4000;
@@ -10,10 +40,6 @@ export const SEEDREAM_SIGNED_TTL_SEC = 900;
 export const SEEDREAM_LEASE_HEARTBEAT_MS = 25_000;
 export const OPENROUTER_HTTP_REFERER = "https://promptshot.ru";
 export const OPENROUTER_APP_TITLE = "PromptShot";
-
-export function isSeedreamImageModel(model: unknown): boolean {
-  return typeof model === "string" && model.startsWith("seedream-");
-}
 
 export function requireOpenRouterBaseUrl(baseUrl: string): string {
   const trimmed = baseUrl.trim().replace(/\/+$/, "");
@@ -48,16 +74,20 @@ export function seedreamSubmitUrl(baseUrl: string): string {
   return `${requireOpenRouterBaseUrl(baseUrl)}/api/v1/images`;
 }
 
-export function mapSeedreamImageSize(imageSize: string): { size: "2K" | "4K"; clamped: boolean } {
-  const normalized = String(imageSize || "").trim().toUpperCase();
-  if (normalized === "4K") return { size: "4K", clamped: false };
-  if (normalized === "2K") return { size: "2K", clamped: false };
-  return { size: "2K", clamped: true };
+export function mapSeedreamImageSize(
+  imageSize: string,
+  model: string = SEEDREAM_45_IMAGE_MODEL,
+): { size: "1K" | "2K" | "4K"; clamped: boolean } {
+  return mapOpenRouterImageSize(model, imageSize);
 }
 
-export function clampSeedreamImageUrls(urls: string[]): { urls: string[]; clamped: boolean } {
-  if (urls.length <= SEEDREAM_MAX_INPUTS) return { urls, clamped: false };
-  return { urls: urls.slice(0, SEEDREAM_MAX_INPUTS), clamped: true };
+export function clampSeedreamImageUrls(
+  urls: string[],
+  maxInputs: number = SEEDREAM_MAX_INPUTS,
+): { urls: string[]; clamped: boolean } {
+  const limit = Number.isFinite(maxInputs) && maxInputs > 0 ? maxInputs : SEEDREAM_MAX_INPUTS;
+  if (urls.length <= limit) return { urls, clamped: false };
+  return { urls: urls.slice(0, limit), clamped: true };
 }
 
 export function clampSeedreamPrompt(prompt: string): string {
@@ -78,23 +108,32 @@ export function isProxiedReferenceUrl(url: string): boolean {
 
 export function buildSeedreamImageBody(input: {
   prompt: string;
-  size: "2K" | "4K";
+  size: "1K" | "2K" | "4K";
   aspectRatio: string;
   imageInput?: string[];
   model?: string;
 }): Record<string, unknown> {
-  const imageInput = clampSeedreamImageUrls(input.imageInput || []).urls;
+  const productId = resolveProductModelId(input.model);
+  const imageInput = clampSeedreamImageUrls(
+    input.imageInput || [],
+    openRouterMaxImageInputs(productId),
+  ).urls;
   if (imageInput.some((url) => isProxiedReferenceUrl(url))) {
     throw new Error("seedream_image_input_must_be_public_url");
   }
+  const vendorModel = input.model?.includes("/")
+    ? input.model
+    : openRouterVendorModel(productId);
   const payload: Record<string, unknown> = {
-    model: input.model || SEEDREAM_45_OPENROUTER_MODEL,
+    model: vendorModel,
     prompt: clampSeedreamPrompt(input.prompt),
     n: 1,
-    resolution: input.size,
     aspect_ratio: input.aspectRatio,
     output_format: "png",
   };
+  if (openRouterSendsResolution(productId)) {
+    payload.resolution = input.size;
+  }
   if (imageInput.length) {
     payload.input_references = imageInput.map((url) => ({
       type: "image_url",
@@ -102,6 +141,12 @@ export function buildSeedreamImageBody(input: {
     }));
   }
   return payload;
+}
+
+function resolveProductModelId(model?: string): string {
+  if (!model || model.includes("/")) return SEEDREAM_45_IMAGE_MODEL;
+  if (isOpenRouterImageModel(model)) return model;
+  return SEEDREAM_45_IMAGE_MODEL;
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {

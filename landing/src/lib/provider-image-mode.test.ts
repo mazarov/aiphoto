@@ -75,12 +75,24 @@ test("Seedream jobs are openrouter vendor", () => {
     requestedModel: "seedream-4.5",
     executedModel: "seedream-4.5",
     inputPhotoCount: 1,
-  }), { vendor: "openrouter", mode: "edit" });
+  }), { vendor: "openrouter", mode: "edit", brand: "seedream" });
   assert.deepEqual(inferProviderImageMode({
     requestedModel: "gemini-2.5-flash-image",
     executedModel: "seedream-4.5",
     fallbackUsed: true,
     inputPhotoCount: 1,
-  }), { vendor: "openrouter", mode: "edit" });
+  }), { vendor: "openrouter", mode: "edit", brand: "seedream" });
   assert.equal(providerImageModeLabel({ vendor: "openrouter", mode: "edit" }), "Seedream edit");
+});
+
+test("Flux jobs are openrouter vendor with Flux label", () => {
+  assert.deepEqual(inferProviderImageMode({
+    requestedModel: "flux-2-flex",
+    executedModel: "flux-2-flex",
+    inputPhotoCount: 1,
+  }), { vendor: "openrouter", mode: "edit", brand: "flux" });
+  assert.equal(
+    providerImageModeLabel({ vendor: "openrouter", mode: "edit", brand: "flux" }),
+    "Flux edit",
+  );
 });

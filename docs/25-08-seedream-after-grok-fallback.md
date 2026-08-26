@@ -27,7 +27,7 @@ Grok skip (circuit / нет `XAI_*` / kill-switch) → сразу Seedream, не
 | Ключ | Значение | Выкл |
 |---|---|---|
 | `image_fallback_model` | `grok-imagine-image-2.0` | пусто / `enabled:false` у Grok |
-| `image_fallback_secondary_model` | `seedream-4.5` | пусто / `enabled:false` у Seedream |
+| `image_fallback_secondary_model` | `seedream-5.0-pro` (с SQL `218`; было `seedream-4.5`) | пусто / `enabled:false` у Seedream |
 
 SQL `217`. Не править 204/215/216.
 

@@ -59,14 +59,16 @@ import {
   type GrokImagePart,
 } from "./xai-image";
 import {
-  SEEDREAM_45_IMAGE_MODEL,
-  SEEDREAM_45_OPENROUTER_MODEL,
+  SEEDREAM_50_PRO_IMAGE_MODEL,
   SEEDREAM_SIGNED_TTL_SEC,
   buildSeedreamImageBody,
   clampSeedreamImageUrls,
+  isOpenRouterImageModel,
   isProxiedReferenceUrl,
   isSeedreamImageModel,
-  mapSeedreamImageSize,
+  mapOpenRouterImageSize,
+  openRouterMaxImageInputs,
+  openRouterVendorModel,
   openrouterProxyHost,
   requireOpenRouterBaseUrl,
   runSeedreamImage,
@@ -316,9 +318,11 @@ export async function processGeneration(
     }
   }
 
-  if (isSeedreamImageModel(requestedModel) || isSeedreamImageModel(job.executed_model)) {
+  if (isOpenRouterImageModel(requestedModel) || isOpenRouterImageModel(job.executed_model)) {
+    const executedOpenRouter = resolveOpenRouterProductModel(job, requestedModel);
     const imageBuffer = await generateSeedreamFromJob({
       job,
+      productModel: executedOpenRouter,
       rawPrompt,
       editInstruction,
       isVibe,
@@ -357,14 +361,14 @@ export async function processGeneration(
       outputFormat: encodedSeedream.outputFormat,
       encodeMs: encodedSeedream.encodeMs,
       skippedReason: encodedSeedream.skippedReason,
-      executedModel: SEEDREAM_45_IMAGE_MODEL,
+      executedModel: executedOpenRouter,
       fallbackUsed: Boolean(job.fallback_used),
     });
     return {
       resultPath: seedreamResultPath,
       rawPrompt,
-      executedModel: SEEDREAM_45_IMAGE_MODEL,
-      fallbackUsed: Boolean(job.fallback_used) || !isSeedreamImageModel(requestedModel),
+      executedModel: executedOpenRouter,
+      fallbackUsed: Boolean(job.fallback_used) || !isOpenRouterImageModel(requestedModel),
     };
   }
 
@@ -617,8 +621,16 @@ function toProcessingError(error: unknown): ProcessingError {
   );
 }
 
+function resolveOpenRouterProductModel(job: GenerationJob, requestedModel: string): string {
+  if (isOpenRouterImageModel(job.executed_model)) return String(job.executed_model);
+  if (isOpenRouterImageModel(requestedModel)) return requestedModel;
+  if (isOpenRouterImageModel(job.model)) return String(job.model);
+  return SEEDREAM_50_PRO_IMAGE_MODEL;
+}
+
 async function generateSeedreamFromJob(input: {
   job: GenerationJob;
+  productModel?: string;
   rawPrompt: string;
   editInstruction: string;
   isVibe: boolean;
@@ -654,6 +666,7 @@ async function generateSeedreamFromJob(input: {
         : input.inputSource.paths.length
           ? assembleSeedreamImageToImagePrompt(input.rawPrompt)
           : assembleSeedreamTextToImagePrompt(input.rawPrompt);
+  const productModel = input.productModel || resolveOpenRouterProductModel(input.job, input.job.model);
   log("info", "generation_prompt_resolved", {
     ...input.context,
     generationMode: input.generationMode,
@@ -662,15 +675,20 @@ async function generateSeedreamFromJob(input: {
     editInstructionLength: input.editInstruction.length,
     scenePromptLength: input.rawPrompt.length,
     promptLength: seedreamPrompt.length,
-    provider: "seedream",
+    provider: "openrouter",
+    productModel,
   });
   const signedUrls = await createSeedreamSignedUrls(input.supabase, input.inputSource);
-  const imageInput = clampSeedreamImageUrls([
-    ...(input.vibeSourceUrl ? [input.vibeSourceUrl] : []),
-    ...signedUrls,
-  ]);
+  const imageInput = clampSeedreamImageUrls(
+    [
+      ...(input.vibeSourceUrl ? [input.vibeSourceUrl] : []),
+      ...signedUrls,
+    ],
+    openRouterMaxImageInputs(productModel),
+  );
   return generateSeedreamImage({
     job: input.job,
+    productModel,
     prompt: seedreamPrompt,
     imageInput: imageInput.urls,
     imageInputClamped: imageInput.clamped,
@@ -727,7 +745,10 @@ async function trySeedreamImageFallback(input: {
     errorType: input.error.errorType,
     hop: "seedream",
   });
-  const buffer = await generateSeedreamFromJob(input);
+  const buffer = await generateSeedreamFromJob({
+    ...input,
+    productModel: decision.model,
+  });
   return { buffer, model: decision.model };
 }
 
@@ -785,6 +806,7 @@ async function createSeedreamSignedUrls(
 
 async function generateSeedreamImage(input: {
   job: GenerationJob;
+  productModel: string;
   prompt: string;
   imageInput: string[];
   imageInputClamped: boolean;
@@ -810,18 +832,20 @@ async function generateSeedreamImage(input: {
     });
     throw new ProcessingError("config_error", "OPENROUTER_BASE_URL must use /u/ proxy", false);
   }
-  const mapped = mapSeedreamImageSize(input.job.image_size);
+  const mapped = mapOpenRouterImageSize(input.productModel, input.job.image_size);
   if (mapped.clamped) {
     log("info", "seedream_size_clamped", {
       ...input.context,
       from: input.job.image_size,
       to: mapped.size,
+      productModel: input.productModel,
     });
   }
   if (input.imageInputClamped) {
     log("info", "seedream_input_clamped", {
       ...input.context,
       to: input.imageInput.length,
+      productModel: input.productModel,
     });
   }
   const body = buildSeedreamImageBody({
@@ -829,11 +853,13 @@ async function generateSeedreamImage(input: {
     size: mapped.size,
     aspectRatio: input.job.aspect_ratio,
     imageInput: input.imageInput,
+    model: input.productModel,
   });
   const startedAt = Date.now();
   log("info", "seedream_request_started", {
     ...input.context,
-    model: SEEDREAM_45_OPENROUTER_MODEL,
+    model: openRouterVendorModel(input.productModel),
+    productModel: input.productModel,
     proxyHost: openrouterProxyHost(config.openrouterBaseUrl),
     size: mapped.size,
     clampedSize: mapped.clamped,
@@ -1153,7 +1179,7 @@ async function resolveImageFallbackTargets(supabase: SupabaseClient): Promise<{
     seedream: pick(
       configMap.image_fallback_secondary_model,
       isSeedreamImageModel,
-      SEEDREAM_45_IMAGE_MODEL,
+      SEEDREAM_50_PRO_IMAGE_MODEL,
     ),
   };
 }
