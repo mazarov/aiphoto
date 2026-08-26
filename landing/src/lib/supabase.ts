@@ -503,18 +503,31 @@ export type CardPhotoRef = {
   height: number | null;
 };
 
+const CARD_SLUG_IN_CHUNK = 40;
+
 /** Primary photo for published cards by slug (SEO-иллюстрации, batch). */
 export async function getCardPhotosBySlugs(
   slugs: string[],
 ): Promise<Map<string, CardPhotoRef>> {
   const result = new Map<string, CardPhotoRef>();
-  if (slugs.length === 0) return result;
+  const unique = [...new Set(slugs.filter(Boolean))];
+  if (unique.length === 0) return result;
+
+  if (unique.length > CARD_SLUG_IN_CHUNK) {
+    for (let i = 0; i < unique.length; i += CARD_SLUG_IN_CHUNK) {
+      const chunk = await getCardPhotosBySlugs(
+        unique.slice(i, i + CARD_SLUG_IN_CHUNK),
+      );
+      for (const [slug, photo] of chunk) result.set(slug, photo);
+    }
+    return result;
+  }
 
   const supabase = createSupabaseServer();
   const { data: cards, error: cardError } = await supabase
     .from("prompt_cards")
     .select("id,slug")
-    .in("slug", slugs)
+    .in("slug", unique)
     .eq("is_published", true);
 
   if (cardError || !cards?.length) return result;

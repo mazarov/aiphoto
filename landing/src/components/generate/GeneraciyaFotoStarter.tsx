@@ -23,6 +23,7 @@ import {
   prepareUploadFile,
 } from "@/lib/image-upload-prepare";
 import { AnalyzeQuotaChip } from "@/components/foto-v-promt/AnalyzeQuotaChip";
+import { GF_BLOCK, GF_STACK } from "@/components/generate/generaciya-foto-ui";
 import {
   reachYandexMetrikaGoal,
   YM_GOAL_GENERATION_PHOTO_PROMPT_OPEN,
@@ -250,7 +251,7 @@ export function GeneraciyaFotoStarter() {
   };
 
   return (
-    <div className="mt-10 w-full overflow-hidden rounded-[1.75rem] border border-indigo-100/90 bg-[linear-gradient(145deg,#f2f1ff_0%,#ffffff_48%,#faf7ff_100%)] px-3 py-6 text-left text-zinc-900 shadow-[0_28px_80px_-46px_rgba(79,70,229,0.45)] sm:mt-12 sm:px-5 sm:py-8">
+    <div className={`mt-8 w-full text-left sm:mt-10 ${GF_BLOCK}`}>
       <div
         className="grid grid-cols-1 gap-3 sm:grid-cols-2"
         role="tablist"
@@ -258,44 +259,66 @@ export function GeneraciyaFotoStarter() {
       >
         {MODES.map((item) => {
           const selected = mode === item.id;
+          const isPhoto = item.id === "photo";
           return (
-            <button
+            <div
               key={item.id}
-              ref={item.id === "text" ? textTabRef : photoTabRef}
-              type="button"
-              role="tab"
-              aria-selected={selected}
-              onClick={() => selectMode(item.id)}
-              onKeyDown={(event) => onModeKeyDown(event, item.id)}
-              className={`flex min-h-11 items-start gap-4 rounded-2xl border p-4 text-left transition sm:p-5 ${
+              className={`relative rounded-2xl border transition ${
                 selected
                   ? "border-transparent bg-white text-zinc-900 shadow-sm ring-2 ring-indigo-500"
                   : "border-indigo-100/90 bg-white/70 text-zinc-600 hover:bg-white"
               }`}
             >
-              <span
-                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
-                  selected
-                    ? "bg-indigo-50 text-indigo-600"
-                    : "bg-zinc-100 text-zinc-500"
-                }`}
+              <button
+                ref={item.id === "text" ? textTabRef : photoTabRef}
+                type="button"
+                role="tab"
+                aria-selected={selected}
+                onClick={() => selectMode(item.id)}
+                onKeyDown={(event) => onModeKeyDown(event, item.id)}
+                className="flex min-h-11 w-full items-start gap-4 p-4 text-left sm:p-5"
               >
-                <ModeIcon mode={item.id} />
-              </span>
-              <span className="min-w-0 pt-0.5">
-                <span className="block text-base font-semibold text-zinc-900">
-                  {item.title}
+                <span
+                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
+                    selected
+                      ? "bg-indigo-50 text-indigo-600"
+                      : "bg-zinc-100 text-zinc-500"
+                  }`}
+                >
+                  <ModeIcon mode={item.id} />
                 </span>
-                <span className="mt-1 block text-sm leading-snug text-zinc-600">
-                  {item.description}
+                <span className="min-w-0 pt-0.5">
+                  <span
+                    className={`block text-base font-semibold text-zinc-900 ${
+                      isPhoto && analyzeQuota ? "pr-16" : ""
+                    }`}
+                  >
+                    {item.title}
+                  </span>
+                  <span className="mt-1 block text-sm leading-snug text-zinc-600">
+                    {item.description}
+                  </span>
                 </span>
-              </span>
-            </button>
+              </button>
+              {isPhoto && analyzeQuota ? (
+                <div className="absolute right-3 top-3 z-10 sm:right-4 sm:top-4">
+                  <AnalyzeQuotaChip
+                    quota={analyzeQuota}
+                    tone="light"
+                    compact
+                    minimal
+                    countAs="used"
+                    onSignIn={() => openAuthModal("analyze_quota")}
+                    onTopUp={() => openPricing()}
+                  />
+                </div>
+              ) : null}
+            </div>
           );
         })}
       </div>
 
-      <div className="mt-6 flex flex-col items-center">
+      <div className={`${GF_STACK} flex flex-col items-center`}>
         <input
           ref={fileInputRef}
           type="file"
@@ -363,24 +386,12 @@ export function GeneraciyaFotoStarter() {
                 : needsCredits
                   ? "Недостаточно кредитов"
                   : isAuthed
-                    ? mode === "photo"
-                      ? analyzeQuota?.next_mode === "no_credits"
-                        ? "Пополнить токены"
-                        : "Загрузить фото"
+                    ? mode === "photo" && analyzeQuota?.next_mode === "no_credits"
+                      ? "Пополнить токены"
                       : "Создать фото"
                     : "Войти и создать фото"}
           </span>
         </button>
-        {mode === "photo" && analyzeQuota ? (
-          <div className="mt-3">
-            <AnalyzeQuotaChip
-              quota={analyzeQuota}
-              tone="light"
-              onSignIn={() => openAuthModal("analyze_quota")}
-              onTopUp={() => openPricing()}
-            />
-          </div>
-        ) : null}
         {analyzeError ? (
           <p className="mt-3 max-w-md text-center text-sm text-rose-600" role="status">
             {analyzeError}

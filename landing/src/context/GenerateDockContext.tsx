@@ -70,7 +70,10 @@ type GenerateDockContextType = {
   requestedModelId: string | null;
   requestModelSelection: (
     modelId: string,
-    options?: { entrySource?: GenerateDockEntrySource }
+    options?: {
+      entrySource?: GenerateDockEntrySource;
+      dockSurface?: GenerateDockSurface;
+    }
   ) => void;
   /** Empty compose on current listing (tab / focus). */
   focusBlank: (options?: { entrySource?: GenerateDockEntrySource }) => void;
@@ -187,27 +190,36 @@ export function GenerateDockProvider({ children }: { children: ReactNode }) {
   const requestModelSelection = useCallback(
     (
       modelId: string,
-      options?: { entrySource?: GenerateDockEntrySource }
+      options?: {
+        entrySource?: GenerateDockEntrySource;
+        dockSurface?: GenerateDockSurface;
+      }
     ) => {
       if (!modelId.trim()) {
         return;
       }
-      if (!isResumeComposeSeed(seed)) {
-        setSeed(DEFAULT_SEED);
-        setSeedToken((token) => token + 1);
-      }
+      const nextSurface = options?.dockSurface ?? null;
+      const nextSeed: GenerateDockSeed = {
+        source: "blank",
+        promptText: "",
+        cardId: null,
+        intent: "text",
+      };
+      setSeed(nextSeed);
+      setSeedToken((token) => token + 1);
+      setLastDockResultDismissed(true);
       setRequestedModelId(modelId);
       setPlateOpen(true);
-      setDockSurface(null);
+      setDockSurface(nextSurface);
       if (!isAuthed) {
         persistPendingGenerateDock({
-          seed: isResumeComposeSeed(seed) ? DEFAULT_SEED : seed,
-          dockSurface: null,
+          seed: nextSeed,
+          dockSurface: nextSurface,
         });
       }
       trackOpen(options?.entrySource ?? "route");
     },
-    [isAuthed, seed, trackOpen]
+    [isAuthed, trackOpen]
   );
 
   const focusBlank = useCallback(

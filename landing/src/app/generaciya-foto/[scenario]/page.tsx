@@ -18,6 +18,7 @@ import {
   findGeneraciyaFotoScenarioRoute,
   getGeneraciyaFotoScenarioPath,
 } from "@/lib/generaciya-foto-routes";
+import { getGeneraciyaFotoChipNavigation } from "@/lib/generaciya-foto-chip-nav";
 import {
   findGeneraciyaFotoScenarioCopy,
   type GeneraciyaFotoScenarioCopy,
@@ -328,7 +329,7 @@ export default async function GeneraciyaFotoScenarioPage({ params }: Props) {
           </div>
         </section>
 
-        <div className="mx-auto flex w-full max-w-7xl flex-col gap-12 px-3 pt-12 sm:gap-16 sm:px-5 sm:pt-16 lg:gap-20 lg:pt-20 xl:px-6">
+        <div className="mx-auto flex w-full max-w-7xl flex-col gap-10 px-3 pt-10 sm:gap-12 sm:px-5 sm:pt-12 lg:gap-16 lg:pt-16 xl:px-6">
           <section
             id="primery"
             className="scroll-mt-20"
@@ -340,13 +341,7 @@ export default async function GeneraciyaFotoScenarioPage({ params }: Props) {
                 title={copy.examplesTitle}
                 intro={copy.examplesIntro}
                 defaultAllPromptsHref={copy.promptCatalogHref}
-                scenarioNavigation={GENERACIYA_FOTO_SCENARIO_ROUTES.map(
-                  (scenario) => ({
-                    label: scenario.label,
-                    href: getGeneraciyaFotoScenarioPath(scenario.slug),
-                    active: scenario.slug === slug,
-                  })
-                )}
+                scenarioNavigation={getGeneraciyaFotoChipNavigation(slug)}
                 lockCardsToScenario
               />
             ) : (

@@ -134,6 +134,12 @@ export function getPricingPlans(
  * Mobile swipe order: a higher-priced pack first, then the cheapest,
  * then the remaining catalog order. Checkout still keys plans by id.
  */
+export function getPricingPlansByAscendingPrice(
+  plans: readonly PricingPlan[],
+): PricingPlan[] {
+  return [...plans].sort((a, b) => a.price - b.price || a.credits - b.credits);
+}
+
 export function getPaywallSwipePlans(
   plans: readonly PricingPlan[],
 ): PricingPlan[] {

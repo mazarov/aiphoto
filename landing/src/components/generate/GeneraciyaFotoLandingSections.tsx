@@ -1,17 +1,25 @@
-import Image from "next/image";
 import Link from "next/link";
-import type { GenerationExampleCard } from "@/lib/generation/example-card";
-import { CARD_IMAGE_LISTING_NEXT_QUALITY, SIZES_CARD_GRID } from "@/lib/card-image-presets";
+import { GeneraciyaFotoReviewsCarousel } from "@/components/generate/GeneraciyaFotoReviewsCarousel";
+import { GeneraciyaFotoThemesCarousel } from "@/components/generate/GeneraciyaFotoThemesCarousel";
+import { GeneraciyaFotoToolsGrid } from "@/components/generate/GeneraciyaFotoToolsGrid";
+import {
+  GF_BLOCK,
+  GF_BRAND_CTA,
+  GF_H2,
+  GF_LEAD,
+  GF_STACK,
+  GF_SURFACE,
+} from "@/components/generate/generaciya-foto-ui";
+import { PricingScreen } from "@/components/pricing/PricingScreen";
 import {
   GENERACIYA_FOTO_CAPABILITIES,
   GENERACIYA_FOTO_HOW_TO_STEPS,
   GENERACIYA_FOTO_MORE_TITLE,
-  GENERACIYA_FOTO_PACKS,
+  GENERACIYA_FOTO_PRICING,
   GENERACIYA_FOTO_REVIEWS,
   GENERACIYA_FOTO_SEO,
   GENERACIYA_FOTO_THEMES,
   GENERACIYA_FOTO_TOOLS,
-  GENERACIYA_FOTO_TOPICS,
 } from "@/lib/generaciya-foto-seo-copy";
 
 const sectionClass = "scroll-mt-20";
@@ -27,71 +35,32 @@ function SectionHeading({
 }) {
   return (
     <div className="max-w-3xl">
-      <h2
-        id={id}
-        className="text-2xl font-bold tracking-tight text-zinc-900 sm:text-3xl"
-      >
+      <h2 id={id} className={GF_H2}>
         {title}
       </h2>
-      {lead ? (
-        <p className="mt-3 text-base leading-relaxed text-zinc-600">{lead}</p>
-      ) : null}
+      {lead ? <p className={GF_LEAD}>{lead}</p> : null}
     </div>
   );
 }
 
-function TextLink({
-  href,
-  children,
+export function GeneraciyaFotoThemes({
+  photosByHref,
+  countByHref,
 }: {
-  href: string;
-  children: string;
+  photosByHref: Record<string, string[]>;
+  countByHref: Record<string, number>;
 }) {
   return (
-    <Link
-      href={href}
-      className="inline-flex min-h-11 items-center text-sm font-semibold text-indigo-700 hover:text-indigo-800"
-    >
-      {children}
-      <span aria-hidden className="ml-1">
-        →
-      </span>
-    </Link>
-  );
-}
-
-export function GeneraciyaFotoThemes() {
-  return (
-    <section className={sectionClass} aria-labelledby="themes-heading">
-      <SectionHeading
-        id="themes-heading"
-        title={GENERACIYA_FOTO_THEMES.title}
-        lead={GENERACIYA_FOTO_THEMES.lead}
-      />
-      <ul className="mt-6 grid gap-3 sm:grid-cols-2">
-        {GENERACIYA_FOTO_THEMES.items.map((item) => (
-          <li key={item.href}>
-            <Link
-              href={item.href}
-              className="flex h-full flex-col rounded-2xl border border-zinc-200 bg-white p-5 transition hover:border-indigo-200 hover:bg-indigo-50/40"
-            >
-              <span className="text-xs font-medium uppercase tracking-wide text-indigo-600">
-                {item.count}
-              </span>
-              <span className="mt-2 text-sm leading-relaxed text-zinc-600">
-                {item.examples.join(" · ")}
-              </span>
-              <span className="mt-3 text-lg font-semibold text-zinc-900">
-                {item.title}
-              </span>
-            </Link>
-          </li>
-        ))}
-      </ul>
-      <div className="mt-4">
-        <TextLink href={GENERACIYA_FOTO_THEMES.allHref}>
-          {GENERACIYA_FOTO_THEMES.allLabel}
-        </TextLink>
+    <section id="temy" className={sectionClass} aria-labelledby="themes-heading">
+      <div className={GF_BLOCK}>
+        <h2 id="themes-heading" className={GF_H2}>
+          {GENERACIYA_FOTO_THEMES.title}
+        </h2>
+        <p className={GF_LEAD}>{GENERACIYA_FOTO_THEMES.lead}</p>
+        <GeneraciyaFotoThemesCarousel
+          photosByHref={photosByHref}
+          countByHref={countByHref}
+        />
       </div>
     </section>
   );
@@ -100,117 +69,13 @@ export function GeneraciyaFotoThemes() {
 export function GeneraciyaFotoTools() {
   return (
     <section className={sectionClass} aria-labelledby="tools-heading">
-      <SectionHeading
-        id="tools-heading"
-        title={GENERACIYA_FOTO_TOOLS.title}
-        lead={GENERACIYA_FOTO_TOOLS.lead}
-      />
-      <ul className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {GENERACIYA_FOTO_TOOLS.items.map((item) => (
-          <li key={item.title}>
-            <Link
-              href={item.href}
-              className="flex h-full flex-col rounded-2xl border border-zinc-200 bg-white p-5 transition hover:border-indigo-200 hover:bg-indigo-50/30"
-            >
-              <span className="font-semibold text-zinc-900">{item.title}</span>
-              <span className="mt-2 text-sm leading-relaxed text-zinc-600">
-                {item.text}
-              </span>
-              <span className="mt-auto pt-3 text-sm font-semibold text-indigo-700">
-                {GENERACIYA_FOTO_TOOLS.tryLabel}
-              </span>
-            </Link>
-          </li>
-        ))}
-      </ul>
-      <div className="mt-4">
-        <TextLink href={GENERACIYA_FOTO_TOOLS.allHref}>
-          {GENERACIYA_FOTO_TOOLS.allLabel}
-        </TextLink>
-      </div>
-    </section>
-  );
-}
-
-export function GeneraciyaFotoPacks({
-  cards,
-}: {
-  cards: GenerationExampleCard[];
-}) {
-  const preview = cards.filter((card) => card.photoUrl).slice(0, 6);
-
-  return (
-    <section className={sectionClass} aria-labelledby="packs-heading">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+      <div className={GF_BLOCK}>
         <SectionHeading
-          id="packs-heading"
-          title={GENERACIYA_FOTO_PACKS.title}
-          lead={GENERACIYA_FOTO_PACKS.lead}
+          id="tools-heading"
+          title={GENERACIYA_FOTO_TOOLS.title}
+          lead={GENERACIYA_FOTO_TOOLS.lead}
         />
-        <Link
-          href={GENERACIYA_FOTO_PACKS.href}
-          className="inline-flex min-h-11 w-fit shrink-0 items-center justify-center rounded-full bg-indigo-600 px-5 text-sm font-semibold text-white hover:bg-indigo-700"
-        >
-          {GENERACIYA_FOTO_PACKS.cta}
-        </Link>
-      </div>
-      <ul className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
-        {GENERACIYA_FOTO_PACKS.items.map((item, index) => {
-          const photo = preview[index];
-          return (
-            <li key={item.title}>
-              <Link
-                href={item.href}
-                className="group flex h-full flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white transition hover:border-indigo-200"
-              >
-                {photo?.photoUrl ? (
-                  <div className="relative aspect-[3/4] overflow-hidden bg-zinc-100">
-                    <Image
-                      src={photo.photoUrl}
-                      alt={item.title}
-                      fill
-                      sizes={SIZES_CARD_GRID}
-                      quality={CARD_IMAGE_LISTING_NEXT_QUALITY}
-                      className="object-cover transition duration-200 group-hover:scale-[1.02]"
-                    />
-                  </div>
-                ) : null}
-                <span className="px-4 pt-3 text-sm font-semibold text-zinc-900">
-                  {item.title}
-                </span>
-                <span className="px-4 pb-4 pt-1 text-xs text-zinc-500">
-                  {item.meta}
-                </span>
-              </Link>
-            </li>
-          );
-        })}
-      </ul>
-    </section>
-  );
-}
-
-export function GeneraciyaFotoTopics() {
-  return (
-    <section className={sectionClass} aria-labelledby="topics-heading">
-      <SectionHeading id="topics-heading" title={GENERACIYA_FOTO_TOPICS.title} />
-      <ul className="mt-6 grid gap-3 sm:grid-cols-2">
-        {GENERACIYA_FOTO_TOPICS.items.map((item) => (
-          <li key={item.title}>
-            <Link
-              href={item.href}
-              className="flex items-baseline justify-between gap-3 rounded-2xl border border-zinc-200 bg-white px-5 py-4 transition hover:border-indigo-200"
-            >
-              <span className="font-semibold text-zinc-900">{item.title}</span>
-              <span className="shrink-0 text-sm text-zinc-500">{item.count}</span>
-            </Link>
-          </li>
-        ))}
-      </ul>
-      <div className="mt-4">
-        <TextLink href={GENERACIYA_FOTO_TOPICS.allHref}>
-          {GENERACIYA_FOTO_TOPICS.allLabel}
-        </TextLink>
+        <GeneraciyaFotoToolsGrid />
       </div>
     </section>
   );
@@ -219,31 +84,28 @@ export function GeneraciyaFotoTopics() {
 export function GeneraciyaFotoHowTo() {
   return (
     <section className={sectionClass} aria-labelledby="howto-heading">
-      <div className="overflow-hidden rounded-[1.75rem] border border-indigo-100/90 bg-[linear-gradient(145deg,#f2f1ff_0%,#ffffff_48%,#faf7ff_100%)] px-3 py-6 sm:px-5 sm:py-8">
+      <div className={GF_BLOCK}>
         <SectionHeading
           id="howto-heading"
           title={GENERACIYA_FOTO_SEO.howToTitle}
           lead={GENERACIYA_FOTO_SEO.howToLead}
         />
-        <ol className="mt-8 grid gap-6 lg:grid-cols-3">
+        <ol className={`${GF_STACK} grid gap-5 lg:grid-cols-3`}>
           {GENERACIYA_FOTO_HOW_TO_STEPS.map((step) => (
             <li key={step.n}>
-              <p className="text-xs font-semibold tracking-[0.16em] text-indigo-600">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-indigo-600">
                 {step.n}
               </p>
-              <h3 className="mt-2 text-lg font-semibold text-zinc-900">
+              <h3 className="mt-2 text-base font-semibold text-zinc-900">
                 {step.title}
               </h3>
-              <p className="mt-2 text-sm leading-relaxed text-zinc-600">
+              <p className="mt-1.5 text-sm leading-relaxed text-zinc-600">
                 {step.text}
               </p>
             </li>
           ))}
         </ol>
-        <Link
-          href="#generator"
-          className="mt-8 inline-flex min-h-11 items-center justify-center rounded-full bg-indigo-600 px-5 text-sm font-semibold text-white hover:bg-indigo-700"
-        >
+        <Link href="#generator" className={`${GF_STACK} ${GF_BRAND_CTA}`}>
           {GENERACIYA_FOTO_SEO.howToCta}
         </Link>
       </div>
@@ -254,33 +116,19 @@ export function GeneraciyaFotoHowTo() {
 export function GeneraciyaFotoReviews() {
   return (
     <section id="otzyvy" className={sectionClass} aria-labelledby="reviews-heading">
-      <blockquote className="max-w-3xl">
-        <p className="text-2xl font-bold tracking-tight text-zinc-900 sm:text-3xl">
-          «{GENERACIYA_FOTO_REVIEWS.quote}»
-        </p>
-        <footer className="mt-3 text-sm text-zinc-500">
-          (с) {GENERACIYA_FOTO_REVIEWS.quoteAuthor}
-        </footer>
-      </blockquote>
-      <h2 id="reviews-heading" className="mt-8 text-xl font-bold text-zinc-900">
-        {GENERACIYA_FOTO_REVIEWS.title}
-      </h2>
-      <ul className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {GENERACIYA_FOTO_REVIEWS.items.map((item) => (
-          <li
-            key={item.name}
-            className="rounded-2xl border border-zinc-200 bg-white p-5"
-          >
-            <p className="font-semibold text-zinc-900">{item.name}</p>
-            <p className="mt-2 text-sm leading-relaxed text-zinc-600">
-              {item.text}
-            </p>
-          </li>
-        ))}
-      </ul>
-      <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
-        <TextLink href="#otzyvy">{GENERACIYA_FOTO_REVIEWS.moreLabel}</TextLink>
-        <TextLink href="#otzyvy">{GENERACIYA_FOTO_REVIEWS.allLabel}</TextLink>
+      <div className={GF_BLOCK}>
+        <blockquote className="max-w-3xl">
+          <p className="text-xl font-semibold tracking-tight text-zinc-900 sm:text-2xl">
+            «{GENERACIYA_FOTO_REVIEWS.quote}»
+          </p>
+          <footer className="mt-2 text-sm text-zinc-500">
+            (с) {GENERACIYA_FOTO_REVIEWS.quoteAuthor}
+          </footer>
+        </blockquote>
+        <h2 id="reviews-heading" className={`${GF_STACK} ${GF_H2}`}>
+          {GENERACIYA_FOTO_REVIEWS.title}
+        </h2>
+        <GeneraciyaFotoReviewsCarousel />
       </div>
     </section>
   );
@@ -289,35 +137,38 @@ export function GeneraciyaFotoReviews() {
 export function GeneraciyaFotoMore() {
   return (
     <section className={sectionClass} aria-labelledby="more-heading">
-      <SectionHeading id="more-heading" title={GENERACIYA_FOTO_MORE_TITLE} />
-      <ul className="mt-6 grid gap-3 lg:grid-cols-2">
-        {GENERACIYA_FOTO_CAPABILITIES.map((item) => (
-          <li key={item.title}>
-            <Link
-              href={item.href}
-              className="flex h-full flex-col rounded-2xl border border-zinc-200 bg-white p-5 transition hover:border-indigo-200"
-            >
-              <span className="font-semibold text-zinc-900">{item.title}</span>
-              <span className="mt-2 text-sm leading-relaxed text-zinc-600">
-                {item.text}
-              </span>
-            </Link>
-          </li>
-        ))}
-      </ul>
+      <div className={GF_BLOCK}>
+        <SectionHeading id="more-heading" title={GENERACIYA_FOTO_MORE_TITLE} />
+        <ul className={`${GF_STACK} grid gap-3 lg:grid-cols-2`}>
+          {GENERACIYA_FOTO_CAPABILITIES.map((item) => (
+            <li key={item.title}>
+              <Link
+                href={item.href}
+                className={`flex h-full flex-col p-5 ${GF_SURFACE}`}
+              >
+                <span className="text-base font-semibold text-zinc-900">
+                  {item.title}
+                </span>
+                <span className="mt-1.5 text-sm leading-relaxed text-zinc-600">
+                  {item.text}
+                </span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </div>
     </section>
   );
 }
 
-export function GeneraciyaFotoBottomCta() {
+export function GeneraciyaFotoPricing() {
   return (
-    <section className="rounded-[1.75rem] border border-indigo-100 bg-indigo-50/60 px-5 py-8 text-center">
-      <Link
-        href="#generator"
-        className="inline-flex min-h-11 items-center justify-center rounded-full bg-indigo-600 px-6 text-sm font-semibold text-white hover:bg-indigo-700"
-      >
-        {GENERACIYA_FOTO_SEO.howToCta}
-      </Link>
+    <section id="tarify" className={sectionClass} aria-labelledby="tarify-heading">
+      <PricingScreen
+        variant="embed"
+        paywallVariant={GENERACIYA_FOTO_PRICING.variant}
+        returnPath={GENERACIYA_FOTO_PRICING.returnPath}
+      />
     </section>
   );
 }

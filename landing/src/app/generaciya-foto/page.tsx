@@ -4,35 +4,36 @@ import Link from "next/link";
 import { PageLayout } from "@/components/PageLayout";
 import { GeneraciyaFotoExamplesExplorer } from "@/components/generate/GeneraciyaFotoExamplesExplorer";
 import {
-  GeneraciyaFotoBottomCta,
   GeneraciyaFotoHowTo,
   GeneraciyaFotoMore,
-  GeneraciyaFotoPacks,
+  GeneraciyaFotoPricing,
   GeneraciyaFotoReviews,
   GeneraciyaFotoThemes,
   GeneraciyaFotoTools,
-  GeneraciyaFotoTopics,
 } from "@/components/generate/GeneraciyaFotoLandingSections";
+import { GeneraciyaFotoFaq } from "@/components/generate/GeneraciyaFotoFaq";
+import { GeneraciyaFotoHeroCarousel } from "@/components/generate/GeneraciyaFotoHeroCarousel";
 import { GeneraciyaFotoStarter } from "@/components/generate/GeneraciyaFotoStarter";
 import { GenerationModelsShowcase } from "@/components/generate/GenerationModelsShowcase";
 import {
   createSupabaseServer,
   enrichCardsWithDetails,
   fetchRouteCards,
+  getCardPhotosBySlugs,
   getFirstCardPhotoUrl,
   getStoragePublicUrl,
   type PromptCardFull,
   type RouteCardsResult,
 } from "@/lib/supabase";
 import {
+  flattenGeneraciyaFotoFaqAnswer,
+  formatGeneraciyaFotoSocialProof,
   GENERACIYA_FOTO_FAQ,
   GENERACIYA_FOTO_HOW_TO_STEPS,
   GENERACIYA_FOTO_SEO,
+  GENERACIYA_FOTO_THEMES,
 } from "@/lib/generaciya-foto-seo-copy";
-import {
-  GENERACIYA_FOTO_SCENARIO_ROUTES,
-  getGeneraciyaFotoScenarioPath,
-} from "@/lib/generaciya-foto-routes";
+import { getGeneraciyaFotoChipNavigation } from "@/lib/generaciya-foto-chip-nav";
 import {
   FALLBACK_GENERATION_MODELS,
   parseEnabledGenerationModels,
@@ -67,7 +68,7 @@ const getGenerationExamples = cache(async (): Promise<RouteCardsResult> => {
   try {
     return await fetchRouteCards({
       ...BASE_RPC_PARAMS,
-      limit: 16,
+      limit: 50,
       offset: 0,
       min_cards: 1,
       sort: "new",
@@ -75,6 +76,77 @@ const getGenerationExamples = cache(async (): Promise<RouteCardsResult> => {
   } catch (error) {
     console.error("[GeneraciyaFotoPage] fetch examples failed", error);
     return EMPTY_RESULT;
+  }
+});
+
+type ThemeCollagePayload = {
+  photosByHref: Record<string, string[]>;
+  countByHref: Record<string, number>;
+};
+
+const getThemeCollagePhotos = cache(async (): Promise<ThemeCollagePayload> => {
+  const empty: ThemeCollagePayload = { photosByHref: {}, countByHref: {} };
+  try {
+    const results = await Promise.all(
+      GENERACIYA_FOTO_THEMES.items.map((item) =>
+        fetchRouteCards({
+          ...BASE_RPC_PARAMS,
+          [item.dimension]: item.tagValue,
+          limit: 10,
+          offset: 0,
+          min_cards: 1,
+          sort: "new",
+        }).catch((error) => {
+          console.error(
+            `[GeneraciyaFotoPage] fetch theme ${item.tagValue} failed`,
+            error
+          );
+          return EMPTY_RESULT;
+        })
+      )
+    );
+    const photos = await getCardPhotosBySlugs(
+      results.flatMap((result) => result.cards.map((card) => card.slug))
+    );
+    const photosByHref: Record<string, string[]> = {};
+    const countByHref: Record<string, number> = {};
+
+    for (const [index, item] of GENERACIYA_FOTO_THEMES.items.entries()) {
+      const urls: string[] = [];
+      for (const card of results[index].cards) {
+        const url = photos.get(card.slug)?.photoUrl;
+        if (!url || urls.includes(url)) continue;
+        urls.push(url);
+        if (urls.length >= 6) break;
+      }
+      photosByHref[item.href] = urls;
+      countByHref[item.href] =
+        results[index].total_count || results[index].cards_count || 0;
+    }
+
+    return { photosByHref, countByHref };
+  } catch (error) {
+    console.error("[GeneraciyaFotoPage] fetch theme photos failed", error);
+    return empty;
+  }
+});
+
+const getCompletedImageGenerationCount = cache(async (): Promise<number> => {
+  try {
+    const supabase = createSupabaseServer();
+    const { count, error } = await supabase
+      .from("landing_generations")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "completed")
+      .eq("modality", "image");
+    if (error) throw error;
+    return count ?? 0;
+  } catch (error) {
+    console.error(
+      "[GeneraciyaFotoPage] fetch completed image generation count failed",
+      error
+    );
+    return 0;
   }
 });
 
@@ -244,7 +316,10 @@ function buildJsonLd(ogImage: string | null, cards: PromptCardFull[]) {
       mainEntity: GENERACIYA_FOTO_FAQ.map((item) => ({
         "@type": "Question",
         name: item.q,
-        acceptedAnswer: { "@type": "Answer", text: item.a },
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: flattenGeneraciyaFotoFaqAnswer(item.a),
+        },
       })),
     },
     ...(cards.length
@@ -269,10 +344,13 @@ function buildJsonLd(ogImage: string | null, cards: PromptCardFull[]) {
 }
 
 export default async function GeneraciyaFotoPage() {
-  const [result, models] = await Promise.all([
+  const [result, models, themeCollage, completedImageCount] = await Promise.all([
     getGenerationExamples(),
     getGenerationModels(),
+    getThemeCollagePhotos(),
+    getCompletedImageGenerationCount(),
   ]);
+  const socialProof = formatGeneraciyaFotoSocialProof(completedImageCount);
   const routeCards = result.cards;
   const [enrichedCards, fallbackOgImage, modelGenerationPreviews] =
     await Promise.all([
@@ -288,8 +366,10 @@ export default async function GeneraciyaFotoPage() {
     .map((card) => cardsById.get(card.id))
     .filter((card): card is PromptCardFull => Boolean(card));
   const ogImage = cards[0]?.photoUrls[0] || fallbackOgImage;
-  const schemas = buildJsonLd(ogImage, cards);
+  const schemas = buildJsonLd(ogImage, cards.slice(0, 16));
   const exampleCards = cards.map(toGenerationExampleCard);
+  const carouselCards = exampleCards.filter((card) => card.photoUrl).slice(0, 50);
+  const galleryCards = exampleCards.slice(0, 16);
   const modelPreviewImages = Array.from(
     new Set(cards.flatMap((card) => card.photoUrls))
   ).slice(0, 12);
@@ -340,49 +420,36 @@ export default async function GeneraciyaFotoPage() {
             <h1 className="mx-auto max-w-3xl text-balance text-3xl font-bold tracking-tight text-zinc-900 sm:text-4xl lg:text-[2.75rem] lg:leading-tight">
               {GENERACIYA_FOTO_SEO.h1}
             </h1>
-            <p className="mx-auto mt-3 text-sm font-medium text-indigo-700 sm:text-base">
-              {GENERACIYA_FOTO_SEO.socialProof}
-            </p>
-            <p className="mx-auto mt-4 max-w-2xl text-pretty text-base leading-relaxed text-zinc-600 sm:text-lg">
+            <p className="mx-auto mt-3 max-w-2xl text-pretty text-base leading-relaxed text-zinc-600 sm:mt-4 sm:text-lg">
               {GENERACIYA_FOTO_SEO.intro}
             </p>
-            <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-              <Link
-                href="#generaciya-foto-starter-cta"
-                className="inline-flex min-h-11 items-center justify-center rounded-full bg-indigo-600 px-5 text-sm font-semibold text-white hover:bg-indigo-700"
-              >
-                {GENERACIYA_FOTO_SEO.primaryCta}
-              </Link>
-              <Link
-                href="#primery"
-                className="inline-flex min-h-11 items-center justify-center rounded-full border border-indigo-200 bg-white px-5 text-sm font-semibold text-indigo-700 hover:bg-indigo-50"
-              >
-                {GENERACIYA_FOTO_SEO.secondaryCta}
-              </Link>
-            </div>
+            <GeneraciyaFotoHeroCarousel cards={carouselCards} />
+            {socialProof ? (
+              <p className="mx-auto mt-3 text-sm font-medium text-indigo-700 sm:text-base">
+                {socialProof}
+              </p>
+            ) : null}
             <GeneraciyaFotoStarter />
           </div>
         </section>
 
-        <div className="mx-auto flex w-full max-w-7xl flex-col gap-12 px-3 pt-12 sm:gap-16 sm:px-5 sm:pt-16 lg:gap-20 lg:pt-20 xl:px-6">
-          <GeneraciyaFotoThemes />
+        <div className="mx-auto flex w-full max-w-7xl flex-col gap-10 px-3 pt-10 sm:gap-12 sm:px-5 sm:pt-12 lg:gap-16 lg:pt-16 xl:px-6">
+          <GeneraciyaFotoThemes
+            photosByHref={themeCollage.photosByHref}
+            countByHref={themeCollage.countByHref}
+          />
 
           <section
             id="primery"
             className="scroll-mt-20"
             aria-labelledby="examples-heading"
           >
-            {cards.length ? (
+            {galleryCards.length ? (
               <GeneraciyaFotoExamplesExplorer
-                initialCards={exampleCards}
+                initialCards={galleryCards}
                 eyebrow=""
                 allPromptsLabel={GENERACIYA_FOTO_SEO.examplesCta}
-                scenarioNavigation={GENERACIYA_FOTO_SCENARIO_ROUTES.map(
-                  (scenario) => ({
-                    label: scenario.label,
-                    href: getGeneraciyaFotoScenarioPath(scenario.slug),
-                  })
-                )}
+                scenarioNavigation={getGeneraciyaFotoChipNavigation()}
               />
             ) : (
               <div className="rounded-2xl border border-zinc-200 bg-zinc-50 px-6 py-12 text-center text-sm text-zinc-500">
@@ -392,8 +459,6 @@ export default async function GeneraciyaFotoPage() {
           </section>
 
           <GeneraciyaFotoTools />
-          <GeneraciyaFotoPacks cards={exampleCards} />
-          <GeneraciyaFotoTopics />
           <GeneraciyaFotoHowTo />
           <GeneraciyaFotoReviews />
           <GeneraciyaFotoMore />
@@ -406,26 +471,9 @@ export default async function GeneraciyaFotoPage() {
             />
           </section>
 
-          <section>
-            <h2 className="text-2xl font-bold tracking-tight text-zinc-900 sm:text-3xl">
-              {GENERACIYA_FOTO_SEO.faqTitle}
-            </h2>
-            <dl className="mt-6 space-y-3">
-              {GENERACIYA_FOTO_FAQ.map((item) => (
-                <div
-                  key={item.q}
-                  className="rounded-2xl border border-zinc-200 bg-zinc-50/60 p-5"
-                >
-                  <dt className="font-semibold text-zinc-900">{item.q}</dt>
-                  <dd className="mt-2 text-sm leading-relaxed text-zinc-600 sm:text-base">
-                    {item.a}
-                  </dd>
-                </div>
-              ))}
-            </dl>
-          </section>
+          <GeneraciyaFotoPricing />
 
-          <GeneraciyaFotoBottomCta />
+          <GeneraciyaFotoFaq />
         </div>
       </main>
     </PageLayout>

@@ -8,6 +8,7 @@ export {
   TREATMENT_PRICING_PLANS,
   getDefaultPricingPlanId,
   getPaywallSwipePlans,
+  getPricingPlansByAscendingPrice,
   getPricingPlanPhotoEconomics,
   getPricingPlan,
   getPricingPlans,

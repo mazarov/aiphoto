@@ -6,3 +6,15 @@ export function pluralPrompts(n: number): string {
   if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return `${n} промта`;
   return `${n} промптов`;
 }
+
+/** Склонение «N шаблон / шаблона / шаблонов» для чипов тем. */
+export function pluralTemplates(n: number): string {
+  const formatted = n.toLocaleString("ru-RU");
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return `${formatted} шаблон`;
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) {
+    return `${formatted} шаблона`;
+  }
+  return `${formatted} шаблонов`;
+}

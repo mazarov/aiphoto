@@ -12,6 +12,7 @@ import Link from "next/link";
 import {
   getDefaultPricingPlanId,
   getPaywallSwipePlans,
+  getPricingPlansByAscendingPrice,
   getPricingPlan,
   getPricingPlanPhotoEconomics,
   getPricingPlans,
@@ -27,6 +28,8 @@ import { usePricingModal } from "@/context/PricingModalContext";
 import {
   clearPricingReturnPath,
   readPricingReturnPath,
+  savePricingReturnPath,
+  sanitizeYooKassaReturnPath,
 } from "@/lib/yookassa-return-path";
 import { readYandexCheckoutAttribution } from "@/lib/yandex-attribution-browser";
 import { captureBrowserAcquisitionContext } from "@/lib/traffic-source-attribution-browser";
@@ -238,9 +241,13 @@ function PaywallPlanCard({
 export function PricingCards({
   variant,
   legalFooter,
+  returnPath,
+  sortBy = "swipe",
 }: {
   variant: PricingPaywallVariant;
   legalFooter?: ReactNode;
+  returnPath?: string;
+  sortBy?: "swipe" | "price";
 }) {
   const { user, loading: authLoading, openAuthModal } = useAuth();
   const { closeWithoutHistory } = usePricingModal();
@@ -251,10 +258,12 @@ export function PricingCards({
   const [offerPercent, setOfferPercent] = useState<number | null>(null);
   const checkoutInFlightRef = useRef(false);
   const plansScrollerRef = useRef<HTMLDivElement>(null);
-  const plans = useMemo(
-    () => getPaywallSwipePlans(getPricingPlans(variant)),
-    [variant],
-  );
+  const plans = useMemo(() => {
+    const catalog = getPricingPlans(variant);
+    return sortBy === "price"
+      ? getPricingPlansByAscendingPrice(catalog)
+      : getPaywallSwipePlans(catalog);
+  }, [sortBy, variant]);
   const selectedPlan =
     plans.find((plan) => plan.id === selectedPlanId) ?? plans[0]!;
   const selectedSalePrice = offerPercent
@@ -355,6 +364,10 @@ export function PricingCards({
       setCheckout({ kind: "error", message: "Выбранный пакет не найден" });
       return;
     }
+    const checkoutReturnPath = returnPath
+      ? sanitizeYooKassaReturnPath(returnPath)
+      : readPricingReturnPath();
+    if (returnPath) savePricingReturnPath(returnPath);
 
     checkoutInFlightRef.current = true;
     setCheckout({ kind: "creating", planId: plan.id });
@@ -375,7 +388,7 @@ export function PricingCards({
           checkoutAttemptId: pending.checkoutAttemptId,
           testAccess:
             new URL(window.location.href).searchParams.get("test") === "true",
-          returnPath: readPricingReturnPath(),
+          returnPath: checkoutReturnPath,
           ymClientId: yandexAttribution.ymClientId,
           yclid: yandexAttribution.yclid ?? acquisition.yclid,
           visitorId: acquisition.visitorId,
@@ -417,10 +430,9 @@ export function PricingCards({
       ) {
         await openRobokassaPayment(payload.payload);
         announceRobokassaPayment(payload.paymentId);
-        const returnPath = readPricingReturnPath();
         clearPricingReturnPath();
         closeWithoutHistory();
-        window.history.replaceState(null, "", returnPath);
+        window.history.replaceState(null, "", checkoutReturnPath);
         reachYandexMetrikaGoal(YM_GOAL_PAYMENT_IFRAME_OPENED, {
           provider: "robokassa",
           plan_id: plan.id,
@@ -449,10 +461,9 @@ export function PricingCards({
       if (payload.provider !== "yookassa" || !payload.confirmationUrl) {
         throw new Error("Платёжный провайдер не вернул форму оплаты");
       }
-      const returnPath = readPricingReturnPath();
       clearPricingReturnPath();
       closeWithoutHistory();
-      window.history.replaceState(null, "", returnPath);
+      window.history.replaceState(null, "", checkoutReturnPath);
       reachYandexMetrikaGoal(YM_GOAL_YOOKASSA_CHECKOUT_REDIRECT, {
         plan_id: plan.id,
         experiment_id: PRICING_PAYWALL_EXPERIMENT_ID,
@@ -469,12 +480,13 @@ export function PricingCards({
             : "Не удалось создать оплату. Попробуйте ещё раз.",
       });
     }
-  }, [closeWithoutHistory, openAuthModal, variant]);
+  }, [closeWithoutHistory, openAuthModal, returnPath, variant]);
 
   const selectPlan = useCallback(
     (plan: PricingPlan) => {
       if (checkoutInFlightRef.current) return;
       // Auth first — do not depend on storage / UUID side effects.
+      if (returnPath) savePricingReturnPath(returnPath);
       if (needsCheckoutAuth(user)) {
         const pending: PendingCheckout = {
           planId: plan.id,
@@ -491,7 +503,7 @@ export function PricingCards({
       savePendingCheckout(pending);
       void createCheckout(pending);
     },
-    [createCheckout, openAuthModal, user],
+    [createCheckout, openAuthModal, returnPath, user],
   );
 
   useEffect(() => {
@@ -672,7 +684,9 @@ export function PricingCards({
           </li>
         </ul>
         </section>
-        <div className="pricing-paywall-legal">{legalFooter}</div>
+        {legalFooter ? (
+          <div className="pricing-paywall-legal">{legalFooter}</div>
+        ) : null}
       </div>
 
       <button

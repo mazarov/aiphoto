@@ -19,15 +19,15 @@ function TokenMark({ className }: { className: string }) {
 }
 
 function QuotaMeter({
-  remaining,
+  value,
   max,
   dark,
 }: {
-  remaining: number;
+  value: number;
   max: number;
   dark: boolean;
 }) {
-  const ratio = max > 0 ? Math.min(1, Math.max(0, remaining / max)) : 0;
+  const ratio = max > 0 ? Math.min(1, Math.max(0, value / max)) : 0;
   return (
     <span
       className={`relative h-1 w-8 overflow-hidden rounded-full ${
@@ -37,9 +37,13 @@ function QuotaMeter({
     >
       <span
         className={`absolute inset-y-0 left-0 rounded-full ${
-          remaining === 0 ? "bg-zinc-400" : dark ? "bg-indigo-400" : "bg-indigo-500"
+          value === 0 || value >= max
+            ? "bg-zinc-400"
+            : dark
+              ? "bg-indigo-400"
+              : "bg-indigo-500"
         }`}
-        style={{ width: `${Math.max(ratio * 100, remaining > 0 ? 8 : 0)}%` }}
+        style={{ width: `${Math.max(ratio * 100, value > 0 ? 8 : 0)}%` }}
       />
     </span>
   );
@@ -48,11 +52,17 @@ function QuotaMeter({
 export function AnalyzeQuotaChip({
   quota,
   tone,
+  compact = false,
+  minimal = false,
+  countAs = "remaining",
   onSignIn,
   onTopUp,
 }: {
   quota: AnalyzeQuotaPayload | null;
   tone: AnalyzeQuotaChipTone;
+  compact?: boolean;
+  minimal?: boolean;
+  countAs?: "remaining" | "used";
   onSignIn?: () => void;
   onTopUp?: () => void;
 }) {
@@ -60,12 +70,19 @@ export function AnalyzeQuotaChip({
 
   const remaining = Math.max(0, Number(quota.remaining_free ?? 0));
   const max = Math.max(1, Number(quota.free_max ?? 10));
+  const used = Math.min(max, Math.max(0, max - remaining));
+  const shown = countAs === "used" ? used : remaining;
   const next = quota.next_mode;
   const dark = tone === "dark";
   const focus = dark ? FVP_IMMERSIVE_FOCUS_RING : FVP_FOCUS_RING;
+  const height = minimal ? "h-6" : compact ? "h-8" : "h-10";
   const shell = dark
-    ? "inline-flex h-10 shrink-0 items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-2.5 text-[13px] font-medium text-zinc-200"
-    : "inline-flex h-10 shrink-0 items-center gap-1.5 rounded-xl border border-zinc-200 bg-white px-2.5 text-xs font-medium text-zinc-600 shadow-sm shadow-zinc-200/50";
+    ? `inline-flex ${height} shrink-0 items-center ${
+        minimal ? "gap-1 rounded-full px-2 text-xs" : "gap-1.5 rounded-xl px-2.5 text-[13px]"
+      } border border-white/10 bg-white/5 font-medium text-zinc-200`
+    : `inline-flex ${height} shrink-0 items-center ${
+        minimal ? "gap-1 rounded-full px-2" : "gap-1.5 rounded-xl px-2.5 shadow-sm shadow-zinc-200/50"
+      } border border-zinc-200 bg-white text-xs font-medium text-zinc-600`;
 
   if (next === "auth_required") {
     return (
@@ -86,7 +103,9 @@ export function AnalyzeQuotaChip({
       <button
         type="button"
         onClick={onTopUp}
-        className={`inline-flex h-10 shrink-0 items-center gap-1.5 rounded-xl border px-2.5 font-medium ${focus} ${
+        className={`inline-flex ${height} shrink-0 items-center ${
+          minimal ? "gap-1 rounded-full px-2" : "gap-1.5 rounded-xl px-2.5"
+        } border font-medium ${focus} ${
           dark
             ? "border-rose-400/25 bg-rose-500/10 text-[13px] text-rose-200 hover:bg-rose-500/15"
             : "border-rose-200 bg-rose-50 text-xs text-rose-700 hover:border-rose-300"
@@ -105,22 +124,24 @@ export function AnalyzeQuotaChip({
         }`}
         title={widgetCopy("paidWarning")}
       >
-        <TokenMark className="h-4 w-4 shrink-0" />
+        {minimal ? null : <TokenMark className="h-4 w-4 shrink-0" />}
         {widgetCopy("quotaChipPaid")}
       </span>
     );
   }
 
-  const label = `${remaining} из ${max} ${widgetCopy("quotaFreeLine")}`;
+  const label = `${shown} из ${max} ${widgetCopy("quotaFreeLine")}`;
   return (
     <span className={shell} title={label} aria-label={label}>
-      <QuotaMeter remaining={remaining} max={max} dark={dark} />
+      {minimal ? null : <QuotaMeter value={shown} max={max} dark={dark} />}
       <span className="tabular-nums">
-        {remaining} из {max}
+        {minimal ? `${shown}/${max}` : `${shown} из ${max}`}
       </span>
-      <span className={dark ? "text-zinc-500" : "text-zinc-400"}>
-        {widgetCopy("quotaChipToday")}
-      </span>
+      {minimal ? null : (
+        <span className={dark ? "text-zinc-500" : "text-zinc-400"}>
+          {widgetCopy("quotaChipToday")}
+        </span>
+      )}
     </span>
   );
 }

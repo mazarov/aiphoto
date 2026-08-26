@@ -8,6 +8,7 @@ import {
   TREATMENT_PRICING_PLANS,
   getDefaultPricingPlanId,
   getPaywallSwipePlans,
+  getPricingPlansByAscendingPrice,
   getPricingPlanPhotoEconomics,
   getPricingPlan,
 } from "./pricing-plans";
@@ -50,6 +51,13 @@ test("control pricing catalog preserves the previous offer", () => {
   );
   assert.equal(getPricingPlan("trial", "control")?.price, 199);
   assert.equal(getPricingPlan("trial", "treatment")?.price, 99);
+});
+
+test("ascending price order is cheapest first", () => {
+  assert.deepEqual(
+    getPricingPlansByAscendingPrice(TREATMENT_PRICING_PLANS).map((plan) => plan.price),
+    [99, 299, 469, 990],
+  );
 });
 
 test("paywall swipe leads with a higher-priced pack, then the cheapest", () => {

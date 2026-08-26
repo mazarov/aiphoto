@@ -8,6 +8,12 @@ const LISTING_MASONRY_COLUMNS_CLASS =
   "-mb-2 columns-2 gap-2 sm:-mb-3 sm:columns-3 sm:gap-3 lg:columns-4";
 const LISTING_MASONRY_ITEM_CLASS = "mb-2 break-inside-avoid sm:mb-3";
 
+/** Carousel card width = masonry column (2 / 3 / 4). Keep in this file for Tailwind scan. */
+export const LISTING_MASONRY_CAROUSEL_CARD_CLASS =
+  "w-[calc((100%-0.5rem)/2)] shrink-0 snap-start sm:w-[calc((100%-1.5rem)/3)] lg:w-[calc((100%-2.25rem)/4)]";
+export const LISTING_MASONRY_CAROUSEL_TRACK_CLASS =
+  "flex snap-x snap-mandatory items-stretch gap-2 overflow-x-auto scroll-smooth pb-1 scrollbar-none sm:gap-3";
+
 type MasonryProps = {
   children: ReactNode;
   loading?: boolean;

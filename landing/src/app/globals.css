@@ -212,6 +212,39 @@ p {
     display: none;
   }
 
+  .generaciya-foto-marquee-track {
+    animation: generaciya-foto-marquee-rtl 110s linear infinite;
+  }
+
+  .group\/marquee:hover .generaciya-foto-marquee-track,
+  .group\/marquee:focus-within .generaciya-foto-marquee-track {
+    animation-play-state: paused;
+  }
+
+  @keyframes generaciya-foto-marquee-rtl {
+    from {
+      transform: translate3d(0, 0, 0);
+    }
+    to {
+      transform: translate3d(-50%, 0, 0);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .generaciya-foto-marquee {
+      overflow-x: auto;
+    }
+
+    .generaciya-foto-marquee-track {
+      animation: none;
+      transform: none;
+    }
+
+    .generaciya-foto-marquee-dup {
+      display: none;
+    }
+  }
+
   /* Listing card image skeleton — bar sweep (class on element in ListingCardPhotoSkeleton) */
   .listing-card-shimmer-bar {
     animation: listing-shimmer 1.35s ease-in-out infinite;
@@ -553,6 +586,26 @@ p {
   .pricing-paywall-shell[data-mode="page"] {
     height: calc(100dvh - var(--ps-header-height, 57px) - 3rem);
     max-height: 60rem;
+  }
+
+  .pricing-paywall-shell[data-mode="embed"] {
+    height: auto;
+    max-height: none;
+  }
+
+  .pricing-paywall-shell[data-mode="embed"] .pricing-paywall-body {
+    overflow: visible;
+    flex: none;
+  }
+
+  @media (min-width: 1024px) {
+    .pricing-paywall-shell[data-mode="embed"] .pricing-paywall-plans {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .pricing-paywall-shell[data-mode="embed"] .pricing-paywall-dots {
+      display: none;
+    }
   }
 
   .pricing-paywall-hero {

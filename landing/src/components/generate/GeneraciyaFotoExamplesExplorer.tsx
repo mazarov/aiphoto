@@ -11,21 +11,58 @@ import {
 } from "@/lib/generation/example-card";
 import { listingPhotoAspectRatio } from "@/lib/listing-masonry";
 import type { PromptCardFull } from "@/lib/supabase";
+import type { GeneraciyaFotoChipNavItem } from "@/lib/generaciya-foto-chip-nav";
 import {
   GENERACIYA_FOTO_SCENARIOS,
   GENERACIYA_FOTO_SEO,
 } from "@/lib/generaciya-foto-seo-copy";
 import { LISTING_SHELL_LINK_SCROLL } from "@/lib/scroll-preservation";
+import {
+  GF_BLOCK_FLUSH,
+  GF_H2,
+  GF_LEAD,
+} from "@/components/generate/generaciya-foto-ui";
 
 const RESULT_LIMIT = 16;
 const SEARCH_DEBOUNCE_MS = 500;
 
 type QuickFilter = (typeof GENERACIYA_FOTO_SCENARIOS)[number];
-type ScenarioNavigationItem = {
-  label: string;
-  href: string;
-  active?: boolean;
-};
+
+const SCENARIO_CHIP =
+  "inline-flex min-h-9 items-center rounded-full border px-3.5 text-sm font-medium transition";
+const SCENARIO_CHIP_ACTIVE =
+  "border-indigo-500 bg-indigo-500 text-white shadow-sm shadow-indigo-500/20";
+const SCENARIO_CHIP_IDLE =
+  "border-indigo-100 bg-white/80 text-zinc-600 hover:border-indigo-300 hover:bg-white hover:text-indigo-700";
+const HUB_CHIP =
+  "inline-flex min-h-9 items-center gap-1.5 rounded-full border px-3.5 text-sm font-semibold transition";
+const HUB_CHIP_ACTIVE = "border-zinc-900 bg-zinc-900 text-white shadow-sm";
+const HUB_CHIP_IDLE =
+  "border-zinc-300 bg-zinc-100 text-zinc-800 hover:border-zinc-400 hover:bg-zinc-200";
+
+function HubChipIcon({ back }: { back: boolean }) {
+  return (
+    <svg
+      className="h-4 w-4 shrink-0"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      aria-hidden
+    >
+      {back ? (
+        <path d="m15 18-6-6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+      ) : (
+        <>
+          <rect x="3" y="3" width="7" height="7" rx="1.5" />
+          <rect x="14" y="3" width="7" height="7" rx="1.5" />
+          <rect x="3" y="14" width="7" height="7" rx="1.5" />
+          <rect x="14" y="14" width="7" height="7" rx="1.5" />
+        </>
+      )}
+    </svg>
+  );
+}
 
 function matchesQuickFilter(
   card: GenerationExampleCard,
@@ -51,7 +88,7 @@ export function GeneraciyaFotoExamplesExplorer({
   eyebrow?: string;
   allPromptsLabel?: string;
   defaultAllPromptsHref?: string;
-  scenarioNavigation?: ScenarioNavigationItem[];
+  scenarioNavigation?: GeneraciyaFotoChipNavItem[];
   navigationAriaLabel?: string;
   lockCardsToScenario?: boolean;
 }) {
@@ -151,22 +188,17 @@ export function GeneraciyaFotoExamplesExplorer({
       : activeFilter?.href || defaultAllPromptsHref;
 
   return (
-    <div className="overflow-hidden rounded-[1.75rem] border border-indigo-100/90 bg-[linear-gradient(145deg,#f2f1ff_0%,#ffffff_48%,#faf7ff_100%)] px-3 pb-0 pt-5 text-zinc-900 shadow-[0_28px_80px_-46px_rgba(79,70,229,0.45)] sm:px-5 sm:pt-7">
+    <div className={GF_BLOCK_FLUSH}>
       <div className="w-full">
         {eyebrow ? (
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-indigo-600">
             {eyebrow}
           </p>
         ) : null}
-        <h2
-          id="examples-heading"
-          className="mt-2 text-2xl font-bold tracking-tight text-zinc-900 sm:text-3xl"
-        >
+        <h2 id="examples-heading" className={`${eyebrow ? "mt-2 " : ""}${GF_H2}`}>
           {title}
         </h2>
-        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-zinc-600 sm:text-base">
-          {intro}
-        </p>
+        <p className={GF_LEAD}>{intro}</p>
 
         <>
           <label htmlFor="generation-examples-search" className="sr-only">
@@ -234,21 +266,35 @@ export function GeneraciyaFotoExamplesExplorer({
           }
         >
           {usesScenarioNavigation
-            ? scenarioNavigation!.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                scroll={LISTING_SHELL_LINK_SCROLL}
-                aria-current={item.active ? "page" : undefined}
-                className={`inline-flex min-h-9 items-center rounded-full border px-3.5 text-sm font-medium transition ${
-                  item.active
-                    ? "border-indigo-500 bg-indigo-500 text-white shadow-sm shadow-indigo-500/20"
-                    : "border-indigo-100 bg-white/80 text-zinc-600 hover:border-indigo-300 hover:bg-white hover:text-indigo-700"
-                }`}
-              >
-                {item.label}
-              </Link>
-            ))
+            ? scenarioNavigation!.map((item) =>
+                item.kind === "hub" ? (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    scroll={LISTING_SHELL_LINK_SCROLL}
+                    aria-current={item.active ? "page" : undefined}
+                    aria-label={GENERACIYA_FOTO_SEO.chipHubAria}
+                    className={`${HUB_CHIP} ${
+                      item.active ? HUB_CHIP_ACTIVE : HUB_CHIP_IDLE
+                    }`}
+                  >
+                    <HubChipIcon back={!item.active} />
+                    {item.label}
+                  </Link>
+                ) : (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    scroll={LISTING_SHELL_LINK_SCROLL}
+                    aria-current={item.active ? "page" : undefined}
+                    className={`${SCENARIO_CHIP} ${
+                      item.active ? SCENARIO_CHIP_ACTIVE : SCENARIO_CHIP_IDLE
+                    }`}
+                  >
+                    {item.label}
+                  </Link>
+                )
+              )
             : GENERACIYA_FOTO_SCENARIOS.map((filter) => {
                 const active = activeFilter?.value === filter.value;
                 return (
@@ -262,10 +308,8 @@ export function GeneraciyaFotoExamplesExplorer({
                       setQuery("");
                       setActiveFilter(active ? null : filter);
                     }}
-                    className={`inline-flex min-h-9 items-center rounded-full border px-3.5 text-sm font-medium transition ${
-                      active
-                        ? "border-indigo-500 bg-indigo-500 text-white shadow-sm shadow-indigo-500/20"
-                        : "border-indigo-100 bg-white/80 text-zinc-600 hover:border-indigo-300 hover:bg-white hover:text-indigo-700"
+                    className={`${SCENARIO_CHIP} ${
+                      active ? SCENARIO_CHIP_ACTIVE : SCENARIO_CHIP_IDLE
                     }`}
                   >
                     {filter.label}

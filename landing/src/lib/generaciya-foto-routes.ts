@@ -1,3 +1,9 @@
+/**
+ * Chip / theme order = Webmaster demand on the catalog listing for the same tag.
+ * `/generaciya-foto/*` has no query-analytics yet; source is the 2026-08-14…20
+ * window in `seo-watchlist-snapshot.json` (`current.impressions`).
+ * Anime has no listing in the snapshot → last.
+ */
 export const GENERACIYA_FOTO_SCENARIO_ROUTES = [
   {
     slug: "pary",
@@ -6,28 +12,16 @@ export const GENERACIYA_FOTO_SCENARIO_ROUTES = [
     tagValue: "para",
   },
   {
-    slug: "na-den-rozhdeniya",
-    label: "На день рождения",
-    dimension: "occasion_tag",
-    tagValue: "den_rozhdeniya",
-  },
-  {
-    slug: "semya",
-    label: "Для семьи",
-    dimension: "audience_tag",
-    tagValue: "semya",
-  },
-  {
     slug: "devushki",
     label: "Для девушек",
     dimension: "audience_tag",
     tagValue: "devushka",
   },
   {
-    slug: "s-mashinoy",
-    label: "С машиной",
-    dimension: "object_tag",
-    tagValue: "s_mashinoy",
+    slug: "na-den-rozhdeniya",
+    label: "На день рождения",
+    dimension: "occasion_tag",
+    tagValue: "den_rozhdeniya",
   },
   {
     slug: "muzhchiny",
@@ -36,16 +30,10 @@ export const GENERACIYA_FOTO_SCENARIO_ROUTES = [
     tagValue: "muzhchina",
   },
   {
-    slug: "malysh",
-    label: "Малыш",
+    slug: "semya",
+    label: "Для семьи",
     dimension: "audience_tag",
-    tagValue: "malysh",
-  },
-  {
-    slug: "v-forme",
-    label: "В форме",
-    dimension: "object_tag",
-    tagValue: "v_forme",
+    tagValue: "semya",
   },
   {
     slug: "deti",
@@ -54,10 +42,28 @@ export const GENERACIYA_FOTO_SCENARIO_ROUTES = [
     tagValue: "detskie",
   },
   {
-    slug: "s-dochkoy",
-    label: "С дочкой",
+    slug: "v-forme",
+    label: "В форме",
+    dimension: "object_tag",
+    tagValue: "v_forme",
+  },
+  {
+    slug: "s-mashinoy",
+    label: "С машиной",
+    dimension: "object_tag",
+    tagValue: "s_mashinoy",
+  },
+  {
+    slug: "malysh",
+    label: "Малыш",
     dimension: "audience_tag",
-    tagValue: "s_dochkoy",
+    tagValue: "malysh",
+  },
+  {
+    slug: "studiynoe",
+    label: "Студийное",
+    dimension: "style_tag",
+    tagValue: "studiynoe",
   },
   {
     slug: "na-more",
@@ -66,28 +72,16 @@ export const GENERACIYA_FOTO_SCENARIO_ROUTES = [
     tagValue: "na_more",
   },
   {
-    slug: "s-mamoy",
-    label: "С мамой",
-    dimension: "audience_tag",
-    tagValue: "s_mamoy",
-  },
-  {
-    slug: "cherno-beloe",
-    label: "Чёрно-белое",
-    dimension: "style_tag",
-    tagValue: "cherno_beloe",
-  },
-  {
     slug: "s-podrugoy",
     label: "С подругой",
     dimension: "audience_tag",
     tagValue: "s_podrugoy",
   },
   {
-    slug: "s-shampanskim",
-    label: "С шампанским",
-    dimension: "object_tag",
-    tagValue: "s_shampanskim",
+    slug: "s-dochkoy",
+    label: "С дочкой",
+    dimension: "audience_tag",
+    tagValue: "s_dochkoy",
   },
   {
     slug: "selfi",
@@ -102,10 +96,28 @@ export const GENERACIYA_FOTO_SCENARIO_ROUTES = [
     tagValue: "beremennaya",
   },
   {
-    slug: "studiynoe",
-    label: "Студийное",
+    slug: "cherno-beloe",
+    label: "Чёрно-белое",
     dimension: "style_tag",
-    tagValue: "studiynoe",
+    tagValue: "cherno_beloe",
+  },
+  {
+    slug: "portret",
+    label: "Портрет",
+    dimension: "style_tag",
+    tagValue: "portret",
+  },
+  {
+    slug: "s-mamoy",
+    label: "С мамой",
+    dimension: "audience_tag",
+    tagValue: "s_mamoy",
+  },
+  {
+    slug: "s-shampanskim",
+    label: "С шампанским",
+    dimension: "object_tag",
+    tagValue: "s_shampanskim",
   },
   {
     slug: "v-zerkale",
@@ -118,12 +130,6 @@ export const GENERACIYA_FOTO_SCENARIO_ROUTES = [
     label: "Коллаж",
     dimension: "style_tag",
     tagValue: "kollazh",
-  },
-  {
-    slug: "portret",
-    label: "Портрет",
-    dimension: "style_tag",
-    tagValue: "portret",
   },
   {
     slug: "anime",
