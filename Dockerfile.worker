@@ -14,6 +14,7 @@ COPY landing/src/lib/generation-edit-contract.ts /repo/landing/src/lib/generatio
 COPY landing/src/lib/camera-orbit.ts /repo/landing/src/lib/camera-orbit.ts
 COPY landing/src/lib/video-motion-prompt.ts /repo/landing/src/lib/video-motion-prompt.ts
 COPY landing/src/lib/user-generation-photo-paths.ts /repo/landing/src/lib/user-generation-photo-paths.ts
+COPY landing/src/lib/generation/image-options.ts /repo/landing/src/lib/generation/image-options.ts
 RUN npm run build
 
 FROM node:20-alpine AS runner

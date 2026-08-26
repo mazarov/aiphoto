@@ -11,8 +11,9 @@ import {
 } from "@/lib/auth-return-path";
 
 /**
- * Browser-side OAuth finish. Server route exchange caused duplicate POST /token
- * (200 then flow_state_not_found) and auth_error redirects without session cookies.
+ * Browser-side OAuth finish (navigation writer). The SSR browser singleton may
+ * already have exchanged `?code=` via detectSessionInUrl; finish is idempotent
+ * and must not send a logged-in user to `/?auth_error=`.
  */
 export default function AuthCallbackPage() {
   const startedRef = useRef(false);

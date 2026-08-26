@@ -15,7 +15,7 @@
 
 Дефолтный image-фолбек после Grok: **Seedream 4.5 → Seedream 5.0 Pro**.
 
-Seedream 4.5 в пикере остаётся.
+Seedream 4.5 скрыт из пикера (SQL `219` + фильтр в `parseEnabledGenerationModels`). Worker путь для 4.5 не удаляем.
 
 ## Контракт
 
@@ -32,10 +32,15 @@ Seedream 4.5 в пикере остаётся.
 
 Kill-switch: пустое значение или `enabled:false` у `seedream-5.0-pro`.
 
+## Worker Docker
+
+`openrouter-seedream.ts` импортирует `landing/src/lib/generation/image-options.ts`.  
+Файл должен быть в `web-generation-worker/tsconfig.json` include **и** в `COPY` `Dockerfile.worker` / `web-generation-worker/Dockerfile`. Иначе Dockhost `tsc` — `TS2307`.
+
 ## Выкат
 
 1. Задеплоить landing + worker.
-2. Применить `sql/218_seedream_50_flux_flex.sql`.
+2. Применить `sql/218_seedream_50_flux_flex.sql` и `sql/219_hide_seedream_45.sql`.
 3. Новых env нет — те же `OPENROUTER_*`.
 
 Откат фолбека:

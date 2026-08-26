@@ -1,5 +1,103 @@
 export type MobileCardSnapDirection = "prev" | "current" | "next";
 
+/** Matches Tailwind `md`. Immersive snap feed is `md:hidden`. */
+export const MOBILE_CARD_SNAP_MAX_WIDTH_MQ = "(max-width: 767px)";
+
+/** Ignore scroll/scrollend after a hidden→visible or desktop→mobile recenter. */
+export const MOBILE_CARD_SNAP_LAYOUT_SCROLL_IGNORE_MS = 400;
+
+/** Re-pin current slug after layout; CSS snap stays off until this settles. */
+export const MOBILE_CARD_SNAP_LAYOUT_PIN_FRAMES = 12;
+
+export function isMobileCardSnapViewportUsable({
+  clientHeight,
+  displayNone,
+  stageDisplayNone = false,
+}: {
+  clientHeight: number;
+  displayNone: boolean;
+  stageDisplayNone?: boolean;
+}): boolean {
+  if (stageDisplayNone) return false;
+  return !displayNone && Number.isFinite(clientHeight) && clientHeight > 1;
+}
+
+export function shouldRecenterMobileCardSnapOnResize({
+  previousUsable,
+  nextUsable,
+  crossedToMobileViewport = false,
+}: {
+  previousUsable: boolean;
+  nextUsable: boolean;
+  crossedToMobileViewport?: boolean;
+}): boolean {
+  if (crossedToMobileViewport) return true;
+  return nextUsable && !previousUsable;
+}
+
+/**
+ * Prev slides must not exist in the DOM while index assumes they do.
+ * First paint is only the current card (`scrollTop=0` is correct). Attach
+ * neighbors in the same commit as jumping `scrollTop` to `prevCount * H`.
+ */
+export function resolveMobileCardSnapSlideIndex({
+  neighborsAttached,
+  prevCount,
+}: {
+  neighborsAttached: boolean;
+  prevCount: number;
+}): number {
+  if (!neighborsAttached) return 0;
+  return Number.isFinite(prevCount) ? Math.max(0, prevCount) : 0;
+}
+
+export function isMobileCardSnapCentered({
+  scrollTop,
+  slideHeight,
+  currentSlideIndex,
+  epsilonPx = 2,
+}: {
+  scrollTop: number;
+  slideHeight: number;
+  currentSlideIndex: number;
+  epsilonPx?: number;
+}): boolean {
+  if (!Number.isFinite(slideHeight) || slideHeight <= 0) return false;
+  const expected = currentSlideIndex * slideHeight;
+  const safeScrollTop = Number.isFinite(scrollTop) ? scrollTop : 0;
+  return Math.abs(safeScrollTop - expected) <= Math.max(0, epsilonPx);
+}
+
+/**
+ * iOS chrome can change visualViewport.height during a real swipe.
+ * A hidden (`display:none` / 0-height) feed becoming visible is not a swipe:
+ * scrollTop is often 0 and would otherwise rebase onto a neighbor slide.
+ */
+export function shouldTreatMobileCardResizeAsInteraction({
+  pointerActive,
+  phaseIdle,
+  previousUsable,
+  nextUsable,
+}: {
+  pointerActive: boolean;
+  phaseIdle: boolean;
+  previousUsable: boolean;
+  nextUsable: boolean;
+}): boolean {
+  if (!previousUsable || !nextUsable) return false;
+  return pointerActive || !phaseIdle;
+}
+
+export function shouldIgnoreLayoutInducedMobileCardSnapScroll({
+  nowMs,
+  ignoreUntilMs,
+}: {
+  nowMs: number;
+  ignoreUntilMs: number;
+}): boolean {
+  return nowMs < ignoreUntilMs;
+}
+
 type ResolveMobileCardSnapDirectionOptions = {
   scrollTop: number;
   slideHeight: number;

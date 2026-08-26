@@ -26,7 +26,7 @@ test("Grok Imagine photo always costs 10 credits even if config still says 5", (
   assert.equal(banana?.cost, 5);
 });
 
-test("Seedream 4.5 always costs 10 credits and stays disabled in raw JSON until flipped", () => {
+test("Seedream 4.5 stays out of the picker even if catalog still says enabled", () => {
   const hidden = parseEnabledGenerationModels(
     JSON.stringify([
       { id: "gemini-2.5-flash-image", label: "Nano Banana", cost: 5, enabled: true },
@@ -34,13 +34,15 @@ test("Seedream 4.5 always costs 10 credits and stays disabled in raw JSON until 
     ])
   );
   assert.equal(hidden.find((item) => item.id === "seedream-4.5"), undefined);
-  const shown = parseEnabledGenerationModels(
+  const stillHidden = parseEnabledGenerationModels(
     JSON.stringify([
       { id: "seedream-4.5", label: "Seedream 4.5", cost: 3, enabled: true },
+      { id: "seedream-5.0-pro", label: "Seedream 5.0 Pro", cost: 10, enabled: true },
     ])
   );
   assert.equal(SEEDREAM_45_CREDIT_COST, 10);
-  assert.equal(shown[0]?.cost, 10);
+  assert.equal(stillHidden.find((item) => item.id === "seedream-4.5"), undefined);
+  assert.equal(stillHidden[0]?.id, "seedream-5.0-pro");
   assert.equal(displayLabelForGenerationModel("seedream-4.5"), "Seedream 4.5");
 });
 

@@ -4,34 +4,28 @@ import { useLayoutEffect, useRef } from "react";
 import { useFotoVPromtMobileModal } from "@/context/FotoVPromtMobileModalContext";
 import { usePricingModal } from "@/context/PricingModalContext";
 import { usePromptCardModal } from "@/context/PromptCardModalContext";
-import { isAuthReturnRestorePending } from "@/lib/auth-return-path";
-import { consumeAuthReturnOverlay } from "@/lib/auth-return-screen";
 import {
-  SCROLL_KEY,
+  consumeAuthReturnScrollY,
+  isAuthReturnRestorePending,
+} from "@/lib/auth-return-path";
+import { pinAuthReturnCard } from "@/lib/auth-return-card-pin";
+import {
+  bindAuthReturnOverlay,
+  consumeAuthReturnOverlay,
+  resolveAuthReturnOverlay,
+  resolveAuthReturnScrollY,
+} from "@/lib/auth-return-screen";
+import { beginClientCardOverlay } from "@/lib/client-card-overlay";
+import {
   scheduleListingScrollRestore,
+  startListingScrollFill,
+  writeSavedListingScrollY,
 } from "@/lib/scroll-preservation";
 
-function peekSavedListingScroll(): string | null {
-  try {
-    return sessionStorage.getItem(SCROLL_KEY);
-  } catch {
-    return null;
-  }
-}
-
-function writeSavedListingScroll(value: string | null): void {
-  if (!value) return;
-  try {
-    sessionStorage.setItem(SCROLL_KEY, value);
-  } catch {
-    // private mode / quota
-  }
-}
-
 /**
- * After OAuth, reopen the soft overlay (card / pricing / foto-v-promt) on the
- * listing that `?next=` restored. Scroll key is rewritten so card `open()`
- * does not replace the pre-login listing position with 0.
+ * After OAuth, restore listing Y first, then reopen the prompt card.
+ * Overlay and scroll come from the return URL first, then cookies —
+ * sessionStorage alone does not survive the IdP hop.
  */
 export function AuthReturnScreenRestorer() {
   const { open: openCard } = usePromptCardModal();
@@ -44,22 +38,36 @@ export function AuthReturnScreenRestorer() {
     if (!isAuthReturnRestorePending()) return;
     ranRef.current = true;
 
-    const overlay = consumeAuthReturnOverlay();
-    const saved = peekSavedListingScroll();
+    const overlay = resolveAuthReturnOverlay();
+    consumeAuthReturnOverlay();
+    const scrollY = resolveAuthReturnScrollY();
+    consumeAuthReturnScrollY();
+    if (scrollY !== null && scrollY > 0) {
+      writeSavedListingScrollY(scrollY);
+    }
 
     if (overlay?.type === "card") {
+      if (scrollY !== null && scrollY > 0) {
+        startListingScrollFill(scrollY);
+      }
+      pinAuthReturnCard(overlay.slug);
+      beginClientCardOverlay(overlay.slug);
+      bindAuthReturnOverlay(null);
       openCard(overlay.slug);
-      writeSavedListingScroll(saved);
       return;
     }
     if (overlay?.type === "pricing") {
+      if (scrollY !== null && scrollY > 0) {
+        startListingScrollFill(scrollY);
+      }
       openPricing();
-      writeSavedListingScroll(saved);
       return;
     }
     if (overlay?.type === "foto-v-promt") {
+      if (scrollY !== null && scrollY > 0) {
+        startListingScrollFill(scrollY);
+      }
       openFoto();
-      writeSavedListingScroll(saved);
       return;
     }
 

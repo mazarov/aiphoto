@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect, useLayoutEffect, useCallback, useRef } from "react";
+import { useState, useMemo, useEffect, useLayoutEffect, useCallback, useRef, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { useCardViewBeacon } from "@/hooks/useCardViewBeacon";
 import Image from "next/image";
@@ -45,6 +45,19 @@ import {
   markCardSwipeOnboardingSeen,
 } from "@/lib/card-swipe-onboarding";
 import { useMobileCardSnapFeed } from "@/hooks/useMobileCardSnapFeed";
+import {
+  canMutateAuthReturnCardSlug,
+  isAuthReturnCardPinned,
+  peekAuthReturnCardPin,
+  releaseAuthReturnCardPin,
+} from "@/lib/auth-return-card-pin";
+import { bindAuthReturnOverlay } from "@/lib/auth-return-screen";
+import {
+  canNavigateFromSecondaryCardViewer,
+  isClientCardOverlayActive,
+  shouldRenderSecondaryCardViewer,
+  subscribeClientCardOverlay,
+} from "@/lib/client-card-overlay";
 import {
   getFirstTagFromSeoTags,
   getSeoSlugsWithTags,
@@ -96,7 +109,24 @@ type InnerProps = Props & {
   onMobileNeighborCommit: (data: CardPageData) => void;
 };
 
-export function CardPageClient({ data, tagEntries, breadcrumbTag, isModal = false, onListingNeighborGo, onCloseModal }: Props) {
+export function CardPageClient(props: Props) {
+  const clientOverlayActive = useSyncExternalStore(
+    subscribeClientCardOverlay,
+    isClientCardOverlayActive,
+    () => false
+  );
+  if (
+    !shouldRenderSecondaryCardViewer({
+      hasListingNeighborHandler: Boolean(props.onListingNeighborGo),
+      clientOverlayActive,
+    })
+  ) {
+    return null;
+  }
+  return <CardPageClientOwned {...props} />;
+}
+
+function CardPageClientOwned({ data, tagEntries, breadcrumbTag, isModal = false, onListingNeighborGo, onCloseModal }: Props) {
   const router = useRouter();
   const [activeData, setActiveData] = useState(data);
 
@@ -120,10 +150,11 @@ export function CardPageClient({ data, tagEntries, breadcrumbTag, isModal = fals
 
   const handleMobileNeighborCommit = useCallback(
     (nextData: CardPageData) => {
+      if (!canMutateAuthReturnCardSlug(nextData.slug)) return;
       setActiveData(nextData);
       if (onListingNeighborGo) {
         onListingNeighborGo(nextData.slug);
-      } else {
+      } else if (canNavigateFromSecondaryCardViewer(isClientCardOverlayActive())) {
         // One viewer = one history entry. push() stacks /p pages so ✕ only pops one card.
         router.replace(`/p/${encodeURIComponent(nextData.slug)}`, { scroll: false });
       }
@@ -150,7 +181,11 @@ export function CardPageClient({ data, tagEntries, breadcrumbTag, isModal = fals
 function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListingNeighborGo, onCloseModal, onMobileNeighborCommit }: InnerProps) {
   const router = useRouter();
   const { seedFromCard } = useGenerateDock();
-  const { close: closeCardModal, currentSlug: modalSlug } = usePromptCardModal();
+  const {
+    close: closeCardModal,
+    currentSlug: modalSlug,
+    open: openCardModal,
+  } = usePromptCardModal();
   const title = data.title_ru || data.title_en || "Без названия";
   const [publishedLocal, setPublishedLocal] = useState(data.isPublished);
   const [pubSaving, setPubSaving] = useState(false);
@@ -193,7 +228,11 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
   const [deleteSaving, setDeleteSaving] = useState(false);
   const [deleteStatus, setDeleteStatus] = useState<string | null>(null);
   const [listingNavNeighbors, setListingNavNeighbors] =
-    useState<ListingCardNavNeighbors | null>(null);
+    useState<ListingCardNavNeighbors | null>(() =>
+      resolveListingNavNeighbors(data.slug)
+    );
+  const [authCardPinned, setAuthCardPinned] = useState(isAuthReturnCardPinned);
+  const revertedAuthPinRef = useRef(false);
   const [mobilePromptOverlay, setMobilePromptOverlay] = useState(false);
   const [showSwipeOnboarding, setShowSwipeOnboarding] = useState(false);
   const leaveCardForGenerate = useCallback(() => {
@@ -221,6 +260,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
       { entrySource: "card" }
     );
     if (!isAuthed) {
+      bindAuthReturnOverlay({ type: "card", slug: data.slug });
       pendingRepeatAuthRef.current = true;
       repeatAuthWasOpenRef.current = false;
       return;
@@ -276,6 +316,27 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
     refreshNeighbors();
     return subscribeListingNavigationUpdates(refreshNeighbors);
   }, [data.slug]);
+
+  useLayoutEffect(() => {
+    const pin = peekAuthReturnCardPin();
+    if (!pin) {
+      revertedAuthPinRef.current = false;
+      if (authCardPinned) setAuthCardPinned(false);
+      return;
+    }
+    if (!authCardPinned) setAuthCardPinned(true);
+    if (data.slug === pin) {
+      revertedAuthPinRef.current = false;
+      return;
+    }
+    if (revertedAuthPinRef.current) return;
+    revertedAuthPinRef.current = true;
+    if (onListingNeighborGo) {
+      onListingNeighborGo(pin);
+    } else if (canNavigateFromSecondaryCardViewer(isClientCardOverlayActive())) {
+      openCardModal(pin);
+    }
+  }, [authCardPinned, data.slug, onListingNeighborGo, openCardModal]);
 
   useEffect(() => {
     // Don't scroll to top in modal view — modal handles its own positioning
@@ -372,7 +433,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
     (slug: string) => {
       if (onListingNeighborGo) {
         onListingNeighborGo(slug);
-      } else {
+      } else if (canNavigateFromSecondaryCardViewer(isClientCardOverlayActive())) {
         router.replace(`/p/${encodeURIComponent(slug)}`, { scroll: false });
       }
     },
@@ -429,6 +490,11 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
       e.preventDefault();
       e.stopPropagation();
       onListingNeighborGo(slug);
+      return;
+    }
+    if (!canNavigateFromSecondaryCardViewer(isClientCardOverlayActive())) {
+      e.preventDefault();
+      e.stopPropagation();
     }
   }
 
@@ -607,6 +673,28 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
     enabled: swipeEnabled,
     onCommit: onMobileNeighborCommit,
   });
+
+  const showSnapNeighbors = snapFeed.neighborsAttached;
+
+  useEffect(() => {
+    const pin = peekAuthReturnCardPin();
+    if (!pin || data.slug !== pin) return;
+    const desktop = window.matchMedia("(min-width: 768px)").matches;
+    if (desktop) {
+      releaseAuthReturnCardPin();
+      if (authCardPinned) setAuthCardPinned(false);
+      return;
+    }
+    if (snapFeed.neighborsAttached && snapFeed.snapScrollEnabled) {
+      releaseAuthReturnCardPin();
+      if (authCardPinned) setAuthCardPinned(false);
+    }
+  }, [
+    authCardPinned,
+    data.slug,
+    snapFeed.neighborsAttached,
+    snapFeed.snapScrollEnabled,
+  ]);
   const mobileChromeClass = snapFeed.isInteracting
     ? "pointer-events-none"
     : "";
@@ -1055,33 +1143,35 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
               data-card-snap-viewport
               aria-label="Лента карточек промтов"
               className={`scrollbar-none h-full w-full overscroll-contain ${
-                swipeEnabled
+                snapFeed.snapScrollEnabled
                   ? "snap-y snap-mandatory overflow-y-auto [-webkit-overflow-scrolling:touch]"
                   : "overflow-hidden"
               }`}
-              style={{ touchAction: swipeEnabled ? "pan-y" : "auto" }}
+              style={{ touchAction: snapFeed.snapScrollEnabled ? "pan-y" : "auto" }}
               onScroll={snapFeed.onScroll}
               onPointerDown={snapFeed.onPointerDown}
               onPointerUp={snapFeed.onPointerUp}
               onPointerCancel={snapFeed.onPointerCancel}
               onClickCapture={snapFeed.onClickCapture}
             >
-            {snapFeed.extraPrevSlides.map((slide) => (
-              <MobileSnapNeighborSlide
-                key={slide.slug}
-                data={slide.data}
-                direction="prev"
-                fallbackPhotoUrl={currentPhoto}
-              />
-            ))}
-            {snapFeed.prevPrevSlug ? (
+            {showSnapNeighbors
+              ? snapFeed.extraPrevSlides.map((slide) => (
+                  <MobileSnapNeighborSlide
+                    key={slide.slug}
+                    data={slide.data}
+                    direction="prev"
+                    fallbackPhotoUrl={currentPhoto}
+                  />
+                ))
+              : null}
+            {showSnapNeighbors && snapFeed.prevPrevSlug ? (
               <MobileSnapNeighborSlide
                 data={snapFeed.prevPrevCard}
                 direction="prev"
                 fallbackPhotoUrl={currentPhoto}
               />
             ) : null}
-            {listingPrev ? (
+            {showSnapNeighbors && listingPrev ? (
               <MobileSnapNeighborSlide
                 data={snapFeed.prevCard}
                 direction="prev"
@@ -1402,28 +1492,30 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                 <div className="flex h-full items-center justify-center px-6 text-zinc-500">Нет фото</div>
               )}
             </div>
-            {listingNext ? (
+            {showSnapNeighbors && listingNext ? (
               <MobileSnapNeighborSlide
                 data={snapFeed.nextCard}
                 direction="next"
                 fallbackPhotoUrl={currentPhoto}
               />
             ) : null}
-            {snapFeed.nextNextSlug ? (
+            {showSnapNeighbors && snapFeed.nextNextSlug ? (
               <MobileSnapNeighborSlide
                 data={snapFeed.nextNextCard}
                 direction="next"
                 fallbackPhotoUrl={currentPhoto}
               />
             ) : null}
-            {snapFeed.extraNextSlides.map((slide) => (
-              <MobileSnapNeighborSlide
-                key={slide.slug}
-                data={slide.data}
-                direction="next"
-                fallbackPhotoUrl={currentPhoto}
-              />
-            ))}
+            {showSnapNeighbors
+              ? snapFeed.extraNextSlides.map((slide) => (
+                  <MobileSnapNeighborSlide
+                    key={slide.slug}
+                    data={slide.data}
+                    direction="next"
+                    fallbackPhotoUrl={currentPhoto}
+                  />
+                ))
+              : null}
             </div>
           </div>
           )}

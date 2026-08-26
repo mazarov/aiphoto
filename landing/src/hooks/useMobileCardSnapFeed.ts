@@ -16,11 +16,21 @@ import { usePromptCardModal } from "@/context/PromptCardModalContext";
 import { resolveListingNavNeighbors } from "@/lib/listing-card-navigation-context";
 import {
   canCommitMobileCardSnap,
+  isMobileCardSnapCentered,
+  isMobileCardSnapViewportUsable,
   mobileCardScrollBehavior,
+  MOBILE_CARD_SNAP_LAYOUT_PIN_FRAMES,
+  MOBILE_CARD_SNAP_LAYOUT_SCROLL_IGNORE_MS,
+  MOBILE_CARD_SNAP_MAX_WIDTH_MQ,
   rebaseMobileCardScrollTop,
   resolveMobileCardSnapDirection,
+  resolveMobileCardSnapSlideIndex,
   resolveMobileCardSnapTargetSlug,
+  shouldIgnoreLayoutInducedMobileCardSnapScroll,
+  shouldRecenterMobileCardSnapOnResize,
+  shouldTreatMobileCardResizeAsInteraction,
 } from "@/lib/mobile-card-snap";
+import { isAuthReturnCardPinned } from "@/lib/auth-return-card-pin";
 
 const SETTLE_DEBOUNCE_MS = 110;
 const STABLE_SCROLL_FRAMES = 2;
@@ -103,8 +113,20 @@ export function useMobileCardSnapFeed({
   const pointerStartScrollTopRef = useRef<number | null>(null);
   const suppressClickUntilRef = useRef(0);
   const lastHeightPxRef = useRef(0);
+  const lastUsableRef = useRef(false);
+  const lastMobileMqRef = useRef(false);
+  const ignoreLayoutScrollUntilRef = useRef(0);
+  const wasSnapActiveRef = useRef(false);
+  const holdSnapOffRef = useRef(false);
+  const pinRafRef = useRef<number | null>(null);
+  const currentSlideIndexRef = useRef(0);
+  const neighborsAttachedRef = useRef(false);
+  const prevBufferCountRef = useRef(0);
   const phaseRef = useRef<InteractionPhase>("idle");
   const prefersReducedMotionRef = useRef(false);
+  const [isMobileViewport, setIsMobileViewport] = useState(false);
+  const [snapArmed, setSnapArmed] = useState(false);
+  const [neighborsAttached, setNeighborsAttached] = useState(false);
   const [isInteracting, setIsInteracting] = useState(false);
   const [neighbors, setNeighbors] = useState<NeighborCards>({
     prevPrev: null,
@@ -112,6 +134,9 @@ export function useMobileCardSnapFeed({
     next: null,
     nextNext: null,
   });
+  const snapActive = enabled && isMobileViewport;
+  const snapActiveRef = useRef(snapActive);
+  snapActiveRef.current = snapActive;
 
   const clearSettleWork = useCallback(() => {
     if (settleTimerRef.current !== null) {
@@ -138,6 +163,20 @@ export function useMobileCardSnapFeed({
     );
   }, []);
 
+  const isIgnoringLayoutScroll = useCallback(
+    () =>
+      shouldIgnoreLayoutInducedMobileCardSnapScroll({
+        nowMs: performance.now(),
+        ignoreUntilMs: ignoreLayoutScrollUntilRef.current,
+      }),
+    []
+  );
+
+  const markLayoutScrollIgnore = useCallback(() => {
+    ignoreLayoutScrollUntilRef.current =
+      performance.now() + MOBILE_CARD_SNAP_LAYOUT_SCROLL_IGNORE_MS;
+  }, []);
+
   const prevBufferSlugs = useMemo(
     () =>
       collectListingSlugs(
@@ -158,7 +197,13 @@ export function useMobileCardSnapFeed({
   );
   const prevPrevSlug = prevBufferSlugs[1] ?? null;
   const nextNextSlug = nextBufferSlugs[1] ?? null;
-  const currentSlideIndex = prevBufferSlugs.length;
+  const currentSlideIndex = resolveMobileCardSnapSlideIndex({
+    neighborsAttached,
+    prevCount: prevBufferSlugs.length,
+  });
+  currentSlideIndexRef.current = currentSlideIndex;
+  neighborsAttachedRef.current = neighborsAttached;
+  prevBufferCountRef.current = prevBufferSlugs.length;
   const extraPrevSlides = prevBufferSlugs
     .slice(2)
     .reverse()
@@ -204,7 +249,7 @@ export function useMobileCardSnapFeed({
       if (!viewport) return;
       restoreSnapStyles();
       const height = syncSlideMetrics() || slideHeightPx();
-      const top = height * currentSlideIndex;
+      const top = height * currentSlideIndexRef.current;
 
       if (behavior === "smooth") {
         viewport.scrollTo({ top, behavior });
@@ -222,6 +267,7 @@ export function useMobileCardSnapFeed({
         viewport.style.scrollSnapType = scrollSnapType;
         viewport.style.scrollBehavior = scrollBehavior;
       };
+      if (holdSnapOffRef.current) return;
       snapRestoreRafRef.current = window.requestAnimationFrame(() => {
         snapRestoreRafRef.current = null;
         const restore = restoreSnapStylesRef.current;
@@ -229,13 +275,106 @@ export function useMobileCardSnapFeed({
         restore?.();
       });
     },
-    [
-      currentSlideIndex,
-      restoreSnapStyles,
-      slideHeightPx,
-      syncSlideMetrics,
-    ]
+    [restoreSnapStyles, slideHeightPx, syncSlideMetrics]
   );
+
+  const stopLayoutPin = useCallback(() => {
+    if (pinRafRef.current !== null) {
+      window.cancelAnimationFrame(pinRafRef.current);
+      pinRafRef.current = null;
+    }
+    holdSnapOffRef.current = false;
+  }, []);
+
+  const pinCurrentSlide = useCallback(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) return false;
+    const height = Math.max(1, viewport.clientHeight || readVisibleHeightPx());
+    const expected = height * currentSlideIndexRef.current;
+    if (
+      isMobileCardSnapCentered({
+        scrollTop: viewport.scrollTop,
+        slideHeight: height,
+        currentSlideIndex: currentSlideIndexRef.current,
+      })
+    ) {
+      return true;
+    }
+    viewport.style.scrollSnapType = "none";
+    viewport.style.scrollBehavior = "auto";
+    viewport.scrollTop = expected;
+    return false;
+  }, []);
+
+  const detachNeighbors = useCallback(() => {
+    neighborsAttachedRef.current = false;
+    currentSlideIndexRef.current = 0;
+    setNeighborsAttached(false);
+  }, []);
+
+  const recenterAfterLayout = useCallback(() => {
+    settleTokenRef.current += 1;
+    clearSettleWork();
+    cancelPendingTargetLoad();
+    committingRef.current = false;
+    stopLayoutPin();
+    holdSnapOffRef.current = true;
+    detachNeighbors();
+    setSnapArmed(false);
+    scrollToCenter("auto");
+    setPhase("idle");
+    markLayoutScrollIgnore();
+
+    let frames = 0;
+    let stableFrames = 0;
+    const tick = () => {
+      pinRafRef.current = null;
+      if (!snapActiveRef.current || neighborsAttachedRef.current) {
+        holdSnapOffRef.current = false;
+        return;
+      }
+      const viewport = viewportRef.current;
+      const stage = viewport?.parentElement ?? null;
+      const usable = Boolean(
+        viewport &&
+          isMobileCardSnapViewportUsable({
+            clientHeight: viewport.clientHeight,
+            displayNone: getComputedStyle(viewport).display === "none",
+            stageDisplayNone:
+              stage instanceof HTMLElement &&
+              getComputedStyle(stage).display === "none",
+          })
+      );
+      frames += 1;
+      if (!usable) {
+        if (frames >= 90) {
+          holdSnapOffRef.current = false;
+          return;
+        }
+        pinRafRef.current = window.requestAnimationFrame(tick);
+        return;
+      }
+      currentSlideIndexRef.current = 0;
+      const settled = pinCurrentSlide();
+      stableFrames = settled ? stableFrames + 1 : 0;
+      if (stableFrames >= 2 || frames >= 90 + MOBILE_CARD_SNAP_LAYOUT_PIN_FRAMES) {
+        pinCurrentSlide();
+        setNeighborsAttached(true);
+        return;
+      }
+      pinRafRef.current = window.requestAnimationFrame(tick);
+    };
+    pinRafRef.current = window.requestAnimationFrame(tick);
+  }, [
+    cancelPendingTargetLoad,
+    clearSettleWork,
+    detachNeighbors,
+    markLayoutScrollIgnore,
+    pinCurrentSlide,
+    scrollToCenter,
+    setPhase,
+    stopLayoutPin,
+  ]);
 
   useLayoutEffect(() => {
     cancelPendingTargetLoad();
@@ -264,20 +403,84 @@ export function useMobileCardSnapFeed({
   }, []);
 
   useEffect(() => {
-    if (enabled) return;
+    const media = window.matchMedia(MOBILE_CARD_SNAP_MAX_WIDTH_MQ);
+    const sync = () => setIsMobileViewport(media.matches);
+    sync();
+    media.addEventListener("change", sync);
+    return () => media.removeEventListener("change", sync);
+  }, []);
+
+  useLayoutEffect(() => {
+    const becameActive = snapActive && !wasSnapActiveRef.current;
+    wasSnapActiveRef.current = snapActive;
+    if (!becameActive) return;
+    recenterAfterLayout();
+  }, [recenterAfterLayout, snapActive]);
+
+  useEffect(() => {
+    if (snapActive) return;
     settleTokenRef.current += 1;
     cancelPendingTargetLoad();
     clearSettleWork();
+    stopLayoutPin();
     pointerActiveRef.current = false;
     pointerStartScrollTopRef.current = null;
+    detachNeighbors();
+    setSnapArmed(false);
     scrollToCenter("auto");
     setPhase("idle");
   }, [
-    enabled,
+    snapActive,
     cancelPendingTargetLoad,
     clearSettleWork,
+    detachNeighbors,
     scrollToCenter,
     setPhase,
+    stopLayoutPin,
+  ]);
+
+  useLayoutEffect(() => {
+    if (!snapActive || !neighborsAttached) return;
+    neighborsAttachedRef.current = true;
+    currentSlideIndexRef.current = prevBufferCountRef.current;
+    markLayoutScrollIgnore();
+    holdSnapOffRef.current = true;
+    scrollToCenter("auto");
+
+    let frames = 0;
+    let stableFrames = 0;
+    const tick = () => {
+      pinRafRef.current = null;
+      if (!snapActiveRef.current || !neighborsAttachedRef.current) {
+        holdSnapOffRef.current = false;
+        return;
+      }
+      frames += 1;
+      const settled = pinCurrentSlide();
+      stableFrames = settled ? stableFrames + 1 : 0;
+      if (stableFrames >= 2 || frames >= MOBILE_CARD_SNAP_LAYOUT_PIN_FRAMES) {
+        pinCurrentSlide();
+        holdSnapOffRef.current = false;
+        restoreSnapStyles();
+        setSnapArmed(true);
+        return;
+      }
+      pinRafRef.current = window.requestAnimationFrame(tick);
+    };
+    pinRafRef.current = window.requestAnimationFrame(tick);
+    return () => {
+      if (pinRafRef.current !== null) {
+        window.cancelAnimationFrame(pinRafRef.current);
+        pinRafRef.current = null;
+      }
+    };
+  }, [
+    markLayoutScrollIgnore,
+    neighborsAttached,
+    pinCurrentSlide,
+    restoreSnapStyles,
+    scrollToCenter,
+    snapActive,
   ]);
 
   useEffect(() => {
@@ -319,6 +522,14 @@ export function useMobileCardSnapFeed({
   const finishScroll = useCallback(() => {
     settleTokenRef.current += 1;
     clearSettleWork();
+    if (isIgnoringLayoutScroll()) {
+      return;
+    }
+    if (isAuthReturnCardPinned()) {
+      scrollToCenter("auto");
+      setPhase("idle");
+      return;
+    }
     const viewport = viewportRef.current;
     if (!viewport) return;
 
@@ -470,11 +681,13 @@ export function useMobileCardSnapFeed({
     onCommit,
     prevBufferSlugs,
     prevSlug,
+    isIgnoringLayoutScroll,
     scrollToCenter,
     setPhase,
   ]);
 
   const scheduleFinish = useCallback(() => {
+    if (isIgnoringLayoutScroll()) return;
     const token = ++settleTokenRef.current;
     clearSettleWork();
     settleTimerRef.current = window.setTimeout(() => {
@@ -515,12 +728,13 @@ export function useMobileCardSnapFeed({
       settleRafRef.current =
         window.requestAnimationFrame(checkStablePosition);
     }, SETTLE_DEBOUNCE_MS);
-  }, [clearSettleWork, finishScroll, setPhase]);
+  }, [clearSettleWork, finishScroll, isIgnoringLayoutScroll, setPhase]);
 
   useEffect(() => {
     const viewport = viewportRef.current;
     if (!viewport) return;
     const onScrollEnd = () => {
+      if (isIgnoringLayoutScroll()) return;
       if (pointerActiveRef.current) {
         scheduleFinish();
         return;
@@ -529,7 +743,7 @@ export function useMobileCardSnapFeed({
     };
     viewport.addEventListener("scrollend", onScrollEnd);
     return () => viewport.removeEventListener("scrollend", onScrollEnd);
-  }, [finishScroll, scheduleFinish]);
+  }, [finishScroll, isIgnoringLayoutScroll, scheduleFinish]);
 
   useEffect(() => {
     const viewport = viewportRef.current;
@@ -541,15 +755,55 @@ export function useMobileCardSnapFeed({
         resizeRafRef.current = null;
         const currentViewport = viewportRef.current;
         if (!currentViewport) return;
+        const stage = currentViewport.parentElement;
+        const stageDisplayNone =
+          stage instanceof HTMLElement &&
+          getComputedStyle(stage).display === "none";
+        const mobileMq = window.matchMedia(
+          MOBILE_CARD_SNAP_MAX_WIDTH_MQ
+        ).matches;
+        const crossedToMobileViewport =
+          mobileMq && !lastMobileMqRef.current;
+        lastMobileMqRef.current = mobileMq;
+        const nextUsable = isMobileCardSnapViewportUsable({
+          clientHeight: currentViewport.clientHeight,
+          displayNone:
+            getComputedStyle(currentViewport).display === "none",
+          stageDisplayNone,
+        });
+        const previousUsable = lastUsableRef.current;
+        lastUsableRef.current = nextUsable;
+        const nextHeight = Math.max(1, readVisibleHeightPx());
+
+        if (
+          shouldRecenterMobileCardSnapOnResize({
+            previousUsable,
+            nextUsable,
+            crossedToMobileViewport,
+          })
+        ) {
+          lastHeightPxRef.current = nextHeight;
+          if (stage instanceof HTMLElement) {
+            stage.style.height = `${nextHeight}px`;
+          }
+          currentViewport.style.height = `${nextHeight}px`;
+          currentViewport.style.setProperty(
+            "--card-snap-slide-h",
+            `${nextHeight}px`
+          );
+          recenterAfterLayout();
+          return;
+        }
+
+        if (!nextUsable) return;
+        if (nextHeight === lastHeightPxRef.current) return;
+
         const previousHeight =
           lastHeightPxRef.current ||
           currentViewport.clientHeight ||
-          readVisibleHeightPx();
-        const nextHeight = Math.max(1, readVisibleHeightPx());
-        if (nextHeight === lastHeightPxRef.current) return;
+          nextHeight;
         const previousScrollTop = currentViewport.scrollTop;
         lastHeightPxRef.current = nextHeight;
-        const stage = currentViewport.parentElement;
         if (stage instanceof HTMLElement) {
           stage.style.height = `${nextHeight}px`;
         }
@@ -563,8 +817,12 @@ export function useMobileCardSnapFeed({
           previousHeight,
           nextHeight,
           currentSlideIndex,
-          interacting:
-            pointerActiveRef.current || phaseRef.current !== "idle",
+          interacting: shouldTreatMobileCardResizeAsInteraction({
+            pointerActive: pointerActiveRef.current,
+            phaseIdle: phaseRef.current === "idle",
+            previousUsable,
+            nextUsable,
+          }),
         });
       });
     };
@@ -572,6 +830,7 @@ export function useMobileCardSnapFeed({
     onResize();
     const observer = new ResizeObserver(onResize);
     observer.observe(viewport);
+    if (viewport.parentElement) observer.observe(viewport.parentElement);
     window.visualViewport?.addEventListener("resize", onResize);
     window.addEventListener("resize", onResize);
     return () => {
@@ -583,7 +842,7 @@ export function useMobileCardSnapFeed({
         resizeRafRef.current = null;
       }
     };
-  }, [currentSlideIndex]);
+  }, [currentSlideIndex, recenterAfterLayout]);
 
   useEffect(
     () => () => {
@@ -591,23 +850,35 @@ export function useMobileCardSnapFeed({
       cancelPendingTargetLoad();
       clearSettleWork();
       restoreSnapStyles();
+      stopLayoutPin();
       loadGenerationRef.current += 1;
     },
-    [cancelPendingTargetLoad, clearSettleWork, restoreSnapStyles]
+    [cancelPendingTargetLoad, clearSettleWork, restoreSnapStyles, stopLayoutPin]
   );
 
   const onScroll = useCallback(
     (_event: UIEvent<HTMLDivElement>) => {
-      if (!enabled || committingRef.current) return;
+      if (
+        !snapActive ||
+        committingRef.current ||
+        isIgnoringLayoutScroll()
+      ) {
+        return;
+      }
       setPhase("interacting");
       scheduleFinish();
     },
-    [enabled, scheduleFinish, setPhase]
+    [
+      isIgnoringLayoutScroll,
+      scheduleFinish,
+      setPhase,
+      snapActive,
+    ]
   );
 
   const onPointerDown = useCallback(
     (event: ReactPointerEvent<HTMLDivElement>) => {
-      if (!enabled || event.pointerType === "mouse") return;
+      if (!snapActive || event.pointerType === "mouse") return;
       const target = event.target;
       if (target instanceof Element) {
         const interactiveTarget = target.closest(INTERACTIVE_SELECTOR);
@@ -622,7 +893,7 @@ export function useMobileCardSnapFeed({
       pointerStartScrollTopRef.current =
         viewportRef.current?.scrollTop ?? null;
     },
-    [enabled]
+    [snapActive]
   );
 
   const finishPointer = useCallback(() => {
@@ -650,7 +921,7 @@ export function useMobileCardSnapFeed({
   }, [scheduleFinish, setPhase]);
 
   useEffect(() => {
-    if (!enabled) return;
+    if (!snapActive) return;
     const onUp = () => {
       if (
         !pointerActiveRef.current &&
@@ -668,7 +939,7 @@ export function useMobileCardSnapFeed({
       window.removeEventListener("pointercancel", onUp);
       window.removeEventListener("blur", onUp);
     };
-  }, [enabled, finishPointer]);
+  }, [finishPointer, snapActive]);
 
   const onClickCapture = useCallback((event: ReactMouseEvent) => {
     if (performance.now() >= suppressClickUntilRef.current) return;
@@ -678,7 +949,7 @@ export function useMobileCardSnapFeed({
 
   const scrollToDirection = useCallback(
     async (direction: Direction) => {
-      if (!enabled) return;
+      if (!snapActive) return;
       const sourceSlug = currentData.slug;
       const slug = direction === "prev" ? prevSlug : nextSlug;
       if (!slug) return;
@@ -713,7 +984,7 @@ export function useMobileCardSnapFeed({
       });
     },
     [
-      enabled,
+      snapActive,
       currentData.slug,
       currentSlideIndex,
       loadCard,
@@ -737,6 +1008,8 @@ export function useMobileCardSnapFeed({
     nextNextSlug,
     nextNextCard: neighbors.nextNext,
     extraNextSlides,
+    neighborsAttached,
+    snapScrollEnabled: snapActive && snapArmed,
     isInteracting,
     onScroll,
     onPointerDown,

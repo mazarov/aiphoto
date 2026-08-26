@@ -26,12 +26,13 @@ export function rememberAuthReturnPath(path?: string): string {
 }
 
 /**
- * Supabase redirect target. Always go through `/auth/callback` so allowlisted
- * redirect URLs stay stable, and pass the listing/hard page as `next`.
+ * Supabase redirect target. Stable `/auth/callback` only — `next` lives in
+ * cookie/sessionStorage. A `?next=` on redirectTo is often stripped or
+ * rejected by GoTrue, which then falls back to SITE_URL `/`.
  */
 export function getOAuthCallbackUrl(): string {
-  const next = rememberAuthReturnPath();
-  return `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`;
+  rememberAuthReturnPath();
+  return `${window.location.origin}/auth/callback`;
 }
 
 /** @deprecated use getOAuthCallbackUrl */

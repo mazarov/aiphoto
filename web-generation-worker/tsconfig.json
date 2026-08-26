@@ -19,6 +19,7 @@
     "../landing/src/lib/generation-edit-contract.ts",
     "../landing/src/lib/camera-orbit.ts",
     "../landing/src/lib/video-motion-prompt.ts",
-    "../landing/src/lib/user-generation-photo-paths.ts"
+    "../landing/src/lib/user-generation-photo-paths.ts",
+    "../landing/src/lib/generation/image-options.ts"
   ]
 }

@@ -3,7 +3,12 @@
 import { Suspense, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { applyCountsToMenu } from "@/lib/menu";
-import { LISTING_SCROLL_ROOT_ID, useListingScrollOnRouteChange } from "@/lib/scroll-preservation";
+import {
+  LISTING_SCROLL_ROOT_ID,
+  markListingScrollRootHydrated,
+  markListingScrollRootUnhydrated,
+  useListingScrollOnRouteChange,
+} from "@/lib/scroll-preservation";
 import {
   bumpListingShellViewportHeight,
   useListingShellViewportSync,
@@ -48,6 +53,13 @@ export function PageLayout({
   useEffect(() => {
     bumpListingShellViewportHeight();
   }, [pathname]);
+
+  useEffect(() => {
+    markListingScrollRootHydrated();
+    return () => {
+      markListingScrollRootUnhydrated();
+    };
+  }, []);
 
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 1023px)");
