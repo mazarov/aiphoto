@@ -32,6 +32,11 @@ Seedream 4.5 в пикере остаётся.
 
 Kill-switch: пустое значение или `enabled:false` у `seedream-5.0-pro`.
 
+## Worker Docker
+
+`openrouter-seedream.ts` импортирует `landing/src/lib/generation/image-options.ts`.  
+Файл должен быть в `web-generation-worker/tsconfig.json` include **и** в `COPY` `Dockerfile.worker` / `web-generation-worker/Dockerfile`. Иначе Dockhost `tsc` — `TS2307`.
+
 ## Выкат
 
 1. Задеплоить landing + worker.
