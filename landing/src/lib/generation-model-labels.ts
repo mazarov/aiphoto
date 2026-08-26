@@ -1,4 +1,8 @@
-import { GROK_IMAGINE_IMAGE_CREDIT_COST, forcedImageCreditCost } from "./generation/image-options";
+import {
+  GROK_IMAGINE_IMAGE_CREDIT_COST,
+  SEEDREAM_45_IMAGE_MODEL,
+  forcedImageCreditCost,
+} from "./generation/image-options";
 
 /**
  * Product-facing names for Gemini image models (LexyGPT / Google “Nano Banana” naming).
@@ -161,7 +165,8 @@ function parseGenerationModels(
         } =>
           Boolean(model) &&
           typeof model.id === "string" &&
-          model.enabled !== false
+          model.enabled !== false &&
+          model.id !== SEEDREAM_45_IMAGE_MODEL
       )
       .map((model) => ({
         id: model.id,
