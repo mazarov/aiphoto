@@ -78,7 +78,10 @@ export function GeneraciyaFotoThemes() {
               <span className="text-xs font-medium uppercase tracking-wide text-indigo-600">
                 {item.count}
               </span>
-              <span className="mt-2 text-lg font-semibold text-zinc-900">
+              <span className="mt-2 text-sm leading-relaxed text-zinc-600">
+                {item.examples.join(" · ")}
+              </span>
+              <span className="mt-3 text-lg font-semibold text-zinc-900">
                 {item.title}
               </span>
             </Link>
@@ -148,29 +151,38 @@ export function GeneraciyaFotoPacks({
           {GENERACIYA_FOTO_PACKS.cta}
         </Link>
       </div>
-      {preview.length ? (
-        <ul className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
-          {preview.map((card) => (
-            <li key={card.id}>
+      <ul className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
+        {GENERACIYA_FOTO_PACKS.items.map((item, index) => {
+          const photo = preview[index];
+          return (
+            <li key={item.title}>
               <Link
-                href={card.slug ? `/p/${card.slug}` : "#primery"}
-                className="group relative block overflow-hidden rounded-2xl bg-zinc-100"
+                href={item.href}
+                className="group flex h-full flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white transition hover:border-indigo-200"
               >
-                <div className="relative aspect-[3/4]">
-                  <Image
-                    src={card.photoUrl!}
-                    alt={card.title}
-                    fill
-                    sizes={SIZES_CARD_GRID}
-                    quality={CARD_IMAGE_LISTING_NEXT_QUALITY}
-                    className="object-cover transition duration-200 group-hover:scale-[1.02]"
-                  />
-                </div>
+                {photo?.photoUrl ? (
+                  <div className="relative aspect-[3/4] overflow-hidden bg-zinc-100">
+                    <Image
+                      src={photo.photoUrl}
+                      alt={item.title}
+                      fill
+                      sizes={SIZES_CARD_GRID}
+                      quality={CARD_IMAGE_LISTING_NEXT_QUALITY}
+                      className="object-cover transition duration-200 group-hover:scale-[1.02]"
+                    />
+                  </div>
+                ) : null}
+                <span className="px-4 pt-3 text-sm font-semibold text-zinc-900">
+                  {item.title}
+                </span>
+                <span className="px-4 pb-4 pt-1 text-xs text-zinc-500">
+                  {item.meta}
+                </span>
               </Link>
             </li>
-          ))}
-        </ul>
-      ) : null}
+          );
+        })}
+      </ul>
     </section>
   );
 }
@@ -250,7 +262,7 @@ export function GeneraciyaFotoReviews() {
       <h2 id="reviews-heading" className="mt-8 text-xl font-bold text-zinc-900">
         {GENERACIYA_FOTO_REVIEWS.title}
       </h2>
-      <ul className="mt-5 grid gap-3 md:grid-cols-3">
+      <ul className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {GENERACIYA_FOTO_REVIEWS.items.map((item) => (
           <li
             key={item.name}

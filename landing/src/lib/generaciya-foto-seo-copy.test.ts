@@ -1,8 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  GENERACIYA_FOTO_FAQ,
   GENERACIYA_FOTO_HOW_TO_STEPS,
+  GENERACIYA_FOTO_PACKS,
+  GENERACIYA_FOTO_REVIEWS,
   GENERACIYA_FOTO_SEO,
+  GENERACIYA_FOTO_THEMES,
+  GENERACIYA_FOTO_TOOLS,
 } from "./generaciya-foto-seo-copy";
 
 const BANNED_META = /best|recommended|premium|\bfree\b|#1|бесплатно/i;
@@ -48,8 +53,39 @@ test("visible H1 and HowTo keep Facee wording", () => {
     GENERACIYA_FOTO_SEO.h1,
     "Создавайте красивые ИИ-фото себя — без студии и камеры"
   );
+  assert.equal(
+    GENERACIYA_FOTO_SEO.intro,
+    "С PromptShot вы увидите себя в сотнях красивых образов, которые сложно или дорого воплотить в обычной жизни"
+  );
   assert.equal(GENERACIYA_FOTO_SEO.howToTitle, "Как создать свои ИИ фото?");
+  assert.equal(
+    GENERACIYA_FOTO_SEO.howToLead,
+    "Три простых шага к генерации персональной онлайн-фотосессии"
+  );
   assert.equal(GENERACIYA_FOTO_HOW_TO_STEPS.length, 3);
   assert.equal(GENERACIYA_FOTO_HOW_TO_STEPS[0].title, "Загрузите свои фото");
   assert.match(GENERACIYA_FOTO_HOW_TO_STEPS[0].text, /1 до 5 фото/);
+});
+
+test("hub blocks keep Facee homepage copy", () => {
+  assert.equal(GENERACIYA_FOTO_THEMES.title, "Подборки шаблонов по темам");
+  assert.equal(GENERACIYA_FOTO_THEMES.items[0].title, "Идеи для женских ИИ-фото");
+  assert.equal(GENERACIYA_FOTO_THEMES.items[0].examples[0], "В студии с клубникой");
+  assert.equal(GENERACIYA_FOTO_SEO.examplesTitle, "ИИ-фото от наших пользователей");
+  assert.equal(GENERACIYA_FOTO_SEO.examplesCta, "Больше промптов для фото");
+  assert.equal(GENERACIYA_FOTO_TOOLS.title, "Бесплатные сервисы");
+  assert.equal(GENERACIYA_FOTO_TOOLS.items[0].title, "ИИ-редактор фото");
+  assert.equal(
+    GENERACIYA_FOTO_PACKS.title,
+    "Выбирайте из 150+ готовых ИИ‑фотосессий"
+  );
+  assert.equal(GENERACIYA_FOTO_PACKS.items[0].title, "Фотосессия для пары в студии");
+  assert.equal(GENERACIYA_FOTO_REVIEWS.items.length, 7);
+  assert.equal(GENERACIYA_FOTO_REVIEWS.items[1].name, "Виа Вика");
+  assert.match(GENERACIYA_FOTO_FAQ[0].a, /галерее PromptShot/);
+  assert.match(GENERACIYA_FOTO_FAQ[3].a, /визажист и аренда локации/);
+  assert.equal(
+    GENERACIYA_FOTO_FAQ.some((item) => /Telegram|@facee|facee\.ru/i.test(item.a)),
+    false
+  );
 });

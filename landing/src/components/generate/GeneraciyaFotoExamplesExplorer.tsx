@@ -38,6 +38,8 @@ export function GeneraciyaFotoExamplesExplorer({
   initialCards,
   title = GENERACIYA_FOTO_SEO.examplesTitle,
   intro = GENERACIYA_FOTO_SEO.examplesIntro,
+  eyebrow = "Библиотека образов",
+  allPromptsLabel = "Все промты",
   defaultAllPromptsHref = "/",
   scenarioNavigation,
   navigationAriaLabel,
@@ -46,6 +48,8 @@ export function GeneraciyaFotoExamplesExplorer({
   initialCards: GenerationExampleCard[];
   title?: string;
   intro?: string;
+  eyebrow?: string;
+  allPromptsLabel?: string;
   defaultAllPromptsHref?: string;
   scenarioNavigation?: ScenarioNavigationItem[];
   navigationAriaLabel?: string;
@@ -149,9 +153,11 @@ export function GeneraciyaFotoExamplesExplorer({
   return (
     <div className="overflow-hidden rounded-[1.75rem] border border-indigo-100/90 bg-[linear-gradient(145deg,#f2f1ff_0%,#ffffff_48%,#faf7ff_100%)] px-3 pb-0 pt-5 text-zinc-900 shadow-[0_28px_80px_-46px_rgba(79,70,229,0.45)] sm:px-5 sm:pt-7">
       <div className="w-full">
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-indigo-600">
-          Библиотека образов
-        </p>
+        {eyebrow ? (
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-indigo-600">
+            {eyebrow}
+          </p>
+        ) : null}
         <h2
           id="examples-heading"
           className="mt-2 text-2xl font-bold tracking-tight text-zinc-900 sm:text-3xl"
@@ -301,7 +307,7 @@ export function GeneraciyaFotoExamplesExplorer({
                 scroll={LISTING_SHELL_LINK_SCROLL}
                 className="pointer-events-auto inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-indigo-200 bg-white/95 px-5 text-sm font-semibold text-indigo-700 shadow-sm backdrop-blur-sm transition hover:border-indigo-300 hover:bg-white"
               >
-                Все промты
+                {allPromptsLabel}
                 <svg
                   className="h-4 w-4"
                   viewBox="0 0 24 24"

@@ -375,6 +375,8 @@ export default async function GeneraciyaFotoPage() {
             {cards.length ? (
               <GeneraciyaFotoExamplesExplorer
                 initialCards={exampleCards}
+                eyebrow=""
+                allPromptsLabel={GENERACIYA_FOTO_SEO.examplesCta}
                 scenarioNavigation={GENERACIYA_FOTO_SCENARIO_ROUTES.map(
                   (scenario) => ({
                     label: scenario.label,
