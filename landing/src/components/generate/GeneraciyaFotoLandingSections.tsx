@@ -116,6 +116,9 @@ export function GeneraciyaFotoTools() {
               <span className="mt-2 text-sm leading-relaxed text-zinc-600">
                 {item.text}
               </span>
+              <span className="mt-auto pt-3 text-sm font-semibold text-indigo-700">
+                {GENERACIYA_FOTO_TOOLS.tryLabel}
+              </span>
             </Link>
           </li>
         ))}
@@ -275,7 +278,8 @@ export function GeneraciyaFotoReviews() {
           </li>
         ))}
       </ul>
-      <div className="mt-4">
+      <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
+        <TextLink href="#otzyvy">{GENERACIYA_FOTO_REVIEWS.moreLabel}</TextLink>
         <TextLink href="#otzyvy">{GENERACIYA_FOTO_REVIEWS.allLabel}</TextLink>
       </div>
     </section>

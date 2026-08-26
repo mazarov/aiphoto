@@ -251,18 +251,8 @@ export function GeneraciyaFotoStarter() {
 
   return (
     <div className="mt-10 w-full overflow-hidden rounded-[1.75rem] border border-indigo-100/90 bg-[linear-gradient(145deg,#f2f1ff_0%,#ffffff_48%,#faf7ff_100%)] px-3 py-6 text-left text-zinc-900 shadow-[0_28px_80px_-46px_rgba(79,70,229,0.45)] sm:mt-12 sm:px-5 sm:py-8">
-      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-indigo-600">
-        {GENERACIYA_FOTO_SEO.starterEyebrow}
-      </p>
-      <h2 className="mt-2 text-2xl font-bold tracking-tight text-zinc-900 sm:text-3xl">
-        {GENERACIYA_FOTO_SEO.starterTitle}
-      </h2>
-      <p className="mt-2 max-w-2xl text-sm leading-relaxed text-zinc-600 sm:text-base">
-        {GENERACIYA_FOTO_SEO.starterLead}
-      </p>
-
       <div
-        className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2"
+        className="grid grid-cols-1 gap-3 sm:grid-cols-2"
         role="tablist"
         aria-label="Способ создания изображения"
       >

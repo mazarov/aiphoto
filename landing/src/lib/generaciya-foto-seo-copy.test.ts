@@ -67,15 +67,14 @@ test("visible H1 and HowTo keep Facee wording", () => {
   assert.match(GENERACIYA_FOTO_HOW_TO_STEPS[0].text, /1 до 5 фото/);
 });
 
-test("starter block uses generate-cluster queries, not the Title key", () => {
-  assert.equal(GENERACIYA_FOTO_SEO.starterEyebrow, "ИИ генератор фото");
-  assert.equal(GENERACIYA_FOTO_SEO.starterTitle, "Сгенерировать фото ИИ");
-  assert.match(GENERACIYA_FOTO_SEO.starterLead, /создайте фото по описанию/i);
-  assert.match(GENERACIYA_FOTO_SEO.starterLead, /снимку/i);
-  assert.equal(countPhrase(GENERACIYA_FOTO_SEO.starterTitle.toLowerCase(), "сделать фото ии"), 0);
-  assert.equal(countPhrase(GENERACIYA_FOTO_SEO.starterLead.toLowerCase(), "сделать фото ии"), 0);
-  assert.doesNotMatch(GENERACIYA_FOTO_SEO.starterTitle, BANNED_META);
-  assert.doesNotMatch(GENERACIYA_FOTO_SEO.starterLead, BANNED_META);
+test("starter keeps Facee first screen and does not add extra headings", () => {
+  assert.equal(
+    GENERACIYA_FOTO_SEO.socialProof,
+    "Более 2 500 000 человек уже создали свои фото 📸️"
+  );
+  assert.equal("starterEyebrow" in GENERACIYA_FOTO_SEO, false);
+  assert.equal("starterTitle" in GENERACIYA_FOTO_SEO, false);
+  assert.equal("starterLead" in GENERACIYA_FOTO_SEO, false);
 });
 
 test("hub blocks keep Facee homepage copy", () => {
@@ -85,6 +84,7 @@ test("hub blocks keep Facee homepage copy", () => {
   assert.equal(GENERACIYA_FOTO_SEO.examplesTitle, "ИИ-фото от наших пользователей");
   assert.equal(GENERACIYA_FOTO_SEO.examplesCta, "Больше промптов для фото");
   assert.equal(GENERACIYA_FOTO_TOOLS.title, "Бесплатные сервисы");
+  assert.equal(GENERACIYA_FOTO_TOOLS.tryLabel, "Попробовать");
   assert.equal(GENERACIYA_FOTO_TOOLS.items[0].title, "ИИ-редактор фото");
   assert.equal(
     GENERACIYA_FOTO_PACKS.title,
@@ -93,10 +93,21 @@ test("hub blocks keep Facee homepage copy", () => {
   assert.equal(GENERACIYA_FOTO_PACKS.items[0].title, "Фотосессия для пары в студии");
   assert.equal(GENERACIYA_FOTO_REVIEWS.items.length, 7);
   assert.equal(GENERACIYA_FOTO_REVIEWS.items[1].name, "Виа Вика");
-  assert.match(GENERACIYA_FOTO_FAQ[0].a, /галерее PromptShot/);
-  assert.match(GENERACIYA_FOTO_FAQ[3].a, /визажист и аренда локации/);
+  assert.match(GENERACIYA_FOTO_REVIEWS.items[1].text, /^«Знаю, многие ИИ/);
+  assert.equal(GENERACIYA_FOTO_REVIEWS.moreLabel, "Показать больше");
+  const promptFaq = GENERACIYA_FOTO_FAQ.find((item) =>
+    item.q.startsWith("Где взять промпт")
+  );
+  const aiPhotoFaq = GENERACIYA_FOTO_FAQ.find((item) => item.q === "Что такое ИИ фото?");
+  const photoshootFaq = GENERACIYA_FOTO_FAQ.find((item) =>
+    item.q === "Как создать нейрофотосессию с собой?"
+  );
+  assert.match(promptFaq?.a ?? "", /галерее PromptShot с примерами образов/);
+  assert.match(aiPhotoFaq?.a ?? "", /визажист и аренда локации/);
+  assert.match(photoshootFaq?.a ?? "", /раздел «Фотосессии»/);
+  assert.ok(GENERACIYA_FOTO_FAQ.some((item) => item.q.startsWith("Где скачать PromptShot")));
   assert.equal(
-    GENERACIYA_FOTO_FAQ.some((item) => /Telegram|@facee|facee\.ru/i.test(item.a)),
+    GENERACIYA_FOTO_FAQ.some((item) => /Telegram|@facee|facee\.ru|Т-Банк/i.test(`${item.q} ${item.a}`)),
     false
   );
 });
