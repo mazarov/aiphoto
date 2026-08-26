@@ -12,7 +12,6 @@ import {
   GeneraciyaFotoThemes,
   GeneraciyaFotoTools,
   GeneraciyaFotoTopics,
-  GeneraciyaFotoTrends,
 } from "@/components/generate/GeneraciyaFotoLandingSections";
 import { GeneraciyaFotoStarter } from "@/components/generate/GeneraciyaFotoStarter";
 import { GenerationModelsShowcase } from "@/components/generate/GenerationModelsShowcase";
@@ -367,7 +366,6 @@ export default async function GeneraciyaFotoPage() {
 
         <div className="mx-auto flex w-full max-w-7xl flex-col gap-12 px-3 pt-12 sm:gap-16 sm:px-5 sm:pt-16 lg:gap-20 lg:pt-20 xl:px-6">
           <GeneraciyaFotoThemes />
-          <GeneraciyaFotoTrends />
 
           <section
             id="primery"

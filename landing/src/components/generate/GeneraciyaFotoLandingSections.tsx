@@ -12,7 +12,6 @@ import {
   GENERACIYA_FOTO_THEMES,
   GENERACIYA_FOTO_TOOLS,
   GENERACIYA_FOTO_TOPICS,
-  GENERACIYA_FOTO_TRENDS,
 } from "@/lib/generaciya-foto-seo-copy";
 
 const sectionClass = "scroll-mt-20";
@@ -89,38 +88,6 @@ export function GeneraciyaFotoThemes() {
       <div className="mt-4">
         <TextLink href={GENERACIYA_FOTO_THEMES.allHref}>
           {GENERACIYA_FOTO_THEMES.allLabel}
-        </TextLink>
-      </div>
-    </section>
-  );
-}
-
-export function GeneraciyaFotoTrends() {
-  return (
-    <section className={sectionClass} aria-labelledby="trends-heading">
-      <SectionHeading
-        id="trends-heading"
-        title={GENERACIYA_FOTO_TRENDS.title}
-        lead={GENERACIYA_FOTO_TRENDS.lead}
-      />
-      <ul className="mt-6 grid gap-3 sm:grid-cols-2">
-        {GENERACIYA_FOTO_TRENDS.items.map((item) => (
-          <li key={item.title}>
-            <Link
-              href={item.href}
-              className="flex h-full flex-col rounded-2xl border border-zinc-200 bg-zinc-50 p-5 transition hover:border-indigo-200 hover:bg-white"
-            >
-              <span className="font-semibold text-zinc-900">{item.title}</span>
-              <span className="mt-2 text-sm leading-relaxed text-zinc-600">
-                {item.text}
-              </span>
-            </Link>
-          </li>
-        ))}
-      </ul>
-      <div className="mt-4">
-        <TextLink href={GENERACIYA_FOTO_TRENDS.allHref}>
-          {GENERACIYA_FOTO_TRENDS.allLabel}
         </TextLink>
       </div>
     </section>
