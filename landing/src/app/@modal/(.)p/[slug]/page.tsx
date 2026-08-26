@@ -7,6 +7,7 @@ import {
   getSeoSlugsWithTags,
 } from "@/lib/tag-registry";
 import { CardModal } from "@/components/CardModal";
+import { InterceptedCardModalGate } from "@/components/InterceptedCardModalGate";
 import { CardInteractionsProvider } from "@/context/CardInteractionsContext";
 import nextDynamic from "next/dynamic";
 
@@ -42,27 +43,29 @@ export default async function CardModalPage({ params }: Props) {
   const immersiveMobile = data.photoUrls.length > 0;
 
   return (
-    <CardInteractionsProvider cardIds={[data.id]}>
-      <CardModal immersiveMobile={immersiveMobile}>
-        <div
-          className={
-            immersiveMobile
-              ? "h-full min-h-0 overflow-hidden md:h-auto md:max-h-none md:overflow-visible"
-              : "max-h-[85vh] overflow-y-auto md:max-h-none md:overflow-visible"
-          }
-        >
-          <CardPageClient
-            data={data}
-            tagEntries={tagEntries}
-            breadcrumbTag={
-              breadcrumbTag
-                ? { labelRu: breadcrumbTag.labelRu, urlPath: breadcrumbTag.urlPath }
-                : null
+    <InterceptedCardModalGate>
+      <CardInteractionsProvider cardIds={[data.id]}>
+        <CardModal immersiveMobile={immersiveMobile}>
+          <div
+            className={
+              immersiveMobile
+                ? "h-full min-h-0 overflow-hidden md:h-auto md:max-h-none md:overflow-visible"
+                : "max-h-[85vh] overflow-y-auto md:max-h-none md:overflow-visible"
             }
-            isModal
-          />
-        </div>
-      </CardModal>
-    </CardInteractionsProvider>
+          >
+            <CardPageClient
+              data={data}
+              tagEntries={tagEntries}
+              breadcrumbTag={
+                breadcrumbTag
+                  ? { labelRu: breadcrumbTag.labelRu, urlPath: breadcrumbTag.urlPath }
+                  : null
+              }
+              isModal
+            />
+          </div>
+        </CardModal>
+      </CardInteractionsProvider>
+    </InterceptedCardModalGate>
   );
 }

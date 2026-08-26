@@ -2,10 +2,16 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   canCommitMobileCardSnap,
+  isMobileCardSnapCentered,
+  isMobileCardSnapViewportUsable,
   mobileCardScrollBehavior,
   rebaseMobileCardScrollTop,
   resolveMobileCardSnapDirection,
+  resolveMobileCardSnapSlideIndex,
   resolveMobileCardSnapTargetSlug,
+  shouldIgnoreLayoutInducedMobileCardSnapScroll,
+  shouldRecenterMobileCardSnapOnResize,
+  shouldTreatMobileCardResizeAsInteraction,
 } from "./mobile-card-snap";
 
 const BASE = {
@@ -123,6 +129,158 @@ test("commit guard rejects missing prefetch and duplicate settle", () => {
       alreadyCommitting: false,
     }),
     true
+  );
+});
+
+test("hidden or zero-height snap viewport is not usable", () => {
+  assert.equal(
+    isMobileCardSnapViewportUsable({ clientHeight: 800, displayNone: true }),
+    false
+  );
+  assert.equal(
+    isMobileCardSnapViewportUsable({ clientHeight: 0, displayNone: false }),
+    false
+  );
+  assert.equal(
+    isMobileCardSnapViewportUsable({ clientHeight: 800, displayNone: false }),
+    true
+  );
+  assert.equal(
+    isMobileCardSnapViewportUsable({
+      clientHeight: 800,
+      displayNone: false,
+      stageDisplayNone: true,
+    }),
+    false
+  );
+});
+
+test("desktop→mobile visibility change recenters on the current card", () => {
+  assert.equal(
+    shouldRecenterMobileCardSnapOnResize({
+      previousUsable: false,
+      nextUsable: true,
+    }),
+    true
+  );
+  assert.equal(
+    shouldRecenterMobileCardSnapOnResize({
+      previousUsable: true,
+      nextUsable: true,
+    }),
+    false
+  );
+  assert.equal(
+    shouldRecenterMobileCardSnapOnResize({
+      previousUsable: false,
+      nextUsable: false,
+    }),
+    false
+  );
+});
+
+test("snap index stays 0 until neighbors are attached", () => {
+  assert.equal(
+    resolveMobileCardSnapSlideIndex({ neighborsAttached: false, prevCount: 8 }),
+    0
+  );
+  assert.equal(
+    resolveMobileCardSnapSlideIndex({ neighborsAttached: true, prevCount: 8 }),
+    8
+  );
+  assert.equal(
+    isMobileCardSnapCentered({
+      scrollTop: 0,
+      slideHeight: 800,
+      currentSlideIndex: resolveMobileCardSnapSlideIndex({
+        neighborsAttached: false,
+        prevCount: 8,
+      }),
+    }),
+    true
+  );
+});
+
+test("width-only desktop→mobile recenters even if inner scroller looked usable", () => {
+  assert.equal(
+    shouldRecenterMobileCardSnapOnResize({
+      previousUsable: true,
+      nextUsable: true,
+      crossedToMobileViewport: true,
+    }),
+    true
+  );
+  assert.equal(
+    isMobileCardSnapCentered({
+      scrollTop: 0,
+      slideHeight: 800,
+      currentSlideIndex: 8,
+    }),
+    false
+  );
+  assert.equal(
+    isMobileCardSnapCentered({
+      scrollTop: 6400,
+      slideHeight: 800,
+      currentSlideIndex: 8,
+    }),
+    true
+  );
+});
+
+test("resize after hidden→visible is not a swipe even if phase looks busy", () => {
+  assert.equal(
+    shouldTreatMobileCardResizeAsInteraction({
+      pointerActive: false,
+      phaseIdle: false,
+      previousUsable: false,
+      nextUsable: true,
+    }),
+    false
+  );
+  assert.equal(
+    rebaseMobileCardScrollTop({
+      scrollTop: 0,
+      previousHeight: 900,
+      nextHeight: 800,
+      currentSlideIndex: 8,
+      interacting: shouldTreatMobileCardResizeAsInteraction({
+        pointerActive: false,
+        phaseIdle: false,
+        previousUsable: false,
+        nextUsable: true,
+      }),
+    }),
+    6400
+  );
+});
+
+test("resize during a real swipe still preserves progress", () => {
+  assert.equal(
+    shouldTreatMobileCardResizeAsInteraction({
+      pointerActive: true,
+      phaseIdle: false,
+      previousUsable: true,
+      nextUsable: true,
+    }),
+    true
+  );
+});
+
+test("layout-induced scroll is ignored only inside the settle window", () => {
+  assert.equal(
+    shouldIgnoreLayoutInducedMobileCardSnapScroll({
+      nowMs: 100,
+      ignoreUntilMs: 280,
+    }),
+    true
+  );
+  assert.equal(
+    shouldIgnoreLayoutInducedMobileCardSnapScroll({
+      nowMs: 280,
+      ignoreUntilMs: 280,
+    }),
+    false
   );
 });
 

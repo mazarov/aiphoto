@@ -7,11 +7,14 @@ import {
 } from "./auth-return-path";
 import {
   appendAuthReturnDestination,
+  bindAuthReturnOverlay,
   captureAuthReturnScreen,
   cardSlugFromPath,
   parseAuthReturnOverlay,
   preferListingPathOverOverlayNext,
   resetLiveAuthReturnOverlayForTests,
+  resolveAuthReturnCaptureOverlay,
+  resolveAuthReturnScrollY,
   sanitizeAuthReturnOverlay,
   sanitizeOverlaySlug,
   serializeAuthReturnOverlay,
@@ -85,6 +88,7 @@ test("card overlay returns to listing origin, not /p/slug", () => {
   assert.deepEqual(screen, {
     path: "/promty-dlya-foto-zhenshchiny?sort=new",
     overlay: { type: "card", slug: "visual-hook-neon" },
+    scrollY: 0,
   });
 });
 
@@ -99,6 +103,62 @@ test("generate-from-card keeps the prompt card open", () => {
   assert.deepEqual(screen, {
     path: "/catalog",
     overlay: { type: "card", slug: "visual-hook-neon" },
+    scrollY: 0,
+  });
+});
+
+test("open card keeps the listing Y even if the window is at 0", () => {
+  const screen = captureAuthReturnScreen({
+    currentPath: "/p/visual-hook-neon",
+    live: {
+      originPath: "/",
+      overlay: { type: "card", slug: "visual-hook-neon" },
+    },
+    savedY: 1840,
+    currentY: 0,
+  });
+  assert.deepEqual(screen, {
+    path: "/",
+    overlay: { type: "card", slug: "visual-hook-neon" },
+    scrollY: 1840,
+  });
+});
+
+test("bound overlay at Повторить wins over a snap-mutated live neighbor", () => {
+  assert.deepEqual(
+    resolveAuthReturnCaptureOverlay({
+      live: { type: "card", slug: "visual-hook-elegantnyy-siluet" },
+      bound: { type: "card", slug: "visual-hook-yarkiy-igrivyy" },
+    }),
+    { type: "card", slug: "visual-hook-yarkiy-igrivyy" }
+  );
+  const screen = captureAuthReturnScreen({
+    currentPath: "/p/visual-hook-elegantnyy-siluet",
+    live: {
+      originPath: "/",
+      overlay: { type: "card", slug: "visual-hook-elegantnyy-siluet" },
+    },
+    boundOverlay: { type: "card", slug: "visual-hook-yarkiy-igrivyy" },
+  });
+  assert.deepEqual(screen.overlay, {
+    type: "card",
+    slug: "visual-hook-yarkiy-igrivyy",
+  });
+  assert.equal(screen.path, "/");
+});
+
+test("module bind is used when capture does not pass an overlay", () => {
+  bindAuthReturnOverlay({ type: "card", slug: "visual-hook-yarkiy-igrivyy" });
+  const screen = captureAuthReturnScreen({
+    currentPath: "/p/visual-hook-elegantnyy-siluet",
+    live: {
+      originPath: "/catalog",
+      overlay: { type: "card", slug: "visual-hook-elegantnyy-siluet" },
+    },
+  });
+  assert.deepEqual(screen.overlay, {
+    type: "card",
+    slug: "visual-hook-yarkiy-igrivyy",
   });
 });
 
@@ -112,6 +172,7 @@ test("hard /p/slug without live overlay still restores the card", () => {
   assert.deepEqual(screen, {
     path: "/p/visual-hook-neon",
     overlay: { type: "card", slug: "visual-hook-neon" },
+    scrollY: 0,
   });
 });
 
@@ -124,6 +185,7 @@ test("hard /p/slug with last listing returns to listing and keeps card overlay",
   assert.deepEqual(screen, {
     path: "/promty-dlya-foto-zhenshchiny?sort=new",
     overlay: { type: "card", slug: "visual-hook-neon" },
+    scrollY: 0,
   });
 });
 
@@ -134,6 +196,22 @@ test("destination URL carries the card overlay so restorer cannot miss it", () =
       slug: "visual-hook-neon",
     }),
     "/catalog?ps_auth=1&ps_ov=card%3Avisual-hook-neon"
+  );
+  assert.equal(
+    appendAuthReturnDestination(
+      "/catalog",
+      { type: "card", slug: "visual-hook-neon" },
+      1840
+    ),
+    "/catalog?ps_auth=1&ps_ov=card%3Avisual-hook-neon&ps_sy=1840"
+  );
+  assert.equal(
+    resolveAuthReturnScrollY("/catalog?ps_auth=1&ps_sy=1840"),
+    1840
+  );
+  assert.equal(
+    hasAuthReturnRestoreSignal("/catalog?ps_sy=1840", false),
+    true
   );
   assert.equal(
     hasAuthReturnRestoreSignal("/catalog?ps_ov=card:visual-hook-neon", false),

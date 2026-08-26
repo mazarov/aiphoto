@@ -11,6 +11,11 @@ import {
 import {
   getListingScrollRoot,
   isListingScrollRestoreInProgress,
+  notifyListingScrollFillContentChanged,
+  peekListingScrollFillTargetY,
+  readListingMaxScrollY,
+  resolveListingScrollFillAction,
+  subscribeListingScrollFill,
 } from "@/lib/scroll-preservation";
 
 function readListingContentBottom(scope: ParentNode): number | null {
@@ -46,8 +51,35 @@ export function useListingSentinelLoadMore(
 
   const ensureFilled = useCallback(() => {
     if (triggeringRef.current) return;
+    if (isBusyRef.current()) return;
+
+    const fillTarget = peekListingScrollFillTargetY();
+    if (fillTarget !== null) {
+      if (!hasMoreRef.current()) {
+        notifyListingScrollFillContentChanged({ hasMore: false });
+        return;
+      }
+      const action = resolveListingScrollFillAction({
+        targetY: fillTarget,
+        maxScrollY: readListingMaxScrollY(),
+        hasMore: true,
+      });
+      if (action !== "load") {
+        notifyListingScrollFillContentChanged({ hasMore: true });
+        return;
+      }
+      triggeringRef.current = true;
+      void Promise.resolve(loadMoreRef.current()).finally(() => {
+        triggeringRef.current = false;
+        notifyListingScrollFillContentChanged({
+          hasMore: hasMoreRef.current(),
+        });
+      });
+      return;
+    }
+
     if (isListingScrollRestoreInProgress()) return;
-    if (isBusyRef.current() || !hasMoreRef.current()) return;
+    if (!hasMoreRef.current()) return;
 
     const scrollRoot = getListingScrollRoot();
     const viewport = listingScrollRootRect(scrollRoot);
@@ -112,9 +144,14 @@ export function useListingSentinelLoadMore(
     scrollTarget.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("resize", onResize);
     window.visualViewport?.addEventListener("resize", onResize);
+    const unsubscribeFill = subscribeListingScrollFill(() => {
+      pagesThisPassRef.current = 0;
+      scheduleDrain();
+    });
     scheduleDrain();
 
     return () => {
+      unsubscribeFill();
       scrollTarget.removeEventListener("scroll", onScroll);
       window.removeEventListener("resize", onResize);
       window.visualViewport?.removeEventListener("resize", onResize);

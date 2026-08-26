@@ -18,6 +18,16 @@ import {
   getLiveAuthReturnOverlay,
   setLiveAuthReturnOverlay,
 } from "@/lib/auth-return-screen";
+import {
+  canMutateAuthReturnCardSlug,
+  releaseAuthReturnCardPin,
+  resolveAuthReturnCardOpenSlug,
+} from "@/lib/auth-return-card-pin";
+import {
+  beginClientCardOverlay,
+  endClientCardOverlay,
+} from "@/lib/client-card-overlay";
+import { markPromptCardOverlayOpened } from "@/lib/prompt-card-overlay-open";
 import { lockListingScrollForModal } from "@/lib/scroll-preservation";
 import { trackPromptCardOpen, trackVirtualPageView } from "@/lib/yandex-metrika";
 
@@ -77,9 +87,12 @@ export function PromptCardModalProvider({ children }: { children: ReactNode }) {
   const prefetchWindowRef = useRef<(slug: string) => void>(() => {});
 
   const open = useCallback((slug: string, seed?: CardModalSeed) => {
+    const nextSlug = resolveAuthReturnCardOpenSlug(slug);
     closingRef.current = false;
-    prefetchWindowRef.current(slug);
+    prefetchWindowRef.current(nextSlug);
     if (typeof window !== "undefined") {
+      beginClientCardOverlay(nextSlug);
+      markPromptCardOverlayOpened();
       lockListingScrollForModal();
 
       const referer = window.location.pathname + window.location.search;
@@ -89,23 +102,25 @@ export function PromptCardModalProvider({ children }: { children: ReactNode }) {
         : referer;
       setLiveAuthReturnOverlay({
         originPath,
-        overlay: { type: "card", slug },
+        overlay: { type: "card", slug: nextSlug },
       });
       if (alreadyOpen) {
-        window.history.replaceState(null, "", `/p/${encodeURIComponent(slug)}`);
+        window.history.replaceState(null, "", `/p/${encodeURIComponent(nextSlug)}`);
       } else {
-        window.history.pushState(null, "", `/p/${encodeURIComponent(slug)}`);
+        window.history.pushState(null, "", `/p/${encodeURIComponent(nextSlug)}`);
       }
 
-      trackPromptCardOpen(slug, { entry: "modal", referer });
-      trackVirtualPageView(`/p/${encodeURIComponent(slug)}`, { referer });
+      trackPromptCardOpen(nextSlug, { entry: "modal", referer });
+      trackVirtualPageView(`/p/${encodeURIComponent(nextSlug)}`, { referer });
     }
-    setCurrentSeed(seed ?? null);
-    setCurrentSlug(slug);
+    setCurrentSeed(nextSlug === slug ? seed ?? null : null);
+    setCurrentSlug(nextSlug);
   }, []);
 
   const goToNeighbor = useCallback((slug: string) => {
     if (closingRef.current || !currentSlugRef.current) return;
+    if (!canMutateAuthReturnCardSlug(slug)) return;
+    beginClientCardOverlay(slug);
     if (typeof window !== "undefined") {
       const referer = window.location.pathname + window.location.search;
 
@@ -125,6 +140,8 @@ export function PromptCardModalProvider({ children }: { children: ReactNode }) {
 
   const close = useCallback(() => {
     closingRef.current = true;
+    releaseAuthReturnCardPin();
+    endClientCardOverlay();
     setLiveAuthReturnOverlay(null);
     if (typeof window !== "undefined") {
       // Unmount modal first so CardModal cleanup unlocks body (desktop) before history.back().
@@ -222,6 +239,8 @@ export function PromptCardModalProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     function onPopState() {
       if (!currentSlugRef.current) return;
+      releaseAuthReturnCardPin();
+      endClientCardOverlay();
       setLiveAuthReturnOverlay(null);
       setCurrentSlug(null);
     }

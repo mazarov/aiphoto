@@ -1,16 +1,24 @@
 import {
   AUTH_RETURN_TTL_SEC,
   appendAuthReturnMarker,
+  peekAuthReturnScrollY,
   persistAuthReturnPath,
+  persistAuthReturnScrollY,
   readAuthCookie,
   readAuthReturnOverlayFromHref,
+  readAuthReturnScrollFromHref,
   sanitizeAuthReturnDestination,
   writeAuthCookie,
 } from "@/lib/auth-return-path";
+
+export { peekAuthReturnScrollY };
 import {
   isListingOverlayPath,
   peekLastListingPath,
-  saveListingScroll,
+  peekSavedListingScrollY,
+  readListingScrollY,
+  resolveListingScrollYForAuthReturn,
+  writeSavedListingScrollY,
 } from "@/lib/scroll-preservation";
 
 export const AUTH_RETURN_OVERLAY_KEY = "promptshot:auth-return-overlay";
@@ -25,6 +33,7 @@ export type AuthReturnOverlay =
 export type AuthReturnScreen = {
   path: string;
   overlay: AuthReturnOverlay | null;
+  scrollY: number;
 };
 
 export type LiveAuthReturnOverlay = {
@@ -33,6 +42,8 @@ export type LiveAuthReturnOverlay = {
 };
 
 let liveOverlay: LiveAuthReturnOverlay | null = null;
+/** Frozen at «Повторить» / auth start so a snap neighbor cannot rewrite `ps_ov`. */
+let boundOverlay: AuthReturnOverlay | null = null;
 
 export function sanitizeOverlaySlug(raw: string): string | null {
   const slug = raw.trim();
@@ -105,6 +116,22 @@ export function getLiveAuthReturnOverlay(): LiveAuthReturnOverlay | null {
 
 export function resetLiveAuthReturnOverlayForTests(): void {
   liveOverlay = null;
+  boundOverlay = null;
+}
+
+export function bindAuthReturnOverlay(overlay: AuthReturnOverlay | null): void {
+  boundOverlay = overlay ? sanitizeAuthReturnOverlay(overlay) : null;
+}
+
+export function peekAuthReturnOverlayBind(): AuthReturnOverlay | null {
+  return boundOverlay;
+}
+
+export function resolveAuthReturnCaptureOverlay(input: {
+  live: AuthReturnOverlay | null;
+  bound: AuthReturnOverlay | null;
+}): AuthReturnOverlay | null {
+  return input.bound ?? input.live;
 }
 
 export function cardSlugFromPath(path: string): string | null {
@@ -116,7 +143,10 @@ export function cardSlugFromPath(path: string): string | null {
 export function captureAuthReturnScreen(input?: {
   currentPath?: string;
   live?: LiveAuthReturnOverlay | null;
+  boundOverlay?: AuthReturnOverlay | null;
   lastListingPath?: string | null;
+  savedY?: number | null;
+  currentY?: number;
 }): AuthReturnScreen {
   const currentPath = sanitizeAuthReturnDestination(
     input?.currentPath ??
@@ -125,49 +155,68 @@ export function captureAuthReturnScreen(input?: {
         : "/")
   );
   const live = input && "live" in input ? input.live ?? null : liveOverlay;
+  const bound =
+    input && "boundOverlay" in input ? input.boundOverlay ?? null : boundOverlay;
   const lastListing =
     input && "lastListingPath" in input
       ? input.lastListingPath ?? null
       : peekLastListingPath();
 
+  let path = currentPath;
+  let overlay: AuthReturnOverlay | null = null;
+
   if (live) {
-    return {
-      path: sanitizeAuthReturnDestination(live.originPath) || currentPath,
-      overlay: live.overlay,
-    };
-  }
-
-  const cardSlug = cardSlugFromPath(currentPath);
-  if (cardSlug) {
+    path = sanitizeAuthReturnDestination(live.originPath) || currentPath;
+    overlay = resolveAuthReturnCaptureOverlay({
+      live: live.overlay,
+      bound,
+    });
+  } else if (bound) {
+    overlay = bound;
     const listing = lastListing
       ? sanitizeAuthReturnDestination(lastListing)
       : null;
-    return {
-      path: listing && !isListingOverlayPath(listing) ? listing : currentPath,
-      overlay: { type: "card", slug: cardSlug },
-    };
+    path = listing && !isListingOverlayPath(listing) ? listing : currentPath;
+  } else {
+    const cardSlug = cardSlugFromPath(currentPath);
+    if (cardSlug) {
+      const listing = lastListing
+        ? sanitizeAuthReturnDestination(lastListing)
+        : null;
+      path = listing && !isListingOverlayPath(listing) ? listing : currentPath;
+      overlay = { type: "card", slug: cardSlug };
+    } else if (
+      isListingOverlayPath(currentPath) &&
+      currentPath.split("?")[0] === "/pricing"
+    ) {
+      const listing = lastListing
+        ? sanitizeAuthReturnDestination(lastListing)
+        : null;
+      path = listing && !isListingOverlayPath(listing) ? listing : currentPath;
+      overlay = { type: "pricing" };
+    }
   }
 
-  if (isListingOverlayPath(currentPath) && currentPath.split("?")[0] === "/pricing") {
-    const listing = lastListing
-      ? sanitizeAuthReturnDestination(lastListing)
-      : null;
-    return {
-      path: listing && !isListingOverlayPath(listing) ? listing : currentPath,
-      overlay: { type: "pricing" },
-    };
-  }
+  const scrollY = resolveListingScrollYForAuthReturn({
+    overlayOpen: overlay !== null,
+    savedY:
+      input && "savedY" in input ? input.savedY ?? null : peekSavedListingScrollY(),
+    currentY:
+      input && "currentY" in input ? input.currentY ?? 0 : readListingScrollY(),
+  });
 
-  return { path: currentPath, overlay: null };
+  return { path, overlay, scrollY };
 }
 
 export function appendAuthReturnDestination(
   path: string,
-  overlay: AuthReturnOverlay | null
+  overlay: AuthReturnOverlay | null,
+  scrollY?: number | null
 ): string {
   return appendAuthReturnMarker(
     path,
-    overlay ? serializeAuthReturnOverlay(overlay) : null
+    overlay ? serializeAuthReturnOverlay(overlay) : null,
+    scrollY
   );
 }
 
@@ -176,6 +225,14 @@ export function resolveAuthReturnOverlay(href?: string): AuthReturnOverlay | nul
     readAuthReturnOverlayFromHref(href ?? (typeof window !== "undefined" ? window.location.href : ""))
   );
   return fromUrl ?? peekAuthReturnOverlay();
+}
+
+export function resolveAuthReturnScrollY(href?: string): number | null {
+  const fromUrl = readAuthReturnScrollFromHref(
+    href ?? (typeof window !== "undefined" ? window.location.href : "")
+  );
+  if (fromUrl !== null) return fromUrl;
+  return peekAuthReturnScrollY() ?? peekSavedListingScrollY();
 }
 
 export function persistAuthReturnOverlay(
@@ -222,14 +279,19 @@ export function consumeAuthReturnOverlay(): AuthReturnOverlay | null {
 export function persistAuthReturnScreen(screen: AuthReturnScreen): void {
   persistAuthReturnPath(sanitizeAuthReturnDestination(screen.path));
   persistAuthReturnOverlay(screen.overlay);
+  persistAuthReturnScrollY(screen.scrollY);
+  writeSavedListingScrollY(screen.scrollY);
 }
 
-/** Persist listing (or hard page) + overlay; return the path for `?next=`. */
+/** Persist listing (or hard page) + overlay + scroll Y; return the path for `?next=`. */
 export function rememberAuthReturnScreen(path?: string): string {
   const screen = captureAuthReturnScreen();
   const safe = sanitizeAuthReturnDestination(path ?? screen.path);
-  persistAuthReturnScreen({ path: safe, overlay: screen.overlay });
-  saveListingScroll();
+  persistAuthReturnScreen({
+    path: safe,
+    overlay: screen.overlay,
+    scrollY: screen.scrollY,
+  });
   return safe;
 }
 

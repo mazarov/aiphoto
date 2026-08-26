@@ -10,6 +10,7 @@ import { bumpListingShellViewportHeight } from "@/lib/listing-shell-viewport";
 export const SCROLL_KEY = "card_modal_scroll_pos";
 export const LISTING_SCROLL_ROOT_ID = "listing-scroll-root";
 export const LAST_LISTING_PATH_KEY = "promptshot:last-listing-path";
+export const AUTH_RETURN_SCROLL_MAX = 1_000_000;
 
 /**
  * True пока идёт восстановление позиции листинга после закрытия модалки.
@@ -24,6 +25,10 @@ const pendingRestoreTimeouts = new Set<number>();
 let lastListingNavPath: string | null = null;
 /** Bumped when a new route scroll-to-top sequence starts. */
 let routeScrollTopGeneration = 0;
+/** Target Y while we grow the listing after a full reload (OAuth). Not a settle lock. */
+let fillTargetY: number | null = null;
+let fillObserver: ResizeObserver | null = null;
+const fillListeners = new Set<() => void>();
 
 export function isListingScrollRestoreInProgress(): boolean {
   return restoreInProgress;
@@ -125,19 +130,325 @@ export function writeScrollTop(root: ScrollRoot, y: number): void {
   root.scrollTop = y;
 }
 
-export function saveListingScroll(): void {
-  if (typeof window === "undefined") return;
+export function sanitizeListingScrollY(raw: unknown): number | null {
+  if (raw === null || raw === undefined || raw === "") return null;
+  const value = typeof raw === "number" ? raw : Number.parseInt(String(raw).trim(), 10);
+  if (!Number.isFinite(value) || value < 0) return null;
+  return Math.min(Math.round(value), AUTH_RETURN_SCROLL_MAX);
+}
+
+/**
+ * While a card overlay is open the window is often at 0. The listing Y is
+ * the value `lockListingScrollForModal` already wrote to `SCROLL_KEY`.
+ */
+export function resolveListingScrollYForAuthReturn(input: {
+  overlayOpen: boolean;
+  savedY: number | null;
+  currentY: number;
+}): number {
+  const current = sanitizeListingScrollY(input.currentY) ?? 0;
+  const saved = sanitizeListingScrollY(input.savedY);
+  if (input.overlayOpen && saved !== null) return saved;
+  return current;
+}
+
+export function shouldKeepSavedListingScrollOnModalLock(input: {
+  isAuthReturn: boolean;
+  fillInProgress?: boolean;
+  savedY: number | null;
+}): boolean {
+  return (
+    (input.isAuthReturn || Boolean(input.fillInProgress)) &&
+    sanitizeListingScrollY(input.savedY) !== null
+  );
+}
+
+export const LISTING_SCROLL_SETTLE_SLACK_PX = 8;
+export const LISTING_SCROLL_PIN_HOLD_MS = 2200;
+const PIN_REAPPLY_MS = [0, 50, 150, 320, 500, 800, 1200, 1600, 2200] as const;
+
+let pinY: number | null = null;
+let pinGeneration = 0;
+const pinTimeouts = new Set<number>();
+let pinUnlockInstant: (() => void) | null = null;
+let pinScrollBound = false;
+
+export function shouldApplyListingScrollY(input: {
+  targetY: number;
+  maxScrollY: number;
+  slackPx?: number;
+}): boolean {
+  const target = sanitizeListingScrollY(input.targetY) ?? 0;
+  if (target <= 0) return true;
+  const slack = input.slackPx ?? LISTING_SCROLL_SETTLE_SLACK_PX;
+  return input.maxScrollY + slack >= target;
+}
+
+export function resolveListingScrollFillAction(input: {
+  targetY: number;
+  maxScrollY: number;
+  hasMore: boolean;
+}): "load" | "apply" | "apply-max" {
+  if (
+    shouldApplyListingScrollY({
+      targetY: input.targetY,
+      maxScrollY: input.maxScrollY,
+    })
+  ) {
+    return "apply";
+  }
+  if (!input.hasMore) return "apply-max";
+  return "load";
+}
+
+export function resolveListingScrollRestoreOnClose(input: {
+  fillInProgress: boolean;
+  savedY: number | null;
+  currentY: number;
+  maxScrollY: number;
+}): "unlock" | "fill" | "settle" {
+  if (input.fillInProgress) return "unlock";
+  const saved = sanitizeListingScrollY(input.savedY);
+  if (saved === null || saved <= 0) return "unlock";
+  if (
+    shouldApplyListingScrollY({
+      targetY: saved,
+      maxScrollY: input.maxScrollY,
+    })
+  ) {
+    if (Math.abs(input.currentY - saved) <= LISTING_SCROLL_SETTLE_SLACK_PX) {
+      return "unlock";
+    }
+    return "settle";
+  }
+  return "fill";
+}
+
+export function peekListingScrollFillTargetY(): number | null {
+  return fillTargetY;
+}
+
+export function isListingScrollFillInProgress(): boolean {
+  return fillTargetY !== null;
+}
+
+export function subscribeListingScrollFill(listener: () => void): () => void {
+  fillListeners.add(listener);
+  return () => {
+    fillListeners.delete(listener);
+  };
+}
+
+function notifyListingScrollFillListeners(): void {
+  for (const listener of fillListeners) listener();
+}
+
+function detachListingScrollFillWatch(): void {
+  fillObserver?.disconnect();
+  fillObserver = null;
+}
+
+export function cancelListingScrollFill(): void {
+  fillTargetY = null;
+  detachListingScrollFillWatch();
+}
+
+function listingMaxScrollY(root: ScrollRoot): number {
+  if (isInnerListingScrollRoot(root)) {
+    return Math.max(0, root.scrollHeight - root.clientHeight);
+  }
+  if (typeof document === "undefined") return 0;
+  return Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+}
+
+export function readListingMaxScrollY(): number {
+  if (typeof window === "undefined") return 0;
+  return listingMaxScrollY(getListingScrollRoot());
+}
+
+export function notifyListingScrollFillContentChanged(options?: {
+  hasMore?: boolean;
+}): void {
+  if (fillTargetY === null || typeof window === "undefined") return;
+  const hasMore = options?.hasMore !== false;
+  const maxScrollY = listingMaxScrollY(getListingScrollRoot());
+  const action = resolveListingScrollFillAction({
+    targetY: fillTargetY,
+    maxScrollY,
+    hasMore,
+  });
+  if (action === "load") return;
+  const appliedY = action === "apply" ? fillTargetY : maxScrollY;
+  writeAllListingScrollTops(appliedY);
+  writeSavedListingScrollY(appliedY);
+  fillTargetY = null;
+  detachListingScrollFillWatch();
+  pinListingScrollAgainstTop(appliedY);
+}
+
+/** Grow the listing until it can hold Y, then apply once. Do not clamp to the footer. */
+export function startListingScrollFill(y: number): void {
+  const target = sanitizeListingScrollY(y);
+  if (target === null || target <= 0 || typeof window === "undefined") return;
+  cancelListingScrollRestore();
+  fillTargetY = target;
+  writeSavedListingScrollY(target);
+  detachListingScrollFillWatch();
+  if (typeof ResizeObserver !== "undefined") {
+    const root = getListingScrollRoot();
+    const el = isInnerListingScrollRoot(root) ? root : document.documentElement;
+    fillObserver = new ResizeObserver(() => {
+      notifyListingScrollFillContentChanged({ hasMore: true });
+    });
+    fillObserver.observe(el);
+  }
+  notifyListingScrollFillListeners();
+  notifyListingScrollFillContentChanged({ hasMore: true });
+}
+
+export function shouldReapplyPinnedListingScroll(input: {
+  pinnedY: number;
+  currentY: number;
+}): boolean {
+  const pinned = sanitizeListingScrollY(input.pinnedY) ?? 0;
+  const current = sanitizeListingScrollY(input.currentY) ?? 0;
+  if (pinned <= LISTING_SCROLL_SETTLE_SLACK_PX) return false;
+  return current <= LISTING_SCROLL_SETTLE_SLACK_PX;
+}
+
+function onPinnedListingScroll(): void {
+  if (pinY === null) return;
+  if (
+    shouldReapplyPinnedListingScroll({
+      pinnedY: pinY,
+      currentY: readListingScrollY(),
+    })
+  ) {
+    writeAllListingScrollTops(pinY);
+  }
+}
+
+function bindPinScrollListener(): void {
+  if (pinScrollBound || typeof window === "undefined") return;
+  pinScrollBound = true;
+  window.addEventListener("scroll", onPinnedListingScroll, { passive: true });
+  document
+    .getElementById(LISTING_SCROLL_ROOT_ID)
+    ?.addEventListener("scroll", onPinnedListingScroll, { passive: true });
+}
+
+function unbindPinScrollListener(): void {
+  if (!pinScrollBound || typeof window === "undefined") return;
+  pinScrollBound = false;
+  window.removeEventListener("scroll", onPinnedListingScroll);
+  document
+    .getElementById(LISTING_SCROLL_ROOT_ID)
+    ?.removeEventListener("scroll", onPinnedListingScroll);
+}
+
+export function cancelListingScrollPin(): void {
+  pinGeneration += 1;
+  pinY = null;
+  if (typeof window !== "undefined") {
+    for (const id of pinTimeouts) window.clearTimeout(id);
+  }
+  pinTimeouts.clear();
+  unbindPinScrollListener();
+  pinUnlockInstant?.();
+  pinUnlockInstant = null;
+}
+
+/**
+ * After overlay close, Next popstate / `html { scroll-behavior: smooth }` can
+ * animate the listing to 0 over 1–2s. Keep restoration manual, pin instant
+ * scroll, and only fight a snap back to the top.
+ */
+export function pinListingScrollAgainstTop(
+  y: number,
+  holdMs = LISTING_SCROLL_PIN_HOLD_MS
+): void {
+  const target = sanitizeListingScrollY(y);
+  if (target === null || target <= 0 || typeof window === "undefined") return;
+  cancelListingScrollPin();
+  pinY = target;
+  writeSavedListingScrollY(target);
+  window.history.scrollRestoration = "manual";
+  pinUnlockInstant = pinInstantDocumentScroll(document.documentElement.style);
+  writeAllListingScrollTops(target);
+  bindPinScrollListener();
+  const generation = pinGeneration;
+  const reapply = () => {
+    if (generation !== pinGeneration || pinY === null) return;
+    if (
+      shouldReapplyPinnedListingScroll({
+        pinnedY: pinY,
+        currentY: readListingScrollY(),
+      })
+    ) {
+      writeAllListingScrollTops(pinY);
+    }
+  };
+  for (const ms of PIN_REAPPLY_MS) {
+    if (ms > holdMs) continue;
+    const id = window.setTimeout(() => {
+      pinTimeouts.delete(id);
+      reapply();
+    }, ms);
+    pinTimeouts.add(id);
+  }
+  const endId = window.setTimeout(() => {
+    pinTimeouts.delete(endId);
+    if (generation !== pinGeneration) return;
+    cancelListingScrollPin();
+  }, holdMs);
+  pinTimeouts.add(endId);
+}
+
+export function peekSavedListingScrollY(): number | null {
+  if (typeof window === "undefined") return null;
   try {
-    sessionStorage.setItem(SCROLL_KEY, String(readScrollTop(getListingScrollRoot())));
+    return sanitizeListingScrollY(sessionStorage.getItem(SCROLL_KEY));
+  } catch {
+    return null;
+  }
+}
+
+export function writeSavedListingScrollY(y: number): void {
+  const safe = sanitizeListingScrollY(y);
+  if (safe === null || typeof window === "undefined") return;
+  try {
+    sessionStorage.setItem(SCROLL_KEY, String(safe));
   } catch {
     // квота / приватный режим / SSR
   }
 }
 
-/** Mobile catalog shell: freeze inner scroll root while modal is open. */
-export function lockListingScrollForModal(): void {
-  saveListingScroll();
+export function readListingScrollY(): number {
+  if (typeof window === "undefined") return 0;
+  return readScrollTop(getListingScrollRoot());
+}
+
+export function applyListingScrollY(y: number): void {
+  const safe = sanitizeListingScrollY(y);
+  if (safe === null || typeof window === "undefined") return;
+  writeSavedListingScrollY(safe);
+  writeAllListingScrollTops(safe);
+}
+
+export function saveListingScroll(): void {
   if (typeof window === "undefined") return;
+  writeSavedListingScrollY(readListingScrollY());
+}
+
+let listingScrollRootHydrated = false;
+let pendingListingScrollLock = false;
+
+/** Inline lock styles on `#listing-scroll-root` before PageLayout hydrates → mismatch. */
+export function shouldDeferListingScrollLockStyles(hydrated: boolean): boolean {
+  return !hydrated;
+}
+
+function applyListingScrollLockStyles(): void {
   const root = getListingScrollRoot();
   if (isInnerListingScrollRoot(root)) {
     root.style.overflow = "hidden";
@@ -145,8 +456,40 @@ export function lockListingScrollForModal(): void {
   }
 }
 
+export function markListingScrollRootHydrated(): void {
+  listingScrollRootHydrated = true;
+  if (pendingListingScrollLock) {
+    pendingListingScrollLock = false;
+    applyListingScrollLockStyles();
+  }
+}
+
+export function markListingScrollRootUnhydrated(): void {
+  listingScrollRootHydrated = false;
+}
+
+/** Mobile catalog shell: freeze inner scroll root while modal is open. */
+export function lockListingScrollForModal(): void {
+  if (typeof window === "undefined") return;
+  if (
+    !shouldKeepSavedListingScrollOnModalLock({
+      isAuthReturn: isAuthReturnRestorePending(),
+      fillInProgress: isListingScrollFillInProgress(),
+      savedY: peekSavedListingScrollY(),
+    })
+  ) {
+    saveListingScroll();
+  }
+  if (shouldDeferListingScrollLockStyles(listingScrollRootHydrated)) {
+    pendingListingScrollLock = true;
+    return;
+  }
+  applyListingScrollLockStyles();
+}
+
 export function unlockListingScrollStyles(): void {
   if (typeof window === "undefined") return;
+  pendingListingScrollLock = false;
   const root = getListingScrollRoot();
   if (isInnerListingScrollRoot(root)) {
     root.style.removeProperty("overflow");
@@ -158,6 +501,8 @@ export function unlockListingScrollStyles(): void {
 export function resetListingScroll(): void {
   if (typeof window === "undefined") return;
   cancelListingScrollRestore();
+  cancelListingScrollFill();
+  cancelListingScrollPin();
   try {
     sessionStorage.removeItem(SCROLL_KEY);
   } catch {
@@ -244,29 +589,47 @@ export function restoreListingScroll(opts: RestoreOptions = {}): void {
  * After modal close via history.back(), Next.js popstate and layout settle asynchronously.
  * Retry restore so #listing-scroll-root regains touch scroll on mobile.
  *
- * Also sets restoreInProgress=true for the duration so IntersectionObserver-based
- * auto-loadMore is blocked: fetching new cards during restore causes a reflow that
- * shifts the viewport after the 320ms window expires (the main source of "subscroll").
+ * Settle (already-tall listing) blocks auto-loadMore for ~500ms so a reflow
+ * does not subscroll. Fill (OAuth / short listing) must not go through this
+ * path: writing Y before maxScroll >= Y clamps to the footer.
  */
-export function scheduleListingScrollRestore(): void {
+export function scheduleListingScrollRestore(opts?: { clear?: boolean }): void {
   if (typeof window === "undefined") return;
+  const clear = opts?.clear !== false;
+  const saved = peekSavedListingScrollY();
+  const decision = resolveListingScrollRestoreOnClose({
+    fillInProgress: fillTargetY !== null,
+    savedY: saved,
+    currentY: readListingScrollY(),
+    maxScrollY: listingMaxScrollY(getListingScrollRoot()),
+  });
+
+  if (decision === "unlock") {
+    unlockListingScrollStyles();
+    if (fillTargetY !== null) return;
+    if (saved !== null && saved > 0) {
+      pinListingScrollAgainstTop(saved);
+    }
+    bumpListingShellViewportHeight();
+    return;
+  }
+
+  if (decision === "fill") {
+    if (saved !== null) startListingScrollFill(saved);
+    unlockListingScrollStyles();
+    return;
+  }
 
   cancelListingScrollRestore();
   unlockListingScrollStyles();
   window.history.scrollRestoration = "manual";
 
-  const saved = sessionStorage.getItem(SCROLL_KEY);
-  if (!saved) {
+  if (saved === null) {
     bumpListingShellViewportHeight();
     return;
   }
 
-  const y = parseInt(saved, 10);
-  if (Number.isNaN(y)) {
-    try { sessionStorage.removeItem(SCROLL_KEY); } catch {}
-    bumpListingShellViewportHeight();
-    return;
-  }
+  const y = saved;
 
   const generation = restoreGeneration;
 
@@ -283,9 +646,8 @@ export function scheduleListingScrollRestore(): void {
     if (generation !== restoreGeneration) return;
     apply();
     restoreInProgress = false;
-    try { sessionStorage.removeItem(SCROLL_KEY); } catch {}
+    pinListingScrollAgainstTop(y);
     bumpListingShellViewportHeight();
-    window.history.scrollRestoration = "auto";
   };
 
   // Discrete reapply (NOT a continuous rAF loop — user must be able to scroll
@@ -378,6 +740,8 @@ export function peekLastListingPath(): string | null {
 export function scrollCatalogToTop(): void {
   if (typeof window === "undefined") return;
   cancelListingScrollRestore();
+  cancelListingScrollFill();
+  cancelListingScrollPin();
   try {
     sessionStorage.removeItem(SCROLL_KEY);
   } catch {
@@ -444,6 +808,9 @@ export function shouldResetListingScrollOnRouteEnter(input: {
 }): boolean {
   if (input.isAuthReturn) return false;
   if (isListingOverlayPath(input.normalizedPath)) return false;
+  if (input.previousPath && isListingOverlayPath(input.previousPath)) {
+    return false;
+  }
   const pathChanged =
     input.previousPath !== null && input.previousPath !== input.normalizedPath;
   return (

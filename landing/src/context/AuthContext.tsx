@@ -19,6 +19,7 @@ import {
 import {
   appendAuthReturnDestination,
   peekAuthReturnOverlay,
+  peekAuthReturnScrollY,
 } from "@/lib/auth-return-screen";
 import {
   resolveHydratedAuthUser,
@@ -167,6 +168,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
         const returnPath = consumeAuthReturnPath();
         const overlay = peekAuthReturnOverlay();
+        const scrollY = peekAuthReturnScrollY();
         const cleanUrl = new URL(window.location.href);
         cleanUrl.searchParams.delete("code");
         cleanUrl.searchParams.delete("state");
@@ -176,7 +178,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const cleaned =
           `${cleanUrl.pathname}${cleanUrl.search}${cleanUrl.hash}` || "/";
         window.location.replace(
-          appendAuthReturnDestination(returnPath ?? cleaned, overlay)
+          appendAuthReturnDestination(returnPath ?? cleaned, overlay, scrollY)
         );
         return;
       }
