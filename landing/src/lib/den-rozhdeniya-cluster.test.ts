@@ -208,6 +208,18 @@ test("featured nav starts with Все back to the hub", () => {
     false,
   );
   assert.ok(hubItems.some((item) => item.href === "/sobytiya/den-rozhdeniya/devushki"));
+  assert.equal(
+    hubItems.find((item) => item.href === "/sobytiya/den-rozhdeniya/devushki")?.label,
+    "Девушки",
+  );
+  assert.equal(
+    hubItems.find((item) => item.href === "/sobytiya/den-rozhdeniya/deti")?.label,
+    "Дети",
+  );
+  assert.equal(
+    hubItems.find((item) => item.href === "/sobytiya/den-rozhdeniya/muzhchiny")?.label,
+    "Мужчина",
+  );
 
   const childItems = getFeaturedBirthdayNavItems("devushki");
   assert.equal(childItems[0].href, DEN_ROZHDENIYA_HUB_PATH);
@@ -226,7 +238,7 @@ test("seo combo key follows dimension priority", () => {
   assert.equal(seoComboKey([occasion, girl]), "devushka+den_rozhdeniya");
 });
 
-test("hub and girl/kids/cake stay on tags; weak L2 stay on search", () => {
+test("hub, girl and cake stay on tags; kids and weak L2 stay on search", () => {
   const occasion = findTagBySlug("occasion_tag", "den_rozhdeniya");
   const girl = findTagBySlug("audience_tag", "devushka");
   const boy = findTagBySlug("audience_tag", "malchik");
@@ -238,8 +250,15 @@ test("hub and girl/kids/cake stay on tags; weak L2 stay on search", () => {
   assert.ok(occasion && girl && boy && cake && man && thenNow && champagne && lion);
   assert.equal(birthdayListingSearchQuery([occasion]), null);
   assert.equal(birthdayListingSearchQuery([occasion, girl]), null);
-  assert.equal(birthdayListingSearchQuery([occasion, boy]), null);
+  assert.equal(
+    birthdayListingSearchQuery([occasion, boy]),
+    "дети день рождения",
+  );
   assert.equal(birthdayListingSearchQuery([occasion, cake]), null);
+  assert.equal(
+    birthdayListingSearchQuery([occasion, findTagBySlug("audience_tag", "detskie")!]),
+    "дети день рождения",
+  );
   assert.equal(
     birthdayListingSearchQuery([occasion, man]),
     "мужской день рождения",
@@ -261,12 +280,15 @@ test("hub and girl/kids/cake stay on tags; weak L2 stay on search", () => {
 test("hybrid listing allowlist is only search-backed L2", () => {
   const queries = birthdayListingSearchQueries();
   assert.deepEqual(queries, [
+    "дети день рождения",
     "мужской день рождения",
     "день рождения с детским фото",
     "с шампанским",
     "со львом",
   ]);
   assert.equal(isBirthdayListingSearchQuery("день рождения"), false);
+  assert.equal(isBirthdayListingSearchQuery("детский день рождения"), false);
+  assert.equal(isBirthdayListingSearchQuery("дети день рождения"), true);
   assert.equal(isBirthdayListingSearchQuery("мужской день рождения"), true);
   assert.equal(isBirthdayListingSearchQuery("с шампанским"), true);
   assert.equal(isBirthdayListingSearchQuery("день рождения девушке"), false);
@@ -284,9 +306,15 @@ test("search-backed sitemap is weak L2 only", () => {
     filters: {},
     level: 2,
   });
+  assert.deepEqual(byPath.get("/sobytiya/den-rozhdeniya/deti"), {
+    path: "/sobytiya/den-rozhdeniya/deti",
+    query: "дети день рождения",
+    filters: {},
+    level: 2,
+  });
   assert.equal(byPath.has("/sobytiya/den-rozhdeniya/devushki"), false);
   assert.equal(byPath.has("/sobytiya/den-rozhdeniya/s-tortom"), false);
   assert.equal(byPath.has("/sobytiya/den-rozhdeniya/devushki/s-tortom"), false);
-  assert.equal(pages.filter((page) => page.level === 2).length, 4);
+  assert.equal(pages.filter((page) => page.level === 2).length, 5);
   assert.equal(pages.some((page) => page.level === 1), false);
 });

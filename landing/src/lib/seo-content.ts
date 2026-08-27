@@ -949,9 +949,9 @@ const SEO: Record<string, SeoContent> = {
     intro:
       "Промты на день рождения и на др. Скопируй промт или загрузи своё фото и повтори кадр в 1 клик.",
     popularLinks: [
-      { label: "Девушке", href: "/sobytiya/den-rozhdeniya/devushki" },
-      { label: "Детям", href: "/sobytiya/den-rozhdeniya/deti" },
-      { label: "Мужчине", href: "/sobytiya/den-rozhdeniya/muzhchiny" },
+      { label: "Девушки", href: "/sobytiya/den-rozhdeniya/devushki" },
+      { label: "Дети", href: "/sobytiya/den-rozhdeniya/deti" },
+      { label: "Мужчина", href: "/sobytiya/den-rozhdeniya/muzhchiny" },
       { label: "С тортом", href: "/sobytiya/den-rozhdeniya/s-tortom" },
       { label: "С детским фото", href: "/sobytiya/den-rozhdeniya/s-detskim-foto" },
       { label: "С шампанским", href: "/sobytiya/den-rozhdeniya/s-shampanskim" },
@@ -997,7 +997,7 @@ const SEO: Record<string, SeoContent> = {
       "Промты на день рождения девушке. Подойдут и женщине. Скопируй промт или загрузи своё фото и повтори кадр в 1 клик.",
     popularLinks: [
       { label: "Все на день рождения", href: "/sobytiya/den-rozhdeniya" },
-      { label: "Девушке", href: "/sobytiya/den-rozhdeniya/devushki" },
+      { label: "Девушки", href: "/sobytiya/den-rozhdeniya/devushki" },
       { label: "С шампанским", href: "/sobytiya/den-rozhdeniya/s-shampanskim" },
     ],
     faqItems: [
@@ -1065,8 +1065,8 @@ const SEO: Record<string, SeoContent> = {
       "Промты на день рождения с тортом. Торт в кадре. Скопируй промт или загрузи своё фото и повтори кадр в 1 клик.",
     popularLinks: [
       { label: "Все на день рождения", href: "/sobytiya/den-rozhdeniya" },
-      { label: "Девушке", href: "/sobytiya/den-rozhdeniya/devushki" },
-      { label: "Детям", href: "/sobytiya/den-rozhdeniya/deti" },
+      { label: "Девушки", href: "/sobytiya/den-rozhdeniya/devushki" },
+      { label: "Дети", href: "/sobytiya/den-rozhdeniya/deti" },
     ],
     faqItems: [
       { q: "Торт будет на фото?", a: "Да. В этих промтах торт — часть кадра." },
@@ -1110,7 +1110,7 @@ const SEO: Record<string, SeoContent> = {
       "Промты на день рождения с шампанским. Бокал в кадре. Скопируй промт или загрузи своё фото и повтори кадр в 1 клик.",
     popularLinks: [
       { label: "Все на день рождения", href: "/sobytiya/den-rozhdeniya" },
-      { label: "Девушке", href: "/sobytiya/den-rozhdeniya/devushki" },
+      { label: "Девушки", href: "/sobytiya/den-rozhdeniya/devushki" },
     ],
     faqItems: [
       { q: "Бокал будет на фото?", a: "Да. В этих промтах шампанское — часть кадра." },
@@ -1132,7 +1132,7 @@ const SEO: Record<string, SeoContent> = {
       "Промты на день рождения со львом. Скопируй промт или загрузи своё фото и повтори кадр в 1 клик.",
     popularLinks: [
       { label: "Все на день рождения", href: "/sobytiya/den-rozhdeniya" },
-      { label: "Детям", href: "/sobytiya/den-rozhdeniya/deti" },
+      { label: "Дети", href: "/sobytiya/den-rozhdeniya/deti" },
     ],
     faqItems: [
       { q: "Лев будет на фото рядом со мной?", a: "Да. В этих промтах лев — часть кадра." },
@@ -1153,7 +1153,7 @@ const SEO: Record<string, SeoContent> = {
     intro:
       "Женский портрет, торт обязателен. Скопируй промт или загрузи своё фото и повтори кадр в 1 клик.",
     popularLinks: [
-      { label: "Девушке", href: "/sobytiya/den-rozhdeniya/devushki" },
+      { label: "Девушки", href: "/sobytiya/den-rozhdeniya/devushki" },
       { label: "С тортом", href: "/sobytiya/den-rozhdeniya/s-tortom" },
     ],
     faqItems: [

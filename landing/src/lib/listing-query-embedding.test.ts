@@ -213,9 +213,9 @@ test("ensureBirthdayListingQueryEmbeddings embeds only missing SSOT rows", async
         return storedVector;
       },
     });
-    assert.deepEqual(stats, { present: 1, embedded: 3, failed: 0 });
-    assert.equal(embeds, 3);
-    assert.equal(upserts, 3);
+    assert.deepEqual(stats, { present: 1, embedded: 4, failed: 0 });
+    assert.equal(embeds, 4);
+    assert.equal(upserts, 4);
   } finally {
     process.env.SEARCH_VISUAL_ENABLED = previous;
     process.env.GEMINI_API_KEY = previousKey;

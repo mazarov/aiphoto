@@ -36,21 +36,22 @@ export const DEN_ROZHDENIYA_CHILDREN: BirthdayClusterChild[] = [
     alias: "devushki",
     dimension: "audience_tag",
     tagSlug: "devushka",
-    label: "Девушке",
+    label: "Девушки",
     featured: true,
   },
   {
     alias: "deti",
     dimension: "audience_tag",
     tagSlug: "detskie",
-    label: "Детям",
+    label: "Дети",
     featured: true,
+    listingQuery: "дети день рождения",
   },
   {
     alias: "muzhchiny",
     dimension: "audience_tag",
     tagSlug: "muzhchina",
-    label: "Мужчине",
+    label: "Мужчина",
     featured: true,
     listingQuery: "мужской день рождения",
   },
@@ -467,8 +468,8 @@ export function isBirthdayListingSearchQuery(query: string): boolean {
 }
 
 /**
- * Hub and girl/kids/cake L2 use category tags.
- * Weak L2 (man / then-now / champagne / lion) stay search-backed.
+ * Hub, girl and cake L2 use category tags.
+ * Weak L2 (kids / man / then-now / champagne / lion) stay search-backed.
  */
 export function birthdayListingSearchQuery(tags: TagEntry[]): string | null {
   return birthdayChildForListingTags(tags)?.listingQuery ?? null;
