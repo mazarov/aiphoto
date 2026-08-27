@@ -7,6 +7,10 @@ export const DEFAULT_VIDEO_PROMPT = "Оживи изображение";
 export const GROK_IMAGINE_VIDEO_MODEL = "grok-imagine-video-1.5";
 export const GEMINI_OMNI_VIDEO_MODEL = "gemini-omni-flash-preview";
 export const VEO_LITE_VIDEO_MODEL = "veo-3.1-lite-generate-preview";
+export const SEEDANCE_25_VIDEO_MODEL = "seedance-2.5";
+export const SEEDANCE_25_OPENROUTER_MODEL = "bytedance/seedance-2.5";
+/** PromptShot credits per second for Seedance 2.5. 4s=96, 5s=120, 10s=240. */
+export const SEEDANCE_25_CREDIT_COST_PER_SECOND = 24;
 /** Default «Оживить» model. Code SSOT; DB `default_video_model` should match. */
 export const DEFAULT_VIDEO_MODEL = VEO_LITE_VIDEO_MODEL;
 
@@ -85,6 +89,10 @@ export function isGeminiImageModel(model: unknown): boolean {
 
 export function isVeoLiteVideoModel(model: unknown): boolean {
   return typeof model === "string" && model.startsWith("veo-3.1-lite");
+}
+
+export function isSeedanceVideoModel(model: unknown): boolean {
+  return typeof model === "string" && model.startsWith("seedance-");
 }
 
 export const DEFAULT_VIDEO_ASPECT_RATIO = "9:16";

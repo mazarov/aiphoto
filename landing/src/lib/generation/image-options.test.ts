@@ -3,6 +3,9 @@ import test from "node:test";
 import {
   FLUX_2_FLEX_CREDIT_COST,
   FLUX_2_FLEX_OPENROUTER_MODEL,
+  SEEDANCE_25_CREDIT_COST_PER_SECOND,
+  SEEDANCE_25_OPENROUTER_MODEL,
+  SEEDANCE_25_VIDEO_MODEL,
   SEEDREAM_50_PRO_CREDIT_COST,
   SEEDREAM_50_PRO_OPENROUTER_MODEL,
   clampImageSizeForModel,
@@ -10,6 +13,7 @@ import {
   imageSizeOptionsForModel,
   isFluxImageModel,
   isOpenRouterImageModel,
+  isSeedanceVideoModel,
   isSeedreamImageModel,
   mapOpenRouterImageSize,
   openRouterSendsResolution,
@@ -50,4 +54,12 @@ test("Seedream 5.0 Pro and Flux 2 Flex hide 4K and clamp to 2K", () => {
   assert.equal(openRouterSendsResolution("seedream-5.0-pro"), true);
   assert.equal(forcedImageCreditCost("seedream-5.0-pro"), SEEDREAM_50_PRO_CREDIT_COST);
   assert.equal(forcedImageCreditCost("flux-2-flex"), FLUX_2_FLEX_CREDIT_COST);
+});
+
+test("Seedance 2.5 is a video id, not an OpenRouter image model", () => {
+  assert.equal(SEEDANCE_25_CREDIT_COST_PER_SECOND, 24);
+  assert.equal(SEEDANCE_25_OPENROUTER_MODEL, "bytedance/seedance-2.5");
+  assert.equal(isSeedanceVideoModel(SEEDANCE_25_VIDEO_MODEL), true);
+  assert.equal(isSeedanceVideoModel("seedream-5.0-pro"), false);
+  assert.equal(isOpenRouterImageModel("seedance-2.5"), false);
 });

@@ -2,6 +2,7 @@ import {
   isFluxImageModel,
   isGrokImageModel,
   isGrokVideoModel,
+  isSeedanceVideoModel,
   isSeedreamImageModel,
 } from "@/lib/generation/image-options";
 
@@ -70,7 +71,7 @@ export function GenerationModelIcon({
   if (isFluxImageModel(modelId)) {
     return <FluxGenerationModelIcon className={className} />;
   }
-  if (isSeedreamImageModel(modelId)) {
+  if (isSeedreamImageModel(modelId) || isSeedanceVideoModel(modelId)) {
     return <SeedreamGenerationModelIcon className={className} />;
   }
   return <GoogleGenerationModelIcon className={className} />;

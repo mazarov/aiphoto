@@ -74,6 +74,10 @@ export const GENERATION_MODEL_DISPLAY: Record<string, GenerationModelDisplay> = 
     label: "Veo 3.1 Lite",
     description: "Озвученное видео из фото",
   },
+  "seedance-2.5": {
+    label: "Seedance 2.5",
+    description: "Озвученное видео из фото",
+  },
 };
 
 export const FALLBACK_VIDEO_GENERATION_MODELS: GenerationModelOption[] = [

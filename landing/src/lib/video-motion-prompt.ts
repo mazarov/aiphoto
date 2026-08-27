@@ -52,3 +52,8 @@ export function assembleGrokVideoMotionPrompt(rawPrompt: string): string {
 export function assembleVeoVideoMotionPrompt(rawPrompt: string): string {
   return assemblePlainMotionPrompt(rawPrompt);
 }
+
+/** Seedance 2.5 image-to-video prompt. Same identity lock, no Gemini source tags. */
+export function assembleSeedanceVideoMotionPrompt(rawPrompt: string): string {
+  return assemblePlainMotionPrompt(rawPrompt);
+}

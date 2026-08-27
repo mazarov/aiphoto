@@ -1,11 +1,13 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   assembleGrokVideoMotionPrompt,
+  assembleSeedanceVideoMotionPrompt,
   assembleVeoVideoMotionPrompt,
   assembleVideoMotionPrompt,
 } from "../../landing/src/lib/video-motion-prompt";
 import { parseLibrarySourceGenerationId } from "../../landing/src/lib/user-generation-photo-paths";
 import { config } from "./config";
+import { seedanceVideoCircuit } from "./grok-image-circuit";
 import { log } from "./lib/logger";
 import {
   buildXaiVideoSubmitBody,
@@ -36,6 +38,27 @@ import {
   veoPollUrl,
   veoSubmitUrl,
 } from "./veo-video";
+import {
+  SEEDANCE_DOWNLOAD_MAX_BYTES,
+  SEEDANCE_DOWNLOAD_TIMEOUT_MS,
+  SEEDANCE_POLL_TIMEOUT_MS,
+  SEEDANCE_SUBMIT_TIMEOUT_MS,
+  buildSeedanceVideoSubmitBody,
+  extractSeedanceJobId,
+  isSeedanceDone,
+  isSeedanceExpired,
+  isSeedanceFailed,
+  isSeedanceSafetyBlock,
+  isSeedanceVideoModel,
+  openrouterProxyHost,
+  openrouterVideoContentUrl,
+  openrouterVideoHeaders,
+  openrouterVideoPollUrl,
+  openrouterVideoSubmitUrl,
+  seedanceErrorMessage,
+  seedanceFailureFromHttp,
+  seedanceStatus,
+} from "./openrouter-seedance";
 import {
   ProcessingError,
   assertVideoInputSource,
@@ -669,6 +692,202 @@ async function processGrokVideoGeneration(
   return { resultPath, rawPrompt, mimeType: VIDEO_MIME };
 }
 
+function seedanceFailureFromPayload(payload: Record<string, unknown>, status: number): ProcessingError {
+  const mapped = seedanceFailureFromHttp(payload, status);
+  return new ProcessingError(mapped.errorType, mapped.message, mapped.retryable);
+}
+
+function shouldRecordSeedanceCircuitFailure(error: unknown): boolean {
+  if (!(error instanceof ProcessingError)) return true;
+  if (error.errorType === "shutdown") return false;
+  if (error.errorType === "provider_error" && /circuit is open/i.test(error.message)) return false;
+  return ![
+    "input_missing",
+    "input_invalid",
+    "result_upload_error",
+    "provider_operation_persist_failed",
+    "storage_signed_url_error",
+  ].includes(error.errorType);
+}
+
+async function downloadSeedanceVideo(
+  jobId: string,
+  signal: AbortSignal,
+): Promise<Buffer> {
+  const url = openrouterVideoContentUrl(config.openrouterBaseUrl, jobId);
+  const response = await fetch(url, {
+    headers: openrouterVideoHeaders(config.openrouterApiKey),
+    signal: AbortSignal.any([signal, AbortSignal.timeout(SEEDANCE_DOWNLOAD_TIMEOUT_MS)]),
+  });
+  if (!response.ok) {
+    throw seedanceFailureFromPayload({}, response.status);
+  }
+  const announced = Number(response.headers.get("content-length") || 0);
+  if (announced > SEEDANCE_DOWNLOAD_MAX_BYTES) {
+    throw new ProcessingError("provider_error", "Seedance output exceeds 80 MB", false);
+  }
+  const buffer = Buffer.from(await response.arrayBuffer());
+  if (!buffer.length) throw new ProcessingError("provider_error", "Downloaded video is empty", false);
+  if (buffer.length > SEEDANCE_DOWNLOAD_MAX_BYTES) {
+    throw new ProcessingError("provider_error", "Seedance output exceeds 80 MB", false);
+  }
+  return buffer;
+}
+
+async function processSeedanceVideoGeneration(
+  supabase: SupabaseClient,
+  job: GenerationJob,
+  source: GenerationInputSource,
+  sourceFields: Record<string, unknown>,
+  context: Record<string, unknown>,
+  signal: AbortSignal,
+  ensureLease: () => Promise<void>,
+): Promise<{ resultPath: string; rawPrompt: string; mimeType: string }> {
+  if (!config.openrouterApiKey) {
+    throw new ProcessingError("config_error", "OPENROUTER_API_KEY is not configured", false);
+  }
+  if (!config.openrouterBaseUrl) {
+    throw new ProcessingError("config_error", "OPENROUTER_BASE_URL is not configured", false);
+  }
+  if (!config.openrouterBaseUrl.includes("/u/")) {
+    throw new ProcessingError("config_error", "OPENROUTER_BASE_URL must use /u/ proxy", false);
+  }
+  const rawPrompt = String(job.prompt_text || "").trim();
+  if (!rawPrompt) throw new ProcessingError("input_missing", "Prompt text is empty", false);
+  const motionPrompt = assembleSeedanceVideoMotionPrompt(rawPrompt);
+  const providerContext = {
+    ...context,
+    ...sourceFields,
+    provider: "openrouter",
+    proxyHost: openrouterProxyHost(config.openrouterBaseUrl),
+    model: job.model,
+    durationSeconds: job.duration_seconds ?? null,
+  };
+  let operationId = String(job.provider_operation_id || "").trim();
+  let payload: Record<string, unknown> | null = null;
+
+  if (!operationId && seedanceVideoCircuit.isOpen()) {
+    log("warn", "seedance_circuit_open", providerContext);
+    throw new ProcessingError("provider_error", "Seedance circuit is open", true);
+  }
+
+  try {
+    if (!operationId) {
+      const { imageUrl, crop } = await prepareSignedVideoFrameUrl(
+        supabase,
+        job,
+        source,
+        job.aspect_ratio || "9:16",
+      );
+      await ensureLease();
+      log("info", "video_submit", { ...providerContext, ...crop });
+      try {
+        const response = await fetch(openrouterVideoSubmitUrl(config.openrouterBaseUrl), {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...openrouterVideoHeaders(config.openrouterApiKey),
+          },
+          body: JSON.stringify(
+            buildSeedanceVideoSubmitBody({
+              prompt: motionPrompt,
+              imageUrl,
+              durationSeconds: job.duration_seconds || 4,
+              aspectRatio: job.aspect_ratio || "9:16",
+              resolution: job.image_size || "720p",
+            }),
+          ),
+          signal: AbortSignal.any([signal, AbortSignal.timeout(SEEDANCE_SUBMIT_TIMEOUT_MS)]),
+        });
+        payload = await readJson(response);
+        operationId = extractSeedanceJobId(payload);
+        log(response.ok && operationId ? "info" : "warn", "video_submit_response", {
+          ...providerContext,
+          httpStatus: response.status,
+          hasId: Boolean(operationId),
+          interactionStatus: seedanceStatus(payload) || null,
+        });
+        if (!response.ok) throw seedanceFailureFromPayload(payload, response.status);
+        if (!operationId) throw seedanceFailureFromPayload(payload, response.status);
+      } catch (error) {
+        if (error instanceof ProcessingError) throw error;
+        if (signal.aborted) throw new ProcessingError("shutdown", "Worker is shutting down", true);
+        const timeout = error instanceof Error && ["TimeoutError", "AbortError"].includes(error.name);
+        throw new ProcessingError(timeout ? "timeout" : "network_error", String((error as Error)?.message || error), true);
+      }
+      await persistProviderOperation(supabase, job, operationId, providerContext);
+    } else {
+      log("info", "video_resume", { ...providerContext, operationId });
+    }
+
+    const startedAt = Date.now();
+    while (
+      !isSeedanceDone(seedanceStatus(payload || {})) &&
+      Date.now() - startedAt < config.videoTimeoutMs
+    ) {
+      if (!operationId) break;
+      if (signal.aborted) throw new ProcessingError("shutdown", "Worker is shutting down", true);
+      await ensureLease();
+      try {
+        const response = await fetch(openrouterVideoPollUrl(config.openrouterBaseUrl, operationId), {
+          headers: openrouterVideoHeaders(config.openrouterApiKey),
+          signal: AbortSignal.any([signal, AbortSignal.timeout(SEEDANCE_POLL_TIMEOUT_MS)]),
+        });
+        payload = await readJson(response);
+        if (!response.ok) throw seedanceFailureFromPayload(payload, response.status);
+      } catch (error) {
+        if (error instanceof ProcessingError) throw error;
+        if (signal.aborted) throw new ProcessingError("shutdown", "Worker is shutting down", true);
+        throw new ProcessingError("network_error", String((error as Error)?.message || error), true);
+      }
+      const status = seedanceStatus(payload);
+      if (isSeedanceDone(status)) break;
+      if (isSeedanceExpired(status)) {
+        throw new ProcessingError("provider_expired", seedanceErrorMessage(payload), false);
+      }
+      if (isSeedanceFailed(status)) {
+        const message = seedanceErrorMessage(payload);
+        throw new ProcessingError(
+          isSeedanceSafetyBlock(payload, message) ? "safety_block" : "provider_error",
+          message,
+          !isSeedanceSafetyBlock(payload, message),
+        );
+      }
+      await new Promise((resolve) => setTimeout(resolve, config.videoPollMs));
+    }
+    if (!payload) throw new ProcessingError("timeout", "Video generation timed out", true);
+    const status = seedanceStatus(payload);
+    if (isSeedanceExpired(status)) {
+      throw new ProcessingError("provider_expired", seedanceErrorMessage(payload), false);
+    }
+    if (!isSeedanceDone(status)) {
+      log("warn", "video_poll_lag", { ...providerContext, operationId, elapsedMs: Date.now() - startedAt });
+      throw new ProcessingError("timeout", "Video generation timed out", true);
+    }
+    if (!operationId) throw new ProcessingError("provider_error", "Generation completed without job id", false);
+    const videoBuffer = await downloadSeedanceVideo(operationId, signal);
+    await ensureLease();
+    const resultPath = `${job.user_id}/${job.id}/${job.lease_token}.mp4`;
+    const { error: uploadError } = await supabase.storage
+      .from(RESULTS_BUCKET)
+      .upload(resultPath, videoBuffer, { contentType: VIDEO_MIME, upsert: true });
+    if (uploadError) {
+      throw new ProcessingError("result_upload_error", uploadError.message, isTemporary(uploadError));
+    }
+    log("info", "video_result_uploaded", {
+      ...providerContext,
+      resultPath,
+      bytes: videoBuffer.length,
+      operationId,
+    });
+    seedanceVideoCircuit.record(true);
+    return { resultPath, rawPrompt, mimeType: VIDEO_MIME };
+  } catch (error) {
+    if (shouldRecordSeedanceCircuitFailure(error)) seedanceVideoCircuit.record(false);
+    throw error;
+  }
+}
+
 function veoFailureFromPayload(payload: Record<string, unknown>, status: number): ProcessingError {
   const message = veoErrorMessage(payload);
   if (isVeoSafetyBlock(payload, message)) {
@@ -870,7 +1089,9 @@ export async function processVideoGeneration(
       ? "xai"
       : isVeoLiteVideoModel(job.model)
         ? "veo"
-        : "gemini",
+        : isSeedanceVideoModel(job.model)
+          ? "openrouter"
+          : "gemini",
     model: job.model,
   });
   const { source, linkedGenerationId } = await resolveVideoInputs(
@@ -895,6 +1116,17 @@ export async function processVideoGeneration(
   }
   if (isVeoLiteVideoModel(job.model)) {
     return processVeoLiteVideoGeneration(
+      supabase,
+      job,
+      source,
+      sourceFields,
+      context,
+      signal,
+      ensureLease,
+    );
+  }
+  if (isSeedanceVideoModel(job.model)) {
+    return processSeedanceVideoGeneration(
       supabase,
       job,
       source,

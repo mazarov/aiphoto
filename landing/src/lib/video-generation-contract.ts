@@ -3,7 +3,9 @@ import {
   DEFAULT_VIDEO_DURATION_SECONDS,
   DEFAULT_VIDEO_MODEL,
   DEFAULT_VIDEO_RESOLUTION,
+  SEEDANCE_25_CREDIT_COST_PER_SECOND,
   VIDEO_GENERATION_MODALITY,
+  isSeedanceVideoModel,
   isVeoLiteVideoModel,
   isVideoAspectRatio,
   isVideoDurationSeconds,
@@ -45,15 +47,21 @@ export function videoDurationExtraCredits(
   model?: unknown
 ): number {
   const duration = normalizeVideoDurationSeconds(durationSeconds, model);
+  if (isSeedanceVideoModel(model)) {
+    return (duration - DEFAULT_VIDEO_DURATION_SECONDS) * SEEDANCE_25_CREDIT_COST_PER_SECOND;
+  }
   return VIDEO_DURATION_EXTRA_CREDITS[duration] ?? 0;
 }
 
-/** Server-authoritative video price: model base + duration extra. Invalid duration → 4s. Lite 10s → 8s. */
+/** Server-authoritative video price: model base + duration extra. Seedance is linear 24/sec. Invalid duration → 4s. Lite 10s → 8s. */
 export function calculateVideoCreditCost(
   baseCost: number,
   durationSeconds: unknown,
   model?: unknown
 ): number {
+  if (isSeedanceVideoModel(model)) {
+    return normalizeVideoDurationSeconds(durationSeconds, model) * SEEDANCE_25_CREDIT_COST_PER_SECOND;
+  }
   const base = Number.isInteger(baseCost) && baseCost >= 0 ? baseCost : 0;
   return base + videoDurationExtraCredits(durationSeconds, model);
 }

@@ -61,6 +61,25 @@ test("Seedream 5.0 Pro and Flux 2 Flex cost 10 and use product labels", () => {
   assert.equal(displayLabelForGenerationModel("flux-2-flex"), "Flux 2 Flex");
 });
 
+test("Seedance 2.5 uses the product label and stays hidden while disabled", () => {
+  assert.equal(displayLabelForGenerationModel("seedance-2.5"), "Seedance 2.5");
+  const hidden = parseEnabledVideoGenerationModels(
+    JSON.stringify([
+      { id: "veo-3.1-lite-generate-preview", label: "Veo 3.1 Lite", cost: 15, enabled: true },
+      { id: "seedance-2.5", label: "Seedance 2.5", cost: 96, enabled: false },
+    ])
+  );
+  assert.equal(hidden.find((item) => item.id === "seedance-2.5"), undefined);
+  const shown = parseEnabledVideoGenerationModels(
+    JSON.stringify([
+      { id: "seedance-2.5", label: "Seedance 2.5", cost: 96, enabled: true },
+    ])
+  );
+  assert.equal(shown[0]?.id, "seedance-2.5");
+  assert.equal(shown[0]?.label, "Seedance 2.5");
+  assert.equal(shown[0]?.cost, 96);
+});
+
 test("Veo 3.1 Lite keeps Lite in the product label", () => {
   assert.equal(
     displayLabelForGenerationModel("veo-3.1-lite-generate-preview"),
