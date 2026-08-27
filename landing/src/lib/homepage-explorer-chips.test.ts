@@ -2,36 +2,53 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { TAG_REGISTRY } from "./tag-registry";
 import {
+  HOMEPAGE_CATALOG_THEME_COUNT,
   PINNED_COUNT,
   getAllExplorerChips,
+  getHomepageCatalogThemeItems,
   getMoreChips,
   getMoreChipsByDimension,
   getPinnedChips,
 } from "./homepage-explorer-chips";
 
-test("pinned chips follow Wordstat first-row order without passport", () => {
+test("pinned chips are 15 without passport, documents, or realistic", () => {
   const pinned = getPinnedChips();
+  const catalog = new Set(getHomepageCatalogThemeItems().map((item) => item.title));
   assert.equal(pinned.length, PINNED_COUNT);
   assert.deepEqual(
-    pinned.map((chip) => `${chip.dimension}:${chip.slug}`),
+    pinned.map((chip) => chip.label),
     [
-      "audience_tag:devushka",
-      "occasion_tag:den_rozhdeniya",
-      "audience_tag:para",
-      "audience_tag:muzhchina",
-      "audience_tag:semya",
-      "audience_tag:detskie",
-      "audience_tag:s_parnem",
-      "object_tag:s_tortom",
-      "style_tag:portret",
-      "style_tag:cherno_beloe",
-      "object_tag:s_mashinoy",
+      "Девушки",
+      "День рождения",
+      "Пары",
+      "Мужчины",
+      "Семья",
+      "Дети",
+      "С парнем",
+      "С тортом",
+      "Портрет",
+      "С собакой",
+      "На чёрном фоне",
+      "Девочка",
+      "Свадьба",
+      "Мальчик",
+      "В форме",
     ]
   );
   assert.equal(
-    pinned.some((chip) => chip.slug === "na_pasport"),
+    pinned.some(
+      (chip) =>
+        chip.slug === "na_pasport" ||
+        chip.slug === "na_dokumenty" ||
+        chip.slug === "realistichnoe"
+    ),
     false
   );
+  const extras = pinned.slice(9).map((chip) => chip.label);
+  assert.equal(extras.includes("В форме"), true);
+  for (const label of extras) {
+    assert.equal(catalog.has(label), false, `extra chip ${label} is already in catalog`);
+  }
 });
 
 test("explorer chips cover every TAG_REGISTRY entry exactly once", () => {
@@ -66,6 +83,41 @@ test("more chips exclude pinned and stay Wordstat-sorted within groups", () => {
     group.chips.map((chip) => `${chip.dimension}:${chip.slug}`)
   );
   assert.deepEqual(groupedKeys.sort(), more.map((chip) => `${chip.dimension}:${chip.slug}`).sort());
+});
+
+test("catalog theme items take Wordstat top 15 without passport, documents, husband, realistic", () => {
+  const items = getHomepageCatalogThemeItems();
+
+  assert.equal(items.length, HOMEPAGE_CATALOG_THEME_COUNT);
+  assert.deepEqual(
+    items.map((item) => item.title),
+    [
+      "Девушки",
+      "День рождения",
+      "Пары",
+      "Мужчины",
+      "Семья",
+      "Дети",
+      "С парнем",
+      "С тортом",
+      "Портрет",
+      "Чёрно-белое",
+      "Мультяшное",
+      "С машиной",
+      "Деловое",
+      "С мамой",
+      "Студийное",
+    ]
+  );
+  const titles = new Set(items.map((item) => item.title));
+  assert.equal(titles.has("На паспорт"), false);
+  assert.equal(titles.has("На документы"), false);
+  assert.equal(titles.has("С мужем"), false);
+  assert.equal(titles.has("Реалистичное"), false);
+  for (const item of items) {
+    assert.equal(item.href.startsWith("/generaciya-foto"), false);
+    assert.equal(item.title.length > 0, true);
+  }
 });
 
 test("head-cluster and tool expanders are not chips", () => {

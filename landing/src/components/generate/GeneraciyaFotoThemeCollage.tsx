@@ -1,8 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { CARD_IMAGE_LISTING_NEXT_QUALITY } from "@/lib/card-image-presets";
-import { GENERACIYA_FOTO_THEMES } from "@/lib/generaciya-foto-seo-copy";
-import { pluralTemplates } from "@/lib/plural-prompts";
+import { pluralPrompts, pluralTemplates } from "@/lib/plural-prompts";
 
 const THEME_SLOTS = 6;
 const SIZES_THEME_HERO =
@@ -10,7 +9,16 @@ const SIZES_THEME_HERO =
 const SIZES_THEME_CELL =
   "(max-width: 639px) 17vw, (max-width: 1023px) 11vw, 8vw";
 
-type ThemeItem = (typeof GENERACIYA_FOTO_THEMES.items)[number];
+export type ThemeCollageItem = {
+  title: string;
+  href: string;
+};
+
+export type ThemeCountKind = "templates" | "prompts";
+
+function formatThemeCount(kind: ThemeCountKind, count: number): string {
+  return kind === "prompts" ? pluralPrompts(count) : pluralTemplates(count);
+}
 
 function ThemePhoto({
   src,
@@ -50,11 +58,13 @@ export function GeneraciyaFotoThemeCollage({
   photos,
   count,
   priority = false,
+  countKind = "templates",
 }: {
-  item: ThemeItem;
+  item: ThemeCollageItem;
   photos: string[];
   count: number;
   priority?: boolean;
+  countKind?: ThemeCountKind;
 }) {
   const slots = Array.from(
     { length: THEME_SLOTS },
@@ -99,7 +109,7 @@ export function GeneraciyaFotoThemeCollage({
         {count > 0 ? (
           <div className="pointer-events-none absolute left-2.5 top-2.5">
             <span className="rounded-full bg-white/20 px-2.5 py-1 text-xs font-medium text-white backdrop-blur-md">
-              {pluralTemplates(count)}
+              {formatThemeCount(countKind, count)}
             </span>
           </div>
         ) : null}

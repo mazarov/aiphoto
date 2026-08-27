@@ -13,22 +13,35 @@ export type HomepageExplorerChip = {
   score: number;
 };
 
-export const PINNED_COUNT = 11;
+export const PINNED_COUNT = 15;
 
-/** Explicit first-row order. Scores are Wordstat max, not summed duplicates. */
-const PINNED_KEYS = [
-  "audience_tag:devushka",
-  "occasion_tag:den_rozhdeniya",
-  "audience_tag:para",
-  "audience_tag:muzhchina",
-  "audience_tag:semya",
-  "audience_tag:detskie",
-  "audience_tag:s_parnem",
-  "object_tag:s_tortom",
-  "style_tag:portret",
-  "style_tag:cherno_beloe",
-  "object_tag:s_mashinoy",
-] as const;
+/** How many catalog themes stay in the chip row before extras. */
+const CHIP_CATALOG_OVERLAP = 9;
+
+/** Catalog collages: top Wordstat minus skipped keys. */
+export const HOMEPAGE_CATALOG_THEME_COUNT = 15;
+
+const CATALOG_THEME_SKIP_KEYS = new Set([
+  "doc_task_tag:na_pasport",
+  "doc_task_tag:na_dokumenty",
+  "audience_tag:s_muzhem",
+  "style_tag:realistichnoe",
+]);
+
+const CHIP_SKIP_KEYS = new Set([
+  "doc_task_tag:na_pasport",
+  "doc_task_tag:na_dokumenty",
+  "style_tag:realistichnoe",
+]);
+
+const CHIP_FORCE_KEYS = ["object_tag:v_forme"] as const;
+
+export type HomepageCatalogThemeItem = {
+  title: string;
+  href: string;
+  dimension: Dimension;
+  tagValue: string;
+};
 
 const MORE_DIMENSION_ORDER: Dimension[] = [
   "audience_tag",
@@ -139,22 +152,53 @@ export function getAllExplorerChips(): HomepageExplorerChip[] {
   return TAG_REGISTRY.map(toChip);
 }
 
+/** Wordstat §7.1: higher score first. Used by chips and catalog collages. */
+export function getWordstatRankedChips(): HomepageExplorerChip[] {
+  return [...getAllExplorerChips()].sort(compareChips);
+}
+
 export function getPinnedChips(): HomepageExplorerChip[] {
-  const byKey = new Map(getAllExplorerChips().map((chip) => [tagKey(chip), chip]));
-  return PINNED_KEYS.map((key) => {
-    const chip = byKey.get(key);
+  const ranked = getWordstatRankedChips();
+  const byKey = new Map(ranked.map((chip) => [tagKey(chip), chip]));
+  const catalogItems = getHomepageCatalogThemeItems();
+  const catalogKeys = new Set(
+    catalogItems.map((item) => `${item.dimension}:${item.tagValue}`)
+  );
+
+  const fromCatalog = catalogItems.slice(0, CHIP_CATALOG_OVERLAP).map((item) => {
+    const chip = byKey.get(`${item.dimension}:${item.tagValue}`);
     if (!chip) {
-      throw new Error(`Pinned homepage chip missing from TAG_REGISTRY: ${key}`);
+      throw new Error(`Catalog chip missing from TAG_REGISTRY: ${item.tagValue}`);
     }
     return chip;
   });
+
+  const extrasNeeded = PINNED_COUNT - fromCatalog.length;
+  const extrasPool = ranked.filter((chip) => {
+    const key = tagKey(chip);
+    return (
+      !catalogKeys.has(key) &&
+      !CHIP_SKIP_KEYS.has(key) &&
+      !CATALOG_THEME_SKIP_KEYS.has(key)
+    );
+  });
+
+  const forced = CHIP_FORCE_KEYS.flatMap((key) => {
+    const chip = byKey.get(key);
+    return chip && extrasPool.some((item) => tagKey(item) === key) ? [chip] : [];
+  });
+  const forcedKeys = new Set(forced.map((chip) => tagKey(chip)));
+  const rest = extrasPool.filter((chip) => !forcedKeys.has(tagKey(chip)));
+  const extras = [...rest.slice(0, Math.max(0, extrasNeeded - forced.length)), ...forced].sort(
+    compareChips
+  );
+
+  return [...fromCatalog, ...extras];
 }
 
 export function getMoreChips(): HomepageExplorerChip[] {
-  const pinned = new Set<string>(PINNED_KEYS);
-  return getAllExplorerChips()
-    .filter((chip) => !pinned.has(tagKey(chip)))
-    .sort(compareChips);
+  const pinned = new Set(getPinnedChips().map((chip) => tagKey(chip)));
+  return getWordstatRankedChips().filter((chip) => !pinned.has(tagKey(chip)));
 }
 
 export function getMoreChipsByDimension(): {
@@ -191,4 +235,19 @@ export function findExplorerChip(
       (chip) => chip.dimension === dimension && chip.slug === slug
     ) ?? null
   );
+}
+
+/** Catalog collections for the homepage themes carousel. */
+export function getHomepageCatalogThemeItems(
+  limit = HOMEPAGE_CATALOG_THEME_COUNT
+): HomepageCatalogThemeItem[] {
+  return getWordstatRankedChips()
+    .filter((chip) => !CATALOG_THEME_SKIP_KEYS.has(tagKey(chip)))
+    .slice(0, limit)
+    .map((chip) => ({
+      title: chip.label,
+      href: chip.href,
+      dimension: chip.dimension,
+      tagValue: chip.slug,
+    }));
 }

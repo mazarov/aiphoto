@@ -63,8 +63,12 @@ function pickCenteredCard(
 
 export function GeneraciyaFotoHeroCarousel({
   cards,
+  ctaLabel = GENERACIYA_FOTO_SEO.secondaryCta,
+  ariaLabel = "Новые ИИ-фото",
 }: {
   cards: GenerationExampleCard[];
+  ctaLabel?: string | null;
+  ariaLabel?: string;
 }) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const { open, prefetchCard } = usePromptCardModal();
@@ -89,7 +93,7 @@ export function GeneraciyaFotoHeroCarousel({
     <div
       ref={wrapRef}
       className="group/marquee relative mt-6 -mx-3 overflow-hidden sm:mt-8 sm:-mx-5 xl:-mx-6"
-      aria-label="Новые ИИ-фото"
+      aria-label={ariaLabel}
       onPointerDownCapture={bindCarouselNav}
     >
       <div
@@ -126,34 +130,36 @@ export function GeneraciyaFotoHeroCarousel({
             : null}
         </div>
       </div>
-      <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center">
-        <Link
-          href={`/p/${featured.slug}`}
-          className="pointer-events-auto inline-flex min-h-11 items-center justify-center rounded-full border border-indigo-200 bg-white px-5 text-sm font-semibold text-indigo-700 shadow-lg shadow-zinc-900/10 hover:bg-indigo-50"
-          prefetch
-          onPointerEnter={() => {
-            bindCarouselNav();
-            const target = wrapRef.current
-              ? pickCenteredCard(wrapRef.current, photos)
-              : featured;
-            prefetchCard(target.slug);
-          }}
-          onClick={(event) => {
-            event.preventDefault();
-            bindCarouselNav();
-            const target = wrapRef.current
-              ? pickCenteredCard(wrapRef.current, photos)
-              : featured;
-            open(target.slug, {
-              photoUrl: target.photoUrl,
-              photoCount: target.photoCount,
-              hasPrompts: target.hasPrompt,
-            });
-          }}
-        >
-          {GENERACIYA_FOTO_SEO.secondaryCta}
-        </Link>
-      </div>
+      {ctaLabel ? (
+        <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center">
+          <Link
+            href={`/p/${featured.slug}`}
+            className="pointer-events-auto inline-flex min-h-11 items-center justify-center rounded-full border border-indigo-200 bg-white px-5 text-sm font-semibold text-indigo-700 shadow-lg shadow-zinc-900/10 hover:bg-indigo-50"
+            prefetch
+            onPointerEnter={() => {
+              bindCarouselNav();
+              const target = wrapRef.current
+                ? pickCenteredCard(wrapRef.current, photos)
+                : featured;
+              prefetchCard(target.slug);
+            }}
+            onClick={(event) => {
+              event.preventDefault();
+              bindCarouselNav();
+              const target = wrapRef.current
+                ? pickCenteredCard(wrapRef.current, photos)
+                : featured;
+              open(target.slug, {
+                photoUrl: target.photoUrl,
+                photoCount: target.photoCount,
+                hasPrompts: target.hasPrompt,
+              });
+            }}
+          >
+            {ctaLabel}
+          </Link>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -5,6 +5,8 @@ import { GeneraciyaFotoToolsGrid } from "@/components/generate/GeneraciyaFotoToo
 import {
   GF_BLOCK,
   GF_BRAND_CTA,
+  GF_SECONDARY_CTA,
+  GF_EYEBROW,
   GF_H2,
   GF_LEAD,
   GF_STACK,
@@ -46,21 +48,63 @@ function SectionHeading({
 export function GeneraciyaFotoThemes({
   photosByHref,
   countByHref,
+  title = GENERACIYA_FOTO_THEMES.title,
+  lead = GENERACIYA_FOTO_THEMES.lead,
+  leadSecondary,
+  eyebrow,
+  items,
+  countKind,
+  ctaHref,
+  ctaLabel,
+  sectionId = "temy",
+  headingId = "themes-heading",
 }: {
   photosByHref: Record<string, string[]>;
   countByHref: Record<string, number>;
+  title?: string;
+  lead?: string;
+  leadSecondary?: string;
+  eyebrow?: string;
+  items?: readonly { title: string; href: string }[];
+  countKind?: "templates" | "prompts";
+  ctaHref?: string;
+  ctaLabel?: string;
+  sectionId?: string;
+  headingId?: string;
 }) {
   return (
-    <section id="temy" className={sectionClass} aria-labelledby="themes-heading">
+    <section id={sectionId} className={sectionClass} aria-labelledby={headingId}>
       <div className={GF_BLOCK}>
-        <h2 id="themes-heading" className={GF_H2}>
-          {GENERACIYA_FOTO_THEMES.title}
+        {eyebrow ? <p className={GF_EYEBROW}>{eyebrow}</p> : null}
+        <h2 id={headingId} className={`${eyebrow ? "mt-2 " : ""}${GF_H2}`}>
+          {title}
         </h2>
-        <p className={GF_LEAD}>{GENERACIYA_FOTO_THEMES.lead}</p>
+        {lead ? <p className={GF_LEAD}>{lead}</p> : null}
+        {leadSecondary ? <p className={GF_LEAD}>{leadSecondary}</p> : null}
         <GeneraciyaFotoThemesCarousel
+          items={items}
           photosByHref={photosByHref}
           countByHref={countByHref}
+          ariaLabel={title}
+          countKind={countKind}
         />
+        {ctaHref && ctaLabel ? (
+          <div className={`${GF_STACK} flex justify-center`}>
+            <Link href={ctaHref} className={GF_SECONDARY_CTA}>
+              {ctaLabel}
+              <svg
+                className="h-4 w-4"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                aria-hidden
+              >
+                <path d="m9 18 6-6-6-6" />
+              </svg>
+            </Link>
+          </div>
+        ) : null}
       </div>
     </section>
   );
@@ -134,13 +178,17 @@ export function GeneraciyaFotoReviews() {
   );
 }
 
-export function GeneraciyaFotoMore() {
+export function GeneraciyaFotoMore({
+  items = GENERACIYA_FOTO_CAPABILITIES,
+}: {
+  items?: readonly { title: string; text: string; href: string }[];
+}) {
   return (
     <section className={sectionClass} aria-labelledby="more-heading">
       <div className={GF_BLOCK}>
         <SectionHeading id="more-heading" title={GENERACIYA_FOTO_MORE_TITLE} />
         <ul className={`${GF_STACK} grid gap-3 lg:grid-cols-2`}>
-          {GENERACIYA_FOTO_CAPABILITIES.map((item) => (
+          {items.map((item) => (
             <li key={item.title}>
               <Link
                 href={item.href}
@@ -161,13 +209,17 @@ export function GeneraciyaFotoMore() {
   );
 }
 
-export function GeneraciyaFotoPricing() {
+export function GeneraciyaFotoPricing({
+  returnPath = GENERACIYA_FOTO_PRICING.returnPath,
+}: {
+  returnPath?: string;
+}) {
   return (
     <section id="tarify" className={sectionClass} aria-labelledby="tarify-heading">
       <PricingScreen
         variant="embed"
         paywallVariant={GENERACIYA_FOTO_PRICING.variant}
-        returnPath={GENERACIYA_FOTO_PRICING.returnPath}
+        returnPath={returnPath}
       />
     </section>
   );

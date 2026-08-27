@@ -1,5 +1,9 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-08-27 (**`/catalog` mobile chrome:** на max-lg скрыты чип «Назад» и H1 «Каталог и поиск»; плитки сразу под шапкой. Desktop — чип + H1 + плитки. Explorer / sticky-поиск в шапке сняты. `HomepageExamplesExplorer` только на `/` `#primery`.
+>
+> Последнее обновление: 2026-08-27 (**главная = каркас `/generaciya-foto`:** `/` берёт hero-карусель и GF-секции шаблона. Тексты hero / каталога / HowTo / FAQ — `homepage-seo-copy.ts`, без замены. Стартер «Генерация по тексту / по фото» не переносится; вместо него destinations. Блок тем = каталог: eyebrow «Каталог промтов», H2 «Готовые промты для фотографий», CTA «Перейти в каталог» → `/catalog`, карусель коллажей из `getHomepageCatalogThemeItems` (15 Wordstat-категорий без паспорта / документов / с мужем / реалистичное, ссылки каталога, `pluralPrompts`), фото коллажа — `resolve_route_cards` `sort=new`, не popularity из `get_homepage_sections`. Дальше explorer `#primery` с H2 «Идеи промтов для фото» и intro под ним, затем HowTo + FAQ главной. Инструменты / отзывы / модели / тарифы шаблона на `/` не копируем.
+>
 > Последнее обновление: 2026-08-27 (**Video fallback → Grok 1.5:** если выбранная не-Grok video-модель (Veo Lite / Omni / Seedance) упала после вызова вендора, включая `safety_block`, тот же attempt один раз зовёт `grok-imagine-video-1.5`. Кредиты не пересчитываются. На хопе `provider_operation_id=null`, xAI body всегда Grok id. Kill-switch `video_fallback_model` (SQL `221`). Circuit `grokVideoCircuit` 20/8/50%/60с. Спека `docs/25-08-video-grok-fallback.md`.
 >
 > Последнее обновление: 2026-08-27 (**Seedance 2.5 video:** пикер `seedance-2.5`, 24 кредита/сек (4с=96, 6с=144, 8с=192, 10с=240), OpenRouter Video API `bytedance/seedance-2.5`. SQL `220` `enabled:false`. Worker `openrouter-seedance.ts`: async `POST /api/v1/videos` → persist id → poll → `GET /content` только через `OPENROUTER_BASE_URL`. I2V `frame_images` first_frame, 720p, 9:16/16:9, `generate_audio=true`. Дефолт пикера не меняется. Спека `docs/27-08-seedance-25-openrouter.md`.
@@ -344,13 +348,13 @@
 >
 > Последнее обновление: 2026-08-16 (**listing masonry SSOT:** публичные ленты промтов — `/[...slug]`, `/trends`, `/search`, `/favorites`, главная и `/generaciya-foto` — рисуют одну и ту же CSS-columns masonry (`ListingMasonry` + `ListingPhotoTile`). Пропорция = первое фото (`listingPhotoAspectRatio`), без 3:4-кропа и без `GroupedCard`. Клик открывает модалку; hover-кнопки «Повторить» нет ни на одной ленте. Infinite scroll / sort / admin-фильтры без изменений. `ListingGrid` 3:4 остаётся для `/generations` и `/analyses`.)
 >
-> Последнее обновление: 2026-08-16 (**mobile header burger:** на всех max-lg экранах слева в шапке бургер → `MobileCatalogMenuDrawer` (`SidebarContent`). Иконка поиска из навбара снята; на `/catalog` поиск остаётся в контенте и выезжает вместо лого при скролле.)
+> Последнее обновление: 2026-08-16 (**mobile header burger:** на всех max-lg экранах слева в шапке бургер → `MobileCatalogMenuDrawer` (`SidebarContent`). Иконка поиска из навбара снята.)
 >
 > Последнее обновление: 2026-08-16 (**animate scenario:** клик «Оживить» вызывает `POST /api/generate/animate-scenario` — Gemini 2.5 Flash смотрит только фото и подставляет короткий RU motion-сценарий. Исходный image-промпт не подмешивается. Кредиты не списывает. Fallback `Оживи изображение`.)
 >
-> Последнее обновление: 2026-08-16 (**catalog sticky search:** на `/catalog` max-lg, когда поле поиска уходит под шапку, в навбаре вместо лого выезжает то же поле (`ListingSearchField` compact). IntersectionObserver по `#listing-scroll-root` + `holdListingChromeAutoHide("catalog-search")`, чтобы шапка не пряталась. Бургер и баланс остаются.)
+> Последнее обновление: 2026-08-16 (**catalog sticky search:** снято 2026-08-27 — `/catalog` больше не имеет in-page поиска, шапка всегда бургер + лого.)
 >
-> Последнее обновление: 2026-08-16 (**catalog mobile explorer:** `/catalog` на max-lg — `HomepageExamplesExplorer variant="catalog"`: поиск + Wordstat-чипы + 16 popular-карточек. Fade/CTA только при чипе («Все промты категории» → L1) или поиске («Все результаты» → `/search`). Desktop — плитки `CategorySection`. Шапка на `/catalog` — бургер → `MobileCatalogMenuDrawer` (`SidebarContent`). Таб / H1 / CTA главной: «Каталог и поиск». SEO title `/catalog` без изменений, `noindex`.)
+> Последнее обновление: 2026-08-16 (**catalog mobile explorer:** снято 2026-08-27 — `/catalog` на всех ширинах = плитки `CategorySection`, как desktop.)
 >
 > Последнее обновление: 2026-08-16 (**оживить фото / Veo Omni Flash:** sibling video job на `landing_generations`. `POST /api/generate` принимает `modality=video` (1 фото или owned completed image parent, без `editInstruction`, 30 кредитов из `video_models`). Config `?modality=video` отдаёт Veo Omni Flash / 9:16 / 4 сек / 720p; флаг `video_animate_enabled`. Worker claim отдельно (`p_modality=video`, cap 2). UI: «Оживить» после фото, dock-режим для одного фото, `<video>` в истории. UGC/библиотека для video в v1 выключены. SQL `189`.)
 >
@@ -629,7 +633,7 @@
 ```
 /                       → Главная (категории + поиск)
 /trends                 → SEO-hub «промты для трендовых фото» + глобальный фид по `created_at DESC` (`resolve_route_cards` без path-тегов, `p_sort=new`); тексты/FAQ/HowTo — **`trends-seo-copy.ts`**; popularLinks на существующие L1/L2 (др, семья, пары, чёрный фон, портрет, девушка); JSON-LD CollectionPage+HowTo+FAQPage; фильтры `audience|style|occasion|object` как на `[...slug]`; **без** переключателя Популярное/Новое (`CatalogWithFilters` `fixedSort="new"`); ISR `revalidate=3600`; index на чистом `/trends` (при query-фильтрах — noindex, canonical `/trends`); sitemap priority **0.85**. Legacy **`/new` → 301 `/trends`** (`next.config.ts`). **Не** плодить `/trends/*` subpages
-/catalog                → Каталог и поиск: mobile — explorer (поиск + чипы + 16 промтов, без fade); desktop — категориальная сетка; шапка mobile — бургер категорий; noindex, revalidate=3600
+/catalog                → Каталог и поиск: плитки `CategorySection`; desktop — чип «Назад» + H1; mobile — плитки сразу под шапкой; noindex, revalidate=3600
 /p/[slug]               → Карточка промта
 /[...slug]              → Листинг по тегу (напр. /promty-dlya-foto-devushki, /stil/cherno-beloe)
 /sobytiya/1-sentyabrya  → L1 кластера «Промты для фото» (не catch-all). Copy — **`seo-content.ts`** (`1_sentyabrya`). Explorer — **`CatalogExplorer`**. Стартовая masonry — **`search_cards_text("1 сентября")`**. Принимает `searchParams` (noindex при query-фильтрах). Чипы над сеткой — события своего кластера; под сеткой — стили. На `/stil/*` L1 — чип «1 сентября» → этот URL.
@@ -1146,15 +1150,22 @@ Fallback: если `code` пришёл на произвольную стран�
 
 ### Главная страница
 
+Каркас как у `/generaciya-foto` (без стартера «по тексту / по фото»):
+
 ```
 fetchHomepageSections(siteLang)          ← RPC get_homepage_sections
   → счётчики hero, OG, JSON-LD hasPart
-fetchRouteCards({ sort: "new", limit: 16 })
+  → коллажи каталога (fetchNewestThemeCollagePhotos, sort=new)
+fetchRouteCards({ sort: "new", limit: 50 })
   → enrichCardsWithDetails
-  → HomepageExamplesExplorer
+  → hero-карусель (50) + HomepageExamplesExplorer (16, H2 «Идеи промтов для фото»)
 ```
 
-Чипы: `homepage-explorer-chips.ts` («Все» + топ Wordstat без «На паспорт»; хвост включая `doc_task_tag` — `sr-only`). `/catalog` desktop — плитки `CategorySection`; mobile — тот же explorer (`variant="catalog"`, без fade/CTA). CTA главной без чипа: «Каталог и поиск».
+Порядок: hero (H1/subtitle/чипы + карусель + destinations) → `#katalog` карусель коллекций → `#primery` (H2 + intro + masonry) → HowTo главной → FAQ главной.
+
+Чипы: `homepage-explorer-chips.ts` («Все» + 15 чипов: 9 тем из коллажа + с собакой / на чёрном фоне / девочка / свадьба / мальчик / в форме; без паспорта, документов и «Реалистичное»; хвост — `sr-only`). Карусель каталога — 15 тем того же рейтинга без «На паспорт» / «На документы» / «С мужем» / «Реалистичное», URL каталога не `/generaciya-foto/*`. Счётчики тем из `resolve_route_cards`, не из Wordstat. `/catalog` — плитки `CategorySection` на mobile и desktop. CTA главной без чипа: «Каталог и поиск».
+
+L1 листинг (`/promty-dlya-foto-devushki` и остальные) — чип «Назад» (`ListingHomeBackLink`) первым в блоке категорий под поиском, как хаб на `/generaciya-foto/[scenario]`. `/catalog` desktop — чип над H1; mobile — только плитки. L2/L3 по-прежнему «Все промты: {parent}».
 
 ### Листинг `/[...slug]` (L1 / L2 / L3)
 
@@ -1254,7 +1265,7 @@ SearchResults (client, infinite scroll)
 
 | Компонент | Файл | Роль |
 |-----------|------|------|
-| HeaderClient | `components/HeaderClient.tsx` | Mobile sticky header: бургер категорий слева на всех экранах \| логотип (на `/catalog` после ухода in-page поиска — выезжающее поле) \| у авторизованного `HeaderBalancePayChip` (баланс + «+»). На desktop не рендерит визуальный chrome |
+| HeaderClient | `components/HeaderClient.tsx` | Mobile sticky header: бургер категорий слева \| логотип \| у авторизованного `HeaderBalancePayChip` (баланс + «+»). На desktop не рендерит визуальный chrome |
 | HeaderBalancePayChip | `components/AccountControls.tsx` | Split-pill шапки: кредиты + CTA «+» → `PricingEntryLink` (оверлей `/pricing`). `aria-label` — «пополнить». Тот же кэш `GET /api/me`, что sidebar |
 | PricingModalContext | `context/PricingModalContext.tsx` | SSOT оверлея тарифов: `open` → save origin + pushState `/pricing`, `close` → back (валидный `onClick`), `closeWithoutHistory` перед YooKassa, `popstate` снимает модалку; на hard `/pricing` `open` no-op |
 | ClientPricingModal | `components/ClientPricingModal.tsx` | Overlay тарифов в root layout (portal `document.body`, `z-[260]`) |
@@ -1306,7 +1317,7 @@ SearchResults (client, infinite scroll)
 | FilterPanel | `components/FilterPanel.tsx` | Mobile sheet с чипсами (draft + «Применить») |
 | FilterChips | `components/FilterChips.tsx` | Строка чипсов для одного измерения |
 | useListingFilterCounts | `hooks/useListingFilterCounts.ts` | Счётчики тегов: API или агрегация из cards |
-| HomepageExamplesExplorer | `components/home/HomepageExamplesExplorer.tsx` | Главная (`variant=home`) и `/catalog` mobile (`variant=catalog`): popular-карточки, Wordstat-чипы, in-place search; catalog без fade/CTA |
+| HomepageExamplesExplorer | `components/home/HomepageExamplesExplorer.tsx` | Главная `#primery`: Wordstat-чипы, in-place search, masonry |
 | MobileCatalogMenuDrawer | `components/MobileCatalogMenuDrawer.tsx` | Левая шторка категорий на max-lg; контент — `SidebarContent`; открытие из шапки через `registerMenu` / `openMenu` |
 | ReactionButtons | `components/ReactionButtons.tsx` | Like/dislike |
 | FavoriteButton | `components/FavoriteButton.tsx` | Избранное |
@@ -1329,7 +1340,7 @@ OAuth completion: `/auth/callback` → `finishOAuthCodeExchange` → `path?ps_au
 ### Метаданные
 
 - **Root layout:** fallback title + description из `homepage-seo-copy.ts` (`HOMEPAGE_SEO`)
-- **Главная (`/`):** `generateMetadata` → `HOMEPAGE_SEO.title` / `description`; canonical; H1 + hero из copy-модуля; после destinations — **`HomepageExamplesExplorer`** (`#primery`); блоки **intro**, **HowTo**, **FAQ** (`HomeSeoBlocks.tsx`) в конце страницы; JSON-LD **`CollectionPage`** (`isPartOf: WebSite`, `hasPart[].name` = «Промты для фото {label}») + **`FAQPage`** + **`ItemList`** popular-карточек; FAQ-ссылки на L1 / `#primery`
+- **Главная (`/`):** `generateMetadata` → `HOMEPAGE_SEO.title` / `description`; canonical; H1 + hero из copy-модуля + карусель 50 новых; destinations вместо стартера; **`#katalog`** = карусель коллекций (`HOMEPAGE_SEO.examples*`); **`HomepageExamplesExplorer`** (`#primery`, H2 «Идеи промтов для фото» + intro); HowTo и FAQ (`HomeIntroAndHowTo` / `HomeFaq`) в каркасе шаблона; JSON-LD **`CollectionPage`** (`isPartOf: WebSite`, `hasPart[].name` = «Промты для фото {label}») + **`FAQPage`** + **`ItemList`** 16 карточек; FAQ — хвосты Wordcraft (что такое / пример / генерация / фотосессия со своим фото / лучшие / какая нейросеть), ссылки на `#primery` и `#katalog`
 - **Листинг L1:** `generateMetadata` → title/description из `getSeoContent(tag.slug)`
 - **Листинг L2/L3:** `generateMetadata` → title/description из `getSeoForRoute(route)` (combo-ключ в `seo-content.ts`, иначе шаблоны)
 - **JSON-LD:** `BreadcrumbList` + `FAQPage` на всех листингах; на главной — `CollectionPage` + `FAQPage`; все JSON-LD вставляются как inline `<script type="application/ld+json">` в SSR HTML (не через `next/script strategy="afterInteractive"`)
@@ -1501,7 +1512,7 @@ NOTIFY pgrst, 'reload schema';
 
 Fallback без pg_cron: standalone `.mjs` на DO (`src/standalone/recalculate-popularity-scores-standalone.mjs` + аналоги для refresh).
 
-**Блоки категорий (`get_homepage_sections`, миграция `164`):** на `/` больше не рендерятся. RPC остаётся для счётчиков / OG / JSON-LD и для desktop-плиток на `/catalog`. Mobile `/catalog` грузит ещё `fetchRouteCards({ sort: "popular", limit: 16 })` для explorer. Топ-**10** карточек на тег сортируются по **той же query-time popularity-формуле**, что листинг (мигр. `163`). **Кросс-категорийный дедуп обложек** (`buildCategorySectionBlocks` + `pickDeduplicatedPhotos`, общий `usedCardIds` в порядке `SECTION_ORDER`).
+**Блоки категорий (`get_homepage_sections`, миграция `164`):** на `/` больше не рендерятся. RPC остаётся для счётчиков / OG / JSON-LD и для плиток на `/catalog` (mobile и desktop). Топ-**10** карточек на тег сортируются по **той же query-time popularity-формуле**, что листинг (мигр. `163`). **Кросс-категорийный дедуп обложек** (`buildCategorySectionBlocks` + `pickDeduplicatedPhotos`, общий `usedCardIds` в порядке `SECTION_ORDER`).
 
 **`search_cards_text`:** по-прежнему **`view_count`** / relevance (154). **`search_cards_filtered`:** с миграцией **`182`** — `p_sort` как у `resolve_route_cards` (`new` / `popular`); до применения 182 — legacy `view_count`.
 

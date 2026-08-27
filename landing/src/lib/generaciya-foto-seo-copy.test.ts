@@ -96,9 +96,9 @@ test("hub blocks keep Facee homepage copy", () => {
   assert.equal(GENERACIYA_FOTO_SEO.examplesTitle, "Идеи для фото ИИ");
   assert.equal(
     GENERACIYA_FOTO_SEO.examplesIntro,
-    "Генерируй фото с ИИ на основе бесплатного онлайн каталога промтов"
+    "Выберите образ и сгенерируйте фото с ИИ — со своего снимка или по тексту."
   );
-  assert.equal(GENERACIYA_FOTO_SEO.examplesCta, "Больше промптов для фото");
+  assert.equal(GENERACIYA_FOTO_SEO.examplesCta, "Больше идей для фото");
   assert.equal(GENERACIYA_FOTO_SEO.chipHubLabel, "Сделать фото ИИ");
   assert.equal(GENERACIYA_FOTO_TOOLS.title, "Редактирование фото с ИИ");
   assert.equal(
@@ -136,12 +136,12 @@ test("hub blocks keep Facee homepage copy", () => {
   assert.equal("moreLabel" in GENERACIYA_FOTO_REVIEWS, false);
   assert.equal("allLabel" in GENERACIYA_FOTO_REVIEWS, false);
   const promptFaq = GENERACIYA_FOTO_FAQ.find((item) =>
-    item.q.startsWith("Где взять промпт")
+    item.q.startsWith("Где взять готовый промт")
   );
   const aiPhotoFaq = GENERACIYA_FOTO_FAQ.find((item) => item.q === "Что такое ИИ фото?");
   assert.match(
     flattenGeneraciyaFotoFaqAnswer(promptFaq?.a ?? []),
-    /галерее PromptShot с примерами образов/
+    /Идеи для фото ИИ/
   );
   assert.match(
     flattenGeneraciyaFotoFaqAnswer(aiPhotoFaq?.a ?? []),
@@ -180,6 +180,7 @@ test("FAQ links real PromptShot services only where the question is an action", 
     "/terms",
     "#generator",
     "#primery",
+    "#temy",
     getGeneraciyaFotoScenarioPath("pary"),
     getGeneraciyaFotoScenarioPath("semya"),
     "mailto:support_ru@promptshot.ru",
@@ -197,9 +198,9 @@ test("FAQ links real PromptShot services only where the question is an action", 
     if (hrefs.length) linkedByQuestion.set(item.q, hrefs);
   }
 
-  assert.deepEqual(linkedByQuestion.get("Где взять промпт, чтобы сгенерировать фото в нужном стиле?"), [
-    "/",
-    "/trends",
+  assert.deepEqual(linkedByQuestion.get("Где взять готовый промт для генерации фото?"), [
+    "#primery",
+    "#generator",
   ]);
   assert.deepEqual(linkedByQuestion.get("Как создать фото с собой в PromptShot?"), [
     "#primery",
@@ -214,6 +215,13 @@ test("FAQ links real PromptShot services only where the question is an action", 
   assert.deepEqual(linkedByQuestion.get("Можно ли использовать фото как пример?"), [
     "#generator",
     "/foto-v-promt",
+  ]);
+  assert.deepEqual(linkedByQuestion.get("Есть шаблоны промтов, чтобы сразу сделать фото?"), [
+    "#temy",
+  ]);
+  assert.deepEqual(linkedByQuestion.get("Как получить промт по картинке?"), [
+    "/foto-v-promt",
+    "#generator",
   ]);
   assert.deepEqual(linkedByQuestion.get("Как оплатить тариф?"), ["/pricing"]);
   assert.deepEqual(linkedByQuestion.get("Какие изображения можно создавать?"), [

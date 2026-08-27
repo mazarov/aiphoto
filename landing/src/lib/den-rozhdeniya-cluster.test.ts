@@ -12,6 +12,7 @@ import {
   isBirthdayListingSearchQuery,
   buildBirthdayClusterCanonical,
   getFeaturedBirthdayNavItems,
+  isFeaturedBirthdayChildAlias,
   isDenRozhdeniyaClusterPath,
   isDenRozhdeniyaHubPath,
   resolveDenRozhdeniyaClusterSegments,
@@ -129,6 +130,12 @@ test("audience-first L3 permanently redirects onto hub children", () => {
     manObject?.destination,
     "/sobytiya/den-rozhdeniya/muzhchiny/:object",
   );
+});
+
+test("featured birthday child aliases include collapsed deti", () => {
+  assert.equal(isFeaturedBirthdayChildAlias("deti"), true);
+  assert.equal(isFeaturedBirthdayChildAlias("devushki"), true);
+  assert.equal(isFeaturedBirthdayChildAlias("semya"), false);
 });
 
 test("featured nav starts with Все back to the hub", () => {

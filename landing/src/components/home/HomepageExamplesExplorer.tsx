@@ -6,19 +6,15 @@ import {
   useEffect,
   useLayoutEffect,
   useMemo,
-  useRef,
   useState,
 } from "react";
-import { ListingExplorerFrame } from "@/components/ListingExplorerFrame";
 import {
   ListingExplorerHeading,
   ListingExplorerSearch,
 } from "@/components/ListingExplorerSearch";
+import { GF_BLOCK_FLUSH } from "@/components/generate/generaciya-foto-ui";
 import { ListingMasonry, ListingMasonryItem } from "@/components/ListingMasonry";
 import { ListingPhotoTile } from "@/components/ListingPhotoTile";
-import { useListingMobileChromeOptional } from "@/context/ListingMobileChromeContext";
-import { PS_HEADER_HEIGHT_FALLBACK_PX } from "@/lib/listing-header-offset";
-import { getListingScrollRoot } from "@/lib/scroll-preservation";
 import {
   getMoreChips,
   getPinnedChips,
@@ -49,16 +45,9 @@ function chipKey(chip: HomepageExplorerChip): string {
 
 export function HomepageExamplesExplorer({
   initialCards,
-  variant = "home",
 }: {
   initialCards: GenerationExampleCard[];
-  variant?: "home" | "catalog";
 }) {
-  const isCatalog = variant === "catalog";
-  const chrome = useListingMobileChromeOptional();
-  const registerCatalogSearch = chrome?.registerCatalogSearch;
-  const setCatalogSearchPinned = chrome?.setCatalogSearchPinned;
-  const searchSentinelRef = useRef<HTMLDivElement>(null);
   const pinnedChips = useMemo(() => getPinnedChips(), []);
   const moreChips = useMemo(() => getMoreChips(), []);
   const [query, setQuery] = useState("");
@@ -83,56 +72,6 @@ export function HomepageExamplesExplorer({
   }, []);
 
   useEffect(() => {
-    if (!isCatalog || !registerCatalogSearch) return;
-    registerCatalogSearch({
-      value: query,
-      onChange: setSearchQuery,
-      onClear: clearSearchQuery,
-      loading,
-    });
-    return () => registerCatalogSearch(null);
-  }, [
-    clearSearchQuery,
-    isCatalog,
-    loading,
-    query,
-    registerCatalogSearch,
-    setSearchQuery,
-  ]);
-
-  useEffect(() => {
-    if (!isCatalog || !setCatalogSearchPinned) return;
-    const el = searchSentinelRef.current;
-    if (!el) return;
-
-    const root = getListingScrollRoot();
-    const rootEl = root instanceof Element ? root : null;
-    const headerH =
-      Number.parseInt(
-        getComputedStyle(document.documentElement).getPropertyValue(
-          "--ps-header-height"
-        ),
-        10
-      ) || PS_HEADER_HEIGHT_FALLBACK_PX;
-
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        setCatalogSearchPinned(!entry.isIntersecting);
-      },
-      {
-        root: rootEl,
-        rootMargin: `-${headerH}px 0px 0px 0px`,
-        threshold: 0,
-      }
-    );
-    observer.observe(el);
-    return () => {
-      observer.disconnect();
-      setCatalogSearchPinned(false);
-    };
-  }, [isCatalog, setCatalogSearchPinned]);
-
-  useEffect(() => {
     const trimmed = query.trim();
     if (trimmed.length < 2 && !activeFilter) {
       setCards(initialCards);
@@ -154,7 +93,7 @@ export function HomepageExamplesExplorer({
             : `/api/listing?${new URLSearchParams({
                 [activeFilter!.dimension]: activeFilter!.slug,
                 limit: String(RESULT_LIMIT),
-                sort: isCatalog ? "popular" : "new",
+                sort: "new",
                 strict: "1",
               })}`;
 
@@ -194,7 +133,7 @@ export function HomepageExamplesExplorer({
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [activeFilter, initialCards, isCatalog, query]);
+  }, [activeFilter, initialCards, query]);
 
   const allPromptsHref =
     query.trim().length >= 2
@@ -208,89 +147,73 @@ export function HomepageExamplesExplorer({
     );
   };
 
-  const searchFieldId = isCatalog
-    ? "catalog-examples-search"
-    : "homepage-examples-search";
-  const showExplorerCta =
-    cards.length > 0 &&
-    (!isCatalog || Boolean(activeFilter) || query.trim().length >= 2);
+  const showExplorerCta = cards.length > 0;
   const explorerCtaLabel = activeFilter
     ? "Все промты категории"
-    : isCatalog
-      ? "Все результаты"
-      : "Каталог и поиск";
+    : "Каталог и поиск";
 
   return (
-    <ListingExplorerFrame
-      id={isCatalog ? undefined : "primery"}
-      className={showExplorerCta ? "pb-0" : "pb-5 sm:pb-7"}
+    <section
+      id="primery"
+      className={`scroll-mt-20 ${GF_BLOCK_FLUSH} ${
+        showExplorerCta ? "" : "pb-5 sm:pb-7"
+      }`}
     >
-      {isCatalog ? (
-        <ListingExplorerHeading
-          title="Каталог и поиск"
-          titleAs="h1"
-          titleId="catalog-explorer-heading"
-        />
-      ) : (
-        <ListingExplorerHeading
-          eyebrow="Каталог промтов"
-          title={HOMEPAGE_SEO.examplesTitle}
-          titleAs="h2"
-          titleId="examples-heading"
-          intro={HOMEPAGE_SEO.examplesIntro}
-          introSecondary={HOMEPAGE_SEO.examplesIntroSecondary}
-        />
-      )}
+      <ListingExplorerHeading
+        title={HOMEPAGE_SEO.galleryTitle}
+        titleAs="h2"
+        titleId="examples-heading"
+        intro={HOMEPAGE_SEO.intro}
+      />
 
       <ListingExplorerSearch
-        id={searchFieldId}
+        id="homepage-examples-search"
         value={query}
         onChange={setSearchQuery}
         onClear={clearSearchQuery}
         loading={loading}
-        sentinelRef={isCatalog ? searchSentinelRef : undefined}
       />
 
-        <nav
-          className="mt-3 flex flex-wrap gap-2"
-          aria-label="Категории промтов"
+      <nav
+        className="mt-4 flex flex-wrap gap-2"
+        aria-label="Категории промтов"
+      >
+        <button
+          type="button"
+          aria-pressed={!activeFilter}
+          onClick={() => selectChip(null)}
+          className={`${CHIP_CLASS} ${!activeFilter ? CHIP_ACTIVE : CHIP_IDLE}`}
         >
-          <button
-            type="button"
-            aria-pressed={!activeFilter}
-            onClick={() => selectChip(null)}
-            className={`${CHIP_CLASS} ${!activeFilter ? CHIP_ACTIVE : CHIP_IDLE}`}
-          >
-            Все
-          </button>
-          {pinnedChips.map((chip) => {
-            const active = activeFilter
-              ? chipKey(activeFilter) === chipKey(chip)
-              : false;
-            return (
-              <Link
-                key={chipKey(chip)}
-                href={chip.href}
-                aria-pressed={active}
-                onClick={(event) => {
-                  event.preventDefault();
-                  selectChip(chip);
-                }}
-                className={`${CHIP_CLASS} ${active ? CHIP_ACTIVE : CHIP_IDLE}`}
-              >
-                {chip.label}
-              </Link>
-            );
-          })}
-        </nav>
-
-        <div className="sr-only">
-          {moreChips.map((chip) => (
-            <a key={chipKey(chip)} href={chip.href}>
+          Все
+        </button>
+        {pinnedChips.map((chip) => {
+          const active = activeFilter
+            ? chipKey(activeFilter) === chipKey(chip)
+            : false;
+          return (
+            <Link
+              key={chipKey(chip)}
+              href={chip.href}
+              aria-pressed={active}
+              onClick={(event) => {
+                event.preventDefault();
+                selectChip(chip);
+              }}
+              className={`${CHIP_CLASS} ${active ? CHIP_ACTIVE : CHIP_IDLE}`}
+            >
               {chip.label}
-            </a>
-          ))}
-        </div>
+            </Link>
+          );
+        })}
+      </nav>
+
+      <div className="sr-only">
+        {moreChips.map((chip) => (
+          <a key={chipKey(chip)} href={chip.href}>
+            {chip.label}
+          </a>
+        ))}
+      </div>
 
       <div className="relative mt-5 overflow-hidden">
         <ListingMasonry loading={loading}>
@@ -354,6 +277,6 @@ export function HomepageExamplesExplorer({
           {error}
         </p>
       ) : null}
-    </ListingExplorerFrame>
+    </section>
   );
 }

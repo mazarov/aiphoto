@@ -66,6 +66,8 @@ export type CatalogWithFiltersProps = {
    */
   listingSearchQuery?: string | null;
   listingSearchHasMore?: boolean;
+  /** Chip row under search — hub «Назад» + category chips, like `/generaciya-foto/[scenario]`. */
+  chipNav?: ReactNode;
 };
 
 export function CatalogWithFilters({
@@ -84,6 +86,7 @@ export function CatalogWithFilters({
   preGrid,
   listingSearchQuery = null,
   listingSearchHasMore = false,
+  chipNav,
 }: CatalogWithFiltersProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -200,6 +203,8 @@ export function CatalogWithFilters({
         onClear={() => setQuery("")}
         loading={searchLoading}
       />
+
+      {chipNav ? <div className="mt-3">{chipNav}</div> : null}
 
       {searchListing ? null : (
         <ListingDesktopFilters

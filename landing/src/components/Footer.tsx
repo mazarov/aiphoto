@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { SiteLogoMark } from "./SiteLogoMark";
 import { PricingEntryLink } from "./PricingEntryLink";
+import { SiteBrandLink } from "./SiteBrandLink";
 
 export function Footer() {
   const pathname = usePathname();
@@ -16,10 +16,7 @@ export function Footer() {
       <div className="mx-auto max-w-7xl px-5 py-12">
         <div className="flex flex-col gap-8 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <div className="flex items-center gap-2 text-base font-bold tracking-tight text-zinc-900 select-none">
-              <SiteLogoMark size={24} className="h-6 w-6 rounded-md" />
-              PromptShot
-            </div>
+            <SiteBrandLink markSize={24} />
             <p className="mt-2 max-w-xs text-sm text-zinc-500">
               Готовые промпты для создания фото с помощью нейросетей. Копируй и используй.
             </p>

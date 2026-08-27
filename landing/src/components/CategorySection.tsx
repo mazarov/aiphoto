@@ -43,7 +43,10 @@ export function CategorySection({
   const hiddenForSeo = !expanded && needsExpand ? visible.slice(COLLAPSED_LIMIT) : [];
 
   return (
-    <section id={sectionId} className="mt-12 scroll-mt-20">
+    <section
+      id={sectionId}
+      className={`scroll-mt-20 ${isFirstSection ? "mt-5 lg:mt-12" : "mt-12"}`}
+    >
       <h2 className="text-xl font-bold text-zinc-900">{title}</h2>
 
       <div className="mt-5 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 sm:gap-5">

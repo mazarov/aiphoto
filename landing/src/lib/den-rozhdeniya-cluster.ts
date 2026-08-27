@@ -247,6 +247,12 @@ export function birthdayChildPath(alias: string): string {
   return `${DEN_ROZHDENIYA_HUB_PATH}/${alias}`;
 }
 
+export function isFeaturedBirthdayChildAlias(alias: string): boolean {
+  return DEN_ROZHDENIYA_CHILDREN.some(
+    (child) => child.featured && child.alias === alias
+  );
+}
+
 export function getFeaturedBirthdayNavItems(activeAlias?: string | null): {
   label: string;
   href: string;

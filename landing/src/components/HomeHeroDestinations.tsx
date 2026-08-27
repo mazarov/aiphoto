@@ -70,10 +70,10 @@ export function HomeHeroDestinations() {
   return (
     <nav
       aria-label="Инструменты PromptShot"
-      className="mx-auto mt-6 w-full max-w-3xl text-left"
+      className="mx-auto mt-6 w-full max-w-3xl text-left sm:mt-8"
     >
       <ul
-        className={`grid gap-2.5 ${
+        className={`grid gap-3 ${
           items.length >= 3 ? "sm:grid-cols-3" : "sm:grid-cols-2"
         }`}
       >
@@ -81,7 +81,7 @@ export function HomeHeroDestinations() {
           <li key={item.href}>
             <Link
               href={item.href}
-              className="group flex h-full items-start gap-3 rounded-2xl border border-zinc-200/80 bg-white/80 px-3.5 py-3.5 shadow-sm shadow-zinc-900/[0.03] backdrop-blur-sm transition-all duration-200 hover:border-indigo-200 hover:bg-indigo-50/40 hover:shadow-md hover:shadow-indigo-500/[0.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/40"
+              className="group flex h-full items-start gap-3 rounded-2xl border border-zinc-200/80 bg-white/80 p-4 shadow-sm shadow-zinc-900/[0.03] backdrop-blur-sm transition-all duration-200 hover:border-indigo-200 hover:bg-indigo-50/40 hover:shadow-md hover:shadow-indigo-500/[0.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/40"
             >
               <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 ring-1 ring-indigo-100 transition-colors group-hover:bg-indigo-100 group-hover:text-indigo-700">
                 {item.icon}
@@ -93,7 +93,7 @@ export function HomeHeroDestinations() {
                   </span>
                   <ArrowIcon />
                 </span>
-                <span className="mt-0.5 block text-sm leading-snug text-zinc-500">
+                <span className="mt-1.5 block text-sm leading-snug text-zinc-500">
                   {item.description}
                 </span>
               </span>

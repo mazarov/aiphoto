@@ -1,7 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useRef } from "react";
-import { GeneraciyaFotoThemeCollage } from "@/components/generate/GeneraciyaFotoThemeCollage";
+import {
+  GeneraciyaFotoThemeCollage,
+  type ThemeCollageItem,
+  type ThemeCountKind,
+} from "@/components/generate/GeneraciyaFotoThemeCollage";
 import {
   LISTING_MASONRY_CAROUSEL_CARD_CLASS,
   LISTING_MASONRY_CAROUSEL_TRACK_CLASS,
@@ -28,11 +32,17 @@ function ArrowIcon({ dir }: { dir: "prev" | "next" }) {
 }
 
 export function GeneraciyaFotoThemesCarousel({
+  items = GENERACIYA_FOTO_THEMES.items,
   photosByHref,
   countByHref,
+  ariaLabel = GENERACIYA_FOTO_THEMES.title,
+  countKind = "templates",
 }: {
+  items?: readonly ThemeCollageItem[];
   photosByHref: Record<string, string[]>;
   countByHref: Record<string, number>;
+  ariaLabel?: string;
+  countKind?: ThemeCountKind;
 }) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const scrollerRef = useRef<HTMLUListElement>(null);
@@ -69,15 +79,16 @@ export function GeneraciyaFotoThemesCarousel({
       <ul
         ref={scrollerRef}
         className={LISTING_MASONRY_CAROUSEL_TRACK_CLASS}
-        aria-label={GENERACIYA_FOTO_THEMES.title}
+        aria-label={ariaLabel}
       >
-        {GENERACIYA_FOTO_THEMES.items.map((item, index) => (
+        {items.map((item, index) => (
           <li key={item.href} className={LISTING_MASONRY_CAROUSEL_CARD_CLASS}>
             <GeneraciyaFotoThemeCollage
               item={item}
               photos={photosByHref[item.href] ?? []}
               count={countByHref[item.href] ?? 0}
               priority={index === 0}
+              countKind={countKind}
             />
           </li>
         ))}

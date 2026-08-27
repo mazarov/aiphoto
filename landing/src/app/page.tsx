@@ -8,11 +8,15 @@ import {
 } from "@/lib/supabase";
 import { TAG_REGISTRY } from "@/lib/tag-registry";
 import { HOMEPAGE_SEO, HOMEPAGE_FAQ } from "@/lib/homepage-seo-copy";
+import { getHomepageCatalogThemeItems } from "@/lib/homepage-explorer-chips";
+import { fetchNewestThemeCollagePhotos } from "@/lib/homepage-sections";
 import { toGenerationExampleCard } from "@/lib/generation/example-card";
 import { PageLayout } from "@/components/PageLayout";
 import { HomeHeroDestinations } from "@/components/HomeHeroDestinations";
-import { HomeSeoBlocks } from "@/components/HomeSeoBlocks";
+import { HomeFaq, HomeIntroAndHowTo } from "@/components/HomeSeoBlocks";
 import { HomepageExamplesExplorer } from "@/components/home/HomepageExamplesExplorer";
+import { GeneraciyaFotoHeroCarousel } from "@/components/generate/GeneraciyaFotoHeroCarousel";
+import { GeneraciyaFotoThemes } from "@/components/generate/GeneraciyaFotoLandingSections";
 
 export const revalidate = 3600;
 
@@ -35,7 +39,7 @@ const getCachedNewCards = cache(async (): Promise<PromptCardFull[]> => {
       occasion_tag: null,
       object_tag: null,
       doc_task_tag: null,
-      limit: 16,
+      limit: 50,
       offset: 0,
       min_cards: 1,
       sort: "new",
@@ -77,9 +81,11 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function HomePage() {
-  const [sections, newCards] = await Promise.all([
+  const catalogThemes = getHomepageCatalogThemeItems();
+  const [sections, newCards, catalogCollage] = await Promise.all([
     getCachedSections(),
     getCachedNewCards(),
+    fetchNewestThemeCollagePhotos(catalogThemes),
   ]);
 
   const totalPrompts = sections.reduce((sum, s) => sum + s.total_count, 0);
@@ -89,7 +95,8 @@ export default async function HomePage() {
     sections.find((s) => s.cards.length > 0)?.cards[0]?.photoUrl ??
     null;
   const exampleCards = newCards.map(toGenerationExampleCard);
-
+  const carouselCards = exampleCards.filter((card) => card.photoUrl).slice(0, 50);
+  const galleryCards = exampleCards.slice(0, 16);
   const collectionPageLd = {
     "@context": "https://schema.org",
     "@type": "CollectionPage",
@@ -133,13 +140,13 @@ export default async function HomePage() {
     })),
   };
 
-  const itemListLd = newCards.length
+  const itemListLd = galleryCards.length
     ? {
         "@context": "https://schema.org",
         "@type": "ItemList",
         name: HOMEPAGE_SEO.examplesTitle,
-        numberOfItems: newCards.length,
-        itemListElement: newCards.map((card, index) => ({
+        numberOfItems: galleryCards.length,
+        itemListElement: galleryCards.map((card, index) => ({
           "@type": "ListItem",
           position: index + 1,
           name: card.title_ru || card.title_en || "Промт для фото",
@@ -152,39 +159,63 @@ export default async function HomePage() {
 
   return (
     <PageLayout showFooterWithGenerateDock>
-      <section className="relative overflow-hidden bg-gradient-to-b from-indigo-50/40 via-white to-white">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(99,102,241,0.12),transparent)]" />
-        <div className="relative mx-auto max-w-5xl px-5 pt-16 pb-10 text-center">
-          <h1 className="mx-auto max-w-4xl text-3xl font-bold tracking-tight text-zinc-900 sm:text-4xl lg:text-5xl">
-            {HOMEPAGE_SEO.h1.main}{" "}
-            <span className="bg-gradient-to-r from-indigo-500 to-violet-500 text-gradient">
-              {HOMEPAGE_SEO.h1.accent}
-            </span>
-          </h1>
-          <p className="mx-auto mt-4 max-w-lg text-base text-zinc-500 sm:text-lg">
-            {HOMEPAGE_SEO.heroSubtitle}
-          </p>
-          <div className="mt-6 flex items-center justify-center gap-2 text-sm text-zinc-400">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-zinc-100 px-3 py-1 text-zinc-600">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
-              {totalPrompts}+ промтов
-            </span>
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-zinc-100 px-3 py-1 text-zinc-600">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
-              {totalCategories} категорий
-            </span>
+      <main className="listing-main-bottom-pad w-full flex-1 pb-16 sm:pb-24">
+        <section className="relative overflow-hidden">
+          <div
+            className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_75%_65%_at_50%_-20%,rgba(99,102,241,0.14),transparent_62%)]"
+            aria-hidden
+          />
+          <div className="relative mx-auto w-full max-w-7xl px-3 pb-0 pt-8 text-center sm:px-5 sm:pt-12 xl:px-6">
+            <h1 className="mx-auto max-w-3xl text-balance text-3xl font-bold tracking-tight text-zinc-900 sm:text-4xl lg:text-[2.75rem] lg:leading-tight">
+              {HOMEPAGE_SEO.h1.main}{" "}
+              <span className="bg-gradient-to-r from-indigo-500 to-violet-500 text-gradient">
+                {HOMEPAGE_SEO.h1.accent}
+              </span>
+            </h1>
+            <p className="mx-auto mt-3 max-w-2xl text-pretty text-base leading-relaxed text-zinc-600 sm:mt-4 sm:text-lg">
+              {HOMEPAGE_SEO.heroSubtitle}
+            </p>
+            <div className="mt-4 flex items-center justify-center gap-2 text-sm text-zinc-400">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-zinc-100 px-3 py-1 text-zinc-600">
+                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
+                {totalPrompts}+ промтов
+              </span>
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-zinc-100 px-3 py-1 text-zinc-600">
+                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+                {totalCategories} категорий
+              </span>
+            </div>
+            <GeneraciyaFotoHeroCarousel
+              cards={carouselCards}
+              ctaLabel={null}
+              ariaLabel={HOMEPAGE_SEO.examplesTitle}
+            />
+            <HomeHeroDestinations />
           </div>
-          <HomeHeroDestinations />
-        </div>
-      </section>
+        </section>
 
-      <main className="w-full flex-1 px-2 sm:px-5 pb-16">
-        <div className="mx-auto w-full max-w-7xl">
-          <HomepageExamplesExplorer initialCards={exampleCards} />
+        <div className="mx-auto flex w-full max-w-7xl flex-col gap-10 px-3 pt-10 sm:gap-12 sm:px-5 sm:pt-12 lg:gap-16 lg:pt-16 xl:px-6">
+          <GeneraciyaFotoThemes
+            sectionId="katalog"
+            headingId="catalog-heading"
+            eyebrow={HOMEPAGE_SEO.examplesEyebrow}
+            title={HOMEPAGE_SEO.examplesTitle}
+            lead={HOMEPAGE_SEO.examplesIntro}
+            leadSecondary={HOMEPAGE_SEO.examplesIntroSecondary}
+            items={catalogThemes}
+            photosByHref={catalogCollage.photosByHref}
+            countByHref={catalogCollage.countByHref}
+            countKind="prompts"
+            ctaHref={HOMEPAGE_SEO.catalogHref}
+            ctaLabel={HOMEPAGE_SEO.catalogCta}
+          />
+
+          <HomepageExamplesExplorer initialCards={galleryCards} />
+
+          <HomeIntroAndHowTo />
+          <HomeFaq />
         </div>
       </main>
-
-      <HomeSeoBlocks />
 
       <script
         type="application/ld+json"

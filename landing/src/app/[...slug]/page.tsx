@@ -12,6 +12,7 @@ import {
 import { parseListingSort } from "@/lib/listing-sort";
 import { CatalogExplorer } from "@/components/CatalogExplorer";
 import { ListingClusterChipGroup } from "@/components/ListingClusterChipGroup";
+import { ListingHomeBackLink } from "@/components/ListingHomeBackLink";
 import { PageLayout } from "@/components/PageLayout";
 import {
   getSiblingTags,
@@ -31,7 +32,9 @@ import {
   getFeaturedBirthdayNavItems,
   isDenRozhdeniyaClusterPath,
   isDenRozhdeniyaHubPath,
+  isFeaturedBirthdayChildAlias,
 } from "@/lib/den-rozhdeniya-cluster";
+import { uniqueListingChipsByHref } from "@/lib/listing-cluster-chips";
 import {
   getFeaturedPairsNavItems,
   isFeaturedPairsChildAlias,
@@ -364,6 +367,26 @@ function sortChipsByFeatured(chips: L2Chip[], featuredSlugs?: string[]): L2Chip[
   });
 }
 
+function preferL2Chip(
+  kept: L2Chip,
+  next: L2Chip,
+  featuredSlugs?: string[]
+): L2Chip {
+  const order = new Map((featuredSlugs ?? []).map((slug, index) => [slug, index]));
+  const keptFeatured = order.get(kept.tag.slug);
+  const nextFeatured = order.get(next.tag.slug);
+  if (keptFeatured != null && nextFeatured == null) return kept;
+  if (nextFeatured != null && keptFeatured == null) return next;
+  if (
+    keptFeatured != null &&
+    nextFeatured != null &&
+    keptFeatured !== nextFeatured
+  ) {
+    return keptFeatured < nextFeatured ? kept : next;
+  }
+  return (next.count ?? 0) > (kept.count ?? 0) ? next : kept;
+}
+
 function SeoPopularLinks({ links }: { links: NonNullable<SeoContent["popularLinks"]> }) {
   return (
     <nav className="mt-4" aria-label="Популярные подборки">
@@ -448,7 +471,12 @@ async function getL2ChipsForTag(
     groups.push({
       dimension: dim,
       label: DIMENSION_LABELS[dim],
-      chips: sortChipsByFeatured(chips, featuredL2Slugs).slice(0, limit),
+      chips: sortChipsByFeatured(
+        uniqueListingChipsByHref(chips, (kept, next) =>
+          preferL2Chip(kept, next, featuredL2Slugs)
+        ),
+        featuredL2Slugs
+      ).slice(0, limit),
     });
   }
   return groups;
@@ -641,12 +669,12 @@ export default async function TagPage({ params, searchParams }: Props) {
   )
     .map((group) => ({
       ...group,
-      chips: isPairsCluster
-        ? group.chips.filter((chip) => {
-            const alias = chip.href.split("/").filter(Boolean).pop() ?? "";
-            return !isFeaturedPairsChildAlias(alias);
-          })
-        : group.chips,
+      chips: group.chips.filter((chip) => {
+        const alias = chip.href.split("/").filter(Boolean).pop() ?? "";
+        if (isPairsCluster) return !isFeaturedPairsChildAlias(alias);
+        if (isBirthdayCluster) return !isFeaturedBirthdayChildAlias(alias);
+        return true;
+      }),
     }))
     .filter((group) => group.chips.length > 0);
 
@@ -701,26 +729,39 @@ export default async function TagPage({ params, searchParams }: Props) {
             headingId="listing-explorer-heading"
             eyebrow={sectionLabel}
             intro={seo.intro}
-            preGrid={
-              clusterChipsAboveGrid.length > 0 ? (
-                <ListingClusterChipGroup
-                  label={DIMENSION_LABELS[primaryTag.dimension]}
-                  items={clusterChipsAboveGrid}
-                />
+            chipNav={
+              route.level === 1 ? (
+                <nav aria-label="Категории промтов">
+                  <ListingClusterChipGroup
+                    label=""
+                    showLabel={false}
+                    variant="nav"
+                    leading={<ListingHomeBackLink />}
+                    items={
+                      clusterChipsAboveGrid.length > 0
+                        ? clusterChipsAboveGrid
+                        : birthdayNav.length > 0
+                          ? birthdayNav
+                          : pairsNav
+                    }
+                  />
+                </nav>
               ) : undefined
             }
             afterIntro={
-              birthdayNav.length > 0 ? (
-                <ListingClusterChipGroup
-                  label="Сценарии на день рождения"
-                  items={birthdayNav}
-                />
-              ) : pairsNav.length > 0 ? (
-                <ListingClusterChipGroup
-                  label="Сценарии для фото пары"
-                  items={pairsNav}
-                />
-              ) : undefined
+              route.level === 1
+                ? undefined
+                : birthdayNav.length > 0 ? (
+                    <ListingClusterChipGroup
+                      label="Сценарии на день рождения"
+                      items={birthdayNav}
+                    />
+                  ) : pairsNav.length > 0 ? (
+                    <ListingClusterChipGroup
+                      label="Сценарии для фото пары"
+                      items={pairsNav}
+                    />
+                  ) : undefined
             }
             listingSearchQuery={listingSearchQuery}
             listingSearchHasMore={
@@ -752,8 +793,7 @@ export default async function TagPage({ params, searchParams }: Props) {
           </section>
         ) : null}
 
-        {/* Parent link for L2/L3 */}
-        {route.parentPath && (
+        {route.parentPath ? (
           <div className="mt-10">
             <Link
               href={route.parentPath}
@@ -766,7 +806,7 @@ export default async function TagPage({ params, searchParams }: Props) {
               Все промты: {primaryTag.labelRu}
             </Link>
           </div>
-        )}
+        ) : null}
 
         {/* L2 chips — only on L1 pages */}
         {l2ChipGroupsBelow.length > 0 && (

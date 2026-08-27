@@ -20,5 +20,8 @@ export const GF_STACK = "mt-5";
 export const GF_BRAND_CTA =
   "inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-indigo-500 via-[#5b5cf0] to-violet-500 px-5 text-sm font-semibold text-white shadow-lg shadow-indigo-500/25 transition hover:brightness-105 active:scale-[0.98]";
 
+export const GF_SECONDARY_CTA =
+  "inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-indigo-200 bg-white px-5 text-sm font-semibold text-indigo-700 shadow-sm transition hover:border-indigo-300 hover:bg-indigo-50 active:scale-[0.98]";
+
 export const GF_SURFACE =
   "rounded-2xl border border-indigo-100/90 bg-white/80 transition hover:border-indigo-200 hover:bg-white";

@@ -1,91 +1,102 @@
 import Link from "next/link";
+import {
+  GF_BLOCK,
+  GF_H2,
+  GF_STACK,
+  GF_SURFACE,
+} from "@/components/generate/generaciya-foto-ui";
 import { HOMEPAGE_SEO, HOMEPAGE_FAQ } from "@/lib/homepage-seo-copy";
 
 const linkClass =
   "font-medium text-indigo-600 hover:text-indigo-700 hover:underline";
 
-function FaqAnswer({ index }: { index: number }) {
-  switch (index) {
-    case 1:
+function FaqAnswer({ item }: { item: (typeof HOMEPAGE_FAQ)[number] }) {
+  switch (item.id) {
+    case "example":
       return (
         <>
-          В каталоге PromptShot — разделы{" "}
-          <Link href="/promty-dlya-foto-devushki" className={linkClass}>
-            «Люди и отношения»
-          </Link>
-          ,{" "}
-          <Link href="/stil/portret" className={linkClass}>
-            «Стили»
-          </Link>
-          ,{" "}
-          <Link href="/sobytiya/den-rozhdeniya" className={linkClass}>
-            «События»
-          </Link>{" "}
-          с промтами для портретов, парных и студийных фотосессий в нейросетях.
-        </>
-      );
-    case 2:
-      return (
-        <>
-          Скопируйте промт{" "}
+          В блоке{" "}
           <Link href="/#primery" className={linkClass}>
-            с карточки в каталоге
-          </Link>
-          , откройте Nano Banana или другую нейросеть, вставьте текст и при
-          необходимости загрузите своё фото.
+            «Идеи промтов для фото»
+          </Link>{" "}
+          на этой странице. У каждой карточки рядом с кадром полный текст промта.
+          Открой карточку, чтобы скопировать пример или запустить генерацию.
         </>
       );
-    case 5:
+    case "best":
       return (
         <>
-          Загрузите изображение на странице{" "}
-          <Link href="/foto-v-promt" className={linkClass}>
-            Фото в промт
+          Те, у которых уже есть удачный кадр. На этой странице смотри примеры в{" "}
+          <Link href="/#primery" className={linkClass}>
+            ленте
+          </Link>
+          , в{" "}
+          <Link href="/#katalog" className={linkClass}>
+            каталоге
           </Link>{" "}
-          — сервис вернёт текстовый промт для нейросети. Для разбора картинок на
-          других сайтах — расширение AI Image Describer для Chrome.
+          — по темам. Если результат нравится, скопируй промт или повтори кадр
+          со своим фото.
         </>
       );
     default:
-      return HOMEPAGE_FAQ[index].aPlain;
+      return item.aPlain;
   }
 }
 
-export function HomeSeoBlocks() {
+export function HomeIntroAndHowTo() {
   return (
-    <div className="mx-auto max-w-3xl px-5 pt-4 pb-16">
-      <p className="text-base leading-relaxed text-zinc-600">{HOMEPAGE_SEO.intro}</p>
-
-      <section className="mt-10 rounded-2xl border border-zinc-200 bg-white p-6 sm:p-8">
-        <h2 className="text-xl font-bold text-zinc-900">{HOMEPAGE_SEO.howToTitle}</h2>
-        <ol className="mt-4 space-y-3 text-zinc-600">
-          {HOMEPAGE_SEO.howToSteps.map((step, i) => (
-            <li key={i} className="flex gap-3">
-              <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-indigo-100 text-sm font-bold text-indigo-700">
-                {i + 1}
-              </span>
-              {step}
-            </li>
-          ))}
-        </ol>
+    <>
+      <section className="scroll-mt-20" aria-labelledby="howto-heading">
+        <div className={GF_BLOCK}>
+          <h2 id="howto-heading" className={GF_H2}>
+            {HOMEPAGE_SEO.howToTitle}
+          </h2>
+          <ol className={`${GF_STACK} grid gap-5 sm:grid-cols-2`}>
+            {HOMEPAGE_SEO.howToSteps.map((step, index) => (
+              <li key={step}>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-indigo-600">
+                  {String(index + 1).padStart(2, "0")}
+                </p>
+                <p className="mt-1.5 text-sm leading-relaxed text-zinc-600">
+                  {step}
+                </p>
+              </li>
+            ))}
+          </ol>
+        </div>
       </section>
+    </>
+  );
+}
 
-      <section className="mt-10">
-        <h2 className="text-xl font-bold text-zinc-900">{HOMEPAGE_SEO.faqTitle}</h2>
-        <dl className="mt-4 space-y-6">
-          {HOMEPAGE_FAQ.map((item, i) => (
-            <div
-              key={item.q}
-              className="rounded-xl border border-zinc-200 bg-zinc-50/50 p-4"
-            >
-              <dt className="font-semibold text-zinc-900">{item.q}</dt>
-              <dd className="mt-2 text-zinc-600">
-                <FaqAnswer index={i} />
+export function HomeFaq() {
+  return (
+    <section className="scroll-mt-20" aria-labelledby="faq-heading">
+      <div className={GF_BLOCK}>
+        <h2 id="faq-heading" className={GF_H2}>
+          {HOMEPAGE_SEO.faqTitle}
+        </h2>
+        <dl className={`${GF_STACK} space-y-3`}>
+          {HOMEPAGE_FAQ.map((item) => (
+            <div key={item.id} className={`p-5 ${GF_SURFACE}`}>
+              <dt className="text-base font-semibold text-zinc-900">{item.q}</dt>
+              <dd className="mt-1.5 text-sm leading-relaxed text-zinc-600">
+                <FaqAnswer item={item} />
               </dd>
             </div>
           ))}
         </dl>
-      </section>
-    </div>
+      </div>
+    </section>
+  );
+}
+
+/** Intro + HowTo + FAQ in page order. Prefer the split exports on `/`. */
+export function HomeSeoBlocks() {
+  return (
+    <>
+      <HomeIntroAndHowTo />
+      <HomeFaq />
+    </>
   );
 }
