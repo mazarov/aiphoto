@@ -5,7 +5,7 @@
 ## Что делаем
 
 1. L3 кластера `/sobytiya/den-rozhdeniya/{audience}/{object}` больше не отдаём. Постоянный 301 на audience L2 (object-first → audience L2; object×object → первый L2).
-2. Сетка хаба и L2 остаётся поиском. Запрос везде `день рождения`. L2 дополнительно фильтрует `audience_tag` / `object_tag`. Listing hybrid материализует до 500 хитов (SQL `least(500, p_limit)`). Публичный `/api/search` остаётся на окне 100.
+2. Хаб и L2 девушке / детям / с тортом — категорийные теги (`resolve_route_cards`, сорт по новизне). L2 мужчине / с детским фото / с шампанским / со львом — свои поисковые запросы. Их query-векторы лежат в `listing_query_embeddings` (SQL `223`); `/api/search` в эту таблицу не пишет. Публичный `/api/search` остаётся на окне 100.
 
 ## Редиректы
 

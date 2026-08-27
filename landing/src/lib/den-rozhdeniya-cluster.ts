@@ -17,7 +17,7 @@ export const DEN_ROZHDENIYA_HUB_PATH = "/sobytiya/den-rozhdeniya";
 export const DEN_ROZHDENIYA_TAG_SLUG = "den_rozhdeniya";
 export const DEN_ROZHDENIYA_GENERATE_HREF = "/generaciya-foto/na-den-rozhdeniya";
 export const DEN_ROZHDENIYA_GENERATE_LABEL = "Сделать фото с ИИ";
-/** Hub and L2 listing query. L2 adds tag filters instead of extra AND tokens. */
+/** Shared birthday phrase for search-backed L2 that still need it. */
 export const DEN_ROZHDENIYA_SEARCH_QUERY = "день рождения";
 
 export type BirthdayClusterChild = {
@@ -26,6 +26,8 @@ export type BirthdayClusterChild = {
   tagSlug: string;
   label: string;
   featured: boolean;
+  /** When set, this L2 uses hybrid search instead of category tags. */
+  listingQuery?: string;
 };
 
 /** Featured children first — Wordstat order. Object aliases match TAG_REGISTRY last segments. */
@@ -50,6 +52,7 @@ export const DEN_ROZHDENIYA_CHILDREN: BirthdayClusterChild[] = [
     tagSlug: "muzhchina",
     label: "Мужчине",
     featured: true,
+    listingQuery: "мужской день рождения",
   },
   {
     alias: "s-tortom",
@@ -64,6 +67,7 @@ export const DEN_ROZHDENIYA_CHILDREN: BirthdayClusterChild[] = [
     tagSlug: "s_detskim_foto",
     label: "С детским фото",
     featured: true,
+    listingQuery: `${DEN_ROZHDENIYA_SEARCH_QUERY} с детским фото`,
   },
   {
     alias: "s-shampanskim",
@@ -71,6 +75,7 @@ export const DEN_ROZHDENIYA_CHILDREN: BirthdayClusterChild[] = [
     tagSlug: "s_shampanskim",
     label: "С шампанским",
     featured: true,
+    listingQuery: "с шампанским",
   },
   {
     alias: "so-lvom",
@@ -78,6 +83,7 @@ export const DEN_ROZHDENIYA_CHILDREN: BirthdayClusterChild[] = [
     tagSlug: "so_lvom",
     label: "Со львом",
     featured: true,
+    listingQuery: "со львом",
   },
 ];
 
@@ -221,34 +227,16 @@ export type BirthdaySitemapPage = {
   level: 1 | 2;
 };
 
-/** Hub + featured L2 only. L3 is retired. */
+/** Search-backed L2 only. Hub and tag L2 come from the catalog sitemap. L3 is retired. */
 export function birthdayClusterSitemapPages(): BirthdaySitemapPage[] {
-  const occasion = findTagBySlug("occasion_tag", DEN_ROZHDENIYA_TAG_SLUG);
-  const pages: BirthdaySitemapPage[] = [
-    {
-      path: DEN_ROZHDENIYA_HUB_PATH,
-      query: DEN_ROZHDENIYA_SEARCH_QUERY,
-      filters: {},
-      level: 1,
-    },
-  ];
-  if (!occasion) return pages;
-
-  for (const child of DEN_ROZHDENIYA_CHILDREN) {
-    const tag = findTagBySlug(child.dimension, child.tagSlug);
-    if (!tag) continue;
-    const tags = [occasion, tag];
-    const query = birthdayListingSearchQuery(tags);
-    if (!query) continue;
-    pages.push({
+  return DEN_ROZHDENIYA_CHILDREN.filter((child) => child.listingQuery).map(
+    (child) => ({
       path: birthdayChildPath(child.alias),
-      query,
-      filters: birthdayListingSearchFilters(tags),
-      level: 2,
-    });
-  }
-
-  return pages;
+      query: child.listingQuery as string,
+      filters: {},
+      level: 2 as const,
+    }),
+  );
 }
 
 export function isDenRozhdeniyaHubPath(pathname: string): boolean {
@@ -410,9 +398,26 @@ export function normalizeListingSearchQuery(query: string): string {
   return query.trim().toLowerCase().replace(/\s+/g, " ");
 }
 
+function birthdayChildForListingTags(
+  tags: TagEntry[],
+): BirthdayClusterChild | null {
+  const occasion = occasionTag(tags);
+  if (!occasion) return null;
+  const others = tags.filter((tag) => tag !== occasion);
+  if (others.length !== 1) return null;
+  const only = others[0];
+  return (
+    DEN_ROZHDENIYA_CHILDREN.find((child) => child.tagSlug === only.slug) ??
+    (only.dimension === "audience_tag"
+      ? findBirthdayChildByAlias(birthdayAliasForAudienceSlug(only.slug) ?? "")
+      : null)
+  );
+}
+
 export function birthdayListingSearchFilters(
   tags: TagEntry[],
 ): BirthdayListingSearchFilters {
+  if (birthdayListingSearchQuery(tags)) return {};
   if (!occasionTag(tags)) return {};
 
   const others = tags.filter(
@@ -443,7 +448,9 @@ export function birthdayListingSearchFilterKey(
 
 /** All SSOT listing queries that may use hybrid search / result cache. */
 export function birthdayListingSearchQueries(): string[] {
-  return [DEN_ROZHDENIYA_SEARCH_QUERY];
+  return DEN_ROZHDENIYA_CHILDREN.flatMap((child) =>
+    child.listingQuery ? [child.listingQuery] : [],
+  );
 }
 
 let listingSearchAllowlist: Set<string> | null = null;
@@ -460,11 +467,11 @@ export function isBirthdayListingSearchQuery(query: string): boolean {
 }
 
 /**
- * Text query that drives the birthday listing grid.
- * L2 uses this same phrase plus birthdayListingSearchFilters — never extra AND tokens.
+ * Hub and girl/kids/cake L2 use category tags.
+ * Weak L2 (man / then-now / champagne / lion) stay search-backed.
  */
 export function birthdayListingSearchQuery(tags: TagEntry[]): string | null {
-  return occasionTag(tags) ? DEN_ROZHDENIYA_SEARCH_QUERY : null;
+  return birthdayChildForListingTags(tags)?.listingQuery ?? null;
 }
 
 export function birthdayActiveAliasFromTags(tags: TagEntry[]): string | null {

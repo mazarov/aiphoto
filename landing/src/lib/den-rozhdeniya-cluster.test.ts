@@ -4,7 +4,6 @@ import { findTagBySlug } from "./tag-registry";
 import {
   DEN_ROZHDENIYA_HUB_PATH,
   DEN_ROZHDENIYA_PERMANENT_REDIRECTS,
-  DEN_ROZHDENIYA_SEARCH_QUERY,
   birthdayAliasForAudienceSlug,
   birthdayClusterSitemapPages,
   birthdayListingSearchFilters,
@@ -227,66 +226,67 @@ test("seo combo key follows dimension priority", () => {
   assert.equal(seoComboKey([occasion, girl]), "devushka+den_rozhdeniya");
 });
 
-test("listing query stays день рождения; L2 adds tag filters", () => {
+test("hub and girl/kids/cake stay on tags; weak L2 stay on search", () => {
   const occasion = findTagBySlug("occasion_tag", "den_rozhdeniya");
   const girl = findTagBySlug("audience_tag", "devushka");
   const boy = findTagBySlug("audience_tag", "malchik");
   const cake = findTagBySlug("object_tag", "s_tortom");
   const man = findTagBySlug("audience_tag", "muzhchina");
-  assert.ok(occasion && girl && boy && cake && man);
-  assert.equal(birthdayListingSearchQuery([occasion]), DEN_ROZHDENIYA_SEARCH_QUERY);
-  assert.equal(birthdayListingSearchQuery([occasion, girl]), DEN_ROZHDENIYA_SEARCH_QUERY);
-  assert.equal(birthdayListingSearchQuery([occasion, boy]), DEN_ROZHDENIYA_SEARCH_QUERY);
-  assert.equal(birthdayListingSearchQuery([occasion, man]), DEN_ROZHDENIYA_SEARCH_QUERY);
-  assert.equal(birthdayListingSearchQuery([occasion, cake]), DEN_ROZHDENIYA_SEARCH_QUERY);
-  assert.equal(birthdayListingSearchQuery([occasion, girl, cake]), DEN_ROZHDENIYA_SEARCH_QUERY);
+  const thenNow = findTagBySlug("object_tag", "s_detskim_foto");
+  const champagne = findTagBySlug("object_tag", "s_shampanskim");
+  const lion = findTagBySlug("object_tag", "so_lvom");
+  assert.ok(occasion && girl && boy && cake && man && thenNow && champagne && lion);
+  assert.equal(birthdayListingSearchQuery([occasion]), null);
+  assert.equal(birthdayListingSearchQuery([occasion, girl]), null);
+  assert.equal(birthdayListingSearchQuery([occasion, boy]), null);
+  assert.equal(birthdayListingSearchQuery([occasion, cake]), null);
+  assert.equal(
+    birthdayListingSearchQuery([occasion, man]),
+    "мужской день рождения",
+  );
+  assert.equal(
+    birthdayListingSearchQuery([occasion, thenNow]),
+    "день рождения с детским фото",
+  );
+  assert.equal(birthdayListingSearchQuery([occasion, champagne]), "с шампанским");
+  assert.equal(birthdayListingSearchQuery([occasion, lion]), "со львом");
+  assert.equal(birthdayListingSearchQuery([occasion, girl, cake]), null);
   assert.equal(birthdayListingSearchQuery([girl]), null);
-  assert.deepEqual(birthdayListingSearchFilters([occasion]), {});
+  assert.deepEqual(birthdayListingSearchFilters([occasion, man]), {});
   assert.deepEqual(birthdayListingSearchFilters([occasion, girl]), {
     audience_tag: "devushka",
   });
-  assert.deepEqual(birthdayListingSearchFilters([occasion, cake]), {
-    object_tag: "s_tortom",
-  });
 });
 
-test("hybrid listing allowlist is only the hub query", () => {
+test("hybrid listing allowlist is only search-backed L2", () => {
   const queries = birthdayListingSearchQueries();
-  assert.deepEqual(queries, [DEN_ROZHDENIYA_SEARCH_QUERY]);
-  assert.equal(isBirthdayListingSearchQuery("день рождения"), true);
+  assert.deepEqual(queries, [
+    "мужской день рождения",
+    "день рождения с детским фото",
+    "с шампанским",
+    "со львом",
+  ]);
+  assert.equal(isBirthdayListingSearchQuery("день рождения"), false);
+  assert.equal(isBirthdayListingSearchQuery("мужской день рождения"), true);
+  assert.equal(isBirthdayListingSearchQuery("с шампанским"), true);
   assert.equal(isBirthdayListingSearchQuery("день рождения девушке"), false);
   assert.equal(isBirthdayListingSearchQuery("с тортом"), false);
   assert.equal(isBirthdayListingSearchQuery("ночной портрет"), false);
 });
 
-test("sitemap pages are hub plus L2 only", () => {
+test("search-backed sitemap is weak L2 only", () => {
   const pages = birthdayClusterSitemapPages();
   const byPath = new Map(pages.map((page) => [page.path, page]));
-  assert.deepEqual(byPath.get("/sobytiya/den-rozhdeniya"), {
-    path: "/sobytiya/den-rozhdeniya",
-    query: DEN_ROZHDENIYA_SEARCH_QUERY,
-    filters: {},
-    level: 1,
-  });
+  assert.equal(byPath.has("/sobytiya/den-rozhdeniya"), false);
   assert.deepEqual(byPath.get("/sobytiya/den-rozhdeniya/muzhchiny"), {
     path: "/sobytiya/den-rozhdeniya/muzhchiny",
-    query: DEN_ROZHDENIYA_SEARCH_QUERY,
-    filters: { audience_tag: "muzhchina" },
+    query: "мужской день рождения",
+    filters: {},
     level: 2,
   });
-  assert.deepEqual(byPath.get("/sobytiya/den-rozhdeniya/s-tortom"), {
-    path: "/sobytiya/den-rozhdeniya/s-tortom",
-    query: DEN_ROZHDENIYA_SEARCH_QUERY,
-    filters: { object_tag: "s_tortom" },
-    level: 2,
-  });
+  assert.equal(byPath.has("/sobytiya/den-rozhdeniya/devushki"), false);
+  assert.equal(byPath.has("/sobytiya/den-rozhdeniya/s-tortom"), false);
   assert.equal(byPath.has("/sobytiya/den-rozhdeniya/devushki/s-tortom"), false);
-  assert.equal(
-    pages.filter((page) => page.level === 2).length,
-    7,
-  );
-  assert.equal(
-    pages.some((page) => page.path.split("/").length > 4),
-    false,
-  );
+  assert.equal(pages.filter((page) => page.level === 2).length, 4);
+  assert.equal(pages.some((page) => page.level === 1), false);
 });

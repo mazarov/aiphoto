@@ -70,8 +70,16 @@ export async function runHybridCardSearch(options: {
   budgetActor?: VisualBudgetActor;
   /** Listing hybrid may raise this above TEXT_SEARCH_MAX_WINDOW. Public /search stays 100. */
   textMaxWindow?: number;
+  /**
+   * Listing cache-fill may wait longer than interactive `/api/search`.
+   * Public search keeps `SEARCH_VISUAL_TIMEOUT_MS` (default 800).
+   */
+  embedTimeoutMs?: number;
 }): Promise<HybridSearchResult> {
-  const config = getVisualSearchConfig();
+  const baseConfig = getVisualSearchConfig();
+  const config = options.embedTimeoutMs
+    ? { ...baseConfig, timeoutMs: options.embedTimeoutMs }
+    : baseConfig;
   const started = performance.now();
   const emptyTimings = (): HybridSearchTimings => ({
     textMs: 0,

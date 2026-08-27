@@ -55,6 +55,38 @@ test("hybrid search falls back to text when embedding is denied", async () => {
   }
 });
 
+test("hybrid search keeps the interactive embed timeout unless listing overrides it", async () => {
+  const previous = process.env.SEARCH_VISUAL_ENABLED;
+  process.env.SEARCH_VISUAL_ENABLED = "1";
+  let seenTimeout: number | undefined;
+  try {
+    await runHybridCardSearch({
+      query: "ночной портрет",
+      limit: 10,
+      offset: 0,
+      headers: new Headers(),
+      supabase: { async rpc() { return { data: null, error: null }; } },
+      embedTimeoutMs: 8000,
+      deps: {
+        searchText: async () => [textCard],
+        searchVisual: async () => [visualCard],
+        embedQuery: async (options) => {
+          seenTimeout = options.config?.timeoutMs;
+          return {
+            ok: true,
+            vector: Array.from({ length: 768 }, () => 0.01),
+            cacheHit: false,
+            circuitState: "closed",
+          };
+        },
+      },
+    });
+    assert.equal(seenTimeout, 8000);
+  } finally {
+    process.env.SEARCH_VISUAL_ENABLED = previous;
+  }
+});
+
 test("hybrid search merges visual candidates when embedding succeeds", async () => {
   const previous = process.env.SEARCH_VISUAL_ENABLED;
   process.env.SEARCH_VISUAL_ENABLED = "1";

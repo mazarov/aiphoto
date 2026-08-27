@@ -22,8 +22,9 @@ import {
   type HybridSearchResult,
   type HybridSearchTimings,
 } from "@/lib/visual-search";
+import { LISTING_HYBRID_EMBED_TIMEOUT_MS } from "@/lib/listing-hybrid-search-timeout";
+import { embedListingSearchQuery } from "@/lib/listing-query-embedding";
 import {
-  embedSearchQueryWithGuards,
   visualQueryCacheKey,
   type VisualBudgetActor,
 } from "@/lib/visual-search-guard";
@@ -32,11 +33,12 @@ export const LISTING_HYBRID_MATERIALIZE_LIMIT = 500;
 export const LISTING_HYBRID_TEXT_WINDOW = 500;
 export const LISTING_HYBRID_RESULT_TTL_MS = 60 * 60 * 1000;
 export const LISTING_HYBRID_SLOW_MS = 750;
+export { LISTING_HYBRID_EMBED_TIMEOUT_MS };
 
 export const listingHybridSearchDeps: HybridSearchDeps = {
   searchText: searchCardsByText,
   searchVisual: searchCardsByVisualEmbedding,
-  embedQuery: embedSearchQueryWithGuards,
+  embedQuery: embedListingSearchQuery,
 };
 
 type CachedListingHybrid = {
@@ -121,8 +123,8 @@ async function searchTextPage(options: {
 }
 
 /**
- * Birthday SSOT queries: hybrid + 1h result cache + system Gemini budget.
- * Any other `q` stays FTS-only so listing cannot burn the interactive search budget.
+ * Birthday SSOT queries: hybrid + stored query vectors + 1h result cache.
+ * Live Gemini only on persist miss. Other `q` stays FTS-only.
  */
 export async function searchListingCardsHybrid(options: {
   query: string;
@@ -202,6 +204,7 @@ export async function searchListingCardsHybrid(options: {
       now: options.now,
       budgetActor: "system",
       textMaxWindow: LISTING_HYBRID_TEXT_WINDOW,
+      embedTimeoutMs: LISTING_HYBRID_EMBED_TIMEOUT_MS,
     });
   });
 

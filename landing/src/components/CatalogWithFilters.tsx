@@ -61,8 +61,9 @@ export type CatalogWithFiltersProps = {
   /** Rendered above the masonry — e.g. event cross-link chips. */
   preGrid?: ReactNode;
   /**
-   * Birthday-cluster pages: masonry is hybrid listing search, not `resolve_route_cards`.
+   * Weak birthday L2: masonry is hybrid listing search, not `resolve_route_cards`.
    * Category filters are hidden because they would switch the source back to tags.
+   * Hub, girl, kids and cake stay on tag RPC.
    */
   listingSearchQuery?: string | null;
   listingSearchFilters?: Record<string, string | null | undefined>;

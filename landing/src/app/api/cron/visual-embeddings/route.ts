@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { ensureBirthdayListingQueryEmbeddings } from "@/lib/listing-query-embedding";
 import { createSupabaseServer } from "@/lib/supabase";
 import { processVisualEmbeddingJobs } from "@/lib/visual-embedding-jobs";
 
@@ -43,8 +44,17 @@ export async function POST(request: NextRequest) {
     );
     if (coverageError) throw new Error(coverageError.message);
 
+    let queryEmbeddings = { present: 0, embedded: 0, failed: 0 };
+    try {
+      queryEmbeddings = await ensureBirthdayListingQueryEmbeddings({ supabase });
+    } catch (error) {
+      console.warn("[visual-embeddings] listing query warm failed", {
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+
     return NextResponse.json(
-      { enqueued: enqueued ?? 0, ...processed, coverage },
+      { enqueued: enqueued ?? 0, ...processed, coverage, queryEmbeddings },
       { headers: { "Cache-Control": "no-store" } },
     );
   } catch (error) {
