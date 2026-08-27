@@ -7,8 +7,17 @@
 # After editing extension/sidepanel: from landing/ run npm run sync:stv-sidepanel and commit.
 #
 FROM node:20-alpine AS base
-# glibc compat for Alpine; Next.js official image note (nodejs/docker-node#nodealpine).
-RUN apk add --no-cache libc6-compat
+# glibc compat (gcompat; Alpine 3.23 dropped the libc6-compat package name).
+# Dockhost/RF often cannot fetch dl-cdn.alpinelinux.org — apk then times out
+# (~8 min) and reports "no such package". Use the Yandex Alpine mirror.
+RUN set -eu; \
+  sed -i 's#https\?://dl-cdn.alpinelinux.org/alpine#https://mirror.yandex.ru/mirrors/alpine#g' /etc/apk/repositories; \
+  i=0; \
+  until apk add --no-cache gcompat; do \
+    i=$((i + 1)); \
+    [ "$i" -ge 3 ] && exit 1; \
+    sleep $((i * 4)); \
+  done
 
 FROM base AS deps
 WORKDIR /app

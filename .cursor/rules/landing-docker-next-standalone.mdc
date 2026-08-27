@@ -36,7 +36,7 @@ alwaysApply: true
 
 4. Smoke после смены образа: **`landing/scripts/verify-docker-image.sh IMAGE:TAG`**.
 
-5. **Alpine + sharp:** deps-стадия после `npm ci` доустанавливает musl `sharp@0.33.5` (`--include=optional`) — иначе `next build` падает на collect page data (`libvips-cpp.so.42`). `sharp` в `serverExternalPackages`. Base image: `apk add libc6-compat`.
+5. **Alpine + sharp:** deps-стадия после `npm ci` доустанавливает musl `sharp@0.33.5` (`--include=optional`) — иначе `next build` падает на collect page data (`libvips-cpp.so.42`). `sharp` в `serverExternalPackages`. Base image: `apk add gcompat` **через зеркало Яндекса** (`mirror.yandex.ru/mirrors/alpine`), не `dl-cdn.alpinelinux.org`. С Dockhost CDN часто таймаутится, и apk врёт «пакета libc6-compat нет». На Alpine 3.23 пакет называется `gcompat`.
 
 6. Документация: **`docs/architecture/01-landing.md`**, **`landing/README.md`**.
 

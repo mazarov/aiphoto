@@ -1,5 +1,7 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-08-27 (**Docker Alpine apk / RF:** `landing/Dockerfile` и `web-generation-worker/Dockerfile` ставят `gcompat` с `mirror.yandex.ru/mirrors/alpine` и 3 ретраями. `dl-cdn.alpinelinux.org` с Dockhost таймаутится (~8 мин), apk пишет «libc6-compat нет» — это пустой индекс, не отсутствие пакета. Alpine 3.23: имя пакета `gcompat`.
+>
 > Последнее обновление: 2026-08-27 (**главная hero subtitle:** абзац `PromptShot — каталог промтов…` стоит под H1, не под галереей `#primery`. Поле `HOMEPAGE_SEO.intro` = тот же текст; explorer его не рисует.
 >
 > Последнее обновление: 2026-08-27 (**`/catalog` mobile chrome:** на max-lg скрыты чип «Назад» и H1 «Каталог и поиск»; плитки сразу под шапкой. Desktop — чип + H1 + плитки. Explorer / sticky-поиск в шапке сняты. `HomepageExamplesExplorer` только на `/` `#primery`.
@@ -1661,7 +1663,7 @@ landing/src/
 3. **После каждого изменения образа:** `landing/scripts/verify-docker-image.sh IMAGE:TAG` — падает, если нет `/app/server.js`.
 4. **В CI / перед деплоем:** `docker build` → `verify-docker-image.sh` → (опционально) `docker run` + `curl` на `:3001`.
 5. **Нестандартный CI:** при необходимости задать **`NEXT_STANDALONE_TRACING_ROOT`** на этапе `next build` (см. `next.config.ts`).
-6. **Alpine + sharp:** не полагаться только на `npm ci` — вложенный optional `@img/sharp-libvips-linuxmusl-x64` может не поставиться, и collect page data упадёт на `libvips-cpp.so.42`. После `npm ci` в deps-стадии нужен `npm install --os=linux --libc=musl --cpu=x64 --include=optional sharp@0.33.5`; `sharp` остаётся в `serverExternalPackages`.
+6. **Alpine + sharp:** не полагаться только на `npm ci` — вложенный optional `@img/sharp-libvips-linuxmusl-x64` может не поставиться, и collect page data упадёт на `libvips-cpp.so.42`. После `npm ci` в deps-стадии нужен `npm install --os=linux --libc=musl --cpu=x64 --include=optional sharp@0.33.5`; `sharp` остаётся в `serverExternalPackages`. `apk` — только `gcompat` и только с `mirror.yandex.ru/mirrors/alpine` (не `dl-cdn`).
 
 `landing/Dockerfile` при отсутствии `server.js` падает на этапе сборки с `find` — это предпочтительнее, чем «зелёный» билд и падение в рантайме.
 

@@ -1,9 +1,18 @@
-FROM node:20-alpine AS builder
-
 # Build with repository root as context:
 # docker build -f web-generation-worker/Dockerfile .
+FROM node:20-alpine AS alpine
+# Same apk contract as landing/Dockerfile: Yandex mirror + gcompat (not libc6-compat).
+RUN set -eu; \
+  sed -i 's#https\?://dl-cdn.alpinelinux.org/alpine#https://mirror.yandex.ru/mirrors/alpine#g' /etc/apk/repositories; \
+  i=0; \
+  until apk add --no-cache gcompat; do \
+    i=$((i + 1)); \
+    [ "$i" -ge 3 ] && exit 1; \
+    sleep $((i * 4)); \
+  done
+
+FROM alpine AS builder
 # glibc compat + musl sharp: Alpine `npm install` can skip @img/sharp-libvips-linuxmusl-*.
-RUN apk add --no-cache libc6-compat
 WORKDIR /repo/web-generation-worker
 COPY web-generation-worker/package*.json ./
 RUN npm install \
@@ -21,8 +30,7 @@ COPY landing/src/lib/user-generation-photo-paths.ts /repo/landing/src/lib/user-g
 COPY landing/src/lib/generation/image-options.ts /repo/landing/src/lib/generation/image-options.ts
 RUN npm run build
 
-FROM node:20-alpine AS runner
-RUN apk add --no-cache libc6-compat
+FROM alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 COPY web-generation-worker/package*.json ./
