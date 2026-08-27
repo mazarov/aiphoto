@@ -1,9 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  LISTING_HYBRID_MATERIALIZE_LIMIT,
+  LISTING_HYBRID_TEXT_WINDOW,
   resetListingHybridSearchForTests,
   searchListingCardsHybrid,
 } from "./listing-hybrid-search";
+import { TEXT_SEARCH_MAX_WINDOW } from "./visual-search-config";
 
 const textCard = {
   id: "text-1",
@@ -14,6 +17,12 @@ const textCard = {
   relevance_score: 400,
   match_type: "fts",
 };
+
+test("listing hybrid window is 500; public search stays 100", () => {
+  assert.equal(LISTING_HYBRID_MATERIALIZE_LIMIT, 500);
+  assert.equal(LISTING_HYBRID_TEXT_WINDOW, 500);
+  assert.equal(TEXT_SEARCH_MAX_WINDOW, 100);
+});
 
 function card(id: string, matchType: string) {
   return {
@@ -36,7 +45,7 @@ test("listing hybrid stays on text and peeks one extra row when visual is off", 
   try {
     let requestedLimit = 0;
     const result = await searchListingCardsHybrid({
-      query: "день рождения ребенка",
+      query: "день рождения",
       limit: 10,
       offset: 0,
       headers: new Headers(),
@@ -104,7 +113,7 @@ test("listing hybrid peeks past FTS so embeddings can fill the page", async () =
       card(`visual-${index}`, "visual"),
     );
     const result = await searchListingCardsHybrid({
-      query: "день рождения ребенка",
+      query: "день рождения",
       limit: 10,
       offset: 0,
       headers: new Headers(),
@@ -159,7 +168,7 @@ test("listing hybrid caches a successful result for later pages", async () => {
   };
   try {
     const first = await searchListingCardsHybrid({
-      query: "день рождения ребенка",
+      query: "день рождения",
       limit: 10,
       offset: 0,
       headers: new Headers(),
@@ -167,7 +176,7 @@ test("listing hybrid caches a successful result for later pages", async () => {
       deps,
     });
     const second = await searchListingCardsHybrid({
-      query: "день рождения ребенка",
+      query: "день рождения",
       limit: 10,
       offset: 10,
       headers: new Headers(),
@@ -186,6 +195,58 @@ test("listing hybrid caches a successful result for later pages", async () => {
   }
 });
 
+test("listing hybrid cache key includes tag filters", async () => {
+  resetListingHybridSearchForTests();
+  const previous = process.env.SEARCH_VISUAL_ENABLED;
+  process.env.SEARCH_VISUAL_ENABLED = "1";
+  let embeds = 0;
+  const seenFilters: Array<unknown> = [];
+  const deps = {
+    searchText: async (_query: string, _limit: number, _offset: number, filters?: unknown) => {
+      seenFilters.push(filters);
+      return [textCard];
+    },
+    searchVisual: async () => [card("visual-0", "visual")],
+    embedQuery: async () => {
+      embeds += 1;
+      return {
+        ok: true as const,
+        vector: Array.from({ length: 768 }, () => 0.01),
+        cacheHit: false,
+        circuitState: "closed",
+      };
+    },
+  };
+  try {
+    await searchListingCardsHybrid({
+      query: "день рождения",
+      filters: { audience_tag: "devushka" },
+      limit: 10,
+      offset: 0,
+      headers: new Headers(),
+      supabase: { async rpc() { return { data: null, error: null }; } },
+      deps,
+    });
+    await searchListingCardsHybrid({
+      query: "день рождения",
+      filters: { object_tag: "s_tortom" },
+      limit: 10,
+      offset: 0,
+      headers: new Headers(),
+      supabase: { async rpc() { return { data: null, error: null }; } },
+      deps,
+    });
+    assert.equal(embeds, 2);
+    assert.deepEqual(seenFilters, [
+      { audience_tag: "devushka" },
+      { object_tag: "s_tortom" },
+    ]);
+  } finally {
+    process.env.SEARCH_VISUAL_ENABLED = previous;
+    resetListingHybridSearchForTests();
+  }
+});
+
 test("listing hybrid does not cache a text fallback", async () => {
   resetListingHybridSearchForTests();
   const previous = process.env.SEARCH_VISUAL_ENABLED;
@@ -193,7 +254,7 @@ test("listing hybrid does not cache a text fallback", async () => {
   let embeds = 0;
   try {
     await searchListingCardsHybrid({
-      query: "день рождения ребенка",
+      query: "день рождения",
       limit: 10,
       offset: 0,
       headers: new Headers(),
@@ -213,7 +274,7 @@ test("listing hybrid does not cache a text fallback", async () => {
       },
     });
     await searchListingCardsHybrid({
-      query: "день рождения ребенка",
+      query: "день рождения",
       limit: 10,
       offset: 0,
       headers: new Headers(),

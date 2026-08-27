@@ -42,8 +42,9 @@ test("birthday titles do not steal sibling cluster queries", () => {
   const thenNow = getSeoForRoute(
     resolveUrlToTags(["sobytiya", "den-rozhdeniya", "s-detskim-foto"])!,
   );
-  const girlCake = getSeoForRoute(
-    resolveUrlToTags(["sobytiya", "den-rozhdeniya", "devushki", "s-tortom"])!,
+  assert.equal(
+    resolveUrlToTags(["sobytiya", "den-rozhdeniya", "devushki", "s-tortom"]),
+    null,
   );
 
   const hubHead = `${hub.metaTitle} ${hub.metaDescription}`;
@@ -58,5 +59,4 @@ test("birthday titles do not steal sibling cluster queries", () => {
     `${thenNow.metaTitle} ${thenNow.metaDescription}`,
     /детский день рождения/i,
   );
-  assert.match(girlCake.metaTitle, /девушке с тортом/);
 });

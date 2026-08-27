@@ -5,6 +5,7 @@ import {
   getIndexableTagCombos,
   getFilterCounts,
   searchCardsByText,
+  type SearchCardFilters,
 } from "@/lib/supabase";
 import { buildCanonicalPath, getMinCardsForLevel } from "@/lib/route-resolver";
 import { birthdayClusterSitemapPages } from "@/lib/den-rozhdeniya-cluster";
@@ -67,14 +68,13 @@ function staticHubEntries(): MetadataRoute.Sitemap {
 type SearchBackedSitemapPage = {
   path: string;
   query: string;
+  filters?: SearchCardFilters;
   level: 1 | 2 | 3;
   priority: number;
 };
 
-function birthdaySitemapPriority(level: 1 | 2 | 3): number {
-  if (level === 1) return 0.9;
-  if (level === 2) return 0.7;
-  return 0.6;
+function birthdaySitemapPriority(level: 1 | 2): number {
+  return level === 1 ? 0.9 : 0.7;
 }
 
 function uniqueSitemapEntries(entries: MetadataRoute.Sitemap): MetadataRoute.Sitemap {
@@ -96,7 +96,7 @@ async function searchBackedSitemapUrls(
     pages.map(async (page) => {
       const min = getMinCardsForLevel(page.level);
       try {
-        const hits = await searchCardsByText(page.query, min, 0);
+        const hits = await searchCardsByText(page.query, min, 0, page.filters ?? {});
         if (hits.length < min) return null;
         return {
           url: `${BASE_URL}${page.path}`,

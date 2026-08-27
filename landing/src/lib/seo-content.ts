@@ -997,7 +997,7 @@ const SEO: Record<string, SeoContent> = {
       "Промты на день рождения девушке. Подойдут и женщине. Скопируй промт или загрузи своё фото и повтори кадр в 1 клик.",
     popularLinks: [
       { label: "Все на день рождения", href: "/sobytiya/den-rozhdeniya" },
-      { label: "Девушке с тортом", href: "/sobytiya/den-rozhdeniya/devushki/s-tortom" },
+      { label: "Девушке", href: "/sobytiya/den-rozhdeniya/devushki" },
       { label: "С шампанским", href: "/sobytiya/den-rozhdeniya/s-shampanskim" },
     ],
     faqItems: [
@@ -1065,7 +1065,7 @@ const SEO: Record<string, SeoContent> = {
       "Промты на день рождения с тортом. Торт в кадре. Скопируй промт или загрузи своё фото и повтори кадр в 1 клик.",
     popularLinks: [
       { label: "Все на день рождения", href: "/sobytiya/den-rozhdeniya" },
-      { label: "Девушке с тортом", href: "/sobytiya/den-rozhdeniya/devushki/s-tortom" },
+      { label: "Девушке", href: "/sobytiya/den-rozhdeniya/devushki" },
       { label: "Детям", href: "/sobytiya/den-rozhdeniya/deti" },
     ],
     faqItems: [

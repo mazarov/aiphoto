@@ -6,11 +6,18 @@ import {
   findTagBySlug,
 } from "./tag-registry";
 
+export type BirthdayListingSearchFilters = {
+  audience_tag?: string | null;
+  style_tag?: string | null;
+  occasion_tag?: string | null;
+  object_tag?: string | null;
+};
+
 export const DEN_ROZHDENIYA_HUB_PATH = "/sobytiya/den-rozhdeniya";
 export const DEN_ROZHDENIYA_TAG_SLUG = "den_rozhdeniya";
 export const DEN_ROZHDENIYA_GENERATE_HREF = "/generaciya-foto/na-den-rozhdeniya";
 export const DEN_ROZHDENIYA_GENERATE_LABEL = "Сделать фото с ИИ";
-/** Hub listing query. Children append `searchPhrase`. */
+/** Hub and L2 listing query. L2 adds tag filters instead of extra AND tokens. */
 export const DEN_ROZHDENIYA_SEARCH_QUERY = "день рождения";
 
 export type BirthdayClusterChild = {
@@ -19,11 +26,6 @@ export type BirthdayClusterChild = {
   tagSlug: string;
   label: string;
   featured: boolean;
-  searchPhrase: string;
-  /** L2 listing uses this phrase as-is, without prefix «день рождения». */
-  searchStandalone?: boolean;
-  /** Full L2 listing query. When set, does not use «день рождения» + searchPhrase. */
-  listingQuery?: string;
 };
 
 /** Featured children first — Wordstat order. Object aliases match TAG_REGISTRY last segments. */
@@ -34,7 +36,6 @@ export const DEN_ROZHDENIYA_CHILDREN: BirthdayClusterChild[] = [
     tagSlug: "devushka",
     label: "Девушке",
     featured: true,
-    searchPhrase: "девушке",
   },
   {
     alias: "deti",
@@ -42,7 +43,6 @@ export const DEN_ROZHDENIYA_CHILDREN: BirthdayClusterChild[] = [
     tagSlug: "detskie",
     label: "Детям",
     featured: true,
-    searchPhrase: "ребенка",
   },
   {
     alias: "muzhchiny",
@@ -50,8 +50,6 @@ export const DEN_ROZHDENIYA_CHILDREN: BirthdayClusterChild[] = [
     tagSlug: "muzhchina",
     label: "Мужчине",
     featured: true,
-    searchPhrase: "мужчине",
-    listingQuery: "мужской день рождения",
   },
   {
     alias: "s-tortom",
@@ -59,8 +57,6 @@ export const DEN_ROZHDENIYA_CHILDREN: BirthdayClusterChild[] = [
     tagSlug: "s_tortom",
     label: "С тортом",
     featured: true,
-    searchPhrase: "с тортом",
-    searchStandalone: true,
   },
   {
     alias: "s-detskim-foto",
@@ -68,7 +64,6 @@ export const DEN_ROZHDENIYA_CHILDREN: BirthdayClusterChild[] = [
     tagSlug: "s_detskim_foto",
     label: "С детским фото",
     featured: true,
-    searchPhrase: "с детским фото",
   },
   {
     alias: "s-shampanskim",
@@ -76,8 +71,6 @@ export const DEN_ROZHDENIYA_CHILDREN: BirthdayClusterChild[] = [
     tagSlug: "s_shampanskim",
     label: "С шампанским",
     featured: true,
-    searchPhrase: "с шампанским",
-    searchStandalone: true,
   },
   {
     alias: "so-lvom",
@@ -85,8 +78,6 @@ export const DEN_ROZHDENIYA_CHILDREN: BirthdayClusterChild[] = [
     tagSlug: "so_lvom",
     label: "Со львом",
     featured: true,
-    searchPhrase: "со львом",
-    searchStandalone: true,
   },
 ];
 
@@ -101,6 +92,13 @@ const AUDIENCE_SLUG_TO_ALIAS: Record<string, string> = {
 
 const ALIAS_TO_CHILD = new Map(
   DEN_ROZHDENIYA_CHILDREN.map((child) => [child.alias, child]),
+);
+
+const AUDIENCE_CHILDREN = DEN_ROZHDENIYA_CHILDREN.filter(
+  (child) => child.dimension === "audience_tag",
+);
+const OBJECT_CHILDREN = DEN_ROZHDENIYA_CHILDREN.filter(
+  (child) => child.dimension === "object_tag",
 );
 
 export type BirthdayPermanentRedirect = {
@@ -137,84 +135,117 @@ export const DEN_ROZHDENIYA_AUDIENCE_FIRST_L2_REDIRECTS: BirthdayPermanentRedire
     },
   ];
 
-/** L3: occasion in the middle or last → same hub child + object. */
+/** Old audience-first L3 → audience L2 (no object segment). */
 export function denRozhdeniyaAudienceFirstL3Redirects(): BirthdayPermanentRedirect[] {
   return DEN_ROZHDENIYA_AUDIENCE_FIRST_L2_REDIRECTS.flatMap((item) => {
     const audiencePath = item.source.replace(/\/den-rozhdeniya$/, "");
     return [
       {
         source: `${item.source}/:object`,
-        destination: `${item.destination}/:object`,
+        destination: item.destination,
       },
       {
         source: `${audiencePath}/:object/den-rozhdeniya`,
-        destination: `${item.destination}/:object`,
+        destination: item.destination,
       },
     ];
   });
 }
 
+function birthdayL2PathFromClusterTail(
+  firstAlias: string,
+  secondAlias: string,
+): string {
+  const first = findBirthdayChildByAlias(firstAlias);
+  const second = findBirthdayChildByAlias(secondAlias);
+  if (first?.dimension === "audience_tag") {
+    return birthdayChildPath(first.alias);
+  }
+  if (second?.dimension === "audience_tag") {
+    return birthdayChildPath(second.alias);
+  }
+  if (first) return birthdayChildPath(first.alias);
+  return DEN_ROZHDENIYA_HUB_PATH;
+}
+
+/** Cluster L3 (and leftover 4-segment paths) → live L2. */
+export function denRozhdeniyaL3ToL2Redirects(): BirthdayPermanentRedirect[] {
+  const redirects: BirthdayPermanentRedirect[] = [];
+
+  for (const audience of AUDIENCE_CHILDREN) {
+    redirects.push({
+      source: `${birthdayChildPath(audience.alias)}/:object`,
+      destination: birthdayChildPath(audience.alias),
+    });
+  }
+
+  for (const object of OBJECT_CHILDREN) {
+    for (const audience of AUDIENCE_CHILDREN) {
+      redirects.push({
+        source: `${birthdayChildPath(object.alias)}/${audience.alias}`,
+        destination: birthdayChildPath(audience.alias),
+      });
+    }
+  }
+
+  for (const object of OBJECT_CHILDREN) {
+    redirects.push({
+      source: `${birthdayChildPath(object.alias)}/:object`,
+      destination: birthdayChildPath(object.alias),
+    });
+  }
+
+  return redirects;
+}
+
+export function birthdayRetiredL3RedirectPath(
+  slugSegments: string[],
+): string | null {
+  if (slugSegments.length < 4) return null;
+  if (slugSegments[0] !== "sobytiya" || slugSegments[1] !== "den-rozhdeniya") {
+    return null;
+  }
+  return birthdayL2PathFromClusterTail(slugSegments[2], slugSegments[3]);
+}
+
 export const DEN_ROZHDENIYA_PERMANENT_REDIRECTS: BirthdayPermanentRedirect[] = [
   ...DEN_ROZHDENIYA_AUDIENCE_FIRST_L2_REDIRECTS,
   ...denRozhdeniyaAudienceFirstL3Redirects(),
+  ...denRozhdeniyaL3ToL2Redirects(),
 ];
 
 export type BirthdaySitemapPage = {
   path: string;
   query: string;
-  level: 1 | 2 | 3;
+  filters: BirthdayListingSearchFilters;
+  level: 1 | 2;
 };
 
-/** Hub + featured children + audience×object L3. Sitemap gates by search hits. */
+/** Hub + featured L2 only. L3 is retired. */
 export function birthdayClusterSitemapPages(): BirthdaySitemapPage[] {
   const occasion = findTagBySlug("occasion_tag", DEN_ROZHDENIYA_TAG_SLUG);
   const pages: BirthdaySitemapPage[] = [
     {
       path: DEN_ROZHDENIYA_HUB_PATH,
       query: DEN_ROZHDENIYA_SEARCH_QUERY,
+      filters: {},
       level: 1,
     },
   ];
   if (!occasion) return pages;
 
-  const childRows = DEN_ROZHDENIYA_CHILDREN.map((child) => ({
-    child,
-    tag: findTagBySlug(child.dimension, child.tagSlug),
-  })).filter(
-    (row): row is { child: BirthdayClusterChild; tag: TagEntry } =>
-      Boolean(row.tag),
-  );
-
-  for (const { child, tag } of childRows) {
-    const query = birthdayListingSearchQuery([occasion, tag]);
+  for (const child of DEN_ROZHDENIYA_CHILDREN) {
+    const tag = findTagBySlug(child.dimension, child.tagSlug);
+    if (!tag) continue;
+    const tags = [occasion, tag];
+    const query = birthdayListingSearchQuery(tags);
     if (!query) continue;
     pages.push({
       path: birthdayChildPath(child.alias),
       query,
+      filters: birthdayListingSearchFilters(tags),
       level: 2,
     });
-  }
-
-  const audienceRows = childRows.filter(
-    (row) => row.child.dimension === "audience_tag",
-  );
-  const objectRows = childRows.filter(
-    (row) => row.child.dimension === "object_tag",
-  );
-  for (const audience of audienceRows) {
-    for (const object of objectRows) {
-      const query = birthdayListingSearchQuery([
-        occasion,
-        audience.tag,
-        object.tag,
-      ]);
-      if (!query) continue;
-      pages.push({
-        path: `${birthdayChildPath(audience.child.alias)}/${object.child.alias}`,
-        query,
-        level: 3,
-      });
-    }
   }
 
   return pages;
@@ -301,7 +332,10 @@ function occasionTag(tags: TagEntry[]): TagEntry | null {
   );
 }
 
-/** Occasion-first canonical only when the combo includes день рождения. */
+/**
+ * Occasion-first canonical. Audience + object (old L3) collapses to audience L2.
+ * Object × object collapses to the first object L2.
+ */
 export function buildBirthdayClusterCanonical(
   tags: TagEntry[],
 ): string | null {
@@ -315,29 +349,18 @@ export function buildBirthdayClusterCanonical(
   const audienceAlias = audience
     ? birthdayAliasForAudienceSlug(audience.slug)
     : null;
+  if (audienceAlias) return birthdayChildPath(audienceAlias);
 
-  const rest = (audienceAlias
-    ? others.filter((tag) => tag !== audience)
-    : others
-  ).sort((a, b) => a.dimension.localeCompare(b.dimension));
-
-  const segments = [
-    DEN_ROZHDENIYA_HUB_PATH,
-    ...(audienceAlias ? [audienceAlias] : []),
-    ...rest.map((tag) => {
-      const featured = DEN_ROZHDENIYA_CHILDREN.find(
-        (child) => child.tagSlug === tag.slug,
-      );
-      return featured?.alias ?? lastSegment(tag);
-    }),
-  ];
-
-  return segments.join("/").replace(/\/{2,}/g, "/");
+  const first = others[0];
+  const featured = DEN_ROZHDENIYA_CHILDREN.find(
+    (child) => child.tagSlug === first.slug,
+  );
+  return birthdayChildPath(featured?.alias ?? lastSegment(first));
 }
 
 export type BirthdayResolvedCluster = {
   tags: TagEntry[];
-  level: 2 | 3;
+  level: 2;
   canonicalPath: string;
   parentPath: string;
   primaryTag: TagEntry;
@@ -355,17 +378,16 @@ function tagForBirthdaySegment(
 }
 
 /**
- * Resolve /sobytiya/den-rozhdeniya/{alias}[/{object}].
- * Hub (2 segments) is left to the generic L1 resolver.
+ * Resolve /sobytiya/den-rozhdeniya/{alias}.
+ * 4+ segments are retired L3 — callers 301 via birthdayRetiredL3RedirectPath.
  */
 export function resolveDenRozhdeniyaClusterSegments(
   slugSegments: string[],
 ): BirthdayResolvedCluster | null {
-  if (slugSegments.length < 3) return null;
+  if (slugSegments.length !== 3) return null;
   if (slugSegments[0] !== "sobytiya" || slugSegments[1] !== "den-rozhdeniya") {
     return null;
   }
-  if (slugSegments.length > 4) return null;
 
   const hub = findTagBySlug("occasion_tag", DEN_ROZHDENIYA_TAG_SLUG);
   if (!hub) return null;
@@ -373,94 +395,55 @@ export function resolveDenRozhdeniyaClusterSegments(
   const childTag = tagForBirthdaySegment(slugSegments[2], [hub.dimension]);
   if (!childTag) return null;
 
-  if (slugSegments.length === 3) {
-    const tags = [hub, childTag];
-    return {
-      tags,
-      level: 2,
-      canonicalPath:
-        buildBirthdayClusterCanonical(tags) ?? birthdayChildPath(slugSegments[2]),
-      parentPath: DEN_ROZHDENIYA_HUB_PATH,
-      primaryTag: hub,
-    };
-  }
-
-  const thirdTag = tagForBirthdaySegment(slugSegments[3], [
-    hub.dimension,
-    childTag.dimension,
-  ]);
-  if (!thirdTag) return null;
-
-  const tags = [hub, childTag, thirdTag];
+  const tags = [hub, childTag];
   return {
     tags,
-    level: 3,
+    level: 2,
     canonicalPath:
-      buildBirthdayClusterCanonical(tags) ??
-      `${birthdayChildPath(slugSegments[2])}/${slugSegments[3]}`,
+      buildBirthdayClusterCanonical(tags) ?? birthdayChildPath(slugSegments[2]),
     parentPath: DEN_ROZHDENIYA_HUB_PATH,
     primaryTag: hub,
   };
 }
 
-function searchPhraseForTag(tag: TagEntry): string {
-  const bySlug = DEN_ROZHDENIYA_CHILDREN.find((child) => child.tagSlug === tag.slug);
-  if (bySlug) return bySlug.searchPhrase;
-
-  if (tag.dimension === "audience_tag") {
-    const alias = birthdayAliasForAudienceSlug(tag.slug);
-    const byAlias = alias ? findBirthdayChildByAlias(alias) : null;
-    if (byAlias) return byAlias.searchPhrase;
-  }
-
-  return tag.labelRu.trim().toLowerCase();
-}
-
-/**
- * Text query that drives the birthday listing grid.
- * Null outside the occasion combo — callers fall back to tag RPC.
- */
 export function normalizeListingSearchQuery(query: string): string {
   return query.trim().toLowerCase().replace(/\s+/g, " ");
 }
 
+export function birthdayListingSearchFilters(
+  tags: TagEntry[],
+): BirthdayListingSearchFilters {
+  if (!occasionTag(tags)) return {};
+
+  const others = tags.filter(
+    (tag) =>
+      !(
+        tag.dimension === "occasion_tag" &&
+        tag.slug === DEN_ROZHDENIYA_TAG_SLUG
+      ),
+  );
+  const filters: BirthdayListingSearchFilters = {};
+  const audience = others.find((tag) => tag.dimension === "audience_tag");
+  const object = others.find((tag) => tag.dimension === "object_tag");
+  if (audience) filters.audience_tag = audience.slug;
+  else if (object) filters.object_tag = object.slug;
+  return filters;
+}
+
+export function birthdayListingSearchFilterKey(
+  filters: BirthdayListingSearchFilters,
+): string {
+  return [
+    filters.audience_tag ?? "",
+    filters.style_tag ?? "",
+    filters.occasion_tag ?? "",
+    filters.object_tag ?? "",
+  ].join("|");
+}
+
 /** All SSOT listing queries that may use hybrid search / result cache. */
 export function birthdayListingSearchQueries(): string[] {
-  const occasion = findTagBySlug("occasion_tag", DEN_ROZHDENIYA_TAG_SLUG);
-  const queries = new Set<string>([DEN_ROZHDENIYA_SEARCH_QUERY]);
-  if (!occasion) return [...queries];
-
-  const childTags = DEN_ROZHDENIYA_CHILDREN.map((child) => ({
-    child,
-    tag: findTagBySlug(child.dimension, child.tagSlug),
-  })).filter(
-    (row): row is { child: BirthdayClusterChild; tag: TagEntry } =>
-      Boolean(row.tag),
-  );
-
-  for (const { tag } of childTags) {
-    const query = birthdayListingSearchQuery([occasion, tag]);
-    if (query) queries.add(query);
-  }
-
-  const audienceTags = childTags.filter(
-    (row) => row.child.dimension === "audience_tag",
-  );
-  const objectTags = childTags.filter(
-    (row) => row.child.dimension === "object_tag",
-  );
-  for (const audience of audienceTags) {
-    for (const object of objectTags) {
-      const query = birthdayListingSearchQuery([
-        occasion,
-        audience.tag,
-        object.tag,
-      ]);
-      if (query) queries.add(query);
-    }
-  }
-
-  return [...queries];
+  return [DEN_ROZHDENIYA_SEARCH_QUERY];
 }
 
 let listingSearchAllowlist: Set<string> | null = null;
@@ -476,24 +459,12 @@ export function isBirthdayListingSearchQuery(query: string): boolean {
   return listingSearchAllowlist.has(normalized);
 }
 
+/**
+ * Text query that drives the birthday listing grid.
+ * L2 uses this same phrase plus birthdayListingSearchFilters — never extra AND tokens.
+ */
 export function birthdayListingSearchQuery(tags: TagEntry[]): string | null {
-  const occasion = occasionTag(tags);
-  if (!occasion) return null;
-
-  const others = tags.filter((tag) => tag !== occasion);
-  if (others.length === 0) return DEN_ROZHDENIYA_SEARCH_QUERY;
-
-  if (others.length === 1) {
-    const only = others[0];
-    const child = DEN_ROZHDENIYA_CHILDREN.find(
-      (item) => item.tagSlug === only.slug,
-    );
-    if (child?.listingQuery) return child.listingQuery;
-    if (child?.searchStandalone) return child.searchPhrase;
-  }
-
-  const phrases = others.map(searchPhraseForTag).filter(Boolean);
-  return [DEN_ROZHDENIYA_SEARCH_QUERY, ...phrases].join(" ").replace(/\s+/g, " ").trim();
+  return occasionTag(tags) ? DEN_ROZHDENIYA_SEARCH_QUERY : null;
 }
 
 export function birthdayActiveAliasFromTags(tags: TagEntry[]): string | null {

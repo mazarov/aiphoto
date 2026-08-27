@@ -19,17 +19,16 @@ test("audience-first birthday L2 canonicalizes to hub child", () => {
   assert.equal(route.rpcParams.occasion_tag, "den_rozhdeniya");
 });
 
-test("audience-first birthday L3 canonicalizes to hub child", () => {
+test("audience-first birthday L3 canonicalizes to audience L2", () => {
   const route = resolveUrlToTags([
     "promty-dlya-foto-devushki",
     "den-rozhdeniya",
     "s-tortom",
   ]);
   assert.ok(route);
-  assert.equal(route.level, 3);
   assert.equal(
     route.canonicalPath,
-    "/sobytiya/den-rozhdeniya/devushki/s-tortom",
+    "/sobytiya/den-rozhdeniya/devushki",
   );
 });
 
@@ -40,6 +39,13 @@ test("short birthday children resolve and stay occasion-first", () => {
   assert.equal(route.canonicalPath, "/sobytiya/den-rozhdeniya/deti");
   assert.equal(route.parentPath, "/sobytiya/den-rozhdeniya");
   assert.equal(route.rpcParams.audience_tag, "detskie");
+});
+
+test("retired birthday L3 does not resolve as a listing", () => {
+  assert.equal(
+    resolveUrlToTags(["sobytiya", "den-rozhdeniya", "devushki", "s-tortom"]),
+    null,
+  );
 });
 
 test("existing object child under hub keeps its URL", () => {

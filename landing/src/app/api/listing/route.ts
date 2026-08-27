@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isBirthdayListingSearchQuery } from "@/lib/den-rozhdeniya-cluster";
 import { fetchRouteCards, enrichCardsWithDetails } from "@/lib/supabase";
 import { isListingSortParamValid, parseListingSort } from "@/lib/listing-sort";
 import { LISTING_SEARCH_API_MAX_LIMIT } from "@/lib/listing-pagination";
@@ -40,6 +41,12 @@ export async function GET(req: NextRequest) {
         limit,
         offset,
         headers: req.headers,
+        filters: isBirthdayListingSearchQuery(q)
+          ? {
+              audience_tag: sp.get("audience_tag"),
+              object_tag: sp.get("object_tag"),
+            }
+          : {},
       });
       const enriched = await enrichCardsWithDetails(page.cards);
       const totalMs = performance.now() - startedAt;

@@ -28,11 +28,15 @@ import { getSeoForRoute } from "@/lib/seo-templates";
 import type { SeoContent } from "@/lib/seo-content";
 import {
   birthdayActiveAliasFromTags,
+  birthdayListingSearchFilterKey,
+  birthdayListingSearchFilters,
   birthdayListingSearchQuery,
+  birthdayRetiredL3RedirectPath,
   getFeaturedBirthdayNavItems,
   isDenRozhdeniyaClusterPath,
   isDenRozhdeniyaHubPath,
   isFeaturedBirthdayChildAlias,
+  type BirthdayListingSearchFilters,
 } from "@/lib/den-rozhdeniya-cluster";
 import { uniqueListingChipsByHref } from "@/lib/listing-cluster-chips";
 import {
@@ -86,12 +90,23 @@ const getCachedRouteCards = cache(
   },
 );
 
+function filtersFromListingKey(filterKey: string): BirthdayListingSearchFilters {
+  const [audience_tag, style_tag, occasion_tag, object_tag] = filterKey.split("|");
+  return {
+    audience_tag: audience_tag || undefined,
+    style_tag: style_tag || undefined,
+    occasion_tag: occasion_tag || undefined,
+    object_tag: object_tag || undefined,
+  };
+}
+
 const getCachedSearchCards = cache(
-  async (query: string): Promise<RouteCardsResult> => {
+  async (query: string, filterKey: string): Promise<RouteCardsResult> => {
     try {
       const startedAt = performance.now();
       const page = await searchListingCardsHybrid({
         query,
+        filters: filtersFromListingKey(filterKey),
         limit: LISTING_SEARCH_PAGE_SIZE,
         offset: 0,
         headers: new Headers(),
@@ -141,7 +156,12 @@ function getListingCards(
   } | null | undefined,
 ): Promise<RouteCardsResult> {
   const query = birthdayListingSearchQuery(route.tags);
-  if (query) return getCachedSearchCards(query);
+  if (query) {
+    return getCachedSearchCards(
+      query,
+      birthdayListingSearchFilterKey(birthdayListingSearchFilters(route.tags)),
+    );
+  }
   return getCachedRouteCards(buildListingFetchParams(route.rpcParams, searchParams ?? null));
 }
 
@@ -189,9 +209,15 @@ function redirectIfNotCanonical(slug: string[], route: ResolvedRoute) {
   }
 }
 
+function redirectRetiredBirthdayL3(slug: string[]) {
+  const destination = birthdayRetiredL3RedirectPath(slug);
+  if (destination) permanentRedirect(destination);
+}
+
 export async function generateMetadata({ params, searchParams }: Props) {
   const { slug } = await params;
   const qs = await searchParams;
+  redirectRetiredBirthdayL3(slug);
   const route = resolveUrlToTags(slug);
   if (!route) notFound();
   redirectIfNotCanonical(slug, route);
@@ -573,6 +599,7 @@ function hasQueryFilters(searchParams: {
 export default async function TagPage({ params, searchParams }: Props) {
   const { slug } = await params;
   const qs = await searchParams;
+  redirectRetiredBirthdayL3(slug);
   const route = resolveUrlToTags(slug);
 
   if (!route) notFound();
@@ -580,6 +607,9 @@ export default async function TagPage({ params, searchParams }: Props) {
 
   const mergedParams = mergeFilterParams(route.rpcParams, qs ?? null);
   const listingSearchQuery = birthdayListingSearchQuery(route.tags);
+  const listingSearchFilters = listingSearchQuery
+    ? birthdayListingSearchFilters(route.tags)
+    : {};
   const result = await getListingCards(route, qs ?? null);
   const totalCount = result.total_count ?? result.cards_count;
 
@@ -764,6 +794,7 @@ export default async function TagPage({ params, searchParams }: Props) {
                   ) : undefined
             }
             listingSearchQuery={listingSearchQuery}
+            listingSearchFilters={listingSearchFilters}
             listingSearchHasMore={
               Boolean(listingSearchQuery && totalCount > result.cards_count)
             }

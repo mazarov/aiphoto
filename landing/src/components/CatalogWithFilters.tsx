@@ -65,6 +65,7 @@ export type CatalogWithFiltersProps = {
    * Category filters are hidden because they would switch the source back to tags.
    */
   listingSearchQuery?: string | null;
+  listingSearchFilters?: Record<string, string | null | undefined>;
   listingSearchHasMore?: boolean;
   /** Chip row under search — hub «Назад» + category chips, like `/generaciya-foto/[scenario]`. */
   chipNav?: ReactNode;
@@ -85,6 +86,7 @@ export function CatalogWithFilters({
   fixedSort,
   preGrid,
   listingSearchQuery = null,
+  listingSearchFilters = {},
   listingSearchHasMore = false,
   chipNav,
 }: CatalogWithFiltersProps) {
@@ -116,8 +118,8 @@ export function CatalogWithFilters({
 
   const listingGridKey = useMemo(
     () =>
-      `${stableListingKey(mergedRpcParams, sort)}|q:${listingSearchQuery?.trim() ?? ""}`,
-    [mergedRpcParams, sort, listingSearchQuery]
+      `${stableListingKey(mergedRpcParams, sort)}|q:${listingSearchQuery?.trim() ?? ""}|f:${JSON.stringify(listingSearchFilters)}`,
+    [mergedRpcParams, sort, listingSearchQuery, listingSearchFilters]
   );
 
   const trimmedQuery = query.trim();
@@ -297,6 +299,7 @@ export function CatalogWithFilters({
             strictMode={activeCount > 0}
             sort={sort}
             searchQuery={listingSearchQuery}
+            searchFilters={listingSearchFilters}
             searchHasMore={listingSearchHasMore}
           />
         )}

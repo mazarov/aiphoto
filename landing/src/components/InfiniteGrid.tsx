@@ -31,6 +31,7 @@ type Props = {
   sort?: ListingSort;
   /** When set, pages come from hybrid listing search via `/api/listing?q=`, not tag RPC. */
   searchQuery?: string | null;
+  searchFilters?: Record<string, string | null | undefined>;
   searchHasMore?: boolean;
 };
 
@@ -42,6 +43,7 @@ export function InfiniteGrid({
   strictMode = false,
   sort = "new",
   searchQuery = null,
+  searchFilters = {},
   searchHasMore = false,
 }: Props) {
   const [cardPages, setCardPages] = useState<PromptCardFull[][]>(() => [
@@ -62,12 +64,14 @@ export function InfiniteGrid({
   const sortRef = useRef(sort);
   const totalCountRef = useRef(totalCount);
   const searchQueryRef = useRef(searchQuery);
+  const searchFiltersRef = useRef(searchFilters);
 
   hasMoreRef.current = hasMore;
   rpcParamsRef.current = rpcParams;
   sortRef.current = sort;
   totalCountRef.current = totalCount;
   searchQueryRef.current = searchQuery;
+  searchFiltersRef.current = searchFilters;
 
   const scheduleDrainRef = useRef(() => {});
 
@@ -86,6 +90,9 @@ export function InfiniteGrid({
       // Default sort is `new` (omit param); only non-default `popular` is sent.
       if (listingQuery) {
         sp.set("q", listingQuery);
+        for (const [key, value] of Object.entries(searchFiltersRef.current)) {
+          if (value) sp.set(key, value);
+        }
       } else {
         if (sortRef.current === "popular") sp.set("sort", "popular");
         for (const [k, v] of Object.entries(rpcParamsRef.current)) {

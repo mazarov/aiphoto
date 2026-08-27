@@ -11,7 +11,9 @@ export const LISTING_INFINITE_PAGE_SIZE = 24;
 export const LISTING_SEARCH_PAGE_SIZE = 48;
 
 /**
- * `search_cards_text` caps each request at `least(100, p_limit)`.
+ * Per-request page peek for `/api/listing` and `/api/search`.
+ * SQL `222` allows `least(500, p_limit)`; listing hybrid materializes 500
+ * separately. Public `/api/search` still uses TEXT_SEARCH_MAX_WINDOW (100).
  * Fetch `limit + 1` to know hasMore, so the client limit must stay at 99.
  */
 export const LISTING_SEARCH_RPC_MAX_LIMIT = 100;

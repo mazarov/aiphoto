@@ -9,7 +9,11 @@ import {
   getVisualSearchConfig,
   visualSearchWindowSize,
 } from "@/lib/visual-search-config";
-import type { SearchTextResult, SearchVisualResult } from "@/lib/supabase";
+import type {
+  SearchCardFilters,
+  SearchTextResult,
+  SearchVisualResult,
+} from "@/lib/supabase";
 
 export type HybridSearchTimings = {
   textMs: number;
@@ -31,12 +35,18 @@ export type HybridSearchResult = {
 };
 
 export type HybridSearchDeps = {
-  searchText: (query: string, limit: number, offset: number) => Promise<SearchTextResult[]>;
+  searchText: (
+    query: string,
+    limit: number,
+    offset: number,
+    filters?: SearchCardFilters,
+  ) => Promise<SearchTextResult[]>;
   searchVisual: (
     embedding: number[],
     limit: number,
     offset: number,
     generation?: number,
+    filters?: SearchCardFilters,
   ) => Promise<SearchVisualResult[]>;
   embedQuery: typeof embedSearchQueryWithGuards;
 };
@@ -58,6 +68,8 @@ export async function runHybridCardSearch(options: {
   deps: HybridSearchDeps;
   now?: Date;
   budgetActor?: VisualBudgetActor;
+  /** Listing hybrid may raise this above TEXT_SEARCH_MAX_WINDOW. Public /search stays 100. */
+  textMaxWindow?: number;
 }): Promise<HybridSearchResult> {
   const config = getVisualSearchConfig();
   const started = performance.now();
@@ -83,7 +95,8 @@ export async function runHybridCardSearch(options: {
   }
 
   const windowSize = visualSearchWindowSize(options.limit, options.offset);
-  const textWindow = Math.min(TEXT_SEARCH_MAX_WINDOW, windowSize);
+  const textCap = options.textMaxWindow ?? TEXT_SEARCH_MAX_WINDOW;
+  const textWindow = Math.min(textCap, windowSize);
   const visualWindow = Math.min(VISUAL_SEARCH_RPC_MAX_WINDOW, windowSize);
 
   const textPromise = options.deps.searchText(options.query, textWindow, 0);

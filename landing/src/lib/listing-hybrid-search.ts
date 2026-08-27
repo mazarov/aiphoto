@@ -1,9 +1,14 @@
-import { isBirthdayListingSearchQuery } from "@/lib/den-rozhdeniya-cluster";
+import {
+  birthdayListingSearchFilterKey,
+  isBirthdayListingSearchQuery,
+  type BirthdayListingSearchFilters,
+} from "@/lib/den-rozhdeniya-cluster";
 import { takeSearchPage } from "@/lib/listing-pagination";
 import {
   createSupabaseServer,
   searchCardsByText,
   searchCardsByVisualEmbedding,
+  type SearchCardFilters,
   type SearchTextResult,
 } from "@/lib/supabase";
 import {
@@ -23,7 +28,8 @@ import {
   type VisualBudgetActor,
 } from "@/lib/visual-search-guard";
 
-export const LISTING_HYBRID_MATERIALIZE_LIMIT = 200;
+export const LISTING_HYBRID_MATERIALIZE_LIMIT = 500;
+export const LISTING_HYBRID_TEXT_WINDOW = 500;
 export const LISTING_HYBRID_RESULT_TTL_MS = 60 * 60 * 1000;
 export const LISTING_HYBRID_SLOW_MS = 750;
 
@@ -64,8 +70,24 @@ function emptyTimings(): HybridSearchTimings {
   return { textMs: 0, embedMs: 0, vectorMs: 0, rankMs: 0 };
 }
 
-function listingResultCacheKey(query: string): string {
-  return visualQueryCacheKey(query, getVisualSearchConfig());
+function listingResultCacheKey(
+  query: string,
+  filters: BirthdayListingSearchFilters,
+): string {
+  return `${visualQueryCacheKey(query, getVisualSearchConfig())}:${birthdayListingSearchFilterKey(filters)}`;
+}
+
+function bindListingSearchDeps(
+  deps: HybridSearchDeps,
+  filters: SearchCardFilters,
+): HybridSearchDeps {
+  return {
+    searchText: (query, limit, offset) =>
+      deps.searchText(query, limit, offset, filters),
+    searchVisual: (embedding, limit, offset, generation) =>
+      deps.searchVisual(embedding, limit, offset, generation, filters),
+    embedQuery: deps.embedQuery,
+  };
 }
 
 function sliceCachedPage(
@@ -107,11 +129,14 @@ export async function searchListingCardsHybrid(options: {
   limit: number;
   offset: number;
   headers: Headers;
+  filters?: BirthdayListingSearchFilters;
   supabase?: Parameters<typeof runHybridCardSearch>[0]["supabase"];
   deps?: HybridSearchDeps;
   now?: Date;
 }): Promise<ListingHybridSearchResult> {
-  const deps = options.deps ?? listingHybridSearchDeps;
+  const filters = options.filters ?? {};
+  const rawDeps = options.deps ?? listingHybridSearchDeps;
+  const deps = bindListingSearchDeps(rawDeps, filters);
   const allowlisted = isBirthdayListingSearchQuery(options.query);
   const visualEnabled = getVisualSearchConfig().enabled;
 
@@ -133,7 +158,7 @@ export async function searchListingCardsHybrid(options: {
     };
   }
 
-  const cacheKey = listingResultCacheKey(options.query);
+  const cacheKey = listingResultCacheKey(options.query, filters);
   const cached = listingResultCache.get(cacheKey);
   if (cached) {
     const page = sliceCachedPage(cached.cards, options.limit, options.offset);
@@ -176,6 +201,7 @@ export async function searchListingCardsHybrid(options: {
       deps,
       now: options.now,
       budgetActor: "system",
+      textMaxWindow: LISTING_HYBRID_TEXT_WINDOW,
     });
   });
 
