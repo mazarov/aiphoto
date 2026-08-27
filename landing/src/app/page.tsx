@@ -149,7 +149,7 @@ export default async function HomePage() {
         itemListElement: galleryCards.map((card, index) => ({
           "@type": "ListItem",
           position: index + 1,
-          name: card.title_ru || card.title_en || "Промт для фото",
+          name: card.title,
           ...(card.slug ? { url: `${SITE_URL}/p/${card.slug}` } : {}),
         })),
       }
