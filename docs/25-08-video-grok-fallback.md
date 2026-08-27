@@ -1,11 +1,10 @@
 # 25-08 — Video fallback: Veo/Omni → Grok 1.5
 
 > Дата: 2026-08-25  
-> Статус: требования  
-> Ветка (когда делать код): `feature/25-08-video-grok-fallback`  
-> Архитектура: [`docs/architecture/01-landing.md`](architecture/01-landing.md) — править в том же коммите, что код.
-
-Код только после `git fetch origin main && git checkout -b feature/25-08-video-grok-fallback origin/main`. Не писать в `feature/25-08-seedream-after-grok-onto-main` и не мешать с чужим dirty WIP.
+> Статус: реализация (код + тесты + `01-landing.md`; флип SQL `221` на проде)  
+> Ветка: `feature/25-08-video-grok-fallback`  
+> Архитектура: [`docs/architecture/01-landing.md`](architecture/01-landing.md) — в том же коммите, что код.
+> SQL: **`221_video_grok_fallback.sql`** (`218` занят Seedream 5.0).
 
 ## Цель
 
@@ -21,7 +20,7 @@
 
 ### 1.1 Что считается данным
 
-- Video-job уже durable: `POST /api/generate?modality=video` → `landing_generations` → `processVideoGeneration` → Grok / Veo Lite LRO / Omni Interactions.
+- Video-job уже durable: `POST /api/generate?modality=video` → `landing_generations` → `processVideoGeneration` → Grok / Veo Lite LRO / Omni Interactions / Seedance OpenRouter.
 - Дефолт пикера: `veo-3.1-lite-generate-preview` (`DEFAULT_VIDEO_MODEL`). Grok 1.5 уже в `video_models`, cost 30.
 - Списание на enqueue: Lite 15 + 0/10/20 (4/6/8 с); Omni/Grok 30 + 0/10/20/30 (4/6/8/10 с). Refund только terminal fail.
 - Image-фолбек SSOT: `isImageFallbackEligible` пропускает только `shutdown`. `safety_block` **eligible**. Строка в `docs/21-08-grok-imagine-photo.md` «не фолбечить safety» — устарела, не копировать.
@@ -36,7 +35,7 @@
 | Тема | Решение |
 |---|---|
 | Цепочка | не-Grok video → Grok 1.5. Один хоп. Primary Grok — без следующего vendor |
-| Eligible | любая ошибка **после** вызова Veo/Omni, включая `safety_block` (дети / RAI / policy) |
+| Eligible | любая ошибка **после** вызова Veo/Omni/Seedance, включая `safety_block` (дети / RAI / policy) |
 | Не eligible | только `shutdown`; ошибки до submit (input / parent / crop / storage) |
 | Кредиты | не пересчитываем, не досписываем. Lite 15 → успех Grok = 15 |
 | UX | тихий completed. Факт — job + логи + админка (`executed_model`) |
@@ -63,6 +62,7 @@
 |---|---|---|---|
 | Veo Lite | 15 кр. = 7,5 ₽ | ≈ $0.32 ≈ 29 ₽ | фолбек сильно в минус |
 | Omni | 30 кр. = 15 ₽ | ≈ $0.32 ≈ 29 ₽ | тоже в минус, меньше разрыв |
+| Seedance 4 с | 96 кр. = 48 ₽ | ≈ $0.32 | в плюс vs COGS Grok |
 | Grok прямой | 30 кр. | ≈ $0.32 | как сейчас, хопа нет |
 
 Принято так же, как Flash 5 → Seedream $0.04: спасаем failed job и refund, не выравниваем тариф. Circuit обязателен: массовый Veo 5xx не должен удвоить xAI bill.
@@ -88,13 +88,11 @@ processVideoGeneration
         │
         ├─ grok-* ИЛИ fallback_used+executed grok
         │     → processGrokVideoGeneration(model=grok-imagine-video-1.5)
-        ├─ veo-3.1-lite*
-        │     → Veo LRO
+        ├─ veo-3.1-lite* / seedance-* / omni
+        │     → свой адаптер
         │         └─ eligible fail → тот же attempt, Grok
         │            persist fallback_used, clear provider_operation_id
-        └─ иначе Omni
-              → Interactions
-                  └─ то же
+        └─ ...
 ```
 
 SSOT id — уже есть:
@@ -110,7 +108,7 @@ isGrokVideoModel(id) = id.startsWith("grok-imagine-video")
 
 | Слой | Что меняется |
 |---|---|
-| Config | SQL `218`: `video_fallback_model` = `grok-imagine-video-1.5` |
+| Config | SQL `221`: `video_fallback_model` = `grok-imagine-video-1.5` |
 | Worker | `video-fallback.ts` (зеркало `image-fallback.ts`) + router в `processVideoGeneration` |
 | Circuit | отдельный `grokVideoCircuit` (не `grokImageCircuit`), те же 20/8/50%/60 с |
 | Job row | те же `requested_model` / `executed_model` / `fallback_used`; **сброс** `provider_operation_id` на хопе |
@@ -134,9 +132,9 @@ ok = false, reason:
 ok = true, model = video_fallback_model
 ```
 
-Primary: любая enabled video-модель, которая **не** `isGrokVideoModel` (Veo Lite и Omni).
+Primary: любая enabled video-модель, которая **не** `isGrokVideoModel` (Veo Lite, Omni, Seedance 2.5).
 
-Eligible: ошибка из Veo/Omni submit **или** poll (`safety_block`, `gemini_error`, `gemini_http_*`, `timeout`, `network_error`, RAI / empty video, `config_error` ключа Gemini).
+Eligible: ошибка из Veo/Omni/Seedance submit **или** poll (`safety_block`, `gemini_error`, `gemini_http_*`, `seedance_http_*`, `timeout`, `network_error`, RAI / empty video, `config_error` ключа).
 
 Не eligible:
 
@@ -196,7 +194,7 @@ provider_operation_id = null           -- иначе retry уйдёт poll-ит�
 
 ### 2.7 Данные
 
-Новая миграция **`sql/218_video_grok_fallback.sql`**. Не править 189/201/202/204/208/217.
+Новая миграция **`sql/221_video_grok_fallback.sql`**. Не править 189/201/202/204/208/217/218/220.
 
 ```sql
 INSERT INTO landing_generation_config (key, value, updated_at)
@@ -268,7 +266,7 @@ Default **включён**: после SQL Lite-safety сразу идёт в Gr
 
 1. Worker: `video-fallback.ts` + router + clear operation id + return `executedModel`. Circuit. Тесты.
 2. `index.ts`: persist executed/fallback на video complete и terminal fail.
-3. SQL `218` **последним** (как image `204`/`217`) — иначе код без ключа = фолбек выкл.
+3. SQL `221` **последним** (как image `204`/`217`) — иначе код без ключа = фолбек выкл.
 4. Смоук allowlist:
    - Lite + инъекция Veo `safety_block` → completed Grok, `fallback_used`, `credits_spent` как у Lite, без второго списания;
    - Lite + Veo 503 → хоп, retryable Grok идёт в Grok, не обратно в Veo;
@@ -281,11 +279,11 @@ Default **включён**: после SQL Lite-safety сразу идёт в Gr
 
 ### Checklist реализации
 
-- [ ] Ветка `feature/25-08-video-grok-fallback` от `origin/main`
-- [ ] `shouldAttemptGrokVideoFallback` + тесты (safety eligible, shutdown skip, primary grok, circuit, kill-switch)
-- [ ] Router + clear `provider_operation_id` + xAI `model` = Grok id
-- [ ] Return/persist `executedModel` / `fallbackUsed` на video
-- [ ] `grokVideoCircuit` 20/8/50%/60 с
-- [ ] SQL `218` `video_fallback_model`
-- [ ] `01-landing.md` в том же коммите
+- [x] Ветка `feature/25-08-video-grok-fallback` от `origin/main`
+- [x] `shouldAttemptGrokVideoFallback` + тесты (safety eligible, shutdown skip, primary grok, circuit, kill-switch, Seedance)
+- [x] Router + clear `provider_operation_id` + xAI `model` = Grok id
+- [x] Return/persist `executedModel` / `fallbackUsed` на video
+- [x] `grokVideoCircuit` 20/8/50%/60 с
+- [x] SQL `221` `video_fallback_model`
+- [x] `01-landing.md` в том же коммите
 - [ ] Смоук safety → Grok completed без досписания

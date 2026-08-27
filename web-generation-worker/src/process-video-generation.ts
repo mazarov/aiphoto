@@ -7,9 +7,14 @@ import {
 } from "../../landing/src/lib/video-motion-prompt";
 import { parseLibrarySourceGenerationId } from "../../landing/src/lib/user-generation-photo-paths";
 import { config } from "./config";
-import { seedanceVideoCircuit } from "./grok-image-circuit";
+import { grokVideoCircuit, seedanceVideoCircuit } from "./grok-image-circuit";
 import { log } from "./lib/logger";
 import {
+  isForeignGrokVideoOperationId,
+  shouldAttemptGrokVideoFallback,
+} from "./video-fallback";
+import {
+  GROK_IMAGINE_VIDEO_MODEL,
   buildXaiVideoSubmitBody,
   extractXaiRequestId,
   extractXaiVideoUrl,
@@ -561,16 +566,25 @@ async function processGrokVideoGeneration(
   }
   const rawPrompt = String(job.prompt_text || "").trim();
   if (!rawPrompt) throw new ProcessingError("input_missing", "Prompt text is empty", false);
+  try {
   const motionPrompt = assembleGrokVideoMotionPrompt(rawPrompt);
   const providerContext = {
     ...context,
     ...sourceFields,
     provider: "xai",
     proxyHost: xaiProxyHost(config.xaiBaseUrl),
-    model: job.model,
+    model: GROK_IMAGINE_VIDEO_MODEL,
     durationSeconds: job.duration_seconds ?? null,
   };
   let operationId = String(job.provider_operation_id || "").trim();
+  if (Boolean(job.fallback_used) && isForeignGrokVideoOperationId(operationId)) {
+    log("warn", "video_fallback_operation_cleared", {
+      ...providerContext,
+      operationPrefix: operationId.slice(0, 24),
+    });
+    operationId = "";
+    job.provider_operation_id = null;
+  }
   let payload: Record<string, unknown> | null = null;
 
   if (!operationId) {
@@ -591,7 +605,7 @@ async function processGrokVideoGeneration(
         },
         body: JSON.stringify(
           buildXaiVideoSubmitBody({
-            model: job.model,
+            model: GROK_IMAGINE_VIDEO_MODEL,
             prompt: motionPrompt,
             imageUrl,
             durationSeconds: job.duration_seconds || 4,
@@ -689,7 +703,12 @@ async function processGrokVideoGeneration(
     bytes: videoBuffer.length,
     operationId,
   });
+  grokVideoCircuit.record(true);
   return { resultPath, rawPrompt, mimeType: VIDEO_MIME };
+  } catch (error) {
+    if (shouldRecordVideoCircuitFailure(error)) grokVideoCircuit.record(false);
+    throw error;
+  }
 }
 
 function seedanceFailureFromPayload(payload: Record<string, unknown>, status: number): ProcessingError {
@@ -697,7 +716,7 @@ function seedanceFailureFromPayload(payload: Record<string, unknown>, status: nu
   return new ProcessingError(mapped.errorType, mapped.message, mapped.retryable);
 }
 
-function shouldRecordSeedanceCircuitFailure(error: unknown): boolean {
+function shouldRecordVideoCircuitFailure(error: unknown): boolean {
   if (!(error instanceof ProcessingError)) return true;
   if (error.errorType === "shutdown") return false;
   if (error.errorType === "provider_error" && /circuit is open/i.test(error.message)) return false;
@@ -883,7 +902,7 @@ async function processSeedanceVideoGeneration(
     seedanceVideoCircuit.record(true);
     return { resultPath, rawPrompt, mimeType: VIDEO_MIME };
   } catch (error) {
-    if (shouldRecordSeedanceCircuitFailure(error)) seedanceVideoCircuit.record(false);
+    if (shouldRecordVideoCircuitFailure(error)) seedanceVideoCircuit.record(false);
     throw error;
   }
 }
@@ -1071,28 +1090,93 @@ async function processVeoLiteVideoGeneration(
   return { resultPath, rawPrompt, mimeType: VIDEO_MIME };
 }
 
+type VideoGenerationResult = {
+  resultPath: string;
+  rawPrompt: string;
+  mimeType: string;
+  executedModel: string;
+  fallbackUsed: boolean;
+};
+
+async function resolveVideoFallbackTarget(supabase: SupabaseClient): Promise<string | null> {
+  const { data, error } = await supabase
+    .from("landing_generation_config")
+    .select("key,value")
+    .in("key", ["video_fallback_model", "video_models"]);
+  if (error || !data?.length) return GROK_IMAGINE_VIDEO_MODEL;
+  const configMap = Object.fromEntries(data.map((row) => [row.key, String(row.value || "")]));
+  let models: Array<{ id?: string; enabled?: boolean }> = [];
+  try {
+    models = JSON.parse(configMap.video_models || "[]") as Array<{ id?: string; enabled?: boolean }>;
+  } catch {
+    models = [];
+  }
+  const value = (configMap.video_fallback_model || "").trim();
+  if (!value || ["0", "false", "off", "no"].includes(value.toLowerCase())) return null;
+  const target = isGrokVideoModel(value) ? value : GROK_IMAGINE_VIDEO_MODEL;
+  if (!isGrokVideoModel(target)) return null;
+  if (models.length && !models.find((item) => item.id === target && item.enabled !== false)) {
+    return null;
+  }
+  return target;
+}
+
+async function persistVideoFallback(
+  supabase: SupabaseClient,
+  job: GenerationJob,
+  requestedModel: string,
+  executedModel: string,
+): Promise<void> {
+  const { error } = await supabase
+    .from("landing_generations")
+    .update({
+      fallback_used: true,
+      requested_model: requestedModel,
+      executed_model: executedModel,
+      provider_operation_id: null,
+    })
+    .eq("id", job.id);
+  if (error) {
+    log("error", "video_fallback_persist_failed", {
+      generationId: job.id,
+      error: error.message,
+    });
+    throw new ProcessingError(
+      "provider_operation_persist_failed",
+      error.message || "Failed to persist video fallback",
+      true,
+    );
+  }
+  job.fallback_used = true;
+  job.requested_model = requestedModel;
+  job.executed_model = executedModel;
+  job.provider_operation_id = null;
+}
+
 export async function processVideoGeneration(
   supabase: SupabaseClient,
   job: GenerationJob,
   signal: AbortSignal,
   ensureLease: () => Promise<void>,
-): Promise<{ resultPath: string; rawPrompt: string; mimeType: string }> {
+): Promise<VideoGenerationResult> {
   const context = {
     generationId: job.id,
     userId: job.user_id,
     attempt: job.attempts,
     pipelineTrace: job.pipeline_trace_id,
   };
+  const startOnGrok = isGrokVideoModel(job.model) || Boolean(job.fallback_used);
   log("info", "video_generation_started", {
     ...context,
-    provider: isGrokVideoModel(job.model)
+    provider: startOnGrok
       ? "xai"
       : isVeoLiteVideoModel(job.model)
         ? "veo"
         : isSeedanceVideoModel(job.model)
           ? "openrouter"
           : "gemini",
-    model: job.model,
+    model: startOnGrok ? GROK_IMAGINE_VIDEO_MODEL : job.model,
+    fallbackUsed: Boolean(job.fallback_used),
   });
   const { source, linkedGenerationId } = await resolveVideoInputs(
     supabase,
@@ -1103,39 +1187,32 @@ export async function processVideoGeneration(
     ...context,
     ...sourceFields,
   });
-  if (isGrokVideoModel(job.model)) {
-    return processGrokVideoGeneration(
-      supabase,
-      job,
-      source,
-      sourceFields,
-      context,
-      signal,
-      ensureLease,
-    );
+  const grokArgs = [
+    supabase,
+    job,
+    source,
+    sourceFields,
+    context,
+    signal,
+    ensureLease,
+  ] as const;
+  if (startOnGrok) {
+    const result = await processGrokVideoGeneration(...grokArgs);
+    return {
+      ...result,
+      executedModel: GROK_IMAGINE_VIDEO_MODEL,
+      fallbackUsed: Boolean(job.fallback_used),
+    };
   }
-  if (isVeoLiteVideoModel(job.model)) {
-    return processVeoLiteVideoGeneration(
-      supabase,
-      job,
-      source,
-      sourceFields,
-      context,
-      signal,
-      ensureLease,
-    );
-  }
-  if (isSeedanceVideoModel(job.model)) {
-    return processSeedanceVideoGeneration(
-      supabase,
-      job,
-      source,
-      sourceFields,
-      context,
-      signal,
-      ensureLease,
-    );
-  }
+  try {
+    if (isVeoLiteVideoModel(job.model)) {
+      const result = await processVeoLiteVideoGeneration(...grokArgs);
+      return { ...result, executedModel: job.model, fallbackUsed: false };
+    }
+    if (isSeedanceVideoModel(job.model)) {
+      const result = await processSeedanceVideoGeneration(...grokArgs);
+      return { ...result, executedModel: job.model, fallbackUsed: false };
+    }
   if (!config.geminiApiKey) {
     throw new ProcessingError("config_error", "GEMINI_API_KEY is not configured", false);
   }
@@ -1243,5 +1320,39 @@ export async function processVideoGeneration(
     bytes: videoBuffer.length,
     operationId,
   });
-  return { resultPath, rawPrompt, mimeType: VIDEO_MIME };
+  return { resultPath, rawPrompt, mimeType: VIDEO_MIME, executedModel: job.model, fallbackUsed: false };
+  } catch (error) {
+    if (!(error instanceof ProcessingError)) throw error;
+    const fallbackModel = await resolveVideoFallbackTarget(supabase);
+    const decision = shouldAttemptGrokVideoFallback({
+      requestedModel: job.model,
+      fallbackUsed: Boolean(job.fallback_used),
+      error,
+      xaiConfigured: Boolean(config.xaiApiKey && config.xaiBaseUrl),
+      fallbackModel,
+      circuitOpen: grokVideoCircuit.isOpen(),
+    });
+    if (!decision.ok) {
+      log("info", "video_fallback_skipped", {
+        ...context,
+        reason: decision.reason,
+        errorType: error.errorType,
+      });
+      throw error;
+    }
+    await persistVideoFallback(supabase, job, job.model, decision.model);
+    log("warn", "video_fallback_used", {
+      ...context,
+      from: job.model,
+      to: decision.model,
+      errorType: error.errorType,
+      hop: "grok",
+    });
+    const result = await processGrokVideoGeneration(...grokArgs);
+    return {
+      ...result,
+      executedModel: decision.model,
+      fallbackUsed: true,
+    };
+  }
 }
