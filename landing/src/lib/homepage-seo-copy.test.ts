@@ -23,12 +23,9 @@ test("homepage snippet keeps the listing key and CWS-safe length", () => {
 test("homepage blocks keep listing CTA and do not send people away", () => {
   assert.equal(
     HOMEPAGE_SEO.heroSubtitle,
-    "Открой карточку с результатом и скопируй промт для своего фото."
-  );
-  assert.equal(
-    HOMEPAGE_SEO.intro,
     "PromptShot — каталог промтов для фото в ИИ и нейросетях. Скопируй промт или загрузи своё фото и повтори кадр."
   );
+  assert.equal(HOMEPAGE_SEO.heroSubtitle, HOMEPAGE_SEO.intro);
   assert.equal(HOMEPAGE_SEO.examplesEyebrow, "Каталог промтов");
   assert.equal(HOMEPAGE_SEO.examplesTitle, "Готовые промты для фотографий");
   assert.equal(HOMEPAGE_SEO.catalogCta, "Перейти в каталог");

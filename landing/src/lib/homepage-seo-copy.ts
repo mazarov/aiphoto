@@ -1,5 +1,8 @@
 /** RU SEO copy for homepage `/` — docs/27-08-homepage-generaciya-query-blocks.md */
 
+const HOMEPAGE_INTRO =
+  "PromptShot — каталог промтов для фото в ИИ и нейросетях. Скопируй промт или загрузи своё фото и повтори кадр.";
+
 export const HOMEPAGE_SEO = {
   title: "Промты для ИИ фото в нейросетях | PromptShot",
   description:
@@ -8,10 +11,8 @@ export const HOMEPAGE_SEO = {
     main: "Промты для ИИ фото",
     accent: "в нейросетях",
   },
-  heroSubtitle:
-    "Открой карточку с результатом и скопируй промт для своего фото.",
-  intro:
-    "PromptShot — каталог промтов для фото в ИИ и нейросетях. Скопируй промт или загрузи своё фото и повтори кадр.",
+  heroSubtitle: HOMEPAGE_INTRO,
+  intro: HOMEPAGE_INTRO,
   howToTitle: "Как использовать промт",
   howToSteps: [
     "Открой карточку с готовым промтом для фото и нажми «Скопировать промт».",

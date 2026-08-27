@@ -1,8 +1,10 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-08-27 (**главная hero subtitle:** абзац `PromptShot — каталог промтов…` стоит под H1, не под галереей `#primery`. Поле `HOMEPAGE_SEO.intro` = тот же текст; explorer его не рисует.
+>
 > Последнее обновление: 2026-08-27 (**`/catalog` mobile chrome:** на max-lg скрыты чип «Назад» и H1 «Каталог и поиск»; плитки сразу под шапкой. Desktop — чип + H1 + плитки. Explorer / sticky-поиск в шапке сняты. `HomepageExamplesExplorer` только на `/` `#primery`.
 >
-> Последнее обновление: 2026-08-27 (**главная = каркас `/generaciya-foto`:** `/` берёт hero-карусель и GF-секции шаблона. Тексты hero / каталога / HowTo / FAQ — `homepage-seo-copy.ts`, без замены. Стартер «Генерация по тексту / по фото» не переносится; вместо него destinations. Блок тем = каталог: eyebrow «Каталог промтов», H2 «Готовые промты для фотографий», CTA «Перейти в каталог» → `/catalog`, карусель коллажей из `getHomepageCatalogThemeItems` (15 Wordstat-категорий без паспорта / документов / с мужем / реалистичное, ссылки каталога, `pluralPrompts`), фото коллажа — `resolve_route_cards` `sort=new`, не popularity из `get_homepage_sections`. Дальше explorer `#primery` с H2 «Идеи промтов для фото» и intro под ним, затем HowTo + FAQ главной. Инструменты / отзывы / модели / тарифы шаблона на `/` не копируем.
+> Последнее обновление: 2026-08-27 (**главная = каркас `/generaciya-foto`:** `/` берёт hero-карусель и GF-секции шаблона. Тексты hero / каталога / HowTo / FAQ — `homepage-seo-copy.ts`, без замены. Стартер «Генерация по тексту / по фото» не переносится; вместо него destinations. Блок тем = каталог: eyebrow «Каталог промтов», H2 «Готовые промты для фотографий», CTA «Перейти в каталог» → `/catalog`, карусель коллажей из `getHomepageCatalogThemeItems` (15 Wordstat-категорий без паспорта / документов / с мужем / реалистичное, ссылки каталога, `pluralPrompts`), фото коллажа — `resolve_route_cards` `sort=new`, не popularity из `get_homepage_sections`. Дальше explorer `#primery` с H2 «Идеи промтов для фото» (intro под H1, не здесь), затем HowTo + FAQ главной. Инструменты / отзывы / модели / тарифы шаблона на `/` не копируем.
 >
 > Последнее обновление: 2026-08-27 (**Video fallback → Grok 1.5:** если выбранная не-Grok video-модель (Veo Lite / Omni / Seedance) упала после вызова вендора, включая `safety_block`, тот же attempt один раз зовёт `grok-imagine-video-1.5`. Кредиты не пересчитываются. На хопе `provider_operation_id=null`, xAI body всегда Grok id. Kill-switch `video_fallback_model` (SQL `221`). Circuit `grokVideoCircuit` 20/8/50%/60с. Спека `docs/25-08-video-grok-fallback.md`.
 >
@@ -1161,7 +1163,7 @@ fetchRouteCards({ sort: "new", limit: 50 })
   → hero-карусель (50) + HomepageExamplesExplorer (16, H2 «Идеи промтов для фото»)
 ```
 
-Порядок: hero (H1/subtitle/чипы + карусель + destinations) → `#katalog` карусель коллекций → `#primery` (H2 + intro + masonry) → HowTo главной → FAQ главной.
+Порядок: hero (H1/intro-subtitle/чипы + карусель + destinations) → `#katalog` карусель коллекций → `#primery` (H2 + masonry, без intro) → HowTo главной → FAQ главной.
 
 Чипы: `homepage-explorer-chips.ts` («Все» + 15 чипов: 9 тем из коллажа + с собакой / на чёрном фоне / девочка / свадьба / мальчик / в форме; без паспорта, документов и «Реалистичное»; хвост — `sr-only`). Карусель каталога — 15 тем того же рейтинга без «На паспорт» / «На документы» / «С мужем» / «Реалистичное», URL каталога не `/generaciya-foto/*`. Счётчики тем из `resolve_route_cards`, не из Wordstat. `/catalog` — плитки `CategorySection` на mobile и desktop. CTA главной без чипа: «Каталог и поиск».
 
@@ -1340,7 +1342,7 @@ OAuth completion: `/auth/callback` → `finishOAuthCodeExchange` → `path?ps_au
 ### Метаданные
 
 - **Root layout:** fallback title + description из `homepage-seo-copy.ts` (`HOMEPAGE_SEO`)
-- **Главная (`/`):** `generateMetadata` → `HOMEPAGE_SEO.title` / `description`; canonical; H1 + hero из copy-модуля + карусель 50 новых; destinations вместо стартера; **`#katalog`** = карусель коллекций (`HOMEPAGE_SEO.examples*`); **`HomepageExamplesExplorer`** (`#primery`, H2 «Идеи промтов для фото» + intro); HowTo и FAQ (`HomeIntroAndHowTo` / `HomeFaq`) в каркасе шаблона; JSON-LD **`CollectionPage`** (`isPartOf: WebSite`, `hasPart[].name` = «Промты для фото {label}») + **`FAQPage`** + **`ItemList`** 16 карточек; FAQ — хвосты Wordcraft (что такое / пример / генерация / фотосессия со своим фото / лучшие / какая нейросеть), ссылки на `#primery` и `#katalog`
+- **Главная (`/`):** `generateMetadata` → `HOMEPAGE_SEO.title` / `description`; canonical; H1 + intro-subtitle из copy-модуля + карусель 50 новых; destinations вместо стартера; **`#katalog`** = карусель коллекций (`HOMEPAGE_SEO.examples*`); **`HomepageExamplesExplorer`** (`#primery`, H2 «Идеи промтов для фото», без intro); HowTo и FAQ (`HomeIntroAndHowTo` / `HomeFaq`) в каркасе шаблона; JSON-LD **`CollectionPage`** (`isPartOf: WebSite`, `hasPart[].name` = «Промты для фото {label}») + **`FAQPage`** + **`ItemList`** 16 карточек; FAQ — хвосты Wordcraft (что такое / пример / генерация / фотосессия со своим фото / лучшие / какая нейросеть), ссылки на `#primery` и `#katalog`
 - **Листинг L1:** `generateMetadata` → title/description из `getSeoContent(tag.slug)`
 - **Листинг L2/L3:** `generateMetadata` → title/description из `getSeoForRoute(route)` (combo-ключ в `seo-content.ts`, иначе шаблоны)
 - **JSON-LD:** `BreadcrumbList` + `FAQPage` на всех листингах; на главной — `CollectionPage` + `FAQPage`; все JSON-LD вставляются как inline `<script type="application/ld+json">` в SSR HTML (не через `next/script strategy="afterInteractive"`)
