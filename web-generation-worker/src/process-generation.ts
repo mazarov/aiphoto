@@ -4,9 +4,11 @@ import {
   assembleCameraOrbitEditPrompt,
   assembleLandingCardEditPrompt,
   assembleLandingCardFinalPrompt,
+  assemblePhotoshootSheetPrompt,
   assembleTextToImageFinalPrompt,
   assembleVibeFinalPrompt,
   GEMINI_CAMERA_ORBIT_SYSTEM_INSTRUCTION,
+  GEMINI_PHOTOSHOOT_SYSTEM_INSTRUCTION,
   VIBE_IMAGE_PART_LABEL_REFERENCE,
   VIBE_IMAGE_PART_LABEL_SUBJECT,
 } from "../../landing/src/lib/image-generation-prompt";
@@ -14,6 +16,7 @@ import {
   assembleGrokCameraOrbitPrompt,
   assembleGrokImageEditPrompt,
   assembleGrokImageToImagePrompt,
+  assembleGrokPhotoshootSheetPrompt,
   assembleGrokTextToImagePrompt,
   assembleGrokVibePrompt,
 } from "../../landing/src/lib/grok-image-prompt";
@@ -21,6 +24,7 @@ import {
   assembleSeedreamCameraOrbitPrompt,
   assembleSeedreamImageEditPrompt,
   assembleSeedreamImageToImagePrompt,
+  assembleSeedreamPhotoshootSheetPrompt,
   assembleSeedreamTextToImagePrompt,
   assembleSeedreamVibePrompt,
 } from "../../landing/src/lib/seedream-image-prompt";
@@ -28,6 +32,8 @@ import {
   resolveCameraOrbitScenePrompt,
   resolveImageEditMode,
 } from "../../landing/src/lib/camera-orbit";
+import { serializePhotoshootSheetInstruction } from "../../landing/src/lib/photoshoot";
+import { planPhotoshootShots } from "./photoshoot-planner";
 import { getVibeAttachReferenceImage } from "./lib/vibe-config";
 import { errorFields, log } from "./lib/logger";
 import {
@@ -293,8 +299,11 @@ export async function processGeneration(
     editKind: job.edit_kind,
     editInstruction,
   });
+  const isPhotoshoot = generationMode === "photoshoot";
   const isCameraOrbit = generationMode === "camera_orbit";
   const isLocalEdit = generationMode === "local_edit";
+  let photoshootSheet = "";
+  let cachedInputParts: ImagePart[] | null = null;
   let vibeSourceUrl: string | null = null;
   let attachReference = false;
 
@@ -318,6 +327,27 @@ export async function processGeneration(
     }
   }
 
+  if (isPhotoshoot) {
+    cachedInputParts = await downloadInputs(supabase, inputSource);
+    if (!cachedInputParts[0]) {
+      throw new ProcessingError("input_missing", "Photoshoot parent image is missing", false);
+    }
+    const plan = await planPhotoshootShots({
+      supabase,
+      image: cachedInputParts[0].inlineData,
+      signal,
+      generationId: job.id,
+    });
+    const { error: planError } = await supabase
+      .from("landing_generations")
+      .update({ photoshoot_plan: plan })
+      .eq("id", job.id);
+    if (planError) {
+      throw new ProcessingError("photoshoot_plan_persist", planError.message, true);
+    }
+    photoshootSheet = serializePhotoshootSheetInstruction(plan);
+  }
+
   if (isOpenRouterImageModel(requestedModel) || isOpenRouterImageModel(job.executed_model)) {
     const executedOpenRouter = resolveOpenRouterProductModel(job, requestedModel);
     const imageBuffer = await generateSeedreamFromJob({
@@ -326,6 +356,8 @@ export async function processGeneration(
       rawPrompt,
       editInstruction,
       isVibe,
+      isPhotoshoot,
+      photoshootSheet,
       isCameraOrbit,
       isLocalEdit,
       vibeSourceUrl,
@@ -372,7 +404,7 @@ export async function processGeneration(
     };
   }
 
-  const inputParts = await downloadInputs(supabase, inputSource);
+  const inputParts = cachedInputParts ?? (await downloadInputs(supabase, inputSource));
   await ensureLease();
   let reference: ImagePart | null = null;
   if (vibeSourceUrl) {
@@ -389,6 +421,8 @@ export async function processGeneration(
   const hasReference = isVibe && Boolean(reference);
   const geminiPrompt = isVibe
     ? assembleVibeFinalPrompt(rawPrompt, hasReference)
+    : isPhotoshoot
+      ? assemblePhotoshootSheetPrompt(photoshootSheet)
     : isCameraOrbit
       ? assembleCameraOrbitEditPrompt(
           resolveCameraOrbitScenePrompt({
@@ -404,6 +438,8 @@ export async function processGeneration(
           : assembleTextToImageFinalPrompt(rawPrompt);
   const grokPrompt = isVibe
     ? assembleGrokVibePrompt(rawPrompt, hasReference)
+    : isPhotoshoot
+      ? assembleGrokPhotoshootSheetPrompt(photoshootSheet)
     : isCameraOrbit
       ? assembleGrokCameraOrbitPrompt(
           resolveCameraOrbitScenePrompt({
@@ -456,6 +492,8 @@ export async function processGeneration(
         rawPrompt,
         editInstruction,
         isVibe,
+        isPhotoshoot,
+        photoshootSheet,
         isCameraOrbit,
         isLocalEdit,
         vibeSourceUrl,
@@ -479,8 +517,12 @@ export async function processGeneration(
         prompt: geminiPrompt,
         inputParts,
         reference: hasReference ? reference : null,
-        promptFirst: isCameraOrbit,
-        systemInstruction: isCameraOrbit ? GEMINI_CAMERA_ORBIT_SYSTEM_INSTRUCTION : null,
+        promptFirst: isCameraOrbit || isPhotoshoot,
+        systemInstruction: isPhotoshoot
+          ? GEMINI_PHOTOSHOOT_SYSTEM_INSTRUCTION
+          : isCameraOrbit
+            ? GEMINI_CAMERA_ORBIT_SYSTEM_INSTRUCTION
+            : null,
         signal,
         context,
         ensureLease,
@@ -528,6 +570,8 @@ export async function processGeneration(
             rawPrompt,
             editInstruction,
             isVibe,
+            isPhotoshoot,
+            photoshootSheet,
             isCameraOrbit,
             isLocalEdit,
             vibeSourceUrl,
@@ -557,6 +601,8 @@ export async function processGeneration(
           rawPrompt,
           editInstruction,
           isVibe,
+          isPhotoshoot,
+          photoshootSheet,
           isCameraOrbit,
           isLocalEdit,
           vibeSourceUrl,
@@ -634,6 +680,8 @@ async function generateSeedreamFromJob(input: {
   rawPrompt: string;
   editInstruction: string;
   isVibe: boolean;
+  isPhotoshoot: boolean;
+  photoshootSheet: string;
   isCameraOrbit: boolean;
   isLocalEdit: boolean;
   vibeSourceUrl: string | null;
@@ -653,6 +701,8 @@ async function generateSeedreamFromJob(input: {
   }
   const seedreamPrompt = input.isVibe
     ? assembleSeedreamVibePrompt(input.rawPrompt, Boolean(input.vibeSourceUrl))
+    : input.isPhotoshoot
+      ? assembleSeedreamPhotoshootSheetPrompt(input.photoshootSheet)
     : input.isCameraOrbit
       ? assembleSeedreamCameraOrbitPrompt(
           resolveCameraOrbitScenePrompt({
@@ -706,6 +756,8 @@ async function trySeedreamImageFallback(input: {
   rawPrompt: string;
   editInstruction: string;
   isVibe: boolean;
+  isPhotoshoot: boolean;
+  photoshootSheet: string;
   isCameraOrbit: boolean;
   isLocalEdit: boolean;
   vibeSourceUrl: string | null;

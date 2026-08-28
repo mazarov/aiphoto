@@ -58,6 +58,7 @@ export async function GET(
       editKind: gen.edit_kind || null,
       sceneRootId: gen.scene_root_id || null,
       cameraPose: gen.camera_pose || null,
+      photoshootPlan: gen.photoshoot_plan || null,
       parentGenerationId: gen.parent_generation_id || null,
       createdAt: gen.created_at,
       attemptCount: Number(gen.attempts || 0),

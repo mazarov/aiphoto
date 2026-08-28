@@ -1,3 +1,8 @@
+import {
+  isPhotoshootEditKind,
+  looksLikePhotoshootInstruction,
+} from "./photoshoot";
+
 export const CAMERA_ORBIT_EDIT_KIND = "camera_orbit";
 export const LOCAL_EDIT_KIND = "local_edit";
 /** Default orbit I2I model. Override via landing_generation_config.camera_orbit_model. */
@@ -62,6 +67,7 @@ export function looksLikeCameraOrbitInstruction(text: string): boolean {
 }
 
 export type ImageGenerationMode =
+  | "photoshoot"
   | "camera_orbit"
   | "local_edit"
   | "legacy_continuation"
@@ -80,6 +86,13 @@ export function resolveImageEditMode(input: {
   const parent = Boolean(String(input.parentGenerationId ?? "").trim());
   const instruction = String(input.editInstruction ?? "").trim();
   if (input.vibeId) return parent ? "legacy_continuation" : "initial";
+  if (
+    parent &&
+    instruction &&
+    (isPhotoshootEditKind(input.editKind) || looksLikePhotoshootInstruction(instruction))
+  ) {
+    return "photoshoot";
+  }
   if (
     parent &&
     instruction &&

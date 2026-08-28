@@ -3,6 +3,7 @@
  */
 
 import { looksLikeCameraOrbitInstruction } from "./camera-orbit";
+import { looksLikePhotoshootInstruction } from "./photoshoot";
 
 const IDENTITY_RULES = [
   "The provided photo(s) show the SUBJECT (a real person).",
@@ -49,6 +50,9 @@ export function assembleGrokImageToImagePrompt(rawPrompt: string): string {
 
 export function assembleGrokImageEditPrompt(editInstruction: string): string {
   const instruction = String(editInstruction ?? "").trim();
+  if (looksLikePhotoshootInstruction(instruction)) {
+    return assembleGrokPhotoshootSheetPrompt(instruction);
+  }
   if (looksLikeCameraOrbitInstruction(instruction)) {
     return assembleGrokCameraOrbitPrompt(instruction);
   }
@@ -71,6 +75,18 @@ const CAMERA_ORBIT_RULES = [
 export function assembleGrokCameraOrbitPrompt(editInstruction: string): string {
   const instruction = String(editInstruction ?? "").trim();
   return joinPrompt(instruction, CAMERA_ORBIT_RULES);
+}
+
+const PHOTOSHOOT_SHEET_RULES = [
+  "The image is identity and set reference. Output one 2x2 contact sheet of four separate photographs.",
+  "Each panel must have a different pose and motion. Repeated pose = failure.",
+  "Keep identity, wardrobe, set, lighting, and time of day.",
+  "No captions, frames, watermarks, extra people, or the source crop unchanged.",
+].join("\n");
+
+export function assembleGrokPhotoshootSheetPrompt(editInstruction: string): string {
+  const instruction = String(editInstruction ?? "").trim();
+  return joinPrompt(instruction, PHOTOSHOOT_SHEET_RULES);
 }
 
 export function assembleGrokVibePrompt(

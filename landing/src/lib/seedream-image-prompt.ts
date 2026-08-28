@@ -7,6 +7,7 @@ import {
   assembleGrokCameraOrbitPrompt,
   assembleGrokImageEditPrompt,
   assembleGrokImageToImagePrompt,
+  assembleGrokPhotoshootSheetPrompt,
   assembleGrokTextToImagePrompt,
   assembleGrokVibePrompt,
 } from "./grok-image-prompt";
@@ -34,6 +35,10 @@ export function assembleSeedreamImageEditPrompt(editInstruction: string): string
 
 export function assembleSeedreamCameraOrbitPrompt(editInstruction: string): string {
   return clampSeedreamPrompt(assembleGrokCameraOrbitPrompt(editInstruction));
+}
+
+export function assembleSeedreamPhotoshootSheetPrompt(editInstruction: string): string {
+  return clampSeedreamPrompt(assembleGrokPhotoshootSheetPrompt(editInstruction));
 }
 
 export function assembleSeedreamVibePrompt(

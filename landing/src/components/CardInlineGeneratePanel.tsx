@@ -48,6 +48,10 @@ import {
   CameraOrbitOverlay,
   type CameraSceneShot,
 } from "@/components/generate/CameraOrbitOverlay";
+import {
+  PhotoshootOverlay,
+  cropPhotoshootTile,
+} from "@/components/generate/PhotoshootOverlay";
 import { PricingEntryLink } from "@/components/PricingEntryLink";
 import {
   reachYandexMetrikaGoal,
@@ -57,6 +61,13 @@ import {
   YM_GOAL_CAMERA_ORBIT_NO_CREDITS,
   YM_GOAL_CAMERA_ORBIT_READY,
   YM_GOAL_CAMERA_ORBIT_SUBMIT,
+  YM_GOAL_PHOTOSHOOT_BUSY,
+  YM_GOAL_PHOTOSHOOT_DISABLED,
+  YM_GOAL_PHOTOSHOOT_FAIL,
+  YM_GOAL_PHOTOSHOOT_NO_CREDITS,
+  YM_GOAL_PHOTOSHOOT_OPEN,
+  YM_GOAL_PHOTOSHOOT_READY,
+  YM_GOAL_PHOTOSHOOT_SUBMIT,
   YM_GOAL_PROMPT_CARD_GENERATION_ACCEPTED,
   YM_GOAL_PROMPT_CARD_GENERATION_NO_CREDITS,
   YM_GOAL_PROMPT_CARD_GENERATION_PRICING,
@@ -100,9 +111,18 @@ import {
   writeCachedCameraOrbitEnabled,
 } from "@/lib/camera-orbit-availability";
 import {
+  readCachedPhotoshootEnabled,
+  writeCachedPhotoshootEnabled,
+} from "@/lib/photoshoot-availability";
+import {
   CAMERA_ORBIT_EDIT_KIND,
   type CameraPose,
 } from "@/lib/camera-orbit";
+import {
+  PHOTOSHOOT_EDIT_KIND,
+  isPhotoshootEditKind,
+  type PhotoshootTileIndex,
+} from "@/lib/photoshoot";
 import {
   parseStoredGenerationPreferences,
   pickFresherPreferences,
@@ -214,6 +234,14 @@ export function CardInlineGeneratePanel({
   );
   const [cameraOrbitOpen, setCameraOrbitOpen] = useState(false);
   const [cameraOrbitCreditCost, setCameraOrbitCreditCost] = useState(10);
+  const [photoshootEnabled, setPhotoshootEnabled] = useState(
+    () => readCachedPhotoshootEnabled() === true
+  );
+  const [photoshootOpen, setPhotoshootOpen] = useState(false);
+  const [photoshootSourceId, setPhotoshootSourceId] = useState<string | null>(null);
+  const [photoshootSourceUrl, setPhotoshootSourceUrl] = useState<string | null>(null);
+  const [resultEditKind, setResultEditKind] = useState<string | null>(null);
+  const photoshootDismissedRef = useRef(false);
   const [videoModels, setVideoModels] = useState<ModelOpt[]>([]);
   const [videoModel, setVideoModel] = useState(DEFAULT_VIDEO_MODEL);
   const [videoAspectRatio, setVideoAspectRatio] = useState(DEFAULT_VIDEO_ASPECT_RATIO);
@@ -555,6 +583,8 @@ export function CardInlineGeneratePanel({
           limits?: { maxPhotos?: number };
           cameraOrbitEnabled?: boolean;
           cameraOrbitModel?: { id?: string; cost?: number } | null;
+          photoshootEnabled?: boolean;
+          photoshootModel?: { id?: string; cost?: number } | null;
         };
         const photosData = (await photosRes.json().catch(() => ({}))) as {
           photos?: UserPhoto[];
@@ -607,6 +637,9 @@ export function CardInlineGeneratePanel({
             ? configData.cameraOrbitModel.cost
             : 10,
         );
+        const nextPhotoshootEnabled = Boolean(configData.photoshootEnabled);
+        writeCachedPhotoshootEnabled(nextPhotoshootEnabled);
+        setPhotoshootEnabled(nextPhotoshootEnabled);
         const nextVideoModels = Array.isArray(videoConfigData.models)
           ? videoConfigData.models
           : [];
@@ -1157,6 +1190,7 @@ export function CardInlineGeneratePanel({
     const requestedModality = options?.modality || composeModality;
     const isVideo = requestedModality === "video";
     const isCameraOrbit = options?.editKind === CAMERA_ORBIT_EDIT_KIND;
+    const isPhotoshoot = options?.editKind === PHOTOSHOOT_EDIT_KIND;
     const parentGenerationId = isVideo
       ? resolveVideoEnqueueParentGenerationId(
           options?.parentGenerationId?.trim() || animateParentId,
@@ -1165,15 +1199,17 @@ export function CardInlineGeneratePanel({
       : options?.parentGenerationId?.trim() || "";
     const editInstruction = isVideo || isCameraOrbit ? "" : options?.editInstruction?.trim() || "";
     const isContinuation = Boolean(parentGenerationId) && !isVideo;
-    if (isContinuation && !editInstruction && !isCameraOrbit) {
+    if (isContinuation && !editInstruction && !isCameraOrbit && !isPhotoshoot) {
       setError("Опишите, что изменить");
       return false;
     }
     const prompt = isCameraOrbit
       ? "CAMERA ORBIT"
+      : isPhotoshoot
+        ? "PHOTOSHOOT"
       : (options?.promptOverride ?? draftPrompt).trim()
         || (isVideo ? DEFAULT_VIDEO_PROMPT : "");
-    if (!isCameraOrbit && prompt.length < 8) {
+    if (!isCameraOrbit && !isPhotoshoot && prompt.length < 8) {
       setError("Промпт слишком короткий");
       return false;
     }
@@ -1221,8 +1257,12 @@ export function CardInlineGeneratePanel({
               ? []
               : selectedPhotos.map((photo) => photo.storagePath),
           parentGenerationId: parentGenerationId || null,
-          editInstruction: isVideo || isCameraOrbit ? null : editInstruction || null,
-          editKind: isCameraOrbit ? CAMERA_ORBIT_EDIT_KIND : undefined,
+          editInstruction: isVideo || isCameraOrbit || isPhotoshoot ? null : editInstruction || null,
+          editKind: isCameraOrbit
+            ? CAMERA_ORBIT_EDIT_KIND
+            : isPhotoshoot
+              ? PHOTOSHOOT_EDIT_KIND
+              : undefined,
           cameraPose: isCameraOrbit ? options?.cameraPose : undefined,
           vibeId: null,
         }),
@@ -1239,7 +1279,9 @@ export function CardInlineGeneratePanel({
           setPhase(resultUrl || isContinuation ? "done" : "idle");
           phaseRef.current = resultUrl || isContinuation ? "done" : "idle";
           reachYandexMetrikaGoal(
-            isCameraOrbit
+            isPhotoshoot
+              ? YM_GOAL_PHOTOSHOOT_NO_CREDITS
+              : isCameraOrbit
               ? YM_GOAL_CAMERA_ORBIT_NO_CREDITS
               : YM_GOAL_PROMPT_CARD_GENERATION_NO_CREDITS,
           );
@@ -1256,6 +1298,20 @@ export function CardInlineGeneratePanel({
         if (isCameraOrbit && genData.error === "camera_orbit_model_unavailable") {
           throw new Error(genData.message || "Модель смены ракурса временно недоступна");
         }
+        if (isPhotoshoot && genData.error === "photoshoot_busy") {
+          reachYandexMetrikaGoal(YM_GOAL_PHOTOSHOOT_BUSY);
+          throw new Error(genData.message || "Фотосессия ещё снимается");
+        }
+        if (isPhotoshoot && genData.error === "photoshoot_disabled") {
+          reachYandexMetrikaGoal(YM_GOAL_PHOTOSHOOT_DISABLED);
+          throw new Error(genData.message || "Фотосессия пока недоступна");
+        }
+        if (isPhotoshoot && genData.error === "photoshoot_from_sheet") {
+          throw new Error(genData.message || "Фотосессию нельзя снять с готового листа");
+        }
+        if (isPhotoshoot && genData.error === "photoshoot_model_unavailable") {
+          throw new Error(genData.message || "Модель фотосессии временно недоступна");
+        }
         throw new Error(genData.message || genData.error || "Не удалось создать генерацию");
       }
       if (isCameraOrbit) {
@@ -1265,13 +1321,16 @@ export function CardInlineGeneratePanel({
           distance: options?.cameraPose?.distanceRel ?? 1,
         });
       }
+      if (isPhotoshoot) {
+        reachYandexMetrikaGoal(YM_GOAL_PHOTOSHOOT_SUBMIT, { credits: 10 });
+      }
       setPhase("generating");
       phaseRef.current = "generating";
       setProgress(8);
       setStarting(false);
       reachYandexMetrikaGoal(YM_GOAL_PROMPT_CARD_GENERATION_ACCEPTED);
       if (!isContinuation) setGenerationId(genData.id);
-      if (!isCameraOrbit) {
+      if (!isCameraOrbit && !isPhotoshoot) {
         setDraftPrompt(prompt);
         setSubmittedPrompt(prompt);
       }
@@ -1320,6 +1379,10 @@ export function CardInlineGeneratePanel({
           setProgress(100);
           setPhase("done");
           if (isCameraOrbit) reachYandexMetrikaGoal(YM_GOAL_CAMERA_ORBIT_READY);
+          if (isPhotoshoot) {
+            setResultEditKind(PHOTOSHOOT_EDIT_KIND);
+            reachYandexMetrikaGoal(YM_GOAL_PHOTOSHOOT_READY);
+          }
           onGenerationComplete?.();
           return true;
         }
@@ -1330,6 +1393,7 @@ export function CardInlineGeneratePanel({
       }
     } catch (err) {
       if (isCameraOrbit) reachYandexMetrikaGoal(YM_GOAL_CAMERA_ORBIT_FAIL);
+      if (isPhotoshoot) reachYandexMetrikaGoal(YM_GOAL_PHOTOSHOOT_FAIL);
       setPhase(resultUrl || isContinuation ? "done" : "error");
       phaseRef.current = resultUrl || isContinuation ? "done" : "error";
       setError(err instanceof Error ? err.message : "Ошибка генерации");
@@ -1538,11 +1602,13 @@ export function CardInlineGeneratePanel({
   const openPromptEditor = () => {
     setError("");
     setCameraOrbitOpen(false);
+    setPhotoshootOpen(false);
     setDockSurface("prompt");
   };
   /** Leave result chrome → idle compose (keep prompt / model / photos for editing). */
   const enterAnimateFromResult = () => {
     if (!generationId || !resultUrl || resultModality === "video" || !videoEnabled) return;
+    setPhotoshootOpen(false);
     const sourcePrompt = submittedPrompt || draftPromptRef.current;
     enterVideoCompose({
       parentGenerationId: generationId,
@@ -1574,6 +1640,11 @@ export function CardInlineGeneratePanel({
     setNeedsCredits(false);
     setMenuOpen(false);
     setCameraOrbitOpen(false);
+    setPhotoshootOpen(false);
+    setPhotoshootSourceId(null);
+    setPhotoshootSourceUrl(null);
+    setResultEditKind(null);
+    photoshootDismissedRef.current = false;
     setResultPreviewOpen(false);
     setIsPublished(false);
     setResultModality("image");
@@ -1637,7 +1708,7 @@ export function CardInlineGeneratePanel({
   /** Dock: stretch floating sheet for any editor surface (no viewport overlay). */
   const dockExpanded = isDock && activeDockSurface !== null;
   /** Tall plate when editor / result / in-flight generate needs height. */
-  const dockTall = dockExpanded || (isDock && (showResultChrome || busy || cameraOrbitOpen));
+  const dockTall = dockExpanded || (isDock && (showResultChrome || busy || cameraOrbitOpen || photoshootOpen));
   const dockPromptExpanded = dockExpanded && activeDockSurface === "prompt";
   const dockPhotosExpanded = dockExpanded && activeDockSurface === "photos";
   const dockModelExpanded = dockExpanded && activeDockSurface === "model";
@@ -1662,12 +1733,63 @@ export function CardInlineGeneratePanel({
     Boolean(resultUrl) &&
     Boolean(generationId) &&
     !cameraOrbitOpen &&
+    !photoshootOpen &&
     !(isDock && dockExpanded);
   const showCameraOverlay =
     cameraOrbitOpen &&
+    !photoshootOpen &&
     Boolean(resultUrl) &&
     Boolean(generationId) &&
     resultModality === "image";
+  const showPhotoshootOverlay =
+    photoshootOpen &&
+    Boolean(generationId) &&
+    resultModality === "image";
+  const photoshootSheetUrl =
+    isPhotoshootEditKind(resultEditKind) && resultUrl ? resultUrl : null;
+
+  const startPhotoshoot = () => {
+    if (!generationId || !resultUrl || resultModality !== "image") return;
+    if (isPhotoshootEditKind(resultEditKind)) return;
+    photoshootDismissedRef.current = false;
+    setPhotoshootSourceId(generationId);
+    setPhotoshootSourceUrl(resultUrl);
+    setPhotoshootOpen(true);
+    reachYandexMetrikaGoal(YM_GOAL_PHOTOSHOOT_OPEN);
+    void runGenerate({
+      parentGenerationId: generationId,
+      editKind: PHOTOSHOOT_EDIT_KIND,
+    });
+  };
+
+  const closePhotoshoot = () => {
+    photoshootDismissedRef.current = true;
+    setPhotoshootOpen(false);
+    if (photoshootSourceId && photoshootSourceUrl) {
+      setGenerationId(photoshootSourceId);
+      setResultUrl(photoshootSourceUrl);
+      setResultEditKind(null);
+    }
+  };
+
+  useEffect(() => {
+    if (!generationId || phase !== "done" || resultModality !== "image") return;
+    let cancelled = false;
+    void fetch(`/api/generations/${generationId}`, { credentials: "include" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { editKind?: string | null } | null) => {
+        if (cancelled || !data) return;
+        const kind = String(data.editKind || "").trim() || null;
+        setResultEditKind(kind);
+        if (isPhotoshootEditKind(kind) && !photoshootDismissedRef.current) {
+          setPhotoshootOpen(true);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [generationId, phase, resultModality]);
 
   useEffect(() => {
     if (!isDock || !onDockResultChromeChange) return;
@@ -1701,7 +1823,7 @@ export function CardInlineGeneratePanel({
     const previous = phaseRef.current;
     phaseRef.current = phase;
     if (isGenerateComposeJobBusy(phase)) {
-      if (!isMobile && !cameraOrbitOpen) setDockPlateOpen(false);
+      if (!isMobile && !cameraOrbitOpen && !photoshootOpen) setDockPlateOpen(false);
       return;
     }
     if (
@@ -1712,7 +1834,7 @@ export function CardInlineGeneratePanel({
     ) {
       setDockPlateOpen(true);
     }
-  }, [cameraOrbitOpen, isDock, isMobile, phase, resultUrl, setDockPlateOpen]);
+  }, [cameraOrbitOpen, isDock, isMobile, phase, photoshootOpen, resultUrl, setDockPlateOpen]);
 
   return (
     <div
@@ -1745,7 +1867,7 @@ export function CardInlineGeneratePanel({
         />
       ) : null}
 
-      {isDock && showResultChrome && phase === "done" && !dockExpanded && !cameraOrbitOpen ? (
+      {isDock && showResultChrome && phase === "done" && !dockExpanded && !cameraOrbitOpen && !photoshootOpen ? (
         <div className="absolute right-2.5 top-2.5 z-30 flex items-center gap-2">
           {resultUrl && generationId ? (
             <div className="relative" data-generation-menu-root>
@@ -1776,7 +1898,11 @@ export function CardInlineGeneratePanel({
                 hasPrompt={Boolean(activePrompt.trim())}
                 canPublish={resultModality !== "video"}
                 isPublished={isPublished}
-                canAnimate={videoEnabled && resultModality === "image"}
+                canAnimate={
+                  videoEnabled &&
+                  resultModality === "image" &&
+                  !isPhotoshootEditKind(resultEditKind)
+                }
                 canSaveToLibrary={resultModality !== "video"}
                 busyAction={busyAction}
                 onAction={(action) => {
@@ -1847,7 +1973,7 @@ export function CardInlineGeneratePanel({
                 </svg>
               ),
             },
-            ...(videoEnabled && resultModality === "image"
+            ...(videoEnabled && resultModality === "image" && !isPhotoshootEditKind(resultEditKind)
               ? [
                   {
                     id: "animate",
@@ -1862,7 +1988,7 @@ export function CardInlineGeneratePanel({
                   },
                 ]
               : []),
-            ...(cameraOrbitEnabled && resultModality === "image"
+            ...(cameraOrbitEnabled && resultModality === "image" && !isPhotoshootEditKind(resultEditKind)
               ? [
                   {
                     id: "camera",
@@ -1876,6 +2002,27 @@ export function CardInlineGeneratePanel({
                           strokeLinejoin="round"
                         />
                         <circle cx="12" cy="14" r="3.1" />
+                      </svg>
+                    ),
+                  },
+                ]
+              : []),
+            ...(photoshootEnabled &&
+            resultModality === "image" &&
+            !isPhotoshootEditKind(resultEditKind)
+              ? [
+                  {
+                    id: "photoshoot",
+                    label: "Сделать фотосессию",
+                    onClick: startPhotoshoot,
+                    icon: (
+                      <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                        <path
+                          d="M4 7h4l1.2-2h5.6L16 7h4v12H4V7Z"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                        <circle cx="12" cy="13" r="3.1" />
                       </svg>
                     ),
                   },
@@ -1922,7 +2069,33 @@ export function CardInlineGeneratePanel({
         />
       ) : null}
 
-      {!isDock && !showCameraOverlay ? (
+      {showPhotoshootOverlay ? (
+        <PhotoshootOverlay
+          sheetUrl={photoshootSheetUrl}
+          capturing={phase === "generating"}
+          progress={progress}
+          onClose={closePhotoshoot}
+          onDownloadTile={async (tile: PhotoshootTileIndex) => {
+            if (!photoshootSheetUrl || !generationId) return;
+            const blob = await cropPhotoshootTile(photoshootSheetUrl, tile);
+            const url = URL.createObjectURL(blob);
+            try {
+              await downloadGenerationResult(url, `promptshot-${generationId}-${tile}.jpg`);
+            } finally {
+              URL.revokeObjectURL(url);
+            }
+          }}
+          onDownloadSheet={async () => {
+            if (!photoshootSheetUrl || !generationId) return;
+            await downloadGenerationResult(
+              photoshootSheetUrl,
+              `promptshot-${generationId}-sheet.jpg`,
+            );
+          }}
+        />
+      ) : null}
+
+      {!isDock && !showCameraOverlay && !showPhotoshootOverlay ? (
       <header
         className={`relative z-30 flex min-h-14 shrink-0 items-center justify-between gap-2 border-b px-3 ${
           isMobile ? "pb-2 pt-[max(0.5rem,env(safe-area-inset-top))]" : "py-2"
@@ -1975,7 +2148,11 @@ export function CardInlineGeneratePanel({
               hasPrompt={Boolean(activePrompt.trim())}
               canPublish={resultModality !== "video"}
               isPublished={isPublished}
-              canAnimate={videoEnabled && resultModality === "image"}
+              canAnimate={
+                videoEnabled &&
+                resultModality === "image" &&
+                !isPhotoshootEditKind(resultEditKind)
+              }
               canSaveToLibrary={resultModality !== "video"}
               busyAction={busyAction}
               onAction={(action) => {
@@ -3083,6 +3260,7 @@ export function CardInlineGeneratePanel({
           promptExpanded
           || (isDock && dockExpanded)
           || showCameraOverlay
+          || showPhotoshootOverlay
           || (showResultActions && !showCreditsCta)
             ? "hidden"
             : isDock

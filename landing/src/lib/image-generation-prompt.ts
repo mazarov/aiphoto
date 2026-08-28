@@ -4,6 +4,7 @@
  */
 
 import { looksLikeCameraOrbitInstruction } from "./camera-orbit";
+import { looksLikePhotoshootInstruction } from "./photoshoot";
 
 export const VIBE_IMAGE_PART_LABEL_REFERENCE = `
 [IMAGE A — STYLE REFERENCE ONLY]
@@ -133,6 +134,9 @@ export function assembleTextToImageFinalPrompt(rawPrompt: string): string {
 
 export function assembleLandingCardEditPrompt(editInstruction: string): string {
   const instruction = String(editInstruction ?? "").trim();
+  if (looksLikePhotoshootInstruction(instruction)) {
+    return assemblePhotoshootSheetPrompt(instruction);
+  }
   if (looksLikeCameraOrbitInstruction(instruction)) {
     return assembleCameraOrbitEditPrompt(instruction);
   }
@@ -168,4 +172,27 @@ Then lock:
 export function assembleCameraOrbitEditPrompt(editInstruction: string): string {
   const instruction = String(editInstruction ?? "").trim();
   return [instruction, "", GENERATE_CAMERA_ORBIT_RULES].join("\n").trim();
+}
+
+export const GEMINI_PHOTOSHOOT_SYSTEM_INSTRUCTION =
+  "You are shooting a four-frame photoshoot from the attached reference. Output one photorealistic 2x2 contact sheet. Never return the input crop unchanged.";
+
+export const GENERATE_PHOTOSHOOT_SHEET_RULES = `
+PHOTOSHOOT SHEET RULES
+The attached image is identity and set reference. Output exactly one photorealistic 2x2 contact sheet: four separate photographs.
+
+MUST CHANGE first:
+- Each panel is a different photograph of the same person with a different pose and motion.
+- If two panels share a stance or the sheet is a collage of cropped scraps, you FAILED.
+- Do not keep the source pose in more than one panel.
+
+Then lock:
+- Same person, face, body, hair, wardrobe, set, lighting, shadows, color grade, and time of day.
+- Do not invent new people, clothes, furniture, or a different location.
+- No captions, arrows, Polaroid frames, watermarks, or on-image text.
+`.trim();
+
+export function assemblePhotoshootSheetPrompt(editInstruction: string): string {
+  const instruction = String(editInstruction ?? "").trim();
+  return [instruction, "", GENERATE_PHOTOSHOOT_SHEET_RULES].join("\n").trim();
 }

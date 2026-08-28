@@ -20,4 +20,8 @@ test("Grok image prompts have no Gemini source tags", () => {
     assert.doesNotMatch(prompt, /IMAGE B/);
   }
   assert.match(assembleGrokImageEditPrompt("remove the hat"), /EDIT REQUEST/);
+  assert.match(
+    assembleGrokImageEditPrompt("PHOTOSHOOT (HIGHEST PRIORITY)\nPanel 1: step."),
+    /contact sheet/,
+  );
 });

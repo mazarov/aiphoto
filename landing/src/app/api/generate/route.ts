@@ -29,6 +29,13 @@ import {
 } from "@/lib/camera-orbit";
 import { isCameraOrbitUnlocked, resolveCameraOrbitModel } from "@/lib/camera-orbit-access";
 import {
+  PHOTOSHOOT_EDIT_KIND,
+  isPhotoshootEditKind,
+  photoshootFingerprintFields,
+  serializePhotoshootEnqueueInstruction,
+} from "@/lib/photoshoot";
+import { isPhotoshootUnlocked, resolvePhotoshootModel } from "@/lib/photoshoot-access";
+import {
   normalizeGenerationSurface,
   resolveGenerationSourceType,
 } from "@/lib/generation-enqueue-core";
@@ -176,7 +183,13 @@ export async function POST(req: NextRequest) {
     const requestedEditKind =
       typeof editKind === "string" ? editKind.trim() : "";
     const isCameraOrbit = isCameraOrbitEditKind(requestedEditKind);
-    if (requestedEditKind && !isCameraOrbit && requestedEditKind !== LOCAL_EDIT_KIND) {
+    const isPhotoshoot = isPhotoshootEditKind(requestedEditKind);
+    if (
+      requestedEditKind &&
+      !isCameraOrbit &&
+      !isPhotoshoot &&
+      requestedEditKind !== LOCAL_EDIT_KIND
+    ) {
       return NextResponse.json(
         { error: "validation_error", message: "Некорректный тип изменения" },
         { status: 400 }
@@ -188,9 +201,16 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
+    if (isPhotoshoot && isVideo) {
+      return NextResponse.json(
+        { error: "validation_error", message: "Фотосессия доступна только для фото" },
+        { status: 400 }
+      );
+    }
 
     if (
       !isCameraOrbit &&
+      !isPhotoshoot &&
       (!prompt || typeof prompt !== "string" || prompt.trim().length < minPromptLength)
     ) {
       console.warn("[generation.create] validation error: prompt too short", {
@@ -230,11 +250,13 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
-    if (isCameraOrbit && !hasParentGeneration) {
+    if ((isCameraOrbit || isPhotoshoot) && !hasParentGeneration) {
       return NextResponse.json(
         {
           error: "validation_error",
-          message: "Смена ракурса доступна только для готового фото",
+          message: isPhotoshoot
+            ? "Фотосессия доступна только для готового фото"
+            : "Смена ракурса доступна только для готового фото",
         },
         { status: 400 }
       );
@@ -261,7 +283,7 @@ export async function POST(req: NextRequest) {
         );
       }
     }
-    const editContractError = isVideo || isCameraOrbit
+    const editContractError = isVideo || isCameraOrbit || isPhotoshoot
       ? null
       : validateGenerationEditContract({
           hasParentGeneration,
@@ -399,14 +421,51 @@ export async function POST(req: NextRequest) {
         inheritedRootSize = String(root.image_size || "").trim();
         normalizedEditInstruction = serializeCameraOrbitInstruction(cameraOrbitPose);
       }
+      if (isPhotoshoot) {
+        if ((parent.modality || "image") !== IMAGE_GENERATION_MODALITY) {
+          return NextResponse.json(
+            { error: "validation_error", message: "Фотосессия доступна только для фото" },
+            { status: 400 }
+          );
+        }
+        if (isPhotoshootEditKind(parent.edit_kind)) {
+          return NextResponse.json(
+            {
+              error: "photoshoot_from_sheet",
+              message: "Фотосессию нельзя снять с готового листа",
+            },
+            { status: 400 }
+          );
+        }
+        const { data: busyRow } = await supabase
+          .from("landing_generations")
+          .select("id")
+          .eq("requester_auth_user_id", callerId)
+          .eq("edit_kind", PHOTOSHOOT_EDIT_KIND)
+          .in("status", ["pending", "processing"])
+          .limit(1)
+          .maybeSingle();
+        if (busyRow) {
+          return NextResponse.json(
+            {
+              error: "photoshoot_busy",
+              message: "Фотосессия ещё снимается",
+            },
+            { status: 409 }
+          );
+        }
+        inheritedRootAspect = String(parent.aspect_ratio || "").trim();
+        inheritedRootSize = String(parent.image_size || "").trim();
+        normalizedEditInstruction = serializePhotoshootEnqueueInstruction();
+      }
     }
 
     const ar = isVideo
       ? resolveVideoAspectRatio(aspectRatio)
-      : (isCameraOrbit && inheritedRootAspect) || aspectRatio || DEFAULT_IMAGE_ASPECT_RATIO;
+      : ((isCameraOrbit || isPhotoshoot) && inheritedRootAspect) || aspectRatio || DEFAULT_IMAGE_ASPECT_RATIO;
     let sz = isVideo
       ? resolveVideoResolution(imageSize)
-      : (isCameraOrbit && inheritedRootSize) || imageSize || DEFAULT_IMAGE_SIZE;
+      : ((isCameraOrbit || isPhotoshoot) && inheritedRootSize) || imageSize || DEFAULT_IMAGE_SIZE;
     if (isVideo) {
       const sourceError = validateVideoGenerationSource({
         hasParentGeneration,
@@ -478,6 +537,8 @@ export async function POST(req: NextRequest) {
         "default_video_model",
         "camera_orbit_enabled",
         "camera_orbit_model",
+        "photoshoot_enabled",
+        "photoshoot_model",
       ]);
 
     const config: Record<string, string> = {};
@@ -531,6 +592,21 @@ export async function POST(req: NextRequest) {
         );
       }
     }
+    if (isPhotoshoot) {
+      const enabled = isPhotoshootUnlocked(
+        config.photoshoot_enabled,
+        user.email
+      );
+      if (!enabled && !openDebug) {
+        return NextResponse.json(
+          {
+            error: "photoshoot_disabled",
+            message: "Фотосессия пока недоступна",
+          },
+          { status: 503 }
+        );
+      }
+    }
 
     let models: { id: string; cost: number }[] = [];
     if (isVideo) {
@@ -554,11 +630,14 @@ export async function POST(req: NextRequest) {
     const videoDuration = isVideo
       ? normalizeVideoDurationSeconds(durationSeconds, resolvedVideoModelId)
       : null;
-    const requestedImageModel = isCameraOrbit
+    const requestedImageModel = isCameraOrbit || isPhotoshoot
       ? ""
       : typeof model === "string" ? model.trim() : "";
     const orbitModelConfig = isCameraOrbit
       ? resolveCameraOrbitModel(config.camera_orbit_model, models)
+      : null;
+    const photoshootModelConfig = isPhotoshoot
+      ? resolvePhotoshootModel(config.photoshoot_model, models)
       : null;
     if (isCameraOrbit && !orbitModelConfig) {
       return NextResponse.json(
@@ -569,14 +648,25 @@ export async function POST(req: NextRequest) {
         { status: 503 }
       );
     }
+    if (isPhotoshoot && !photoshootModelConfig) {
+      return NextResponse.json(
+        {
+          error: "photoshoot_model_unavailable",
+          message: "Модель фотосессии временно недоступна",
+        },
+        { status: 503 }
+      );
+    }
     const modelConfig = isVideo
       ? models.find((item) => item.id === resolvedVideoModelId) || models[0]
       : isCameraOrbit
         ? orbitModelConfig
+        : isPhotoshoot
+          ? photoshootModelConfig
         : requestedImageModel
           ? models.find((item) => item.id === requestedImageModel)
           : models.find((item) => item.id === config.default_model) || models[0];
-    if (!isVideo && !isCameraOrbit && requestedImageModel && !modelConfig) {
+    if (!isVideo && !isCameraOrbit && !isPhotoshoot && requestedImageModel && !modelConfig) {
       return NextResponse.json(
         { error: "validation_error", message: "Неизвестная модель генерации" },
         { status: 400 }
@@ -608,6 +698,9 @@ export async function POST(req: NextRequest) {
     let promptText = String(prompt ?? "").trim();
     if (isCameraOrbit && cameraOrbitPose) {
       promptText = serializeCameraOrbitInstruction(cameraOrbitPose);
+    }
+    if (isPhotoshoot) {
+      promptText = serializePhotoshootEnqueueInstruction();
     }
     if (!promptText || promptText.length < minPromptLength) {
       return NextResponse.json(
@@ -671,7 +764,9 @@ export async function POST(req: NextRequest) {
           photoStoragePaths: normalizedPhotoStoragePaths,
           ...(isCameraOrbit && cameraOrbitPose && cameraOrbitSceneRootId
             ? cameraOrbitFingerprintFields(cameraOrbitSceneRootId, cameraOrbitPose)
-            : generationEditFingerprintFields(
+            : isPhotoshoot
+              ? photoshootFingerprintFields(normalizedParentGenerationId)
+              : generationEditFingerprintFields(
                 normalizedParentGenerationId,
                 normalizedEditInstruction
               )),
@@ -701,7 +796,9 @@ export async function POST(req: NextRequest) {
       photos: normalizedPhotoStoragePaths.length,
       sourceType,
       generationSurface,
-      generationMode: isCameraOrbit
+      generationMode: isPhotoshoot
+        ? "photoshoot"
+        : isCameraOrbit
         ? "camera_orbit"
         : hasParentGeneration
           ? "local_edit"
@@ -710,6 +807,7 @@ export async function POST(req: NextRequest) {
       sceneRootId: cameraOrbitSceneRootId,
       cameraPose: cameraOrbitPose,
       orbitModel: isCameraOrbit ? modelConfig.id : null,
+      photoshootModel: isPhotoshoot ? modelConfig.id : null,
       editInstructionLength: normalizedEditInstruction.length,
       promptLength: promptText.length,
     });
@@ -730,7 +828,9 @@ export async function POST(req: NextRequest) {
       photos: normalizedPhotoStoragePaths.length,
       sourceType,
       generationSurface,
-      generationMode: isCameraOrbit
+      generationMode: isPhotoshoot
+        ? "photoshoot"
+        : isCameraOrbit
         ? "camera_orbit"
         : hasParentGeneration
           ? "local_edit"
@@ -739,6 +839,7 @@ export async function POST(req: NextRequest) {
       sceneRootId: cameraOrbitSceneRootId,
       cameraPose: cameraOrbitPose,
       orbitModel: isCameraOrbit ? modelConfig.id : null,
+      photoshootModel: isPhotoshoot ? modelConfig.id : null,
       editInstructionLength: normalizedEditInstruction.length,
       promptLength: promptText.length,
     });
@@ -757,7 +858,7 @@ export async function POST(req: NextRequest) {
         p_image_size: sz,
         p_credits_spent: creditsCharged,
         p_input_photo_paths: normalizedPhotoStoragePaths,
-        p_vibe_id: isCameraOrbit ? null : resolvedVibeId,
+        p_vibe_id: isCameraOrbit || isPhotoshoot ? null : resolvedVibeId,
         p_client_source: GENERATION_CLIENT_SOURCE,
         p_pipeline_trace_id: pipelineTrace,
         p_create_ugc: isVideo ? false : !guestMode,
@@ -773,6 +874,10 @@ export async function POST(req: NextRequest) {
               p_scene_root_id: cameraOrbitSceneRootId,
               p_camera_pose: cameraOrbitPose,
             }
+          : isPhotoshoot
+            ? {
+                p_edit_kind: PHOTOSHOOT_EDIT_KIND,
+              }
           : {}),
       }
     );
@@ -795,6 +900,7 @@ export async function POST(req: NextRequest) {
         enqueueError?.message?.includes("parent_generation_forbidden") ||
         enqueueError?.message?.includes("parent_generation_not_ready") ||
         enqueueError?.message?.includes("parent_generation_not_image");
+      const photoshootFromSheet = enqueueError?.message?.includes("photoshoot_from_sheet");
       const { data: userRow } = insufficient
         ? await supabase
             .from("landing_users")
@@ -831,6 +937,15 @@ export async function POST(req: NextRequest) {
             message: "Idempotency-Key уже использован для другого запроса",
           },
           { status: 409 }
+        );
+      }
+      if (photoshootFromSheet) {
+        return NextResponse.json(
+          {
+            error: "photoshoot_from_sheet",
+            message: "Фотосессию нельзя снять с готового листа",
+          },
+          { status: 400 }
         );
       }
       if (parentUnavailable) {

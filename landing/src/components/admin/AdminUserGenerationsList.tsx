@@ -215,6 +215,11 @@ export function AdminUserGenerationsList({
                 Камера
               </span>
             )}
+            {item.editKind === "photoshoot" && (
+              <span className={`${adminDenseBadgeClass} bg-violet-100 text-violet-800`}>
+                Фотосессия
+              </span>
+            )}
             <span className={`${adminDenseBadgeClass} text-white`}
               style={{ background: clientSourceColor(item.clientSource) }}>
               {clientSourceLabel(item.clientSource)}

@@ -155,6 +155,14 @@ test("resolveImageEditMode treats CAMERA ORBIT text as orbit even without edit_k
     }),
     "legacy_continuation",
   );
+  assert.equal(
+    resolveImageEditMode({
+      parentGenerationId: "root",
+      editKind: "photoshoot",
+      editInstruction: "PHOTOSHOOT\nFour-frame contact sheet from the attached photograph.",
+    }),
+    "photoshoot",
+  );
 });
 
 test("chips add 30° per click and keep the other axes", () => {

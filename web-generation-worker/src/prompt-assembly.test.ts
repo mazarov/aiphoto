@@ -4,12 +4,14 @@ import {
   assembleCameraOrbitEditPrompt,
   assembleLandingCardEditPrompt,
   assembleLandingCardFinalPrompt,
+  assemblePhotoshootSheetPrompt,
   assembleTextToImageFinalPrompt,
   assembleVibeFinalPrompt,
 } from "../../landing/src/lib/image-generation-prompt";
 import {
   assembleGrokCameraOrbitPrompt,
   assembleGrokImageEditPrompt,
+  assembleGrokPhotoshootSheetPrompt,
 } from "../../landing/src/lib/grok-image-prompt";
 
 test("card prompt appends identity and wardrobe rules after user text", () => {
@@ -60,6 +62,21 @@ test("camera orbit prompt does not reuse local-edit keep-camera rules", () => {
   assert.doesNotMatch(prompt, /LOCAL IMAGE EDIT RULES/);
   assert.doesNotMatch(prompt, /Keep everything else exactly the same/);
   assert.doesNotMatch(prompt, /camera angle/);
+});
+
+test("photoshoot sheet prompt does not reuse local-edit keep-pose rules", () => {
+  const instruction = "PHOTOSHOOT (HIGHEST PRIORITY)\nPanel 1: step left.";
+  const gemini = assemblePhotoshootSheetPrompt(instruction);
+  const viaEdit = assembleLandingCardEditPrompt(instruction);
+  const grok = assembleGrokPhotoshootSheetPrompt(instruction);
+  const grokViaEdit = assembleGrokImageEditPrompt(instruction);
+  assert.match(gemini, /PHOTOSHOOT SHEET RULES/);
+  assert.doesNotMatch(gemini, /LOCAL IMAGE EDIT RULES/);
+  assert.doesNotMatch(gemini, /Keep everything else exactly the same/);
+  assert.doesNotMatch(gemini, /CAMERA ORBIT RULES/);
+  assert.match(viaEdit, /PHOTOSHOOT SHEET RULES/);
+  assert.match(grok, /different pose/);
+  assert.match(grokViaEdit, /contact sheet/);
 });
 
 test("grok camera orbit prompt does not keep the source camera", () => {

@@ -33,6 +33,13 @@ export const YM_GOAL_CAMERA_ORBIT_FAIL = "camera_orbit_fail";
 export const YM_GOAL_CAMERA_ORBIT_BUSY = "camera_orbit_busy";
 export const YM_GOAL_CAMERA_ORBIT_NO_CREDITS = "camera_orbit_no_credits";
 export const YM_GOAL_CAMERA_ORBIT_DISABLED = "camera_orbit_disabled";
+export const YM_GOAL_PHOTOSHOOT_OPEN = "photoshoot_open";
+export const YM_GOAL_PHOTOSHOOT_SUBMIT = "photoshoot_submit";
+export const YM_GOAL_PHOTOSHOOT_READY = "photoshoot_ready";
+export const YM_GOAL_PHOTOSHOOT_FAIL = "photoshoot_fail";
+export const YM_GOAL_PHOTOSHOOT_BUSY = "photoshoot_busy";
+export const YM_GOAL_PHOTOSHOOT_NO_CREDITS = "photoshoot_no_credits";
+export const YM_GOAL_PHOTOSHOOT_DISABLED = "photoshoot_disabled";
 /** Soft/route/desktop open of unified generate shell (`/generate`). */
 export const YM_GOAL_GENERATE_SHELL_OPEN = "generate_shell_open";
 export const YM_GOAL_YOOKASSA_CHECKOUT_STARTED = "yookassa_checkout_started";
