@@ -13,7 +13,10 @@ import {
 } from "./process-generation";
 import { processVideoGeneration } from "./process-video-generation";
 import { GROK_IMAGINE_IMAGE_MODEL, isGrokImageModel } from "./xai-image";
-import { resolvePhotoshootUserFacingResult } from "../../landing/src/lib/photoshoot";
+import {
+  photoshootUserFacingMediaPaths,
+  resolvePhotoshootUserFacingResult,
+} from "../../landing/src/lib/photoshoot";
 
 const app = express();
 const shutdownController = new AbortController();
@@ -270,7 +273,8 @@ async function runJob(job: GenerationJob): Promise<void> {
         sheetPath: result.resultPath,
         tilePaths: photoshootTilePaths,
       });
-      if (!facing.resultPath) {
+      const mediaPaths = photoshootUserFacingMediaPaths(facing);
+      if (!mediaPaths.length) {
         log("info", "ugc_creation_skipped", {
           generationId: job.id,
           reason: "photoshoot_tiles_missing",
@@ -282,7 +286,7 @@ async function runJob(job: GenerationJob): Promise<void> {
         generationOwnerUserId: job.user_id,
         promptText: result.rawPrompt,
         resultBucket: RESULTS_BUCKET,
-        resultPath: facing.resultPath,
+        resultPaths: mediaPaths,
       });
       log("info", "ugc_creation_finished", {
         generationId: job.id,

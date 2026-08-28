@@ -76,7 +76,8 @@ test("photoshoot sheet prompt does not reuse local-edit keep-pose rules", () => 
   assert.doesNotMatch(gemini, /CAMERA ORBIT RULES/);
   assert.match(viaEdit, /PHOTOSHOOT SHEET RULES/);
   assert.match(grok, /different pose/);
-  assert.match(grokViaEdit, /contact sheet/);
+  assert.match(grokViaEdit, /sit flush/);
+  assert.doesNotMatch(grokViaEdit, /1:1, 16:9, or 9:16/);
 });
 
 test("grok camera orbit prompt does not keep the source camera", () => {

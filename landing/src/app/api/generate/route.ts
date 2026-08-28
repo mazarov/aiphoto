@@ -29,7 +29,9 @@ import {
 } from "@/lib/camera-orbit";
 import { isCameraOrbitUnlocked, resolveCameraOrbitModel } from "@/lib/camera-orbit-access";
 import {
+  PHOTOSHOOT_CREDIT_COST,
   PHOTOSHOOT_EDIT_KIND,
+  PHOTOSHOOT_IMAGE_SIZE,
   isPhotoshootEditKind,
   parsePhotoshootTileIndex,
   resolvePhotoshootParentSourcePath,
@@ -462,6 +464,7 @@ export async function POST(req: NextRequest) {
           .select("id")
           .eq("requester_auth_user_id", callerId)
           .eq("edit_kind", PHOTOSHOOT_EDIT_KIND)
+          .eq("parent_generation_id", parent.id)
           .in("status", ["pending", "processing"])
           .limit(1)
           .maybeSingle();
@@ -469,7 +472,7 @@ export async function POST(req: NextRequest) {
           return NextResponse.json(
             {
               error: "photoshoot_busy",
-              message: "Фотосессия ещё снимается",
+              message: "Эта фотосессия ещё в очереди",
             },
             { status: 409 }
           );
@@ -477,7 +480,6 @@ export async function POST(req: NextRequest) {
         inheritedRootAspect = resolvePhotoshootSheetAspect({
           aspectRatio: parent.aspect_ratio,
         });
-        inheritedRootSize = String(parent.image_size || "").trim();
         normalizedEditInstruction = serializePhotoshootEnqueueInstruction(plannerTemperature);
       }
     }
@@ -487,7 +489,9 @@ export async function POST(req: NextRequest) {
       : ((isCameraOrbit || isPhotoshoot) && inheritedRootAspect) || aspectRatio || DEFAULT_IMAGE_ASPECT_RATIO;
     let sz = isVideo
       ? resolveVideoResolution(imageSize)
-      : ((isCameraOrbit || isPhotoshoot) && inheritedRootSize) || imageSize || DEFAULT_IMAGE_SIZE;
+      : isPhotoshoot
+        ? PHOTOSHOOT_IMAGE_SIZE
+        : ((isCameraOrbit && inheritedRootSize) || imageSize || DEFAULT_IMAGE_SIZE);
     if (isVideo) {
       const sourceError = validateVideoGenerationSource({
         hasParentGeneration,
@@ -713,7 +717,9 @@ export async function POST(req: NextRequest) {
     }
     const creditsNeeded = isVideo
       ? calculateVideoCreditCost(modelConfig.cost, videoDuration, modelConfig.id)
-      : modelConfig.cost;
+      : isPhotoshoot
+        ? PHOTOSHOOT_CREDIT_COST
+        : modelConfig.cost;
     const guestMode = Boolean(user && isStvGuestUser(user));
     /** Open-debug and guest: never charge. */
     const creditsCharged = openDebug || guestMode ? 0 : creditsNeeded;

@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  PHOTOSHOOT_CREDIT_COST,
+  PHOTOSHOOT_CTA_LABEL,
   PHOTOSHOOT_EDIT_KIND,
+  PHOTOSHOOT_FRAME_COUNT,
+  PHOTOSHOOT_IMAGE_SIZE,
+  photoshootCtaDetail,
   extractJsonObject,
   looksLikePhotoshootInstruction,
   parsePhotoshootPlan,
@@ -11,6 +16,9 @@ import {
   parsePhotoshootTileIndex,
   parsePhotoshootTilePaths,
   photoshootTileIndexForUrl,
+  isPhotoshootUgcListing,
+  looksLikePhotoshootTilePaths,
+  photoshootUserFacingMediaPaths,
   resolvePhotoshootParentSourcePath,
   resolvePhotoshootSheetAspect,
   resolvePhotoshootUserFacingResult,
@@ -96,6 +104,12 @@ test("serializePhotoshootSheetInstruction lists four panels and locks identity",
   assert.match(text, /^PHOTOSHOOT/);
   assert.match(text, /Canvas 9:16/);
   assert.match(text, /Each panel is also 9:16/);
+  assert.match(text, /shares edges/);
+  assert.match(text, /no gutter/);
+  assert.doesNotMatch(text, /1:1, 16:9, or 9:16/);
+  const square = serializePhotoshootSheetInstruction(plan, "1:1");
+  assert.match(square, /Canvas 1:1/);
+  assert.doesNotMatch(square, /16:9/);
   assert.match(text, /Panel 1:/);
   assert.match(text, /Panel 4:/);
   assert.match(text, /LOCK: identity/);
@@ -114,6 +128,17 @@ test("resolvePhotoshootSheetAspect snaps source format to 1:1, 16:9, or 9:16", (
   assert.equal(resolvePhotoshootSheetAspect({ width: 720, height: 1280 }), "9:16");
   assert.equal(resolvePhotoshootSheetAspect({ width: 1920, height: 1080 }), "16:9");
   assert.equal(resolvePhotoshootSheetAspect({ width: 1024, height: 1024 }), "1:1");
+});
+
+test("photoshoot sheet is always 2K", () => {
+  assert.equal(PHOTOSHOOT_IMAGE_SIZE, "2K");
+});
+
+test("photoshoot CTA is 4 frames for 15 credits", () => {
+  assert.equal(PHOTOSHOOT_FRAME_COUNT, 4);
+  assert.equal(PHOTOSHOOT_CREDIT_COST, 15);
+  assert.equal(PHOTOSHOOT_CTA_LABEL, "Фотосессия");
+  assert.equal(photoshootCtaDetail(), "4 фото");
 });
 
 test("planner generation config disables Flash thinking", () => {
@@ -161,6 +186,43 @@ test("photoshoot user-facing result never exposes the sheet", () => {
       tilePaths: null,
     }),
     { resultPath: "user/job/lease.jpg", tilePaths: null },
+  );
+  assert.deepEqual(
+    photoshootUserFacingMediaPaths({ resultPath: tiles[0], tilePaths: tiles }),
+    tiles,
+  );
+  assert.deepEqual(
+    photoshootUserFacingMediaPaths({ resultPath: "user/job/lease.jpg", tilePaths: null }),
+    ["user/job/lease.jpg"],
+  );
+});
+
+test("photoshoot UGC listing is a four-tile web album, not a random 4-photo card", () => {
+  const tiles = [
+    "user/job/lease-1.jpg",
+    "user/job/lease-2.jpg",
+    "user/job/lease-3.jpg",
+    "user/job/lease-4.jpg",
+  ];
+  assert.equal(looksLikePhotoshootTilePaths(tiles), true);
+  assert.equal(looksLikePhotoshootTilePaths(tiles.slice(0, 3)), false);
+  assert.equal(
+    isPhotoshootUgcListing({ storagePaths: tiles }),
+    true,
+  );
+  assert.equal(
+    isPhotoshootUgcListing({
+      datasetSlug: "web_generation_ugc",
+      photoCount: 4,
+    }),
+    true,
+  );
+  assert.equal(
+    isPhotoshootUgcListing({
+      datasetSlug: "telegram_export",
+      photoCount: 4,
+    }),
+    false,
   );
 });
 

@@ -7,7 +7,7 @@
 
 ## Цель
 
-После готового **фото** пользователь одним тапом снимает **мини-фотосессию**: профессиональный фотограф (vision LLM) придумывает 4 разных позы/движения, image-модель рисует их **одним job** как лист 2×2. Цена — **10 кредитов**. Исходник — то фото, что на экране.
+После готового **фото** пользователь одним тапом снимает **мини-фотосессию**: профессиональный фотограф (vision LLM) придумывает 4 разных позы/движения, image-модель рисует их **одним job** как лист 2×2. Цена — **15 кредитов** (`PHOTOSHOOT_CREDIT_COST`, не cost модели в пикере). Исходник — то фото, что на экране.
 
 Это не «Камера» (там поза lock, крутится viewpoint), не remix («Что изменить»), не «Оживить», не SEO-кластер `/promty-dlya-ii-fotosessii`.
 
@@ -19,20 +19,21 @@
 
 | # | Решение |
 |---|---|
-| D1 | Один `POST /api/generate`, один enqueue, **один** result, **10 кредитов** |
-| D2 | Модель рисует **2×2 contact sheet** на холсте исходника, снапнутом в `1:1` / `16:9` / `9:16`. Worker режет 4 JPEG sidecar (`photoshoot_tile_paths`, SQL `225`). Лист — внутренний артефакт (Storage / re-cut), **пользователю не показываем и не отдаём**. API/UI/UGC/скачивание — только 4 кадра. Спеки `docs/28-08-ai-photoshoot-split.md`, `docs/28-08-ai-photoshoot-aspect.md` |
+| D1 | Один `POST /api/generate`, один enqueue, **один** result, **15 кредитов** |
+| D2 | Модель рисует **2×2 лист** на холсте исходника, снапнутом в `1:1` / `16:9` / `9:16`. Промпт: только этот canvas + панели **встык** (`PHOTOSHOOT_FLUSH_PANELS_RULE`), без gutter/белых швов. Worker режет 4 JPEG sidecar (`photoshoot_tile_paths`, SQL `225`). Лист — внутренний артефакт. Пользователю не показываем. API/UI/UGC/скачивание — только 4 кадра. Спеки `docs/28-08-ai-photoshoot-split.md`, `docs/28-08-ai-photoshoot-aspect.md` |
 | D3 | Planner — Gemini **vision** в **worker** (не в Next API). Роль: professional photographer. Ответ: **EN JSON**, 4 шота |
 | D4 | Все 4 позы I2I от **одного** исходного jpeg (фото на экране). С готовой фотосессии кнопка остаётся: source = выбранный кадр, не лист 2×2. Лист без тайлов по-прежнему 400 `photoshoot_from_sheet` (SQL `226`) |
 | D5 | Intent `edit_kind=photoshoot`. Не reuse local-edit (запрещает менять позу) и не camera-orbit (лочит взгляд/позу) |
 | D6 | Флаг `photoshoot_enabled` (default **false**) + тот же internal allowlist, что у video/orbit (`azarov.maxim@gmail.com` + `NODE_ENV=development`) |
-| D7 | Модель кадра = `photoshoot_model` (дефолт `grok-imagine-image-2.0`, 10 кр). Пикер в оверлее скрыт. Чужой/выключенный id → 503, не Flash |
+| D7 | Модель кадра = `photoshoot_model` (дефолт `seedream-5.0-pro`). Цена job = `PHOTOSHOOT_CREDIT_COST` (**15 кр**), не cost модели. `image_size` всегда **2K**. Пикер в оверлее скрыт. Чужой/выключенный id → 503, не Flash |
 | D8 | Кнопка только после **completed image**. На video нет |
 | D9 | С готового листа «Оживить» / «Камера» в v1 **выключены** (2×2 как source ломает оба) |
 | D10 | Клиент не пишет сценарии и не зовёт Gemini. `prompt_text` сервер ставит сам (`PHOTOSHOOT`) |
 | D11 | Новой SEO-страницы нет. Не путать с `/promty-dlya-ii-fotosessii` |
 | D12 | Копирайт: «4 кадра одной съёмки», не «4 отдельные генерации» и не пакет 40 кредитов |
 | D13 | `/generations`: одна карточка = сетка 4 кадров + шильд «Фотосессия». Клик открывает обычный result chrome на кадре 1 + rail + плёнка. 4 URL идут в `seedCompletedResult` сразу из списка, без второго `GET /generations/:id` на плёнку |
-| D14 | Клик «Сделать фотосессию» не ставит job. Правый rail: креативность 0–100 (50 = temp 0.5, 100 = temp 2.0) + «Выйти» + «Создать ИИ фотосессию». Temp в `edit_instruction`; worker передаёт в planner и меняет brief (низкий = близко к позе, высокий = смелые позы). Картинка-модель temp не видит |
+| D14 | Клик «Фотосессия» не ставит job. Правый rail сверху вниз: «Выйти», креативность 0–100 (50 = temp 0.5, 100 = temp 2.0), «Создать». Temp в `edit_instruction`; worker передаёт в planner и меняет brief (низкий = близко к позе, высокий = смелые позы). Картинка-модель temp не видит |
+| D15 | Публикация = **одна** карточка каталога на весь сет. `prompt_card_media` = 4 тайла (`photoshootUserFacingMediaPaths`). Не `card_split` (это 4 отдельные карточки). Лист в карточку не кладём. Каталог показывает альбом (карусель), `/generations` — сетку 2×2 |
 
 ---
 
@@ -74,8 +75,8 @@
 
 ```
 result chrome
-  → rail «Сделать фотосессию»
-  → правый rail: Креативность + Выйти + «Создать ИИ фотосессию»
+  → rail «Фотосессия» / «4 фото» + шильд `15✦` сверху
+  → правый rail: «Выйти» + Креативность + «Создать»
   → POST /api/generate
        editKind=photoshoot
        parentGenerationId=<displayed>
@@ -83,8 +84,9 @@ result chrome
   → API
        ├─ флаг / allowlist
        ├─ parent = owned completed image, не photoshoot и не video
-       ├─ busy? 409 photoshoot_busy
-       ├─ model + 10 кр = photoshoot_model
+       ├─ busy? 409 photoshoot_busy только на том же parent
+       ├─ другие фотосессии — обычная очередь landing_generations
+       ├─ model = photoshoot_model, credits = PHOTOSHOOT_CREDIT_COST (15)
        └─ landing_enqueue_generation
             parent=displayed, edit_kind=photoshoot,
             prompt_text=PHOTOSHOOT, edit_instruction=PHOTOSHOOT,
@@ -148,8 +150,8 @@ CREATE INDEX IF NOT EXISTS idx_landing_generations_photoshoot_active
 INSERT INTO public.landing_generation_config (key, value, updated_at)
 VALUES
   ('photoshoot_enabled', 'false', now()),
-  ('photoshoot_model', 'grok-imagine-image-2.0', now())
-ON CONFLICT (key) DO NOTHING;
+  ('photoshoot_model', 'seedream-5.0-pro', now())
+ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now();
 ```
 
 `photoshoot_plan` пишет **worker** после planner, не API. На enqueue колонка NULL — это ок.
@@ -230,7 +232,7 @@ Aspect / size = как у родителя. 2×2 из 3:4 остаётся 3:4; 
 - пока job: 4 плейсхолдера + тот же progress, что у generate
 - готово: клик по тайлу меняет крупный вид (`object-fit: contain` того же crop)
 - Скачать выбранный тайл: canvas crop 50%×50%. Отдельно в ⋮ или второй action — «скачать лист»
-- Повторить фотосессию = новый POST (ещё 10 кр), не доработка листа
+- Повторить фотосессию = новый POST (ещё 15 кр), не доработка листа
 - Выйти: закрыть оверлей, backdrop снова показывает **родителя**, не лист (лист остаётся в `/generations`)
 
 `/generations` → `seedCompletedResult`: если `edit_kind=photoshoot`, открывать оверлей с 4 тайлами, не плоский одиночный кадр.
@@ -244,7 +246,7 @@ Aspect / size = как у родителя. 2×2 из 3:4 остаётся 3:4; 
 ```ts
 photoshootEnabled: boolean
 photoshootModel: { id, cost } | null
-photoshootCreditCost: 10
+photoshootCreditCost: 15
 ```
 
 Unlock: копия `isCameraOrbitUnlocked` → `isPhotoshootUnlocked` (`landing/src/lib/photoshoot-access.ts`). Кэш localStorage по образцу `camera-orbit-availability.ts`.
@@ -256,7 +258,7 @@ Unlock: копия `isCameraOrbitUnlocked` → `isPhotoshootUnlocked` (`landing/
 3. parent обязателен, image, completed, owned, `edit_kind !== 'photoshoot'`
 4. busy: есть pending/processing photoshoot этого user → 409
 5. клиентский `prompt` / `editInstruction` / `model` игнорировать
-6. `creditsNeeded` = cost `photoshoot_model`
+6. `creditsNeeded` = `PHOTOSHOOT_CREDIT_COST` (15), не cost `photoshoot_model`
 7. fingerprint: `photoshoot` + parentId (повтор того же родителя в полёте = idempotency/busy, не второй charge)
 
 Ошибки:
@@ -273,7 +275,7 @@ Unlock: копия `isCameraOrbitUnlocked` → `isPhotoshootUnlocked` (`landing/
 | Слой | Делает | Не делает |
 |---|---|---|
 | Rail + Overlay | CTA, плёнка, crop просмотр/скачивание | промпт, выбор модели |
-| `POST /api/generate` | флаг, parent, busy, 10 кр, enqueue | vision, 4 шота |
+| `POST /api/generate` | флаг, parent, busy, 15 кр, enqueue | vision, 4 шота |
 | Worker | plan → sheet prompt → I2I → JPEG | кредиты, UI |
 | Config | `photoshoot_enabled`, `photoshoot_model` | env-гейт продукта |
 
@@ -285,7 +287,7 @@ Unlock: копия `isCameraOrbitUnlocked` → `isPhotoshootUnlocked` (`landing/
 2. Два вызова провайдера на job: vision ~2–5 с + image ~15–40 с. p95 wall ≈ 45–60 с.
 3. При открытии флага всем: +1 image job на долю result-CTR. Сначала allowlist.
 4. Client crop дешёвый. 4 объекта Storage не пишем.
-5. Per-user image cap (сейчас 3) не мешает: v1 = 1 job.
+5. Per-user image cap (`landing_claim_generations` `p_max_per_user=3`) — фотосессия тот же image-claim. Несколько job с разных parent стоят в очереди; лишние ждут. Один parent — один in-flight (409).
 6. Не параллелить 4 image в v1.
 
 v2 (если лист не удержит лицо): тот же CTA и плёнка, RPC на 4 child-job и 40 кр. Тайл = URL, не crop.
@@ -298,15 +300,15 @@ v2 (если лист не удержит лицо): тот же CTA и плён
 |---|---|
 | enqueue success | как обычный image |
 | planner parse fail | < 5% job; 1 retry |
-| image fail / refund | полный возврат 10 |
+| image fail / refund | полный возврат 15 |
 | p95 wall time | < 70 с |
-| busy collision | 409, без второго списания |
+| busy collision | 409 только тот же parent; иначе enqueue в общую очередь |
 
 Деградации:
 
 - нет proxy / ключа planner → `config_error`, refund
 - `photoshoot_model` выключена → 503 до enqueue
-- один photoshoot pending/processing на user → 409
+- тот же parent уже pending/processing → 409; другой parent — enqueue, worker `SKIP LOCKED`
 
 Метрики worker/API: `generationMode=photoshoot`, `planner_ok`, `sheet_ok`, refund. `viaProxy` без credentials.
 
@@ -315,7 +317,7 @@ v2 (если лист не удержит лицо): тот же CTA и плён
 | Событие | Когда |
 |---|---|
 | `photoshoot_open` | тап rail (enqueue стартует сразу) |
-| `photoshoot_submit` | 202, `{ credits: 10, parentId }` |
+| `photoshoot_submit` | 202, `{ credits: 15, parentId }` |
 | `photoshoot_ready` | completed |
 | `photoshoot_fail` | terminal fail |
 | `photoshoot_busy` | 409 |
@@ -383,7 +385,7 @@ Delivery unit: код + тесты + эта спека + `docs/architecture/01-l
 - `assemblePhotoshootSheetPrompt`: есть 4 панели и LOCK identity; нет keep pose / CAMERA ORBIT
 - `assembleLandingCardEditPrompt('PHOTOSHOOT…')` не должен уйти в local-edit keep-pose (редирект или явный не-photoshoot путь в worker)
 - `resolveImageEditMode`: `edit_kind=photoshoot` и префикс
-- API: happy path пишет `edit_kind` + parent; video parent → 400; photoshoot parent → 400; флаг off → 503; busy → 409; client prompt не в БД; vibe_id null; credits=10
+- API: happy path пишет `edit_kind` + parent; video parent → 400; photoshoot parent → 400; флаг off → 503; busy → 409; client prompt не в БД; vibe_id null; credits=15
 - Worker: photoshoot → sheet assembler, не orbit/local-edit; planner retry; parse fail → fail+refund
 - Config: `photoshootEnabled` в `/api/generation-config`
 - Клиент (unit): 4 `object-position`; кнопка скрыта на video и на photoshoot-result для «Камера»/«Оживить»
@@ -396,7 +398,7 @@ Delivery unit: код + тесты + эта спека + `docs/architecture/01-l
 
 Флаг off:
 
-- [ ] Rail без «Сделать фотосессию» у обычного юзера
+- [ ] Rail без «Фотосессия» у обычного юзера
 - [ ] POST photoshoot → 503, job нет
 - [ ] Allowlist видит кнопку и может запустить
 
@@ -410,7 +412,7 @@ Delivery unit: код + тесты + эта спека + `docs/architecture/01-l
 - [ ] Нет текста/рамок на листе
 - [ ] Скачать тайл = четверть листа; скачать лист = полный jpeg
 - [ ] Двойной тап: один job / один charge
-- [ ] Второй photoshoot того же родителя после complete — новый job, ещё 10
+- [ ] Второй photoshoot того же родителя после complete — новый job, ещё 15
 - [ ] Photoshoot с листа → 400, кнопки нет
 - [ ] 402/400 при нуле кредитов, как generate
 - [ ] `/generations` → dock → лист открывается плёнкой

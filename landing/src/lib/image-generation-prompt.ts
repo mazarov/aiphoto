@@ -4,7 +4,7 @@
  */
 
 import { looksLikeCameraOrbitInstruction } from "./camera-orbit";
-import { looksLikePhotoshootInstruction } from "./photoshoot";
+import { looksLikePhotoshootInstruction, PHOTOSHOOT_FLUSH_PANELS_RULE } from "./photoshoot";
 
 export const VIBE_IMAGE_PART_LABEL_REFERENCE = `
 [IMAGE A — STYLE REFERENCE ONLY]
@@ -175,12 +175,13 @@ export function assembleCameraOrbitEditPrompt(editInstruction: string): string {
 }
 
 export const GEMINI_PHOTOSHOOT_SYSTEM_INSTRUCTION =
-  "You are shooting a four-frame photoshoot from the attached reference. Output one photorealistic 2x2 contact sheet. Never return the input crop unchanged.";
+  "You are shooting a four-frame photoshoot from the attached reference. Output one photorealistic 2x2 sheet of flush photographs. Never return the input crop unchanged.";
 
 export const GENERATE_PHOTOSHOOT_SHEET_RULES = `
 PHOTOSHOOT SHEET RULES
-The attached image is identity and set reference. Output exactly one photorealistic 2x2 contact sheet: four separate photographs.
-Fill the requested canvas (1:1, 16:9, or 9:16). Each panel keeps that same aspect. Do not letterbox.
+The attached image is identity and set reference. Output exactly one photorealistic 2x2 sheet: four separate photographs.
+Match the Canvas line above. Each panel keeps that aspect.
+${PHOTOSHOOT_FLUSH_PANELS_RULE}
 
 MUST CHANGE first:
 - Each panel is a different photograph of the same person with a different pose and motion.
@@ -190,7 +191,7 @@ MUST CHANGE first:
 Then lock:
 - Same person, face, body, hair, wardrobe, set, lighting, shadows, color grade, and time of day.
 - Do not invent new people, clothes, furniture, or a different location.
-- No captions, arrows, Polaroid frames, watermarks, or on-image text.
+- No captions, arrows, Polaroid frames, gutters, white seams, watermarks, or on-image text.
 `.trim();
 
 export function assemblePhotoshootSheetPrompt(editInstruction: string): string {

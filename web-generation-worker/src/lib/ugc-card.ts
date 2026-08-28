@@ -84,7 +84,8 @@ export async function createUgcCard(
     generationOwnerUserId: string;
     promptText: string;
     resultBucket: string;
-    resultPath: string;
+    resultPath?: string;
+    resultPaths?: string[];
   },
 ): Promise<{ cardId: string; slug: string | null } | null> {
   const {
@@ -92,8 +93,16 @@ export async function createUgcCard(
     generationOwnerUserId,
     promptText,
     resultBucket,
-    resultPath,
   } = params;
+  const resultPaths = (params.resultPaths?.length
+    ? params.resultPaths
+    : params.resultPath
+      ? [params.resultPath]
+      : []
+  )
+    .map((path) => String(path || "").trim())
+    .filter(Boolean);
+  if (!resultPaths.length) return null;
   const { data: generation, error: generationError } = await supabase
     .from("landing_generations")
     .select("user_id,requester_auth_user_id,status,ugc_card_id")
@@ -151,15 +160,17 @@ export async function createUgcCard(
   }
   const cardId = card.id as string;
 
-  const { error: mediaError } = await supabase.from("prompt_card_media").insert({
-    card_id: cardId,
-    media_index: 0,
-    media_type: "photo",
-    storage_bucket: resultBucket,
-    storage_path: resultPath,
-    original_relative_path: resultPath,
-    is_primary: true,
-  });
+  const { error: mediaError } = await supabase.from("prompt_card_media").insert(
+    resultPaths.map((path, index) => ({
+      card_id: cardId,
+      media_index: index,
+      media_type: "photo",
+      storage_bucket: resultBucket,
+      storage_path: path,
+      original_relative_path: path,
+      is_primary: index === 0,
+    })),
+  );
   const { error: variantError } = mediaError
     ? { error: mediaError }
     : await supabase.from("prompt_variants").insert({

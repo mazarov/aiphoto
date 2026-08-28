@@ -134,14 +134,7 @@ export function GenerationResultBackdrop({
         className={`ps-result-backdrop pointer-events-none absolute inset-0 z-0 overflow-hidden ${className}`}
         aria-hidden
       >
-        <video
-          src={src || undefined}
-          className="ps-result-backdrop__img h-full w-full object-cover"
-          autoPlay
-          muted
-          loop
-          playsInline
-        />
+        {src ? <ResultFitVideo src={src} /> : null}
       </div>
     );
   }
@@ -162,8 +155,7 @@ export function GenerationResultBackdrop({
             }`}
           >
             <div className="ps-result-backdrop__pixel-scale">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={shownBase} alt="" className="ps-result-backdrop__img" />
+              <ResultFitStack src={shownBase} />
             </div>
           </div>
         </div>
@@ -171,15 +163,49 @@ export function GenerationResultBackdrop({
 
       {showOverlay && overlayUrl ? (
         <div className="ps-result-backdrop__layer">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
+          <ResultFitStack
             src={overlayUrl}
-            alt=""
-            className="ps-result-backdrop__img ps-result-backdrop__reveal"
+            imgClassName="ps-result-backdrop__reveal"
             onAnimationEnd={finishReveal}
           />
         </div>
       ) : null}
     </div>
+  );
+}
+
+/** Full frame: contain + blurred fill, same as the prompt-card hero. */
+function ResultFitStack({
+  src,
+  imgClassName = "",
+  onAnimationEnd,
+}: {
+  src: string;
+  imgClassName?: string;
+  onAnimationEnd?: () => void;
+}) {
+  return (
+    <>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={src} alt="" className="ps-result-backdrop__fill" />
+      <div className="ps-result-backdrop__tint" />
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={src}
+        alt=""
+        className={`ps-result-backdrop__img ${imgClassName}`.trim()}
+        onAnimationEnd={onAnimationEnd}
+      />
+    </>
+  );
+}
+
+function ResultFitVideo({ src }: { src: string }) {
+  return (
+    <>
+      <video src={src} className="ps-result-backdrop__fill" autoPlay muted loop playsInline />
+      <div className="ps-result-backdrop__tint" />
+      <video src={src} className="ps-result-backdrop__img" autoPlay muted loop playsInline />
+    </>
   );
 }

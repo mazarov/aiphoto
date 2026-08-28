@@ -8,7 +8,9 @@ import { useCardInteractions } from "@/context/CardInteractionsContext";
 import { usePromptCardModal } from "@/context/PromptCardModalContext";
 import { ReactionButtons } from "./ReactionButtons";
 import { splitCardTitle } from "@/lib/format-view-count";
+import { PhotoshootListingBadge } from "@/components/PhotoshootListingBadge";
 import { CARD_OVERLAY_PHOTO_COUNTER_CLASS } from "@/lib/card-overlay-photo-counter";
+import { isPhotoshootUgcListing } from "@/lib/photoshoot";
 import {
   OVERLAY_BUTTON_APPEARANCE_RESET,
   OVERLAY_BUTTON_UA_RESET,
@@ -156,6 +158,14 @@ function GroupedCardBase({
               hasPrompts={allPrompts.length > 0}
             />
           )}
+
+          {isPhotoshootUgcListing({
+            datasetSlug: activeCard.datasetSlug,
+            photoCount: photos.length,
+            storagePaths: activeCard.photoMeta.map((media) => media.path),
+          }) ? (
+            <PhotoshootListingBadge />
+          ) : null}
 
           {activeSlug && (
             <Link

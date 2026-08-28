@@ -3,6 +3,7 @@ import {
   toListingCardPageData,
   writeListingNavigationContext,
 } from "@/lib/listing-card-navigation-context";
+import { isPhotoshootUgcListing } from "@/lib/photoshoot";
 import type { CardPageData, PromptCardFull } from "@/lib/supabase";
 
 export type GenerationExampleCard = {
@@ -15,6 +16,7 @@ export type GenerationExampleCard = {
   photoHeight: number | null;
   photoCount: number;
   hasPrompt: boolean;
+  isPhotoshoot: boolean;
   navigationData: CardPageData;
 };
 
@@ -34,6 +36,11 @@ export function toGenerationExampleCard(
     photoHeight: card.photoMeta[0]?.height ?? null,
     photoCount: card.photoUrls.length,
     hasPrompt: card.promptTexts.some((prompt) => prompt.trim().length > 0),
+    isPhotoshoot: isPhotoshootUgcListing({
+      datasetSlug: card.datasetSlug,
+      photoCount: card.photoUrls.length,
+      storagePaths: card.photoMeta.map((media) => media.path),
+    }),
     navigationData: toListingCardPageData(card),
   };
 }

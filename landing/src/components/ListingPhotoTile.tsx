@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { PhotoshootListingBadge } from "@/components/PhotoshootListingBadge";
 import { usePromptCardModal } from "@/context/PromptCardModalContext";
 import {
   CARD_IMAGE_LISTING_NEXT_QUALITY,
@@ -49,6 +50,8 @@ export function ListingPhotoTile({
       )}
 
       {debugOverlay}
+
+      {card.isPhotoshoot ? <PhotoshootListingBadge /> : null}
 
       <Link
         href={`/p/${card.slug}`}

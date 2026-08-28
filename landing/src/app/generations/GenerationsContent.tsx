@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import { ListingGrid } from "@/components/ListingGrid";
@@ -9,6 +9,11 @@ import {
   type GenerationHistoryItem,
 } from "@/components/GenerationHistoryCard";
 import { VIDEO_GENERATION_MODALITY } from "@/lib/generation/image-options";
+import {
+  GENERATIONS_PAGE_SIZE,
+  mergeGenerationFirstPage,
+} from "@/lib/generations-list";
+import { useListingSentinelLoadMore } from "@/hooks/useListingSentinelLoadMore";
 import {
   readCachedVideoAnimateEnabled,
   writeCachedVideoAnimateEnabled,
@@ -28,7 +33,17 @@ export function GenerationsContent({
   const { user, loading: authLoading } = useAuth();
   const [generations, setGenerations] = useState<GenerationHistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
   const [error, setError] = useState("");
+  const generationsRef = useRef<GenerationHistoryItem[]>([]);
+  const hasMoreRef = useRef(false);
+  const loadingRef = useRef(true);
+  const loadingMoreRef = useRef(false);
+  generationsRef.current = generations;
+  hasMoreRef.current = hasMore;
+  loadingRef.current = loading;
+  loadingMoreRef.current = loadingMore;
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
@@ -47,33 +62,73 @@ export function GenerationsContent({
     return () => window.clearTimeout(timer);
   }, [toast]);
 
-  const load = useCallback(async (signal?: AbortSignal) => {
+  const fetchPage = useCallback(async (offset: number, signal?: AbortSignal) => {
+    const res = await fetch(
+      `/api/generations?limit=${GENERATIONS_PAGE_SIZE}&offset=${offset}`,
+      { cache: "no-store", credentials: "include", signal },
+    );
+    const data = (await res.json().catch(() => ({}))) as {
+      generations?: GenerationHistoryItem[];
+      hasMore?: boolean;
+      error?: string;
+    };
+    if (!res.ok) throw new Error(data.error || "Не удалось загрузить генерации");
+    return {
+      generations: Array.isArray(data.generations) ? data.generations : [],
+      hasMore: Boolean(data.hasMore),
+    };
+  }, []);
+
+  const loadFirstPage = useCallback(async (input?: { signal?: AbortSignal; replace?: boolean }) => {
+    const signal = input?.signal;
+    const replace = input?.replace === true;
     setError("");
     try {
-      const res = await fetch("/api/generations?limit=50", {
-        cache: "no-store",
-        credentials: "include",
-        signal,
-      });
-      const data = (await res.json().catch(() => ({}))) as {
-        generations?: GenerationHistoryItem[];
-        error?: string;
-      };
-      if (!res.ok) throw new Error(data.error || "Не удалось загрузить генерации");
-      setGenerations(Array.isArray(data.generations) ? data.generations : []);
+      const page = await fetchPage(0, signal);
+      if (signal?.aborted) return;
+      setGenerations((prev) =>
+        replace || prev.length === 0
+          ? page.generations
+          : mergeGenerationFirstPage(prev, page.generations),
+      );
+      if (replace || page.generations.length < GENERATIONS_PAGE_SIZE) {
+        setHasMore(page.hasMore);
+      } else if (page.hasMore) {
+        setHasMore(true);
+      }
     } catch (loadError) {
       if (signal?.aborted) return;
       setError(loadError instanceof Error ? loadError.message : "Не удалось загрузить генерации");
     } finally {
       if (!signal?.aborted) setLoading(false);
     }
-  }, []);
+  }, [fetchPage]);
+
+  const loadMore = useCallback(async () => {
+    if (loadingRef.current || loadingMoreRef.current || !hasMoreRef.current) return;
+    setLoadingMore(true);
+    loadingMoreRef.current = true;
+    try {
+      const page = await fetchPage(generationsRef.current.length);
+      setGenerations((prev) => {
+        const seen = new Set(prev.map((item) => item.id));
+        return [...prev, ...page.generations.filter((item) => !seen.has(item.id))];
+      });
+      setHasMore(page.hasMore);
+    } catch {
+      setHasMore(true);
+    } finally {
+      setLoadingMore(false);
+      loadingMoreRef.current = false;
+    }
+  }, [fetchPage]);
 
   useEffect(() => {
     if (authLoading) return;
     if (!user) {
       setLoading(false);
       setGenerations([]);
+      setHasMore(false);
       writeCachedVideoAnimateEnabled(false);
       setVideoEnabled(false);
       return;
@@ -103,20 +158,22 @@ export function GenerationsContent({
     if (!user) {
       setLoading(false);
       setGenerations([]);
+      setHasMore(false);
       return;
     }
 
     const controller = new AbortController();
     setLoading(true);
-    void load(controller.signal);
+    setHasMore(false);
+    void loadFirstPage({ signal: controller.signal, replace: true });
 
-    const refreshOnFocus = () => void load();
+    const refreshOnFocus = () => void loadFirstPage();
     window.addEventListener("focus", refreshOnFocus);
     return () => {
       controller.abort();
       window.removeEventListener("focus", refreshOnFocus);
     };
-  }, [authLoading, load, refreshToken, user]);
+  }, [authLoading, loadFirstPage, refreshToken, user]);
 
   useEffect(() => {
     const hasActiveGeneration = generations.some(
@@ -125,10 +182,23 @@ export function GenerationsContent({
     if (!user || !hasActiveGeneration) return;
 
     const timer = window.setInterval(() => {
-      void load();
+      void loadFirstPage();
     }, 5_000);
     return () => window.clearInterval(timer);
-  }, [generations, load, user]);
+  }, [generations, loadFirstPage, user]);
+
+  const { sentinelRef, scheduleDrain } = useListingSentinelLoadMore(
+    () => {
+      void loadMore();
+    },
+    () => loadingRef.current || loadingMoreRef.current,
+    () => hasMoreRef.current,
+  );
+
+  useEffect(() => {
+    if (loading) return;
+    scheduleDrain();
+  }, [generations.length, hasMore, loading, scheduleDrain]);
 
   useEffect(() => {
     if (!selectMode) return;
@@ -244,7 +314,7 @@ export function GenerationsContent({
             type="button"
             onClick={() => {
               setLoading(true);
-              void load();
+              void loadFirstPage({ replace: true });
             }}
             className="mt-3 min-h-11 rounded-xl bg-rose-600 px-4 text-sm font-semibold text-white transition hover:bg-rose-700"
           >
@@ -270,7 +340,7 @@ export function GenerationsContent({
 
   return (
     <div className={className}>
-      <ListingGrid className={selectMode ? "pb-24" : undefined}>
+      <ListingGrid clamp={hasMore} className={selectMode ? "pb-24" : undefined}>
         {generations.map((generation) => (
           <GenerationHistoryCard
             key={generation.id}
@@ -286,6 +356,10 @@ export function GenerationsContent({
           />
         ))}
       </ListingGrid>
+      <div ref={sentinelRef} className="h-px w-full" aria-hidden />
+      {loadingMore ? (
+        <p className="mt-4 text-center text-[13px] text-zinc-500">Загружаем ещё…</p>
+      ) : null}
 
       {selectMode ? (
         <div className="pointer-events-none fixed inset-x-0 bottom-0 z-50 flex justify-center px-4 pb-[max(1rem,env(safe-area-inset-bottom))] lg:left-72">

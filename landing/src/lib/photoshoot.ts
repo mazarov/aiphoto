@@ -1,9 +1,19 @@
+import { SEEDREAM_50_PRO_IMAGE_MODEL } from "./generation/image-options";
 import { clampPhotoshootPlannerTemperature } from "./photoshoot-planner";
 
 export const PHOTOSHOOT_EDIT_KIND = "photoshoot";
-export const PHOTOSHOOT_DEFAULT_MODEL = "grok-imagine-image-2.0";
+export const PHOTOSHOOT_DEFAULT_MODEL = SEEDREAM_50_PRO_IMAGE_MODEL;
+export const PHOTOSHOOT_IMAGE_SIZE = "2K";
 export const PHOTOSHOOT_FRAME_COUNT = 4;
+/** Product price for one photoshoot job. Independent of photoshoot_model picker cost. */
+export const PHOTOSHOOT_CREDIT_COST = 15;
+export const PHOTOSHOOT_CTA_LABEL = "Фотосессия";
+export const PHOTOSHOOT_CTA_DETAIL = `${PHOTOSHOOT_FRAME_COUNT} фото`;
 export const PHOTOSHOOT_ENQUEUE_INSTRUCTION = "PHOTOSHOOT";
+
+export function photoshootCtaDetail(): string {
+  return PHOTOSHOOT_CTA_DETAIL;
+}
 
 export type PhotoshootShot = {
   i: number;
@@ -74,8 +84,16 @@ export function resolvePhotoshootSheetAspect(input: {
 }
 
 export function photoshootCanvasConstraint(aspect: PhotoshootSheetAspect): string {
-  return `Canvas ${aspect}: ONE 2x2 contact sheet in ${aspect}. Each panel is also ${aspect}. Do not letterbox.`;
+  return [
+    `Canvas ${aspect}: ONE 2x2 sheet in ${aspect}.`,
+    `Each panel is also ${aspect} and shares edges with its neighbors.`,
+    "Do not letterbox. Do not draw gutters, white lines, frames, or a grid between panels.",
+  ].join(" ");
 }
+
+/** Shared by Gemini / Grok / Seedream sheet assemblers. */
+export const PHOTOSHOOT_FLUSH_PANELS_RULE =
+  "The four photographs sit flush: shared edges, no gap, no gutter, no white seam, no panel border. If a bright line divides the frames, you FAILED.";
 
 /** Sidecar path next to the sheet: `user/job/lease.jpg` → `user/job/lease-1.jpg`. */
 export function photoshootTileStoragePath(
@@ -162,6 +180,44 @@ export function resolvePhotoshootUserFacingResult(input: {
     resultPath: sheetPath || null,
     tilePaths: tiles,
   };
+}
+
+/** Media objects for one UGC card. Photoshoot = all 4 tiles, never the sheet. */
+export function photoshootUserFacingMediaPaths(
+  facing: PhotoshootUserFacingResult,
+): string[] {
+  if (facing.tilePaths?.length === PHOTOSHOOT_FRAME_COUNT) return facing.tilePaths;
+  return facing.resultPath ? [facing.resultPath] : [];
+}
+
+/** Sidecar names from `photoshootTileStoragePath`: `stem-1.jpg` … `stem-4.jpg`. */
+export function looksLikePhotoshootTilePaths(paths: string[]): boolean {
+  if (paths.length !== PHOTOSHOOT_FRAME_COUNT) return false;
+  const parsed = paths.map((path) => {
+    const file = String(path || "").trim().split("/").pop() || "";
+    const match = file.match(/^(.*)-([1-4])\.jpe?g$/i);
+    return match ? { stem: match[1], tile: Number(match[2]) } : null;
+  });
+  if (parsed.some((item) => !item || !item.stem)) return false;
+  const stem = parsed[0]?.stem;
+  const tiles = new Set(parsed.map((item) => item?.tile));
+  return parsed.every((item) => item?.stem === stem) && tiles.size === PHOTOSHOOT_FRAME_COUNT;
+}
+
+/** Published UGC album that is one photoshoot, not a Telegram 4-photo split. */
+export function isPhotoshootUgcListing(input: {
+  datasetSlug?: string | null;
+  photoCount?: number;
+  storagePaths?: string[] | null;
+}): boolean {
+  const paths = (input.storagePaths || [])
+    .map((path) => String(path || "").trim())
+    .filter(Boolean);
+  if (looksLikePhotoshootTilePaths(paths)) return true;
+  return (
+    input.datasetSlug === "web_generation_ugc" &&
+    Number(input.photoCount) === PHOTOSHOOT_FRAME_COUNT
+  );
 }
 
 export function isPhotoshootEditKind(value: unknown): boolean {
@@ -264,11 +320,12 @@ export function serializePhotoshootSheetInstruction(
     "PHOTOSHOOT (HIGHEST PRIORITY)",
     `Theme: ${plan.theme}`,
     photoshootCanvasConstraint(canvas),
-    "Output ONE photorealistic 2x2 contact sheet: four SEPARATE photographs of the SAME person from the attached reference.",
+    "Output ONE photorealistic 2x2 sheet: four SEPARATE photographs of the SAME person from the attached reference, flush against each other.",
+    PHOTOSHOOT_FLUSH_PANELS_RULE,
     "Panel layout: 1 top-left, 2 top-right, 3 bottom-left, 4 bottom-right.",
     "MUST CHANGE: pose and motion in every panel. If two panels share the same pose, you FAILED.",
     "LOCK: identity, face, body, hair, wardrobe, set, lighting, time of day.",
-    "FORBIDDEN: captions, arrows, Polaroid frames, watermarks, extra people, outfit or location change, returning the input crop unchanged.",
+    "FORBIDDEN: captions, arrows, Polaroid frames, gutters, white seams, panel borders, watermarks, extra people, outfit or location change, returning the input crop unchanged.",
   ];
   for (const shot of plan.shots) {
     lines.push(

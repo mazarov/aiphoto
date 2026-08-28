@@ -14,7 +14,7 @@ test("photoshoot stays off for regular users when the flag is off", () => {
   }
 });
 
-test("resolvePhotoshootModel uses DB id or default Grok, never a silent Flash fallback", () => {
+test("resolvePhotoshootModel uses DB id or default Seedream, never a silent Flash fallback", () => {
   const models = [
     { id: "gemini-2.5-flash-image", cost: 5 },
     { id: PHOTOSHOOT_DEFAULT_MODEL, cost: 10 },

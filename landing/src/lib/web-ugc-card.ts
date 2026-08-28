@@ -1,4 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+  buildUgcCardMediaInserts,
+  cleanUgcCardMediaPaths,
+  planUgcCardMediaSync,
+} from "@/lib/ugc-card-media";
 
 export const WEB_UGC_DATASET_SLUG = "web_generation_ugc";
 const WEB_UGC_CHANNEL = "Web generation UGC";
@@ -105,7 +110,8 @@ export async function createUgcCardForCompletedGeneration(
     generationOwnerUserId: string;
     promptText: string;
     resultBucket: string;
-    resultPath: string;
+    resultPath?: string;
+    resultPaths?: string[];
   },
 ): Promise<{ cardId: string; slug: string | null } | null> {
   const {
@@ -113,8 +119,11 @@ export async function createUgcCardForCompletedGeneration(
     generationOwnerUserId,
     promptText,
     resultBucket,
-    resultPath,
   } = params;
+  const resultPaths = cleanUgcCardMediaPaths(
+    params.resultPaths?.length ? params.resultPaths : params.resultPath ? [params.resultPath] : [],
+  );
+  if (!resultPaths.length) return null;
 
   const { data: genRow, error: genErr } = await supabase
     .from("landing_generations")
@@ -193,15 +202,15 @@ export async function createUgcCardForCompletedGeneration(
 
   const cardId = createdCard.id as string;
 
-  const { error: mediaInsertError } = await supabase.from("prompt_card_media").insert({
-    card_id: cardId,
-    media_index: 0,
-    media_type: "photo",
-    storage_bucket: resultBucket,
-    storage_path: resultPath,
-    original_relative_path: resultPath,
-    is_primary: true,
-  });
+  const { error: mediaInsertError } = await supabase
+    .from("prompt_card_media")
+    .insert(
+      buildUgcCardMediaInserts({
+        cardId,
+        bucket: resultBucket,
+        paths: resultPaths,
+      }),
+    );
   if (mediaInsertError) {
     console.error("[web-ugc-card] media insert failed", {
       generationId,
@@ -265,6 +274,62 @@ export async function createUgcCardForCompletedGeneration(
   }
 
   return { cardId, slug: (createdCard.slug as string) ?? null };
+}
+
+/** Align an existing draft/published card to the full user-facing photoset. */
+export async function syncUgcCardMedia(
+  supabase: SupabaseClient,
+  params: {
+    cardId: string;
+    resultBucket: string;
+    resultPaths: string[];
+  },
+): Promise<void> {
+  const desired = cleanUgcCardMediaPaths(params.resultPaths);
+  if (!desired.length) return;
+
+  const { data, error } = await supabase
+    .from("prompt_card_media")
+    .select("media_index,storage_path")
+    .eq("card_id", params.cardId)
+    .order("media_index", { ascending: true });
+  if (error) {
+    throw new Error(`ugc_media_lookup_failed:${error.message}`);
+  }
+
+  const plan = planUgcCardMediaSync(
+    (data || []).map((row) => ({
+      media_index: Number(row.media_index),
+      storage_path: String(row.storage_path || ""),
+    })),
+    desired,
+  );
+
+  if (plan.action === "noop") return;
+
+  if (plan.action === "replace") {
+    const { error: deleteError } = await supabase
+      .from("prompt_card_media")
+      .delete()
+      .eq("card_id", params.cardId);
+    if (deleteError) {
+      throw new Error(`ugc_media_replace_failed:${deleteError.message}`);
+    }
+  }
+
+  const insertPaths = plan.action === "append" ? plan.paths : plan.paths;
+  const startIndex = plan.action === "append" ? plan.startIndex : 0;
+  const { error: insertError } = await supabase.from("prompt_card_media").insert(
+    buildUgcCardMediaInserts({
+      cardId: params.cardId,
+      bucket: params.resultBucket,
+      paths: insertPaths,
+      startIndex,
+    }),
+  );
+  if (insertError) {
+    throw new Error(`ugc_media_sync_failed:${insertError.message}`);
+  }
 }
 
 /** Create and atomically link a draft card for a private analyze-history image. */

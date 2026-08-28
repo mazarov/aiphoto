@@ -7,6 +7,7 @@ import {
 } from "@/lib/generation-model-labels";
 import { isVideoAnimateUnlocked, resolveVideoModelId } from "@/lib/video-generation-contract";
 import { isCameraOrbitUnlocked, resolveCameraOrbitModel } from "@/lib/camera-orbit-access";
+import { PHOTOSHOOT_CREDIT_COST } from "@/lib/photoshoot";
 import { isPhotoshootUnlocked, resolvePhotoshootModel } from "@/lib/photoshoot-access";
 import {
   DEFAULT_IMAGE_ASPECT_RATIO,
@@ -106,7 +107,10 @@ export async function GET(req: NextRequest) {
         config.photoshoot_enabled,
         user?.email,
       ),
-      photoshootModel,
+      photoshootCreditCost: PHOTOSHOOT_CREDIT_COST,
+      photoshootModel: photoshootModel
+        ? { ...photoshootModel, cost: PHOTOSHOOT_CREDIT_COST }
+        : null,
       models,
       aspectRatios: IMAGE_ASPECT_RATIO_OPTIONS,
       imageSizes: IMAGE_SIZE_OPTIONS,

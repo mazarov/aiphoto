@@ -959,6 +959,29 @@ p {
       .group:focus-within .listing-card-photo-hover {
         transform: scale(1.03);
       }
+
+      .photoshoot-history-tile__img {
+        transform-origin: center;
+        transition:
+          transform 220ms cubic-bezier(0.4, 0, 0.2, 1),
+          opacity 220ms cubic-bezier(0.4, 0, 0.2, 1),
+          filter 220ms cubic-bezier(0.4, 0, 0.2, 1);
+      }
+
+      .photoshoot-history-grid:hover .photoshoot-history-tile__img {
+        opacity: 0.42;
+        filter: saturate(0.7);
+      }
+
+      .photoshoot-history-grid:hover .photoshoot-history-tile:hover {
+        z-index: 1;
+      }
+
+      .photoshoot-history-grid:hover .photoshoot-history-tile:hover .photoshoot-history-tile__img {
+        opacity: 1;
+        filter: none;
+        transform: scale(1.06);
+      }
     }
   }
 
@@ -1080,16 +1103,40 @@ p {
   }
 
   .ps-result-backdrop__pixel-scale {
+    position: relative;
     width: 100%;
     height: 100%;
     transform-origin: center center;
   }
 
-  .ps-result-backdrop__img {
+  .ps-result-backdrop__fill {
+    position: absolute;
+    inset: 0;
     display: block;
     width: 100%;
     height: 100%;
     object-fit: cover;
+    opacity: 0.6;
+    transform: scale(1.1);
+    transform-origin: center center;
+    filter: blur(2rem);
+  }
+
+  .ps-result-backdrop__tint {
+    pointer-events: none;
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    background: rgb(0 0 0 / 0.1);
+  }
+
+  .ps-result-backdrop__img {
+    position: relative;
+    z-index: 2;
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
     transform-origin: center center;
   }
 
@@ -1097,7 +1144,8 @@ p {
     transform: scale(var(--ps-result-pixel-factor));
   }
 
-  .ps-result-backdrop__pixel-host--on .ps-result-backdrop__img {
+  .ps-result-backdrop__pixel-host--on .ps-result-backdrop__img,
+  .ps-result-backdrop__pixel-host--on .ps-result-backdrop__fill {
     transform: scale(calc(1 / var(--ps-result-pixel-factor)));
     image-rendering: pixelated;
     image-rendering: crisp-edges;
@@ -1145,12 +1193,14 @@ p {
     }
 
     .ps-result-backdrop__pixel-host--on .ps-result-backdrop__pixel-scale,
-    .ps-result-backdrop__pixel-host--on .ps-result-backdrop__img {
+    .ps-result-backdrop__pixel-host--on .ps-result-backdrop__img,
+    .ps-result-backdrop__pixel-host--on .ps-result-backdrop__fill {
       transform: none;
       image-rendering: auto;
     }
 
-    .ps-result-backdrop__pixel-host--on .ps-result-backdrop__img {
+    .ps-result-backdrop__pixel-host--on .ps-result-backdrop__img,
+    .ps-result-backdrop__pixel-host--on .ps-result-backdrop__fill {
       filter: blur(6px) saturate(0.9);
     }
 

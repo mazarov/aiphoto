@@ -8,6 +8,7 @@ import {
   requestCreditBalanceRefresh,
 } from "@/lib/credit-balance-events";
 import {
+  FALLBACK_VIDEO_GENERATION_MODELS,
   GENERATION_MODEL_DISPLAY,
   displayDescriptionForGenerationModel,
   displayLabelForGenerationModel,
@@ -120,8 +121,11 @@ import {
   type CameraPose,
 } from "@/lib/camera-orbit";
 import {
+  PHOTOSHOOT_CTA_LABEL,
+  PHOTOSHOOT_CREDIT_COST,
   PHOTOSHOOT_EDIT_KIND,
   isPhotoshootEditKind,
+  photoshootCtaDetail,
   photoshootTileIndexForUrl,
   type PhotoshootTileIndex,
 } from "@/lib/photoshoot";
@@ -249,11 +253,20 @@ export function CardInlineGeneratePanel({
     () => seed.editKind || null
   );
   const photoshootDismissedRef = useRef(false);
+  const photoshootPollAbortRef = useRef<AbortController | null>(null);
   const [videoModels, setVideoModels] = useState<ModelOpt[]>([]);
-  const [videoModel, setVideoModel] = useState(DEFAULT_VIDEO_MODEL);
+  const [videoModel, setVideoModel] = useState(
+    () =>
+      (user?.id ? readCachedGenerationPreferences(user.id)?.videoModel : null) ||
+      DEFAULT_VIDEO_MODEL,
+  );
   const [videoAspectRatio, setVideoAspectRatio] = useState(DEFAULT_VIDEO_ASPECT_RATIO);
   const [videoDurationSeconds, setVideoDurationSeconds] = useState(
-    DEFAULT_VIDEO_DURATION_SECONDS
+    () =>
+      user?.id
+        ? readCachedGenerationPreferences(user.id)?.videoDurationSeconds ??
+          DEFAULT_VIDEO_DURATION_SECONDS
+        : DEFAULT_VIDEO_DURATION_SECONDS,
   );
   const seededResult = isCompletedResultSeed(seed);
   const [resultModality, setResultModality] = useState<"image" | "video">(
@@ -1022,12 +1035,17 @@ export function CardInlineGeneratePanel({
   const activeVideoModel =
     videoModels.find((item) => item.id === videoModel) ?? videoModels[0] ?? null;
   const videoDurationChoices = videoDurationOptionsForModel(activeVideoModel?.id);
+  const videoCostModel =
+    activeVideoModel ??
+    FALLBACK_VIDEO_GENERATION_MODELS.find((item) => item.id === videoModel) ??
+    FALLBACK_VIDEO_GENERATION_MODELS.find((item) => item.id === DEFAULT_VIDEO_MODEL) ??
+    FALLBACK_VIDEO_GENERATION_MODELS[0];
   const selectedVideoCost =
-    activeVideoModel != null
+    videoCostModel != null
       ? calculateVideoCreditCost(
-          activeVideoModel.cost,
+          videoCostModel.cost,
           videoDurationSeconds,
-          activeVideoModel.id
+          videoCostModel.id,
         )
       : null;
   const selectedModelCost =
@@ -1239,6 +1257,8 @@ export function CardInlineGeneratePanel({
     }
     if (generateInFlightRef.current) return false;
     generateInFlightRef.current = true;
+    const photoshootAbort = isPhotoshoot ? new AbortController() : null;
+    if (photoshootAbort) photoshootPollAbortRef.current = photoshootAbort;
     setStarting(true);
 
     setError("");
@@ -1319,7 +1339,7 @@ export function CardInlineGeneratePanel({
         }
         if (isPhotoshoot && genData.error === "photoshoot_busy") {
           reachYandexMetrikaGoal(YM_GOAL_PHOTOSHOOT_BUSY);
-          throw new Error(genData.message || "Фотосессия ещё снимается");
+          throw new Error(genData.message || "Эта фотосессия ещё в очереди");
         }
         if (isPhotoshoot && genData.error === "photoshoot_disabled") {
           reachYandexMetrikaGoal(YM_GOAL_PHOTOSHOOT_DISABLED);
@@ -1341,7 +1361,7 @@ export function CardInlineGeneratePanel({
         });
       }
       if (isPhotoshoot) {
-        reachYandexMetrikaGoal(YM_GOAL_PHOTOSHOOT_SUBMIT, { credits: 10 });
+        reachYandexMetrikaGoal(YM_GOAL_PHOTOSHOOT_SUBMIT, { credits: PHOTOSHOOT_CREDIT_COST });
       }
       setPhase("generating");
       phaseRef.current = "generating";
@@ -1357,7 +1377,9 @@ export function CardInlineGeneratePanel({
       requestCreditBalanceRefresh();
 
       while (true) {
+        if (photoshootAbort?.signal.aborted) return true;
         await new Promise((r) => setTimeout(r, POLL_MS));
+        if (photoshootAbort?.signal.aborted) return true;
         let pollRes: Response;
         try {
           pollRes = await fetch(`/api/generations/${genData.id}`, {
@@ -1388,6 +1410,7 @@ export function CardInlineGeneratePanel({
           setProgress((current) => Math.max(current, Math.min(96, poll.progress!)));
         }
         if (poll.status === "completed") {
+          if (photoshootAbort?.signal.aborted) return true;
           const tiles =
             Array.isArray(poll.photoshootTileUrls) && poll.photoshootTileUrls.length === 4
               ? poll.photoshootTileUrls
@@ -1432,6 +1455,9 @@ export function CardInlineGeneratePanel({
       setError(err instanceof Error ? err.message : "Ошибка генерации");
       return false;
     } finally {
+      if (photoshootAbort && photoshootPollAbortRef.current === photoshootAbort) {
+        photoshootPollAbortRef.current = null;
+      }
       generateInFlightRef.current = false;
       setStarting(false);
     }
@@ -1779,11 +1805,14 @@ export function CardInlineGeneratePanel({
     photoshootOpen &&
     Boolean(generationId) &&
     resultModality === "image";
+  const hideComposeChrome = showPhotoshootOverlay || showCameraOverlay;
   const startPhotoshoot = () => {
     if (!generationId || !resultUrl || resultModality !== "image") return;
     photoshootDismissedRef.current = false;
     setPhotoshootSourceId(generationId);
     setPhotoshootSourceUrl(resultUrl);
+    setPromptExpanded(false);
+    setExpandedControl(null);
     setPhotoshootOpen(true);
     reachYandexMetrikaGoal(YM_GOAL_PHOTOSHOOT_OPEN);
   };
@@ -1802,6 +1831,7 @@ export function CardInlineGeneratePanel({
 
   const closePhotoshoot = () => {
     photoshootDismissedRef.current = true;
+    photoshootPollAbortRef.current?.abort();
     setPhotoshootOpen(false);
     if (photoshootSourceId && photoshootSourceUrl) {
       setGenerationId(photoshootSourceId);
@@ -1809,6 +1839,8 @@ export function CardInlineGeneratePanel({
       setResultEditKind(null);
       setPhotoshootTileUrls(null);
     }
+    setPhase("done");
+    phaseRef.current = "done";
   };
 
   useEffect(() => {
@@ -2034,6 +2066,16 @@ export function CardInlineGeneratePanel({
                     id: "animate",
                     label: "Оживить",
                     accent: "orbit" as const,
+                    creditCost: selectedVideoCost ?? undefined,
+                    creditUnaffordable:
+                      selectedVideoCost != null &&
+                      isAuthed &&
+                      credits !== null &&
+                      credits < selectedVideoCost,
+                    ariaLabel:
+                      selectedVideoCost != null
+                        ? `Оживить, ${selectedVideoCost} кредитов`
+                        : "Оживить",
                     onClick: enterAnimateFromResult,
                     icon: (
                       <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
@@ -2066,7 +2108,12 @@ export function CardInlineGeneratePanel({
               ? [
                   {
                     id: "photoshoot",
-                    label: "Сделать фотосессию",
+                    label: PHOTOSHOOT_CTA_LABEL,
+                    detail: photoshootCtaDetail(),
+                    creditCost: PHOTOSHOOT_CREDIT_COST,
+                    creditUnaffordable:
+                      isAuthed && credits !== null && credits < PHOTOSHOOT_CREDIT_COST,
+                    ariaLabel: `${PHOTOSHOOT_CTA_LABEL}, ${photoshootCtaDetail()}, ${PHOTOSHOOT_CREDIT_COST} кредитов`,
                     onClick: startPhotoshoot,
                     icon: (
                       <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -2200,7 +2247,9 @@ export function CardInlineGeneratePanel({
 
       <div
         className={`flex min-h-0 flex-col ${
-          isDock
+          hideComposeChrome
+            ? "hidden"
+            : isDock
             ? // flex-1 only (no h-full) so footer actions stay inside the plate.
               `min-h-0 flex-1 justify-end px-3 pb-0 ${
                 isMobile ? "pt-2" : "pt-3"
@@ -2231,7 +2280,10 @@ export function CardInlineGeneratePanel({
           aria-modal={promptExpanded && !dockPromptExpanded ? "true" : undefined}
           aria-labelledby={promptExpanded ? "inline-prompt-editor-title" : undefined}
           aria-hidden={
-            isDock && dockExpanded && !dockPromptExpanded ? true : undefined
+            (isDock && dockExpanded && !dockPromptExpanded) ||
+            (showResultChrome && !promptExpanded)
+              ? true
+              : undefined
           }
           className={`shadow-none ${
             dockPromptExpanded
@@ -2240,10 +2292,14 @@ export function CardInlineGeneratePanel({
               ? `${sheetPos} inset-x-0 bottom-0 top-[max(0.75rem,env(safe-area-inset-top))] z-50 flex min-h-0 flex-col rounded-t-3xl border border-transparent bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))] text-zinc-900 shadow-[0_-20px_60px_-24px_rgba(0,0,0,0.45)]`
               : isDock
                 ? `rounded-none border-0 bg-transparent px-1 py-0.5 text-white${
-                    // Transparent sheets / result rail: hide collapsed prompt at the bottom.
-                    dockExpanded || showResultActions ? " invisible pointer-events-none" : ""
+                    // Sheets keep height; result chrome (rail / photoshoot / orbit) drops the strip.
+                    dockExpanded
+                      ? " invisible pointer-events-none"
+                      : showResultChrome
+                        ? "hidden"
+                        : ""
                   }`
-                : showResultActions
+                : showResultChrome
                   ? "hidden"
                   : "rounded-2xl border px-3 py-1 backdrop-blur-md"
           } ${
@@ -3289,10 +3345,9 @@ export function CardInlineGeneratePanel({
 
       <footer
         className={`relative z-20 shrink-0 p-3 ${
-          promptExpanded
+          hideComposeChrome
+          || promptExpanded
           || (isDock && dockExpanded)
-          || showCameraOverlay
-          || showPhotoshootOverlay
           || (showResultActions && !showCreditsCta)
             ? "hidden"
             : isDock

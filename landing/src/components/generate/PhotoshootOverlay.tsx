@@ -7,6 +7,7 @@ import {
   type GenerationResultAction,
 } from "@/components/generate/GenerationResultActionRail";
 import {
+  PHOTOSHOOT_CREDIT_COST,
   PHOTOSHOOT_TILE_INDEXES,
   type PhotoshootTileIndex,
 } from "@/lib/photoshoot";
@@ -122,44 +123,46 @@ export function PhotoshootOverlay({
     ? progress > 0
       ? `Снимаем… ${Math.round(progress)}%`
       : "Снимаем…"
-    : "Создать ИИ фотосессию";
+    : `Создать ${PHOTOSHOOT_CREDIT_COST}✦`;
 
-  const railActions: GenerationResultAction[] = [
-    {
-      id: "exit",
-      label: "Выйти",
-      disabled: capturing,
-      onClick: onClose,
-      icon: (
-        <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-          <path d="m6 6 12 12M18 6 6 18" strokeLinecap="round" />
-        </svg>
-      ),
-    },
-    {
-      id: "create",
-      label: createLabel,
-      ariaLabel: capturing ? createLabel : "Создать ИИ фотосессию",
-      primary: true,
-      wrap: true,
-      disabled: busy,
-      onClick: () => void handleCreate(),
-      icon: (
-        <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-          <path
-            d="M4 7h4l1.2-2h5.6L16 7h4v12H4V7Z"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-          <circle cx="12" cy="13" r="3.1" />
-        </svg>
-      ),
-    },
-  ];
+  const exitAction: GenerationResultAction = {
+    id: "exit",
+    label: "Выйти",
+    disabled: starting,
+    onClick: onClose,
+    icon: (
+      <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+        <path d="m6 6 12 12M18 6 6 18" strokeLinecap="round" />
+      </svg>
+    ),
+  };
+
+  const createAction: GenerationResultAction = {
+    id: "create",
+    label: createLabel,
+    ariaLabel: capturing
+      ? createLabel
+      : `Создать фотосессию, ${PHOTOSHOOT_CREDIT_COST} кредитов`,
+    primary: true,
+    wrap: true,
+    disabled: busy,
+    onClick: () => void handleCreate(),
+    icon: (
+      <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+        <path
+          d="M4 7h4l1.2-2h5.6L16 7h4v12H4V7Z"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <circle cx="12" cy="13" r="3.1" />
+      </svg>
+    ),
+  };
 
   return (
     <div className="absolute inset-0 z-40" role="dialog" aria-label="Фотосессия">
       <div className="absolute bottom-[max(0.75rem,env(safe-area-inset-bottom))] right-2.5 z-30 flex w-[9.5rem] flex-col gap-2">
+        <GenerationResultActionRail className="w-full" actions={[exitAction]} />
         <div
           className={`rounded-2xl bg-black/15 px-3 py-3 text-white/90 shadow-none backdrop-blur-md ${
             busy ? "opacity-50" : ""
@@ -187,7 +190,7 @@ export function PhotoshootOverlay({
             className="mt-2 h-11 w-full cursor-pointer accent-indigo-400 disabled:cursor-not-allowed"
           />
         </div>
-        <GenerationResultActionRail className="w-full" actions={railActions} />
+        <GenerationResultActionRail className="w-full" actions={[createAction]} />
       </div>
     </div>
   );

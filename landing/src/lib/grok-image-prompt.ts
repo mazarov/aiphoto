@@ -3,7 +3,7 @@
  */
 
 import { looksLikeCameraOrbitInstruction } from "./camera-orbit";
-import { looksLikePhotoshootInstruction } from "./photoshoot";
+import { looksLikePhotoshootInstruction, PHOTOSHOOT_FLUSH_PANELS_RULE } from "./photoshoot";
 
 const IDENTITY_RULES = [
   "The provided photo(s) show the SUBJECT (a real person).",
@@ -78,11 +78,12 @@ export function assembleGrokCameraOrbitPrompt(editInstruction: string): string {
 }
 
 const PHOTOSHOOT_SHEET_RULES = [
-  "The image is identity and set reference. Output one 2x2 contact sheet of four separate photographs.",
-  "Match the requested canvas 1:1, 16:9, or 9:16. Each panel keeps that aspect. Do not letterbox.",
+  "The image is identity and set reference. Output one 2x2 sheet of four separate photographs.",
+  "Match the Canvas line above. Each panel keeps that aspect.",
+  PHOTOSHOOT_FLUSH_PANELS_RULE,
   "Each panel must have a different pose and motion. Repeated pose = failure.",
   "Keep identity, wardrobe, set, lighting, and time of day.",
-  "No captions, frames, watermarks, extra people, or the source crop unchanged.",
+  "No captions, frames, gutters, white seams, watermarks, extra people, or the source crop unchanged.",
 ].join("\n");
 
 export function assembleGrokPhotoshootSheetPrompt(editInstruction: string): string {

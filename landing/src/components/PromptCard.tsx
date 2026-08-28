@@ -9,7 +9,9 @@ import { FavoriteButton } from "./FavoriteButton";
 import { useCardInteractions } from "@/context/CardInteractionsContext";
 import { usePromptCardModal } from "@/context/PromptCardModalContext";
 import { splitCardTitle } from "@/lib/format-view-count";
+import { PhotoshootListingBadge } from "@/components/PhotoshootListingBadge";
 import { CARD_OVERLAY_PHOTO_COUNTER_CLASS } from "@/lib/card-overlay-photo-counter";
+import { isPhotoshootUgcListing } from "@/lib/photoshoot";
 import {
   OVERLAY_BUTTON_APPEARANCE_RESET,
   OVERLAY_BUTTON_UA_RESET,
@@ -86,6 +88,11 @@ function PromptCardBase({
 
   const photos = card.photoUrls;
   const currentPhoto = photos[photoIndex] || null;
+  const isPhotoshoot = isPhotoshootUgcListing({
+    datasetSlug: card.datasetSlug,
+    photoCount: photos.length,
+    storagePaths: card.photoMeta.map((media) => media.path),
+  });
   const { imageReady, onImageLoad, imageRef } = useListingCardImageReady({
     resetKey: currentPhoto,
   });
@@ -155,6 +162,8 @@ function PromptCardBase({
             hasPrompts={card.promptTexts.length > 0}
           />
         )}
+
+        {isPhotoshoot ? <PhotoshootListingBadge /> : null}
 
         {card.slug && (
           <Link

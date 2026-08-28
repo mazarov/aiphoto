@@ -9,6 +9,7 @@ import {
   removeGenerationResultObjects,
 } from "@/lib/landing-generations-access";
 import { resolvePhotoshootUserFacingResult } from "@/lib/photoshoot";
+import { GENERATIONS_API_MAX_LIMIT, takeGenerationPage } from "@/lib/generations-list";
 
 const BULK_DELETE_MAX = 50;
 const UUID_RE =
@@ -22,7 +23,10 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "unauthorized" }, { status: 401 });
     }
 
-    const limit = Math.min(50, Math.max(1, Number(req.nextUrl.searchParams.get("limit")) || 20));
+    const limit = Math.min(
+      GENERATIONS_API_MAX_LIMIT,
+      Math.max(1, Number(req.nextUrl.searchParams.get("limit")) || 20),
+    );
     const offset = Math.max(0, Number(req.nextUrl.searchParams.get("offset")) || 0);
 
     const supabase = createSupabaseServer();
@@ -37,15 +41,17 @@ export async function GET(req: NextRequest) {
       )
       .or(ownerFilter)
       .order("created_at", { ascending: false })
-      .range(offset, offset + limit - 1);
+      .range(offset, offset + limit);
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    const { page, hasMore } = takeGenerationPage(rows || [], limit);
+
     const cardIds = [
       ...new Set(
-        (rows || [])
+        page
           .map((row) => row.ugc_card_id as string | null)
           .filter((id): id is string => Boolean(id))
       ),
@@ -74,12 +80,7 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const { count } = await supabase
-      .from("landing_generations")
-      .select("id", { count: "exact", head: true })
-      .or(ownerFilter);
-
-    const generations = (rows || []).map((g) => {
+    const generations = page.map((g) => {
       const card = g.ugc_card_id
         ? cardsById.get(g.ugc_card_id as string) ?? null
         : null;
@@ -120,7 +121,11 @@ export async function GET(req: NextRequest) {
     });
 
     return NextResponse.json(
-      { generations, total: count ?? 0 },
+      {
+        generations,
+        hasMore,
+        nextOffset: hasMore ? offset + generations.length : null,
+      },
       { headers: { "Cache-Control": "private, no-store" } }
     );
   } catch (err) {

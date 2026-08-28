@@ -16,6 +16,7 @@ import {
   downloadGenerationResult,
   shareGenerationResult,
 } from "@/lib/generation-result-client-actions";
+import { PhotoshootListingBadge } from "@/components/PhotoshootListingBadge";
 import { isPhotoshootEditKind } from "@/lib/photoshoot";
 
 export type GenerationHistoryItem = {
@@ -61,6 +62,96 @@ const STATUS_LABELS: Record<GenerationHistoryItem["status"], string> = {
   failed: "Ошибка",
 };
 
+const FIT_FILL_CLASS =
+  "absolute inset-0 h-full w-full scale-110 object-cover opacity-60 blur-2xl";
+const FIT_MEDIA_CLASS = "absolute inset-0 z-[2] h-full w-full object-contain";
+
+/** Four frames as one contact sheet: cover crop, no gutters, no blur fill. */
+function PhotoshootHistoryGrid({
+  urls,
+  interactive = false,
+  onSelect,
+}: {
+  urls: string[];
+  interactive?: boolean;
+  onSelect?: (url: string) => void;
+}) {
+  return (
+    <div className="photoshoot-history-grid absolute inset-0 z-[2] grid grid-cols-2 grid-rows-2 bg-zinc-900">
+      {urls.map((url, index) => {
+        const label = `Кадр ${index + 1}`;
+        const media = (
+          <>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={url}
+              alt=""
+              className="photoshoot-history-tile__img absolute inset-0 h-full w-full object-cover"
+              draggable={false}
+            />
+            <span className="sr-only">{label}</span>
+          </>
+        );
+        if (!interactive || !onSelect) {
+          return (
+            <div key={url} className="photoshoot-history-tile relative overflow-hidden">
+              {media}
+            </div>
+          );
+        }
+        return (
+          <button
+            key={url}
+            type="button"
+            aria-label={`Открыть ${label}`}
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              onSelect(url);
+            }}
+            className={`${OVERLAY_BUTTON_UA_RESET} photoshoot-history-tile relative cursor-pointer overflow-hidden`}
+          >
+            {media}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Full frame in a 3:4 tile: contain + blurred fill, same as the prompt-card hero. */
+function HistoryFitMedia({
+  src,
+  alt = "",
+  kind = "image",
+  className = "",
+}: {
+  src: string;
+  alt?: string;
+  kind?: "image" | "video";
+  className?: string;
+}) {
+  return (
+    <div className={`relative overflow-hidden ${className}`.trim()}>
+      {kind === "video" ? (
+        <>
+          <video src={src} className={FIT_FILL_CLASS} muted loop playsInline autoPlay aria-hidden />
+          <div className="pointer-events-none absolute inset-0 z-[1] bg-black/10" aria-hidden />
+          <video src={src} className={FIT_MEDIA_CLASS} muted loop playsInline autoPlay />
+        </>
+      ) : (
+        <>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={src} alt="" aria-hidden className={FIT_FILL_CLASS} draggable={false} />
+          <div className="pointer-events-none absolute inset-0 z-[1] bg-black/10" aria-hidden />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={src} alt={alt} className={FIT_MEDIA_CLASS} draggable={false} />
+        </>
+      )}
+    </div>
+  );
+}
+
 export function GenerationHistoryCard({
   generation,
   selectMode,
@@ -92,13 +183,13 @@ export function GenerationHistoryCard({
 
   const toast = (message: string) => onToast?.(message);
 
-  const openResult = () => {
-    const previewUrl = generation.resultUrl || tileUrls?.[0];
-    if (!previewUrl) return;
+  const openResult = (previewUrl?: string) => {
+    const url = previewUrl || generation.resultUrl || tileUrls?.[0];
+    if (!url) return;
     seedCompletedResult(
       {
         generationId: generation.id,
-        resultUrl: previewUrl,
+        resultUrl: url,
         promptText: generation.prompt,
         modality: isVideo ? "video" : "image",
         isPublished: generation.isPublished,
@@ -244,6 +335,7 @@ export function GenerationHistoryCard({
 
   return (
     <article
+      data-listing-fill-item=""
       className={`group relative isolate rounded-2xl transition-all duration-200 hover:shadow-xl hover:shadow-zinc-900/10 hover:-translate-y-0.5 ${menuOpen ? "z-40" : ""} ${
         selectMode || canOpenResult ? "cursor-pointer" : ""
       }`}
@@ -251,39 +343,20 @@ export function GenerationHistoryCard({
         if (selectMode) onToggleSelect(generation.id);
       }}
     >
-      <div className="relative w-full overflow-hidden rounded-2xl bg-zinc-200 aspect-[3/4]">
+      <div className="relative w-full overflow-hidden rounded-2xl bg-zinc-900 aspect-[3/4]">
         {tileUrls ? (
-          <div className="listing-card-photo-hover absolute inset-0 z-[2] grid grid-cols-2 grid-rows-2 gap-px bg-zinc-300">
-            {tileUrls.map((url) => (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                key={url}
-                src={url}
-                alt=""
-                className="h-full w-full object-cover"
-                draggable={false}
-              />
-            ))}
-          </div>
+          <PhotoshootHistoryGrid
+            urls={tileUrls}
+            interactive={!selectMode && canOpenResult}
+            onSelect={openResult}
+          />
         ) : generation.resultUrl ? (
-          isVideo ? (
-            <video
-              src={generation.resultUrl}
-              className="listing-card-photo-hover absolute inset-0 z-[2] h-full w-full object-cover"
-              muted
-              loop
-              playsInline
-              autoPlay
-            />
-          ) : (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={generation.resultUrl}
-              alt="Результат генерации"
-              className="listing-card-photo-hover absolute inset-0 z-[2] h-full w-full object-cover"
-              draggable={false}
-            />
-          )
+          <HistoryFitMedia
+            src={generation.resultUrl}
+            alt={isVideo ? "Видео" : "Результат генерации"}
+            kind={isVideo ? "video" : "image"}
+            className="listing-card-photo-hover absolute inset-0 z-[2] h-full w-full"
+          />
         ) : (
           <div className="flex h-full items-center justify-center px-3 text-center">
             {generation.status === "failed" ? (
@@ -296,18 +369,14 @@ export function GenerationHistoryCard({
           </div>
         )}
 
-        {!selectMode && (isPhotoshoot || tileUrls) ? (
-          <span className="pointer-events-none absolute left-2 top-2 z-20 rounded-full bg-black/50 px-2.5 py-1 text-[13px] font-semibold text-white shadow-lg ring-1 ring-white/25 backdrop-blur-md">
-            Фотосессия
-          </span>
-        ) : null}
+        {!selectMode && (isPhotoshoot || tileUrls) ? <PhotoshootListingBadge /> : null}
 
-        {!selectMode && canOpenResult ? (
+        {!selectMode && canOpenResult && !tileUrls ? (
           <button
             type="button"
             className="absolute inset-0 z-10 cursor-pointer appearance-none border-0 bg-transparent p-0"
             aria-label={isVideo ? "Открыть видео" : "Открыть результат"}
-            onClick={openResult}
+            onClick={() => openResult()}
           />
         ) : null}
 

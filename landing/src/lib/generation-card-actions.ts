@@ -1,7 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { landingGenerationsOwnerOrFilter } from "@/lib/landing-generations-access";
-import { createUgcCardForCompletedGeneration } from "@/lib/web-ugc-card";
-import { resolvePhotoshootUserFacingResult } from "@/lib/photoshoot";
+import { createUgcCardForCompletedGeneration, syncUgcCardMedia } from "@/lib/web-ugc-card";
+import {
+  photoshootUserFacingMediaPaths,
+  resolvePhotoshootUserFacingResult,
+} from "@/lib/photoshoot";
 
 export type OwnedGenerationForCardAction = {
   id: string;
@@ -77,17 +80,25 @@ export async function ensureCardForCompletedGeneration(
     sheetPath: generation.result_storage_path,
     tilePaths: generation.photoshoot_tile_paths,
   });
+  const mediaPaths = photoshootUserFacingMediaPaths(facing);
   if (
     generation.status !== "completed" ||
     !generation.result_storage_bucket ||
-    !facing.resultPath
+    !mediaPaths.length
   ) {
     throw new Error("generation_result_not_available");
   }
 
   if (generation.ugc_card_id) {
     const existing = await readGenerationCard(supabase, generation.ugc_card_id);
-    if (existing) return existing;
+    if (existing) {
+      await syncUgcCardMedia(supabase, {
+        cardId: existing.cardId,
+        resultBucket: generation.result_storage_bucket,
+        resultPaths: mediaPaths,
+      });
+      return existing;
+    }
   }
 
   const created = await createUgcCardForCompletedGeneration(supabase, {
@@ -95,7 +106,7 @@ export async function ensureCardForCompletedGeneration(
     generationOwnerUserId: generation.user_id,
     promptText: generation.prompt_text || "",
     resultBucket: generation.result_storage_bucket,
-    resultPath: facing.resultPath,
+    resultPaths: mediaPaths,
   });
 
   if (!created?.cardId) {
