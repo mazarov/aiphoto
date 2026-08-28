@@ -9,6 +9,7 @@ import {
   serializePhotoshootEnqueueInstruction,
   serializePhotoshootSheetInstruction,
 } from "./photoshoot";
+import { PHOTOSHOOT_PLANNER_GENERATION_CONFIG } from "./photoshoot-planner";
 
 const validPlan = {
   theme: "golden hour rooftop editorial",
@@ -46,6 +47,25 @@ test("parsePhotoshootPlan requires four unique shots", () => {
   );
 });
 
+test("parsePhotoshootPlan accepts frames alias, missing lens, and extra shots", () => {
+  const parsed = parsePhotoshootPlan({
+    frames: [
+      ...validPlan.shots,
+      { i: 5, pose: "extra", motion: "skip", lens: "24mm" },
+    ],
+  });
+  assert.ok(parsed);
+  assert.equal(parsed.theme, "editorial portraits");
+  assert.equal(parsed.shots[0].lens, "85mm, waist-up");
+  assert.equal(
+    parsePhotoshootPlan({
+      theme: "x",
+      shots: validPlan.shots.map(({ i, pose, motion }) => ({ i, pose, motion })),
+    })?.shots[0].lens,
+    "85mm",
+  );
+});
+
 test("extractJsonObject reads fenced or raw JSON", () => {
   const parsed = extractJsonObject("```json\n" + JSON.stringify(validPlan) + "\n```");
   assert.deepEqual(parsePhotoshootPlan(parsed), parsePhotoshootPlan(validPlan));
@@ -62,6 +82,12 @@ test("serializePhotoshootSheetInstruction lists four panels and locks identity",
   assert.match(text, /LOCK: identity/);
   assert.doesNotMatch(text, /keep the source pose/i);
   assert.doesNotMatch(text, /CAMERA ORBIT/);
+});
+
+test("planner generation config disables Flash thinking", () => {
+  assert.equal(PHOTOSHOOT_PLANNER_GENERATION_CONFIG.thinkingConfig.thinkingBudget, 0);
+  assert.equal(PHOTOSHOOT_PLANNER_GENERATION_CONFIG.responseMimeType, "application/json");
+  assert.ok(PHOTOSHOOT_PLANNER_GENERATION_CONFIG.maxOutputTokens >= 2048);
 });
 
 test("photoshoot fingerprint is parent + kind", () => {

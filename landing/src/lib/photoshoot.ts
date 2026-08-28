@@ -60,21 +60,25 @@ function asCleanLine(value: unknown, max = 240): string {
 export function parsePhotoshootPlan(raw: unknown): PhotoshootPlan | null {
   if (!raw || typeof raw !== "object") return null;
   const row = raw as Record<string, unknown>;
-  const theme = asCleanLine(row.theme, 160);
-  const shotsRaw = Array.isArray(row.shots) ? row.shots : null;
-  if (!theme || !shotsRaw || shotsRaw.length !== PHOTOSHOOT_FRAME_COUNT) return null;
+  const theme = asCleanLine(row.theme, 160) || "editorial portraits";
+  const shotsRaw = Array.isArray(row.shots)
+    ? row.shots
+    : Array.isArray(row.frames)
+      ? row.frames
+      : null;
+  if (!shotsRaw || shotsRaw.length < PHOTOSHOOT_FRAME_COUNT) return null;
 
   const seen = new Set<number>();
   const shots: PhotoshootShot[] = [];
   for (const item of shotsRaw) {
-    if (!item || typeof item !== "object") return null;
+    if (!item || typeof item !== "object") continue;
     const shot = item as Record<string, unknown>;
     const i = Number(shot.i);
     const pose = asCleanLine(shot.pose);
     const motion = asCleanLine(shot.motion);
-    const lens = asCleanLine(shot.lens, 120);
-    if (!Number.isInteger(i) || i < 1 || i > PHOTOSHOOT_FRAME_COUNT) return null;
-    if (seen.has(i) || !pose || !motion || !lens) return null;
+    const lens = asCleanLine(shot.lens, 120) || "85mm";
+    if (!Number.isInteger(i) || i < 1 || i > PHOTOSHOOT_FRAME_COUNT) continue;
+    if (seen.has(i) || !pose || !motion) continue;
     seen.add(i);
     shots.push({ i, pose, motion, lens });
   }

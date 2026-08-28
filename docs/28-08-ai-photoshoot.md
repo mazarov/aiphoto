@@ -157,7 +157,7 @@ Poll `GET /api/generations/:id` отдаёт `editKind`, `photoshootPlan` (ко�
 
 Вход: jpeg родителя (resize ≤1280 по длинной стороне, как animate-scenario) + system.
 
-Модель planner: `gemini-2.5-flash` (или тот же id, что animate-scenario). Только через `GEMINI_PROXY_BASE_URL`. Пустой proxy → `config_error`, refund, не прямой Google.
+Модель planner: `gemini-2.5-flash` (или тот же id, что animate-scenario). `thinkingBudget: 0` + `responseSchema` + `maxOutputTokens: 2048` (`PHOTOSHOOT_PLANNER_PROMPT_V2`). Thinking Flash при 1024 токенах съедает бюджет — parse fail + refund. Только через `GEMINI_PROXY_BASE_URL`. Пустой proxy → `config_error`, refund, не прямой Google.
 
 Роль: professional photographer. Язык выхода: English only.
 

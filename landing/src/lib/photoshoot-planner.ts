@@ -1,5 +1,35 @@
 export const PHOTOSHOOT_PLANNER_MODEL = "gemini-2.5-flash";
-export const PHOTOSHOOT_PLANNER_PROMPT_VERSION = "PHOTOSHOOT_PLANNER_PROMPT_V1";
+export const PHOTOSHOOT_PLANNER_PROMPT_VERSION = "PHOTOSHOOT_PLANNER_PROMPT_V2";
+
+export const PHOTOSHOOT_PLANNER_RESPONSE_SCHEMA = {
+  type: "OBJECT",
+  properties: {
+    theme: { type: "STRING" },
+    shots: {
+      type: "ARRAY",
+      items: {
+        type: "OBJECT",
+        properties: {
+          i: { type: "INTEGER" },
+          pose: { type: "STRING" },
+          motion: { type: "STRING" },
+          lens: { type: "STRING" },
+        },
+        required: ["i", "pose", "motion", "lens"],
+      },
+    },
+  },
+  required: ["theme", "shots"],
+} as const;
+
+/** Same knobs as animate-scenario: Flash thinking must not eat the JSON budget. */
+export const PHOTOSHOOT_PLANNER_GENERATION_CONFIG = {
+  temperature: 0.5,
+  maxOutputTokens: 2048,
+  responseMimeType: "application/json" as const,
+  responseSchema: PHOTOSHOOT_PLANNER_RESPONSE_SCHEMA,
+  thinkingConfig: { thinkingBudget: 0 },
+};
 
 export const PHOTOSHOOT_PLANNER_SYSTEM_PROMPT = `
 You are a professional photographer on a set. The attached photograph is the only source of truth for the person, wardrobe, location, and light.

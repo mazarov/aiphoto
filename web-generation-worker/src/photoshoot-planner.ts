@@ -9,6 +9,7 @@ import {
   type PhotoshootPlan,
 } from "../../landing/src/lib/photoshoot";
 import {
+  PHOTOSHOOT_PLANNER_GENERATION_CONFIG,
   PHOTOSHOOT_PLANNER_MODEL,
   PHOTOSHOOT_PLANNER_PROMPT_VERSION,
   PHOTOSHOOT_PLANNER_SYSTEM_PROMPT,
@@ -23,14 +24,29 @@ type PlannerImage = { mimeType: string; data: string };
 
 function extractGeminiText(payload: Record<string, unknown>): string {
   const candidates = payload.candidates as
-    | Array<{ content?: { parts?: Array<{ text?: string }> } }>
+    | Array<{
+        finishReason?: string;
+        content?: { parts?: Array<{ text?: string; thought?: boolean }> };
+      }>
     | undefined;
   return (
     candidates?.[0]?.content?.parts
-      ?.map((part) => part.text || "")
+      ?.filter((part) => !part.thought)
+      .map((part) => part.text || "")
       .join("")
       .trim() || ""
   );
+}
+
+function plannerDiagnostics(payload: Record<string, unknown>, text: string) {
+  const candidate = (payload.candidates as Array<Record<string, unknown>> | undefined)?.[0];
+  const feedback = payload.promptFeedback as { blockReason?: string } | undefined;
+  return {
+    finishReason: typeof candidate?.finishReason === "string" ? candidate.finishReason : null,
+    blockReason: feedback?.blockReason || null,
+    textLen: text.length,
+    textHead: text.slice(0, 180),
+  };
 }
 
 async function plannerBaseUrl(supabase: SupabaseClient): Promise<{ url: string; proxy: boolean }> {
@@ -75,7 +91,7 @@ async function requestPlan(
   image: PlannerImage,
   baseUrl: string,
   signal: AbortSignal,
-): Promise<string> {
+): Promise<{ text: string; payload: Record<string, unknown> }> {
   if (!config.geminiApiKey) {
     throw new ProcessingError("config_error", "GEMINI_API_KEY is required for photoshoot planner", false);
   }
@@ -100,24 +116,21 @@ async function requestPlan(
           ],
         },
       ],
-      generationConfig: {
-        temperature: 0.8,
-        maxOutputTokens: 1024,
-        responseMimeType: "application/json",
-      },
+      generationConfig: PHOTOSHOOT_PLANNER_GENERATION_CONFIG,
     }),
     signal: AbortSignal.any([signal, AbortSignal.timeout(PLANNER_TIMEOUT_MS)]),
   });
   const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+  const text = extractGeminiText(payload);
   if (!response.ok) {
     const retryable = response.status === 429 || response.status >= 500;
     throw new ProcessingError(
       `photoshoot_planner_http_${response.status}`,
-      extractGeminiText(payload) || `Planner HTTP ${response.status}`,
+      text || `Planner HTTP ${response.status}`,
       retryable,
     );
   }
-  return extractGeminiText(payload);
+  return { text, payload };
 }
 
 export async function planPhotoshootShots(input: {
@@ -131,7 +144,7 @@ export async function planPhotoshootShots(input: {
   let lastError: ProcessingError | null = null;
   for (let attempt = 1; attempt <= 2; attempt += 1) {
     try {
-      const text = await requestPlan(image, url, input.signal);
+      const { text, payload } = await requestPlan(image, url, input.signal);
       const plan = parsePhotoshootPlan(extractJsonObject(text));
       if (!plan) {
         lastError = new ProcessingError(
@@ -144,6 +157,7 @@ export async function planPhotoshootShots(input: {
           attempt,
           viaProxy: proxy,
           version: PHOTOSHOOT_PLANNER_PROMPT_VERSION,
+          ...plannerDiagnostics(payload, text),
         });
         continue;
       }
