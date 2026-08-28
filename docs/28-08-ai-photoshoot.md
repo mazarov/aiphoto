@@ -33,7 +33,7 @@
 | D12 | Копирайт: «4 кадра одной съёмки», не «4 отдельные генерации» и не пакет 40 кредитов |
 | D13 | `/generations`: одна карточка = сетка 4 кадров + шильд «Фотосессия». Клик открывает обычный result chrome на кадре 1 + rail + плёнка. 4 URL идут в `seedCompletedResult` сразу из списка, без второго `GET /generations/:id` на плёнку |
 | D14 | Клик «Фотосессия» не ставит job. Правый rail сверху вниз: «Выйти», креативность 0–100 (50 = temp 0.5, 100 = temp 2.0), «Создать». Temp в `edit_instruction`; worker передаёт в planner и меняет brief (низкий = близко к позе, высокий = смелые позы). Картинка-модель temp не видит |
-| D15 | Публикация = **одна** карточка каталога на весь сет. `prompt_card_media` = 4 тайла (`photoshootUserFacingMediaPaths`). Не `card_split` (это 4 отдельные карточки). Лист в карточку не кладём. Каталог и `/generations` — сетка 2×2. На publish каждый тайл прогоняется через тот же analyze, что `/foto-v-promt` (`generatePhotorealPromptFromImage`, без квоты пользователя) → 4 `prompt_variants` + `prompt_variant_media`. Enqueue-текст `PHOTOSHOOT` в каталог не кладём |
+| D15 | Публикация = **одна** карточка каталога на весь сет. `prompt_card_media` = 4 тайла (`photoshootUserFacingMediaPaths`). Не `card_split` (это 4 отдельные карточки). Лист в карточку не кладём. Каталог, `/generations` и `/p/[slug]` — сетка 2×2. На publish каждый тайл прогоняется через тот же analyze, что `/foto-v-promt` (`generatePhotorealPromptFromImage`, без квоты пользователя): **по очереди**, JPEG ≤1024px, 3 попытки на сетевой сбой → 4 `prompt_variants` + `prompt_variant_media`. Enqueue-текст `PHOTOSHOOT` в каталог не кладём. Уже опубликованную карточку можно прогнать снова («Обновить промпты») |
 
 ---
 

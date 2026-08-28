@@ -227,6 +227,36 @@ export function looksLikePhotoshootInstruction(text: string): boolean {
   return /^\s*PHOTOSHOOT\b/i.test(String(text ?? ""));
 }
 
+/** Catalog / Repeat must never show the enqueue PHOTOSHOOT blob. */
+export function usableCatalogPrompt(text: string | null | undefined): string | null {
+  const cleaned = String(text || "").trim();
+  if (!cleaned || looksLikePhotoshootInstruction(cleaned)) return null;
+  return cleaned;
+}
+
+/** Which frame to open from a listing click. Index wins over URL match. */
+export function resolvePhotoshootOpenIndex(input: {
+  urls: string[];
+  photoIndex?: number | null;
+  photoUrl?: string | null;
+}): number {
+  const urls = input.urls;
+  const index = input.photoIndex;
+  if (
+    typeof index === "number" &&
+    Number.isInteger(index) &&
+    index >= 0 &&
+    index < urls.length
+  ) {
+    return index;
+  }
+  if (input.photoUrl) {
+    const matched = urls.indexOf(input.photoUrl);
+    if (matched >= 0) return matched;
+  }
+  return 0;
+}
+
 /** Replace enqueue junk / incomplete set before catalog publish. */
 export function shouldReplacePhotoshootVariants(texts: string[]): boolean {
   const cleaned = texts.map((text) => String(text || "").trim()).filter(Boolean);

@@ -1,5 +1,9 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-08-29 (**AI-фотосессия publish analyze:** `hydratePhotoshootCardPrompts` гоняет тайлы **по очереди**, JPEG ≤1024px, 3 попытки на `fetch_failed`/`gemini_http`. Enqueue `PHOTOSHOOT` не пишется в `prompt_variants` и не попадает в Repeat. Уже опубликованную фотосессию можно «Обновить промпты».
+>
+> Последнее обновление: 2026-08-28 (**AI-фотосессия карточка /p:** `/p/[slug]` и модалка для UGC-фотосессии показывают тот же 2×2, что `/generations`. Hover/клик кадра выбирает промт (`promptTexts[i]`). Листинг: тайлы интерактивны, оверлей-Link `pointer-events-none`.
+>
 > Последнее обновление: 2026-08-28 (**AI-фотосессия модель:** `photoshoot_model` = `gemini-3-pro-image-preview` (SQL `228`, дефолт в коде тот же). Цена job по-прежнему `PHOTOSHOOT_CREDIT_COST` 15 кр. 2K как у Pro ($0.134). Откат: `seedream-5.0-pro` / `grok-imagine-image-2.0`.
 >
 > Последнее обновление: 2026-08-28 (**AI-фотосессия publish:** каталог рисует тот же 2×2 (`ListingPhotoTile` / `PromptCard` / `photoUrls`). `publishPromptCard` перед SEO анализирует каждый тайл тем же `generatePhotorealPromptFromImage`, что `/api/extension/analyze` (без квоты пользователя) → 4 `prompt_variants` + `prompt_variant_media`. Enqueue-текст `PHOTOSHOOT` не публикуем как промт. Повторный publish идемпотентен. `maxDuration=120`.

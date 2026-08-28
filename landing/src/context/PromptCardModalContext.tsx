@@ -38,6 +38,7 @@ const CARD_PREFETCH_AHEAD = 6;
 /** Lightweight preview data available immediately from the listing grid on click. */
 export type CardModalSeed = {
   photoUrl: string | null;
+  photoIndex?: number;
   photoCount: number;
   hasPrompts: boolean;
 };

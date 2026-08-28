@@ -63,6 +63,9 @@ import {
   getSeoSlugsWithTags,
 } from "@/lib/tag-registry";
 import { trackPromptCardOpen } from "@/lib/yandex-metrika";
+import { PhotoshootListingBadge } from "@/components/PhotoshootListingBadge";
+import { PhotoshootListingGrid } from "@/components/PhotoshootListingGrid";
+import { isPhotoshootUgcListing, resolvePhotoshootOpenIndex } from "@/lib/photoshoot";
 
 /** Desktop editorial panel chips (tier A = 13px). */
 const DESKTOP_PANEL_CHIP =
@@ -184,6 +187,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
   const {
     close: closeCardModal,
     currentSlug: modalSlug,
+    currentSeed,
     open: openCardModal,
   } = usePromptCardModal();
   const title = data.title_ru || data.title_en || "Без названия";
@@ -214,7 +218,13 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
   }, []);
   const debugMode = isAdmin && techInfoEnabled;
 
-  const [photoIndex, setPhotoIndex] = useState(0);
+  const [photoIndex, setPhotoIndex] = useState(() =>
+    resolvePhotoshootOpenIndex({
+      urls: data.photoUrls,
+      photoIndex: currentSeed?.photoIndex,
+      photoUrl: currentSeed?.photoUrl,
+    }),
+  );
   const [stickyCopy, setStickyCopy] = useState<"idle" | "ok" | "fail">("idle");
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
   const [copyErrIdx, setCopyErrIdx] = useState<number | null>(null);
@@ -298,7 +308,13 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
     setPhotoMeta(data.photoMeta);
     setPhotoDimensions(data.photoDimensions);
     setBeforePhotoUrl(data.beforePhotoUrl);
-    setPhotoIndex(0);
+    setPhotoIndex(
+      resolvePhotoshootOpenIndex({
+        urls: data.photoUrls,
+        photoIndex: currentSeed?.photoIndex,
+        photoUrl: currentSeed?.photoUrl,
+      }),
+    );
     setSetBeforeStatus(null);
     setDeleteStatus(null);
     setPubStatus(null);
@@ -442,6 +458,12 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
 
   const hasPrompts = data.promptTexts.length > 0;
   const hasPhotos = photos.length > 0;
+  const isPhotoshoot = isPhotoshootUgcListing({
+    datasetSlug: data.source_dataset_slug,
+    photoCount: photos.length,
+    storagePaths: photoMeta.map((media) => media.path),
+  });
+  const photoshootGrid = isPhotoshoot && photos.length === 4;
   const promptsFollowPhotos =
     data.promptTexts.length === photos.length && photos.length > 1;
   const visiblePromptTexts = promptsFollowPhotos
@@ -835,31 +857,43 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                   data-card-modal-surface={isModal ? "" : undefined}
                   className="relative mx-auto h-full aspect-[3/4] w-auto max-w-none overflow-hidden rounded-2xl bg-zinc-900 shadow-2xl ring-1 ring-white/10"
                 >
-                  <Image
-                    key={`desktop-hero-blur-${currentPhoto}`}
-                    src={currentPhoto}
-                    alt=""
-                    fill
-                    sizes={SIZES_CARD_HERO}
-                    quality={CARD_IMAGE_NEXT_QUALITY}
-                    className="scale-110 object-cover opacity-60 blur-2xl"
-                    aria-hidden
-                  />
-                  <div className="pointer-events-none absolute inset-0 z-[1] bg-black/10" aria-hidden />
-                  <Image
-                    key={`desktop-hero-${currentPhoto}`}
-                    src={currentPhoto}
-                    alt={buildCardImageAlt(title, [], photoIndex)}
-                    fill
-                    sizes={SIZES_CARD_HERO}
-                    quality={CARD_IMAGE_NEXT_QUALITY}
-                    className="z-[2] animate-fade-in object-contain"
-                    priority
-                    fetchPriority="high"
-                    decoding="async"
-                  />
+                  {photoshootGrid ? (
+                    <PhotoshootListingGrid
+                      urls={photos}
+                      alt={buildCardImageAlt(title, [], photoIndex)}
+                      priority
+                      selectedIndex={photoIndex}
+                      onSelect={(_url, index) => setPhotoIndex(index)}
+                    />
+                  ) : (
+                    <>
+                      <Image
+                        key={`desktop-hero-blur-${currentPhoto}`}
+                        src={currentPhoto}
+                        alt=""
+                        fill
+                        sizes={SIZES_CARD_HERO}
+                        quality={CARD_IMAGE_NEXT_QUALITY}
+                        className="scale-110 object-cover opacity-60 blur-2xl"
+                        aria-hidden
+                      />
+                      <div className="pointer-events-none absolute inset-0 z-[1] bg-black/10" aria-hidden />
+                      <Image
+                        key={`desktop-hero-${currentPhoto}`}
+                        src={currentPhoto}
+                        alt={buildCardImageAlt(title, [], photoIndex)}
+                        fill
+                        sizes={SIZES_CARD_HERO}
+                        quality={CARD_IMAGE_NEXT_QUALITY}
+                        className="z-[2] animate-fade-in object-contain"
+                        priority
+                        fetchPriority="high"
+                        decoding="async"
+                      />
+                    </>
+                  )}
 
-                  {photos.length > 1 && (
+                  {!photoshootGrid && photos.length > 1 && (
                     <>
                       <button
                         type="button"
@@ -898,7 +932,8 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                     </div>
                   )}
 
-                  {photos.length > 1 && (
+                  {photoshootGrid ? <PhotoshootListingBadge /> : null}
+                  {!photoshootGrid && photos.length > 1 && (
                     <div className="pointer-events-none absolute top-2 left-1/2 z-20 -translate-x-1/2">
                       <div className={CARD_OVERLAY_PHOTO_COUNTER_CLASS}>
                         {photoIndex + 1}/{photos.length}
@@ -1194,18 +1229,29 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
 
                 {/* Полноэкранное фото (как в референсе), без framed 3:4 */}
                 <div className="absolute inset-0 z-[2]">
-                  <Image
-                    src={currentPhoto}
-                    alt={buildCardImageAlt(title, [], photoIndex)}
-                    fill
-                    sizes="100vw"
-                    quality={CARD_IMAGE_NEXT_QUALITY}
-                    className="object-cover object-center"
-                    priority
-                    fetchPriority="high"
-                    decoding="async"
-                  />
+                  {photoshootGrid ? (
+                    <PhotoshootListingGrid
+                      urls={photos}
+                      alt={buildCardImageAlt(title, [], photoIndex)}
+                      priority
+                      selectedIndex={photoIndex}
+                      onSelect={(_url, index) => setPhotoIndex(index)}
+                    />
+                  ) : (
+                    <Image
+                      src={currentPhoto}
+                      alt={buildCardImageAlt(title, [], photoIndex)}
+                      fill
+                      sizes="100vw"
+                      quality={CARD_IMAGE_NEXT_QUALITY}
+                      className="object-cover object-center"
+                      priority
+                      fetchPriority="high"
+                      decoding="async"
+                    />
+                  )}
                 </div>
+                {photoshootGrid ? <PhotoshootListingBadge /> : null}
 
                 <div
                   className="pointer-events-none absolute inset-x-0 bottom-0 z-[8] h-[70%] bg-gradient-to-t from-black/78 via-black/38 to-transparent"
@@ -1213,7 +1259,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                 />
 
                 {/* Тап по краям */}
-                {photos.length > 1 ? (
+                {!photoshootGrid && photos.length > 1 ? (
                   <>
                     <button
                       type="button"
@@ -1257,7 +1303,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                 ) : null}
 
                 <header className={`pointer-events-none relative z-[60] shrink-0 px-4 pt-[max(12px,env(safe-area-inset-top))] ${mobileChromeClass}`}>
-                  {photos.length > 1 ? (
+                  {!photoshootGrid && photos.length > 1 ? (
                     <div className="pointer-events-none flex gap-1 px-1 pb-2 pt-0" aria-hidden>
                       {photos.map((_, idx) => (
                         <div

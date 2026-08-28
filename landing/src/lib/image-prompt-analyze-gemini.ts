@@ -140,6 +140,12 @@ export async function generatePhotorealPromptFromImage(params: {
     extensionLog(`${params.logPrefix}.gemini_fetch_failed`, {
       requestId: params.requestId,
       message: error instanceof Error ? error.message : String(error),
+      cause:
+        error instanceof Error && error.cause instanceof Error
+          ? error.cause.message
+          : error instanceof Error && error.cause
+            ? String(error.cause)
+            : undefined,
     });
     throw new PhotorealAnalyzeError("fetch_failed", 503);
   }

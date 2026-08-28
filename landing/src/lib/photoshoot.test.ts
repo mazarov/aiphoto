@@ -9,6 +9,7 @@ import {
   photoshootCtaDetail,
   extractJsonObject,
   looksLikePhotoshootInstruction,
+  usableCatalogPrompt,
   parsePhotoshootPlan,
   parsePhotoshootPlannerTemperature,
   photoshootFingerprintFields,
@@ -25,6 +26,7 @@ import {
   serializePhotoshootEnqueueInstruction,
   serializePhotoshootSheetInstruction,
   shouldReplacePhotoshootVariants,
+  resolvePhotoshootOpenIndex,
 } from "./photoshoot";
 import {
   PHOTOSHOOT_PLANNER_GENERATION_CONFIG,
@@ -52,6 +54,20 @@ test("looksLikePhotoshootInstruction matches enqueue marker only", () => {
   assert.equal(looksLikePhotoshootInstruction("PHOTOSHOOT (HIGHEST PRIORITY)"), true);
   assert.equal(looksLikePhotoshootInstruction("Remove the scarf"), false);
   assert.equal(looksLikePhotoshootInstruction("CAMERA ORBIT"), false);
+});
+
+test("usableCatalogPrompt hides enqueue junk from Repeat", () => {
+  assert.equal(usableCatalogPrompt(serializePhotoshootEnqueueInstruction()), null);
+  assert.equal(usableCatalogPrompt("  "), null);
+  assert.equal(usableCatalogPrompt("Woman in a pink dress, field, balloons"), "Woman in a pink dress, field, balloons");
+});
+
+test("resolvePhotoshootOpenIndex prefers index, then URL", () => {
+  const urls = ["a.jpg", "b.jpg", "c.jpg", "d.jpg"];
+  assert.equal(resolvePhotoshootOpenIndex({ urls, photoIndex: 2 }), 2);
+  assert.equal(resolvePhotoshootOpenIndex({ urls, photoUrl: "d.jpg" }), 3);
+  assert.equal(resolvePhotoshootOpenIndex({ urls, photoIndex: 9, photoUrl: "b.jpg" }), 1);
+  assert.equal(resolvePhotoshootOpenIndex({ urls }), 0);
 });
 
 test("shouldReplacePhotoshootVariants keeps four real prompts", () => {

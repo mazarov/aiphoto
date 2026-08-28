@@ -3,6 +3,7 @@ import "server-only";
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { usableCatalogPrompt } from "@/lib/photoshoot";
 import { hydratePhotoshootCardPrompts } from "@/lib/photoshoot-publish";
 import { classifySeoTagsForPublish } from "@/lib/seo-tags-classify";
 import { processPublishedCardEmbedding } from "@/lib/visual-embedding-publish";
@@ -89,7 +90,7 @@ export async function publishPromptCard(
         prompt_text_ru: string | null;
         prompt_text_en: string | null;
       };
-      return row.prompt_text_ru?.trim() || row.prompt_text_en?.trim() || null;
+      return usableCatalogPrompt(row.prompt_text_ru) || usableCatalogPrompt(row.prompt_text_en);
     })
     .filter((text): text is string => Boolean(text));
 

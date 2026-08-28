@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { looksLikePhotoshootInstruction } from "@/lib/photoshoot";
 import {
   buildUgcCardMediaInserts,
   cleanUgcCardMediaPaths,
@@ -167,7 +168,8 @@ export async function createUgcCardForCompletedGeneration(
     generationId,
   );
 
-  const titleRu = buildUgcCardTitle(promptText);
+  const photoshootDraft = looksLikePhotoshootInstruction(promptText);
+  const titleRu = photoshootDraft ? "Моя фотосессия" : buildUgcCardTitle(promptText);
 
   const { data: createdCard, error: createCardError } = await supabase
     .from("prompt_cards")
@@ -221,22 +223,24 @@ export async function createUgcCardForCompletedGeneration(
     return null;
   }
 
-  const { error: variantInsertError } = await supabase.from("prompt_variants").insert({
-    card_id: cardId,
-    variant_index: 0,
-    label_raw: "web",
-    prompt_text_ru: promptText,
-    prompt_text_en: null,
-    match_strategy: "web_generation",
-  });
-  if (variantInsertError) {
-    console.error("[web-ugc-card] variant insert failed", {
-      generationId,
-      cardId,
-      error: variantInsertError.message,
+  if (!photoshootDraft) {
+    const { error: variantInsertError } = await supabase.from("prompt_variants").insert({
+      card_id: cardId,
+      variant_index: 0,
+      label_raw: "web",
+      prompt_text_ru: promptText,
+      prompt_text_en: null,
+      match_strategy: "web_generation",
     });
-    await supabase.from("prompt_cards").delete().eq("id", cardId);
-    return null;
+    if (variantInsertError) {
+      console.error("[web-ugc-card] variant insert failed", {
+        generationId,
+        cardId,
+        error: variantInsertError.message,
+      });
+      await supabase.from("prompt_cards").delete().eq("id", cardId);
+      return null;
+    }
   }
 
   const { data: linkedRows, error: linkError } = await supabase

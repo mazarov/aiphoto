@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import sharp from "sharp";
 import {
   generatePhotorealPromptFromImage,
   PhotorealAnalyzeError,
@@ -13,6 +14,9 @@ import {
 } from "@/lib/photoshoot";
 import type { createSupabaseServer } from "@/lib/supabase";
 import { buildUgcCardTitle } from "@/lib/web-ugc-card";
+
+const ANALYZE_MAX_EDGE = 1024;
+const ANALYZE_ATTEMPTS = 3;
 
 export type PhotoshootPromptHydration = {
   skipped: boolean;
@@ -33,6 +37,71 @@ type PhotoshootMediaRow = {
   storage_path: string;
   media_index: number;
 };
+
+async function preparePhotoshootAnalyzeImage(bytes: Buffer) {
+  const resized = await sharp(bytes)
+    .rotate()
+    .resize(ANALYZE_MAX_EDGE, ANALYZE_MAX_EDGE, {
+      fit: "inside",
+      withoutEnlargement: true,
+    })
+    .jpeg({ quality: 85 })
+    .toBuffer();
+  const image = parseAnalyzeImageBuffer(resized);
+  if (!image) {
+    throw new PhotoshootPublishAnalyzeError("photoshoot_analyze_image");
+  }
+  return image;
+}
+
+function isRetryableAnalyzeError(error: unknown): boolean {
+  return (
+    error instanceof PhotorealAnalyzeError &&
+    (error.code === "fetch_failed" || error.code === "gemini_http")
+  );
+}
+
+async function analyzePhotoshootTile(params: {
+  image: Awaited<ReturnType<typeof preparePhotoshootAnalyzeImage>>;
+  supabase: ReturnType<typeof createSupabaseServer>;
+  apiKey: string;
+  cardId: string;
+  index: number;
+}): Promise<string> {
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= ANALYZE_ATTEMPTS; attempt += 1) {
+    try {
+      const result = await generatePhotorealPromptFromImage({
+        image: params.image,
+        locale: "ru",
+        supabase: params.supabase,
+        apiKey: params.apiKey,
+        logPrefix: "photoshoot.publish.analyze",
+        requestId: crypto.randomUUID(),
+        correlationId: params.cardId,
+      });
+      return result.promptText;
+    } catch (error) {
+      lastError = error;
+      if (!isRetryableAnalyzeError(error) || attempt === ANALYZE_ATTEMPTS) {
+        if (error instanceof PhotorealAnalyzeError) {
+          throw new PhotoshootPublishAnalyzeError(
+            `photoshoot_analyze_${error.code}:${params.index}`,
+          );
+        }
+        throw error;
+      }
+      console.warn("[photoshoot.publish.analyze] retry", {
+        cardId: params.cardId,
+        index: params.index,
+        attempt,
+        code: error instanceof PhotorealAnalyzeError ? error.code : "unknown",
+      });
+      await new Promise((resolve) => setTimeout(resolve, 400 * attempt));
+    }
+  }
+  throw lastError;
+}
 
 /**
  * On photoshoot publish: analyze each tile with the same photoreal extract
@@ -73,6 +142,12 @@ export async function hydratePhotoshootCardPrompts(
       storagePaths: media.map((row) => row.storage_path),
     })
   ) {
+    console.info("[photoshoot.publish.analyze] skipped", {
+      cardId,
+      reason: "not_photoshoot_album",
+      mediaCount: media.length,
+      datasetSlug: card.source_dataset_slug,
+    });
     return { skipped: true, replaced: false, promptCount: 0 };
   }
 
@@ -93,6 +168,11 @@ export async function hydratePhotoshootCardPrompts(
     return variant.prompt_text_ru?.trim() || variant.prompt_text_en?.trim() || "";
   });
   if (!shouldReplacePhotoshootVariants(texts)) {
+    console.info("[photoshoot.publish.analyze] skipped", {
+      cardId,
+      reason: "variants_ready",
+      promptCount: texts.length,
+    });
     return { skipped: true, replaced: false, promptCount: texts.length };
   }
 
@@ -102,39 +182,26 @@ export async function hydratePhotoshootCardPrompts(
   }
 
   const analyzeClient = supabase as ReturnType<typeof createSupabaseServer>;
-  const prompts = await Promise.all(
-    media.map(async (row, index) => {
-      const { data: file, error } = await supabase.storage
-        .from(row.storage_bucket)
-        .download(row.storage_path);
-      if (error || !file) {
-        throw new PhotoshootPublishAnalyzeError(`photoshoot_analyze_download:${index}`);
-      }
-      const image = parseAnalyzeImageBuffer(Buffer.from(await file.arrayBuffer()));
-      if (!image) {
-        throw new PhotoshootPublishAnalyzeError(`photoshoot_analyze_image:${index}`);
-      }
-      try {
-        const result = await generatePhotorealPromptFromImage({
-          image,
-          locale: "ru",
-          supabase: analyzeClient,
-          apiKey,
-          logPrefix: "photoshoot.publish.analyze",
-          requestId: crypto.randomUUID(),
-          correlationId: cardId,
-        });
-        return result.promptText;
-      } catch (error) {
-        if (error instanceof PhotorealAnalyzeError) {
-          throw new PhotoshootPublishAnalyzeError(
-            `photoshoot_analyze_${error.code}:${index}`,
-          );
-        }
-        throw error;
-      }
-    }),
-  );
+  const prompts: string[] = [];
+  for (const [index, row] of media.entries()) {
+    const { data: file, error } = await supabase.storage
+      .from(row.storage_bucket)
+      .download(row.storage_path);
+    if (error || !file) {
+      throw new PhotoshootPublishAnalyzeError(`photoshoot_analyze_download:${index}`);
+    }
+    const image = await preparePhotoshootAnalyzeImage(
+      Buffer.from(await file.arrayBuffer()),
+    );
+    const prompt = await analyzePhotoshootTile({
+      image,
+      supabase: analyzeClient,
+      apiKey,
+      cardId,
+      index,
+    });
+    prompts.push(prompt);
+  }
 
   const { error: deleteError } = await supabase
     .from("prompt_variants")

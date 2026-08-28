@@ -39,6 +39,15 @@ export function ListingPhotoTile({
           urls={photoshootUrls}
           alt={card.title}
           priority={priority}
+          onPrefetch={() => prefetchCard(card.slug)}
+          onSelect={(url, index) => {
+            open(card.slug, {
+              photoUrl: url,
+              photoIndex: index,
+              photoCount: card.photoCount,
+              hasPrompts: card.hasPrompt,
+            });
+          }}
         />
       ) : card.photoUrl ? (
         <Image
@@ -64,7 +73,7 @@ export function ListingPhotoTile({
 
       <Link
         href={`/p/${card.slug}`}
-        className="absolute inset-0 z-10"
+        className={`absolute inset-0 z-10${photoshootUrls ? " pointer-events-none" : ""}`}
         aria-label={card.title}
         prefetch
         onPointerEnter={() => prefetchCard(card.slug)}

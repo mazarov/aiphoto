@@ -1611,9 +1611,10 @@ export function CardInlineGeneratePanel({
         });
         const data = (await res.json().catch(() => ({}))) as { error?: string };
         if (!res.ok) throw new Error(data.error || "Не удалось опубликовать");
+        const wasPublished = isPublished;
         setIsPublished(true);
         setMenuOpen(false);
-        setToast("Карточка опубликована");
+        setToast(wasPublished ? "Промпты обновлены" : "Карточка опубликована");
       } catch (err) {
         setToast(err instanceof Error ? err.message : "Не удалось опубликовать");
       } finally {
@@ -1977,6 +1978,7 @@ export function CardInlineGeneratePanel({
                 hasPrompt={Boolean(activePrompt.trim())}
                 canPublish={resultModality !== "video"}
                 isPublished={isPublished}
+                allowRepublish={isPhotoshootEditKind(resultEditKind)}
                 canAnimate={videoEnabled && resultModality === "image"}
                 canSaveToLibrary={resultModality !== "video"}
                 busyAction={busyAction}
@@ -2231,6 +2233,7 @@ export function CardInlineGeneratePanel({
               hasPrompt={Boolean(activePrompt.trim())}
               canPublish={resultModality !== "video"}
               isPublished={isPublished}
+              allowRepublish={isPhotoshootEditKind(resultEditKind)}
               canAnimate={videoEnabled && resultModality === "image"}
               canSaveToLibrary={resultModality !== "video"}
               busyAction={busyAction}

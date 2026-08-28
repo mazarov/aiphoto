@@ -282,7 +282,7 @@ export function GenerationHistoryCard({
     }
 
     if (action === "publish") {
-      if (!canOpenCard || generation.isPublished) return;
+      if (!canOpenCard || (generation.isPublished && !isPhotoshoot)) return;
       setBusyAction("publish");
       try {
         const res = await fetch(`/api/generations/${generation.id}/publish`, {
@@ -304,7 +304,7 @@ export function GenerationHistoryCard({
           isPublished: true,
         });
         setMenuOpen(false);
-        toast("Карточка опубликована");
+        toast(generation.isPublished ? "Промпты обновлены" : "Карточка опубликована");
       } catch (err) {
         toast(err instanceof Error ? err.message : "Не удалось опубликовать");
       } finally {
@@ -456,6 +456,7 @@ export function GenerationHistoryCard({
               hasPrompt={hasPrompt}
               canPublish={canOpenCard}
               isPublished={generation.isPublished}
+              allowRepublish={isPhotoshoot}
               canAnimate={false}
               canSaveToLibrary={!isVideo}
               busyAction={busyAction}

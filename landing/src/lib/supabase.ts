@@ -3,6 +3,7 @@ import {
   type CardImagePreset,
 } from "@/lib/card-image-presets";
 import type { ListingSort } from "@/lib/listing-sort";
+import { usableCatalogPrompt } from "@/lib/photoshoot";
 import { resolveSharedDbUserIdFromAuthId } from "@/lib/resolve-db-user-id";
 import { createSupabaseServer } from "./supabase-server-client";
 
@@ -742,8 +743,9 @@ export async function enrichCardsWithDetails(
   const cardsWithRuPrompt = new Set<string>();
   for (const v of variantsRes.data || []) {
     const row = v as { card_id: string; prompt_text_ru: string | null; prompt_text_en: string | null };
-    if (row.prompt_text_ru?.trim()) cardsWithRuPrompt.add(row.card_id);
-    const t = row.prompt_text_ru?.trim() || row.prompt_text_en?.trim() || null;
+    const ru = usableCatalogPrompt(row.prompt_text_ru);
+    if (ru) cardsWithRuPrompt.add(row.card_id);
+    const t = ru || usableCatalogPrompt(row.prompt_text_en);
     if (t) {
       const arr = variantsByCard.get(row.card_id) || [];
       arr.push(t);
@@ -1080,7 +1082,7 @@ async function fetchCardPageDataCore(
   const promptTexts = (variantsRes.data || [])
     .map((v) => {
       const row = v as { prompt_text_ru: string | null; prompt_text_en: string | null };
-      return row.prompt_text_ru?.trim() || row.prompt_text_en?.trim() || null;
+      return usableCatalogPrompt(row.prompt_text_ru) || usableCatalogPrompt(row.prompt_text_en);
     })
     .filter((t): t is string => !!t);
 

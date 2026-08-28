@@ -144,6 +144,15 @@ function PromptCardBase({
             urls={photos}
             alt={buildCardImageAlt(title)}
             priority={priorityLoad}
+            onPrefetch={() => prefetchCard(card.slug)}
+            onSelect={(url, index) => {
+              open(card.slug, {
+                photoUrl: url,
+                photoIndex: index,
+                photoCount: photos.length,
+                hasPrompts: card.promptTexts.length > 0,
+              });
+            }}
           />
         ) : currentPhoto ? (
           <Image
@@ -176,7 +185,7 @@ function PromptCardBase({
         {card.slug && (
           <Link
             href={`/p/${card.slug}`}
-            className="absolute inset-0 z-10"
+            className={`absolute inset-0 z-10${photoshootGrid ? " pointer-events-none" : ""}`}
             aria-label={title}
             prefetch
             onPointerEnter={() => prefetchCard(card.slug)}

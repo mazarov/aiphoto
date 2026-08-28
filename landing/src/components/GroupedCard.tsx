@@ -146,6 +146,18 @@ function GroupedCardBase({
               urls={photos}
               alt={buildCardImageAlt(title)}
               priority={priorityLoad}
+              onPrefetch={() => {
+                if (activeSlug) prefetchCard(activeSlug);
+              }}
+              onSelect={(url, index) => {
+                if (!activeSlug) return;
+                open(activeSlug, {
+                  photoUrl: url,
+                  photoIndex: index,
+                  photoCount: photos.length,
+                  hasPrompts: allPrompts.length > 0,
+                });
+              }}
             />
           ) : currentPhotoUrl ? (
             <Image
@@ -178,7 +190,7 @@ function GroupedCardBase({
           {activeSlug && (
             <Link
               href={`/p/${activeSlug}`}
-              className="absolute inset-0 z-10"
+              className={`absolute inset-0 z-10${photoshootGrid ? " pointer-events-none" : ""}`}
               aria-label={title}
               prefetch
               onPointerEnter={() => prefetchCard(activeSlug)}

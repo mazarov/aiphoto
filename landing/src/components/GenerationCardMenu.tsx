@@ -20,6 +20,7 @@ type Props = {
   hasPrompt: boolean;
   canPublish: boolean;
   isPublished: boolean;
+  allowRepublish?: boolean;
   canAnimate?: boolean;
   canSaveToLibrary?: boolean;
   busyAction: GenerationMenuAction | null;
@@ -139,6 +140,7 @@ export function GenerationCardMenu({
   hasPrompt,
   canPublish,
   isPublished,
+  allowRepublish = false,
   canAnimate = false,
   canSaveToLibrary = true,
   busyAction,
@@ -260,14 +262,16 @@ export function GenerationCardMenu({
         type="button"
         role="menuitem"
         className={ITEM}
-        disabled={!canPublish || isPublished || Boolean(busyAction)}
+        disabled={!canPublish || (isPublished && !allowRepublish) || Boolean(busyAction)}
         onClick={() => run("publish")}
       >
         <IconPublish className="h-4 w-4 shrink-0" />
         {busyAction === "publish"
           ? "Публикация…"
           : isPublished
-            ? "Опубликовано"
+            ? allowRepublish
+              ? "Обновить промпты"
+              : "Опубликовано"
             : "Опубликовать"}
       </button>
 
