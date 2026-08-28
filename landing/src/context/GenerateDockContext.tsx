@@ -50,6 +50,16 @@ export type GenerateDockEntrySource =
 
 const DEFAULT_SEED: GenerateDockSeed = DEFAULT_GENERATE_DOCK_SEED;
 
+type SeedCompletedResultArgs = {
+  generationId: string;
+  resultUrl: string;
+  promptText?: string;
+  modality?: "image" | "video";
+  isPublished?: boolean;
+  editKind?: string | null;
+  photoshootTileUrls?: string[] | null;
+};
+
 type GenerateDockContextType = {
   seed: GenerateDockSeed;
   seedToken: number;
@@ -102,15 +112,7 @@ type GenerateDockContextType = {
   ) => void;
   /** Open dock on a completed generation (history video/image result chrome). */
   seedCompletedResult: (
-    args: {
-      generationId: string;
-      resultUrl: string;
-      promptText?: string;
-      modality?: "image" | "video";
-      isPublished?: boolean;
-      editKind?: string | null;
-      photoshootTileUrls?: string[] | null;
-    },
+    args: SeedCompletedResultArgs,
     options?: { entrySource?: GenerateDockEntrySource }
   ) => void;
   /**
@@ -301,13 +303,7 @@ export function GenerateDockProvider({ children }: { children: ReactNode }) {
 
   const seedCompletedResult = useCallback(
     (
-      args: {
-        generationId: string;
-        resultUrl: string;
-        promptText?: string;
-        modality?: "image" | "video";
-        isPublished?: boolean;
-      },
+      args: SeedCompletedResultArgs,
       options?: { entrySource?: GenerateDockEntrySource }
     ) => {
       const generationId = args.generationId.trim();
