@@ -1,5 +1,6 @@
 import {
   DEFAULT_GENERATE_DOCK_SEED,
+  photoshootTileUrlsFromUnknown,
   type GenerateDockComposeIntent,
   type GenerateDockSeed,
 } from "./generate-dock-seed";
@@ -56,6 +57,8 @@ export function parsePendingGenerateDock(raw: string | null): PendingGenerateDoc
             ? parsed.seed.resultModality
             : null,
         isPublished: Boolean(parsed.seed.isPublished),
+        editKind: typeof parsed.seed.editKind === "string" ? parsed.seed.editKind : null,
+        photoshootTileUrls: photoshootTileUrlsFromUnknown(parsed.seed.photoshootTileUrls),
       },
       dockSurface: parsed.dockSurface ?? null,
     };

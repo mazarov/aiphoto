@@ -14,6 +14,7 @@ import { useAuth } from "@/context/AuthContext";
 import {
   DEFAULT_GENERATE_DOCK_SEED,
   isResumeComposeSeed,
+  photoshootTileUrlsFromUnknown,
   type GenerateDockComposeIntent,
   type GenerateDockSeed,
 } from "@/lib/generate-dock-seed";
@@ -107,6 +108,8 @@ type GenerateDockContextType = {
       promptText?: string;
       modality?: "image" | "video";
       isPublished?: boolean;
+      editKind?: string | null;
+      photoshootTileUrls?: string[] | null;
     },
     options?: { entrySource?: GenerateDockEntrySource }
   ) => void;
@@ -319,6 +322,8 @@ export function GenerateDockProvider({ children }: { children: ReactNode }) {
         resultGenerationId: generationId,
         resultModality: args.modality === "video" ? "video" : "image",
         isPublished: Boolean(args.isPublished),
+        editKind: args.editKind || null,
+        photoshootTileUrls: photoshootTileUrlsFromUnknown(args.photoshootTileUrls),
       };
       setLastDockResultDismissed(false);
       setSeed(nextSeed);

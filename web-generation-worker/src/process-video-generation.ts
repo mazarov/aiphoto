@@ -133,7 +133,7 @@ async function geminiBaseUrl(supabase: SupabaseClient): Promise<{ url: string; p
 }
 
 const PARENT_VIDEO_SELECT =
-  "requester_auth_user_id,status,result_storage_bucket,result_storage_path,modality,input_photo_paths,parent_generation_id";
+  "requester_auth_user_id,status,result_storage_bucket,result_storage_path,modality,input_photo_paths,parent_generation_id,edit_kind,photoshoot_tile_paths";
 
 async function loadParentGeneration(
   supabase: SupabaseClient,

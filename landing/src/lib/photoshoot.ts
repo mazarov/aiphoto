@@ -1,3 +1,5 @@
+import { clampPhotoshootPlannerTemperature } from "./photoshoot-planner";
+
 export const PHOTOSHOOT_EDIT_KIND = "photoshoot";
 export const PHOTOSHOOT_DEFAULT_MODEL = "grok-imagine-image-2.0";
 export const PHOTOSHOOT_FRAME_COUNT = 4;
@@ -98,6 +100,41 @@ export function parsePhotoshootTilePaths(raw: unknown): string[] | null {
   return paths;
 }
 
+export function parsePhotoshootTileIndex(raw: unknown): PhotoshootTileIndex | null {
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value < 1 || value > PHOTOSHOOT_FRAME_COUNT) return null;
+  return value as PhotoshootTileIndex;
+}
+
+export function photoshootTileIndexForUrl(
+  tileUrls: string[] | null,
+  resultUrl: string | null,
+): PhotoshootTileIndex {
+  if (!tileUrls || !resultUrl) return 1;
+  const index = tileUrls.indexOf(resultUrl);
+  if (index < 0) return 1;
+  return (index + 1) as PhotoshootTileIndex;
+}
+
+/** I2I/video source for a photoshoot parent: selected tile, else tile 1. Never the sheet. */
+export function resolvePhotoshootParentSourcePath(input: {
+  editKind?: string | null;
+  sheetPath?: string | null;
+  tilePaths?: unknown;
+  requestedPath?: string | null;
+  tileIndex?: unknown;
+}): string | null {
+  const sheetPath = String(input.sheetPath || "").trim() || null;
+  if (!isPhotoshootEditKind(input.editKind)) return sheetPath;
+  const tiles = parsePhotoshootTilePaths(input.tilePaths);
+  if (!tiles) return null;
+  const requested = String(input.requestedPath || "").trim();
+  if (requested && tiles.includes(requested)) return requested;
+  const index = parsePhotoshootTileIndex(input.tileIndex);
+  if (index) return tiles[index - 1] || tiles[0];
+  return tiles[0];
+}
+
 export type PhotoshootUserFacingResult = {
   /** Single-image slot for history / share. Never the 2×2 sheet. */
   resultPath: string | null;
@@ -135,20 +172,34 @@ export function looksLikePhotoshootInstruction(text: string): boolean {
   return /^\s*PHOTOSHOOT\b/i.test(String(text ?? ""));
 }
 
-export function serializePhotoshootEnqueueInstruction(): string {
+export function serializePhotoshootEnqueueInstruction(temperature?: unknown): string {
+  const plannerTemperature = clampPhotoshootPlannerTemperature(temperature);
   return [
     PHOTOSHOOT_ENQUEUE_INSTRUCTION,
+    `planner_temperature=${plannerTemperature.toFixed(2)}`,
     "Four-frame contact sheet from the attached photograph.",
   ].join("\n");
 }
 
-export function photoshootFingerprintFields(parentGenerationId: string): {
+export function parsePhotoshootPlannerTemperature(instruction: string): number {
+  const match = String(instruction || "").match(
+    /planner_temperature\s*=\s*([0-9]+(?:\.[0-9]+)?)/i,
+  );
+  return clampPhotoshootPlannerTemperature(match?.[1]);
+}
+
+export function photoshootFingerprintFields(
+  parentGenerationId: string,
+  temperature?: unknown,
+): {
   editKind: string;
   parentGenerationId: string;
+  plannerTemperature: number;
 } {
   return {
     editKind: PHOTOSHOOT_EDIT_KIND,
     parentGenerationId,
+    plannerTemperature: clampPhotoshootPlannerTemperature(temperature),
   };
 }
 

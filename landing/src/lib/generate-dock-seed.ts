@@ -1,3 +1,5 @@
+import { parsePhotoshootTilePaths } from "./photoshoot";
+
 export type GenerateDockComposeIntent =
   | "resume"
   | "text"
@@ -15,7 +17,13 @@ export type GenerateDockSeed = {
   resultGenerationId?: string | null;
   resultModality?: "image" | "video" | null;
   isPublished?: boolean;
+  editKind?: string | null;
+  photoshootTileUrls?: string[] | null;
 };
+
+export function photoshootTileUrlsFromUnknown(raw: unknown): string[] | null {
+  return parsePhotoshootTilePaths(raw);
+}
 
 export const DEFAULT_GENERATE_DOCK_SEED: GenerateDockSeed = {
   source: "blank",

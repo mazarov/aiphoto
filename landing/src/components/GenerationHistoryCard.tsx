@@ -102,6 +102,8 @@ export function GenerationHistoryCard({
         promptText: generation.prompt,
         modality: isVideo ? "video" : "image",
         isPublished: generation.isPublished,
+        editKind: generation.editKind,
+        photoshootTileUrls: tileUrls,
       },
       { entrySource: "card" }
     );
@@ -293,6 +295,12 @@ export function GenerationHistoryCard({
             )}
           </div>
         )}
+
+        {!selectMode && (isPhotoshoot || tileUrls) ? (
+          <span className="pointer-events-none absolute left-2 top-2 z-20 rounded-full bg-black/50 px-2.5 py-1 text-[13px] font-semibold text-white shadow-lg ring-1 ring-white/25 backdrop-blur-md">
+            Фотосессия
+          </span>
+        ) : null}
 
         {!selectMode && canOpenResult ? (
           <button

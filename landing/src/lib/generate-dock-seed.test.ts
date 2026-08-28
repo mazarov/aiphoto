@@ -4,6 +4,7 @@ import {
   DEFAULT_GENERATE_DOCK_SEED,
   isCompletedResultSeed,
   isResumeComposeSeed,
+  photoshootTileUrlsFromUnknown,
   shouldAttachLibraryPhotos,
   shouldHydrateLastDockResult,
   type GenerateDockSeed,
@@ -84,6 +85,13 @@ test("shouldAttachLibraryPhotos is false only for photo_prompt compose", () => {
     ),
     false
   );
+});
+
+test("photoshootTileUrlsFromUnknown keeps only four urls", () => {
+  const tiles = ["a", "b", "c", "d"];
+  assert.deepEqual(photoshootTileUrlsFromUnknown(tiles), tiles);
+  assert.equal(photoshootTileUrlsFromUnknown(["a", "b"]), null);
+  assert.equal(photoshootTileUrlsFromUnknown(null), null);
 });
 
 test("completed result seed skips last-result hydrate", () => {

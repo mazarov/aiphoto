@@ -13,6 +13,8 @@ export type GenerationResultAction = {
   ariaLabel?: string;
   /** Thin violet stripe along the border; plays ~8s on show, then fades. */
   accent?: "orbit";
+  /** Allow two-line labels in the narrow rail. */
+  wrap?: boolean;
 };
 
 type Props = {
@@ -62,7 +64,9 @@ export function GenerationResultActionRail({ actions, className = "" }: Props) {
           <span className="relative z-10 flex h-5 w-5 shrink-0 items-center justify-center" aria-hidden>
             {action.icon}
           </span>
-          <span className="relative z-10 truncate">{action.label}</span>
+          <span className={`relative z-10 ${action.wrap ? "whitespace-normal leading-tight" : "truncate"}`}>
+            {action.label}
+          </span>
         </button>
       ))}
     </div>

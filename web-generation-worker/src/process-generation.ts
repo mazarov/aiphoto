@@ -34,6 +34,7 @@ import {
 } from "../../landing/src/lib/camera-orbit";
 import {
   PHOTOSHOOT_TILE_INDEXES,
+  parsePhotoshootPlannerTemperature,
   photoshootTileStoragePath,
   serializePhotoshootSheetInstruction,
 } from "../../landing/src/lib/photoshoot";
@@ -197,7 +198,7 @@ async function resolveInputSource(
   if (!job.parent_generation_id) return resolveGenerationInputSource(job);
   const { data: parent, error } = await supabase
     .from("landing_generations")
-    .select("requester_auth_user_id,status,result_storage_bucket,result_storage_path")
+    .select("requester_auth_user_id,status,result_storage_bucket,result_storage_path,edit_kind,photoshoot_tile_paths")
     .eq("id", job.parent_generation_id)
     .maybeSingle();
   if (error) {
@@ -397,6 +398,7 @@ export async function processGeneration(
       image: cachedInputParts[0].inlineData,
       signal,
       generationId: job.id,
+      temperature: parsePhotoshootPlannerTemperature(editInstruction),
     });
     const { error: planError } = await supabase
       .from("landing_generations")

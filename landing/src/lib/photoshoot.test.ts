@@ -5,15 +5,28 @@ import {
   extractJsonObject,
   looksLikePhotoshootInstruction,
   parsePhotoshootPlan,
+  parsePhotoshootPlannerTemperature,
   photoshootFingerprintFields,
   photoshootTileStoragePath,
+  parsePhotoshootTileIndex,
   parsePhotoshootTilePaths,
+  photoshootTileIndexForUrl,
+  resolvePhotoshootParentSourcePath,
   resolvePhotoshootSheetAspect,
   resolvePhotoshootUserFacingResult,
   serializePhotoshootEnqueueInstruction,
   serializePhotoshootSheetInstruction,
 } from "./photoshoot";
-import { PHOTOSHOOT_PLANNER_GENERATION_CONFIG } from "./photoshoot-planner";
+import {
+  PHOTOSHOOT_PLANNER_GENERATION_CONFIG,
+  PHOTOSHOOT_PLANNER_TEMPERATURE_DEFAULT,
+  buildPhotoshootPlannerUserText,
+  clampPhotoshootPlannerTemperature,
+  photoshootCreativityFromTemperature,
+  photoshootCreativityHint,
+  photoshootPlannerGenerationConfig,
+  photoshootTemperatureFromCreativity,
+} from "./photoshoot-planner";
 
 const validPlan = {
   theme: "golden hour rooftop editorial",
@@ -151,9 +164,73 @@ test("photoshoot user-facing result never exposes the sheet", () => {
   );
 });
 
-test("photoshoot fingerprint is parent + kind", () => {
+test("photoshoot parent source is a tile, never the sheet", () => {
+  const tiles = [
+    "user/job/lease-1.jpg",
+    "user/job/lease-2.jpg",
+    "user/job/lease-3.jpg",
+    "user/job/lease-4.jpg",
+  ];
+  assert.equal(
+    resolvePhotoshootParentSourcePath({
+      editKind: PHOTOSHOOT_EDIT_KIND,
+      sheetPath: "user/job/lease.jpg",
+      tilePaths: tiles,
+      tileIndex: 3,
+    }),
+    tiles[2],
+  );
+  assert.equal(
+    resolvePhotoshootParentSourcePath({
+      editKind: PHOTOSHOOT_EDIT_KIND,
+      sheetPath: "user/job/lease.jpg",
+      tilePaths: tiles,
+      requestedPath: tiles[1],
+    }),
+    tiles[1],
+  );
+  assert.equal(
+    resolvePhotoshootParentSourcePath({
+      editKind: PHOTOSHOOT_EDIT_KIND,
+      sheetPath: "user/job/lease.jpg",
+      tilePaths: null,
+    }),
+    null,
+  );
+  assert.equal(parsePhotoshootTileIndex(4), 4);
+  assert.equal(parsePhotoshootTileIndex(5), null);
+  assert.equal(photoshootTileIndexForUrl(tiles, tiles[2]), 3);
+});
+
+test("photoshoot fingerprint is parent + kind + planner temperature", () => {
   assert.deepEqual(photoshootFingerprintFields("root-1"), {
     editKind: PHOTOSHOOT_EDIT_KIND,
     parentGenerationId: "root-1",
+    plannerTemperature: PHOTOSHOOT_PLANNER_TEMPERATURE_DEFAULT,
   });
+  assert.equal(photoshootFingerprintFields("root-1", 0.85).plannerTemperature, 0.85);
+});
+
+test("planner temperature clamps and round-trips through enqueue instruction", () => {
+  assert.equal(clampPhotoshootPlannerTemperature(undefined), 0.5);
+  assert.equal(clampPhotoshootPlannerTemperature(-1), 0);
+  assert.equal(clampPhotoshootPlannerTemperature(3), 2);
+  assert.equal(photoshootCreativityFromTemperature(0.5), 50);
+  assert.equal(photoshootTemperatureFromCreativity(50), 0.5);
+  assert.equal(photoshootTemperatureFromCreativity(100), 2);
+  assert.equal(photoshootTemperatureFromCreativity(80), 1.4);
+  assert.equal(photoshootCreativityFromTemperature(1.4), 80);
+  assert.equal(
+    parsePhotoshootPlannerTemperature(serializePhotoshootEnqueueInstruction(1.4)),
+    1.4,
+  );
+  assert.equal(parsePhotoshootPlannerTemperature("PHOTOSHOOT"), 0.5);
+  assert.equal(photoshootPlannerGenerationConfig(1.8).temperature, 1.8);
+  assert.equal(photoshootPlannerGenerationConfig(1.8).thinkingConfig.thinkingBudget, 0);
+  assert.match(buildPhotoshootPlannerUserText(0.1), /Stay close to the source pose/);
+  assert.match(buildPhotoshootPlannerUserText(2), /bold, unexpected editorial poses/);
+  assert.equal(photoshootCreativityHint(20), "нейтральнее");
+  assert.equal(photoshootCreativityHint(50), "нейтрально");
+  assert.equal(photoshootCreativityHint(70), "смелее");
+  assert.equal(photoshootCreativityHint(100), "невероятные сюжеты");
 });

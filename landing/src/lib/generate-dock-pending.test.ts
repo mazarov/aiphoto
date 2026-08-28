@@ -23,6 +23,8 @@ test("parsePendingGenerateDock accepts a photo_prompt seed", () => {
       resultGenerationId: null,
       resultModality: null,
       isPublished: false,
+      editKind: null,
+      photoshootTileUrls: null,
     },
     dockSurface: "prompt",
   });
@@ -51,6 +53,8 @@ test("parsePendingGenerateDock accepts an animate seed", () => {
       resultGenerationId: null,
       resultModality: null,
       isPublished: false,
+      editKind: null,
+      photoshootTileUrls: null,
     },
     dockSurface: null,
   });
@@ -81,9 +85,37 @@ test("parsePendingGenerateDock accepts a completed result seed", () => {
       resultGenerationId: "gen-video-1",
       resultModality: "video",
       isPublished: false,
+      editKind: null,
+      photoshootTileUrls: null,
     },
     dockSurface: null,
   });
+});
+
+test("parsePendingGenerateDock keeps photoshoot tiles on a result seed", () => {
+  const tiles = [
+    "https://example/1.jpg",
+    "https://example/2.jpg",
+    "https://example/3.jpg",
+    "https://example/4.jpg",
+  ];
+  const raw = JSON.stringify({
+    seed: {
+      source: "blank",
+      promptText: "photoshoot",
+      cardId: null,
+      intent: "result",
+      resultGenerationId: "gen-1",
+      previewUrl: tiles[0],
+      resultModality: "image",
+      editKind: "photoshoot",
+      photoshootTileUrls: tiles,
+    },
+    dockSurface: null,
+  });
+  const parsed = parsePendingGenerateDock(raw);
+  assert.equal(parsed?.seed.editKind, "photoshoot");
+  assert.deepEqual(parsed?.seed.photoshootTileUrls, tiles);
 });
 
 test("parsePendingGenerateDock rejects malformed payloads", () => {

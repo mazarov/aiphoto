@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { OVERLAY_BUTTON_UA_RESET } from "@/lib/card-overlay-action-pill";
 import {
   GenerationResultActionRail,
@@ -10,34 +10,119 @@ import {
   PHOTOSHOOT_TILE_INDEXES,
   type PhotoshootTileIndex,
 } from "@/lib/photoshoot";
+import {
+  PHOTOSHOOT_PLANNER_TEMPERATURE_DEFAULT,
+  photoshootCreativityFromTemperature,
+  photoshootCreativityHint,
+  photoshootTemperatureFromCreativity,
+} from "@/lib/photoshoot-planner";
+
+const CREATIVITY_STORAGE_KEY = "promptshot:photoshoot-creativity";
+
+function readCachedCreativity(): number {
+  if (typeof window === "undefined") {
+    return photoshootCreativityFromTemperature(PHOTOSHOOT_PLANNER_TEMPERATURE_DEFAULT);
+  }
+  try {
+    const raw = window.localStorage.getItem(CREATIVITY_STORAGE_KEY);
+    if (raw == null) {
+      return photoshootCreativityFromTemperature(PHOTOSHOOT_PLANNER_TEMPERATURE_DEFAULT);
+    }
+    return photoshootCreativityFromTemperature(photoshootTemperatureFromCreativity(raw));
+  } catch {
+    return photoshootCreativityFromTemperature(PHOTOSHOOT_PLANNER_TEMPERATURE_DEFAULT);
+  }
+}
+
+function writeCachedCreativity(creativity: number): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(CREATIVITY_STORAGE_KEY, String(creativity));
+  } catch {
+    // private mode
+  }
+}
+
+export function PhotoshootFrameFilm({
+  tileUrls,
+  activeTile,
+  disabled = false,
+  className = "",
+  onSelect,
+}: {
+  tileUrls: string[] | null;
+  activeTile: PhotoshootTileIndex;
+  disabled?: boolean;
+  className?: string;
+  onSelect: (tile: PhotoshootTileIndex) => void;
+}) {
+  return (
+    <div className={`flex gap-2 ${className}`.trim()}>
+      {PHOTOSHOOT_TILE_INDEXES.map((item) => {
+        const active = item === activeTile;
+        const thumbUrl = tileUrls?.[item - 1] || null;
+        return (
+          <button
+            key={item}
+            type="button"
+            disabled={disabled || !thumbUrl}
+            onClick={() => onSelect(item)}
+            className={`${OVERLAY_BUTTON_UA_RESET} relative h-16 shrink-0 overflow-hidden rounded-xl ${
+              active ? "ring-2 ring-indigo-400" : "ring-1 ring-white/25"
+            }`}
+            style={{ width: "48px" }}
+            aria-label={`Кадр ${item}`}
+            aria-pressed={active}
+          >
+            {thumbUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={thumbUrl} alt="" className="h-full w-full object-cover" />
+            ) : (
+              <span className="block h-full w-full bg-white/10" />
+            )}
+            <span className="absolute inset-x-0 bottom-0 bg-black/55 px-0.5 py-0.5 text-center text-[10px] font-semibold text-white">
+              {item}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 type Props = {
-  tileUrls: string[] | null;
   capturing: boolean;
   progress: number;
   onClose: () => void;
-  onDownloadTile: (tile: PhotoshootTileIndex) => Promise<void>;
+  onCreate: (temperature: number) => Promise<boolean>;
 };
 
 export function PhotoshootOverlay({
-  tileUrls,
   capturing,
   progress,
   onClose,
-  onDownloadTile,
+  onCreate,
 }: Props) {
-  const [tile, setTile] = useState<PhotoshootTileIndex>(1);
-  const [busy, setBusy] = useState(false);
-  const activeTileUrl = tileUrls?.[tile - 1] || null;
-  const hasFrames = Boolean(activeTileUrl);
+  const [creativity, setCreativity] = useState(readCachedCreativity);
+  const [starting, setStarting] = useState(false);
+  const busy = capturing || starting;
 
-  const status = useMemo(() => {
-    if (capturing) {
-      return `Снимаем фотосессию · ${Math.max(0, Math.min(99, Math.round(progress)))}%`;
-    }
-    if (hasFrames) return "4 кадра одной съёмки";
-    return "Готовим кадры";
-  }, [capturing, hasFrames, progress]);
+  useEffect(() => {
+    writeCachedCreativity(creativity);
+  }, [creativity]);
+
+  const handleCreate = async () => {
+    if (busy) return;
+    setStarting(true);
+    const ok = await onCreate(photoshootTemperatureFromCreativity(creativity));
+    if (!ok) setStarting(false);
+  };
+
+  const createLabel = capturing
+    ? progress > 0
+      ? `Снимаем… ${Math.round(progress)}%`
+      : "Снимаем…"
+    : "Создать ИИ фотосессию";
 
   const railActions: GenerationResultAction[] = [
     {
@@ -52,16 +137,21 @@ export function PhotoshootOverlay({
       ),
     },
     {
-      id: "download-tile",
-      label: busy ? "Скачиваем…" : "Скачать кадр",
-      disabled: capturing || !hasFrames || busy,
-      onClick: () => {
-        setBusy(true);
-        void onDownloadTile(tile).finally(() => setBusy(false));
-      },
+      id: "create",
+      label: createLabel,
+      ariaLabel: capturing ? createLabel : "Создать ИИ фотосессию",
+      primary: true,
+      wrap: true,
+      disabled: busy,
+      onClick: () => void handleCreate(),
       icon: (
         <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-          <path d="M12 3v12m0 0 4-4m-4 4-4-4M5 20h14" strokeLinecap="round" strokeLinejoin="round" />
+          <path
+            d="M4 7h4l1.2-2h5.6L16 7h4v12H4V7Z"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <circle cx="12" cy="13" r="3.1" />
         </svg>
       ),
     },
@@ -69,67 +159,36 @@ export function PhotoshootOverlay({
 
   return (
     <div className="absolute inset-0 z-40" role="dialog" aria-label="Фотосессия">
-      <button
-        type="button"
-        aria-label="Выйти из фотосессии"
-        disabled={capturing}
-        onClick={onClose}
-        className={`${OVERLAY_BUTTON_UA_RESET} absolute left-3 top-[max(0.75rem,env(safe-area-inset-top))] z-30 flex h-10 w-10 items-center justify-center rounded-full bg-black/50 text-white shadow-lg ring-1 ring-white/25 backdrop-blur-md transition hover:bg-black/65 disabled:opacity-50`}
-      >
-        <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-          <path d="m6 6 12 12M18 6 6 18" />
-        </svg>
-      </button>
-
-      <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center px-3">
-        {hasFrames && !capturing ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={activeTileUrl || ""}
-            alt=""
-            className="max-h-[70%] max-w-[min(100%,28rem)] rounded-2xl object-cover shadow-2xl"
+      <div className="absolute bottom-[max(0.75rem,env(safe-area-inset-bottom))] right-2.5 z-30 flex w-[9.5rem] flex-col gap-2">
+        <div
+          className={`rounded-2xl bg-black/15 px-3 py-3 text-white/90 shadow-none backdrop-blur-md ${
+            busy ? "opacity-50" : ""
+          }`}
+        >
+          <div className="flex items-start justify-between gap-2 text-[13px] font-semibold leading-tight">
+            <label htmlFor="photoshoot-creativity" className="min-w-0" aria-live="polite">
+              {photoshootCreativityHint(creativity)}
+            </label>
+            <span className="shrink-0 tabular-nums">{creativity}</span>
+          </div>
+          <input
+            id="photoshoot-creativity"
+            type="range"
+            min={0}
+            max={100}
+            step={5}
+            value={creativity}
+            disabled={busy}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={creativity}
+            aria-valuetext={photoshootCreativityHint(creativity)}
+            onChange={(event) => setCreativity(Number(event.target.value))}
+            className="mt-2 h-11 w-full cursor-pointer accent-indigo-400 disabled:cursor-not-allowed"
           />
-        ) : null}
+        </div>
+        <GenerationResultActionRail className="w-full" actions={railActions} />
       </div>
-
-      <p className="pointer-events-none absolute left-1/2 top-[max(4.5rem,calc(env(safe-area-inset-top)+3.5rem))] z-20 w-[min(100%-1.5rem,22rem)] -translate-x-1/2 rounded-full bg-black/50 px-4 py-2 text-center text-[13px] font-semibold text-white shadow-lg ring-1 ring-white/20 backdrop-blur-md">
-        {status}
-      </p>
-
-      <div className="absolute bottom-[max(0.75rem,env(safe-area-inset-bottom))] left-3 right-[11rem] z-20 flex gap-2">
-        {PHOTOSHOOT_TILE_INDEXES.map((item) => {
-          const active = item === tile;
-          const thumbUrl = tileUrls?.[item - 1] || null;
-          return (
-            <button
-              key={item}
-              type="button"
-              disabled={capturing || !hasFrames}
-              onClick={() => setTile(item)}
-              className={`${OVERLAY_BUTTON_UA_RESET} relative h-16 shrink-0 overflow-hidden rounded-xl ${
-                active ? "ring-2 ring-indigo-400" : "ring-1 ring-white/25"
-              }`}
-              style={{ width: "48px" }}
-              aria-label={`Кадр ${item}`}
-            >
-              {thumbUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={thumbUrl} alt="" className="h-full w-full object-cover" />
-              ) : (
-                <span className="block h-full w-full bg-white/10" />
-              )}
-              <span className="absolute inset-x-0 bottom-0 bg-black/55 px-0.5 py-0.5 text-center text-[10px] font-semibold text-white">
-                {item}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-
-      <GenerationResultActionRail
-        className="absolute bottom-[max(0.75rem,env(safe-area-inset-bottom))] right-2.5 z-30"
-        actions={railActions}
-      />
     </div>
   );
 }

@@ -22,7 +22,7 @@
 | D1 | Один `POST /api/generate`, один enqueue, **один** result, **10 кредитов** |
 | D2 | Модель рисует **2×2 contact sheet** на холсте исходника, снапнутом в `1:1` / `16:9` / `9:16`. Worker режет 4 JPEG sidecar (`photoshoot_tile_paths`, SQL `225`). Лист — внутренний артефакт (Storage / re-cut), **пользователю не показываем и не отдаём**. API/UI/UGC/скачивание — только 4 кадра. Спеки `docs/28-08-ai-photoshoot-split.md`, `docs/28-08-ai-photoshoot-aspect.md` |
 | D3 | Planner — Gemini **vision** в **worker** (не в Next API). Роль: professional photographer. Ответ: **EN JSON**, 4 шота |
-| D4 | Все 4 позы I2I от **одного** исходного jpeg (фото на экране). Кадр→кадр и photoshoot-from-photoshoot запрещены |
+| D4 | Все 4 позы I2I от **одного** исходного jpeg (фото на экране). С готовой фотосессии кнопка остаётся: source = выбранный кадр, не лист 2×2. Лист без тайлов по-прежнему 400 `photoshoot_from_sheet` (SQL `226`) |
 | D5 | Intent `edit_kind=photoshoot`. Не reuse local-edit (запрещает менять позу) и не camera-orbit (лочит взгляд/позу) |
 | D6 | Флаг `photoshoot_enabled` (default **false**) + тот же internal allowlist, что у video/orbit (`azarov.maxim@gmail.com` + `NODE_ENV=development`) |
 | D7 | Модель кадра = `photoshoot_model` (дефолт `grok-imagine-image-2.0`, 10 кр). Пикер в оверлее скрыт. Чужой/выключенный id → 503, не Flash |
@@ -31,6 +31,8 @@
 | D10 | Клиент не пишет сценарии и не зовёт Gemini. `prompt_text` сервер ставит сам (`PHOTOSHOOT`) |
 | D11 | Новой SEO-страницы нет. Не путать с `/promty-dlya-ii-fotosessii` |
 | D12 | Копирайт: «4 кадра одной съёмки», не «4 отдельные генерации» и не пакет 40 кредитов |
+| D13 | `/generations`: одна карточка = сетка 4 кадров + шильд «Фотосессия». Клик открывает обычный result chrome на кадре 1 + rail + плёнка. 4 URL идут в `seedCompletedResult` сразу из списка, без второго `GET /generations/:id` на плёнку |
+| D14 | Клик «Сделать фотосессию» не ставит job. Правый rail: креативность 0–100 (50 = temp 0.5, 100 = temp 2.0) + «Выйти» + «Создать ИИ фотосессию». Temp в `edit_instruction`; worker передаёт в planner и меняет brief (низкий = близко к позе, высокий = смелые позы). Картинка-модель temp не видит |
 
 ---
 
@@ -73,10 +75,11 @@
 ```
 result chrome
   → rail «Сделать фотосессию»
-  → PhotoshootOverlay (плёнка 4 слота)
-  → сразу POST /api/generate
+  → правый rail: Креативность + Выйти + «Создать ИИ фотосессию»
+  → POST /api/generate
        editKind=photoshoot
        parentGenerationId=<displayed>
+       plannerTemperature=<0..1>
   → API
        ├─ флаг / allowlist
        ├─ parent = owned completed image, не photoshoot и не video

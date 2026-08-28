@@ -13,6 +13,7 @@ import {
   type GenerationInputJob,
   type ParentGenerationInput,
 } from "./input-source";
+import { PHOTOSHOOT_EDIT_KIND } from "../../landing/src/lib/photoshoot";
 
 function job(overrides: Partial<GenerationInputJob> = {}): GenerationInputJob {
   return {
@@ -62,6 +63,42 @@ test("continuation reads only the completed parent result", () => {
       sourceType: "generation_result",
       bucket: RESULTS_BUCKET,
       paths: ["db-user-id/parent/result.png"],
+    },
+  );
+});
+
+test("photoshoot parent uses a tile path, not the sheet", () => {
+  const tiles = [
+    "db-user-id/parent/lease-1.jpg",
+    "db-user-id/parent/lease-2.jpg",
+    "db-user-id/parent/lease-3.jpg",
+    "db-user-id/parent/lease-4.jpg",
+  ];
+  const parent: ParentGenerationInput = {
+    ...completedParent,
+    edit_kind: PHOTOSHOOT_EDIT_KIND,
+    photoshoot_tile_paths: tiles,
+  };
+  assert.deepEqual(
+    resolveGenerationInputSource(
+      job({ parent_generation_id: "parent-id", input_photo_paths: [] }),
+      parent,
+    ),
+    {
+      sourceType: "generation_result",
+      bucket: RESULTS_BUCKET,
+      paths: [tiles[0]],
+    },
+  );
+  assert.deepEqual(
+    resolveGenerationInputSource(
+      job({ parent_generation_id: "parent-id", input_photo_paths: [tiles[2]] }),
+      parent,
+    ),
+    {
+      sourceType: "generation_result",
+      bucket: RESULTS_BUCKET,
+      paths: [tiles[2]],
     },
   );
 });

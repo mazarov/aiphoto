@@ -1,3 +1,5 @@
+import { resolvePhotoshootParentSourcePath } from "../../landing/src/lib/photoshoot";
+
 export const UPLOADS_BUCKET = "web-generation-uploads";
 export const RESULTS_BUCKET = "web-generation-results";
 
@@ -23,6 +25,8 @@ export type ParentGenerationInput = {
   status: string;
   result_storage_bucket: string | null;
   result_storage_path: string | null;
+  edit_kind?: string | null;
+  photoshoot_tile_paths?: unknown;
   input_photo_paths?: string[] | null;
   parent_generation_id?: string | null;
 };
@@ -70,10 +74,17 @@ export function resolveGenerationInputSource(
       false,
     );
   }
+  const sourcePath =
+    resolvePhotoshootParentSourcePath({
+      editKind: parent.edit_kind,
+      sheetPath: parent.result_storage_path,
+      tilePaths: parent.photoshoot_tile_paths,
+      requestedPath: job.input_photo_paths?.[0],
+    }) || parent.result_storage_path;
   return {
     sourceType: "generation_result",
     bucket: RESULTS_BUCKET,
-    paths: [parent.result_storage_path],
+    paths: [sourcePath],
   };
 }
 

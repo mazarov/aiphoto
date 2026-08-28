@@ -31,10 +31,13 @@ import { isCameraOrbitUnlocked, resolveCameraOrbitModel } from "@/lib/camera-orb
 import {
   PHOTOSHOOT_EDIT_KIND,
   isPhotoshootEditKind,
+  parsePhotoshootTileIndex,
+  resolvePhotoshootParentSourcePath,
   resolvePhotoshootSheetAspect,
   photoshootFingerprintFields,
   serializePhotoshootEnqueueInstruction,
 } from "@/lib/photoshoot";
+import { clampPhotoshootPlannerTemperature } from "@/lib/photoshoot-planner";
 import { isPhotoshootUnlocked, resolvePhotoshootModel } from "@/lib/photoshoot-access";
 import {
   normalizeGenerationSurface,
@@ -72,7 +75,7 @@ const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 /** One select shape — a ternary here becomes a string union and breaks PostgREST types. */
 const PARENT_GENERATION_SELECT: string =
-  "id,status,requester_auth_user_id,result_storage_bucket,result_storage_path,modality,edit_kind,scene_root_id,model,aspect_ratio,image_size,prompt_text";
+  "id,status,requester_auth_user_id,result_storage_bucket,result_storage_path,modality,edit_kind,scene_root_id,model,aspect_ratio,image_size,prompt_text,photoshoot_tile_paths";
 
 type ParentGenerationRow = {
   id: string;
@@ -87,6 +90,7 @@ type ParentGenerationRow = {
   aspect_ratio: string | null;
   image_size: string | null;
   prompt_text: string | null;
+  photoshoot_tile_paths?: unknown;
 };
 
 function asParentGenerationRow(row: unknown): ParentGenerationRow | null {
@@ -146,7 +150,9 @@ export async function POST(req: NextRequest) {
       parentGenerationId,
       editInstruction,
       editKind,
+      parentTile,
       cameraPose: rawCameraPose,
+      plannerTemperature: rawPlannerTemperature,
       durationSeconds,
       idempotencyKey: bodyIdempotencyKey,
     } = body as {
@@ -162,7 +168,9 @@ export async function POST(req: NextRequest) {
       parentGenerationId?: string | null;
       editInstruction?: string | null;
       editKind?: string | null;
+      parentTile?: unknown;
       cameraPose?: unknown;
+      plannerTemperature?: unknown;
       durationSeconds?: number;
       pipelineTraceId?: string;
       idempotencyKey?: string;
@@ -235,6 +243,9 @@ export async function POST(req: NextRequest) {
     let cameraOrbitSceneRootId: string | null = null;
     let inheritedRootAspect = "";
     let inheritedRootSize = "";
+    const plannerTemperature = isPhotoshoot
+      ? clampPhotoshootPlannerTemperature(rawPlannerTemperature)
+      : null;
 
     if (hasParentGeneration && !UUID_RE.test(normalizedParentGenerationId)) {
       return NextResponse.json(
@@ -430,13 +441,21 @@ export async function POST(req: NextRequest) {
           );
         }
         if (isPhotoshootEditKind(parent.edit_kind)) {
-          return NextResponse.json(
-            {
-              error: "photoshoot_from_sheet",
-              message: "Фотосессию нельзя снять с готового листа",
-            },
-            { status: 400 }
-          );
+          const tileSource = resolvePhotoshootParentSourcePath({
+            editKind: parent.edit_kind,
+            sheetPath: parent.result_storage_path,
+            tilePaths: parent.photoshoot_tile_paths,
+            tileIndex: parsePhotoshootTileIndex(parentTile),
+          });
+          if (!tileSource) {
+            return NextResponse.json(
+              {
+                error: "photoshoot_from_sheet",
+                message: "Фотосессию нельзя снять с готового листа",
+              },
+              { status: 400 }
+            );
+          }
         }
         const { data: busyRow } = await supabase
           .from("landing_generations")
@@ -459,7 +478,7 @@ export async function POST(req: NextRequest) {
           aspectRatio: parent.aspect_ratio,
         });
         inheritedRootSize = String(parent.image_size || "").trim();
-        normalizedEditInstruction = serializePhotoshootEnqueueInstruction();
+        normalizedEditInstruction = serializePhotoshootEnqueueInstruction(plannerTemperature);
       }
     }
 
@@ -703,7 +722,7 @@ export async function POST(req: NextRequest) {
       promptText = serializeCameraOrbitInstruction(cameraOrbitPose);
     }
     if (isPhotoshoot) {
-      promptText = serializePhotoshootEnqueueInstruction();
+      promptText = serializePhotoshootEnqueueInstruction(plannerTemperature);
     }
     if (!promptText || promptText.length < minPromptLength) {
       return NextResponse.json(
@@ -768,7 +787,10 @@ export async function POST(req: NextRequest) {
           ...(isCameraOrbit && cameraOrbitPose && cameraOrbitSceneRootId
             ? cameraOrbitFingerprintFields(cameraOrbitSceneRootId, cameraOrbitPose)
             : isPhotoshoot
-              ? photoshootFingerprintFields(normalizedParentGenerationId)
+              ? photoshootFingerprintFields(
+                  normalizedParentGenerationId,
+                  plannerTemperature,
+                )
               : generationEditFingerprintFields(
                 normalizedParentGenerationId,
                 normalizedEditInstruction
