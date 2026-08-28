@@ -8,6 +8,7 @@ import {
   landingGenerationsOwnerOrFilter,
   removeGenerationResultObjects,
 } from "@/lib/landing-generations-access";
+import { resolvePhotoshootUserFacingResult } from "@/lib/photoshoot";
 
 const BULK_DELETE_MAX = 50;
 const UUID_RE =
@@ -32,7 +33,7 @@ export async function GET(req: NextRequest) {
     const { data: rows, error } = await supabase
       .from("landing_generations")
       .select(
-        "id, status, prompt_text, model, executed_model, fallback_used, aspect_ratio, credits_spent, created_at, generation_completed_at, error_message, result_storage_bucket, result_storage_path, ugc_card_id, modality, result_mime_type, duration_seconds"
+        "id, status, prompt_text, model, executed_model, fallback_used, aspect_ratio, credits_spent, created_at, generation_completed_at, error_message, result_storage_bucket, result_storage_path, ugc_card_id, modality, result_mime_type, duration_seconds, edit_kind, photoshoot_tile_paths"
       )
       .or(ownerFilter)
       .order("created_at", { ascending: false })
@@ -82,6 +83,12 @@ export async function GET(req: NextRequest) {
       const card = g.ugc_card_id
         ? cardsById.get(g.ugc_card_id as string) ?? null
         : null;
+      const facing = resolvePhotoshootUserFacingResult({
+        editKind: g.edit_kind,
+        sheetPath: g.result_storage_path,
+        tilePaths: g.photoshoot_tile_paths,
+      });
+      const bucket = g.result_storage_bucket as string | null;
       return {
         id: g.id,
         status: g.status,
@@ -93,13 +100,18 @@ export async function GET(req: NextRequest) {
         modality: g.modality || "image",
         resultMimeType: g.result_mime_type || null,
         durationSeconds: g.duration_seconds ?? null,
+        editKind: g.edit_kind || null,
         creditsSpent: g.credits_spent,
         createdAt: g.created_at,
         completedAt: g.generation_completed_at,
         errorMessage: g.status === "failed" ? g.error_message : null,
         resultUrl:
-          g.result_storage_bucket && g.result_storage_path
-            ? getStoragePublicUrl(g.result_storage_bucket, g.result_storage_path)
+          bucket && facing.resultPath
+            ? getStoragePublicUrl(bucket, facing.resultPath)
+            : null,
+        photoshootTileUrls:
+          bucket && facing.tilePaths
+            ? facing.tilePaths.map((path) => getStoragePublicUrl(bucket, path))
             : null,
         cardId: card?.id ?? null,
         cardSlug: card?.slug ?? null,

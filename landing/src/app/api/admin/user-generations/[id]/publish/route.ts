@@ -23,7 +23,7 @@ export async function POST(
     const { data, error } = await supabase
       .from("landing_generations")
       .select(
-        "id,user_id,requester_auth_user_id,status,client_source,prompt_text,result_storage_bucket,result_storage_path,ugc_card_id"
+        "id,user_id,requester_auth_user_id,status,client_source,prompt_text,result_storage_bucket,result_storage_path,edit_kind,photoshoot_tile_paths,ugc_card_id"
       )
       .eq("id", id)
       .maybeSingle();

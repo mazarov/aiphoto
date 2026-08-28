@@ -20,7 +20,7 @@
 | # | Решение |
 |---|---|
 | D1 | Один `POST /api/generate`, один enqueue, **один** result, **10 кредитов** |
-| D2 | Модель рисует **2×2 contact sheet** (канонический result). Worker режет 4 JPEG sidecar (`photoshoot_tile_paths`, SQL `225`). Плёнка и «Скачать кадр» берут tile URL; CSS crop — fallback. Спека нарезки `docs/28-08-ai-photoshoot-split.md` |
+| D2 | Модель рисует **2×2 contact sheet** на холсте исходника, снапнутом в `1:1` / `16:9` / `9:16`. Worker режет 4 JPEG sidecar (`photoshoot_tile_paths`, SQL `225`). Лист — внутренний артефакт (Storage / re-cut), **пользователю не показываем и не отдаём**. API/UI/UGC/скачивание — только 4 кадра. Спеки `docs/28-08-ai-photoshoot-split.md`, `docs/28-08-ai-photoshoot-aspect.md` |
 | D3 | Planner — Gemini **vision** в **worker** (не в Next API). Роль: professional photographer. Ответ: **EN JSON**, 4 шота |
 | D4 | Все 4 позы I2I от **одного** исходного jpeg (фото на экране). Кадр→кадр и photoshoot-from-photoshoot запрещены |
 | D5 | Intent `edit_kind=photoshoot`. Не reuse local-edit (запрещает менять позу) и не camera-orbit (лочит взгляд/позу) |
@@ -151,7 +151,7 @@ ON CONFLICT (key) DO NOTHING;
 
 `photoshoot_plan` пишет **worker** после planner, не API. На enqueue колонка NULL — это ок.
 
-Poll `GET /api/generations/:id` отдаёт `editKind`, `photoshootPlan` (когда есть), `parentGenerationId`. Отдельный `GET …/photoshoot-scene` в v1 не нужен: 4 тайла режутся с одного `resultUrl`.
+Poll `GET /api/generations/:id` отдаёт `editKind`, `photoshootPlan` (когда есть), `parentGenerationId`, `photoshootTileUrls`. `resultUrl` для photoshoot — **первый кадр**, не лист. URL листа в клиент не отдаём.
 
 ### 2.4 Planner (vision, EN)
 

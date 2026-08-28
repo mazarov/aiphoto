@@ -39,8 +39,7 @@ export async function POST(
     }
     if (
       generation.status !== "completed" ||
-      !generation.result_storage_bucket ||
-      !generation.result_storage_path
+      !generation.result_storage_bucket
     ) {
       return NextResponse.json(
         { error: "generation_result_not_available" },

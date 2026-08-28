@@ -9,6 +9,7 @@ import {
   USER_GENERATION_PHOTOS_BUCKET,
   type UserGenerationPhotoRow,
 } from "@/lib/user-generation-photos";
+import { resolvePhotoshootUserFacingResult } from "@/lib/photoshoot";
 
 const MAX_SIZE_MB = 10;
 const MAX_PX = 2048;
@@ -36,7 +37,7 @@ export async function POST(
 
     const { data: gen, error: fetchError } = await supabase
       .from("landing_generations")
-      .select("id, status, result_storage_bucket, result_storage_path, modality")
+      .select("id, status, result_storage_bucket, result_storage_path, modality, edit_kind, photoshoot_tile_paths")
       .eq("id", id)
       .or(ownerFilter)
       .maybeSingle();
@@ -47,7 +48,12 @@ export async function POST(
     if (!gen) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
-    if (gen.status !== "completed" || !gen.result_storage_bucket || !gen.result_storage_path) {
+    const facing = resolvePhotoshootUserFacingResult({
+      editKind: gen.edit_kind,
+      sheetPath: gen.result_storage_path,
+      tilePaths: gen.photoshoot_tile_paths,
+    });
+    if (gen.status !== "completed" || !gen.result_storage_bucket || !facing.resultPath) {
       return NextResponse.json(
         { error: "Generation result is not available" },
         { status: 400 }
@@ -62,7 +68,7 @@ export async function POST(
 
     const { data: fileData, error: downloadError } = await supabase.storage
       .from(gen.result_storage_bucket)
-      .download(gen.result_storage_path);
+      .download(facing.resultPath);
 
     if (downloadError || !fileData) {
       console.error("save-to-library download error:", downloadError?.message);

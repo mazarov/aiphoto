@@ -8,33 +8,28 @@ import {
 } from "@/components/generate/GenerationResultActionRail";
 import {
   PHOTOSHOOT_TILE_INDEXES,
-  PHOTOSHOOT_TILE_OBJECT_POSITION,
   type PhotoshootTileIndex,
 } from "@/lib/photoshoot";
 
 type Props = {
-  sheetUrl: string | null;
   tileUrls: string[] | null;
   capturing: boolean;
   progress: number;
   onClose: () => void;
   onDownloadTile: (tile: PhotoshootTileIndex) => Promise<void>;
-  onDownloadSheet: () => Promise<void>;
 };
 
 export function PhotoshootOverlay({
-  sheetUrl,
   tileUrls,
   capturing,
   progress,
   onClose,
   onDownloadTile,
-  onDownloadSheet,
 }: Props) {
   const [tile, setTile] = useState<PhotoshootTileIndex>(1);
-  const [busy, setBusy] = useState<"tile" | "sheet" | null>(null);
+  const [busy, setBusy] = useState(false);
   const activeTileUrl = tileUrls?.[tile - 1] || null;
-  const hasFrames = Boolean(sheetUrl || activeTileUrl);
+  const hasFrames = Boolean(activeTileUrl);
 
   const status = useMemo(() => {
     if (capturing) {
@@ -58,29 +53,15 @@ export function PhotoshootOverlay({
     },
     {
       id: "download-tile",
-      label: busy === "tile" ? "Скачиваем…" : "Скачать кадр",
-      disabled: capturing || !hasFrames || Boolean(busy),
+      label: busy ? "Скачиваем…" : "Скачать кадр",
+      disabled: capturing || !hasFrames || busy,
       onClick: () => {
-        setBusy("tile");
-        void onDownloadTile(tile).finally(() => setBusy(null));
+        setBusy(true);
+        void onDownloadTile(tile).finally(() => setBusy(false));
       },
       icon: (
         <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
           <path d="M12 3v12m0 0 4-4m-4 4-4-4M5 20h14" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      ),
-    },
-    {
-      id: "download-sheet",
-      label: busy === "sheet" ? "Скачиваем…" : "Скачать лист",
-      disabled: capturing || !sheetUrl || Boolean(busy),
-      onClick: () => {
-        setBusy("sheet");
-        void onDownloadSheet().finally(() => setBusy(null));
-      },
-      icon: (
-        <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-          <path d="M4 5h7v7H4zM13 5h7v7h-7zM4 14h7v7H4zM13 14h7v7h-7z" />
         </svg>
       ),
     },
@@ -104,14 +85,9 @@ export function PhotoshootOverlay({
         {hasFrames && !capturing ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={activeTileUrl || sheetUrl || ""}
+            src={activeTileUrl || ""}
             alt=""
             className="max-h-[70%] max-w-[min(100%,28rem)] rounded-2xl object-cover shadow-2xl"
-            style={
-              activeTileUrl
-                ? undefined
-                : { objectPosition: PHOTOSHOOT_TILE_OBJECT_POSITION[tile] }
-            }
           />
         ) : null}
       </div>
@@ -136,18 +112,9 @@ export function PhotoshootOverlay({
               style={{ width: "48px" }}
               aria-label={`Кадр ${item}`}
             >
-              {thumbUrl || sheetUrl ? (
+              {thumbUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={thumbUrl || sheetUrl || ""}
-                  alt=""
-                  className="h-full w-full object-cover"
-                  style={
-                    thumbUrl
-                      ? undefined
-                      : { objectPosition: PHOTOSHOOT_TILE_OBJECT_POSITION[item] }
-                  }
-                />
+                <img src={thumbUrl} alt="" className="h-full w-full object-cover" />
               ) : (
                 <span className="block h-full w-full bg-white/10" />
               )}
@@ -165,32 +132,4 @@ export function PhotoshootOverlay({
       />
     </div>
   );
-}
-
-export async function cropPhotoshootTile(
-  sheetUrl: string,
-  tile: PhotoshootTileIndex,
-): Promise<Blob> {
-  const image = await new Promise<HTMLImageElement>((resolve, reject) => {
-    const el = new Image();
-    el.crossOrigin = "anonymous";
-    el.onload = () => resolve(el);
-    el.onerror = () => reject(new Error("tile_load_failed"));
-    el.src = sheetUrl;
-  });
-  const halfW = Math.floor(image.naturalWidth / 2);
-  const halfH = Math.floor(image.naturalHeight / 2);
-  const sx = tile === 2 || tile === 4 ? halfW : 0;
-  const sy = tile === 3 || tile === 4 ? halfH : 0;
-  const canvas = document.createElement("canvas");
-  canvas.width = halfW;
-  canvas.height = halfH;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) throw new Error("tile_canvas_failed");
-  ctx.drawImage(image, sx, sy, halfW, halfH, 0, 0, halfW, halfH);
-  const blob = await new Promise<Blob | null>((resolve) => {
-    canvas.toBlob((next) => resolve(next), "image/jpeg", 0.92);
-  });
-  if (!blob) throw new Error("tile_encode_failed");
-  return blob;
 }

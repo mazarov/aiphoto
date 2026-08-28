@@ -31,6 +31,7 @@ import { isCameraOrbitUnlocked, resolveCameraOrbitModel } from "@/lib/camera-orb
 import {
   PHOTOSHOOT_EDIT_KIND,
   isPhotoshootEditKind,
+  resolvePhotoshootSheetAspect,
   photoshootFingerprintFields,
   serializePhotoshootEnqueueInstruction,
 } from "@/lib/photoshoot";
@@ -454,7 +455,9 @@ export async function POST(req: NextRequest) {
             { status: 409 }
           );
         }
-        inheritedRootAspect = String(parent.aspect_ratio || "").trim();
+        inheritedRootAspect = resolvePhotoshootSheetAspect({
+          aspectRatio: parent.aspect_ratio,
+        });
         inheritedRootSize = String(parent.image_size || "").trim();
         normalizedEditInstruction = serializePhotoshootEnqueueInstruction();
       }

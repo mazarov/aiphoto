@@ -405,7 +405,7 @@ export async function processGeneration(
     if (planError) {
       throw new ProcessingError("photoshoot_plan_persist", planError.message, true);
     }
-    photoshootSheet = serializePhotoshootSheetInstruction(plan);
+    photoshootSheet = serializePhotoshootSheetInstruction(plan, job.aspect_ratio);
   }
 
   if (isOpenRouterImageModel(requestedModel) || isOpenRouterImageModel(job.executed_model)) {
@@ -456,13 +456,16 @@ export async function processGeneration(
       executedModel: executedOpenRouter,
       fallbackUsed: Boolean(job.fallback_used),
     });
-    const photoshootTilePaths = await uploadPhotoshootTiles({
-      supabase,
-      sheetBuffer: encodedSeedream.buffer,
-      resultPath: seedreamResultPath,
-      enabled: isPhotoshoot,
-      context,
-    });
+    const photoshootTilePaths = requirePhotoshootTiles(
+      isPhotoshoot,
+      await uploadPhotoshootTiles({
+        supabase,
+        sheetBuffer: encodedSeedream.buffer,
+        resultPath: seedreamResultPath,
+        enabled: isPhotoshoot,
+        context,
+      }),
+    );
     return {
       resultPath: seedreamResultPath,
       rawPrompt,
@@ -529,6 +532,7 @@ export async function processGeneration(
     editInstructionLength: editInstruction.length,
     scenePromptLength: rawPrompt.length,
     promptLength: geminiPrompt.length,
+    photoshootAspect: isPhotoshoot ? job.aspect_ratio : null,
   });
 
   const startOnGrok = isGrokImageModel(requestedModel) || Boolean(job.fallback_used);
@@ -715,14 +719,32 @@ export async function processGeneration(
     executedModel,
     fallbackUsed,
   });
-  const photoshootTilePaths = await uploadPhotoshootTiles({
-    supabase,
-    sheetBuffer: encoded.buffer,
-    resultPath,
-    enabled: isPhotoshoot,
-    context,
-  });
+  const photoshootTilePaths = requirePhotoshootTiles(
+    isPhotoshoot,
+    await uploadPhotoshootTiles({
+      supabase,
+      sheetBuffer: encoded.buffer,
+      resultPath,
+      enabled: isPhotoshoot,
+      context,
+    }),
+  );
   return { resultPath, rawPrompt, executedModel, fallbackUsed, photoshootTilePaths };
+}
+
+function requirePhotoshootTiles(
+  enabled: boolean,
+  paths: string[] | undefined,
+): string[] | undefined {
+  if (!enabled) return paths;
+  if (!paths || paths.length !== PHOTOSHOOT_TILE_INDEXES.length) {
+    throw new ProcessingError(
+      "photoshoot_split_failed",
+      "photoshoot tiles missing",
+      true,
+    );
+  }
+  return paths;
 }
 
 function toProcessingError(error: unknown): ProcessingError {

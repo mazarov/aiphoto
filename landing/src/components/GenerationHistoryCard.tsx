@@ -16,6 +16,7 @@ import {
   downloadGenerationResult,
   shareGenerationResult,
 } from "@/lib/generation-result-client-actions";
+import { isPhotoshootEditKind } from "@/lib/photoshoot";
 
 export type GenerationHistoryItem = {
   id: string;
@@ -31,6 +32,8 @@ export type GenerationHistoryItem = {
   completedAt: string | null;
   errorMessage: string | null;
   resultUrl: string | null;
+  editKind?: string | null;
+  photoshootTileUrls?: string[] | null;
   cardId: string | null;
   cardSlug: string | null;
   isPublished: boolean;
@@ -72,22 +75,30 @@ export function GenerationHistoryCard({
   const { seedAnimate, seedCompletedResult } = useGenerateDock();
   const [menuOpen, setMenuOpen] = useState(false);
   const [busyAction, setBusyAction] = useState<GenerationMenuAction | null>(null);
-  const hasResult = Boolean(generation.resultUrl);
+  const tileUrls =
+    generation.photoshootTileUrls?.length === 4 ? generation.photoshootTileUrls : null;
+  const hasResult = Boolean(generation.resultUrl || tileUrls);
   const hasPrompt = Boolean(generation.prompt?.trim());
   const isVideo = generation.modality === "video" || generation.resultMimeType === "video/mp4";
+  const isPhotoshoot = isPhotoshootEditKind(generation.editKind);
   const canOpenCard = generation.status === "completed" && hasResult && !isVideo;
   const canOpenResult = generation.status === "completed" && hasResult;
   const canAnimate =
-    videoEnabled && !isVideo && generation.status === "completed" && hasResult;
+    videoEnabled &&
+    !isVideo &&
+    !isPhotoshoot &&
+    generation.status === "completed" &&
+    hasResult;
 
   const toast = (message: string) => onToast?.(message);
 
   const openResult = () => {
-    if (!generation.resultUrl) return;
+    const previewUrl = generation.resultUrl || tileUrls?.[0];
+    if (!previewUrl) return;
     seedCompletedResult(
       {
         generationId: generation.id,
-        resultUrl: generation.resultUrl,
+        resultUrl: previewUrl,
         promptText: generation.prompt,
         modality: isVideo ? "video" : "image",
         isPublished: generation.isPublished,
@@ -117,13 +128,19 @@ export function GenerationHistoryCard({
     }
 
     if (action === "download") {
-      if (!generation.resultUrl) return;
+      if (!generation.resultUrl && !tileUrls) return;
       setBusyAction("download");
       try {
-        await downloadGenerationResult(
-          generation.resultUrl,
-          isVideo ? `promptshot-${generation.id}.mp4` : `promptshot-${generation.id}.jpg`
-        );
+        if (tileUrls) {
+          for (const [index, url] of tileUrls.entries()) {
+            await downloadGenerationResult(url, `promptshot-${generation.id}-${index + 1}.jpg`);
+          }
+        } else if (generation.resultUrl) {
+          await downloadGenerationResult(
+            generation.resultUrl,
+            isVideo ? `promptshot-${generation.id}.mp4` : `promptshot-${generation.id}.jpg`
+          );
+        }
         setMenuOpen(false);
       } catch {
         toast("Не удалось скачать");
@@ -233,7 +250,20 @@ export function GenerationHistoryCard({
       }}
     >
       <div className="relative w-full overflow-hidden rounded-2xl bg-zinc-200 aspect-[3/4]">
-        {generation.resultUrl ? (
+        {tileUrls ? (
+          <div className="listing-card-photo-hover absolute inset-0 z-[2] grid grid-cols-2 grid-rows-2 gap-px bg-zinc-300">
+            {tileUrls.map((url) => (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                key={url}
+                src={url}
+                alt=""
+                className="h-full w-full object-cover"
+                draggable={false}
+              />
+            ))}
+          </div>
+        ) : generation.resultUrl ? (
           isVideo ? (
             <video
               src={generation.resultUrl}

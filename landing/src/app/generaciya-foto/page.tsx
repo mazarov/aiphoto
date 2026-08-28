@@ -40,6 +40,7 @@ import {
   type GenerationModelOption,
 } from "@/lib/generation-model-labels";
 import { toGenerationExampleCard } from "@/lib/generation/example-card";
+import { resolvePhotoshootUserFacingResult } from "@/lib/photoshoot";
 
 export const revalidate = 3600;
 
@@ -180,7 +181,7 @@ async function getLatestPublishedGenerationPreviews(
         const { data, error } = await supabase
           .from("landing_generations")
           .select(
-            "model,result_storage_bucket,result_storage_path,prompt_cards!landing_generations_ugc_card_id_fkey!inner(is_published)"
+            "model,result_storage_bucket,result_storage_path,edit_kind,photoshoot_tile_paths,prompt_cards!landing_generations_ugc_card_id_fkey!inner(is_published)"
           )
           .eq("model", model.id)
           .eq("status", "completed")
@@ -208,9 +209,13 @@ async function getLatestPublishedGenerationPreviews(
       if (!row) continue;
       const modelId = row.model as string | null;
       const bucket = row.result_storage_bucket as string | null;
-      const path = row.result_storage_path as string | null;
-      if (!modelId || !bucket || !path) continue;
-      previews[modelId] = getStoragePublicUrl(bucket, path);
+      const facing = resolvePhotoshootUserFacingResult({
+        editKind: (row as { edit_kind?: string | null }).edit_kind,
+        sheetPath: row.result_storage_path as string | null,
+        tilePaths: (row as { photoshoot_tile_paths?: unknown }).photoshoot_tile_paths,
+      });
+      if (!modelId || !bucket || !facing.resultPath) continue;
+      previews[modelId] = getStoragePublicUrl(bucket, facing.resultPath);
     }
 
     return previews;

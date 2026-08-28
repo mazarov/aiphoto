@@ -48,10 +48,7 @@ import {
   CameraOrbitOverlay,
   type CameraSceneShot,
 } from "@/components/generate/CameraOrbitOverlay";
-import {
-  PhotoshootOverlay,
-  cropPhotoshootTile,
-} from "@/components/generate/PhotoshootOverlay";
+import { PhotoshootOverlay } from "@/components/generate/PhotoshootOverlay";
 import { PricingEntryLink } from "@/components/PricingEntryLink";
 import {
   reachYandexMetrikaGoal,
@@ -1369,11 +1366,22 @@ export function CardInlineGeneratePanel({
         if (typeof poll.progress === "number") {
           setProgress((current) => Math.max(current, Math.min(96, poll.progress!)));
         }
-        if (poll.status === "completed" && poll.resultUrl) {
+        if (poll.status === "completed") {
+          const tiles =
+            Array.isArray(poll.photoshootTileUrls) && poll.photoshootTileUrls.length === 4
+              ? poll.photoshootTileUrls
+              : null;
+          if (isPhotoshoot && !tiles) {
+            throw new Error("Кадры фотосессии не готовы");
+          }
+          const nextResultUrl = isPhotoshoot ? tiles![0] : poll.resultUrl;
+          if (!nextResultUrl) {
+            continue;
+          }
           requestCreditBalanceRefresh();
           clearLastDockResultDismiss();
           setGenerationId(genData.id);
-          setResultUrl(poll.resultUrl);
+          setResultUrl(nextResultUrl);
           setResultModality(poll.modality === "video" || isVideo ? "video" : "image");
           if (isVideo) {
             enterImageCompose();
@@ -1383,11 +1391,7 @@ export function CardInlineGeneratePanel({
           if (isCameraOrbit) reachYandexMetrikaGoal(YM_GOAL_CAMERA_ORBIT_READY);
           if (isPhotoshoot) {
             setResultEditKind(PHOTOSHOOT_EDIT_KIND);
-            setPhotoshootTileUrls(
-              Array.isArray(poll.photoshootTileUrls) && poll.photoshootTileUrls.length === 4
-                ? poll.photoshootTileUrls
-                : null,
-            );
+            setPhotoshootTileUrls(tiles);
             reachYandexMetrikaGoal(YM_GOAL_PHOTOSHOOT_READY);
           }
           onGenerationComplete?.();
@@ -1753,9 +1757,6 @@ export function CardInlineGeneratePanel({
     photoshootOpen &&
     Boolean(generationId) &&
     resultModality === "image";
-  const photoshootSheetUrl =
-    isPhotoshootEditKind(resultEditKind) && resultUrl ? resultUrl : null;
-
   const startPhotoshoot = () => {
     if (!generationId || !resultUrl || resultModality !== "image") return;
     if (isPhotoshootEditKind(resultEditKind)) return;
@@ -1868,7 +1869,7 @@ export function CardInlineGeneratePanel({
             }`
       }`}
     >
-      {showResultChrome ? (
+      {showResultChrome && !photoshootOpen ? (
         <GenerationResultBackdrop
           resultUrl={resultUrl}
           phase={phase}
@@ -2086,7 +2087,6 @@ export function CardInlineGeneratePanel({
 
       {showPhotoshootOverlay ? (
         <PhotoshootOverlay
-          sheetUrl={photoshootSheetUrl}
           tileUrls={photoshootTileUrls}
           capturing={phase === "generating"}
           progress={progress}
@@ -2094,25 +2094,8 @@ export function CardInlineGeneratePanel({
           onDownloadTile={async (tile: PhotoshootTileIndex) => {
             if (!generationId) return;
             const tileUrl = photoshootTileUrls?.[tile - 1] || null;
-            if (tileUrl) {
-              await downloadGenerationResult(tileUrl, `promptshot-${generationId}-${tile}.jpg`);
-              return;
-            }
-            if (!photoshootSheetUrl) return;
-            const blob = await cropPhotoshootTile(photoshootSheetUrl, tile);
-            const url = URL.createObjectURL(blob);
-            try {
-              await downloadGenerationResult(url, `promptshot-${generationId}-${tile}.jpg`);
-            } finally {
-              URL.revokeObjectURL(url);
-            }
-          }}
-          onDownloadSheet={async () => {
-            if (!photoshootSheetUrl || !generationId) return;
-            await downloadGenerationResult(
-              photoshootSheetUrl,
-              `promptshot-${generationId}-sheet.jpg`,
-            );
+            if (!tileUrl) return;
+            await downloadGenerationResult(tileUrl, `promptshot-${generationId}-${tile}.jpg`);
           }}
         />
       ) : null}

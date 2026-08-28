@@ -180,6 +180,7 @@ export const GEMINI_PHOTOSHOOT_SYSTEM_INSTRUCTION =
 export const GENERATE_PHOTOSHOOT_SHEET_RULES = `
 PHOTOSHOOT SHEET RULES
 The attached image is identity and set reference. Output exactly one photorealistic 2x2 contact sheet: four separate photographs.
+Fill the requested canvas (1:1, 16:9, or 9:16). Each panel keeps that same aspect. Do not letterbox.
 
 MUST CHANGE first:
 - Each panel is a different photograph of the same person with a different pose and motion.

@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { landingGenerationsOwnerOrFilter } from "@/lib/landing-generations-access";
 import { createUgcCardForCompletedGeneration } from "@/lib/web-ugc-card";
+import { resolvePhotoshootUserFacingResult } from "@/lib/photoshoot";
 
 export type OwnedGenerationForCardAction = {
   id: string;
@@ -10,6 +11,8 @@ export type OwnedGenerationForCardAction = {
   prompt_text: string;
   result_storage_bucket: string | null;
   result_storage_path: string | null;
+  edit_kind: string | null;
+  photoshoot_tile_paths: unknown;
   ugc_card_id: string | null;
 };
 
@@ -30,7 +33,7 @@ export async function getOwnedGenerationForCardAction(
   const { data, error } = await supabase
     .from("landing_generations")
     .select(
-      "id,user_id,requester_auth_user_id,status,prompt_text,result_storage_bucket,result_storage_path,ugc_card_id"
+      "id,user_id,requester_auth_user_id,status,prompt_text,result_storage_bucket,result_storage_path,edit_kind,photoshoot_tile_paths,ugc_card_id"
     )
     .eq("id", params.generationId)
     .or(landingGenerationsOwnerOrFilter(params.authUserId, params.dbUserId))
@@ -69,10 +72,15 @@ export async function ensureCardForCompletedGeneration(
   supabase: SupabaseClient,
   generation: OwnedGenerationForCardAction
 ): Promise<GenerationCardMetadata> {
+  const facing = resolvePhotoshootUserFacingResult({
+    editKind: generation.edit_kind,
+    sheetPath: generation.result_storage_path,
+    tilePaths: generation.photoshoot_tile_paths,
+  });
   if (
     generation.status !== "completed" ||
     !generation.result_storage_bucket ||
-    !generation.result_storage_path
+    !facing.resultPath
   ) {
     throw new Error("generation_result_not_available");
   }
@@ -87,7 +95,7 @@ export async function ensureCardForCompletedGeneration(
     generationOwnerUserId: generation.user_id,
     promptText: generation.prompt_text || "",
     resultBucket: generation.result_storage_bucket,
-    resultPath: generation.result_storage_path,
+    resultPath: facing.resultPath,
   });
 
   if (!created?.cardId) {

@@ -79,6 +79,7 @@ export function assembleGrokCameraOrbitPrompt(editInstruction: string): string {
 
 const PHOTOSHOOT_SHEET_RULES = [
   "The image is identity and set reference. Output one 2x2 contact sheet of four separate photographs.",
+  "Match the requested canvas 1:1, 16:9, or 9:16. Each panel keeps that aspect. Do not letterbox.",
   "Each panel must have a different pose and motion. Repeated pose = failure.",
   "Keep identity, wardrobe, set, lighting, and time of day.",
   "No captions, frames, watermarks, extra people, or the source crop unchanged.",

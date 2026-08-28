@@ -8,6 +8,8 @@ import {
   photoshootFingerprintFields,
   photoshootTileStoragePath,
   parsePhotoshootTilePaths,
+  resolvePhotoshootSheetAspect,
+  resolvePhotoshootUserFacingResult,
   serializePhotoshootEnqueueInstruction,
   serializePhotoshootSheetInstruction,
 } from "./photoshoot";
@@ -77,13 +79,28 @@ test("extractJsonObject reads fenced or raw JSON", () => {
 test("serializePhotoshootSheetInstruction lists four panels and locks identity", () => {
   const plan = parsePhotoshootPlan(validPlan);
   assert.ok(plan);
-  const text = serializePhotoshootSheetInstruction(plan);
+  const text = serializePhotoshootSheetInstruction(plan, "9:16");
   assert.match(text, /^PHOTOSHOOT/);
+  assert.match(text, /Canvas 9:16/);
+  assert.match(text, /Each panel is also 9:16/);
   assert.match(text, /Panel 1:/);
   assert.match(text, /Panel 4:/);
   assert.match(text, /LOCK: identity/);
   assert.doesNotMatch(text, /keep the source pose/i);
   assert.doesNotMatch(text, /CAMERA ORBIT/);
+});
+
+test("resolvePhotoshootSheetAspect snaps source format to 1:1, 16:9, or 9:16", () => {
+  assert.equal(resolvePhotoshootSheetAspect({ aspectRatio: "1:1" }), "1:1");
+  assert.equal(resolvePhotoshootSheetAspect({ aspectRatio: "16:9" }), "16:9");
+  assert.equal(resolvePhotoshootSheetAspect({ aspectRatio: "9:16" }), "9:16");
+  assert.equal(resolvePhotoshootSheetAspect({ aspectRatio: "4:3" }), "16:9");
+  assert.equal(resolvePhotoshootSheetAspect({ aspectRatio: "3:2" }), "16:9");
+  assert.equal(resolvePhotoshootSheetAspect({ aspectRatio: "3:4" }), "9:16");
+  assert.equal(resolvePhotoshootSheetAspect({ aspectRatio: "2:3" }), "9:16");
+  assert.equal(resolvePhotoshootSheetAspect({ width: 720, height: 1280 }), "9:16");
+  assert.equal(resolvePhotoshootSheetAspect({ width: 1920, height: 1080 }), "16:9");
+  assert.equal(resolvePhotoshootSheetAspect({ width: 1024, height: 1024 }), "1:1");
 });
 
 test("planner generation config disables Flash thinking", () => {
@@ -99,6 +116,39 @@ test("photoshoot tile paths sit next to the sheet object", () => {
   );
   assert.deepEqual(parsePhotoshootTilePaths(["a", "b", "c", "d"]), ["a", "b", "c", "d"]);
   assert.equal(parsePhotoshootTilePaths(["a", "b", "c"]), null);
+});
+
+test("photoshoot user-facing result never exposes the sheet", () => {
+  const tiles = [
+    "user/job/lease-1.jpg",
+    "user/job/lease-2.jpg",
+    "user/job/lease-3.jpg",
+    "user/job/lease-4.jpg",
+  ];
+  assert.deepEqual(
+    resolvePhotoshootUserFacingResult({
+      editKind: PHOTOSHOOT_EDIT_KIND,
+      sheetPath: "user/job/lease.jpg",
+      tilePaths: tiles,
+    }),
+    { resultPath: tiles[0], tilePaths: tiles },
+  );
+  assert.deepEqual(
+    resolvePhotoshootUserFacingResult({
+      editKind: PHOTOSHOOT_EDIT_KIND,
+      sheetPath: "user/job/lease.jpg",
+      tilePaths: null,
+    }),
+    { resultPath: null, tilePaths: null },
+  );
+  assert.deepEqual(
+    resolvePhotoshootUserFacingResult({
+      editKind: "local_edit",
+      sheetPath: "user/job/lease.jpg",
+      tilePaths: null,
+    }),
+    { resultPath: "user/job/lease.jpg", tilePaths: null },
+  );
 });
 
 test("photoshoot fingerprint is parent + kind", () => {

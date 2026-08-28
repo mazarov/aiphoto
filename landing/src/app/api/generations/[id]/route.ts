@@ -8,7 +8,7 @@ import {
   landingGenerationsOwnerOrFilter,
   removeGenerationResultObjects,
 } from "@/lib/landing-generations-access";
-import { parsePhotoshootTilePaths } from "@/lib/photoshoot";
+import { resolvePhotoshootUserFacingResult } from "@/lib/photoshoot";
 
 export async function GET(
   req: NextRequest,
@@ -67,12 +67,18 @@ export async function GET(
       nextAttemptAt: gen.next_attempt_at,
     };
 
-    if (status === "completed" && gen.result_storage_bucket && gen.result_storage_path) {
-      result.resultUrl = getStoragePublicUrl(gen.result_storage_bucket, gen.result_storage_path);
+    if (status === "completed" && gen.result_storage_bucket) {
+      const facing = resolvePhotoshootUserFacingResult({
+        editKind: gen.edit_kind,
+        sheetPath: gen.result_storage_path,
+        tilePaths: gen.photoshoot_tile_paths,
+      });
       result.completedAt = gen.generation_completed_at;
-      const tilePaths = parsePhotoshootTilePaths(gen.photoshoot_tile_paths);
-      if (tilePaths) {
-        result.photoshootTileUrls = tilePaths.map((path) =>
+      if (facing.resultPath) {
+        result.resultUrl = getStoragePublicUrl(gen.result_storage_bucket, facing.resultPath);
+      }
+      if (facing.tilePaths) {
+        result.photoshootTileUrls = facing.tilePaths.map((path) =>
           getStoragePublicUrl(gen.result_storage_bucket, path),
         );
       }

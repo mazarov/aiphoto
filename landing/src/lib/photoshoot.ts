@@ -27,6 +27,54 @@ export const PHOTOSHOOT_TILE_OBJECT_POSITION: Record<PhotoshootTileIndex, string
 
 export const PHOTOSHOOT_TILE_INDEXES: PhotoshootTileIndex[] = [1, 2, 3, 4];
 
+export const PHOTOSHOOT_SHEET_ASPECTS = ["1:1", "16:9", "9:16"] as const;
+export type PhotoshootSheetAspect = (typeof PHOTOSHOOT_SHEET_ASPECTS)[number];
+
+const LANDSCAPE_RATIO_MIN = 1.25;
+const PORTRAIT_RATIO_MAX = 0.8;
+
+function parseColonRatio(value: string): number | null {
+  const match = String(value || "")
+    .trim()
+    .match(/^(\d+(?:\.\d+)?)\s*:\s*(\d+(?:\.\d+)?)$/);
+  if (!match) return null;
+  const width = Number(match[1]);
+  const height = Number(match[2]);
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+    return null;
+  }
+  return width / height;
+}
+
+export function snapPhotoshootSheetAspectFromRatio(ratio: number): PhotoshootSheetAspect {
+  if (!Number.isFinite(ratio) || ratio <= 0) return "1:1";
+  if (ratio >= LANDSCAPE_RATIO_MIN) return "16:9";
+  if (ratio <= PORTRAIT_RATIO_MAX) return "9:16";
+  return "1:1";
+}
+
+/** Snap source format to the three sheet canvases. 4:3/3:2 → 16:9, 3:4/2:3 → 9:16. */
+export function resolvePhotoshootSheetAspect(input: {
+  aspectRatio?: string | null;
+  width?: number;
+  height?: number;
+}): PhotoshootSheetAspect {
+  const named = String(input.aspectRatio || "").trim();
+  if ((PHOTOSHOOT_SHEET_ASPECTS as readonly string[]).includes(named)) {
+    return named as PhotoshootSheetAspect;
+  }
+  const fromLabel = parseColonRatio(named);
+  if (fromLabel) return snapPhotoshootSheetAspectFromRatio(fromLabel);
+  const width = Number(input.width);
+  const height = Number(input.height);
+  if (width > 0 && height > 0) return snapPhotoshootSheetAspectFromRatio(width / height);
+  return "1:1";
+}
+
+export function photoshootCanvasConstraint(aspect: PhotoshootSheetAspect): string {
+  return `Canvas ${aspect}: ONE 2x2 contact sheet in ${aspect}. Each panel is also ${aspect}. Do not letterbox.`;
+}
+
 /** Sidecar path next to the sheet: `user/job/lease.jpg` → `user/job/lease-1.jpg`. */
 export function photoshootTileStoragePath(
   resultPath: string,
@@ -48,6 +96,35 @@ export function parsePhotoshootTilePaths(raw: unknown): string[] | null {
   const paths = raw.map((item) => String(item ?? "").trim());
   if (paths.some((path) => !path)) return null;
   return paths;
+}
+
+export type PhotoshootUserFacingResult = {
+  /** Single-image slot for history / share. Never the 2×2 sheet. */
+  resultPath: string | null;
+  tilePaths: string[] | null;
+};
+
+/**
+ * User-facing files for a completed job. The contact sheet stays internal
+ * (`result_storage_path`) for split/re-cut; clients only get the four tiles.
+ */
+export function resolvePhotoshootUserFacingResult(input: {
+  editKind?: string | null;
+  sheetPath?: string | null;
+  tilePaths?: unknown;
+}): PhotoshootUserFacingResult {
+  const tiles = parsePhotoshootTilePaths(input.tilePaths);
+  if (isPhotoshootEditKind(input.editKind)) {
+    return {
+      resultPath: tiles?.[0] ?? null,
+      tilePaths: tiles,
+    };
+  }
+  const sheetPath = String(input.sheetPath || "").trim();
+  return {
+    resultPath: sheetPath || null,
+    tilePaths: tiles,
+  };
 }
 
 export function isPhotoshootEditKind(value: unknown): boolean {
@@ -127,10 +204,15 @@ export function extractJsonObject(text: string): unknown {
   }
 }
 
-export function serializePhotoshootSheetInstruction(plan: PhotoshootPlan): string {
+export function serializePhotoshootSheetInstruction(
+  plan: PhotoshootPlan,
+  aspect?: string | null,
+): string {
+  const canvas = resolvePhotoshootSheetAspect({ aspectRatio: aspect });
   const lines = [
     "PHOTOSHOOT (HIGHEST PRIORITY)",
     `Theme: ${plan.theme}`,
+    photoshootCanvasConstraint(canvas),
     "Output ONE photorealistic 2x2 contact sheet: four SEPARATE photographs of the SAME person from the attached reference.",
     "Panel layout: 1 top-left, 2 top-right, 3 bottom-left, 4 bottom-right.",
     "MUST CHANGE: pose and motion in every panel. If two panels share the same pose, you FAILED.",
