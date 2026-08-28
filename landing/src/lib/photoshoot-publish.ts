@@ -15,13 +15,20 @@ import {
 import type { createSupabaseServer } from "@/lib/supabase";
 import { buildUgcCardTitle } from "@/lib/web-ugc-card";
 
-const ANALYZE_MAX_EDGE = 1024;
+const ANALYZE_MAX_EDGE = 768;
 const ANALYZE_ATTEMPTS = 3;
+const ANALYZE_TIMEOUT_MS = 90_000;
+const ANALYZE_THINKING_BUDGET = 0;
 
 export type PhotoshootPromptHydration = {
   skipped: boolean;
   replaced: boolean;
   promptCount: number;
+};
+
+type PhotoshootHydrationTarget = {
+  media: PhotoshootMediaRow[];
+  texts: string[];
 };
 
 export class PhotoshootPublishAnalyzeError extends Error {
@@ -79,6 +86,8 @@ async function analyzePhotoshootTile(params: {
         logPrefix: "photoshoot.publish.analyze",
         requestId: crypto.randomUUID(),
         correlationId: params.cardId,
+        timeoutMs: ANALYZE_TIMEOUT_MS,
+        thinkingBudget: ANALYZE_THINKING_BUDGET,
       });
       return result.promptText;
     } catch (error) {
@@ -97,20 +106,16 @@ async function analyzePhotoshootTile(params: {
         attempt,
         code: error instanceof PhotorealAnalyzeError ? error.code : "unknown",
       });
-      await new Promise((resolve) => setTimeout(resolve, 400 * attempt));
+      await new Promise((resolve) => setTimeout(resolve, 2000 * attempt));
     }
   }
   throw lastError;
 }
 
-/**
- * On photoshoot publish: analyze each tile with the same photoreal extract
- * as `/api/extension/analyze`. Does not touch user analyze quota.
- */
-export async function hydratePhotoshootCardPrompts(
+async function loadPhotoshootHydrationTarget(
   supabase: SupabaseClient,
   cardId: string,
-): Promise<PhotoshootPromptHydration> {
+): Promise<PhotoshootHydrationTarget | null> {
   const { data: card, error: cardError } = await supabase
     .from("prompt_cards")
     .select("id,source_dataset_slug")
@@ -119,9 +124,7 @@ export async function hydratePhotoshootCardPrompts(
   if (cardError) {
     throw new Error(`photoshoot_card_lookup_failed:${cardError.message}`);
   }
-  if (!card?.id) {
-    return { skipped: true, replaced: false, promptCount: 0 };
-  }
+  if (!card?.id) return null;
 
   const { data: mediaRows, error: mediaError } = await supabase
     .from("prompt_card_media")
@@ -142,13 +145,7 @@ export async function hydratePhotoshootCardPrompts(
       storagePaths: media.map((row) => row.storage_path),
     })
   ) {
-    console.info("[photoshoot.publish.analyze] skipped", {
-      cardId,
-      reason: "not_photoshoot_album",
-      mediaCount: media.length,
-      datasetSlug: card.source_dataset_slug,
-    });
-    return { skipped: true, replaced: false, promptCount: 0 };
+    return null;
   }
 
   const { data: variants, error: variantsError } = await supabase
@@ -167,14 +164,43 @@ export async function hydratePhotoshootCardPrompts(
     };
     return variant.prompt_text_ru?.trim() || variant.prompt_text_en?.trim() || "";
   });
-  if (!shouldReplacePhotoshootVariants(texts)) {
+  return { media, texts };
+}
+
+/** True when publish should enqueue background tile analyze. */
+export async function photoshootCardNeedsPromptHydration(
+  supabase: SupabaseClient,
+  cardId: string,
+): Promise<boolean> {
+  const target = await loadPhotoshootHydrationTarget(supabase, cardId);
+  return Boolean(target && shouldReplacePhotoshootVariants(target.texts));
+}
+
+/**
+ * On photoshoot publish: analyze each tile with the same photoreal extract
+ * as `/api/extension/analyze`. Does not touch user analyze quota.
+ */
+export async function hydratePhotoshootCardPrompts(
+  supabase: SupabaseClient,
+  cardId: string,
+): Promise<PhotoshootPromptHydration> {
+  const target = await loadPhotoshootHydrationTarget(supabase, cardId);
+  if (!target) {
+    console.info("[photoshoot.publish.analyze] skipped", {
+      cardId,
+      reason: "not_photoshoot_album",
+    });
+    return { skipped: true, replaced: false, promptCount: 0 };
+  }
+  if (!shouldReplacePhotoshootVariants(target.texts)) {
     console.info("[photoshoot.publish.analyze] skipped", {
       cardId,
       reason: "variants_ready",
-      promptCount: texts.length,
+      promptCount: target.texts.length,
     });
-    return { skipped: true, replaced: false, promptCount: texts.length };
+    return { skipped: true, replaced: false, promptCount: target.texts.length };
   }
+  const media = target.media;
 
   const apiKey = (process.env.GEMINI_API_KEY || "").trim();
   if (!apiKey) {

@@ -294,6 +294,7 @@ export function GenerationHistoryCard({
           cardId?: string;
           slug?: string;
           isPublished?: boolean;
+          promptsReady?: boolean;
         };
         if (!res.ok || !data.cardId || !data.slug) {
           throw new Error(data.error || "Не удалось опубликовать");
@@ -304,7 +305,13 @@ export function GenerationHistoryCard({
           isPublished: true,
         });
         setMenuOpen(false);
-        toast(generation.isPublished ? "Промпты обновлены" : "Карточка опубликована");
+        toast(
+          data.promptsReady
+            ? generation.isPublished
+              ? "Промпты обновлены"
+              : "Карточка опубликована"
+            : "Опубликовано. Промпты появятся через минуту",
+        );
       } catch (err) {
         toast(err instanceof Error ? err.message : "Не удалось опубликовать");
       } finally {

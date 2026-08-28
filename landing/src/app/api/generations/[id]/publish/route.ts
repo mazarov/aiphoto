@@ -58,6 +58,7 @@ export async function POST(
       slug: published.slug,
       alreadyPublished: published.alreadyPublished,
       seoReadinessScore: published.seoReadinessScore,
+      promptsReady: published.promptsReady,
       latencyMs: Date.now() - startedAt,
     });
 
@@ -68,6 +69,7 @@ export async function POST(
       isPublished: true,
       alreadyPublished: published.alreadyPublished,
       seoReadinessScore: published.seoReadinessScore,
+      promptsReady: published.promptsReady,
     });
   } catch (err) {
     console.error("[generations.publish] failed", {

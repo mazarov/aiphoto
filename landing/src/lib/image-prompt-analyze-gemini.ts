@@ -83,6 +83,8 @@ export async function generatePhotorealPromptFromImage(params: {
   logPrefix: string;
   requestId: string;
   correlationId: string;
+  timeoutMs?: number;
+  thinkingBudget?: number;
 }): Promise<{
   promptText: string;
   rawText: string;
@@ -109,9 +111,16 @@ export async function generatePhotorealPromptFromImage(params: {
     generationConfig: {
       temperature: 0.3,
       maxOutputTokens: 4096,
-      thinkingConfig: { thinkingBudget: 256 },
+      thinkingConfig: {
+        thinkingBudget:
+          typeof params.thinkingBudget === "number" ? params.thinkingBudget : 256,
+      },
     },
   };
+  const timeoutMs =
+    typeof params.timeoutMs === "number" && params.timeoutMs > 0
+      ? params.timeoutMs
+      : GEMINI_TIMEOUT_MS;
   const baseUrl = await resolveAnalyzeGeminiBaseUrl(params.supabase);
   extensionLog(`${params.logPrefix}.gemini_request`, {
     requestId: params.requestId,
@@ -133,7 +142,7 @@ export async function generatePhotorealPromptFromImage(params: {
           "x-goog-api-key": params.apiKey,
         },
         body: JSON.stringify(geminiBody),
-        signal: AbortSignal.timeout(GEMINI_TIMEOUT_MS),
+        signal: AbortSignal.timeout(timeoutMs),
       },
     );
   } catch (error) {

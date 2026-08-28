@@ -1,6 +1,6 @@
 # 01 — Лендинг (promptshot.ru)
 
-> Последнее обновление: 2026-08-29 (**AI-фотосессия publish analyze:** `hydratePhotoshootCardPrompts` гоняет тайлы **по очереди**, JPEG ≤1024px, 3 попытки на `fetch_failed`/`gemini_http`. Enqueue `PHOTOSHOOT` не пишется в `prompt_variants` и не попадает в Repeat. Уже опубликованную фотосессию можно «Обновить промпты».
+> Последнее обновление: 2026-08-29 (**AI-фотосессия publish analyze:** HTTP publish больше не ждёт Gemini. Карточка публикуется сразу, 4 analyze уходят в `after()` (как embeddings). JPEG ≤768px, `thinkingBudget: 0`, таймаут 90с, 3 попытки. `ETIMEDOUT`/`EPIPE` не должны отдавать `publish_failed`. Enqueue `PHOTOSHOOT` не в каталог. «Обновить промпты» если фон не дописал.
 >
 > Последнее обновление: 2026-08-28 (**AI-фотосессия карточка /p:** `/p/[slug]` и модалка для UGC-фотосессии показывают тот же 2×2, что `/generations`. Hover/клик кадра выбирает промт (`promptTexts[i]`). Листинг: тайлы интерактивны, оверлей-Link `pointer-events-none`.
 >

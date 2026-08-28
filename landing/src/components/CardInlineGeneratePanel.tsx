@@ -1609,12 +1609,21 @@ export function CardInlineGeneratePanel({
           method: "POST",
           credentials: "include",
         });
-        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        const data = (await res.json().catch(() => ({}))) as {
+          error?: string;
+          promptsReady?: boolean;
+        };
         if (!res.ok) throw new Error(data.error || "Не удалось опубликовать");
         const wasPublished = isPublished;
         setIsPublished(true);
         setMenuOpen(false);
-        setToast(wasPublished ? "Промпты обновлены" : "Карточка опубликована");
+        setToast(
+          data.promptsReady
+            ? wasPublished
+              ? "Промпты обновлены"
+              : "Карточка опубликована"
+            : "Опубликовано. Промпты появятся через минуту",
+        );
       } catch (err) {
         setToast(err instanceof Error ? err.message : "Не удалось опубликовать");
       } finally {
