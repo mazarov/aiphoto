@@ -3,6 +3,7 @@ import "server-only";
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { hydratePhotoshootCardPrompts } from "@/lib/photoshoot-publish";
 import { classifySeoTagsForPublish } from "@/lib/seo-tags-classify";
 import { processPublishedCardEmbedding } from "@/lib/visual-embedding-publish";
 
@@ -43,6 +44,8 @@ export async function publishPromptCard(
   supabase: SupabaseClient,
   cardId: string
 ): Promise<PromptCardPublicationResult> {
+  const hydration = await hydratePhotoshootCardPrompts(supabase, cardId);
+
   const { data: card, error: cardError } = await supabase
     .from("prompt_cards")
     .select("id,slug,title_ru,is_published,seo_readiness_score")
@@ -56,7 +59,7 @@ export async function publishPromptCard(
     throw new Error("card_not_found");
   }
 
-  if (card.is_published) {
+  if (card.is_published && !hydration.replaced) {
     scheduleVisualEmbeddingProcessing(supabase, card.id as string);
     return {
       cardId: card.id as string,
@@ -94,6 +97,34 @@ export async function publishPromptCard(
     (card.title_ru as string | null) ?? null,
     promptTexts
   );
+
+  if (card.is_published) {
+    const { error: seoError } = await supabase
+      .from("prompt_cards")
+      .update({
+        seo_tags: classified.seo_tags,
+        seo_readiness_score: classified.seo_readiness_score,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", cardId)
+      .eq("is_published", true);
+    if (seoError) {
+      throw new Error(`card_seo_refresh_failed:${seoError.message}`);
+    }
+
+    const slug = card.slug as string;
+    revalidatePath(`/p/${slug}`);
+    revalidatePath("/sitemap.xml");
+    scheduleVisualEmbeddingProcessing(supabase, card.id as string);
+
+    return {
+      cardId: card.id as string,
+      slug,
+      isPublished: true,
+      alreadyPublished: true,
+      seoReadinessScore: classified.seo_readiness_score,
+    };
+  }
 
   const { data: publishedRows, error: publishError } = await supabase
     .from("prompt_cards")

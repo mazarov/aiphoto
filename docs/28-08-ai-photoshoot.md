@@ -25,7 +25,7 @@
 | D4 | Все 4 позы I2I от **одного** исходного jpeg (фото на экране). С готовой фотосессии кнопка остаётся: source = выбранный кадр, не лист 2×2. Лист без тайлов по-прежнему 400 `photoshoot_from_sheet` (SQL `226`) |
 | D5 | Intent `edit_kind=photoshoot`. Не reuse local-edit (запрещает менять позу) и не camera-orbit (лочит взгляд/позу) |
 | D6 | Флаг `photoshoot_enabled` (default **false**) + тот же internal allowlist, что у video/orbit (`azarov.maxim@gmail.com` + `NODE_ENV=development`) |
-| D7 | Модель кадра = `photoshoot_model` (дефолт `seedream-5.0-pro`). Цена job = `PHOTOSHOOT_CREDIT_COST` (**15 кр**), не cost модели. `image_size` всегда **2K**. Пикер в оверлее скрыт. Чужой/выключенный id → 503, не Flash |
+| D7 | Модель кадра = `photoshoot_model` (дефолт `gemini-3-pro-image-preview`, SQL `228`). Цена job = `PHOTOSHOOT_CREDIT_COST` (**15 кр**), не cost модели. `image_size` всегда **2K**. Пикер в оверлее скрыт. Чужой/выключенный id → 503, не Flash |
 | D8 | Кнопка только после **completed image**. На video нет |
 | D9 | С готового листа «Оживить» / «Камера» в v1 **выключены** (2×2 как source ломает оба) |
 | D10 | Клиент не пишет сценарии и не зовёт Gemini. `prompt_text` сервер ставит сам (`PHOTOSHOOT`) |
@@ -33,7 +33,7 @@
 | D12 | Копирайт: «4 кадра одной съёмки», не «4 отдельные генерации» и не пакет 40 кредитов |
 | D13 | `/generations`: одна карточка = сетка 4 кадров + шильд «Фотосессия». Клик открывает обычный result chrome на кадре 1 + rail + плёнка. 4 URL идут в `seedCompletedResult` сразу из списка, без второго `GET /generations/:id` на плёнку |
 | D14 | Клик «Фотосессия» не ставит job. Правый rail сверху вниз: «Выйти», креативность 0–100 (50 = temp 0.5, 100 = temp 2.0), «Создать». Temp в `edit_instruction`; worker передаёт в planner и меняет brief (низкий = близко к позе, высокий = смелые позы). Картинка-модель temp не видит |
-| D15 | Публикация = **одна** карточка каталога на весь сет. `prompt_card_media` = 4 тайла (`photoshootUserFacingMediaPaths`). Не `card_split` (это 4 отдельные карточки). Лист в карточку не кладём. Каталог показывает альбом (карусель), `/generations` — сетку 2×2 |
+| D15 | Публикация = **одна** карточка каталога на весь сет. `prompt_card_media` = 4 тайла (`photoshootUserFacingMediaPaths`). Не `card_split` (это 4 отдельные карточки). Лист в карточку не кладём. Каталог и `/generations` — сетка 2×2. На publish каждый тайл прогоняется через тот же analyze, что `/foto-v-promt` (`generatePhotorealPromptFromImage`, без квоты пользователя) → 4 `prompt_variants` + `prompt_variant_media`. Enqueue-текст `PHOTOSHOOT` в каталог не кладём |
 
 ---
 
@@ -150,7 +150,7 @@ CREATE INDEX IF NOT EXISTS idx_landing_generations_photoshoot_active
 INSERT INTO public.landing_generation_config (key, value, updated_at)
 VALUES
   ('photoshoot_enabled', 'false', now()),
-  ('photoshoot_model', 'seedream-5.0-pro', now())
+  ('photoshoot_model', 'gemini-3-pro-image-preview', now())
 ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now();
 ```
 

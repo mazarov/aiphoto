@@ -14,18 +14,19 @@ test("photoshoot stays off for regular users when the flag is off", () => {
   }
 });
 
-test("resolvePhotoshootModel uses DB id or default Seedream, never a silent Flash fallback", () => {
+test("resolvePhotoshootModel uses DB id or default Gemini 3 Pro, never a silent Flash fallback", () => {
   const models = [
     { id: "gemini-2.5-flash-image", cost: 5 },
     { id: PHOTOSHOOT_DEFAULT_MODEL, cost: 10 },
-    { id: "gemini-3-pro-image-preview", cost: 10 },
+    { id: "seedream-5.0-pro", cost: 10 },
   ];
+  assert.equal(PHOTOSHOOT_DEFAULT_MODEL, "gemini-3-pro-image-preview");
   assert.deepEqual(resolvePhotoshootModel("", models), {
     id: PHOTOSHOOT_DEFAULT_MODEL,
     cost: 10,
   });
-  assert.deepEqual(resolvePhotoshootModel("gemini-3-pro-image-preview", models), {
-    id: "gemini-3-pro-image-preview",
+  assert.deepEqual(resolvePhotoshootModel("seedream-5.0-pro", models), {
+    id: "seedream-5.0-pro",
     cost: 10,
   });
   assert.equal(resolvePhotoshootModel("not-a-model", models), null);

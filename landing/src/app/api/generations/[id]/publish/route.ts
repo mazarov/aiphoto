@@ -8,6 +8,8 @@ import {
 } from "@/lib/generation-card-actions";
 import { publishPromptCard } from "@/lib/prompt-card-publication";
 
+export const maxDuration = 120;
+
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }

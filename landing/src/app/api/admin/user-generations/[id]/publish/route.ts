@@ -8,6 +8,7 @@ import { publishPromptCard } from "@/lib/prompt-card-publication";
 import { createSupabaseServer } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 120;
 
 export async function POST(
   req: NextRequest,

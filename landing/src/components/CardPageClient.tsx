@@ -442,6 +442,12 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
 
   const hasPrompts = data.promptTexts.length > 0;
   const hasPhotos = photos.length > 0;
+  const promptsFollowPhotos =
+    data.promptTexts.length === photos.length && photos.length > 1;
+  const visiblePromptTexts = promptsFollowPhotos
+    ? [data.promptTexts[photoIndex] || data.promptTexts[0]]
+    : data.promptTexts;
+  const visiblePromptIndex = promptsFollowPhotos ? photoIndex : 0;
 
   /**
    * Mobile immersive chrome gate: hide all glass UI until the hero photo is fully decoded,
@@ -1026,11 +1032,11 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                     id="card-prompt-full"
                     className="min-h-0 flex-1 overflow-y-auto overscroll-contain rounded-xl border border-zinc-200/80 bg-zinc-50/80 p-3 shadow-inner shadow-zinc-950/[0.02] [-webkit-overflow-scrolling:touch]"
                   >
-                    {data.promptTexts.map((text, i) => (
-                      <div key={i} className={i > 0 ? "mt-4 border-t border-zinc-200 pt-4" : ""}>
+                    {visiblePromptTexts.map((text, i) => (
+                      <div key={`${visiblePromptIndex}-${i}`} className={i > 0 ? "mt-4 border-t border-zinc-200 pt-4" : ""}>
                         {data.promptTexts.length > 1 && (
                           <div className="mb-2 text-[13px] font-medium text-zinc-500">
-                            Промпт {i + 1}
+                            Промпт {visiblePromptIndex + i + 1}
                           </div>
                         )}
                         <p className="whitespace-pre-wrap text-[13px] leading-relaxed text-zinc-700">
@@ -1594,14 +1600,14 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
 
           {hasPrompts && (
             <div id="card-prompt-full" className="mb-4 space-y-3 scroll-mt-36">
-              {data.promptTexts.map((text, i) => (
+              {visiblePromptTexts.map((text, i) => (
                 <div
-                  key={i}
+                  key={`${visiblePromptIndex}-${i}`}
                   className="group/prompt relative rounded-2xl border border-zinc-100 bg-zinc-50/80 p-5 sm:p-6"
                 >
                   {data.promptTexts.length > 1 && (
                     <div className="mb-3 text-[11px] font-medium uppercase tracking-wide text-zinc-500">
-                      Промпт {i + 1}
+                      Промпт {visiblePromptIndex + i + 1}
                     </div>
                   )}
                   <div className="whitespace-pre-wrap text-sm leading-relaxed text-zinc-700">
@@ -1612,15 +1618,15 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                     onClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
-                      void handleCopySingle(text, i);
+                      void handleCopySingle(text, visiblePromptIndex + i);
                     }}
                     className="absolute top-3 right-3 z-[2] rounded-lg border border-zinc-200 bg-white p-1.5 text-zinc-400 opacity-100 shadow-sm transition-all hover:border-zinc-300 hover:text-zinc-700 md:opacity-0 md:group-hover/prompt:opacity-100 md:group-focus-within/prompt:opacity-100"
                     title="Скопировать"
-                    aria-label={`Скопировать промпт ${i + 1}`}
+                    aria-label={`Скопировать промпт ${visiblePromptIndex + i + 1}`}
                   >
-                    {copiedIdx === i ? (
+                    {copiedIdx === visiblePromptIndex + i ? (
                       <CheckIcon size={14} />
-                    ) : copyErrIdx === i ? (
+                    ) : copyErrIdx === visiblePromptIndex + i ? (
                       <span className="block min-w-[14px] text-center text-xs font-bold text-red-500" aria-hidden>
                         !
                       </span>

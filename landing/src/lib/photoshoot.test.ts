@@ -24,6 +24,7 @@ import {
   resolvePhotoshootUserFacingResult,
   serializePhotoshootEnqueueInstruction,
   serializePhotoshootSheetInstruction,
+  shouldReplacePhotoshootVariants,
 } from "./photoshoot";
 import {
   PHOTOSHOOT_PLANNER_GENERATION_CONFIG,
@@ -51,6 +52,20 @@ test("looksLikePhotoshootInstruction matches enqueue marker only", () => {
   assert.equal(looksLikePhotoshootInstruction("PHOTOSHOOT (HIGHEST PRIORITY)"), true);
   assert.equal(looksLikePhotoshootInstruction("Remove the scarf"), false);
   assert.equal(looksLikePhotoshootInstruction("CAMERA ORBIT"), false);
+});
+
+test("shouldReplacePhotoshootVariants keeps four real prompts", () => {
+  assert.equal(shouldReplacePhotoshootVariants([]), true);
+  assert.equal(
+    shouldReplacePhotoshootVariants([serializePhotoshootEnqueueInstruction()]),
+    true,
+  );
+  assert.equal(
+    shouldReplacePhotoshootVariants(["a", "b", "c", serializePhotoshootEnqueueInstruction()]),
+    true,
+  );
+  assert.equal(shouldReplacePhotoshootVariants(["a", "b", "c"]), true);
+  assert.equal(shouldReplacePhotoshootVariants(["a", "b", "c", "d"]), false);
 });
 
 test("parsePhotoshootPlan requires four unique shots", () => {

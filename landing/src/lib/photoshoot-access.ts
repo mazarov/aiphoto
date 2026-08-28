@@ -16,7 +16,7 @@ export function isPhotoshootUnlocked(
 }
 
 /**
- * Photoshoot I2I model from DB. Empty → default Seedream 5.0 Pro. Unknown / disabled id → null (503), no Flash fallback.
+ * Photoshoot I2I model from DB. Empty → default Gemini 3 Pro Image. Unknown / disabled id → null (503), no Flash fallback.
  */
 export function resolvePhotoshootModel<T extends { id: string }>(
   configValue: string | undefined,

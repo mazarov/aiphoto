@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  parseAnalyzeImageBuffer,
   parseAnalyzeImageDataUrl,
   resolveAnalyzeImageFromBody,
 } from "./image-prompt-analyze-image";
@@ -13,6 +14,20 @@ test("parseAnalyzeImageDataUrl accepts a tiny PNG data URL", () => {
   assert.ok(parsed);
   assert.equal(parsed?.mimeType, "image/png");
   assert.ok(parsed && parsed.data.length > 0);
+});
+
+test("parseAnalyzeImageBuffer accepts the same tiny PNG bytes", () => {
+  const parsedUrl = parseAnalyzeImageDataUrl(PNG_1X1);
+  assert.ok(parsedUrl);
+  const parsed = parseAnalyzeImageBuffer(Buffer.from(parsedUrl!.data, "base64"));
+  assert.ok(parsed);
+  assert.equal(parsed?.mimeType, "image/png");
+  assert.equal(parsed?.data, parsedUrl?.data);
+});
+
+test("parseAnalyzeImageBuffer rejects empty and junk", () => {
+  assert.equal(parseAnalyzeImageBuffer(Buffer.alloc(0)), null);
+  assert.equal(parseAnalyzeImageBuffer(Buffer.from("not-an-image")), null);
 });
 
 test("parseAnalyzeImageDataUrl rejects junk", () => {

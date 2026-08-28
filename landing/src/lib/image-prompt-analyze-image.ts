@@ -59,6 +59,15 @@ function sniffImageMime(buffer: Uint8Array): ParsedAnalyzeImage["mimeType"] | nu
   return null;
 }
 
+export function parseAnalyzeImageBuffer(
+  bytes: Uint8Array | Buffer,
+): ParsedAnalyzeImage | null {
+  const buffer = Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes);
+  if (!buffer.length || buffer.length > ANALYZE_MAX_IMAGE_BYTES) return null;
+  const mimeType = sniffImageMime(buffer);
+  return mimeType ? { mimeType, data: buffer.toString("base64") } : null;
+}
+
 export function parseAnalyzeImageDataUrl(value: string): ParsedAnalyzeImage | null {
   const match = /^data:\s*([^;,]+)\s*;\s*base64\s*,\s*([\s\S]+)$/i.exec(
     value.trim(),

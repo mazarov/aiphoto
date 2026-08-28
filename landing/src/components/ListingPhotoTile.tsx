@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { PhotoshootListingBadge } from "@/components/PhotoshootListingBadge";
+import { PhotoshootListingGrid } from "@/components/PhotoshootListingGrid";
 import { usePromptCardModal } from "@/context/PromptCardModalContext";
 import {
   CARD_IMAGE_LISTING_NEXT_QUALITY,
@@ -25,13 +26,21 @@ export function ListingPhotoTile({
   debugOverlay,
 }: Props) {
   const { open, prefetchCard } = usePromptCardModal();
+  const photoshootUrls =
+    card.isPhotoshoot && card.photoUrls.length === 4 ? card.photoUrls : null;
 
   return (
     <article
       className="group relative isolate overflow-hidden rounded-2xl bg-zinc-100 transition duration-200 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-zinc-900/10"
       style={{ aspectRatio }}
     >
-      {card.photoUrl ? (
+      {photoshootUrls ? (
+        <PhotoshootListingGrid
+          urls={photoshootUrls}
+          alt={card.title}
+          priority={priority}
+        />
+      ) : card.photoUrl ? (
         <Image
           src={card.photoUrl}
           alt={card.title}

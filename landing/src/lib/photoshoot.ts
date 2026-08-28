@@ -1,8 +1,7 @@
-import { SEEDREAM_50_PRO_IMAGE_MODEL } from "./generation/image-options";
 import { clampPhotoshootPlannerTemperature } from "./photoshoot-planner";
 
 export const PHOTOSHOOT_EDIT_KIND = "photoshoot";
-export const PHOTOSHOOT_DEFAULT_MODEL = SEEDREAM_50_PRO_IMAGE_MODEL;
+export const PHOTOSHOOT_DEFAULT_MODEL = "gemini-3-pro-image-preview";
 export const PHOTOSHOOT_IMAGE_SIZE = "2K";
 export const PHOTOSHOOT_FRAME_COUNT = 4;
 /** Product price for one photoshoot job. Independent of photoshoot_model picker cost. */
@@ -226,6 +225,13 @@ export function isPhotoshootEditKind(value: unknown): boolean {
 
 export function looksLikePhotoshootInstruction(text: string): boolean {
   return /^\s*PHOTOSHOOT\b/i.test(String(text ?? ""));
+}
+
+/** Replace enqueue junk / incomplete set before catalog publish. */
+export function shouldReplacePhotoshootVariants(texts: string[]): boolean {
+  const cleaned = texts.map((text) => String(text || "").trim()).filter(Boolean);
+  if (cleaned.length !== PHOTOSHOOT_FRAME_COUNT) return true;
+  return cleaned.some((text) => looksLikePhotoshootInstruction(text));
 }
 
 export function serializePhotoshootEnqueueInstruction(temperature?: unknown): string {

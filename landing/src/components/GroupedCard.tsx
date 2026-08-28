@@ -9,6 +9,7 @@ import { usePromptCardModal } from "@/context/PromptCardModalContext";
 import { ReactionButtons } from "./ReactionButtons";
 import { splitCardTitle } from "@/lib/format-view-count";
 import { PhotoshootListingBadge } from "@/components/PhotoshootListingBadge";
+import { PhotoshootListingGrid } from "@/components/PhotoshootListingGrid";
 import { CARD_OVERLAY_PHOTO_COUNTER_CLASS } from "@/lib/card-overlay-photo-counter";
 import { isPhotoshootUgcListing } from "@/lib/photoshoot";
 import {
@@ -54,6 +55,11 @@ function GroupedCardBase({
   const [activePhotoIdx, setActivePhotoIdx] = useState(0);
   const photos = activeCard.photoUrls;
   const currentPhotoUrl = photos[activePhotoIdx] || photos[0] || null;
+  const photoshootGrid = isPhotoshootUgcListing({
+    datasetSlug: activeCard.datasetSlug,
+    photoCount: photos.length,
+    storagePaths: activeCard.photoMeta.map((media) => media.path),
+  }) && photos.length === 4;
 
   const [expanded, setExpanded] = useState(false);
   const [copyHint, setCopyHint] = useState<"idle" | "success" | "error">("idle");
@@ -135,7 +141,13 @@ function GroupedCardBase({
           </div>
         )}
         <div className="relative w-full overflow-hidden rounded-2xl bg-zinc-200 aspect-[3/4]">
-          {currentPhotoUrl ? (
+          {photoshootGrid ? (
+            <PhotoshootListingGrid
+              urls={photos}
+              alt={buildCardImageAlt(title)}
+              priority={priorityLoad}
+            />
+          ) : currentPhotoUrl ? (
             <Image
               ref={imageRef}
               src={currentPhotoUrl}
@@ -152,18 +164,14 @@ function GroupedCardBase({
             <div className="flex h-full items-center justify-center bg-zinc-100 text-zinc-400 text-sm">Нет фото</div>
           )}
 
-          {!imageReady && currentPhotoUrl && (
+          {!imageReady && currentPhotoUrl && !photoshootGrid && (
             <ListingCardLoadingShell
               photoOnly={hideHoverChrome}
               hasPrompts={allPrompts.length > 0}
             />
           )}
 
-          {isPhotoshootUgcListing({
-            datasetSlug: activeCard.datasetSlug,
-            photoCount: photos.length,
-            storagePaths: activeCard.photoMeta.map((media) => media.path),
-          }) ? (
+          {photoshootGrid ? (
             <PhotoshootListingBadge />
           ) : null}
 
@@ -190,7 +198,9 @@ function GroupedCardBase({
           <>
           <div
             className={`listing-card-chrome absolute inset-0 z-20 transition-opacity duration-200 ${
-              imageReady ? "opacity-100" : "pointer-events-none invisible opacity-0"
+              imageReady || photoshootGrid
+                ? "opacity-100"
+                : "pointer-events-none invisible opacity-0"
             }`}
           >
             <div className="listing-card-chrome-ambient absolute inset-0">

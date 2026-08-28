@@ -10,6 +10,7 @@ import { useCardInteractions } from "@/context/CardInteractionsContext";
 import { usePromptCardModal } from "@/context/PromptCardModalContext";
 import { splitCardTitle } from "@/lib/format-view-count";
 import { PhotoshootListingBadge } from "@/components/PhotoshootListingBadge";
+import { PhotoshootListingGrid } from "@/components/PhotoshootListingGrid";
 import { CARD_OVERLAY_PHOTO_COUNTER_CLASS } from "@/lib/card-overlay-photo-counter";
 import { isPhotoshootUgcListing } from "@/lib/photoshoot";
 import {
@@ -93,8 +94,9 @@ function PromptCardBase({
     photoCount: photos.length,
     storagePaths: card.photoMeta.map((media) => media.path),
   });
+  const photoshootGrid = isPhotoshoot && photos.length === 4;
   const { imageReady, onImageLoad, imageRef } = useListingCardImageReady({
-    resetKey: currentPhoto,
+    resetKey: photoshootGrid ? photos.join("|") : currentPhoto,
   });
   const promptPreview =
     card.promptTexts[0]?.slice(0, 100) + (card.promptTexts[0]?.length > 100 ? "…" : "") || "";
@@ -137,7 +139,13 @@ function PromptCardBase({
       <div
         className={`relative w-full overflow-hidden rounded-2xl bg-zinc-200 ${aspectClassName}`}
       >
-        {currentPhoto ? (
+        {photoshootGrid ? (
+          <PhotoshootListingGrid
+            urls={photos}
+            alt={buildCardImageAlt(title)}
+            priority={priorityLoad}
+          />
+        ) : currentPhoto ? (
           <Image
             ref={imageRef}
             src={currentPhoto}
@@ -156,7 +164,7 @@ function PromptCardBase({
           </div>
         )}
 
-        {!imageReady && currentPhoto && (
+        {!imageReady && currentPhoto && !photoshootGrid && (
           <ListingCardLoadingShell
             photoOnly={hideHoverChrome || repeatOnlyHoverChrome}
             hasPrompts={card.promptTexts.length > 0}
@@ -189,7 +197,7 @@ function PromptCardBase({
           card.promptTexts.length > 0 && (
             <div
               className={`listing-card-chrome absolute inset-0 z-20 transition-opacity duration-200 ${
-                imageReady
+                imageReady || photoshootGrid
                   ? "opacity-100"
                   : "pointer-events-none invisible opacity-0"
               }`}
@@ -210,7 +218,9 @@ function PromptCardBase({
         <>
         <div
           className={`listing-card-chrome absolute inset-0 z-20 transition-opacity duration-200 ${
-            imageReady ? "opacity-100" : "pointer-events-none invisible opacity-0"
+            imageReady || photoshootGrid
+              ? "opacity-100"
+              : "pointer-events-none invisible opacity-0"
           }`}
         >
           <div className="listing-card-chrome-ambient absolute inset-0">
@@ -280,7 +290,7 @@ function PromptCardBase({
           </div>
 
           <div className="listing-card-chrome-controls-fast pointer-events-none absolute inset-0 z-[2]">
-            {photos.length > 1 && (
+            {!photoshootGrid && photos.length > 1 && (
               <>
                 <button
                   type="button"
@@ -300,7 +310,7 @@ function PromptCardBase({
                 </button>
               </>
             )}
-            {photos.length > 1 && (
+            {!photoshootGrid && photos.length > 1 && (
               <div className="pointer-events-none absolute top-3 left-1/2 -translate-x-1/2">
                 <div className={CARD_OVERLAY_PHOTO_COUNTER_CLASS}>
                   {photoIndex + 1}/{photos.length}

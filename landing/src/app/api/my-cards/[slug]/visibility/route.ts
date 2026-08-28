@@ -4,6 +4,8 @@ import { createSupabaseServer } from "@/lib/supabase";
 import { getSupabaseUserForApiRoute } from "@/lib/supabase-route-auth";
 import { publishPromptCard } from "@/lib/prompt-card-publication";
 
+export const maxDuration = 120;
+
 type Ctx = { params: Promise<{ slug: string }> };
 
 export async function PATCH(req: NextRequest, ctx: Ctx) {
