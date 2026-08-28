@@ -7,12 +7,14 @@ import {
   type GenerationResultAction,
 } from "@/components/generate/GenerationResultActionRail";
 import {
+  PHOTOSHOOT_TILE_INDEXES,
   PHOTOSHOOT_TILE_OBJECT_POSITION,
   type PhotoshootTileIndex,
 } from "@/lib/photoshoot";
 
 type Props = {
   sheetUrl: string | null;
+  tileUrls: string[] | null;
   capturing: boolean;
   progress: number;
   onClose: () => void;
@@ -20,10 +22,9 @@ type Props = {
   onDownloadSheet: () => Promise<void>;
 };
 
-const TILES: PhotoshootTileIndex[] = [1, 2, 3, 4];
-
 export function PhotoshootOverlay({
   sheetUrl,
+  tileUrls,
   capturing,
   progress,
   onClose,
@@ -32,14 +33,16 @@ export function PhotoshootOverlay({
 }: Props) {
   const [tile, setTile] = useState<PhotoshootTileIndex>(1);
   const [busy, setBusy] = useState<"tile" | "sheet" | null>(null);
+  const activeTileUrl = tileUrls?.[tile - 1] || null;
+  const hasFrames = Boolean(sheetUrl || activeTileUrl);
 
   const status = useMemo(() => {
     if (capturing) {
       return `Снимаем фотосессию · ${Math.max(0, Math.min(99, Math.round(progress)))}%`;
     }
-    if (sheetUrl) return "4 кадра одной съёмки";
+    if (hasFrames) return "4 кадра одной съёмки";
     return "Готовим кадры";
-  }, [capturing, progress, sheetUrl]);
+  }, [capturing, hasFrames, progress]);
 
   const railActions: GenerationResultAction[] = [
     {
@@ -56,7 +59,7 @@ export function PhotoshootOverlay({
     {
       id: "download-tile",
       label: busy === "tile" ? "Скачиваем…" : "Скачать кадр",
-      disabled: capturing || !sheetUrl || Boolean(busy),
+      disabled: capturing || !hasFrames || Boolean(busy),
       onClick: () => {
         setBusy("tile");
         void onDownloadTile(tile).finally(() => setBusy(null));
@@ -98,13 +101,17 @@ export function PhotoshootOverlay({
       </button>
 
       <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center px-3">
-        {sheetUrl && !capturing ? (
+        {hasFrames && !capturing ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={sheetUrl}
+            src={activeTileUrl || sheetUrl || ""}
             alt=""
             className="max-h-[70%] max-w-[min(100%,28rem)] rounded-2xl object-cover shadow-2xl"
-            style={{ objectPosition: PHOTOSHOOT_TILE_OBJECT_POSITION[tile] }}
+            style={
+              activeTileUrl
+                ? undefined
+                : { objectPosition: PHOTOSHOOT_TILE_OBJECT_POSITION[tile] }
+            }
           />
         ) : null}
       </div>
@@ -114,13 +121,14 @@ export function PhotoshootOverlay({
       </p>
 
       <div className="absolute bottom-[max(0.75rem,env(safe-area-inset-bottom))] left-3 right-[11rem] z-20 flex gap-2">
-        {TILES.map((item) => {
+        {PHOTOSHOOT_TILE_INDEXES.map((item) => {
           const active = item === tile;
+          const thumbUrl = tileUrls?.[item - 1] || null;
           return (
             <button
               key={item}
               type="button"
-              disabled={capturing || !sheetUrl}
+              disabled={capturing || !hasFrames}
               onClick={() => setTile(item)}
               className={`${OVERLAY_BUTTON_UA_RESET} relative h-16 shrink-0 overflow-hidden rounded-xl ${
                 active ? "ring-2 ring-indigo-400" : "ring-1 ring-white/25"
@@ -128,13 +136,17 @@ export function PhotoshootOverlay({
               style={{ width: "48px" }}
               aria-label={`Кадр ${item}`}
             >
-              {sheetUrl ? (
+              {thumbUrl || sheetUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
-                  src={sheetUrl}
+                  src={thumbUrl || sheetUrl || ""}
                   alt=""
                   className="h-full w-full object-cover"
-                  style={{ objectPosition: PHOTOSHOOT_TILE_OBJECT_POSITION[item] }}
+                  style={
+                    thumbUrl
+                      ? undefined
+                      : { objectPosition: PHOTOSHOOT_TILE_OBJECT_POSITION[item] }
+                  }
                 />
               ) : (
                 <span className="block h-full w-full bg-white/10" />

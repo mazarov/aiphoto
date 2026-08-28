@@ -1,5 +1,7 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-08-28 (**AI-фотосессия split:** после I2I worker режет лист `sharp.extract` 2×2 → 4 JPEG sidecar (`lease-N.jpg`), пути в `photoshoot_tile_paths` (SQL `225`). Poll отдаёт `photoshootTileUrls`. Split fail не валит job. Спека `docs/28-08-ai-photoshoot-split.md`.
+>
 > Последнее обновление: 2026-08-28 (**AI-фотосессия:** rail «Сделать фотосессию» после готового image. `POST /api/generate` `editKind=photoshoot`, 1 job / 10 кр, модель `photoshoot_model` (дефолт Grok). Worker: vision planner → 2×2 sheet. Planner = Gemini 2.5 Flash + `thinkingBudget: 0` + `responseSchema` (`PHOTOSHOOT_PLANNER_PROMPT_V2`); иначе thinking съедает 1024 токена и JSON не парсится. Флаг `photoshoot_enabled` (SQL `224`). Плёнка 4 тайла. `Dockerfile.worker` копирует `photoshoot.ts` + `photoshoot-planner.ts`. Спека `docs/28-08-ai-photoshoot.md`.
 >
 > Последнее обновление: 2026-08-27 (**birthday /deti = search:** `/sobytiya/den-rozhdeniya/deti` — hybrid `дети день рождения`, не AND `detskie`+`den_rozhdeniya` (в каталоге было 16 карточек). Query-вектор в том же `listing_query_embeddings`.

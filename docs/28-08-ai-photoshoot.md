@@ -20,7 +20,7 @@
 | # | Решение |
 |---|---|
 | D1 | Один `POST /api/generate`, один enqueue, **один** result, **10 кредитов** |
-| D2 | 4 кадра живут внутри result: модель рисует **2×2 contact sheet**. Плёнка показывает 4 тайла (CSS crop), не 4 объекта Storage |
+| D2 | Модель рисует **2×2 contact sheet** (канонический result). Worker режет 4 JPEG sidecar (`photoshoot_tile_paths`, SQL `225`). Плёнка и «Скачать кадр» берут tile URL; CSS crop — fallback. Спека нарезки `docs/28-08-ai-photoshoot-split.md` |
 | D3 | Planner — Gemini **vision** в **worker** (не в Next API). Роль: professional photographer. Ответ: **EN JSON**, 4 шота |
 | D4 | Все 4 позы I2I от **одного** исходного jpeg (фото на экране). Кадр→кадр и photoshoot-from-photoshoot запрещены |
 | D5 | Intent `edit_kind=photoshoot`. Не reuse local-edit (запрещает менять позу) и не camera-orbit (лочит взгляд/позу) |
@@ -219,7 +219,7 @@ Aspect / size = как у родителя. 2×2 из 3:4 остаётся 3:4; 
 
 Кнопка в том же rail, между «Камера» и «Что изменить», только `resultModality === "image"` и флаг on.
 
-Оверлей `PhotoshootOverlay` по канону `CameraOrbitOverlay`, без yaw/pitch:
+Оверлей `PhotoshootOverlay` по канону `CameraOrbitOverlay`, без yaw/pitch. Плёнка читает `photoshootTileUrls`; нет URL — CSS crop листа.
 
 - открытие = сразу enqueue (нет второго CTA «снять»)
 - крупный кадр = выбранный тайл (1 из 4)

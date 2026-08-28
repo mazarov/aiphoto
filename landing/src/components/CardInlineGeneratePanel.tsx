@@ -240,6 +240,7 @@ export function CardInlineGeneratePanel({
   const [photoshootOpen, setPhotoshootOpen] = useState(false);
   const [photoshootSourceId, setPhotoshootSourceId] = useState<string | null>(null);
   const [photoshootSourceUrl, setPhotoshootSourceUrl] = useState<string | null>(null);
+  const [photoshootTileUrls, setPhotoshootTileUrls] = useState<string[] | null>(null);
   const [resultEditKind, setResultEditKind] = useState<string | null>(null);
   const photoshootDismissedRef = useRef(false);
   const [videoModels, setVideoModels] = useState<ModelOpt[]>([]);
@@ -1352,6 +1353,7 @@ export function CardInlineGeneratePanel({
           status?: string;
           progress?: number;
           resultUrl?: string;
+          photoshootTileUrls?: string[] | null;
           errorMessage?: string;
           error?: string;
           modality?: string;
@@ -1381,6 +1383,11 @@ export function CardInlineGeneratePanel({
           if (isCameraOrbit) reachYandexMetrikaGoal(YM_GOAL_CAMERA_ORBIT_READY);
           if (isPhotoshoot) {
             setResultEditKind(PHOTOSHOOT_EDIT_KIND);
+            setPhotoshootTileUrls(
+              Array.isArray(poll.photoshootTileUrls) && poll.photoshootTileUrls.length === 4
+                ? poll.photoshootTileUrls
+                : null,
+            );
             reachYandexMetrikaGoal(YM_GOAL_PHOTOSHOOT_READY);
           }
           onGenerationComplete?.();
@@ -1643,6 +1650,7 @@ export function CardInlineGeneratePanel({
     setPhotoshootOpen(false);
     setPhotoshootSourceId(null);
     setPhotoshootSourceUrl(null);
+    setPhotoshootTileUrls(null);
     setResultEditKind(null);
     photoshootDismissedRef.current = false;
     setResultPreviewOpen(false);
@@ -1754,6 +1762,7 @@ export function CardInlineGeneratePanel({
     photoshootDismissedRef.current = false;
     setPhotoshootSourceId(generationId);
     setPhotoshootSourceUrl(resultUrl);
+    setPhotoshootTileUrls(null);
     setPhotoshootOpen(true);
     reachYandexMetrikaGoal(YM_GOAL_PHOTOSHOOT_OPEN);
     void runGenerate({
@@ -1769,6 +1778,7 @@ export function CardInlineGeneratePanel({
       setGenerationId(photoshootSourceId);
       setResultUrl(photoshootSourceUrl);
       setResultEditKind(null);
+      setPhotoshootTileUrls(null);
     }
   };
 
@@ -1777,12 +1787,17 @@ export function CardInlineGeneratePanel({
     let cancelled = false;
     void fetch(`/api/generations/${generationId}`, { credentials: "include" })
       .then((res) => (res.ok ? res.json() : null))
-      .then((data: { editKind?: string | null } | null) => {
+      .then((data: { editKind?: string | null; photoshootTileUrls?: string[] | null } | null) => {
         if (cancelled || !data) return;
         const kind = String(data.editKind || "").trim() || null;
         setResultEditKind(kind);
         if (isPhotoshootEditKind(kind) && !photoshootDismissedRef.current) {
           setPhotoshootOpen(true);
+          setPhotoshootTileUrls(
+            Array.isArray(data.photoshootTileUrls) && data.photoshootTileUrls.length === 4
+              ? data.photoshootTileUrls
+              : null,
+          );
         }
       })
       .catch(() => {});
@@ -2072,11 +2087,18 @@ export function CardInlineGeneratePanel({
       {showPhotoshootOverlay ? (
         <PhotoshootOverlay
           sheetUrl={photoshootSheetUrl}
+          tileUrls={photoshootTileUrls}
           capturing={phase === "generating"}
           progress={progress}
           onClose={closePhotoshoot}
           onDownloadTile={async (tile: PhotoshootTileIndex) => {
-            if (!photoshootSheetUrl || !generationId) return;
+            if (!generationId) return;
+            const tileUrl = photoshootTileUrls?.[tile - 1] || null;
+            if (tileUrl) {
+              await downloadGenerationResult(tileUrl, `promptshot-${generationId}-${tile}.jpg`);
+              return;
+            }
+            if (!photoshootSheetUrl) return;
             const blob = await cropPhotoshootTile(photoshootSheetUrl, tile);
             const url = URL.createObjectURL(blob);
             try {

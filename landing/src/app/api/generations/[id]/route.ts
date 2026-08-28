@@ -8,6 +8,7 @@ import {
   landingGenerationsOwnerOrFilter,
   removeGenerationResultObjects,
 } from "@/lib/landing-generations-access";
+import { parsePhotoshootTilePaths } from "@/lib/photoshoot";
 
 export async function GET(
   req: NextRequest,
@@ -69,6 +70,12 @@ export async function GET(
     if (status === "completed" && gen.result_storage_bucket && gen.result_storage_path) {
       result.resultUrl = getStoragePublicUrl(gen.result_storage_bucket, gen.result_storage_path);
       result.completedAt = gen.generation_completed_at;
+      const tilePaths = parsePhotoshootTilePaths(gen.photoshoot_tile_paths);
+      if (tilePaths) {
+        result.photoshootTileUrls = tilePaths.map((path) =>
+          getStoragePublicUrl(gen.result_storage_bucket, path),
+        );
+      }
     }
 
     if (status === "failed") {
@@ -106,7 +113,7 @@ export async function DELETE(
 
     const { data: gen, error: fetchError } = await supabase
       .from("landing_generations")
-      .select("id, result_storage_bucket, result_storage_path")
+      .select("id, result_storage_bucket, result_storage_path, photoshoot_tile_paths")
       .eq("id", id)
       .or(landingGenerationsOwnerOrFilter(user.id, dbUserId))
       .maybeSingle();

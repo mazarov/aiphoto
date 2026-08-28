@@ -155,7 +155,7 @@ export async function DELETE(req: NextRequest) {
 
     const { data: rows, error: fetchError } = await supabase
       .from("landing_generations")
-      .select("id, result_storage_bucket, result_storage_path")
+      .select("id, result_storage_bucket, result_storage_path, photoshoot_tile_paths")
       .in("id", ids)
       .or(ownerFilter);
 

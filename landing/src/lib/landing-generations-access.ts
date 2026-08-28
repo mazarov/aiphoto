@@ -12,6 +12,7 @@ export type GenerationStorageRef = {
   id: string;
   result_storage_bucket: string | null;
   result_storage_path: string | null;
+  photoshoot_tile_paths?: string[] | null;
 };
 
 /** Parent results must remain available while a queued child still consumes them. */
@@ -61,8 +62,12 @@ export async function removeGenerationResultObjects(
 ): Promise<void> {
   const candidates = rows.flatMap((row) => {
     const bucket = row.result_storage_bucket?.trim();
-    const path = row.result_storage_path?.trim();
-    return bucket && path ? [{ bucket, path }] : [];
+    if (!bucket) return [];
+    const paths = [
+      row.result_storage_path?.trim(),
+      ...(Array.isArray(row.photoshoot_tile_paths) ? row.photoshoot_tile_paths : []),
+    ].filter((path): path is string => Boolean(path && path.trim()));
+    return paths.map((path) => ({ bucket, path: path.trim() }));
   });
   if (candidates.length === 0) return;
 

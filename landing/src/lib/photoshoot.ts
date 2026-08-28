@@ -25,6 +25,31 @@ export const PHOTOSHOOT_TILE_OBJECT_POSITION: Record<PhotoshootTileIndex, string
   4: "100% 100%",
 };
 
+export const PHOTOSHOOT_TILE_INDEXES: PhotoshootTileIndex[] = [1, 2, 3, 4];
+
+/** Sidecar path next to the sheet: `user/job/lease.jpg` → `user/job/lease-1.jpg`. */
+export function photoshootTileStoragePath(
+  resultPath: string,
+  tile: PhotoshootTileIndex,
+): string {
+  const path = String(resultPath || "").trim();
+  if (!path) return "";
+  const slash = path.lastIndexOf("/");
+  const file = slash >= 0 ? path.slice(slash + 1) : path;
+  const dir = slash >= 0 ? path.slice(0, slash + 1) : "";
+  const dot = file.lastIndexOf(".");
+  const stem = dot > 0 ? file.slice(0, dot) : file;
+  if (!stem) return "";
+  return `${dir}${stem}-${tile}.jpg`;
+}
+
+export function parsePhotoshootTilePaths(raw: unknown): string[] | null {
+  if (!Array.isArray(raw) || raw.length !== PHOTOSHOOT_FRAME_COUNT) return null;
+  const paths = raw.map((item) => String(item ?? "").trim());
+  if (paths.some((path) => !path)) return null;
+  return paths;
+}
+
 export function isPhotoshootEditKind(value: unknown): boolean {
   return String(value || "").trim() === PHOTOSHOOT_EDIT_KIND;
 }

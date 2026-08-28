@@ -205,7 +205,10 @@ async function runJob(job: GenerationJob): Promise<void> {
       if (!committed && !verifyError && !error) {
         const { error: cleanupError } = await supabase.storage
           .from(RESULTS_BUCKET)
-          .remove([result.resultPath]);
+          .remove([
+            result.resultPath,
+            ...(("photoshootTilePaths" in result && result.photoshootTilePaths) || []),
+          ]);
         log(cleanupError ? "error" : "warn", "orphan_result_cleanup", {
           generationId: job.id,
           resultPath: result.resultPath,
@@ -227,6 +230,22 @@ async function runJob(job: GenerationJob): Promise<void> {
         throw new LeaseLostError();
       }
     }
+    const photoshootTilePaths =
+      "photoshootTilePaths" in result && Array.isArray(result.photoshootTilePaths)
+        ? result.photoshootTilePaths
+        : null;
+    if (photoshootTilePaths?.length === 4) {
+      const { error: tileError } = await supabase
+        .from("landing_generations")
+        .update({ photoshoot_tile_paths: photoshootTilePaths })
+        .eq("id", job.id);
+      if (tileError) {
+        log("warn", "photoshoot_tiles_persist_failed", {
+          generationId: job.id,
+          error: tileError.message,
+        });
+      }
+    }
     log("info", "generation_completed", {
       generationId: job.id,
       userId: job.user_id,
@@ -235,6 +254,7 @@ async function runJob(job: GenerationJob): Promise<void> {
       durationMs: Date.now() - startedAt,
       executedModel: "executedModel" in result ? result.executedModel : job.model,
       fallbackUsed: "fallbackUsed" in result ? result.fallbackUsed : false,
+      photoshootTiles: photoshootTilePaths?.length ?? 0,
     });
     try {
       if (!job.create_ugc || jobModality(job) === "video") {

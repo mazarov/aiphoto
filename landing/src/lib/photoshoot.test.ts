@@ -6,6 +6,8 @@ import {
   looksLikePhotoshootInstruction,
   parsePhotoshootPlan,
   photoshootFingerprintFields,
+  photoshootTileStoragePath,
+  parsePhotoshootTilePaths,
   serializePhotoshootEnqueueInstruction,
   serializePhotoshootSheetInstruction,
 } from "./photoshoot";
@@ -88,6 +90,15 @@ test("planner generation config disables Flash thinking", () => {
   assert.equal(PHOTOSHOOT_PLANNER_GENERATION_CONFIG.thinkingConfig.thinkingBudget, 0);
   assert.equal(PHOTOSHOOT_PLANNER_GENERATION_CONFIG.responseMimeType, "application/json");
   assert.ok(PHOTOSHOOT_PLANNER_GENERATION_CONFIG.maxOutputTokens >= 2048);
+});
+
+test("photoshoot tile paths sit next to the sheet object", () => {
+  assert.equal(
+    photoshootTileStoragePath("user/job/lease.jpg", 3),
+    "user/job/lease-3.jpg",
+  );
+  assert.deepEqual(parsePhotoshootTilePaths(["a", "b", "c", "d"]), ["a", "b", "c", "d"]);
+  assert.equal(parsePhotoshootTilePaths(["a", "b", "c"]), null);
 });
 
 test("photoshoot fingerprint is parent + kind", () => {

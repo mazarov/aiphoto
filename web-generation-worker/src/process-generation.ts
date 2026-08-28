@@ -32,8 +32,13 @@ import {
   resolveCameraOrbitScenePrompt,
   resolveImageEditMode,
 } from "../../landing/src/lib/camera-orbit";
-import { serializePhotoshootSheetInstruction } from "../../landing/src/lib/photoshoot";
+import {
+  PHOTOSHOOT_TILE_INDEXES,
+  photoshootTileStoragePath,
+  serializePhotoshootSheetInstruction,
+} from "../../landing/src/lib/photoshoot";
 import { planPhotoshootShots } from "./photoshoot-planner";
+import { splitContactSheet } from "./photoshoot-split";
 import { getVibeAttachReferenceImage } from "./lib/vibe-config";
 import { errorFields, log } from "./lib/logger";
 import {
@@ -265,12 +270,67 @@ async function downloadReference(
   }
 }
 
+type ProviderContext = {
+  generationId: string;
+  userId: string;
+  attempt: number;
+  pipelineTrace: string | null;
+};
+
+async function uploadPhotoshootTiles(input: {
+  supabase: SupabaseClient;
+  sheetBuffer: Buffer;
+  resultPath: string;
+  enabled: boolean;
+  context: ProviderContext;
+}): Promise<string[] | undefined> {
+  if (!input.enabled) return undefined;
+  try {
+    const split = await splitContactSheet(input.sheetBuffer);
+    const paths: string[] = [];
+    for (const tile of split.tiles) {
+      const path = photoshootTileStoragePath(input.resultPath, tile.i);
+      if (!path) throw new Error("photoshoot_tile_path_empty");
+      const { error } = await input.supabase.storage
+        .from(RESULTS_BUCKET)
+        .upload(path, tile.buffer, { contentType: "image/jpeg", upsert: true });
+      if (error) {
+        throw new Error(error.message);
+      }
+      paths.push(path);
+    }
+    if (paths.length !== PHOTOSHOOT_TILE_INDEXES.length) {
+      throw new Error("photoshoot_tile_upload_incomplete");
+    }
+    log("info", "photoshoot_split_ok", {
+      ...input.context,
+      sheetWidth: split.sheetWidth,
+      sheetHeight: split.sheetHeight,
+      cellWidth: split.cellWidth,
+      cellHeight: split.cellHeight,
+    });
+    return paths;
+  } catch (error) {
+    log("warn", "photoshoot_split_failed", {
+      ...input.context,
+      ...errorFields(error),
+    });
+    return undefined;
+  }
+}
+
 export async function processGeneration(
   supabase: SupabaseClient,
   job: GenerationJob,
   signal: AbortSignal,
   ensureLease: () => Promise<void>,
-): Promise<{ resultPath: string; rawPrompt: string; executedModel: string; fallbackUsed: boolean }> {
+): Promise<{
+  resultPath: string;
+  rawPrompt: string;
+  executedModel: string;
+  fallbackUsed: boolean;
+  photoshootTilePaths?: string[];
+}> {
   const context = {
     generationId: job.id,
     userId: job.user_id,
@@ -396,11 +456,19 @@ export async function processGeneration(
       executedModel: executedOpenRouter,
       fallbackUsed: Boolean(job.fallback_used),
     });
+    const photoshootTilePaths = await uploadPhotoshootTiles({
+      supabase,
+      sheetBuffer: encodedSeedream.buffer,
+      resultPath: seedreamResultPath,
+      enabled: isPhotoshoot,
+      context,
+    });
     return {
       resultPath: seedreamResultPath,
       rawPrompt,
       executedModel: executedOpenRouter,
       fallbackUsed: Boolean(job.fallback_used) || !isOpenRouterImageModel(requestedModel),
+      photoshootTilePaths,
     };
   }
 
@@ -647,15 +715,15 @@ export async function processGeneration(
     executedModel,
     fallbackUsed,
   });
-  return { resultPath, rawPrompt, executedModel, fallbackUsed };
+  const photoshootTilePaths = await uploadPhotoshootTiles({
+    supabase,
+    sheetBuffer: encoded.buffer,
+    resultPath,
+    enabled: isPhotoshoot,
+    context,
+  });
+  return { resultPath, rawPrompt, executedModel, fallbackUsed, photoshootTilePaths };
 }
-
-type ProviderContext = {
-  generationId: string;
-  userId: string;
-  attempt: number;
-  pipelineTrace: string | null;
-};
 
 function toProcessingError(error: unknown): ProcessingError {
   if (error instanceof ProcessingError) return error;
