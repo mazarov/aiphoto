@@ -1,6 +1,6 @@
 # 01 — Лендинг (promptshot.ru)
 
-> Последнее обновление: 2026-08-28 (**AI-фотосессия:** rail «Сделать фотосессию» после готового image. `POST /api/generate` `editKind=photoshoot`, 1 job / 10 кр, модель `photoshoot_model` (дефолт Grok). Worker: vision planner → 2×2 sheet. Флаг `photoshoot_enabled` (SQL `224`). Плёнка 4 тайла. Спека `docs/28-08-ai-photoshoot.md`.
+> Последнее обновление: 2026-08-28 (**AI-фотосессия:** rail «Сделать фотосессию» после готового image. `POST /api/generate` `editKind=photoshoot`, 1 job / 10 кр, модель `photoshoot_model` (дефолт Grok). Worker: vision planner → 2×2 sheet. Флаг `photoshoot_enabled` (SQL `224`). Плёнка 4 тайла. `Dockerfile.worker` копирует `photoshoot.ts` + `photoshoot-planner.ts` (иначе `tsc` TS2307). Спека `docs/28-08-ai-photoshoot.md`.
 >
 > Последнее обновление: 2026-08-27 (**birthday /deti = search:** `/sobytiya/den-rozhdeniya/deti` — hybrid `дети день рождения`, не AND `detskie`+`den_rozhdeniya` (в каталоге было 16 карточек). Query-вектор в том же `listing_query_embeddings`.
 >
@@ -1664,7 +1664,7 @@ landing/src/
 |---------------|-----------|
 | Dockhost / CI | Контекст = каталог **`landing/`**. Команда: **`docker build -f landing/Dockerfile landing/`** (из корня клона) или эквивалент с путём к контексту `./landing`. В дереве есть **`landing/stv-web-sidepanel/`** (зеркало **`extension/sidepanel`**, в git). Трейсинг Next: обычно плоский **`standalone/server.js`**; runner Dockerfile копирует в **`/app`**. |
 | Локально `next build` из `landing/` | Если в родителе репо есть **`package-lock.json`** → **`next.config.ts`** может трейсить от корня монорепо → **`standalone/landing/server.js`**. **`build-stv-web`** сначала пробует **`../extension/sidepanel`**, иначе **`./stv-web-sidepanel`**. |
-| Generation worker | Отдельный Dockhost service, N реплик одного образа. Контекст = корень репозитория: `docker build -f Dockerfile.worker .`. Образ содержит `web-generation-worker` и pure helpers `image-generation-prompt.ts`, `grok-image-prompt.ts`, `generation-edit-contract.ts`, `camera-orbit.ts`, `video-motion-prompt.ts`, `user-generation-photo-paths.ts` (список = `web-generation-worker/tsconfig.json` include); health/metrics: `:3003/health/ready`, `:3003/metrics` (`workerId`). `WORKER_ID` пустой. |
+| Generation worker | Отдельный Dockhost service, N реплик одного образа. Контекст = корень репозитория: `docker build -f Dockerfile.worker .`. Образ содержит `web-generation-worker` и pure helpers `image-generation-prompt.ts`, `grok-image-prompt.ts`, `generation-edit-contract.ts`, `camera-orbit.ts`, `photoshoot.ts`, `photoshoot-planner.ts`, `video-motion-prompt.ts`, `user-generation-photo-paths.ts` (список = `web-generation-worker/tsconfig.json` include); health/metrics: `:3003/health/ready`, `:3003/metrics` (`workerId`). `WORKER_ID` пустой. |
 
 ### Правила сборки (чеклист)
 

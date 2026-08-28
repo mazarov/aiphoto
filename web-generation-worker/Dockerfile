@@ -25,6 +25,8 @@ COPY landing/src/lib/grok-image-prompt.ts /repo/landing/src/lib/grok-image-promp
 COPY landing/src/lib/seedream-image-prompt.ts /repo/landing/src/lib/seedream-image-prompt.ts
 COPY landing/src/lib/generation-edit-contract.ts /repo/landing/src/lib/generation-edit-contract.ts
 COPY landing/src/lib/camera-orbit.ts /repo/landing/src/lib/camera-orbit.ts
+COPY landing/src/lib/photoshoot.ts /repo/landing/src/lib/photoshoot.ts
+COPY landing/src/lib/photoshoot-planner.ts /repo/landing/src/lib/photoshoot-planner.ts
 COPY landing/src/lib/video-motion-prompt.ts /repo/landing/src/lib/video-motion-prompt.ts
 COPY landing/src/lib/user-generation-photo-paths.ts /repo/landing/src/lib/user-generation-photo-paths.ts
 COPY landing/src/lib/generation/image-options.ts /repo/landing/src/lib/generation/image-options.ts
