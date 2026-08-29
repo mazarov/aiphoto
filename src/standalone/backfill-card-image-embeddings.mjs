@@ -61,12 +61,22 @@ function intArg(name, fallback) {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+async function fetchWithTimeout(url, options = {}, ms = 20_000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function rpc(name, body) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${name}`, {
+  const res = await fetchWithTimeout(`${SUPABASE_URL}/rest/v1/rpc/${name}`, {
     method: "POST",
     headers: SB,
     body: JSON.stringify(body),
-  });
+  }, 20_000);
   const text = await res.text();
   if (!res.ok) throw new Error(`RPC ${name} ${res.status}: ${text.slice(0, 400)}`);
   return text ? JSON.parse(text) : null;
@@ -84,7 +94,7 @@ async function downloadPhoto(bucket, path) {
   const render = `${SUPABASE_URL}/storage/v1/render/image/public/${bucket}/${path}?width=768&quality=70`;
   const direct = `${SUPABASE_URL}/storage/v1/object/public/${bucket}/${path}`;
   for (const url of [render, direct]) {
-    const res = await fetch(url);
+    const res = await fetchWithTimeout(url, {}, 20_000);
     if (!res.ok) continue;
     const bytes = new Uint8Array(await res.arrayBuffer());
     if (bytes.byteLength === 0 || bytes.byteLength > MAX_IMAGE_BYTES) continue;
@@ -95,7 +105,7 @@ async function downloadPhoto(bucket, path) {
 }
 
 async function embedImage(bytes, mimeType) {
-  const res = await fetch(`${GEMINI_BASE}/v1beta/models/${MODEL}:embedContent`, {
+  const res = await fetchWithTimeout(`${GEMINI_BASE}/v1beta/models/${MODEL}:embedContent`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -115,7 +125,7 @@ async function embedImage(bytes, mimeType) {
       },
       output_dimensionality: 768,
     }),
-  });
+  }, 45_000);
   if (!res.ok) throw new Error(`gemini_${res.status}`);
   const payload = await res.json();
   const values = payload?.embedding?.values;
@@ -169,7 +179,7 @@ async function main() {
 
   const jobs = await rpc("claim_visual_embedding_jobs", {
     p_limit: limit,
-    p_lease_seconds: 180,
+    p_lease_seconds: 600,
   });
   const claimed = Array.isArray(jobs) ? jobs : [];
   console.log("claimed", claimed.length);
