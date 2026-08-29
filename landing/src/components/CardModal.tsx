@@ -118,7 +118,7 @@ export function CardModal({ children, onClose, immersiveMobile = false }: Props)
       <div
         className={
           immersiveMobile
-            ? "relative h-full min-h-0 w-full overflow-hidden md:h-auto md:max-w-7xl md:overflow-visible md:animate-in md:fade-in md:zoom-in-95 md:duration-200"
+            ? "relative h-full min-h-0 w-full overflow-hidden animate-in fade-in zoom-in-95 duration-200 md:h-auto md:max-w-7xl md:overflow-visible"
             : "relative w-full max-w-7xl animate-in fade-in zoom-in-95 duration-200"
         }
       >

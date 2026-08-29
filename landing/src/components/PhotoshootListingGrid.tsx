@@ -29,7 +29,9 @@ export function PhotoshootListingGrid({
 
   return (
     <div
-      className="photoshoot-history-grid absolute inset-0 z-[2] grid grid-cols-2 grid-rows-2 bg-zinc-900"
+      className={`photoshoot-history-grid absolute inset-0 z-[2] grid grid-cols-2 grid-rows-2 bg-zinc-900${
+        interactive ? " is-interactive" : ""
+      }`}
       onPointerEnter={onPrefetch}
       onTouchStart={onPrefetch}
     >
@@ -70,10 +72,56 @@ export function PhotoshootListingGrid({
               event.stopPropagation();
               onSelect(url, index);
             }}
-            className={`${OVERLAY_BUTTON_UA_RESET} ${tileClass} z-[11] cursor-pointer`}
+            className={`${OVERLAY_BUTTON_UA_RESET} ${tileClass} z-[11] cursor-pointer touch-manipulation`}
           >
             {media}
             <span className="sr-only">{label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Four thumbs to switch frames on the mobile photoshoot card. */
+export function PhotoshootFrameStrip({
+  urls,
+  activeIndex,
+  onSelect,
+}: {
+  urls: string[];
+  activeIndex: number;
+  onSelect: (index: number) => void;
+}) {
+  return (
+    <div
+      className="pointer-events-auto flex items-center justify-center gap-1.5"
+      role="tablist"
+      aria-label="Кадры фотосессии"
+    >
+      {urls.slice(0, 4).map((url, index) => {
+        const selected = index === activeIndex;
+        return (
+          <button
+            key={`${url}-${index}`}
+            type="button"
+            role="tab"
+            aria-selected={selected}
+            aria-label={`Кадр ${index + 1}`}
+            onClick={() => onSelect(index)}
+            className={`${OVERLAY_BUTTON_UA_RESET} relative h-9 w-9 overflow-hidden rounded-lg ring-2 touch-manipulation ${
+              selected ? "ring-white" : "ring-white/30"
+            }`}
+          >
+            <Image
+              src={url}
+              alt=""
+              fill
+              sizes="36px"
+              quality={CARD_IMAGE_LISTING_NEXT_QUALITY}
+              className="object-cover"
+              draggable={false}
+            />
           </button>
         );
       })}

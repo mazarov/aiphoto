@@ -985,6 +985,34 @@ p {
     }
   }
 
+  @media (prefers-reduced-motion: no-preference) {
+    .photoshoot-history-grid.is-interactive .photoshoot-history-tile__img {
+      transform-origin: center;
+      transition:
+        transform 180ms cubic-bezier(0.4, 0, 0.2, 1),
+        opacity 180ms cubic-bezier(0.4, 0, 0.2, 1),
+        filter 180ms cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .photoshoot-history-grid.is-interactive:has(.photoshoot-history-tile:active)
+      .photoshoot-history-tile:not(:active)
+      .photoshoot-history-tile__img {
+      opacity: 0.42;
+      filter: saturate(0.7);
+    }
+
+    .photoshoot-history-grid.is-interactive .photoshoot-history-tile:active .photoshoot-history-tile__img {
+      opacity: 1;
+      filter: none;
+      transform: scale(1.06);
+    }
+
+    .photoshoot-history-grid.is-interactive .photoshoot-history-tile.is-selected .photoshoot-history-tile__img {
+      opacity: 1;
+      filter: none;
+    }
+  }
+
   @keyframes generation-preview-enter {
     from {
       opacity: 0.35;

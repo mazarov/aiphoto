@@ -1,13 +1,12 @@
-import { CARD_OVERLAY_ACTION_PILL } from "@/lib/card-overlay-action-pill";
 import { PHOTOSHOOT_CTA_LABEL } from "@/lib/photoshoot";
 
-/** Same glass pill as «Оживить» / photo counter. Bottom-center, clicks pass through. */
+/** Compact label, not a 44px action pill — sits on the 2×2 without covering a tile. */
 export function PhotoshootListingBadge() {
   return (
     <span
-      className={`pointer-events-none absolute bottom-2 left-1/2 z-20 -translate-x-1/2 ${CARD_OVERLAY_ACTION_PILL} px-3.5 text-[13px] font-semibold text-white`}
+      className="pointer-events-none absolute bottom-1.5 left-1/2 z-20 inline-flex -translate-x-1/2 items-center gap-1 rounded-full bg-black/45 px-2 py-0.5 text-[11px] font-semibold leading-none text-white backdrop-blur-md"
     >
-      <svg className="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <svg className="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
         <rect x="2.5" y="2.5" width="8" height="8" rx="1.75" />
         <rect x="13.5" y="2.5" width="8" height="8" rx="1.75" />
         <rect x="2.5" y="13.5" width="8" height="8" rx="1.75" />

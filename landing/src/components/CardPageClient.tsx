@@ -64,7 +64,10 @@ import {
 } from "@/lib/tag-registry";
 import { trackPromptCardOpen } from "@/lib/yandex-metrika";
 import { PhotoshootListingBadge } from "@/components/PhotoshootListingBadge";
-import { PhotoshootListingGrid } from "@/components/PhotoshootListingGrid";
+import {
+  PhotoshootFrameStrip,
+  PhotoshootListingGrid,
+} from "@/components/PhotoshootListingGrid";
 import { isPhotoshootUgcListing, resolvePhotoshootOpenIndex } from "@/lib/photoshoot";
 
 /** Desktop editorial panel chips (tier A = 13px). */
@@ -225,6 +228,9 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
       photoUrl: currentSeed?.photoUrl,
     }),
   );
+  const [photoshootExpanded, setPhotoshootExpanded] = useState(
+    () => typeof currentSeed?.photoIndex === "number",
+  );
   const [stickyCopy, setStickyCopy] = useState<"idle" | "ok" | "fail">("idle");
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
   const [copyErrIdx, setCopyErrIdx] = useState<number | null>(null);
@@ -315,6 +321,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
         photoUrl: currentSeed?.photoUrl,
       }),
     );
+    setPhotoshootExpanded(typeof currentSeed?.photoIndex === "number");
     setSetBeforeStatus(null);
     setDeleteStatus(null);
     setPubStatus(null);
@@ -1228,16 +1235,22 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                 <div className="pointer-events-none absolute inset-0 z-[1] bg-zinc-950" aria-hidden />
 
                 {/* Полноэкранное фото (как в референсе), без framed 3:4 */}
-                <div className="absolute inset-0 z-[2]">
-                  {photoshootGrid ? (
+                {photoshootGrid && !photoshootExpanded ? (
+                  <div className="absolute inset-x-3 top-[calc(env(safe-area-inset-top)+4.5rem)] bottom-[calc(env(safe-area-inset-bottom)+8.25rem)] z-[50] overflow-hidden rounded-2xl bg-zinc-900 ring-1 ring-white/10">
                     <PhotoshootListingGrid
                       urls={photos}
                       alt={buildCardImageAlt(title, [], photoIndex)}
                       priority
                       selectedIndex={photoIndex}
-                      onSelect={(_url, index) => setPhotoIndex(index)}
+                      onSelect={(_url, index) => {
+                        setPhotoIndex(index);
+                        setPhotoshootExpanded(true);
+                      }}
                     />
-                  ) : (
+                    <PhotoshootListingBadge />
+                  </div>
+                ) : (
+                  <div className="absolute inset-0 z-[2]">
                     <Image
                       src={currentPhoto}
                       alt={buildCardImageAlt(title, [], photoIndex)}
@@ -1249,9 +1262,8 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                       fetchPriority="high"
                       decoding="async"
                     />
-                  )}
-                </div>
-                {photoshootGrid ? <PhotoshootListingBadge /> : null}
+                  </div>
+                )}
 
                 <div
                   className="pointer-events-none absolute inset-x-0 bottom-0 z-[8] h-[70%] bg-gradient-to-t from-black/78 via-black/38 to-transparent"
@@ -1259,7 +1271,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                 />
 
                 {/* Тап по краям */}
-                {!photoshootGrid && photos.length > 1 ? (
+                {(!photoshootGrid || photoshootExpanded) && photos.length > 1 ? (
                   <>
                     <button
                       type="button"
@@ -1314,7 +1326,23 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                     </div>
                   ) : null}
                   <div className="pointer-events-auto grid min-h-[2.75rem] grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-x-2 pb-2">
-                    <div className="h-11 w-11 shrink-0 justify-self-start" aria-hidden />
+                    {photoshootGrid && photoshootExpanded ? (
+                      <button
+                        type="button"
+                        aria-label="Все кадры"
+                        onClick={() => setPhotoshootExpanded(false)}
+                        className={`${OVERLAY_BUTTON_UA_RESET} flex h-11 w-11 shrink-0 items-center justify-center justify-self-start rounded-full bg-black/15 p-2 text-white/90 backdrop-blur-md transition-colors hover:bg-black/25 active:scale-[0.97]`}
+                      >
+                        <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                          <rect x="2.5" y="2.5" width="8" height="8" rx="1.75" />
+                          <rect x="13.5" y="2.5" width="8" height="8" rx="1.75" />
+                          <rect x="2.5" y="13.5" width="8" height="8" rx="1.75" />
+                          <rect x="13.5" y="13.5" width="8" height="8" rx="1.75" />
+                        </svg>
+                      </button>
+                    ) : (
+                      <div className="h-11 w-11 shrink-0 justify-self-start" aria-hidden />
+                    )}
                     <div className="flex min-h-[2.75rem] shrink-0 items-center justify-center px-1">
                       <div
                         className={`inline-flex max-w-[min(100%,18rem)] items-center gap-1.5 rounded-full px-3 py-2 ${MOBILE_FS_CHIP}`}
@@ -1340,6 +1368,15 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                       </button>
                     </div>
                   </div>
+                  {photoshootGrid && photoshootExpanded ? (
+                    <div className="pointer-events-auto flex justify-center pb-2">
+                      <PhotoshootFrameStrip
+                        urls={photos}
+                        activeIndex={photoIndex}
+                        onSelect={setPhotoIndex}
+                      />
+                    </div>
+                  ) : null}
                 </header>
 
                 {groupCards.length > 1 ? (
