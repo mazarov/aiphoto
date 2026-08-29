@@ -114,8 +114,8 @@ const COPY_BY_SLUG: Record<
     examplesTitle: "Выберите образ для женского фото",
     examplesIntro:
       "Откройте подходящий пример и нажмите «Повторить». Промт можно изменить: заменить одежду, фон, освещение, позу и настроение кадра.",
-    promptCatalogHref: "/promty-dlya-foto-devushki",
-    promptCatalogLabel: "Промты для фото девушек",
+    promptCatalogHref: "/promty-dlya-ii-fotosessii/zhenskie",
+    promptCatalogLabel: "Промты для ИИ фотосессии женские",
     howToTitle: "Как сгенерировать фото девушки",
     howToSteps: [
       "Выберите готовый женский образ или опишите внешность и сцену своими словами.",
@@ -157,8 +157,8 @@ const COPY_BY_SLUG: Record<
     examplesTitle: "Выберите сюжет для фото пары",
     examplesIntro:
       "Используйте готовый пример как основу: поменяйте место, одежду, позы и атмосферу, затем добавьте подходящие фотографии-референсы.",
-    promptCatalogHref: "/promty-dlya-foto-par",
-    promptCatalogLabel: "Промты для фото пар",
+    promptCatalogHref: "/promty-dlya-ii-fotosessii/pary",
+    promptCatalogLabel: "Промты для ИИ фотосессии парные",
     howToTitle: "Как создать совместное фото пары",
     howToSteps: [
       "Выберите сюжет: прогулка, студия, путешествие, праздник или домашняя сцена.",
@@ -243,8 +243,8 @@ const COPY_BY_SLUG: Record<
     examplesTitle: "Выберите образ для мужского фото",
     examplesIntro:
       "Повторите готовый пример и измените костюм, локацию, позу или характер освещения. Собственный снимок можно добавить как референс внешности.",
-    promptCatalogHref: "/promty-dlya-foto-muzhchiny",
-    promptCatalogLabel: "Промты для фото мужчин",
+    promptCatalogHref: "/promty-dlya-ii-fotosessii/muzhskie",
+    promptCatalogLabel: "Промты для ИИ фотосессии мужские",
     howToTitle: "Как сгенерировать мужской портрет",
     howToSteps: [
       "Выберите деловой, повседневный, спортивный или творческий образ.",
@@ -286,8 +286,8 @@ const COPY_BY_SLUG: Record<
     examplesTitle: "Выберите сюжет для семейного фото",
     examplesIntro:
       "Возьмите готовую композицию за основу и адаптируйте её под состав семьи, возраст участников, одежду, место и время года.",
-    promptCatalogHref: "/promty-dlya-semejnogo-foto",
-    promptCatalogLabel: "Промты для семейного фото",
+    promptCatalogHref: "/promty-dlya-ii-fotosessii/semeynye",
+    promptCatalogLabel: "Промты для ИИ фотосессии семейные",
     howToTitle: "Как создать семейное фото",
     howToSteps: [
       "Выберите домашнюю, студийную, праздничную или уличную сцену.",
@@ -415,8 +415,8 @@ const COPY_BY_SLUG: Record<
     examplesTitle: "Выберите идею для детского фото",
     examplesIntro:
       "Используйте готовые безопасные сюжеты: праздник, сказочный персонаж, студийный портрет, спорт или прогулка.",
-    promptCatalogHref: "/promty-dlya-detskih-foto",
-    promptCatalogLabel: "Промты для детских фото",
+    promptCatalogHref: "/promty-dlya-ii-fotosessii/detskie",
+    promptCatalogLabel: "Промты для ИИ фотосессии детские",
     howToTitle: "Как создать детское фото",
     howToSteps: [
       "Выберите безопасный сюжет: портрет, праздник, прогулка, спорт или сказочный образ.",
@@ -461,8 +461,8 @@ const COPY_BY_SLUG: Record<
       "тип и цвет автомобиля, человека в кадре, локацию, ракурс камеры, время суток и характер света",
     formatAdvice:
       "Для портрета подойдут 3:4 и 9:16, для автомобиля в окружении — 4:3 или 16:9.",
-    promptCatalogHref: "/s-mashinoy",
-    promptCatalogLabel: "Промты для фото с машиной",
+    promptCatalogHref: "/promty-dlya-ii-fotosessii/s-mashinoy",
+    promptCatalogLabel: "Промты для ИИ фотосессии с машиной",
   }),
   malysh: createProgrammaticScenarioCopy({
     metaTitle: "Генерация фото малыша с помощью ИИ онлайн | PromptShot",
@@ -477,8 +477,8 @@ const COPY_BY_SLUG: Record<
       "безопасный возрастной сюжет, одежду, окружение, мягкое освещение и естественную эмоцию",
     formatAdvice:
       "Для портрета используйте 3:4 или 1:1; не добавляйте в изображение персональные данные ребёнка.",
-    promptCatalogHref: "/promty-dlya-foto-malysh",
-    promptCatalogLabel: "Промты для фото малыша",
+    promptCatalogHref: "/promty-dlya-ii-fotosessii/nyuborn",
+    promptCatalogLabel: "Промты для ИИ фотосессии ньюборн",
   }),
   "v-forme": createProgrammaticScenarioCopy({
     metaTitle: "Генерация фото в форме с помощью ИИ онлайн | PromptShot",
@@ -493,8 +493,8 @@ const COPY_BY_SLUG: Record<
       "тип формы, материалы, цвета, допустимые знаки отличия, позу, окружение и освещение",
     formatAdvice:
       "Для портрета в полный рост используйте 2:3 или 9:16, для поясного кадра — 3:4.",
-    promptCatalogHref: "/v-forme",
-    promptCatalogLabel: "Промты для фото в форме",
+    promptCatalogHref: "/promty-dlya-ii-fotosessii/s-voennymi",
+    promptCatalogLabel: "Промты для ИИ фотосессии с военными",
   }),
   "s-dochkoy": createProgrammaticScenarioCopy({
     metaTitle: "Генерация фото с дочкой с помощью ИИ | PromptShot",
@@ -557,8 +557,8 @@ const COPY_BY_SLUG: Record<
       "сюжет, уровень контраста, направление света, глубину теней, плёночное зерно и ракурс",
     formatAdvice:
       "Для портретов подойдут 3:4 и 1:1, для кинематографичной сцены — 16:9.",
-    promptCatalogHref: "/stil/cherno-beloe",
-    promptCatalogLabel: "Промты для чёрно-белых фото",
+    promptCatalogHref: "/promty-dlya-ii-fotosessii/cherno-belye",
+    promptCatalogLabel: "Промты для ИИ фотосессии чёрно-белые",
   }),
   "s-podrugoy": createProgrammaticScenarioCopy({
     metaTitle: "Генерация фото с подругой с помощью ИИ | PromptShot",
@@ -621,8 +621,8 @@ const COPY_BY_SLUG: Record<
       "одежду, комфортную позу, срок без медицинских утверждений, фон, настроение и мягкое освещение",
     formatAdvice:
       "Для портрета в полный рост подойдут 2:3 и 9:16, для поясного кадра — 3:4.",
-    promptCatalogHref: "/promty-dlya-foto-beremennaya",
-    promptCatalogLabel: "Промты для фото беременности",
+    promptCatalogHref: "/promty-dlya-ii-fotosessii/beremennye",
+    promptCatalogLabel: "Промты для ИИ фотосессии беременные",
   }),
   studiynoe: createProgrammaticScenarioCopy({
     metaTitle: "Генерация студийных фото с помощью ИИ | PromptShot",
@@ -637,8 +637,8 @@ const COPY_BY_SLUG: Record<
       "цвет и фактуру фона, световую схему, объектив, крупность кадра, одежду, позу и обработку",
     formatAdvice:
       "Для портретов используйте 3:4 или 2:3, для каталожного кадра — 1:1 или 4:3.",
-    promptCatalogHref: "/stil/studiynoe",
-    promptCatalogLabel: "Промты для студийных фото",
+    promptCatalogHref: "/promty-dlya-ii-fotosessii/studiynye",
+    promptCatalogLabel: "Промты для ИИ фотосессии студийные",
   }),
   "v-zerkale": createProgrammaticScenarioCopy({
     metaTitle: "Генерация фото в зеркале с помощью ИИ | PromptShot",

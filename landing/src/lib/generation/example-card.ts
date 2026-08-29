@@ -53,3 +53,23 @@ export function writeGenerationExampleNavigation(
   primeListingNavigationCardData(cards.map((card) => card.navigationData));
   writeListingNavigationContext(cards.map((card) => card.slug));
 }
+
+export function filterPhotoshootExampleCards(
+  cards: readonly GenerationExampleCard[]
+): GenerationExampleCard[] {
+  return cards.filter((card) => card.isPhotoshoot);
+}
+
+export function filterExampleCardsByQuery(
+  cards: readonly GenerationExampleCard[],
+  query: string
+): GenerationExampleCard[] {
+  const needle = query.trim().toLowerCase();
+  if (needle.length < 2) return [...cards];
+  return cards.filter((card) => {
+    const haystack = [card.title, card.slug, ...Object.values(card.seoTags).flat()]
+      .join(" ")
+      .toLowerCase();
+    return haystack.includes(needle);
+  });
+}

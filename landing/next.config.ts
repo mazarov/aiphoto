@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import type { NextConfig } from "next";
 import { DEN_ROZHDENIYA_PERMANENT_REDIRECTS } from "./src/lib/den-rozhdeniya-cluster";
+import { PROMTY_DLYA_II_FOTOSESSII_PERMANENT_REDIRECTS } from "./src/lib/promty-dlya-ii-fotosessii-cluster";
 import { NEXT_CACHE_MAX_MEMORY_BYTES } from "./src/lib/next-cache-memory";
 
 const landingDir = import.meta.dirname;
@@ -58,6 +59,11 @@ const nextConfig: NextConfig = {
       },
       // Birthday cluster: audience-first L2 + retired L3 → audience/object L2.
       ...DEN_ROZHDENIYA_PERMANENT_REDIRECTS.map((item) => ({
+        source: item.source,
+        destination: item.destination,
+        permanent: true,
+      })),
+      ...PROMTY_DLYA_II_FOTOSESSII_PERMANENT_REDIRECTS.map((item) => ({
         source: item.source,
         destination: item.destination,
         permanent: true,

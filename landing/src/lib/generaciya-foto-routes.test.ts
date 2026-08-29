@@ -102,4 +102,58 @@ test("every scenario has unique, complete SEO copy", () => {
     assert.ok(scenario.contentBlocks.length >= 1);
     assert.match(scenario.promptCatalogHref, /^\//);
   }
+
+  const women = GENERACIYA_FOTO_SCENARIO_COPY.find(
+    (scenario) => scenario.slug === "devushki"
+  );
+  const men = GENERACIYA_FOTO_SCENARIO_COPY.find(
+    (scenario) => scenario.slug === "muzhchiny"
+  );
+  assert.equal(women?.promptCatalogHref, "/promty-dlya-ii-fotosessii/zhenskie");
+  assert.equal(men?.promptCatalogHref, "/promty-dlya-ii-fotosessii/muzhskie");
+
+  const pairs = GENERACIYA_FOTO_SCENARIO_COPY.find(
+    (scenario) => scenario.slug === "pary"
+  );
+  const family = GENERACIYA_FOTO_SCENARIO_COPY.find(
+    (scenario) => scenario.slug === "semya"
+  );
+  const kids = GENERACIYA_FOTO_SCENARIO_COPY.find(
+    (scenario) => scenario.slug === "deti"
+  );
+  const pregnancy = GENERACIYA_FOTO_SCENARIO_COPY.find(
+    (scenario) => scenario.slug === "beremennaya"
+  );
+  assert.equal(pairs?.promptCatalogHref, "/promty-dlya-ii-fotosessii/pary");
+  assert.equal(family?.promptCatalogHref, "/promty-dlya-ii-fotosessii/semeynye");
+  assert.equal(kids?.promptCatalogHref, "/promty-dlya-ii-fotosessii/detskie");
+  assert.equal(
+    pregnancy?.promptCatalogHref,
+    "/promty-dlya-ii-fotosessii/beremennye"
+  );
+  assert.equal(
+    GENERACIYA_FOTO_SCENARIO_COPY.find((scenario) => scenario.slug === "s-mashinoy")
+      ?.promptCatalogHref,
+    "/promty-dlya-ii-fotosessii/s-mashinoy"
+  );
+  assert.equal(
+    GENERACIYA_FOTO_SCENARIO_COPY.find((scenario) => scenario.slug === "malysh")
+      ?.promptCatalogHref,
+    "/promty-dlya-ii-fotosessii/nyuborn"
+  );
+  assert.equal(
+    GENERACIYA_FOTO_SCENARIO_COPY.find((scenario) => scenario.slug === "v-forme")
+      ?.promptCatalogHref,
+    "/promty-dlya-ii-fotosessii/s-voennymi"
+  );
+  assert.equal(
+    GENERACIYA_FOTO_SCENARIO_COPY.find((scenario) => scenario.slug === "studiynoe")
+      ?.promptCatalogHref,
+    "/promty-dlya-ii-fotosessii/studiynye"
+  );
+  assert.equal(
+    GENERACIYA_FOTO_SCENARIO_COPY.find((scenario) => scenario.slug === "cherno-beloe")
+      ?.promptCatalogHref,
+    "/promty-dlya-ii-fotosessii/cherno-belye"
+  );
 });

@@ -15,6 +15,11 @@ import {
   getGeneraciyaFotoScenarioPath,
 } from "@/lib/generaciya-foto-routes";
 import {
+  MIN_PROMTY_DLYA_II_FOTOSESSII_CARDS,
+  PROMTY_DLYA_II_FOTOSESSII_HUB_PATH,
+  fotosessiiClusterSitemapPages,
+} from "@/lib/promty-dlya-ii-fotosessii-cluster";
+import {
   SOBYTIYA_1_SENTYABRYA_PATH,
   SOBYTIYA_1_SENTYABRYA_SEARCH_QUERY,
   SOBYTIYA_1_SENTYABRYA_TAG,
@@ -58,6 +63,12 @@ function staticHubEntries(): MetadataRoute.Sitemap {
     },
     {
       url: `${BASE_URL}/generaciya-foto`,
+      lastModified: new Date(),
+      changeFrequency: "weekly",
+      priority: 0.9,
+    },
+    {
+      url: `${BASE_URL}${PROMTY_DLYA_II_FOTOSESSII_HUB_PATH}`,
       lastModified: new Date(),
       changeFrequency: "weekly",
       priority: 0.9,
@@ -140,6 +151,18 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         changeFrequency: "weekly" as const,
         priority: 0.85,
       }));
+    const fotosessiiChildUrls: MetadataRoute.Sitemap =
+      fotosessiiClusterSitemapPages()
+        .filter((page) => {
+          const count = countMap.get(`${page.dimension}:${page.tagValue}`) ?? 0;
+          return count >= MIN_PROMTY_DLYA_II_FOTOSESSII_CARDS;
+        })
+        .map((page) => ({
+          url: `${BASE_URL}${page.path}`,
+          lastModified: new Date(),
+          changeFrequency: "weekly" as const,
+          priority: 0.85,
+        }));
     const minL1 = getMinCardsForLevel(1);
     const indexableL1Tags = TAG_REGISTRY.filter((tag) => {
       if (
@@ -199,6 +222,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     return [
       ...hubs,
       ...generationScenarioUrls,
+      ...fotosessiiChildUrls,
       ...uniqueSitemapEntries([
         ...searchBackedUrls,
         ...tagUrls,

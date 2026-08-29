@@ -88,6 +88,19 @@ export function resolveGenerationInputSource(
   };
 }
 
+export function assertPhotoshootInputSource(
+  source: GenerationInputSource,
+): GenerationInputSource {
+  if (source.sourceType === "text_only" || source.paths.length !== 1) {
+    throw new ProcessingError(
+      "photoshoot_source_required",
+      "Photoshoot requires exactly one source image",
+      false,
+    );
+  }
+  return source;
+}
+
 export function assertVideoInputSource(source: GenerationInputSource): GenerationInputSource {
   if (source.sourceType === "text_only" || source.paths.length !== 1) {
     throw new ProcessingError(

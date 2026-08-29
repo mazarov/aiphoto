@@ -115,21 +115,7 @@ export function GeneraciyaFotoThemeCollage({
         ) : null}
 
         <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/45 via-black/10 to-transparent px-3 pb-3 pt-20">
-          <span className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-indigo-500 via-[#5b5cf0] to-violet-500 px-5 text-[13px] font-semibold text-white shadow-lg shadow-indigo-500/25 transition group-hover:brightness-105">
-            <svg
-              className="h-4 w-4 shrink-0"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={2}
-              aria-hidden
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3z"
-              />
-            </svg>
+          <span className="inline-flex min-h-11 w-full items-center justify-center rounded-full bg-gradient-to-r from-indigo-500 via-[#5b5cf0] to-violet-500 px-5 text-[13px] font-semibold text-white shadow-lg shadow-indigo-500/25 transition group-hover:brightness-105">
             {item.title}
           </span>
         </div>

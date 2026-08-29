@@ -37,7 +37,9 @@ import {
   resolvePhotoshootParentSourcePath,
   resolvePhotoshootSheetAspect,
   photoshootFingerprintFields,
+  photoshootSourceErrorMessage,
   serializePhotoshootEnqueueInstruction,
+  validatePhotoshootGenerationSource,
 } from "@/lib/photoshoot";
 import { clampPhotoshootPlannerTemperature } from "@/lib/photoshoot-planner";
 import { isPhotoshootUnlocked, resolvePhotoshootModel } from "@/lib/photoshoot-access";
@@ -264,16 +266,29 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
-    if ((isCameraOrbit || isPhotoshoot) && !hasParentGeneration) {
+    if (isCameraOrbit && !hasParentGeneration) {
       return NextResponse.json(
         {
           error: "validation_error",
-          message: isPhotoshoot
-            ? "Фотосессия доступна только для готового фото"
-            : "Смена ракурса доступна только для готового фото",
+          message: "Смена ракурса доступна только для готового фото",
         },
         { status: 400 }
       );
+    }
+    if (isPhotoshoot) {
+      const photoshootSourceError = validatePhotoshootGenerationSource({
+        hasParentGeneration,
+        photoCount: normalizedPhotoStoragePaths.length,
+      });
+      if (photoshootSourceError) {
+        return NextResponse.json(
+          {
+            error: "validation_error",
+            message: photoshootSourceErrorMessage(photoshootSourceError),
+          },
+          { status: 400 }
+        );
+      }
     }
     if (isCameraOrbit) {
       cameraOrbitPose = parseCameraPose(rawCameraPose);
@@ -482,6 +497,35 @@ export async function POST(req: NextRequest) {
         });
         normalizedEditInstruction = serializePhotoshootEnqueueInstruction(plannerTemperature);
       }
+    } else if (isPhotoshoot) {
+      const libraryPath = normalizedPhotoStoragePaths[0] || "";
+      const { data: busyRows } = await supabase
+        .from("landing_generations")
+        .select("id,input_photo_paths")
+        .eq("requester_auth_user_id", callerId)
+        .eq("edit_kind", PHOTOSHOOT_EDIT_KIND)
+        .is("parent_generation_id", null)
+        .in("status", ["pending", "processing"])
+        .limit(8);
+      const photoshootBusy = (busyRows || []).some((row) => {
+        const paths = Array.isArray(row.input_photo_paths)
+          ? row.input_photo_paths
+          : [];
+        return paths.includes(libraryPath);
+      });
+      if (photoshootBusy) {
+        return NextResponse.json(
+          {
+            error: "photoshoot_busy",
+            message: "Эта фотосессия ещё в очереди",
+          },
+          { status: 409 }
+        );
+      }
+      inheritedRootAspect = resolvePhotoshootSheetAspect({
+        aspectRatio: typeof aspectRatio === "string" ? aspectRatio : "",
+      });
+      normalizedEditInstruction = serializePhotoshootEnqueueInstruction(plannerTemperature);
     }
 
     const ar = isVideo
@@ -796,6 +840,7 @@ export async function POST(req: NextRequest) {
               ? photoshootFingerprintFields(
                   normalizedParentGenerationId,
                   plannerTemperature,
+                  normalizedPhotoStoragePaths[0] || "",
                 )
               : generationEditFingerprintFields(
                 normalizedParentGenerationId,

@@ -66,6 +66,7 @@ import {
   SOBYTIYA_1_SENTYABRYA_PATH,
   SOBYTIYA_1_SENTYABRYA_TAG,
 } from "@/lib/sobytiya-1-sentyabrya";
+import { isPromtyDlyaIiFotosessiiPath } from "@/lib/promty-dlya-ii-fotosessii-cluster";
 
 export const revalidate = 3600;
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://promptshot.ru";
@@ -214,9 +215,15 @@ function redirectRetiredBirthdayL3(slug: string[]) {
   if (destination) permanentRedirect(destination);
 }
 
+function rejectFotosessiiClusterCatchAll(slug: string[]) {
+  if (isPromtyDlyaIiFotosessiiPath(`/${slug.join("/")}`)) notFound();
+  if (slug[0] === "promty-dlya-ii-fotosessii") notFound();
+}
+
 export async function generateMetadata({ params, searchParams }: Props) {
   const { slug } = await params;
   const qs = await searchParams;
+  rejectFotosessiiClusterCatchAll(slug);
   redirectRetiredBirthdayL3(slug);
   const route = resolveUrlToTags(slug);
   if (!route) notFound();
@@ -599,6 +606,7 @@ function hasQueryFilters(searchParams: {
 export default async function TagPage({ params, searchParams }: Props) {
   const { slug } = await params;
   const qs = await searchParams;
+  rejectFotosessiiClusterCatchAll(slug);
   redirectRetiredBirthdayL3(slug);
   const route = resolveUrlToTags(slug);
 

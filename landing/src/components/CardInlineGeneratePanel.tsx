@@ -97,6 +97,21 @@ import {
   switchComposeModalityPrompt,
 } from "@/lib/compose-modality-prompt";
 import {
+  apiModalityForComposeMode,
+  canEnqueueWhilePhotoshootSelected,
+  composeGenerateCtaLabel,
+  composeGenerateCtaShowsModelName,
+  composeModeTileLabel,
+  nextComposeModeTileSheet,
+  promptModalityForComposeMode,
+  rememberCompletedImageResult,
+  resolvePhotoshootLibraryFrame,
+  resolvePhotoshootReadyFrame,
+  PHOTOSHOOT_NEEDS_LIBRARY_PHOTO,
+  type GenerateComposeMode,
+  type PhotoshootReadyFrame,
+} from "@/lib/generate-compose-mode";
+import {
   ANIMATE_SCENARIO_PLACEHOLDER,
   isGenericVideoPrompt,
 } from "@/lib/video-animate-scenario";
@@ -127,6 +142,7 @@ import {
   isPhotoshootEditKind,
   photoshootCtaDetail,
   photoshootTileIndexForUrl,
+  resolvePhotoshootSheetAspect,
   type PhotoshootTileIndex,
 } from "@/lib/photoshoot";
 import {
@@ -229,7 +245,7 @@ export function CardInlineGeneratePanel({
   const [imageSize, setImageSize] = useState(DEFAULT_IMAGE_SIZE);
   const [configError, setConfigError] = useState("");
   const [maxPhotos, setMaxPhotos] = useState(10);
-  const [composeModality, setComposeModality] = useState<"image" | "video">(
+  const [composeMode, setComposeMode] = useState<GenerateComposeMode>(
     seed.intent === "animate" ? "video" : "image"
   );
   const [videoEnabled, setVideoEnabled] = useState(
@@ -246,6 +262,7 @@ export function CardInlineGeneratePanel({
   const [photoshootOpen, setPhotoshootOpen] = useState(false);
   const [photoshootSourceId, setPhotoshootSourceId] = useState<string | null>(null);
   const [photoshootSourceUrl, setPhotoshootSourceUrl] = useState<string | null>(null);
+  const [photoshootLibraryPath, setPhotoshootLibraryPath] = useState<string | null>(null);
   const [photoshootTileUrls, setPhotoshootTileUrls] = useState<string[] | null>(
     () => photoshootTileUrlsFromUnknown(seed.photoshootTileUrls)
   );
@@ -320,8 +337,15 @@ export function CardInlineGeneratePanel({
   const [draftPrompt, setDraftPrompt] = useState(promptText);
   const draftPromptRef = useRef(draftPrompt);
   draftPromptRef.current = draftPrompt;
-  const composeModalityRef = useRef(composeModality);
-  composeModalityRef.current = composeModality;
+  const composeModeRef = useRef(composeMode);
+  composeModeRef.current = composeMode;
+  const lastImageResultRef = useRef<PhotoshootReadyFrame | null>(
+    rememberCompletedImageResult({
+      generationId: seededResult ? seed.resultGenerationId : null,
+      resultUrl: seededResult ? seed.previewUrl : null,
+      resultModality: seed.resultModality === "video" ? "video" : "image",
+    })
+  );
   const promptStashRef = useRef(
     emptyComposePromptStash({
       imagePrompt: seed.intent === "animate" ? "" : promptText,
@@ -342,7 +366,7 @@ export function CardInlineGeneratePanel({
 
   const rememberVideoPrompt = (next: string) => {
     setDraftPrompt(next);
-    if (composeModalityRef.current !== "video") return;
+    if (composeModeRef.current !== "video") return;
     promptStashRef.current = {
       ...promptStashRef.current,
       videoPrompt: next,
@@ -375,7 +399,7 @@ export function CardInlineGeneratePanel({
         });
         const data = (await res.json().catch(() => ({}))) as { scenario?: string };
         if (requestId !== scenarioRequestRef.current) return;
-        if (composeModalityRef.current !== "video") return;
+        if (composeModeRef.current !== "video") return;
         const scenario = typeof data.scenario === "string" ? data.scenario.trim() : "";
         const current = draftPromptRef.current.trim();
         if (res.ok && scenario && (!current || isGenericVideoPrompt(current))) {
@@ -385,7 +409,7 @@ export function CardInlineGeneratePanel({
         }
       } catch {
         if (requestId !== scenarioRequestRef.current) return;
-        if (composeModalityRef.current !== "video") return;
+        if (composeModeRef.current !== "video") return;
         const current = draftPromptRef.current.trim();
         if (!current || isGenericVideoPrompt(current)) {
           rememberVideoPrompt(DEFAULT_VIDEO_PROMPT);
@@ -473,7 +497,7 @@ export function CardInlineGeneratePanel({
       sourcePrompt?: string;
     }) => {
       const switched = switchComposeModalityPrompt({
-        from: composeModalityRef.current,
+        from: promptModalityForComposeMode(composeModeRef.current),
         to: "video",
         currentDraft: draftPromptRef.current,
         stash: promptStashRef.current,
@@ -481,7 +505,7 @@ export function CardInlineGeneratePanel({
       });
       promptStashRef.current = switched.stash;
       setDraftPrompt(switched.draft);
-      setComposeModality("video");
+      setComposeMode("video");
       setAnimateParentId(input.parentGenerationId || null);
       setAnimatePreviewUrl(input.previewUrl || null);
       setError("");
@@ -496,8 +520,8 @@ export function CardInlineGeneratePanel({
     [loadAnimateScenario]
   );
 
-  const enterImageCompose = useCallback(() => {
-    if (composeModalityRef.current !== "video") return;
+  const restoreImagePromptFromVideo = useCallback(() => {
+    if (composeModeRef.current !== "video") return;
     const switched = switchComposeModalityPrompt({
       from: "video",
       to: "image",
@@ -509,11 +533,20 @@ export function CardInlineGeneratePanel({
     scenarioRequestRef.current += 1;
     setScenarioLoading(false);
     setDraftPrompt(switched.draft);
-    setComposeModality("image");
     setAnimateParentId(null);
     setAnimatePreviewUrl(null);
-    setError("");
   }, []);
+
+  const enterImageCompose = useCallback(() => {
+    restoreImagePromptFromVideo();
+    setComposeMode("image");
+    setError("");
+  }, [restoreImagePromptFromVideo]);
+
+  const enterPhotoshootCompose = useCallback(() => {
+    restoreImagePromptFromVideo();
+    setComposeMode("photoshoot");
+  }, [restoreImagePromptFromVideo]);
 
   const [changeRequest, setChangeRequest] = useState("");
   const [remixing, setRemixing] = useState(false);
@@ -667,7 +700,7 @@ export function CardInlineGeneratePanel({
           : [];
         setVideoModels(nextVideoModels);
         if (seed.intent === "animate") {
-          setComposeModality("video");
+          setComposeMode("video");
           setAnimateParentId(seed.parentGenerationId || null);
           setAnimatePreviewUrl(seed.previewUrl || null);
           if (seed.promptText.trim() && !isGenericVideoPrompt(seed.promptText)) {
@@ -677,10 +710,16 @@ export function CardInlineGeneratePanel({
           }
         } else if (isCompletedResultSeed(seed)) {
           const prompt = seed.promptText.trim();
-          setComposeModality("image");
+          setComposeMode("image");
           setGenerationId(seed.resultGenerationId!);
           setResultUrl(seed.previewUrl!);
           setResultModality(seed.resultModality === "video" ? "video" : "image");
+          lastImageResultRef.current = rememberCompletedImageResult({
+            generationId: seed.resultGenerationId,
+            resultUrl: seed.previewUrl,
+            resultModality: seed.resultModality === "video" ? "video" : "image",
+            previous: lastImageResultRef.current,
+          });
           setDraftPrompt(prompt);
           promptStashRef.current = {
             ...promptStashRef.current,
@@ -775,6 +814,12 @@ export function CardInlineGeneratePanel({
           setGenerationId(lastCompleted.id!);
           setResultUrl(lastCompleted.resultUrl!);
           setResultModality(lastCompleted.modality === "video" ? "video" : "image");
+          lastImageResultRef.current = rememberCompletedImageResult({
+            generationId: lastCompleted.id,
+            resultUrl: lastCompleted.resultUrl,
+            resultModality: lastCompleted.modality === "video" ? "video" : "image",
+            previous: lastImageResultRef.current,
+          });
           setDraftPrompt(prompt);
           promptStashRef.current = {
             ...promptStashRef.current,
@@ -821,7 +866,7 @@ export function CardInlineGeneratePanel({
   }, [isAuthed, loadAnimateScenario, seed.intent, seed.parentGenerationId, seed.promptText]);
 
   useEffect(() => {
-    if (composeModality !== "video" || !animateParentId || !isAuthed) return;
+    if (composeMode !== "video" || !animateParentId || !isAuthed) return;
     let cancelled = false;
     void fetch(`/api/generations/${encodeURIComponent(animateParentId)}`, {
       credentials: "include",
@@ -837,7 +882,7 @@ export function CardInlineGeneratePanel({
     return () => {
       cancelled = true;
     };
-  }, [animateParentId, composeModality, isAuthed]);
+  }, [animateParentId, composeMode, isAuthed]);
 
   useEffect(() => {
     const refreshCredits = () => {
@@ -988,12 +1033,12 @@ export function CardInlineGeneratePanel({
   );
   const selectImageModel = (modelId: string) => {
     setModel(modelId);
-    if (composeModalityRef.current === "video") {
+    if (composeModeRef.current !== "image") {
       enterImageCompose();
     }
   };
   const selectVideoModel = (modelId: string) => {
-    if (composeModalityRef.current !== "video") {
+    if (composeModeRef.current !== "video") {
       if (selectedPhotos.length !== 1) {
         setError("Для оживления выберите одно фото");
         setExpandedControl("photos");
@@ -1048,10 +1093,23 @@ export function CardInlineGeneratePanel({
           videoCostModel.id,
         )
       : null;
+  const photoshootReadyFrame = resolvePhotoshootReadyFrame({
+    generationId,
+    resultUrl,
+    resultModality,
+    lastImageResult: lastImageResultRef.current,
+  });
+  const photoshootLibraryFrame = resolvePhotoshootLibraryFrame({
+    selectedPhotos,
+  });
   const selectedModelCost =
-    composeModality === "video"
+    composeMode === "video"
       ? selectedVideoCost
-      : models.find((item) => item.id === model)?.cost ?? null;
+      : composeMode === "photoshoot"
+        ? photoshootLibraryFrame
+          ? PHOTOSHOOT_CREDIT_COST
+          : null
+        : models.find((item) => item.id === model)?.cost ?? null;
   const cannotAffordSelected =
     isAuthed &&
     credits !== null &&
@@ -1221,11 +1279,22 @@ export function CardInlineGeneratePanel({
     cameraPose?: CameraPose;
     forceTextOnly?: boolean;
     modality?: "image" | "video";
+    photoStoragePath?: string;
   }): Promise<boolean> => {
-    const requestedModality = options?.modality || composeModality;
+    const requestedModality =
+      options?.modality || apiModalityForComposeMode(composeMode);
     const isVideo = requestedModality === "video";
     const isCameraOrbit = options?.editKind === CAMERA_ORBIT_EDIT_KIND;
     const isPhotoshoot = options?.editKind === PHOTOSHOOT_EDIT_KIND;
+    if (
+      !canEnqueueWhilePhotoshootSelected({
+        composeMode,
+        editKind: options?.editKind,
+      })
+    ) {
+      setError(PHOTOSHOOT_NEEDS_LIBRARY_PHOTO);
+      return false;
+    }
     const parentGenerationId = isVideo
       ? resolveVideoEnqueueParentGenerationId(
           options?.parentGenerationId?.trim() || animateParentId,
@@ -1248,10 +1317,22 @@ export function CardInlineGeneratePanel({
       setError("Промпт слишком короткий");
       return false;
     }
+    const photoshootLibraryPathOverride = options?.photoStoragePath?.trim() || "";
     if (isVideo) {
       const photoCount = selectedPhotos.length;
       if (!parentGenerationId && photoCount !== 1) {
         setError("Для оживления нужно одно фото");
+        return false;
+      }
+    }
+    if (isPhotoshoot && !parentGenerationId) {
+      const libraryPath =
+        photoshootLibraryPathOverride || selectedPhotos[0]?.storagePath || "";
+      if (
+        !libraryPath ||
+        (!photoshootLibraryPathOverride && selectedPhotos.length !== 1)
+      ) {
+        setError(PHOTOSHOOT_NEEDS_LIBRARY_PHOTO);
         return false;
       }
     }
@@ -1282,11 +1363,37 @@ export function CardInlineGeneratePanel({
           modality: isVideo ? VIDEO_GENERATION_MODALITY : IMAGE_GENERATION_MODALITY,
           prompt,
           model: isVideo ? activeVideoModel?.id : model,
-          aspectRatio: isVideo ? videoAspectRatio : aspectRatio,
+          aspectRatio: isVideo
+            ? videoAspectRatio
+            : isPhotoshoot && !parentGenerationId
+              ? resolvePhotoshootSheetAspect({
+                  aspectRatio,
+                  width:
+                    selectedPhotos.find(
+                      (photo) =>
+                        photo.storagePath ===
+                        (photoshootLibraryPathOverride || selectedPhotos[0]?.storagePath),
+                    )?.width ?? selectedPhotos[0]?.width ?? undefined,
+                  height:
+                    selectedPhotos.find(
+                      (photo) =>
+                        photo.storagePath ===
+                        (photoshootLibraryPathOverride || selectedPhotos[0]?.storagePath),
+                    )?.height ?? selectedPhotos[0]?.height ?? undefined,
+                })
+              : aspectRatio,
           imageSize: isVideo ? DEFAULT_VIDEO_RESOLUTION : imageSize,
           durationSeconds: isVideo ? videoDurationSeconds : undefined,
           cardId: resolvedCardId,
-          photoStoragePaths: isVideo
+          photoStoragePaths: isPhotoshoot
+            ? parentGenerationId
+              ? []
+              : [
+                  photoshootLibraryPathOverride ||
+                    selectedPhotos[0]?.storagePath ||
+                    "",
+                ].filter(Boolean)
+            : isVideo
             ? parentGenerationId
               ? []
               : selectedPhotos.slice(0, 1).map((photo) => photo.storagePath)
@@ -1427,6 +1534,12 @@ export function CardInlineGeneratePanel({
           setGenerationId(genData.id);
           setResultUrl(nextResultUrl);
           setResultModality(poll.modality === "video" || isVideo ? "video" : "image");
+          lastImageResultRef.current = rememberCompletedImageResult({
+            generationId: genData.id,
+            resultUrl: nextResultUrl,
+            resultModality: poll.modality === "video" || isVideo ? "video" : "image",
+            previous: lastImageResultRef.current,
+          });
           if (isVideo) {
             enterImageCompose();
           }
@@ -1437,6 +1550,7 @@ export function CardInlineGeneratePanel({
             setResultEditKind(PHOTOSHOOT_EDIT_KIND);
             setPhotoshootTileUrls(tiles);
             setPhotoshootOpen(false);
+            setPhotoshootLibraryPath(null);
             reachYandexMetrikaGoal(YM_GOAL_PHOTOSHOOT_READY);
           }
           onGenerationComplete?.();
@@ -1712,16 +1826,17 @@ export function CardInlineGeneratePanel({
     setPhotoshootOpen(false);
     setPhotoshootSourceId(null);
     setPhotoshootSourceUrl(null);
+    setPhotoshootLibraryPath(null);
     setPhotoshootTileUrls(null);
     setResultEditKind(null);
     photoshootDismissedRef.current = false;
     setResultPreviewOpen(false);
     setIsPublished(false);
     setResultModality("image");
-    if (composeModalityRef.current === "video") {
+    if (composeModeRef.current === "video") {
       enterImageCompose();
     } else {
-      setComposeModality("image");
+      setComposeMode("image");
       setAnimateParentId(null);
       setAnimatePreviewUrl(null);
     }
@@ -1733,20 +1848,13 @@ export function CardInlineGeneratePanel({
   };
   /** Success X: dismiss result photo, wipe prompt, then close the plate/shell. */
   const clearResultAndPrompt = () => {
+    lastImageResultRef.current = null;
     resetToCompose();
     setDraftPrompt("");
     onBack();
   };
-  const videoCompose = composeModality === "video";
-  const composeModelId = videoCompose
-    ? activeVideoModel?.id || DEFAULT_VIDEO_MODEL
-    : model;
-  const composeModelLabel = displayLabelForGenerationModel(
-    composeModelId,
-    videoCompose
-      ? activeVideoModel?.label
-      : models.find((item) => item.id === model)?.label
-  );
+  const videoCompose = composeMode === "video";
+  const photoshootCompose = composeMode === "photoshoot";
   /**
    * Blank compose: single prompt field until a completed result exists.
    * Card seed and «Что изменить» after generation use remix (changeRequest + parent).
@@ -1773,6 +1881,40 @@ export function CardInlineGeneratePanel({
    * Fullscreen card keeps solid white until there is a result photo.
    */
   const glassChrome = isDock || showResultChrome;
+  const imageCompose = !videoCompose && !photoshootCompose;
+  const selectedImageModel = models.find((item) => item.id === model) ?? null;
+  const selectedImageCost = selectedImageModel?.cost ?? null;
+  const selectedImageModelLabel = selectedImageModel
+    ? displayLabelForGenerationModel(selectedImageModel.id, selectedImageModel.label)
+    : null;
+  const selectedVideoModelLabel = videoCostModel
+    ? displayLabelForGenerationModel(videoCostModel.id, videoCostModel.label)
+    : null;
+  const composeCtaModelLabel = composeGenerateCtaShowsModelName(composeMode)
+    ? videoCompose
+      ? selectedVideoModelLabel
+      : selectedImageModelLabel
+    : null;
+  const composeCtaCost = photoshootCompose
+    ? photoshootLibraryFrame
+      ? PHOTOSHOOT_CREDIT_COST
+      : null
+    : videoCompose
+      ? selectedVideoCost
+      : selectedImageCost;
+  const composeTileBorder = (selected: boolean) =>
+    selected
+      ? glassChrome
+        ? "bg-white/10 text-white after:border-indigo-400"
+        : "bg-indigo-50 text-zinc-900 after:border-indigo-500"
+      : glassChrome
+        ? "bg-white/5 text-white after:border-white/25 hover:bg-white/10 hover:after:border-white/40"
+        : "bg-zinc-100 text-zinc-900 after:border-zinc-300 hover:bg-zinc-200 hover:after:border-zinc-400";
+  const composeTileFrame =
+    "after:pointer-events-none after:absolute after:inset-0 after:z-[1] after:rounded-xl after:border-2 after:border-solid";
+  const composeModeLogoWrap = `mb-0.5 flex h-6 w-6 items-center justify-center rounded-full shadow-sm ${
+    glassChrome ? "bg-white/90" : "bg-white"
+  }`;
   /** Fullscreen card sheets cover the panel; dock uses in-sheet expand instead. */
   const sheetPos = "absolute";
   /** Dock: stretch floating sheet for any editor surface (no viewport overlay). */
@@ -1813,21 +1955,90 @@ export function CardInlineGeneratePanel({
     resultModality === "image";
   const showPhotoshootOverlay =
     photoshootOpen &&
-    Boolean(generationId) &&
-    resultModality === "image";
+    resultModality === "image" &&
+    Boolean(photoshootLibraryPath || generationId);
   const hideComposeChrome = showPhotoshootOverlay || showCameraOverlay;
   const startPhotoshoot = () => {
-    if (!generationId || !resultUrl || resultModality !== "image") return;
+    const frame = resolvePhotoshootReadyFrame({
+      generationId,
+      resultUrl,
+      resultModality,
+      lastImageResult: lastImageResultRef.current,
+    });
+    if (!frame) return;
     photoshootDismissedRef.current = false;
-    setPhotoshootSourceId(generationId);
-    setPhotoshootSourceUrl(resultUrl);
+    setPhotoshootLibraryPath(null);
+    setGenerationId(frame.generationId);
+    setResultUrl(frame.resultUrl);
+    setResultModality("image");
+    setPhotoshootSourceId(frame.generationId);
+    setPhotoshootSourceUrl(frame.resultUrl);
     setPromptExpanded(false);
     setExpandedControl(null);
     setPhotoshootOpen(true);
     reachYandexMetrikaGoal(YM_GOAL_PHOTOSHOOT_OPEN);
   };
 
+  const startPhotoshootFromLibrary = () => {
+    const frame = resolvePhotoshootLibraryFrame({ selectedPhotos });
+    if (!frame) return;
+    photoshootDismissedRef.current = false;
+    setPhotoshootLibraryPath(frame.storagePath);
+    setPhotoshootSourceId(null);
+    setPhotoshootSourceUrl(frame.previewUrl || null);
+    setResultUrl(frame.previewUrl || null);
+    setResultModality("image");
+    setPhase("done");
+    phaseRef.current = "done";
+    setPromptExpanded(false);
+    setExpandedControl(null);
+    setPhotoshootOpen(true);
+    reachYandexMetrikaGoal(YM_GOAL_PHOTOSHOOT_OPEN);
+  };
+
+  const onPhotoshootTileClick = () => {
+    enterPhotoshootCompose();
+    setExpandedControl(null);
+  };
+
+  const onImageModeTileClick = () => {
+    const wasImage = composeModeRef.current === "image";
+    if (!wasImage) enterImageCompose();
+    setExpandedControl(
+      nextComposeModeTileSheet({
+        mode: "image",
+        alreadyInMode: wasImage,
+        currentSheet: expandedControl,
+      }),
+    );
+  };
+
+  const onVideoModeTileClick = () => {
+    const wasVideo = composeModeRef.current === "video";
+    if (!wasVideo) {
+      if (selectedPhotos.length === 1) {
+        selectVideoModel(activeVideoModel?.id || videoModel);
+      } else {
+        enterVideoCompose({ scenarioKey: null });
+      }
+    }
+    setExpandedControl(
+      nextComposeModeTileSheet({
+        mode: "video",
+        alreadyInMode: wasVideo,
+        currentSheet: expandedControl,
+      }),
+    );
+  };
+
   const createPhotoshoot = (temperature: number) => {
+    if (photoshootLibraryPath) {
+      return runGenerate({
+        editKind: PHOTOSHOOT_EDIT_KIND,
+        plannerTemperature: temperature,
+        photoStoragePath: photoshootLibraryPath,
+      });
+    }
     if (!generationId || !resultUrl || resultModality !== "image") {
       return Promise.resolve(false);
     }
@@ -1843,6 +2054,17 @@ export function CardInlineGeneratePanel({
     photoshootDismissedRef.current = true;
     photoshootPollAbortRef.current?.abort();
     setPhotoshootOpen(false);
+    if (photoshootLibraryPath) {
+      setPhotoshootLibraryPath(null);
+      setPhotoshootSourceId(null);
+      setPhotoshootSourceUrl(null);
+      if (!generationId) {
+        setResultUrl(null);
+        setPhase("idle");
+        phaseRef.current = "idle";
+      }
+      return;
+    }
     if (photoshootSourceId && photoshootSourceUrl) {
       setGenerationId(photoshootSourceId);
       setResultUrl(photoshootSourceUrl);
@@ -2851,7 +3073,7 @@ export function CardInlineGeneratePanel({
                   dockModelExpanded ? "text-white" : "text-zinc-900"
                 }`}
               >
-                Модель генерации
+                {videoCompose ? "Модель видео" : "Модель фото"}
               </span>
               <button
                 type="button"
@@ -2882,18 +3104,10 @@ export function CardInlineGeneratePanel({
                   : "contents"
               }
             >
-            {videoEnabled ? (
-              <p
-                className={`mb-2 text-[13px] font-semibold ${
-                  dockModelExpanded ? "text-white/70" : "text-zinc-500"
-                }`}
-              >
-                Фото
-              </p>
-            ) : null}
+            {!videoCompose ? (
             <div className="grid shrink-0 grid-cols-2 gap-2">
               {models.map((item) => {
-                const selected = !videoCompose && model === item.id;
+                const selected = model === item.id;
                 const display = GENERATION_MODEL_DISPLAY[item.id];
                 const unaffordable =
                   credits !== null && credits < item.cost;
@@ -2959,18 +3173,12 @@ export function CardInlineGeneratePanel({
                 );
               })}
             </div>
-            {videoEnabled ? (
+            ) : null}
+            {videoCompose ? (
               <>
-                <p
-                  className={`mb-2 mt-4 text-[13px] font-semibold ${
-                    dockModelExpanded ? "text-white/70" : "text-zinc-500"
-                  }`}
-                >
-                  Видео
-                </p>
                 <div className="grid shrink-0 grid-cols-2 gap-2">
                   {videoModels.map((item) => {
-                    const selected = videoCompose && activeVideoModel?.id === item.id;
+                    const selected = activeVideoModel?.id === item.id;
                     const itemCost = calculateVideoCreditCost(
                       item.cost,
                       videoDurationSeconds,
@@ -3213,7 +3421,7 @@ export function CardInlineGeneratePanel({
           }`}
           aria-hidden={isDock && dockExpanded ? true : undefined}
         >
-          <div className="flex items-start gap-2">
+          <div className="flex items-start gap-2 overflow-x-auto overscroll-x-contain px-0.5 py-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <button
               type="button"
               aria-expanded={expandedControl === "photos"}
@@ -3222,13 +3430,9 @@ export function CardInlineGeneratePanel({
               onClick={() => {
                 setExpandedControl((current) => (current === "photos" ? null : "photos"));
               }}
-              className={`${OVERLAY_BUTTON_UA_RESET} relative flex h-[5.25rem] w-[5.25rem] shrink-0 rounded-xl text-left ring-2 transition ${
-                expandedControl === "photos"
-                  ? "ring-indigo-300"
-                  : glassChrome
-                    ? "bg-black/20 ring-white/10 hover:ring-white/25"
-                    : "bg-zinc-100 ring-zinc-200 hover:ring-zinc-300"
-              } disabled:opacity-50`}
+              className={`${OVERLAY_BUTTON_UA_RESET} relative flex h-[5.25rem] w-[5.25rem] shrink-0 rounded-xl text-left transition ${composeTileFrame} ${composeTileBorder(
+                expandedControl === "photos",
+              )} disabled:opacity-50`}
             >
               <span className="absolute inset-0 overflow-hidden rounded-xl">
               {selectedPhotos[0]?.previewUrl ? (
@@ -3266,51 +3470,79 @@ export function CardInlineGeneratePanel({
 
             <button
               type="button"
-              aria-expanded={expandedControl === "model"}
+              aria-pressed={imageCompose}
+              aria-expanded={imageCompose && expandedControl === "model"}
               aria-controls="inline-generation-models"
-              disabled={
-                controlsBusy ||
-                (!models.length && !videoModels.length)
-              }
-              onClick={() => {
-                setExpandedControl((current) => (current === "model" ? null : "model"));
-              }}
-              className={`${OVERLAY_BUTTON_UA_RESET} relative flex h-[5.25rem] w-[5.25rem] shrink-0 flex-col items-center justify-center rounded-xl p-2 text-center ring-2 transition ${
-                glassChrome
-                  ? expandedControl === "model"
-                    ? "bg-white/10 text-white ring-indigo-300"
-                    : "bg-white/5 text-white ring-white/10 hover:bg-white/10 hover:ring-white/25"
-                  : expandedControl === "model"
-                    ? "bg-indigo-50 text-zinc-900 ring-indigo-500"
-                    : "bg-indigo-50 text-zinc-900 ring-indigo-200 hover:bg-indigo-100 hover:ring-indigo-400"
-              } disabled:opacity-50`}
+              disabled={controlsBusy || !models.length}
+              onClick={onImageModeTileClick}
+              className={`${OVERLAY_BUTTON_UA_RESET} relative flex h-[5.25rem] w-[5.25rem] shrink-0 flex-col items-center justify-center rounded-xl p-1.5 text-center transition ${composeTileFrame} ${composeTileBorder(
+                imageCompose,
+              )} disabled:opacity-50`}
             >
-              <span
-                className={`mb-1 flex h-8 w-8 items-center justify-center rounded-full shadow-sm ${
-                  glassChrome ? "bg-white/90" : "bg-white"
-                }`}
-              >
-                <GenerationModelIcon modelId={composeModelId} />
+              <span className={composeModeLogoWrap}>
+                <GenerationModelIcon modelId={model} className="h-4 w-4" />
               </span>
               <span className="line-clamp-2 text-[13px] font-semibold leading-tight">
-                {composeModelLabel}
+                {composeModeTileLabel("image")}
               </span>
-              {videoCompose ? (
-                <span className="absolute right-1 top-1 rounded-full bg-indigo-500 px-1.5 py-0.5 text-[10px] font-semibold text-white">
-                  Видео
-                </span>
-              ) : null}
             </button>
 
-            <div className="min-w-0 flex-1 self-center">
-              <p
-                className={`text-[13px] font-medium leading-snug ${
-                  glassChrome ? "text-white/70" : "text-zinc-500"
-                }`}
+            {videoEnabled ? (
+              <button
+                type="button"
+                aria-pressed={videoCompose}
+                aria-expanded={videoCompose && expandedControl === "model"}
+                aria-controls="inline-generation-models"
+                disabled={controlsBusy || !videoModels.length}
+                onClick={onVideoModeTileClick}
+                className={`${OVERLAY_BUTTON_UA_RESET} relative flex h-[5.25rem] w-[5.25rem] shrink-0 flex-col items-center justify-center rounded-xl p-1.5 text-center transition ${composeTileFrame} ${composeTileBorder(
+                  videoCompose,
+                )} disabled:opacity-50`}
               >
-                Нажмите на квадрат, чтобы изменить выбор.
-              </p>
-            </div>
+                <span className={composeModeLogoWrap}>
+                  <GenerationModelIcon
+                    modelId={activeVideoModel?.id || DEFAULT_VIDEO_MODEL}
+                    className="h-4 w-4"
+                  />
+                </span>
+                <span className="line-clamp-2 text-[13px] font-semibold leading-tight">
+                  {composeModeTileLabel("video")}
+                </span>
+              </button>
+            ) : null}
+
+            {photoshootEnabled ? (
+              <button
+                type="button"
+                aria-pressed={photoshootCompose}
+                disabled={controlsBusy}
+                onClick={onPhotoshootTileClick}
+                className={`${OVERLAY_BUTTON_UA_RESET} relative flex h-[5.25rem] w-[5.25rem] shrink-0 flex-col items-center justify-center rounded-xl p-1.5 text-center transition ${composeTileFrame} ${composeTileBorder(
+                  photoshootCompose,
+                )} disabled:opacity-50`}
+              >
+                <span className={composeModeLogoWrap}>
+                  <svg
+                    className="h-4 w-4 text-zinc-800"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    aria-hidden
+                  >
+                    <path
+                      d="M4 7h4l1.2-2h5.6L16 7h4v12H4V7Z"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                    <circle cx="12" cy="13" r="3.1" />
+                  </svg>
+                </span>
+                <span className="line-clamp-2 text-[13px] font-semibold leading-tight">
+                  {composeModeTileLabel("photoshoot")}
+                </span>
+              </button>
+            ) : null}
           </div>
 
         </section>
@@ -3394,10 +3626,10 @@ export function CardInlineGeneratePanel({
               (isAuthed &&
                 (controlsBusy ||
                   libraryLoading ||
-                  scenarioLoading ||
+                  (!photoshootCompose && scenarioLoading) ||
                   Boolean(busyAction) ||
                   Boolean(configError) ||
-                  draftPrompt.trim().length < 8))
+                  (!photoshootCompose && draftPrompt.trim().length < 8)))
             }
             onClick={() => {
               if (!isAuthed) {
@@ -3405,6 +3637,15 @@ export function CardInlineGeneratePanel({
                 return;
               }
               if (busy) return;
+              if (photoshootCompose) {
+                if (photoshootLibraryFrame) {
+                  startPhotoshootFromLibrary();
+                  return;
+                }
+                setError(PHOTOSHOOT_NEEDS_LIBRARY_PHOTO);
+                setExpandedControl("photos");
+                return;
+              }
               if (videoCompose) {
                 void runGenerate({
                   promptOverride: draftPrompt.trim() || DEFAULT_VIDEO_PROMPT,
@@ -3453,7 +3694,16 @@ export function CardInlineGeneratePanel({
             ) : null}
             <span
               className={
-                phase === "done" && resultUrl && !busy ? "truncate" : undefined
+                starting ||
+                phase === "uploading" ||
+                phase === "generating" ||
+                (photoshootCompose && !photoshootLibraryFrame) ||
+                (videoCompose && scenarioLoading) ||
+                (phase === "done" && resultUrl && !photoshootCompose && !videoCompose)
+                  ? phase === "done" && resultUrl && !busy
+                    ? "truncate"
+                    : undefined
+                  : "flex min-w-0 w-full items-center justify-between gap-3"
               }
             >
               {starting
@@ -3462,15 +3712,39 @@ export function CardInlineGeneratePanel({
                 ? `Загружаем фото · ${Math.round(progress)}%`
                 : phase === "generating"
                   ? `Генерируем · ${Math.round(progress)}%`
+                  : photoshootCompose && !photoshootLibraryFrame
+                    ? "Выберите фото"
                   : videoCompose && scenarioLoading
                     ? ANIMATE_SCENARIO_PLACEHOLDER
-                  : videoCompose
-                    ? `Сгенерировать ${selectedVideoCost ?? 30}✦`
-                    : phase === "done" && resultUrl
+                    : phase === "done" && resultUrl && !photoshootCompose && !videoCompose
                     ? "Что изменить"
-                    : !isAuthed
-                      ? "Войти"
-                      : "Сгенерировать"}
+                    : (
+                      <>
+                        <span className="shrink-0">
+                          {composeGenerateCtaLabel(composeMode)}
+                        </span>
+                        {composeCtaModelLabel || composeCtaCost != null ? (
+                          <span className="flex min-w-0 items-center justify-end gap-1.5">
+                            {composeCtaModelLabel ? (
+                              <span className="min-w-0 truncate text-[13px] font-medium text-white/80">
+                                {composeCtaModelLabel}
+                              </span>
+                            ) : null}
+                            {composeCtaCost != null ? (
+                              <span
+                                className={`inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[13px] font-semibold tabular-nums ${
+                                  cannotAffordSelected
+                                    ? "bg-rose-400/95"
+                                    : "bg-white/20"
+                                }`}
+                              >
+                                {composeCtaCost}✦
+                              </span>
+                            ) : null}
+                          </span>
+                        ) : null}
+                      </>
+                    )}
             </span>
           </span>
           </button>

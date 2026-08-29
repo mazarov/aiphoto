@@ -61,13 +61,23 @@ function pickCenteredCard(
   return best;
 }
 
+function scrollToPageHash(href: string) {
+  const id = href.startsWith("#") ? href.slice(1) : "";
+  if (!id) return;
+  document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  history.replaceState(null, "", href);
+}
+
 export function GeneraciyaFotoHeroCarousel({
   cards,
   ctaLabel = GENERACIYA_FOTO_SEO.secondaryCta,
+  ctaHref,
   ariaLabel = "Новые ИИ-фото",
 }: {
   cards: GenerationExampleCard[];
   ctaLabel?: string | null;
+  /** Hash or path. When set, the overlay scrolls / navigates there instead of opening a card. */
+  ctaHref?: string;
   ariaLabel?: string;
 }) {
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -133,10 +143,11 @@ export function GeneraciyaFotoHeroCarousel({
       {ctaLabel ? (
         <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center">
           <Link
-            href={`/p/${featured.slug}`}
+            href={ctaHref || `/p/${featured.slug}`}
             className="pointer-events-auto inline-flex min-h-11 items-center justify-center rounded-full border border-indigo-200 bg-white px-5 text-sm font-semibold text-indigo-700 shadow-lg shadow-zinc-900/10 hover:bg-indigo-50"
-            prefetch
+            prefetch={!ctaHref}
             onPointerEnter={() => {
+              if (ctaHref) return;
               bindCarouselNav();
               const target = wrapRef.current
                 ? pickCenteredCard(wrapRef.current, photos)
@@ -144,6 +155,12 @@ export function GeneraciyaFotoHeroCarousel({
               prefetchCard(target.slug);
             }}
             onClick={(event) => {
+              if (ctaHref?.startsWith("#")) {
+                event.preventDefault();
+                scrollToPageHash(ctaHref);
+                return;
+              }
+              if (ctaHref) return;
               event.preventDefault();
               bindCarouselNav();
               const target = wrapRef.current

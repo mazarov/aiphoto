@@ -23,6 +23,17 @@ function FaqAnswer({ item }: { item: (typeof HOMEPAGE_FAQ)[number] }) {
           Открой карточку, чтобы скопировать пример или запустить генерацию.
         </>
       );
+    case "photoshoot":
+      return (
+        <>
+          Серию образов собирайте на странице{" "}
+          <Link href="/promty-dlya-ii-fotosessii" className={linkClass}>
+            «Промты для ИИ фотосессии»
+          </Link>
+          : выберите несколько луков, для каждого загрузите своё фото. Один кадр
+          — в ленте на этой странице.
+        </>
+      );
     case "best":
       return (
         <>

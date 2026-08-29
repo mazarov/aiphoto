@@ -25,6 +25,10 @@ import {
 import { MobileProfileSheet } from "./MobileProfileSheet";
 import { UserAvatarImage } from "./UserAvatarImage";
 import { usePricingModal } from "@/context/PricingModalContext";
+import {
+  PROMTY_DLYA_II_FOTOSESSII_GENERATE_CTA,
+  listingGenerateIdleCta,
+} from "@/lib/promty-dlya-ii-fotosessii-cluster";
 
 function tabIconClass(active: boolean) {
   return active ? "text-indigo-600" : "text-zinc-400";
@@ -55,6 +59,10 @@ export function MobileTabBar() {
   } = useGenerateDock();
   const { user } = useAuth();
   const isAuthed = Boolean(user && user.is_anonymous !== true);
+  const generateIdleLabel = listingGenerateIdleCta({
+    pathname,
+    isAuthed: true,
+  });
 
   const isMobile = useListingIsMobile();
   const [searchSheetOpen, setSearchSheetOpen] = useState(false);
@@ -217,7 +225,7 @@ export function MobileTabBar() {
                       ? `Генерируем ${Math.round(generateRunProgress)}%`
                       : generateNeedsCredits
                         ? "Недостаточно кредитов"
-                        : "Создать фото"
+                        : generateIdleLabel
                   }
                   aria-busy={generateRunBusy || undefined}
                   aria-pressed={generateActive}
@@ -287,7 +295,11 @@ export function MobileTabBar() {
                     </span>
                   </span>
                   <span
-                    className={`max-w-[4.75rem] text-center text-[9px] leading-tight ${
+                    className={`${
+                      generateIdleLabel === PROMTY_DLYA_II_FOTOSESSII_GENERATE_CTA
+                        ? "max-w-[6.5rem]"
+                        : "max-w-[4.75rem]"
+                    } text-center text-[9px] leading-tight ${
                       generateNeedsCredits
                         ? "font-semibold text-rose-500/90"
                         : generateActive || generateRunBusy
@@ -299,7 +311,7 @@ export function MobileTabBar() {
                       ? "Генерируем"
                       : generateNeedsCredits
                         ? "Нет кредитов"
-                        : "Создать фото"}
+                        : generateIdleLabel}
                   </span>
                 </button>
               </div>

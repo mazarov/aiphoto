@@ -280,17 +280,51 @@ export function parsePhotoshootPlannerTemperature(instruction: string): number {
   return clampPhotoshootPlannerTemperature(match?.[1]);
 }
 
+export type PhotoshootSourceError =
+  | "photoshoot_source_required"
+  | "photoshoot_source_conflict"
+  | "photoshoot_one_photo";
+
+export function validatePhotoshootGenerationSource(input: {
+  hasParentGeneration: boolean;
+  photoCount: number;
+}): PhotoshootSourceError | null {
+  if (input.hasParentGeneration && input.photoCount > 0) {
+    return "photoshoot_source_conflict";
+  }
+  if (!input.hasParentGeneration && input.photoCount === 0) {
+    return "photoshoot_source_required";
+  }
+  if (!input.hasParentGeneration && input.photoCount !== 1) {
+    return "photoshoot_one_photo";
+  }
+  return null;
+}
+
+export function photoshootSourceErrorMessage(error: PhotoshootSourceError): string {
+  switch (error) {
+    case "photoshoot_source_conflict":
+      return "Укажите либо исходное фото, либо предыдущую генерацию";
+    case "photoshoot_source_required":
+    case "photoshoot_one_photo":
+      return "Для фотосессии выберите одно фото";
+  }
+}
+
 export function photoshootFingerprintFields(
   parentGenerationId: string,
   temperature?: unknown,
+  photoStoragePath?: string,
 ): {
   editKind: string;
   parentGenerationId: string;
+  photoStoragePath: string;
   plannerTemperature: number;
 } {
   return {
     editKind: PHOTOSHOOT_EDIT_KIND,
-    parentGenerationId,
+    parentGenerationId: String(parentGenerationId || "").trim(),
+    photoStoragePath: String(photoStoragePath || "").trim(),
     plannerTemperature: clampPhotoshootPlannerTemperature(temperature),
   };
 }

@@ -13,6 +13,8 @@ import {
   parsePhotoshootPlan,
   parsePhotoshootPlannerTemperature,
   photoshootFingerprintFields,
+  photoshootSourceErrorMessage,
+  validatePhotoshootGenerationSource,
   photoshootTileStoragePath,
   parsePhotoshootTileIndex,
   parsePhotoshootTilePaths,
@@ -295,13 +297,46 @@ test("photoshoot parent source is a tile, never the sheet", () => {
   assert.equal(photoshootTileIndexForUrl(tiles, tiles[2]), 3);
 });
 
-test("photoshoot fingerprint is parent + kind + planner temperature", () => {
+test("photoshoot fingerprint is parent or library path + kind + planner temperature", () => {
   assert.deepEqual(photoshootFingerprintFields("root-1"), {
     editKind: PHOTOSHOOT_EDIT_KIND,
     parentGenerationId: "root-1",
+    photoStoragePath: "",
     plannerTemperature: PHOTOSHOOT_PLANNER_TEMPERATURE_DEFAULT,
   });
-  assert.equal(photoshootFingerprintFields("root-1", 0.85).plannerTemperature, 0.85);
+  assert.deepEqual(photoshootFingerprintFields("", 0.85, "user/a.jpg"), {
+    editKind: PHOTOSHOOT_EDIT_KIND,
+    parentGenerationId: "",
+    photoStoragePath: "user/a.jpg",
+    plannerTemperature: 0.85,
+  });
+});
+
+test("photoshoot source is parent XOR exactly one library photo", () => {
+  assert.equal(
+    validatePhotoshootGenerationSource({ hasParentGeneration: true, photoCount: 0 }),
+    null,
+  );
+  assert.equal(
+    validatePhotoshootGenerationSource({ hasParentGeneration: false, photoCount: 1 }),
+    null,
+  );
+  assert.equal(
+    validatePhotoshootGenerationSource({ hasParentGeneration: false, photoCount: 0 }),
+    "photoshoot_source_required",
+  );
+  assert.equal(
+    validatePhotoshootGenerationSource({ hasParentGeneration: false, photoCount: 2 }),
+    "photoshoot_one_photo",
+  );
+  assert.equal(
+    validatePhotoshootGenerationSource({ hasParentGeneration: true, photoCount: 1 }),
+    "photoshoot_source_conflict",
+  );
+  assert.equal(
+    photoshootSourceErrorMessage("photoshoot_source_required"),
+    "Для фотосессии выберите одно фото",
+  );
 });
 
 test("planner temperature clamps and round-trips through enqueue instruction", () => {

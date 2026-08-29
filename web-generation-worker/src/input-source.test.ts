@@ -6,6 +6,7 @@ import {
 } from "../../landing/src/lib/user-generation-photo-paths";
 import {
   ProcessingError,
+  assertPhotoshootInputSource,
   assertVideoInputSource,
   resolveGenerationInputSource,
   RESULTS_BUCKET,
@@ -182,6 +183,27 @@ test("library filename recovers the source generation id", () => {
   assert.equal(
     resolveVideoEnqueueParentGenerationId("explicit-parent", "generation-3d1b3c6c-7565-4ae8-bb01-338863065d83.jpg"),
     "explicit-parent",
+  );
+});
+
+test("photoshoot source rejects text-only and accepts a library photo", () => {
+  assert.throws(
+    () =>
+      assertPhotoshootInputSource({
+        sourceType: "text_only",
+        bucket: "web-generation-uploads",
+        paths: [],
+      }),
+    (error) =>
+      error instanceof ProcessingError && error.errorType === "photoshoot_source_required",
+  );
+  assert.equal(
+    assertPhotoshootInputSource({
+      sourceType: "user_photos",
+      bucket: "web-generation-uploads",
+      paths: ["user/a.jpg"],
+    }).paths.length,
+    1,
   );
 });
 

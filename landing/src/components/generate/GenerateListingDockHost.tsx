@@ -16,6 +16,7 @@ import { useListingIsMobile } from "@/hooks/useListingIsMobile";
 import { setListingChromeAutoHideBlocked } from "@/hooks/useListingChromeAutoHide";
 import { OVERLAY_BUTTON_UA_RESET } from "@/lib/card-overlay-action-pill";
 import { isPrimaryOverlayDismissPointer } from "@/lib/generate-compose-job";
+import { listingGenerateIdleCta } from "@/lib/promty-dlya-ii-fotosessii-cluster";
 import {
   reachYandexMetrikaGoal,
   YM_GOAL_PROMPT_CARD_GENERATION_PRICING,
@@ -325,30 +326,12 @@ export function GenerateListingDockHost() {
                     aria-hidden
                   />
                 ) : null}
-                <span className="relative z-10 inline-flex items-center gap-2">
-                  {runBusy || needsCredits ? null : (
-                    <svg
-                      className="h-4 w-4 shrink-0"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth={2}
-                      aria-hidden
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3z"
-                      />
-                    </svg>
-                  )}
+                <span className="relative z-10 inline-flex items-center">
                   {runBusy
                     ? `Генерируем · ${Math.round(runProgress)}%`
                     : needsCredits
                       ? "Недостаточно кредитов"
-                      : isAuthed
-                        ? "Создать фото"
-                        : "Войти и создать фото"}
+                      : listingGenerateIdleCta({ pathname, isAuthed })}
                 </span>
               </button>
             </div>

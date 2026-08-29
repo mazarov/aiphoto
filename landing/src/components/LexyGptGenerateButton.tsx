@@ -205,28 +205,7 @@ export function LexyGptGenerateButton({
         showSparkle ? "prompt-detail-primary-cta--idle" : ""
       } ${className}`.trim()}
     >
-      {showSparkle ? (
-        <>
-          <span>{visibleLabel}</span>
-          <SparkleIcon className="h-4 w-4 shrink-0" />
-        </>
-      ) : (
-        visibleLabel
-      )}
+      {visibleLabel}
     </button>
-  );
-}
-
-function SparkleIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 24 24"
-      fill="currentColor"
-      aria-hidden
-    >
-      <path d="M12 2.5l1.6 5.2L19 9.3l-5.2 1.6L12 16l-1.6-5.1L5 9.3l5.4-1.6L12 2.5z" />
-      <path d="M18.5 14.5l.7 2.2 2.3.7-2.3.7-.7 2.2-.7-2.2-2.2-.7 2.2-.7.7-2.2z" opacity="0.85" />
-    </svg>
   );
 }

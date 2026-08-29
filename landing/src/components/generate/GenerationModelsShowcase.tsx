@@ -33,25 +33,6 @@ function badgeForModel(modelId: string): string {
   return "Быстро";
 }
 
-function SparkleIcon() {
-  return (
-    <svg
-      className="h-4 w-4 shrink-0"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      aria-hidden
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3z"
-      />
-    </svg>
-  );
-}
-
 function CheckIcon() {
   return (
     <svg
@@ -238,7 +219,7 @@ export function GenerationModelsShowcase({
                       }}
                       className={`mt-3 ${BRAND_CTA}`}
                     >
-                      {selected ? <CheckIcon /> : <SparkleIcon />}
+                      {selected ? <CheckIcon /> : null}
                       {selected ? "Модель выбрана" : "Выбрать модель"}
                     </button>
                   </div>

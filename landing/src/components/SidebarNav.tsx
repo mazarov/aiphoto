@@ -173,6 +173,31 @@ function SidebarContent({
       </Link>
 
       <Link
+        href="/promty-dlya-ii-fotosessii"
+        scroll={false}
+        onClick={onItemClick}
+        className={`flex items-center gap-2.5 rounded-xl px-3 py-2 text-[13px] font-medium transition-colors ${
+          isHrefActive("/promty-dlya-ii-fotosessii", pathname)
+            ? "bg-indigo-50 text-indigo-700"
+            : "text-zinc-700 hover:bg-zinc-50"
+        }`}
+      >
+        <svg
+          className="h-4 w-4 flex-shrink-0"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={2}
+          aria-hidden
+        >
+          <rect x="3" y="5" width="18" height="14" rx="2" />
+          <circle cx="12" cy="12" r="3" />
+          <path d="M8 5l1.5-2h5L16 5" />
+        </svg>
+        ИИ фотосессия
+      </Link>
+
+      <Link
         href="/search"
         scroll={false}
         onClick={onItemClick}

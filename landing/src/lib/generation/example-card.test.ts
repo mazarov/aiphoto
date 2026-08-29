@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { toGenerationExampleCard } from "./example-card";
+import {
+  filterExampleCardsByQuery,
+  filterPhotoshootExampleCards,
+  toGenerationExampleCard,
+} from "./example-card";
 import type { PhotoMeta, PromptCardFull } from "@/lib/supabase";
 
 const tileMeta = (index: number): PhotoMeta => ({
@@ -47,6 +51,38 @@ function fakeCard(overrides: Partial<PromptCardFull> = {}): PromptCardFull {
     ...overrides,
   };
 }
+
+test("filterPhotoshootExampleCards drops one-frame catalog cards", () => {
+  const photoshoot = toGenerationExampleCard(fakeCard());
+  const catalog = toGenerationExampleCard(
+    fakeCard({
+      id: "card-2",
+      slug: "one-frame",
+      datasetSlug: "telegram_export",
+      photoUrls: ["https://img/1.jpg"],
+      photoMeta: [
+        {
+          url: "https://img/1.jpg",
+          bucket: "public",
+          path: "channel/photo.jpg",
+          width: 512,
+          height: 512,
+        },
+      ],
+      photoCount: 1,
+    })
+  );
+  assert.equal(catalog.isPhotoshoot, false);
+  assert.deepEqual(filterPhotoshootExampleCards([catalog, photoshoot]), [
+    photoshoot,
+  ]);
+});
+
+test("filterExampleCardsByQuery stays inside the provided set", () => {
+  const photoshoot = toGenerationExampleCard(fakeCard({ title_ru: "Студия" }));
+  assert.equal(filterExampleCardsByQuery([photoshoot], "сту").length, 1);
+  assert.equal(filterExampleCardsByQuery([photoshoot], "пляж").length, 0);
+});
 
 test("toGenerationExampleCard keeps all photoshoot tile URLs", () => {
   const example = toGenerationExampleCard(fakeCard());

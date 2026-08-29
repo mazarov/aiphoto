@@ -33,6 +33,7 @@ import {
   resolveImageEditMode,
 } from "../../landing/src/lib/camera-orbit";
 import {
+  PHOTOSHOOT_EDIT_KIND,
   PHOTOSHOOT_TILE_INDEXES,
   parsePhotoshootPlannerTemperature,
   photoshootTileStoragePath,
@@ -44,6 +45,7 @@ import { getVibeAttachReferenceImage } from "./lib/vibe-config";
 import { errorFields, log } from "./lib/logger";
 import {
   ProcessingError,
+  assertPhotoshootInputSource,
   resolveGenerationInputSource,
   RESULTS_BUCKET,
   type GenerationInputJob,
@@ -339,7 +341,11 @@ export async function processGeneration(
     pipelineTrace: job.pipeline_trace_id,
   };
   log("info", "generation_started", context);
-  const inputSource = await resolveInputSource(supabase, job);
+  const resolvedInput = await resolveInputSource(supabase, job);
+  const inputSource =
+    job.edit_kind === PHOTOSHOOT_EDIT_KIND
+      ? assertPhotoshootInputSource(resolvedInput)
+      : resolvedInput;
   log("info", "generation_input_resolved", {
     ...context,
     sourceType: inputSource.sourceType,
@@ -391,7 +397,7 @@ export async function processGeneration(
   if (isPhotoshoot) {
     cachedInputParts = await downloadInputs(supabase, inputSource);
     if (!cachedInputParts[0]) {
-      throw new ProcessingError("input_missing", "Photoshoot parent image is missing", false);
+      throw new ProcessingError("input_missing", "Photoshoot source image is missing", false);
     }
     const plan = await planPhotoshootShots({
       supabase,

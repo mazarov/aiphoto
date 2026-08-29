@@ -64,6 +64,12 @@ test("homepage FAQ covers leftover Wordcraft tails, not other-block keys", () =>
     questions.some((q) => /сделать фото ИИ|пары|девушк|обработ|бесплатн/i.test(q)),
     false
   );
+  const photoshoot = HOMEPAGE_FAQ.find((item) => item.id === "photoshoot");
+  assert.match(photoshoot?.aPlain ?? "", /Промты для ИИ фотосессии/);
+  assert.doesNotMatch(
+    photoshoot?.aPlain ?? "",
+    /Открой несколько карточек с идеями/
+  );
   for (const item of HOMEPAGE_FAQ) {
     assert.doesNotMatch(item.q, /промпт/i);
     assert.doesNotMatch(item.aPlain, /промпт/i);

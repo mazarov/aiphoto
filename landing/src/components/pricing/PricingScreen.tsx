@@ -13,6 +13,8 @@ type Props = {
   variant: "page" | "modal" | "embed";
   paywallVariant?: PricingPaywallVariant | null;
   returnPath?: string;
+  /** Optional lead under embed H2 «Тарифы». Hub-only; `/generaciya-foto` stays without it. */
+  lead?: string;
 };
 
 function LegalFooter({
@@ -70,11 +72,13 @@ function CompactPricingScreen({
   paywallVariant,
   headingId,
   returnPath,
+  lead,
 }: {
   mode: "page" | "modal" | "embed";
   paywallVariant: PricingPaywallVariant;
   headingId: string;
   returnPath?: string;
+  lead?: string;
 }) {
   const HeadingTag = mode === "embed" ? "h2" : "h1";
   const isEmbed = mode === "embed";
@@ -128,12 +132,19 @@ function CompactPricingScreen({
         }`}
       >
         {isEmbed ? (
-          <HeadingTag
-            id={headingId}
-            className="mb-5 text-2xl font-bold tracking-tight text-zinc-900 sm:text-3xl"
-          >
-            Тарифы
-          </HeadingTag>
+          <header className="mb-5">
+            <HeadingTag
+              id={headingId}
+              className="text-2xl font-bold tracking-tight text-zinc-900 sm:text-3xl"
+            >
+              Тарифы
+            </HeadingTag>
+            {lead ? (
+              <p className="mt-2 max-w-2xl text-sm leading-relaxed text-zinc-600 sm:text-base">
+                {lead}
+              </p>
+            ) : null}
+          </header>
         ) : null}
         <section
           className="flex min-h-0 flex-1 flex-col"
@@ -171,6 +182,7 @@ export function PricingScreen({
   variant,
   paywallVariant: providedPaywallVariant,
   returnPath,
+  lead,
 }: Props) {
   const assignedPaywallVariant = usePricingPaywallVariant();
   const paywallVariant =
@@ -196,6 +208,7 @@ export function PricingScreen({
       paywallVariant={paywallVariant}
       headingId={variant === "embed" ? "tarify-heading" : "pricing-heading"}
       returnPath={returnPath}
+      lead={lead}
     />
   );
 }

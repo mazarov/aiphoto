@@ -6,6 +6,7 @@ import { ListingMasonry, ListingMasonryItem } from "@/components/ListingMasonry"
 import { ListingPhotoTile } from "@/components/ListingPhotoTile";
 import {
   type GenerationExampleCard,
+  filterExampleCardsByQuery,
   toGenerationExampleCard,
   writeGenerationExampleNavigation,
 } from "@/lib/generation/example-card";
@@ -81,6 +82,7 @@ export function GeneraciyaFotoExamplesExplorer({
   scenarioNavigation,
   navigationAriaLabel,
   lockCardsToScenario = false,
+  restrictToInitialCards = false,
 }: {
   initialCards: GenerationExampleCard[];
   title?: string;
@@ -91,6 +93,7 @@ export function GeneraciyaFotoExamplesExplorer({
   scenarioNavigation?: GeneraciyaFotoChipNavItem[];
   navigationAriaLabel?: string;
   lockCardsToScenario?: boolean;
+  restrictToInitialCards?: boolean;
 }) {
   const [query, setQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState<QuickFilter | null>(null);
@@ -106,6 +109,13 @@ export function GeneraciyaFotoExamplesExplorer({
 
   useEffect(() => {
     const trimmed = query.trim();
+    if (restrictToInitialCards) {
+      setCards(filterExampleCardsByQuery(initialCards, trimmed));
+      setLoading(false);
+      setError("");
+      return;
+    }
+
     if (lockedToScenario && trimmed.length < 2) {
       setCards(initialCards);
       setLoading(false);
@@ -180,7 +190,7 @@ export function GeneraciyaFotoExamplesExplorer({
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [activeFilter, initialCards, lockedToScenario, query]);
+  }, [activeFilter, initialCards, lockedToScenario, query, restrictToInitialCards]);
 
   const allPromptsHref =
     query.trim().length >= 2
@@ -335,7 +345,7 @@ export function GeneraciyaFotoExamplesExplorer({
           ))}
         </ListingMasonry>
 
-        {cards.length > 0 ? (
+        {cards.length > 0 && !restrictToInitialCards ? (
           <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30">
             <div
               className="absolute inset-x-0 bottom-0 h-32 backdrop-blur-[6px] [mask-image:linear-gradient(to_top,black,transparent)] sm:h-40"
@@ -374,7 +384,9 @@ export function GeneraciyaFotoExamplesExplorer({
             {error || "Подходящих промтов пока не найдено"}
           </p>
           <p className="mt-2 max-w-sm text-sm leading-relaxed text-zinc-500">
-            Измените формулировку или выберите одну из быстрых подборок.
+            {restrictToInitialCards
+              ? "Измените формулировку. В этом блоке только ИИ-фотосессии."
+              : "Измените формулировку или выберите одну из быстрых подборок."}
           </p>
         </div>
       ) : error ? (
