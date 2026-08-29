@@ -5,7 +5,11 @@ import type { createSupabaseServer } from "@/lib/supabase";
 
 type SupabaseServer = ReturnType<typeof createSupabaseServer>;
 export const ANALYZE_HISTORY_BUCKET = "analyze-history";
-const RETENTION_DAYS = 30;
+export const ANALYZE_HISTORY_RETENTION_DAYS = 5;
+export const ANALYZE_HISTORY_CLEANUP_BATCH = 200;
+export const ANALYZE_HISTORY_CLEANUP_DEFAULT_LIMIT = 1000;
+export const ANALYZE_HISTORY_CLEANUP_MAX_LIMIT = 4000;
+const ANALYZE_HISTORY_REMOVE_CHUNK = 80;
 const MAX_CHANGE_REQUEST_CHARS = 1_000;
 
 export type AnalyzeHistoryKind = "analyze" | "remix";
@@ -213,17 +217,78 @@ export function parseAnalyzeHistoryLimit(raw: string | null): number {
   return Number.isFinite(value) ? Math.min(100, Math.max(1, Math.floor(value))) : 30;
 }
 
-/** Opportunistic retention cleanup; failures never block an admin read. */
-export async function maybeCleanupAnalyzeHistory(supabase: SupabaseServer): Promise<void> {
-  if (Math.random() > 0.05) return;
-  const cutoff = new Date(Date.now() - RETENTION_DAYS * 86_400_000).toISOString();
-  const { data, error } = await supabase
-    .from("analyze_history")
-    .select("id,image_path")
-    .lt("created_at", cutoff)
-    .limit(500);
-  if (error || !data?.length) return;
-  const paths = data.map((row) => row.image_path).filter((path): path is string => Boolean(path));
-  if (paths.length) await supabase.storage.from(ANALYZE_HISTORY_BUCKET).remove(paths);
-  await supabase.from("analyze_history").delete().in("id", data.map((row) => row.id));
+export function analyzeHistoryRetentionCutoff(now = Date.now()): string {
+  return new Date(now - ANALYZE_HISTORY_RETENTION_DAYS * 86_400_000).toISOString();
+}
+
+export function parseAnalyzeHistoryCleanupLimit(raw: string | null): number {
+  const value = Number(raw || ANALYZE_HISTORY_CLEANUP_DEFAULT_LIMIT);
+  return Number.isFinite(value)
+    ? Math.min(ANALYZE_HISTORY_CLEANUP_MAX_LIMIT, Math.max(1, Math.floor(value)))
+    : ANALYZE_HISTORY_CLEANUP_DEFAULT_LIMIT;
+}
+
+export type AnalyzeHistoryCleanupResult = {
+  cutoff: string;
+  scanned: number;
+  deletedRows: number;
+  removedFiles: number;
+  hasMore: boolean;
+};
+
+function chunkPaths(paths: string[], size: number): string[][] {
+  const batches: string[][] = [];
+  for (let i = 0; i < paths.length; i += size) batches.push(paths.slice(i, i + size));
+  return batches;
+}
+
+/** Deletes analyze rows and MinIO objects older than 5 days. Storage first, then rows. */
+export async function cleanupExpiredAnalyzeHistory(
+  supabase: SupabaseServer,
+  options: { limit?: number; now?: number } = {},
+): Promise<AnalyzeHistoryCleanupResult> {
+  const limit = parseAnalyzeHistoryCleanupLimit(
+    options.limit == null ? null : String(options.limit),
+  );
+  const cutoff = analyzeHistoryRetentionCutoff(options.now);
+  let scanned = 0;
+  let deletedRows = 0;
+  let removedFiles = 0;
+
+  while (deletedRows < limit) {
+    const take = Math.min(ANALYZE_HISTORY_CLEANUP_BATCH, limit - deletedRows);
+    const { data, error } = await supabase
+      .from("analyze_history")
+      .select("id,image_path")
+      .lt("created_at", cutoff)
+      .order("created_at", { ascending: true })
+      .limit(take);
+    if (error) throw new Error(error.message);
+    const rows = data ?? [];
+    if (!rows.length) {
+      return { cutoff, scanned, deletedRows, removedFiles, hasMore: false };
+    }
+    scanned += rows.length;
+
+    const paths = [...new Set(rows.map((row) => row.image_path).filter((path): path is string => Boolean(path)))];
+    for (const batch of chunkPaths(paths, ANALYZE_HISTORY_REMOVE_CHUNK)) {
+      const { error: removeError } = await supabase.storage
+        .from(ANALYZE_HISTORY_BUCKET)
+        .remove(batch);
+      if (removeError) throw new Error(removeError.message);
+      removedFiles += batch.length;
+    }
+
+    const { error: deleteError } = await supabase
+      .from("analyze_history")
+      .delete()
+      .in("id", rows.map((row) => row.id));
+    if (deleteError) throw new Error(deleteError.message);
+    deletedRows += rows.length;
+    if (rows.length < take) {
+      return { cutoff, scanned, deletedRows, removedFiles, hasMore: false };
+    }
+  }
+
+  return { cutoff, scanned, deletedRows, removedFiles, hasMore: true };
 }

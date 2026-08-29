@@ -1,5 +1,7 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-08-29 (**analyze-history TTL cron:** private `analyze_history` / bucket `analyze-history` хранятся 5 дней. Снимает `POST /api/cron/analyze-history` (`CRON_SECRET`), до 1000 строк за тик, файлы в MinIO через Storage API, потом строки. Админ-GET больше не чистит. После выката — pg_cron раз в сутки.
+>
 > Последнее обновление: 2026-08-29 (**fotosessii L2 = hub chrome:** 17 детей `/promty-dlya-ii-fotosessii/[audience]` в том же порядке, что хаб: hero + карусель → `#temy` → HowTo 2 шага → `#primery` → `#tarify` → FAQ. Тексты — шаблон хаба + слоты ключа ребёнка. Рамки сессии и CTA на L1/GF нет; L1-ключи остаются в FAQ. Коллажи — общий `getFotosessiiThemeCollagePhotos`.
 >
 > Последнее обновление: 2026-08-29 (**fotosessii hub:** с хаба снят блок «Чем ИИ-фотосессия отличается от одного промта». Порядок: hero → `#temy` → HowTo → `#primery` → тарифы → FAQ.
@@ -486,7 +488,7 @@
 >
 > Последнее обновление: 2026-08-15 (**web-generation results JPEG:** worker пишет новые объекты в `web-generation-results` как JPEG q=85 (`user/job/lease.jpg`). Старые `.png` валидны. Encode fail / no-gain заливает исходник с честным mime. Alpine worker ставит musl `sharp@0.33.5`.)
 >
-> Последнее обновление: 2026-08-15 (**analyze-history retention:** private `analyze_history` / bucket `analyze-history` хранятся 5 дней; cleanup на каждом admin read, до 1000 строк за запрос.)
+> Последнее обновление: 2026-08-15 (**analyze-history retention:** private `analyze_history` / bucket `analyze-history` хранятся 5 дней; с 2026-08-29 cleanup только cron, не admin read.)
 >
 > Последнее обновление: 2026-08-14 (**iOS focus zoom:** на touch (`hover: none` + `pointer: coarse`) у `input`/`textarea`/`select` минимум `font-size: 16px`, иначе Safari зумит страницу. Без `maximum-scale=1`. Hero search больше не `focus-within:scale-[1.005]`.)
 >
@@ -832,6 +834,7 @@
 | `/api/cron/visual-embeddings` | POST, `Authorization: Bearer $CRON_SECRET`: enqueue missing canonical-photo embeddings + claim/lease Gemini Embedding 2 batch + warm birthday listing query vectors (`listing_query_embeddings`) |
 | `/api/cron/mail-outbox` | POST, `Authorization: Bearer $CRON_SECRET`: claim/lease `landing_mail_outbox` → Postbox SESv2 (1 To / call, ≥1.1s gap, circuit 3/60s). Claim: transactional → lifecycle marketing → campaign. Без ключей — `{ configured: false }` |
 | `/api/cron/mail-due` | POST, `Authorization: Bearer $CRON_SECRET`: claim `landing_mail_due` (один user / тик) → `evaluateMailDue` → грант при % → `landing_enqueue_mail`. Generate SMTP не ждёт |
+| `/api/cron/analyze-history` | POST, `Authorization: Bearer $CRON_SECRET`: TTL 5 дней для `analyze_history` + объектов `analyze-history`; default limit 1000, max 4000; сначала Storage `remove`, потом DELETE строк |
 | `/api/admin/mail/catalog` | GET, admin: превью всех писем из `mail-catalog.ts` |
 | `/api/admin/mail/stats` | GET, admin, no-store: дневные агрегаты outbox за `days=1…30` (default 14). RPC `landing_mail_admin_daily_stats` + `landing_mail_daily_budget` для сегодняшнего queued/remaining. Без PII |
 | `/api/mail/postbox-events` | POST, `POSTBOX_WEBHOOK_SECRET`: hard bounce / complaint → `landing_mail_suppress`. Transient bounce игнорируется |
@@ -934,7 +937,25 @@
   токена для paid.
   Успешный site `POST /api/prompt-remix` пишет туда же `kind=remix` + `change_request`
   (без image). Admin UI показывает бейдж Remix и текст «Что изменить?».
-  Signed previews выдаются только admin API; retention — 30 дней с opportunistic cleanup.
+  Signed previews выдаются только admin API и `/api/analyses`; retention — 5 дней, cleanup — `POST /api/cron/analyze-history` (не admin GET). После выката:
+
+  ```sql
+  SELECT cron.schedule(
+    'analyze-history-ttl',
+    '15 3 * * *',
+    $$
+    SELECT net.http_post(
+      url := 'https://promptshot.ru/api/cron/analyze-history',
+      headers := jsonb_build_object(
+        'Authorization', 'Bearer ВСТАВЬ_CRON_SECRET',
+        'Content-Type', 'application/json'
+      ),
+      body := '{}'::jsonb,
+      timeout_milliseconds := 60000
+    );
+    $$
+  );
+  ```
 - **Admin generation:** `/api/admin/generate` резолвит отдельно requester
   `auth.users.id` и shared `imageprompt_users.id`, ставит `client_source='admin'` job
   через существующий `landing_enqueue_generation`. Job обрабатывает тот же durable
@@ -1789,7 +1810,7 @@ landing/src/
 | `YOOKASSA_SHOP_ID` | Server-only идентификатор магазина для Basic Auth YooKassa API |
 | `YOOKASSA_SECRET_KEY` | Server-only секрет магазина YooKassa; не передаётся клиенту и не логируется |
 | `YANDEX_METRIKA_MP_TOKEN` | Server-only токен Measurement Protocol счётчика `107703100`; без него покупки в Директ не уходят |
-| `CRON_SECRET` | Bearer-секрет для `POST /api/cron/yookassa-reconcile`, `POST /api/cron/visual-embeddings`, `POST /api/cron/mail-outbox` и `POST /api/cron/mail-due` |
+| `CRON_SECRET` | Bearer-секрет для `POST /api/cron/yookassa-reconcile`, `POST /api/cron/visual-embeddings`, `POST /api/cron/mail-outbox`, `POST /api/cron/mail-due` и `POST /api/cron/analyze-history` |
 | `POSTBOX_ENDPOINT` | Host Postbox, default `https://postbox.cloud.yandex.net`. РФ, без `GEMINI_PROXY` |
 | `POSTBOX_REGION` | SigV4 region, default `ru-central1` |
 | `POSTBOX_ACCESS_KEY_ID` / `POSTBOX_SECRET_ACCESS_KEY` | Статические ключи YC. Пустые — cron не claim-ит |

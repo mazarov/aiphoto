@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAnalyticsAdmin } from "@/lib/analytics-admin";
 import {
   ANALYZE_HISTORY_BUCKET, encodeAnalyzeHistoryCursor, loadAnalyzeHistoryIdentities,
-  maybeCleanupAnalyzeHistory, parseAnalyzeHistoryCursor, parseAnalyzeHistoryLimit,
+  parseAnalyzeHistoryCursor, parseAnalyzeHistoryLimit,
   type AnalyzeHistoryRow,
 } from "@/lib/analyze-history";
 import { createSupabaseServer } from "@/lib/supabase";
@@ -13,7 +13,6 @@ export async function GET(req: NextRequest) {
   const gate = await requireAnalyticsAdmin(req);
   if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status });
   const supabase = createSupabaseServer();
-  await maybeCleanupAnalyzeHistory(supabase);
   const limit = parseAnalyzeHistoryLimit(req.nextUrl.searchParams.get("limit"));
   const cursor = parseAnalyzeHistoryCursor(req.nextUrl.searchParams.get("cursor"));
   const source = req.nextUrl.searchParams.get("client_source")?.trim();
