@@ -282,6 +282,8 @@
 >
 > Последнее обновление: 2026-08-22 (**model sheet photo/video split:** шторка «Модель генерации» делит карточки на блоки «Фото» и «Видео». Тексты video-моделей как у Lexy: Grok Imagine 1.5 — «Динамичное видео из фото», Veo Omni Flash — «Фото оживает по твоему сценарию», Veo 3.1 Lite — «Озвученное видео из фото». SSOT `GENERATION_MODEL_DISPLAY`.)
 >
+> Последнее обновление: 2026-08-29 (**yk_abandon_5m:** ЮKassa insert ставит due +5 мин. Если нет `credited_at` и флаг `yk_abandon_5m_enabled` — tx-письмо −25% на 1 час, CTA `/pricing?plan=`. Flash-грант отдельной строкой, касса берёт max %. 40m/24h остаются. Спека `docs/29-08-yk-abandon-5m.md`, SQL `229`.)
+>
 > Последнее обновление: 2026-08-22 (**Grok Imagine image = 10 кредитов:** `GROK_IMAGINE_IMAGE_CREDIT_COST` в `image-options.ts`. `parseEnabledGenerationModels` всегда ставит 10 для `grok-imagine-image*` (пикер и `POST /api/generate`), даже если в `landing_generation_config.models` ещё 5. SQL `207` выравнивает JSON в БД. Фолбек на Grok по-прежнему не меняет `credits_spent`.)
 >
 > Последнее обновление: 2026-08-22 (**compose video models in photo sheet:** в `CardInlineGeneratePanel` видео-модели стоят в той же шторке «Модель генерации», что и фото. Выбор видео-модели = `composeModality=video` + `POST /api/generate/animate-scenario`; возврат на фото-модель восстанавливает stash image-промпта (`lib/compose-modality-prompt.ts`). Отдельной плитки «Видео» / `VideoComposeBar` / ссылки «Оживить фото» нет. Компактная плитка модели показывает выбранную модель и бейдж «Видео». На готовом фото по-прежнему glass-кнопка «Оживить».)
@@ -974,8 +976,10 @@
   Send — `POST /api/cron/mail-outbox`. Welcome — `welcome:{shared_user_id}`
   и due onboard +1/+3/+7d. Токены —
   `{yookassa\|robokassa}_credited:{payment_id}`. ЮKassa insert → abandon
-  40m/24h на `payment_id`. 402 generate/analyze → `landing_mail_credit_blocks`
-  + `no_credits` +2ч. Грант: один живой `landing_pricing_offers`; create
+  5m/40m/24h на `payment_id` (5m только при флаге `yk_abandon_5m_enabled`,
+  грант 25% / 1 час отдельной строкой). 402 generate/analyze → `landing_mail_credit_blocks`
+  + `no_credits` +2ч. Грант: живые `landing_pricing_offers` (10/20 и flash 25%
+  могут сосуществовать, касса берёт max %); create
   ЮKassa/Robokassa делает `landing_apply_checkout_offer` (цена серверная);
   `credited_at` ставит `consumed_at`. Кампании: dry-run на `/admin/mail`,
   fan-out `campaign:{id}:{email}`; enqueue стоп, если остаток квоты меньше

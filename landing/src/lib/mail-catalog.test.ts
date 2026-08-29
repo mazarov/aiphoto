@@ -26,6 +26,7 @@ test("catalog lists every product letter once", () => {
   const ids = listMailCatalog().map((row) => row.id);
   assert.equal(new Set(ids).size, ids.length);
   assert.ok(ids.includes("welcome"));
+  assert.ok(ids.includes("yk_abandon_5m"));
   assert.ok(ids.includes("yk_abandon_40m"));
   assert.ok(ids.includes("winback_30"));
 });
@@ -42,6 +43,14 @@ test("no_credits is not a zero-balance letter", () => {
   assert.deepEqual(zero, { action: "skip", reason: "no_credits_stop" });
   const blocked = evaluateMailDue("no_credits", { ...baseFacts, hasCreditBlock: true });
   assert.equal(blocked.action, "send");
+});
+
+test("yk_abandon_5m sends 25 percent unless already credited", () => {
+  const ready = evaluateMailDue("yk_abandon_5m", baseFacts);
+  assert.equal(ready.action, "send");
+  if (ready.action === "send") assert.equal(ready.discountPercent, 25);
+  const paid = evaluateMailDue("yk_abandon_5m", { ...baseFacts, hasCredited: true });
+  assert.deepEqual(paid, { action: "skip", reason: "credited" });
 });
 
 test("payment row stops onboard", () => {

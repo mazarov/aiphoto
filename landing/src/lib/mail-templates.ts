@@ -16,6 +16,7 @@ export const MAIL_TEMPLATE_IDS = [
   "onboard_d7",
   "analyze_intent",
   "no_credits",
+  "yk_abandon_5m",
   "yk_abandon_40m",
   "yk_abandon_24h",
   "paid_unused",
@@ -243,6 +244,25 @@ export function renderMailTemplate(
       ],
       toEmail,
       true,
+    );
+  }
+
+  if (templateId === "yk_abandon_5m") {
+    const planId = payloadString(payload, "plan_id") || "trial";
+    return buildMail(
+      "Оплата PromptShot не завершена — скидка 25% на час",
+      [
+        hi,
+        "",
+        `Платёж за пакет «${plan}» не завершился. Токены ещё не начислены.`,
+        "Можно оплатить со скидкой 25%. Ссылка действует 1 час, войдите тем же аккаунтом.",
+        "",
+        `Оплатить со скидкой 25%: https://promptshot.ru/pricing?plan=${planId}`,
+        "",
+        signature(),
+      ],
+      toEmail,
+      false,
     );
   }
 

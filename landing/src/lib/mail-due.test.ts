@@ -42,6 +42,28 @@ test("due processor skips no_credits without a credit-block fact", async () => {
   assert.deepEqual(calls, ["no_credits_stop"]);
 });
 
+test("due processor cancels 5m abandon when flag is off", async () => {
+  const calls: string[] = [];
+  const supabase = rpcClient({
+    claim_mail_due: () => [
+      {
+        ...dueJob,
+        template_id: "yk_abandon_5m",
+        subject_key: "pay-1",
+        payload: { idempotency_key: "yk_abandon_5m:pay-1", plan_id: "trial" },
+      },
+    ],
+    landing_mail_config_on: () => false,
+    complete_mail_due: (args) => {
+      calls.push(String(args?.p_reason));
+      return true;
+    },
+  });
+  const result = await processMailDue({ supabase });
+  assert.equal(result.skipped, 1);
+  assert.deepEqual(calls, ["flag_off"]);
+});
+
 test("due processor upserts grant before abandon enqueue", async () => {
   const calls: string[] = [];
   const supabase = rpcClient({
@@ -75,4 +97,40 @@ test("due processor upserts grant before abandon enqueue", async () => {
   const result = await processMailDue({ supabase });
   assert.equal(result.enqueued, 1);
   assert.deepEqual(calls, ["grant", "enqueue:yk_abandon_40m", "done"]);
+});
+
+test("due processor grants 25 percent for 60 minutes on 5m abandon", async () => {
+  const calls: string[] = [];
+  const supabase = rpcClient({
+    claim_mail_due: () => [
+      {
+        ...dueJob,
+        template_id: "yk_abandon_5m",
+        subject_key: "pay-1",
+        payload: { idempotency_key: "yk_abandon_5m:pay-1", plan_id: "trial" },
+      },
+    ],
+    landing_mail_config_on: () => true,
+    landing_mail_user_facts: () => ({
+      shared_user_id: "user-1",
+      display_name: "Максим",
+      has_credited: false,
+    }),
+    landing_upsert_pricing_offer: (args) => {
+      calls.push(`grant:${args?.p_percent}:${args?.p_ttl_minutes}`);
+      return { offer_id: "off-1", percent: 25, applied: true };
+    },
+    landing_mail_resolve_email: () => "user@example.com",
+    landing_enqueue_mail: (args) => {
+      calls.push(`enqueue:${args?.p_template_id}`);
+      return { outbox_id: "out-1", inserted: true, skip_reason: null };
+    },
+    complete_mail_due: () => {
+      calls.push("done");
+      return true;
+    },
+  });
+  const result = await processMailDue({ supabase });
+  assert.equal(result.enqueued, 1);
+  assert.deepEqual(calls, ["grant:25:60", "enqueue:yk_abandon_5m", "done"]);
 });

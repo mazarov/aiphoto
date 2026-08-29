@@ -109,6 +109,17 @@ const CATALOG: MailCatalogEntry[] = [
     idempotencyKey: "no_credits:{user}",
   },
   {
+    id: "yk_abandon_5m",
+    kind: "transactional",
+    title: "Бросил ЮKassa 5 мин",
+    audience: "ЮKassa created/pending/canceled, нет credited",
+    when: "+5 мин от created_at",
+    stop: "Любой credited_at или флаг yk_abandon_5m_enabled выкл",
+    discountPercent: 25,
+    cta: "https://promptshot.ru/pricing?plan=",
+    idempotencyKey: "yk_abandon_5m:{payment_id}",
+  },
+  {
     id: "yk_abandon_40m",
     kind: "transactional",
     title: "Бросил ЮKassa 40 мин",
@@ -268,7 +279,11 @@ export function mailOutboxKey(
 ): string {
   const fromPayload = payload.idempotency_key;
   if (typeof fromPayload === "string" && fromPayload.trim()) return fromPayload.trim();
-  if (templateId === "yk_abandon_40m" || templateId === "yk_abandon_24h") {
+  if (
+    templateId === "yk_abandon_5m" ||
+    templateId === "yk_abandon_40m" ||
+    templateId === "yk_abandon_24h"
+  ) {
     return `${templateId}:${subjectKey}`;
   }
   if (templateId === "winback_14" || templateId === "winback_30") {
@@ -308,7 +323,11 @@ export function evaluateMailDue(
       return { action: "skip", reason: "no_credits_stop" };
     }
   }
-  if (templateId === "yk_abandon_40m" || templateId === "yk_abandon_24h") {
+  if (
+    templateId === "yk_abandon_5m" ||
+    templateId === "yk_abandon_40m" ||
+    templateId === "yk_abandon_24h"
+  ) {
     if (facts.hasCredited) return { action: "skip", reason: "credited" };
   }
   if (templateId === "paid_unused") {

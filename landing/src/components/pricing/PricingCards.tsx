@@ -297,7 +297,7 @@ export function PricingCards({
       .then((data: { offer?: { percent?: unknown } | null } | null) => {
         if (cancelled) return;
         const percent = Number(data?.offer?.percent);
-        setOfferPercent(percent === 10 || percent === 20 ? percent : null);
+        setOfferPercent(percent === 10 || percent === 20 || percent === 25 ? percent : null);
       })
       .catch(() => {
         if (!cancelled) setOfferPercent(null);

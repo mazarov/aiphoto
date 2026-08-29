@@ -47,7 +47,7 @@ export function parseLiveMailOffer(raw: unknown): { percent: number; expiresAt: 
   const data = row as { percent?: unknown; expires_at?: unknown };
   const percent = Number(data.percent);
   const expiresAt = typeof data.expires_at === "string" ? data.expires_at : "";
-  if ((percent !== 10 && percent !== 20) || !expiresAt) return null;
+  if ((percent !== 10 && percent !== 20 && percent !== 25) || !expiresAt) return null;
   if (Date.parse(expiresAt) <= Date.now()) return null;
   return { percent, expiresAt };
 }

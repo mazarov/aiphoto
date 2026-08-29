@@ -29,4 +29,8 @@ test("parseLiveMailOffer ignores expired or empty grants", () => {
     percent: 20,
     expiresAt: future,
   });
+  assert.deepEqual(parseLiveMailOffer({ percent: 25, expires_at: future }), {
+    percent: 25,
+    expiresAt: future,
+  });
 });

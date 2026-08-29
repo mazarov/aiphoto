@@ -11,4 +11,8 @@ test("floors treatment catalog at 10 and 20 percent", () => {
   assert.equal(applyMailOfferPercent(299, 20), 239);
   assert.equal(applyMailOfferPercent(469, 20), 375);
   assert.equal(applyMailOfferPercent(990, 20), 792);
+  assert.equal(applyMailOfferPercent(99, 25), 74);
+  assert.equal(applyMailOfferPercent(299, 25), 224);
+  assert.equal(applyMailOfferPercent(469, 25), 351);
+  assert.equal(applyMailOfferPercent(990, 25), 742);
 });

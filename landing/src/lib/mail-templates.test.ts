@@ -22,6 +22,19 @@ test("transactional templates do not add List-Unsubscribe", () => {
   assert.deepEqual(mail.headers, []);
 });
 
+test("yk_abandon_5m is a one-hour 25 percent pay link", () => {
+  const mail = renderMailTemplate(
+    "yk_abandon_5m",
+    { display_name: "Максим", plan_id: "trial" },
+    "user@example.com",
+  );
+  assert.match(mail.subject, /25%/);
+  assert.match(mail.text, /скидкой 25%/);
+  assert.match(mail.text, /1 час/);
+  assert.match(mail.text, /pricing\?plan=trial/);
+  assert.deepEqual(mail.headers, []);
+});
+
 test("welcome names the free daily analyzes", () => {
   const mail = renderMailTemplate("welcome", { display_name: "Максим" }, "user@example.com");
   assert.match(mail.text, /10 разборов/);

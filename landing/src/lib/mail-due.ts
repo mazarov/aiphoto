@@ -91,6 +91,24 @@ export async function processMailDue(options: {
     }
 
     const templateId = job.template_id as MailTemplateId;
+    if (templateId === "yk_abandon_5m") {
+      const { data: flagOn, error: flagError } = await options.supabase.rpc(
+        "landing_mail_config_on",
+        { p_key: "yk_abandon_5m_enabled" },
+      );
+      if (flagError) throw new Error(flagError.message);
+      if (flagOn !== true) {
+        await options.supabase.rpc("complete_mail_due", {
+          p_due_id: job.due_id,
+          p_lease_token: job.lease_token,
+          p_status: "cancelled",
+          p_reason: "flag_off",
+        });
+        skipped += 1;
+        continue;
+      }
+    }
+
     const facts = await loadFacts(options.supabase, job.shared_user_id);
     const decision = evaluateMailDue(templateId, facts);
 
@@ -126,6 +144,7 @@ export async function processMailDue(options: {
           p_percent: decision.discountPercent,
           p_source_template_id: templateId,
           p_ttl_days: 7,
+          p_ttl_minutes: templateId === "yk_abandon_5m" ? 60 : null,
         },
       );
       const row = Array.isArray(offer) ? offer[0] : offer;

@@ -74,6 +74,7 @@ Ops: [`docs/ops/yandex-cloud-postbox.md`](ops/yandex-cloud-postbox.md).
 
 | id | Класс | Когда | Скидка | Ключ |
 |---|---|---|---|---|
+| `yk_abandon_5m` | tx | +5 мин, нет credited | **25%**, 1 час; флаг `yk_abandon_5m_enabled` | `yk_abandon_5m:{payment_id}` |
 | `yk_abandon_40m` | tx | +30–40 мин, нет credited | **10%** (не понижать живые 20%) | `yk_abandon_40m:{payment_id}` |
 | `yk_abandon_24h` | tx | +24 ч, всё ещё нет credited | **20%** | `yk_abandon_24h:{payment_id}` |
 
@@ -106,6 +107,7 @@ Marketing ≤ 1 письмо / календарные сутки `Europe/Moscow`
 | `onboard_d7` | −20% на пакеты PromptShot | 7 дней, все пакеты, войти тем же аккаунтом. |
 | `analyze_intent` | Разбор готов — осталось фото | Промт из фото уже есть. Следующий шаг — генерация. |
 | `no_credits` | Не хватило токенов | Генерация ждала оплаты. Пробный пакет. |
+| `yk_abandon_5m` | Оплата не завершена — скидка 25% на час | Платёж не закрыт за 5 мин. Оплатить на сайте, −25%, грант 1 час. |
 | `yk_abandon_40m` | Оплата не завершена | Платёж начат, токены не начислены. Закончить на сайте, −10%. |
 | `yk_abandon_24h` | Пакет ещё можно оплатить | То же, −20%, без давления. |
 | `tokens_credited` | Токены зачислены | Пакет, число токенов, сразу «сделать фото». |
@@ -134,6 +136,7 @@ https://promptshot.ru
 | Письмо | % | Срок гранта |
 |---|---|---|
 | `onboard_d7` | 20 | 7 дней с отправки |
+| `yk_abandon_5m` | 25 | 1 час; отдельная flash-строка, не затирает 10/20 |
 | `yk_abandon_40m` | 10 | 7 дней; не понижать живые 20% |
 | `yk_abandon_24h` | 20 | 7 дней; апгрейд с 10% |
 | `paid_unused` | нет | — |
@@ -144,6 +147,7 @@ https://promptshot.ru
 
 - 10%: 99→89, 299→269, 469→422, 990→891
 - 20%: 99→79, 299→239, 469→375, 990→792
+- 25%: 99→74, 299→224, 469→351, 990→742
 
 Токены пакета не меняются. CTA писем со скидкой: `https://promptshot.ru/pricing`. Гость и чужой аккаунт — полные цены. Пересланное письмо скидку не даёт.
 
@@ -175,9 +179,10 @@ flowchart LR
 
 `landing_pricing_offers`
 
-- один **живой** грант на пользователя: unique partial index `shared_user_id` where `consumed_at is null` and `expires_at > now()`
-- `offer_id`, `percent`, `expires_at`, `consumed_at`, `reserved_payment_id`
-- upsert: больший % побеждает, меньший не затирает; expiry 7 дней с записи
+- стандартный грант 10/20: unique partial `shared_user_id` where `consumed_at is null` and `percent in (10, 20)`
+- flash 25%: отдельный unique `shared_user_id` where `consumed_at is null` and `percent = 25`
+- касса и `/api/me` берут `max(percent)` среди живых
+- upsert 10/20: больший % побеждает, меньший не затирает; expiry 7 дней. upsert 25%: 60 минут, 10/20 не трогает
 
 `landing_mail_credit_blocks` (или эквивалент)
 
@@ -189,7 +194,7 @@ flowchart LR
 - Welcome enqueue успешен → due `onboard_d1/d3/d7` на +1/+3/+7d. Если уже есть analyze — каталог может поставить `analyze_intent` +6 ч вместо d1.
 - Первый успешный analyze, 0 оплаты → due `analyze_intent` +6 ч.
 - 402 generate / платный analyze → факт + due `no_credits` +2 ч. Не из Метрики.
-- Create ЮKassa → cancel exploring / analyze / no_credits due; due `yk_abandon_40m` +40 мин и `yk_abandon_24h` +24 ч на этот `payment_id`.
+- Create ЮKassa → cancel exploring / analyze / no_credits due; due `yk_abandon_5m` +5 мин, `yk_abandon_40m` +40 мин и `yk_abandon_24h` +24 ч на этот `payment_id`. 5m шлётся только если `yk_abandon_5m_enabled`. Спека [`docs/29-08-yk-abandon-5m.md`](29-08-yk-abandon-5m.md).
 - Новый ЮKassa payment → cancel abandon по старому незачисленному `payment_id`.
 - `credited` (существующие fulfill RPC) → как сейчас `tokens_credited`; cancel все unpaid due; due `paid_unused` +24 ч; **`consumed_at` гранта в той же транзакции, что fulfill**.
 - Первая `landing_generations` completed → cancel `paid_unused` и весь onboard.
@@ -235,7 +240,7 @@ Create ЮKassa и Robokassa: `SELECT … FOR UPDATE` живого гранта �
 
 **Каталог** — одно место, где видно каждое письмо продукта:
 
-- список id: `welcome`, `onboard_d1`, `onboard_d3`, `onboard_d7`, `analyze_intent`, `no_credits`, `yk_abandon_40m`, `yk_abandon_24h`, `tokens_credited`, `paid_unused`, `credits_empty`, `winback_14`, `winback_30`, `campaign`;
+- список id: `welcome`, `onboard_d1`, `onboard_d3`, `onboard_d7`, `analyze_intent`, `no_credits`, `yk_abandon_5m`, `yk_abandon_40m`, `yk_abandon_24h`, `tokens_credited`, `paid_unused`, `credits_empty`, `winback_14`, `winback_30`, `campaign`;
 - для выбранного из `mail-catalog.ts`: класс (tx/mkt), кому, когда, стоп, скидка %, CTA, ключ;
 - превью темы + HTML/текст из того же `renderMailTemplate`, что уходит в Postbox, на fixture (имя, `plan_id`, credits, цена до/после скидки). Не отдельный макет в Markdown.
 
