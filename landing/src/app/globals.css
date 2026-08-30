@@ -423,12 +423,12 @@ p {
   @media (max-width: 1023px) {
     .listing-shell-root {
       position: fixed;
-      top: 0;
+      top: var(--ps-unpaid-banner-height, 0px);
       left: 0;
       right: 0;
-      height: var(--ps-listing-shell-height, 100dvh);
-      max-height: var(--ps-listing-shell-height, 100dvh);
-      min-height: var(--ps-listing-shell-height, 100dvh);
+      height: calc(var(--ps-listing-shell-height, 100dvh) - var(--ps-unpaid-banner-height, 0px));
+      max-height: calc(var(--ps-listing-shell-height, 100dvh) - var(--ps-unpaid-banner-height, 0px));
+      min-height: calc(var(--ps-listing-shell-height, 100dvh) - var(--ps-unpaid-banner-height, 0px));
       --ps-tabbar-reserve: calc(3.5rem + max(0px, env(safe-area-inset-bottom, 0px)));
     }
 

@@ -15,6 +15,7 @@ import { AuthReturnScreenRestorer } from "@/components/AuthReturnScreenRestorer"
 import { GenerationModal } from "@/components/GenerationModal";
 import { ClientCardModal } from "@/components/ClientCardModal";
 import { ClientPricingModal } from "@/components/ClientPricingModal";
+import { UnpaidCheckoutBanner } from "@/components/UnpaidCheckoutBanner";
 import { YooKassaReturnStatus } from "@/components/YooKassaReturnStatus";
 import { RobokassaPaymentStatus } from "@/components/RobokassaPaymentStatus";
 import { FotoVPromtMobileModal } from "@/components/foto-v-promt/FotoVPromtMobileModal";
@@ -99,6 +100,7 @@ export default function RootLayout({
                 <FotoVPromtMobileModalProvider>
                   <GenerateMobileModalProvider>
                     <GenerateDockProvider>
+                      <UnpaidCheckoutBanner />
                       <Suspense fallback={null}>
                         <YandexMetrikaRouteTracker />
                       </Suspense>

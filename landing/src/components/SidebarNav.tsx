@@ -405,7 +405,7 @@ export function SidebarNav({
 
       {/* Desktop sidebar */}
       <aside className="hidden w-72 flex-shrink-0 lg:block">
-        <div className="sticky top-0 flex h-screen flex-col border-r border-zinc-100 bg-white">
+        <div className="sticky top-[var(--ps-unpaid-banner-height,0px)] flex h-[calc(100vh-var(--ps-unpaid-banner-height,0px))] flex-col border-r border-zinc-100 bg-white">
           {showBrand ? (
             <SiteBrandLink className="px-3 pt-4 pb-2" markSize={24} />
           ) : null}

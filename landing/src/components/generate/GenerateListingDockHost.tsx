@@ -197,7 +197,7 @@ export function GenerateListingDockHost() {
       : // Viewport layer above tab bar (z-40) and listing nav/header.
         "pointer-events-none fixed inset-0 z-[122] flex h-screen min-h-0 flex-col overflow-hidden supports-[height:100dvh]:h-[100dvh]"
     : dockTall
-      ? "pointer-events-none fixed inset-x-0 bottom-0 top-[calc(var(--ps-header-height,57px)+0.75rem)] z-[52] flex flex-col px-3 pb-4 pt-2 lg:left-72 lg:top-3 lg:px-5"
+      ? "pointer-events-none fixed inset-x-0 bottom-0 top-[calc(var(--ps-header-height,57px)+0.75rem)] z-[52] flex flex-col px-3 pb-4 pt-2 lg:left-72 lg:top-[calc(var(--ps-unpaid-banner-height,0px)+0.75rem)] lg:px-5"
       : "pointer-events-none fixed inset-x-0 bottom-0 z-[52] px-3 pb-4 pt-2 lg:left-72 lg:px-5";
 
   const overlay = (

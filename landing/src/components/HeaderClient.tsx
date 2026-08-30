@@ -31,7 +31,7 @@ export function HeaderClient() {
   return (
     <header
       ref={headerRef}
-      className={`listing-mobile-header sticky top-0 z-40 shrink-0 lg:hidden ${LISTING_NAV_SHELL_SURFACE}`}
+      className={`listing-mobile-header sticky top-[var(--ps-unpaid-banner-height,0px)] z-40 shrink-0 lg:hidden ${LISTING_NAV_SHELL_SURFACE}`}
     >
       <div
         className={`relative grid grid-cols-[auto_1fr_auto] items-center gap-2 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] ${LISTING_MOBILE_CHROME_INSET}`}
