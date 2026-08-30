@@ -9,6 +9,9 @@ import {
   clampPhotoPromptSelection,
   clearPendingPhotoPrompt,
   composePhotoPromptBusyLabel,
+  composePhotoPromptGuestQuotaLabel,
+  guestPhotoPromptRemainingFree,
+  PHOTO_PROMPT_GUEST_FREE_PER_DAY,
   consumePendingPhotoPrompt,
   isPhotoPromptComposeMode,
   isPhotoPromptEphemeralId,
@@ -167,6 +170,28 @@ test("completed analyze does not auto-restart until a new landing payload", () =
   setPendingPhotoPrompt({ previewUrl: dataUrl, dataUrl });
   assert.equal(shouldStartPhotoPromptAnalyze({ intent: "photo_prompt", dataUrl }), true);
   resetPhotoPromptAnalyzeCompletion();
+});
+
+test("guest photo-prompt CTA shows remaining free analyzes", () => {
+  assert.equal(PHOTO_PROMPT_GUEST_FREE_PER_DAY, 10);
+  assert.equal(composePhotoPromptGuestQuotaLabel(10), "10 бесплатно");
+  assert.equal(composePhotoPromptGuestQuotaLabel(0), "0 бесплатно");
+  assert.equal(
+    guestPhotoPromptRemainingFree({ isAuthed: true, remainingFree: 7 }),
+    null,
+  );
+  assert.equal(
+    guestPhotoPromptRemainingFree({ isAuthed: false, remainingFree: 7 }),
+    7,
+  );
+  assert.equal(
+    guestPhotoPromptRemainingFree({ isAuthed: false, remainingFree: null }),
+    10,
+  );
+  assert.equal(
+    guestPhotoPromptRemainingFree({ isAuthed: false, remainingFree: -3 }),
+    0,
+  );
 });
 
 test("busy label and compose-mode helper", () => {

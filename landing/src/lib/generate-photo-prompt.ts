@@ -99,6 +99,26 @@ export function composePhotoPromptBusyLabel(progress: number): string {
   return `${PHOTO_PROMPT_PROGRESS_LABEL} · ${Math.round(progress)}%`;
 }
 
+/** Guest analyze allowance shown on the dock CTA. Matches `ANALYZE_FREE_PER_DAY_DEFAULT`. */
+export const PHOTO_PROMPT_GUEST_FREE_PER_DAY = 10;
+
+/** Right-side CTA pill for a guest: remaining free analyzes, not a credit cost. */
+export function composePhotoPromptGuestQuotaLabel(remaining: number): string {
+  return `${remaining} бесплатно`;
+}
+
+export function guestPhotoPromptRemainingFree(input: {
+  isAuthed: boolean;
+  remainingFree?: number | null;
+}): number | null {
+  if (input.isAuthed) return null;
+  const remaining = input.remainingFree;
+  if (remaining == null || !Number.isFinite(remaining)) {
+    return PHOTO_PROMPT_GUEST_FREE_PER_DAY;
+  }
+  return Math.max(0, Math.floor(remaining));
+}
+
 /** Source photo uses generation-result chrome; progress stays on the CTA only. */
 export function shouldHoldPhotoPromptResultChrome(input: {
   composeMode?: string | null;

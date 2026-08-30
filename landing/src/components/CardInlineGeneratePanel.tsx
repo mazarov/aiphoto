@@ -16,6 +16,8 @@ import {
 import {
   analyzeImageToPrompt,
   dataUrlFromImageUrl,
+  fetchAnalyzeQuota,
+  type AnalyzeQuotaPayload,
 } from "@/lib/image-prompt-analyze-client";
 import { noticeForUploadError, prepareUploadFile } from "@/lib/image-upload-prepare";
 import { persistPendingGenerateDock } from "@/lib/generate-dock-pending";
@@ -28,6 +30,8 @@ import {
   clampPhotoPromptSelection,
   clearPendingPhotoPrompt,
   composePhotoPromptBusyLabel,
+  composePhotoPromptGuestQuotaLabel,
+  guestPhotoPromptRemainingFree,
   isPhotoPromptComposeMode,
   isPhotoPromptEphemeralId,
   makeEphemeralPhotoPromptPhoto,
@@ -286,6 +290,9 @@ export function CardInlineGeneratePanel({
       : seed.intent === "photo_prompt"
         ? "photo_prompt"
         : "image"
+  );
+  const [analyzeQuota, setAnalyzeQuota] = useState<AnalyzeQuotaPayload | null>(
+    null
   );
   const [videoEnabled, setVideoEnabled] = useState(
     () => readCachedVideoAnimateEnabled() === true
@@ -619,6 +626,7 @@ export function CardInlineGeneratePanel({
           analyzeImageToPrompt(dataUrl, { signal })
         );
         if (photoPromptDataUrlRef.current !== dataUrl) return;
+        if (result.quota) setAnalyzeQuota(result.quota);
         if (!result.ok) {
           if (result.authRequired) {
             reachYandexMetrikaGoal(YM_GOAL_ANALYZE_AUTH_REQUIRED);
@@ -690,6 +698,15 @@ export function CardInlineGeneratePanel({
     const timer = window.setTimeout(() => setToast(""), 2500);
     return () => window.clearTimeout(timer);
   }, [toast]);
+
+  useEffect(() => {
+    if (isAuthed || composeMode !== "photo_prompt") return;
+    const controller = new AbortController();
+    void fetchAnalyzeQuota({ signal: controller.signal }).then((next) => {
+      if (next) setAnalyzeQuota(next);
+    });
+    return () => controller.abort();
+  }, [composeMode, isAuthed]);
 
   useEffect(() => {
     if (!preferencesHydrated || !requestedModelId) return;
@@ -2115,6 +2132,24 @@ export function CardInlineGeneratePanel({
       : videoCompose
         ? selectedVideoCost
         : selectedImageCost;
+  const composeCtaGuestQuota = photoPromptCompose
+    ? guestPhotoPromptRemainingFree({
+        isAuthed,
+        remainingFree: analyzeQuota?.remaining_free,
+      })
+    : null;
+  const composeCtaGuestQuotaExhausted = composeCtaGuestQuota === 0;
+  const composeCtaGuestQuotaPill =
+    composeCtaGuestQuota != null ? (
+      <span
+        className={`inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[13px] font-semibold tabular-nums ${
+          composeCtaGuestQuotaExhausted ? "bg-rose-400/95" : "bg-white/20"
+        }`}
+        aria-label={`${composeCtaGuestQuota} бесплатных разборов сегодня`}
+      >
+        {composePhotoPromptGuestQuotaLabel(composeCtaGuestQuota)}
+      </span>
+    ) : null;
   const composeTileBorder = (selected: boolean) =>
     selected
       ? glassChrome
@@ -3891,36 +3926,6 @@ export function CardInlineGeneratePanel({
               </button>
             ) : null}
 
-            <button
-              type="button"
-              aria-pressed={photoPromptCompose}
-              aria-expanded={photoPromptCompose && expandedControl === "photos"}
-              aria-controls="inline-generation-photos"
-              disabled={controlsBusy}
-              onClick={onPhotoPromptTileClick}
-              className={`${OVERLAY_BUTTON_UA_RESET} relative flex h-[5.25rem] w-[5.25rem] shrink-0 flex-col items-center justify-center rounded-xl p-1.5 text-center transition ${composeTileFrame} ${composeTileBorder(
-                photoPromptCompose,
-              )} disabled:opacity-50`}
-            >
-              <span className={composeModeLogoWrap}>
-                <svg
-                  className="h-4 w-4 text-zinc-800"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                  aria-hidden
-                >
-                  <rect width="18" height="18" x="3" y="3" rx="2" />
-                  <circle cx="9" cy="9" r="2" />
-                  <path d="m21 15-3.09-3.09a2 2 0 0 0-2.82 0L6 21" />
-                </svg>
-              </span>
-              <span className="line-clamp-2 text-[13px] font-semibold leading-tight">
-                {composeModeTileLabel("photo_prompt")}
-              </span>
-            </button>
-
             {photoshootEnabled ? (
               <button
                 type="button"
@@ -3953,6 +3958,36 @@ export function CardInlineGeneratePanel({
                 </span>
               </button>
             ) : null}
+
+            <button
+              type="button"
+              aria-pressed={photoPromptCompose}
+              aria-expanded={photoPromptCompose && expandedControl === "photos"}
+              aria-controls="inline-generation-photos"
+              disabled={controlsBusy}
+              onClick={onPhotoPromptTileClick}
+              className={`${OVERLAY_BUTTON_UA_RESET} relative flex h-[5.25rem] w-[5.25rem] shrink-0 flex-col items-center justify-center rounded-xl p-1.5 text-center transition ${composeTileFrame} ${composeTileBorder(
+                photoPromptCompose,
+              )} disabled:opacity-50`}
+            >
+              <span className={composeModeLogoWrap}>
+                <svg
+                  className="h-4 w-4 text-zinc-800"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  aria-hidden
+                >
+                  <rect width="18" height="18" x="3" y="3" rx="2" />
+                  <circle cx="9" cy="9" r="2" />
+                  <path d="m21 15-3.09-3.09a2 2 0 0 0-2.82 0L6 21" />
+                </svg>
+              </span>
+              <span className="line-clamp-2 text-[13px] font-semibold leading-tight">
+                {composeModeTileLabel("photo_prompt")}
+              </span>
+            </button>
           </div>
 
         </section>
@@ -4114,7 +4149,9 @@ export function CardInlineGeneratePanel({
                 phase === "uploading" ||
                 phase === "generating" ||
                 (photoshootCompose && !photoshootLibraryFrame) ||
-                (photoPromptCompose && !photoPromptHasSource) ||
+                (photoPromptCompose &&
+                  !photoPromptHasSource &&
+                  composeCtaGuestQuota == null) ||
                 (videoCompose && scenarioLoading) ||
                 (phase === "done" && resultUrl && !photoshootCompose && !videoCompose && !photoPromptCompose)
                   ? phase === "done" && resultUrl && !busy
@@ -4134,7 +4171,12 @@ export function CardInlineGeneratePanel({
                   : photoshootCompose && !photoshootLibraryFrame
                     ? "Выберите фото"
                   : photoPromptCompose && !photoPromptHasSource
-                    ? "Выберите фото"
+                    ? (
+                      <>
+                        <span className="shrink-0">Выберите фото</span>
+                        {composeCtaGuestQuotaPill}
+                      </>
+                    )
                   : videoCompose && scenarioLoading
                     ? ANIMATE_SCENARIO_PLACEHOLDER
                     : phase === "done" && resultUrl && !photoshootCompose && !videoCompose && !photoPromptCompose
@@ -4144,7 +4186,9 @@ export function CardInlineGeneratePanel({
                         <span className="shrink-0">
                           {composeGenerateCtaLabel(composeMode)}
                         </span>
-                        {composeCtaModelLabel || composeCtaCost != null ? (
+                        {composeCtaModelLabel ||
+                        composeCtaCost != null ||
+                        composeCtaGuestQuotaPill ? (
                           <span className="flex min-w-0 items-center justify-end gap-1.5">
                             {composeCtaModelLabel ? (
                               <span className="min-w-0 truncate text-[13px] font-medium text-white/80">
@@ -4162,6 +4206,7 @@ export function CardInlineGeneratePanel({
                                 {composeCtaCost}✦
                               </span>
                             ) : null}
+                            {composeCtaGuestQuotaPill}
                           </span>
                         ) : null}
                       </>

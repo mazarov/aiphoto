@@ -1,5 +1,9 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-08-30 (**compose tile order:** Фото → Видео → Фотосессия → Промт по фото. Спека `docs/30-08-foto-v-promt-generation-modal.md`.
+>
+> Последнее обновление: 2026-08-30 (**foto-v-promt guest quota on CTA:** у неавторизованного на кнопке «Создать промт по фото» / «Выберите фото» пилюля `N бесплатно` (`remaining_free` с `GET /api/extension/analyze/quota`, до ответа — 10). Авторизованному не показываем. Спека `docs/30-08-foto-v-promt-generation-modal.md`.
+>
 > Последнее обновление: 2026-08-30 (**foto-v-promt FAB:** idle CTA «Создать промт по фото», клик сидит `intent=photo_prompt`. Спека `docs/30-08-foto-v-promt-generation-modal.md`.
 >
 > Последнее обновление: 2026-08-30 (**OAuth resume generate-dock:** пока plate открыт, live overlay `generate-dock:<intent>` едет в `ps_ov` / cookie. Restorer открывает модалку с тем же инструментом (`photo_prompt`). data:/blob: в `pending-generate-dock` не пишем. Спека `docs/30-08-foto-v-promt-generation-modal.md`.
@@ -957,7 +961,8 @@
   не вызывается (fail-closed). Конфиг: `aiid_app_config.analyze_free_per_day`
   / `analyze_credit_cost`. Старый `extension_rate_limit_per_day` (=30) для
   этого эндпоинта больше не max. GET `/api/extension/analyze/quota` отдаёт
-  остаток до загрузки. Extension Lite / imageprompt.tools — follow-up.
+  остаток до загрузки. Dock CTA «Промт по фото» для гостя рисует этот остаток
+  пилюлей `N бесплатно`. Extension Lite / imageprompt.tools — follow-up.
 - **История:** успешный analyze best-effort сохраняет уменьшенный JPEG и prompt
   в private bucket/table `analyze-history` / `analyze_history` (`kind=analyze`,
   `credits_spent` 0|1, `quota_mode` free|paid). Admin-список показывает бейдж
