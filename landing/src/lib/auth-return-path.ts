@@ -25,6 +25,9 @@ export function sanitizeAuthReturnPath(raw: string | null | undefined): string {
   try {
     const url = new URL(path, "https://promptshot.local");
     url.searchParams.delete("auth_error");
+    url.searchParams.delete("error");
+    url.searchParams.delete("error_code");
+    url.searchParams.delete("error_description");
     url.searchParams.delete(AUTH_RETURN_FLAG);
     url.searchParams.delete(AUTH_RETURN_OVERLAY_QUERY);
     url.searchParams.delete(AUTH_RETURN_SCROLL_QUERY);

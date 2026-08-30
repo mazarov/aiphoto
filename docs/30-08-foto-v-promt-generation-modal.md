@@ -42,7 +42,7 @@
 ## Гость
 
 - `GenerateDockGuestAuthReactor` снят: `plateOpen` больше не открывает auth.
-- FAB / mobile tab / card «Повторить» открывают dock.
+- FAB / mobile tab открывают dock. Card «Повторить» у гостя — AuthModal, карточка остаётся; после OAuth листинг + `ps_ov=card:<slug>`. Authed «Повторить» открывает dock.
 - Фото / Видео / Фотосессия открываются и дают выбрать модель и фото. CTA — «Войдите». Баланс гостя из `/api/me` (`credits: 0`) не блокирует модели.
 - Auth остаётся: enqueue генерации, исчерпанная бесплатная analyze-квота, покупка кредитов.
 - Пока plate открыт, live overlay = `generate-dock:<intent>` (`ps_ov` + cookie). После OAuth `AuthReturnScreenRestorer` открывает ту же модалку с тем же инструментом (`photo_prompt` → «Промт по фото»). data:/blob: превью в pending не пишем.

@@ -12,6 +12,7 @@ import {
   cardSlugFromPath,
   parseAuthReturnOverlay,
   preferListingPathOverOverlayNext,
+  preferListingPathWhenCardOverlay,
   resetLiveAuthReturnOverlayForTests,
   resolveAuthReturnCaptureOverlay,
   resolveAuthReturnScrollY,
@@ -137,6 +138,30 @@ test("generate-from-card keeps the prompt card open", () => {
   });
   assert.deepEqual(screen, {
     path: "/catalog",
+    overlay: { type: "card", slug: "visual-hook-neon" },
+    scrollY: 0,
+  });
+});
+
+test("card overlay stolen by generate-dock still returns to the listing", () => {
+  assert.equal(
+    preferListingPathWhenCardOverlay({
+      path: "/p/visual-hook-neon",
+      lastListingPath: "/",
+    }),
+    "/"
+  );
+  const screen = captureAuthReturnScreen({
+    currentPath: "/p/visual-hook-neon",
+    live: {
+      originPath: "/p/visual-hook-neon",
+      overlay: { type: "generate-dock", intent: "resume" },
+    },
+    boundOverlay: { type: "card", slug: "visual-hook-neon" },
+    lastListingPath: "/",
+  });
+  assert.deepEqual(screen, {
+    path: "/",
     overlay: { type: "card", slug: "visual-hook-neon" },
     scrollY: 0,
   });

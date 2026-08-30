@@ -24,6 +24,7 @@ import {
   persistPendingGenerateDock,
   seedForAuthReturnDock,
 } from "@/lib/generate-dock-pending";
+import { shouldKeepCardAuthReturnOverlay } from "@/lib/card-repeat-auth";
 import {
   authReturnOverlayForGenerateDock,
   getLiveAuthReturnOverlay,
@@ -204,15 +205,20 @@ export function GenerateDockProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!plateOpen || typeof window === "undefined") return;
-    const originPath = `${window.location.pathname}${window.location.search}`;
-    setLiveAuthReturnOverlay({
-      originPath,
-      overlay: authReturnOverlayForGenerateDock(seed.intent),
-    });
+    const existing = getLiveAuthReturnOverlay();
+    const keepCard = shouldKeepCardAuthReturnOverlay(existing?.overlay);
+    if (!keepCard) {
+      const originPath = `${window.location.pathname}${window.location.search}`;
+      setLiveAuthReturnOverlay({
+        originPath,
+        overlay: authReturnOverlayForGenerateDock(seed.intent),
+      });
+    }
     if (!isAuthed) {
       persistPendingGenerateDock({ seed, dockSurface });
     }
     return () => {
+      if (keepCard) return;
       const live = getLiveAuthReturnOverlay();
       if (live?.overlay.type === "generate-dock") {
         setLiveAuthReturnOverlay(null);

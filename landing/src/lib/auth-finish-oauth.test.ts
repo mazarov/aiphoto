@@ -24,6 +24,21 @@ test("strips prior auth_error from return path", () => {
   );
 });
 
+test("strips leftover GoTrue error query from return path", () => {
+  assert.equal(
+    sanitizeAuthReturnPath(
+      "/?error=invalid_request&error_code=bad_oauth_state&error_description=OAuth+state+not+found+or+expired"
+    ),
+    "/"
+  );
+  assert.equal(
+    sanitizeAuthReturnPath(
+      "/promty-dlya-foto-zhenshchiny?sort=new&error=invalid_request&error_code=bad_oauth_state"
+    ),
+    "/promty-dlya-foto-zhenshchiny?sort=new"
+  );
+});
+
 test("rejects absolute / protocol-relative next", () => {
   assert.equal(sanitizeAuthReturnPath("https://evil.test/x"), "/");
   assert.equal(sanitizeAuthReturnPath("//evil.test"), "/");

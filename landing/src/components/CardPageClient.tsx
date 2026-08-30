@@ -14,6 +14,12 @@ import { UserAvatarImage } from "./UserAvatarImage";
 import { useGenerateDock } from "@/context/GenerateDockContext";
 import { usePromptCardModal } from "@/context/PromptCardModalContext";
 import { useAuth } from "@/context/AuthContext";
+import {
+  beginGuestCardRepeatAuth,
+  listingPathForGenerateLeave,
+  resolveCardRepeatAction,
+} from "@/lib/card-repeat-auth";
+import { peekLastListingPath } from "@/lib/scroll-preservation";
 import { isCatalogAdminEmail } from "@/lib/catalog-admin";
 import {
   ADMIN_TECH_INFO_CHANGED_EVENT,
@@ -199,7 +205,8 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
   const { reactions, favorites, toggleReaction, toggleFavorite } = useCardInteractions();
   const userReaction = reactions.get(data.id) ?? null;
   const isFavorited = favorites.has(data.id);
-  const { user } = useAuth();
+  const { user, loading: authLoading, openAuthModal } = useAuth();
+  const isAuthed = Boolean(user && user.is_anonymous !== true);
   const isAdmin = isCatalogAdminEmail(user?.email);
   const [techInfoEnabled, setTechInfoEnabled] = useState(false);
   useEffect(() => {
@@ -252,26 +259,38 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
       closeCardModal();
       return;
     }
-    if (typeof window !== "undefined" && window.history.length > 1) {
-      router.back();
-      return;
-    }
-    router.push("/");
-  }, [
-    closeCardModal,
-    isModal,
-    router,
-  ]);
+    router.replace(
+      listingPathForGenerateLeave({
+        lastListingPath: peekLastListingPath(),
+      })
+    );
+  }, [closeCardModal, isModal, router]);
 
   const openInlineGenerate = useCallback(() => {
     setMobilePromptOverlay(false);
+    const action = resolveCardRepeatAction({ isAuthed, authLoading });
+    if (action === "wait") return;
+    if (action === "auth") {
+      beginGuestCardRepeatAuth(data.slug);
+      openAuthModal();
+      return;
+    }
     const promptText = data.promptTexts.join("\n\n");
     seedFromCard(
       { promptText, cardId: data.id },
       { entrySource: "card" }
     );
     leaveCardForGenerate();
-  }, [data.id, data.promptTexts, leaveCardForGenerate, seedFromCard]);
+  }, [
+    authLoading,
+    data.id,
+    data.promptTexts,
+    data.slug,
+    isAuthed,
+    leaveCardForGenerate,
+    openAuthModal,
+    seedFromCard,
+  ]);
 
   // Reset local media only when opening another card (`id`), not on every `data` reference change.
   useEffect(() => {

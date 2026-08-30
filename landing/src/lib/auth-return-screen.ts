@@ -241,6 +241,13 @@ export function captureAuthReturnScreen(input?: {
     }
   }
 
+  if (overlay?.type === "card") {
+    path = preferListingPathWhenCardOverlay({
+      path,
+      lastListingPath: lastListing,
+    });
+  }
+
   const scrollY = resolveListingScrollYForAuthReturn({
     overlayOpen: overlay !== null,
     savedY:
@@ -250,6 +257,20 @@ export function captureAuthReturnScreen(input?: {
   });
 
   return { path, overlay, scrollY };
+}
+
+/** Card overlay must land on the listing, not a hard `/p/slug` stolen by generate-dock. */
+export function preferListingPathWhenCardOverlay(input: {
+  path: string;
+  lastListingPath?: string | null;
+}): string {
+  const path = sanitizeAuthReturnDestination(input.path);
+  if (!isListingOverlayPath(path)) return path;
+  const listing = input.lastListingPath
+    ? sanitizeAuthReturnDestination(input.lastListingPath)
+    : null;
+  if (listing && !isListingOverlayPath(listing)) return listing;
+  return path;
 }
 
 export function appendAuthReturnDestination(

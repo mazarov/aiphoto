@@ -4,7 +4,10 @@
  */
 
 import { useLayoutEffect } from "react";
-import { isAuthReturnRestorePending } from "@/lib/auth-return-path";
+import {
+  isAuthReturnRestorePending,
+  sanitizeAuthReturnDestination,
+} from "@/lib/auth-return-path";
 import { bumpListingShellViewportHeight } from "@/lib/listing-shell-viewport";
 
 export const SCROLL_KEY = "card_modal_scroll_pos";
@@ -717,7 +720,7 @@ export function isListingOverlayPath(pathname: string): boolean {
 
 export function persistLastListingPath(path: string): void {
   if (typeof window === "undefined") return;
-  const safe = path.trim();
+  const safe = sanitizeAuthReturnDestination(path);
   if (!safe.startsWith("/") || isListingOverlayPath(safe)) return;
   try {
     sessionStorage.setItem(LAST_LISTING_PATH_KEY, safe);
