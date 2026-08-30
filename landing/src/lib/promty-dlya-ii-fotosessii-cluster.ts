@@ -1,3 +1,5 @@
+import { composeGenerateCtaLabel } from "./generate-compose-mode";
+import { isFotoVPromtDockPath } from "./generate-dock-path";
 import type { Dimension } from "./tag-registry";
 
 export const PROMTY_DLYA_II_FOTOSESSII_HUB_PATH =
@@ -204,12 +206,14 @@ export function listingGenerateIdleCta(input: {
   pathname: string;
   isAuthed: boolean;
 }): string {
-  if (isPromtyDlyaIiFotosessiiPath(input.pathname)) {
-    return input.isAuthed
-      ? PROMTY_DLYA_II_FOTOSESSII_GENERATE_CTA
-      : "Войти и создать ИИ фотосессию";
+  void input.isAuthed;
+  if (isFotoVPromtDockPath(input.pathname)) {
+    return composeGenerateCtaLabel("photo_prompt");
   }
-  return input.isAuthed ? "Создать фото" : "Войти и создать фото";
+  if (isPromtyDlyaIiFotosessiiPath(input.pathname)) {
+    return PROMTY_DLYA_II_FOTOSESSII_GENERATE_CTA;
+  }
+  return "Создать фото";
 }
 
 export type FotosessiiChipNavItem = {

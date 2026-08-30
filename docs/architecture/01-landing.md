@@ -1,5 +1,23 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-08-30 (**foto-v-promt FAB:** idle CTA «Создать промт по фото», клик сидит `intent=photo_prompt`. Спека `docs/30-08-foto-v-promt-generation-modal.md`.
+>
+> Последнее обновление: 2026-08-30 (**OAuth resume generate-dock:** пока plate открыт, live overlay `generate-dock:<intent>` едет в `ps_ov` / cookie. Restorer открывает модалку с тем же инструментом (`photo_prompt`). data:/blob: в `pending-generate-dock` не пишем. Спека `docs/30-08-foto-v-promt-generation-modal.md`.
+>
+> Последнее обновление: 2026-08-30 (**foto-v-promt analyze chrome:** исходное фото в `GenerationResultBackdrop` как подложка пластины (`fit=cover`, без letterbox); прогресс только в CTA. Спека `docs/30-08-foto-v-promt-generation-modal.md`.
+>
+> Последнее обновление: 2026-08-30 (**analyze Gemini one-shot payload:** интерактивный extract один раз жмёт JPEG ≤256px / ≤20KB и один раз POST в DO-прокси. ~85KB (768/q85) даёт EPIPE/ETIMEDOUT — это не чинится retry. Prepare fail-closed: оригинал в Gemini не уходит. Таймаут 30с. Photoshoot оставляет 768 / 120KB / 90с. Спека `docs/30-08-foto-v-promt-generation-modal.md`.
+>
+> Последнее обновление: 2026-08-30 (**analyze Gemini payload cap:** `generatePhotorealPromptFromImage` жмёт фото до JPEG ≤768px (`prepareAnalyzeImageForGemini`) до POST в DO-прокси. Полный портрет давал `write EPIPE` и retry на 120с — curl висел без ответа. Таймаут 45с; retry только `EPIPE`/`ECONNRESET` если первая попытка <20с. `maxDuration=60`. Спека `docs/30-08-foto-v-promt-generation-modal.md`.
+>
+> Последнее обновление: 2026-08-30 (**foto-v-promt analyze share + thinking 0:** один `POST /api/extension/analyze` на data URL (`sharePhotoPromptAnalyze`) — remount не abortит Gemini. Extract `thinkingBudget=0` (как photoshoot): 256 + портрет на DO-прокси даёт `write EPIPE` ~25с / 503. Один retry на fetch fail. Спека `docs/30-08-foto-v-promt-generation-modal.md`.
+>
+> Последнее обновление: 2026-08-30 (**foto-v-promt analyze start:** dock стартует `POST /api/extension/analyze` по ключу `intent=photo_prompt` + data URL (`shouldStartPhotoPromptAnalyze`). One-shot `startedRef` + abort-on-unmount в Strict Mode оставляли «Создание промта · 92%» без fetch — гость и сессия, не auth-gate. Cleanup abort; remount шлёт запрос снова. Спека `docs/30-08-foto-v-promt-generation-modal.md`.
+>
+> Последнее обновление: 2026-08-30 (**foto-v-promt landing photo restored:** загрузка с лендинга снова кладёт ephemeral в «Ваши фото» и открывает result chrome на время analyze. Гость без library по-прежнему читает in-memory source. Спека `docs/30-08-foto-v-promt-generation-modal.md`.
+>
+> Последнее обновление: 2026-08-30 (**analyze locale SSOT:** тела секций photoreal-extract — язык запроса (`locale=ru` → Russian), заголовки EN. Контракт в `systemInstruction` + в каждой секции `buildExtractPrompt`; один preface LANGUAGE Flash с thinking 0 игнорирует. `getImagePromptAnalyzeUrl()` всегда `/api/extension/analyze`. Спека `docs/30-08-foto-v-promt-generation-modal.md`.
+>
 > Последнее обновление: 2026-08-30 (**unpaid YooKassa bar:** `UnpaidCheckoutBanner` над навбаром на 24 ч после latest create без `credited_at`. Крестик — localStorage на `payment_id`. С 15-й минуты фаза flash, если жив грант 25% (`yk_abandon_5m`, TTL 60 мин с письма / `created_at+65м`). Countdown = `offer.expires_at`, не второй час. CTA «Продолжить» → новый YooKassa create и hosted URL, не overlay `/pricing`. `GET /api/payments/yookassa/unpaid-banner` без reconcile. Спека `docs/30-08-yk-unpaid-banner.md`.
 >
 > Последнее обновление: 2026-08-30 (**buy-credits CTA:** `needsCredits` на footer compose / FAB / mobile tab / `/generaciya-foto` starter — «Купить кредиты для создания фото» (`COMPOSE_BUY_CREDITS_CTA`), тот же indigo→violet, без rose. Mobile tab compact: «Купить кредиты». API `insufficient_credits` не меняли.)
@@ -847,7 +865,7 @@
 | `/api/mail/postbox-events` | POST, `POSTBOX_WEBHOOK_SECRET`: hard bounce / complaint → `landing_mail_suppress`. Transient bounce игнорируется |
 | `/api/mail/unsubscribe` | POST one-click (`List-Unsubscribe=One-Click` или `t=`): `landing_mail_unsubscribe` |
 | `/api/admin/mail/campaigns` | GET/POST, admin auth: список кампаний + stats; `action=preview` (dry-run, 5 адресов) затем `action=send` |
-| `/api/extension/analyze` | Same-origin analyze для site `/foto-v-promt` и «По фото»: validation/SSRF → identity (anonymous/STV-guest = гость) → RPC `analyze_quota_reserve` (free / 401 auth_required / 402 no_credits / paid hold 1 кредит) → Gemini → confirm или release+refund; fail-closed 503 если квота недоступна; успех пишет `analyze_history.credits_spent` |
+| `/api/extension/analyze` | Same-origin analyze для site `/foto-v-promt` и «По фото»: validation/SSRF → identity (anonymous/STV-guest = гость) → RPC `analyze_quota_reserve` (free / 401 auth_required / 402 no_credits / paid hold 1 кредит) → JPEG ≤256px / ≤20KB (fail-closed) → один Gemini POST (`thinkingBudget=0`, timeout 30с) → confirm или release+refund; fail-closed 503 если квота недоступна; успех пишет `analyze_history.credits_spent` |
 | `/api/scout/analyze` | Открытый analyze для бота: без auth, бакет `scout:v1`, 200 успешных / UTC-день, без кредитов пользователя. GET — остаток. `client_source=scout`. Не в sitemap |
 | `/api/extension/analyze/quota` | GET, cookie session, no-store: `remaining_free`, `next_mode`, `credit_cost`, реальный `credits` для авторизованного |
 | `/api/admin/analytics` | GET, admin auth: no-store analytics rollups за `1…90` дней; топ пользователей — `admin_analytics_top_users` за тот же период |
@@ -866,7 +884,7 @@
 | `/api/admin/generations` | GET, admin auth: cursor-paginated durable generation queue (`unpublished` / `published` / `all`) |
 | `/api/admin/generations/[id]` | GET, admin auth: no-store polling статуса/result/error только для `client_source=admin` |
 | `/api/admin/generations/[id]/publish` | POST, admin auth: completed generation → idempotent `prompt_cards` draft → общий SEO publish service |
-| `/api/imageprompt-proxy/extension/analyze` | Dev-only same-origin прокси к `imageprompt.tools/api/extension/analyze`. `getImagePromptAnalyzeUrl()` в `next dev` ведёт сюда (`/foto-v-promt` и стартер «По фото» на `/generaciya-foto`); prod — `/api/extension/analyze`. |
+| `/api/imageprompt-proxy/extension/analyze` | Legacy dev-прокси к `imageprompt.tools`. Клиент больше не вызывает: `getImagePromptAnalyzeUrl()` всегда `/api/extension/analyze` (locale SSOT). |
 | `/api/imageprompt-proxy/extension/remix` | Dev-only same-origin прокси к `imageprompt.tools/api/extension/remix`; prod remix — прямой cross-origin через `getPromptRemixUrl()`. Сам remix реализован в проекте **imageprompt.tools**; см. `docs/requirements/02-07-prompt-remix.md` |
 | `/api/vibe/extract` | Извлечение style JSON из URL изображения (auth) |
 | `/api/vibe/expand` | Один rich prompt из style JSON (auth) |
@@ -883,7 +901,7 @@
 - **Inline compose UI:** исходный `promptText` карточки инициализирует локальный draft. Одна iOS-style prompt-шторка показывает два блока: flex-height editable `Текущий промпт` и compact `Что изменить?`. CTA шторки всегда `Применить и сгенерировать`: remix, затем сразу `POST /api/generate`. Без completed result — обычный enqueue с выбранными фото; после result — continuation с `parentGenerationId`. После completion действия `Посмотреть` / `Скачать` / `Повторить` / `Оживить` / `Камера` / `Что изменить` — правый нижний rail на кадре (`GenerationResultActionRail`), все одного размера. «Камера» (флаг `camera_orbit_enabled` / allowlist) между «Оживить» и «Что изменить»: оверлей с тем же rail, шаг 30°, CTA «Снять кадр · N», «Выйти» на исходник. «Оживить» сразу над «Камера» / «Что изменить». Кадр без scrim-градиента. `Повторить` сбрасывает в idle compose (очищает result, сохраняет prompt/model/photos) и ставит `lastDockResultDismissed` в контексте — следующее открытие dock не поднимает старый result. Новая генерация — снова через `Сгенерировать`; её completed снимает dismiss. `Что изменить` — remix editor + `Применить и сгенерировать` (parent-result edit). Controls `Ваши фото` / фото-модель / `Видео` / `Фотосессия` используют текущий draft без мутации `prompt_cards`. Режимы взаимно исключающие (`composeMode`: image / video / photoshoot). «Фото» и «Видео» открывают шторку своей модели; «Фотосессия» только `aria-pressed`. Overlay фотосессии — footer CTA / rail после кадра. Источник compose — ровно одно выбранное фото. Rail после готового кадра по-прежнему parent generation.
 - **Inline engine:** `POST /api/prompt-remix { prompt: draft, changeRequest, parentGenerationId? }` → новый prompt → сразу `POST /api/generate`. Без parent — draft + выбранные `storagePath[]`. С completed parent — `parentGenerationId` + `editInstruction`; worker использует parent result object. Enqueue сохраняет фактически отправленный текст в `landing_generations.prompt_text`, клиент синхронизирует `draftPrompt/submittedPrompt`. Result menu переиспользует `GenerationCardMenu` без bulk-select: share/download/copy, `save-to-library`, `publish`, `DELETE`.
 - **`LexyGptGenerateButton`:** internal path (inline override или STV drawer по `cardId`) только для allowlisted; иначе всегда LexyGPT. CTA `/foto-v-promt` / remix / `/analyses` → `FotoVPromtGenerateButton` → `seedBlankPrompt`, не LexyGPT.
-- **OAuth resume dock:** guest `seedBlankPrompt` / `seedFromCard` пишет `sessionStorage` `promptshot:pending-generate-dock`; после возврата `GenerateDockProvider` consume-once открывает plate с тем же seed. Dismiss auth чистит pending. Виджет `/foto-v-promt` дополнительно держит `promptshot:foto-v-promt-result` (промт + data-URL preview с лимитом размера).
+- **OAuth resume dock:** пока plate открыт, live overlay `generate-dock:<intent>` (cookie + `ps_ov`). Restorer открывает модалку с тем же инструментом — IdP hop не обязан сохранить sessionStorage. Guest seed дополнительно пишет `promptshot:pending-generate-dock` без data:/blob: preview. `GenerateDockProvider` consume-once, если restorer overlay не было.
 - **STV drawer (legacy):** `GenerationContext.openGenerationModal` → **`GenerationModal`** (`/embed/stv`) — только allowlisted при `cardId` без inline override. Chrome extension без изменений.
 
 #### Open-generate debug (карточка)
@@ -907,10 +925,12 @@
   `/api/admin/*` проверяют Supabase Auth session, затем нормализованный email против
   `ANALYTICS_ADMIN_EMAILS`. Пустой allowlist означает fail-closed; service-role key
   остаётся только на сервере.
-- **Analyze site flow:** `/foto-v-promt` и стартер «По фото» на `/generaciya-foto`
-  вызывают `getImagePromptAnalyzeUrl()`: в prod — same-origin
-  `POST /api/extension/analyze`, в `next dev` — `/api/imageprompt-proxy/extension/analyze`
-  → `imageprompt.tools` (локальный Gemini proxy с dev-машины часто timeout).
+- **Analyze site flow:** `/foto-v-promt` и dock «Промт по фото» вызывают
+  `getImagePromptAnalyzeUrl()` → same-origin `POST /api/extension/analyze`
+  (и в `next dev`). Старт в dock — эффект на `intent` + data URL
+  (`shouldStartPhotoPromptAnalyze`); in-flight шарится по data URL
+  (`sharePhotoPromptAnalyze`) — remount не abortит Gemini. Тела секций — локаль запроса; заголовки EN.
+  Extract: `buildExtractPrompt(style, locale)` с блоком LANGUAGE первым.
   Стартер шлёт только `image_base64` (`image-prompt-analyze-client.ts`) с локального
   файла и **не** сохраняет его в `landing_user_photos`; виджет `/foto-v-promt` по-прежнему умеет `image_url`.
   Готовый промт уходит в dock через `seedBlankPrompt(..., intent=photo_prompt)` —
@@ -1409,7 +1429,7 @@ SearchResults (client, infinite scroll)
 | ListingFotoVPromtBanner | `components/foto-v-promt-promo/ListingFotoVPromtBanner.tsx` | Sticky + IntersectionObserver hide после первого экрана |
 | ListingBottomBar | `components/ListingBottomBar.tsx` | No-op (desktop search → SidebarNav **Поиск** + поле на `/search`). |
 | MobileTabBar | `components/MobileTabBar.tsx` | Tab bar (max-lg): **Тренды** / Каталог / **Создать фото** → `focusBlank` / **Фото в промт** / **Войти·Профиль** → `MobileProfileSheet`. Поиск — иконка в шапке (`useOpenMobileSearchEntry`). |
-| GenerateDockContext | `context/GenerateDockContext.tsx` | SSOT seed/focus/dockSurface/historyRefresh/`lastDockResultDismissed` для listing dock. Path allowlist — `generate-dock-path.ts` (включая `/foto-v-promt`, `/analyses`). Guest seed persist + restore после OAuth. `GenerateDockGuestAuthReactor`: guest `plateOpen` → auth; dismiss без логина закрывает plate и чистит pending. |
+| GenerateDockContext | `context/GenerateDockContext.tsx` | SSOT seed/focus/dockSurface/historyRefresh/`lastDockResultDismissed` для listing dock. Path allowlist — `generate-dock-path.ts` (включая `/foto-v-promt`, `/analyses`). Guest может открыть plate без auth (`seedPhotoPrompt` / FAB / tab). Auth на enqueue и исчерпанной analyze-квоте. Photo→prompt payload — in-memory (`generate-photo-prompt.ts`), не sessionStorage. |
 | FotoVPromtGenerateButton | `components/foto-v-promt/FotoVPromtGenerateButton.tsx` | Фирменный CTA анализа: clipboard + `seedBlankPrompt(intent=photo_prompt)` |
 | GenerateListingDockHost | `components/generate/GenerateListingDockHost.tsx` | Плавающий composer на allowlist листингов (treatment); collapse FAB для гостя / при скролле. `plateOpen` блокирует autohide через `setListingChromeAutoHideBlocked` (без ререндера `PageLayout`). |
 | GenerationResultBackdrop | `components/generate/GenerationResultBackdrop.tsx` | Фон result: pixelate previous → reveal next (CSS); shared dock/card. |
@@ -1438,7 +1458,7 @@ SearchResults (client, infinite scroll)
 | OAuthSignInButtons | `components/OAuthSignInButtons.tsx` | SSOT кнопок Google + Яндекс → `signInWithOAuthProvider` |
 | UserAvatarImage | `components/UserAvatarImage.tsx` | OAuth-аватар: no-referrer + unoptimized для Google/Yandex CDN |
 | auth-oauth | `lib/auth-oauth.ts` | `signInWithOAuthProvider`, `custom:yandex` |
-| auth-return-screen | `lib/auth-return-screen.ts` | listing path + overlay (`card` / `pricing` / `foto-v-promt`); bind slug на «Повторить» |
+| auth-return-screen | `lib/auth-return-screen.ts` | listing path + overlay (`card` / `pricing` / `foto-v-promt` / `generate-dock:<intent>`); bind slug на «Повторить» |
 | client-card-overlay | `lib/client-card-overlay.ts` | sync owner `ClientCardModal`; до `pushState('/p/slug')` |
 | InterceptedCardModalGate | `components/InterceptedCardModalGate.tsx` | `@modal` не монтирует второй viewer |
 | AuthReturnScreenRestorer | `components/AuthReturnScreenRestorer.tsx` | после `?ps_auth=1` / `?ps_ov=` открывает карточку |

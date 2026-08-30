@@ -17,6 +17,7 @@ import { setListingChromeAutoHideBlocked } from "@/hooks/useListingChromeAutoHid
 import { OVERLAY_BUTTON_UA_RESET } from "@/lib/card-overlay-action-pill";
 import { isPrimaryOverlayDismissPointer } from "@/lib/generate-compose-job";
 import { COMPOSE_BUY_CREDITS_CTA } from "@/lib/generate-compose-mode";
+import { listingGenerateIdleIntent } from "@/lib/generate-dock-path";
 import { listingGenerateIdleCta } from "@/lib/promty-dlya-ii-fotosessii-cluster";
 import {
   reachYandexMetrikaGoal,
@@ -51,7 +52,7 @@ export function GenerateListingDockHost() {
   const pathname = usePathname();
   const seoPage = isGenerateDockSeoPagePath(pathname);
   const { open: openPricing } = usePricingModal();
-  const { user, loading: authLoading, openAuthModal } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const {
     seed,
     seedToken,
@@ -64,6 +65,7 @@ export function GenerateListingDockHost() {
     runProgress,
     needsCredits,
     focusBlank,
+    seedBlankPrompt,
   } = useGenerateDock();
   const isMobile = useListingIsMobile();
   /** Tall + sticky plate: result chrome and/or in-flight generation. */
@@ -73,7 +75,6 @@ export function GenerateListingDockHost() {
 
   const isAuthed = Boolean(user && user.is_anonymous !== true);
   const halfOpenCompose =
-    isAuthed &&
     plateOpen &&
     !isMobile &&
     !plateLocked &&
@@ -122,13 +123,13 @@ export function GenerateListingDockHost() {
 
   /** Mobile generate: lock body scroll while the fullscreen shell is open. */
   useEffect(() => {
-    if (!isMobile || !plateOpen || !isAuthed) return;
+    if (!isMobile || !plateOpen) return;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
       document.body.style.overflow = previousOverflow;
     };
-  }, [isMobile, plateOpen, isAuthed]);
+  }, [isMobile, plateOpen]);
 
   const handleDockSurfaceChange = useCallback(
     (surface: typeof dockSurface) => {
@@ -148,24 +149,24 @@ export function GenerateListingDockHost() {
   }, [setPlateOpen, setDockSurface]);
 
   const handleFabClick = useCallback(() => {
-    if (!isAuthed) {
-      openAuthModal();
-      return;
-    }
     if (needsCredits) {
       reachYandexMetrikaGoal(YM_GOAL_PROMPT_CARD_GENERATION_PRICING);
       openPricing();
       return;
     }
+    const idleIntent = listingGenerateIdleIntent(pathname);
+    if (idleIntent === "photo_prompt") {
+      seedBlankPrompt("", { entrySource: "tab", intent: "photo_prompt" });
+      return;
+    }
     focusBlank({ entrySource: "tab" });
-  }, [isAuthed, needsCredits, openAuthModal, openPricing, focusBlank]);
+  }, [focusBlank, needsCredits, openPricing, pathname, seedBlankPrompt]);
 
   if (!isGenerateDockListingPath(pathname)) return null;
 
-  const collapsed = authLoading || !isAuthed || !plateOpen;
+  const collapsed = authLoading || !plateOpen;
   const showFab = !isMobile && collapsed && !(seoPage && heroCtaInView);
   const keepPanelMounted =
-    isAuthed &&
     !authLoading &&
     (plateOpen || runBusy || plateLocked || dockSurface !== null);
   const editorOpen = dockSurface !== null;
@@ -178,7 +179,7 @@ export function GenerateListingDockHost() {
     (mobileFullscreen || editorOpen || plateLocked);
   const layout = isMobile ? "mobile" : "desktop";
 
-  if (isMobile && !isAuthed && !authLoading) return null;
+  if (isMobile && authLoading) return null;
 
   /**
    * Mobile compose host X — hide while editor sheet is open so it doesn't sit

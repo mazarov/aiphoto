@@ -1,17 +1,29 @@
-import { buildExtractPrompt, SECTION_SPEC_ORDER } from "@/lib/extension-prompt-sections";
+import {
+  buildExtractLanguageContract,
+  buildExtractPrompt,
+  SECTION_SPEC_ORDER,
+} from "@/lib/extension-prompt-sections";
 import {
   redactGenerateContentBody,
   summarizeGeminiApiResponse,
 } from "@/lib/gemini-vibe-debug-log";
 import { extensionLog } from "@/lib/extension-pipeline-log";
 import type { createSupabaseServer } from "@/lib/supabase";
-import type { ParsedAnalyzeImage } from "@/lib/image-prompt-analyze-image";
+import {
+  ANALYZE_GEMINI_MAX_BYTES,
+  ANALYZE_GEMINI_MAX_EDGE,
+  prepareAnalyzeImageForGemini,
+  type ParsedAnalyzeImage,
+} from "@/lib/image-prompt-analyze-image";
 
 type SupabaseServer = ReturnType<typeof createSupabaseServer>;
 
 export const ANALYZE_GEMINI_MODEL = "gemini-2.5-flash";
 export const GEMINI_DIRECT_BASE_URL = "https://generativelanguage.googleapis.com";
+/** One-shot extract. 20KB JPEG finishes in ~4–8s; 85KB via proxy never completes. */
 export const GEMINI_TIMEOUT_MS = 30_000;
+/** Flash extract: thinking 256 + portrait regularly dies on DO proxy (~25s EPIPE). */
+export const ANALYZE_THINKING_BUDGET = 0;
 
 const CRITICAL_RULES_EN = `CRITICAL RULES
 - Preserve: face structure, features, skin tone, eye color, proportions.
@@ -25,7 +37,12 @@ const CRITICAL_RULES_RU = `CRITICAL RULES
 
 export class PhotorealAnalyzeError extends Error {
   constructor(
-    readonly code: "fetch_failed" | "gemini_http" | "bad_response" | "empty_prompt",
+    readonly code:
+      | "fetch_failed"
+      | "gemini_http"
+      | "bad_response"
+      | "empty_prompt"
+      | "payload",
     readonly httpStatus: number,
     readonly upstreamStatus?: number,
   ) {
@@ -85,6 +102,8 @@ export async function generatePhotorealPromptFromImage(params: {
   correlationId: string;
   timeoutMs?: number;
   thinkingBudget?: number;
+  imageMaxEdge?: number;
+  imageMaxBytes?: number;
 }): Promise<{
   promptText: string;
   rawText: string;
@@ -93,42 +112,54 @@ export async function generatePhotorealPromptFromImage(params: {
   summary: ReturnType<typeof summarizeGeminiApiResponse>;
   baseUrl: string;
 }> {
-  const localeInstruction =
-    params.locale === "en"
-      ? ""
-      : `\n\nWrite descriptive section bodies in ${params.locale}. Keep every section heading exactly in English.`;
-  const prompt = `${buildExtractPrompt("photoreal")}${localeInstruction}`;
-  const geminiBody = {
+  const prompt = buildExtractPrompt("photoreal", params.locale);
+  const thinkingBudget =
+    typeof params.thinkingBudget === "number"
+      ? params.thinkingBudget
+      : ANALYZE_THINKING_BUDGET;
+  const timeoutMs =
+    typeof params.timeoutMs === "number" && params.timeoutMs > 0
+      ? params.timeoutMs
+      : GEMINI_TIMEOUT_MS;
+  const baseUrl = await resolveAnalyzeGeminiBaseUrl(params.supabase);
+  let image: ParsedAnalyzeImage;
+  try {
+    image = await prepareAnalyzeImageForGemini(params.image, {
+      maxEdge: params.imageMaxEdge ?? ANALYZE_GEMINI_MAX_EDGE,
+      maxBytes: params.imageMaxBytes ?? ANALYZE_GEMINI_MAX_BYTES,
+    });
+  } catch {
+    throw new PhotorealAnalyzeError("payload", 503);
+  }
+  const body = {
+    systemInstruction: {
+      parts: [{ text: buildExtractLanguageContract(params.locale) }],
+    },
     contents: [
       {
         role: "user",
         parts: [
           { text: prompt },
-          { inlineData: { mimeType: params.image.mimeType, data: params.image.data } },
+          { inlineData: { mimeType: image.mimeType, data: image.data } },
         ],
       },
     ],
     generationConfig: {
       temperature: 0.3,
       maxOutputTokens: 4096,
-      thinkingConfig: {
-        thinkingBudget:
-          typeof params.thinkingBudget === "number" ? params.thinkingBudget : 256,
-      },
+      thinkingConfig: { thinkingBudget },
     },
   };
-  const timeoutMs =
-    typeof params.timeoutMs === "number" && params.timeoutMs > 0
-      ? params.timeoutMs
-      : GEMINI_TIMEOUT_MS;
-  const baseUrl = await resolveAnalyzeGeminiBaseUrl(params.supabase);
   extensionLog(`${params.logPrefix}.gemini_request`, {
     requestId: params.requestId,
     correlationId: params.correlationId,
     model: ANALYZE_GEMINI_MODEL,
+    locale: params.locale,
     endpointHost: new URL(baseUrl).hostname,
     viaProxy: baseUrl !== GEMINI_DIRECT_BASE_URL,
-    body: redactGenerateContentBody(geminiBody),
+    imageBase64CharsIn: params.image.data.length,
+    imageBase64CharsOut: image.data.length,
+    body: redactGenerateContentBody(body),
   });
 
   let response: Response;
@@ -141,7 +172,7 @@ export async function generatePhotorealPromptFromImage(params: {
           "Content-Type": "application/json",
           "x-goog-api-key": params.apiKey,
         },
-        body: JSON.stringify(geminiBody),
+        body: JSON.stringify(body),
         signal: AbortSignal.timeout(timeoutMs),
       },
     );

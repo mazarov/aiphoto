@@ -109,9 +109,11 @@ test("compose tiles and generate CTA follow the selected block", () => {
   assert.equal(composeModeTileLabel("image"), "Фото");
   assert.equal(composeModeTileLabel("video"), "Видео");
   assert.equal(composeModeTileLabel("photoshoot"), "Фотосессия");
+  assert.equal(composeModeTileLabel("photo_prompt"), "Промт по фото");
   assert.equal(composeGenerateCtaLabel("image"), "Создать фото");
   assert.equal(composeGenerateCtaLabel("video"), "Создать видео");
   assert.equal(composeGenerateCtaLabel("photoshoot"), "Создать фотосессию");
+  assert.equal(composeGenerateCtaLabel("photo_prompt"), "Создать промт по фото");
   assert.equal(composeGenerateCtaShowsModelName("image"), true);
   assert.equal(composeGenerateCtaShowsModelName("video"), true);
   assert.equal(composeGenerateCtaShowsModelName("photoshoot"), false);
@@ -123,11 +125,28 @@ test("image and video tiles toggle the model sheet; photoshoot is select-only", 
   assert.equal(composeModeTileSheet("image"), "model");
   assert.equal(composeModeTileSheet("video"), "model");
   assert.equal(composeModeTileSheet("photoshoot"), null);
+  assert.equal(composeModeTileSheet("photo_prompt"), "photos");
   assert.equal(
     nextComposeModeTileSheet({
       mode: "photoshoot",
       alreadyInMode: false,
       currentSheet: null,
+    }),
+    null,
+  );
+  assert.equal(
+    nextComposeModeTileSheet({
+      mode: "photo_prompt",
+      alreadyInMode: false,
+      currentSheet: null,
+    }),
+    "photos",
+  );
+  assert.equal(
+    nextComposeModeTileSheet({
+      mode: "photo_prompt",
+      alreadyInMode: true,
+      currentSheet: "photos",
     }),
     null,
   );
@@ -180,5 +199,9 @@ test("photoshoot mode does not enqueue without editKind=photoshoot", () => {
   assert.equal(
     canEnqueueWhilePhotoshootSelected({ composeMode: "image" }),
     true
+  );
+  assert.equal(
+    canEnqueueWhilePhotoshootSelected({ composeMode: "photo_prompt" }),
+    false
   );
 });

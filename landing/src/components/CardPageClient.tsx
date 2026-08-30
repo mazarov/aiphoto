@@ -51,7 +51,6 @@ import {
   peekAuthReturnCardPin,
   releaseAuthReturnCardPin,
 } from "@/lib/auth-return-card-pin";
-import { bindAuthReturnOverlay } from "@/lib/auth-return-screen";
 import {
   canNavigateFromSecondaryCardViewer,
   isClientCardOverlayActive,
@@ -200,11 +199,8 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
   const { reactions, favorites, toggleReaction, toggleFavorite } = useCardInteractions();
   const userReaction = reactions.get(data.id) ?? null;
   const isFavorited = favorites.has(data.id);
-  const { user, showAuthModal } = useAuth();
+  const { user } = useAuth();
   const isAdmin = isCatalogAdminEmail(user?.email);
-  const isAuthed = Boolean(user && user.is_anonymous !== true);
-  const pendingRepeatAuthRef = useRef(false);
-  const repeatAuthWasOpenRef = useRef(false);
   const [techInfoEnabled, setTechInfoEnabled] = useState(false);
   useEffect(() => {
     setTechInfoEnabled(readAdminTechInfoEnabled());
@@ -270,43 +266,12 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
   const openInlineGenerate = useCallback(() => {
     setMobilePromptOverlay(false);
     const promptText = data.promptTexts.join("\n\n");
-    // Keep the prompt card mounted while guest auth is shown above it.
     seedFromCard(
       { promptText, cardId: data.id },
       { entrySource: "card" }
     );
-    if (!isAuthed) {
-      bindAuthReturnOverlay({ type: "card", slug: data.slug });
-      pendingRepeatAuthRef.current = true;
-      repeatAuthWasOpenRef.current = false;
-      return;
-    }
     leaveCardForGenerate();
-  }, [
-    data.id,
-    data.promptTexts,
-    isAuthed,
-    leaveCardForGenerate,
-    seedFromCard,
-  ]);
-
-  useEffect(() => {
-    if (!pendingRepeatAuthRef.current) return;
-    if (isAuthed) {
-      pendingRepeatAuthRef.current = false;
-      repeatAuthWasOpenRef.current = false;
-      leaveCardForGenerate();
-      return;
-    }
-    if (showAuthModal) {
-      repeatAuthWasOpenRef.current = true;
-      return;
-    }
-    if (repeatAuthWasOpenRef.current) {
-      pendingRepeatAuthRef.current = false;
-      repeatAuthWasOpenRef.current = false;
-    }
-  }, [isAuthed, leaveCardForGenerate, showAuthModal]);
+  }, [data.id, data.promptTexts, leaveCardForGenerate, seedFromCard]);
 
   // Reset local media only when opening another card (`id`), not on every `data` reference change.
   useEffect(() => {

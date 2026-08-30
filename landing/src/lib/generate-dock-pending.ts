@@ -67,10 +67,51 @@ export function parsePendingGenerateDock(raw: string | null): PendingGenerateDoc
   }
 }
 
+/** Never persist data:/blob: previews — sessionStorage quota and PII. */
+export function previewUrlForPendingDock(url?: string | null): string | null {
+  const value = (url || "").trim();
+  if (!value) return null;
+  if (value.startsWith("data:") || value.startsWith("blob:")) return null;
+  return value;
+}
+
+export function stripPendingGenerateDock(pending: PendingGenerateDock): PendingGenerateDock {
+  return {
+    seed: {
+      ...pending.seed,
+      previewUrl: previewUrlForPendingDock(pending.seed.previewUrl),
+    },
+    dockSurface: pending.dockSurface,
+  };
+}
+
+export function seedForAuthReturnDock(
+  overlayIntent: GenerateDockComposeIntent,
+  pending: PendingGenerateDock | null
+): PendingGenerateDock {
+  const intent = INTENTS.has(overlayIntent) ? overlayIntent : "resume";
+  if (!pending) {
+    return {
+      seed: { ...DEFAULT_GENERATE_DOCK_SEED, intent },
+      dockSurface: null,
+    };
+  }
+  return stripPendingGenerateDock({
+    seed: {
+      ...pending.seed,
+      intent: pending.seed.intent || intent,
+    },
+    dockSurface: pending.dockSurface,
+  });
+}
+
 export function persistPendingGenerateDock(pending: PendingGenerateDock): void {
   if (typeof window === "undefined") return;
   try {
-    window.sessionStorage.setItem(PENDING_GENERATE_DOCK_KEY, JSON.stringify(pending));
+    window.sessionStorage.setItem(
+      PENDING_GENERATE_DOCK_KEY,
+      JSON.stringify(stripPendingGenerateDock(pending))
+    );
   } catch {
     // Private mode / quota — auth can still proceed without resume.
   }

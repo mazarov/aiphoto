@@ -63,6 +63,31 @@ const SECTION_SPECS: Record<(typeof SECTION_SPEC_ORDER)[number], string> = {
     "A compact generator-ready list of relevant artifacts and anti-drift constraints: wrong pose/orientation, flattened spine, redesigned clothing, altered crop/camera/scale, invented props, distorted anatomy, plastic skin, cartoon/3D look, and inappropriate lighting.",
 };
 
+/** BCP-47 → English language name for the extract contract (`ru` → Russian). */
+export function analyzeBodyLanguageName(locale: string): string {
+  const lang = (locale.split("-")[0] || "en").trim().toLowerCase() || "en";
+  try {
+    return new Intl.DisplayNames(["en"], { type: "language" }).of(lang) || "English";
+  } catch {
+    return "English";
+  }
+}
+
+/**
+ * Headings stay English (remix / diagnostics). Bodies follow the request locale.
+ * Must sit at the top of the extract prompt — a trailing "in ru" postfix loses to HEADER.
+ */
+export function buildExtractLanguageContract(locale: string): string {
+  const bodyLanguage = analyzeBodyLanguageName(locale);
+  return [
+    "LANGUAGE (mandatory):",
+    `- Keep every section heading exactly in English: ${SECTION_SPEC_ORDER.join(", ")}.`,
+    `- Write every section body in ${bodyLanguage}. A section body is the text after each heading.`,
+    `- Do not write section bodies in any other language.`,
+    `- Latin camera units (mm) and the occlusion token "not visible" may stay as written.`,
+  ].join("\n");
+}
+
 const TUNING: Record<Exclude<ExtractStyle, "photoreal">, string> = {
   midjourney:
     "Use vivid, evocative, keyword-rich wording inside the existing section bodies.",
@@ -74,11 +99,18 @@ const TUNING: Record<Exclude<ExtractStyle, "photoreal">, string> = {
   dalle: "Use vivid, descriptive natural-language phrasing.",
 };
 
-export function buildExtractPrompt(style: ExtractStyle): string {
+export function buildExtractPrompt(style: ExtractStyle, locale = "en"): string {
+  const bodyLanguage = analyzeBodyLanguageName(locale);
   const sections = SECTION_SPEC_ORDER.map(
-    (label) => `${label}:\n${SECTION_SPECS[label]}`,
+    (label) =>
+      `${label}:\nWrite the body in ${bodyLanguage}. ${SECTION_SPECS[label]}`,
   );
-  const base = [HEADER, ...sections].join("\n\n");
+  const base = [
+    buildExtractLanguageContract(locale),
+    HEADER,
+    ...sections,
+    `LANGUAGE CHECK: every section body must be ${bodyLanguage}. Headings stay English.`,
+  ].join("\n\n");
   if (style === "photoreal") return base;
   return `${base}\n\nModel tuning: keep every section and heading unchanged. ${TUNING[style]} Stay photorealistic and faithful to the image.`;
 }

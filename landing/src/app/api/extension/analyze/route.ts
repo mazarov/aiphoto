@@ -28,6 +28,8 @@ import {
 import { createSupabaseServer } from "@/lib/supabase";
 
 export const runtime = "nodejs";
+/** Interactive analyze: one Gemini POST after JPEG ≤256px / ≤20KB. No upstream retry. */
+export const maxDuration = 60;
 
 function errorResponse(message: string, status = 400) {
   return NextResponse.json({ error: "invalid_image", message }, { status });
@@ -211,7 +213,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json(
       {
         error: "upstream_failed",
-        message: "Something went wrong. Please try another image.",
+        message: "Не удалось разобрать фото. Нажмите «Создать промт по фото» ещё раз.",
       },
       { status: httpStatus },
     );

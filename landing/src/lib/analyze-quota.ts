@@ -107,6 +107,18 @@ function remainingFree(freeMax: number, count: number, pending: number): number 
   return Math.max(0, freeMax - (count + pending));
 }
 
+/**
+ * Login does not reset the daily free bucket.
+ * Guest used N on the IP key → after `extension_rate_limit_merge_ip_to_user`,
+ * remaining on `user:{id}` is the same leftover (then paid / 1 credit).
+ */
+export function remainingAnalyzeFreeAfterIdentityMerge(input: {
+  freeMax: number;
+  guestUsed: number;
+}): number {
+  return remainingFree(input.freeMax, Math.max(0, input.guestUsed), 0);
+}
+
 /** Timestamptz compare — never string-compare ISO (`+00:00` < `.000Z`). */
 export function isAnalyzeQuotaCurrentWindow(
   rowWindow: string | null | undefined,
@@ -201,6 +213,7 @@ export async function resolveAnalyzeQuotaSnapshot(
     authenticated = true;
     userId = ensured.dbUserId;
     credits = ensured.credits;
+    // Guest 10/day continues after login: today's IP count is added into user:{id}.
     const { error: mergeError } = await supabase.rpc(
       "extension_rate_limit_merge_ip_to_user",
       {

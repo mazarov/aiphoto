@@ -7,6 +7,9 @@ import {
 } from "@/lib/extension-image-settings";
 
 export const ANALYZE_MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+/** Interactive extract via DO proxy. ~85KB (768/q85) dies with EPIPE/ETIMEDOUT. */
+export const ANALYZE_GEMINI_MAX_EDGE = 256;
+export const ANALYZE_GEMINI_MAX_BYTES = 20 * 1024;
 const MAX_BASE64_CHARS = Math.ceil(ANALYZE_MAX_IMAGE_BYTES * (4 / 3)) + 100;
 const IMAGE_FETCH_TIMEOUT_MS = 20_000;
 const MAX_REDIRECTS = 5;
@@ -85,6 +88,35 @@ export function parseAnalyzeImageDataUrl(value: string): ParsedAnalyzeImage | nu
   if (!buffer.length || buffer.length > ANALYZE_MAX_IMAGE_BYTES) return null;
   const mimeType = sniffImageMime(buffer);
   return mimeType ? { mimeType, data: buffer.toString("base64") } : null;
+}
+
+export async function prepareAnalyzeImageForGemini(
+  image: ParsedAnalyzeImage,
+  options?: { maxEdge?: number; maxBytes?: number },
+): Promise<ParsedAnalyzeImage> {
+  const maxEdge = options?.maxEdge ?? ANALYZE_GEMINI_MAX_EDGE;
+  const maxBytes = options?.maxBytes ?? ANALYZE_GEMINI_MAX_BYTES;
+  const input = Buffer.from(image.data, "base64");
+  const edges = [maxEdge, 384, 256, 192, 160].filter(
+    (value, index, list) => value > 0 && value <= maxEdge && list.indexOf(value) === index,
+  );
+  try {
+    for (const edge of edges) {
+      for (const quality of [72, 60, 48, 40]) {
+        const resized = await sharp(input)
+          .rotate()
+          .resize(edge, edge, { fit: "inside", withoutEnlargement: true })
+          .jpeg({ quality })
+          .toBuffer();
+        if (resized.length > maxBytes) continue;
+        const parsed = parseAnalyzeImageBuffer(resized);
+        if (parsed) return parsed;
+      }
+    }
+  } catch {
+    throw new AnalyzeImageError("gemini_payload");
+  }
+  throw new AnalyzeImageError("gemini_payload");
 }
 
 function isPrivateAddress(address: string): boolean {

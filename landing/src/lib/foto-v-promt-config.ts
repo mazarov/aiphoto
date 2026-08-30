@@ -12,13 +12,8 @@ export function getImagePromptApiOrigin(): string {
 }
 
 export function getImagePromptAnalyzeUrl(): string {
-  // In `next dev`, same-origin proxy avoids CORS and the local Gemini proxy
-  // timeout (gemini-proxy.imageprompt.tools is often unreachable from RF/dev).
-  // Prod / preview: PromptShot same-origin analyze.
-  const forceDirect = process.env.NEXT_PUBLIC_IMAGEPROMPT_DIRECT === "1";
-  if (process.env.NODE_ENV === "development" && !forceDirect) {
-    return "/api/imageprompt-proxy/extension/analyze";
-  }
+  // Same-origin PromptShot analyze owns locale (section bodies in request locale).
+  // Do not proxy imageprompt.tools here — that extract is EN-first and ignores our contract.
   return "/api/extension/analyze";
 }
 
@@ -53,8 +48,7 @@ export function getAiImageDescriberChromeUrl(
 }
 
 export function getPromptRemixUrl(): string {
-  // Mirror getImagePromptAnalyzeUrl: dev → same-origin proxy (avoids CORS),
-  // prod/preview → direct cross-origin call to imageprompt.tools.
+  // Remix still goes to imageprompt.tools in prod; dev uses same-origin proxy (CORS).
   const forceDirect = process.env.NEXT_PUBLIC_IMAGEPROMPT_DIRECT === "1";
   if (process.env.NODE_ENV === "development" && !forceDirect) {
     return "/api/imageprompt-proxy/extension/remix";

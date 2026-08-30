@@ -74,6 +74,41 @@ test("overlay serialize / parse round-trips", () => {
   });
   assert.deepEqual(parseAuthReturnOverlay("pricing"), { type: "pricing" });
   assert.equal(parseAuthReturnOverlay("card:../x"), null);
+  assert.equal(
+    serializeAuthReturnOverlay({ type: "generate-dock", intent: "photo_prompt" }),
+    "generate-dock:photo_prompt"
+  );
+  assert.deepEqual(parseAuthReturnOverlay("generate-dock:photo_prompt"), {
+    type: "generate-dock",
+    intent: "photo_prompt",
+  });
+  assert.deepEqual(parseAuthReturnOverlay("generate-dock"), {
+    type: "generate-dock",
+    intent: "resume",
+  });
+  assert.equal(parseAuthReturnOverlay("generate-dock:nope"), null);
+});
+
+test("generate-dock overlay returns to listing origin with photo_prompt intent", () => {
+  const screen = captureAuthReturnScreen({
+    currentPath: "/foto-v-promt",
+    live: {
+      originPath: "/foto-v-promt",
+      overlay: { type: "generate-dock", intent: "photo_prompt" },
+    },
+  });
+  assert.deepEqual(screen, {
+    path: "/foto-v-promt",
+    overlay: { type: "generate-dock", intent: "photo_prompt" },
+    scrollY: 0,
+  });
+  assert.equal(
+    appendAuthReturnDestination("/foto-v-promt", {
+      type: "generate-dock",
+      intent: "photo_prompt",
+    }),
+    "/foto-v-promt?ps_auth=1&ps_ov=generate-dock%3Aphoto_prompt"
+  );
 });
 
 test("card overlay returns to listing origin, not /p/slug", () => {

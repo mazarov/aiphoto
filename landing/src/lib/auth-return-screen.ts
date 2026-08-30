@@ -10,6 +10,7 @@ import {
   sanitizeAuthReturnDestination,
   writeAuthCookie,
 } from "@/lib/auth-return-path";
+import type { GenerateDockComposeIntent } from "@/lib/generate-dock-seed";
 
 export { peekAuthReturnScrollY };
 import {
@@ -28,7 +29,33 @@ const OVERLAY_SLUG_MAX = 200;
 export type AuthReturnOverlay =
   | { type: "card"; slug: string }
   | { type: "pricing" }
-  | { type: "foto-v-promt" };
+  | { type: "foto-v-promt" }
+  | { type: "generate-dock"; intent: GenerateDockComposeIntent };
+
+const GENERATE_DOCK_INTENTS = new Set<GenerateDockComposeIntent>([
+  "resume",
+  "text",
+  "photo_prompt",
+  "animate",
+  "result",
+]);
+
+export function sanitizeGenerateDockIntent(
+  raw: unknown
+): GenerateDockComposeIntent | null {
+  return typeof raw === "string" && GENERATE_DOCK_INTENTS.has(raw as GenerateDockComposeIntent)
+    ? (raw as GenerateDockComposeIntent)
+    : null;
+}
+
+export function authReturnOverlayForGenerateDock(
+  intent: GenerateDockComposeIntent | null | undefined
+): AuthReturnOverlay {
+  return {
+    type: "generate-dock",
+    intent: sanitizeGenerateDockIntent(intent) ?? "resume",
+  };
+}
 
 export type AuthReturnScreen = {
   path: string;
@@ -62,9 +89,14 @@ export function sanitizeOverlaySlug(raw: string): string | null {
 
 export function sanitizeAuthReturnOverlay(raw: unknown): AuthReturnOverlay | null {
   if (!raw || typeof raw !== "object") return null;
-  const overlay = raw as { type?: unknown; slug?: unknown };
+  const overlay = raw as { type?: unknown; slug?: unknown; intent?: unknown };
   if (overlay.type === "pricing" || overlay.type === "foto-v-promt") {
     return { type: overlay.type };
+  }
+  if (overlay.type === "generate-dock") {
+    return authReturnOverlayForGenerateDock(
+      sanitizeGenerateDockIntent(overlay.intent) ?? "resume"
+    );
   }
   if (overlay.type === "card" && typeof overlay.slug === "string") {
     const slug = sanitizeOverlaySlug(overlay.slug);
@@ -75,6 +107,11 @@ export function sanitizeAuthReturnOverlay(raw: unknown): AuthReturnOverlay | nul
 
 export function serializeAuthReturnOverlay(overlay: AuthReturnOverlay): string {
   if (overlay.type === "card") return `card:${overlay.slug}`;
+  if (overlay.type === "generate-dock") {
+    return overlay.intent === "resume"
+      ? "generate-dock"
+      : `generate-dock:${overlay.intent}`;
+  }
   return overlay.type;
 }
 
@@ -85,6 +122,13 @@ export function parseAuthReturnOverlay(
   const value = raw.trim();
   if (value === "pricing" || value === "foto-v-promt") {
     return { type: value };
+  }
+  if (value === "generate-dock") {
+    return { type: "generate-dock", intent: "resume" };
+  }
+  if (value.startsWith("generate-dock:")) {
+    const intent = sanitizeGenerateDockIntent(value.slice("generate-dock:".length));
+    return intent ? { type: "generate-dock", intent } : null;
   }
   if (value.startsWith("card:")) {
     return sanitizeAuthReturnOverlay({ type: "card", slug: value.slice(5) });

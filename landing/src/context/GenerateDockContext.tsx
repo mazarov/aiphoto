@@ -18,11 +18,17 @@ import {
   type GenerateDockComposeIntent,
   type GenerateDockSeed,
 } from "@/lib/generate-dock-seed";
+import { setPendingPhotoPrompt } from "@/lib/generate-photo-prompt";
 import {
-  clearPendingGenerateDock,
   consumePendingGenerateDock,
   persistPendingGenerateDock,
+  seedForAuthReturnDock,
 } from "@/lib/generate-dock-pending";
+import {
+  authReturnOverlayForGenerateDock,
+  getLiveAuthReturnOverlay,
+  setLiveAuthReturnOverlay,
+} from "@/lib/auth-return-screen";
 import {
   reachYandexMetrikaGoal,
   YM_GOAL_GENERATE_SHELL_OPEN,
@@ -97,6 +103,11 @@ type GenerateDockContextType = {
       dockSurface?: GenerateDockSurface;
     }
   ) => void;
+  /** Open dock on «Промт по фото» and start analyze from an in-memory payload. */
+  seedPhotoPrompt: (
+    args: { previewUrl: string; dataUrl: string },
+    options?: { entrySource?: GenerateDockEntrySource }
+  ) => void;
   /** Seed prompt from prompt card, then caller closes the card. */
   seedFromCard: (
     args: { promptText: string; cardId: string },
@@ -123,6 +134,8 @@ type GenerateDockContextType = {
   dismissLastDockResult: () => void;
   /** New completed generation may be resumed on the next blank-dock open. */
   clearLastDockResultDismiss: () => void;
+  /** After OAuth: reopen plate with overlay intent + pending seed (no data: photo). */
+  restoreFromAuthReturn: (intent: GenerateDockComposeIntent) => void;
 };
 
 const GenerateDockContext = createContext<GenerateDockContextType>({
@@ -143,12 +156,14 @@ const GenerateDockContext = createContext<GenerateDockContextType>({
   requestModelSelection: () => {},
   focusBlank: () => {},
   seedBlankPrompt: () => {},
+  seedPhotoPrompt: () => {},
   seedFromCard: () => {},
   seedAnimate: () => {},
   seedCompletedResult: () => {},
   lastDockResultDismissed: false,
   dismissLastDockResult: () => {},
   clearLastDockResultDismiss: () => {},
+  restoreFromAuthReturn: () => {},
 });
 
 export function GenerateDockProvider({ children }: { children: ReactNode }) {
@@ -176,6 +191,34 @@ export function GenerateDockProvider({ children }: { children: ReactNode }) {
     setPlateOpen(true);
     setDockSurface(pending.dockSurface);
   }, [authLoading]);
+
+  const restoreFromAuthReturn = useCallback((intent: GenerateDockComposeIntent) => {
+    restoredPendingRef.current = true;
+    const next = seedForAuthReturnDock(intent, consumePendingGenerateDock());
+    setSeed(next.seed);
+    setSeedToken((token) => token + 1);
+    setLastDockResultDismissed(next.seed.intent === "photo_prompt");
+    setPlateOpen(true);
+    setDockSurface(next.dockSurface);
+  }, []);
+
+  useEffect(() => {
+    if (!plateOpen || typeof window === "undefined") return;
+    const originPath = `${window.location.pathname}${window.location.search}`;
+    setLiveAuthReturnOverlay({
+      originPath,
+      overlay: authReturnOverlayForGenerateDock(seed.intent),
+    });
+    if (!isAuthed) {
+      persistPendingGenerateDock({ seed, dockSurface });
+    }
+    return () => {
+      const live = getLiveAuthReturnOverlay();
+      if (live?.overlay.type === "generate-dock") {
+        setLiveAuthReturnOverlay(null);
+      }
+    };
+  }, [dockSurface, isAuthed, plateOpen, seed]);
 
   const trackOpen = useCallback((entrySource: GenerateDockEntrySource) => {
     reachYandexMetrikaGoal(YM_GOAL_GENERATE_SHELL_OPEN, {
@@ -362,6 +405,32 @@ export function GenerateDockProvider({ children }: { children: ReactNode }) {
     [isAuthed, trackOpen]
   );
 
+  const seedPhotoPrompt = useCallback(
+    (
+      args: { previewUrl: string; dataUrl: string },
+      options?: { entrySource?: GenerateDockEntrySource }
+    ) => {
+      const previewUrl = args.previewUrl.trim();
+      const dataUrl = args.dataUrl.trim();
+      if (!previewUrl || !dataUrl) return;
+      setPendingPhotoPrompt({ previewUrl, dataUrl });
+      const nextSeed: GenerateDockSeed = {
+        source: "blank",
+        promptText: "",
+        cardId: null,
+        intent: "photo_prompt",
+        previewUrl,
+      };
+      setSeed(nextSeed);
+      setSeedToken((token) => token + 1);
+      setLastDockResultDismissed(true);
+      setPlateOpen(true);
+      setDockSurface(null);
+      trackOpen(options?.entrySource ?? "foto_v_promt");
+    },
+    [trackOpen]
+  );
+
   const notifyGenerationComplete = useCallback(() => {
     setHistoryRefreshToken((token) => token + 1);
   }, []);
@@ -393,12 +462,14 @@ export function GenerateDockProvider({ children }: { children: ReactNode }) {
       requestModelSelection,
       focusBlank,
       seedBlankPrompt,
+      seedPhotoPrompt,
       seedFromCard,
       seedAnimate,
       seedCompletedResult,
       lastDockResultDismissed,
       dismissLastDockResult,
       clearLastDockResultDismiss,
+      restoreFromAuthReturn,
     }),
     [
       seed,
@@ -416,50 +487,22 @@ export function GenerateDockProvider({ children }: { children: ReactNode }) {
       requestModelSelection,
       focusBlank,
       seedBlankPrompt,
+      seedPhotoPrompt,
       seedFromCard,
       seedAnimate,
       seedCompletedResult,
       lastDockResultDismissed,
       dismissLastDockResult,
       clearLastDockResultDismiss,
+      restoreFromAuthReturn,
     ]
   );
 
   return (
     <GenerateDockContext.Provider value={value}>
-      <GenerateDockGuestAuthReactor />
       {children}
     </GenerateDockContext.Provider>
   );
-}
-
-/**
- * SSOT: guest compose (`plateOpen`) always opens auth. Dismiss without login
- * closes the plate so a second «Повторить» can retrigger the modal.
- */
-function GenerateDockGuestAuthReactor() {
-  const { user, loading, showAuthModal, openAuthModal } = useAuth();
-  const { plateOpen, setPlateOpen, setDockSurface } = useGenerateDock();
-  const isAuthed = Boolean(user && user.is_anonymous !== true);
-  const prevShowAuthRef = useRef(showAuthModal);
-
-  useEffect(() => {
-    if (loading || isAuthed || !plateOpen) return;
-    openAuthModal();
-  }, [loading, isAuthed, plateOpen, openAuthModal]);
-
-  useEffect(() => {
-    const wasShowing = prevShowAuthRef.current;
-    prevShowAuthRef.current = showAuthModal;
-    if (loading || isAuthed) return;
-    if (wasShowing && !showAuthModal && plateOpen) {
-      clearPendingGenerateDock();
-      setPlateOpen(false);
-      setDockSurface(null);
-    }
-  }, [showAuthModal, loading, isAuthed, plateOpen, setPlateOpen, setDockSurface]);
-
-  return null;
 }
 
 export function useGenerateDock() {

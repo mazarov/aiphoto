@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { parsePendingGenerateDock } from "./generate-dock-pending";
+import {
+  parsePendingGenerateDock,
+  previewUrlForPendingDock,
+  seedForAuthReturnDock,
+  stripPendingGenerateDock,
+} from "./generate-dock-pending";
 
 test("parsePendingGenerateDock accepts a photo_prompt seed", () => {
   const raw = JSON.stringify({
@@ -116,6 +121,36 @@ test("parsePendingGenerateDock keeps photoshoot tiles on a result seed", () => {
   const parsed = parsePendingGenerateDock(raw);
   assert.equal(parsed?.seed.editKind, "photoshoot");
   assert.deepEqual(parsed?.seed.photoshootTileUrls, tiles);
+});
+
+test("pending dock never keeps data or blob previews", () => {
+  assert.equal(previewUrlForPendingDock("data:image/jpeg;base64,xxxx"), null);
+  assert.equal(previewUrlForPendingDock("blob:https://promptshot.ru/x"), null);
+  assert.equal(previewUrlForPendingDock("https://cdn.example/a.jpg"), "https://cdn.example/a.jpg");
+  const stripped = stripPendingGenerateDock({
+    seed: {
+      source: "blank",
+      promptText: "",
+      cardId: null,
+      intent: "photo_prompt",
+      previewUrl: "data:image/jpeg;base64,xxxx",
+    },
+    dockSurface: null,
+  });
+  assert.equal(stripped.seed.previewUrl, null);
+  assert.equal(stripped.seed.intent, "photo_prompt");
+});
+
+test("auth-return dock seed uses overlay intent when pending is gone", () => {
+  assert.deepEqual(seedForAuthReturnDock("photo_prompt", null), {
+    seed: {
+      source: "blank",
+      promptText: "",
+      cardId: null,
+      intent: "photo_prompt",
+    },
+    dockSurface: null,
+  });
 });
 
 test("parsePendingGenerateDock rejects malformed payloads", () => {

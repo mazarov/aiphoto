@@ -8,6 +8,7 @@ import {
   type LiteRecognitionEntry,
 } from "@/lib/extension-lite-recognition-history";
 import { useAuth } from "@/context/AuthContext";
+import { useGenerateDock } from "@/context/GenerateDockContext";
 import { usePricingModal } from "@/context/PricingModalContext";
 import { requestCreditBalanceRefresh } from "@/lib/credit-balance-events";
 import { getImagePromptAnalyzeUrl, FOTO_V_PROMT_ANALYZE_LOCALE } from "@/lib/foto-v-promt-config";
@@ -25,6 +26,10 @@ import {
   YM_GOAL_ANALYZE_QUOTA_UNAVAILABLE,
 } from "@/lib/yandex-metrika";
 import { FOTO_V_PROMT_HERO, widgetCopy, type WidgetCopyKey } from "@/lib/foto-v-promt-copy";
+import {
+  PHOTO_PROMPT_UPLOAD_MAX_PX,
+  PHOTO_PROMPT_UPLOAD_QUALITY,
+} from "@/lib/generate-photo-prompt";
 import { prepareUploadFile, noticeForUploadError } from "@/lib/image-upload-prepare";
 import {
   clearFotoVPromtResultSnapshot,
@@ -238,6 +243,7 @@ export function PromptSceneLiteWidget({
   const analyzeUrl = getImagePromptAnalyzeUrl();
   const immersive = variant === "immersive";
   const { user, openAuthModal } = useAuth();
+  const { seedPhotoPrompt } = useGenerateDock();
   const { open: openPricing } = usePricingModal();
   const isAuthed = Boolean(user && user.is_anonymous !== true);
   const [mainTab, setMainTab] = useState<MainTab>("analyze");
@@ -586,11 +592,13 @@ export function PromptSceneLiteWidget({
       return;
     }
     if (parsed.dataUrl && typeof parsed.dataUrl === "string") {
-      setMainTab("analyze");
-      setPreviewUrl(parsed.dataUrl);
-      await analyzeDataUrl(parsed.dataUrl);
+      seedPhotoPrompt(
+        { previewUrl: parsed.dataUrl, dataUrl: parsed.dataUrl },
+        { entrySource: "foto_v_promt" }
+      );
+      onClose?.();
     }
-  }, [analyzeDataUrl]);
+  }, [onClose, seedPhotoPrompt]);
 
   // Extension content script may fill sessionStorage after first paint; poll briefly so
   // we do not miss a one-shot CustomEvent if it fired before this listener attached.
@@ -629,42 +637,39 @@ export function PromptSceneLiteWidget({
     setMainTab("analyze");
     setNotice("");
     revokeObjectPreview();
-    const previewObjectUrl = URL.createObjectURL(file);
-    objectPreviewRef.current = previewObjectUrl;
-    setPanel("loading");
-    setPreviewUrl(previewObjectUrl);
+    setPanel("empty");
+    setPreviewUrl(null);
 
     try {
       uploadLog("prepare start");
-      const prepared = await prepareUploadFile(file);
+      const prepared = await prepareUploadFile(file, {
+        maxPx: PHOTO_PROMPT_UPLOAD_MAX_PX,
+        quality: PHOTO_PROMPT_UPLOAD_QUALITY,
+      });
       uploadLog("prepare done", { ok: prepared.ok, error: prepared.ok ? undefined : prepared.error });
       if (!prepared.ok) {
         uploadLog("handleFile prepare failed", { error: prepared.error });
-        revokeObjectPreview();
-        setPanel("empty");
-        setPreviewUrl(null);
         setNotice(noticeForUploadError(prepared.error, t));
         return;
       }
 
-      revokeObjectPreview();
-      setPreviewUrl(prepared.dataUrl);
-      uploadLog("analyze start");
-      await analyzeDataUrl(prepared.dataUrl);
+      uploadLog("dock handoff");
+      seedPhotoPrompt(
+        { previewUrl: prepared.dataUrl, dataUrl: prepared.dataUrl },
+        { entrySource: "foto_v_promt" }
+      );
+      onClose?.();
       uploadLog("handleFile end", { ok: true });
     } catch (err) {
       uploadLog("handleFile error", {
         message: err instanceof Error ? err.message : String(err),
       });
-      revokeObjectPreview();
-      setPanel("empty");
-      setPreviewUrl(null);
       setNotice(t("readFailed"));
     } finally {
       processingFileRef.current = false;
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
-  }, [analyzeDataUrl, revokeObjectPreview]);
+  }, [onClose, revokeObjectPreview, seedPhotoPrompt]);
 
   const onFileInputEvent = useCallback(
     (e: React.ChangeEvent<HTMLInputElement> | React.FormEvent<HTMLInputElement>) => {
@@ -734,14 +739,17 @@ export function PromptSceneLiteWidget({
 
   const recognizeAgainFromHistory = useCallback(
     (entry: LiteRecognitionEntry) => {
-      setMainTab("analyze");
       if (entry.image.mode === "image_url") {
         void analyzeImageUrl(entry.image.imageUrl);
-      } else {
-        void analyzeDataUrl(entry.image.dataUrl);
+        return;
       }
+      seedPhotoPrompt(
+        { previewUrl: entry.image.dataUrl, dataUrl: entry.image.dataUrl },
+        { entrySource: "foto_v_promt" }
+      );
+      onClose?.();
     },
-    [analyzeDataUrl, analyzeImageUrl],
+    [analyzeImageUrl, onClose, seedPhotoPrompt],
   );
 
   const showImmersiveBackdrop =

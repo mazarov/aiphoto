@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  isFotoVPromtDockPath,
   isGenerateDockListingPath,
   isGenerateDockSeoPagePath,
+  listingGenerateIdleIntent,
   normalizeGenerateDockPath,
 } from "./generate-dock-path";
 
@@ -21,6 +23,14 @@ test("isGenerateDockSeoPagePath includes approved scenario pages", () => {
   assert.equal(isGenerateDockSeoPagePath("/foto-v-promt"), false);
   assert.equal(isGenerateDockSeoPagePath("/sobytiya/1-sentyabrya"), false);
   assert.equal(isGenerateDockSeoPagePath("/sobytiya/den-rozhdeniya"), false);
+});
+
+test("foto-v-promt FAB seeds photo_prompt, other listings stay resume", () => {
+  assert.equal(isFotoVPromtDockPath("/foto-v-promt"), true);
+  assert.equal(isFotoVPromtDockPath("/foto-v-promt/"), true);
+  assert.equal(isFotoVPromtDockPath("/"), false);
+  assert.equal(listingGenerateIdleIntent("/foto-v-promt"), "photo_prompt");
+  assert.equal(listingGenerateIdleIntent("/"), null);
 });
 
 test("isGenerateDockListingPath includes foto-v-promt and analyses", () => {

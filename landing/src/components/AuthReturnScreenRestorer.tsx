@@ -2,6 +2,7 @@
 
 import { useLayoutEffect, useRef } from "react";
 import { useFotoVPromtMobileModal } from "@/context/FotoVPromtMobileModalContext";
+import { useGenerateDock } from "@/context/GenerateDockContext";
 import { usePricingModal } from "@/context/PricingModalContext";
 import { usePromptCardModal } from "@/context/PromptCardModalContext";
 import {
@@ -31,6 +32,7 @@ export function AuthReturnScreenRestorer() {
   const { open: openCard } = usePromptCardModal();
   const { open: openPricing } = usePricingModal();
   const { open: openFoto } = useFotoVPromtMobileModal();
+  const { restoreFromAuthReturn } = useGenerateDock();
   const ranRef = useRef(false);
 
   useLayoutEffect(() => {
@@ -63,6 +65,13 @@ export function AuthReturnScreenRestorer() {
       openPricing();
       return;
     }
+    if (overlay?.type === "generate-dock") {
+      if (scrollY !== null && scrollY > 0) {
+        startListingScrollFill(scrollY);
+      }
+      restoreFromAuthReturn(overlay.intent);
+      return;
+    }
     if (overlay?.type === "foto-v-promt") {
       if (scrollY !== null && scrollY > 0) {
         startListingScrollFill(scrollY);
@@ -72,7 +81,7 @@ export function AuthReturnScreenRestorer() {
     }
 
     scheduleListingScrollRestore();
-  }, [openCard, openFoto, openPricing]);
+  }, [openCard, openFoto, openPricing, restoreFromAuthReturn]);
 
   return null;
 }

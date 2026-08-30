@@ -62,7 +62,7 @@ export function isCompletedResultSeed(seed: GenerateDockSeed): boolean {
 
 /**
  * User-photo library is a generation reference, not an analyze source.
- * `photo_prompt` compose is text-only after ephemeral analyze on the starter.
+ * `photo_prompt` uses an ephemeral in-memory payload (`generate-photo-prompt.ts`).
  */
 export function shouldAttachLibraryPhotos(seed: GenerateDockSeed): boolean {
   if (seed.intent === "photo_prompt") return false;

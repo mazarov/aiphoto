@@ -1,7 +1,7 @@
 import { PHOTOSHOOT_EDIT_KIND } from "./photoshoot";
 
-/** Exclusive generate-dock mode. Photoshoot is a button, not a third model sheet. */
-export type GenerateComposeMode = "image" | "video" | "photoshoot";
+/** Exclusive generate-dock mode. Photoshoot / photo_prompt are buttons, not model sheets. */
+export type GenerateComposeMode = "image" | "video" | "photoshoot" | "photo_prompt";
 
 export type PhotoshootReadyFrame = {
   generationId: string;
@@ -23,7 +23,12 @@ export const PHOTOSHOOT_NEEDS_LIBRARY_PHOTO =
 export const PHOTOSHOOT_NEEDS_READY_FRAME = PHOTOSHOOT_NEEDS_LIBRARY_PHOTO;
 
 export function isGenerateComposeMode(value: unknown): value is GenerateComposeMode {
-  return value === "image" || value === "video" || value === "photoshoot";
+  return (
+    value === "image" ||
+    value === "video" ||
+    value === "photoshoot" ||
+    value === "photo_prompt"
+  );
 }
 
 /** Prompt stash and vendor modality: photoshoot reuses the image draft. */
@@ -95,17 +100,20 @@ export function resolvePhotoshootLibraryFrame(input: {
 
 export type ComposeModeTileSheet = "photos" | "model";
 
-/** Image and video tiles open the model sheet. Photoshoot is select-only. */
+/** Image/video → model sheet. Photo prompt → «Ваши фото». Photoshoot is select-only. */
 export function composeModeTileSheet(
   mode: GenerateComposeMode,
 ): ComposeModeTileSheet | null {
-  return mode === "photoshoot" ? null : "model";
+  if (mode === "photoshoot") return null;
+  if (mode === "photo_prompt") return "photos";
+  return "model";
 }
 
 /** Mode tile caption. Preview photo stays on «Ваши фото», not on these tiles. */
 export function composeModeTileLabel(mode: GenerateComposeMode): string {
   if (mode === "video") return "Видео";
   if (mode === "photoshoot") return "Фотосессия";
+  if (mode === "photo_prompt") return "Промт по фото";
   return "Фото";
 }
 
@@ -113,6 +121,7 @@ export function composeModeTileLabel(mode: GenerateComposeMode): string {
 export function composeGenerateCtaLabel(mode: GenerateComposeMode): string {
   if (mode === "video") return "Создать видео";
   if (mode === "photoshoot") return "Создать фотосессию";
+  if (mode === "photo_prompt") return "Создать промт по фото";
   return "Создать фото";
 }
 
@@ -127,22 +136,27 @@ export function composeGenerateCtaShowsModelName(
   return mode === "image" || mode === "video";
 }
 
-/** Repeat click on the same model tile closes the sheet. Photoshoot never opens one. */
+/** Repeat click toggles the mode sheet. Photoshoot never opens one. Photo prompt toggles «Ваши фото». */
 export function nextComposeModeTileSheet(input: {
   mode: GenerateComposeMode;
   alreadyInMode: boolean;
   currentSheet: "photos" | "model" | "prompt" | null;
 }): ComposeModeTileSheet | null {
   if (input.mode === "photoshoot") return null;
+  if (input.mode === "photo_prompt") {
+    if (!input.alreadyInMode) return "photos";
+    return input.currentSheet === "photos" ? null : "photos";
+  }
   if (!input.alreadyInMode) return "model";
   return input.currentSheet === "model" ? null : "model";
 }
 
-/** Photoshoot mode must not enqueue a regular image/video job. */
+/** Photoshoot / photo_prompt must not enqueue a regular image/video job. */
 export function canEnqueueWhilePhotoshootSelected(input: {
   composeMode: GenerateComposeMode;
   editKind?: string | null;
 }): boolean {
+  if (input.composeMode === "photo_prompt") return false;
   if (input.composeMode !== "photoshoot") return true;
   return input.editKind === PHOTOSHOOT_EDIT_KIND;
 }

@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  ANALYZE_FREE_PER_DAY_DEFAULT,
   isAnalyzeQuotaCurrentWindow,
+  remainingAnalyzeFreeAfterIdentityMerge,
   SCOUT_ANALYZE_BUCKET,
   SCOUT_ANALYZE_FREE_PER_DAY,
 } from "./analyze-quota";
@@ -23,6 +25,22 @@ test("current UTC window matches Postgres +00:00 and JS .000Z", () => {
 test("scout analyze quota is a dedicated 200/day bucket", () => {
   assert.equal(SCOUT_ANALYZE_BUCKET, "scout:v1");
   assert.equal(SCOUT_ANALYZE_FREE_PER_DAY, 200);
+});
+
+test("guest 10/day leftover continues after login", () => {
+  assert.equal(ANALYZE_FREE_PER_DAY_DEFAULT, 10);
+  assert.equal(
+    remainingAnalyzeFreeAfterIdentityMerge({ freeMax: 10, guestUsed: 0 }),
+    10,
+  );
+  assert.equal(
+    remainingAnalyzeFreeAfterIdentityMerge({ freeMax: 10, guestUsed: 4 }),
+    6,
+  );
+  assert.equal(
+    remainingAnalyzeFreeAfterIdentityMerge({ freeMax: 10, guestUsed: 10 }),
+    0,
+  );
 });
 
 test("previous UTC day is not the current window", () => {

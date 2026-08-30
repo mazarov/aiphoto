@@ -29,6 +29,7 @@ import {
   COMPOSE_BUY_CREDITS_CTA,
   COMPOSE_BUY_CREDITS_CTA_COMPACT,
 } from "@/lib/generate-compose-mode";
+import { listingGenerateIdleIntent } from "@/lib/generate-dock-path";
 import {
   PROMTY_DLYA_II_FOTOSESSII_GENERATE_CTA,
   listingGenerateIdleCta,
@@ -54,6 +55,7 @@ export function MobileTabBar() {
   const { isOpen: fotoModalOpen, open: openFotoModal } = useFotoVPromtMobileModal();
   const {
     focusBlank: focusGenerateDock,
+    seedBlankPrompt,
     plateOpen: generatePlateOpen,
     setPlateOpen: setGeneratePlateOpen,
     setDockSurface: setGenerateDockSurface,
@@ -142,10 +144,6 @@ export function MobileTabBar() {
   };
 
   const handleGenerateTab = () => {
-    if (!isAuthed) {
-      setProfileOpen(true);
-      return;
-    }
     if (generateNeedsCredits) {
       reachYandexMetrikaGoal(YM_GOAL_PROMPT_CARD_GENERATION_PRICING);
       openPricing();
@@ -154,6 +152,10 @@ export function MobileTabBar() {
     if (generatePlateOpen) {
       setGeneratePlateOpen(false);
       setGenerateDockSurface(null);
+      return;
+    }
+    if (listingGenerateIdleIntent(pathname) === "photo_prompt") {
+      seedBlankPrompt("", { entrySource: "tab", intent: "photo_prompt" });
       return;
     }
     focusGenerateDock({ entrySource: "tab" });

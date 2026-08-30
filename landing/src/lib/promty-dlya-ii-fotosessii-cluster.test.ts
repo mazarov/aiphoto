@@ -118,7 +118,7 @@ test("generate FAB on the hub and children is photoshoot, not generic photo", ()
       pathname: "/promty-dlya-ii-fotosessii/zhenskie",
       isAuthed: false,
     }),
-    "Войти и создать ИИ фотосессию",
+    "Создать ИИ фотосессию",
   );
   assert.equal(
     listingGenerateIdleCta({ pathname: "/generaciya-foto", isAuthed: true }),
@@ -126,7 +126,15 @@ test("generate FAB on the hub and children is photoshoot, not generic photo", ()
   );
   assert.equal(
     listingGenerateIdleCta({ pathname: "/", isAuthed: false }),
-    "Войти и создать фото",
+    "Создать фото",
+  );
+  assert.equal(
+    listingGenerateIdleCta({ pathname: "/foto-v-promt", isAuthed: false }),
+    "Создать промт по фото",
+  );
+  assert.equal(
+    listingGenerateIdleCta({ pathname: "/foto-v-promt/", isAuthed: true }),
+    "Создать промт по фото",
   );
 });
 

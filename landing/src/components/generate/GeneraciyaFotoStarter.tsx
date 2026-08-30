@@ -13,12 +13,14 @@ import { useGenerateDock } from "@/context/GenerateDockContext";
 import { usePricingModal } from "@/context/PricingModalContext";
 import { COMPOSE_BUY_CREDITS_CTA } from "@/lib/generate-compose-mode";
 import { GENERACIYA_FOTO_SEO } from "@/lib/generaciya-foto-seo-copy";
-import { requestCreditBalanceRefresh } from "@/lib/credit-balance-events";
 import {
-  analyzeImageToPrompt,
   fetchAnalyzeQuota,
   type AnalyzeQuotaPayload,
 } from "@/lib/image-prompt-analyze-client";
+import {
+  PHOTO_PROMPT_UPLOAD_MAX_PX,
+  PHOTO_PROMPT_UPLOAD_QUALITY,
+} from "@/lib/generate-photo-prompt";
 import {
   noticeForUploadError,
   prepareUploadFile,
@@ -28,10 +30,8 @@ import { GF_BLOCK, GF_STACK } from "@/components/generate/generaciya-foto-ui";
 import {
   reachYandexMetrikaGoal,
   YM_GOAL_GENERATION_PHOTO_PROMPT_OPEN,
-  YM_GOAL_GENERATION_PHOTO_PROMPT_READY,
   YM_GOAL_GENERATION_PHOTO_PROMPT_START,
   YM_GOAL_GENERATION_PHOTO_PROMPT_UPLOAD,
-  YM_GOAL_ANALYZE_AUTH_REQUIRED,
   YM_GOAL_ANALYZE_NO_CREDITS,
   YM_GOAL_PROMPT_CARD_GENERATION_PRICING,
 } from "@/lib/yandex-metrika";
@@ -104,19 +104,12 @@ export function GeneraciyaFotoStarter() {
   const textTabRef = useRef<HTMLButtonElement>(null);
   const photoTabRef = useRef<HTMLButtonElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const analyzeAbortRef = useRef<AbortController | null>(null);
   const processingFileRef = useRef(false);
   const { open: openPricing } = usePricingModal();
   const { user, openAuthModal } = useAuth();
-  const { seedBlankPrompt, needsCredits, runBusy, runProgress } =
+  const { seedBlankPrompt, seedPhotoPrompt, needsCredits, runBusy, runProgress } =
     useGenerateDock();
   const isAuthed = Boolean(user && user.is_anonymous !== true);
-
-  useEffect(() => {
-    return () => {
-      analyzeAbortRef.current?.abort();
-    };
-  }, []);
 
   useEffect(() => {
     void fetchAnalyzeQuota().then((next) => {
@@ -128,7 +121,6 @@ export function GeneraciyaFotoStarter() {
     setMode(nextMode);
     setAnalyzeError("");
     if (nextMode === "text") {
-      analyzeAbortRef.current?.abort();
       setAnalyzing(false);
     }
     if (nextMode === "photo") {
@@ -137,15 +129,15 @@ export function GeneraciyaFotoStarter() {
   };
 
   const analyzePhotoAndOpenComposer = async (file: File) => {
-    analyzeAbortRef.current?.abort();
-    const controller = new AbortController();
-    analyzeAbortRef.current = controller;
     setAnalyzing(true);
     setAnalyzeError("");
     reachYandexMetrikaGoal(YM_GOAL_GENERATION_PHOTO_PROMPT_UPLOAD);
 
     try {
-      const prepared = await prepareUploadFile(file);
+      const prepared = await prepareUploadFile(file, {
+        maxPx: PHOTO_PROMPT_UPLOAD_MAX_PX,
+        quality: PHOTO_PROMPT_UPLOAD_QUALITY,
+      });
       if (!prepared.ok) {
         setAnalyzeError(
           noticeForUploadError(prepared.error, (key) => {
@@ -156,43 +148,18 @@ export function GeneraciyaFotoStarter() {
         );
         return;
       }
-      const result = await analyzeImageToPrompt(prepared.dataUrl, {
-        signal: controller.signal,
-      });
-      if (controller.signal.aborted) return;
-      if (!result.ok) {
-        if (result.quota) setAnalyzeQuota(result.quota);
-        if (result.authRequired) {
-          reachYandexMetrikaGoal(YM_GOAL_ANALYZE_AUTH_REQUIRED);
-          openAuthModal("analyze_quota");
-        } else if (result.noCredits) {
-          reachYandexMetrikaGoal(YM_GOAL_ANALYZE_NO_CREDITS);
-          openPricing();
-        }
-        setAnalyzeError(result.message);
-        return;
-      }
-      if (result.quota) setAnalyzeQuota(result.quota);
-      if (result.quota?.credits_charged) {
-        requestCreditBalanceRefresh();
-      }
-      reachYandexMetrikaGoal(YM_GOAL_GENERATION_PHOTO_PROMPT_READY);
-      seedBlankPrompt(result.prompt, {
-        entrySource: "route",
-        intent: "photo_prompt",
-        dockSurface: "prompt",
-      });
+      seedPhotoPrompt(
+        { previewUrl: prepared.dataUrl, dataUrl: prepared.dataUrl },
+        { entrySource: "route" }
+      );
     } catch {
-      if (controller.signal.aborted) return;
       setAnalyzeError(
         "Не удалось обработать фото. Проверьте соединение и попробуйте снова."
       );
     } finally {
       processingFileRef.current = false;
       if (fileInputRef.current) fileInputRef.current.value = "";
-      if (analyzeAbortRef.current === controller) {
-        setAnalyzing(false);
-      }
+      setAnalyzing(false);
     }
   };
 
@@ -208,10 +175,6 @@ export function GeneraciyaFotoStarter() {
 
   const openComposer = (nextMode: StarterMode = mode) => {
     if (analyzing) return;
-    if (!isAuthed) {
-      openAuthModal();
-      return;
-    }
     if (needsCredits || (nextMode === "photo" && analyzeQuota?.next_mode === "no_credits")) {
       reachYandexMetrikaGoal(
         nextMode === "photo" && analyzeQuota?.next_mode === "no_credits"
@@ -369,9 +332,7 @@ export function GeneraciyaFotoStarter() {
                 : needsCredits
                   || (isAuthed && mode === "photo" && analyzeQuota?.next_mode === "no_credits")
                   ? COMPOSE_BUY_CREDITS_CTA
-                  : isAuthed
-                    ? "Создать фото"
-                    : "Войти и создать фото"}
+                  : "Создать фото"}
           </span>
         </button>
         {analyzeError ? (

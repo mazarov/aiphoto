@@ -13,7 +13,32 @@ import {
   displayDescriptionForGenerationModel,
   displayLabelForGenerationModel,
 } from "@/lib/generation-model-labels";
+import {
+  analyzeImageToPrompt,
+  dataUrlFromImageUrl,
+} from "@/lib/image-prompt-analyze-client";
 import { noticeForUploadError, prepareUploadFile } from "@/lib/image-upload-prepare";
+import { persistPendingGenerateDock } from "@/lib/generate-dock-pending";
+import {
+  PHOTO_PROMPT_EPHEMERAL_ID,
+  PHOTO_PROMPT_NEEDS_PHOTO,
+  PHOTO_PROMPT_SUCCESS_DOCK_SURFACE,
+  PHOTO_PROMPT_UPLOAD_MAX_PX,
+  PHOTO_PROMPT_UPLOAD_QUALITY,
+  clampPhotoPromptSelection,
+  clearPendingPhotoPrompt,
+  composePhotoPromptBusyLabel,
+  isPhotoPromptComposeMode,
+  isPhotoPromptEphemeralId,
+  makeEphemeralPhotoPromptPhoto,
+  nextPhotoPromptSelection,
+  photoPromptSelectionCap,
+  markPhotoPromptAnalyzeCompleted,
+  resolvePhotoPromptAnalyzeSource,
+  sharePhotoPromptAnalyze,
+  shouldHoldPhotoPromptResultChrome,
+  shouldStartPhotoPromptAnalyze,
+} from "@/lib/generate-photo-prompt";
 import { copyTextUniversal } from "@/lib/copy-text-to-clipboard";
 import { browserAcquisitionHeaders } from "@/lib/acquisition-client-events";
 import {
@@ -38,6 +63,7 @@ import {
   shouldHydrateLastDockResult as seedAllowsLastDockHydrate,
 } from "@/lib/generate-dock-seed";
 import { useAuth } from "@/context/AuthContext";
+import { usePricingModal } from "@/context/PricingModalContext";
 import {
   useGenerateDock,
   type GenerateDockSurface,
@@ -70,6 +96,12 @@ import {
   YM_GOAL_PHOTOSHOOT_OPEN,
   YM_GOAL_PHOTOSHOOT_READY,
   YM_GOAL_PHOTOSHOOT_SUBMIT,
+  YM_GOAL_ANALYZE_AUTH_REQUIRED,
+  YM_GOAL_ANALYZE_NO_CREDITS,
+  YM_GOAL_GENERATION_PHOTO_PROMPT_OPEN,
+  YM_GOAL_GENERATION_PHOTO_PROMPT_READY,
+  YM_GOAL_GENERATION_PHOTO_PROMPT_START,
+  YM_GOAL_GENERATION_PHOTO_PROMPT_UPLOAD,
   YM_GOAL_PROMPT_CARD_GENERATION_ACCEPTED,
   YM_GOAL_PROMPT_CARD_GENERATION_NO_CREDITS,
   YM_GOAL_PROMPT_CARD_GENERATION_PRICING,
@@ -157,6 +189,7 @@ import {
 import { resolveVideoEnqueueParentGenerationId } from "@/lib/user-generation-photos";
 
 const BLANK_PROMPT_PLACEHOLDER = "Опишите изображение или референс";
+const PROMPT_FIELD_LABEL = "Промт";
 
 type ModelOpt = { id: string; label: string; cost: number };
 type RatioOpt = { value: string; label: string };
@@ -219,6 +252,7 @@ export function CardInlineGeneratePanel({
 }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { user, openAuthModal } = useAuth();
+  const { open: openPricing } = usePricingModal();
   const isAuthed = Boolean(user && user.is_anonymous !== true);
   const {
     setPlateOpen: setDockPlateOpen,
@@ -247,7 +281,11 @@ export function CardInlineGeneratePanel({
   const [configError, setConfigError] = useState("");
   const [maxPhotos, setMaxPhotos] = useState(10);
   const [composeMode, setComposeMode] = useState<GenerateComposeMode>(
-    seed.intent === "animate" ? "video" : "image"
+    seed.intent === "animate"
+      ? "video"
+      : seed.intent === "photo_prompt"
+        ? "photo_prompt"
+        : "image"
   );
   const [videoEnabled, setVideoEnabled] = useState(
     () => readCachedVideoAnimateEnabled() === true
@@ -287,6 +325,7 @@ export function CardInlineGeneratePanel({
         : DEFAULT_VIDEO_DURATION_SECONDS,
   );
   const seededResult = isCompletedResultSeed(seed);
+  const seededPhotoPrompt = seed.intent === "photo_prompt" && Boolean(seed.previewUrl);
   const [resultModality, setResultModality] = useState<"image" | "video">(
     seed.resultModality === "video" ? "video" : "image"
   );
@@ -311,8 +350,12 @@ export function CardInlineGeneratePanel({
   const [libraryUploading, setLibraryUploading] = useState(false);
   const [deletingPhotoId, setDeletingPhotoId] = useState<string | null>(null);
 
-  const [phase, setPhase] = useState<Phase>(seededResult ? "done" : "idle");
-  const phaseRef = useRef<Phase>(seededResult ? "done" : "idle");
+  const [phase, setPhase] = useState<Phase>(
+    seededResult ? "done" : seededPhotoPrompt ? "generating" : "idle"
+  );
+  const phaseRef = useRef<Phase>(
+    seededResult ? "done" : seededPhotoPrompt ? "generating" : "idle"
+  );
   const generateInFlightRef = useRef(false);
   const [starting, setStarting] = useState(false);
   /**
@@ -327,8 +370,9 @@ export function CardInlineGeneratePanel({
   const [needsCredits, setNeedsCredits] = useState(false);
   const [progress, setProgress] = useState(0);
   const [resultUrl, setResultUrl] = useState<string | null>(
-    seededResult ? seed.previewUrl || null : null
+    seededResult || seededPhotoPrompt ? seed.previewUrl || null : null
   );
+  const photoPromptDataUrlRef = useRef<string | null>(null);
   const [resultPreviewOpen, setResultPreviewOpen] = useState(false);
   const [generationId, setGenerationId] = useState<string | null>(
     seededResult ? seed.resultGenerationId || null : null
@@ -549,8 +593,97 @@ export function CardInlineGeneratePanel({
     setComposeMode("photoshoot");
   }, [restoreImagePromptFromVideo]);
 
+  const enterPhotoPromptCompose = useCallback(() => {
+    restoreImagePromptFromVideo();
+    setComposeMode("photo_prompt");
+    setSelectedPhotoIds((current) => new Set(clampPhotoPromptSelection(current)));
+    setError("");
+  }, [restoreImagePromptFromVideo]);
+
+  const runPhotoPromptAnalyze = useCallback(
+    async (dataUrl: string, previewUrl: string) => {
+      photoPromptDataUrlRef.current = dataUrl;
+      setComposeMode("photo_prompt");
+      setResultUrl(previewUrl || dataUrl);
+      setGenerationId(null);
+      setPhase("generating");
+      phaseRef.current = "generating";
+      setProgress(8);
+      setError("");
+      setNeedsCredits(false);
+      setDockPlateOpen(true);
+      reachYandexMetrikaGoal(YM_GOAL_GENERATION_PHOTO_PROMPT_START);
+      reachYandexMetrikaGoal(YM_GOAL_GENERATION_PHOTO_PROMPT_UPLOAD);
+      try {
+        const result = await sharePhotoPromptAnalyze(dataUrl, (signal) =>
+          analyzeImageToPrompt(dataUrl, { signal })
+        );
+        if (photoPromptDataUrlRef.current !== dataUrl) return;
+        if (!result.ok) {
+          if (result.authRequired) {
+            reachYandexMetrikaGoal(YM_GOAL_ANALYZE_AUTH_REQUIRED);
+            openAuthModal("analyze_quota");
+          } else if (result.noCredits) {
+            reachYandexMetrikaGoal(YM_GOAL_ANALYZE_NO_CREDITS);
+            openPricing();
+          }
+          setError(result.message);
+          setPhase("error");
+          phaseRef.current = "error";
+          return;
+        }
+        if (result.quota?.credits_charged) {
+          requestCreditBalanceRefresh();
+        }
+        setDraftPrompt(result.prompt);
+        promptStashRef.current = {
+          ...promptStashRef.current,
+          imagePrompt: result.prompt,
+        };
+        setPhase("idle");
+        phaseRef.current = "idle";
+        setProgress(0);
+        setResultUrl(null);
+        setGenerationId(null);
+        enterImageCompose();
+        setCameraOrbitOpen(false);
+        setPhotoshootOpen(false);
+        markPhotoPromptAnalyzeCompleted(dataUrl);
+        clearPendingPhotoPrompt();
+        setDockSurface(PHOTO_PROMPT_SUCCESS_DOCK_SURFACE);
+        reachYandexMetrikaGoal(YM_GOAL_GENERATION_PHOTO_PROMPT_READY);
+      } catch {
+        if (photoPromptDataUrlRef.current !== dataUrl) return;
+        setError("Не удалось обработать фото. Проверьте соединение и попробуйте снова.");
+        setPhase("error");
+        phaseRef.current = "error";
+      }
+    },
+    [enterImageCompose, openAuthModal, openPricing, setDockPlateOpen, setDockSurface]
+  );
+
   const [changeRequest, setChangeRequest] = useState("");
   const [remixing, setRemixing] = useState(false);
+
+  const runPhotoPromptAnalyzeRef = useRef(runPhotoPromptAnalyze);
+  runPhotoPromptAnalyzeRef.current = runPhotoPromptAnalyze;
+  const landingAnalyzeSource =
+    seed.intent === "photo_prompt"
+      ? resolvePhotoPromptAnalyzeSource({ seedPreviewUrl: seed.previewUrl })
+      : null;
+  useEffect(() => {
+    if (
+      !shouldStartPhotoPromptAnalyze({
+        intent: seed.intent,
+        dataUrl: landingAnalyzeSource?.dataUrl,
+      })
+    ) {
+      return;
+    }
+    const dataUrl = landingAnalyzeSource!.dataUrl;
+    const previewUrl = landingAnalyzeSource!.previewUrl || dataUrl;
+    void runPhotoPromptAnalyzeRef.current(dataUrl, previewUrl);
+  }, [landingAnalyzeSource?.dataUrl, landingAnalyzeSource?.previewUrl, seed.intent]);
 
   useEffect(() => {
     if (!toast) return;
@@ -739,8 +872,22 @@ export function CardInlineGeneratePanel({
           ? configData.aspectRatios
           : [];
         const nextSizes = Array.isArray(configData.imageSizes) ? configData.imageSizes : [];
-        const nextPhotos =
+        const libraryPhotos =
           photosRes.ok && Array.isArray(photosData.photos) ? photosData.photos : [];
+        const pendingPhotoPromptDataUrl =
+          seed.intent === "photo_prompt"
+            ? resolvePhotoPromptAnalyzeSource({
+                seedPreviewUrl: seed.previewUrl,
+              })?.dataUrl || ""
+            : "";
+        const nextPhotos = pendingPhotoPromptDataUrl
+          ? [
+              makeEphemeralPhotoPromptPhoto(pendingPhotoPromptDataUrl),
+              ...libraryPhotos.filter(
+                (photo) => photo.id !== PHOTO_PROMPT_EPHEMERAL_ID
+              ),
+            ]
+          : libraryPhotos;
         const defaultModel = configData.defaults?.model || nextModels[0]?.id;
         const defaultRatio = configData.defaults?.aspectRatio || nextRatios[0]?.value;
         const defaultSize = configData.defaults?.imageSize || nextSizes[0]?.value;
@@ -777,9 +924,11 @@ export function CardInlineGeneratePanel({
         setVideoAspectRatio(resolvedPrefs.videoAspectRatio);
         setVideoDurationSeconds(resolvedPrefs.videoDurationSeconds);
         setSelectedPhotoIds(
-          shouldAttachLibraryPhotos(seed)
-            ? new Set(resolvedPrefs.selectedPhotoIds)
-            : new Set()
+          pendingPhotoPromptDataUrl
+            ? new Set([PHOTO_PROMPT_EPHEMERAL_ID])
+            : shouldAttachLibraryPhotos(seed)
+              ? new Set(resolvedPrefs.selectedPhotoIds)
+              : new Set()
         );
         if (userId && storedPrefs) {
           writeCachedGenerationPreferences(userId, resolvedPrefs);
@@ -1152,6 +1301,9 @@ export function CardInlineGeneratePanel({
     if (isGenerateComposeJobBusy(phase) || libraryUploading) return;
     setError("");
     setSelectedPhotoIds((current) => {
+      if (isPhotoPromptComposeMode(composeModeRef.current)) {
+        return new Set(nextPhotoPromptSelection({ current, toggledId: id }));
+      }
       const next = new Set(current);
       if (next.has(id)) {
         next.delete(id);
@@ -1168,14 +1320,43 @@ export function CardInlineGeneratePanel({
 
   const uploadFiles = async (files: File[]) => {
     if (!files.length) return;
-    const availableSelectionSlots = Math.max(0, maxPhotos - selectedPhotoIds.size);
+    const photoPromptMode = isPhotoPromptComposeMode(composeModeRef.current);
+    const filesToUpload = photoPromptMode ? files.slice(0, 1) : files;
+    if (photoPromptMode && !isAuthed) {
+      const prepared = await prepareUploadFile(filesToUpload[0], {
+        maxPx: PHOTO_PROMPT_UPLOAD_MAX_PX,
+        quality: PHOTO_PROMPT_UPLOAD_QUALITY,
+      });
+      if (!prepared.ok) {
+        setError(
+          noticeForUploadError(prepared.error, (key) => {
+            if (key === "tooLarge") return "Файл слишком большой (макс. 10 МБ)";
+            if (key === "readFailed") return "Не удалось прочитать файл";
+            return "Недопустимый тип файла";
+          })
+        );
+        return;
+      }
+      const ephemeral = makeEphemeralPhotoPromptPhoto(prepared.dataUrl);
+      setPhotos((current) => [
+        ephemeral,
+        ...current.filter((photo) => !isPhotoPromptEphemeralId(photo.id)),
+      ]);
+      setSelectedPhotoIds(new Set([PHOTO_PROMPT_EPHEMERAL_ID]));
+      setError("");
+      return;
+    }
+    const selectionCap = photoPromptSelectionCap(composeModeRef.current, maxPhotos);
+    const availableSelectionSlots = photoPromptMode
+      ? 1
+      : Math.max(0, selectionCap - selectedPhotoIds.size);
     setError("");
     setLibraryUploading(true);
 
     const uploaded: UserPhoto[] = [];
     try {
-      for (let index = 0; index < files.length; index += 1) {
-        const prepared = await prepareUploadFile(files[index]);
+      for (let index = 0; index < filesToUpload.length; index += 1) {
+        const prepared = await prepareUploadFile(filesToUpload[index]);
         if (!prepared.ok) {
           const message = noticeForUploadError(prepared.error, (key) => {
             if (key === "tooLarge") return "Файл слишком большой (макс. 10 МБ)";
@@ -1191,7 +1372,7 @@ export function CardInlineGeneratePanel({
             ? prepared.mime
             : "image/jpeg";
         const ext = mime === "image/png" ? "png" : mime === "image/webp" ? "webp" : "jpg";
-        const typedFile = new File([blob], files[index].name || `photo.${ext}`, { type: mime });
+        const typedFile = new File([blob], filesToUpload[index].name || `photo.${ext}`, { type: mime });
         const form = new FormData();
         form.append("file", typedFile);
         form.append("saveToLibrary", "true");
@@ -1214,25 +1395,33 @@ export function CardInlineGeneratePanel({
 
       setPhotos((current) => [...uploaded.reverse(), ...current]);
       setSelectedPhotoIds((current) => {
+        if (photoPromptMode) {
+          const last = uploaded[uploaded.length - 1];
+          return last ? new Set([last.id]) : new Set();
+        }
         const next = new Set(current);
         for (const photo of uploaded) {
-          if (next.size >= maxPhotos) break;
+          if (next.size >= selectionCap) break;
           next.add(photo.id);
         }
         return next;
       });
       if (uploaded.length > availableSelectionSlots) {
         setError(
-          `Все фото сохранены. Для генерации можно выбрать не больше ${maxPhotos}.`
+          `Все фото сохранены. Для генерации можно выбрать не больше ${selectionCap}.`
         );
       }
     } catch (err) {
       if (uploaded.length) {
         setPhotos((current) => [...uploaded.reverse(), ...current]);
         setSelectedPhotoIds((current) => {
+          if (photoPromptMode) {
+            const last = uploaded[uploaded.length - 1];
+            return last ? new Set([last.id]) : new Set();
+          }
           const next = new Set(current);
           for (const photo of uploaded) {
-            if (next.size >= maxPhotos) break;
+            if (next.size >= selectionCap) break;
             next.add(photo.id);
           }
           return next;
@@ -1245,6 +1434,15 @@ export function CardInlineGeneratePanel({
   };
 
   const deletePhoto = async (photo: UserPhoto) => {
+    if (isPhotoPromptEphemeralId(photo.id)) {
+      setPhotos((current) => current.filter((item) => item.id !== photo.id));
+      setSelectedPhotoIds((selected) => {
+        const next = new Set(selected);
+        next.delete(photo.id);
+        return next;
+      });
+      return;
+    }
     if (!window.confirm("Удалить это фото из вашей библиотеки?")) return;
     setDeletingPhotoId(photo.id);
     setError("");
@@ -1856,6 +2054,14 @@ export function CardInlineGeneratePanel({
   };
   const videoCompose = composeMode === "video";
   const photoshootCompose = composeMode === "photoshoot";
+  const photoPromptCompose = composeMode === "photo_prompt";
+  const photoPromptHasSource = Boolean(
+    resolvePhotoPromptAnalyzeSource({
+      selectedPreviewUrl: selectedPhotos[0]?.previewUrl,
+      seedPreviewUrl: seed.previewUrl,
+    })
+  );
+  const photoSelectionCap = photoPromptSelectionCap(composeMode, maxPhotos);
   /**
    * Blank compose: single prompt field until a completed result exists.
    * Card seed and «Что изменить» after generation use remix (changeRequest + parent).
@@ -1871,7 +2077,11 @@ export function CardInlineGeneratePanel({
   const showResultChrome =
     Boolean(resultUrl) &&
     !videoCompose &&
-    (!isDock || phase === "done" || phase === "generating");
+    (!isDock ||
+      phase === "done" ||
+      phase === "generating" ||
+      phase === "uploading" ||
+      shouldHoldPhotoPromptResultChrome({ composeMode, resultUrl }));
 
   useEffect(() => {
     if (!showResultChrome) return;
@@ -1882,7 +2092,7 @@ export function CardInlineGeneratePanel({
    * Fullscreen card keeps solid white until there is a result photo.
    */
   const glassChrome = isDock || showResultChrome;
-  const imageCompose = !videoCompose && !photoshootCompose;
+  const imageCompose = composeMode === "image";
   const selectedImageModel = models.find((item) => item.id === model) ?? null;
   const selectedImageCost = selectedImageModel?.cost ?? null;
   const selectedImageModelLabel = selectedImageModel
@@ -1896,13 +2106,15 @@ export function CardInlineGeneratePanel({
       ? selectedVideoModelLabel
       : selectedImageModelLabel
     : null;
-  const composeCtaCost = photoshootCompose
-    ? photoshootLibraryFrame
-      ? PHOTOSHOOT_CREDIT_COST
-      : null
-    : videoCompose
-      ? selectedVideoCost
-      : selectedImageCost;
+  const composeCtaCost = photoPromptCompose
+    ? null
+    : photoshootCompose
+      ? photoshootLibraryFrame
+        ? PHOTOSHOOT_CREDIT_COST
+        : null
+      : videoCompose
+        ? selectedVideoCost
+        : selectedImageCost;
   const composeTileBorder = (selected: boolean) =>
     selected
       ? glassChrome
@@ -1940,11 +2152,21 @@ export function CardInlineGeneratePanel({
   const dockSheetCloseBtn = `${OVERLAY_BUTTON_UA_RESET} flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/15`;
   const dockSheetField =
     "rounded-xl border border-white/15 bg-white/10 text-white outline-none transition placeholder:text-white/40 focus:border-indigo-300 focus:ring-2 focus:ring-indigo-400/25 disabled:opacity-60";
+  const showPhotoPromptResult =
+    photoPromptCompose &&
+    showResultChrome &&
+    phase === "done" &&
+    Boolean(resultUrl) &&
+    Boolean(draftPrompt.trim()) &&
+    !cameraOrbitOpen &&
+    !photoshootOpen &&
+    !(isDock && dockExpanded);
   const showResultActions =
     showResultChrome &&
     phase === "done" &&
     Boolean(resultUrl) &&
     Boolean(generationId) &&
+    !photoPromptCompose &&
     !cameraOrbitOpen &&
     !photoshootOpen &&
     !(isDock && dockExpanded);
@@ -2000,6 +2222,43 @@ export function CardInlineGeneratePanel({
   const onPhotoshootTileClick = () => {
     enterPhotoshootCompose();
     setExpandedControl(null);
+  };
+
+  const startPhotoPromptFromSelected = () => {
+    const source = resolvePhotoPromptAnalyzeSource({
+      selectedPreviewUrl: selectedPhotos[0]?.previewUrl,
+      seedPreviewUrl: seed.previewUrl,
+    });
+    if (!source) {
+      setError(PHOTO_PROMPT_NEEDS_PHOTO);
+      setExpandedControl("photos");
+      return;
+    }
+    void (async () => {
+      try {
+        const dataUrl = source.dataUrl.startsWith("data:")
+          ? source.dataUrl
+          : source.previewUrl.startsWith("data:")
+            ? source.previewUrl
+            : await dataUrlFromImageUrl(source.previewUrl);
+        await runPhotoPromptAnalyze(dataUrl, source.previewUrl || dataUrl);
+      } catch {
+        setError("Не удалось прочитать фото. Попробуйте другое.");
+      }
+    })();
+  };
+
+  const onPhotoPromptTileClick = () => {
+    const wasPhotoPrompt = composeModeRef.current === "photo_prompt";
+    if (!wasPhotoPrompt) enterPhotoPromptCompose();
+    setExpandedControl(
+      nextComposeModeTileSheet({
+        mode: "photo_prompt",
+        alreadyInMode: wasPhotoPrompt,
+        currentSheet: expandedControl,
+      })
+    );
+    reachYandexMetrikaGoal(YM_GOAL_GENERATION_PHOTO_PROMPT_OPEN);
   };
 
   const onImageModeTileClick = () => {
@@ -2135,7 +2394,9 @@ export function CardInlineGeneratePanel({
     const previous = phaseRef.current;
     phaseRef.current = phase;
     if (isGenerateComposeJobBusy(phase)) {
-      if (!isMobile && !cameraOrbitOpen && !photoshootOpen) setDockPlateOpen(false);
+      if (!isMobile && !cameraOrbitOpen && !photoshootOpen && !photoPromptCompose) {
+        setDockPlateOpen(false);
+      }
       return;
     }
     if (
@@ -2146,7 +2407,16 @@ export function CardInlineGeneratePanel({
     ) {
       setDockPlateOpen(true);
     }
-  }, [cameraOrbitOpen, isDock, isMobile, phase, photoshootOpen, resultUrl, setDockPlateOpen]);
+  }, [
+    cameraOrbitOpen,
+    isDock,
+    isMobile,
+    phase,
+    photoPromptCompose,
+    photoshootOpen,
+    resultUrl,
+    setDockPlateOpen,
+  ]);
 
   return (
     <div
@@ -2170,6 +2440,8 @@ export function CardInlineGeneratePanel({
           resultUrl={resultUrl}
           phase={phase}
           kind={resultModality}
+          pixelateOnBusy={!photoPromptCompose}
+          fit={photoPromptCompose ? "cover" : "contain"}
           className={isDock && isMobile ? "" : "rounded-[1.75rem]"}
         />
       ) : !isDock ? (
@@ -2372,6 +2644,77 @@ export function CardInlineGeneratePanel({
                 <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
                   <path d="m4 20 4.2-1 10.6-10.6a2.1 2.1 0 0 0-3-3L5.2 16 4 20Z" strokeLinecap="round" strokeLinejoin="round" />
                   <path d="m14.5 6.7 2.8 2.8" />
+                </svg>
+              ),
+            },
+          ]}
+        />
+      ) : null}
+
+      {showPhotoPromptResult ? (
+        <GenerationResultActionRail
+          className="absolute bottom-[max(0.75rem,env(safe-area-inset-bottom))] right-2.5 z-30"
+          actions={[
+            {
+              id: "copy",
+              label: "Скопировать",
+              onClick: () => {
+                void copyTextUniversal(draftPrompt).then((ok) => {
+                  setToast(ok ? "Промт скопирован" : "Не удалось скопировать");
+                });
+              },
+              icon: (
+                <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <rect x="9" y="9" width="11" height="11" rx="2" />
+                  <path d="M5 15V5h10" strokeLinecap="round" />
+                </svg>
+              ),
+            },
+            {
+              id: "create",
+              label: "Создать",
+              primary: true,
+              disabled: busy || Boolean(busyAction) || draftPrompt.trim().length < 8,
+              onClick: () => {
+                const prompt = draftPrompt.trim();
+                if (!isAuthed) {
+                  persistPendingGenerateDock({
+                    seed: {
+                      source: "blank",
+                      promptText: prompt,
+                      cardId: null,
+                      intent: "text",
+                    },
+                    dockSurface: null,
+                  });
+                  openAuthModal();
+                  return;
+                }
+                enterImageCompose();
+                void runGenerate({ promptOverride: prompt });
+              },
+              icon: (
+                <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <path d="M5 12h14M13 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              ),
+            },
+            {
+              id: "repeat",
+              label: "Повторить",
+              disabled: busy || Boolean(busyAction),
+              onClick: () => {
+                const dataUrl = photoPromptDataUrlRef.current;
+                if (!dataUrl) {
+                  startPhotoPromptFromSelected();
+                  return;
+                }
+                void runPhotoPromptAnalyze(dataUrl, resultUrl || dataUrl);
+              },
+              icon: (
+                <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <path d="M21 12a9 9 0 1 1-3.25-6.8" strokeLinecap="round" />
+                  <path d="M21 3v6h-6" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               ),
             },
@@ -2615,14 +2958,43 @@ export function CardInlineGeneratePanel({
                     {error}
                   </p>
                 ) : null}
-                <button
-                  type="button"
-                  disabled={busy || draftPrompt.trim().length < 8}
-                  onClick={() => setPromptExpanded(false)}
-                  className={`${OVERLAY_BUTTON_UA_RESET} mt-3 flex min-h-12 w-full shrink-0 items-center justify-center rounded-2xl bg-indigo-600 px-4 py-3 text-[13px] font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50`}
-                >
-                  Готово
-                </button>
+                <div className="mt-3 flex shrink-0 gap-2">
+                  <button
+                    type="button"
+                    disabled={busy || draftPrompt.trim().length < 8}
+                    onClick={() => {
+                      void copyTextUniversal(draftPrompt).then((ok) => {
+                        setToast(ok ? "Промт скопирован" : "Не удалось скопировать");
+                      });
+                    }}
+                    className={`${OVERLAY_BUTTON_UA_RESET} flex min-h-12 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-2xl px-3 py-3 text-[13px] font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                      dockPromptExpanded
+                        ? "bg-white/10 text-white ring-1 ring-white/20 hover:bg-white/15"
+                        : "bg-zinc-100 text-zinc-900 hover:bg-zinc-200"
+                    }`}
+                  >
+                    <svg
+                      className="h-5 w-5 shrink-0"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      aria-hidden
+                    >
+                      <rect x="9" y="9" width="11" height="11" rx="2" />
+                      <path d="M5 15V5h10" strokeLinecap="round" />
+                    </svg>
+                    <span className="truncate">Скопировать промт</span>
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busy || draftPrompt.trim().length < 8}
+                    onClick={() => setPromptExpanded(false)}
+                    className={`${OVERLAY_BUTTON_UA_RESET} flex min-h-12 min-w-0 flex-1 items-center justify-center rounded-2xl bg-indigo-600 px-3 py-3 text-[13px] font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50`}
+                  >
+                    Готово
+                  </button>
+                </div>
               </>
             ) : (
             <>
@@ -2737,30 +3109,35 @@ export function CardInlineGeneratePanel({
             <button
               type="button"
               aria-expanded="false"
+              aria-label={PROMPT_FIELD_LABEL}
               onClick={openPromptEditor}
-              className={`${OVERLAY_BUTTON_UA_RESET} flex min-h-11 w-full items-center gap-3 text-left`}
+              className={`${OVERLAY_BUTTON_UA_RESET} flex w-full items-start gap-3 rounded-2xl px-3 py-2.5 text-left transition ${
+                isDock || glassChrome
+                  ? "bg-white/10 ring-1 ring-inset ring-white/20 hover:bg-white/15"
+                  : "border border-zinc-200 bg-white hover:border-zinc-300"
+              }`}
             >
-              {isBlank ? null : (
-                <span className="shrink-0 text-[13px] font-semibold">Промпт</span>
-              )}
-              <span
-                className={`min-w-0 flex-1 truncate text-[13px] font-medium ${
-                  glassChrome
-                    ? "text-white/70"
-                    : activePrompt.trim()
-                      ? "text-zinc-700"
-                      : "text-zinc-400"
-                }`}
-              >
-                {activePrompt.trim()
-                  || (videoCompose && scenarioLoading
-                    ? ANIMATE_SCENARIO_PLACEHOLDER
-                    : isBlank
-                      ? BLANK_PROMPT_PLACEHOLDER
-                      : "")}
+              <span className="min-w-0 flex-1">
+                <span className="block text-[13px] font-semibold">
+                  {PROMPT_FIELD_LABEL}
+                </span>
+                <span
+                  className={`mt-0.5 line-clamp-2 text-[13px] font-medium leading-snug ${
+                    glassChrome
+                      ? "text-white/70"
+                      : activePrompt.trim()
+                        ? "text-zinc-700"
+                        : "text-zinc-400"
+                  }`}
+                >
+                  {activePrompt.trim()
+                    || (videoCompose && scenarioLoading
+                      ? ANIMATE_SCENARIO_PLACEHOLDER
+                      : BLANK_PROMPT_PLACEHOLDER)}
+                </span>
               </span>
               <svg
-                className="h-5 w-5 shrink-0"
+                className="mt-0.5 h-5 w-5 shrink-0"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
@@ -2824,7 +3201,7 @@ export function CardInlineGeneratePanel({
                   dockPhotosExpanded ? "text-white" : "text-zinc-900"
                 }`}
               >
-                Ваши фото · {selectedPhotos.length}/{maxPhotos}
+                Ваши фото · {selectedPhotos.length}/{photoSelectionCap}
               </span>
               {libraryLoading ? (
                 <span
@@ -3016,7 +3393,9 @@ export function CardInlineGeneratePanel({
                   dockPhotosExpanded ? "text-white/65" : "text-zinc-600"
                 }`}
               >
-                Фото необязательно. Если добавите — сохранится для следующих генераций и внешности.
+                {photoPromptCompose
+                  ? PHOTO_PROMPT_NEEDS_PHOTO
+                  : "Фото необязательно. Если добавите — сохранится для следующих генераций и внешности."}
               </p>
             ) : null}
             <button
@@ -3464,7 +3843,7 @@ export function CardInlineGeneratePanel({
                 Ваши фото
               </span>
               <span className="absolute right-1.5 top-1.5 rounded-full bg-zinc-900/90 px-1.5 py-0.5 text-[10px] font-semibold text-white">
-                {selectedPhotos.length}/{maxPhotos}
+                {selectedPhotos.length}/{photoSelectionCap}
               </span>
               </span>
             </button>
@@ -3512,6 +3891,36 @@ export function CardInlineGeneratePanel({
               </button>
             ) : null}
 
+            <button
+              type="button"
+              aria-pressed={photoPromptCompose}
+              aria-expanded={photoPromptCompose && expandedControl === "photos"}
+              aria-controls="inline-generation-photos"
+              disabled={controlsBusy}
+              onClick={onPhotoPromptTileClick}
+              className={`${OVERLAY_BUTTON_UA_RESET} relative flex h-[5.25rem] w-[5.25rem] shrink-0 flex-col items-center justify-center rounded-xl p-1.5 text-center transition ${composeTileFrame} ${composeTileBorder(
+                photoPromptCompose,
+              )} disabled:opacity-50`}
+            >
+              <span className={composeModeLogoWrap}>
+                <svg
+                  className="h-4 w-4 text-zinc-800"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  aria-hidden
+                >
+                  <rect width="18" height="18" x="3" y="3" rx="2" />
+                  <circle cx="9" cy="9" r="2" />
+                  <path d="m21 15-3.09-3.09a2 2 0 0 0-2.82 0L6 21" />
+                </svg>
+              </span>
+              <span className="line-clamp-2 text-[13px] font-semibold leading-tight">
+                {composeModeTileLabel("photo_prompt")}
+              </span>
+            </button>
+
             {photoshootEnabled ? (
               <button
                 type="button"
@@ -3553,7 +3962,7 @@ export function CardInlineGeneratePanel({
           ref={fileInputRef}
           type="file"
           accept="image/jpeg,image/png,image/webp"
-          multiple
+          multiple={!photoPromptCompose}
           className="hidden"
           onClick={(event) => event.stopPropagation()}
           onChange={(event) => {
@@ -3562,7 +3971,6 @@ export function CardInlineGeneratePanel({
             event.target.value = "";
           }}
         />
-
         {(Boolean(error) || Boolean(configError)) && !needsCredits ? (
           <div
             className={`rounded-xl border p-3 ${
@@ -3593,7 +4001,7 @@ export function CardInlineGeneratePanel({
           hideComposeChrome
           || promptExpanded
           || (isDock && dockExpanded)
-          || (showResultActions && !showCreditsCta)
+          || ((showResultActions || showPhotoPromptResult) && !showCreditsCta)
             ? "hidden"
             : isDock
             ? "mt-auto border-0 bg-transparent pb-3"
@@ -3624,15 +4032,22 @@ export function CardInlineGeneratePanel({
             aria-valuenow={jobBusy ? Math.round(progress) : undefined}
             disabled={
               busy ||
-              (isAuthed &&
-                (controlsBusy ||
-                  libraryLoading ||
-                  (!photoshootCompose && scenarioLoading) ||
-                  Boolean(busyAction) ||
-                  Boolean(configError) ||
-                  (!photoshootCompose && draftPrompt.trim().length < 8)))
+              (photoPromptCompose
+                ? Boolean(busyAction)
+                : isAuthed &&
+                  (controlsBusy ||
+                    libraryLoading ||
+                    (!photoshootCompose && scenarioLoading) ||
+                    Boolean(busyAction) ||
+                    Boolean(configError) ||
+                    (!photoshootCompose && draftPrompt.trim().length < 8)))
             }
             onClick={() => {
+              if (photoPromptCompose) {
+                if (busy) return;
+                startPhotoPromptFromSelected();
+                return;
+              }
               if (!isAuthed) {
                 openAuthModal();
                 return;
@@ -3699,8 +4114,9 @@ export function CardInlineGeneratePanel({
                 phase === "uploading" ||
                 phase === "generating" ||
                 (photoshootCompose && !photoshootLibraryFrame) ||
+                (photoPromptCompose && !photoPromptHasSource) ||
                 (videoCompose && scenarioLoading) ||
-                (phase === "done" && resultUrl && !photoshootCompose && !videoCompose)
+                (phase === "done" && resultUrl && !photoshootCompose && !videoCompose && !photoPromptCompose)
                   ? phase === "done" && resultUrl && !busy
                     ? "truncate"
                     : undefined
@@ -3712,12 +4128,16 @@ export function CardInlineGeneratePanel({
                 : phase === "uploading"
                 ? `Загружаем фото · ${Math.round(progress)}%`
                 : phase === "generating"
-                  ? `Генерируем · ${Math.round(progress)}%`
+                  ? photoPromptCompose
+                    ? composePhotoPromptBusyLabel(progress)
+                    : `Генерируем · ${Math.round(progress)}%`
                   : photoshootCompose && !photoshootLibraryFrame
+                    ? "Выберите фото"
+                  : photoPromptCompose && !photoPromptHasSource
                     ? "Выберите фото"
                   : videoCompose && scenarioLoading
                     ? ANIMATE_SCENARIO_PLACEHOLDER
-                    : phase === "done" && resultUrl && !photoshootCompose && !videoCompose
+                    : phase === "done" && resultUrl && !photoshootCompose && !videoCompose && !photoPromptCompose
                     ? "Что изменить"
                     : (
                       <>

@@ -1,4 +1,5 @@
 import { isGeneraciyaFotoScenarioPath } from "./generaciya-foto-routes";
+import type { GenerateDockComposeIntent } from "./generate-dock-seed";
 
 /** SEO acquisition route where blank text-to-image is allowed. */
 export function isGenerateDockSeoPagePath(pathname: string): boolean {
@@ -12,6 +13,18 @@ export function isGenerateDockSeoPagePath(pathname: string): boolean {
 export function normalizeGenerateDockPath(pathname: string): string {
   if (!pathname || pathname === "/") return "/";
   return pathname.endsWith("/") ? pathname.slice(0, -1) : pathname;
+}
+
+/** Canonical `/foto-v-promt` listing — FAB opens «Промт по фото». */
+export function isFotoVPromtDockPath(pathname: string): boolean {
+  return normalizeGenerateDockPath(pathname) === "/foto-v-promt";
+}
+
+/** Non-null: FAB / tab must seed this intent instead of blank resume. */
+export function listingGenerateIdleIntent(
+  pathname: string
+): GenerateDockComposeIntent | null {
+  return isFotoVPromtDockPath(pathname) ? "photo_prompt" : null;
 }
 
 /** Listing routes where the floating generate dock is mounted. */

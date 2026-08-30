@@ -4,11 +4,20 @@ import { useEffect, useRef, useState } from "react";
 
 type Phase = "idle" | "uploading" | "generating" | "done" | "error";
 
+type BackdropFit = "contain" | "cover";
+
 type Props = {
   resultUrl: string | null;
   phase: Phase;
   className?: string;
   kind?: "image" | "video";
+  /** Photo→prompt analyze: hold the source sharp. Generate wait still pixelates. */
+  pixelateOnBusy?: boolean;
+  /**
+   * contain — full generated frame + blurred fill (letterbox).
+   * cover — photo is the plate wallpaper, no side mats.
+   */
+  fit?: BackdropFit;
 };
 
 function preloadImage(url: string): Promise<void> {
@@ -30,6 +39,8 @@ export function GenerationResultBackdrop({
   phase,
   className = "",
   kind = "image",
+  pixelateOnBusy = true,
+  fit = "contain",
 }: Props) {
   const [baseUrl, setBaseUrl] = useState<string | null>(resultUrl);
   const [overlayUrl, setOverlayUrl] = useState<string | null>(null);
@@ -61,8 +72,8 @@ export function GenerationResultBackdrop({
     }
     setOverlayUrl(null);
     setRevealing(false);
-    setPixelate(true);
-  }, [phase, resultUrl]);
+    setPixelate(pixelateOnBusy);
+  }, [phase, resultUrl, pixelateOnBusy]);
 
   /** Failed / cancelled regenerate: restore sharp previous photo. */
   useEffect(() => {
@@ -127,11 +138,13 @@ export function GenerationResultBackdrop({
 
   if (!baseUrl && !overlayUrl) return null;
 
+  const fitClass = fit === "cover" ? " ps-result-backdrop--cover" : "";
+
   if (kind === "video" && (baseUrl || resultUrl)) {
     const src = resultUrl || baseUrl;
     return (
       <div
-        className={`ps-result-backdrop pointer-events-none absolute inset-0 z-0 overflow-hidden ${className}`}
+        className={`ps-result-backdrop${fitClass} pointer-events-none absolute inset-0 z-0 overflow-hidden ${className}`}
         aria-hidden
       >
         {src ? <ResultFitVideo src={src} /> : null}
@@ -144,7 +157,7 @@ export function GenerationResultBackdrop({
 
   return (
     <div
-      className={`ps-result-backdrop pointer-events-none absolute inset-0 z-0 overflow-hidden ${className}`}
+      className={`ps-result-backdrop${fitClass} pointer-events-none absolute inset-0 z-0 overflow-hidden ${className}`}
       aria-hidden
     >
       {shownBase ? (
@@ -174,7 +187,7 @@ export function GenerationResultBackdrop({
   );
 }
 
-/** Full frame: contain + blurred fill, same as the prompt-card hero. */
+/** contain: full frame + blurred fill. cover: wallpaper, no letterbox. */
 function ResultFitStack({
   src,
   imgClassName = "",

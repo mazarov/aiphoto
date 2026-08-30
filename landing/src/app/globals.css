@@ -1168,6 +1168,18 @@ p {
     transform-origin: center center;
   }
 
+  /* Photo→prompt: source is the plate wallpaper, not a postcard with side mats. */
+  .ps-result-backdrop--cover .ps-result-backdrop__img {
+    position: absolute;
+    inset: 0;
+    object-fit: cover;
+    object-position: center;
+  }
+
+  .ps-result-backdrop--cover .ps-result-backdrop__fill {
+    display: none;
+  }
+
   .ps-result-backdrop__pixel-host--on .ps-result-backdrop__pixel-scale {
     transform: scale(var(--ps-result-pixel-factor));
   }

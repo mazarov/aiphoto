@@ -1,9 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { getImagePromptAnalyzeUrl } from "./foto-v-promt-config";
 import {
   buildAnalyzeRequestHeaders,
   buildImagePromptAnalyzeBody,
 } from "./image-prompt-analyze-client";
+
+test("analyze URL is PromptShot same-origin so locale hits our extract", () => {
+  assert.equal(getImagePromptAnalyzeUrl(), "/api/extension/analyze");
+});
 
 test("analyze body is photoreal RU data URL without image_url", () => {
   const body = buildImagePromptAnalyzeBody("data:image/jpeg;base64,abc");

@@ -1,12 +1,15 @@
 import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import sharp from "sharp";
 import {
+  ANALYZE_THINKING_BUDGET,
   generatePhotorealPromptFromImage,
   PhotorealAnalyzeError,
 } from "@/lib/image-prompt-analyze-gemini";
-import { parseAnalyzeImageBuffer } from "@/lib/image-prompt-analyze-image";
+import {
+  parseAnalyzeImageBuffer,
+  prepareAnalyzeImageForGemini,
+} from "@/lib/image-prompt-analyze-image";
 import {
   isPhotoshootUgcListing,
   PHOTOSHOOT_FRAME_COUNT,
@@ -15,10 +18,10 @@ import {
 import type { createSupabaseServer } from "@/lib/supabase";
 import { buildUgcCardTitle } from "@/lib/web-ugc-card";
 
-const ANALYZE_MAX_EDGE = 768;
 const ANALYZE_ATTEMPTS = 3;
 const ANALYZE_TIMEOUT_MS = 90_000;
-const ANALYZE_THINKING_BUDGET = 0;
+const PHOTOSHOOT_ANALYZE_MAX_EDGE = 768;
+const PHOTOSHOOT_ANALYZE_MAX_BYTES = 120 * 1024;
 
 export type PhotoshootPromptHydration = {
   skipped: boolean;
@@ -46,19 +49,14 @@ type PhotoshootMediaRow = {
 };
 
 async function preparePhotoshootAnalyzeImage(bytes: Buffer) {
-  const resized = await sharp(bytes)
-    .rotate()
-    .resize(ANALYZE_MAX_EDGE, ANALYZE_MAX_EDGE, {
-      fit: "inside",
-      withoutEnlargement: true,
-    })
-    .jpeg({ quality: 85 })
-    .toBuffer();
-  const image = parseAnalyzeImageBuffer(resized);
-  if (!image) {
+  const parsed = parseAnalyzeImageBuffer(bytes);
+  if (!parsed) {
     throw new PhotoshootPublishAnalyzeError("photoshoot_analyze_image");
   }
-  return image;
+  return prepareAnalyzeImageForGemini(parsed, {
+    maxEdge: PHOTOSHOOT_ANALYZE_MAX_EDGE,
+    maxBytes: PHOTOSHOOT_ANALYZE_MAX_BYTES,
+  });
 }
 
 function isRetryableAnalyzeError(error: unknown): boolean {
@@ -88,6 +86,8 @@ async function analyzePhotoshootTile(params: {
         correlationId: params.cardId,
         timeoutMs: ANALYZE_TIMEOUT_MS,
         thinkingBudget: ANALYZE_THINKING_BUDGET,
+        imageMaxEdge: PHOTOSHOOT_ANALYZE_MAX_EDGE,
+        imageMaxBytes: PHOTOSHOOT_ANALYZE_MAX_BYTES,
       });
       return result.promptText;
     } catch (error) {
