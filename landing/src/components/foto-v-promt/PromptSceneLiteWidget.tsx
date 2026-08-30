@@ -319,7 +319,7 @@ export function PromptSceneLiteWidget({
   const hasHistory = historyItems.length > 0;
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    if (typeof window === "undefined" || plain) return;
     const applyHash = () => {
       // Do not depend on mainTab here: if URL hash stays #extension-lite-history while the user
       // switches back to Analyze, re-running applyHash must not forcibly reopen History.
@@ -330,7 +330,7 @@ export function PromptSceneLiteWidget({
     applyHash();
     window.addEventListener("hashchange", applyHash);
     return () => window.removeEventListener("hashchange", applyHash);
-  }, []);
+  }, [plain]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -1113,40 +1113,42 @@ export function PromptSceneLiteWidget({
           : `w-full max-w-3xl rounded-2xl ${FVP_BORDER_CARD} ${FVP_SURFACE_WIDGET_OUTER} p-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-md shadow-zinc-200/60 sm:p-5`
       }
     >
-      <div className="mb-4 flex items-center gap-3">
-        <div className="flex min-w-0 flex-1 gap-1">
-          <button
-            type="button"
-            onClick={() => setMainTab("analyze")}
-            className={`min-h-10 flex-1 rounded-md px-3 text-sm font-medium transition ${FVP_FOCUS_RING} ${
-              mainTab === "analyze"
-                ? "bg-indigo-600 text-white shadow"
-                : "border border-zinc-200 bg-zinc-50 text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900"
-            }`}
-          >
-            {t("tabAnalyze")}
-          </button>
-          <button
-            type="button"
-            onClick={() => setMainTab("history")}
-            className={`min-h-10 flex-1 rounded-md px-3 text-sm font-medium transition ${FVP_FOCUS_RING} ${
-              mainTab === "history"
-                ? "bg-indigo-600 text-white shadow"
-                : "border border-zinc-200 bg-zinc-50 text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900"
-            }`}
-          >
-            {t("tabHistory")}
-          </button>
+      {!plain ? (
+        <div className="mb-4 flex items-center gap-3">
+          <div className="flex min-w-0 flex-1 gap-1">
+            <button
+              type="button"
+              onClick={() => setMainTab("analyze")}
+              className={`min-h-10 flex-1 rounded-md px-3 text-sm font-medium transition ${FVP_FOCUS_RING} ${
+                mainTab === "analyze"
+                  ? "bg-indigo-600 text-white shadow"
+                  : "border border-zinc-200 bg-zinc-50 text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900"
+              }`}
+            >
+              {t("tabAnalyze")}
+            </button>
+            <button
+              type="button"
+              onClick={() => setMainTab("history")}
+              className={`min-h-10 flex-1 rounded-md px-3 text-sm font-medium transition ${FVP_FOCUS_RING} ${
+                mainTab === "history"
+                  ? "bg-indigo-600 text-white shadow"
+                  : "border border-zinc-200 bg-zinc-50 text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900"
+              }`}
+            >
+              {t("tabHistory")}
+            </button>
+          </div>
+          <AnalyzeQuotaChip
+            quota={quota}
+            tone="light"
+            onSignIn={() => openAuthModal("analyze_quota")}
+            onTopUp={() => openPricing()}
+          />
         </div>
-        <AnalyzeQuotaChip
-          quota={quota}
-          tone="light"
-          onSignIn={() => openAuthModal("analyze_quota")}
-          onTopUp={() => openPricing()}
-        />
-      </div>
+      ) : null}
 
-      {mainTab === "history" ? (
+      {!plain && mainTab === "history" ? (
         hasHistory ? (
           <div className="flex flex-col gap-3">
             <p className="text-xs text-zinc-500">{t("historyIntro")}</p>

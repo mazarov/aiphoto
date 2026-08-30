@@ -31,16 +31,20 @@ export function PromptSceneLiteSkeleton({
       aria-hidden
     >
       <div className="space-y-4">
-        <div className="h-3 w-24 rounded bg-zinc-200" />
-        <div
-          className={`h-10 w-full max-w-xs rounded-lg ${FVP_SURFACE_WIDGET_INSET} p-1 ${FVP_RING_INSET_SOFT}`}
-          aria-hidden
-        >
-          <div className="flex h-full gap-0.5">
-            <div className="flex-1 rounded-md bg-indigo-600/70" />
-            <div className="flex-1 rounded-md bg-zinc-200" />
-          </div>
-        </div>
+        {variant !== "plain" ? (
+          <>
+            <div className="h-3 w-24 rounded bg-zinc-200" />
+            <div
+              className={`h-10 w-full max-w-xs rounded-lg ${FVP_SURFACE_WIDGET_INSET} p-1 ${FVP_RING_INSET_SOFT}`}
+              aria-hidden
+            >
+              <div className="flex h-full gap-0.5">
+                <div className="flex-1 rounded-md bg-indigo-600/70" />
+                <div className="flex-1 rounded-md bg-zinc-200" />
+              </div>
+            </div>
+          </>
+        ) : null}
         <div className="h-36 w-full rounded-xl bg-zinc-100" />
         <div className="h-11 w-full rounded-lg bg-zinc-200 sm:max-w-[12rem]" />
       </div>

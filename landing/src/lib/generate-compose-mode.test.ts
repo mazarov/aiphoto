@@ -6,6 +6,7 @@ import {
   canEnqueueWhilePhotoshootSelected,
   COMPOSE_BUY_CREDITS_CTA,
   COMPOSE_BUY_CREDITS_CTA_COMPACT,
+  COMPOSE_GUEST_SIGN_IN_CTA,
   composeGenerateCtaLabel,
   composeGenerateCtaShowsModelName,
   composeModeTileLabel,
@@ -114,9 +115,17 @@ test("compose tiles and generate CTA follow the selected block", () => {
   assert.equal(composeGenerateCtaLabel("video"), "Создать видео");
   assert.equal(composeGenerateCtaLabel("photoshoot"), "Создать фотосессию");
   assert.equal(composeGenerateCtaLabel("photo_prompt"), "Создать промт по фото");
+  assert.equal(composeGenerateCtaLabel("image", { isAuthed: false }), COMPOSE_GUEST_SIGN_IN_CTA);
+  assert.equal(composeGenerateCtaLabel("video", { isAuthed: false }), COMPOSE_GUEST_SIGN_IN_CTA);
+  assert.equal(composeGenerateCtaLabel("photoshoot", { isAuthed: false }), COMPOSE_GUEST_SIGN_IN_CTA);
+  assert.equal(
+    composeGenerateCtaLabel("photo_prompt", { isAuthed: false }),
+    "Создать промт по фото",
+  );
   assert.equal(composeGenerateCtaShowsModelName("image"), true);
   assert.equal(composeGenerateCtaShowsModelName("video"), true);
   assert.equal(composeGenerateCtaShowsModelName("photoshoot"), false);
+  assert.equal(composeGenerateCtaShowsModelName("image", { isAuthed: false }), false);
   assert.equal(COMPOSE_BUY_CREDITS_CTA, "Купить кредиты для создания фото");
   assert.equal(COMPOSE_BUY_CREDITS_CTA_COMPACT, "Купить кредиты");
 });

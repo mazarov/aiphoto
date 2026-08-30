@@ -912,8 +912,10 @@ export function CardInlineGeneratePanel({
         setAspectRatios(nextRatios);
         setImageSizes(nextSizes);
         setPhotos(nextPhotos);
-        if (Number.isFinite(meData.credits)) {
+        if (isAuthed && Number.isFinite(meData.credits)) {
           setCredits(Number(meData.credits));
+        } else if (!isAuthed) {
+          setCredits(null);
         }
         const userId = isAuthed ? user?.id ?? null : null;
         const storedPrefs = pickFresherPreferences(
@@ -1062,7 +1064,7 @@ export function CardInlineGeneratePanel({
           const payload = (await response.json().catch(() => ({}))) as {
             credits?: number;
           };
-          if (Number.isFinite(payload.credits)) {
+          if (isAuthed && Number.isFinite(payload.credits)) {
             setCredits(Number(payload.credits));
           }
         })
@@ -1073,7 +1075,7 @@ export function CardInlineGeneratePanel({
     window.addEventListener(CREDIT_BALANCE_REFRESH_EVENT, refreshCredits);
     return () =>
       window.removeEventListener(CREDIT_BALANCE_REFRESH_EVENT, refreshCredits);
-  }, []);
+  }, [isAuthed]);
 
   /**
    * Latest prefs snapshot for flush-on-unmount / sheet-collapse (debounce cancel
@@ -1339,7 +1341,7 @@ export function CardInlineGeneratePanel({
     if (!files.length) return;
     const photoPromptMode = isPhotoPromptComposeMode(composeModeRef.current);
     const filesToUpload = photoPromptMode ? files.slice(0, 1) : files;
-    if (photoPromptMode && !isAuthed) {
+    if (!isAuthed) {
       const prepared = await prepareUploadFile(filesToUpload[0], {
         maxPx: PHOTO_PROMPT_UPLOAD_MAX_PX,
         quality: PHOTO_PROMPT_UPLOAD_QUALITY,
@@ -2118,20 +2120,23 @@ export function CardInlineGeneratePanel({
   const selectedVideoModelLabel = videoCostModel
     ? displayLabelForGenerationModel(videoCostModel.id, videoCostModel.label)
     : null;
-  const composeCtaModelLabel = composeGenerateCtaShowsModelName(composeMode)
+  const composeCtaModelLabel = composeGenerateCtaShowsModelName(composeMode, {
+    isAuthed,
+  })
     ? videoCompose
       ? selectedVideoModelLabel
       : selectedImageModelLabel
     : null;
-  const composeCtaCost = photoPromptCompose
-    ? null
-    : photoshootCompose
-      ? photoshootLibraryFrame
-        ? PHOTOSHOOT_CREDIT_COST
-        : null
-      : videoCompose
-        ? selectedVideoCost
-        : selectedImageCost;
+  const composeCtaCost =
+    !isAuthed || photoPromptCompose
+      ? null
+      : photoshootCompose
+        ? photoshootLibraryFrame
+          ? PHOTOSHOOT_CREDIT_COST
+          : null
+        : videoCompose
+          ? selectedVideoCost
+          : selectedImageCost;
   const composeCtaGuestQuota = photoPromptCompose
     ? guestPhotoPromptRemainingFree({
         isAuthed,
@@ -2707,7 +2712,7 @@ export function CardInlineGeneratePanel({
             },
             {
               id: "create",
-              label: "Создать",
+              label: isAuthed ? "Создать" : "Войдите",
               primary: true,
               disabled: busy || Boolean(busyAction) || draftPrompt.trim().length < 8,
               onClick: () => {
@@ -3430,7 +3435,9 @@ export function CardInlineGeneratePanel({
               >
                 {photoPromptCompose
                   ? PHOTO_PROMPT_NEEDS_PHOTO
-                  : "Фото необязательно. Если добавите — сохранится для следующих генераций и внешности."}
+                  : isAuthed
+                    ? "Фото необязательно. Если добавите — сохранится для следующих генераций и внешности."
+                    : "Фото необязательно. Можно выбрать сейчас — генерация после входа."}
               </p>
             ) : null}
             <button
@@ -3525,7 +3532,7 @@ export function CardInlineGeneratePanel({
                 const selected = model === item.id;
                 const display = GENERATION_MODEL_DISPLAY[item.id];
                 const unaffordable =
-                  credits !== null && credits < item.cost;
+                  isAuthed && credits !== null && credits < item.cost;
                 return (
                   <button
                     key={item.id}
@@ -3599,7 +3606,8 @@ export function CardInlineGeneratePanel({
                       videoDurationSeconds,
                       item.id
                     );
-                    const unaffordable = credits !== null && credits < itemCost;
+                    const unaffordable =
+                      isAuthed && credits !== null && credits < itemCost;
                     const description = displayDescriptionForGenerationModel(
                       item.id,
                       "Видео из фото"
@@ -3888,7 +3896,7 @@ export function CardInlineGeneratePanel({
               aria-pressed={imageCompose}
               aria-expanded={imageCompose && expandedControl === "model"}
               aria-controls="inline-generation-models"
-              disabled={controlsBusy || !models.length}
+              disabled={controlsBusy}
               onClick={onImageModeTileClick}
               className={`${OVERLAY_BUTTON_UA_RESET} relative flex h-[5.25rem] w-[5.25rem] shrink-0 flex-col items-center justify-center rounded-xl p-1.5 text-center transition ${composeTileFrame} ${composeTileBorder(
                 imageCompose,
@@ -3908,7 +3916,7 @@ export function CardInlineGeneratePanel({
                 aria-pressed={videoCompose}
                 aria-expanded={videoCompose && expandedControl === "model"}
                 aria-controls="inline-generation-models"
-                disabled={controlsBusy || !videoModels.length}
+                disabled={controlsBusy}
                 onClick={onVideoModeTileClick}
                 className={`${OVERLAY_BUTTON_UA_RESET} relative flex h-[5.25rem] w-[5.25rem] shrink-0 flex-col items-center justify-center rounded-xl p-1.5 text-center transition ${composeTileFrame} ${composeTileBorder(
                   videoCompose,
@@ -4184,7 +4192,7 @@ export function CardInlineGeneratePanel({
                     : (
                       <>
                         <span className="shrink-0">
-                          {composeGenerateCtaLabel(composeMode)}
+                          {composeGenerateCtaLabel(composeMode, { isAuthed })}
                         </span>
                         {composeCtaModelLabel ||
                         composeCtaCost != null ||

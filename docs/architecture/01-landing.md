@@ -1,5 +1,7 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-08-30 (**guest compose Photo/Video:** гость выбирает Фото / Видео / модель / фото; CTA «Войдите». `credits: 0` с `/api/me` не ставит «не хватает кредитов». «Промт по фото» без изменений. Спека `docs/30-08-foto-v-promt-generation-modal.md`.
+>
 > Последнее обновление: 2026-08-30 (**compose tile order:** Фото → Видео → Фотосессия → Промт по фото. Спека `docs/30-08-foto-v-promt-generation-modal.md`.
 >
 > Последнее обновление: 2026-08-30 (**foto-v-promt guest quota on CTA:** у неавторизованного на кнопке «Создать промт по фото» / «Выберите фото» пилюля `N бесплатно` (`remaining_free` с `GET /api/extension/analyze/quota`, до ответа — 10). Авторизованному не показываем. Спека `docs/30-08-foto-v-promt-generation-modal.md`.

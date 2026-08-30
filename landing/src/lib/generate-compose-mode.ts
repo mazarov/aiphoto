@@ -117,8 +117,21 @@ export function composeModeTileLabel(mode: GenerateComposeMode): string {
   return "Фото";
 }
 
+/** Guest footer CTA: pick photo/video first, sign in only on enqueue. */
+export const COMPOSE_GUEST_SIGN_IN_CTA = "Войдите";
+
+export type ComposeGenerateCtaOptions = {
+  isAuthed?: boolean;
+};
+
 /** Idle footer CTA for the selected compose block. */
-export function composeGenerateCtaLabel(mode: GenerateComposeMode): string {
+export function composeGenerateCtaLabel(
+  mode: GenerateComposeMode,
+  options?: ComposeGenerateCtaOptions,
+): string {
+  if (options?.isAuthed === false && mode !== "photo_prompt") {
+    return COMPOSE_GUEST_SIGN_IN_CTA;
+  }
   if (mode === "video") return "Создать видео";
   if (mode === "photoshoot") return "Создать фотосессию";
   if (mode === "photo_prompt") return "Создать промт по фото";
@@ -132,7 +145,9 @@ export const COMPOSE_BUY_CREDITS_CTA_COMPACT = "Купить кредиты";
 /** Photo/video model name belongs on the generate button, not the mode tile. */
 export function composeGenerateCtaShowsModelName(
   mode: GenerateComposeMode,
+  options?: ComposeGenerateCtaOptions,
 ): boolean {
+  if (options?.isAuthed === false) return false;
   return mode === "image" || mode === "video";
 }
 
