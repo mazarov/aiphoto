@@ -16,9 +16,10 @@ import {
 type CardState = "loading" | "ready" | "error";
 type Panel = "input" | "loading" | "result" | "error";
 
-type Props = { cardSlug: string };
+type Props = { cardSlug: string; variant?: "catalog" | "plain" };
 
-export function PromptRemixWidget({ cardSlug }: Props) {
+export function PromptRemixWidget({ cardSlug, variant = "catalog" }: Props) {
+  const plain = variant === "plain";
   const [cardState, setCardState] = useState<CardState>("loading");
   const [originalPrompt, setOriginalPrompt] = useState("");
   const [cardTitle, setCardTitle] = useState<string | null>(null);
@@ -110,7 +111,11 @@ export function PromptRemixWidget({ cardSlug }: Props) {
 
   return (
     <div
-      className={`w-full max-w-3xl rounded-2xl ${FVP_BORDER_CARD} ${FVP_SURFACE_WIDGET_OUTER} p-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-md shadow-zinc-200/60 sm:p-5`}
+      className={
+        plain
+          ? "w-full pb-[max(0px,env(safe-area-inset-bottom))]"
+          : `w-full max-w-3xl rounded-2xl ${FVP_BORDER_CARD} ${FVP_SURFACE_WIDGET_OUTER} p-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-md shadow-zinc-200/60 sm:p-5`
+      }
     >
       {/* Header */}
       <div className="mb-4">

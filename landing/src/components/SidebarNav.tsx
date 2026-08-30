@@ -4,11 +4,9 @@ import { useEffect, useState, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { MenuSectionWithCounts } from "@/lib/menu";
-import { getAiImageDescriberChromeUrl } from "@/lib/foto-v-promt-config";
-import { trackDesktopSidebarAddToChromeClick } from "@/lib/yandex-metrika";
 import { isSameNavPath, scrollCatalogToTop } from "@/lib/scroll-preservation";
 import { useListingMobileChromeOptional } from "@/context/ListingMobileChromeContext";
-import { ChromeMark } from "./foto-v-promt/ChromeMark";
+import { AddToChromeCard } from "./foto-v-promt/AddToChromeCard";
 import { SidebarAccountPanel } from "./AccountControls";
 import { SiteBrandLink } from "./SiteBrandLink";
 import { MobileCatalogMenuDrawer } from "./MobileCatalogMenuDrawer";
@@ -73,26 +71,11 @@ function SidebarContent({
 }) {
   return (
     <nav className="flex flex-col gap-0.5 px-3 py-4">
-      <a
-        href={getAiImageDescriberChromeUrl("desktop_sidebar")}
-        target="_blank"
-        rel="noopener noreferrer"
-        onClick={() => {
-          trackDesktopSidebarAddToChromeClick();
-          onItemClick?.();
-        }}
-        className="mb-2 flex w-full items-center gap-2.5 rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-left shadow-sm transition hover:border-zinc-300 hover:bg-zinc-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2"
-      >
-        <ChromeMark className="h-5 w-5 shrink-0" />
-        <span className="min-w-0 flex-1">
-          <span className="block text-[13px] font-semibold text-zinc-900">
-            Добавить в Chrome
-          </span>
-          <span className="mt-0.5 block text-xs font-normal leading-snug text-zinc-500 line-clamp-2">
-            Преврати фото с любого сайта в готовый промт
-          </span>
-        </span>
-      </a>
+      <AddToChromeCard
+        placement="desktop_sidebar"
+        onNavigate={onItemClick}
+        className="mb-2"
+      />
 
       <Link
         href="/"

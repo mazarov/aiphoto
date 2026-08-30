@@ -11,14 +11,23 @@ import {
 
 const PromptRemixWidget = dynamic(
   () => import("./PromptRemixWidget").then((m) => ({ default: m.PromptRemixWidget })),
-  { ssr: false, loading: () => <PromptSceneLiteSkeleton /> },
+  { ssr: false, loading: () => <PromptSceneLiteSkeleton variant="plain" /> },
 );
 
 /** Static placeholder while the widget chunk loads or section is off-screen. */
-export function PromptSceneLiteSkeleton() {
+export function PromptSceneLiteSkeleton({
+  variant = "catalog",
+}: {
+  variant?: "catalog" | "plain";
+} = {}) {
+  const plain = variant === "plain";
   return (
     <div
-      className={`mx-auto w-full max-w-3xl rounded-2xl ${FVP_BORDER_CARD} ${FVP_SURFACE_WIDGET_OUTER} p-4 shadow-md shadow-zinc-200/60 sm:p-5`}
+      className={
+        plain
+          ? "mx-auto w-full"
+          : `mx-auto w-full max-w-3xl rounded-2xl ${FVP_BORDER_CARD} ${FVP_SURFACE_WIDGET_OUTER} p-4 shadow-md shadow-zinc-200/60 sm:p-5`
+      }
       aria-hidden
     >
       <div className="space-y-4">
@@ -41,7 +50,7 @@ export function PromptSceneLiteSkeleton() {
 
 const PromptSceneLiteWidget = dynamic(
   () => import("./PromptSceneLiteWidget").then((m) => ({ default: m.PromptSceneLiteWidget })),
-  { ssr: false, loading: () => <PromptSceneLiteSkeleton /> },
+  { ssr: false, loading: () => <PromptSceneLiteSkeleton variant="plain" /> },
 );
 
 /**
@@ -97,13 +106,13 @@ export function PromptSceneLiteWidgetGate() {
   return (
     <div ref={hostRef} className="mx-auto w-full max-w-3xl">
       {!resolvedParams ? (
-        <PromptSceneLiteSkeleton />
+        <PromptSceneLiteSkeleton variant="plain" />
       ) : cardSlug ? (
-        <PromptRemixWidget cardSlug={cardSlug} />
+        <PromptRemixWidget cardSlug={cardSlug} variant="plain" />
       ) : mountWidget ? (
-        <PromptSceneLiteWidget />
+        <PromptSceneLiteWidget variant="plain" />
       ) : (
-        <PromptSceneLiteSkeleton />
+        <PromptSceneLiteSkeleton variant="plain" />
       )}
     </div>
   );

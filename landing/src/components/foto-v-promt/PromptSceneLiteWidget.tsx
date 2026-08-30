@@ -52,7 +52,7 @@ import {
   FVP_SURFACE_WIDGET_OUTER,
 } from "./foto-v-promt-tokens";
 
-export type PromptSceneLiteVariant = "catalog" | "immersive";
+export type PromptSceneLiteVariant = "catalog" | "immersive" | "plain";
 
 const HISTORY_HASH_PREFIX = "#extension-lite-history";
 
@@ -242,6 +242,7 @@ export function PromptSceneLiteWidget({
 } = {}) {
   const analyzeUrl = getImagePromptAnalyzeUrl();
   const immersive = variant === "immersive";
+  const plain = variant === "plain";
   const { user, openAuthModal } = useAuth();
   const { seedPhotoPrompt } = useGenerateDock();
   const { open: openPricing } = usePricingModal();
@@ -1106,7 +1107,11 @@ export function PromptSceneLiteWidget({
 
   return (
     <div
-      className={`w-full max-w-3xl rounded-2xl ${FVP_BORDER_CARD} ${FVP_SURFACE_WIDGET_OUTER} p-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-md shadow-zinc-200/60 sm:p-5`}
+      className={
+        plain
+          ? "w-full pb-[max(0px,env(safe-area-inset-bottom))]"
+          : `w-full max-w-3xl rounded-2xl ${FVP_BORDER_CARD} ${FVP_SURFACE_WIDGET_OUTER} p-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-md shadow-zinc-200/60 sm:p-5`
+      }
     >
       <div className="mb-4 flex items-center gap-3">
         <div className="flex min-w-0 flex-1 gap-1">

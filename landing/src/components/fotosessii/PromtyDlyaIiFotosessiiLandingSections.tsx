@@ -1,6 +1,6 @@
 "use client";
 
-import type { MouseEvent } from "react";
+import type { MouseEvent, ReactNode } from "react";
 import Link from "next/link";
 import {
   GF_BLOCK,
@@ -96,6 +96,49 @@ export function PromtyDlyaIiFotosessiiHowTo({
   );
 }
 
+const FAQ_ITEM =
+  `group ${GF_SURFACE} open:border-indigo-200 open:bg-white`;
+const FAQ_SUMMARY =
+  "flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-5 py-3.5 text-left text-sm font-semibold text-zinc-900 [&::-webkit-details-marker]:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white";
+const FAQ_ANSWER = "px-5 pb-4 text-sm leading-relaxed text-zinc-600";
+
+function FaqChevron() {
+  return (
+    <svg
+      className="h-4 w-4 shrink-0 text-zinc-400 transition-transform duration-200 group-open:rotate-180"
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden
+    >
+      <path
+        d="M6 9l6 6 6-6"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function FaqAccordionItem({
+  question,
+  children,
+}: {
+  question: string;
+  children: ReactNode;
+}) {
+  return (
+    <details open className={FAQ_ITEM}>
+      <summary className={FAQ_SUMMARY}>
+        <span>{question}</span>
+        <FaqChevron />
+      </summary>
+      <div className={FAQ_ANSWER}>{children}</div>
+    </details>
+  );
+}
+
 function FaqAnswer({ parts }: { parts: readonly FotosessiiFaqPart[] }) {
   return (
     <>
@@ -125,21 +168,18 @@ function FaqAnswer({ parts }: { parts: readonly FotosessiiFaqPart[] }) {
 
 export function PromtyDlyaIiFotosessiiFaq() {
   return (
-    <section className={sectionClass} aria-labelledby="faq-heading">
+    <section id="faq" className={sectionClass} aria-labelledby="faq-heading">
       <div className={GF_BLOCK}>
         <h2 id="faq-heading" className={GF_H2}>
           {PROMTY_DLYA_II_FOTOSESSII_SEO.faqTitle}
         </h2>
-        <dl className={`${GF_STACK} space-y-3`}>
+        <div className={`${GF_STACK} space-y-2`}>
           {PROMTY_DLYA_II_FOTOSESSII_FAQ.map((item) => (
-            <div key={item.q} className={`p-5 ${GF_SURFACE}`}>
-              <dt className="text-base font-semibold text-zinc-900">{item.q}</dt>
-              <dd className="mt-1.5 text-sm leading-relaxed text-zinc-600">
-                <FaqAnswer parts={item.a} />
-              </dd>
-            </div>
+            <FaqAccordionItem key={item.q} question={item.q}>
+              <FaqAnswer parts={item.a} />
+            </FaqAccordionItem>
           ))}
-        </dl>
+        </div>
       </div>
     </section>
   );
@@ -153,21 +193,18 @@ export function PromtyDlyaIiFotosessiiPlainFaq({
   items: readonly { q: string; a: string }[];
 }) {
   return (
-    <section className={sectionClass} aria-labelledby="faq-heading">
+    <section id="faq" className={sectionClass} aria-labelledby="faq-heading">
       <div className={GF_BLOCK}>
         <h2 id="faq-heading" className={GF_H2}>
           {title}
         </h2>
-        <dl className={`${GF_STACK} space-y-3`}>
+        <div className={`${GF_STACK} space-y-2`}>
           {items.map((item) => (
-            <div key={item.q} className={`p-5 ${GF_SURFACE}`}>
-              <dt className="text-base font-semibold text-zinc-900">{item.q}</dt>
-              <dd className="mt-1.5 text-sm leading-relaxed text-zinc-600">
-                {item.a}
-              </dd>
-            </div>
+            <FaqAccordionItem key={item.q} question={item.q}>
+              {item.a}
+            </FaqAccordionItem>
           ))}
-        </dl>
+        </div>
       </div>
     </section>
   );
