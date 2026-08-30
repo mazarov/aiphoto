@@ -4,6 +4,8 @@ import { PHOTOSHOOT_EDIT_KIND } from "./photoshoot";
 import {
   apiModalityForComposeMode,
   canEnqueueWhilePhotoshootSelected,
+  COMPOSE_BUY_CREDITS_CTA,
+  COMPOSE_BUY_CREDITS_CTA_COMPACT,
   composeGenerateCtaLabel,
   composeGenerateCtaShowsModelName,
   composeModeTileLabel,
@@ -113,6 +115,8 @@ test("compose tiles and generate CTA follow the selected block", () => {
   assert.equal(composeGenerateCtaShowsModelName("image"), true);
   assert.equal(composeGenerateCtaShowsModelName("video"), true);
   assert.equal(composeGenerateCtaShowsModelName("photoshoot"), false);
+  assert.equal(COMPOSE_BUY_CREDITS_CTA, "Купить кредиты для создания фото");
+  assert.equal(COMPOSE_BUY_CREDITS_CTA_COMPACT, "Купить кредиты");
 });
 
 test("image and video tiles toggle the model sheet; photoshoot is select-only", () => {

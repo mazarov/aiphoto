@@ -116,6 +116,10 @@ export function composeGenerateCtaLabel(mode: GenerateComposeMode): string {
   return "Создать фото";
 }
 
+/** Paywall CTA: next action, not an error. Compact label is for the mobile tab. */
+export const COMPOSE_BUY_CREDITS_CTA = "Купить кредиты для создания фото";
+export const COMPOSE_BUY_CREDITS_CTA_COMPACT = "Купить кредиты";
+
 /** Photo/video model name belongs on the generate button, not the mode tile. */
 export function composeGenerateCtaShowsModelName(
   mode: GenerateComposeMode,

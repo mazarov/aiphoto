@@ -99,6 +99,7 @@ import {
 import {
   apiModalityForComposeMode,
   canEnqueueWhilePhotoshootSelected,
+  COMPOSE_BUY_CREDITS_CTA,
   composeGenerateCtaLabel,
   composeGenerateCtaShowsModelName,
   composeModeTileLabel,
@@ -3610,9 +3611,9 @@ export function CardInlineGeneratePanel({
             onClick={() =>
               reachYandexMetrikaGoal(YM_GOAL_PROMPT_CARD_GENERATION_PRICING)
             }
-            className="flex min-h-12 min-w-0 w-full items-center justify-center rounded-2xl bg-rose-500/85 px-4 py-3 text-[15px] font-semibold text-white shadow-[0_12px_28px_-14px_rgba(244,63,94,0.45)] transition hover:bg-rose-500/95"
+            className="flex min-h-12 min-w-0 w-full items-center justify-center rounded-2xl bg-gradient-to-r from-indigo-500 to-violet-500 px-4 py-3 text-center text-[15px] font-semibold leading-snug text-white shadow-lg shadow-indigo-950/35 transition hover:brightness-110"
           >
-            Недостаточно кредитов
+            {COMPOSE_BUY_CREDITS_CTA}
           </PricingEntryLink>
         ) : (
           <button

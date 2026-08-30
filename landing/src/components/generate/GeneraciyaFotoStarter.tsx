@@ -11,6 +11,7 @@ import {
 import { useAuth } from "@/context/AuthContext";
 import { useGenerateDock } from "@/context/GenerateDockContext";
 import { usePricingModal } from "@/context/PricingModalContext";
+import { COMPOSE_BUY_CREDITS_CTA } from "@/lib/generate-compose-mode";
 import { GENERACIYA_FOTO_SEO } from "@/lib/generaciya-foto-seo-copy";
 import { requestCreditBalanceRefresh } from "@/lib/credit-balance-events";
 import {
@@ -340,9 +341,7 @@ export function GeneraciyaFotoStarter() {
           className={`relative inline-flex min-h-11 items-center justify-center overflow-hidden rounded-full px-8 text-sm font-semibold text-white transition active:scale-[0.98] disabled:cursor-wait ${
             analyzing || runBusy
               ? ""
-              : needsCredits || analyzeQuota?.next_mode === "no_credits"
-                ? "bg-rose-500/85 shadow-lg shadow-rose-500/20 hover:bg-rose-500/95"
-                : "bg-gradient-to-r from-indigo-500 via-[#5b5cf0] to-violet-500 shadow-lg shadow-indigo-500/20 hover:brightness-105"
+              : "bg-gradient-to-r from-indigo-500 via-[#5b5cf0] to-violet-500 shadow-lg shadow-indigo-500/20 hover:brightness-105"
           }`}
           style={
             analyzing || runBusy
@@ -368,11 +367,10 @@ export function GeneraciyaFotoStarter() {
               : runBusy
                 ? `Генерируем · ${Math.round(runProgress)}%`
                 : needsCredits
-                  ? "Недостаточно кредитов"
+                  || (isAuthed && mode === "photo" && analyzeQuota?.next_mode === "no_credits")
+                  ? COMPOSE_BUY_CREDITS_CTA
                   : isAuthed
-                    ? mode === "photo" && analyzeQuota?.next_mode === "no_credits"
-                      ? "Пополнить токены"
-                      : "Создать фото"
+                    ? "Создать фото"
                     : "Войти и создать фото"}
           </span>
         </button>

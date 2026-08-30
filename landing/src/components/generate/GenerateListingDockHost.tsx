@@ -16,6 +16,7 @@ import { useListingIsMobile } from "@/hooks/useListingIsMobile";
 import { setListingChromeAutoHideBlocked } from "@/hooks/useListingChromeAutoHide";
 import { OVERLAY_BUTTON_UA_RESET } from "@/lib/card-overlay-action-pill";
 import { isPrimaryOverlayDismissPointer } from "@/lib/generate-compose-job";
+import { COMPOSE_BUY_CREDITS_CTA } from "@/lib/generate-compose-mode";
 import { listingGenerateIdleCta } from "@/lib/promty-dlya-ii-fotosessii-cluster";
 import {
   reachYandexMetrikaGoal,
@@ -306,9 +307,7 @@ export function GenerateListingDockHost() {
                 className={`${OVERLAY_BUTTON_UA_RESET} relative inline-flex min-h-12 items-center justify-center gap-2 overflow-hidden rounded-full px-5 text-[13px] font-semibold text-white transition active:scale-[0.98] ${
                   runBusy
                     ? ""
-                    : needsCredits
-                      ? "bg-rose-500/85 shadow-[0_12px_28px_-14px_rgba(244,63,94,0.45)] hover:bg-rose-500/95"
-                      : "bg-indigo-600 shadow-[0_12px_32px_-10px_rgba(79,70,229,0.55)] hover:bg-indigo-700"
+                    : "bg-indigo-600 shadow-[0_12px_32px_-10px_rgba(79,70,229,0.55)] hover:bg-indigo-700"
                 }`}
                 style={
                   runBusy ? { backgroundColor: "rgba(39,39,42,0.95)" } : undefined
@@ -330,7 +329,7 @@ export function GenerateListingDockHost() {
                   {runBusy
                     ? `Генерируем · ${Math.round(runProgress)}%`
                     : needsCredits
-                      ? "Недостаточно кредитов"
+                      ? COMPOSE_BUY_CREDITS_CTA
                       : listingGenerateIdleCta({ pathname, isAuthed })}
                 </span>
               </button>

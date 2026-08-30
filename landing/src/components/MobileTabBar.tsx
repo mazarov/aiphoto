@@ -26,6 +26,10 @@ import { MobileProfileSheet } from "./MobileProfileSheet";
 import { UserAvatarImage } from "./UserAvatarImage";
 import { usePricingModal } from "@/context/PricingModalContext";
 import {
+  COMPOSE_BUY_CREDITS_CTA,
+  COMPOSE_BUY_CREDITS_CTA_COMPACT,
+} from "@/lib/generate-compose-mode";
+import {
   PROMTY_DLYA_II_FOTOSESSII_GENERATE_CTA,
   listingGenerateIdleCta,
 } from "@/lib/promty-dlya-ii-fotosessii-cluster";
@@ -224,7 +228,7 @@ export function MobileTabBar() {
                     generateRunBusy
                       ? `Генерируем ${Math.round(generateRunProgress)}%`
                       : generateNeedsCredits
-                        ? "Недостаточно кредитов"
+                        ? COMPOSE_BUY_CREDITS_CTA
                         : generateIdleLabel
                   }
                   aria-busy={generateRunBusy || undefined}
@@ -235,11 +239,9 @@ export function MobileTabBar() {
                     className={`relative -translate-y-2 flex h-10 w-14 items-center justify-center overflow-hidden rounded-2xl text-white ${
                       generateRunBusy
                         ? ""
-                        : generateNeedsCredits
-                          ? "bg-rose-500/85 shadow-lg shadow-rose-500/25"
-                          : generateActive
-                            ? "bg-indigo-700 shadow-lg shadow-indigo-500/30"
-                            : "bg-indigo-600 shadow-lg shadow-indigo-500/30"
+                        : generateActive
+                          ? "bg-indigo-700 shadow-lg shadow-indigo-500/30"
+                          : "bg-indigo-600 shadow-lg shadow-indigo-500/30"
                     }`}
                     style={
                       generateRunBusy
@@ -262,21 +264,6 @@ export function MobileTabBar() {
                     <span className="relative z-10 text-[11px] font-semibold tabular-nums">
                       {generateRunBusy ? (
                         `${Math.round(generateRunProgress)}%`
-                      ) : generateNeedsCredits ? (
-                        <svg
-                          className="h-5 w-5"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth={1.75}
-                          aria-hidden
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            d="M12 9v4m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"
-                          />
-                        </svg>
                       ) : (
                         <svg
                           className="h-5 w-5"
@@ -297,20 +284,19 @@ export function MobileTabBar() {
                   <span
                     className={`${
                       generateIdleLabel === PROMTY_DLYA_II_FOTOSESSII_GENERATE_CTA
+                      || generateNeedsCredits
                         ? "max-w-[6.5rem]"
                         : "max-w-[4.75rem]"
                     } text-center text-[9px] leading-tight ${
-                      generateNeedsCredits
-                        ? "font-semibold text-rose-500/90"
-                        : generateActive || generateRunBusy
-                          ? "font-semibold text-indigo-600"
-                          : "font-medium text-indigo-600"
+                      generateActive || generateRunBusy || generateNeedsCredits
+                        ? "font-semibold text-indigo-600"
+                        : "font-medium text-indigo-600"
                     }`}
                   >
                     {generateRunBusy
                       ? "Генерируем"
                       : generateNeedsCredits
-                        ? "Нет кредитов"
+                        ? COMPOSE_BUY_CREDITS_CTA_COMPACT
                         : generateIdleLabel}
                   </span>
                 </button>
