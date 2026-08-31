@@ -1,5 +1,7 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-08-31 (**homepage fotosessii L1 wave 2:** семья / дети / ДР держат хвост в H2/FAQ, Title/H1 кадра без изменений. Спека `docs/31-08-homepage-promty-fotosessii.md`.
+>
 > Последнее обновление: 2026-08-31 (**homepage owns «промты для ии фотосессии»:** Title complement + каталог H2 + FAQ на `/`; L1 девушка/мужчина/пары держат хвост в H2/FAQ, Title/H1 кадра без изменений. `/ii-fotosessiya` — только глагол «серия по фото». Спека `docs/31-08-homepage-promty-fotosessii.md`.
 >
 > Последнее обновление: 2026-08-31 (**photoshoot overlay chrome stays live:** во время съёмки «Выйти» и ползунок «невероятные сюжеты» не `disabled`. «Создать» = прогресс (`Снимаем… N%`), повторный enqueue закрыт. Job не отменяется на выход — poll обрывается. SSOT `photoshootOverlayChromeState`.

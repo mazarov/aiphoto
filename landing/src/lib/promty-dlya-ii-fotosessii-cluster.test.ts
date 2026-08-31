@@ -194,6 +194,27 @@ test("audience L1 keeps кадр key in H1 and holds fotosessii prompts in H2", 
     getSeoContent("beremennaya")?.popularLinks?.[0]?.href,
     "/ii-fotosessiya/beremennye"
   );
+
+  const family = getSeoContent("semya");
+  const kids = getSeoContent("detskie");
+  const birthday = getSeoContent("den_rozhdeniya");
+  assert.equal(family?.seoTextBlocks?.[0]?.h2, "Промты для ИИ фотосессии семейные");
+  assert.equal(kids?.seoTextBlocks?.[0]?.h2, "Промты для ИИ фотосессии детские");
+  assert.equal(
+    birthday?.seoTextBlocks?.[0]?.h2,
+    "Промты для ИИ фотосессии на день рождения"
+  );
+  assert.doesNotMatch(family?.h1 ?? "", /фотосесс/i);
+  assert.doesNotMatch(kids?.h1 ?? "", /фотосесс/i);
+  assert.doesNotMatch(birthday?.h1 ?? "", /фотосесс/i);
+  assert.doesNotMatch(birthday?.metaTitle ?? "", /фотосесс/i);
+  assert.match(family?.intro ?? "", /Промты для ИИ фотосессии семейные/);
+  assert.match(kids?.intro ?? "", /Промты для ИИ фотосессии детские/);
+  assert.match(birthday?.intro ?? "", /Промты для ИИ фотосессии на день рождения/);
+  assert.equal(
+    birthday?.popularLinks?.find((link) => link.label === "ИИ-фотосессия")?.href,
+    "/ii-fotosessiya/den-rozhdeniya"
+  );
 });
 
 test("chip nav on hub is children only; on L2 hub chip is first", () => {
