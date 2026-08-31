@@ -62,6 +62,7 @@ import {
 } from "@/lib/generate-compose-job";
 import {
   isCompletedResultSeed,
+  isRestorableLastDockResult,
   photoshootTileUrlsFromUnknown,
   shouldAttachLibraryPhotos,
   shouldHydrateLastDockResult as seedAllowsLastDockHydrate,
@@ -73,7 +74,7 @@ import {
   type GenerateDockSurface,
 } from "@/context/GenerateDockContext";
 import { GenerationResultBackdrop } from "@/components/generate/GenerationResultBackdrop";
-import { GenerationCreditCostBadge } from "@/components/generate/GenerationCreditCostBadge";
+import { ComposeModelChoiceCard } from "@/components/generate/ComposeModelChoiceCard";
 import { GenerationModelIcon } from "@/components/generate/GenerationModelIcon";
 import { GenerationResultActionRail } from "@/components/generate/GenerationResultActionRail";
 import {
@@ -136,9 +137,14 @@ import {
   apiModalityForComposeMode,
   canEnqueueWhilePhotoshootSelected,
   COMPOSE_BUY_CREDITS_CTA,
+  resultChromeHidesComposeFooter,
+  resultChromeHidesPromptStrip,
+  resultPrimaryAction,
   composeGenerateCtaLabel,
   composeGenerateCtaShowsModelName,
+  composeModeFromDockIntent,
   composeModeTileLabel,
+  composeNeedsPhotoCtaLabel,
   nextComposeModeTileSheet,
   promptModalityForComposeMode,
   rememberCompletedImageResult,
@@ -165,6 +171,7 @@ import {
   writeCachedCameraOrbitEnabled,
 } from "@/lib/camera-orbit-availability";
 import {
+  optimisticPhotoshootEnabled,
   readCachedPhotoshootEnabled,
   writeCachedPhotoshootEnabled,
 } from "@/lib/photoshoot-availability";
@@ -191,6 +198,12 @@ import {
   type StoredGenerationPreferences,
 } from "@/lib/generation-preferences";
 import { resolveVideoEnqueueParentGenerationId } from "@/lib/user-generation-photos";
+import {
+  PHOTO_GUIDE_PORTRAIT_SRC,
+  readCachedUserGenerationPhotos,
+  warmupPhotoPreviewImages,
+  writeCachedUserGenerationPhotos,
+} from "@/lib/user-generation-photos-cache";
 
 const BLANK_PROMPT_PLACEHOLDER = "Опишите изображение или референс";
 const PROMPT_FIELD_LABEL = "Промт";
@@ -265,9 +278,10 @@ export function CardInlineGeneratePanel({
     requestedModelId,
     seed,
     seedAnimate,
+    lastDockResult,
+    rememberLastDockResult,
     lastDockResultDismissed,
     dismissLastDockResult,
-    clearLastDockResultDismiss,
   } = useGenerateDock();
   const isDock = chrome === "dock";
   const isBlank = source === "blank";
@@ -284,14 +298,8 @@ export function CardInlineGeneratePanel({
   const [imageSize, setImageSize] = useState(DEFAULT_IMAGE_SIZE);
   const [configError, setConfigError] = useState("");
   const [maxPhotos, setMaxPhotos] = useState(10);
-  const [composeMode, setComposeMode] = useState<GenerateComposeMode>(
-    seed.intent === "animate"
-      ? "video"
-      : seed.intent === "photo_prompt"
-        ? "photo_prompt"
-        : seed.intent === "photoshoot"
-          ? "photoshoot"
-          : "image"
+  const [composeMode, setComposeMode] = useState<GenerateComposeMode>(() =>
+    composeModeFromDockIntent(seed.intent)
   );
   const [analyzeQuota, setAnalyzeQuota] = useState<AnalyzeQuotaPayload | null>(
     null
@@ -304,18 +312,23 @@ export function CardInlineGeneratePanel({
   );
   const [cameraOrbitOpen, setCameraOrbitOpen] = useState(false);
   const [cameraOrbitCreditCost, setCameraOrbitCreditCost] = useState(10);
-  const [photoshootEnabled, setPhotoshootEnabled] = useState(
-    () => readCachedPhotoshootEnabled() === true
+  const [photoshootEnabled, setPhotoshootEnabled] = useState(() =>
+    optimisticPhotoshootEnabled({
+      pathname: typeof window !== "undefined" ? window.location.pathname : null,
+      cached: readCachedPhotoshootEnabled(),
+    })
   );
   const [photoshootOpen, setPhotoshootOpen] = useState(false);
   const [photoshootSourceId, setPhotoshootSourceId] = useState<string | null>(null);
   const [photoshootSourceUrl, setPhotoshootSourceUrl] = useState<string | null>(null);
   const [photoshootLibraryPath, setPhotoshootLibraryPath] = useState<string | null>(null);
   const [photoshootTileUrls, setPhotoshootTileUrls] = useState<string[] | null>(
-    () => photoshootTileUrlsFromUnknown(seed.photoshootTileUrls)
+    () =>
+      photoshootTileUrlsFromUnknown(seed.photoshootTileUrls) ||
+      photoshootTileUrlsFromUnknown(lastDockResult?.photoshootTileUrls)
   );
   const [resultEditKind, setResultEditKind] = useState<string | null>(
-    () => seed.editKind || null
+    () => seed.editKind || lastDockResult?.editKind || null
   );
   const photoshootDismissedRef = useRef(false);
   const photoshootPollAbortRef = useRef<AbortController | null>(null);
@@ -335,8 +348,27 @@ export function CardInlineGeneratePanel({
   );
   const seededResult = isCompletedResultSeed(seed);
   const seededPhotoPrompt = seed.intent === "photo_prompt" && Boolean(seed.previewUrl);
+  const restoredLastResult =
+    !seededResult &&
+    isDock &&
+    isBlank &&
+    isAuthed &&
+    seedAllowsLastDockHydrate(seed, {
+      dismissedLastResult: lastDockResultDismissed,
+    }) &&
+    isRestorableLastDockResult(lastDockResult, {
+      dismissedLastResult: lastDockResultDismissed,
+    })
+      ? lastDockResult
+      : null;
   const [resultModality, setResultModality] = useState<"image" | "video">(
-    seed.resultModality === "video" ? "video" : "image"
+    seededResult
+      ? seed.resultModality === "video"
+        ? "video"
+        : "image"
+      : restoredLastResult?.modality === "video"
+        ? "video"
+        : "image"
   );
   const [animateParentId, setAnimateParentId] = useState<string | null>(
     seed.parentGenerationId || null
@@ -349,21 +381,35 @@ export function CardInlineGeneratePanel({
   const [preferencesHydrated, setPreferencesHydrated] = useState(false);
   const [credits, setCredits] = useState<number | null>(null);
 
-  const [photos, setPhotos] = useState<UserPhoto[]>([]);
+  const [photos, setPhotos] = useState<UserPhoto[]>(() => {
+    if (!isAuthed || !user?.id) return [];
+    return readCachedUserGenerationPhotos(user.id) ?? [];
+  });
   const [selectedPhotoIds, setSelectedPhotoIds] = useState<Set<string>>(new Set());
   const prefsDirtyRef = useRef(false);
   const skipNextPrefsPersistRef = useRef(false);
   const seedIntentRef = useRef(seed.intent);
   seedIntentRef.current = seed.intent;
-  const [libraryLoading, setLibraryLoading] = useState(true);
+  const [libraryLoading, setLibraryLoading] = useState(() => {
+    if (!isAuthed || !user?.id) return false;
+    return readCachedUserGenerationPhotos(user.id) === null;
+  });
   const [libraryUploading, setLibraryUploading] = useState(false);
   const [deletingPhotoId, setDeletingPhotoId] = useState<string | null>(null);
 
   const [phase, setPhase] = useState<Phase>(
-    seededResult ? "done" : seededPhotoPrompt ? "generating" : "idle"
+    seededResult || restoredLastResult
+      ? "done"
+      : seededPhotoPrompt
+        ? "generating"
+        : "idle"
   );
   const phaseRef = useRef<Phase>(
-    seededResult ? "done" : seededPhotoPrompt ? "generating" : "idle"
+    seededResult || restoredLastResult
+      ? "done"
+      : seededPhotoPrompt
+        ? "generating"
+        : "idle"
   );
   const generateInFlightRef = useRef(false);
   const [starting, setStarting] = useState(false);
@@ -377,27 +423,41 @@ export function CardInlineGeneratePanel({
   const generationIdRef = useRef<string | null>(null);
   const [error, setError] = useState("");
   const [needsCredits, setNeedsCredits] = useState(false);
-  const [progress, setProgress] = useState(0);
+  const [progress, setProgress] = useState(restoredLastResult || seededResult ? 100 : 0);
   const [resultUrl, setResultUrl] = useState<string | null>(
-    seededResult || seededPhotoPrompt ? seed.previewUrl || null : null
+    seededResult || seededPhotoPrompt
+      ? seed.previewUrl || null
+      : restoredLastResult?.resultUrl ?? null
   );
   const photoPromptDataUrlRef = useRef<string | null>(null);
   const [resultPreviewOpen, setResultPreviewOpen] = useState(false);
   const [generationId, setGenerationId] = useState<string | null>(
-    seededResult ? seed.resultGenerationId || null : null
+    seededResult
+      ? seed.resultGenerationId || null
+      : restoredLastResult?.generationId ?? null
   );
   resultUrlRef.current = resultUrl;
   generationIdRef.current = generationId;
-  const [draftPrompt, setDraftPrompt] = useState(promptText);
+  const [draftPrompt, setDraftPrompt] = useState(
+    promptText || restoredLastResult?.promptText || ""
+  );
   const draftPromptRef = useRef(draftPrompt);
   draftPromptRef.current = draftPrompt;
   const composeModeRef = useRef(composeMode);
   composeModeRef.current = composeMode;
   const lastImageResultRef = useRef<PhotoshootReadyFrame | null>(
     rememberCompletedImageResult({
-      generationId: seededResult ? seed.resultGenerationId : null,
-      resultUrl: seededResult ? seed.previewUrl : null,
-      resultModality: seed.resultModality === "video" ? "video" : "image",
+      generationId: seededResult
+        ? seed.resultGenerationId
+        : restoredLastResult?.generationId,
+      resultUrl: seededResult ? seed.previewUrl : restoredLastResult?.resultUrl,
+      resultModality: seededResult
+        ? seed.resultModality === "video"
+          ? "video"
+          : "image"
+        : restoredLastResult?.modality === "video"
+          ? "video"
+          : "image",
     })
   );
   const promptStashRef = useRef(
@@ -475,11 +535,17 @@ export function CardInlineGeneratePanel({
     [isAuthed]
   );
   const [submittedPrompt, setSubmittedPrompt] = useState(
-    seededResult ? seed.promptText.trim() : ""
+    seededResult
+      ? seed.promptText.trim()
+      : restoredLastResult?.promptText.trim() || ""
   );
   const [menuOpen, setMenuOpen] = useState(false);
   const [busyAction, setBusyAction] = useState<GenerationMenuAction | null>(null);
-  const [isPublished, setIsPublished] = useState(Boolean(seededResult && seed.isPublished));
+  const [isPublished, setIsPublished] = useState(
+    Boolean(
+      (seededResult && seed.isPublished) || restoredLastResult?.isPublished
+    )
+  );
   const [toast, setToast] = useState("");
   const [expandedControlLocal, setExpandedControlLocal] = useState<
     "photos" | "model" | null
@@ -861,8 +927,8 @@ export function CardInlineGeneratePanel({
           } else {
             setDraftPrompt("");
           }
-        } else if (seed.intent === "photoshoot") {
-          setComposeMode("photoshoot");
+        } else if (seed.intent === "photoshoot" || seed.intent === "photo_prompt") {
+          setComposeMode(composeModeFromDockIntent(seed.intent));
         } else if (isCompletedResultSeed(seed)) {
           const prompt = seed.promptText.trim();
           setComposeMode("image");
@@ -916,6 +982,13 @@ export function CardInlineGeneratePanel({
         setAspectRatios(nextRatios);
         setImageSizes(nextSizes);
         setPhotos(nextPhotos);
+        if (user?.id) {
+          writeCachedUserGenerationPhotos(
+            user.id,
+            nextPhotos.filter((photo) => !isPhotoPromptEphemeralId(photo.id)),
+          );
+          warmupPhotoPreviewImages(nextPhotos);
+        }
         if (isAuthed && Number.isFinite(meData.credits)) {
           setCredits(Number(meData.credits));
         } else if (!isAuthed) {
@@ -1007,6 +1080,17 @@ export function CardInlineGeneratePanel({
           setProgress(100);
           setPhase("done");
           phaseRef.current = "done";
+          rememberLastDockResult({
+            generationId: lastCompleted.id!,
+            resultUrl: lastCompleted.resultUrl!,
+            promptText: prompt,
+            modality: lastCompleted.modality === "video" ? "video" : "image",
+            isPublished: Boolean(lastCompleted.isPublished),
+            editKind: lastCompleted.editKind || null,
+            photoshootTileUrls: photoshootTileUrlsFromUnknown(
+              lastCompleted.photoshootTileUrls
+            ),
+          });
         }
 
         // Persist prefs only for authenticated library sessions.
@@ -1029,6 +1113,23 @@ export function CardInlineGeneratePanel({
     // Hydrate once per mount / auth identity — do not re-fetch on every result change.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional mount hydrate
   }, [isBlank, isDock, user]);
+
+  useEffect(() => {
+    if (!isAuthed || !user?.id) return;
+    const cached = readCachedUserGenerationPhotos(user.id);
+    if (!cached) return;
+    setPhotos((current) => {
+      if (current.some((photo) => !isPhotoPromptEphemeralId(photo.id))) {
+        return current;
+      }
+      return [
+        ...current.filter((photo) => isPhotoPromptEphemeralId(photo.id)),
+        ...cached,
+      ];
+    });
+    setLibraryLoading(false);
+    warmupPhotoPreviewImages(cached);
+  }, [isAuthed, user?.id]);
 
   useEffect(() => {
     if (seed.intent !== "animate" || !isAuthed) return;
@@ -1416,7 +1517,17 @@ export function CardInlineGeneratePanel({
         uploaded.push(upData.photo);
       }
 
-      setPhotos((current) => [...uploaded.reverse(), ...current]);
+      setPhotos((current) => {
+        const next = [...uploaded.reverse(), ...current];
+        if (user?.id) {
+          writeCachedUserGenerationPhotos(
+            user.id,
+            next.filter((photo) => !isPhotoPromptEphemeralId(photo.id)),
+          );
+        }
+        warmupPhotoPreviewImages(uploaded);
+        return next;
+      });
       setSelectedPhotoIds((current) => {
         if (photoPromptMode) {
           const last = uploaded[uploaded.length - 1];
@@ -1436,7 +1547,17 @@ export function CardInlineGeneratePanel({
       }
     } catch (err) {
       if (uploaded.length) {
-        setPhotos((current) => [...uploaded.reverse(), ...current]);
+        setPhotos((current) => {
+          const next = [...uploaded.reverse(), ...current];
+          if (user?.id) {
+            writeCachedUserGenerationPhotos(
+              user.id,
+              next.filter((photo) => !isPhotoPromptEphemeralId(photo.id)),
+            );
+          }
+          warmupPhotoPreviewImages(uploaded);
+          return next;
+        });
         setSelectedPhotoIds((current) => {
           if (photoPromptMode) {
             const last = uploaded[uploaded.length - 1];
@@ -1479,6 +1600,12 @@ export function CardInlineGeneratePanel({
 
       const remaining = photos.filter((item) => item.id !== photo.id);
       setPhotos(remaining);
+      if (user?.id) {
+        writeCachedUserGenerationPhotos(
+          user.id,
+          remaining.filter((item) => !isPhotoPromptEphemeralId(item.id)),
+        );
+      }
       setSelectedPhotoIds((selected) => {
         const next = new Set(selected);
         next.delete(photo.id);
@@ -1752,14 +1879,23 @@ export function CardInlineGeneratePanel({
             continue;
           }
           requestCreditBalanceRefresh();
-          clearLastDockResultDismiss();
+          const nextModality = poll.modality === "video" || isVideo ? "video" : "image";
+          rememberLastDockResult({
+            generationId: genData.id,
+            resultUrl: nextResultUrl,
+            promptText: isPhotoshoot || isCameraOrbit ? draftPromptRef.current : prompt,
+            modality: nextModality,
+            isPublished: false,
+            editKind: isPhotoshoot ? PHOTOSHOOT_EDIT_KIND : undefined,
+            photoshootTileUrls: tiles,
+          });
           setGenerationId(genData.id);
           setResultUrl(nextResultUrl);
-          setResultModality(poll.modality === "video" || isVideo ? "video" : "image");
+          setResultModality(nextModality);
           lastImageResultRef.current = rememberCompletedImageResult({
             generationId: genData.id,
             resultUrl: nextResultUrl,
-            resultModality: poll.modality === "video" || isVideo ? "video" : "image",
+            resultModality: nextModality,
             previous: lastImageResultRef.current,
           });
           if (isVideo) {
@@ -2169,6 +2305,10 @@ export function CardInlineGeneratePanel({
         : "bg-zinc-100 text-zinc-900 after:border-zinc-300 hover:bg-zinc-200 hover:after:border-zinc-400";
   const composeTileFrame =
     "after:pointer-events-none after:absolute after:inset-0 after:z-[1] after:rounded-xl after:border-2 after:border-solid";
+  /** One rhythm for prompt / tiles / CTA and every dock sheet. */
+  const composeBlockGap = "gap-3";
+  const composeSheetCta =
+    "flex min-h-12 w-full shrink-0 items-center justify-center rounded-2xl bg-indigo-600 px-4 py-3 text-[13px] font-semibold text-white transition hover:bg-indigo-700";
   const composeModeLogoWrap = `mb-0.5 flex h-6 w-6 items-center justify-center rounded-full shadow-sm ${
     glassChrome ? "bg-white/90" : "bg-white"
   }`;
@@ -2214,6 +2354,7 @@ export function CardInlineGeneratePanel({
     !cameraOrbitOpen &&
     !photoshootOpen &&
     !(isDock && dockExpanded);
+  const resultPrimary = resultPrimaryAction({ showCreditsCta });
   const showCameraOverlay =
     cameraOrbitOpen &&
     !photoshootOpen &&
@@ -2444,12 +2585,12 @@ export function CardInlineGeneratePanel({
       return;
     }
     if (
-      !isMobile &&
       phase === "done" &&
       resultUrl &&
       (previous === "generating" || previous === "uploading")
     ) {
       setDockPlateOpen(true);
+      setExpandedControl(null);
     }
   }, [
     cameraOrbitOpen,
@@ -2460,6 +2601,7 @@ export function CardInlineGeneratePanel({
     photoshootOpen,
     resultUrl,
     setDockPlateOpen,
+    setExpandedControl,
   ]);
 
   return (
@@ -2678,19 +2820,36 @@ export function CardInlineGeneratePanel({
                   },
                 ]
               : []),
-            {
-              id: "edit",
-              label: "Что изменить",
-              primary: true,
-              disabled: busy || Boolean(busyAction),
-              onClick: openPromptEditor,
-              icon: (
-                <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                  <path d="m4 20 4.2-1 10.6-10.6a2.1 2.1 0 0 0-3-3L5.2 16 4 20Z" strokeLinecap="round" strokeLinejoin="round" />
-                  <path d="m14.5 6.7 2.8 2.8" />
-                </svg>
-              ),
-            },
+            resultPrimary.kind === "credits"
+              ? {
+                  id: "credits",
+                  label: resultPrimary.label,
+                  primary: true,
+                  wrap: true,
+                  onClick: () => {
+                    reachYandexMetrikaGoal(YM_GOAL_PROMPT_CARD_GENERATION_PRICING);
+                    openPricing();
+                  },
+                  icon: (
+                    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                      <circle cx="12" cy="12" r="8.25" />
+                      <path d="M12 8v8M9.5 10.5h3.2a1.8 1.8 0 1 1 0 3.6H9.5" strokeLinecap="round" />
+                    </svg>
+                  ),
+                }
+              : {
+                  id: "edit",
+                  label: resultPrimary.label,
+                  primary: true,
+                  disabled: busy || Boolean(busyAction),
+                  onClick: openPromptEditor,
+                  icon: (
+                    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                      <path d="m4 20 4.2-1 10.6-10.6a2.1 2.1 0 0 0-3-3L5.2 16 4 20Z" strokeLinecap="round" strokeLinejoin="round" />
+                      <path d="m14.5 6.7 2.8 2.8" />
+                    </svg>
+                  ),
+                },
           ]}
         />
       ) : null}
@@ -2873,18 +3032,16 @@ export function CardInlineGeneratePanel({
             ? "hidden"
             : isDock
             ? // flex-1 only (no h-full) so footer actions stay inside the plate.
-              `min-h-0 flex-1 justify-end px-3 pb-0 ${
-                isMobile ? "pt-2" : "pt-3"
-              }`
+              "min-h-0 flex-1 justify-end px-3 pb-3 pt-3"
             : `relative z-10 flex-1 ${isMobile ? "px-3 py-3" : "px-3 py-2.5"}`
         }`}
       >
         <div
           className={`${
             isDock
-              ? "mt-auto flex w-full flex-col justify-end gap-2.5"
+              ? `mt-auto flex w-full flex-col justify-end ${composeBlockGap}`
               : dockTall
-                ? "mt-auto flex min-h-0 flex-1 flex-col justify-end gap-2.5"
+                ? `mt-auto flex min-h-0 flex-1 flex-col justify-end ${composeBlockGap}`
                 : "mt-auto space-y-3"
           }`}
         >
@@ -2913,12 +3070,15 @@ export function CardInlineGeneratePanel({
               : promptExpanded
               ? `${sheetPos} inset-x-0 bottom-0 top-[max(0.75rem,env(safe-area-inset-top))] z-50 flex min-h-0 flex-col rounded-t-3xl border border-transparent bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))] text-zinc-900 shadow-[0_-20px_60px_-24px_rgba(0,0,0,0.45)]`
               : isDock
-                ? `rounded-none border-0 bg-transparent px-1 py-0.5 text-white${
+                ? `rounded-none border-0 bg-transparent p-0 text-white${
                     // Sheets keep height; result chrome (rail / photoshoot / orbit) drops the strip.
                     dockExpanded
                       ? " invisible pointer-events-none"
-                      : showResultChrome
-                        ? "hidden"
+                      : resultChromeHidesPromptStrip({
+                            showResultChrome,
+                            promptExpanded,
+                          })
+                        ? " hidden"
                         : ""
                   }`
                 : showResultChrome
@@ -2947,7 +3107,7 @@ export function CardInlineGeneratePanel({
                 ) : (
                   <div className="mx-auto mb-2 h-1 w-9 shrink-0 rounded-full bg-zinc-300" aria-hidden />
                 )}
-                <div className="mb-2 flex min-h-11 shrink-0 items-center justify-between gap-3">
+                <div className="mb-3 flex min-h-11 shrink-0 items-center justify-between gap-3">
                   <h3 id="inline-prompt-editor-title" className="text-[13px] font-semibold">
                     Промпт
                   </h3>
@@ -3054,7 +3214,7 @@ export function CardInlineGeneratePanel({
               ) : (
                 <div className="mx-auto mb-2 h-1 w-9 shrink-0 rounded-full bg-zinc-300" aria-hidden />
               )}
-              <div className="mb-2 flex min-h-11 shrink-0 items-center justify-between gap-3">
+              <div className="mb-3 flex min-h-11 shrink-0 items-center justify-between gap-3">
                 <h3 id="inline-prompt-editor-title" className="text-[13px] font-semibold">
                   {resultUrl ? "Изменить картинку" : "Промпт"}
                 </h3>
@@ -3239,7 +3399,7 @@ export function CardInlineGeneratePanel({
             ) : (
               <div className="mx-auto mb-2 h-1 w-9 rounded-full bg-zinc-300" aria-hidden />
             )}
-            <div className="mb-2 flex min-h-11 shrink-0 items-center justify-between gap-3">
+            <div className="mb-3 flex min-h-11 shrink-0 items-center justify-between gap-3">
               <span
                 className={`text-[13px] font-semibold ${
                   dockPhotosExpanded ? "text-white" : "text-zinc-900"
@@ -3247,39 +3407,28 @@ export function CardInlineGeneratePanel({
               >
                 Ваши фото · {selectedPhotos.length}/{photoSelectionCap}
               </span>
-              {libraryLoading ? (
-                <span
-                  className={`text-[13px] font-medium ${
-                    dockPhotosExpanded ? "text-white/60" : "text-zinc-500"
-                  }`}
+              <button
+                type="button"
+                aria-label="Закрыть выбор фотографий"
+                onClick={closePrefsSheet}
+                className={
+                  dockPhotosExpanded
+                    ? dockSheetCloseBtn
+                    : `${OVERLAY_BUTTON_UA_RESET} flex h-11 w-11 items-center justify-center rounded-full bg-zinc-100 text-zinc-700 transition hover:bg-zinc-200`
+                }
+              >
+                <svg
+                  className="h-5 w-5"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  aria-hidden
                 >
-                  Загрузка…
-                </span>
-              ) : (
-                <button
-                  type="button"
-                  aria-label="Закрыть выбор фотографий"
-                  onClick={closePrefsSheet}
-                  className={
-                    dockPhotosExpanded
-                      ? dockSheetCloseBtn
-                      : `${OVERLAY_BUTTON_UA_RESET} flex h-11 w-11 items-center justify-center rounded-full bg-zinc-100 text-zinc-700 transition hover:bg-zinc-200`
-                  }
-                >
-                  <svg
-                    className="h-5 w-5"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    aria-hidden
-                  >
-                    <path d="m6 6 12 12M18 6 6 18" />
-                  </svg>
-                </button>
-              )}
+                  <path d="m6 6 12 12M18 6 6 18" />
+                </svg>
+              </button>
             </div>
-            {!libraryLoading ? (
               <section
                 aria-labelledby="generation-photo-guide-title"
                 className={
@@ -3322,7 +3471,7 @@ export function CardInlineGeneratePanel({
                     <div className="absolute inset-0 overflow-hidden rounded-2xl bg-zinc-800">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
-                        src="/generate/photo-guide-portrait.webp"
+                        src={PHOTO_GUIDE_PORTRAIT_SRC}
                         alt="Пример подходящего фото: одиночный студийный портрет с открытым лицом"
                         className="h-full w-full object-cover"
                       />
@@ -3337,9 +3486,14 @@ export function CardInlineGeneratePanel({
                   </p>
                 </div>
               </section>
-            ) : null}
-            <div className={isMobile || dockPhotosExpanded ? "shrink-0" : "contents"}>
-            <div className="flex gap-2 overflow-x-auto px-0.5 py-1">
+            <div
+              className={
+                isMobile || dockPhotosExpanded
+                  ? `mt-auto flex shrink-0 flex-col ${composeBlockGap}`
+                  : "contents"
+              }
+            >
+            <div className="flex gap-2 overflow-x-auto">
               <button
                 type="button"
                 onClick={(event) => {
@@ -3347,7 +3501,7 @@ export function CardInlineGeneratePanel({
                   event.stopPropagation();
                   fileInputRef.current?.click();
                 }}
-                disabled={controlsBusy || libraryLoading}
+                disabled={controlsBusy}
                 className={`${OVERLAY_BUTTON_UA_RESET} flex h-[4.75rem] w-[4.75rem] shrink-0 flex-col items-center justify-center rounded-xl border border-dashed text-center transition disabled:opacity-50 ${
                   dockPhotosExpanded
                     ? "border-white/25 bg-white/10 text-white hover:border-indigo-300 hover:bg-white/15"
@@ -3372,8 +3526,12 @@ export function CardInlineGeneratePanel({
                 return (
                   <div
                     key={photo.id}
-                    className={`group relative h-[4.75rem] w-[4.75rem] shrink-0 rounded-xl ring-2 transition ${
-                      selected ? "ring-indigo-300" : "ring-white/10"
+                    className={`group relative isolate h-[4.75rem] w-[4.75rem] shrink-0 overflow-hidden rounded-xl ${composeTileFrame} ${
+                      selected
+                        ? "after:border-indigo-300"
+                        : dockPhotosExpanded
+                          ? "after:border-white/25"
+                          : "after:border-zinc-300"
                     }`}
                   >
                     <button
@@ -3389,7 +3547,7 @@ export function CardInlineGeneratePanel({
                         <img
                           src={photo.previewUrl}
                           alt={photo.originalFilename || "Сохранённое фото"}
-                          className="h-full w-full object-cover"
+                          className="absolute inset-0 size-full object-cover object-center"
                         />
                       ) : (
                         <span className="flex h-full items-center justify-center text-[13px] font-medium text-zinc-400">
@@ -3431,7 +3589,7 @@ export function CardInlineGeneratePanel({
                 );
               })}
             </div>
-            {!isMobile && !libraryLoading && !photos.length ? (
+            {!isMobile && !photos.length ? (
               <p
                 className={`mt-2 shrink-0 text-[13px] font-medium ${
                   dockPhotosExpanded ? "text-white/65" : "text-zinc-600"
@@ -3448,8 +3606,8 @@ export function CardInlineGeneratePanel({
               type="button"
               onClick={closePrefsSheet}
               className={`${OVERLAY_BUTTON_UA_RESET} ${
-                dockPhotosExpanded && !isMobile ? "mt-auto" : "mt-3"
-              } flex min-h-12 w-full shrink-0 items-center justify-center rounded-2xl bg-indigo-600 px-4 py-3 text-[13px] font-semibold text-white transition hover:bg-indigo-700`}
+                isMobile || dockPhotosExpanded ? "" : "mt-3 "
+              }${composeSheetCta}`}
             >
               Готово
             </button>
@@ -3466,9 +3624,7 @@ export function CardInlineGeneratePanel({
             aria-label="Выбор модели"
             className={
               dockModelExpanded
-                ? isMobile
-                  ? `${dockSheetPanelBase} overflow-hidden`
-                  : `${dockSheetPanel} overflow-y-auto`
+                ? `${dockSheetPanelBase} overflow-hidden`
                 : isMobile
                   ? `${sheetPos} inset-0 z-50 flex h-full min-h-0 flex-col overflow-hidden bg-white p-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))] text-zinc-900`
                   : `${sheetPos} inset-x-0 bottom-0 z-50 max-h-[min(82dvh,44rem)] overflow-y-auto rounded-t-3xl bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))] text-zinc-900 shadow-[0_-20px_60px_-24px_rgba(0,0,0,0.45)]`
@@ -3476,7 +3632,7 @@ export function CardInlineGeneratePanel({
           >
             <div
               className={
-                isMobile
+                isMobile || dockModelExpanded
                   ? "flex h-full min-h-0 w-full flex-col"
                   : "contents"
               }
@@ -3493,7 +3649,7 @@ export function CardInlineGeneratePanel({
             ) : (
               <div className="mx-auto mb-2 h-1 w-9 rounded-full bg-zinc-300" aria-hidden />
             )}
-            <div className="mb-2 flex min-h-11 shrink-0 items-center justify-between gap-3">
+            <div className="mb-3 flex min-h-11 shrink-0 items-center justify-between gap-3">
               <span
                 className={`text-[13px] font-semibold ${
                   dockModelExpanded ? "text-white" : "text-zinc-900"
@@ -3525,77 +3681,32 @@ export function CardInlineGeneratePanel({
             </div>
             <div
               className={
-                isMobile
-                  ? "min-h-0 flex-1 overflow-y-auto overscroll-contain px-0.5 pt-1 pb-1"
+                isMobile || dockModelExpanded
+                  ? `mt-auto flex min-h-0 shrink-0 flex-col ${composeBlockGap}`
                   : "contents"
               }
             >
             {!videoCompose ? (
             <div className="grid shrink-0 grid-cols-2 gap-2">
               {models.map((item) => {
-                const selected = model === item.id;
-                const display = GENERATION_MODEL_DISPLAY[item.id];
                 const unaffordable =
                   isAuthed && credits !== null && credits < item.cost;
                 return (
-                  <button
+                  <ComposeModelChoiceCard
                     key={item.id}
-                    type="button"
-                    aria-pressed={selected}
-                    aria-disabled={unaffordable || undefined}
-                    disabled={controlsBusy}
-                    title={
-                      unaffordable
-                        ? "Не хватает кредитов"
-                        : display?.description || item.label
+                    modelId={item.id}
+                    label={displayLabelForGenerationModel(item.id, item.label)}
+                    description={
+                      GENERATION_MODEL_DISPLAY[item.id]?.description ||
+                      "Генерация изображений"
                     }
+                    cost={item.cost}
+                    selected={model === item.id}
+                    unaffordable={unaffordable}
+                    disabled={controlsBusy}
+                    dockChrome={dockModelExpanded}
                     onClick={() => selectImageModel(item.id)}
-                    className={`${OVERLAY_BUTTON_UA_RESET} relative flex min-h-20 min-w-0 items-center gap-3 rounded-xl p-3 text-left ring-2 transition ${
-                      dockModelExpanded
-                        ? selected
-                          ? "bg-white/15 text-white ring-indigo-300 shadow-sm"
-                          : "bg-white/5 text-white ring-white/10 hover:bg-white/10 hover:ring-white/25"
-                        : selected
-                          ? "bg-indigo-50 text-zinc-900 ring-indigo-500 shadow-sm"
-                          : "bg-zinc-100 text-zinc-900 ring-zinc-200 hover:bg-zinc-200 hover:ring-zinc-300"
-                    } ${unaffordable ? "opacity-90" : ""} disabled:opacity-50`}
-                  >
-                    <span
-                      aria-hidden
-                      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full shadow-sm ${
-                        dockModelExpanded ? "bg-white/90" : "bg-white"
-                      }`}
-                    >
-                      <GenerationModelIcon modelId={item.id} />
-                    </span>
-                    <span className="min-w-0 flex-1 pr-9">
-                      <span className="block truncate text-[13px] font-semibold leading-tight">
-                        {displayLabelForGenerationModel(item.id, item.label)}
-                      </span>
-                      {unaffordable ? (
-                        <span
-                          className={`mt-1 block text-[13px] font-semibold leading-tight ${
-                            dockModelExpanded ? "text-rose-400" : "text-rose-600"
-                          }`}
-                        >
-                          Не хватает кредитов
-                        </span>
-                      ) : (
-                        <span
-                          className={`mt-1 block line-clamp-2 text-[13px] font-medium leading-tight ${
-                            dockModelExpanded ? "text-white/60" : "text-zinc-500"
-                          }`}
-                        >
-                          {display?.description || "Генерация изображений"}
-                        </span>
-                      )}
-                    </span>
-                    <GenerationCreditCostBadge
-                      cost={item.cost}
-                      unaffordable={unaffordable}
-                      className="absolute right-1.5 top-1.5"
-                    />
-                  </button>
+                  />
                 );
               })}
             </div>
@@ -3604,7 +3715,6 @@ export function CardInlineGeneratePanel({
               <>
                 <div className="grid shrink-0 grid-cols-2 gap-2">
                   {videoModels.map((item) => {
-                    const selected = activeVideoModel?.id === item.id;
                     const itemCost = calculateVideoCreditCost(
                       item.cost,
                       videoDurationSeconds,
@@ -3612,65 +3722,22 @@ export function CardInlineGeneratePanel({
                     );
                     const unaffordable =
                       isAuthed && credits !== null && credits < itemCost;
-                    const description = displayDescriptionForGenerationModel(
-                      item.id,
-                      "Видео из фото"
-                    );
                     return (
-                      <button
+                      <ComposeModelChoiceCard
                         key={item.id}
-                        type="button"
-                        aria-pressed={selected}
-                        aria-disabled={unaffordable || undefined}
+                        modelId={item.id}
+                        label={displayLabelForGenerationModel(item.id, item.label)}
+                        description={displayDescriptionForGenerationModel(
+                          item.id,
+                          "Видео из фото"
+                        )}
+                        cost={itemCost}
+                        selected={activeVideoModel?.id === item.id}
+                        unaffordable={unaffordable}
                         disabled={controlsBusy}
-                        title={unaffordable ? "Не хватает кредитов" : description}
+                        dockChrome={dockModelExpanded}
                         onClick={() => selectVideoModel(item.id)}
-                        className={`${OVERLAY_BUTTON_UA_RESET} relative flex min-h-20 min-w-0 items-center gap-3 rounded-xl p-3 text-left ring-2 transition ${
-                          dockModelExpanded
-                            ? selected
-                              ? "bg-white/15 text-white ring-indigo-300 shadow-sm"
-                              : "bg-white/5 text-white ring-white/10 hover:bg-white/10 hover:ring-white/25"
-                            : selected
-                              ? "bg-indigo-50 text-zinc-900 ring-indigo-500 shadow-sm"
-                              : "bg-zinc-100 text-zinc-900 ring-zinc-200 hover:bg-zinc-200 hover:ring-zinc-300"
-                        } ${unaffordable ? "opacity-90" : ""} disabled:opacity-50`}
-                      >
-                        <span
-                          aria-hidden
-                          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full shadow-sm ${
-                            dockModelExpanded ? "bg-white/90" : "bg-white"
-                          }`}
-                        >
-                          <GenerationModelIcon modelId={item.id} />
-                        </span>
-                        <span className="min-w-0 flex-1 pr-9">
-                          <span className="block truncate text-[13px] font-semibold leading-tight">
-                            {displayLabelForGenerationModel(item.id, item.label)}
-                          </span>
-                          {unaffordable ? (
-                            <span
-                              className={`mt-1 block text-[13px] font-semibold leading-tight ${
-                                dockModelExpanded ? "text-rose-400" : "text-rose-600"
-                              }`}
-                            >
-                              Не хватает кредитов
-                            </span>
-                          ) : (
-                            <span
-                              className={`mt-1 block line-clamp-2 text-[13px] font-medium leading-tight ${
-                                dockModelExpanded ? "text-white/60" : "text-zinc-500"
-                              }`}
-                            >
-                              {description}
-                            </span>
-                          )}
-                        </span>
-                        <GenerationCreditCostBadge
-                          cost={itemCost}
-                          unaffordable={unaffordable}
-                          className="absolute right-1.5 top-1.5"
-                        />
-                      </button>
+                      />
                     );
                   })}
                 </div>
@@ -3678,7 +3745,7 @@ export function CardInlineGeneratePanel({
             ) : null}
             {videoCompose ? (
               <>
-                <div className="mt-3 grid shrink-0 grid-cols-2 gap-2">
+                <div className={`${isMobile || dockModelExpanded ? "" : "mt-3 "}grid shrink-0 grid-cols-3 gap-2`}>
                   <label className="block min-w-0">
                     <span
                       className={`mb-1 block text-[13px] font-medium ${
@@ -3737,7 +3804,7 @@ export function CardInlineGeneratePanel({
                       })}
                     </select>
                   </label>
-                  <label className="col-span-2 block min-w-0">
+                  <label className="block min-w-0">
                     <span
                       className={`mb-1 block text-[13px] font-medium ${
                         dockModelExpanded ? "text-white/65" : "text-zinc-600"
@@ -3765,7 +3832,7 @@ export function CardInlineGeneratePanel({
               </>
             ) : (
               <>
-            <div className="mt-3 grid shrink-0 grid-cols-2 gap-2">
+            <div className={`${isMobile || dockModelExpanded ? "" : "mt-3 "}grid shrink-0 grid-cols-2 gap-2`}>
               <label className="block min-w-0">
                 <span
                   className={`mb-1 block text-[13px] font-medium ${
@@ -3819,16 +3886,16 @@ export function CardInlineGeneratePanel({
             </div>
               </>
             )}
-            </div>
             <button
               type="button"
               onClick={closePrefsSheet}
               className={`${OVERLAY_BUTTON_UA_RESET} ${
-                dockModelExpanded && !isMobile ? "mt-auto" : "mt-3"
-              } flex min-h-12 w-full shrink-0 items-center justify-center rounded-2xl bg-indigo-600 px-4 py-3 text-[13px] font-semibold text-white transition hover:bg-indigo-700`}
+                isMobile || dockModelExpanded ? "" : "mt-3 "
+              }${composeSheetCta}`}
             >
               Готово
             </button>
+            </div>
             </div>
           </div>
         ) : null}
@@ -3837,7 +3904,7 @@ export function CardInlineGeneratePanel({
         <section
           className={`shrink-0 ${
             isDock
-              ? `rounded-none border-0 bg-transparent p-1${
+              ? `rounded-none border-0 bg-transparent p-0${
                   dockExpanded ? " invisible pointer-events-none" : ""
                 }`
               : `rounded-2xl border p-2 ${
@@ -3848,7 +3915,7 @@ export function CardInlineGeneratePanel({
           }`}
           aria-hidden={isDock && dockExpanded ? true : undefined}
         >
-          <div className="flex items-start gap-2 overflow-x-auto overscroll-x-contain px-0.5 py-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="flex items-start gap-2 overflow-x-auto overscroll-x-contain [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <button
               type="button"
               aria-expanded={expandedControl === "photos"}
@@ -4044,15 +4111,18 @@ export function CardInlineGeneratePanel({
       </div>
 
       <footer
-        className={`relative z-20 shrink-0 p-3 ${
+        className={`relative z-20 shrink-0 ${
           hideComposeChrome
           || promptExpanded
           || (isDock && dockExpanded)
-          || ((showResultActions || showPhotoPromptResult) && !showCreditsCta)
+          || resultChromeHidesComposeFooter({
+            showResultActions,
+            showPhotoPromptResult,
+          })
             ? "hidden"
             : isDock
-            ? "mt-auto border-0 bg-transparent pb-3"
-            : `pb-[max(0.75rem,env(safe-area-inset-bottom))] ${
+            ? "border-0 bg-transparent px-3 pb-3"
+            : `p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] ${
                 showResultChrome
                   ? "border-transparent bg-transparent"
                   : "border-t border-zinc-200 bg-white/90 backdrop-blur-md"
@@ -4181,11 +4251,13 @@ export function CardInlineGeneratePanel({
                     ? composePhotoPromptBusyLabel(progress)
                     : `Генерируем · ${Math.round(progress)}%`
                   : photoshootCompose && !photoshootLibraryFrame
-                    ? "Выберите фото"
+                    ? composeNeedsPhotoCtaLabel("photoshoot", { isAuthed })
                   : photoPromptCompose && !photoPromptHasSource
                     ? (
                       <>
-                        <span className="shrink-0">Выберите фото</span>
+                        <span className="shrink-0">
+                          {composeNeedsPhotoCtaLabel("photo_prompt", { isAuthed })}
+                        </span>
                         {composeCtaGuestQuotaPill}
                       </>
                     )

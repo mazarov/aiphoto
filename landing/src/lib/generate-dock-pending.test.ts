@@ -149,8 +149,10 @@ test("auth-return dock seed uses overlay intent when pending is gone", () => {
       cardId: null,
       intent: "photo_prompt",
     },
-    dockSurface: null,
+    dockSurface: "photos",
   });
+  assert.deepEqual(seedForAuthReturnDock("photoshoot", null).dockSurface, "photos");
+  assert.deepEqual(seedForAuthReturnDock("resume", null).dockSurface, null);
 });
 
 test("parsePendingGenerateDock rejects malformed payloads", () => {

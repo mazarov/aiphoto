@@ -2,10 +2,13 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   isFotoVPromtDockPath,
+  isFotosessiiGenerateDockPath,
   isGenerateDockListingPath,
   isGenerateDockSeoPagePath,
+  isLegacyPromtyDlyaIiFotosessiiDockPath,
   listingGenerateIdleIntent,
   normalizeGenerateDockPath,
+  shouldPrefetchGenerateDockPanel,
 } from "./generate-dock-path";
 
 test("normalizeGenerateDockPath strips trailing slash", () => {
@@ -32,7 +35,18 @@ test("foto-v-promt FAB seeds photo_prompt, fotosessii seeds photoshoot", () => {
   assert.equal(listingGenerateIdleIntent("/foto-v-promt"), "photo_prompt");
   assert.equal(listingGenerateIdleIntent("/ii-fotosessiya"), "photoshoot");
   assert.equal(listingGenerateIdleIntent("/ii-fotosessiya/zhenskie"), "photoshoot");
+  assert.equal(listingGenerateIdleIntent("/promty-dlya-ii-fotosessii"), "photoshoot");
+  assert.equal(
+    listingGenerateIdleIntent("/promty-dlya-ii-fotosessii/zhenskie/"),
+    "photoshoot",
+  );
   assert.equal(listingGenerateIdleIntent("/"), null);
+  assert.equal(isFotosessiiGenerateDockPath("/ii-fotosessiya/"), true);
+  assert.equal(isLegacyPromtyDlyaIiFotosessiiDockPath("/promty-dlya-ii-fotosessii"), true);
+  assert.equal(isLegacyPromtyDlyaIiFotosessiiDockPath("/ii-fotosessiya"), false);
+  assert.equal(shouldPrefetchGenerateDockPanel("/foto-v-promt"), true);
+  assert.equal(shouldPrefetchGenerateDockPanel("/ii-fotosessiya/zhenskie"), true);
+  assert.equal(shouldPrefetchGenerateDockPanel("/"), false);
 });
 
 test("isGenerateDockListingPath includes foto-v-promt and analyses", () => {

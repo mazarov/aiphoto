@@ -1,10 +1,12 @@
 # Мгновенное открытие инструментов в generate dock
 
 > **Дата:** 2026-08-31  
-> **Статус:** требования (не реализовано)  
-> **Ветка:** `feature/31-08-ii-fotosessiya`  
+> **Статус:** реализовано (P0+P1); P2 split hydrate — follow-up  
+> **Ветка:** `feature/31-08-generate-dock-instant-compose`  
 > **Роль:** `@high-scale-architect`  
 > **Связано:** `docs/31-08-ii-fotosessiya.md`, `docs/30-08-foto-v-promt-generation-modal.md`, `docs/architecture/01-landing.md`
+
+Дополнительный сценарий из `feature/30-08-fotosessii-compose-default`: чип **«ИИ фотосессия»**, гость без фото — **«Загрузите фото»**, enqueue из одного library-фото без parent (`sql/230_photoshoot_from_library.sql`), idle intent/CTA на legacy `/promty-dlya-ii-fotosessii*` как на `/ii-fotosessiya*`.
 
 ---
 
@@ -111,6 +113,7 @@ Intent в `GenerateDockContext` ставится мгновенно; **UI реж
 
 1. На mount страниц `/ii-fotosessiya*`, `/foto-v-promt` — `import("@/components/CardInlineGeneratePanel")` в `requestIdleCallback` / после LCP.
 2. Тот же prefetch — `GET /api/generation-config?modality=image` с записью `photoshoot-enabled` в sessionStorage.
+3. На любом listing-dock — `GET /api/user-generation-photos` в тот же idle-слот (`prefetchUserPhotoLibrary`): sessionStorage + decode preview. Шторка «Ваши фото» открывается с уже лежащими на фронте превью; гид (`photo-guide-portrait.webp`) и ряд «Добавить» + «Готово» прибиты вниз с первого кадра и не прыгают, когда hydrate догоняет.
 
 ### 4.3 P2 — split hydrate
 
@@ -129,22 +132,29 @@ Intent в `GenerateDockContext` ставится мгновенно; **UI реж
 
 ### 5.1 ИИ фотосессия
 
-- [ ] Mobile tab «Создать ИИ фотосессию» на `/ii-fotosessiya`: plate открыт, плитка «Фотосессия» pressed с первого кадра панели.
-- [ ] HowTo «Загрузить фото»: шторка «Ваши фото» открыта (или skeleton списка, не смена режима).
-- [ ] Нет FOUC «Фото» → «Фотосессия» при cold load без sessionStorage cache.
-- [ ] При `photoshoot_enabled=false` плитка исчезает после config; CTA на лендинге ведёт в fallback (текст/скрытие — отдельная задача).
+- [x] Mobile tab «Создать ИИ фотосессию» на `/ii-fotosessiya`: plate открыт, плитка «ИИ фотосессия» pressed с первого кадра панели.
+- [x] HowTo «Загрузить фото»: шторка «Ваши фото» открыта (гид + низ сразу; превью из cache, не skeleton).
+- [x] Нет FOUC «Фото» → «ИИ фотосессия» при cold load без sessionStorage cache.
+- [x] При `photoshoot_enabled=false` плитка исчезает после config; CTA на лендинге ведёт в fallback (текст/скрытие — отдельная задача).
 
 ### 5.2 Фото в промт
 
-- [ ] Tab «Создать промт по фото» на `/foto-v-promt`: плитка «Промт по фото» pressed с первого кадра.
-- [ ] Шторка «Ваши фото» открыта при входе с tab (если принят вариант A §3.3).
-- [ ] Загрузка файла с лендинга по-прежнему стартует analyze без регрессии.
+- [x] Tab «Создать промт по фото» на `/foto-v-promt`: плитка «Промт по фото» pressed с первого кадра.
+- [x] Шторка «Ваши фото» открыта при входе с tab (вариант A §3.3).
+- [x] Загрузка файла с лендинга по-прежнему стартует analyze без регрессии.
 
 ### 5.3 Регрессии
 
-- [ ] `/generaciya-foto`, `/`, `/trends` — blank dock и `intent=resume` без изменений.
-- [ ] Card «Повторить» — `seedFromCard`, не photoshoot/photo_prompt.
-- [ ] Тесты: `generate-dock-seed.test.ts`, `generate-dock-path.test.ts`, `generate-dock-pending.test.ts` обновлены.
+- [x] `/generaciya-foto`, `/`, `/trends` — blank dock и `intent=resume` без изменений.
+- [x] Card «Повторить» — `seedFromCard`, не photoshoot/photo_prompt.
+- [x] Тесты: `generate-dock-seed.test.ts`, `generate-dock-path.test.ts`, `generate-dock-pending.test.ts` обновлены.
+- [x] После `done` tab/FAB на `/ii-fotosessiya*` показывают последний кадр, не пустую шторку «Ваши фото». `lastDockResult` в контексте; dismiss только X / «Повторить» / delete.
+
+### 5.4 Compose-default (влито)
+
+- [x] Чип и rail: «ИИ фотосессия»; гость без фото — «Загрузите фото».
+- [x] Legacy `/promty-dlya-ii-fotosessii*` держит тот же idle intent/CTA, что `/ii-fotosessiya*`.
+- [x] `landing_enqueue_generation` принимает photoshoot без parent при ровно одном `input_photo_paths` (SQL `230`).
 
 ---
 

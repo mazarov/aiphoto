@@ -74,8 +74,7 @@ export function PromtyDlyaIiFotosessiiHowTo({
       return;
     }
     seedPhotoshoot({
-      entrySource: "route",
-      dockSurface: "photos",
+      entrySource: "howto",
     });
   };
 

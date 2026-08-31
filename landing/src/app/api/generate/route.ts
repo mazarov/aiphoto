@@ -977,6 +977,9 @@ export async function POST(req: NextRequest) {
         enqueueError?.message?.includes("parent_generation_not_ready") ||
         enqueueError?.message?.includes("parent_generation_not_image");
       const photoshootFromSheet = enqueueError?.message?.includes("photoshoot_from_sheet");
+      const photoshootSourceInvalid =
+        enqueueError?.message?.includes("photoshoot_incomplete") ||
+        enqueueError?.message?.includes("photoshoot_source_conflict");
       const { data: userRow } = insufficient
         ? await supabase
             .from("landing_users")
@@ -1020,6 +1023,15 @@ export async function POST(req: NextRequest) {
           {
             error: "photoshoot_from_sheet",
             message: "Фотосессию нельзя снять с готового листа",
+          },
+          { status: 400 }
+        );
+      }
+      if (photoshootSourceInvalid) {
+        return NextResponse.json(
+          {
+            error: "validation_error",
+            message: "Для фотосессии выберите одно фото",
           },
           { status: 400 }
         );

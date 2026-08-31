@@ -18,6 +18,7 @@ import { OVERLAY_BUTTON_UA_RESET } from "@/lib/card-overlay-action-pill";
 import { isPrimaryOverlayDismissPointer } from "@/lib/generate-compose-job";
 import { COMPOSE_BUY_CREDITS_CTA } from "@/lib/generate-compose-mode";
 import { listingGenerateIdleIntent } from "@/lib/generate-dock-path";
+import { scheduleGenerateDockPrefetch } from "@/lib/generate-dock-prefetch";
 import { listingGenerateIdleCta } from "@/lib/promty-dlya-ii-fotosessii-cluster";
 import {
   reachYandexMetrikaGoal,
@@ -90,6 +91,11 @@ export function GenerateListingDockHost() {
     setPortalEl(document.body);
   }, []);
 
+  useEffect(
+    () => scheduleGenerateDockPrefetch(pathname, isAuthed ? user?.id ?? null : null),
+    [isAuthed, pathname, user?.id],
+  );
+
   useEffect(() => {
     setListingChromeAutoHideBlocked(plateOpen);
     return () => setListingChromeAutoHideBlocked(false);
@@ -157,15 +163,15 @@ export function GenerateListingDockHost() {
     }
     const idleIntent = listingGenerateIdleIntent(pathname);
     if (idleIntent === "photo_prompt") {
-      seedBlankPrompt("", { entrySource: "tab", intent: "photo_prompt" });
+      seedBlankPrompt("", { entrySource: "fab", intent: "photo_prompt" });
       return;
     }
     if (idleIntent === "photoshoot") {
-      seedPhotoshoot({ entrySource: "tab" });
+      seedPhotoshoot({ entrySource: "fab" });
       return;
     }
-    focusBlank({ entrySource: "tab" });
-  }, [focusBlank, needsCredits, openPricing, pathname, seedBlankPrompt]);
+    focusBlank({ entrySource: "fab" });
+  }, [focusBlank, needsCredits, openPricing, pathname, seedBlankPrompt, seedPhotoshoot]);
 
   if (!isGenerateDockListingPath(pathname)) return null;
 

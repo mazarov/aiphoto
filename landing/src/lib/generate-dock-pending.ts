@@ -1,5 +1,6 @@
 import {
   DEFAULT_GENERATE_DOCK_SEED,
+  defaultDockSurfaceForComposeEntry,
   photoshootTileUrlsFromUnknown,
   type GenerateDockComposeIntent,
   type GenerateDockSeed,
@@ -94,7 +95,7 @@ export function seedForAuthReturnDock(
   if (!pending) {
     return {
       seed: { ...DEFAULT_GENERATE_DOCK_SEED, intent },
-      dockSurface: null,
+      dockSurface: defaultDockSurfaceForComposeEntry(intent, "tab"),
     };
   }
   return stripPendingGenerateDock({

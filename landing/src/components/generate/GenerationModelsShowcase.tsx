@@ -7,9 +7,7 @@ import {
   type GenerationModelOption,
 } from "@/lib/generation-model-labels";
 import { useGenerateDock } from "@/context/GenerateDockContext";
-import { OVERLAY_BUTTON_UA_RESET } from "@/lib/card-overlay-action-pill";
-import { GenerationCreditCostBadge } from "@/components/generate/GenerationCreditCostBadge";
-import { GenerationModelIcon } from "@/components/generate/GenerationModelIcon";
+import { ComposeModelChoiceCard } from "@/components/generate/ComposeModelChoiceCard";
 import {
   GF_BLOCK,
   GF_EYEBROW,
@@ -49,47 +47,24 @@ export function GenerationModelsShowcase({
         {models.map((item) => {
           const selected = selectedModelId === item.id;
           const display = GENERATION_MODEL_DISPLAY[item.id];
-          const label = displayLabelForGenerationModel(item.id, item.label);
 
           return (
-            <button
-              key={item.id}
-              type="button"
-              role="listitem"
-              aria-pressed={selected}
-              title={display?.description || item.label}
-              onClick={() => {
-                requestModelSelection(item.id, {
-                  entrySource: "route",
-                  dockSurface: "model",
-                });
-                setSelectedModelId(item.id);
-              }}
-              className={`${OVERLAY_BUTTON_UA_RESET} relative flex min-h-20 min-w-0 items-center gap-3 rounded-xl p-3 text-left ring-2 transition ${
-                selected
-                  ? "bg-indigo-50 text-zinc-900 ring-indigo-500 shadow-sm"
-                  : "bg-zinc-100 text-zinc-900 ring-zinc-200 hover:bg-zinc-200 hover:ring-zinc-300"
-              }`}
-            >
-              <span
-                aria-hidden
-                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white shadow-sm"
-              >
-                <GenerationModelIcon modelId={item.id} />
-              </span>
-              <span className="min-w-0 flex-1 pr-9">
-                <span className="block truncate text-[13px] font-semibold leading-tight">
-                  {label}
-                </span>
-                <span className="mt-1 block line-clamp-2 text-[13px] font-medium leading-tight text-zinc-500">
-                  {display?.description || "Генерация изображений"}
-                </span>
-              </span>
-              <GenerationCreditCostBadge
+            <div key={item.id} role="listitem">
+              <ComposeModelChoiceCard
+                modelId={item.id}
+                label={displayLabelForGenerationModel(item.id, item.label)}
+                description={display?.description || "Генерация изображений"}
                 cost={item.cost}
-                className="absolute right-1.5 top-1.5"
+                selected={selected}
+                onClick={() => {
+                  requestModelSelection(item.id, {
+                    entrySource: "route",
+                    dockSurface: "model",
+                  });
+                  setSelectedModelId(item.id);
+                }}
               />
-            </button>
+            </div>
           );
         })}
       </div>

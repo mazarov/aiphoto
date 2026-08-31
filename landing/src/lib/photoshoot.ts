@@ -6,7 +6,7 @@ export const PHOTOSHOOT_IMAGE_SIZE = "2K";
 export const PHOTOSHOOT_FRAME_COUNT = 4;
 /** Product price for one photoshoot job. Independent of photoshoot_model picker cost. */
 export const PHOTOSHOOT_CREDIT_COST = 15;
-export const PHOTOSHOOT_CTA_LABEL = "Фотосессия";
+export const PHOTOSHOOT_CTA_LABEL = "ИИ фотосессия";
 export const PHOTOSHOOT_CTA_DETAIL = `${PHOTOSHOOT_FRAME_COUNT} фото`;
 export const PHOTOSHOOT_ENQUEUE_INSTRUCTION = "PHOTOSHOOT";
 

@@ -17,13 +17,14 @@ test("hub snippet owns the commercial photoshoot head", () => {
     PROMTY_DLYA_II_FOTOSESSII_SEO.metaTitle,
     "ИИ фотосессия по фото онлайн | PromptShot"
   );
-  assert.equal(PROMTY_DLYA_II_FOTOSESSII_SEO.h1, "ИИ фотосессия по своему фото");
+  assert.equal(PROMTY_DLYA_II_FOTOSESSII_SEO.h1, "ИИ фотосессия по фото");
   assert.equal(
     PROMTY_DLYA_II_FOTOSESSII_SEO.metaDescription,
     "ИИ фотосессия по своему фото: серия кадров в одном стиле. Загрузи одно фото и собери съёмку онлайн — без студии и фотографа."
   );
   assert.match(PROMTY_DLYA_II_FOTOSESSII_SEO.metaTitle, /по фото онлайн/i);
-  assert.match(PROMTY_DLYA_II_FOTOSESSII_SEO.h1, /по своему фото/i);
+  assert.match(PROMTY_DLYA_II_FOTOSESSII_SEO.h1, /по фото/i);
+  assert.doesNotMatch(PROMTY_DLYA_II_FOTOSESSII_SEO.h1, /своему/i);
   assert.doesNotMatch(PROMTY_DLYA_II_FOTOSESSII_SEO.metaTitle, /промты|бесплатн/i);
   assert.doesNotMatch(PROMTY_DLYA_II_FOTOSESSII_SEO.h1, /промты|сделать фото ии/i);
   assert.equal(

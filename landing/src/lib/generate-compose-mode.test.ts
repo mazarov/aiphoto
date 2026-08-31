@@ -6,10 +6,18 @@ import {
   canEnqueueWhilePhotoshootSelected,
   COMPOSE_BUY_CREDITS_CTA,
   COMPOSE_BUY_CREDITS_CTA_COMPACT,
+  COMPOSE_EDIT_RESULT_CTA,
+  resultChromeHidesComposeFooter,
+  resultChromeHidesPromptStrip,
+  resultPrimaryAction,
   COMPOSE_GUEST_SIGN_IN_CTA,
   composeGenerateCtaLabel,
   composeGenerateCtaShowsModelName,
+  composeModeFromDockIntent,
   composeModeTileLabel,
+  composeNeedsPhotoCtaLabel,
+  COMPOSE_GUEST_UPLOAD_PHOTO_CTA,
+  COMPOSE_SELECT_PHOTO_CTA,
   composeModeTileSheet,
   nextComposeModeTileSheet,
   promptModalityForComposeMode,
@@ -109,7 +117,7 @@ test("library frame is the selected «Ваши фото» tile, not a generation
 test("compose tiles and generate CTA follow the selected block", () => {
   assert.equal(composeModeTileLabel("image"), "Фото");
   assert.equal(composeModeTileLabel("video"), "Видео");
-  assert.equal(composeModeTileLabel("photoshoot"), "Фотосессия");
+  assert.equal(composeModeTileLabel("photoshoot"), "ИИ фотосессия");
   assert.equal(composeModeTileLabel("photo_prompt"), "Промт по фото");
   assert.equal(composeGenerateCtaLabel("image"), "Создать фото");
   assert.equal(composeGenerateCtaLabel("video"), "Создать видео");
@@ -128,6 +136,48 @@ test("compose tiles and generate CTA follow the selected block", () => {
   assert.equal(composeGenerateCtaShowsModelName("image", { isAuthed: false }), false);
   assert.equal(COMPOSE_BUY_CREDITS_CTA, "Купить кредиты для создания фото");
   assert.equal(COMPOSE_BUY_CREDITS_CTA_COMPACT, "Купить кредиты");
+  assert.equal(COMPOSE_EDIT_RESULT_CTA, "Что изменить");
+  assert.equal(
+    resultChromeHidesPromptStrip({ showResultChrome: true, promptExpanded: false }),
+    true,
+  );
+  assert.equal(
+    resultChromeHidesPromptStrip({ showResultChrome: true, promptExpanded: true }),
+    false,
+  );
+  assert.equal(
+    resultChromeHidesComposeFooter({
+      showResultActions: true,
+      showPhotoPromptResult: false,
+    }),
+    true,
+  );
+  assert.deepEqual(resultPrimaryAction({ showCreditsCta: true }), {
+    kind: "credits",
+    label: COMPOSE_BUY_CREDITS_CTA_COMPACT,
+  });
+  assert.deepEqual(resultPrimaryAction({ showCreditsCta: false }), {
+    kind: "edit",
+    label: COMPOSE_EDIT_RESULT_CTA,
+  });
+  assert.equal(composeNeedsPhotoCtaLabel("photoshoot"), COMPOSE_SELECT_PHOTO_CTA);
+  assert.equal(
+    composeNeedsPhotoCtaLabel("photoshoot", { isAuthed: true }),
+    COMPOSE_SELECT_PHOTO_CTA,
+  );
+  assert.equal(
+    composeNeedsPhotoCtaLabel("photoshoot", { isAuthed: false }),
+    COMPOSE_GUEST_UPLOAD_PHOTO_CTA,
+  );
+  assert.equal(
+    composeNeedsPhotoCtaLabel("photo_prompt", { isAuthed: false }),
+    COMPOSE_SELECT_PHOTO_CTA,
+  );
+  assert.equal(composeModeFromDockIntent("photoshoot"), "photoshoot");
+  assert.equal(composeModeFromDockIntent("photo_prompt"), "photo_prompt");
+  assert.equal(composeModeFromDockIntent("animate"), "video");
+  assert.equal(composeModeFromDockIntent("resume"), "image");
+  assert.equal(composeModeFromDockIntent("text"), "image");
 });
 
 test("image and video tiles toggle the model sheet; photoshoot is select-only", () => {

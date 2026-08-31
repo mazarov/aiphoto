@@ -112,17 +112,38 @@ export function composeModeTileSheet(
 /** Mode tile caption. Preview photo stays on «Ваши фото», not on these tiles. */
 export function composeModeTileLabel(mode: GenerateComposeMode): string {
   if (mode === "video") return "Видео";
-  if (mode === "photoshoot") return "Фотосессия";
+  if (mode === "photoshoot") return "ИИ фотосессия";
   if (mode === "photo_prompt") return "Промт по фото";
   return "Фото";
 }
 
+/** Dock seed → first compose chip. resume / text / result stay on photo. */
+export function composeModeFromDockIntent(intent: string): GenerateComposeMode {
+  if (intent === "animate") return "video";
+  if (intent === "photo_prompt") return "photo_prompt";
+  if (intent === "photoshoot") return "photoshoot";
+  return "image";
+}
+
 /** Guest footer CTA: pick photo/video first, sign in only on enqueue. */
 export const COMPOSE_GUEST_SIGN_IN_CTA = "Войдите";
+export const COMPOSE_SELECT_PHOTO_CTA = "Выберите фото";
+export const COMPOSE_GUEST_UPLOAD_PHOTO_CTA = "Загрузите фото";
 
 export type ComposeGenerateCtaOptions = {
   isAuthed?: boolean;
 };
+
+/** Footer when the selected tool still needs a source photo. */
+export function composeNeedsPhotoCtaLabel(
+  mode: GenerateComposeMode,
+  options?: ComposeGenerateCtaOptions,
+): string {
+  if (mode === "photoshoot" && options?.isAuthed === false) {
+    return COMPOSE_GUEST_UPLOAD_PHOTO_CTA;
+  }
+  return COMPOSE_SELECT_PHOTO_CTA;
+}
 
 /** Idle footer CTA for the selected compose block. */
 export function composeGenerateCtaLabel(
@@ -138,9 +159,36 @@ export function composeGenerateCtaLabel(
   return "Создать фото";
 }
 
-/** Paywall CTA: next action, not an error. Compact label is for the mobile tab. */
+/** Paywall CTA: next action, not an error. Compact label is for the mobile tab and result rail. */
 export const COMPOSE_BUY_CREDITS_CTA = "Купить кредиты для создания фото";
 export const COMPOSE_BUY_CREDITS_CTA_COMPACT = "Купить кредиты";
+export const COMPOSE_EDIT_RESULT_CTA = "Что изменить";
+
+/** Collapsed prompt strip is off on the result plate until the editor sheet opens. */
+export function resultChromeHidesPromptStrip(input: {
+  showResultChrome: boolean;
+  promptExpanded: boolean;
+}): boolean {
+  return input.showResultChrome && !input.promptExpanded;
+}
+
+/** Result plate: no compose footer — paywall replaces rail «Что изменить». */
+export function resultChromeHidesComposeFooter(input: {
+  showResultActions: boolean;
+  showPhotoPromptResult: boolean;
+}): boolean {
+  return input.showResultActions || input.showPhotoPromptResult;
+}
+
+export function resultPrimaryAction(input: { showCreditsCta: boolean }): {
+  kind: "credits" | "edit";
+  label: string;
+} {
+  if (input.showCreditsCta) {
+    return { kind: "credits", label: COMPOSE_BUY_CREDITS_CTA_COMPACT };
+  }
+  return { kind: "edit", label: COMPOSE_EDIT_RESULT_CTA };
+}
 
 /** Photo/video model name belongs on the generate button, not the mode tile. */
 export function composeGenerateCtaShowsModelName(

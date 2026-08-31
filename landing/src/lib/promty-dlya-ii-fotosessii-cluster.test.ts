@@ -145,6 +145,13 @@ test("generate FAB on the hub and children is photoshoot, not generic photo", ()
     listingGenerateIdleCta({ pathname: "/foto-v-promt/", isAuthed: true }),
     "Создать промт по фото",
   );
+  assert.equal(
+    listingGenerateIdleCta({
+      pathname: "/promty-dlya-ii-fotosessii",
+      isAuthed: true,
+    }),
+    "Создать ИИ фотосессию",
+  );
 });
 
 test("fotosessii listings seed photoshoot intent on idle FAB", () => {

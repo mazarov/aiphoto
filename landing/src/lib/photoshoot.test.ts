@@ -170,7 +170,7 @@ test("photoshoot sheet is always 2K", () => {
 test("photoshoot CTA is 4 frames for 15 credits", () => {
   assert.equal(PHOTOSHOOT_FRAME_COUNT, 4);
   assert.equal(PHOTOSHOOT_CREDIT_COST, 15);
-  assert.equal(PHOTOSHOOT_CTA_LABEL, "Фотосессия");
+  assert.equal(PHOTOSHOOT_CTA_LABEL, "ИИ фотосессия");
   assert.equal(photoshootCtaDetail(), "4 фото");
 });
 

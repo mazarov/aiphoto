@@ -2,12 +2,18 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   DEFAULT_GENERATE_DOCK_SEED,
+  defaultDockSurfaceForComposeEntry,
   isCompletedResultSeed,
+  isRestorableLastDockResult,
   isResumeComposeSeed,
+  isUploadFirstDockEntry,
   photoshootTileUrlsFromUnknown,
+  resolveDockSurfaceForComposeEntry,
+  sameGenerateDockComposeIdentity,
   shouldAttachLibraryPhotos,
   shouldHydrateLastDockResult,
   type GenerateDockSeed,
+  type LastDockResult,
 } from "./generate-dock-seed";
 
 function seed(
@@ -19,6 +25,32 @@ function seed(
 test("isResumeComposeSeed is true only for default blank resume", () => {
   assert.equal(isResumeComposeSeed(DEFAULT_GENERATE_DOCK_SEED), true);
   assert.equal(isResumeComposeSeed(seed({ promptText: "   " })), true);
+});
+
+test("upload-first entries open the photos sheet for photoshoot and photo_prompt", () => {
+  assert.equal(isUploadFirstDockEntry("tab"), true);
+  assert.equal(isUploadFirstDockEntry("fab"), true);
+  assert.equal(isUploadFirstDockEntry("howto"), true);
+  assert.equal(isUploadFirstDockEntry("hero"), true);
+  assert.equal(isUploadFirstDockEntry("route"), false);
+  assert.equal(defaultDockSurfaceForComposeEntry("photoshoot", "tab"), "photos");
+  assert.equal(defaultDockSurfaceForComposeEntry("photo_prompt", "fab"), "photos");
+  assert.equal(defaultDockSurfaceForComposeEntry("photoshoot", "route"), null);
+  assert.equal(defaultDockSurfaceForComposeEntry("resume", "tab"), null);
+  assert.equal(
+    resolveDockSurfaceForComposeEntry({
+      intent: "photoshoot",
+      entrySource: "tab",
+      explicit: null,
+    }),
+    null,
+  );
+});
+
+test("same compose identity ignores dockSurface-only reopen", () => {
+  const current = seed({ intent: "photoshoot" });
+  assert.equal(sameGenerateDockComposeIdentity(current, seed({ intent: "photoshoot" })), true);
+  assert.equal(sameGenerateDockComposeIdentity(current, seed({ intent: "photo_prompt" })), false);
 });
 
 test("isResumeComposeSeed is false for photo_prompt with empty prompt", () => {
@@ -43,15 +75,48 @@ test("isResumeComposeSeed is false for text intent, card, or filled prompt", () 
   );
 });
 
-test("shouldHydrateLastDockResult is true only for blank resume", () => {
+test("tab/fab keep last result visible instead of opening the photos sheet", () => {
+  assert.equal(
+    resolveDockSurfaceForComposeEntry({
+      intent: "photoshoot",
+      entrySource: "tab",
+      hasRestorableLastResult: true,
+    }),
+    null
+  );
+  assert.equal(
+    resolveDockSurfaceForComposeEntry({
+      intent: "photoshoot",
+      entrySource: "fab",
+      hasRestorableLastResult: true,
+    }),
+    null
+  );
+  assert.equal(
+    resolveDockSurfaceForComposeEntry({
+      intent: "photoshoot",
+      entrySource: "howto",
+      hasRestorableLastResult: true,
+    }),
+    "photos"
+  );
+  assert.equal(
+    resolveDockSurfaceForComposeEntry({
+      intent: "photoshoot",
+      entrySource: "tab",
+      explicit: "photos",
+      hasRestorableLastResult: true,
+    }),
+    "photos"
+  );
+});
+
+test("shouldHydrateLastDockResult restores blank resume and photoshoot", () => {
   assert.equal(shouldHydrateLastDockResult(DEFAULT_GENERATE_DOCK_SEED), true);
+  assert.equal(shouldHydrateLastDockResult(seed({ intent: "photoshoot" })), true);
   assert.equal(shouldHydrateLastDockResult(seed({ intent: "text" })), false);
   assert.equal(
     shouldHydrateLastDockResult(seed({ intent: "photo_prompt" })),
-    false
-  );
-  assert.equal(
-    shouldHydrateLastDockResult(seed({ intent: "photoshoot" })),
     false
   );
   assert.equal(
@@ -60,6 +125,21 @@ test("shouldHydrateLastDockResult is true only for blank resume", () => {
     ),
     false
   );
+});
+
+test("isRestorableLastDockResult needs id, url, and no dismiss", () => {
+  const last: LastDockResult = {
+    generationId: "g1",
+    resultUrl: "https://cdn/last.jpg",
+    promptText: "scene",
+    modality: "image",
+  };
+  assert.equal(isRestorableLastDockResult(last), true);
+  assert.equal(
+    isRestorableLastDockResult(last, { dismissedLastResult: true }),
+    false
+  );
+  assert.equal(isRestorableLastDockResult(null), false);
 });
 
 test("shouldHydrateLastDockResult is false after explicit last-result dismiss", () => {

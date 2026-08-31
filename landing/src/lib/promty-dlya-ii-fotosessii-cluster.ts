@@ -1,5 +1,5 @@
 import { composeGenerateCtaLabel } from "./generate-compose-mode";
-import { isFotoVPromtDockPath } from "./generate-dock-path";
+import { listingGenerateIdleIntent } from "./generate-dock-path";
 import type { Dimension } from "./tag-registry";
 
 export const PROMTY_DLYA_II_FOTOSESSII_HUB_PATH = "/ii-fotosessiya";
@@ -217,10 +217,11 @@ export function listingGenerateIdleCta(input: {
   isAuthed: boolean;
 }): string {
   void input.isAuthed;
-  if (isFotoVPromtDockPath(input.pathname)) {
+  const intent = listingGenerateIdleIntent(input.pathname);
+  if (intent === "photo_prompt") {
     return composeGenerateCtaLabel("photo_prompt");
   }
-  if (isPromtyDlyaIiFotosessiiPath(input.pathname)) {
+  if (intent === "photoshoot") {
     return PROMTY_DLYA_II_FOTOSESSII_GENERATE_CTA;
   }
   return "Создать фото";

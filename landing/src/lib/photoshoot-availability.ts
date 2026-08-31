@@ -1,3 +1,5 @@
+import { isFotosessiiGenerateDockPath } from "./generate-dock-path";
+
 const STORAGE_KEY = "promptshot:photoshoot-enabled";
 
 let memory: boolean | null = null;
@@ -19,6 +21,16 @@ export function readCachedPhotoshootEnabled(): boolean | null {
     /* private mode */
   }
   return null;
+}
+
+/** Until config answers: cached value wins; on fotosessii paths assume on (no FOUC). */
+export function optimisticPhotoshootEnabled(input: {
+  pathname?: string | null;
+  cached: boolean | null;
+}): boolean {
+  if (input.cached === true) return true;
+  if (input.cached === false) return false;
+  return Boolean(input.pathname && isFotosessiiGenerateDockPath(input.pathname));
 }
 
 export function writeCachedPhotoshootEnabled(enabled: boolean): void {

@@ -13,10 +13,14 @@ import {
 import { useAuth } from "@/context/AuthContext";
 import {
   DEFAULT_GENERATE_DOCK_SEED,
+  isRestorableLastDockResult,
   isResumeComposeSeed,
   photoshootTileUrlsFromUnknown,
+  resolveDockSurfaceForComposeEntry,
+  sameGenerateDockComposeIdentity,
   type GenerateDockComposeIntent,
   type GenerateDockSeed,
+  type LastDockResult,
 } from "@/lib/generate-dock-seed";
 import { setPendingPhotoPrompt } from "@/lib/generate-photo-prompt";
 import {
@@ -38,6 +42,7 @@ import {
 export type {
   GenerateDockComposeIntent,
   GenerateDockSeed,
+  LastDockResult,
 } from "@/lib/generate-dock-seed";
 export {
   isGenerateDockListingPath,
@@ -49,6 +54,9 @@ export type GenerateDockSurface = "prompt" | "photos" | "model" | null;
 
 export type GenerateDockEntrySource =
   | "tab"
+  | "fab"
+  | "howto"
+  | "hero"
   | "card"
   | "route"
   | "sidebar"
@@ -135,6 +143,12 @@ type GenerateDockContextType = {
     options?: { entrySource?: GenerateDockEntrySource }
   ) => void;
   /**
+   * Last completed frame for this dock session. Survives panel unmount so
+   * tab/FAB reopen can show the photo without waiting for GET /generations.
+   */
+  lastDockResult: LastDockResult | null;
+  rememberLastDockResult: (result: LastDockResult) => void;
+  /**
    * User left result chrome («Повторить» / delete / result X). Survives panel
    * unmount so reopen does not restore the dismissed generation.
    */
@@ -169,6 +183,8 @@ const GenerateDockContext = createContext<GenerateDockContextType>({
   seedFromCard: () => {},
   seedAnimate: () => {},
   seedCompletedResult: () => {},
+  lastDockResult: null,
+  rememberLastDockResult: () => {},
   lastDockResultDismissed: false,
   dismissLastDockResult: () => {},
   clearLastDockResultDismiss: () => {},
@@ -188,6 +204,7 @@ export function GenerateDockProvider({ children }: { children: ReactNode }) {
   const [needsCredits, setNeedsCredits] = useState(false);
   const [requestedModelId, setRequestedModelId] = useState<string | null>(null);
   const [lastDockResultDismissed, setLastDockResultDismissed] = useState(false);
+  const [lastDockResult, setLastDockResult] = useState<LastDockResult | null>(null);
   const restoredPendingRef = useRef(false);
 
   useEffect(() => {
@@ -378,6 +395,15 @@ export function GenerateDockProvider({ children }: { children: ReactNode }) {
         editKind: args.editKind || null,
         photoshootTileUrls: photoshootTileUrlsFromUnknown(args.photoshootTileUrls),
       };
+      setLastDockResult({
+        generationId,
+        resultUrl,
+        promptText: (args.promptText || "").trim(),
+        modality: args.modality === "video" ? "video" : "image",
+        isPublished: Boolean(args.isPublished),
+        editKind: args.editKind || null,
+        photoshootTileUrls: photoshootTileUrlsFromUnknown(args.photoshootTileUrls),
+      });
       setLastDockResultDismissed(false);
       setSeed(nextSeed);
       setSeedToken((token) => token + 1);
@@ -406,9 +432,15 @@ export function GenerateDockProvider({ children }: { children: ReactNode }) {
         cardId: null,
         intent: options?.intent ?? "text",
       };
-      const nextSurface = options?.dockSurface ?? null;
+      const nextSurface = resolveDockSurfaceForComposeEntry({
+        intent: nextSeed.intent,
+        entrySource: options?.entrySource,
+        explicit: options?.dockSurface,
+      });
+      if (!sameGenerateDockComposeIdentity(seed, nextSeed)) {
+        setSeedToken((token) => token + 1);
+      }
       setSeed(nextSeed);
-      setSeedToken((token) => token + 1);
       setPlateOpen(true);
       setDockSurface(nextSurface);
       if (!isAuthed) {
@@ -416,7 +448,7 @@ export function GenerateDockProvider({ children }: { children: ReactNode }) {
       }
       trackOpen(options?.entrySource ?? "route");
     },
-    [isAuthed, trackOpen]
+    [isAuthed, seed, trackOpen]
   );
 
   const seedPhotoshoot = useCallback(
@@ -432,10 +464,18 @@ export function GenerateDockProvider({ children }: { children: ReactNode }) {
         cardId: null,
         intent: "photoshoot",
       };
-      const nextSurface = options?.dockSurface ?? null;
-      setLastDockResultDismissed(true);
+      const nextSurface = resolveDockSurfaceForComposeEntry({
+        intent: "photoshoot",
+        entrySource: options?.entrySource,
+        explicit: options?.dockSurface,
+        hasRestorableLastResult: isRestorableLastDockResult(lastDockResult, {
+          dismissedLastResult: lastDockResultDismissed,
+        }),
+      });
+      if (!sameGenerateDockComposeIdentity(seed, nextSeed)) {
+        setSeedToken((token) => token + 1);
+      }
       setSeed(nextSeed);
-      setSeedToken((token) => token + 1);
       setPlateOpen(true);
       setDockSurface(nextSurface);
       if (!isAuthed) {
@@ -443,7 +483,7 @@ export function GenerateDockProvider({ children }: { children: ReactNode }) {
       }
       trackOpen(options?.entrySource ?? "route");
     },
-    [isAuthed, trackOpen]
+    [isAuthed, lastDockResult, lastDockResultDismissed, seed, trackOpen]
   );
 
   const seedPhotoPrompt = useCallback(
@@ -476,8 +516,25 @@ export function GenerateDockProvider({ children }: { children: ReactNode }) {
     setHistoryRefreshToken((token) => token + 1);
   }, []);
 
+  const rememberLastDockResult = useCallback((result: LastDockResult) => {
+    const generationId = result.generationId.trim();
+    const resultUrl = result.resultUrl.trim();
+    if (!generationId || !resultUrl) return;
+    setLastDockResult({
+      generationId,
+      resultUrl,
+      promptText: result.promptText.trim(),
+      modality: result.modality === "video" ? "video" : "image",
+      isPublished: Boolean(result.isPublished),
+      editKind: result.editKind || null,
+      photoshootTileUrls: photoshootTileUrlsFromUnknown(result.photoshootTileUrls),
+    });
+    setLastDockResultDismissed(false);
+  }, []);
+
   const dismissLastDockResult = useCallback(() => {
     setLastDockResultDismissed(true);
+    setLastDockResult(null);
   }, []);
 
   const clearLastDockResultDismiss = useCallback(() => {
@@ -508,6 +565,8 @@ export function GenerateDockProvider({ children }: { children: ReactNode }) {
       seedFromCard,
       seedAnimate,
       seedCompletedResult,
+      lastDockResult,
+      rememberLastDockResult,
       lastDockResultDismissed,
       dismissLastDockResult,
       clearLastDockResultDismiss,
@@ -534,6 +593,8 @@ export function GenerateDockProvider({ children }: { children: ReactNode }) {
       seedFromCard,
       seedAnimate,
       seedCompletedResult,
+      lastDockResult,
+      rememberLastDockResult,
       lastDockResultDismissed,
       dismissLastDockResult,
       clearLastDockResultDismiss,

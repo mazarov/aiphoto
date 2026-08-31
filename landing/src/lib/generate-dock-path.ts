@@ -21,12 +21,36 @@ export function isFotoVPromtDockPath(pathname: string): boolean {
   return normalizeGenerateDockPath(pathname) === "/foto-v-promt";
 }
 
+const LEGACY_PROMTY_DLYA_II_FOTOSESSII_PREFIX = "/promty-dlya-ii-fotosessii";
+
+/** Pre-rename hub/L2. 301 to `/ii-fotosessiya`, but idle CTA/intent still match. */
+export function isLegacyPromtyDlyaIiFotosessiiDockPath(pathname: string): boolean {
+  const np = normalizeGenerateDockPath(pathname);
+  return (
+    np === LEGACY_PROMTY_DLYA_II_FOTOSESSII_PREFIX ||
+    np.startsWith(`${LEGACY_PROMTY_DLYA_II_FOTOSESSII_PREFIX}/`)
+  );
+}
+
+/** Canonical `/ii-fotosessiya*` plus the legacy `/promty-dlya-ii-fotosessii*` scenario. */
+export function isFotosessiiGenerateDockPath(pathname: string): boolean {
+  return (
+    isPromtyDlyaIiFotosessiiPath(pathname) ||
+    isLegacyPromtyDlyaIiFotosessiiDockPath(pathname)
+  );
+}
+
+/** Prefetch the compose chunk + config only on upload-first landings. */
+export function shouldPrefetchGenerateDockPanel(pathname: string): boolean {
+  return isFotoVPromtDockPath(pathname) || isFotosessiiGenerateDockPath(pathname);
+}
+
 /** Non-null: FAB / tab must seed this intent instead of blank resume. */
 export function listingGenerateIdleIntent(
   pathname: string
 ): GenerateDockComposeIntent | null {
   if (isFotoVPromtDockPath(pathname)) return "photo_prompt";
-  if (isPromtyDlyaIiFotosessiiPath(pathname)) return "photoshoot";
+  if (isFotosessiiGenerateDockPath(pathname)) return "photoshoot";
   return null;
 }
 

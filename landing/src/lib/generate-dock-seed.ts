@@ -43,20 +43,91 @@ export function isResumeComposeSeed(seed: GenerateDockSeed): boolean {
   );
 }
 
-/** Last-completed dock hydrate is resume-only — never text / photo_prompt / result. */
+/** External CTAs that should open «Ваши фото» for photoshoot / photo_prompt. */
+export function isUploadFirstDockEntry(entrySource?: string | null): boolean {
+  return (
+    entrySource === "tab" ||
+    entrySource === "fab" ||
+    entrySource === "howto" ||
+    entrySource === "hero"
+  );
+}
+
+/** Same compose identity — only dockSurface may change without remounting the panel. */
+export function sameGenerateDockComposeIdentity(
+  current: GenerateDockSeed,
+  next: GenerateDockSeed,
+): boolean {
+  return (
+    current.intent === next.intent &&
+    current.source === next.source &&
+    current.promptText === next.promptText &&
+    current.cardId === next.cardId &&
+    (current.parentGenerationId ?? null) === (next.parentGenerationId ?? null) &&
+    (current.resultGenerationId ?? null) === (next.resultGenerationId ?? null)
+  );
+}
+
+export function defaultDockSurfaceForComposeEntry(
+  intent: GenerateDockComposeIntent,
+  entrySource?: string | null,
+): "photos" | null {
+  if (!isUploadFirstDockEntry(entrySource)) return null;
+  if (intent === "photoshoot" || intent === "photo_prompt") return "photos";
+  return null;
+}
+
+export type LastDockResult = {
+  generationId: string;
+  resultUrl: string;
+  promptText: string;
+  modality: "image" | "video";
+  isPublished?: boolean;
+  editKind?: string | null;
+  photoshootTileUrls?: string[] | null;
+};
+
+export function isRestorableLastDockResult(
+  result: LastDockResult | null | undefined,
+  options?: { dismissedLastResult?: boolean }
+): boolean {
+  if (options?.dismissedLastResult) return false;
+  return Boolean(result?.generationId.trim() && result.resultUrl.trim());
+}
+
+export function resolveDockSurfaceForComposeEntry(input: {
+  intent: GenerateDockComposeIntent;
+  entrySource?: string | null;
+  explicit?: "prompt" | "photos" | "model" | null;
+  hasRestorableLastResult?: boolean;
+}): "prompt" | "photos" | "model" | null {
+  if (input.explicit !== undefined) return input.explicit;
+  /**
+   * Tab / FAB reopen the dock — last completed frame stays on the plate.
+   * HowTo / hero stay upload-first even when a previous result exists.
+   */
+  if (
+    input.hasRestorableLastResult &&
+    (input.entrySource === "tab" || input.entrySource === "fab")
+  ) {
+    return null;
+  }
+  return defaultDockSurfaceForComposeEntry(input.intent, input.entrySource);
+}
+
+/**
+ * Last completed frame is a dock-session fact, not an intent.
+ * Resume + photoshoot blank compose restore it; photo_prompt / text / animate / result
+ * own a different first paint (analyze, seeded prompt, overlay, history card).
+ */
 export function shouldHydrateLastDockResult(
   seed: GenerateDockSeed,
   options?: { dismissedLastResult?: boolean }
 ): boolean {
   if (options?.dismissedLastResult) return false;
-  if (
-    seed.intent === "animate" ||
-    seed.intent === "result" ||
-    seed.intent === "photoshoot"
-  ) {
-    return false;
-  }
-  return seed.source === "blank" && seed.intent === "resume";
+  if (seed.source !== "blank") return false;
+  if (seed.intent === "resume" || seed.intent === "photoshoot") return true;
+  return false;
 }
 
 export function isCompletedResultSeed(seed: GenerateDockSeed): boolean {
