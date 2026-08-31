@@ -52,7 +52,7 @@ test("meta name and short description keep CWS limits", () => {
 test("visible H1 and HowTo keep Facee wording", () => {
   assert.equal(
     GENERACIYA_FOTO_SEO.h1,
-    "Сделать фото ИИ по промту или своему снимку"
+    "Сделать фото ИИ онлайн"
   );
   assert.equal(
     GENERACIYA_FOTO_SEO.intro,
