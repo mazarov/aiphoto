@@ -104,6 +104,13 @@ type GenerateDockContextType = {
       dockSurface?: GenerateDockSurface;
     }
   ) => void;
+  /** Open dock on «Фотосессия» (ii-fotosessiya cluster). */
+  seedPhotoshoot: (
+    options?: {
+      entrySource?: GenerateDockEntrySource;
+      dockSurface?: GenerateDockSurface;
+    }
+  ) => void;
   /** Open dock on «Промт по фото» and start analyze from an in-memory payload. */
   seedPhotoPrompt: (
     args: { previewUrl: string; dataUrl: string },
@@ -157,6 +164,7 @@ const GenerateDockContext = createContext<GenerateDockContextType>({
   requestModelSelection: () => {},
   focusBlank: () => {},
   seedBlankPrompt: () => {},
+  seedPhotoshoot: () => {},
   seedPhotoPrompt: () => {},
   seedFromCard: () => {},
   seedAnimate: () => {},
@@ -411,6 +419,33 @@ export function GenerateDockProvider({ children }: { children: ReactNode }) {
     [isAuthed, trackOpen]
   );
 
+  const seedPhotoshoot = useCallback(
+    (
+      options?: {
+        entrySource?: GenerateDockEntrySource;
+        dockSurface?: GenerateDockSurface;
+      }
+    ) => {
+      const nextSeed: GenerateDockSeed = {
+        source: "blank",
+        promptText: "",
+        cardId: null,
+        intent: "photoshoot",
+      };
+      const nextSurface = options?.dockSurface ?? null;
+      setLastDockResultDismissed(true);
+      setSeed(nextSeed);
+      setSeedToken((token) => token + 1);
+      setPlateOpen(true);
+      setDockSurface(nextSurface);
+      if (!isAuthed) {
+        persistPendingGenerateDock({ seed: nextSeed, dockSurface: nextSurface });
+      }
+      trackOpen(options?.entrySource ?? "route");
+    },
+    [isAuthed, trackOpen]
+  );
+
   const seedPhotoPrompt = useCallback(
     (
       args: { previewUrl: string; dataUrl: string },
@@ -468,6 +503,7 @@ export function GenerateDockProvider({ children }: { children: ReactNode }) {
       requestModelSelection,
       focusBlank,
       seedBlankPrompt,
+      seedPhotoshoot,
       seedPhotoPrompt,
       seedFromCard,
       seedAnimate,
@@ -493,6 +529,7 @@ export function GenerateDockProvider({ children }: { children: ReactNode }) {
       requestModelSelection,
       focusBlank,
       seedBlankPrompt,
+      seedPhotoshoot,
       seedPhotoPrompt,
       seedFromCard,
       seedAnimate,

@@ -25,11 +25,13 @@ test("isGenerateDockSeoPagePath includes approved scenario pages", () => {
   assert.equal(isGenerateDockSeoPagePath("/sobytiya/den-rozhdeniya"), false);
 });
 
-test("foto-v-promt FAB seeds photo_prompt, other listings stay resume", () => {
+test("foto-v-promt FAB seeds photo_prompt, fotosessii seeds photoshoot", () => {
   assert.equal(isFotoVPromtDockPath("/foto-v-promt"), true);
   assert.equal(isFotoVPromtDockPath("/foto-v-promt/"), true);
   assert.equal(isFotoVPromtDockPath("/"), false);
   assert.equal(listingGenerateIdleIntent("/foto-v-promt"), "photo_prompt");
+  assert.equal(listingGenerateIdleIntent("/ii-fotosessiya"), "photoshoot");
+  assert.equal(listingGenerateIdleIntent("/ii-fotosessiya/zhenskie"), "photoshoot");
   assert.equal(listingGenerateIdleIntent("/"), null);
 });
 

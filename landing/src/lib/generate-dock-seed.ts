@@ -4,6 +4,7 @@ export type GenerateDockComposeIntent =
   | "resume"
   | "text"
   | "photo_prompt"
+  | "photoshoot"
   | "animate"
   | "result";
 
@@ -48,7 +49,13 @@ export function shouldHydrateLastDockResult(
   options?: { dismissedLastResult?: boolean }
 ): boolean {
   if (options?.dismissedLastResult) return false;
-  if (seed.intent === "animate" || seed.intent === "result") return false;
+  if (
+    seed.intent === "animate" ||
+    seed.intent === "result" ||
+    seed.intent === "photoshoot"
+  ) {
+    return false;
+  }
   return seed.source === "blank" && seed.intent === "resume";
 }
 

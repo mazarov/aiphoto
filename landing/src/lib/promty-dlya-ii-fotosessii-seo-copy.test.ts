@@ -36,7 +36,7 @@ test("hub snippet owns the commercial photoshoot head", () => {
   assert.equal(PROMTY_DLYA_II_FOTOSESSII_SEO.carouselCtaHref, "#primery");
   assert.equal(
     PROMTY_DLYA_II_FOTOSESSII_SEO.intro,
-    "ИИ фотосессия по своему фото — несколько кадров из одного снимка, один стиль и одно лицо. Загрузи фото и собери серию."
+    "Загрузи одно фото и собери ИИ фотосессию: несколько кадров в одном стиле, без студии и фотографа."
   );
   assert.doesNotMatch(PROMTY_DLYA_II_FOTOSESSII_SEO.intro, /скопируй промт/i);
 });
@@ -66,28 +66,25 @@ test("hub themes and how-to stay on the series-from-photo job", () => {
   );
   assert.equal(
     PROMTY_DLYA_II_FOTOSESSII_SEO.themesLead,
-    "Парная, семейная, зимняя, женская и другие серии: одно фото, один стиль."
+    "Женская, парная, семейная, зимняя, день рождения — у каждого сценария своя страница."
   );
   assert.equal(
     PROMTY_DLYA_II_FOTOSESSII_SEO.howToLead,
-    "Загрузи одно фото и собери серию кадров в одном стиле. Это ИИ фотосессия, а не один снимок."
+    "Сначала фото, потом несколько кадров из одного лука."
   );
   assert.equal(
     PROMTY_DLYA_II_FOTOSESSII_SEO.examplesIntro,
-    "Серия из одного фото: один стиль и один герой. Открой пример или загрузи свой снимок."
+    "Готовые луки для серии. Открой пример и повтори со своим фото."
   );
-  assert.equal(
-    PROMTY_DLYA_II_FOTOSESSII_SEO.pricingLead,
-    "Кредиты нужны, чтобы собрать серию. Просмотр примеров на странице — без оплаты."
-  );
+  assert.equal("pricingLead" in PROMTY_DLYA_II_FOTOSESSII_SEO, false);
   assert.equal(PROMTY_DLYA_II_FOTOSESSII_HOW_TO_STEPS.length, 2);
   assert.equal(
     PROMTY_DLYA_II_FOTOSESSII_HOW_TO_STEPS[0].text,
-    "Загрузи фото, с которого нужна серия. Одно лицо — вся съёмка в одном стиле."
+    "Нужен снимок, где хорошо видно лицо. С него собирается вся серия."
   );
   assert.equal(
     PROMTY_DLYA_II_FOTOSESSII_HOW_TO_STEPS[1].text,
-    "Выбери стиль и создай несколько кадров из одного лука — так получается ИИ фотосессия по фото, а не набор случайных снимков."
+    "Выбери лук из примеров и сделай ещё кадры в том же стиле. Так это фотосессия, а не один файл."
   );
   assert.doesNotMatch(
     PROMTY_DLYA_II_FOTOSESSII_HOW_TO_STEPS.map((step) => step.text).join(" "),
@@ -99,11 +96,13 @@ test("hub themes and how-to stay on the series-from-photo job", () => {
 test("hub FAQ covers commercial tails without stealing L1 or GF keys", () => {
   const questions = PROMTY_DLYA_II_FOTOSESSII_FAQ.map((item) => item.q);
   assert.ok(questions.some((q) => /по фото/i.test(q)));
-  assert.ok(questions.some((q) => /парная|семейная|зимняя/i.test(q)));
+  assert.ok(questions.some((q) => /какое фото загрузить/i.test(q)));
   assert.ok(questions.some((q) => /отличается от одного кадра/i.test(q)));
   const blob = PROMTY_DLYA_II_FOTOSESSII_FAQ.map(
     (item) => `${item.q} ${flattenFotosessiiFaqAnswer(item.a)}`
   ).join(" ");
+  assert.match(blob, /парн/i);
+  assert.match(blob, /семейн/i);
   assert.doesNotMatch(blob, PROMPT_TYPO);
   assert.equal(
     PROMTY_DLYA_II_FOTOSESSII_FAQ.some((item) => /сделать фото ии/i.test(item.q)),
@@ -205,9 +204,13 @@ test("new L2 copy owns theme photoshoot queries", () => {
 
 test("L2 copy mirrors hub templates without stealing hub or homepage keys", () => {
   assert.equal(PROMTY_DLYA_II_FOTOSESSII_CHILDREN.length, 17);
+  const intros = new Set<string>();
+  const themeLeads = new Set<string>();
   for (const { slug } of PROMTY_DLYA_II_FOTOSESSII_CHILDREN) {
     const copy = findPromtyDlyaIiFotosessiiChildCopy(slug);
     assert.ok(copy, slug);
+    intros.add(copy.intro);
+    themeLeads.add(copy.themesLead);
     assert.equal(copy.metaTitle, `${copy.h1} | PromptShot`);
     assert.equal(copy.howToSteps.length, 2);
     assert.equal("sessionTitle" in copy, false);
@@ -217,11 +220,16 @@ test("L2 copy mirrors hub templates without stealing hub or homepage keys", () =
     assert.doesNotMatch(copy.metaDescription, /бесплатн|сделать фото ии/i);
     assert.match(copy.intro, /загрузи снимок и собери/i);
     assert.match(copy.howToTitle, /^Как сделать /);
+    assert.doesNotMatch(copy.howToTitle, / ии /);
     assert.match(copy.pricingLead, /кредиты на генерацию/i);
     assert.doesNotMatch(copy.metaTitle, /в нейросетях|промты для/i);
     assert.doesNotMatch(copy.h1, /в нейросетях|промты для/i);
     assert.doesNotMatch(`${copy.metaTitle} ${copy.h1}`, /промты для фото(?!сесс)/i);
     assert.equal(copy.carouselCtaHref, "#primery");
+    assert.doesNotMatch(
+      copy.faq.map((item) => item.q).join(" "),
+      /где сделать .+ по промту/i
+    );
     assert.doesNotMatch(
       copy.faq.map((item) => item.a).join(" "),
       /Нажми «Сгенерировать/i
@@ -231,4 +239,6 @@ test("L2 copy mirrors hub templates without stealing hub or homepage keys", () =
       /вставь в нейросеть|не описывай внешность/i
     );
   }
+  assert.equal(intros.size, PROMTY_DLYA_II_FOTOSESSII_CHILDREN.length);
+  assert.equal(themeLeads.size, PROMTY_DLYA_II_FOTOSESSII_CHILDREN.length);
 });

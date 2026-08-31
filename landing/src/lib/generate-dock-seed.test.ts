@@ -26,6 +26,7 @@ test("isResumeComposeSeed is false for photo_prompt with empty prompt", () => {
     isResumeComposeSeed(seed({ intent: "photo_prompt" })),
     false
   );
+  assert.equal(isResumeComposeSeed(seed({ intent: "photoshoot" })), false);
 });
 
 test("isResumeComposeSeed is false for text intent, card, or filled prompt", () => {
@@ -47,6 +48,10 @@ test("shouldHydrateLastDockResult is true only for blank resume", () => {
   assert.equal(shouldHydrateLastDockResult(seed({ intent: "text" })), false);
   assert.equal(
     shouldHydrateLastDockResult(seed({ intent: "photo_prompt" })),
+    false
+  );
+  assert.equal(
+    shouldHydrateLastDockResult(seed({ intent: "photoshoot" })),
     false
   );
   assert.equal(

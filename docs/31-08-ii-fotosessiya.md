@@ -48,3 +48,9 @@
 ## 4. Код
 
 `landing/src/app/ii-fotosessiya/`, `promty-dlya-ii-fotosessii-cluster.ts`, `promty-dlya-ii-fotosessii-seo-copy.ts`.
+
+---
+
+## 5. Generate dock — мгновенное открытие инструмента
+
+Требования к UX «сразу Фотосессия / Промт по фото» (lazy-load, hydrate, optimistic UI): **`docs/31-08-generate-dock-instant-compose.md`**.

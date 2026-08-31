@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { listingGenerateIdleIntent } from "./generate-dock-path";
 import { getSeoContent } from "./seo-content";
 import {
   MIN_PROMTY_DLYA_II_FOTOSESSII_CARDS,
@@ -143,6 +144,14 @@ test("generate FAB on the hub and children is photoshoot, not generic photo", ()
   assert.equal(
     listingGenerateIdleCta({ pathname: "/foto-v-promt/", isAuthed: true }),
     "Создать промт по фото",
+  );
+});
+
+test("fotosessii listings seed photoshoot intent on idle FAB", () => {
+  assert.equal(listingGenerateIdleIntent("/ii-fotosessiya"), "photoshoot");
+  assert.equal(
+    listingGenerateIdleIntent("/ii-fotosessiya/zhenskie"),
+    "photoshoot",
   );
 });
 

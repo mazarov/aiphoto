@@ -1,5 +1,6 @@
 import { isGeneraciyaFotoScenarioPath } from "./generaciya-foto-routes";
 import type { GenerateDockComposeIntent } from "./generate-dock-seed";
+import { isPromtyDlyaIiFotosessiiPath } from "./promty-dlya-ii-fotosessii-cluster";
 
 /** SEO acquisition route where blank text-to-image is allowed. */
 export function isGenerateDockSeoPagePath(pathname: string): boolean {
@@ -24,7 +25,9 @@ export function isFotoVPromtDockPath(pathname: string): boolean {
 export function listingGenerateIdleIntent(
   pathname: string
 ): GenerateDockComposeIntent | null {
-  return isFotoVPromtDockPath(pathname) ? "photo_prompt" : null;
+  if (isFotoVPromtDockPath(pathname)) return "photo_prompt";
+  if (isPromtyDlyaIiFotosessiiPath(pathname)) return "photoshoot";
+  return null;
 }
 
 /** Listing routes where the floating generate dock is mounted. */

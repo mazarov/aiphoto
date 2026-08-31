@@ -11,6 +11,8 @@ import {
   GF_LEAD,
   GF_STACK,
 } from "@/components/generate/generaciya-foto-ui";
+import { useGenerateDock } from "@/context/GenerateDockContext";
+import { usePricingModal } from "@/context/PricingModalContext";
 import {
   PROMTY_DLYA_II_FOTOSESSII_FAQ,
   PROMTY_DLYA_II_FOTOSESSII_HOW_TO_STEPS,
@@ -19,6 +21,10 @@ import {
   type FotosessiiFaqPart,
   type FotosessiiHowToStep,
 } from "@/lib/promty-dlya-ii-fotosessii-seo-copy";
+import {
+  reachYandexMetrikaGoal,
+  YM_GOAL_PROMPT_CARD_GENERATION_PRICING,
+} from "@/lib/yandex-metrika";
 
 export type PromtyDlyaIiFotosessiiHowToCopy = {
   howToTitle: string;
@@ -50,6 +56,8 @@ export function PromtyDlyaIiFotosessiiHowTo({
 }: {
   copy?: PromtyDlyaIiFotosessiiHowToCopy;
 } = {}) {
+  const { seedPhotoshoot, needsCredits } = useGenerateDock();
+  const { open: openPricing } = usePricingModal();
   const howTo = copy ?? {
     howToTitle: PROMTY_DLYA_II_FOTOSESSII_SEO.howToTitle,
     howToEyebrow: PROMTY_DLYA_II_FOTOSESSII_SEO.howToEyebrow,
@@ -57,6 +65,18 @@ export function PromtyDlyaIiFotosessiiHowTo({
     howToPickExampleLabel: PROMTY_DLYA_II_FOTOSESSII_SEO.howToPickExampleLabel,
     howToPickExampleHref: PROMTY_DLYA_II_FOTOSESSII_SEO.howToPickExampleHref,
     howToSteps: PROMTY_DLYA_II_FOTOSESSII_HOW_TO_STEPS,
+  };
+
+  const handleUploadPhoto = () => {
+    if (needsCredits) {
+      reachYandexMetrikaGoal(YM_GOAL_PROMPT_CARD_GENERATION_PRICING);
+      openPricing();
+      return;
+    }
+    seedPhotoshoot({
+      entrySource: "route",
+      dockSurface: "photos",
+    });
   };
 
   return (
@@ -83,13 +103,13 @@ export function PromtyDlyaIiFotosessiiHowTo({
           ))}
         </ol>
         <div className="mt-6 flex flex-wrap justify-center gap-3">
-          <a
-            href={howTo.howToPickExampleHref}
+          <button
+            type="button"
             className={GF_BRAND_CTA}
-            onClick={(event) => onHashLinkClick(event, howTo.howToPickExampleHref)}
+            onClick={handleUploadPhoto}
           >
             {howTo.howToPickExampleLabel}
-          </a>
+          </button>
         </div>
       </div>
     </section>

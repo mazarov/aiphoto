@@ -289,7 +289,9 @@ export function CardInlineGeneratePanel({
       ? "video"
       : seed.intent === "photo_prompt"
         ? "photo_prompt"
-        : "image"
+        : seed.intent === "photoshoot"
+          ? "photoshoot"
+          : "image"
   );
   const [analyzeQuota, setAnalyzeQuota] = useState<AnalyzeQuotaPayload | null>(
     null
@@ -859,6 +861,8 @@ export function CardInlineGeneratePanel({
           } else {
             setDraftPrompt("");
           }
+        } else if (seed.intent === "photoshoot") {
+          setComposeMode("photoshoot");
         } else if (isCompletedResultSeed(seed)) {
           const prompt = seed.promptText.trim();
           setComposeMode("image");

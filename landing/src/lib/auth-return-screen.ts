@@ -36,6 +36,7 @@ const GENERATE_DOCK_INTENTS = new Set<GenerateDockComposeIntent>([
   "resume",
   "text",
   "photo_prompt",
+  "photoshoot",
   "animate",
   "result",
 ]);

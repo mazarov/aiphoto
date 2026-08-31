@@ -308,10 +308,7 @@ export default async function PromtyDlyaIiFotosessiiPage() {
             )}
           </section>
 
-          <GeneraciyaFotoPricing
-            returnPath={PROMTY_DLYA_II_FOTOSESSII_HUB_PATH}
-            lead={PROMTY_DLYA_II_FOTOSESSII_SEO.pricingLead}
-          />
+          <GeneraciyaFotoPricing returnPath={PROMTY_DLYA_II_FOTOSESSII_HUB_PATH} />
           <PromtyDlyaIiFotosessiiFaq />
         </div>
       </main>

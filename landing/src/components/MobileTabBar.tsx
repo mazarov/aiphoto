@@ -56,6 +56,8 @@ export function MobileTabBar() {
   const {
     focusBlank: focusGenerateDock,
     seedBlankPrompt,
+    seedPhotoshoot,
+    seed,
     plateOpen: generatePlateOpen,
     setPlateOpen: setGeneratePlateOpen,
     setDockSurface: setGenerateDockSurface,
@@ -149,13 +151,22 @@ export function MobileTabBar() {
       openPricing();
       return;
     }
+    const idleIntent = listingGenerateIdleIntent(pathname);
     if (generatePlateOpen) {
+      if (idleIntent === "photoshoot" && seed.intent !== "photoshoot") {
+        seedPhotoshoot({ entrySource: "tab" });
+        return;
+      }
       setGeneratePlateOpen(false);
       setGenerateDockSurface(null);
       return;
     }
-    if (listingGenerateIdleIntent(pathname) === "photo_prompt") {
+    if (idleIntent === "photo_prompt") {
       seedBlankPrompt("", { entrySource: "tab", intent: "photo_prompt" });
+      return;
+    }
+    if (idleIntent === "photoshoot") {
+      seedPhotoshoot({ entrySource: "tab" });
       return;
     }
     focusGenerateDock({ entrySource: "tab" });

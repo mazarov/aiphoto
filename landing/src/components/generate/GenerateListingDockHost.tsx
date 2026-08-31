@@ -66,6 +66,7 @@ export function GenerateListingDockHost() {
     needsCredits,
     focusBlank,
     seedBlankPrompt,
+    seedPhotoshoot,
   } = useGenerateDock();
   const isMobile = useListingIsMobile();
   /** Tall + sticky plate: result chrome and/or in-flight generation. */
@@ -157,6 +158,10 @@ export function GenerateListingDockHost() {
     const idleIntent = listingGenerateIdleIntent(pathname);
     if (idleIntent === "photo_prompt") {
       seedBlankPrompt("", { entrySource: "tab", intent: "photo_prompt" });
+      return;
+    }
+    if (idleIntent === "photoshoot") {
+      seedPhotoshoot({ entrySource: "tab" });
       return;
     }
     focusBlank({ entrySource: "tab" });
