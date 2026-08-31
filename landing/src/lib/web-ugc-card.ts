@@ -22,6 +22,60 @@ export function buildUgcCardTitle(prompt: string): string {
   return normalized.length > 90 ? `${normalized.slice(0, 87).trim()}...` : normalized;
 }
 
+/** Idempotent variant_index=0 write — used to replace motion-only video UGC prompts. */
+export async function syncUgcCardPromptText(
+  supabase: SupabaseClient,
+  cardId: string,
+  promptText: string,
+): Promise<void> {
+  const text = String(promptText || "").trim();
+  if (!text || !cardId.trim()) return;
+
+  const { data: existing, error } = await supabase
+    .from("prompt_variants")
+    .select("id,prompt_text_ru")
+    .eq("card_id", cardId)
+    .eq("variant_index", 0)
+    .maybeSingle();
+  if (error) {
+    console.error("[web-ugc-card] variant lookup failed", {
+      cardId,
+      error: error.message,
+    });
+    return;
+  }
+
+  if (!existing?.id) {
+    const { error: insertError } = await supabase.from("prompt_variants").insert({
+      card_id: cardId,
+      variant_index: 0,
+      label_raw: "web",
+      prompt_text_ru: text,
+      prompt_text_en: null,
+      match_strategy: "web_generation",
+    });
+    if (insertError) {
+      console.error("[web-ugc-card] variant insert failed", {
+        cardId,
+        error: insertError.message,
+      });
+    }
+    return;
+  }
+
+  if (String(existing.prompt_text_ru || "").trim() === text) return;
+  const { error: updateError } = await supabase
+    .from("prompt_variants")
+    .update({ prompt_text_ru: text })
+    .eq("id", existing.id);
+  if (updateError) {
+    console.error("[web-ugc-card] variant update failed", {
+      cardId,
+      error: updateError.message,
+    });
+  }
+}
+
 async function ensureWebUgcDataset(supabase: SupabaseClient): Promise<string> {
   const { data: existing } = await supabase
     .from("import_datasets")

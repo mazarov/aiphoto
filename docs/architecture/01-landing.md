@@ -1,5 +1,7 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-08-31 (**video catalog prompt = parent look + Motion:** `ensureCardForCompletedGeneration` больше не кладёт в UGC голый I2V motion. SSOT `assembleVideoCatalogPrompt`: image-промпт parent still (`parent_generation_id` или library `source_generation_id`) + секция `Motion:`. Повторный ensure синкает `prompt_variants`. «Повторить» сеет этот текст в video-dock. Спека `docs/31-08-video-card-repeat-prompt.md`.
+>
 > Последнее обновление: 2026-08-31 (**photoshoot Flux fallback:** `edit_kind=photoshoot` I2I fail (вкл. Seedream `safety_block`) → тот же attempt один раз `flux-2-flex` с `safety_tolerance=5`. Планер не перезапускаем. Primary Flux — без хопа. Ключ `photoshoot_fallback_model` (SQL `233`). Обычный image-фолбек Gemini→Grok→Seedream не трогаем. Спека `docs/31-08-photoshoot-flux-fallback.md`.
 >
 > Последнее обновление: 2026-08-31 (**video card «Повторить» = свой фото → тот же motion:** опубликованная видео-карточка не идёт в image-compose. `cardRepeatComposeIntent` + `seedFromCard({ intent: "animate" })` открывает video-dock с промптом карточки и сразу шторку «Ваши фото» (без `parentGenerationId` — чужое видео нельзя оживить как sibling). Фото-карточки без изменений (`resume` + compact plate).

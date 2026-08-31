@@ -1,6 +1,15 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { landingGenerationsOwnerOrFilter } from "@/lib/landing-generations-access";
-import { createUgcCardForCompletedGeneration, syncUgcCardMedia } from "@/lib/web-ugc-card";
+import {
+  createUgcCardForCompletedGeneration,
+  syncUgcCardMedia,
+  syncUgcCardPromptText,
+} from "@/lib/web-ugc-card";
+import {
+  assembleVideoCatalogPrompt,
+  canUseGenerationAsVideoCatalogImageSource,
+  videoCatalogSourceGenerationIds,
+} from "@/lib/video-catalog-prompt";
 import {
   photoshootUserFacingMediaPaths,
   resolvePhotoshootUserFacingResult,
@@ -166,6 +175,56 @@ async function resolveVideoPoster(
   };
 }
 
+async function resolveLibrarySourceGenerationId(
+  supabase: SupabaseClient,
+  generation: OwnedGenerationForCardAction,
+): Promise<string | null> {
+  const inputPath = firstInputPhotoPath(generation.input_photo_paths);
+  if (!inputPath || !generation.requester_auth_user_id) return null;
+  const { data: library } = await supabase
+    .from("landing_user_photos")
+    .select("source_generation_id")
+    .eq("auth_user_id", generation.requester_auth_user_id)
+    .eq("storage_path", inputPath)
+    .maybeSingle();
+  return (library?.source_generation_id as string | null) || null;
+}
+
+async function resolveVideoCatalogPrompt(
+  supabase: SupabaseClient,
+  generation: OwnedGenerationForCardAction,
+): Promise<string> {
+  const sourceIds = videoCatalogSourceGenerationIds({
+    parentGenerationId: generation.parent_generation_id,
+    librarySourceGenerationId: await resolveLibrarySourceGenerationId(
+      supabase,
+      generation,
+    ),
+  });
+  let imagePrompt = "";
+  for (const sourceId of sourceIds) {
+    const { data: source } = await supabase
+      .from("landing_generations")
+      .select("prompt_text,modality,status")
+      .eq("id", sourceId)
+      .maybeSingle();
+    if (
+      canUseGenerationAsVideoCatalogImageSource({
+        status: source?.status,
+        modality: source?.modality,
+        promptText: source?.prompt_text,
+      })
+    ) {
+      imagePrompt = String(source?.prompt_text || "").trim();
+      break;
+    }
+  }
+  return assembleVideoCatalogPrompt({
+    imagePrompt,
+    motionPrompt: generation.prompt_text,
+  });
+}
+
 export async function ensureCardForCompletedGeneration(
   supabase: SupabaseClient,
   generation: OwnedGenerationForCardAction
@@ -213,6 +272,10 @@ export async function ensureCardForCompletedGeneration(
     }
   }
 
+  const promptText = isVideo
+    ? await resolveVideoCatalogPrompt(supabase, generation)
+    : generation.prompt_text || "";
+
   if (generation.ugc_card_id) {
     const existing = await readGenerationCard(supabase, generation.ugc_card_id);
     if (existing) {
@@ -222,6 +285,8 @@ export async function ensureCardForCompletedGeneration(
           resultBucket: generation.result_storage_bucket,
           resultPaths: mediaPaths,
         });
+      } else if (promptText) {
+        await syncUgcCardPromptText(supabase, existing.cardId, promptText);
       }
       return existing;
     }
@@ -230,7 +295,7 @@ export async function ensureCardForCompletedGeneration(
   const created = await createUgcCardForCompletedGeneration(supabase, {
     generationId: generation.id,
     generationOwnerUserId: generation.user_id,
-    promptText: generation.prompt_text || "",
+    promptText,
     resultBucket: generation.result_storage_bucket,
     resultPaths: mediaPaths,
     mediaItems: videoItems,
