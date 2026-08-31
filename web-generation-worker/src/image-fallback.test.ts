@@ -4,6 +4,7 @@ import { ProcessingError } from "./input-source";
 import {
   isImageFallbackEligible,
   shouldAttemptGrokFallback,
+  shouldAttemptPhotoshootFluxFallback,
   shouldAttemptSeedreamFallback,
 } from "./image-fallback";
 import { GrokImageCircuit } from "./grok-image-circuit";
@@ -157,6 +158,71 @@ test("Seedream hop skips when already Seedream or kill-switch", () => {
       circuitOpen: false,
     }),
     { ok: false, reason: "not_eligible" },
+  );
+});
+
+test("photoshoot Flux hop is one try after non-Flux I2I fail", () => {
+  const safety = new ProcessingError("safety_block", "Seedream blocked", false);
+  assert.deepEqual(
+    shouldAttemptPhotoshootFluxFallback({
+      isPhotoshoot: true,
+      requestedModel: "seedream-5.0-pro",
+      error: safety,
+      openrouterConfigured: true,
+      fallbackModel: "flux-2-flex",
+    }),
+    { ok: true, model: "flux-2-flex" },
+  );
+  assert.deepEqual(
+    shouldAttemptPhotoshootFluxFallback({
+      isPhotoshoot: false,
+      requestedModel: "seedream-5.0-pro",
+      error: safety,
+      openrouterConfigured: true,
+      fallbackModel: "flux-2-flex",
+    }),
+    { ok: false, reason: "not_photoshoot" },
+  );
+  assert.deepEqual(
+    shouldAttemptPhotoshootFluxFallback({
+      isPhotoshoot: true,
+      requestedModel: "flux-2-flex",
+      error: safety,
+      openrouterConfigured: true,
+      fallbackModel: "flux-2-flex",
+    }),
+    { ok: false, reason: "already_flux" },
+  );
+  assert.deepEqual(
+    shouldAttemptPhotoshootFluxFallback({
+      isPhotoshoot: true,
+      requestedModel: "seedream-5.0-pro",
+      executedModel: "flux-2-flex",
+      error: safety,
+      openrouterConfigured: true,
+      fallbackModel: "flux-2-flex",
+    }),
+    { ok: false, reason: "already_flux" },
+  );
+  assert.deepEqual(
+    shouldAttemptPhotoshootFluxFallback({
+      isPhotoshoot: true,
+      requestedModel: "seedream-5.0-pro",
+      error: new ProcessingError("shutdown", "down", true),
+      openrouterConfigured: true,
+      fallbackModel: "flux-2-flex",
+    }),
+    { ok: false, reason: "not_eligible" },
+  );
+  assert.deepEqual(
+    shouldAttemptPhotoshootFluxFallback({
+      isPhotoshoot: true,
+      requestedModel: "seedream-5.0-pro",
+      error: safety,
+      openrouterConfigured: true,
+      fallbackModel: null,
+    }),
+    { ok: false, reason: "fallback_disabled" },
   );
 });
 

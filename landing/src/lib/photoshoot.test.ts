@@ -3,6 +3,8 @@ import test from "node:test";
 import {
   PHOTOSHOOT_CREDIT_COST,
   PHOTOSHOOT_CTA_LABEL,
+  PHOTOSHOOT_FALLBACK_DEFAULT_MODEL,
+  PHOTOSHOOT_FLUX_SAFETY_TOLERANCE,
   PHOTOSHOOT_EDIT_KIND,
   PHOTOSHOOT_FRAME_COUNT,
   PHOTOSHOOT_IMAGE_SIZE,
@@ -170,6 +172,8 @@ test("photoshoot sheet is always 2K", () => {
 test("photoshoot CTA is 4 frames for 15 credits", () => {
   assert.equal(PHOTOSHOOT_FRAME_COUNT, 4);
   assert.equal(PHOTOSHOOT_CREDIT_COST, 15);
+  assert.equal(PHOTOSHOOT_FALLBACK_DEFAULT_MODEL, "flux-2-flex");
+  assert.equal(PHOTOSHOOT_FLUX_SAFETY_TOLERANCE, 5);
   assert.equal(PHOTOSHOOT_CTA_LABEL, "ИИ фотосессия");
   assert.equal(photoshootCtaDetail(), "4 фото");
 });

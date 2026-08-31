@@ -1,3 +1,4 @@
+import { PHOTOSHOOT_FALLBACK_DEFAULT_MODEL } from "../../landing/src/lib/photoshoot";
 import { isFluxImageModel, isSeedreamImageModel } from "./openrouter-seedream";
 import { ProcessingError } from "./input-source";
 import { isGrokImageModel } from "./xai-image";
@@ -57,4 +58,29 @@ export function shouldAttemptSeedreamFallback(input: {
   }
   if (input.circuitOpen) return { ok: false, reason: "circuit_open" };
   return { ok: true, model: input.secondaryModel };
+}
+
+/**
+ * Photoshoot-only: primary I2I fail → one Flux hop. Does not use the Seedream circuit
+ * (Seedream safety_block must not block the rescue).
+ */
+export function shouldAttemptPhotoshootFluxFallback(input: {
+  isPhotoshoot: boolean;
+  requestedModel: string;
+  executedModel?: string | null;
+  error: ProcessingError;
+  openrouterConfigured: boolean;
+  fallbackModel: string | null;
+}): { ok: true; model: string } | { ok: false; reason: string } {
+  if (!input.isPhotoshoot) return { ok: false, reason: "not_photoshoot" };
+  if (isFluxImageModel(input.requestedModel) || isFluxImageModel(input.executedModel)) {
+    return { ok: false, reason: "already_flux" };
+  }
+  if (!isImageFallbackEligible(input.error)) return { ok: false, reason: "not_eligible" };
+  if (!input.openrouterConfigured) return { ok: false, reason: "openrouter_unconfigured" };
+  const target = input.fallbackModel || PHOTOSHOOT_FALLBACK_DEFAULT_MODEL;
+  if (!input.fallbackModel || !isFluxImageModel(target)) {
+    return { ok: false, reason: "fallback_disabled" };
+  }
+  return { ok: true, model: target };
 }

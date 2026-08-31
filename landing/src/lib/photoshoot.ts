@@ -2,6 +2,10 @@ import { clampPhotoshootPlannerTemperature } from "./photoshoot-planner";
 
 export const PHOTOSHOOT_EDIT_KIND = "photoshoot";
 export const PHOTOSHOOT_DEFAULT_MODEL = "gemini-3-pro-image-preview";
+/** One-hop I2I after photoshoot_model fail. Kill-switch: empty `photoshoot_fallback_model`. */
+export const PHOTOSHOOT_FALLBACK_DEFAULT_MODEL = "flux-2-flex";
+/** BFL 0–5. Photoshoot Flux (primary or fallback) uses the most permissive value. */
+export const PHOTOSHOOT_FLUX_SAFETY_TOLERANCE = 5;
 export const PHOTOSHOOT_IMAGE_SIZE = "2K";
 export const PHOTOSHOOT_FRAME_COUNT = 4;
 /** Product price for one photoshoot job. Independent of photoshoot_model picker cost. */

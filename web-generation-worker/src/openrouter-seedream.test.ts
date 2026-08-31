@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   buildSeedreamImageBody,
+  clampFluxSafetyTolerance,
   extractSeedreamImageBase64,
   extractSeedreamImageUrl,
   extractSeedreamOperationId,
@@ -98,6 +99,31 @@ test("Seedream 5.0 Pro and Flux 2 Flex use vendor slugs", () => {
   });
   assert.equal(flux.model, "black-forest-labs/flux.2-flex");
   assert.equal(flux.resolution, undefined);
+  assert.equal(flux.safety_tolerance, undefined);
+  const fluxLoose = buildSeedreamImageBody({
+    prompt: "a face",
+    size: "2K",
+    aspectRatio: "9:16",
+    model: "flux-2-flex",
+    safetyTolerance: 5,
+  });
+  assert.equal(fluxLoose.safety_tolerance, 5);
+  const seedreamLoose = buildSeedreamImageBody({
+    prompt: "a face",
+    size: "2K",
+    aspectRatio: "9:16",
+    model: "seedream-5.0-pro",
+    safetyTolerance: 5,
+  });
+  assert.equal(seedreamLoose.safety_tolerance, undefined);
+});
+
+test("Flux safety_tolerance clamps 0..5", () => {
+  assert.equal(clampFluxSafetyTolerance(5), 5);
+  assert.equal(clampFluxSafetyTolerance(2.4), 2);
+  assert.equal(clampFluxSafetyTolerance(9), 5);
+  assert.equal(clampFluxSafetyTolerance(-1), 0);
+  assert.equal(clampFluxSafetyTolerance("5"), null);
 });
 
 test("extracts inline image, url, operation id and safety", () => {

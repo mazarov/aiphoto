@@ -26,6 +26,7 @@
 | D5 | Intent `edit_kind=photoshoot`. Не reuse local-edit (запрещает менять позу) и не camera-orbit (лочит взгляд/позу) |
 | D6 | Флаг `photoshoot_enabled` (default **false**) + тот же internal allowlist, что у video/orbit (`azarov.maxim@gmail.com` + `NODE_ENV=development`) |
 | D7 | Модель кадра = `photoshoot_model` (дефолт `gemini-3-pro-image-preview`, SQL `228`). Цена job = `PHOTOSHOOT_CREDIT_COST` (**15 кр**), не cost модели. `image_size` всегда **2K**. Пикер в оверлее скрыт. Чужой/выключенный id → 503, не Flash |
+| D17 | I2I fail → один хоп `photoshoot_fallback_model` = Flux 2 Flex, `safety_tolerance=5` (SQL `233`). Спека `docs/31-08-photoshoot-flux-fallback.md` |
 | D8 | Кнопка только после **completed image**. На video нет |
 | D9 | С готового листа «Оживить» / «Камера» в v1 **выключены** (2×2 как source ломает оба) |
 | D10 | Клиент не пишет сценарии и не зовёт Gemini. `prompt_text` сервер ставит сам (`PHOTOSHOOT`) |

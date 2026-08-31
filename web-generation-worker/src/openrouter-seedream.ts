@@ -106,12 +106,24 @@ export function isProxiedReferenceUrl(url: string): boolean {
   }
 }
 
+export const FLUX_SAFETY_TOLERANCE_MIN = 0;
+export const FLUX_SAFETY_TOLERANCE_MAX = 5;
+
+export function clampFluxSafetyTolerance(value: unknown): number | null {
+  if (typeof value !== "number" || !Number.isFinite(value)) return null;
+  return Math.min(
+    FLUX_SAFETY_TOLERANCE_MAX,
+    Math.max(FLUX_SAFETY_TOLERANCE_MIN, Math.round(value)),
+  );
+}
+
 export function buildSeedreamImageBody(input: {
   prompt: string;
   size: "1K" | "2K" | "4K";
   aspectRatio: string;
   imageInput?: string[];
   model?: string;
+  safetyTolerance?: number | null;
 }): Record<string, unknown> {
   const productId = resolveProductModelId(input.model);
   const imageInput = clampSeedreamImageUrls(
@@ -133,6 +145,10 @@ export function buildSeedreamImageBody(input: {
   };
   if (openRouterSendsResolution(productId)) {
     payload.resolution = input.size;
+  }
+  const safetyTolerance = clampFluxSafetyTolerance(input.safetyTolerance);
+  if (safetyTolerance != null && isFluxImageModel(productId)) {
+    payload.safety_tolerance = safetyTolerance;
   }
   if (imageInput.length) {
     payload.input_references = imageInput.map((url) => ({

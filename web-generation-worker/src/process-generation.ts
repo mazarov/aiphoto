@@ -34,6 +34,7 @@ import {
 } from "../../landing/src/lib/camera-orbit";
 import {
   PHOTOSHOOT_EDIT_KIND,
+  PHOTOSHOOT_FLUX_SAFETY_TOLERANCE,
   PHOTOSHOOT_TILE_INDEXES,
   parsePhotoshootPlannerTemperature,
   photoshootTileStoragePath,
@@ -60,7 +61,11 @@ import {
 } from "./input-source";
 import { encodeGenerationResult } from "./result-encode";
 import { grokImageCircuit, seedreamImageCircuit } from "./grok-image-circuit";
-import { shouldAttemptGrokFallback, shouldAttemptSeedreamFallback } from "./image-fallback";
+import {
+  shouldAttemptGrokFallback,
+  shouldAttemptPhotoshootFluxFallback,
+  shouldAttemptSeedreamFallback,
+} from "./image-fallback";
 import {
   GROK_IMAGINE_IMAGE_MODEL,
   buildXaiImageEditBody,
@@ -79,10 +84,12 @@ import {
   type GrokImagePart,
 } from "./xai-image";
 import {
+  FLUX_2_FLEX_IMAGE_MODEL,
   SEEDREAM_50_PRO_IMAGE_MODEL,
   SEEDREAM_SIGNED_TTL_SEC,
   buildSeedreamImageBody,
   clampSeedreamImageUrls,
+  isFluxImageModel,
   isOpenRouterImageModel,
   isProxiedReferenceUrl,
   isSeedreamImageModel,
@@ -457,26 +464,57 @@ export async function processGeneration(
   if (isOpenRouterImageModel(requestedModel) || isOpenRouterImageModel(job.executed_model)) {
     const executedOpenRouter = resolveOpenRouterProductModel(job, requestedModel);
     const providerStarted = Date.now();
-    const imageBuffer = await generateSeedreamFromJob({
-      job,
-      productModel: executedOpenRouter,
-      rawPrompt,
-      editInstruction,
-      isVibe,
-      isPhotoshoot,
-      photoshootSheet,
-      isCameraOrbit,
-      isLocalEdit,
-      vibeSourceUrl,
-      inputSource,
-      generationMode,
-      signal,
-      context,
-      ensureLease,
-      supabase,
-    });
+    let imageBuffer: Buffer;
+    let executedModel = executedOpenRouter;
+    let fallbackUsed = Boolean(job.fallback_used) || !isOpenRouterImageModel(requestedModel);
+    try {
+      imageBuffer = await generateSeedreamFromJob({
+        job,
+        productModel: executedOpenRouter,
+        rawPrompt,
+        editInstruction,
+        isVibe,
+        isPhotoshoot,
+        photoshootSheet,
+        isCameraOrbit,
+        isLocalEdit,
+        vibeSourceUrl,
+        inputSource,
+        generationMode,
+        signal,
+        context,
+        ensureLease,
+        supabase,
+      });
+    } catch (error) {
+      const processing = toProcessingError(error);
+      const flux = await tryPhotoshootFluxFallback({
+        job,
+        requestedModel,
+        error: processing,
+        rawPrompt,
+        editInstruction,
+        isVibe,
+        isPhotoshoot,
+        photoshootSheet,
+        isCameraOrbit,
+        isLocalEdit,
+        vibeSourceUrl,
+        inputSource,
+        generationMode,
+        signal,
+        context,
+        ensureLease,
+        supabase,
+        fromModel: executedOpenRouter,
+      });
+      if (!flux) throw processing;
+      imageBuffer = flux.buffer;
+      executedModel = flux.model;
+      fallbackUsed = true;
+    }
     if (photoshootMarks) {
-      photoshootMarks.provider = executedOpenRouter;
+      photoshootMarks.provider = executedModel;
       photoshootMarks.providerMs = elapsedMs(providerStarted);
     }
     const encodedSeedream = await encodeGenerationResult(imageBuffer);
@@ -507,8 +545,8 @@ export async function processGeneration(
       outputFormat: encodedSeedream.outputFormat,
       encodeMs: encodedSeedream.encodeMs,
       skippedReason: encodedSeedream.skippedReason,
-      executedModel: executedOpenRouter,
-      fallbackUsed: Boolean(job.fallback_used),
+      executedModel,
+      fallbackUsed,
       sheetUploadMs: photoshootMarks?.sheetUploadMs ?? null,
     });
     const photoshootTilePaths = requirePhotoshootTiles(
@@ -523,14 +561,14 @@ export async function processGeneration(
       }),
     );
     logPhotoshootTiming(context, photoshootMarks, {
-      executedModel: executedOpenRouter,
-      fallbackUsed: Boolean(job.fallback_used) || !isOpenRouterImageModel(requestedModel),
+      executedModel,
+      fallbackUsed,
     });
     return {
       resultPath: seedreamResultPath,
       rawPrompt,
-      executedModel: executedOpenRouter,
-      fallbackUsed: Boolean(job.fallback_used) || !isOpenRouterImageModel(requestedModel),
+      executedModel,
+      fallbackUsed,
       photoshootTilePaths,
     };
   }
@@ -618,30 +656,57 @@ export async function processGeneration(
       });
     } catch (error) {
       const processing = toProcessingError(error);
-      const seedream = await trySeedreamImageFallback({
-        job,
-        requestedModel,
-        error: processing,
-        rawPrompt,
-        editInstruction,
-        isVibe,
-        isPhotoshoot,
-        photoshootSheet,
-        isCameraOrbit,
-        isLocalEdit,
-        vibeSourceUrl,
-        inputSource,
-        generationMode,
-        signal,
-        context,
-        ensureLease,
-        supabase,
-        fromModel: executedModel,
-      });
-      if (!seedream) throw processing;
-      imageBuffer = seedream.buffer;
-      executedModel = seedream.model;
-      fallbackUsed = true;
+      if (isPhotoshoot) {
+        const flux = await tryPhotoshootFluxFallback({
+          job,
+          requestedModel,
+          error: processing,
+          rawPrompt,
+          editInstruction,
+          isVibe,
+          isPhotoshoot,
+          photoshootSheet,
+          isCameraOrbit,
+          isLocalEdit,
+          vibeSourceUrl,
+          inputSource,
+          generationMode,
+          signal,
+          context,
+          ensureLease,
+          supabase,
+          fromModel: executedModel,
+        });
+        if (!flux) throw processing;
+        imageBuffer = flux.buffer;
+        executedModel = flux.model;
+        fallbackUsed = true;
+      } else {
+        const seedream = await trySeedreamImageFallback({
+          job,
+          requestedModel,
+          error: processing,
+          rawPrompt,
+          editInstruction,
+          isVibe,
+          isPhotoshoot,
+          photoshootSheet,
+          isCameraOrbit,
+          isLocalEdit,
+          vibeSourceUrl,
+          inputSource,
+          generationMode,
+          signal,
+          context,
+          ensureLease,
+          supabase,
+          fromModel: executedModel,
+        });
+        if (!seedream) throw processing;
+        imageBuffer = seedream.buffer;
+        executedModel = seedream.model;
+        fallbackUsed = true;
+      }
     }
   } else {
     try {
@@ -663,8 +728,34 @@ export async function processGeneration(
       });
     } catch (error) {
       if (!(error instanceof ProcessingError)) throw error;
-      const targets = await resolveImageFallbackTargets(supabase);
-      const grokDecision = shouldAttemptGrokFallback({
+      if (isPhotoshoot) {
+        const flux = await tryPhotoshootFluxFallback({
+          job,
+          requestedModel,
+          error,
+          rawPrompt,
+          editInstruction,
+          isVibe,
+          isPhotoshoot,
+          photoshootSheet,
+          isCameraOrbit,
+          isLocalEdit,
+          vibeSourceUrl,
+          inputSource,
+          generationMode,
+          signal,
+          context,
+          ensureLease,
+          supabase,
+          fromModel: requestedModel,
+        });
+        if (!flux) throw error;
+        imageBuffer = flux.buffer;
+        executedModel = flux.model;
+        fallbackUsed = true;
+      } else {
+        const targets = await resolveImageFallbackTargets(supabase);
+        const grokDecision = shouldAttemptGrokFallback({
         requestedModel,
         fallbackUsed,
         error,
@@ -751,6 +842,7 @@ export async function processGeneration(
         imageBuffer = seedream.buffer;
         executedModel = seedream.model;
         fallbackUsed = true;
+      }
       }
     }
   }
@@ -851,6 +943,11 @@ function resolveOpenRouterProductModel(job: GenerationJob, requestedModel: strin
   return SEEDREAM_50_PRO_IMAGE_MODEL;
 }
 
+function photoshootFluxSafetyTolerance(isPhotoshoot: boolean, productModel: string): number | undefined {
+  if (!isPhotoshoot || !isFluxImageModel(productModel)) return undefined;
+  return PHOTOSHOOT_FLUX_SAFETY_TOLERANCE;
+}
+
 async function generateSeedreamFromJob(input: {
   job: GenerationJob;
   productModel?: string;
@@ -868,6 +965,7 @@ async function generateSeedreamFromJob(input: {
   context: ProviderContext;
   ensureLease: () => Promise<void>;
   supabase: SupabaseClient;
+  bypassCircuit?: boolean;
 }): Promise<Buffer> {
   if (input.vibeSourceUrl && isProxiedReferenceUrl(input.vibeSourceUrl)) {
     throw new ProcessingError(
@@ -919,6 +1017,8 @@ async function generateSeedreamFromJob(input: {
     prompt: seedreamPrompt,
     imageInput: imageInput.urls,
     imageInputClamped: imageInput.clamped,
+    safetyTolerance: photoshootFluxSafetyTolerance(input.isPhotoshoot, productModel),
+    bypassCircuit: input.bypassCircuit,
     signal: input.signal,
     context: input.context,
     ensureLease: input.ensureLease,
@@ -981,6 +1081,63 @@ async function trySeedreamImageFallback(input: {
   return { buffer, model: decision.model };
 }
 
+async function tryPhotoshootFluxFallback(input: {
+  job: GenerationJob;
+  requestedModel: string;
+  error: ProcessingError;
+  rawPrompt: string;
+  editInstruction: string;
+  isVibe: boolean;
+  isPhotoshoot: boolean;
+  photoshootSheet: string;
+  isCameraOrbit: boolean;
+  isLocalEdit: boolean;
+  vibeSourceUrl: string | null;
+  inputSource: GenerationInputSource;
+  generationMode: string;
+  signal: AbortSignal;
+  context: ProviderContext;
+  ensureLease: () => Promise<void>;
+  supabase: SupabaseClient;
+  fromModel: string;
+}): Promise<{ buffer: Buffer; model: string } | null> {
+  const targets = await resolveImageFallbackTargets(input.supabase);
+  const decision = shouldAttemptPhotoshootFluxFallback({
+    isPhotoshoot: input.isPhotoshoot,
+    requestedModel: input.requestedModel,
+    executedModel: input.job.executed_model,
+    error: input.error,
+    openrouterConfigured: Boolean(config.openrouterApiKey && config.openrouterBaseUrl),
+    fallbackModel: targets.photoshootFlux,
+  });
+  if (!decision.ok) {
+    log("info", "generation_fallback_skipped", {
+      ...input.context,
+      reason: decision.reason,
+      errorType: input.error.errorType,
+      hop: "photoshoot_flux",
+    });
+    return null;
+  }
+  input.job.fallback_used = true;
+  input.job.executed_model = decision.model;
+  await persistImageFallback(input.supabase, input.job.id, input.requestedModel, decision.model);
+  log("warn", "generation_fallback_used", {
+    ...input.context,
+    from: input.fromModel,
+    to: decision.model,
+    errorType: input.error.errorType,
+    hop: "photoshoot_flux",
+    safetyTolerance: PHOTOSHOOT_FLUX_SAFETY_TOLERANCE,
+  });
+  const buffer = await generateSeedreamFromJob({
+    ...input,
+    productModel: decision.model,
+    bypassCircuit: true,
+  });
+  return { buffer, model: decision.model };
+}
+
 async function persistSeedreamOperation(
   supabase: SupabaseClient,
   job: GenerationJob,
@@ -1039,6 +1196,8 @@ async function generateSeedreamImage(input: {
   prompt: string;
   imageInput: string[];
   imageInputClamped: boolean;
+  safetyTolerance?: number;
+  bypassCircuit?: boolean;
   signal: AbortSignal;
   context: ProviderContext;
   ensureLease: () => Promise<void>;
@@ -1083,6 +1242,7 @@ async function generateSeedreamImage(input: {
     aspectRatio: input.job.aspect_ratio,
     imageInput: input.imageInput,
     model: input.productModel,
+    safetyTolerance: input.safetyTolerance,
   });
   const startedAt = Date.now();
   log("info", "seedream_request_started", {
@@ -1093,6 +1253,8 @@ async function generateSeedreamImage(input: {
     size: mapped.size,
     clampedSize: mapped.clamped,
     partCount: input.imageInput.length,
+    safetyTolerance: input.safetyTolerance ?? null,
+    bypassCircuit: Boolean(input.bypassCircuit),
   });
   try {
     const result = await runSeedreamImage({
@@ -1103,7 +1265,7 @@ async function generateSeedreamImage(input: {
         persistSeedreamOperation(input.supabase, input.job, operationId, input.context),
       ensureLease: input.ensureLease,
       signal: input.signal,
-      circuitOpen: seedreamImageCircuit.isOpen(),
+      circuitOpen: input.bypassCircuit ? false : seedreamImageCircuit.isOpen(),
       onLog: (event, fields) => {
         log(event === "seedream_circuit_open" || event === "seedream_persist_failed" ? "warn" : "info", event, {
           ...input.context,
@@ -1111,7 +1273,7 @@ async function generateSeedreamImage(input: {
         });
       },
     });
-    seedreamImageCircuit.record(true);
+    if (!input.bypassCircuit) seedreamImageCircuit.record(true);
     log("info", "seedream_completed", {
       ...input.context,
       durationMs: Date.now() - startedAt,
@@ -1119,7 +1281,7 @@ async function generateSeedreamImage(input: {
     return result.buffer;
   } catch (error) {
     const processing = toProcessingError(error);
-    if (processing.errorType !== "shutdown") seedreamImageCircuit.record(false);
+    if (!input.bypassCircuit && processing.errorType !== "shutdown") seedreamImageCircuit.record(false);
     log("warn", "seedream_failed", {
       ...input.context,
       errorType: processing.errorType,
@@ -1404,13 +1566,19 @@ async function downloadXaiImageBase64(imageUrl: string, signal: AbortSignal): Pr
 async function resolveImageFallbackTargets(supabase: SupabaseClient): Promise<{
   grok: string | null;
   seedream: string | null;
+  photoshootFlux: string | null;
 }> {
   const { data, error } = await supabase
     .from("landing_generation_config")
     .select("key,value")
-    .in("key", ["image_fallback_model", "image_fallback_secondary_model", "models"]);
+    .in("key", [
+      "image_fallback_model",
+      "image_fallback_secondary_model",
+      "photoshoot_fallback_model",
+      "models",
+    ]);
   if (error || !data?.length) {
-    return { grok: GROK_IMAGINE_IMAGE_MODEL, seedream: null };
+    return { grok: GROK_IMAGINE_IMAGE_MODEL, seedream: null, photoshootFlux: null };
   }
   const configMap = Object.fromEntries(data.map((row) => [row.key, String(row.value || "")]));
   let models: Array<{ id?: string; enabled?: boolean }> = [];
@@ -1441,6 +1609,11 @@ async function resolveImageFallbackTargets(supabase: SupabaseClient): Promise<{
       configMap.image_fallback_secondary_model,
       isSeedreamImageModel,
       SEEDREAM_50_PRO_IMAGE_MODEL,
+    ),
+    photoshootFlux: pick(
+      configMap.photoshoot_fallback_model,
+      isFluxImageModel,
+      FLUX_2_FLEX_IMAGE_MODEL,
     ),
   };
 }
