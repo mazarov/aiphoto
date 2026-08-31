@@ -9,6 +9,7 @@ import {
 import {
   PHOTOSHOOT_CREDIT_COST,
   PHOTOSHOOT_TILE_INDEXES,
+  photoshootOverlayChromeState,
   type PhotoshootTileIndex,
 } from "@/lib/photoshoot";
 import {
@@ -106,20 +107,23 @@ export function PhotoshootOverlay({
 }: Props) {
   const [creativity, setCreativity] = useState(readCachedCreativity);
   const [starting, setStarting] = useState(false);
-  const busy = capturing || starting;
+  const chrome = photoshootOverlayChromeState({ capturing, starting });
 
   useEffect(() => {
     writeCachedCreativity(creativity);
   }, [creativity]);
 
   const handleCreate = async () => {
-    if (busy) return;
+    if (chrome.createDisabled) return;
     setStarting(true);
-    const ok = await onCreate(photoshootTemperatureFromCreativity(creativity));
-    if (!ok) setStarting(false);
+    try {
+      await onCreate(photoshootTemperatureFromCreativity(creativity));
+    } finally {
+      setStarting(false);
+    }
   };
 
-  const createLabel = capturing
+  const createLabel = chrome.createIsProgress
     ? progress > 0
       ? `Снимаем… ${Math.round(progress)}%`
       : "Снимаем…"
@@ -128,7 +132,7 @@ export function PhotoshootOverlay({
   const exitAction: GenerationResultAction = {
     id: "exit",
     label: "Выйти",
-    disabled: starting,
+    disabled: chrome.exitDisabled,
     onClick: onClose,
     icon: (
       <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -140,12 +144,12 @@ export function PhotoshootOverlay({
   const createAction: GenerationResultAction = {
     id: "create",
     label: createLabel,
-    ariaLabel: capturing
+    ariaLabel: chrome.createIsProgress
       ? createLabel
       : `Создать фотосессию, ${PHOTOSHOOT_CREDIT_COST} кредитов`,
     primary: true,
     wrap: true,
-    disabled: busy,
+    disabled: chrome.createDisabled,
     onClick: () => void handleCreate(),
     icon: (
       <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -163,11 +167,7 @@ export function PhotoshootOverlay({
     <div className="absolute inset-0 z-40" role="dialog" aria-label="Фотосессия">
       <div className="absolute bottom-[max(0.75rem,env(safe-area-inset-bottom))] right-2.5 z-30 flex w-[9.5rem] flex-col gap-2">
         <GenerationResultActionRail className="w-full" actions={[exitAction]} />
-        <div
-          className={`rounded-2xl bg-black/15 px-3 py-3 text-white/90 shadow-none backdrop-blur-md ${
-            busy ? "opacity-50" : ""
-          }`}
-        >
+        <div className="rounded-2xl bg-black/15 px-3 py-3 text-white/90 shadow-none backdrop-blur-md">
           <div className="flex items-start justify-between gap-2 text-[13px] font-semibold leading-tight">
             <label htmlFor="photoshoot-creativity" className="min-w-0" aria-live="polite">
               {photoshootCreativityHint(creativity)}
@@ -181,7 +181,7 @@ export function PhotoshootOverlay({
             max={100}
             step={5}
             value={creativity}
-            disabled={busy}
+            disabled={chrome.creativityDisabled}
             aria-valuemin={0}
             aria-valuemax={100}
             aria-valuenow={creativity}

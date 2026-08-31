@@ -9,6 +9,7 @@ import {
   PHOTOSHOOT_FRAME_COUNT,
   PHOTOSHOOT_IMAGE_SIZE,
   photoshootCtaDetail,
+  photoshootOverlayChromeState,
   extractJsonObject,
   looksLikePhotoshootInstruction,
   usableCatalogPrompt,
@@ -365,4 +366,33 @@ test("planner temperature clamps and round-trips through enqueue instruction", (
   assert.equal(photoshootCreativityHint(50), "нейтрально");
   assert.equal(photoshootCreativityHint(70), "смелее");
   assert.equal(photoshootCreativityHint(100), "невероятные сюжеты");
+});
+
+test("photoshoot overlay keeps exit and creativity usable during capture", () => {
+  const idle = photoshootOverlayChromeState({
+    capturing: false,
+    starting: false,
+  });
+  assert.equal(idle.exitDisabled, false);
+  assert.equal(idle.creativityDisabled, false);
+  assert.equal(idle.createDisabled, false);
+  assert.equal(idle.createIsProgress, false);
+
+  const starting = photoshootOverlayChromeState({
+    capturing: false,
+    starting: true,
+  });
+  assert.equal(starting.exitDisabled, false);
+  assert.equal(starting.creativityDisabled, false);
+  assert.equal(starting.createDisabled, true);
+  assert.equal(starting.createIsProgress, true);
+
+  const capturing = photoshootOverlayChromeState({
+    capturing: true,
+    starting: true,
+  });
+  assert.equal(capturing.exitDisabled, false);
+  assert.equal(capturing.creativityDisabled, false);
+  assert.equal(capturing.createDisabled, true);
+  assert.equal(capturing.createIsProgress, true);
 });

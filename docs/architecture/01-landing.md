@@ -1,5 +1,7 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-08-31 (**photoshoot overlay chrome stays live:** во время съёмки «Выйти» и ползунок «невероятные сюжеты» не `disabled`. «Создать» = прогресс (`Снимаем… N%`), повторный enqueue закрыт. Job не отменяется на выход — poll обрывается. SSOT `photoshootOverlayChromeState`.
+>
 > Последнее обновление: 2026-08-31 (**Safari tap vs snap swipe:** тап по хрому карточки — «Промпт», Lexy, close, реакции — не стартует `scroll-snap`. iOS трактует 2–10px jitter на `touch-action: pan-y` как paging. SSOT `shouldLockMobileCardSnapGesture` в `mobile-card-snap.ts`: `touch-action: none` на interactive (кроме `[data-swipe-ok]`), non-passive `touchmove` preventDefault + pin `scrollTop`. Нижний док / шапка / правый стек — `data-no-swipe`.
 >
 > Последнее обновление: 2026-08-31 (**listing video Repeat = photo → I2V:** publish пишет look + `Motion:`. «Повторить» на видео-карточке: image I2I по look + своё фото, затем worker enqueue video I2V (`parent_generation_id`, motion only). `pipeline_spec.kind=listing_video_repeat` на image job, флаг `listing_video_repeat_chain` (SQL `234`). I2V user beat — `videoI2vUserPrompt` clamp 400, не Visual Hook. Спека `docs/31-08-video-card-repeat-prompt.md`.

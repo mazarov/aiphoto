@@ -18,6 +18,29 @@ export function photoshootCtaDetail(): string {
   return PHOTOSHOOT_CTA_DETAIL;
 }
 
+/**
+ * Overlay chrome stays usable while a photoshoot job is in flight.
+ * Exit always closes (job keeps running). Creativity stays interactive.
+ * Create is the progress surface — no second enqueue until the job settles.
+ */
+export function photoshootOverlayChromeState(input: {
+  capturing: boolean;
+  starting: boolean;
+}): {
+  exitDisabled: false;
+  creativityDisabled: false;
+  createDisabled: boolean;
+  createIsProgress: boolean;
+} {
+  const inFlight = input.capturing || input.starting;
+  return {
+    exitDisabled: false,
+    creativityDisabled: false,
+    createDisabled: inFlight,
+    createIsProgress: inFlight,
+  };
+}
+
 export type PhotoshootShot = {
   i: number;
   pose: string;
