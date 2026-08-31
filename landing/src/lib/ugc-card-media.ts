@@ -58,13 +58,12 @@ export function buildUgcCardMediaInserts(params: {
   is_primary: boolean;
 }> {
   const startIndex = params.startIndex ?? 0;
-  const items =
-    params.items?.length
-      ? params.items
-      : cleanUgcCardMediaPaths(params.paths || []).map((path) => ({
-          path,
-          mediaType: "photo" as const,
-        }));
+  const items: UgcMediaItem[] = params.items?.length
+    ? params.items
+    : cleanUgcCardMediaPaths(params.paths || []).map((path) => ({
+        path,
+        mediaType: "photo",
+      }));
   return items
     .map((item) => ({
       path: String(item.path || "").trim(),
