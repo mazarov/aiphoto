@@ -3,6 +3,7 @@ import sharp from "sharp";
 import { config } from "./config";
 import { ProcessingError } from "./input-source";
 import { log } from "./lib/logger";
+import { elapsedMs } from "./photoshoot-timing";
 import {
   extractJsonObject,
   parsePhotoshootPlan,
@@ -142,12 +143,17 @@ export async function planPhotoshootShots(input: {
   temperature?: unknown;
 }): Promise<PhotoshootPlan> {
   const temperature = photoshootPlannerGenerationConfig(input.temperature).temperature;
+  const plannerStarted = Date.now();
   const { url, proxy } = await plannerBaseUrl(input.supabase);
+  const shrinkStarted = Date.now();
   const image = await shrinkPlannerImage(input.image);
+  const shrinkMs = elapsedMs(shrinkStarted);
   let lastError: ProcessingError | null = null;
   for (let attempt = 1; attempt <= 2; attempt += 1) {
     try {
+      const requestStarted = Date.now();
       const { text, payload } = await requestPlan(image, url, input.signal, temperature);
+      const requestMs = elapsedMs(requestStarted);
       const plan = parsePhotoshootPlan(extractJsonObject(text));
       if (!plan) {
         lastError = new ProcessingError(
@@ -160,6 +166,9 @@ export async function planPhotoshootShots(input: {
           attempt,
           viaProxy: proxy,
           version: PHOTOSHOOT_PLANNER_PROMPT_VERSION,
+          shrinkMs,
+          requestMs,
+          durationMs: elapsedMs(plannerStarted),
           ...plannerDiagnostics(payload, text),
         });
         continue;
@@ -171,11 +180,22 @@ export async function planPhotoshootShots(input: {
         version: PHOTOSHOOT_PLANNER_PROMPT_VERSION,
         temperature,
         theme: plan.theme,
+        shrinkMs,
+        requestMs,
+        durationMs: elapsedMs(plannerStarted),
       });
       return plan;
     } catch (error) {
       if (error instanceof ProcessingError && error.retryable && attempt < 2) {
         lastError = error;
+        log("warn", "photoshoot_planner_retry", {
+          generationId: input.generationId,
+          attempt,
+          viaProxy: proxy,
+          errorType: error.errorType,
+          shrinkMs,
+          durationMs: elapsedMs(plannerStarted),
+        });
         continue;
       }
       if (error instanceof ProcessingError) throw error;

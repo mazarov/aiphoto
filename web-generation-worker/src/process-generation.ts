@@ -41,6 +41,12 @@ import {
 } from "../../landing/src/lib/photoshoot";
 import { planPhotoshootShots } from "./photoshoot-planner";
 import { splitContactSheet } from "./photoshoot-split";
+import {
+  elapsedMs,
+  queueWaitMs,
+  snapshotPhotoshootTiming,
+  type PhotoshootTimingMarks,
+} from "./photoshoot-timing";
 import { getVibeAttachReferenceImage } from "./lib/vibe-config";
 import { errorFields, log } from "./lib/logger";
 import {
@@ -107,6 +113,8 @@ export type GenerationJob = GenerationInputJob & {
   max_attempts: number;
   lease_token: string;
   create_ugc: boolean;
+  created_at?: string | null;
+  generation_started_at?: string | null;
   edit_instruction: string | null;
   edit_kind?: string | null;
   camera_pose?: { azimuthDeg?: number; elevationDeg?: number; distanceRel?: number } | null;
@@ -286,10 +294,15 @@ async function uploadPhotoshootTiles(input: {
   resultPath: string;
   enabled: boolean;
   context: ProviderContext;
+  marks?: PhotoshootTimingMarks;
 }): Promise<string[] | undefined> {
   if (!input.enabled) return undefined;
+  const splitStarted = Date.now();
   try {
     const split = await splitContactSheet(input.sheetBuffer);
+    const splitMs = elapsedMs(splitStarted);
+    if (input.marks) input.marks.splitMs = splitMs;
+    const uploadStarted = Date.now();
     const paths: string[] = [];
     for (const tile of split.tiles) {
       const path = photoshootTileStoragePath(input.resultPath, tile.i);
@@ -302,6 +315,8 @@ async function uploadPhotoshootTiles(input: {
       }
       paths.push(path);
     }
+    const tileUploadMs = elapsedMs(uploadStarted);
+    if (input.marks) input.marks.tileUploadMs = tileUploadMs;
     if (paths.length !== PHOTOSHOOT_TILE_INDEXES.length) {
       throw new Error("photoshoot_tile_upload_incomplete");
     }
@@ -311,11 +326,14 @@ async function uploadPhotoshootTiles(input: {
       sheetHeight: split.sheetHeight,
       cellWidth: split.cellWidth,
       cellHeight: split.cellHeight,
+      splitMs,
+      tileUploadMs,
     });
     return paths;
   } catch (error) {
     log("warn", "photoshoot_split_failed", {
       ...input.context,
+      splitMs: elapsedMs(splitStarted),
       ...errorFields(error),
     });
     return undefined;
@@ -334,13 +352,23 @@ export async function processGeneration(
   fallbackUsed: boolean;
   photoshootTilePaths?: string[];
 }> {
+  const workerStartedAt = Date.now();
+  const queueWait = queueWaitMs(job.created_at, workerStartedAt);
   const context = {
     generationId: job.id,
     userId: job.user_id,
     attempt: job.attempts,
     pipelineTrace: job.pipeline_trace_id,
   };
-  log("info", "generation_started", context);
+  log("info", "generation_started", {
+    ...context,
+    editKind: job.edit_kind ?? null,
+    model: job.model,
+    imageSize: job.image_size,
+    createdAt: job.created_at ?? null,
+    queueWaitMs: queueWait,
+  });
+  const inputResolveStarted = Date.now();
   const resolvedInput = await resolveInputSource(supabase, job);
   const inputSource =
     job.edit_kind === PHOTOSHOOT_EDIT_KIND
@@ -351,6 +379,7 @@ export async function processGeneration(
     sourceType: inputSource.sourceType,
     sourceCount: inputSource.paths.length,
     parentGenerationId: job.parent_generation_id,
+    durationMs: elapsedMs(inputResolveStarted),
   });
   const rawPrompt = String(job.prompt_text || "");
   if (!rawPrompt.trim()) throw new ProcessingError("input_missing", "Prompt text is empty", false);
@@ -369,6 +398,9 @@ export async function processGeneration(
   const isPhotoshoot = generationMode === "photoshoot";
   const isCameraOrbit = generationMode === "camera_orbit";
   const isLocalEdit = generationMode === "local_edit";
+  const photoshootMarks: PhotoshootTimingMarks | undefined = isPhotoshoot
+    ? { createdAt: job.created_at, startedAt: workerStartedAt }
+    : undefined;
   let photoshootSheet = "";
   let cachedInputParts: ImagePart[] | null = null;
   let vibeSourceUrl: string | null = null;
@@ -394,11 +426,14 @@ export async function processGeneration(
     }
   }
 
-  if (isPhotoshoot) {
+  if (isPhotoshoot && photoshootMarks) {
+    const downloadStarted = Date.now();
     cachedInputParts = await downloadInputs(supabase, inputSource);
+    photoshootMarks.inputDownloadMs = elapsedMs(downloadStarted);
     if (!cachedInputParts[0]) {
       throw new ProcessingError("input_missing", "Photoshoot source image is missing", false);
     }
+    const plannerStarted = Date.now();
     const plan = await planPhotoshootShots({
       supabase,
       image: cachedInputParts[0].inlineData,
@@ -406,10 +441,13 @@ export async function processGeneration(
       generationId: job.id,
       temperature: parsePhotoshootPlannerTemperature(editInstruction),
     });
+    photoshootMarks.plannerMs = elapsedMs(plannerStarted);
+    const persistStarted = Date.now();
     const { error: planError } = await supabase
       .from("landing_generations")
       .update({ photoshoot_plan: plan })
       .eq("id", job.id);
+    photoshootMarks.planPersistMs = elapsedMs(persistStarted);
     if (planError) {
       throw new ProcessingError("photoshoot_plan_persist", planError.message, true);
     }
@@ -418,6 +456,7 @@ export async function processGeneration(
 
   if (isOpenRouterImageModel(requestedModel) || isOpenRouterImageModel(job.executed_model)) {
     const executedOpenRouter = resolveOpenRouterProductModel(job, requestedModel);
+    const providerStarted = Date.now();
     const imageBuffer = await generateSeedreamFromJob({
       job,
       productModel: executedOpenRouter,
@@ -436,15 +475,22 @@ export async function processGeneration(
       ensureLease,
       supabase,
     });
+    if (photoshootMarks) {
+      photoshootMarks.provider = executedOpenRouter;
+      photoshootMarks.providerMs = elapsedMs(providerStarted);
+    }
     const encodedSeedream = await encodeGenerationResult(imageBuffer);
+    if (photoshootMarks) photoshootMarks.encodeMs = encodedSeedream.encodeMs;
     await ensureLease();
     const seedreamResultPath = `${job.user_id}/${job.id}/${job.lease_token}.${encodedSeedream.extension}`;
+    const uploadStarted = Date.now();
     const { error: seedreamUploadError } = await supabase.storage
       .from(RESULTS_BUCKET)
       .upload(seedreamResultPath, encodedSeedream.buffer, {
         contentType: encodedSeedream.contentType,
         upsert: true,
       });
+    if (photoshootMarks) photoshootMarks.sheetUploadMs = elapsedMs(uploadStarted);
     if (seedreamUploadError) {
       throw new ProcessingError(
         "result_upload_error",
@@ -463,6 +509,7 @@ export async function processGeneration(
       skippedReason: encodedSeedream.skippedReason,
       executedModel: executedOpenRouter,
       fallbackUsed: Boolean(job.fallback_used),
+      sheetUploadMs: photoshootMarks?.sheetUploadMs ?? null,
     });
     const photoshootTilePaths = requirePhotoshootTiles(
       isPhotoshoot,
@@ -472,8 +519,13 @@ export async function processGeneration(
         resultPath: seedreamResultPath,
         enabled: isPhotoshoot,
         context,
+        marks: photoshootMarks,
       }),
     );
+    logPhotoshootTiming(context, photoshootMarks, {
+      executedModel: executedOpenRouter,
+      fallbackUsed: Boolean(job.fallback_used) || !isOpenRouterImageModel(requestedModel),
+    });
     return {
       resultPath: seedreamResultPath,
       rawPrompt,
@@ -552,6 +604,7 @@ export async function processGeneration(
   let imageBuffer: Buffer;
   let executedModel = startOnGrok ? GROK_IMAGINE_IMAGE_MODEL : requestedModel;
   let fallbackUsed = Boolean(job.fallback_used);
+  const providerStarted = Date.now();
 
   if (startOnGrok) {
     try {
@@ -702,12 +755,20 @@ export async function processGeneration(
     }
   }
 
+  if (photoshootMarks) {
+    photoshootMarks.provider = executedModel;
+    photoshootMarks.providerMs = elapsedMs(providerStarted);
+  }
+
   const encoded = await encodeGenerationResult(imageBuffer);
+  if (photoshootMarks) photoshootMarks.encodeMs = encoded.encodeMs;
   await ensureLease();
   const resultPath = `${job.user_id}/${job.id}/${job.lease_token}.${encoded.extension}`;
+  const uploadStarted = Date.now();
   const { error: uploadError } = await supabase.storage
     .from(RESULTS_BUCKET)
     .upload(resultPath, encoded.buffer, { contentType: encoded.contentType, upsert: true });
+  if (photoshootMarks) photoshootMarks.sheetUploadMs = elapsedMs(uploadStarted);
   if (uploadError) {
     throw new ProcessingError(
       "result_upload_error",
@@ -724,6 +785,7 @@ export async function processGeneration(
     outputFormat: encoded.outputFormat,
     encodeMs: encoded.encodeMs,
     skippedReason: encoded.skippedReason,
+    sheetUploadMs: photoshootMarks?.sheetUploadMs ?? null,
     executedModel,
     fallbackUsed,
   });
@@ -735,9 +797,26 @@ export async function processGeneration(
       resultPath,
       enabled: isPhotoshoot,
       context,
+      marks: photoshootMarks,
     }),
   );
+  logPhotoshootTiming(context, photoshootMarks, { executedModel, fallbackUsed });
   return { resultPath, rawPrompt, executedModel, fallbackUsed, photoshootTilePaths };
+}
+
+function logPhotoshootTiming(
+  context: ProviderContext,
+  marks: PhotoshootTimingMarks | undefined,
+  extra: { executedModel: string; fallbackUsed: boolean },
+): void {
+  if (!marks) return;
+  const timing = snapshotPhotoshootTiming(marks);
+  log("info", "photoshoot_timing", {
+    ...context,
+    ...timing,
+    executedModel: extra.executedModel,
+    fallbackUsed: extra.fallbackUsed,
+  });
 }
 
 function requirePhotoshootTiles(
@@ -1087,9 +1166,13 @@ async function generateGeminiImage(input: {
   const base = await geminiBaseUrl(input.supabase);
   const geminiUrl = `${base.url}/v1beta/models/${input.job.model}:generateContent`;
   await input.ensureLease();
+  const requestStarted = Date.now();
   log("info", "gemini_request_started", {
     ...input.context,
     model: input.job.model,
+    imageSize: input.job.image_size,
+    aspectRatio: input.job.aspect_ratio,
+    editKind: input.job.edit_kind ?? null,
     proxy: base.proxy,
     partCount: parts.length,
     hasReference: Boolean(input.reference),
@@ -1124,6 +1207,12 @@ async function generateGeminiImage(input: {
   } catch (error) {
     if (input.signal.aborted) throw new ProcessingError("shutdown", "Worker is shutting down", true);
     const timeout = error instanceof Error && ["TimeoutError", "AbortError"].includes(error.name);
+    log("warn", "gemini_request_failed", {
+      ...input.context,
+      model: input.job.model,
+      durationMs: elapsedMs(requestStarted),
+      errorType: timeout ? "timeout" : "network_error",
+    });
     throw new ProcessingError(timeout ? "timeout" : "network_error", String((error as Error)?.message || error), true);
   }
 
@@ -1141,9 +1230,24 @@ async function generateGeminiImage(input: {
     content?: { parts?: Array<{ inlineData?: { data?: string } }> };
   }> | undefined)?.[0];
   const imageBase64 = candidate?.content?.parts?.find((part) => part.inlineData?.data)?.inlineData?.data;
-  if (!response.ok || !imageBase64) throw geminiFailure(payload, response.status);
+  if (!response.ok || !imageBase64) {
+    log("warn", "gemini_request_failed", {
+      ...input.context,
+      model: input.job.model,
+      durationMs: elapsedMs(requestStarted),
+      httpStatus: response.status,
+    });
+    throw geminiFailure(payload, response.status);
+  }
   const imageBuffer = Buffer.from(imageBase64, "base64");
   if (!imageBuffer.length) throw new ProcessingError("gemini_error", "Gemini returned an empty image", false);
+  log("info", "gemini_request_completed", {
+    ...input.context,
+    model: input.job.model,
+    imageSize: input.job.image_size,
+    durationMs: elapsedMs(requestStarted),
+    bytes: imageBuffer.length,
+  });
   return imageBuffer;
 }
 
@@ -1195,6 +1299,7 @@ async function generateGrokImage(input: {
         resolution: mapped.resolution,
       });
   await input.ensureLease();
+  const requestStarted = Date.now();
   log("info", "grok_image_request_started", {
     ...input.context,
     model,
@@ -1270,6 +1375,12 @@ async function generateGrokImage(input: {
     throw new ProcessingError("grok_image_error", "xAI returned an empty image", false);
   }
   grokImageCircuit.record(true);
+  log("info", "grok_image_request_completed", {
+    ...input.context,
+    model,
+    durationMs: elapsedMs(requestStarted),
+    bytes: imageBuffer.length,
+  });
   return imageBuffer;
 }
 

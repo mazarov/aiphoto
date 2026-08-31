@@ -17,6 +17,7 @@ import {
   photoshootUserFacingMediaPaths,
   resolvePhotoshootUserFacingResult,
 } from "../../landing/src/lib/photoshoot";
+import { elapsedMs, parseTimestampMs, queueWaitMs } from "./photoshoot-timing";
 
 const app = express();
 const shutdownController = new AbortController();
@@ -255,7 +256,11 @@ async function runJob(job: GenerationJob): Promise<void> {
       userId: job.user_id,
       resultPath: result.resultPath,
       attempt: job.attempts,
+      editKind: job.edit_kind ?? null,
+      createdAt: job.created_at ?? null,
+      queueWaitMs: queueWaitMs(job.created_at, startedAt),
       durationMs: Date.now() - startedAt,
+      enqueueToDoneMs: elapsedMs(parseTimestampMs(job.created_at) ?? startedAt),
       executedModel: "executedModel" in result ? result.executedModel : job.model,
       fallbackUsed: "fallbackUsed" in result ? result.fallbackUsed : false,
       photoshootTiles: photoshootTilePaths?.length ?? 0,
@@ -325,7 +330,10 @@ async function runJob(job: GenerationJob): Promise<void> {
     log("warn", "generation_attempt_finished_with_error", {
       generationId: job.id,
       attempt: job.attempts,
+      editKind: job.edit_kind ?? null,
+      queueWaitMs: queueWaitMs(job.created_at, startedAt),
       durationMs: Date.now() - startedAt,
+      enqueueToDoneMs: elapsedMs(parseTimestampMs(job.created_at) ?? startedAt),
       errorType: processingError.errorType,
       retryable: processingError.retryable,
     });
