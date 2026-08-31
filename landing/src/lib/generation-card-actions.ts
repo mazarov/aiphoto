@@ -13,6 +13,9 @@ import { USER_GENERATION_PHOTOS_BUCKET } from "@/lib/user-generation-photos";
 
 const PUBLIC_RESULTS_BUCKET = "web-generation-results";
 
+export const OWNED_GENERATION_CARD_ACTION_SELECT =
+  "id,user_id,requester_auth_user_id,status,prompt_text,result_storage_bucket,result_storage_path,edit_kind,modality,parent_generation_id,input_photo_paths,photoshoot_tile_paths,ugc_card_id";
+
 export type OwnedGenerationForCardAction = {
   id: string;
   user_id: string;
@@ -45,9 +48,7 @@ export async function getOwnedGenerationForCardAction(
 ): Promise<OwnedGenerationForCardAction | null> {
   const { data, error } = await supabase
     .from("landing_generations")
-    .select(
-      "id,user_id,requester_auth_user_id,status,prompt_text,result_storage_bucket,result_storage_path,edit_kind,modality,parent_generation_id,input_photo_paths,photoshoot_tile_paths,ugc_card_id"
-    )
+    .select(OWNED_GENERATION_CARD_ACTION_SELECT)
     .eq("id", params.generationId)
     .or(landingGenerationsOwnerOrFilter(params.authUserId, params.dbUserId))
     .maybeSingle();

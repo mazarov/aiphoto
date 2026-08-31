@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAnalyticsAdmin } from "@/lib/analytics-admin";
 import {
   ensureCardForCompletedGeneration,
+  OWNED_GENERATION_CARD_ACTION_SELECT,
   type OwnedGenerationForCardAction,
 } from "@/lib/generation-card-actions";
 import { publishPromptCard } from "@/lib/prompt-card-publication";
@@ -24,7 +25,7 @@ export async function POST(
     const { data, error } = await supabase
       .from("landing_generations")
       .select(
-        "id,user_id,requester_auth_user_id,status,client_source,prompt_text,result_storage_bucket,result_storage_path,edit_kind,photoshoot_tile_paths,ugc_card_id"
+        `${OWNED_GENERATION_CARD_ACTION_SELECT},client_source`
       )
       .eq("id", id)
       .maybeSingle();

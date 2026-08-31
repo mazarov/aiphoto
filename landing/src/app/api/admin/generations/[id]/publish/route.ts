@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAnalyticsAdmin } from "@/lib/analytics-admin";
-import { ensureCardForCompletedGeneration, type OwnedGenerationForCardAction } from "@/lib/generation-card-actions";
+import {
+  ensureCardForCompletedGeneration,
+  OWNED_GENERATION_CARD_ACTION_SELECT,
+  type OwnedGenerationForCardAction,
+} from "@/lib/generation-card-actions";
 import { publishPromptCard } from "@/lib/prompt-card-publication";
 import { createSupabaseServer } from "@/lib/supabase";
 
@@ -15,7 +19,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   try {
     const supabase = createSupabaseServer();
     const { data, error } = await supabase.from("landing_generations")
-      .select("id,user_id,requester_auth_user_id,status,prompt_text,result_storage_bucket,result_storage_path,edit_kind,photoshoot_tile_paths,ugc_card_id")
+      .select(OWNED_GENERATION_CARD_ACTION_SELECT)
       .eq("id", id).eq("client_source", "admin").maybeSingle();
     if (error || !data) return NextResponse.json({ error: "not_found" }, { status: 404 });
     if (data.status !== "completed") {
