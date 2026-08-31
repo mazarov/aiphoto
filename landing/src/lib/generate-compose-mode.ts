@@ -132,6 +132,7 @@ export const COMPOSE_GUEST_UPLOAD_PHOTO_CTA = "Загрузите фото";
 
 export type ComposeGenerateCtaOptions = {
   isAuthed?: boolean;
+  listingVideoRepeat?: boolean;
 };
 
 /** Footer when the selected tool still needs a source photo. */
@@ -153,7 +154,9 @@ export function composeGenerateCtaLabel(
   if (options?.isAuthed === false && mode !== "photo_prompt") {
     return COMPOSE_GUEST_SIGN_IN_CTA;
   }
-  if (mode === "video") return "Создать видео";
+  if (mode === "video") {
+    return options?.listingVideoRepeat ? "Повторить видео" : "Создать видео";
+  }
   if (mode === "photoshoot") return "Создать фотосессию";
   if (mode === "photo_prompt") return "Создать промт по фото";
   return "Создать фото";

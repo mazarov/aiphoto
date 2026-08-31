@@ -10,6 +10,8 @@ import { isCameraOrbitUnlocked, resolveCameraOrbitModel } from "@/lib/camera-orb
 import { PHOTOSHOOT_CREDIT_COST } from "@/lib/photoshoot";
 import { isPhotoshootUnlocked, resolvePhotoshootModel } from "@/lib/photoshoot-access";
 import { parsePublishRewardConfig } from "@/lib/publish-reward";
+import { LISTING_VIDEO_REPEAT_CONFIG_KEY } from "@/lib/listing-video-repeat";
+import { isListingVideoRepeatUnlocked } from "@/lib/listing-video-repeat-access";
 import {
   DEFAULT_IMAGE_ASPECT_RATIO,
   DEFAULT_IMAGE_SIZE,
@@ -64,6 +66,7 @@ export async function GET(req: NextRequest) {
         "publish_reward_video",
         "publish_reward_photoshoot",
         "publish_reward_daily_cap",
+        LISTING_VIDEO_REPEAT_CONFIG_KEY,
       ]);
 
     const config: Record<string, string> = {};
@@ -71,6 +74,10 @@ export async function GET(req: NextRequest) {
       config[row.key] = row.value;
     }
     const publishReward = parsePublishRewardConfig(config);
+    const listingVideoRepeatEnabled = isListingVideoRepeatUnlocked(
+      config[LISTING_VIDEO_REPEAT_CONFIG_KEY],
+      user?.email,
+    );
 
     if (modality === VIDEO_GENERATION_MODALITY) {
       const models = parseEnabledVideoGenerationModels(config.video_models);
@@ -96,6 +103,7 @@ export async function GET(req: NextRequest) {
           quantity: VIDEO_QUANTITY,
           minPromptLength: parseInt(config.min_prompt_length || "8", 10),
         },
+        listingVideoRepeatEnabled,
         publishReward,
       });
     }
@@ -133,6 +141,7 @@ export async function GET(req: NextRequest) {
         maxFileSizeMb: parseInt(config.max_file_size_mb || "10", 10),
         minPromptLength: parseInt(config.min_prompt_length || "8", 10),
       },
+      listingVideoRepeatEnabled,
       publishReward,
     });
   } catch (err) {

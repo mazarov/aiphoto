@@ -51,6 +51,7 @@ import {
   DEFAULT_IMAGE_ASPECT_RATIO,
   DEFAULT_IMAGE_SIZE,
   DEFAULT_VIDEO_MODEL,
+  DEFAULT_VIDEO_PROMPT,
   IMAGE_GENERATION_MODALITY,
   VIDEO_GENERATION_MODALITY,
   clampImageSizeForModel,
@@ -72,6 +73,14 @@ import {
   validateVideoGenerationSource,
   videoSourceErrorMessage,
 } from "@/lib/video-generation-contract";
+import { isListingVideoRepeatUnlocked } from "@/lib/listing-video-repeat-access";
+import {
+  LISTING_VIDEO_REPEAT_CONFIG_KEY,
+  LISTING_VIDEO_REPEAT_KIND,
+  parseListingVideoRepeatClientPipeline,
+  type ListingVideoRepeatSpec,
+} from "@/lib/listing-video-repeat";
+import { videoI2vUserPrompt } from "@/lib/video-motion-prompt";
 
 /** PromptShot paid generate is site-only for now (inline compose / same-origin). */
 const GENERATION_CLIENT_SOURCE = "site" as const;
@@ -178,8 +187,12 @@ export async function POST(req: NextRequest) {
       durationSeconds?: number;
       pipelineTraceId?: string;
       idempotencyKey?: string;
+      pipeline?: unknown;
     };
-    const requestedModality = modality || IMAGE_GENERATION_MODALITY;
+    const listingRepeatInput = parseListingVideoRepeatClientPipeline(body.pipeline);
+    const requestedModality = listingRepeatInput
+      ? IMAGE_GENERATION_MODALITY
+      : modality || IMAGE_GENERATION_MODALITY;
     if (!isGenerationModality(requestedModality)) {
       return NextResponse.json(
         {
@@ -190,6 +203,7 @@ export async function POST(req: NextRequest) {
       );
     }
     const isVideo = requestedModality === VIDEO_GENERATION_MODALITY;
+    const isListingVideoRepeat = Boolean(listingRepeatInput);
 
     const minPromptLength = 8;
     const callerId = user.id;
@@ -243,6 +257,26 @@ export async function POST(req: NextRequest) {
       : [];
     let normalizedEditInstruction = normalizeEditInstruction(editInstruction);
     const hasParentGeneration = Boolean(normalizedParentGenerationId);
+    if (isListingVideoRepeat) {
+      if (hasParentGeneration || requestedEditKind || isCameraOrbit || isPhotoshoot) {
+        return NextResponse.json(
+          {
+            error: "validation_error",
+            message: "Повтор видео из листинга начинается с вашего фото",
+          },
+          { status: 400 }
+        );
+      }
+      if (normalizedPhotoStoragePaths.length !== 1) {
+        return NextResponse.json(
+          {
+            error: "validation_error",
+            message: "Для повтора видео нужно одно фото",
+          },
+          { status: 400 }
+        );
+      }
+    }
     let cameraOrbitPose: CameraPose | null = null;
     let cameraOrbitSceneRootId: string | null = null;
     let inheritedRootAspect = "";
@@ -609,6 +643,7 @@ export async function POST(req: NextRequest) {
         "camera_orbit_model",
         "photoshoot_enabled",
         "photoshoot_model",
+        LISTING_VIDEO_REPEAT_CONFIG_KEY,
       ]);
 
     const config: Record<string, string> = {};
@@ -642,6 +677,25 @@ export async function POST(req: NextRequest) {
           {
             error: "video_disabled",
             message: "Оживление фото пока недоступно",
+          },
+          { status: 503 }
+        );
+      }
+    }
+    if (isListingVideoRepeat) {
+      const chainOn = isListingVideoRepeatUnlocked(
+        config[LISTING_VIDEO_REPEAT_CONFIG_KEY],
+        user.email,
+      );
+      const videoOn = isVideoAnimateUnlocked(
+        config.video_animate_enabled,
+        user.email,
+      );
+      if ((!chainOn || !videoOn) && !openDebug) {
+        return NextResponse.json(
+          {
+            error: "listing_video_repeat_disabled",
+            message: "Повтор видео из листинга пока недоступен",
           },
           { status: 503 }
         );
@@ -767,6 +821,47 @@ export async function POST(req: NextRequest) {
     const guestMode = Boolean(user && isStvGuestUser(user));
     /** Open-debug and guest: never charge. */
     const creditsCharged = openDebug || guestMode ? 0 : creditsNeeded;
+    let listingRepeatSpec: ListingVideoRepeatSpec | null = null;
+    if (isListingVideoRepeat && listingRepeatInput) {
+      const videoModels = parseEnabledVideoGenerationModels(config.video_models);
+      const videoModelId = resolveVideoModelId(
+        listingRepeatInput.videoModel || DEFAULT_VIDEO_MODEL,
+        videoModels.map((item) => item.id),
+      );
+      const videoModelRow = videoModels.find((item) => item.id === videoModelId);
+      if (
+        !videoModelId ||
+        !videoModelRow ||
+        !Number.isInteger(videoModelRow.cost) ||
+        videoModelRow.cost < 0
+      ) {
+        return NextResponse.json(
+          {
+            error: "config_error",
+            message: "Модель видео временно недоступна",
+          },
+          { status: 503 }
+        );
+      }
+      const followupDuration = normalizeVideoDurationSeconds(
+        listingRepeatInput.durationSeconds ?? durationSeconds,
+        videoModelId,
+      );
+      const followupCredits = openDebug || guestMode
+        ? 0
+        : calculateVideoCreditCost(videoModelRow.cost, followupDuration, videoModelId);
+      listingRepeatSpec = {
+        kind: LISTING_VIDEO_REPEAT_KIND,
+        videoPrompt:
+          videoI2vUserPrompt(listingRepeatInput.videoPrompt || "") ||
+          DEFAULT_VIDEO_PROMPT,
+        videoModel: videoModelId,
+        durationSeconds: followupDuration,
+        aspectRatio: resolveVideoAspectRatio(listingRepeatInput.aspectRatio),
+        resolution: resolveVideoResolution(listingRepeatInput.resolution),
+        credits: followupCredits,
+      };
+    }
     let promptText = String(prompt ?? "").trim();
     if (isCameraOrbit && cameraOrbitPose) {
       promptText = serializeCameraOrbitInstruction(cameraOrbitPose);
@@ -825,6 +920,29 @@ export async function POST(req: NextRequest) {
       dbUserId = ensuredUser.dbUserId;
       usedGuestOwner = false;
     }
+    if (listingRepeatSpec && creditsCharged + listingRepeatSpec.credits > 0) {
+      const { data: balanceRow } = await supabase
+        .from("landing_users")
+        .select("credits")
+        .eq("id", dbUserId)
+        .maybeSingle();
+      const availableCredits = Number(balanceRow?.credits || 0);
+      const totalNeeded = creditsCharged + listingRepeatSpec.credits;
+      if (availableCredits < totalNeeded) {
+        if (!usedGuestOwner) {
+          scheduleNoCreditsMail(supabase, dbUserId, "generate");
+        }
+        return NextResponse.json(
+          {
+            error: "insufficient_credits",
+            message: "Недостаточно кредитов",
+            required: totalNeeded,
+            available: availableCredits,
+          },
+          { status: 400 }
+        );
+      }
+    }
     const requestFingerprint = createHash("sha256")
       .update(
         JSON.stringify({
@@ -851,6 +969,14 @@ export async function POST(req: NextRequest) {
           clientSource: GENERATION_CLIENT_SOURCE,
           modality: requestedModality,
           durationSeconds: videoDuration,
+          ...(listingRepeatSpec
+            ? {
+                pipelineKind: listingRepeatSpec.kind,
+                videoPrompt: listingRepeatSpec.videoPrompt,
+                videoModel: listingRepeatSpec.videoModel,
+                videoDurationSeconds: listingRepeatSpec.durationSeconds,
+              }
+            : {}),
         })
       )
       .digest("hex");
@@ -937,7 +1063,7 @@ export async function POST(req: NextRequest) {
         p_vibe_id: isCameraOrbit || isPhotoshoot ? null : resolvedVibeId,
         p_client_source: GENERATION_CLIENT_SOURCE,
         p_pipeline_trace_id: pipelineTrace,
-        p_create_ugc: isVideo ? false : !guestMode,
+        p_create_ugc: isVideo || isListingVideoRepeat ? false : !guestMode,
         p_parent_generation_id: normalizedParentGenerationId || null,
         p_edit_instruction: isVideo ? null : normalizedEditInstruction || null,
         p_modality: requestedModality,
@@ -1048,6 +1174,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Failed to enqueue generation" }, { status: 500 });
     }
 
+    if (listingRepeatSpec) {
+      const { error: pipelineError } = await supabase
+        .from("landing_generations")
+        .update({ pipeline_spec: listingRepeatSpec })
+        .eq("id", generationId);
+      if (pipelineError) {
+        console.error("[generation.create] pipeline_spec persist failed", {
+          generationId,
+          error: pipelineError.message,
+        });
+        return NextResponse.json(
+          { error: "Failed to enqueue generation" },
+          { status: 500 }
+        );
+      }
+    }
+
     console.log("[generation.create] generation queued", {
       generationId,
       userId: callerId,
@@ -1058,6 +1201,7 @@ export async function POST(req: NextRequest) {
       idempotencyKey,
       generationCreated,
       clientSource: GENERATION_CLIENT_SOURCE,
+      listingVideoRepeat: Boolean(listingRepeatSpec),
       status: "pending",
     });
     stvLog("generation.row_created", {

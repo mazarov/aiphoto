@@ -121,6 +121,10 @@ test("compose tiles and generate CTA follow the selected block", () => {
   assert.equal(composeModeTileLabel("photo_prompt"), "Промт по фото");
   assert.equal(composeGenerateCtaLabel("image"), "Создать фото");
   assert.equal(composeGenerateCtaLabel("video"), "Создать видео");
+  assert.equal(
+    composeGenerateCtaLabel("video", { listingVideoRepeat: true }),
+    "Повторить видео",
+  );
   assert.equal(composeGenerateCtaLabel("photoshoot"), "Создать фотосессию");
   assert.equal(composeGenerateCtaLabel("photo_prompt"), "Создать промт по фото");
   assert.equal(composeGenerateCtaLabel("image", { isAuthed: false }), COMPOSE_GUEST_SIGN_IN_CTA);

@@ -128,6 +128,8 @@ export type GenerationJob = GenerationInputJob & {
   modality?: string | null;
   duration_seconds?: number | null;
   provider_operation_id?: string | null;
+  card_id?: string | null;
+  pipeline_spec?: unknown;
 };
 
 type ImagePart = { inlineData: { mimeType: string; data: string } };

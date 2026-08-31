@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { DEFAULT_VIDEO_PROMPT } from "./generation/image-options";
 import {
   assembleVideoCatalogPrompt,
   canUseGenerationAsVideoCatalogImageSource,
+  splitVideoCatalogPrompt,
   VIDEO_CATALOG_MOTION_HEADING,
   videoCatalogSourceGenerationIds,
 } from "./video-catalog-prompt";
@@ -65,14 +67,43 @@ test("assemble keeps motion-only when there is no parent look", () => {
   );
 });
 
-test("assemble drops generic motion when image prompt exists", () => {
+test("assemble always writes a Motion section when look exists", () => {
   assert.equal(
     assembleVideoCatalogPrompt({
       imagePrompt: "Visual Hook:\nGold dress",
       motionPrompt: "Оживи изображение",
     }),
-    "Visual Hook:\nGold dress",
+    `Visual Hook:\nGold dress\n\n${VIDEO_CATALOG_MOTION_HEADING}\n${DEFAULT_VIDEO_PROMPT}`,
   );
+});
+
+test("split returns look and motion for a catalog card", () => {
+  const assembled = assembleVideoCatalogPrompt({
+    imagePrompt: "Visual Hook:\nGold dress\n\nScene:\nStudio",
+    motionPrompt: "Шары медленно поднимаются вверх",
+  });
+  assert.deepEqual(splitVideoCatalogPrompt(assembled), {
+    imagePrompt: "Visual Hook:\nGold dress\n\nScene:\nStudio",
+    motionPrompt: "Шары медленно поднимаются вверх",
+  });
+});
+
+test("split treats a photo extract without Motion as look plus default beat", () => {
+  assert.deepEqual(
+    splitVideoCatalogPrompt("Visual Hook:\nGold dress\n\nScene:\nStudio\n\nGenre:\nPortrait\n\nPose:\nStanding"),
+    {
+      imagePrompt:
+        "Visual Hook:\nGold dress\n\nScene:\nStudio\n\nGenre:\nPortrait\n\nPose:\nStanding",
+      motionPrompt: DEFAULT_VIDEO_PROMPT,
+    },
+  );
+});
+
+test("split keeps a motion-only card as video beat", () => {
+  assert.deepEqual(splitVideoCatalogPrompt("Шары поднимаются вверх"), {
+    imagePrompt: "",
+    motionPrompt: "Шары поднимаются вверх",
+  });
 });
 
 test("assemble appends a Motion section once", () => {

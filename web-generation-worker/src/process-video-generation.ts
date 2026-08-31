@@ -4,6 +4,7 @@ import {
   assembleSeedanceVideoMotionPrompt,
   assembleVeoVideoMotionPrompt,
   assembleVideoMotionPrompt,
+  videoI2vUserPrompt,
 } from "../../landing/src/lib/video-motion-prompt";
 import { parseLibrarySourceGenerationId } from "../../landing/src/lib/user-generation-photo-paths";
 import { config } from "./config";
@@ -595,7 +596,13 @@ async function processGrokVideoGeneration(
       job.aspect_ratio || "9:16",
     );
     await ensureLease();
-    log("info", "video_submit", { ...providerContext, ...crop });
+    log("info", "video_submit", {
+      ...providerContext,
+      ...crop,
+      rawPromptChars: rawPrompt.length,
+      i2vUserPromptChars: videoI2vUserPrompt(rawPrompt).length,
+      assembledPromptChars: motionPrompt.length,
+    });
     try {
       const response = await fetch(xaiSubmitUrl(config.xaiBaseUrl), {
         method: "POST",
@@ -623,6 +630,10 @@ async function processGrokVideoGeneration(
         hasId: Boolean(operationId),
         hasVideo: Boolean(extractXaiVideoUrl(payload)),
         interactionStatus: xaiStatus(payload) || null,
+        errorMessage: xaiErrorMessage(payload).slice(0, 240),
+        rawPromptChars: rawPrompt.length,
+        i2vUserPromptChars: videoI2vUserPrompt(rawPrompt).length,
+        assembledPromptChars: motionPrompt.length,
       });
       if (!response.ok) throw xaiFailureFromPayload(payload, response.status);
       if (!operationId && !extractXaiVideoUrl(payload)) {

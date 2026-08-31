@@ -157,6 +157,12 @@ import {
   ANIMATE_SCENARIO_PLACEHOLDER,
   isGenericVideoPrompt,
 } from "@/lib/video-animate-scenario";
+import { splitVideoCatalogPrompt } from "@/lib/video-catalog-prompt";
+import { LISTING_VIDEO_REPEAT_KIND } from "@/lib/listing-video-repeat";
+import {
+  extractVideoMotionSection,
+  looksLikeStructuredPhotoPrompt,
+} from "@/lib/video-motion-prompt";
 import {
   calculateVideoCreditCost,
   videoDurationExtraCredits,
@@ -316,6 +322,7 @@ export function CardInlineGeneratePanel({
   const [videoEnabled, setVideoEnabled] = useState(
     () => readCachedVideoAnimateEnabled() === true
   );
+  const [listingVideoRepeatEnabled, setListingVideoRepeatEnabled] = useState(false);
   const [cameraOrbitEnabled, setCameraOrbitEnabled] = useState(
     () => readCachedCameraOrbitEnabled() === true
   );
@@ -870,6 +877,7 @@ export function CardInlineGeneratePanel({
           cameraOrbitModel?: { id?: string; cost?: number } | null;
           photoshootEnabled?: boolean;
           photoshootModel?: { id?: string; cost?: number } | null;
+          listingVideoRepeatEnabled?: boolean;
           publishReward?: PublishRewardConfig;
         };
         const photosData = (await photosRes.json().catch(() => ({}))) as {
@@ -931,6 +939,7 @@ export function CardInlineGeneratePanel({
         const nextPhotoshootEnabled = Boolean(configData.photoshootEnabled);
         writeCachedPhotoshootEnabled(nextPhotoshootEnabled);
         setPhotoshootEnabled(nextPhotoshootEnabled);
+        setListingVideoRepeatEnabled(Boolean(configData.listingVideoRepeatEnabled));
         if (configData.publishReward) {
           setPublishRewardConfig({
             ...DEFAULT_PUBLISH_REWARD_CONFIG,
@@ -947,7 +956,15 @@ export function CardInlineGeneratePanel({
           setComposeMode("video");
           setAnimateParentId(seed.parentGenerationId || null);
           setAnimatePreviewUrl(seed.previewUrl || null);
-          if (seed.promptText.trim() && !isGenericVideoPrompt(seed.promptText)) {
+          const catalogMotion = extractVideoMotionSection(seed.promptText);
+          if (catalogMotion && !isGenericVideoPrompt(catalogMotion)) {
+            setDraftPrompt(catalogMotion);
+          } else if (
+            looksLikeStructuredPhotoPrompt(seed.promptText) ||
+            isGenericVideoPrompt(seed.promptText)
+          ) {
+            setDraftPrompt("");
+          } else if (seed.promptText.trim()) {
             setDraftPrompt(seed.promptText);
           } else {
             setDraftPrompt("");
@@ -1392,6 +1409,12 @@ export function CardInlineGeneratePanel({
           videoCostModel.id,
         )
       : null;
+  const listingCatalogSplit = splitVideoCatalogPrompt(seed.promptText);
+  const listingVideoRepeatCompose =
+    seed.source === "card" &&
+    seed.intent === "animate" &&
+    listingVideoRepeatEnabled &&
+    Boolean(listingCatalogSplit.imagePrompt);
   const photoshootReadyFrame = resolvePhotoshootReadyFrame({
     generationId,
     resultUrl,
@@ -1401,8 +1424,13 @@ export function CardInlineGeneratePanel({
   const photoshootLibraryFrame = resolvePhotoshootLibraryFrame({
     selectedPhotos,
   });
+  const selectedImageCost = models.find((item) => item.id === model)?.cost ?? null;
   const selectedModelCost =
-    composeMode === "video"
+    listingVideoRepeatCompose && composeMode === "video"
+      ? selectedImageCost != null && selectedVideoCost != null
+        ? selectedImageCost + selectedVideoCost
+        : selectedVideoCost
+      : composeMode === "video"
       ? selectedVideoCost
       : composeMode === "photoshoot"
         ? photoshootLibraryFrame
@@ -1654,10 +1682,12 @@ export function CardInlineGeneratePanel({
     forceTextOnly?: boolean;
     modality?: "image" | "video";
     photoStoragePath?: string;
+    listingVideoRepeat?: { videoPrompt: string };
   }): Promise<boolean> => {
     const requestedModality =
       options?.modality || apiModalityForComposeMode(composeMode);
-    const isVideo = requestedModality === "video";
+    const listingVideoRepeat = options?.listingVideoRepeat;
+    const isVideo = requestedModality === "video" && !listingVideoRepeat;
     const isCameraOrbit = options?.editKind === CAMERA_ORBIT_EDIT_KIND;
     const isPhotoshoot = options?.editKind === PHOTOSHOOT_EDIT_KIND;
     if (
@@ -1698,6 +1728,10 @@ export function CardInlineGeneratePanel({
         setError("Для оживления нужно одно фото");
         return false;
       }
+    }
+    if (listingVideoRepeat && selectedPhotos.length !== 1) {
+      setError("Для повтора видео нужно одно фото");
+      return false;
     }
     if (isPhotoshoot && !parentGenerationId) {
       const libraryPath =
@@ -1785,6 +1819,18 @@ export function CardInlineGeneratePanel({
           parentTile: isPhotoshoot ? options?.parentTile : undefined,
           plannerTemperature: isPhotoshoot ? options?.plannerTemperature : undefined,
           vibeId: null,
+          ...(listingVideoRepeat
+            ? {
+                pipeline: {
+                  kind: LISTING_VIDEO_REPEAT_KIND,
+                  videoPrompt: listingVideoRepeat.videoPrompt,
+                  videoModel: activeVideoModel?.id,
+                  durationSeconds: videoDurationSeconds,
+                  aspectRatio: videoAspectRatio,
+                  resolution: DEFAULT_VIDEO_RESOLUTION,
+                },
+              }
+            : {}),
         }),
       });
       const genData = (await genRes.json().catch(() => ({}))) as {
@@ -1850,10 +1896,12 @@ export function CardInlineGeneratePanel({
       setStarting(false);
       reachYandexMetrikaGoal(YM_GOAL_PROMPT_CARD_GENERATION_ACCEPTED);
       if (!isContinuation) setGenerationId(genData.id);
-      if (!isCameraOrbit && !isPhotoshoot) {
+      if (!isCameraOrbit && !isPhotoshoot && !listingVideoRepeat) {
         setDraftPrompt(prompt);
         setSubmittedPrompt(prompt);
       }
+      let pollGenerationId = genData.id;
+      let listingRepeatFollowupWaitStarted = 0;
       setIsPublished(false);
       requestCreditBalanceRefresh();
 
@@ -1863,7 +1911,7 @@ export function CardInlineGeneratePanel({
         if (photoshootAbort?.signal.aborted) return true;
         let pollRes: Response;
         try {
-          pollRes = await fetch(`/api/generations/${genData.id}`, {
+          pollRes = await fetch(`/api/generations/${pollGenerationId}`, {
             credentials: "include",
           });
         } catch {
@@ -1878,6 +1926,8 @@ export function CardInlineGeneratePanel({
           errorMessage?: string;
           error?: string;
           modality?: string;
+          pipelineSpec?: { kind?: string } | null;
+          followupGenerationId?: string | null;
         };
         if (!pollRes.ok) {
           if (pollRes.status >= 500) {
@@ -1891,6 +1941,31 @@ export function CardInlineGeneratePanel({
           setProgress((current) => Math.max(current, Math.min(96, poll.progress!)));
         }
         if (poll.status === "completed") {
+          if (
+            listingVideoRepeat &&
+            poll.pipelineSpec?.kind === LISTING_VIDEO_REPEAT_KIND &&
+            poll.modality !== "video"
+          ) {
+            if (poll.followupGenerationId) {
+              pollGenerationId = poll.followupGenerationId;
+              listingRepeatFollowupWaitStarted = 0;
+              setGenerationId(poll.followupGenerationId);
+              setProgress((current) => Math.max(current, 55));
+              continue;
+            }
+            listingRepeatFollowupWaitStarted ||= Date.now();
+            if (Date.now() - listingRepeatFollowupWaitStarted > 45_000) {
+              throw new Error(
+                "Фото готово, но видео не запустилось. Нажмите «Оживить» на кадре.",
+              );
+            }
+            if (poll.resultUrl) {
+              setGenerationId(genData.id);
+              setResultUrl(poll.resultUrl);
+              setResultModality("image");
+            }
+            continue;
+          }
           if (photoshootAbort?.signal.aborted) return true;
           const tiles =
             Array.isArray(poll.photoshootTileUrls) && poll.photoshootTileUrls.length === 4
@@ -1923,7 +1998,7 @@ export function CardInlineGeneratePanel({
             resultModality: nextModality,
             previous: lastImageResultRef.current,
           });
-          if (isVideo) {
+          if (isVideo || poll.modality === "video") {
             enterImageCompose();
           }
           setProgress(100);
@@ -4277,6 +4352,19 @@ export function CardInlineGeneratePanel({
                 return;
               }
               if (videoCompose) {
+                if (listingVideoRepeatCompose) {
+                  void runGenerate({
+                    promptOverride: listingCatalogSplit.imagePrompt,
+                    modality: "image",
+                    listingVideoRepeat: {
+                      videoPrompt:
+                        draftPrompt.trim() ||
+                        listingCatalogSplit.motionPrompt ||
+                        DEFAULT_VIDEO_PROMPT,
+                    },
+                  });
+                  return;
+                }
                 void runGenerate({
                   promptOverride: draftPrompt.trim() || DEFAULT_VIDEO_PROMPT,
                   modality: "video",
@@ -4365,7 +4453,10 @@ export function CardInlineGeneratePanel({
                     : (
                       <>
                         <span className="shrink-0">
-                          {composeGenerateCtaLabel(composeMode, { isAuthed })}
+                          {composeGenerateCtaLabel(composeMode, {
+                            isAuthed,
+                            listingVideoRepeat: listingVideoRepeatCompose,
+                          })}
                         </span>
                         {composeCtaModelLabel ||
                         composeCtaCost != null ||

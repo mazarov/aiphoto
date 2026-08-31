@@ -1,4 +1,9 @@
+import { DEFAULT_VIDEO_PROMPT } from "./generation/image-options";
 import { isGenericVideoPrompt } from "./video-animate-scenario";
+import {
+  extractVideoMotionSection,
+  looksLikeStructuredPhotoPrompt,
+} from "./video-motion-prompt";
 
 export const VIDEO_CATALOG_MOTION_HEADING = "Motion:";
 
@@ -27,18 +32,39 @@ export function canUseGenerationAsVideoCatalogImageSource(input: {
 }
 
 /**
- * Catalog / Repeat prompt for a published video card.
- * Image look comes from the parent still; motion is the I2V beat.
+ * Catalog / Repeat prompt for a published video card: look + Motion.
+ * Generic motion still gets a Motion section so Repeat can split the two jobs.
  */
 export function assembleVideoCatalogPrompt(input: {
   imagePrompt?: string | null;
   motionPrompt?: string | null;
 }): string {
   const image = String(input.imagePrompt || "").trim();
-  const motion = String(input.motionPrompt || "").trim();
-  if (!image) return motion;
-  if (!motion || isGenericVideoPrompt(motion)) return image;
+  const motionRaw = String(input.motionPrompt || "").trim();
+  const motion =
+    motionRaw && !isGenericVideoPrompt(motionRaw)
+      ? motionRaw
+      : DEFAULT_VIDEO_PROMPT;
+  if (!image) return motionRaw || motion;
+  if (extractVideoMotionSection(image)) return image;
   if (image.includes(motion)) return image;
   if (MOTION_HEADING_RE.test(image)) return `${image}\n\n${motion}`;
   return `${image}\n\n${VIDEO_CATALOG_MOTION_HEADING}\n${motion}`;
+}
+
+export function splitVideoCatalogPrompt(text: string): {
+  imagePrompt: string;
+  motionPrompt: string;
+} {
+  const raw = String(text || "").trim();
+  const motion = extractVideoMotionSection(raw);
+  if (motion) {
+    const headingAt = raw.search(MOTION_HEADING_RE);
+    const imagePrompt = headingAt >= 0 ? raw.slice(0, headingAt).trim() : raw;
+    return { imagePrompt, motionPrompt: motion };
+  }
+  if (looksLikeStructuredPhotoPrompt(raw)) {
+    return { imagePrompt: raw, motionPrompt: DEFAULT_VIDEO_PROMPT };
+  }
+  return { imagePrompt: "", motionPrompt: raw || DEFAULT_VIDEO_PROMPT };
 }

@@ -9,6 +9,10 @@ import {
   removeGenerationResultObjects,
 } from "@/lib/landing-generations-access";
 import { resolvePhotoshootUserFacingResult } from "@/lib/photoshoot";
+import {
+  enqueueListingVideoRepeatFollowup,
+  parseListingVideoRepeatSpec,
+} from "@/lib/listing-video-repeat";
 
 export async function GET(
   req: NextRequest,
@@ -88,6 +92,35 @@ export async function GET(
       result.errorType = gen.error_type;
       result.errorMessage = gen.error_message;
       result.creditsRefunded = Boolean(gen.credits_refunded);
+    }
+
+    const listingRepeatSpec = parseListingVideoRepeatSpec(gen.pipeline_spec);
+    if (listingRepeatSpec && (gen.modality || "image") !== "video") {
+      result.pipelineSpec = listingRepeatSpec;
+      const { data: child } = await supabase
+        .from("landing_generations")
+        .select("id,status")
+        .eq("parent_generation_id", gen.id)
+        .eq("modality", "video")
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      let followup = child;
+      if (!followup && status === "completed") {
+        const enqueued = await enqueueListingVideoRepeatFollowup(supabase, {
+          id: gen.id,
+          user_id: gen.user_id,
+          requester_auth_user_id: gen.requester_auth_user_id,
+          card_id: gen.card_id,
+          pipeline_trace_id: gen.pipeline_trace_id,
+          pipeline_spec: gen.pipeline_spec,
+        });
+        if (enqueued.generationId) {
+          followup = { id: enqueued.generationId, status: "pending" };
+        }
+      }
+      result.followupGenerationId = followup?.id ?? null;
+      result.followupStatus = followup?.status ?? null;
     }
 
     return NextResponse.json(result);

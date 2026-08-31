@@ -18,6 +18,7 @@ import {
   resolvePhotoshootUserFacingResult,
 } from "../../landing/src/lib/photoshoot";
 import { elapsedMs, parseTimestampMs, queueWaitMs } from "./photoshoot-timing";
+import { enqueueListingVideoRepeatFollowup } from "../../landing/src/lib/listing-video-repeat";
 
 const app = express();
 const shutdownController = new AbortController();
@@ -265,6 +266,27 @@ async function runJob(job: GenerationJob): Promise<void> {
       fallbackUsed: "fallbackUsed" in result ? result.fallbackUsed : false,
       photoshootTiles: photoshootTilePaths?.length ?? 0,
     });
+    if (jobModality(job) !== "video") {
+      try {
+        const followup = await enqueueListingVideoRepeatFollowup(supabase, job);
+        if (followup.generationId) {
+          log("info", "listing_video_repeat_followup_enqueued", {
+            generationId: job.id,
+            followupGenerationId: followup.generationId,
+          });
+        } else if (followup.error) {
+          log("warn", "listing_video_repeat_followup_failed", {
+            generationId: job.id,
+            error: followup.error,
+          });
+        }
+      } catch (error) {
+        log("error", "listing_video_repeat_followup_failed", {
+          generationId: job.id,
+          ...errorFields(error),
+        });
+      }
+    }
     try {
       if (!job.create_ugc || jobModality(job) === "video") {
         log("info", "ugc_creation_skipped", {

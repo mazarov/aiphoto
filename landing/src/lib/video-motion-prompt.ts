@@ -1,3 +1,57 @@
+/** I2V user beat only — catalog photo extracts are not a Grok/Veo motion request. */
+export const VIDEO_I2V_USER_PROMPT_MAX_CHARS = 400;
+
+const PHOTO_SECTION_HEADING =
+  /^(Visual Hook|Scene|Genre|Pose|Lighting|Camera|Mood|Color|Clothing|Makeup|Composition|Avoid):$/;
+
+export function looksLikeStructuredPhotoPrompt(text: string): boolean {
+  const value = String(text || "");
+  if (/^Visual Hook:/m.test(value) || /^CRITICAL RULES/m.test(value)) return true;
+  return /^Scene:/m.test(value) && /^Genre:/m.test(value) && /^Pose:/m.test(value);
+}
+
+export function extractVideoMotionSection(text: string): string {
+  const lines = String(text || "").split("\n");
+  let start = -1;
+  let firstRest = "";
+  for (let i = 0; i < lines.length; i += 1) {
+    const trimmed = lines[i].trim();
+    if (trimmed === "Motion:" || trimmed.startsWith("Motion:")) {
+      start = i;
+      firstRest = trimmed.replace(/^Motion:\s*/, "").trim();
+      break;
+    }
+  }
+  if (start < 0) return "";
+  const body: string[] = [];
+  if (firstRest) body.push(firstRest);
+  for (let j = start + 1; j < lines.length; j += 1) {
+    const trimmed = lines[j].trim();
+    if (trimmed === "CRITICAL RULES" || PHOTO_SECTION_HEADING.test(trimmed)) break;
+    body.push(lines[j]);
+  }
+  return body.join("\n").trim();
+}
+
+function clampI2vUserPrompt(text: string): string {
+  const normalized = text.replace(/\s+/g, " ").trim();
+  if (normalized.length <= VIDEO_I2V_USER_PROMPT_MAX_CHARS) return normalized;
+  return normalized
+    .slice(0, VIDEO_I2V_USER_PROMPT_MAX_CHARS)
+    .replace(/\s+\S*$/, "")
+    .trim();
+}
+
+/** Provider-facing motion only. Catalog Visual Hook / Pose / Avoid never go to I2V. */
+export function videoI2vUserPrompt(raw: string): string {
+  const text = String(raw || "").trim();
+  if (!text) return "";
+  const motion = extractVideoMotionSection(text);
+  if (motion) return clampI2vUserPrompt(motion);
+  if (looksLikeStructuredPhotoPrompt(text)) return "";
+  return clampI2vUserPrompt(text);
+}
+
 const MOTION_WRAPPER = [
   "[# Sources @Image1]",
   "Use Image1 as the starting frame of the video. Animate this exact photograph.",
@@ -16,7 +70,7 @@ const MOTION_WRAPPER = [
 ].join("\n");
 
 export function assembleVideoMotionPrompt(rawPrompt: string): string {
-  const user = rawPrompt.trim();
+  const user = videoI2vUserPrompt(rawPrompt);
   if (!user) return MOTION_WRAPPER;
   return `${MOTION_WRAPPER}\nUser motion request: ${user}`;
 }
@@ -38,7 +92,7 @@ const GROK_MOTION_WRAPPER = [
 ].join("\n");
 
 function assemblePlainMotionPrompt(rawPrompt: string): string {
-  const user = rawPrompt.trim();
+  const user = videoI2vUserPrompt(rawPrompt);
   if (!user) return GROK_MOTION_WRAPPER;
   return `${GROK_MOTION_WRAPPER}\nUser motion request: ${user}`;
 }

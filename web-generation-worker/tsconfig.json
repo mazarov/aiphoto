@@ -21,6 +21,7 @@
     "../landing/src/lib/photoshoot.ts",
     "../landing/src/lib/photoshoot-planner.ts",
     "../landing/src/lib/video-motion-prompt.ts",
+    "../landing/src/lib/listing-video-repeat.ts",
     "../landing/src/lib/user-generation-photo-paths.ts",
     "../landing/src/lib/generation/image-options.ts"
   ]

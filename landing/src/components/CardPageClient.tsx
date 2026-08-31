@@ -287,10 +287,10 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
       openAuthModal();
       return;
     }
-    const promptText = data.promptTexts.join("\n\n");
+    const joined = data.promptTexts.join("\n\n");
     seedFromCard(
       {
-        promptText,
+        promptText: joined,
         cardId: data.id,
         intent: cardRepeatComposeIntent({ videoUrl: data.videoUrl }),
       },
