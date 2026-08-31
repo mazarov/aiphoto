@@ -25,6 +25,7 @@ I2V по чужому кадру это не делает — модели ос�
 | D8 | I2V user beat: SSOT `videoI2vUserPrompt` (секция `Motion:` или короткий beat, clamp 400). Каталожный Visual Hook в Grok/Veo не уходит |
 | D9 | Модели остаются image-to-video. Catalog mp4 / V2V / analyze-video — вне scope |
 | D10 | Флаг `listing_video_repeat_chain` в `landing_generation_config` (SQL `234`, default `true` — это замена сломанного I2V-only Repeat) |
+| D11 | Клиент импортирует только `listing-video-repeat.ts` (parse/KIND). `node:crypto` / enqueue — `listing-video-repeat-followup.ts` (API + worker). Не чинить webpack plugin под `node:` |
 
 ## Пайплайн
 

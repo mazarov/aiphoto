@@ -9,10 +9,8 @@ import {
   removeGenerationResultObjects,
 } from "@/lib/landing-generations-access";
 import { resolvePhotoshootUserFacingResult } from "@/lib/photoshoot";
-import {
-  enqueueListingVideoRepeatFollowup,
-  parseListingVideoRepeatSpec,
-} from "@/lib/listing-video-repeat";
+import { parseListingVideoRepeatSpec } from "@/lib/listing-video-repeat";
+import { enqueueListingVideoRepeatFollowup } from "@/lib/listing-video-repeat-followup";
 
 export async function GET(
   req: NextRequest,

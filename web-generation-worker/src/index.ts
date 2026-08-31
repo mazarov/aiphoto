@@ -18,7 +18,7 @@ import {
   resolvePhotoshootUserFacingResult,
 } from "../../landing/src/lib/photoshoot";
 import { elapsedMs, parseTimestampMs, queueWaitMs } from "./photoshoot-timing";
-import { enqueueListingVideoRepeatFollowup } from "../../landing/src/lib/listing-video-repeat";
+import { enqueueListingVideoRepeatFollowup } from "../../landing/src/lib/listing-video-repeat-followup";
 
 const app = express();
 const shutdownController = new AbortController();
