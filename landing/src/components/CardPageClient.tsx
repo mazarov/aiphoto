@@ -16,6 +16,7 @@ import { usePromptCardModal } from "@/context/PromptCardModalContext";
 import { useAuth } from "@/context/AuthContext";
 import {
   beginGuestCardRepeatAuth,
+  cardRepeatComposeIntent,
   listingPathForGenerateLeave,
   resolveCardRepeatAction,
 } from "@/lib/card-repeat-auth";
@@ -288,7 +289,11 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
     }
     const promptText = data.promptTexts.join("\n\n");
     seedFromCard(
-      { promptText, cardId: data.id },
+      {
+        promptText,
+        cardId: data.id,
+        intent: cardRepeatComposeIntent({ videoUrl: data.videoUrl }),
+      },
       { entrySource: "card" }
     );
     leaveCardForGenerate();
@@ -297,6 +302,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
     data.id,
     data.promptTexts,
     data.slug,
+    data.videoUrl,
     isAuthed,
     leaveCardForGenerate,
     openAuthModal,

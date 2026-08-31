@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  cardRepeatComposeIntent,
+  dockSurfaceForCardRepeat,
   listingPathForGenerateLeave,
   resolveCardRepeatAction,
   shouldKeepCardAuthReturnOverlay,
@@ -15,6 +17,17 @@ test("guest Повторить waits while auth is hydrating", () => {
     resolveCardRepeatAction({ isAuthed: true, authLoading: true }),
     "wait"
   );
+});
+
+test("video card Повторить seeds animate + photos sheet", () => {
+  assert.equal(cardRepeatComposeIntent({ videoUrl: null }), "resume");
+  assert.equal(cardRepeatComposeIntent({ videoUrl: "   " }), "resume");
+  assert.equal(
+    cardRepeatComposeIntent({ videoUrl: "https://cdn.example/a.mp4" }),
+    "animate"
+  );
+  assert.equal(dockSurfaceForCardRepeat("resume"), null);
+  assert.equal(dockSurfaceForCardRepeat("animate"), "photos");
 });
 
 test("guest Повторить opens auth; authed opens generate", () => {

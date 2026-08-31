@@ -28,7 +28,10 @@ import {
   persistPendingGenerateDock,
   seedForAuthReturnDock,
 } from "@/lib/generate-dock-pending";
-import { shouldKeepCardAuthReturnOverlay } from "@/lib/card-repeat-auth";
+import {
+  dockSurfaceForCardRepeat,
+  shouldKeepCardAuthReturnOverlay,
+} from "@/lib/card-repeat-auth";
 import {
   authReturnOverlayForGenerateDock,
   getLiveAuthReturnOverlay,
@@ -126,7 +129,11 @@ type GenerateDockContextType = {
   ) => void;
   /** Seed prompt from prompt card, then caller closes the card. */
   seedFromCard: (
-    args: { promptText: string; cardId: string },
+    args: {
+      promptText: string;
+      cardId: string;
+      intent?: GenerateDockComposeIntent;
+    },
     options?: { entrySource?: GenerateDockEntrySource }
   ) => void;
   seedAnimate: (
@@ -324,22 +331,28 @@ export function GenerateDockProvider({ children }: { children: ReactNode }) {
 
   const seedFromCard = useCallback(
     (
-      args: { promptText: string; cardId: string },
+      args: {
+        promptText: string;
+        cardId: string;
+        intent?: GenerateDockComposeIntent;
+      },
       options?: { entrySource?: GenerateDockEntrySource }
     ) => {
+      const intent = args.intent === "animate" ? "animate" : "resume";
+      const dockSurface = dockSurfaceForCardRepeat(intent);
       const nextSeed: GenerateDockSeed = {
         source: "card",
         promptText: args.promptText,
         cardId: args.cardId,
-        intent: "resume",
+        intent,
       };
       setSeed(nextSeed);
       setSeedToken((token) => token + 1);
       setPlateOpen(true);
-      // Base compose (collapsed prompt row) — sheet opens only on explicit tap.
-      setDockSurface(null);
+      // Video catalog repeat opens «Ваши фото»; photo repeat stays compact.
+      setDockSurface(dockSurface);
       if (!isAuthed) {
-        persistPendingGenerateDock({ seed: nextSeed, dockSurface: null });
+        persistPendingGenerateDock({ seed: nextSeed, dockSurface });
       }
       trackOpen(options?.entrySource ?? "card");
     },

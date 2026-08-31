@@ -1,6 +1,12 @@
 # 01 — Лендинг (promptshot.ru)
 
-> Последнее обновление: 2026-08-31 (**publish for credits:** первая публикация своей генерации начисляет 1/5/2 кр (фото/видео/фотосессия), кэп 20/день MSK. Флаг `publish_reward_enabled` (default false). Ledger `landing_publish_rewards`, RPC `landing_grant_publish_reward`, `first_published_at` на карточке. Видео в каталог = poster photo + mp4. UI: первая кнопка rail `Опубликовать` + `+N кредит(ов)`; на `/generations` внизу плитки в одну линию `Оживить` + `Опубликовать`. Спека `docs/31-08-publish-for-credits.md`, SQL `231`.
+> Последнее обновление: 2026-08-31 (**video card «Повторить» = свой фото → тот же motion:** опубликованная видео-карточка не идёт в image-compose. `cardRepeatComposeIntent` + `seedFromCard({ intent: "animate" })` открывает video-dock с промптом карточки и сразу шторку «Ваши фото» (без `parentGenerationId` — чужое видео нельзя оживить как sibling). Фото-карточки без изменений (`resume` + compact plate).
+>
+> Последнее обновление: 2026-08-31 (**listing plays UGC video:** `enrichCardsWithDetails` тащит первый `media_type=video`; плитка `ListingCardVideo` (muted loop). Overlay seed больше не затирает `videoUrl`. Флаг `publish_reward_enabled=true` — SQL `232`.
+>
+> Последнее обновление: 2026-08-31 (**video publish poster copy:** UGC-видео не шарит `storage_path` родительского фото — `UNIQUE(prompt_card_media.bucket,path)`. Постер копируется в `{videoFolder}/ugc-poster.jpg`. Спека `docs/31-08-publish-for-credits.md`.
+>
+> Последнее обновление: 2026-08-31 (**publish for credits:** первая публикация своей генерации начисляет 1/5/2 кр (фото/видео/фотосессия), кэп 20/день MSK. Флаг `publish_reward_enabled` (default false). Ledger `landing_publish_rewards`, RPC `landing_grant_publish_reward`, `first_published_at` на карточке. Видео в каталог = своя копия постера + mp4. UI: первая кнопка rail `Опубликовать` + `+N кредит(ов)`; на `/generations` внизу плитки в одну линию `Оживить` + `Опубликовать`. Спека `docs/31-08-publish-for-credits.md`, SQL `231`.
 >
 > Последнее обновление: 2026-08-31 (**model blurbs = Lexy picker:** подписи фото/видео в `GENERATION_MODEL_DISPLAY` — те же, что в пикере Lexy. Док и `/generaciya-foto` читают один SSOT (`displayDescriptionForGenerationModel`).
 >

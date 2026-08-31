@@ -25,6 +25,7 @@ import {
 import { copyTextUniversal } from "@/lib/copy-text-to-clipboard";
 import { LexyGptGenerateButton } from "./LexyGptGenerateButton";
 import { ListingCardLoadingShell } from "./ListingCardLoadingShell";
+import { ListingCardVideo } from "./ListingCardVideo";
 import { useListingCardImageReady } from "@/hooks/useListingCardImageReady";
 import { buildCardImageAlt, buildBeforeAlt } from "@/lib/image-alt";
 
@@ -154,6 +155,8 @@ function PromptCardBase({
               });
             }}
           />
+        ) : card.videoUrl ? (
+          <ListingCardVideo src={card.videoUrl} poster={currentPhoto} />
         ) : currentPhoto ? (
           <Image
             ref={imageRef}
@@ -173,7 +176,7 @@ function PromptCardBase({
           </div>
         )}
 
-        {!imageReady && currentPhoto && !photoshootGrid && (
+        {!imageReady && currentPhoto && !photoshootGrid && !card.videoUrl && (
           <ListingCardLoadingShell
             photoOnly={hideHoverChrome || repeatOnlyHoverChrome}
             hasPrompts={card.promptTexts.length > 0}

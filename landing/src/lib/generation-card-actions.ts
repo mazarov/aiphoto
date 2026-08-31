@@ -8,6 +8,7 @@ import {
 import {
   buildVideoUgcMediaItems,
   firstInputPhotoPath,
+  videoUgcPosterStoragePath,
 } from "@/lib/ugc-card-media";
 import { USER_GENERATION_PHOTOS_BUCKET } from "@/lib/user-generation-photos";
 
@@ -82,25 +83,39 @@ async function readGenerationCard(
   };
 }
 
-async function copyPrivatePosterToResults(
+async function copyPosterToVideoResults(
   supabase: SupabaseClient,
-  params: { sourcePath: string; videoPath: string },
+  source: { bucket: string; path: string },
+  videoPath: string,
 ): Promise<{ path: string; bucket: string } | null> {
+  const destPath = videoUgcPosterStoragePath(videoPath);
+  if (source.bucket === PUBLIC_RESULTS_BUCKET && source.path === destPath) {
+    return source;
+  }
   const { data: image, error: downloadError } = await supabase.storage
-    .from(USER_GENERATION_PHOTOS_BUCKET)
-    .download(params.sourcePath);
-  if (downloadError || !image) return null;
-  const folder = params.videoPath.includes("/")
-    ? params.videoPath.slice(0, params.videoPath.lastIndexOf("/"))
-    : params.videoPath;
-  const destPath = `${folder}/ugc-poster.jpg`;
+    .from(source.bucket)
+    .download(source.path);
+  if (downloadError || !image) {
+    console.error("[generation-card] video poster download failed", {
+      bucket: source.bucket,
+      path: source.path,
+      error: downloadError?.message ?? null,
+    });
+    return null;
+  }
   const { error: uploadError } = await supabase.storage
     .from(PUBLIC_RESULTS_BUCKET)
     .upload(destPath, image, {
       contentType: image.type || "image/jpeg",
       upsert: true,
     });
-  if (uploadError) return null;
+  if (uploadError) {
+    console.error("[generation-card] video poster upload failed", {
+      destPath,
+      error: uploadError.message,
+    });
+    return null;
+  }
   return { path: destPath, bucket: PUBLIC_RESULTS_BUCKET };
 }
 
@@ -145,10 +160,10 @@ async function resolveVideoPoster(
     }
   }
 
-  return copyPrivatePosterToResults(supabase, {
-    sourcePath: inputPath,
-    videoPath: String(generation.result_storage_path || "").trim() || generation.id,
-  });
+  return {
+    path: inputPath,
+    bucket: USER_GENERATION_PHOTOS_BUCKET,
+  };
 }
 
 export async function ensureCardForCompletedGeneration(
@@ -174,8 +189,12 @@ export async function ensureCardForCompletedGeneration(
 
   let videoItems: ReturnType<typeof buildVideoUgcMediaItems> | undefined;
   if (isVideo) {
-    const poster = await resolveVideoPoster(supabase, generation);
     const videoPath = String(generation.result_storage_path || "").trim();
+    const posterSource = await resolveVideoPoster(supabase, generation);
+    const poster =
+      posterSource && videoPath
+        ? await copyPosterToVideoResults(supabase, posterSource, videoPath)
+        : null;
     if (!poster || !videoPath) {
       throw new Error("video_poster_unavailable");
     }

@@ -5,6 +5,7 @@ import {
   buildVideoUgcMediaItems,
   firstInputPhotoPath,
   planUgcCardMediaSync,
+  videoUgcPosterStoragePath,
 } from "./ugc-card-media";
 
 const tiles = [
@@ -57,6 +58,14 @@ test("media inserts mark only the first frame primary", () => {
       [3, tiles[3], false, "photo"],
     ],
   );
+});
+
+test("video poster path is unique per clip, not the parent photo", () => {
+  assert.equal(
+    videoUgcPosterStoragePath("user/job/clip.mp4"),
+    "user/job/ugc-poster.jpg",
+  );
+  assert.equal(videoUgcPosterStoragePath("clip.mp4"), "clip.mp4/ugc-poster.jpg");
 });
 
 test("video UGC is poster photo plus mp4", () => {

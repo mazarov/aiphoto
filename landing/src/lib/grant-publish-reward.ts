@@ -38,13 +38,18 @@ export async function grantPublishRewardAfterPublication(
   },
 ): Promise<PublishRewardResult | null> {
   const rewardConfig = await loadPublishRewardConfig(supabase);
-  if (
-    !shouldAttemptPublishReward({
+  const shouldGrant = shouldAttemptPublishReward({
+    enabled: rewardConfig.enabled,
+    alreadyPublished: params.alreadyPublished,
+    firstPublishedAt: params.firstPublishedAt,
+  });
+  if (!shouldGrant) {
+    console.info("[publish.reward] skipped", {
+      generationId: params.generationId,
       enabled: rewardConfig.enabled,
       alreadyPublished: params.alreadyPublished,
-      firstPublishedAt: params.firstPublishedAt,
-    })
-  ) {
+      hasFirstPublishedAt: Boolean(params.firstPublishedAt),
+    });
     return null;
   }
 

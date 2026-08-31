@@ -646,6 +646,8 @@ export type PromptCardFull = RouteCard & {
   viewCount: number;
   /** UGC draft vs published (e.g. «Мои генерации»). */
   isPublished?: boolean;
+  /** Public mp4 when the card has video media. Poster stays in photoUrls. */
+  videoUrl?: string | null;
 };
 
 type MediaRow = {
@@ -665,7 +667,7 @@ export async function enrichCardsWithDetails(
   const supabase = createSupabaseServer();
   const ids = cards.map((c) => c.id);
 
-  const [cardsMetaRes, variantsRes, mediaRes, beforeMediaRes] =
+  const [cardsMetaRes, variantsRes, mediaRes, videoMediaRes, beforeMediaRes] =
     await Promise.all([
       supabase
         .from("prompt_cards")
@@ -685,6 +687,12 @@ export async function enrichCardsWithDetails(
         .eq("media_type", "photo")
         .order("is_primary", { ascending: false }),
       supabase
+        .from("prompt_card_media")
+        .select("card_id,storage_bucket,storage_path,media_index")
+        .in("card_id", ids)
+        .eq("media_type", "video")
+        .order("media_index", { ascending: true }),
+      supabase
         .from("prompt_card_before_media")
         .select("card_id,storage_bucket,storage_path")
         .in("card_id", ids),
@@ -693,6 +701,7 @@ export async function enrichCardsWithDetails(
   if (cardsMetaRes.error) console.error("[enrich] cardsMetaRes error:", cardsMetaRes.error.message);
   if (variantsRes.error) console.error("[enrich] variantsRes error:", variantsRes.error.message);
   if (mediaRes.error) console.error("[enrich] mediaRes error:", mediaRes.error.message);
+  if (videoMediaRes.error) console.error("[enrich] videoMediaRes error:", videoMediaRes.error.message);
   if (beforeMediaRes.error) console.error("[enrich] beforeMediaRes error:", beforeMediaRes.error.message);
 
   type CardMeta = {
@@ -768,6 +777,20 @@ export async function enrichCardsWithDetails(
     allMediaByCard.set(row.card_id, arr);
   }
 
+  const videoUrlByCard = new Map<string, string>();
+  for (const row of (videoMediaRes.data || []) as {
+    card_id: string;
+    storage_bucket: string;
+    storage_path: string;
+  }[]) {
+    if (videoUrlByCard.has(row.card_id)) continue;
+    if (!row.storage_bucket || !row.storage_path) continue;
+    videoUrlByCard.set(
+      row.card_id,
+      getStoragePublicUrl(row.storage_bucket, row.storage_path),
+    );
+  }
+
   const beforeByCard = new Map<
     string,
     { bucket: string; path: string }
@@ -832,6 +855,7 @@ export async function enrichCardsWithDetails(
       likesCount: meta?.likesCount ?? 0,
       dislikesCount: meta?.dislikesCount ?? 0,
       viewCount: meta?.viewCount ?? 0,
+      videoUrl: videoUrlByCard.get(c.id) ?? null,
     };
   });
 }

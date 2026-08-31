@@ -20,6 +20,15 @@ export function cleanUgcCardMediaPaths(paths: string[]): string[] {
   return paths.map((path) => String(path || "").trim()).filter(Boolean);
 }
 
+/** Unique poster object next to the mp4 — must not reuse another card's path. */
+export function videoUgcPosterStoragePath(videoPath: string): string {
+  const clean = String(videoPath || "").trim();
+  const folder = clean.includes("/")
+    ? clean.slice(0, clean.lastIndexOf("/"))
+    : clean || "ugc";
+  return `${folder}/ugc-poster.jpg`;
+}
+
 export function buildVideoUgcMediaItems(params: {
   posterPath: string;
   videoPath: string;

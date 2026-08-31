@@ -13,6 +13,7 @@ export type GenerationExampleCard = {
   seoTags: Record<string, string[]>;
   photoUrl: string | null;
   photoUrls: string[];
+  videoUrl: string | null;
   photoWidth: number | null;
   photoHeight: number | null;
   photoCount: number;
@@ -34,6 +35,7 @@ export function toGenerationExampleCard(
     seoTags: rawTags as Record<string, string[]>,
     photoUrl: card.photoUrls[0] || null,
     photoUrls: card.photoUrls,
+    videoUrl: card.videoUrl ?? null,
     photoWidth: card.photoMeta[0]?.width ?? null,
     photoHeight: card.photoMeta[0]?.height ?? null,
     photoCount: card.photoUrls.length,

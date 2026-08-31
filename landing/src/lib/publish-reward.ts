@@ -127,9 +127,9 @@ export function shouldAttemptPublishReward(input: {
   nowMs?: number;
 }): boolean {
   if (!input.enabled) return false;
+  if (!input.alreadyPublished) return true;
   const at = input.firstPublishedAt ? Date.parse(input.firstPublishedAt) : NaN;
   if (!Number.isFinite(at)) return false;
-  if (!input.alreadyPublished) return true;
   return (
     (input.nowMs ?? Date.now()) - at <= PUBLISH_REWARD_RETRY_WINDOW_MS
   );

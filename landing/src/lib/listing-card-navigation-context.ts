@@ -131,7 +131,7 @@ export function toListingCardPageData(
       height: photo.height,
     })),
     beforePhotoUrl: card.beforePhotoUrl,
-    videoUrl: null,
+    videoUrl: card.videoUrl ?? null,
     mainPhotoUrl: card.photoUrls[0] || null,
     card_split_index: card.cardSplitIndex,
     card_split_total: card.cardSplitTotal,

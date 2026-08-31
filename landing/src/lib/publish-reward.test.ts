@@ -91,15 +91,18 @@ test("remaining today floors at zero", () => {
   assert.equal(remainingPublishRewardToday(20, 25), 0);
 });
 
-test("legacy cards and disabled flag skip grant", () => {
+test("first publish attempts grant even before first_published_at is echoed", () => {
   assert.equal(
     shouldAttemptPublishReward({
       enabled: true,
       alreadyPublished: false,
       firstPublishedAt: null,
     }),
-    false,
+    true,
   );
+});
+
+test("legacy cards and disabled flag skip grant", () => {
   assert.equal(
     shouldAttemptPublishReward({
       enabled: false,

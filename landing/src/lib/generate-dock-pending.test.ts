@@ -65,6 +65,34 @@ test("parsePendingGenerateDock accepts an animate seed", () => {
   });
 });
 
+test("parsePendingGenerateDock accepts a card video-repeat seed", () => {
+  const raw = JSON.stringify({
+    seed: {
+      source: "card",
+      promptText: "Ветер шевелит волосы",
+      cardId: "card-1",
+      intent: "animate",
+    },
+    dockSurface: "photos",
+  });
+  assert.deepEqual(parsePendingGenerateDock(raw), {
+    seed: {
+      source: "card",
+      promptText: "Ветер шевелит волосы",
+      cardId: "card-1",
+      intent: "animate",
+      parentGenerationId: null,
+      previewUrl: null,
+      resultGenerationId: null,
+      resultModality: null,
+      isPublished: false,
+      editKind: null,
+      photoshootTileUrls: null,
+    },
+    dockSurface: "photos",
+  });
+});
+
 test("parsePendingGenerateDock accepts a completed result seed", () => {
   const raw = JSON.stringify({
     seed: {

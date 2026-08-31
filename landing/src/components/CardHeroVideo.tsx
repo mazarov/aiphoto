@@ -10,6 +10,9 @@ export function CardHeroVideo({ src, poster, className = "" }: Props) {
       src={src}
       poster={poster || undefined}
       controls
+      muted
+      loop
+      autoPlay
       playsInline
       preload="metadata"
       className={`h-full w-full object-contain ${className}`.trim()}

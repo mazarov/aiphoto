@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { ListingCardVideo } from "@/components/ListingCardVideo";
 import { PhotoshootListingBadge } from "@/components/PhotoshootListingBadge";
 import { PhotoshootListingGrid } from "@/components/PhotoshootListingGrid";
 import { usePromptCardModal } from "@/context/PromptCardModalContext";
@@ -49,6 +50,8 @@ export function ListingPhotoTile({
             });
           }}
         />
+      ) : card.videoUrl ? (
+        <ListingCardVideo src={card.videoUrl} poster={card.photoUrl} />
       ) : card.photoUrl ? (
         <Image
           src={card.photoUrl}

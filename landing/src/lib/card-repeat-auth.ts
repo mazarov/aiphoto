@@ -15,6 +15,27 @@ import {
 } from "@/lib/scroll-preservation";
 
 export type CardRepeatAction = "wait" | "auth" | "generate";
+export type CardRepeatComposeIntent = "resume" | "animate";
+
+/**
+ * Published video cards repeat as image-to-video (own photo + card motion prompt).
+ * Photo / photoshoot cards stay on image compose.
+ */
+export function cardRepeatComposeIntent(input: {
+  videoUrl?: string | null;
+}): CardRepeatComposeIntent {
+  return input.videoUrl?.trim() ? "animate" : "resume";
+}
+
+/**
+ * Video repeat needs a source photo the visitor owns — open «Ваши фото» immediately.
+ * Photo repeat keeps the compact plate (same as before).
+ */
+export function dockSurfaceForCardRepeat(
+  intent: CardRepeatComposeIntent
+): "photos" | null {
+  return intent === "animate" ? "photos" : null;
+}
 
 /**
  * Card «Повторить» SSOT. Guest compose (FAB / tab) still opens the dock;
