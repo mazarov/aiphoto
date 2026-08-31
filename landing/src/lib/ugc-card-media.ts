@@ -1,6 +1,14 @@
+export type UgcCardMediaType = "photo" | "video";
+
 export type UgcCardMediaRow = {
   media_index: number;
   storage_path: string;
+};
+
+export type UgcMediaItem = {
+  path: string;
+  mediaType: UgcCardMediaType;
+  bucket?: string;
 };
 
 export type UgcCardMediaSyncPlan =
@@ -12,33 +20,70 @@ export function cleanUgcCardMediaPaths(paths: string[]): string[] {
   return paths.map((path) => String(path || "").trim()).filter(Boolean);
 }
 
+export function buildVideoUgcMediaItems(params: {
+  posterPath: string;
+  videoPath: string;
+}): UgcMediaItem[] {
+  const posterPath = String(params.posterPath || "").trim();
+  const videoPath = String(params.videoPath || "").trim();
+  if (!posterPath || !videoPath) return [];
+  return [
+    { path: posterPath, mediaType: "photo" },
+    { path: videoPath, mediaType: "video" },
+  ];
+}
+
+export function firstInputPhotoPath(inputPhotoPaths: unknown): string | null {
+  if (!Array.isArray(inputPhotoPaths)) return null;
+  for (const value of inputPhotoPaths) {
+    const path = String(value || "").trim();
+    if (path) return path;
+  }
+  return null;
+}
+
 export function buildUgcCardMediaInserts(params: {
   cardId: string;
   bucket: string;
-  paths: string[];
+  paths?: string[];
+  items?: UgcMediaItem[];
   startIndex?: number;
 }): Array<{
   card_id: string;
   media_index: number;
-  media_type: "photo";
+  media_type: UgcCardMediaType;
   storage_bucket: string;
   storage_path: string;
   original_relative_path: string;
   is_primary: boolean;
 }> {
   const startIndex = params.startIndex ?? 0;
-  return params.paths.map((path, offset) => {
-    const mediaIndex = startIndex + offset;
-    return {
-      card_id: params.cardId,
-      media_index: mediaIndex,
-      media_type: "photo" as const,
-      storage_bucket: params.bucket,
-      storage_path: path,
-      original_relative_path: path,
-      is_primary: mediaIndex === 0,
-    };
-  });
+  const items =
+    params.items?.length
+      ? params.items
+      : cleanUgcCardMediaPaths(params.paths || []).map((path) => ({
+          path,
+          mediaType: "photo" as const,
+        }));
+  return items
+    .map((item) => ({
+      path: String(item.path || "").trim(),
+      mediaType: item.mediaType,
+      bucket: String(item.bucket || params.bucket || "").trim(),
+    }))
+    .filter((item) => item.path && item.bucket)
+    .map((item, offset) => {
+      const mediaIndex = startIndex + offset;
+      return {
+        card_id: params.cardId,
+        media_index: mediaIndex,
+        media_type: item.mediaType,
+        storage_bucket: item.bucket,
+        storage_path: item.path,
+        original_relative_path: item.path,
+        is_primary: mediaIndex === 0,
+      };
+    });
 }
 
 /**

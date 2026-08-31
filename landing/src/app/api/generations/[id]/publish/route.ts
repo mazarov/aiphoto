@@ -6,6 +6,7 @@ import {
   ensureCardForCompletedGeneration,
   getOwnedGenerationForCardAction,
 } from "@/lib/generation-card-actions";
+import { grantPublishRewardAfterPublication } from "@/lib/grant-publish-reward";
 import { publishPromptCard } from "@/lib/prompt-card-publication";
 
 export const maxDuration = 120;
@@ -51,6 +52,12 @@ export async function POST(
 
     const card = await ensureCardForCompletedGeneration(supabase, generation);
     const published = await publishPromptCard(supabase, card.cardId);
+    const reward = await grantPublishRewardAfterPublication(supabase, {
+      generationId: id,
+      authUserId: user.id,
+      alreadyPublished: published.alreadyPublished,
+      firstPublishedAt: published.firstPublishedAt,
+    });
 
     console.log("[generations.publish] completed", {
       generationId: id,
@@ -59,6 +66,8 @@ export async function POST(
       alreadyPublished: published.alreadyPublished,
       seoReadinessScore: published.seoReadinessScore,
       promptsReady: published.promptsReady,
+      rewardStatus: reward?.status ?? null,
+      rewardCredits: reward?.credits ?? 0,
       latencyMs: Date.now() - startedAt,
     });
 
@@ -70,6 +79,7 @@ export async function POST(
       alreadyPublished: published.alreadyPublished,
       seoReadinessScore: published.seoReadinessScore,
       promptsReady: published.promptsReady,
+      reward,
     });
   } catch (err) {
     console.error("[generations.publish] failed", {

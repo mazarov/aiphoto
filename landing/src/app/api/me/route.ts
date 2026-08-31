@@ -38,11 +38,24 @@ export async function GET(request: NextRequest) {
       offer = parseLiveMailOffer(offerRow);
     }
 
+    let publishRewardRemainingToday = 0;
+    if (!guestMode) {
+      const { data: remaining } = await supabase.rpc(
+        "landing_publish_reward_remaining",
+        { p_auth_user_id: user.id },
+      );
+      const parsed = Number(remaining);
+      publishRewardRemainingToday = Number.isFinite(parsed)
+        ? Math.max(0, parsed)
+        : 0;
+    }
+
     return NextResponse.json({
       user: { id: user.id, email: user.email, isAnonymous: user.is_anonymous === true },
       credits,
       guestMode,
       offer,
+      publishRewardRemainingToday,
     });
   } catch (err) {
     console.error("me error:", err);

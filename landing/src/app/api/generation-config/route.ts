@@ -9,6 +9,7 @@ import { isVideoAnimateUnlocked, resolveVideoModelId } from "@/lib/video-generat
 import { isCameraOrbitUnlocked, resolveCameraOrbitModel } from "@/lib/camera-orbit-access";
 import { PHOTOSHOOT_CREDIT_COST } from "@/lib/photoshoot";
 import { isPhotoshootUnlocked, resolvePhotoshootModel } from "@/lib/photoshoot-access";
+import { parsePublishRewardConfig } from "@/lib/publish-reward";
 import {
   DEFAULT_IMAGE_ASPECT_RATIO,
   DEFAULT_IMAGE_SIZE,
@@ -58,12 +59,18 @@ export async function GET(req: NextRequest) {
         "camera_orbit_model",
         "photoshoot_enabled",
         "photoshoot_model",
+        "publish_reward_enabled",
+        "publish_reward_photo",
+        "publish_reward_video",
+        "publish_reward_photoshoot",
+        "publish_reward_daily_cap",
       ]);
 
     const config: Record<string, string> = {};
     for (const row of rows || []) {
       config[row.key] = row.value;
     }
+    const publishReward = parsePublishRewardConfig(config);
 
     if (modality === VIDEO_GENERATION_MODALITY) {
       const models = parseEnabledVideoGenerationModels(config.video_models);
@@ -89,6 +96,7 @@ export async function GET(req: NextRequest) {
           quantity: VIDEO_QUANTITY,
           minPromptLength: parseInt(config.min_prompt_length || "8", 10),
         },
+        publishReward,
       });
     }
 
@@ -125,6 +133,7 @@ export async function GET(req: NextRequest) {
         maxFileSizeMb: parseInt(config.max_file_size_mb || "10", 10),
         minPromptLength: parseInt(config.min_prompt_length || "8", 10),
       },
+      publishReward,
     });
   } catch (err) {
     console.error("generation-config error:", err);

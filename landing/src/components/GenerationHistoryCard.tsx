@@ -18,6 +18,15 @@ import {
 } from "@/lib/generation-result-client-actions";
 import { PhotoshootListingBadge } from "@/components/PhotoshootListingBadge";
 import { isPhotoshootEditKind } from "@/lib/photoshoot";
+import { requestCreditBalanceRefresh } from "@/lib/credit-balance-events";
+import {
+  publishRewardAmount,
+  publishRewardKindForGeneration,
+  publishRewardToastMessage,
+  visiblePublishRewardCredits,
+  type PublishRewardConfig,
+  type PublishRewardResult,
+} from "@/lib/publish-reward";
 
 export type GenerationHistoryItem = {
   id: string;
@@ -45,6 +54,8 @@ type Props = {
   selectMode: boolean;
   selected: boolean;
   videoEnabled?: boolean;
+  publishReward?: PublishRewardConfig;
+  publishRewardRemaining?: number;
   onEnterSelectMode: (id: string) => void;
   onToggleSelect: (id: string) => void;
   onDeleted: (id: string) => void;
@@ -157,6 +168,8 @@ export function GenerationHistoryCard({
   selectMode,
   selected,
   videoEnabled = false,
+  publishReward,
+  publishRewardRemaining = 0,
   onEnterSelectMode,
   onToggleSelect,
   onDeleted,
@@ -172,7 +185,7 @@ export function GenerationHistoryCard({
   const hasPrompt = Boolean(generation.prompt?.trim());
   const isVideo = generation.modality === "video" || generation.resultMimeType === "video/mp4";
   const isPhotoshoot = isPhotoshootEditKind(generation.editKind);
-  const canOpenCard = generation.status === "completed" && hasResult && !isVideo;
+  const canOpenCard = generation.status === "completed" && hasResult;
   const canOpenResult = generation.status === "completed" && hasResult;
   const canAnimate =
     videoEnabled &&
@@ -180,6 +193,20 @@ export function GenerationHistoryCard({
     !isPhotoshoot &&
     generation.status === "completed" &&
     hasResult;
+  const publishRewardVisible = publishReward
+    ? visiblePublishRewardCredits({
+        enabled: publishReward.enabled,
+        isPublished: generation.isPublished,
+        amount: publishRewardAmount(
+          publishRewardKindForGeneration({
+            modality: generation.modality,
+            editKind: generation.editKind,
+          }),
+          publishReward,
+        ),
+        remainingToday: publishRewardRemaining,
+      })
+    : null;
 
   const toast = (message: string) => onToast?.(message);
 
@@ -295,9 +322,16 @@ export function GenerationHistoryCard({
           slug?: string;
           isPublished?: boolean;
           promptsReady?: boolean;
+          reward?: PublishRewardResult | null;
         };
         if (!res.ok || !data.cardId || !data.slug) {
-          throw new Error(data.error || "Не удалось опубликовать");
+          throw new Error(
+            data.error === "unauthorized"
+              ? "Войдите, чтобы опубликовать"
+              : data.error === "generation_result_not_available"
+                ? "Результат ещё не готов"
+                : "Не удалось опубликовать",
+          );
         }
         onCardMetadataUpdated(generation.id, {
           cardId: data.cardId,
@@ -305,12 +339,15 @@ export function GenerationHistoryCard({
           isPublished: true,
         });
         setMenuOpen(false);
+        if (typeof data.reward?.credits === "number" && data.reward.credits > 0) {
+          requestCreditBalanceRefresh();
+        }
         toast(
-          data.promptsReady
-            ? generation.isPublished
-              ? "Промпты обновлены"
-              : "Карточка опубликована"
-            : "Опубликовано. Промпты появятся через минуту",
+          publishRewardToastMessage({
+            promptsReady: data.promptsReady,
+            wasPublished: generation.isPublished,
+            reward: data.reward,
+          }),
         );
       } catch (err) {
         toast(err instanceof Error ? err.message : "Не удалось опубликовать");
@@ -376,7 +413,9 @@ export function GenerationHistoryCard({
           </div>
         )}
 
-        {!selectMode && (isPhotoshoot || tileUrls) ? <PhotoshootListingBadge /> : null}
+        {!selectMode && (isPhotoshoot || tileUrls) ? (
+          <PhotoshootListingBadge className="bottom-14" />
+        ) : null}
 
         {!selectMode && canOpenResult && !tileUrls ? (
           <button
@@ -387,21 +426,62 @@ export function GenerationHistoryCard({
           />
         ) : null}
 
-        {!selectMode && canAnimate ? (
-          <button
-            type="button"
-            className={`${OVERLAY_BUTTON_UA_RESET} ${CARD_OVERLAY_ACTION_PILL} absolute bottom-2 left-1/2 z-20 -translate-x-1/2 px-3.5 text-[13px] font-semibold text-white`}
-            onClick={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              void handleAction("animate");
-            }}
+        {!selectMode && canOpenCard ? (
+          <div
+            className="absolute inset-x-2 bottom-2 z-20 flex gap-1.5"
+            onClick={(event) => event.stopPropagation()}
           >
-            <svg className="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-              <path d="M8 6.8v10.4L17.2 12 8 6.8Z" />
-            </svg>
-            Оживить
-          </button>
+            {canAnimate ? (
+              <button
+                type="button"
+                className={`${OVERLAY_BUTTON_UA_RESET} ${CARD_OVERLAY_ACTION_PILL} min-w-0 flex-1 px-2 text-[13px] font-semibold text-white`}
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  void handleAction("animate");
+                }}
+              >
+                <svg className="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                  <path d="M8 6.8v10.4L17.2 12 8 6.8Z" />
+                </svg>
+                <span className="truncate">Оживить</span>
+              </button>
+            ) : null}
+            <button
+              type="button"
+              disabled={Boolean(busyAction) || (generation.isPublished && !generation.cardSlug && !isPhotoshoot)}
+              className={`${OVERLAY_BUTTON_UA_RESET} ${CARD_OVERLAY_ACTION_PILL} min-w-0 flex-1 px-2 text-[13px] font-semibold text-white`}
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                if (generation.isPublished && generation.cardSlug && !isPhotoshoot) {
+                  window.location.assign(`/p/${generation.cardSlug}`);
+                  return;
+                }
+                void handleAction("publish");
+              }}
+            >
+              <svg className="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+                <path
+                  d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M5 14v5h14v-5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+              <span className="min-w-0 truncate">
+                {busyAction === "publish"
+                  ? "Публикация…"
+                  : generation.isPublished
+                    ? isPhotoshoot
+                      ? "Обновить"
+                      : "В каталоге"
+                    : "Опубликовать"}
+              </span>
+              {typeof publishRewardVisible === "number" ? (
+                <span className="shrink-0 text-emerald-300">+{publishRewardVisible}✦</span>
+              ) : null}
+            </button>
+          </div>
         ) : null}
 
         {selectMode ? (
@@ -466,6 +546,7 @@ export function GenerationHistoryCard({
               allowRepublish={isPhotoshoot}
               canAnimate={false}
               canSaveToLibrary={!isVideo}
+              publishRewardCredits={publishRewardVisible}
               busyAction={busyAction}
               onAction={(action) => {
                 void handleAction(action);

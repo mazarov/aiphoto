@@ -74,6 +74,16 @@ import {
   PhotoshootListingGrid,
 } from "@/components/PhotoshootListingGrid";
 import { isPhotoshootUgcListing, resolvePhotoshootOpenIndex } from "@/lib/photoshoot";
+import { CardHeroVideo } from "@/components/CardHeroVideo";
+import { PublishRewardBadge } from "@/components/generate/PublishRewardBadge";
+import { requestCreditBalanceRefresh } from "@/lib/credit-balance-events";
+import { usePublishReward } from "@/lib/use-publish-reward";
+import {
+  publishRewardAmount,
+  publishRewardKindForGeneration,
+  visiblePublishRewardCredits,
+  type PublishRewardResult,
+} from "@/lib/publish-reward";
 
 /** Desktop editorial panel chips (tier A = 13px). */
 const DESKTOP_PANEL_CHIP =
@@ -202,6 +212,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
   const [publishedLocal, setPublishedLocal] = useState(data.isPublished);
   const [pubSaving, setPubSaving] = useState(false);
   const [pubStatus, setPubStatus] = useState<string | null>(null);
+  const publishReward = usePublishReward(data.viewerIsOwner);
   const { reactions, favorites, toggleReaction, toggleFavorite } = useCardInteractions();
   const userReaction = reactions.get(data.id) ?? null;
   const isFavorited = favorites.has(data.id);
@@ -367,12 +378,22 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
         credentials: "include",
         body: JSON.stringify({ published: nextPublished }),
       });
-      const j = (await res.json()) as { error?: string };
+      const j = (await res.json()) as {
+        error?: string;
+        reward?: PublishRewardResult | null;
+      };
       if (!res.ok) {
         setPubStatus(j.error || res.statusText);
         return;
       }
       setPublishedLocal(nextPublished);
+      if (
+        nextPublished &&
+        typeof j.reward?.credits === "number" &&
+        j.reward.credits > 0
+      ) {
+        requestCreditBalanceRefresh();
+      }
       router.refresh();
     } catch (e) {
       setPubStatus((e as Error).message);
@@ -449,12 +470,25 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
 
   const hasPrompts = data.promptTexts.length > 0;
   const hasPhotos = photos.length > 0;
+  const videoUrl = data.videoUrl;
   const isPhotoshoot = isPhotoshootUgcListing({
     datasetSlug: data.source_dataset_slug,
     photoCount: photos.length,
     storagePaths: photoMeta.map((media) => media.path),
   });
   const photoshootGrid = isPhotoshoot && photos.length === 4;
+  const ownerPublishReward = visiblePublishRewardCredits({
+    enabled: publishReward.config.enabled,
+    isPublished: publishedLocal,
+    amount: publishRewardAmount(
+      publishRewardKindForGeneration({
+        modality: videoUrl ? "video" : "image",
+        editKind: isPhotoshoot ? "photoshoot" : null,
+      }),
+      publishReward.config,
+    ),
+    remainingToday: publishReward.remainingToday,
+  });
   const promptsFollowPhotos =
     data.promptTexts.length === photos.length && photos.length > 1;
   const visiblePromptTexts = promptsFollowPhotos
@@ -856,6 +890,10 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                       selectedIndex={photoIndex}
                       onSelect={(_url, index) => setPhotoIndex(index)}
                     />
+                  ) : videoUrl ? (
+                    <div className="absolute inset-0 z-[2] bg-zinc-950">
+                      <CardHeroVideo src={videoUrl} poster={currentPhoto} />
+                    </div>
                   ) : (
                     <>
                       <Image
@@ -1038,9 +1076,15 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                     type="button"
                     disabled={pubSaving}
                     onClick={() => handleVisibilityChange(!publishedLocal)}
-                    className={`${OVERLAY_BUTTON_UA_RESET} shrink-0 rounded-lg bg-zinc-100 px-2.5 py-1.5 text-[13px] font-semibold text-zinc-700 transition-colors hover:bg-zinc-200 disabled:opacity-50`}
+                    className={`${OVERLAY_BUTTON_UA_RESET} inline-flex shrink-0 items-center gap-1 rounded-lg bg-zinc-100 px-2.5 py-1.5 text-[13px] font-semibold text-zinc-700 transition-colors hover:bg-zinc-200 disabled:opacity-50`}
                   >
                     {pubSaving ? "…" : publishedLocal ? "Скрыть" : "Опубл."}
+                    {!publishedLocal && typeof ownerPublishReward === "number" ? (
+                      <PublishRewardBadge
+                        credits={ownerPublishReward}
+                        className="ml-1"
+                      />
+                    ) : null}
                   </button>
                 )}
               </div>
@@ -1235,17 +1279,25 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                   </div>
                 ) : (
                   <div className="absolute inset-0 z-[2]">
-                    <Image
-                      src={currentPhoto}
-                      alt={buildCardImageAlt(title, [], photoIndex)}
-                      fill
-                      sizes="100vw"
-                      quality={CARD_IMAGE_NEXT_QUALITY}
-                      className="object-cover object-center"
-                      priority
-                      fetchPriority="high"
-                      decoding="async"
-                    />
+                    {videoUrl ? (
+                      <CardHeroVideo
+                        src={videoUrl}
+                        poster={currentPhoto}
+                        className="object-cover object-center"
+                      />
+                    ) : (
+                      <Image
+                        src={currentPhoto}
+                        alt={buildCardImageAlt(title, [], photoIndex)}
+                        fill
+                        sizes="100vw"
+                        quality={CARD_IMAGE_NEXT_QUALITY}
+                        className="object-cover object-center"
+                        priority
+                        fetchPriority="high"
+                        decoding="async"
+                      />
+                    )}
                   </div>
                 )}
 
@@ -1637,13 +1689,19 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                     type="button"
                     disabled={pubSaving}
                     onClick={() => handleVisibilityChange(!publishedLocal)}
-                    className="rounded-xl bg-zinc-900 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-zinc-800 disabled:opacity-50"
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-zinc-900 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-zinc-800 disabled:opacity-50"
                   >
                     {pubSaving
                       ? "Сохранение…"
                       : publishedLocal
                         ? "Скрыть"
                         : "Опубликовать"}
+                    {!publishedLocal && typeof ownerPublishReward === "number" ? (
+                      <PublishRewardBadge
+                        credits={ownerPublishReward}
+                        className="ml-1"
+                      />
+                    ) : null}
                   </button>
                   {pubStatus && (
                     <span className="text-center text-xs text-red-600 sm:text-left">{pubStatus}</span>

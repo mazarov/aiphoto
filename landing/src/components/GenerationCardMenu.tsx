@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef } from "react";
+import { publishRewardCreditsLabel } from "@/lib/publish-reward";
 
 export type GenerationMenuAction =
   | "select"
@@ -23,6 +24,7 @@ type Props = {
   allowRepublish?: boolean;
   canAnimate?: boolean;
   canSaveToLibrary?: boolean;
+  publishRewardCredits?: number | null;
   busyAction: GenerationMenuAction | null;
   onAction: (action: GenerationMenuAction) => void;
 };
@@ -143,6 +145,7 @@ export function GenerationCardMenu({
   allowRepublish = false,
   canAnimate = false,
   canSaveToLibrary = true,
+  publishRewardCredits = null,
   busyAction,
   onAction,
 }: Props) {
@@ -266,13 +269,22 @@ export function GenerationCardMenu({
         onClick={() => run("publish")}
       >
         <IconPublish className="h-4 w-4 shrink-0" />
-        {busyAction === "publish"
-          ? "Публикация…"
-          : isPublished
-            ? allowRepublish
-              ? "Обновить промпты"
-              : "Опубликовано"
-            : "Опубликовать"}
+        <span className="min-w-0 flex-1">
+          <span className="block">
+            {busyAction === "publish"
+              ? "Публикация…"
+              : isPublished
+                ? allowRepublish
+                  ? "Обновить промпты"
+                  : "Опубликовано"
+                : "Опубликовать"}
+          </span>
+          {typeof publishRewardCredits === "number" ? (
+            <span className="mt-0.5 block text-[13px] font-medium text-emerald-300">
+              {publishRewardCreditsLabel(publishRewardCredits)}
+            </span>
+          ) : null}
+        </span>
       </button>
 
       <div className="my-1.5 h-px bg-white/10" role="separator" />

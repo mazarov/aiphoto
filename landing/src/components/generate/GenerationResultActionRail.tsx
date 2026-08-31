@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { OVERLAY_BUTTON_UA_RESET } from "@/lib/card-overlay-action-pill";
 import { GenerationCreditCostBadge } from "@/components/generate/GenerationCreditCostBadge";
+import { PublishRewardBadge } from "@/components/generate/PublishRewardBadge";
 
 export type GenerationResultAction = {
   id: string;
@@ -12,6 +13,8 @@ export type GenerationResultAction = {
   /** Same `N✦` pill as photo/video model tiles in the generate modal. */
   creditCost?: number;
   creditUnaffordable?: boolean;
+  /** Emerald `+N✦` for publish bonus — not a spend. */
+  creditReward?: number;
   icon: ReactNode;
   onClick: () => void;
   disabled?: boolean;
@@ -39,7 +42,7 @@ const RAIL_BTN_ORBIT = `${RAIL_BTN_BASE} relative isolate overflow-visible ${RAI
 const RAIL_BTN_CREDIT = `${RAIL_BTN_BASE} mt-1.5 overflow-visible ${RAIL_BTN_GLASS}`;
 
 function hasTopCreditBadge(action: GenerationResultAction) {
-  return action.creditCost != null;
+  return action.creditCost != null || action.creditReward != null;
 }
 
 function railButtonClass(action: GenerationResultAction) {
@@ -76,7 +79,12 @@ export function GenerationResultActionRail({ actions, className = "" }: Props) {
               </span>
             </>
           ) : null}
-          {typeof action.creditCost === "number" ? (
+          {typeof action.creditReward === "number" ? (
+            <PublishRewardBadge
+              credits={action.creditReward}
+              className="pointer-events-none absolute -top-2.5 right-2 z-20"
+            />
+          ) : typeof action.creditCost === "number" ? (
             <GenerationCreditCostBadge
               cost={action.creditCost}
               unaffordable={action.creditUnaffordable}

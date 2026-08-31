@@ -4,6 +4,7 @@ import {
   buildUgcCardMediaInserts,
   cleanUgcCardMediaPaths,
   planUgcCardMediaSync,
+  type UgcMediaItem,
 } from "@/lib/ugc-card-media";
 
 export const WEB_UGC_DATASET_SLUG = "web_generation_ugc";
@@ -113,6 +114,7 @@ export async function createUgcCardForCompletedGeneration(
     resultBucket: string;
     resultPath?: string;
     resultPaths?: string[];
+    mediaItems?: UgcMediaItem[];
   },
 ): Promise<{ cardId: string; slug: string | null } | null> {
   const {
@@ -121,9 +123,18 @@ export async function createUgcCardForCompletedGeneration(
     promptText,
     resultBucket,
   } = params;
-  const resultPaths = cleanUgcCardMediaPaths(
-    params.resultPaths?.length ? params.resultPaths : params.resultPath ? [params.resultPath] : [],
+  const mediaItems = (params.mediaItems || []).filter((item) =>
+    String(item.path || "").trim(),
   );
+  const resultPaths = mediaItems.length
+    ? mediaItems.map((item) => item.path)
+    : cleanUgcCardMediaPaths(
+        params.resultPaths?.length
+          ? params.resultPaths
+          : params.resultPath
+            ? [params.resultPath]
+            : [],
+      );
   if (!resultPaths.length) return null;
 
   const { data: genRow, error: genErr } = await supabase
@@ -211,6 +222,7 @@ export async function createUgcCardForCompletedGeneration(
         cardId,
         bucket: resultBucket,
         paths: resultPaths,
+        items: mediaItems.length ? mediaItems : undefined,
       }),
     );
   if (mediaInsertError) {

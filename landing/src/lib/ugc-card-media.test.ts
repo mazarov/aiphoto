@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildUgcCardMediaInserts, planUgcCardMediaSync } from "./ugc-card-media";
+import {
+  buildUgcCardMediaInserts,
+  buildVideoUgcMediaItems,
+  firstInputPhotoPath,
+  planUgcCardMediaSync,
+} from "./ugc-card-media";
 
 const tiles = [
   "user/job/lease-1.jpg",
@@ -44,12 +49,37 @@ test("media inserts mark only the first frame primary", () => {
   });
   assert.equal(rows.length, 4);
   assert.deepEqual(
-    rows.map((row) => [row.media_index, row.storage_path, row.is_primary]),
+    rows.map((row) => [row.media_index, row.storage_path, row.is_primary, row.media_type]),
     [
-      [0, tiles[0], true],
-      [1, tiles[1], false],
-      [2, tiles[2], false],
-      [3, tiles[3], false],
+      [0, tiles[0], true, "photo"],
+      [1, tiles[1], false, "photo"],
+      [2, tiles[2], false, "photo"],
+      [3, tiles[3], false, "photo"],
     ],
   );
+});
+
+test("video UGC is poster photo plus mp4", () => {
+  const items = buildVideoUgcMediaItems({
+    posterPath: "user/parent.jpg",
+    videoPath: "user/clip.mp4",
+  });
+  assert.deepEqual(items, [
+    { path: "user/parent.jpg", mediaType: "photo" },
+    { path: "user/clip.mp4", mediaType: "video" },
+  ]);
+  const rows = buildUgcCardMediaInserts({
+    cardId: "card",
+    bucket: "results",
+    items,
+  });
+  assert.deepEqual(
+    rows.map((row) => [row.media_type, row.storage_path, row.is_primary]),
+    [
+      ["photo", "user/parent.jpg", true],
+      ["video", "user/clip.mp4", false],
+    ],
+  );
+  assert.equal(buildVideoUgcMediaItems({ posterPath: "", videoPath: "x.mp4" }).length, 0);
+  assert.equal(firstInputPhotoPath(["", "a.jpg"]), "a.jpg");
 });

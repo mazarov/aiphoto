@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { createSupabaseServer } from "@/lib/supabase";
 import { getSupabaseUserForApiRoute } from "@/lib/supabase-route-auth";
+import {
+  findOwnedGenerationIdForCard,
+  grantPublishRewardAfterPublication,
+} from "@/lib/grant-publish-reward";
 import { publishPromptCard } from "@/lib/prompt-card-publication";
 
 export const maxDuration = 120;
@@ -57,16 +61,31 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
 
     try {
       const result = await publishPromptCard(supabase, cardId);
+      const generationId = await findOwnedGenerationIdForCard(supabase, {
+        cardId,
+        authUserId: user.id,
+      });
+      const reward = generationId
+        ? await grantPublishRewardAfterPublication(supabase, {
+            generationId,
+            authUserId: user.id,
+            alreadyPublished: result.alreadyPublished,
+            firstPublishedAt: result.firstPublishedAt,
+          })
+        : null;
       console.log("[my-cards.visibility] publish", {
         userId: user.id,
         cardId,
         slug,
         alreadyPublished: result.alreadyPublished,
+        rewardStatus: reward?.status ?? null,
+        rewardCredits: reward?.credits ?? 0,
       });
       return NextResponse.json({
         ok: true,
         is_published: true,
         seo_readiness_score: result.seoReadinessScore,
+        reward,
       });
     } catch (publishError) {
       console.error("[my-cards.visibility] publish failed", {

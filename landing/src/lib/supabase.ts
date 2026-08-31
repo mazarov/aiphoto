@@ -952,6 +952,8 @@ export type CardPageData = {
   /** Parallel to photoUrls — from prompt_card_media (may be null if not backfilled). */
   photoDimensions: { width: number | null; height: number | null }[];
   beforePhotoUrl: string | null;
+  /** Public mp4 when the UGC card has video media. Poster stays in photoUrls. */
+  videoUrl: string | null;
   mainPhotoUrl: string | null;
   card_split_index: number;
   card_split_total: number;
@@ -1129,6 +1131,19 @@ async function fetchCardPageDataCore(
       )
     : null;
 
+  const { data: videoRow } = await supabase
+    .from("prompt_card_media")
+    .select("storage_bucket,storage_path")
+    .eq("card_id", card.id)
+    .eq("media_type", "video")
+    .order("media_index", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  const videoUrl =
+    videoRow?.storage_bucket && videoRow.storage_path
+      ? getStoragePublicUrl(videoRow.storage_bucket, videoRow.storage_path)
+      : null;
+
   let siblings: CardPageSibling[] = [];
   const sibCards = (siblingsRes.data || []) as {
     id: string;
@@ -1188,6 +1203,7 @@ async function fetchCardPageDataCore(
     photoMeta,
     photoDimensions,
     beforePhotoUrl,
+    videoUrl,
     mainPhotoUrl: photoUrls[0] || null,
     card_split_index: splitIndex,
     card_split_total: splitTotal,

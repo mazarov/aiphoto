@@ -18,6 +18,7 @@ import {
   readCachedVideoAnimateEnabled,
   writeCachedVideoAnimateEnabled,
 } from "@/lib/video-animate-availability";
+import { usePublishReward } from "@/lib/use-publish-reward";
 
 type GenerationsContentProps = {
   /** Bump to force-reload list (e.g. after blank generate completes). */
@@ -51,6 +52,7 @@ export function GenerationsContent({
   const [videoEnabled, setVideoEnabled] = useState(
     () => readCachedVideoAnimateEnabled() === true
   );
+  const publishReward = usePublishReward();
 
   const showToast = useCallback((message: string) => {
     setToast(message);
@@ -348,6 +350,8 @@ export function GenerationsContent({
             selectMode={selectMode}
             selected={selectedIds.has(generation.id)}
             videoEnabled={videoEnabled}
+            publishReward={publishReward.config}
+            publishRewardRemaining={publishReward.remainingToday}
             onEnterSelectMode={enterSelectMode}
             onToggleSelect={toggleSelect}
             onDeleted={handleDeleted}

@@ -189,6 +189,16 @@ import {
   type PhotoshootTileIndex,
 } from "@/lib/photoshoot";
 import {
+  DEFAULT_PUBLISH_REWARD_CONFIG,
+  publishRewardAmount,
+  publishRewardCreditsLabel,
+  publishRewardKindForGeneration,
+  publishRewardToastMessage,
+  visiblePublishRewardCredits,
+  type PublishRewardConfig,
+  type PublishRewardResult,
+} from "@/lib/publish-reward";
+import {
   parseStoredGenerationPreferences,
   pickFresherPreferences,
   readCachedGenerationPreferences,
@@ -545,6 +555,10 @@ export function CardInlineGeneratePanel({
       (seededResult && seed.isPublished) || restoredLastResult?.isPublished
     )
   );
+  const [publishedSlug, setPublishedSlug] = useState<string | null>(null);
+  const [publishRewardConfig, setPublishRewardConfig] =
+    useState<PublishRewardConfig>(DEFAULT_PUBLISH_REWARD_CONFIG);
+  const [publishRewardRemaining, setPublishRewardRemaining] = useState(0);
   const [toast, setToast] = useState("");
   const [expandedControlLocal, setExpandedControlLocal] = useState<
     "photos" | "model" | null
@@ -856,6 +870,7 @@ export function CardInlineGeneratePanel({
           cameraOrbitModel?: { id?: string; cost?: number } | null;
           photoshootEnabled?: boolean;
           photoshootModel?: { id?: string; cost?: number } | null;
+          publishReward?: PublishRewardConfig;
         };
         const photosData = (await photosRes.json().catch(() => ({}))) as {
           photos?: UserPhoto[];
@@ -867,7 +882,10 @@ export function CardInlineGeneratePanel({
             })
           : {};
         const meData = meRes.ok
-          ? ((await meRes.json().catch(() => ({}))) as { credits?: number })
+          ? ((await meRes.json().catch(() => ({}))) as {
+              credits?: number;
+              publishRewardRemainingToday?: number;
+            })
           : {};
         const generationsData =
           generationsRes && generationsRes.ok
@@ -913,6 +931,14 @@ export function CardInlineGeneratePanel({
         const nextPhotoshootEnabled = Boolean(configData.photoshootEnabled);
         writeCachedPhotoshootEnabled(nextPhotoshootEnabled);
         setPhotoshootEnabled(nextPhotoshootEnabled);
+        if (configData.publishReward) {
+          setPublishRewardConfig({
+            ...DEFAULT_PUBLISH_REWARD_CONFIG,
+            ...configData.publishReward,
+          });
+        }
+        const remaining = Number(meData.publishRewardRemainingToday);
+        setPublishRewardRemaining(Number.isFinite(remaining) ? remaining : 0);
         const nextVideoModels = Array.isArray(videoConfigData.models)
           ? videoConfigData.models
           : [];
@@ -1994,6 +2020,58 @@ export function CardInlineGeneratePanel({
   };
 
   const handleResultAction = async (action: GenerationMenuAction) => {
+    if (action === "publish") {
+      if (busyAction) return;
+      if (!generationId) {
+        setToast("Не удалось опубликовать");
+        return;
+      }
+      setBusyAction("publish");
+      try {
+        const res = await fetch(`/api/generations/${generationId}/publish`, {
+          method: "POST",
+          credentials: "include",
+        });
+        const data = (await res.json().catch(() => ({}))) as {
+          error?: string;
+          promptsReady?: boolean;
+          slug?: string;
+          reward?: PublishRewardResult | null;
+        };
+        if (!res.ok) {
+          throw new Error(
+            data.error === "unauthorized"
+              ? "Войдите, чтобы опубликовать"
+              : data.error === "generation_result_not_available"
+                ? "Результат ещё не готов"
+                : "Не удалось опубликовать",
+          );
+        }
+        const wasPublished = isPublished;
+        setIsPublished(true);
+        if (data.slug) setPublishedSlug(data.slug);
+        if (typeof data.reward?.credits === "number" && data.reward.credits > 0) {
+          setPublishRewardRemaining((current) =>
+            Math.max(0, current - data.reward!.credits),
+          );
+          requestCreditBalanceRefresh();
+        }
+        setMenuOpen(false);
+        setToast(
+          publishRewardToastMessage({
+            promptsReady: data.promptsReady,
+            wasPublished,
+            reward: data.reward,
+          }),
+        );
+      } catch (err) {
+        setToast(err instanceof Error ? err.message : "Не удалось опубликовать");
+      } finally {
+        setBusyAction(null);
+      }
+      return;
+    }
+
     if (!resultUrl || !generationId || busyAction) return;
 
     if (action === "select") return;
@@ -2067,36 +2145,6 @@ export function CardInlineGeneratePanel({
         setToast("Сохранено для генерации");
       } catch (err) {
         setToast(err instanceof Error ? err.message : "Не удалось сохранить");
-      } finally {
-        setBusyAction(null);
-      }
-      return;
-    }
-
-    if (action === "publish") {
-      setBusyAction("publish");
-      try {
-        const res = await fetch(`/api/generations/${generationId}/publish`, {
-          method: "POST",
-          credentials: "include",
-        });
-        const data = (await res.json().catch(() => ({}))) as {
-          error?: string;
-          promptsReady?: boolean;
-        };
-        if (!res.ok) throw new Error(data.error || "Не удалось опубликовать");
-        const wasPublished = isPublished;
-        setIsPublished(true);
-        setMenuOpen(false);
-        setToast(
-          data.promptsReady
-            ? wasPublished
-              ? "Промпты обновлены"
-              : "Карточка опубликована"
-            : "Опубликовано. Промпты появятся через минуту",
-        );
-      } catch (err) {
-        setToast(err instanceof Error ? err.message : "Не удалось опубликовать");
       } finally {
         setBusyAction(null);
       }
@@ -2354,6 +2402,16 @@ export function CardInlineGeneratePanel({
     !photoshootOpen &&
     !(isDock && dockExpanded);
   const resultPrimary = resultPrimaryAction({ showCreditsCta });
+  const publishRewardKind = publishRewardKindForGeneration({
+    modality: resultModality,
+    editKind: resultEditKind,
+  });
+  const publishRewardVisible = visiblePublishRewardCredits({
+    enabled: publishRewardConfig.enabled,
+    isPublished,
+    amount: publishRewardAmount(publishRewardKind, publishRewardConfig),
+    remainingToday: publishRewardRemaining,
+  });
   const showCameraOverlay =
     cameraOrbitOpen &&
     !photoshootOpen &&
@@ -2665,11 +2723,12 @@ export function CardInlineGeneratePanel({
                 showSelect={false}
                 hasResult
                 hasPrompt={Boolean(activePrompt.trim())}
-                canPublish={resultModality !== "video"}
+                canPublish
                 isPublished={isPublished}
                 allowRepublish={isPhotoshootEditKind(resultEditKind)}
                 canAnimate={videoEnabled && resultModality === "image"}
                 canSaveToLibrary={resultModality !== "video"}
+                publishRewardCredits={publishRewardVisible}
                 busyAction={busyAction}
                 onAction={(action) => {
                   void handleResultAction(action);
@@ -2713,6 +2772,44 @@ export function CardInlineGeneratePanel({
         <GenerationResultActionRail
           className="absolute bottom-[max(0.75rem,env(safe-area-inset-bottom))] right-2.5 z-30"
           actions={[
+            {
+              id: "publish",
+              label: busyAction === "publish"
+                ? "Публикация…"
+                : isPublished
+                  ? isPhotoshootEditKind(resultEditKind)
+                    ? "Обновить промпты"
+                    : "В каталоге"
+                  : "Опубликовать",
+              detail: isPublished
+                ? undefined
+                : publishRewardVisible != null
+                  ? publishRewardCreditsLabel(publishRewardVisible)
+                  : undefined,
+              creditReward: publishRewardVisible ?? undefined,
+              disabled: Boolean(busyAction) || (isPublished && !publishedSlug && !isPhotoshootEditKind(resultEditKind)),
+              ariaLabel: isPublished
+                ? "Открыть карточку в каталоге"
+                : publishRewardVisible != null
+                  ? `Опубликовать в каталог, ${publishRewardCreditsLabel(publishRewardVisible)}`
+                  : "Опубликовать в каталог",
+              onClick: () => {
+                if (isPublished && publishedSlug && !isPhotoshootEditKind(resultEditKind)) {
+                  window.location.assign(`/p/${publishedSlug}`);
+                  return;
+                }
+                void handleResultAction("publish");
+              },
+              icon: (
+                <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <path
+                    d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M5 14v5h14v-5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              ),
+            },
             {
               id: "view",
               label: "Посмотреть",
@@ -3008,11 +3105,12 @@ export function CardInlineGeneratePanel({
               showSelect={false}
               hasResult
               hasPrompt={Boolean(activePrompt.trim())}
-              canPublish={resultModality !== "video"}
+              canPublish
               isPublished={isPublished}
               allowRepublish={isPhotoshootEditKind(resultEditKind)}
               canAnimate={videoEnabled && resultModality === "image"}
               canSaveToLibrary={resultModality !== "video"}
+              publishRewardCredits={publishRewardVisible}
               busyAction={busyAction}
               onAction={(action) => {
                 void handleResultAction(action);
@@ -4304,7 +4402,9 @@ export function CardInlineGeneratePanel({
       {toast ? (
         <div
           role="status"
-          className="pointer-events-none absolute bottom-20 left-1/2 z-50 max-w-[calc(100%-2rem)] -translate-x-1/2 rounded-full bg-zinc-900/95 px-4 py-2 text-center text-[13px] font-medium text-white shadow-xl ring-1 ring-white/10 backdrop-blur-md"
+          className={`pointer-events-none absolute left-1/2 z-50 max-w-[calc(100%-2rem)] -translate-x-1/2 rounded-full bg-zinc-900/95 px-4 py-2 text-center text-[13px] font-medium text-white shadow-xl ring-1 ring-white/10 backdrop-blur-md ${
+            showResultChrome ? "top-16" : "bottom-20"
+          }`}
         >
           {toast}
         </div>

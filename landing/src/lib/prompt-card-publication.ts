@@ -18,6 +18,7 @@ export type PromptCardPublicationResult = {
   alreadyPublished: boolean;
   seoReadinessScore: number | null;
   promptsReady: boolean;
+  firstPublishedAt: string | null;
 };
 
 function schedulePhotoshootPromptHydration(
@@ -146,6 +147,7 @@ export async function publishPromptCard(
           ? card.seo_readiness_score
           : null,
       promptsReady: true,
+      firstPublishedAt: await readFirstPublishedAt(supabase, card.id as string),
     };
   }
 
@@ -203,6 +205,7 @@ export async function publishPromptCard(
       alreadyPublished: true,
       seoReadinessScore: classified.seo_readiness_score,
       promptsReady: !needsPhotoshootHydration,
+      firstPublishedAt: await readFirstPublishedAt(supabase, card.id as string),
     };
   }
 
@@ -249,5 +252,21 @@ export async function publishPromptCard(
     alreadyPublished,
     seoReadinessScore: classified.seo_readiness_score,
     promptsReady: !needsPhotoshootHydration,
+    firstPublishedAt: await readFirstPublishedAt(supabase, card.id as string),
   };
+}
+
+async function readFirstPublishedAt(
+  supabase: SupabaseClient,
+  cardId: string,
+): Promise<string | null> {
+  const { data, error } = await supabase
+    .from("prompt_cards")
+    .select("first_published_at")
+    .eq("id", cardId)
+    .maybeSingle();
+  if (error) return null;
+  return typeof data?.first_published_at === "string"
+    ? data.first_published_at
+    : null;
 }
