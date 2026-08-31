@@ -7,17 +7,19 @@ const SEND_AWAY = /вставь в нейросеть|открой Nano Banana|�
 test("homepage snippet keeps the listing key and CWS-safe length", () => {
   assert.equal(
     HOMEPAGE_SEO.title,
-    "Промты для ИИ фото в нейросетях | PromptShot"
+    "Промты для ИИ фото и фотосессии в нейросетях | PromptShot"
   );
   assert.ok(HOMEPAGE_SEO.title.length <= 70);
   assert.equal(
     HOMEPAGE_SEO.description,
-    "Готовые промты для генерации ИИ фото в нейросетях на русском. Бесплатно. Подходит для создания фото в ChatGPT, Gemini, Nano Banana или других нейросетях."
+    "Промты для ИИ фотосессии и готовые промты для ИИ фото в нейросетях на русском. Бесплатно. Скопируй текст или создай кадр в ChatGPT, Gemini, Nano Banana."
   );
   assert.ok(HOMEPAGE_SEO.description.length <= 180);
   assert.match(HOMEPAGE_SEO.title, /^Промты для ИИ фото/);
+  assert.match(HOMEPAGE_SEO.title, /фотосессии/);
+  assert.match(HOMEPAGE_SEO.description, /промты для ИИ фотосессии/i);
   assert.match(HOMEPAGE_SEO.h1.main, /^Промты для ИИ фото$/);
-  assert.equal(HOMEPAGE_SEO.h1.accent, "в нейросетях");
+  assert.equal(HOMEPAGE_SEO.h1.accent, "и фотосессии в нейросетях");
 });
 
 test("homepage blocks keep listing CTA and do not send people away", () => {
@@ -27,7 +29,7 @@ test("homepage blocks keep listing CTA and do not send people away", () => {
   );
   assert.equal(HOMEPAGE_SEO.heroSubtitle, HOMEPAGE_SEO.intro);
   assert.equal(HOMEPAGE_SEO.examplesEyebrow, "Каталог промтов");
-  assert.equal(HOMEPAGE_SEO.examplesTitle, "Готовые промты для фотографий");
+  assert.equal(HOMEPAGE_SEO.examplesTitle, "Готовые промты для ИИ фотосессии");
   assert.equal(HOMEPAGE_SEO.catalogCta, "Перейти в каталог");
   assert.equal(HOMEPAGE_SEO.catalogHref, "/catalog");
   assert.equal(HOMEPAGE_SEO.galleryTitle, "Идеи промтов для фото");
@@ -49,13 +51,13 @@ test("homepage blocks keep listing CTA and do not send people away", () => {
   }
 });
 
-test("homepage FAQ covers leftover Wordcraft tails, not other-block keys", () => {
+test("homepage FAQ owns fotosessii prompts on / and points series to the verb hub", () => {
   const questions = HOMEPAGE_FAQ.map((item) => item.q);
   assert.deepEqual(questions, [
     "Что такое промт для фото?",
     "Где взять пример промта для фото?",
     "Как пользоваться промтом для генерации фото?",
-    "Как сделать ИИ-фотосессию по промту со своим фото?",
+    "Где взять промты для ИИ фотосессии?",
     "Какие промты для фото лучшие?",
     "Какая нейросеть создаёт фото по промту?",
   ]);
@@ -65,6 +67,8 @@ test("homepage FAQ covers leftover Wordcraft tails, not other-block keys", () =>
     false
   );
   const photoshoot = HOMEPAGE_FAQ.find((item) => item.id === "photoshoot");
+  assert.match(photoshoot?.aPlain ?? "", /каталоге на этой странице/);
+  assert.match(photoshoot?.aPlain ?? "", /промты для ИИ фотосессии/);
   assert.match(photoshoot?.aPlain ?? "", /ИИ фотосессия/);
   assert.doesNotMatch(
     photoshoot?.aPlain ?? "",

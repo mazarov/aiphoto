@@ -1,7 +1,7 @@
 # 28-08 Кластер «промты для ИИ фотосессии»
 
 > **Дата:** 2026-08-28
-> **Статус:** URL переехал 2026-08-31 → `/ii-fotosessiya`, см. `docs/31-08-ii-fotosessiya.md`
+> **Статус:** URL переехал 2026-08-31 → `/ii-fotosessiya` (глагол). Промт-кластер 31.08 вернулся на `/` — `docs/31-08-homepage-promty-fotosessii.md`.
 > **Ветка:** `feature/28-08-promty-dlya-ii-fotosessii`
 > **Роль:** `@senior-seo-strategist-ru`
 

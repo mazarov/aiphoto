@@ -162,22 +162,26 @@ test("fotosessii listings seed photoshoot intent on idle FAB", () => {
   );
 });
 
-test("audience L1 no longer owns the photoshoot head in H1", () => {
+test("audience L1 keeps кадр key in H1 and holds fotosessii prompts in H2", () => {
   const women = getSeoContent("devushka");
   const men = getSeoContent("muzhchina");
+  const couples = getSeoContent("para");
   assert.equal(women?.h1, "Промты для фото девушки");
   assert.doesNotMatch(women?.h1 ?? "", /фотосесс/i);
   assert.doesNotMatch(women?.metaTitle ?? "", /фотосесс/i);
+  assert.equal(women?.seoTextBlocks?.[0]?.h2, "Промты для ИИ фотосессии женские");
+  assert.match(women?.intro ?? "", /Промты для ИИ фотосессии женские/);
   assert.match(women?.intro ?? "", /женской ИИ фотосессии/i);
+  assert.equal(men?.seoTextBlocks?.[0]?.h2, "Промты для ИИ фотосессии мужские");
+  assert.equal(couples?.seoTextBlocks?.[0]?.h2, "Промты для ИИ фотосессии пары");
+  assert.doesNotMatch(men?.h1 ?? "", /фотосесс/i);
+  assert.doesNotMatch(couples?.h1 ?? "", /фотосесс/i);
   assert.equal(
     women?.popularLinks?.[0]?.href,
     "/ii-fotosessiya/zhenskie"
   );
   assert.equal(men?.popularLinks?.[0]?.href, "/ii-fotosessiya/muzhskie");
-  assert.equal(
-    getSeoContent("para")?.popularLinks?.[0]?.href,
-    "/ii-fotosessiya/pary"
-  );
+  assert.equal(couples?.popularLinks?.[0]?.href, "/ii-fotosessiya/pary");
   assert.equal(
     getSeoContent("semya")?.popularLinks?.[0]?.href,
     "/ii-fotosessiya/semeynye"

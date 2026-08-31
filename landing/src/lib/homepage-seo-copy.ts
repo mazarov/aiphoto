@@ -1,15 +1,15 @@
-/** RU SEO copy for homepage `/` — docs/27-08-homepage-generaciya-query-blocks.md */
+/** RU SEO copy for homepage `/` — docs/31-08-homepage-promty-fotosessii.md */
 
 const HOMEPAGE_INTRO =
   "PromptShot — каталог промтов для фото в ИИ и нейросетях. Скопируй промт или загрузи своё фото и повтори кадр.";
 
 export const HOMEPAGE_SEO = {
-  title: "Промты для ИИ фото в нейросетях | PromptShot",
+  title: "Промты для ИИ фото и фотосессии в нейросетях | PromptShot",
   description:
-    "Готовые промты для генерации ИИ фото в нейросетях на русском. Бесплатно. Подходит для создания фото в ChatGPT, Gemini, Nano Banana или других нейросетях.",
+    "Промты для ИИ фотосессии и готовые промты для ИИ фото в нейросетях на русском. Бесплатно. Скопируй текст или создай кадр в ChatGPT, Gemini, Nano Banana.",
   h1: {
     main: "Промты для ИИ фото",
-    accent: "в нейросетях",
+    accent: "и фотосессии в нейросетях",
   },
   heroSubtitle: HOMEPAGE_INTRO,
   intro: HOMEPAGE_INTRO,
@@ -22,7 +22,7 @@ export const HOMEPAGE_SEO = {
   ],
   faqTitle: "Частые вопросы",
   examplesEyebrow: "Каталог промтов",
-  examplesTitle: "Готовые промты для фотографий",
+  examplesTitle: "Готовые промты для ИИ фотосессии",
   examplesIntro: "",
   examplesIntroSecondary:
     "Все промты на русском. Копируй бесплатно. Подходят для ChatGPT, Gemini и Nano Banana.",
@@ -60,9 +60,9 @@ export const HOMEPAGE_FAQ: HomepageFaqItem[] = [
   },
   {
     id: "photoshoot",
-    q: "Как сделать ИИ-фотосессию по промту со своим фото?",
+    q: "Где взять промты для ИИ фотосессии?",
     aPlain:
-      "Серию кадров по своему фото собирайте на странице «ИИ фотосессия»: загрузите одно фото и держите один стиль. Один кадр — в ленте на этой странице.",
+      "В каталоге на этой странице — готовые промты для ИИ фотосессии на русском. Открой карточку и скопируй текст. Серию кадров со своим фото собирайте на странице «ИИ фотосессия».",
   },
   {
     id: "best",

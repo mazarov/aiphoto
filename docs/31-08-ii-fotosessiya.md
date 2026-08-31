@@ -5,7 +5,7 @@
 > **Ветка:** `feature/31-08-ii-fotosessiya`
 > **Роль:** `@senior-seo-strategist-ru`
 
-Хаб серии переехал с `/promty-dlya-ii-fotosessii` на `/ii-fotosessiya` и держит коммерческий кластер Wordcraft «ии фотосессия / по фото», не «промты для ии фотосессии».
+Хаб серии переехал с `/promty-dlya-ii-fotosessii` на `/ii-fotosessiya` и держит коммерческий кластер Wordcraft «ии фотосессия / по фото», не «промты для ии фотосессии». Промт-кластер с 31.08 снова на `/` и L1 — `docs/31-08-homepage-promty-fotosessii.md`.
 
 ---
 
