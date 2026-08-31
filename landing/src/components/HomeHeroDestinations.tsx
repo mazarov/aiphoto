@@ -76,9 +76,9 @@ export function HomeHeroDestinations() {
       icon: <GenerateIcon />,
     },
     {
-      href: "/promty-dlya-ii-fotosessii",
-      title: "Промты для ИИ фотосессии",
-      description: "Серия образов, не один кадр",
+      href: "/ii-fotosessiya",
+      title: "ИИ фотосессия",
+      description: "Серия кадров по своему фото",
       icon: <PhotoshootIcon />,
     },
   ];

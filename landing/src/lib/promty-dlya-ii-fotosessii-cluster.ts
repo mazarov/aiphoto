@@ -2,10 +2,12 @@ import { composeGenerateCtaLabel } from "./generate-compose-mode";
 import { isFotoVPromtDockPath } from "./generate-dock-path";
 import type { Dimension } from "./tag-registry";
 
-export const PROMTY_DLYA_II_FOTOSESSII_HUB_PATH =
-  "/promty-dlya-ii-fotosessii";
+export const PROMTY_DLYA_II_FOTOSESSII_HUB_PATH = "/ii-fotosessiya";
 
 export const PROMTY_DLYA_FOTOSESSII_LEGACY_PATH = "/promty-dlya-fotosessii";
+
+export const PROMTY_DLYA_II_FOTOSESSII_LEGACY_HUB_PATH =
+  "/promty-dlya-ii-fotosessii";
 
 export const MIN_PROMTY_DLYA_II_FOTOSESSII_CARDS = 8;
 
@@ -13,6 +15,14 @@ export const PROMTY_DLYA_II_FOTOSESSII_PERMANENT_REDIRECTS = [
   {
     source: PROMTY_DLYA_FOTOSESSII_LEGACY_PATH,
     destination: PROMTY_DLYA_II_FOTOSESSII_HUB_PATH,
+  },
+  {
+    source: PROMTY_DLYA_II_FOTOSESSII_LEGACY_HUB_PATH,
+    destination: PROMTY_DLYA_II_FOTOSESSII_HUB_PATH,
+  },
+  {
+    source: `${PROMTY_DLYA_II_FOTOSESSII_LEGACY_HUB_PATH}/:slug`,
+    destination: `${PROMTY_DLYA_II_FOTOSESSII_HUB_PATH}/:slug`,
   },
 ] as const;
 
@@ -235,7 +245,7 @@ export function getPromtyDlyaIiFotosessiiChipNavigation(
   if (activeSlug == null) return children;
   return [
     {
-      label: "Промты для ИИ фотосессии",
+      label: "ИИ фотосессия",
       href: PROMTY_DLYA_II_FOTOSESSII_HUB_PATH,
       kind: "hub",
       active: false,

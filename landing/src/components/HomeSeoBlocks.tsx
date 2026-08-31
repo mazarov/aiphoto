@@ -26,12 +26,12 @@ function FaqAnswer({ item }: { item: (typeof HOMEPAGE_FAQ)[number] }) {
     case "photoshoot":
       return (
         <>
-          Серию образов собирайте на странице{" "}
-          <Link href="/promty-dlya-ii-fotosessii" className={linkClass}>
-            «Промты для ИИ фотосессии»
+          Серию кадров по своему фото собирайте на странице{" "}
+          <Link href="/ii-fotosessiya" className={linkClass}>
+            «ИИ фотосессия»
           </Link>
-          : выберите несколько луков, для каждого загрузите своё фото. Один кадр
-          — в ленте на этой странице.
+          : загрузите одно фото и держите один стиль. Один кадр — в ленте на
+          этой странице.
         </>
       );
     case "best":

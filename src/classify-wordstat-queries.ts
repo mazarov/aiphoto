@@ -106,7 +106,7 @@ const STATIC_HUBS: [RegExp, string, string][] = [
   [/замен\w*\s*лиц|заменить\s*лиц|заменить\s*человек|замена\s*лиц|добавить\s*человек|убрать\s*человек|удалить\s*человек/i, "intent_action=zamena_lica", "/promty-dlya-zameny-lica/"],
   [/замен\w*\s*фон|заменить\s*фон|поменять\s*фон|изменени\w*\s*фон|фон\s*для\s*фото|фон\s*на\s*фото/i, "intent_action=zamena_fona", "/promty-dlya-zameny-fona/"],
   [/видео/i, "intent_action=video", "/promty-dlya-video-iz-foto/"],
-  [/фотосесс/i, "intent_action=fotosessiya", "/promty-dlya-ii-fotosessii/"],
+  [/фотосесс/i, "intent_action=fotosessiya", "/ii-fotosessiya/"],
   [/улучш|апскейл|повыш\w*\s*качеств/i, "intent_action=uluchshenie", "/promty-dlya-uluchsheniya-foto/"],
   [/обработ|редактир|редактор|ретуш|коррекц|редакц|обработк|переделк|преобразов|стилиз|фильтр|эффект|отредактир|изменить|изменяющ|изменяем|изменяет|изменённ|изменени/i, "intent_action=obrabotka", "/promty-dlya-obrabotki-foto/"],
   [/коллаж|объедин|соедин/i, "intent_action=kollazh", "/promty-dlya-kollazha/"],
@@ -171,23 +171,23 @@ function classifyQuery(q: string): {
 
   if (/фотосесс/i.test(q)) {
     const fotosessiiL2: [RegExp, string][] = [
-      [/день рождения|на др(?![а-яё])/i, "/promty-dlya-ii-fotosessii/den-rozhdeniya/"],
-      [/ньюборн|новорожден|малыш/i, "/promty-dlya-ii-fotosessii/nyuborn/"],
-      [/для двоих|влюблен/i, "/promty-dlya-ii-fotosessii/dlya-dvoih/"],
-      [/военн|в форме|солдат/i, "/promty-dlya-ii-fotosessii/s-voennymi/"],
-      [/с машин|с авто/i, "/promty-dlya-ii-fotosessii/s-mashinoy/"],
-      [/черно.?бел|чёрно.?бел|ч[\s/]?б|монохром/i, "/promty-dlya-ii-fotosessii/cherno-belye/"],
-      [/студийн/i, "/promty-dlya-ii-fotosessii/studiynye/"],
-      [/новогодн|новый год/i, "/promty-dlya-ii-fotosessii/novogodnyaya/"],
-      [/зимн/i, "/promty-dlya-ii-fotosessii/zimnyaya/"],
-      [/весенн/i, "/promty-dlya-ii-fotosessii/vesennie/"],
-      [/делов|бизнес.?стил/i, "/promty-dlya-ii-fotosessii/delovoy-stil/"],
-      [/беремен/i, "/promty-dlya-ii-fotosessii/beremennye/"],
-      [/парн|для пар|пары|с мужем|вдвоем/i, "/promty-dlya-ii-fotosessii/pary/"],
-      [/семейн|семьи|поколени/i, "/promty-dlya-ii-fotosessii/semeynye/"],
-      [/детск|ребен|девочк|мальчик/i, "/promty-dlya-ii-fotosessii/detskie/"],
-      [/женск|девушк|женщин/i, "/promty-dlya-ii-fotosessii/zhenskie/"],
-      [/мужск|мужчин/i, "/promty-dlya-ii-fotosessii/muzhskie/"],
+      [/день рождения|на др(?![а-яё])/i, "/ii-fotosessiya/den-rozhdeniya/"],
+      [/ньюборн|новорожден|малыш/i, "/ii-fotosessiya/nyuborn/"],
+      [/для двоих|влюблен/i, "/ii-fotosessiya/dlya-dvoih/"],
+      [/военн|в форме|солдат/i, "/ii-fotosessiya/s-voennymi/"],
+      [/с машин|с авто/i, "/ii-fotosessiya/s-mashinoy/"],
+      [/черно.?бел|чёрно.?бел|ч[\s/]?б|монохром/i, "/ii-fotosessiya/cherno-belye/"],
+      [/студийн/i, "/ii-fotosessiya/studiynye/"],
+      [/новогодн|новый год/i, "/ii-fotosessiya/novogodnyaya/"],
+      [/зимн/i, "/ii-fotosessiya/zimnyaya/"],
+      [/весенн/i, "/ii-fotosessiya/vesennie/"],
+      [/делов|бизнес.?стил/i, "/ii-fotosessiya/delovoy-stil/"],
+      [/беремен/i, "/ii-fotosessiya/beremennye/"],
+      [/парн|для пар|пары|с мужем|вдвоем/i, "/ii-fotosessiya/pary/"],
+      [/семейн|семьи|поколени/i, "/ii-fotosessiya/semeynye/"],
+      [/детск|ребен|девочк|мальчик/i, "/ii-fotosessiya/detskie/"],
+      [/женск|девушк|женщин/i, "/ii-fotosessiya/zhenskie/"],
+      [/мужск|мужчин/i, "/ii-fotosessiya/muzhskie/"],
     ];
     for (const [rx, url] of fotosessiiL2) {
       if (rx.test(q)) {
@@ -196,7 +196,7 @@ function classifyQuery(q: string): {
     }
     return {
       contentDims: [],
-      staticHub: { dim: "intent_action=fotosessiya", url: "/promty-dlya-ii-fotosessii/" },
+      staticHub: { dim: "intent_action=fotosessiya", url: "/ii-fotosessiya/" },
     };
   }
 

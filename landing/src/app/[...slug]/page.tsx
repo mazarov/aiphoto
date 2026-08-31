@@ -217,7 +217,9 @@ function redirectRetiredBirthdayL3(slug: string[]) {
 
 function rejectFotosessiiClusterCatchAll(slug: string[]) {
   if (isPromtyDlyaIiFotosessiiPath(`/${slug.join("/")}`)) notFound();
-  if (slug[0] === "promty-dlya-ii-fotosessii") notFound();
+  if (slug[0] === "promty-dlya-ii-fotosessii" || slug[0] === "ii-fotosessiya") {
+    notFound();
+  }
 }
 
 export async function generateMetadata({ params, searchParams }: Props) {

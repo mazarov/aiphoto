@@ -15,7 +15,7 @@ import {
 } from "./promty-dlya-ii-fotosessii-cluster";
 
 test("hub path and L2 children use query slugs", () => {
-  assert.equal(PROMTY_DLYA_II_FOTOSESSII_HUB_PATH, "/promty-dlya-ii-fotosessii");
+  assert.equal(PROMTY_DLYA_II_FOTOSESSII_HUB_PATH, "/ii-fotosessiya");
   assert.deepEqual(
     PROMTY_DLYA_II_FOTOSESSII_CHILDREN.map((child) => child.slug),
     [
@@ -40,11 +40,11 @@ test("hub path and L2 children use query slugs", () => {
   );
   assert.equal(
     getPromtyDlyaIiFotosessiiChildPath("zhenskie"),
-    "/promty-dlya-ii-fotosessii/zhenskie"
+    "/ii-fotosessiya/zhenskie"
   );
   assert.equal(
     getPromtyDlyaIiFotosessiiChildPath("pary"),
-    "/promty-dlya-ii-fotosessii/pary"
+    "/ii-fotosessiya/pary"
   );
   assert.equal(findPromtyDlyaIiFotosessiiChild("devushki"), null);
   assert.equal(findPromtyDlyaIiFotosessiiChild("zhenskie")?.tagValue, "devushka");
@@ -86,36 +86,44 @@ test("legacy fotosessii slug redirects to the new hub", () => {
   assert.deepEqual(PROMTY_DLYA_II_FOTOSESSII_PERMANENT_REDIRECTS, [
     {
       source: "/promty-dlya-fotosessii",
-      destination: "/promty-dlya-ii-fotosessii",
+      destination: "/ii-fotosessiya",
+    },
+    {
+      source: "/promty-dlya-ii-fotosessii",
+      destination: "/ii-fotosessiya",
+    },
+    {
+      source: "/promty-dlya-ii-fotosessii/:slug",
+      destination: "/ii-fotosessiya/:slug",
     },
   ]);
 });
 
 test("path helpers treat hub and children as the cluster", () => {
-  assert.equal(isPromtyDlyaIiFotosessiiHubPath("/promty-dlya-ii-fotosessii/"), true);
-  assert.equal(isPromtyDlyaIiFotosessiiHubPath("/promty-dlya-ii-fotosessii/zhenskie"), false);
-  assert.equal(isPromtyDlyaIiFotosessiiPath("/promty-dlya-ii-fotosessii/zhenskie/"), true);
+  assert.equal(isPromtyDlyaIiFotosessiiHubPath("/ii-fotosessiya/"), true);
+  assert.equal(isPromtyDlyaIiFotosessiiHubPath("/ii-fotosessiya/zhenskie"), false);
+  assert.equal(isPromtyDlyaIiFotosessiiPath("/ii-fotosessiya/zhenskie/"), true);
   assert.equal(isPromtyDlyaIiFotosessiiPath("/promty-dlya-foto-devushki"), false);
 });
 
 test("generate FAB on the hub and children is photoshoot, not generic photo", () => {
   assert.equal(
     listingGenerateIdleCta({
-      pathname: "/promty-dlya-ii-fotosessii",
+      pathname: "/ii-fotosessiya",
       isAuthed: true,
     }),
     "Создать ИИ фотосессию",
   );
   assert.equal(
     listingGenerateIdleCta({
-      pathname: "/promty-dlya-ii-fotosessii/cherno-belye/",
+      pathname: "/ii-fotosessiya/cherno-belye/",
       isAuthed: true,
     }),
     "Создать ИИ фотосессию",
   );
   assert.equal(
     listingGenerateIdleCta({
-      pathname: "/promty-dlya-ii-fotosessii/zhenskie",
+      pathname: "/ii-fotosessiya/zhenskie",
       isAuthed: false,
     }),
     "Создать ИИ фотосессию",
@@ -144,27 +152,27 @@ test("audience L1 no longer owns the photoshoot head in H1", () => {
   assert.equal(women?.h1, "Промты для фото девушки");
   assert.doesNotMatch(women?.h1 ?? "", /фотосесс/i);
   assert.doesNotMatch(women?.metaTitle ?? "", /фотосесс/i);
-  assert.match(women?.intro ?? "", /промтах для ИИ фотосессии женских/i);
+  assert.match(women?.intro ?? "", /женской ИИ фотосессии/i);
   assert.equal(
     women?.popularLinks?.[0]?.href,
-    "/promty-dlya-ii-fotosessii/zhenskie"
+    "/ii-fotosessiya/zhenskie"
   );
-  assert.equal(men?.popularLinks?.[0]?.href, "/promty-dlya-ii-fotosessii/muzhskie");
+  assert.equal(men?.popularLinks?.[0]?.href, "/ii-fotosessiya/muzhskie");
   assert.equal(
     getSeoContent("para")?.popularLinks?.[0]?.href,
-    "/promty-dlya-ii-fotosessii/pary"
+    "/ii-fotosessiya/pary"
   );
   assert.equal(
     getSeoContent("semya")?.popularLinks?.[0]?.href,
-    "/promty-dlya-ii-fotosessii/semeynye"
+    "/ii-fotosessiya/semeynye"
   );
   assert.equal(
     getSeoContent("detskie")?.popularLinks?.[0]?.href,
-    "/promty-dlya-ii-fotosessii/detskie"
+    "/ii-fotosessiya/detskie"
   );
   assert.equal(
     getSeoContent("beremennaya")?.popularLinks?.[0]?.href,
-    "/promty-dlya-ii-fotosessii/beremennye"
+    "/ii-fotosessiya/beremennye"
   );
 });
 
@@ -172,13 +180,13 @@ test("chip nav on hub is children only; on L2 hub chip is first", () => {
   const hub = getPromtyDlyaIiFotosessiiChipNavigation(null);
   assert.equal(hub.length, 17);
   assert.equal(hub.some((item) => item.kind === "hub"), false);
-  assert.equal(hub[0].href, "/promty-dlya-ii-fotosessii/muzhskie");
-  assert.equal(hub[1].href, "/promty-dlya-ii-fotosessii/zhenskie");
-  assert.equal(hub[2].href, "/promty-dlya-ii-fotosessii/pary");
-  assert.equal(hub[3].href, "/promty-dlya-ii-fotosessii/den-rozhdeniya");
+  assert.equal(hub[0].href, "/ii-fotosessiya/muzhskie");
+  assert.equal(hub[1].href, "/ii-fotosessiya/zhenskie");
+  assert.equal(hub[2].href, "/ii-fotosessiya/pary");
+  assert.equal(hub[3].href, "/ii-fotosessiya/den-rozhdeniya");
 
   const child = getPromtyDlyaIiFotosessiiChipNavigation("muzhskie");
   assert.equal(child[0].kind, "hub");
   assert.equal(child[0].href, PROMTY_DLYA_II_FOTOSESSII_HUB_PATH);
-  assert.equal(child.find((item) => item.active)?.href, "/promty-dlya-ii-fotosessii/muzhskie");
+  assert.equal(child.find((item) => item.active)?.href, "/ii-fotosessiya/muzhskie");
 });

@@ -156,11 +156,11 @@ function SidebarContent({
       </Link>
 
       <Link
-        href="/promty-dlya-ii-fotosessii"
+        href="/ii-fotosessiya"
         scroll={false}
         onClick={onItemClick}
         className={`flex items-center gap-2.5 rounded-xl px-3 py-2 text-[13px] font-medium transition-colors ${
-          isHrefActive("/promty-dlya-ii-fotosessii", pathname)
+          isHrefActive("/ii-fotosessiya", pathname)
             ? "bg-indigo-50 text-indigo-700"
             : "text-zinc-700 hover:bg-zinc-50"
         }`}

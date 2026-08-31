@@ -299,7 +299,7 @@ export default async function PromtyDlyaIiFotosessiiPage() {
                 allPromptsLabel={PROMTY_DLYA_II_FOTOSESSII_SEO.examplesCta}
                 defaultAllPromptsHref="/"
                 scenarioNavigation={getPromtyDlyaIiFotosessiiChipNavigation()}
-                navigationAriaLabel="Готовые промты для ИИ фотосессии на русском"
+                navigationAriaLabel="Сценарии ИИ фотосессии"
               />
             ) : (
               <div className="rounded-2xl border border-zinc-200 bg-zinc-50 px-6 py-12 text-center text-sm text-zinc-500">

@@ -109,8 +109,8 @@ test("every scenario has unique, complete SEO copy", () => {
   const men = GENERACIYA_FOTO_SCENARIO_COPY.find(
     (scenario) => scenario.slug === "muzhchiny"
   );
-  assert.equal(women?.promptCatalogHref, "/promty-dlya-ii-fotosessii/zhenskie");
-  assert.equal(men?.promptCatalogHref, "/promty-dlya-ii-fotosessii/muzhskie");
+  assert.equal(women?.promptCatalogHref, "/ii-fotosessiya/zhenskie");
+  assert.equal(men?.promptCatalogHref, "/ii-fotosessiya/muzhskie");
 
   const pairs = GENERACIYA_FOTO_SCENARIO_COPY.find(
     (scenario) => scenario.slug === "pary"
@@ -124,36 +124,36 @@ test("every scenario has unique, complete SEO copy", () => {
   const pregnancy = GENERACIYA_FOTO_SCENARIO_COPY.find(
     (scenario) => scenario.slug === "beremennaya"
   );
-  assert.equal(pairs?.promptCatalogHref, "/promty-dlya-ii-fotosessii/pary");
-  assert.equal(family?.promptCatalogHref, "/promty-dlya-ii-fotosessii/semeynye");
-  assert.equal(kids?.promptCatalogHref, "/promty-dlya-ii-fotosessii/detskie");
+  assert.equal(pairs?.promptCatalogHref, "/ii-fotosessiya/pary");
+  assert.equal(family?.promptCatalogHref, "/ii-fotosessiya/semeynye");
+  assert.equal(kids?.promptCatalogHref, "/ii-fotosessiya/detskie");
   assert.equal(
     pregnancy?.promptCatalogHref,
-    "/promty-dlya-ii-fotosessii/beremennye"
+    "/ii-fotosessiya/beremennye"
   );
   assert.equal(
     GENERACIYA_FOTO_SCENARIO_COPY.find((scenario) => scenario.slug === "s-mashinoy")
       ?.promptCatalogHref,
-    "/promty-dlya-ii-fotosessii/s-mashinoy"
+    "/ii-fotosessiya/s-mashinoy"
   );
   assert.equal(
     GENERACIYA_FOTO_SCENARIO_COPY.find((scenario) => scenario.slug === "malysh")
       ?.promptCatalogHref,
-    "/promty-dlya-ii-fotosessii/nyuborn"
+    "/ii-fotosessiya/nyuborn"
   );
   assert.equal(
     GENERACIYA_FOTO_SCENARIO_COPY.find((scenario) => scenario.slug === "v-forme")
       ?.promptCatalogHref,
-    "/promty-dlya-ii-fotosessii/s-voennymi"
+    "/ii-fotosessiya/s-voennymi"
   );
   assert.equal(
     GENERACIYA_FOTO_SCENARIO_COPY.find((scenario) => scenario.slug === "studiynoe")
       ?.promptCatalogHref,
-    "/promty-dlya-ii-fotosessii/studiynye"
+    "/ii-fotosessiya/studiynye"
   );
   assert.equal(
     GENERACIYA_FOTO_SCENARIO_COPY.find((scenario) => scenario.slug === "cherno-beloe")
       ?.promptCatalogHref,
-    "/promty-dlya-ii-fotosessii/cherno-belye"
+    "/ii-fotosessiya/cherno-belye"
   );
 });
