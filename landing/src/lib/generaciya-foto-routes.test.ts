@@ -72,7 +72,7 @@ test("birthday generation page owns the generate query", () => {
   );
   assert.ok(copy);
   assert.match(copy.metaTitle, /Сделать ИИ фото на день рождения/);
-  assert.match(copy.h1, /Сделать ИИ фото на день рождения/);
+  assert.equal(copy.h1, "Сделать ИИ фото на день рождения");
   assert.match(
     `${copy.intro} ${copy.faq.map((item) => `${item.q} ${item.a}`).join(" ")}`,
     /сгенерировать фото на день рождения/i,
@@ -97,6 +97,10 @@ test("every scenario has unique, complete SEO copy", () => {
 
   for (const scenario of GENERACIYA_FOTO_SCENARIO_COPY) {
     assert.ok(scenario.metaDescription.length >= 100);
+    assert.ok(scenario.metaDescription.length <= 160);
+    assert.match(scenario.metaDescription, /промту или снимку/);
+    assert.doesNotMatch(scenario.h1, /по промту или снимку/);
+    assert.match(scenario.intro, /^Выберите готовый образ /);
     assert.equal(scenario.howToSteps.length, 4);
     assert.ok(scenario.faq.length >= 3);
     assert.ok(scenario.contentBlocks.length >= 1);

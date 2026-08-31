@@ -340,7 +340,8 @@ export default async function GeneraciyaFotoScenarioPage({ params }: Props) {
                 initialCards={exampleCards}
                 title={copy.examplesTitle}
                 intro={copy.examplesIntro}
-                defaultAllPromptsHref={copy.promptCatalogHref}
+                allPromptsLabel={GENERACIYA_FOTO_SEO.examplesCta}
+                defaultAllPromptsHref={GENERACIYA_FOTO_SEO.examplesMoreHref}
                 scenarioNavigation={getGeneraciyaFotoChipNavigation(slug)}
                 lockCardsToScenario
               />
@@ -399,22 +400,6 @@ export default async function GeneraciyaFotoScenarioPage({ params }: Props) {
               </div>
             </section>
           ))}
-
-          <section className="rounded-2xl border border-indigo-100 bg-indigo-50/50 p-5 sm:p-7">
-            <h2 className="text-xl font-bold text-zinc-900">
-              Нужны готовые формулировки?
-            </h2>
-            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-zinc-600 sm:text-base">
-              Откройте тематическую подборку, скопируйте подходящий промт и
-              измените детали под свою задачу.
-            </p>
-            <Link
-              href={copy.promptCatalogHref}
-              className="mt-4 inline-flex min-h-11 items-center justify-center rounded-full bg-indigo-600 px-5 text-sm font-semibold text-white transition hover:bg-indigo-700"
-            >
-              {copy.promptCatalogLabel}
-            </Link>
-          </section>
 
           <section aria-labelledby="scenario-faq">
             <h2

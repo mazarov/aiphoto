@@ -139,7 +139,7 @@ test("L2 copy owns pair family kids pregnancy queries", () => {
   assert.equal(pairs.h1, "Парная ИИ фотосессия");
   assert.equal(family.h1, "Семейная ИИ фотосессия");
   assert.equal(kids.h1, "Детская ИИ фотосессия");
-  assert.equal(pregnancy.h1, "Беременная ИИ фотосессия");
+  assert.equal(pregnancy.h1, "ИИ фотосессия для беременных");
   assert.doesNotMatch(pairs.metaTitle, /свадьб|беремен/i);
   assert.doesNotMatch(family.metaTitle, /детск|беремен/i);
   assert.doesNotMatch(kids.metaTitle, /семейн|день рождения/i);
@@ -157,7 +157,7 @@ test("L2 copy owns pair family kids pregnancy queries", () => {
   );
   assert.match(
     pregnancy.faq.map((item) => item.q).join(" "),
-    /беременную фотосессию ИИ/i
+    /ИИ фотосессию для беременных/i
   );
 });
 

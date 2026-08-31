@@ -389,6 +389,7 @@ export default async function GeneraciyaFotoPage() {
                 initialCards={galleryCards}
                 eyebrow=""
                 allPromptsLabel={GENERACIYA_FOTO_SEO.examplesCta}
+                defaultAllPromptsHref="#primery"
                 scenarioNavigation={getGeneraciyaFotoChipNavigation()}
               />
             ) : (

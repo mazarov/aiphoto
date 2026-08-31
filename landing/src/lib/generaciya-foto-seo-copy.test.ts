@@ -41,7 +41,7 @@ test("meta name and short description keep CWS limits", () => {
   assert.ok(GENERACIYA_FOTO_SEO.metaTitle.length <= 75);
   assert.equal(
     GENERACIYA_FOTO_SEO.metaDescription,
-    "Сделайте ИИ фото по снимку или описанию — без студии и фотографа. Нейросеть для генерации изображений на PromptShot."
+    "ИИ сделать фото по промту или своему снимку. Выберите образ, загрузите фото — генератор PromptShot без фотографа."
   );
   assert.ok(GENERACIYA_FOTO_SEO.metaDescription.length <= 132);
   assert.ok(GENERACIYA_FOTO_SEO.metaDescription.length >= 80);
@@ -52,11 +52,11 @@ test("meta name and short description keep CWS limits", () => {
 test("visible H1 and HowTo keep Facee wording", () => {
   assert.equal(
     GENERACIYA_FOTO_SEO.h1,
-    "Сделать фото с помощью ИИ онлайн — без студии и камеры"
+    "Сделать фото ИИ по промту или своему снимку"
   );
   assert.equal(
     GENERACIYA_FOTO_SEO.intro,
-    "С PromptShot вы сделаете ИИ фото по своему снимку или по описанию — сотни образов, которые сложно или дорого воплотить в обычной жизни"
+    "Выберите образ в каталоге или опишите кадр текстом — загрузите фото и получите реалистичный результат без студии и фотографа."
   );
   assert.equal(GENERACIYA_FOTO_SEO.howToTitle, "Как создать свои ИИ фото?");
   assert.equal(
@@ -99,6 +99,10 @@ test("hub blocks keep Facee homepage copy", () => {
     "Выберите образ и сгенерируйте фото с ИИ — со своего снимка или по тексту."
   );
   assert.equal(GENERACIYA_FOTO_SEO.examplesCta, "Больше идей для фото");
+  assert.equal(
+    GENERACIYA_FOTO_SEO.examplesMoreHref,
+    "/generaciya-foto#primery",
+  );
   assert.equal(GENERACIYA_FOTO_SEO.chipHubLabel, "Сделать фото ИИ");
   assert.equal(GENERACIYA_FOTO_TOOLS.title, "Редактирование фото с ИИ");
   assert.equal(
