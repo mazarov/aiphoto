@@ -36,12 +36,12 @@ const BANNED_META = /best|recommended|premium|\bfree\b|#1|бесплатно/i;
 test("meta name and short description keep CWS limits", () => {
   assert.equal(
     GENERACIYA_FOTO_SEO.metaTitle,
-    "Сделать ИИ фото онлайн - без дизайнера. Нейросеть для фото."
+    "Сделать фото ИИ онлайн | нейросеть для генерации изображений | PromptShot"
   );
   assert.ok(GENERACIYA_FOTO_SEO.metaTitle.length <= 75);
   assert.equal(
     GENERACIYA_FOTO_SEO.metaDescription,
-    "Создавайте ИИ фото себя в нейросети - без студии и фотографа. Загрузи свое фото, выберите стиль и получите реалистичную фотографию."
+    "Сделайте ИИ фото по снимку или описанию — без студии и фотографа. Нейросеть для генерации изображений на PromptShot."
   );
   assert.ok(GENERACIYA_FOTO_SEO.metaDescription.length <= 132);
   assert.ok(GENERACIYA_FOTO_SEO.metaDescription.length >= 80);
@@ -52,16 +52,16 @@ test("meta name and short description keep CWS limits", () => {
 test("visible H1 and HowTo keep Facee wording", () => {
   assert.equal(
     GENERACIYA_FOTO_SEO.h1,
-    "Сделай фото с помощью ИИ онлайн — без студии и камеры"
+    "Сделать фото с помощью ИИ онлайн — без студии и камеры"
   );
   assert.equal(
     GENERACIYA_FOTO_SEO.intro,
-    "С PromptShot вы увидите себя в сотнях красивых образов, которые сложно или дорого воплотить в обычной жизни"
+    "С PromptShot вы сделаете ИИ фото по своему снимку или по описанию — сотни образов, которые сложно или дорого воплотить в обычной жизни"
   );
   assert.equal(GENERACIYA_FOTO_SEO.howToTitle, "Как создать свои ИИ фото?");
   assert.equal(
     GENERACIYA_FOTO_SEO.howToLead,
-    "Три простых шага к генерации персональной онлайн-фотосессии"
+    "Три простых шага, чтобы сделать своё ИИ фото онлайн"
   );
   assert.equal(GENERACIYA_FOTO_HOW_TO_STEPS.length, 3);
   assert.equal(GENERACIYA_FOTO_HOW_TO_STEPS[0].title, "Загрузите свои фото");
@@ -176,6 +176,7 @@ test("FAQ links real PromptShot services only where the question is an action", 
     "/",
     "/trends",
     "/foto-v-promt",
+    "/ii-fotosessiya",
     "/pricing",
     "/terms",
     "#generator",
@@ -206,7 +207,8 @@ test("FAQ links real PromptShot services only where the question is an action", 
     "#primery",
     "#generator",
   ]);
-  assert.deepEqual(linkedByQuestion.get("Как сделать совместную нейрофотосессию?"), [
+  assert.deepEqual(linkedByQuestion.get("Как собрать серию кадров в одном стиле?"), [
+    "/ii-fotosessiya",
     getGeneraciyaFotoScenarioPath("pary"),
   ]);
   assert.deepEqual(linkedByQuestion.get("Как создать «Портрет поколения» для семьи?"), [

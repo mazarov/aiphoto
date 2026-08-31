@@ -40,7 +40,6 @@ import {
   type GenerationModelOption,
 } from "@/lib/generation-model-labels";
 import { toGenerationExampleCard } from "@/lib/generation/example-card";
-import { resolvePhotoshootUserFacingResult } from "@/lib/photoshoot";
 
 export const revalidate = 3600;
 
@@ -168,65 +167,6 @@ const getGenerationModels = cache(
     }
   }
 );
-
-async function getLatestPublishedGenerationPreviews(
-  models: GenerationModelOption[]
-): Promise<Record<string, string>> {
-  if (!models.length) return {};
-
-  try {
-    const supabase = createSupabaseServer();
-    const rows = await Promise.all(
-      models.map(async (model) => {
-        const { data, error } = await supabase
-          .from("landing_generations")
-          .select(
-            "model,result_storage_bucket,result_storage_path,edit_kind,photoshoot_tile_paths,prompt_cards!landing_generations_ugc_card_id_fkey!inner(is_published)"
-          )
-          .eq("model", model.id)
-          .eq("status", "completed")
-          .eq("prompt_cards.is_published", true)
-          .not("generation_completed_at", "is", null)
-          .not("result_storage_bucket", "is", null)
-          .not("result_storage_path", "is", null)
-          .order("generation_completed_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        if (error) {
-          console.error(
-            "[GeneraciyaFotoPage] fetch model preview failed",
-            model.id,
-            error
-          );
-          return null;
-        }
-        return data;
-      })
-    );
-    const previews: Record<string, string> = {};
-
-    for (const row of rows) {
-      if (!row) continue;
-      const modelId = row.model as string | null;
-      const bucket = row.result_storage_bucket as string | null;
-      const facing = resolvePhotoshootUserFacingResult({
-        editKind: (row as { edit_kind?: string | null }).edit_kind,
-        sheetPath: row.result_storage_path as string | null,
-        tilePaths: (row as { photoshoot_tile_paths?: unknown }).photoshoot_tile_paths,
-      });
-      if (!modelId || !bucket || !facing.resultPath) continue;
-      previews[modelId] = getStoragePublicUrl(bucket, facing.resultPath);
-    }
-
-    return previews;
-  } catch (error) {
-    console.error(
-      "[GeneraciyaFotoPage] fetch model generation previews failed",
-      error
-    );
-    return {};
-  }
-}
 
 const getExampleOgImage = cache(async (): Promise<string | null> => {
   const result = await getGenerationExamples();
@@ -357,14 +297,12 @@ export default async function GeneraciyaFotoPage() {
   ]);
   const socialProof = formatGeneraciyaFotoSocialProof(completedImageCount);
   const routeCards = result.cards;
-  const [enrichedCards, fallbackOgImage, modelGenerationPreviews] =
-    await Promise.all([
+  const [enrichedCards, fallbackOgImage] = await Promise.all([
       enrichCardsWithDetails(routeCards).catch((error) => {
         console.error("[GeneraciyaFotoPage] enrich examples failed", error);
         return [] as PromptCardFull[];
       }),
       getExampleOgImage(),
-      getLatestPublishedGenerationPreviews(models),
     ]);
   const cardsById = new Map(enrichedCards.map((card) => [card.id, card]));
   const cards = result.cards
@@ -375,9 +313,6 @@ export default async function GeneraciyaFotoPage() {
   const exampleCards = cards.map(toGenerationExampleCard);
   const carouselCards = exampleCards.filter((card) => card.photoUrl).slice(0, 50);
   const galleryCards = exampleCards.slice(0, 16);
-  const modelPreviewImages = Array.from(
-    new Set(cards.flatMap((card) => card.photoUrls))
-  ).slice(0, 12);
 
   return (
     <PageLayout showFooterWithGenerateDock>
@@ -469,11 +404,7 @@ export default async function GeneraciyaFotoPage() {
           <GeneraciyaFotoMore />
 
           <section aria-labelledby="generation-models-heading">
-            <GenerationModelsShowcase
-              models={models}
-              previewImages={modelPreviewImages}
-              generationPreviewByModel={modelGenerationPreviews}
-            />
+            <GenerationModelsShowcase models={models} />
           </section>
 
           <GeneraciyaFotoPricing />

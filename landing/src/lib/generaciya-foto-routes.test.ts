@@ -71,8 +71,8 @@ test("birthday generation page owns the generate query", () => {
     (scenario) => scenario.slug === "na-den-rozhdeniya",
   );
   assert.ok(copy);
-  assert.match(copy.metaTitle, /Сгенерировать фото на день рождения/);
-  assert.match(copy.h1, /Сгенерировать фото на день рождения/);
+  assert.match(copy.metaTitle, /Сделать ИИ фото на день рождения/);
+  assert.match(copy.h1, /Сделать ИИ фото на день рождения/);
   assert.match(
     `${copy.intro} ${copy.faq.map((item) => `${item.q} ${item.a}`).join(" ")}`,
     /сгенерировать фото на день рождения/i,
