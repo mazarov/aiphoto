@@ -1424,11 +1424,10 @@ export function CardInlineGeneratePanel({
   const photoshootLibraryFrame = resolvePhotoshootLibraryFrame({
     selectedPhotos,
   });
-  const selectedImageCost = models.find((item) => item.id === model)?.cost ?? null;
   const selectedModelCost =
     listingVideoRepeatCompose && composeMode === "video"
-      ? selectedImageCost != null && selectedVideoCost != null
-        ? selectedImageCost + selectedVideoCost
+      ? selectedVideoCost != null
+        ? (models.find((item) => item.id === model)?.cost ?? 0) + selectedVideoCost
         : selectedVideoCost
       : composeMode === "video"
       ? selectedVideoCost
@@ -2397,7 +2396,9 @@ export function CardInlineGeneratePanel({
           ? PHOTOSHOOT_CREDIT_COST
           : null
         : videoCompose
-          ? selectedVideoCost
+          ? listingVideoRepeatCompose
+            ? selectedModelCost
+            : selectedVideoCost
           : selectedImageCost;
   const composeCtaGuestQuota = photoPromptCompose
     ? guestPhotoPromptRemainingFree({
