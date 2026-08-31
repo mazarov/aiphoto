@@ -204,3 +204,40 @@ export function resolveMobileCardSnapTargetSlug({
   if (offset > 0) return nextSlugs[bufferIndex] ?? null;
   return null;
 }
+
+/**
+ * Chrome inside the snap feed (Промпт, close, reactions, links).
+ * Photo edge hit-zones opt out with `data-swipe-ok`.
+ */
+export const MOBILE_CARD_SNAP_INTERACTIVE_SELECTOR =
+  "button, a, input, textarea, select, [role='button'], [data-no-swipe]";
+
+export function resolveMobileCardSnapGestureTarget(
+  target: EventTarget | null
+): Element | null {
+  if (target instanceof Element) return target;
+  if (target instanceof Node) return target.parentElement;
+  return null;
+}
+
+export function shouldLockMobileCardSnapInteractiveMatch(
+  match: { hasAttribute(name: string): boolean } | null
+): boolean {
+  if (!match) return false;
+  return !match.hasAttribute("data-swipe-ok");
+}
+
+/**
+ * iOS Safari treats a tap with a few px of jitter as a pan on `snap-y`
+ * + `touch-action: pan-y`. Interactive chrome must lock that pan so the
+ * click (prompt sheet, close, Lexy) can fire.
+ */
+export function shouldLockMobileCardSnapGesture(
+  target: EventTarget | null
+): boolean {
+  const el = resolveMobileCardSnapGestureTarget(target);
+  if (!el) return false;
+  return shouldLockMobileCardSnapInteractiveMatch(
+    el.closest(MOBILE_CARD_SNAP_INTERACTIVE_SELECTOR)
+  );
+}

@@ -27,6 +27,7 @@ import {
   resolveMobileCardSnapSlideIndex,
   resolveMobileCardSnapTargetSlug,
   shouldIgnoreLayoutInducedMobileCardSnapScroll,
+  shouldLockMobileCardSnapGesture,
   shouldRecenterMobileCardSnapOnResize,
   shouldTreatMobileCardResizeAsInteraction,
 } from "@/lib/mobile-card-snap";
@@ -38,8 +39,6 @@ const STABLE_SCROLL_EPSILON_PX = 0.5;
 const CLICK_SUPPRESS_DISTANCE_PX = 8;
 const CLICK_SUPPRESS_MS = 400;
 const SNAP_BUFFER_PER_DIRECTION = 8;
-const INTERACTIVE_SELECTOR =
-  "button, a, input, textarea, select, [role='button'], [data-no-swipe]";
 
 type Options = {
   currentData: CardPageData;
@@ -111,6 +110,8 @@ export function useMobileCardSnapFeed({
   const committingRef = useRef(false);
   const pointerActiveRef = useRef(false);
   const pointerStartScrollTopRef = useRef<number | null>(null);
+  const gestureLockRef = useRef(false);
+  const lockedScrollTopRef = useRef<number | null>(null);
   const suppressClickUntilRef = useRef(0);
   const lastHeightPxRef = useRef(0);
   const lastUsableRef = useRef(false);
@@ -858,6 +859,14 @@ export function useMobileCardSnapFeed({
 
   const onScroll = useCallback(
     (_event: UIEvent<HTMLDivElement>) => {
+      if (gestureLockRef.current) {
+        const locked = lockedScrollTopRef.current;
+        const viewport = viewportRef.current;
+        if (viewport && locked !== null && viewport.scrollTop !== locked) {
+          viewport.scrollTop = locked;
+        }
+        return;
+      }
       if (
         !snapActive ||
         committingRef.current ||
@@ -879,15 +888,10 @@ export function useMobileCardSnapFeed({
   const onPointerDown = useCallback(
     (event: ReactPointerEvent<HTMLDivElement>) => {
       if (!snapActive || event.pointerType === "mouse") return;
-      const target = event.target;
-      if (target instanceof Element) {
-        const interactiveTarget = target.closest(INTERACTIVE_SELECTOR);
-        if (
-          interactiveTarget &&
-          !interactiveTarget.hasAttribute("data-swipe-ok")
-        ) {
-          return;
-        }
+      if (shouldLockMobileCardSnapGesture(event.target)) {
+        gestureLockRef.current = true;
+        lockedScrollTopRef.current = viewportRef.current?.scrollTop ?? 0;
+        return;
       }
       pointerActiveRef.current = true;
       pointerStartScrollTopRef.current =
@@ -897,6 +901,17 @@ export function useMobileCardSnapFeed({
   );
 
   const finishPointer = useCallback(() => {
+    if (gestureLockRef.current) {
+      const locked = lockedScrollTopRef.current;
+      const viewport = viewportRef.current;
+      if (viewport && locked !== null) {
+        viewport.scrollTop = locked;
+      }
+      gestureLockRef.current = false;
+      lockedScrollTopRef.current = null;
+      markLayoutScrollIgnore();
+      return;
+    }
     const startScrollTop = pointerStartScrollTopRef.current;
     if (!pointerActiveRef.current && startScrollTop === null) return;
     const distance =
@@ -918,12 +933,13 @@ export function useMobileCardSnapFeed({
       setPhase("settling");
       scheduleFinish();
     }
-  }, [scheduleFinish, setPhase]);
+  }, [markLayoutScrollIgnore, scheduleFinish, setPhase]);
 
   useEffect(() => {
     if (!snapActive) return;
     const onUp = () => {
       if (
+        !gestureLockRef.current &&
         !pointerActiveRef.current &&
         pointerStartScrollTopRef.current === null
       ) {
@@ -940,6 +956,61 @@ export function useMobileCardSnapFeed({
       window.removeEventListener("blur", onUp);
     };
   }, [finishPointer, snapActive]);
+
+  useEffect(() => {
+    if (!snapActive) return;
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+
+    const onTouchStartCapture = (event: TouchEvent) => {
+      if (!shouldLockMobileCardSnapGesture(event.target)) return;
+      gestureLockRef.current = true;
+      lockedScrollTopRef.current = viewport.scrollTop;
+    };
+    const onTouchMoveCapture = (event: TouchEvent) => {
+      if (!gestureLockRef.current) return;
+      event.preventDefault();
+      const locked = lockedScrollTopRef.current;
+      if (locked !== null && viewport.scrollTop !== locked) {
+        viewport.scrollTop = locked;
+      }
+    };
+    const onTouchEndCapture = () => {
+      if (!gestureLockRef.current) return;
+      const locked = lockedScrollTopRef.current;
+      if (locked !== null && viewport.scrollTop !== locked) {
+        viewport.scrollTop = locked;
+      }
+      gestureLockRef.current = false;
+      lockedScrollTopRef.current = null;
+      markLayoutScrollIgnore();
+    };
+
+    viewport.addEventListener("touchstart", onTouchStartCapture, {
+      capture: true,
+      passive: true,
+    });
+    viewport.addEventListener("touchmove", onTouchMoveCapture, {
+      capture: true,
+      passive: false,
+    });
+    viewport.addEventListener("touchend", onTouchEndCapture, {
+      capture: true,
+      passive: true,
+    });
+    viewport.addEventListener("touchcancel", onTouchEndCapture, {
+      capture: true,
+      passive: true,
+    });
+    return () => {
+      viewport.removeEventListener("touchstart", onTouchStartCapture, true);
+      viewport.removeEventListener("touchmove", onTouchMoveCapture, true);
+      viewport.removeEventListener("touchend", onTouchEndCapture, true);
+      viewport.removeEventListener("touchcancel", onTouchEndCapture, true);
+      gestureLockRef.current = false;
+      lockedScrollTopRef.current = null;
+    };
+  }, [markLayoutScrollIgnore, snapActive]);
 
   const onClickCapture = useCallback((event: ReactMouseEvent) => {
     if (performance.now() >= suppressClickUntilRef.current) return;

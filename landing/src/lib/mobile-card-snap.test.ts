@@ -10,6 +10,7 @@ import {
   resolveMobileCardSnapSlideIndex,
   resolveMobileCardSnapTargetSlug,
   shouldIgnoreLayoutInducedMobileCardSnapScroll,
+  shouldLockMobileCardSnapInteractiveMatch,
   shouldRecenterMobileCardSnapOnResize,
   shouldTreatMobileCardResizeAsInteraction,
 } from "./mobile-card-snap";
@@ -264,6 +265,22 @@ test("resize during a real swipe still preserves progress", () => {
       nextUsable: true,
     }),
     true
+  );
+});
+
+test("interactive chrome locks snap; photo edges with data-swipe-ok do not", () => {
+  assert.equal(shouldLockMobileCardSnapInteractiveMatch(null), false);
+  assert.equal(
+    shouldLockMobileCardSnapInteractiveMatch({
+      hasAttribute: () => false,
+    }),
+    true
+  );
+  assert.equal(
+    shouldLockMobileCardSnapInteractiveMatch({
+      hasAttribute: (name) => name === "data-swipe-ok",
+    }),
+    false
   );
 });
 

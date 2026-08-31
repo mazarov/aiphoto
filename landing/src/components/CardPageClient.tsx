@@ -1367,7 +1367,10 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                       ))}
                     </div>
                   ) : null}
-                  <div className="pointer-events-auto grid min-h-[2.75rem] grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-x-2 pb-2">
+                  <div
+                    data-no-swipe
+                    className="pointer-events-auto grid min-h-[2.75rem] grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-x-2 pb-2"
+                  >
                     {photoshootGrid && photoshootExpanded ? (
                       <button
                         type="button"
@@ -1463,7 +1466,10 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                 ) : null}
 
                 <aside className={`pointer-events-none absolute right-3 top-1/2 z-[73] flex max-h-[min(76svh,100svh-8rem)] -translate-y-1/2 flex-col items-end justify-center gap-2 ${mobileChromeClass}`}>
-                  <div className="pointer-events-auto relative flex flex-col items-center gap-2">
+                  <div
+                    data-no-swipe
+                    className="pointer-events-auto relative flex flex-col items-center gap-2"
+                  >
                     <ReactionButtons
                       cardId={data.id}
                       likesCount={data.likesCount}
@@ -1525,11 +1531,15 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                 </aside>
                 {/* Низ: промпт + Lexy — стрелки листинга в правом стеке */}
                 <div className={`pointer-events-none absolute inset-x-0 bottom-0 z-[99] pb-[max(14px,env(safe-area-inset-bottom))] pt-6 md:hidden ${mobileChromeClass}`}>
-                  <div className="pointer-events-auto mx-auto flex w-full max-w-lg flex-col gap-2 px-3">
+                  <div
+                    data-no-swipe
+                    className="pointer-events-auto mx-auto flex w-full max-w-lg flex-col gap-2 px-3"
+                  >
                     {hasPrompts ? (
                       <div className={`${MOBILE_PHOTO_ACTIONS_GRID} shadow-none`}>
                         <button
                           type="button"
+                          data-no-swipe
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
