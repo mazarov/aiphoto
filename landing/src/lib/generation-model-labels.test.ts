@@ -7,6 +7,7 @@ import {
   SEEDREAM_50_PRO_CREDIT_COST,
 } from "./generation/image-options";
 import {
+  displayDescriptionForGenerationModel,
   displayLabelForGenerationModel,
   parseEnabledGenerationModels,
   parseEnabledVideoGenerationModels,
@@ -78,6 +79,53 @@ test("Seedance 2.5 uses the product label and stays hidden while disabled", () =
   assert.equal(shown[0]?.id, "seedance-2.5");
   assert.equal(shown[0]?.label, "Seedance 2.5");
   assert.equal(shown[0]?.cost, 96);
+});
+
+test("model blurbs match the Lexy photo and video picker", () => {
+  assert.equal(
+    displayDescriptionForGenerationModel("gemini-2.5-flash-image"),
+    "Быстрые превью для идей"
+  );
+  assert.equal(
+    displayDescriptionForGenerationModel("gemini-3-pro-image-preview"),
+    "Максимальная детализация"
+  );
+  assert.equal(
+    displayDescriptionForGenerationModel("gemini-3.1-flash-image-preview"),
+    "Улучшенные алгоритмы генерации"
+  );
+  assert.equal(
+    displayDescriptionForGenerationModel("gemini-3.1-flash-lite-image"),
+    "Оптимизированная генерация"
+  );
+  assert.equal(
+    displayDescriptionForGenerationModel("grok-imagine-image-2.0"),
+    "Креативная генерация"
+  );
+  assert.equal(
+    displayDescriptionForGenerationModel("seedream-5.0-pro"),
+    "Стильные и чувственные сцены"
+  );
+  assert.equal(
+    displayDescriptionForGenerationModel("flux-2-flex"),
+    "Баланс качества, скорости и контроля"
+  );
+  assert.equal(
+    displayDescriptionForGenerationModel("grok-imagine-video-1.5"),
+    "Динамичное видео из фото"
+  );
+  assert.equal(
+    displayDescriptionForGenerationModel("gemini-omni-flash-preview"),
+    "Фото оживает по твоему сценарию"
+  );
+  assert.equal(
+    displayDescriptionForGenerationModel("veo-3.1-lite-generate-preview"),
+    "Озвученное видео из фото"
+  );
+  assert.equal(
+    displayDescriptionForGenerationModel("seedance-2.5"),
+    "Кинематографические видео до 30 секунд"
+  );
 });
 
 test("Veo 3.1 Lite keeps Lite in the product label", () => {

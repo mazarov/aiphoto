@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import {
+  displayDescriptionForGenerationModel,
   displayLabelForGenerationModel,
-  GENERATION_MODEL_DISPLAY,
   type GenerationModelOption,
 } from "@/lib/generation-model-labels";
 import { useGenerateDock } from "@/context/GenerateDockContext";
@@ -40,20 +40,21 @@ export function GenerationModelsShowcase({
       </div>
 
       <div
-        className={`grid grid-cols-1 gap-2 sm:grid-cols-2 ${GF_STACK}`}
+        className={`grid grid-cols-1 gap-x-2 gap-y-5 sm:grid-cols-2 ${GF_STACK}`}
         role="list"
         aria-label="Модели ИИ для генерации фото"
       >
         {models.map((item) => {
           const selected = selectedModelId === item.id;
-          const display = GENERATION_MODEL_DISPLAY[item.id];
-
           return (
             <div key={item.id} role="listitem">
               <ComposeModelChoiceCard
                 modelId={item.id}
                 label={displayLabelForGenerationModel(item.id, item.label)}
-                description={display?.description || "Генерация изображений"}
+                description={displayDescriptionForGenerationModel(
+                  item.id,
+                  "Генерация изображений"
+                )}
                 cost={item.cost}
                 selected={selected}
                 onClick={() => {

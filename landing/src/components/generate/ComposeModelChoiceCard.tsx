@@ -2,7 +2,6 @@
 
 import { OVERLAY_BUTTON_UA_RESET } from "@/lib/card-overlay-action-pill";
 import { GenerationCreditCostBadge } from "@/components/generate/GenerationCreditCostBadge";
-import { GenerationModelIcon } from "@/components/generate/GenerationModelIcon";
 
 const FRAME =
   "after:pointer-events-none after:absolute after:inset-0 after:z-[1] after:rounded-xl after:border-2 after:border-solid";
@@ -35,12 +34,13 @@ export function ComposeModelChoiceCard({
   return (
     <button
       type="button"
+      data-model-id={modelId}
       aria-pressed={selected}
       aria-disabled={unaffordable || undefined}
       disabled={disabled}
       title={hint}
       onClick={onClick}
-      className={`${OVERLAY_BUTTON_UA_RESET} relative flex min-h-[4.75rem] min-w-0 items-start gap-2.5 overflow-hidden rounded-xl p-2.5 text-left transition ${FRAME} ${
+      className={`${OVERLAY_BUTTON_UA_RESET} relative flex min-h-[4.5rem] min-w-0 flex-col items-stretch overflow-visible rounded-xl px-2.5 pb-4 pt-2 text-left transition ${FRAME} ${
         dockChrome
           ? selected
             ? "bg-white/15 text-white after:border-indigo-300"
@@ -50,38 +50,24 @@ export function ComposeModelChoiceCard({
             : "bg-zinc-100 text-zinc-900 after:border-zinc-200 hover:bg-zinc-200 hover:after:border-zinc-300"
       } ${unaffordable ? "opacity-90" : ""} disabled:opacity-50`}
     >
+      <span className="line-clamp-2 text-xs font-semibold leading-snug">
+        {label}
+      </span>
       <span
-        aria-hidden
-        className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full shadow-sm ${
-          dockChrome ? "bg-white/90" : "bg-white"
+        className={`mt-0.5 line-clamp-2 text-xs font-medium leading-snug ${
+          unaffordable
+            ? dockChrome
+              ? "text-rose-400"
+              : "text-rose-600"
+            : dockChrome
+              ? "text-white/60"
+              : "text-zinc-500"
         }`}
       >
-        <GenerationModelIcon modelId={modelId} />
+        {hint}
       </span>
-      <span className="min-w-0 flex-1">
-        <span className="flex items-center gap-2">
-          <span className="min-w-0 flex-1 truncate text-[13px] font-semibold leading-tight">
-            {label}
-          </span>
-          <GenerationCreditCostBadge
-            cost={cost}
-            unaffordable={unaffordable}
-            className="shrink-0"
-          />
-        </span>
-        <span
-          className={`mt-0.5 block truncate text-[13px] font-medium leading-tight ${
-            unaffordable
-              ? dockChrome
-                ? "text-rose-400"
-                : "text-rose-600"
-              : dockChrome
-                ? "text-white/60"
-                : "text-zinc-500"
-          }`}
-        >
-          {hint}
-        </span>
+      <span className="absolute bottom-0 left-1/2 z-[2] -translate-x-1/2 translate-y-1/2">
+        <GenerationCreditCostBadge cost={cost} unaffordable={unaffordable} />
       </span>
     </button>
   );

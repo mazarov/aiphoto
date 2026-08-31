@@ -52,19 +52,19 @@ export const GENERATION_MODEL_DISPLAY: Record<string, GenerationModelDisplay> = 
   },
   "grok-imagine-image-2.0": {
     label: "Grok Imagine",
-    description: "Альтернативная генерация xAI",
+    description: "Креативная генерация",
   },
   "seedream-4.5": {
     label: "Seedream 4.5",
-    description: "Реализм и лицо по референсу",
+    description: "Стильные и чувственные сцены",
   },
   "seedream-5.0-pro": {
     label: "Seedream 5.0 Pro",
-    description: "Реализм, текст и точный edit",
+    description: "Стильные и чувственные сцены",
   },
   "flux-2-flex": {
     label: "Flux 2 Flex",
-    description: "Типографика и мелкие детали",
+    description: "Баланс качества, скорости и контроля",
   },
   "grok-imagine-video-1.5": {
     label: "Grok Imagine 1.5",
@@ -76,7 +76,7 @@ export const GENERATION_MODEL_DISPLAY: Record<string, GenerationModelDisplay> = 
   },
   "seedance-2.5": {
     label: "Seedance 2.5",
-    description: "Озвученное видео из фото",
+    description: "Кинематографические видео до 30 секунд",
   },
 };
 

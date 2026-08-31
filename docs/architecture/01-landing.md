@@ -1,5 +1,7 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-08-31 (**model blurbs = Lexy picker:** подписи фото/видео в `GENERATION_MODEL_DISPLAY` — те же, что в пикере Lexy. Док и `/generaciya-foto` читают один SSOT (`displayDescriptionForGenerationModel`).
+>
 > Последнее обновление: 2026-08-31 (**dock last result SSOT:** последний completed кадр — факт сессии (`lastDockResult` в `GenerateDockContext`), не intent. Tab/FAB на `/ii-fotosessiya*` больше не делают `lastDockResultDismissed` и не открывают «Ваши фото» поверх кадра. Hydrate last result для blank `resume` и `photoshoot`. Live job `done` снова открывает plate (mobile + desktop) и закрывает шторку. Dismiss только «Повторить» / delete / result X. SSOT `shouldHydrateLastDockResult` / `resolveDockSurfaceForComposeEntry`.
 >
 > Последнее обновление: 2026-08-31 (**result chrome paywall on rail:** после `done` промпт-полоса скрыта (`hidden`, не `text-whitehidden`). Footer compose на result всегда скрыт — плёнка фотосессии не уезжает под CTA. `needsCredits` меняет rail «Что изменить» на «Купить кредиты» (`resultPrimaryAction`). SSOT `lib/generate-compose-mode.ts`.

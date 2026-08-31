@@ -9,7 +9,6 @@ import {
 } from "@/lib/credit-balance-events";
 import {
   FALLBACK_VIDEO_GENERATION_MODELS,
-  GENERATION_MODEL_DISPLAY,
   displayDescriptionForGenerationModel,
   displayLabelForGenerationModel,
 } from "@/lib/generation-model-labels";
@@ -3687,7 +3686,7 @@ export function CardInlineGeneratePanel({
               }
             >
             {!videoCompose ? (
-            <div className="grid shrink-0 grid-cols-2 gap-2">
+            <div className="grid shrink-0 grid-cols-2 gap-x-2 gap-y-5">
               {models.map((item) => {
                 const unaffordable =
                   isAuthed && credits !== null && credits < item.cost;
@@ -3696,10 +3695,10 @@ export function CardInlineGeneratePanel({
                     key={item.id}
                     modelId={item.id}
                     label={displayLabelForGenerationModel(item.id, item.label)}
-                    description={
-                      GENERATION_MODEL_DISPLAY[item.id]?.description ||
+                    description={displayDescriptionForGenerationModel(
+                      item.id,
                       "Генерация изображений"
-                    }
+                    )}
                     cost={item.cost}
                     selected={model === item.id}
                     unaffordable={unaffordable}
@@ -3713,7 +3712,7 @@ export function CardInlineGeneratePanel({
             ) : null}
             {videoCompose ? (
               <>
-                <div className="grid shrink-0 grid-cols-2 gap-2">
+                <div className="grid shrink-0 grid-cols-2 gap-x-2 gap-y-5">
                   {videoModels.map((item) => {
                     const itemCost = calculateVideoCreditCost(
                       item.cost,
