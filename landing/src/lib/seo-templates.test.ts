@@ -3,12 +3,12 @@ import test from "node:test";
 import { getSeoForRoute } from "./seo-templates";
 import { resolveUrlToTags } from "./route-resolver";
 
-test("birthday hub keeps the existing H1", () => {
+test("birthday L1 Title/H1 follow homepage complement formula", () => {
   const route = resolveUrlToTags(["sobytiya", "den-rozhdeniya"]);
   assert.ok(route);
   const seo = getSeoForRoute(route);
-  assert.equal(seo.h1, "Промты для фото на день рождения");
-  assert.match(seo.metaTitle, /Промты для фото на день рождения/);
+  assert.equal(seo.h1, "Промты для фото на день рождения и ИИ фотосессии");
+  assert.match(seo.metaTitle, /Промты для фото на день рождения и ИИ фотосессии/);
   assert.ok(seo.popularLinks?.some((link) => link.href.endsWith("/devushki")));
 });
 
