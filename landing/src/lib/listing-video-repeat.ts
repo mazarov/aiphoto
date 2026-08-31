@@ -1,7 +1,11 @@
 import { createHash } from "node:crypto";
-import type { SupabaseClient } from "@supabase/supabase-js";
 import { DEFAULT_VIDEO_PROMPT } from "./generation/image-options";
 import { videoI2vUserPrompt } from "./video-motion-prompt";
+
+/** Duck-typed so worker tsc does not resolve landing's @supabase/supabase-js. */
+export type ListingVideoRepeatEnqueueClient = {
+  rpc: (fn: string, args: Record<string, unknown>) => unknown;
+};
 
 export const LISTING_VIDEO_REPEAT_KIND = "listing_video_repeat" as const;
 export const LISTING_VIDEO_REPEAT_CONFIG_KEY = "listing_video_repeat_chain";
@@ -93,7 +97,7 @@ function enqueueRowId(data: unknown): string {
 }
 
 export async function enqueueListingVideoRepeatFollowup(
-  supabase: SupabaseClient,
+  supabase: ListingVideoRepeatEnqueueClient,
   job: ListingVideoRepeatImageJob,
 ): Promise<{ generationId: string | null; error: string | null }> {
   const spec = parseListingVideoRepeatSpec(job.pipeline_spec);
@@ -115,7 +119,7 @@ export async function enqueueListingVideoRepeatFollowup(
       }),
     )
     .digest("hex");
-  const { data, error } = await supabase.rpc("landing_enqueue_generation", {
+  const { data, error } = (await supabase.rpc("landing_enqueue_generation", {
     p_user_id: job.user_id,
     p_requester_auth_user_id: requesterId,
     p_idempotency_key: idempotencyKey,
@@ -135,7 +139,7 @@ export async function enqueueListingVideoRepeatFollowup(
     p_edit_instruction: null,
     p_modality: "video",
     p_duration_seconds: spec.durationSeconds,
-  });
+  })) as { data: unknown; error: { message: string } | null };
   if (error) {
     return { generationId: null, error: error.message };
   }
