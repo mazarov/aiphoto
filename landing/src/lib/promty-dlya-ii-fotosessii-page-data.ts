@@ -81,6 +81,23 @@ export const getFotosessiiThemeCollagePhotos = cache(
   }
 );
 
+export const getFotosessiiHubCards = cache(
+  async (): Promise<RouteCardsResult> => {
+    try {
+      return await fetchRouteCards({
+        ...FOTOSESSII_BASE_RPC_PARAMS,
+        limit: 50,
+        offset: 0,
+        min_cards: 1,
+        sort: "new",
+      });
+    } catch (error) {
+      console.error("[FotosessiiHub] fetch examples failed", error);
+      return FOTOSESSII_EMPTY_ROUTE_RESULT;
+    }
+  }
+);
+
 export const getFotosessiiChildCards = cache(
   async (slug: string): Promise<RouteCardsResult> => {
     const route = findPromtyDlyaIiFotosessiiChild(slug);

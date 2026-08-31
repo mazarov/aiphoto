@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useLayoutEffect, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ListingMasonry, ListingMasonryItem } from "@/components/ListingMasonry";
 import { ListingPhotoTile } from "@/components/ListingPhotoTile";
 import {
@@ -17,6 +17,14 @@ import {
   GENERACIYA_FOTO_SCENARIOS,
   GENERACIYA_FOTO_SEO,
 } from "@/lib/generaciya-foto-seo-copy";
+import { appendUniqueCardPage } from "@/lib/listing-cards";
+import {
+  LISTING_INFINITE_PAGE_SIZE,
+  LISTING_SEARCH_PAGE_SIZE,
+  hasMoreRankedPages,
+  hasMoreSearchPages,
+  resolveListingPageStep,
+} from "@/lib/listing-pagination";
 import { LISTING_SHELL_LINK_SCROLL } from "@/lib/scroll-preservation";
 import {
   GF_BLOCK_FLUSH,
@@ -26,6 +34,13 @@ import {
 
 const RESULT_LIMIT = 16;
 const SEARCH_DEBOUNCE_MS = 500;
+
+export type ExamplesExplorerLoadMore = {
+  rpcParams: Record<string, string | null>;
+  totalCount: number;
+  initialRankedBatchSize: number;
+  strict?: boolean;
+};
 
 type QuickFilter = (typeof GENERACIYA_FOTO_SCENARIOS)[number];
 
@@ -40,6 +55,9 @@ const HUB_CHIP =
 const HUB_CHIP_ACTIVE = "border-zinc-900 bg-zinc-900 text-white shadow-sm";
 const HUB_CHIP_IDLE =
   "border-zinc-300 bg-zinc-100 text-zinc-800 hover:border-zinc-400 hover:bg-zinc-200";
+
+const LOAD_MORE_BUTTON =
+  "inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-indigo-200 bg-white/95 px-5 text-sm font-semibold text-indigo-700 shadow-sm backdrop-blur-sm transition hover:border-indigo-300 hover:bg-white disabled:cursor-not-allowed disabled:opacity-60";
 
 function HubChipIcon({ back }: { back: boolean }) {
   return (
@@ -65,6 +83,25 @@ function HubChipIcon({ back }: { back: boolean }) {
   );
 }
 
+function LoadMoreChevron({ direction }: { direction: "down" | "left" }) {
+  return (
+    <svg
+      className="h-4 w-4"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      aria-hidden
+    >
+      {direction === "down" ? (
+        <path d="m6 9 6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+      ) : (
+        <path d="m9 18 6-6-6-6" />
+      )}
+    </svg>
+  );
+}
+
 function matchesQuickFilter(
   card: GenerationExampleCard,
   filter: QuickFilter
@@ -83,6 +120,7 @@ export function GeneraciyaFotoExamplesExplorer({
   navigationAriaLabel,
   lockCardsToScenario = false,
   restrictToInitialCards = false,
+  loadMoreListing,
 }: {
   initialCards: GenerationExampleCard[];
   title?: string;
@@ -94,37 +132,246 @@ export function GeneraciyaFotoExamplesExplorer({
   navigationAriaLabel?: string;
   lockCardsToScenario?: boolean;
   restrictToInitialCards?: boolean;
+  loadMoreListing?: ExamplesExplorerLoadMore;
 }) {
   const [query, setQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState<QuickFilter | null>(null);
-  const [cards, setCards] = useState(initialCards);
+  const [cardPages, setCardPages] = useState<GenerationExampleCard[][]>(() => [
+    initialCards,
+  ]);
+  const cards = cardPages.flat();
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [loadMoreError, setLoadMoreError] = useState(false);
+  const [galleryRevealed, setGalleryRevealed] = useState(false);
+  const [hasMore, setHasMore] = useState(() =>
+    loadMoreListing
+      ? hasMoreRankedPages(
+          loadMoreListing.initialRankedBatchSize,
+          loadMoreListing.initialRankedBatchSize,
+          loadMoreListing.totalCount
+        )
+      : false
+  );
   const [error, setError] = useState("");
   const usesScenarioNavigation = Boolean(scenarioNavigation?.length);
   const lockedToScenario = usesScenarioNavigation && lockCardsToScenario;
+  const inlineLoadMore = Boolean(loadMoreListing);
+  const rankedOffsetRef = useRef(loadMoreListing?.initialRankedBatchSize ?? 0);
+  const totalCountRef = useRef(loadMoreListing?.totalCount ?? 0);
+  const hasMoreRef = useRef(hasMore);
+  const loadingMoreRef = useRef(false);
+  const hasExpandedRef = useRef(false);
+
+  hasMoreRef.current = hasMore;
+
+  const replaceCardPages = useCallback((nextCards: GenerationExampleCard[]) => {
+    setCardPages([nextCards]);
+  }, []);
 
   useLayoutEffect(() => {
     if (cards.length > 0) writeGenerationExampleNavigation(cards);
   }, [cards]);
 
   useEffect(() => {
+    if (hasExpandedRef.current) return;
+    replaceCardPages(initialCards);
+    if (!loadMoreListing) return;
+    rankedOffsetRef.current = loadMoreListing.initialRankedBatchSize;
+    totalCountRef.current = loadMoreListing.totalCount;
+    setGalleryRevealed(false);
+    setLoadMoreError(false);
+    setHasMore(
+      hasMoreRankedPages(
+        loadMoreListing.initialRankedBatchSize,
+        loadMoreListing.initialRankedBatchSize,
+        loadMoreListing.totalCount
+      )
+    );
+  }, [initialCards, loadMoreListing, replaceCardPages]);
+
+  const fetchListingPage = useCallback(
+    async (searchQuery: string) => {
+      if (!loadMoreListing) return false;
+
+      const trimmed = searchQuery.trim();
+      const pageSize = trimmed
+        ? LISTING_SEARCH_PAGE_SIZE
+        : LISTING_INFINITE_PAGE_SIZE;
+      const oldOffset = rankedOffsetRef.current;
+      const sp = new URLSearchParams();
+      sp.set("limit", String(pageSize));
+      sp.set("offset", String(oldOffset));
+
+      if (trimmed) {
+        sp.set("q", trimmed);
+      } else {
+        for (const [key, value] of Object.entries(loadMoreListing.rpcParams)) {
+          if (value) sp.set(key, value);
+        }
+        if (loadMoreListing.strict) sp.set("strict", "1");
+      }
+
+      const response = await fetch(`/api/listing?${sp.toString()}`, {
+        cache: "no-store",
+      });
+      if (!response.ok) throw new Error("listing_request_failed");
+
+      const data = (await response.json()) as {
+        cards?: PromptCardFull[];
+        total_count?: number;
+        ranked_batch_size?: number;
+        has_more?: boolean;
+      };
+      const newCards = (data.cards ?? []).map(toGenerationExampleCard);
+      const rankedSize = Math.max(0, Number(data.ranked_batch_size) || 0);
+      const apiTotal = Number(data.total_count);
+      if (Number.isFinite(apiTotal) && apiTotal >= 0) {
+        totalCountRef.current = apiTotal;
+      }
+
+      if (rankedSize === 0 && newCards.length === 0) {
+        setHasMore(false);
+        hasMoreRef.current = false;
+        return false;
+      }
+
+      const step = trimmed
+        ? rankedSize || newCards.length
+        : resolveListingPageStep(rankedSize);
+      if (newCards.length > 0) {
+        setCardPages((prev) => appendUniqueCardPage(prev, newCards));
+      }
+      rankedOffsetRef.current = oldOffset + step;
+
+      const more = trimmed
+        ? typeof data.has_more === "boolean"
+          ? data.has_more
+          : hasMoreSearchPages(rankedSize || newCards.length, pageSize)
+        : hasMoreRankedPages(oldOffset, step, totalCountRef.current);
+      setHasMore(more);
+      hasMoreRef.current = more;
+      return more;
+    },
+    [loadMoreListing]
+  );
+
+  const loadMoreCards = useCallback(
+    async (searchQuery = query) => {
+      if (!inlineLoadMore || loadingMoreRef.current || !hasMoreRef.current) {
+        return;
+      }
+
+      loadingMoreRef.current = true;
+      setLoadingMore(true);
+      setLoadMoreError(false);
+      setGalleryRevealed(true);
+      hasExpandedRef.current = true;
+
+      try {
+        await fetchListingPage(searchQuery);
+      } catch {
+        setLoadMoreError(true);
+      } finally {
+        loadingMoreRef.current = false;
+        setLoadingMore(false);
+      }
+    },
+    [fetchListingPage, inlineLoadMore, query]
+  );
+
+  useEffect(() => {
     const trimmed = query.trim();
     if (restrictToInitialCards) {
-      setCards(filterExampleCardsByQuery(initialCards, trimmed));
+      replaceCardPages(filterExampleCardsByQuery(initialCards, trimmed));
       setLoading(false);
       setError("");
       return;
     }
 
+    if (inlineLoadMore && trimmed.length >= 2) {
+      rankedOffsetRef.current = 0;
+      setGalleryRevealed(true);
+      hasExpandedRef.current = true;
+      const controller = new AbortController();
+      const timer = window.setTimeout(() => {
+        setLoading(true);
+        setError("");
+        void fetch(
+          `/api/listing?q=${encodeURIComponent(trimmed)}&limit=${LISTING_SEARCH_PAGE_SIZE}&offset=0`,
+          {
+            cache: "no-store",
+            signal: controller.signal,
+          }
+        )
+          .then(async (response) => {
+            if (!response.ok) throw new Error("search_failed");
+            const payload = (await response.json()) as {
+              cards?: PromptCardFull[];
+              ranked_batch_size?: number;
+              has_more?: boolean;
+            };
+            const nextCards = (payload.cards ?? []).map(toGenerationExampleCard);
+            replaceCardPages(nextCards);
+            const rankedSize = Math.max(
+              0,
+              Number(payload.ranked_batch_size) || nextCards.length
+            );
+            rankedOffsetRef.current = rankedSize;
+            const more =
+              typeof payload.has_more === "boolean"
+                ? payload.has_more
+                : hasMoreSearchPages(rankedSize, LISTING_SEARCH_PAGE_SIZE);
+            setHasMore(more);
+            hasMoreRef.current = more;
+          })
+          .catch((fetchError: unknown) => {
+            if (
+              fetchError instanceof DOMException &&
+              fetchError.name === "AbortError"
+            ) {
+              return;
+            }
+            setCardPages([]);
+            setHasMore(false);
+            setError("Не удалось загрузить подборку. Попробуйте ещё раз.");
+          })
+          .finally(() => {
+            if (!controller.signal.aborted) setLoading(false);
+          });
+      }, SEARCH_DEBOUNCE_MS);
+
+      return () => {
+        window.clearTimeout(timer);
+        controller.abort();
+      };
+    }
+
     if (lockedToScenario && trimmed.length < 2) {
-      setCards(initialCards);
+      if (!hasExpandedRef.current) {
+        replaceCardPages(initialCards);
+      }
       setLoading(false);
       setError("");
+      if (loadMoreListing && !hasExpandedRef.current) {
+        rankedOffsetRef.current = loadMoreListing.initialRankedBatchSize;
+        totalCountRef.current = loadMoreListing.totalCount;
+        setGalleryRevealed(false);
+        setHasMore(
+          hasMoreRankedPages(
+            loadMoreListing.initialRankedBatchSize,
+            loadMoreListing.initialRankedBatchSize,
+            loadMoreListing.totalCount
+          )
+        );
+      }
       return;
     }
 
     if (trimmed.length < 2 && !activeFilter) {
-      setCards(initialCards);
+      if (!hasExpandedRef.current) {
+        replaceCardPages(initialCards);
+      }
       setLoading(false);
       setError("");
       return;
@@ -159,7 +406,7 @@ export function GeneraciyaFotoExamplesExplorer({
             const nextCards = (payload.cards ?? []).map(
               toGenerationExampleCard
             );
-            setCards(
+            replaceCardPages(
               trimmed.length < 2 && activeFilter
                 ? nextCards
                     .filter((card) =>
@@ -176,7 +423,7 @@ export function GeneraciyaFotoExamplesExplorer({
             ) {
               return;
             }
-            setCards([]);
+            setCardPages([]);
             setError("Не удалось загрузить подборку. Попробуйте ещё раз.");
           })
           .finally(() => {
@@ -190,12 +437,38 @@ export function GeneraciyaFotoExamplesExplorer({
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [activeFilter, initialCards, lockedToScenario, query, restrictToInitialCards]);
+  }, [
+    activeFilter,
+    initialCards,
+    inlineLoadMore,
+    loadMoreListing,
+    lockedToScenario,
+    query,
+    replaceCardPages,
+  ]);
 
   const allPromptsHref =
     query.trim().length >= 2
       ? `/search?q=${encodeURIComponent(query.trim())}`
       : activeFilter?.href || defaultAllPromptsHref;
+
+  const showTeaserOverlay =
+    inlineLoadMore &&
+    hasMore &&
+    !galleryRevealed &&
+    !query.trim() &&
+    cards.length > 0 &&
+    !restrictToInitialCards;
+
+  const showInlineLoadMoreButton =
+    inlineLoadMore &&
+    hasMore &&
+    (galleryRevealed || query.trim().length >= 2) &&
+    !restrictToInitialCards;
+
+  const loadMoreBusy = loadingMore;
+
+  let cardOffset = 0;
 
   return (
     <div className={GF_BLOCK_FLUSH}>
@@ -329,23 +602,57 @@ export function GeneraciyaFotoExamplesExplorer({
         </nav>
       </div>
 
-      <div className="relative mt-5 overflow-hidden">
-        <ListingMasonry loading={loading}>
-          {cards.map((card, index) => (
-            <ListingMasonryItem key={card.id}>
-              <ListingPhotoTile
-                card={card}
-                aspectRatio={listingPhotoAspectRatio(
-                  card.photoWidth,
-                  card.photoHeight,
-                  index
-                )}
-              />
-            </ListingMasonryItem>
-          ))}
-        </ListingMasonry>
+      <div className={`relative mt-5 ${showTeaserOverlay || (!inlineLoadMore && cards.length > 0 && !restrictToInitialCards) ? "overflow-hidden" : ""}`}>
+        {cardPages.map((page, pageIndex) => {
+          const pageOffset = cardOffset;
+          cardOffset += page.length;
+          return (
+            <ListingMasonry
+              key={`examples-page-${pageIndex}`}
+              loading={loading && pageIndex === 0}
+              className={pageIndex > 0 ? "mt-2 sm:mt-3" : undefined}
+            >
+              {page.map((card, index) => (
+                <ListingMasonryItem key={card.id}>
+                  <ListingPhotoTile
+                    card={card}
+                    aspectRatio={listingPhotoAspectRatio(
+                      card.photoWidth,
+                      card.photoHeight,
+                      pageOffset + index
+                    )}
+                  />
+                </ListingMasonryItem>
+              ))}
+            </ListingMasonry>
+          );
+        })}
 
-        {cards.length > 0 && !restrictToInitialCards ? (
+        {showTeaserOverlay ? (
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30">
+            <div
+              className="absolute inset-x-0 bottom-0 h-32 backdrop-blur-[6px] [mask-image:linear-gradient(to_top,black,transparent)] sm:h-40"
+              aria-hidden
+            />
+            <div
+              className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-white/50 via-white/15 to-transparent sm:h-40"
+              aria-hidden
+            />
+            <div className="relative flex justify-center pb-4 pt-16 sm:pb-5 sm:pt-20">
+              <button
+                type="button"
+                disabled={loadMoreBusy}
+                onClick={() => void loadMoreCards()}
+                className={`pointer-events-auto ${LOAD_MORE_BUTTON}`}
+              >
+                {loadMoreBusy ? "Загружаем…" : allPromptsLabel}
+                <LoadMoreChevron direction="down" />
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        {!inlineLoadMore && cards.length > 0 && !restrictToInitialCards ? (
           <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30">
             <div
               className="absolute inset-x-0 bottom-0 h-32 backdrop-blur-[6px] [mask-image:linear-gradient(to_top,black,transparent)] sm:h-40"
@@ -359,24 +666,34 @@ export function GeneraciyaFotoExamplesExplorer({
               <Link
                 href={allPromptsHref}
                 scroll={LISTING_SHELL_LINK_SCROLL}
-                className="pointer-events-auto inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-indigo-200 bg-white/95 px-5 text-sm font-semibold text-indigo-700 shadow-sm backdrop-blur-sm transition hover:border-indigo-300 hover:bg-white"
+                className={`pointer-events-auto ${LOAD_MORE_BUTTON}`}
               >
                 {allPromptsLabel}
-                <svg
-                  className="h-4 w-4"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  aria-hidden
-                >
-                  <path d="m9 18 6-6-6-6" />
-                </svg>
+                <LoadMoreChevron direction="left" />
               </Link>
             </div>
           </div>
         ) : null}
       </div>
+
+      {showInlineLoadMoreButton ? (
+        <div className="mt-5 flex flex-col items-center gap-3">
+          <button
+            type="button"
+            disabled={loadMoreBusy}
+            onClick={() => void loadMoreCards()}
+            className={LOAD_MORE_BUTTON}
+          >
+            {loadMoreBusy ? "Загружаем…" : "Показать ещё"}
+            <LoadMoreChevron direction="down" />
+          </button>
+          {loadMoreError ? (
+            <p className="text-sm text-rose-600" role="status">
+              Не удалось загрузить карточки. Попробуйте ещё раз.
+            </p>
+          ) : null}
+        </div>
+      ) : null}
 
       {!loading && cards.length === 0 ? (
         <div className="flex min-h-56 flex-col items-center justify-center px-4 pb-8 text-center">

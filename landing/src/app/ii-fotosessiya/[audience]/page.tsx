@@ -33,6 +33,7 @@ import {
   type FotosessiiChildCopy,
 } from "@/lib/promty-dlya-ii-fotosessii-seo-copy";
 import {
+  FOTOSESSII_BASE_RPC_PARAMS,
   getFotosessiiChildCards,
   getFotosessiiThemeCollagePhotos,
 } from "@/lib/promty-dlya-ii-fotosessii-page-data";
@@ -318,12 +319,19 @@ export default async function PromtyDlyaIiFotosessiiChildPage({
                 intro={copy.examplesIntro}
                 eyebrow=""
                 allPromptsLabel={copy.examplesCta}
-                defaultAllPromptsHref={route.catalogHref}
                 scenarioNavigation={getPromtyDlyaIiFotosessiiChipNavigation(
                   copy.slug
                 )}
                 lockCardsToScenario
                 navigationAriaLabel={copy.themesTitle}
+                loadMoreListing={{
+                  rpcParams: {
+                    ...FOTOSESSII_BASE_RPC_PARAMS,
+                    [route.dimension]: route.tagValue,
+                  },
+                  totalCount: result.total_count ?? result.cards_count,
+                  initialRankedBatchSize: galleryCards.length,
+                }}
               />
             ) : (
               <div className="rounded-2xl border border-zinc-200 bg-zinc-50 px-6 py-12 text-center text-sm text-zinc-500">

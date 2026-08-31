@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { AdLandingHeading } from "@/components/AdLandingHeading";
 import { PageLayout } from "@/components/PageLayout";
 import { GeneraciyaFotoExamplesExplorer } from "@/components/generate/GeneraciyaFotoExamplesExplorer";
+import { GeneraciyaFotoHeroCarousel } from "@/components/generate/GeneraciyaFotoHeroCarousel";
 import {
   enrichCardsWithDetails,
   fetchRouteCards,
@@ -76,7 +77,7 @@ const getScenarioCards = cache(
       return await fetchRouteCards({
         ...BASE_RPC_PARAMS,
         [route.dimension]: route.tagValue,
-        limit: 16,
+        limit: 50,
         offset: 0,
         min_cards: 1,
         sort: "new",
@@ -254,7 +255,7 @@ function BreadcrumbSeparator() {
 
 export default async function GeneraciyaFotoScenarioPage({ params }: Props) {
   const { scenario: slug } = await params;
-  const { copy } = resolveScenario(slug);
+  const { route, copy } = resolveScenario(slug);
   const result = await getScenarioCards(slug);
 
   let cards: PromptCardFull[] = [];
@@ -270,6 +271,10 @@ export default async function GeneraciyaFotoScenarioPage({ params }: Props) {
   const ogImage = cards[0]?.photoUrls[0] || (await getScenarioOgImage(slug));
   const schemas = buildJsonLd(copy, ogImage, cards);
   const exampleCards = cards.map(toGenerationExampleCard);
+  const galleryCards = exampleCards.slice(0, 16);
+  const carouselCards = exampleCards
+    .filter((card) => card.photoUrl)
+    .slice(0, 50);
 
   return (
     <PageLayout showFooterWithGenerateDock>
@@ -326,6 +331,11 @@ export default async function GeneraciyaFotoScenarioPage({ params }: Props) {
             <p className="mx-auto mt-4 max-w-2xl text-pretty text-base leading-relaxed text-zinc-600 sm:text-lg">
               {copy.intro}
             </p>
+            <GeneraciyaFotoHeroCarousel
+              cards={carouselCards}
+              ctaHref="#primery"
+              ariaLabel={`Примеры: ${copy.h1}`}
+            />
           </div>
         </section>
 
@@ -337,13 +347,20 @@ export default async function GeneraciyaFotoScenarioPage({ params }: Props) {
           >
             {cards.length ? (
               <GeneraciyaFotoExamplesExplorer
-                initialCards={exampleCards}
+                initialCards={galleryCards}
                 title={copy.examplesTitle}
                 intro={copy.examplesIntro}
                 allPromptsLabel={GENERACIYA_FOTO_SEO.examplesCta}
-                defaultAllPromptsHref={GENERACIYA_FOTO_SEO.examplesMoreHref}
                 scenarioNavigation={getGeneraciyaFotoChipNavigation(slug)}
                 lockCardsToScenario
+                loadMoreListing={{
+                  rpcParams: {
+                    ...BASE_RPC_PARAMS,
+                    [route.dimension]: route.tagValue,
+                  },
+                  totalCount: result.total_count ?? result.cards_count,
+                  initialRankedBatchSize: galleryCards.length,
+                }}
               />
             ) : (
               <div className="rounded-2xl border border-zinc-200 bg-zinc-50 px-6 py-12 text-center text-sm text-zinc-500">

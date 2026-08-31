@@ -26,6 +26,10 @@ test("hub snippet owns the commercial photoshoot head", () => {
   assert.match(PROMTY_DLYA_II_FOTOSESSII_SEO.h1, /по своему фото/i);
   assert.doesNotMatch(PROMTY_DLYA_II_FOTOSESSII_SEO.metaTitle, /промты|бесплатн/i);
   assert.doesNotMatch(PROMTY_DLYA_II_FOTOSESSII_SEO.h1, /промты|сделать фото ии/i);
+  assert.equal(
+    PROMTY_DLYA_II_FOTOSESSII_SEO.examplesCta,
+    "Больше идей для фото"
+  );
   assert.doesNotMatch(
     PROMTY_DLYA_II_FOTOSESSII_SEO.metaDescription,
     /женск|мужск|купи кредит|бесплатн|сделать фото ии/i

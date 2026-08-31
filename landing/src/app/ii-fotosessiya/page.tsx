@@ -14,7 +14,6 @@ import {
 } from "@/components/fotosessii/PromtyDlyaIiFotosessiiLandingSections";
 import {
   enrichCardsWithDetails,
-  fetchRouteCards,
   getFirstCardPhotoUrl,
   type PromptCardFull,
 } from "@/lib/supabase";
@@ -35,6 +34,7 @@ import {
 } from "@/lib/promty-dlya-ii-fotosessii-seo-copy";
 import {
   FOTOSESSII_BASE_RPC_PARAMS,
+  getFotosessiiHubCards,
   getFotosessiiThemeCollagePhotos,
 } from "@/lib/promty-dlya-ii-fotosessii-page-data";
 import {
@@ -57,34 +57,11 @@ const getPhotoshootExamples = cache(async (): Promise<PromptCardFull[]> => {
   }
 });
 
-const getLookExamples = cache(async (): Promise<PromptCardFull[]> => {
-  try {
-    const result = await fetchRouteCards({
-      ...FOTOSESSII_BASE_RPC_PARAMS,
-      limit: 50,
-      offset: 0,
-      min_cards: 1,
-      sort: "new",
-    });
-    const enriched = await enrichCardsWithDetails(result.cards).catch((error) => {
-      console.error("[FotosessiiHub] enrich look examples failed", error);
-      return [] as PromptCardFull[];
-    });
-    const byId = new Map(enriched.map((card) => [card.id, card]));
-    return result.cards
-      .map((card) => byId.get(card.id))
-      .filter((card): card is PromptCardFull => Boolean(card));
-  } catch (error) {
-    console.error("[FotosessiiHub] fetch look examples failed", error);
-    return [];
-  }
-});
-
 const getExampleOgImage = cache(async (): Promise<string | null> => {
-  const cards = await getLookExamples();
-  if (!cards.length) return null;
+  const result = await getFotosessiiHubCards();
+  if (!result.cards.length) return null;
   try {
-    return await getFirstCardPhotoUrl(cards.map((card) => card.id));
+    return await getFirstCardPhotoUrl(result.cards.map((card) => card.id));
   } catch (error) {
     console.error("[FotosessiiHub] fetch OG image failed", error);
     return null;
@@ -202,13 +179,21 @@ function buildJsonLd(ogImage: string | null, cards: PromptCardFull[]) {
 }
 
 export default async function PromtyDlyaIiFotosessiiPage() {
-  const [lookCards, photoshootCards, themeCollage, fallbackOgImage] =
+  const [lookResult, photoshootCards, themeCollage, fallbackOgImage] =
     await Promise.all([
-      getLookExamples(),
+      getFotosessiiHubCards(),
       getPhotoshootExamples(),
       getFotosessiiThemeCollagePhotos(),
       getExampleOgImage(),
     ]);
+
+  let lookCards: PromptCardFull[] = [];
+  try {
+    lookCards = await enrichCardsWithDetails(lookResult.cards);
+  } catch (error) {
+    console.error("[FotosessiiHub] enrich look examples failed", error);
+  }
+
   const ogImage = lookCards[0]?.photoUrls[0] || fallbackOgImage;
   const schemas = buildJsonLd(ogImage, lookCards.slice(0, 16));
   const carouselCards = filterPhotoshootExampleCards(
@@ -297,9 +282,13 @@ export default async function PromtyDlyaIiFotosessiiPage() {
                 intro={PROMTY_DLYA_II_FOTOSESSII_SEO.examplesIntro}
                 eyebrow=""
                 allPromptsLabel={PROMTY_DLYA_II_FOTOSESSII_SEO.examplesCta}
-                defaultAllPromptsHref="/"
                 scenarioNavigation={getPromtyDlyaIiFotosessiiChipNavigation()}
                 navigationAriaLabel="Сценарии ИИ фотосессии"
+                loadMoreListing={{
+                  rpcParams: FOTOSESSII_BASE_RPC_PARAMS,
+                  totalCount: lookResult.total_count ?? lookResult.cards_count,
+                  initialRankedBatchSize: galleryCards.length,
+                }}
               />
             ) : (
               <div className="rounded-2xl border border-zinc-200 bg-zinc-50 px-6 py-12 text-center text-sm text-zinc-500">

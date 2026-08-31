@@ -18,7 +18,7 @@ export const PROMTY_DLYA_II_FOTOSESSII_SEO = {
   examplesTitle: "Примеры ИИ фотосессии",
   examplesIntro:
     "Готовые луки для серии. Открой пример и повтори со своим фото.",
-  examplesCta: "Все промты для фото",
+  examplesCta: "Больше идей для фото",
   themesTitle: "Сценарии ИИ фотосессии",
   themesLead:
     "Женская, парная, семейная, зимняя, день рождения — у каждого сценария своя страница.",
