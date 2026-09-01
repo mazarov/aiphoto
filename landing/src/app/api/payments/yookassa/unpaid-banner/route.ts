@@ -7,16 +7,18 @@ import { UNPAID_BANNER_TTL_MS } from "@/lib/unpaid-checkout-banner";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-const empty = NextResponse.json(
-  { banner: null },
-  { headers: { "Cache-Control": "private, no-store" } },
-);
+const EMPTY_HEADERS = { "Cache-Control": "private, no-store" };
+
+/** Fresh Response per call — a module-level NextResponse is a locked body after the first send. */
+function emptyBannerResponse(): NextResponse {
+  return NextResponse.json({ banner: null }, { headers: EMPTY_HEADERS });
+}
 
 export async function GET(request: NextRequest) {
   try {
     const { user, error: authError } = await getSupabaseUserForApiRoute(request);
     if (authError || !user || user.is_anonymous === true) {
-      return empty;
+      return emptyBannerResponse();
     }
 
     const supabase = createSupabaseServer();
@@ -31,11 +33,11 @@ export async function GET(request: NextRequest) {
     if (readError) {
       throw new Error(`unpaid banner lookup failed: ${readError.message}`);
     }
-    if (!payment) return empty;
+    if (!payment) return emptyBannerResponse();
 
     const createdAtMs = Date.parse(String(payment.created_at || ""));
     if (!Number.isFinite(createdAtMs) || Date.now() - createdAtMs >= UNPAID_BANNER_TTL_MS) {
-      return empty;
+      return emptyBannerResponse();
     }
 
     const { data: offerRow } = await supabase.rpc("landing_live_pricing_offer", {
@@ -54,12 +56,12 @@ export async function GET(request: NextRequest) {
           offer: parseLiveMailOffer(offerRow),
         },
       },
-      { headers: { "Cache-Control": "private, no-store" } },
+      { headers: EMPTY_HEADERS },
     );
   } catch (error) {
     console.warn("[yookassa] unpaid_banner failed", {
       message: error instanceof Error ? error.message : String(error),
     });
-    return empty;
+    return emptyBannerResponse();
   }
 }

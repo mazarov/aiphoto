@@ -128,6 +128,23 @@ function toErrorMeta(err: unknown) {
   };
 }
 
+type RpcErrorLike = {
+  message?: string;
+  code?: string;
+  details?: string;
+  hint?: string;
+} | null;
+
+function serializeRpcError(error: RpcErrorLike) {
+  if (!error) return { message: null, code: null, details: null, hint: null };
+  return {
+    message: error.message ?? null,
+    code: error.code ?? null,
+    details: error.details ?? null,
+    hint: error.hint ?? null,
+  };
+}
+
 export async function POST(req: NextRequest) {
   const acquisition = readAcquisitionRequestIds(req);
   try {
@@ -1140,12 +1157,35 @@ export async function POST(req: NextRequest) {
             .maybeSingle()
         : { data: null };
       const availableCredits = Number(userRow?.credits || 0);
+      const mappedReason = insufficient
+        ? "insufficient_credits"
+        : idempotencyConflict
+          ? "idempotency_conflict"
+          : photoshootFromSheet
+            ? "photoshoot_from_sheet"
+            : photoshootSourceInvalid
+              ? "photoshoot_source_invalid"
+              : parentUnavailable
+                ? "parent_unavailable"
+                : "opaque";
       console.error("[generation.create] enqueue error", {
         userId: callerId,
         dbUserId,
         usedGuestOwner,
         idempotencyKey,
-        enqueueError: enqueueError?.message ?? null,
+        pipelineTrace,
+        mappedReason,
+        wardrobePolicy,
+        sentWardrobePolicyArg: wardrobePolicy === "keep",
+        modality: requestedModality,
+        model: modelConfig.id,
+        photos: normalizedPhotoStoragePaths.length,
+        parentGenerationId: normalizedParentGenerationId || null,
+        hasGenerationId: Boolean(generationId),
+        enqueueRowKeys:
+          enqueueRow && typeof enqueueRow === "object" ? Object.keys(enqueueRow) : null,
+        rpc: "landing_enqueue_generation",
+        rpcError: serializeRpcError(enqueueError),
       });
       if (insufficient) {
         if (!usedGuestOwner) {
@@ -1197,7 +1237,10 @@ export async function POST(req: NextRequest) {
           { status: 409 }
         );
       }
-      return NextResponse.json({ error: "Failed to enqueue generation" }, { status: 500 });
+      return NextResponse.json(
+        { error: "Failed to enqueue generation", pipelineTrace },
+        { status: 500 },
+      );
     }
 
     if (listingRepeatSpec) {
@@ -1208,10 +1251,11 @@ export async function POST(req: NextRequest) {
       if (pipelineError) {
         console.error("[generation.create] pipeline_spec persist failed", {
           generationId,
-          error: pipelineError.message,
+          pipelineTrace,
+          rpcError: serializeRpcError(pipelineError),
         });
         return NextResponse.json(
-          { error: "Failed to enqueue generation" },
+          { error: "Failed to enqueue generation", pipelineTrace },
           { status: 500 }
         );
       }
@@ -1245,7 +1289,10 @@ export async function POST(req: NextRequest) {
       { status: 202 }
     );
   } catch (err) {
-    console.error("[generation.create] unhandled error", toErrorMeta(err));
+    console.error("[generation.create] unhandled error", {
+      ...toErrorMeta(err),
+      pipelineTrace: getStvPipelineTrace(req),
+    });
     return NextResponse.json({ error: "Generation failed" }, { status: 500 });
   }
 }
