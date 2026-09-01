@@ -86,7 +86,7 @@ export function UnpaidCheckoutBanner() {
       reachYandexMetrikaGoal(YM_GOAL_PAYMENT_CHECKOUT_STARTED, {
         plan_id: planId,
         source: "unpaid_banner",
-        provider: snapshot?.provider,
+        ...(snapshot?.provider ? { provider: snapshot.provider } : {}),
       });
       try {
         const returnPath = sanitizeYooKassaReturnPath(
