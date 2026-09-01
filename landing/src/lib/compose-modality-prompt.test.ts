@@ -3,6 +3,9 @@ import test from "node:test";
 import {
   composeVideoScenarioKey,
   emptyComposePromptStash,
+  resolveVideoAnimateScenarioSource,
+  seededAnimateMotionPrompt,
+  shouldRequestVideoAnimateScenario,
   switchComposeModalityPrompt,
 } from "./compose-modality-prompt";
 
@@ -86,6 +89,150 @@ test("a different video frame regenerates the scenario", () => {
   assert.equal(result.shouldLoadScenario, true);
   assert.equal(result.stash.lastScenarioKey, "photo:2");
   assert.equal(result.stash.imagePrompt, "Фото-промпт");
+});
+
+test("video scenario source waits for a single frame", () => {
+  assert.equal(
+    resolveVideoAnimateScenarioSource({
+      composeMode: "image",
+      selectedPhotos: [{ id: "p1", storagePath: "user/a.jpg" }],
+    }),
+    null
+  );
+  assert.equal(
+    resolveVideoAnimateScenarioSource({
+      composeMode: "video",
+      selectedPhotos: [],
+    }),
+    null
+  );
+  assert.equal(
+    resolveVideoAnimateScenarioSource({
+      composeMode: "video",
+      selectedPhotos: [
+        { id: "p1", storagePath: "user/a.jpg" },
+        { id: "p2", storagePath: "user/b.jpg" },
+      ],
+    }),
+    null
+  );
+});
+
+test("video scenario source prefers parent over the selected photo", () => {
+  assert.deepEqual(
+    resolveVideoAnimateScenarioSource({
+      composeMode: "video",
+      animateParentId: "gen-1",
+      selectedPhotos: [{ id: "p1", storagePath: "user/a.jpg" }],
+    }),
+    { parentGenerationId: "gen-1", scenarioKey: "parent:gen-1" }
+  );
+  assert.deepEqual(
+    resolveVideoAnimateScenarioSource({
+      composeMode: "video",
+      selectedPhotos: [{ id: "p1", storagePath: "user/a.jpg" }],
+    }),
+    { photoStoragePath: "user/a.jpg", scenarioKey: "photo:p1" }
+  );
+  assert.deepEqual(
+    resolveVideoAnimateScenarioSource({
+      composeMode: "video",
+      selectedPhotos: [
+        {
+          id: "p1",
+          storagePath: "user/a.jpg",
+          originalFilename: "generation-aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa.jpg",
+        },
+      ],
+    }),
+    {
+      parentGenerationId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      scenarioKey: "parent:aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    }
+  );
+});
+
+test("catalog Repeat motion must not trigger a new Flash scenario", () => {
+  const source = {
+    photoStoragePath: "user/a.jpg",
+    scenarioKey: "photo:p1",
+  };
+  assert.equal(
+    shouldRequestVideoAnimateScenario({
+      source,
+      stash: emptyComposePromptStash(),
+      seededMotion: "Ветер шевелит волосы",
+    }),
+    false
+  );
+  assert.equal(
+    shouldRequestVideoAnimateScenario({
+      source: { parentGenerationId: "gen-new", scenarioKey: "parent:gen-new" },
+      stash: emptyComposePromptStash(),
+      seededMotion: "Ветер шевелит волосы",
+      seedParentGenerationId: null,
+    }),
+    true
+  );
+  assert.equal(
+    shouldRequestVideoAnimateScenario({
+      source,
+      stash: emptyComposePromptStash(),
+      seededMotion: "",
+    }),
+    true
+  );
+  assert.equal(
+    shouldRequestVideoAnimateScenario({
+      source,
+      stash: emptyComposePromptStash({
+        videoPrompt: "Ветер шевелит волосы",
+        lastScenarioKey: "photo:p1",
+      }),
+    }),
+    false
+  );
+  assert.equal(
+    shouldRequestVideoAnimateScenario({
+      source: { ...source, scenarioKey: "photo:p2" },
+      stash: emptyComposePromptStash({
+        videoPrompt: "Ветер шевелит волосы",
+        lastScenarioKey: "photo:p1",
+      }),
+    }),
+    true
+  );
+});
+
+test("seeded animate motion keeps Repeat beat and ignores photo extracts", () => {
+  assert.equal(
+    seededAnimateMotionPrompt({
+      intent: "resume",
+      promptText: "Ветер шевелит волосы",
+    }),
+    ""
+  );
+  assert.equal(
+    seededAnimateMotionPrompt({
+      intent: "animate",
+      promptText: "Visual Hook:\nGold\n\nMotion:\nКрылья медленно раскрываются",
+    }),
+    "Крылья медленно раскрываются"
+  );
+  assert.equal(
+    seededAnimateMotionPrompt({
+      intent: "animate",
+      promptText: "Visual Hook:\nGold\n\nScene:\nStudio\n\nGenre:\nPortrait\n\nPose:\nStand",
+    }),
+    ""
+  );
+  assert.equal(
+    seededAnimateMotionPrompt({
+      intent: "animate",
+      promptText: "Ветер шевелит волосы",
+    }),
+    "Ветер шевелит волосы"
+  );
 });
 
 test("same modality is a no-op", () => {

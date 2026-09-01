@@ -237,6 +237,7 @@ test("photo prompt selection is radio, cap 1", () => {
   );
   assert.deepEqual(clampPhotoPromptSelection(["a", "b", "c"]), ["c"]);
   assert.equal(photoPromptSelectionCap("photo_prompt", 10), 1);
+  assert.equal(photoPromptSelectionCap("video", 10), 1);
   assert.equal(photoPromptSelectionCap("image", 10), 10);
   assert.equal(isPhotoPromptEphemeralId(PHOTO_PROMPT_EPHEMERAL_ID), true);
   assert.equal(makeEphemeralPhotoPromptPhoto("data:image/jpeg;base64,x").id, PHOTO_PROMPT_EPHEMERAL_ID);

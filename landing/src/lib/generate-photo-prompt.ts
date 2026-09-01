@@ -212,7 +212,7 @@ export function photoPromptSelectionCap(
   mode: string | null | undefined,
   maxPhotos: number
 ): number {
-  return isPhotoPromptComposeMode(mode)
+  return isPhotoPromptComposeMode(mode) || mode === "video"
     ? PHOTO_PROMPT_MAX_SELECTED
     : Math.max(1, maxPhotos);
 }

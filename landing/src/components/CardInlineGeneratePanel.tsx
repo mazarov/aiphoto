@@ -130,6 +130,9 @@ import {
 import {
   composeVideoScenarioKey,
   emptyComposePromptStash,
+  resolveVideoAnimateScenarioSource,
+  seededAnimateMotionPrompt,
+  shouldRequestVideoAnimateScenario,
   switchComposeModalityPrompt,
 } from "@/lib/compose-modality-prompt";
 import {
@@ -395,7 +398,13 @@ export function CardInlineGeneratePanel({
   const [animatePreviewUrl, setAnimatePreviewUrl] = useState<string | null>(
     seed.previewUrl || null
   );
-  const [scenarioLoading, setScenarioLoading] = useState(seed.intent === "animate");
+  const [scenarioLoading, setScenarioLoading] = useState(() => {
+    if (seed.intent !== "animate" || !seed.parentGenerationId?.trim()) return false;
+    return !seededAnimateMotionPrompt({
+      intent: seed.intent,
+      promptText: seed.promptText,
+    });
+  });
   const scenarioRequestRef = useRef(0);
   const [preferencesHydrated, setPreferencesHydrated] = useState(false);
   const [preserveOutfit, setPreserveOutfit] = useState(false);
@@ -637,9 +646,7 @@ export function CardInlineGeneratePanel({
     (input: {
       parentGenerationId?: string | null;
       previewUrl?: string | null;
-      photoStoragePath?: string | null;
       scenarioKey: string | null;
-      sourcePrompt?: string;
     }) => {
       const switched = switchComposeModalityPrompt({
         from: promptModalityForComposeMode(composeModeRef.current),
@@ -651,18 +658,16 @@ export function CardInlineGeneratePanel({
       promptStashRef.current = switched.stash;
       setDraftPrompt(switched.draft);
       setComposeMode("video");
+      composeModeRef.current = "video";
       setAnimateParentId(input.parentGenerationId || null);
       setAnimatePreviewUrl(input.previewUrl || null);
+      setSelectedPhotoIds((current) => {
+        if (current.size <= 1) return current;
+        return new Set(clampPhotoPromptSelection(current));
+      });
       setError("");
-      if (switched.shouldLoadScenario) {
-        void loadAnimateScenario({
-          parentGenerationId: input.parentGenerationId,
-          photoStoragePath: input.photoStoragePath,
-          sourcePrompt: input.sourcePrompt ?? switched.stash.imagePrompt,
-        });
-      }
     },
-    [loadAnimateScenario]
+    []
   );
 
   const restoreImagePromptFromVideo = useCallback(() => {
@@ -1186,14 +1191,6 @@ export function CardInlineGeneratePanel({
   }, [isAuthed, user?.id]);
 
   useEffect(() => {
-    if (seed.intent !== "animate" || !isAuthed) return;
-    void loadAnimateScenario({
-      parentGenerationId: seed.parentGenerationId,
-      sourcePrompt: seed.promptText,
-    });
-  }, [isAuthed, loadAnimateScenario, seed.intent, seed.parentGenerationId, seed.promptText]);
-
-  useEffect(() => {
     if (composeMode !== "video" || !animateParentId || !isAuthed) return;
     let cancelled = false;
     void fetch(`/api/generations/${encodeURIComponent(animateParentId)}`, {
@@ -1363,6 +1360,62 @@ export function CardInlineGeneratePanel({
     () => photos.filter((photo) => selectedPhotoIds.has(photo.id)),
     [photos, selectedPhotoIds]
   );
+  const videoScenarioSource = useMemo(
+    () =>
+      resolveVideoAnimateScenarioSource({
+        composeMode,
+        animateParentId,
+        selectedPhotos,
+      }),
+    [animateParentId, composeMode, selectedPhotos]
+  );
+  const seededVideoMotion = useMemo(
+    () =>
+      seededAnimateMotionPrompt({
+        intent: seed.intent,
+        promptText: seed.promptText,
+      }),
+    [seed.intent, seed.promptText]
+  );
+
+  useEffect(() => {
+    if (composeMode !== "video") return;
+    if (
+      !shouldRequestVideoAnimateScenario({
+        source: videoScenarioSource,
+        stash: promptStashRef.current,
+        seededMotion: seededVideoMotion,
+        seedParentGenerationId: seed.parentGenerationId,
+      })
+    ) {
+      if (
+        !videoScenarioSource &&
+        !isAuthed &&
+        !draftPromptRef.current.trim()
+      ) {
+        rememberVideoPrompt(DEFAULT_VIDEO_PROMPT);
+      }
+      return;
+    }
+    if (!videoScenarioSource) return;
+    promptStashRef.current = {
+      ...promptStashRef.current,
+      lastScenarioKey: videoScenarioSource.scenarioKey,
+    };
+    void loadAnimateScenario({
+      parentGenerationId: videoScenarioSource.parentGenerationId,
+      photoStoragePath: videoScenarioSource.photoStoragePath,
+      sourcePrompt: promptStashRef.current.imagePrompt,
+    });
+  }, [
+    composeMode,
+    isAuthed,
+    loadAnimateScenario,
+    seed.parentGenerationId,
+    seededVideoMotion,
+    videoScenarioSource,
+  ]);
+
   const selectImageModel = (modelId: string) => {
     setModel(modelId);
     if (composeModeRef.current !== "image") {
@@ -1371,26 +1424,28 @@ export function CardInlineGeneratePanel({
   };
   const selectVideoModel = (modelId: string) => {
     if (composeModeRef.current !== "video") {
-      if (selectedPhotos.length !== 1) {
+      const photo =
+        selectedPhotos.length > 0
+          ? selectedPhotos[selectedPhotos.length - 1]
+          : null;
+      if (!photo) {
+        enterVideoCompose({ scenarioKey: null });
         setError("Для оживления выберите одно фото");
         setExpandedControl("photos");
-        return;
+      } else {
+        const linkedParentId = resolveVideoEnqueueParentGenerationId(
+          null,
+          photo.originalFilename
+        );
+        enterVideoCompose({
+          parentGenerationId: linkedParentId || null,
+          previewUrl: photo.previewUrl || null,
+          scenarioKey: composeVideoScenarioKey({
+            parentGenerationId: linkedParentId,
+            photoId: photo.id,
+          }),
+        });
       }
-      const photo = selectedPhotos[0];
-      const linkedParentId = resolveVideoEnqueueParentGenerationId(
-        null,
-        photo.originalFilename
-      );
-      enterVideoCompose({
-        parentGenerationId: linkedParentId || null,
-        previewUrl: photo.previewUrl || null,
-        photoStoragePath: linkedParentId ? null : photo.storagePath || null,
-        scenarioKey: composeVideoScenarioKey({
-          parentGenerationId: linkedParentId,
-          photoId: photo.id,
-        }),
-        sourcePrompt: draftPromptRef.current,
-      });
     }
     setVideoModel(modelId);
     if (isVeoLiteVideoModel(modelId) && videoDurationSeconds > 8) {
@@ -1493,7 +1548,10 @@ export function CardInlineGeneratePanel({
     if (isGenerateComposeJobBusy(phase) || libraryUploading) return;
     setError("");
     setSelectedPhotoIds((current) => {
-      if (isPhotoPromptComposeMode(composeModeRef.current)) {
+      if (
+        isPhotoPromptComposeMode(composeModeRef.current) ||
+        composeModeRef.current === "video"
+      ) {
         return new Set(nextPhotoPromptSelection({ current, toggledId: id }));
       }
       const next = new Set(current);
@@ -1513,7 +1571,9 @@ export function CardInlineGeneratePanel({
   const uploadFiles = async (files: File[]) => {
     if (!files.length) return;
     const photoPromptMode = isPhotoPromptComposeMode(composeModeRef.current);
-    const filesToUpload = photoPromptMode ? files.slice(0, 1) : files;
+    const singlePhotoMode =
+      photoPromptMode || composeModeRef.current === "video";
+    const filesToUpload = singlePhotoMode ? files.slice(0, 1) : files;
     if (!isAuthed) {
       const prepared = await prepareUploadFile(filesToUpload[0], {
         maxPx: PHOTO_PROMPT_UPLOAD_MAX_PX,
@@ -1539,7 +1599,7 @@ export function CardInlineGeneratePanel({
       return;
     }
     const selectionCap = photoPromptSelectionCap(composeModeRef.current, maxPhotos);
-    const availableSelectionSlots = photoPromptMode
+    const availableSelectionSlots = singlePhotoMode
       ? 1
       : Math.max(0, selectionCap - selectedPhotoIds.size);
     setError("");
@@ -1597,7 +1657,7 @@ export function CardInlineGeneratePanel({
         return next;
       });
       setSelectedPhotoIds((current) => {
-        if (photoPromptMode) {
+        if (singlePhotoMode) {
           const last = uploaded[uploaded.length - 1];
           return last ? new Set([last.id]) : new Set();
         }
@@ -1608,7 +1668,7 @@ export function CardInlineGeneratePanel({
         }
         return next;
       });
-      if (uploaded.length > availableSelectionSlots) {
+      if (!singlePhotoMode && uploaded.length > availableSelectionSlots) {
         setError(
           `Все фото сохранены. Для генерации можно выбрать не больше ${selectionCap}.`
         );
@@ -1627,7 +1687,7 @@ export function CardInlineGeneratePanel({
           return next;
         });
         setSelectedPhotoIds((current) => {
-          if (photoPromptMode) {
+          if (singlePhotoMode) {
             const last = uploaded[uploaded.length - 1];
             return last ? new Set([last.id]) : new Set();
           }
@@ -2297,12 +2357,10 @@ export function CardInlineGeneratePanel({
   const enterAnimateFromResult = () => {
     if (!generationId || !resultUrl || resultModality === "video" || !videoEnabled) return;
     setPhotoshootOpen(false);
-    const sourcePrompt = submittedPrompt || draftPromptRef.current;
     enterVideoCompose({
       parentGenerationId: generationId,
       previewUrl: resultUrl,
       scenarioKey: composeVideoScenarioKey({ parentGenerationId: generationId }),
-      sourcePrompt,
     });
     setSubmittedPrompt("");
     setChangeRequest("");
@@ -2631,10 +2689,10 @@ export function CardInlineGeneratePanel({
   const onVideoModeTileClick = () => {
     const wasVideo = composeModeRef.current === "video";
     if (!wasVideo) {
-      if (selectedPhotos.length === 1) {
-        selectVideoModel(activeVideoModel?.id || videoModel);
-      } else {
-        enterVideoCompose({ scenarioKey: null });
+      selectVideoModel(activeVideoModel?.id || videoModel);
+      if (selectedPhotos.length < 1 && !animateParentId) {
+        setExpandedControl("photos");
+        return;
       }
     }
     setExpandedControl(
