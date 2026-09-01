@@ -16,12 +16,18 @@ import {
   type UnpaidBannerSnapshot,
 } from "@/lib/unpaid-checkout-banner";
 import {
+  openRobokassaPayment,
+  type RobokassaBrowserPayload,
+} from "@/lib/robokassa-browser";
+import { announceRobokassaPayment } from "@/lib/robokassa-payment-events";
+import {
   isYooKassaPaymentId,
   sanitizeYooKassaReturnPath,
 } from "@/lib/yookassa-return-path";
 import {
   reachYandexMetrikaGoal,
   YM_GOAL_PAYMENT_CHECKOUT_STARTED,
+  YM_GOAL_PAYMENT_IFRAME_OPENED,
   YM_GOAL_YOOKASSA_CHECKOUT_REDIRECT,
 } from "@/lib/yandex-metrika";
 
@@ -58,7 +64,7 @@ export function UnpaidCheckoutBanner() {
       return;
     }
     try {
-      const response = await fetch("/api/payments/yookassa/unpaid-banner", {
+      const response = await fetch("/api/payments/unpaid-banner", {
         cache: "no-store",
         credentials: "same-origin",
       });
@@ -71,7 +77,7 @@ export function UnpaidCheckoutBanner() {
     }
   }, [isAuthed]);
 
-  const continueToYooKassa = useCallback(
+  const continueCheckout = useCallback(
     async (planId: string) => {
       if (checkoutInFlightRef.current) return;
       checkoutInFlightRef.current = true;
@@ -80,6 +86,7 @@ export function UnpaidCheckoutBanner() {
       reachYandexMetrikaGoal(YM_GOAL_PAYMENT_CHECKOUT_STARTED, {
         plan_id: planId,
         source: "unpaid_banner",
+        provider: snapshot?.provider,
       });
       try {
         const returnPath = sanitizeYooKassaReturnPath(
@@ -95,12 +102,20 @@ export function UnpaidCheckoutBanner() {
             returnPath,
           }),
         });
-        const payload = (await response.json().catch(() => null)) as {
-          provider?: string;
-          confirmationUrl?: string;
-          alreadyCredited?: boolean;
-          message?: string;
-        } | null;
+        const payload = (await response.json().catch(() => null)) as
+          | {
+              provider?: "yookassa";
+              confirmationUrl?: string;
+              alreadyCredited?: boolean;
+              message?: string;
+            }
+          | {
+              provider?: "robokassa";
+              paymentId?: string;
+              payload?: RobokassaBrowserPayload;
+              message?: string;
+            }
+          | null;
         if (response.status === 401) {
           openAuthModal();
           return;
@@ -108,13 +123,27 @@ export function UnpaidCheckoutBanner() {
         if (!response.ok || !payload) {
           throw new Error(payload?.message || "Не удалось открыть оплату");
         }
-        if (payload.alreadyCredited === true) {
+        if ("alreadyCredited" in payload && payload.alreadyCredited === true) {
           requestCreditBalanceRefresh();
           persistUnpaidBannerDismiss(
             window.localStorage,
             snapshot?.paymentId || "",
           );
           setDismissedPaymentId(snapshot?.paymentId || "");
+          return;
+        }
+        if (
+          payload.provider === "robokassa" &&
+          payload.paymentId &&
+          payload.payload
+        ) {
+          await openRobokassaPayment(payload.payload);
+          announceRobokassaPayment(payload.paymentId);
+          reachYandexMetrikaGoal(YM_GOAL_PAYMENT_IFRAME_OPENED, {
+            provider: "robokassa",
+            plan_id: planId,
+            source: "unpaid_banner",
+          });
           return;
         }
         if (
@@ -137,7 +166,7 @@ export function UnpaidCheckoutBanner() {
         setCheckoutBusy(false);
       }
     },
-    [openAuthModal, snapshot?.paymentId],
+    [openAuthModal, snapshot?.paymentId, snapshot?.provider],
   );
 
   useEffect(() => {
@@ -220,7 +249,7 @@ export function UnpaidCheckoutBanner() {
           disabled={checkoutBusy}
           className="inline-flex min-h-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-r from-indigo-500 to-violet-500 px-3 text-sm font-semibold text-white transition hover:brightness-110 disabled:opacity-70"
           onClick={() => {
-            void continueToYooKassa(view.planId);
+            void continueCheckout(view.planId);
           }}
         >
           {checkoutBusy ? "Открываем оплату…" : copy.action}

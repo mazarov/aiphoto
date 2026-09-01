@@ -1,6 +1,8 @@
-/** Site-wide unpaid YooKassa bar. Clock SSOT = flash grant from yk_abandon_5m. */
+/** Site-wide unpaid checkout bar. Clock SSOT = flash grant from yk_abandon_5m. */
 
 import { isYooKassaCheckoutHost } from "./payment-provider-hosts";
+
+export type UnpaidBannerProvider = "yookassa" | "robokassa";
 
 export const UNPAID_BANNER_TTL_MS = 24 * 60 * 60 * 1000;
 export const UNPAID_BANNER_DISCOUNT_AFTER_MS = 15 * 60 * 1000;
@@ -26,13 +28,17 @@ export type UnpaidBannerView =
       remainingMs: number | null;
     };
 
-export type UnpaidBannerSnapshot = {
+export type UnpaidLedgerRow = {
+  provider: UnpaidBannerProvider;
   paymentId: string;
   planId: string;
   credits: number;
   createdAt: string;
   creditedAt?: string | null;
   status?: string | null;
+};
+
+export type UnpaidBannerSnapshot = UnpaidLedgerRow & {
   offer?: { percent: number; expiresAt: string } | null;
 };
 
@@ -74,12 +80,40 @@ export function isUnpaidBannerPathHidden(pathname: string): boolean {
     path === "/admin" ||
     path.startsWith("/admin/") ||
     path.startsWith("/embed/") ||
-    path.startsWith("/auth/")
+    path.startsWith("/auth/") ||
+    path.startsWith("/payment/")
   );
 }
 
-export function isLiveUnpaidYookassaStatus(status: string | null | undefined): boolean {
+export function isLiveUnpaidPaymentStatus(status: string | null | undefined): boolean {
   return status === "created" || status === "pending" || status === "canceled";
+}
+
+/** @deprecated Use isLiveUnpaidPaymentStatus */
+export const isLiveUnpaidYookassaStatus = isLiveUnpaidPaymentStatus;
+
+export function pickLatestUnpaidLedgerRow(
+  rows: Array<UnpaidLedgerRow | null | undefined>,
+  nowMs: number,
+  ttlMs = UNPAID_BANNER_TTL_MS,
+): UnpaidLedgerRow | null {
+  let latest: UnpaidLedgerRow | null = null;
+  let latestMs = Number.NEGATIVE_INFINITY;
+  for (const row of rows) {
+    if (!row) continue;
+    if (row.creditedAt) continue;
+    if (row.status && !isLiveUnpaidPaymentStatus(row.status)) continue;
+    const createdAtMs = Date.parse(row.createdAt);
+    const credits = Number(row.credits);
+    if (!Number.isFinite(createdAtMs) || createdAtMs <= 0) continue;
+    if (!Number.isFinite(credits) || credits <= 0) continue;
+    if (nowMs - createdAtMs >= ttlMs) continue;
+    if (createdAtMs > latestMs) {
+      latest = row;
+      latestMs = createdAtMs;
+    }
+  }
+  return latest;
 }
 
 export function formatUnpaidBannerCountdown(remainingMs: number): string {
@@ -119,7 +153,7 @@ export function resolveUnpaidBanner(input: {
     return { visible: false };
   }
   if (snap.creditedAt) return { visible: false };
-  if (snap.status && !isLiveUnpaidYookassaStatus(snap.status)) {
+  if (snap.status && !isLiveUnpaidPaymentStatus(snap.status)) {
     return { visible: false };
   }
 

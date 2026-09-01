@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { ensureLandingUserForGeneration } from "@/lib/ensure-landing-user";
-import { getPaymentProviderForEmail } from "@/lib/payment-provider";
+import { resolvePaymentProvider } from "@/lib/payment-provider";
 import { getPricingPlan } from "@/lib/pricing-plans";
 import {
   buildRobokassaCheckoutPayload,
@@ -51,7 +51,14 @@ export async function POST(request: NextRequest) {
     if (authError || !user || user.is_anonymous === true) {
       return NextResponse.json({ error: "unauthorized" }, { status: 401 });
     }
-    if (getPaymentProviderForEmail(user.email) !== "robokassa") {
+    const supabase = createSupabaseServer();
+    if (
+      (await resolvePaymentProvider({
+        supabase,
+        authUserId: user.id,
+        email: user.email,
+      })) !== "robokassa"
+    ) {
       return NextResponse.json({ error: "provider_disabled" }, { status: 409 });
     }
     const config = getRobokassaConfig();
@@ -88,7 +95,6 @@ export async function POST(request: NextRequest) {
     const yclid = sanitizeYclid(body?.yclid);
     const visitorId = sanitizeUuid(body?.visitorId);
     const sessionId = sanitizeUuid(body?.sessionId);
-    const supabase = createSupabaseServer();
     const ensured = await ensureLandingUserForGeneration(supabase, user);
     if (!ensured.ok || ensured.usedGuestOwner) {
       const status = ensured.ok ? 401 : ensured.status;

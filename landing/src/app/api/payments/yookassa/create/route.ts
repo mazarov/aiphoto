@@ -10,7 +10,7 @@ import {
   sanitizeYclid,
   sanitizeYmClientId,
 } from "@/lib/yandex-attribution";
-import { getPaymentProviderForEmail } from "@/lib/payment-provider";
+import { resolvePaymentProvider } from "@/lib/payment-provider";
 import { sanitizePricingPaywallVariant } from "@/lib/pricing-paywall-attribution";
 import {
   resolvePaymentTrafficSource,
@@ -75,7 +75,14 @@ export async function POST(request: NextRequest) {
     if (authError || !user || user.is_anonymous === true) {
       return NextResponse.json({ error: "unauthorized" }, { status: 401 });
     }
-    if (getPaymentProviderForEmail(user.email) !== "yookassa") {
+    const supabase = createSupabaseServer();
+    if (
+      (await resolvePaymentProvider({
+        supabase,
+        authUserId: user.id,
+        email: user.email,
+      })) !== "yookassa"
+    ) {
       return NextResponse.json({ error: "provider_disabled" }, { status: 409 });
     }
 
@@ -118,7 +125,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const supabase = createSupabaseServer();
     try {
       const open = await reconcileOpenYooKassaPaymentsForAuthUser(
         supabase,

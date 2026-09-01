@@ -8,6 +8,7 @@ import {
   formatUnpaidBannerCountdown,
   isSafeYooKassaConfirmationUrl,
   isUnpaidBannerPathHidden,
+  pickLatestUnpaidLedgerRow,
   resolveUnpaidBanner,
   unpaidBannerCopy,
 } from "./unpaid-checkout-banner";
@@ -17,6 +18,7 @@ const createdMs = Date.parse(createdAt);
 
 function snap(overrides: Record<string, unknown> = {}) {
   return {
+    provider: "yookassa" as const,
     paymentId: "pay-1",
     planId: "trial",
     credits: 70,
@@ -128,10 +130,49 @@ test("flash falls back to unfinished after the one-hour grant ends, until 24h", 
   assert.equal(view.phase, "unpaid");
 });
 
-test("admin and embed routes hide the bar", () => {
+test("admin, embed, and payment-return routes hide the bar", () => {
   assert.equal(isUnpaidBannerPathHidden("/admin/payments"), true);
   assert.equal(isUnpaidBannerPathHidden("/embed/stv"), true);
+  assert.equal(isUnpaidBannerPathHidden("/payment/robokassa/success"), true);
   assert.equal(isUnpaidBannerPathHidden("/generaciya-foto"), false);
+});
+
+test("pickLatestUnpaidLedgerRow prefers newer live row across providers", () => {
+  const nowMs = createdMs + 10 * 60 * 1000;
+  const picked = pickLatestUnpaidLedgerRow(
+    [
+      {
+        provider: "yookassa",
+        paymentId: "yk-old",
+        planId: "trial",
+        credits: 70,
+        createdAt: createdAt,
+        creditedAt: null,
+        status: "canceled",
+      },
+      {
+        provider: "robokassa",
+        paymentId: "rk-new",
+        planId: "trial",
+        credits: 70,
+        createdAt: new Date(createdMs + 60_000).toISOString(),
+        creditedAt: null,
+        status: "pending",
+      },
+      {
+        provider: "robokassa",
+        paymentId: "rk-paid",
+        planId: "pro",
+        credits: 175,
+        createdAt: new Date(createdMs + 120_000).toISOString(),
+        creditedAt: new Date(createdMs + 130_000).toISOString(),
+        status: "succeeded",
+      },
+    ],
+    nowMs,
+  );
+  assert.equal(picked?.paymentId, "rk-new");
+  assert.equal(picked?.provider, "robokassa");
 });
 
 test("only hosted YooKassa https URLs are safe to open from the bar", () => {
