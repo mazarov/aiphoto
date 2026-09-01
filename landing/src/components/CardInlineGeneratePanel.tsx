@@ -141,6 +141,8 @@ import {
   resultPrimaryAction,
   composeGenerateCtaLabel,
   composeGenerateCtaShowsModelName,
+  COMPOSE_SAVE_PROMPT_CTA,
+  COMPOSE_SAVING_PROMPT_CTA,
   composeModeFromDockIntent,
   composeModeTileLabel,
   composeNeedsPhotoCtaLabel,
@@ -763,6 +765,10 @@ export function CardInlineGeneratePanel({
 
   const [changeRequest, setChangeRequest] = useState("");
   const [remixing, setRemixing] = useState(false);
+  const [pendingRemixEdit, setPendingRemixEdit] = useState<{
+    parentGenerationId: string;
+    editInstruction: string;
+  } | null>(null);
 
   const runPhotoPromptAnalyzeRef = useRef(runPhotoPromptAnalyze);
   runPhotoPromptAnalyzeRef.current = runPhotoPromptAnalyze;
@@ -2098,12 +2104,14 @@ export function CardInlineGeneratePanel({
         throw new Error(PROMPT_REMIX_COPY.errorGeneric);
       }
       setDraftPrompt(nextPrompt);
+      setSubmittedPrompt(nextPrompt);
       setChangeRequest("");
-      await runGenerate({
-        promptOverride: nextPrompt,
-        parentGenerationId: parentGenerationId || undefined,
-        editInstruction: parentGenerationId ? requestedChange : undefined,
-      });
+      setPendingRemixEdit(
+        parentGenerationId
+          ? { parentGenerationId, editInstruction: requestedChange }
+          : null,
+      );
+      setPromptExpanded(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : PROMPT_REMIX_COPY.errorGeneric);
     } finally {
@@ -2298,6 +2306,7 @@ export function CardInlineGeneratePanel({
     });
     setSubmittedPrompt("");
     setChangeRequest("");
+    setPendingRemixEdit(null);
     setNeedsCredits(false);
     setMenuOpen(false);
     setCameraOrbitOpen(false);
@@ -2315,6 +2324,7 @@ export function CardInlineGeneratePanel({
     setGenerationId(null);
     setSubmittedPrompt("");
     setChangeRequest("");
+    setPendingRemixEdit(null);
     setProgress(0);
     setError("");
     setNeedsCredits(false);
@@ -2363,6 +2373,7 @@ export function CardInlineGeneratePanel({
   /**
    * Blank compose: single prompt field until a completed result exists.
    * Card seed and «Что изменить» after generation use remix (changeRequest + parent).
+   * Remix only saves the rewritten prompt; generate is a separate CTA.
    */
   const useBlankPromptEditor =
     (isBlank && !(resultUrl && generationId)) || videoCompose;
@@ -2500,7 +2511,10 @@ export function CardInlineGeneratePanel({
     !cameraOrbitOpen &&
     !photoshootOpen &&
     !(isDock && dockExpanded);
-  const resultPrimary = resultPrimaryAction({ showCreditsCta });
+  const resultPrimary = resultPrimaryAction({
+    showCreditsCta,
+    remixSaved: Boolean(pendingRemixEdit),
+  });
   const publishRewardKind = publishRewardKindForGeneration({
     modality: resultModality,
     editKind: resultEditKind,
@@ -3032,6 +3046,27 @@ export function CardInlineGeneratePanel({
                     </svg>
                   ),
                 }
+              : resultPrimary.kind === "generate" && pendingRemixEdit
+              ? {
+                  id: "generate",
+                  label: resultPrimary.label,
+                  primary: true,
+                  disabled: busy || Boolean(busyAction),
+                  onClick: () => {
+                    const pending = pendingRemixEdit;
+                    setPendingRemixEdit(null);
+                    void runGenerate({
+                      promptOverride: draftPrompt,
+                      parentGenerationId: pending.parentGenerationId,
+                      editInstruction: pending.editInstruction,
+                    });
+                  },
+                  icon: (
+                    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                      <path d="M5 12h14M13 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  ),
+                }
               : {
                   id: "edit",
                   label: resultPrimary.label,
@@ -3501,7 +3536,7 @@ export function CardInlineGeneratePanel({
                 onClick={() => void applyPromptRemix()}
                 className={`${OVERLAY_BUTTON_UA_RESET} mt-3 flex min-h-12 w-full shrink-0 items-center justify-center rounded-2xl bg-gradient-to-r from-indigo-500 to-violet-500 px-4 py-3 text-[13px] font-semibold text-white shadow-lg shadow-indigo-950/20 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50`}
               >
-                {remixing ? "Применяем и генерируем…" : "Применить и сгенерировать"}
+                {remixing ? COMPOSE_SAVING_PROMPT_CTA : COMPOSE_SAVE_PROMPT_CTA}
               </button>
             </>
             )
@@ -4414,6 +4449,16 @@ export function CardInlineGeneratePanel({
                   promptOverride: draftPrompt.trim() || DEFAULT_VIDEO_PROMPT,
                   modality: "video",
                   parentGenerationId: animateParentId || undefined,
+                });
+                return;
+              }
+              if (pendingRemixEdit) {
+                const pending = pendingRemixEdit;
+                setPendingRemixEdit(null);
+                void runGenerate({
+                  promptOverride: draftPrompt,
+                  parentGenerationId: pending.parentGenerationId,
+                  editInstruction: pending.editInstruction,
                 });
                 return;
               }

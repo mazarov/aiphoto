@@ -166,6 +166,8 @@ export function composeGenerateCtaLabel(
 export const COMPOSE_BUY_CREDITS_CTA = "Купить кредиты для создания фото";
 export const COMPOSE_BUY_CREDITS_CTA_COMPACT = "Купить кредиты";
 export const COMPOSE_EDIT_RESULT_CTA = "Что изменить";
+export const COMPOSE_SAVE_PROMPT_CTA = "Сохранить";
+export const COMPOSE_SAVING_PROMPT_CTA = "Сохраняем…";
 
 /** Collapsed prompt strip is off on the result plate until the editor sheet opens. */
 export function resultChromeHidesPromptStrip(input: {
@@ -183,12 +185,18 @@ export function resultChromeHidesComposeFooter(input: {
   return input.showResultActions || input.showPhotoPromptResult;
 }
 
-export function resultPrimaryAction(input: { showCreditsCta: boolean }): {
-  kind: "credits" | "edit";
+export function resultPrimaryAction(input: {
+  showCreditsCta: boolean;
+  remixSaved?: boolean;
+}): {
+  kind: "credits" | "edit" | "generate";
   label: string;
 } {
   if (input.showCreditsCta) {
     return { kind: "credits", label: COMPOSE_BUY_CREDITS_CTA_COMPACT };
+  }
+  if (input.remixSaved) {
+    return { kind: "generate", label: composeGenerateCtaLabel("image") };
   }
   return { kind: "edit", label: COMPOSE_EDIT_RESULT_CTA };
 }

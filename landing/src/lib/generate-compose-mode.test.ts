@@ -12,6 +12,8 @@ import {
   resultPrimaryAction,
   COMPOSE_GUEST_SIGN_IN_CTA,
   composeGenerateCtaLabel,
+  COMPOSE_SAVE_PROMPT_CTA,
+  COMPOSE_SAVING_PROMPT_CTA,
   composeGenerateCtaShowsModelName,
   composeModeFromDockIntent,
   composeModeTileLabel,
@@ -164,6 +166,12 @@ test("compose tiles and generate CTA follow the selected block", () => {
     kind: "edit",
     label: COMPOSE_EDIT_RESULT_CTA,
   });
+  assert.deepEqual(
+    resultPrimaryAction({ showCreditsCta: false, remixSaved: true }),
+    { kind: "generate", label: composeGenerateCtaLabel("image") },
+  );
+  assert.equal(COMPOSE_SAVE_PROMPT_CTA, "Сохранить");
+  assert.equal(COMPOSE_SAVING_PROMPT_CTA, "Сохраняем…");
   assert.equal(composeNeedsPhotoCtaLabel("photoshoot"), COMPOSE_SELECT_PHOTO_CTA);
   assert.equal(
     composeNeedsPhotoCtaLabel("photoshoot", { isAuthed: true }),

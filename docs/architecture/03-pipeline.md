@@ -2,7 +2,7 @@
 
 > Последнее обновление: 2026-08-21 (**prompt remix section patches:** Gemini возвращает JSON-правки секций, merge в `lib/prompt-remix.ts`; echo → один `full_rewrite` retry, затем `422 unchanged_prompt`.)
 >
-> Последнее обновление: 2026-08-21 (**prompt remix always generates:** успешный remix на клиенте сразу зовёт `POST /api/generate`; без parent — обычный enqueue, с parent — continuation.)
+> Последнее обновление: 2026-09-01 (**prompt remix saves only:** успешный remix на клиенте только обновляет draft. Генерация — отдельный `POST /api/generate` с footer/rail.)
 >
 > Последнее обновление: 2026-08-21 (**prompt remix history identity:** успешный `POST /api/prompt-remix` пишет `analyze_history.user_id` как shared `dbUserId`; эхо источника не пишется (`422 unchanged_prompt`).)
 >
