@@ -26,6 +26,7 @@ export type StoredGenerationPreferences = {
   videoModel: string;
   videoAspectRatio: string;
   videoDurationSeconds: number;
+  preserveOutfit: boolean;
   updatedAt: string;
 };
 
@@ -86,6 +87,7 @@ export function parseStoredGenerationPreferences(
     videoDurationSeconds: Number.isFinite(videoDurationSeconds)
       ? videoDurationSeconds
       : FALLBACK_COMPOSER_DEFAULTS.videoDurationSeconds,
+    preserveOutfit: value.preserveOutfit === true,
     updatedAt: typeof value.updatedAt === "string" ? value.updatedAt : "",
   };
 }
@@ -155,6 +157,7 @@ export function resolveComposerPreferences(input: {
     videoModel,
     videoAspectRatio,
     videoDurationSeconds: normalizeVideoDurationSeconds(rawDuration, videoModel),
+    preserveOutfit: stored?.preserveOutfit === true,
     updatedAt: stored?.updatedAt || "",
   };
 }

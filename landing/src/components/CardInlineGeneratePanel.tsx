@@ -212,6 +212,7 @@ import {
   writeCachedGenerationPreferences,
   type StoredGenerationPreferences,
 } from "@/lib/generation-preferences";
+import { shouldShowPreserveOutfitChip } from "@/lib/wardrobe-policy";
 import { resolveVideoEnqueueParentGenerationId } from "@/lib/user-generation-photos";
 import {
   PHOTO_GUIDE_PORTRAIT_SRC,
@@ -395,6 +396,8 @@ export function CardInlineGeneratePanel({
   const [scenarioLoading, setScenarioLoading] = useState(seed.intent === "animate");
   const scenarioRequestRef = useRef(0);
   const [preferencesHydrated, setPreferencesHydrated] = useState(false);
+  const [preserveOutfit, setPreserveOutfit] = useState(false);
+  const [preserveOutfitEnabled, setPreserveOutfitEnabled] = useState(false);
   const [credits, setCredits] = useState<number | null>(null);
 
   const [photos, setPhotos] = useState<UserPhoto[]>(() => {
@@ -878,6 +881,7 @@ export function CardInlineGeneratePanel({
           photoshootEnabled?: boolean;
           photoshootModel?: { id?: string; cost?: number } | null;
           listingVideoRepeatEnabled?: boolean;
+          preserveOutfitEnabled?: boolean;
           publishReward?: PublishRewardConfig;
         };
         const photosData = (await photosRes.json().catch(() => ({}))) as {
@@ -940,6 +944,7 @@ export function CardInlineGeneratePanel({
         writeCachedPhotoshootEnabled(nextPhotoshootEnabled);
         setPhotoshootEnabled(nextPhotoshootEnabled);
         setListingVideoRepeatEnabled(Boolean(configData.listingVideoRepeatEnabled));
+        setPreserveOutfitEnabled(Boolean(configData.preserveOutfitEnabled));
         if (configData.publishReward) {
           setPublishRewardConfig({
             ...DEFAULT_PUBLISH_REWARD_CONFIG,
@@ -1061,6 +1066,7 @@ export function CardInlineGeneratePanel({
         setVideoModel(resolvedPrefs.videoModel);
         setVideoAspectRatio(resolvedPrefs.videoAspectRatio);
         setVideoDurationSeconds(resolvedPrefs.videoDurationSeconds);
+        setPreserveOutfit(resolvedPrefs.preserveOutfit);
         setSelectedPhotoIds(
           pendingPhotoPromptDataUrl
             ? new Set([PHOTO_PROMPT_EPHEMERAL_ID])
@@ -1236,6 +1242,7 @@ export function CardInlineGeneratePanel({
     videoModel,
     videoAspectRatio,
     videoDurationSeconds,
+    preserveOutfit,
     preferencesHydrated,
     userId: isAuthed ? (user?.id ?? null) : null,
   });
@@ -1247,6 +1254,7 @@ export function CardInlineGeneratePanel({
     videoModel,
     videoAspectRatio,
     videoDurationSeconds,
+    preserveOutfit,
     preferencesHydrated,
     userId: isAuthed ? (user?.id ?? null) : null,
   };
@@ -1275,6 +1283,7 @@ export function CardInlineGeneratePanel({
         videoModel: s.videoModel,
         videoAspectRatio: s.videoAspectRatio,
         videoDurationSeconds: s.videoDurationSeconds,
+        preserveOutfit: s.preserveOutfit,
         updatedAt: new Date().toISOString(),
       };
       writeCachedGenerationPreferences(s.userId, payload);
@@ -1316,6 +1325,7 @@ export function CardInlineGeneratePanel({
     videoAspectRatio,
     videoDurationSeconds,
     videoModel,
+    preserveOutfit,
   ]);
 
   /**
@@ -1818,6 +1828,14 @@ export function CardInlineGeneratePanel({
           parentTile: isPhotoshoot ? options?.parentTile : undefined,
           plannerTemperature: isPhotoshoot ? options?.plannerTemperature : undefined,
           vibeId: null,
+          preserveOutfit:
+            !isVideo &&
+            !isCameraOrbit &&
+            !isPhotoshoot &&
+            !isContinuation &&
+            !options?.forceTextOnly &&
+            preserveOutfit &&
+            selectedPhotos.length > 0,
           ...(listingVideoRepeat
             ? {
                 pipeline: {
@@ -2373,6 +2391,11 @@ export function CardInlineGeneratePanel({
    */
   const glassChrome = isDock || showResultChrome;
   const imageCompose = composeMode === "image";
+  const showPreserveOutfitChip = shouldShowPreserveOutfitChip({
+    composeMode,
+    photoCount: selectedPhotos.length,
+    flagOn: preserveOutfitEnabled,
+  });
   const selectedImageModel = models.find((item) => item.id === model) ?? null;
   const selectedImageCost = selectedImageModel?.cost ?? null;
   const selectedImageModelLabel = selectedImageModel
@@ -4241,6 +4264,27 @@ export function CardInlineGeneratePanel({
               </span>
             </button>
           </div>
+          {showPreserveOutfitChip ? (
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                aria-pressed={preserveOutfit}
+                disabled={controlsBusy}
+                onClick={() => setPreserveOutfit((current) => !current)}
+                className={`${OVERLAY_BUTTON_UA_RESET} inline-flex min-h-11 items-center rounded-full px-3 text-[13px] font-medium transition disabled:opacity-50 ${
+                  preserveOutfit
+                    ? isDock || glassChrome
+                      ? "bg-white/20 text-white ring-1 ring-white/35"
+                      : "bg-zinc-900 text-white"
+                    : isDock || glassChrome
+                      ? "bg-white/10 text-white/85 ring-1 ring-white/15"
+                      : "bg-zinc-100 text-zinc-800"
+                }`}
+              >
+                Оставить одежду
+              </button>
+            </div>
+          ) : null}
 
         </section>
         ) : null}

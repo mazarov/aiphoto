@@ -29,6 +29,7 @@ function stored(
     videoModel: "grok-imagine-video-1.5",
     videoAspectRatio: "16:9",
     videoDurationSeconds: 8,
+    preserveOutfit: false,
     updatedAt: "2026-08-22T10:00:00.000Z",
     ...override,
   };
@@ -102,4 +103,14 @@ test("newer cache wins over stale server prefs", () => {
 
 test("parse ignores a payload without an image model", () => {
   assert.equal(parseStoredGenerationPreferences({ selectedPhotoIds: ["p1"] }), null);
+});
+
+test("resolve restores preserveOutfit when stored", () => {
+  const resolved = resolveComposerPreferences({
+    stored: stored({ preserveOutfit: true }),
+    imageModelIds: IMAGE_IDS,
+    videoModelIds: VIDEO_IDS,
+    availablePhotoIds: ["p1"],
+  });
+  assert.equal(resolved.preserveOutfit, true);
 });

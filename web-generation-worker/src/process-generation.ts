@@ -40,6 +40,7 @@ import {
   photoshootTileStoragePath,
   serializePhotoshootSheetInstruction,
 } from "../../landing/src/lib/photoshoot";
+import { resolveJobWardrobePolicy } from "../../landing/src/lib/wardrobe-policy";
 import { planPhotoshootShots } from "./photoshoot-planner";
 import { splitContactSheet } from "./photoshoot-split";
 import {
@@ -130,6 +131,7 @@ export type GenerationJob = GenerationInputJob & {
   provider_operation_id?: string | null;
   card_id?: string | null;
   pipeline_spec?: unknown;
+  wardrobe_policy?: string | null;
 };
 
 type ImagePart = { inlineData: { mimeType: string; data: string } };
@@ -372,6 +374,7 @@ export async function processGeneration(
   log("info", "generation_started", {
     ...context,
     editKind: job.edit_kind ?? null,
+    wardrobePolicy: job.wardrobe_policy ?? "replace",
     model: job.model,
     imageSize: job.image_size,
     createdAt: job.created_at ?? null,
@@ -590,6 +593,14 @@ export async function processGeneration(
   }
 
   const hasReference = isVibe && Boolean(reference);
+  const wardrobePolicy = resolveJobWardrobePolicy({
+    stored: job.wardrobe_policy,
+    hasInputPhotos: inputParts.length > 0,
+    isVibe,
+    isPhotoshoot,
+    isCameraOrbit,
+    isLocalEdit,
+  });
   const geminiPrompt = isVibe
     ? assembleVibeFinalPrompt(rawPrompt, hasReference)
     : isPhotoshoot
@@ -605,7 +616,7 @@ export async function processGeneration(
       : isLocalEdit
         ? assembleLandingCardEditPrompt(editInstruction)
         : inputParts.length
-          ? assembleLandingCardFinalPrompt(rawPrompt)
+          ? assembleLandingCardFinalPrompt(rawPrompt, wardrobePolicy)
           : assembleTextToImageFinalPrompt(rawPrompt);
   const grokPrompt = isVibe
     ? assembleGrokVibePrompt(rawPrompt, hasReference)
@@ -622,11 +633,12 @@ export async function processGeneration(
       : isLocalEdit
         ? assembleGrokImageEditPrompt(editInstruction)
         : inputParts.length
-          ? assembleGrokImageToImagePrompt(rawPrompt)
+          ? assembleGrokImageToImagePrompt(rawPrompt, wardrobePolicy)
           : assembleGrokTextToImagePrompt(rawPrompt);
   log("info", "generation_prompt_resolved", {
     ...context,
     generationMode,
+    wardrobePolicy,
     editKind: job.edit_kind ?? null,
     cameraPose: job.camera_pose ?? null,
     editInstructionLength: editInstruction.length,
@@ -991,12 +1003,30 @@ async function generateSeedreamFromJob(input: {
       : input.isLocalEdit
         ? assembleSeedreamImageEditPrompt(input.editInstruction)
         : input.inputSource.paths.length
-          ? assembleSeedreamImageToImagePrompt(input.rawPrompt)
+          ? assembleSeedreamImageToImagePrompt(
+              input.rawPrompt,
+              resolveJobWardrobePolicy({
+                stored: input.job.wardrobe_policy,
+                hasInputPhotos: true,
+                isVibe: input.isVibe,
+                isPhotoshoot: input.isPhotoshoot,
+                isCameraOrbit: input.isCameraOrbit,
+                isLocalEdit: input.isLocalEdit,
+              }),
+            )
           : assembleSeedreamTextToImagePrompt(input.rawPrompt);
   const productModel = input.productModel || resolveOpenRouterProductModel(input.job, input.job.model);
   log("info", "generation_prompt_resolved", {
     ...input.context,
     generationMode: input.generationMode,
+    wardrobePolicy: resolveJobWardrobePolicy({
+      stored: input.job.wardrobe_policy,
+      hasInputPhotos: input.inputSource.paths.length > 0,
+      isVibe: input.isVibe,
+      isPhotoshoot: input.isPhotoshoot,
+      isCameraOrbit: input.isCameraOrbit,
+      isLocalEdit: input.isLocalEdit,
+    }),
     editKind: input.job.edit_kind ?? null,
     cameraPose: input.job.camera_pose ?? null,
     editInstructionLength: input.editInstruction.length,

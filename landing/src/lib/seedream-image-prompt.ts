@@ -11,6 +11,7 @@ import {
   assembleGrokTextToImagePrompt,
   assembleGrokVibePrompt,
 } from "./grok-image-prompt";
+import type { WardrobePolicy } from "./wardrobe-policy";
 
 export const SEEDREAM_PROMPT_MAX_CHARS = 4000;
 
@@ -25,8 +26,11 @@ export function assembleSeedreamTextToImagePrompt(rawPrompt: string): string {
   return clampSeedreamPrompt(assembleGrokTextToImagePrompt(rawPrompt));
 }
 
-export function assembleSeedreamImageToImagePrompt(rawPrompt: string): string {
-  return clampSeedreamPrompt(assembleGrokImageToImagePrompt(rawPrompt));
+export function assembleSeedreamImageToImagePrompt(
+  rawPrompt: string,
+  wardrobePolicy: WardrobePolicy = "replace",
+): string {
+  return clampSeedreamPrompt(assembleGrokImageToImagePrompt(rawPrompt, wardrobePolicy));
 }
 
 export function assembleSeedreamImageEditPrompt(editInstruction: string): string {

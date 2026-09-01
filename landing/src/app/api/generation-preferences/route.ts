@@ -36,10 +36,19 @@ function isMissingVideoPreferenceColumns(error: unknown): boolean {
   );
 }
 
+function isMissingPreserveOutfitColumn(error: unknown): boolean {
+  const serialized = serializeUnknownError(error);
+  return /preserve_outfit/i.test(
+    `${serialized.message} ${serialized.code} ${serialized.details}`
+  );
+}
+
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const PREFS_SELECT_FULL =
+  "model,aspect_ratio,image_size,selected_photo_ids,video_model,video_aspect_ratio,video_duration_seconds,preserve_outfit,updated_at";
+const PREFS_SELECT_VIDEO =
   "model,aspect_ratio,image_size,selected_photo_ids,video_model,video_aspect_ratio,video_duration_seconds,updated_at";
 const PREFS_SELECT_CORE =
   "model,aspect_ratio,image_size,selected_photo_ids,updated_at";
@@ -52,6 +61,7 @@ type PreferencesBody = {
   videoModel?: unknown;
   videoAspectRatio?: unknown;
   videoDurationSeconds?: unknown;
+  preserveOutfit?: unknown;
 };
 
 type PreferencesTableRow = Record<string, unknown>;
@@ -70,6 +80,7 @@ function mapRow(data: PreferencesTableRow | null): StoredGenerationPreferences |
     videoModel: data.video_model,
     videoAspectRatio: data.video_aspect_ratio,
     videoDurationSeconds: data.video_duration_seconds,
+    preserveOutfit: data.preserve_outfit,
     updatedAt: data.updated_at,
   });
 }
@@ -83,7 +94,19 @@ async function loadPreferencesRow(
     .select(PREFS_SELECT_FULL)
     .eq("auth_user_id", authUserId)
     .maybeSingle();
-  if (!full.error || !isMissingVideoPreferenceColumns(full.error)) {
+  if (!full.error) {
+    return { data: asPreferencesTableRow(full.data), error: full.error };
+  }
+  if (isMissingPreserveOutfitColumn(full.error)) {
+    const video = await supabase
+      .from("landing_generation_preferences")
+      .select(PREFS_SELECT_VIDEO)
+      .eq("auth_user_id", authUserId)
+      .maybeSingle();
+    if (!video.error || !isMissingVideoPreferenceColumns(video.error)) {
+      return { data: asPreferencesTableRow(video.data), error: video.error };
+    }
+  } else if (!isMissingVideoPreferenceColumns(full.error)) {
     return { data: asPreferencesTableRow(full.data), error: full.error };
   }
 
@@ -211,9 +234,22 @@ export async function PUT(req: NextRequest) {
       body.videoDurationSeconds,
       videoModel
     );
+    const preserveOutfit = body.preserveOutfit === true;
     const updatedAt = new Date().toISOString();
 
     const fullRow = {
+      auth_user_id: user.id,
+      model,
+      aspect_ratio: aspectRatio,
+      image_size: imageSize,
+      selected_photo_ids: selectedPhotoIds,
+      video_model: videoModel,
+      video_aspect_ratio: videoAspectRatio,
+      video_duration_seconds: videoDurationSeconds,
+      preserve_outfit: preserveOutfit,
+      updated_at: updatedAt,
+    };
+    const videoRow = {
       auth_user_id: user.id,
       model,
       aspect_ratio: aspectRatio,
@@ -236,6 +272,13 @@ export async function PUT(req: NextRequest) {
     let { error } = await supabase
       .from("landing_generation_preferences")
       .upsert(fullRow, { onConflict: "auth_user_id" });
+
+    if (error && isMissingPreserveOutfitColumn(error) && !isMissingVideoPreferenceColumns(error)) {
+      const retry = await supabase
+        .from("landing_generation_preferences")
+        .upsert(videoRow, { onConflict: "auth_user_id" });
+      error = retry.error;
+    }
 
     if (error && isMissingVideoPreferenceColumns(error)) {
       const retry = await supabase
@@ -263,6 +306,7 @@ export async function PUT(req: NextRequest) {
         videoModel,
         videoAspectRatio,
         videoDurationSeconds,
+        preserveOutfit,
         updatedAt,
       },
     });

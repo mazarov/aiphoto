@@ -44,6 +44,11 @@ import {
 import { clampPhotoshootPlannerTemperature } from "@/lib/photoshoot-planner";
 import { isPhotoshootUnlocked, resolvePhotoshootModel } from "@/lib/photoshoot-access";
 import {
+  PRESERVE_OUTFIT_CONFIG_KEY,
+  resolveRequestedWardrobePolicy,
+} from "@/lib/wardrobe-policy";
+import { isPreserveOutfitUnlocked } from "@/lib/wardrobe-policy-access";
+import {
   normalizeGenerationSurface,
   resolveGenerationSourceType,
 } from "@/lib/generation-enqueue-core";
@@ -168,6 +173,7 @@ export async function POST(req: NextRequest) {
       plannerTemperature: rawPlannerTemperature,
       durationSeconds,
       idempotencyKey: bodyIdempotencyKey,
+      preserveOutfit,
     } = body as {
       generationSurface?: string;
       modality?: string;
@@ -188,7 +194,9 @@ export async function POST(req: NextRequest) {
       pipelineTraceId?: string;
       idempotencyKey?: string;
       pipeline?: unknown;
+      preserveOutfit?: unknown;
     };
+    const preserveOutfitRequested = preserveOutfit === true;
     const listingRepeatInput = parseListingVideoRepeatClientPipeline(body.pipeline);
     const requestedModality = listingRepeatInput
       ? IMAGE_GENERATION_MODALITY
@@ -643,6 +651,7 @@ export async function POST(req: NextRequest) {
         "camera_orbit_model",
         "photoshoot_enabled",
         "photoshoot_model",
+        PRESERVE_OUTFIT_CONFIG_KEY,
         LISTING_VIDEO_REPEAT_CONFIG_KEY,
       ]);
 
@@ -716,6 +725,20 @@ export async function POST(req: NextRequest) {
         );
       }
     }
+    const wardrobePolicy = resolveRequestedWardrobePolicy({
+      preserveOutfitRequested,
+      flagOn: isPreserveOutfitUnlocked(
+        config[PRESERVE_OUTFIT_CONFIG_KEY],
+        user.email,
+      ),
+      hasPhotos: normalizedPhotoStoragePaths.length > 0,
+      isVibe: Boolean(resolvedVibeId),
+      isPhotoshoot,
+      isCameraOrbit,
+      isLocalEdit: hasParentGeneration && !isPhotoshoot && !isCameraOrbit,
+      isVideo,
+    });
+
     if (isPhotoshoot) {
       const enabled = isPhotoshootUnlocked(
         config.photoshoot_enabled,
@@ -965,6 +988,7 @@ export async function POST(req: NextRequest) {
                 normalizedEditInstruction
               )),
           vibeId: resolvedVibeId,
+          wardrobePolicy,
           cardId: cardId || null,
           clientSource: GENERATION_CLIENT_SOURCE,
           modality: requestedModality,
@@ -1010,6 +1034,7 @@ export async function POST(req: NextRequest) {
       cameraPose: cameraOrbitPose,
       orbitModel: isCameraOrbit ? modelConfig.id : null,
       photoshootModel: isPhotoshoot ? modelConfig.id : null,
+      wardrobePolicy,
       editInstructionLength: normalizedEditInstruction.length,
       promptLength: promptText.length,
     });
@@ -1081,6 +1106,7 @@ export async function POST(req: NextRequest) {
                 p_edit_kind: PHOTOSHOOT_EDIT_KIND,
               }
           : {}),
+        ...(wardrobePolicy === "keep" ? { p_wardrobe_policy: "keep" } : {}),
       }
     );
     const enqueueRow = Array.isArray(enqueueRows) ? enqueueRows[0] : enqueueRows;

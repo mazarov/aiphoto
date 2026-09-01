@@ -5,6 +5,10 @@
 
 import { looksLikeCameraOrbitInstruction } from "./camera-orbit";
 import { looksLikePhotoshootInstruction, PHOTOSHOOT_FLUSH_PANELS_RULE } from "./photoshoot";
+import {
+  applyWardrobePolicyToPrompt,
+  type WardrobePolicy,
+} from "./wardrobe-policy";
 
 export const VIBE_IMAGE_PART_LABEL_REFERENCE = `
 [IMAGE A — STYLE REFERENCE ONLY]
@@ -37,6 +41,17 @@ The input image(s) show the SUBJECT (a real person). Output exactly one new phot
 
 - Identity: preserve the same person — face structure, features, skin tone, eye color, body proportions, natural hair color from the input. Do not swap in a different face or body.
 - Wardrobe — fully replace clothing: ignore the apparel, shoes, and visible accessories in the input photo as the outfit to keep. Treat input clothing as something to discard unless the text explicitly says to preserve it. Dress the subject exactly as the text prompt describes — fully change the outfit to match the prompt; do not default to copying the T-shirt, hoodie, jeans, dress, or shoes from the upload. If the text names specific garments, colors, or style, the output must show those.
+- Result must look naturally photographed, not pasted or flatly composited.
+${IMAGE_QUALITY_CRITICAL_BULLET}
+`.trim();
+
+export const GENERATE_LANDING_CARD_KEEP_WARDROBE_RULES = `
+CRITICAL RULES
+The input image(s) show the SUBJECT (a real person). Output exactly one new photorealistic photograph of that same person. Follow the text above for scene, pose, lighting, and camera only.
+
+- Identity: preserve the same person — face structure, features, skin tone, eye color, body proportions, natural hair color from the input. Do not swap in a different face or body.
+- Wardrobe — lock clothing from the input photo: keep the same garments, shoes, and visible worn accessories (glasses, watch, jewelry, bag if worn). The input outfit is the only wardrobe source. Ignore garments, colors, fabrics, and fashion looks named in the text. Do not dress the subject in clothing described by the prompt.
+- Scene, pose, lighting, and camera follow the text. Do not invent a new outfit to fit the scene.
 - Result must look naturally photographed, not pasted or flatly composited.
 ${IMAGE_QUALITY_CRITICAL_BULLET}
 `.trim();
@@ -118,10 +133,16 @@ export function assembleVibeFinalPrompt(
   return joinFinalPromptParts(scene, GENERATE_VIBE_CRITICAL_RULES_SINGLE);
 }
 
-export function assembleLandingCardFinalPrompt(rawCardPrompt: string): string {
+export function assembleLandingCardFinalPrompt(
+  rawCardPrompt: string,
+  wardrobePolicy: WardrobePolicy = "replace",
+): string {
+  const policy = wardrobePolicy === "keep" ? "keep" : "replace";
   return joinFinalPromptParts(
-    String(rawCardPrompt ?? "").trimEnd(),
-    GENERATE_LANDING_CARD_CRITICAL_RULES
+    applyWardrobePolicyToPrompt(String(rawCardPrompt ?? "").trimEnd(), policy),
+    policy === "keep"
+      ? GENERATE_LANDING_CARD_KEEP_WARDROBE_RULES
+      : GENERATE_LANDING_CARD_CRITICAL_RULES,
   );
 }
 

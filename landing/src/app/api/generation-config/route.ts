@@ -12,6 +12,8 @@ import { isPhotoshootUnlocked, resolvePhotoshootModel } from "@/lib/photoshoot-a
 import { parsePublishRewardConfig } from "@/lib/publish-reward";
 import { LISTING_VIDEO_REPEAT_CONFIG_KEY } from "@/lib/listing-video-repeat";
 import { isListingVideoRepeatUnlocked } from "@/lib/listing-video-repeat-access";
+import { PRESERVE_OUTFIT_CONFIG_KEY } from "@/lib/wardrobe-policy";
+import { isPreserveOutfitUnlocked } from "@/lib/wardrobe-policy-access";
 import {
   DEFAULT_IMAGE_ASPECT_RATIO,
   DEFAULT_IMAGE_SIZE,
@@ -67,6 +69,7 @@ export async function GET(req: NextRequest) {
         "publish_reward_photoshoot",
         "publish_reward_daily_cap",
         LISTING_VIDEO_REPEAT_CONFIG_KEY,
+        PRESERVE_OUTFIT_CONFIG_KEY,
       ]);
 
     const config: Record<string, string> = {};
@@ -76,6 +79,10 @@ export async function GET(req: NextRequest) {
     const publishReward = parsePublishRewardConfig(config);
     const listingVideoRepeatEnabled = isListingVideoRepeatUnlocked(
       config[LISTING_VIDEO_REPEAT_CONFIG_KEY],
+      user?.email,
+    );
+    const preserveOutfitEnabled = isPreserveOutfitUnlocked(
+      config[PRESERVE_OUTFIT_CONFIG_KEY],
       user?.email,
     );
 
@@ -104,6 +111,7 @@ export async function GET(req: NextRequest) {
           minPromptLength: parseInt(config.min_prompt_length || "8", 10),
         },
         listingVideoRepeatEnabled,
+        preserveOutfitEnabled,
         publishReward,
       });
     }
@@ -142,6 +150,7 @@ export async function GET(req: NextRequest) {
         minPromptLength: parseInt(config.min_prompt_length || "8", 10),
       },
       listingVideoRepeatEnabled,
+      preserveOutfitEnabled,
       publishReward,
     });
   } catch (err) {

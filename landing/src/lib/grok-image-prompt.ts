@@ -4,6 +4,10 @@
 
 import { looksLikeCameraOrbitInstruction } from "./camera-orbit";
 import { looksLikePhotoshootInstruction, PHOTOSHOOT_FLUSH_PANELS_RULE } from "./photoshoot";
+import {
+  applyWardrobePolicyToPrompt,
+  type WardrobePolicy,
+} from "./wardrobe-policy";
 
 const IDENTITY_RULES = [
   "The provided photo(s) show the SUBJECT (a real person).",
@@ -11,6 +15,17 @@ const IDENTITY_RULES = [
   "Preserve identity: face structure, features, skin tone, eye color, body proportions, natural hair color.",
   "Do not swap in a different face or body.",
   "Unless the text explicitly says to keep the outfit, replace clothing to match the prompt.",
+  "The result must look naturally photographed, not pasted.",
+].join("\n");
+
+const KEEP_WARDROBE_RULES = [
+  "The provided photo(s) show the SUBJECT (a real person).",
+  "Output exactly one new photorealistic photograph of that same person.",
+  "Follow the text for scene, pose, lighting, and camera only.",
+  "Preserve identity: face structure, features, skin tone, eye color, body proportions, natural hair color.",
+  "Do not swap in a different face or body.",
+  "Keep the same clothing, shoes, and worn accessories from the subject photo.",
+  "Ignore garments or colors named in the text. Do not change the outfit.",
   "The result must look naturally photographed, not pasted.",
 ].join("\n");
 
@@ -44,8 +59,15 @@ export function assembleGrokTextToImagePrompt(rawPrompt: string): string {
   return joinPrompt(rawPrompt, TEXT_ONLY_RULES);
 }
 
-export function assembleGrokImageToImagePrompt(rawPrompt: string): string {
-  return joinPrompt(rawPrompt, IDENTITY_RULES);
+export function assembleGrokImageToImagePrompt(
+  rawPrompt: string,
+  wardrobePolicy: WardrobePolicy = "replace",
+): string {
+  const policy = wardrobePolicy === "keep" ? "keep" : "replace";
+  return joinPrompt(
+    applyWardrobePolicyToPrompt(rawPrompt, policy),
+    policy === "keep" ? KEEP_WARDROBE_RULES : IDENTITY_RULES,
+  );
 }
 
 export function assembleGrokImageEditPrompt(editInstruction: string): string {

@@ -11,6 +11,7 @@ import {
 import {
   assembleGrokCameraOrbitPrompt,
   assembleGrokImageEditPrompt,
+  assembleGrokImageToImagePrompt,
   assembleGrokPhotoshootSheetPrompt,
 } from "../../landing/src/lib/grok-image-prompt";
 
@@ -19,6 +20,24 @@ test("card prompt appends identity and wardrobe rules after user text", () => {
   assert.ok(prompt.startsWith("A red evening dress"));
   assert.match(prompt, /CRITICAL RULES/);
   assert.match(prompt, /fully replace clothing/);
+});
+
+test("keep wardrobe policy locks outfit and strips Clothing section", () => {
+  const prompt = assembleLandingCardFinalPrompt(
+    "Scene\nEvening embankment.\nClothing\nRed silk evening dress.\n",
+    "keep",
+  );
+  const grok = assembleGrokImageToImagePrompt(
+    "Scene\nEvening embankment.\nClothing\nRed silk evening dress.\n",
+    "keep",
+  );
+  assert.match(prompt, /Evening embankment/);
+  assert.match(prompt, /lock clothing from the input photo/);
+  assert.doesNotMatch(prompt, /fully replace clothing/);
+  assert.doesNotMatch(prompt, /Red silk evening dress/);
+  assert.match(grok, /Keep the same clothing/);
+  assert.doesNotMatch(grok, /replace clothing to match the prompt/);
+  assert.doesNotMatch(grok, /Red silk evening dress/);
 });
 
 test("text-to-image prompt does not append identity preservation rules", () => {
