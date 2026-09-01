@@ -72,6 +72,7 @@ import {
   buildXaiImageEditBody,
   buildXaiImageGenerateBody,
   clampGrokImageParts,
+  extractXaiCostUsd,
   extractXaiImageBase64,
   extractXaiImageUrl,
   isGrokImageModel,
@@ -362,6 +363,7 @@ export async function processGeneration(
   executedModel: string;
   fallbackUsed: boolean;
   photoshootTilePaths?: string[];
+  providerCostUsd?: number | null;
 }> {
   const workerStartedAt = Date.now();
   const queueWait = queueWaitMs(job.created_at, workerStartedAt);
@@ -656,11 +658,12 @@ export async function processGeneration(
   let imageBuffer: Buffer;
   let executedModel = startOnGrok ? GROK_IMAGINE_IMAGE_MODEL : requestedModel;
   let fallbackUsed = Boolean(job.fallback_used);
+  let providerCostUsd: number | null = null;
   const providerStarted = Date.now();
 
   if (startOnGrok) {
     try {
-      imageBuffer = await generateGrokImage({
+      const grok = await generateGrokImage({
         job,
         prompt: grokPrompt,
         images: grokParts,
@@ -668,6 +671,8 @@ export async function processGeneration(
         context,
         ensureLease,
       });
+      imageBuffer = grok.buffer;
+      providerCostUsd = grok.costUsd;
     } catch (error) {
       const processing = toProcessingError(error);
       if (isPhotoshoot) {
@@ -790,7 +795,7 @@ export async function processGeneration(
           errorType: error.errorType,
         });
         try {
-          imageBuffer = await generateGrokImage({
+          const grok = await generateGrokImage({
             job,
             model: grokDecision.model,
             prompt: grokPrompt,
@@ -799,6 +804,8 @@ export async function processGeneration(
             context,
             ensureLease,
           });
+          imageBuffer = grok.buffer;
+          providerCostUsd = grok.costUsd;
         } catch (grokError) {
           const processing = toProcessingError(grokError);
           const seedream = await trySeedreamImageFallback({
@@ -907,7 +914,14 @@ export async function processGeneration(
     }),
   );
   logPhotoshootTiming(context, photoshootMarks, { executedModel, fallbackUsed });
-  return { resultPath, rawPrompt, executedModel, fallbackUsed, photoshootTilePaths };
+  return {
+    resultPath,
+    rawPrompt,
+    executedModel,
+    fallbackUsed,
+    photoshootTilePaths,
+    providerCostUsd: isGrokImageModel(executedModel) ? providerCostUsd : null,
+  };
 }
 
 function logPhotoshootTiming(
@@ -1453,7 +1467,7 @@ async function generateGrokImage(input: {
   signal: AbortSignal;
   context: ProviderContext;
   ensureLease: () => Promise<void>;
-}): Promise<Buffer> {
+}): Promise<{ buffer: Buffer; costUsd: number | null }> {
   if (!config.xaiApiKey || !config.xaiBaseUrl) {
     throw new ProcessingError("config_error", "XAI_BASE_URL is not configured", false);
   }
@@ -1569,13 +1583,15 @@ async function generateGrokImage(input: {
     throw new ProcessingError("grok_image_error", "xAI returned an empty image", false);
   }
   grokImageCircuit.record(true);
+  const costUsd = extractXaiCostUsd(payload);
   log("info", "grok_image_request_completed", {
     ...input.context,
     model,
     durationMs: elapsedMs(requestStarted),
     bytes: imageBuffer.length,
+    costUsd,
   });
-  return imageBuffer;
+  return { buffer: imageBuffer, costUsd };
 }
 
 async function downloadXaiImageBase64(imageUrl: string, signal: AbortSignal): Promise<string> {

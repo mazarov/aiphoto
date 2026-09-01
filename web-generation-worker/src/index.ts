@@ -88,6 +88,26 @@ async function terminalFail(job: GenerationJob, error: ProcessingError): Promise
   });
 }
 
+async function persistProviderCost(
+  generationId: string,
+  costUsd: number,
+  source: "xai_ticks" | "estimate",
+): Promise<void> {
+  const { error } = await supabase
+    .from("landing_generations")
+    .update({
+      provider_cost_usd: costUsd,
+      provider_cost_source: source,
+    })
+    .eq("id", generationId);
+  if (error) {
+    log("warn", "generation_provider_cost_persist_failed", {
+      generationId,
+      error: error.message,
+    });
+  }
+}
+
 async function persistExecutedModel(job: GenerationJob, executedModel: string, fallbackUsed: boolean): Promise<void> {
   const { error } = await supabase
     .from("landing_generations")
@@ -188,6 +208,9 @@ async function runJob(job: GenerationJob): Promise<void> {
     await ensureLease();
     if ("executedModel" in result && result.executedModel) {
       await persistExecutedModel(job, result.executedModel, Boolean(result.fallbackUsed));
+    }
+    if ("providerCostUsd" in result && result.providerCostUsd != null) {
+      await persistProviderCost(job.id, result.providerCostUsd, "xai_ticks");
     }
     const { data: completed, error } = await supabase.rpc("landing_complete_generation", {
       p_generation_id: job.id,

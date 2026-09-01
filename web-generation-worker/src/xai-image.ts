@@ -75,10 +75,21 @@ export function buildXaiImageEditBody(input: {
   };
 }
 
+export const XAI_USD_TICKS_PER_DOLLAR = 10_000_000_000;
+
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : null;
+}
+
+export function extractXaiCostUsd(payload: unknown): number | null {
+  const record = asRecord(payload);
+  const usage = record ? asRecord(record.usage) : null;
+  const ticks = usage?.cost_in_usd_ticks ?? record?.cost_in_usd_ticks;
+  const amount = typeof ticks === "number" ? ticks : Number(ticks);
+  if (!Number.isFinite(amount) || amount < 0) return null;
+  return Math.round((amount / XAI_USD_TICKS_PER_DOLLAR) * 1_000_000) / 1_000_000;
 }
 
 export function extractXaiImageBase64(payload: Record<string, unknown>): string {

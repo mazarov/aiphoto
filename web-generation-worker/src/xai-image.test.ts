@@ -5,6 +5,7 @@ import {
   buildXaiImageEditBody,
   buildXaiImageGenerateBody,
   clampGrokImageParts,
+  extractXaiCostUsd,
   extractXaiImageBase64,
   extractXaiImageUrl,
   isGrokImageModel,
@@ -87,4 +88,12 @@ test("extracts b64 or url from OpenAI-shaped payload", () => {
   assert.equal(isXaiImageSafetyBlock({ respect_moderation: false }, ""), true);
   assert.equal(isXaiImageSafetyBlock({ error: { code: "usage_guideline_violation" } }, ""), true);
   assert.equal(isXaiImageSafetyBlock({}, "ok"), false);
+});
+
+test("extractXaiCostUsd converts ticks at 1e10 per dollar", () => {
+  assert.equal(extractXaiCostUsd({ usage: { cost_in_usd_ticks: 200000000 } }), 0.02);
+  assert.equal(extractXaiCostUsd({ usage: { cost_in_usd_ticks: 37756000 } }), 0.003776);
+  assert.equal(extractXaiCostUsd({ cost_in_usd_ticks: "400000000" }), 0.04);
+  assert.equal(extractXaiCostUsd({}), null);
+  assert.equal(extractXaiCostUsd({ usage: { cost_in_usd_ticks: -1 } }), null);
 });

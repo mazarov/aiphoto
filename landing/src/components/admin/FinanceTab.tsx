@@ -2,7 +2,14 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
-import type { FinanceMonthData, FinancePnl } from "@/lib/finance-types";
+import {
+  FINANCE_COGS_PROVIDER_LABELS,
+  type FinanceAdsSource,
+  type FinanceCogsSource,
+  type FinanceMonthData,
+  type FinancePnl,
+  type FinanceRevenueSource,
+} from "@/lib/finance-types";
 import { YANDEX_TWO_CLUSTER_LAUNCH } from "@/lib/yandex-two-cluster-launch";
 import { FinanceDailyChart } from "./FinanceDailyChart";
 import { FinanceModelDailyChart } from "./FinanceModelDailyChart";
@@ -75,19 +82,26 @@ function PnlRow({ label, hint, value, muted }: {
   );
 }
 
+function sourceLabel(kind: "revenue" | "cogs" | "ads", source: FinanceRevenueSource | FinanceCogsSource | FinanceAdsSource | null | undefined): string {
+  if (kind === "revenue") return source === "csv" ? "реестр CSV" : source === "live_ledger" ? "live ledger" : "нет данных";
+  if (kind === "cogs") return source === "csv" ? "GCP CSV" : source === "estimate" ? "оценка по генерациям" : "нет данных";
+  return source === "csv" ? "CSV Директа" : source === "direct_api" ? "Direct API" : "нет данных";
+}
+
 function NetIncomeCard({ pnl }: { pnl: FinancePnl }) {
   return (
     <section className={card}>
-      <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Чистый доход</p>
-      <p className="mt-2 text-3xl font-bold tabular-nums text-zinc-900">{formatRub(pnl.netIncomeRub)}</p>
+      <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Операционная маржа</p>
+      <p className="mt-2 text-3xl font-bold tabular-nums text-zinc-900">{formatRub(pnl.operatingRub)}</p>
       <p className="mt-1 text-xs text-zinc-500">
-        $1 = {pnl.usdRubRate} ₽ · налог {(pnl.taxRate * 100).toFixed(0)}% с выручки · комиссия ЮKassa из реестра
+        $1 = {pnl.usdRubRate} ₽ · налог {(pnl.taxRate * 100).toFixed(0)}% с выручки · без рекламы
+        {pnl.revenueSource === "live_ledger" ? " · комиссия ЮKassa оценка 3,5%+НДС" : " · комиссия ЮKassa из реестра"}
       </p>
       {pnl.missingCogs ? (
-        <p className="mt-2 text-xs text-amber-700">Затраты Gemini не загружены — в расчёте 0 ₽.</p>
+        <p className="mt-2 text-xs text-amber-700">Затраты AI не загружены — в расчёте 0 ₽.</p>
       ) : null}
-      {pnl.netIncomeRub == null ? (
-        <p className="mt-2 text-xs text-zinc-500">Чтобы увидеть чистый доход, загрузите реестр ЮKassa.</p>
+      {pnl.operatingRub == null ? (
+        <p className="mt-2 text-xs text-zinc-500">Нет выручки за месяц.</p>
       ) : (
         <div className="mt-4 divide-y divide-zinc-100 border-t border-zinc-100">
           <PnlRow
@@ -104,14 +118,64 @@ function NetIncomeCard({ pnl }: { pnl: FinancePnl }) {
             value={pnl.taxRub == null ? "—" : formatSignedRub(pnl.taxRub)}
           />
           <PnlRow
-            label="Потрачено Gemini"
-            hint={pnl.spendUsd == null ? "нет импорта" : `${formatUsd(pnl.spendUsd)} × ${pnl.usdRubRate}`}
-            value={pnl.spendRub == null ? "—" : formatSignedRub(pnl.spendRub)}
-            muted={pnl.spendRub == null}
+            label="Google"
+            hint={formatUsd(pnl.cogsByProviderRub.google / pnl.usdRubRate)}
+            value={formatSignedRub(pnl.cogsByProviderRub.google)}
+            muted={!pnl.cogsByProviderRub.google}
+          />
+          <PnlRow
+            label={FINANCE_COGS_PROVIDER_LABELS.xai}
+            hint={formatUsd(pnl.cogsByProviderRub.xai / pnl.usdRubRate)}
+            value={formatSignedRub(pnl.cogsByProviderRub.xai)}
+            muted={!pnl.cogsByProviderRub.xai}
+          />
+          <PnlRow
+            label={FINANCE_COGS_PROVIDER_LABELS.openrouter}
+            hint={formatUsd(pnl.cogsByProviderRub.openrouter / pnl.usdRubRate)}
+            value={formatSignedRub(pnl.cogsByProviderRub.openrouter)}
+            muted={!pnl.cogsByProviderRub.openrouter}
           />
           <div className="flex items-baseline justify-between gap-4 pt-3">
-            <p className="text-sm font-semibold text-zinc-900">Чистый доход</p>
-            <p className="text-sm font-semibold tabular-nums text-zinc-900">{formatRub(pnl.netIncomeRub)}</p>
+            <p className="text-sm font-semibold text-zinc-900">Операционная маржа</p>
+            <p className="text-sm font-semibold tabular-nums text-zinc-900">{formatRub(pnl.operatingRub)}</p>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function AfterAdsCard({ pnl }: { pnl: FinancePnl }) {
+  return (
+    <section className={card}>
+      <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">После Директа</p>
+      <p className="mt-2 text-3xl font-bold tabular-nums text-zinc-900">{formatRub(pnl.afterAdsRub)}</p>
+      <p className="mt-1 text-xs text-zinc-500">
+        Операционная маржа − расход кабинета × 1,22. Кабинет без НДС.
+      </p>
+      {pnl.missingAds ? (
+        <p className="mt-2 text-xs text-amber-700">Директ не подтянут — в итоге 0 ₽ рекламы.</p>
+      ) : null}
+      {pnl.afterAdsRub == null ? (
+        <p className="mt-2 text-xs text-zinc-500">Нет выручки за месяц.</p>
+      ) : (
+        <div className="mt-4 divide-y divide-zinc-100 border-t border-zinc-100">
+          <PnlRow label="Операционная маржа" value={formatRub(pnl.operatingRub)} />
+          <PnlRow
+            label="Директ без НДС"
+            value={pnl.adsCabinetRub == null ? "—" : formatSignedRub(pnl.adsCabinetRub)}
+          />
+          <PnlRow
+            label="НДС 22% на Директ"
+            value={pnl.adsVatRub == null ? "—" : formatSignedRub(pnl.adsVatRub)}
+          />
+          <PnlRow
+            label="Директ с НДС"
+            value={pnl.adsWithVatRub == null ? "—" : formatSignedRub(pnl.adsWithVatRub)}
+          />
+          <div className="flex items-baseline justify-between gap-4 pt-3">
+            <p className="text-sm font-semibold text-zinc-900">Итог после Директа</p>
+            <p className="text-sm font-semibold tabular-nums text-zinc-900">{formatRub(pnl.afterAdsRub)}</p>
           </div>
         </div>
       )}
@@ -124,7 +188,7 @@ export function FinanceTab() {
   const [month, setMonth] = useState(currentMonth);
   const [data, setData] = useState<FinanceMonthData | null>(null);
   const [state, setState] = useState({ loading: true, status: 0, error: "", message: "" });
-  const [busy, setBusy] = useState<"revenue" | "cogs" | "ads" | null>(null);
+  const [busy, setBusy] = useState<"revenue" | "cogs" | "ads" | "sync" | null>(null);
 
   const load = useCallback(async () => {
     setState((current) => ({ ...current, loading: true, error: "" }));
@@ -149,6 +213,43 @@ export function FinanceTab() {
   }, [month]);
 
   useEffect(() => { void load(); }, [load]);
+
+  const syncDirect = async () => {
+    setBusy("sync");
+    setState((current) => ({ ...current, error: "", message: "" }));
+    try {
+      const response = await fetch("/api/admin/finance/sync", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ month }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setState((current) => ({
+          ...current,
+          error: body.message || body.error || "Не удалось обновить Директ",
+        }));
+        return;
+      }
+      if (body.ads === "missing_token") {
+        setState((current) => ({
+          ...current,
+          error: "Нет YANDEX_DIRECT_TOKEN в env лендинга",
+        }));
+        return;
+      }
+      setState((current) => ({
+        ...current,
+        message: `Директ: ${body.rowCount ?? 0} строк`,
+      }));
+      await load();
+    } catch {
+      setState((current) => ({ ...current, error: "Ошибка сети при обновлении Директа" }));
+    } finally {
+      setBusy(null);
+    }
+  };
 
   const upload = async (kind: "revenue" | "cogs" | "ads", file?: File) => {
     if (!file) return;
@@ -226,7 +327,7 @@ export function FinanceTab() {
       <header>
         <p className="text-sm font-medium text-indigo-600">PromptShot Admin</p>
         <h1 className="text-3xl font-bold tracking-tight text-zinc-900">Финансы</h1>
-        <p className="mt-1 text-sm text-zinc-500">Поступления, затраты Gemini, Директ и чистый доход</p>
+        <p className="mt-1 text-sm text-zinc-500">Live P&amp;L: ЮKassa, AI-косты, Директ. CSV — ручной override.</p>
       </header>
       <section className={`${card} flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between`}>
         <label className="text-sm text-zinc-600">
@@ -238,15 +339,28 @@ export function FinanceTab() {
             className="mt-1 block rounded-xl border border-zinc-200 px-3 py-2 text-sm text-zinc-900"
           />
         </label>
-        <p className="text-xs text-zinc-500">
-          Курс Gemini: $1 = 90 ₽ (статика). Налог: 6% с выручки.
-        </p>
+        <div className="flex flex-col items-start gap-2 sm:items-end">
+          <p className="text-xs text-zinc-500">
+            Курс: $1 = 90 ₽. Налог: 6% с выручки. Директ в P&amp;L × 1,22.
+          </p>
+          <button
+            type="button"
+            disabled={busy !== null}
+            onClick={() => { void syncDirect(); }}
+            className="rounded-xl border border-zinc-200 px-4 py-2 text-sm font-semibold text-zinc-800 disabled:opacity-50"
+          >
+            {busy === "sync" ? "Обновляю Директ…" : "Обновить Директ"}
+          </button>
+        </div>
       </section>
 
       <section className="grid gap-4 lg:grid-cols-3">
         <div className={card}>
           <h2 className="font-semibold text-zinc-900">Поступления ЮKassa</h2>
-          <p className="mt-1 text-sm text-zinc-500">CSV или ZIP реестра за месяц. Gross / комиссия / net.</p>
+          <p className="mt-1 text-sm text-zinc-500">
+            Override. Без файла — live ledger + оценка комиссии.
+            Источник: {sourceLabel("revenue", data?.revenue?.source ?? data?.pnl.revenueSource)}
+          </p>
           <label className="mt-4 inline-flex cursor-pointer rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">
             {busy === "revenue" ? "Загрузка…" : "Загрузить реестр"}
             <input type="file" accept=".csv,.zip,text/csv,application/zip" className="hidden"
@@ -256,16 +370,19 @@ export function FinanceTab() {
           <div className="mt-3">
             <ImportMeta
               label="Последний импорт"
-              missing={!data?.revenue}
-              filename={data?.revenue?.import.sourceFilename}
-              at={data?.revenue?.import.updatedAt}
-              email={data?.revenue?.import.uploadedByEmail}
+              missing={!data?.revenue?.import}
+              filename={data?.revenue?.import?.sourceFilename}
+              at={data?.revenue?.import?.updatedAt}
+              email={data?.revenue?.import?.uploadedByEmail}
             />
           </div>
         </div>
         <div className={card}>
           <h2 className="font-semibold text-zinc-900">Затраты Gemini</h2>
-          <p className="mt-1 text-sm text-zinc-500">CSV Google Cloud Billing. Subtotal $ × 90 ₽.</p>
+          <p className="mt-1 text-sm text-zinc-500">
+            Override GCP. Без файла — оценка по генерациям.
+            Источник: {sourceLabel("cogs", data?.cogs?.source ?? data?.pnl.cogsSource)}
+          </p>
           <label className="mt-4 inline-flex cursor-pointer rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">
             {busy === "cogs" ? "Загрузка…" : "Загрузить billing CSV"}
             <input type="file" accept=".csv,text/csv" className="hidden"
@@ -275,16 +392,19 @@ export function FinanceTab() {
           <div className="mt-3">
             <ImportMeta
               label="Последний импорт"
-              missing={!data?.cogs}
-              filename={data?.cogs?.import.sourceFilename}
-              at={data?.cogs?.import.updatedAt}
-              email={data?.cogs?.import.uploadedByEmail}
+              missing={!data?.cogs?.import}
+              filename={data?.cogs?.import?.sourceFilename}
+              at={data?.cogs?.import?.updatedAt}
+              email={data?.cogs?.import?.uploadedByEmail}
             />
           </div>
         </div>
         <div className={card}>
           <h2 className="font-semibold text-zinc-900">Яндекс Директ</h2>
-          <p className="mt-1 text-sm text-zinc-500">CSV статистики за месяц. Только RUB, без ZIP/Excel.</p>
+          <p className="mt-1 text-sm text-zinc-500">
+            Override. Кнопка «Обновить Директ» пишет API.
+            Источник: {sourceLabel("ads", data?.ads?.source ?? data?.pnl.adsSource)}
+          </p>
           <label className="mt-4 inline-flex cursor-pointer rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">
             {busy === "ads" ? "Загрузка…" : "Загрузить CSV Директа"}
             <input type="file" accept=".csv,text/csv" className="hidden"
@@ -294,10 +414,10 @@ export function FinanceTab() {
           <div className="mt-3">
             <ImportMeta
               label="Последний импорт"
-              missing={!data?.ads}
-              filename={data?.ads?.import.sourceFilename}
-              at={data?.ads?.import.updatedAt}
-              email={data?.ads?.import.uploadedByEmail}
+              missing={!data?.ads?.import}
+              filename={data?.ads?.import?.sourceFilename}
+              at={data?.ads?.import?.updatedAt}
+              email={data?.ads?.import?.uploadedByEmail}
             />
             {data?.ads?.kpi.droppedOutsideMonth ? (
               <p className="mt-1 text-xs text-amber-700">
@@ -316,7 +436,7 @@ export function FinanceTab() {
             ["Выручка", formatRub(data.revenue?.kpi.gross ?? null), "заплатили клиенты"],
             ["После комиссии ЮKassa", formatRub(data.revenue?.kpi.net ?? null), "то, что в кабинете ЮKassa часто называют выручкой"],
             ["Налог 6% с выручки", formatRub(data.pnl.taxRub), "считается с суммы клиентов, не с net"],
-            ["Потрачено Gemini", formatRub(data.pnl.spendRub), data.pnl.spendUsd != null ? `${formatUsd(data.pnl.spendUsd)} × ${data.pnl.usdRubRate}` : null],
+            ["Потрачено AI", formatRub(data.pnl.spendRub), data.pnl.spendUsd != null ? `${formatUsd(data.pnl.spendUsd)} × ${data.pnl.usdRubRate}` : null],
           ].map(([label, value, hint]) => (
             <div key={label} className={card}>
               <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">{label}</p>
@@ -325,7 +445,13 @@ export function FinanceTab() {
             </div>
           ))}
         </section>
-        <NetIncomeCard pnl={data.pnl} />
+        <section className="grid gap-4 lg:grid-cols-2">
+          <NetIncomeCard pnl={data.pnl} />
+          <AfterAdsCard pnl={data.pnl} />
+        </section>
+        <p className="text-xs text-zinc-500">
+          В AI-косты v1 не входят planner фотосессии, analyze/remix/embeddings и failed job после списания у провайдера. Robokassa и Stars вне кассы.
+        </p>
         <section className={card}>
           <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
             <div>
@@ -349,7 +475,7 @@ export function FinanceTab() {
         <section className={card}>
           <h2 className="font-semibold text-zinc-900">Затраты на модели</h2>
           <p className="mb-4 mt-1 text-sm text-zinc-500">
-            Динамика Gemini по семействам. $1 = 90 ₽.
+            Динамика моделей (оценка или GCP CSV). $1 = 90 ₽.
           </p>
           <FinanceModelDailyChart series={data.modelDaily || []} />
         </section>

@@ -1,5 +1,7 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-09-01 (**admin live P&L:** `/admin/finance` без обязательных CSV. Выручка — `landing_yookassa_payments` (оценка комиссии 3,5%+НДС) или реестр override. AI COGS — completed generations × `finance_model_unit_costs`, Grok пишет `provider_cost_usd` из `cost_in_usd_ticks`. Директ — Reports API (`POST /api/admin/finance/sync` + `POST /api/cron/finance-sync`), кабинет × 1,22. Два уровня: операционная маржа и после Директа. SQL `237`. Спека `docs/01-09-admin-finance-live-pnl.md`.)
+>
 > Последнее обновление: 2026-09-01 (**Robokassa traffic split:** `resolvePaymentProvider` — unpaid pin 24ч → canary из `landing_generation_config.robokassa_canary_emails` → `PAYMENT_PROVIDER=robokassa` как аварийный 100% → sticky bucket `landing_feature_rollouts.payment_robokassa` / `landing_user_feature_assignments`. Default `enabled=false`, `bps=0`. Плашка unpaid — latest ЮKassa ∪ Robokassa, `GET /api/payments/unpaid-banner`; «Продолжить» открывает redirect или iframe. INSERT Robokassa ставит те же abandon due 5m/40m/24h. Спека `docs/01-09-robokassa-traffic-split.md`, SQL `236`.)
 >
 > Последнее обновление: 2026-09-01 (**PSP referrer ≠ acquisition:** возврат с YooKassa/YooMoney/Robokassa не пишет `referral`. Host шлюза — тот же denylist, что у confirmation URL (`payment-provider-hosts.ts`); `classifyReferrerHost` = `identity`. `?payment=<uuid>` и `/payment/*` не посадочные. Снимок оплаты: same-tier unpaid берёт bag пользователя целиком; checkout `referral` + PSP host отбрасывается. Cookie first-touch и SQL protect без изменений.)
@@ -813,7 +815,7 @@
 /admin/analytics        → Закрытый analytics dashboard: пользователи/клиенты + live непотраченные кредиты; таблицы кредитов/топа/analyze свёрнуты до клика; admin generation modal; Supabase Auth + email allowlist `ANALYTICS_ADMIN_EMAILS`
 /admin/analyze-history  → Закрытая история analyze/remix + все non-admin user generations; remix помечается бейджем и `change_request`; image job — бейдж `Gemini|xAI generate|edit`; private source previews выдаются signed, completed results публикуются идемпотентно. Mobile rows: dense (56px thumb, 1-line prompt) via `admin-dense-row.ts`
 /admin/payments         → Закрытый cursor-реестр YooKassa/Robokassa: payer identity, RUB/status/test, credits/`credited_at`; кнопка «Скачать CSV» выгружает все строки текущих фильтров
-/admin/finance          → Касса выгрузок: импорт ЮKassa/GCP, чистый доход; `?tab=finance` с аналитики редиректит сюда
+/admin/finance          → Live P&L: ЮKassa ledger / CSV override, AI COGS (оценка + Grok ticks) / GCP override, Директ API / CSV; операционная маржа и итог после Директа; `?tab=finance` с аналитики редиректит сюда
 /admin/seo              → Вотчлист топ-30 URL: фильтр дней, таблица + раскрытие запросов и график динамики
 /admin/mail             → Три вкладки: «Каталог» (превью `renderMailTemplate` + правила `mail-catalog.ts`, без отправки), «Кампании» (dry-run → send) и «Статистика» (14 суток Moscow, sent/skip/fail по шаблону, сегодня ещё queued и остаток / 5000). Сегменты: `all_email`, `paid`, `exploring`, `paid_active`, `paid_quiet`, `empty`, `trial_only`. Тот же admin allowlist. Очередь outbox + due/квота внизу страницы не зависит от вкладки статистики
 /auth/callback          → OAuth callback (client page); PKCE exchange в браузере; `?next=` — возврат на страницу старта логина
@@ -913,6 +915,7 @@
 | `/api/cron/mail-outbox` | POST, `Authorization: Bearer $CRON_SECRET`: claim/lease `landing_mail_outbox` → Postbox SESv2 (1 To / call, ≥1.1s gap, circuit 3/60s). Claim: transactional → lifecycle marketing → campaign. Без ключей — `{ configured: false }` |
 | `/api/cron/mail-due` | POST, `Authorization: Bearer $CRON_SECRET`: claim `landing_mail_due` (один user / тик) → `evaluateMailDue` → грант при % → `landing_enqueue_mail`. Generate SMTP не ждёт |
 | `/api/cron/analyze-history` | POST, `Authorization: Bearer $CRON_SECRET`: TTL 5 дней для `analyze_history` + объектов `analyze-history`; default limit 1000, max 4000; сначала Storage `remove`, потом DELETE строк |
+| `/api/cron/finance-sync` | POST, `Authorization: Bearer $CRON_SECRET`: Yandex Direct Reports → `admin_finance_replace_import(kind=ads)` за месяц. Нет токена → 200 `{ ads: missing_token }` |
 | `/api/admin/mail/catalog` | GET, admin: превью всех писем из `mail-catalog.ts` |
 | `/api/admin/mail/stats` | GET, admin, no-store: дневные агрегаты outbox за `days=1…30` (default 14). RPC `landing_mail_admin_daily_stats` + `landing_mail_daily_budget` для сегодняшнего queued/remaining. Без PII |
 | `/api/mail/postbox-events` | POST, `POSTBOX_WEBHOOK_SECRET`: hard bounce / complaint → `landing_mail_suppress`. Transient bounce игнорируется |
@@ -923,9 +926,10 @@
 | `/api/extension/analyze/quota` | GET, cookie session, no-store: `remaining_free`, `next_mode`, `credit_cost`, реальный `credits` для авторизованного |
 | `/api/admin/analytics` | GET, admin auth: no-store analytics rollups за `1…90` дней; топ пользователей — `admin_analytics_top_users` за тот же период |
 | `/api/admin/credits` | GET, admin auth: live остаток + daily flow (`days=1\|7\|30\|90`) + keyset-список (`q`, remaining/granted/spent/share) |
-| `/api/admin/finance` | GET, admin auth: KPI и разбивки импортов ЮKassa/GCP за месяц `YYYY-MM` |
+| `/api/admin/finance` | GET, admin auth: KPI месяца `YYYY-MM` — live YooKassa/generations или CSV override; Директ из `admin_finance_ads_lines` |
 | `/api/admin/seo-watchlist` | GET, admin auth: снимок топ-30 URL + запросы/дни из `seo-watchlist-snapshot.json` |
-| `/api/admin/finance/import` | POST, admin auth: multipart replace-импорт `kind=revenue\|cogs`, CSV/ZIP до 10 MB |
+| `/api/admin/finance/import` | POST, admin auth: multipart replace-импорт `kind=revenue\|cogs\|ads`, CSV/ZIP до 10 MB |
+| `/api/admin/finance/sync` | POST, admin auth: `{ month?: YYYY-MM }` — подтянуть Директ за месяц. Нет токена → 200 `{ ads: missing_token }` |
 | `/api/admin/payments` | GET, admin auth: cursor YooKassa/Robokassa ledger с status/test/source/campaign filters, payer identity и credit state (`credited` / `not_due` / `discrepancy` / `stale`); `format=csv` — полная выгрузка тех же фильтров (до 10 000 строк, `;` + UTF-8 BOM) |
 | `/api/admin/payments/reconcile` | POST, admin auth: `{ paymentId \| yookassaPaymentId }` или `{ stale: true }` — ручной/batch reconcile через YooKassa GET |
 | `/api/admin/analyze-history` | GET, admin auth: cursor pagination private analyze/remix history (`kind`, `change_request`, `user_email` если был `user_id`), optional `client_source`, signed image URL (analyze only) |
@@ -1070,18 +1074,22 @@
   только outbox, due не сканируется; today.sent = `landing_mail_daily_budget().sent`.
   Спека `docs/22-08-lifecycle-mail.md`, UI-статы `docs/22-08-mail-admin-daily-stats.md`.
   Транспорт: `docs/21-08-yandex-postbox-mail.md`.
-- **Финансы (касса выгрузок):** страница `/admin/finance` хранит
-  месячные импорты в `admin_finance_imports` + line tables. Source of truth для
-  «получено» — реестр ЮKassa (gross/net/комиссия), для «потрачено» — GCP
-  `Subtotal ($)` × статический курс **$1 = 90 ₽**. Чистый доход =
-  gross − комиссия/НДС ЮKassa − **УСН 6% с выручки (gross)** − Gemini RUB.
-  Дневной график: выручка, косты (комиссия + налог + Gemini), прибыль;
-  пунктир — live оценка обязательств: `credits_total × 0,5 ₽`
-  (1 генерация = 5 кредитов = 2,5 ₽). RPC `admin_credit_liability_summary`
+- **Финансы (live P&L):** страница `/admin/finance` по умолчанию читает
+  live-ledger, не CSV. Выручка — `admin_finance_live_revenue_month` из
+  `landing_yookassa_payments` (`succeeded` + `credited_at`, не test);
+  комиссия = **3,5% + НДС 22% с комиссии**, пока нет CSV реестра.
+  AI COGS — `admin_finance_live_cogs_month` × `finance_model_unit_costs`
+  ($1 = 90 ₽); `provider_cost_usd` (`xai_ticks`) перекрывает прайс.
+  Директ — `admin_finance_ads_lines` (cron/кнопка Reports API, кабинет без НДС).
+  Операционная маржа = gross − касса − УСН 6% − AI COGS (`netIncomeRub`).
+  После Директа = операционка − кабинет × **1,22**. CSV ЮKassa/GCP/Direct
+  остаётся monthly override через `admin_finance_replace_import`.
+  Дневной график без рекламы; пунктир — live оценка обязательств:
+  `credits_total × 0,5 ₽` (1 генерация = 5 кредитов = 2,5 ₽).
+  RPC `admin_credit_liability_summary`
   даёт только остаток кредитов; blended ЮKassa в оценку не входит.
-  Отдельный график — затраты Gemini по семействам моделей по дням.
-  Повторный upload заменяет месяц через `admin_finance_replace_import`. Live
-  остаток кредитов на Обзоре — график по `admin_credit_daily_flow` (реконструкция
+  Отдельный график — затраты по семействам моделей по дням.
+  Live остаток кредитов на Обзоре — график по `admin_credit_daily_flow` (реконструкция
   от текущего `landing_users.credits`) и разбивка `admin_credit_liabilities`
   за тот же период, что фильтр Сегодня/7/30/90: в списке те, кто начислял
   или тратил, колонка «Осталось» — live. Telegram Stars в кассе v1 нет; в
@@ -1111,7 +1119,7 @@ site /foto-v-promt
 admin pages
   → Supabase Auth + ANALYTICS_ADMIN_EMAILS
   ├─ analytics/history → server-only reads + signed previews
-  ├─ finance → CSV/ZIP import → admin_finance_replace_import
+  ├─ finance → live YK/gens + Direct sync; CSV override → admin_finance_replace_import
   │                         live credits → admin_credit_liabilities
   └─ generate → landing_enqueue_generation → durable worker → landing_generations
        → publish → prompt_cards → SEO tagging → public card
@@ -1644,13 +1652,13 @@ type ResolvedRoute = {
 | `card_reactions` | Лайки/дизлайки (через supabase-browser) |
 | `card_favorites` | Избранное (через supabase-browser) |
 | `vibes` | Сохранённые extracted style JSON для Steal This Vibe |
-| `landing_generations` | История web-генераций (`vibe_id`, `client_source` — сейчас всегда `site`) |
+| `landing_generations` | История web-генераций; `provider_cost_usd` / `provider_cost_source` для live P&L (`sql/237`) |
 | `landing_vibe_saves` | Сохранённые выборы пользователя по vibe-генерациям (`vibe_id`, `card_id`, `auto_seo_tags`) |
 | `landing_user_telegram_links` | Привязка web-пользователя к Telegram (`landing_user_id` ↔ `telegram_id`) |
 | `landing_link_tokens` | Одноразовые OTP для deep-link привязки (TTL 10 мин) |
 | `landing_web_transactions` | Платежи web-кредитов через Telegram Stars |
 | `landing_yookassa_payments` | Server-only ledger разовых RUB-покупок токенов через YooKassa; `191` — `ym_client_id`, `yclid`, `yandex_conversion_*` |
-| `admin_finance_imports` | Месячные admin-импорты ЮKassa (`revenue`) и GCP Billing (`cogs`); unique `(kind, period_month)` |
+| `admin_finance_imports` | Месячные admin-импорты ЮKassa (`revenue`), GCP (`cogs`), Direct (`ads`); unique `(kind, period_month)` |
 | `admin_finance_revenue_lines` | Строки реестра ЮKassa без PII плательщика |
 | `admin_finance_cogs_lines` | Строки Google Cloud Billing (SKU / `subtotal_usd`) |
 | `landing_mail_outbox` | Очередь исходящей почты (Postbox). Админ-статы читают sent/skip/fail; cron claim не зависит от вкладки статистики |
@@ -1677,7 +1685,9 @@ type ResolvedRoute = {
 | `landing_grant_publish_reward` | Идемпотентный бонус за первую публикацию генерации (SQL `231`). Service-role. Суммы/кэп/флаг в `landing_generation_config` |
 | `landing_publish_reward_remaining` | Остаток дневного кэпа publish-бонуса (MSK) |
 | `landing_fulfill_yookassa_payment` | Атомарное идемпотентное завершение YooKassa-платежа и начисление сохранённых в ledger токенов |
-| `admin_finance_replace_import` | Service-only replace месячного finance-импорта (`revenue` \| `cogs`) |
+| `admin_finance_replace_import` | Service-only replace месячного finance-импорта (`revenue` \| `cogs` \| `ads`) |
+| `admin_finance_live_revenue_month` | Service-only live ЮKassa gross по дням МСК за месяц (`sql/237`) |
+| `admin_finance_live_cogs_month` | Service-only completed generations + `provider_cost_usd` за месяц (`sql/237`) |
 | `admin_credit_liability_summary` | Service-only totals `landing_users.credits > 0`; RUB-оценка в админке = 5 кр. / 2,5 ₽ |
 | `admin_credit_liabilities` | Service-only keyset-список тех, кто начислял/тратил кредиты за `p_days`, plus live remaining |
 | `admin_analytics_top_users` | Service-only топ-50 по allowed-запросам за `p_days` |
@@ -1896,7 +1906,8 @@ landing/src/
 | `YOOKASSA_SHOP_ID` | Server-only идентификатор магазина для Basic Auth YooKassa API |
 | `YOOKASSA_SECRET_KEY` | Server-only секрет магазина YooKassa; не передаётся клиенту и не логируется |
 | `YANDEX_METRIKA_MP_TOKEN` | Server-only токен Measurement Protocol счётчика `107703100`; без него покупки в Директ не уходят |
-| `CRON_SECRET` | Bearer-секрет для `POST /api/cron/yookassa-reconcile`, `POST /api/cron/visual-embeddings`, `POST /api/cron/mail-outbox`, `POST /api/cron/mail-due` и `POST /api/cron/analyze-history` |
+| `CRON_SECRET` | Bearer-секрет для `POST /api/cron/yookassa-reconcile`, `POST /api/cron/visual-embeddings`, `POST /api/cron/mail-outbox`, `POST /api/cron/mail-due`, `POST /api/cron/analyze-history` и `POST /api/cron/finance-sync` |
+| `YANDEX_DIRECT_TOKEN` | Reports API для live P&L Директа. Optional `YANDEX_DIRECT_CLIENT_LOGIN`, `YANDEX_DIRECT_CAMPAIGN_IDS` |
 | `POSTBOX_ENDPOINT` | Host Postbox, default `https://postbox.cloud.yandex.net`. РФ, без `GEMINI_PROXY` |
 | `POSTBOX_REGION` | SigV4 region, default `ru-central1` |
 | `POSTBOX_ACCESS_KEY_ID` / `POSTBOX_SECRET_ACCESS_KEY` | Статические ключи YC. Пустые — cron не claim-ит |

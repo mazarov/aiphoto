@@ -1,10 +1,18 @@
 import {
+  FINANCE_ADS_VAT_MULTIPLIER,
   FINANCE_REVENUE_TAX_RATE,
   FINANCE_RUB_PER_CREDIT,
   FINANCE_USD_RUB_RATE,
+  FINANCE_YOOKASSA_FEE_RATE,
+  FINANCE_YOOKASSA_FEE_VAT_RATE,
+  type FinanceAdsSource,
+  type FinanceCogsByProvider,
+  type FinanceCogsProvider,
+  type FinanceCogsSource,
   type FinanceDailyPoint,
   type FinanceModelDailyPoint,
   type FinancePnl,
+  type FinanceRevenueSource,
   type GeminiFamilyId,
 } from "./finance-types";
 
@@ -21,14 +29,41 @@ export function estimateCreditLiabilityRub(credits: number): number {
   return moneyRub(Math.max(0, Number(credits) || 0) * FINANCE_RUB_PER_CREDIT);
 }
 
+export function emptyCogsByProvider(): FinanceCogsByProvider {
+  return { google: 0, xai: 0, openrouter: 0, other: 0 };
+}
+
+export function estimateYookassaFees(grossRub: number): {
+  commission: number;
+  vat: number;
+  fees: number;
+  net: number;
+} {
+  const gross = moneyRub(grossRub);
+  const commission = moneyRub(gross * FINANCE_YOOKASSA_FEE_RATE);
+  const vat = moneyRub(commission * FINANCE_YOOKASSA_FEE_VAT_RATE);
+  const fees = moneyRub(commission + vat);
+  return { commission, vat, fees, net: moneyRub(gross - fees) };
+}
+
+export function adsWithVatRub(cabinetRub: number): number {
+  return moneyRub(cabinetRub * FINANCE_ADS_VAT_MULTIPLIER);
+}
+
 export function computeFinancePnl(input: {
   gross?: number | null;
   commission?: number | null;
   vat?: number | null;
   spendUsd?: number | null;
+  adsCabinetRub?: number | null;
+  cogsByProviderUsd?: Partial<Record<FinanceCogsProvider, number>>;
+  revenueSource?: FinanceRevenueSource | null;
+  cogsSource?: FinanceCogsSource | null;
+  adsSource?: FinanceAdsSource | null;
 }): FinancePnl {
   const hasRevenue = input.gross != null;
   const hasCogs = input.spendUsd != null;
+  const hasAds = input.adsCabinetRub != null;
   const spendUsd = hasCogs ? Number(input.spendUsd) : null;
   const spendRub = spendUsd != null && Number.isFinite(spendUsd) ? usdToRub(spendUsd) : null;
   const grossRub = hasRevenue ? moneyRub(input.gross) : null;
@@ -36,10 +71,24 @@ export function computeFinancePnl(input: {
     ? moneyRub(moneyRub(input.commission) + moneyRub(input.vat))
     : null;
   const taxRub = grossRub != null ? moneyRub(grossRub * FINANCE_REVENUE_TAX_RATE) : null;
-  const netIncomeRub =
+  const operatingRub =
     grossRub != null
       ? moneyRub(grossRub - (yookassaFeesRub || 0) - (taxRub || 0) - (spendRub || 0))
       : null;
+  const adsCabinet = hasAds ? moneyRub(input.adsCabinetRub) : null;
+  const adsWithVat = adsCabinet != null ? adsWithVatRub(adsCabinet) : null;
+  const adsVat = adsCabinet != null && adsWithVat != null
+    ? moneyRub(adsWithVat - adsCabinet)
+    : null;
+  const afterAdsRub =
+    operatingRub != null
+      ? moneyRub(operatingRub - (adsWithVat || 0))
+      : null;
+  const cogsByProviderRub = emptyCogsByProvider();
+  for (const provider of Object.keys(cogsByProviderRub) as FinanceCogsProvider[]) {
+    const usd = Number(input.cogsByProviderUsd?.[provider] || 0);
+    cogsByProviderRub[provider] = usdToRub(usd);
+  }
 
   return {
     usdRubRate: FINANCE_USD_RUB_RATE,
@@ -49,8 +98,18 @@ export function computeFinancePnl(input: {
     taxRub,
     spendUsd: spendUsd != null && Number.isFinite(spendUsd) ? spendUsd : null,
     spendRub,
-    netIncomeRub,
+    cogsByProviderRub,
+    operatingRub,
+    adsCabinetRub: adsCabinet,
+    adsWithVatRub: adsWithVat,
+    adsVatRub: adsVat,
+    afterAdsRub,
+    netIncomeRub: operatingRub,
     missingCogs: hasRevenue && !hasCogs,
+    missingAds: hasRevenue && !hasAds,
+    revenueSource: input.revenueSource ?? null,
+    cogsSource: input.cogsSource ?? null,
+    adsSource: input.adsSource ?? null,
   };
 }
 

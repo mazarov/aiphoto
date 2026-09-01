@@ -1,11 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  adsWithVatRub,
   buildFinanceDailySeries,
   buildFinanceModelDailySeries,
   clampFinanceDay,
   computeFinancePnl,
   estimateCreditLiabilityRub,
+  estimateYookassaFees,
   listFinanceMonthDays,
   moscowDayKey,
   usdToRub,
@@ -22,6 +24,14 @@ test("Gemini spend uses static 90 RUB per USD", () => {
   assert.equal(usdToRub(7.82), 703.8);
 });
 
+test("YooKassa fee estimate is 3.5% plus 22% VAT on the fee", () => {
+  const fees = estimateYookassaFees(10_000);
+  assert.equal(fees.commission, 350);
+  assert.equal(fees.vat, 77);
+  assert.equal(fees.fees, 427);
+  assert.equal(fees.net, 9_573);
+});
+
 test("net income subtracts YooKassa fees, 6% tax on gross, and Gemini", () => {
   const pnl = computeFinancePnl({
     gross: 100_000,
@@ -36,7 +46,27 @@ test("net income subtracts YooKassa fees, 6% tax on gross, and Gemini", () => {
   assert.equal(pnl.taxRub, 6_000);
   assert.equal(pnl.spendRub, 900);
   assert.equal(pnl.netIncomeRub, 89_500);
+  assert.equal(pnl.operatingRub, 89_500);
   assert.equal(pnl.missingCogs, false);
+  assert.equal(pnl.missingAds, true);
+  assert.equal(pnl.afterAdsRub, 89_500);
+});
+
+test("after ads subtracts cabinet spend with 22% VAT", () => {
+  assert.equal(adsWithVatRub(1000), 1220);
+  const pnl = computeFinancePnl({
+    gross: 100_000,
+    commission: 3_000,
+    vat: 600,
+    spendUsd: 10,
+    adsCabinetRub: 10_000,
+    adsSource: "direct_api",
+  });
+  assert.equal(pnl.adsCabinetRub, 10_000);
+  assert.equal(pnl.adsWithVatRub, 12_200);
+  assert.equal(pnl.adsVatRub, 2_200);
+  assert.equal(pnl.afterAdsRub, 77_300);
+  assert.equal(pnl.missingAds, false);
 });
 
 test("net income without Gemini import treats spend as 0 and flags missing cogs", () => {

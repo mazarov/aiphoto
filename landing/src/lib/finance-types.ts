@@ -1,48 +1,88 @@
 export type GeminiFamilyId =
   | "gemini-3.1-flash-image"
+  | "gemini-3.1-flash-lite-image"
   | "gemini-3-pro-image"
   | "gemini-2.5-flash-image"
   | "gemini-2.5-flash-lite"
   | "gemini-3-pro-text"
   | "gemini-2.5-flash-text"
+  | "veo-video"
+  | "gemini-omni-video"
   | "grok-imagine-image"
+  | "grok-imagine-video"
+  | "seedream-image"
+  | "flux-image"
+  | "seedance-video"
   | "other";
+
+export type FinanceCogsProvider = "google" | "xai" | "openrouter" | "other";
 
 export const GEMINI_FAMILY_LABELS: Record<GeminiFamilyId, string> = {
   "gemini-3.1-flash-image": "Gemini 3.1 Flash Image",
+  "gemini-3.1-flash-lite-image": "Gemini 3.1 Flash Lite Image",
   "gemini-3-pro-image": "Gemini 3 Pro Image",
   "gemini-2.5-flash-image": "Gemini 2.5 Flash Image",
   "gemini-2.5-flash-lite": "Gemini 2.5 Flash Lite",
   "gemini-3-pro-text": "Gemini 3 Pro text",
   "gemini-2.5-flash-text": "Gemini 2.5 Flash text",
+  "veo-video": "Veo video",
+  "gemini-omni-video": "Gemini Omni video",
   "grok-imagine-image": "Grok Imagine Image",
+  "grok-imagine-video": "Grok Imagine Video",
+  "seedream-image": "Seedream",
+  "flux-image": "Flux",
+  "seedance-video": "Seedance",
   other: "Прочее",
 };
 
 export const GEMINI_FAMILY_ORDER: GeminiFamilyId[] = [
   "gemini-3.1-flash-image",
+  "gemini-3.1-flash-lite-image",
   "gemini-3-pro-image",
   "gemini-2.5-flash-image",
   "gemini-2.5-flash-lite",
   "gemini-3-pro-text",
   "gemini-2.5-flash-text",
+  "veo-video",
+  "gemini-omni-video",
   "grok-imagine-image",
+  "grok-imagine-video",
+  "seedream-image",
+  "flux-image",
+  "seedance-video",
   "other",
 ];
 
 export const GEMINI_FAMILY_COLORS: Record<GeminiFamilyId, string> = {
   "gemini-3.1-flash-image": "#4f46e5",
+  "gemini-3.1-flash-lite-image": "#65a30d",
   "gemini-3-pro-image": "#db2777",
   "gemini-2.5-flash-image": "#0d9488",
   "gemini-2.5-flash-lite": "#16a34a",
   "gemini-3-pro-text": "#d97706",
   "gemini-2.5-flash-text": "#7c3aed",
+  "veo-video": "#0284c7",
+  "gemini-omni-video": "#9333ea",
   "grok-imagine-image": "#111111",
+  "grok-imagine-video": "#3f3f46",
+  "seedream-image": "#ea580c",
+  "flux-image": "#2563eb",
+  "seedance-video": "#c026d3",
   other: "#71717a",
+};
+
+export const FINANCE_COGS_PROVIDER_LABELS: Record<FinanceCogsProvider, string> = {
+  google: "Google",
+  xai: "Grok / xAI",
+  openrouter: "OpenRouter",
+  other: "Прочее",
 };
 
 export type FinanceImportKind = "revenue" | "cogs" | "ads";
 export type FinanceAdsVatMode = "unknown" | "included" | "excluded";
+export type FinanceRevenueSource = "csv" | "live_ledger";
+export type FinanceCogsSource = "csv" | "estimate";
+export type FinanceAdsSource = "csv" | "direct_api";
 
 export type FinanceImportMeta = {
   id: string;
@@ -66,6 +106,13 @@ export const FINANCE_CREDITS_PER_GENERATION = 5;
 export const FINANCE_GENERATION_COST_RUB = 2.5;
 export const FINANCE_RUB_PER_CREDIT =
   FINANCE_GENERATION_COST_RUB / FINANCE_CREDITS_PER_GENERATION;
+/** YooKassa acquiring estimate when registry CSV is missing. */
+export const FINANCE_YOOKASSA_FEE_RATE = 0.035;
+export const FINANCE_YOOKASSA_FEE_VAT_RATE = 0.22;
+/** Direct cabinet is without VAT; P&L multiplies by this. */
+export const FINANCE_ADS_VAT_MULTIPLIER = 1.22;
+
+export type FinanceCogsByProvider = Record<FinanceCogsProvider, number>;
 
 export type FinancePnl = {
   usdRubRate: number;
@@ -75,8 +122,18 @@ export type FinancePnl = {
   taxRub: number | null;
   spendUsd: number | null;
   spendRub: number | null;
+  cogsByProviderRub: FinanceCogsByProvider;
+  operatingRub: number | null;
+  adsCabinetRub: number | null;
+  adsWithVatRub: number | null;
+  adsVatRub: number | null;
+  afterAdsRub: number | null;
   netIncomeRub: number | null;
   missingCogs: boolean;
+  missingAds: boolean;
+  revenueSource: FinanceRevenueSource | null;
+  cogsSource: FinanceCogsSource | null;
+  adsSource: FinanceAdsSource | null;
 };
 
 export type FinanceDailyPoint = {
@@ -194,7 +251,8 @@ export type FinanceAcquisitionReport = {
 export type FinanceMonthData = {
   month: string;
   revenue: {
-    import: FinanceImportMeta;
+    import: FinanceImportMeta | null;
+    source: FinanceRevenueSource;
     kpi: {
       gross: number;
       net: number;
@@ -207,8 +265,9 @@ export type FinanceMonthData = {
     byType: { paymentType: string; gross: number; net: number; count: number }[];
   } | null;
   cogs: {
-    import: FinanceImportMeta;
-    kpi: { subtotalUsd: number; subtotalRub: number; count: number };
+    import: FinanceImportMeta | null;
+    source: FinanceCogsSource;
+    kpi: { subtotalUsd: number; subtotalRub: number; count: number; billedUsd?: number; estimatedUsd?: number };
     daily: { day: string; subtotalUsd: number; subtotalRub: number }[];
     dailyByFamily: { day: string; family: GeminiFamilyId; subtotalUsd: number; subtotalRub: number }[];
     byFamily: { family: GeminiFamilyId; label: string; subtotalUsd: number; subtotalRub: number }[];
@@ -221,7 +280,8 @@ export type FinanceMonthData = {
     }[];
   } | null;
   ads: {
-    import: FinanceImportMeta;
+    import: FinanceImportMeta | null;
+    source: FinanceAdsSource;
     kpi: {
       costRub: number;
       clicks: number;

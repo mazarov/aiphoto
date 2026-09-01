@@ -31,6 +31,7 @@ import {
   xaiStatus,
   xaiSubmitUrl,
 } from "./xai-video";
+import { extractXaiCostUsd } from "./xai-image";
 import {
   buildVeoLiteSubmitBody,
   extractVeoOperationName,
@@ -558,7 +559,7 @@ async function processGrokVideoGeneration(
   context: Record<string, unknown>,
   signal: AbortSignal,
   ensureLease: () => Promise<void>,
-): Promise<{ resultPath: string; rawPrompt: string; mimeType: string }> {
+): Promise<{ resultPath: string; rawPrompt: string; mimeType: string; providerCostUsd?: number | null }> {
   if (!config.xaiApiKey) {
     throw new ProcessingError("config_error", "XAI_API_KEY is not configured", false);
   }
@@ -715,7 +716,7 @@ async function processGrokVideoGeneration(
     operationId,
   });
   grokVideoCircuit.record(true);
-  return { resultPath, rawPrompt, mimeType: VIDEO_MIME };
+  return { resultPath, rawPrompt, mimeType: VIDEO_MIME, providerCostUsd: extractXaiCostUsd(payload) };
   } catch (error) {
     if (shouldRecordVideoCircuitFailure(error)) grokVideoCircuit.record(false);
     throw error;
@@ -1107,6 +1108,7 @@ type VideoGenerationResult = {
   mimeType: string;
   executedModel: string;
   fallbackUsed: boolean;
+  providerCostUsd?: number | null;
 };
 
 async function resolveVideoFallbackTarget(supabase: SupabaseClient): Promise<string | null> {

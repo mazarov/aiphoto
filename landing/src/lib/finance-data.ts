@@ -5,6 +5,13 @@ import {
 } from "@/lib/finance-acquisition";
 import { classifyGeminiFamily } from "@/lib/finance-parse";
 import {
+  buildLiveCogs,
+  buildLiveRevenue,
+  cogsByProviderUsdFromCsvFamilies,
+  cogsByProviderUsdFromPriced,
+  type LiveRevenueRow,
+} from "@/lib/finance-live";
+import {
   buildFinanceDailySeries,
   buildFinanceModelDailySeries,
   clampFinanceDay,
@@ -16,6 +23,7 @@ import {
 } from "@/lib/finance-pnl";
 import {
   GEMINI_FAMILY_LABELS,
+  type FinanceAdsSource,
   type FinanceAdsVatMode,
   type FinanceImportKind,
   type FinanceImportMeta,
@@ -23,6 +31,7 @@ import {
   type FinanceMonthData,
   type GeminiFamilyId,
 } from "@/lib/finance-types";
+import { parseFinanceModelUnitCosts, type LiveCogsRow, type PricedCogsRow } from "@/lib/finance-unit-costs";
 
 type SupabaseServer = ReturnType<typeof createSupabaseServer>;
 
@@ -119,6 +128,22 @@ function parseAdsVatMode(value: unknown): FinanceAdsVatMode {
   return value === "included" || value === "excluded" ? value : "unknown";
 }
 
+function adsSourceFromImport(row: ImportRow): FinanceAdsSource {
+  const totals = row.totals || {};
+  if (totals.source === "direct_api") return "direct_api";
+  if (String(row.source_filename || "").startsWith("direct-api")) return "direct_api";
+  return "csv";
+}
+
+function cogsProviderUsd(
+  cogs: FinanceMonthData["cogs"],
+  livePriced: PricedCogsRow[],
+) {
+  if (!cogs) return undefined;
+  if (cogs.source === "estimate") return cogsByProviderUsdFromPriced(livePriced);
+  return cogsByProviderUsdFromCsvFamilies(cogs.byFamily);
+}
+
 function monthDateRange(periodMonth: string): { from: string; to: string } {
   const prefix = periodMonth.slice(0, 7);
   const [year, month] = prefix.split("-").map(Number);
@@ -206,6 +231,7 @@ export async function fetchFinanceMonth(
     }
     revenue = {
       import: toMeta(revenueImport),
+      source: "csv",
       kpi: {
         gross: money(gross),
         net: money(net),
@@ -266,6 +292,7 @@ export async function fetchFinanceMonth(
     }
     cogs = {
       import: toMeta(cogsImport),
+      source: "csv",
       kpi: {
         subtotalUsd: usd(subtotalUsd),
         subtotalRub: usdToRub(usd(subtotalUsd)),
@@ -370,6 +397,7 @@ export async function fetchFinanceMonth(
       });
       ads = {
         import: toMeta(adsImport),
+        source: adsSourceFromImport(adsImport),
         kpi: {
           costRub: kpi.spendRub,
           clicks: kpi.clicks,
@@ -405,6 +433,35 @@ export async function fetchFinanceMonth(
           .sort((left, right) => right.costRub - left.costRub)
           .slice(0, 30),
       };
+    }
+  }
+
+  if (!revenue) {
+    const { data, error } = await supabase.rpc("admin_finance_live_revenue_month", {
+      p_month: periodMonth,
+    });
+    if (error && !isMissingBackend(error)) throw new Error(error.message);
+    if (!error) {
+      revenue = buildLiveRevenue((data || []) as LiveRevenueRow[]);
+    }
+  }
+
+  let livePriced: ReturnType<typeof buildLiveCogs>["priced"] = [];
+  if (!cogs) {
+    const [{ data: cogsRows, error: cogsError }, { data: costRows, error: costError }] = await Promise.all([
+      supabase.rpc("admin_finance_live_cogs_month", { p_month: periodMonth }),
+      supabase.from("landing_generation_config").select("value").eq("key", "finance_model_unit_costs").maybeSingle(),
+    ]);
+    if (cogsError && !isMissingBackend(cogsError)) throw new Error(cogsError.message);
+    if (costError && !isMissingBackend(costError)) throw new Error(costError.message);
+    if (!cogsError) {
+      const built = buildLiveCogs(
+        (cogsRows || []) as LiveCogsRow[],
+        parseFinanceModelUnitCosts(costRows?.value),
+      );
+      livePriced = built.priced;
+      const { priced: _priced, ...cogsView } = built;
+      cogs = cogsView;
     }
   }
 
@@ -480,6 +537,11 @@ export async function fetchFinanceMonth(
       commission: revenue?.kpi.commission,
       vat: revenue?.kpi.vat,
       spendUsd: cogs?.kpi.subtotalUsd,
+      adsCabinetRub: ads?.kpi.costRub,
+      cogsByProviderUsd: cogsProviderUsd(cogs, livePriced),
+      revenueSource: revenue?.source ?? null,
+      cogsSource: cogs?.source ?? null,
+      adsSource: ads?.source ?? null,
     }),
   };
 }

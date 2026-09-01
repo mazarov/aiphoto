@@ -136,6 +136,12 @@ export function parseFinanceNumber(raw: string | null | undefined): number {
 
 export function classifyGeminiFamily(skuDescription: string): GeminiFamilyId {
   const text = skuDescription.toLowerCase();
+  if (
+    (text.includes("3.1") && text.includes("lite") && text.includes("image"))
+    || text.includes("3.1 flash lite image")
+  ) {
+    return "gemini-3.1-flash-lite-image";
+  }
   if (text.includes("3.1 flash image") || text.includes("gemini 3.1 flash image")) {
     return "gemini-3.1-flash-image";
   }
