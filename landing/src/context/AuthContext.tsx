@@ -68,6 +68,7 @@ function persistAttributionForUser(
       userId: nextUser.id,
       isAnonymous: nextUser.is_anonymous,
       pathname: window.location.pathname,
+      search: window.location.search,
       alreadyPersistedUserId: persistedUserIdRef.current,
     })
   ) {

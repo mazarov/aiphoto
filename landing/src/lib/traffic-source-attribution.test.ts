@@ -8,8 +8,11 @@ import {
   EMPTY_TRAFFIC_SOURCE_ATTRIBUTION,
   hasFirstKnownSource,
   incomingAttributionFromLocation,
+  isExcludedLandingLocation,
   isExcludedLandingPath,
   isPaidAttribution,
+  isPaymentProviderAttributionNoise,
+  isPaymentReturnSearch,
   normalizeUtmSourceForReport,
   parseAttributionCookie,
   readAttributionFromSearch,
@@ -167,6 +170,25 @@ test("client persist skips callback, anonymous, and token-refresh duplicates", (
     }),
     false,
   );
+  assert.equal(
+    shouldAttemptClientAttributionPersist({
+      userId,
+      isAnonymous: false,
+      pathname: "/p/visual-hook-card",
+      search: "?payment=32287a0e-1111-4111-8111-aaaaaaaaaaaa",
+      alreadyPersistedUserId: null,
+    }),
+    false,
+  );
+  assert.equal(
+    shouldAttemptClientAttributionPersist({
+      userId,
+      isAnonymous: false,
+      pathname: "/payment/robokassa/success",
+      alreadyPersistedUserId: null,
+    }),
+    false,
+  );
 });
 
 test("server persist skips anonymous, guest owner, and missing visitor", () => {
@@ -262,6 +284,12 @@ test("referrer host maps to search / identity / referral", () => {
   assert.equal(classifyReferrerHost("accounts.google.com"), "identity");
   assert.equal(classifyReferrerHost("t.me"), "referral");
   assert.equal(classifyReferrerHost("googleusercontent.com"), "referral");
+  assert.equal(classifyReferrerHost("yoomoney.ru"), "identity");
+  assert.equal(classifyReferrerHost("www.yoomoney.ru"), "identity");
+  assert.equal(classifyReferrerHost("checkout.yoomoney.ru"), "identity");
+  assert.equal(classifyReferrerHost("yookassa.ru"), "identity");
+  assert.equal(classifyReferrerHost("money.yandex.ru"), "identity");
+  assert.equal(classifyReferrerHost("auth.robokassa.ru"), "identity");
 });
 
 test("unpaid referrer writes first page, not same-origin or auth return", () => {
@@ -324,6 +352,23 @@ test("unpaid referrer writes first page, not same-origin or auth return", () => 
     }),
     null,
   );
+  assert.equal(
+    attributionFromUnpaidReferrer({
+      referrer: "https://yoomoney.ru/checkout/payments/v2/contract",
+      pageOrigin: "https://promptshot.ru",
+      pathname: "/p/visual-hook-cherno-belyy-portret",
+    }),
+    null,
+  );
+  assert.equal(
+    attributionFromUnpaidReferrer({
+      referrer: "https://t.me/foo",
+      pageOrigin: "https://promptshot.ru",
+      pathname: "/p/visual-hook-cherno-belyy-portret",
+      search: "?payment=32287a0e-1111-4111-8111-aaaaaaaaaaaa",
+    }),
+    null,
+  );
 });
 
 test("incoming location prefers real UTM over referrer", () => {
@@ -348,7 +393,58 @@ test("incoming location prefers real UTM over referrer", () => {
 test("excluded auth and api paths are not landings", () => {
   assert.equal(isExcludedLandingPath("/auth/callback"), true);
   assert.equal(isExcludedLandingPath("/api/me"), true);
+  assert.equal(isExcludedLandingPath("/payment/robokassa/success"), true);
   assert.equal(isExcludedLandingPath("/sobytiya/den-rozhdeniya"), false);
+  assert.equal(isExcludedLandingPath("/admin/payments"), false);
+  assert.equal(
+    isPaymentReturnSearch("?payment=32287a0e-1111-4111-8111-aaaaaaaaaaaa"),
+    true,
+  );
+  assert.equal(isPaymentReturnSearch("?payment=not-a-uuid"), false);
+  assert.equal(
+    isExcludedLandingLocation(
+      "/p/visual-hook-card",
+      "?payment=32287a0e-1111-4111-8111-aaaaaaaaaaaa",
+    ),
+    true,
+  );
+});
+
+test("PSP referral bags are noise and do not become first-touch", () => {
+  const storedDirect = {
+    ...EMPTY_TRAFFIC_SOURCE_ATTRIBUTION,
+    utm_source: "direct",
+    utm_medium: "none",
+    utm_landing_path: "/p/visual-hook-cherno-belyy-portret",
+  };
+  const incoming = incomingAttributionFromLocation({
+    search: "?payment=32287a0e-1111-4111-8111-aaaaaaaaaaaa",
+    pathname: "/p/visual-hook-cherno-belyy-portret",
+    referrer: "https://yoomoney.ru/checkout/payments/v2/contract",
+    pageOrigin: "https://promptshot.ru",
+  });
+  assert.deepEqual(incoming, EMPTY_TRAFFIC_SOURCE_ATTRIBUTION);
+  const resolved = resolveFirstKnownAttribution(incoming, storedDirect);
+  assert.deepEqual(resolved.attribution, storedDirect);
+  assert.equal(resolved.persist, null);
+  assert.equal(
+    isPaymentProviderAttributionNoise({
+      ...EMPTY_TRAFFIC_SOURCE_ATTRIBUTION,
+      utm_source: "referral",
+      utm_medium: "referral",
+      utm_content: "yoomoney.ru",
+    }),
+    true,
+  );
+  assert.equal(
+    isPaymentProviderAttributionNoise({
+      ...EMPTY_TRAFFIC_SOURCE_ATTRIBUTION,
+      utm_source: "referral",
+      utm_medium: "referral",
+      utm_content: "t.me",
+    }),
+    false,
+  );
 });
 
 test("shouldReplace matches empty < unpaid < paid", () => {

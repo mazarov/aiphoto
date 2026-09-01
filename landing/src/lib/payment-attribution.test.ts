@@ -82,6 +82,83 @@ test("idempotent patch fills nulls without overwrite", () => {
   );
 });
 
+test("unpaid user bag wins over checkout PSP referral", () => {
+  assert.deepEqual(
+    resolvePaymentTrafficSource(
+      {
+        utm_source: "referral",
+        utm_medium: "referral",
+        utm_content: "yoomoney.ru",
+        utm_landing_path: "/p/visual-hook-cherno-belyy-portret",
+      },
+      {
+        utm_source: "direct",
+        utm_medium: "none",
+        utm_landing_path: "/p/visual-hook-cherno-belyy-portret",
+      },
+    ),
+    {
+      utm_source: "direct",
+      utm_medium: "none",
+      utm_campaign: null,
+      utm_content: null,
+      utm_term: null,
+      utm_landing_path: "/p/visual-hook-cherno-belyy-portret",
+    },
+  );
+});
+
+test("same-tier unpaid checkout cannot replace first-touch user", () => {
+  assert.deepEqual(
+    resolvePaymentTrafficSource(
+      {
+        utm_source: "referral",
+        utm_medium: "referral",
+        utm_content: "t.me",
+        utm_landing_path: "/pricing",
+      },
+      {
+        utm_source: "direct",
+        utm_medium: "none",
+        utm_landing_path: "/p/visual-hook-cherno-belyy-portret",
+      },
+    ),
+    {
+      utm_source: "direct",
+      utm_medium: "none",
+      utm_campaign: null,
+      utm_content: null,
+      utm_term: null,
+      utm_landing_path: "/p/visual-hook-cherno-belyy-portret",
+    },
+  );
+});
+
+test("empty checkout after PSP noise still takes the user bag", () => {
+  assert.deepEqual(
+    resolvePaymentTrafficSource(
+      {
+        utm_source: "referral",
+        utm_medium: "referral",
+        utm_content: "yoomoney.ru",
+      },
+      {
+        utm_source: "yandex_seo",
+        utm_medium: "organic",
+        utm_landing_path: "/sobytiya/den-rozhdeniya",
+      },
+    ),
+    {
+      utm_source: "yandex_seo",
+      utm_medium: "organic",
+      utm_campaign: null,
+      utm_content: null,
+      utm_term: null,
+      utm_landing_path: "/sobytiya/den-rozhdeniya",
+    },
+  );
+});
+
 test("idempotent patch upgrades SEO snapshot to paid", () => {
   const patch = attributionSnapshotPatch(
     {

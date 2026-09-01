@@ -1,10 +1,21 @@
 import { sanitizeYclid } from "./yandex-attribution";
 import {
+  EMPTY_TRAFFIC_SOURCE_ATTRIBUTION,
   hasFirstKnownSource,
+  isPaidAttribution,
+  isPaymentProviderAttributionNoise,
   sanitizeAttributionBag,
   shouldReplaceAttribution,
   type TrafficSourceAttribution,
 } from "./traffic-source-attribution";
+
+function checkoutBagForResolve(checkout: unknown): TrafficSourceAttribution {
+  const bag = sanitizeAttributionBag(checkout);
+  if (isPaymentProviderAttributionNoise(bag)) {
+    return { ...EMPTY_TRAFFIC_SOURCE_ATTRIBUTION };
+  }
+  return bag;
+}
 
 export function resolvePaymentTrafficSource(
   checkout: unknown,
@@ -14,7 +25,7 @@ export function resolvePaymentTrafficSource(
     userYclid?: string | null;
   },
 ): TrafficSourceAttribution {
-  const fromCheckout = sanitizeAttributionBag(checkout);
+  const fromCheckout = checkoutBagForResolve(checkout);
   const fromUser = sanitizeAttributionBag(user);
   if (
     shouldReplaceAttribution({
@@ -33,6 +44,13 @@ export function resolvePaymentTrafficSource(
       storedYclid: options?.checkoutYclid,
       incomingYclid: options?.userYclid,
     })
+  ) {
+    return fromUser;
+  }
+  if (
+    hasFirstKnownSource(fromUser) &&
+    !isPaidAttribution(fromUser, options?.userYclid) &&
+    !isPaidAttribution(fromCheckout, options?.checkoutYclid)
   ) {
     return fromUser;
   }

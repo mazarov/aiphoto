@@ -1,3 +1,5 @@
+import { isPaymentProviderHost } from "./payment-provider-hosts";
+import { isYooKassaPaymentId } from "./yookassa-return-path";
 import { sanitizeYclid } from "./yandex-attribution";
 
 export const UTM_COOKIE_NAME = "promptshot_utm";
@@ -143,8 +145,28 @@ export function isExcludedLandingPath(pathname: string): boolean {
     path === "/auth" ||
     path.startsWith("/auth/") ||
     path === "/api" ||
-    path.startsWith("/api/")
+    path.startsWith("/api/") ||
+    path === "/payment" ||
+    path.startsWith("/payment/")
   );
+}
+
+export function isPaymentReturnSearch(search: string | null | undefined): boolean {
+  const raw = (search || "").trim();
+  if (!raw) return false;
+  try {
+    const params = new URLSearchParams(raw.startsWith("?") ? raw.slice(1) : raw);
+    return isYooKassaPaymentId(params.get("payment"));
+  } catch {
+    return false;
+  }
+}
+
+export function isExcludedLandingLocation(
+  pathname: string,
+  search?: string | null,
+): boolean {
+  return isExcludedLandingPath(pathname) || isPaymentReturnSearch(search);
 }
 
 function normalizeReferrerHost(host: string): string {
@@ -164,13 +186,26 @@ export function isIdentityReferrerHost(host: string): boolean {
   return /^(oauth|passport|login|id|social)\.yandex\./.test(h);
 }
 
+export function isNoiseReferrerHost(host: string): boolean {
+  return isIdentityReferrerHost(host) || isPaymentProviderHost(host);
+}
+
+export function isPaymentProviderAttributionNoise(
+  bag: TrafficSourceAttribution,
+): boolean {
+  const source = (bag.utm_source || "").trim().toLowerCase();
+  const medium = (bag.utm_medium || "").trim().toLowerCase();
+  const host = (bag.utm_content || "").trim();
+  return source === "referral" && medium === "referral" && isPaymentProviderHost(host);
+}
+
 export function classifyReferrerHost(
   host: string | null | undefined,
 ): SyntheticUnpaidSource | "identity" | null {
   if (!host || typeof host !== "string") return null;
   const h = normalizeReferrerHost(host);
   if (!h) return null;
-  if (isIdentityReferrerHost(h)) return "identity";
+  if (isNoiseReferrerHost(h)) return "identity";
   if (h === "ya.ru" || h === "www.ya.ru" || /(^|\.)yandex\.[a-z.]+$/.test(h)) {
     return "yandex_seo";
   }
@@ -216,8 +251,9 @@ export function attributionFromUnpaidReferrer(input: {
   referrer: string | null | undefined;
   pageOrigin: string;
   pathname: string;
+  search?: string | null;
 }): TrafficSourceAttribution | null {
-  if (isExcludedLandingPath(input.pathname)) return null;
+  if (isExcludedLandingLocation(input.pathname, input.search)) return null;
   const referrer = (input.referrer || "").trim();
   if (!referrer || referrer.toLowerCase().startsWith("android-app:")) {
     return unpaidBagFromSource("direct", input.pathname, null);
@@ -260,6 +296,7 @@ export function incomingAttributionFromLocation(input: {
       referrer: input.referrer,
       pageOrigin: input.pageOrigin,
       pathname: input.pathname,
+      search: input.search,
     }) ?? { ...EMPTY_TRAFFIC_SOURCE_ATTRIBUTION }
   );
 }
@@ -362,11 +399,12 @@ export function shouldAttemptClientAttributionPersist(input: {
   userId: string | null | undefined;
   isAnonymous?: boolean | null;
   pathname: string;
+  search?: string | null;
   alreadyPersistedUserId: string | null;
 }): boolean {
   if (!input.userId) return false;
   if (input.isAnonymous === true) return false;
-  if (isExcludedLandingPath(input.pathname)) {
+  if (isExcludedLandingLocation(input.pathname, input.search)) {
     return false;
   }
   return input.alreadyPersistedUserId !== input.userId;

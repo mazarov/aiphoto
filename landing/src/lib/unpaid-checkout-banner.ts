@@ -1,5 +1,7 @@
 /** Site-wide unpaid YooKassa bar. Clock SSOT = flash grant from yk_abandon_5m. */
 
+import { isYooKassaCheckoutHost } from "./payment-provider-hosts";
+
 export const UNPAID_BANNER_TTL_MS = 24 * 60 * 60 * 1000;
 export const UNPAID_BANNER_DISCOUNT_AFTER_MS = 15 * 60 * 1000;
 export const YK_ABANDON_FLASH_PERCENT = 25;
@@ -38,15 +40,7 @@ export function isSafeYooKassaConfirmationUrl(value: string | null | undefined):
   try {
     const url = new URL(value?.trim() || "");
     if (url.protocol !== "https:") return false;
-    const host = url.hostname.toLowerCase();
-    return (
-      host === "yoomoney.ru" ||
-      host === "www.yoomoney.ru" ||
-      host.endsWith(".yoomoney.ru") ||
-      host === "yookassa.ru" ||
-      host === "www.yookassa.ru" ||
-      host.endsWith(".yookassa.ru")
-    );
+    return isYooKassaCheckoutHost(url.hostname);
   } catch {
     return false;
   }
