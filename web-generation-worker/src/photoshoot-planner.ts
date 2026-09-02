@@ -13,7 +13,8 @@ import {
   PHOTOSHOOT_PLANNER_MODEL,
   PHOTOSHOOT_PLANNER_PROMPT_VERSION,
   PHOTOSHOOT_PLANNER_SYSTEM_PROMPT,
-  buildPhotoshootPlannerUserText,
+  PHOTOSHOOT_PLANNER_TEMPERATURE,
+  PHOTOSHOOT_PLANNER_USER_TEXT,
   photoshootPlannerGenerationConfig,
 } from "../../landing/src/lib/photoshoot-planner";
 
@@ -92,7 +93,6 @@ async function requestPlan(
   image: PlannerImage,
   baseUrl: string,
   signal: AbortSignal,
-  temperature: number,
 ): Promise<{ text: string; payload: Record<string, unknown> }> {
   if (!config.geminiApiKey) {
     throw new ProcessingError("config_error", "GEMINI_API_KEY is required for photoshoot planner", false);
@@ -114,11 +114,11 @@ async function requestPlan(
           role: "user",
           parts: [
             { inlineData: { mimeType: image.mimeType, data: image.data } },
-            { text: buildPhotoshootPlannerUserText(temperature) },
+            { text: PHOTOSHOOT_PLANNER_USER_TEXT },
           ],
         },
       ],
-      generationConfig: photoshootPlannerGenerationConfig(temperature),
+      generationConfig: photoshootPlannerGenerationConfig(),
     }),
     signal: AbortSignal.any([signal, AbortSignal.timeout(PLANNER_TIMEOUT_MS)]),
   });
@@ -140,9 +140,7 @@ export async function planPhotoshootShots(input: {
   image: PlannerImage;
   signal: AbortSignal;
   generationId: string;
-  temperature?: unknown;
 }): Promise<PhotoshootPlan> {
-  const temperature = photoshootPlannerGenerationConfig(input.temperature).temperature;
   const plannerStarted = Date.now();
   const { url, proxy } = await plannerBaseUrl(input.supabase);
   const shrinkStarted = Date.now();
@@ -152,7 +150,7 @@ export async function planPhotoshootShots(input: {
   for (let attempt = 1; attempt <= 2; attempt += 1) {
     try {
       const requestStarted = Date.now();
-      const { text, payload } = await requestPlan(image, url, input.signal, temperature);
+      const { text, payload } = await requestPlan(image, url, input.signal);
       const requestMs = elapsedMs(requestStarted);
       const plan = parsePhotoshootPlan(extractJsonObject(text));
       if (!plan) {
@@ -166,6 +164,7 @@ export async function planPhotoshootShots(input: {
           attempt,
           viaProxy: proxy,
           version: PHOTOSHOOT_PLANNER_PROMPT_VERSION,
+          temperature: PHOTOSHOOT_PLANNER_TEMPERATURE,
           shrinkMs,
           requestMs,
           durationMs: elapsedMs(plannerStarted),
@@ -178,7 +177,7 @@ export async function planPhotoshootShots(input: {
         attempt,
         viaProxy: proxy,
         version: PHOTOSHOOT_PLANNER_PROMPT_VERSION,
-        temperature,
+        temperature: PHOTOSHOOT_PLANNER_TEMPERATURE,
         theme: plan.theme,
         shrinkMs,
         requestMs,

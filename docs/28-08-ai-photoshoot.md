@@ -33,7 +33,7 @@
 | D11 | Новой SEO-страницы нет. Не путать с `/promty-dlya-ii-fotosessii` |
 | D12 | Копирайт: «4 кадра одной съёмки», не «4 отдельные генерации» и не пакет 40 кредитов |
 | D13 | `/generations`: одна карточка = сетка 4 кадров + шильд «Фотосессия». Клик открывает обычный result chrome на кадре 1 + rail + плёнка. 4 URL идут в `seedCompletedResult` сразу из списка, без второго `GET /generations/:id` на плёнку |
-| D14 | Клик «Фотосессия» не ставит job. Правый rail сверху вниз: «Выйти», креативность 0–100 (50 = temp 0.5, 100 = temp 2.0), «Создать». Temp в `edit_instruction`; worker передаёт в planner и меняет brief (низкий = близко к позе, высокий = смелые позы). Картинка-модель temp не видит |
+| D14 | Клик «Фотосессия» не ставит job. Правый rail: «Выйти», «Создать». Planner всегда `temperature=2` (Gemini Flash max) и bold-editorial brief. Клиентский `plannerTemperature` игнорируется. Картинка-модель temp не видит |
 | D15 | Публикация = **одна** карточка каталога на весь сет. `prompt_card_media` = 4 тайла (`photoshootUserFacingMediaPaths`). Не `card_split` (это 4 отдельные карточки). Лист в карточку не кладём. Каталог, `/generations` и `/p/[slug]` — сетка 2×2. HTTP publish не ждёт Gemini: карточка сразу `is_published`, 4 analyze в `after()` тем же `generatePhotorealPromptFromImage` (без квоты): по очереди, JPEG ≤768px, `thinkingBudget: 0`, 90с, 3 попытки. Enqueue `PHOTOSHOOT` в каталог не кладём. Если фон не дописал — «Обновить промпты» |
 | D16 | Mobile `/p`: шильд компактный. 2×2 выше стекла; тап кадра → fullscreen + плёнка. Тап плитки в листинге даёт press-scale и zoom-in модалки |
 
@@ -78,11 +78,10 @@
 ```
 result chrome
   → rail «Фотосессия» / «4 фото» + шильд `15✦` сверху
-  → правый rail: «Выйти» + Креативность + «Создать»
+  → правый rail: «Выйти» + «Создать»
   → POST /api/generate
        editKind=photoshoot
        parentGenerationId=<displayed>
-       plannerTemperature=<0..1>
   → API
        ├─ флаг / allowlist
        ├─ parent = owned completed image, не photoshoot и не video

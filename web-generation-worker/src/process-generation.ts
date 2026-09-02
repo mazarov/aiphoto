@@ -37,7 +37,6 @@ import {
   PHOTOSHOOT_EDIT_KIND,
   PHOTOSHOOT_FLUX_SAFETY_TOLERANCE,
   PHOTOSHOOT_TILE_INDEXES,
-  parsePhotoshootPlannerTemperature,
   photoshootTileStoragePath,
   serializePhotoshootSheetInstruction,
 } from "../../landing/src/lib/photoshoot";
@@ -458,7 +457,6 @@ export async function processGeneration(
       image: cachedInputParts[0].inlineData,
       signal,
       generationId: job.id,
-      temperature: parsePhotoshootPlannerTemperature(editInstruction),
     });
     photoshootMarks.plannerMs = elapsedMs(plannerStarted);
     const persistStarted = Date.now();

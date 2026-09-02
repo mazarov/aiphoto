@@ -1701,7 +1701,6 @@ export function CardInlineGeneratePanel({
     editInstruction?: string;
     editKind?: string;
     parentTile?: number;
-    plannerTemperature?: number;
     cameraPose?: CameraPose;
     forceTextOnly?: boolean;
     modality?: "image" | "video";
@@ -1841,7 +1840,6 @@ export function CardInlineGeneratePanel({
               : undefined,
           cameraPose: isCameraOrbit ? options?.cameraPose : undefined,
           parentTile: isPhotoshoot ? options?.parentTile : undefined,
-          plannerTemperature: isPhotoshoot ? options?.plannerTemperature : undefined,
           vibeId: null,
           preserveOutfit:
             !isVideo &&
@@ -2660,11 +2658,10 @@ export function CardInlineGeneratePanel({
     );
   };
 
-  const createPhotoshoot = (temperature: number) => {
+  const createPhotoshoot = () => {
     if (photoshootLibraryPath) {
       return runGenerate({
         editKind: PHOTOSHOOT_EDIT_KIND,
-        plannerTemperature: temperature,
         photoStoragePath: photoshootLibraryPath,
       });
     }
@@ -2675,7 +2672,6 @@ export function CardInlineGeneratePanel({
       parentGenerationId: generationId,
       editKind: PHOTOSHOOT_EDIT_KIND,
       parentTile: photoshootTileIndexForUrl(photoshootTileUrls, resultUrl),
-      plannerTemperature: temperature,
     });
   };
 
