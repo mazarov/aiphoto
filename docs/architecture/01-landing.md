@@ -1,5 +1,7 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-09-02 (**каталог «промты для фото» vs `/ii-fotosessiya`:** L1/L2 листинги больше не берут complement «и ИИ фотосессии». `getSeoForRoute` → combo/L1 из `seo-content.ts` as-is, иначе `prompt-listing-seo.ts`. Ключи «промты для ИИ фотосессии *» остаются только у `/ii-fotosessiya/*`. Featured L2 по спросу; NY combos `otkrytka+novyy_god` / `sovetskoe+novyy_god` каноникал style-first `/stil/otkrytka/novyj-god`. Архивная спека `docs/31-08-homepage-promty-fotosessii.md`.)
+>
 > Последнее обновление: 2026-09-02 (**photoshoot frame prompt:** клик по кадру 2×2 ставит `selectedIndex`; остальные тайлы затемнены (`:has(.is-selected)`). Поле промта, copy и Repeat берут `visiblePromptTextsForPhoto` = `promptTexts[i]`, не склейку всех вариантов. Блок промтов `/ii-fotosessiya*` открывает кадр с тем же индексом.)
 >
 > Последнее обновление: 2026-09-02 (**PostgREST `.in()` через OpenResty:** списки id/slug режутся на `POSTGREST_IN_CHUNK=40` (`chunkForPostgrestIn`). Иначе GET URI >4–8 KB → 414 Request-URI Too Large / 502. Применяется в `enrichCardsWithDetails`, `getCardPhotosBySlugs`, `expandCardGroups`, `photoshoot-listing` (хаб `/ii-fotosessiya` тянет до 200 серий).)
@@ -28,7 +30,7 @@
 >
 > Последнее обновление: 2026-09-01 (**preserve outfit toggle:** image-compose чип «Оставить одежду» пишет `wardrobe_policy=keep|replace` на enqueue. Default `replace`. Флаг `preserve_outfit_enabled` (SQL `235`). Ассемблеры Gemini/Grok/Seedream читают одну policy; `keep` гасит секцию Clothing. Спека `docs/01-09-preserve-outfit.md`.
 >
-> Последнее обновление: 2026-08-31 (**L1 + L2 prompt listings:** complement «и ИИ фотосессии» в Title/H1/Description через `prompt-listing-fotosessii-seo.ts`; L2-комбо и L1 без ручного copy; birthday long-tail L2 без complement. Спека `docs/31-08-homepage-promty-fotosessii.md`.
+> Последнее обновление: 2026-08-31 (**устарело 2026-09-02:** complement «и ИИ фотосессии» через `prompt-listing-fotosessii-seo.ts` снят. Каталог держит ключ кадра; фотосессионные промты — `/ii-fotosessiya`. Архив `docs/31-08-homepage-promty-fotosessii.md`.
 >
 > Последнее обновление: 2026-08-31 (**photoshoot overlay chrome stays live:** во время съёмки «Выйти» и ползунок «невероятные сюжеты» не `disabled`. «Создать» = прогресс (`Снимаем… N%`), повторный enqueue закрыт. Job не отменяется на выход — poll обрывается. SSOT `photoshootOverlayChromeState`.
 >
@@ -1400,7 +1402,7 @@ expandCardGroups(cards)                 ← prompt_cards (siblings, Promise.all)
 enrichCardsWithDetails(cards)           ← prompt_cards + prompt_variants
                                           + prompt_card_media
                                           + prompt_card_before_media
-getSeoForRoute(route)                   ← seo-templates.ts → seo-content.ts fallback
+getSeoForRoute(route)                   ← seo-templates.ts: combo/L1 из seo-content.ts as-is, иначе prompt-listing-seo.ts
   → h1, metaTitle, metaDescription, intro, FAQ, howTo
 ```
 
@@ -1414,11 +1416,15 @@ getSeoForRoute(route)                   ← seo-templates.ts → seo-content.ts 
 
 **Index/noindex:** L1 >= 1 карточки, L2/L3 >= 6 карточек. При noindex — canonical на родительский L1.
 
-**L2 чипы на L1:** На L1 страницах отображаются чипы-ссылки на L2 комбинации, сгруппированные по измерениям. Данные из RPC `get_indexable_tag_combos(min_cards=6)` — **чтение из `indexable_tag_combos_cache`** (мигр. `165`, refresh `refresh_indexable_tag_combos()` по pg_cron */30 мин); фильтруются для текущего L1 тега. Чипы показывают label + количество карточек.
+**L2 чипы на L1:** На L1 страницах отображаются чипы-ссылки на L2 комбинации, сгруппированные по измерениям. Данные из RPC `get_indexable_tag_combos(min_cards=6)` — **чтение из `indexable_tag_combos_cache`** (мигр. `165`, refresh `refresh_indexable_tag_combos()` по pg_cron */30 мин); фильтруются для текущего L1 тега. Чипы показывают label + количество карточек. Порядок внутри группы — `featuredL2Slugs` из `seo-content.ts` (спрос), затем счётчик карточек.
+
+**Каталог vs ИИ-фотосессия:** `promty-dlya-foto-*`, `/stil/`, `/sobytiya/`, object L1 (`/s-mashinoy` и соседи) — один кадр: скопировать промт или Repeat. Кластер «промты для ИИ фотосессии …» принадлежит `/ii-fotosessiya/*`. Чип «ИИ-фотосессия» в `popularLinks` — сосед, не ключ Title/H1. Featured-дети пар — `PROMTY_DLYA_FOTO_PAR_FEATURED_CHILDREN`.
+
+**Новый год:** хаб `/sobytiya/novyj-god`. Пересечение открытка × НГ каноникал `/stil/otkrytka/novyj-god` (style побеждает occasion в `buildCanonicalPath`). Чип с хаба `/sobytiya/novyj-god/otkrytka` → 301. Советский НГ: `/stil/sovetskoe/novyj-god`. Combo-ключи `otkrytka+novyy_god`, `sovetskoe+novyy_god` в `seo-content.ts`.
 
 **Кластер «день рождения»:** хаб остаётся `/sobytiya/den-rozhdeniya` (не переезжает на `/den-rozhdeniya`). Живые дети — только L2 `/sobytiya/den-rozhdeniya/{alias}` (`devushki`, `deti`, `muzhchiny` и object-сегменты). L3 audience×object убит: 301 на audience L2 (`DEN_ROZHDENIYA_PERMANENT_REDIRECTS` + `birthdayRetiredL3RedirectPath` в `[...slug]`). Старые audience-first L2/L3 тоже на L2, не на L3. Search-backed sitemap — слабые L2 (`deti`, `muzhchiny`, `s-detskim-foto`, `s-shampanskim`, `so-lvom`). Хаб в sitemap как L1-тег, девушке / с тортом из combo-кэша. Без L3. Каноникал occasion-first; pathname ≠ `canonicalPath` → 301. Ручной SEO L2 — combo-ключи `devushka+den_rozhdeniya` и т.п. в `seo-content.ts`. Видимый роутер под H1 — `ListingClusterChipGroup` из SSOT. Хаб и L2 девушке / с тортом — `resolve_route_cards` (сорт по новизне). L2 детям / мужчине / с детским фото / с шампанским / со львом — свои поисковые запросы без tag-фильтра (`дети день рождения`, `мужской день рождения`, …). Gemini budget actor `system` на search-backed L2. Чужой `/api/listing?q=` — FTS без эмбеддингов и без birthday-фильтров. `/api/search` остаётся на text window 100. Поле поиска в explorer — `/api/search`. Кластерные URL включают общий `Footer` вместе с generate dock. **Антиканнибализация copy:** хаб держит только «промты для фото на день рождения»; L2 не повторяют чужие модификаторы; do-интент — только `/generaciya-foto/na-den-rozhdeniya`.
 
-**Кластер «пары» (каталог):** хаб `/promty-dlya-foto-par`. Featured-дети под H1 — `getFeaturedPairsNavItems` (`promty-dlya-foto-par-cluster.ts`): портрет, реалистичное, чёрно-белое, студийное, романтический, с цветами, на улице, в интерьере. Соседние audience-чипы (`getClusterChipNavigation`) на этом хабе выкл. Нижние L2-группы из combo-кэша остаются без featured-slug. Рекламный H1/title — клиентский `resolveAdLandingTitle` (не `utm_term`): каталог + дети + sitelink-хабы `s-parnem` / `s-muzhem` / `vlyublennykh`; generate — `/generaciya-foto/pary` через `AdLandingHeading`. SEO meta не меняется.
+**Кластер «пары» (каталог):** хаб `/promty-dlya-foto-par`. Featured-дети под H1 — `getFeaturedPairsNavItems` (`promty-dlya-foto-par-cluster.ts`): портрет, реалистичное, чёрно-белое, на море, в машине, студийное, романтический, с цветами, на улице, в интерьере. Соседние audience-чипы (`getClusterChipNavigation`) на этом хабе выкл. Нижние L2-группы из combo-кэша остаются без featured-slug. Рекламный H1/title — клиентский `resolveAdLandingTitle` (не `utm_term`): каталог + дети + sitelink-хабы `s-parnem` / `s-muzhem` / `vlyublennykh`; generate — `/generaciya-foto/pary` через `AdLandingHeading`. SEO meta не меняется.
 
 **Фильтрация:** query params `?audience=devushka&style=portret` — **одно значение на измерение**. На tag-страницах измерения, уже заданные URL-путём, скрыты. Каталог: серверный merge `route.rpcParams` + `searchParams`, refetch при смене фильтров. **Desktop (`lg+`):** `ListingDesktopFilters` — кнопка на измерение (`Label: Value`); модалка с чипсами (поиск при >10), выбор сразу пишет URL и закрывает модалку (`setFilter`). **Mobile:** `FilterFAB` → `FilterPanel` (draft + «Применить»). **Применимые теги:** `useListingFilterCounts`; каталог — `/api/filter-counts`; поиск — client-side по `seo_tags`.
 
@@ -1563,8 +1569,8 @@ OAuth completion: `/auth/callback` → `finishOAuthCodeExchange` → `path?ps_au
 - **Root layout:** fallback title + description из `homepage-seo-copy.ts` (`HOMEPAGE_SEO`)
 - **Главная (`/`):** `generateMetadata` → `HOMEPAGE_SEO.title` / `description`; canonical; H1 + intro-subtitle из copy-модуля + карусель 50 новых; destinations вместо стартера (в т.ч. хаб `/ii-fotosessiya`); **`#katalog`** = карусель коллекций (`HOMEPAGE_SEO.examples*`, H2 «Готовые промты для ИИ фотосессии»); **`HomepageExamplesExplorer`** (`#primery`, H2 «Идеи промтов для фото», без intro); HowTo и FAQ (`HomeIntroAndHowTo` / `HomeFaq`) в каркасе шаблона; JSON-LD **`CollectionPage`** (`isPartOf: WebSite`, `hasPart[].name` = «Промты для фото {label}») + **`FAQPage`** + **`ItemList`** 16 карточек; FAQ — хвосты Wordcraft (что такое / пример / генерация / где промты для ИИ фотосессии / лучшие / какая нейросеть), ссылки на `#primery`, `#katalog` и `/ii-fotosessiya` (серия, не владение промт-ключом)
 - **Хаб ИИ-фотосессии (`/ii-fotosessiya`):** отдельный тип, не `[...slug]`. Title «ИИ фотосессия по фото онлайн», H1 «ИИ фотосессия по фото». Карусель — карточки-фотосессии. `#primery` — обычные луки без фильтра фотосессии. Порядок: темы → HowTo → примеры → тарифы → FAQ. 17 L2. JSON-LD CollectionPage + BreadcrumbList + HowTo + FAQPage + ItemList. 301 со старого `/promty-dlya-ii-fotosessii`.
-- **Листинг L1:** `generateMetadata` → title/description из `getSeoContent(tag.slug)`
-- **Листинг L2/L3:** `generateMetadata` → title/description из `getSeoForRoute(route)` (combo-ключ в `seo-content.ts`, иначе шаблоны)
+- **Листинг L1:** `generateMetadata` → `getSeoForRoute(route)` (`getSeoContent(tag.slug)` as-is, иначе `prompt-listing-seo.ts`). Каталог не дополняет Title/H1 «и ИИ фотосессии»
+- **Листинг L2/L3:** `generateMetadata` → `getSeoForRoute(route)` (combo-ключ в `seo-content.ts`, иначе `prompt-listing-seo.ts`)
 - **JSON-LD:** `BreadcrumbList` + `FAQPage` на всех листингах; на главной — `CollectionPage` + `FAQPage`; все JSON-LD вставляются как inline `<script type="application/ld+json">` в SSR HTML (не через `next/script strategy="afterInteractive"`)
 - **Trailing slash:** единая политика — **без trailing slash** во всех внутренних ссылках; canonical и sitemap тоже без slash; `menu.ts`, `homepage-sections.ts`, `[...slug]/page.tsx`, `page.tsx` — все `href` без `/` в конце
 - **Index/noindex:** L1 >= 1 карточки, L2/L3 >= 6 карточек
@@ -1620,41 +1626,43 @@ type ResolvedRoute = {
 
 **Синхронизация с реестром:** у каждого уникального `slug` из `TAG_REGISTRY` должна быть запись в `seo-content.ts`. Шаблон для новых slug строится в `seo-content-from-tag.ts`; скрипт `npm run seo:sync` дописывает недостающие блоки в конец объекта `SEO`, `npm run seo:check` падает с кодом 1 при пропусках (удобно для CI). Кураторские страницы можно править вручную в том же файле — повторный `--write` не перезаписывает существующие ключи.
 
-#### Кластер `/s-mashinoy/` (L1 `object_tag:s_mashinoy`, v5)
+#### Кластер `/s-mashinoy/` (L1 `object_tag:s_mashinoy`, 2026-09-02)
 
 | Зона | Статус | Назначение |
 |------|--------|------------|
-| `h1`, `metaTitle`, `metaDescription` | frozen | ВЧ «промты для фото с машиной» (703 WS) — уже в индексе, ~14% входов Yandex |
-| `intro` | v5 | «промт с машиной» (2375), ИИ-фото с машиной, авто, нейрофотосессия, сирень, номера |
-| `faqItems` | 9 вопросов | авто → ответ «автомобиль»; сирень; номера; фотосессия; девушка; мужчина; марка; бесплатно |
-| `howToSteps` | v5 | «промт с машиной», нано банана / ChatGPT, своя машина |
-| `illustrations` | 4 шт. | `SeoHeroWithIllustrations`: chips «С машиной», «Авто», «Сирень», «Номера»; alt полный в `img` |
+| `h1`, `metaTitle`, `metaDescription` | ключ кадра | ВЧ «промты для фото с машиной»; CTA copy или Repeat, без Nano Banana / ChatGPT |
+| `intro` | 2026-09-02 | синонимы «промт с машиной», авто, сирень, номера; без нейрофотосессии |
+| `popularLinks` | 4 ссылки | L2 девушки / мужчины / пары + чип `/ii-fotosessiya/s-mashinoy` последним |
+| `featuredL2Slugs` | 3 slug | `devushka`, `muzhchina`, `para` |
+| `faqItems` | 9 вопросов | Repeat; авто; сирень; номера; девушка; мужчина; марка; копирование; кредиты |
+| `howToSteps` | 3 шага | карточка → копировать или загрузить фото → «Повторить» |
+| `illustrations` | 4 шт. | `SeoHeroWithIllustrations`: chips «С машиной», «Авто», «Сирень», «Номера» |
 
 **Рендер иллюстраций:** только L1; `SeoHeroWithIllustrations` — один `article` (текст + карусель + footer chips). Все кадры в DOM для `alt`. FAQ без фото. Резолв: `getCardPhotosBySlugs` → `titleIncludes`. Schema: `ImageObject` на каждую иллюстрацию.
 
 **Карточки (аудит трендов):** в кластере ~2042 карточки (`prompt_clusters`, `s-mashinoy`). Тег `s_mashinoy` матчит `/с машин|авто|тачк/i` в `tag-registry.ts`; тренды «сирень + машина» и «номера» часто попадают в L1 по тексту промта без отдельного тега. Дотегирование `title_ru` — только при ingest новых карточек или если SQL-проверка на проде покажет пустую выдачу по `сирен`/`номер` в топе листинга; в рамках v5 правок кода тегов не было.
 
-#### Кластер `/promty-dlya-foto-devushki/` (L1 `audience_tag:devushka`, 2026-06-11)
+#### Кластер `/promty-dlya-foto-devushki/` (L1 `audience_tag:devushka`, 2026-09-02)
 
 | Зона | Статус | Назначение |
 |------|--------|------------|
-| `h1`, `metaTitle`, `metaDescription` | обновлено | ВЧ: «промты для фото девушки», «ИИ-фотосессия», «женские», «готовые», «на русском» |
-| `intro` | обновлено | Nano Banana / Gemini / ChatGPT, селфи, реалистичные и студийные кадры |
-| `popularLinks` | 7 ссылок | L2: ДР, цветы, портрет, студия, машина, ч/б; L1: пары |
-| `featuredL2Slugs` | 8 slug | Порядок chips: den_rozhdeniya → … → v_forme |
-| `faqItems` | 8 вопросов | ИИ-фотосессия RU, Nano/Gemini/ChatGPT, ДР, реализм, сценарии, обработка фото, пары |
-| `illustrations` | 4 шт. | Фотосессия, День рождения (`cardSlug`), С машиной, Портрет |
-| `howToTitle` | v2 | «Как использовать промт для фото девушки» |
-| `seoTextBlocks` | v2, 1 блок | «Как составить промт для фотосессии девушки» — 3 абзаца, «нейрофотосессия» / «селфи» / «на море» / «деловой» |
+| `h1`, `metaTitle`, `metaDescription` | 2026-09-02 | ключ «промты для фото девушки»; без complement «и ИИ фотосессии» |
+| `intro` | 2026-09-02 | copy или Repeat в 1 клик |
+| `popularLinks` | 8 ссылок | спрос L2 (ч/б, море, цветы, мотоцикл, машина, ДР, портрет) + чип `/ii-fotosessiya/zhenskie` последним |
+| `featuredL2Slugs` | 8 slug | cherno_beloe, na_more, s_cvetami, mototsikl, s_mashinoy, portret, studiynoe, den_rozhdeniya |
+| `faqItems` | 4 вопроса | промты на русском, Repeat, копирование, кредиты |
+| `illustrations` | 4 шт. | Студия, День рождения, С машиной, Портрет |
+| `howToTitle` | copy/Repeat | «Как использовать промт для фото девушки» |
+| `seoTextBlocks` | 1 блок | «Как составить промт для фото девушки» |
 
 **Перелинковка:** парные запросы → `/promty-dlya-foto-par/`; обработка → `/promty-dlya-obrabotki-foto/`. NSFW не таргетируется в copy. Спеки: `seo/promty-dlya-foto-devushki/2026-06-11-l1-semantic-core-and-improvements.md`, `…/2026-06-11-v2-audit-fixes.md` (canonical-фикс сайтвайд, intro, текстовый блок).
 
 ### SEO Templates (`src/lib/seo-templates.ts`)
 
-Шаблонная генерация SEO-контента для L2/L3:
-- Приоритет: combo-ключ тегов в `seo-content.ts` (`devushka+den_rozhdeniya`) → L1 по `primaryTag.slug` → шаблон по паре измерений → generic fallback
-- Шаблоны для всех пар измерений (audience+style, audience+occasion, style+object и т.д.)
-- Шаблонные `metaTitle` для fallback-страниц приведены к единому формату: `... — Nano Banana, ИИ-генератор | Бесплатно 2026`
+SEO листинга L1/L2/L3:
+- Приоритет: combo-ключ тегов в `seo-content.ts` (`devushka+den_rozhdeniya`, `otkrytka+novyy_god`) → L1 `getSeoContent(primaryTag.slug)` as-is → `buildPromptListingSeoContent` (`prompt-listing-seo.ts`)
+- Fallback Title: `{H1} — готовые на русском | PromptShot`; CTA Description — copy или Repeat, без Nano Banana / ChatGPT
+- Каталог не владеет ключами «промты для ИИ фотосессии *» — они только у `/ii-fotosessiya/*`
 - JSON-LD: `BreadcrumbList` + `FAQPage` на всех листингах
 
 ---

@@ -37,6 +37,18 @@ export const PROMTY_DLYA_FOTO_PAR_FEATURED_CHILDREN: PairsClusterChild[] = [
     label: "Чёрно-белое",
   },
   {
+    alias: "na-more",
+    dimension: "object_tag",
+    tagSlug: "na_more",
+    label: "На море",
+  },
+  {
+    alias: "v-mashine",
+    dimension: "object_tag",
+    tagSlug: "v_mashine",
+    label: "В машине",
+  },
+  {
     alias: "studiynoe",
     dimension: "style_tag",
     tagSlug: "studiynoe",

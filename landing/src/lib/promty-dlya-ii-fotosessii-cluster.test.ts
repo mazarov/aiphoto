@@ -162,67 +162,59 @@ test("fotosessii listings seed photoshoot intent on idle FAB", () => {
   );
 });
 
-test("audience L1 keeps кадр key first and adds fotosessii in Title/H1", () => {
+test("catalog audience L1 keeps кадр key and does not claim photoshoot queries", () => {
   const women = getSeoContent("devushka");
   const men = getSeoContent("muzhchina");
   const couples = getSeoContent("para");
-  assert.equal(women?.h1, "Промты для фото девушки и ИИ фотосессии");
-  assert.match(women?.h1 ?? "", /^Промты для фото девушки/);
-  assert.match(women?.metaTitle ?? "", /^Промты для фото девушки и ИИ фотосессии/);
-  assert.match(women?.metaDescription ?? "", /промты для ИИ фотосессии женские/i);
-  assert.equal(women?.seoTextBlocks?.[0]?.h2, "Промты для ИИ фотосессии женские");
-  assert.match(women?.intro ?? "", /Промты для ИИ фотосессии женские/);
-  assert.match(women?.intro ?? "", /женской ИИ фотосессии/i);
-  assert.equal(men?.h1, "Промты для фото мужчины и ИИ фотосессии");
-  assert.equal(couples?.h1, "Промты для фото пар и ИИ фотосессии");
-  assert.equal(men?.seoTextBlocks?.[0]?.h2, "Промты для ИИ фотосессии мужские");
-  assert.equal(couples?.seoTextBlocks?.[0]?.h2, "Промты для ИИ фотосессии парные");
-  assert.equal(
-    women?.popularLinks?.[0]?.href,
-    "/ii-fotosessiya/zhenskie"
-  );
-  assert.equal(men?.popularLinks?.[0]?.href, "/ii-fotosessiya/muzhskie");
-  assert.equal(couples?.popularLinks?.[0]?.href, "/ii-fotosessiya/pary");
-  assert.equal(
-    getSeoContent("semya")?.popularLinks?.[0]?.href,
-    "/ii-fotosessiya/semeynye"
-  );
-  assert.equal(
-    getSeoContent("detskie")?.popularLinks?.[0]?.href,
-    "/ii-fotosessiya/detskie"
-  );
-  assert.equal(
-    getSeoContent("beremennaya")?.popularLinks?.[0]?.href,
-    "/ii-fotosessiya/beremennye"
-  );
-
   const family = getSeoContent("semya");
   const kids = getSeoContent("detskie");
   const birthday = getSeoContent("den_rozhdeniya");
-  assert.equal(family?.h1, "Промты для семейного фото и ИИ фотосессии");
-  assert.equal(kids?.h1, "Промты для детских фото и ИИ фотосессии");
+  const pregnant = getSeoContent("beremennaya");
+
+  assert.equal(women?.h1, "Промты для фото девушки");
+  assert.equal(women?.metaTitle, "Промты для фото девушки | PromptShot");
+  assert.equal(men?.h1, "Промты для фото мужчины");
+  assert.equal(couples?.h1, "Промты для фото пар");
+  assert.equal(family?.h1, "Промты для семейного фото");
+  assert.equal(kids?.h1, "Промты для детских фото");
+  assert.equal(birthday?.h1, "Промты для фото на день рождения");
+  assert.equal(birthday?.metaTitle, "Промты для фото на день рождения | PromptShot");
+
+  for (const page of [women, men, couples, family, kids, birthday, pregnant]) {
+    const head = `${page?.h1 ?? ""} ${page?.metaTitle ?? ""} ${page?.metaDescription ?? ""} ${page?.intro ?? ""}`;
+    assert.doesNotMatch(head, /промты для ИИ фотосессии/i);
+    assert.doesNotMatch(head, /и ИИ фотосессии/i);
+    assert.doesNotMatch(head, /Nano Banana|ChatGPT|Gemini/i);
+  }
+
   assert.equal(
-    birthday?.h1,
-    "Промты для фото на день рождения и ИИ фотосессии"
+    women?.popularLinks?.find((link) => link.label === "ИИ-фотосессия")?.href,
+    "/ii-fotosessiya/zhenskie"
   );
-  assert.equal(family?.seoTextBlocks?.[0]?.h2, "Промты для ИИ фотосессии семейные");
-  assert.equal(kids?.seoTextBlocks?.[0]?.h2, "Промты для ИИ фотосессии детские");
+  assert.notEqual(women?.popularLinks?.[0]?.href, "/ii-fotosessiya/zhenskie");
   assert.equal(
-    birthday?.seoTextBlocks?.[0]?.h2,
-    "Промты для ИИ фотосессии на день рождения"
+    men?.popularLinks?.find((link) => link.label === "ИИ-фотосессия")?.href,
+    "/ii-fotosessiya/muzhskie"
   );
-  assert.match(family?.metaDescription ?? "", /промты для ИИ фотосессии семейные/i);
-  assert.match(kids?.metaDescription ?? "", /промты для ИИ фотосессии детские/i);
-  assert.match(
-    birthday?.metaDescription ?? "",
-    /промты для ИИ фотосессии на день рождения/i
+  assert.equal(
+    couples?.popularLinks?.find((link) => link.label === "ИИ-фотосессия")?.href,
+    "/ii-fotosessiya/pary"
   );
-  assert.match(birthday?.metaDescription ?? "", /промты на др/i);
+  assert.equal(
+    family?.popularLinks?.find((link) => link.label === "ИИ-фотосессия")?.href,
+    "/ii-fotosessiya/semeynye"
+  );
+  assert.equal(
+    kids?.popularLinks?.find((link) => link.label === "ИИ-фотосессия")?.href,
+    "/ii-fotosessiya/detskie"
+  );
+  assert.equal(
+    pregnant?.popularLinks?.find((link) => link.label === "ИИ-фотосессия")?.href,
+    "/ii-fotosessiya/beremennye"
+  );
+
   assert.match(birthday?.intro ?? "", /на др/i);
   assert.ok(birthday?.faqItems?.some((item) => /промты на др/i.test(item.q)));
-  assert.match(family?.intro ?? "", /Промты для ИИ фотосессии семейные/);
-  assert.match(kids?.intro ?? "", /Промты для ИИ фотосессии детские/);
-  assert.match(birthday?.intro ?? "", /Промты для ИИ фотосессии на день рождения/);
   assert.equal(
     birthday?.popularLinks?.find((link) => link.label === "ИИ-фотосессия")?.href,
     "/ii-fotosessiya/den-rozhdeniya"

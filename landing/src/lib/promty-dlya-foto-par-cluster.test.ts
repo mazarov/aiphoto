@@ -56,6 +56,8 @@ test("featured nav starts with Все and marks the active child", () => {
   assert.ok(
     hubItems.some((item) => item.href === pairsChildPath("cherno-beloe")),
   );
+  assert.ok(hubItems.some((item) => item.href === pairsChildPath("na-more")));
+  assert.ok(hubItems.some((item) => item.href === pairsChildPath("v-mashine")));
   assert.equal(
     hubItems.some((item) => item.href.includes("svadba")),
     false,
@@ -81,5 +83,7 @@ test("active alias and featured set come from the path", () => {
     "cherno-beloe",
   );
   assert.equal(isFeaturedPairsChildAlias("portret"), true);
+  assert.equal(isFeaturedPairsChildAlias("na-more"), true);
+  assert.equal(isFeaturedPairsChildAlias("v-mashine"), true);
   assert.equal(isFeaturedPairsChildAlias("svadba"), false);
 });
