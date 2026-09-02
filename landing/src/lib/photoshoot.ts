@@ -138,10 +138,32 @@ export function photoshootTileStoragePath(
 }
 
 export function parsePhotoshootTilePaths(raw: unknown): string[] | null {
-  if (!Array.isArray(raw) || raw.length !== PHOTOSHOOT_FRAME_COUNT) return null;
-  const paths = raw.map((item) => String(item ?? "").trim());
+  const value = coercePhotoshootTilePathList(raw);
+  if (!Array.isArray(value) || value.length !== PHOTOSHOOT_FRAME_COUNT) return null;
+  const paths = value.map((item) => String(item ?? "").trim());
   if (paths.some((path) => !path)) return null;
   return paths;
+}
+
+/** PostgREST usually sends text[] as JSON; some RPC paths return `{a,b,c,d}`. */
+function coercePhotoshootTilePathList(raw: unknown): unknown {
+  if (Array.isArray(raw)) return raw;
+  if (typeof raw !== "string") return raw;
+  const trimmed = raw.trim();
+  if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+    try {
+      return JSON.parse(trimmed);
+    } catch {
+      return raw;
+    }
+  }
+  if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+    return trimmed
+      .slice(1, -1)
+      .split(",")
+      .map((part) => part.trim().replace(/^"(.*)"$/, "$1").replace(/^'(.*)'$/, "$1"));
+  }
+  return raw;
 }
 
 /**

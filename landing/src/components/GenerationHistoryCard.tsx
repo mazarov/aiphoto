@@ -1,10 +1,15 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import {
   CARD_OVERLAY_ACTION_PILL,
   OVERLAY_BUTTON_UA_RESET,
 } from "@/lib/card-overlay-action-pill";
+import {
+  CARD_IMAGE_LISTING_NEXT_QUALITY,
+  SIZES_CARD_GRID,
+} from "@/lib/card-image-presets";
 import { copyTextUniversal } from "@/lib/copy-text-to-clipboard";
 import { useGenerateDock } from "@/context/GenerateDockContext";
 import { DEFAULT_VIDEO_PROMPT } from "@/lib/generation/image-options";
@@ -16,9 +21,15 @@ import {
   downloadGenerationResult,
   shareGenerationResult,
 } from "@/lib/generation-result-client-actions";
+import { ListingCardVideo } from "@/components/ListingCardVideo";
 import { PhotoshootListingBadge } from "@/components/PhotoshootListingBadge";
+import { PhotoshootListingGrid } from "@/components/PhotoshootListingGrid";
 import { isPhotoshootEditKind } from "@/lib/photoshoot";
 import { requestCreditBalanceRefresh } from "@/lib/credit-balance-events";
+import {
+  generationGridDisplay,
+  type GenerationHistoryItem,
+} from "@/lib/generations-list";
 import {
   publishRewardAmount,
   publishRewardKindForGeneration,
@@ -28,26 +39,7 @@ import {
   type PublishRewardResult,
 } from "@/lib/publish-reward";
 
-export type GenerationHistoryItem = {
-  id: string;
-  status: "pending" | "processing" | "completed" | "failed";
-  prompt: string;
-  model: string;
-  aspectRatio: string;
-  modality?: "image" | "video" | string;
-  resultMimeType?: string | null;
-  durationSeconds?: number | null;
-  creditsSpent: number;
-  createdAt: string;
-  completedAt: string | null;
-  errorMessage: string | null;
-  resultUrl: string | null;
-  editKind?: string | null;
-  photoshootTileUrls?: string[] | null;
-  cardId: string | null;
-  cardSlug: string | null;
-  isPublished: boolean;
-};
+export type { GenerationHistoryItem };
 
 type Props = {
   generation: GenerationHistoryItem;
@@ -56,6 +48,7 @@ type Props = {
   videoEnabled?: boolean;
   publishReward?: PublishRewardConfig;
   publishRewardRemaining?: number;
+  priority?: boolean;
   onEnterSelectMode: (id: string) => void;
   onToggleSelect: (id: string) => void;
   onDeleted: (id: string) => void;
@@ -73,96 +66,6 @@ const STATUS_LABELS: Record<GenerationHistoryItem["status"], string> = {
   failed: "Ошибка",
 };
 
-const FIT_FILL_CLASS =
-  "absolute inset-0 h-full w-full scale-110 object-cover opacity-60 blur-2xl";
-const FIT_MEDIA_CLASS = "absolute inset-0 z-[2] h-full w-full object-contain";
-
-/** Four frames as one contact sheet: cover crop, no gutters, no blur fill. */
-function PhotoshootHistoryGrid({
-  urls,
-  interactive = false,
-  onSelect,
-}: {
-  urls: string[];
-  interactive?: boolean;
-  onSelect?: (url: string) => void;
-}) {
-  return (
-    <div className="photoshoot-history-grid absolute inset-0 z-[2] grid grid-cols-2 grid-rows-2 bg-zinc-900">
-      {urls.map((url, index) => {
-        const label = `Кадр ${index + 1}`;
-        const media = (
-          <>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={url}
-              alt=""
-              className="photoshoot-history-tile__img absolute inset-0 h-full w-full object-cover"
-              draggable={false}
-            />
-            <span className="sr-only">{label}</span>
-          </>
-        );
-        if (!interactive || !onSelect) {
-          return (
-            <div key={url} className="photoshoot-history-tile relative overflow-hidden">
-              {media}
-            </div>
-          );
-        }
-        return (
-          <button
-            key={url}
-            type="button"
-            aria-label={`Открыть ${label}`}
-            onClick={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              onSelect(url);
-            }}
-            className={`${OVERLAY_BUTTON_UA_RESET} photoshoot-history-tile relative cursor-pointer overflow-hidden`}
-          >
-            {media}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-/** Full frame in a 3:4 tile: contain + blurred fill, same as the prompt-card hero. */
-function HistoryFitMedia({
-  src,
-  alt = "",
-  kind = "image",
-  className = "",
-}: {
-  src: string;
-  alt?: string;
-  kind?: "image" | "video";
-  className?: string;
-}) {
-  return (
-    <div className={`relative overflow-hidden ${className}`.trim()}>
-      {kind === "video" ? (
-        <>
-          <video src={src} className={FIT_FILL_CLASS} muted loop playsInline autoPlay aria-hidden />
-          <div className="pointer-events-none absolute inset-0 z-[1] bg-black/10" aria-hidden />
-          <video src={src} className={FIT_MEDIA_CLASS} muted loop playsInline autoPlay />
-        </>
-      ) : (
-        <>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={src} alt="" aria-hidden className={FIT_FILL_CLASS} draggable={false} />
-          <div className="pointer-events-none absolute inset-0 z-[1] bg-black/10" aria-hidden />
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={src} alt={alt} className={FIT_MEDIA_CLASS} draggable={false} />
-        </>
-      )}
-    </div>
-  );
-}
-
 export function GenerationHistoryCard({
   generation,
   selectMode,
@@ -170,6 +73,7 @@ export function GenerationHistoryCard({
   videoEnabled = false,
   publishReward,
   publishRewardRemaining = 0,
+  priority = false,
   onEnterSelectMode,
   onToggleSelect,
   onDeleted,
@@ -179,9 +83,15 @@ export function GenerationHistoryCard({
   const { seedAnimate, seedCompletedResult } = useGenerateDock();
   const [menuOpen, setMenuOpen] = useState(false);
   const [busyAction, setBusyAction] = useState<GenerationMenuAction | null>(null);
-  const tileUrls =
-    generation.photoshootTileUrls?.length === 4 ? generation.photoshootTileUrls : null;
-  const hasResult = Boolean(generation.resultUrl || tileUrls);
+  const [tilesOk, setTilesOk] = useState(false);
+  const [tilesFailed, setTilesFailed] = useState(false);
+  const { fullTiles, displayTiles, displaySrc } = generationGridDisplay(generation);
+  const sheetDisplay =
+    generation.photoshootSheetThumbUrl || generation.photoshootSheetUrl || null;
+  const showTileGrid = Boolean(displayTiles) && !tilesFailed;
+  const hasResult = Boolean(
+    generation.resultUrl || fullTiles || generation.photoshootSheetUrl,
+  );
   const hasPrompt = Boolean(generation.prompt?.trim());
   const isVideo = generation.modality === "video" || generation.resultMimeType === "video/mp4";
   const isPhotoshoot = isPhotoshootEditKind(generation.editKind);
@@ -211,7 +121,13 @@ export function GenerationHistoryCard({
   const toast = (message: string) => onToast?.(message);
 
   const openResult = (previewUrl?: string) => {
-    const url = previewUrl || generation.resultUrl || tileUrls?.[0];
+    const url =
+      previewUrl ||
+      (!tilesFailed ? generation.resultUrl : null) ||
+      (!tilesFailed ? fullTiles?.[0] : null) ||
+      generation.photoshootSheetUrl ||
+      generation.resultUrl ||
+      fullTiles?.[0];
     if (!url) return;
     seedCompletedResult(
       {
@@ -221,7 +137,7 @@ export function GenerationHistoryCard({
         modality: isVideo ? "video" : "image",
         isPublished: generation.isPublished,
         editKind: generation.editKind,
-        photoshootTileUrls: tileUrls,
+        photoshootTileUrls: tilesFailed ? null : fullTiles,
       },
       { entrySource: "card" }
     );
@@ -235,10 +151,13 @@ export function GenerationHistoryCard({
     }
 
     if (action === "share") {
-      if (!generation.resultUrl) return;
+      const shareUrl = tilesFailed
+        ? generation.photoshootSheetUrl || generation.resultUrl
+        : generation.resultUrl;
+      if (!shareUrl) return;
       setMenuOpen(false);
       try {
-        const mode = await shareGenerationResult(generation.resultUrl);
+        const mode = await shareGenerationResult(shareUrl);
         if (mode === "copied") toast("Ссылка скопирована");
       } catch (err) {
         if (err instanceof Error && err.name === "AbortError") return;
@@ -248,13 +167,18 @@ export function GenerationHistoryCard({
     }
 
     if (action === "download") {
-      if (!generation.resultUrl && !tileUrls) return;
+      if (!generation.resultUrl && !fullTiles && !generation.photoshootSheetUrl) return;
       setBusyAction("download");
       try {
-        if (tileUrls) {
-          for (const [index, url] of tileUrls.entries()) {
+        if (fullTiles && !tilesFailed) {
+          for (const [index, url] of fullTiles.entries()) {
             await downloadGenerationResult(url, `promptshot-${generation.id}-${index + 1}.jpg`);
           }
+        } else if (generation.photoshootSheetUrl) {
+          await downloadGenerationResult(
+            generation.photoshootSheetUrl,
+            `promptshot-${generation.id}.jpg`,
+          );
         } else if (generation.resultUrl) {
           await downloadGenerationResult(
             generation.resultUrl,
@@ -388,20 +312,50 @@ export function GenerationHistoryCard({
       }}
     >
       <div className="relative w-full overflow-hidden rounded-2xl bg-zinc-900 aspect-[3/4]">
-        {tileUrls ? (
-          <PhotoshootHistoryGrid
-            urls={tileUrls}
-            interactive={!selectMode && canOpenResult}
-            onSelect={openResult}
+        {sheetDisplay ? (
+          <Image
+            src={sheetDisplay}
+            alt=""
+            fill
+            sizes={SIZES_CARD_GRID}
+            quality={CARD_IMAGE_LISTING_NEXT_QUALITY}
+            priority={priority}
+            className={`object-cover ${showTileGrid && tilesOk ? "opacity-0" : ""}`}
+            draggable={false}
           />
-        ) : generation.resultUrl ? (
-          <HistoryFitMedia
+        ) : null}
+        {showTileGrid && displayTiles ? (
+          <PhotoshootListingGrid
+            urls={displayTiles}
+            alt="Кадры фотосессии"
+            priority={priority}
+            className={tilesOk || !sheetDisplay ? "" : "opacity-0"}
+            onLoad={() => setTilesOk(true)}
+            onError={() => setTilesFailed(true)}
+            onSelect={
+              !selectMode && canOpenResult
+                ? (_, index) => openResult(fullTiles?.[index])
+                : undefined
+            }
+          />
+        ) : displaySrc && isVideo && generation.resultUrl ? (
+          <ListingCardVideo
             src={generation.resultUrl}
-            alt={isVideo ? "Видео" : "Результат генерации"}
-            kind={isVideo ? "video" : "image"}
-            className="listing-card-photo-hover absolute inset-0 z-[2] h-full w-full"
+            className="listing-card-photo-hover"
           />
-        ) : (
+        ) : displaySrc && !isPhotoshoot ? (
+          <Image
+            src={displaySrc}
+            alt="Результат генерации"
+            fill
+            sizes={SIZES_CARD_GRID}
+            quality={CARD_IMAGE_LISTING_NEXT_QUALITY}
+            priority={priority}
+            fetchPriority={priority ? "high" : undefined}
+            className="listing-card-photo-hover object-cover"
+            draggable={false}
+          />
+        ) : !sheetDisplay ? (
           <div className="flex h-full items-center justify-center px-3 text-center">
             {generation.status === "failed" ? (
               <span className="text-[13px] font-medium text-rose-600">Ошибка</span>
@@ -413,13 +367,13 @@ export function GenerationHistoryCard({
               </span>
             )}
           </div>
-        )}
+        ) : null}
 
-        {!selectMode && (isPhotoshoot || tileUrls) ? (
+        {!selectMode && (isPhotoshoot || displayTiles || sheetDisplay) ? (
           <PhotoshootListingBadge className="bottom-14" />
         ) : null}
 
-        {!selectMode && canOpenResult && !tileUrls ? (
+        {!selectMode && canOpenResult && !(showTileGrid && tilesOk) ? (
           <button
             type="button"
             className="absolute inset-0 z-10 cursor-pointer appearance-none border-0 bg-transparent p-0"

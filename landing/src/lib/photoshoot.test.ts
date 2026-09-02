@@ -215,6 +215,15 @@ test("photoshoot tile paths sit next to the sheet object", () => {
   );
   assert.deepEqual(parsePhotoshootTilePaths(["a", "b", "c", "d"]), ["a", "b", "c", "d"]);
   assert.equal(parsePhotoshootTilePaths(["a", "b", "c"]), null);
+  assert.deepEqual(
+    parsePhotoshootTilePaths("{user/job/lease-1.jpg,user/job/lease-2.jpg,user/job/lease-3.jpg,user/job/lease-4.jpg}"),
+    [
+      "user/job/lease-1.jpg",
+      "user/job/lease-2.jpg",
+      "user/job/lease-3.jpg",
+      "user/job/lease-4.jpg",
+    ],
+  );
 });
 
 test("photoshoot user-facing result never exposes the sheet", () => {

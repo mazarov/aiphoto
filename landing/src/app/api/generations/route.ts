@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createSupabaseServer, getStoragePublicUrl } from "@/lib/supabase";
+import { createSupabaseServer } from "@/lib/supabase";
 import { getSupabaseUserForApiRoute } from "@/lib/supabase-route-auth";
 import { resolveSharedDbUserId } from "@/lib/resolve-db-user-id";
 import {
@@ -8,8 +8,8 @@ import {
   landingGenerationsOwnerOrFilter,
   removeGenerationResultObjects,
 } from "@/lib/landing-generations-access";
-import { resolvePhotoshootUserFacingResult } from "@/lib/photoshoot";
-import { GENERATIONS_API_MAX_LIMIT, takeGenerationPage } from "@/lib/generations-list";
+import { GENERATIONS_API_MAX_LIMIT } from "@/lib/generations-list";
+import { listUserGenerations } from "@/lib/list-user-generations";
 
 const BULK_DELETE_MAX = 50;
 const UUID_RE =
@@ -32,105 +32,21 @@ export async function GET(req: NextRequest) {
     const supabase = createSupabaseServer();
     const resolved = await resolveSharedDbUserId(supabase, user);
     const dbUserId = resolved?.dbUserId ?? user.id;
-    const ownerFilter = landingGenerationsOwnerOrFilter(user.id, dbUserId);
-
-    const { data: rows, error } = await supabase
-      .from("landing_generations")
-      .select(
-        "id, status, prompt_text, model, executed_model, fallback_used, aspect_ratio, credits_spent, created_at, generation_completed_at, error_message, result_storage_bucket, result_storage_path, ugc_card_id, modality, result_mime_type, duration_seconds, edit_kind, photoshoot_tile_paths"
-      )
-      .or(ownerFilter)
-      .order("created_at", { ascending: false })
-      .range(offset, offset + limit);
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-
-    const { page, hasMore } = takeGenerationPage(rows || [], limit);
-
-    const cardIds = [
-      ...new Set(
-        page
-          .map((row) => row.ugc_card_id as string | null)
-          .filter((id): id is string => Boolean(id))
-      ),
-    ];
-    const cardsById = new Map<
-      string,
-      { id: string; slug: string | null; isPublished: boolean }
-    >();
-
-    if (cardIds.length > 0) {
-      const { data: cards, error: cardsError } = await supabase
-        .from("prompt_cards")
-        .select("id, slug, is_published")
-        .in("id", cardIds);
-
-      if (cardsError) {
-        console.error("generations card metadata error:", cardsError.message);
-      } else {
-        for (const card of cards || []) {
-          cardsById.set(card.id as string, {
-            id: card.id as string,
-            slug: (card.slug as string | null) ?? null,
-            isPublished: Boolean(card.is_published),
-          });
-        }
-      }
-    }
-
-    const generations = page.map((g) => {
-      const card = g.ugc_card_id
-        ? cardsById.get(g.ugc_card_id as string) ?? null
-        : null;
-      const facing = resolvePhotoshootUserFacingResult({
-        editKind: g.edit_kind,
-        sheetPath: g.result_storage_path,
-        tilePaths: g.photoshoot_tile_paths,
-      });
-      const bucket = g.result_storage_bucket as string | null;
-      return {
-        id: g.id,
-        status: g.status,
-        prompt: g.prompt_text,
-        model: g.model,
-        executedModel: g.executed_model || null,
-        fallbackUsed: Boolean(g.fallback_used),
-        aspectRatio: g.aspect_ratio,
-        modality: g.modality || "image",
-        resultMimeType: g.result_mime_type || null,
-        durationSeconds: g.duration_seconds ?? null,
-        editKind: g.edit_kind || null,
-        creditsSpent: g.credits_spent,
-        createdAt: g.created_at,
-        completedAt: g.generation_completed_at,
-        errorMessage: g.status === "failed" ? g.error_message : null,
-        resultUrl:
-          bucket && facing.resultPath
-            ? getStoragePublicUrl(bucket, facing.resultPath)
-            : null,
-        photoshootTileUrls:
-          bucket && facing.tilePaths
-            ? facing.tilePaths.map((path) => getStoragePublicUrl(bucket, path))
-            : null,
-        cardId: card?.id ?? null,
-        cardSlug: card?.slug ?? null,
-        isPublished: card?.isPublished ?? false,
-      };
+    const page = await listUserGenerations({
+      supabase,
+      authUserId: user.id,
+      dbUserId,
+      limit,
+      offset,
     });
 
-    return NextResponse.json(
-      {
-        generations,
-        hasMore,
-        nextOffset: hasMore ? offset + generations.length : null,
-      },
-      { headers: { "Cache-Control": "private, no-store" } }
-    );
+    return NextResponse.json(page, {
+      headers: { "Cache-Control": "private, no-store" },
+    });
   } catch (err) {
     console.error("generations list error:", err);
-    return NextResponse.json({ error: "Failed to fetch" }, { status: 500 });
+    const message = err instanceof Error ? err.message : "Failed to fetch";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 

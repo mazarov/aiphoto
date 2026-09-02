@@ -4,14 +4,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import { ListingGrid } from "@/components/ListingGrid";
-import {
-  GenerationHistoryCard,
-  type GenerationHistoryItem,
-} from "@/components/GenerationHistoryCard";
+import { GenerationHistoryCard } from "@/components/GenerationHistoryCard";
 import { VIDEO_GENERATION_MODALITY } from "@/lib/generation/image-options";
 import {
+  GENERATIONS_GRID_PRIORITY_COUNT,
   GENERATIONS_PAGE_SIZE,
   mergeGenerationFirstPage,
+  type GenerationHistoryItem,
+  type GenerationListPage,
 } from "@/lib/generations-list";
 import { isPhotoshootEditKind } from "@/lib/photoshoot";
 import { useListingSentinelLoadMore } from "@/hooks/useListingSentinelLoadMore";
@@ -26,21 +26,27 @@ type GenerationsContentProps = {
   refreshToken?: number;
   /** Extra bottom padding for floating composer dock on /generate. */
   className?: string;
+  /** SSR first page from `/generations`. Omit on `/generate` so the client fetches. */
+  initialPage?: GenerationListPage;
 };
 
 export function GenerationsContent({
   refreshToken = 0,
   className,
+  initialPage,
 }: GenerationsContentProps = {}) {
   const { user, loading: authLoading } = useAuth();
-  const [generations, setGenerations] = useState<GenerationHistoryItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [generations, setGenerations] = useState<GenerationHistoryItem[]>(
+    () => initialPage?.generations ?? [],
+  );
+  const [loading, setLoading] = useState(() => initialPage === undefined);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [hasMore, setHasMore] = useState(false);
+  const [hasMore, setHasMore] = useState(() => Boolean(initialPage?.hasMore));
+  const skipMountFetchRef = useRef(initialPage !== undefined);
   const [error, setError] = useState("");
   const generationsRef = useRef<GenerationHistoryItem[]>([]);
   const hasMoreRef = useRef(false);
-  const loadingRef = useRef(true);
+  const loadingRef = useRef(initialPage === undefined);
   const loadingMoreRef = useRef(false);
   generationsRef.current = generations;
   hasMoreRef.current = hasMore;
@@ -166,9 +172,15 @@ export function GenerationsContent({
     }
 
     const controller = new AbortController();
-    setLoading(true);
-    setHasMore(false);
-    void loadFirstPage({ signal: controller.signal, replace: true });
+    const skipMount = skipMountFetchRef.current;
+    skipMountFetchRef.current = false;
+    if (skipMount && refreshToken === 0) {
+      setLoading(false);
+    } else {
+      setLoading(true);
+      setHasMore(false);
+      void loadFirstPage({ signal: controller.signal, replace: true });
+    }
 
     const refreshOnFocus = () => void loadFirstPage();
     window.addEventListener("focus", refreshOnFocus);
@@ -291,7 +303,7 @@ export function GenerationsContent({
     }
   };
 
-  if (authLoading || !user) {
+  if (!user && !authLoading) {
     return (
       <div className={className}>
         <p className="text-zinc-500">
@@ -304,7 +316,7 @@ export function GenerationsContent({
     );
   }
 
-  if (loading) {
+  if ((!user && authLoading && initialPage === undefined) || (loading && generations.length === 0)) {
     return (
       <div className={`animate-pulse text-zinc-500${className ? ` ${className}` : ""}`}>
         Загрузка...
@@ -348,10 +360,11 @@ export function GenerationsContent({
   return (
     <div className={className}>
       <ListingGrid clamp={hasMore} className={selectMode ? "pb-24" : undefined}>
-        {generations.map((generation) => (
+        {generations.map((generation, index) => (
           <GenerationHistoryCard
             key={generation.id}
             generation={generation}
+            priority={index < GENERATIONS_GRID_PRIORITY_COUNT}
             selectMode={selectMode}
             selected={selectedIds.has(generation.id)}
             videoEnabled={videoEnabled}

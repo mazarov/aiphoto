@@ -13,8 +13,11 @@ type Props = {
   priority?: boolean;
   onSelect?: (url: string, index: number) => void;
   onPrefetch?: () => void;
+  onError?: () => void;
+  onLoad?: () => void;
   selectedIndex?: number;
   sizes?: string;
+  className?: string;
 };
 
 /** Same 2×2 flush sheet as `/generations`: hover dims siblings, click opens that frame. */
@@ -24,8 +27,11 @@ export function PhotoshootListingGrid({
   priority = false,
   onSelect,
   onPrefetch,
+  onError,
+  onLoad,
   selectedIndex,
   sizes = SIZES_CARD_GRID,
+  className = "",
 }: Props) {
   const interactive = Boolean(onSelect);
 
@@ -33,7 +39,7 @@ export function PhotoshootListingGrid({
     <div
       className={`photoshoot-history-grid absolute inset-0 z-[2] grid grid-cols-2 grid-rows-2 bg-zinc-900${
         interactive ? " is-interactive" : ""
-      }`}
+      }${className ? ` ${className}` : ""}`}
       onPointerEnter={onPrefetch}
       onTouchStart={onPrefetch}
     >
@@ -50,6 +56,8 @@ export function PhotoshootListingGrid({
             fetchPriority={priority && index === 0 ? "high" : undefined}
             className="photoshoot-history-tile__img object-cover"
             draggable={false}
+            onLoad={index === 0 ? onLoad : undefined}
+            onError={index === 0 ? onError : undefined}
           />
         );
         const tileClass =

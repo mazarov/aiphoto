@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-/** Same ownership filter as GET /api/generations — requester JWT or legacy paid rows. */
+/** Fallback ownership filter when `landing_list_my_generations` is missing — requester JWT or legacy paid rows. */
 export function landingGenerationsOwnerOrFilter(
   authUserId: string,
   dbUserId: string
