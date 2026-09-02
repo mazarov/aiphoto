@@ -1,7 +1,7 @@
 /** RU SEO copy for homepage `/` — docs/31-08-homepage-promty-fotosessii.md */
 
 const HOMEPAGE_INTRO =
-  "Промты для фото в ИИ — готовый текст и пример кадра. Скопируй промт или загрузи своё фото и повтори в 1 клик.";
+  "Промты для фото в ИИ онлайн — загрузи своё фото и повтори в 1 клик. Бесплатно. Промты подходят для Нано Банана, GPT и Gemini.";
 
 export const HOMEPAGE_SEO = {
   title: "Промты для фото в ИИ | PromptShot",
@@ -24,7 +24,7 @@ export const HOMEPAGE_SEO = {
   examplesTitle: "Готовые промты для ИИ фотосессии",
   examplesIntro: "",
   examplesIntroSecondary:
-    "Все промты на русском. Копируй бесплатно. Подходят для ChatGPT, Gemini и Nano Banana.",
+    "Все промты на русском. Копируй бесплатно. Промты для нано банана, ChatGPT и Gemini — копируй или повтори кадр здесь.",
   catalogCta: "Перейти в каталог",
   catalogHref: "/catalog",
   galleryTitle: "Идеи промтов для фото",
@@ -37,7 +37,7 @@ export type HomepageFaqItem = {
   aPlain: string;
 };
 
-/** Leftover Wordcraft / competitor intents — not Title, catalog, gallery, HowTo. */
+/** Secondary intents — not Title, H1, gallery, HowTo. Nano Banana tail lives in intro + FAQ. */
 export const HOMEPAGE_FAQ: HomepageFaqItem[] = [
   {
     id: "what",
@@ -70,9 +70,9 @@ export const HOMEPAGE_FAQ: HomepageFaqItem[] = [
       "Те, у которых уже есть удачный кадр. На этой странице смотри примеры в ленте, в каталоге — по темам. Если результат нравится, скопируй промт или повтори кадр со своим фото.",
   },
   {
-    id: "network",
-    q: "Какая нейросеть создаёт фото по промту?",
+    id: "nano-banana",
+    q: "Где взять промты для нано банана?",
     aPlain:
-      "На PromptShot кадр собирает встроенный генератор — модель выбираешь при запуске. Те же промты подходят для ChatGPT, Gemini и Nano Banana, копировать и генерировать можно здесь.",
+      "Промты для нано банана — в каталоге на этой странице. Скопируй промт или загрузи своё фото, чтобы повторить кадр в 1 клик. Те же тексты подходят для ChatGPT и Gemini — генерация на PromptShot.",
   },
 ];

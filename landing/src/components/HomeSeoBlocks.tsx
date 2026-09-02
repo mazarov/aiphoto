@@ -38,6 +38,17 @@ function FaqAnswer({ item }: { item: (typeof HOMEPAGE_FAQ)[number] }) {
           .
         </>
       );
+    case "nano-banana":
+      return (
+        <>
+          Промты для нано банана — в{" "}
+          <Link href="/#katalog" className={linkClass}>
+            каталоге на этой странице
+          </Link>
+          . Скопируй промт или загрузи своё фото, чтобы повторить кадр в 1 клик.
+          Те же тексты подходят для ChatGPT и Gemini — генерация на PromptShot.
+        </>
+      );
     case "best":
       return (
         <>

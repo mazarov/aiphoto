@@ -11,10 +11,18 @@ test("homepage snippet keeps the listing key and CWS-safe length", () => {
   assert.ok(HOMEPAGE_SEO.description.length <= 180);
   assert.match(HOMEPAGE_SEO.title, /^Промты для фото в ИИ/);
   assert.doesNotMatch(HOMEPAGE_SEO.title, /фотосессии/);
-  assert.match(HOMEPAGE_SEO.description, /промты для фото в ИИ/i);
-  assert.doesNotMatch(HOMEPAGE_SEO.description, /ChatGPT|Gemini|Nano Banana/i);
+  assert.equal(
+    HOMEPAGE_SEO.description,
+    "Промты для фото в ИИ онлайн — загрузи своё фото и повтори в 1 клик. Бесплатно. Промты подходят для Нано Банана, GPT и Gemini."
+  );
+  assert.match(HOMEPAGE_SEO.description, /промты для фото в ИИ онлайн/i);
+  assert.match(HOMEPAGE_SEO.description, /Нано Банана/);
   assert.match(HOMEPAGE_SEO.h1.main, /^Промты для фото$/);
   assert.equal(HOMEPAGE_SEO.h1.accent, "в ИИ");
+  assert.doesNotMatch(
+    `${HOMEPAGE_SEO.title} ${HOMEPAGE_SEO.h1.main} ${HOMEPAGE_SEO.h1.accent}`,
+    /нано банана|Nano Banana|Нано Банана/i
+  );
 });
 
 test("homepage blocks keep listing CTA and do not send people away", () => {
@@ -32,8 +40,9 @@ test("homepage blocks keep listing CTA and do not send people away", () => {
   assert.equal(HOMEPAGE_SEO.examplesIntro, "");
   assert.equal(
     HOMEPAGE_SEO.examplesIntroSecondary,
-    "Все промты на русском. Копируй бесплатно. Подходят для ChatGPT, Gemini и Nano Banana."
+    "Все промты на русском. Копируй бесплатно. Промты для нано банана, ChatGPT и Gemini — копируй или повтори кадр здесь."
   );
+  assert.match(HOMEPAGE_SEO.examplesIntroSecondary, /промты для нано банана/i);
   assert.deepEqual(HOMEPAGE_SEO.howToSteps, [
     "Открой карточку с готовым промтом для фото и нажми «Скопировать промт».",
     "Вставь текст в генератор на сайте и при необходимости загрузи своё фото.",
@@ -55,7 +64,7 @@ test("homepage FAQ owns fotosessii prompts on / and points series to the verb hu
     "Как пользоваться промтом для генерации фото?",
     "Где взять промты для ИИ фотосессии?",
     "Какие промты для фото лучшие?",
-    "Какая нейросеть создаёт фото по промту?",
+    "Где взять промты для нано банана?",
   ]);
   assert.equal(HOMEPAGE_FAQ.length, 6);
   assert.equal(
@@ -70,6 +79,11 @@ test("homepage FAQ owns fotosessii prompts on / and points series to the verb hu
     photoshoot?.aPlain ?? "",
     /Открой несколько карточек с идеями/
   );
+  const nanoBanana = HOMEPAGE_FAQ.find((item) => item.id === "nano-banana");
+  assert.equal(nanoBanana?.q, "Где взять промты для нано банана?");
+  assert.match(nanoBanana?.aPlain ?? "", /промты для нано банана/i);
+  assert.match(nanoBanana?.aPlain ?? "", /каталоге на этой странице/);
+  assert.match(nanoBanana?.aPlain ?? "", /повторить кадр в 1 клик/);
   for (const item of HOMEPAGE_FAQ) {
     assert.doesNotMatch(item.q, /промпт/i);
     assert.doesNotMatch(item.aPlain, /промпт/i);
