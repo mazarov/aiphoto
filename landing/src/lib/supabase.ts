@@ -148,14 +148,22 @@ async function expandCardGroups(cards: RouteCard[]): Promise<RouteCard[]> {
   if (cards.length === 0) return [];
   const supabase = createSupabaseServer();
   const ids = new Set(cards.map((c) => c.id));
-  const { data: meta } = await supabase
-    .from("prompt_cards")
-    .select("id,source_dataset_slug,source_message_id,card_split_total")
-    .in("id", [...ids]);
+  const meta: {
+    id: string;
+    source_dataset_slug: string | null;
+    source_message_id: number | null;
+    card_split_total: number | null;
+  }[] = [];
+  for (const part of chunkForPostgrestIn([...ids])) {
+    const { data: rows } = await supabase
+      .from("prompt_cards")
+      .select("id,source_dataset_slug,source_message_id,card_split_total")
+      .in("id", part);
+    meta.push(...((rows || []) as typeof meta));
+  }
 
   const groupKeys: { dataset: string; msgId: number }[] = [];
-  for (const r of meta || []) {
-    const row = r as { id: string; source_dataset_slug: string | null; source_message_id: number | null; card_split_total: number | null };
+  for (const row of meta) {
     if (row.card_split_total && row.card_split_total > 1 && row.source_dataset_slug && row.source_message_id != null) {
       const key = `${row.source_dataset_slug}::${row.source_message_id}`;
       if (!groupKeys.some((g) => `${g.dataset}::${g.msgId}` === key)) {
@@ -504,7 +512,23 @@ export type CardPhotoRef = {
   height: number | null;
 };
 
-const CARD_SLUG_IN_CHUNK = 40;
+/**
+ * PostgREST `.in()` is sent as a GET query through OpenResty.
+ * ~40 UUIDs stay under typical 4–8 KB Request-URI limits; larger lists 414/502.
+ */
+export const POSTGREST_IN_CHUNK = 40;
+
+export function chunkForPostgrestIn<T>(
+  items: readonly T[],
+  size = POSTGREST_IN_CHUNK
+): T[][] {
+  if (items.length === 0) return [];
+  const chunks: T[][] = [];
+  for (let i = 0; i < items.length; i += size) {
+    chunks.push(items.slice(i, i + size) as T[]);
+  }
+  return chunks;
+}
 
 /** Primary photo for published cards by slug (SEO-иллюстрации, batch). */
 export async function getCardPhotosBySlugs(
@@ -514,11 +538,9 @@ export async function getCardPhotosBySlugs(
   const unique = [...new Set(slugs.filter(Boolean))];
   if (unique.length === 0) return result;
 
-  if (unique.length > CARD_SLUG_IN_CHUNK) {
-    for (let i = 0; i < unique.length; i += CARD_SLUG_IN_CHUNK) {
-      const chunk = await getCardPhotosBySlugs(
-        unique.slice(i, i + CARD_SLUG_IN_CHUNK),
-      );
+  if (unique.length > POSTGREST_IN_CHUNK) {
+    for (const part of chunkForPostgrestIn(unique)) {
+      const chunk = await getCardPhotosBySlugs(part);
       for (const [slug, photo] of chunk) result.set(slug, photo);
     }
     return result;
@@ -663,6 +685,13 @@ export async function enrichCardsWithDetails(
   cards: RouteCard[]
 ): Promise<PromptCardFull[]> {
   if (cards.length === 0) return [];
+  if (cards.length > POSTGREST_IN_CHUNK) {
+    const enriched: PromptCardFull[] = [];
+    for (const part of chunkForPostgrestIn(cards)) {
+      enriched.push(...(await enrichCardsWithDetails(part)));
+    }
+    return enriched;
+  }
 
   const supabase = createSupabaseServer();
   const ids = cards.map((c) => c.id);

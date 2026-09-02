@@ -26,16 +26,11 @@ function FaqAnswer({ item }: { item: (typeof HOMEPAGE_FAQ)[number] }) {
     case "photoshoot":
       return (
         <>
-          В{" "}
-          <Link href="/#katalog" className={linkClass}>
-            каталоге на этой странице
-          </Link>{" "}
-          — готовые промты для ИИ фотосессии на русском. Открой карточку и
-          скопируй текст. Серию кадров со своим фото собирайте на странице{" "}
           <Link href="/ii-fotosessiya" className={linkClass}>
-            «ИИ фотосессия»
-          </Link>
-          .
+            Промты для ИИ фотосессии
+          </Link>{" "}
+          на русском собраны вместе с примерами результата. Открой карточку,
+          скопируй текст или собери серию кадров со своим фото.
         </>
       );
     case "nano-banana":

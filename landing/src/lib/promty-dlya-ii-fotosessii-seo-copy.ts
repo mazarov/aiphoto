@@ -6,15 +6,20 @@ import {
 } from "./promty-dlya-ii-fotosessii-cluster";
 
 export const PROMTY_DLYA_II_FOTOSESSII_SEO = {
-  metaTitle: "ИИ фотосессия по фото онлайн | PromptShot",
+  metaTitle:
+    "ИИ фотосессия по фото онлайн — готовые промты | PromptShot",
   metaDescription:
-    "ИИ фотосессия по своему фото: серия кадров в одном стиле. Загрузи одно фото и собери съёмку онлайн — без студии и фотографа.",
+    "ИИ фотосессия по своему фото онлайн: выбери готовый промт на русском, загрузи фото и собери серию кадров в одном стиле.",
   h1: "ИИ фотосессия по фото",
   intro:
-    "Загрузи одно фото и собери ИИ фотосессию: несколько кадров в одном стиле, без студии и фотографа.",
+    "Выбери готовый промт, загрузи одно фото и собери ИИ фотосессию: несколько кадров в одном стиле, без студии и фотографа.",
   breadcrumb: "ИИ фотосессия",
-  carouselCta: "Собрать фотосессию",
+  heroCta: "Загрузить фото",
+  carouselCta: "Смотреть примеры",
   carouselCtaHref: "#primery",
+  promptsTitle: "Промты для ИИ фотосессии на русском",
+  promptsLead:
+    "Готовые промты с примерами результата. Скопируй текст или открой пример и повтори его со своим фото.",
   examplesTitle: "Примеры ИИ фотосессии",
   examplesIntro:
     "Готовые луки для серии. Открой пример и повтори со своим фото.",
@@ -139,6 +144,8 @@ export type FotosessiiChildCopy = {
   examplesTitle: string;
   examplesIntro: string;
   examplesCta: string;
+  promptsTitle: string;
+  promptsLead: string;
   themesTitle: string;
   themesLead: string;
   howToTitle: string;
@@ -171,8 +178,8 @@ function buildFotosessiiChildCopy(
   forms: ChildCopyForms
 ): Omit<FotosessiiChildCopy, "slug"> {
   return {
-    metaTitle: `${forms.h1} | PromptShot`,
-    metaDescription: `${forms.h1} по своему фото: ${forms.angle}. Загрузи фото и собери съёмку онлайн.`,
+    metaTitle: `${forms.h1} — готовые промты | PromptShot`,
+    metaDescription: `${forms.h1} по своему фото: готовые промты на русском и ${forms.angle}. Загрузи фото и собери съёмку онлайн.`,
     h1: forms.h1,
     intro: forms.intro,
     carouselCta: PROMTY_DLYA_II_FOTOSESSII_SEO.carouselCta,
@@ -180,6 +187,9 @@ function buildFotosessiiChildCopy(
     examplesTitle: forms.examplesTitle,
     examplesIntro: forms.examplesIntro,
     examplesCta: PROMTY_DLYA_II_FOTOSESSII_SEO.examplesCta,
+    promptsTitle: forms.examplesTitle.replace(/^Примеры /, "Промты для "),
+    promptsLead:
+      "Готовые промты на русском с примерами результата. Скопируй текст или повтори выбранный сценарий со своим фото.",
     themesTitle: "Другие сценарии ИИ фотосессии",
     themesLead: forms.themesLead,
     howToTitle: `Как сделать ${forms.howToMake}`,

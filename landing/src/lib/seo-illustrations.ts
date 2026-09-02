@@ -1,5 +1,6 @@
 import type { SeoIllustration } from "./seo-content";
 import {
+  POSTGREST_IN_CHUNK,
   createSupabaseServer,
   enrichCardsWithDetails,
   fetchRouteCards,
@@ -29,7 +30,6 @@ type RouteRpcParams = {
 const DEFAULT_WIDTH = 3;
 const DEFAULT_HEIGHT = 4;
 const ROUTE_SCAN_LIMIT = 120;
-const VARIANTS_ID_CHUNK = 40;
 
 function toResolved(
   ref: CardPhotoRef,
@@ -70,8 +70,8 @@ async function findPromptMatchInCards(
   const supabase = createSupabaseServer();
   const lower = needle.toLowerCase();
 
-  for (let i = 0; i < cards.length; i += VARIANTS_ID_CHUNK) {
-    const chunk = cards.slice(i, i + VARIANTS_ID_CHUNK);
+  for (let i = 0; i < cards.length; i += POSTGREST_IN_CHUNK) {
+    const chunk = cards.slice(i, i + POSTGREST_IN_CHUNK);
     const ids = chunk.map((c) => c.id);
     const { data: variants } = await supabase
       .from("prompt_variants")

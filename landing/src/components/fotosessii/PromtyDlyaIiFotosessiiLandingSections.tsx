@@ -51,6 +51,32 @@ function onHashLinkClick(event: MouseEvent<HTMLAnchorElement>, href: string) {
   scrollToPageHash(href);
 }
 
+export function FotosessiiHeroStart({
+  label = "Загрузить фото",
+}: {
+  label?: string;
+}) {
+  const { seedPhotoshoot, needsCredits } = useGenerateDock();
+  const { open: openPricing } = usePricingModal();
+
+  const handleStart = () => {
+    if (needsCredits) {
+      reachYandexMetrikaGoal(YM_GOAL_PROMPT_CARD_GENERATION_PRICING);
+      openPricing();
+      return;
+    }
+    seedPhotoshoot({ entrySource: "hero" });
+  };
+
+  return (
+    <div className="mt-6 flex justify-center">
+      <button type="button" className={GF_BRAND_CTA} onClick={handleStart}>
+        {label}
+      </button>
+    </div>
+  );
+}
+
 export function PromtyDlyaIiFotosessiiHowTo({
   copy,
 }: {

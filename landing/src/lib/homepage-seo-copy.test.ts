@@ -40,7 +40,7 @@ test("homepage blocks keep listing CTA and do not send people away", () => {
   assert.equal(HOMEPAGE_SEO.heroSubtitle, HOMEPAGE_SEO.intro);
   assert.equal(HOMEPAGE_SEO.heroSubtitle, HOMEPAGE_SEO.description);
   assert.equal(HOMEPAGE_SEO.examplesEyebrow, "Каталог промтов");
-  assert.equal(HOMEPAGE_SEO.examplesTitle, "Готовые промты для ИИ фотосессии");
+  assert.equal(HOMEPAGE_SEO.examplesTitle, "Готовые промты для фото");
   assert.equal(HOMEPAGE_SEO.catalogCta, "Перейти в каталог");
   assert.equal(HOMEPAGE_SEO.catalogHref, "/catalog");
   assert.equal(HOMEPAGE_SEO.galleryTitle, "Идеи промтов для фото");
@@ -63,7 +63,7 @@ test("homepage blocks keep listing CTA and do not send people away", () => {
   }
 });
 
-test("homepage FAQ owns fotosessii prompts on / and points series to the verb hub", () => {
+test("homepage FAQ passes the photoshoot prompt cluster to its hub", () => {
   const questions = HOMEPAGE_FAQ.map((item) => item.q);
   assert.deepEqual(questions, [
     "Что такое промт для фото?",
@@ -79,7 +79,7 @@ test("homepage FAQ owns fotosessii prompts on / and points series to the verb hu
     false
   );
   const photoshoot = HOMEPAGE_FAQ.find((item) => item.id === "photoshoot");
-  assert.match(photoshoot?.aPlain ?? "", /каталоге на этой странице/);
+  assert.doesNotMatch(photoshoot?.aPlain ?? "", /каталоге на этой странице/);
   assert.match(photoshoot?.aPlain ?? "", /промты для ИИ фотосессии/);
   assert.match(photoshoot?.aPlain ?? "", /ИИ фотосессия/);
   assert.doesNotMatch(

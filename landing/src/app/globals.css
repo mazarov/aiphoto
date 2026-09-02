@@ -1019,7 +1019,21 @@ p {
       transform: scale(1.06);
     }
 
+    .photoshoot-history-grid.is-interactive:has(.photoshoot-history-tile.is-selected)
+      .photoshoot-history-tile:not(.is-selected)
+      .photoshoot-history-tile__img {
+      opacity: 0.42;
+      filter: saturate(0.7);
+    }
+
     .photoshoot-history-grid.is-interactive .photoshoot-history-tile.is-selected .photoshoot-history-tile__img {
+      opacity: 1;
+      filter: none;
+    }
+
+    .photoshoot-history-grid.is-interactive:has(.photoshoot-history-tile.is-selected)
+      .photoshoot-history-tile:hover
+      .photoshoot-history-tile__img {
       opacity: 1;
       filter: none;
     }

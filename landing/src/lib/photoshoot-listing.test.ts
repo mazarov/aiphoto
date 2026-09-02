@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   filterPhotoshootListingCards,
+  filterPhotoshootListingCardsBySeoTag,
   isPhotoshootListingCard,
 } from "./photoshoot-listing";
 
@@ -51,4 +52,43 @@ test("filterPhotoshootListingCards keeps only photoshoot albums", () => {
     photoMeta: [{ path: "channel/photo.jpg" }],
   };
   assert.deepEqual(filterPhotoshootListingCards([single, photoshoot]), [photoshoot]);
+});
+
+test("scenario filter requires both photoshoot media and matching SEO tag", () => {
+  const base = {
+    datasetSlug: "web_generation_ugc",
+    photoUrls: ["1", "2", "3", "4"],
+    photoMeta: [
+      { path: "user/job/lease-1.jpg" },
+      { path: "user/job/lease-2.jpg" },
+      { path: "user/job/lease-3.jpg" },
+      { path: "user/job/lease-4.jpg" },
+    ],
+  };
+  const women = {
+    ...base,
+    id: "women",
+    seo_tags: { audience_tag: ["devushka"] },
+  };
+  const men = {
+    ...base,
+    id: "men",
+    seo_tags: { audience_tag: ["muzhchina"] },
+  };
+  const single = {
+    id: "single",
+    datasetSlug: "telegram_export",
+    photoUrls: ["1"],
+    photoMeta: [{ path: "channel/photo.jpg" }],
+    seo_tags: { audience_tag: ["devushka"] },
+  };
+
+  assert.deepEqual(
+    filterPhotoshootListingCardsBySeoTag(
+      [single, men, women],
+      "audience_tag",
+      "devushka"
+    ),
+    [women]
+  );
 });

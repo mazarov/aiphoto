@@ -284,6 +284,28 @@ export function resolvePhotoshootOpenIndex(input: {
   return 0;
 }
 
+/** One catalog prompt per frame when variants line up with the 2×2 sheet. */
+export function visiblePromptTextsForPhoto(input: {
+  promptTexts: readonly string[];
+  photoCount: number;
+  photoIndex: number;
+}): string[] {
+  const texts = [...input.promptTexts];
+  if (texts.length === input.photoCount && input.photoCount > 1) {
+    const selected = texts[input.photoIndex] || texts[0];
+    return selected ? [selected] : [];
+  }
+  return texts;
+}
+
+export function selectedPromptText(input: {
+  promptTexts: readonly string[];
+  photoCount: number;
+  photoIndex: number;
+}): string {
+  return visiblePromptTextsForPhoto(input).join("\n\n");
+}
+
 /** Replace enqueue junk / incomplete set before catalog publish. */
 export function shouldReplacePhotoshootVariants(texts: string[]): boolean {
   const cleaned = texts.map((text) => String(text || "").trim()).filter(Boolean);

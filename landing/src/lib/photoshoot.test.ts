@@ -32,6 +32,8 @@ import {
   serializePhotoshootSheetInstruction,
   shouldReplacePhotoshootVariants,
   resolvePhotoshootOpenIndex,
+  selectedPromptText,
+  visiblePromptTextsForPhoto,
 } from "./photoshoot";
 import {
   PHOTOSHOOT_PLANNER_GENERATION_CONFIG,
@@ -73,6 +75,26 @@ test("resolvePhotoshootOpenIndex prefers index, then URL", () => {
   assert.equal(resolvePhotoshootOpenIndex({ urls, photoUrl: "d.jpg" }), 3);
   assert.equal(resolvePhotoshootOpenIndex({ urls, photoIndex: 9, photoUrl: "b.jpg" }), 1);
   assert.equal(resolvePhotoshootOpenIndex({ urls }), 0);
+});
+
+test("visiblePromptTextsForPhoto keeps only the selected frame prompt", () => {
+  const promptTexts = ["hook one", "hook two", "hook three", "hook four"];
+  assert.deepEqual(
+    visiblePromptTextsForPhoto({ promptTexts, photoCount: 4, photoIndex: 2 }),
+    ["hook three"]
+  );
+  assert.equal(
+    selectedPromptText({ promptTexts, photoCount: 4, photoIndex: 1 }),
+    "hook two"
+  );
+  assert.deepEqual(
+    visiblePromptTextsForPhoto({
+      promptTexts: ["only one"],
+      photoCount: 4,
+      photoIndex: 2,
+    }),
+    ["only one"]
+  );
 });
 
 test("shouldReplacePhotoshootVariants keeps four real prompts", () => {

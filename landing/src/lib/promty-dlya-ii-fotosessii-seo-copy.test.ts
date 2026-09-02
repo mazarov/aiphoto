@@ -12,20 +12,21 @@ import {
 
 const PROMPT_TYPO = /промпт/i;
 
-test("hub snippet owns the commercial photoshoot head", () => {
+test("hub snippet combines photoshoot generation and ready prompts", () => {
   assert.equal(
     PROMTY_DLYA_II_FOTOSESSII_SEO.metaTitle,
-    "ИИ фотосессия по фото онлайн | PromptShot"
+    "ИИ фотосессия по фото онлайн — готовые промты | PromptShot"
   );
   assert.equal(PROMTY_DLYA_II_FOTOSESSII_SEO.h1, "ИИ фотосессия по фото");
   assert.equal(
     PROMTY_DLYA_II_FOTOSESSII_SEO.metaDescription,
-    "ИИ фотосессия по своему фото: серия кадров в одном стиле. Загрузи одно фото и собери съёмку онлайн — без студии и фотографа."
+    "ИИ фотосессия по своему фото онлайн: выбери готовый промт на русском, загрузи фото и собери серию кадров в одном стиле."
   );
   assert.match(PROMTY_DLYA_II_FOTOSESSII_SEO.metaTitle, /по фото онлайн/i);
+  assert.match(PROMTY_DLYA_II_FOTOSESSII_SEO.metaTitle, /готовые промты/i);
   assert.match(PROMTY_DLYA_II_FOTOSESSII_SEO.h1, /по фото/i);
   assert.doesNotMatch(PROMTY_DLYA_II_FOTOSESSII_SEO.h1, /своему/i);
-  assert.doesNotMatch(PROMTY_DLYA_II_FOTOSESSII_SEO.metaTitle, /промты|бесплатн/i);
+  assert.doesNotMatch(PROMTY_DLYA_II_FOTOSESSII_SEO.metaTitle, /бесплатн/i);
   assert.doesNotMatch(PROMTY_DLYA_II_FOTOSESSII_SEO.h1, /промты|сделать фото ии/i);
   assert.equal(
     PROMTY_DLYA_II_FOTOSESSII_SEO.examplesCta,
@@ -37,11 +38,16 @@ test("hub snippet owns the commercial photoshoot head", () => {
   );
   assert.doesNotMatch(PROMTY_DLYA_II_FOTOSESSII_SEO.metaTitle, /девушк|мужск/i);
   assert.equal("generateBlockTitle" in PROMTY_DLYA_II_FOTOSESSII_SEO, false);
-  assert.equal(PROMTY_DLYA_II_FOTOSESSII_SEO.carouselCta, "Собрать фотосессию");
+  assert.equal(PROMTY_DLYA_II_FOTOSESSII_SEO.heroCta, "Загрузить фото");
+  assert.equal(PROMTY_DLYA_II_FOTOSESSII_SEO.carouselCta, "Смотреть примеры");
   assert.equal(PROMTY_DLYA_II_FOTOSESSII_SEO.carouselCtaHref, "#primery");
   assert.equal(
     PROMTY_DLYA_II_FOTOSESSII_SEO.intro,
-    "Загрузи одно фото и собери ИИ фотосессию: несколько кадров в одном стиле, без студии и фотографа."
+    "Выбери готовый промт, загрузи одно фото и собери ИИ фотосессию: несколько кадров в одном стиле, без студии и фотографа."
+  );
+  assert.equal(
+    PROMTY_DLYA_II_FOTOSESSII_SEO.promptsTitle,
+    "Промты для ИИ фотосессии на русском"
   );
   assert.doesNotMatch(PROMTY_DLYA_II_FOTOSESSII_SEO.intro, /скопируй промт/i);
 });
@@ -216,7 +222,7 @@ test("L2 copy mirrors hub templates without stealing hub or homepage keys", () =
     assert.ok(copy, slug);
     intros.add(copy.intro);
     themeLeads.add(copy.themesLead);
-    assert.equal(copy.metaTitle, `${copy.h1} | PromptShot`);
+    assert.equal(copy.metaTitle, `${copy.h1} — готовые промты | PromptShot`);
     assert.equal(copy.howToSteps.length, 2);
     assert.equal("sessionTitle" in copy, false);
     assert.equal("catalogCtaTitle" in copy, false);
@@ -227,6 +233,8 @@ test("L2 copy mirrors hub templates without stealing hub or homepage keys", () =
     assert.match(copy.howToTitle, /^Как сделать /);
     assert.doesNotMatch(copy.howToTitle, / ии /);
     assert.match(copy.pricingLead, /кредиты на генерацию/i);
+    assert.match(copy.promptsTitle, /^Промты для /i);
+    assert.match(copy.promptsLead, /готовые промты на русском/i);
     assert.doesNotMatch(copy.metaTitle, /в нейросетях|промты для/i);
     assert.doesNotMatch(copy.h1, /в нейросетях|промты для/i);
     assert.doesNotMatch(`${copy.metaTitle} ${copy.h1}`, /промты для фото(?!сесс)/i);

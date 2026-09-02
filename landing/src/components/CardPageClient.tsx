@@ -74,7 +74,12 @@ import {
   PhotoshootFrameStrip,
   PhotoshootListingGrid,
 } from "@/components/PhotoshootListingGrid";
-import { isPhotoshootUgcListing, resolvePhotoshootOpenIndex } from "@/lib/photoshoot";
+import {
+  isPhotoshootUgcListing,
+  resolvePhotoshootOpenIndex,
+  selectedPromptText,
+  visiblePromptTextsForPhoto,
+} from "@/lib/photoshoot";
 import { CardHeroVideo } from "@/components/CardHeroVideo";
 import { PublishRewardBadge } from "@/components/generate/PublishRewardBadge";
 import { requestCreditBalanceRefresh } from "@/lib/credit-balance-events";
@@ -287,10 +292,14 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
       openAuthModal();
       return;
     }
-    const joined = data.promptTexts.join("\n\n");
+    const promptText = selectedPromptText({
+      promptTexts: data.promptTexts,
+      photoCount: photos.length,
+      photoIndex,
+    });
     seedFromCard(
       {
-        promptText: joined,
+        promptText,
         cardId: data.id,
         intent: cardRepeatComposeIntent({ videoUrl: data.videoUrl }),
       },
@@ -306,6 +315,8 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
     isAuthed,
     leaveCardForGenerate,
     openAuthModal,
+    photoIndex,
+    photos.length,
     seedFromCard,
   ]);
 
@@ -497,10 +508,13 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
   });
   const promptsFollowPhotos =
     data.promptTexts.length === photos.length && photos.length > 1;
-  const visiblePromptTexts = promptsFollowPhotos
-    ? [data.promptTexts[photoIndex] || data.promptTexts[0]]
-    : data.promptTexts;
+  const visiblePromptTexts = visiblePromptTextsForPhoto({
+    promptTexts: data.promptTexts,
+    photoCount: photos.length,
+    photoIndex,
+  });
   const visiblePromptIndex = promptsFollowPhotos ? photoIndex : 0;
+  const selectedPrompt = visiblePromptTexts.join("\n\n");
 
   /**
    * Mobile immersive chrome gate: hide all glass UI until the hero photo is fully decoded,
@@ -558,7 +572,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
   }
 
   async function handleCopy() {
-    const str = data.promptTexts.join("\n\n");
+    const str = selectedPrompt;
     if (!str) return;
     if (copyTextSyncFallback(str)) {
       setStickyCopy("ok");
@@ -1198,7 +1212,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
               <div className="mt-auto flex flex-col gap-2 border-t border-zinc-100 px-4 pb-4 pt-3">
                 {hasPrompts && (
                   <LexyGptGenerateButton
-                    promptText={data.promptTexts.join("\n\n")}
+                    promptText={selectedPrompt}
                     cardId={data.id}
                     sourceImageUrl={currentPhoto ?? undefined}
                     variant="desktop-panel"
@@ -1550,7 +1564,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                           <span className="truncate">Промпт</span>
                         </button>
                         <LexyGptGenerateButton
-                          promptText={data.promptTexts.join("\n\n")}
+                          promptText={selectedPrompt}
                           cardId={data.id}
                           sourceImageUrl={currentPhoto ?? undefined}
                           variant="sticky"
@@ -1590,7 +1604,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                       </header>
                       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain py-3 [-webkit-overflow-scrolling:touch]">
                         <p className="select-text whitespace-pre-wrap text-[13px] leading-relaxed text-white/92">
-                          {data.promptTexts.join("\n\n")}
+                          {selectedPrompt}
                         </p>
                       </div>
                       <div className="shrink-0 pb-[max(14px,env(safe-area-inset-bottom))] pt-3">
@@ -1822,12 +1836,14 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                       </>
                     ) : (
                       <span className="truncate">
-                        {data.promptTexts.length > 1 ? "Все промпты" : "Скопировать"}
+                        {promptsFollowPhotos || data.promptTexts.length <= 1
+                          ? "Скопировать"
+                          : "Все промпты"}
                       </span>
                     )}
                   </button>
                   <LexyGptGenerateButton
-                    promptText={data.promptTexts.join("\n\n")}
+                    promptText={selectedPrompt}
                     cardId={data.id}
                     variant="sticky"
                     className="h-full min-h-12 min-w-0 w-full truncate px-2 sm:px-3"

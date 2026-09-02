@@ -1,6 +1,7 @@
 import { isPhotoshootUgcListing } from "@/lib/photoshoot";
 import { WEB_UGC_DATASET_SLUG } from "@/lib/web-ugc-card";
 import {
+  chunkForPostgrestIn,
   createSupabaseServer,
   enrichCardsWithDetails,
   getStorageCardMediaUrl,
@@ -36,6 +37,16 @@ export function filterPhotoshootListingCards<T extends PhotoshootListingCardInpu
   return cards.filter((card) => isPhotoshootListingCard(card));
 }
 
+export function filterPhotoshootListingCardsBySeoTag<
+  T extends PhotoshootListingCardInput & { seo_tags?: unknown },
+>(cards: readonly T[], dimension: string, tagValue: string): T[] {
+  return filterPhotoshootListingCards(cards).filter((card) => {
+    if (!card.seo_tags || typeof card.seo_tags !== "object") return false;
+    const values = (card.seo_tags as Record<string, unknown>)[dimension];
+    return Array.isArray(values) && values.includes(tagValue);
+  });
+}
+
 function toRouteCard(row: {
   id: string;
   slug: string;
@@ -53,31 +64,23 @@ function toRouteCard(row: {
   };
 }
 
-function uniqueRouteCards(cards: RouteCard[]): RouteCard[] {
-  const seen = new Set<string>();
-  const unique: RouteCard[] = [];
-  for (const card of cards) {
-    if (seen.has(card.id)) continue;
-    seen.add(card.id);
-    unique.push(card);
-  }
-  return unique;
-}
-
 async function fetchCardsByIds(ids: string[]): Promise<RouteCard[]> {
   if (!ids.length) return [];
   const supabase = createSupabaseServer();
-  const { data, error } = await supabase
-    .from("prompt_cards")
-    .select("id,slug,title_ru,title_en,seo_tags")
-    .in("id", ids)
-    .eq("is_published", true);
-  if (error) {
-    throw new Error(`photoshoot_listing_cards:${error.message}`);
+  const byId = new Map<string, RouteCard>();
+  for (const part of chunkForPostgrestIn(ids)) {
+    const { data, error } = await supabase
+      .from("prompt_cards")
+      .select("id,slug,title_ru,title_en,seo_tags")
+      .in("id", part)
+      .eq("is_published", true);
+    if (error) {
+      throw new Error(`photoshoot_listing_cards:${error.message}`);
+    }
+    for (const row of data || []) {
+      byId.set(row.id as string, toRouteCard(row as RouteCard));
+    }
   }
-  const byId = new Map(
-    (data || []).map((row) => [row.id as string, toRouteCard(row as RouteCard)])
-  );
   return ids
     .map((id) => byId.get(id))
     .filter((card): card is RouteCard => Boolean(card));
@@ -173,18 +176,26 @@ async function hydratePhotoshootMedia(
   current: PromptCardFull[]
 ): Promise<PromptCardFull[]> {
   const supabase = createSupabaseServer();
-  const { data, error } = await supabase
-    .from("prompt_card_media")
-    .select("card_id,storage_bucket,storage_path,is_primary,width,height")
-    .in(
-      "card_id",
-      candidates.map((card) => card.id)
-    )
-    .eq("media_type", "photo")
-    .order("is_primary", { ascending: false });
-  if (error) {
-    console.error("[photoshoot-listing] media hydrate failed", error.message);
-    return current;
+  const data: {
+    card_id: string;
+    storage_bucket: string;
+    storage_path: string;
+    is_primary: boolean;
+    width: number | null;
+    height: number | null;
+  }[] = [];
+  for (const part of chunkForPostgrestIn(candidates.map((card) => card.id))) {
+    const { data: rows, error } = await supabase
+      .from("prompt_card_media")
+      .select("card_id,storage_bucket,storage_path,is_primary,width,height")
+      .in("card_id", part)
+      .eq("media_type", "photo")
+      .order("is_primary", { ascending: false });
+    if (error) {
+      console.error("[photoshoot-listing] media hydrate failed", error.message);
+      return current;
+    }
+    data.push(...((rows || []) as typeof data));
   }
 
   const mediaByCard = new Map<

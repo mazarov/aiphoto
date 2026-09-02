@@ -9,18 +9,12 @@ import {
 } from "@/components/generate/GeneraciyaFotoLandingSections";
 import { GeneraciyaFotoHeroCarousel } from "@/components/generate/GeneraciyaFotoHeroCarousel";
 import {
+  FotosessiiHeroStart,
   PromtyDlyaIiFotosessiiFaq,
   PromtyDlyaIiFotosessiiHowTo,
 } from "@/components/fotosessii/PromtyDlyaIiFotosessiiLandingSections";
-import {
-  enrichCardsWithDetails,
-  getFirstCardPhotoUrl,
-  type PromptCardFull,
-} from "@/lib/supabase";
-import {
-  PHOTOSHOOT_LISTING_LIMIT,
-  fetchPublishedPhotoshootListingCards,
-} from "@/lib/photoshoot-listing";
+import { FotosessiiPromptsSection } from "@/components/fotosessii/FotosessiiPromptsSection";
+import type { PromptCardFull } from "@/lib/supabase";
 import {
   PROMTY_DLYA_II_FOTOSESSII_HUB_PATH,
   getPromtyDlyaIiFotosessiiChipNavigation,
@@ -33,14 +27,10 @@ import {
   flattenFotosessiiFaqAnswer,
 } from "@/lib/promty-dlya-ii-fotosessii-seo-copy";
 import {
-  FOTOSESSII_BASE_RPC_PARAMS,
   getFotosessiiHubCards,
   getFotosessiiThemeCollagePhotos,
 } from "@/lib/promty-dlya-ii-fotosessii-page-data";
-import {
-  filterPhotoshootExampleCards,
-  toGenerationExampleCard,
-} from "@/lib/generation/example-card";
+import { toGenerationExampleCard } from "@/lib/generation/example-card";
 
 export const revalidate = 3600;
 
@@ -48,24 +38,9 @@ const SITE_URL =
   process.env.NEXT_PUBLIC_SITE_URL || "https://promptshot.ru";
 const PAGE_URL = `${SITE_URL}${PROMTY_DLYA_II_FOTOSESSII_HUB_PATH}`;
 
-const getPhotoshootExamples = cache(async (): Promise<PromptCardFull[]> => {
-  try {
-    return await fetchPublishedPhotoshootListingCards(PHOTOSHOOT_LISTING_LIMIT);
-  } catch (error) {
-    console.error("[FotosessiiHub] fetch photoshoot carousel failed", error);
-    return [];
-  }
-});
-
 const getExampleOgImage = cache(async (): Promise<string | null> => {
-  const result = await getFotosessiiHubCards();
-  if (!result.cards.length) return null;
-  try {
-    return await getFirstCardPhotoUrl(result.cards.map((card) => card.id));
-  } catch (error) {
-    console.error("[FotosessiiHub] fetch OG image failed", error);
-    return null;
-  }
+  const cards = await getFotosessiiHubCards();
+  return cards[0]?.photoUrls[0] || null;
 });
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -179,29 +154,21 @@ function buildJsonLd(ogImage: string | null, cards: PromptCardFull[]) {
 }
 
 export default async function PromtyDlyaIiFotosessiiPage() {
-  const [lookResult, photoshootCards, themeCollage, fallbackOgImage] =
-    await Promise.all([
-      getFotosessiiHubCards(),
-      getPhotoshootExamples(),
-      getFotosessiiThemeCollagePhotos(),
-      getExampleOgImage(),
-    ]);
+  const [photoshootCards, themeCollage, fallbackOgImage] = await Promise.all([
+    getFotosessiiHubCards(),
+    getFotosessiiThemeCollagePhotos(),
+    getExampleOgImage(),
+  ]);
 
-  let lookCards: PromptCardFull[] = [];
-  try {
-    lookCards = await enrichCardsWithDetails(lookResult.cards);
-  } catch (error) {
-    console.error("[FotosessiiHub] enrich look examples failed", error);
-  }
-
-  const ogImage = lookCards[0]?.photoUrls[0] || fallbackOgImage;
-  const schemas = buildJsonLd(ogImage, lookCards.slice(0, 16));
-  const carouselCards = filterPhotoshootExampleCards(
-    photoshootCards.map(toGenerationExampleCard)
-  )
+  const ogImage = photoshootCards[0]?.photoUrls[0] || fallbackOgImage;
+  const schemas = buildJsonLd(ogImage, photoshootCards.slice(0, 16));
+  const carouselCards = photoshootCards
+    .map(toGenerationExampleCard)
     .filter((card) => card.photoUrl)
     .slice(0, 50);
-  const galleryCards = lookCards.map(toGenerationExampleCard).slice(0, 16);
+  const galleryCards = photoshootCards
+    .map(toGenerationExampleCard)
+    .slice(0, 16);
 
   return (
     <PageLayout showFooterWithGenerateDock>
@@ -249,6 +216,9 @@ export default async function PromtyDlyaIiFotosessiiPage() {
             <p className="mx-auto mt-3 max-w-2xl text-pretty text-base leading-relaxed text-zinc-600 sm:mt-4 sm:text-lg">
               {PROMTY_DLYA_II_FOTOSESSII_SEO.intro}
             </p>
+            <FotosessiiHeroStart
+              label={PROMTY_DLYA_II_FOTOSESSII_SEO.heroCta}
+            />
             <GeneraciyaFotoHeroCarousel
               cards={carouselCards}
               ctaLabel={PROMTY_DLYA_II_FOTOSESSII_SEO.carouselCta}
@@ -268,6 +238,12 @@ export default async function PromtyDlyaIiFotosessiiPage() {
             countKind="prompts"
           />
 
+          <FotosessiiPromptsSection
+            cards={photoshootCards}
+            title={PROMTY_DLYA_II_FOTOSESSII_SEO.promptsTitle}
+            lead={PROMTY_DLYA_II_FOTOSESSII_SEO.promptsLead}
+          />
+
           <PromtyDlyaIiFotosessiiHowTo />
 
           <section
@@ -284,11 +260,7 @@ export default async function PromtyDlyaIiFotosessiiPage() {
                 allPromptsLabel={PROMTY_DLYA_II_FOTOSESSII_SEO.examplesCta}
                 scenarioNavigation={getPromtyDlyaIiFotosessiiChipNavigation()}
                 navigationAriaLabel="Сценарии ИИ фотосессии"
-                loadMoreListing={{
-                  rpcParams: FOTOSESSII_BASE_RPC_PARAMS,
-                  totalCount: lookResult.total_count ?? lookResult.cards_count,
-                  initialRankedBatchSize: galleryCards.length,
-                }}
+                restrictToInitialCards
               />
             ) : (
               <div className="rounded-2xl border border-zinc-200 bg-zinc-50 px-6 py-12 text-center text-sm text-zinc-500">

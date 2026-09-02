@@ -19,6 +19,8 @@ import {
   PROMTY_DLYA_II_FOTOSESSII_HUB_PATH,
   fotosessiiClusterSitemapPages,
 } from "@/lib/promty-dlya-ii-fotosessii-cluster";
+import { getFotosessiiHubCards } from "@/lib/promty-dlya-ii-fotosessii-page-data";
+import { filterPhotoshootListingCardsBySeoTag } from "@/lib/photoshoot-listing";
 import {
   SOBYTIYA_1_SENTYABRYA_PATH,
   SOBYTIYA_1_SENTYABRYA_SEARCH_QUERY,
@@ -149,12 +151,17 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         changeFrequency: "weekly" as const,
         priority: 0.85,
       }));
+    const photoshootCards = await getFotosessiiHubCards();
     const fotosessiiChildUrls: MetadataRoute.Sitemap =
       fotosessiiClusterSitemapPages()
-        .filter((page) => {
-          const count = countMap.get(`${page.dimension}:${page.tagValue}`) ?? 0;
-          return count >= MIN_PROMTY_DLYA_II_FOTOSESSII_CARDS;
-        })
+        .filter(
+          (page) =>
+            filterPhotoshootListingCardsBySeoTag(
+              photoshootCards,
+              page.dimension,
+              page.tagValue
+            ).length >= MIN_PROMTY_DLYA_II_FOTOSESSII_CARDS
+        )
         .map((page) => ({
           url: `${BASE_URL}${page.path}`,
           changeFrequency: "weekly" as const,

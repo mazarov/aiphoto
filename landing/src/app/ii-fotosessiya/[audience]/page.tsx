@@ -10,14 +10,12 @@ import {
 } from "@/components/generate/GeneraciyaFotoLandingSections";
 import { GeneraciyaFotoHeroCarousel } from "@/components/generate/GeneraciyaFotoHeroCarousel";
 import {
+  FotosessiiHeroStart,
   PromtyDlyaIiFotosessiiHowTo,
   PromtyDlyaIiFotosessiiPlainFaq,
 } from "@/components/fotosessii/PromtyDlyaIiFotosessiiLandingSections";
-import {
-  enrichCardsWithDetails,
-  getFirstCardPhotoUrl,
-  type PromptCardFull,
-} from "@/lib/supabase";
+import { FotosessiiPromptsSection } from "@/components/fotosessii/FotosessiiPromptsSection";
+import type { PromptCardFull } from "@/lib/supabase";
 import {
   MIN_PROMTY_DLYA_II_FOTOSESSII_CARDS,
   PROMTY_DLYA_II_FOTOSESSII_CHILDREN,
@@ -33,14 +31,10 @@ import {
   type FotosessiiChildCopy,
 } from "@/lib/promty-dlya-ii-fotosessii-seo-copy";
 import {
-  FOTOSESSII_BASE_RPC_PARAMS,
   getFotosessiiChildCards,
   getFotosessiiThemeCollagePhotos,
 } from "@/lib/promty-dlya-ii-fotosessii-page-data";
-import {
-  filterPhotoshootExampleCards,
-  toGenerationExampleCard,
-} from "@/lib/generation/example-card";
+import { toGenerationExampleCard } from "@/lib/generation/example-card";
 
 export const revalidate = 3600;
 export const dynamicParams = true;
@@ -60,14 +54,8 @@ function resolveChild(slug: string) {
 }
 
 const getChildOgImage = cache(async (slug: string): Promise<string | null> => {
-  const result = await getFotosessiiChildCards(slug);
-  if (!result.cards.length) return null;
-  try {
-    return await getFirstCardPhotoUrl(result.cards.map((card) => card.id));
-  } catch (error) {
-    console.error(`[FotosessiiChild] fetch OG image failed: ${slug}`, error);
-    return null;
-  }
+  const cards = await getFotosessiiChildCards(slug);
+  return cards[0]?.photoUrls[0] || null;
 });
 
 export function generateStaticParams() {
@@ -79,13 +67,10 @@ export function generateStaticParams() {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { audience: slug } = await params;
   const { copy } = resolveChild(slug);
-  const result = await getFotosessiiChildCards(slug);
+  const cards = await getFotosessiiChildCards(slug);
   const ogImage = await getChildOgImage(slug);
   const pageUrl = `${SITE_URL}${getPromtyDlyaIiFotosessiiChildPath(copy.slug)}`;
-  const totalCount = result.total_count ?? result.cards_count;
-  const shouldIndex =
-    result.tier_used !== "error" &&
-    totalCount >= MIN_PROMTY_DLYA_II_FOTOSESSII_CARDS;
+  const shouldIndex = cards.length >= MIN_PROMTY_DLYA_II_FOTOSESSII_CARDS;
 
   return {
     title: copy.metaTitle,
@@ -219,29 +204,18 @@ export default async function PromtyDlyaIiFotosessiiChildPage({
   params,
 }: Props) {
   const { audience: slug } = await params;
-  const { route, copy } = resolveChild(slug);
-  const [result, themeCollage] = await Promise.all([
+  const { copy } = resolveChild(slug);
+  const [cards, themeCollage] = await Promise.all([
     getFotosessiiChildCards(slug),
     getFotosessiiThemeCollagePhotos(),
   ]);
 
-  let cards: PromptCardFull[] = [];
-  try {
-    cards = await enrichCardsWithDetails(result.cards);
-  } catch (error) {
-    console.error(`[FotosessiiChild] enrich examples failed: ${slug}`, error);
-  }
-
   const ogImage = cards[0]?.photoUrls[0] || (await getChildOgImage(slug));
   const galleryCards = cards.map(toGenerationExampleCard).slice(0, 16);
-  const photoshootCards = filterPhotoshootExampleCards(
-    cards.map(toGenerationExampleCard)
-  ).filter((card) => card.photoUrl);
-  const carouselCards = (
-    photoshootCards.length
-      ? photoshootCards
-      : galleryCards.filter((card) => card.photoUrl)
-  ).slice(0, 50);
+  const carouselCards = cards
+    .map(toGenerationExampleCard)
+    .filter((card) => card.photoUrl)
+    .slice(0, 50);
   const schemas = buildJsonLd(copy, ogImage, cards.slice(0, 16));
 
   return (
@@ -286,9 +260,12 @@ export default async function PromtyDlyaIiFotosessiiChildPage({
             <p className="mx-auto mt-3 max-w-2xl text-pretty text-base leading-relaxed text-zinc-600 sm:mt-4 sm:text-lg">
               {copy.intro}
             </p>
+            <FotosessiiHeroStart
+              label={PROMTY_DLYA_II_FOTOSESSII_SEO.heroCta}
+            />
             <GeneraciyaFotoHeroCarousel
               cards={carouselCards}
-              ctaLabel={copy.carouselCta}
+              ctaLabel={PROMTY_DLYA_II_FOTOSESSII_SEO.carouselCta}
               ctaHref={copy.carouselCtaHref}
               ariaLabel={`Примеры: ${copy.h1}`}
             />
@@ -303,6 +280,12 @@ export default async function PromtyDlyaIiFotosessiiChildPage({
             lead={copy.themesLead}
             items={PROMTY_DLYA_II_FOTOSESSII_THEME_ITEMS}
             countKind="prompts"
+          />
+
+          <FotosessiiPromptsSection
+            cards={cards}
+            title={copy.promptsTitle}
+            lead={copy.promptsLead}
           />
 
           <PromtyDlyaIiFotosessiiHowTo copy={copy} />
@@ -323,15 +306,8 @@ export default async function PromtyDlyaIiFotosessiiChildPage({
                   copy.slug
                 )}
                 lockCardsToScenario
+                restrictToInitialCards
                 navigationAriaLabel={copy.themesTitle}
-                loadMoreListing={{
-                  rpcParams: {
-                    ...FOTOSESSII_BASE_RPC_PARAMS,
-                    [route.dimension]: route.tagValue,
-                  },
-                  totalCount: result.total_count ?? result.cards_count,
-                  initialRankedBatchSize: galleryCards.length,
-                }}
               />
             ) : (
               <div className="rounded-2xl border border-zinc-200 bg-zinc-50 px-6 py-12 text-center text-sm text-zinc-500">

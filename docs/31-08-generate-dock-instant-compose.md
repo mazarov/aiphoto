@@ -4,7 +4,7 @@
 > **Статус:** реализовано (P0+P1); P2 split hydrate — follow-up  
 > **Ветка:** `feature/31-08-generate-dock-instant-compose`  
 > **Роль:** `@high-scale-architect`  
-> **Связано:** `docs/31-08-ii-fotosessiya.md`, `docs/30-08-foto-v-promt-generation-modal.md`, `docs/architecture/01-landing.md`
+> **Связано:** `docs/done/31-08-ii-fotosessiya.md`, `docs/30-08-foto-v-promt-generation-modal.md`, `docs/architecture/01-landing.md`
 
 Дополнительный сценарий из `feature/30-08-fotosessii-compose-default`: чип **«ИИ фотосессия»**, гость без фото — **«Загрузите фото»**, enqueue из одного library-фото без parent (`sql/230_photoshoot_from_library.sql`), idle intent/CTA на legacy `/promty-dlya-ii-fotosessii*` как на `/ii-fotosessiya*`.
 
