@@ -139,8 +139,12 @@ export type FinancePnl = {
 export type FinanceDailyPoint = {
   day: string;
   revenueRub: number;
+  yookassaFeesRub: number;
+  taxRub: number;
+  cogsByProviderRub: FinanceCogsByProvider;
   costRub: number;
   profitRub: number;
+  operatingRub: number;
 };
 
 export type FinanceModelDailyPoint = {
@@ -250,6 +254,8 @@ export type FinanceAcquisitionReport = {
 
 export type FinanceMonthData = {
   month: string;
+  from: string;
+  to: string;
   csvOverride: boolean;
   csvAvailable: {
     revenue: FinanceImportMeta | null;

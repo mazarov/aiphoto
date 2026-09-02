@@ -10,15 +10,21 @@ import {
   type FinancePnl,
   type FinanceRevenueSource,
 } from "@/lib/finance-types";
+import {
+  financePresetRange,
+  moscowToday,
+  overlappingMonthStarts,
+} from "@/lib/finance-pnl";
 import { YANDEX_TWO_CLUSTER_LAUNCH } from "@/lib/yandex-two-cluster-launch";
 import { FinanceDailyChart } from "./FinanceDailyChart";
 import { FinanceModelDailyChart } from "./FinanceModelDailyChart";
 
 const card = "rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm";
 
-function currentMonth(): string {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+type PeriodPreset = "today" | "yesterday" | "d7" | "custom";
+
+function uploadPeriod(to: string): string {
+  return to.slice(0, 7);
 }
 
 function formatRub(value: number | null | undefined): string {
@@ -101,7 +107,7 @@ function NetIncomeCard({ pnl }: { pnl: FinancePnl }) {
         <p className="mt-2 text-xs text-amber-700">Затраты AI не загружены — в расчёте 0 ₽.</p>
       ) : null}
       {pnl.operatingRub == null ? (
-        <p className="mt-2 text-xs text-zinc-500">Нет выручки за месяц.</p>
+        <p className="mt-2 text-xs text-zinc-500">Нет выручки за период.</p>
       ) : (
         <div className="mt-4 divide-y divide-zinc-100 border-t border-zinc-100">
           <PnlRow
@@ -157,7 +163,7 @@ function AfterAdsCard({ pnl }: { pnl: FinancePnl }) {
         <p className="mt-2 text-xs text-amber-700">Директ не подтянут — в итоге 0 ₽ рекламы.</p>
       ) : null}
       {pnl.afterAdsRub == null ? (
-        <p className="mt-2 text-xs text-zinc-500">Нет выручки за месяц.</p>
+        <p className="mt-2 text-xs text-zinc-500">Нет выручки за период.</p>
       ) : (
         <div className="mt-4 divide-y divide-zinc-100 border-t border-zinc-100">
           <PnlRow label="Операционная маржа" value={formatRub(pnl.operatingRub)} />
@@ -180,6 +186,66 @@ function AfterAdsCard({ pnl }: { pnl: FinancePnl }) {
         </div>
       )}
     </section>
+  );
+}
+
+function PeriodFilter({
+  preset,
+  from,
+  to,
+  onPreset,
+  onRange,
+}: {
+  preset: PeriodPreset;
+  from: string;
+  to: string;
+  onPreset: (next: PeriodPreset) => void;
+  onRange: (from: string, to: string) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="inline-flex flex-wrap rounded-xl border border-zinc-200 p-0.5">
+        {([
+          ["today", "Сегодня"],
+          ["yesterday", "Вчера"],
+          ["d7", "7 дней"],
+        ] as const).map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            aria-pressed={preset === id}
+            onClick={() => onPreset(id)}
+            className={`rounded-lg px-3 py-1.5 text-sm font-semibold ${
+              preset === id ? "bg-zinc-900 text-white" : "text-zinc-600"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      <div className="flex flex-wrap items-end gap-3">
+        <label className="text-sm text-zinc-600">
+          С
+          <input
+            type="date"
+            value={from}
+            max={moscowToday()}
+            onChange={(event) => onRange(event.target.value, to)}
+            className="mt-1 block rounded-xl border border-zinc-200 px-3 py-2 text-sm text-zinc-900"
+          />
+        </label>
+        <label className="text-sm text-zinc-600">
+          По
+          <input
+            type="date"
+            value={to}
+            max={moscowToday()}
+            onChange={(event) => onRange(from, event.target.value)}
+            className="mt-1 block rounded-xl border border-zinc-200 px-3 py-2 text-sm text-zinc-900"
+          />
+        </label>
+      </div>
+    </div>
   );
 }
 
@@ -220,17 +286,39 @@ function CsvToggle({ value, onChange }: { value: boolean; onChange: (next: boole
 
 export function FinanceTab() {
   const { openAuthModal } = useAuth();
-  const [month, setMonth] = useState(currentMonth);
+  const initialRange = financePresetRange("today");
+  const [preset, setPreset] = useState<PeriodPreset>("today");
+  const [from, setFrom] = useState(initialRange.from);
+  const [to, setTo] = useState(initialRange.to);
   const [useCsv, setUseCsv] = useState(false);
   const [data, setData] = useState<FinanceMonthData | null>(null);
   const [state, setState] = useState({ loading: true, status: 0, error: "", message: "" });
   const [busy, setBusy] = useState<"revenue" | "cogs" | "ads" | "sync" | null>(null);
 
+  const applyPreset = (next: PeriodPreset) => {
+    if (next === "custom") {
+      setPreset("custom");
+      return;
+    }
+    const range = financePresetRange(next);
+    setPreset(next);
+    setFrom(range.from);
+    setTo(range.to);
+  };
+
+  const applyRange = (nextFrom: string, nextTo: string) => {
+    const start = nextFrom <= nextTo ? nextFrom : nextTo;
+    const end = nextFrom <= nextTo ? nextTo : nextFrom;
+    setFrom(start);
+    setTo(end);
+    setPreset("custom");
+  };
+
   const load = useCallback(async (csvOverride = useCsv) => {
     setState((current) => ({ ...current, loading: true, error: "" }));
     try {
       const response = await fetch(
-        `/api/admin/finance?month=${month}&csv=${csvOverride ? "1" : "0"}`,
+        `/api/admin/finance?from=${from}&to=${to}&csv=${csvOverride ? "1" : "0"}`,
         { credentials: "include" },
       );
       const body = await response.json().catch(() => ({}));
@@ -249,7 +337,7 @@ export function FinanceTab() {
     } catch {
       setState({ loading: false, status: 0, error: "Ошибка сети", message: "" });
     }
-  }, [month, useCsv]);
+  }, [from, to, useCsv]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -257,30 +345,35 @@ export function FinanceTab() {
     setBusy("sync");
     setState((current) => ({ ...current, error: "", message: "" }));
     try {
-      const response = await fetch("/api/admin/finance/sync", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ month }),
-      });
-      const body = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        setState((current) => ({
-          ...current,
-          error: body.message || body.error || "Не удалось обновить Директ",
-        }));
-        return;
-      }
-      if (body.ads === "missing_token") {
-        setState((current) => ({
-          ...current,
-          error: "Нет YANDEX_DIRECT_TOKEN в env лендинга",
-        }));
-        return;
+      const months = overlappingMonthStarts(from, to).map((item) => item.slice(0, 7));
+      let rowCount = 0;
+      for (const month of months) {
+        const response = await fetch("/api/admin/finance/sync", {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ month }),
+        });
+        const body = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          setState((current) => ({
+            ...current,
+            error: body.message || body.error || "Не удалось обновить Директ",
+          }));
+          return;
+        }
+        if (body.ads === "missing_token") {
+          setState((current) => ({
+            ...current,
+            error: "Нет YANDEX_DIRECT_TOKEN в env лендинга",
+          }));
+          return;
+        }
+        rowCount += Number(body.rowCount || 0);
       }
       setState((current) => ({
         ...current,
-        message: `Директ: ${body.rowCount ?? 0} строк`,
+        message: `Директ: ${rowCount} строк`,
       }));
       await load();
     } catch {
@@ -297,7 +390,7 @@ export function FinanceTab() {
     try {
       const form = new FormData();
       form.set("kind", kind);
-      form.set("period", month);
+      form.set("period", uploadPeriod(to));
       form.set("file", file);
       const response = await fetch("/api/admin/finance/import", {
         method: "POST",
@@ -372,16 +465,14 @@ export function FinanceTab() {
         </p>
       </header>
       <section className={`${card} flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between`}>
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:gap-6">
-          <label className="text-sm text-zinc-600">
-            Месяц
-            <input
-              type="month"
-              value={month}
-              onChange={(event) => setMonth(event.target.value)}
-              className="mt-1 block rounded-xl border border-zinc-200 px-3 py-2 text-sm text-zinc-900"
-            />
-          </label>
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:gap-8">
+          <PeriodFilter
+            preset={preset}
+            from={from}
+            to={to}
+            onPreset={applyPreset}
+            onRange={applyRange}
+          />
           <CsvToggle value={useCsv} onChange={setUseCsv} />
         </div>
         <div className="flex flex-col items-start gap-2 sm:items-end">
@@ -500,12 +591,13 @@ export function FinanceTab() {
         <section className={card}>
           <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <h2 className="font-semibold text-zinc-900">Динамика по дням</h2>
+              <h2 className="font-semibold text-zinc-900">Выручка, косты и маржа</h2>
               <p className="mt-1 text-sm text-zinc-500">
-                Выручка, косты и чистая прибыль. Пунктир — накопленные обязательства сейчас
+                Динамика за {data.from === data.to ? data.from : `${data.from} — ${data.to}`}.
+                Столбики — косты по статьям, линии — выручка и операционная маржа.
                 {data.liability.creditsTotal
-                  ? ` (${data.liability.creditsTotal.toLocaleString("ru-RU")} кр., 5 кр. = 2,5 ₽)`
-                  : " (5 кр. = 2,5 ₽)"}.
+                  ? ` Пунктир — обязательства сейчас (${data.liability.creditsTotal.toLocaleString("ru-RU")} кр.).`
+                  : ""}
               </p>
             </div>
             <p className="text-sm font-semibold tabular-nums text-amber-800">

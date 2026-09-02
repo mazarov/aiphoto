@@ -2,14 +2,18 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   adsWithVatRub,
+  addCalendarDay,
   buildFinanceDailySeries,
   buildFinanceModelDailySeries,
   clampFinanceDay,
   computeFinancePnl,
   estimateCreditLiabilityRub,
   estimateYookassaFees,
+  financePresetRange,
   listFinanceMonthDays,
+  listFinanceRangeDays,
   moscowDayKey,
+  overlappingMonthStarts,
   usdToRub,
 } from "./finance-pnl";
 
@@ -102,18 +106,45 @@ test("finance month days stop at today for the current month", () => {
   assert.equal(days.length, 16);
 });
 
-test("daily series tracks revenue, all-in costs, and profit", () => {
+test("daily series tracks revenue, stacked costs, and operating margin", () => {
   const series = buildFinanceDailySeries({
-    periodMonth: "2026-08-01",
-    now: new Date(2026, 7, 3),
+    from: "2026-08-01",
+    to: "2026-08-03",
     revenueDaily: [{ day: "2026-08-01", gross: 10_000, fees: 360 }],
     cogsDaily: [{ day: "2026-08-02", subtotalRub: 900 }],
+    dailyByFamily: [
+      { day: "2026-08-02", family: "grok-imagine-image", subtotalRub: 400 },
+      { day: "2026-08-02", family: "seedream-image", subtotalRub: 200 },
+    ],
   });
-  assert.deepEqual(series, [
-    { day: "2026-08-01", revenueRub: 10_000, costRub: 960, profitRub: 9_040 },
-    { day: "2026-08-02", revenueRub: 0, costRub: 900, profitRub: -900 },
-    { day: "2026-08-03", revenueRub: 0, costRub: 0, profitRub: 0 },
+  assert.equal(series[0].revenueRub, 10_000);
+  assert.equal(series[0].yookassaFeesRub, 360);
+  assert.equal(series[0].taxRub, 600);
+  assert.equal(series[0].costRub, 960);
+  assert.equal(series[0].operatingRub, 9_040);
+  assert.equal(series[1].cogsByProviderRub.xai, 400);
+  assert.equal(series[1].cogsByProviderRub.openrouter, 200);
+  assert.equal(series[1].cogsByProviderRub.other, 300);
+  assert.equal(series[1].costRub, 900);
+  assert.equal(series[1].operatingRub, -900);
+  assert.equal(series[2].operatingRub, 0);
+});
+
+test("range helpers cover presets and month overlap", () => {
+  assert.equal(addCalendarDay("2026-09-01", -1), "2026-08-31");
+  assert.deepEqual(listFinanceRangeDays("2026-08-30", "2026-09-01"), [
+    "2026-08-30",
+    "2026-08-31",
+    "2026-09-01",
   ]);
+  assert.deepEqual(overlappingMonthStarts("2026-08-27", "2026-09-02"), [
+    "2026-08-01",
+    "2026-09-01",
+  ]);
+  const now = new Date("2026-09-02T12:00:00+03:00");
+  assert.deepEqual(financePresetRange("today", now), { from: "2026-09-02", to: "2026-09-02" });
+  assert.deepEqual(financePresetRange("yesterday", now), { from: "2026-09-01", to: "2026-09-01" });
+  assert.deepEqual(financePresetRange("d7", now), { from: "2026-08-27", to: "2026-09-02" });
 });
 
 test("model daily series splits Gemini families across days", () => {

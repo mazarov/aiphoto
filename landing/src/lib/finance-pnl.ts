@@ -1,3 +1,4 @@
+import { cogsProviderFromFamily } from "./finance-unit-costs";
 import {
   FINANCE_ADS_VAT_MULTIPLIER,
   FINANCE_REVENUE_TAX_RATE,
@@ -151,60 +152,159 @@ export function listFinanceMonthDays(periodMonth: string, now = new Date()): str
   return days;
 }
 
+export function addCalendarDay(day: string, delta: number): string {
+  const [year, month, date] = day.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, date + delta)).toISOString().slice(0, 10);
+}
+
+export function moscowToday(now = new Date()): string {
+  return moscowDayKey(now.toISOString());
+}
+
+export function listFinanceRangeDays(from: string, to: string): string[] {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to) || from > to) {
+    return [];
+  }
+  const days: string[] = [];
+  let cursor = from;
+  while (cursor <= to) {
+    days.push(cursor);
+    cursor = addCalendarDay(cursor, 1);
+  }
+  return days;
+}
+
+export function overlappingMonthStarts(from: string, to: string): string[] {
+  if (!from || !to || from > to) return [];
+  const months: string[] = [];
+  let cursor = `${from.slice(0, 7)}-01`;
+  const last = `${to.slice(0, 7)}-01`;
+  while (cursor <= last) {
+    months.push(cursor);
+    const [year, month] = cursor.split("-").map(Number);
+    cursor = month === 12
+      ? `${year + 1}-01-01`
+      : `${year}-${String(month + 1).padStart(2, "0")}-01`;
+  }
+  return months;
+}
+
+export function financePresetRange(
+  preset: "today" | "yesterday" | "d7",
+  now = new Date(),
+): { from: string; to: string } {
+  const today = moscowToday(now);
+  if (preset === "yesterday") {
+    const day = addCalendarDay(today, -1);
+    return { from: day, to: day };
+  }
+  if (preset === "d7") return { from: addCalendarDay(today, -6), to: today };
+  return { from: today, to: today };
+}
+
+function dayInScope(day: string, input: { from?: string; to?: string; prefix?: string }): boolean {
+  if (input.from && input.to) return day >= input.from && day <= input.to;
+  if (input.prefix) return day.startsWith(input.prefix);
+  return true;
+}
+
 export function buildFinanceDailySeries(input: {
-  periodMonth: string;
+  periodMonth?: string;
+  from?: string;
+  to?: string;
   revenueDaily?: { day: string; gross: number; fees?: number; net?: number }[];
   cogsDaily?: { day: string; subtotalRub: number }[];
+  dailyByFamily?: { day: string; family: GeminiFamilyId; subtotalRub: number }[];
   now?: Date;
 }): FinanceDailyPoint[] {
-  const prefix = input.periodMonth.slice(0, 7);
+  const prefix = input.periodMonth?.slice(0, 7);
+  const scope = { from: input.from, to: input.to, prefix };
   const revenueByDay = new Map(
     (input.revenueDaily || [])
-      .filter((row) => row.day.startsWith(prefix))
+      .filter((row) => dayInScope(row.day, scope))
       .map((row) => [row.day, row]),
   );
   const cogsByDay = new Map(
     (input.cogsDaily || [])
-      .filter((row) => row.day.startsWith(prefix))
+      .filter((row) => dayInScope(row.day, scope))
       .map((row) => [row.day, row.subtotalRub]),
   );
-  const days = new Set(listFinanceMonthDays(input.periodMonth, input.now));
-  for (const day of [...revenueByDay.keys(), ...cogsByDay.keys()]) days.add(day);
+  const familyByDay = new Map<string, FinanceCogsByProvider>();
+  for (const row of input.dailyByFamily || []) {
+    if (!dayInScope(row.day, scope)) continue;
+    const current = familyByDay.get(row.day) || emptyCogsByProvider();
+    current[cogsProviderFromFamily(row.family)] = moneyRub(
+      current[cogsProviderFromFamily(row.family)] + row.subtotalRub,
+    );
+    familyByDay.set(row.day, current);
+  }
+  const days = new Set(
+    input.from && input.to
+      ? listFinanceRangeDays(input.from, input.to)
+      : input.periodMonth
+        ? listFinanceMonthDays(input.periodMonth, input.now)
+        : [],
+  );
+  for (const day of [...revenueByDay.keys(), ...cogsByDay.keys(), ...familyByDay.keys()]) {
+    days.add(day);
+  }
 
   return [...days].sort().map((day) => {
     const revenue = revenueByDay.get(day);
     const revenueRub = moneyRub(revenue?.gross);
-    const feesRub = moneyRub(
+    const yookassaFeesRub = moneyRub(
       revenue?.fees != null
         ? revenue.fees
         : Math.max(0, moneyRub(revenue?.gross) - moneyRub(revenue?.net)),
     );
     const taxRub = moneyRub(revenueRub * FINANCE_REVENUE_TAX_RATE);
-    const geminiRub = moneyRub(cogsByDay.get(day));
-    const costRub = moneyRub(feesRub + taxRub + geminiRub);
+    const cogsByProviderRub = familyByDay.get(day) || emptyCogsByProvider();
+    const familyTotal = moneyRub(
+      cogsByProviderRub.google + cogsByProviderRub.xai + cogsByProviderRub.openrouter + cogsByProviderRub.other,
+    );
+    const listedCogs = moneyRub(cogsByDay.get(day));
+    if (listedCogs > familyTotal) {
+      cogsByProviderRub.other = moneyRub(cogsByProviderRub.other + (listedCogs - familyTotal));
+    }
+    const aiRub = moneyRub(Math.max(listedCogs, familyTotal));
+    const costRub = moneyRub(yookassaFeesRub + taxRub + aiRub);
+    const operatingRub = moneyRub(revenueRub - costRub);
     return {
       day,
       revenueRub,
+      yookassaFeesRub,
+      taxRub,
+      cogsByProviderRub,
       costRub,
-      profitRub: moneyRub(revenueRub - costRub),
+      profitRub: operatingRub,
+      operatingRub,
     };
   });
 }
 
 export function buildFinanceModelDailySeries(input: {
-  periodMonth: string;
+  periodMonth?: string;
+  from?: string;
+  to?: string;
   dailyByFamily?: { day: string; family: GeminiFamilyId; subtotalRub: number }[];
   now?: Date;
 }): FinanceModelDailyPoint[] {
-  const prefix = input.periodMonth.slice(0, 7);
+  const prefix = input.periodMonth?.slice(0, 7);
+  const scope = { from: input.from, to: input.to, prefix };
   const byDay = new Map<string, Partial<Record<GeminiFamilyId, number>>>();
   for (const row of input.dailyByFamily || []) {
-    if (!row.day.startsWith(prefix)) continue;
+    if (!dayInScope(row.day, scope)) continue;
     const current = byDay.get(row.day) || {};
     current[row.family] = moneyRub((current[row.family] || 0) + row.subtotalRub);
     byDay.set(row.day, current);
   }
-  const days = new Set(listFinanceMonthDays(input.periodMonth, input.now));
+  const days = new Set(
+    input.from && input.to
+      ? listFinanceRangeDays(input.from, input.to)
+      : input.periodMonth
+        ? listFinanceMonthDays(input.periodMonth, input.now)
+        : [],
+  );
   for (const day of byDay.keys()) days.add(day);
   return [...days].sort().map((day) => {
     const byFamily = byDay.get(day) || {};

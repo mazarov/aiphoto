@@ -17,7 +17,8 @@ CSV ЮKassa / GCP / Direct — opt-in override (переключатель «Т�
 
 ## Поведение
 
-- `GET /api/admin/finance` не зовёт вендор-API.
+- `GET /api/admin/finance` не зовёт вендор-API. Фильтр: Сегодня / Вчера / 7 дней + календарь `from`/`to`.
+- График: столбики костов (ЮKassa, УСН, Google/Grok/OpenRouter) и линии выручки / операционной маржи.
 - По умолчанию `csv=0`: live ledger + оценка комиссии 3,5% + НДС 22% с комиссии; COGS — оценка по генерациям (`provider_cost_usd` перекрывает прайс); Директ — только импорт `direct_api`.
 - `csv=1`: загруженные реестры перекрывают live за месяц.
 - Директ: cron раз в сутки + кнопка «Обновить». Нет токена → 200, ads stale.
@@ -51,7 +52,7 @@ aiCogsRub  = Σ USD × 90
 
 | Route | Назначение |
 |-------|------------|
-| `GET /api/admin/finance?month=YYYY-MM&csv=0\|1` | KPI: default live; `csv=1` — uploaded override |
+| `GET /api/admin/finance?from=&to=&csv=0\|1` | KPI за дни; `month=YYYY-MM` ещё принимается; `csv=1` — uploaded override |
 | `POST /api/admin/finance/sync` | Direct replace за месяц |
 | `POST /api/cron/finance-sync` | Bearer `CRON_SECRET`, текущий месяц |
 

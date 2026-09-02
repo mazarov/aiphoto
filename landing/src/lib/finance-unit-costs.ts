@@ -77,6 +77,19 @@ export function parseFinanceModelUnitCosts(raw: unknown): FinanceModelUnitCosts 
   return out;
 }
 
+export function cogsProviderFromFamily(family: GeminiFamilyId): FinanceCogsProvider {
+  if (family.startsWith("grok-")) return "xai";
+  if (
+    family === "seedream-image"
+    || family === "flux-image"
+    || family === "seedance-video"
+  ) {
+    return "openrouter";
+  }
+  if (family === "other") return "other";
+  return "google";
+}
+
 export function classifyCogsProvider(modelId: string): FinanceCogsProvider {
   const id = modelId.toLowerCase();
   if (id.startsWith("grok-")) return "xai";

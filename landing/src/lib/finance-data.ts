@@ -19,6 +19,8 @@ import {
   estimateCreditLiabilityRub,
   moneyRub,
   moscowDayKey,
+  moscowToday,
+  overlappingMonthStarts,
   usdToRub,
 } from "@/lib/finance-pnl";
 import {
@@ -548,8 +550,14 @@ export async function fetchFinanceMonth(
     };
   }
 
+  const today = moscowToday();
+  const from = range.from;
+  const to = range.to > today ? today : range.to;
+
   return {
     month: periodMonth,
+    from,
+    to,
     csvOverride,
     csvAvailable: {
       revenue: revenueRow ? toMeta(revenueRow) : null,
@@ -561,12 +569,15 @@ export async function fetchFinanceMonth(
     ads,
     acquisition,
     daily: buildFinanceDailySeries({
-      periodMonth,
+      from,
+      to,
       revenueDaily: revenue?.daily,
       cogsDaily: cogs?.daily,
+      dailyByFamily: cogs?.dailyByFamily,
     }),
     modelDaily: buildFinanceModelDailySeries({
-      periodMonth,
+      from,
+      to,
       dailyByFamily: cogs?.dailyByFamily,
     }),
     liability,
@@ -582,4 +593,165 @@ export async function fetchFinanceMonth(
       adsSource: ads?.source ?? null,
     }),
   };
+}
+
+function inDayRange(day: string, from: string, to: string): boolean {
+  return day >= from && day <= to;
+}
+
+function firstSource<T>(values: Array<T | null | undefined>): T | null {
+  return values.find((value): value is T => value != null) ?? null;
+}
+
+export function mergeFinancePeriod(
+  parts: FinanceMonthData[],
+  range: { from: string; to: string },
+): FinanceMonthData {
+  const { from, to } = range;
+  const month = `${to.slice(0, 7)}-01`;
+  const revenueDaily = parts.flatMap((part) => (part.revenue?.daily || []).filter((row) => inDayRange(row.day, from, to)));
+  const cogsDaily = parts.flatMap((part) => (part.cogs?.daily || []).filter((row) => inDayRange(row.day, from, to)));
+  const dailyByFamily = parts.flatMap((part) => (part.cogs?.dailyByFamily || []).filter((row) => inDayRange(row.day, from, to)));
+  const adsDaily = parts.flatMap((part) => (part.ads?.daily || []).filter((row) => inDayRange(row.day, from, to)));
+
+  const revenueGross = money(revenueDaily.reduce((sum, row) => sum + row.gross, 0));
+  const revenueNet = money(revenueDaily.reduce((sum, row) => sum + row.net, 0));
+  const revenueFees = money(revenueDaily.reduce((sum, row) => sum + row.fees, 0));
+  const revenueCount = revenueDaily.reduce((sum, row) => sum + row.count, 0);
+  const hasRevenue = parts.some((part) => part.revenue);
+  const revenue: FinanceMonthData["revenue"] = hasRevenue
+    ? {
+      import: firstSource(parts.map((part) => part.revenue?.import ?? null)),
+      source: firstSource(parts.map((part) => part.revenue?.source)) || "live_ledger",
+      kpi: {
+        gross: revenueGross,
+        net: revenueNet,
+        commission: revenueFees,
+        vat: 0,
+        count: revenueCount,
+        currency: firstSource(parts.map((part) => part.revenue?.kpi.currency)) || "RUB",
+      },
+      daily: revenueDaily.sort((left, right) => left.day.localeCompare(right.day)),
+      byType: [{ paymentType: "period", gross: revenueGross, net: revenueNet, count: revenueCount }],
+    }
+    : null;
+
+  const cogsUsd = usd(cogsDaily.reduce((sum, row) => sum + row.subtotalUsd, 0));
+  const hasCogs = parts.some((part) => part.cogs);
+  const familyMap = new Map<GeminiFamilyId, number>();
+  for (const row of dailyByFamily) {
+    familyMap.set(row.family, (familyMap.get(row.family) || 0) + row.subtotalUsd);
+  }
+  const cogs: FinanceMonthData["cogs"] = hasCogs
+    ? {
+      import: firstSource(parts.map((part) => part.cogs?.import ?? null)),
+      source: firstSource(parts.map((part) => part.cogs?.source)) || "estimate",
+      kpi: {
+        subtotalUsd: cogsUsd,
+        subtotalRub: usdToRub(cogsUsd),
+        count: parts.reduce((sum, part) => sum + (part.cogs?.kpi.count || 0), 0),
+      },
+      daily: [...cogsDaily].sort((left, right) => left.day.localeCompare(right.day)),
+      dailyByFamily: [...dailyByFamily].sort((left, right) => left.day.localeCompare(right.day) || left.family.localeCompare(right.family)),
+      byFamily: [...familyMap.entries()].map(([family, value]) => {
+        const subtotalUsd = usd(value);
+        return { family, label: GEMINI_FAMILY_LABELS[family], subtotalUsd, subtotalRub: usdToRub(subtotalUsd) };
+      }).sort((left, right) => right.subtotalUsd - left.subtotalUsd),
+      bySku: parts.flatMap((part) => part.cogs?.bySku || []),
+    }
+    : null;
+
+  const adsCost = money(adsDaily.reduce((sum, row) => sum + row.costRub, 0));
+  const adsClicks = adsDaily.reduce((sum, row) => sum + row.clicks, 0);
+  const adsImpressions = adsDaily.reduce((sum, row) => sum + row.impressions, 0);
+  const adsDerived = deriveDeliveryMetrics({
+    day: from,
+    spendRub: adsCost,
+    clicks: adsClicks,
+    impressions: adsImpressions,
+  });
+  const hasAds = parts.some((part) => part.ads);
+  const ads: FinanceMonthData["ads"] = hasAds
+    ? {
+      import: firstSource(parts.map((part) => part.ads?.import ?? null)),
+      source: firstSource(parts.map((part) => part.ads?.source)) || "direct_api",
+      kpi: {
+        costRub: adsDerived.spendRub,
+        clicks: adsDerived.clicks,
+        impressions: adsDerived.impressions,
+        count: adsDaily.length,
+        currency: "RUB",
+        vatMode: firstSource(parts.map((part) => part.ads?.kpi.vatMode)) || "unknown",
+        droppedOutsideMonth: 0,
+        ctr: adsDerived.ctr,
+        cpc: adsDerived.cpc,
+      },
+      daily: [...adsDaily].sort((left, right) => left.day.localeCompare(right.day)),
+      byCampaign: parts.flatMap((part) => part.ads?.byCampaign || []),
+      byAd: parts.flatMap((part) => part.ads?.byAd || []),
+    }
+    : null;
+
+  const delivery = parts
+    .flatMap((part) => part.acquisition?.delivery || [])
+    .filter((row) => inDayRange(row.day, from, to))
+    .sort((left, right) => left.day.localeCompare(right.day));
+  const cohorts = parts.flatMap((part) => part.acquisition?.cohorts || []);
+  const quality = firstSource(parts.map((part) => part.acquisition?.quality ?? null));
+
+  return {
+    month,
+    from,
+    to,
+    csvOverride: parts.some((part) => part.csvOverride),
+    csvAvailable: {
+      revenue: firstSource(parts.map((part) => part.csvAvailable.revenue)),
+      cogs: firstSource(parts.map((part) => part.csvAvailable.cogs)),
+      ads: firstSource(parts.map((part) => part.csvAvailable.ads)),
+    },
+    revenue,
+    cogs,
+    ads,
+    acquisition: delivery.length || cohorts.length || quality
+      ? { delivery, cohorts, quality }
+      : null,
+    daily: buildFinanceDailySeries({
+      from,
+      to,
+      revenueDaily,
+      cogsDaily,
+      dailyByFamily,
+    }),
+    modelDaily: buildFinanceModelDailySeries({
+      from,
+      to,
+      dailyByFamily,
+    }),
+    liability: parts[0]?.liability || { creditsTotal: 0, liabilityRubEstimate: 0 },
+    pnl: computeFinancePnl({
+      gross: hasRevenue ? revenueGross : null,
+      commission: hasRevenue ? revenueFees : null,
+      vat: hasRevenue ? 0 : null,
+      spendUsd: hasCogs ? cogsUsd : null,
+      adsCabinetRub: hasAds ? adsCost : null,
+      cogsByProviderUsd: cogs
+        ? cogsByProviderUsdFromCsvFamilies(cogs.byFamily)
+        : undefined,
+      revenueSource: revenue?.source ?? null,
+      cogsSource: cogs?.source ?? null,
+      adsSource: ads?.source ?? null,
+    }),
+  };
+}
+
+export async function fetchFinancePeriod(
+  supabase: SupabaseServer,
+  range: { from: string; to: string },
+  options: { csvOverride?: boolean } = {},
+): Promise<FinanceMonthData> {
+  const months = overlappingMonthStarts(range.from, range.to);
+  const parts = await Promise.all(
+    months.map((periodMonth) => fetchFinanceMonth(supabase, periodMonth, options)),
+  );
+  return mergeFinancePeriod(parts, range);
 }

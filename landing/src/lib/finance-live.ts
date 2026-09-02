@@ -12,6 +12,7 @@ import {
   type GeminiFamilyId,
 } from "@/lib/finance-types";
 import {
+  cogsProviderFromFamily,
   priceLiveCogsRows,
   type FinanceModelUnitCosts,
   type LiveCogsRow,
@@ -150,24 +151,13 @@ export function cogsByProviderUsdFromPriced(rows: PricedCogsRow[]): FinanceCogsB
   return out;
 }
 
+export { cogsProviderFromFamily } from "@/lib/finance-unit-costs";
+
 export function cogsByProviderUsdFromCsvFamilies(
   byFamily: { family: GeminiFamilyId; subtotalUsd: number }[],
 ): FinanceCogsByProvider {
   const out: FinanceCogsByProvider = { google: 0, xai: 0, openrouter: 0, other: 0 };
-  for (const row of byFamily) {
-    if (row.family.startsWith("grok-")) out.xai += row.subtotalUsd;
-    else if (
-      row.family === "seedream-image"
-      || row.family === "flux-image"
-      || row.family === "seedance-video"
-    ) {
-      out.openrouter += row.subtotalUsd;
-    } else if (row.family === "other") {
-      out.other += row.subtotalUsd;
-    } else {
-      out.google += row.subtotalUsd;
-    }
-  }
+  for (const row of byFamily) out[cogsProviderFromFamily(row.family)] += row.subtotalUsd;
   return out;
 }
 

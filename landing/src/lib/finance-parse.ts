@@ -116,6 +116,38 @@ export function parseFinanceCsvOverride(raw: string | null | undefined): boolean
   return value === "1" || value === "true" || value === "yes" || value === "da";
 }
 
+export function parseFinanceDay(raw: string | null | undefined): string | null {
+  const value = (raw || "").trim();
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const utc = new Date(Date.UTC(year, month - 1, day));
+  if (
+    utc.getUTCFullYear() !== year
+    || utc.getUTCMonth() !== month - 1
+    || utc.getUTCDate() !== day
+    || year < 2020
+    || year > 2100
+  ) {
+    return null;
+  }
+  return value;
+}
+
+export const FINANCE_RANGE_MAX_DAYS = 92;
+
+export function parseFinanceDateRange(
+  fromRaw: string | null | undefined,
+  toRaw: string | null | undefined,
+): { from: string; to: string } | null {
+  const from = parseFinanceDay(fromRaw);
+  const to = parseFinanceDay(toRaw);
+  if (!from || !to || from > to) return null;
+  return { from, to };
+}
+
 export function parseUsdRubRate(raw: string | null | undefined): number | null | undefined {
   if (raw == null) return null;
   const trimmed = String(raw).trim();
