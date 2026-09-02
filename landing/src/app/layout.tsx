@@ -10,17 +10,13 @@ import { PricingModalProvider } from "@/context/PricingModalContext";
 import { FotoVPromtMobileModalProvider } from "@/context/FotoVPromtMobileModalContext";
 import { GenerateMobileModalProvider } from "@/context/GenerateMobileModalContext";
 import { GenerateDockProvider } from "@/context/GenerateDockContext";
-import { AuthModal } from "@/components/AuthModal";
 import { AuthReturnScreenRestorer } from "@/components/AuthReturnScreenRestorer";
-import { GenerationModal } from "@/components/GenerationModal";
-import { ClientCardModal } from "@/components/ClientCardModal";
-import { ClientPricingModal } from "@/components/ClientPricingModal";
+import { DeferredAppOverlays } from "@/components/DeferredAppOverlays";
 import { UnpaidCheckoutBanner } from "@/components/UnpaidCheckoutBanner";
 import { YooKassaReturnStatus } from "@/components/YooKassaReturnStatus";
 import { RobokassaPaymentStatus } from "@/components/RobokassaPaymentStatus";
-import { FotoVPromtMobileModal } from "@/components/foto-v-promt/FotoVPromtMobileModal";
-import { GenerateMobileModal } from "@/components/generate/GenerateMobileModal";
 import { YandexMetrikaRouteTracker } from "@/components/YandexMetrikaRouteTracker";
+import { YandexMetrikaTagLoader } from "@/components/YandexMetrikaTagLoader";
 import { HOMEPAGE_SEO } from "@/lib/homepage-seo-copy";
 import { YANDEX_METRIKA_COUNTER_ID } from "@/lib/yandex-metrika";
 
@@ -68,16 +64,9 @@ export default function RootLayout({
   children: React.ReactNode;
   modal: React.ReactNode;
 }>) {
-  // Early connection to the Supabase / imgproxy image origin — shaves ~100 ms off
-  // the first card image request (DNS + TLS handshake done before fetch).
-  const supabaseOrigin = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-
   return (
     <html lang="ru" className={inter.className}>
       <head>
-        {supabaseOrigin && (
-          <link rel="preconnect" href={supabaseOrigin} crossOrigin="anonymous" />
-        )}
         <Script id="yandex-metrika-queue" strategy="beforeInteractive">{`
           (function(m,i,max){
             if(typeof m[i]!=="function"){
@@ -109,28 +98,17 @@ export default function RootLayout({
                       {children}
                       {modal}
                       <AuthReturnScreenRestorer />
-                      <ClientCardModal />
-                      <ClientPricingModal />
+                      <DeferredAppOverlays />
                       <YooKassaReturnStatus />
                       <RobokassaPaymentStatus />
-                      <FotoVPromtMobileModal />
-                      <GenerateMobileModal />
-                      <GenerationModal />
                     </GenerateDockProvider>
                   </GenerateMobileModalProvider>
                 </FotoVPromtMobileModalProvider>
               </PricingModalProvider>
             </PromptCardModalProvider>
           </GenerationProvider>
-          <AuthModal />
         </AuthProvider>
-
-        <Script id="yandex-metrika-loader" strategy="lazyOnload">{`
-          (function(e,t,r,k,a){
-            for(var j=0;j<e.scripts.length;j++){if(e.scripts[j].src===r){return;}}
-            k=e.createElement(t),a=e.getElementsByTagName(t)[0],k.async=1,k.src=r,a.parentNode.insertBefore(k,a);
-          })(document,"script","https://mc.yandex.ru/metrika/tag.js?id=${YANDEX_METRIKA_COUNTER_ID}");
-        `}</Script>
+        <YandexMetrikaTagLoader />
         <noscript>
           <div>
             {/* Yandex noscript pixel — must stay a raw <img>, not next/image */}

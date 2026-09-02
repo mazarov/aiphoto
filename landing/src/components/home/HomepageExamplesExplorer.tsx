@@ -4,7 +4,6 @@ import Link from "next/link";
 import {
   useCallback,
   useEffect,
-  useLayoutEffect,
   useMemo,
   useState,
 } from "react";
@@ -16,7 +15,6 @@ import { GF_BLOCK_FLUSH } from "@/components/generate/generaciya-foto-ui";
 import { ListingMasonry, ListingMasonryItem } from "@/components/ListingMasonry";
 import { ListingPhotoTile } from "@/components/ListingPhotoTile";
 import {
-  getMoreChips,
   getPinnedChips,
   type HomepageExplorerChip,
 } from "@/lib/homepage-explorer-chips";
@@ -49,7 +47,6 @@ export function HomepageExamplesExplorer({
   initialCards: GenerationExampleCard[];
 }) {
   const pinnedChips = useMemo(() => getPinnedChips(), []);
-  const moreChips = useMemo(() => getMoreChips(), []);
   const [query, setQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState<HomepageExplorerChip | null>(
     null
@@ -58,7 +55,7 @@ export function HomepageExamplesExplorer({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  useLayoutEffect(() => {
+  useEffect(() => {
     if (cards.length > 0) writeGenerationExampleNavigation(cards);
   }, [cards]);
 
@@ -193,7 +190,7 @@ export function HomepageExamplesExplorer({
             <Link
               key={chipKey(chip)}
               href={chip.href}
-              aria-pressed={active}
+              aria-current={active ? "true" : undefined}
               onClick={(event) => {
                 event.preventDefault();
                 selectChip(chip);
@@ -205,14 +202,6 @@ export function HomepageExamplesExplorer({
           );
         })}
       </nav>
-
-      <div className="sr-only">
-        {moreChips.map((chip) => (
-          <a key={chipKey(chip)} href={chip.href}>
-            {chip.label}
-          </a>
-        ))}
-      </div>
 
       <div className="relative mt-5 overflow-hidden">
         <ListingMasonry loading={loading}>

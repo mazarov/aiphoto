@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ListingMasonry, ListingMasonryItem } from "@/components/ListingMasonry";
 import { ListingPhotoTile } from "@/components/ListingPhotoTile";
 import {
@@ -169,7 +169,7 @@ export function GeneraciyaFotoExamplesExplorer({
     setCardPages([nextCards]);
   }, []);
 
-  useLayoutEffect(() => {
+  useEffect(() => {
     if (cards.length > 0) writeGenerationExampleNavigation(cards);
   }, [cards]);
 
@@ -585,7 +585,7 @@ export function GeneraciyaFotoExamplesExplorer({
                     key={filter.value}
                     href={filter.href}
                     scroll={LISTING_SHELL_LINK_SCROLL}
-                    aria-pressed={active}
+                    aria-current={active ? "true" : undefined}
                     onClick={(event) => {
                       event.preventDefault();
                       setQuery("");

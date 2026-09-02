@@ -4,7 +4,7 @@ import {
   sanitizePricingPaywallVariant,
 } from "@/lib/pricing-paywall-attribution";
 
-/** Счётчик совпадает с init в `landing/src/app/layout.tsx`. При смене ID синхронизируйте оба места. */
+/** Счётчик совпадает с init в `landing/src/app/layout.tsx` и `yandex-metrika-loader.ts`. При смене ID синхронизируйте оба места. */
 export const YANDEX_METRIKA_COUNTER_ID = 107703100;
 
 /** Идентификатор цели JS в кабинете Метрики (тип «JavaScript-событие») должен совпадать. */

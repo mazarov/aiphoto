@@ -21,9 +21,10 @@ export function HeaderClient() {
   useEffect(() => {
     const el = headerRef.current;
     if (!el) return;
-    const update = () => syncHeaderHeightCssVar(el);
-    update();
-    const observer = new ResizeObserver(update);
+    const observer = new ResizeObserver((entries) => {
+      const box = entries[0]?.borderBoxSize?.[0];
+      syncHeaderHeightCssVar(box?.blockSize ?? el.getBoundingClientRect().height);
+    });
     observer.observe(el);
     return () => observer.disconnect();
   }, []);

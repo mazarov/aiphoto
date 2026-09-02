@@ -1,5 +1,7 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-09-02 (**PSI second pass / LCP+TBT:** SSOT не страница. LCP на хабах — SSR `<p>` hero; TTFB ок, delay = CSS + main thread. `tag.js` больше не `lazyOnload` (всё равно попадал в lab): idle/interaction 5с (`yandex-metrika-loader.ts`). Cache-Control Метрики не наш. Overlay-чанки (`ClientCardModal`, pricing, auth, STV, generate/foto portals) — `DeferredAppOverlays`, не root graph. Снят `preconnect` на Storage: браузер ходит в `/_next/image` same-origin. Чипы-фильтры: `aria-current` на `<a>`, не `aria-pressed`. Скрытый dump всех тегов на главной убран (sitemap/каталог). Шапка: высота из `borderBoxSize`. Навигация примеров — `useEffect`, не `useLayoutEffect`. Не трогали: unused CSS 20 KiB, legacy JS 11 KiB, inline critical CSS, WebMCP, DOM depth SVG.)
+>
 > Последнее обновление: 2026-09-02 (**Lighthouse performance / PSI:** SSOT не страница. Hero-marquee ≤12 stills (`hero-marquee.ts`), copy B без `<video>`/`<a>`; `ListingCardVideo` качает mp4 только in-view. Публичные Storage-объекты `cacheControl=31536000` (`storage-cache-control.ts`, worker + ingest). `_next/image` `minimumCacheTTL` 31д; favicon/icon immutable. Сайдбар: слот аккаунта `min-h-[13.5rem]`, счётчики с резервом ширины. Footer/legal: `text-zinc-600` + underline. Unpaid banner height из `borderBoxSize`. `/llms.txt` + a11y starter/marquee — см. соседнюю запись.)
 >
 > Последнее обновление: 2026-09-02 (**Lighthouse Agentic Browsing / доступность агента:** SSOT на общих компонентах, не на `/nano-banana`. Дубль marquee (`GeneraciyaFotoHeroCarousel` copy B) — `aria-hidden` + `ListingPhotoTile decorative` без `<a>`/`<button>`. Скрытые SEO-ссылки `CategorySection` — `inert` вместо `aria-hidden` на фокусируемых `<a>`. Стартер генерации — `role="group"` + `aria-pressed`, не `tablist` без `tab`. Thumbnails `SeoHeroWithIllustrations` — `role="tab"` прямые дети `tablist`. Программные `input[type=file]` — `aria-label` + `tabIndex=-1`. `/llms.txt` (`llms.txt/route.ts`, SSOT `llms-txt.ts`): Markdown H1, `[текст](url)`, >50 символов. WebMCP не внедряли (аудит N/A).)
@@ -794,12 +796,12 @@
 | Шрифт | Inter (latin + cyrillic) |
 | БД / API | Supabase (service role на сервере, anon key в браузере) |
 | Хостинг | Vercel |
-| Аналитика | Яндекс.Метрика (`layout.tsx`: bounded queue/init — `beforeInteractive`, тяжёлый `tag.js` — `lazyOnload`) |
+| Аналитика | Яндекс.Метрика (`layout.tsx`: bounded queue/init — `beforeInteractive`; `tag.js` — idle/interaction 5с, `YandexMetrikaTagLoader`) |
 
 ### Яндекс.Метрика — цели (`reachGoal`)
 
 - Счётчик: **`107703100`** (дублируется в **`YANDEX_METRIKA_COUNTER_ID`**, файл `landing/src/lib/yandex-metrika.ts`; init — `landing/src/app/layout.tsx`).
-- **Загрузка без потери ранних событий:** до hydration создаётся совместимая с SDK очередь `window.ym` и первым элементом ставится `init`; максимум — 100 последующих событий с сохранением init. Внешний `tag.js` остаётся `lazyOnload`, поэтому не конкурирует с LCP; после загрузки SDK обрабатывает накопленные открытия карточек и цели по порядку.
+- **Загрузка без потери ранних событий:** до hydration создаётся совместимая с SDK очередь `window.ym` и первым элементом ставится `init`; максимум — 100 последующих событий с сохранением init. Внешний `tag.js` грузится после первого input или `requestIdleCallback` (timeout 5с) — PSI lab больше не качает 87 KiB на LCP. После загрузки SDK обрабатывает очередь. Cache-Control `tag.js` (1ч) задаёт Яндекс, не проксируем.
 - **Переход в карточку промта:** **`reachGoal('prompt_card_open')`**, параметры: **`entry`**: `modal` (клик с листинга → `PromptCardModalContext.open`) \| `page` (прямой заход на `/p/[slug]`); **`referer`** — путь до открытия (только `modal`); **`slug`**. Дополнительно для модалки — виртуальный hit `ym('hit')` на `/p/[slug]`.
 - **Soft-open «Фото в промт» (mobile tab):** виртуальный hit `ym('hit')` на `/foto-v-promt` из `FotoVPromtMobileModalContext.open` (без Next-навигации). Hard mobile `/foto-v-promt` — auto `route`-mode shell (обычный page hit Метрики).
 - **Кнопка «Сгенерировать»:** на `/foto-v-promt` и `/analyses` — внутренний dock (`generate_shell_open`, `entry_source=foto_v_promt|analyses`). LexyGPT остаётся на листинге / `/p/[slug]`: **`lexygpt_generate_promptcard`**. Legacy **`lexygpt_generate_photovprompt`** / **`lexygpt_generate_tabbar`** / **`lexygpt_generate_click`** — deprecated.
@@ -1324,7 +1326,7 @@ Fallback: если `code` пришёл на произвольную стран�
 - `image-sitemap.xml/route.ts` — image sitemap для Google Images / Яндекс.Картинок; XML с `xmlns:image`; `<image:loc>` через `getIndexableImageUrl` (основной домен, без query); `<image:title>` + `<image:caption>`; чанкинг по 5000 карточек, при `totalPages > 1` — `<sitemapindex>` с `?page=N`; `revalidate = 3600`
 - `robots.txt/route.ts` — текстовый route handler; расширенный `Disallow` (`/api/`, `/admin/`, `/embed/`, `/auth/`, `/search`, `/favorites`, `/generations`, `/analyses`, `/generate`, `/pricing`); `Clean-param` для Яндекса (`audience&style&occasion&object&sort`); две ссылки на sitemap
 - `llms.txt/route.ts` — текстовый route для агентов (llmstxt.org + Lighthouse Agentic Browsing). SSOT `lib/llms-txt.ts`: H1, markdown-ссылки на хабы генерации/каталога, `text/plain; charset=utf-8`, cache как у robots. Не в sitemap.
-- Публичные медиа (Storage UUID/lease path): `cacheControl=31536000` при upload (`storage-cache-control.ts`). Старые объекты остаются с 3600, пока не перезапишутся upsert. `_next/image` `minimumCacheTTL` 31 день. Иконки `/favicon*` `/icon-*` — `Cache-Control: immutable` в `next.config.ts`. Yandex Metrika `tag.js` (1ч) не контролируем.
+- Публичные медиа (Storage UUID/lease path): `cacheControl=31536000` при upload (`storage-cache-control.ts`). Старые объекты остаются с 3600, пока не перезапишутся upsert. `_next/image` `minimumCacheTTL` 31 день. Иконки `/favicon*` `/icon-*` — `Cache-Control: immutable` в `next.config.ts`. Глобальный `preconnect` на Storage/dockhost снят: LCP-картинки идут через `/_next/image` same-origin, иначе Lighthouse «unused preconnect». Yandex Metrika `tag.js` (1ч) не контролируем — откладываем запрос (`YandexMetrikaTagLoader`).
 
 ---
 
@@ -1501,7 +1503,8 @@ SearchResults (client, infinite scroll)
 | HeaderClient | `components/HeaderClient.tsx` | Mobile sticky header: бургер категорий слева \| логотип \| у авторизованного `HeaderBalancePayChip` (баланс + «+»). На desktop не рендерит визуальный chrome |
 | HeaderBalancePayChip | `components/AccountControls.tsx` | Split-pill шапки: кредиты + CTA «+» → `PricingEntryLink` (оверлей `/pricing`). `aria-label` — «пополнить». Тот же кэш `GET /api/me`, что sidebar |
 | PricingModalContext | `context/PricingModalContext.tsx` | SSOT оверлея тарифов: `open` → save origin + pushState `/pricing`, `close` → back (валидный `onClick`), `closeWithoutHistory` перед YooKassa, `popstate` снимает модалку; на hard `/pricing` `open` no-op |
-| ClientPricingModal | `components/ClientPricingModal.tsx` | Overlay тарифов в root layout (portal `document.body`, `z-[260]`) |
+| ClientPricingModal | `components/ClientPricingModal.tsx` | Overlay тарифов (`z-[260]`); в root layout через `DeferredAppOverlays` — чанк грузится при `open` |
+| DeferredAppOverlays | `components/DeferredAppOverlays.tsx` | Lazy card/pricing/auth/STV/generate/foto portals; не в first-load JS |
 | PricingScreen | `components/pricing/PricingScreen.tsx` | Общий UI пакетов для hard page и модалки |
 | PricingEntryLink | `components/PricingEntryLink.tsx` | Клик → оверлей; modified click / уже на `/pricing` → hard URL |
 | SidebarNav | `components/SidebarNav.tsx` | Сквозной левый sidebar: desktop `h-screen` с `SiteBrandLink` сверху на листингах (`showBrand`, default true), затем `SidebarAccountPanel` и отдельно прокручиваемое меню. На `/p/[slug]` `showBrand={false}`. Mobile drawer снят (каталог — таб). Сверху меню pill **«Добавить в Chrome»** → CWS; Главная / **Тренды** / (treatment) **Генерация фото** → `/generaciya-foto` / **Поиск** / **Фото в промт**; далее accordion-секции. Indigo CTA на `/generate` убран. |
@@ -1810,7 +1813,7 @@ SeoContent
 ```
 landing/src/
 ├── app/
-│   ├── layout.tsx              ← Root layout (Inter, AuthProvider)
+│   ├── layout.tsx              ← Root layout (Inter, AuthProvider, DeferredAppOverlays)
 │   ├── page.tsx                ← Главная
 │   ├── globals.css
 │   ├── sitemap.ts

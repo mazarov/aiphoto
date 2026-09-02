@@ -49,6 +49,7 @@ export function AuthReturnScreenRestorer() {
     }
 
     if (overlay?.type === "card") {
+      void import("@/components/ClientCardModal");
       if (scrollY !== null && scrollY > 0) {
         startListingScrollFill(scrollY);
       }
@@ -59,6 +60,7 @@ export function AuthReturnScreenRestorer() {
       return;
     }
     if (overlay?.type === "pricing") {
+      void import("@/components/ClientPricingModal");
       if (scrollY !== null && scrollY > 0) {
         startListingScrollFill(scrollY);
       }
@@ -73,6 +75,7 @@ export function AuthReturnScreenRestorer() {
       return;
     }
     if (overlay?.type === "foto-v-promt") {
+      void import("@/components/foto-v-promt/FotoVPromtMobileModal");
       if (scrollY !== null && scrollY > 0) {
         startListingScrollFill(scrollY);
       }

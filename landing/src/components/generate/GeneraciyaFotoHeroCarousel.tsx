@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useLayoutEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { ListingPhotoTile } from "@/components/ListingPhotoTile";
 import { usePromptCardModal } from "@/context/PromptCardModalContext";
 import {
@@ -98,7 +98,7 @@ export function GeneraciyaFotoHeroCarousel({
     if (photos.length > 0) writeGenerationExampleNavigation(photos);
   }, [photos]);
 
-  useLayoutEffect(() => {
+  useEffect(() => {
     bindCarouselNav();
   }, [bindCarouselNav]);
 
