@@ -407,7 +407,9 @@ export function GenerationHistoryCard({
               <span className="text-[13px] font-medium text-rose-600">Ошибка</span>
             ) : (
               <span className="animate-pulse text-[13px] font-medium text-zinc-500">
-                {STATUS_LABELS[generation.status]}…
+                {generation.status === "completed" && isPhotoshoot
+                  ? "Собираем кадры…"
+                  : `${STATUS_LABELS[generation.status]}…`}
               </span>
             )}
           </div>

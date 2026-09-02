@@ -1934,6 +1934,7 @@ export function CardInlineGeneratePanel({
       }
       let pollGenerationId = genData.id;
       let listingRepeatFollowupWaitStarted = 0;
+      let photoshootTilesWaitStarted = 0;
       setIsPublished(false);
       requestCreditBalanceRefresh();
 
@@ -2004,7 +2005,11 @@ export function CardInlineGeneratePanel({
               ? poll.photoshootTileUrls
               : null;
           if (isPhotoshoot && !tiles) {
-            throw new Error("Кадры фотосессии не готовы");
+            photoshootTilesWaitStarted ||= Date.now();
+            if (Date.now() - photoshootTilesWaitStarted > 45_000) {
+              throw new Error("Кадры фотосессии не готовы");
+            }
+            continue;
           }
           const nextResultUrl = isPhotoshoot ? tiles![0] : poll.resultUrl;
           if (!nextResultUrl) {

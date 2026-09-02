@@ -13,6 +13,7 @@ import {
   GENERATIONS_PAGE_SIZE,
   mergeGenerationFirstPage,
 } from "@/lib/generations-list";
+import { isPhotoshootEditKind } from "@/lib/photoshoot";
 import { useListingSentinelLoadMore } from "@/hooks/useListingSentinelLoadMore";
 import {
   readCachedVideoAnimateEnabled,
@@ -178,9 +179,13 @@ export function GenerationsContent({
   }, [authLoading, loadFirstPage, refreshToken, user]);
 
   useEffect(() => {
-    const hasActiveGeneration = generations.some(
-      (generation) => generation.status === "pending" || generation.status === "processing"
-    );
+    const hasActiveGeneration = generations.some((generation) => {
+      if (generation.status === "pending" || generation.status === "processing") return true;
+      if (generation.status !== "completed") return false;
+      if (!isPhotoshootEditKind(generation.editKind)) return false;
+      const tilesReady = generation.photoshootTileUrls?.length === 4;
+      return !generation.resultUrl && !tilesReady;
+    });
     if (!user || !hasActiveGeneration) return;
 
     const timer = window.setInterval(() => {

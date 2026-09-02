@@ -124,6 +124,70 @@ async function persistExecutedModel(job: GenerationJob, executedModel: string, f
   }
 }
 
+function photoshootTilesForComplete(result: {
+  photoshootTilePaths?: string[];
+}): string[] | null {
+  const paths = "photoshootTilePaths" in result && Array.isArray(result.photoshootTilePaths)
+    ? result.photoshootTilePaths
+    : null;
+  return paths?.length === 4 ? paths : null;
+}
+
+function isUnknownCompleteTilesParam(message: string): boolean {
+  return /p_photoshoot_tile_paths|schema cache/i.test(message);
+}
+
+async function completeGenerationRpc(input: {
+  job: GenerationJob;
+  resultPath: string;
+  mimeType: string;
+  photoshootTilePaths: string[] | null;
+}): Promise<{ data: unknown; error: { message: string } | null }> {
+  const base = {
+    p_generation_id: input.job.id,
+    p_worker_id: config.workerId,
+    p_lease_token: input.job.lease_token,
+    p_result_bucket: RESULTS_BUCKET,
+    p_result_path: input.resultPath,
+    p_result_mime_type: input.mimeType,
+  };
+  const withTiles = input.photoshootTilePaths
+    ? { ...base, p_photoshoot_tile_paths: input.photoshootTilePaths }
+    : base;
+  const first = await supabase.rpc("landing_complete_generation", withTiles);
+  if (
+    first.error
+    && input.photoshootTilePaths
+    && isUnknownCompleteTilesParam(first.error.message)
+  ) {
+    log("warn", "photoshoot_tiles_complete_rpc_unsupported", {
+      generationId: input.job.id,
+      error: first.error.message,
+    });
+    return supabase.rpc("landing_complete_generation", base);
+  }
+  return first;
+}
+
+async function persistPhotoshootTilePaths(
+  generationId: string,
+  photoshootTilePaths: string[] | null,
+): Promise<void> {
+  if (!photoshootTilePaths) return;
+  const { data, error } = await supabase
+    .from("landing_generations")
+    .update({ photoshoot_tile_paths: photoshootTilePaths })
+    .eq("id", generationId)
+    .select("id")
+    .maybeSingle();
+  if (error || !data) {
+    log("error", "photoshoot_tiles_persist_failed", {
+      generationId,
+      error: error?.message || "no_row_updated",
+    });
+  }
+}
+
 async function handleFailure(job: GenerationJob, error: ProcessingError): Promise<void> {
   const fallbackUsed = Boolean(job.fallback_used);
   const executedModel = job.executed_model
@@ -212,13 +276,12 @@ async function runJob(job: GenerationJob): Promise<void> {
     if ("providerCostUsd" in result && result.providerCostUsd != null) {
       await persistProviderCost(job.id, result.providerCostUsd, "xai_ticks");
     }
-    const { data: completed, error } = await supabase.rpc("landing_complete_generation", {
-      p_generation_id: job.id,
-      p_worker_id: config.workerId,
-      p_lease_token: job.lease_token,
-      p_result_bucket: RESULTS_BUCKET,
-      p_result_path: result.resultPath,
-      p_result_mime_type: "mimeType" in result ? result.mimeType : "image/jpeg",
+    const photoshootTilePaths = photoshootTilesForComplete(result);
+    const { data: completed, error } = await completeGenerationRpc({
+      job,
+      resultPath: result.resultPath,
+      mimeType: "mimeType" in result ? result.mimeType : "image/jpeg",
+      photoshootTilePaths,
     });
     if (error || !rpcBoolean(completed)) {
       const { data: committedRow, error: verifyError } = await supabase
@@ -259,22 +322,7 @@ async function runJob(job: GenerationJob): Promise<void> {
         throw new LeaseLostError();
       }
     }
-    const photoshootTilePaths =
-      "photoshootTilePaths" in result && Array.isArray(result.photoshootTilePaths)
-        ? result.photoshootTilePaths
-        : null;
-    if (photoshootTilePaths?.length === 4) {
-      const { error: tileError } = await supabase
-        .from("landing_generations")
-        .update({ photoshoot_tile_paths: photoshootTilePaths })
-        .eq("id", job.id);
-      if (tileError) {
-        log("warn", "photoshoot_tiles_persist_failed", {
-          generationId: job.id,
-          error: tileError.message,
-        });
-      }
-    }
+    await persistPhotoshootTilePaths(job.id, photoshootTilePaths);
     log("info", "generation_completed", {
       generationId: job.id,
       userId: job.user_id,

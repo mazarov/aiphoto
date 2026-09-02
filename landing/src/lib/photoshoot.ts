@@ -144,6 +144,26 @@ export function parsePhotoshootTilePaths(raw: unknown): string[] | null {
   return paths;
 }
 
+/**
+ * Reconstruct sidecar tiles from the internal sheet path.
+ * Worker uploads `lease-1.jpg`… before complete; `photoshoot_tile_paths` is a
+ * later denormalized write and can lag or fail.
+ */
+export function derivePhotoshootTilePaths(sheetPath?: string | null): string[] | null {
+  const path = String(sheetPath || "").trim();
+  if (!path) return null;
+  const tiles = PHOTOSHOOT_TILE_INDEXES.map((tile) => photoshootTileStoragePath(path, tile));
+  if (tiles.some((item) => !item)) return null;
+  return tiles;
+}
+
+export function photoshootTilePathsForJob(input: {
+  tilePaths?: unknown;
+  sheetPath?: string | null;
+}): string[] | null {
+  return parsePhotoshootTilePaths(input.tilePaths) ?? derivePhotoshootTilePaths(input.sheetPath);
+}
+
 export function parsePhotoshootTileIndex(raw: unknown): PhotoshootTileIndex | null {
   const value = Number(raw);
   if (!Number.isInteger(value) || value < 1 || value > PHOTOSHOOT_FRAME_COUNT) return null;
@@ -170,7 +190,10 @@ export function resolvePhotoshootParentSourcePath(input: {
 }): string | null {
   const sheetPath = String(input.sheetPath || "").trim() || null;
   if (!isPhotoshootEditKind(input.editKind)) return sheetPath;
-  const tiles = parsePhotoshootTilePaths(input.tilePaths);
+  const tiles = photoshootTilePathsForJob({
+    tilePaths: input.tilePaths,
+    sheetPath,
+  });
   if (!tiles) return null;
   const requested = String(input.requestedPath || "").trim();
   if (requested && tiles.includes(requested)) return requested;
@@ -194,17 +217,20 @@ export function resolvePhotoshootUserFacingResult(input: {
   sheetPath?: string | null;
   tilePaths?: unknown;
 }): PhotoshootUserFacingResult {
-  const tiles = parsePhotoshootTilePaths(input.tilePaths);
+  const sheetPath = String(input.sheetPath || "").trim();
   if (isPhotoshootEditKind(input.editKind)) {
+    const tiles = photoshootTilePathsForJob({
+      tilePaths: input.tilePaths,
+      sheetPath,
+    });
     return {
       resultPath: tiles?.[0] ?? null,
       tilePaths: tiles,
     };
   }
-  const sheetPath = String(input.sheetPath || "").trim();
   return {
     resultPath: sheetPath || null,
-    tilePaths: tiles,
+    tilePaths: parsePhotoshootTilePaths(input.tilePaths),
   };
 }
 

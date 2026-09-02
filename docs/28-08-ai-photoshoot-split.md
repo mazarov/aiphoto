@@ -7,7 +7,7 @@
 
 ## Решение
 
-После I2I тот же `web-generation-worker` режет 2×2 лист через `sharp.extract` (логика PackAssemble из photo2sticker, без rembg/Pixian). Лист остаётся внутренним `result_storage_path` для нарезки. Четыре JPEG — sidecar `lease-1.jpg`…`lease-4.jpg`, пути в `photoshoot_tile_paths` (SQL `225`). Пользователю лист не показываем и не отдаём: poll/история/оверлей/UGC/скачивание — только тайлы (`resolvePhotoshootUserFacingResult`). Publish пишет все 4 тайла в одну `prompt_cards` (`photoshootUserFacingMediaPaths`).
+После I2I тот же `web-generation-worker` режет 2×2 лист через `sharp.extract` (логика PackAssemble из photo2sticker, без rembg/Pixian). Лист остаётся внутренним `result_storage_path` для нарезки. Четыре JPEG — sidecar `lease-1.jpg`…`lease-4.jpg`, пути в `photoshoot_tile_paths` (SQL `225`, атомарно в complete — SQL `238`). Пользователю лист не показываем и не отдаём: poll/история/оверлей/UGC/скачивание — только тайлы (`resolvePhotoshootUserFacingResult`). Если колонка пуста, резолвер восстанавливает sidecar от листа — иначе кабинет показывает «Готово…» без картинки. Publish пишет все 4 тайла в одну `prompt_cards` (`photoshootUserFacingMediaPaths`).
 
 Split fail валит job (retryable `photoshoot_split_failed`): без 4 кадров photoshoot не completed.
 

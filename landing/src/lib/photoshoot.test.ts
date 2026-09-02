@@ -21,6 +21,7 @@ import {
   photoshootTileStoragePath,
   parsePhotoshootTileIndex,
   parsePhotoshootTilePaths,
+  derivePhotoshootTilePaths,
   photoshootTileIndexForUrl,
   isPhotoshootUgcListing,
   looksLikePhotoshootTilePaths,
@@ -232,9 +233,21 @@ test("photoshoot user-facing result never exposes the sheet", () => {
     { resultPath: tiles[0], tilePaths: tiles },
   );
   assert.deepEqual(
+    derivePhotoshootTilePaths("user/job/lease.jpg"),
+    tiles,
+  );
+  assert.deepEqual(
     resolvePhotoshootUserFacingResult({
       editKind: PHOTOSHOOT_EDIT_KIND,
       sheetPath: "user/job/lease.jpg",
+      tilePaths: null,
+    }),
+    { resultPath: tiles[0], tilePaths: tiles },
+  );
+  assert.deepEqual(
+    resolvePhotoshootUserFacingResult({
+      editKind: PHOTOSHOOT_EDIT_KIND,
+      sheetPath: "",
       tilePaths: null,
     }),
     { resultPath: null, tilePaths: null },
@@ -315,6 +328,14 @@ test("photoshoot parent source is a tile, never the sheet", () => {
     resolvePhotoshootParentSourcePath({
       editKind: PHOTOSHOOT_EDIT_KIND,
       sheetPath: "user/job/lease.jpg",
+      tilePaths: null,
+    }),
+    tiles[0],
+  );
+  assert.equal(
+    resolvePhotoshootParentSourcePath({
+      editKind: PHOTOSHOOT_EDIT_KIND,
+      sheetPath: "",
       tilePaths: null,
     }),
     null,
