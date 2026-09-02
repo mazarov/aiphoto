@@ -5,7 +5,6 @@ import type { SeoContent } from "./seo-content";
 export const PROMPT_LISTING_BRAND_SUFFIX = " | PromptShot";
 export const PROMPT_LISTING_DESCRIPTION_CTA =
   "Бесплатно. Скопируй текст или создай кадр в ChatGPT, Gemini, Nano Banana.";
-export const FOTOSESSII_HEAD_COMPLEMENT = "и ИИ фотосессии";
 
 type DimensionPair = `${Dimension}+${Dimension}`;
 
@@ -135,7 +134,7 @@ export function promptListingBaseH1(tags: TagEntry[]): string {
 }
 
 export function buildPromptListingHeadline(tags: TagEntry[]): string {
-  return `${promptListingBaseH1(tags)} ${FOTOSESSII_HEAD_COMPLEMENT}`;
+  return promptListingBaseH1(tags);
 }
 
 export function buildPromptListingMetaTitle(tags: TagEntry[]): string {
@@ -144,9 +143,8 @@ export function buildPromptListingMetaTitle(tags: TagEntry[]): string {
 
 export function buildPromptListingMetaDescription(tags: TagEntry[]): string {
   const base = promptListingBaseH1(tags);
-  const tail = promptListingFotosessiiTail(tags);
   const baseLower = base.charAt(0).toLowerCase() + base.slice(1);
-  return `Промты для ИИ фотосессии ${tail} и готовые ${baseLower} на русском. ${PROMPT_LISTING_DESCRIPTION_CTA}`;
+  return `Готовые ${baseLower} на русском. ${PROMPT_LISTING_DESCRIPTION_CTA}`;
 }
 
 function comboPhrase(tags: TagEntry[]): string {
@@ -221,21 +219,15 @@ export function enrichPromptListingHead(
   seo: SeoContent,
   tags: TagEntry[],
 ): SeoContent {
-  if (/фотосесс/i.test(seo.h1) || isManualPromptLongTailHead(seo.h1)) {
+  if (isManualPromptLongTailHead(seo.h1) || !tags.length) {
     return seo;
   }
-  if (!tags.length) return seo;
 
-  const h1 = buildPromptListingHeadline(tags);
-  const metaDescription = buildPromptListingMetaDescription(tags);
   const tail = promptListingFotosessiiTail(tags);
   const introHasTail = /промты для ИИ фотосессии/i.test(seo.intro ?? "");
 
   return {
     ...seo,
-    h1,
-    metaTitle: `${h1}${PROMPT_LISTING_BRAND_SUFFIX}`,
-    metaDescription,
     intro: introHasTail
       ? seo.intro
       : `${seo.intro ?? ""} Промты для ИИ фотосессии ${tail} — в ленте на этой странице.`.trim(),

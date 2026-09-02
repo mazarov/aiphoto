@@ -1,5 +1,7 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-09-02 (**L1/L2 Title rollback:** снят complement «и ИИ фотосессии» из Title/H1/Description каталожных листингов. Кадр-ключ снова owner в head; хвост фотосессии остаётся в intro/H2/FAQ. SSOT `prompt-listing-fotosessii-seo.ts`. Кластер промтов для ИИ фотосессии — `/ii-fotosessiya`.)
+>
 > Последнее обновление: 2026-09-02 (**photoshoot frame prompt:** клик по кадру 2×2 ставит `selectedIndex`; остальные тайлы затемнены (`:has(.is-selected)`). Поле промта, copy и Repeat берут `visiblePromptTextsForPhoto` = `promptTexts[i]`, не склейку всех вариантов. Блок промтов `/ii-fotosessiya*` открывает кадр с тем же индексом.)
 >
 > Последнее обновление: 2026-09-02 (**PostgREST `.in()` через OpenResty:** списки id/slug режутся на `POSTGREST_IN_CHUNK=40` (`chunkForPostgrestIn`). Иначе GET URI >4–8 KB → 414 Request-URI Too Large / 502. Применяется в `enrichCardsWithDetails`, `getCardPhotosBySlugs`, `expandCardGroups`, `photoshoot-listing` (хаб `/ii-fotosessiya` тянет до 200 серий).)
@@ -28,7 +30,7 @@
 >
 > Последнее обновление: 2026-09-01 (**preserve outfit toggle:** image-compose чип «Оставить одежду» пишет `wardrobe_policy=keep|replace` на enqueue. Default `replace`. Флаг `preserve_outfit_enabled` (SQL `235`). Ассемблеры Gemini/Grok/Seedream читают одну policy; `keep` гасит секцию Clothing. Спека `docs/01-09-preserve-outfit.md`.
 >
-> Последнее обновление: 2026-08-31 (**L1 + L2 prompt listings:** complement «и ИИ фотосессии» в Title/H1/Description через `prompt-listing-fotosessii-seo.ts`; L2-комбо и L1 без ручного copy; birthday long-tail L2 без complement. Спека `docs/31-08-homepage-promty-fotosessii.md`.
+> Последнее обновление: 2026-08-31 (**L1 + L2 prompt listings:** complement «и ИИ фотосессии» в Title/H1/Description через `prompt-listing-fotosessii-seo.ts` — **снят 2026-09-02**, head снова только ключ кадра. Спека `docs/31-08-homepage-promty-fotosessii.md`.
 >
 > Последнее обновление: 2026-08-31 (**photoshoot overlay chrome stays live:** во время съёмки «Выйти» и ползунок «невероятные сюжеты» не `disabled`. «Создать» = прогресс (`Снимаем… N%`), повторный enqueue закрыт. Job не отменяется на выход — poll обрывается. SSOT `photoshootOverlayChromeState`.
 >

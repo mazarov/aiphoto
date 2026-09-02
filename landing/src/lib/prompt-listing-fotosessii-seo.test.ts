@@ -9,22 +9,16 @@ import {
 } from "./prompt-listing-fotosessii-seo";
 import { getSeoForRoute } from "./seo-templates";
 
-test("L2 audience + style combo gets fotosessii complement in head", () => {
+test("L2 audience + style combo keeps кадр Title/H1 without fotosessii complement", () => {
   const route = resolveUrlToTags(["promty-dlya-foto-devushki", "studiynoe"]);
   assert.ok(route);
   const seo = getSeoForRoute(route);
-  assert.equal(
-    seo.h1,
-    "Промты для фото девушки — студийное и ИИ фотосессии",
-  );
+  assert.equal(seo.h1, "Промты для фото девушки — студийное");
   assert.match(
     seo.metaTitle,
-    /Промты для фото девушки — студийное и ИИ фотосессии \| PromptShot/,
+    /Промты для фото девушки — студийное \| PromptShot/,
   );
-  assert.match(
-    seo.metaDescription,
-    /промты для ИИ фотосессии женские студийные/i,
-  );
+  assert.doesNotMatch(seo.h1, /фотосесс/i);
   assert.match(seo.metaDescription, /промты для фото девушки — студийное/i);
   assert.equal(
     seo.seoTextBlocks?.[0]?.h2,
@@ -36,11 +30,9 @@ test("L2 audience + object combo keeps кадр key first", () => {
   const route = resolveUrlToTags(["promty-dlya-foto-devushki", "s-cvetami"]);
   assert.ok(route);
   const seo = getSeoForRoute(route);
-  assert.equal(
-    seo.h1,
-    "Промты для фото девушки с цветами и ИИ фотосессии",
-  );
-  assert.match(seo.metaDescription, /женские с цветами/i);
+  assert.equal(seo.h1, "Промты для фото девушки с цветами");
+  assert.match(seo.metaDescription, /промты для фото девушки с цветами/i);
+  assert.doesNotMatch(seo.h1, /фотосесс/i);
 });
 
 test("manual birthday L2 keeps long-tail H1 without fotosessii complement", () => {
@@ -51,7 +43,7 @@ test("manual birthday L2 keeps long-tail H1 without fotosessii complement", () =
   assert.doesNotMatch(seo.h1, /фотосесс/i);
 });
 
-test("enrich upgrades legacy L1 head without touching long-tail manual", () => {
+test("enrich keeps кадр Title/H1 and only fills missing fotosessii body", () => {
   const route = resolveUrlToTags(["stil", "studiynoe"]);
   assert.ok(route);
   const enriched = enrichPromptListingHead(
@@ -64,11 +56,11 @@ test("enrich upgrades legacy L1 head without touching long-tail manual", () => {
     },
     route.tags,
   );
-  assert.equal(
-    enriched.h1,
-    "Промты для студийного фото и ИИ фотосессии",
-  );
-  assert.match(enriched.metaDescription, /промты для ИИ фотосессии студийные/i);
+  assert.equal(enriched.h1, "Промты для студийного фото");
+  assert.equal(enriched.metaTitle, "old");
+  assert.equal(enriched.metaDescription, "old");
+  assert.match(enriched.intro ?? "", /промты для ИИ фотосессии студийные/i);
+  assert.equal(enriched.seoTextBlocks?.[0]?.h2, "Промты для ИИ фотосессии студийные");
 });
 
 test("fotosessii tail uses curated adjectives", () => {
@@ -79,10 +71,14 @@ test("fotosessii tail uses curated adjectives", () => {
   assert.equal(promptListingFotosessiiTail(pairs.tags), "парные");
   assert.equal(
     buildPromptListingHeadline(women.tags),
-    "Промты для фото девушки и ИИ фотосессии",
+    "Промты для фото девушки",
   );
   assert.match(
     buildPromptListingMetaDescription(pairs.tags),
-    /промты для ИИ фотосессии парные/i,
+    /промты для фото пар/i,
+  );
+  assert.doesNotMatch(
+    buildPromptListingMetaDescription(pairs.tags),
+    /фотосесс/i,
   );
 });

@@ -3,12 +3,13 @@ import test from "node:test";
 import { getSeoForRoute } from "./seo-templates";
 import { resolveUrlToTags } from "./route-resolver";
 
-test("birthday L1 Title/H1 follow homepage complement formula", () => {
+test("birthday L1 Title/H1 stay on кадр key without fotosessii complement", () => {
   const route = resolveUrlToTags(["sobytiya", "den-rozhdeniya"]);
   assert.ok(route);
   const seo = getSeoForRoute(route);
-  assert.equal(seo.h1, "Промты для фото на день рождения и ИИ фотосессии");
-  assert.match(seo.metaTitle, /Промты для фото на день рождения и ИИ фотосессии/);
+  assert.equal(seo.h1, "Промты для фото на день рождения");
+  assert.match(seo.metaTitle, /^Промты для фото на день рождения/);
+  assert.doesNotMatch(seo.h1, /фотосесс/i);
   assert.ok(seo.popularLinks?.some((link) => link.href.endsWith("/devushki")));
 });
 

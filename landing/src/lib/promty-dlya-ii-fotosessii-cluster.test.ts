@@ -162,19 +162,21 @@ test("fotosessii listings seed photoshoot intent on idle FAB", () => {
   );
 });
 
-test("audience L1 keeps кадр key first and adds fotosessii in Title/H1", () => {
+test("audience L1 keeps кадр Title/H1 and fotosessii only in body copy", () => {
   const women = getSeoContent("devushka");
   const men = getSeoContent("muzhchina");
   const couples = getSeoContent("para");
-  assert.equal(women?.h1, "Промты для фото девушки и ИИ фотосессии");
-  assert.match(women?.h1 ?? "", /^Промты для фото девушки/);
-  assert.match(women?.metaTitle ?? "", /^Промты для фото девушки и ИИ фотосессии/);
-  assert.match(women?.metaDescription ?? "", /промты для ИИ фотосессии женские/i);
+  assert.equal(women?.h1, "Промты для фото девушки");
+  assert.match(women?.h1 ?? "", /^Промты для фото девушки$/);
+  assert.match(women?.metaTitle ?? "", /^Промты для фото девушки/);
+  assert.doesNotMatch(women?.h1 ?? "", /фотосесс/i);
+  assert.doesNotMatch(women?.metaTitle ?? "", /фотосесс/i);
+  assert.match(women?.metaDescription ?? "", /промты для фото девушки/i);
   assert.equal(women?.seoTextBlocks?.[0]?.h2, "Промты для ИИ фотосессии женские");
   assert.match(women?.intro ?? "", /Промты для ИИ фотосессии женские/);
   assert.match(women?.intro ?? "", /женской ИИ фотосессии/i);
-  assert.equal(men?.h1, "Промты для фото мужчины и ИИ фотосессии");
-  assert.equal(couples?.h1, "Промты для фото пар и ИИ фотосессии");
+  assert.equal(men?.h1, "Промты для фото мужчины");
+  assert.equal(couples?.h1, "Промты для фото пар");
   assert.equal(men?.seoTextBlocks?.[0]?.h2, "Промты для ИИ фотосессии мужские");
   assert.equal(couples?.seoTextBlocks?.[0]?.h2, "Промты для ИИ фотосессии парные");
   assert.equal(
@@ -199,25 +201,18 @@ test("audience L1 keeps кадр key first and adds fotosessii in Title/H1", () 
   const family = getSeoContent("semya");
   const kids = getSeoContent("detskie");
   const birthday = getSeoContent("den_rozhdeniya");
-  assert.equal(family?.h1, "Промты для семейного фото и ИИ фотосессии");
-  assert.equal(kids?.h1, "Промты для детских фото и ИИ фотосессии");
-  assert.equal(
-    birthday?.h1,
-    "Промты для фото на день рождения и ИИ фотосессии"
-  );
+  assert.equal(family?.h1, "Промты для семейного фото");
+  assert.equal(kids?.h1, "Промты для детских фото");
+  assert.equal(birthday?.h1, "Промты для фото на день рождения");
   assert.equal(family?.seoTextBlocks?.[0]?.h2, "Промты для ИИ фотосессии семейные");
   assert.equal(kids?.seoTextBlocks?.[0]?.h2, "Промты для ИИ фотосессии детские");
   assert.equal(
     birthday?.seoTextBlocks?.[0]?.h2,
     "Промты для ИИ фотосессии на день рождения"
   );
-  assert.match(family?.metaDescription ?? "", /промты для ИИ фотосессии семейные/i);
-  assert.match(kids?.metaDescription ?? "", /промты для ИИ фотосессии детские/i);
-  assert.match(
-    birthday?.metaDescription ?? "",
-    /промты для ИИ фотосессии на день рождения/i
-  );
-  assert.match(birthday?.metaDescription ?? "", /промты на др/i);
+  assert.match(family?.metaDescription ?? "", /семейного фото/i);
+  assert.match(kids?.metaDescription ?? "", /детского фото/i);
+  assert.match(birthday?.metaDescription ?? "", /на др/i);
   assert.match(birthday?.intro ?? "", /на др/i);
   assert.ok(birthday?.faqItems?.some((item) => /промты на др/i.test(item.q)));
   assert.match(family?.intro ?? "", /Промты для ИИ фотосессии семейные/);
