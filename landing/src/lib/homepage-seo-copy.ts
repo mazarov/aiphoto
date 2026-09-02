@@ -1,10 +1,10 @@
 /** RU SEO copy for homepage `/` — docs/31-08-homepage-promty-fotosessii.md */
 
 const HOMEPAGE_INTRO =
-  "Промты для фото в ИИ онлайн — загрузи своё фото и повтори в 1 клик. Бесплатно. Промты подходят для Нано Банана, GPT и Gemini.";
+  "Готовые промты для фото в ИИ с примерами результата. Скопируй промт бесплатно или загрузи своё фото и повтори кадр в 1 клик.";
 
 export const HOMEPAGE_SEO = {
-  title: "Промты для фото в ИИ | PromptShot",
+  title: "Промты для фото в ИИ с примерами | PromptShot",
   description: HOMEPAGE_INTRO,
   h1: {
     main: "Промты для фото",

@@ -5,7 +5,10 @@ import { HOMEPAGE_FAQ, HOMEPAGE_SEO } from "./homepage-seo-copy";
 const SEND_AWAY = /вставь в нейросеть|открой Nano Banana|вставь в ChatGPT/i;
 
 test("homepage snippet keeps the listing key and CWS-safe length", () => {
-  assert.equal(HOMEPAGE_SEO.title, "Промты для фото в ИИ | PromptShot");
+  assert.equal(
+    HOMEPAGE_SEO.title,
+    "Промты для фото в ИИ с примерами | PromptShot"
+  );
   assert.ok(HOMEPAGE_SEO.title.length <= 70);
   assert.equal(HOMEPAGE_SEO.description, HOMEPAGE_SEO.intro);
   assert.ok(HOMEPAGE_SEO.description.length <= 180);
@@ -13,10 +16,14 @@ test("homepage snippet keeps the listing key and CWS-safe length", () => {
   assert.doesNotMatch(HOMEPAGE_SEO.title, /фотосессии/);
   assert.equal(
     HOMEPAGE_SEO.description,
-    "Промты для фото в ИИ онлайн — загрузи своё фото и повтори в 1 клик. Бесплатно. Промты подходят для Нано Банана, GPT и Gemini."
+    "Готовые промты для фото в ИИ с примерами результата. Скопируй промт бесплатно или загрузи своё фото и повтори кадр в 1 клик."
   );
-  assert.match(HOMEPAGE_SEO.description, /промты для фото в ИИ онлайн/i);
-  assert.match(HOMEPAGE_SEO.description, /Нано Банана/);
+  assert.match(HOMEPAGE_SEO.description, /промты для фото в ИИ/i);
+  assert.match(HOMEPAGE_SEO.description, /с примерами результата/i);
+  assert.doesNotMatch(
+    HOMEPAGE_SEO.description,
+    /нано банана|Nano Banana|Нано Банана|GPT|Gemini/i
+  );
   assert.match(HOMEPAGE_SEO.h1.main, /^Промты для фото$/);
   assert.equal(HOMEPAGE_SEO.h1.accent, "в ИИ");
   assert.doesNotMatch(
