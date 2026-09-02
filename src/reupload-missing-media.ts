@@ -14,6 +14,7 @@ import { existsSync } from "node:fs";
 import { config as loadDotenv } from "dotenv";
 import { createClient } from "@supabase/supabase-js";
 import { parseDataset, type ParsedCard, type MediaItem } from "./lib/prompt-export-parser";
+import { PUBLIC_OBJECT_CACHE_CONTROL_SECONDS } from "../landing/src/lib/storage-cache-control";
 
 const UPLOAD_TIMEOUT_MS = 30_000;
 const UPLOAD_RETRIES = 3;
@@ -145,6 +146,7 @@ async function uploadWithRetry(
         supabase.storage.from("prompt-images").upload(objectPath, file, {
           upsert: true,
           contentType: mimeType,
+          cacheControl: PUBLIC_OBJECT_CACHE_CONTROL_SECONDS,
         }),
         UPLOAD_TIMEOUT_MS,
         `upload ${objectPath}`,

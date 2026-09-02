@@ -14,6 +14,7 @@ type Props = {
   onSelect?: (url: string, index: number) => void;
   onPrefetch?: () => void;
   selectedIndex?: number;
+  sizes?: string;
 };
 
 /** Same 2×2 flush sheet as `/generations`: hover dims siblings, click opens that frame. */
@@ -24,6 +25,7 @@ export function PhotoshootListingGrid({
   onSelect,
   onPrefetch,
   selectedIndex,
+  sizes = SIZES_CARD_GRID,
 }: Props) {
   const interactive = Boolean(onSelect);
 
@@ -42,7 +44,7 @@ export function PhotoshootListingGrid({
             src={url}
             alt={index === 0 ? alt : ""}
             fill
-            sizes={SIZES_CARD_GRID}
+            sizes={sizes}
             quality={CARD_IMAGE_LISTING_NEXT_QUALITY}
             priority={priority && index === 0}
             fetchPriority={priority && index === 0 ? "high" : undefined}

@@ -30,6 +30,7 @@ import {
   type GenerationModelOption,
 } from "@/lib/generation-model-labels";
 import { toGenerationExampleCard } from "@/lib/generation/example-card";
+import { takeHeroMarqueeCards } from "@/lib/hero-marquee";
 import {
   flattenGeneraciyaFotoFaqAnswer,
   formatNanoBananaSocialProof,
@@ -261,7 +262,9 @@ export default async function NanoBananaPage() {
   const ogImage = cards[0]?.photoUrls[0] || fallbackOgImage;
   const schemas = buildJsonLd(ogImage, cards.slice(0, 16));
   const exampleCards = cards.map(toGenerationExampleCard);
-  const carouselCards = exampleCards.filter((card) => card.photoUrl).slice(0, 50);
+  const carouselCards = takeHeroMarqueeCards(
+    exampleCards.filter((card) => card.photoUrl)
+  );
   const galleryCards = exampleCards.slice(0, 16);
 
   return (

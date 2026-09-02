@@ -1,5 +1,9 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-09-02 (**Lighthouse performance / PSI:** SSOT не страница. Hero-marquee ≤12 stills (`hero-marquee.ts`), copy B без `<video>`/`<a>`; `ListingCardVideo` качает mp4 только in-view. Публичные Storage-объекты `cacheControl=31536000` (`storage-cache-control.ts`, worker + ingest). `_next/image` `minimumCacheTTL` 31д; favicon/icon immutable. Сайдбар: слот аккаунта `min-h-[13.5rem]`, счётчики с резервом ширины. Footer/legal: `text-zinc-600` + underline. Unpaid banner height из `borderBoxSize`. `/llms.txt` + a11y starter/marquee — см. соседнюю запись.)
+>
+> Последнее обновление: 2026-09-02 (**Lighthouse Agentic Browsing / доступность агента:** SSOT на общих компонентах, не на `/nano-banana`. Дубль marquee (`GeneraciyaFotoHeroCarousel` copy B) — `aria-hidden` + `ListingPhotoTile decorative` без `<a>`/`<button>`. Скрытые SEO-ссылки `CategorySection` — `inert` вместо `aria-hidden` на фокусируемых `<a>`. Стартер генерации — `role="group"` + `aria-pressed`, не `tablist` без `tab`. Thumbnails `SeoHeroWithIllustrations` — `role="tab"` прямые дети `tablist`. Программные `input[type=file]` — `aria-label` + `tabIndex=-1`. `/llms.txt` (`llms.txt/route.ts`, SSOT `llms-txt.ts`): Markdown H1, `[текст](url)`, >50 символов. WebMCP не внедряли (аудит N/A).)
+>
 > Последнее обновление: 2026-09-02 (**каталог «промты для фото» vs `/ii-fotosessiya`:** L1/L2 листинги больше не берут complement «и ИИ фотосессии». `getSeoForRoute` → combo/L1 из `seo-content.ts` as-is, иначе `prompt-listing-seo.ts`. Ключи «промты для ИИ фотосессии *» остаются только у `/ii-fotosessiya/*`. Featured L2 по спросу; NY combos `otkrytka+novyy_god` / `sovetskoe+novyy_god` каноникал style-first `/stil/otkrytka/novyj-god`. Архивная спека `docs/31-08-homepage-promty-fotosessii.md`.)
 >
 > Последнее обновление: 2026-09-02 (**photoshoot frame prompt:** клик по кадру 2×2 ставит `selectedIndex`; остальные тайлы затемнены (`:has(.is-selected)`). Поле промта, copy и Repeat берут `visiblePromptTextsForPhoto` = `promptTexts[i]`, не склейку всех вариантов. Блок промтов `/ii-fotosessiya*` открывает кадр с тем же индексом.)
@@ -1319,6 +1323,8 @@ Fallback: если `code` пришёл на произвольную стран�
 - `sitemap.ts` — динамический sitemap (L1 теги, фильтрованные по `getFilterCounts` с порогом ≥ 1 карточки, + L2 комбинации + карточки). Search-backed URL (`birthdayClusterSitemapPages`, `/sobytiya/1-sentyabrya`) добавляются по FTS-хитам с тем же порогом index/noindex; дедуп с теговыми/combo URL; без эмбеддингов.
 - `image-sitemap.xml/route.ts` — image sitemap для Google Images / Яндекс.Картинок; XML с `xmlns:image`; `<image:loc>` через `getIndexableImageUrl` (основной домен, без query); `<image:title>` + `<image:caption>`; чанкинг по 5000 карточек, при `totalPages > 1` — `<sitemapindex>` с `?page=N`; `revalidate = 3600`
 - `robots.txt/route.ts` — текстовый route handler; расширенный `Disallow` (`/api/`, `/admin/`, `/embed/`, `/auth/`, `/search`, `/favorites`, `/generations`, `/analyses`, `/generate`, `/pricing`); `Clean-param` для Яндекса (`audience&style&occasion&object&sort`); две ссылки на sitemap
+- `llms.txt/route.ts` — текстовый route для агентов (llmstxt.org + Lighthouse Agentic Browsing). SSOT `lib/llms-txt.ts`: H1, markdown-ссылки на хабы генерации/каталога, `text/plain; charset=utf-8`, cache как у robots. Не в sitemap.
+- Публичные медиа (Storage UUID/lease path): `cacheControl=31536000` при upload (`storage-cache-control.ts`). Старые объекты остаются с 3600, пока не перезапишутся upsert. `_next/image` `minimumCacheTTL` 31 день. Иконки `/favicon*` `/icon-*` — `Cache-Control: immutable` в `next.config.ts`. Yandex Metrika `tag.js` (1ч) не контролируем.
 
 ---
 
@@ -1811,6 +1817,8 @@ landing/src/
 │   ├── not-found.tsx           ← Кастомный 404 (robots noindex)
 │   ├── robots.txt/
 │   │   └── route.ts            ← robots.txt handler (Clean-param, расширенный Disallow)
+│   ├── llms.txt/
+│   │   └── route.ts            ← llms.txt handler (H1 + markdown links, SSOT `llms-txt.ts`)
 │   ├── catalog/
 │   │   └── page.tsx            ← Каталог (ISR, noindex)
 │   ├── [...slug]/

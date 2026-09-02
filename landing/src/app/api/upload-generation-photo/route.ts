@@ -9,6 +9,7 @@ import {
   type UserGenerationPhoto,
   type UserGenerationPhotoRow,
 } from "@/lib/user-generation-photos";
+import { publicObjectUploadOptions } from "@/lib/storage-cache-control";
 import sharp from "sharp";
 
 const MAX_SIZE_MB = 10;
@@ -64,10 +65,14 @@ export async function POST(req: NextRequest) {
 
     const { error: uploadError } = await supabase.storage
       .from(USER_GENERATION_PHOTOS_BUCKET)
-      .upload(path, resized.data, {
-        contentType: "image/jpeg",
-        upsert: false,
-      });
+      .upload(
+        path,
+        resized.data,
+        publicObjectUploadOptions({
+          contentType: "image/jpeg",
+          upsert: false,
+        })
+      );
 
     if (uploadError) {
       console.error("upload-generation-photo storage error:", uploadError);

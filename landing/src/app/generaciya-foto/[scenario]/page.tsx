@@ -30,6 +30,7 @@ import {
   toGenerationExampleCard,
   withGenerationExampleFallbackTitle,
 } from "@/lib/generation/example-card";
+import { takeHeroMarqueeCards } from "@/lib/hero-marquee";
 import { GENERACIYA_FOTO_SEO } from "@/lib/generaciya-foto-seo-copy";
 
 export const revalidate = 3600;
@@ -284,9 +285,9 @@ export default async function GeneraciyaFotoScenarioPage({ params }: Props) {
       )
     );
   const galleryCards = exampleCards.slice(0, 16);
-  const carouselCards = exampleCards
-    .filter((card) => card.photoUrl)
-    .slice(0, 12);
+  const carouselCards = takeHeroMarqueeCards(
+    exampleCards.filter((card) => card.photoUrl)
+  );
   const starterPrompt = getGeneraciyaFotoScenarioStarterPrompt(copy);
 
   return (

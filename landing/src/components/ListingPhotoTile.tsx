@@ -18,6 +18,14 @@ type Props = {
   aspectRatio: number;
   priority?: boolean;
   debugOverlay?: ReactNode;
+  /**
+   * Visual clone (marquee loop). Parent should be aria-hidden.
+   * No link/button descendants — otherwise aria-hidden-focus fails.
+   */
+  decorative?: boolean;
+  /** Hero strip: still poster only — never autoplay mp4 in the first viewport. */
+  still?: boolean;
+  sizes?: string;
 };
 
 export function ListingPhotoTile({
@@ -25,39 +33,50 @@ export function ListingPhotoTile({
   aspectRatio,
   priority = false,
   debugOverlay,
+  decorative = false,
+  still = false,
+  sizes = SIZES_CARD_GRID,
 }: Props) {
   const { open, prefetchCard } = usePromptCardModal();
   const photoshootUrls =
     card.isPhotoshoot && card.photoUrls.length === 4 ? card.photoUrls : null;
+  const imageAlt = decorative ? "" : card.title;
+  const showVideo = Boolean(card.videoUrl) && !decorative && !still;
 
   return (
     <article
       className="group relative isolate overflow-hidden rounded-2xl bg-zinc-100 transition duration-200 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-zinc-900/10"
       style={{ aspectRatio }}
+      aria-hidden={decorative || undefined}
     >
       {photoshootUrls ? (
         <PhotoshootListingGrid
           urls={photoshootUrls}
-          alt={card.title}
+          alt={imageAlt}
           priority={priority}
-          onPrefetch={() => prefetchCard(card.slug)}
-          onSelect={(url, index) => {
-            open(card.slug, {
-              photoUrl: url,
-              photoIndex: index,
-              photoCount: card.photoCount,
-              hasPrompts: card.hasPrompt,
-            });
-          }}
+          onPrefetch={decorative ? undefined : () => prefetchCard(card.slug)}
+          onSelect={
+            decorative
+              ? undefined
+              : (url, index) => {
+                  open(card.slug, {
+                    photoUrl: url,
+                    photoIndex: index,
+                    photoCount: card.photoCount,
+                    hasPrompts: card.hasPrompt,
+                  });
+                }
+          }
+          sizes={sizes}
         />
-      ) : card.videoUrl ? (
-        <ListingCardVideo src={card.videoUrl} poster={card.photoUrl} />
+      ) : showVideo ? (
+        <ListingCardVideo src={card.videoUrl!} poster={card.photoUrl} />
       ) : card.photoUrl ? (
         <Image
           src={card.photoUrl}
-          alt={card.title}
+          alt={imageAlt}
           fill
-          sizes={SIZES_CARD_GRID}
+          sizes={sizes}
           quality={CARD_IMAGE_LISTING_NEXT_QUALITY}
           priority={priority}
           fetchPriority={priority ? "high" : undefined}
@@ -74,22 +93,36 @@ export function ListingPhotoTile({
 
       {card.isPhotoshoot ? <PhotoshootListingBadge /> : null}
 
-      <Link
-        href={`/p/${card.slug}`}
-        className={`absolute inset-0 z-10${photoshootUrls ? " pointer-events-none" : ""}`}
-        aria-label={card.title}
-        prefetch
-        onPointerEnter={() => prefetchCard(card.slug)}
-        onTouchStart={() => prefetchCard(card.slug)}
-        onClick={(event) => {
-          event.preventDefault();
-          open(card.slug, {
-            photoUrl: card.photoUrl,
-            photoCount: card.photoCount,
-            hasPrompts: card.hasPrompt,
-          });
-        }}
-      />
+      {decorative ? (
+        <div
+          className="absolute inset-0 z-10"
+          onPointerEnter={() => prefetchCard(card.slug)}
+          onClick={() => {
+            open(card.slug, {
+              photoUrl: card.photoUrl,
+              photoCount: card.photoCount,
+              hasPrompts: card.hasPrompt,
+            });
+          }}
+        />
+      ) : (
+        <Link
+          href={`/p/${card.slug}`}
+          className={`absolute inset-0 z-10${photoshootUrls ? " pointer-events-none" : ""}`}
+          aria-label={card.title}
+          prefetch
+          onPointerEnter={() => prefetchCard(card.slug)}
+          onTouchStart={() => prefetchCard(card.slug)}
+          onClick={(event) => {
+            event.preventDefault();
+            open(card.slug, {
+              photoUrl: card.photoUrl,
+              photoCount: card.photoCount,
+              hasPrompts: card.hasPrompt,
+            });
+          }}
+        />
+      )}
     </article>
   );
 }

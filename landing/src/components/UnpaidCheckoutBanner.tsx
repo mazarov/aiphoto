@@ -208,7 +208,10 @@ export function UnpaidCheckoutBanner() {
     }
     const update = () => syncUnpaidBannerHeightCssVar(el.offsetHeight);
     update();
-    const observer = new ResizeObserver(update);
+    const observer = new ResizeObserver((entries) => {
+      const box = entries[0]?.borderBoxSize?.[0];
+      syncUnpaidBannerHeightCssVar(box?.blockSize ?? el.offsetHeight);
+    });
     observer.observe(el);
     return () => {
       observer.disconnect();

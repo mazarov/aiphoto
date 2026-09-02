@@ -27,6 +27,8 @@ import { YANDEX_METRIKA_COUNTER_ID } from "@/lib/yandex-metrika";
 const inter = Inter({
   subsets: ["latin", "cyrillic"],
   display: "swap",
+  preload: true,
+  adjustFontFallback: true,
 });
 
 export const metadata: Metadata = {

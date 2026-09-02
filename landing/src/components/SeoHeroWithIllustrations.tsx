@@ -95,12 +95,20 @@ export function SeoHeroWithIllustrations({
 
   const Counter = () =>
     count > 1 ? (
-      <p className="mt-1.5 text-center text-xs tabular-nums text-zinc-400">
+      <p className="mt-1.5 text-center text-xs tabular-nums text-zinc-500">
         {index + 1} / {count}
       </p>
     ) : null;
 
-  const Thumbnail = ({ ill, i }: { ill: ResolvedSeoIllustration; i: number }) => {
+  const Thumbnail = ({
+    ill,
+    i,
+    className,
+  }: {
+    ill: ResolvedSeoIllustration;
+    i: number;
+    className?: string;
+  }) => {
     const active = i === index;
     return (
       <button
@@ -109,7 +117,7 @@ export function SeoHeroWithIllustrations({
         aria-selected={active}
         aria-label={`${illustrationLabel(ill)}, слайд ${i + 1}`}
         onClick={() => setIndex(i)}
-        className={`relative aspect-[3/4] w-full shrink-0 overflow-hidden rounded-md transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${
+        className={`relative aspect-[3/4] shrink-0 overflow-hidden rounded-md transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${className ?? "w-full"} ${
           active
             ? "ring-2 ring-indigo-500 ring-offset-1 ring-offset-zinc-50"
             : "opacity-60 hover:opacity-100"
@@ -139,15 +147,14 @@ export function SeoHeroWithIllustrations({
             : "flex flex-wrap gap-1.5"
         }
       >
-        {illustrations.map((ill, i) =>
-          orientation === "col" ? (
-            <Thumbnail key={ill.cardSlug} ill={ill} i={i} />
-          ) : (
-            <div key={ill.cardSlug} className="w-12">
-              <Thumbnail ill={ill} i={i} />
-            </div>
-          ),
-        )}
+        {illustrations.map((ill, i) => (
+          <Thumbnail
+            key={ill.cardSlug}
+            ill={ill}
+            i={i}
+            className={orientation === "row" ? "w-12" : "w-full"}
+          />
+        ))}
       </div>
     ) : null;
 

@@ -48,10 +48,9 @@ function getActiveSectionIdx(menu: MenuSectionWithCounts[], pathname: string): n
 }
 
 function CountBadge({ count }: { count?: number }) {
-  if (!count) return null;
   return (
-    <span className="ml-auto tabular-nums text-[11px] text-zinc-400">
-      {count}
+    <span className="ml-auto inline-block min-w-[2.5rem] shrink-0 text-right tabular-nums text-[11px] text-zinc-500">
+      {count ? count : ""}
     </span>
   );
 }

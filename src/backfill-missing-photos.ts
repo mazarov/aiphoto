@@ -4,6 +4,7 @@ import { existsSync } from "node:fs";
 import { config as loadDotenv } from "dotenv";
 import { createClient } from "@supabase/supabase-js";
 import { parseDataset, type ParsedCard, type MediaItem } from "./lib/prompt-export-parser";
+import { PUBLIC_OBJECT_CACHE_CONTROL_SECONDS } from "../landing/src/lib/storage-cache-control";
 
 const DATASET = process.argv[2] || "ii_photolab_ChatExport_2026-03-14";
 const UPLOAD_TIMEOUT_MS = 30_000;
@@ -122,6 +123,7 @@ async function main() {
             supabase.storage.from("prompt-images").upload(objectPath, file, {
               upsert: true,
               contentType: media.mediaType === "photo" ? "image/jpeg" : "video/mp4",
+              cacheControl: PUBLIC_OBJECT_CACHE_CONTROL_SECONDS,
             }),
             UPLOAD_TIMEOUT_MS,
             objectPath,

@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { publicObjectUploadOptions } from "../../landing/src/lib/storage-cache-control";
 import { config } from "./config";
 import {
   assembleCameraOrbitEditPrompt,
@@ -321,7 +322,11 @@ async function uploadPhotoshootTiles(input: {
       if (!path) throw new Error("photoshoot_tile_path_empty");
       const { error } = await input.supabase.storage
         .from(RESULTS_BUCKET)
-        .upload(path, tile.buffer, { contentType: "image/jpeg", upsert: true });
+        .upload(
+          path,
+          tile.buffer,
+          publicObjectUploadOptions({ contentType: "image/jpeg", upsert: true }),
+        );
       if (error) {
         throw new Error(error.message);
       }
@@ -531,10 +536,14 @@ export async function processGeneration(
     const uploadStarted = Date.now();
     const { error: seedreamUploadError } = await supabase.storage
       .from(RESULTS_BUCKET)
-      .upload(seedreamResultPath, encodedSeedream.buffer, {
-        contentType: encodedSeedream.contentType,
-        upsert: true,
-      });
+      .upload(
+        seedreamResultPath,
+        encodedSeedream.buffer,
+        publicObjectUploadOptions({
+          contentType: encodedSeedream.contentType,
+          upsert: true,
+        }),
+      );
     if (photoshootMarks) photoshootMarks.sheetUploadMs = elapsedMs(uploadStarted);
     if (seedreamUploadError) {
       throw new ProcessingError(
@@ -880,7 +889,11 @@ export async function processGeneration(
   const uploadStarted = Date.now();
   const { error: uploadError } = await supabase.storage
     .from(RESULTS_BUCKET)
-    .upload(resultPath, encoded.buffer, { contentType: encoded.contentType, upsert: true });
+    .upload(
+      resultPath,
+      encoded.buffer,
+      publicObjectUploadOptions({ contentType: encoded.contentType, upsert: true }),
+    );
   if (photoshootMarks) photoshootMarks.sheetUploadMs = elapsedMs(uploadStarted);
   if (uploadError) {
     throw new ProcessingError(

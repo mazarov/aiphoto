@@ -35,6 +35,7 @@ import {
   getFotosessiiThemeCollagePhotos,
 } from "@/lib/promty-dlya-ii-fotosessii-page-data";
 import { toGenerationExampleCard } from "@/lib/generation/example-card";
+import { takeHeroMarqueeCards } from "@/lib/hero-marquee";
 
 export const revalidate = 3600;
 export const dynamicParams = true;
@@ -212,10 +213,9 @@ export default async function PromtyDlyaIiFotosessiiChildPage({
 
   const ogImage = cards[0]?.photoUrls[0] || (await getChildOgImage(slug));
   const galleryCards = cards.map(toGenerationExampleCard).slice(0, 16);
-  const carouselCards = cards
-    .map(toGenerationExampleCard)
-    .filter((card) => card.photoUrl)
-    .slice(0, 50);
+  const carouselCards = takeHeroMarqueeCards(
+    cards.map(toGenerationExampleCard).filter((card) => card.photoUrl)
+  );
   const schemas = buildJsonLd(copy, ogImage, cards.slice(0, 16));
 
   return (

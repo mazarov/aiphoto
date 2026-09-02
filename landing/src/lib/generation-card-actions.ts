@@ -20,6 +20,7 @@ import {
   videoUgcPosterStoragePath,
 } from "@/lib/ugc-card-media";
 import { USER_GENERATION_PHOTOS_BUCKET } from "@/lib/user-generation-photos";
+import { publicObjectUploadOptions } from "@/lib/storage-cache-control";
 
 const PUBLIC_RESULTS_BUCKET = "web-generation-results";
 
@@ -114,10 +115,14 @@ async function copyPosterToVideoResults(
   }
   const { error: uploadError } = await supabase.storage
     .from(PUBLIC_RESULTS_BUCKET)
-    .upload(destPath, image, {
-      contentType: image.type || "image/jpeg",
-      upsert: true,
-    });
+    .upload(
+      destPath,
+      image,
+      publicObjectUploadOptions({
+        contentType: image.type || "image/jpeg",
+        upsert: true,
+      }),
+    );
   if (uploadError) {
     console.error("[generation-card] video poster upload failed", {
       destPath,

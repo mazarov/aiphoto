@@ -65,7 +65,7 @@ export function CategorySection({
 
       {/* Hidden links rendered in DOM for SEO crawlers, visually hidden */}
       {hiddenForSeo.length > 0 && (
-        <div className="sr-only" aria-hidden="true">
+        <div className="sr-only" inert>
           {hiddenForSeo.map((item) => (
             <a key={`${item.data.dimension}:${item.data.slug}`} href={item.href}>
               {item.label}

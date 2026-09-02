@@ -10,6 +10,7 @@ import {
   type UserGenerationPhotoRow,
 } from "@/lib/user-generation-photos";
 import { resolvePhotoshootUserFacingResult } from "@/lib/photoshoot";
+import { publicObjectUploadOptions } from "@/lib/storage-cache-control";
 
 const MAX_SIZE_MB = 10;
 const MAX_PX = 2048;
@@ -94,10 +95,14 @@ export async function POST(
 
     const { error: uploadError } = await supabase.storage
       .from(USER_GENERATION_PHOTOS_BUCKET)
-      .upload(path, resized.data, {
-        contentType: "image/jpeg",
-        upsert: false,
-      });
+      .upload(
+        path,
+        resized.data,
+        publicObjectUploadOptions({
+          contentType: "image/jpeg",
+          upsert: false,
+        }),
+      );
 
     if (uploadError) {
       console.error("save-to-library upload error:", uploadError);

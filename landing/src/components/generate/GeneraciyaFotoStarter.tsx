@@ -237,7 +237,7 @@ export function GeneraciyaFotoStarter({
     >
       <div
         className="grid grid-cols-1 gap-3 sm:grid-cols-2"
-        role="tablist"
+        role="group"
         aria-label="Способ создания изображения"
       >
         {modes.map((item) => {
@@ -255,8 +255,7 @@ export function GeneraciyaFotoStarter({
               <button
                 ref={item.id === "text" ? textTabRef : photoTabRef}
                 type="button"
-                role="tab"
-                aria-selected={selected}
+                aria-pressed={selected}
                 onClick={() => selectMode(item.id)}
                 onKeyDown={(event) => onModeKeyDown(event, item.id)}
                 className="flex min-h-11 w-full items-start gap-4 p-4 text-left sm:p-5"
@@ -304,10 +303,12 @@ export function GeneraciyaFotoStarter({
       <div className={`${GF_STACK} flex flex-col items-center`}>
         <input
           ref={fileInputRef}
+          id="generaciya-foto-starter-photo"
           type="file"
           accept={FILE_INPUT_ACCEPT}
           className="sr-only"
           tabIndex={-1}
+          aria-label="Загрузить фото для генерации"
           onChange={onPhotoFileChange}
           onInput={onPhotoFileChange}
         />

@@ -24,10 +24,10 @@ function LegalFooter({
   dark?: boolean;
   layout?: "stacked" | "inline";
 }) {
-  const textClass = dark ? "text-zinc-600" : "text-zinc-400/90";
+  const textClass = dark ? "text-zinc-500" : "text-zinc-600";
   const linkClass = dark
-    ? "text-zinc-500 underline-offset-2 hover:text-zinc-300 hover:underline"
-    : "text-zinc-400 underline-offset-2 hover:text-zinc-600 hover:underline";
+    ? "text-zinc-400 underline underline-offset-2 hover:text-zinc-200"
+    : "text-zinc-600 underline underline-offset-2 hover:text-zinc-900";
   const offer = (
     <>
       Покупая пакет, вы принимаете условия{" "}

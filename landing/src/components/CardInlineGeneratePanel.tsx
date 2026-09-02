@@ -3304,6 +3304,12 @@ export function CardInlineGeneratePanel({
               ? true
               : undefined
           }
+          inert={
+            (isDock && dockExpanded && !dockPromptExpanded) ||
+            (showResultChrome && !promptExpanded)
+              ? true
+              : undefined
+          }
           className={`shadow-none ${
             dockPromptExpanded
               ? dockPromptSheetPanel
@@ -4154,6 +4160,7 @@ export function CardInlineGeneratePanel({
                 }`
           }`}
           aria-hidden={isDock && dockExpanded ? true : undefined}
+          inert={isDock && dockExpanded ? true : undefined}
         >
           <div className="flex items-start gap-2 overflow-x-auto overscroll-x-contain [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <button
@@ -4339,6 +4346,10 @@ export function CardInlineGeneratePanel({
           accept="image/jpeg,image/png,image/webp"
           multiple={!photoPromptCompose}
           className="hidden"
+          tabIndex={-1}
+          aria-label={
+            photoPromptCompose ? "Загрузить фото для промта" : "Загрузить фото"
+          }
           onClick={(event) => event.stopPropagation()}
           onChange={(event) => {
             const files = Array.from(event.target.files ?? []);
@@ -4358,6 +4369,7 @@ export function CardInlineGeneratePanel({
                   : "border-rose-200 bg-rose-50"
             }`}
             aria-hidden={isDock && dockExpanded ? true : undefined}
+            inert={isDock && dockExpanded ? true : undefined}
           >
             <p
               className={`text-[13px] font-medium ${

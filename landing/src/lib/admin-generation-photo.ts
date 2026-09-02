@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import sharp from "sharp";
+import { publicObjectUploadOptions } from "@/lib/storage-cache-control";
 
 export const ADMIN_GENERATION_UPLOAD_BUCKET = "web-generation-uploads";
 const CONFIG_KEY = "admin_generation_photo_path";
@@ -32,9 +33,11 @@ export async function validateAndUploadAdminPhoto(supabase: SupabaseClient, file
     fit: "inside", withoutEnlargement: true,
   }).jpeg({ quality: 85 }).toBuffer();
   const path = `${PREFIX}${Date.now()}-${crypto.randomUUID()}.jpg`;
-  const { error: uploadError } = await supabase.storage.from(ADMIN_GENERATION_UPLOAD_BUCKET).upload(path, image, {
-    contentType: "image/jpeg", upsert: false,
-  });
+  const { error: uploadError } = await supabase.storage.from(ADMIN_GENERATION_UPLOAD_BUCKET).upload(
+    path,
+    image,
+    publicObjectUploadOptions({ contentType: "image/jpeg", upsert: false }),
+  );
   if (uploadError) throw new Error(`pinned_photo_upload_failed:${uploadError.message}`);
   const { error: configError } = await supabase.from("photo_app_config").upsert({
     key: CONFIG_KEY, value: path, updated_at: new Date().toISOString(),

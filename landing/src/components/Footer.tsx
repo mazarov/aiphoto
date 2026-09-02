@@ -23,7 +23,7 @@ export function Footer() {
           </div>
           <nav className="flex gap-12">
             <div>
-              <div className="mb-3 text-xs font-semibold uppercase tracking-widest text-zinc-400">Навигация</div>
+              <div className="mb-3 text-xs font-semibold uppercase tracking-widest text-zinc-600">Навигация</div>
               <ul className="space-y-2">
                 <li><Link href="/" className="text-sm text-zinc-500 transition-colors hover:text-zinc-900">Главная</Link></li>
                 <li><Link href="/foto-v-promt" className="text-sm text-zinc-500 transition-colors hover:text-zinc-900">Фото в промт</Link></li>
@@ -31,7 +31,7 @@ export function Footer() {
               </ul>
             </div>
             <div>
-              <div className="mb-3 text-xs font-semibold uppercase tracking-widest text-zinc-400">Support</div>
+              <div className="mb-3 text-xs font-semibold uppercase tracking-widest text-zinc-600">Support</div>
               <ul className="space-y-2">
                 <li>
                   <a
@@ -46,14 +46,14 @@ export function Footer() {
           </nav>
         </div>
         <div className="mt-10 flex flex-col gap-3 border-t border-zinc-200/60 pt-6 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-xs text-zinc-400">
+          <p className="text-xs text-zinc-600">
             &copy; {new Date().getFullYear()} PromptShot. Все права защищены.
           </p>
           <div className="flex flex-wrap gap-x-5 gap-y-2">
-            <Link href="/terms" className="text-xs text-zinc-400 transition-colors hover:text-zinc-600">
+            <Link href="/terms" className="text-xs text-zinc-600 underline underline-offset-2 hover:text-zinc-900">
               Публичная оферта
             </Link>
-            <Link href="/policy" className="text-xs text-zinc-400 transition-colors hover:text-zinc-600">
+            <Link href="/policy" className="text-xs text-zinc-600 underline underline-offset-2 hover:text-zinc-900">
               Политика обработки данных
             </Link>
           </div>

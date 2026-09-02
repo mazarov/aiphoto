@@ -203,15 +203,15 @@ export function SidebarAccountPanel({
 
   if (loading) {
     return (
-      <div className="border-b border-zinc-100 p-3">
-        <div className="h-24 animate-pulse rounded-2xl bg-zinc-100" />
+      <div className="min-h-[13.5rem] border-b border-zinc-100 p-3">
+        <div className="h-full min-h-[12rem] animate-pulse rounded-2xl bg-zinc-100" />
       </div>
     );
   }
 
   if (!user || user.is_anonymous === true) {
     return (
-      <div className="border-b border-zinc-100 p-3">
+      <div className="min-h-[13.5rem] border-b border-zinc-100 p-3">
         <div className="rounded-2xl border border-indigo-100 bg-indigo-50/60 p-3">
           <p className="text-sm font-semibold text-zinc-900">Ваш PromptShot</p>
           <p className="mt-1 text-xs leading-relaxed text-zinc-500">

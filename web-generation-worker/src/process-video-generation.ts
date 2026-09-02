@@ -7,6 +7,7 @@ import {
   videoI2vUserPrompt,
 } from "../../landing/src/lib/video-motion-prompt";
 import { parseLibrarySourceGenerationId } from "../../landing/src/lib/user-generation-photo-paths";
+import { publicObjectUploadOptions } from "../../landing/src/lib/storage-cache-control";
 import { config } from "./config";
 import { grokVideoCircuit, seedanceVideoCircuit } from "./grok-image-circuit";
 import { log } from "./lib/logger";
@@ -318,7 +319,11 @@ async function prepareSignedVideoFrameUrl(
   const path = `${job.user_id}/${job.id}/video-source-frame.jpg`;
   const { error: uploadError } = await supabase.storage
     .from(RESULTS_BUCKET)
-    .upload(path, frame.buffer, { contentType: "image/jpeg", upsert: true });
+    .upload(
+      path,
+      frame.buffer,
+      publicObjectUploadOptions({ contentType: "image/jpeg", upsert: true }),
+    );
   if (uploadError) {
     throw new ProcessingError(
       "result_upload_error",
@@ -705,7 +710,11 @@ async function processGrokVideoGeneration(
   const resultPath = `${job.user_id}/${job.id}/${job.lease_token}.mp4`;
   const { error: uploadError } = await supabase.storage
     .from(RESULTS_BUCKET)
-    .upload(resultPath, videoBuffer, { contentType: VIDEO_MIME, upsert: true });
+    .upload(
+      resultPath,
+      videoBuffer,
+      publicObjectUploadOptions({ contentType: VIDEO_MIME, upsert: true }),
+    );
   if (uploadError) {
     throw new ProcessingError("result_upload_error", uploadError.message, isTemporary(uploadError));
   }
@@ -901,7 +910,11 @@ async function processSeedanceVideoGeneration(
     const resultPath = `${job.user_id}/${job.id}/${job.lease_token}.mp4`;
     const { error: uploadError } = await supabase.storage
       .from(RESULTS_BUCKET)
-      .upload(resultPath, videoBuffer, { contentType: VIDEO_MIME, upsert: true });
+      .upload(
+      resultPath,
+      videoBuffer,
+      publicObjectUploadOptions({ contentType: VIDEO_MIME, upsert: true }),
+    );
     if (uploadError) {
       throw new ProcessingError("result_upload_error", uploadError.message, isTemporary(uploadError));
     }
@@ -1089,7 +1102,11 @@ async function processVeoLiteVideoGeneration(
   const resultPath = `${job.user_id}/${job.id}/${job.lease_token}.mp4`;
   const { error: uploadError } = await supabase.storage
     .from(RESULTS_BUCKET)
-    .upload(resultPath, videoBuffer, { contentType: VIDEO_MIME, upsert: true });
+    .upload(
+      resultPath,
+      videoBuffer,
+      publicObjectUploadOptions({ contentType: VIDEO_MIME, upsert: true }),
+    );
   if (uploadError) {
     throw new ProcessingError("result_upload_error", uploadError.message, isTemporary(uploadError));
   }
@@ -1323,7 +1340,11 @@ export async function processVideoGeneration(
   const resultPath = `${job.user_id}/${job.id}/${job.lease_token}.mp4`;
   const { error: uploadError } = await supabase.storage
     .from(RESULTS_BUCKET)
-    .upload(resultPath, videoBuffer, { contentType: VIDEO_MIME, upsert: true });
+    .upload(
+      resultPath,
+      videoBuffer,
+      publicObjectUploadOptions({ contentType: VIDEO_MIME, upsert: true }),
+    );
   if (uploadError) {
     throw new ProcessingError("result_upload_error", uploadError.message, isTemporary(uploadError));
   }

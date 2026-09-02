@@ -4,6 +4,7 @@ import { ANALYZE_HISTORY_BUCKET } from "@/lib/analyze-history";
 import { publishPromptCard } from "@/lib/prompt-card-publication";
 import { createSupabaseServer } from "@/lib/supabase";
 import { createUgcCardForAnalyzeHistory } from "@/lib/web-ugc-card";
+import { publicObjectUploadOptions } from "@/lib/storage-cache-control";
 
 const PUBLIC_RESULTS_BUCKET = "web-generation-results";
 
@@ -39,9 +40,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       }
       const filename = history.image_path.split("/").pop() || `${id}.jpg`;
       const publicPath = `analyze-publications/${id}/${filename}`;
-      const { error: uploadError } = await supabase.storage.from(PUBLIC_RESULTS_BUCKET).upload(publicPath, image, {
-        contentType: history.image_mime || image.type || "image/jpeg", upsert: true,
-      });
+      const { error: uploadError } = await supabase.storage.from(PUBLIC_RESULTS_BUCKET).upload(
+        publicPath,
+        image,
+        publicObjectUploadOptions({
+          contentType: history.image_mime || image.type || "image/jpeg",
+          upsert: true,
+        }),
+      );
       if (uploadError) throw new Error(`public_image_upload_failed:${uploadError.message}`);
       const created = await createUgcCardForAnalyzeHistory(supabase, {
         analyzeHistoryId: id, authorAuthUserId: gate.userId, promptText: prompt,

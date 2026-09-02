@@ -82,12 +82,29 @@ const nextConfig: NextConfig = {
   },
   images: {
     qualities: [45, 60, 75],
+    // Default 60s made optimized images look "uncached" to PSI on repeat views.
+    minimumCacheTTL: 60 * 60 * 24 * 31,
     remotePatterns: [
       { protocol: "https", hostname: "*.supabase.co" },
       { protocol: "https", hostname: "*.dockhost.net" },
       { protocol: "https", hostname: "*.googleusercontent.com" },
       { protocol: "https", hostname: "avatars.yandex.net" },
     ],
+  },
+  async headers() {
+    const immutable = [
+      {
+        key: "Cache-Control",
+        value: "public, max-age=31536000, immutable",
+      },
+    ];
+    return [
+      { source: "/favicon.ico", headers: immutable },
+      { source: "/favicon.svg", headers: immutable },
+      { source: "/favicon-:size.png", headers: immutable },
+      { source: "/icon-:size.png", headers: immutable },
+      { source: "/apple-touch-icon.png", headers: immutable },
+    ];
   },
 };
 

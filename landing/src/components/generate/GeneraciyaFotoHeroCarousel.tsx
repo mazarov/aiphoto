@@ -9,6 +9,7 @@ import {
   writeGenerationExampleNavigation,
 } from "@/lib/generation/example-card";
 import { GENERACIYA_FOTO_SEO } from "@/lib/generaciya-foto-seo-copy";
+import { SIZES_HERO_MARQUEE, takeHeroMarqueeCards } from "@/lib/hero-marquee";
 
 const TILE_ASPECT = 3 / 4;
 
@@ -21,18 +22,22 @@ function CarouselTile({
   copy: "a" | "b";
   index: number;
 }) {
+  const decorative = copy === "b";
   return (
     <div
       data-hero-card-slug={card.slug}
       className={`w-[7.25rem] shrink-0 pr-2.5 sm:w-[9.25rem] sm:pr-3 ${
-        copy === "b" ? "generaciya-foto-marquee-dup" : ""
+        decorative ? "generaciya-foto-marquee-dup" : ""
       }`}
-      aria-hidden={copy === "b" ? true : undefined}
+      aria-hidden={decorative || undefined}
     >
       <ListingPhotoTile
         card={card}
         aspectRatio={TILE_ASPECT}
-        priority={copy === "a" && index < 4}
+        priority={!decorative && index < 4}
+        decorative={decorative}
+        still
+        sizes={SIZES_HERO_MARQUEE}
       />
     </div>
   );
@@ -83,7 +88,7 @@ export function GeneraciyaFotoHeroCarousel({
   const wrapRef = useRef<HTMLDivElement>(null);
   const { open, prefetchCard } = usePromptCardModal();
   const photos = useMemo(
-    () => cards.filter((card) => card.photoUrl),
+    () => takeHeroMarqueeCards(cards.filter((card) => card.photoUrl)),
     [cards]
   );
   const featured = photos[0];

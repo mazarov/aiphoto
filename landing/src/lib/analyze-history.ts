@@ -2,6 +2,7 @@ import type { NextRequest } from "next/server";
 import sharp from "sharp";
 import { resolveClientSource, type ClientSource } from "@/lib/client-source";
 import type { createSupabaseServer } from "@/lib/supabase";
+import { publicObjectUploadOptions } from "@/lib/storage-cache-control";
 
 type SupabaseServer = ReturnType<typeof createSupabaseServer>;
 export const ANALYZE_HISTORY_BUCKET = "analyze-history";
@@ -66,7 +67,11 @@ async function persist(
 
     const { error: uploadError } = await supabase.storage
       .from(ANALYZE_HISTORY_BUCKET)
-      .upload(path, image, { contentType: "image/jpeg", upsert: false });
+      .upload(
+        path,
+        image,
+        publicObjectUploadOptions({ contentType: "image/jpeg", upsert: false }),
+      );
     if (uploadError) throw uploadError;
   }
 

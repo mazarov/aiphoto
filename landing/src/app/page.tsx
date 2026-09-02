@@ -11,6 +11,7 @@ import { HOMEPAGE_SEO, HOMEPAGE_FAQ } from "@/lib/homepage-seo-copy";
 import { getHomepageCatalogThemeItems } from "@/lib/homepage-explorer-chips";
 import { fetchNewestThemeCollagePhotos } from "@/lib/homepage-sections";
 import { toGenerationExampleCard } from "@/lib/generation/example-card";
+import { takeHeroMarqueeCards } from "@/lib/hero-marquee";
 import { PageLayout } from "@/components/PageLayout";
 import { HomeHeroDestinations } from "@/components/HomeHeroDestinations";
 import { HomeFaq, HomeIntroAndHowTo } from "@/components/HomeSeoBlocks";
@@ -95,7 +96,9 @@ export default async function HomePage() {
     sections.find((s) => s.cards.length > 0)?.cards[0]?.photoUrl ??
     null;
   const exampleCards = newCards.map(toGenerationExampleCard);
-  const carouselCards = exampleCards.filter((card) => card.photoUrl).slice(0, 50);
+  const carouselCards = takeHeroMarqueeCards(
+    exampleCards.filter((card) => card.photoUrl)
+  );
   const galleryCards = exampleCards.slice(0, 16);
   const collectionPageLd = {
     "@context": "https://schema.org",

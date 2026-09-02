@@ -212,6 +212,8 @@ export function PainReferenceVsDraftMock() {
                   type="file"
                   accept={ACCEPT}
                   className="sr-only"
+                  tabIndex={-1}
+                  aria-label="Add your photo"
                   onChange={onPickFile}
                   disabled={busy}
                 />

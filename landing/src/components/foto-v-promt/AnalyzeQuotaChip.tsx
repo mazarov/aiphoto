@@ -123,6 +123,7 @@ export function AnalyzeQuotaChip({
           dark ? "text-indigo-200" : "border-indigo-200/80 text-indigo-700"
         }`}
         title={widgetCopy("paidWarning")}
+        role="status"
       >
         {minimal ? null : <TokenMark className="h-4 w-4 shrink-0" />}
         {widgetCopy("quotaChipPaid")}
@@ -132,7 +133,7 @@ export function AnalyzeQuotaChip({
 
   const label = `${shown} из ${max} ${widgetCopy("quotaFreeLine")}`;
   return (
-    <span className={shell} title={label} aria-label={label}>
+    <span className={shell} title={label} role="status" aria-label={label}>
       {minimal ? null : <QuotaMeter value={shown} max={max} dark={dark} />}
       <span className="tabular-nums">
         {minimal ? `${shown}/${max}` : `${shown} из ${max}`}

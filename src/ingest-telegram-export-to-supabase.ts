@@ -10,6 +10,7 @@ import {
 } from "./lib/prompt-export-parser";
 import { enrichCardWithRetry, type EnrichResult } from "./lib/enrich-card";
 import { computeSha256, computePhash, hammingDistanceHex } from "./lib/image-hash";
+import { PUBLIC_OBJECT_CACHE_CONTROL_SECONDS } from "../landing/src/lib/storage-cache-control";
 
 interface Args {
   datasetSlug: string;
@@ -343,6 +344,7 @@ async function uploadMedia(
         supabase.storage.from("prompt-images").upload(objectPath, file, {
           upsert: true,
           contentType: mimeType,
+          cacheControl: PUBLIC_OBJECT_CACHE_CONTROL_SECONDS,
         }),
         UPLOAD_TIMEOUT_MS,
         `upload ${objectPath}`,

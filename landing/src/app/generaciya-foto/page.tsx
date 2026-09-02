@@ -42,6 +42,7 @@ import {
   toGenerationExampleCard,
   withGenerationExampleFallbackTitle,
 } from "@/lib/generation/example-card";
+import { takeHeroMarqueeCards } from "@/lib/hero-marquee";
 
 export const revalidate = 3600;
 
@@ -317,7 +318,9 @@ export default async function GeneraciyaFotoPage() {
     .map((card, index) =>
       withGenerationExampleFallbackTitle(card, `Пример фото ИИ — ${index + 1}`)
     );
-  const carouselCards = exampleCards.filter((card) => card.photoUrl).slice(0, 12);
+  const carouselCards = takeHeroMarqueeCards(
+    exampleCards.filter((card) => card.photoUrl)
+  );
   const galleryCards = exampleCards.slice(0, 16);
 
   return (
