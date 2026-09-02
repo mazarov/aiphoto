@@ -81,3 +81,43 @@ export function isRobokassaEmbeddedFrame(): boolean {
     return true;
   }
 }
+
+export const ROBOKASSA_PROVIDER_ORIGINS = [
+  "https://auth.robokassa.ru",
+  "https://auth.robokassa.kz",
+] as const;
+
+export type RobokassaParentRedirectDecision = "close" | "keep-iframe" | "allow";
+
+export function isRobokassaProviderOrigin(origin: string): boolean {
+  return (ROBOKASSA_PROVIDER_ORIGINS as readonly string[]).includes(origin);
+}
+
+export function readRobokassaRedirectUrl(data: unknown): string | null {
+  if (!data || typeof data !== "object") return null;
+  const message = data as { action?: unknown; url?: unknown };
+  if (message.action !== "redirect") return null;
+  return typeof message.url === "string" ? message.url : "";
+}
+
+export function classifyRobokassaParentRedirect(
+  url: string,
+  siteOrigin: string,
+): RobokassaParentRedirectDecision {
+  if (!url.trim()) return "close";
+  try {
+    const parsed = new URL(url, siteOrigin);
+    const site = new URL(siteOrigin);
+    if (parsed.origin === site.origin) return "close";
+    const host = parsed.hostname.toLowerCase();
+    if (
+      (host === "auth.robokassa.ru" || host === "auth.robokassa.kz") &&
+      /\/merchant\/state/i.test(parsed.pathname)
+    ) {
+      return "keep-iframe";
+    }
+    return "allow";
+  } catch {
+    return "close";
+  }
+}

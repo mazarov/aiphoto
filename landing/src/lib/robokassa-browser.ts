@@ -1,5 +1,11 @@
 "use client";
 
+import {
+  classifyRobokassaParentRedirect,
+  isRobokassaProviderOrigin,
+  readRobokassaRedirectUrl,
+} from "./robokassa-return";
+
 export type RobokassaBrowserPayload = {
   MerchantLogin: string;
   OutSum: string;
@@ -31,6 +37,7 @@ const IFRAME_ID = "robokassa_iframe";
 const SCRIPT_SRC =
   "https://auth.robokassa.ru/Merchant/bundle/robokassa_iframe.js";
 let loadPromise: Promise<RobokassaApi> | null = null;
+let parentRedirectGuardInstalled = false;
 
 export function closeRobokassaOverlay(): void {
   if (typeof window === "undefined") return;
@@ -42,10 +49,32 @@ export function closeRobokassaOverlay(): void {
   document.getElementById(IFRAME_ID)?.remove();
 }
 
+function installRobokassaParentRedirectGuard(): void {
+  if (parentRedirectGuardInstalled || typeof window === "undefined") return;
+  parentRedirectGuardInstalled = true;
+  window.addEventListener(
+    "message",
+    (event) => {
+      if (!isRobokassaProviderOrigin(event.origin)) return;
+      const url = readRobokassaRedirectUrl(event.data);
+      if (url === null) return;
+      const decision = classifyRobokassaParentRedirect(
+        url,
+        window.location.origin,
+      );
+      if (decision === "allow") return;
+      event.stopImmediatePropagation();
+      if (decision === "close") closeRobokassaOverlay();
+    },
+    true,
+  );
+}
+
 export function loadRobokassa(): Promise<RobokassaApi> {
   if (typeof window === "undefined") {
     return Promise.reject(new Error("Robokassa доступна только в браузере"));
   }
+  installRobokassaParentRedirectGuard();
   if (window.Robokassa?.Render) return Promise.resolve(window.Robokassa);
   if (loadPromise) return loadPromise;
 
@@ -79,6 +108,7 @@ export function loadRobokassa(): Promise<RobokassaApi> {
 export async function openRobokassaPayment(
   payload: RobokassaBrowserPayload,
 ): Promise<void> {
+  installRobokassaParentRedirectGuard();
   const robokassa = await loadRobokassa();
   robokassa.Render(payload);
 }
