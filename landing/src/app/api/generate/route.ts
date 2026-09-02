@@ -41,7 +41,6 @@ import {
   serializePhotoshootEnqueueInstruction,
   validatePhotoshootGenerationSource,
 } from "@/lib/photoshoot";
-import { clampPhotoshootPlannerTemperature } from "@/lib/photoshoot-planner";
 import { isPhotoshootUnlocked, resolvePhotoshootModel } from "@/lib/photoshoot-access";
 import {
   PRESERVE_OUTFIT_CONFIG_KEY,
@@ -187,7 +186,6 @@ export async function POST(req: NextRequest) {
       editKind,
       parentTile,
       cameraPose: rawCameraPose,
-      plannerTemperature: rawPlannerTemperature,
       durationSeconds,
       idempotencyKey: bodyIdempotencyKey,
       preserveOutfit,
@@ -206,7 +204,6 @@ export async function POST(req: NextRequest) {
       editKind?: string | null;
       parentTile?: unknown;
       cameraPose?: unknown;
-      plannerTemperature?: unknown;
       durationSeconds?: number;
       pipelineTraceId?: string;
       idempotencyKey?: string;
@@ -306,10 +303,6 @@ export async function POST(req: NextRequest) {
     let cameraOrbitSceneRootId: string | null = null;
     let inheritedRootAspect = "";
     let inheritedRootSize = "";
-    const plannerTemperature = isPhotoshoot
-      ? clampPhotoshootPlannerTemperature(rawPlannerTemperature)
-      : null;
-
     if (hasParentGeneration && !UUID_RE.test(normalizedParentGenerationId)) {
       return NextResponse.json(
         { error: "validation_error", message: "Некорректный источник генерации" },
@@ -554,7 +547,7 @@ export async function POST(req: NextRequest) {
         inheritedRootAspect = resolvePhotoshootSheetAspect({
           aspectRatio: parent.aspect_ratio,
         });
-        normalizedEditInstruction = serializePhotoshootEnqueueInstruction(plannerTemperature);
+        normalizedEditInstruction = serializePhotoshootEnqueueInstruction();
       }
     } else if (isPhotoshoot) {
       const libraryPath = normalizedPhotoStoragePaths[0] || "";
@@ -584,7 +577,7 @@ export async function POST(req: NextRequest) {
       inheritedRootAspect = resolvePhotoshootSheetAspect({
         aspectRatio: typeof aspectRatio === "string" ? aspectRatio : "",
       });
-      normalizedEditInstruction = serializePhotoshootEnqueueInstruction(plannerTemperature);
+      normalizedEditInstruction = serializePhotoshootEnqueueInstruction();
     }
 
     const ar = isVideo
@@ -907,7 +900,7 @@ export async function POST(req: NextRequest) {
       promptText = serializeCameraOrbitInstruction(cameraOrbitPose);
     }
     if (isPhotoshoot) {
-      promptText = serializePhotoshootEnqueueInstruction(plannerTemperature);
+      promptText = serializePhotoshootEnqueueInstruction();
     }
     if (!promptText || promptText.length < minPromptLength) {
       return NextResponse.json(
@@ -997,7 +990,6 @@ export async function POST(req: NextRequest) {
             : isPhotoshoot
               ? photoshootFingerprintFields(
                   normalizedParentGenerationId,
-                  plannerTemperature,
                   normalizedPhotoStoragePaths[0] || "",
                 )
               : generationEditFingerprintFields(

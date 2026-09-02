@@ -38,13 +38,9 @@ import {
 } from "./photoshoot";
 import {
   PHOTOSHOOT_PLANNER_GENERATION_CONFIG,
-  PHOTOSHOOT_PLANNER_TEMPERATURE_DEFAULT,
-  buildPhotoshootPlannerUserText,
-  clampPhotoshootPlannerTemperature,
-  photoshootCreativityFromTemperature,
-  photoshootCreativityHint,
+  PHOTOSHOOT_PLANNER_TEMPERATURE,
+  PHOTOSHOOT_PLANNER_USER_TEXT,
   photoshootPlannerGenerationConfig,
-  photoshootTemperatureFromCreativity,
 } from "./photoshoot-planner";
 
 const validPlan = {
@@ -354,18 +350,18 @@ test("photoshoot parent source is a tile, never the sheet", () => {
   assert.equal(photoshootTileIndexForUrl(tiles, tiles[2]), 3);
 });
 
-test("photoshoot fingerprint is parent or library path + kind + planner temperature", () => {
+test("photoshoot fingerprint is parent or library path + kind + max planner temperature", () => {
   assert.deepEqual(photoshootFingerprintFields("root-1"), {
     editKind: PHOTOSHOOT_EDIT_KIND,
     parentGenerationId: "root-1",
     photoStoragePath: "",
-    plannerTemperature: PHOTOSHOOT_PLANNER_TEMPERATURE_DEFAULT,
+    plannerTemperature: PHOTOSHOOT_PLANNER_TEMPERATURE,
   });
-  assert.deepEqual(photoshootFingerprintFields("", 0.85, "user/a.jpg"), {
+  assert.deepEqual(photoshootFingerprintFields("", "user/a.jpg"), {
     editKind: PHOTOSHOOT_EDIT_KIND,
     parentGenerationId: "",
     photoStoragePath: "user/a.jpg",
-    plannerTemperature: 0.85,
+    plannerTemperature: PHOTOSHOOT_PLANNER_TEMPERATURE,
   });
 });
 
@@ -396,37 +392,27 @@ test("photoshoot source is parent XOR exactly one library photo", () => {
   );
 });
 
-test("planner temperature clamps and round-trips through enqueue instruction", () => {
-  assert.equal(clampPhotoshootPlannerTemperature(undefined), 0.5);
-  assert.equal(clampPhotoshootPlannerTemperature(-1), 0);
-  assert.equal(clampPhotoshootPlannerTemperature(3), 2);
-  assert.equal(photoshootCreativityFromTemperature(0.5), 50);
-  assert.equal(photoshootTemperatureFromCreativity(50), 0.5);
-  assert.equal(photoshootTemperatureFromCreativity(100), 2);
-  assert.equal(photoshootTemperatureFromCreativity(80), 1.4);
-  assert.equal(photoshootCreativityFromTemperature(1.4), 80);
+test("planner temperature is pinned to Gemini Flash max", () => {
+  assert.equal(PHOTOSHOOT_PLANNER_TEMPERATURE, 2);
+  assert.equal(PHOTOSHOOT_PLANNER_GENERATION_CONFIG.temperature, 2);
+  assert.equal(photoshootPlannerGenerationConfig().temperature, 2);
+  assert.equal(photoshootPlannerGenerationConfig().thinkingConfig.thinkingBudget, 0);
   assert.equal(
-    parsePhotoshootPlannerTemperature(serializePhotoshootEnqueueInstruction(1.4)),
-    1.4,
+    parsePhotoshootPlannerTemperature(serializePhotoshootEnqueueInstruction()),
+    2,
   );
-  assert.equal(parsePhotoshootPlannerTemperature("PHOTOSHOOT"), 0.5);
-  assert.equal(photoshootPlannerGenerationConfig(1.8).temperature, 1.8);
-  assert.equal(photoshootPlannerGenerationConfig(1.8).thinkingConfig.thinkingBudget, 0);
-  assert.match(buildPhotoshootPlannerUserText(0.1), /Stay close to the source pose/);
-  assert.match(buildPhotoshootPlannerUserText(2), /bold, unexpected editorial poses/);
-  assert.equal(photoshootCreativityHint(20), "нейтральнее");
-  assert.equal(photoshootCreativityHint(50), "нейтрально");
-  assert.equal(photoshootCreativityHint(70), "смелее");
-  assert.equal(photoshootCreativityHint(100), "невероятные сюжеты");
+  assert.equal(parsePhotoshootPlannerTemperature("PHOTOSHOOT"), 2);
+  assert.equal(parsePhotoshootPlannerTemperature("PHOTOSHOOT\nplanner_temperature=0.50"), 2);
+  assert.match(serializePhotoshootEnqueueInstruction(), /planner_temperature=2\.00/);
+  assert.match(PHOTOSHOOT_PLANNER_USER_TEXT, /bold, unexpected editorial poses/);
 });
 
-test("photoshoot overlay keeps exit and creativity usable during capture", () => {
+test("photoshoot overlay keeps exit usable during capture", () => {
   const idle = photoshootOverlayChromeState({
     capturing: false,
     starting: false,
   });
   assert.equal(idle.exitDisabled, false);
-  assert.equal(idle.creativityDisabled, false);
   assert.equal(idle.createDisabled, false);
   assert.equal(idle.createIsProgress, false);
 
@@ -435,7 +421,6 @@ test("photoshoot overlay keeps exit and creativity usable during capture", () =>
     starting: true,
   });
   assert.equal(starting.exitDisabled, false);
-  assert.equal(starting.creativityDisabled, false);
   assert.equal(starting.createDisabled, true);
   assert.equal(starting.createIsProgress, true);
 
@@ -444,7 +429,6 @@ test("photoshoot overlay keeps exit and creativity usable during capture", () =>
     starting: true,
   });
   assert.equal(capturing.exitDisabled, false);
-  assert.equal(capturing.creativityDisabled, false);
   assert.equal(capturing.createDisabled, true);
   assert.equal(capturing.createIsProgress, true);
 });

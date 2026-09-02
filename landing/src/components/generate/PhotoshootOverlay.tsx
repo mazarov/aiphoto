@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { OVERLAY_BUTTON_UA_RESET } from "@/lib/card-overlay-action-pill";
 import {
   GenerationResultActionRail,
@@ -12,38 +12,6 @@ import {
   photoshootOverlayChromeState,
   type PhotoshootTileIndex,
 } from "@/lib/photoshoot";
-import {
-  PHOTOSHOOT_PLANNER_TEMPERATURE_DEFAULT,
-  photoshootCreativityFromTemperature,
-  photoshootCreativityHint,
-  photoshootTemperatureFromCreativity,
-} from "@/lib/photoshoot-planner";
-
-const CREATIVITY_STORAGE_KEY = "promptshot:photoshoot-creativity";
-
-function readCachedCreativity(): number {
-  if (typeof window === "undefined") {
-    return photoshootCreativityFromTemperature(PHOTOSHOOT_PLANNER_TEMPERATURE_DEFAULT);
-  }
-  try {
-    const raw = window.localStorage.getItem(CREATIVITY_STORAGE_KEY);
-    if (raw == null) {
-      return photoshootCreativityFromTemperature(PHOTOSHOOT_PLANNER_TEMPERATURE_DEFAULT);
-    }
-    return photoshootCreativityFromTemperature(photoshootTemperatureFromCreativity(raw));
-  } catch {
-    return photoshootCreativityFromTemperature(PHOTOSHOOT_PLANNER_TEMPERATURE_DEFAULT);
-  }
-}
-
-function writeCachedCreativity(creativity: number): void {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(CREATIVITY_STORAGE_KEY, String(creativity));
-  } catch {
-    // private mode
-  }
-}
 
 export function PhotoshootFrameFilm({
   tileUrls,
@@ -96,7 +64,7 @@ type Props = {
   capturing: boolean;
   progress: number;
   onClose: () => void;
-  onCreate: (temperature: number) => Promise<boolean>;
+  onCreate: () => Promise<boolean>;
 };
 
 export function PhotoshootOverlay({
@@ -105,19 +73,14 @@ export function PhotoshootOverlay({
   onClose,
   onCreate,
 }: Props) {
-  const [creativity, setCreativity] = useState(readCachedCreativity);
   const [starting, setStarting] = useState(false);
   const chrome = photoshootOverlayChromeState({ capturing, starting });
-
-  useEffect(() => {
-    writeCachedCreativity(creativity);
-  }, [creativity]);
 
   const handleCreate = async () => {
     if (chrome.createDisabled) return;
     setStarting(true);
     try {
-      await onCreate(photoshootTemperatureFromCreativity(creativity));
+      await onCreate();
     } finally {
       setStarting(false);
     }
@@ -167,29 +130,6 @@ export function PhotoshootOverlay({
     <div className="absolute inset-0 z-40" role="dialog" aria-label="Фотосессия">
       <div className="absolute bottom-[max(0.75rem,env(safe-area-inset-bottom))] right-2.5 z-30 flex w-[9.5rem] flex-col gap-2">
         <GenerationResultActionRail className="w-full" actions={[exitAction]} />
-        <div className="rounded-2xl bg-black/15 px-3 py-3 text-white/90 shadow-none backdrop-blur-md">
-          <div className="flex items-start justify-between gap-2 text-[13px] font-semibold leading-tight">
-            <label htmlFor="photoshoot-creativity" className="min-w-0" aria-live="polite">
-              {photoshootCreativityHint(creativity)}
-            </label>
-            <span className="shrink-0 tabular-nums">{creativity}</span>
-          </div>
-          <input
-            id="photoshoot-creativity"
-            type="range"
-            min={0}
-            max={100}
-            step={5}
-            value={creativity}
-            disabled={chrome.creativityDisabled}
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-valuenow={creativity}
-            aria-valuetext={photoshootCreativityHint(creativity)}
-            onChange={(event) => setCreativity(Number(event.target.value))}
-            className="mt-2 h-11 w-full cursor-pointer accent-indigo-400 disabled:cursor-not-allowed"
-          />
-        </div>
         <GenerationResultActionRail className="w-full" actions={[createAction]} />
       </div>
     </div>

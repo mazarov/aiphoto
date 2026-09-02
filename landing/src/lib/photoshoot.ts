@@ -1,4 +1,4 @@
-import { clampPhotoshootPlannerTemperature } from "./photoshoot-planner";
+import { PHOTOSHOOT_PLANNER_TEMPERATURE } from "./photoshoot-planner";
 
 export const PHOTOSHOOT_EDIT_KIND = "photoshoot";
 export const PHOTOSHOOT_DEFAULT_MODEL = "gemini-3-pro-image-preview";
@@ -20,7 +20,7 @@ export function photoshootCtaDetail(): string {
 
 /**
  * Overlay chrome stays usable while a photoshoot job is in flight.
- * Exit always closes (job keeps running). Creativity stays interactive.
+ * Exit always closes (job keeps running).
  * Create is the progress surface — no second enqueue until the job settles.
  */
 export function photoshootOverlayChromeState(input: {
@@ -28,14 +28,12 @@ export function photoshootOverlayChromeState(input: {
   starting: boolean;
 }): {
   exitDisabled: false;
-  creativityDisabled: false;
   createDisabled: boolean;
   createIsProgress: boolean;
 } {
   const inFlight = input.capturing || input.starting;
   return {
     exitDisabled: false,
-    creativityDisabled: false,
     createDisabled: inFlight,
     createIsProgress: inFlight,
   };
@@ -361,20 +359,17 @@ export function shouldReplacePhotoshootVariants(texts: string[]): boolean {
   return cleaned.some((text) => looksLikePhotoshootInstruction(text));
 }
 
-export function serializePhotoshootEnqueueInstruction(temperature?: unknown): string {
-  const plannerTemperature = clampPhotoshootPlannerTemperature(temperature);
+export function serializePhotoshootEnqueueInstruction(): string {
   return [
     PHOTOSHOOT_ENQUEUE_INSTRUCTION,
-    `planner_temperature=${plannerTemperature.toFixed(2)}`,
+    `planner_temperature=${PHOTOSHOOT_PLANNER_TEMPERATURE.toFixed(2)}`,
     "Four-frame contact sheet from the attached photograph.",
   ].join("\n");
 }
 
-export function parsePhotoshootPlannerTemperature(instruction: string): number {
-  const match = String(instruction || "").match(
-    /planner_temperature\s*=\s*([0-9]+(?:\.[0-9]+)?)/i,
-  );
-  return clampPhotoshootPlannerTemperature(match?.[1]);
+/** Leftover numbers in old rows are ignored — planner always uses max. */
+export function parsePhotoshootPlannerTemperature(_instruction?: string): number {
+  return PHOTOSHOOT_PLANNER_TEMPERATURE;
 }
 
 export type PhotoshootSourceError =
@@ -410,7 +405,6 @@ export function photoshootSourceErrorMessage(error: PhotoshootSourceError): stri
 
 export function photoshootFingerprintFields(
   parentGenerationId: string,
-  temperature?: unknown,
   photoStoragePath?: string,
 ): {
   editKind: string;
@@ -422,7 +416,7 @@ export function photoshootFingerprintFields(
     editKind: PHOTOSHOOT_EDIT_KIND,
     parentGenerationId: String(parentGenerationId || "").trim(),
     photoStoragePath: String(photoStoragePath || "").trim(),
-    plannerTemperature: clampPhotoshootPlannerTemperature(temperature),
+    plannerTemperature: PHOTOSHOOT_PLANNER_TEMPERATURE,
   };
 }
 
