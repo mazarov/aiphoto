@@ -110,6 +110,12 @@ export function parseFinancePeriod(raw: string | null | undefined): string | nul
   return `${match[1]}-${match[2]}-01`;
 }
 
+/** Uploaded CSV overrides. Default off — live ledger / gens / Direct API. */
+export function parseFinanceCsvOverride(raw: string | null | undefined): boolean {
+  const value = (raw || "").trim().toLowerCase();
+  return value === "1" || value === "true" || value === "yes" || value === "da";
+}
+
 export function parseUsdRubRate(raw: string | null | undefined): number | null | undefined {
   if (raw == null) return null;
   const trimmed = String(raw).trim();

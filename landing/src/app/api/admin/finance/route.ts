@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAnalyticsAdmin } from "@/lib/analytics-admin";
 import { fetchFinanceMonth } from "@/lib/finance-data";
-import { parseFinancePeriod } from "@/lib/finance-parse";
+import { parseFinanceCsvOverride, parseFinancePeriod } from "@/lib/finance-parse";
 import { createSupabaseServer } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
@@ -14,9 +14,10 @@ export async function GET(req: NextRequest) {
   if (!periodMonth) {
     return NextResponse.json({ error: "invalid_filter" }, { status: 400 });
   }
+  const csvOverride = parseFinanceCsvOverride(req.nextUrl.searchParams.get("csv"));
 
   try {
-    const data = await fetchFinanceMonth(createSupabaseServer(), periodMonth);
+    const data = await fetchFinanceMonth(createSupabaseServer(), periodMonth, { csvOverride });
     return NextResponse.json(data, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     console.error("[admin.finance] fetch_failed", {

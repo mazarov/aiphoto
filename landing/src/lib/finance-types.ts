@@ -250,6 +250,12 @@ export type FinanceAcquisitionReport = {
 
 export type FinanceMonthData = {
   month: string;
+  csvOverride: boolean;
+  csvAvailable: {
+    revenue: FinanceImportMeta | null;
+    cogs: FinanceImportMeta | null;
+    ads: FinanceImportMeta | null;
+  };
   revenue: {
     import: FinanceImportMeta | null;
     source: FinanceRevenueSource;

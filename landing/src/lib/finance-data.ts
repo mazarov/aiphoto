@@ -128,11 +128,31 @@ function parseAdsVatMode(value: unknown): FinanceAdsVatMode {
   return value === "included" || value === "excluded" ? value : "unknown";
 }
 
-function adsSourceFromImport(row: ImportRow): FinanceAdsSource {
+export function adsSourceFromImport(row: {
+  totals?: Record<string, unknown> | null;
+  source_filename?: string;
+}): FinanceAdsSource {
   const totals = row.totals || {};
   if (totals.source === "direct_api") return "direct_api";
   if (String(row.source_filename || "").startsWith("direct-api")) return "direct_api";
   return "csv";
+}
+
+export function pickFinanceSourceImports<T>(input: {
+  csvOverride: boolean;
+  revenue: T | null;
+  cogs: T | null;
+  ads: T | null;
+  adsSource: FinanceAdsSource | null;
+}): { revenue: T | null; cogs: T | null; ads: T | null } {
+  if (input.csvOverride) {
+    return { revenue: input.revenue, cogs: input.cogs, ads: input.ads };
+  }
+  return {
+    revenue: null,
+    cogs: null,
+    ads: input.adsSource === "direct_api" ? input.ads : null,
+  };
 }
 
 function cogsProviderUsd(
@@ -180,7 +200,9 @@ function adsBreakdownMetrics(input: {
 export async function fetchFinanceMonth(
   supabase: SupabaseServer,
   periodMonth: string,
+  options: { csvOverride?: boolean } = {},
 ): Promise<FinanceMonthData> {
+  const csvOverride = options.csvOverride === true;
   const { data: imports, error: importError } = await supabase
     .from("admin_finance_imports")
     .select(
@@ -190,9 +212,19 @@ export async function fetchFinanceMonth(
   if (importError) throw new Error(importError.message);
 
   const rows = (imports || []) as ImportRow[];
-  const revenueImport = rows.find((row) => row.kind === "revenue") || null;
-  const cogsImport = rows.find((row) => row.kind === "cogs") || null;
-  const adsImport = rows.find((row) => row.kind === "ads") || null;
+  const revenueRow = rows.find((row) => row.kind === "revenue") || null;
+  const cogsRow = rows.find((row) => row.kind === "cogs") || null;
+  const adsRow = rows.find((row) => row.kind === "ads") || null;
+  const picked = pickFinanceSourceImports({
+    csvOverride,
+    revenue: revenueRow,
+    cogs: cogsRow,
+    ads: adsRow,
+    adsSource: adsRow ? adsSourceFromImport(adsRow) : null,
+  });
+  const revenueImport = picked.revenue;
+  const cogsImport = picked.cogs;
+  const adsImport = picked.ads;
 
   let revenue: FinanceMonthData["revenue"] = null;
   if (revenueImport) {
@@ -518,6 +550,12 @@ export async function fetchFinanceMonth(
 
   return {
     month: periodMonth,
+    csvOverride,
+    csvAvailable: {
+      revenue: revenueRow ? toMeta(revenueRow) : null,
+      cogs: cogsRow ? toMeta(cogsRow) : null,
+      ads: adsRow ? toMeta(adsRow) : null,
+    },
     revenue,
     cogs,
     ads,

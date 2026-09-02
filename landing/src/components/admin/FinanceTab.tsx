@@ -183,17 +183,56 @@ function AfterAdsCard({ pnl }: { pnl: FinancePnl }) {
   );
 }
 
+function CsvToggle({ value, onChange }: { value: boolean; onChange: (next: boolean) => void }) {
+  return (
+    <fieldset className="text-sm text-zinc-600">
+      <legend className="mb-1">Тянуть данные из CSV</legend>
+      <div className="inline-flex rounded-xl border border-zinc-200 p-0.5">
+        <button
+          type="button"
+          aria-pressed={!value}
+          onClick={() => onChange(false)}
+          className={`rounded-lg px-3 py-1.5 text-sm font-semibold ${
+            !value ? "bg-zinc-900 text-white" : "text-zinc-600"
+          }`}
+        >
+          Нет
+        </button>
+        <button
+          type="button"
+          aria-pressed={value}
+          onClick={() => onChange(true)}
+          className={`rounded-lg px-3 py-1.5 text-sm font-semibold ${
+            value ? "bg-zinc-900 text-white" : "text-zinc-600"
+          }`}
+        >
+          Да
+        </button>
+      </div>
+      <p className="mt-1 text-xs text-zinc-500">
+        {value
+          ? "Реестры ЮKassa / GCP / CSV Директа перекрывают live, если загружены."
+          : "Внутренний расчёт: ledger ЮKassa, генерации × прайс, Директ API."}
+      </p>
+    </fieldset>
+  );
+}
+
 export function FinanceTab() {
   const { openAuthModal } = useAuth();
   const [month, setMonth] = useState(currentMonth);
+  const [useCsv, setUseCsv] = useState(false);
   const [data, setData] = useState<FinanceMonthData | null>(null);
   const [state, setState] = useState({ loading: true, status: 0, error: "", message: "" });
   const [busy, setBusy] = useState<"revenue" | "cogs" | "ads" | "sync" | null>(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (csvOverride = useCsv) => {
     setState((current) => ({ ...current, loading: true, error: "" }));
     try {
-      const response = await fetch(`/api/admin/finance?month=${month}`, { credentials: "include" });
+      const response = await fetch(
+        `/api/admin/finance?month=${month}&csv=${csvOverride ? "1" : "0"}`,
+        { credentials: "include" },
+      );
       const body = await response.json().catch(() => ({}));
       if (!response.ok) {
         setData(null);
@@ -210,7 +249,7 @@ export function FinanceTab() {
     } catch {
       setState({ loading: false, status: 0, error: "Ошибка сети", message: "" });
     }
-  }, [month]);
+  }, [month, useCsv]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -279,7 +318,8 @@ export function FinanceTab() {
           kind === "revenue" ? "поступления" : kind === "cogs" ? "затраты" : "Директ"
         })`,
       }));
-      await load();
+      setUseCsv(true);
+      await load(true);
     } catch {
       setState((current) => ({ ...current, error: "Ошибка сети при импорте" }));
     } finally {
@@ -327,18 +367,23 @@ export function FinanceTab() {
       <header>
         <p className="text-sm font-medium text-indigo-600">PromptShot Admin</p>
         <h1 className="text-3xl font-bold tracking-tight text-zinc-900">Финансы</h1>
-        <p className="mt-1 text-sm text-zinc-500">Live P&amp;L: ЮKassa, AI-косты, Директ. CSV — ручной override.</p>
+        <p className="mt-1 text-sm text-zinc-500">
+          По умолчанию внутренний P&amp;L. CSV — только если включить переключатель.
+        </p>
       </header>
       <section className={`${card} flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between`}>
-        <label className="text-sm text-zinc-600">
-          Месяц
-          <input
-            type="month"
-            value={month}
-            onChange={(event) => setMonth(event.target.value)}
-            className="mt-1 block rounded-xl border border-zinc-200 px-3 py-2 text-sm text-zinc-900"
-          />
-        </label>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:gap-6">
+          <label className="text-sm text-zinc-600">
+            Месяц
+            <input
+              type="month"
+              value={month}
+              onChange={(event) => setMonth(event.target.value)}
+              className="mt-1 block rounded-xl border border-zinc-200 px-3 py-2 text-sm text-zinc-900"
+            />
+          </label>
+          <CsvToggle value={useCsv} onChange={setUseCsv} />
+        </div>
         <div className="flex flex-col items-start gap-2 sm:items-end">
           <p className="text-xs text-zinc-500">
             Курс: $1 = 90 ₽. Налог: 6% с выручки. Директ в P&amp;L × 1,22.
@@ -358,8 +403,8 @@ export function FinanceTab() {
         <div className={card}>
           <h2 className="font-semibold text-zinc-900">Поступления ЮKassa</h2>
           <p className="mt-1 text-sm text-zinc-500">
-            Override. Без файла — live ledger + оценка комиссии.
-            Источник: {sourceLabel("revenue", data?.revenue?.source ?? data?.pnl.revenueSource)}
+            {useCsv ? "CSV включён: реестр перекрывает live." : "CSV выкл.: live ledger + оценка комиссии 3,5%+НДС."}
+            {" "}Источник: {sourceLabel("revenue", data?.revenue?.source ?? data?.pnl.revenueSource)}
           </p>
           <label className="mt-4 inline-flex cursor-pointer rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">
             {busy === "revenue" ? "Загрузка…" : "Загрузить реестр"}
@@ -369,19 +414,19 @@ export function FinanceTab() {
           </label>
           <div className="mt-3">
             <ImportMeta
-              label="Последний импорт"
-              missing={!data?.revenue?.import}
-              filename={data?.revenue?.import?.sourceFilename}
-              at={data?.revenue?.import?.updatedAt}
-              email={data?.revenue?.import?.uploadedByEmail}
+              label={!useCsv && data?.csvAvailable.revenue ? "CSV есть, в расчёте не участвует" : "Последний импорт"}
+              missing={!(data?.revenue?.import || (!useCsv && data?.csvAvailable.revenue))}
+              filename={(data?.revenue?.import || data?.csvAvailable.revenue)?.sourceFilename}
+              at={(data?.revenue?.import || data?.csvAvailable.revenue)?.updatedAt}
+              email={(data?.revenue?.import || data?.csvAvailable.revenue)?.uploadedByEmail}
             />
           </div>
         </div>
         <div className={card}>
           <h2 className="font-semibold text-zinc-900">Затраты Gemini</h2>
           <p className="mt-1 text-sm text-zinc-500">
-            Override GCP. Без файла — оценка по генерациям.
-            Источник: {sourceLabel("cogs", data?.cogs?.source ?? data?.pnl.cogsSource)}
+            {useCsv ? "CSV включён: GCP перекрывает оценку." : "CSV выкл.: генерации × прайс моделей."}
+            {" "}Источник: {sourceLabel("cogs", data?.cogs?.source ?? data?.pnl.cogsSource)}
           </p>
           <label className="mt-4 inline-flex cursor-pointer rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">
             {busy === "cogs" ? "Загрузка…" : "Загрузить billing CSV"}
@@ -391,19 +436,19 @@ export function FinanceTab() {
           </label>
           <div className="mt-3">
             <ImportMeta
-              label="Последний импорт"
-              missing={!data?.cogs?.import}
-              filename={data?.cogs?.import?.sourceFilename}
-              at={data?.cogs?.import?.updatedAt}
-              email={data?.cogs?.import?.uploadedByEmail}
+              label={!useCsv && data?.csvAvailable.cogs ? "CSV есть, в расчёте не участвует" : "Последний импорт"}
+              missing={!(data?.cogs?.import || (!useCsv && data?.csvAvailable.cogs))}
+              filename={(data?.cogs?.import || data?.csvAvailable.cogs)?.sourceFilename}
+              at={(data?.cogs?.import || data?.csvAvailable.cogs)?.updatedAt}
+              email={(data?.cogs?.import || data?.csvAvailable.cogs)?.uploadedByEmail}
             />
           </div>
         </div>
         <div className={card}>
           <h2 className="font-semibold text-zinc-900">Яндекс Директ</h2>
           <p className="mt-1 text-sm text-zinc-500">
-            Override. Кнопка «Обновить Директ» пишет API.
-            Источник: {sourceLabel("ads", data?.ads?.source ?? data?.pnl.adsSource)}
+            {useCsv ? "CSV включён: выгрузка кабинета перекрывает API." : "CSV выкл.: только Direct API (кнопка «Обновить»)."}
+            {" "}Источник: {sourceLabel("ads", data?.ads?.source ?? data?.pnl.adsSource)}
           </p>
           <label className="mt-4 inline-flex cursor-pointer rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">
             {busy === "ads" ? "Загрузка…" : "Загрузить CSV Директа"}
@@ -413,11 +458,11 @@ export function FinanceTab() {
           </label>
           <div className="mt-3">
             <ImportMeta
-              label="Последний импорт"
-              missing={!data?.ads?.import}
-              filename={data?.ads?.import?.sourceFilename}
-              at={data?.ads?.import?.updatedAt}
-              email={data?.ads?.import?.uploadedByEmail}
+              label={!useCsv && data?.csvAvailable.ads && !data?.ads ? "CSV есть, в расчёте не участвует" : "Последний импорт"}
+              missing={!(data?.ads?.import || data?.csvAvailable.ads)}
+              filename={(data?.ads?.import || data?.csvAvailable.ads)?.sourceFilename}
+              at={(data?.ads?.import || data?.csvAvailable.ads)?.updatedAt}
+              email={(data?.ads?.import || data?.csvAvailable.ads)?.uploadedByEmail}
             />
             {data?.ads?.kpi.droppedOutsideMonth ? (
               <p className="mt-1 text-xs text-amber-700">

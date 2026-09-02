@@ -1,5 +1,7 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-09-02 (**admin finance CSV toggle:** `/admin/finance` по умолчанию внутренний P&L (`csv=0`): live ЮKassa, gens × прайс, Директ API. Переключатель «Тянуть данные из CSV» (`csv=1`) включает monthly override. Загрузка файла сама включает CSV. Спека `docs/01-09-admin-finance-live-pnl.md`.)
+>
 > Последнее обновление: 2026-09-01 (**admin live P&L:** `/admin/finance` без обязательных CSV. Выручка — `landing_yookassa_payments` (оценка комиссии 3,5%+НДС) или реестр override. AI COGS — completed generations × `finance_model_unit_costs`, Grok пишет `provider_cost_usd` из `cost_in_usd_ticks`. Директ — Reports API (`POST /api/admin/finance/sync` + `POST /api/cron/finance-sync`), кабинет × 1,22. Два уровня: операционная маржа и после Директа. SQL `237`. Спека `docs/01-09-admin-finance-live-pnl.md`.)
 >
 > Последнее обновление: 2026-09-01 (**Robokassa traffic split:** `resolvePaymentProvider` — unpaid pin 24ч → canary из `landing_generation_config.robokassa_canary_emails` → `PAYMENT_PROVIDER=robokassa` как аварийный 100% → sticky bucket `landing_feature_rollouts.payment_robokassa` / `landing_user_feature_assignments`. Default `enabled=false`, `bps=0`. Плашка unpaid — latest ЮKassa ∪ Robokassa, `GET /api/payments/unpaid-banner`; «Продолжить» открывает redirect или iframe. INSERT Robokassa ставит те же abandon due 5m/40m/24h. Спека `docs/01-09-robokassa-traffic-split.md`, SQL `236`.)
@@ -815,7 +817,7 @@
 /admin/analytics        → Закрытый analytics dashboard: пользователи/клиенты + live непотраченные кредиты; таблицы кредитов/топа/analyze свёрнуты до клика; admin generation modal; Supabase Auth + email allowlist `ANALYTICS_ADMIN_EMAILS`
 /admin/analyze-history  → Закрытая история analyze/remix + все non-admin user generations; remix помечается бейджем и `change_request`; image job — бейдж `Gemini|xAI generate|edit`; private source previews выдаются signed, completed results публикуются идемпотентно. Mobile rows: dense (56px thumb, 1-line prompt) via `admin-dense-row.ts`
 /admin/payments         → Закрытый cursor-реестр YooKassa/Robokassa: payer identity, RUB/status/test, credits/`credited_at`; кнопка «Скачать CSV» выгружает все строки текущих фильтров
-/admin/finance          → Live P&L: ЮKassa ledger / CSV override, AI COGS (оценка + Grok ticks) / GCP override, Директ API / CSV; операционная маржа и итог после Директа; `?tab=finance` с аналитики редиректит сюда
+/admin/finance          → Live P&L (default `csv=0`): ЮKassa ledger, AI COGS (оценка + Grok ticks), Директ API; `csv=1` — monthly CSV override; операционная маржа и итог после Директа; `?tab=finance` с аналитики редиректит сюда
 /admin/seo              → Вотчлист топ-30 URL: фильтр дней, таблица + раскрытие запросов и график динамики
 /admin/mail             → Три вкладки: «Каталог» (превью `renderMailTemplate` + правила `mail-catalog.ts`, без отправки), «Кампании» (dry-run → send) и «Статистика» (14 суток Moscow, sent/skip/fail по шаблону, сегодня ещё queued и остаток / 5000). Сегменты: `all_email`, `paid`, `exploring`, `paid_active`, `paid_quiet`, `empty`, `trial_only`. Тот же admin allowlist. Очередь outbox + due/квота внизу страницы не зависит от вкладки статистики
 /auth/callback          → OAuth callback (client page); PKCE exchange в браузере; `?next=` — возврат на страницу старта логина
@@ -926,7 +928,7 @@
 | `/api/extension/analyze/quota` | GET, cookie session, no-store: `remaining_free`, `next_mode`, `credit_cost`, реальный `credits` для авторизованного |
 | `/api/admin/analytics` | GET, admin auth: no-store analytics rollups за `1…90` дней; топ пользователей — `admin_analytics_top_users` за тот же период |
 | `/api/admin/credits` | GET, admin auth: live остаток + daily flow (`days=1\|7\|30\|90`) + keyset-список (`q`, remaining/granted/spent/share) |
-| `/api/admin/finance` | GET, admin auth: KPI месяца `YYYY-MM` — live YooKassa/generations или CSV override; Директ из `admin_finance_ads_lines` |
+| `/api/admin/finance` | GET, admin auth: KPI месяца `YYYY-MM`; `csv=1` — uploaded override, иначе live ledger/gens + Direct API |
 | `/api/admin/seo-watchlist` | GET, admin auth: снимок топ-30 URL + запросы/дни из `seo-watchlist-snapshot.json` |
 | `/api/admin/finance/import` | POST, admin auth: multipart replace-импорт `kind=revenue\|cogs\|ads`, CSV/ZIP до 10 MB |
 | `/api/admin/finance/sync` | POST, admin auth: `{ month?: YYYY-MM }` — подтянуть Директ за месяц. Нет токена → 200 `{ ads: missing_token }` |
@@ -1075,15 +1077,20 @@
   Спека `docs/22-08-lifecycle-mail.md`, UI-статы `docs/22-08-mail-admin-daily-stats.md`.
   Транспорт: `docs/21-08-yandex-postbox-mail.md`.
 - **Финансы (live P&L):** страница `/admin/finance` по умолчанию читает
-  live-ledger, не CSV. Выручка — `admin_finance_live_revenue_month` из
+  внутренний расчёт (`csv=0` / переключатель «Нет»). Выручка —
+  `admin_finance_live_revenue_month` из
   `landing_yookassa_payments` (`succeeded` + `credited_at`, не test);
-  комиссия = **3,5% + НДС 22% с комиссии**, пока нет CSV реестра.
+  комиссия = **3,5% + НДС 22% с комиссии**.
   AI COGS — `admin_finance_live_cogs_month` × `finance_model_unit_costs`
   ($1 = 90 ₽); `provider_cost_usd` (`xai_ticks`) перекрывает прайс.
-  Директ — `admin_finance_ads_lines` (cron/кнопка Reports API, кабинет без НДС).
+  Директ — `admin_finance_ads_lines` только если импорт `direct_api`
+  (cron/кнопка Reports API, кабинет без НДС); загруженный CSV Директа
+  в этом режиме не участвует.
   Операционная маржа = gross − касса − УСН 6% − AI COGS (`netIncomeRub`).
-  После Директа = операционка − кабинет × **1,22**. CSV ЮKassa/GCP/Direct
-  остаётся monthly override через `admin_finance_replace_import`.
+  После Директа = операционка − кабинет × **1,22**.
+  Переключатель «Тянуть данные из CSV» (`csv=1`) включает monthly override
+  через `admin_finance_replace_import` (ЮKassa/GCP/Direct). Загрузка файла
+  включает CSV. Файлы остаются в БД и не удаляются при «Нет».
   Дневной график без рекламы; пунктир — live оценка обязательств:
   `credits_total × 0,5 ₽` (1 генерация = 5 кредитов = 2,5 ₽).
   RPC `admin_credit_liability_summary`

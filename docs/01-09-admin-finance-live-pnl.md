@@ -13,13 +13,13 @@
 
 Два уровня: **операционная маржа** (без рекламы) и **итог после Директа** (кабинет × 1,22).
 
-CSV ЮKassa / GCP / Direct остаются override на месяц.
+CSV ЮKassa / GCP / Direct — opt-in override (переключатель «Тянуть данные из CSV»).
 
 ## Поведение
 
 - `GET /api/admin/finance` не зовёт вендор-API.
-- Нет CSV выручки → live ledger + оценка комиссии 3,5% + НДС 22% с комиссии.
-- Нет CSV COGS → оценка по генерациям; `provider_cost_usd` перекрывает прайс.
+- По умолчанию `csv=0`: live ledger + оценка комиссии 3,5% + НДС 22% с комиссии; COGS — оценка по генерациям (`provider_cost_usd` перекрывает прайс); Директ — только импорт `direct_api`.
+- `csv=1`: загруженные реестры перекрывают live за месяц.
 - Директ: cron раз в сутки + кнопка «Обновить». Нет токена → 200, ads stale.
 - Robokassa и Stars вне кассы v1.
 - Не в COGS v1: planner photoshoot, analyze/remix/embeddings, failed после списания у провайдера.
@@ -51,7 +51,7 @@ aiCogsRub  = Σ USD × 90
 
 | Route | Назначение |
 |-------|------------|
-| `GET /api/admin/finance?month=YYYY-MM` | KPI: live или CSV override |
+| `GET /api/admin/finance?month=YYYY-MM&csv=0\|1` | KPI: default live; `csv=1` — uploaded override |
 | `POST /api/admin/finance/sync` | Direct replace за месяц |
 | `POST /api/cron/finance-sync` | Bearer `CRON_SECRET`, текущий месяц |
 

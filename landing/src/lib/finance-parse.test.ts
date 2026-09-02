@@ -7,6 +7,7 @@ import {
   parseDirectAdsCsv,
   parseFinanceKind,
   parseFinanceNumber,
+  parseFinanceCsvOverride,
   parseFinancePeriod,
   parseFinanceUpload,
   parseGcpCogsCsv,
@@ -75,6 +76,10 @@ test("finance period kind and rate reject unsupported values", () => {
   assert.equal(parseFinancePeriod("2026-08"), "2026-08-01");
   assert.equal(parseFinancePeriod("2026-13"), null);
   assert.equal(parseFinancePeriod("08-2026"), null);
+  assert.equal(parseFinanceCsvOverride(null), false);
+  assert.equal(parseFinanceCsvOverride("0"), false);
+  assert.equal(parseFinanceCsvOverride("1"), true);
+  assert.equal(parseFinanceCsvOverride("yes"), true);
   assert.equal(parseFinanceKind("REVENUE"), "revenue");
   assert.equal(parseFinanceKind("ADS"), "ads");
   assert.equal(parseFinanceKind("spend"), null);
