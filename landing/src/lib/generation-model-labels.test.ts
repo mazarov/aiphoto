@@ -9,6 +9,8 @@ import {
 import {
   displayDescriptionForGenerationModel,
   displayLabelForGenerationModel,
+  filterNanoBananaFamilyModels,
+  isNanoBananaFamilyModel,
   parseEnabledGenerationModels,
   parseEnabledVideoGenerationModels,
 } from "./generation-model-labels";
@@ -125,6 +127,27 @@ test("model blurbs match the Lexy photo and video picker", () => {
   assert.equal(
     displayDescriptionForGenerationModel("seedance-2.5"),
     "Кинематографические видео до 30 секунд"
+  );
+});
+
+test("Nano Banana family keeps Gemini image ids and drops other vendors", () => {
+  assert.equal(isNanoBananaFamilyModel("gemini-2.5-flash-image"), true);
+  assert.equal(isNanoBananaFamilyModel("gemini-3-pro-image-preview"), true);
+  assert.equal(isNanoBananaFamilyModel("gemini-3.1-flash-image-preview"), true);
+  assert.equal(isNanoBananaFamilyModel("grok-imagine-image-2.0"), false);
+  assert.equal(isNanoBananaFamilyModel("gemini-omni-flash-preview"), false);
+  const filtered = filterNanoBananaFamilyModels(
+    parseEnabledGenerationModels(
+      JSON.stringify([
+        { id: "gemini-2.5-flash-image", label: "Nano Banana", cost: 5, enabled: true },
+        { id: "grok-imagine-image-2.0", label: "Grok Imagine", cost: 10, enabled: true },
+        { id: "gemini-3-pro-image-preview", label: "Nano Banana PRO", cost: 10, enabled: true },
+      ])
+    )
+  );
+  assert.deepEqual(
+    filtered.map((model) => model.id),
+    ["gemini-2.5-flash-image", "gemini-3-pro-image-preview"]
   );
 });
 

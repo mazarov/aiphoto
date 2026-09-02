@@ -195,3 +195,29 @@ export function parseEnabledVideoGenerationModels(
 ): GenerationModelOption[] {
   return parseGenerationModels(raw, FALLBACK_VIDEO_GENERATION_MODELS);
 }
+
+const NANO_BANANA_FAMILY_IDS = new Set([
+  "gemini-2.5-flash-image",
+  "gemini-3-pro-image-preview",
+  "gemini-3.1-flash-image-preview",
+  "gemini-3.1-flash-image",
+  "gemini-3.1-flash-lite-image",
+  "gemini-3.1-flash-lite-image-preview",
+]);
+
+/** Gemini Image models shown as Nano Banana / Pro / 2 in the product UI. */
+export function isNanoBananaFamilyModel(
+  id: string,
+  fallbackLabel?: string
+): boolean {
+  if (NANO_BANANA_FAMILY_IDS.has(id)) return true;
+  return /^Nano Banana/i.test(displayLabelForGenerationModel(id, fallbackLabel));
+}
+
+export function filterNanoBananaFamilyModels(
+  models: readonly GenerationModelOption[]
+): GenerationModelOption[] {
+  return models.filter((model) =>
+    isNanoBananaFamilyModel(model.id, model.label)
+  );
+}

@@ -5,47 +5,47 @@ import { PageLayout } from "@/components/PageLayout";
 import { GeneraciyaFotoExamplesExplorer } from "@/components/generate/GeneraciyaFotoExamplesExplorer";
 import {
   GeneraciyaFotoHowTo,
-  GeneraciyaFotoMore,
   GeneraciyaFotoPricing,
-  GeneraciyaFotoReviews,
-  GeneraciyaFotoThemes,
   GeneraciyaFotoTools,
 } from "@/components/generate/GeneraciyaFotoLandingSections";
-import { GeneraciyaFotoFaq } from "@/components/generate/GeneraciyaFotoFaq";
 import { GeneraciyaFotoHeroCarousel } from "@/components/generate/GeneraciyaFotoHeroCarousel";
 import { GeneraciyaFotoStarter } from "@/components/generate/GeneraciyaFotoStarter";
 import { GenerationModelsShowcase } from "@/components/generate/GenerationModelsShowcase";
+import { NanoBananaAccess } from "@/components/generate/NanoBananaAccess";
+import { NanoBananaFaq } from "@/components/generate/NanoBananaFaq";
+import { NanoBananaPreferModel } from "@/components/generate/NanoBananaPreferModel";
 import {
   createSupabaseServer,
   enrichCardsWithDetails,
   fetchRouteCards,
-  getCardPhotosBySlugs,
   getFirstCardPhotoUrl,
-  getStoragePublicUrl,
   type PromptCardFull,
   type RouteCardsResult,
 } from "@/lib/supabase";
-import {
-  flattenGeneraciyaFotoFaqAnswer,
-  formatGeneraciyaFotoSocialProof,
-  GENERACIYA_FOTO_FAQ,
-  GENERACIYA_FOTO_HOW_TO_STEPS,
-  GENERACIYA_FOTO_SEO,
-  GENERACIYA_FOTO_THEMES,
-} from "@/lib/generaciya-foto-seo-copy";
 import { getGeneraciyaFotoChipNavigation } from "@/lib/generaciya-foto-chip-nav";
 import {
   FALLBACK_GENERATION_MODELS,
+  filterNanoBananaFamilyModels,
   parseEnabledGenerationModels,
   type GenerationModelOption,
 } from "@/lib/generation-model-labels";
 import { toGenerationExampleCard } from "@/lib/generation/example-card";
+import {
+  flattenGeneraciyaFotoFaqAnswer,
+  formatNanoBananaSocialProof,
+  NANO_BANANA_FAQ,
+  NANO_BANANA_HOW_TO_STEPS,
+  NANO_BANANA_PATH,
+  NANO_BANANA_PRICING,
+  NANO_BANANA_SEO,
+  NANO_BANANA_TOOLS,
+} from "@/lib/nano-banana-seo-copy";
 
 export const revalidate = 3600;
 
 const SITE_URL =
   process.env.NEXT_PUBLIC_SITE_URL || "https://promptshot.ru";
-const PAGE_URL = `${SITE_URL}/generaciya-foto`;
+const PAGE_URL = `${SITE_URL}${NANO_BANANA_PATH}`;
 
 const BASE_RPC_PARAMS: Record<string, string | null> = {
   audience_tag: null,
@@ -74,60 +74,8 @@ const getGenerationExamples = cache(async (): Promise<RouteCardsResult> => {
       sort: "new",
     });
   } catch (error) {
-    console.error("[GeneraciyaFotoPage] fetch examples failed", error);
+    console.error("[NanoBananaPage] fetch examples failed", error);
     return EMPTY_RESULT;
-  }
-});
-
-type ThemeCollagePayload = {
-  photosByHref: Record<string, string[]>;
-  countByHref: Record<string, number>;
-};
-
-const getThemeCollagePhotos = cache(async (): Promise<ThemeCollagePayload> => {
-  const empty: ThemeCollagePayload = { photosByHref: {}, countByHref: {} };
-  try {
-    const results = await Promise.all(
-      GENERACIYA_FOTO_THEMES.items.map((item) =>
-        fetchRouteCards({
-          ...BASE_RPC_PARAMS,
-          [item.dimension]: item.tagValue,
-          limit: 10,
-          offset: 0,
-          min_cards: 1,
-          sort: "new",
-        }).catch((error) => {
-          console.error(
-            `[GeneraciyaFotoPage] fetch theme ${item.tagValue} failed`,
-            error
-          );
-          return EMPTY_RESULT;
-        })
-      )
-    );
-    const photos = await getCardPhotosBySlugs(
-      results.flatMap((result) => result.cards.map((card) => card.slug))
-    );
-    const photosByHref: Record<string, string[]> = {};
-    const countByHref: Record<string, number> = {};
-
-    for (const [index, item] of GENERACIYA_FOTO_THEMES.items.entries()) {
-      const urls: string[] = [];
-      for (const card of results[index].cards) {
-        const url = photos.get(card.slug)?.photoUrl;
-        if (!url || urls.includes(url)) continue;
-        urls.push(url);
-        if (urls.length >= 6) break;
-      }
-      photosByHref[item.href] = urls;
-      countByHref[item.href] =
-        results[index].total_count || results[index].cards_count || 0;
-    }
-
-    return { photosByHref, countByHref };
-  } catch (error) {
-    console.error("[GeneraciyaFotoPage] fetch theme photos failed", error);
-    return empty;
   }
 });
 
@@ -143,7 +91,7 @@ const getCompletedImageGenerationCount = cache(async (): Promise<number> => {
     return count ?? 0;
   } catch (error) {
     console.error(
-      "[GeneraciyaFotoPage] fetch completed image generation count failed",
+      "[NanoBananaPage] fetch completed image generation count failed",
       error
     );
     return 0;
@@ -160,10 +108,15 @@ const getGenerationModels = cache(
         .eq("key", "models")
         .maybeSingle();
       if (error) throw error;
-      return parseEnabledGenerationModels(data?.value);
+      const filtered = filterNanoBananaFamilyModels(
+        parseEnabledGenerationModels(data?.value)
+      );
+      return filtered.length
+        ? filtered
+        : filterNanoBananaFamilyModels(FALLBACK_GENERATION_MODELS);
     } catch (error) {
-      console.error("[GeneraciyaFotoPage] fetch models failed", error);
-      return FALLBACK_GENERATION_MODELS;
+      console.error("[NanoBananaPage] fetch models failed", error);
+      return filterNanoBananaFamilyModels(FALLBACK_GENERATION_MODELS);
     }
   }
 );
@@ -174,7 +127,7 @@ const getExampleOgImage = cache(async (): Promise<string | null> => {
   try {
     return await getFirstCardPhotoUrl(result.cards.map((card) => card.id));
   } catch (error) {
-    console.error("[GeneraciyaFotoPage] fetch OG image failed", error);
+    console.error("[NanoBananaPage] fetch OG image failed", error);
     return null;
   }
 });
@@ -183,8 +136,8 @@ export async function generateMetadata(): Promise<Metadata> {
   const ogImage = await getExampleOgImage();
 
   return {
-    title: GENERACIYA_FOTO_SEO.metaTitle,
-    description: GENERACIYA_FOTO_SEO.metaDescription,
+    title: NANO_BANANA_SEO.metaTitle,
+    description: NANO_BANANA_SEO.metaDescription,
     robots: {
       index: true,
       follow: true,
@@ -194,8 +147,8 @@ export async function generateMetadata(): Promise<Metadata> {
     },
     alternates: { canonical: PAGE_URL },
     openGraph: {
-      title: GENERACIYA_FOTO_SEO.metaTitle,
-      description: GENERACIYA_FOTO_SEO.metaDescription,
+      title: NANO_BANANA_SEO.metaTitle,
+      description: NANO_BANANA_SEO.metaDescription,
       url: PAGE_URL,
       type: "website",
       siteName: "PromptShot",
@@ -206,8 +159,8 @@ export async function generateMetadata(): Promise<Metadata> {
     },
     twitter: {
       card: "summary_large_image",
-      title: GENERACIYA_FOTO_SEO.metaTitle,
-      description: GENERACIYA_FOTO_SEO.metaDescription,
+      title: NANO_BANANA_SEO.metaTitle,
+      description: NANO_BANANA_SEO.metaDescription,
       ...(ogImage ? { images: [ogImage] } : {}),
     },
   };
@@ -218,8 +171,8 @@ function buildJsonLd(ogImage: string | null, cards: PromptCardFull[]) {
     {
       "@context": "https://schema.org",
       "@type": "WebApplication",
-      name: "Сделать фото ИИ — PromptShot",
-      description: GENERACIYA_FOTO_SEO.metaDescription,
+      name: "Nano Banana — PromptShot",
+      description: NANO_BANANA_SEO.metaDescription,
       url: PAGE_URL,
       applicationCategory: "MultimediaApplication",
       operatingSystem: "Web",
@@ -239,7 +192,7 @@ function buildJsonLd(ogImage: string | null, cards: PromptCardFull[]) {
         {
           "@type": "ListItem",
           position: 2,
-          name: GENERACIYA_FOTO_SEO.breadcrumb,
+          name: NANO_BANANA_SEO.breadcrumb,
           item: PAGE_URL,
         },
       ],
@@ -247,8 +200,8 @@ function buildJsonLd(ogImage: string | null, cards: PromptCardFull[]) {
     {
       "@context": "https://schema.org",
       "@type": "HowTo",
-      name: GENERACIYA_FOTO_SEO.howToTitle,
-      step: GENERACIYA_FOTO_HOW_TO_STEPS.map((step, index) => ({
+      name: NANO_BANANA_SEO.howToTitle,
+      step: NANO_BANANA_HOW_TO_STEPS.map((step, index) => ({
         "@type": "HowToStep",
         position: index + 1,
         name: step.title,
@@ -258,7 +211,7 @@ function buildJsonLd(ogImage: string | null, cards: PromptCardFull[]) {
     {
       "@context": "https://schema.org",
       "@type": "FAQPage",
-      mainEntity: GENERACIYA_FOTO_FAQ.map((item) => ({
+      mainEntity: NANO_BANANA_FAQ.map((item) => ({
         "@type": "Question",
         name: item.q,
         acceptedAnswer: {
@@ -272,15 +225,13 @@ function buildJsonLd(ogImage: string | null, cards: PromptCardFull[]) {
           {
             "@context": "https://schema.org",
             "@type": "ItemList",
-            name: GENERACIYA_FOTO_SEO.examplesTitle,
+            name: NANO_BANANA_SEO.examplesTitle,
             numberOfItems: cards.length,
             itemListElement: cards.map((card, index) => ({
               "@type": "ListItem",
               position: index + 1,
-              name: card.title_ru || card.title_en || "Промт для фото",
-              ...(card.slug
-                ? { url: `${SITE_URL}/p/${card.slug}` }
-                : {}),
+              name: card.title_ru || card.title_en || "Пример фото Nano Banana",
+              ...(card.slug ? { url: `${SITE_URL}/p/${card.slug}` } : {}),
             })),
           },
         ]
@@ -288,22 +239,21 @@ function buildJsonLd(ogImage: string | null, cards: PromptCardFull[]) {
   ];
 }
 
-export default async function GeneraciyaFotoPage() {
-  const [result, models, themeCollage, completedImageCount] = await Promise.all([
+export default async function NanoBananaPage() {
+  const [result, models, completedImageCount] = await Promise.all([
     getGenerationExamples(),
     getGenerationModels(),
-    getThemeCollagePhotos(),
     getCompletedImageGenerationCount(),
   ]);
-  const socialProof = formatGeneraciyaFotoSocialProof(completedImageCount);
+  const socialProof = formatNanoBananaSocialProof(completedImageCount);
   const routeCards = result.cards;
   const [enrichedCards, fallbackOgImage] = await Promise.all([
-      enrichCardsWithDetails(routeCards).catch((error) => {
-        console.error("[GeneraciyaFotoPage] enrich examples failed", error);
-        return [] as PromptCardFull[];
-      }),
-      getExampleOgImage(),
-    ]);
+    enrichCardsWithDetails(routeCards).catch((error) => {
+      console.error("[NanoBananaPage] enrich examples failed", error);
+      return [] as PromptCardFull[];
+    }),
+    getExampleOgImage(),
+  ]);
   const cardsById = new Map(enrichedCards.map((card) => [card.id, card]));
   const cards = result.cards
     .map((card) => cardsById.get(card.id))
@@ -316,6 +266,7 @@ export default async function GeneraciyaFotoPage() {
 
   return (
     <PageLayout showFooterWithGenerateDock>
+      <NanoBananaPreferModel />
       {schemas.map((schema, index) => (
         <script
           key={index}
@@ -354,30 +305,46 @@ export default async function GeneraciyaFotoPage() {
                 <path d="m9 18 6-6-6-6" />
               </svg>
               <span className="font-medium text-zinc-700">
-                {GENERACIYA_FOTO_SEO.breadcrumb}
+                {NANO_BANANA_SEO.breadcrumb}
               </span>
             </nav>
             <h1 className="mx-auto max-w-3xl text-balance text-3xl font-bold tracking-tight text-zinc-900 sm:text-4xl lg:text-[2.75rem] lg:leading-tight">
-              {GENERACIYA_FOTO_SEO.h1}
+              {NANO_BANANA_SEO.h1}
             </h1>
             <p className="mx-auto mt-3 max-w-2xl text-pretty text-base leading-relaxed text-zinc-600 sm:mt-4 sm:text-lg">
-              {GENERACIYA_FOTO_SEO.intro}
+              {NANO_BANANA_SEO.intro}
             </p>
-            <GeneraciyaFotoHeroCarousel cards={carouselCards} />
+            <GeneraciyaFotoHeroCarousel
+              cards={carouselCards}
+              ctaLabel={NANO_BANANA_SEO.secondaryCta}
+            />
             {socialProof ? (
               <p className="mx-auto mt-3 text-sm font-medium text-indigo-700 sm:text-base">
                 {socialProof}
               </p>
             ) : null}
-            <GeneraciyaFotoStarter />
+            <GeneraciyaFotoStarter
+              copy={{
+                byTextTitle: NANO_BANANA_SEO.starterByTextTitle,
+                byTextLead: NANO_BANANA_SEO.starterByTextLead,
+                byPhotoTitle: NANO_BANANA_SEO.starterByPhotoTitle,
+                byPhotoLead: NANO_BANANA_SEO.starterByPhotoLead,
+              }}
+            />
           </div>
         </section>
 
         <div className="mx-auto flex w-full max-w-7xl flex-col gap-10 px-3 pt-10 sm:gap-12 sm:px-5 sm:pt-12 lg:gap-16 lg:pt-16 xl:px-6">
-          <GeneraciyaFotoThemes
-            photosByHref={themeCollage.photosByHref}
-            countByHref={themeCollage.countByHref}
-          />
+          <section aria-labelledby="generation-models-heading">
+            <GenerationModelsShowcase
+              models={models}
+              eyebrow={NANO_BANANA_SEO.modelsEyebrow}
+              title={NANO_BANANA_SEO.modelsTitle}
+              lead={NANO_BANANA_SEO.modelsLead}
+              layout="chips"
+              googleBranded
+            />
+          </section>
 
           <section
             id="primery"
@@ -388,8 +355,10 @@ export default async function GeneraciyaFotoPage() {
               <GeneraciyaFotoExamplesExplorer
                 initialCards={galleryCards}
                 eyebrow=""
-                allPromptsLabel={GENERACIYA_FOTO_SEO.examplesCta}
-                defaultAllPromptsHref="#primery"
+                title={NANO_BANANA_SEO.examplesTitle}
+                intro={NANO_BANANA_SEO.examplesIntro}
+                allPromptsLabel={NANO_BANANA_SEO.examplesCta}
+                defaultAllPromptsHref={NANO_BANANA_SEO.examplesMoreHref}
                 scenarioNavigation={getGeneraciyaFotoChipNavigation()}
               />
             ) : (
@@ -399,22 +368,21 @@ export default async function GeneraciyaFotoPage() {
             )}
           </section>
 
-          <GeneraciyaFotoTools />
-          <GeneraciyaFotoHowTo />
-          <GeneraciyaFotoReviews />
-          <GeneraciyaFotoMore />
+          <GeneraciyaFotoTools
+            title={NANO_BANANA_TOOLS.title}
+            lead={NANO_BANANA_TOOLS.lead}
+          />
+          <GeneraciyaFotoHowTo
+            title={NANO_BANANA_SEO.howToTitle}
+            lead={NANO_BANANA_SEO.howToLead}
+            cta={NANO_BANANA_SEO.howToCta}
+            steps={NANO_BANANA_HOW_TO_STEPS}
+          />
+          <NanoBananaAccess />
 
-          <section aria-labelledby="generation-models-heading">
-            <GenerationModelsShowcase
-              models={models}
-              layout="chips"
-              nanoBananaHref="/nano-banana"
-            />
-          </section>
+          <GeneraciyaFotoPricing returnPath={NANO_BANANA_PRICING.returnPath} />
 
-          <GeneraciyaFotoPricing />
-
-          <GeneraciyaFotoFaq />
+          <NanoBananaFaq />
         </div>
       </main>
     </PageLayout>

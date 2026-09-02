@@ -41,22 +41,12 @@ const FILE_INPUT_ACCEPT =
 
 type StarterMode = "text" | "photo";
 
-const MODES: Array<{
-  id: StarterMode;
-  title: string;
-  description: string;
-}> = [
-  {
-    id: "text",
-    title: GENERACIYA_FOTO_SEO.starterByTextTitle,
-    description: GENERACIYA_FOTO_SEO.starterByTextLead,
-  },
-  {
-    id: "photo",
-    title: GENERACIYA_FOTO_SEO.starterByPhotoTitle,
-    description: GENERACIYA_FOTO_SEO.starterByPhotoLead,
-  },
-];
+export type GeneraciyaFotoStarterCopy = {
+  byTextTitle?: string;
+  byTextLead?: string;
+  byPhotoTitle?: string;
+  byPhotoLead?: string;
+};
 
 function ModeIcon({ mode }: { mode: StarterMode }) {
   if (mode === "photo") {
@@ -96,7 +86,28 @@ function ModeIcon({ mode }: { mode: StarterMode }) {
   );
 }
 
-export function GeneraciyaFotoStarter() {
+export function GeneraciyaFotoStarter({
+  copy,
+}: {
+  copy?: GeneraciyaFotoStarterCopy;
+} = {}) {
+  const modes: Array<{
+    id: StarterMode;
+    title: string;
+    description: string;
+  }> = [
+    {
+      id: "text",
+      title: copy?.byTextTitle ?? GENERACIYA_FOTO_SEO.starterByTextTitle,
+      description: copy?.byTextLead ?? GENERACIYA_FOTO_SEO.starterByTextLead,
+    },
+    {
+      id: "photo",
+      title: copy?.byPhotoTitle ?? GENERACIYA_FOTO_SEO.starterByPhotoTitle,
+      description: copy?.byPhotoLead ?? GENERACIYA_FOTO_SEO.starterByPhotoLead,
+    },
+  ];
+
   const [mode, setMode] = useState<StarterMode>("text");
   const [analyzing, setAnalyzing] = useState(false);
   const [analyzeError, setAnalyzeError] = useState("");
@@ -221,7 +232,7 @@ export function GeneraciyaFotoStarter() {
         role="tablist"
         aria-label="Способ создания изображения"
       >
-        {MODES.map((item) => {
+        {modes.map((item) => {
           const selected = mode === item.id;
           const isPhoto = item.id === "photo";
           return (

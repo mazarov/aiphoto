@@ -22,7 +22,13 @@ function ArrowIcon({ dir }: { dir: "prev" | "next" }) {
   );
 }
 
-export function GeneraciyaFotoReviewsCarousel() {
+export function GeneraciyaFotoReviewsCarousel({
+  items = GENERACIYA_FOTO_REVIEWS.items,
+  ariaLabel = GENERACIYA_FOTO_REVIEWS.title,
+}: {
+  items?: readonly { name: string; text: string }[];
+  ariaLabel?: string;
+} = {}) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const scrollerRef = useRef<HTMLUListElement>(null);
 
@@ -57,9 +63,9 @@ export function GeneraciyaFotoReviewsCarousel() {
       <ul
         ref={scrollerRef}
         className="flex snap-x snap-mandatory items-stretch gap-3 overflow-x-auto scroll-smooth pb-1 scrollbar-none"
-        aria-label={GENERACIYA_FOTO_REVIEWS.title}
+        aria-label={ariaLabel}
       >
-        {GENERACIYA_FOTO_REVIEWS.items.map((item) => (
+        {items.map((item) => (
           <li
             key={item.name}
             className="w-[min(19rem,85vw)] shrink-0 snap-start sm:w-[calc((100%-0.75rem)/2.15)]"

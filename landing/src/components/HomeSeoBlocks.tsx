@@ -46,7 +46,15 @@ function FaqAnswer({ item }: { item: (typeof HOMEPAGE_FAQ)[number] }) {
             каталоге на этой странице
           </Link>
           . Скопируй промт или загрузи своё фото, чтобы повторить кадр в 1 клик.
-          Те же тексты подходят для ChatGPT и Gemini — генерация на PromptShot.
+          Те же тексты подходят для ChatGPT и Gemini. Nano Banana можно выбрать
+          в{" "}
+          <Link
+            href="/generaciya-foto#generation-models-heading"
+            className={linkClass}
+          >
+            блоке моделей генератора
+          </Link>
+          .
         </>
       );
     case "best":

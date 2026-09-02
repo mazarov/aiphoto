@@ -84,6 +84,7 @@ test("homepage FAQ owns fotosessii prompts on / and points series to the verb hu
   assert.match(nanoBanana?.aPlain ?? "", /промты для нано банана/i);
   assert.match(nanoBanana?.aPlain ?? "", /каталоге на этой странице/);
   assert.match(nanoBanana?.aPlain ?? "", /повторить кадр в 1 клик/);
+  assert.match(nanoBanana?.aPlain ?? "", /блоке моделей генератора/);
   for (const item of HOMEPAGE_FAQ) {
     assert.doesNotMatch(item.q, /промпт/i);
     assert.doesNotMatch(item.aPlain, /промпт/i);

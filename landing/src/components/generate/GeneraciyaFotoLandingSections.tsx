@@ -110,32 +110,40 @@ export function GeneraciyaFotoThemes({
   );
 }
 
-export function GeneraciyaFotoTools() {
+export function GeneraciyaFotoTools({
+  title = GENERACIYA_FOTO_TOOLS.title,
+  lead = GENERACIYA_FOTO_TOOLS.lead,
+}: {
+  title?: string;
+  lead?: string;
+} = {}) {
   return (
     <section className={sectionClass} aria-labelledby="tools-heading">
       <div className={GF_BLOCK}>
-        <SectionHeading
-          id="tools-heading"
-          title={GENERACIYA_FOTO_TOOLS.title}
-          lead={GENERACIYA_FOTO_TOOLS.lead}
-        />
+        <SectionHeading id="tools-heading" title={title} lead={lead} />
         <GeneraciyaFotoToolsGrid />
       </div>
     </section>
   );
 }
 
-export function GeneraciyaFotoHowTo() {
+export function GeneraciyaFotoHowTo({
+  title = GENERACIYA_FOTO_SEO.howToTitle,
+  lead = GENERACIYA_FOTO_SEO.howToLead,
+  cta = GENERACIYA_FOTO_SEO.howToCta,
+  steps = GENERACIYA_FOTO_HOW_TO_STEPS,
+}: {
+  title?: string;
+  lead?: string;
+  cta?: string;
+  steps?: readonly { n: string; title: string; text: string }[];
+} = {}) {
   return (
     <section className={sectionClass} aria-labelledby="howto-heading">
       <div className={GF_BLOCK}>
-        <SectionHeading
-          id="howto-heading"
-          title={GENERACIYA_FOTO_SEO.howToTitle}
-          lead={GENERACIYA_FOTO_SEO.howToLead}
-        />
+        <SectionHeading id="howto-heading" title={title} lead={lead} />
         <ol className={`${GF_STACK} grid gap-5 lg:grid-cols-3`}>
-          {GENERACIYA_FOTO_HOW_TO_STEPS.map((step) => (
+          {steps.map((step) => (
             <li key={step.n}>
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-indigo-600">
                 {step.n}
@@ -150,29 +158,39 @@ export function GeneraciyaFotoHowTo() {
           ))}
         </ol>
         <Link href="#generator" className={`${GF_STACK} ${GF_BRAND_CTA}`}>
-          {GENERACIYA_FOTO_SEO.howToCta}
+          {cta}
         </Link>
       </div>
     </section>
   );
 }
 
-export function GeneraciyaFotoReviews() {
+export function GeneraciyaFotoReviews({
+  quote = GENERACIYA_FOTO_REVIEWS.quote,
+  quoteAuthor = GENERACIYA_FOTO_REVIEWS.quoteAuthor,
+  title = GENERACIYA_FOTO_REVIEWS.title,
+  items = GENERACIYA_FOTO_REVIEWS.items,
+}: {
+  quote?: string;
+  quoteAuthor?: string;
+  title?: string;
+  items?: readonly { name: string; text: string }[];
+} = {}) {
   return (
     <section id="otzyvy" className={sectionClass} aria-labelledby="reviews-heading">
       <div className={GF_BLOCK}>
         <blockquote className="max-w-3xl">
           <p className="text-xl font-semibold tracking-tight text-zinc-900 sm:text-2xl">
-            «{GENERACIYA_FOTO_REVIEWS.quote}»
+            «{quote}»
           </p>
           <footer className="mt-2 text-sm text-zinc-500">
-            (с) {GENERACIYA_FOTO_REVIEWS.quoteAuthor}
+            (с) {quoteAuthor}
           </footer>
         </blockquote>
         <h2 id="reviews-heading" className={`${GF_STACK} ${GF_H2}`}>
-          {GENERACIYA_FOTO_REVIEWS.title}
+          {title}
         </h2>
-        <GeneraciyaFotoReviewsCarousel />
+        <GeneraciyaFotoReviewsCarousel items={items} ariaLabel={title} />
       </div>
     </section>
   );
@@ -180,13 +198,15 @@ export function GeneraciyaFotoReviews() {
 
 export function GeneraciyaFotoMore({
   items = GENERACIYA_FOTO_CAPABILITIES,
+  title = GENERACIYA_FOTO_MORE_TITLE,
 }: {
   items?: readonly { title: string; text: string; href: string }[];
-}) {
+  title?: string;
+} = {}) {
   return (
     <section className={sectionClass} aria-labelledby="more-heading">
       <div className={GF_BLOCK}>
-        <SectionHeading id="more-heading" title={GENERACIYA_FOTO_MORE_TITLE} />
+        <SectionHeading id="more-heading" title={title} />
         <ul className={`${GF_STACK} grid gap-3 lg:grid-cols-2`}>
           {items.map((item) => (
             <li key={item.title}>

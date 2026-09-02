@@ -104,6 +104,10 @@ type GenerateDockContextType = {
       dockSurface?: GenerateDockSurface;
     }
   ) => void;
+  /** Remember a model for the next compose open without opening the dock. */
+  preferredModelId: string | null;
+  preferModelId: (modelId: string) => void;
+  clearRequestedModelSelection: () => void;
   /** Empty compose on current listing (tab / focus). */
   focusBlank: (options?: { entrySource?: GenerateDockEntrySource }) => void;
   /** Seed a freeform prompt and open the composer. */
@@ -183,6 +187,9 @@ const GenerateDockContext = createContext<GenerateDockContextType>({
   reportNeedsCredits: () => {},
   requestedModelId: null,
   requestModelSelection: () => {},
+  preferredModelId: null,
+  preferModelId: () => {},
+  clearRequestedModelSelection: () => {},
   focusBlank: () => {},
   seedBlankPrompt: () => {},
   seedPhotoshoot: () => {},
@@ -210,6 +217,7 @@ export function GenerateDockProvider({ children }: { children: ReactNode }) {
   const [runProgress, setRunProgress] = useState(0);
   const [needsCredits, setNeedsCredits] = useState(false);
   const [requestedModelId, setRequestedModelId] = useState<string | null>(null);
+  const [preferredModelId, setPreferredModelId] = useState<string | null>(null);
   const [lastDockResultDismissed, setLastDockResultDismissed] = useState(false);
   const [lastDockResult, setLastDockResult] = useState<LastDockResult | null>(null);
   const restoredPendingRef = useRef(false);
@@ -307,6 +315,16 @@ export function GenerateDockProvider({ children }: { children: ReactNode }) {
     },
     [isAuthed, trackOpen]
   );
+
+  const preferModelId = useCallback((modelId: string) => {
+    const next = modelId.trim();
+    if (!next) return;
+    setPreferredModelId(next);
+  }, []);
+
+  const clearRequestedModelSelection = useCallback(() => {
+    setRequestedModelId(null);
+  }, []);
 
   const focusBlank = useCallback(
     (options?: { entrySource?: GenerateDockEntrySource }) => {
@@ -571,6 +589,9 @@ export function GenerateDockProvider({ children }: { children: ReactNode }) {
       reportNeedsCredits,
       requestedModelId,
       requestModelSelection,
+      preferredModelId,
+      preferModelId,
+      clearRequestedModelSelection,
       focusBlank,
       seedBlankPrompt,
       seedPhotoshoot,
@@ -599,6 +620,9 @@ export function GenerateDockProvider({ children }: { children: ReactNode }) {
       reportNeedsCredits,
       requestedModelId,
       requestModelSelection,
+      preferredModelId,
+      preferModelId,
+      clearRequestedModelSelection,
       focusBlank,
       seedBlankPrompt,
       seedPhotoshoot,

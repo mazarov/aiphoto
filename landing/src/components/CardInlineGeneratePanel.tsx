@@ -294,6 +294,8 @@ export function CardInlineGeneratePanel({
     reportRunProgress,
     reportNeedsCredits,
     requestedModelId,
+    preferredModelId,
+    clearRequestedModelSelection,
     seed,
     seedAnimate,
     lastDockResult,
@@ -806,20 +808,22 @@ export function CardInlineGeneratePanel({
   }, [composeMode, isAuthed]);
 
   useEffect(() => {
-    if (!preferencesHydrated || !requestedModelId) return;
+    if (!requestedModelId || models.length === 0) return;
     const selected = models.find((item) => item.id === requestedModelId);
-    if (!selected) return;
+    if (!selected) {
+      clearRequestedModelSelection();
+      return;
+    }
 
     setModel(requestedModelId);
-    setExpandedControl(null);
     setDockPlateOpen(true);
     setToast(`${selected.label} выбрана`);
+    clearRequestedModelSelection();
   }, [
+    clearRequestedModelSelection,
     models,
-    preferencesHydrated,
     requestedModelId,
     setDockPlateOpen,
-    setExpandedControl,
   ]);
 
   useEffect(() => {
@@ -1066,7 +1070,12 @@ export function CardInlineGeneratePanel({
               videoConfigData.defaults?.aspectRatio || DEFAULT_VIDEO_ASPECT_RATIO,
           },
         });
-        setModel(resolvedPrefs.model);
+        const preferredModelAvailable =
+          preferredModelId &&
+          nextModels.some((item) => item.id === preferredModelId);
+        setModel(
+          preferredModelAvailable ? preferredModelId! : resolvedPrefs.model
+        );
         setAspectRatio(resolvedPrefs.aspectRatio);
         setImageSize(resolvedPrefs.imageSize);
         setVideoModel(resolvedPrefs.videoModel);

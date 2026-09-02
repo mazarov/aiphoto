@@ -7,6 +7,7 @@ export function isGenerateDockSeoPagePath(pathname: string): boolean {
   const normalized = normalizeGenerateDockPath(pathname);
   return (
     normalized === "/generaciya-foto" ||
+    normalized === "/nano-banana" ||
     isGeneraciyaFotoScenarioPath(normalized)
   );
 }
