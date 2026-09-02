@@ -3,11 +3,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { requestCreditBalanceRefresh } from "@/lib/credit-balance-events";
+import { closeRobokassaOverlay } from "@/lib/robokassa-browser";
 import {
   clearActiveRobokassaPayment,
   readActiveRobokassaPayment,
   ROBOKASSA_PAYMENT_STARTED_EVENT,
 } from "@/lib/robokassa-payment-events";
+import { handleParentRobokassaReturnMessage } from "@/lib/robokassa-return-browser";
 import {
   reachYandexMetrikaGoal,
   trackYandexPurchase,
@@ -50,8 +52,11 @@ export function RobokassaPaymentStatus() {
       start((event as CustomEvent<string>).detail);
     };
     window.addEventListener(ROBOKASSA_PAYMENT_STARTED_EVENT, handleStarted);
-    return () =>
+    window.addEventListener("message", handleParentRobokassaReturnMessage);
+    return () => {
       window.removeEventListener(ROBOKASSA_PAYMENT_STARTED_EVENT, handleStarted);
+      window.removeEventListener("message", handleParentRobokassaReturnMessage);
+    };
   }, [start]);
 
   useEffect(() => {
@@ -96,6 +101,7 @@ export function RobokassaPaymentStatus() {
             paymentId,
             message: `Оплата прошла. Начислено ${rubles.format(credits)} токенов`,
           });
+          closeRobokassaOverlay();
           clearActiveRobokassaPayment(paymentId);
           requestCreditBalanceRefresh();
           if (!successTrackedRef.current.has(paymentId)) {

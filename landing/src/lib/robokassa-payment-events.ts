@@ -1,9 +1,20 @@
 "use client";
 
+import { saveRobokassaReturnPath } from "./robokassa-return";
+
 export const ROBOKASSA_PAYMENT_STARTED_EVENT = "promptshot:robokassa-payment-started";
 const ACTIVE_PAYMENT_KEY = "promptshot:robokassa-active-payment";
 
-export function announceRobokassaPayment(paymentId: string): void {
+export function announceRobokassaPayment(
+  paymentId: string,
+  returnPath?: string | null,
+): void {
+  saveRobokassaReturnPath(
+    returnPath ||
+      (typeof window === "undefined"
+        ? "/"
+        : window.location.pathname + window.location.search),
+  );
   try {
     sessionStorage.setItem(ACTIVE_PAYMENT_KEY, paymentId);
   } catch {

@@ -17,6 +17,7 @@ export type RobokassaBrowserPayload = {
 
 type RobokassaApi = {
   Render: (payload: RobokassaBrowserPayload) => void;
+  ClosePaymentForm?: () => void;
 };
 
 declare global {
@@ -26,9 +27,20 @@ declare global {
 }
 
 const SCRIPT_ID = "robokassa-iframe-script";
+const IFRAME_ID = "robokassa_iframe";
 const SCRIPT_SRC =
   "https://auth.robokassa.ru/Merchant/bundle/robokassa_iframe.js";
 let loadPromise: Promise<RobokassaApi> | null = null;
+
+export function closeRobokassaOverlay(): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.Robokassa?.ClosePaymentForm?.();
+  } catch {
+    // Provider script may already be gone after SuccessURL navigation.
+  }
+  document.getElementById(IFRAME_ID)?.remove();
+}
 
 export function loadRobokassa(): Promise<RobokassaApi> {
   if (typeof window === "undefined") {

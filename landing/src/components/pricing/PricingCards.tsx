@@ -429,7 +429,7 @@ export function PricingCards({
         payload.payload
       ) {
         await openRobokassaPayment(payload.payload);
-        announceRobokassaPayment(payload.paymentId);
+        announceRobokassaPayment(payload.paymentId, checkoutReturnPath);
         clearPricingReturnPath();
         closeWithoutHistory();
         window.history.replaceState(null, "", checkoutReturnPath);

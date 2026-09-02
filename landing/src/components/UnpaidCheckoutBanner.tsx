@@ -138,7 +138,7 @@ export function UnpaidCheckoutBanner() {
           payload.payload
         ) {
           await openRobokassaPayment(payload.payload);
-          announceRobokassaPayment(payload.paymentId);
+          announceRobokassaPayment(payload.paymentId, returnPath);
           reachYandexMetrikaGoal(YM_GOAL_PAYMENT_IFRAME_OPENED, {
             provider: "robokassa",
             plan_id: planId,
