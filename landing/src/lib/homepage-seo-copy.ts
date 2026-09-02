@@ -1,15 +1,14 @@
 /** RU SEO copy for homepage `/` — docs/31-08-homepage-promty-fotosessii.md */
 
 const HOMEPAGE_INTRO =
-  "PromptShot — каталог промтов для фото в ИИ и нейросетях. Скопируй промт или загрузи своё фото и повтори кадр.";
+  "Промты для фото в ИИ — готовый текст и пример кадра. Скопируй промт или загрузи своё фото и повтори в 1 клик.";
 
 export const HOMEPAGE_SEO = {
-  title: "Промты для ИИ фото и фотосессии в нейросетях | PromptShot",
-  description:
-    "Промты для ИИ фотосессии и готовые промты для ИИ фото в нейросетях на русском. Бесплатно. Скопируй текст или создай кадр в ChatGPT, Gemini, Nano Banana.",
+  title: "Промты для фото в ИИ | PromptShot",
+  description: HOMEPAGE_INTRO,
   h1: {
-    main: "Промты для ИИ фото",
-    accent: "и фотосессии в нейросетях",
+    main: "Промты для фото",
+    accent: "в ИИ",
   },
   heroSubtitle: HOMEPAGE_INTRO,
   intro: HOMEPAGE_INTRO,

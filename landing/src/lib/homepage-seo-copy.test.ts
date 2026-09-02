@@ -5,29 +5,25 @@ import { HOMEPAGE_FAQ, HOMEPAGE_SEO } from "./homepage-seo-copy";
 const SEND_AWAY = /вставь в нейросеть|открой Nano Banana|вставь в ChatGPT/i;
 
 test("homepage snippet keeps the listing key and CWS-safe length", () => {
-  assert.equal(
-    HOMEPAGE_SEO.title,
-    "Промты для ИИ фото и фотосессии в нейросетях | PromptShot"
-  );
+  assert.equal(HOMEPAGE_SEO.title, "Промты для фото в ИИ | PromptShot");
   assert.ok(HOMEPAGE_SEO.title.length <= 70);
-  assert.equal(
-    HOMEPAGE_SEO.description,
-    "Промты для ИИ фотосессии и готовые промты для ИИ фото в нейросетях на русском. Бесплатно. Скопируй текст или создай кадр в ChatGPT, Gemini, Nano Banana."
-  );
+  assert.equal(HOMEPAGE_SEO.description, HOMEPAGE_SEO.intro);
   assert.ok(HOMEPAGE_SEO.description.length <= 180);
-  assert.match(HOMEPAGE_SEO.title, /^Промты для ИИ фото/);
-  assert.match(HOMEPAGE_SEO.title, /фотосессии/);
-  assert.match(HOMEPAGE_SEO.description, /промты для ИИ фотосессии/i);
-  assert.match(HOMEPAGE_SEO.h1.main, /^Промты для ИИ фото$/);
-  assert.equal(HOMEPAGE_SEO.h1.accent, "и фотосессии в нейросетях");
+  assert.match(HOMEPAGE_SEO.title, /^Промты для фото в ИИ/);
+  assert.doesNotMatch(HOMEPAGE_SEO.title, /фотосессии/);
+  assert.match(HOMEPAGE_SEO.description, /промты для фото в ИИ/i);
+  assert.doesNotMatch(HOMEPAGE_SEO.description, /ChatGPT|Gemini|Nano Banana/i);
+  assert.match(HOMEPAGE_SEO.h1.main, /^Промты для фото$/);
+  assert.equal(HOMEPAGE_SEO.h1.accent, "в ИИ");
 });
 
 test("homepage blocks keep listing CTA and do not send people away", () => {
   assert.equal(
     HOMEPAGE_SEO.heroSubtitle,
-    "PromptShot — каталог промтов для фото в ИИ и нейросетях. Скопируй промт или загрузи своё фото и повтори кадр."
+    HOMEPAGE_SEO.description
   );
   assert.equal(HOMEPAGE_SEO.heroSubtitle, HOMEPAGE_SEO.intro);
+  assert.equal(HOMEPAGE_SEO.heroSubtitle, HOMEPAGE_SEO.description);
   assert.equal(HOMEPAGE_SEO.examplesEyebrow, "Каталог промтов");
   assert.equal(HOMEPAGE_SEO.examplesTitle, "Готовые промты для ИИ фотосессии");
   assert.equal(HOMEPAGE_SEO.catalogCta, "Перейти в каталог");
