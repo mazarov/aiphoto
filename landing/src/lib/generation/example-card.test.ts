@@ -4,6 +4,7 @@ import {
   filterExampleCardsByQuery,
   filterPhotoshootExampleCards,
   toGenerationExampleCard,
+  withGenerationExampleFallbackTitle,
 } from "./example-card";
 import type { PhotoMeta, PromptCardFull } from "@/lib/supabase";
 
@@ -94,4 +95,21 @@ test("toGenerationExampleCard keeps all photoshoot tile URLs", () => {
     "https://img/3.jpg",
     "https://img/4.jpg",
   ]);
+});
+
+test("raw analyzer titles are replaced with a useful Russian fallback", () => {
+  const raw = toGenerationExampleCard(
+    fakeCard({ title_ru: "Visual Hook: dramatic rim light" })
+  );
+  const localized = withGenerationExampleFallbackTitle(
+    raw,
+    "Пример фото ИИ — 1"
+  );
+  assert.equal(localized.title, "Пример фото ИИ — 1");
+
+  const russian = toGenerationExampleCard(fakeCard({ title_ru: "Осенний портрет" }));
+  assert.equal(
+    withGenerationExampleFallbackTitle(russian, "Пример фото ИИ — 2"),
+    russian
+  );
 });

@@ -45,37 +45,31 @@ function staticHubEntries(): MetadataRoute.Sitemap {
   return [
     {
       url: BASE_URL,
-      lastModified: new Date(),
       changeFrequency: "daily",
       priority: 1,
     },
     {
       url: `${BASE_URL}/trends`,
-      lastModified: new Date(),
       changeFrequency: "daily",
       priority: 0.85,
     },
     {
       url: `${BASE_URL}/foto-v-promt`,
-      lastModified: new Date(),
       changeFrequency: "weekly",
       priority: 0.8,
     },
     {
       url: `${BASE_URL}/generaciya-foto`,
-      lastModified: new Date(),
       changeFrequency: "weekly",
       priority: 0.9,
     },
     {
       url: `${BASE_URL}/nano-banana`,
-      lastModified: new Date(),
       changeFrequency: "weekly",
       priority: 0.9,
     },
     {
       url: `${BASE_URL}${PROMTY_DLYA_II_FOTOSESSII_HUB_PATH}`,
-      lastModified: new Date(),
       changeFrequency: "weekly",
       priority: 0.9,
     },
@@ -117,7 +111,6 @@ async function searchBackedSitemapUrls(
         if (hits.length < min) return null;
         return {
           url: `${BASE_URL}${page.path}`,
-          lastModified: new Date(),
           changeFrequency: "weekly" as const,
           priority: page.priority,
         };
@@ -153,7 +146,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         return count >= MIN_GENERACIYA_FOTO_SCENARIO_CARDS;
       }).map((scenario) => ({
         url: `${BASE_URL}${getGeneraciyaFotoScenarioPath(scenario.slug)}`,
-        lastModified: new Date(),
         changeFrequency: "weekly" as const,
         priority: 0.85,
       }));
@@ -165,7 +157,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         })
         .map((page) => ({
           url: `${BASE_URL}${page.path}`,
-          lastModified: new Date(),
           changeFrequency: "weekly" as const,
           priority: 0.85,
         }));
@@ -196,7 +187,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       const path = tag.urlPath.startsWith("/") ? tag.urlPath.slice(1) : tag.urlPath;
       return {
         url: `${BASE_URL}/${path}`,
-        lastModified: new Date(),
         changeFrequency: "weekly" as const,
         priority: 0.9,
       };
@@ -211,7 +201,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       seenL2.add(path);
       l2Urls.push({
         url: `${BASE_URL}/${path}`,
-        lastModified: new Date(),
         changeFrequency: "weekly" as const,
         priority: 0.7,
       });

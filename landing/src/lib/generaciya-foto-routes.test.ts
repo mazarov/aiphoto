@@ -7,7 +7,10 @@ import {
   getGeneraciyaFotoScenarioPath,
   isGeneraciyaFotoScenarioPath,
 } from "./generaciya-foto-routes";
-import { GENERACIYA_FOTO_SCENARIO_COPY } from "./generaciya-foto-scenario-copy";
+import {
+  GENERACIYA_FOTO_SCENARIO_COPY,
+  getGeneraciyaFotoScenarioStarterPrompt,
+} from "./generaciya-foto-scenario-copy";
 
 test("generation scenario routes cover every hub chip and core SEO page", () => {
   assert.deepEqual(
@@ -105,6 +108,10 @@ test("every scenario has unique, complete SEO copy", () => {
     assert.ok(scenario.faq.length >= 3);
     assert.ok(scenario.contentBlocks.length >= 1);
     assert.match(scenario.promptCatalogHref, /^\//);
+    assert.match(
+      getGeneraciyaFotoScenarioStarterPrompt(scenario),
+      /^Создай /
+    );
   }
 
   const women = GENERACIYA_FOTO_SCENARIO_COPY.find(

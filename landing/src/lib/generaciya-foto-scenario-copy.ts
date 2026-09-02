@@ -30,6 +30,19 @@ export type GeneraciyaFotoScenarioCopy = {
   contentBlocks: readonly GeneraciyaFotoScenarioContentBlock[];
 };
 
+export function getGeneraciyaFotoScenarioStarterPrompt(
+  copy: GeneraciyaFotoScenarioCopy
+): string {
+  const action = copy.h1.replace(/^Сделать(?=\s)/, "Создай");
+  const details = copy.howToSteps[1]
+    .replace(/^Опишите(?=\s)/, "Опиши")
+    .replace(/^Укажите(?=\s)/, "Укажи")
+    .replace(/^Уточните(?=\s)/, "Уточни")
+    .replace(/^Выберите(?=\s)/, "Выбери")
+    .replace(/^Добавьте(?=\s)/, "Добавь");
+  return `${action}. ${details}`;
+}
+
 type ProgrammaticScenarioInput = {
   metaTitleBase: string;
   h1Base: string;

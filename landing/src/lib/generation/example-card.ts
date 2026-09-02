@@ -49,6 +49,21 @@ export function toGenerationExampleCard(
   };
 }
 
+export function withGenerationExampleFallbackTitle(
+  card: GenerationExampleCard,
+  fallbackTitle: string
+): GenerationExampleCard {
+  const title = card.title.trim();
+  if (
+    title &&
+    !/^visual hook:/i.test(title) &&
+    /[а-яё]/i.test(title)
+  ) {
+    return card;
+  }
+  return { ...card, title: fallbackTitle };
+}
+
 export function writeGenerationExampleNavigation(
   cards: GenerationExampleCard[]
 ): void {

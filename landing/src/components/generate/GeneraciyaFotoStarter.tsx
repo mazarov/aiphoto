@@ -88,8 +88,13 @@ function ModeIcon({ mode }: { mode: StarterMode }) {
 
 export function GeneraciyaFotoStarter({
   copy,
+  initialPrompt = "",
+  sectionId,
 }: {
   copy?: GeneraciyaFotoStarterCopy;
+  /** Scenario pages can open compose with a useful, editable first draft. */
+  initialPrompt?: string;
+  sectionId?: string;
 } = {}) {
   const modes: Array<{
     id: StarterMode;
@@ -200,7 +205,7 @@ export function GeneraciyaFotoStarter({
       fileInputRef.current?.click();
       return;
     }
-    seedBlankPrompt("", {
+    seedBlankPrompt(initialPrompt, {
       entrySource: "route",
       intent: "text",
       dockSurface: "prompt",
@@ -226,7 +231,10 @@ export function GeneraciyaFotoStarter({
   };
 
   return (
-    <div className={`mt-8 w-full text-left sm:mt-10 ${GF_BLOCK}`}>
+    <div
+      id={sectionId}
+      className={`mt-8 w-full scroll-mt-20 text-left sm:mt-10 ${GF_BLOCK}`}
+    >
       <div
         className="grid grid-cols-1 gap-3 sm:grid-cols-2"
         role="tablist"

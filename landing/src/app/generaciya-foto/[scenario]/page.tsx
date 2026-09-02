@@ -6,6 +6,7 @@ import { AdLandingHeading } from "@/components/AdLandingHeading";
 import { PageLayout } from "@/components/PageLayout";
 import { GeneraciyaFotoExamplesExplorer } from "@/components/generate/GeneraciyaFotoExamplesExplorer";
 import { GeneraciyaFotoHeroCarousel } from "@/components/generate/GeneraciyaFotoHeroCarousel";
+import { GeneraciyaFotoStarter } from "@/components/generate/GeneraciyaFotoStarter";
 import {
   enrichCardsWithDetails,
   fetchRouteCards,
@@ -22,9 +23,13 @@ import {
 import { getGeneraciyaFotoChipNavigation } from "@/lib/generaciya-foto-chip-nav";
 import {
   findGeneraciyaFotoScenarioCopy,
+  getGeneraciyaFotoScenarioStarterPrompt,
   type GeneraciyaFotoScenarioCopy,
 } from "@/lib/generaciya-foto-scenario-copy";
-import { toGenerationExampleCard } from "@/lib/generation/example-card";
+import {
+  toGenerationExampleCard,
+  withGenerationExampleFallbackTitle,
+} from "@/lib/generation/example-card";
 import { GENERACIYA_FOTO_SEO } from "@/lib/generaciya-foto-seo-copy";
 
 export const revalidate = 3600;
@@ -77,7 +82,7 @@ const getScenarioCards = cache(
       return await fetchRouteCards({
         ...BASE_RPC_PARAMS,
         [route.dimension]: route.tagValue,
-        limit: 50,
+        limit: 24,
         offset: 0,
         min_cards: 1,
         sort: "new",
@@ -270,11 +275,19 @@ export default async function GeneraciyaFotoScenarioPage({ params }: Props) {
 
   const ogImage = cards[0]?.photoUrls[0] || (await getScenarioOgImage(slug));
   const schemas = buildJsonLd(copy, ogImage, cards);
-  const exampleCards = cards.map(toGenerationExampleCard);
+  const exampleCards = cards
+    .map(toGenerationExampleCard)
+    .map((card, index) =>
+      withGenerationExampleFallbackTitle(
+        card,
+        `Пример: ${copy.label.toLowerCase()} — ${index + 1}`
+      )
+    );
   const galleryCards = exampleCards.slice(0, 16);
   const carouselCards = exampleCards
     .filter((card) => card.photoUrl)
-    .slice(0, 50);
+    .slice(0, 12);
+  const starterPrompt = getGeneraciyaFotoScenarioStarterPrompt(copy);
 
   return (
     <PageLayout showFooterWithGenerateDock>
@@ -331,9 +344,23 @@ export default async function GeneraciyaFotoScenarioPage({ params }: Props) {
             <p className="mx-auto mt-4 max-w-2xl text-pretty text-base leading-relaxed text-zinc-600 sm:text-lg">
               {copy.intro}
             </p>
+            <GeneraciyaFotoStarter
+              sectionId="scenario-generator"
+              initialPrompt={starterPrompt}
+              copy={{
+                byTextTitle: "Создать по описанию",
+                byTextLead: `Промт для темы «${copy.label}» уже подготовлен`,
+                byPhotoTitle: "Создать по своему фото",
+                byPhotoLead: "Загрузите снимок — промт соберём автоматически",
+              }}
+            />
+            <p className="mx-auto mt-3 max-w-2xl text-sm leading-relaxed text-zinc-500">
+              {GENERACIYA_FOTO_SEO.generatorNote}
+            </p>
             <GeneraciyaFotoHeroCarousel
               cards={carouselCards}
-              ctaHref="#primery"
+              ctaLabel="Создать фото"
+              ctaHref="#scenario-generator"
               ariaLabel={`Примеры: ${copy.h1}`}
             />
           </div>
@@ -368,6 +395,29 @@ export default async function GeneraciyaFotoScenarioPage({ params }: Props) {
                 работать.
               </div>
             )}
+          </section>
+
+          <section aria-labelledby="scenario-prompt">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-indigo-600">
+              Готовый старт
+            </p>
+            <h2
+              id="scenario-prompt"
+              className="mt-2 text-2xl font-bold tracking-tight text-zinc-900 sm:text-3xl"
+            >
+              Промт для первого результата
+            </h2>
+            <div className="mt-4 max-w-3xl rounded-2xl border border-indigo-100 bg-indigo-50/60 p-5">
+              <p className="text-sm leading-relaxed text-zinc-700 sm:text-base">
+                {starterPrompt}
+              </p>
+              <Link
+                href="#scenario-generator"
+                className="mt-4 inline-flex min-h-11 items-center justify-center rounded-full bg-indigo-600 px-5 text-sm font-semibold text-white transition hover:bg-indigo-700"
+              >
+                Перейти к генератору
+              </Link>
+            </div>
           </section>
 
           <section aria-labelledby="scenario-how-to">
@@ -417,6 +467,36 @@ export default async function GeneraciyaFotoScenarioPage({ params }: Props) {
               </div>
             </section>
           ))}
+
+          <section
+            aria-labelledby="scenario-related"
+            className="rounded-2xl border border-zinc-200 bg-zinc-50/70 p-5 sm:p-6"
+          >
+            <h2
+              id="scenario-related"
+              className="text-xl font-bold tracking-tight text-zinc-900 sm:text-2xl"
+            >
+              Больше идей по этой теме
+            </h2>
+            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-zinc-600 sm:text-base">
+              Здесь создаётся один кадр. Для серии снимков или просмотра
+              готовых промтов откройте тематическую подборку.
+            </p>
+            <div className="mt-4 flex flex-wrap gap-3">
+              <Link
+                href={copy.promptCatalogHref}
+                className="inline-flex min-h-11 items-center justify-center rounded-full bg-indigo-600 px-5 text-sm font-semibold text-white transition hover:bg-indigo-700"
+              >
+                {copy.promptCatalogLabel}
+              </Link>
+              <Link
+                href="/generaciya-foto"
+                className="inline-flex min-h-11 items-center justify-center rounded-full border border-zinc-300 bg-white px-5 text-sm font-semibold text-zinc-700 transition hover:border-indigo-300 hover:text-indigo-700"
+              >
+                Все сценарии генерации
+              </Link>
+            </div>
+          </section>
 
           <section aria-labelledby="scenario-faq">
             <h2

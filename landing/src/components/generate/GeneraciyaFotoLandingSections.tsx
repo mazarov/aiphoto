@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { GeneraciyaFotoReviewsCarousel } from "@/components/generate/GeneraciyaFotoReviewsCarousel";
 import { GeneraciyaFotoThemesCarousel } from "@/components/generate/GeneraciyaFotoThemesCarousel";
 import { GeneraciyaFotoToolsGrid } from "@/components/generate/GeneraciyaFotoToolsGrid";
 import {
@@ -18,7 +17,6 @@ import {
   GENERACIYA_FOTO_HOW_TO_STEPS,
   GENERACIYA_FOTO_MORE_TITLE,
   GENERACIYA_FOTO_PRICING,
-  GENERACIYA_FOTO_REVIEWS,
   GENERACIYA_FOTO_SEO,
   GENERACIYA_FOTO_THEMES,
   GENERACIYA_FOTO_TOOLS,
@@ -160,37 +158,6 @@ export function GeneraciyaFotoHowTo({
         <Link href="#generator" className={`${GF_STACK} ${GF_BRAND_CTA}`}>
           {cta}
         </Link>
-      </div>
-    </section>
-  );
-}
-
-export function GeneraciyaFotoReviews({
-  quote = GENERACIYA_FOTO_REVIEWS.quote,
-  quoteAuthor = GENERACIYA_FOTO_REVIEWS.quoteAuthor,
-  title = GENERACIYA_FOTO_REVIEWS.title,
-  items = GENERACIYA_FOTO_REVIEWS.items,
-}: {
-  quote?: string;
-  quoteAuthor?: string;
-  title?: string;
-  items?: readonly { name: string; text: string }[];
-} = {}) {
-  return (
-    <section id="otzyvy" className={sectionClass} aria-labelledby="reviews-heading">
-      <div className={GF_BLOCK}>
-        <blockquote className="max-w-3xl">
-          <p className="text-xl font-semibold tracking-tight text-zinc-900 sm:text-2xl">
-            «{quote}»
-          </p>
-          <footer className="mt-2 text-sm text-zinc-500">
-            (с) {quoteAuthor}
-          </footer>
-        </blockquote>
-        <h2 id="reviews-heading" className={`${GF_STACK} ${GF_H2}`}>
-          {title}
-        </h2>
-        <GeneraciyaFotoReviewsCarousel items={items} ariaLabel={title} />
       </div>
     </section>
   );

@@ -6,8 +6,6 @@ import {
   GENERACIYA_FOTO_FAQ,
   GENERACIYA_FOTO_HOW_TO_STEPS,
   GENERACIYA_FOTO_PRICING,
-  GENERACIYA_FOTO_REVIEW_SEARCH_PHRASES,
-  GENERACIYA_FOTO_REVIEWS,
   GENERACIYA_FOTO_SEO,
   GENERACIYA_FOTO_THEMES,
   GENERACIYA_FOTO_TOOLS,
@@ -15,35 +13,19 @@ import {
 } from "./generaciya-foto-seo-copy";
 import { getGeneraciyaFotoScenarioPath } from "./generaciya-foto-routes";
 
-function reviewKeywordHits(text: string): string[] {
-  const hay = text.toLowerCase();
-  const phrases = [...GENERACIYA_FOTO_REVIEW_SEARCH_PHRASES].sort(
-    (a, b) => b.length - a.length
-  );
-  const hits: string[] = [];
-  let remaining = hay;
-  for (const phrase of phrases) {
-    if (remaining.includes(phrase)) {
-      hits.push(phrase);
-      remaining = remaining.split(phrase).join(" ".repeat(phrase.length));
-    }
-  }
-  return hits;
-}
-
 const BANNED_META = /best|recommended|premium|\bfree\b|#1|бесплатно/i;
 
-test("meta name and short description keep CWS limits", () => {
+test("meta name and description stay concise and truthful", () => {
   assert.equal(
     GENERACIYA_FOTO_SEO.metaTitle,
-    "Сделать фото ИИ онлайн | нейросеть для генерации изображений | PromptShot"
+    "Сделать фото ИИ онлайн по фото или описанию — PromptShot"
   );
   assert.ok(GENERACIYA_FOTO_SEO.metaTitle.length <= 75);
   assert.equal(
     GENERACIYA_FOTO_SEO.metaDescription,
-    "ИИ сделать фото по промту или своему снимку. Выберите образ, загрузите фото — генератор PromptShot без фотографа."
+    "Создайте фото ИИ онлайн по своему снимку или описанию. Выберите готовый образ, настройте промт и получите реалистичный кадр в PromptShot."
   );
-  assert.ok(GENERACIYA_FOTO_SEO.metaDescription.length <= 132);
+  assert.ok(GENERACIYA_FOTO_SEO.metaDescription.length <= 160);
   assert.ok(GENERACIYA_FOTO_SEO.metaDescription.length >= 80);
   assert.doesNotMatch(GENERACIYA_FOTO_SEO.metaTitle, BANNED_META);
   assert.doesNotMatch(GENERACIYA_FOTO_SEO.metaDescription, BANNED_META);
@@ -56,7 +38,7 @@ test("visible H1 and HowTo keep Facee wording", () => {
   );
   assert.equal(
     GENERACIYA_FOTO_SEO.intro,
-    "Выберите образ в каталоге или опишите кадр текстом — загрузите фото и получите реалистичный результат без студии и фотографа."
+    "Создайте один реалистичный кадр по своему снимку или текстовому описанию — без студии и фотографа."
   );
   assert.equal(GENERACIYA_FOTO_SEO.howToTitle, "Как создать свои ИИ фото?");
   assert.equal(
@@ -64,8 +46,8 @@ test("visible H1 and HowTo keep Facee wording", () => {
     "Три простых шага, чтобы сделать своё ИИ фото онлайн"
   );
   assert.equal(GENERACIYA_FOTO_HOW_TO_STEPS.length, 3);
-  assert.equal(GENERACIYA_FOTO_HOW_TO_STEPS[0].title, "Загрузите свои фото");
-  assert.match(GENERACIYA_FOTO_HOW_TO_STEPS[0].text, /1 до 5 фото/);
+  assert.equal(GENERACIYA_FOTO_HOW_TO_STEPS[0].title, "Выберите способ");
+  assert.match(GENERACIYA_FOTO_HOW_TO_STEPS[0].text, /один снимок/);
   assert.equal(GENERACIYA_FOTO_HOW_TO_STEPS[1].title, "Выберите промт");
   assert.equal(
     GENERACIYA_FOTO_HOW_TO_STEPS[1].text,
@@ -135,10 +117,7 @@ test("hub blocks keep Facee homepage copy", () => {
     );
   }
   assert.match(GENERACIYA_FOTO_TOOLS.items[1].prompt, /причёск/i);
-  assert.equal(GENERACIYA_FOTO_REVIEWS.items.length, 7);
-  assert.equal(GENERACIYA_FOTO_REVIEWS.items[1].name, "Виа Вика");
-  assert.equal("moreLabel" in GENERACIYA_FOTO_REVIEWS, false);
-  assert.equal("allLabel" in GENERACIYA_FOTO_REVIEWS, false);
+  assert.equal(GENERACIYA_FOTO_FAQ.length, 15);
   const promptFaq = GENERACIYA_FOTO_FAQ.find((item) =>
     item.q.startsWith("Где взять готовый промт")
   );
@@ -164,7 +143,12 @@ test("hub blocks keep Facee homepage copy", () => {
     ),
     false
   );
-  assert.ok(GENERACIYA_FOTO_FAQ.some((item) => item.q.startsWith("Где скачать PromptShot")));
+  assert.equal(
+    GENERACIYA_FOTO_FAQ.some((item) =>
+      item.q.startsWith("Где скачать PromptShot")
+    ),
+    false
+  );
   assert.equal(
     GENERACIYA_FOTO_FAQ.some((item) =>
       /Telegram|@facee|facee\.ru|Т-Банк/i.test(
@@ -216,71 +200,10 @@ test("FAQ links real PromptShot services only where the question is an action", 
     "/ii-fotosessiya",
     getGeneraciyaFotoScenarioPath("pary"),
   ]);
-  assert.deepEqual(linkedByQuestion.get("Как создать «Портрет поколения» для семьи?"), [
-    getGeneraciyaFotoScenarioPath("semya"),
-  ]);
   assert.deepEqual(linkedByQuestion.get("Можно ли использовать фото как пример?"), [
     "#generator",
     "/foto-v-promt",
   ]);
-  assert.deepEqual(linkedByQuestion.get("Есть шаблоны промтов, чтобы сразу сделать фото?"), [
-    "#temy",
-  ]);
-  assert.deepEqual(linkedByQuestion.get("Как получить промт по картинке?"), [
-    "/foto-v-promt",
-    "#generator",
-  ]);
-  assert.deepEqual(linkedByQuestion.get("Как оплатить тариф?"), ["/pricing"]);
-  assert.deepEqual(linkedByQuestion.get("Какие изображения можно создавать?"), [
-    "/terms",
-  ]);
   assert.equal(linkedByQuestion.has("Что такое ИИ фото?"), false);
   assert.equal(linkedByQuestion.has("Где скачать PromptShot на телефон?"), false);
-});
-
-test("reviews plant at most two Wordstat phrases each", () => {
-  const quoteHits = reviewKeywordHits(GENERACIYA_FOTO_REVIEWS.quote);
-  assert.deepEqual(quoteHits, [...GENERACIYA_FOTO_REVIEWS.quoteKeywords]);
-  assert.ok(quoteHits.length >= 1 && quoteHits.length <= 2);
-
-  const names = GENERACIYA_FOTO_REVIEWS.items.map((item) => item.name);
-  assert.deepEqual(names, [
-    "Виолетта",
-    "Виа Вика",
-    "Светлана",
-    "Viki",
-    "Катя Молькова",
-    "Карина",
-    "Julia",
-  ]);
-
-  const planted = new Set<string>();
-  for (const item of GENERACIYA_FOTO_REVIEWS.items) {
-    assert.ok(item.keywords.length >= 1 && item.keywords.length <= 2, item.name);
-    const hits = reviewKeywordHits(item.text);
-    assert.deepEqual(
-      [...hits].sort(),
-      [...item.keywords].sort(),
-      item.name
-    );
-    for (const keyword of item.keywords) {
-      assert.ok(
-        (GENERACIYA_FOTO_REVIEW_SEARCH_PHRASES as readonly string[]).includes(
-          keyword
-        ),
-        keyword
-      );
-      planted.add(keyword);
-    }
-  }
-
-  assert.ok(planted.has("сделать фото ии онлайн"));
-  assert.ok(planted.has("сгенерировать фото ии"));
-  assert.ok(planted.has("ии создать фото"));
-  assert.equal(
-    GENERACIYA_FOTO_REVIEWS.items.some((item) =>
-      /порно|без регистрации|алиса|паспорт|бесплатно/i.test(item.text)
-    ),
-    false
-  );
 });

@@ -7,7 +7,6 @@ import {
   GeneraciyaFotoHowTo,
   GeneraciyaFotoMore,
   GeneraciyaFotoPricing,
-  GeneraciyaFotoReviews,
   GeneraciyaFotoThemes,
   GeneraciyaFotoTools,
 } from "@/components/generate/GeneraciyaFotoLandingSections";
@@ -39,7 +38,10 @@ import {
   parseEnabledGenerationModels,
   type GenerationModelOption,
 } from "@/lib/generation-model-labels";
-import { toGenerationExampleCard } from "@/lib/generation/example-card";
+import {
+  toGenerationExampleCard,
+  withGenerationExampleFallbackTitle,
+} from "@/lib/generation/example-card";
 
 export const revalidate = 3600;
 
@@ -68,7 +70,7 @@ const getGenerationExamples = cache(async (): Promise<RouteCardsResult> => {
   try {
     return await fetchRouteCards({
       ...BASE_RPC_PARAMS,
-      limit: 50,
+      limit: 24,
       offset: 0,
       min_cards: 1,
       sort: "new",
@@ -92,7 +94,7 @@ const getThemeCollagePhotos = cache(async (): Promise<ThemeCollagePayload> => {
         fetchRouteCards({
           ...BASE_RPC_PARAMS,
           [item.dimension]: item.tagValue,
-          limit: 10,
+          limit: 6,
           offset: 0,
           min_cards: 1,
           sort: "new",
@@ -117,7 +119,7 @@ const getThemeCollagePhotos = cache(async (): Promise<ThemeCollagePayload> => {
         const url = photos.get(card.slug)?.photoUrl;
         if (!url || urls.includes(url)) continue;
         urls.push(url);
-        if (urls.length >= 6) break;
+        if (urls.length >= 4) break;
       }
       photosByHref[item.href] = urls;
       countByHref[item.href] =
@@ -310,8 +312,12 @@ export default async function GeneraciyaFotoPage() {
     .filter((card): card is PromptCardFull => Boolean(card));
   const ogImage = cards[0]?.photoUrls[0] || fallbackOgImage;
   const schemas = buildJsonLd(ogImage, cards.slice(0, 16));
-  const exampleCards = cards.map(toGenerationExampleCard);
-  const carouselCards = exampleCards.filter((card) => card.photoUrl).slice(0, 50);
+  const exampleCards = cards
+    .map(toGenerationExampleCard)
+    .map((card, index) =>
+      withGenerationExampleFallbackTitle(card, `Пример фото ИИ — ${index + 1}`)
+    );
+  const carouselCards = exampleCards.filter((card) => card.photoUrl).slice(0, 12);
   const galleryCards = exampleCards.slice(0, 16);
 
   return (
@@ -370,6 +376,9 @@ export default async function GeneraciyaFotoPage() {
               </p>
             ) : null}
             <GeneraciyaFotoStarter />
+            <p className="mx-auto mt-3 max-w-2xl text-sm leading-relaxed text-zinc-500">
+              {GENERACIYA_FOTO_SEO.generatorNote}
+            </p>
           </div>
         </section>
 
@@ -401,7 +410,6 @@ export default async function GeneraciyaFotoPage() {
 
           <GeneraciyaFotoTools />
           <GeneraciyaFotoHowTo />
-          <GeneraciyaFotoReviews />
           <GeneraciyaFotoMore />
 
           <section aria-labelledby="generation-models-heading">
