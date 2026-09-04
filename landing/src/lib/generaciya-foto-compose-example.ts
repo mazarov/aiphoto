@@ -75,7 +75,7 @@ export function composeExampleQuickFilters<
   hubScenarios: readonly T[],
   limit = 7,
 ): Array<(typeof COMPOSE_EXAMPLE_PINNED_FILTERS)[number] | T> {
-  const pinnedValues = new Set(
+  const pinnedValues = new Set<string>(
     COMPOSE_EXAMPLE_PINNED_FILTERS.map((item) => item.value),
   );
   const rest = hubScenarios.filter((item) => !pinnedValues.has(item.value));
