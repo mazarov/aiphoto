@@ -49,6 +49,7 @@ import {
 import { isPreserveOutfitUnlocked } from "@/lib/wardrobe-policy-access";
 import {
   normalizeGenerationSurface,
+  normalizePhotoStoragePaths,
   resolveGenerationSourceType,
 } from "@/lib/generation-enqueue-core";
 import {
@@ -274,9 +275,7 @@ export async function POST(req: NextRequest) {
 
     let normalizedParentGenerationId =
       typeof parentGenerationId === "string" ? parentGenerationId.trim() : "";
-    const normalizedPhotoStoragePaths = Array.isArray(photoStoragePaths)
-      ? photoStoragePaths
-      : [];
+    const normalizedPhotoStoragePaths = normalizePhotoStoragePaths(photoStoragePaths);
     let normalizedEditInstruction = normalizeEditInstruction(editInstruction);
     const hasParentGeneration = Boolean(normalizedParentGenerationId);
     if (isListingVideoRepeat) {

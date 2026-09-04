@@ -18,12 +18,11 @@ import {
   createSupabaseServer,
   enrichCardsWithDetails,
   fetchRouteCards,
-  getCardPhotosBySlugs,
   getFirstCardPhotoUrl,
-  getStoragePublicUrl,
   type PromptCardFull,
   type RouteCardsResult,
 } from "@/lib/supabase";
+import { fetchNewestThemeCollagePhotos } from "@/lib/homepage-sections";
 import {
   flattenGeneraciyaFotoFaqAnswer,
   formatGeneraciyaFotoSocialProof,
@@ -82,55 +81,12 @@ const getGenerationExamples = cache(async (): Promise<RouteCardsResult> => {
   }
 });
 
-type ThemeCollagePayload = {
-  photosByHref: Record<string, string[]>;
-  countByHref: Record<string, number>;
-};
-
-const getThemeCollagePhotos = cache(async (): Promise<ThemeCollagePayload> => {
-  const empty: ThemeCollagePayload = { photosByHref: {}, countByHref: {} };
+const getThemeCollagePhotos = cache(async () => {
   try {
-    const results = await Promise.all(
-      GENERACIYA_FOTO_THEMES.items.map((item) =>
-        fetchRouteCards({
-          ...BASE_RPC_PARAMS,
-          [item.dimension]: item.tagValue,
-          limit: 6,
-          offset: 0,
-          min_cards: 1,
-          sort: "new",
-        }).catch((error) => {
-          console.error(
-            `[GeneraciyaFotoPage] fetch theme ${item.tagValue} failed`,
-            error
-          );
-          return EMPTY_RESULT;
-        })
-      )
-    );
-    const photos = await getCardPhotosBySlugs(
-      results.flatMap((result) => result.cards.map((card) => card.slug))
-    );
-    const photosByHref: Record<string, string[]> = {};
-    const countByHref: Record<string, number> = {};
-
-    for (const [index, item] of GENERACIYA_FOTO_THEMES.items.entries()) {
-      const urls: string[] = [];
-      for (const card of results[index].cards) {
-        const url = photos.get(card.slug)?.photoUrl;
-        if (!url || urls.includes(url)) continue;
-        urls.push(url);
-        if (urls.length >= 4) break;
-      }
-      photosByHref[item.href] = urls;
-      countByHref[item.href] =
-        results[index].total_count || results[index].cards_count || 0;
-    }
-
-    return { photosByHref, countByHref };
+    return await fetchNewestThemeCollagePhotos(GENERACIYA_FOTO_THEMES.items);
   } catch (error) {
     console.error("[GeneraciyaFotoPage] fetch theme photos failed", error);
-    return empty;
+    return { photosByHref: {}, countByHref: {} };
   }
 });
 

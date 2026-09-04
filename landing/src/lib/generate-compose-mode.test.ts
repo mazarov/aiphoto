@@ -119,7 +119,7 @@ test("library frame is the selected «Ваши фото» tile, not a generation
 test("compose tiles and generate CTA follow the selected block", () => {
   assert.equal(composeModeTileLabel("image"), "Фото");
   assert.equal(composeModeTileLabel("video"), "Видео");
-  assert.equal(composeModeTileLabel("photoshoot"), "ИИ фотосессия");
+  assert.equal(composeModeTileLabel("photoshoot"), "Фотосессии");
   assert.equal(composeModeTileLabel("photo_prompt"), "Промт по фото");
   assert.equal(composeGenerateCtaLabel("image"), "Создать фото");
   assert.equal(composeGenerateCtaLabel("video"), "Создать видео");

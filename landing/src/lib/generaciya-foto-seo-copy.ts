@@ -19,8 +19,8 @@ export const GENERACIYA_FOTO_SEO = {
   chipHubAria: "Все шаблоны: сделать фото ИИ",
   starterByTextTitle: "Генерация по тексту",
   starterByTextLead: "Напишите сцену своими словами",
-  starterByPhotoTitle: "Генерация по фото",
-  starterByPhotoLead: "Загрузите снимок — промт соберём сами",
+  starterByPhotoTitle: "С вашим фото",
+  starterByPhotoLead: "Загрузите селфи — в генераторе выберите образ из каталога",
   generatorTitle: "Создать фото по описанию или промту",
   generatorNote:
     "Для запуска нужен вход в PromptShot. Стоимость в кредитах показывается рядом с выбранной моделью до генерации.",

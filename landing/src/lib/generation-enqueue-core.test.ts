@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   normalizeGenerationSurface,
+  normalizePhotoStoragePaths,
   resolveGenerationSourceType,
   restoreSelectedPhotoIds,
 } from "./generation-enqueue-core";
@@ -9,6 +10,20 @@ import {
 test("sourceType is text_only when initial gen has zero photos", () => {
   assert.equal(
     resolveGenerationSourceType({ hasParentGeneration: false, photoCount: 0 }),
+    "text_only"
+  );
+});
+
+test("empty photo paths are dropped so ephemeral [] is text_only", () => {
+  assert.deepEqual(normalizePhotoStoragePaths(["", "  ", "user/a.jpg"]), [
+    "user/a.jpg",
+  ]);
+  assert.deepEqual(normalizePhotoStoragePaths(undefined), []);
+  assert.equal(
+    resolveGenerationSourceType({
+      hasParentGeneration: false,
+      photoCount: normalizePhotoStoragePaths([""]).length,
+    }),
     "text_only"
   );
 });

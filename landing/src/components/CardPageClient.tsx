@@ -302,6 +302,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
         promptText,
         cardId: data.id,
         intent: cardRepeatComposeIntent({ videoUrl: data.videoUrl }),
+        examplePreviewUrl: photos[photoIndex] || null,
       },
       { entrySource: "card" }
     );
@@ -316,7 +317,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
     leaveCardForGenerate,
     openAuthModal,
     photoIndex,
-    photos.length,
+    photos,
     seedFromCard,
   ]);
 

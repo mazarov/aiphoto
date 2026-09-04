@@ -194,7 +194,7 @@ test("photoshoot CTA is 4 frames for 15 credits", () => {
   assert.equal(PHOTOSHOOT_CREDIT_COST, 15);
   assert.equal(PHOTOSHOOT_FALLBACK_DEFAULT_MODEL, "flux-2-flex");
   assert.equal(PHOTOSHOOT_FLUX_SAFETY_TOLERANCE, 5);
-  assert.equal(PHOTOSHOOT_CTA_LABEL, "ИИ фотосессия");
+  assert.equal(PHOTOSHOOT_CTA_LABEL, "Фотосессии");
   assert.equal(photoshootCtaDetail(), "4 фото");
 });
 

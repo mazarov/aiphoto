@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  applyComposeExampleToSeed,
+  applySeoSelfieToSeed,
+  catalogCardRepeatSeed,
+  composeExamplePreviewUrlForSeed,
+  mergeComposeExampleIntoSeed,
   DEFAULT_GENERATE_DOCK_SEED,
   defaultDockSurfaceForComposeEntry,
   isCompletedResultSeed,
@@ -51,6 +56,13 @@ test("same compose identity ignores dockSurface-only reopen", () => {
   const current = seed({ intent: "photoshoot" });
   assert.equal(sameGenerateDockComposeIdentity(current, seed({ intent: "photoshoot" })), true);
   assert.equal(sameGenerateDockComposeIdentity(current, seed({ intent: "photo_prompt" })), false);
+  assert.equal(
+    sameGenerateDockComposeIdentity(
+      seed({ intent: "text" }),
+      seed({ intent: "text", attachIdentityPhoto: true }),
+    ),
+    false,
+  );
 });
 
 test("isResumeComposeSeed is false for photo_prompt with empty prompt", () => {
@@ -206,5 +218,87 @@ test("animate seed skips last-result hydrate and parent library photos", () => {
   assert.equal(
     shouldAttachLibraryPhotos(seed({ intent: "animate", parentGenerationId: null })),
     true
+  );
+});
+
+test("compose example preview rejects data and blob URLs", () => {
+  assert.equal(composeExamplePreviewUrlForSeed("https://cdn.example/a.jpg"), "https://cdn.example/a.jpg");
+  assert.equal(composeExamplePreviewUrlForSeed("data:image/jpeg;base64,xx"), null);
+  assert.equal(composeExamplePreviewUrlForSeed("blob:https://promptshot.ru/x"), null);
+});
+
+test("applyComposeExampleToSeed keeps selfie identity and writes catalog pick", () => {
+  const next = applyComposeExampleToSeed(
+    seed({
+      intent: "text",
+      attachIdentityPhoto: true,
+      previewUrl: "data:image/jpeg;base64,selfie",
+    }),
+    {
+      cardId: "card-osen",
+      promptText: "осенний портрет",
+      examplePreviewUrl: "https://cdn.example/osen.jpg",
+    },
+  );
+  assert.equal(next.cardId, "card-osen");
+  assert.equal(next.promptText, "осенний портрет");
+  assert.equal(next.examplePreviewUrl, "https://cdn.example/osen.jpg");
+  assert.equal(next.attachIdentityPhoto, true);
+  assert.equal(next.previewUrl, "data:image/jpeg;base64,selfie");
+});
+
+test("SEO selfie seed keeps a catalog example the guest already picked", () => {
+  const next = applySeoSelfieToSeed(
+    seed({
+      intent: "text",
+      cardId: "card-osen",
+      promptText: "осенний портрет",
+      examplePreviewUrl: "https://cdn.example/osen.jpg",
+    }),
+    { previewUrl: "data:image/jpeg;base64,selfie" },
+  );
+  assert.equal(next.cardId, "card-osen");
+  assert.equal(next.promptText, "осенний портрет");
+  assert.equal(next.examplePreviewUrl, "https://cdn.example/osen.jpg");
+  assert.equal(next.attachIdentityPhoto, true);
+  assert.equal(next.previewUrl, "data:image/jpeg;base64,selfie");
+});
+
+test("catalogCardRepeatSeed puts the listing card into the example tile", () => {
+  const next = catalogCardRepeatSeed({
+    promptText: "осенний портрет",
+    cardId: "card-osen",
+    examplePreviewUrl: "https://cdn.example/osen.jpg",
+  });
+  assert.equal(next.source, "card");
+  assert.equal(next.intent, "resume");
+  assert.equal(next.cardId, "card-osen");
+  assert.equal(next.promptText, "осенний портрет");
+  assert.equal(next.examplePreviewUrl, "https://cdn.example/osen.jpg");
+});
+
+test("catalogCardRepeatSeed drops data-url previews and keeps video intent", () => {
+  const next = catalogCardRepeatSeed({
+    promptText: "ветер в волосах",
+    cardId: "card-video",
+    intent: "animate",
+    examplePreviewUrl: "data:image/jpeg;base64,xx",
+  });
+  assert.equal(next.intent, "animate");
+  assert.equal(next.cardId, "card-video");
+  assert.equal(next.examplePreviewUrl, null);
+});
+
+test("mergeComposeExampleIntoSeed fills an empty auth-return seed", () => {
+  const next = mergeComposeExampleIntoSeed(seed({ intent: "text" }), {
+    cardId: "card-osen",
+    promptText: "осенний портрет",
+    examplePreviewUrl: "https://cdn.example/osen.jpg",
+  });
+  assert.equal(next.cardId, "card-osen");
+  assert.equal(next.promptText, "осенний портрет");
+  assert.equal(
+    mergeComposeExampleIntoSeed(seed({ cardId: "keep" }), null).cardId,
+    "keep",
   );
 });

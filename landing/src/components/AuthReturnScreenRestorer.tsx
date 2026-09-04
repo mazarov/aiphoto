@@ -9,6 +9,7 @@ import {
   consumeAuthReturnScrollY,
   isAuthReturnRestorePending,
 } from "@/lib/auth-return-path";
+import { shouldRestorePendingGenerateDock } from "@/lib/generate-dock-pending";
 import { pinAuthReturnCard } from "@/lib/auth-return-card-pin";
 import {
   bindAuthReturnOverlay,
@@ -37,6 +38,12 @@ export function AuthReturnScreenRestorer() {
 
   useLayoutEffect(() => {
     if (ranRef.current) return;
+    if (
+      typeof window !== "undefined" &&
+      !shouldRestorePendingGenerateDock(window.location.pathname)
+    ) {
+      return;
+    }
     if (!isAuthReturnRestorePending()) return;
     ranRef.current = true;
 

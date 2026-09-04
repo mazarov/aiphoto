@@ -13,6 +13,10 @@ export type GenerateDockSeed = {
   promptText: string;
   cardId: string | null;
   intent: GenerateDockComposeIntent;
+  /** SEO selfie flow: attach uploaded identity photo in image compose (not photo_prompt analyze). */
+  attachIdentityPhoto?: boolean;
+  /** Catalog example tile preview (https). Not the identity selfie. */
+  examplePreviewUrl?: string | null;
   parentGenerationId?: string | null;
   previewUrl?: string | null;
   resultGenerationId?: string | null;
@@ -24,6 +28,93 @@ export type GenerateDockSeed = {
 
 export function photoshootTileUrlsFromUnknown(raw: unknown): string[] | null {
   return parsePhotoshootTilePaths(raw);
+}
+
+/** Catalog example thumbs may be persisted; identity data:/blob: must not. */
+export function composeExamplePreviewUrlForSeed(
+  url?: string | null,
+): string | null {
+  const value = (url || "").trim();
+  if (!value) return null;
+  if (value.startsWith("data:") || value.startsWith("blob:")) return null;
+  return value;
+}
+
+/** Guest/auth-return SSOT: catalog pick lives on the dock seed, not panel locals. */
+export function applyComposeExampleToSeed(
+  seed: GenerateDockSeed,
+  pick: {
+    cardId: string;
+    promptText: string;
+    examplePreviewUrl?: string | null;
+  },
+): GenerateDockSeed {
+  const cardId = pick.cardId.trim();
+  return {
+    ...seed,
+    cardId: cardId || null,
+    promptText: pick.promptText.trim(),
+    examplePreviewUrl: composeExamplePreviewUrlForSeed(pick.examplePreviewUrl),
+  };
+}
+
+/** Starter selfie must not wipe a catalog example the guest already picked. */
+export function applySeoSelfieToSeed(
+  seed: GenerateDockSeed,
+  input: { previewUrl: string },
+): GenerateDockSeed {
+  const previewUrl = input.previewUrl.trim();
+  return {
+    ...seed,
+    source: "blank",
+    intent: "text",
+    previewUrl,
+    attachIdentityPhoto: true,
+  };
+}
+
+/** Catalog «Повторить»: same seed from card overlay and listing hover. */
+export function catalogCardRepeatSeed(input: {
+  promptText: string;
+  cardId: string;
+  intent?: GenerateDockComposeIntent;
+  examplePreviewUrl?: string | null;
+}): GenerateDockSeed {
+  const intent = input.intent === "animate" ? "animate" : "resume";
+  return applyComposeExampleToSeed(
+    {
+      source: "card",
+      promptText: "",
+      cardId: null,
+      intent,
+    },
+    {
+      cardId: input.cardId,
+      promptText: input.promptText,
+      examplePreviewUrl: input.examplePreviewUrl,
+    },
+  );
+}
+
+/** Auth-return: catalog pick sidecar wins over an empty restored seed. */
+export function mergeComposeExampleIntoSeed(
+  seed: GenerateDockSeed,
+  example:
+    | {
+        cardId: string;
+        promptText: string;
+        examplePreviewUrl?: string | null;
+      }
+    | null
+    | undefined,
+): GenerateDockSeed {
+  const cardId = example?.cardId?.trim() || "";
+  if (!cardId) return seed;
+  return applyComposeExampleToSeed(seed, {
+    cardId,
+    promptText: example?.promptText ?? "",
+    examplePreviewUrl: example?.examplePreviewUrl,
+  });
 }
 
 export const DEFAULT_GENERATE_DOCK_SEED: GenerateDockSeed = {
@@ -63,6 +154,7 @@ export function sameGenerateDockComposeIdentity(
     current.source === next.source &&
     current.promptText === next.promptText &&
     current.cardId === next.cardId &&
+    Boolean(current.attachIdentityPhoto) === Boolean(next.attachIdentityPhoto) &&
     (current.parentGenerationId ?? null) === (next.parentGenerationId ?? null) &&
     (current.resultGenerationId ?? null) === (next.resultGenerationId ?? null)
   );
@@ -98,9 +190,9 @@ export function isRestorableLastDockResult(
 export function resolveDockSurfaceForComposeEntry(input: {
   intent: GenerateDockComposeIntent;
   entrySource?: string | null;
-  explicit?: "prompt" | "photos" | "model" | null;
+  explicit?: "prompt" | "photos" | "model" | "example" | null;
   hasRestorableLastResult?: boolean;
-}): "prompt" | "photos" | "model" | null {
+}): "prompt" | "photos" | "model" | "example" | null {
   if (input.explicit !== undefined) return input.explicit;
   /**
    * Tab / FAB reopen the dock — last completed frame stays on the plate.

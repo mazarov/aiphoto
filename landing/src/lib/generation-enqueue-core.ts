@@ -18,6 +18,18 @@ export function resolveGenerationSourceType(input: {
   return input.photoCount > 0 ? "user_photos" : "text_only";
 }
 
+/** Drop empty / non-string paths so an ephemeral selfie cannot count as a library photo. */
+export function normalizePhotoStoragePaths(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  const paths: string[] = [];
+  for (const item of raw) {
+    if (typeof item !== "string") continue;
+    const path = item.trim();
+    if (path) paths.push(path);
+  }
+  return paths;
+}
+
 /**
  * Restore composer photo selection.
  * Explicit stored `[]` stays empty (text-only). Missing prefs, or a stored

@@ -112,7 +112,7 @@ export function composeModeTileSheet(
 /** Mode tile caption. Preview photo stays on «Ваши фото», not on these tiles. */
 export function composeModeTileLabel(mode: GenerateComposeMode): string {
   if (mode === "video") return "Видео";
-  if (mode === "photoshoot") return "ИИ фотосессия";
+  if (mode === "photoshoot") return "Фотосессии";
   if (mode === "photo_prompt") return "Промт по фото";
   return "Фото";
 }

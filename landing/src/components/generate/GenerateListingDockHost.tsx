@@ -80,7 +80,8 @@ export function GenerateListingDockHost() {
     plateOpen &&
     !isMobile &&
     !plateLocked &&
-    dockSurface === null;
+    dockSurface === null &&
+    !seoPage;
   /** Collapse only after a deliberate scroll — not trackpad/touch jitter. */
   const scrolling = useListingScrollActivity({
     enabled: halfOpenCompose,

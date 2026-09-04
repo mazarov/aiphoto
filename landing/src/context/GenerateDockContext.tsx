@@ -18,6 +18,9 @@ import {
   photoshootTileUrlsFromUnknown,
   resolveDockSurfaceForComposeEntry,
   sameGenerateDockComposeIdentity,
+  applyComposeExampleToSeed,
+  applySeoSelfieToSeed,
+  catalogCardRepeatSeed,
   type GenerateDockComposeIntent,
   type GenerateDockSeed,
   type LastDockResult,
@@ -27,6 +30,8 @@ import {
   consumePendingGenerateDock,
   persistPendingGenerateDock,
   seedForAuthReturnDock,
+  shouldRestorePendingGenerateDock,
+  takePendingComposeExample,
 } from "@/lib/generate-dock-pending";
 import {
   dockSurfaceForCardRepeat,
@@ -53,7 +58,7 @@ export {
 } from "@/lib/generate-dock-path";
 
 /** Blank dock editor surface — mutual exclusion SSOT for shell stretch. */
-export type GenerateDockSurface = "prompt" | "photos" | "model" | null;
+export type GenerateDockSurface = "prompt" | "photos" | "model" | "example" | null;
 
 export type GenerateDockEntrySource =
   | "tab"
@@ -131,12 +136,24 @@ type GenerateDockContextType = {
     args: { previewUrl: string; dataUrl: string },
     options?: { entrySource?: GenerateDockEntrySource }
   ) => void;
+  /** SEO hub: selfie in image compose + pick catalog example (not photo_prompt analyze). */
+  seedSeoSelfieCompose: (
+    args: { previewUrl: string; dataUrl: string },
+    options?: { entrySource?: GenerateDockEntrySource }
+  ) => void;
+  /** Catalog example on SEO compose — updates seed without remounting the panel. */
+  applyComposeExamplePick: (pick: {
+    cardId: string;
+    promptText: string;
+    examplePreviewUrl?: string | null;
+  }) => void;
   /** Seed prompt from prompt card, then caller closes the card. */
   seedFromCard: (
     args: {
       promptText: string;
       cardId: string;
       intent?: GenerateDockComposeIntent;
+      examplePreviewUrl?: string | null;
     },
     options?: { entrySource?: GenerateDockEntrySource }
   ) => void;
@@ -194,6 +211,8 @@ const GenerateDockContext = createContext<GenerateDockContextType>({
   seedBlankPrompt: () => {},
   seedPhotoshoot: () => {},
   seedPhotoPrompt: () => {},
+  seedSeoSelfieCompose: () => {},
+  applyComposeExamplePick: () => {},
   seedFromCard: () => {},
   seedAnimate: () => {},
   seedCompletedResult: () => {},
@@ -224,18 +243,40 @@ export function GenerateDockProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (authLoading || restoredPendingRef.current) return;
+    if (
+      typeof window !== "undefined" &&
+      !shouldRestorePendingGenerateDock(window.location.pathname)
+    ) {
+      return;
+    }
     restoredPendingRef.current = true;
     const pending = consumePendingGenerateDock();
-    if (!pending) return;
-    setSeed(pending.seed);
+    const example = takePendingComposeExample();
+    if (!pending && !example) return;
+    const next = seedForAuthReturnDock(
+      pending?.seed.intent ?? "resume",
+      pending,
+      example,
+    );
+    setSeed(next.seed);
     setSeedToken((token) => token + 1);
     setPlateOpen(true);
-    setDockSurface(pending.dockSurface);
+    setDockSurface(next.dockSurface);
   }, [authLoading]);
 
   const restoreFromAuthReturn = useCallback((intent: GenerateDockComposeIntent) => {
+    if (
+      typeof window !== "undefined" &&
+      !shouldRestorePendingGenerateDock(window.location.pathname)
+    ) {
+      return;
+    }
     restoredPendingRef.current = true;
-    const next = seedForAuthReturnDock(intent, consumePendingGenerateDock());
+    const next = seedForAuthReturnDock(
+      intent,
+      consumePendingGenerateDock(),
+      takePendingComposeExample(),
+    );
     setSeed(next.seed);
     setSeedToken((token) => token + 1);
     setLastDockResultDismissed(next.seed.intent === "photo_prompt");
@@ -353,17 +394,14 @@ export function GenerateDockProvider({ children }: { children: ReactNode }) {
         promptText: string;
         cardId: string;
         intent?: GenerateDockComposeIntent;
+        examplePreviewUrl?: string | null;
       },
       options?: { entrySource?: GenerateDockEntrySource }
     ) => {
-      const intent = args.intent === "animate" ? "animate" : "resume";
-      const dockSurface = dockSurfaceForCardRepeat(intent);
-      const nextSeed: GenerateDockSeed = {
-        source: "card",
-        promptText: args.promptText,
-        cardId: args.cardId,
-        intent,
-      };
+      const nextSeed = catalogCardRepeatSeed(args);
+      const dockSurface = dockSurfaceForCardRepeat(
+        nextSeed.intent === "animate" ? "animate" : "resume",
+      );
       setSeed(nextSeed);
       setSeedToken((token) => token + 1);
       setPlateOpen(true);
@@ -543,6 +581,54 @@ export function GenerateDockProvider({ children }: { children: ReactNode }) {
     [trackOpen]
   );
 
+  const seedSeoSelfieCompose = useCallback(
+    (
+      args: { previewUrl: string; dataUrl: string },
+      options?: { entrySource?: GenerateDockEntrySource }
+    ) => {
+      const previewUrl = args.previewUrl.trim();
+      const dataUrl = args.dataUrl.trim();
+      if (!previewUrl || !dataUrl) return;
+      setPendingPhotoPrompt({ previewUrl, dataUrl });
+      setSeed((current) => {
+        const next = applySeoSelfieToSeed(current, { previewUrl });
+        if (!isAuthed) {
+          persistPendingGenerateDock({
+            seed: next,
+            dockSurface: "example",
+          });
+        }
+        return next;
+      });
+      setSeedToken((token) => token + 1);
+      setLastDockResultDismissed(true);
+      setPlateOpen(true);
+      setDockSurface("example");
+      trackOpen(options?.entrySource ?? "route");
+    },
+    [isAuthed, trackOpen]
+  );
+
+  const applyComposeExamplePick = useCallback(
+    (pick: {
+      cardId: string;
+      promptText: string;
+      examplePreviewUrl?: string | null;
+    }) => {
+      setSeed((current) => {
+        const next = applyComposeExampleToSeed(current, pick);
+        if (!isAuthed) {
+          persistPendingGenerateDock({
+            seed: next,
+            dockSurface,
+          });
+        }
+        return next;
+      });
+    },
+    [dockSurface, isAuthed]
+  );
+
   const notifyGenerationComplete = useCallback(() => {
     setHistoryRefreshToken((token) => token + 1);
   }, []);
@@ -596,6 +682,8 @@ export function GenerateDockProvider({ children }: { children: ReactNode }) {
       seedBlankPrompt,
       seedPhotoshoot,
       seedPhotoPrompt,
+      seedSeoSelfieCompose,
+      applyComposeExamplePick,
       seedFromCard,
       seedAnimate,
       seedCompletedResult,
@@ -627,6 +715,8 @@ export function GenerateDockProvider({ children }: { children: ReactNode }) {
       seedBlankPrompt,
       seedPhotoshoot,
       seedPhotoPrompt,
+      seedSeoSelfieCompose,
+      applyComposeExamplePick,
       seedFromCard,
       seedAnimate,
       seedCompletedResult,

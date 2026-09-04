@@ -65,7 +65,16 @@ import {
   photoshootTileUrlsFromUnknown,
   shouldAttachLibraryPhotos,
   shouldHydrateLastDockResult as seedAllowsLastDockHydrate,
+  applyComposeExampleToSeed,
 } from "@/lib/generate-dock-seed";
+import {
+  isPersistableIdentityDataUrl,
+  libraryStoragePaths,
+  mergeLibraryHydratePhotos,
+  mergeLibraryHydrateSelection,
+  shouldPersistEphemeralIdentityPhoto,
+  uploadDataUrlToGenerationLibrary,
+} from "@/lib/compose-library-photos";
 import { useAuth } from "@/context/AuthContext";
 import { usePricingModal } from "@/context/PricingModalContext";
 import {
@@ -73,6 +82,7 @@ import {
   type GenerateDockSurface,
 } from "@/context/GenerateDockContext";
 import { GenerationResultBackdrop } from "@/components/generate/GenerationResultBackdrop";
+import { ComposeExamplePicker } from "@/components/generate/ComposeExamplePicker";
 import { ComposeModelChoiceCard } from "@/components/generate/ComposeModelChoiceCard";
 import { GenerationModelIcon } from "@/components/generate/GenerationModelIcon";
 import { GenerationResultActionRail } from "@/components/generate/GenerationResultActionRail";
@@ -222,6 +232,14 @@ import {
   warmupPhotoPreviewImages,
   writeCachedUserGenerationPhotos,
 } from "@/lib/user-generation-photos-cache";
+import {
+  SEO_COMPOSE_EXAMPLE_SHEET_TITLE,
+  SEO_COMPOSE_EXAMPLE_TOOL_LABEL,
+  SEO_COMPOSE_PICK_EXAMPLE_CTA,
+  composeNeedsExamplePick,
+  composeShouldAutoOpenExampleSheet,
+  composeShowsExampleTool,
+} from "@/lib/generaciya-foto-compose-example";
 
 const BLANK_PROMPT_PLACEHOLDER = "Опишите изображение или референс";
 const PROMPT_FIELD_LABEL = "Промт";
@@ -298,6 +316,7 @@ export function CardInlineGeneratePanel({
     clearRequestedModelSelection,
     seed,
     seedAnimate,
+    applyComposeExamplePick,
     lastDockResult,
     rememberLastDockResult,
     lastDockResultDismissed,
@@ -305,7 +324,14 @@ export function CardInlineGeneratePanel({
   } = useGenerateDock();
   const isDock = chrome === "dock";
   const isBlank = source === "blank";
-  const resolvedCardId = cardId;
+  const resolvedCardIdFromSeed = cardId;
+  const [pickedExampleCardId, setPickedExampleCardId] = useState<string | null>(
+    () => cardId || null,
+  );
+  const [pickedExamplePreviewUrl, setPickedExamplePreviewUrl] = useState<string | null>(
+    () => seed.examplePreviewUrl ?? null,
+  );
+  const resolvedCardId = pickedExampleCardId ?? resolvedCardIdFromSeed ?? null;
   const resolvedGenerationSurface =
     generationSurface || "prompt_card";
   const dockControlled = isDock && typeof onDockSurfaceChange === "function";
@@ -409,6 +435,11 @@ export function CardInlineGeneratePanel({
     return readCachedUserGenerationPhotos(user.id) ?? [];
   });
   const [selectedPhotoIds, setSelectedPhotoIds] = useState<Set<string>>(new Set());
+  const photosRef = useRef(photos);
+  photosRef.current = photos;
+  const selectedPhotoIdsRef = useRef(selectedPhotoIds);
+  selectedPhotoIdsRef.current = selectedPhotoIds;
+  const persistEphemeralInFlightRef = useRef<Promise<UserPhoto | null> | null>(null);
   const prefsDirtyRef = useRef(false);
   const skipNextPrefsPersistRef = useRef(false);
   const seedIntentRef = useRef(seed.intent);
@@ -575,7 +606,7 @@ export function CardInlineGeneratePanel({
   const [publishRewardRemaining, setPublishRewardRemaining] = useState(0);
   const [toast, setToast] = useState("");
   const [expandedControlLocal, setExpandedControlLocal] = useState<
-    "photos" | "model" | null
+    "photos" | "model" | "example" | null
   >(null);
   const [promptExpandedLocal, setPromptExpandedLocal] = useState(false);
 
@@ -587,7 +618,9 @@ export function CardInlineGeneratePanel({
 
   const promptExpanded = activeDockSurface === "prompt";
   const expandedControl =
-    activeDockSurface === "photos" || activeDockSurface === "model"
+    activeDockSurface === "photos" ||
+    activeDockSurface === "model" ||
+    activeDockSurface === "example"
       ? activeDockSurface
       : null;
 
@@ -601,7 +634,7 @@ export function CardInlineGeneratePanel({
       if (value === "prompt") {
         setExpandedControlLocal(null);
         setPromptExpandedLocal(true);
-      } else if (value === "photos" || value === "model") {
+      } else if (value === "photos" || value === "model" || value === "example") {
         setPromptExpandedLocal(false);
         setExpandedControlLocal(value);
       } else {
@@ -625,8 +658,11 @@ export function CardInlineGeneratePanel({
       next:
         | "photos"
         | "model"
+        | "example"
         | null
-        | ((prev: "photos" | "model" | null) => "photos" | "model" | null)
+        | ((
+            prev: "photos" | "model" | "example" | null,
+          ) => "photos" | "model" | "example" | null)
     ) => {
       const prev = expandedControl;
       const value = typeof next === "function" ? next(prev) : next;
@@ -854,7 +890,9 @@ export function CardInlineGeneratePanel({
 
   useEffect(() => {
     setDraftPrompt(promptText);
-  }, [cardId, promptText]);
+    setPickedExampleCardId(cardId || null);
+    setPickedExamplePreviewUrl(cardId ? seed.examplePreviewUrl ?? null : null);
+  }, [cardId, promptText, seed.examplePreviewUrl]);
 
   useEffect(() => {
     let cancelled = false;
@@ -986,6 +1024,8 @@ export function CardInlineGeneratePanel({
           }
         } else if (seed.intent === "photoshoot" || seed.intent === "photo_prompt") {
           setComposeMode(composeModeFromDockIntent(seed.intent));
+        } else if (seed.attachIdentityPhoto) {
+          setComposeMode("image");
         } else if (isCompletedResultSeed(seed)) {
           const prompt = seed.promptText.trim();
           setComposeMode("image");
@@ -1019,19 +1059,19 @@ export function CardInlineGeneratePanel({
         const libraryPhotos =
           photosRes.ok && Array.isArray(photosData.photos) ? photosData.photos : [];
         const pendingPhotoPromptDataUrl =
-          seed.intent === "photo_prompt"
+          seed.intent === "photo_prompt" || seed.attachIdentityPhoto
             ? resolvePhotoPromptAnalyzeSource({
                 seedPreviewUrl: seed.previewUrl,
               })?.dataUrl || ""
             : "";
-        const nextPhotos = pendingPhotoPromptDataUrl
-          ? [
-              makeEphemeralPhotoPromptPhoto(pendingPhotoPromptDataUrl),
-              ...libraryPhotos.filter(
-                (photo) => photo.id !== PHOTO_PROMPT_EPHEMERAL_ID
-              ),
-            ]
-          : libraryPhotos;
+        const seedEphemeral = pendingPhotoPromptDataUrl
+          ? makeEphemeralPhotoPromptPhoto(pendingPhotoPromptDataUrl)
+          : null;
+        const nextPhotos = mergeLibraryHydratePhotos({
+          incomingLibrary: libraryPhotos,
+          current: photosRef.current,
+          pendingEphemeral: seedEphemeral,
+        });
         const defaultModel = configData.defaults?.model || nextModels[0]?.id;
         const defaultRatio = configData.defaults?.aspectRatio || nextRatios[0]?.value;
         const defaultSize = configData.defaults?.imageSize || nextSizes[0]?.value;
@@ -1083,11 +1123,20 @@ export function CardInlineGeneratePanel({
         setVideoDurationSeconds(resolvedPrefs.videoDurationSeconds);
         setPreserveOutfit(resolvedPrefs.preserveOutfit);
         setSelectedPhotoIds(
-          pendingPhotoPromptDataUrl
-            ? new Set([PHOTO_PROMPT_EPHEMERAL_ID])
-            : shouldAttachLibraryPhotos(seed)
-              ? new Set(resolvedPrefs.selectedPhotoIds)
-              : new Set()
+          new Set(
+            mergeLibraryHydrateSelection({
+              pendingEphemeralId: seedEphemeral
+                ? PHOTO_PROMPT_EPHEMERAL_ID
+                : photosRef.current.find((photo) =>
+                    isPhotoPromptEphemeralId(photo.id),
+                  )?.id ?? null,
+              currentSelectedIds: [...selectedPhotoIdsRef.current],
+              mergedPhotoIds: nextPhotos.map((photo) => photo.id),
+              preferencePhotoIds: shouldAttachLibraryPhotos(seed)
+                ? resolvedPrefs.selectedPhotoIds
+                : [],
+            }),
+          ),
         );
         if (userId && storedPrefs) {
           writeCachedGenerationPreferences(userId, resolvedPrefs);
@@ -1175,7 +1224,7 @@ export function CardInlineGeneratePanel({
     };
     // Hydrate once per mount / auth identity — do not re-fetch on every result change.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional mount hydrate
-  }, [isBlank, isDock, user]);
+  }, [isBlank, isDock, user?.id]);
 
   useEffect(() => {
     if (!isAuthed || !user?.id) return;
@@ -1347,7 +1396,7 @@ export function CardInlineGeneratePanel({
    * Any exit from photos/model sheet (Готово, tile toggle, desktop scrim →
    * setDockSurface(null), switch to prompt) must flush — not only «Готово».
    */
-  const prevPrefsSurfaceRef = useRef<"photos" | "model" | null>(null);
+  const prevPrefsSurfaceRef = useRef<"photos" | "model" | "example" | null>(null);
   useEffect(() => {
     const prev = prevPrefsSurfaceRef.current;
     prevPrefsSurfaceRef.current = expandedControl;
@@ -1367,6 +1416,35 @@ export function CardInlineGeneratePanel({
     persistGenerationPreferences();
     setExpandedControl(null);
   }, [persistGenerationPreferences, setExpandedControl]);
+
+  const composeModeSheetArg = (
+    control: "photos" | "model" | "example" | null,
+  ): "photos" | "model" | "prompt" | null => {
+    if (control === "photos" || control === "model") return control;
+    return null;
+  };
+
+  const openSeoExampleSheet = () => {
+    setError("");
+    setExpandedControl("example");
+  };
+
+  const maybeOpenSeoExampleAfterPhoto = () => {
+    if (
+      !composeShouldAutoOpenExampleSheet({
+        composeMode: composeModeRef.current,
+        cardId: pickedExampleCardId ?? resolvedCardIdFromSeed,
+      })
+    ) {
+      return;
+    }
+    setExpandedControl("example");
+  };
+
+  const toggleSeoExampleSheet = () => {
+    setError("");
+    setExpandedControl((current) => (current === "example" ? null : "example"));
+  };
 
   const selectedPhotos = useMemo(
     () => photos.filter((photo) => selectedPhotoIds.has(photo.id)),
@@ -1519,6 +1597,77 @@ export function CardInlineGeneratePanel({
     });
   };
 
+  const persistEphemeralIdentityToLibrary = useCallback(async (): Promise<UserPhoto | null> => {
+    if (persistEphemeralInFlightRef.current) return persistEphemeralInFlightRef.current;
+    const task = (async () => {
+      if (
+        !shouldPersistEphemeralIdentityPhoto({
+          isAuthed,
+          intent: seedIntentRef.current,
+          composeMode: composeModeRef.current,
+        })
+      ) {
+        return null;
+      }
+      const ephemeral = photosRef.current.find((photo) =>
+        isPhotoPromptEphemeralId(photo.id),
+      );
+      const dataUrl = ephemeral?.previewUrl?.trim() || "";
+      if (!isPersistableIdentityDataUrl(dataUrl)) {
+        const selectedLibrary = photosRef.current.filter(
+          (photo) =>
+            !isPhotoPromptEphemeralId(photo.id) &&
+            Boolean(photo.storagePath?.trim()) &&
+            selectedPhotoIdsRef.current.has(photo.id),
+        );
+        return selectedLibrary[0] ?? null;
+      }
+      setLibraryUploading(true);
+      try {
+        const photo = await uploadDataUrlToGenerationLibrary({
+          dataUrl,
+          filename: ephemeral?.originalFilename || "photo.jpg",
+        });
+        const nextPhotos = [
+          photo,
+          ...photosRef.current.filter(
+            (item) =>
+              !isPhotoPromptEphemeralId(item.id) && item.id !== photo.id,
+          ),
+        ];
+        photosRef.current = nextPhotos;
+        const nextSelected = new Set(
+          [...selectedPhotoIdsRef.current].filter(
+            (id) => !isPhotoPromptEphemeralId(id),
+          ),
+        );
+        nextSelected.add(photo.id);
+        selectedPhotoIdsRef.current = nextSelected;
+        setPhotos(nextPhotos);
+        if (user?.id) {
+          writeCachedUserGenerationPhotos(
+            user.id,
+            nextPhotos.filter((item) => !isPhotoPromptEphemeralId(item.id)),
+          );
+        }
+        warmupPhotoPreviewImages([photo]);
+        setSelectedPhotoIds(nextSelected);
+        return photo;
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Ошибка загрузки фото");
+        return null;
+      } finally {
+        setLibraryUploading(false);
+      }
+    })();
+    persistEphemeralInFlightRef.current = task;
+    try {
+      return await task;
+    } finally {
+      persistEphemeralInFlightRef.current = null;
+    }
+  }, [isAuthed, user?.id]);
+
   const uploadFiles = async (files: File[]) => {
     if (!files.length) return;
     const photoPromptMode = isPhotoPromptComposeMode(composeModeRef.current);
@@ -1539,12 +1688,16 @@ export function CardInlineGeneratePanel({
         return;
       }
       const ephemeral = makeEphemeralPhotoPromptPhoto(prepared.dataUrl);
-      setPhotos((current) => [
+      const nextPhotos = [
         ephemeral,
-        ...current.filter((photo) => !isPhotoPromptEphemeralId(photo.id)),
-      ]);
+        ...photosRef.current.filter((photo) => !isPhotoPromptEphemeralId(photo.id)),
+      ];
+      photosRef.current = nextPhotos;
+      selectedPhotoIdsRef.current = new Set([PHOTO_PROMPT_EPHEMERAL_ID]);
+      setPhotos(nextPhotos);
       setSelectedPhotoIds(new Set([PHOTO_PROMPT_EPHEMERAL_ID]));
       setError("");
+      maybeOpenSeoExampleAfterPhoto();
       return;
     }
     const selectionCap = photoPromptSelectionCap(composeModeRef.current, maxPhotos);
@@ -1567,31 +1720,11 @@ export function CardInlineGeneratePanel({
           throw new Error(message);
         }
 
-        const blob = await (await fetch(prepared.dataUrl)).blob();
-        const mime =
-          prepared.mime === "image/png" || prepared.mime === "image/webp"
-            ? prepared.mime
-            : "image/jpeg";
-        const ext = mime === "image/png" ? "png" : mime === "image/webp" ? "webp" : "jpg";
-        const typedFile = new File([blob], filesToUpload[index].name || `photo.${ext}`, { type: mime });
-        const form = new FormData();
-        form.append("file", typedFile);
-        form.append("saveToLibrary", "true");
-
-        const upRes = await fetch("/api/upload-generation-photo", {
-          method: "POST",
-          body: form,
-          credentials: "include",
+        const photo = await uploadDataUrlToGenerationLibrary({
+          dataUrl: prepared.dataUrl,
+          filename: filesToUpload[index].name || "photo.jpg",
         });
-        const upData = (await upRes.json().catch(() => ({}))) as {
-          photo?: UserPhoto;
-          error?: string;
-          message?: string;
-        };
-        if (!upRes.ok || !upData.photo) {
-          throw new Error(upData.message || upData.error || "Ошибка загрузки фото");
-        }
-        uploaded.push(upData.photo);
+        uploaded.push(photo);
       }
 
       setPhotos((current) => {
@@ -1622,6 +1755,7 @@ export function CardInlineGeneratePanel({
           `Все фото сохранены. Для генерации можно выбрать не больше ${selectionCap}.`
         );
       }
+      maybeOpenSeoExampleAfterPhoto();
     } catch (err) {
       if (uploaded.length) {
         setPhotos((current) => {
@@ -1647,12 +1781,38 @@ export function CardInlineGeneratePanel({
           }
           return next;
         });
+        maybeOpenSeoExampleAfterPhoto();
       }
       setError(err instanceof Error ? err.message : "Ошибка загрузки фото");
     } finally {
       setLibraryUploading(false);
     }
   };
+
+  useEffect(() => {
+    if (
+      !shouldPersistEphemeralIdentityPhoto({
+        isAuthed,
+        intent: seed.intent,
+        composeMode,
+      })
+    ) {
+      return;
+    }
+    const ephemeral = photos.find(
+      (photo) =>
+        isPhotoPromptEphemeralId(photo.id) &&
+        isPersistableIdentityDataUrl(photo.previewUrl),
+    );
+    if (!ephemeral) return;
+    void persistEphemeralIdentityToLibrary();
+  }, [
+    composeMode,
+    isAuthed,
+    persistEphemeralIdentityToLibrary,
+    photos,
+    seed.intent,
+  ]);
 
   const deletePhoto = async (photo: UserPhoto) => {
     if (isPhotoPromptEphemeralId(photo.id)) {
@@ -1740,6 +1900,18 @@ export function CardInlineGeneratePanel({
         ? "PHOTOSHOOT"
       : (options?.promptOverride ?? draftPrompt).trim()
         || (isVideo ? DEFAULT_VIDEO_PROMPT : "");
+    if (
+      composeNeedsExamplePick({
+        composeMode,
+        selectedPhotoCount: selectedPhotos.length,
+        cardId: resolvedCardId,
+        promptLength: prompt.length,
+      })
+    ) {
+      setError("Выберите образ из каталога");
+      setExpandedControl("example");
+      return false;
+    }
     if (!isCameraOrbit && !isPhotoshoot && prompt.length < 8) {
       setError("Промпт слишком короткий");
       return false;
@@ -1756,12 +1928,30 @@ export function CardInlineGeneratePanel({
       setError("Для повтора видео нужно одно фото");
       return false;
     }
+    let photosForEnqueue = selectedPhotos;
+    if (
+      shouldPersistEphemeralIdentityPhoto({
+        isAuthed,
+        intent: seedIntentRef.current,
+        composeMode,
+      }) &&
+      selectedPhotos.some((photo) => isPhotoPromptEphemeralId(photo.id))
+    ) {
+      const saved = await persistEphemeralIdentityToLibrary();
+      if (!saved?.storagePath) {
+        return false;
+      }
+      photosForEnqueue = [
+        saved,
+        ...selectedPhotos.filter((photo) => !isPhotoPromptEphemeralId(photo.id)),
+      ];
+    }
     if (isPhotoshoot && !parentGenerationId) {
       const libraryPath =
-        photoshootLibraryPathOverride || selectedPhotos[0]?.storagePath || "";
+        photoshootLibraryPathOverride || photosForEnqueue[0]?.storagePath || "";
       if (
         !libraryPath ||
-        (!photoshootLibraryPathOverride && selectedPhotos.length !== 1)
+        (!photoshootLibraryPathOverride && photosForEnqueue.length !== 1)
       ) {
         setError(PHOTOSHOOT_NEEDS_LIBRARY_PHOTO);
         return false;
@@ -1800,17 +1990,17 @@ export function CardInlineGeneratePanel({
               ? resolvePhotoshootSheetAspect({
                   aspectRatio,
                   width:
-                    selectedPhotos.find(
+                    photosForEnqueue.find(
                       (photo) =>
                         photo.storagePath ===
-                        (photoshootLibraryPathOverride || selectedPhotos[0]?.storagePath),
-                    )?.width ?? selectedPhotos[0]?.width ?? undefined,
+                        (photoshootLibraryPathOverride || photosForEnqueue[0]?.storagePath),
+                    )?.width ?? photosForEnqueue[0]?.width ?? undefined,
                   height:
-                    selectedPhotos.find(
+                    photosForEnqueue.find(
                       (photo) =>
                         photo.storagePath ===
-                        (photoshootLibraryPathOverride || selectedPhotos[0]?.storagePath),
-                    )?.height ?? selectedPhotos[0]?.height ?? undefined,
+                        (photoshootLibraryPathOverride || photosForEnqueue[0]?.storagePath),
+                    )?.height ?? photosForEnqueue[0]?.height ?? undefined,
                 })
               : aspectRatio,
           imageSize: isVideo ? DEFAULT_VIDEO_RESOLUTION : imageSize,
@@ -1821,16 +2011,16 @@ export function CardInlineGeneratePanel({
               ? []
               : [
                   photoshootLibraryPathOverride ||
-                    selectedPhotos[0]?.storagePath ||
+                    photosForEnqueue[0]?.storagePath ||
                     "",
                 ].filter(Boolean)
             : isVideo
             ? parentGenerationId
               ? []
-              : selectedPhotos.slice(0, 1).map((photo) => photo.storagePath)
+              : libraryStoragePaths(photosForEnqueue.slice(0, 1))
             : isContinuation || options?.forceTextOnly
               ? []
-              : selectedPhotos.map((photo) => photo.storagePath),
+              : libraryStoragePaths(photosForEnqueue),
           parentGenerationId: parentGenerationId || null,
           editInstruction: isVideo || isCameraOrbit || isPhotoshoot ? null : editInstruction || null,
           editKind: isCameraOrbit
@@ -1848,7 +2038,7 @@ export function CardInlineGeneratePanel({
             !isContinuation &&
             !options?.forceTextOnly &&
             preserveOutfit &&
-            selectedPhotos.length > 0,
+            photosForEnqueue.length > 0,
           ...(listingVideoRepeat
             ? {
                 pipeline: {
@@ -2414,6 +2604,16 @@ export function CardInlineGeneratePanel({
    */
   const glassChrome = isDock || showResultChrome;
   const imageCompose = composeMode === "image";
+  const seoNeedsExamplePick = composeNeedsExamplePick({
+    composeMode,
+    selectedPhotoCount: selectedPhotos.length,
+    cardId: resolvedCardId,
+    promptLength: draftPrompt.trim().length,
+  });
+  const showSeoExampleTool = composeShowsExampleTool({
+    composeMode,
+    showResultChrome,
+  });
   const showPreserveOutfitChip = shouldShowPreserveOutfitChip({
     composeMode,
     photoCount: selectedPhotos.length,
@@ -2474,6 +2674,8 @@ export function CardInlineGeneratePanel({
         : "bg-zinc-100 text-zinc-900 after:border-zinc-300 hover:bg-zinc-200 hover:after:border-zinc-400";
   const composeTileFrame =
     "after:pointer-events-none after:absolute after:inset-0 after:z-[1] after:rounded-xl after:border-2 after:border-solid";
+  const composeToolTileSize = "h-[5.25rem] w-[5.25rem]";
+  const composeToolTilePad = "p-1.5";
   /** One rhythm for prompt / tiles / CTA and every dock sheet. */
   const composeBlockGap = "gap-3";
   const composeSheetCta =
@@ -2486,10 +2688,13 @@ export function CardInlineGeneratePanel({
   /** Dock: stretch floating sheet for any editor surface (no viewport overlay). */
   const dockExpanded = isDock && activeDockSurface !== null;
   /** Tall plate when editor / result / in-flight generate needs height. */
-  const dockTall = dockExpanded || (isDock && (showResultChrome || busy || cameraOrbitOpen || photoshootOpen));
+  const dockTall =
+    dockExpanded ||
+    (isDock && (showResultChrome || busy || cameraOrbitOpen || photoshootOpen));
   const dockPromptExpanded = dockExpanded && activeDockSurface === "prompt";
   const dockPhotosExpanded = dockExpanded && activeDockSurface === "photos";
   const dockModelExpanded = dockExpanded && activeDockSurface === "model";
+  const dockExampleExpanded = dockExpanded && activeDockSurface === "example";
   /**
    * Dock editor sheets: full plate height, light chrome (no solid black fill).
    * Underlying tiles/footer are invisible while open — sheet stays transparent so
@@ -2622,7 +2827,7 @@ export function CardInlineGeneratePanel({
       nextComposeModeTileSheet({
         mode: "photo_prompt",
         alreadyInMode: wasPhotoPrompt,
-        currentSheet: expandedControl,
+        currentSheet: composeModeSheetArg(expandedControl),
       })
     );
     reachYandexMetrikaGoal(YM_GOAL_GENERATION_PHOTO_PROMPT_OPEN);
@@ -2635,7 +2840,7 @@ export function CardInlineGeneratePanel({
       nextComposeModeTileSheet({
         mode: "image",
         alreadyInMode: wasImage,
-        currentSheet: expandedControl,
+        currentSheet: composeModeSheetArg(expandedControl),
       }),
     );
   };
@@ -2653,7 +2858,7 @@ export function CardInlineGeneratePanel({
       nextComposeModeTileSheet({
         mode: "video",
         alreadyInMode: wasVideo,
-        currentSheet: expandedControl,
+        currentSheet: composeModeSheetArg(expandedControl),
       }),
     );
   };
@@ -3272,8 +3477,7 @@ export function CardInlineGeneratePanel({
           hideComposeChrome
             ? "hidden"
             : isDock
-            ? // flex-1 only (no h-full) so footer actions stay inside the plate.
-              "min-h-0 flex-1 justify-end px-3 pb-3 pt-3"
+            ? "min-h-0 flex-1 justify-end px-3 pb-3 pt-3"
             : `relative z-10 flex-1 ${isMobile ? "px-3 py-3" : "px-3 py-2.5"}`
         }`}
       >
@@ -3863,6 +4067,87 @@ export function CardInlineGeneratePanel({
           </div>
         ) : null}
 
+        {expandedControl === "example" && showSeoExampleTool ? (
+          <div
+            id="inline-generation-examples"
+            role={isDock ? undefined : "dialog"}
+            aria-modal={isDock ? undefined : "true"}
+            aria-labelledby="generation-example-picker-title"
+            className={
+              dockExampleExpanded
+                ? `${dockSheetPanelBase} overflow-hidden`
+                : isMobile
+                  ? `${sheetPos} inset-0 z-50 flex h-full min-h-0 flex-col overflow-hidden bg-white p-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))] text-zinc-900`
+                  : `${sheetPos} inset-x-0 bottom-0 z-50 flex h-[min(82dvh,44rem)] max-h-[min(82dvh,44rem)] flex-col overflow-hidden rounded-t-3xl bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))] text-zinc-900 shadow-[0_-20px_60px_-24px_rgba(0,0,0,0.45)]`
+            }
+          >
+            <div className="flex h-full min-h-0 w-full flex-col">
+            {dockExampleExpanded ? (
+              <button
+                type="button"
+                aria-label="Свернуть выбор примера"
+                onClick={closePrefsSheet}
+                className={`${OVERLAY_BUTTON_UA_RESET} mx-auto mb-1 flex w-full shrink-0 flex-col items-center gap-1 py-1`}
+              >
+                <span className={dockSheetHandle} aria-hidden />
+              </button>
+            ) : (
+              <div className="mx-auto mb-2 h-1 w-9 rounded-full bg-zinc-300" aria-hidden />
+            )}
+            <div className="mb-3 flex min-h-11 shrink-0 items-center justify-between gap-3">
+              <h3
+                id="generation-example-picker-title"
+                className={`text-[13px] font-semibold ${
+                  dockExampleExpanded ? "text-white" : "text-zinc-900"
+                }`}
+              >
+                {SEO_COMPOSE_EXAMPLE_SHEET_TITLE}
+              </h3>
+              <button
+                type="button"
+                aria-label="Закрыть выбор примера"
+                onClick={closePrefsSheet}
+                className={
+                  dockExampleExpanded
+                    ? dockSheetCloseBtn
+                    : `${OVERLAY_BUTTON_UA_RESET} flex h-11 w-11 items-center justify-center rounded-full bg-zinc-100 text-zinc-700 transition hover:bg-zinc-200`
+                }
+              >
+                <svg
+                  className="h-5 w-5"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  aria-hidden
+                >
+                  <path d="m6 6 12 12M18 6 6 18" />
+                </svg>
+              </button>
+            </div>
+            <ComposeExamplePicker
+              selectedCardId={resolvedCardId}
+              tone={dockExampleExpanded ? "dark" : "light"}
+              confirmCtaClassName={`${OVERLAY_BUTTON_UA_RESET} ${
+                isMobile || dockExampleExpanded ? "" : "mt-3 "
+              }${composeSheetCta}`}
+              onSelect={({ cardId: nextCardId, promptText, photoUrl }) => {
+                setPickedExampleCardId(nextCardId);
+                setPickedExamplePreviewUrl(photoUrl);
+                setDraftPrompt(promptText);
+                setError("");
+                applyComposeExamplePick({
+                  cardId: nextCardId,
+                  promptText,
+                  examplePreviewUrl: photoUrl,
+                });
+              }}
+              onConfirmed={closePrefsSheet}
+            />
+            </div>
+          </div>
+        ) : null}
+
         {expandedControl === "model" && !showResultChrome ? (
           <div
             id="inline-generation-models"
@@ -4172,7 +4457,7 @@ export function CardInlineGeneratePanel({
               onClick={() => {
                 setExpandedControl((current) => (current === "photos" ? null : "photos"));
               }}
-              className={`${OVERLAY_BUTTON_UA_RESET} relative flex h-[5.25rem] w-[5.25rem] shrink-0 rounded-xl text-left transition ${composeTileFrame} ${composeTileBorder(
+              className={`${OVERLAY_BUTTON_UA_RESET} relative flex ${composeToolTileSize} shrink-0 rounded-xl text-left transition ${composeTileFrame} ${composeTileBorder(
                 expandedControl === "photos",
               )} disabled:opacity-50`}
             >
@@ -4201,7 +4486,7 @@ export function CardInlineGeneratePanel({
                 </span>
               )}
               <span className="absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-black/90 via-black/55 to-transparent" />
-              <span className="absolute inset-x-2 bottom-1.5 text-[13px] font-semibold text-white">
+              <span className="absolute inset-x-1.5 bottom-1 text-[13px] font-semibold leading-tight text-white">
                 Ваши фото
               </span>
               <span className="absolute right-1.5 top-1.5 rounded-full bg-zinc-900/90 px-1.5 py-0.5 text-[10px] font-semibold text-white">
@@ -4210,6 +4495,50 @@ export function CardInlineGeneratePanel({
               </span>
             </button>
 
+            {showSeoExampleTool ? (
+              <button
+                type="button"
+                aria-expanded={expandedControl === "example"}
+                aria-controls="inline-generation-examples"
+                disabled={controlsBusy}
+                onClick={toggleSeoExampleSheet}
+                className={`${OVERLAY_BUTTON_UA_RESET} relative flex ${composeToolTileSize} shrink-0 rounded-xl text-left transition ${composeTileFrame} ${composeTileBorder(
+                  expandedControl === "example",
+                )} disabled:opacity-50`}
+              >
+                <span className="absolute inset-0 overflow-hidden rounded-xl">
+                  {pickedExamplePreviewUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={pickedExamplePreviewUrl}
+                      alt=""
+                      className="absolute inset-0 h-full w-full object-cover"
+                    />
+                  ) : (
+                    <span className="absolute inset-0 flex items-center justify-center text-zinc-300">
+                      <svg
+                        className="h-6 w-6"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.7"
+                        aria-hidden
+                      >
+                        <rect x="3.5" y="3.5" width="7" height="7" rx="1.5" />
+                        <rect x="13.5" y="3.5" width="7" height="7" rx="1.5" />
+                        <rect x="3.5" y="13.5" width="7" height="7" rx="1.5" />
+                        <rect x="13.5" y="13.5" width="7" height="7" rx="1.5" />
+                      </svg>
+                    </span>
+                  )}
+                  <span className="absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-black/90 via-black/55 to-transparent" />
+                  <span className="absolute inset-x-1.5 bottom-1 line-clamp-2 text-[13px] font-semibold leading-tight text-white">
+                    {SEO_COMPOSE_EXAMPLE_TOOL_LABEL}
+                  </span>
+                </span>
+              </button>
+            ) : null}
+
             <button
               type="button"
               aria-pressed={imageCompose}
@@ -4217,7 +4546,7 @@ export function CardInlineGeneratePanel({
               aria-controls="inline-generation-models"
               disabled={controlsBusy}
               onClick={onImageModeTileClick}
-              className={`${OVERLAY_BUTTON_UA_RESET} relative flex h-[5.25rem] w-[5.25rem] shrink-0 flex-col items-center justify-center rounded-xl p-1.5 text-center transition ${composeTileFrame} ${composeTileBorder(
+              className={`${OVERLAY_BUTTON_UA_RESET} relative flex ${composeToolTileSize} shrink-0 flex-col items-center justify-center rounded-xl ${composeToolTilePad} text-center transition ${composeTileFrame} ${composeTileBorder(
                 imageCompose,
               )} disabled:opacity-50`}
             >
@@ -4237,7 +4566,7 @@ export function CardInlineGeneratePanel({
                 aria-controls="inline-generation-models"
                 disabled={controlsBusy}
                 onClick={onVideoModeTileClick}
-                className={`${OVERLAY_BUTTON_UA_RESET} relative flex h-[5.25rem] w-[5.25rem] shrink-0 flex-col items-center justify-center rounded-xl p-1.5 text-center transition ${composeTileFrame} ${composeTileBorder(
+                className={`${OVERLAY_BUTTON_UA_RESET} relative flex ${composeToolTileSize} shrink-0 flex-col items-center justify-center rounded-xl ${composeToolTilePad} text-center transition ${composeTileFrame} ${composeTileBorder(
                   videoCompose,
                 )} disabled:opacity-50`}
               >
@@ -4259,7 +4588,7 @@ export function CardInlineGeneratePanel({
                 aria-pressed={photoshootCompose}
                 disabled={controlsBusy}
                 onClick={onPhotoshootTileClick}
-                className={`${OVERLAY_BUTTON_UA_RESET} relative flex h-[5.25rem] w-[5.25rem] shrink-0 flex-col items-center justify-center rounded-xl p-1.5 text-center transition ${composeTileFrame} ${composeTileBorder(
+                className={`${OVERLAY_BUTTON_UA_RESET} relative flex ${composeToolTileSize} shrink-0 flex-col items-center justify-center rounded-xl ${composeToolTilePad} text-center transition ${composeTileFrame} ${composeTileBorder(
                   photoshootCompose,
                 )} disabled:opacity-50`}
               >
@@ -4293,7 +4622,7 @@ export function CardInlineGeneratePanel({
               aria-controls="inline-generation-photos"
               disabled={controlsBusy}
               onClick={onPhotoPromptTileClick}
-              className={`${OVERLAY_BUTTON_UA_RESET} relative flex h-[5.25rem] w-[5.25rem] shrink-0 flex-col items-center justify-center rounded-xl p-1.5 text-center transition ${composeTileFrame} ${composeTileBorder(
+              className={`${OVERLAY_BUTTON_UA_RESET} relative flex ${composeToolTileSize} shrink-0 flex-col items-center justify-center rounded-xl ${composeToolTilePad} text-center transition ${composeTileFrame} ${composeTileBorder(
                 photoPromptCompose,
               )} disabled:opacity-50`}
             >
@@ -4431,7 +4760,9 @@ export function CardInlineGeneratePanel({
                     (!photoshootCompose && scenarioLoading) ||
                     Boolean(busyAction) ||
                     Boolean(configError) ||
-                    (!photoshootCompose && draftPrompt.trim().length < 8)))
+                    (!photoshootCompose &&
+                      draftPrompt.trim().length < 8 &&
+                      !seoNeedsExamplePick)))
             }
             onClick={() => {
               if (photoPromptCompose) {
@@ -4440,10 +4771,22 @@ export function CardInlineGeneratePanel({
                 return;
               }
               if (!isAuthed) {
+                persistPendingGenerateDock({
+                  seed: applyComposeExampleToSeed(seed, {
+                    cardId: resolvedCardId || "",
+                    promptText: draftPrompt,
+                    examplePreviewUrl: pickedExamplePreviewUrl,
+                  }),
+                  dockSurface: null,
+                });
                 openAuthModal();
                 return;
               }
               if (busy) return;
+              if (seoNeedsExamplePick) {
+                openSeoExampleSheet();
+                return;
+              }
               if (photoshootCompose) {
                 if (photoshootLibraryFrame) {
                   startPhotoshootFromLibrary();
@@ -4565,10 +4908,12 @@ export function CardInlineGeneratePanel({
                     : (
                       <>
                         <span className="shrink-0">
-                          {composeGenerateCtaLabel(composeMode, {
-                            isAuthed,
-                            listingVideoRepeat: listingVideoRepeatCompose,
-                          })}
+                          {seoNeedsExamplePick
+                            ? SEO_COMPOSE_PICK_EXAMPLE_CTA
+                            : composeGenerateCtaLabel(composeMode, {
+                                isAuthed,
+                                listingVideoRepeat: listingVideoRepeatCompose,
+                              })}
                         </span>
                         {composeCtaModelLabel ||
                         composeCtaCost != null ||

@@ -101,7 +101,7 @@ export async function fetchNewestThemeCollagePhotos(
           sort: "new",
         }).catch((error) => {
           console.error(
-            `[HomePage] fetch newest theme ${item.tagValue} failed`,
+            `[theme-collage] fetch newest theme ${item.tagValue} failed`,
             error
           );
           return EMPTY_ROUTE_RESULT;
@@ -113,7 +113,7 @@ export async function fetchNewestThemeCollagePhotos(
     );
     return buildThemeCollageFromNewestResults(items, results, photos);
   } catch (error) {
-    console.error("[HomePage] fetch newest theme photos failed", error);
+    console.error("[theme-collage] fetch newest theme photos failed", error);
     return empty;
   }
 }

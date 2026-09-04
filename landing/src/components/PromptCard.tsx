@@ -12,7 +12,9 @@ import { splitCardTitle } from "@/lib/format-view-count";
 import { PhotoshootListingBadge } from "@/components/PhotoshootListingBadge";
 import { PhotoshootListingGrid } from "@/components/PhotoshootListingGrid";
 import { CARD_OVERLAY_PHOTO_COUNTER_CLASS } from "@/lib/card-overlay-photo-counter";
-import { isPhotoshootUgcListing } from "@/lib/photoshoot";
+import { useGenerateDock } from "@/context/GenerateDockContext";
+import { cardRepeatComposeIntent } from "@/lib/card-repeat-auth";
+import { isPhotoshootUgcListing, selectedPromptText } from "@/lib/photoshoot";
 import {
   OVERLAY_BUTTON_APPEARANCE_RESET,
   OVERLAY_BUTTON_UA_RESET,
@@ -80,6 +82,7 @@ function PromptCardBase({
   aspectClassName = "aspect-[3/4]",
 }: Props) {
   const { open, prefetchCard } = usePromptCardModal();
+  const { seedFromCard } = useGenerateDock();
   const { reactions, favorites, toggleReaction, toggleFavorite } = useCardInteractions();
   const title = card.title_ru || card.title_en || "Без названия";
   const expandedTitle = splitCardTitle(title);
@@ -124,6 +127,23 @@ function PromptCardBase({
     const ok = await copyTextUniversal(str);
     setCopyHint(ok ? "success" : "error");
     window.setTimeout(() => setCopyHint("idle"), 2200);
+  }
+
+  function repeatIntoGenerateDock() {
+    const promptText = selectedPromptText({
+      promptTexts: card.promptTexts,
+      photoCount: photos.length,
+      photoIndex,
+    });
+    seedFromCard(
+      {
+        promptText,
+        cardId: card.id,
+        intent: cardRepeatComposeIntent({ videoUrl: card.videoUrl }),
+        examplePreviewUrl: currentPhoto,
+      },
+      { entrySource: "card" },
+    );
   }
 
   const userReaction = reactions.get(card.id) ?? null;
@@ -221,6 +241,7 @@ function PromptCardBase({
                   sourceImageUrl={currentPhoto ?? undefined}
                   variant="listing"
                   className="listing-card-chrome-target w-full border-white/15 bg-gradient-to-r from-indigo-500 via-[#5b5cf0] to-violet-500 shadow-lg shadow-indigo-950/30 hover:brightness-110"
+                  onInternalGenerate={repeatIntoGenerateDock}
                 />
               </div>
             </div>
@@ -348,6 +369,7 @@ function PromptCardBase({
                   sourceImageUrl={currentPhoto ?? undefined}
                   variant="listing"
                   className="listing-card-chrome-target"
+                  onInternalGenerate={repeatIntoGenerateDock}
                 />
               </div>
             )}
@@ -415,6 +437,7 @@ function PromptCardBase({
                 cardId={card.id}
                 sourceImageUrl={currentPhoto ?? undefined}
                 variant="expanded"
+                onInternalGenerate={repeatIntoGenerateDock}
               />
             </div>
           </div>
