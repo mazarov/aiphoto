@@ -83,6 +83,10 @@ import {
 } from "@/context/GenerateDockContext";
 import { GenerationResultBackdrop } from "@/components/generate/GenerationResultBackdrop";
 import { ComposeExamplePicker } from "@/components/generate/ComposeExamplePicker";
+import {
+  prefetchComposeExampleAudience,
+  prefetchComposeExampleListing,
+} from "@/lib/compose-example-audience-client";
 import { ComposeModelChoiceCard } from "@/components/generate/ComposeModelChoiceCard";
 import { GenerationModelIcon } from "@/components/generate/GenerationModelIcon";
 import { GenerationResultActionRail } from "@/components/generate/GenerationResultActionRail";
@@ -255,6 +259,7 @@ type UserPhoto = {
   width: number | null;
   height: number | null;
   createdAt: string;
+  audienceTag?: string | null;
 };
 
 type Phase = GenerateComposeJobPhase;
@@ -357,6 +362,8 @@ export function CardInlineGeneratePanel({
   const [cameraOrbitEnabled, setCameraOrbitEnabled] = useState(
     () => readCachedCameraOrbitEnabled() === true
   );
+  const [composeExampleMatchEnabled, setComposeExampleMatchEnabled] =
+    useState(false);
   const [cameraOrbitOpen, setCameraOrbitOpen] = useState(false);
   const [cameraOrbitCreditCost, setCameraOrbitCreditCost] = useState(10);
   const [photoshootEnabled, setPhotoshootEnabled] = useState(() =>
@@ -930,6 +937,7 @@ export function CardInlineGeneratePanel({
           photoshootModel?: { id?: string; cost?: number } | null;
           listingVideoRepeatEnabled?: boolean;
           preserveOutfitEnabled?: boolean;
+          composeExampleMatchEnabled?: boolean;
           publishReward?: PublishRewardConfig;
         };
         const photosData = (await photosRes.json().catch(() => ({}))) as {
@@ -993,6 +1001,7 @@ export function CardInlineGeneratePanel({
         setPhotoshootEnabled(nextPhotoshootEnabled);
         setListingVideoRepeatEnabled(Boolean(configData.listingVideoRepeatEnabled));
         setPreserveOutfitEnabled(Boolean(configData.preserveOutfitEnabled));
+        setComposeExampleMatchEnabled(Boolean(configData.composeExampleMatchEnabled));
         if (configData.publishReward) {
           setPublishRewardConfig({
             ...DEFAULT_PUBLISH_REWARD_CONFIG,
@@ -1450,6 +1459,45 @@ export function CardInlineGeneratePanel({
     () => photos.filter((photo) => selectedPhotoIds.has(photo.id)),
     [photos, selectedPhotoIds]
   );
+  const startComposeExampleMatch = (photo: UserPhoto | null | undefined) => {
+    if (!composeExampleMatchEnabled) return;
+    if (!composeShowsExampleTool({ composeMode: composeModeRef.current })) return;
+    if (!photo) return;
+    const matchPhoto = {
+      id: photo.id,
+      dataUrl: isPhotoPromptEphemeralId(photo.id) ? photo.previewUrl : null,
+      audienceTag: photo.audienceTag ?? null,
+    };
+    if (isPhotoPromptEphemeralId(photo.id) && !matchPhoto.dataUrl) return;
+    prefetchComposeExampleListing(null);
+    void prefetchComposeExampleAudience(matchPhoto).then((tag) => {
+      prefetchComposeExampleListing(tag);
+      setPhotos((current) => {
+        const currentPhoto = current.find((item) => item.id === photo.id);
+        if (!currentPhoto || currentPhoto.audienceTag === tag) return current;
+        const next = current.map((item) =>
+          item.id === photo.id ? { ...item, audienceTag: tag } : item,
+        );
+        if (user?.id) {
+          writeCachedUserGenerationPhotos(
+            user.id,
+            next.filter((item) => !isPhotoPromptEphemeralId(item.id)),
+          );
+        }
+        return next;
+      });
+    });
+  };
+
+  useEffect(() => {
+    startComposeExampleMatch(selectedPhotos[0] ?? null);
+  }, [
+    composeExampleMatchEnabled,
+    composeMode,
+    selectedPhotos[0]?.id,
+    selectedPhotos[0]?.previewUrl,
+    selectedPhotos[0]?.audienceTag,
+  ]);
   const selectImageModel = (modelId: string) => {
     setModel(modelId);
     if (composeModeRef.current !== "image") {
@@ -1697,6 +1745,7 @@ export function CardInlineGeneratePanel({
       setPhotos(nextPhotos);
       setSelectedPhotoIds(new Set([PHOTO_PROMPT_EPHEMERAL_ID]));
       setError("");
+      startComposeExampleMatch(ephemeral);
       maybeOpenSeoExampleAfterPhoto();
       return;
     }
@@ -1755,6 +1804,7 @@ export function CardInlineGeneratePanel({
           `Все фото сохранены. Для генерации можно выбрать не больше ${selectionCap}.`
         );
       }
+      startComposeExampleMatch(uploaded[uploaded.length - 1] ?? uploaded[0] ?? null);
       maybeOpenSeoExampleAfterPhoto();
     } catch (err) {
       if (uploaded.length) {
@@ -1781,6 +1831,7 @@ export function CardInlineGeneratePanel({
           }
           return next;
         });
+        startComposeExampleMatch(uploaded[uploaded.length - 1] ?? uploaded[0] ?? null);
         maybeOpenSeoExampleAfterPhoto();
       }
       setError(err instanceof Error ? err.message : "Ошибка загрузки фото");
@@ -4128,6 +4179,18 @@ export function CardInlineGeneratePanel({
             <ComposeExamplePicker
               selectedCardId={resolvedCardId}
               tone={dockExampleExpanded ? "dark" : "light"}
+              matchEnabled={composeExampleMatchEnabled}
+              matchPhoto={
+                selectedPhotos[0]
+                  ? {
+                      id: selectedPhotos[0].id,
+                      dataUrl: isPhotoPromptEphemeralId(selectedPhotos[0].id)
+                        ? selectedPhotos[0].previewUrl
+                        : null,
+                      audienceTag: selectedPhotos[0].audienceTag ?? null,
+                    }
+                  : null
+              }
               confirmCtaClassName={`${OVERLAY_BUTTON_UA_RESET} ${
                 isMobile || dockExampleExpanded ? "" : "mt-3 "
               }${composeSheetCta}`}

@@ -6,6 +6,7 @@ import { resolveSharedDbUserId } from "@/lib/resolve-db-user-id";
 import { landingGenerationsOwnerOrFilter } from "@/lib/landing-generations-access";
 import {
   toUserGenerationPhotos,
+  USER_GENERATION_PHOTO_ROW_SELECT,
   USER_GENERATION_PHOTOS_BUCKET,
   type UserGenerationPhotoRow,
 } from "@/lib/user-generation-photos";
@@ -123,9 +124,7 @@ export async function POST(
         width: resized.info.width,
         height: resized.info.height,
       })
-      .select(
-        "id,auth_user_id,storage_path,original_filename,byte_size,width,height,created_at"
-      )
+      .select(USER_GENERATION_PHOTO_ROW_SELECT)
       .single();
 
     if (libraryError || !photoRow) {

@@ -14,6 +14,8 @@ import { LISTING_VIDEO_REPEAT_CONFIG_KEY } from "@/lib/listing-video-repeat";
 import { isListingVideoRepeatUnlocked } from "@/lib/listing-video-repeat-access";
 import { PRESERVE_OUTFIT_CONFIG_KEY } from "@/lib/wardrobe-policy";
 import { isPreserveOutfitUnlocked } from "@/lib/wardrobe-policy-access";
+import { COMPOSE_EXAMPLE_MATCH_CONFIG_KEY } from "@/lib/compose-example-audience";
+import { isComposeExampleMatchUnlocked } from "@/lib/compose-example-match-access";
 import {
   DEFAULT_IMAGE_ASPECT_RATIO,
   DEFAULT_IMAGE_SIZE,
@@ -70,6 +72,7 @@ export async function GET(req: NextRequest) {
         "publish_reward_daily_cap",
         LISTING_VIDEO_REPEAT_CONFIG_KEY,
         PRESERVE_OUTFIT_CONFIG_KEY,
+        COMPOSE_EXAMPLE_MATCH_CONFIG_KEY,
       ]);
 
     const config: Record<string, string> = {};
@@ -83,6 +86,10 @@ export async function GET(req: NextRequest) {
     );
     const preserveOutfitEnabled = isPreserveOutfitUnlocked(
       config[PRESERVE_OUTFIT_CONFIG_KEY],
+      user?.email,
+    );
+    const composeExampleMatchEnabled = isComposeExampleMatchUnlocked(
+      config[COMPOSE_EXAMPLE_MATCH_CONFIG_KEY],
       user?.email,
     );
 
@@ -112,6 +119,7 @@ export async function GET(req: NextRequest) {
         },
         listingVideoRepeatEnabled,
         preserveOutfitEnabled,
+        composeExampleMatchEnabled,
         publishReward,
       });
     }
@@ -151,6 +159,7 @@ export async function GET(req: NextRequest) {
       },
       listingVideoRepeatEnabled,
       preserveOutfitEnabled,
+      composeExampleMatchEnabled,
       publishReward,
     });
   } catch (err) {

@@ -3,6 +3,7 @@ import {
   hasMoreRankedPages,
   hasMoreSearchPages,
 } from "./listing-pagination";
+import { composeExamplePickerListingAudience } from "./compose-example-audience";
 
 /**
  * Catalog example picker is an image-compose tool, not a URL / funnel gate.
@@ -85,8 +86,8 @@ export function composeExampleQuickFilters<
   ];
 }
 
-/** Newest stills page. Listing idle cap without `q` is 60. */
-export const SEO_COMPOSE_EXAMPLE_LIMIT = 24;
+/** First picker screen: 3×4 / 4×3. More loads via sentinel. */
+export const SEO_COMPOSE_EXAMPLE_LIMIT = 12;
 /** Photoshoot / video are sparse in mixed newest — fetch a fuller page, then filter. */
 export const SEO_COMPOSE_EXAMPLE_KIND_LIMIT = 60;
 
@@ -139,10 +140,16 @@ export function composeExamplePickerHasMore(input: {
 export function composeExamplePickerEndpoint(input: {
   query: string;
   filter: { dimension: string; value: string } | null;
+  audienceMatch?: string | null;
   kind?: ComposeExampleKind;
   offset?: number;
 }): string | null {
   const trimmed = input.query.trim();
+  const audienceMatch = composeExamplePickerListingAudience({
+    query: trimmed,
+    dismissed: false,
+    audienceMatch: input.audienceMatch,
+  });
   if (trimmed.length > 0 && trimmed.length < 2 && !input.filter) {
     return null;
   }
@@ -156,9 +163,16 @@ export function composeExamplePickerEndpoint(input: {
   }
   const params = new URLSearchParams({ limit, sort: "new" });
   if (offset > 0) params.set("offset", String(offset));
+  if (audienceMatch) {
+    params.set("audience_tag", audienceMatch);
+  }
   if (input.filter) {
     params.set(input.filter.dimension, input.filter.value);
+  }
+  if (audienceMatch || input.filter) {
     params.set("strict", "1");
   }
   return `/api/listing?${params}`;
 }
+
+export { composeExamplePickerListingAudience };

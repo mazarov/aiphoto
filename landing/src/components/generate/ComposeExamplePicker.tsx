@@ -10,23 +10,42 @@ import {
 } from "@/lib/generaciya-foto-seo-copy";
 import {
   SEO_COMPOSE_EXAMPLE_CONFIRM_CTA,
+  SEO_COMPOSE_EXAMPLE_LIMIT,
   SEO_COMPOSE_EXAMPLE_SEARCH_ID,
   SEO_COMPOSE_EXAMPLE_SEARCH_PLACEHOLDER,
   composeExamplePickerEndpoint,
   composeExamplePickerHasMore,
   composeExamplePickerLimit,
+  composeExamplePickerListingAudience,
   composeExampleQuickFilters,
   filterComposeExampleCards,
 } from "@/lib/generaciya-foto-compose-example";
+import {
+  COMPOSE_EXAMPLE_MATCH_CHIP_DISMISS_LABEL,
+  composeExampleAudienceChipLabel,
+  type ComposeExampleAudienceTag,
+} from "@/lib/compose-example-audience";
+import {
+  composeExampleMatchPhotoKey,
+  peekComposeExampleAudience,
+  prefetchComposeExampleAudience,
+  readComposeExampleAudience,
+} from "@/lib/compose-example-audience-client";
 import { OVERLAY_BUTTON_UA_RESET } from "@/lib/card-overlay-action-pill";
 import type { PromptCardFull } from "@/lib/supabase";
 import { selectedPromptText } from "@/lib/photoshoot";
 
-const SEARCH_DEBOUNCE_MS = 400;
+const SEARCH_DEBOUNCE_MS = 200;
 
 type QuickFilter = ReturnType<typeof composeExampleQuickFilters>[number];
 
 const QUICK_FILTERS = composeExampleQuickFilters(GENERACIYA_FOTO_SCENARIOS);
+
+export type ComposeExampleMatchPhoto = {
+  id: string;
+  dataUrl?: string | null;
+  audienceTag?: string | null;
+};
 
 type ComposeExamplePickerProps = {
   selectedCardId: string | null;
@@ -42,6 +61,8 @@ type ComposeExamplePickerProps = {
   /** Dock photos sheet uses dark glass; card modal uses light. */
   tone?: "light" | "dark";
   confirmCtaClassName: string;
+  matchEnabled?: boolean;
+  matchPhoto?: ComposeExampleMatchPhoto | null;
 };
 
 type ListingPagePayload = {
@@ -100,9 +121,15 @@ export function ComposeExamplePicker({
   onConfirmed,
   tone = "dark",
   confirmCtaClassName,
+  matchEnabled = false,
+  matchPhoto = null,
 }: ComposeExamplePickerProps) {
   const [query, setQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState<QuickFilter | null>(null);
+  const [audienceMatch, setAudienceMatch] = useState<ComposeExampleAudienceTag | null>(
+    () => readComposeExampleAudience(matchPhoto, matchEnabled),
+  );
+  const [audienceDismissed, setAudienceDismissed] = useState(false);
   const [highlightedId, setHighlightedId] = useState<string | null>(
     selectedCardId,
   );
@@ -121,6 +148,41 @@ export function ComposeExamplePicker({
   const sentinelRef = useRef<HTMLLIElement>(null);
   const loadMoreRef = useRef<() => void>(() => {});
   const fetchGenRef = useRef(0);
+  const cardsLenRef = useRef(0);
+  cardsLenRef.current = cards.length;
+
+  const matchKey = matchPhoto ? composeExampleMatchPhotoKey(matchPhoto) : "";
+  const matchPhotoRef = useRef(matchPhoto);
+  matchPhotoRef.current = matchPhoto;
+  const listingAudience = composeExamplePickerListingAudience({
+    query,
+    dismissed: audienceDismissed,
+    audienceMatch,
+  });
+
+  useEffect(() => {
+    setAudienceDismissed(false);
+  }, [matchKey]);
+
+  useEffect(() => {
+    const photo = matchPhotoRef.current;
+    if (!matchEnabled || !photo) {
+      setAudienceMatch(null);
+      return;
+    }
+    const ready = peekComposeExampleAudience(photo);
+    if (ready !== undefined) {
+      setAudienceMatch(ready);
+      return;
+    }
+    let cancelled = false;
+    void prefetchComposeExampleAudience(photo).then((tag) => {
+      if (!cancelled) setAudienceMatch(tag);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [matchEnabled, matchKey, matchPhoto?.audienceTag]);
 
   const dark = tone === "dark";
   const shellClass = dark
@@ -154,6 +216,7 @@ export function ComposeExamplePicker({
         filter: activeFilter
           ? { dimension: activeFilter.dimension, value: activeFilter.value }
           : null,
+        audienceMatch: listingAudience,
         offset,
       });
       if (!endpoint) return null;
@@ -178,7 +241,7 @@ export function ComposeExamplePicker({
         hasMore: more,
       };
     },
-    [activeFilter, mapListingCards, query],
+    [activeFilter, listingAudience, mapListingCards, query],
   );
 
   useEffect(() => {
@@ -192,6 +255,7 @@ export function ComposeExamplePicker({
       filter: activeFilter
         ? { dimension: activeFilter.dimension, value: activeFilter.value }
         : null,
+      audienceMatch: listingAudience,
     });
     if (!endpoint) {
       setCards([]);
@@ -204,7 +268,7 @@ export function ComposeExamplePicker({
     const gen = fetchGenRef.current;
     const timer = window.setTimeout(
       () => {
-        setLoading(true);
+        setLoading(cardsLenRef.current === 0);
         setError("");
         void (async () => {
           try {
@@ -285,7 +349,7 @@ export function ComposeExamplePicker({
           loadMoreRef.current();
         }
       },
-      { root, rootMargin: "320px" },
+      { root, rootMargin: "80px" },
     );
     observer.observe(target);
     return () => observer.disconnect();
@@ -355,7 +419,7 @@ export function ComposeExamplePicker({
   };
 
   const emptyHint =
-    query.trim().length >= 2 || activeFilter
+    query.trim().length >= 2 || activeFilter || listingAudience
       ? "Ничего не нашли — попробуйте другой запрос или тему."
       : "Каталог образов сейчас пуст. Введите запрос.";
 
@@ -415,6 +479,27 @@ export function ComposeExamplePicker({
         ) : null}
       </div>
       <div className="-mx-0.5 flex shrink-0 gap-2 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {listingAudience ? (
+          <button
+            type="button"
+            onClick={() => setAudienceDismissed(true)}
+            className={`${OVERLAY_BUTTON_UA_RESET} inline-flex shrink-0 min-h-11 items-center gap-1.5 rounded-full border px-3 text-[13px] font-semibold transition ${chipActive}`}
+            aria-pressed="true"
+            aria-label={`${composeExampleAudienceChipLabel(listingAudience)}. ${COMPOSE_EXAMPLE_MATCH_CHIP_DISMISS_LABEL}`}
+          >
+            {composeExampleAudienceChipLabel(listingAudience)}
+            <svg
+              className="h-4 w-4"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              aria-hidden
+            >
+              <path d="m6 6 12 12M18 6 6 18" />
+            </svg>
+          </button>
+        ) : null}
         {QUICK_FILTERS.map((filter) => {
           const active =
             activeFilter?.dimension === filter.dimension &&
@@ -445,7 +530,7 @@ export function ComposeExamplePicker({
       >
         {cards.length > 0 ? (
           <ul className="grid auto-rows-min grid-cols-3 content-start gap-2 p-0.5 sm:grid-cols-4">
-            {cards.map((card) => {
+            {cards.map((card, index) => {
               const highlighted = highlightedId === card.id;
               const picking = pickingId === card.id;
               return (
@@ -470,6 +555,8 @@ export function ComposeExamplePicker({
                         <img
                           src={card.photoUrl}
                           alt=""
+                          loading={index < SEO_COMPOSE_EXAMPLE_LIMIT ? "eager" : "lazy"}
+                          decoding="async"
                           className="h-full w-full object-cover"
                         />
                       ) : (

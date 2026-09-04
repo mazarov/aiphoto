@@ -11,6 +11,7 @@ export type CachedUserGenerationPhoto = {
   width: number | null;
   height: number | null;
   createdAt: string;
+  audienceTag?: string | null;
 };
 
 type CachedLibraryPayload = {

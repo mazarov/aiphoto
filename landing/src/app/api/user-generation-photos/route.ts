@@ -3,6 +3,7 @@ import { createSupabaseServer } from "@/lib/supabase";
 import { getSupabaseUserForApiRoute } from "@/lib/supabase-route-auth";
 import {
   toUserGenerationPhotos,
+  USER_GENERATION_PHOTO_ROW_SELECT,
   type UserGenerationPhotoRow,
 } from "@/lib/user-generation-photos";
 
@@ -18,9 +19,7 @@ export async function GET(req: NextRequest) {
     const supabase = createSupabaseServer();
     const { data, error } = await supabase
       .from("landing_user_photos")
-      .select(
-        "id,auth_user_id,storage_path,original_filename,byte_size,width,height,created_at"
-      )
+      .select(USER_GENERATION_PHOTO_ROW_SELECT)
       .eq("auth_user_id", user.id)
       .order("created_at", { ascending: false })
       .limit(LIBRARY_LIMIT);

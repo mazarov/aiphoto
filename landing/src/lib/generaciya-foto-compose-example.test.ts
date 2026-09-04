@@ -162,7 +162,7 @@ test("compose example quick filters lead with СВО then Осень", () => {
         value: COMPOSE_EXAMPLE_AUTUMN_FILTER.value,
       },
     }),
-    "/api/listing?limit=24&sort=new&object_tag=osen&strict=1",
+    "/api/listing?limit=12&sort=new&object_tag=osen&strict=1",
   );
 });
 
@@ -175,12 +175,12 @@ test("SEO compose pick CTA copy", () => {
 test("composeExamplePickerEndpoint defaults to newest stills listing", () => {
   assert.equal(
     composeExamplePickerEndpoint({ query: "", filter: null }),
-    "/api/listing?limit=24&sort=new",
+    "/api/listing?limit=12&sort=new",
   );
 });
 
 test("composeExamplePickerEndpoint photoshoot/video fetch a fuller newest page", () => {
-  assert.equal(composeExamplePickerLimit("photo"), 24);
+  assert.equal(composeExamplePickerLimit("photo"), 12);
   assert.equal(composeExamplePickerLimit("photoshoot"), 60);
   assert.equal(
     composeExamplePickerEndpoint({
@@ -221,8 +221,52 @@ test("composeExamplePickerEndpoint filter is strict listing", () => {
       query: "",
       filter: { dimension: "audience_tag", value: "para" },
     }),
-    "/api/listing?limit=24&sort=new&audience_tag=para&strict=1",
+    "/api/listing?limit=12&sort=new&audience_tag=para&strict=1",
   );
+});
+
+test("composeExamplePickerEndpoint can AND audience match with a scene chip", () => {
+  assert.equal(
+    composeExamplePickerEndpoint({
+      query: "",
+      filter: {
+        dimension: COMPOSE_EXAMPLE_AUTUMN_FILTER.dimension,
+        value: COMPOSE_EXAMPLE_AUTUMN_FILTER.value,
+      },
+      audienceMatch: "devushka",
+    }),
+    "/api/listing?limit=12&sort=new&audience_tag=devushka&object_tag=osen&strict=1",
+  );
+});
+
+test("composeExamplePickerEndpoint audience-only is strict listing", () => {
+  assert.equal(
+    composeExamplePickerEndpoint({
+      query: "",
+      filter: null,
+      audienceMatch: "muzhchina",
+    }),
+    "/api/listing?limit=12&sort=new&audience_tag=muzhchina&strict=1",
+  );
+  assert.equal(
+    composeExamplePickerEndpoint({
+      query: "",
+      filter: null,
+      audienceMatch: "malchik",
+    }),
+    "/api/listing?limit=12&sort=new&audience_tag=malchik&strict=1",
+  );
+});
+
+test("composeExamplePickerEndpoint search ignores audience match", () => {
+  const url = composeExamplePickerEndpoint({
+    query: "аниме",
+    filter: null,
+    audienceMatch: "devushka",
+  });
+  assert.ok(url?.startsWith("/api/listing?"));
+  assert.ok(url?.includes("q=%D0%B0%D0%BD%D0%B8%D0%BC%D0%B5"));
+  assert.equal(url?.includes("audience_tag"), false);
 });
 
 test("filterComposeExampleCards splits stills / photoshoot / video", () => {
