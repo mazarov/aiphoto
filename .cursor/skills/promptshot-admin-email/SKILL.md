@@ -1,11 +1,22 @@
 ---
 name: promptshot-admin-email
-description: Sends PromptShot admin emails from support_ru@promptshot.ru via the yandex-mail MCP (yandex_mail_status, yandex_send_email). Use when the user asks to write, preview, or send email from the admin mailbox, рассылка, письмо пользователям, support_ru, Яндекс.Почта, or MCP yandex-mail.
+description: Sends and reads PromptShot admin email from support_ru@promptshot.ru via the yandex-mail MCP (status, list, read, send). Use when the user asks to write, preview, send, or read support mail, inbox, рассылка, письмо пользователям, support_ru, Яндекс.Почта, or MCP yandex-mail.
 ---
 
 # PromptShot admin email
 
 Письма от имени сервиса идут **только** с ящика `support_ru@promptshot.ru` через MCP **yandex-mail**. Не SMTP-скрипт вручную, не Gmail, не лендинговые env.
+
+Входящие читаются тем же MCP (IMAP). Не просить у пользователя адрес отправителя, если письмо уже в ящике.
+
+## Прочитать ящик
+
+1. `yandex_mail_status`. Нужны `configured: true`, `imap_ok: true` (или хотя бы `password_set: true`).
+2. Если `imap_ok: false` — не гадать. Напомнить включить IMAP в Яндекс.Почте → Настройки → Почтовые программы, и перезапустить MCP **yandex-mail**.
+3. `yandex_list_messages` по задаче: свежие в `INBOX` (`limit` 10–20), или `unread_only: true`, или `from` / `subject`.
+4. Нужный тред — `yandex_read_message` с `uid` (и `folder`, если не INBOX).
+5. Не вываливать весь ящик в чат. Кратко: кто, тема, суть; полное тело — только если нужно ответить.
+6. Письма через IMAP **не** помечаются прочитанными.
 
 ## Перед любой отправкой
 

@@ -13,6 +13,9 @@
  * tools:
  *   yandex_mail_status
  *   yandex_send_email  (dry_run defaults to true)
+ *   yandex_list_folders
+ *   yandex_list_messages
+ *   yandex_read_message
  *
  * Logs go to stderr only — stdout is MCP JSON-RPC.
  */
@@ -22,9 +25,16 @@ import readline from "node:readline";
 import { readFileSync, existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  EMAIL_RE,
+  imapConfig,
+  inboxStatus,
+  listFolders,
+  listMessages,
+  readMessage,
+} from "./mcp-yandex-mail-imap.mjs";
 
 const PROTOCOL_VERSIONS = ["2024-11-05", "2025-03-26", "2025-06-18"];
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 
 function loadEnvFile(path) {
@@ -192,7 +202,7 @@ const TOOLS = [
   {
     name: "yandex_mail_status",
     description:
-      "Check whether Yandex SMTP env is configured. Does not send email and never returns the password.",
+      "Check Yandex mailbox env (SMTP + IMAP). Never returns the password. Includes inbox unseen count when IMAP login works.",
     inputSchema: {
       type: "object",
       properties: {},
@@ -228,6 +238,67 @@ const TOOLS = [
       additionalProperties: false,
     },
   },
+  {
+    name: "yandex_list_folders",
+    description:
+      "List IMAP folders on the configured Yandex mailbox (INBOX, Sent, Spam, …). Never returns the password.",
+    inputSchema: {
+      type: "object",
+      properties: {},
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "yandex_list_messages",
+    description:
+      "List recent messages in a folder (default INBOX). Returns uid, from, subject, date, seen. Does not mark messages read. Never returns the password.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        folder: {
+          type: "string",
+          description: "IMAP folder. Default INBOX.",
+        },
+        limit: {
+          type: "number",
+          description: "How many messages to return, 1–50. Default 20.",
+        },
+        unread_only: {
+          type: "boolean",
+          description: "If true, only unseen messages.",
+        },
+        from: {
+          type: "string",
+          description: "Optional IMAP FROM search (email or name fragment).",
+        },
+        subject: {
+          type: "string",
+          description: "Optional IMAP SUBJECT search fragment.",
+        },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "yandex_read_message",
+    description:
+      "Read one message by IMAP uid. Returns plain-text body (HTML stripped). Does not mark the message as seen. Never returns the password.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        uid: {
+          type: "number",
+          description: "IMAP UID from yandex_list_messages.",
+        },
+        folder: {
+          type: "string",
+          description: "IMAP folder. Default INBOX.",
+        },
+      },
+      required: ["uid"],
+      additionalProperties: false,
+    },
+  },
 ];
 
 function textResult(text, isError = false) {
@@ -239,15 +310,40 @@ function textResult(text, isError = false) {
 
 function handleStatus() {
   const cfg = smtpConfig();
+  const imap = imapConfig();
   const payload = {
     configured: Boolean(cfg.user && cfg.pass),
     user: cfg.user || null,
     from_name: cfg.fromName,
     host: cfg.host,
     port: cfg.port,
+    imap_host: imap.host,
+    imap_port: imap.port,
     password_set: Boolean(cfg.pass),
   };
-  return textResult(JSON.stringify(payload, null, 2));
+  return inboxStatus()
+    .then((inbox) =>
+      textResult(
+        JSON.stringify(
+          { ...payload, imap_ok: true, inbox },
+          null,
+          2,
+        ),
+      ),
+    )
+    .catch((err) =>
+      textResult(
+        JSON.stringify(
+          {
+            ...payload,
+            imap_ok: false,
+            imap_error: err instanceof Error ? err.message : String(err),
+          },
+          null,
+          2,
+        ),
+      ),
+    );
 }
 
 async function handleSend(args) {
@@ -303,9 +399,43 @@ async function handleSend(args) {
   );
 }
 
+async function handleListFolders() {
+  const result = await listFolders();
+  return textResult(JSON.stringify(result, null, 2));
+}
+
+async function handleListMessages(args) {
+  const folder =
+    typeof args?.folder === "string" && args.folder.trim()
+      ? args.folder.trim()
+      : "INBOX";
+  const from = typeof args?.from === "string" ? args.from.trim() : "";
+  const subject = typeof args?.subject === "string" ? args.subject.trim() : "";
+  const result = await listMessages({
+    folder,
+    limit: args?.limit,
+    unreadOnly: args?.unread_only === true,
+    from,
+    subject,
+  });
+  return textResult(JSON.stringify(result, null, 2));
+}
+
+async function handleReadMessage(args) {
+  const folder =
+    typeof args?.folder === "string" && args.folder.trim()
+      ? args.folder.trim()
+      : "INBOX";
+  const result = await readMessage({ uid: args?.uid, folder });
+  return textResult(JSON.stringify(result, null, 2));
+}
+
 async function handleToolCall(name, args) {
   if (name === "yandex_mail_status") return handleStatus();
   if (name === "yandex_send_email") return handleSend(args);
+  if (name === "yandex_list_folders") return handleListFolders();
+  if (name === "yandex_list_messages") return handleListMessages(args);
+  if (name === "yandex_read_message") return handleReadMessage(args);
   return textResult(`Unknown tool: ${name}`, true);
 }
 
@@ -328,7 +458,7 @@ async function onMessage(msg) {
       result: {
         protocolVersion,
         capabilities: { tools: { listChanged: false } },
-        serverInfo: { name: "yandex-mail", version: "1.0.0" },
+        serverInfo: { name: "yandex-mail", version: "1.1.0" },
       },
     });
     return;
