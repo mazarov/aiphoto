@@ -1,5 +1,7 @@
 # 03 — Пайплайн: парсинг → загрузка → публикация
 
+> Последнее обновление: 2026-09-05 (**junk card reanalyze:** `src/standalone/reanalyze-junk-cards.mjs` — Gemini analyze фото мусорных title, новый промт + короткий title, **slug не меняется**. Теги не затираем. DO: curl raw + nohup, сначала `--dry-run`.)
+>
 > Последнее обновление: 2026-08-21 (**prompt remix section patches:** Gemini возвращает JSON-правки секций, merge в `lib/prompt-remix.ts`; echo → один `full_rewrite` retry, затем `422 unchanged_prompt`.)
 >
 > Последнее обновление: 2026-09-01 (**prompt remix saves only:** успешный remix на клиенте только обновляет draft. Генерация — отдельный `POST /api/generate` с footer/rail.)
@@ -260,6 +262,15 @@ npx tsx src/fix-template-titles.ts --dataset <slug>
 | `--concurrency` | Параллельность |
 
 **Логика:** находит карточки с `JUNK_PATTERNS` в title → Gemini генерирует новый → обновляет `title_ru` и `slug`.
+
+Мусорные title из отчёта Вебмастера («Сделай такое же фото…», «Подборка дня») без смены URL:
+
+```bash
+node src/standalone/reanalyze-junk-cards.mjs --dry-run
+node src/standalone/reanalyze-junk-cards.mjs --limit 20
+```
+
+Analyze фото (Gemini Flash) → новый промт + короткий `title_ru`/`title_en`. **`slug` не пишется.** Теги не затираем. На DO — `curl` raw + `nohup`.
 
 ---
 

@@ -10,6 +10,7 @@ import {
   getSeoSlugsWithTags,
 } from "@/lib/tag-registry";
 import { CardPageLayout } from "@/components/CardPageLayout";
+import { buildCardMetaTitle } from "@/lib/card-meta-title";
 
 const CardPageClient = nextDynamic(
   () =>
@@ -57,13 +58,6 @@ function buildDescription(
   return "Готовый промт для генерации фото ИИ. Посмотри результат и скопируй.";
 }
 
-function buildTitle(titleRu: string): string {
-  const suffix = " — промт для фото ИИ | PromptShot";
-  const maxLen = 60;
-  if (titleRu.length + suffix.length <= maxLen) return `${titleRu}${suffix}`;
-  return titleRu.slice(0, maxLen - suffix.length - 1).trim() + suffix;
-}
-
 type Props = { params: Promise<{ slug: string }> };
 
 export const dynamic = "force-dynamic";
@@ -84,11 +78,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     : `${BASE_URL}/p/${data.slug}`;
 
   return {
-    title: buildTitle(title),
+    title: buildCardMetaTitle(title, data.slug),
     description: buildDescription(data),
     alternates: { canonical },
     openGraph: {
-      title: buildTitle(title),
+      title: buildCardMetaTitle(title, data.slug),
       description: buildDescription(data),
       url: canonical,
       type: "article",
@@ -100,7 +94,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     },
     twitter: {
       card: "summary_large_image",
-      title: buildTitle(title),
+      title: buildCardMetaTitle(title, data.slug),
       description: buildDescription(data),
       images: data.photoMeta[0]
         ? [getIndexableImageUrl(data.photoMeta[0].bucket, data.photoMeta[0].path)]
