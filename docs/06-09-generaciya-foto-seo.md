@@ -1,7 +1,7 @@
 # 06-09 SEO-разбор `/generaciya-foto` и 21 дочерней
 
 > **Дата:** 2026-09-06
-> **Статус:** разбор выполнен, правка №1 внесена
+> **Статус:** разбор выполнен, правки №1–5 внесены
 > **Ветка:** `feature/06-09-generaciya-foto-seo`
 > **Роль:** `@senior-seo-strategist-ru`
 
@@ -183,10 +183,10 @@ Description открывается дословным повтором `h1Base`,
 | № | Правка | Где | Обоснование |
 |---|---|---|---|
 | 1 ✅ | Дописать `ps_auth`, `ps_sy`, `ps_ov`, `payment`, `auth_error` в `Clean-param` | `landing/src/app/robots.txt/route.ts` | 759 мусорных показов, ID платежа и текст ошибки в индексе. Одна строка |
-| 2 | Переписать шаблон `metaDescription` в `scenarioHero()` — не повторять Title, начинать с выгоды | `generaciya-foto-scenario-copy.ts` | 1 функция → 22 страницы, 6 559 показов при CTR 5,0% |
-| 3 | Ручная мета для `na-den-rozhdeniya` вместо шаблона | там же | 3 726 показов, CTR не двинулся с 4,8% |
-| 4 | H2 «Создать фото по описанию» + абзац; поднять мёртвый `generatorTitle` | `generaciya-foto-seo-copy.ts`, `app/generaciya-foto/page.tsx` | спрос 1 775/д, позиция 8,8, фраза нигде не стоит непрерывно |
-| 5 | Переписать H2 без запросов: «Подборки шаблонов по темам», «Что ещё умеет PromptShot?» | `generaciya-foto-seo-copy.ts` | 4 из 8 H2 не собирают ничего |
+| 2 ✅ | Шаблон `metaDescription` в `scenarioHero()` не повторяет Title | `generaciya-foto-scenario-copy.ts` | `{тема} по своему снимку или описанию` + число карточек |
+| 3 ✅ | Ручная мета: `na-den-rozhdeniya`, `semya`, `deti`, `beremennaya`, `pary` | там же | топ по показам; у семьи ещё H2 «Как сделать семейное ИИ фото» |
+| 4 ✅ | H2 из `generatorTitle` + `generatorLead` над стартером; Description хаба с непрерывным «фото по описанию» | `generaciya-foto-seo-copy.ts`, `app/generaciya-foto/page.tsx` | спрос 1 775/д, позиция 8,8 |
+| 5 ✅ | H2 тем и блока «ещё»: «Сделать ИИ фото по теме», «Фото по описанию и по примеру» | `generaciya-foto-seo-copy.ts` | были без запросов |
 
 Заготовка для №2 (`introLead` уже задан на каждый слог, новый контент не нужен):
 

@@ -15,6 +15,7 @@ import { PricingScreen } from "@/components/pricing/PricingScreen";
 import {
   GENERACIYA_FOTO_CAPABILITIES,
   GENERACIYA_FOTO_HOW_TO_STEPS,
+  GENERACIYA_FOTO_MORE_LEAD,
   GENERACIYA_FOTO_MORE_TITLE,
   GENERACIYA_FOTO_PRICING,
   GENERACIYA_FOTO_SEO,
@@ -166,14 +167,16 @@ export function GeneraciyaFotoHowTo({
 export function GeneraciyaFotoMore({
   items = GENERACIYA_FOTO_CAPABILITIES,
   title = GENERACIYA_FOTO_MORE_TITLE,
+  lead = GENERACIYA_FOTO_MORE_LEAD,
 }: {
   items?: readonly { title: string; text: string; href: string }[];
   title?: string;
+  lead?: string;
 } = {}) {
   return (
     <section className={sectionClass} aria-labelledby="more-heading">
       <div className={GF_BLOCK}>
-        <SectionHeading id="more-heading" title={title} />
+        <SectionHeading id="more-heading" title={title} lead={lead} />
         <ul className={`${GF_STACK} grid gap-3 lg:grid-cols-2`}>
           {items.map((item) => (
             <li key={item.title}>

@@ -1,7 +1,9 @@
 import {
   GENERACIYA_FOTO_SCENARIO_ROUTES,
+  MIN_GENERACIYA_FOTO_SCENARIO_CARDS,
   type GeneraciyaFotoScenarioSlug,
 } from "@/lib/generaciya-foto-routes";
+import { pluralTemplates } from "@/lib/plural-prompts";
 
 export type GeneraciyaFotoScenarioFaq = {
   q: string;
@@ -18,6 +20,8 @@ export type GeneraciyaFotoScenarioCopy = {
   label: string;
   metaTitle: string;
   metaDescription: string;
+  /** Snippet written by hand — the templated one must not overwrite it. */
+  metaDescriptionManual?: boolean;
   h1: string;
   intro: string;
   examplesTitle: string;
@@ -59,6 +63,16 @@ function scenarioIntro(introLead: string): string {
   return `Выберите готовый образ ${introLead} или опишите кадр текстом — загрузите фото и получите реалистичный результат без студии.`;
 }
 
+/** `Сделать ИИ фото на день рождения` → `ИИ фото на день рождения`. */
+function scenarioSubjectPhrase(h1Base: string): string {
+  const phrase = h1Base.replace(/^Сделать\s+/, "");
+  return phrase.charAt(0).toUpperCase() + phrase.slice(1);
+}
+
+function scenarioDescription(h1Base: string, supply: string): string {
+  return `${scenarioSubjectPhrase(h1Base)} по своему снимку или описанию. ${supply} — без студии и фотографа.`;
+}
+
 function scenarioHero(
   metaTitleBase: string,
   h1Base: string,
@@ -66,10 +80,31 @@ function scenarioHero(
 ): Pick<GeneraciyaFotoScenarioCopy, "metaTitle" | "metaDescription" | "h1" | "intro"> {
   return {
     metaTitle: `${metaTitleBase} | PromptShot`,
-    metaDescription: `${h1Base} по промту или снимку. Выберите образ, загрузите фото — нейросеть PromptShot без фотографа.`,
+    metaDescription: scenarioDescription(h1Base, "Готовые образы с примерами результата"),
     h1: h1Base,
     intro: scenarioIntro(introLead),
   };
+}
+
+/**
+ * Card count is known only in `generateMetadata`, so the number lands in the
+ * snippet there. Below the index threshold the countless base string stays.
+ */
+export function buildGeneraciyaFotoScenarioDescription(
+  copy: GeneraciyaFotoScenarioCopy,
+  cardCount: number
+): string {
+  if (copy.metaDescriptionManual) return copy.metaDescription;
+  if (
+    !Number.isFinite(cardCount) ||
+    cardCount < MIN_GENERACIYA_FOTO_SCENARIO_CARDS
+  ) {
+    return copy.metaDescription;
+  }
+  return scenarioDescription(
+    copy.h1,
+    `${pluralTemplates(cardCount)} с примерами результата`
+  );
 }
 
 function createProgrammaticScenarioCopy({
@@ -178,6 +213,9 @@ const COPY_BY_SLUG: Record<
       "Сделать ИИ фото для пары",
       "для парного кадра"
     ),
+    metaDescription:
+      "ИИ фото для пары: прогулка, студия или праздник. Загрузите два снимка или опишите кадр — результат без фотографа.",
+    metaDescriptionManual: true,
     examplesTitle: "Выберите сюжет для фото пары",
     examplesIntro:
       "Используйте готовый пример как основу: поменяйте место, одежду, позы и атмосферу, затем добавьте подходящие фотографии-референсы.",
@@ -220,6 +258,10 @@ const COPY_BY_SLUG: Record<
       "Сделать ИИ фото на день рождения",
       "для праздничного кадра на день рождения"
     ),
+    /** 3 726 показов при CTR 4,4% — самый крупный ребёнок, шаблон не тянет. */
+    metaDescription:
+      "ИИ фото на день рождения: праздничные образы с примерами и готовыми промтами. Загрузите своё фото или опишите кадр — без студии.",
+    metaDescriptionManual: true,
     examplesTitle: "Выберите идею для дня рождения",
     examplesIntro:
       "Выберите праздничный образ, загрузите фото именинника и запустите генерацию.",
@@ -304,6 +346,9 @@ const COPY_BY_SLUG: Record<
       "Сделать семейное ИИ фото",
       "для семейного кадра"
     ),
+    metaDescription:
+      "Семейное ИИ фото: дома, в студии или на празднике. Загрузите снимки или опишите состав семьи — кадр без студии.",
+    metaDescriptionManual: true,
     examplesTitle: "Выберите сюжет для семейного фото",
     examplesIntro:
       "Возьмите готовую композицию за основу и адаптируйте её под состав семьи, возраст участников, одежду, место и время года.",
@@ -332,7 +377,7 @@ const COPY_BY_SLUG: Record<
     ],
     contentBlocks: [
       {
-        h2: "Идеи для семейной генерации",
+        h2: "Как сделать семейное ИИ фото",
         paragraphs: [
           "Популярные варианты — домашний кадр, прогулка, семейный праздник и студийный портрет. Единая палитра одежды помогает сделать композицию визуально цельной.",
           "Чем больше людей в сцене, тем важнее простое и однозначное описание. Сложные позы и мелкие предметы лучше добавлять поэтапно.",
@@ -430,6 +475,9 @@ const COPY_BY_SLUG: Record<
       "Сделать детское ИИ фото",
       "для детского кадра"
     ),
+    metaDescription:
+      "Детское ИИ фото: праздник, портрет или прогулка. Загрузите снимок или опишите кадр — результат без студии.",
+    metaDescriptionManual: true,
     examplesTitle: "Выберите идею для детского фото",
     examplesIntro:
       "Используйте готовые безопасные сюжеты: праздник, сказочный персонаж, студийный портрет, спорт или прогулка.",
@@ -596,19 +644,24 @@ const COPY_BY_SLUG: Record<
     promptCatalogHref: "/stil/selfi",
     promptCatalogLabel: "Промты для селфи",
   }),
-  beremennaya: createProgrammaticScenarioCopy({
-    metaTitleBase: "Сделать ИИ фото беременности",
-    h1Base: "Сделать ИИ фото беременности",
-    introLead: "для фото беременности",
-    examplesTitle: "Выберите образ для фото беременности",
-    subject: "фото беременности",
-    promptDetails:
-      "одежду, комфортную позу, срок без медицинских утверждений, фон, настроение и мягкое освещение",
-    formatAdvice:
-      "Для портрета в полный рост подойдут 2:3 и 9:16, для поясного кадра — 3:4.",
-    promptCatalogHref: "/ii-fotosessiya/beremennye",
-    promptCatalogLabel: "ИИ фотосессия для беременных",
-  }),
+  beremennaya: {
+    ...createProgrammaticScenarioCopy({
+      metaTitleBase: "Сделать ИИ фото беременности",
+      h1Base: "Сделать ИИ фото беременности",
+      introLead: "для фото беременности",
+      examplesTitle: "Выберите образ для фото беременности",
+      subject: "фото беременности",
+      promptDetails:
+        "одежду, комфортную позу, срок без медицинских утверждений, фон, настроение и мягкое освещение",
+      formatAdvice:
+        "Для портрета в полный рост подойдут 2:3 и 9:16, для поясного кадра — 3:4.",
+      promptCatalogHref: "/ii-fotosessiya/beremennye",
+      promptCatalogLabel: "ИИ фотосессия для беременных",
+    }),
+    metaDescription:
+      "ИИ фото беременности: студийный или домашний кадр. Загрузите свой снимок или опишите образ — без студии и фотографа.",
+    metaDescriptionManual: true,
+  },
   studiynoe: createProgrammaticScenarioCopy({
     metaTitleBase: "Сделать студийное ИИ фото",
     h1Base: "Сделать студийное ИИ фото",

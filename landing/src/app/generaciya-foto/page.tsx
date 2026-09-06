@@ -13,6 +13,7 @@ import {
 import { GeneraciyaFotoFaq } from "@/components/generate/GeneraciyaFotoFaq";
 import { GeneraciyaFotoHeroCarousel } from "@/components/generate/GeneraciyaFotoHeroCarousel";
 import { GeneraciyaFotoStarter } from "@/components/generate/GeneraciyaFotoStarter";
+import { GF_H2, GF_LEAD } from "@/components/generate/generaciya-foto-ui";
 import { GenerationModelsShowcase } from "@/components/generate/GenerationModelsShowcase";
 import {
   createSupabaseServer,
@@ -334,6 +335,12 @@ export default async function GeneraciyaFotoPage() {
                 {socialProof}
               </p>
             ) : null}
+            <h2 className={`mx-auto mt-8 max-w-3xl text-balance ${GF_H2}`}>
+              {GENERACIYA_FOTO_SEO.generatorTitle}
+            </h2>
+            <p className={`mx-auto text-pretty ${GF_LEAD}`}>
+              {GENERACIYA_FOTO_SEO.generatorLead}
+            </p>
             <GeneraciyaFotoStarter />
             <p className="mx-auto mt-3 max-w-2xl text-sm leading-relaxed text-zinc-500">
               {GENERACIYA_FOTO_SEO.generatorNote}

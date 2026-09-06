@@ -5,6 +5,8 @@ import {
   formatGeneraciyaFotoSocialProof,
   GENERACIYA_FOTO_FAQ,
   GENERACIYA_FOTO_HOW_TO_STEPS,
+  GENERACIYA_FOTO_MORE_LEAD,
+  GENERACIYA_FOTO_MORE_TITLE,
   GENERACIYA_FOTO_PRICING,
   GENERACIYA_FOTO_SEO,
   GENERACIYA_FOTO_THEMES,
@@ -23,8 +25,9 @@ test("meta name and description stay concise and truthful", () => {
   assert.ok(GENERACIYA_FOTO_SEO.metaTitle.length <= 75);
   assert.equal(
     GENERACIYA_FOTO_SEO.metaDescription,
-    "Создайте фото ИИ онлайн по своему снимку или описанию. Выберите готовый образ, настройте промт и получите реалистичный кадр в PromptShot."
+    "Создайте фото по описанию или своему снимку. Выберите готовый образ, настройте промт и скачайте реалистичный кадр."
   );
+  assert.match(GENERACIYA_FOTO_SEO.metaDescription, /фото по описанию/);
   assert.ok(GENERACIYA_FOTO_SEO.metaDescription.length <= 160);
   assert.ok(GENERACIYA_FOTO_SEO.metaDescription.length >= 80);
   assert.doesNotMatch(GENERACIYA_FOTO_SEO.metaTitle, BANNED_META);
@@ -69,7 +72,15 @@ test("starter keeps Facee first screen and does not add extra headings", () => {
 });
 
 test("hub blocks keep Facee homepage copy", () => {
-  assert.equal(GENERACIYA_FOTO_THEMES.title, "Подборки шаблонов по темам");
+  assert.equal(
+    GENERACIYA_FOTO_SEO.generatorTitle,
+    "Создать фото по описанию или промту"
+  );
+  assert.match(GENERACIYA_FOTO_SEO.generatorLead, /фото по описанию|Опишите кадр/);
+  assert.equal(GENERACIYA_FOTO_THEMES.title, "Сделать ИИ фото по теме");
+  assert.match(GENERACIYA_FOTO_THEMES.lead, /день рождения/);
+  assert.equal(GENERACIYA_FOTO_MORE_TITLE, "Фото по описанию и по примеру");
+  assert.match(GENERACIYA_FOTO_MORE_LEAD, /по описанию|референс/);
   assert.equal(GENERACIYA_FOTO_THEMES.items.length, 22);
   assert.equal(GENERACIYA_FOTO_THEMES.items[0].title, "Для пар");
   assert.equal(GENERACIYA_FOTO_THEMES.items[0].href, "/generaciya-foto/pary");

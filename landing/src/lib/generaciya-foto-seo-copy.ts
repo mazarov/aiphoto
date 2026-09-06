@@ -7,7 +7,7 @@ export const GENERACIYA_FOTO_SEO = {
   metaTitle:
     "Сделать фото ИИ онлайн по фото или описанию — PromptShot",
   metaDescription:
-    "Создайте фото ИИ онлайн по своему снимку или описанию. Выберите готовый образ, настройте промт и получите реалистичный кадр в PromptShot.",
+    "Создайте фото по описанию или своему снимку. Выберите готовый образ, настройте промт и скачайте реалистичный кадр.",
   h1: "Сделать фото ИИ онлайн",
   socialProofPrefix: "Более",
   socialProofSuffix: "человек уже сгенерировали ИИ фото",
@@ -22,6 +22,8 @@ export const GENERACIYA_FOTO_SEO = {
   starterByPhotoTitle: "С вашим фото",
   starterByPhotoLead: "Загрузите селфи — в генераторе выберите образ из каталога",
   generatorTitle: "Создать фото по описанию или промту",
+  generatorLead:
+    "Опишите кадр текстом или загрузите снимок — генератор соберёт реалистичное фото. Промт можно взять из идей ниже или написать свой.",
   generatorNote:
     "Для запуска нужен вход в PromptShot. Стоимость в кредитах показывается рядом с выбранной моделью до генерации.",
   examplesTitle: "Идеи для фото ИИ",
@@ -70,8 +72,8 @@ export const GENERACIYA_FOTO_THEME_ITEMS = GENERACIYA_FOTO_SCENARIO_ROUTES.map(
 );
 
 export const GENERACIYA_FOTO_THEMES = {
-  title: "Подборки шаблонов по темам",
-  lead: "Выберите тему и создайте ИИ-фото со своего снимка.",
+  title: "Сделать ИИ фото по теме",
+  lead: "Пара, семья, день рождения, портрет — откройте сценарий и создайте кадр со своего снимка.",
   allHref: "#primery",
   allLabel: "Смотреть все готовые шаблоны",
   items: GENERACIYA_FOTO_THEME_ITEMS,
@@ -252,7 +254,9 @@ export const GENERACIYA_FOTO_CAPABILITIES = [
   },
 ] as const;
 
-export const GENERACIYA_FOTO_MORE_TITLE = "Что ещё умеет PromptShot?";
+export const GENERACIYA_FOTO_MORE_TITLE = "Фото по описанию и по примеру";
+export const GENERACIYA_FOTO_MORE_LEAD =
+  "Два режима одного генератора: напишите кадр текстом или загрузите референс.";
 
 export type GeneraciyaFotoFaqLink = {
   href: string;

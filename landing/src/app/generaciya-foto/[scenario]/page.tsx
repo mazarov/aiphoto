@@ -22,6 +22,7 @@ import {
 } from "@/lib/generaciya-foto-routes";
 import { getGeneraciyaFotoChipNavigation } from "@/lib/generaciya-foto-chip-nav";
 import {
+  buildGeneraciyaFotoScenarioDescription,
   findGeneraciyaFotoScenarioCopy,
   getGeneraciyaFotoScenarioStarterPrompt,
   type GeneraciyaFotoScenarioCopy,
@@ -127,10 +128,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const shouldIndex =
     result.tier_used !== "error" &&
     totalCount >= MIN_GENERACIYA_FOTO_SCENARIO_CARDS;
+  const description = buildGeneraciyaFotoScenarioDescription(copy, totalCount);
 
   return {
     title: copy.metaTitle,
-    description: copy.metaDescription,
+    description,
     robots: shouldIndex
       ? {
           index: true,
@@ -143,7 +145,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     alternates: { canonical: pageUrl },
     openGraph: {
       title: copy.metaTitle,
-      description: copy.metaDescription,
+      description,
       url: pageUrl,
       type: "website",
       siteName: "PromptShot",
@@ -155,7 +157,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     twitter: {
       card: "summary_large_image",
       title: copy.metaTitle,
-      description: copy.metaDescription,
+      description,
       ...(ogImage ? { images: [ogImage] } : {}),
     },
   };

@@ -98,10 +98,22 @@ test("every scenario has unique, complete SEO copy", () => {
     22
   );
 
+  const MANUAL_DESCRIPTION_SLUGS = new Set([
+    "na-den-rozhdeniya",
+    "semya",
+    "deti",
+    "beremennaya",
+    "pary",
+  ]);
+
   for (const scenario of GENERACIYA_FOTO_SCENARIO_COPY) {
     assert.ok(scenario.metaDescription.length >= 100);
     assert.ok(scenario.metaDescription.length <= 160);
-    assert.match(scenario.metaDescription, /промту или снимку/);
+    if (MANUAL_DESCRIPTION_SLUGS.has(scenario.slug)) {
+      assert.equal(scenario.metaDescriptionManual, true);
+    } else {
+      assert.match(scenario.metaDescription, /снимку или описанию/);
+    }
     assert.doesNotMatch(scenario.h1, /по промту или снимку/);
     assert.match(scenario.intro, /^Выберите готовый образ /);
     assert.equal(scenario.howToSteps.length, 4);
@@ -136,11 +148,28 @@ test("every scenario has unique, complete SEO copy", () => {
     (scenario) => scenario.slug === "beremennaya"
   );
   assert.equal(pairs?.promptCatalogHref, "/ii-fotosessiya/pary");
+  assert.equal(
+    pairs?.metaDescription,
+    "ИИ фото для пары: прогулка, студия или праздник. Загрузите два снимка или опишите кадр — результат без фотографа."
+  );
   assert.equal(family?.promptCatalogHref, "/ii-fotosessiya/semeynye");
+  assert.equal(
+    family?.metaDescription,
+    "Семейное ИИ фото: дома, в студии или на празднике. Загрузите снимки или опишите состав семьи — кадр без студии."
+  );
+  assert.equal(family?.contentBlocks[0]?.h2, "Как сделать семейное ИИ фото");
   assert.equal(kids?.promptCatalogHref, "/ii-fotosessiya/detskie");
+  assert.equal(
+    kids?.metaDescription,
+    "Детское ИИ фото: праздник, портрет или прогулка. Загрузите снимок или опишите кадр — результат без студии."
+  );
   assert.equal(
     pregnancy?.promptCatalogHref,
     "/ii-fotosessiya/beremennye"
+  );
+  assert.equal(
+    pregnancy?.metaDescription,
+    "ИИ фото беременности: студийный или домашний кадр. Загрузите свой снимок или опишите образ — без студии и фотографа."
   );
   assert.equal(
     GENERACIYA_FOTO_SCENARIO_COPY.find((scenario) => scenario.slug === "s-mashinoy")
