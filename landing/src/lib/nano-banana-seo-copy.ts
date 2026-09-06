@@ -10,18 +10,22 @@ export const NANO_BANANA_DEFAULT_MODEL_ID = "gemini-2.5-flash-image";
  * URL: /nano-banana
  * Тип: генератор
  * Ключевой запрос: «nano banana»
- * Синонимы и хвосты: нано банана, nano banana нейросеть, nano banana ru,
- *   nano banana google, nano banana онлайн, nano banana в россии
+ * Синонимы и хвосты: нано банана (кириллица — половина кластера, ~78k clicks),
+ *   нано банана нейросеть / нейронка, nano banana ru / про ру,
+ *   nano banana google, nano banana онлайн, nano banana в россии,
+ *   нано банана официальный сайт (отвечаем честно: мы не сайт Google)
  * Сюда не входит: промты для нано банана (/), сделать фото ИИ (/generaciya-foto),
- *   nano banana pro / 2 (будущие дети), nana banana (песня), официальный сайт Google
+ *   nano banana pro / 2 (будущие дети), nana banana (песня).
+ *   Себя как «официальный сайт Google» не позиционируем — на запрос
+ *   «официальный сайт» отвечаем в FAQ, что мы не сайт Google.
  */
 export const NANO_BANANA_SEO = {
-  metaTitle: "Nano Banana — нейросеть Google для фото онлайн",
+  metaTitle: "Nano Banana (нано банана) — нейросеть Google для фото",
   metaDescription:
-    "Создавайте и редактируйте фото в Nano Banana. Доступ к моделям Google Gemini в России без VPN, оплата в рублях.",
-  h1: "Nano Banana",
+    "Nano Banana (нано банана) — нейросеть Google для генерации и правки фото. Работает в России без VPN, оплата в рублях.",
+  h1: "Nano Banana (нано банана)",
   intro:
-    "Генерация и редактирование фото в моделях Google Gemini — на русском языке, без VPN.",
+    "Нейронка нано банана от Google: генерация и редактирование фото в моделях Gemini — на русском языке, без VPN.",
   breadcrumb: "Nano Banana",
   socialProofPrefix: "Более",
   socialProofSuffix: "человек уже сгенерировали фото в Nano Banana",
@@ -85,7 +89,7 @@ export const NANO_BANANA_ACCESS_ITEMS = [
   },
   {
     title: "Интерфейс на русском",
-    text: "Названия моделей, настройки и подсказки доступны на русском языке.",
+    text: "Нано банана на русском (ru): названия моделей, настройки и подсказки — по-русски.",
   },
   {
     title: "Оплата в рублях",
@@ -104,7 +108,15 @@ export const NANO_BANANA_FAQ: readonly {
   {
     q: "Что такое Nano Banana?",
     a: [
-      "Nano Banana — название моделей Google Gemini для генерации и правки фото. На PromptShot это те же модели: Nano Banana, Nano Banana Pro и Nano Banana 2.",
+      "Nano Banana (нано банана) — название моделей Google Gemini для генерации и правки фото. На PromptShot это те же модели: Nano Banana, Nano Banana Pro и Nano Banana 2.",
+    ],
+  },
+  {
+    q: "Нано банана и Nano Banana — это одно и то же?",
+    a: [
+      "Да. «Нано банана» — русское написание Nano Banana, встречается и как нанабанана, нано банано или нано банан. Нейронка одна и та же — откройте ",
+      { href: "#generator", label: "генератор" },
+      " и запустите её здесь.",
     ],
   },
   {
@@ -122,9 +134,17 @@ export const NANO_BANANA_FAQ: readonly {
     ],
   },
   {
+    q: "Есть ли официальный сайт нано банана на русском?",
+    a: [
+      "Отдельного русского сайта у этой нейросети нет: модели принадлежат Google, и PromptShot не является официальным сайтом Google. Русскоязычный доступ к тем же моделям открыт в ",
+      { href: "#generator", label: "генераторе" },
+      " на этой странице.",
+    ],
+  },
+  {
     q: "Чем Nano Banana Pro отличается от Nano Banana?",
     a: [
-      "Nano Banana быстрее и дешевле, подходит для черновика. Nano Banana Pro даёт больше деталей на сложных сценах. Стоимость видна рядом с моделью до запуска.",
+      "Nano Banana быстрее и дешевле, подходит для черновика. Nano Banana Pro (нано банана про) даёт больше деталей на сложных сценах. Стоимость видна рядом с моделью до запуска.",
     ],
   },
   {

@@ -41,17 +41,17 @@ function pagePlainText(): string {
 
 test("hub keeps one key and CWS-safe snippet", () => {
   assert.equal(NANO_BANANA_PATH, "/nano-banana");
-  assert.equal(NANO_BANANA_SEO.h1, "Nano Banana");
+  assert.equal(NANO_BANANA_SEO.h1, "Nano Banana (нано банана)");
   assert.equal(
     NANO_BANANA_SEO.metaTitle,
-    "Nano Banana — нейросеть Google для фото онлайн"
+    "Nano Banana (нано банана) — нейросеть Google для фото"
   );
   assert.ok(NANO_BANANA_SEO.metaTitle.length <= 70);
   assert.match(NANO_BANANA_SEO.metaTitle, /^Nano Banana/);
   assert.doesNotMatch(NANO_BANANA_SEO.metaTitle, /Pro|промт|сделать фото ИИ/i);
   assert.equal(
     NANO_BANANA_SEO.metaDescription,
-    "Создавайте и редактируйте фото в Nano Banana. Доступ к моделям Google Gemini в России без VPN, оплата в рублях."
+    "Nano Banana (нано банана) — нейросеть Google для генерации и правки фото. Работает в России без VPN, оплата в рублях."
   );
   assert.ok(NANO_BANANA_SEO.metaDescription.length <= 132);
   assert.ok(NANO_BANANA_SEO.metaDescription.length >= 80);
@@ -59,6 +59,27 @@ test("hub keeps one key and CWS-safe snippet", () => {
   assert.doesNotMatch(NANO_BANANA_SEO.metaDescription, BANNED_META);
   assert.match(NANO_BANANA_SEO.intro, /без VPN/);
   assert.match(NANO_BANANA_SEO.intro, /Google/);
+});
+
+// Кириллическая ветка кластера — половина спроса (~78k clicks) и до этой
+// правки не встречалась в тексте ни разу. Латиница остаётся основной формой.
+test("cyrillic branch of the cluster is covered", () => {
+  const CYRILLIC = /нано банана/i;
+  assert.match(NANO_BANANA_SEO.metaTitle, CYRILLIC);
+  assert.match(NANO_BANANA_SEO.metaDescription, CYRILLIC);
+  assert.match(NANO_BANANA_SEO.h1, CYRILLIC);
+  assert.match(NANO_BANANA_SEO.intro, CYRILLIC);
+
+  // Синонимы: «нейронка» и ru-интент.
+  assert.match(NANO_BANANA_SEO.intro, /нейронка/i);
+  assert.match(
+    NANO_BANANA_ACCESS_ITEMS.map((item) => item.text).join("\n"),
+    /\(ru\)/i
+  );
+
+  // H1 и Title сохраняют латиницу как основную форму ключа.
+  assert.match(NANO_BANANA_SEO.h1, /^Nano Banana/);
+  assert.match(NANO_BANANA_SEO.metaTitle, /^Nano Banana/);
 });
 
 test("generator copy does not own prompt queries", () => {
@@ -92,7 +113,7 @@ test("FAQ answers action questions without sending people to Google", () => {
     "/pricing",
   ]);
   const questions = NANO_BANANA_FAQ.map((item) => item.q);
-  assert.equal(questions.length, 7);
+  assert.equal(questions.length, 9);
   assert.ok(questions.includes("Что такое Nano Banana?"));
   assert.ok(questions.includes("Nano Banana — это официальный Google Gemini?"));
   assert.ok(questions.includes("Как пользоваться Nano Banana в России?"));
@@ -100,6 +121,13 @@ test("FAQ answers action questions without sending people to Google", () => {
     questions.includes(
       "Сколько стоит Nano Banana и можно ли пользоваться бесплатно?"
     )
+  );
+  // Кириллические написания и ветка «официальный сайт» (~10.7k clicks).
+  assert.ok(
+    questions.includes("Нано банана и Nano Banana — это одно и то же?")
+  );
+  assert.ok(
+    questions.includes("Есть ли официальный сайт нано банана на русском?")
   );
   assert.equal(
     questions.some((q) => PROMPT_WORD.test(q)),
