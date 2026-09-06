@@ -16,6 +16,17 @@ export function stripCardTitlePrefix(raw: string): string {
   return stripped || text;
 }
 
+/**
+ * Listing `alt` / `aria-label`. Raw `title_ru` starts with the analyzer marker
+ * `Visual Hook:` and never names the subject, so Yandex Images sees no prompt query.
+ */
+export function buildCardImageAlt(rawTitle: string): string {
+  const core = stripCardTitlePrefix(rawTitle).replace(/\.{3,}$/, "").trim();
+  if (!core) return "Промт для фото ИИ";
+  if (/промт/i.test(core)) return core;
+  return `Промт для фото: ${core}`;
+}
+
 /** Trailing short id from `/p/…-df7fa`. */
 export function cardSlugShortId(slug: string): string | null {
   const m = slug.trim().match(/-([a-f0-9]{4,8})$/i);

@@ -2,10 +2,33 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   CARD_META_TITLE_MAX_LEN,
+  buildCardImageAlt,
   buildCardMetaTitle,
   cardSlugShortId,
   stripCardTitlePrefix,
 } from "./card-meta-title";
+
+test("listing alt names the prompt instead of leaking Visual Hook", () => {
+  assert.equal(
+    buildCardImageAlt("Visual Hook: Элегантный силуэт в вечернем платье"),
+    "Промт для фото: Элегантный силуэт в вечернем платье",
+  );
+  // хвост «...» из buildUgcCardTitle не должен уезжать в alt
+  assert.equal(
+    buildCardImageAlt("Visual Hook: Мягкий серый свитер на фоне листвы..."),
+    "Промт для фото: Мягкий серый свитер на фоне листвы",
+  );
+  // если ключ уже есть в заголовке — не дублируем
+  assert.equal(
+    buildCardImageAlt("Промт для фото на день рождения"),
+    "Промт для фото на день рождения",
+  );
+  assert.equal(buildCardImageAlt(""), "Промт для фото ИИ");
+  assert.doesNotMatch(
+    buildCardImageAlt("Visual Hook: Gold dress"),
+    /Visual Hook/i,
+  );
+});
 
 test("strips Visual Hook prefix", () => {
   assert.equal(

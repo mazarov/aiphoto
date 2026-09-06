@@ -160,6 +160,7 @@ export function HomepageExamplesExplorer({
         title={HOMEPAGE_SEO.galleryTitle}
         titleAs="h2"
         titleId="examples-heading"
+        intro={HOMEPAGE_SEO.galleryIntro}
       />
 
       <ListingExplorerSearch

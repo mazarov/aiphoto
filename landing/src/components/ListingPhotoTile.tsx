@@ -11,6 +11,7 @@ import {
   CARD_IMAGE_LISTING_NEXT_QUALITY,
   SIZES_CARD_GRID,
 } from "@/lib/card-image-presets";
+import { buildCardImageAlt } from "@/lib/card-meta-title";
 import type { GenerationExampleCard } from "@/lib/generation/example-card";
 
 type Props = {
@@ -40,7 +41,8 @@ export function ListingPhotoTile({
   const { open, prefetchCard } = usePromptCardModal();
   const photoshootUrls =
     card.isPhotoshoot && card.photoUrls.length === 4 ? card.photoUrls : null;
-  const imageAlt = decorative ? "" : card.title;
+  const cardLabel = buildCardImageAlt(card.title);
+  const imageAlt = decorative ? "" : cardLabel;
   const showVideo = Boolean(card.videoUrl) && !decorative && !still;
 
   return (
@@ -109,7 +111,7 @@ export function ListingPhotoTile({
         <Link
           href={`/p/${card.slug}`}
           className={`absolute inset-0 z-10${photoshootUrls ? " pointer-events-none" : ""}`}
-          aria-label={card.title}
+          aria-label={cardLabel}
           prefetch
           onPointerEnter={() => prefetchCard(card.slug)}
           onTouchStart={() => prefetchCard(card.slug)}

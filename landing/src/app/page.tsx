@@ -8,6 +8,7 @@ import {
 } from "@/lib/supabase";
 import { TAG_REGISTRY } from "@/lib/tag-registry";
 import { HOMEPAGE_SEO, HOMEPAGE_FAQ } from "@/lib/homepage-seo-copy";
+import { stripCardTitlePrefix } from "@/lib/card-meta-title";
 import { getHomepageCatalogThemeItems } from "@/lib/homepage-explorer-chips";
 import { fetchNewestThemeCollagePhotos } from "@/lib/homepage-sections";
 import { toGenerationExampleCard } from "@/lib/generation/example-card";
@@ -152,7 +153,7 @@ export default async function HomePage() {
         itemListElement: galleryCards.map((card, index) => ({
           "@type": "ListItem",
           position: index + 1,
-          name: card.title,
+          name: stripCardTitlePrefix(card.title),
           ...(card.slug ? { url: `${SITE_URL}/p/${card.slug}` } : {}),
         })),
       }
