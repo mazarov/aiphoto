@@ -39,6 +39,7 @@ test("mapPromptshotPathToSource uses calling page prefixes", () => {
   assert.equal(mapPromptshotPathToSource("/foto-v-promt/"), "foto_v_promt");
   assert.equal(mapPromptshotPathToSource("/generaciya-foto?tab=photo"), "generaciya_foto");
   assert.equal(mapPromptshotPathToSource("/nano-banana"), "generaciya_foto");
+  assert.equal(mapPromptshotPathToSource("/nano-banana/pro"), "generaciya_foto");
   assert.equal(
     mapPromptshotPathToSource("/generaciya-foto/devushki"),
     "generaciya_foto"

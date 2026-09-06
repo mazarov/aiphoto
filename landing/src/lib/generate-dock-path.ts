@@ -1,5 +1,6 @@
 import { isGeneraciyaFotoScenarioPath } from "./generaciya-foto-routes";
 import type { GenerateDockComposeIntent } from "./generate-dock-seed";
+import { isNanoBananaSeoPath } from "./nano-banana-seo-copy";
 import { isPromtyDlyaIiFotosessiiPath } from "./promty-dlya-ii-fotosessii-cluster";
 
 /** SEO acquisition route where blank text-to-image is allowed. */
@@ -7,7 +8,7 @@ export function isGenerateDockSeoPagePath(pathname: string): boolean {
   const normalized = normalizeGenerateDockPath(pathname);
   return (
     normalized === "/generaciya-foto" ||
-    normalized === "/nano-banana" ||
+    isNanoBananaSeoPath(normalized) ||
     isGeneraciyaFotoScenarioPath(normalized)
   );
 }

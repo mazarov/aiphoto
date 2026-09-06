@@ -7,9 +7,19 @@ import {
   GF_STACK,
   GF_SURFACE,
 } from "@/components/generate/generaciya-foto-ui";
-import { NANO_BANANA_ACCESS_ITEMS } from "@/lib/nano-banana-seo-copy";
+import { NANO_BANANA_ACCESS } from "@/lib/nano-banana-seo-copy";
 
-export function NanoBananaAccess() {
+export function NanoBananaAccess({
+  eyebrow = NANO_BANANA_ACCESS.eyebrow,
+  title = NANO_BANANA_ACCESS.title,
+  lead = NANO_BANANA_ACCESS.lead,
+  items = NANO_BANANA_ACCESS.items,
+}: {
+  eyebrow?: string;
+  title?: string;
+  lead?: string;
+  items?: readonly { title: string; text: string }[];
+}) {
   return (
     <section
       className="scroll-mt-20"
@@ -20,21 +30,18 @@ export function NanoBananaAccess() {
           <span className="flex h-5 w-5 items-center justify-center rounded-md bg-white ring-1 ring-indigo-100">
             <GoogleGenerationModelIcon className="h-3.5 w-3.5" />
           </span>
-          Доступ к Google Gemini
+          {eyebrow}
         </p>
         <h2
           id="nano-banana-russia-heading"
           className={`mt-2 ${GF_H2}`}
         >
-          Nano Banana в России
+          {title}
         </h2>
-        <p className={GF_LEAD}>
-          AI Studio из РФ не открывается? На PromptShot модели Nano Banana
-          работают без VPN.
-        </p>
+        <p className={GF_LEAD}>{lead}</p>
 
         <ul className={`${GF_STACK} grid gap-3 sm:grid-cols-2`}>
-          {NANO_BANANA_ACCESS_ITEMS.map((item) => (
+          {items.map((item) => (
             <li key={item.title} className={`p-5 ${GF_SURFACE}`}>
               <h3 className="text-base font-semibold text-zinc-900">
                 {item.title}

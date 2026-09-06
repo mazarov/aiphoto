@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { usePathname } from "next/navigation";
 import {
   displayDescriptionForGenerationModel,
   displayLabelForGenerationModel,
-  isNanoBananaFamilyModel,
   type GenerationModelOption,
 } from "@/lib/generation-model-labels";
 import { useGenerateDock } from "@/context/GenerateDockContext";
@@ -18,6 +18,8 @@ import {
   GF_LEAD,
   GF_STACK,
 } from "@/components/generate/generaciya-foto-ui";
+import { normalizeGenerateDockPath } from "@/lib/generate-dock-path";
+import { hrefForNanoBananaModel } from "@/lib/nano-banana-seo-copy";
 
 export function GenerationModelsShowcase({
   models,
@@ -25,7 +27,7 @@ export function GenerationModelsShowcase({
   title = "Модели ИИ для генерации фото",
   lead = "Выберите модель для генерации фото: скорость, детализация и цена. Она сразу включится в генераторе.",
   layout = "cards",
-  nanoBananaHref,
+  linkNanoBananaFamily = false,
   googleBranded = false,
 }: {
   models: GenerationModelOption[];
@@ -33,9 +35,11 @@ export function GenerationModelsShowcase({
   title?: string;
   lead?: string;
   layout?: "cards" | "chips";
-  nanoBananaHref?: string;
+  linkNanoBananaFamily?: boolean;
   googleBranded?: boolean;
 }) {
+  const pathname = usePathname();
+  const currentPath = normalizeGenerateDockPath(pathname ?? "");
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
   const { requestModelSelection } = useGenerateDock();
 
@@ -47,6 +51,12 @@ export function GenerationModelsShowcase({
       dockSurface: "model",
     });
     setSelectedModelId(modelId);
+  };
+
+  const landingHref = (modelId: string, label: string) => {
+    if (!linkNanoBananaFamily) return undefined;
+    const href = hrefForNanoBananaModel(modelId, label);
+    return href && href !== currentPath ? href : undefined;
   };
 
   return (
@@ -75,10 +85,7 @@ export function GenerationModelsShowcase({
           aria-label={title}
         >
           {models.map((item) => {
-            const href =
-              nanoBananaHref && isNanoBananaFamilyModel(item.id, item.label)
-                ? nanoBananaHref
-                : undefined;
+            const href = landingHref(item.id, item.label);
             return (
               <div key={item.id} role="listitem" className="min-h-[5rem]">
                 <GenerationModelShowcaseChip
@@ -105,10 +112,7 @@ export function GenerationModelsShowcase({
         >
           {models.map((item) => {
             const selected = selectedModelId === item.id;
-            const href =
-              nanoBananaHref && isNanoBananaFamilyModel(item.id, item.label)
-                ? nanoBananaHref
-                : undefined;
+            const href = landingHref(item.id, item.label);
             return (
               <div key={item.id} role="listitem">
                 <ComposeModelChoiceCard

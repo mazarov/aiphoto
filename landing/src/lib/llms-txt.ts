@@ -34,6 +34,7 @@ export function buildLlmsTxt(siteUrl?: string): string {
     "",
     `- [Сделать фото ИИ](${origin}/generaciya-foto): один кадр по описанию или загруженному фото.`,
     `- [Nano Banana](${origin}/nano-banana): модели Google Gemini для генерации и редактирования фото.`,
+    `- [Nano Banana Pro](${origin}/nano-banana/pro): модель Google с большей детализацией фото.`,
     `- [ИИ фотосессия](${origin}/ii-fotosessiya): серия кадров по одному снимку.`,
     `- [Фото в промт](${origin}/foto-v-promt): разбор изображения в текстовый промт.`,
     "",
@@ -48,7 +49,7 @@ export function buildLlmsTxt(siteUrl?: string): string {
     "",
     "## Для агентов",
     "",
-    "Генератор на /generaciya-foto и /nano-banana принимает текст или файл изображения. Не обходить /api/, /admin/, /embed/, /auth/, /search, /favorites, /generations, /analyses, /generate, /pricing — эти пути закрыты в robots.txt.",
+    "Генератор на /generaciya-foto, /nano-banana и /nano-banana/pro принимает текст или файл изображения. Не обходить /api/, /admin/, /embed/, /auth/, /search, /favorites, /generations, /analyses, /generate, /pricing — эти пути закрыты в robots.txt.",
     "",
   ].join("\n");
 }

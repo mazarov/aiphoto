@@ -21,6 +21,9 @@ test("isGenerateDockSeoPagePath includes approved scenario pages", () => {
   assert.equal(isGenerateDockSeoPagePath("/generaciya-foto"), true);
   assert.equal(isGenerateDockSeoPagePath("/nano-banana"), true);
   assert.equal(isGenerateDockSeoPagePath("/nano-banana/"), true);
+  assert.equal(isGenerateDockSeoPagePath("/nano-banana/pro"), true);
+  assert.equal(isGenerateDockSeoPagePath("/nano-banana/pro/"), true);
+  assert.equal(isGenerateDockSeoPagePath("/nano-banana/foo"), false);
   assert.equal(isGenerateDockSeoPagePath("/generaciya-foto/"), true);
   assert.equal(isGenerateDockSeoPagePath("/generaciya-foto/devushki"), true);
   assert.equal(isGenerateDockSeoPagePath("/generaciya-foto/kollazh/"), true);

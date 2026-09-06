@@ -71,6 +71,11 @@ function staticHubEntries(): MetadataRoute.Sitemap {
       priority: 0.9,
     },
     {
+      url: `${BASE_URL}/nano-banana/pro`,
+      changeFrequency: "weekly",
+      priority: 0.9,
+    },
+    {
       url: `${BASE_URL}${PROMTY_DLYA_II_FOTOSESSII_HUB_PATH}`,
       changeFrequency: "weekly",
       priority: 0.9,

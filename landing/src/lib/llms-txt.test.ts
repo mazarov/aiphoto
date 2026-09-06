@@ -12,6 +12,10 @@ test("llms.txt matches Lighthouse Agentic Browsing format checks", () => {
   assert.ok(body.length > LLMS_TXT_MIN_CHARS);
   assert.match(body, /^# PromptShot$/m);
   assert.match(body, /\[Nano Banana\]\(https:\/\/promptshot\.ru\/nano-banana\)/);
+  assert.match(
+    body,
+    /\[Nano Banana Pro\]\(https:\/\/promptshot\.ru\/nano-banana\/pro\)/
+  );
   assert.match(body, /\[Сделать фото ИИ\]\(https:\/\/promptshot\.ru\/generaciya-foto\)/);
 });
 

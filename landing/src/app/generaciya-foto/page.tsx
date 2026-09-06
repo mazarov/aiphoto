@@ -382,7 +382,7 @@ export default async function GeneraciyaFotoPage() {
             <GenerationModelsShowcase
               models={models}
               layout="chips"
-              nanoBananaHref="/nano-banana"
+              linkNanoBananaFamily
             />
           </section>
 

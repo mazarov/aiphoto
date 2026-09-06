@@ -1,5 +1,9 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-09-06 (**Nano Banana copy split:** хаб `/nano-banana` — точечная правка своими словами и черновик; `/nano-banana/pro` — свет, фотореализм, текст на кадре. Общий каркас, разные `FEATURES` / HowTo / FAQ / access. Факты о моделях по обзору Практикума, без увода в Gemini. SSOT `nano-banana-seo-copy.ts`.)
+>
+> Последнее обновление: 2026-09-06 (**`/nano-banana/pro`:** отдельная посадочная под «nano banana pro» / «нано банана про». Общий каркас с хабом (`NanoBananaFamilyPage`, тот же пул примеров), дефолт `gemini-3-pro-image-preview`. `hrefForNanoBananaModel`: Pro-чип → `/nano-banana/pro`, остальные модели семейства → `/nano-banana`. Sitemap, `llms.txt`, `isGenerateDockSeoPagePath` whitelist (`/nano-banana`, `/nano-banana/pro`). Спека `docs/02-09-nano-banana.md` §6, SSOT `nano-banana-seo-copy.ts`.)
+>
 > Последнее обновление: 2026-09-06 (**`Clean-param` против служебных URL:** `robots.txt/route.ts` собирает директиву из SSOT `CLEAN_PARAMS`. К каталожным фильтрам добавлены `ps_auth`, `ps_sy`, `ps_ov`, `payment`, `auth_error` — Вебмастер показал 35 таких URL с 759 показами в кластере `/generaciya-foto`, включая проиндексированный ID платежа и текст ошибки PKCE. Разбор `docs/06-09-generaciya-foto-seo.md`.)
 >
 > Последнее обновление: 2026-09-05 (**card `<title>` uniqueness:** `/p/[slug]` больше не режет title до 26 символов суффиксом «промт для фото ИИ». SSOT `buildCardMetaTitle`: снять `Visual Hook:`, суффикс ` | PromptShot`, лимит 80. Одинаковые шаблонные title («Сделай такое же фото…», «Подборка дня») и обрезка — хвост слага `· df7fa`. Листинги не трогали.)

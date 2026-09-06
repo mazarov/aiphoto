@@ -3,7 +3,10 @@
 import type { MouseEvent } from "react";
 import Link from "next/link";
 import { GeneraciyaFotoFaqBlock } from "@/components/generate/GeneraciyaFotoFaqBlock";
-import { isGeneraciyaFotoFaqLink } from "@/lib/generaciya-foto-seo-copy";
+import {
+  isGeneraciyaFotoFaqLink,
+  type GeneraciyaFotoFaqPart,
+} from "@/lib/generaciya-foto-seo-copy";
 import { NANO_BANANA_FAQ, NANO_BANANA_SEO } from "@/lib/nano-banana-seo-copy";
 
 const linkClass =
@@ -21,11 +24,17 @@ function onHashLinkClick(event: MouseEvent<HTMLAnchorElement>, href: string) {
   scrollToPageHash(href);
 }
 
-export function NanoBananaFaq() {
+export function NanoBananaFaq({
+  title = NANO_BANANA_SEO.faqTitle,
+  items = NANO_BANANA_FAQ,
+}: {
+  title?: string;
+  items?: readonly { q: string; a: readonly GeneraciyaFotoFaqPart[] }[];
+}) {
   return (
     <GeneraciyaFotoFaqBlock
-      title={NANO_BANANA_SEO.faqTitle}
-      items={NANO_BANANA_FAQ.map((item) => ({
+      title={title}
+      items={items.map((item) => ({
         q: item.q,
         a: item.a.map((part, index) => {
           if (!isGeneraciyaFotoFaqLink(part)) return part;

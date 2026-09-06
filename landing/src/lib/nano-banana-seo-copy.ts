@@ -2,9 +2,50 @@ import {
   flattenGeneraciyaFotoFaqAnswer,
   type GeneraciyaFotoFaqPart,
 } from "./generaciya-foto-seo-copy";
+import {
+  displayLabelForGenerationModel,
+  isNanoBananaFamilyModel,
+} from "./generation-model-labels";
 
 export const NANO_BANANA_PATH = "/nano-banana";
+export const NANO_BANANA_PRO_PATH = "/nano-banana/pro";
 export const NANO_BANANA_DEFAULT_MODEL_ID = "gemini-2.5-flash-image";
+export const NANO_BANANA_PRO_DEFAULT_MODEL_ID = "gemini-3-pro-image-preview";
+
+export const NANO_BANANA_SEO_PATHS = [
+  NANO_BANANA_PATH,
+  NANO_BANANA_PRO_PATH,
+] as const;
+
+export function isNanoBananaSeoPath(pathname: string): boolean {
+  const normalized =
+    pathname.length > 1 && pathname.endsWith("/")
+      ? pathname.slice(0, -1)
+      : pathname;
+  return (NANO_BANANA_SEO_PATHS as readonly string[]).includes(normalized);
+}
+
+const NANO_BANANA_PRO_MODEL_IDS = new Set(["gemini-3-pro-image-preview"]);
+
+export function isNanoBananaProModel(
+  id: string,
+  fallbackLabel?: string
+): boolean {
+  if (NANO_BANANA_PRO_MODEL_IDS.has(id)) return true;
+  return /nano banana\s*pro/i.test(
+    displayLabelForGenerationModel(id, fallbackLabel)
+  );
+}
+
+/** Landing for a Nano Banana family model. «2» stays on the hub until /nano-banana/2 exists. */
+export function hrefForNanoBananaModel(
+  id: string,
+  fallbackLabel?: string
+): string | null {
+  if (!isNanoBananaFamilyModel(id, fallbackLabel)) return null;
+  if (isNanoBananaProModel(id, fallbackLabel)) return NANO_BANANA_PRO_PATH;
+  return NANO_BANANA_PATH;
+}
 
 /**
  * URL: /nano-banana
@@ -15,17 +56,17 @@ export const NANO_BANANA_DEFAULT_MODEL_ID = "gemini-2.5-flash-image";
  *   nano banana google, nano banana онлайн, nano banana в россии,
  *   нано банана официальный сайт (отвечаем честно: мы не сайт Google)
  * Сюда не входит: промты для нано банана (/), сделать фото ИИ (/generaciya-foto),
- *   nano banana pro / 2 (будущие дети), nana banana (песня).
+ *   nano banana pro (/nano-banana/pro), nano banana 2 (пока хаб), nana banana (песня).
  *   Себя как «официальный сайт Google» не позиционируем — на запрос
  *   «официальный сайт» отвечаем в FAQ, что мы не сайт Google.
  */
 export const NANO_BANANA_SEO = {
   metaTitle: "Nano Banana (нано банана) — нейросеть Google для фото",
   metaDescription:
-    "Nano Banana (нано банана) — нейросеть Google для генерации и правки фото. Работает в России без VPN, оплата в рублях.",
+    "Nano Banana (нано банана) — нейросеть Google. Создайте фото или поправьте кадр своими словами. В России без VPN, оплата в рублях.",
   h1: "Nano Banana (нано банана)",
   intro:
-    "Нейронка нано банана от Google: генерация и редактирование фото в моделях Gemini — на русском языке, без VPN.",
+    "Нейронка нано банана от Google: фото по описанию или точечная правка кадра своими словами — на русском, без VPN.",
   breadcrumb: "Nano Banana",
   socialProofPrefix: "Более",
   socialProofSuffix: "человек уже сгенерировали фото в Nano Banana",
@@ -36,7 +77,7 @@ export const NANO_BANANA_SEO = {
   starterByPhotoLead: "Загрузите снимок — кадр соберём сами",
   examplesTitle: "Примеры фото Nano Banana",
   examplesIntro:
-    "Выберите образ и сгенерируйте фото в Nano Banana — со своего снимка или по тексту.",
+    "Возьмите образ и повторите кадр: новым описанием или точечной правкой своего снимка.",
   examplesCta: "Больше примеров",
   examplesMoreHref: `${NANO_BANANA_PATH}#primery`,
   howToTitle: "Как пользоваться Nano Banana?",
@@ -46,13 +87,70 @@ export const NANO_BANANA_SEO = {
   modelsEyebrow: "Модели Google",
   modelsTitle: "Модели Nano Banana",
   modelsLead:
-    "Сравните скорость, точность и стоимость. Выбранная модель сразу включится в генераторе.",
+    "Обычная Nano Banana — быстрый черновик. Pro — свет и детали. Выбранная модель сразу включится в генераторе.",
 } as const;
 
-export function formatNanoBananaSocialProof(count: number): string | null {
+/**
+ * URL: /nano-banana/pro
+ * Тип: генератор модели
+ * Ключевой запрос: «nano banana pro» + «нано банана про»
+ * Не берёт: head без «pro», промты, nano banana 2.
+ */
+export const NANO_BANANA_PRO_SEO = {
+  metaTitle: "Nano Banana Pro (нано банана про) — нейросеть Google для фото",
+  metaDescription:
+    "Nano Banana Pro (нано банана про) — модель Google для сложных сцен: свет, детали, текст на кадре. В России без VPN, оплата в рублях.",
+  h1: "Nano Banana Pro (нано банана про)",
+  intro:
+    "Nano Banana Pro (нано банана про) — для кадров, где важны свет, фотореализм и мелкие детали. Генерация и правка на русском, без VPN.",
+  breadcrumb: "Pro",
+  socialProofPrefix: "Более",
+  socialProofSuffix: "человек уже сгенерировали фото в Nano Banana Pro",
+  secondaryCta: "Выбрать и повторить",
+  starterByTextTitle: "Генерация по тексту",
+  starterByTextLead: "Напишите сцену своими словами",
+  starterByPhotoTitle: "Генерация по фото",
+  starterByPhotoLead: "Загрузите снимок — кадр соберём сами",
+  examplesTitle: "Примеры фото Nano Banana Pro",
+  examplesIntro:
+    "Выберите сложный образ — свет, фактуры, текст на кадре — и соберите его в Nano Banana Pro.",
+  examplesCta: "Больше примеров",
+  examplesMoreHref: `${NANO_BANANA_PRO_PATH}#primery`,
+  howToTitle: "Как пользоваться Nano Banana Pro?",
+  howToLead: "Три шага, чтобы сделать фото в Nano Banana Pro онлайн",
+  howToCta: "Создать фото",
+  faqTitle: "Частые вопросы про Nano Banana Pro",
+  modelsEyebrow: "Модели Google",
+  modelsTitle: "Модели Nano Banana",
+  modelsLead:
+    "На этой странице уже выбрана Nano Banana Pro. Обычная модель — для черновика, Pro — для финального кадра.",
+} as const;
+
+export type NanoBananaSeoCopy =
+  | typeof NANO_BANANA_SEO
+  | typeof NANO_BANANA_PRO_SEO;
+
+export type NanoBananaFeatureItem = {
+  title: string;
+  text: string;
+};
+
+export type NanoBananaFeaturesCopy = {
+  title: string;
+  lead: string;
+  items: readonly NanoBananaFeatureItem[];
+};
+
+export function formatNanoBananaSocialProof(
+  count: number,
+  copy: Pick<
+    NanoBananaSeoCopy,
+    "socialProofPrefix" | "socialProofSuffix"
+  > = NANO_BANANA_SEO
+): string | null {
   if (!Number.isFinite(count) || count <= 0) return null;
   const formatted = Math.trunc(count).toLocaleString("ru-RU");
-  return `${NANO_BANANA_SEO.socialProofPrefix} ${formatted} ${NANO_BANANA_SEO.socialProofSuffix}`;
+  return `${copy.socialProofPrefix} ${formatted} ${copy.socialProofSuffix}`;
 }
 
 export const NANO_BANANA_HOW_TO_STEPS = [
@@ -63,23 +161,88 @@ export const NANO_BANANA_HOW_TO_STEPS = [
   },
   {
     n: "02",
-    title: "Загрузите фото или опишите кадр",
-    text: "Своё фото даёт портрет с вашим лицом. Текст задаёт сцену, одежду и свет.",
+    title: "Опишите сцену или правку",
+    text: "Для нового кадра задайте место, одежду и свет. Для правки напишите только изменение — фон, причёску или лишний объект.",
   },
   {
     n: "03",
     title: "Скачайте готовое фото",
-    text: "Файл появится в генераторе. Если кадр не тот — поправьте описание и запустите ещё раз.",
+    text: "Если кадр не тот — уточните правку своими словами и запустите ещё раз.",
   },
 ] as const;
 
 export const NANO_BANANA_TOOLS = {
-  title: "Что можно изменить в Nano Banana",
-  lead: "Загрузите снимок и выберите задачу: заменить фон, причёску или деталь, убрать объект либо повысить качество.",
+  title: "Точечная правка в Nano Banana",
+  lead: "Загрузите снимок и опишите изменение: фон, одежду, причёску или лишний объект. Остальное модель старается оставить.",
+} as const;
+
+export const NANO_BANANA_FEATURES = {
+  title: "Что умеет Nano Banana",
+  lead: "Быстрый генератор и редактор: новый кадр с нуля или правка своего снимка своими словами.",
+  items: [
+    {
+      title: "Правка своими словами",
+      text: "Загрузите фото и скажите, что поменять. Nano Banana правит указанное и держит остальной кадр.",
+    },
+    {
+      title: "Фото или текст",
+      text: "Своё фото даёт портрет с вашей внешностью. Текст без снимка собирает сцену с нуля.",
+    },
+    {
+      title: "Черновик за меньшую цену",
+      text: "Обычная Nano Banana и Nano Banana 2 — для проб и серий правок. Pro берите, когда нужны свет и мелкие детали.",
+    },
+  ],
 } as const;
 
 export const NANO_BANANA_PRICING = {
   returnPath: NANO_BANANA_PATH,
+} as const;
+
+export const NANO_BANANA_PRO_HOW_TO_STEPS = [
+  {
+    n: "01",
+    title: "Откройте генератор",
+    text: "Nano Banana Pro уже выбран. Остаётся загрузить снимок или описать кадр.",
+  },
+  {
+    n: "02",
+    title: "Задайте свет, детали и текст",
+    text: "Опишите освещение, фактуры и то, что должно читаться на кадре: вывеска, схема, надпись. Своё фото держит внешность.",
+  },
+  {
+    n: "03",
+    title: "Скачайте финальный кадр",
+    text: "Pro дороже черновика. Для быстрой пробы переключите модель в блоке выше и запустите снова.",
+  },
+] as const;
+
+export const NANO_BANANA_PRO_TOOLS = {
+  title: "Сложный кадр в Nano Banana Pro",
+  lead: "Задайте свет, материалы и читаемый текст на кадре. Подходит для финального портрета и сцен с мелкими деталями.",
+} as const;
+
+export const NANO_BANANA_PRO_FEATURES = {
+  title: "Когда нужна Nano Banana Pro",
+  lead: "Берите Pro, когда обычной модели мало: сложный свет, фактуры и текст как часть кадра.",
+  items: [
+    {
+      title: "Фотореализм и свет",
+      text: "Pro сильнее держит направление света, объём и правдоподобную кожу — для финального портрета, не наброска.",
+    },
+    {
+      title: "Мелкие детали",
+      text: "Сложные сцены с несколькими объектами и фактурами Pro собирает аккуратнее, чем быстрая модель.",
+    },
+    {
+      title: "Текст на кадре",
+      text: "Вывеска, открытка или простая схема могут быть частью изображения. Напишите точную формулировку в описании.",
+    },
+  ],
+} as const;
+
+export const NANO_BANANA_PRO_PRICING = {
+  returnPath: NANO_BANANA_PRO_PATH,
 } as const;
 
 export const NANO_BANANA_ACCESS_ITEMS = [
@@ -101,6 +264,39 @@ export const NANO_BANANA_ACCESS_ITEMS = [
   },
 ] as const;
 
+export const NANO_BANANA_ACCESS = {
+  eyebrow: "Доступ к Google Gemini",
+  title: "Nano Banana в России",
+  lead: "Gemini из РФ часто не открывается. На PromptShot семейство Nano Banana работает без VPN.",
+  items: NANO_BANANA_ACCESS_ITEMS,
+} as const;
+
+export const NANO_BANANA_PRO_ACCESS_ITEMS = [
+  {
+    title: "Без VPN",
+    text: "Nano Banana Pro открывается в обычном браузере — менять IP и ставить приложение не нужно.",
+  },
+  {
+    title: "Интерфейс на русском",
+    text: "Нано банана про на русском (ru): модель, настройки и описание кадра — по-русски.",
+  },
+  {
+    title: "Оплата в рублях",
+    text: "Цена Pro видна до запуска. Пакеты кредитов оплачиваются в рублях.",
+  },
+  {
+    title: "Прямо на PromptShot",
+    text: "Доступ к модели Google Gemini 3 Pro Image, не сайт Google AI Studio и не подписка Google AI.",
+  },
+] as const;
+
+export const NANO_BANANA_PRO_ACCESS = {
+  eyebrow: "Доступ к Google Gemini",
+  title: "Nano Banana Pro в России",
+  lead: "Официальный Gemini из РФ часто закрыт. На PromptShot Nano Banana Pro работает без VPN.",
+  items: NANO_BANANA_PRO_ACCESS_ITEMS,
+} as const;
+
 export const NANO_BANANA_FAQ: readonly {
   q: string;
   a: readonly GeneraciyaFotoFaqPart[];
@@ -108,7 +304,7 @@ export const NANO_BANANA_FAQ: readonly {
   {
     q: "Что такое Nano Banana?",
     a: [
-      "Nano Banana (нано банана) — название моделей Google Gemini для генерации и правки фото. На PromptShot это те же модели: Nano Banana, Nano Banana Pro и Nano Banana 2.",
+      "Nano Banana (нано банана) — народное название моделей Google Gemini для фото, в документации Google это Gemini Image. На PromptShot доступны обычная Nano Banana, Nano Banana Pro и Nano Banana 2.",
     ],
   },
   {
@@ -142,17 +338,27 @@ export const NANO_BANANA_FAQ: readonly {
     ],
   },
   {
+    q: "Можно ли в Nano Banana править фото своими словами?",
+    a: [
+      "Да. Загрузите снимок в ",
+      { href: "#generator", label: "генератор" },
+      " и напишите только изменение: фон, одежду или лишний объект. Модель правит указанное и старается сохранить остальной кадр.",
+    ],
+  },
+  {
     q: "Чем Nano Banana Pro отличается от Nano Banana?",
     a: [
-      "Nano Banana быстрее и дешевле, подходит для черновика. Nano Banana Pro (нано банана про) даёт больше деталей на сложных сценах. Стоимость видна рядом с моделью до запуска.",
+      "Обычная Nano Banana быстрее и дешевле — черновик и точечная правка. ",
+      { href: NANO_BANANA_PRO_PATH, label: "Nano Banana Pro (нано банана про)" },
+      " сильнее на свете, фотореализме и мелких деталях. Стоимость видна до запуска.",
     ],
   },
   {
     q: "Что такое Nano Banana 2?",
     a: [
-      "Следующая линейка той же нейросети. На PromptShot она в блоке ",
+      "Более новая быстрая линейка той же нейросети: итерации и правки со снимком. На PromptShot она в блоке ",
       { href: "#generation-models-heading", label: "моделей Nano Banana" },
-      " — выберите карточку, и генератор переключится.",
+      " — выберите карточку, отдельной страницы пока нет.",
     ],
   },
   {
@@ -167,6 +373,80 @@ export const NANO_BANANA_FAQ: readonly {
   },
   {
     q: "Нужно ли скачивать Nano Banana?",
+    a: [
+      "Нет. Отдельного приложения нет: генератор открывается в браузере на этой странице.",
+    ],
+  },
+];
+
+export const NANO_BANANA_PRO_FAQ: readonly {
+  q: string;
+  a: readonly GeneraciyaFotoFaqPart[];
+}[] = [
+  {
+    q: "Что такое Nano Banana Pro?",
+    a: [
+      "Nano Banana Pro (нано банана про) — модель Google Gemini 3 Pro Image. Её берут, когда нужны свет, фотореализм и мелкие детали, а не быстрый черновик. На PromptShot она уже выбрана в ",
+      { href: "#generator", label: "генераторе" },
+      ".",
+    ],
+  },
+  {
+    q: "Чем Nano Banana Pro отличается от Nano Banana?",
+    a: [
+      "Обычная ",
+      { href: NANO_BANANA_PATH, label: "Nano Banana" },
+      " — скорость и цена, точечная правка. Pro — финальный кадр: свет, фактуры и читаемый текст на изображении.",
+    ],
+  },
+  {
+    q: "Когда выбирать Nano Banana Pro?",
+    a: [
+      "Когда обычной модели мало: сложный свет, много мелких объектов, надпись или схема на кадре. Для наброска оставьте быструю модель в блоке выше и запустите ",
+      { href: "#generator", label: "генератор" },
+      ".",
+    ],
+  },
+  {
+    q: "Пишет ли Nano Banana Pro текст на картинке?",
+    a: [
+      "Да. Pro лучше держит вывеску, открытку или простую схему как часть кадра. Напишите точную формулировку в описании и запустите генерацию.",
+    ],
+  },
+  {
+    q: "Нано банана про и Nano Banana Pro — это одно и то же?",
+    a: [
+      "Да. «Нано банана про» — русское написание Nano Banana Pro. Это одна модель: откройте ",
+      { href: "#generator", label: "генератор" },
+      " и запустите её здесь.",
+    ],
+  },
+  {
+    q: "Как пользоваться Nano Banana Pro в России?",
+    a: [
+      "Откройте ",
+      { href: "#generator", label: "генератор" },
+      " на этой странице, загрузите фото или опишите кадр и запустите создание. Генератор работает без VPN.",
+    ],
+  },
+  {
+    q: "Nano Banana Pro — это официальный Google Gemini?",
+    a: [
+      "Nano Banana Pro — название модели Google Gemini для изображений. PromptShot даёт к ней доступ, но не является официальным сайтом Google или Google AI Studio.",
+    ],
+  },
+  {
+    q: "Сколько стоит Nano Banana Pro и можно ли пользоваться бесплатно?",
+    a: [
+      "Генерация на PromptShot оплачивается кредитами. Цена выбранной модели видна до запуска. Пакеты — в блоке ",
+      { href: "#tarify", label: "тарифов" },
+      " или на ",
+      { href: "/pricing", label: "странице оплаты" },
+      ".",
+    ],
+  },
+  {
+    q: "Нужно ли скачивать Nano Banana Pro?",
     a: [
       "Нет. Отдельного приложения нет: генератор открывается в браузере на этой странице.",
     ],
