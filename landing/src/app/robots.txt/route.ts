@@ -17,6 +17,20 @@ const DISALLOWED = [
   "/pricing",
 ];
 
+/** Listing filters, then app-side params Yandex indexed as separate URLs. */
+const CLEAN_PARAMS = [
+  "audience",
+  "style",
+  "occasion",
+  "object",
+  "sort",
+  "ps_auth",
+  "ps_sy",
+  "ps_ov",
+  "payment",
+  "auth_error",
+];
+
 export function GET() {
   const disallowLines = DISALLOWED.map((p) => `Disallow: ${p}`).join("\n");
 
@@ -27,7 +41,7 @@ ${disallowLines}
 User-agent: Yandex
 Allow: /
 ${disallowLines}
-Clean-param: audience&style&occasion&object&sort
+Clean-param: ${CLEAN_PARAMS.join("&")}
 
 Sitemap: ${BASE_URL}/sitemap.xml
 Sitemap: ${BASE_URL}/image-sitemap.xml

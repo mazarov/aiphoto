@@ -1,5 +1,7 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-09-06 (**`Clean-param` против служебных URL:** `robots.txt/route.ts` собирает директиву из SSOT `CLEAN_PARAMS`. К каталожным фильтрам добавлены `ps_auth`, `ps_sy`, `ps_ov`, `payment`, `auth_error` — Вебмастер показал 35 таких URL с 759 показами в кластере `/generaciya-foto`, включая проиндексированный ID платежа и текст ошибки PKCE. Разбор `docs/06-09-generaciya-foto-seo.md`.)
+>
 > Последнее обновление: 2026-09-05 (**card `<title>` uniqueness:** `/p/[slug]` больше не режет title до 26 символов суффиксом «промт для фото ИИ». SSOT `buildCardMetaTitle`: снять `Visual Hook:`, суффикс ` | PromptShot`, лимит 80. Одинаковые шаблонные title («Сделай такое же фото…», «Подборка дня») и обрезка — хвост слага `· df7fa`. Листинги не трогали.)
 >
 > Последнее обновление: 2026-09-04 (**compose example match on upload:** classify + warmup `/api/listing` стартуют при загрузке/выборе identity-фото в доке, не при маунте шторки «Выбрать пример». Пикер читает кэш/in-flight; если тег готов — первая сетка уже с `audience_tag`. SSOT: `compose-example-audience-client.ts`.)
@@ -1369,7 +1371,7 @@ Fallback: если `code` пришёл на произвольную стран�
 
 - `sitemap.ts` — динамический sitemap (L1 теги, фильтрованные по `getFilterCounts` с порогом ≥ 1 карточки, + L2 комбинации + карточки). Search-backed URL (`birthdayClusterSitemapPages`, `/sobytiya/1-sentyabrya`) добавляются по FTS-хитам с тем же порогом index/noindex; дедуп с теговыми/combo URL; без эмбеддингов.
 - `image-sitemap.xml/route.ts` — image sitemap для Google Images / Яндекс.Картинок; XML с `xmlns:image`; `<image:loc>` через `getIndexableImageUrl` (основной домен, без query); `<image:title>` + `<image:caption>`; чанкинг по 5000 карточек, при `totalPages > 1` — `<sitemapindex>` с `?page=N`; `revalidate = 3600`
-- `robots.txt/route.ts` — текстовый route handler; расширенный `Disallow` (`/api/`, `/admin/`, `/embed/`, `/auth/`, `/search`, `/favorites`, `/generations`, `/analyses`, `/generate`, `/pricing`); `Clean-param` для Яндекса (`audience&style&occasion&object&sort`); две ссылки на sitemap
+- `robots.txt/route.ts` — текстовый route handler; расширенный `Disallow` (`/api/`, `/admin/`, `/embed/`, `/auth/`, `/search`, `/favorites`, `/generations`, `/analyses`, `/generate`, `/pricing`); `Clean-param` для Яндекса — SSOT `CLEAN_PARAMS`: каталожные фильтры (`audience`, `style`, `occasion`, `object`, `sort`) + служебные параметры приложения (`ps_auth`, `ps_sy`, `ps_ov`, `payment`, `auth_error`), которые Яндекс проиндексировал как отдельные URL; две ссылки на sitemap
 - `llms.txt/route.ts` — текстовый route для агентов (llmstxt.org + Lighthouse Agentic Browsing). SSOT `lib/llms-txt.ts`: H1, markdown-ссылки на хабы генерации/каталога, `text/plain; charset=utf-8`, cache как у robots. Не в sitemap.
 - Публичные медиа (Storage UUID/lease path): `cacheControl=31536000` при upload (`storage-cache-control.ts`). Старые объекты остаются с 3600, пока не перезапишутся upsert. `_next/image` `minimumCacheTTL` 31 день. Иконки `/favicon*` `/icon-*` — `Cache-Control: immutable` в `next.config.ts`. Глобальный `preconnect` на Storage/dockhost снят: LCP-картинки идут через `/_next/image` same-origin, иначе Lighthouse «unused preconnect». Yandex Metrika `tag.js` (1ч) не контролируем — откладываем запрос (`YandexMetrikaTagLoader`).
 
