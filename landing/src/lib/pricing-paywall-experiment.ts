@@ -3,13 +3,16 @@
 import { useEffect, useState } from "react";
 import {
   PRICING_PAYWALL_STORAGE_KEY,
-  sanitizePricingPaywallVariant,
+  resolvePricingPaywallVariant,
   type PricingPaywallVariant,
 } from "@/lib/pricing-paywall-attribution";
 
 export {
+  PRICING_PAYWALL_EXPERIMENT_ENABLED,
   PRICING_PAYWALL_EXPERIMENT_ID,
   PRICING_PAYWALL_STORAGE_KEY,
+  PRICING_PAYWALL_WINNER,
+  resolvePricingPaywallVariant,
   type PricingPaywallVariant,
 } from "@/lib/pricing-paywall-attribution";
 
@@ -33,13 +36,18 @@ export function getOrAssignPricingPaywallVariant(): PricingPaywallVariant {
     typeof window !== "undefined"
       ? new URLSearchParams(window.location.search).get("paywall")
       : null;
-  const forcedVariant = sanitizePricingPaywallVariant(forced);
-  if (forcedVariant) return forcedVariant;
+
+  let stored: string | null = null;
+  try {
+    stored = localStorage.getItem(PRICING_PAYWALL_STORAGE_KEY);
+  } catch {
+    stored = null;
+  }
+
+  const resolved = resolvePricingPaywallVariant({ forced, stored });
+  if (resolved) return resolved;
 
   try {
-    const stored = localStorage.getItem(PRICING_PAYWALL_STORAGE_KEY);
-    const storedVariant = sanitizePricingPaywallVariant(stored);
-    if (storedVariant) return storedVariant;
     const assigned = randomVariant();
     localStorage.setItem(PRICING_PAYWALL_STORAGE_KEY, assigned);
     return assigned;

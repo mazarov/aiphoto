@@ -1,7 +1,7 @@
 import {
   PRICING_PAYWALL_EXPERIMENT_ID,
   PRICING_PAYWALL_STORAGE_KEY,
-  sanitizePricingPaywallVariant,
+  resolvePricingPaywallVariant,
 } from "@/lib/pricing-paywall-attribution";
 
 /** Счётчик совпадает с init в `landing/src/app/layout.tsx` и `yandex-metrika-loader.ts`. При смене ID синхронизируйте оба места. */
@@ -109,9 +109,10 @@ export function trackYandexPurchase(params: {
   let paywallVariant: "control" | "treatment" | null = null;
   if (typeof window !== "undefined") {
     try {
-      paywallVariant = sanitizePricingPaywallVariant(
-        localStorage.getItem(PRICING_PAYWALL_STORAGE_KEY),
-      );
+      paywallVariant = resolvePricingPaywallVariant({
+        forced: new URLSearchParams(window.location.search).get("paywall"),
+        stored: localStorage.getItem(PRICING_PAYWALL_STORAGE_KEY),
+      });
     } catch {
       // Attribution is optional; purchase tracking must still succeed.
     }
