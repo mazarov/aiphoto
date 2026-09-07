@@ -28,6 +28,7 @@ test("catalog lists every product letter once", () => {
   assert.ok(ids.includes("welcome"));
   assert.ok(ids.includes("yk_abandon_5m"));
   assert.ok(ids.includes("yk_abandon_40m"));
+  assert.ok(ids.includes("low_balance_upgrade"));
   assert.ok(ids.includes("winback_30"));
 });
 
@@ -56,6 +57,19 @@ test("yk_abandon_5m sends 25 percent unless already credited", () => {
 test("payment row stops onboard", () => {
   const skipped = evaluateMailDue("onboard_d7", { ...baseFacts, hasYookassaRow: true });
   assert.equal(skipped.action, "skip");
+});
+
+test("low-balance upgrade keeps the start plan without minting another grant", () => {
+  const decision = evaluateMailDue("low_balance_upgrade", {
+    ...baseFacts,
+    hasCredited: true,
+    credits: 10,
+  });
+  assert.equal(decision.action, "send");
+  if (decision.action === "send") {
+    assert.equal(decision.discountPercent, 0);
+    assert.equal(decision.payload.plan_id, "start");
+  }
 });
 
 test("credits_empty waits 14 days between sends", () => {

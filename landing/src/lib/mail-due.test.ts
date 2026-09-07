@@ -134,3 +134,70 @@ test("due processor grants 25 percent for 60 minutes on 5m abandon", async () =>
   assert.equal(result.enqueued, 1);
   assert.deepEqual(calls, ["grant:25:60", "enqueue:yk_abandon_5m", "done"]);
 });
+
+test("due processor sends an eligible low-balance upgrade once", async () => {
+  const calls: string[] = [];
+  const offerId = "11111111-1111-4111-8111-111111111111";
+  const supabase = rpcClient({
+    claim_mail_due: () => [
+      {
+        ...dueJob,
+        template_id: "low_balance_upgrade",
+        subject_key: offerId,
+        payload: {
+          offer_id: offerId,
+          idempotency_key: `low_balance_upgrade:${offerId}`,
+          plan_id: "start",
+        },
+      },
+    ],
+    landing_mail_config_on: () => true,
+    landing_low_balance_upgrade_mail_eligible: () => true,
+    landing_mail_user_facts: () => ({
+      shared_user_id: "user-1",
+      display_name: "Максим",
+      credits: 10,
+      marketing_sent_today: false,
+    }),
+    landing_mail_resolve_email: () => "user@example.com",
+    landing_enqueue_mail: (args) => {
+      calls.push(`enqueue:${args?.p_template_id}`);
+      return { outbox_id: "out-1", inserted: true, skip_reason: null };
+    },
+    landing_record_pricing_offer_event: (args) => {
+      calls.push(String(args?.p_event));
+      return true;
+    },
+    complete_mail_due: () => {
+      calls.push("done");
+      return true;
+    },
+  });
+  const result = await processMailDue({ supabase });
+  assert.equal(result.enqueued, 1);
+  assert.deepEqual(calls, ["enqueue:low_balance_upgrade", "email", "done"]);
+});
+
+test("due processor stops low-balance mail after eligibility is lost", async () => {
+  const reasons: string[] = [];
+  const offerId = "11111111-1111-4111-8111-111111111111";
+  const supabase = rpcClient({
+    claim_mail_due: () => [
+      {
+        ...dueJob,
+        template_id: "low_balance_upgrade",
+        subject_key: offerId,
+        payload: { offer_id: offerId },
+      },
+    ],
+    landing_mail_config_on: () => true,
+    landing_low_balance_upgrade_mail_eligible: () => false,
+    complete_mail_due: (args) => {
+      reasons.push(String(args?.p_reason));
+      return true;
+    },
+  });
+  const result = await processMailDue({ supabase });
+  assert.equal(result.skipped, 1);
+  assert.deepEqual(reasons, ["upgrade_ineligible"]);
+});

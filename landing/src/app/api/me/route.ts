@@ -3,7 +3,10 @@ import { createSupabaseServer } from "@/lib/supabase";
 import { getSupabaseUserForApiRoute } from "@/lib/supabase-route-auth";
 import { isStvGuestUser, STV_GUEST_VIRTUAL_CREDITS } from "@/lib/stv-guest-mode";
 import { resolveSharedDbUserId } from "@/lib/resolve-db-user-id";
-import { parseLiveMailOffer } from "@/lib/mail-checkout-offer";
+import {
+  parseLiveMailOffer,
+  type LivePricingOffer,
+} from "@/lib/mail-checkout-offer";
 
 export async function GET(request: NextRequest) {
   try {
@@ -20,7 +23,7 @@ export async function GET(request: NextRequest) {
     const guestMode = isStvGuestUser(user);
 
     let credits = 0;
-    let offer: { percent: number; expiresAt: string } | null = null;
+    let offer: LivePricingOffer | null = null;
     if (guestMode) {
       credits = STV_GUEST_VIRTUAL_CREDITS;
     } else {

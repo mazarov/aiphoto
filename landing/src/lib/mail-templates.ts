@@ -21,6 +21,7 @@ export const MAIL_TEMPLATE_IDS = [
   "yk_abandon_24h",
   "paid_unused",
   "credits_empty",
+  "low_balance_upgrade",
   "winback_14",
   "winback_30",
 ] as const;
@@ -328,6 +329,27 @@ export function renderMailTemplate(
         "Баланс на нуле. Можно пополнить пакет на сайте.",
         "",
         "Тарифы: https://promptshot.ru/pricing",
+        "",
+        `Отписаться от рассылок: ${mailUnsubscribeUrl(toEmail)}`,
+        "",
+        signature(),
+      ],
+      toEmail,
+      true,
+    );
+  }
+
+  if (templateId === "low_balance_upgrade") {
+    return buildMail(
+      "Персональная цена на 100 токенов PromptShot",
+      [
+        hi,
+        "",
+        "Вы уже создали фото в PromptShot, а токенов осталось немного.",
+        "Для продолжения доступен пакет «Оптимальный»: 100 токенов за 239 ₽ вместо 299 ₽.",
+        "Предложение действует 7 дней и доступно только для этого аккаунта.",
+        "",
+        "Получить 100 токенов за 239 ₽: https://promptshot.ru/pricing?plan=start",
         "",
         `Отписаться от рассылок: ${mailUnsubscribeUrl(toEmail)}`,
         "",

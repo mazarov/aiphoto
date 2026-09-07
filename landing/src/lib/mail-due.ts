@@ -18,6 +18,8 @@ export type ClaimedMailDue = {
 };
 
 const DAILY_CAP_REASONS = new Set(["marketing_daily_cap", "winback_daily_cap"]);
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function asDueRows(value: unknown): ClaimedMailDue[] {
   if (!Array.isArray(value)) return [];
@@ -91,10 +93,17 @@ export async function processMailDue(options: {
     }
 
     const templateId = job.template_id as MailTemplateId;
-    if (templateId === "yk_abandon_5m") {
+    if (
+      templateId === "yk_abandon_5m" ||
+      templateId === "low_balance_upgrade"
+    ) {
+      const flagKey =
+        templateId === "yk_abandon_5m"
+          ? "yk_abandon_5m_enabled"
+          : "low_balance_upgrade_enabled";
       const { data: flagOn, error: flagError } = await options.supabase.rpc(
         "landing_mail_config_on",
-        { p_key: "yk_abandon_5m_enabled" },
+        { p_key: flagKey },
       );
       if (flagError) throw new Error(flagError.message);
       if (flagOn !== true) {
@@ -103,6 +112,43 @@ export async function processMailDue(options: {
           p_lease_token: job.lease_token,
           p_status: "cancelled",
           p_reason: "flag_off",
+        });
+        skipped += 1;
+        continue;
+      }
+    }
+
+    let lowBalanceOfferId: string | null = null;
+    if (templateId === "low_balance_upgrade") {
+      const rawOfferId = job.payload?.offer_id;
+      lowBalanceOfferId =
+        typeof rawOfferId === "string" && UUID_PATTERN.test(rawOfferId)
+          ? rawOfferId
+          : null;
+      if (!lowBalanceOfferId) {
+        await options.supabase.rpc("complete_mail_due", {
+          p_due_id: job.due_id,
+          p_lease_token: job.lease_token,
+          p_status: "cancelled",
+          p_reason: "invalid_offer",
+        });
+        skipped += 1;
+        continue;
+      }
+      const { data: eligible, error: eligibleError } = await options.supabase.rpc(
+        "landing_low_balance_upgrade_mail_eligible",
+        {
+          p_shared_user_id: job.shared_user_id,
+          p_offer_id: lowBalanceOfferId,
+        },
+      );
+      if (eligibleError) throw new Error(eligibleError.message);
+      if (eligible !== true) {
+        await options.supabase.rpc("complete_mail_due", {
+          p_due_id: job.due_id,
+          p_lease_token: job.lease_token,
+          p_status: "cancelled",
+          p_reason: "upgrade_ineligible",
         });
         skipped += 1;
         continue;
@@ -194,6 +240,23 @@ export async function processMailDue(options: {
       });
       rescheduled += 1;
       continue;
+    }
+
+    if (templateId === "low_balance_upgrade" && lowBalanceOfferId) {
+      const { error: eventError } = await options.supabase.rpc(
+        "landing_record_pricing_offer_event",
+        {
+          p_offer_id: lowBalanceOfferId,
+          p_shared_user_id: facts.sharedUserId,
+          p_event: "email",
+        },
+      );
+      if (eventError) {
+        console.warn("[mail] low-balance email event skipped", {
+          offerId: lowBalanceOfferId,
+          message: eventError.message,
+        });
+      }
     }
 
     await options.supabase.rpc("complete_mail_due", {

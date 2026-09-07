@@ -1,5 +1,7 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-09-07 (**low-balance paid loop:** флаг `low_balance_upgrade_enabled` в `landing_generation_config`, по умолчанию `false`. После первой и единственной live-покупки treatment `trial` (30 токенов) и успешной генерации при балансе `≤15` сервер один раз создаёт plan-scoped offer: `start`, 100 токенов, −20% — 239 ₽ вместо 299 ₽, TTL 7 дней. In-app nudge появляется только после completion; через 2 часа marketing email уходит лишь при всё ещё низком балансе и отсутствии второй оплаты. Любая вторая оплата закрывает оффер. Funnel хранится в `landing_pricing_offer_events`, D7/D30 — `admin_low_balance_upgrade_stats`. SQL `242`.)
+>
 > Последнее обновление: 2026-09-07 (**pricing offer winner:** live 50/50 на `/pricing` и overlay выключен (`PRICING_PAYWALL_EXPERIMENT_ENABLED=false`). Всем показывают treatment: 30/99 ₽, 100/299 ₽, 200/469 ₽, 500/990 ₽. Assignment (`bucketPricingPaywallVariant`, localStorage, `?paywall=`) остаётся для следующего эксперимента. Пока сплит выключен, stored `control` игнорируется в UI, чекауте и Метрике (`resolvePricingPaywallVariant`).)
 >
 > Последнее обновление: 2026-09-06 (**Nano Banana copy split:** хаб `/nano-banana` — точечная правка своими словами и черновик; `/nano-banana/pro` — свет, фотореализм, текст на кадре. Общий каркас, разные `FEATURES` / HowTo / FAQ / access. Факты о моделях по обзору Практикума, без увода в Gemini. SSOT `nano-banana-seo-copy.ts`.)

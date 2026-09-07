@@ -8,6 +8,7 @@ import { useGenerateMobileModal } from "@/context/GenerateMobileModalContext";
 import { useGeneration } from "@/context/GenerationContext";
 import { usePricingModal } from "@/context/PricingModalContext";
 import { usePromptCardModal } from "@/context/PromptCardModalContext";
+import { LowBalanceUpgradeNudge } from "@/components/LowBalanceUpgradeNudge";
 
 const ClientCardModal = dynamic(
   () =>
@@ -74,6 +75,7 @@ export function DeferredAppOverlays() {
 
   return (
     <>
+      <LowBalanceUpgradeNudge />
       {loadCard ? <ClientCardModal /> : null}
       {loadPricing ? <ClientPricingModal /> : null}
       {loadAuth ? <AuthModal /> : null}

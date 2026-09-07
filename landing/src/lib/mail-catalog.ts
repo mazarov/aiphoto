@@ -175,6 +175,17 @@ const CATALOG: MailCatalogEntry[] = [
     idempotencyKey: "credits_empty:{user}:{yyyy-mm-dd}",
   },
   {
+    id: "low_balance_upgrade",
+    kind: "marketing",
+    title: "Мало токенов после первой покупки",
+    audience: "Одна live-оплата trial/30, успешная генерация, баланс ≤ 15",
+    when: "+2 ч после eligibility",
+    stop: "Вторая оплата, баланс > 15, offer consumed/expired или флаг выключен",
+    discountPercent: 0,
+    cta: "https://promptshot.ru/pricing?plan=start",
+    idempotencyKey: "low_balance_upgrade:{offer_id}",
+  },
+  {
     id: "winback_14",
     kind: "marketing",
     title: "Win-back 14 дней",
@@ -367,7 +378,10 @@ export function evaluateMailDue(
     discountPercent: entry.discountPercent,
     payload: {
       display_name: facts.displayName,
-      plan_id: facts.latestUncreditedPlanId || "trial",
+      plan_id:
+        templateId === "low_balance_upgrade"
+          ? "start"
+          : facts.latestUncreditedPlanId || "trial",
     },
   };
 }

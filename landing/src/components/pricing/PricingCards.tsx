@@ -41,6 +41,10 @@ import { announceRobokassaPayment } from "@/lib/robokassa-payment-events";
 import { requestCreditBalanceRefresh } from "@/lib/credit-balance-events";
 import { applyMailOfferPercent } from "@/lib/mail-offer-price";
 import {
+  pricingOfferPercentForPlan,
+  type LivePricingOffer,
+} from "@/lib/mail-checkout-offer";
+import {
   reachYandexMetrikaGoal,
   YM_GOAL_PAYMENT_CHECKOUT_STARTED,
   YM_GOAL_PAYMENT_IFRAME_OPENED,
@@ -255,7 +259,7 @@ export function PricingCards({
   const [selectedPlanId, setSelectedPlanId] = useState<PricingPlanId>(
     getDefaultPricingPlanId(variant),
   );
-  const [offerPercent, setOfferPercent] = useState<number | null>(null);
+  const [offer, setOffer] = useState<LivePricingOffer | null>(null);
   const checkoutInFlightRef = useRef(false);
   const plansScrollerRef = useRef<HTMLDivElement>(null);
   const plans = useMemo(() => {
@@ -266,8 +270,12 @@ export function PricingCards({
   }, [sortBy, variant]);
   const selectedPlan =
     plans.find((plan) => plan.id === selectedPlanId) ?? plans[0]!;
-  const selectedSalePrice = offerPercent
-    ? applyMailOfferPercent(selectedPlan.price, offerPercent)
+  const selectedOfferPercent = pricingOfferPercentForPlan(
+    offer,
+    selectedPlan.id,
+  );
+  const selectedSalePrice = selectedOfferPercent
+    ? applyMailOfferPercent(selectedPlan.price, selectedOfferPercent)
     : selectedPlan.price;
   const selectedEconomics = getPricingPlanPhotoEconomics({
     credits: selectedPlan.credits,
@@ -288,24 +296,33 @@ export function PricingCards({
 
   useEffect(() => {
     if (!user || user.is_anonymous === true) {
-      setOfferPercent(null);
+      setOffer(null);
       return;
     }
     let cancelled = false;
     void fetch("/api/me", { cache: "no-store" })
       .then((response) => (response.ok ? response.json() : null))
-      .then((data: { offer?: { percent?: unknown } | null } | null) => {
+      .then((data: { offer?: LivePricingOffer | null } | null) => {
         if (cancelled) return;
-        const percent = Number(data?.offer?.percent);
-        setOfferPercent(percent === 10 || percent === 20 || percent === 25 ? percent : null);
+        const next = data?.offer ?? null;
+        setOffer(next);
+        if (next?.targetPlanId) {
+          const targetPlan = plans.find(
+            (plan) => plan.id === next.targetPlanId,
+          );
+          if (targetPlan) {
+            setSelectedPlanId(targetPlan.id);
+            window.setTimeout(() => scrollPlanIntoView(targetPlan.id), 0);
+          }
+        }
       })
       .catch(() => {
-        if (!cancelled) setOfferPercent(null);
+        if (!cancelled) setOffer(null);
       });
     return () => {
       cancelled = true;
     };
-  }, [user]);
+  }, [plans, scrollPlanIntoView, user]);
 
   useEffect(() => {
     reachYandexMetrikaGoal(YM_GOAL_PROMPT_CARD_GENERATION_PRICING, {
@@ -367,13 +384,16 @@ export function PricingCards({
     const checkoutReturnPath = returnPath
       ? sanitizeYooKassaReturnPath(returnPath)
       : readPricingReturnPath();
+    const checkoutOfferPercent = pricingOfferPercentForPlan(offer, plan.id);
     if (returnPath) savePricingReturnPath(returnPath);
 
     checkoutInFlightRef.current = true;
     setCheckout({ kind: "creating", planId: plan.id });
     reachYandexMetrikaGoal(YM_GOAL_PAYMENT_CHECKOUT_STARTED, {
       plan_id: plan.id,
-      price_rub: plan.price,
+          price_rub: checkoutOfferPercent
+            ? applyMailOfferPercent(plan.price, checkoutOfferPercent)
+            : plan.price,
       experiment_id: PRICING_PAYWALL_EXPERIMENT_ID,
       paywall_variant: variant,
     });
@@ -480,7 +500,7 @@ export function PricingCards({
             : "Не удалось создать оплату. Попробуйте ещё раз.",
       });
     }
-  }, [closeWithoutHistory, openAuthModal, returnPath, variant]);
+  }, [closeWithoutHistory, offer, openAuthModal, returnPath, variant]);
 
   const selectPlan = useCallback(
     (plan: PricingPlan) => {
@@ -585,7 +605,9 @@ export function PricingCards({
                 scrollPlanIntoView(planToSelect.id);
               }}
               disabled={checkout.kind === "creating"}
-              offerPercent={offerPercent}
+              offerPercent={
+                pricingOfferPercentForPlan(offer, plan.id)
+              }
             />
           ))}
         </div>

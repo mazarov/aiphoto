@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { applyCheckoutOffer, parseLiveMailOffer } from "./mail-checkout-offer";
+import {
+  applyCheckoutOffer,
+  parseLiveMailOffer,
+  pricingOfferPercentForPlan,
+} from "./mail-checkout-offer";
 import type { MailRpcClient } from "./mail-outbox";
 
 test("applyCheckoutOffer uses the locked grant amount", async () => {
@@ -25,12 +29,46 @@ test("parseLiveMailOffer ignores expired or empty grants", () => {
     null,
   );
   const future = new Date(Date.now() + 60_000).toISOString();
-  assert.deepEqual(parseLiveMailOffer({ percent: 20, expires_at: future }), {
+  const targeted = parseLiveMailOffer({
+    offer_id: "offer-1",
+    percent: 20,
+    expires_at: future,
+    target_plan_id: "start",
+    source_template_id: "low_balance_upgrade",
+    show_nudge: true,
+  });
+  assert.deepEqual(targeted, {
+    offerId: "offer-1",
     percent: 20,
     expiresAt: future,
+    targetPlanId: "start",
+    sourceTemplateId: "low_balance_upgrade",
+    showNudge: true,
   });
-  assert.deepEqual(parseLiveMailOffer({ percent: 25, expires_at: future }), {
+  assert.equal(pricingOfferPercentForPlan(targeted, "trial"), null);
+  assert.equal(pricingOfferPercentForPlan(targeted, "start"), 20);
+
+  assert.deepEqual(parseLiveMailOffer({
+    offer_id: "offer-2",
+    percent: 25,
+    expires_at: future,
+  }), {
+    offerId: "offer-2",
     percent: 25,
     expiresAt: future,
+    targetPlanId: null,
+    sourceTemplateId: null,
+    showNudge: false,
   });
+  assert.equal(
+    pricingOfferPercentForPlan(
+      parseLiveMailOffer({
+        offer_id: "offer-2",
+        percent: 25,
+        expires_at: future,
+      }),
+      "trial",
+    ),
+    25,
+  );
 });

@@ -42,6 +42,24 @@ test("welcome names the free daily analyzes", () => {
   assert.deepEqual(mail.headers, []);
 });
 
+test("low balance upgrade advertises only the start package", () => {
+  const previous = process.env.MAIL_UNSUBSCRIBE_SECRET;
+  process.env.MAIL_UNSUBSCRIBE_SECRET = "test-unsubscribe-secret";
+  try {
+    const mail = renderMailTemplate(
+      "low_balance_upgrade",
+      { display_name: "Максим", plan_id: "start", credits: 100 },
+      "user@example.com",
+    );
+    assert.match(mail.subject, /100 токенов/);
+    assert.match(mail.text, /239 ₽ вместо 299 ₽/);
+    assert.match(mail.text, /pricing\?plan=start/);
+    assert.equal(mail.headers[0]?.Name, "List-Unsubscribe");
+  } finally {
+    process.env.MAIL_UNSUBSCRIBE_SECRET = previous;
+  }
+});
+
 test("campaign templates add one-click unsubscribe headers when secret exists", () => {
   const prev = process.env.MAIL_UNSUBSCRIBE_SECRET;
   process.env.MAIL_UNSUBSCRIBE_SECRET = "test-unsubscribe-secret";

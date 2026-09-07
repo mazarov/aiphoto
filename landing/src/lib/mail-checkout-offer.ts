@@ -41,13 +41,57 @@ export async function applyCheckoutOffer(
   }
 }
 
-export function parseLiveMailOffer(raw: unknown): { percent: number; expiresAt: string } | null {
+export type LivePricingOffer = {
+  offerId: string;
+  percent: number;
+  expiresAt: string;
+  targetPlanId: string | null;
+  sourceTemplateId: string | null;
+  showNudge: boolean;
+};
+
+export function pricingOfferPercentForPlan(
+  offer: LivePricingOffer | null,
+  planId: string,
+): number | null {
+  if (!offer) return null;
+  return offer.targetPlanId === null || offer.targetPlanId === planId
+    ? offer.percent
+    : null;
+}
+
+export function parseLiveMailOffer(raw: unknown): LivePricingOffer | null {
   const row = Array.isArray(raw) ? raw[0] : raw;
   if (!row || typeof row !== "object") return null;
-  const data = row as { percent?: unknown; expires_at?: unknown };
+  const data = row as {
+    offer_id?: unknown;
+    percent?: unknown;
+    expires_at?: unknown;
+    target_plan_id?: unknown;
+    source_template_id?: unknown;
+    show_nudge?: unknown;
+  };
+  const offerId = typeof data.offer_id === "string" ? data.offer_id : "";
   const percent = Number(data.percent);
   const expiresAt = typeof data.expires_at === "string" ? data.expires_at : "";
-  if ((percent !== 10 && percent !== 20 && percent !== 25) || !expiresAt) return null;
+  if (
+    !offerId ||
+    (percent !== 10 && percent !== 20 && percent !== 25) ||
+    !expiresAt
+  ) {
+    return null;
+  }
   if (Date.parse(expiresAt) <= Date.now()) return null;
-  return { percent, expiresAt };
+  return {
+    offerId,
+    percent,
+    expiresAt,
+    targetPlanId:
+      typeof data.target_plan_id === "string" ? data.target_plan_id : null,
+    sourceTemplateId:
+      typeof data.source_template_id === "string"
+        ? data.source_template_id
+        : null,
+    showNudge: data.show_nudge === true,
+  };
 }
