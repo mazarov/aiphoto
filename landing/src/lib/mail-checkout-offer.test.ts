@@ -10,6 +10,24 @@ import type { MailRpcClient } from "./mail-outbox";
 test("applyCheckoutOffer uses the locked grant amount", async () => {
   const supabase: MailRpcClient = {
     async rpc() {
+      return {
+        data: { quoted_amount_rub: 239, quoted_offer_id: "off-1", quoted_percent: 20 },
+        error: null,
+      };
+    },
+  };
+  const quote = await applyCheckoutOffer(supabase, {
+    sharedUserId: "user-1",
+    paymentId: "pay-1",
+    provider: "yookassa",
+    catalogAmount: 299,
+  });
+  assert.deepEqual(quote, { amountRub: 239, offerId: "off-1", percent: 20 });
+});
+
+test("applyCheckoutOffer still reads the pre-246 grant columns", async () => {
+  const supabase: MailRpcClient = {
+    async rpc() {
       return { data: { amount_rub: 89, offer_id: "off-1", percent: 10 }, error: null };
     },
   };

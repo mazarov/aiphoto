@@ -24,13 +24,26 @@ export async function applyCheckoutOffer(
     });
     if (error) throw new Error(error.message);
     const row = (Array.isArray(data) ? data[0] : data) as
-      | { amount_rub?: unknown; offer_id?: unknown; percent?: unknown }
+      | {
+          amount_rub?: unknown;
+          quoted_amount_rub?: unknown;
+          offer_id?: unknown;
+          quoted_offer_id?: unknown;
+          percent?: unknown;
+          quoted_percent?: unknown;
+        }
       | null;
-    const amountRub = Number(row?.amount_rub);
+    const amountRub = Number(row?.quoted_amount_rub ?? row?.amount_rub);
+    const offerId =
+      typeof row?.quoted_offer_id === "string"
+        ? row.quoted_offer_id
+        : typeof row?.offer_id === "string"
+          ? row.offer_id
+          : null;
     return {
       amountRub: Number.isFinite(amountRub) && amountRub > 0 ? amountRub : input.catalogAmount,
-      offerId: typeof row?.offer_id === "string" ? row.offer_id : null,
-      percent: Number(row?.percent || 0) || 0,
+      offerId,
+      percent: Number(row?.quoted_percent ?? row?.percent ?? 0) || 0,
     };
   } catch (error) {
     console.warn("[mail] checkout offer skipped", {
