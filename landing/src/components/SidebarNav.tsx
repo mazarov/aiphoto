@@ -10,6 +10,7 @@ import { AddToChromeCard } from "./foto-v-promt/AddToChromeCard";
 import { SidebarAccountPanel } from "./AccountControls";
 import { SiteBrandLink } from "./SiteBrandLink";
 import { MobileCatalogMenuDrawer } from "./MobileCatalogMenuDrawer";
+import { LowBalanceUpgradeOfferCard } from "./LowBalanceUpgradeOfferCard";
 
 function enrichMenuWithCounts(
   menu: MenuSectionWithCounts[],
@@ -391,6 +392,7 @@ export function SidebarNav({
           {showBrand ? (
             <SiteBrandLink className="px-3 pt-4 pb-2" markSize={24} />
           ) : null}
+          <LowBalanceUpgradeOfferCard variant="sidebar" className="mx-3 mb-2" />
           <SidebarAccountPanel />
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
             <SidebarContent

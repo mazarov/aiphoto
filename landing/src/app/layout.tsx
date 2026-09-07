@@ -12,6 +12,7 @@ import { GenerateMobileModalProvider } from "@/context/GenerateMobileModalContex
 import { GenerateDockProvider } from "@/context/GenerateDockContext";
 import { AuthReturnScreenRestorer } from "@/components/AuthReturnScreenRestorer";
 import { DeferredAppOverlays } from "@/components/DeferredAppOverlays";
+import { LowBalanceUpgradeOfferProvider } from "@/context/LowBalanceUpgradeOfferContext";
 import { UnpaidCheckoutBanner } from "@/components/UnpaidCheckoutBanner";
 import { YooKassaReturnStatus } from "@/components/YooKassaReturnStatus";
 import { RobokassaPaymentStatus } from "@/components/RobokassaPaymentStatus";
@@ -91,16 +92,18 @@ export default function RootLayout({
                 <FotoVPromtMobileModalProvider>
                   <GenerateMobileModalProvider>
                     <GenerateDockProvider>
-                      <UnpaidCheckoutBanner />
-                      <Suspense fallback={null}>
-                        <YandexMetrikaRouteTracker />
-                      </Suspense>
-                      {children}
-                      {modal}
-                      <AuthReturnScreenRestorer />
-                      <DeferredAppOverlays />
-                      <YooKassaReturnStatus />
-                      <RobokassaPaymentStatus />
+                      <LowBalanceUpgradeOfferProvider>
+                        <UnpaidCheckoutBanner />
+                        <Suspense fallback={null}>
+                          <YandexMetrikaRouteTracker />
+                        </Suspense>
+                        {children}
+                        {modal}
+                        <AuthReturnScreenRestorer />
+                        <DeferredAppOverlays />
+                        <YooKassaReturnStatus />
+                        <RobokassaPaymentStatus />
+                      </LowBalanceUpgradeOfferProvider>
                     </GenerateDockProvider>
                   </GenerateMobileModalProvider>
                 </FotoVPromtMobileModalProvider>

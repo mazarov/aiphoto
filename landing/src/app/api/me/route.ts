@@ -35,6 +35,16 @@ export async function GET(request: NextRequest) {
         .eq("id", profileId)
         .maybeSingle();
       credits = (profile as { credits?: number } | null)?.credits ?? 0;
+      const { error: ensureError } = await supabase.rpc(
+        "landing_ensure_low_balance_upgrade",
+        { p_shared_user_id: profileId },
+      );
+      if (ensureError) {
+        console.warn(
+          "landing_ensure_low_balance_upgrade:",
+          ensureError.message,
+        );
+      }
       const { data: offerRow } = await supabase.rpc("landing_live_pricing_offer", {
         p_shared_user_id: profileId,
       });

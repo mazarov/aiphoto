@@ -90,6 +90,7 @@ import {
 import { ComposeModelChoiceCard } from "@/components/generate/ComposeModelChoiceCard";
 import { GenerationModelIcon } from "@/components/generate/GenerationModelIcon";
 import { GenerationResultActionRail } from "@/components/generate/GenerationResultActionRail";
+import { LowBalanceUpgradeOfferCard } from "@/components/LowBalanceUpgradeOfferCard";
 import {
   CameraOrbitOverlay,
   type CameraSceneShot,
@@ -3150,6 +3151,7 @@ export function CardInlineGeneratePanel({
       {showResultActions ? (
         <GenerationResultActionRail
           className="absolute bottom-[max(0.75rem,env(safe-area-inset-bottom))] right-2.5 z-30"
+          beforePrimary={<LowBalanceUpgradeOfferCard variant="result" />}
           actions={[
             {
               id: "publish",

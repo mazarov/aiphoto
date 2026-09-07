@@ -53,6 +53,7 @@ test("low balance upgrade advertises only the start package", () => {
     );
     assert.match(mail.subject, /100 токенов/);
     assert.match(mail.text, /239 ₽ вместо 299 ₽/);
+    assert.match(mail.text, /24 часа/);
     assert.match(mail.text, /pricing\?plan=start/);
     assert.equal(mail.headers[0]?.Name, "List-Unsubscribe");
   } finally {
