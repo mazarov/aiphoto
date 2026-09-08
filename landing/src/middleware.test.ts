@@ -21,3 +21,28 @@ test("pairs children redirect to the hub with exact 301", async () => {
     );
   }
 });
+
+test("girls plot L2 redirects to the hub; birthday tails do not", async () => {
+  for (const path of [
+    "/promty-dlya-foto-devushki/s-cvetami",
+    "/promty-dlya-foto-devushki/portret",
+    "/promty-dlya-foto-devushki/cherno-beloe",
+  ]) {
+    const response = await middleware(
+      new NextRequest(`https://promptshot.ru${path}`),
+    );
+    assert.equal(response.status, 301);
+    assert.equal(
+      response.headers.get("location"),
+      "https://promptshot.ru/promty-dlya-foto-devushki",
+    );
+  }
+
+  const birthday = await middleware(
+    new NextRequest("https://promptshot.ru/promty-dlya-foto-devushki/den-rozhdeniya"),
+  );
+  assert.notEqual(
+    birthday.headers.get("location"),
+    "https://promptshot.ru/promty-dlya-foto-devushki",
+  );
+});

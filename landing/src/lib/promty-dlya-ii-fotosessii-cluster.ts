@@ -1,9 +1,6 @@
 import { composeGenerateCtaLabel } from "./generate-compose-mode";
 import { listingGenerateIdleIntent } from "./generate-dock-path";
-import {
-  isPromtyDlyaFotoParHubPath,
-  PAIRS_HUB_GENERATE_CTA,
-} from "./promty-dlya-foto-par-cluster";
+import { listingCatalogHubGenerateCta } from "./listing-catalog-hub";
 import type { Dimension } from "./tag-registry";
 
 export const PROMTY_DLYA_II_FOTOSESSII_HUB_PATH = "/ii-fotosessiya";
@@ -228,10 +225,7 @@ export function listingGenerateIdleCta(input: {
   if (intent === "photoshoot") {
     return PROMTY_DLYA_II_FOTOSESSII_GENERATE_CTA;
   }
-  if (isPromtyDlyaFotoParHubPath(input.pathname)) {
-    return PAIRS_HUB_GENERATE_CTA;
-  }
-  return "Создать фото";
+  return listingCatalogHubGenerateCta(input.pathname) ?? "Создать фото";
 }
 
 export type FotosessiiChipNavItem = {

@@ -19,7 +19,7 @@ import {
   PROMTY_DLYA_II_FOTOSESSII_HUB_PATH,
   fotosessiiClusterSitemapPages,
 } from "@/lib/promty-dlya-ii-fotosessii-cluster";
-import { pairsChildRedirectPath } from "@/lib/promty-dlya-foto-par-cluster";
+import { listingCatalogHubChildRedirectPath } from "@/lib/listing-catalog-hub";
 import { getFotosessiiHubCards } from "@/lib/promty-dlya-ii-fotosessii-page-data";
 import { filterPhotoshootListingCardsBySeoTag } from "@/lib/photoshoot-listing";
 import {
@@ -181,7 +181,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       ) {
         return false;
       }
-      if (pairsChildRedirectPath(tag.urlPath)) return false;
+      if (listingCatalogHubChildRedirectPath(tag.urlPath)) return false;
       const count = countMap.get(`${tag.dimension}:${tag.slug}`) ?? 0;
       return count >= minL1;
     });
@@ -211,7 +211,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     const seenL2 = new Set<string>();
     for (const c of combos) {
       const path = comboToPath(c.dim1, c.slug1, c.dim2, c.slug2);
-      if (!path || pairsChildRedirectPath(`/${path}`) || seenL2.has(path)) continue;
+      if (!path || listingCatalogHubChildRedirectPath(`/${path}`) || seenL2.has(path)) continue;
       seenL2.add(path);
       l2Urls.push({
         url: `${BASE_URL}/${path}`,

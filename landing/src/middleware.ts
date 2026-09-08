@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { pairsChildRedirectPath } from "@/lib/promty-dlya-foto-par-cluster";
+import { listingCatalogHubChildRedirectPath } from "@/lib/listing-catalog-hub";
 
 const OLD_SLUG_RE = /^\/p\/([^/]+)\/?$/;
 const DEFAULT_ALLOWED_METHODS = "GET, POST, OPTIONS";
@@ -95,9 +95,9 @@ export async function middleware(request: NextRequest) {
   const wwwRedirect = redirectWwwToApex(request);
   if (wwwRedirect) return wwwRedirect;
 
-  const pairsHub = pairsChildRedirectPath(request.nextUrl.pathname);
-  if (pairsHub) {
-    return NextResponse.redirect(new URL(pairsHub, request.url), 301);
+  const catalogHub = listingCatalogHubChildRedirectPath(request.nextUrl.pathname);
+  if (catalogHub) {
+    return NextResponse.redirect(new URL(catalogHub, request.url), 301);
   }
 
   if (isApiRequest(request)) {

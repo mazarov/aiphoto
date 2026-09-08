@@ -1,10 +1,7 @@
 import { isGeneraciyaFotoScenarioPath } from "./generaciya-foto-routes";
 import type { GenerateDockComposeIntent } from "./generate-dock-seed";
 import { isNanoBananaSeoPath } from "./nano-banana-seo-copy";
-import {
-  isPromtyDlyaFotoParHubPath,
-  PAIRS_HUB_COMPOSE_EXAMPLE_FILTER,
-} from "./promty-dlya-foto-par-cluster";
+import { resolveListingCatalogHub } from "./listing-catalog-hub";
 import { isPromtyDlyaIiFotosessiiPath } from "./promty-dlya-ii-fotosessii-cluster";
 
 /** SEO acquisition route where blank text-to-image is allowed. */
@@ -57,25 +54,24 @@ export function listingGenerateIdleIntent(
 ): GenerateDockComposeIntent | null {
   if (isFotoVPromtDockPath(pathname)) return "photo_prompt";
   if (isFotosessiiGenerateDockPath(pathname)) return "photoshoot";
-  if (isPromtyDlyaFotoParHubPath(pathname)) return "text";
+  if (resolveListingCatalogHub(pathname)) return "text";
   return null;
 }
 
-/** Pairs hub FAB opens «Выбрать пример», not a last-result plate. */
+/** Catalog hub FAB opens «Выбрать пример», not a last-result plate. */
 export function listingGenerateIdleDockSurface(
   pathname: string
 ): "example" | null {
-  return isPromtyDlyaFotoParHubPath(pathname) ? "example" : null;
+  return resolveListingCatalogHub(pathname) ? "example" : null;
 }
 
-/** Idle example sheet on the pairs hub starts on the «Пары» catalog chip. */
+/** Idle example sheet on a catalog hub starts on that hub's audience chip. */
 export function listingComposeExampleInitialFilter(pathname: string): {
+  label?: string;
   dimension: string;
   value: string;
 } | null {
-  return isPromtyDlyaFotoParHubPath(pathname)
-    ? PAIRS_HUB_COMPOSE_EXAMPLE_FILTER
-    : null;
+  return resolveListingCatalogHub(pathname)?.composeExampleFilter ?? null;
 }
 
 /** Listing routes where the floating generate dock is mounted. */

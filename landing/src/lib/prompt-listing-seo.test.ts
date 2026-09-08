@@ -53,6 +53,33 @@ test("manual birthday L2 keeps long-tail H1", () => {
   assert.equal(getSeoForRoute(route).h1, "Промт на день рождения девушке");
 });
 
+test("girls hub keeps H1 and explorer photoshoot lemmas apart", () => {
+  const route = resolveUrlToTags(["promty-dlya-foto-devushki"]);
+  assert.ok(route);
+
+  const seo = getSeoForRoute(route);
+  const copy = `${seo.h1} ${seo.metaTitle} ${seo.metaDescription} ${seo.intro}`;
+  assert.equal(seo.h1, "Промты для фото девушки");
+  assert.equal(seo.metaTitle, "Промты для фото девушки — 7000+ идей");
+  assert.match(copy, /7000\+/);
+  assert.match(seo.intro, /женских фото/i);
+  assert.doesNotMatch(seo.intro, /фотосессии девушки/i);
+  assert.doesNotMatch(seo.h1, /фотосессии/i);
+  assert.match(seo.h1, /фото девушки/i);
+  assert.match(seo.explorerTitle ?? "", /промты для ии фотосессии девушки/i);
+  assert.doesNotMatch(seo.explorerTitle ?? "", /откройте карточку|найдите свой сюжет/i);
+  assert.match(seo.explorerIntro ?? "", /промты для фотосессии девушки с ИИ/i);
+  assert.match(seo.explorerIntro ?? "", /найдите|поиск|скопируй/i);
+  assert.doesNotMatch(seo.howToTitle ?? "", /фотосессии/i);
+  assert.match(seo.howToTitle ?? "", /женского фото/i);
+  assert.equal(seo.popularLinks?.length ?? 0, 0);
+  assert.equal(seo.seoTextBlocks?.length ?? 0, 0);
+  assert.ok(seo.faqItems.some((item) => /промт для девушки/i.test(item.q)));
+  assert.ok(seo.faqItems.some((item) => /один кадр или целая съёмка/i.test(item.q)));
+  assert.doesNotMatch(copy, FORBIDDEN_EXTERNAL_CTA);
+  assert.doesNotMatch(copy, /не описывай лицо|не описывайте лицо/i);
+});
+
 test("pairs hub targets с-парнем without repeating it across every block", () => {
   const route = resolveUrlToTags(["promty-dlya-foto-par"]);
   assert.ok(route);
@@ -140,7 +167,10 @@ test("car L1 first screen stays on copy-or-Repeat CTA", () => {
     `${seo.metaDescription} ${seo.intro} ${seo.howToSteps?.join(" ") ?? ""}`,
     FORBIDDEN_EXTERNAL_CTA,
   );
-  assert.equal(seo.popularLinks?.[0]?.href, "/promty-dlya-foto-devushki/s-mashinoy");
+  assert.equal(
+    seo.popularLinks?.[0]?.href,
+    "/promty-dlya-foto-devushki?object=s_mashinoy",
+  );
   assert.equal(
     seo.popularLinks?.find((link) => link.label === "ИИ-фотосессия")?.href,
     "/ii-fotosessiya/s-mashinoy",

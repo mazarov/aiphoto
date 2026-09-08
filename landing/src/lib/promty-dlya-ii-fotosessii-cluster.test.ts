@@ -141,6 +141,13 @@ test("generate FAB on the hub and children is photoshoot, not generic photo", ()
     "Создать фото пары",
   );
   assert.equal(
+    listingGenerateIdleCta({
+      pathname: "/promty-dlya-foto-devushki",
+      isAuthed: true,
+    }),
+    "Создать фото девушки",
+  );
+  assert.equal(
     listingGenerateIdleCta({ pathname: "/generaciya-foto", isAuthed: true }),
     "Создать фото",
   );
@@ -183,7 +190,7 @@ test("catalog audience L1 keeps кадр key and does not claim photoshoot queri
   const pregnant = getSeoContent("beremennaya");
 
   assert.equal(women?.h1, "Промты для фото девушки");
-  assert.equal(women?.metaTitle, "Промты для фото девушки | PromptShot");
+  assert.equal(women?.metaTitle, "Промты для фото девушки — 7000+ идей");
   assert.equal(men?.h1, "Промты для фото мужчины");
   assert.equal(
     couples?.h1,
@@ -201,11 +208,7 @@ test("catalog audience L1 keeps кадр key and does not claim photoshoot queri
     assert.doesNotMatch(head, /Nano Banana|ChatGPT|Gemini/i);
   }
 
-  assert.equal(
-    women?.popularLinks?.find((link) => link.label === "ИИ-фотосессия")?.href,
-    "/ii-fotosessiya/zhenskie"
-  );
-  assert.notEqual(women?.popularLinks?.[0]?.href, "/ii-fotosessiya/zhenskie");
+  assert.equal(women?.popularLinks?.length ?? 0, 0);
   assert.equal(
     men?.popularLinks?.find((link) => link.label === "ИИ-фотосессия")?.href,
     "/ii-fotosessiya/muzhskie"

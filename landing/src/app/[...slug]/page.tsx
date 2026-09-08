@@ -46,15 +46,9 @@ import { uniqueListingChipsByHref } from "@/lib/listing-cluster-chips";
 import { GeneraciyaFotoHeroCarousel } from "@/components/generate/GeneraciyaFotoHeroCarousel";
 import { toGenerationExampleCard } from "@/lib/generation/example-card";
 import {
-  getPairsHubFilterNavItems,
-  isPromtyDlyaFotoParClusterPath,
-  isPromtyDlyaFotoParHubPath,
-  pairsHubHeroFetchParams,
-  toPairsHubHeroCarouselCards,
-  PAIRS_HUB_HERO_ARIA_LABEL,
-  PAIRS_HUB_LOAD_MORE_LABEL,
-  PROMTY_DLYA_FOTO_PAR_HUB_PATH,
-} from "@/lib/promty-dlya-foto-par-cluster";
+  isListingCatalogHubClusterPath,
+  resolveListingCatalogHubL1,
+} from "@/lib/listing-catalog-hub";
 import {
   resolveSeoIllustrations,
   type ResolvedSeoIllustration,
@@ -638,31 +632,32 @@ export default async function TagPage({ params, searchParams }: Props) {
     ? birthdayListingSearchFilters(route.tags)
     : {};
   const currentPath = listingPathname(slug);
-  const isPairsHubL1 =
-    isPromtyDlyaFotoParHubPath(currentPath) && route.level === 1;
-  const [result, pairsHeroResult] = await Promise.all([
+  const catalogHub = resolveListingCatalogHubL1(currentPath, route.level);
+  const [result, catalogHubHeroResult] = await Promise.all([
     getListingCards(route, qs ?? null),
-    isPairsHubL1
-      ? getCachedRouteCards(pairsHubHeroFetchParams(route.rpcParams))
+    catalogHub
+      ? getCachedRouteCards(catalogHub.heroFetchParams(route.rpcParams))
       : Promise.resolve(EMPTY_ROUTE_RESULT),
   ]);
   const totalCount = result.total_count ?? result.cards_count;
 
-  const [cards, pairsHeroCards] = await Promise.all([
+  const [cards, catalogHubHeroCards] = await Promise.all([
     enrichCardsWithDetails(result.cards).catch((err) => {
       console.error("[TagPage] enrichCardsWithDetails failed:", err);
       return [] as PromptCardFull[];
     }),
-    isPairsHubL1
-      ? enrichCardsWithDetails(pairsHeroResult.cards).catch((err) => {
-          console.error("[TagPage] pairs hero enrich failed:", err);
+    catalogHub
+      ? enrichCardsWithDetails(catalogHubHeroResult.cards).catch((err) => {
+          console.error("[TagPage] catalog hub hero enrich failed:", err);
           return [] as PromptCardFull[];
         })
       : Promise.resolve([] as PromptCardFull[]),
   ]);
-  const pairsHeroCarouselCards = toPairsHubHeroCarouselCards(
-    pairsHeroCards.map(toGenerationExampleCard),
-  );
+  const catalogHubCarouselCards = catalogHub
+    ? catalogHub.toHeroCarouselCards(
+        catalogHubHeroCards.map(toGenerationExampleCard),
+      )
+    : [];
 
   const seo = getSeoForRoute(route);
 
@@ -717,7 +712,7 @@ export default async function TagPage({ params, searchParams }: Props) {
       primaryTag.dimension === "style_tag" ||
       primaryTag.dimension === "object_tag");
   const isBirthdayCluster = isDenRozhdeniyaClusterPath(currentPath);
-  const isPairsCluster = isPromtyDlyaFotoParClusterPath(currentPath);
+  const isCatalogHubCluster = isListingCatalogHubClusterPath(currentPath);
   const birthdayNav = isBirthdayCluster
     ? getFeaturedBirthdayNavItems(
         isDenRozhdeniyaHubPath(currentPath)
@@ -725,9 +720,9 @@ export default async function TagPage({ params, searchParams }: Props) {
           : birthdayActiveAliasFromTags(route.tags),
       )
     : [];
-  const pairsFilterNav =
-    isPairsCluster && route.level === 1
-      ? getPairsHubFilterNavItems({
+  const catalogHubFilterNav =
+    catalogHub
+      ? catalogHub.getFilterNavItems({
           audience: qs?.audience ?? null,
           style: qs?.style ?? null,
           object: qs?.object ?? null,
@@ -736,7 +731,7 @@ export default async function TagPage({ params, searchParams }: Props) {
       : [];
   const clusterChipsAboveGrid =
     !isBirthdayCluster &&
-    !isPairsCluster &&
+    !isCatalogHubCluster &&
     (isSobytiyaL1 || isSiblingClusterL1)
       ? getClusterChipNavigation(primaryTag.dimension, primaryTag.urlPath)
       : [];
@@ -745,7 +740,7 @@ export default async function TagPage({ params, searchParams }: Props) {
       ? l2ChipGroups.filter((group) => group.dimension !== "occasion_tag")
       : l2ChipGroups
   )
-    .filter(() => !isPairsCluster)
+    .filter(() => !isCatalogHubCluster)
     .map((group) => ({
       ...group,
       chips: group.chips.filter((chip) => {
@@ -759,7 +754,7 @@ export default async function TagPage({ params, searchParams }: Props) {
   const catalogExplorer = (
     <section
       aria-labelledby={
-        isPairsHubL1 && seo.explorerTitle
+        catalogHub && seo.explorerTitle
           ? "listing-explorer-gallery-heading"
           : "listing-explorer-heading"
       }
@@ -774,9 +769,9 @@ export default async function TagPage({ params, searchParams }: Props) {
         headingId="listing-explorer-heading"
         eyebrow={sectionLabel}
         intro={seo.intro}
-        hideHeading={isPairsHubL1}
-        explorerTitle={isPairsHubL1 ? seo.explorerTitle : undefined}
-        explorerIntro={isPairsHubL1 ? seo.explorerIntro : undefined}
+        hideHeading={Boolean(catalogHub)}
+        explorerTitle={catalogHub ? seo.explorerTitle : undefined}
+        explorerIntro={catalogHub ? seo.explorerIntro : undefined}
         chipNav={
           route.level === 1 ? (
             <ListingClusterChipGroup
@@ -787,8 +782,8 @@ export default async function TagPage({ params, searchParams }: Props) {
               flow="row"
               leading={<ListingHomeBackLink />}
               items={
-                pairsFilterNav.length > 0
-                  ? pairsFilterNav
+                catalogHubFilterNav.length > 0
+                  ? catalogHubFilterNav
                   : clusterChipsAboveGrid.length > 0
                     ? clusterChipsAboveGrid
                     : birthdayNav.length > 0
@@ -813,10 +808,10 @@ export default async function TagPage({ params, searchParams }: Props) {
         listingSearchHasMore={
           Boolean(listingSearchQuery && totalCount > result.cards_count)
         }
-        teaserLoadMore={isPairsCluster && route.level === 1}
-        teaserLoadMoreLabel={PAIRS_HUB_LOAD_MORE_LABEL}
+        teaserLoadMore={Boolean(catalogHub)}
+        teaserLoadMoreLabel={catalogHub?.loadMoreLabel}
       />
-      {seo.popularLinks?.length && !isBirthdayCluster && !isPairsCluster ? (
+      {seo.popularLinks?.length && !isBirthdayCluster && !isCatalogHubCluster ? (
         <div className="sr-only">
           <SeoPopularLinks links={seo.popularLinks} />
         </div>
@@ -826,7 +821,7 @@ export default async function TagPage({ params, searchParams }: Props) {
 
   const seoSections = (
     <>
-      {generationScenario && !(isPairsCluster && route.level === 1) ? (
+      {generationScenario && !catalogHub ? (
         <SeoGenerateCtaSection
           title="Хотите создать своё изображение?"
           lead="Откройте тематический генератор, выберите пример и измените промт под свою внешность, сюжет и формат."
@@ -913,7 +908,7 @@ export default async function TagPage({ params, searchParams }: Props) {
     />
   );
 
-  if (isPairsHubL1) {
+  if (catalogHub) {
     return (
       <PageLayout showFooterWithGenerateDock>
         <GeneraciyaFotoHeroPage
@@ -941,7 +936,7 @@ export default async function TagPage({ params, searchParams }: Props) {
               }
             >
               <AdLandingHeading
-                path={PROMTY_DLYA_FOTO_PAR_HUB_PATH}
+                path={catalogHub.path}
                 fallback={seo.h1}
                 id="listing-explorer-heading"
                 className={GF_HERO_H1}
@@ -957,11 +952,11 @@ export default async function TagPage({ params, searchParams }: Props) {
             ) : null
           }
           carousel={
-            pairsHeroCarouselCards.length > 0 ? (
+            catalogHubCarouselCards.length > 0 ? (
               <GeneraciyaFotoHeroCarousel
-                cards={pairsHeroCarouselCards}
+                cards={catalogHubCarouselCards}
                 ctaLabel={null}
-                ariaLabel={PAIRS_HUB_HERO_ARIA_LABEL}
+                ariaLabel={catalogHub.heroAriaLabel}
               />
             ) : null
           }

@@ -51,14 +51,25 @@ test("foto-v-promt FAB seeds photo_prompt, fotosessii seeds photoshoot", () => {
   assert.equal(listingGenerateIdleIntent("/promty-dlya-foto-par"), "text");
   assert.equal(listingGenerateIdleIntent("/promty-dlya-foto-par/"), "text");
   assert.equal(listingGenerateIdleIntent("/promty-dlya-foto-s-parnem"), null);
+  assert.equal(listingGenerateIdleIntent("/promty-dlya-foto-devushki"), "text");
+  assert.equal(listingGenerateIdleIntent("/promty-dlya-foto-devushki/"), "text");
   assert.equal(listingGenerateIdleDockSurface("/promty-dlya-foto-par"), "example");
   assert.equal(listingGenerateIdleDockSurface("/promty-dlya-foto-par/"), "example");
+  assert.equal(listingGenerateIdleDockSurface("/promty-dlya-foto-devushki"), "example");
   assert.equal(listingGenerateIdleDockSurface("/"), null);
   assert.deepEqual(listingComposeExampleInitialFilter("/promty-dlya-foto-par"), {
     label: "Пары",
     dimension: "audience_tag",
     value: "para",
   });
+  assert.deepEqual(
+    listingComposeExampleInitialFilter("/promty-dlya-foto-devushki"),
+    {
+      label: "Девушки",
+      dimension: "audience_tag",
+      value: "devushka",
+    },
+  );
   assert.equal(listingComposeExampleInitialFilter("/generaciya-foto"), null);
   assert.equal(isFotosessiiGenerateDockPath("/ii-fotosessiya/"), true);
   assert.equal(isLegacyPromtyDlyaIiFotosessiiDockPath("/promty-dlya-ii-fotosessii"), true);
