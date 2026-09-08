@@ -180,7 +180,7 @@ const CATALOG: MailCatalogEntry[] = [
     title: "Мало токенов после первой покупки",
     audience: "Одна live-оплата 99 ₽ / trial / 30 токенов, баланс ≤ 30, флаг включён",
     when: "+2 ч после eligibility, оффер 24 ч",
-    stop: "Вторая оплата, баланс > 30, offer consumed/expired или флаг выключен",
+    stop: "Вторая оплата (письмо), баланс > 30 на момент send, offer expired или флаг выключен",
     discountPercent: 20,
     cta: "https://promptshot.ru/pricing",
     idempotencyKey: "low_balance_upgrade:{offer_id}",
