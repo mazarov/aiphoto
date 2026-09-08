@@ -30,6 +30,7 @@ import {
   lockCheckoutCharge,
 } from "@/lib/mail-checkout-offer";
 import {
+  cancelSupersededYooKassaCheckouts,
   pickAlreadyCreditedOpenPayment,
   reconcileOpenYooKassaPaymentsForAuthUser,
 } from "@/lib/yookassa-payments";
@@ -342,6 +343,13 @@ export async function POST(request: NextRequest) {
       planId: plan.id,
     });
     local = { ...local, amount_rub: quote.amountRub };
+    if (quote.offerId) {
+      await cancelSupersededYooKassaCheckouts(supabase, {
+        landingUserId: ensured.dbUserId,
+        keepPaymentId: local.id,
+        offerId: quote.offerId,
+      });
+    }
 
     if (local.confirmation_url && local.yookassa_payment_id) {
       try {

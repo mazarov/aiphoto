@@ -1,5 +1,7 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-09-08 (**checkout offer steal:** `landing_apply_checkout_offer` не держит грант на старом unpaid invoice. Новая попытка забирает бронь, предыдущий reserved-платёж → `canceled` / `superseded_by_checkout`, create ЮKassa гасит его provider payment. Иначе повторный клик по скидке давал 409 `checkout_offer_not_applied`. SQL `248`.)
+>
 > Последнее обновление: 2026-09-07 (**checkout amount SSOT:** после `landing_apply_checkout_offer` create ЮKassa/Robokassa берёт сумму из `landing_*_payments.amount_rub`, не из формы RPC. Живой offer + каталожная сумма в кассу = 409, не тихий 299. Уже созданный invoice ЮKassa с другой суммой не переиспользуется: cancel + новый `Idempotence-Key {uuid}:{amount}`. SQL `247` не пересчитывает скидку повторно на тот же платёж (иначе 299→239→191).)
 >
 > Последнее обновление: 2026-09-07 (**low-balance paid loop:** флаг `low_balance_upgrade_enabled` в `landing_generation_config`, по умолчанию `false`. После первой и единственной live-покупки treatment `trial` (30 токенов) при балансе `≤15` сервер один раз создаёт plan-scoped offer: `start`, 100 токенов, −20% — 239 ₽ вместо 299 ₽, TTL 24 часа, в UI живой таймер. Новая completed-генерация не нужна: `GET /api/me` вызывает `landing_ensure_low_balance_upgrade`, плюс триггер на падение `landing_users.credits`. Плашка: desktop — выделенный блок в сайдбаре под лого; после successful generation — кнопка слева от «Что изменить» на карточке результата (mobile+desktop); mobile — над таббаром на всех экранах, как unpaid YooKassa toast. Крестик прячет на 24 ч (`localStorage` + `dismissed.created_at`), потом снова показывает, пока оффер жив; `seen` больше не гасит показ. Через 2 часа marketing email уходит лишь при всё ещё низком балансе и отсутствии второй оплаты. Любая вторая оплата закрывает оффер. Funnel — `landing_pricing_offer_events`, D7/D30 — `admin_low_balance_upgrade_stats`. SQL `242`–`247`. `246` снимает ambiguous `offer_id` в `landing_apply_checkout_offer` — без неё create глотает RPC и шлёт в ЮKassa полную 299 ₽.)
@@ -1148,7 +1150,9 @@
   могут сосуществовать, касса берёт max %); create
   ЮKassa/Robokassa делает `landing_apply_checkout_offer`, затем касса читает
   `amount_rub` со строки платежа (не колонки RPC); invoice с другой суммой
-  не переиспользуется (`247` не стакает скидку на повторный apply);
+  не переиспользуется (`247` не стакает скидку на повторный apply;
+  `248` забирает грант с stale reserved unpaid invoice, иначе повторный
+  клик по скидке даёт 409);
   `credited_at` ставит `consumed_at`. Кампании: dry-run на `/admin/mail`,
   fan-out `campaign:{id}:{email}`; enqueue стоп, если остаток квоты меньше
   сегмента или после send tx-резерв < 500. Email =

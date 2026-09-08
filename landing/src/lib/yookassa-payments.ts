@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { getYooKassaPayment } from "@/lib/yookassa-client";
+import { cancelYooKassaPayment, getYooKassaPayment } from "@/lib/yookassa-client";
 import {
   assertYooKassaPaymentMatches,
   getYooKassaReconciliationAction,
@@ -29,6 +29,46 @@ export type ReconcileResult = {
   credited: boolean;
   creditsAfter: number | null;
 };
+
+export async function cancelSupersededYooKassaCheckouts(
+  supabase: SupabaseClient,
+  input: {
+    landingUserId: string;
+    keepPaymentId: string;
+    offerId: string;
+  },
+): Promise<void> {
+  const { data, error } = await supabase
+    .from("landing_yookassa_payments")
+    .select("id, yookassa_payment_id, status")
+    .eq("landing_user_id", input.landingUserId)
+    .eq("offer_id", input.offerId)
+    .neq("id", input.keepPaymentId)
+    .not("yookassa_payment_id", "is", null)
+    .in("status", ["pending", "canceled"]);
+  if (error) {
+    console.warn("[yookassa] superseded checkout lookup skipped", {
+      keepPaymentId: input.keepPaymentId,
+      message: error.message,
+    });
+    return;
+  }
+  for (const row of data ?? []) {
+    const providerPaymentId =
+      typeof row.yookassa_payment_id === "string" ? row.yookassa_payment_id : null;
+    if (!providerPaymentId) continue;
+    try {
+      await cancelYooKassaPayment(providerPaymentId);
+    } catch (cancelError) {
+      console.warn("[yookassa] superseded checkout cancel skipped", {
+        paymentId: row.id,
+        providerPaymentId,
+        message:
+          cancelError instanceof Error ? cancelError.message : String(cancelError),
+      });
+    }
+  }
+}
 
 export async function reconcileYooKassaPayment(
   supabase: SupabaseClient,
