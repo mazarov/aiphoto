@@ -148,6 +148,13 @@ test("generate FAB on the hub and children is photoshoot, not generic photo", ()
     "Создать фото девушки",
   );
   assert.equal(
+    listingGenerateIdleCta({
+      pathname: "/promty-dlya-foto-muzhchiny",
+      isAuthed: true,
+    }),
+    "Создать фото мужчины",
+  );
+  assert.equal(
     listingGenerateIdleCta({ pathname: "/generaciya-foto", isAuthed: true }),
     "Создать фото",
   );
@@ -209,10 +216,8 @@ test("catalog audience L1 keeps кадр key and does not claim photoshoot queri
   }
 
   assert.equal(women?.popularLinks?.length ?? 0, 0);
-  assert.equal(
-    men?.popularLinks?.find((link) => link.label === "ИИ-фотосессия")?.href,
-    "/ii-fotosessiya/muzhskie"
-  );
+  assert.equal(men?.popularLinks?.length ?? 0, 0);
+  assert.equal(men?.metaTitle, "Промты для фото мужчины и мужских фото — 1300+ идей");
   // Хаб пар — исключение: ссылка на /ii-fotosessiya/pary переехала
   // в generate-CTA страницы, секции «Популярные сценарии» на нём нет.
   assert.equal(couples?.popularLinks?.length ?? 0, 0);

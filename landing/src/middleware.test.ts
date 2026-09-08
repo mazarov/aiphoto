@@ -46,3 +46,28 @@ test("girls plot L2 redirects to the hub; birthday tails do not", async () => {
     "https://promptshot.ru/promty-dlya-foto-devushki",
   );
 });
+
+test("men plot L2 redirects to the hub; birthday tails do not", async () => {
+  for (const path of [
+    "/promty-dlya-foto-muzhchiny/s-mashinoy",
+    "/promty-dlya-foto-muzhchiny/portret",
+    "/promty-dlya-foto-muzhchiny/cherno-beloe",
+  ]) {
+    const response = await middleware(
+      new NextRequest(`https://promptshot.ru${path}`),
+    );
+    assert.equal(response.status, 301);
+    assert.equal(
+      response.headers.get("location"),
+      "https://promptshot.ru/promty-dlya-foto-muzhchiny",
+    );
+  }
+
+  const birthday = await middleware(
+    new NextRequest("https://promptshot.ru/promty-dlya-foto-muzhchiny/den-rozhdeniya"),
+  );
+  assert.notEqual(
+    birthday.headers.get("location"),
+    "https://promptshot.ru/promty-dlya-foto-muzhchiny",
+  );
+});

@@ -33,8 +33,7 @@ import {
   listingGenerateIdleDockSurface,
   listingGenerateIdleIntent,
 } from "@/lib/generate-dock-path";
-import { PAIRS_HUB_GENERATE_CTA } from "@/lib/promty-dlya-foto-par-cluster";
-import { GIRLS_HUB_GENERATE_CTA } from "@/lib/promty-dlya-foto-devushki-cluster";
+import { isListingCatalogHubGenerateCta } from "@/lib/listing-catalog-hub";
 import {
   PROMTY_DLYA_II_FOTOSESSII_GENERATE_CTA,
   listingGenerateIdleCta,
@@ -311,8 +310,7 @@ export function MobileTabBar() {
                   <span
                     className={`${
                       generateIdleLabel === PROMTY_DLYA_II_FOTOSESSII_GENERATE_CTA
-                      || generateIdleLabel === PAIRS_HUB_GENERATE_CTA
-                      || generateIdleLabel === GIRLS_HUB_GENERATE_CTA
+                      || isListingCatalogHubGenerateCta(generateIdleLabel)
                       || generateNeedsCredits
                         ? "max-w-[6.5rem]"
                         : "max-w-[4.75rem]"

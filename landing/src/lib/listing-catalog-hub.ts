@@ -26,8 +26,24 @@ import {
   toGirlsHubHeroCarouselCards,
   type GirlsHubFilterState,
 } from "./promty-dlya-foto-devushki-cluster";
+import {
+  MEN_HUB_COMPOSE_EXAMPLE_FILTER,
+  MEN_HUB_GENERATE_CTA,
+  MEN_HUB_HERO_ARIA_LABEL,
+  MEN_HUB_LOAD_MORE_LABEL,
+  PROMTY_DLYA_FOTO_MUZHCHINY_HUB_PATH,
+  getMenHubFilterNavItems,
+  isPromtyDlyaFotoMuzhchinyClusterPath,
+  isPromtyDlyaFotoMuzhchinyHubPath,
+  menChildRedirectPath,
+  menHubHeroFetchParams,
+  toMenHubHeroCarouselCards,
+  type MenHubFilterState,
+} from "./promty-dlya-foto-muzhchiny-cluster";
 
-export type ListingCatalogHubFilterState = PairsHubFilterState & GirlsHubFilterState;
+export type ListingCatalogHubFilterState = PairsHubFilterState &
+  GirlsHubFilterState &
+  MenHubFilterState;
 
 export type ListingCatalogHubHeroParams = {
   audience_tag: string | null;
@@ -91,12 +107,30 @@ const GIRLS_HUB: ListingCatalogHub = {
   getFilterNavItems: getGirlsHubFilterNavItems,
 };
 
+const MEN_HUB: ListingCatalogHub = {
+  path: PROMTY_DLYA_FOTO_MUZHCHINY_HUB_PATH,
+  loadMoreLabel: MEN_HUB_LOAD_MORE_LABEL,
+  generateCta: MEN_HUB_GENERATE_CTA,
+  heroAriaLabel: MEN_HUB_HERO_ARIA_LABEL,
+  composeExampleFilter: MEN_HUB_COMPOSE_EXAMPLE_FILTER,
+  heroFetchParams: menHubHeroFetchParams,
+  toHeroCarouselCards: toMenHubHeroCarouselCards,
+  getFilterNavItems: getMenHubFilterNavItems,
+};
+
+const LISTING_CATALOG_HUBS: readonly ListingCatalogHub[] = [
+  PAIRS_HUB,
+  GIRLS_HUB,
+  MEN_HUB,
+];
+
 /** Exact hub path only. Children 301 before render. */
 export function resolveListingCatalogHub(
   pathname: string,
 ): ListingCatalogHub | null {
   if (isPromtyDlyaFotoParHubPath(pathname)) return PAIRS_HUB;
   if (isPromtyDlyaFotoDevushkiHubPath(pathname)) return GIRLS_HUB;
+  if (isPromtyDlyaFotoMuzhchinyHubPath(pathname)) return MEN_HUB;
   return null;
 }
 
@@ -111,7 +145,8 @@ export function resolveListingCatalogHubL1(
 export function isListingCatalogHubClusterPath(pathname: string): boolean {
   return (
     isPromtyDlyaFotoParClusterPath(pathname) ||
-    isPromtyDlyaFotoDevushkiClusterPath(pathname)
+    isPromtyDlyaFotoDevushkiClusterPath(pathname) ||
+    isPromtyDlyaFotoMuzhchinyClusterPath(pathname)
   );
 }
 
@@ -119,9 +154,17 @@ export function isListingCatalogHubClusterPath(pathname: string): boolean {
 export function listingCatalogHubChildRedirectPath(
   pathname: string,
 ): string | null {
-  return pairsChildRedirectPath(pathname) ?? girlsChildRedirectPath(pathname);
+  return (
+    pairsChildRedirectPath(pathname) ??
+    girlsChildRedirectPath(pathname) ??
+    menChildRedirectPath(pathname)
+  );
 }
 
 export function listingCatalogHubGenerateCta(pathname: string): string | null {
   return resolveListingCatalogHub(pathname)?.generateCta ?? null;
+}
+
+export function isListingCatalogHubGenerateCta(label: string): boolean {
+  return LISTING_CATALOG_HUBS.some((hub) => hub.generateCta === label);
 }

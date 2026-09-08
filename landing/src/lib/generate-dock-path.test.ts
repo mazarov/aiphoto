@@ -53,9 +53,12 @@ test("foto-v-promt FAB seeds photo_prompt, fotosessii seeds photoshoot", () => {
   assert.equal(listingGenerateIdleIntent("/promty-dlya-foto-s-parnem"), null);
   assert.equal(listingGenerateIdleIntent("/promty-dlya-foto-devushki"), "text");
   assert.equal(listingGenerateIdleIntent("/promty-dlya-foto-devushki/"), "text");
+  assert.equal(listingGenerateIdleIntent("/promty-dlya-foto-muzhchiny"), "text");
+  assert.equal(listingGenerateIdleIntent("/promty-dlya-foto-muzhchiny/"), "text");
   assert.equal(listingGenerateIdleDockSurface("/promty-dlya-foto-par"), "example");
   assert.equal(listingGenerateIdleDockSurface("/promty-dlya-foto-par/"), "example");
   assert.equal(listingGenerateIdleDockSurface("/promty-dlya-foto-devushki"), "example");
+  assert.equal(listingGenerateIdleDockSurface("/promty-dlya-foto-muzhchiny"), "example");
   assert.equal(listingGenerateIdleDockSurface("/"), null);
   assert.deepEqual(listingComposeExampleInitialFilter("/promty-dlya-foto-par"), {
     label: "Пары",
@@ -68,6 +71,14 @@ test("foto-v-promt FAB seeds photo_prompt, fotosessii seeds photoshoot", () => {
       label: "Девушки",
       dimension: "audience_tag",
       value: "devushka",
+    },
+  );
+  assert.deepEqual(
+    listingComposeExampleInitialFilter("/promty-dlya-foto-muzhchiny"),
+    {
+      label: "Мужчины",
+      dimension: "audience_tag",
+      value: "muzhchina",
     },
   );
   assert.equal(listingComposeExampleInitialFilter("/generaciya-foto"), null);
