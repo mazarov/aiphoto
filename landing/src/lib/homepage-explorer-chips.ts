@@ -4,6 +4,7 @@ import {
   type Dimension,
   type TagEntry,
 } from "@/lib/tag-registry";
+import { PROMTY_DLYA_FOTO_PAR_HUB_PATH } from "@/lib/promty-dlya-foto-par-cluster";
 
 export type HomepageExplorerChip = {
   slug: string;
@@ -138,7 +139,10 @@ function toChip(tag: TagEntry): HomepageExplorerChip {
     slug: tag.slug,
     dimension: tag.dimension,
     label: tag.labelRu,
-    href: tag.urlPath,
+    href:
+      tag.dimension === "audience_tag" && tag.slug === "s_parnem"
+        ? `${PROMTY_DLYA_FOTO_PAR_HUB_PATH}?audience=s_parnem`
+        : tag.urlPath,
     score: WORDSTAT_SCORE[tagKey(tag)] ?? 0,
   };
 }

@@ -1,10 +1,6 @@
 import Link from "next/link";
-import {
-  GF_BLOCK,
-  GF_H2,
-  GF_STACK,
-  GF_SURFACE,
-} from "@/components/generate/generaciya-foto-ui";
+import { GeneraciyaFotoFaqBlock } from "@/components/generate/GeneraciyaFotoFaqBlock";
+import { SeoHowToSection } from "@/components/SeoPageSections";
 import { HOMEPAGE_SEO, HOMEPAGE_FAQ } from "@/lib/homepage-seo-copy";
 
 const linkClass =
@@ -75,49 +71,22 @@ function FaqAnswer({ item }: { item: (typeof HOMEPAGE_FAQ)[number] }) {
 
 export function HomeIntroAndHowTo() {
   return (
-    <>
-      <section className="scroll-mt-20" aria-labelledby="howto-heading">
-        <div className={GF_BLOCK}>
-          <h2 id="howto-heading" className={GF_H2}>
-            {HOMEPAGE_SEO.howToTitle}
-          </h2>
-          <ol className={`${GF_STACK} grid gap-5 sm:grid-cols-2`}>
-            {HOMEPAGE_SEO.howToSteps.map((step, index) => (
-              <li key={step}>
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-indigo-600">
-                  {String(index + 1).padStart(2, "0")}
-                </p>
-                <p className="mt-1.5 text-sm leading-relaxed text-zinc-600">
-                  {step}
-                </p>
-              </li>
-            ))}
-          </ol>
-        </div>
-      </section>
-    </>
+    <SeoHowToSection
+      title={HOMEPAGE_SEO.howToTitle}
+      steps={HOMEPAGE_SEO.howToSteps}
+    />
   );
 }
 
 export function HomeFaq() {
   return (
-    <section className="scroll-mt-20" aria-labelledby="faq-heading">
-      <div className={GF_BLOCK}>
-        <h2 id="faq-heading" className={GF_H2}>
-          {HOMEPAGE_SEO.faqTitle}
-        </h2>
-        <dl className={`${GF_STACK} space-y-3`}>
-          {HOMEPAGE_FAQ.map((item) => (
-            <div key={item.id} className={`p-5 ${GF_SURFACE}`}>
-              <dt className="text-base font-semibold text-zinc-900">{item.q}</dt>
-              <dd className="mt-1.5 text-sm leading-relaxed text-zinc-600">
-                <FaqAnswer item={item} />
-              </dd>
-            </div>
-          ))}
-        </dl>
-      </div>
-    </section>
+    <GeneraciyaFotoFaqBlock
+      title={HOMEPAGE_SEO.faqTitle}
+      items={HOMEPAGE_FAQ.map((item) => ({
+        q: item.q,
+        a: <FaqAnswer item={item} />,
+      }))}
+    />
   );
 }
 

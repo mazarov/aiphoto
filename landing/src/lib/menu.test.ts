@@ -33,6 +33,13 @@ test("MENU События includes 1 сентября in Праздники", ()
   assert.ok(holidays?.items.some((item) => item.href === SOBYTIYA_1_SENTYABRYA_PATH));
 });
 
+test("MENU does not link through the retired с-парнем redirect", () => {
+  const hrefs = MENU.flatMap((section) =>
+    section.groups.flatMap((group) => group.items.map((item) => item.href)),
+  );
+  assert.equal(hrefs.includes("/promty-dlya-foto-s-parnem"), false);
+});
+
 test("getStilChipNavigation lists catalog style pages", () => {
   const chips = getStilChipNavigation();
   const hrefs = chips.map((chip) => chip.href);

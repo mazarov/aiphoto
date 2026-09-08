@@ -130,6 +130,17 @@ test("generate FAB on the hub and children is photoshoot, not generic photo", ()
     "Создать ИИ фотосессию",
   );
   assert.equal(
+    listingGenerateIdleCta({ pathname: "/promty-dlya-foto-par", isAuthed: true }),
+    "Создать фото пары",
+  );
+  assert.equal(
+    listingGenerateIdleCta({
+      pathname: "/promty-dlya-foto-par/",
+      isAuthed: false,
+    }),
+    "Создать фото пары",
+  );
+  assert.equal(
     listingGenerateIdleCta({ pathname: "/generaciya-foto", isAuthed: true }),
     "Создать фото",
   );
@@ -174,13 +185,16 @@ test("catalog audience L1 keeps кадр key and does not claim photoshoot queri
   assert.equal(women?.h1, "Промты для фото девушки");
   assert.equal(women?.metaTitle, "Промты для фото девушки | PromptShot");
   assert.equal(men?.h1, "Промты для фото мужчины");
-  assert.equal(couples?.h1, "Промты для фото пар");
+  assert.equal(
+    couples?.h1,
+    "Промты для парных фото",
+  );
   assert.equal(family?.h1, "Промты для семейного фото");
   assert.equal(kids?.h1, "Промты для детских фото");
   assert.equal(birthday?.h1, "Промты для фото на день рождения");
   assert.equal(birthday?.metaTitle, "Промты для фото на день рождения | PromptShot");
 
-  for (const page of [women, men, couples, family, kids, birthday, pregnant]) {
+  for (const page of [women, men, family, kids, birthday, pregnant]) {
     const head = `${page?.h1 ?? ""} ${page?.metaTitle ?? ""} ${page?.metaDescription ?? ""} ${page?.intro ?? ""}`;
     assert.doesNotMatch(head, /промты для ИИ фотосессии/i);
     assert.doesNotMatch(head, /и ИИ фотосессии/i);
@@ -196,10 +210,9 @@ test("catalog audience L1 keeps кадр key and does not claim photoshoot queri
     men?.popularLinks?.find((link) => link.label === "ИИ-фотосессия")?.href,
     "/ii-fotosessiya/muzhskie"
   );
-  assert.equal(
-    couples?.popularLinks?.find((link) => link.label === "ИИ-фотосессия")?.href,
-    "/ii-fotosessiya/pary"
-  );
+  // Хаб пар — исключение: ссылка на /ii-fotosessiya/pary переехала
+  // в generate-CTA страницы, секции «Популярные сценарии» на нём нет.
+  assert.equal(couples?.popularLinks?.length ?? 0, 0);
   assert.equal(
     family?.popularLinks?.find((link) => link.label === "ИИ-фотосессия")?.href,
     "/ii-fotosessiya/semeynye"

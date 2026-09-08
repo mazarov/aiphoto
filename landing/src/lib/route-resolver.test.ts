@@ -55,6 +55,14 @@ test("existing object child under hub keeps its URL", () => {
   assert.equal(route.rpcParams.object_tag, "s_tortom");
 });
 
+test("pairs object-first mirrors 301 to audience-first hub child", () => {
+  const route = resolveUrlToTags(["v-zerkale", "promty-dlya-foto-par"]);
+  assert.ok(route);
+  assert.equal(route.canonicalPath, "/promty-dlya-foto-par/v-zerkale");
+  assert.equal(route.rpcParams.audience_tag, "para");
+  assert.equal(route.rpcParams.object_tag, "v_zerkale");
+});
+
 test("non-birthday combos stay audience-first", () => {
   const girl = findTagBySlug("audience_tag", "devushka");
   const flowers = findTagBySlug("object_tag", "s_cvetami");

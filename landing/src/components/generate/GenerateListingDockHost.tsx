@@ -17,7 +17,10 @@ import { setListingChromeAutoHideBlocked } from "@/hooks/useListingChromeAutoHid
 import { OVERLAY_BUTTON_UA_RESET } from "@/lib/card-overlay-action-pill";
 import { isPrimaryOverlayDismissPointer } from "@/lib/generate-compose-job";
 import { COMPOSE_BUY_CREDITS_CTA } from "@/lib/generate-compose-mode";
-import { listingGenerateIdleIntent } from "@/lib/generate-dock-path";
+import {
+  listingGenerateIdleDockSurface,
+  listingGenerateIdleIntent,
+} from "@/lib/generate-dock-path";
 import { scheduleGenerateDockPrefetch } from "@/lib/generate-dock-prefetch";
 import { listingGenerateIdleCta } from "@/lib/promty-dlya-ii-fotosessii-cluster";
 import {
@@ -169,6 +172,15 @@ export function GenerateListingDockHost() {
     }
     if (idleIntent === "photoshoot") {
       seedPhotoshoot({ entrySource: "fab" });
+      return;
+    }
+    const idleSurface = listingGenerateIdleDockSurface(pathname);
+    if (idleIntent === "text" || idleSurface === "example") {
+      seedBlankPrompt("", {
+        entrySource: "fab",
+        intent: idleIntent ?? "text",
+        dockSurface: idleSurface ?? undefined,
+      });
       return;
     }
     focusBlank({ entrySource: "fab" });

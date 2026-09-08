@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { pairsChildRedirectPath } from "@/lib/promty-dlya-foto-par-cluster";
 
 const OLD_SLUG_RE = /^\/p\/([^/]+)\/?$/;
 const DEFAULT_ALLOWED_METHODS = "GET, POST, OPTIONS";
@@ -93,6 +94,11 @@ async function resolveSlugRedirect(slug: string): Promise<string | null> {
 export async function middleware(request: NextRequest) {
   const wwwRedirect = redirectWwwToApex(request);
   if (wwwRedirect) return wwwRedirect;
+
+  const pairsHub = pairsChildRedirectPath(request.nextUrl.pathname);
+  if (pairsHub) {
+    return NextResponse.redirect(new URL(pairsHub, request.url), 301);
+  }
 
   if (isApiRequest(request)) {
     if (request.method === "OPTIONS") {

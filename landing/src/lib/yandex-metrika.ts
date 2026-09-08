@@ -52,6 +52,7 @@ export const YM_GOAL_PAYMENT_SUCCEEDED = "payment_succeeded";
 export const YM_GOAL_PURCHASE = "purchase";
 /** @deprecated Таббар больше не открывает LexyGPT — цель не вызывается. */
 export const YM_GOAL_LEXYGPT_GENERATE_TABBAR = "lexygpt_generate_tabbar";
+/** @deprecated Listing/card promo banner removed — goals are no longer fired. */
 export const YM_GOAL_FOTO_V_PROMT_BANNER_CLICK = "foto_v_promt_banner_click";
 export const YM_GOAL_FOTO_V_PROMT_BANNER_CLICK_CARD = "foto_v_promt_banner_click_card";
 export const YM_GOAL_FOTO_V_PROMT_ADD_TO_CHROME_CLICK = "foto_v_promt_add_to_chrome_click";

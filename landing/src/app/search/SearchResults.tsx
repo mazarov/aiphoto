@@ -47,7 +47,6 @@ import {
 } from "@/lib/listing-card-navigation-context";
 import { SearchEmptyState } from "@/components/SearchEmptyState";
 import { SearchMetrikaTracker } from "@/components/YandexMetrikaRouteTracker";
-import { ListingFotoVPromtBanner } from "@/components/foto-v-promt-promo/ListingFotoVPromtBanner";
 import { ListingGridLoadingSkeleton } from "@/components/ListingGridLoadingSkeleton";
 import {
   buildSearchApiParams,
@@ -403,14 +402,11 @@ export function SearchResults({ initialQuery }: Props) {
 
       <div className="relative mt-5">
         {displayedCards.length > 0 ? (
-          <>
-            <ListingFotoVPromtBanner />
-            <StableListingMasonry
-              cardPages={displayedPages}
-              lcpPriorityCount={LISTING_LCP_PRIORITY_GRID_ITEMS}
-              loading={loading}
-            />
-          </>
+          <StableListingMasonry
+            cardPages={displayedPages}
+            lcpPriorityCount={LISTING_LCP_PRIORITY_GRID_ITEMS}
+            loading={loading}
+          />
         ) : null}
 
         <div ref={sentinelRef} className="h-px" />

@@ -53,6 +53,8 @@ type Props = {
   onOpenMobileFilters?: () => void;
   /** Sit in the homepage explorer chip row: no extra toolbar surface. */
   variant?: "toolbar" | "explorer";
+  /** Share the chip row: no extra top margin, no full-width toolbar. */
+  inline?: boolean;
 };
 
 function ChevronDownIcon({ className = "h-4 w-4" }: { className?: string }) {
@@ -107,6 +109,7 @@ export function ListingDesktopFilters({
   onSortChange,
   onOpenMobileFilters,
   variant = "toolbar",
+  inline = false,
 }: Props) {
   const [openKey, setOpenKey] = useState<keyof FilterState | null>(null);
   const [modalSearch, setModalSearch] = useState("");
@@ -150,25 +153,69 @@ export function ListingDesktopFilters({
   };
 
   const isExplorer = variant === "explorer";
+  const inChipList = isExplorer && inline;
   const triggerClass = isExplorer
     ? "inline-flex min-h-9 items-center gap-1.5 rounded-full border border-indigo-100 bg-white/80 px-3.5 text-sm font-medium text-zinc-600 transition hover:border-indigo-300 hover:bg-white hover:text-indigo-700"
     : `${FILTER_TRIGGER} border-transparent bg-white/60 shadow-none hover:bg-white/90`;
   const triggerActiveClass = isExplorer
     ? "border-indigo-500 bg-indigo-500 text-white shadow-sm shadow-indigo-500/20 hover:border-indigo-500 hover:bg-indigo-500 hover:text-white"
     : FILTER_TRIGGER_ACTIVE;
+  const filterIconClass = `h-4 w-4 shrink-0 ${
+    isExplorer && activeCount > 0 ? "text-white/80" : "text-zinc-500"
+  }`;
+
+  const dimensionButtons = dimsToShow.map((key) => {
+    const dim = DIM_TO_DIMENSION[key];
+    const label = DIMENSION_UI_LABELS[dim] ?? dim;
+    const selectedSlug = filters[key];
+    const { tags } = getTagsWithCounts(dim, selectedSlug);
+
+    if (tags.length === 0 && !selectedSlug) return null;
+
+    const isActive = selectedSlug != null;
+
+    return (
+      <button
+        key={key}
+        type="button"
+        onClick={() => {
+          setModalSearch("");
+          setOpenKey(key);
+        }}
+        className={`${inChipList ? "max-lg:hidden" : ""} ${triggerClass} ${
+          isActive ? triggerActiveClass : ""
+        }`}
+        aria-expanded={openKey === key}
+        aria-haspopup="dialog"
+      >
+        <span>{formatButtonLabel(label, selectedSlug, dim)}</span>
+        <ChevronDownIcon
+          className={`h-4 w-4 shrink-0 ${
+            isActive
+              ? isExplorer
+                ? "text-white/80"
+                : "text-indigo-500/80"
+              : "text-zinc-400"
+          }`}
+        />
+      </button>
+    );
+  });
 
   return (
     <>
       <div
         className={
-          isExplorer
-            ? "mt-3"
-            : `mb-5 rounded-2xl px-3 py-2.5 sm:px-4 ${FILTER_CHROME_SURFACE}`
+          inChipList
+            ? "contents"
+            : isExplorer
+              ? "mt-3"
+              : `mb-5 rounded-2xl px-3 py-2.5 sm:px-4 ${FILTER_CHROME_SURFACE}`
         }
         role="toolbar"
         aria-label="Фильтры и сортировка каталога"
       >
-        <div className="flex flex-wrap items-center gap-2">
+        <div className={inChipList ? "contents" : "flex flex-nowrap items-center gap-2"}>
           {hasMobileFilters && onOpenMobileFilters && (
             <button
               type="button"
@@ -176,70 +223,65 @@ export function ListingDesktopFilters({
               className={`lg:hidden ${triggerClass} ${activeCount > 0 ? triggerActiveClass : ""}`}
               aria-label={activeCount > 0 ? `Фильтры (${activeCount})` : "Фильтры"}
             >
-              <FilterLinesIcon className="h-4 w-4 shrink-0 text-zinc-500" />
+              <FilterLinesIcon className={filterIconClass} />
               <span>Фильтры</span>
               {activeCount > 0 ? (
-                <span className="inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-indigo-600 px-1.5 text-xs font-semibold tabular-nums text-white">
+                <span
+                  className={`inline-flex min-w-[1.25rem] items-center justify-center rounded-full px-1.5 text-xs font-semibold tabular-nums ${
+                    isExplorer
+                      ? "bg-white/20 text-white"
+                      : "bg-indigo-600 text-white"
+                  }`}
+                >
                   {activeCount}
                 </span>
               ) : null}
             </button>
           )}
 
-          <div className="hidden min-w-0 flex-1 flex-wrap items-center gap-2 lg:flex">
-            {dimsToShow.map((key) => {
-              const dim = DIM_TO_DIMENSION[key];
-              const label = DIMENSION_UI_LABELS[dim] ?? dim;
-              const selectedSlug = filters[key];
-              const { tags } = getTagsWithCounts(dim, selectedSlug);
-
-              if (tags.length === 0 && !selectedSlug) return null;
-
-              const isActive = selectedSlug != null;
-
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => {
-                    setModalSearch("");
-                    setOpenKey(key);
-                  }}
-                  className={`${triggerClass} ${isActive ? triggerActiveClass : ""}`}
-                  aria-expanded={openKey === key}
-                  aria-haspopup="dialog"
-                >
-                  <span>{formatButtonLabel(label, selectedSlug, dim)}</span>
-                  <ChevronDownIcon
-                    className={`h-4 w-4 shrink-0 ${
-                      isActive
-                        ? isExplorer
-                          ? "text-white/80"
-                          : "text-indigo-500/80"
-                        : "text-zinc-400"
-                    }`}
-                  />
+          {inChipList ? (
+            dimensionButtons
+          ) : (
+            <div className="hidden min-w-0 flex-1 flex-nowrap items-center gap-2 lg:flex">
+              {dimensionButtons}
+              {activeCount > 0 && (
+                <button type="button" onClick={onReset} className={FILTER_RESET_LINK}>
+                  Сбросить
                 </button>
-              );
-            })}
+              )}
+            </div>
+          )}
 
-            {activeCount > 0 && (
-              <button type="button" onClick={onReset} className={FILTER_RESET_LINK}>
-                Сбросить
-              </button>
-            )}
-          </div>
+          {inChipList && activeCount > 0 ? (
+            <button
+              type="button"
+              onClick={onReset}
+              className="inline-flex min-h-9 items-center rounded-full px-3.5 text-sm font-medium text-indigo-600 transition hover:bg-indigo-50 hover:text-indigo-700"
+            >
+              Сбросить
+            </button>
+          ) : null}
 
-          <div className={`flex shrink-0 items-center gap-2 ${sort && onSortChange ? "ms-auto" : ""}`}>
-            {activeCount > 0 && (
-              <button type="button" onClick={onReset} className={`lg:hidden ${FILTER_RESET_LINK}`}>
-                Сбросить
-              </button>
-            )}
-            {sort && onSortChange ? (
+          {inChipList ? (
+            sort && onSortChange ? (
               <ListingSortToggle sort={sort} onSortChange={onSortChange} embedded />
-            ) : null}
-          </div>
+            ) : null
+          ) : (
+            <div
+              className={`flex shrink-0 items-center gap-2 ${
+                sort && onSortChange ? "ms-auto" : ""
+              }`}
+            >
+              {activeCount > 0 && (
+                <button type="button" onClick={onReset} className={`lg:hidden ${FILTER_RESET_LINK}`}>
+                  Сбросить
+                </button>
+              )}
+              {sort && onSortChange ? (
+                <ListingSortToggle sort={sort} onSortChange={onSortChange} embedded />
+              ) : null}
+            </div>
+          )}
         </div>
       </div>
 

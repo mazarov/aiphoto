@@ -1,4 +1,4 @@
-import { cache } from "react";
+import { cache, Suspense } from "react";
 import { notFound, permanentRedirect } from "next/navigation";
 import Link from "next/link";
 import {
@@ -10,9 +10,13 @@ import {
   type PromptCardFull,
 } from "@/lib/supabase";
 import { parseListingSort } from "@/lib/listing-sort";
+import { AdLandingHeading } from "@/components/AdLandingHeading";
 import { CatalogExplorer } from "@/components/CatalogExplorer";
+import { GeneraciyaFotoHeroPage } from "@/components/generate/GeneraciyaFotoHeroPage";
+import { GF_HERO_H1 } from "@/components/generate/generaciya-foto-ui";
 import { ListingClusterChipGroup } from "@/components/ListingClusterChipGroup";
 import { ListingHomeBackLink } from "@/components/ListingHomeBackLink";
+import { ListingPromptCountBadge } from "@/components/ListingPromptCountBadge";
 import { PageLayout } from "@/components/PageLayout";
 import {
   getSiblingTags,
@@ -39,17 +43,30 @@ import {
   type BirthdayListingSearchFilters,
 } from "@/lib/den-rozhdeniya-cluster";
 import { uniqueListingChipsByHref } from "@/lib/listing-cluster-chips";
+import { GeneraciyaFotoHeroCarousel } from "@/components/generate/GeneraciyaFotoHeroCarousel";
+import { toGenerationExampleCard } from "@/lib/generation/example-card";
 import {
-  getFeaturedPairsNavItems,
-  isFeaturedPairsChildAlias,
+  getPairsHubFilterNavItems,
   isPromtyDlyaFotoParClusterPath,
-  pairsActiveAliasFromPath,
+  isPromtyDlyaFotoParHubPath,
+  pairsHubHeroFetchParams,
+  toPairsHubHeroCarouselCards,
+  PAIRS_HUB_HERO_ARIA_LABEL,
+  PAIRS_HUB_LOAD_MORE_LABEL,
+  PROMTY_DLYA_FOTO_PAR_HUB_PATH,
 } from "@/lib/promty-dlya-foto-par-cluster";
 import {
   resolveSeoIllustrations,
   type ResolvedSeoIllustration,
 } from "@/lib/seo-illustrations";
-import { ListingFotoVPromtBanner } from "@/components/foto-v-promt-promo/ListingFotoVPromtBanner";
+import {
+  SEO_PAGE_STACK,
+  SeoFaqSection,
+  SeoGenerateCtaSection,
+  SeoHowToSection,
+  SeoRelatedChipsSection,
+  SeoTextSection,
+} from "@/components/SeoPageSections";
 import {
   LISTING_SEARCH_PAGE_SIZE,
   LISTING_SSR_INITIAL_LIMIT,
@@ -620,16 +637,32 @@ export default async function TagPage({ params, searchParams }: Props) {
   const listingSearchFilters = listingSearchQuery
     ? birthdayListingSearchFilters(route.tags)
     : {};
-  const result = await getListingCards(route, qs ?? null);
+  const currentPath = listingPathname(slug);
+  const isPairsHubL1 =
+    isPromtyDlyaFotoParHubPath(currentPath) && route.level === 1;
+  const [result, pairsHeroResult] = await Promise.all([
+    getListingCards(route, qs ?? null),
+    isPairsHubL1
+      ? getCachedRouteCards(pairsHubHeroFetchParams(route.rpcParams))
+      : Promise.resolve(EMPTY_ROUTE_RESULT),
+  ]);
   const totalCount = result.total_count ?? result.cards_count;
 
-  let cards: PromptCardFull[];
-  try {
-    cards = await enrichCardsWithDetails(result.cards);
-  } catch (err) {
-    console.error("[TagPage] enrichCardsWithDetails failed:", err);
-    cards = [];
-  }
+  const [cards, pairsHeroCards] = await Promise.all([
+    enrichCardsWithDetails(result.cards).catch((err) => {
+      console.error("[TagPage] enrichCardsWithDetails failed:", err);
+      return [] as PromptCardFull[];
+    }),
+    isPairsHubL1
+      ? enrichCardsWithDetails(pairsHeroResult.cards).catch((err) => {
+          console.error("[TagPage] pairs hero enrich failed:", err);
+          return [] as PromptCardFull[];
+        })
+      : Promise.resolve([] as PromptCardFull[]),
+  ]);
+  const pairsHeroCarouselCards = toPairsHubHeroCarouselCards(
+    pairsHeroCards.map(toGenerationExampleCard),
+  );
 
   const seo = getSeoForRoute(route);
 
@@ -683,7 +716,6 @@ export default async function TagPage({ params, searchParams }: Props) {
     (primaryTag.dimension === "audience_tag" ||
       primaryTag.dimension === "style_tag" ||
       primaryTag.dimension === "object_tag");
-  const currentPath = listingPathname(slug);
   const isBirthdayCluster = isDenRozhdeniyaClusterPath(currentPath);
   const isPairsCluster = isPromtyDlyaFotoParClusterPath(currentPath);
   const birthdayNav = isBirthdayCluster
@@ -693,9 +725,15 @@ export default async function TagPage({ params, searchParams }: Props) {
           : birthdayActiveAliasFromTags(route.tags),
       )
     : [];
-  const pairsNav = isPairsCluster
-    ? getFeaturedPairsNavItems(pairsActiveAliasFromPath(currentPath))
-    : [];
+  const pairsFilterNav =
+    isPairsCluster && route.level === 1
+      ? getPairsHubFilterNavItems({
+          audience: qs?.audience ?? null,
+          style: qs?.style ?? null,
+          object: qs?.object ?? null,
+          occasion: qs?.occasion ?? null,
+        })
+      : [];
   const clusterChipsAboveGrid =
     !isBirthdayCluster &&
     !isPairsCluster &&
@@ -707,20 +745,237 @@ export default async function TagPage({ params, searchParams }: Props) {
       ? l2ChipGroups.filter((group) => group.dimension !== "occasion_tag")
       : l2ChipGroups
   )
+    .filter(() => !isPairsCluster)
     .map((group) => ({
       ...group,
       chips: group.chips.filter((chip) => {
         const alias = chip.href.split("/").filter(Boolean).pop() ?? "";
-        if (isPairsCluster) return !isFeaturedPairsChildAlias(alias);
         if (isBirthdayCluster) return !isFeaturedBirthdayChildAlias(alias);
         return true;
       }),
     }))
     .filter((group) => group.chips.length > 0);
 
+  const catalogExplorer = (
+    <section
+      aria-labelledby={
+        isPairsHubL1 && seo.explorerTitle
+          ? "listing-explorer-gallery-heading"
+          : "listing-explorer-heading"
+      }
+    >
+      <CatalogExplorer
+        initialCards={cards}
+        totalCount={totalCount}
+        initialRankedBatchSize={result.cards_count}
+        baseRpcParams={baseRpcParams}
+        lockedDimensions={lockedDimensions}
+        heading={seo.h1}
+        headingId="listing-explorer-heading"
+        eyebrow={sectionLabel}
+        intro={seo.intro}
+        hideHeading={isPairsHubL1}
+        explorerTitle={isPairsHubL1 ? seo.explorerTitle : undefined}
+        explorerIntro={isPairsHubL1 ? seo.explorerIntro : undefined}
+        chipNav={
+          route.level === 1 ? (
+            <ListingClusterChipGroup
+              key="listing-chip-nav"
+              label=""
+              showLabel={false}
+              variant="nav"
+              flow="row"
+              leading={<ListingHomeBackLink />}
+              items={
+                pairsFilterNav.length > 0
+                  ? pairsFilterNav
+                  : clusterChipsAboveGrid.length > 0
+                    ? clusterChipsAboveGrid
+                    : birthdayNav.length > 0
+                      ? birthdayNav
+                      : []
+              }
+            />
+          ) : undefined
+        }
+        afterIntro={
+          route.level === 1
+            ? undefined
+            : birthdayNav.length > 0 ? (
+                <ListingClusterChipGroup
+                  label="Сценарии на день рождения"
+                  items={birthdayNav}
+                />
+              ) : undefined
+        }
+        listingSearchQuery={listingSearchQuery}
+        listingSearchFilters={listingSearchFilters}
+        listingSearchHasMore={
+          Boolean(listingSearchQuery && totalCount > result.cards_count)
+        }
+        teaserLoadMore={isPairsCluster && route.level === 1}
+        teaserLoadMoreLabel={PAIRS_HUB_LOAD_MORE_LABEL}
+      />
+      {seo.popularLinks?.length && !isBirthdayCluster && !isPairsCluster ? (
+        <div className="sr-only">
+          <SeoPopularLinks links={seo.popularLinks} />
+        </div>
+      ) : null}
+    </section>
+  );
+
+  const seoSections = (
+    <>
+      {generationScenario && !(isPairsCluster && route.level === 1) ? (
+        <SeoGenerateCtaSection
+          title="Хотите создать своё изображение?"
+          lead="Откройте тематический генератор, выберите пример и измените промт под свою внешность, сюжет и формат."
+          primaryHref={getGeneraciyaFotoScenarioPath(generationScenario.slug)}
+          primaryLabel={`${generationScenario.label}: сгенерировать фото`}
+        />
+      ) : null}
+
+      {route.parentPath ? (
+        <div>
+          <Link
+            href={route.parentPath}
+            scroll={false}
+            className="inline-flex items-center gap-2 text-sm font-medium text-indigo-600 transition-colors hover:text-indigo-800"
+          >
+            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+              <path d="M15 18l-6-6 6-6" />
+            </svg>
+            Все промты: {primaryTag.labelRu}
+          </Link>
+        </div>
+      ) : null}
+
+      {l2ChipGroupsBelow.map((group) => (
+        <SeoRelatedChipsSection
+          key={group.dimension}
+          title={group.label}
+          headingId={`l2-${group.dimension}`}
+          items={group.chips.map((chip) => ({
+            label: chip.tag.labelRu,
+            href: chip.href,
+            count: chip.count,
+          }))}
+        />
+      ))}
+
+      <SeoHowToSection
+        title={seo.howToTitle ?? "Как использовать промт"}
+        steps={seo.howToSteps}
+      />
+
+      <SeoFaqSection title="Частые вопросы" items={seo.faqItems} />
+
+      {seo.seoTextBlocks?.map((block, index) => (
+        <SeoTextSection
+          key={block.h2}
+          title={block.h2}
+          paragraphs={block.paragraphs}
+          headingId={`seo-text-${index}`}
+        />
+      ))}
+
+      {siblings.length > 0 ? (
+        <SeoRelatedChipsSection
+          title="Ещё разделы"
+          items={siblings.map((s) => ({
+            label: s.labelRu,
+            href: s.urlPath,
+          }))}
+        />
+      ) : null}
+
+      {route.level >= 2 && route.tags.length >= 2 ? (
+        <SeoRelatedChipsSection
+          title={`Ещё «${route.tags[1].labelRu}»`}
+          headingId="related-second-tag"
+          items={getSiblingTags(route.tags[1], 8).map((s) => ({
+            label: s.labelRu,
+            href: s.urlPath,
+          }))}
+        />
+      ) : null}
+    </>
+  );
+
+  const jsonLdScript = (
+    <script
+      type="application/ld+json"
+      dangerouslySetInnerHTML={{
+        __html: JSON.stringify(
+          buildJsonLd(route, seo, SITE_URL, pageOgImage, resolvedIllustrations),
+        ).replace(/</g, "\\u003c"),
+      }}
+    />
+  );
+
+  if (isPairsHubL1) {
+    return (
+      <PageLayout showFooterWithGenerateDock>
+        <GeneraciyaFotoHeroPage
+          titleId="listing-explorer-heading"
+          breadcrumbs={
+            <nav
+              aria-label="Хлебные крошки"
+              className="mb-5 flex items-center justify-center gap-1.5 text-sm text-zinc-400"
+            >
+              <Link href="/" className="transition-colors hover:text-zinc-700">
+                Главная
+              </Link>
+              <BreadcrumbSeparator />
+              <span>{sectionLabel}</span>
+              <BreadcrumbSeparator />
+              <span className="font-medium text-zinc-700">{primaryTag.labelRu}</span>
+            </nav>
+          }
+          title={
+            <Suspense
+              fallback={
+                <h1 id="listing-explorer-heading" className={GF_HERO_H1}>
+                  {seo.h1}
+                </h1>
+              }
+            >
+              <AdLandingHeading
+                path={PROMTY_DLYA_FOTO_PAR_HUB_PATH}
+                fallback={seo.h1}
+                id="listing-explorer-heading"
+                className={GF_HERO_H1}
+              />
+            </Suspense>
+          }
+          intro={seo.intro}
+          afterIntro={
+            totalCount > 0 ? (
+              <div className="mt-4 flex items-center justify-center">
+                <ListingPromptCountBadge count={totalCount} />
+              </div>
+            ) : null
+          }
+          carousel={
+            pairsHeroCarouselCards.length > 0 ? (
+              <GeneraciyaFotoHeroCarousel
+                cards={pairsHeroCarouselCards}
+                ctaLabel={null}
+                ariaLabel={PAIRS_HUB_HERO_ARIA_LABEL}
+              />
+            ) : null
+          }
+        >
+          {catalogExplorer}
+          {seoSections}
+        </GeneraciyaFotoHeroPage>
+        {jsonLdScript}
+      </PageLayout>
+    );
+  }
+
   return (
     <PageLayout showFooterWithGenerateDock>
-      <ListingFotoVPromtBanner attach="hero" />
       <section className="w-full px-2 pt-5 sm:px-5">
         <nav className="mb-4 flex items-center gap-1.5 text-sm text-zinc-400">
           <Link href="/" className="transition-colors hover:text-zinc-700">
@@ -758,208 +1013,11 @@ export default async function TagPage({ params, searchParams }: Props) {
       </section>
 
       <main className="listing-main-bottom-pad w-full flex-1 px-2 pb-8 sm:px-5">
-        <section aria-labelledby="listing-explorer-heading">
-          <CatalogExplorer
-            initialCards={cards}
-            totalCount={totalCount}
-            initialRankedBatchSize={result.cards_count}
-            baseRpcParams={baseRpcParams}
-            lockedDimensions={lockedDimensions}
-            heading={seo.h1}
-            headingId="listing-explorer-heading"
-            eyebrow={sectionLabel}
-            intro={seo.intro}
-            chipNav={
-              route.level === 1 ? (
-                <nav aria-label="Категории промтов">
-                  <ListingClusterChipGroup
-                    label=""
-                    showLabel={false}
-                    variant="nav"
-                    leading={<ListingHomeBackLink />}
-                    items={
-                      clusterChipsAboveGrid.length > 0
-                        ? clusterChipsAboveGrid
-                        : birthdayNav.length > 0
-                          ? birthdayNav
-                          : pairsNav
-                    }
-                  />
-                </nav>
-              ) : undefined
-            }
-            afterIntro={
-              route.level === 1
-                ? undefined
-                : birthdayNav.length > 0 ? (
-                    <ListingClusterChipGroup
-                      label="Сценарии на день рождения"
-                      items={birthdayNav}
-                    />
-                  ) : pairsNav.length > 0 ? (
-                    <ListingClusterChipGroup
-                      label="Сценарии для фото пары"
-                      items={pairsNav}
-                    />
-                  ) : undefined
-            }
-            listingSearchQuery={listingSearchQuery}
-            listingSearchFilters={listingSearchFilters}
-            listingSearchHasMore={
-              Boolean(listingSearchQuery && totalCount > result.cards_count)
-            }
-          />
-          {seo.popularLinks?.length && !isBirthdayCluster && !isPairsCluster ? (
-            <div className="sr-only">
-              <SeoPopularLinks links={seo.popularLinks} />
-            </div>
-          ) : null}
-        </section>
-
-        {generationScenario ? (
-          <section className="mt-8 rounded-2xl border border-indigo-100 bg-indigo-50/60 p-5 sm:p-6">
-            <h2 className="text-lg font-bold text-zinc-900">
-              Хотите создать своё изображение?
-            </h2>
-            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-zinc-600">
-              Откройте тематический генератор, выберите пример и измените промт
-              под свою внешность, сюжет и формат.
-            </p>
-            <Link
-              href={getGeneraciyaFotoScenarioPath(generationScenario.slug)}
-              className="mt-4 inline-flex min-h-11 items-center justify-center rounded-full bg-indigo-600 px-5 text-sm font-semibold text-white transition hover:bg-indigo-700"
-            >
-              {`${generationScenario.label}: сгенерировать фото`}
-            </Link>
-          </section>
-        ) : null}
-
-        {route.parentPath ? (
-          <div className="mt-10">
-            <Link
-              href={route.parentPath}
-              scroll={false}
-              className="inline-flex items-center gap-2 text-sm text-indigo-600 hover:text-indigo-800 transition-colors"
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M15 18l-6-6 6-6" />
-              </svg>
-              Все промты: {primaryTag.labelRu}
-            </Link>
-          </div>
-        ) : null}
-
-        {/* L2 chips — only on L1 pages */}
-        {l2ChipGroupsBelow.length > 0 && (
-          <section className="mt-12 space-y-4">
-            {l2ChipGroupsBelow.map((group) => (
-              <ListingClusterChipGroup
-                key={group.dimension}
-                label={group.label}
-                items={group.chips.map((chip) => ({
-                  label: chip.tag.labelRu,
-                  href: chip.href,
-                  count: chip.count,
-                }))}
-              />
-            ))}
-          </section>
-        )}
-
-        {/* How to use */}
-        <section className="mt-16 rounded-2xl border border-zinc-200 bg-white p-6 sm:p-8">
-          <h2 className="text-xl font-bold text-zinc-900">
-            {seo.howToTitle ?? "Как использовать промт"}
-          </h2>
-          <ol className="mt-4 space-y-3 text-zinc-600">
-            {seo.howToSteps.map((step, i) => (
-              <li key={i} className="flex gap-3">
-                <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-indigo-100 text-sm font-bold text-indigo-700">
-                  {i + 1}
-                </span>
-                {step}
-              </li>
-            ))}
-          </ol>
-        </section>
-
-        {/* FAQ */}
-        <section className="mt-12">
-          <h2 className="text-xl font-bold text-zinc-900">Частые вопросы</h2>
-          <dl className="mt-4 space-y-6">
-            {seo.faqItems.map((item, i) => (
-              <div key={i} className="rounded-xl border border-zinc-200 bg-zinc-50/50 p-4">
-                <dt className="font-semibold text-zinc-900">{item.q}</dt>
-                <dd className="mt-2 text-zinc-600">{item.a}</dd>
-              </div>
-            ))}
-          </dl>
-        </section>
-
-        {/* SEO text blocks (текстовая релевантность L1) */}
-        {seo.seoTextBlocks?.map((block) => (
-          <section key={block.h2} className="mt-12">
-            <h2 className="text-xl font-bold text-zinc-900">{block.h2}</h2>
-            <div className="mt-4 max-w-3xl space-y-4">
-              {block.paragraphs.map((p, i) => (
-                <p key={i} className="text-sm leading-relaxed text-zinc-600 sm:text-base">
-                  {p}
-                </p>
-              ))}
-            </div>
-          </section>
-        ))}
-
-        {/* Internal links — siblings of primary tag */}
-        {siblings.length > 0 && (
-          <section className="mt-12">
-            <h2 className="text-lg font-bold text-zinc-900">Ещё разделы</h2>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {siblings.map((s) => (
-                <Link
-                  key={s.slug}
-                  href={s.urlPath}
-                  scroll={false}
-                  className="rounded-lg border border-zinc-200 bg-white px-4 py-2 text-sm text-zinc-600 transition-colors hover:border-zinc-300 hover:bg-zinc-50 hover:text-zinc-900"
-                >
-                  {s.labelRu}
-                </Link>
-              ))}
-            </div>
-          </section>
-        )}
-
-        {/* Cross-dimension links for L2: show siblings with same second tag */}
-        {route.level >= 2 && route.tags.length >= 2 && (
-          <section className="mt-8">
-            <h2 className="text-lg font-bold text-zinc-900">
-              Ещё «{route.tags[1].labelRu}»
-            </h2>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {getSiblingTags(route.tags[1], 8).map((s) => (
-                <Link
-                  key={s.slug}
-                  href={s.urlPath}
-                  scroll={false}
-                  className="rounded-lg border border-zinc-200 bg-white px-4 py-2 text-sm text-zinc-600 transition-colors hover:border-zinc-300 hover:bg-zinc-50 hover:text-zinc-900"
-                >
-                  {s.labelRu}
-                </Link>
-              ))}
-            </div>
-          </section>
-        )}
+        {catalogExplorer}
+        <div className={SEO_PAGE_STACK}>{seoSections}</div>
       </main>
 
-      {/* JSON-LD: BreadcrumbList + FAQPage — inline for SSR visibility */}
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{
-          __html: JSON.stringify(
-            buildJsonLd(route, seo, SITE_URL, pageOgImage, resolvedIllustrations),
-          ).replace(/</g, "\\u003c"),
-        }}
-      />
+      {jsonLdScript}
     </PageLayout>
   );
 }

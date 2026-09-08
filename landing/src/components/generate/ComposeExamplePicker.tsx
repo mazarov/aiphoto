@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
 import {
   type GenerationExampleCard,
   toGenerationExampleCard,
@@ -34,12 +35,24 @@ import {
 import { OVERLAY_BUTTON_UA_RESET } from "@/lib/card-overlay-action-pill";
 import type { PromptCardFull } from "@/lib/supabase";
 import { selectedPromptText } from "@/lib/photoshoot";
+import { listingComposeExampleInitialFilter } from "@/lib/generate-dock-path";
 
 const SEARCH_DEBOUNCE_MS = 200;
 
 type QuickFilter = ReturnType<typeof composeExampleQuickFilters>[number];
 
 const QUICK_FILTERS = composeExampleQuickFilters(GENERACIYA_FOTO_SCENARIOS);
+
+function quickFilterFromListingPath(pathname: string): QuickFilter | null {
+  const seed = listingComposeExampleInitialFilter(pathname);
+  if (!seed) return null;
+  return (
+    QUICK_FILTERS.find(
+      (filter) =>
+        filter.dimension === seed.dimension && filter.value === seed.value,
+    ) ?? null
+  );
+}
 
 export type ComposeExampleMatchPhoto = {
   id: string;
@@ -124,8 +137,11 @@ export function ComposeExamplePicker({
   matchEnabled = false,
   matchPhoto = null,
 }: ComposeExamplePickerProps) {
+  const pathname = usePathname();
   const [query, setQuery] = useState("");
-  const [activeFilter, setActiveFilter] = useState<QuickFilter | null>(null);
+  const [activeFilter, setActiveFilter] = useState<QuickFilter | null>(() =>
+    quickFilterFromListingPath(pathname),
+  );
   const [audienceMatch, setAudienceMatch] = useState<ComposeExampleAudienceTag | null>(
     () => readComposeExampleAudience(matchPhoto, matchEnabled),
   );

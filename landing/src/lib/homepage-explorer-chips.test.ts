@@ -57,6 +57,10 @@ test("explorer chips cover every TAG_REGISTRY entry exactly once", () => {
   const registryKeys = TAG_REGISTRY.map((tag) => `${tag.dimension}:${tag.slug}`);
   assert.deepEqual(new Set(keys), new Set(registryKeys));
   assert.equal(keys.length, registryKeys.length);
+  assert.equal(
+    chips.find((chip) => chip.slug === "s_parnem")?.href,
+    "/promty-dlya-foto-par?audience=s_parnem",
+  );
 });
 
 test("more chips exclude pinned and stay Wordstat-sorted within groups", () => {

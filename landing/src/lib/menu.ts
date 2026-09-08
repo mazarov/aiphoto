@@ -45,6 +45,9 @@ function tagItem(slug: string): MenuItem {
   return { label: entry.labelRu, href: entry.urlPath };
 }
 
+/** Retired standalone pages that must not create internal links through a 301. */
+const MENU_HIDDEN_TAG_SLUGS = new Set(["s_parnem"]);
+
 /**
  * Collect all slugs explicitly placed in curated groups,
  * then append any TAG_REGISTRY tags for that dimension
@@ -60,7 +63,12 @@ function withAutoGroup(section: MenuSection): MenuSection {
   }
 
   const unplaced = TAG_REGISTRY
-    .filter((t) => t.dimension === section.dimension && !placedSlugs.has(t.slug))
+    .filter(
+      (t) =>
+        t.dimension === section.dimension &&
+        !placedSlugs.has(t.slug) &&
+        !MENU_HIDDEN_TAG_SLUGS.has(t.slug),
+    )
     .map((t) => tagItem(t.slug));
 
   if (unplaced.length === 0) return section;
@@ -135,7 +143,6 @@ const CURATED_SECTIONS: MenuSection[] = [
         title: "Отношения",
         items: [
           tagItem("s_mamoy"),
-          tagItem("s_parnem"),
           tagItem("pokoleniy"),
           tagItem("s_papoy"),
           tagItem("s_muzhem"),

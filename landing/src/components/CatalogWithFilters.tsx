@@ -70,6 +70,15 @@ export type CatalogWithFiltersProps = {
   listingSearchHasMore?: boolean;
   /** Chip row under search — hub «Назад» + category chips, like `/generaciya-foto/[scenario]`. */
   chipNav?: ReactNode;
+  /** Hero H1/intro live in `GeneraciyaFotoHeroPage` — explorer starts at search. */
+  hideHeading?: boolean;
+  /** H2 + lead above search when the page H1 already lives in the hero. */
+  explorerTitle?: string;
+  explorerIntro?: string;
+  explorerTitleId?: string;
+  /** Fade + CTA like `/generaciya-foto`, then explicit load-more. */
+  teaserLoadMore?: boolean;
+  teaserLoadMoreLabel?: string;
 };
 
 export function CatalogWithFilters({
@@ -90,6 +99,12 @@ export function CatalogWithFilters({
   listingSearchFilters = {},
   listingSearchHasMore = false,
   chipNav,
+  hideHeading = false,
+  explorerTitle,
+  explorerIntro,
+  explorerTitleId = "listing-explorer-gallery-heading",
+  teaserLoadMore = false,
+  teaserLoadMoreLabel,
 }: CatalogWithFiltersProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -183,21 +198,32 @@ export function CatalogWithFilters({
 
   return (
     <ListingExplorerFrame>
-      <ListingExplorerHeading
-        eyebrow={eyebrow}
-        title={visibleHeading}
-        titleAs="h1"
-        titleId={headingId}
-        intro={intro}
-        introSecondary={introSecondary}
-        afterIntro={afterIntro}
-        collapseIntroOnMobile
-        countBadge={
-          !isSearching && !searchListing && totalCount > 0 ? (
-            <ListingPromptCountBadge count={totalCount} />
-          ) : null
-        }
-      />
+      {hideHeading ? null : (
+        <ListingExplorerHeading
+          eyebrow={eyebrow}
+          title={visibleHeading}
+          titleAs="h1"
+          titleId={headingId}
+          intro={intro}
+          introSecondary={introSecondary}
+          afterIntro={afterIntro}
+          collapseIntroOnMobile
+          countBadge={
+            !isSearching && !searchListing && totalCount > 0 ? (
+              <ListingPromptCountBadge count={totalCount} />
+            ) : null
+          }
+        />
+      )}
+
+      {explorerTitle ? (
+        <ListingExplorerHeading
+          title={explorerTitle}
+          titleAs="h2"
+          titleId={explorerTitleId}
+          intro={explorerIntro}
+        />
+      ) : null}
 
       <ListingExplorerSearch
         id="listing-explorer-search"
@@ -207,21 +233,45 @@ export function CatalogWithFilters({
         loading={searchLoading}
       />
 
-      {chipNav ? <div className="mt-3">{chipNav}</div> : null}
-
-      {searchListing ? null : (
-        <ListingDesktopFilters
-          variant="explorer"
-          filters={filters}
-          onSetFilter={setFilter}
-          onReset={resetFilters}
-          activeCount={activeCount}
-          hiddenDimensions={lockedDimensions}
-          rpcParams={mergedRpcParams}
-          sort={sortChangeHandler ? sort : undefined}
-          onSortChange={sortChangeHandler}
-          onOpenMobileFilters={() => setFilterPanelOpen(true)}
-        />
+      {chipNav && !searchListing ? (
+        <nav
+          className="mt-3 flex flex-wrap items-center gap-2"
+          aria-label="Категории и фильтры каталога"
+        >
+          {chipNav}
+          <ListingDesktopFilters
+            key="listing-inline-filters"
+            variant="explorer"
+            inline
+            filters={filters}
+            onSetFilter={setFilter}
+            onReset={resetFilters}
+            activeCount={activeCount}
+            hiddenDimensions={lockedDimensions}
+            rpcParams={mergedRpcParams}
+            sort={sortChangeHandler ? sort : undefined}
+            onSortChange={sortChangeHandler}
+            onOpenMobileFilters={() => setFilterPanelOpen(true)}
+          />
+        </nav>
+      ) : (
+        <>
+          {chipNav ? <div className="mt-3">{chipNav}</div> : null}
+          {searchListing ? null : (
+            <ListingDesktopFilters
+              variant="explorer"
+              filters={filters}
+              onSetFilter={setFilter}
+              onReset={resetFilters}
+              activeCount={activeCount}
+              hiddenDimensions={lockedDimensions}
+              rpcParams={mergedRpcParams}
+              sort={sortChangeHandler ? sort : undefined}
+              onSortChange={sortChangeHandler}
+              onOpenMobileFilters={() => setFilterPanelOpen(true)}
+            />
+          )}
+        </>
       )}
 
       {preGrid ? <div className="mt-3">{preGrid}</div> : null}
@@ -302,6 +352,8 @@ export function CatalogWithFilters({
             searchQuery={listingSearchQuery}
             searchFilters={listingSearchFilters}
             searchHasMore={listingSearchHasMore}
+            teaserLoadMore={teaserLoadMore}
+            teaserLoadMoreLabel={teaserLoadMoreLabel}
           />
         )}
       </div>

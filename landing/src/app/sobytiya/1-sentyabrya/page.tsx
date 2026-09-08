@@ -4,7 +4,12 @@ import Link from "next/link";
 import { PageLayout } from "@/components/PageLayout";
 import { CatalogExplorer } from "@/components/CatalogExplorer";
 import { ListingClusterChipGroup } from "@/components/ListingClusterChipGroup";
-import { ListingFotoVPromtBanner } from "@/components/foto-v-promt-promo/ListingFotoVPromtBanner";
+import {
+  SEO_PAGE_STACK,
+  SeoFaqSection,
+  SeoHowToSection,
+  SeoRelatedChipsSection,
+} from "@/components/SeoPageSections";
 import {
   enrichCardsWithDetails,
   getFirstCardPhotoUrl,
@@ -212,7 +217,6 @@ export default async function Sobytiya1SentyabryaPage({
         />
       ))}
 
-      <ListingFotoVPromtBanner attach="hero" />
       <section className="w-full px-2 pt-5 sm:px-5">
         <nav
           aria-label="Хлебные крошки"
@@ -258,40 +262,18 @@ export default async function Sobytiya1SentyabryaPage({
           ) : null}
         </section>
 
-        <section className="mt-12 space-y-4">
-          <ListingClusterChipGroup label="Стили" items={styleChips} />
-        </section>
-
-        <section className="mt-16 rounded-2xl border border-zinc-200 bg-white p-6 sm:p-8">
-          <h2 className="text-xl font-bold text-zinc-900">
-            {seo.howToTitle ?? "Как использовать промт"}
-          </h2>
-          <ol className="mt-4 space-y-3 text-zinc-600">
-            {seo.howToSteps.map((step, index) => (
-              <li key={step} className="flex gap-3">
-                <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-indigo-100 text-sm font-bold text-indigo-700">
-                  {index + 1}
-                </span>
-                {step}
-              </li>
-            ))}
-          </ol>
-        </section>
-
-        <section className="mt-12">
-          <h2 className="text-xl font-bold text-zinc-900">Частые вопросы</h2>
-          <dl className="mt-4 space-y-6">
-            {seo.faqItems.map((item) => (
-              <div
-                key={item.q}
-                className="rounded-xl border border-zinc-200 bg-zinc-50/50 p-4"
-              >
-                <dt className="font-semibold text-zinc-900">{item.q}</dt>
-                <dd className="mt-2 text-zinc-600">{item.a}</dd>
-              </div>
-            ))}
-          </dl>
-        </section>
+        <div className={SEO_PAGE_STACK}>
+          <SeoRelatedChipsSection
+            title="Стили"
+            headingId="style-chips-heading"
+            items={styleChips}
+          />
+          <SeoHowToSection
+            title={seo.howToTitle ?? "Как использовать промт"}
+            steps={seo.howToSteps}
+          />
+          <SeoFaqSection title="Частые вопросы" items={seo.faqItems} />
+        </div>
       </main>
     </PageLayout>
   );

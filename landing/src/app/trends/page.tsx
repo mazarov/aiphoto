@@ -10,6 +10,12 @@ import {
 } from "@/lib/supabase";
 import { CatalogExplorer } from "@/components/CatalogExplorer";
 import { PageLayout } from "@/components/PageLayout";
+import {
+  SEO_PAGE_STACK,
+  SeoFaqSection,
+  SeoHowToSection,
+  SeoTextSection,
+} from "@/components/SeoPageSections";
 import { LISTING_SSR_INITIAL_LIMIT } from "@/lib/listing-pagination";
 import {
   TRENDS_FAQ,
@@ -260,47 +266,21 @@ export default async function TrendsPage({ searchParams }: Props) {
           </nav>
         </section>
 
-        <section className="mt-16 rounded-2xl border border-zinc-200 bg-white p-6 sm:p-8">
-          <h2 className="text-xl font-bold text-zinc-900">{TRENDS_SEO.howToTitle}</h2>
-          <ol className="mt-4 space-y-3 text-zinc-600">
-            {TRENDS_SEO.howToSteps.map((step, i) => (
-              <li key={i} className="flex gap-3">
-                <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-indigo-100 text-sm font-bold text-indigo-700">
-                  {i + 1}
-                </span>
-                {step}
-              </li>
-            ))}
-          </ol>
-        </section>
-
-        <section className="mt-12">
-          <h2 className="text-xl font-bold text-zinc-900">{TRENDS_SEO.faqTitle}</h2>
-          <dl className="mt-4 space-y-6">
-            {TRENDS_FAQ.map((item) => (
-              <div
-                key={item.q}
-                className="rounded-xl border border-zinc-200 bg-zinc-50/50 p-4"
-              >
-                <dt className="font-semibold text-zinc-900">{item.q}</dt>
-                <dd className="mt-2 text-zinc-600">{item.a}</dd>
-              </div>
-            ))}
-          </dl>
-        </section>
-
-        {TRENDS_SEO_TEXT_BLOCKS.map((block) => (
-          <section key={block.h2} className="mt-12">
-            <h2 className="text-xl font-bold text-zinc-900">{block.h2}</h2>
-            <div className="mt-4 max-w-3xl space-y-4">
-              {block.paragraphs.map((p, i) => (
-                <p key={i} className="text-sm leading-relaxed text-zinc-600 sm:text-base">
-                  {p}
-                </p>
-              ))}
-            </div>
-          </section>
-        ))}
+        <div className={SEO_PAGE_STACK}>
+          <SeoHowToSection
+            title={TRENDS_SEO.howToTitle}
+            steps={TRENDS_SEO.howToSteps}
+          />
+          <SeoFaqSection title={TRENDS_SEO.faqTitle} items={TRENDS_FAQ} />
+          {TRENDS_SEO_TEXT_BLOCKS.map((block, index) => (
+            <SeoTextSection
+              key={block.h2}
+              title={block.h2}
+              paragraphs={block.paragraphs}
+              headingId={`seo-text-${index}`}
+            />
+          ))}
+        </div>
       </main>
     </PageLayout>
   );

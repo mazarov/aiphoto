@@ -53,6 +53,41 @@ test("manual birthday L2 keeps long-tail H1", () => {
   assert.equal(getSeoForRoute(route).h1, "Промт на день рождения девушке");
 });
 
+test("pairs hub targets с-парнем without repeating it across every block", () => {
+  const route = resolveUrlToTags(["promty-dlya-foto-par"]);
+  assert.ok(route);
+
+  const seo = getSeoForRoute(route);
+  const headline = "Промты для парных фото";
+  const title = "Промты для фото с парнем и парных фото — 800+ идей";
+  const copy = `${seo.h1} ${seo.metaTitle} ${seo.metaDescription} ${seo.intro}`;
+  assert.equal(seo.h1, headline);
+  assert.equal(seo.metaTitle, title);
+  assert.match(copy, /800\+/);
+  // Крупнейший пул показов кластера остаётся в сниппете, но широкий H1
+  // и служебные блоки не повторяют exact-match механически.
+  assert.doesNotMatch(seo.h1, /с парнем/i);
+  assert.match(seo.metaTitle, /с парнем/i);
+  assert.match(seo.metaDescription, /с парнем/i);
+  assert.match(copy, /парных фото/i);
+  assert.match(seo.intro, /фото пары/i);
+  assert.doesNotMatch(seo.intro, /парной фотосессии/i);
+  assert.equal(
+    seo.explorerTitle,
+    "Промт для парной фотосессии: найдите свой сюжет",
+  );
+  assert.match(seo.explorerIntro ?? "", /промты для парной фотосессии с ИИ/i);
+  assert.doesNotMatch(seo.intro, /с парнем/i);
+  assert.doesNotMatch(seo.howToSteps.join(" "), /с парнем/i);
+  // Ссылка на серию луков переехала в generate-CTA страницы, не в popularLinks.
+  assert.equal(seo.popularLinks?.length ?? 0, 0);
+  assert.equal(seo.seoTextBlocks?.length ?? 0, 0);
+  assert.ok(seo.faqItems.some((item) => /промт для фото с парнем/i.test(item.q)));
+  assert.ok(seo.faqItems.some((item) => /совместное фото/i.test(item.q)));
+  assert.ok(seo.faqItems.some((item) => /два фото в один кадр/i.test(item.q)));
+  assert.doesNotMatch(copy, FORBIDDEN_EXTERNAL_CTA);
+});
+
 test("catalog builders never append the photoshoot complement", () => {
   const women = resolveUrlToTags(["promty-dlya-foto-devushki"]);
   const pairs = resolveUrlToTags(["promty-dlya-foto-par"]);

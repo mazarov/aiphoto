@@ -29,7 +29,11 @@ import {
   COMPOSE_BUY_CREDITS_CTA,
   COMPOSE_BUY_CREDITS_CTA_COMPACT,
 } from "@/lib/generate-compose-mode";
-import { listingGenerateIdleIntent } from "@/lib/generate-dock-path";
+import {
+  listingGenerateIdleDockSurface,
+  listingGenerateIdleIntent,
+} from "@/lib/generate-dock-path";
+import { PAIRS_HUB_GENERATE_CTA } from "@/lib/promty-dlya-foto-par-cluster";
 import {
   PROMTY_DLYA_II_FOTOSESSII_GENERATE_CTA,
   listingGenerateIdleCta,
@@ -169,6 +173,15 @@ export function MobileTabBar() {
       seedPhotoshoot({ entrySource: "tab" });
       return;
     }
+    const idleSurface = listingGenerateIdleDockSurface(pathname);
+    if (idleIntent === "text" || idleSurface === "example") {
+      seedBlankPrompt("", {
+        entrySource: "tab",
+        intent: idleIntent ?? "text",
+        dockSurface: idleSurface ?? undefined,
+      });
+      return;
+    }
     focusGenerateDock({ entrySource: "tab" });
   };
 
@@ -297,6 +310,7 @@ export function MobileTabBar() {
                   <span
                     className={`${
                       generateIdleLabel === PROMTY_DLYA_II_FOTOSESSII_GENERATE_CTA
+                      || generateIdleLabel === PAIRS_HUB_GENERATE_CTA
                       || generateNeedsCredits
                         ? "max-w-[6.5rem]"
                         : "max-w-[4.75rem]"

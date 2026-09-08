@@ -21,6 +21,24 @@ import { subscribeListingNavigationLoadMore } from "@/lib/listing-card-navigatio
 
 const PAGE_SIZE = LISTING_INFINITE_PAGE_SIZE;
 
+const TEASER_LOAD_MORE_BUTTON =
+  "inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-indigo-200 bg-white/95 px-5 text-sm font-semibold text-indigo-700 shadow-sm backdrop-blur-sm transition hover:border-indigo-300 hover:bg-white disabled:cursor-not-allowed disabled:opacity-60";
+
+function TeaserLoadMoreChevron() {
+  return (
+    <svg
+      className="h-4 w-4"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      aria-hidden
+    >
+      <path d="m6 9 6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 type Props = {
   initialCards: PromptCardFull[];
   totalCount: number;
@@ -33,6 +51,9 @@ type Props = {
   searchQuery?: string | null;
   searchFilters?: Record<string, string | null | undefined>;
   searchHasMore?: boolean;
+  /** First screen like `/generaciya-foto`: fade + button, then explicit «Показать ещё». */
+  teaserLoadMore?: boolean;
+  teaserLoadMoreLabel?: string;
 };
 
 export function InfiniteGrid({
@@ -45,6 +66,8 @@ export function InfiniteGrid({
   searchQuery = null,
   searchFilters = {},
   searchHasMore = false,
+  teaserLoadMore = false,
+  teaserLoadMoreLabel = "Показать ещё",
 }: Props) {
   const [cardPages, setCardPages] = useState<PromptCardFull[][]>(() => [
     appendUniqueCardsById([], initialCards),
@@ -52,6 +75,7 @@ export function InfiniteGrid({
   const cards = useMemo(() => cardPages.flat(), [cardPages]);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState(false);
+  const [galleryRevealed, setGalleryRevealed] = useState(false);
   const [hasMore, setHasMore] = useState(() =>
     searchQuery
       ? searchHasMore
@@ -65,8 +89,10 @@ export function InfiniteGrid({
   const totalCountRef = useRef(totalCount);
   const searchQueryRef = useRef(searchQuery);
   const searchFiltersRef = useRef(searchFilters);
+  const teaserBlocksAutoLoadRef = useRef(false);
 
   hasMoreRef.current = hasMore;
+  teaserBlocksAutoLoadRef.current = teaserLoadMore;
   rpcParamsRef.current = rpcParams;
   sortRef.current = sort;
   totalCountRef.current = totalCount;
@@ -126,6 +152,7 @@ export function InfiniteGrid({
         : resolveListingPageStep(rankedSize);
       if (newCards.length > 0) {
         setCardPages((prev) => appendUniqueCardPage(prev, newCards));
+        if (teaserLoadMore) setGalleryRevealed(true);
       }
       offsetRef.current = oldOffset + step;
 
@@ -147,12 +174,12 @@ export function InfiniteGrid({
       loadingRef.current = false;
       scheduleDrainRef.current();
     }
-  }, [strictMode]);
+  }, [strictMode, teaserLoadMore]);
 
   const { sentinelRef, scheduleDrain } = useListingSentinelLoadMore(
     loadMore,
     () => loadingRef.current,
-    () => hasMoreRef.current
+    () => hasMoreRef.current && !teaserBlocksAutoLoadRef.current
   );
   scheduleDrainRef.current = scheduleDrain;
 
@@ -164,22 +191,58 @@ export function InfiniteGrid({
     [loadMore]
   );
 
+  const showTeaserOverlay =
+    teaserLoadMore && hasMore && !galleryRevealed && cards.length > 0;
+  const showTeaserMoreButton =
+    teaserLoadMore && hasMore && galleryRevealed;
+
   return (
     <>
-      <div className="mb-8">
+      <div
+        className={`mb-8${showTeaserOverlay ? " relative overflow-hidden" : ""}`}
+      >
         <FilterableGrid cards={cards} cardPages={cardPages} sort={sort} />
+        {showTeaserOverlay ? (
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30">
+            <div
+              className="absolute inset-x-0 bottom-0 h-32 backdrop-blur-[6px] [mask-image:linear-gradient(to_top,black,transparent)] sm:h-40"
+              aria-hidden
+            />
+            <div
+              className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-white/50 via-white/15 to-transparent sm:h-40"
+              aria-hidden
+            />
+            <div className="relative flex justify-center pb-24 pt-16 sm:pb-28 sm:pt-20">
+              <button
+                type="button"
+                disabled={loading}
+                onClick={() => void loadMore()}
+                className={`pointer-events-auto ${TEASER_LOAD_MORE_BUTTON}`}
+              >
+                {loading ? "Загружаем…" : teaserLoadMoreLabel}
+                <TeaserLoadMoreChevron />
+              </button>
+            </div>
+          </div>
+        ) : null}
       </div>
 
-      <div ref={sentinelRef} className="h-px" />
+      {teaserLoadMore ? null : <div ref={sentinelRef} className="h-px" />}
 
-      {hasMore && !loading && searchQuery ? (
-        <div className="flex justify-center py-4">
+      {showTeaserMoreButton || (hasMore && !loading && searchQuery) ? (
+        <div className="flex flex-col items-center gap-3 py-4">
           <button
             type="button"
+            disabled={loading}
             onClick={() => void loadMore()}
-            className="min-h-11 rounded-full border border-zinc-300 bg-white px-5 text-sm font-semibold text-zinc-800 transition-colors hover:bg-zinc-50"
+            className={
+              showTeaserMoreButton
+                ? TEASER_LOAD_MORE_BUTTON
+                : "min-h-11 rounded-full border border-zinc-300 bg-white px-5 text-sm font-semibold text-zinc-800 transition-colors hover:bg-zinc-50"
+            }
           >
-            Показать ещё
+            {loading ? "Загружаем…" : "Показать ещё"}
+            {showTeaserMoreButton ? <TeaserLoadMoreChevron /> : null}
           </button>
         </div>
       ) : null}

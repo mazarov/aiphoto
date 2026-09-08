@@ -32,6 +32,7 @@ export function ListingClusterChipGroup({
   leading,
   showLabel = true,
   variant = "cluster",
+  flow = "block",
 }: {
   label: string;
   items: ListingClusterChipItem[];
@@ -39,6 +40,8 @@ export function ListingClusterChipGroup({
   showLabel?: boolean;
   /** `nav` = same chip row as `/generaciya-foto/[scenario]`. */
   variant?: "cluster" | "nav";
+  /** `row` — chips join the parent wrap; filters come last in the same list. */
+  flow?: "block" | "row";
 }) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const [expanded, setExpanded] = useState(false);
@@ -52,6 +55,11 @@ export function ListingClusterChipGroup({
   }, [items]);
 
   useLayoutEffect(() => {
+    if (flow === "row") {
+      setNeedsMore(false);
+      setCollapsedMaxHeight(null);
+      return;
+    }
     const wrap = wrapRef.current;
     if (!wrap) return;
 
@@ -82,13 +90,47 @@ export function ListingClusterChipGroup({
     const observer = new ResizeObserver(measure);
     observer.observe(wrap);
     return () => observer.disconnect();
-  }, [items, expanded, variant]);
+  }, [items, expanded, variant, flow]);
 
   const uniqueItems = uniqueListingChipsByHref(items);
   if (uniqueItems.length === 0 && !leading) return null;
 
-  const clipped = !expanded && collapsedMaxHeight != null;
+  const clipped = flow !== "row" && !expanded && collapsedMaxHeight != null;
   const isNav = variant === "nav";
+  const inRow = flow === "row";
+  const chipClass = (item: ListingClusterChipItem) =>
+    isNav
+      ? `${NAV_CHIP} ${item.active ? NAV_CHIP_ACTIVE : NAV_CHIP_IDLE}`
+      : `inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm transition-colors ${
+          item.active ? CLUSTER_CHIP_ACTIVE : CLUSTER_CHIP_IDLE
+        }`;
+
+  const chips = (
+    <>
+      {leading}
+      {uniqueItems.map((item) => (
+        <Link
+          key={item.href}
+          href={item.href}
+          scroll={false}
+          data-cluster-chip=""
+          aria-current={item.active ? "page" : undefined}
+          className={chipClass(item)}
+        >
+          {item.label}
+          {item.count != null && item.count > 0 ? (
+            <span className="text-xs tabular-nums text-zinc-500">
+              {item.count}
+            </span>
+          ) : null}
+        </Link>
+      ))}
+    </>
+  );
+
+  if (inRow) {
+    return <div className="contents">{chips}</div>;
+  }
 
   return (
     <div>
@@ -102,32 +144,9 @@ export function ListingClusterChipGroup({
         className={`relative flex flex-wrap ${isNav ? "gap-2" : "gap-1.5"}${clipped ? " overflow-hidden" : ""}`}
         style={clipped ? { maxHeight: collapsedMaxHeight } : undefined}
       >
-        {leading}
-        {uniqueItems.map((item) => (
-          <Link
-            key={item.href}
-            href={item.href}
-            scroll={false}
-            data-cluster-chip=""
-            aria-current={item.active ? "page" : undefined}
-            className={
-              isNav
-                ? `${NAV_CHIP} ${item.active ? NAV_CHIP_ACTIVE : NAV_CHIP_IDLE}`
-                : `inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm transition-colors ${
-                    item.active ? CLUSTER_CHIP_ACTIVE : CLUSTER_CHIP_IDLE
-                  }`
-            }
-          >
-            {item.label}
-            {item.count != null && item.count > 0 ? (
-              <span className="text-xs tabular-nums text-zinc-500">
-                {item.count}
-              </span>
-            ) : null}
-          </Link>
-        ))}
+        {chips}
       </div>
-      {needsMore ? (
+      {needsMore && !inRow ? (
         <button
           type="button"
           aria-expanded={expanded}

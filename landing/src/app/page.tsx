@@ -18,7 +18,9 @@ import { HomeHeroDestinations } from "@/components/HomeHeroDestinations";
 import { HomeFaq, HomeIntroAndHowTo } from "@/components/HomeSeoBlocks";
 import { HomepageExamplesExplorer } from "@/components/home/HomepageExamplesExplorer";
 import { GeneraciyaFotoHeroCarousel } from "@/components/generate/GeneraciyaFotoHeroCarousel";
+import { GeneraciyaFotoHeroPage } from "@/components/generate/GeneraciyaFotoHeroPage";
 import { GeneraciyaFotoThemes } from "@/components/generate/GeneraciyaFotoLandingSections";
+import { GF_HERO_H1 } from "@/components/generate/generaciya-foto-ui";
 
 export const revalidate = 3600;
 
@@ -163,63 +165,57 @@ export default async function HomePage() {
 
   return (
     <PageLayout showFooterWithGenerateDock>
-      <main className="listing-main-bottom-pad w-full flex-1 pb-16 sm:pb-24">
-        <section className="relative overflow-hidden">
-          <div
-            className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_75%_65%_at_50%_-20%,rgba(99,102,241,0.14),transparent_62%)]"
-            aria-hidden
-          />
-          <div className="relative mx-auto w-full max-w-7xl px-3 pb-0 pt-8 text-center sm:px-5 sm:pt-12 xl:px-6">
-            <h1 className="mx-auto max-w-3xl text-balance text-3xl font-bold tracking-tight text-zinc-900 sm:text-4xl lg:text-[2.75rem] lg:leading-tight">
-              {HOMEPAGE_SEO.h1.main}{" "}
-              <span className="bg-gradient-to-r from-indigo-500 to-violet-500 text-gradient">
-                {HOMEPAGE_SEO.h1.accent}
-              </span>
-            </h1>
-            <p className="mx-auto mt-3 max-w-2xl text-pretty text-base leading-relaxed text-zinc-600 sm:mt-4 sm:text-lg">
-              {HOMEPAGE_SEO.heroSubtitle}
-            </p>
-            <div className="mt-4 flex items-center justify-center gap-2 text-sm text-zinc-400">
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-zinc-100 px-3 py-1 text-zinc-600">
-                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
-                {totalPrompts}+ промтов
-              </span>
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-zinc-100 px-3 py-1 text-zinc-600">
-                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
-                {totalCategories} категорий
-              </span>
-            </div>
-            <GeneraciyaFotoHeroCarousel
-              cards={carouselCards}
-              ctaLabel={null}
-              ariaLabel={HOMEPAGE_SEO.examplesTitle}
-            />
-            <HomeHeroDestinations />
+      <GeneraciyaFotoHeroPage
+        title={
+          <h1 className={GF_HERO_H1}>
+            {HOMEPAGE_SEO.h1.main}{" "}
+            <span className="bg-gradient-to-r from-indigo-500 to-violet-500 text-gradient">
+              {HOMEPAGE_SEO.h1.accent}
+            </span>
+          </h1>
+        }
+        intro={HOMEPAGE_SEO.heroSubtitle}
+        afterIntro={
+          <div className="mt-4 flex items-center justify-center gap-2 text-sm text-zinc-400">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-zinc-100 px-3 py-1 text-zinc-600">
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
+              {totalPrompts}+ промтов
+            </span>
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-zinc-100 px-3 py-1 text-zinc-600">
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+              {totalCategories} категорий
+            </span>
           </div>
-        </section>
-
-        <div className="mx-auto flex w-full max-w-7xl flex-col gap-10 px-3 pt-10 sm:gap-12 sm:px-5 sm:pt-12 lg:gap-16 lg:pt-16 xl:px-6">
-          <GeneraciyaFotoThemes
-            sectionId="katalog"
-            headingId="catalog-heading"
-            eyebrow={HOMEPAGE_SEO.examplesEyebrow}
-            title={HOMEPAGE_SEO.examplesTitle}
-            lead={HOMEPAGE_SEO.examplesIntro}
-            leadSecondary={HOMEPAGE_SEO.examplesIntroSecondary}
-            items={catalogThemes}
-            photosByHref={catalogCollage.photosByHref}
-            countByHref={catalogCollage.countByHref}
-            countKind="prompts"
-            ctaHref={HOMEPAGE_SEO.catalogHref}
-            ctaLabel={HOMEPAGE_SEO.catalogCta}
+        }
+        carousel={
+          <GeneraciyaFotoHeroCarousel
+            cards={carouselCards}
+            ctaLabel={null}
+            ariaLabel={HOMEPAGE_SEO.examplesTitle}
           />
+        }
+        afterCarousel={<HomeHeroDestinations />}
+      >
+        <GeneraciyaFotoThemes
+          sectionId="katalog"
+          headingId="catalog-heading"
+          eyebrow={HOMEPAGE_SEO.examplesEyebrow}
+          title={HOMEPAGE_SEO.examplesTitle}
+          lead={HOMEPAGE_SEO.examplesIntro}
+          leadSecondary={HOMEPAGE_SEO.examplesIntroSecondary}
+          items={catalogThemes}
+          photosByHref={catalogCollage.photosByHref}
+          countByHref={catalogCollage.countByHref}
+          countKind="prompts"
+          ctaHref={HOMEPAGE_SEO.catalogHref}
+          ctaLabel={HOMEPAGE_SEO.catalogCta}
+        />
 
-          <HomepageExamplesExplorer initialCards={galleryCards} />
+        <HomepageExamplesExplorer initialCards={galleryCards} />
 
-          <HomeIntroAndHowTo />
-          <HomeFaq />
-        </div>
-      </main>
+        <HomeIntroAndHowTo />
+        <HomeFaq />
+      </GeneraciyaFotoHeroPage>
 
       <script
         type="application/ld+json"
