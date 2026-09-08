@@ -52,11 +52,22 @@ test("remainingOfferMs clamps expired grants to zero", () => {
   assert.equal(remainingOfferMs("2026-09-07T19:00:00.000Z", now), 3_600_000);
 });
 
-test("isLowBalanceUpgradeOffer accepts only the start 20% grant", () => {
+test("isLowBalanceUpgradeOffer accepts the 20% grant on any plan", () => {
   const future = new Date(Date.now() + 60_000).toISOString();
   assert.equal(
     isLowBalanceUpgradeOffer({
       offerId: "o1",
+      percent: 20,
+      expiresAt: future,
+      targetPlanId: null,
+      sourceTemplateId: "low_balance_upgrade",
+      showNudge: false,
+    }),
+    true,
+  );
+  assert.equal(
+    isLowBalanceUpgradeOffer({
+      offerId: "o1-legacy",
       percent: 20,
       expiresAt: future,
       targetPlanId: "start",

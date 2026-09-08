@@ -34,8 +34,8 @@ export function isLowBalanceUpgradeOffer(
   return (
     offer != null &&
     offer.sourceTemplateId === "low_balance_upgrade" &&
-    offer.targetPlanId === "start" &&
-    offer.percent === 20
+    offer.percent === 20 &&
+    (offer.targetPlanId === null || offer.targetPlanId === "start")
   );
 }
 

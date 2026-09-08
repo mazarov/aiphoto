@@ -59,7 +59,7 @@ test("payment row stops onboard", () => {
   assert.equal(skipped.action, "skip");
 });
 
-test("low-balance upgrade keeps the start plan without minting another grant", () => {
+test("low-balance upgrade does not mint another grant", () => {
   const decision = evaluateMailDue("low_balance_upgrade", {
     ...baseFacts,
     hasCredited: true,
@@ -67,8 +67,7 @@ test("low-balance upgrade keeps the start plan without minting another grant", (
   });
   assert.equal(decision.action, "send");
   if (decision.action === "send") {
-    assert.equal(decision.discountPercent, 0);
-    assert.equal(decision.payload.plan_id, "start");
+    assert.equal(decision.discountPercent, 20);
   }
 });
 

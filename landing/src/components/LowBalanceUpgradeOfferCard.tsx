@@ -50,8 +50,8 @@ export function LowBalanceUpgradeOfferCard({
   const remainingMs = useOfferRemainingMs(offer?.expiresAt ?? "");
   if (!offer || remainingMs <= 0) return null;
 
-  const percent = `−${offer.percent}%`;
-  const aria = `Скидка ${offer.percent}%, 100 токенов за 239 ₽ вместо 299 ₽, осталось ${formatOfferCountdown(remainingMs)}`;
+  const headline = `Скидка ${offer.percent}%`;
+  const aria = `${headline}, осталось ${formatOfferCountdown(remainingMs)}`;
 
   if (variant === "sidebar") {
     return (
@@ -59,13 +59,7 @@ export function LowBalanceUpgradeOfferCard({
         className={`relative overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-600 via-indigo-500 to-violet-600 p-3 text-white shadow-lg shadow-indigo-950/25 ring-1 ring-white/20 ${className}`.trim()}
         aria-label={aria}
       >
-        <p className="pr-8 text-sm font-semibold">Скидка {percent}</p>
-        <p className="mt-1 flex items-baseline gap-1.5 text-sm">
-          <span className="font-semibold">100 токенов · 239 ₽</span>
-          <span className="text-xs text-white/60 line-through decoration-white/40">
-            299 ₽
-          </span>
-        </p>
+        <p className="pr-8 text-sm font-semibold">{headline}</p>
         <button
           type="button"
           onClick={buy}
@@ -115,15 +109,7 @@ export function LowBalanceUpgradeOfferCard({
         </span>
         <span className="relative z-10 min-w-0 flex-1">
           <span className="block whitespace-normal leading-tight">
-            Скидка {percent}
-          </span>
-          <span className="mt-0.5 block whitespace-nowrap font-medium leading-tight text-white/70">
-            239 ₽ ·{" "}
-            <OfferTimer
-              expiresAt={offer.expiresAt}
-              remainingMs={remainingMs}
-              className=""
-            />
+            {headline}
           </span>
         </span>
       </button>
@@ -136,15 +122,7 @@ export function LowBalanceUpgradeOfferCard({
       aria-label={aria}
     >
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-semibold">Скидка {percent} · 239 ₽</p>
-        <p className="mt-0.5 text-xs font-medium text-white/75">
-          100✦ ·{" "}
-          <OfferTimer
-            expiresAt={offer.expiresAt}
-            remainingMs={remainingMs}
-            className=""
-          />
-        </p>
+        <p className="text-sm font-semibold">{headline}</p>
       </div>
       <button
         type="button"

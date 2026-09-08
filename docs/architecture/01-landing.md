@@ -1,5 +1,7 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-09-08 (**low-balance −20% all plans:** грант `low_balance_upgrade` больше не plan-scoped на `start`. `target_plan_id` пустой — касса даёт −20% на trial/start/pro/max. Плашка и кнопка на карточке результата пишут только «Скидка 20%». Грант только если единственная live-оплата — 99 ₽ / `trial` / 30 токенов. Живые неиспользованные гранты бэкфиллятся в SQL `249`.)
+>
 > Последнее обновление: 2026-09-08 (**checkout offer steal:** `landing_apply_checkout_offer` не держит грант на старом unpaid invoice. Новая попытка забирает бронь, предыдущий reserved-платёж → `canceled` / `superseded_by_checkout`, create ЮKassa гасит его provider payment. Иначе повторный клик по скидке давал 409 `checkout_offer_not_applied`. SQL `248`.)
 >
 > Последнее обновление: 2026-09-07 (**checkout amount SSOT:** после `landing_apply_checkout_offer` create ЮKassa/Robokassa берёт сумму из `landing_*_payments.amount_rub`, не из формы RPC. Живой offer + каталожная сумма в кассу = 409, не тихий 299. Уже созданный invoice ЮKassa с другой суммой не переиспользуется: cancel + новый `Idempotence-Key {uuid}:{amount}`. SQL `247` не пересчитывает скидку повторно на тот же платёж (иначе 299→239→191).)
