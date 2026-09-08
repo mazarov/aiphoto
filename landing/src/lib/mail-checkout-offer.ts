@@ -55,18 +55,28 @@ export async function applyCheckoutOffer(
   }
 }
 
-export type CheckoutPaymentReader = {
+type PaymentQuoteRow = { amount_rub?: unknown; offer_id?: unknown };
+
+type PaymentQuoteResult = {
+  data: PaymentQuoteRow | null;
+  error: { message: string } | null;
+};
+
+/**
+ * Narrow reader for `amount_rub` after apply. Do not put SupabaseClient in the
+ * public signature: its QueryBuilder generics recurse and fail `next build`.
+ */
+function paymentQuoteReader(supabase: MailRpcClient): {
   from(table: string): {
     select(columns: string): {
       eq(column: string, value: string): {
-        maybeSingle(): Promise<{
-          data: { amount_rub?: unknown; offer_id?: unknown } | null;
-          error: { message: string } | null;
-        }>;
+        maybeSingle(): PromiseLike<PaymentQuoteResult>;
       };
     };
   };
-};
+} {
+  return supabase as never;
+}
 
 export class CheckoutOfferNotAppliedError extends Error {
   readonly expectedAmount: number;
@@ -133,10 +143,10 @@ const CHECKOUT_PAYMENT_TABLE = {
 } as const;
 
 export async function readPersistedCheckoutQuote(
-  supabase: CheckoutPaymentReader,
+  supabase: MailRpcClient,
   input: { provider: "yookassa" | "robokassa"; paymentId: string },
 ): Promise<{ amountRub: number | null; offerId: string | null }> {
-  const { data, error } = await supabase
+  const { data, error } = await paymentQuoteReader(supabase)
     .from(CHECKOUT_PAYMENT_TABLE[input.provider])
     .select("amount_rub, offer_id")
     .eq("id", input.paymentId)
@@ -148,7 +158,7 @@ export async function readPersistedCheckoutQuote(
 }
 
 export async function lockCheckoutCharge(
-  supabase: MailRpcClient & CheckoutPaymentReader,
+  supabase: MailRpcClient,
   input: {
     sharedUserId: string;
     paymentId: string;

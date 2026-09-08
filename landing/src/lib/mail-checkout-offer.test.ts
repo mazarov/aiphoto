@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   applyCheckoutOffer,
   CheckoutOfferNotAppliedError,
+  lockCheckoutCharge,
   parseLiveMailOffer,
   pricingOfferPercentForPlan,
   resolveCheckoutCharge,
@@ -40,6 +41,66 @@ test("applyCheckoutOffer still reads the pre-246 grant columns", async () => {
     catalogAmount: 99,
   });
   assert.deepEqual(quote, { amountRub: 89, offerId: "off-1", percent: 10 });
+});
+
+test("lockCheckoutCharge reads the payment row through MailRpcClient only", async () => {
+  const future = new Date(Date.now() + 60_000).toISOString();
+  const supabase: MailRpcClient & {
+    from(): {
+      select(): {
+        eq(): {
+          maybeSingle(): Promise<{
+            data: { amount_rub: number; offer_id: string };
+            error: null;
+          }>;
+        };
+      };
+    };
+  } = {
+    async rpc(fn) {
+      if (fn === "landing_live_pricing_offer") {
+        return {
+          data: {
+            offer_id: "off-1",
+            percent: 20,
+            expires_at: future,
+            target_plan_id: "start",
+          },
+          error: null,
+        };
+      }
+      return {
+        data: { quoted_amount_rub: 299, quoted_offer_id: null, quoted_percent: 0 },
+        error: null,
+      };
+    },
+    from() {
+      return {
+        select() {
+          return {
+            eq() {
+              return {
+                async maybeSingle() {
+                  return {
+                    data: { amount_rub: 239, offer_id: "off-1" },
+                    error: null,
+                  };
+                },
+              };
+            },
+          };
+        },
+      };
+    },
+  };
+  const quote = await lockCheckoutCharge(supabase, {
+    sharedUserId: "user-1",
+    paymentId: "pay-1",
+    provider: "yookassa",
+    catalogAmount: 299,
+    planId: "start",
+  });
+  assert.deepEqual(quote, { amountRub: 239, offerId: "off-1", percent: 20 });
 });
 
 test("resolveCheckoutCharge prefers the persisted payment amount over a catalog RPC fallback", () => {
