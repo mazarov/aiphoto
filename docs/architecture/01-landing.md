@@ -1,5 +1,7 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-09-08 (**low-balance ≤30:** грант и письмо, пока баланс `<= 30` (было `<= 15`). Триггер на `landing_users.credits` и `GET /api/me` смотрят тот же порог. Trial 30 токенов → скидка сразу после первой 99 ₽. SQL `250`.)
+>
 > Последнее обновление: 2026-09-08 (**low-balance −20% all plans:** грант `low_balance_upgrade` больше не plan-scoped на `start`. `target_plan_id` пустой — касса даёт −20% на trial/start/pro/max. Плашка и кнопка на карточке результата пишут только «Скидка 20%». Грант только если единственная live-оплата — 99 ₽ / `trial` / 30 токенов. Живые неиспользованные гранты бэкфиллятся в SQL `249`.)
 >
 > Последнее обновление: 2026-09-08 (**checkout offer steal:** `landing_apply_checkout_offer` не держит грант на старом unpaid invoice. Новая попытка забирает бронь, предыдущий reserved-платёж → `canceled` / `superseded_by_checkout`, create ЮKassa гасит его provider payment. Иначе повторный клик по скидке давал 409 `checkout_offer_not_applied`. SQL `248`.)
