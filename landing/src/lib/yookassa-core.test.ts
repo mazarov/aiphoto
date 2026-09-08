@@ -3,8 +3,10 @@ import test from "node:test";
 import { getPricingPlan, PRICING_PLANS } from "./pricing-plans";
 import {
   assertYooKassaPaymentMatches,
+  canReuseYooKassaCheckout,
   getYooKassaReconciliationAction,
   parseYooKassaPayment,
+  yookassaCreateIdempotenceKey,
 } from "./yookassa-core";
 
 function providerPayment(
@@ -60,6 +62,23 @@ test("provider payment must match local id, plan, amount and currency", () => {
         priceRub: 199,
       }),
     /amount mismatch/,
+  );
+});
+
+test("reuse an open YooKassa checkout only when the locked amount matches", () => {
+  const payment = providerPayment();
+  assert.equal(canReuseYooKassaCheckout(payment, 299), true);
+  assert.equal(canReuseYooKassaCheckout(payment, 239), false);
+  assert.equal(
+    canReuseYooKassaCheckout(
+      providerPayment({ status: "canceled", paid: false }),
+      299,
+    ),
+    false,
+  );
+  assert.equal(
+    yookassaCreateIdempotenceKey("263dd707-e1ee-46d9-9a97-c11ad34c289d", 239),
+    "263dd707-e1ee-46d9-9a97-c11ad34c289d:239",
   );
 });
 

@@ -1,3 +1,4 @@
+import { applyMailOfferPercent } from "@/lib/mail-offer-price";
 import type { MailRpcClient } from "@/lib/mail-outbox";
 
 export type CheckoutOfferQuote = {
@@ -52,6 +53,133 @@ export async function applyCheckoutOffer(
     });
     return { amountRub: input.catalogAmount, offerId: null, percent: 0 };
   }
+}
+
+export type CheckoutPaymentReader = {
+  from(table: string): {
+    select(columns: string): {
+      eq(column: string, value: string): {
+        maybeSingle(): Promise<{
+          data: { amount_rub?: unknown; offer_id?: unknown } | null;
+          error: { message: string } | null;
+        }>;
+      };
+    };
+  };
+};
+
+export class CheckoutOfferNotAppliedError extends Error {
+  readonly expectedAmount: number;
+  readonly actualAmount: number;
+
+  constructor(expectedAmount: number, actualAmount: number) {
+    super(
+      `checkout offer not applied: expected ${expectedAmount} got ${actualAmount}`,
+    );
+    this.name = "CheckoutOfferNotAppliedError";
+    this.expectedAmount = expectedAmount;
+    this.actualAmount = actualAmount;
+  }
+}
+
+export function quoteFromPaymentRow(
+  row: { amount_rub?: unknown; offer_id?: unknown } | null,
+): { amountRub: number | null; offerId: string | null } {
+  const amountRub = Number(row?.amount_rub);
+  return {
+    amountRub: Number.isFinite(amountRub) && amountRub > 0 ? amountRub : null,
+    offerId: typeof row?.offer_id === "string" ? row.offer_id : null,
+  };
+}
+
+export function resolveCheckoutCharge(input: {
+  catalogAmount: number;
+  planId: string;
+  persistedAmount: number | null;
+  persistedOfferId: string | null;
+  liveOffer: LivePricingOffer | null;
+  rpcQuote: CheckoutOfferQuote;
+}): CheckoutOfferQuote {
+  const persisted =
+    input.persistedAmount != null && input.persistedAmount > 0
+      ? input.persistedAmount
+      : null;
+  const charged = persisted ?? input.rpcQuote.amountRub;
+  const expectedPercent = pricingOfferPercentForPlan(input.liveOffer, input.planId);
+  if (expectedPercent != null) {
+    const expectedAmount = applyMailOfferPercent(
+      input.catalogAmount,
+      expectedPercent,
+    );
+    if (charged !== expectedAmount) {
+      throw new CheckoutOfferNotAppliedError(expectedAmount, charged);
+    }
+    return {
+      amountRub: expectedAmount,
+      offerId: input.persistedOfferId ?? input.liveOffer?.offerId ?? null,
+      percent: expectedPercent,
+    };
+  }
+  return {
+    amountRub: charged,
+    offerId: input.persistedOfferId ?? input.rpcQuote.offerId,
+    percent: input.rpcQuote.percent,
+  };
+}
+
+const CHECKOUT_PAYMENT_TABLE = {
+  yookassa: "landing_yookassa_payments",
+  robokassa: "landing_robokassa_payments",
+} as const;
+
+export async function readPersistedCheckoutQuote(
+  supabase: CheckoutPaymentReader,
+  input: { provider: "yookassa" | "robokassa"; paymentId: string },
+): Promise<{ amountRub: number | null; offerId: string | null }> {
+  const { data, error } = await supabase
+    .from(CHECKOUT_PAYMENT_TABLE[input.provider])
+    .select("amount_rub, offer_id")
+    .eq("id", input.paymentId)
+    .maybeSingle();
+  if (error) {
+    throw new Error(`Payment quote reread failed: ${error.message}`);
+  }
+  return quoteFromPaymentRow(data);
+}
+
+export async function lockCheckoutCharge(
+  supabase: MailRpcClient & CheckoutPaymentReader,
+  input: {
+    sharedUserId: string;
+    paymentId: string;
+    provider: "yookassa" | "robokassa";
+    catalogAmount: number;
+    planId: string;
+  },
+): Promise<CheckoutOfferQuote> {
+  const rpcQuote = await applyCheckoutOffer(supabase, input);
+  const persisted = await readPersistedCheckoutQuote(supabase, input);
+  let liveOffer: LivePricingOffer | null = null;
+  try {
+    const { data, error } = await supabase.rpc("landing_live_pricing_offer", {
+      p_shared_user_id: input.sharedUserId,
+    });
+    if (error) throw new Error(error.message);
+    liveOffer = parseLiveMailOffer(data);
+  } catch (error) {
+    console.warn("[mail] live checkout offer lookup skipped", {
+      paymentId: input.paymentId,
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
+  return resolveCheckoutCharge({
+    catalogAmount: input.catalogAmount,
+    planId: input.planId,
+    persistedAmount: persisted.amountRub,
+    persistedOfferId: persisted.offerId,
+    liveOffer,
+    rpcQuote,
+  });
 }
 
 export type LivePricingOffer = {

@@ -3,8 +3,16 @@ import { createSupabaseServer } from "@/lib/supabase";
 import { getSupabaseUserForApiRoute } from "@/lib/supabase-route-auth";
 import { ensureLandingUserForGeneration } from "@/lib/ensure-landing-user";
 import { getPricingPlan } from "@/lib/pricing-plans";
-import { createYooKassaPayment } from "@/lib/yookassa-client";
-import { assertYooKassaPaymentMatches } from "@/lib/yookassa-core";
+import {
+  cancelYooKassaPayment,
+  createYooKassaPayment,
+  getYooKassaPayment,
+} from "@/lib/yookassa-client";
+import {
+  assertYooKassaPaymentMatches,
+  canReuseYooKassaCheckout,
+  yookassaCreateIdempotenceKey,
+} from "@/lib/yookassa-core";
 import { buildYooKassaReturnUrl } from "@/lib/yookassa-return-path";
 import {
   sanitizeYclid,
@@ -17,7 +25,10 @@ import {
   shouldWriteLandingUserAttribution,
 } from "@/lib/payment-attribution";
 import { sanitizeUuid } from "@/lib/visitor-id";
-import { applyCheckoutOffer } from "@/lib/mail-checkout-offer";
+import {
+  CheckoutOfferNotAppliedError,
+  lockCheckoutCharge,
+} from "@/lib/mail-checkout-offer";
 import {
   pickAlreadyCreditedOpenPayment,
   reconcileOpenYooKassaPaymentsForAuthUser,
@@ -323,22 +334,49 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    if (!local.confirmation_url) {
-      const quote = await applyCheckoutOffer(supabase, {
-        sharedUserId: ensured.dbUserId,
-        paymentId: local.id,
-        provider: "yookassa",
-        catalogAmount: plan.price,
-      });
-      local = { ...local, amount_rub: quote.amountRub };
-    }
+    const quote = await lockCheckoutCharge(supabase, {
+      sharedUserId: ensured.dbUserId,
+      paymentId: local.id,
+      provider: "yookassa",
+      catalogAmount: plan.price,
+      planId: plan.id,
+    });
+    local = { ...local, amount_rub: quote.amountRub };
 
     if (local.confirmation_url && local.yookassa_payment_id) {
-      return NextResponse.json({
-        provider: "yookassa",
-        paymentId: local.id,
-        confirmationUrl: local.confirmation_url,
-      });
+      try {
+        const existing = await getYooKassaPayment(local.yookassa_payment_id);
+        if (canReuseYooKassaCheckout(existing, Number(local.amount_rub))) {
+          return NextResponse.json({
+            provider: "yookassa",
+            paymentId: local.id,
+            confirmationUrl:
+              existing.confirmation?.confirmation_url ?? local.confirmation_url,
+          });
+        }
+        if (
+          existing.status === "pending" ||
+          existing.status === "waiting_for_capture"
+        ) {
+          try {
+            await cancelYooKassaPayment(existing.id);
+          } catch (cancelError) {
+            console.warn("[yookassa] stale checkout cancel skipped", {
+              paymentId: local.id,
+              providerPaymentId: existing.id,
+              message:
+                cancelError instanceof Error
+                  ? cancelError.message
+                  : String(cancelError),
+            });
+          }
+        }
+      } catch (error) {
+        console.warn("[yookassa] existing checkout inspect skipped", {
+          paymentId: local.id,
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
     }
 
     const fixedPlan = {
@@ -348,7 +386,10 @@ export async function POST(request: NextRequest) {
     };
     const providerPayment = await createYooKassaPayment({
       localPaymentId: local.id,
-      idempotencyKey: local.idempotency_key,
+      idempotencyKey: yookassaCreateIdempotenceKey(
+        local.idempotency_key,
+        Number(local.amount_rub),
+      ),
       plan: fixedPlan,
       returnUrl: buildReturnUrl(
         local.id,
@@ -419,6 +460,15 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.error("[yookassa] create payment failed", { message });
+    if (error instanceof CheckoutOfferNotAppliedError) {
+      return NextResponse.json(
+        {
+          error: "checkout_offer_not_applied",
+          message: "Скидка не применилась. Обновите страницу и попробуйте ещё раз.",
+        },
+        { status: 409 },
+      );
+    }
     const notConfigured =
       message.includes("not configured") || message.includes("NEXT_PUBLIC_SITE_URL");
     return NextResponse.json(

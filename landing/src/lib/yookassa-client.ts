@@ -79,3 +79,14 @@ export function createYooKassaPayment(input: {
 export function getYooKassaPayment(paymentId: string): Promise<YooKassaPayment> {
   return requestYooKassa(`/payments/${encodeURIComponent(paymentId)}`);
 }
+
+export function cancelYooKassaPayment(paymentId: string): Promise<YooKassaPayment> {
+  return requestYooKassa(`/payments/${encodeURIComponent(paymentId)}/cancel`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Idempotence-Key": `cancel:${paymentId}`,
+    },
+    body: "{}",
+  });
+}

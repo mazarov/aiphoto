@@ -1,6 +1,8 @@
 # 01 — Лендинг (promptshot.ru)
 
-> Последнее обновление: 2026-09-07 (**low-balance paid loop:** флаг `low_balance_upgrade_enabled` в `landing_generation_config`, по умолчанию `false`. После первой и единственной live-покупки treatment `trial` (30 токенов) при балансе `≤15` сервер один раз создаёт plan-scoped offer: `start`, 100 токенов, −20% — 239 ₽ вместо 299 ₽, TTL 24 часа, в UI живой таймер. Новая completed-генерация не нужна: `GET /api/me` вызывает `landing_ensure_low_balance_upgrade`, плюс триггер на падение `landing_users.credits`. Плашка: desktop — выделенный блок в сайдбаре под лого; после successful generation — кнопка слева от «Что изменить» на карточке результата (mobile+desktop); mobile — над таббаром на всех экранах, как unpaid YooKassa toast. Крестик прячет на 24 ч (`localStorage` + `dismissed.created_at`), потом снова показывает, пока оффер жив; `seen` больше не гасит показ. Через 2 часа marketing email уходит лишь при всё ещё низком балансе и отсутствии второй оплаты. Любая вторая оплата закрывает оффер. Funnel — `landing_pricing_offer_events`, D7/D30 — `admin_low_balance_upgrade_stats`. SQL `242`–`246`. `246` снимает ambiguous `offer_id` в `landing_apply_checkout_offer` — без неё create глотает RPC и шлёт в ЮKassa полную 299 ₽.)
+> Последнее обновление: 2026-09-07 (**checkout amount SSOT:** после `landing_apply_checkout_offer` create ЮKassa/Robokassa берёт сумму из `landing_*_payments.amount_rub`, не из формы RPC. Живой offer + каталожная сумма в кассу = 409, не тихий 299. Уже созданный invoice ЮKassa с другой суммой не переиспользуется: cancel + новый `Idempotence-Key {uuid}:{amount}`. SQL `247` не пересчитывает скидку повторно на тот же платёж (иначе 299→239→191).)
+>
+> Последнее обновление: 2026-09-07 (**low-balance paid loop:** флаг `low_balance_upgrade_enabled` в `landing_generation_config`, по умолчанию `false`. После первой и единственной live-покупки treatment `trial` (30 токенов) при балансе `≤15` сервер один раз создаёт plan-scoped offer: `start`, 100 токенов, −20% — 239 ₽ вместо 299 ₽, TTL 24 часа, в UI живой таймер. Новая completed-генерация не нужна: `GET /api/me` вызывает `landing_ensure_low_balance_upgrade`, плюс триггер на падение `landing_users.credits`. Плашка: desktop — выделенный блок в сайдбаре под лого; после successful generation — кнопка слева от «Что изменить» на карточке результата (mobile+desktop); mobile — над таббаром на всех экранах, как unpaid YooKassa toast. Крестик прячет на 24 ч (`localStorage` + `dismissed.created_at`), потом снова показывает, пока оффер жив; `seen` больше не гасит показ. Через 2 часа marketing email уходит лишь при всё ещё низком балансе и отсутствии второй оплаты. Любая вторая оплата закрывает оффер. Funnel — `landing_pricing_offer_events`, D7/D30 — `admin_low_balance_upgrade_stats`. SQL `242`–`247`. `246` снимает ambiguous `offer_id` в `landing_apply_checkout_offer` — без неё create глотает RPC и шлёт в ЮKassa полную 299 ₽.)
 >
 > Последнее обновление: 2026-09-07 (**pricing offer winner:** live 50/50 на `/pricing` и overlay выключен (`PRICING_PAYWALL_EXPERIMENT_ENABLED=false`). Всем показывают treatment: 30/99 ₽, 100/299 ₽, 200/469 ₽, 500/990 ₽. Assignment (`bucketPricingPaywallVariant`, localStorage, `?paywall=`) остаётся для следующего эксперимента. Пока сплит выключен, stored `control` игнорируется в UI, чекауте и Метрике (`resolvePricingPaywallVariant`).)
 >
@@ -1144,7 +1146,9 @@
   грант 25% / 1 час отдельной строкой). 402 generate/analyze → `landing_mail_credit_blocks`
   + `no_credits` +2ч. Грант: живые `landing_pricing_offers` (10/20 и flash 25%
   могут сосуществовать, касса берёт max %); create
-  ЮKassa/Robokassa делает `landing_apply_checkout_offer` (цена серверная);
+  ЮKassa/Robokassa делает `landing_apply_checkout_offer`, затем касса читает
+  `amount_rub` со строки платежа (не колонки RPC); invoice с другой суммой
+  не переиспользуется (`247` не стакает скидку на повторный apply);
   `credited_at` ставит `consumed_at`. Кампании: dry-run на `/admin/mail`,
   fan-out `campaign:{id}:{email}`; enqueue стоп, если остаток квоты меньше
   сегмента или после send tx-резерв < 500. Email =

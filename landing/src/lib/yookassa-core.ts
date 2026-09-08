@@ -77,6 +77,38 @@ export function parseYooKassaPayment(value: unknown): YooKassaPayment {
   };
 }
 
+export function yookassaAmountEquals(
+  payment: YooKassaPayment,
+  priceRub: number,
+): boolean {
+  const providerAmount = Number(payment.amount.value).toFixed(2);
+  const expectedAmount = Number(priceRub).toFixed(2);
+  return (
+    payment.amount.currency === "RUB" &&
+    Number.isFinite(Number(payment.amount.value)) &&
+    Number.isFinite(Number(priceRub)) &&
+    providerAmount === expectedAmount
+  );
+}
+
+export function yookassaCreateIdempotenceKey(
+  localKey: string,
+  amountRub: number,
+): string {
+  return `${localKey}:${Number(amountRub).toFixed(0)}`;
+}
+
+export function canReuseYooKassaCheckout(
+  payment: YooKassaPayment,
+  expectedPriceRub: number,
+): boolean {
+  return (
+    (payment.status === "pending" || payment.status === "waiting_for_capture") &&
+    Boolean(payment.confirmation?.confirmation_url) &&
+    yookassaAmountEquals(payment, expectedPriceRub)
+  );
+}
+
 export function assertYooKassaPaymentMatches(
   payment: YooKassaPayment,
   expected: {

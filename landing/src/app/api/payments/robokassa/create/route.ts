@@ -15,7 +15,10 @@ import {
   shouldWriteLandingUserAttribution,
 } from "@/lib/payment-attribution";
 import { sanitizeUuid } from "@/lib/visitor-id";
-import { applyCheckoutOffer } from "@/lib/mail-checkout-offer";
+import {
+  CheckoutOfferNotAppliedError,
+  lockCheckoutCharge,
+} from "@/lib/mail-checkout-offer";
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -250,11 +253,12 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const quote = await applyCheckoutOffer(supabase, {
+    const quote = await lockCheckoutCharge(supabase, {
       sharedUserId: ensured.dbUserId,
       paymentId: local.id,
       provider: "robokassa",
       catalogAmount: plan.price,
+      planId: plan.id,
     });
     local = { ...local, amount_rub: quote.amountRub };
 
@@ -289,6 +293,15 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.error("[robokassa] create payment failed", { message });
+    if (error instanceof CheckoutOfferNotAppliedError) {
+      return NextResponse.json(
+        {
+          error: "checkout_offer_not_applied",
+          message: "Скидка не применилась. Обновите страницу и попробуйте ещё раз.",
+        },
+        { status: 409 },
+      );
+    }
     const notConfigured =
       message.includes("not configured") || message.includes("PAYMENT_PROVIDER");
     return NextResponse.json(
