@@ -7,6 +7,7 @@ import {
 } from "react";
 import { ListingPhotoTile } from "@/components/ListingPhotoTile";
 import { toGenerationExampleCard } from "@/lib/generation/example-card";
+import { listingHeadingImageAlt } from "@/lib/hero-carousel-alt";
 import {
   buildStableMasonryLayout,
   listingPhotoAspectRatio,
@@ -18,6 +19,7 @@ type Props = {
   lcpPriorityCount?: number;
   loading?: boolean;
   debugOverlay?: (card: PromptCardFull) => ReactNode;
+  headingAltSlots?: readonly string[];
 };
 
 type MasonryCustomProperties = CSSProperties & {
@@ -47,6 +49,7 @@ export function StableListingMasonry({
   lcpPriorityCount = 0,
   loading = false,
   debugOverlay,
+  headingAltSlots,
 }: Props) {
   const cards = useMemo(() => cardPages.flat(), [cardPages]);
   const aspects = useMemo(
@@ -115,6 +118,11 @@ export function StableListingMasonry({
                 aspectRatio={aspects[index]}
                 priority={index < lcpPriorityCount}
                 debugOverlay={debugOverlay?.(card)}
+                imageAlt={listingHeadingImageAlt(
+                  index,
+                  headingAltSlots,
+                  example.title
+                )}
               />
             </div>
           );

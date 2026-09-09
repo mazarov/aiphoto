@@ -773,6 +773,9 @@ export default async function TagPage({ params, searchParams }: Props) {
         hideHeading={Boolean(catalogHub)}
         explorerTitle={catalogHub ? seo.explorerTitle : undefined}
         explorerIntro={catalogHub ? seo.explorerIntro : undefined}
+        headingAltSlots={
+          catalogHub ? headingAltSlotsFromSeo(seo) : undefined
+        }
         chipNav={
           route.level === 1 ? (
             <ListingClusterChipGroup

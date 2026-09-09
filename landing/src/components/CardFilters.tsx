@@ -38,6 +38,7 @@ type Props = {
   initialDataset?: string;
   /** Listing sort — forwarded to admin `/api/search-cards` (default `new`). */
   sort?: ListingSort;
+  headingAltSlots?: readonly string[];
 };
 
 function getSeoTagSlugs(seoTags: unknown): string[] {
@@ -114,6 +115,7 @@ export function FilterableGrid({
   lcpPriorityCount = LISTING_LCP_PRIORITY_GRID_ITEMS,
   initialDataset,
   sort = "new",
+  headingAltSlots,
 }: Props) {
   const { user } = useAuth();
   const isAdmin = isCatalogAdminEmail(user?.email);
@@ -487,6 +489,7 @@ export function FilterableGrid({
             <StableListingMasonry
               cardPages={listingPages}
               lcpPriorityCount={lcpPriorityCount}
+              headingAltSlots={headingAltSlots}
               debugOverlay={
                 isAdmin && techInfoEnabled
                   ? (card) => <ListingCardDebugOverlay card={card} />

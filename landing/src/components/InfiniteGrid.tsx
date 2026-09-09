@@ -54,6 +54,7 @@ type Props = {
   /** First screen like `/generaciya-foto`: fade + button, then explicit «Показать ещё». */
   teaserLoadMore?: boolean;
   teaserLoadMoreLabel?: string;
+  headingAltSlots?: readonly string[];
 };
 
 export function InfiniteGrid({
@@ -68,6 +69,7 @@ export function InfiniteGrid({
   searchHasMore = false,
   teaserLoadMore = false,
   teaserLoadMoreLabel = "Показать ещё",
+  headingAltSlots,
 }: Props) {
   const [cardPages, setCardPages] = useState<PromptCardFull[][]>(() => [
     appendUniqueCardsById([], initialCards),
@@ -201,7 +203,12 @@ export function InfiniteGrid({
       <div
         className={`mb-8${showTeaserOverlay ? " relative overflow-hidden" : ""}`}
       >
-        <FilterableGrid cards={cards} cardPages={cardPages} sort={sort} />
+        <FilterableGrid
+          cards={cards}
+          cardPages={cardPages}
+          sort={sort}
+          headingAltSlots={headingAltSlots}
+        />
         {showTeaserOverlay ? (
           <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30">
             <div

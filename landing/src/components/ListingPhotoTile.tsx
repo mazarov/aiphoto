@@ -27,7 +27,7 @@ type Props = {
   /** Hero strip: still poster only — never autoplay mp4 in the first viewport. */
   still?: boolean;
   sizes?: string;
-  /** SEO img alt (hero H1/H2 queue). Link aria-label stays the card name. */
+  /** SEO img alt + link name (H1/H2 + hook on catalog hubs). */
   imageAlt?: string;
 };
 
@@ -114,7 +114,7 @@ export function ListingPhotoTile({
         <Link
           href={`/p/${card.slug}`}
           className={`absolute inset-0 z-10${photoshootUrls ? " pointer-events-none" : ""}`}
-          aria-label={cardLabel}
+          aria-label={imageAlt}
           prefetch
           onPointerEnter={() => prefetchCard(card.slug)}
           onTouchStart={() => prefetchCard(card.slug)}

@@ -6,6 +6,7 @@ import { getSeoForRoute } from "./seo-templates";
 import {
   buildHeroCarouselImageAlt,
   headingAltSlotsFromSeo,
+  listingHeadingImageAlt,
 } from "./hero-carousel-alt";
 
 test("rotates H1 and H2 then repeats", () => {
@@ -60,6 +61,34 @@ test("catalog hubs queue H1 then explorer H2, not HowTo", () => {
   assert.equal(pairsSlots[0], "Промты для парных фото");
   assert.match(pairsSlots[1] ?? "", /парной фотосессии/i);
   assert.equal(girlsSlots.includes(getSeoForRoute(girls).howToTitle ?? ""), false);
+});
+
+test("listingHeadingImageAlt is undefined without slots", () => {
+  assert.equal(
+    listingHeadingImageAlt(0, undefined, "Visual Hook: Силуэт в платье"),
+    undefined,
+  );
+  assert.equal(
+    listingHeadingImageAlt(0, [], "Visual Hook: Силуэт в платье"),
+    undefined,
+  );
+});
+
+test("listingHeadingImageAlt matches carousel H1/H2 rotation", () => {
+  const slots = ["Промты для фото девушки", "Промты для ИИ фотосессии женские"];
+  const title = "Visual Hook: Осенняя эстетика с тыквами";
+  assert.equal(
+    listingHeadingImageAlt(0, slots, title),
+    buildHeroCarouselImageAlt(0, slots, title),
+  );
+  assert.equal(
+    listingHeadingImageAlt(11, slots, title),
+    buildHeroCarouselImageAlt(11, slots, title),
+  );
+  assert.match(
+    listingHeadingImageAlt(11, slots, title) ?? "",
+    /^Промты для ИИ фотосессии женские\. /,
+  );
 });
 
 test("homepage carousel slots are visible H1 then gallery H2", () => {

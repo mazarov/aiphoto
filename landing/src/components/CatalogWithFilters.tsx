@@ -21,6 +21,7 @@ import {
   toGenerationExampleCard,
   writeGenerationExampleNavigation,
 } from "@/lib/generation/example-card";
+import { listingHeadingImageAlt } from "@/lib/hero-carousel-alt";
 import { listingPhotoAspectRatio } from "@/lib/listing-masonry";
 import type { PromptCardFull } from "@/lib/supabase";
 import type { Dimension } from "@/lib/tag-registry";
@@ -79,6 +80,8 @@ export type CatalogWithFiltersProps = {
   /** Fade + CTA like `/generaciya-foto`, then explicit load-more. */
   teaserLoadMore?: boolean;
   teaserLoadMoreLabel?: string;
+  /** Catalog hub: listing imgs rotate H1 / explorer H2 + card hook. */
+  headingAltSlots?: readonly string[];
 };
 
 export function CatalogWithFilters({
@@ -105,6 +108,7 @@ export function CatalogWithFilters({
   explorerTitleId = "listing-explorer-gallery-heading",
   teaserLoadMore = false,
   teaserLoadMoreLabel,
+  headingAltSlots,
 }: CatalogWithFiltersProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -289,6 +293,11 @@ export function CatalogWithFilters({
                       card.photoHeight,
                       index
                     )}
+                    imageAlt={listingHeadingImageAlt(
+                      index,
+                      headingAltSlots,
+                      card.title
+                    )}
                   />
                 </ListingMasonryItem>
               ))}
@@ -354,6 +363,7 @@ export function CatalogWithFilters({
             searchHasMore={listingSearchHasMore}
             teaserLoadMore={teaserLoadMore}
             teaserLoadMoreLabel={teaserLoadMoreLabel}
+            headingAltSlots={headingAltSlots}
           />
         )}
       </div>

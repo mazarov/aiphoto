@@ -21,8 +21,8 @@ export function headingAltSlotsFromSeo(seo: {
 }
 
 /**
- * Live marquee tile alt: rotate heading slots, then a short card hook.
- * Empty slots → listing card alt. Decorative copy is handled by the tile.
+ * Live tile alt: rotate heading slots, then a short card hook.
+ * Empty slots → listing card alt. Decorative marquee copy is handled by the tile.
  */
 export function buildHeroCarouselImageAlt(
   index: number,
@@ -34,4 +34,14 @@ export function buildHeroCarouselImageAlt(
   const slot = cleaned[((index % cleaned.length) + cleaned.length) % cleaned.length];
   const hook = cardHook(cardTitle);
   return hook ? `${slot}. ${hook}` : slot;
+}
+
+/** Undefined when the page has no heading queue — tile keeps the card listing alt. */
+export function listingHeadingImageAlt(
+  index: number,
+  slots: readonly string[] | undefined,
+  cardTitle: string,
+): string | undefined {
+  if (!slots || cleanSlots(slots).length === 0) return undefined;
+  return buildHeroCarouselImageAlt(index, slots, cardTitle);
 }
