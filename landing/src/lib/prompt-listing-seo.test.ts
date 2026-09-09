@@ -63,15 +63,27 @@ test("girls hub keeps H1 and explorer photoshoot lemmas apart", () => {
   assert.equal(seo.metaTitle, "Промты для фото девушки — 7000+ идей");
   assert.match(copy, /7000\+/);
   assert.match(seo.intro, /женских фото/i);
+  assert.match(
+    seo.intro,
+    /скопируй текст промта для нейросети или загрузи своё фото и повтори кадр в 1 клик/i,
+  );
   assert.doesNotMatch(seo.intro, /фотосессии девушки/i);
   assert.doesNotMatch(seo.h1, /фотосессии/i);
   assert.match(seo.h1, /фото девушки/i);
-  assert.match(seo.explorerTitle ?? "", /промты для ии фотосессии девушки/i);
+  assert.match(seo.explorerTitle ?? "", /промты для ии фотосессии женские/i);
   assert.doesNotMatch(seo.explorerTitle ?? "", /откройте карточку|найдите свой сюжет/i);
-  assert.match(seo.explorerIntro ?? "", /промты для фотосессии девушки с ИИ/i);
-  assert.match(seo.explorerIntro ?? "", /найдите|поиск|скопируй/i);
-  assert.doesNotMatch(seo.howToTitle ?? "", /фотосессии/i);
-  assert.match(seo.howToTitle ?? "", /женского фото/i);
+  assert.match(
+    seo.explorerIntro ?? "",
+    /готовые промты для женской ии фотосессии на русском в нейросети/i,
+  );
+  assert.match(seo.explorerIntro ?? "", /студийные, черно-белые, деловой, портреты/i);
+  assert.match(
+    seo.explorerIntro ?? "",
+    /скопируй текст промта для нейросети или загрузи своё фото и повтори кадр в 1 клик/i,
+  );
+  assert.doesNotMatch(seo.explorerIntro ?? "", /фотосессии девушки|найдите|поиск/i);
+  assert.equal(seo.howToSteps.length, 0);
+  assert.equal(seo.howToTitle, undefined);
   assert.equal(seo.popularLinks?.length ?? 0, 0);
   assert.equal(seo.seoTextBlocks?.length ?? 0, 0);
   assert.ok(seo.faqItems.some((item) => /промт для девушки/i.test(item.q)));

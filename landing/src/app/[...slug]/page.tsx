@@ -45,6 +45,7 @@ import {
 import { uniqueListingChipsByHref } from "@/lib/listing-cluster-chips";
 import { GeneraciyaFotoHeroCarousel } from "@/components/generate/GeneraciyaFotoHeroCarousel";
 import { toGenerationExampleCard } from "@/lib/generation/example-card";
+import { headingAltSlotsFromSeo } from "@/lib/hero-carousel-alt";
 import {
   isListingCatalogHubClusterPath,
   resolveListingCatalogHubL1,
@@ -957,6 +958,7 @@ export default async function TagPage({ params, searchParams }: Props) {
                 cards={catalogHubCarouselCards}
                 ctaLabel={null}
                 ariaLabel={catalogHub.heroAriaLabel}
+                headingAltSlots={headingAltSlotsFromSeo(seo)}
               />
             ) : null
           }

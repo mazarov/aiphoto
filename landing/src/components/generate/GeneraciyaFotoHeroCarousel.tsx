@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { ListingPhotoTile } from "@/components/ListingPhotoTile";
 import { usePromptCardModal } from "@/context/PromptCardModalContext";
+import { buildHeroCarouselImageAlt } from "@/lib/hero-carousel-alt";
 import {
   type GenerationExampleCard,
   writeGenerationExampleNavigation,
@@ -17,10 +18,12 @@ function CarouselTile({
   card,
   copy,
   index,
+  headingAltSlots,
 }: {
   card: GenerationExampleCard;
   copy: "a" | "b";
   index: number;
+  headingAltSlots: readonly string[];
 }) {
   const decorative = copy === "b";
   return (
@@ -38,6 +41,11 @@ function CarouselTile({
         decorative={decorative}
         still
         sizes={SIZES_HERO_MARQUEE}
+        imageAlt={
+          decorative || headingAltSlots.length === 0
+            ? undefined
+            : buildHeroCarouselImageAlt(index, headingAltSlots, card.title)
+        }
       />
     </div>
   );
@@ -78,12 +86,15 @@ export function GeneraciyaFotoHeroCarousel({
   ctaLabel = GENERACIYA_FOTO_SEO.secondaryCta,
   ctaHref,
   ariaLabel = "Новые ИИ-фото",
+  headingAltSlots = [],
 }: {
   cards: GenerationExampleCard[];
   ctaLabel?: string | null;
   /** Hash or path. When set, the overlay scrolls / navigates there instead of opening a card. */
   ctaHref?: string;
   ariaLabel?: string;
+  /** SEO H1 / explorer H2 in order. Live tiles rotate; marquee copy stays empty alt. */
+  headingAltSlots?: readonly string[];
 }) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const { open, prefetchCard } = usePromptCardModal();
@@ -131,6 +142,7 @@ export function GeneraciyaFotoHeroCarousel({
               card={card}
               copy="a"
               index={index}
+              headingAltSlots={headingAltSlots}
             />
           ))}
           {canLoop
@@ -140,6 +152,7 @@ export function GeneraciyaFotoHeroCarousel({
                   card={card}
                   copy="b"
                   index={index}
+                  headingAltSlots={headingAltSlots}
                 />
               ))
             : null}

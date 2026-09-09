@@ -27,6 +27,7 @@ export function SeoHowToSection({
   steps: readonly string[];
   headingId?: string;
 }) {
+  if (steps.length === 0) return null;
   return (
     <section className="scroll-mt-20" aria-labelledby={headingId}>
       <div className={GF_BLOCK}>

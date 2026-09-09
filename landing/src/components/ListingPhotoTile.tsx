@@ -27,6 +27,8 @@ type Props = {
   /** Hero strip: still poster only — never autoplay mp4 in the first viewport. */
   still?: boolean;
   sizes?: string;
+  /** SEO img alt (hero H1/H2 queue). Link aria-label stays the card name. */
+  imageAlt?: string;
 };
 
 export function ListingPhotoTile({
@@ -37,12 +39,13 @@ export function ListingPhotoTile({
   decorative = false,
   still = false,
   sizes = SIZES_CARD_GRID,
+  imageAlt: imageAltOverride,
 }: Props) {
   const { open, prefetchCard } = usePromptCardModal();
   const photoshootUrls =
     card.isPhotoshoot && card.photoUrls.length === 4 ? card.photoUrls : null;
   const cardLabel = buildCardImageAlt(card.title);
-  const imageAlt = decorative ? "" : cardLabel;
+  const imageAlt = decorative ? "" : imageAltOverride || cardLabel;
   const showVideo = Boolean(card.videoUrl) && !decorative && !still;
 
   return (

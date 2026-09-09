@@ -192,6 +192,10 @@ export default async function HomePage() {
             cards={carouselCards}
             ctaLabel={null}
             ariaLabel={HOMEPAGE_SEO.examplesTitle}
+            headingAltSlots={[
+              `${HOMEPAGE_SEO.h1.main} ${HOMEPAGE_SEO.h1.accent}`,
+              HOMEPAGE_SEO.galleryTitle,
+            ]}
           />
         }
         afterCarousel={<HomeHeroDestinations />}
