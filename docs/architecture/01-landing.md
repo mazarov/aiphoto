@@ -1,5 +1,7 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-09-11 (**low-balance any first purchase:** грант `low_balance_upgrade` больше не требует, чтобы единственная live-оплата была 99 ₽ / `trial` / 30 токенов. Достаточно ровно одной live-оплаты любого пакета, баланс `<= 30`, флаг включён. −20% / 24 ч / все планы без изменений. Письмо и `GET /api/me` смотрят тот же предикат. SQL `252`.)
+>
 > Последнее обновление: 2026-09-09 (**catalog hub img alt:** на хабах девушки/мужчины/пары живые фото — hero-карусель, masonry под поиском и overlay поиска — чередуют `img alt` и `Link aria-label` из H1 / explorer-H2 + хук карточки (`headingAltSlotsFromSeo` / `listingHeadingImageAlt`). Копия marquee `b` с пустым alt. `/`, `/search`, L2 без слотов — `Промт для фото:`. HowTo/FAQ в очередь не входят.)
 >
 > Последнее обновление: 2026-09-08 (**хаб `/promty-dlya-foto-muzhchiny`:** тот же каркас, что пары и девушки. SSOT `promty-dlya-foto-muzhchiny-cluster.ts`. Диспетчер `listing-catalog-hub.ts` — по-прежнему одна развилка в `[...slug]/page.tsx`. Title «фото мужчины и мужских фото» + `1300+`; H1 «промты для фото мужчины»; intro «мужского фото»; H2 «промты для ИИ фотосессии мужские». Карусель `audience_tag=muzhchina` `sort=new`, query-фильтр в hero не протекает. L2 `/promty-dlya-foto-muzhchiny/*` → 301 на хаб, кроме хвостов `den-rozhdeniya`. `/ii-fotosessiya/muzhskie` не трогаем. `popularLinks` / `seoTextBlocks` / mid-page generate-CTA нет. FAB «Создать фото мужчины» → `intent=text` + example + чип `Мужчины`.)
