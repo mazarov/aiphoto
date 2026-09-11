@@ -5,8 +5,10 @@ import {
   composeExampleAudienceListingUrl,
   composeExampleMatchPhotoKey,
   peekComposeExampleAudience,
+  peekComposeExampleListing,
   readComposeExampleAudience,
   rememberComposeExampleAudience,
+  rememberComposeExampleListing,
 } from "./compose-example-audience-client";
 
 test("composeExampleMatchPhotoKey versions guest data URLs and library ids", () => {
@@ -45,4 +47,18 @@ test("composeExampleAudienceListingUrl warms newest and tagged first pages", () 
     composeExampleAudienceListingUrl("devochka"),
     "/api/listing?limit=12&sort=new&audience_tag=devochka&strict=1",
   );
+});
+
+test("example listing memory cache hydrates the picker without a second fetch", () => {
+  const url = "/api/listing?limit=12&sort=new";
+  rememberComposeExampleListing(url, {
+    cards: [],
+    ranked_batch_size: 12,
+    total_count: 0,
+  });
+  assert.deepEqual(peekComposeExampleListing(url), {
+    cards: [],
+    ranked_batch_size: 12,
+    total_count: 0,
+  });
 });

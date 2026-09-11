@@ -2,8 +2,12 @@ import {
   isComposeExampleAudienceTag,
   type ComposeExampleAudienceTag,
 } from "./compose-example-audience";
-import { composeExamplePickerEndpoint } from "./generaciya-foto-compose-example";
+import {
+  composeExamplePickerEndpoint,
+  SEO_COMPOSE_EXAMPLE_LIMIT,
+} from "./generaciya-foto-compose-example";
 import { isPhotoPromptEphemeralId } from "./generate-photo-prompt";
+import type { PromptCardFull } from "./supabase";
 
 export const COMPOSE_EXAMPLE_AUDIENCE_CACHE_VERSION = "child-v1";
 
@@ -104,19 +108,100 @@ export async function prefetchComposeExampleAudience(
 
 export function composeExampleAudienceListingUrl(
   audienceMatch: ComposeExampleAudienceTag | null,
+  filter?: { dimension: string; value: string } | null,
 ): string | null {
   return composeExamplePickerEndpoint({
     query: "",
-    filter: null,
+    filter: filter ?? null,
     audienceMatch,
   });
 }
 
+export type ComposeExampleListingPage = {
+  cards?: PromptCardFull[];
+  ranked_batch_size?: number;
+  total_count?: number;
+  has_more?: boolean;
+};
+
+const listingMemoryCache = new Map<string, ComposeExampleListingPage>();
+const listingFlights = new Map<string, Promise<ComposeExampleListingPage | null>>();
+
+export function peekComposeExampleListing(
+  url: string,
+): ComposeExampleListingPage | undefined {
+  return listingMemoryCache.get(url);
+}
+
+export function rememberComposeExampleListing(
+  url: string,
+  page: ComposeExampleListingPage,
+): void {
+  listingMemoryCache.set(url, page);
+}
+
+function warmupComposeExampleListingImages(page: ComposeExampleListingPage): void {
+  if (typeof window === "undefined") return;
+  const cards = page.cards ?? [];
+  for (const card of cards.slice(0, SEO_COMPOSE_EXAMPLE_LIMIT)) {
+    const src = card.photoUrls?.[0]?.trim() || "";
+    if (!src) continue;
+    const img = new Image();
+    img.decoding = "async";
+    img.src = src;
+  }
+}
+
+/**
+ * Shared listing fetch. Not abortable: closing the sheet must not cancel
+ * dock warmup, and two consumers share one in-flight.
+ */
+export async function loadComposeExampleListing(
+  url: string,
+): Promise<ComposeExampleListingPage | null> {
+  const cached = listingMemoryCache.get(url);
+  if (cached) return cached;
+  const pending = listingFlights.get(url);
+  if (pending) return pending;
+  if (typeof fetch === "undefined") return null;
+
+  const flight = (async () => {
+    try {
+      const response = await fetch(url, {
+        cache: "default",
+        credentials: "same-origin",
+      });
+      if (!response.ok) return null;
+      const payload = (await response.json()) as ComposeExampleListingPage;
+      rememberComposeExampleListing(url, payload);
+      warmupComposeExampleListingImages(payload);
+      return payload;
+    } catch {
+      return null;
+    } finally {
+      listingFlights.delete(url);
+    }
+  })();
+  listingFlights.set(url, flight);
+  return flight;
+}
+
 export function prefetchComposeExampleListing(
   audienceMatch: ComposeExampleAudienceTag | null,
+  filter?: { dimension: string; value: string } | null,
 ): void {
-  if (typeof fetch === "undefined") return;
-  const url = composeExampleAudienceListingUrl(audienceMatch);
+  prefetchComposeExamplePickerFirstPage({ audienceMatch, filter });
+}
+
+/** Warm the catalog grid the example sheet will open on. */
+export function prefetchComposeExamplePickerFirstPage(input?: {
+  audienceMatch?: ComposeExampleAudienceTag | null;
+  filter?: { dimension: string; value: string } | null;
+}): void {
+  const url = composeExampleAudienceListingUrl(
+    input?.audienceMatch ?? null,
+    input?.filter ?? null,
+  );
   if (!url) return;
-  void fetch(url, { cache: "default", credentials: "same-origin" });
+  void loadComposeExampleListing(url);
 }

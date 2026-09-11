@@ -11,6 +11,8 @@ import {
 
 export type GenerationModelDisplay = {
   label: string;
+  /** Compact name on the Photo / Video compose tiles (84px). */
+  tile: string;
   description: string;
 };
 
@@ -24,58 +26,72 @@ export type GenerationModelOption = {
 export const GENERATION_MODEL_DISPLAY: Record<string, GenerationModelDisplay> = {
   "gemini-2.5-flash-image": {
     label: "Nano Banana",
+    tile: "Banana",
     description: "Быстрые превью для идей",
   },
   "gemini-3-pro-image-preview": {
     label: "Nano Banana PRO",
+    tile: "Banana Pro",
     description: "Максимальная детализация",
   },
   "gemini-3.1-flash-image-preview": {
     label: "Nano Banana 2",
+    tile: "Banana 2",
     description: "Улучшенные алгоритмы генерации",
   },
   "gemini-3.1-flash-image": {
     label: "Nano Banana 2",
+    tile: "Banana 2",
     description: "Улучшенные алгоритмы генерации",
   },
   "gemini-3.1-flash-lite-image": {
     label: "Nano Banana 2 Lite",
+    tile: "Banana Lite",
     description: "Оптимизированная генерация",
   },
   "gemini-3.1-flash-lite-image-preview": {
     label: "Nano Banana 2 Lite",
+    tile: "Banana Lite",
     description: "Оптимизированная генерация",
   },
   "gemini-omni-flash-preview": {
     label: "Veo Omni Flash",
+    tile: "Omni",
     description: "Фото оживает по твоему сценарию",
   },
   "grok-imagine-image-2.0": {
     label: "Grok Imagine",
+    tile: "Grok",
     description: "Креативная генерация",
   },
   "seedream-4.5": {
     label: "Seedream 4.5",
+    tile: "Seedream",
     description: "Стильные и чувственные сцены",
   },
   "seedream-5.0-pro": {
     label: "Seedream 5.0 Pro",
+    tile: "Seedream",
     description: "Стильные и чувственные сцены",
   },
   "flux-2-flex": {
     label: "Flux 2 Flex",
+    tile: "Flux",
     description: "Баланс качества, скорости и контроля",
   },
   "grok-imagine-video-1.5": {
     label: "Grok Imagine 1.5",
+    tile: "Grok",
     description: "Динамичное видео из фото",
   },
   "veo-3.1-lite-generate-preview": {
     label: "Veo 3.1 Lite",
+    tile: "Veo",
     description: "Озвученное видео из фото",
   },
   "seedance-2.5": {
     label: "Seedance 2.5",
+    tile: "Seedance",
     description: "Кинематографические видео до 30 секунд",
   },
 };
@@ -131,6 +147,18 @@ export function displayLabelForGenerationModel(
   fallbackLabel?: string
 ): string {
   return GENERATION_MODEL_DISPLAY[id]?.label || fallbackLabel || id;
+}
+
+/** Short name for the 84px Photo / Video tool tile. Full label stays on the sheet. */
+export function displayTileLabelForGenerationModel(
+  id: string,
+  fallbackLabel?: string
+): string {
+  const mapped = GENERATION_MODEL_DISPLAY[id]?.tile;
+  if (mapped) return mapped;
+  const full = displayLabelForGenerationModel(id, fallbackLabel);
+  const stripped = full.replace(/^Nano\s+/i, "").trim();
+  return stripped || full;
 }
 
 export function displayDescriptionForGenerationModel(

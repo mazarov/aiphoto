@@ -28,7 +28,9 @@ import {
 } from "@/lib/compose-example-audience";
 import {
   composeExampleMatchPhotoKey,
+  loadComposeExampleListing,
   peekComposeExampleAudience,
+  peekComposeExampleListing,
   prefetchComposeExampleAudience,
   readComposeExampleAudience,
 } from "@/lib/compose-example-audience-client";
@@ -78,13 +80,6 @@ type ComposeExamplePickerProps = {
   matchPhoto?: ComposeExampleMatchPhoto | null;
 };
 
-type ListingPagePayload = {
-  cards?: PromptCardFull[];
-  ranked_batch_size?: number;
-  total_count?: number;
-  has_more?: boolean;
-};
-
 function matchesQuickFilter(card: GenerationExampleCard, filter: QuickFilter): boolean {
   return (card.seoTags[filter.dimension] || []).includes(filter.value);
 }
@@ -128,6 +123,39 @@ function mergeUniqueCards(
   return next;
 }
 
+function hydrateExampleCards(
+  raw: PromptCardFull[] | undefined,
+  query: string,
+  activeFilter: QuickFilter | null,
+): GenerationExampleCard[] {
+  let next = filterComposeExampleCards(
+    (raw ?? []).map(toGenerationExampleCard),
+    "photo",
+  );
+  if (query.trim().length < 2 && activeFilter) {
+    next = next.filter((card) => matchesQuickFilter(card, activeFilter));
+  }
+  return next;
+}
+
+function peekPickerFirstPage(
+  pathname: string,
+  matchPhoto: ComposeExampleMatchPhoto | null,
+  matchEnabled: boolean,
+) {
+  const filter = quickFilterFromListingPath(pathname);
+  const audience = readComposeExampleAudience(matchPhoto, matchEnabled);
+  const url = composeExamplePickerEndpoint({
+    query: "",
+    filter: filter
+      ? { dimension: filter.dimension, value: filter.value }
+      : null,
+    audienceMatch: audience,
+  });
+  const page = url ? peekComposeExampleListing(url) : undefined;
+  return { filter, url, page };
+}
+
 export function ComposeExamplePicker({
   selectedCardId,
   onSelect,
@@ -149,8 +177,14 @@ export function ComposeExamplePicker({
   const [highlightedId, setHighlightedId] = useState<string | null>(
     selectedCardId,
   );
-  const [cards, setCards] = useState<GenerationExampleCard[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [cards, setCards] = useState<GenerationExampleCard[]>(() => {
+    const peeked = peekPickerFirstPage(pathname, matchPhoto, matchEnabled);
+    return hydrateExampleCards(peeked.page?.cards, "", peeked.filter);
+  });
+  const [loading, setLoading] = useState(() => {
+    const peeked = peekPickerFirstPage(pathname, matchPhoto, matchEnabled);
+    return Boolean(peeked.url) && !peeked.page;
+  });
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const [nextOffset, setNextOffset] = useState(0);
@@ -212,16 +246,8 @@ export function ComposeExamplePicker({
     : "border-indigo-500 bg-indigo-500 text-white";
 
   const mapListingCards = useCallback(
-    (raw: PromptCardFull[]): GenerationExampleCard[] => {
-      let next = filterComposeExampleCards(
-        raw.map(toGenerationExampleCard),
-        "photo",
-      );
-      if (query.trim().length < 2 && activeFilter) {
-        next = next.filter((card) => matchesQuickFilter(card, activeFilter));
-      }
-      return next;
-    },
+    (raw: PromptCardFull[]): GenerationExampleCard[] =>
+      hydrateExampleCards(raw, query, activeFilter),
     [activeFilter, query],
   );
 
@@ -236,9 +262,10 @@ export function ComposeExamplePicker({
         offset,
       });
       if (!endpoint) return null;
-      const response = await fetch(endpoint, { cache: "default", signal });
-      if (!response.ok) throw new Error("search_failed");
-      const payload = (await response.json()) as ListingPagePayload;
+      if (signal.aborted) return null;
+      const payload = await loadComposeExampleListing(endpoint);
+      if (signal.aborted) return null;
+      if (!payload) throw new Error("search_failed");
       const raw = payload.cards ?? [];
       const requestedLimit = composeExamplePickerLimit("photo");
       const rankedBatchSize = payload.ranked_batch_size ?? raw.length;
@@ -280,6 +307,31 @@ export function ComposeExamplePicker({
       return;
     }
 
+    const cached = peekComposeExampleListing(endpoint);
+    if (cached && query.trim().length < 2) {
+      const mapped = mapListingCards(cached.cards ?? []);
+      const requestedLimit = composeExamplePickerLimit("photo");
+      const rankedBatchSize = cached.ranked_batch_size ?? (cached.cards ?? []).length;
+      setCards(mapped);
+      setNextOffset(
+        rankedBatchSize > 0 ? rankedBatchSize : (cached.cards ?? []).length,
+      );
+      setHasMore(
+        composeExamplePickerHasMore({
+          isSearch: false,
+          offset: 0,
+          rankedBatchSize,
+          receivedCount: (cached.cards ?? []).length,
+          requestedLimit,
+          totalCount: cached.total_count ?? 0,
+          searchHasMore: cached.has_more,
+        }),
+      );
+      setLoading(false);
+      setError("");
+      return;
+    }
+
     const controller = new AbortController();
     const gen = fetchGenRef.current;
     const timer = window.setTimeout(
@@ -288,18 +340,11 @@ export function ComposeExamplePicker({
         setError("");
         void (async () => {
           try {
-            let collected: GenerationExampleCard[] = [];
-            let offset = 0;
-            let more = false;
-            const page = await readPage(offset, controller.signal);
+            const page = await readPage(0, controller.signal);
             if (!page || fetchGenRef.current !== gen) return;
-            collected = mergeUniqueCards(collected, page.cards);
-            offset = page.nextOffset;
-            more = page.hasMore;
-            if (fetchGenRef.current !== gen) return;
-            setCards(collected);
-            setNextOffset(offset);
-            setHasMore(more);
+            setCards(page.cards);
+            setNextOffset(page.nextOffset);
+            setHasMore(page.hasMore);
           } catch (fetchError: unknown) {
             if (
               fetchError instanceof DOMException &&
@@ -327,7 +372,7 @@ export function ComposeExamplePicker({
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [activeFilter, query, readPage]);
+  }, [activeFilter, listingAudience, mapListingCards, query, readPage]);
 
   const loadMore = useCallback(() => {
     if (loading || loadingMore || !hasMore) return;

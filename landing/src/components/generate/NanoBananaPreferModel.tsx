@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { useGenerateDock } from "@/context/GenerateDockContext";
 
-/** Preselect a Nano Banana family model without opening the dock. */
+/** Preselect Nano Banana Pro on `/nano-banana/pro`. Hub does not stuff Flash. */
 export function NanoBananaPreferModel({ modelId }: { modelId: string }) {
   const { preferModelId } = useGenerateDock();
 

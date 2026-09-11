@@ -5,6 +5,8 @@ import {
   composeShouldAutoOpenExampleSheet,
   composeShowsExampleTool,
   SEO_COMPOSE_EXAMPLE_CONFIRM_CTA,
+  SEO_COMPOSE_EXAMPLE_SHEET_CLOSE_LABEL,
+  SEO_COMPOSE_EXAMPLE_TOOL_EDGE_LABEL,
   SEO_COMPOSE_EXAMPLE_TOOL_LABEL,
   SEO_COMPOSE_PICK_EXAMPLE_CTA,
   composeExamplePickerEndpoint,
@@ -82,15 +84,19 @@ test("composeNeedsExamplePick false off image compose", () => {
   );
 });
 
-test("composeShowsExampleTool is image compose, not a URL funnel", () => {
+test("composeShowsExampleTool stays visible in every compose mode", () => {
   assert.equal(composeShowsExampleTool({ composeMode: "image" }), true);
+  assert.equal(composeShowsExampleTool({ composeMode: "photo_prompt" }), true);
+  assert.equal(composeShowsExampleTool({ composeMode: "video" }), true);
+  assert.equal(composeShowsExampleTool({ composeMode: "photoshoot" }), true);
   assert.equal(
     composeShowsExampleTool({ composeMode: "image", showResultChrome: true }),
     false,
   );
-  assert.equal(composeShowsExampleTool({ composeMode: "photo_prompt" }), false);
-  assert.equal(composeShowsExampleTool({ composeMode: "video" }), false);
-  assert.equal(composeShowsExampleTool({ composeMode: "photoshoot" }), false);
+  assert.equal(
+    composeShowsExampleTool({ composeMode: "video", showResultChrome: true }),
+    false,
+  );
 });
 
 test("composeShouldAutoOpenExampleSheet after photo without listing card", () => {
@@ -167,9 +173,11 @@ test("compose example quick filters lead with СВО then Осень", () => {
 });
 
 test("SEO compose pick CTA copy", () => {
-  assert.equal(SEO_COMPOSE_EXAMPLE_TOOL_LABEL, "Выбрать пример");
-  assert.equal(SEO_COMPOSE_PICK_EXAMPLE_CTA, "Выбрать пример");
+  assert.equal(SEO_COMPOSE_EXAMPLE_TOOL_LABEL, "Выбрать стиль");
+  assert.equal(SEO_COMPOSE_EXAMPLE_TOOL_EDGE_LABEL, "Выбрать стиль");
+  assert.equal(SEO_COMPOSE_PICK_EXAMPLE_CTA, "Выбрать стиль");
   assert.equal(SEO_COMPOSE_EXAMPLE_CONFIRM_CTA, "Выбрать");
+  assert.equal(SEO_COMPOSE_EXAMPLE_SHEET_CLOSE_LABEL, "Закрыть выбор стиля");
 });
 
 test("composeExamplePickerEndpoint defaults to newest stills listing", () => {

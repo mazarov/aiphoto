@@ -1,4 +1,5 @@
 import { restoreSelectedPhotoIds } from "@/lib/generation-enqueue-core";
+import { resolveComposerImageModel } from "@/lib/compose-image-model";
 import {
   DEFAULT_IMAGE_ASPECT_RATIO,
   DEFAULT_IMAGE_SIZE,
@@ -112,16 +113,20 @@ export function resolveComposerPreferences(input: {
   videoModelIds: readonly string[];
   availablePhotoIds: readonly string[];
   defaults?: Partial<ComposerPreferenceDefaults>;
+  /** False = first photo job: do not stuff Flash. Default true keeps last-known restore. */
+  hasCompletedImageGeneration?: boolean;
+  explicitImageModelId?: string | null;
 }): StoredGenerationPreferences {
   const defaults = { ...FALLBACK_COMPOSER_DEFAULTS, ...input.defaults };
   const stored = input.stored;
   const imageIds = input.imageModelIds;
-  const model =
-    stored && imageIds.includes(stored.model)
-      ? stored.model
-      : imageIds.includes(defaults.model)
-        ? defaults.model
-        : imageIds[0] || defaults.model;
+  const model = resolveComposerImageModel({
+    storedModel: stored?.model,
+    imageModelIds: imageIds,
+    hasCompletedImageGeneration: input.hasCompletedImageGeneration !== false,
+    explicitModelId: input.explicitImageModelId,
+    defaultModel: defaults.model,
+  });
   const aspectRatio =
     stored && isImageAspectRatio(stored.aspectRatio)
       ? stored.aspectRatio

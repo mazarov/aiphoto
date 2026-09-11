@@ -3,6 +3,10 @@
 import Link from "next/link";
 import { OVERLAY_BUTTON_UA_RESET } from "@/lib/card-overlay-action-pill";
 import { GenerationCreditCostBadge } from "@/components/generate/GenerationCreditCostBadge";
+import {
+  COMPOSE_RU_TEXT_BADGE_HINT,
+  composeImageModelRuTextBadge,
+} from "@/lib/compose-image-model";
 
 const FRAME =
   "after:pointer-events-none after:absolute after:inset-0 after:z-[1] after:rounded-xl after:border-2 after:border-solid";
@@ -33,6 +37,10 @@ export function ComposeModelChoiceCard({
   onClick,
 }: Props) {
   const hint = unaffordable ? "Не хватает кредитов" : description;
+  const ruTextBadge = composeImageModelRuTextBadge(modelId);
+  const title = ruTextBadge
+    ? `${COMPOSE_RU_TEXT_BADGE_HINT}. ${hint}`
+    : hint;
   const className = `${OVERLAY_BUTTON_UA_RESET} relative flex min-h-[4.5rem] min-w-0 flex-col items-stretch overflow-visible rounded-xl px-2.5 pb-4 pt-2 text-left transition ${FRAME} ${
     dockChrome
       ? selected
@@ -44,6 +52,13 @@ export function ComposeModelChoiceCard({
   } ${unaffordable ? "opacity-90" : ""} disabled:opacity-50`;
   const content = (
     <>
+      {ruTextBadge ? (
+        <span
+          className="mb-1 inline-flex w-fit max-w-full rounded-full bg-emerald-500 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white"
+        >
+          {ruTextBadge}
+        </span>
+      ) : null}
       <span className="line-clamp-2 text-xs font-semibold leading-snug">
         {label}
       </span>
@@ -71,7 +86,7 @@ export function ComposeModelChoiceCard({
       <Link
         href={href}
         data-model-id={modelId}
-        title={hint}
+        title={title}
         className={className}
       >
         {content}
@@ -86,7 +101,7 @@ export function ComposeModelChoiceCard({
       aria-pressed={selected}
       aria-disabled={unaffordable || undefined}
       disabled={disabled}
-      title={hint}
+      title={title}
       onClick={onClick}
       className={className}
     >

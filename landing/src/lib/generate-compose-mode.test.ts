@@ -17,6 +17,9 @@ import {
   composeGenerateCtaShowsModelName,
   composeModeFromDockIntent,
   composeModeTileLabel,
+  COMPOSE_PHOTOS_TOOL_EDGE_LABEL,
+  composePhotosToolCountLabel,
+  COMPOSE_TOOL_TILE_UNSET_LABEL,
   composeNeedsPhotoCtaLabel,
   COMPOSE_GUEST_UPLOAD_PHOTO_CTA,
   COMPOSE_SELECT_PHOTO_CTA,
@@ -121,6 +124,10 @@ test("compose tiles and generate CTA follow the selected block", () => {
   assert.equal(composeModeTileLabel("video"), "Видео");
   assert.equal(composeModeTileLabel("photoshoot"), "Фотосессии");
   assert.equal(composeModeTileLabel("photo_prompt"), "Промт по фото");
+  assert.equal(COMPOSE_PHOTOS_TOOL_EDGE_LABEL, "Ваши фото");
+  assert.equal(composePhotosToolCountLabel(0, 10), "0/10");
+  assert.equal(composePhotosToolCountLabel(2, 1), "2/1");
+  assert.equal(COMPOSE_TOOL_TILE_UNSET_LABEL, "Выбрать");
   assert.equal(composeGenerateCtaLabel("image"), "Создать фото");
   assert.equal(composeGenerateCtaLabel("video"), "Создать видео");
   assert.equal(
@@ -192,7 +199,7 @@ test("compose tiles and generate CTA follow the selected block", () => {
   assert.equal(composeModeFromDockIntent("text"), "image");
 });
 
-test("image and video tiles toggle the model sheet; photoshoot is select-only", () => {
+test("image and video tiles toggle the model sheet; photoshoot and photo_prompt first-select stay on the plate", () => {
   assert.equal(composeModeTileSheet("image"), "model");
   assert.equal(composeModeTileSheet("video"), "model");
   assert.equal(composeModeTileSheet("photoshoot"), null);
@@ -209,6 +216,14 @@ test("image and video tiles toggle the model sheet; photoshoot is select-only", 
     nextComposeModeTileSheet({
       mode: "photo_prompt",
       alreadyInMode: false,
+      currentSheet: null,
+    }),
+    null,
+  );
+  assert.equal(
+    nextComposeModeTileSheet({
+      mode: "photo_prompt",
+      alreadyInMode: true,
       currentSheet: null,
     }),
     "photos",

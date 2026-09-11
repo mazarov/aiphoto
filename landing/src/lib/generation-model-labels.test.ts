@@ -9,6 +9,7 @@ import {
 import {
   displayDescriptionForGenerationModel,
   displayLabelForGenerationModel,
+  displayTileLabelForGenerationModel,
   filterNanoBananaFamilyModels,
   isNanoBananaFamilyModel,
   parseEnabledGenerationModels,
@@ -161,4 +162,26 @@ test("Veo 3.1 Lite keeps Lite in the product label", () => {
     models.find((item) => item.id === "veo-3.1-lite-generate-preview")?.label,
     "Veo 3.1 Lite"
   );
+});
+
+test("compose tool tiles use short model names", () => {
+  assert.equal(displayTileLabelForGenerationModel("gemini-2.5-flash-image"), "Banana");
+  assert.equal(
+    displayTileLabelForGenerationModel("gemini-3-pro-image-preview"),
+    "Banana Pro",
+  );
+  assert.equal(
+    displayTileLabelForGenerationModel("gemini-3.1-flash-image-preview"),
+    "Banana 2",
+  );
+  assert.equal(displayTileLabelForGenerationModel("grok-imagine-image-2.0"), "Grok");
+  assert.equal(displayTileLabelForGenerationModel("seedream-5.0-pro"), "Seedream");
+  assert.equal(displayTileLabelForGenerationModel("flux-2-flex"), "Flux");
+  assert.equal(displayTileLabelForGenerationModel("grok-imagine-video-1.5"), "Grok");
+  assert.equal(displayTileLabelForGenerationModel("gemini-omni-flash-preview"), "Omni");
+  assert.equal(
+    displayTileLabelForGenerationModel("veo-3.1-lite-generate-preview"),
+    "Veo",
+  );
+  assert.equal(displayTileLabelForGenerationModel("seedance-2.5"), "Seedance");
 });

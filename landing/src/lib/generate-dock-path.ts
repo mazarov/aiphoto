@@ -58,7 +58,7 @@ export function listingGenerateIdleIntent(
   return null;
 }
 
-/** Catalog hub FAB opens «Выбрать пример», not a last-result plate. */
+/** Catalog hub FAB opens «Выбрать стиль», not a last-result plate. */
 export function listingGenerateIdleDockSurface(
   pathname: string
 ): "example" | null {

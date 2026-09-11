@@ -1,4 +1,8 @@
-import { shouldPrefetchGenerateDockPanel } from "./generate-dock-path";
+import { prefetchComposeExamplePickerFirstPage } from "./compose-example-audience-client";
+import {
+  listingComposeExampleInitialFilter,
+  shouldPrefetchGenerateDockPanel,
+} from "./generate-dock-path";
 import { writeCachedPhotoshootEnabled } from "./photoshoot-availability";
 import { prefetchUserPhotoLibrary } from "./user-generation-photos-cache";
 
@@ -19,11 +23,12 @@ function prefetchGenerationConfigCache(): void {
     });
 }
 
-/** Idle warmup: compose chunk + photoshoot flag + library previews. */
+/** Idle warmup: compose chunk + photoshoot flag + library previews + example grid. */
 export function prefetchGenerateDockWarmup(userId?: string | null): void {
   void import("@/components/CardInlineGeneratePanel");
   prefetchGenerationConfigCache();
   prefetchUserPhotoLibrary(userId);
+  prefetchComposeExamplePickerFirstPage();
 }
 
 export function scheduleGenerateDockPrefetch(
@@ -33,6 +38,12 @@ export function scheduleGenerateDockPrefetch(
   if (typeof window === "undefined") return () => {};
   const run = () => {
     prefetchUserPhotoLibrary(userId);
+    const filter = listingComposeExampleInitialFilter(pathname);
+    prefetchComposeExamplePickerFirstPage({
+      filter: filter
+        ? { dimension: filter.dimension, value: filter.value }
+        : null,
+    });
     if (shouldPrefetchGenerateDockPanel(pathname)) {
       void import("@/components/CardInlineGeneratePanel");
       prefetchGenerationConfigCache();

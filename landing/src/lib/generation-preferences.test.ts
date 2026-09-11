@@ -63,6 +63,30 @@ test("missing prefs use product defaults and the newest photo", () => {
   assert.equal(resolved.videoModel, FALLBACK_COMPOSER_DEFAULTS.videoModel);
 });
 
+test("first photo job does not stuff the default Flash model", () => {
+  const resolved = resolveComposerPreferences({
+    stored: stored({ model: "gemini-2.5-flash-image" }),
+    imageModelIds: IMAGE_IDS,
+    videoModelIds: VIDEO_IDS,
+    availablePhotoIds: ["p1", "p2"],
+    hasCompletedImageGeneration: false,
+  });
+  assert.equal(resolved.model, "");
+  assert.deepEqual(resolved.selectedPhotoIds, ["p2", "p1"]);
+});
+
+test("explicit image model wins before the first photo job", () => {
+  const resolved = resolveComposerPreferences({
+    stored: null,
+    imageModelIds: IMAGE_IDS,
+    videoModelIds: VIDEO_IDS,
+    availablePhotoIds: ["p1"],
+    hasCompletedImageGeneration: false,
+    explicitImageModelId: "gemini-3.1-flash-image-preview",
+  });
+  assert.equal(resolved.model, "gemini-3.1-flash-image-preview");
+});
+
 test("explicit empty photo selection stays empty", () => {
   const resolved = resolveComposerPreferences({
     stored: stored({ selectedPhotoIds: [] }),

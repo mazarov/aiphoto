@@ -21,6 +21,7 @@ import { takeHeroMarqueeCards } from "@/lib/hero-marquee";
 import {
   flattenGeneraciyaFotoFaqAnswer,
   formatNanoBananaSocialProof,
+  isNanoBananaProModel,
   type NanoBananaFeaturesCopy,
   type NanoBananaSeoCopy,
 } from "@/lib/nano-banana-seo-copy";
@@ -169,7 +170,9 @@ export function NanoBananaFamilyPage(props: NanoBananaFamilyPageProps) {
 
   return (
     <PageLayout showFooterWithGenerateDock>
-      <NanoBananaPreferModel modelId={props.defaultModelId} />
+      {isNanoBananaProModel(props.defaultModelId) ? (
+        <NanoBananaPreferModel modelId={props.defaultModelId} />
+      ) : null}
       {schemas.map((schema, index) => (
         <script
           key={index}

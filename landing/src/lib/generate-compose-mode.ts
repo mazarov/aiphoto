@@ -100,7 +100,7 @@ export function resolvePhotoshootLibraryFrame(input: {
 
 export type ComposeModeTileSheet = "photos" | "model";
 
-/** Image/video → model sheet. Photo prompt → «Ваши фото». Photoshoot is select-only. */
+/** Image/video → model sheet. Photo prompt can open «Ваши фото» on repeat click. Photoshoot is select-only. */
 export function composeModeTileSheet(
   mode: GenerateComposeMode,
 ): ComposeModeTileSheet | null {
@@ -109,13 +109,23 @@ export function composeModeTileSheet(
   return "model";
 }
 
-/** Mode tile caption. Preview photo stays on «Ваши фото», not on these tiles. */
+/** Mode tile caption. Library preview stays on the «Ваши фото» tile. */
 export function composeModeTileLabel(mode: GenerateComposeMode): string {
   if (mode === "video") return "Видео";
   if (mode === "photoshoot") return "Фотосессии";
   if (mode === "photo_prompt") return "Промт по фото";
   return "Фото";
 }
+
+/** Top-border pill on the library photos tool tile. */
+export const COMPOSE_PHOTOS_TOOL_EDGE_LABEL = "Ваши фото";
+
+export function composePhotosToolCountLabel(selected: number, cap: number): string {
+  return `${selected}/${cap}`;
+}
+
+/** Photo tile body when the first image job still has no model. */
+export const COMPOSE_TOOL_TILE_UNSET_LABEL = "Выбрать";
 
 /** Dock seed → first compose chip. resume / text / result stay on photo. */
 export function composeModeFromDockIntent(intent: string): GenerateComposeMode {
@@ -210,7 +220,7 @@ export function composeGenerateCtaShowsModelName(
   return mode === "image" || mode === "video";
 }
 
-/** Repeat click toggles the mode sheet. Photoshoot never opens one. Photo prompt toggles «Ваши фото». */
+/** Repeat click toggles the mode sheet. First select of photoshoot / photo_prompt stays on the empty plate (tool guide). */
 export function nextComposeModeTileSheet(input: {
   mode: GenerateComposeMode;
   alreadyInMode: boolean;
@@ -218,7 +228,7 @@ export function nextComposeModeTileSheet(input: {
 }): ComposeModeTileSheet | null {
   if (input.mode === "photoshoot") return null;
   if (input.mode === "photo_prompt") {
-    if (!input.alreadyInMode) return "photos";
+    if (!input.alreadyInMode) return null;
     return input.currentSheet === "photos" ? null : "photos";
   }
   if (!input.alreadyInMode) return "model";

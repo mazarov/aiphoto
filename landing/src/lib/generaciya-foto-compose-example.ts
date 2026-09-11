@@ -6,45 +6,48 @@ import {
 import { composeExamplePickerListingAudience } from "./compose-example-audience";
 
 /**
- * Catalog example picker is an image-compose tool, not a URL / funnel gate.
+ * Catalog style tile stays in the tools row for every compose mode.
+ * Hidden only under result chrome (the whole row is gone then).
  * `generationSurface` stays a Metrika/API label only.
  */
 export function composeShowsExampleTool(input: {
-  composeMode: GenerateComposeMode;
+  composeMode?: GenerateComposeMode;
   showResultChrome?: boolean;
 }): boolean {
-  if (input.showResultChrome) return false;
-  return input.composeMode === "image";
+  return !input.showResultChrome;
 }
 
-/** Photo in, catalog example not picked, prompt still too short to generate. */
+/** Photo in, catalog style not picked, prompt still too short to generate. Image CTA only. */
 export function composeNeedsExamplePick(input: {
   composeMode: GenerateComposeMode;
   selectedPhotoCount: number;
   cardId: string | null | undefined;
   promptLength: number;
 }): boolean {
-  if (!composeShowsExampleTool({ composeMode: input.composeMode })) return false;
+  if (input.composeMode !== "image") return false;
   if (input.selectedPhotoCount < 1) return false;
   if (input.cardId) return false;
   return input.promptLength < 8;
 }
 
-/** After a selfie/upload: open the example sheet unless a card already seeded compose. */
+/** After a selfie/upload: open the style sheet unless a card already seeded compose. Image only. */
 export function composeShouldAutoOpenExampleSheet(input: {
   composeMode: GenerateComposeMode;
   cardId: string | null | undefined;
 }): boolean {
-  if (!composeShowsExampleTool({ composeMode: input.composeMode })) return false;
+  if (input.composeMode !== "image") return false;
   return !input.cardId;
 }
 
-export const SEO_COMPOSE_EXAMPLE_TOOL_LABEL = "Выбрать пример";
-export const SEO_COMPOSE_EXAMPLE_SHEET_TITLE = "Выбрать пример";
+export const SEO_COMPOSE_EXAMPLE_TOOL_LABEL = "Выбрать стиль";
+export const SEO_COMPOSE_EXAMPLE_TOOL_EDGE_LABEL = SEO_COMPOSE_EXAMPLE_TOOL_LABEL;
+export const SEO_COMPOSE_EXAMPLE_SHEET_TITLE = "Выбрать стиль";
 export const SEO_COMPOSE_EXAMPLE_CONFIRM_CTA = "Выбрать";
 /** Footer gate when selfie is in and catalog example is not. Opens the example sheet. */
 export const SEO_COMPOSE_PICK_EXAMPLE_CTA = SEO_COMPOSE_EXAMPLE_TOOL_LABEL;
 export const SEO_COMPOSE_EXAMPLE_STEP_TITLE = SEO_COMPOSE_EXAMPLE_SHEET_TITLE;
+export const SEO_COMPOSE_EXAMPLE_SHEET_CLOSE_LABEL = "Закрыть выбор стиля";
+export const SEO_COMPOSE_EXAMPLE_SHEET_COLLAPSE_LABEL = "Свернуть выбор стиля";
 
 export const SEO_COMPOSE_EXAMPLE_SEARCH_PLACEHOLDER = "Найти образ";
 export const SEO_COMPOSE_EXAMPLE_SEARCH_ID = "compose-example-search";
