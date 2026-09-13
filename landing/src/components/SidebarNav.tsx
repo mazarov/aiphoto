@@ -156,6 +156,30 @@ function SidebarContent({
       </Link>
 
       <Link
+        href="/nano-banana"
+        scroll={false}
+        onClick={onItemClick}
+        className={`flex items-center gap-2.5 rounded-xl px-3 py-2 text-[13px] font-medium transition-colors ${
+          isHrefActive("/nano-banana", pathname)
+            ? "bg-indigo-50 text-indigo-700"
+            : "text-zinc-700 hover:bg-zinc-50"
+        }`}
+      >
+        <svg
+          className="h-4 w-4 flex-shrink-0"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={2}
+          aria-hidden
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 3c.7 2.2 1.6 3.4 3.8 4.2C13.6 8 12.7 9.2 12 11.4 11.3 9.2 10.4 8 8.2 7.2 10.4 6.4 11.3 5.2 12 3Z" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M5 14.5c3.2-.3 5.3.8 6.2 3.5.9-2.7 3-3.8 6.2-3.5" />
+        </svg>
+        Нано банана
+      </Link>
+
+      <Link
         href="/ii-fotosessiya"
         scroll={false}
         onClick={onItemClick}

@@ -14,6 +14,7 @@ import { NanoBananaFaq } from "@/components/generate/NanoBananaFaq";
 import { NanoBananaFeatures } from "@/components/generate/NanoBananaFeatures";
 import { NanoBananaPreferModel } from "@/components/generate/NanoBananaPreferModel";
 import { getGeneraciyaFotoChipNavigation } from "@/lib/generaciya-foto-chip-nav";
+import { headingAltSlotsFromSeo } from "@/lib/hero-carousel-alt";
 import type { GeneraciyaFotoFaqPart } from "@/lib/generaciya-foto-seo-copy";
 import { toGenerationExampleCard } from "@/lib/generation/example-card";
 import type { GenerationModelOption } from "@/lib/generation-model-labels";
@@ -227,6 +228,10 @@ export function NanoBananaFamilyPage(props: NanoBananaFamilyPageProps) {
             <GeneraciyaFotoHeroCarousel
               cards={carouselCards}
               ctaLabel={props.seo.secondaryCta}
+              headingAltSlots={headingAltSlotsFromSeo({
+                h1: props.seo.h1,
+                explorerTitle: props.seo.examplesTitle,
+              })}
             />
             {socialProof ? (
               <p className="mx-auto mt-3 text-sm font-medium text-indigo-700 sm:text-base">
@@ -271,6 +276,7 @@ export function NanoBananaFamilyPage(props: NanoBananaFamilyPageProps) {
                 allPromptsLabel={props.seo.examplesCta}
                 defaultAllPromptsHref={props.seo.examplesMoreHref}
                 scenarioNavigation={getGeneraciyaFotoChipNavigation()}
+                filterChipsInPlace
               />
             ) : (
               <div className="rounded-2xl border border-zinc-200 bg-zinc-50 px-6 py-12 text-center text-sm text-zinc-500">

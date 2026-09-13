@@ -53,9 +53,10 @@ test("homepage blocks keep listing CTA and do not send people away", () => {
   assert.equal(HOMEPAGE_SEO.galleryTitle, "Идеи промтов для фото");
   // «промты для фото на русском» должно стоять непрерывной фразой в своём пассаже
   assert.match(HOMEPAGE_SEO.examplesIntro, /промты для фото на русском/i);
-  assert.match(HOMEPAGE_SEO.examplesIntroSecondary, /промты для нано банана/i);
-  // «на русском» не мешаем в один абзац с нано бананом — иначе пассаж ни про что
-  assert.doesNotMatch(HOMEPAGE_SEO.examplesIntroSecondary, /на русском/i);
+  assert.doesNotMatch(
+    HOMEPAGE_SEO.examplesIntroSecondary,
+    /промты для нано банана/i
+  );
   assert.doesNotMatch(HOMEPAGE_SEO.examplesIntro, /нано банана|ChatGPT|Gemini/i);
   // H2 «Идеи промтов для фото» больше не стоит без текста
   assert.match(HOMEPAGE_SEO.galleryIntro, /идеи промтов для фото/i);
@@ -109,9 +110,9 @@ test("homepage FAQ passes the photoshoot prompt cluster to its hub", () => {
   const nanoBanana = HOMEPAGE_FAQ.find((item) => item.id === "nano-banana");
   assert.equal(nanoBanana?.q, "Где взять промты для нано банана?");
   assert.match(nanoBanana?.aPlain ?? "", /промты для нано банана/i);
-  assert.match(nanoBanana?.aPlain ?? "", /каталоге на этой странице/);
-  assert.match(nanoBanana?.aPlain ?? "", /повторить кадр в 1 клик/);
-  assert.match(nanoBanana?.aPlain ?? "", /блоке моделей генератора/);
+  assert.match(nanoBanana?.aPlain ?? "", /странице Nano Banana/i);
+  assert.doesNotMatch(nanoBanana?.aPlain ?? "", /каталоге на этой странице/);
+  assert.doesNotMatch(nanoBanana?.aPlain ?? "", /блоке моделей генератора/);
   for (const item of HOMEPAGE_FAQ) {
     assert.doesNotMatch(item.q, /промпт/i);
     assert.doesNotMatch(item.aPlain, /промпт/i);

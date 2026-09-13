@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { HOMEPAGE_SEO } from "./homepage-seo-copy";
+import { NANO_BANANA_PRO_SEO, NANO_BANANA_SEO } from "./nano-banana-seo-copy";
 import { resolveUrlToTags } from "./route-resolver";
 import { getSeoForRoute } from "./seo-templates";
 import {
@@ -88,6 +89,36 @@ test("listingHeadingImageAlt matches carousel H1/H2 rotation", () => {
   assert.match(
     listingHeadingImageAlt(11, slots, title) ?? "",
     /^Промты для ИИ фотосессии женские\. /,
+  );
+});
+
+test("nano banana hub and pro queue H1 then examples H2, not HowTo", () => {
+  const hub = headingAltSlotsFromSeo({
+    h1: NANO_BANANA_SEO.h1,
+    explorerTitle: NANO_BANANA_SEO.examplesTitle,
+  });
+  const pro = headingAltSlotsFromSeo({
+    h1: NANO_BANANA_PRO_SEO.h1,
+    explorerTitle: NANO_BANANA_PRO_SEO.examplesTitle,
+  });
+
+  assert.deepEqual(hub, [
+    "Промты для нано банана",
+    "Примеры фото Nano Banana",
+  ]);
+  assert.deepEqual(pro, [
+    "Nano Banana Pro (нано банана про)",
+    "Примеры фото Nano Banana Pro",
+  ]);
+  assert.equal(hub.includes(NANO_BANANA_SEO.howToTitle), false);
+  assert.equal(pro.includes(NANO_BANANA_PRO_SEO.howToTitle), false);
+  assert.match(
+    buildHeroCarouselImageAlt(0, hub, "Visual Hook: Портрет у окна"),
+    /^Промты для нано банана\. Портрет у окна/,
+  );
+  assert.match(
+    buildHeroCarouselImageAlt(1, hub, "Visual Hook: Портрет у окна"),
+    /^Примеры фото Nano Banana\. Портрет у окна/,
   );
 });
 

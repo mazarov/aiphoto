@@ -26,7 +26,7 @@ export const HOMEPAGE_SEO = {
   examplesIntro:
     "Промты для фото на русском с примерами результата: открой карточку, скопируй текст или повтори кадр со своим фото.",
   examplesIntroSecondary:
-    "Копируй промт бесплатно. Промты для нано банана, ChatGPT и Gemini — генерацию можно запустить здесь.",
+    "Копируй промт бесплатно. Генерацию можно запустить здесь — со своего фото или с нуля.",
   catalogCta: "Перейти в каталог",
   catalogHref: "/catalog",
   galleryTitle: "Идеи промтов для фото",
@@ -42,7 +42,7 @@ export type HomepageFaqItem = {
   aPlain: string;
 };
 
-/** Secondary intents — not Title, H1, gallery, HowTo. Nano Banana tail lives in intro + FAQ. */
+/** Secondary intents — not Title, H1, gallery, HowTo. Prompt-for-Nano-Banana sits in FAQ and points to /nano-banana. */
 export const HOMEPAGE_FAQ: HomepageFaqItem[] = [
   {
     id: "what",
@@ -84,6 +84,6 @@ export const HOMEPAGE_FAQ: HomepageFaqItem[] = [
     id: "nano-banana",
     q: "Где взять промты для нано банана?",
     aPlain:
-      "Промты для нано банана — в каталоге на этой странице. Скопируй промт или загрузи своё фото, чтобы повторить кадр в 1 клик. Те же тексты подходят для ChatGPT и Gemini. Nano Banana можно выбрать в блоке моделей генератора.",
+      "Промты для нано банана собраны на странице Nano Banana. Скопируй промт или загрузи своё фото и запусти кадр там.",
   },
 ];

@@ -79,24 +79,24 @@ function proPagePlainText(): string {
 
 test("hub keeps one key and CWS-safe snippet", () => {
   assert.equal(NANO_BANANA_PATH, "/nano-banana");
-  assert.equal(NANO_BANANA_SEO.h1, "Nano Banana (нано банана)");
+  assert.equal(NANO_BANANA_SEO.h1, "Промты для нано банана");
   assert.equal(
     NANO_BANANA_SEO.metaTitle,
-    "Nano Banana (нано банана) — нейросеть Google для фото"
+    "Промты для нано банана — готовые на русском"
   );
   assert.ok(NANO_BANANA_SEO.metaTitle.length <= 70);
-  assert.match(NANO_BANANA_SEO.metaTitle, /^Nano Banana/);
-  assert.doesNotMatch(NANO_BANANA_SEO.metaTitle, /Pro|промт|сделать фото ИИ/i);
+  assert.match(NANO_BANANA_SEO.metaTitle, /^Промты для нано банана/);
+  assert.doesNotMatch(NANO_BANANA_SEO.metaTitle, /Pro|сделать фото ИИ/i);
   assert.equal(
     NANO_BANANA_SEO.metaDescription,
-    "Nano Banana (нано банана) — нейросеть Google. Создайте фото или поправьте кадр своими словами. В России без VPN, оплата в рублях."
+    "Готовые промты для нано банана (Nano Banana) на русском. Скопируй текст или загрузи фото и собери кадр здесь — без VPN."
   );
-  assert.ok(NANO_BANANA_SEO.metaDescription.length <= 132);
+  assert.ok(NANO_BANANA_SEO.metaDescription.length <= 160);
   assert.ok(NANO_BANANA_SEO.metaDescription.length >= 80);
   assert.doesNotMatch(NANO_BANANA_SEO.metaTitle, BANNED_META);
   assert.doesNotMatch(NANO_BANANA_SEO.metaDescription, BANNED_META);
   assert.match(NANO_BANANA_SEO.intro, /без VPN/);
-  assert.match(NANO_BANANA_SEO.intro, /Google/);
+  assert.match(NANO_BANANA_SEO.intro, /Nano Banana/);
 });
 
 // Кириллическая ветка кластера — половина спроса (~78k clicks) и до этой
@@ -108,20 +108,20 @@ test("cyrillic branch of the cluster is covered", () => {
   assert.match(NANO_BANANA_SEO.h1, CYRILLIC);
   assert.match(NANO_BANANA_SEO.intro, CYRILLIC);
 
-  // Синонимы: «нейронка» и ru-интент.
-  assert.match(NANO_BANANA_SEO.intro, /нейронка/i);
   assert.match(
     NANO_BANANA_ACCESS_ITEMS.map((item) => item.text).join("\n"),
     /\(ru\)/i
   );
 
-  // H1 и Title сохраняют латиницу как основную форму ключа.
-  assert.match(NANO_BANANA_SEO.h1, /^Nano Banana/);
-  assert.match(NANO_BANANA_SEO.metaTitle, /^Nano Banana/);
+  assert.match(NANO_BANANA_SEO.h1, /^Промты для нано банана/);
+  assert.match(NANO_BANANA_SEO.metaTitle, /^Промты для нано банана/);
 });
 
-test("generator copy does not own prompt queries", () => {
-  assert.doesNotMatch(pagePlainText(), PROMPT_WORD);
+test("hub owns prompt-for-nano-banana and does not send people away", () => {
+  assert.match(NANO_BANANA_SEO.h1, /промты для нано банана/i);
+  assert.match(NANO_BANANA_SEO.metaTitle, /промты для нано банана/i);
+  assert.match(NANO_BANANA_SEO.metaDescription, /промты для нано банана/i);
+  assert.match(NANO_BANANA_SEO.intro, PROMPT_WORD);
   assert.doesNotMatch(pagePlainText(), SEND_AWAY);
   assert.equal(NANO_BANANA_HOW_TO_STEPS.length, 3);
   assert.equal(NANO_BANANA_HOW_TO_STEPS[1].title, "Опишите сцену или правку");
@@ -281,7 +281,7 @@ test("pro FAQ stays on-page and links the hub, not a /2 URL", () => {
 test("hub and pro pages split capabilities instead of repeating the same body", () => {
   assert.equal(NANO_BANANA_FEATURES.title, "Что умеет Nano Banana");
   assert.equal(NANO_BANANA_PRO_FEATURES.title, "Когда нужна Nano Banana Pro");
-  assert.match(NANO_BANANA_SEO.intro, /своими словами|точечная правка/i);
+  assert.match(NANO_BANANA_SEO.intro, /промты Nano Banana/i);
   assert.doesNotMatch(NANO_BANANA_SEO.metaDescription, /фотореализм|текст на кадр/i);
   assert.match(NANO_BANANA_PRO_SEO.intro, /фотореализм|свет/i);
   assert.doesNotMatch(NANO_BANANA_PRO_SEO.intro, /нейронка/i);

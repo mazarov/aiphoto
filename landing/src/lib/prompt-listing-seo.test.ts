@@ -6,6 +6,14 @@ import {
   buildPromptListingMetaDescription,
 } from "./prompt-listing-seo";
 import { getSeoForRoute } from "./seo-templates";
+import {
+  getSeoContent,
+  listSeoContentSlugs,
+  type SeoContent,
+} from "./seo-content";
+import { buildSeoContentFromTag } from "./seo-content-from-tag";
+import { TAG_REGISTRY } from "./tag-registry";
+import { TRENDS_FAQ, TRENDS_SEO, TRENDS_SEO_TEXT_BLOCKS } from "./trends-seo-copy";
 
 const FORBIDDEN_PHOTOSHOOT_TERMS = /ИИ фотосесс/i;
 const FORBIDDEN_EXTERNAL_CTA = /ChatGPT|Gemini|Nano Banana|вставь текст/i;
@@ -229,4 +237,57 @@ test("car L1 first screen stays on copy-or-Repeat CTA", () => {
     seo.popularLinks?.find((link) => link.label === "ИИ-фотосессия")?.href,
     "/ii-fotosessiya/s-mashinoy",
   );
+});
+
+const LISTING_BRAND_LEAK =
+  /Nano Banana|нано банана|ChatGPT|Gemini|открой Nano Banana/i;
+
+function flattenListingSeo(seo: SeoContent): string {
+  return [
+    seo.h1,
+    seo.metaTitle,
+    seo.metaDescription,
+    seo.intro,
+    seo.howToTitle,
+    seo.explorerTitle,
+    seo.explorerIntro,
+    ...(seo.howToSteps ?? []),
+    ...(seo.faqItems ?? []).flatMap((item) => [item.q, item.a]),
+    ...(seo.seoTextBlocks ?? []).flatMap((block) => [
+      block.h2,
+      ...block.paragraphs,
+    ]),
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+test("manual listing copy does not keep the Nano Banana brand", () => {
+  for (const slug of listSeoContentSlugs()) {
+    const seo = getSeoContent(slug);
+    assert.ok(seo, slug);
+    assert.doesNotMatch(flattenListingSeo(seo), LISTING_BRAND_LEAK, slug);
+    assert.doesNotMatch(flattenListingSeo(seo), FORBIDDEN_EXTERNAL_CTA, slug);
+  }
+});
+
+test("tag template and trends do not keep the Nano Banana brand", () => {
+  for (const tag of TAG_REGISTRY) {
+    assert.doesNotMatch(
+      flattenListingSeo(buildSeoContentFromTag(tag)),
+      LISTING_BRAND_LEAK,
+      tag.slug,
+    );
+  }
+  const trends = [
+    TRENDS_SEO.metaTitle,
+    TRENDS_SEO.metaDescription,
+    TRENDS_SEO.h1,
+    TRENDS_SEO.intro,
+    ...TRENDS_SEO.howToSteps,
+    ...TRENDS_FAQ.flatMap((item) => [item.q, item.a]),
+    ...TRENDS_SEO_TEXT_BLOCKS.flatMap((block) => [block.h2, ...block.paragraphs]),
+  ].join("\n");
+  assert.doesNotMatch(trends, LISTING_BRAND_LEAK);
+  assert.doesNotMatch(trends, FORBIDDEN_EXTERNAL_CTA);
 });

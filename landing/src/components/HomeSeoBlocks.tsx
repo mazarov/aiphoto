@@ -33,20 +33,11 @@ function FaqAnswer({ item }: { item: (typeof HOMEPAGE_FAQ)[number] }) {
     case "nano-banana":
       return (
         <>
-          Промты для нано банана — в{" "}
-          <Link href="/#katalog" className={linkClass}>
-            каталоге на этой странице
+          Промты для нано банана собраны на странице{" "}
+          <Link href="/nano-banana" className={linkClass}>
+            Nano Banana
           </Link>
-          . Скопируй промт или загрузи своё фото, чтобы повторить кадр в 1 клик.
-          Те же тексты подходят для ChatGPT и Gemini. Nano Banana можно выбрать
-          в{" "}
-          <Link
-            href="/generaciya-foto#generation-models-heading"
-            className={linkClass}
-          >
-            блоке моделей генератора
-          </Link>
-          .
+          . Скопируй промт или загрузи своё фото и запусти кадр там.
         </>
       );
     case "best":

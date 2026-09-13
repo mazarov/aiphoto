@@ -42,7 +42,28 @@ export type ExamplesExplorerLoadMore = {
   strict?: boolean;
 };
 
-type QuickFilter = (typeof GENERACIYA_FOTO_SCENARIOS)[number];
+type QuickFilter = {
+  label: string;
+  href: string;
+  dimension: string;
+  value: string;
+};
+
+function isSameQuickFilter(a: QuickFilter | null, b: QuickFilter): boolean {
+  return Boolean(a && a.dimension === b.dimension && a.value === b.value);
+}
+
+function quickFilterFromNavItem(
+  item: GeneraciyaFotoChipNavItem
+): QuickFilter | null {
+  if (item.kind !== "scenario" || !item.dimension || !item.value) return null;
+  return {
+    label: item.label,
+    href: item.href,
+    dimension: item.dimension,
+    value: item.value,
+  };
+}
 
 const SCENARIO_CHIP =
   "inline-flex min-h-9 items-center rounded-full border px-3.5 text-sm font-medium transition";
@@ -119,6 +140,7 @@ export function GeneraciyaFotoExamplesExplorer({
   scenarioNavigation,
   navigationAriaLabel,
   lockCardsToScenario = false,
+  filterChipsInPlace = false,
   restrictToInitialCards = false,
   loadMoreListing,
 }: {
@@ -131,6 +153,8 @@ export function GeneraciyaFotoExamplesExplorer({
   scenarioNavigation?: GeneraciyaFotoChipNavItem[];
   navigationAriaLabel?: string;
   lockCardsToScenario?: boolean;
+  /** Like homepage chips: click filters the gallery, href stays for crawlers. */
+  filterChipsInPlace?: boolean;
   restrictToInitialCards?: boolean;
   loadMoreListing?: ExamplesExplorerLoadMore;
 }) {
@@ -156,6 +180,7 @@ export function GeneraciyaFotoExamplesExplorer({
   const [error, setError] = useState("");
   const usesScenarioNavigation = Boolean(scenarioNavigation?.length);
   const lockedToScenario = usesScenarioNavigation && lockCardsToScenario;
+  const chipsFilterInPlace = usesScenarioNavigation && filterChipsInPlace;
   const inlineLoadMore = Boolean(loadMoreListing);
   const rankedOffsetRef = useRef(loadMoreListing?.initialRankedBatchSize ?? 0);
   const totalCountRef = useRef(loadMoreListing?.totalCount ?? 0);
@@ -543,46 +568,98 @@ export function GeneraciyaFotoExamplesExplorer({
           className="mt-3 flex flex-wrap gap-2"
           aria-label={
             navigationAriaLabel ??
-            (usesScenarioNavigation
-              ? "Другие генераторы фото"
-              : "Быстрые подборки промтов")
+            (chipsFilterInPlace
+              ? "Категории промтов"
+              : usesScenarioNavigation
+                ? "Другие генераторы фото"
+                : "Быстрые подборки промтов")
           }
         >
           {usesScenarioNavigation
-            ? scenarioNavigation!.map((item) =>
-                item.kind === "hub" ? (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    scroll={LISTING_SHELL_LINK_SCROLL}
-                    aria-current={item.active ? "page" : undefined}
-                    aria-label={GENERACIYA_FOTO_SEO.chipHubAria}
-                    className={`${HUB_CHIP} ${
-                      item.active ? HUB_CHIP_ACTIVE : HUB_CHIP_IDLE
-                    }`}
-                  >
-                    <HubChipIcon back={!item.active} />
-                    {item.label}
-                  </Link>
-                ) : (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    scroll={LISTING_SHELL_LINK_SCROLL}
-                    aria-current={item.active ? "page" : undefined}
-                    className={`${SCENARIO_CHIP} ${
-                      item.active ? SCENARIO_CHIP_ACTIVE : SCENARIO_CHIP_IDLE
-                    }`}
-                  >
-                    {item.label}
-                  </Link>
-                )
+            ? (
+                <>
+                  {chipsFilterInPlace ? (
+                    <button
+                      type="button"
+                      aria-pressed={!activeFilter}
+                      onClick={() => {
+                        setQuery("");
+                        setActiveFilter(null);
+                      }}
+                      className={`${SCENARIO_CHIP} ${
+                        !activeFilter ? SCENARIO_CHIP_ACTIVE : SCENARIO_CHIP_IDLE
+                      }`}
+                    >
+                      Все
+                    </button>
+                  ) : null}
+                  {scenarioNavigation!.map((item) => {
+                    if (item.kind === "hub") {
+                      return (
+                        <Link
+                          key={item.href}
+                          href={item.href}
+                          scroll={LISTING_SHELL_LINK_SCROLL}
+                          aria-current={item.active ? "page" : undefined}
+                          aria-label={GENERACIYA_FOTO_SEO.chipHubAria}
+                          className={`${HUB_CHIP} ${
+                            item.active ? HUB_CHIP_ACTIVE : HUB_CHIP_IDLE
+                          }`}
+                        >
+                          <HubChipIcon back={!item.active} />
+                          {item.label}
+                        </Link>
+                      );
+                    }
+
+                    const navFilter = quickFilterFromNavItem(item);
+                    const active = chipsFilterInPlace
+                      ? Boolean(navFilter && isSameQuickFilter(activeFilter, navFilter))
+                      : item.active;
+
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        scroll={LISTING_SHELL_LINK_SCROLL}
+                        aria-current={
+                          chipsFilterInPlace
+                            ? active
+                              ? "true"
+                              : undefined
+                            : item.active
+                              ? "page"
+                              : undefined
+                        }
+                        onClick={
+                          chipsFilterInPlace
+                            ? (event) => {
+                                if (!navFilter) return;
+                                event.preventDefault();
+                                setQuery("");
+                                setActiveFilter((current) =>
+                                  isSameQuickFilter(current, navFilter)
+                                    ? null
+                                    : navFilter
+                                );
+                              }
+                            : undefined
+                        }
+                        className={`${SCENARIO_CHIP} ${
+                          active ? SCENARIO_CHIP_ACTIVE : SCENARIO_CHIP_IDLE
+                        }`}
+                      >
+                        {item.label}
+                      </Link>
+                    );
+                  })}
+                </>
               )
             : GENERACIYA_FOTO_SCENARIOS.map((filter) => {
-                const active = activeFilter?.value === filter.value;
+                const active = isSameQuickFilter(activeFilter, filter);
                 return (
                   <Link
-                    key={filter.value}
+                    key={`${filter.dimension}:${filter.value}`}
                     href={filter.href}
                     scroll={LISTING_SHELL_LINK_SCROLL}
                     aria-current={active ? "true" : undefined}

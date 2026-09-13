@@ -13,6 +13,8 @@ test("hub chip nav is scenarios only", () => {
   assert.equal(hub.some((item) => item.kind === "hub"), false);
   assert.equal(hub[0].kind, "scenario");
   assert.equal(hub[0].href, "/generaciya-foto/pary");
+  assert.equal(hub[0].dimension, "audience_tag");
+  assert.equal(hub[0].value, "para");
   assert.deepEqual(
     hub.map((item) => item.href),
     GENERACIYA_FOTO_SCENARIO_ROUTES.map(

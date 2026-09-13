@@ -1,5 +1,11 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-09-13 (**`/nano-banana` hero img alt:** карусель на хабе и `/pro` крутит H1 + `examplesTitle` + хук карточки (`headingAltSlotsFromSeo`). Копия marquee `b` пустая. HowTo/FAQ не в очереди. `/generaciya-foto` hero слоты по-прежнему не передаёт.)
+>
+> Последнее обновление: 2026-09-13 (**`/nano-banana` чипы примеров:** в `#primery` клик чипа фильтрует галерею на месте (`filterChipsInPlace`), как на главной. `href` на `/generaciya-foto/*` остаётся для краулера. `/generaciya-foto` и сценарии по-прежнему ведут на свои URL.)
+>
+> Последнее обновление: 2026-09-13 (**`/nano-banana` — промты для нано банана:** Title/H1/description/hero держат exact. Главная отпускает ключ, FAQ ведёт на хаб. Сайдбар: «Нано банана». Листинги без бренда модели в Title/FAQ/HowTo. SSOT `nano-banana-seo-copy.ts`.)
+>
 > Последнее обновление: 2026-09-13 (**хаб `/promty-dlya-foto-par` — ретаргет под ИИ фотосессию:** Title/H1 `Промты для ИИ фотосессии пары` + `800+ готовых промтов на русском`; description — та же лемма + «нейросети»; intro — «парной фотосессии» + скопировать промт / два фото. Explorer H2: `Промт для нейросети для фотосессии пары` (без «найдите свой сюжет»). «С парнем» — только FAQ и чип, не Title/description.)
 >
 > Последнее обновление: 2026-09-11 (**photoshoot compose example:** клик «Фотосессии» в пустой модалке показывает цикл 1 фото → 4 кадра (`ComposeToolGuide`). Каталог `/p/photoshoot-plannertemperature200-four-frame-contact-sheet-from-the-attached-phot-c0b56`: исходник `/generate/photoshoot-example-source.jpg`, тайлы `photoshoot-example-1.jpg`…`-4.jpg`. Флаг `photoshoot_compose_example_enabled` (SQL `253`, default `false`). Выкл — тот же цикл на гайдовом портрете. SSOT `photoshoot-compose-example.ts`.)

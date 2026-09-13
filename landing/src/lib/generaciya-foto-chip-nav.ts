@@ -11,6 +11,8 @@ export type GeneraciyaFotoChipNavItem = {
   href: string;
   kind: "hub" | "scenario";
   active: boolean;
+  dimension?: string;
+  value?: string;
 };
 
 /** On a scenario page: hub chip first, then the 22 pages. On the hub: scenarios only. */
@@ -22,6 +24,8 @@ export function getGeneraciyaFotoChipNavigation(
     href: getGeneraciyaFotoScenarioPath(route.slug),
     kind: "scenario" as const,
     active: route.slug === activeSlug,
+    dimension: route.dimension,
+    value: route.tagValue,
   }));
   if (activeSlug == null) return scenarios;
   return [
