@@ -1,5 +1,7 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-09-13 (**`isPromptshotAuthed` type predicate:** `promptshot-auth.ts` сужает `User | null` — `SidebarAccountPanel` читает `user.user_metadata` без `!` / optional после `if (!isPromptshotAuthed(user))`. `canShowPayChrome` — тот же guard.)
+>
 > Последнее обновление: 2026-09-13 (**header spacer ≠ overlay height:** `--ps-header-spacer` = развёрнутая шапка, не сжимается с лого. `--ps-header-height` = текущий overlay (карточка + padding, cap 168). ResizeObserver abspos-шапки не пишет 100vh в спейсер — иначе белая дыра на весь скролл `PageLayout`.)
 >
 > Последнее обновление: 2026-09-13 (**page search → header:** на max-lg in-page `ListingExplorerSearch` — прокси: `readOnly`, pointerdown/focus/click → `scheduleFocusListingHeaderSearch` (sync + rAF, клик иначе возвращает фокус в поле страницы). Живой input только `#listing-mobile-header-search`. `/search` explorer скрыт (`max-lg:hidden`). Desktop без изменений.)

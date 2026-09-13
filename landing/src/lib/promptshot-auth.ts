@@ -1,8 +1,16 @@
-/** Supabase user as the landing chrome sees it. */
-export type PromptshotAuthUser = { is_anonymous?: boolean } | null | undefined;
+/** Duck type: Supabase `User` and test stubs. */
+export type PromptshotAuthIdentity = { is_anonymous?: boolean };
 
-/** Signed-in PromptShot account — not missing, not a Supabase anonymous session. */
-export function isPromptshotAuthed(user: PromptshotAuthUser): boolean {
+/** Supabase user as the landing chrome sees it. */
+export type PromptshotAuthUser = PromptshotAuthIdentity | null | undefined;
+
+/**
+ * Signed-in PromptShot account — not missing, not a Supabase anonymous session.
+ * Type predicate: after `if (!isPromptshotAuthed(user)) return`, `user` is `T`.
+ */
+export function isPromptshotAuthed<T extends PromptshotAuthIdentity>(
+  user: T | null | undefined,
+): user is T {
   return Boolean(user && user.is_anonymous !== true);
 }
 
@@ -12,7 +20,9 @@ export function isPromptshotAuthed(user: PromptshotAuthUser): boolean {
  * Guests do not get that chrome. Public `/pricing` stays; guest header
  * trailing slot is «Тарифы» (`listingHeaderTrailingKind`).
  */
-export function canShowPayChrome(user: PromptshotAuthUser): boolean {
+export function canShowPayChrome<T extends PromptshotAuthIdentity>(
+  user: T | null | undefined,
+): user is T {
   return isPromptshotAuthed(user);
 }
 

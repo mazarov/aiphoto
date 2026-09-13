@@ -17,6 +17,17 @@ test("signed-in user is PromptShot-authed", () => {
   assert.equal(isPromptshotAuthed({ is_anonymous: false }), true);
 });
 
+test("isPromptshotAuthed narrows null away for callers", () => {
+  const user: { is_anonymous?: boolean; email?: string } | null = {
+    is_anonymous: false,
+    email: "a@b.c",
+  };
+  if (!isPromptshotAuthed(user)) {
+    assert.fail("expected signed-in user");
+  }
+  assert.equal(user.email, "a@b.c");
+});
+
 test("pay chrome is only for signed-in users", () => {
   assert.equal(canShowPayChrome(null), false);
   assert.equal(canShowPayChrome({ is_anonymous: true }), false);
