@@ -58,8 +58,8 @@ test("catalog hubs queue H1 then explorer H2, not HowTo", () => {
     "Промты для фото мужчины",
     "Промты для ИИ фотосессии мужские",
   ]);
-  assert.equal(pairsSlots[0], "Промты для парных фото");
-  assert.match(pairsSlots[1] ?? "", /парной фотосессии/i);
+  assert.equal(pairsSlots[0], "Промты для ИИ фотосессии пары");
+  assert.equal(pairsSlots[1], "Промт для нейросети для фотосессии пары");
   assert.equal(girlsSlots.includes(getSeoForRoute(girls).howToTitle ?? ""), false);
 });
 

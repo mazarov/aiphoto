@@ -121,33 +121,42 @@ test("men hub keeps H1 and explorer photoshoot lemmas apart", () => {
   assert.doesNotMatch(copy, /не описывай лицо|не описывайте лицо/i);
 });
 
-test("pairs hub targets с-парнем without repeating it across every block", () => {
+test("pairs hub targets ИИ фотосессии пары in head and нейросеть in explorer", () => {
   const route = resolveUrlToTags(["promty-dlya-foto-par"]);
   assert.ok(route);
 
   const seo = getSeoForRoute(route);
-  const headline = "Промты для парных фото";
-  const title = "Промты для фото с парнем и парных фото — 800+ идей";
+  const headline = "Промты для ИИ фотосессии пары";
+  const title = "Промты для ИИ фотосессии пары — 800+ готовых промтов на русском";
   const copy = `${seo.h1} ${seo.metaTitle} ${seo.metaDescription} ${seo.intro}`;
   assert.equal(seo.h1, headline);
   assert.equal(seo.metaTitle, title);
   assert.match(copy, /800\+/);
-  // Крупнейший пул показов кластера остаётся в сниппете, но широкий H1
-  // и служебные блоки не повторяют exact-match механически.
+  assert.match(copy, /готов/i);
+  assert.match(copy, /русск/i);
+  assert.match(copy, /нейросет/i);
+  assert.match(seo.h1, /ии фотосессии пары/i);
+  assert.match(seo.metaTitle, /ии фотосессии пары/i);
+  assert.match(seo.metaDescription, /ии фотосессии пары/i);
+  assert.match(seo.intro, /парной фотосессии/i);
+  assert.doesNotMatch(seo.intro, /ии фотосессии пары/i);
   assert.doesNotMatch(seo.h1, /с парнем/i);
-  assert.match(seo.metaTitle, /с парнем/i);
-  assert.match(seo.metaDescription, /с парнем/i);
-  assert.match(copy, /парных фото/i);
-  assert.match(seo.intro, /фото пары/i);
-  assert.doesNotMatch(seo.intro, /парной фотосессии/i);
-  assert.equal(
-    seo.explorerTitle,
-    "Промт для парной фотосессии: найдите свой сюжет",
+  assert.doesNotMatch(seo.metaTitle, /с парнем/i);
+  assert.doesNotMatch(seo.metaDescription, /с парнем/i);
+  assert.doesNotMatch(copy, /скопируйте текст/i);
+  assert.doesNotMatch(copy, /снимк/i);
+  assert.match(seo.intro, /скопируйте промт для нейросети или загрузите два фото/i);
+  assert.match(
+    seo.metaDescription,
+    /скопируйте промт для нейросети или загрузите два фото/i,
   );
+  assert.equal(seo.explorerTitle, "Промт для нейросети для фотосессии пары");
+  assert.doesNotMatch(seo.explorerTitle ?? "", /найдите свой сюжет/i);
   assert.match(seo.explorerIntro ?? "", /промты для парной фотосессии с ИИ/i);
+  assert.match(seo.explorerIntro ?? "", /скопировать промт/i);
+  assert.doesNotMatch(seo.explorerIntro ?? "", /скопировать текст/i);
   assert.doesNotMatch(seo.intro, /с парнем/i);
   assert.doesNotMatch(seo.howToSteps.join(" "), /с парнем/i);
-  // Ссылка на серию луков переехала в generate-CTA страницы, не в popularLinks.
   assert.equal(seo.popularLinks?.length ?? 0, 0);
   assert.equal(seo.seoTextBlocks?.length ?? 0, 0);
   assert.ok(seo.faqItems.some((item) => /промт для фото с парнем/i.test(item.q)));

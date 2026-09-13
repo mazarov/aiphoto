@@ -201,7 +201,7 @@ test("catalog audience L1 keeps кадр key and does not claim photoshoot queri
   assert.equal(men?.h1, "Промты для фото мужчины");
   assert.equal(
     couples?.h1,
-    "Промты для парных фото",
+    "Промты для ИИ фотосессии пары",
   );
   assert.equal(family?.h1, "Промты для семейного фото");
   assert.equal(kids?.h1, "Промты для детских фото");
