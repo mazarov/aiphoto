@@ -27,6 +27,12 @@ const SIZE_STYLES = {
     iconSize: "h-[18px] w-[18px]",
     rounded: "rounded-xl",
   },
+  toolbar: {
+    field: "py-2 pl-10 text-[16px]",
+    icon: "left-3",
+    iconSize: "h-4 w-4",
+    rounded: "rounded-2xl",
+  },
   hero: {
     field: "py-3.5 pl-12 text-base sm:text-[17px]",
     icon: "left-4",
@@ -53,6 +59,12 @@ const ACCENT_STYLES = {
     shell: "listing-search-compact-shell rounded-xl transition-[box-shadow]",
     field:
       "listing-search-input border-0 bg-white/82 text-zinc-900 placeholder:text-indigo-400/70 placeholder:font-normal shadow-sm shadow-indigo-500/[0.08] backdrop-blur-xl transition-[background,color] focus:border-0 focus:bg-white focus:text-zinc-900 focus:outline-none focus:ring-0 focus:shadow-none",
+    icon: "text-indigo-500",
+  },
+  headerBar: {
+    shell: "",
+    field:
+      "listing-search-input border border-indigo-100/90 bg-white/92 text-zinc-900 placeholder:text-indigo-400/70 placeholder:font-normal shadow-sm shadow-indigo-500/[0.08] transition-[background,box-shadow,border-color] focus:border-indigo-200 focus:bg-white focus:text-zinc-900 focus:outline-none focus:ring-0 focus:shadow-md focus:shadow-indigo-500/[0.12]",
     icon: "text-indigo-500",
   },
 } as const;
@@ -85,6 +97,8 @@ type Props = {
   mobileSearch?: boolean;
   autoComplete?: string;
   autoFocus?: boolean;
+  id?: string;
+  ariaLabel?: string;
   className?: string;
 };
 
@@ -107,6 +121,8 @@ export function ListingSearchField({
   mobileSearch = false,
   autoComplete = "off",
   autoFocus,
+  id,
+  ariaLabel,
   className = "",
 }: Props) {
   const styles = SIZE_STYLES[size];
@@ -162,6 +178,7 @@ export function ListingSearchField({
         <ListingSearchIcon className={styles.iconSize} />
       </span>
       <input
+        id={id}
         ref={inputRef}
         type={mobileSearch ? "search" : "text"}
         value={value}
@@ -170,6 +187,7 @@ export function ListingSearchField({
         onFocus={onFocus}
         onBlur={onBlur}
         placeholder={placeholder}
+        aria-label={ariaLabel}
         enterKeyHint={enterKeyHint}
         inputMode={inputMode ?? (mobileSearch ? "search" : undefined)}
         readOnly={readOnly}

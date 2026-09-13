@@ -68,6 +68,7 @@ export function PageLayout({
       if (!mq.matches) {
         document.documentElement.style.removeProperty("--ps-listing-shell-height");
         document.documentElement.style.removeProperty("--ps-header-height");
+        document.documentElement.style.removeProperty("--ps-header-spacer");
       }
     };
     sync();

@@ -2,18 +2,22 @@
 
 import { useLayoutEffect, useRef, type RefObject } from "react";
 import { usePathname } from "next/navigation";
+import {
+  listingChromeLogoRowHidden,
+  listingMobileLogoVisible,
+} from "@/lib/listing-header-offset";
 import { getListingScrollRoot } from "@/lib/scroll-preservation";
 import { isListingShellKeyboardFrozen } from "@/lib/listing-shell-viewport";
 import { LISTING_MOBILE_MQ } from "@/hooks/useListingIsMobile";
 
-/** Accumulated down-scroll before chrome hides (Ozon-like). */
+/** Accumulated down-scroll before the tab bar hides (Ozon-like). */
 const HIDE_DELTA_PX = 24;
-/** Accumulated up-scroll before chrome shows — much smaller than hide. */
+/** Accumulated up-scroll before the tab bar shows — much smaller than hide. */
 const SHOW_DELTA_PX = 4;
-const SHOW_TOP_PX = 16;
 /** Ignore sub-pixel / finger wobble as a direction change. */
 const DIRECTION_PX = 1;
 const HIDDEN_CLASS = "listing-chrome-hidden";
+const LOGO_HIDDEN_CLASS = "listing-chrome-logo-hidden";
 
 type Controller = {
   shell: HTMLElement;
@@ -44,8 +48,16 @@ function isLocked() {
 function applyHiddenClass() {
   const c = controller;
   if (!c) return;
-  const shouldHide = c.hidden && c.mq.matches && !isLocked();
-  c.shell.classList.toggle(HIDDEN_CLASS, shouldHide);
+  const mobile = c.mq.matches;
+  const locked = isLocked();
+  c.shell.classList.toggle(
+    LOGO_HIDDEN_CLASS,
+    listingChromeLogoRowHidden({
+      isMobile: mobile,
+      scrollTop: readScrollTop(c.root),
+    }),
+  );
+  c.shell.classList.toggle(HIDDEN_CLASS, Boolean(c.hidden && mobile && !locked));
 }
 
 function setHidden(next: boolean) {
@@ -82,9 +94,10 @@ function tickScroll() {
   const y = readScrollTop(c.root);
   const delta = y - c.lastY;
   c.lastY = y;
-  if (y < SHOW_TOP_PX) {
+  if (listingMobileLogoVisible(y)) {
     c.acc = 0;
-    setHidden(false);
+    c.hidden = false;
+    applyHiddenClass();
     return;
   }
   if (Math.abs(delta) >= DIRECTION_PX) {
@@ -95,11 +108,12 @@ function tickScroll() {
   c.acc += delta;
   if (c.acc >= HIDE_DELTA_PX) {
     c.acc = 0;
-    setHidden(true);
+    c.hidden = true;
   } else if (c.acc <= -SHOW_DELTA_PX) {
     c.acc = 0;
-    setHidden(false);
+    c.hidden = false;
   }
+  applyHiddenClass();
 }
 
 function scheduleScrollTick() {
@@ -147,6 +161,7 @@ function detachListingChromeAutoHide() {
   c.root.removeEventListener("scroll", c.onScroll);
   c.mq.removeEventListener("change", c.onMqChange);
   c.shell.classList.remove(HIDDEN_CLASS);
+  c.shell.classList.remove(LOGO_HIDDEN_CLASS);
   controller = null;
 }
 
@@ -183,10 +198,11 @@ function resetListingChromeAutoHide() {
 }
 
 /**
- * Hide listing header + tab bar on scroll down; show on reverse / near top.
- * Accumulated displacement (not per-frame): hide after ~24px down, show after ~4px up.
- * Toggles `.listing-chrome-hidden` on the shell node (no React state / grid commit).
- * Blocked by search/profile sheets, generate dock, and keyboard freeze.
+ * Logo row: only at the very top (`listingChromeLogoRowHidden` → `.listing-chrome-logo-hidden`).
+ * Holds lock the tab bar, not the logo.
+ * Tab bar: hide after ~24px down, show after ~4px up (`.listing-chrome-hidden`).
+ * Header wash stays pinned. No React state / grid commit.
+ * Tab-bar hide blocked by header search focus, search/profile sheets, generate dock, and keyboard freeze.
  */
 export function useListingChromeAutoHide(): RefObject<HTMLDivElement | null> {
   const pathname = usePathname();

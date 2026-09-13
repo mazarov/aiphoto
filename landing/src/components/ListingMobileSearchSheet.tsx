@@ -2,6 +2,7 @@
 
 import { useEffect, useLayoutEffect, useRef, type KeyboardEvent as ReactKeyboardEvent, type RefObject } from "react";
 import { createPortal } from "react-dom";
+import { focusMobileSearchInput } from "@/lib/listing-mobile-search-focus";
 import { ListingSearchField } from "./ListingSearchField";
 import { ListingChromeButton, ListingFilterIcon } from "./ListingChromeButton";
 import type { SearchMobileRegistration } from "@/context/ListingMobileChromeContext";
@@ -15,16 +16,7 @@ type Props = {
   inputRef?: RefObject<HTMLInputElement | null>;
 };
 
-export function focusMobileSearchInput(input: HTMLInputElement | null | undefined) {
-  if (!input) return;
-  input.focus({ preventScroll: true });
-  try {
-    const len = input.value.length;
-    input.setSelectionRange(len, len);
-  } catch {
-    // detached or unsupported input type
-  }
-}
+export { focusMobileSearchInput } from "@/lib/listing-mobile-search-focus";
 
 export function ListingMobileSearchSheet({
   open,

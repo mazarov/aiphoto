@@ -1,5 +1,21 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-09-13 (**header spacer ≠ overlay height:** `--ps-header-spacer` = развёрнутая шапка, не сжимается с лого. `--ps-header-height` = текущий overlay (карточка + padding, cap 168). ResizeObserver abspos-шапки не пишет 100vh в спейсер — иначе белая дыра на весь скролл `PageLayout`.)
+>
+> Последнее обновление: 2026-09-13 (**page search → header:** на max-lg in-page `ListingExplorerSearch` — прокси: `readOnly`, pointerdown/focus/click → `scheduleFocusListingHeaderSearch` (sync + rAF, клик иначе возвращает фокус в поле страницы). Живой input только `#listing-mobile-header-search`. `/search` explorer скрыт (`max-lg:hidden`). Desktop без изменений.)
+>
+> Последнее обновление: 2026-09-13 (**header = listing column:** плашка шапки и explorer делят `--ps-listing-gutter` / `LISTING_MOBILE_GUTTER_PX` = 8 (`px-2`). `listingMobileColumnWidthPx`.)
+>
+> Последнее обновление: 2026-09-13 (**collapsed logo stays collapsed:** `.listing-chrome-logo-hidden` / `listingChromeLogoRowHidden` — только скролл + mobile. Hold бургера, фокуса поиска, sheets, generate dock не разворачивает лого.)
+>
+> Последнее обновление: 2026-09-13 (**guest header «Тарифы»:** после поиска у гостя `HeaderGuestTariffsLink` → оверлей `/pricing` (`listingHeaderTrailingKind`). Авторизованный — `HeaderBalancePayChip`. Слот всегда третий в сетке.)
+>
+> Последнее обновление: 2026-09-13 (**mobile header card:** шапка — карточка с gutter 0.75rem, не на всю ширину. Indigo wash на карточке, не меняется при скролле. Лого над поиском, `.listing-chrome-logo-hidden` только у самого верха (`listingMobileLogoVisible`). Поле `rounded-2xl` как CTA «Создать фото». Таббар по-прежнему `.listing-chrome-hidden`.)
+>
+> Последнее обновление: 2026-09-13 (**guest pay chrome:** гость не видит кнопку цены — `HeaderBalancePayChip` сам `null` (`canShowPayChrome` / `promptshot-auth.ts`). ✦ на карточках модели тоже только у авторизованного. Footer «Тарифы» и `/pricing` публичные. Шапка: indigo lift, без слота кредитов.)
+>
+> Последнее обновление: 2026-09-13 (**mobile header search:** на max-lg все экраны `PageLayout` — две строки: бургер / поле / кредиты + логотип по центру. Скролл вниз (`.listing-chrome-hidden`) прячет только лого под поле; поиск остаётся. Тап фокусит `#listing-mobile-header-search` (Enter → `/search?q=`). На `/search` explorer-поле скрыто на мобилке. `/p/[slug]` immersive без шапки. SSOT `HeaderClient` + `listing-header-offset.ts`.)
+>
 > Последнее обновление: 2026-09-13 (**`/nano-banana` hero img alt:** карусель на хабе и `/pro` крутит H1 + `examplesTitle` + хук карточки (`headingAltSlotsFromSeo`). Копия marquee `b` пустая. HowTo/FAQ не в очереди. `/generaciya-foto` hero слоты по-прежнему не передаёт.)
 >
 > Последнее обновление: 2026-09-13 (**`/nano-banana` чипы примеров:** в `#primery` клик чипа фильтрует галерею на месте (`filterChipsInPlace`), как на главной. `href` на `/generaciya-foto/*` остаётся для краулера. `/generaciya-foto` и сценарии по-прежнему ведут на свои URL.)
@@ -1618,7 +1634,7 @@ SearchResults (client, infinite scroll)
 
 | Компонент | Файл | Роль |
 |-----------|------|------|
-| PageLayout | `components/PageLayout.tsx` | Клиентский shell: `listing-mobile-shell` + `#listing-scroll-root`; моб. высота через `--ps-listing-shell-height` (`listing-shell-viewport.ts`: только `innerHeight`, freeze на фокусе поля; `.listing-shell-root` `fixed` top-0); hide-on-scroll шапки/таббара (`.listing-chrome-hidden` через DOM/rAF, без React state); in-flow `listing-header-flow-spacer` + `ListingBottomBar`; **`useListingScrollOnRouteChange(pathname)`** — сброс скролла при смене маршрута. На `/admin` и `/admin/*` продуктовый chrome выключен: нет Footer / MobileTabBar / ListingBottomBar и нет `tabbar-reserve` padding |
+| PageLayout | `components/PageLayout.tsx` | Клиентский shell: `listing-mobile-shell` + `#listing-scroll-root`; моб. высота через `--ps-listing-shell-height` (`listing-shell-viewport.ts`: только `innerHeight`, freeze на фокусе поля; `.listing-shell-root` `fixed` top-0); лого только у верха (`.listing-chrome-logo-hidden` / `listingChromeLogoRowHidden` — hold не разворачивает); таббар — `.listing-chrome-hidden` (DOM/rAF, без React state; поле поиска остаётся); in-flow `listing-header-flow-spacer` = `--ps-header-spacer` (развёрнутая шапка, не live collapse); overlay `--ps-header-height` с cap 168; `ListingBottomBar`; **`useListingScrollOnRouteChange(pathname)`** — сброс скролла при смене маршрута. На `/admin` и `/admin/*` продуктовый chrome выключен: нет Footer / MobileTabBar / ListingBottomBar и нет `tabbar-reserve` padding |
 | Header | `components/Header.tsx` | Legacy серверный (заменён PageLayout) |
 | Footer | `components/Footer.tsx` | Статический |
 | CardPage | `app/p/[slug]/page.tsx` | Серверный, SSR карточки |
@@ -1627,8 +1643,9 @@ SearchResults (client, infinite scroll)
 
 | Компонент | Файл | Роль |
 |-----------|------|------|
-| HeaderClient | `components/HeaderClient.tsx` | Mobile sticky header: бургер категорий слева \| логотип \| у авторизованного `HeaderBalancePayChip` (баланс + «+»). На desktop не рендерит визуальный chrome |
-| HeaderBalancePayChip | `components/AccountControls.tsx` | Split-pill шапки: кредиты + CTA «+» → `PricingEntryLink` (оверлей `/pricing`). `aria-label` — «пополнить». Тот же кэш `GET /api/me`, что sidebar |
+| HeaderClient | `components/HeaderClient.tsx` | Mobile floating card: ширина = колонка листинга (`--ps-listing-gutter` / `px-2`). Лого над поиском, затем бургер / поле / trailing (`listingHeaderTrailingKind`: гость «Тарифы», авторизованный `HeaderBalancePayChip`). Wash на карточке не уезжает. `.listing-chrome-logo-hidden` — лого только у верха ленты; фокус поиска / бургер не разворачивают. Высота: карточка + padding (`listingHeaderOverlayHeightPx`), не borderBox abspos-wrapper. На desktop не рендерит визуальный chrome |
+| HeaderBalancePayChip | `components/AccountControls.tsx` | Split-pill шапки: кредиты + CTA «+» → `PricingEntryLink`. Гость / anonymous — `null` (`canShowPayChrome`). `aria-label` — «пополнить». Тот же кэш `GET /api/me`, что sidebar |
+| HeaderGuestTariffsLink | `components/AccountControls.tsx` | Гостевой слот после поиска: «Тарифы» → тот же `PricingEntryLink` / оверлей. Авторизованный — `null` |
 | PricingModalContext | `context/PricingModalContext.tsx` | SSOT оверлея тарифов: `open` → save origin + pushState `/pricing`, `close` → back (валидный `onClick`), `closeWithoutHistory` перед YooKassa, `popstate` снимает модалку; на hard `/pricing` `open` no-op |
 | ClientPricingModal | `components/ClientPricingModal.tsx` | Overlay тарифов (`z-[260]`); в root layout через `DeferredAppOverlays` — чанк грузится при `open` |
 | DeferredAppOverlays | `components/DeferredAppOverlays.tsx` | Lazy card/pricing/auth/STV/generate/foto portals; не в first-load JS |
@@ -1638,7 +1655,7 @@ SearchResults (client, infinite scroll)
 | SidebarAccountPanel | `components/AccountControls.tsx` | Account-блок: для гостя — Google / Яндекс (`OAuthSignInButtons`); для пользователя — профиль, кредиты, «Пополнить», избранное, генерации, анализы и выход. Desktop sidebar всегда; mobile — в `MobileProfileSheet` с `showBalance` |
 | SiteBrandLink | `components/SiteBrandLink.tsx` | Общий home-link бренда; mobile — в header; desktop listings — в начале `SidebarNav` (`markSize=24`); на `/p/[slug]` не рендерится |
 | ListingExplorerFrame | `components/ListingExplorerFrame.tsx` | Общая рамка блока как на главной (градиент, скругление) |
-| ListingExplorerSearch | `components/ListingExplorerSearch.tsx` | Поле поиска + SEO-заголовок/intro внутри рамки |
+| ListingExplorerSearch | `components/ListingExplorerSearch.tsx` | Поле поиска в рамке. max-lg: `readOnly` + прокси в `#listing-mobile-header-search` (`shouldProxyPageSearchToHeaderSearch`, `scheduleFocusListingHeaderSearch`). Desktop — живой input. |
 | ListingMasonry | `components/ListingMasonry.tsx` | SSOT CSS-columns сетки промтов (`columns-2/3/4`) + skeleton |
 | StableListingMasonry | `components/StableListingMasonry.tsx` | Infinite masonry: детерминированные 2/3/4 lanes без reflow prefix и дыр между порциями. Query container и `height: *cqw` — разные узлы (`.stable-listing-masonry` / `.stable-listing-masonry-canvas`) |
 | ListingPhotoTile | `components/ListingPhotoTile.tsx` | Плитка листинга: первое фото, живой aspect, клик → модалка |
@@ -1662,7 +1679,7 @@ SearchResults (client, infinite scroll)
 | GenerateListingDockHost | `components/generate/GenerateListingDockHost.tsx` | Плавающий composer на allowlist листингов (treatment); collapse FAB для гостя / при скролле. `plateOpen` блокирует autohide через `setListingChromeAutoHideBlocked` (без ререндера `PageLayout`). |
 | GenerationResultBackdrop | `components/generate/GenerationResultBackdrop.tsx` | Фон result: pixelate previous → reveal next (CSS); shared dock/card. |
 | useListingScrollActivity | `hooks/useListingScrollActivity.ts` | Скролл листинга с опциональным `minDeltaPx` (dock collapse только после заметного сдвига). |
-| useListingChromeAutoHide | `hooks/useListingChromeAutoHide.ts` | Hide-on-scroll: classList на `.listing-shell-root`, rAF; накопленный сдвиг (Ozon): hide ≥24px вниз, show ≥4px вверх / верх ленты; hold при search/profile sheet; fail-open |
+| useListingChromeAutoHide | `hooks/useListingChromeAutoHide.ts` | Hide-on-scroll: classList на `.listing-shell-root`, rAF; лого — `listingChromeLogoRowHidden` (только скролл, hold не разворачивает); таббар: hide ≥24px вниз, show ≥4px вверх; hold при search/profile/menu sheet; fail-open |
 | useListingIsMobile | `hooks/useListingIsMobile.ts` | Общий `matchMedia(max-width: 1023px)` / desktop `min-width: 1024px` для listing chrome |
 | GenerateBlankShell | `components/generate/GenerateBlankShell.tsx` | Только история `/generate` (без nested dock). |
 | GenerateMobileModalContext | `context/GenerateMobileModalContext.tsx` | Legacy soft card portal; blank compose → global dock / hard `/generate`. |

@@ -9,6 +9,7 @@
  */
 
 import { useEffect } from "react";
+import { isListingSearchHeaderProxyTarget } from "@/lib/listing-mobile-search-focus";
 
 export const LISTING_SHELL_HEIGHT_VAR = "--ps-listing-shell-height";
 
@@ -66,6 +67,7 @@ function listingEditableFromEvent(e: Event): HTMLElement | null {
     : target.closest("input, textarea, [contenteditable='true']");
   if (!candidate || !isEditableElement(candidate)) return null;
   if (!root.contains(candidate)) return null;
+  if (isListingSearchHeaderProxyTarget(candidate)) return null;
   return candidate;
 }
 

@@ -301,7 +301,7 @@ export default async function GeneraciyaFotoPage() {
             className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_75%_65%_at_50%_-20%,rgba(99,102,241,0.14),transparent_62%)]"
             aria-hidden
           />
-          <div className="relative mx-auto w-full max-w-7xl px-3 pb-0 pt-8 text-center sm:px-5 sm:pt-12 xl:px-6">
+          <div className="relative mx-auto w-full max-w-7xl px-2 pb-0 pt-8 text-center sm:px-5 sm:pt-12 xl:px-6">
             <nav
               aria-label="Хлебные крошки"
               className="mb-5 flex items-center justify-center gap-1.5 text-sm text-zinc-400"
@@ -348,7 +348,7 @@ export default async function GeneraciyaFotoPage() {
           </div>
         </section>
 
-        <div className="mx-auto flex w-full max-w-7xl flex-col gap-10 px-3 pt-10 sm:gap-12 sm:px-5 sm:pt-12 lg:gap-16 lg:pt-16 xl:px-6">
+        <div className="mx-auto flex w-full max-w-7xl flex-col gap-10 px-2 pt-10 sm:gap-12 sm:px-5 sm:pt-12 lg:gap-16 lg:pt-16 xl:px-6">
           <GeneraciyaFotoThemes
             photosByHref={themeCollage.photosByHref}
             countByHref={themeCollage.countByHref}

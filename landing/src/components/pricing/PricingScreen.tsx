@@ -172,7 +172,7 @@ function CompactPricingScreen({
   }
 
   return (
-    <div className="flex min-h-[calc(100dvh-var(--ps-header-height,57px))] w-full items-start justify-center bg-[linear-gradient(145deg,#f2f1ff_0%,#ffffff_48%,#faf7ff_100%)] px-3 py-6 sm:px-6 sm:py-10">
+    <div className="flex min-h-[calc(100dvh-var(--ps-header-height,96px))] w-full items-start justify-center bg-[linear-gradient(145deg,#f2f1ff_0%,#ffffff_48%,#faf7ff_100%)] px-3 py-6 sm:px-6 sm:py-10">
       {paywall}
     </div>
   );

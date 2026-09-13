@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useListingMobileChromeOptional, useOpenMobileSearchEntry } from "@/context/ListingMobileChromeContext";
 import { normalizeNavPath } from "@/lib/scroll-preservation";
+import { listingMobileSearchHref } from "@/lib/listing-header-offset";
 import { ListingSearchField } from "./ListingSearchField";
 import { SEARCH_PLACEHOLDERS, SEARCH_SUGGESTIONS } from "@/lib/search-suggestions";
 
@@ -113,11 +114,9 @@ function ListingSearchHeader() {
   }, [onSearchPage, router]);
 
   const navigateToSearch = useCallback(() => {
-    const q = query.trim();
-    if (q.length >= MIN_QUERY) {
-      router.push(`/search?q=${encodeURIComponent(q)}`);
-    }
-  }, [query, router]);
+    const href = listingMobileSearchHref(queryRef.current || barInputRef.current?.value || "");
+    if (href) router.push(href);
+  }, [router]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {

@@ -1,3 +1,8 @@
+"use client";
+
+import { useAuth } from "@/context/AuthContext";
+import { canShowPayChrome } from "@/lib/promptshot-auth";
+
 type Props = {
   cost: number;
   unaffordable?: boolean;
@@ -14,6 +19,9 @@ export function GenerationCreditCostBadge({
   compact = false,
   className = "",
 }: Props) {
+  const { user } = useAuth();
+  if (!canShowPayChrome(user)) return null;
+
   return (
     <span
       className={`${BASE} ${

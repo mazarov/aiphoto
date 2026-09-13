@@ -1,7 +1,15 @@
 "use client";
 
-import { useState, type ReactNode, type Ref } from "react";
+import { useState, useSyncExternalStore, type ReactNode, type Ref, type SyntheticEvent } from "react";
+import { useOpenMobileSearchEntry } from "@/context/ListingMobileChromeContext";
 import { LISTING_EXPLORER_SEARCH_SHELL_CLASS } from "@/lib/listing-explorer";
+import {
+  LISTING_MOBILE_HEADER_MQ,
+  listingHeaderSearchInput,
+  listingMobileHeaderMqMatches,
+  shouldProxyPageSearchToHeaderSearch,
+  subscribeListingMobileHeaderMq,
+} from "@/lib/listing-mobile-search-focus";
 
 type Props = {
   id: string;
@@ -28,18 +36,48 @@ export function ListingExplorerSearch({
   autoFocus = false,
   sentinelRef,
 }: Props) {
+  const openHeaderSearch = useOpenMobileSearchEntry();
+  const mobileViewport = useSyncExternalStore(
+    subscribeListingMobileHeaderMq,
+    listingMobileHeaderMqMatches,
+    () => false,
+  );
+
+  const proxyToHeader = (event: SyntheticEvent<HTMLInputElement>) => {
+    if (typeof window === "undefined") return;
+    if (
+      !shouldProxyPageSearchToHeaderSearch({
+        mobileViewport: window.matchMedia(LISTING_MOBILE_HEADER_MQ).matches,
+        headerInput: listingHeaderSearchInput(),
+      })
+    ) {
+      return;
+    }
+    event.preventDefault();
+    event.currentTarget.blur();
+    openHeaderSearch();
+  };
+
   return (
     <>
       <label htmlFor={id} className="sr-only">
         {label}
       </label>
-      <div ref={sentinelRef} className={LISTING_EXPLORER_SEARCH_SHELL_CLASS}>
+      <div
+        ref={sentinelRef}
+        className={LISTING_EXPLORER_SEARCH_SHELL_CLASS}
+        data-listing-search-header-proxy=""
+      >
         <ListingExplorerSearchIcon />
         <input
           id={id}
           type="text"
           value={value}
           onChange={(event) => onChange(event.target.value)}
+          readOnly={mobileViewport}
+          onPointerDown={proxyToHeader}
+          onFocus={proxyToHeader}
+          onClick={proxyToHeader}
           onKeyDown={(event) => {
             if (event.key !== "Enter") return;
             event.preventDefault();

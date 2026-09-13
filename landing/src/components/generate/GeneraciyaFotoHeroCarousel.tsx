@@ -118,7 +118,7 @@ export function GeneraciyaFotoHeroCarousel({
   return (
     <div
       ref={wrapRef}
-      className="group/marquee relative mt-6 -mx-3 overflow-hidden sm:mt-8 sm:-mx-5 xl:-mx-6"
+      className="group/marquee relative mt-6 -mx-2 overflow-hidden sm:mt-8 sm:-mx-5 xl:-mx-6"
       aria-label={ariaLabel}
       onPointerDownCapture={bindCarouselNav}
     >

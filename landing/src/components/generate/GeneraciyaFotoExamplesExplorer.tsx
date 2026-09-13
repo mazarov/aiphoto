@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ListingMasonry, ListingMasonryItem } from "@/components/ListingMasonry";
+import { ListingExplorerSearch } from "@/components/ListingExplorerSearch";
 import { ListingPhotoTile } from "@/components/ListingPhotoTile";
 import {
   type GenerationExampleCard,
@@ -508,61 +509,17 @@ export function GeneraciyaFotoExamplesExplorer({
         </h2>
         <p className={GF_LEAD}>{intro}</p>
 
-        <>
-          <label htmlFor="generation-examples-search" className="sr-only">
-            Найти промт для фото
-          </label>
-          <div className="mt-5 flex min-h-12 items-center gap-3 rounded-2xl border border-indigo-100 bg-white px-4 shadow-sm transition focus-within:border-indigo-300 focus-within:ring-4 focus-within:ring-indigo-100/70">
-            <svg
-              className="h-4 w-4 shrink-0 text-zinc-400"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              aria-hidden
-            >
-              <circle cx="11" cy="11" r="7" />
-              <path d="m20 20-3.5-3.5" />
-            </svg>
-            <input
-              id="generation-examples-search"
-              type="search"
-              value={query}
-              onChange={(event) => {
-                const nextQuery = event.target.value;
-                setQuery(nextQuery);
-                if (nextQuery.trim()) setActiveFilter(null);
-              }}
-              placeholder="Найти образ, стиль или сюжет"
-              className="min-w-0 flex-1 bg-transparent py-3 text-sm text-zinc-900 outline-none placeholder:text-zinc-400"
-              autoComplete="off"
-            />
-            {loading ? (
-              <span
-                className="h-4 w-4 animate-spin rounded-full border-2 border-indigo-100 border-t-indigo-500"
-                aria-label="Ищем"
-              />
-            ) : query ? (
-              <button
-                type="button"
-                onClick={() => setQuery("")}
-                className="flex h-8 w-8 items-center justify-center rounded-full text-zinc-400 transition hover:bg-indigo-50 hover:text-indigo-700"
-                aria-label="Очистить поиск"
-              >
-              <svg
-                className="h-4 w-4"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                aria-hidden
-              >
-                <path d="m6 6 12 12M18 6 6 18" />
-              </svg>
-              </button>
-            ) : null}
-          </div>
-        </>
+        <ListingExplorerSearch
+          id="generation-examples-search"
+          value={query}
+          onChange={(nextQuery) => {
+            setQuery(nextQuery);
+            if (nextQuery.trim()) setActiveFilter(null);
+          }}
+          onClear={() => setQuery("")}
+          placeholder="Найти образ, стиль или сюжет"
+          loading={loading}
+        />
 
         <nav
           className="mt-3 flex flex-wrap gap-2"

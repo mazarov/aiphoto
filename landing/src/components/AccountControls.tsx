@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { CREDIT_BALANCE_REFRESH_EVENT } from "@/lib/credit-balance-events";
+import { canShowPayChrome, isPromptshotAuthed } from "@/lib/promptshot-auth";
 import { ANALYZE_QUOTA_AUTH_SUBTITLE } from "@/lib/foto-v-promt-copy";
 import { useListingIsDesktop } from "@/hooks/useListingIsMobile";
 import {
@@ -12,6 +13,7 @@ import {
 } from "@/lib/yandex-metrika";
 import { UserAvatarImage } from "./UserAvatarImage";
 import { OAuthSignInButtons } from "./OAuthSignInButtons";
+import { LISTING_CHROME_SURFACE } from "./ListingChromeButton";
 import { PricingEntryLink } from "./PricingEntryLink";
 
 let meCreditsCache: { value: number; at: number } | null = null;
@@ -50,11 +52,7 @@ function loadMeCredits(): Promise<number> {
 function useCreditBalance(enabled = true) {
   const { user, loading } = useAuth();
   const [credits, setCredits] = useState<number | null>(null);
-  const canShowBalance =
-    !loading &&
-    Boolean(user) &&
-    user?.is_anonymous !== true &&
-    enabled;
+  const canShowBalance = !loading && isPromptshotAuthed(user) && enabled;
 
   useEffect(() => {
     if (!canShowBalance) {
@@ -116,9 +114,27 @@ function CreditIcon({ className = "h-4 w-4" }: { className?: string }) {
   );
 }
 
-/** Header chip: balance + pay CTA (Lexy-style split pill, PromptShot chrome). */
+/** Guest header CTA after search — public tariffs overlay, not the balance chip. */
+export function HeaderGuestTariffsLink() {
+  const { user } = useAuth();
+  if (canShowPayChrome(user)) return null;
+
+  return (
+    <PricingEntryLink
+      href="/pricing"
+      onClick={trackPricingClick}
+      className={`listing-chrome-btn inline-flex h-10 shrink-0 items-center justify-center rounded-2xl px-3 text-[13px] font-semibold text-indigo-700 ${LISTING_CHROME_SURFACE}`}
+    >
+      Тарифы
+    </PricingEntryLink>
+  );
+}
+
+/** Header chip: balance + pay CTA. Guests get nothing — SSOT `canShowPayChrome`. */
 export function HeaderBalancePayChip() {
-  const { credits } = useCreditBalance(true);
+  const { user } = useAuth();
+  const { credits } = useCreditBalance(canShowPayChrome(user));
+  if (!canShowPayChrome(user)) return null;
   const empty = credits === 0;
   const label =
     credits === null
@@ -209,7 +225,7 @@ export function SidebarAccountPanel({
     );
   }
 
-  if (!user || user.is_anonymous === true) {
+  if (!isPromptshotAuthed(user)) {
     return (
       <div className="min-h-[13.5rem] border-b border-zinc-100 p-3">
         <div className="rounded-2xl border border-indigo-100 bg-indigo-50/60 p-3">

@@ -12,6 +12,10 @@ import {
   type RefObject,
 } from "react";
 import { useRouter } from "next/navigation";
+import {
+  listingHeaderSearchInput,
+  scheduleFocusListingHeaderSearch,
+} from "@/lib/listing-mobile-search-focus";
 
 export type SearchMobileRegistration = {
   hideMobileBar: boolean;
@@ -187,15 +191,14 @@ export function useListingMobileChromeOptional() {
   return useContext(ListingMobileChromeContext);
 }
 
-/** Header search + tab «Поиск»: listing sheet when registered, otherwise `/search`. */
+/** Header search field on mobile; `/search` if the input is not mounted yet. */
 export function useOpenMobileSearchEntry() {
   const chrome = useListingMobileChromeOptional();
   const router = useRouter();
 
   return useCallback(() => {
-    const search = chrome?.searchMobileRef.current;
-    if (search && !search.hideMobileBar) {
-      chrome?.openMobileSearch();
+    if (chrome?.searchMobileRef.current?.inputRef.current || listingHeaderSearchInput()) {
+      scheduleFocusListingHeaderSearch();
       return;
     }
     router.push("/search");

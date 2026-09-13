@@ -45,6 +45,7 @@ import {
   subscribeListingNavigationLoadMore,
   writeListingNavigationContext,
 } from "@/lib/listing-card-navigation-context";
+import { useListingIsDesktop } from "@/hooks/useListingIsMobile";
 import { SearchEmptyState } from "@/components/SearchEmptyState";
 import { SearchMetrikaTracker } from "@/components/YandexMetrikaRouteTracker";
 import { ListingGridLoadingSkeleton } from "@/components/ListingGridLoadingSkeleton";
@@ -79,6 +80,7 @@ export function SearchResults({ initialQuery }: Props) {
       baseRpcParams: {},
       lockedDimensions: [],
     });
+  const isDesktop = useListingIsDesktop();
   const [query, setQuery] = useState(initialQuery);
   const [cardPages, setCardPages] = useState<PromptCardFull[][]>([]);
   const cards = useMemo(() => cardPages.flat(), [cardPages]);
@@ -374,18 +376,20 @@ export function SearchResults({ initialQuery }: Props) {
         }
       />
 
-      <ListingExplorerSearch
-        id="search-explorer-search"
-        value={query}
-        onChange={setQuery}
-        onClear={() => {
-          setQuery("");
-          runSearch("");
-        }}
-        onSubmit={() => runSearch(query)}
-        loading={loading}
-        autoFocus={initialQuery.length < 2}
-      />
+      <div className="max-lg:hidden">
+        <ListingExplorerSearch
+          id="search-explorer-search"
+          value={query}
+          onChange={setQuery}
+          onClear={() => {
+            setQuery("");
+            runSearch("");
+          }}
+          onSubmit={() => runSearch(query)}
+          loading={loading}
+          autoFocus={isDesktop && initialQuery.length < 2}
+        />
+      </div>
 
       {showFilters ? (
         <ListingDesktopFilters
