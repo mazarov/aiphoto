@@ -1,6 +1,8 @@
 # 01 — Лендинг (promptshot.ru)
 
-> Последнее обновление: 2026-09-14 (**NPS survey:** два tx-письма `nps_after_2` / `nps_credits_empty` через due/outbox; публичная `/ocenka` + `POST /api/nps`; вкладка «Оценки» на `/admin/analytics?tab=nps` ← `GET /api/admin/nps`. Флаг `nps_survey_enabled=false`. SQL `255`. Спека `docs/14-09-nps-survey.md`.)
+> Последнее обновление: 2026-09-14 (**NPS admin tab:** вкладка AdminNav «Оценки» → `/admin/nps`; `NpsAnalyticsDashboard` + `GET /api/admin/nps`. `/admin/analytics?tab=nps` редиректит сюда. Обзор оценки больше не содержит.)
+>
+> Последнее обновление: 2026-09-14 (**NPS survey:** два tx-письма `nps_after_2` / `nps_credits_empty` через due/outbox; публичная `/ocenka` + `POST /api/nps`; админка `/admin/nps` ← `GET /api/admin/nps`. Флаг `nps_survey_enabled=false`. SQL `255`. Спека `docs/14-09-nps-survey.md`.)
 >
 > Последнее обновление: 2026-09-14 (**search analytics tab:** вкладка AdminNav «Поиск» → `/admin/search`; `SearchAnalyticsDashboard` + `GET /api/admin/search-analytics`. `/admin/analytics?tab=search` редиректит сюда. Обзор поиск больше не содержит.)
 >
@@ -976,8 +978,9 @@
 /favorites              → Избранное (требует авторизации)
 /generations            → Мои генерации (auth, `force-dynamic`): первая страница SSR через `landing_list_my_generations` (SQL `239`); дальше sentinel `GET /api/generations`. Сетка показывает listing thumbs, не 2K. UGC-карточка необязательна
 /analyses               → Мои анализы (auth, noindex): свои строки `analyze_history` (`user_id` = JWT или shared db id); signed preview из private bucket; CTA копирует промт и открывает dock. Гостевые анализы (`user_id` null) не попадают. SQL `188`
-/admin/analytics        → Закрытый analytics dashboard: вкладки «Обзор» (пользователи/клиенты + live кредиты) и «Оценки» (`?tab=nps`, `GET /api/admin/nps`). `?tab=search` → `/admin/search`; `?tab=finance` → `/admin/finance`
+/admin/analytics        → Закрытый analytics dashboard: пользователи/клиенты + live непотраченные кредиты. `?tab=search` → `/admin/search`; `?tab=nps` → `/admin/nps`; `?tab=finance` → `/admin/finance`
 /admin/search           → Вкладка «Поиск»: зафиксированные запросы `/search`, размер выдачи, CTR в карточку, топ и нулевая выдача; свой период 1/7/30/90; `GET /api/admin/search-analytics`
+/admin/nps              → Вкладка «Оценки»: KPI/динамика/таблица NPS 1–10; свой период 1/7/30/90; `GET /api/admin/nps`. Спека `docs/14-09-nps-survey.md`
 /admin/analyze-history  → Закрытая история analyze/remix + все non-admin user generations; remix помечается бейджем и `change_request`; image job — бейдж `Gemini|xAI generate|edit`; private source previews выдаются signed, completed results публикуются идемпотентно. Mobile rows: dense (56px thumb, 1-line prompt) via `admin-dense-row.ts`
 /admin/payments         → Закрытый cursor-реестр YooKassa/Robokassa: payer identity, RUB/status/test, credits/`credited_at`; кнопка «Скачать CSV» выгружает все строки текущих фильтров
 /admin/finance          → Live P&L: Сегодня/Вчера/7 дней + календарь; default `csv=0`; график выручка / косты стеком / опер. маржа; `csv=1` — monthly CSV override; `?tab=finance` с аналитики редиректит сюда
@@ -1253,7 +1256,7 @@
   `landing_nps_on_credits_empty` ставят due `nps_after_2` (2-я paid completed)
   и `nps_credits_empty` (+24 ч после нуля, если after_2 уже sent, или сразу
   с 2-й completed при балансе 0). Маркетинг `credits_empty` не меняется.
-  Оценка: `/ocenka` + `POST /api/nps`. Админка: `/admin/analytics?tab=nps`.
+  Оценка: `/ocenka` + `POST /api/nps`. Админка: `/admin/nps`.
   SQL `255`, спека `docs/14-09-nps-survey.md`.
 - **Финансы (live P&L):** страница `/admin/finance` фильтр
   Сегодня / Вчера / 7 дней + календарь (`from`/`to`, Москва, ≤92 дня).

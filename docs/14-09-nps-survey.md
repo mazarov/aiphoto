@@ -5,7 +5,7 @@
 
 ## Цель
 
-Два разовых письма с оценкой 1–10 («насколько готовы порекомендовать друзьям») и свободным комментарием. Оценки в разрезе пользователя, динамика на `/admin/analytics?tab=nps`.
+Два разовых письма с оценкой 1–10 («насколько готовы порекомендовать друзьям») и свободным комментарием. Оценки в разрезе пользователя, динамика на `/admin/nps`.
 
 ## Письма
 
@@ -32,7 +32,7 @@ UPDATE landing_generation_config SET value = 'true' WHERE key = 'nps_survey_enab
 
 ## Админка
 
-`/admin/analytics` вкладки Обзор | Оценки. `?tab=nps` не редиректит. `GET /api/admin/nps?days=1|7|30|90`.
+AdminNav «Оценки» → `/admin/nps` (`NpsAnalyticsDashboard` + `GET /api/admin/nps?days=1|7|30|90`). `/admin/analytics?tab=nps` редиректит сюда. Обзор аналитики оценки не содержит.
 
 ## SQL
 

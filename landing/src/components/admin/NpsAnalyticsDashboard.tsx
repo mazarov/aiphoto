@@ -2,8 +2,14 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
-import type { NpsAnalyticsDashboard, NpsDailyRow } from "@/lib/nps-analytics-data";
+import type { NpsAnalyticsDashboard as NpsAnalyticsDashboardData, NpsDailyRow } from "@/lib/nps-analytics-data";
 
+const PERIODS = [
+  { value: 1, label: "Сегодня" },
+  { value: 7, label: "7 дней" },
+  { value: 30, label: "30 дней" },
+  { value: 90, label: "90 дней" },
+];
 const card = "rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm";
 
 const TRIGGER_LABEL: Record<string, string> = {
@@ -27,9 +33,9 @@ function AccessMessage({ status }: { status: number }) {
   const { openAuthModal } = useAuth();
   return (
     <div className={`${card} mx-auto max-w-lg text-center`}>
-      <h2 className="text-xl font-semibold text-zinc-900">
+      <h1 className="text-xl font-semibold text-zinc-900">
         {status === 401 ? "Нужен вход" : "Доступ запрещён"}
-      </h2>
+      </h1>
       <p className="mt-2 text-sm text-zinc-500">
         {status === 401
           ? "Войдите через PromptShot с разрешённым аккаунтом."
@@ -95,9 +101,10 @@ function NpsDailyChart({ rows }: { rows: NpsDailyRow[] }) {
   );
 }
 
-export function NpsAnalyticsSection({ days }: { days: number }) {
+export function NpsAnalyticsDashboard() {
   const { user } = useAuth();
-  const [data, setData] = useState<NpsAnalyticsDashboard | null>(null);
+  const [days, setDays] = useState(30);
+  const [data, setData] = useState<NpsAnalyticsDashboardData | null>(null);
   const [state, setState] = useState({ loading: true, status: 0, error: "" });
 
   const load = useCallback(async () => {
@@ -114,7 +121,7 @@ export function NpsAnalyticsSection({ days }: { days: number }) {
         });
         return;
       }
-      setData(body as NpsAnalyticsDashboard);
+      setData(body as NpsAnalyticsDashboardData);
       setState({ loading: false, status: 0, error: "" });
     } catch {
       setState({ loading: false, status: 0, error: "Ошибка сети" });
@@ -134,7 +141,31 @@ export function NpsAnalyticsSection({ days }: { days: number }) {
     (summary?.promoters || 0) + (summary?.passives || 0) + (summary?.detractors || 0);
 
   return (
-    <>
+    <div className="mx-auto max-w-7xl space-y-6">
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-sm font-medium text-indigo-600">PromptShot Admin</p>
+          <h1 className="text-3xl font-bold tracking-tight text-zinc-900">Оценки</h1>
+          <p className="mt-1 text-sm text-zinc-500">
+            Готовность рекомендовать PromptShot: письма 1–10 и свободный комментарий.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {PERIODS.map((period) => (
+            <button
+              key={period.value}
+              onClick={() => setDays(period.value)}
+              className={`rounded-xl px-3 py-2 text-xs font-semibold ${
+                days === period.value
+                  ? "bg-indigo-600 text-white"
+                  : "border border-zinc-200 bg-white text-zinc-600"
+              }`}
+            >
+              {period.label}
+            </button>
+          ))}
+        </div>
+      </header>
       {state.loading && !data ? (
         <p className="text-sm text-zinc-500">Загрузка…</p>
       ) : state.error ? (
@@ -215,6 +246,6 @@ export function NpsAnalyticsSection({ days }: { days: number }) {
           </section>
         </>
       ) : null}
-    </>
+    </div>
   );
 }

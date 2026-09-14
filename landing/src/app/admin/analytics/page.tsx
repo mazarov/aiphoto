@@ -9,5 +9,6 @@ export default async function AdminAnalyticsPage({
   const params = searchParams ? await searchParams : {};
   if (params.tab === "finance") redirect("/admin/finance");
   if (params.tab === "search") redirect("/admin/search");
-  return <AnalyticsDashboard initialTab={params.tab === "nps" ? "nps" : "overview"} />;
+  if (params.tab === "nps") redirect("/admin/nps");
+  return <AnalyticsDashboard />;
 }
