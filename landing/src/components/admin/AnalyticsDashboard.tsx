@@ -1,13 +1,17 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import type { AnalyticsDashboardData } from "@/lib/analytics-data";
 import { AdminExpandableCard } from "./AdminExpandableCard";
 import { ClientsDailyChart } from "./ClientsDailyChart";
 import { CreditLiabilitySection } from "./CreditLiabilitySection";
+import { NpsAnalyticsSection } from "./NpsAnalyticsSection";
 import { CLIENT_SOURCES_ORDER, clientSourceLabel } from "./analytics-constants";
+
+type AnalyticsTab = "overview" | "nps";
 
 const PERIODS = [{ value: 1, label: "Сегодня" }, { value: 7, label: "7 дней" },
   { value: 30, label: "30 дней" }, { value: 90, label: "90 дней" }];
@@ -27,8 +31,14 @@ function AccessMessage({ status }: { status: number }) {
   </div>;
 }
 
-export function AnalyticsDashboard() {
+export function AnalyticsDashboard({
+  initialTab = "overview",
+}: {
+  initialTab?: AnalyticsTab;
+}) {
+  const router = useRouter();
   const { user } = useAuth();
+  const [tab, setTab] = useState<AnalyticsTab>(initialTab);
   const [days, setDays] = useState(30);
   const [kind, setKind] = useState("all");
   const [source, setSource] = useState("all");
@@ -48,20 +58,52 @@ export function AnalyticsDashboard() {
       setState({ loading: false, status: 0, error: "Ошибка сети" });
     }
   }, [days]);
-  useEffect(() => { void load(); }, [load, user]);
+  useEffect(() => {
+    if (tab === "overview") void load();
+  }, [load, user, tab]);
+
+  function goTab(next: AnalyticsTab) {
+    setTab(next);
+    router.replace(next === "nps" ? "/admin/analytics?tab=nps" : "/admin/analytics", {
+      scroll: false,
+    });
+  }
 
   const totals = useMemo(() => {
     const sum = (key: string) => (data?.extensionOutcomes || [])
       .reduce((value, row) => value + Number((row as unknown as Record<string, number>)[key] || 0), 0);
     return { requests: sum("requests"), success: sum("success"), limited: sum("rate_limited"), errors: sum("upstream_error") + sum("empty_response") };
   }, [data]);
-  if (state.status === 401 || state.status === 403) return <AccessMessage status={state.status} />;
+  if (tab === "overview" && (state.status === 401 || state.status === 403)) {
+    return <AccessMessage status={state.status} />;
+  }
 
   return <div className="mx-auto max-w-7xl space-y-6">
     <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
       <div><p className="text-sm font-medium text-indigo-600">PromptShot Admin</p>
         <h1 className="text-3xl font-bold tracking-tight text-zinc-900">Аналитика</h1>
-        <p className="mt-1 text-sm text-zinc-500">Пользователи, клиенты, запросы и непотраченные кредиты</p></div>
+        <p className="mt-1 text-sm text-zinc-500">
+          {tab === "nps"
+            ? "Оценки 1–10: готовность рекомендовать PromptShot и свободный комментарий"
+            : "Пользователи, клиенты, запросы и непотраченные кредиты"}
+        </p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {([
+            ["overview", "Обзор"],
+            ["nps", "Оценки"],
+          ] as const).map(([id, label]) => (
+            <button
+              key={id}
+              onClick={() => goTab(id)}
+              className={`rounded-xl px-3 py-2 text-xs font-semibold ${
+                tab === id ? "bg-zinc-900 text-white" : "border border-zinc-200 bg-white text-zinc-600"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
       <div className="flex flex-wrap items-center gap-2">
         <Link href="/admin/analyze-history" className="mr-2 text-sm font-semibold text-indigo-600">История и публикации →</Link>
         {PERIODS.map((period) => <button key={period.value} onClick={() => setDays(period.value)}
@@ -70,7 +112,7 @@ export function AnalyticsDashboard() {
         </button>)}
       </div>
     </header>
-    {state.loading && !data ? <p className="text-sm text-zinc-500">Загрузка…</p> : state.error ? <div className={`${card} text-red-600`}>{state.error}</div> : data && <>
+    {tab === "nps" ? <NpsAnalyticsSection days={days} /> : state.loading && !data ? <p className="text-sm text-zinc-500">Загрузка…</p> : state.error ? <div className={`${card} text-red-600`}>{state.error}</div> : data && <>
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {[
           ["Всего пользователей", data.summary.totalUsers],

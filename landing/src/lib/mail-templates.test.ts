@@ -62,6 +62,25 @@ test("low balance upgrade advertises 20% on every pack", () => {
   }
 });
 
+test("nps after 2 is transactional and lists scores 1-10", () => {
+  const previous = process.env.MAIL_UNSUBSCRIBE_SECRET;
+  process.env.MAIL_UNSUBSCRIBE_SECRET = "test-unsubscribe-secret";
+  try {
+    const mail = renderMailTemplate(
+      "nps_after_2",
+      { display_name: "Максим", survey_id: "11111111-1111-4111-8111-111111111111" },
+      "user@example.com",
+    );
+    assert.equal(mail.subject, "Насколько PromptShot полезен?");
+    assert.match(mail.text, /порекомендовать/);
+    assert.match(mail.text, /1 — https:\/\/promptshot\.ru\/ocenka\?t=/);
+    assert.match(mail.text, /10 — /);
+    assert.deepEqual(mail.headers, []);
+  } finally {
+    process.env.MAIL_UNSUBSCRIBE_SECRET = previous;
+  }
+});
+
 test("campaign templates add one-click unsubscribe headers when secret exists", () => {
   const prev = process.env.MAIL_UNSUBSCRIBE_SECRET;
   process.env.MAIL_UNSUBSCRIBE_SECRET = "test-unsubscribe-secret";

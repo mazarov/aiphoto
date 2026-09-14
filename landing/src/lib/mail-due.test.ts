@@ -159,6 +159,11 @@ test("due processor sends an eligible low-balance upgrade once", async () => {
       credits: 10,
       marketing_sent_today: false,
     }),
+    landing_upsert_pricing_offer: () => ({
+      offer_id: offerId,
+      percent: 20,
+      applied: true,
+    }),
     landing_mail_resolve_email: () => "user@example.com",
     landing_enqueue_mail: (args) => {
       calls.push(`enqueue:${args?.p_template_id}`);
@@ -176,6 +181,88 @@ test("due processor sends an eligible low-balance upgrade once", async () => {
   const result = await processMailDue({ supabase });
   assert.equal(result.enqueued, 1);
   assert.deepEqual(calls, ["enqueue:low_balance_upgrade", "email", "done"]);
+});
+
+test("due processor cancels NPS when the flag is off", async () => {
+  const calls: string[] = [];
+  const supabase = rpcClient({
+    claim_mail_due: () => [
+      {
+        ...dueJob,
+        template_id: "nps_after_2",
+        payload: { idempotency_key: "nps_after_2:user-1" },
+      },
+    ],
+    landing_mail_config_on: () => false,
+    complete_mail_due: (args) => {
+      calls.push(String(args?.p_reason));
+      return true;
+    },
+  });
+  const result = await processMailDue({ supabase });
+  assert.equal(result.skipped, 1);
+  assert.deepEqual(calls, ["flag_off"]);
+});
+
+test("due processor reschedules empty NPS until after_2 is sent", async () => {
+  const calls: string[] = [];
+  const supabase = rpcClient({
+    claim_mail_due: () => [
+      {
+        ...dueJob,
+        template_id: "nps_credits_empty",
+        payload: { idempotency_key: "nps_credits_empty:user-1" },
+      },
+    ],
+    landing_mail_config_on: () => true,
+    landing_mail_user_facts: () => ({
+      shared_user_id: "user-1",
+      nps_after_2_sent: false,
+      nps_empty_sent: false,
+      credits: 0,
+    }),
+    reschedule_mail_due: () => {
+      calls.push("wait");
+      return true;
+    },
+  });
+  const result = await processMailDue({ supabase });
+  assert.equal(result.rescheduled, 1);
+  assert.deepEqual(calls, ["wait"]);
+});
+
+test("due processor attaches a survey id before NPS enqueue", async () => {
+  const calls: string[] = [];
+  const surveyId = "11111111-1111-4111-8111-111111111111";
+  const supabase = rpcClient({
+    claim_mail_due: () => [
+      {
+        ...dueJob,
+        template_id: "nps_after_2",
+        payload: { idempotency_key: "nps_after_2:user-1" },
+      },
+    ],
+    landing_mail_config_on: () => true,
+    landing_mail_user_facts: () => ({
+      shared_user_id: "user-1",
+      display_name: "Максим",
+      nps_after_2_sent: false,
+    }),
+    landing_nps_ensure_survey: () => surveyId,
+    landing_mail_resolve_email: () => "user@example.com",
+    landing_enqueue_mail: (args) => {
+      const payload = args?.p_payload as { survey_id?: string } | undefined;
+      calls.push(`enqueue:${payload?.survey_id}`);
+      return { outbox_id: "out-1", inserted: true, skip_reason: null };
+    },
+    complete_mail_due: () => {
+      calls.push("done");
+      return true;
+    },
+  });
+  const result = await processMailDue({ supabase });
+  assert.equal(result.enqueued, 1);
+  assert.deepEqual(calls, [`enqueue:${surveyId}`, "done"]);
 });
 
 test("due processor stops low-balance mail after eligibility is lost", async () => {

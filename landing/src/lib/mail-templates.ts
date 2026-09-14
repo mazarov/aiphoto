@@ -1,4 +1,5 @@
 import { mailOneClickUnsubscribeUrl, mailUnsubscribeUrl } from "@/lib/mail-unsubscribe";
+import { npsScoreLines } from "@/lib/nps-token";
 
 export const MAIL_PLAN_LABELS: Record<string, string> = {
   trial: "Пробный",
@@ -24,6 +25,8 @@ export const MAIL_TEMPLATE_IDS = [
   "low_balance_upgrade",
   "winback_14",
   "winback_30",
+  "nps_after_2",
+  "nps_credits_empty",
 ] as const;
 
 export type MailTemplateId = (typeof MAIL_TEMPLATE_IDS)[number];
@@ -396,6 +399,32 @@ export function renderMailTemplate(
       ],
       toEmail,
       true,
+    );
+  }
+
+  if (templateId === "nps_after_2" || templateId === "nps_credits_empty") {
+    const subject =
+      templateId === "nps_after_2"
+        ? "Насколько PromptShot полезен?"
+        : "Один вопрос про PromptShot";
+    const lead =
+      templateId === "nps_after_2"
+        ? "Вы уже сделали первые фото в PromptShot. Насколько готовы порекомендовать сервис друзьям — от 1 до 10?"
+        : "Токены на этом круге закончились. Насколько готовы порекомендовать PromptShot друзьям — от 1 до 10?";
+    return buildMail(
+      subject,
+      [
+        hi,
+        "",
+        lead,
+        "Нажмите оценку — откроется короткая страница, там же можно оставить комментарий.",
+        "",
+        ...npsScoreLines(payloadString(payload, "survey_id")),
+        "",
+        signature(),
+      ],
+      toEmail,
+      false,
     );
   }
 

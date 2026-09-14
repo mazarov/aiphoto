@@ -12,6 +12,7 @@ const MOBILE_BAR_BLOCKED_EXACT = new Set([
   "/payment",
   "/embed",
   "/unsubscribe",
+  "/ocenka",
 ]);
 
 const MOBILE_BAR_BLOCKED_PREFIXES = [
@@ -20,6 +21,7 @@ const MOBILE_BAR_BLOCKED_PREFIXES = [
   "/payment/",
   "/embed/",
   "/unsubscribe/",
+  "/ocenka/",
 ] as const;
 
 export function lowBalanceNudgeBlockedByPath(pathname: string): boolean {

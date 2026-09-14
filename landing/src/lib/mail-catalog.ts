@@ -35,6 +35,8 @@ export type MailUserFacts = {
   marketingSentToday: boolean;
   winbackSentToday: number;
   lastCreditsEmptyAt: string | null;
+  npsAfter2Sent: boolean;
+  npsEmptySent: boolean;
 };
 
 export type MailDueDecision =
@@ -208,6 +210,28 @@ const CATALOG: MailCatalogEntry[] = [
     idempotencyKey: "winback_30:{user}:{cycle}",
   },
   {
+    id: "nps_after_2",
+    kind: "transactional",
+    title: "NPS после 2 генераций",
+    audience: "Ровно 2 completed paid-генерации, флаг nps_survey_enabled",
+    when: "Сразу после 2-й completed",
+    stop: "Уже sent; нет email; флаг выкл",
+    discountPercent: 0,
+    cta: "https://promptshot.ru/ocenka",
+    idempotencyKey: "nps_after_2:{user}",
+  },
+  {
+    id: "nps_credits_empty",
+    kind: "transactional",
+    title: "NPS после нуля кредитов",
+    audience: "after_2 уже ушёл, баланс 0",
+    when: "+24 ч после обнуления",
+    stop: "Нет sent after_2; credits>0; уже sent empty; флаг выкл",
+    discountPercent: 0,
+    cta: "https://promptshot.ru/ocenka",
+    idempotencyKey: "nps_credits_empty:{user}",
+  },
+  {
     id: "campaign",
     kind: "marketing",
     title: "Ручная кампания",
@@ -237,6 +261,7 @@ export function mailCatalogFixture(id: MailTemplateId): Record<string, unknown> 
     display_name: "Максим",
     plan_id: "trial",
     credits: 30,
+    survey_id: "11111111-1111-4111-8111-111111111111",
     subject: "Письмо PromptShot",
     body_text: "Пример тела кампании.",
   };
@@ -280,6 +305,8 @@ export function parseMailUserFacts(raw: unknown, fallbackUserId: string): MailUs
     winbackSentToday: Number(row.winback_sent_today || 0) || 0,
     lastCreditsEmptyAt:
       typeof row.last_credits_empty_at === "string" ? row.last_credits_empty_at : null,
+    npsAfter2Sent: row.nps_after_2_sent === true,
+    npsEmptySent: row.nps_empty_sent === true,
   };
 }
 
@@ -369,6 +396,22 @@ export function evaluateMailDue(
     const silentHours = hoursSince(facts.lastGenerationAt, nowMs);
     if (silentHours == null || silentHours < 30 * 24) {
       return { action: "skip", reason: "winback_too_soon" };
+    }
+  }
+  if (templateId === "nps_after_2") {
+    if (facts.npsAfter2Sent) {
+      return { action: "skip", reason: "nps_already_sent" };
+    }
+  }
+  if (templateId === "nps_credits_empty") {
+    if (facts.npsEmptySent) {
+      return { action: "skip", reason: "nps_already_sent" };
+    }
+    if (!facts.npsAfter2Sent) {
+      return { action: "skip", reason: "nps_empty_wait_after_2" };
+    }
+    if (facts.credits > 0) {
+      return { action: "skip", reason: "nps_empty_refilled" };
     }
   }
 

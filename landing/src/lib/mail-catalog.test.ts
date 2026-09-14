@@ -20,6 +20,8 @@ const baseFacts = {
   marketingSentToday: false,
   winbackSentToday: 0,
   lastCreditsEmptyAt: null,
+  npsAfter2Sent: false,
+  npsEmptySent: false,
 };
 
 test("catalog lists every product letter once", () => {
@@ -30,6 +32,8 @@ test("catalog lists every product letter once", () => {
   assert.ok(ids.includes("yk_abandon_40m"));
   assert.ok(ids.includes("low_balance_upgrade"));
   assert.ok(ids.includes("winback_30"));
+  assert.ok(ids.includes("nps_after_2"));
+  assert.ok(ids.includes("nps_credits_empty"));
 });
 
 test("previews render from the same templates", () => {
@@ -37,6 +41,10 @@ test("previews render from the same templates", () => {
   assert.ok(welcome);
   assert.match(welcome.text, /10 разборов/);
   assert.equal(welcome.discountPercent, 0);
+  const nps = listMailCatalogPreviews().find((row) => row.id === "nps_after_2");
+  assert.ok(nps);
+  assert.equal(nps.kind, "transactional");
+  assert.match(nps.text, /1 — /);
 });
 
 test("no_credits is not a zero-balance letter", () => {
@@ -96,5 +104,30 @@ test("credits_empty waits 14 days between sends", () => {
     },
     now,
   );
+  assert.equal(ready.action, "send");
+});
+
+test("nps after 2 sends once", () => {
+  const ready = evaluateMailDue("nps_after_2", baseFacts);
+  assert.equal(ready.action, "send");
+  if (ready.action === "send") assert.equal(ready.kind, "transactional");
+  const sent = evaluateMailDue("nps_after_2", { ...baseFacts, npsAfter2Sent: true });
+  assert.deepEqual(sent, { action: "skip", reason: "nps_already_sent" });
+});
+
+test("nps empty waits for after_2 and skips a refill", () => {
+  const waiting = evaluateMailDue("nps_credits_empty", baseFacts);
+  assert.deepEqual(waiting, { action: "skip", reason: "nps_empty_wait_after_2" });
+  const refilled = evaluateMailDue("nps_credits_empty", {
+    ...baseFacts,
+    npsAfter2Sent: true,
+    credits: 12,
+  });
+  assert.deepEqual(refilled, { action: "skip", reason: "nps_empty_refilled" });
+  const ready = evaluateMailDue("nps_credits_empty", {
+    ...baseFacts,
+    npsAfter2Sent: true,
+    credits: 0,
+  });
   assert.equal(ready.action, "send");
 });

@@ -1,5 +1,7 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-09-14 (**NPS survey:** два tx-письма `nps_after_2` / `nps_credits_empty` через due/outbox; публичная `/ocenka` + `POST /api/nps`; вкладка «Оценки» на `/admin/analytics?tab=nps` ← `GET /api/admin/nps`. Флаг `nps_survey_enabled=false`. SQL `255`. Спека `docs/14-09-nps-survey.md`.)
+>
 > Последнее обновление: 2026-09-14 (**search analytics tab:** вкладка AdminNav «Поиск» → `/admin/search`; `SearchAnalyticsDashboard` + `GET /api/admin/search-analytics`. `/admin/analytics?tab=search` редиректит сюда. Обзор поиск больше не содержит.)
 >
 > Последнее обновление: 2026-09-13 (**search analytics:** зафиксированный `/search` (first page) → `POST /api/search-events` в `landing_search_events` / `landing_search_clicks`; клик по карточке с `search_id` + position. Не писать в кешируемый `GET /api/search`. Админка: `/admin/search` ← `GET /api/admin/search-analytics`, SQL `254`. Спека `docs/13-09-search-analytics.md`.)
@@ -970,10 +972,11 @@
 /policy                 → Страница политики обработки данных; ссылка на `/docs/privacy.pdf`, если утверждённый файл присутствовал при сборке
 /privacy                → Permanent redirect на `/policy`
 /unsubscribe            → Публичная отписка от маркетинга (`?t=` HMAC). One-click POST — `/api/mail/unsubscribe`. noindex
+/ocenka                 → Публичная NPS-форма (`?t=` HMAC + `?s=1…10`). `POST /api/nps`. noindex. Спека `docs/14-09-nps-survey.md`
 /favorites              → Избранное (требует авторизации)
 /generations            → Мои генерации (auth, `force-dynamic`): первая страница SSR через `landing_list_my_generations` (SQL `239`); дальше sentinel `GET /api/generations`. Сетка показывает listing thumbs, не 2K. UGC-карточка необязательна
 /analyses               → Мои анализы (auth, noindex): свои строки `analyze_history` (`user_id` = JWT или shared db id); signed preview из private bucket; CTA копирует промт и открывает dock. Гостевые анализы (`user_id` null) не попадают. SQL `188`
-/admin/analytics        → Закрытый analytics dashboard: пользователи/клиенты + live непотраченные кредиты; таблицы кредитов/топа/analyze свёрнуты до клика; Supabase Auth + email allowlist `ANALYTICS_ADMIN_EMAILS`. `?tab=search` → `/admin/search`
+/admin/analytics        → Закрытый analytics dashboard: вкладки «Обзор» (пользователи/клиенты + live кредиты) и «Оценки» (`?tab=nps`, `GET /api/admin/nps`). `?tab=search` → `/admin/search`; `?tab=finance` → `/admin/finance`
 /admin/search           → Вкладка «Поиск»: зафиксированные запросы `/search`, размер выдачи, CTR в карточку, топ и нулевая выдача; свой период 1/7/30/90; `GET /api/admin/search-analytics`
 /admin/analyze-history  → Закрытая история analyze/remix + все non-admin user generations; remix помечается бейджем и `change_request`; image job — бейдж `Gemini|xAI generate|edit`; private source previews выдаются signed, completed results публикуются идемпотентно. Mobile rows: dense (56px thumb, 1-line prompt) via `admin-dense-row.ts`
 /admin/payments         → Закрытый cursor-реестр YooKassa/Robokassa: payer identity, RUB/status/test, credits/`credited_at`; кнопка «Скачать CSV» выгружает все строки текущих фильтров
@@ -1089,6 +1092,8 @@
 | `/api/scout/analyze` | Открытый analyze для бота: без auth, бакет `scout:v1`, 200 успешных / UTC-день, без кредитов пользователя. GET — остаток. `client_source=scout`. Не в sitemap |
 | `/api/extension/analyze/quota` | GET, cookie session, no-store: `remaining_free`, `next_mode`, `credit_cost`, реальный `credits` для авторизованного |
 | `/api/admin/analytics` | GET, admin auth: no-store analytics rollups за `1…90` дней; топ пользователей — `admin_analytics_top_users` за тот же период |
+| `/api/admin/nps` | GET, admin auth, no-store: KPI/daily/ответы NPS за `1\|7\|30\|90` дней; RPC `admin_nps_summary` + `admin_nps_daily` + `admin_nps_responses` |
+| `/api/nps` | POST, публичный HMAC: `{ token, score 1–10, comment? }` → `landing_nps_submit` |
 | `/api/admin/search-analytics` | GET, admin auth: no-store KPI/daily/топ/нулевая выдача поиска за `1…90` дней; RPC `admin_search_summary` + `admin_search_queries` |
 | `/api/admin/credits` | GET, admin auth: live остаток + daily flow (`days=1\|7\|30\|90`) + keyset-список (`q`, remaining/granted/spent/share) |
 | `/api/admin/finance` | GET, admin auth: KPI за `from`/`to` (или `month=YYYY-MM`); `csv=1` — uploaded override, иначе live ledger/gens + Direct API |
@@ -1244,6 +1249,12 @@
   только outbox, due не сканируется; today.sent = `landing_mail_daily_budget().sent`.
   Спека `docs/22-08-lifecycle-mail.md`, UI-статы `docs/22-08-mail-admin-daily-stats.md`.
   Транспорт: `docs/21-08-yandex-postbox-mail.md`.
+  **NPS:** флаг `nps_survey_enabled`. Триггеры `landing_nps_on_generation_completed` /
+  `landing_nps_on_credits_empty` ставят due `nps_after_2` (2-я paid completed)
+  и `nps_credits_empty` (+24 ч после нуля, если after_2 уже sent, или сразу
+  с 2-й completed при балансе 0). Маркетинг `credits_empty` не меняется.
+  Оценка: `/ocenka` + `POST /api/nps`. Админка: `/admin/analytics?tab=nps`.
+  SQL `255`, спека `docs/14-09-nps-survey.md`.
 - **Финансы (live P&L):** страница `/admin/finance` фильтр
   Сегодня / Вчера / 7 дней + календарь (`from`/`to`, Москва, ≤92 дня).
   GET читает пересекающиеся месяцы и режет KPI/график по дням.
@@ -1859,6 +1870,7 @@ SEO листинга L1/L2/L3:
 | `admin_finance_revenue_lines` | Строки реестра ЮKassa без PII плательщика |
 | `admin_finance_cogs_lines` | Строки Google Cloud Billing (SKU / `subtotal_usd`) |
 | `landing_mail_outbox` | Очередь исходящей почты (Postbox). Админ-статы читают sent/skip/fail; cron claim не зависит от вкладки статистики |
+| `landing_nps_surveys` | Одна NPS-оценка на пользователя и триггер (`after_2` / `credits_empty`); score 1–10 + comment. SQL `255` |
 
 ### RPC
 
@@ -1891,6 +1903,8 @@ SEO листинга L1/L2/L3:
 | `admin_analytics_top_users` | Service-only топ-50 по allowed-запросам за `p_days` |
 | `admin_search_summary` | Service-only KPI поиска за `p_days` (SQL `254`) |
 | `admin_search_queries` | Service-only топ / нулевая выдача по `query_norm` за `p_days` (SQL `254`) |
+| `landing_nps_ensure_survey` / `landing_nps_submit` | Service-only upsert invite и запись оценки 1–10 (SQL `255`) |
+| `admin_nps_summary` / `admin_nps_daily` / `admin_nps_responses` | Service-only KPI, дни Москва, таблица email/score/comment (SQL `255`) |
 | `admin_credit_daily_flow` | Service-only дневные начисления (ЮKassa/Stars/publish rewards), списания и возвраты генераций |
 | `landing_mail_admin_daily_stats` | Service-only GROUP BY Moscow day × template × kind × status из `landing_mail_outbox`; окно ≤ 30 суток; `sql/210` |
 | `landing_mail_daily_budget` | Service-only квота суток (cap 5000, queued pending+processing, remaining) |

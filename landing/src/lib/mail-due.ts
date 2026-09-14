@@ -18,6 +18,13 @@ export type ClaimedMailDue = {
 };
 
 const DAILY_CAP_REASONS = new Set(["marketing_daily_cap", "winback_daily_cap"]);
+const NPS_WAIT_REASON = "nps_empty_wait_after_2";
+const MAIL_FLAG_KEYS: Partial<Record<MailTemplateId, string>> = {
+  yk_abandon_5m: "yk_abandon_5m_enabled",
+  low_balance_upgrade: "low_balance_upgrade_enabled",
+  nps_after_2: "nps_survey_enabled",
+  nps_credits_empty: "nps_survey_enabled",
+};
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -93,14 +100,8 @@ export async function processMailDue(options: {
     }
 
     const templateId = job.template_id as MailTemplateId;
-    if (
-      templateId === "yk_abandon_5m" ||
-      templateId === "low_balance_upgrade"
-    ) {
-      const flagKey =
-        templateId === "yk_abandon_5m"
-          ? "yk_abandon_5m_enabled"
-          : "low_balance_upgrade_enabled";
+    const flagKey = MAIL_FLAG_KEYS[templateId];
+    if (flagKey) {
       const { data: flagOn, error: flagError } = await options.supabase.rpc(
         "landing_mail_config_on",
         { p_key: flagKey },
@@ -159,6 +160,15 @@ export async function processMailDue(options: {
     const decision = evaluateMailDue(templateId, facts);
 
     if (decision.action === "skip") {
+      if (decision.reason === NPS_WAIT_REASON) {
+        await options.supabase.rpc("reschedule_mail_due", {
+          p_due_id: job.due_id,
+          p_lease_token: job.lease_token,
+          p_due_at: new Date(Date.now() + 60 * 60_000).toISOString(),
+        });
+        rescheduled += 1;
+        continue;
+      }
       if (DAILY_CAP_REASONS.has(decision.reason)) {
         const { data: nextAt, error: nextError } = await options.supabase.rpc(
           "landing_mail_next_moscow_midnight",
@@ -211,10 +221,27 @@ export async function processMailDue(options: {
       }
     }
 
-    const payload = {
+    const payload: Record<string, unknown> = {
       ...(job.payload || {}),
       ...decision.payload,
     };
+    if (templateId === "nps_after_2" || templateId === "nps_credits_empty") {
+      const trigger = templateId === "nps_after_2" ? "after_2" : "credits_empty";
+      const { data: surveyId, error: surveyError } = await options.supabase.rpc(
+        "landing_nps_ensure_survey",
+        { p_user_id: facts.sharedUserId, p_trigger: trigger },
+      );
+      if (surveyError || typeof surveyId !== "string" || !UUID_PATTERN.test(surveyId)) {
+        await options.supabase.rpc("reschedule_mail_due", {
+          p_due_id: job.due_id,
+          p_lease_token: job.lease_token,
+          p_due_at: new Date(Date.now() + 15 * 60_000).toISOString(),
+        });
+        rescheduled += 1;
+        continue;
+      }
+      payload.survey_id = surveyId;
+    }
     const result = await resolveAndEnqueueMail(options.supabase, {
       kind: decision.kind,
       templateId,

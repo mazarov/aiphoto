@@ -15,6 +15,8 @@ const DISALLOWED = [
   "/analyses",
   "/generate",
   "/pricing",
+  "/ocenka",
+  "/unsubscribe",
 ];
 
 /** Listing filters, then app-side params Yandex indexed as separate URLs. */
