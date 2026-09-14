@@ -1,6 +1,6 @@
 # 03 — Пайплайн: парсинг → загрузка → публикация
 
-> Последнее обновление: 2026-09-05 (**junk card reanalyze:** `src/standalone/reanalyze-junk-cards.mjs` — Gemini analyze фото мусорных title, новый промт + короткий title, **slug не меняется**. Теги не затираем. DO: curl raw + nohup, сначала `--dry-run`.)
+> Последнее обновление: 2026-09-14 (**junk card slug text:** `reanalyze-junk-cards.mjs` переписывает текст `/p/{slug}` из нового title, хвост `-2cd88` не меняет, старый URL → 301 `slug_redirects` через `upsert_card_titles_and_slug`. Полный slug ≤ 128. Карточки с уже нормальным title и мусорным slug — только URL, без Gemini. Теги не затираем.)
 >
 > Последнее обновление: 2026-08-21 (**prompt remix section patches:** Gemini возвращает JSON-правки секций, merge в `lib/prompt-remix.ts`; echo → один `full_rewrite` retry, затем `422 unchanged_prompt`.)
 >
@@ -263,14 +263,14 @@ npx tsx src/fix-template-titles.ts --dataset <slug>
 
 **Логика:** находит карточки с `JUNK_PATTERNS` в title → Gemini генерирует новый → обновляет `title_ru` и `slug`.
 
-Мусорные title из отчёта Вебмастера («Сделай такое же фото…», «Подборка дня») без смены URL:
+Мусорные title из отчёта Вебмастера («Сделай такое же фото…», «Подборка дня») и мусорные `/p/` slug (`podborka-dnya-2-2cd88`):
 
 ```bash
 node src/standalone/reanalyze-junk-cards.mjs --dry-run
 node src/standalone/reanalyze-junk-cards.mjs --limit 20
 ```
 
-Analyze фото (Gemini Flash) → новый промт + короткий `title_ru`/`title_en`. **`slug` не пишется.** Теги не затираем. На DO — `curl` raw + `nohup`.
+Analyze фото (Gemini Flash) → новый промт + короткий `title_ru`/`title_en`. Текст slug пересчитывается из title (транслит, окно 80 как ingest/retitle), хвост short id не меняется, полный slug ≤ 128. Старый URL пишется в `slug_redirects` (301 в `middleware.ts`). Если title уже нормальный, а slug мусорный — только RPC смены URL, без Gemini. Теги не затираем. На DO — `curl` raw + `nohup`.
 
 ---
 
