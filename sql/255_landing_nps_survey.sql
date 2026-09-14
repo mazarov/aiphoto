@@ -1,5 +1,6 @@
 -- Two one-shot NPS emails: after the 2nd paid generation, and +24h after credits hit 0.
 -- Does not edit prior mail/lifecycle migrations. Flag off by default.
+-- Column is survey_trigger, not trigger: unquoted TRIGGER is reserved and aborts CREATE TABLE.
 
 INSERT INTO public.landing_generation_config (key, value, updated_at)
 VALUES ('nps_survey_enabled', 'false', now())
@@ -8,13 +9,13 @@ ON CONFLICT (key) DO NOTHING;
 CREATE TABLE IF NOT EXISTS public.landing_nps_surveys (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id uuid NOT NULL REFERENCES public.landing_users(id),
-  trigger text NOT NULL CHECK (trigger IN ('after_2', 'credits_empty')),
+  survey_trigger text NOT NULL CHECK (survey_trigger IN ('after_2', 'credits_empty')),
   sent_at timestamptz,
   score smallint CHECK (score IS NULL OR (score >= 1 AND score <= 10)),
   comment text,
   submitted_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT now(),
-  UNIQUE (user_id, trigger)
+  UNIQUE (user_id, survey_trigger)
 );
 
 CREATE INDEX IF NOT EXISTS landing_nps_surveys_submitted_at_idx
@@ -36,7 +37,7 @@ CREATE INDEX IF NOT EXISTS landing_generations_nps_completed_user_idx
     AND coalesce(client_source, '') <> 'admin';
 
 COMMENT ON TABLE public.landing_nps_surveys IS
-  'One NPS invite per user per trigger. Score 1-10 + optional comment.';
+  'One NPS invite per user per survey_trigger. Score 1-10 + optional comment.';
 
 ALTER TABLE public.landing_mail_outbox
   DROP CONSTRAINT IF EXISTS landing_mail_outbox_template_id_check;
@@ -228,13 +229,13 @@ BEGIN
     'nps_after_2_sent', EXISTS (
       SELECT 1 FROM public.landing_nps_surveys s
        WHERE s.user_id = p_shared_user_id
-         AND s.trigger = 'after_2'
+         AND s.survey_trigger = 'after_2'
          AND s.sent_at IS NOT NULL
     ),
     'nps_empty_sent', EXISTS (
       SELECT 1 FROM public.landing_nps_surveys s
        WHERE s.user_id = p_shared_user_id
-         AND s.trigger = 'credits_empty'
+         AND s.survey_trigger = 'credits_empty'
          AND s.sent_at IS NOT NULL
     )
   );
@@ -272,9 +273,9 @@ BEGIN
     RETURN NULL;
   END IF;
 
-  INSERT INTO public.landing_nps_surveys (user_id, trigger)
+  INSERT INTO public.landing_nps_surveys (user_id, survey_trigger)
   VALUES (p_user_id, p_trigger)
-  ON CONFLICT (user_id, trigger) DO UPDATE
+  ON CONFLICT (user_id, survey_trigger) DO UPDATE
     SET user_id = EXCLUDED.user_id
   RETURNING id INTO v_id;
 
@@ -323,7 +324,7 @@ BEGIN
   END IF;
   IF EXISTS (
     SELECT 1 FROM public.landing_nps_surveys s
-     WHERE s.user_id = NEW.user_id AND s.trigger = 'after_2'
+     WHERE s.user_id = NEW.user_id AND s.survey_trigger = 'after_2'
   ) THEN
     RETURN NEW;
   END IF;
@@ -375,7 +376,7 @@ BEGIN
   IF EXISTS (
     SELECT 1 FROM public.landing_nps_surveys s
      WHERE s.user_id = NEW.id
-       AND s.trigger = 'credits_empty'
+       AND s.survey_trigger = 'credits_empty'
        AND s.sent_at IS NOT NULL
   ) THEN
     RETURN NEW;
@@ -383,7 +384,7 @@ BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM public.landing_nps_surveys s
      WHERE s.user_id = NEW.id
-       AND s.trigger = 'after_2'
+       AND s.survey_trigger = 'after_2'
        AND s.sent_at IS NOT NULL
   ) THEN
     RETURN NEW;
@@ -428,7 +429,7 @@ BEGIN
         v_survey IS NULL
         AND NEW.shared_user_id IS NOT NULL
         AND s.user_id = NEW.shared_user_id
-        AND s.trigger = v_trigger
+        AND s.survey_trigger = v_trigger
         AND s.sent_at IS NULL
       );
 
@@ -632,7 +633,7 @@ RETURNS TABLE (
   survey_id uuid,
   user_id uuid,
   email text,
-  trigger text,
+  survey_trigger text,
   sent_at timestamptz,
   score smallint,
   comment text,
@@ -652,7 +653,7 @@ AS $$
     s.id AS survey_id,
     s.user_id,
     coalesce(nullif(btrim(iu.email), ''), nullif(btrim(au.email), '')) AS email,
-    s.trigger,
+    s.survey_trigger,
     s.sent_at,
     s.score,
     s.comment,

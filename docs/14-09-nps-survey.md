@@ -36,4 +36,4 @@ AdminNav «Оценки» → `/admin/nps` (`NpsAnalyticsDashboard` + `GET /api/
 
 ## SQL
 
-`sql/255_landing_nps_survey.sql`: таблица, триггеры, outbox CHECK, RPC `admin_nps_*`, `landing_nps_submit`.
+`sql/255_landing_nps_survey.sql`: таблица (`survey_trigger`, не reserved `trigger`), триггеры, outbox CHECK, RPC `admin_nps_*`, `landing_nps_submit`. Если вкладка `/admin/nps` даёт `nps_fetch_failed` — миграция не применилась; прогнать файл целиком.

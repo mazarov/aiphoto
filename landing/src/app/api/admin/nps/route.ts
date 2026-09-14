@@ -13,9 +13,14 @@ export async function GET(req: NextRequest) {
       headers: { "Cache-Control": "no-store" },
     });
   } catch (error) {
+    const extra = error && typeof error === "object" ? (error as Record<string, unknown>) : {};
     console.error("[admin.nps] fetch_failed", {
       adminEmail: gate.email,
+      rpc: extra.rpc,
+      code: extra.code,
       message: error instanceof Error ? error.message : String(error),
+      details: extra.details,
+      hint: extra.hint,
     });
     return NextResponse.json({ error: "nps_fetch_failed" }, { status: 500 });
   }

@@ -1,5 +1,7 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-09-14 (**NPS SQL:** колонка `survey_trigger` вместо reserved `trigger` в `sql/255` — иначе CREATE TABLE не проходит и `/admin/nps` отдаёт `nps_fetch_failed`.)
+>
 > Последнее обновление: 2026-09-14 (**NPS admin tab:** вкладка AdminNav «Оценки» → `/admin/nps`; `NpsAnalyticsDashboard` + `GET /api/admin/nps`. `/admin/analytics?tab=nps` редиректит сюда. Обзор оценки больше не содержит.)
 >
 > Последнее обновление: 2026-09-14 (**NPS survey:** два tx-письма `nps_after_2` / `nps_credits_empty` через due/outbox; публичная `/ocenka` + `POST /api/nps`; админка `/admin/nps` ← `GET /api/admin/nps`. Флаг `nps_survey_enabled=false`. SQL `255`. Спека `docs/14-09-nps-survey.md`.)
@@ -1873,7 +1875,7 @@ SEO листинга L1/L2/L3:
 | `admin_finance_revenue_lines` | Строки реестра ЮKassa без PII плательщика |
 | `admin_finance_cogs_lines` | Строки Google Cloud Billing (SKU / `subtotal_usd`) |
 | `landing_mail_outbox` | Очередь исходящей почты (Postbox). Админ-статы читают sent/skip/fail; cron claim не зависит от вкладки статистики |
-| `landing_nps_surveys` | Одна NPS-оценка на пользователя и триггер (`after_2` / `credits_empty`); score 1–10 + comment. SQL `255` |
+| `landing_nps_surveys` | Одна NPS-оценка на пользователя и `survey_trigger` (`after_2` / `credits_empty`); score 1–10 + comment. SQL `255` |
 
 ### RPC
 

@@ -74,8 +74,12 @@ function emptySummary(): NpsAnalyticsSummary {
   };
 }
 
+export function npsRowTrigger(row: Record<string, unknown>): string {
+  return String(row.survey_trigger || row.trigger || "");
+}
+
 function mapResponse(row: Record<string, unknown>): NpsResponseRow {
-  const trigger = String(row.trigger || "");
+  const trigger = npsRowTrigger(row);
   return {
     survey_id: String(row.survey_id || ""),
     user_id: String(row.user_id || ""),
@@ -95,9 +99,9 @@ export async function fetchNpsAnalyticsDashboard(days: number): Promise<NpsAnaly
     supabase.rpc("admin_nps_daily", { p_days: days }),
     supabase.rpc("admin_nps_responses", { p_days: days, p_limit: 100 }),
   ]);
-  if (summaryRes.error) throw summaryRes.error;
-  if (dailyRes.error) throw dailyRes.error;
-  if (responsesRes.error) throw responsesRes.error;
+  if (summaryRes.error) throw Object.assign(summaryRes.error, { rpc: "admin_nps_summary" });
+  if (dailyRes.error) throw Object.assign(dailyRes.error, { rpc: "admin_nps_daily" });
+  if (responsesRes.error) throw Object.assign(responsesRes.error, { rpc: "admin_nps_responses" });
 
   const summaryRow = Array.isArray(summaryRes.data) ? summaryRes.data[0] : summaryRes.data;
   const sent = asNumber(summaryRow?.sent);
