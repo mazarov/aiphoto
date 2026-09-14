@@ -7,6 +7,7 @@ import type { AnalyticsDashboardData } from "@/lib/analytics-data";
 import { AdminExpandableCard } from "./AdminExpandableCard";
 import { ClientsDailyChart } from "./ClientsDailyChart";
 import { CreditLiabilitySection } from "./CreditLiabilitySection";
+import { SearchAnalyticsSection } from "./SearchAnalyticsSection";
 import { CLIENT_SOURCES_ORDER, clientSourceLabel } from "./analytics-constants";
 
 const PERIODS = [{ value: 1, label: "Сегодня" }, { value: 7, label: "7 дней" },
@@ -61,7 +62,7 @@ export function AnalyticsDashboard() {
     <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
       <div><p className="text-sm font-medium text-indigo-600">PromptShot Admin</p>
         <h1 className="text-3xl font-bold tracking-tight text-zinc-900">Аналитика</h1>
-        <p className="mt-1 text-sm text-zinc-500">Пользователи, клиенты, запросы и непотраченные кредиты</p></div>
+        <p className="mt-1 text-sm text-zinc-500">Пользователи, клиенты, поиск, запросы и непотраченные кредиты</p></div>
       <div className="flex flex-wrap items-center gap-2">
         <Link href="/admin/analyze-history" className="mr-2 text-sm font-semibold text-indigo-600">История и публикации →</Link>
         {PERIODS.map((period) => <button key={period.value} onClick={() => setDays(period.value)}
@@ -80,6 +81,7 @@ export function AnalyticsDashboard() {
         ].map(([label, value]) => <div key={label} className={card}><p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">{label}</p>
           <p className="mt-2 text-3xl font-bold tabular-nums text-zinc-900">{value}</p></div>)}
       </section>
+      <SearchAnalyticsSection days={days} />
       <CreditLiabilitySection days={days} />
       <section className={card}>
         <div className="mb-5 flex flex-wrap items-center justify-between gap-3">

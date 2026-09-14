@@ -117,3 +117,16 @@ test("snapshot restores only the matching request key", () => {
   clearSearchListingSnapshot();
   assert.equal(readSearchListingSnapshot(key("аниме")), null);
 });
+
+test("snapshot keeps committed search id across overlay remount", () => {
+  resetSearchListingSnapshotForTests();
+  writeSearchListingSnapshot({
+    ...snapshot("аниме"),
+    searchId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+  });
+  assert.equal(
+    readSearchListingSnapshot(key("аниме"))?.searchId,
+    "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+  );
+  clearSearchListingSnapshot();
+});

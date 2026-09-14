@@ -53,6 +53,11 @@ import {
   buildSearchApiParams,
   searchRequestKey,
 } from "@/lib/search-request";
+import { recordCommittedSearch } from "@/lib/search-analytics-client";
+import {
+  clearSearchNavContext,
+  writeSearchNavContext,
+} from "@/lib/search-nav-context";
 
 // Match catalog batch size so both listings feel consistent.
 const PAGE_SIZE = 48;
@@ -96,6 +101,8 @@ export function SearchResults({ initialQuery }: Props) {
   const queryRef = useRef(query);
   const filtersRef = useRef(filters);
   const lastSearchedRef = useRef<string | null>(null);
+  const searchIdRef = useRef<string | null>(null);
+  const firstPageCountRef = useRef(0);
   const scheduleDrainRef = useRef(() => {});
   const activeSearchRef = useRef<AbortController | null>(null);
 
@@ -113,6 +120,9 @@ export function SearchResults({ initialQuery }: Props) {
         loadingRef.current = false;
         setHasMore(false);
         hasMoreRef.current = false;
+        searchIdRef.current = null;
+        firstPageCountRef.current = 0;
+        clearSearchNavContext();
       }
       return;
     }
@@ -154,6 +164,32 @@ export function SearchResults({ initialQuery }: Props) {
       setHasMore(more);
       hasMoreRef.current = more;
       setSearched(true);
+      if (!append && activeSearchRef.current === controller) {
+        const requestKey = searchRequestKey(q, activeFilters);
+        const searchId = recordCommittedSearch({
+          requestKey,
+          query: q,
+          resultCount: newCards.length,
+          hasMore: more,
+          matchType: data.matchType ?? null,
+          limitSize: PAGE_SIZE,
+          filters: activeFilters,
+          existingSearchId: readSearchListingSnapshot(requestKey)?.searchId,
+        });
+        searchIdRef.current = searchId;
+        firstPageCountRef.current = newCards.length;
+        const slugs = newCards
+          .map((card) => card.slug)
+          .filter((slug): slug is string => Boolean(slug));
+        if (searchId) {
+          writeSearchNavContext({
+            searchId,
+            query: q,
+            slugs,
+            resultCount: newCards.length,
+          });
+        }
+      }
     } catch (error) {
       if (error instanceof Error && error.name === "AbortError") return;
       if (!append) setCardPages([]);
@@ -195,6 +231,8 @@ export function SearchResults({ initialQuery }: Props) {
     setMatchType(snapshot.matchType);
     setSearched(snapshot.searched);
     lastSearchedRef.current = snapshot.requestKey;
+    searchIdRef.current = snapshot.searchId ?? null;
+    firstPageCountRef.current = snapshot.cardPages[0]?.length ?? 0;
     setLoading(false);
     loadingRef.current = false;
     scheduleListingScrollRestore();
@@ -249,6 +287,7 @@ export function SearchResults({ initialQuery }: Props) {
       hasMore,
       matchType,
       searched,
+      searchId: searchIdRef.current,
     });
   }, [cardPages, hasMore, matchType, offset, query, searched]);
 
@@ -321,6 +360,14 @@ export function SearchResults({ initialQuery }: Props) {
       if (slugs.length > 0) {
         primeListingNavigationCards(displayedCards);
         writeListingNavigationContext(slugs);
+        if (searchIdRef.current) {
+          writeSearchNavContext({
+            searchId: searchIdRef.current,
+            query: queryRef.current,
+            slugs,
+            resultCount: firstPageCountRef.current,
+          });
+        }
       }
     }
   }, [displayedCards]);

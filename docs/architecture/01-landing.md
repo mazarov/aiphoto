@@ -1,5 +1,7 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-09-13 (**search analytics:** зафиксированный `/search` (first page) → `POST /api/search-events` в `landing_search_events` / `landing_search_clicks`; клик по карточке с `search_id` + position. Не писать в кешируемый `GET /api/search`. Админка: секция на `/admin/analytics` ← `GET /api/admin/search-analytics`, SQL `254`. Спека `docs/13-09-search-analytics.md`.)
+>
 > Последнее обновление: 2026-09-13 (**`isPromptshotAuthed` type predicate:** `promptshot-auth.ts` сужает `User | null` — `SidebarAccountPanel` читает `user.user_metadata` без `!` / optional после `if (!isPromptshotAuthed(user))`. `canShowPayChrome` — тот же guard.)
 >
 > Последнее обновление: 2026-09-13 (**header spacer ≠ overlay height:** `--ps-header-spacer` = развёрнутая шапка, не сжимается с лого. `--ps-header-height` = текущий overlay (карточка + padding, cap 168). ResizeObserver abspos-шапки не пишет 100vh в спейсер — иначе белая дыра на весь скролл `PageLayout`.)
@@ -969,7 +971,7 @@
 /favorites              → Избранное (требует авторизации)
 /generations            → Мои генерации (auth, `force-dynamic`): первая страница SSR через `landing_list_my_generations` (SQL `239`); дальше sentinel `GET /api/generations`. Сетка показывает listing thumbs, не 2K. UGC-карточка необязательна
 /analyses               → Мои анализы (auth, noindex): свои строки `analyze_history` (`user_id` = JWT или shared db id); signed preview из private bucket; CTA копирует промт и открывает dock. Гостевые анализы (`user_id` null) не попадают. SQL `188`
-/admin/analytics        → Закрытый analytics dashboard: пользователи/клиенты + live непотраченные кредиты; таблицы кредитов/топа/analyze свёрнуты до клика; admin generation modal; Supabase Auth + email allowlist `ANALYTICS_ADMIN_EMAILS`
+/admin/analytics        → Закрытый analytics dashboard: пользователи/клиенты + live непотраченные кредиты + секция поиска (зафиксированные запросы `/search`, размер выдачи, CTR в карточку); таблицы кредитов/топа/analyze/нулевой выдачи свёрнуты до клика; Supabase Auth + email allowlist `ANALYTICS_ADMIN_EMAILS`
 /admin/analyze-history  → Закрытая история analyze/remix + все non-admin user generations; remix помечается бейджем и `change_request`; image job — бейдж `Gemini|xAI generate|edit`; private source previews выдаются signed, completed results публикуются идемпотентно. Mobile rows: dense (56px thumb, 1-line prompt) via `admin-dense-row.ts`
 /admin/payments         → Закрытый cursor-реестр YooKassa/Robokassa: payer identity, RUB/status/test, credits/`credited_at`; кнопка «Скачать CSV» выгружает все строки текущих фильтров
 /admin/finance          → Live P&L: Сегодня/Вчера/7 дней + календарь; default `csv=0`; график выручка / косты стеком / опер. маржа; `csv=1` — monthly CSV override; `?tab=finance` с аналитики редиректит сюда
@@ -1031,7 +1033,8 @@
 
 | Путь | Назначение |
 |------|-----------|
-| `/api/search` | Гибридный поиск: `search_cards_text` + optional Gemini Embedding 2 / `search_cards_visual`; `audience/style/occasion/object` применяются в RPC до rank/pagination (миграция `194`). Fallback на FTS. `Server-Timing`: `search-text`, `search-embed`, `search-vector`, `search-rank`, `search-enrich` |
+| `/api/search` | Гибридный поиск: `search_cards_text` + optional Gemini Embedding 2 / `search_cards_visual`; `audience/style/occasion/object` применяются в RPC до rank/pagination (миграция `194`). Fallback на FTS. `Server-Timing`: `search-text`, `search-embed`, `search-vector`, `search-rank`, `search-enrich`. Аналитику не пишет (`Cache-Control: public, s-maxage=30`) |
+| `/api/search-events` | POST public ingest: `search` (first page `/search`) и `search_click`; visitor/session UUID; fail-open; `landing_search_events` / `landing_search_clicks` |
 | `/api/listing` | Листинг категории по тегам (`resolve_route_cards` RPC): `limit`, `offset`, `strict=1`, tag-фильтры, **`sort=popular\|new`** (default `new`; невалидный → **400**). Если есть **`q`** (≥2 символа, ≤160) — `searchListingCardsHybrid`: birthday SSOT → hybrid + result cache 1h + system budget; любой другой `q` → FTS-only. Peek `limit+1`, ответ `{ cards, total_count, ranked_batch_size, has_more, query, matchType }`. `limit` для `q` ≤ 99. |
 | `/api/compose/classify-audience` | POST: кто на identity-фото для пикера «Выбрать пример». Body: `photoId` (authed library) XOR `image_base64` (data URL, гость). Gemini Flash JSON → `audienceTag` `devushka\|muzhchina\|para\|semya\|malchik\|devochka\|malysh` или `null`. Соло-ребёнок — детский тег, не newest. Listing не блокируется. Флаг `compose_example_match_enabled` (SQL `240`); кэш колонки `landing_user_photos.audience_tag` (CHECK — SQL `241`). Не `search_cards_visual`. Rate limit своя таблица, не `SEARCH_VISUAL_*`. |
 | `/api/filter-counts` | Счётчики тегов для текущей выборки (`get_filter_counts` RPC) |
@@ -1083,6 +1086,7 @@
 | `/api/scout/analyze` | Открытый analyze для бота: без auth, бакет `scout:v1`, 200 успешных / UTC-день, без кредитов пользователя. GET — остаток. `client_source=scout`. Не в sitemap |
 | `/api/extension/analyze/quota` | GET, cookie session, no-store: `remaining_free`, `next_mode`, `credit_cost`, реальный `credits` для авторизованного |
 | `/api/admin/analytics` | GET, admin auth: no-store analytics rollups за `1…90` дней; топ пользователей — `admin_analytics_top_users` за тот же период |
+| `/api/admin/search-analytics` | GET, admin auth: no-store KPI/daily/топ/нулевая выдача поиска за `1…90` дней; RPC `admin_search_summary` + `admin_search_queries` |
 | `/api/admin/credits` | GET, admin auth: live остаток + daily flow (`days=1\|7\|30\|90`) + keyset-список (`q`, remaining/granted/spent/share) |
 | `/api/admin/finance` | GET, admin auth: KPI за `from`/`to` (или `month=YYYY-MM`); `csv=1` — uploaded override, иначе live ledger/gens + Direct API |
 | `/api/admin/seo-watchlist` | GET, admin auth: снимок топ-30 URL + запросы/дни из `seo-watchlist-snapshot.json` |
@@ -1139,7 +1143,8 @@
   `/admin/payments`, `/admin/finance`, `/admin/seo`, `/admin/mail` и каждый
   `/api/admin/*` проверяют Supabase Auth session, затем нормализованный email против
   `ANALYTICS_ADMIN_EMAILS`. Пустой allowlist означает fail-closed; service-role key
-  остаётся только на сервере.
+  остаётся только на сервере. Поиск: сырые запросы в `landing_search_events` читает
+  только admin API; ingest не пишет IP.
 - **Analyze site flow:** `/foto-v-promt` и dock «Промт по фото» вызывают
   `getImagePromptAnalyzeUrl()` → same-origin `POST /api/extension/analyze`
   (и в `next dev`). Старт в dock — эффект на `intent` + data URL
@@ -1618,6 +1623,7 @@ SearchResults (client, infinite scroll)
 - Visual branch: `gemini-embedding-2` 768-d, timeout **800 мс** на `/api/search`, **8000 мс** на birthday listing cache-fill (`LISTING_HYBRID_EMBED_TIMEOUT_MS`), IP/global daily budget, LRU/single-flight, circuit breaker. Listing SSOT сначала читает `listing_query_embeddings`; Gemini только на miss, потом upsert. Любой сбой → текущий FTS без HTTP 429. Fallback листинга не кэшируется.
 - Hybrid rank: exact title и strong FTS выше visual-only; остальные — weighted RRF. `matchType`: `fts` / `trgm` / `visual` / `fts+visual` / `trgm+visual`.
 - Защита нагрузки: максимум 160 символов, `limit ≤ 100`, debounce 500 мс; публичные клиенты отменяют устаревшие запросы. `/api/search` возвращает `Server-Timing: search-text, search-embed, search-vector, search-rank, search-enrich`; медленные и fallback-запросы логируются без текста запроса.
+- **Аналитика поиска:** после успешной первой страницы `SearchResults` шлёт `POST /api/search-events` (`event=search`) с клиентским `search_id`, `query`, `result_count`, `has_more`, `match_type`, фильтрами. Клик по карточке из этой выдачи — `search_click` (модалка и `/p/{slug}`), position из `promptshot_search_nav_v1` (не общий listing-nav). Пагинация тот же `search_id`. Инлайн-превью и `/api/listing?q=` не пишутся. Админка: `SearchAnalyticsSection` на `/admin/analytics`. SQL `254`.
 
 ### Catalog admin (вместо `/debug`)
 
@@ -1838,6 +1844,8 @@ SEO листинга L1/L2/L3:
 | `card_reactions` | Лайки/дизлайки (через supabase-browser) |
 | `card_favorites` | Избранное (через supabase-browser) |
 | `vibes` | Сохранённые extracted style JSON для Steal This Vibe |
+| `landing_search_events` | Зафиксированные first-page поиски `/search` (клиентский `id`, query, `result_count`, `has_more`). SQL `254`, только service_role |
+| `landing_search_clicks` | Клики в карточку с `search_id` + position + `entry=modal\|page`. SQL `254` |
 | `landing_generations` | История web-генераций; `provider_cost_usd` / `provider_cost_source` для live P&L (`sql/237`) |
 | `landing_vibe_saves` | Сохранённые выборы пользователя по vibe-генерациям (`vibe_id`, `card_id`, `auto_seo_tags`) |
 | `landing_user_telegram_links` | Привязка web-пользователя к Telegram (`landing_user_id` ↔ `telegram_id`) |
@@ -1878,6 +1886,8 @@ SEO листинга L1/L2/L3:
 | `admin_credit_liability_summary` | Service-only totals `landing_users.credits > 0`; RUB-оценка в админке = 5 кр. / 2,5 ₽ |
 | `admin_credit_liabilities` | Service-only keyset-список тех, кто начислял/тратил кредиты за `p_days`, plus live remaining |
 | `admin_analytics_top_users` | Service-only топ-50 по allowed-запросам за `p_days` |
+| `admin_search_summary` | Service-only KPI поиска за `p_days` (SQL `254`) |
+| `admin_search_queries` | Service-only топ / нулевая выдача по `query_norm` за `p_days` (SQL `254`) |
 | `admin_credit_daily_flow` | Service-only дневные начисления (ЮKassa/Stars/publish rewards), списания и возвраты генераций |
 | `landing_mail_admin_daily_stats` | Service-only GROUP BY Moscow day × template × kind × status из `landing_mail_outbox`; окно ≤ 30 суток; `sql/210` |
 | `landing_mail_daily_budget` | Service-only квота суток (cap 5000, queued pending+processing, remaining) |

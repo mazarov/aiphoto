@@ -30,6 +30,7 @@ import {
 import { markPromptCardOverlayOpened } from "@/lib/prompt-card-overlay-open";
 import { lockListingScrollForModal } from "@/lib/scroll-preservation";
 import { trackPromptCardOpen, trackVirtualPageView } from "@/lib/yandex-metrika";
+import { recordSearchCardClick } from "@/lib/search-analytics-client";
 
 const CARD_CACHE_MAX_ENTRIES = 9;
 const CARD_PREFETCH_BEHIND = 2;
@@ -112,6 +113,7 @@ export function PromptCardModalProvider({ children }: { children: ReactNode }) {
       }
 
       trackPromptCardOpen(nextSlug, { entry: "modal", referer });
+      recordSearchCardClick(nextSlug, "modal");
       trackVirtualPageView(`/p/${encodeURIComponent(nextSlug)}`, { referer });
     }
     setCurrentSeed(nextSlug === slug ? seed ?? null : null);
@@ -134,6 +136,7 @@ export function PromptCardModalProvider({ children }: { children: ReactNode }) {
         overlay: { type: "card", slug },
       });
       trackVirtualPageView(`/p/${encodeURIComponent(slug)}`, { referer });
+      recordSearchCardClick(slug, "modal");
     }
     setCurrentSeed(null);
     setCurrentSlug(slug);

@@ -69,6 +69,7 @@ import {
   getSeoSlugsWithTags,
 } from "@/lib/tag-registry";
 import { trackPromptCardOpen } from "@/lib/yandex-metrika";
+import { recordSearchCardClick } from "@/lib/search-analytics-client";
 import { PhotoshootListingBadge } from "@/components/PhotoshootListingBadge";
 import {
   PhotoshootFrameStrip,
@@ -384,6 +385,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
   useEffect(() => {
     if (isModal) return;
     trackPromptCardOpen(data.slug, { entry: "page" });
+    recordSearchCardClick(data.slug, "page");
   }, [data.slug, isModal]);
 
   async function handleVisibilityChange(nextPublished: boolean) {

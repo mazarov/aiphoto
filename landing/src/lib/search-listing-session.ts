@@ -28,6 +28,7 @@ export type SearchListingSnapshot = {
   hasMore: boolean;
   matchType: string | null;
   searched: boolean;
+  searchId?: string | null;
 };
 
 export type SearchUrlSyncAction = "ignore" | "keep" | "search";
