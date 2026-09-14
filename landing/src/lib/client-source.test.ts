@@ -53,6 +53,7 @@ test("mapPromptshotPathToSource uses calling page prefixes", () => {
     "promptshot"
   );
   assert.equal(mapPromptshotPathToSource("/admin/analytics"), "admin");
+  assert.equal(mapPromptshotPathToSource("/admin/search"), "admin");
   assert.equal(mapPromptshotPathToSource("/admin"), "admin");
   assert.equal(mapPromptshotPathToSource("/p/some-card"), "promptshot");
   assert.equal(mapPromptshotPathToSource("/"), "promptshot");

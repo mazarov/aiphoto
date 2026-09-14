@@ -5,7 +5,7 @@
 
 ## Цель
 
-В `/admin/analytics` видеть first-party факты по **зафиксированным** поискам:
+На вкладке `/admin/search` видеть first-party факты по **зафиксированным** поискам:
 
 1. что пользователь ввёл в `/search`;
 2. какой размер выдачи мы показали на первой странице;
@@ -57,9 +57,11 @@ Retention сырых событий: 180 дней (cleanup RPC/cron — follow-u
 
 ## Дашборд
 
+Отдельная вкладка AdminNav **Поиск** → `/admin/search` (не на обзоре). `?tab=search` с `/admin/analytics` редиректит сюда.
+
 `GET /api/admin/search-analytics?days=1|7|30|90` + `requireAnalyticsAdmin`, `Cache-Control: no-store`.
 
-Секция `SearchAnalyticsSection` на `/admin/analytics` (свой fetch, как кредиты):
+`SearchAnalyticsDashboard`:
 
 - KPI: поиски, уникальные visitor, доля нулевой выдачи, CTR (поиски с ≥1 click), средний `result_count`
 - ряд по дням: поиски / клики / zero-result
