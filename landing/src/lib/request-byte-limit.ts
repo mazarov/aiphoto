@@ -14,15 +14,19 @@ export function contentLengthExceeds(headers: Headers, maxBytes: number): boolea
   return Number.isFinite(declared) && declared > maxBytes;
 }
 
+type ByteStream =
+  | Pick<Request, "headers" | "body">
+  | Pick<Response, "headers" | "body">;
+
 export async function readLimitedResponseBytes(
-  response: Response,
+  source: ByteStream,
   maxBytes: number,
 ): Promise<Uint8Array> {
-  if (contentLengthExceeds(response.headers, maxBytes)) {
+  if (contentLengthExceeds(source.headers, maxBytes)) {
     throw new PayloadTooLargeError();
   }
-  if (!response.body) throw new PayloadTooLargeError();
-  const reader = response.body.getReader();
+  if (!source.body) throw new PayloadTooLargeError();
+  const reader = source.body.getReader();
   const chunks: Uint8Array[] = [];
   let total = 0;
   for (;;) {
