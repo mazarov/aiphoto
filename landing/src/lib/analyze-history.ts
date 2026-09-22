@@ -55,14 +55,16 @@ async function persist(
   const id = crypto.randomUUID();
   const now = new Date();
   let path: string | null = null;
+  const imageBase64 = input.imageBase64;
 
-  if (input.imageBase64) {
+  if (imageBase64) {
+    const encoded = imageBase64;
     path = `${now.getUTCFullYear()}/${String(now.getUTCMonth() + 1).padStart(
       2,
       "0",
     )}/${String(now.getUTCDate()).padStart(2, "0")}/${id}.jpg`;
     const image = await runSharpLimited(() =>
-      sharp(Buffer.from(input.imageBase64, "base64"))
+      sharp(Buffer.from(encoded, "base64"))
         .resize(1024, 1024, { fit: "inside", withoutEnlargement: true })
         .jpeg({ quality: 85 })
         .toBuffer(),
