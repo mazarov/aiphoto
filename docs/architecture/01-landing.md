@@ -1,5 +1,7 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-09-22 (**память контейнера:** Next `15.5.21`, `/_next/image` disk LRU 256 МБ, `deviceSizes` ≤1920. sharp cache 32 МБ / concurrency 1, семафор 2+4 (`sharp-runtime.ts`). Тела analyze/vibe/storage читаются с байтовым потолком; vibe перед LLM сжимается до JPEG 1280. Лог `[runtime.memory]` раз в 60 с и `GET /api/admin/runtime-memory`. Sharp стартует из `instrumentation.node.ts`; edge/middleware подменяет его пустышкой, чтобы не бандлить `child_process`.
+>
 > Последнее обновление: 2026-09-14 (**NPS SQL:** колонка `survey_trigger` вместо reserved `trigger` в `sql/255` — иначе CREATE TABLE не проходит и `/admin/nps` отдаёт `nps_fetch_failed`.)
 >
 > Последнее обновление: 2026-09-14 (**NPS admin tab:** вкладка AdminNav «Оценки» → `/admin/nps`; `NpsAnalyticsDashboard` + `GET /api/admin/nps`. `/admin/analytics?tab=nps` редиректит сюда. Обзор оценки больше не содержит.)
@@ -1017,7 +1019,7 @@
 ### Два этапа отдачи в браузер
 
 1. **Опционально — Supabase Storage Image Transformation** (`/storage/v1/render/image/public/…`): при `NEXT_PUBLIC_SUPABASE_STORAGE_IMAGE_TRANSFORM=1` вместо прямого `…/object/public/…` подставляется URL с параметрами **`width`** и **`quality`**. На стороне хостинга Storage запрос обрабатывает **imgproxy** (ресайз + перекодирование в JPEG/WebP и т.д.). Это первое ограничение по пикселям и первое сжатие по качеству.
-2. **Всегда для `<Image />` — оптимизатор Next.js** (`/_next/image?…`): по `src` (уже может быть `render/image` или полный объект) сервер лендинга отдаёт формат (часто WebP/AVIF) и размер, согласованный с атрибутом **`sizes`** (подсказка для `srcset` / выбора ширины `w=`) и явным **`quality={…}`** на компоненте. В Next 15 разрешённые значения `quality` заданы в **`next.config.ts`** → `images.qualities` (сейчас **45**, **60**, **75**).
+2. **Всегда для `<Image />` — оптимизатор Next.js** (`/_next/image?…`): по `src` (уже может быть `render/image` или полный объект) сервер лендинга отдаёт формат (часто WebP/AVIF) и размер, согласованный с атрибутом **`sizes`** (подсказка для `srcset` / выбора ширины `w=`) и явным **`quality={…}`** на компоненте. В Next 15 разрешённые значения `quality` заданы в **`next.config.ts`** → `images.qualities` (сейчас **45**, **60**, **75**). `images.deviceSizes` — **640, 750, 828, 1080, 1200, 1920** (`NEXT_IMAGE_DEVICE_SIZES`): `fill` больше не декодирует 2048/3840. Дисковый LRU `/_next/image` — **256 МБ** (`images.maximumDiskCacheSize`, Next **15.5.21**). Процессный sharp: cache **32 МБ**, `concurrency(1)`, семафор **2** активных и **4** ожидающих (`sharp-runtime.ts`, старт в `instrumentation.ts`). Сверх очереди — `503 sharp_busy`. Analyze, vibe extract, upload и storage-download читают тело с байтовым потолком до `arrayBuffer`. Vibe перед LLM сжимает вход до JPEG **1280** q80. Снимок RSS / heap / cgroup `anon`+`file` и счётчики маршрутов: лог `[runtime.memory]` раз в 60 с и `GET /api/admin/runtime-memory`.
 
 Итоговый вес файла задаётся **произведением** решений обоих этапов: узкий `width` на шаге 1 уменьшает вход для шага 2; низкий `quality` на шаге 2 даёт дополнительное сжатие уже после imgproxy.
 
@@ -1097,6 +1099,7 @@
 | `/api/scout/analyze` | Открытый analyze для бота: без auth, бакет `scout:v1`, 200 успешных / UTC-день, без кредитов пользователя. GET — остаток. `client_source=scout`. Не в sitemap |
 | `/api/extension/analyze/quota` | GET, cookie session, no-store: `remaining_free`, `next_mode`, `credit_cost`, реальный `credits` для авторизованного |
 | `/api/admin/analytics` | GET, admin auth: no-store analytics rollups за `1…90` дней; топ пользователей — `admin_analytics_top_users` за тот же период |
+| `/api/admin/runtime-memory` | GET, admin auth, no-store: RSS, heap, external, cgroup `anon`/`file`, счётчики маршрутов и очередь sharp |
 | `/api/admin/nps` | GET, admin auth, no-store: KPI/daily/ответы NPS за `1\|7\|30\|90` дней; RPC `admin_nps_summary` + `admin_nps_daily` + `admin_nps_responses` |
 | `/api/nps` | POST, публичный HMAC: `{ token, score 1–10, comment? }` → `landing_nps_submit` |
 | `/api/admin/search-analytics` | GET, admin auth: no-store KPI/daily/топ/нулевая выдача поиска за `1…90` дней; RPC `admin_search_summary` + `admin_search_queries` |
@@ -2027,7 +2030,10 @@ landing/src/
 ├── lib/
 │   ├── supabase-server-client.ts ← Singleton service-role `createSupabaseServer` (без GoTrue timer)
 │   ├── supabase-cookie-client.ts ← Cookie/Bearer `createServerClient` с тем же `SUPABASE_SERVER_AUTH`
-│   ├── next-cache-memory.ts    ← `cacheMaxMemorySize` 32 МБ для Next in-process cache
+│   ├── next-cache-memory.ts    ← in-process cache 32 МБ, disk image cache 256 МБ, deviceSizes ≤1920
+│   ├── sharp-runtime.ts        ← sharp cache/concurrency + семафор 2 активных / 4 ожидающих
+│   ├── request-byte-limit.ts   ← потолок тела и storage-download до Buffer
+│   ├── runtime-memory.ts       ← снимок RSS/heap/cgroup и счётчики маршрутов
 │   ├── supabase.ts             ← Реэкспорт клиента + data fetching
 │   ├── auth-oauth.ts           ← signInWithOAuthProvider (google, custom:yandex)
 │   ├── auth-return-path.ts     ← sanitize next, ps_auth_next read/write

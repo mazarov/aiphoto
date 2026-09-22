@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import sharp from "sharp";
+import { noteMemoryRoute } from "@/lib/runtime-memory";
+import { isPayloadTooLarge, readBlobBytes } from "@/lib/request-byte-limit";
+import { isSharpBusyError, runSharpLimited } from "@/lib/sharp-runtime";
 import { createSupabaseServer } from "@/lib/supabase";
 import { getSupabaseUserForApiRoute } from "@/lib/supabase-route-auth";
 import { resolveSharedDbUserId } from "@/lib/resolve-db-user-id";
@@ -22,6 +25,7 @@ export const runtime = "nodejs";
 const DIRECT_GEMINI_BASE_URL = "https://generativelanguage.googleapis.com";
 const REQUEST_TIMEOUT_MS = 25_000;
 const MAX_IMAGE_PX = 1280;
+const MAX_SOURCE_BYTES = 15 * 1024 * 1024;
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -62,7 +66,12 @@ function extractGeminiText(payload: Record<string, unknown>): string {
   );
 }
 
+async function readStorageImage(file: Blob): Promise<Buffer> {
+  return Buffer.from(await readBlobBytes(file, MAX_SOURCE_BYTES));
+}
+
 export async function POST(req: NextRequest) {
+  noteMemoryRoute("animate.scenario");
   const startedAt = Date.now();
   try {
     const { user, error: authError } = await getSupabaseUserForApiRoute(req);
@@ -167,7 +176,7 @@ export async function POST(req: NextRequest) {
           { status: 500 }
         );
       }
-      imageBytes = Buffer.from(await file.arrayBuffer());
+      imageBytes = await readStorageImage(file);
     } else {
       const { data: file, error: downloadError } = await supabase.storage
         .from(USER_GENERATION_PHOTOS_BUCKET)
@@ -178,7 +187,7 @@ export async function POST(req: NextRequest) {
           { status: 500 }
         );
       }
-      imageBytes = Buffer.from(await file.arrayBuffer());
+      imageBytes = await readStorageImage(file);
     }
 
     if (!imageBytes?.length) {
@@ -188,11 +197,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const resized = await sharp(imageBytes)
-      .rotate()
-      .resize(MAX_IMAGE_PX, MAX_IMAGE_PX, { fit: "inside", withoutEnlargement: true })
-      .jpeg({ quality: 80 })
-      .toBuffer();
+    const resized = await runSharpLimited(() =>
+      sharp(imageBytes)
+        .rotate()
+        .resize(MAX_IMAGE_PX, MAX_IMAGE_PX, { fit: "inside", withoutEnlargement: true })
+        .jpeg({ quality: 80 })
+        .toBuffer(),
+    );
 
     const apiKey = process.env.GEMINI_API_KEY?.trim();
     if (!apiKey) {
@@ -275,6 +286,18 @@ export async function POST(req: NextRequest) {
     });
     return NextResponse.json({ scenario, model });
   } catch (error) {
+    if (isPayloadTooLarge(error)) {
+      return NextResponse.json(
+        { error: "input_too_large", message: "Фото слишком большое" },
+        { status: 413 },
+      );
+    }
+    if (isSharpBusyError(error)) {
+      return NextResponse.json(
+        { error: "busy", message: "Сервис занят. Попробуйте ещё раз." },
+        { status: 503 },
+      );
+    }
     console.error("[animate.scenario] failed", error);
     return NextResponse.json(
       { error: "scenario_failed", message: "Не удалось придумать сценарий" },

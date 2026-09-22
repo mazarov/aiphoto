@@ -1,5 +1,6 @@
 import type { NextRequest } from "next/server";
 import sharp from "sharp";
+import { runSharpLimited } from "@/lib/sharp-runtime";
 import { resolveClientSource, type ClientSource } from "@/lib/client-source";
 import type { createSupabaseServer } from "@/lib/supabase";
 import { publicObjectUploadOptions } from "@/lib/storage-cache-control";
@@ -60,10 +61,12 @@ async function persist(
       2,
       "0",
     )}/${String(now.getUTCDate()).padStart(2, "0")}/${id}.jpg`;
-    const image = await sharp(Buffer.from(input.imageBase64, "base64"))
-      .resize(1024, 1024, { fit: "inside", withoutEnlargement: true })
-      .jpeg({ quality: 85 })
-      .toBuffer();
+    const image = await runSharpLimited(() =>
+      sharp(Buffer.from(input.imageBase64, "base64"))
+        .resize(1024, 1024, { fit: "inside", withoutEnlargement: true })
+        .jpeg({ quality: 85 })
+        .toBuffer(),
+    );
 
     const { error: uploadError } = await supabase.storage
       .from(ANALYZE_HISTORY_BUCKET)

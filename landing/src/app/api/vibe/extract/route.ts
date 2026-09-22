@@ -1,6 +1,10 @@
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
 import { NextRequest, NextResponse } from "next/server";
+import sharp from "sharp";
+import { noteMemoryRoute } from "@/lib/runtime-memory";
+import { isPayloadTooLarge, readLimitedResponseBytes } from "@/lib/request-byte-limit";
+import { isSharpBusyError, runSharpLimited } from "@/lib/sharp-runtime";
 import { createSupabaseServer } from "@/lib/supabase";
 import { getSupabaseUserForApiRoute } from "@/lib/supabase-route-auth";
 import {
@@ -25,6 +29,7 @@ import { getStvPipelineTrace, stvLog } from "@/lib/stv-pipeline-log";
 
 const DIRECT_GEMINI_BASE_URL = "https://generativelanguage.googleapis.com";
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+const VIBE_INLINE_MAX_EDGE = 1280;
 
 /** Optional client override for vision instruction (A/B extract prompts). */
 const MIN_EXTRACT_INSTRUCTION_OVERRIDE_LEN = 80;
@@ -159,12 +164,6 @@ async function validateSafeImageUrl(imageUrl: string): Promise<URL | null> {
   return parsed;
 }
 
-function normalizeMimeType(contentType: string | null): string {
-  const raw = String(contentType || "").split(";")[0].trim().toLowerCase();
-  if (raw === "image/png" || raw === "image/jpeg" || raw === "image/webp") return raw;
-  return "image/jpeg";
-}
-
 async function fetchImageAsInlineData(imageUrl: string): Promise<{ mimeType: string; data: string }> {
   const response = await fetch(imageUrl, {
     headers: {
@@ -182,23 +181,34 @@ async function fetchImageAsInlineData(imageUrl: string): Promise<{ mimeType: str
     throw new Error("url does not point to image");
   }
 
-  const contentLength = Number(response.headers.get("content-length") || 0);
-  if (contentLength > MAX_IMAGE_BYTES) {
-    throw new Error("image is too large");
+  let raw: Uint8Array;
+  try {
+    raw = await readLimitedResponseBytes(response, MAX_IMAGE_BYTES);
+  } catch (error) {
+    if (isPayloadTooLarge(error)) throw new Error("image is too large");
+    throw error;
   }
+  if (!raw.byteLength) throw new Error("image is too large");
 
-  const buf = Buffer.from(await response.arrayBuffer());
-  if (buf.length > MAX_IMAGE_BYTES) {
-    throw new Error("image is too large");
-  }
+  const resized = await runSharpLimited(() =>
+    sharp(raw)
+      .rotate()
+      .resize(VIBE_INLINE_MAX_EDGE, VIBE_INLINE_MAX_EDGE, {
+        fit: "inside",
+        withoutEnlargement: true,
+      })
+      .jpeg({ quality: 80 })
+      .toBuffer(),
+  );
 
   return {
-    mimeType: normalizeMimeType(contentType),
-    data: buf.toString("base64"),
+    mimeType: "image/jpeg",
+    data: resized.toString("base64"),
   };
 }
 
 export async function POST(req: NextRequest) {
+  noteMemoryRoute("vibe.extract");
   try {
     const { user, error: authError } = await getSupabaseUserForApiRoute(req);
     if (authError || !user) {
@@ -540,6 +550,9 @@ export async function POST(req: NextRequest) {
       extractInstructionCustom,
     });
   } catch (err) {
+    if (isSharpBusyError(err)) {
+      return NextResponse.json({ error: "busy" }, { status: 503 });
+    }
     console.error("[vibe.extract] unhandled error", {
       ...toErrorMeta(err),
       ...fetchErrorDetails(err),

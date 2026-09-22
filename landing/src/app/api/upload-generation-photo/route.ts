@@ -12,13 +12,21 @@ import {
 } from "@/lib/user-generation-photos";
 import { publicObjectUploadOptions } from "@/lib/storage-cache-control";
 import sharp from "sharp";
+import { noteMemoryRoute } from "@/lib/runtime-memory";
+import { contentLengthExceeds } from "@/lib/request-byte-limit";
+import { isSharpBusyError, runSharpLimited } from "@/lib/sharp-runtime";
 
 const MAX_SIZE_MB = 10;
+const MAX_BODY_BYTES = 12 * 1024 * 1024;
 const MAX_PX = 2048;
 const JPEG_QUALITY = 85;
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp"];
 
 export async function POST(req: NextRequest) {
+  noteMemoryRoute("upload.generation-photo");
+  if (contentLengthExceeds(req.headers, MAX_BODY_BYTES)) {
+    return NextResponse.json({ error: `File too large. Max ${MAX_SIZE_MB}MB` }, { status: 413 });
+  }
   try {
     const { user, error: authError } = await getSupabaseUserForApiRoute(req);
 
@@ -45,20 +53,21 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const bytes = await file.arrayBuffer();
-    const sizeMb = bytes.byteLength / (1024 * 1024);
-    if (sizeMb > MAX_SIZE_MB) {
+    if (file.size > MAX_SIZE_MB * 1024 * 1024) {
       return NextResponse.json(
         { error: `File too large. Max ${MAX_SIZE_MB}MB` },
-        { status: 400 }
+        { status: 413 }
       );
     }
 
+    const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
-    const resized = await sharp(buffer)
-      .resize(MAX_PX, MAX_PX, { fit: "inside", withoutEnlargement: true })
-      .jpeg({ quality: JPEG_QUALITY })
-      .toBuffer({ resolveWithObject: true });
+    const resized = await runSharpLimited(() =>
+      sharp(buffer)
+        .resize(MAX_PX, MAX_PX, { fit: "inside", withoutEnlargement: true })
+        .jpeg({ quality: JPEG_QUALITY })
+        .toBuffer({ resolveWithObject: true }),
+    );
 
     const timestamp = Math.floor(Date.now() / 1000);
     const ext = "jpg";
@@ -120,6 +129,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ storagePath: path, ...(photo ? { photo } : {}) });
   } catch (err) {
+    if (isSharpBusyError(err)) {
+      return NextResponse.json({ error: "busy" }, { status: 503 });
+    }
     console.error("upload-generation-photo error:", err);
     return NextResponse.json({ error: "Upload failed" }, { status: 500 });
   }

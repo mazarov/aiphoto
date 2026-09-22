@@ -1,4 +1,6 @@
 import sharp from "sharp";
+import { isPayloadTooLarge, readLimitedResponseBytes } from "@/lib/request-byte-limit";
+import { runSharpLimited } from "@/lib/sharp-runtime";
 import { embedImageBytes } from "@/lib/gemini-embedding";
 import { getStoragePublicUrl } from "@/lib/supabase";
 import {
@@ -70,20 +72,28 @@ export async function downloadCanonicalPhoto(options: {
   if (!response.ok) {
     throw new Error(`image_fetch_${response.status}`);
   }
-  const raw = new Uint8Array(await response.arrayBuffer());
-  if (raw.byteLength === 0 || raw.byteLength > 20 * 1024 * 1024) {
+  let raw: Uint8Array;
+  try {
+    raw = await readLimitedResponseBytes(response, 20 * 1024 * 1024);
+  } catch (error) {
+    if (isPayloadTooLarge(error)) throw new Error("image_too_large");
+    throw error;
+  }
+  if (raw.byteLength === 0) {
     throw new Error("image_too_large");
   }
-  const resized = await sharp(raw)
-    .rotate()
-    .resize({
-      width: VISUAL_IMAGE_MAX_EDGE,
-      height: VISUAL_IMAGE_MAX_EDGE,
-      fit: "inside",
-      withoutEnlargement: true,
-    })
-    .jpeg({ quality: 80 })
-    .toBuffer();
+  const resized = await runSharpLimited(() =>
+    sharp(raw)
+      .rotate()
+      .resize({
+        width: VISUAL_IMAGE_MAX_EDGE,
+        height: VISUAL_IMAGE_MAX_EDGE,
+        fit: "inside",
+        withoutEnlargement: true,
+      })
+      .jpeg({ quality: 80 })
+      .toBuffer(),
+  );
   if (resized.byteLength > VISUAL_MAX_IMAGE_BYTES) {
     throw new Error("image_too_large");
   }

@@ -5,6 +5,7 @@ import {
   type ParsedAnalyzeImage,
 } from "@/lib/image-prompt-analyze-image";
 import { resolveAnalyzeGeminiBaseUrl } from "@/lib/image-prompt-analyze-gemini";
+import { isSharpBusyError } from "@/lib/sharp-runtime";
 import type { createSupabaseServer } from "@/lib/supabase";
 import {
   mapComposeAudienceClassification,
@@ -121,7 +122,8 @@ export async function classifyComposeAudienceFromImage(params: {
       maxEdge: ANALYZE_GEMINI_MAX_EDGE,
       maxBytes: ANALYZE_GEMINI_MAX_BYTES,
     });
-  } catch {
+  } catch (error) {
+    if (isSharpBusyError(error)) throw error;
     return { tag: null, confidence: null };
   }
 

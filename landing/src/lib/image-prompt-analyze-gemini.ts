@@ -15,6 +15,7 @@ import {
   prepareAnalyzeImageForGemini,
   type ParsedAnalyzeImage,
 } from "@/lib/image-prompt-analyze-image";
+import { isSharpBusyError } from "@/lib/sharp-runtime";
 
 type SupabaseServer = ReturnType<typeof createSupabaseServer>;
 
@@ -128,7 +129,8 @@ export async function generatePhotorealPromptFromImage(params: {
       maxEdge: params.imageMaxEdge ?? ANALYZE_GEMINI_MAX_EDGE,
       maxBytes: params.imageMaxBytes ?? ANALYZE_GEMINI_MAX_BYTES,
     });
-  } catch {
+  } catch (error) {
+    if (isSharpBusyError(error)) throw error;
     throw new PhotorealAnalyzeError("payload", 503);
   }
   const body = {

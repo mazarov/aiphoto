@@ -20,9 +20,13 @@ import {
   PhotorealAnalyzeError,
 } from "@/lib/image-prompt-analyze-gemini";
 import {
+  ANALYZE_REQUEST_MAX_BYTES,
   analyzeImageSettings,
   resolveAnalyzeImageFromBody,
 } from "@/lib/image-prompt-analyze-image";
+import { noteMemoryRoute } from "@/lib/runtime-memory";
+import { isPayloadTooLarge, readRequestJson } from "@/lib/request-byte-limit";
+import { isSharpBusyError } from "@/lib/sharp-runtime";
 import { createSupabaseServer } from "@/lib/supabase";
 
 export const runtime = "nodejs";
@@ -75,9 +79,10 @@ export async function GET(): Promise<NextResponse> {
 }
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
+  noteMemoryRoute("scout.analyze");
   let body: Record<string, unknown>;
   try {
-    const parsedBody: unknown = await req.json();
+    const parsedBody = await readRequestJson(req, ANALYZE_REQUEST_MAX_BYTES);
     if (!parsedBody || typeof parsedBody !== "object" || Array.isArray(parsedBody)) {
       return NextResponse.json(
         { error: "invalid_image", message: "Request body must be a JSON object." },
@@ -85,7 +90,13 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       );
     }
     body = parsedBody as Record<string, unknown>;
-  } catch {
+  } catch (error) {
+    if (isPayloadTooLarge(error)) {
+      return NextResponse.json(
+        { error: "invalid_image", message: "Image exceeds 10 MB limit." },
+        noStore({ status: 413 }),
+      );
+    }
     return NextResponse.json(
       { error: "invalid_image", message: "Request body must be valid JSON." },
       noStore({ status: 400 }),
@@ -265,6 +276,13 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       correlationId,
     });
   } catch (error) {
+    if (isSharpBusyError(error)) {
+      if (reservedSession) await releaseAnalyzeQuota(supabase, reservedSession);
+      return NextResponse.json(
+        { error: "busy", message: "Service is busy. Please try again." },
+        noStore({ status: 503 }),
+      );
+    }
     if (error instanceof PhotorealAnalyzeError) {
       return fail(error.code, error.httpStatus, error.upstreamStatus);
     }

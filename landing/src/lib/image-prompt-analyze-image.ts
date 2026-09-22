@@ -2,11 +2,18 @@ import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
 import sharp from "sharp";
 import {
+  isPayloadTooLarge,
+  readLimitedResponseBytes,
+} from "@/lib/request-byte-limit";
+import { isSharpBusyError, runSharpLimited } from "@/lib/sharp-runtime";
+import {
   inferAspectRatioFromDimensions,
   type ExtensionImageSettings,
 } from "@/lib/extension-image-settings";
 
 export const ANALYZE_MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+/** JSON body cap: 10 MB image as base64 plus a small envelope. */
+export const ANALYZE_REQUEST_MAX_BYTES = 14 * 1024 * 1024;
 /** Interactive extract via DO proxy. ~85KB (768/q85) dies with EPIPE/ETIMEDOUT. */
 export const ANALYZE_GEMINI_MAX_EDGE = 256;
 export const ANALYZE_GEMINI_MAX_BYTES = 20 * 1024;
@@ -100,23 +107,29 @@ export async function prepareAnalyzeImageForGemini(
   const edges = [maxEdge, 384, 256, 192, 160].filter(
     (value, index, list) => value > 0 && value <= maxEdge && list.indexOf(value) === index,
   );
+  let prepared: ParsedAnalyzeImage | null = null;
   try {
-    for (const edge of edges) {
-      for (const quality of [72, 60, 48, 40]) {
-        const resized = await sharp(input)
-          .rotate()
-          .resize(edge, edge, { fit: "inside", withoutEnlargement: true })
-          .jpeg({ quality })
-          .toBuffer();
-        if (resized.length > maxBytes) continue;
-        const parsed = parseAnalyzeImageBuffer(resized);
-        if (parsed) return parsed;
+    prepared = await runSharpLimited(async () => {
+      for (const edge of edges) {
+        for (const quality of [72, 60, 48, 40]) {
+          const resized = await sharp(input)
+            .rotate()
+            .resize(edge, edge, { fit: "inside", withoutEnlargement: true })
+            .jpeg({ quality })
+            .toBuffer();
+          if (resized.length > maxBytes) continue;
+          const parsed = parseAnalyzeImageBuffer(resized);
+          if (parsed) return parsed;
+        }
       }
-    }
-  } catch {
+      return null;
+    });
+  } catch (error) {
+    if (isSharpBusyError(error)) throw error;
     throw new AnalyzeImageError("gemini_payload");
   }
-  throw new AnalyzeImageError("gemini_payload");
+  if (!prepared) throw new AnalyzeImageError("gemini_payload");
+  return prepared;
 }
 
 function isPrivateAddress(address: string): boolean {
@@ -174,31 +187,13 @@ async function assertPublicImageUrl(url: URL): Promise<void> {
 }
 
 async function readLimitedBody(response: Response): Promise<Uint8Array> {
-  const contentLength = Number(response.headers.get("content-length") || 0);
-  if (contentLength > ANALYZE_MAX_IMAGE_BYTES) {
-    throw new AnalyzeImageError("too_large");
-  }
   if (!response.body) throw new AnalyzeImageError("empty_body");
-  const reader = response.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let total = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    total += value.byteLength;
-    if (total > ANALYZE_MAX_IMAGE_BYTES) {
-      await reader.cancel();
-      throw new AnalyzeImageError("too_large");
-    }
-    chunks.push(value);
+  try {
+    return await readLimitedResponseBytes(response, ANALYZE_MAX_IMAGE_BYTES);
+  } catch (error) {
+    if (isPayloadTooLarge(error)) throw new AnalyzeImageError("too_large");
+    throw error;
   }
-  const bytes = new Uint8Array(total);
-  let offset = 0;
-  for (const chunk of chunks) {
-    bytes.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  return bytes;
 }
 
 export async function fetchAnalyzeImage(urlValue: string): Promise<ParsedAnalyzeImage> {
@@ -291,12 +286,15 @@ export async function analyzeImageSettings(
   data: string,
 ): Promise<ExtensionImageSettings | null> {
   try {
-    const metadata = await sharp(Buffer.from(data, "base64")).metadata();
+    const metadata = await runSharpLimited(() =>
+      sharp(Buffer.from(data, "base64")).metadata(),
+    );
     const width = metadata.width ?? 0;
     const height = metadata.height ?? 0;
     const aspectRatio = inferAspectRatioFromDimensions(width, height);
     return aspectRatio ? { aspectRatio, width, height } : null;
-  } catch {
+  } catch (error) {
+    if (isSharpBusyError(error)) throw error;
     return null;
   }
 }

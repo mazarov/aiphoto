@@ -22,9 +22,13 @@ import {
   PhotorealAnalyzeError,
 } from "@/lib/image-prompt-analyze-gemini";
 import {
+  ANALYZE_REQUEST_MAX_BYTES,
   analyzeImageSettings,
   resolveAnalyzeImageFromBody,
 } from "@/lib/image-prompt-analyze-image";
+import { noteMemoryRoute } from "@/lib/runtime-memory";
+import { isPayloadTooLarge, readRequestJson } from "@/lib/request-byte-limit";
+import { isSharpBusyError } from "@/lib/sharp-runtime";
 import { createSupabaseServer } from "@/lib/supabase";
 
 export const runtime = "nodejs";
@@ -36,14 +40,18 @@ function errorResponse(message: string, status = 400) {
 }
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
+  noteMemoryRoute("extension.analyze");
   let body: Record<string, unknown>;
   try {
-    const parsedBody: unknown = await req.json();
+    const parsedBody = await readRequestJson(req, ANALYZE_REQUEST_MAX_BYTES);
     if (!parsedBody || typeof parsedBody !== "object" || Array.isArray(parsedBody)) {
       return errorResponse("Request body must be a JSON object.");
     }
     body = parsedBody as Record<string, unknown>;
-  } catch {
+  } catch (error) {
+    if (isPayloadTooLarge(error)) {
+      return errorResponse("Image exceeds 10 MB limit.", 413);
+    }
     return errorResponse("Request body must be valid JSON.");
   }
 
@@ -231,6 +239,13 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       correlationId,
     });
   } catch (error) {
+    if (isSharpBusyError(error)) {
+      if (reservedSession) await releaseAnalyzeQuota(supabase, reservedSession);
+      return NextResponse.json(
+        { error: "busy", message: "Сервис занят. Попробуйте ещё раз." },
+        { status: 503 },
+      );
+    }
     if (error instanceof PhotorealAnalyzeError) {
       return fail(error.code, error.httpStatus, error.upstreamStatus);
     }

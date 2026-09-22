@@ -21,6 +21,8 @@ import {
   parseAnalyzeImageBuffer,
   parseAnalyzeImageDataUrl,
 } from "@/lib/image-prompt-analyze-image";
+import { isPayloadTooLarge, readBlobBytes, readRequestJson } from "@/lib/request-byte-limit";
+import { isSharpBusyError } from "@/lib/sharp-runtime";
 import {
   USER_GENERATION_PHOTOS_BUCKET,
   USER_GENERATION_PHOTO_ROW_SELECT,
@@ -33,6 +35,8 @@ export const maxDuration = 15;
 const PHOTO_ID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const MAX_DATA_URL_CHARS = 2_000_000;
+const MAX_BODY_BYTES = 2_100_000;
+const MAX_STORAGE_BYTES = 10 * 1024 * 1024;
 
 function emptyTag(extra?: Record<string, unknown>) {
   return NextResponse.json({ audienceTag: null, ...extra });
@@ -41,12 +45,15 @@ function emptyTag(extra?: Record<string, unknown>) {
 export async function POST(req: NextRequest) {
   let body: Record<string, unknown>;
   try {
-    const parsed: unknown = await req.json();
+    const parsed = await readRequestJson(req, MAX_BODY_BYTES);
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
       return NextResponse.json({ error: "invalid_body" }, { status: 400 });
     }
     body = parsed as Record<string, unknown>;
-  } catch {
+  } catch (error) {
+    if (isPayloadTooLarge(error)) {
+      return NextResponse.json({ error: "image_too_large" }, { status: 413 });
+    }
     return NextResponse.json({ error: "invalid_body" }, { status: 400 });
   }
 
@@ -153,8 +160,13 @@ export async function POST(req: NextRequest) {
       );
       return emptyTag();
     }
-    const bytes = Buffer.from(await file.arrayBuffer());
-    parsedImage = parseAnalyzeImageBuffer(bytes);
+    try {
+      const bytes = Buffer.from(await readBlobBytes(file, MAX_STORAGE_BYTES));
+      parsedImage = parseAnalyzeImageBuffer(bytes);
+    } catch (error) {
+      if (isPayloadTooLarge(error)) return emptyTag();
+      throw error;
+    }
   }
   if (!parsedImage) {
     return emptyTag();
@@ -188,6 +200,9 @@ export async function POST(req: NextRequest) {
       cached: false,
     });
   } catch (error) {
+    if (isSharpBusyError(error)) {
+      return NextResponse.json({ error: "busy" }, { status: 503 });
+    }
     if (error instanceof ComposeAudienceClassifyError) {
       console.error("[compose-audience-classify]", error.code);
       return emptyTag({ error: error.code });

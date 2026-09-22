@@ -4,7 +4,11 @@ import path from "node:path";
 import type { NextConfig } from "next";
 import { DEN_ROZHDENIYA_PERMANENT_REDIRECTS } from "./src/lib/den-rozhdeniya-cluster";
 import { PROMTY_DLYA_II_FOTOSESSII_PERMANENT_REDIRECTS } from "./src/lib/promty-dlya-ii-fotosessii-cluster";
-import { NEXT_CACHE_MAX_MEMORY_BYTES } from "./src/lib/next-cache-memory";
+import {
+  NEXT_CACHE_MAX_MEMORY_BYTES,
+  NEXT_IMAGE_DEVICE_SIZES,
+  NEXT_IMAGE_DISK_CACHE_MAX_BYTES,
+} from "./src/lib/next-cache-memory";
 
 const landingDir = import.meta.dirname;
 const repoRoot = path.resolve(landingDir, "..");
@@ -39,6 +43,33 @@ function resolveOutputFileTracingRoot(): string {
 }
 
 const outputFileTracingRoot = resolveOutputFileTracingRoot();
+const instrumentationNode = path.join(landingDir, "src/instrumentation.node");
+const instrumentationEdgeStub = path.join(landingDir, "src/instrumentation.edge-stub.ts");
+
+/** Edge and the client compiler must not parse native `sharp`. */
+function keepSharpOnNode(
+  config: { resolve?: { alias?: unknown } },
+  nextRuntime: string | undefined,
+  isServer: boolean,
+) {
+  if (nextRuntime !== "edge" && isServer) return config;
+  const extra: Record<string, string | false> = {
+    sharp: false,
+    [instrumentationNode]: instrumentationEdgeStub,
+    [`${instrumentationNode}.ts`]: instrumentationEdgeStub,
+  };
+  const alias = config.resolve?.alias;
+  if (!config.resolve) config.resolve = {};
+  if (Array.isArray(alias)) {
+    config.resolve.alias = [
+      ...alias,
+      ...Object.entries(extra).map(([name, value]) => ({ name, alias: value })),
+    ];
+  } else {
+    config.resolve.alias = { ...(alias as Record<string, unknown> | undefined), ...extra };
+  }
+  return config;
+}
 
 const nextConfig: NextConfig = {
   allowedDevOrigins: getLanDevOrigins(),
@@ -50,6 +81,8 @@ const nextConfig: NextConfig = {
   // Keep native sharp out of the Next bundle so Alpine libvips resolves at
   // build (collect page data) and in the standalone runner.
   serverExternalPackages: ["@supabase/supabase-js", "sharp"],
+  webpack: (config, { isServer, nextRuntime }) =>
+    keepSharpOnNode(config, nextRuntime, isServer),
   async redirects() {
     return [
       {
@@ -82,6 +115,8 @@ const nextConfig: NextConfig = {
   },
   images: {
     qualities: [45, 60, 75],
+    deviceSizes: [...NEXT_IMAGE_DEVICE_SIZES],
+    maximumDiskCacheSize: NEXT_IMAGE_DISK_CACHE_MAX_BYTES,
     // Default 60s made optimized images look "uncached" to PSI on repeat views.
     minimumCacheTTL: 60 * 60 * 24 * 31,
     remotePatterns: [

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ensureBirthdayListingQueryEmbeddings } from "@/lib/listing-query-embedding";
 import { createSupabaseServer } from "@/lib/supabase";
+import { noteMemoryRoute } from "@/lib/runtime-memory";
 import { processVisualEmbeddingJobs } from "@/lib/visual-embedding-jobs";
 
 export const dynamic = "force-dynamic";
@@ -14,6 +15,7 @@ function authorizeCron(request: NextRequest): boolean {
 }
 
 export async function POST(request: NextRequest) {
+  noteMemoryRoute("cron.visual-embeddings");
   if (!authorizeCron(request)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }

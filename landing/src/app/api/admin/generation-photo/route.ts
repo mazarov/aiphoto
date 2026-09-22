@@ -3,6 +3,8 @@ import { requireAnalyticsAdmin } from "@/lib/analytics-admin";
 import {
   getAdminPinnedPhotoPath, getAdminPinnedPhotoSignedUrl, validateAndUploadAdminPhoto,
 } from "@/lib/admin-generation-photo";
+import { contentLengthExceeds } from "@/lib/request-byte-limit";
+import { isSharpBusyError } from "@/lib/sharp-runtime";
 import { createSupabaseServer } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
@@ -26,6 +28,9 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const gate = await requireAnalyticsAdmin(req);
   if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status });
+  if (contentLengthExceeds(req.headers, 12 * 1024 * 1024)) {
+    return NextResponse.json({ error: "file_too_large" }, { status: 413 });
+  }
   try {
     const file = (await req.formData()).get("file");
     if (!(file instanceof File)) return NextResponse.json({ error: "missing_file" }, { status: 400 });
@@ -36,6 +41,9 @@ export async function POST(req: NextRequest) {
     const code = error instanceof Error ? error.message : "upload_failed";
     if (code === "invalid_file_type" || code === "file_too_large") {
       return NextResponse.json({ error: code }, { status: 400 });
+    }
+    if (isSharpBusyError(error)) {
+      return NextResponse.json({ error: "busy" }, { status: 503 });
     }
     console.error("[admin.generation-photo] upload_failed", { adminEmail: gate.email, message: code });
     return NextResponse.json({ error: "pinned_photo_upload_failed" }, { status: 500 });

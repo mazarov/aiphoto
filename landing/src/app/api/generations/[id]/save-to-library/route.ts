@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import sharp from "sharp";
+import { noteMemoryRoute } from "@/lib/runtime-memory";
+import { isPayloadTooLarge, readBlobBytes } from "@/lib/request-byte-limit";
+import { isSharpBusyError, runSharpLimited } from "@/lib/sharp-runtime";
 import { createSupabaseServer } from "@/lib/supabase";
 import { getSupabaseUserForApiRoute } from "@/lib/supabase-route-auth";
 import { resolveSharedDbUserId } from "@/lib/resolve-db-user-id";
@@ -21,6 +24,7 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  noteMemoryRoute("generation.save-to-library");
   try {
     const { user, error: authError } = await getSupabaseUserForApiRoute(req);
     if (authError || !user) {
@@ -77,19 +81,14 @@ export async function POST(
       return NextResponse.json({ error: "Failed to read result" }, { status: 500 });
     }
 
-    const bytes = Buffer.from(await fileData.arrayBuffer());
-    const sizeMb = bytes.byteLength / (1024 * 1024);
-    if (sizeMb > MAX_SIZE_MB) {
-      return NextResponse.json(
-        { error: `File too large. Max ${MAX_SIZE_MB}MB` },
-        { status: 400 }
-      );
-    }
+    const bytes = Buffer.from(await readBlobBytes(fileData, MAX_SIZE_MB * 1024 * 1024));
 
-    const resized = await sharp(bytes)
-      .resize(MAX_PX, MAX_PX, { fit: "inside", withoutEnlargement: true })
-      .jpeg({ quality: JPEG_QUALITY })
-      .toBuffer({ resolveWithObject: true });
+    const resized = await runSharpLimited(() =>
+      sharp(bytes)
+        .resize(MAX_PX, MAX_PX, { fit: "inside", withoutEnlargement: true })
+        .jpeg({ quality: JPEG_QUALITY })
+        .toBuffer({ resolveWithObject: true }),
+    );
 
     const timestamp = Math.floor(Date.now() / 1000);
     const path = `${user.id}/${timestamp}_${Math.random().toString(36).slice(2, 8)}.jpg`;
@@ -139,6 +138,15 @@ export async function POST(
 
     return NextResponse.json({ photo, storagePath: path });
   } catch (err) {
+    if (isPayloadTooLarge(err)) {
+      return NextResponse.json(
+        { error: `File too large. Max ${MAX_SIZE_MB}MB` },
+        { status: 413 },
+      );
+    }
+    if (isSharpBusyError(err)) {
+      return NextResponse.json({ error: "busy" }, { status: 503 });
+    }
     console.error("save-to-library error:", err);
     return NextResponse.json({ error: "Save failed" }, { status: 500 });
   }

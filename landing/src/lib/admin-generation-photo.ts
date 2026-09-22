@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import sharp from "sharp";
+import { runSharpLimited } from "@/lib/sharp-runtime";
 import { publicObjectUploadOptions } from "@/lib/storage-cache-control";
 
 export const ADMIN_GENERATION_UPLOAD_BUCKET = "web-generation-uploads";
@@ -27,11 +28,14 @@ export async function getAdminPinnedPhotoSignedUrl(supabase: SupabaseClient, pat
 
 export async function validateAndUploadAdminPhoto(supabase: SupabaseClient, file: File): Promise<string> {
   if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) throw new Error("invalid_file_type");
+  if (file.size > 10 * 1024 * 1024) throw new Error("file_too_large");
   const bytes = await file.arrayBuffer();
   if (bytes.byteLength > 10 * 1024 * 1024) throw new Error("file_too_large");
-  const image = await sharp(Buffer.from(bytes)).resize(2048, 2048, {
-    fit: "inside", withoutEnlargement: true,
-  }).jpeg({ quality: 85 }).toBuffer();
+  const image = await runSharpLimited(() =>
+    sharp(Buffer.from(bytes)).resize(2048, 2048, {
+      fit: "inside", withoutEnlargement: true,
+    }).jpeg({ quality: 85 }).toBuffer(),
+  );
   const path = `${PREFIX}${Date.now()}-${crypto.randomUUID()}.jpg`;
   const { error: uploadError } = await supabase.storage.from(ADMIN_GENERATION_UPLOAD_BUCKET).upload(
     path,

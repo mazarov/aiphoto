@@ -113,6 +113,14 @@ async function copyPosterToVideoResults(
     });
     return null;
   }
+  if (image.size > 20 * 1024 * 1024) {
+    console.error("[generation-card] video poster too large", {
+      bucket: source.bucket,
+      path: source.path,
+      bytes: image.size,
+    });
+    return null;
+  }
   const { error: uploadError } = await supabase.storage
     .from(PUBLIC_RESULTS_BUCKET)
     .upload(
