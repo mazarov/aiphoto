@@ -1,5 +1,7 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-09-22 (**каталог → JPEG 512:** `getStorageCardMediaUrl` по умолчанию собирает `/storage/v1/render/image` шириной 512 (grid, listing и hero). Слот героя 260/300px. Next больше не качает полный `object/public`. Откат — `NEXT_PUBLIC_SUPABASE_STORAGE_IMAGE_TRANSFORM=0`.)
+>
 > Последнее обновление: 2026-09-22 (**память контейнера:** Next `15.5.21`, `/_next/image` disk LRU 256 МБ, `deviceSizes` ≤1920. sharp cache 32 МБ / concurrency 1, семафор 2+4 (`sharp-runtime.ts`). Тела analyze/vibe/storage читаются с байтовым потолком; vibe перед LLM сжимается до JPEG 1280. Лог `[runtime.memory]` раз в 60 с и `GET /api/admin/runtime-memory`. Sharp стартует из `instrumentation.node.ts`; edge/middleware подменяет его пустышкой, чтобы не бандлить `child_process`.
 >
 > Последнее обновление: 2026-09-14 (**NPS SQL:** колонка `survey_trigger` вместо reserved `trigger` в `sql/255` — иначе CREATE TABLE не проходит и `/admin/nps` отдаёт `nps_fetch_failed`.)
@@ -1018,7 +1020,7 @@
 
 ### Два этапа отдачи в браузер
 
-1. **Опционально — Supabase Storage Image Transformation** (`/storage/v1/render/image/public/…`): при `NEXT_PUBLIC_SUPABASE_STORAGE_IMAGE_TRANSFORM=1` вместо прямого `…/object/public/…` подставляется URL с параметрами **`width`** и **`quality`**. На стороне хостинга Storage запрос обрабатывает **imgproxy** (ресайз + перекодирование в JPEG/WebP и т.д.). Это первое ограничение по пикселям и первое сжатие по качеству.
+1. **Supabase Storage Image Transformation** (`/storage/v1/render/image/public/…`): `getStorageCardMediaUrl` по умолчанию подставляет URL с **`width=512`** и **`quality`** (grid 68, listing 58, hero 70). Слот героя на карточке — 260/300px. Storage отдаёт это через **imgproxy**. `NEXT_PUBLIC_SUPABASE_STORAGE_IMAGE_TRANSFORM=0` возвращает прямой `…/object/public/…`.
 2. **Всегда для `<Image />` — оптимизатор Next.js** (`/_next/image?…`): по `src` (уже может быть `render/image` или полный объект) сервер лендинга отдаёт формат (часто WebP/AVIF) и размер, согласованный с атрибутом **`sizes`** (подсказка для `srcset` / выбора ширины `w=`) и явным **`quality={…}`** на компоненте. В Next 15 разрешённые значения `quality` заданы в **`next.config.ts`** → `images.qualities` (сейчас **45**, **60**, **75**). `images.deviceSizes` — **640, 750, 828, 1080, 1200, 1920** (`NEXT_IMAGE_DEVICE_SIZES`): `fill` больше не декодирует 2048/3840. Дисковый LRU `/_next/image` — **256 МБ** (`images.maximumDiskCacheSize`, Next **15.5.21**). Процессный sharp: cache **32 МБ**, `concurrency(1)`, семафор **2** активных и **4** ожидающих (`sharp-runtime.ts`, старт в `instrumentation.ts`). Сверх очереди — `503 sharp_busy`. Analyze, vibe extract, upload и storage-download читают тело с байтовым потолком до `arrayBuffer`. Vibe перед LLM сжимает вход до JPEG **1280** q80. Снимок RSS / heap / cgroup `anon`+`file` и счётчики маршрутов: лог `[runtime.memory]` раз в 60 с и `GET /api/admin/runtime-memory`.
 
 Итоговый вес файла задаётся **произведением** решений обоих этапов: узкий `width` на шаге 1 уменьшает вход для шага 2; низкий `quality` на шаге 2 даёт дополнительное сжатие уже после imgproxy.
@@ -1029,9 +1031,9 @@
 |-------------|----------|--------------------------------------|----------------------|---------------------------|
 | **A (grid)** | `grid` | 512 × 68 | `fetchHomepageSections`, `getFirstCardPhotoUrl`, миниатюры/врезки на `/p/[slug]` (before, siblings, карусель), всё, что явно остаётся на «сеточном» URL | `CARD_IMAGE_NEXT_QUALITY` (**60**) — `CategoryCard`, `CardPageClient`, `PhotoCarousel` |
 | **L (listing)** | `listing` | 512 × 58 | **`enrichCardsWithDetails`** — единый путь для карточек каталога: SSR `[...slug]`, `/api/listing`, `/api/search`, `/api/search-cards`, `/api/search-card` (в т.ч. избранное) | `CARD_IMAGE_LISTING_NEXT_QUALITY` (**45**) — `ListingPhotoTile`, превью в `SearchBar` |
-| **B (hero)** | `hero` | 768 × 70 | **`fetchCardPageData`**: основные `photoUrls` / главное фото страницы карточки | `CARD_IMAGE_NEXT_QUALITY` (**60**) |
+| **B (hero)** | `hero` | 512 × 70 | **`fetchCardPageData`**: основные `photoUrls` / главное фото страницы карточки. Слот 260/300px | `CARD_IMAGE_NEXT_QUALITY` (**60**) |
 
-Если **`NEXT_PUBLIC_SUPABASE_STORAGE_IMAGE_TRANSFORM` не `1`**, шаг 1 пропускается: в `src` попадает полный **`object/public`** объект; сжатие и уменьшение размера выполняет в основном только **Next Image** (важны `sizes` и `quality`).
+При **`NEXT_PUBLIC_SUPABASE_STORAGE_IMAGE_TRANSFORM=0`** шаг 1 пропускается: в `src` попадает полный **`object/public`** объект, и уменьшение делает только **Next Image**.
 
 ### Подсказки `sizes`
 

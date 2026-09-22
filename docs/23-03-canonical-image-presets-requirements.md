@@ -48,14 +48,14 @@
 - основное изображение на `/p/[slug]` (`CardPageClient` / карусель **главный** слайд, не strip);
 - при необходимости — полноширинный режим `PhotoCarousel` на десктопе, если он визуально существенно крупнее сетки.
 
-**Требование:** вторая **физическая максимальная ширина** (например 960–1280 px — выбрать одну).
+**Требование:** та же ширина, что у пресета A (**512**). Слот героя на `/p/[slug]` — 260px / 300px, отдельный больший файл не нужен. У героя остаётся свой `quality` (70).
 
 ### 3.3 Текущие числа в коде (обновлять при смене пресетов)
 
 | Константа | Значение | Назначение |
 |-----------|----------|------------|
 | `CARD_IMAGE_GRID_MAX_WIDTH_PX` | 512 | `width` в `render/image` для пресета A |
-| `CARD_IMAGE_HERO_MAX_WIDTH_PX` | 768 | `width` для пресета B |
+| `CARD_IMAGE_HERO_MAX_WIDTH_PX` | = `CARD_IMAGE_GRID_MAX_WIDTH_PX` (512) | `width` для пресета B. Слот 260/300px |
 | `CARD_IMAGE_GRID_QUALITY` | 68 | `quality` в URL для A |
 | `CARD_IMAGE_HERO_QUALITY` | 70 | `quality` в URL для B |
 | `CARD_IMAGE_LISTING_MAX_WIDTH_PX` | = `CARD_IMAGE_GRID_MAX_WIDTH_PX` (512) | `width` в `render/image` для L — тот же, что у A |

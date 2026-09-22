@@ -1,5 +1,6 @@
 import {
   buildStorageRenderImagePublicUrl,
+  catalogUsesStorageRender,
   type CardImagePreset,
 } from "@/lib/card-image-presets";
 import type { ListingSort } from "@/lib/listing-sort";
@@ -26,13 +27,13 @@ export function getIndexableImageUrl(bucket: string, objectPath: string): string
   return `${SITE_URL}/img/${bucket}/${encodeURI(objectPath)}`;
 }
 
-/** Промо-фото карточек: опционально `render/image` (см. NEXT_PUBLIC_SUPABASE_STORAGE_IMAGE_TRANSFORM). */
+/** Промо-фото карточек: JPEG 512 через imgproxy. `=0` — полный `object/public`. */
 export function getStorageCardMediaUrl(
   bucket: string,
   path: string,
   preset: CardImagePreset
 ): string {
-  if (process.env.NEXT_PUBLIC_SUPABASE_STORAGE_IMAGE_TRANSFORM === "1") {
+  if (catalogUsesStorageRender()) {
     return buildStorageRenderImagePublicUrl(supabaseUrl, bucket, path, preset);
   }
   return getStoragePublicUrl(bucket, path);

@@ -6,8 +6,8 @@
 /** Пресет A — сетка и мелкие врезки (листинг, поиск, before, миниатюры). */
 export const CARD_IMAGE_GRID_MAX_WIDTH_PX = 512;
 
-/** Пресет B — герой страницы карточки (LCP). */
-export const CARD_IMAGE_HERO_MAX_WIDTH_PX = 768;
+/** Пресет B — герой страницы карточки. Слот 260/300px, в URL та же ширина, что у сетки. */
+export const CARD_IMAGE_HERO_MAX_WIDTH_PX = CARD_IMAGE_GRID_MAX_WIDTH_PX;
 
 /**
  * Пресет L — только сетки каталога (`enrichCardsWithDetails`: листинги, поиск, избранное).
@@ -47,8 +47,18 @@ export const SIZES_CARD_HERO_VIEWPORT =
 export type CardImagePreset = "grid" | "hero" | "listing";
 
 /**
+ * Каталог ходит в imgproxy (`/render/image`), чтобы Next не скачивал полный оригинал.
+ * `NEXT_PUBLIC_SUPABASE_STORAGE_IMAGE_TRANSFORM=0` возвращает `object/public`.
+ */
+export function catalogUsesStorageRender(
+  flag: string | undefined = process.env.NEXT_PUBLIC_SUPABASE_STORAGE_IMAGE_TRANSFORM,
+): boolean {
+  return flag !== "0";
+}
+
+/**
  * Публичный URL через Storage Image Transformation (`/render/image/public/...`).
- * Включать только при поднятом imgproxy и `ENABLE_IMAGE_TRANSFORMATION` на storage-api.
+ * Нужны поднятый imgproxy и `ENABLE_IMAGE_TRANSFORMATION` на storage-api.
  */
 export function buildStorageRenderImagePublicUrl(
   supabaseOrigin: string,
