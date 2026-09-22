@@ -46,12 +46,12 @@ export type SeoContent = {
 /** Округлённый SEO-объём хаба пар. Точный счётчик — `ListingPromptCountBadge`. */
 const PAIRS_PROMPT_COUNT_LABEL = "800+";
 const PAIRS_HUB_TITLE =
-  `Промты для ИИ фотосессии пары — ${PAIRS_PROMPT_COUNT_LABEL} готовых промтов на русском`;
+  `Промты для ИИ фотосессии пары ❤️ — ${PAIRS_PROMPT_COUNT_LABEL} готовых промтов на русском 🇷🇺`;
 
 /** Rounded SEO volume for the girls hub. Exact count — `ListingPromptCountBadge`. */
 const GIRLS_PROMPT_COUNT_LABEL = "7000+";
 const GIRLS_HUB_TITLE =
-  `Промты для фото девушки — ${GIRLS_PROMPT_COUNT_LABEL} идей`;
+  `Промты для фото девушки 👩 — ${GIRLS_PROMPT_COUNT_LABEL} идей 💡`;
 
 /** Rounded SEO volume for the men hub. Exact count — `ListingPromptCountBadge`. */
 const MEN_PROMPT_COUNT_LABEL = "1300+";

@@ -197,7 +197,7 @@ test("catalog audience L1 keeps кадр key and does not claim photoshoot queri
   const pregnant = getSeoContent("beremennaya");
 
   assert.equal(women?.h1, "Промты для фото девушки");
-  assert.equal(women?.metaTitle, "Промты для фото девушки — 7000+ идей");
+  assert.equal(women?.metaTitle, "Промты для фото девушки 👩 — 7000+ идей 💡");
   assert.equal(men?.h1, "Промты для фото мужчины");
   assert.equal(
     couples?.h1,

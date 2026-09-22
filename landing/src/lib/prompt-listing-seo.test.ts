@@ -68,7 +68,7 @@ test("girls hub keeps H1 and explorer photoshoot lemmas apart", () => {
   const seo = getSeoForRoute(route);
   const copy = `${seo.h1} ${seo.metaTitle} ${seo.metaDescription} ${seo.intro}`;
   assert.equal(seo.h1, "Промты для фото девушки");
-  assert.equal(seo.metaTitle, "Промты для фото девушки — 7000+ идей");
+  assert.equal(seo.metaTitle, "Промты для фото девушки 👩 — 7000+ идей 💡");
   assert.match(copy, /7000\+/);
   assert.match(seo.intro, /женских фото/i);
   assert.match(
@@ -135,7 +135,7 @@ test("pairs hub targets ИИ фотосессии пары in head and нейр�
 
   const seo = getSeoForRoute(route);
   const headline = "Промты для ИИ фотосессии пары";
-  const title = "Промты для ИИ фотосессии пары — 800+ готовых промтов на русском";
+  const title = "Промты для ИИ фотосессии пары ❤️ — 800+ готовых промтов на русском 🇷🇺";
   const copy = `${seo.h1} ${seo.metaTitle} ${seo.metaDescription} ${seo.intro}`;
   assert.equal(seo.h1, headline);
   assert.equal(seo.metaTitle, title);

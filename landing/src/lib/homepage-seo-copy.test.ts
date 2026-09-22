@@ -7,7 +7,7 @@ const SEND_AWAY = /вставь в нейросеть|открой Nano Banana|�
 test("homepage snippet keeps the listing key and CWS-safe length", () => {
   assert.equal(
     HOMEPAGE_SEO.title,
-    "Промты для фото ИИ — 78 000 готовых на русском"
+    "Промты для фото ИИ 📸 — 78 000 готовых на русском 🇷🇺"
   );
   assert.ok(HOMEPAGE_SEO.title.length <= 70);
   assert.equal(HOMEPAGE_SEO.description, HOMEPAGE_SEO.intro);
