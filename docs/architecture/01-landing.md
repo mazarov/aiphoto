@@ -1,5 +1,9 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-09-24 (**хаб /v-forme:** H1 «Промты для фото в военной форме», Title с `300+`, H2 «Промт для фото с военным». Карусель только `object_tag=v_forme`. Чипы `?audience=` / `?style=` не подменяют форму. SSOT `v-forme-cluster.ts`.)
+>
+> Последнее обновление: 2026-09-24 (**хаб /osen:** тот же каркас, что у пар. H1 «Промты для осенней фотосессии», Title с `300+`, H2 «Идеи для осенней фотосессии». Карусель только `object_tag=osen`. Чипы `?audience=` / `?style=` не подменяют осень. SSOT `osen-cluster.ts`.)
+>
 > Последнее обновление: 2026-09-22 (**каталог → JPEG 512:** `getStorageCardMediaUrl` по умолчанию собирает `/storage/v1/render/image` шириной 512 (grid, listing и hero). Слот героя 260/300px. Next больше не качает полный `object/public`. Откат — `NEXT_PUBLIC_SUPABASE_STORAGE_IMAGE_TRANSFORM=0`.)
 >
 > Последнее обновление: 2026-09-22 (**память контейнера:** Next `15.5.21`, `/_next/image` disk LRU 256 МБ, `deviceSizes` ≤1920. sharp cache 32 МБ / concurrency 1, семафор 2+4 (`sharp-runtime.ts`). Тела analyze/vibe/storage читаются с байтовым потолком; vibe перед LLM сжимается до JPEG 1280. Лог `[runtime.memory]` раз в 60 с и `GET /api/admin/runtime-memory`. Sharp стартует из `instrumentation.node.ts`; edge/middleware подменяет его пустышкой, чтобы не бандлить `child_process`.

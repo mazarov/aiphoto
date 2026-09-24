@@ -11,6 +11,8 @@ import {
 import { PROMTY_DLYA_FOTO_PAR_HUB_PATH } from "./promty-dlya-foto-par-cluster";
 import { PROMTY_DLYA_FOTO_DEVUSHKI_HUB_PATH } from "./promty-dlya-foto-devushki-cluster";
 import { PROMTY_DLYA_FOTO_MUZHCHINY_HUB_PATH } from "./promty-dlya-foto-muzhchiny-cluster";
+import { OSEN_HUB_PATH } from "./osen-cluster";
+import { V_FORME_HUB_PATH } from "./v-forme-cluster";
 
 test("dispatcher resolves exact hub paths only", () => {
   assert.equal(
@@ -25,6 +27,12 @@ test("dispatcher resolves exact hub paths only", () => {
     resolveListingCatalogHub("/promty-dlya-foto-muzhchiny/")?.path,
     PROMTY_DLYA_FOTO_MUZHCHINY_HUB_PATH,
   );
+  assert.equal(resolveListingCatalogHub("/osen/")?.path, OSEN_HUB_PATH);
+  assert.equal(resolveListingCatalogHub("/v-forme/")?.path, V_FORME_HUB_PATH);
+  assert.equal(resolveListingCatalogHub("/v-forme/portret"), null);
+  assert.ok(resolveListingCatalogHubL1("/v-forme", 1));
+  assert.equal(resolveListingCatalogHub("/osen/portret"), null);
+  assert.ok(resolveListingCatalogHubL1("/osen", 1));
   assert.equal(resolveListingCatalogHub("/promty-dlya-foto-par/portret"), null);
   assert.equal(
     resolveListingCatalogHub("/promty-dlya-foto-devushki/s-cvetami"),
@@ -66,6 +74,16 @@ test("one redirect predicate covers catalog hubs", () => {
     true,
   );
   assert.equal(isListingCatalogHubClusterPath("/promty-dlya-foto-muzhchiny"), true);
+  assert.equal(
+    listingCatalogHubChildRedirectPath("/osen/v-lesu"),
+    OSEN_HUB_PATH,
+  );
+  assert.equal(isListingCatalogHubClusterPath("/osen"), true);
+  assert.equal(
+    listingCatalogHubChildRedirectPath("/v-forme/portret"),
+    V_FORME_HUB_PATH,
+  );
+  assert.equal(isListingCatalogHubClusterPath("/v-forme"), true);
 });
 
 test("idle CTA comes from the hub SSOT", () => {
@@ -83,5 +101,13 @@ test("idle CTA comes from the hub SSOT", () => {
   );
   assert.equal(listingCatalogHubGenerateCta("/"), null);
   assert.equal(isListingCatalogHubGenerateCta("Создать фото мужчины"), true);
+  assert.equal(
+    listingCatalogHubGenerateCta("/osen"),
+    "Создать осеннее фото",
+  );
+  assert.equal(
+    listingCatalogHubGenerateCta("/v-forme"),
+    "Создать фото в форме",
+  );
   assert.equal(isListingCatalogHubGenerateCta("Создать фото"), false);
 });

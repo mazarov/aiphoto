@@ -173,6 +173,72 @@ test("pairs hub targets ИИ фотосессии пары in head and нейр�
   assert.doesNotMatch(copy, FORBIDDEN_EXTERNAL_CTA);
 });
 
+test("osen hub keeps photoshoot prompts in the head and идеи in explorer", () => {
+  const route = resolveUrlToTags(["osen"]);
+  assert.ok(route);
+
+  const seo = getSeoForRoute(route);
+  const h1 = "Промты для осенней фотосессии";
+  assert.equal(seo.h1, h1);
+  assert.equal(
+    seo.metaTitle,
+    "Промты для осенней фотосессии — 300+ готовых промтов на русском",
+  );
+  assert.match(seo.metaTitle, /300\+/);
+  assert.doesNotMatch(seo.h1, /300\+|идеи/i);
+  assert.match(seo.intro, /осенние промты для фото с ии/i);
+  assert.doesNotMatch(seo.intro, /осенней фотосессии|идеи/i);
+  assert.equal(seo.explorerTitle, "Идеи для осенней фотосессии");
+  assert.doesNotMatch(seo.explorerTitle ?? "", /промты для осенней фотосессии/i);
+  assert.match(seo.explorerIntro ?? "", /скопируйте промт/i);
+  assert.doesNotMatch(seo.explorerIntro ?? "", /идеи/i);
+  assert.equal(seo.howToTitle, "Как использовать промт для осеннего фото");
+  assert.doesNotMatch(seo.howToTitle ?? "", /фотосессии|идеи/i);
+  assert.ok(seo.faqItems.some((item) => /промт для осенней фотосессии/i.test(item.q)));
+  assert.equal(
+    seo.faqItems.filter((item) => /промт для осенней фотосессии/i.test(item.q)).length,
+    1,
+  );
+  assert.equal(seo.popularLinks?.length ?? 0, 0);
+  assert.equal(seo.seoTextBlocks?.length ?? 0, 0);
+  const copy = `${seo.h1} ${seo.intro} ${seo.explorerTitle} ${seo.explorerIntro} ${seo.howToTitle} ${seo.faqItems.map((item) => item.q).join(" ")}`;
+  assert.doesNotMatch(copy, FORBIDDEN_EXTERNAL_CTA);
+});
+
+test("uniform hub keeps military form in the head and с военным in explorer", () => {
+  const route = resolveUrlToTags(["v-forme"]);
+  assert.ok(route);
+
+  const seo = getSeoForRoute(route);
+  assert.equal(seo.h1, "Промты для фото в военной форме");
+  assert.equal(
+    seo.metaTitle,
+    "Промты для фото в военной форме — 300+ готовых промтов на русском",
+  );
+  assert.doesNotMatch(seo.h1, /300\+|с военным/i);
+  assert.match(seo.intro, /промты для ии фотосессии с военным/i);
+  assert.doesNotMatch(seo.intro, /в военной форме|промт для фото с военным/i);
+  assert.equal(seo.explorerTitle, "Промт для фото с военным");
+  assert.doesNotMatch(seo.explorerTitle ?? "", /военной форме|фотошоп/i);
+  assert.match(seo.explorerIntro ?? "", /скопируйте промт/i);
+  assert.doesNotMatch(seo.explorerIntro ?? "", /военной форме/i);
+  assert.equal(seo.howToTitle, "Как использовать промт для фото военного");
+  assert.doesNotMatch(seo.howToTitle ?? "", /с мужем|фотошоп/i);
+  assert.ok(
+    seo.faqItems.some((item) => /промт для фото с мужем военным/i.test(item.q)),
+  );
+  assert.equal(
+    seo.faqItems.filter((item) => /промт для фото с мужем военным/i.test(item.q))
+      .length,
+    1,
+  );
+  assert.equal(seo.popularLinks?.length ?? 0, 0);
+  assert.equal(seo.seoTextBlocks?.length ?? 0, 0);
+  const copy = `${seo.h1} ${seo.intro} ${seo.explorerTitle} ${seo.explorerIntro} ${seo.howToTitle} ${seo.faqItems.map((item) => item.q).join(" ")}`;
+  assert.doesNotMatch(copy, FORBIDDEN_EXTERNAL_CTA);
+  assert.doesNotMatch(copy, /фотошоп/i);
+});
+
 test("catalog builders never append the photoshoot complement", () => {
   const women = resolveUrlToTags(["promty-dlya-foto-devushki"]);
   const pairs = resolveUrlToTags(["promty-dlya-foto-par"]);

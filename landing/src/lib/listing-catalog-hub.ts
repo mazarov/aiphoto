@@ -27,6 +27,34 @@ import {
   type GirlsHubFilterState,
 } from "./promty-dlya-foto-devushki-cluster";
 import {
+  OSEN_HUB_COMPOSE_EXAMPLE_FILTER,
+  OSEN_HUB_GENERATE_CTA,
+  OSEN_HUB_HERO_ARIA_LABEL,
+  OSEN_HUB_LOAD_MORE_LABEL,
+  OSEN_HUB_PATH,
+  getOsenHubFilterNavItems,
+  isOsenClusterPath,
+  isOsenHubPath,
+  osenChildRedirectPath,
+  osenHubHeroFetchParams,
+  toOsenHubHeroCarouselCards,
+  type OsenHubFilterState,
+} from "./osen-cluster";
+import {
+  V_FORME_HUB_COMPOSE_EXAMPLE_FILTER,
+  V_FORME_HUB_GENERATE_CTA,
+  V_FORME_HUB_HERO_ARIA_LABEL,
+  V_FORME_HUB_LOAD_MORE_LABEL,
+  V_FORME_HUB_PATH,
+  getVFormeHubFilterNavItems,
+  isVFormeClusterPath,
+  isVFormeHubPath,
+  vFormeChildRedirectPath,
+  vFormeHubHeroFetchParams,
+  toVFormeHubHeroCarouselCards,
+  type VFormeHubFilterState,
+} from "./v-forme-cluster";
+import {
   MEN_HUB_COMPOSE_EXAMPLE_FILTER,
   MEN_HUB_GENERATE_CTA,
   MEN_HUB_HERO_ARIA_LABEL,
@@ -43,7 +71,9 @@ import {
 
 export type ListingCatalogHubFilterState = PairsHubFilterState &
   GirlsHubFilterState &
-  MenHubFilterState;
+  MenHubFilterState &
+  OsenHubFilterState &
+  VFormeHubFilterState;
 
 export type ListingCatalogHubHeroParams = {
   audience_tag: string | null;
@@ -107,6 +137,28 @@ const GIRLS_HUB: ListingCatalogHub = {
   getFilterNavItems: getGirlsHubFilterNavItems,
 };
 
+const OSEN_HUB: ListingCatalogHub = {
+  path: OSEN_HUB_PATH,
+  loadMoreLabel: OSEN_HUB_LOAD_MORE_LABEL,
+  generateCta: OSEN_HUB_GENERATE_CTA,
+  heroAriaLabel: OSEN_HUB_HERO_ARIA_LABEL,
+  composeExampleFilter: OSEN_HUB_COMPOSE_EXAMPLE_FILTER,
+  heroFetchParams: osenHubHeroFetchParams,
+  toHeroCarouselCards: toOsenHubHeroCarouselCards,
+  getFilterNavItems: getOsenHubFilterNavItems,
+};
+
+const V_FORME_HUB: ListingCatalogHub = {
+  path: V_FORME_HUB_PATH,
+  loadMoreLabel: V_FORME_HUB_LOAD_MORE_LABEL,
+  generateCta: V_FORME_HUB_GENERATE_CTA,
+  heroAriaLabel: V_FORME_HUB_HERO_ARIA_LABEL,
+  composeExampleFilter: V_FORME_HUB_COMPOSE_EXAMPLE_FILTER,
+  heroFetchParams: vFormeHubHeroFetchParams,
+  toHeroCarouselCards: toVFormeHubHeroCarouselCards,
+  getFilterNavItems: getVFormeHubFilterNavItems,
+};
+
 const MEN_HUB: ListingCatalogHub = {
   path: PROMTY_DLYA_FOTO_MUZHCHINY_HUB_PATH,
   loadMoreLabel: MEN_HUB_LOAD_MORE_LABEL,
@@ -122,6 +174,8 @@ const LISTING_CATALOG_HUBS: readonly ListingCatalogHub[] = [
   PAIRS_HUB,
   GIRLS_HUB,
   MEN_HUB,
+  OSEN_HUB,
+  V_FORME_HUB,
 ];
 
 /** Exact hub path only. Children 301 before render. */
@@ -131,6 +185,8 @@ export function resolveListingCatalogHub(
   if (isPromtyDlyaFotoParHubPath(pathname)) return PAIRS_HUB;
   if (isPromtyDlyaFotoDevushkiHubPath(pathname)) return GIRLS_HUB;
   if (isPromtyDlyaFotoMuzhchinyHubPath(pathname)) return MEN_HUB;
+  if (isOsenHubPath(pathname)) return OSEN_HUB;
+  if (isVFormeHubPath(pathname)) return V_FORME_HUB;
   return null;
 }
 
@@ -146,7 +202,9 @@ export function isListingCatalogHubClusterPath(pathname: string): boolean {
   return (
     isPromtyDlyaFotoParClusterPath(pathname) ||
     isPromtyDlyaFotoDevushkiClusterPath(pathname) ||
-    isPromtyDlyaFotoMuzhchinyClusterPath(pathname)
+    isPromtyDlyaFotoMuzhchinyClusterPath(pathname) ||
+    isOsenClusterPath(pathname) ||
+    isVFormeClusterPath(pathname)
   );
 }
 
@@ -157,7 +215,9 @@ export function listingCatalogHubChildRedirectPath(
   return (
     pairsChildRedirectPath(pathname) ??
     girlsChildRedirectPath(pathname) ??
-    menChildRedirectPath(pathname)
+    menChildRedirectPath(pathname) ??
+    osenChildRedirectPath(pathname) ??
+    vFormeChildRedirectPath(pathname)
   );
 }
 
