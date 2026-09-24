@@ -275,34 +275,304 @@ test("new year postcard combo uses manual catalog copy and style-first canonical
   assert.doesNotMatch(seo.metaDescription, FORBIDDEN_EXTERNAL_CTA);
 });
 
-test("car L1 first screen stays on copy-or-Repeat CTA", () => {
-  const route = resolveUrlToTags(["s-mashinoy"]);
+test("forest hub keeps в лесу in the head and фотосессии in explorer", () => {
+  const route = resolveUrlToTags(["promty-dlya-foto", "v-lesu"]);
   assert.ok(route);
+  assert.equal(route.canonicalPath, "/promty-dlya-foto/v-lesu");
+  assert.equal(route.rpcParams.object_tag, "v_lesu");
+  assert.equal(resolveUrlToTags(["v-lesu"]), null);
+
+  const seo = getSeoForRoute(route);
+  assert.equal(seo.h1, "Промты для фото в лесу");
+  assert.equal(
+    seo.metaTitle,
+    "Промты для фото в лесу — 600+ готовых промтов на русском",
+  );
+  assert.doesNotMatch(seo.h1, /600\+|фотосесс|портрет/i);
+  assert.match(seo.intro, /среди деревьев/i);
+  assert.doesNotMatch(seo.intro, /фотосесс|портрет|кинематограф/i);
+  assert.equal(seo.explorerTitle, "Промпт для фотосессии в лесу");
+  assert.equal(seo.howToTitle, "Как использовать промт для кинематографичного кадра");
+  assert.equal(
+    seo.faqItems.filter((item) => /портрета в лесу/i.test(item.q)).length,
+    1,
+  );
+  assert.equal(seo.popularLinks?.length ?? 0, 0);
+});
+
+test("horse hub keeps с лошадью in the head and коня in explorer", () => {
+  const route = resolveUrlToTags(["promty-dlya-foto", "s-loshadyu"]);
+  assert.ok(route);
+  assert.equal(route.canonicalPath, "/promty-dlya-foto/s-loshadyu");
+  assert.equal(route.rpcParams.object_tag, "s_loshadyu");
+  assert.equal(resolveUrlToTags(["s-loshadyu"]), null);
+
+  const seo = getSeoForRoute(route);
+  assert.equal(seo.h1, "Промты для фото с лошадью");
+  assert.equal(
+    seo.metaTitle,
+    "Промты для фото с лошадью — 70+ готовых промтов на русском",
+  );
+  assert.doesNotMatch(seo.h1, /70\+|коня|седл/i);
+  assert.match(seo.intro, /кадра верхом/i);
+  assert.doesNotMatch(seo.intro, /коня|седл/i);
+  assert.equal(seo.explorerTitle, "Промт для фотосессии коня");
+  assert.equal(seo.howToTitle, "Как использовать промт в седле");
+  assert.equal(
+    seo.faqItems.filter((item) => /промт с лошадью/i.test(item.q)).length,
+    1,
+  );
+  assert.equal(seo.popularLinks?.length ?? 0, 0);
+});
+
+test("cake hub keeps с тортом in the head and день рождения in explorer", () => {
+  const route = resolveUrlToTags(["promty-dlya-foto", "s-tortom"]);
+  assert.ok(route);
+  assert.equal(route.canonicalPath, "/promty-dlya-foto/s-tortom");
+  assert.equal(route.rpcParams.object_tag, "s_tortom");
+  assert.equal(resolveUrlToTags(["s-tortom"]), null);
+
+  const seo = getSeoForRoute(route);
+  assert.equal(seo.h1, "Промты для фото с тортом");
+  assert.equal(
+    seo.metaTitle,
+    "Промты для фото с тортом — 200+ готовых промтов на русском",
+  );
+  assert.doesNotMatch(seo.h1, /200\+|день рождения|свеч/i);
+  assert.match(seo.intro, /кадра с десертом/i);
+  assert.doesNotMatch(seo.intro, /день рождения|свеч/i);
+  assert.equal(seo.explorerTitle, "Промт для фото на день рождения девушке с тортом");
+  assert.equal(seo.howToTitle, "Как использовать промт со свечами");
+  assert.equal(
+    seo.faqItems.filter((item) => /промт для фото с тортом/i.test(item.q)).length,
+    1,
+  );
+  assert.equal(seo.popularLinks?.length ?? 0, 0);
+});
+
+test("motorcycle hub keeps на мотоцикле in the head and фотосессия in explorer", () => {
+  const route = resolveUrlToTags(["promty-dlya-foto", "mototsikl"]);
+  assert.ok(route);
+  assert.equal(route.canonicalPath, "/promty-dlya-foto/mototsikl");
+  assert.equal(route.rpcParams.object_tag, "mototsikl");
+  assert.equal(resolveUrlToTags(["mototsikl"]), null);
+
+  const seo = getSeoForRoute(route);
+  assert.equal(seo.h1, "Промты для фото на мотоцикле");
+  assert.equal(
+    seo.metaTitle,
+    "Промты для фото на мотоцикле — 30+ готовых промтов на русском",
+  );
+  assert.doesNotMatch(seo.h1, /30\+|фотосесс|байк/i);
+  assert.match(seo.intro, /кадра на байке/i);
+  assert.doesNotMatch(seo.intro, /фотосесс|с мотоциклом/i);
+  assert.equal(seo.explorerTitle, "Промты для фотосессии на мотоцикле");
+  assert.equal(seo.howToTitle, "Как использовать промт мотоциклиста");
+  assert.equal(
+    seo.faqItems.filter((item) => /промт с мотоциклом/i.test(item.q)).length,
+    1,
+  );
+  assert.equal(seo.popularLinks?.length ?? 0, 0);
+});
+
+test("gym hub keeps спортзале in the head and фитнес in explorer", () => {
+  const route = resolveUrlToTags(["promty-dlya-foto", "v-sportale"]);
+  assert.ok(route);
+  assert.equal(route.canonicalPath, "/promty-dlya-foto/v-sportale");
+  assert.equal(route.rpcParams.object_tag, "v_sportale");
+  assert.equal(resolveUrlToTags(["v-sportale"]), null);
+
+  const seo = getSeoForRoute(route);
+  assert.equal(seo.h1, "Промты для фото в спортзале");
+  assert.equal(
+    seo.metaTitle,
+    "Промты для фото в спортзале — 50+ готовых промтов на русском",
+  );
+  assert.doesNotMatch(seo.h1, /50\+|фитнес|девушк/i);
+  assert.match(seo.intro, /тренажёрном зале/i);
+  assert.doesNotMatch(seo.intro, /фитнес|девушки на спорте/i);
+  assert.equal(seo.explorerTitle, "Промт для фото в фитнесе");
+  assert.equal(seo.howToTitle, "Как использовать промт для тренировочного кадра");
+  assert.equal(
+    seo.faqItems.filter((item) => /девушки на спорте/i.test(item.q)).length,
+    1,
+  );
+  assert.equal(seo.popularLinks?.length ?? 0, 0);
+});
+
+test("mirror hub keeps в зеркале in the head and с парнем in explorer", () => {
+  const route = resolveUrlToTags(["promty-dlya-foto", "v-zerkale"]);
+  assert.ok(route);
+  assert.equal(route.canonicalPath, "/promty-dlya-foto/v-zerkale");
+  assert.equal(route.rpcParams.object_tag, "v_zerkale");
+  assert.equal(resolveUrlToTags(["v-zerkale"]), null);
+
+  const seo = getSeoForRoute(route);
+  assert.equal(seo.h1, "Промты для фото в зеркале");
+  assert.equal(
+    seo.metaTitle,
+    "Промты для фото в зеркале — 300+ готовых промтов на русском",
+  );
+  assert.doesNotMatch(seo.h1, /300\+|парнем|селфи/i);
+  assert.match(seo.intro, /напротив зеркала/i);
+  assert.doesNotMatch(seo.intro, /парнем|селфи|отражени/i);
+  assert.equal(seo.explorerTitle, "Промт для фото в зеркале с парнем");
+  assert.equal(seo.howToTitle, "Как использовать промт для отражения");
+  assert.equal(
+    seo.faqItems.filter((item) => /промт селфи в зеркале/i.test(item.q)).length,
+    1,
+  );
+  assert.equal(seo.popularLinks?.length ?? 0, 0);
+});
+
+test("champagne hub keeps шампанским in the head and брызги in explorer", () => {
+  const route = resolveUrlToTags(["promty-dlya-foto", "s-shampanskim"]);
+  assert.ok(route);
+  assert.equal(route.canonicalPath, "/promty-dlya-foto/s-shampanskim");
+  assert.equal(route.rpcParams.object_tag, "s_shampanskim");
+  assert.equal(resolveUrlToTags(["s-shampanskim"]), null);
+
+  const seo = getSeoForRoute(route);
+  assert.equal(seo.h1, "Промты для фото с шампанским");
+  assert.equal(
+    seo.metaTitle,
+    "Промты для фото с шампанским — 90+ готовых промтов на русском",
+  );
+  assert.doesNotMatch(seo.h1, /90\+|брызг/i);
+  assert.match(seo.intro, /праздничного кадра с игристым/i);
+  assert.doesNotMatch(seo.intro, /брызг|промт с шампанским/i);
+  assert.equal(seo.explorerTitle, "Промт для фото в стиле брызги шампанского");
+  assert.equal(seo.howToTitle, "Как использовать промт для праздничного кадра");
+  assert.equal(
+    seo.faqItems.filter((item) => /промт с шампанским/i.test(item.q)).length,
+    1,
+  );
+  assert.equal(seo.popularLinks?.length ?? 0, 0);
+});
+
+test("in-car hub keeps в машине in the head and фотосессия in explorer", () => {
+  const route = resolveUrlToTags(["promty-dlya-foto", "v-mashine"]);
+  assert.ok(route);
+  assert.equal(route.canonicalPath, "/promty-dlya-foto/v-mashine");
+  assert.equal(route.rpcParams.object_tag, "v_mashine");
+  assert.equal(resolveUrlToTags(["v-mashine"]), null);
+
+  const seo = getSeoForRoute(route);
+  assert.equal(seo.h1, "Промты для фото в машине");
+  assert.equal(
+    seo.metaTitle,
+    "Промты для фото в машине — 100+ готовых промтов на русском",
+  );
+  assert.doesNotMatch(seo.h1, /100\+|фотосессия/i);
+  assert.match(seo.intro, /кадра за рулём/i);
+  assert.doesNotMatch(seo.intro, /фотосессия|для машины/i);
+  assert.equal(seo.explorerTitle, "Промт фотосессия в машине");
+  assert.equal(seo.howToTitle, "Как использовать промт за рулём");
+  assert.equal(
+    seo.faqItems.filter((item) => /промт для машины/i.test(item.q)).length,
+    1,
+  );
+  assert.equal(seo.popularLinks?.length ?? 0, 0);
+});
+
+test("sea hub keeps море in the head and пляж in explorer", () => {
+  const route = resolveUrlToTags(["promty-dlya-foto", "na-more"]);
+  assert.ok(route);
+  assert.equal(route.canonicalPath, "/promty-dlya-foto/na-more");
+  assert.equal(route.rpcParams.object_tag, "na_more");
+  assert.equal(resolveUrlToTags(["na-more"]), null);
+
+  const seo = getSeoForRoute(route);
+  assert.equal(seo.h1, "Промты для фото на море");
+  assert.equal(
+    seo.metaTitle,
+    "Промты для фото на море — 400+ готовых промтов на русском",
+  );
+  assert.doesNotMatch(seo.h1, /400\+|пляже/i);
+  assert.match(seo.intro, /кадра на побережье/i);
+  assert.doesNotMatch(seo.intro, /фото на море|на пляже/i);
+  assert.equal(seo.explorerTitle, "Промт для фото на пляже");
+  assert.doesNotMatch(seo.explorerTitle ?? "", /на море/i);
+  assert.match(seo.explorerIntro ?? "", /скопируйте промт/i);
+  assert.doesNotMatch(seo.explorerIntro ?? "", /пляже/i);
+  assert.equal(seo.howToTitle, "Как использовать промт для морского фото");
+  assert.doesNotMatch(seo.howToTitle ?? "", /на море|на пляже/i);
+  assert.equal(
+    seo.faqItems.filter((item) => /промт на море/i.test(item.q)).length,
+    1,
+  );
+  assert.equal(seo.popularLinks?.length ?? 0, 0);
+  assert.equal(seo.seoTextBlocks?.length ?? 0, 0);
+  const copy = `${seo.h1} ${seo.intro} ${seo.explorerTitle} ${seo.explorerIntro} ${seo.howToTitle} ${seo.faqItems.map((item) => item.q).join(" ")}`;
+  assert.doesNotMatch(copy, FORBIDDEN_EXTERNAL_CTA);
+  assert.doesNotMatch(copy, /фотошоп|пинтерест|instagram/i);
+});
+
+test("avatar hub keeps аватарку in the head and профиль in explorer", () => {
+  const route = resolveUrlToTags(["promty-dlya-foto", "na-avatarku"]);
+  assert.ok(route);
+  assert.equal(route.canonicalPath, "/promty-dlya-foto/na-avatarku");
+  assert.equal(route.rpcParams.object_tag, "na_avatarku");
+  assert.equal(resolveUrlToTags(["foto-na-avatarku"]), null);
+
+  const seo = getSeoForRoute(route);
+  assert.equal(seo.h1, "Промты для фото на аватарку");
+  assert.equal(
+    seo.metaTitle,
+    "Промты для фото на аватарку — 80+ готовых промтов на русском",
+  );
+  assert.doesNotMatch(seo.h1, /80\+|профиля/i);
+  assert.match(seo.intro, /промты для аватарки/i);
+  assert.doesNotMatch(seo.intro, /фото на аватарку|фото профиля/i);
+  assert.equal(seo.explorerTitle, "Промты для фото профиля");
+  assert.doesNotMatch(seo.explorerTitle ?? "", /аватарк/i);
+  assert.match(seo.explorerIntro ?? "", /скопируйте промт/i);
+  assert.doesNotMatch(seo.explorerIntro ?? "", /профиля/i);
+  assert.equal(seo.howToTitle, "Как использовать промт на аватарку");
+  assert.doesNotMatch(seo.howToTitle ?? "", /для авы|фото профиля/i);
+  assert.equal(
+    seo.faqItems.filter((item) => /промт для авы/i.test(item.q)).length,
+    1,
+  );
+  assert.equal(seo.popularLinks?.length ?? 0, 0);
+  assert.equal(seo.seoTextBlocks?.length ?? 0, 0);
+  const copy = `${seo.h1} ${seo.intro} ${seo.explorerTitle} ${seo.explorerIntro} ${seo.howToTitle} ${seo.faqItems.map((item) => item.q).join(" ")}`;
+  assert.doesNotMatch(copy, FORBIDDEN_EXTERNAL_CTA);
+  assert.doesNotMatch(copy, /nano banana|инстаграм/i);
+});
+
+test("car hub keeps с машиной in the head and фото машины in explorer", () => {
+  const route = resolveUrlToTags(["promty-dlya-foto", "s-mashinoy"]);
+  assert.ok(route);
+  assert.equal(route.canonicalPath, "/promty-dlya-foto/s-mashinoy");
+  assert.equal(route.rpcParams.object_tag, "s_mashinoy");
+  assert.equal(resolveUrlToTags(["s-mashinoy"]), null);
+
   const seo = getSeoForRoute(route);
   assert.equal(seo.h1, "Промты для фото с машиной");
-  assert.equal(seo.metaTitle, "Промты для фото с машиной | PromptShot");
-  assert.match(seo.intro, /промт с машиной/i);
-  assert.match(seo.intro, /повтори кадр в 1 клик/i);
-  assert.doesNotMatch(
-    `${seo.h1} ${seo.metaTitle} ${seo.metaDescription} ${seo.intro}`,
-    FORBIDDEN_PHOTOSHOOT_TERMS,
-  );
-  assert.doesNotMatch(
-    `${seo.metaDescription} ${seo.intro} ${seo.howToSteps?.join(" ") ?? ""}`,
-    FORBIDDEN_EXTERNAL_CTA,
-  );
   assert.equal(
-    seo.popularLinks?.[0]?.href,
-    "/promty-dlya-foto-devushki?object=s_mashinoy",
+    seo.metaTitle,
+    "Промты для фото с машиной — 500+ готовых промтов на русском",
   );
+  assert.doesNotMatch(seo.h1, /500\+|фото машины/i);
+  assert.match(seo.intro, /промты для ии фото с автомобилем/i);
+  assert.doesNotMatch(seo.intro, /фото с машиной|фото машины/i);
+  assert.equal(seo.explorerTitle, "Промт для фото машины");
+  assert.doesNotMatch(seo.explorerTitle ?? "", /с машиной|мужск/i);
+  assert.match(seo.explorerIntro ?? "", /скопируйте промт/i);
+  assert.doesNotMatch(seo.explorerIntro ?? "", /фото машины/i);
+  assert.equal(seo.howToTitle, "Как использовать промт для автомобиля");
+  assert.doesNotMatch(seo.howToTitle ?? "", /с машиной|фото машины/i);
+  assert.ok(seo.faqItems.some((item) => /промт на фото с машиной/i.test(item.q)));
   assert.equal(
-    seo.popularLinks?.find((link) => link.label === "Мужчины")?.href,
-    "/promty-dlya-foto-muzhchiny?object=s_mashinoy",
+    seo.faqItems.filter((item) => /промт на фото с машиной/i.test(item.q)).length,
+    1,
   );
-  assert.equal(
-    seo.popularLinks?.find((link) => link.label === "ИИ-фотосессия")?.href,
-    "/ii-fotosessiya/s-mashinoy",
-  );
+  assert.equal(seo.popularLinks?.length ?? 0, 0);
+  assert.equal(seo.seoTextBlocks?.length ?? 0, 0);
+  const copy = `${seo.h1} ${seo.intro} ${seo.explorerTitle} ${seo.explorerIntro} ${seo.howToTitle} ${seo.faqItems.map((item) => item.q).join(" ")}`;
+  assert.doesNotMatch(copy, FORBIDDEN_EXTERNAL_CTA);
+  assert.doesNotMatch(copy, /фотошоп|сирен|nano banana/i);
 });
 
 const LISTING_BRAND_LEAK =

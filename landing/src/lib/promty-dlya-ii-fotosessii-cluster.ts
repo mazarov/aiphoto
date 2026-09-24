@@ -162,7 +162,7 @@ export const PROMTY_DLYA_II_FOTOSESSII_CHILDREN = [
     label: "С машиной",
     dimension: "object_tag",
     tagValue: "s_mashinoy",
-    catalogHref: "/s-mashinoy",
+    catalogHref: "/promty-dlya-foto/s-mashinoy",
     generateHref: "/generaciya-foto/s-mashinoy",
   },
   {

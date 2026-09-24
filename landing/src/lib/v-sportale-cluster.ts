@@ -1,0 +1,124 @@
+import { takeHeroMarqueeCards } from "./hero-marquee";
+
+export const V_SPORTALE_HUB_PATH = "/promty-dlya-foto/v-sportale";
+export const V_SPORTALE_LEGACY_PATH = "/v-sportale";
+export const V_SPORTALE_HUB_OBJECT_TAG = "v_sportale";
+export const V_SPORTALE_HUB_LOAD_MORE_LABEL = "Больше промтов в спортзале";
+export const V_SPORTALE_HUB_GENERATE_CTA = "Создать фото в спортзале";
+export const V_SPORTALE_HUB_HERO_ARIA_LABEL = "Примеры фото в спортзале";
+export const V_SPORTALE_HUB_HERO_CARD_LIMIT = 16;
+
+export const V_SPORTALE_HUB_COMPOSE_EXAMPLE_FILTER = {
+  label: "В спортзале",
+  href: V_SPORTALE_HUB_PATH,
+  dimension: "object_tag",
+  value: V_SPORTALE_HUB_OBJECT_TAG,
+} as const;
+
+export type VSportaleHubFilterQueryKey = "audience" | "style" | "object" | "occasion";
+
+export type VSportaleHubFilterChip = {
+  label: string;
+  queryKey: VSportaleHubFilterQueryKey;
+  value: string;
+};
+
+export type VSportaleHubFilterState = Partial<
+  Record<VSportaleHubFilterQueryKey, string | null | undefined>
+>;
+
+/** Audience and style only. A second object chip would replace v_sportale. */
+export const V_SPORTALE_HUB_FILTER_CHIPS: readonly VSportaleHubFilterChip[] = [
+  { label: "Девушка", queryKey: "audience", value: "devushka" },
+  { label: "Мужчина", queryKey: "audience", value: "muzhchina" },
+  { label: "Портрет", queryKey: "style", value: "portret" },
+];
+
+function stripTrailingSlash(path: string): string {
+  return path.length > 1 && path.endsWith("/") ? path.slice(0, -1) : path;
+}
+
+export function vSportaleHubHeroFetchParams(routeParams: {
+  audience_tag: string | null;
+  style_tag: string | null;
+  occasion_tag: string | null;
+  object_tag: string | null;
+  doc_task_tag: string | null;
+}) {
+  void routeParams;
+  return {
+    audience_tag: null,
+    style_tag: null,
+    occasion_tag: null,
+    object_tag: V_SPORTALE_HUB_OBJECT_TAG,
+    doc_task_tag: null,
+    limit: V_SPORTALE_HUB_HERO_CARD_LIMIT,
+    offset: 0,
+    min_cards: 1,
+    sort: "new" as const,
+  };
+}
+
+export function toVSportaleHubHeroCarouselCards<T extends { photoUrl: string | null }>(
+  cards: readonly T[],
+): T[] {
+  return takeHeroMarqueeCards(cards.filter((card) => card.photoUrl));
+}
+
+export function vSportaleHubFilterHref(chip?: VSportaleHubFilterChip | null): string {
+  if (!chip) return V_SPORTALE_HUB_PATH;
+  return `${V_SPORTALE_HUB_PATH}?${chip.queryKey}=${encodeURIComponent(chip.value)}`;
+}
+
+export function isVSportaleHubFilterActive(
+  chip: VSportaleHubFilterChip,
+  state: VSportaleHubFilterState,
+): boolean {
+  return state[chip.queryKey] === chip.value;
+}
+
+export function getVSportaleHubFilterNavItems(state: VSportaleHubFilterState = {}) {
+  const hasActiveChip = V_SPORTALE_HUB_FILTER_CHIPS.some((chip) =>
+    isVSportaleHubFilterActive(chip, state),
+  );
+  return [
+    {
+      label: "Все",
+      href: vSportaleHubFilterHref(null),
+      active: !hasActiveChip,
+    },
+    ...V_SPORTALE_HUB_FILTER_CHIPS.map((chip) => ({
+      label: chip.label,
+      href: vSportaleHubFilterHref(chip),
+      active: isVSportaleHubFilterActive(chip, state),
+    })),
+  ];
+}
+
+export function isVSportaleHubPath(pathname: string): boolean {
+  return stripTrailingSlash(pathname) === V_SPORTALE_HUB_PATH;
+}
+
+export function isVSportaleClusterPath(pathname: string): boolean {
+  const normalized = stripTrailingSlash(pathname);
+  return (
+    normalized === V_SPORTALE_HUB_PATH ||
+    normalized.startsWith(`${V_SPORTALE_HUB_PATH}/`) ||
+    normalized === V_SPORTALE_LEGACY_PATH ||
+    normalized.startsWith(`${V_SPORTALE_LEGACY_PATH}/`)
+  );
+}
+
+/** Legacy /v-sportale and any child slice 301 to the hub. */
+export function vSportaleChildRedirectPath(pathname: string): string | null {
+  const normalized = stripTrailingSlash(pathname);
+  if (normalized === V_SPORTALE_HUB_PATH) return null;
+  if (
+    normalized === V_SPORTALE_LEGACY_PATH ||
+    normalized.startsWith(`${V_SPORTALE_LEGACY_PATH}/`) ||
+    normalized.startsWith(`${V_SPORTALE_HUB_PATH}/`)
+  ) {
+    return V_SPORTALE_HUB_PATH;
+  }
+  return null;
+}

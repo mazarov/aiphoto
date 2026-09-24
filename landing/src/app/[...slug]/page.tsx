@@ -683,7 +683,6 @@ export default async function TagPage({ params, searchParams }: Props) {
     primaryTag.dimension,
     primaryTag.slug
   );
-  const siblings = getSiblingTags(primaryTag, 6);
   const sectionLabel = DIMENSION_LABELS[primaryTag.dimension];
   let l2ChipGroups: L2ChipGroup[] = [];
   if (route.level === 1) {
@@ -877,16 +876,6 @@ export default async function TagPage({ params, searchParams }: Props) {
           headingId={`seo-text-${index}`}
         />
       ))}
-
-      {siblings.length > 0 ? (
-        <SeoRelatedChipsSection
-          title="Ещё разделы"
-          items={siblings.map((s) => ({
-            label: s.labelRu,
-            href: s.urlPath,
-          }))}
-        />
-      ) : null}
 
       {route.level >= 2 && route.tags.length >= 2 ? (
         <SeoRelatedChipsSection

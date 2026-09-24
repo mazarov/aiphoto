@@ -71,3 +71,135 @@ test("men plot L2 redirects to the hub; birthday tails do not", async () => {
     "https://promptshot.ru/promty-dlya-foto-muzhchiny",
   );
 });
+
+test("legacy car URL redirects to the promty-dlya-foto hub", async () => {
+  for (const path of ["/s-mashinoy", "/s-mashinoy/", "/s-mashinoy/portret"]) {
+    const response = await middleware(
+      new NextRequest(`https://promptshot.ru${path}`),
+    );
+    assert.equal(response.status, 301);
+    assert.equal(
+      response.headers.get("location"),
+      "https://promptshot.ru/promty-dlya-foto/s-mashinoy",
+    );
+  }
+
+  const hub = await middleware(
+    new NextRequest("https://promptshot.ru/promty-dlya-foto/s-mashinoy"),
+  );
+  assert.notEqual(hub.status, 301);
+});
+
+test("legacy avatar URL redirects to the promty-dlya-foto hub", async () => {
+  for (const path of ["/foto-na-avatarku", "/foto-na-avatarku/", "/foto-na-avatarku/portret"]) {
+    const response = await middleware(
+      new NextRequest(`https://promptshot.ru${path}`),
+    );
+    assert.equal(response.status, 301);
+    assert.equal(
+      response.headers.get("location"),
+      "https://promptshot.ru/promty-dlya-foto/na-avatarku",
+    );
+  }
+});
+
+test("legacy sea URL redirects to the promty-dlya-foto hub", async () => {
+  for (const path of ["/na-more", "/na-more/", "/na-more/portret"]) {
+    const response = await middleware(
+      new NextRequest(`https://promptshot.ru${path}`),
+    );
+    assert.equal(response.status, 301);
+    assert.equal(
+      response.headers.get("location"),
+      "https://promptshot.ru/promty-dlya-foto/na-more",
+    );
+  }
+});
+
+test("legacy in-car URL redirects to the promty-dlya-foto hub", async () => {
+  const response = await middleware(
+    new NextRequest("https://promptshot.ru/v-mashine"),
+  );
+  assert.equal(response.status, 301);
+  assert.equal(
+    response.headers.get("location"),
+    "https://promptshot.ru/promty-dlya-foto/v-mashine",
+  );
+});
+
+test("legacy champagne URL redirects to the promty-dlya-foto hub", async () => {
+  const response = await middleware(
+    new NextRequest("https://promptshot.ru/s-shampanskim"),
+  );
+  assert.equal(response.status, 301);
+  assert.equal(
+    response.headers.get("location"),
+    "https://promptshot.ru/promty-dlya-foto/s-shampanskim",
+  );
+});
+
+test("legacy mirror URL redirects to the promty-dlya-foto hub", async () => {
+  const response = await middleware(
+    new NextRequest("https://promptshot.ru/v-zerkale"),
+  );
+  assert.equal(response.status, 301);
+  assert.equal(
+    response.headers.get("location"),
+    "https://promptshot.ru/promty-dlya-foto/v-zerkale",
+  );
+});
+
+test("legacy gym URL redirects to the promty-dlya-foto hub", async () => {
+  const response = await middleware(
+    new NextRequest("https://promptshot.ru/v-sportale"),
+  );
+  assert.equal(response.status, 301);
+  assert.equal(
+    response.headers.get("location"),
+    "https://promptshot.ru/promty-dlya-foto/v-sportale",
+  );
+});
+
+test("legacy motorcycle URL redirects to the promty-dlya-foto hub", async () => {
+  const response = await middleware(
+    new NextRequest("https://promptshot.ru/mototsikl"),
+  );
+  assert.equal(response.status, 301);
+  assert.equal(
+    response.headers.get("location"),
+    "https://promptshot.ru/promty-dlya-foto/mototsikl",
+  );
+});
+
+test("legacy cake URL redirects to the promty-dlya-foto hub", async () => {
+  const response = await middleware(
+    new NextRequest("https://promptshot.ru/s-tortom"),
+  );
+  assert.equal(response.status, 301);
+  assert.equal(
+    response.headers.get("location"),
+    "https://promptshot.ru/promty-dlya-foto/s-tortom",
+  );
+});
+
+test("legacy horse URL redirects to the promty-dlya-foto hub", async () => {
+  const response = await middleware(
+    new NextRequest("https://promptshot.ru/s-loshadyu"),
+  );
+  assert.equal(response.status, 301);
+  assert.equal(
+    response.headers.get("location"),
+    "https://promptshot.ru/promty-dlya-foto/s-loshadyu",
+  );
+});
+
+test("legacy forest URL redirects to the promty-dlya-foto hub", async () => {
+  const response = await middleware(
+    new NextRequest("https://promptshot.ru/v-lesu"),
+  );
+  assert.equal(response.status, 301);
+  assert.equal(
+    response.headers.get("location"),
+    "https://promptshot.ru/promty-dlya-foto/v-lesu",
+  );
+});

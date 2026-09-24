@@ -576,7 +576,7 @@ const COPY_BY_SLUG: Record<
       "тип морской локации, человека, одежду, погоду, время суток, состояние воды и ракурс",
     formatAdvice:
       "Для пейзажной сцены используйте 16:9 или 4:3, для отпускного портрета — 3:4 или 9:16.",
-    promptCatalogHref: "/na-more",
+    promptCatalogHref: "/promty-dlya-foto/na-more",
     promptCatalogLabel: "Промты для фото на море",
   }),
   "s-mamoy": createProgrammaticScenarioCopy({
@@ -628,7 +628,7 @@ const COPY_BY_SLUG: Record<
       "человека, одежду, бокал или бутылку, интерьер, праздничный декор, свет и ракурс",
     formatAdvice:
       "Для портрета и сторис подойдут 3:4 и 9:16, для сервировки или компании — 4:3.",
-    promptCatalogHref: "/s-shampanskim",
+    promptCatalogHref: "/promty-dlya-foto/s-shampanskim",
     promptCatalogLabel: "Промты для фото с шампанским",
   }),
   selfi: createProgrammaticScenarioCopy({
@@ -685,7 +685,7 @@ const COPY_BY_SLUG: Record<
       "форму зеркала, интерьер, человека, одежду, положение телефона, отражение, свет и ракурс",
     formatAdvice:
       "Для зеркального селфи используйте 3:4 или 9:16, для интерьерной сцены — 4:3.",
-    promptCatalogHref: "/v-zerkale",
+    promptCatalogHref: "/promty-dlya-foto/v-zerkale",
     promptCatalogLabel: "Промты для фото в зеркале",
   }),
   kollazh: createProgrammaticScenarioCopy({

@@ -1,5 +1,31 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-09-24 (**листинг:** блок «Ещё разделы» с сиблингами тега снят со всех страниц `[...slug]`.)
+>
+> Последнее обновление: 2026-09-24 (**остальные object-хабы:** 83 страницы очереди после `/v-lesu` каноникалятся на `/promty-dlya-foto/<slug>`, старый path → 301. Слоты в `seo-content.ts`, каркас `object-scene-hubs.ts`.)
+>
+> Последнее обновление: 2026-09-24 (**хаб /promty-dlya-foto/v-lesu:** H1 «Промты для фото в лесу», Title с `600+`, H2 «Промпт для фотосессии в лесу». Карусель только `object_tag=v_lesu`. `/v-lesu` → 301. SSOT `v-lesu-cluster.ts`.)
+>
+> Последнее обновление: 2026-09-24 (**хаб /promty-dlya-foto/s-loshadyu:** H1 «Промты для фото с лошадью», Title с `70+`, H2 «Промт для фотосессии коня». Карусель только `object_tag=s_loshadyu`. `/s-loshadyu` → 301. SSOT `s-loshadyu-cluster.ts`.)
+>
+> Последнее обновление: 2026-09-24 (**хаб /promty-dlya-foto/s-tortom:** H1 «Промты для фото с тортом», Title с `200+`, H2 «Промт для фото на день рождения девушке с тортом». Карусель только `object_tag=s_tortom`. `/s-tortom` → 301. SSOT `s-tortom-cluster.ts`.)
+>
+> Последнее обновление: 2026-09-24 (**хаб /promty-dlya-foto/mototsikl:** H1 «Промты для фото на мотоцикле», Title с `30+`, H2 «Промты для фотосессии на мотоцикле». Карусель только `object_tag=mototsikl`. `/mototsikl` → 301. SSOT `mototsikl-cluster.ts`.)
+>
+> Последнее обновление: 2026-09-24 (**хаб /promty-dlya-foto/v-sportale:** H1 «Промты для фото в спортзале», Title с `50+`, H2 «Промт для фото в фитнесе». Карусель только `object_tag=v_sportale`. `/v-sportale` → 301. SSOT `v-sportale-cluster.ts`.)
+>
+> Последнее обновление: 2026-09-24 (**хаб /promty-dlya-foto/v-zerkale:** H1 «Промты для фото в зеркале», Title с `300+`, H2 «Промт для фото в зеркале с парнем». Карусель только `object_tag=v_zerkale`. `/v-zerkale` → 301. SSOT `v-zerkale-cluster.ts`.)
+>
+> Последнее обновление: 2026-09-24 (**хаб /promty-dlya-foto/s-shampanskim:** H1 «Промты для фото с шампанским», Title с `90+`, H2 «Промт для фото в стиле брызги шампанского». Карусель только `object_tag=s_shampanskim`. `/s-shampanskim` → 301. SSOT `s-shampanskim-cluster.ts`.)
+>
+> Последнее обновление: 2026-09-24 (**хаб /promty-dlya-foto/v-mashine:** H1 «Промты для фото в машине», Title с `100+`, H2 «Промт фотосессия в машине». Карусель только `object_tag=v_mashine`. `/v-mashine` → 301. SSOT `v-mashine-cluster.ts`.)
+>
+> Последнее обновление: 2026-09-24 (**хаб /promty-dlya-foto/na-more:** H1 «Промты для фото на море», Title с `400+`, H2 «Промт для фото на пляже». Карусель только `object_tag=na_more`. `/na-more` → 301. SSOT `na-more-cluster.ts`.)
+>
+> Последнее обновление: 2026-09-24 (**хаб /promty-dlya-foto/na-avatarku:** H1 «Промты для фото на аватарку», Title с `80+`, H2 «Промты для фото профиля». Карусель только `object_tag=na_avatarku`. `/foto-na-avatarku` → 301. SSOT `foto-na-avatarku-cluster.ts`.)
+>
+> Последнее обновление: 2026-09-24 (**хаб /promty-dlya-foto/s-mashinoy:** H1 «Промты для фото с машиной», Title с `500+`, H2 «Промт для фото машины». Карусель только `object_tag=s_mashinoy`. Чипы `?audience=` / `?style=` не подменяют машину. `/s-mashinoy` → 301. SSOT `s-mashinoy-cluster.ts`.)
+>
 > Последнее обновление: 2026-09-24 (**хаб /v-forme:** H1 «Промты для фото в военной форме», Title с `300+`, H2 «Промт для фото с военным». Карусель только `object_tag=v_forme`. Чипы `?audience=` / `?style=` не подменяют форму. SSOT `v-forme-cluster.ts`.)
 >
 > Последнее обновление: 2026-09-24 (**хаб /osen:** тот же каркас, что у пар. H1 «Промты для осенней фотосессии», Title с `300+`, H2 «Идеи для осенней фотосессии». Карусель только `object_tag=osen`. Чипы `?audience=` / `?style=` не подменяют осень. SSOT `osen-cluster.ts`.)

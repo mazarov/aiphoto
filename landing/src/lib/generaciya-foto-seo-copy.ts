@@ -145,7 +145,7 @@ export const GENERACIYA_FOTO_SCENARIOS = [
   },
   {
     label: "С машиной",
-    href: "/s-mashinoy",
+    href: "/promty-dlya-foto/s-mashinoy",
     dimension: "object_tag",
     value: "s_mashinoy",
   },
@@ -181,7 +181,7 @@ export const GENERACIYA_FOTO_SCENARIOS = [
   },
   {
     label: "На море",
-    href: "/na-more",
+    href: "/promty-dlya-foto/na-more",
     dimension: "object_tag",
     value: "na_more",
   },
@@ -205,7 +205,7 @@ export const GENERACIYA_FOTO_SCENARIOS = [
   },
   {
     label: "С шампанским",
-    href: "/s-shampanskim",
+    href: "/promty-dlya-foto/s-shampanskim",
     dimension: "object_tag",
     value: "s_shampanskim",
   },
@@ -229,7 +229,7 @@ export const GENERACIYA_FOTO_SCENARIOS = [
   },
   {
     label: "В зеркале",
-    href: "/v-zerkale",
+    href: "/promty-dlya-foto/v-zerkale",
     dimension: "object_tag",
     value: "v_zerkale",
   },
