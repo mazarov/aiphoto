@@ -46,6 +46,8 @@ test("every remaining object scene hub resolves and 301s the old URL", () => {
 
     const seo = getSeoForRoute(route);
     assert.ok(seo.h1.length > 0);
+    assert.match(seo.metaTitle, /🇷🇺$/);
+    assert.doesNotMatch(seo.h1, /🇷🇺/);
     assert.notEqual(seo.explorerTitle, seo.h1);
     assert.ok(seo.howToTitle);
     assert.equal(seo.popularLinks?.length ?? 0, 0);

@@ -182,7 +182,7 @@ test("osen hub keeps photoshoot prompts in the head and идеи in explorer", (
   assert.equal(seo.h1, h1);
   assert.equal(
     seo.metaTitle,
-    "Промты для осенней фотосессии — 300+ готовых промтов на русском",
+    "Промты для осенней фотосессии 🍂 — 300+ готовых промтов на русском 🇷🇺",
   );
   assert.match(seo.metaTitle, /300\+/);
   assert.doesNotMatch(seo.h1, /300\+|идеи/i);
@@ -213,7 +213,7 @@ test("uniform hub keeps military form in the head and с военным in explo
   assert.equal(seo.h1, "Промты для фото в военной форме");
   assert.equal(
     seo.metaTitle,
-    "Промты для фото в военной форме — 300+ готовых промтов на русском",
+    "Промты для фото в военной форме 🪖 — 300+ готовых промтов на русском 🇷🇺",
   );
   assert.doesNotMatch(seo.h1, /300\+|с военным/i);
   assert.match(seo.intro, /промты для ии фотосессии с военным/i);
@@ -286,7 +286,7 @@ test("forest hub keeps в лесу in the head and фотосессии in explo
   assert.equal(seo.h1, "Промты для фото в лесу");
   assert.equal(
     seo.metaTitle,
-    "Промты для фото в лесу — 600+ готовых промтов на русском",
+    "Промты для фото в лесу 🌲 — 600+ готовых промтов на русском 🇷🇺",
   );
   assert.doesNotMatch(seo.h1, /600\+|фотосесс|портрет/i);
   assert.match(seo.intro, /среди деревьев/i);
@@ -311,7 +311,7 @@ test("horse hub keeps с лошадью in the head and коня in explorer", (
   assert.equal(seo.h1, "Промты для фото с лошадью");
   assert.equal(
     seo.metaTitle,
-    "Промты для фото с лошадью — 70+ готовых промтов на русском",
+    "Промты для фото с лошадью 🐴 — 70+ готовых промтов на русском 🇷🇺",
   );
   assert.doesNotMatch(seo.h1, /70\+|коня|седл/i);
   assert.match(seo.intro, /кадра верхом/i);
@@ -336,7 +336,7 @@ test("cake hub keeps с тортом in the head and день рождения i
   assert.equal(seo.h1, "Промты для фото с тортом");
   assert.equal(
     seo.metaTitle,
-    "Промты для фото с тортом — 200+ готовых промтов на русском",
+    "Промты для фото с тортом 🎂 — 200+ готовых промтов на русском 🇷🇺",
   );
   assert.doesNotMatch(seo.h1, /200\+|день рождения|свеч/i);
   assert.match(seo.intro, /кадра с десертом/i);
@@ -361,7 +361,7 @@ test("motorcycle hub keeps на мотоцикле in the head and фотосе�
   assert.equal(seo.h1, "Промты для фото на мотоцикле");
   assert.equal(
     seo.metaTitle,
-    "Промты для фото на мотоцикле — 30+ готовых промтов на русском",
+    "Промты для фото на мотоцикле 🏍️ — 30+ готовых промтов на русском 🇷🇺",
   );
   assert.doesNotMatch(seo.h1, /30\+|фотосесс|байк/i);
   assert.match(seo.intro, /кадра на байке/i);
@@ -386,7 +386,7 @@ test("gym hub keeps спортзале in the head and фитнес in explorer"
   assert.equal(seo.h1, "Промты для фото в спортзале");
   assert.equal(
     seo.metaTitle,
-    "Промты для фото в спортзале — 50+ готовых промтов на русском",
+    "Промты для фото в спортзале 🏋️ — 50+ готовых промтов на русском 🇷🇺",
   );
   assert.doesNotMatch(seo.h1, /50\+|фитнес|девушк/i);
   assert.match(seo.intro, /тренажёрном зале/i);
@@ -411,7 +411,7 @@ test("mirror hub keeps в зеркале in the head and с парнем in expl
   assert.equal(seo.h1, "Промты для фото в зеркале");
   assert.equal(
     seo.metaTitle,
-    "Промты для фото в зеркале — 300+ готовых промтов на русском",
+    "Промты для фото в зеркале 🪞 — 300+ готовых промтов на русском 🇷🇺",
   );
   assert.doesNotMatch(seo.h1, /300\+|парнем|селфи/i);
   assert.match(seo.intro, /напротив зеркала/i);
@@ -436,7 +436,7 @@ test("champagne hub keeps шампанским in the head and брызги in e
   assert.equal(seo.h1, "Промты для фото с шампанским");
   assert.equal(
     seo.metaTitle,
-    "Промты для фото с шампанским — 90+ готовых промтов на русском",
+    "Промты для фото с шампанским 🍾 — 90+ готовых промтов на русском 🇷🇺",
   );
   assert.doesNotMatch(seo.h1, /90\+|брызг/i);
   assert.match(seo.intro, /праздничного кадра с игристым/i);
@@ -461,7 +461,7 @@ test("in-car hub keeps в машине in the head and фотосессия in e
   assert.equal(seo.h1, "Промты для фото в машине");
   assert.equal(
     seo.metaTitle,
-    "Промты для фото в машине — 100+ готовых промтов на русском",
+    "Промты для фото в машине 🚘 — 100+ готовых промтов на русском 🇷🇺",
   );
   assert.doesNotMatch(seo.h1, /100\+|фотосессия/i);
   assert.match(seo.intro, /кадра за рулём/i);
@@ -486,7 +486,7 @@ test("sea hub keeps море in the head and пляж in explorer", () => {
   assert.equal(seo.h1, "Промты для фото на море");
   assert.equal(
     seo.metaTitle,
-    "Промты для фото на море — 400+ готовых промтов на русском",
+    "Промты для фото на море 🌊 — 400+ готовых промтов на русском 🇷🇺",
   );
   assert.doesNotMatch(seo.h1, /400\+|пляже/i);
   assert.match(seo.intro, /кадра на побережье/i);
@@ -519,7 +519,7 @@ test("avatar hub keeps аватарку in the head and профиль in explor
   assert.equal(seo.h1, "Промты для фото на аватарку");
   assert.equal(
     seo.metaTitle,
-    "Промты для фото на аватарку — 80+ готовых промтов на русском",
+    "Промты для фото на аватарку 🖼️ — 80+ готовых промтов на русском 🇷🇺",
   );
   assert.doesNotMatch(seo.h1, /80\+|профиля/i);
   assert.match(seo.intro, /промты для аватарки/i);
@@ -552,7 +552,7 @@ test("car hub keeps с машиной in the head and фото машины in e
   assert.equal(seo.h1, "Промты для фото с машиной");
   assert.equal(
     seo.metaTitle,
-    "Промты для фото с машиной — 500+ готовых промтов на русском",
+    "Промты для фото с машиной 🚗 — 500+ готовых промтов на русском 🇷🇺",
   );
   assert.doesNotMatch(seo.h1, /500\+|фото машины/i);
   assert.match(seo.intro, /промты для ии фото с автомобилем/i);
