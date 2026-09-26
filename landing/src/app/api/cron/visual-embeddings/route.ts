@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { ensureBirthdayListingQueryEmbeddings } from "@/lib/listing-query-embedding";
 import { createSupabaseServer } from "@/lib/supabase";
 import { noteMemoryRoute } from "@/lib/runtime-memory";
+import { processSubjectAudienceBacklog } from "@/lib/card-subject-audience";
 import { processVisualEmbeddingJobs } from "@/lib/visual-embedding-jobs";
 
 export const dynamic = "force-dynamic";
@@ -46,6 +47,35 @@ export async function POST(request: NextRequest) {
     );
     if (coverageError) throw new Error(coverageError.message);
 
+    let subjectAudience: {
+      processed: number;
+      failed: number;
+      status: string;
+      coverage: unknown;
+    } = { processed: 0, failed: 0, status: "disabled", coverage: null };
+    try {
+      const backlog = await processSubjectAudienceBacklog({
+        supabase,
+        limit: Math.min(8, claimLimit),
+      });
+      subjectAudience = {
+        processed: backlog.processed ?? 0,
+        failed: backlog.failed ?? 0,
+        status: backlog.status,
+        coverage: backlog.coverage ?? null,
+      };
+    } catch (error) {
+      console.warn("[card-subject-audience] cron backlog failed", {
+        message: error instanceof Error ? error.message : String(error),
+      });
+      subjectAudience = {
+        processed: 0,
+        failed: 0,
+        status: "error",
+        coverage: null,
+      };
+    }
+
     let queryEmbeddings = { present: 0, embedded: 0, failed: 0 };
     try {
       queryEmbeddings = await ensureBirthdayListingQueryEmbeddings({ supabase });
@@ -56,7 +86,7 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json(
-      { enqueued: enqueued ?? 0, ...processed, coverage, queryEmbeddings },
+      { enqueued: enqueued ?? 0, ...processed, coverage, queryEmbeddings, subjectAudience },
       { headers: { "Cache-Control": "no-store" } },
     );
   } catch (error) {

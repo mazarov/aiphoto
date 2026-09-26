@@ -1,5 +1,7 @@
 # 03 — Пайплайн: парсинг → загрузка → публикация
 
+> Последнее обновление: 2026-09-26 (**subject audience:** после текстовых `seo_tags` каноническое фото классифицирует Gemini 2.5 Flash (`subject_audience`). Триггер SQL `256` пишет exclusive-слаг в `seo_tags.audience_tag`. Backfill — `src/standalone/backfill-card-subject-audience.mjs` (сначала `--dry-run`). Новые карточки — `publishPromptCard` `after()` при флаге `card_subject_audience_enabled`. Cron visual-embeddings добирает backlog. Новых env нет: `GEMINI_API_KEY` + `GEMINI_PROXY_BASE_URL`.
+>
 > Последнее обновление: 2026-09-14 (**junk card slug text:** `reanalyze-junk-cards.mjs` переписывает текст `/p/{slug}` из нового title, хвост `-2cd88` не меняет, старый URL → 301 `slug_redirects` через `upsert_card_titles_and_slug`. Полный slug ≤ 128. Карточки с уже нормальным title и мусорным slug — только URL, без Gemini. Теги не затираем.)
 >
 > Последнее обновление: 2026-08-21 (**prompt remix section patches:** Gemini возвращает JSON-правки секций, merge в `lib/prompt-remix.ts`; echo → один `full_rewrite` retry, затем `422 unchanged_prompt`.)
@@ -54,6 +56,7 @@
 │                                                                  │
 │  6. translate-en-prompts.ts → перевод EN→RU                      │
 │  7. fill-seo-tags.ts → тегирование (LLM + regex)                │
+│  7b. subject audience по фото (vision), SQL 256 + backfill      │
 │  8. fix-template-titles.ts → замена шаблонных тайтлов            │
 │  9. fix-prompt-marker-titles.ts → очистка prompt-like тайтлов     │
 │ 10. discover-new-tags.ts → поиск новых тегов (опционально)       │
@@ -243,6 +246,21 @@ npx tsx src/fill-seo-tags.ts --dataset <slug>
 2. **Regex** — fallback по `patterns` из `TAG_REGISTRY`
 
 **Результат:** обновляет `seo_tags` (jsonb) и `seo_readiness_score` (0–100) в `prompt_cards`.
+
+`devushka` / `muzhchina` ставятся только при явном поле в тексте. Нейтральное «человек» / «the subject» пол не получает. Два взрослых → только `para`. Взрослый с ребёнком → `semya` без `devushka`/`muzhchina`. Окончательный exclusive-слаг после vision всё равно переписывает триггер `apply_subject_audience`, если `subject_audience` уже заполнен.
+
+### Шаг 7b: subject audience по фото
+
+Кто в кадре — свойство фото, не текста. Колонки `prompt_cards.subject_*` (SQL `256`). Пока флаг `card_subject_audience_enabled=false`, publish и cron карточки не классифицируют; backfill на DO флаг не читает.
+
+```bash
+curl -sO https://raw.githubusercontent.com/mazarov/aiphoto/main/src/standalone/backfill-card-subject-audience.mjs
+nohup node backfill-card-subject-audience.mjs --dry-run --limit 20 > backfill-card-subject-audience.log 2>&1 &
+ps aux | grep backfill-card-subject-audience
+tail -f backfill-card-subject-audience.log
+```
+
+Дальше `--priority exclusive --loop`, затем `visual_hook`, затем `all`. Пустой `GEMINI_PROXY_BASE_URL` — выход, без прямого Google. Stop-loss: на батче ≥ 50 при `failed/attempted > 10%` процесс выходит с кодом 2. Покрытие — RPC `subject_audience_coverage()`.
 
 **Авто-добавление тегов:** если LLM находит тег ≥ 3 раз, которого нет в `TAG_REGISTRY` — предлагает добавить в `landing/src/lib/tag-registry.ts`.
 
@@ -440,6 +458,7 @@ node fill-seo-tags-standalone.mjs --dataset <slug>
 □ 10. ⚠️ ПРОВЕРИТЬ НОВЫЕ ТЕГИ (см. ниже)
 □ 11. SQL: UPDATE prompt_cards SET is_published = true WHERE ...
 □ 12. Visual embeddings: cron или standalone backfill (coverage ≥ 95% до SEARCH_VISUAL_ENABLED)
+□ 12b. Subject audience: SQL 256, затем backfill-card-subject-audience.mjs (exclusive → visual_hook → all)
 □ 13. Проверить на лендинге
 ```
 
@@ -471,8 +490,8 @@ node fill-seo-tags-standalone.mjs --dataset <slug>
 | `OPENAI_API_KEY` | translate, fill-seo-tags, fix-template-titles, fix-prompt-marker-titles, discover-new-tags |
 | `OPENAI_BASE_URL` | Опционально: кастомный endpoint (default: `api.openai.com/v1`) |
 | `LLM_MODEL` | Опционально: модель (default: `gpt-4.1-mini`) |
-| `GEMINI_API_KEY` | Бот + visual embedding backfill (`gemini-embedding-2`) |
-| `GEMINI_PROXY_BASE_URL` | Бот + visual embedding backfill (`embedContent`) |
+| `GEMINI_API_KEY` | Бот + visual embedding backfill (`gemini-embedding-2`) + subject audience (`gemini-2.5-flash`) |
+| `GEMINI_PROXY_BASE_URL` | Бот + visual embedding backfill (`embedContent`) + subject audience. Пустой URL останавливает subject-классификацию, без fallback на Google |
 
 ---
 
@@ -496,6 +515,7 @@ src/
 
 src/standalone/
 ├── backfill-card-image-embeddings.mjs      ← DO: enqueue/process Gemini image embeddings
+├── backfill-card-subject-audience.mjs      ← DO: vision subject (кто в кадре) → subject_*
 
 scripts/
 ├── translate-en-standalone.mjs             ← Standalone: перевод (без npm)

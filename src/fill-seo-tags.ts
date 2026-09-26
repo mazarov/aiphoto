@@ -14,6 +14,7 @@ import path from "node:path";
 import { existsSync } from "node:fs";
 import { config as loadDotenv } from "dotenv";
 import { createClient } from "@supabase/supabase-js";
+import { EXCLUSIVE_AUDIENCE_PROMPT_RULES, normalizeExclusiveAudience } from "../landing/src/lib/audience-exclusive";
 import { TAG_REGISTRY, type Dimension, type TagEntry } from "../landing/src/lib/tag-registry";
 import { llmChat, RateLimitError } from "./lib/llm";
 
@@ -200,6 +201,7 @@ function extractSeoTagsRegex(promptTexts: string[], title: string | null): SeoTa
     }
   }
 
+  result.audience_tag = normalizeExclusiveAudience(result.audience_tag);
   fillLabels(result);
   return result;
 }
@@ -257,6 +259,7 @@ STEP 2 — If the prompt describes a scene, location, style, or subject NOT cove
 Rules for KNOWN tags:
 - A tag is relevant if the prompt EXPLICITLY describes the corresponding scene/object/style/audience/event
 - For audience_tag: determine by character descriptions and relationships. Woman = devushka. Man = muzhchina. Two together = para. Family relationships = corresponding tag (s_mamoy, s_dochkoy, etc.)
+${EXCLUSIVE_AUDIENCE_PROMPT_RULES}
 - For style_tag: determine by shooting technique, visual style, references (portrait, studio, GTA, anime, etc.)
 - For object_tag: determine by objects, locations, clothing category, accessories in the scene
 - For occasion_tag: determine by mentions of holidays or events
@@ -412,6 +415,7 @@ async function classifyWithLlm(
     }
   }
 
+  seoResult.audience_tag = normalizeExclusiveAudience(seoResult.audience_tag);
   fillLabels(seoResult);
   return { seoTags: seoResult, newTags: newTagsMeta };
 }

@@ -8,6 +8,7 @@ import {
   hydratePhotoshootCardPrompts,
   photoshootCardNeedsPromptHydration,
 } from "@/lib/photoshoot-publish";
+import { scheduleCardSubjectAudience } from "@/lib/card-subject-audience";
 import { classifySeoTagsForPublish } from "@/lib/seo-tags-classify";
 import { processPublishedCardEmbedding } from "@/lib/visual-embedding-publish";
 
@@ -88,6 +89,14 @@ function schedulePhotoshootPromptHydration(
   });
 }
 
+function scheduleSubjectAudience(supabase: SupabaseClient, cardId: string): void {
+  scheduleCardSubjectAudience({
+    supabase,
+    cardId,
+    afterImpl: after,
+  });
+}
+
 function scheduleVisualEmbeddingProcessing(
   supabase: SupabaseClient,
   cardId: string,
@@ -137,6 +146,7 @@ export async function publishPromptCard(
 
   if (card.is_published && !needsPhotoshootHydration) {
     scheduleVisualEmbeddingProcessing(supabase, card.id as string);
+    scheduleSubjectAudience(supabase, card.id as string);
     return {
       cardId: card.id as string,
       slug: card.slug as string,
@@ -197,6 +207,7 @@ export async function publishPromptCard(
       schedulePhotoshootPromptHydration(supabase, card.id as string, slug);
     }
     scheduleVisualEmbeddingProcessing(supabase, card.id as string);
+    scheduleSubjectAudience(supabase, card.id as string);
 
     return {
       cardId: card.id as string,
@@ -244,6 +255,7 @@ export async function publishPromptCard(
     schedulePhotoshootPromptHydration(supabase, card.id as string, slug);
   }
   scheduleVisualEmbeddingProcessing(supabase, card.id as string);
+  scheduleSubjectAudience(supabase, card.id as string);
 
   return {
     cardId: card.id as string,
