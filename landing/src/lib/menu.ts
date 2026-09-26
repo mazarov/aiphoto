@@ -1,4 +1,5 @@
 import { TAG_REGISTRY, DIMENSION_LABELS, findTagByUrlPath, type TagEntry, type Dimension } from "./tag-registry";
+import { heroGapCanonicalPath, heroGapHubSpec } from "./hero-gap-hubs";
 
 export type MenuItem = {
   label: string;
@@ -42,7 +43,7 @@ export type RouteParams = {
 function tagItem(slug: string): MenuItem {
   const entry = TAG_REGISTRY.find((t) => t.slug === slug);
   if (!entry) throw new Error(`Tag "${slug}" not found in TAG_REGISTRY`);
-  return { label: entry.labelRu, href: entry.urlPath };
+  return { label: entry.labelRu, href: heroGapCanonicalPath(entry.urlPath) };
 }
 
 /** Retired standalone pages that must not create internal links through a 301. */
@@ -57,7 +58,9 @@ function withAutoGroup(section: MenuSection): MenuSection {
   const placedSlugs = new Set<string>();
   for (const g of section.groups) {
     for (const item of g.items) {
-      const tag = TAG_REGISTRY.find((t) => t.urlPath === item.href);
+      const tag = TAG_REGISTRY.find(
+        (t) => t.urlPath === item.href || heroGapCanonicalPath(t.urlPath) === item.href,
+      );
       if (tag) placedSlugs.add(tag.slug);
     }
   }
@@ -80,7 +83,8 @@ function withAutoGroup(section: MenuSection): MenuSection {
 }
 
 export function getRouteParamsForHref(href: string): RouteParams | null {
-  const tag = findTagByUrlPath(href);
+  const gap = heroGapHubSpec(href);
+  const tag = findTagByUrlPath(gap?.legacyPath ?? href);
   if (!tag) return null;
   return { [tag.dimension]: tag.slug } as RouteParams;
 }

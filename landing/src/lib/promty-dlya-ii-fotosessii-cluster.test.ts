@@ -206,7 +206,7 @@ test("catalog audience L1 keeps кадр key and does not claim photoshoot queri
   assert.equal(family?.h1, "Промты для семейного фото");
   assert.equal(kids?.h1, "Промты для детских фото");
   assert.equal(birthday?.h1, "Промты для фото на день рождения");
-  assert.equal(birthday?.metaTitle, "Промты для фото на день рождения | PromptShot");
+  assert.equal(birthday?.metaTitle, "Промты для фото на день рождения 🎉 — готовые промты на русском 🇷🇺");
 
   for (const page of [women, men, family, kids, birthday, pregnant]) {
     const head = `${page?.h1 ?? ""} ${page?.metaTitle ?? ""} ${page?.metaDescription ?? ""} ${page?.intro ?? ""}`;

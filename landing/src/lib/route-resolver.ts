@@ -9,6 +9,7 @@ import {
   buildBirthdayClusterCanonical,
   resolveDenRozhdeniyaClusterSegments,
 } from "./den-rozhdeniya-cluster";
+import { heroGapHubSpec } from "./hero-gap-hubs";
 
 export type ResolvedRoute = {
   tags: TagEntry[];
@@ -100,6 +101,21 @@ export function resolveUrlToTags(slugSegments: string[]): ResolvedRoute | null {
       parentPath: null,
       primaryTag: directMatch,
     };
+  }
+
+  const gapHub = heroGapHubSpec(fullPath);
+  if (gapHub) {
+    const gapTag = findTagByUrlPath(gapHub.legacyPath);
+    if (gapTag) {
+      return {
+        tags: [gapTag],
+        level: 1,
+        rpcParams: tagsToRpcParams([gapTag]),
+        canonicalPath: gapHub.hubPath,
+        parentPath: null,
+        primaryTag: gapTag,
+      };
+    }
   }
 
   // Try splitting: first N segments = L1 tag, remaining = L2 (+ optional L3) slugs

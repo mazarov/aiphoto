@@ -7,6 +7,7 @@ import {
 } from "@/lib/supabase";
 import { TAG_REGISTRY, DIMENSION_LABELS, type Dimension } from "@/lib/tag-registry";
 import { MENU } from "@/lib/menu";
+import { heroGapCanonicalPath } from "@/lib/hero-gap-hubs";
 
 export type SectionBlockItem = {
   label: string;
@@ -151,7 +152,7 @@ export function buildCategorySectionBlocks(
 
       return {
         label: tag.labelRu,
-        href: tag.urlPath,
+        href: heroGapCanonicalPath(tag.urlPath),
         data: {
           dimension: dim,
           slug: tag.slug,

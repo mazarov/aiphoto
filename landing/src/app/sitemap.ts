@@ -20,6 +20,7 @@ import {
   fotosessiiClusterSitemapPages,
 } from "@/lib/promty-dlya-ii-fotosessii-cluster";
 import { listingCatalogHubChildRedirectPath } from "@/lib/listing-catalog-hub";
+import { HERO_GAP_HUB_SPECS } from "@/lib/hero-gap-hubs";
 import { getFotosessiiHubCards } from "@/lib/promty-dlya-ii-fotosessii-page-data";
 import { filterPhotoshootListingCardsBySeoTag } from "@/lib/photoshoot-listing";
 import {
@@ -181,7 +182,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       ) {
         return false;
       }
-      if (listingCatalogHubChildRedirectPath(tag.urlPath)) return false;
+      const movedToHub = HERO_GAP_HUB_SPECS.some((spec) => spec.legacyPath === tag.urlPath);
+      if (listingCatalogHubChildRedirectPath(tag.urlPath) && !movedToHub) return false;
       const count = countMap.get(`${tag.dimension}:${tag.slug}`) ?? 0;
       return count >= minL1;
     });
@@ -198,7 +200,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       },
     ]);
     const tagUrls: MetadataRoute.Sitemap = indexableL1Tags.map((tag) => {
-      const path = tag.urlPath.startsWith("/") ? tag.urlPath.slice(1) : tag.urlPath;
+      const canonical = HERO_GAP_HUB_SPECS.find((spec) => spec.legacyPath === tag.urlPath)?.hubPath ?? tag.urlPath;
+      const path = canonical.startsWith("/") ? canonical.slice(1) : canonical;
       return {
         url: `${BASE_URL}/${path}`,
         changeFrequency: "weekly" as const,

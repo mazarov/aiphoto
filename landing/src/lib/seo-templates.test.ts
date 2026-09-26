@@ -8,7 +8,7 @@ test("birthday L1 Title/H1 keep the catalog key without photoshoot complement", 
   assert.ok(route);
   const seo = getSeoForRoute(route);
   assert.equal(seo.h1, "Промты для фото на день рождения");
-  assert.equal(seo.metaTitle, "Промты для фото на день рождения | PromptShot");
+  assert.equal(seo.metaTitle, "Промты для фото на день рождения 🎉 — готовые промты на русском 🇷🇺");
   assert.doesNotMatch(
     `${seo.h1} ${seo.metaTitle} ${seo.metaDescription}`,
     /ИИ фотосесс/i,

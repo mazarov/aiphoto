@@ -5,6 +5,7 @@ import {
   type TagEntry,
 } from "@/lib/tag-registry";
 import { PROMTY_DLYA_FOTO_PAR_HUB_PATH } from "@/lib/promty-dlya-foto-par-cluster";
+import { heroGapCanonicalPath } from "@/lib/hero-gap-hubs";
 
 export type HomepageExplorerChip = {
   slug: string;
@@ -142,7 +143,7 @@ function toChip(tag: TagEntry): HomepageExplorerChip {
     href:
       tag.dimension === "audience_tag" && tag.slug === "s_parnem"
         ? `${PROMTY_DLYA_FOTO_PAR_HUB_PATH}?audience=s_parnem`
-        : tag.urlPath,
+        : heroGapCanonicalPath(tag.urlPath),
     score: WORDSTAT_SCORE[tagKey(tag)] ?? 0,
   };
 }

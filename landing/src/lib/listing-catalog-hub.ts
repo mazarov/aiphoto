@@ -218,6 +218,15 @@ import {
   toObjectSceneHeroCarouselCards,
 } from "./object-scene-hubs";
 import {
+  HERO_GAP_HUB_SPECS,
+  heroGapChildRedirectPath,
+  heroGapFilterNav,
+  heroGapHeroFetchParams,
+  heroGapHubSpec,
+  isHeroGapClusterPath,
+  toHeroGapHeroCarouselCards,
+} from "./hero-gap-hubs";
+import {
   MEN_HUB_COMPOSE_EXAMPLE_FILTER,
   MEN_HUB_GENERATE_CTA,
   MEN_HUB_HERO_ARIA_LABEL,
@@ -480,6 +489,21 @@ const OBJECT_SCENE_HUB_LIST: readonly ListingCatalogHub[] = OBJECT_SCENE_HUB_SPE
   getFilterNavItems: (state) => objectSceneFilterNav(spec, state),
 }));
 
+const HERO_GAP_HUB_LIST: readonly ListingCatalogHub[] = HERO_GAP_HUB_SPECS.map((spec) => ({
+  path: spec.hubPath,
+  loadMoreLabel: `Больше промтов: ${spec.label}`,
+  generateCta: `Создать фото: ${spec.label}`,
+  heroAriaLabel: `Примеры: ${spec.label}`,
+  composeExampleFilter: {
+    label: spec.label,
+    dimension: spec.dimension,
+    value: spec.slug,
+  },
+  heroFetchParams: heroGapHeroFetchParams(spec.slug, spec.dimension),
+  toHeroCarouselCards: toHeroGapHeroCarouselCards,
+  getFilterNavItems: (state) => heroGapFilterNav(spec, state),
+}));
+
 const LISTING_CATALOG_HUBS: readonly ListingCatalogHub[] = [
   PAIRS_HUB,
   GIRLS_HUB,
@@ -498,6 +522,7 @@ const LISTING_CATALOG_HUBS: readonly ListingCatalogHub[] = [
   S_LOSHADYU_HUB,
   V_LESU_HUB,
   ...OBJECT_SCENE_HUB_LIST,
+  ...HERO_GAP_HUB_LIST,
 ];
 
 /** Exact hub path only. Children 301 before render. */
@@ -522,6 +547,8 @@ export function resolveListingCatalogHub(
   if (isVLesuHubPath(pathname)) return V_LESU_HUB;
   const scene = objectSceneHubSpec(pathname);
   if (scene) return OBJECT_SCENE_HUB_LIST.find((hub) => hub.path === scene.hubPath) ?? null;
+  const gap = heroGapHubSpec(pathname);
+  if (gap) return HERO_GAP_HUB_LIST.find((hub) => hub.path === gap.hubPath) ?? null;
   return null;
 }
 
@@ -551,7 +578,8 @@ export function isListingCatalogHubClusterPath(pathname: string): boolean {
     isSTortomClusterPath(pathname) ||
     isSLoshadyuClusterPath(pathname) ||
     isVLesuClusterPath(pathname) ||
-    isObjectSceneClusterPath(pathname)
+    isObjectSceneClusterPath(pathname) ||
+    isHeroGapClusterPath(pathname)
   );
 }
 
@@ -576,7 +604,8 @@ export function listingCatalogHubChildRedirectPath(
     sTortomChildRedirectPath(pathname) ??
     sLoshadyuChildRedirectPath(pathname) ??
     vLesuChildRedirectPath(pathname) ??
-    objectSceneChildRedirectPath(pathname)
+    objectSceneChildRedirectPath(pathname) ??
+    heroGapChildRedirectPath(pathname)
   );
 }
 

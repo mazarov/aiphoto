@@ -50,6 +50,7 @@ import {
   isListingCatalogHubClusterPath,
   resolveListingCatalogHubL1,
 } from "@/lib/listing-catalog-hub";
+import { heroGapCanonicalPath } from "@/lib/hero-gap-hubs";
 import {
   resolveSeoIllustrations,
   type ResolvedSeoIllustration,
@@ -883,7 +884,7 @@ export default async function TagPage({ params, searchParams }: Props) {
           headingId="related-second-tag"
           items={getSiblingTags(route.tags[1], 8).map((s) => ({
             label: s.labelRu,
-            href: s.urlPath,
+            href: heroGapCanonicalPath(s.urlPath),
           }))}
         />
       ) : null}
