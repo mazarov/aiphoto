@@ -2,3 +2,5 @@
 Caddyfile
 generated/
 CONNECT.txt
+__pycache__/
+*.pyc
