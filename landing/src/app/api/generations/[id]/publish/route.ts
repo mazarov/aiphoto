@@ -8,6 +8,7 @@ import {
 } from "@/lib/generation-card-actions";
 import { grantPublishRewardAfterPublication } from "@/lib/grant-publish-reward";
 import { publishPromptCard } from "@/lib/prompt-card-publication";
+import { isPublishHiddenForUser } from "@/lib/publish-access";
 
 export const maxDuration = 120;
 
@@ -31,6 +32,9 @@ export async function POST(
 
     const supabase = createSupabaseServer();
     const resolved = await resolveSharedDbUserId(supabase, user);
+    if (await isPublishHiddenForUser(supabase, [user.id, resolved?.dbUserId])) {
+      return NextResponse.json({ error: "publish_hidden" }, { status: 403 });
+    }
     const generation = await getOwnedGenerationForCardAction(supabase, {
       generationId: id,
       authUserId: user.id,

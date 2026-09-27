@@ -20,6 +20,7 @@ type Props = {
   hasResult: boolean;
   hasPrompt: boolean;
   canPublish: boolean;
+  showPublish?: boolean;
   isPublished: boolean;
   allowRepublish?: boolean;
   canAnimate?: boolean;
@@ -141,6 +142,7 @@ export function GenerationCardMenu({
   hasResult,
   hasPrompt,
   canPublish,
+  showPublish = true,
   isPublished,
   allowRepublish = false,
   canAnimate = false,
@@ -261,6 +263,7 @@ export function GenerationCardMenu({
           Оживить
         </button>
       ) : null}
+      {showPublish ? (
       <button
         type="button"
         role="menuitem"
@@ -286,6 +289,7 @@ export function GenerationCardMenu({
           ) : null}
         </span>
       </button>
+      ) : null}
 
       <div className="my-1.5 h-px bg-white/10" role="separator" />
 

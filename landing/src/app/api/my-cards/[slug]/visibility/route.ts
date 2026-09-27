@@ -7,6 +7,8 @@ import {
   grantPublishRewardAfterPublication,
 } from "@/lib/grant-publish-reward";
 import { publishPromptCard } from "@/lib/prompt-card-publication";
+import { isPublishHiddenForUser } from "@/lib/publish-access";
+import { resolveSharedDbUserId } from "@/lib/resolve-db-user-id";
 
 export const maxDuration = 120;
 
@@ -40,6 +42,13 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     }
 
     const cardId = card.id as string;
+
+    if (published) {
+      const resolved = await resolveSharedDbUserId(supabase, user);
+      if (await isPublishHiddenForUser(supabase, [user.id, resolved?.dbUserId])) {
+        return NextResponse.json({ error: "publish_hidden" }, { status: 403 });
+      }
+    }
 
     if (!published) {
       const { error: upErr } = await supabase

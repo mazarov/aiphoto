@@ -54,6 +54,7 @@ type Item = {
   resultUrl: string | null;
   cardUrl: string | null;
   publicationStatus: PublicationStatus;
+  publishHidden?: boolean;
   canPublish: boolean;
 };
 
@@ -90,6 +91,7 @@ export function AdminUserGenerationsList({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
+  const [publishBusyUserId, setPublishBusyUserId] = useState<string | null>(null);
   const [lightbox, setLightbox] = useState<string | null>(null);
   const [fullPrompt, setFullPrompt] = useState<string | null>(null);
 
@@ -117,6 +119,30 @@ export function AdminUserGenerationsList({
       setLoading(false);
     }
   }, [publication, source, status]);
+
+  const togglePublishHidden = async (userId: string, hidden: boolean) => {
+    setPublishBusyUserId(userId);
+    setError("");
+    try {
+      const response = await fetch(`/api/admin/landing-users/${userId}/publish-hidden`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ hidden }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error || "Не удалось сохранить настройку");
+      setItems((current) => current.map((item) =>
+        item.requesterAuthUserId === userId || item.userId === userId
+          ? { ...item, publishHidden: hidden }
+          : item
+      ));
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Ошибка сети");
+    } finally {
+      setPublishBusyUserId(null);
+    }
+  };
 
   useEffect(() => { void load(); }, [load]);
 
@@ -245,6 +271,25 @@ export function AdminUserGenerationsList({
             {item.creditsRefunded ? " возвр" : ""}
             {" / "}{item.creditsRemaining == null ? "—" : item.creditsRemaining}
           </p>
+          {(item.requesterAuthUserId || item.userId) && (
+            <button
+              type="button"
+              disabled={publishBusyUserId === (item.requesterAuthUserId || item.userId)}
+              onClick={() => {
+                const userId = item.requesterAuthUserId || item.userId;
+                void togglePublishHidden(userId, !item.publishHidden);
+              }}
+              className={`w-fit text-left text-[11px] font-semibold sm:text-xs ${
+                item.publishHidden ? "text-zinc-500" : "text-rose-700"
+              } disabled:opacity-40`}
+            >
+              {publishBusyUserId === (item.requesterAuthUserId || item.userId)
+                ? "Сохраняем…"
+                : item.publishHidden
+                  ? "Вернуть «Опубликовать»"
+                  : "Скрыть «Опубликовать»"}
+            </button>
+          )}
           {item.editKind === "camera_orbit" && item.cameraPose && (
             <p className="hidden text-xs text-zinc-500 sm:mt-1 sm:block">
               ракурс {item.cameraPose.azimuthDeg ?? 0}° / {item.cameraPose.elevationDeg ?? 0}° / ×{item.cameraPose.distanceRel ?? 1}

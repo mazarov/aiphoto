@@ -230,6 +230,7 @@ import {
   type PublishRewardConfig,
   type PublishRewardResult,
 } from "@/lib/publish-reward";
+import { showUserPublishControl } from "@/lib/publish-access";
 import {
   parseStoredGenerationPreferences,
   pickFresherPreferences,
@@ -655,6 +656,7 @@ export function CardInlineGeneratePanel({
   const [publishRewardConfig, setPublishRewardConfig] =
     useState<PublishRewardConfig>(DEFAULT_PUBLISH_REWARD_CONFIG);
   const [publishRewardRemaining, setPublishRewardRemaining] = useState(0);
+  const [publishHidden, setPublishHidden] = useState(false);
   const [toast, setToast] = useState("");
   const [expandedControlLocal, setExpandedControlLocal] = useState<
     "photos" | "model" | "example" | null
@@ -1010,6 +1012,7 @@ export function CardInlineGeneratePanel({
           ? ((await meRes.json().catch(() => ({}))) as {
               credits?: number;
               publishRewardRemainingToday?: number;
+              publishHidden?: boolean;
             })
           : {};
         const generationsData =
@@ -1070,6 +1073,7 @@ export function CardInlineGeneratePanel({
         }
         const remaining = Number(meData.publishRewardRemainingToday);
         setPublishRewardRemaining(Number.isFinite(remaining) ? remaining : 0);
+        setPublishHidden(meData.publishHidden === true);
         const nextVideoModels = Array.isArray(videoConfigData.models)
           ? videoConfigData.models
           : [];
@@ -2523,7 +2527,7 @@ export function CardInlineGeneratePanel({
 
   const handleResultAction = async (action: GenerationMenuAction) => {
     if (action === "publish") {
-      if (busyAction) return;
+      if (busyAction || publishHidden) return;
       if (!generationId) {
         setToast("Не удалось опубликовать");
         return;
@@ -2546,7 +2550,9 @@ export function CardInlineGeneratePanel({
               ? "Войдите, чтобы опубликовать"
               : data.error === "generation_result_not_available"
                 ? "Результат ещё не готов"
-                : "Не удалось опубликовать",
+                : data.error === "publish_hidden"
+                  ? "Публикация для этого аккаунта отключена"
+                  : "Не удалось опубликовать",
           );
         }
         const wasPublished = isPublished;
@@ -2966,6 +2972,12 @@ export function CardInlineGeneratePanel({
     amount: publishRewardAmount(publishRewardKind, publishRewardConfig),
     remainingToday: publishRewardRemaining,
   });
+  const showPublishRail = showUserPublishControl({
+    publishHidden,
+    isPublished,
+    catalogSlug: publishedSlug,
+    republish: isPhotoshootEditKind(resultEditKind),
+  });
   const showCameraOverlay =
     cameraOrbitOpen &&
     !photoshootOpen &&
@@ -3276,6 +3288,7 @@ export function CardInlineGeneratePanel({
                 hasResult
                 hasPrompt={Boolean(activePrompt.trim())}
                 canPublish
+                showPublish={!publishHidden}
                 isPublished={isPublished}
                 allowRepublish={isPhotoshootEditKind(resultEditKind)}
                 canAnimate={videoEnabled && resultModality === "image"}
@@ -3325,7 +3338,7 @@ export function CardInlineGeneratePanel({
           className="absolute bottom-[max(0.75rem,env(safe-area-inset-bottom))] right-2.5 z-30"
           beforePrimary={<LowBalanceUpgradeOfferCard variant="result" />}
           actions={[
-            {
+            ...(showPublishRail ? [{
               id: "publish",
               label: busyAction === "publish"
                 ? "Публикация…"
@@ -3362,7 +3375,7 @@ export function CardInlineGeneratePanel({
                   />
                 </svg>
               ),
-            },
+            }] : []),
             {
               id: "view",
               label: "Посмотреть",
@@ -3680,6 +3693,7 @@ export function CardInlineGeneratePanel({
               hasResult
               hasPrompt={Boolean(activePrompt.trim())}
               canPublish
+              showPublish={!publishHidden}
               isPublished={isPublished}
               allowRepublish={isPhotoshootEditKind(resultEditKind)}
               canAnimate={videoEnabled && resultModality === "image"}

@@ -38,6 +38,7 @@ import {
   type PublishRewardConfig,
   type PublishRewardResult,
 } from "@/lib/publish-reward";
+import { showUserPublishControl } from "@/lib/publish-access";
 
 export type { GenerationHistoryItem };
 
@@ -48,6 +49,7 @@ type Props = {
   videoEnabled?: boolean;
   publishReward?: PublishRewardConfig;
   publishRewardRemaining?: number;
+  publishHidden?: boolean;
   priority?: boolean;
   onEnterSelectMode: (id: string) => void;
   onToggleSelect: (id: string) => void;
@@ -73,6 +75,7 @@ export function GenerationHistoryCard({
   videoEnabled = false,
   publishReward,
   publishRewardRemaining = 0,
+  publishHidden = false,
   priority = false,
   onEnterSelectMode,
   onToggleSelect,
@@ -117,6 +120,12 @@ export function GenerationHistoryCard({
         remainingToday: publishRewardRemaining,
       })
     : null;
+  const showPublishOverlay = showUserPublishControl({
+    publishHidden,
+    isPublished: generation.isPublished,
+    catalogSlug: generation.cardSlug,
+    republish: isPhotoshoot,
+  });
 
   const toast = (message: string) => onToast?.(message);
 
@@ -233,7 +242,7 @@ export function GenerationHistoryCard({
     }
 
     if (action === "publish") {
-      if (!canOpenCard || (generation.isPublished && !isPhotoshoot)) return;
+      if (!canOpenCard || publishHidden || (generation.isPublished && !isPhotoshoot)) return;
       setBusyAction("publish");
       try {
         const res = await fetch(`/api/generations/${generation.id}/publish`, {
@@ -254,7 +263,9 @@ export function GenerationHistoryCard({
               ? "Войдите, чтобы опубликовать"
               : data.error === "generation_result_not_available"
                 ? "Результат ещё не готов"
-                : "Не удалось опубликовать",
+                : data.error === "publish_hidden"
+                  ? "Публикация для этого аккаунта отключена"
+                  : "Не удалось опубликовать",
           );
         }
         onCardMetadataUpdated(generation.id, {
@@ -382,7 +393,7 @@ export function GenerationHistoryCard({
           />
         ) : null}
 
-        {!selectMode && canOpenCard ? (
+        {!selectMode && canOpenCard && (canAnimate || showPublishOverlay) ? (
           <div
             className="absolute inset-x-2 bottom-2 z-20 flex gap-1.5"
             onClick={(event) => event.stopPropagation()}
@@ -403,6 +414,7 @@ export function GenerationHistoryCard({
                 <span className="truncate">Оживить</span>
               </button>
             ) : null}
+            {showPublishOverlay ? (
             <button
               type="button"
               disabled={Boolean(busyAction) || (generation.isPublished && !generation.cardSlug && !isPhotoshoot)}
@@ -437,6 +449,7 @@ export function GenerationHistoryCard({
                 <span className="shrink-0 text-emerald-300">+{publishRewardVisible}✦</span>
               ) : null}
             </button>
+            ) : null}
           </div>
         ) : null}
 
@@ -498,6 +511,7 @@ export function GenerationHistoryCard({
               hasResult={hasResult}
               hasPrompt={hasPrompt}
               canPublish={canOpenCard}
+              showPublish={!publishHidden}
               isPublished={generation.isPublished}
               allowRepublish={isPhotoshoot}
               canAnimate={false}

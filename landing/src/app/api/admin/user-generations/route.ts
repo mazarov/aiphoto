@@ -97,6 +97,27 @@ export async function GET(req: NextRequest) {
     });
   }
   const creditsByUser = creditsRemainingByUserId(creditRows);
+  const publishUserIds = [...new Set(page.flatMap((row) =>
+    [row.user_id, row.requester_auth_user_id].filter((id): id is string => Boolean(id))
+  ))];
+  const publishHiddenByUser = new Map<string, boolean>();
+  if (publishUserIds.length) {
+    const { data: hiddenRows, error: hiddenError } = await supabase
+      .from("landing_users")
+      .select("id, publish_hidden")
+      .in("id", publishUserIds);
+    if (hiddenError) {
+      console.error("[admin.user-generations] publish_hidden_fetch_failed", {
+        adminEmail: gate.email,
+        count: publishUserIds.length,
+        message: hiddenError.message,
+      });
+    } else {
+      for (const row of (hiddenRows || []) as Array<{ id: string; publish_hidden?: boolean | null }>) {
+        publishHiddenByUser.set(row.id, row.publish_hidden === true);
+      }
+    }
+  }
 
   const extrasById = new Map<
     string,
@@ -200,6 +221,10 @@ export async function GET(req: NextRequest) {
         ? `/p/${row.card_slug}`
         : null,
       publicationStatus,
+      publishHidden: Boolean(
+        (row.requester_auth_user_id && publishHiddenByUser.get(row.requester_auth_user_id))
+        || publishHiddenByUser.get(row.user_id)
+      ),
       canPublish: row.status === "completed"
         && Boolean(row.requester_auth_user_id)
         && Boolean(row.result_storage_bucket && row.result_storage_path),

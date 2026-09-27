@@ -7,6 +7,7 @@ import {
   parseLiveMailOffer,
   type LivePricingOffer,
 } from "@/lib/mail-checkout-offer";
+import { isPublishHiddenForUser } from "@/lib/publish-access";
 
 export async function GET(request: NextRequest) {
   try {
@@ -24,11 +25,12 @@ export async function GET(request: NextRequest) {
 
     let credits = 0;
     let offer: LivePricingOffer | null = null;
+    let profileId = user.id;
     if (guestMode) {
       credits = STV_GUEST_VIRTUAL_CREDITS;
     } else {
       const resolved = await resolveSharedDbUserId(supabase, user);
-      const profileId = resolved?.dbUserId ?? user.id;
+      profileId = resolved?.dbUserId ?? user.id;
       const { data: profile } = await supabase
         .from("landing_users")
         .select("credits")
@@ -52,6 +54,7 @@ export async function GET(request: NextRequest) {
     }
 
     let publishRewardRemainingToday = 0;
+    let publishHidden = false;
     if (!guestMode) {
       const { data: remaining } = await supabase.rpc(
         "landing_publish_reward_remaining",
@@ -61,6 +64,7 @@ export async function GET(request: NextRequest) {
       publishRewardRemainingToday = Number.isFinite(parsed)
         ? Math.max(0, parsed)
         : 0;
+      publishHidden = await isPublishHiddenForUser(supabase, [user.id, profileId]);
     }
 
     return NextResponse.json({
@@ -69,6 +73,7 @@ export async function GET(request: NextRequest) {
       guestMode,
       offer,
       publishRewardRemainingToday,
+      publishHidden,
     });
   } catch (err) {
     console.error("me error:", err);

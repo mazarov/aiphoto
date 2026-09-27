@@ -370,6 +370,7 @@ export function GenerationsContent({
             videoEnabled={videoEnabled}
             publishReward={publishReward.config}
             publishRewardRemaining={publishReward.remainingToday}
+            publishHidden={publishReward.publishHidden}
             onEnterSelectMode={enterSelectMode}
             onToggleSelect={toggleSelect}
             onDeleted={handleDeleted}

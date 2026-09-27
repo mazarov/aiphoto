@@ -220,6 +220,8 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
   const [pubSaving, setPubSaving] = useState(false);
   const [pubStatus, setPubStatus] = useState<string | null>(null);
   const publishReward = usePublishReward(data.viewerIsOwner);
+  const showOwnerPublish =
+    data.viewerIsOwner && (!publishReward.publishHidden || publishedLocal);
   const { reactions, favorites, toggleReaction, toggleFavorite } = useCardInteractions();
   const userReaction = reactions.get(data.id) ?? null;
   const isFavorited = favorites.has(data.id);
@@ -1094,7 +1096,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                     </div>
                   )}
                 </div>
-                {data.viewerIsOwner && (
+                {showOwnerPublish && (
                   <button
                     type="button"
                     disabled={pubSaving}
@@ -1716,7 +1718,7 @@ function CardPageClientInner({ data, tagEntries, breadcrumbTag, isModal, onListi
                   )}
                 </div>
               </div>
-              {data.viewerIsOwner && (
+              {showOwnerPublish && (
                 <div className="flex flex-col items-center gap-1 sm:items-start">
                   <button
                     type="button"

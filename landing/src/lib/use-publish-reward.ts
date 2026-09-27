@@ -12,6 +12,7 @@ export function usePublishReward(enabled = true) {
     DEFAULT_PUBLISH_REWARD_CONFIG,
   );
   const [remainingToday, setRemainingToday] = useState(0);
+  const [publishHidden, setPublishHidden] = useState(false);
 
   useEffect(() => {
     if (!enabled) return;
@@ -36,6 +37,7 @@ export function usePublishReward(enabled = true) {
         const meData = meRes.ok
           ? ((await meRes.json().catch(() => ({}))) as {
               publishRewardRemainingToday?: number;
+              publishHidden?: boolean;
             })
           : {};
         if (configData.publishReward) {
@@ -46,6 +48,7 @@ export function usePublishReward(enabled = true) {
         }
         const remaining = Number(meData.publishRewardRemainingToday);
         setRemainingToday(Number.isFinite(remaining) ? remaining : 0);
+        setPublishHidden(meData.publishHidden === true);
       })
       .catch(() => {
         /* keep defaults */
@@ -53,5 +56,5 @@ export function usePublishReward(enabled = true) {
     return () => controller.abort();
   }, [enabled]);
 
-  return { config, remainingToday, setRemainingToday };
+  return { config, remainingToday, setRemainingToday, publishHidden };
 }
