@@ -3,6 +3,7 @@ import type { Server } from "node:http";
 import { config } from "./config";
 import { checkSupabase, readQueueMetrics, supabase } from "./lib/supabase";
 import { createUgcCard } from "./lib/ugc-card";
+import { flushWorkerLoki } from "./lib/loki";
 import { errorFields, log } from "./lib/logger";
 import { retryDelaySeconds, shouldRetry } from "./retry-policy";
 import {
@@ -38,6 +39,8 @@ let shuttingDown = false;
 let lastLoopAt = 0;
 let pollTimer: NodeJS.Timeout | null = null;
 let reaperTimer: NodeJS.Timeout | null = null;
+let heartbeatTimer: NodeJS.Timeout | null = null;
+let heartbeatKick: NodeJS.Timeout | null = null;
 let server: Server;
 
 class LeaseLostError extends Error {
@@ -574,12 +577,31 @@ app.get("/metrics", async (_request, response) => {
   }
 });
 
+async function writeHeartbeat(): Promise<void> {
+  if (shuttingDown) return;
+  const fields: Record<string, unknown> = {
+    inFlight: inFlight.size,
+    inFlightImage: inFlightImage.size,
+    inFlightVideo: inFlightVideo.size,
+    processingEnabled: config.processingEnabled,
+  };
+  try {
+    Object.assign(fields, await readQueueMetrics());
+  } catch (error) {
+    fields.queueError = true;
+    log("warn", "heartbeat_queue_unavailable", errorFields(error));
+  }
+  log("info", "heartbeat", fields);
+}
+
 async function shutdown(signal: string): Promise<void> {
   if (shuttingDown) return;
   shuttingDown = true;
   log("info", "shutdown_started", { signal, inFlight: inFlight.size });
   if (pollTimer) clearTimeout(pollTimer);
   if (reaperTimer) clearInterval(reaperTimer);
+  if (heartbeatTimer) clearInterval(heartbeatTimer);
+  if (heartbeatKick) clearTimeout(heartbeatKick);
   shutdownController.abort();
   server.close();
   await Promise.race([
@@ -587,6 +609,7 @@ async function shutdown(signal: string): Promise<void> {
     new Promise((resolve) => setTimeout(resolve, config.shutdownGraceMs)),
   ]);
   log("info", "shutdown_finished", { remaining: inFlight.size });
+  await flushWorkerLoki();
   process.exit(inFlight.size ? 1 : 0);
 }
 
@@ -604,6 +627,10 @@ server = app.listen(config.port, () => {
   void reap();
   reaperTimer = setInterval(() => void reap(), config.reaperMs);
   reaperTimer.unref();
+  heartbeatKick = setTimeout(() => void writeHeartbeat(), 15_000);
+  heartbeatKick.unref();
+  heartbeatTimer = setInterval(() => void writeHeartbeat(), 60_000);
+  heartbeatTimer.unref();
 });
 
 process.on("SIGTERM", () => void shutdown("SIGTERM"));

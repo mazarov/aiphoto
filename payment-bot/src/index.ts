@@ -2,8 +2,11 @@ import express from "express";
 import axios from "axios";
 import { Markup, Telegraf } from "telegraf";
 import { config } from "./config";
+import { flushPaymentLoki, installPaymentLoki } from "./lib/loki";
 import { supabase } from "./lib/supabase";
 import { sendAlert } from "./lib/alerts";
+
+installPaymentLoki();
 
 const bot = new Telegraf(config.telegramBotToken);
 const app = express();
@@ -346,6 +349,10 @@ app.post(config.webhookPath, async (req, res) => {
 
 app.listen(config.port, () => {
   console.log(`[payment-bot] listening on :${config.port}`);
+  const beat = setInterval(() => {
+    console.info(JSON.stringify({ event: "heartbeat" }));
+  }, 60_000);
+  beat.unref?.();
 });
 
 async function startBot() {
@@ -366,17 +373,20 @@ async function startBot() {
 startBot().catch(async (err) => {
   console.error("[payment-bot] failed to start:", err);
   await sendAlert("Payment bot failed to start", { error: err?.message || String(err) });
+  await flushPaymentLoki();
   process.exit(1);
 });
 
 process.on("uncaughtException", async (err) => {
   console.error("[payment-bot] uncaught exception:", err);
   await sendAlert("Uncaught exception", { error: err.message });
+  await flushPaymentLoki();
   process.exit(1);
 });
 
 process.on("unhandledRejection", async (reason: any) => {
   console.error("[payment-bot] unhandled rejection:", reason);
   await sendAlert("Unhandled rejection", { error: reason?.message || String(reason) });
+  await flushPaymentLoki();
   process.exit(1);
 });

@@ -87,7 +87,13 @@ export function readRuntimeMemorySnapshot(): RuntimeMemorySnapshot {
 
 export function startRuntimeMemoryLog(intervalMs = 60_000): () => void {
   const write = () => {
-    console.info("[runtime.memory]", readRuntimeMemorySnapshot());
+    console.info(
+      JSON.stringify({
+        service: "landing",
+        event: "runtime_memory",
+        ...readRuntimeMemorySnapshot(),
+      }),
+    );
   };
   const timer = setInterval(write, intervalMs);
   timer.unref?.();

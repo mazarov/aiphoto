@@ -1,9 +1,12 @@
+import { pushWorkerLog, syncWorkerLokiInstance } from "./loki";
+
 type LogLevel = "debug" | "info" | "warn" | "error";
 
 let workerId = "";
 
 export function configureLogger(input: { workerId: string }): void {
   workerId = input.workerId.trim();
+  syncWorkerLokiInstance(workerId);
 }
 
 function serializeError(error: unknown): Record<string, unknown> {
@@ -33,6 +36,7 @@ export function log(
   if (level === "error") console.error(line);
   else if (level === "warn") console.warn(line);
   else console.log(line);
+  pushWorkerLog(line, level);
 }
 
 export function errorFields(error: unknown): Record<string, unknown> {

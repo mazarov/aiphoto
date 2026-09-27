@@ -1,0 +1,12 @@
+{$OPS_DOMAIN} {
+	encode gzip
+	handle /loki/* {
+		basic_auth {
+			{$LOKI_PUSH_USER} LOKI_HASH_PLACEHOLDER
+		}
+		reverse_proxy loki:3100
+	}
+	handle {
+		reverse_proxy grafana:3000
+	}
+}

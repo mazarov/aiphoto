@@ -1,5 +1,7 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-09-27 (**логи:** при `LOKI_PUSH_URL` лендинг, воркер и payment-bot пушат stdout в Loki на втором дроплете. `GET /api/health`. Минутный крон ЮKassa пишет `event=product_snapshot` из `ops_product_snapshot` (SQL `257`): регистрации, генерации, очередь, выручка. Воркер раз в 60 с пишет `heartbeat`. Runbook `docs/ops/observability.md`.)
+>
 > Последнее обновление: 2026-09-26 (**subject audience по фото:** `devushka|muzhchina|para|semya|malchik|devochka|malysh|none` — ровно один subject на карточку, мужчина в паре/семье в мужской листинг не попадает. Источник — Gemini 2.5 Flash по каноническому фото (`sql/256`). Триггер `apply_subject_audience` проецирует subject в `seo_tags.audience_tag` и снимает exclusive-слаги; relation-теги (`s_mamoy`, `vlyublennykh`, …) остаются из текста. `resolve_route_cards` не менялся. Флаг `card_subject_audience_enabled` (default false). Publish `after()` + cron `POST /api/cron/visual-embeddings` (лимит 8) + standalone `src/standalone/backfill-card-subject-audience.mjs`. Спека `docs/26-09-card-subject-audience-vision.md`.)
 >
 > Последнее обновление: 2026-09-26 (**hero-gap:** 71 листинг аудитории, стилей, событий и документов открывается на `/promty-dlya-foto/<окончание>`, точный старый L1 → 301. Комбинации вроде `/stil/otkrytka/novyj-god` остаются. Каркас `hero-gap-hubs.ts`. `/promty-dlya-foto-s-pitomcem` → 301 на object-хаб `/promty-dlya-foto/s-pitomcem`. `/promty-dlya-foto-s-parnem` по-прежнему → `/promty-dlya-foto-par`. Четыре страницы с оплатами > 10 (малыш, семья, дочка, день рождения) остаются на старом URL.
@@ -1122,7 +1124,9 @@
 | `/api/payments/yookassa/open-reconcile` | POST (auth, не anonymous): сверка своих `created|pending` с `yookassa_payment_id` (limit 5, cooldown 15 с). Prefetch-safe (не GET). Ошибка ЮKassa → 200 `{ credited: [] }` |
 | `/api/payments/yookassa/[id]` | GET (auth owner): статус операции; best-effort reconcile для `created|pending|canceled` без `credited_at` |
 | `/api/payments/yookassa/webhook` | POST public callback: принимает `payment.succeeded` / `payment.canceled`, перечитывает объект через YooKassa API и идемпотентно обновляет ledger/баланс |
-| `/api/cron/yookassa-reconcile` | POST, `Authorization: Bearer $CRON_SECRET`: batch `reconcileStaleYooKassaPayments` для `created|pending` старше 1 мин (limit 20), затем `flushUnsentYandexPurchaseConversions` |
+| `/api/health` | GET, без авторизации: `select id` из `landing_generations` с таймаутом 2 с. `200 { ok: true }` или `503 { ok: false }`. Тело ошибки наружу не отдаёт |
+| `/api/cron/ops-snapshot` | POST, `Authorization: Bearer $CRON_SECRET`: `ops_product_snapshot` и JSON-лог `event=product_snapshot`. Тот же снимок пишет минутный крон ЮKassa |
+| `/api/cron/yookassa-reconcile` | POST, `Authorization: Bearer $CRON_SECRET`: batch `reconcileStaleYooKassaPayments` для `created|pending` старше 1 мин (limit 20), затем `flushUnsentYandexPurchaseConversions`. В `finally` — `logProductSnapshot`; ошибка снимка не меняет ответ сверки |
 | `/api/cron/visual-embeddings` | POST, `Authorization: Bearer $CRON_SECRET`: enqueue missing canonical-photo embeddings + claim/lease Gemini Embedding 2 batch + warm birthday listing query vectors (`listing_query_embeddings`). При `card_subject_audience_enabled=true` тем же запросом добирает до 8 карточек subject-audience (`claim_subject_audience_batch`); ошибка subject не роняет embeddings |
 | `/api/cron/mail-outbox` | POST, `Authorization: Bearer $CRON_SECRET`: claim/lease `landing_mail_outbox` → Postbox SESv2 (1 To / call, ≥1.1s gap, circuit 3/60s). Claim: transactional → lifecycle marketing → campaign. Без ключей — `{ configured: false }` |
 | `/api/cron/mail-due` | POST, `Authorization: Bearer $CRON_SECRET`: claim `landing_mail_due` (один user / тик) → `evaluateMailDue` → грант при % → `landing_enqueue_mail`. Generate SMTP не ждёт |
@@ -2139,6 +2143,20 @@ landing/src/
 
 ---
 
+## Observability
+
+Stdout на Dockhost пропадает вместе с контейнером. Если задан `LOKI_PUSH_URL`, процесс дополнительно шлёт логи в Loki (`ops/observability` на втором дроплете) батчами раз в 1 с и при `SIGTERM`. Пустой URL оставляет только stdout.
+
+| Процесс | Что уходит в Loki |
+|---------|-------------------|
+| Landing | Обёртка `console.*` в `instrumentation.node.ts`. Старт: `event=process_start`. Раз в 60 с JSON `event=runtime_memory` (RSS, heap, sharp). |
+| `web-generation-worker` | Каждая строка `logger.ts`. Раз в 60 с `event=heartbeat` с `pending` / `processing` / `inFlight`. |
+| `payment-bot` | Обёртка `console.*` и `event=heartbeat` раз в 60 с. |
+
+Метки только `service`, `env` (`LOG_ENV`), `level`, `instance`. Секреты и полный URL прокси в строку не пишутся.
+
+`GET /api/health` — публичная проверка базы. `public.ops_product_snapshot()` (SQL `257`, execute только у `service_role`) считает регистрации, генерации, очередь и выручку. Минутный `POST /api/cron/yookassa-reconcile` логирует результат как `event=product_snapshot`. Как поднять Grafana и алерты: `docs/ops/observability.md`.
+
 ## Env Variables
 
 | Переменная | Где используется |
@@ -2177,7 +2195,10 @@ landing/src/
 | `YOOKASSA_SHOP_ID` | Server-only идентификатор магазина для Basic Auth YooKassa API |
 | `YOOKASSA_SECRET_KEY` | Server-only секрет магазина YooKassa; не передаётся клиенту и не логируется |
 | `YANDEX_METRIKA_MP_TOKEN` | Server-only токен Measurement Protocol счётчика `107703100`; без него покупки в Директ не уходят |
-| `CRON_SECRET` | Bearer-секрет для `POST /api/cron/yookassa-reconcile`, `POST /api/cron/visual-embeddings`, `POST /api/cron/mail-outbox`, `POST /api/cron/mail-due`, `POST /api/cron/analyze-history` и `POST /api/cron/finance-sync` |
+| `CRON_SECRET` | Bearer-секрет для `POST /api/cron/yookassa-reconcile`, `POST /api/cron/ops-snapshot`, `POST /api/cron/visual-embeddings`, `POST /api/cron/mail-outbox`, `POST /api/cron/mail-due`, `POST /api/cron/analyze-history` и `POST /api/cron/finance-sync` |
+| `LOKI_PUSH_URL` | Опционально. Push логов в Loki: `https://<ops-host>/loki/api/v1/push`. Пусто — только stdout. Landing, worker, payment-bot |
+| `LOKI_BASIC_AUTH` | `user:pass` для этого push. Не логировать |
+| `LOG_ENV` | Метка `env` в Loki. По умолчанию `prod` |
 | `YANDEX_DIRECT_TOKEN` | Reports API для live P&L Директа. Optional `YANDEX_DIRECT_CLIENT_LOGIN`, `YANDEX_DIRECT_CAMPAIGN_IDS` |
 | `POSTBOX_ENDPOINT` | Host Postbox, default `https://postbox.cloud.yandex.net`. РФ, без `GEMINI_PROXY` |
 | `POSTBOX_REGION` | SigV4 region, default `ru-central1` |

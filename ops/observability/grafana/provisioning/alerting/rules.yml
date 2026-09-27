@@ -1,0 +1,271 @@
+apiVersion: 1
+groups:
+  - orgId: 1
+    name: promptshot
+    folder: PromptShot
+    interval: 1m
+    rules:
+      - uid: ps-landing-health
+        title: Landing health is down
+        condition: B
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: loki
+            model:
+              datasource: { type: loki, uid: loki }
+              editorMode: code
+              expr: 'last_over_time({service="probe",env="prod",target="landing"} | json | event=`probe` | unwrap ok [3m])'
+              instant: true
+              queryType: instant
+              refId: A
+          - refId: B
+            relativeTimeRange: { from: 0, to: 0 }
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: lt, params: [1] }
+                  operator: { type: and }
+                  reducer: { type: last }
+                  type: query
+        noDataState: Alerting
+        execErrState: Error
+        for: 2m
+        annotations:
+          summary: GET /api/health is not returning 200
+        labels:
+          severity: critical
+      - uid: ps-worker-heartbeat
+        title: Worker heartbeat missing
+        condition: B
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: loki
+            model:
+              datasource: { type: loki, uid: loki }
+              editorMode: code
+              expr: 'absent_over_time({service="web-generation-worker",env="prod"} | json | event=`heartbeat` [5m])'
+              instant: true
+              queryType: instant
+              refId: A
+          - refId: B
+            relativeTimeRange: { from: 0, to: 0 }
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [0] }
+                  operator: { type: and }
+                  reducer: { type: last }
+                  type: query
+        noDataState: OK
+        execErrState: Error
+        for: 3m
+        annotations:
+          summary: No web-generation-worker heartbeat for 5 minutes
+        labels:
+          severity: critical
+      - uid: ps-payment-heartbeat
+        title: Payment bot heartbeat missing
+        condition: B
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: loki
+            model:
+              datasource: { type: loki, uid: loki }
+              editorMode: code
+              expr: 'absent_over_time({service="payment-bot",env="prod"} | json | event=`heartbeat` [5m])'
+              instant: true
+              queryType: instant
+              refId: A
+          - refId: B
+            relativeTimeRange: { from: 0, to: 0 }
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [0] }
+                  operator: { type: and }
+                  reducer: { type: last }
+                  type: query
+        noDataState: OK
+        execErrState: Error
+        for: 3m
+        annotations:
+          summary: No payment-bot heartbeat for 5 minutes
+        labels:
+          severity: critical
+      - uid: ps-snapshot-missing
+        title: Product snapshot missing
+        condition: B
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: loki
+            model:
+              datasource: { type: loki, uid: loki }
+              editorMode: code
+              expr: 'absent_over_time({service="landing",env="prod"} | json | event=`product_snapshot` [5m])'
+              instant: true
+              queryType: instant
+              refId: A
+          - refId: B
+            relativeTimeRange: { from: 0, to: 0 }
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [0] }
+                  operator: { type: and }
+                  reducer: { type: last }
+                  type: query
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: Landing cron is not writing product_snapshot
+        labels:
+          severity: warning
+      - uid: ps-queue-stuck
+        title: Generation queue is stuck
+        condition: B
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: loki
+            model:
+              datasource: { type: loki, uid: loki }
+              editorMode: code
+              expr: 'last_over_time({service="landing",env="prod"} | json | event=`product_snapshot` | unwrap alert_queue_stuck [5m])'
+              instant: true
+              queryType: instant
+              refId: A
+          - refId: B
+            relativeTimeRange: { from: 0, to: 0 }
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [0] }
+                  operator: { type: and }
+                  reducer: { type: last }
+                  type: query
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: Pending generations are older than 15 minutes and nothing completed
+        labels:
+          severity: critical
+      - uid: ps-failed-ratio
+        title: Generation failure ratio is high
+        condition: B
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: loki
+            model:
+              datasource: { type: loki, uid: loki }
+              editorMode: code
+              expr: 'last_over_time({service="landing",env="prod"} | json | event=`product_snapshot` | unwrap alert_failed_ratio [5m])'
+              instant: true
+              queryType: instant
+              refId: A
+          - refId: B
+            relativeTimeRange: { from: 0, to: 0 }
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [0] }
+                  operator: { type: and }
+                  reducer: { type: last }
+                  type: query
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: More than 30 percent of finished generations failed in 15 minutes
+        labels:
+          severity: warning
+      - uid: ps-landing-rss
+        title: Landing RSS is high
+        condition: B
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: loki
+            model:
+              datasource: { type: loki, uid: loki }
+              editorMode: code
+              expr: 'max_over_time({service="landing",env="prod"} | json | event=`runtime_memory` | unwrap rss [5m])'
+              instant: true
+              queryType: instant
+              refId: A
+          - refId: B
+            relativeTimeRange: { from: 0, to: 0 }
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [1717986918] }
+                  operator: { type: and }
+                  reducer: { type: last }
+                  type: query
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: Landing RSS is above 1.6 GiB
+        labels:
+          severity: warning
+      - uid: ps-disk
+        title: Observability disk is filling up
+        condition: B
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: loki
+            model:
+              datasource: { type: loki, uid: loki }
+              editorMode: code
+              expr: 'last_over_time({service="probe",env="prod",target="disk"} | json | event=`disk` | unwrap pct [5m])'
+              instant: true
+              queryType: instant
+              refId: A
+          - refId: B
+            relativeTimeRange: { from: 0, to: 0 }
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [80] }
+                  operator: { type: and }
+                  reducer: { type: last }
+                  type: query
+        noDataState: OK
+        execErrState: Error
+        for: 10m
+        annotations:
+          summary: Disk on the observability droplet is above 80 percent
+        labels:
+          severity: warning

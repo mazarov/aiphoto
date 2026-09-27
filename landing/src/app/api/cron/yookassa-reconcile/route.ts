@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logProductSnapshot } from "@/lib/ops-snapshot";
 import { createSupabaseServer } from "@/lib/supabase";
 import { flushUnsentYandexPurchaseConversions } from "@/lib/yandex-metrika-measurement";
 import { reconcileStaleYooKassaPayments } from "@/lib/yookassa-payments";
@@ -18,8 +19,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
+  let supabase: ReturnType<typeof createSupabaseServer> | null = null;
   try {
-    const supabase = createSupabaseServer();
+    supabase = createSupabaseServer();
     const summary = await reconcileStaleYooKassaPayments(supabase);
     let conversions = { scanned: 0, reported: 0, skipped: 0 };
     try {
@@ -44,5 +46,20 @@ export async function POST(request: NextRequest) {
       { error: "reconcile_failed" },
       { status: 502 },
     );
+  } finally {
+    if (supabase) {
+      try {
+        await logProductSnapshot(supabase);
+      } catch (snapshotError) {
+        const message =
+          snapshotError instanceof Error ? snapshotError.message : "snapshot_failed";
+        console.error(
+          JSON.stringify({
+            event: "product_snapshot_failed",
+            message: message.slice(0, 300),
+          }),
+        );
+      }
+    }
   }
 }
