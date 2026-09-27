@@ -6,10 +6,10 @@
 
 Доступ к дроплету — веб-консоль DigitalOcean. Скрипт сам остановится, если на машине уже заняты порты 80, 443, 3100 или есть запущенные контейнеры.
 
-После того как ветка `feature/27-09-observability-loki-grafana` есть на GitHub:
+В веб-консоли дроплета:
 
 ```bash
-curl -fsSL -o setup.sh https://raw.githubusercontent.com/mazarov/aiphoto/feature/27-09-observability-loki-grafana/ops/observability/setup.sh
+curl -fsSL -o setup.sh https://raw.githubusercontent.com/mazarov/aiphoto/main/ops/observability/setup.sh
 bash setup.sh
 ```
 

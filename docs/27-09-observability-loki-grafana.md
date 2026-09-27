@@ -1,6 +1,6 @@
 # 27-09 — логи и здоровье сервиса
 
-Ветка: `feature/27-09-observability-loki-grafana`.
+Код на `main`.
 
 Как поднять дроплет и что вписать в Dockhost: `docs/ops/observability.md`.
 
@@ -18,7 +18,7 @@ Stdout на Dockhost пропадает при рестарте контейне
 
 ## Осталось на машинах
 
-- [ ] Запушить ветку и выполнить `setup.sh` в веб-консоли дроплета `46.101.248.190`
+- [ ] Выполнить `setup.sh` в веб-консоли дроплета `46.101.248.190`
 - [ ] Применить миграцию `257`
 - [ ] Прописать `LOKI_PUSH_URL`, `LOKI_BASIC_AUTH`, `LOG_ENV=prod` на трёх сервисах Dockhost и задеплоить
 - [ ] Убедиться, что в Grafana есть `product_snapshot`, `heartbeat` и `runtime_memory`

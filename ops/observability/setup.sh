@@ -66,7 +66,7 @@ if ! command -v ufw >/dev/null 2>&1; then
   apt-get install -y ufw
 fi
 
-REF="${OBS_GIT_REF:-feature/27-09-observability-loki-grafana}"
+REF="${OBS_GIT_REF:-main}"
 BASE="https://raw.githubusercontent.com/mazarov/aiphoto/${REF}/ops/observability"
 ROOT=/opt/observability
 mkdir -p "$ROOT"
