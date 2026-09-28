@@ -128,6 +128,7 @@ async function persistExecutedModel(job: GenerationJob, executedModel: string, f
 }
 
 function photoshootTilesForComplete(result: {
+  resultPath: string;
   photoshootTilePaths?: string[];
 }): string[] | null {
   const paths = "photoshootTilePaths" in result && Array.isArray(result.photoshootTilePaths)

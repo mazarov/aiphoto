@@ -1,5 +1,7 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-09-28 (**сборка воркера:** `Dockerfile.worker` и `web-generation-worker/Dockerfile` копируют `storage-cache-control.ts`, файл есть в `include` у `web-generation-worker/tsconfig.json`. `photoshootTilesForComplete` принимает и видео-результат: у параметра обязателен `resultPath`.)
+>
 > Последнее обновление: 2026-09-27 (**скрытие публикации по пользователю:** `landing_users.publish_hidden`, SQL `258`. `GET /api/me` отдаёт `publishHidden`. Кнопка «Опубликовать» пропадает в результате, в «Моих генерациях» и на своей карточке; `POST /api/generations/[id]/publish` и публикация через visibility отвечают `403 publish_hidden`. Скрыть свою карточку по-прежнему можно. Переключатель в `/admin/analyze-history` → генерации пользователей: `PATCH /api/admin/landing-users/[id]/publish-hidden`. Клиент не может сменить флаг сам — триггер откатывает `publish_hidden` для `anon`/`authenticated`.)
 >
 > Последнее обновление: 2026-09-27 (**логи:** при `LOKI_PUSH_URL` лендинг, воркер и payment-bot пушат stdout в Loki на втором дроплете. `GET /api/health`. Минутный крон ЮKassa пишет `event=product_snapshot` из `ops_product_snapshot` (SQL `257`): регистрации, генерации, очередь, выручка. Воркер раз в 60 с пишет `heartbeat`. Runbook `docs/ops/observability.md`.)
@@ -2123,7 +2125,7 @@ landing/src/
 |---------------|-----------|
 | Dockhost / CI | Контекст = каталог **`landing/`**. Команда: **`docker build -f landing/Dockerfile landing/`** (из корня клона) или эквивалент с путём к контексту `./landing`. В дереве есть **`landing/stv-web-sidepanel/`** (зеркало **`extension/sidepanel`**, в git). Трейсинг Next: обычно плоский **`standalone/server.js`**; runner Dockerfile копирует в **`/app`**. |
 | Локально `next build` из `landing/` | Если в родителе репо есть **`package-lock.json`** → **`next.config.ts`** может трейсить от корня монорепо → **`standalone/landing/server.js`**. **`build-stv-web`** сначала пробует **`../extension/sidepanel`**, иначе **`./stv-web-sidepanel`**. |
-| Generation worker | Отдельный Dockhost service, N реплик одного образа. Контекст = корень репозитория: `docker build -f Dockerfile.worker .`. Образ содержит `web-generation-worker` и pure helpers `image-generation-prompt.ts`, `wardrobe-policy.ts`, `grok-image-prompt.ts`, `generation-edit-contract.ts`, `camera-orbit.ts`, `photoshoot.ts`, `photoshoot-planner.ts`, `video-motion-prompt.ts`, `user-generation-photo-paths.ts` (список = `web-generation-worker/tsconfig.json` include); health/metrics: `:3003/health/ready`, `:3003/metrics` (`workerId`). `WORKER_ID` пустой. |
+| Generation worker | Отдельный Dockhost service, N реплик одного образа. Контекст = корень репозитория: `docker build -f Dockerfile.worker .`. В образ копируется каждый файл из `include` в `web-generation-worker/tsconfig.json`, тем же списком в `Dockerfile.worker` и `web-generation-worker/Dockerfile`. Пропуск `COPY` даёт `TS2307` (так ломался `storage-cache-control.ts`). Health/metrics: `:3003/health/ready`, `:3003/metrics` (`workerId`). `WORKER_ID` пустой. |
 
 ### Правила сборки (чеклист)
 

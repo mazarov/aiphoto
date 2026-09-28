@@ -32,6 +32,7 @@ COPY landing/src/lib/video-motion-prompt.ts /repo/landing/src/lib/video-motion-p
 COPY landing/src/lib/listing-video-repeat.ts /repo/landing/src/lib/listing-video-repeat.ts
 COPY landing/src/lib/listing-video-repeat-followup.ts /repo/landing/src/lib/listing-video-repeat-followup.ts
 COPY landing/src/lib/user-generation-photo-paths.ts /repo/landing/src/lib/user-generation-photo-paths.ts
+COPY landing/src/lib/storage-cache-control.ts /repo/landing/src/lib/storage-cache-control.ts
 COPY landing/src/lib/generation/image-options.ts /repo/landing/src/lib/generation/image-options.ts
 RUN npm run build
 
