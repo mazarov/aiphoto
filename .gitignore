@@ -14,3 +14,7 @@ tmp/
 .cursor/yandex-smtp.env
 .cursor/yandex-seo.env
 .cursor/loki.env
+
+# Внутренняя база знаний по SEO (курсы, закрытые материалы) — только локально
+seo/knowledge/*
+!seo/knowledge/README.md
