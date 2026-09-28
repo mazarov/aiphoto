@@ -4,7 +4,7 @@ import {
   GENERACIYA_FOTO_HUB_PATH,
   getGeneraciyaFotoChipNavigation,
 } from "./generaciya-foto-chip-nav";
-import { GENERACIYA_FOTO_SEO } from "./generaciya-foto-seo-copy";
+import { GENERACIYA_PO_FOTO_SEO } from "./generaciya-foto-seo-copy";
 import { GENERACIYA_FOTO_SCENARIO_ROUTES } from "./generaciya-foto-routes";
 
 test("hub chip nav is scenarios only", () => {
@@ -12,13 +12,13 @@ test("hub chip nav is scenarios only", () => {
   assert.equal(hub.length, GENERACIYA_FOTO_SCENARIO_ROUTES.length);
   assert.equal(hub.some((item) => item.kind === "hub"), false);
   assert.equal(hub[0].kind, "scenario");
-  assert.equal(hub[0].href, "/generaciya-foto/pary");
+  assert.equal(hub[0].href, "/generaciya/po-foto/pary");
   assert.equal(hub[0].dimension, "audience_tag");
   assert.equal(hub[0].value, "para");
   assert.deepEqual(
     hub.map((item) => item.href),
     GENERACIYA_FOTO_SCENARIO_ROUTES.map(
-      (route) => `/generaciya-foto/${route.slug}`
+      (route) => `/generaciya/po-foto/${route.slug}`
     )
   );
   assert.equal(
@@ -31,9 +31,10 @@ test("nested slug keeps hub chip first and marks only that scenario active", () 
   const items = getGeneraciyaFotoChipNavigation("devushki");
   assert.equal(items[0].kind, "hub");
   assert.equal(items[0].href, GENERACIYA_FOTO_HUB_PATH);
-  assert.equal(items[0].label, GENERACIYA_FOTO_SEO.chipHubLabel);
+  assert.equal(items[0].label, GENERACIYA_PO_FOTO_SEO.chipHubLabel);
+  assert.equal(GENERACIYA_FOTO_HUB_PATH, "/generaciya/po-foto");
   assert.equal(items[0].active, false);
   const current = items.find((item) => item.active);
   assert.equal(current?.kind, "scenario");
-  assert.equal(current?.href, "/generaciya-foto/devushki");
+  assert.equal(current?.href, "/generaciya/po-foto/devushki");
 });

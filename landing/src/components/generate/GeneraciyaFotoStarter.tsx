@@ -9,7 +9,12 @@ import {
 } from "react";
 import { useGenerateDock } from "@/context/GenerateDockContext";
 import { usePricingModal } from "@/context/PricingModalContext";
-import { COMPOSE_BUY_CREDITS_CTA } from "@/lib/generate-compose-mode";
+import {
+  BLANK_PROMPT_PLACEHOLDER,
+  COMPOSE_BUY_CREDITS_CTA,
+  PROMPT_FIELD_LABEL,
+  PROMPT_FIELD_MAX_LENGTH,
+} from "@/lib/generate-compose-mode";
 import { GENERACIYA_FOTO_SEO } from "@/lib/generaciya-foto-seo-copy";
 import {
   PHOTO_PROMPT_UPLOAD_MAX_PX,
@@ -78,15 +83,26 @@ function ModeIcon({ mode }: { mode: StarterMode }) {
   );
 }
 
+const ALL_STARTER_MODES: readonly StarterMode[] = ["text", "photo"];
+
 export function GeneraciyaFotoStarter({
   copy,
   initialPrompt = "",
   sectionId,
+  modes: enabledModes = ALL_STARTER_MODES,
+  ctaLabel,
 }: {
   copy?: GeneraciyaFotoStarterCopy;
   /** Scenario pages can open compose with a useful, editable first draft. */
   initialPrompt?: string;
   sectionId?: string;
+  /**
+   * Which entry modes this page offers. Text-only hubs pass `["text"]`, the
+   * photo hub `["photo"]`; with one mode the selector is not rendered.
+   */
+  modes?: readonly StarterMode[];
+  /** Idle CTA label override (text mode default «Создать фото»). */
+  ctaLabel?: string;
 } = {}) {
   const modes: Array<{
     id: StarterMode;
@@ -94,18 +110,21 @@ export function GeneraciyaFotoStarter({
     description: string;
   }> = [
     {
-      id: "text",
+      id: "text" as const,
       title: copy?.byTextTitle ?? GENERACIYA_FOTO_SEO.starterByTextTitle,
       description: copy?.byTextLead ?? GENERACIYA_FOTO_SEO.starterByTextLead,
     },
     {
-      id: "photo",
+      id: "photo" as const,
       title: copy?.byPhotoTitle ?? GENERACIYA_FOTO_SEO.starterByPhotoTitle,
       description: copy?.byPhotoLead ?? GENERACIYA_FOTO_SEO.starterByPhotoLead,
     },
-  ];
+  ].filter((item) => enabledModes.includes(item.id));
+  const singleMode = modes.length === 1;
 
-  const [mode, setMode] = useState<StarterMode>("text");
+  const [mode, setMode] = useState<StarterMode>(modes[0]?.id ?? "text");
+  /** Same field as the dock prompt editor; seeded into the composer on submit. */
+  const [draftPrompt, setDraftPrompt] = useState(initialPrompt);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
   const textTabRef = useRef<HTMLButtonElement>(null);
@@ -181,11 +200,21 @@ export function GeneraciyaFotoStarter({
       fileInputRef.current?.click();
       return;
     }
-    seedBlankPrompt(initialPrompt, {
+    const typed = draftPrompt.trim();
+    // Typed text → straight to the compose plate (model / format / run).
+    // Empty field → open the dock's prompt editor, as before.
+    seedBlankPrompt(typed || initialPrompt, {
       entrySource: "route",
       intent: "text",
-      dockSurface: "prompt",
+      dockSurface: typed ? null : "prompt",
     });
+  };
+
+  const onPromptKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+      event.preventDefault();
+      openComposer("text");
+    }
   };
 
   const onModeKeyDown = (
@@ -213,10 +242,26 @@ export function GeneraciyaFotoStarter({
       id={sectionId}
       className={`mt-8 w-full scroll-mt-20 text-left sm:mt-10 ${GF_BLOCK}`}
     >
+      {singleMode && modes[0] && modes[0].id === "photo" ? (
+        <div className="flex items-start gap-4 rounded-2xl bg-white/70 p-4 text-left sm:p-5">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
+            <ModeIcon mode="photo" />
+          </span>
+          <span className="min-w-0 pt-0.5">
+            <span className="block text-base font-semibold text-zinc-900">
+              {modes[0].title}
+            </span>
+            <span className="mt-1 block text-sm leading-snug text-zinc-600">
+              {modes[0].description}
+            </span>
+          </span>
+        </div>
+      ) : null}
       <div
-        className="grid grid-cols-1 gap-3 sm:grid-cols-2"
+        className={`grid grid-cols-1 gap-3 sm:grid-cols-2 ${singleMode ? "hidden" : ""}`}
         role="group"
         aria-label="Способ создания изображения"
+        hidden={singleMode}
       >
         {modes.map((item) => {
           const selected = mode === item.id;
@@ -260,18 +305,41 @@ export function GeneraciyaFotoStarter({
         })}
       </div>
 
+      {mode === "text" ? (
+        <label
+          className={`${singleMode ? "" : GF_STACK} flex flex-col rounded-2xl border border-indigo-100/90 bg-white p-3 text-left shadow-sm sm:p-4`}
+        >
+          <span className="mb-2 text-[13px] font-semibold text-zinc-900">
+            {PROMPT_FIELD_LABEL}
+          </span>
+          <textarea
+            id="generaciya-foto-starter-prompt"
+            value={draftPrompt}
+            onChange={(event) => setDraftPrompt(event.target.value)}
+            onKeyDown={onPromptKeyDown}
+            placeholder={BLANK_PROMPT_PLACEHOLDER}
+            maxLength={PROMPT_FIELD_MAX_LENGTH}
+            rows={4}
+            disabled={busy}
+            className="min-h-[7rem] w-full resize-y rounded-xl border border-zinc-200 bg-white p-3 text-[13px] font-medium leading-relaxed text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 disabled:opacity-60"
+          />
+        </label>
+      ) : null}
+
       <div className={`${GF_STACK} flex flex-col items-center`}>
-        <input
-          ref={fileInputRef}
-          id="generaciya-foto-starter-photo"
-          type="file"
-          accept={FILE_INPUT_ACCEPT}
-          className="sr-only"
-          tabIndex={-1}
-          aria-label="Загрузить своё фото"
-          onChange={onPhotoFileChange}
-          onInput={onPhotoFileChange}
-        />
+        {enabledModes.includes("photo") ? (
+          <input
+            ref={fileInputRef}
+            id="generaciya-foto-starter-photo"
+            type="file"
+            accept={FILE_INPUT_ACCEPT}
+            className="sr-only"
+            tabIndex={-1}
+            aria-label="Загрузить своё фото"
+            onChange={onPhotoFileChange}
+            onInput={onPhotoFileChange}
+          />
+        ) : null}
         <button
           type="button"
           id="generaciya-foto-starter-cta"
@@ -311,7 +379,7 @@ export function GeneraciyaFotoStarter({
                   ? COMPOSE_BUY_CREDITS_CTA
                   : mode === "photo"
                     ? "Загрузить фото"
-                    : "Создать фото"}
+                    : (ctaLabel ?? "Создать фото")}
           </span>
         </button>
         {uploadError ? (

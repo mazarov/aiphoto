@@ -1,4 +1,7 @@
-import { isGeneraciyaFotoScenarioPath } from "./generaciya-foto-routes";
+import {
+  isGeneraciyaFotoScenarioPath,
+  isGeneraciyaHubPath,
+} from "./generaciya-foto-routes";
 import type { GenerateDockComposeIntent } from "./generate-dock-seed";
 import { isNanoBananaSeoPath } from "./nano-banana-seo-copy";
 import { resolveListingCatalogHub } from "./listing-catalog-hub";
@@ -8,7 +11,7 @@ import { isPromtyDlyaIiFotosessiiPath } from "./promty-dlya-ii-fotosessii-cluste
 export function isGenerateDockSeoPagePath(pathname: string): boolean {
   const normalized = normalizeGenerateDockPath(pathname);
   return (
-    normalized === "/generaciya-foto" ||
+    isGeneraciyaHubPath(normalized) ||
     isNanoBananaSeoPath(normalized) ||
     isGeneraciyaFotoScenarioPath(normalized)
   );

@@ -73,7 +73,12 @@ export function mapPromptshotPathToSource(pathname: string): ClientSource {
   if (path === "/foto-v-promt" || path.startsWith("/foto-v-promt/")) {
     return "foto_v_promt";
   }
-  if (path === "/generaciya-foto" || path.startsWith("/generaciya-foto/")) {
+  if (
+    path === "/generaciya-foto" ||
+    path.startsWith("/generaciya-foto/") ||
+    path === "/generaciya" ||
+    path.startsWith("/generaciya/")
+  ) {
     return "generaciya_foto";
   }
   if (path === "/nano-banana" || path.startsWith("/nano-banana/")) {

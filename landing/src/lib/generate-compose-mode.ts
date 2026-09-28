@@ -173,6 +173,11 @@ export function composeGenerateCtaLabel(
 }
 
 /** Paywall CTA: next action, not an error. Compact label is for the mobile tab and result rail. */
+/** Prompt field copy — one source for the dock editor and the SEO hero starter. */
+export const BLANK_PROMPT_PLACEHOLDER = "Опишите изображение или референс";
+export const PROMPT_FIELD_LABEL = "Промт";
+export const PROMPT_FIELD_MAX_LENGTH = 8000;
+
 export const COMPOSE_BUY_CREDITS_CTA = "Купить кредиты для создания фото";
 export const COMPOSE_BUY_CREDITS_CTA_COMPACT = "Купить кредиты";
 export const COMPOSE_EDIT_RESULT_CTA = "Что изменить";

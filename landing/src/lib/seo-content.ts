@@ -1116,7 +1116,7 @@ const SEO: Record<string, SeoContent> = {
       { label: "С шампанским", href: "/sobytiya/den-rozhdeniya/s-shampanskim" },
       { label: "Со львом", href: "/sobytiya/den-rozhdeniya/so-lvom" },
       { label: "ИИ-фотосессия", href: "/ii-fotosessiya/den-rozhdeniya" },
-      { label: "Генерация фото", href: "/generaciya-foto/na-den-rozhdeniya" },
+      { label: "Генерация фото", href: "/generaciya/po-foto/na-den-rozhdeniya" },
     ],
     featuredL2Slugs: [
       "devushka",

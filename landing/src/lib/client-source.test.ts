@@ -37,11 +37,11 @@ test("normalizePromptshotPath strips query, hash, and trailing slash", () => {
 test("mapPromptshotPathToSource uses calling page prefixes", () => {
   assert.equal(mapPromptshotPathToSource("/foto-v-promt"), "foto_v_promt");
   assert.equal(mapPromptshotPathToSource("/foto-v-promt/"), "foto_v_promt");
-  assert.equal(mapPromptshotPathToSource("/generaciya-foto?tab=photo"), "generaciya_foto");
+  assert.equal(mapPromptshotPathToSource("/generaciya/foto-po-opisaniyu?tab=photo"), "generaciya_foto");
   assert.equal(mapPromptshotPathToSource("/nano-banana"), "generaciya_foto");
   assert.equal(mapPromptshotPathToSource("/nano-banana/pro"), "generaciya_foto");
   assert.equal(
-    mapPromptshotPathToSource("/generaciya-foto/devushki"),
+    mapPromptshotPathToSource("/generaciya/po-foto/devushki"),
     "generaciya_foto"
   );
   assert.equal(
@@ -71,7 +71,7 @@ test("resolveClientSource maps promptshot Referer when x-client is absent", () =
   assert.equal(
     resolveClientSource(req({
       origin: "https://www.promptshot.ru",
-      referer: "https://promptshot.ru/generaciya-foto",
+      referer: "https://promptshot.ru/generaciya/foto-po-opisaniyu",
     })),
     "generaciya_foto",
   );

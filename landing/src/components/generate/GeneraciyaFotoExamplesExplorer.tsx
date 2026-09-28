@@ -17,6 +17,7 @@ import type { GeneraciyaFotoChipNavItem } from "@/lib/generaciya-foto-chip-nav";
 import {
   GENERACIYA_FOTO_SCENARIOS,
   GENERACIYA_FOTO_SEO,
+  GENERACIYA_PO_FOTO_SEO,
 } from "@/lib/generaciya-foto-seo-copy";
 import { appendUniqueCardPage } from "@/lib/listing-cards";
 import {
@@ -558,7 +559,7 @@ export function GeneraciyaFotoExamplesExplorer({
                           href={item.href}
                           scroll={LISTING_SHELL_LINK_SCROLL}
                           aria-current={item.active ? "page" : undefined}
-                          aria-label={GENERACIYA_FOTO_SEO.chipHubAria}
+                          aria-label={GENERACIYA_PO_FOTO_SEO.chipHubAria}
                           className={`${HUB_CHIP} ${
                             item.active ? HUB_CHIP_ACTIVE : HUB_CHIP_IDLE
                           }`}

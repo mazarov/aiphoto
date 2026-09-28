@@ -24,7 +24,7 @@ export const TRENDS_SEO = {
 } as const;
 
 export const TRENDS_POPULAR_LINKS: SeoPopularLink[] = [
-  { label: "Сгенерировать фото", href: "/generaciya-foto" },
+  { label: "Сгенерировать фото", href: "/generaciya/foto-po-opisaniyu" },
   { label: "День рождения", href: "/sobytiya/den-rozhdeniya" },
   { label: "Семейное фото", href: "/promty-dlya-semejnogo-foto" },
   { label: "Промты для пар", href: "/promty-dlya-foto-par" },

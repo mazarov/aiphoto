@@ -681,7 +681,7 @@ export function PricingCards({
             <span>
               Доступ к{" "}
               <Link
-                href="/generaciya-foto"
+                href="/generaciya/foto-po-opisaniyu"
                 className="text-indigo-600 underline decoration-indigo-300 underline-offset-2 hover:text-indigo-500"
               >
                 готовым ИИ-фотосессиям

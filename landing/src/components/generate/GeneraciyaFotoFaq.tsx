@@ -7,6 +7,7 @@ import {
   GENERACIYA_FOTO_FAQ,
   GENERACIYA_FOTO_SEO,
   isGeneraciyaFotoFaqLink,
+  type GeneraciyaFotoFaqItem,
 } from "@/lib/generaciya-foto-seo-copy";
 
 const linkClass =
@@ -24,11 +25,17 @@ function onHashLinkClick(event: MouseEvent<HTMLAnchorElement>, href: string) {
   scrollToPageHash(href);
 }
 
-export function GeneraciyaFotoFaq() {
+export function GeneraciyaFotoFaq({
+  title = GENERACIYA_FOTO_SEO.faqTitle,
+  items = GENERACIYA_FOTO_FAQ,
+}: {
+  title?: string;
+  items?: readonly GeneraciyaFotoFaqItem[];
+} = {}) {
   return (
     <GeneraciyaFotoFaqBlock
-      title={GENERACIYA_FOTO_SEO.faqTitle}
-      items={GENERACIYA_FOTO_FAQ.map((item) => ({
+      title={title}
+      items={items.map((item) => ({
         q: item.q,
         a: item.a.map((part, index) => {
           if (!isGeneraciyaFotoFaqLink(part)) return part;

@@ -4,8 +4,10 @@ import {
   GENERACIYA_FOTO_SCENARIO_ROUTES,
   findGeneraciyaFotoScenarioByTag,
   findGeneraciyaFotoScenarioRoute,
+  generaciyaLegacyRedirectPath,
   getGeneraciyaFotoScenarioPath,
   isGeneraciyaFotoScenarioPath,
+  isGeneraciyaHubPath,
 } from "./generaciya-foto-routes";
 import {
   GENERACIYA_FOTO_SCENARIO_COPY,
@@ -43,15 +45,36 @@ test("generation scenario routes cover every hub chip and core SEO page", () => 
 });
 
 test("generation scenario paths use an explicit allowlist", () => {
-  assert.equal(isGeneraciyaFotoScenarioPath("/generaciya-foto/devushki"), true);
-  assert.equal(isGeneraciyaFotoScenarioPath("/generaciya-foto/deti/"), true);
-  assert.equal(isGeneraciyaFotoScenarioPath("/generaciya-foto/na-pasport"), false);
-  assert.equal(isGeneraciyaFotoScenarioPath("/generaciya-foto/pricheski"), false);
+  assert.equal(isGeneraciyaFotoScenarioPath("/generaciya/po-foto/devushki"), true);
+  assert.equal(isGeneraciyaFotoScenarioPath("/generaciya/po-foto/deti/"), true);
+  assert.equal(isGeneraciyaFotoScenarioPath("/generaciya/po-foto/na-pasport"), false);
+  assert.equal(isGeneraciyaFotoScenarioPath("/generaciya/po-foto/pricheski"), false);
   assert.equal(
-    isGeneraciyaFotoScenarioPath("/generaciya-foto/dlya-marketpleysov"),
+    isGeneraciyaFotoScenarioPath("/generaciya/po-foto/dlya-marketpleysov"),
     false
   );
   assert.equal(findGeneraciyaFotoScenarioRoute("unknown"), null);
+});
+
+test("legacy /generaciya-foto* paths 301 into the /generaciya section", () => {
+  assert.equal(generaciyaLegacyRedirectPath("/generaciya-foto"), "/generaciya/foto-po-opisaniyu");
+  assert.equal(generaciyaLegacyRedirectPath("/generaciya-foto/"), "/generaciya/foto-po-opisaniyu");
+  assert.equal(generaciyaLegacyRedirectPath("/generaciya"), "/generaciya/foto-po-opisaniyu");
+  assert.equal(
+    generaciyaLegacyRedirectPath("/generaciya-foto/na-den-rozhdeniya"),
+    "/generaciya/po-foto/na-den-rozhdeniya"
+  );
+  assert.equal(generaciyaLegacyRedirectPath("/generaciya-foto/pary/"), "/generaciya/po-foto/pary");
+  // Unknown legacy child → photo hub, not 404.
+  assert.equal(generaciyaLegacyRedirectPath("/generaciya-foto/neizvestno"), "/generaciya/po-foto");
+  // Section pages themselves are not redirected.
+  assert.equal(generaciyaLegacyRedirectPath("/generaciya/foto-po-opisaniyu"), null);
+  assert.equal(generaciyaLegacyRedirectPath("/generaciya/kartinka-po-opisaniyu"), null);
+  assert.equal(generaciyaLegacyRedirectPath("/generaciya/po-foto/pary"), null);
+  assert.equal(generaciyaLegacyRedirectPath("/generaciya-fotograf"), null);
+  assert.equal(isGeneraciyaHubPath("/generaciya/po-foto/"), true);
+  assert.equal(isGeneraciyaHubPath("/generaciya/po-foto/pary"), false);
+  assert.equal(isGeneraciyaHubPath("/generaciya-foto"), false);
 });
 
 test("generation scenarios map to existing tag dimensions", () => {
@@ -65,7 +88,7 @@ test("generation scenarios map to existing tag dimensions", () => {
   );
   assert.equal(
     getGeneraciyaFotoScenarioPath("na-den-rozhdeniya"),
-    "/generaciya-foto/na-den-rozhdeniya"
+    "/generaciya/po-foto/na-den-rozhdeniya"
   );
 });
 

@@ -145,10 +145,60 @@ export type GeneraciyaFotoScenarioSlug = GeneraciyaFotoScenarioRoute["slug"];
 
 export const MIN_GENERACIYA_FOTO_SCENARIO_CARDS = 8;
 
+/**
+ * Section `/generaciya/*` (2026-09-28). One URL per generation mode:
+ * - `foto-po-opisaniyu` — text-only, owns «фото по описанию / по промту»;
+ * - `kartinka-po-opisaniyu` — text-only, owns «картинка / изображение по описанию»;
+ * - `po-foto` — with the user's photo, hub of the 22 scenarios.
+ * Legacy `/generaciya-foto` and `/generaciya-foto/<slug>` are 301 (see
+ * `generaciyaLegacyRedirectPath`).
+ */
+export const GENERACIYA_SECTION_PATH = "/generaciya";
+export const GENERACIYA_FOTO_PO_OPISANIYU_PATH = `${GENERACIYA_SECTION_PATH}/foto-po-opisaniyu`;
+export const GENERACIYA_KARTINKA_PO_OPISANIYU_PATH = `${GENERACIYA_SECTION_PATH}/kartinka-po-opisaniyu`;
+export const GENERACIYA_PO_FOTO_PATH = `${GENERACIYA_SECTION_PATH}/po-foto`;
+export const LEGACY_GENERACIYA_FOTO_PATH = "/generaciya-foto";
+
 export function getGeneraciyaFotoScenarioPath(
   slug: GeneraciyaFotoScenarioSlug
 ): string {
-  return `/generaciya-foto/${slug}`;
+  return `${GENERACIYA_PO_FOTO_PATH}/${slug}`;
+}
+
+function stripTrailingSlash(pathname: string): string {
+  return pathname.length > 1 && pathname.endsWith("/")
+    ? pathname.slice(0, -1)
+    : pathname;
+}
+
+/** Exact 301 target for pre-section URLs; `null` when the path is not legacy. */
+export function generaciyaLegacyRedirectPath(pathname: string): string | null {
+  const normalized = stripTrailingSlash(pathname);
+  if (normalized === LEGACY_GENERACIYA_FOTO_PATH) {
+    return GENERACIYA_FOTO_PO_OPISANIYU_PATH;
+  }
+  if (normalized === GENERACIYA_SECTION_PATH) {
+    return GENERACIYA_FOTO_PO_OPISANIYU_PATH;
+  }
+  const prefix = `${LEGACY_GENERACIYA_FOTO_PATH}/`;
+  if (normalized.startsWith(prefix)) {
+    const slug = normalized.slice(prefix.length);
+    if (slug && !slug.includes("/") && findGeneraciyaFotoScenarioRoute(slug)) {
+      return getGeneraciyaFotoScenarioPath(slug as GeneraciyaFotoScenarioSlug);
+    }
+    return GENERACIYA_PO_FOTO_PATH;
+  }
+  return null;
+}
+
+/** Text-only and photo hubs of the section (not the scenario children). */
+export function isGeneraciyaHubPath(pathname: string): boolean {
+  const normalized = stripTrailingSlash(pathname);
+  return (
+    normalized === GENERACIYA_FOTO_PO_OPISANIYU_PATH ||
+    normalized === GENERACIYA_KARTINKA_PO_OPISANIYU_PATH ||
+    normalized === GENERACIYA_PO_FOTO_PATH
+  );
 }
 
 export function findGeneraciyaFotoScenarioRoute(
@@ -172,10 +222,7 @@ export function findGeneraciyaFotoScenarioByTag(
 }
 
 export function isGeneraciyaFotoScenarioPath(pathname: string): boolean {
-  const normalized =
-    pathname.length > 1 && pathname.endsWith("/")
-      ? pathname.slice(0, -1)
-      : pathname;
+  const normalized = stripTrailingSlash(pathname);
 
   return GENERACIYA_FOTO_SCENARIO_ROUTES.some(
     (route) => normalized === getGeneraciyaFotoScenarioPath(route.slug)

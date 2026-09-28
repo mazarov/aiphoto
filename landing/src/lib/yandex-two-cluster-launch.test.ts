@@ -55,7 +55,7 @@ test("launch has birthday plus draft pairs campaigns", () => {
   assert.ok(pairsGenerate && pairsPrompts);
   assert.equal(pairsGenerate.budgetWithVatRub, 0);
   assert.equal(pairsPrompts.budgetWithVatRub, 0);
-  assert.match(pairsGenerate.landingUrl, /\/generaciya-foto\/pary$/);
+  assert.match(pairsGenerate.landingUrl, /\/generaciya\/po-foto\/pary$/);
   assert.match(pairsPrompts.landingUrl, /\/promty-dlya-foto-par$/);
   assert.ok(pairsGenerate.groups[0].ads[0].title.length <= 56);
   assert.ok(pairsPrompts.groups[0].ads[0].title.length <= 56);

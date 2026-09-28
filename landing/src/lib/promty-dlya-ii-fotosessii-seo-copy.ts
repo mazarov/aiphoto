@@ -93,7 +93,7 @@ export const PROMTY_DLYA_II_FOTOSESSII_FAQ: {
       "Здесь серия в одном стиле. Один кадр — в ",
       { href: "/", label: "каталоге промтов" },
       " и на ",
-      { href: "/generaciya-foto", label: "странице «Сделать фото ИИ»" },
+      { href: "/generaciya/po-foto", label: "странице «Сделать фото ИИ по своему фото»" },
       ".",
     ],
   },

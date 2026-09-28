@@ -31,8 +31,8 @@ test("hub path stays under /promty-dlya-foto-devushki", () => {
   );
   assert.equal(isPromtyDlyaFotoDevushkiHubPath("/promty-dlya-foto-par"), false);
   assert.equal(isGeneraciyaFotoDevushkiPath(GENERACIYA_FOTO_DEVUSHKI_PATH), true);
-  assert.equal(isGeneraciyaFotoDevushkiPath("/generaciya-foto/devushki/"), true);
-  assert.equal(isGeneraciyaFotoDevushkiPath("/generaciya-foto/pary"), false);
+  assert.equal(isGeneraciyaFotoDevushkiPath("/generaciya/po-foto/devushki/"), true);
+  assert.equal(isGeneraciyaFotoDevushkiPath("/generaciya/po-foto/pary"), false);
 });
 
 test("plot L2 consolidates into the hub; birthday tails stay out", () => {

@@ -9,21 +9,19 @@ import {
   GeneraciyaFotoThemes,
 } from "@/components/generate/GeneraciyaFotoLandingSections";
 import { GeneraciyaFotoFaq } from "@/components/generate/GeneraciyaFotoFaq";
-import { GeneraciyaHowItWorks } from "@/components/generate/GeneraciyaHowItWorks";
 import { GeneraciyaHubHero } from "@/components/generate/GeneraciyaHubHero";
 import { GF_PAGE_MAIN, GF_PAGE_STACK } from "@/components/generate/generaciya-foto-ui";
 import { fetchNewestThemeCollagePhotos } from "@/lib/homepage-sections";
 import {
-  buildGeneraciyaFotoMetaTitle,
   formatGeneraciyaFotoSocialProof,
-  GENERACIYA_FOTO_FAQ,
-  GENERACIYA_FOTO_HOW_IT_WORKS,
-  GENERACIYA_FOTO_HOW_TO_STEPS,
-  GENERACIYA_FOTO_SCENARIOS_NAV,
   GENERACIYA_FOTO_SEO,
   GENERACIYA_FOTO_THEMES,
+  GENERACIYA_PO_FOTO_FAQ,
+  GENERACIYA_PO_FOTO_HOW_TO_STEPS,
+  GENERACIYA_PO_FOTO_SEO,
+  generaciyaModeLinksExcept,
 } from "@/lib/generaciya-foto-seo-copy";
-import { GENERACIYA_FOTO_PO_OPISANIYU_PATH } from "@/lib/generaciya-foto-routes";
+import { GENERACIYA_PO_FOTO_PATH } from "@/lib/generaciya-foto-routes";
 import { getGeneraciyaFotoChipNavigation } from "@/lib/generaciya-foto-chip-nav";
 import {
   buildGeneraciyaHubJsonLd,
@@ -41,34 +39,36 @@ import { takeHeroMarqueeCards } from "@/lib/hero-marquee";
 
 export const revalidate = 3600;
 
-const PAGE_URL = `${SITE_URL}${GENERACIYA_FOTO_PO_OPISANIYU_PATH}`;
+const PAGE_URL = `${SITE_URL}${GENERACIYA_PO_FOTO_PATH}`;
+const MODE_LINKS = generaciyaModeLinksExcept("po-foto").map((item) => ({
+  title: item.label,
+  text: item.text,
+  href: item.href,
+}));
 
 const getThemeCollagePhotos = cache(async () => {
   try {
     return await fetchNewestThemeCollagePhotos(GENERACIYA_FOTO_THEMES.items);
   } catch (error) {
-    console.error("[FotoPoOpisaniyuPage] fetch theme photos failed", error);
+    console.error("[PoFotoPage] fetch theme photos failed", error);
     return { photosByHref: {}, countByHref: {} };
   }
 });
 
 const getPageCards = cache(async () => {
   const result = await getGeneraciyaNewestExamples();
-  const cards = await enrichGeneraciyaCards(result, "foto-po-opisaniyu");
+  const cards = await enrichGeneraciyaCards(result, "po-foto");
   const ogImage = await firstGeneraciyaOgImage(result, cards);
   return { result, cards, ogImage };
 });
 
 export async function generateMetadata(): Promise<Metadata> {
-  const [{ ogImage }, completedCount] = await Promise.all([
-    getPageCards(),
-    getGeneraciyaCompletedImageCount(),
-  ]);
-  const title = buildGeneraciyaFotoMetaTitle(completedCount);
+  const { ogImage } = await getPageCards();
+  const title = GENERACIYA_PO_FOTO_SEO.metaTitle;
 
   return {
     title,
-    description: GENERACIYA_FOTO_SEO.metaDescription,
+    description: GENERACIYA_PO_FOTO_SEO.metaDescription,
     robots: {
       index: true,
       follow: true,
@@ -79,7 +79,7 @@ export async function generateMetadata(): Promise<Metadata> {
     alternates: { canonical: PAGE_URL },
     openGraph: {
       title,
-      description: GENERACIYA_FOTO_SEO.metaDescription,
+      description: GENERACIYA_PO_FOTO_SEO.metaDescription,
       url: PAGE_URL,
       type: "website",
       siteName: "PromptShot",
@@ -89,13 +89,13 @@ export async function generateMetadata(): Promise<Metadata> {
     twitter: {
       card: "summary_large_image",
       title,
-      description: GENERACIYA_FOTO_SEO.metaDescription,
+      description: GENERACIYA_PO_FOTO_SEO.metaDescription,
       ...(ogImage ? { images: [ogImage] } : {}),
     },
   };
 }
 
-export default async function FotoPoOpisaniyuPage() {
+export default async function PoFotoPage() {
   const [{ cards, ogImage }, themeCollage, completedImageCount] =
     await Promise.all([
       getPageCards(),
@@ -106,22 +106,25 @@ export default async function FotoPoOpisaniyuPage() {
   const exampleCards = cards
     .map(toGenerationExampleCard)
     .map((card, index) =>
-      withGenerationExampleFallbackTitle(card, `Фото по описанию — пример ${index + 1}`)
+      withGenerationExampleFallbackTitle(card, `Фото ИИ по референсу — пример ${index + 1}`)
     );
   const carouselCards = takeHeroMarqueeCards(exampleCards.filter((card) => card.photoUrl));
   const galleryCards = exampleCards.slice(0, 16);
   const schemas = buildGeneraciyaHubJsonLd({
     pageUrl: PAGE_URL,
-    name: `${GENERACIYA_FOTO_SEO.h1} — PromptShot`,
-    description: GENERACIYA_FOTO_SEO.metaDescription,
+    name: `${GENERACIYA_PO_FOTO_SEO.h1} — PromptShot`,
+    description: GENERACIYA_PO_FOTO_SEO.metaDescription,
     ogImage,
     breadcrumbs: [
       { name: "Главная", item: SITE_URL },
-      { name: GENERACIYA_FOTO_SEO.breadcrumb, item: PAGE_URL },
+      { name: GENERACIYA_PO_FOTO_SEO.breadcrumb, item: PAGE_URL },
     ],
-    howTo: { name: GENERACIYA_FOTO_SEO.howToTitle, steps: GENERACIYA_FOTO_HOW_TO_STEPS },
-    faq: GENERACIYA_FOTO_FAQ,
-    itemList: { name: GENERACIYA_FOTO_SEO.examplesTitle, cards: cards.slice(0, 16) },
+    howTo: {
+      name: GENERACIYA_PO_FOTO_SEO.howToTitle,
+      steps: GENERACIYA_PO_FOTO_HOW_TO_STEPS,
+    },
+    faq: GENERACIYA_PO_FOTO_FAQ,
+    itemList: { name: GENERACIYA_PO_FOTO_SEO.examplesTitle, cards: cards.slice(0, 16) },
   });
 
   return (
@@ -141,31 +144,39 @@ export default async function FotoPoOpisaniyuPage() {
           breadcrumbs={[
             { label: "Главная", href: "/" },
             { label: GENERACIYA_FOTO_SEO.sectionBreadcrumb },
-            { label: GENERACIYA_FOTO_SEO.breadcrumb },
+            { label: GENERACIYA_PO_FOTO_SEO.breadcrumb },
           ]}
-          h1={GENERACIYA_FOTO_SEO.h1}
-          intro={GENERACIYA_FOTO_SEO.intro}
+          h1={GENERACIYA_PO_FOTO_SEO.h1}
+          intro={GENERACIYA_PO_FOTO_SEO.intro}
           carouselCards={carouselCards}
-          carouselAriaLabel="Новые фото по описанию"
+          carouselAriaLabel="Новые фото ИИ по своему фото"
           socialProof={socialProof}
-          generatorTitle={GENERACIYA_FOTO_SEO.generatorTitle}
-          generatorLead={GENERACIYA_FOTO_SEO.generatorLead}
+          generatorTitle={GENERACIYA_PO_FOTO_SEO.generatorTitle}
+          generatorLead={GENERACIYA_PO_FOTO_SEO.generatorLead}
           generatorNote={GENERACIYA_FOTO_SEO.generatorNote}
-          starterModes={["text"]}
+          starterModes={["photo"]}
+          starterCopy={{
+            byPhotoTitle: GENERACIYA_PO_FOTO_SEO.starterByPhotoTitle,
+            byPhotoLead: GENERACIYA_PO_FOTO_SEO.starterByPhotoLead,
+          }}
         />
 
         <div className={GF_PAGE_STACK}>
+          <GeneraciyaFotoThemes
+            photosByHref={themeCollage.photosByHref}
+            countByHref={themeCollage.countByHref}
+          />
+
           <section id="primery" className="scroll-mt-20" aria-labelledby="examples-heading">
             {galleryCards.length ? (
               <GeneraciyaFotoExamplesExplorer
                 initialCards={galleryCards}
                 eyebrow=""
-                title={GENERACIYA_FOTO_SEO.examplesTitle}
-                intro={GENERACIYA_FOTO_SEO.examplesIntro}
+                title={GENERACIYA_PO_FOTO_SEO.examplesTitle}
+                intro={GENERACIYA_PO_FOTO_SEO.examplesIntro}
                 allPromptsLabel={GENERACIYA_FOTO_SEO.examplesCta}
                 defaultAllPromptsHref="#primery"
                 scenarioNavigation={getGeneraciyaFotoChipNavigation()}
-                filterChipsInPlace
               />
             ) : (
               <div className="rounded-2xl border border-zinc-200 bg-zinc-50 px-6 py-12 text-center text-sm text-zinc-500">
@@ -174,27 +185,21 @@ export default async function FotoPoOpisaniyuPage() {
             )}
           </section>
 
-          <GeneraciyaHowItWorks
-            title={GENERACIYA_FOTO_HOW_IT_WORKS.title}
-            paragraphs={GENERACIYA_FOTO_HOW_IT_WORKS.paragraphs}
-            tipsTitle={GENERACIYA_FOTO_HOW_IT_WORKS.tipsTitle}
-            tips={GENERACIYA_FOTO_HOW_IT_WORKS.tips}
+          <GeneraciyaFotoHowTo
+            title={GENERACIYA_PO_FOTO_SEO.howToTitle}
+            lead={GENERACIYA_PO_FOTO_SEO.howToLead}
+            cta={GENERACIYA_PO_FOTO_SEO.howToCta}
+            steps={GENERACIYA_PO_FOTO_HOW_TO_STEPS}
           />
 
-          <GeneraciyaFotoHowTo />
+          <GeneraciyaFotoMore items={MODE_LINKS} />
 
-          <GeneraciyaFotoThemes
-            photosByHref={themeCollage.photosByHref}
-            countByHref={themeCollage.countByHref}
-            title={GENERACIYA_FOTO_SCENARIOS_NAV.title}
-            lead={GENERACIYA_FOTO_SCENARIOS_NAV.lead}
+          <GeneraciyaFotoPricing returnPath={GENERACIYA_PO_FOTO_PATH} />
+
+          <GeneraciyaFotoFaq
+            title={GENERACIYA_PO_FOTO_SEO.faqTitle}
+            items={GENERACIYA_PO_FOTO_FAQ}
           />
-
-          <GeneraciyaFotoMore />
-
-          <GeneraciyaFotoPricing />
-
-          <GeneraciyaFotoFaq />
         </div>
       </main>
     </PageLayout>

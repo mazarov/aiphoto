@@ -1,7 +1,7 @@
 import { takeHeroMarqueeCards } from "./hero-marquee";
 
 export const PROMTY_DLYA_FOTO_MUZHCHINY_HUB_PATH = "/promty-dlya-foto-muzhchiny";
-export const GENERACIYA_FOTO_MUZHCHINY_PATH = "/generaciya-foto/muzhchiny";
+export const GENERACIYA_FOTO_MUZHCHINY_PATH = "/generaciya/po-foto/muzhchiny";
 
 export const MEN_HUB_AUDIENCE_TAG = "muzhchina";
 export const MEN_HUB_LOAD_MORE_LABEL = "Больше промтов для мужчины";

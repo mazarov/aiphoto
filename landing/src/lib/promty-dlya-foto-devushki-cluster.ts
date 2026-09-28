@@ -1,7 +1,7 @@
 import { takeHeroMarqueeCards } from "./hero-marquee";
 
 export const PROMTY_DLYA_FOTO_DEVUSHKI_HUB_PATH = "/promty-dlya-foto-devushki";
-export const GENERACIYA_FOTO_DEVUSHKI_PATH = "/generaciya-foto/devushki";
+export const GENERACIYA_FOTO_DEVUSHKI_PATH = "/generaciya/po-foto/devushki";
 
 export const GIRLS_HUB_AUDIENCE_TAG = "devushka";
 export const GIRLS_HUB_LOAD_MORE_LABEL = "Больше промтов для девушки";

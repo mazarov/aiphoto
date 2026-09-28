@@ -32,7 +32,9 @@ export function buildLlmsTxt(siteUrl?: string): string {
     "",
     "## Генерация",
     "",
-    `- [Сделать фото ИИ](${origin}/generaciya-foto): один кадр по описанию или загруженному фото.`,
+    `- [Сделать фото по описанию](${origin}/generaciya/foto-po-opisaniyu): реалистичный кадр только по тексту.`,
+    `- [Сгенерировать картинку по описанию](${origin}/generaciya/kartinka-po-opisaniyu): иллюстрация или арт по тексту.`,
+    `- [Сделать фото ИИ по своему фото](${origin}/generaciya/po-foto): загруженное селфи + образ из каталога, 22 сценария.`,
     `- [Nano Banana](${origin}/nano-banana): модели Google Gemini для генерации и редактирования фото.`,
     `- [Nano Banana Pro](${origin}/nano-banana/pro): модель Google с большей детализацией фото.`,
     `- [ИИ фотосессия](${origin}/ii-fotosessiya): серия кадров по одному снимку.`,
@@ -49,7 +51,7 @@ export function buildLlmsTxt(siteUrl?: string): string {
     "",
     "## Для агентов",
     "",
-    "Генератор на /generaciya-foto, /nano-banana и /nano-banana/pro принимает текст или файл изображения. Не обходить /api/, /admin/, /embed/, /auth/, /search, /favorites, /generations, /analyses, /generate, /pricing — эти пути закрыты в robots.txt.",
+    "Генераторы /generaciya/foto-po-opisaniyu и /generaciya/kartinka-po-opisaniyu принимают только текст; /generaciya/po-foto, /nano-banana и /nano-banana/pro — текст или файл изображения. Не обходить /api/, /admin/, /embed/, /auth/, /search, /favorites, /generations, /analyses, /generate, /pricing — эти пути закрыты в robots.txt.",
     "",
   ].join("\n");
 }

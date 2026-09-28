@@ -55,7 +55,7 @@ export const YANDEX_TWO_CLUSTER_LAUNCH = {
     {
       key: "pairs_generate",
       name: "ГЕНЕРАЦИЯ-ПАРЫ",
-      landingUrl: "https://promptshot.ru/generaciya-foto/pary",
+      landingUrl: "https://promptshot.ru/generaciya/po-foto/pary",
       budgetWithVatRub: 0,
       mediaBudgetRub: 0,
       groups: [

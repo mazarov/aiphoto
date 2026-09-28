@@ -49,8 +49,8 @@ test("ad landing paths include sitelink hubs and generate pary", () => {
   );
   assert.equal(isPairsPromptAdLandingPath("/promty-dlya-foto-devushki"), false);
   assert.equal(isGeneraciyaFotoParyPath(GENERACIYA_FOTO_PARY_PATH), true);
-  assert.equal(isGeneraciyaFotoParyPath("/generaciya-foto/pary/"), true);
-  assert.equal(isGeneraciyaFotoParyPath("/generaciya-foto/semya"), false);
+  assert.equal(isGeneraciyaFotoParyPath("/generaciya/po-foto/pary/"), true);
+  assert.equal(isGeneraciyaFotoParyPath("/generaciya/po-foto/semya"), false);
 });
 
 test("every pairs child consolidates into the hub", () => {

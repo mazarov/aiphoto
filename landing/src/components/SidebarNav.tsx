@@ -131,11 +131,11 @@ function SidebarContent({
       </Link>
 
       <Link
-        href="/generaciya-foto"
+        href="/generaciya/foto-po-opisaniyu"
         scroll={false}
         onClick={onItemClick}
         className={`flex items-center gap-2.5 rounded-xl px-3 py-2 text-[13px] font-medium transition-colors ${
-          isHrefActive("/generaciya-foto", pathname)
+          isHrefActive("/generaciya", pathname)
             ? "bg-indigo-50 text-indigo-700"
             : "text-zinc-700 hover:bg-zinc-50"
         }`}
@@ -152,7 +152,7 @@ function SidebarContent({
           <path strokeLinecap="round" strokeLinejoin="round" d="M5 20h14a1 1 0 0 0 1-1V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1Z" />
           <path strokeLinecap="round" strokeLinejoin="round" d="m15 6 .75 2.25L18 9l-2.25.75L15 12l-.75-2.25L12 9l2.25-.75L15 6Z" />
         </svg>
-        Сделать фото
+        Фото по описанию
       </Link>
 
       <Link

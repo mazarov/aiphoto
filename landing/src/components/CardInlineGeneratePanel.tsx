@@ -176,6 +176,8 @@ import {
   resolvePhotoshootLibraryFrame,
   resolvePhotoshootReadyFrame,
   PHOTOSHOOT_NEEDS_LIBRARY_PHOTO,
+  BLANK_PROMPT_PLACEHOLDER,
+  PROMPT_FIELD_LABEL,
   type GenerateComposeMode,
   type PhotoshootReadyFrame,
 } from "@/lib/generate-compose-mode";
@@ -276,9 +278,6 @@ import {
   composeToolGuideHidesPromptStrip,
   composeToolGuideVisible,
 } from "@/lib/compose-tool-guide";
-
-const BLANK_PROMPT_PLACEHOLDER = "Опишите изображение или референс";
-const PROMPT_FIELD_LABEL = "Промт";
 
 type ModelOpt = { id: string; label: string; cost: number };
 type RatioOpt = { value: string; label: string };

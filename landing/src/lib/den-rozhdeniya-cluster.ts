@@ -15,7 +15,7 @@ export type BirthdayListingSearchFilters = {
 
 export const DEN_ROZHDENIYA_HUB_PATH = "/sobytiya/den-rozhdeniya";
 export const DEN_ROZHDENIYA_TAG_SLUG = "den_rozhdeniya";
-export const DEN_ROZHDENIYA_GENERATE_HREF = "/generaciya-foto/na-den-rozhdeniya";
+export const DEN_ROZHDENIYA_GENERATE_HREF = "/generaciya/po-foto/na-den-rozhdeniya";
 export const DEN_ROZHDENIYA_GENERATE_LABEL = "Сделать фото с ИИ";
 /** Shared birthday phrase for search-backed L2 that still need it. */
 export const DEN_ROZHDENIYA_SEARCH_QUERY = "день рождения";

@@ -1,41 +1,64 @@
 import {
+  GENERACIYA_FOTO_PO_OPISANIYU_PATH,
   GENERACIYA_FOTO_SCENARIO_ROUTES,
+  GENERACIYA_KARTINKA_PO_OPISANIYU_PATH,
+  GENERACIYA_PO_FOTO_PATH,
   getGeneraciyaFotoScenarioPath,
 } from "./generaciya-foto-routes";
 
+/**
+ * `/generaciya/foto-po-opisaniyu` — text-only generator. Owns the «фото по
+ * описанию / по тексту / по промту» cluster (Wordstat head 57 865; Webmaster
+ * 13–26.09: «сделать фото по описанию» 545/д, pos 11.4). Slots: H1 = main key,
+ * Title ≠ H1 (main + live counter), one extra key per H2. «Картинка /
+ * изображение» never in Title/H1/H2 here — that is `kartinka-po-opisaniyu`.
+ */
 export const GENERACIYA_FOTO_SEO = {
-  metaTitle:
-    "Сделать фото ИИ онлайн по фото или описанию — PromptShot",
+  metaTitle: "Сделать фото по описанию 📸 — ИИ онлайн, без студии и фотографа",
   metaDescription:
-    "Создайте фото по описанию или своему снимку. Выберите готовый образ, настройте промт и скачайте реалистичный кадр.",
-  h1: "Сделать фото ИИ онлайн",
+    "Опишите кадр словами — нейросеть сгенерирует реалистичное фото по описанию онлайн. Промт на русском, выбор модели и формата, файл сразу на скачивание.",
+  h1: "Сделать фото по описанию",
   socialProofPrefix: "Более",
   socialProofSuffix: "человек уже сгенерировали ИИ фото",
   secondaryCta: "Выбрать и повторить",
   intro:
-    "Создайте один реалистичный кадр по своему снимку или текстовому описанию — без студии и фотографа.",
-  breadcrumb: "Сделать фото ИИ",
-  chipHubLabel: "Сделать фото ИИ",
-  chipHubAria: "Все шаблоны: сделать фото ИИ",
+    "Генерация фото по описанию: напишите, кто в кадре, где и в каком свете, — нейросеть соберёт реалистичный кадр без студии и фотографа.",
+  breadcrumb: "Фото по описанию",
+  sectionBreadcrumb: "Генерация",
+  chipHubLabel: "Сделать фото по описанию",
+  chipHubAria: "Все шаблоны: сделать фото по описанию",
   starterByTextTitle: "Генерация по тексту",
   starterByTextLead: "Напишите сцену своими словами",
   starterByPhotoTitle: "С вашим фото",
   starterByPhotoLead: "Загрузите селфи — в генераторе выберите образ из каталога",
-  generatorTitle: "Создать фото по описанию или промту",
+  generatorTitle: "Создать фото по промту или по тексту",
   generatorLead:
-    "Опишите кадр текстом или загрузите снимок — генератор соберёт реалистичное фото. Промт можно взять из идей ниже или написать свой.",
+    "Напишите промт своими словами или возьмите готовый из идей ниже. Модель, формат и качество выбираются перед запуском.",
   generatorNote:
     "Для запуска нужен вход в PromptShot. Стоимость в кредитах показывается рядом с выбранной моделью до генерации.",
-  examplesTitle: "Идеи для фото ИИ",
+  examplesTitle: "ИИ фото по описанию: примеры и готовые промты",
   examplesIntro:
-    "Выберите образ и сгенерируйте фото с ИИ — со своего снимка или по тексту.",
+    "Каждый кадр создан по тексту. Откройте карточку — промт можно скопировать или сразу запустить.",
   examplesCta: "Больше идей для фото",
-  examplesMoreHref: "/generaciya-foto#primery",
-  howToTitle: "Как создать свои ИИ фото?",
-  howToLead: "Три простых шага, чтобы сделать своё ИИ фото онлайн",
+  examplesMoreHref: `${GENERACIYA_FOTO_PO_OPISANIYU_PATH}#primery`,
+  howToTitle: "Как сделать фото ИИ за три шага",
+  howToLead: "Описание → модель → файл",
   howToCta: "Создать фото",
   faqTitle: "Часто задаваемые вопросы",
 } as const;
+
+/**
+ * Title with the live counter (homepage formula: key · emoji · number fact).
+ * Below 1 000 completed jobs the number is not a fact worth a Title — fall back.
+ */
+export function buildGeneraciyaFotoMetaTitle(completedCount: number): string {
+  if (!Number.isFinite(completedCount) || completedCount < 1000) {
+    return GENERACIYA_FOTO_SEO.metaTitle;
+  }
+  const thousands = Math.floor(completedCount / 1000);
+  const formatted = (thousands * 1000).toLocaleString("ru-RU");
+  return `Сделать фото по описанию 📸 — ИИ онлайн, ${formatted}+ кадров уже создано`;
+}
 
 /** Live completed image jobs — never a Facee-scale marketing number. */
 export function formatGeneraciyaFotoSocialProof(count: number): string | null {
@@ -47,13 +70,13 @@ export function formatGeneraciyaFotoSocialProof(count: number): string | null {
 export const GENERACIYA_FOTO_HOW_TO_STEPS = [
   {
     n: "01",
-    title: "Выберите способ",
-    text: "Загрузите один снимок как референс или начните с текстового описания",
+    title: "Опишите кадр",
+    text: "Кто или что в кадре, где происходит, какой свет и стиль — обычными словами, на русском",
   },
   {
     n: "02",
     title: "Выберите промт",
-    text: "Выберите промт из каталога или напишите свой",
+    text: "Оставьте свой текст или возьмите готовый из примеров и поправьте под задачу",
   },
   {
     n: "03",
@@ -61,6 +84,103 @@ export const GENERACIYA_FOTO_HOW_TO_STEPS = [
     text: "Выберите модель, формат и качество, проверьте стоимость и запустите генерацию",
   },
 ] as const;
+
+/** H2 «как работает» — extra key «фото из текста» (Wordstat 32 525). */
+export const GENERACIYA_FOTO_HOW_IT_WORKS = {
+  title: "Как нейросеть генерирует фото из текста",
+  paragraphs: [
+    "Модель читает описание целиком и строит кадр по смыслу, а не по отдельным словам: важны объект, место, свет, стиль и настроение. Чем конкретнее описание, тем ближе результат к задумке.",
+    "В PromptShot несколько моделей: быстрая — для набросков и простых сцен, старшие — для сложных композиций, текста в кадре и высокого качества. Модель и стоимость выбираются перед запуском.",
+  ],
+  tipsTitle: "Как написать описание для фото",
+  tips: [
+    "Начните с главного: «девушка читает книгу», «мужчина в костюме у окна».",
+    "Добавьте место и время: «в кофейне, утро», «на набережной, закат».",
+    "Свет и стиль: «мягкий дневной свет, фотореализм» или «студийная вспышка, чёрно-белое».",
+    "Формат кадра задаётся кнопкой — в тексте его писать не нужно.",
+    "Слова «шедевр», «8k», «лучшее качество» не помогают. Конкретика помогает.",
+  ],
+} as const;
+
+/**
+ * `/generaciya/po-foto` — hub of the 22 «со своего снимка» scenarios.
+ * Photo mode lives only here and on the children.
+ */
+export const GENERACIYA_PO_FOTO_SEO = {
+  metaTitle: "Сделать фото ИИ по своему фото 🤳 — 22 сценария, без фотографа",
+  metaDescription:
+    "Загрузите свой снимок и выберите образ — нейросеть сделает фото ИИ с вашим лицом: пары, семья, день рождения, портрет. Промт готов, результат без студии.",
+  h1: "Сделать фото ИИ по своему фото",
+  intro:
+    "Загрузите одно селфи и выберите сценарий — ИИ повторит кадр с вами: поза, свет и стиль из примера, лицо с вашего снимка.",
+  breadcrumb: "По своему фото",
+  chipHubLabel: "По своему фото",
+  chipHubAria: "Все сценарии генерации по своему фото",
+  starterByPhotoTitle: "С вашим фото",
+  starterByPhotoLead: "Загрузите селфи — в генераторе выберите образ из каталога",
+  generatorTitle: "Создать фото по промту и своему снимку",
+  generatorLead:
+    "Загрузите снимок — генератор откроет каталог образов. Промт уже готов, его можно поправить перед запуском.",
+  examplesTitle: "Фото ИИ по референсу: примеры",
+  examplesIntro:
+    "Каждый кадр повторён с чужого примера по фото пользователя. Откройте карточку и нажмите «Повторить» со своим снимком.",
+  howToTitle: "Как сделать ИИ фото со своим лицом",
+  howToLead: "Снимок → образ → файл",
+  howToCta: "Загрузить фото",
+  faqTitle: "Часто задаваемые вопросы",
+} as const;
+
+export const GENERACIYA_PO_FOTO_HOW_TO_STEPS = [
+  {
+    n: "01",
+    title: "Загрузите снимок",
+    text: "Одно фото в анфас, с ровным светом, без фильтров — так лицо переносится точнее",
+  },
+  {
+    n: "02",
+    title: "Выберите образ",
+    text: "Готовый сценарий из каталога или свой промт: одежда, фон, настроение",
+  },
+  {
+    n: "03",
+    title: "Запустите генерацию",
+    text: "Выберите модель и формат, проверьте стоимость — кадр придёт за минуту",
+  },
+] as const;
+
+/** Cross-links between the section's modes; shown on every hub as chips. */
+export const GENERACIYA_MODE_LINKS = [
+  {
+    key: "foto",
+    label: "Фото по описанию",
+    text: "Реалистичный кадр только по тексту, без своего снимка.",
+    href: GENERACIYA_FOTO_PO_OPISANIYU_PATH,
+  },
+  {
+    key: "kartinka",
+    label: "Картинка по описанию",
+    text: "Иллюстрация, арт или стилизованное изображение по тексту.",
+    href: GENERACIYA_KARTINKA_PO_OPISANIYU_PATH,
+  },
+  {
+    key: "po-foto",
+    label: "По своему фото",
+    text: "Загрузите селфи — ИИ повторит образ с вашим лицом.",
+    href: GENERACIYA_PO_FOTO_PATH,
+  },
+  {
+    key: "fotosessiya",
+    label: "ИИ фотосессия",
+    text: "Серия кадров в одном стиле по вашим фото.",
+    href: "/ii-fotosessiya",
+  },
+] as const;
+
+export function generaciyaModeLinksExcept(
+  key: (typeof GENERACIYA_MODE_LINKS)[number]["key"]
+) {
+  return GENERACIYA_MODE_LINKS.filter((item) => item.key !== key);
+}
 
 export const GENERACIYA_FOTO_THEME_ITEMS = GENERACIYA_FOTO_SCENARIO_ROUTES.map(
   (route) => ({
@@ -71,6 +191,7 @@ export const GENERACIYA_FOTO_THEME_ITEMS = GENERACIYA_FOTO_SCENARIO_ROUTES.map(
   })
 );
 
+/** Photo hub: themes carry the «ИИ фото по теме» key; children are «со своего снимка». */
 export const GENERACIYA_FOTO_THEMES = {
   title: "Сделать ИИ фото по теме",
   lead: "Пара, семья, день рождения, портрет — откройте сценарий и создайте кадр со своего снимка.",
@@ -79,15 +200,22 @@ export const GENERACIYA_FOTO_THEMES = {
   items: GENERACIYA_FOTO_THEME_ITEMS,
 } as const;
 
+/** Text hub: the same 22 links, but as navigation without a key — photo mode is not promised here. */
+export const GENERACIYA_FOTO_SCENARIOS_NAV = {
+  title: "Сценарии: пары, семья, день рождения",
+  lead: "Нужен кадр со своим лицом? Откройте сценарий — там генерация по вашему фото.",
+} as const;
+
 /** Variant B / treatment offer, same paywall UI, checkout via YooKassa. */
 export const GENERACIYA_FOTO_PRICING = {
   variant: "treatment",
-  returnPath: "/generaciya-foto",
+  returnPath: GENERACIYA_FOTO_PO_OPISANIYU_PATH,
 } as const;
 
+/** Photo hub only: every tool edits the user's uploaded photo. Lead holds «изменить фото по описанию» (Webmaster 165/д, pos 16.5). */
 export const GENERACIYA_FOTO_TOOLS = {
   title: "Редактирование фото с ИИ",
-  lead: "ИИ инструменты для работы с фотографией",
+  lead: "Изменить фото по описанию: фон, причёска, лишние объекты, качество — по вашему снимку",
   tryLabel: "Попробовать",
   items: [
     {
@@ -241,22 +369,14 @@ export const GENERACIYA_FOTO_SCENARIOS = [
   },
 ] as const;
 
-export const GENERACIYA_FOTO_CAPABILITIES = [
-  {
-    title: "Фото с ИИ по примеру",
-    text: "Загрузите референс — ИИ повторит кадр с вами. Поза, свет и стиль из примера, лицо с вашего снимка.",
-    href: "#generator",
-  },
-  {
-    title: "Фото по описанию",
-    text: "Напишите, кого и где снять. Генератор соберёт кадр по вашему тексту.",
-    href: "#generator",
-  },
-] as const;
+/** «Другие режимы» block — same cards on every hub of the section minus the current one. */
+export const GENERACIYA_FOTO_CAPABILITIES = generaciyaModeLinksExcept("foto").map(
+  (item) => ({ title: item.label, text: item.text, href: item.href })
+);
 
-export const GENERACIYA_FOTO_MORE_TITLE = "Фото по описанию и по примеру";
+export const GENERACIYA_FOTO_MORE_TITLE = "Другие режимы генерации";
 export const GENERACIYA_FOTO_MORE_LEAD =
-  "Два режима одного генератора: напишите кадр текстом или загрузите референс.";
+  "Картинка по тексту, кадр со своим лицом или серия фото — выберите, что нужно.";
 
 export type GeneraciyaFotoFaqLink = {
   href: string;
@@ -264,6 +384,12 @@ export type GeneraciyaFotoFaqLink = {
 };
 
 export type GeneraciyaFotoFaqPart = string | GeneraciyaFotoFaqLink;
+
+/** Structural FAQ entry — shared by all `/generaciya/*` hubs. */
+export type GeneraciyaFaqEntry = {
+  q: string;
+  a: readonly GeneraciyaFotoFaqPart[];
+};
 
 export function flattenGeneraciyaFotoFaqAnswer(
   parts: readonly GeneraciyaFotoFaqPart[]
@@ -287,19 +413,63 @@ const GENERACIYA_FOTO_FAQ_SOURCE = [
     ],
   },
   {
-    q: "Как сделать фото с помощью ИИ?",
+    q: "Как сделать фото по описанию?",
     a: [
-      "Загрузите своё фото или опишите кадр в ",
+      "Опишите кадр в ",
       { href: "#generator", label: "генераторе" },
-      ". Выберите готовый образ в «",
-      { href: "#primery", label: "Идеях для фото ИИ" },
-      "» или напишите промт сами — затем запустите генерацию.",
+      ": кто в кадре, где, какой свет. Или откройте пример в «",
+      { href: "#primery", label: "ИИ фото по описанию" },
+      "» и поправьте готовый промт — затем запустите генерацию и скачайте файл.",
+    ],
+  },
+  {
+    q: "Как сделать фото ИИ по своему фото?",
+    a: [
+      "Загрузите одно селфи в ",
+      { href: "#generator", label: "генераторе" },
+      " — откроется каталог образов. Выберите сценарий, при желании поправьте промт и запустите генерацию: лицо возьмётся с вашего снимка, остальное — из образа.",
+    ],
+  },
+  {
+    q: "Нужна ли регистрация, чтобы сделать фото по описанию?",
+    a: [
+      "Смотреть примеры и копировать промты можно без входа. Чтобы запустить генерацию и скачать файл, нужен вход — так результат сохраняется в вашем аккаунте.",
+    ],
+  },
+  {
+    q: "Чем фото по описанию отличается от картинки по описанию?",
+    a: [
+      "Здесь генератор настроен на реалистичный снимок: люди, свет, фактура как у фотографии. Если нужна иллюстрация, арт или стилизованное изображение — откройте ",
+      { href: GENERACIYA_KARTINKA_PO_OPISANIYU_PATH, label: "картинку по описанию" },
+      ".",
+    ],
+  },
+  {
+    q: "Можно ли сделать фото по описанию со своим лицом?",
+    a: [
+      "Да, но на другой странице: ",
+      { href: GENERACIYA_PO_FOTO_PATH, label: "генерация по своему фото" },
+      " берёт ваш снимок как референс, а описание — как сцену.",
+    ],
+  },
+  {
+    q: "Какой формат и размер фото получится?",
+    a: [
+      "Форматы 1:1, 4:3, 3:4, 16:9, 9:16 и другие; качество до 4K выбирается перед запуском. Файл — PNG без потери качества.",
+    ],
+  },
+  {
+    q: "Можно ли изменить своё фото по описанию?",
+    a: [
+      "Да. Загрузите снимок на странице ",
+      { href: GENERACIYA_PO_FOTO_PATH, label: "генерации по своему фото" },
+      " и опишите, что изменить: фон, причёску, лишние объекты или качество.",
     ],
   },
   {
     q: "Какой ИИ лучше сделает фото?",
     a: [
-      "На странице ниже — модели PromptShot для фотореалистичных кадров. Для быстрого результата подойдёт Flash, для сложных сцен — Pro или Grok. Стоимость показывается рядом с выбранной моделью перед запуском.",
+      "Модель выбирается перед запуском в генераторе. Для быстрого результата подойдёт Flash, для сложных сцен — Pro или Grok. Стоимость показывается рядом с выбранной моделью до запуска.",
     ],
   },
   {
@@ -312,7 +482,7 @@ const GENERACIYA_FOTO_FAQ_SOURCE = [
     q: "Где взять готовый промт для генерации фото?",
     a: [
       "В блоке «",
-      { href: "#primery", label: "Идеи для фото ИИ" },
+      { href: "#primery", label: "Примеры" },
       "» откройте карточку и запустите генерацию. Свой текст можно написать в ",
       { href: "#generator", label: "генераторе" },
       ".",
@@ -322,10 +492,10 @@ const GENERACIYA_FOTO_FAQ_SOURCE = [
     q: "Как создать фото с собой в PromptShot?",
     a: [
       "Откройте блок «",
-      { href: "#primery", label: "Идеи для фото ИИ" },
-      "» и выберите готовый образ. Ещё один вариант – перейти в «",
-      { href: "#generator", label: "Создать фото" },
-      "» и написать промт: образ, фон, одежду, настроение, ракурс и важные детали. Чем точнее описание, тем ближе результат к задумке.",
+      { href: "#primery", label: "Примеры" },
+      "» и выберите готовый образ. Ещё один вариант – загрузить снимок в ",
+      { href: "#generator", label: "генераторе" },
+      " и написать промт: образ, фон, одежду, настроение, ракурс и важные детали. Чем точнее описание, тем ближе результат к задумке.",
     ],
   },
   {
@@ -339,8 +509,8 @@ const GENERACIYA_FOTO_FAQ_SOURCE = [
   {
     q: "Как писать промт, чтобы сгенерировать фото?",
     a: [
-      "Опишите кадр своими словами: кто в кадре, одежда, фон, свет. Или возьмите готовый образ в «",
-      { href: "#primery", label: "Идеях для фото ИИ" },
+      "Опишите кадр своими словами: кто в кадре, одежда, фон, свет. Или возьмите готовый промт в «",
+      { href: "#primery", label: "Примерах" },
       "» и поправьте текст. Запускайте генерацию здесь.",
     ],
   },
@@ -359,10 +529,10 @@ const GENERACIYA_FOTO_FAQ_SOURCE = [
     ],
   },
   {
-    q: "Можно ли сделать фото по промту бесплатно?",
+    q: "Можно ли сделать фото по описанию бесплатно?",
     a: [
-      "Текст промта копируется бесплатно. Файл фото — за токены; после входа есть тестовые запуски. Без водяного знака нужен ",
-      { href: "/pricing", label: "платный пакет" },
+      "Вход, просмотр примеров и копирование любого промта — бесплатно. Генерация файла списывает кредиты: стоимость показывается рядом с моделью до запуска, пакеты — в ",
+      { href: "#tarify", label: "тарифах" },
       ".",
     ],
   },
@@ -514,31 +684,52 @@ const GENERACIYA_FOTO_FAQ_SOURCE = [
   {
     q: "Можно ли сгенерировать фото без водяного знака?",
     a: [
-      "Да, но для этого нужен ",
-      { href: "/pricing", label: "платный тариф" },
-      ". Бесплатные тестовые генерации помогают оценить возможности сервиса, а платный пакет открывает улучшенное качество и изображения без водяных знаков.",
+      "Да, на платном пакете: он открывает улучшенное качество и изображения без водяных знаков. Пакеты — в ",
+      { href: "#tarify", label: "тарифах" },
+      ".",
     ],
   },
 ] as const;
 
-const GENERACIYA_FOTO_FAQ_VISIBLE_QUESTIONS = new Set([
-  "Как сделать фото с помощью ИИ?",
-  "Какой ИИ лучше сделает фото?",
-  "Можно ли сделать фото ИИ онлайн без студии?",
-  "Где взять готовый промт для генерации фото?",
-  "Как создать фото с собой в PromptShot?",
-  "Можно ли сгенерировать фото по описанию?",
-  "Как писать промт, чтобы сгенерировать фото?",
-  "Можно ли сделать фото по промту бесплатно?",
-  "Что такое ИИ фото?",
-  "Как собрать серию кадров в одном стиле?",
-  "Можно ли использовать фото как пример?",
-  "Что делать, если изображение не похоже на меня?",
+export type GeneraciyaFotoFaqItem = GeneraciyaFaqEntry;
+
+function pickFaq(questions: readonly string[]): GeneraciyaFaqEntry[] {
+  const byQ = new Map<string, GeneraciyaFaqEntry>(
+    GENERACIYA_FOTO_FAQ_SOURCE.map((item) => [item.q, item])
+  );
+  return questions
+    .map((q) => byQ.get(q))
+    .filter((item): item is GeneraciyaFaqEntry => Boolean(item));
+}
+
+/** `/generaciya/foto-po-opisaniyu` — text-only questions; «своё фото» only as a cross-link. */
+export const GENERACIYA_FOTO_FAQ = pickFaq([
+  "Как сделать фото по описанию?",
+  "Можно ли сделать фото по описанию бесплатно?",
+  "Нужна ли регистрация, чтобы сделать фото по описанию?",
   "Можно ли написать промт на русском?",
-  "Можно ли оплатить российской картой?",
+  "Какой ИИ лучше сделает фото?",
+  "Как писать промт, чтобы сгенерировать фото?",
+  "Нужен подробный промт, чтобы создать фото?",
+  "Чем фото по описанию отличается от картинки по описанию?",
+  "Можно ли сделать фото по описанию со своим лицом?",
+  "Можно ли изменить своё фото по описанию?",
+  "Какой формат и размер фото получится?",
   "Можно ли сгенерировать фото без водяного знака?",
+  "Можно ли оплатить российской картой?",
 ]);
 
-export const GENERACIYA_FOTO_FAQ = GENERACIYA_FOTO_FAQ_SOURCE.filter((item) =>
-  GENERACIYA_FOTO_FAQ_VISIBLE_QUESTIONS.has(item.q)
-);
+/** `/generaciya/po-foto` — photo-mode questions. */
+export const GENERACIYA_PO_FOTO_FAQ = pickFaq([
+  "Как сделать фото ИИ по своему фото?",
+  "Как создать фото с собой в PromptShot?",
+  "Что делать, если изображение не похоже на меня?",
+  "Можно ли использовать фото как пример?",
+  "Можно ли сделать совместное фото, если нет общего снимка?",
+  "Как создать «Портрет поколения» для семьи?",
+  "Как собрать серию кадров в одном стиле?",
+  "Где взять готовый промт для генерации фото?",
+  "Какой ИИ лучше сделает фото?",
+  "Можно ли сгенерировать фото без водяного знака?",
+  "Можно ли оплатить российской картой?",
+]);

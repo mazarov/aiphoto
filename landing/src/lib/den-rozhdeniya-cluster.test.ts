@@ -204,7 +204,7 @@ test("featured nav starts with Все back to the hub", () => {
     active: true,
   });
   assert.equal(
-    hubItems.some((item) => item.href === "/generaciya-foto/na-den-rozhdeniya"),
+    hubItems.some((item) => item.href === "/generaciya/po-foto/na-den-rozhdeniya"),
     false,
   );
   assert.ok(hubItems.some((item) => item.href === "/sobytiya/den-rozhdeniya/devushki"));

@@ -43,7 +43,7 @@ export const PROMTY_DLYA_II_FOTOSESSII_CHILDREN = [
     dimension: "audience_tag",
     tagValue: "muzhchina",
     catalogHref: "/promty-dlya-foto-muzhchiny",
-    generateHref: "/generaciya-foto/muzhchiny",
+    generateHref: "/generaciya/po-foto/muzhchiny",
   },
   {
     slug: "zhenskie",
@@ -51,7 +51,7 @@ export const PROMTY_DLYA_II_FOTOSESSII_CHILDREN = [
     dimension: "audience_tag",
     tagValue: "devushka",
     catalogHref: "/promty-dlya-foto-devushki",
-    generateHref: "/generaciya-foto/devushki",
+    generateHref: "/generaciya/po-foto/devushki",
   },
   {
     slug: "pary",
@@ -59,7 +59,7 @@ export const PROMTY_DLYA_II_FOTOSESSII_CHILDREN = [
     dimension: "audience_tag",
     tagValue: "para",
     catalogHref: "/promty-dlya-foto-par",
-    generateHref: "/generaciya-foto/pary",
+    generateHref: "/generaciya/po-foto/pary",
   },
   {
     slug: "den-rozhdeniya",
@@ -67,7 +67,7 @@ export const PROMTY_DLYA_II_FOTOSESSII_CHILDREN = [
     dimension: "occasion_tag",
     tagValue: "den_rozhdeniya",
     catalogHref: "/sobytiya/den-rozhdeniya",
-    generateHref: "/generaciya-foto/na-den-rozhdeniya",
+    generateHref: "/generaciya/po-foto/na-den-rozhdeniya",
   },
   {
     slug: "detskie",
@@ -75,7 +75,7 @@ export const PROMTY_DLYA_II_FOTOSESSII_CHILDREN = [
     dimension: "audience_tag",
     tagValue: "detskie",
     catalogHref: "/promty-dlya-detskih-foto",
-    generateHref: "/generaciya-foto/deti",
+    generateHref: "/generaciya/po-foto/deti",
   },
   {
     slug: "semeynye",
@@ -83,7 +83,7 @@ export const PROMTY_DLYA_II_FOTOSESSII_CHILDREN = [
     dimension: "audience_tag",
     tagValue: "semya",
     catalogHref: "/promty-dlya-semejnogo-foto",
-    generateHref: "/generaciya-foto/semya",
+    generateHref: "/generaciya/po-foto/semya",
   },
   {
     slug: "studiynye",
@@ -91,7 +91,7 @@ export const PROMTY_DLYA_II_FOTOSESSII_CHILDREN = [
     dimension: "style_tag",
     tagValue: "studiynoe",
     catalogHref: "/stil/studiynoe",
-    generateHref: "/generaciya-foto/studiynoe",
+    generateHref: "/generaciya/po-foto/studiynoe",
   },
   {
     slug: "zimnyaya",
@@ -99,7 +99,7 @@ export const PROMTY_DLYA_II_FOTOSESSII_CHILDREN = [
     dimension: "object_tag",
     tagValue: "zima",
     catalogHref: "/zima",
-    generateHref: "/generaciya-foto",
+    generateHref: "/generaciya/po-foto",
   },
   {
     slug: "beremennye",
@@ -107,7 +107,7 @@ export const PROMTY_DLYA_II_FOTOSESSII_CHILDREN = [
     dimension: "audience_tag",
     tagValue: "beremennaya",
     catalogHref: "/promty-dlya-foto-beremennaya",
-    generateHref: "/generaciya-foto/beremennaya",
+    generateHref: "/generaciya/po-foto/beremennaya",
   },
   {
     slug: "s-voennymi",
@@ -115,7 +115,7 @@ export const PROMTY_DLYA_II_FOTOSESSII_CHILDREN = [
     dimension: "object_tag",
     tagValue: "v_forme",
     catalogHref: "/v-forme",
-    generateHref: "/generaciya-foto/v-forme",
+    generateHref: "/generaciya/po-foto/v-forme",
   },
   {
     slug: "dlya-dvoih",
@@ -123,7 +123,7 @@ export const PROMTY_DLYA_II_FOTOSESSII_CHILDREN = [
     dimension: "audience_tag",
     tagValue: "vlyublennykh",
     catalogHref: "/promty-dlya-foto-vlyublennykh",
-    generateHref: "/generaciya-foto/pary",
+    generateHref: "/generaciya/po-foto/pary",
   },
   {
     slug: "novogodnyaya",
@@ -131,7 +131,7 @@ export const PROMTY_DLYA_II_FOTOSESSII_CHILDREN = [
     dimension: "occasion_tag",
     tagValue: "novyy_god",
     catalogHref: "/sobytiya/novyj-god",
-    generateHref: "/generaciya-foto",
+    generateHref: "/generaciya/po-foto",
   },
   {
     slug: "vesennie",
@@ -139,7 +139,7 @@ export const PROMTY_DLYA_II_FOTOSESSII_CHILDREN = [
     dimension: "object_tag",
     tagValue: "vesna",
     catalogHref: "/vesna",
-    generateHref: "/generaciya-foto",
+    generateHref: "/generaciya/po-foto",
   },
   {
     slug: "delovoy-stil",
@@ -147,7 +147,7 @@ export const PROMTY_DLYA_II_FOTOSESSII_CHILDREN = [
     dimension: "style_tag",
     tagValue: "delovoe",
     catalogHref: "/stil/delovoe",
-    generateHref: "/generaciya-foto",
+    generateHref: "/generaciya/po-foto",
   },
   {
     slug: "nyuborn",
@@ -155,7 +155,7 @@ export const PROMTY_DLYA_II_FOTOSESSII_CHILDREN = [
     dimension: "audience_tag",
     tagValue: "malysh",
     catalogHref: "/promty-dlya-foto-malysh",
-    generateHref: "/generaciya-foto/malysh",
+    generateHref: "/generaciya/po-foto/malysh",
   },
   {
     slug: "s-mashinoy",
@@ -163,7 +163,7 @@ export const PROMTY_DLYA_II_FOTOSESSII_CHILDREN = [
     dimension: "object_tag",
     tagValue: "s_mashinoy",
     catalogHref: "/promty-dlya-foto/s-mashinoy",
-    generateHref: "/generaciya-foto/s-mashinoy",
+    generateHref: "/generaciya/po-foto/s-mashinoy",
   },
   {
     slug: "cherno-belye",
@@ -171,7 +171,7 @@ export const PROMTY_DLYA_II_FOTOSESSII_CHILDREN = [
     dimension: "style_tag",
     tagValue: "cherno_beloe",
     catalogHref: "/stil/cherno-beloe",
-    generateHref: "/generaciya-foto/cherno-beloe",
+    generateHref: "/generaciya/po-foto/cherno-beloe",
   },
 ] as const satisfies readonly FotosessiiClusterChild[];
 

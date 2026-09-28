@@ -78,7 +78,7 @@ test("ad title applies on the birthday cluster with a paid click", () => {
   );
   assert.equal(
     resolveAdLandingTitle({
-      path: "/generaciya-foto/na-den-rozhdeniya",
+      path: "/generaciya/po-foto/na-den-rozhdeniya",
       search: AD_SEARCH,
     }),
     null,
@@ -117,35 +117,35 @@ test("pairs prompt ad title applies on catalog, children and sitelinks", () => {
   );
 });
 
-test("pairs generate ad title applies only on /generaciya-foto/pary", () => {
+test("pairs generate ad title applies only on /generaciya/po-foto/pary", () => {
   assert.equal(
     pairsGenerateAdTitle(),
     "Сделайте парное фото с ИИ по вашим фото",
   );
   assert.equal(
     resolveAdLandingTitle({
-      path: "/generaciya-foto/pary",
+      path: "/generaciya/po-foto/pary",
       search: AD_SEARCH,
     }),
     pairsGenerateAdTitle(),
   );
   assert.equal(
     resolveAdLandingTitle({
-      path: "/generaciya-foto/pary/",
+      path: "/generaciya/po-foto/pary/",
       search: "yclid=2026082306420000001",
     }),
     pairsGenerateAdTitle(),
   );
   assert.equal(
     resolveAdLandingTitle({
-      path: "/generaciya-foto/pary",
+      path: "/generaciya/po-foto/pary",
       search: "",
     }),
     null,
   );
   assert.equal(
     resolveAdLandingTitle({
-      path: "/generaciya-foto/semya",
+      path: "/generaciya/po-foto/semya",
       search: AD_SEARCH,
     }),
     null,

@@ -63,7 +63,7 @@ const CATALOG: MailCatalogEntry[] = [
     when: "+1 сутки после welcome",
     stop: "Генерация, любой платёж или отписка",
     discountPercent: 0,
-    cta: "https://promptshot.ru/generaciya-foto",
+    cta: "https://promptshot.ru/generaciya/foto-po-opisaniyu",
     idempotencyKey: "onboard_d1:{user}",
   },
   {
@@ -96,7 +96,7 @@ const CATALOG: MailCatalogEntry[] = [
     when: "+6 ч после первого разбора",
     stop: "Генерация или платёж",
     discountPercent: 0,
-    cta: "https://promptshot.ru/generaciya-foto",
+    cta: "https://promptshot.ru/generaciya/foto-po-opisaniyu",
     idempotencyKey: "analyze_intent:{user}",
   },
   {
@@ -151,7 +151,7 @@ const CATALOG: MailCatalogEntry[] = [
     when: "Сразу после fulfill",
     stop: "Ключ платежа",
     discountPercent: 0,
-    cta: "https://promptshot.ru/generaciya-foto",
+    cta: "https://promptshot.ru/generaciya/foto-po-opisaniyu",
     idempotencyKey: "{provider}_credited:{payment_id}",
   },
   {
@@ -162,7 +162,7 @@ const CATALOG: MailCatalogEntry[] = [
     when: "+24 ч после первого credited",
     stop: "Первая генерация",
     discountPercent: 0,
-    cta: "https://promptshot.ru/generaciya-foto",
+    cta: "https://promptshot.ru/generaciya/foto-po-opisaniyu",
     idempotencyKey: "paid_unused:{user}",
   },
   {

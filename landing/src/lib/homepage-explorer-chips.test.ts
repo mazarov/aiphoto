@@ -119,7 +119,7 @@ test("catalog theme items take Wordstat top 15 without passport, documents, husb
   assert.equal(titles.has("С мужем"), false);
   assert.equal(titles.has("Реалистичное"), false);
   for (const item of items) {
-    assert.equal(item.href.startsWith("/generaciya-foto"), false);
+    assert.equal(item.href.startsWith("/generaciya"), false);
     assert.equal(item.title.length > 0, true);
   }
 });

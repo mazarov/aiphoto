@@ -21,16 +21,18 @@ test("normalizeGenerateDockPath strips trailing slash", () => {
 });
 
 test("isGenerateDockSeoPagePath includes approved scenario pages", () => {
-  assert.equal(isGenerateDockSeoPagePath("/generaciya-foto"), true);
+  assert.equal(isGenerateDockSeoPagePath("/generaciya/foto-po-opisaniyu"), true);
+  assert.equal(isGenerateDockSeoPagePath("/generaciya/kartinka-po-opisaniyu"), true);
+  assert.equal(isGenerateDockSeoPagePath("/generaciya-foto"), false);
   assert.equal(isGenerateDockSeoPagePath("/nano-banana"), true);
   assert.equal(isGenerateDockSeoPagePath("/nano-banana/"), true);
   assert.equal(isGenerateDockSeoPagePath("/nano-banana/pro"), true);
   assert.equal(isGenerateDockSeoPagePath("/nano-banana/pro/"), true);
   assert.equal(isGenerateDockSeoPagePath("/nano-banana/foo"), false);
-  assert.equal(isGenerateDockSeoPagePath("/generaciya-foto/"), true);
-  assert.equal(isGenerateDockSeoPagePath("/generaciya-foto/devushki"), true);
-  assert.equal(isGenerateDockSeoPagePath("/generaciya-foto/kollazh/"), true);
-  assert.equal(isGenerateDockSeoPagePath("/generaciya-foto/neizvestno"), false);
+  assert.equal(isGenerateDockSeoPagePath("/generaciya/po-foto/"), true);
+  assert.equal(isGenerateDockSeoPagePath("/generaciya/po-foto/devushki"), true);
+  assert.equal(isGenerateDockSeoPagePath("/generaciya/po-foto/kollazh/"), true);
+  assert.equal(isGenerateDockSeoPagePath("/generaciya/po-foto/neizvestno"), false);
   assert.equal(isGenerateDockSeoPagePath("/foto-v-promt"), false);
   assert.equal(isGenerateDockSeoPagePath("/sobytiya/1-sentyabrya"), false);
   assert.equal(isGenerateDockSeoPagePath("/sobytiya/den-rozhdeniya"), false);
@@ -82,7 +84,7 @@ test("foto-v-promt FAB seeds photo_prompt, fotosessii seeds photoshoot", () => {
       value: "muzhchina",
     },
   );
-  assert.equal(listingComposeExampleInitialFilter("/generaciya-foto"), null);
+  assert.equal(listingComposeExampleInitialFilter("/generaciya/foto-po-opisaniyu"), null);
   assert.equal(isFotosessiiGenerateDockPath("/ii-fotosessiya/"), true);
   assert.equal(isLegacyPromtyDlyaIiFotosessiiDockPath("/promty-dlya-ii-fotosessii"), true);
   assert.equal(isLegacyPromtyDlyaIiFotosessiiDockPath("/ii-fotosessiya"), false);
@@ -96,8 +98,8 @@ test("isGenerateDockListingPath includes foto-v-promt and analyses", () => {
   assert.equal(isGenerateDockListingPath("/foto-v-promt/"), true);
   assert.equal(isGenerateDockListingPath("/analyses"), true);
   assert.equal(isGenerateDockListingPath("/generations"), true);
-  assert.equal(isGenerateDockListingPath("/generaciya-foto"), true);
-  assert.equal(isGenerateDockListingPath("/generaciya-foto/pary"), true);
+  assert.equal(isGenerateDockListingPath("/generaciya/foto-po-opisaniyu"), true);
+  assert.equal(isGenerateDockListingPath("/generaciya/po-foto/pary"), true);
 });
 
 test("isGenerateDockListingPath still blocks admin, pricing, and cards", () => {

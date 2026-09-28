@@ -10,7 +10,10 @@ import {
 import { buildCanonicalPath, getMinCardsForLevel } from "@/lib/route-resolver";
 import { birthdayClusterSitemapPages } from "@/lib/den-rozhdeniya-cluster";
 import {
+  GENERACIYA_FOTO_PO_OPISANIYU_PATH,
   GENERACIYA_FOTO_SCENARIO_ROUTES,
+  GENERACIYA_KARTINKA_PO_OPISANIYU_PATH,
+  GENERACIYA_PO_FOTO_PATH,
   MIN_GENERACIYA_FOTO_SCENARIO_CARDS,
   getGeneraciyaFotoScenarioPath,
 } from "@/lib/generaciya-foto-routes";
@@ -63,7 +66,17 @@ function staticHubEntries(): MetadataRoute.Sitemap {
       priority: 0.8,
     },
     {
-      url: `${BASE_URL}/generaciya-foto`,
+      url: `${BASE_URL}${GENERACIYA_FOTO_PO_OPISANIYU_PATH}`,
+      changeFrequency: "weekly",
+      priority: 0.9,
+    },
+    {
+      url: `${BASE_URL}${GENERACIYA_KARTINKA_PO_OPISANIYU_PATH}`,
+      changeFrequency: "weekly",
+      priority: 0.9,
+    },
+    {
+      url: `${BASE_URL}${GENERACIYA_PO_FOTO_PATH}`,
       changeFrequency: "weekly",
       priority: 0.9,
     },

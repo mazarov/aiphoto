@@ -16,7 +16,10 @@ test("llms.txt matches Lighthouse Agentic Browsing format checks", () => {
     body,
     /\[Nano Banana Pro\]\(https:\/\/promptshot\.ru\/nano-banana\/pro\)/
   );
-  assert.match(body, /\[Сделать фото ИИ\]\(https:\/\/promptshot\.ru\/generaciya-foto\)/);
+  assert.match(body, /\[Сделать фото по описанию\]\(https:\/\/promptshot\.ru\/generaciya\/foto-po-opisaniyu\)/);
+  assert.match(body, /\[Сгенерировать картинку по описанию\]\(https:\/\/promptshot\.ru\/generaciya\/kartinka-po-opisaniyu\)/);
+  assert.match(body, /\[Сделать фото ИИ по своему фото\]\(https:\/\/promptshot\.ru\/generaciya\/po-foto\)/);
+  assert.doesNotMatch(body, /generaciya-foto/);
 });
 
 test("llms.txt format helper rejects stubs that Lighthouse would fail", () => {

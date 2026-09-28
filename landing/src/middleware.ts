@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { listingCatalogHubChildRedirectPath } from "@/lib/listing-catalog-hub";
+import { generaciyaLegacyRedirectPath } from "@/lib/generaciya-foto-routes";
 
 const OLD_SLUG_RE = /^\/p\/([^/]+)\/?$/;
 const DEFAULT_ALLOWED_METHODS = "GET, POST, OPTIONS";
@@ -98,6 +99,13 @@ export async function middleware(request: NextRequest) {
   const catalogHub = listingCatalogHubChildRedirectPath(request.nextUrl.pathname);
   if (catalogHub) {
     return NextResponse.redirect(new URL(catalogHub, request.url), 301);
+  }
+
+  // `/generaciya-foto*` → `/generaciya/*` section (2026-09-28). Query is dropped:
+  // legacy params (`ps_auth`, `payment`, …) were index noise, not state.
+  const generaciyaTarget = generaciyaLegacyRedirectPath(request.nextUrl.pathname);
+  if (generaciyaTarget) {
+    return NextResponse.redirect(new URL(generaciyaTarget, request.url), 301);
   }
 
   if (isApiRequest(request)) {

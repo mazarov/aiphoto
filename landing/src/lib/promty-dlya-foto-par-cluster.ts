@@ -1,7 +1,7 @@
 import { takeHeroMarqueeCards } from "./hero-marquee";
 
 export const PROMTY_DLYA_FOTO_PAR_HUB_PATH = "/promty-dlya-foto-par";
-export const GENERACIYA_FOTO_PARY_PATH = "/generaciya-foto/pary";
+export const GENERACIYA_FOTO_PARY_PATH = "/generaciya/po-foto/pary";
 
 export const PAIRS_HUB_LOAD_MORE_LABEL = "Больше промтов для пар";
 export const PAIRS_HUB_GENERATE_CTA = "Создать фото пары";

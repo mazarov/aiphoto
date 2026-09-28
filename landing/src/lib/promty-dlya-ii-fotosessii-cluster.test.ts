@@ -155,7 +155,7 @@ test("generate FAB on the hub and children is photoshoot, not generic photo", ()
     "Создать фото мужчины",
   );
   assert.equal(
-    listingGenerateIdleCta({ pathname: "/generaciya-foto", isAuthed: true }),
+    listingGenerateIdleCta({ pathname: "/generaciya/foto-po-opisaniyu", isAuthed: true }),
     "Создать фото",
   );
   assert.equal(

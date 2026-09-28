@@ -70,9 +70,9 @@ export function HomeHeroDestinations() {
       icon: <TrendsIcon />,
     },
     {
-      href: "/generaciya-foto",
-      title: "Сделать фото ИИ",
-      description: "По описанию или своему снимку",
+      href: "/generaciya/foto-po-opisaniyu",
+      title: "Сделать фото по описанию",
+      description: "Реалистичный кадр только по тексту",
       icon: <GenerateIcon />,
     },
     {

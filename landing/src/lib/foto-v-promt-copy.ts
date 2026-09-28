@@ -5,7 +5,7 @@ export const FOTO_V_PROMT_HERO = {
   subtitle: "Загрузите снимок в форму ниже — сервис напишет промт.",
   generateLead: "Уже есть текст?",
   generateLinkLabel: "Создайте фото по промту",
-  generateHref: "/generaciya-foto",
+  generateHref: "/generaciya/foto-po-opisaniyu",
 } as const;
 
 export const FOTO_V_PROMT_WIDGET = {

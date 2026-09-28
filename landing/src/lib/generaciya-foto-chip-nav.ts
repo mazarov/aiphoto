@@ -1,10 +1,12 @@
-import { GENERACIYA_FOTO_SEO } from "./generaciya-foto-seo-copy";
+import { GENERACIYA_PO_FOTO_SEO } from "./generaciya-foto-seo-copy";
 import {
   GENERACIYA_FOTO_SCENARIO_ROUTES,
+  GENERACIYA_PO_FOTO_PATH,
   getGeneraciyaFotoScenarioPath,
 } from "./generaciya-foto-routes";
 
-export const GENERACIYA_FOTO_HUB_PATH = "/generaciya-foto";
+/** Scenario chips return to the photo hub — the 22 children are «со своего снимка». */
+export const GENERACIYA_FOTO_HUB_PATH = GENERACIYA_PO_FOTO_PATH;
 
 export type GeneraciyaFotoChipNavItem = {
   label: string;
@@ -30,7 +32,7 @@ export function getGeneraciyaFotoChipNavigation(
   if (activeSlug == null) return scenarios;
   return [
     {
-      label: GENERACIYA_FOTO_SEO.chipHubLabel,
+      label: GENERACIYA_PO_FOTO_SEO.chipHubLabel,
       href: GENERACIYA_FOTO_HUB_PATH,
       kind: "hub",
       active: false,

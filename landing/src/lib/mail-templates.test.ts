@@ -18,7 +18,7 @@ test("transactional templates do not add List-Unsubscribe", () => {
   assert.equal(mail.subject, "Токены PromptShot зачислены");
   assert.match(mail.text, /пакет «Оптимальный»/);
   assert.match(mail.text, /100/);
-  assert.match(mail.text, /generaciya-foto/);
+  assert.match(mail.text, /generaciya\/foto-po-opisaniyu/);
   assert.deepEqual(mail.headers, []);
 });
 
