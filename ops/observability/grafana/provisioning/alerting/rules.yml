@@ -104,39 +104,6 @@ groups:
           summary: No payment-bot heartbeat for 5 minutes
         labels:
           severity: critical
-      - uid: ps-snapshot-missing
-        title: Product snapshot missing
-        condition: B
-        data:
-          - refId: A
-            relativeTimeRange: { from: 600, to: 0 }
-            datasourceUid: loki
-            model:
-              datasource: { type: loki, uid: loki }
-              editorMode: code
-              expr: 'absent_over_time({service="landing",env="prod"} | json | event=`product_snapshot` [5m])'
-              instant: true
-              queryType: instant
-              refId: A
-          - refId: B
-            relativeTimeRange: { from: 0, to: 0 }
-            datasourceUid: __expr__
-            model:
-              refId: B
-              type: threshold
-              expression: A
-              conditions:
-                - evaluator: { type: gt, params: [0] }
-                  operator: { type: and }
-                  reducer: { type: last }
-                  type: query
-        noDataState: OK
-        execErrState: Error
-        for: 5m
-        annotations:
-          summary: Landing cron is not writing product_snapshot
-        labels:
-          severity: warning
       - uid: ps-queue-stuck
         title: Generation queue is stuck
         condition: B
@@ -203,39 +170,6 @@ groups:
           summary: More than 30 percent of finished generations failed in 15 minutes
         labels:
           severity: warning
-      - uid: ps-landing-rss
-        title: Landing RSS is high
-        condition: B
-        data:
-          - refId: A
-            relativeTimeRange: { from: 600, to: 0 }
-            datasourceUid: loki
-            model:
-              datasource: { type: loki, uid: loki }
-              editorMode: code
-              expr: 'max_over_time({service="landing",env="prod"} | json | event=`runtime_memory` | unwrap rss [5m])'
-              instant: true
-              queryType: instant
-              refId: A
-          - refId: B
-            relativeTimeRange: { from: 0, to: 0 }
-            datasourceUid: __expr__
-            model:
-              refId: B
-              type: threshold
-              expression: A
-              conditions:
-                - evaluator: { type: gt, params: [1717986918] }
-                  operator: { type: and }
-                  reducer: { type: last }
-                  type: query
-        noDataState: OK
-        execErrState: Error
-        for: 5m
-        annotations:
-          summary: Landing RSS is above 1.6 GiB
-        labels:
-          severity: warning
       - uid: ps-disk
         title: Observability disk is filling up
         condition: B
@@ -267,5 +201,104 @@ groups:
         for: 10m
         annotations:
           summary: Disk on the observability droplet is above 80 percent
+        labels:
+          severity: warning
+      - uid: ps-supabase-upstream
+        title: Supabase upstream is failing
+        condition: B
+        data:
+          - refId: A
+            relativeTimeRange: { from: 900, to: 0 }
+            datasourceUid: loki
+            model:
+              datasource: { type: loki, uid: loki }
+              editorMode: code
+              expr: 'sum(count_over_time({env="prod"} |= "invalid response was received from the upstream server" [15m]))'
+              instant: true
+              queryType: instant
+              refId: A
+          - refId: B
+            relativeTimeRange: { from: 0, to: 0 }
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [3] }
+                  operator: { type: and }
+                  reducer: { type: last }
+                  type: query
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: Supabase REST through Kong returned an invalid upstream response more than 3 times in 15 minutes
+        labels:
+          severity: critical
+      - uid: ps-generation-p95
+        title: Generation latency is high
+        condition: B
+        data:
+          - refId: A
+            relativeTimeRange: { from: 900, to: 0 }
+            datasourceUid: loki
+            model:
+              datasource: { type: loki, uid: loki }
+              editorMode: code
+              expr: 'quantile_over_time(0.95, {service="web-generation-worker",env="prod"} | json | event=`generation_completed` | unwrap durationMs [15m])'
+              instant: true
+              queryType: instant
+              refId: A
+          - refId: B
+            relativeTimeRange: { from: 0, to: 0 }
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [60000] }
+                  operator: { type: and }
+                  reducer: { type: last }
+                  type: query
+        noDataState: OK
+        execErrState: Error
+        for: 10m
+        annotations:
+          summary: p95 generation duration is above 60 seconds
+        labels:
+          severity: warning
+      - uid: ps-no-payments-daytime
+        title: No payments during the day
+        condition: B
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: loki
+            model:
+              datasource: { type: loki, uid: loki }
+              editorMode: code
+              expr: 'last_over_time({service="landing",env="prod"} | json | event=`product_snapshot` | unwrap alert_no_payments [5m])'
+              instant: true
+              queryType: instant
+              refId: A
+          - refId: B
+            relativeTimeRange: { from: 0, to: 0 }
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [0] }
+                  operator: { type: and }
+                  reducer: { type: last }
+                  type: query
+        noDataState: OK
+        execErrState: Error
+        for: 15m
+        annotations:
+          summary: No succeeded payments in 6 hours during 09-21 Moscow time
         labels:
           severity: warning

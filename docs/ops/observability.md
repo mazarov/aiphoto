@@ -46,17 +46,15 @@ LOG_ENV=prod
 
 ## Что видно
 
-Дашборд PromptShot, последние 6 часов:
+Дашборд PromptShot, две секции. Состав панелей и LogQL — `docs/28-09-ops-dashboard-v2.md`.
 
-- регистрации, генерации, failed и выручка за сутки (ЮKassa + Robokassa, без тестовых платежей; Stars считаются отдельно в той же строке);
-- очередь: pending, processing, возраст старейшего pending;
-- RSS лендинга;
-- проба `GET https://promptshot.ru/api/health` (красная, пока роут не задеплоен);
-- лента `level=error`.
+Тех: uptime сайта за 24 ч, проба за 5 мин, проба Supabase Auth, ошибки upstream Kong за 15 мин, доля успешных генераций, p50/p95 длительности и p95 ожидания в очереди, число живых реплик воркера, pending и возраст очереди, RSS лендинга и воркера, рестарты за час, ошибки по сервису и топ `event`.
 
-Снимок `event=product_snapshot` пишется существующим минутным кроном сверки ЮKassa. Пока миграция `257` не применена, крон сверки жив, а в логе будет `product_snapshot_failed`.
+Продукт: регистрации, генерации, оплаты и выручка за текущее окно рядом с тем же окном неделю назад; доля новых за 24 ч, у кого есть генерация; оплаты в `created`/`pending` дольше часа; failed без возврата кредитов.
 
-Воркер раз в минуту пишет `event=heartbeat` с глубиной очереди. По этой строке видно, что реплика жива, даже если сайт открывается.
+Снимок `event=product_snapshot` пишет минутный крон сверки ЮKassa. Пока миграция `259` не применена, на панелях «неделю назад», активации и зависших оплат пусто, остальные поля `257` на месте. Если функции нет совсем, в логе будет `product_snapshot_failed`.
+
+Воркер раз в минуту пишет `event=heartbeat` (`pending`, `rss`, `failedWithoutRefund`, `workerId`). `rss` появляется после деплоя воркера с этим полем.
 
 ## Алерты
 
@@ -67,13 +65,20 @@ LOG_ENV=prod
 | Landing health is down | `/api/health` не 200 дольше 2 минут |
 | Worker heartbeat missing | нет heartbeat воркера 5 минут |
 | Payment bot heartbeat missing | нет heartbeat payment-bot 5 минут |
-| Product snapshot missing | нет снимка продукта 5 минут |
 | Generation queue is stuck | pending старше 15 минут и за эти 15 минут ничего не завершилось |
 | Generation failure ratio is high | среди завершённых за 15 минут failed больше 30 % и таких джоб хотя бы 10 |
-| Landing RSS is high | RSS лендинга выше 1.6 ГиБ |
 | Observability disk is filling up | диск дроплета больше 80 % |
+| Supabase upstream is failing | строка `invalid response was received from the upstream server` больше 3 раз за 15 минут |
+| Generation latency is high | p95 `durationMs` выше 60 с дольше 10 минут |
+| No payments during the day | днём (09–21 МСК) ноль успешных оплат за 6 часов, поле `alert_no_payments` |
 
-Про регистраций ночью алерта нет. Днём (09–21 МСК) поле `alert_no_registrations=1`, если за 3 часа не было ни одной регистрации — его видно в строке снимка, отдельное правило можно добавить в UI.
+Днём (09–21 МСК) поле `alert_no_registrations=1`, если за 3 часа не было ни одной регистрации — оно в строке снимка, отдельного правила нет. Память и рестарты видны на дашборде, отдельных алертов на RSS нет.
+
+## Чтение из Cursor
+
+Агент читает Loki через read-only MCP `loki` (`loki_status`, `loki_query`). Пароль лежит только в gitignored `.cursor/loki.env` — те же `LOKI_PUSH_URL` и `LOKI_BASIC_AUTH`, что на Dockhost. Шаблон: `.cursor/loki.env.example`.
+
+В Cursor: **Settings → MCP** → включить `loki`. Запросы только на чтение (`query_range`). Запись логов с машины агента не открыта.
 
 ## Куда смотреть, когда контейнер уже умер
 
@@ -95,7 +100,7 @@ LOG_ENV=prod
 Крон на дроплете раз в минуту вызывает `/opt/observability/probe.py`. По умолчанию проверяется только лендинг. Свой список — `PROBE_URLS` в `.env`, имена через запятую:
 
 ```bash
-PROBE_URLS=landing=https://promptshot.ru/api/health,auth=https://<project>.supabase.co/auth/v1/health
+PROBE_URLS=landing=https://promptshot.ru/api/health,supabase_auth=https://bk07-67ud-ea1y.gw-1a.dockhost.net/auth/v1/health
 ```
 
 После правки `.env` перезапуск Grafana не нужен, крон подхватит файл сам.

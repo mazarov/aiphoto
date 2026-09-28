@@ -585,6 +585,7 @@ async function writeHeartbeat(): Promise<void> {
     inFlightImage: inFlightImage.size,
     inFlightVideo: inFlightVideo.size,
     processingEnabled: config.processingEnabled,
+    rss: process.memoryUsage().rss,
   };
   try {
     Object.assign(fields, await readQueueMetrics());

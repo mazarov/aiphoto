@@ -1,5 +1,8 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-09-28 (**дашборд v2:** Grafana PromptShot отвечает на «живо / быстро / не ломается» и «приходят / пробуют / платят». `ops_product_snapshot` (SQL `259`) добавляет базу «неделю назад», активацию 24 ч, зависшие оплаты и `alert_no_payments`. Heartbeat воркера пишет `rss`. Спека `docs/28-09-ops-dashboard-v2.md`.)
+>
+> Последнее обновление: 2026-09-27 (**превью генераций:** imgproxy режет источник выше 16,8 Мп (`Invalid source image`, в логе лендинга `upstream image response failed` 400). Воркер перед заливкой в `web-generation-results` уменьшает кадр до ≤ 4096×4096 пикселей (`encodeGenerationResult`, `src_pixel_budget`). Уже лежащие файлы больше этого порога оживают, если на imgproxy выставить `IMGPROXY_MAX_SRC_RESOLUTION=25`.)
 > Последнее обновление: 2026-09-28 (**теги повода при публикации:** известный `occasion_tag` из regex реестра добавляется к ответу модели и не затирается. Повторная публикация не зовёт модель ещё раз: дописывает недостающие occasion-слаги и сбрасывает ISR карточки, sitemap и URL хабов этих тегов (`revalidatePath`). Пустая лента дня воспитателя остаётся `noindex`, пока нет опубликованной карточки с `den_vospitatelya`.)
 >
 > Последнее обновление: 2026-09-28 (**админ-генерация = listing dock:** «Сгенерировать» и «Повторить» на `/admin/analyze-history` открывают тот же `GenerateListingDockHost` → `CardInlineGeneratePanel chrome=dock` (`seedBlankPrompt`, `entry_source=admin`). Idle FAB и listing-padding на админке нет. Job идёт через `POST /api/generate`. `AdminGenerateModal` снят. `POST /api/admin/generate` и `/api/admin/generation-photo` остаются для старой очереди `client_source=admin`.)
@@ -1068,7 +1071,7 @@
 
 ### Два этапа отдачи в браузер
 
-1. **Supabase Storage Image Transformation** (`/storage/v1/render/image/public/…`): `getStorageCardMediaUrl` по умолчанию подставляет URL с **`width=512`** и **`quality`** (grid 68, listing 58, hero 70). Слот героя на карточке — 260/300px. Storage отдаёт это через **imgproxy**. `NEXT_PUBLIC_SUPABASE_STORAGE_IMAGE_TRANSFORM=0` возвращает прямой `…/object/public/…`.
+1. **Supabase Storage Image Transformation** (`/storage/v1/render/image/public/…`): `getStorageCardMediaUrl` по умолчанию подставляет URL с **`width=512`** и **`quality`** (grid 68, listing 58, hero 70). Слот героя на карточке — 260/300px. Storage отдаёт это через **imgproxy**. `NEXT_PUBLIC_SUPABASE_STORAGE_IMAGE_TRANSFORM=0` возвращает прямой `…/object/public/…`. Дефолт imgproxy — **16,8 Мп** на источник: выше этого `/render/image` отвечает 422 `Invalid source image`, а Next пишет `upstream image response failed` 400 и превью пустое. Оригинал `object/public` при этом жив. Воркер не кладёт новые результаты выше **4096²** пикселей. Уже сохранённые кадры (например 3072×5504) начинают отдавать превью после `IMGPROXY_MAX_SRC_RESOLUTION=25` на сервисе imgproxy.
 2. **Всегда для `<Image />` — оптимизатор Next.js** (`/_next/image?…`): по `src` (уже может быть `render/image` или полный объект) сервер лендинга отдаёт формат (часто WebP/AVIF) и размер, согласованный с атрибутом **`sizes`** (подсказка для `srcset` / выбора ширины `w=`) и явным **`quality={…}`** на компоненте. В Next 15 разрешённые значения `quality` заданы в **`next.config.ts`** → `images.qualities` (сейчас **45**, **60**, **75**). `images.deviceSizes` — **640, 750, 828, 1080, 1200, 1920** (`NEXT_IMAGE_DEVICE_SIZES`): `fill` больше не декодирует 2048/3840. Дисковый LRU `/_next/image` — **256 МБ** (`images.maximumDiskCacheSize`, Next **15.5.21**). Процессный sharp: cache **32 МБ**, `concurrency(1)`, семафор **2** активных и **4** ожидающих (`sharp-runtime.ts`, старт в `instrumentation.ts`). Сверх очереди — `503 sharp_busy`. Analyze, vibe extract, upload и storage-download читают тело с байтовым потолком до `arrayBuffer`. Vibe перед LLM сжимает вход до JPEG **1280** q80. Снимок RSS / heap / cgroup `anon`+`file` и счётчики маршрутов: лог `[runtime.memory]` раз в 60 с и `GET /api/admin/runtime-memory`.
 
 Итоговый вес файла задаётся **произведением** решений обоих этапов: узкий `width` на шаге 1 уменьшает вход для шага 2; низкий `quality` на шаге 2 даёт дополнительное сжатие уже после imgproxy.
@@ -2166,12 +2169,12 @@ Stdout на Dockhost пропадает вместе с контейнером. 
 | Процесс | Что уходит в Loki |
 |---------|-------------------|
 | Landing | Обёртка `console.*` в `instrumentation.node.ts`. Старт: `event=process_start`. Раз в 60 с JSON `event=runtime_memory` (RSS, heap, sharp). |
-| `web-generation-worker` | Каждая строка `logger.ts`. Раз в 60 с `event=heartbeat` с `pending` / `processing` / `inFlight`. |
+| `web-generation-worker` | Каждая строка `logger.ts`. Раз в 60 с `event=heartbeat` с `pending` / `processing` / `inFlight` / `rss` / `failedWithoutRefund`. |
 | `payment-bot` | Обёртка `console.*` и `event=heartbeat` раз в 60 с. |
 
 Метки только `service`, `env` (`LOG_ENV`), `level`, `instance`. Секреты и полный URL прокси в строку не пишутся.
 
-`GET /api/health` — публичная проверка базы. `public.ops_product_snapshot()` (SQL `257`, execute только у `service_role`) считает регистрации, генерации, очередь и выручку. Минутный `POST /api/cron/yookassa-reconcile` логирует результат как `event=product_snapshot`. Как поднять Grafana и алерты: `docs/ops/observability.md`.
+`GET /api/health` — публичная проверка базы. `public.ops_product_snapshot()` (SQL `257`, заменён `259`, execute только у `service_role`) считает регистрации, генерации, очередь, выручку, базу «тот же час неделю назад», активацию новых за 24 ч и зависшие оплаты. Минутный `POST /api/cron/yookassa-reconcile` логирует результат как `event=product_snapshot`. Дашборд и алерты: `docs/ops/observability.md`, состав панелей — `docs/28-09-ops-dashboard-v2.md`.
 
 ## Env Variables
 

@@ -5,201 +5,204 @@
   "graphTooltip": 1,
   "links": [],
   "panels": [
+    { "id": 100, "type": "row", "title": "Тех", "collapsed": false, "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 }, "panels": [] },
     {
-      "id": 1,
-      "type": "stat",
-      "title": "Регистрации за 1 ч",
-      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "id": 1, "type": "stat", "title": "Сайт: uptime 24 ч",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 1 },
       "datasource": { "type": "loki", "uid": "loki" },
-      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
-      "options": {
-        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
-        "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "textMode": "auto"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "last_over_time({service=\"landing\",env=\"${env}\"} | json | event=`product_snapshot` | unwrap registrations_1h [5m])"
-        }
-      ]
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1, "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 0.995 }] } }, "overrides": [] },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "colorMode": "value", "graphMode": "none", "textMode": "auto" },
+      "targets": [{ "refId": "A", "expr": "avg_over_time({service=\"probe\",env=\"${env}\"} | json | event=`probe` | target=`landing` | unwrap ok [24h])" }]
     },
     {
-      "id": 2,
-      "type": "stat",
-      "title": "Генерации за 1 ч",
-      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "id": 5, "type": "stat", "title": "Генерации: успех за 1 ч",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 1 },
       "datasource": { "type": "loki", "uid": "loki" },
-      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
-      "options": {
-        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
-        "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "textMode": "auto"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "last_over_time({service=\"landing\",env=\"${env}\"} | json | event=`product_snapshot` | unwrap generations_1h [5m])"
-        }
-      ]
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1, "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 0.8 }] } }, "overrides": [] },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "colorMode": "value", "graphMode": "none", "textMode": "auto" },
+      "targets": [{ "refId": "A", "expr": "last_over_time({service=\"landing\",env=\"${env}\"} | json | event=`product_snapshot` | unwrap generations_completed_1h [5m]) / (last_over_time({service=\"landing\",env=\"${env}\"} | json | event=`product_snapshot` | unwrap generations_completed_1h [5m]) + last_over_time({service=\"landing\",env=\"${env}\"} | json | event=`product_snapshot` | unwrap generations_failed_1h [5m]))" }]
     },
     {
-      "id": 3,
-      "type": "stat",
-      "title": "Failed за 1 ч",
-      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+      "id": 8, "type": "stat", "title": "Воркер: живых реплик",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 1 },
       "datasource": { "type": "loki", "uid": "loki" },
-      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
-      "options": {
-        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
-        "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "textMode": "auto"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "last_over_time({service=\"landing\",env=\"${env}\"} | json | event=`product_snapshot` | unwrap generations_failed_1h [5m])"
-        }
-      ]
+      "fieldConfig": { "defaults": { "unit": "short", "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }] } }, "overrides": [] },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "colorMode": "value", "graphMode": "none", "textMode": "auto" },
+      "targets": [{ "refId": "A", "expr": "count(sum by (workerId) (count_over_time({service=\"web-generation-worker\",env=\"${env}\"} | json | event=`heartbeat` [2m])))" }]
     },
     {
-      "id": 4,
-      "type": "stat",
-      "title": "Выручка 24 ч, ₽",
-      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+      "id": 11, "type": "bargauge", "title": "Рестарты за час",
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 1 },
       "datasource": { "type": "loki", "uid": "loki" },
-      "fieldConfig": { "defaults": { "unit": "short", "decimals": 0 }, "overrides": [] },
-      "options": {
-        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
-        "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "textMode": "auto"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "last_over_time({service=\"landing\",env=\"${env}\"} | json | event=`product_snapshot` | unwrap revenue_rub_24h [5m])"
-        }
-      ]
+      "fieldConfig": { "defaults": { "unit": "short", "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 3 }] } }, "overrides": [] },
+      "options": { "displayMode": "gradient", "orientation": "horizontal", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } },
+      "targets": [{ "refId": "A", "legendFormat": "{{service}}", "expr": "sum by (service) (count_over_time({env=\"${env}\"} | json | event=~\"process_start|worker_started\" [1h]))" }]
     },
     {
-      "id": 5,
-      "type": "timeseries",
-      "title": "Регистрации и генерации",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
-      "datasource": { "type": "loki", "uid": "loki" },
-      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
-      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
-      "targets": [
-        {
-          "refId": "A",
-          "legendFormat": "регистрации 1ч",
-          "expr": "last_over_time({service=\"landing\",env=\"${env}\"} | json | event=`product_snapshot` | unwrap registrations_1h [5m])"
-        },
-        {
-          "refId": "B",
-          "legendFormat": "генерации 1ч",
-          "expr": "last_over_time({service=\"landing\",env=\"${env}\"} | json | event=`product_snapshot` | unwrap generations_1h [5m])"
-        },
-        {
-          "refId": "C",
-          "legendFormat": "failed 1ч",
-          "expr": "last_over_time({service=\"landing\",env=\"${env}\"} | json | event=`product_snapshot` | unwrap generations_failed_1h [5m])"
-        }
-      ]
-    },
-    {
-      "id": 6,
-      "type": "timeseries",
-      "title": "Очередь",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
-      "datasource": { "type": "loki", "uid": "loki" },
-      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
-      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
-      "targets": [
-        {
-          "refId": "A",
-          "legendFormat": "pending",
-          "expr": "last_over_time({service=\"landing\",env=\"${env}\"} | json | event=`product_snapshot` | unwrap queue_pending [5m])"
-        },
-        {
-          "refId": "B",
-          "legendFormat": "processing",
-          "expr": "last_over_time({service=\"landing\",env=\"${env}\"} | json | event=`product_snapshot` | unwrap queue_processing [5m])"
-        },
-        {
-          "refId": "C",
-          "legendFormat": "возраст старейшего pending, с",
-          "expr": "last_over_time({service=\"landing\",env=\"${env}\"} | json | event=`product_snapshot` | unwrap oldest_pending_age_seconds [5m])"
-        }
-      ]
-    },
-    {
-      "id": 7,
-      "type": "timeseries",
-      "title": "RSS лендинга",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
-      "datasource": { "type": "loki", "uid": "loki" },
-      "fieldConfig": { "defaults": { "unit": "bytes" }, "overrides": [] },
-      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
-      "targets": [
-        {
-          "refId": "A",
-          "legendFormat": "{{instance}}",
-          "expr": "max_over_time({service=\"landing\",env=\"${env}\"} | json | event=`runtime_memory` | unwrap rss [5m])"
-        }
-      ]
-    },
-    {
-      "id": 8,
-      "type": "timeseries",
-      "title": "Пробы",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+      "id": 2, "type": "timeseries", "title": "Сайт: ok за 5 мин",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 5 },
       "datasource": { "type": "loki", "uid": "loki" },
       "fieldConfig": { "defaults": { "unit": "short", "min": 0, "max": 1 }, "overrides": [] },
       "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [{ "refId": "A", "legendFormat": "landing", "expr": "avg_over_time({service=\"probe\",env=\"${env}\"} | json | event=`probe` | target=`landing` | unwrap ok [5m])" }]
+    },
+    {
+      "id": 4, "type": "timeseries", "title": "Supabase auth: ok за 5 мин",
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 5 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "fieldConfig": { "defaults": { "unit": "short", "min": 0, "max": 1 }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [{ "refId": "A", "legendFormat": "supabase_auth", "expr": "avg_over_time({service=\"probe\",env=\"${env}\"} | json | event=`probe` | target=`supabase_auth` | unwrap ok [5m])" }]
+    },
+    {
+      "id": 3, "type": "timeseries", "title": "Supabase: ошибок upstream за 15 мин",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 5 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "fieldConfig": { "defaults": { "unit": "short", "custom": { "stacking": { "mode": "normal" } }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 3 }] } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [{ "refId": "A", "legendFormat": "{{service}}", "expr": "sum by (service) (count_over_time({env=\"${env}\"} |= \"invalid response was received from the upstream server\" [15m]))" }]
+    },
+    {
+      "id": 6, "type": "timeseries", "title": "Генерации: длительность p50 / p95",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 13 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "fieldConfig": { "defaults": { "unit": "ms", "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 60000 }] } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
       "targets": [
-        {
-          "refId": "A",
-          "legendFormat": "{{target}}",
-          "expr": "last_over_time({service=\"probe\",env=\"prod\"} | json | event=`probe` | unwrap ok [5m])"
-        }
+        { "refId": "A", "legendFormat": "p50", "expr": "quantile_over_time(0.5, {service=\"web-generation-worker\",env=\"${env}\"} | json | event=`generation_completed` | unwrap durationMs [15m])" },
+        { "refId": "B", "legendFormat": "p95", "expr": "quantile_over_time(0.95, {service=\"web-generation-worker\",env=\"${env}\"} | json | event=`generation_completed` | unwrap durationMs [15m])" }
       ]
     },
     {
-      "id": 9,
-      "type": "logs",
-      "title": "Ошибки",
-      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 20 },
+      "id": 7, "type": "timeseries", "title": "Очередь: p95 ожидания",
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 13 },
       "datasource": { "type": "loki", "uid": "loki" },
-      "options": {
-        "showTime": true,
-        "showLabels": true,
-        "wrapLogMessage": true,
-        "dedupStrategy": "none",
-        "enableLogDetails": true,
-        "sortOrder": "Descending"
-      },
+      "fieldConfig": { "defaults": { "unit": "ms", "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 30000 }] } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [{ "refId": "A", "legendFormat": "p95 queueWaitMs", "expr": "quantile_over_time(0.95, {service=\"web-generation-worker\",env=\"${env}\"} | json | event=`generation_completed` | unwrap queueWaitMs [15m])" }]
+    },
+    {
+      "id": 9, "type": "timeseries", "title": "Очередь: pending и возраст",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 13 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [{ "matcher": { "id": "byName", "options": "возраст, с" }, "properties": [{ "id": "unit", "value": "s" }, { "id": "thresholds", "value": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 900 }] } }] }] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
       "targets": [
-        {
-          "refId": "A",
-          "expr": "{env=\"${env}\", level=\"error\"}"
-        }
+        { "refId": "A", "legendFormat": "pending", "expr": "max(last_over_time({service=\"web-generation-worker\",env=\"${env}\"} | json | event=`heartbeat` | unwrap pending [2m]))" },
+        { "refId": "B", "legendFormat": "возраст, с", "expr": "max(last_over_time({service=\"web-generation-worker\",env=\"${env}\"} | json | event=`heartbeat` | unwrap oldestPendingAgeSeconds [2m]))" }
+      ]
+    },
+    {
+      "id": 10, "type": "timeseries", "title": "Память",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 21 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "fieldConfig": { "defaults": { "unit": "bytes", "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 1717986918 }] } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        { "refId": "A", "legendFormat": "landing {{instance}}", "expr": "max by (instance) (max_over_time({service=\"landing\",env=\"${env}\"} | json | event=`runtime_memory` | unwrap rss [5m]))" },
+        { "refId": "B", "legendFormat": "worker {{workerId}}", "expr": "max by (workerId) (max_over_time({service=\"web-generation-worker\",env=\"${env}\"} | json | event=`heartbeat` | unwrap rss [5m]))" }
+      ]
+    },
+    {
+      "id": 12, "type": "timeseries", "title": "Ошибки за 15 мин по сервису",
+      "gridPos": { "h": 8, "w": 6, "x": 12, "y": 21 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "fieldConfig": { "defaults": { "unit": "short", "custom": { "stacking": { "mode": "normal" }, "drawStyle": "bars" } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [{ "refId": "A", "legendFormat": "{{service}}", "expr": "sum by (service) (count_over_time({env=\"${env}\", level=\"error\"} [15m]))" }]
+    },
+    {
+      "id": 13, "type": "bargauge", "title": "Топ ошибок за час",
+      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 21 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "options": { "displayMode": "gradient", "orientation": "horizontal", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } },
+      "targets": [{ "refId": "A", "legendFormat": "{{event}}", "expr": "topk(5, sum by (event) (count_over_time({env=\"${env}\", level=\"error\"} | json | event!=\"\" [1h])))" }]
+    },
+    { "id": 200, "type": "row", "title": "Продукт", "collapsed": false, "gridPos": { "h": 1, "w": 24, "x": 0, "y": 29 }, "panels": [] },
+    {
+      "id": 21, "type": "stat", "title": "Регистрации за час",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 30 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "colorMode": "value", "graphMode": "none", "textMode": "value_and_name" },
+      "targets": [
+        { "refId": "A", "legendFormat": "сейчас", "expr": "last_over_time({service=\"landing\",env=\"${env}\"} | json | event=`product_snapshot` | unwrap registrations_1h [5m])" },
+        { "refId": "B", "legendFormat": "неделю назад", "expr": "last_over_time({service=\"landing\",env=\"${env}\"} | json | event=`product_snapshot` | unwrap registrations_1h_wk_ago [5m])" }
+      ]
+    },
+    {
+      "id": 22, "type": "stat", "title": "Активация 24 ч",
+      "description": "Доля зарегистрированных за 24 ч, у кого есть хотя бы одна генерация",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 30 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "max": 100, "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 20 }] } }, "overrides": [] },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "colorMode": "value", "graphMode": "none", "textMode": "auto" },
+      "targets": [{ "refId": "A", "expr": "last_over_time({service=\"landing\",env=\"${env}\"} | json | event=`product_snapshot` | unwrap activation_24h_pct [5m])" }]
+    },
+    {
+      "id": 23, "type": "stat", "title": "Генерации за час",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 30 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "colorMode": "value", "graphMode": "none", "textMode": "value_and_name" },
+      "targets": [
+        { "refId": "A", "legendFormat": "сейчас", "expr": "last_over_time({service=\"landing\",env=\"${env}\"} | json | event=`product_snapshot` | unwrap generations_1h [5m])" },
+        { "refId": "B", "legendFormat": "неделю назад", "expr": "last_over_time({service=\"landing\",env=\"${env}\"} | json | event=`product_snapshot` | unwrap generations_1h_wk_ago [5m])" }
+      ]
+    },
+    {
+      "id": 24, "type": "stat", "title": "Выручка 24 ч, ₽",
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 30 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "fieldConfig": { "defaults": { "unit": "short", "decimals": 0 }, "overrides": [] },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "colorMode": "value", "graphMode": "none", "textMode": "value_and_name" },
+      "targets": [
+        { "refId": "A", "legendFormat": "сейчас", "expr": "last_over_time({service=\"landing\",env=\"${env}\"} | json | event=`product_snapshot` | unwrap revenue_rub_24h [5m])" },
+        { "refId": "B", "legendFormat": "неделю назад", "expr": "last_over_time({service=\"landing\",env=\"${env}\"} | json | event=`product_snapshot` | unwrap revenue_rub_24h_wk_ago [5m])" }
+      ]
+    },
+    {
+      "id": 25, "type": "stat", "title": "Оплаты 24 ч",
+      "gridPos": { "h": 4, "w": 8, "x": 0, "y": 34 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "colorMode": "value", "graphMode": "none", "textMode": "value_and_name" },
+      "targets": [
+        { "refId": "A", "legendFormat": "сейчас", "expr": "last_over_time({service=\"landing\",env=\"${env}\"} | json | event=`product_snapshot` | unwrap payments_succeeded_24h [5m])" },
+        { "refId": "B", "legendFormat": "неделю назад", "expr": "last_over_time({service=\"landing\",env=\"${env}\"} | json | event=`product_snapshot` | unwrap payments_succeeded_24h_wk_ago [5m])" }
+      ]
+    },
+    {
+      "id": 26, "type": "stat", "title": "Оплаты зависли > 1 ч",
+      "gridPos": { "h": 4, "w": 8, "x": 8, "y": 34 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "fieldConfig": { "defaults": { "unit": "short", "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 1 }] } }, "overrides": [] },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "colorMode": "value", "graphMode": "none", "textMode": "auto" },
+      "targets": [{ "refId": "A", "expr": "last_over_time({service=\"landing\",env=\"${env}\"} | json | event=`product_snapshot` | unwrap payments_pending_1h [5m])" }]
+    },
+    {
+      "id": 27, "type": "stat", "title": "Failed без возврата кредитов",
+      "gridPos": { "h": 4, "w": 8, "x": 16, "y": 34 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "fieldConfig": { "defaults": { "unit": "short", "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 1 }] } }, "overrides": [] },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "colorMode": "value", "graphMode": "none", "textMode": "auto" },
+      "targets": [{ "refId": "A", "expr": "max(last_over_time({service=\"web-generation-worker\",env=\"${env}\"} | json | event=`heartbeat` | unwrap failedWithoutRefund [2m]))" }]
+    },
+    {
+      "id": 28, "type": "timeseries", "title": "Регистрации и генерации",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 38 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        { "refId": "A", "legendFormat": "регистрации 1ч", "expr": "last_over_time({service=\"landing\",env=\"${env}\"} | json | event=`product_snapshot` | unwrap registrations_1h [5m])" },
+        { "refId": "B", "legendFormat": "генерации 1ч", "expr": "last_over_time({service=\"landing\",env=\"${env}\"} | json | event=`product_snapshot` | unwrap generations_1h [5m])" },
+        { "refId": "C", "legendFormat": "failed 1ч", "expr": "last_over_time({service=\"landing\",env=\"${env}\"} | json | event=`product_snapshot` | unwrap generations_failed_1h [5m])" }
       ]
     }
   ],
-  "refresh": "30s",
+  "refresh": "1m",
   "schemaVersion": 39,
   "tags": ["promptshot"],
   "templating": {
@@ -224,5 +227,5 @@
   "timezone": "browser",
   "title": "PromptShot",
   "uid": "promptshot-ops",
-  "version": 1
+  "version": 2
 }
