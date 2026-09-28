@@ -37,7 +37,9 @@ export const SCHOOL_DAY_HUB_SPECS: readonly SchoolDayHubSpec[] = [
 ];
 
 const SPEC_BY_HUB = new Map(SCHOOL_DAY_HUB_SPECS.map((spec) => [spec.hubPath, spec]));
-const SPEC_BY_SLUG = new Map(SCHOOL_DAY_HUB_SPECS.map((spec) => [spec.slug, spec]));
+const SPEC_BY_SLUG = new Map<string, SchoolDayHubSpec>(
+  SCHOOL_DAY_HUB_SPECS.map((spec) => [spec.slug, spec]),
+);
 
 function stripTrailingSlash(path: string): string {
   return path.length > 1 && path.endsWith("/") ? path.slice(0, -1) : path;
@@ -75,7 +77,7 @@ export function toSchoolDayHeroCarouselCards<T extends { photoUrl: string | null
 }
 
 /** Subplot chips wait until the tagged set has cards. */
-export function schoolDayFilterNav(): readonly [] {
+export function schoolDayFilterNav(): { label: string; href: string; active: boolean }[] {
   return [];
 }
 
