@@ -2,9 +2,22 @@ import sharp from "sharp";
 
 export const JPEG_QUALITY = 85;
 
+/**
+ * imgproxy default `IMGPROXY_MAX_SRC_RESOLUTION` is 16.8 MP.
+ * Sources above that return 422 Invalid source image, and Next logs
+ * `upstream image response failed` 400 for every thumbnail.
+ * 4096×4096 still fits; a tall Gemini frame (3072×5504) does not.
+ */
+export const STORAGE_RENDER_MAX_SRC_PIXELS = 16_777_216;
+
 export type ResultImageKind = "jpeg" | "png" | "webp" | "unknown";
 export type ResultOutputFormat = "jpeg" | "png" | "original";
-export type ResultEncodeSkippedReason = "already_jpeg" | "encode_failed" | "no_gain" | null;
+export type ResultEncodeSkippedReason =
+  | "already_jpeg"
+  | "encode_failed"
+  | "no_gain"
+  | "src_pixel_budget"
+  | null;
 export type ResultExtension = "jpg" | "png" | "webp";
 export type ResultContentType = "image/jpeg" | "image/png" | "image/webp";
 
@@ -60,6 +73,27 @@ function identityForKind(kind: ResultImageKind): {
   return { extension: "png", contentType: "image/png", outputFormat: "original" };
 }
 
+/** Largest integer box that keeps aspect and stays within `maxPixels`. */
+export function fitInsidePixelBudget(
+  width: number,
+  height: number,
+  maxPixels: number,
+): { width: number; height: number } {
+  if (width < 1 || height < 1 || maxPixels < 1) {
+    return { width: Math.max(0, width), height: Math.max(0, height) };
+  }
+  if (width * height <= maxPixels) return { width, height };
+  const scale = Math.sqrt(maxPixels / (width * height));
+  let nextWidth = Math.max(1, Math.floor(width * scale));
+  let nextHeight = Math.max(1, Math.floor(height * scale));
+  while (nextWidth * nextHeight > maxPixels) {
+    if (nextWidth >= nextHeight && nextWidth > 1) nextWidth -= 1;
+    else if (nextHeight > 1) nextHeight -= 1;
+    else break;
+  }
+  return { width: nextWidth, height: nextHeight };
+}
+
 function unchanged(
   buffer: Buffer,
   kind: ResultImageKind,
@@ -79,11 +113,57 @@ function unchanged(
   };
 }
 
-export async function encodeGenerationResult(input: Buffer): Promise<EncodedGenerationResult> {
+async function fitSourceToRenderBudget(
+  buffer: Buffer,
+  maxSrcPixels: number,
+  started: number,
+  bytesIn: number,
+): Promise<EncodedGenerationResult | null> {
+  let width = 0;
+  let height = 0;
+  try {
+    const meta = await sharp(buffer, { failOn: "none" }).rotate().metadata();
+    width = meta.width || 0;
+    height = meta.height || 0;
+  } catch {
+    return null;
+  }
+  if (width < 1 || height < 1 || width * height <= maxSrcPixels) return null;
+
+  const box = fitInsidePixelBudget(width, height, maxSrcPixels);
+  try {
+    const encoded = await sharp(buffer, { failOn: "none" })
+      .rotate()
+      .resize({ width: box.width, height: box.height, fit: "fill" })
+      .flatten({ background: { r: 255, g: 255, b: 255 } })
+      .jpeg({ quality: JPEG_QUALITY })
+      .toBuffer();
+    return {
+      buffer: encoded,
+      extension: "jpg",
+      contentType: "image/jpeg",
+      bytesIn,
+      bytesOut: encoded.length,
+      outputFormat: "jpeg",
+      encodeMs: Date.now() - started,
+      skippedReason: "src_pixel_budget",
+    };
+  } catch {
+    return null;
+  }
+}
+
+export async function encodeGenerationResult(
+  input: Buffer,
+  options?: { maxSrcPixels?: number },
+): Promise<EncodedGenerationResult> {
   const buffer = asBuffer(input);
   const bytesIn = buffer.length;
   const kind = detectImageKind(buffer);
   const started = Date.now();
+  const maxSrcPixels = options?.maxSrcPixels ?? STORAGE_RENDER_MAX_SRC_PIXELS;
+  const fitted = await fitSourceToRenderBudget(buffer, maxSrcPixels, started, bytesIn);
+  if (fitted) return fitted;
 
   if (kind === "jpeg") {
     return unchanged(buffer, kind, Date.now() - started, "already_jpeg");

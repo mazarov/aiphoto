@@ -5,7 +5,9 @@ import sharp from "sharp";
 import {
   detectImageKind,
   encodeGenerationResult,
+  fitInsidePixelBudget,
   JPEG_QUALITY,
+  STORAGE_RENDER_MAX_SRC_PIXELS,
 } from "./result-encode";
 
 async function noisyPng(width: number, height: number): Promise<Buffer> {
@@ -109,6 +111,33 @@ test("transparent PNG flattens onto white", async () => {
   assert.equal(result.outputFormat, "jpeg");
   assert.equal(info.channels, 3);
   assert.ok(data[0] > 240 && data[1] > 240 && data[2] > 240);
+});
+
+test("tall frame above the imgproxy budget is shrunk, square 4k is not", () => {
+  const tall = fitInsidePixelBudget(3072, 5504, STORAGE_RENDER_MAX_SRC_PIXELS);
+  assert.ok(tall.width * tall.height <= STORAGE_RENDER_MAX_SRC_PIXELS);
+  assert.ok(tall.width < 3072 && tall.height < 5504);
+  assert.ok(Math.abs(tall.width / tall.height - 3072 / 5504) < 0.01);
+
+  const square = fitInsidePixelBudget(4096, 4096, STORAGE_RENDER_MAX_SRC_PIXELS);
+  assert.deepEqual(square, { width: 4096, height: 4096 });
+});
+
+test("oversized JPEG is resized under the pixel budget", async () => {
+  const jpeg = await sharp({
+    create: { width: 80, height: 40, channels: 3, background: { r: 20, g: 40, b: 60 } },
+  })
+    .jpeg({ quality: 90 })
+    .toBuffer();
+  const result = await encodeGenerationResult(jpeg, { maxSrcPixels: 1000 });
+  const meta = await sharp(result.buffer).metadata();
+
+  assert.equal(result.skippedReason, "src_pixel_budget");
+  assert.equal(result.outputFormat, "jpeg");
+  assert.equal(result.extension, "jpg");
+  assert.ok(meta.width && meta.height);
+  assert.ok(meta.width * meta.height <= 1000);
+  assert.ok(!result.buffer.equals(jpeg));
 });
 
 test("invalid buffer falls back without throwing", async () => {
