@@ -8,6 +8,25 @@ import {
   type RouteCardsResult,
 } from "@/lib/supabase";
 import { flattenGeneraciyaFotoFaqAnswer, type GeneraciyaFaqEntry } from "@/lib/generaciya-foto-seo-copy";
+import {
+  toGenerationExampleCard,
+  withGenerationExampleFallbackTitle,
+  type GenerationExampleCard,
+} from "@/lib/generation/example-card";
+import type { GeneraciyaSeoImageFlags } from "@/lib/generaciya-seo-image-flags";
+import {
+  applyGeneraciyaFirstScreenRank,
+  attachGeneraciyaSeoFrames,
+  GENERACIYA_SEO_GALLERY_LIMIT,
+  generaciyaRepresentativeAlt,
+  generaciyaSeoRepresentativeImage,
+} from "@/lib/generaciya-seo-examples";
+import {
+  generaciyaKartinkaPerTag,
+  generaciyaNewestFetchParams,
+  generaciyaPopularPageParams,
+  interleaveGeneraciyaColumns,
+} from "@/lib/generaciya-seo-fetch";
 
 export const SITE_URL =
   process.env.NEXT_PUBLIC_SITE_URL || "https://promptshot.ru";
@@ -29,17 +48,25 @@ export const GENERACIYA_EMPTY_RESULT: RouteCardsResult = {
   dimension_count: 0,
 };
 
+/** One `sort=popular` page. Hero and the examples grid share this order. */
+export const getGeneraciyaPopularPage = cache(
+  async (
+    route?: { dimension: string; tagValue: string } | null,
+  ): Promise<RouteCardsResult> => {
+    try {
+      return await fetchRouteCards(generaciyaPopularPageParams(route));
+    } catch (error) {
+      console.error("[generaciya] fetch popular page failed", error);
+      return GENERACIYA_EMPTY_RESULT;
+    }
+  },
+);
+
 /** Newest published cards — shared by the text and photo hubs. */
 export const getGeneraciyaNewestExamples = cache(
-  async (): Promise<RouteCardsResult> => {
+  async (rank = false): Promise<RouteCardsResult> => {
     try {
-      return await fetchRouteCards({
-        ...GENERACIYA_BASE_RPC_PARAMS,
-        limit: 24,
-        offset: 0,
-        min_cards: 1,
-        sort: "new",
-      });
+      return await fetchRouteCards(generaciyaNewestFetchParams(rank));
     } catch (error) {
       console.error("[generaciya] fetch newest examples failed", error);
       return GENERACIYA_EMPTY_RESULT;
@@ -62,8 +89,9 @@ export const KARTINKA_EXAMPLE_STYLE_TAGS = [
 ] as const;
 
 export const getGeneraciyaKartinkaExamples = cache(
-  async (): Promise<RouteCardsResult> => {
-    const perTag = 6;
+  async (rank = false): Promise<RouteCardsResult> => {
+    const perTag = generaciyaKartinkaPerTag(rank);
+    const sort = rank ? "popular" : "new";
     const results = await Promise.all(
       KARTINKA_EXAMPLE_STYLE_TAGS.map(async (styleTag) => {
         try {
@@ -73,7 +101,7 @@ export const getGeneraciyaKartinkaExamples = cache(
             limit: perTag,
             offset: 0,
             min_cards: 1,
-            sort: "new",
+            sort,
           });
         } catch (error) {
           console.error(`[generaciya] fetch kartinka examples failed: ${styleTag}`, error);
@@ -81,16 +109,10 @@ export const getGeneraciyaKartinkaExamples = cache(
         }
       })
     );
-    const seen = new Set<string>();
-    const cards: RouteCardsResult["cards"] = [];
-    for (let i = 0; i < perTag; i += 1) {
-      for (const result of results) {
-        const card = result.cards[i];
-        if (!card || seen.has(card.id)) continue;
-        seen.add(card.id);
-        cards.push(card);
-      }
-    }
+    const cards = interleaveGeneraciyaColumns(
+      results.map((result) => result.cards),
+      perTag,
+    );
     const total = results.reduce((sum, r) => sum + (r.total_count ?? r.cards_count), 0);
     return {
       cards,
@@ -136,6 +158,51 @@ export async function enrichGeneraciyaCards(
     .filter((card): card is PromptCardFull => Boolean(card));
 }
 
+export async function prepareGeneraciyaSeoCards(input: {
+  result: RouteCardsResult;
+  label: string;
+  flags: GeneraciyaSeoImageFlags;
+  headings: readonly string[];
+  fallbackTitle: (index: number) => string;
+}): Promise<{
+  cards: PromptCardFull[];
+  exampleCards: GenerationExampleCard[];
+  ogImage: string | null;
+  imageCaption: string | null;
+}> {
+  const enriched = await enrichGeneraciyaCards(input.result, input.label);
+  const ranked = applyGeneraciyaFirstScreenRank(enriched, input.flags.firstScreenRank);
+  const cards = input.flags.firstScreenRank
+    ? ranked.slice(0, GENERACIYA_SEO_GALLERY_LIMIT)
+    : ranked;
+  const titled = cards
+    .map(toGenerationExampleCard)
+    .map((card, index) =>
+      withGenerationExampleFallbackTitle(card, input.fallbackTitle(index)),
+    );
+  const exampleCards = attachGeneraciyaSeoFrames(
+    cards,
+    titled,
+    input.flags,
+    input.headings,
+  );
+  let ogImage = generaciyaSeoRepresentativeImage(cards[0], input.flags, SITE_URL);
+  if (!ogImage) {
+    ogImage = await firstGeneraciyaOgImage(input.result, cards);
+  }
+  return {
+    cards,
+    exampleCards,
+    ogImage,
+    imageCaption: generaciyaRepresentativeAlt(
+      cards[0],
+      exampleCards[0]?.title,
+      input.flags,
+      input.headings,
+    ),
+  };
+}
+
 export async function firstGeneraciyaOgImage(
   result: RouteCardsResult,
   cards: PromptCardFull[]
@@ -156,6 +223,7 @@ export function buildGeneraciyaHubJsonLd({
   name,
   description,
   ogImage,
+  imageCaption = null,
   breadcrumbs,
   howTo,
   faq,
@@ -165,11 +233,21 @@ export function buildGeneraciyaHubJsonLd({
   name: string;
   description: string;
   ogImage: string | null;
+  imageCaption?: string | null;
   breadcrumbs: readonly { name: string; item: string }[];
   howTo?: { name: string; steps: readonly { title: string; text: string }[] };
   faq: readonly GeneraciyaFaqEntry[];
-  itemList?: { name: string; cards: PromptCardFull[] };
+  itemList?: {
+    name: string;
+    cards: PromptCardFull[];
+    names?: readonly (string | null | undefined)[];
+  };
 }) {
+  const image = ogImage
+    ? imageCaption
+      ? { "@type": "ImageObject", url: ogImage, caption: imageCaption }
+      : ogImage
+    : undefined;
   return [
     {
       "@context": "https://schema.org",
@@ -180,7 +258,7 @@ export function buildGeneraciyaHubJsonLd({
       applicationCategory: "MultimediaApplication",
       operatingSystem: "Web",
       inLanguage: "ru",
-      ...(ogImage ? { image: ogImage } : {}),
+      ...(image ? { image } : {}),
     },
     {
       "@context": "https://schema.org",
@@ -229,7 +307,11 @@ export function buildGeneraciyaHubJsonLd({
             itemListElement: itemList.cards.map((card, index) => ({
               "@type": "ListItem",
               position: index + 1,
-              name: card.title_ru || card.title_en || "Промт для фото",
+              name:
+                itemList.names?.[index]?.trim() ||
+                card.title_ru ||
+                card.title_en ||
+                "Промт для фото",
               ...(card.slug ? { url: `${SITE_URL}/p/${card.slug}` } : {}),
             })),
           },

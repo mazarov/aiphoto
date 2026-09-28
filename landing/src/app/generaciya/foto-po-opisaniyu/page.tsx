@@ -27,16 +27,12 @@ import { GENERACIYA_FOTO_PO_OPISANIYU_PATH } from "@/lib/generaciya-foto-routes"
 import { getGeneraciyaFotoChipNavigation } from "@/lib/generaciya-foto-chip-nav";
 import {
   buildGeneraciyaHubJsonLd,
-  enrichGeneraciyaCards,
-  firstGeneraciyaOgImage,
   getGeneraciyaCompletedImageCount,
   getGeneraciyaNewestExamples,
+  prepareGeneraciyaSeoCards,
   SITE_URL,
 } from "@/lib/generaciya-hub-data";
-import {
-  toGenerationExampleCard,
-  withGenerationExampleFallbackTitle,
-} from "@/lib/generation/example-card";
+import { readGeneraciyaSeoImageFlags } from "@/lib/generaciya-seo-image-config";
 import { takeHeroMarqueeCards } from "@/lib/hero-marquee";
 
 export const revalidate = 3600;
@@ -52,11 +48,19 @@ const getThemeCollagePhotos = cache(async () => {
   }
 });
 
+const PAGE_HEADINGS = [GENERACIYA_FOTO_SEO.h1, GENERACIYA_FOTO_SEO.examplesTitle];
+
 const getPageCards = cache(async () => {
-  const result = await getGeneraciyaNewestExamples();
-  const cards = await enrichGeneraciyaCards(result, "foto-po-opisaniyu");
-  const ogImage = await firstGeneraciyaOgImage(result, cards);
-  return { result, cards, ogImage };
+  const flags = await readGeneraciyaSeoImageFlags();
+  const result = await getGeneraciyaNewestExamples(flags.firstScreenRank);
+  const prepared = await prepareGeneraciyaSeoCards({
+    result,
+    label: "foto-po-opisaniyu",
+    flags,
+    headings: PAGE_HEADINGS,
+    fallbackTitle: (index) => `Фото по описанию — пример ${index + 1}`,
+  });
+  return { result, flags, ...prepared };
 });
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -96,18 +100,13 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function FotoPoOpisaniyuPage() {
-  const [{ cards, ogImage }, themeCollage, completedImageCount] =
+  const [{ cards, exampleCards, ogImage, imageCaption, flags }, themeCollage, completedImageCount] =
     await Promise.all([
       getPageCards(),
       getThemeCollagePhotos(),
       getGeneraciyaCompletedImageCount(),
     ]);
   const socialProof = formatGeneraciyaFotoSocialProof(completedImageCount);
-  const exampleCards = cards
-    .map(toGenerationExampleCard)
-    .map((card, index) =>
-      withGenerationExampleFallbackTitle(card, `Фото по описанию — пример ${index + 1}`)
-    );
   const carouselCards = takeHeroMarqueeCards(exampleCards.filter((card) => card.photoUrl));
   const galleryCards = exampleCards.slice(0, 16);
   const schemas = buildGeneraciyaHubJsonLd({
@@ -115,13 +114,20 @@ export default async function FotoPoOpisaniyuPage() {
     name: `${GENERACIYA_FOTO_SEO.h1} — PromptShot`,
     description: GENERACIYA_FOTO_SEO.metaDescription,
     ogImage,
+    imageCaption,
     breadcrumbs: [
       { name: "Главная", item: SITE_URL },
       { name: GENERACIYA_FOTO_SEO.breadcrumb, item: PAGE_URL },
     ],
     howTo: { name: GENERACIYA_FOTO_SEO.howToTitle, steps: GENERACIYA_FOTO_HOW_TO_STEPS },
     faq: GENERACIYA_FOTO_FAQ,
-    itemList: { name: GENERACIYA_FOTO_SEO.examplesTitle, cards: cards.slice(0, 16) },
+    itemList: {
+      name: GENERACIYA_FOTO_SEO.examplesTitle,
+      cards: cards.slice(0, 16),
+      names: flags.descriptiveAlt
+        ? exampleCards.slice(0, 16).map((card) => card.seoFrame?.alts?.[0])
+        : undefined,
+    },
   });
 
   return (

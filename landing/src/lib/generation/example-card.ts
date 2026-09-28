@@ -4,6 +4,7 @@ import {
   writeListingNavigationContext,
 } from "@/lib/listing-card-navigation-context";
 import { isPhotoshootUgcListing } from "@/lib/photoshoot";
+import type { GeneraciyaSeoFrame } from "@/lib/generaciya-seo-frame";
 import type { CardPageData, PromptCardFull } from "@/lib/supabase";
 
 export type GenerationExampleCard = {
@@ -20,6 +21,8 @@ export type GenerationExampleCard = {
   hasPrompt: boolean;
   isPhotoshoot: boolean;
   navigationData: CardPageData;
+  /** Set only for the first 16 frames of the /generaciya SEO image stack. */
+  seoFrame?: GeneraciyaSeoFrame;
 };
 
 export function toGenerationExampleCard(

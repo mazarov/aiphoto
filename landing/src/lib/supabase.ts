@@ -645,6 +645,8 @@ export type PhotoMeta = {
   path: string;
   width: number | null;
   height: number | null;
+  /** Reviewed frame description. Empty until SQL 260 is applied and backfilled. */
+  seoAltRu?: string | null;
 };
 
 export type PromptCardFull = RouteCard & {
@@ -680,7 +682,33 @@ type MediaRow = {
   is_primary: boolean;
   width: number | null;
   height: number | null;
+  seo_alt_ru: string | null;
 };
+
+const LISTING_PHOTO_MEDIA_WITH_ALT =
+  "card_id,storage_bucket,storage_path,is_primary,width,height,seo_alt_ru";
+const LISTING_PHOTO_MEDIA_BASE =
+  "card_id,storage_bucket,storage_path,is_primary,width,height";
+
+async function selectListingPhotoMedia(
+  supabase: ReturnType<typeof createSupabaseServer>,
+  ids: string[],
+) {
+  const withAlt = await supabase
+    .from("prompt_card_media")
+    .select(LISTING_PHOTO_MEDIA_WITH_ALT)
+    .in("card_id", ids)
+    .eq("media_type", "photo")
+    .order("is_primary", { ascending: false });
+  if (!withAlt.error) return withAlt;
+  if (!/seo_alt_ru/i.test(withAlt.error.message || "")) return withAlt;
+  return supabase
+    .from("prompt_card_media")
+    .select(LISTING_PHOTO_MEDIA_BASE)
+    .in("card_id", ids)
+    .eq("media_type", "photo")
+    .order("is_primary", { ascending: false });
+}
 
 export async function enrichCardsWithDetails(
   cards: RouteCard[]
@@ -710,12 +738,7 @@ export async function enrichCardsWithDetails(
         .select("card_id,prompt_text_ru,prompt_text_en")
         .in("card_id", ids)
         .order("variant_index", { ascending: true }),
-      supabase
-        .from("prompt_card_media")
-        .select("card_id,storage_bucket,storage_path,is_primary,width,height")
-        .in("card_id", ids)
-        .eq("media_type", "photo")
-        .order("is_primary", { ascending: false }),
+      selectListingPhotoMedia(supabase, ids),
       supabase
         .from("prompt_card_media")
         .select("card_id,storage_bucket,storage_path,media_index")
@@ -801,6 +824,7 @@ export async function enrichCardsWithDetails(
       is_primary: Boolean(m.is_primary),
       width: (m.width as number | null) ?? null,
       height: (m.height as number | null) ?? null,
+      seo_alt_ru: typeof m.seo_alt_ru === "string" ? m.seo_alt_ru : null,
     };
     const arr = allMediaByCard.get(row.card_id) || [];
     arr.push(row);
@@ -855,6 +879,7 @@ export async function enrichCardsWithDetails(
       path: m.storage_path,
       width: m.width,
       height: m.height,
+      seoAltRu: m.seo_alt_ru,
     }));
     const photoUrls = photoMeta.map((m) => m.url);
     const prompts = variantsByCard.get(c.id) || [];

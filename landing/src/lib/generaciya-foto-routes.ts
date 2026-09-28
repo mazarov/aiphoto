@@ -228,3 +228,19 @@ export function isGeneraciyaFotoScenarioPath(pathname: string): boolean {
     (route) => normalized === getGeneraciyaFotoScenarioPath(route.slug)
   );
 }
+
+/** Three hubs plus the 22 photo scenarios. Catalog, `/p/` and unknown slugs stay out. */
+export function isGeneraciyaSeoImagePath(pathname: string): boolean {
+  return isGeneraciyaHubPath(pathname) || isGeneraciyaFotoScenarioPath(pathname);
+}
+
+export function generaciyaSeoImagePaths(): string[] {
+  return [
+    GENERACIYA_FOTO_PO_OPISANIYU_PATH,
+    GENERACIYA_KARTINKA_PO_OPISANIYU_PATH,
+    GENERACIYA_PO_FOTO_PATH,
+    ...GENERACIYA_FOTO_SCENARIO_ROUTES.map((route) =>
+      getGeneraciyaFotoScenarioPath(route.slug),
+    ),
+  ];
+}

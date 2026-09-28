@@ -5,15 +5,16 @@ import { notFound } from "next/navigation";
 import { AdLandingHeading } from "@/components/AdLandingHeading";
 import { PageLayout } from "@/components/PageLayout";
 import { GeneraciyaFotoExamplesExplorer } from "@/components/generate/GeneraciyaFotoExamplesExplorer";
-import { GeneraciyaFotoHeroCarousel } from "@/components/generate/GeneraciyaFotoHeroCarousel";
-import { GeneraciyaFotoStarter } from "@/components/generate/GeneraciyaFotoStarter";
+import { GeneraciyaHubHero } from "@/components/generate/GeneraciyaHubHero";
+import { GF_HERO_H1, GF_PAGE_MAIN, GF_PAGE_STACK } from "@/components/generate/generaciya-foto-ui";
 import {
-  enrichCardsWithDetails,
   fetchRouteCards,
-  getFirstCardPhotoUrl,
   type PromptCardFull,
   type RouteCardsResult,
 } from "@/lib/supabase";
+import { prepareGeneraciyaSeoCards } from "@/lib/generaciya-hub-data";
+import { readGeneraciyaSeoImageFlags } from "@/lib/generaciya-seo-image-config";
+import { generaciyaPopularPageParams } from "@/lib/generaciya-seo-fetch";
 import {
   GENERACIYA_FOTO_SCENARIO_ROUTES,
   GENERACIYA_PO_FOTO_PATH,
@@ -28,10 +29,6 @@ import {
   getGeneraciyaFotoScenarioStarterPrompt,
   type GeneraciyaFotoScenarioCopy,
 } from "@/lib/generaciya-foto-scenario-copy";
-import {
-  toGenerationExampleCard,
-  withGenerationExampleFallbackTitle,
-} from "@/lib/generation/example-card";
 import { takeHeroMarqueeCards } from "@/lib/hero-marquee";
 import {
   GENERACIYA_FOTO_SEO,
@@ -79,43 +76,30 @@ function resolveScenario(slug: string) {
   return { route, copy };
 }
 
-const getScenarioCards = cache(
-  async (slug: string): Promise<RouteCardsResult> => {
-    const route = findGeneraciyaFotoScenarioRoute(slug);
-    if (!route) return EMPTY_RESULT;
-
+const getScenarioPage = cache(async (slug: string) => {
+  const route = findGeneraciyaFotoScenarioRoute(slug);
+  const copy = findGeneraciyaFotoScenarioCopy(slug);
+  const flags = await readGeneraciyaSeoImageFlags();
+  let result = EMPTY_RESULT;
+  if (route) {
     try {
-      return await fetchRouteCards({
-        ...BASE_RPC_PARAMS,
-        [route.dimension]: route.tagValue,
-        limit: 24,
-        offset: 0,
-        min_cards: 1,
-        sort: "new",
-      });
+      result = await fetchRouteCards(generaciyaPopularPageParams(route));
     } catch (error) {
       console.error(
         `[GeneraciyaFotoScenarioPage] fetch examples failed: ${slug}`,
-        error
+        error,
       );
-      return EMPTY_RESULT;
     }
   }
-);
-
-const getScenarioOgImage = cache(async (slug: string): Promise<string | null> => {
-  const result = await getScenarioCards(slug);
-  if (!result.cards.length) return null;
-
-  try {
-    return await getFirstCardPhotoUrl(result.cards.map((card) => card.id));
-  } catch (error) {
-    console.error(
-      `[GeneraciyaFotoScenarioPage] fetch OG image failed: ${slug}`,
-      error
-    );
-    return null;
-  }
+  const prepared = await prepareGeneraciyaSeoCards({
+    result,
+    label: slug,
+    flags: { ...flags, firstScreenRank: false },
+    headings: copy ? [copy.h1, copy.examplesTitle] : [],
+    fallbackTitle: (index) =>
+      `Пример: ${(copy?.label || slug).toLowerCase()} — ${index + 1}`,
+  });
+  return { result, flags, ...prepared };
 });
 
 export function generateStaticParams() {
@@ -125,8 +109,7 @@ export function generateStaticParams() {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { scenario: slug } = await params;
   const { copy } = resolveScenario(slug);
-  const result = await getScenarioCards(slug);
-  const ogImage = await getScenarioOgImage(slug);
+  const { result, ogImage } = await getScenarioPage(slug);
   const pageUrl = `${SITE_URL}${getGeneraciyaFotoScenarioPath(copy.slug)}`;
   const totalCount = result.total_count ?? result.cards_count;
   const shouldIndex =
@@ -170,8 +153,15 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 function buildJsonLd(
   copy: GeneraciyaFotoScenarioCopy,
   ogImage: string | null,
-  cards: PromptCardFull[]
+  imageCaption: string | null,
+  cards: PromptCardFull[],
+  names?: readonly (string | null | undefined)[],
 ) {
+  const image = ogImage
+    ? imageCaption
+      ? { "@type": "ImageObject", url: ogImage, caption: imageCaption }
+      : ogImage
+    : undefined;
   const pageUrl = `${SITE_URL}${getGeneraciyaFotoScenarioPath(copy.slug)}`;
 
   return [
@@ -184,7 +174,7 @@ function buildJsonLd(
       applicationCategory: "MultimediaApplication",
       operatingSystem: "Web",
       inLanguage: "ru",
-      ...(ogImage ? { image: ogImage } : {}),
+      ...(image ? { image } : {}),
     },
     {
       "@context": "https://schema.org",
@@ -239,7 +229,11 @@ function buildJsonLd(
             itemListElement: cards.map((card, index) => ({
               "@type": "ListItem",
               position: index + 1,
-              name: card.title_ru || card.title_en || "Промт для фото",
+              name:
+                names?.[index]?.trim() ||
+                card.title_ru ||
+                card.title_en ||
+                "Промт для фото",
               ...(card.slug
                 ? { url: `${SITE_URL}/p/${card.slug}` }
                 : {}),
@@ -250,47 +244,21 @@ function buildJsonLd(
   ];
 }
 
-function BreadcrumbSeparator() {
-  return (
-    <svg
-      className="h-3.5 w-3.5 shrink-0 text-zinc-300"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      aria-hidden
-    >
-      <path d="m9 18 6-6-6-6" />
-    </svg>
-  );
-}
-
 export default async function GeneraciyaFotoScenarioPage({ params }: Props) {
   const { scenario: slug } = await params;
   const { route, copy } = resolveScenario(slug);
-  const result = await getScenarioCards(slug);
-
-  let cards: PromptCardFull[] = [];
-  try {
-    cards = await enrichCardsWithDetails(result.cards);
-  } catch (error) {
-    console.error(
-      `[GeneraciyaFotoScenarioPage] enrich examples failed: ${slug}`,
-      error
-    );
-  }
-
-  const ogImage = cards[0]?.photoUrls[0] || (await getScenarioOgImage(slug));
-  const schemas = buildJsonLd(copy, ogImage, cards);
-  const exampleCards = cards
-    .map(toGenerationExampleCard)
-    .map((card, index) =>
-      withGenerationExampleFallbackTitle(
-        card,
-        `Пример: ${copy.label.toLowerCase()} — ${index + 1}`
-      )
-    );
-  const galleryCards = exampleCards.slice(0, 16);
+  const { result, cards, exampleCards, ogImage, imageCaption, flags } =
+    await getScenarioPage(slug);
+  const schemas = buildJsonLd(
+    copy,
+    ogImage,
+    imageCaption,
+    cards,
+    flags.descriptiveAlt
+      ? exampleCards.map((card) => card.seoFrame?.alts?.[0])
+      : undefined,
+  );
+  const galleryCards = exampleCards;
   const carouselCards = takeHeroMarqueeCards(
     exampleCards.filter((card) => card.photoUrl)
   );
@@ -308,72 +276,40 @@ export default async function GeneraciyaFotoScenarioPage({ params }: Props) {
         />
       ))}
 
-      <main className="listing-main-bottom-pad w-full flex-1 pb-16 sm:pb-24">
-        <section
-          id="generator"
-          className="relative scroll-mt-20 overflow-hidden"
-        >
-          <div
-            className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_75%_65%_at_50%_-20%,rgba(99,102,241,0.14),transparent_62%)]"
-            aria-hidden
-          />
-          <div className="relative mx-auto w-full px-2 pb-0 pt-8 text-center sm:px-5 sm:pt-12 xl:px-6">
-            <nav
-              aria-label="Хлебные крошки"
-              className="mb-5 flex items-center justify-center gap-1.5 text-sm text-zinc-400"
-            >
-              <Link href="/" className="transition-colors hover:text-zinc-700">
-                Главная
-              </Link>
-              <BreadcrumbSeparator />
-              <Link
-                href={GENERACIYA_PO_FOTO_PATH}
-                className="transition-colors hover:text-zinc-700"
-              >
-                {GENERACIYA_PO_FOTO_SEO.breadcrumb}
-              </Link>
-              <BreadcrumbSeparator />
-              <span className="font-medium text-zinc-700">{copy.label}</span>
-            </nav>
-            <Suspense
-              fallback={
-                <h1 className="mx-auto max-w-3xl text-balance text-3xl font-bold tracking-tight text-zinc-900 sm:text-4xl lg:text-[2.75rem] lg:leading-tight">
-                  {copy.h1}
-                </h1>
-              }
-            >
+      <main className={GF_PAGE_MAIN}>
+        <GeneraciyaHubHero
+          breadcrumbs={[
+            { label: "Главная", href: "/" },
+            { label: GENERACIYA_PO_FOTO_SEO.breadcrumb, href: GENERACIYA_PO_FOTO_PATH },
+            { label: copy.label },
+          ]}
+          h1={copy.h1}
+          heading={
+            <Suspense fallback={<h1 className={GF_HERO_H1}>{copy.h1}</h1>}>
               <AdLandingHeading
                 path={getGeneraciyaFotoScenarioPath(copy.slug)}
                 fallback={copy.h1}
-                className="mx-auto max-w-3xl text-balance text-3xl font-bold tracking-tight text-zinc-900 sm:text-4xl lg:text-[2.75rem] lg:leading-tight"
+                className={GF_HERO_H1}
               />
             </Suspense>
-            <p className="mx-auto mt-4 max-w-2xl text-pretty text-base leading-relaxed text-zinc-600 sm:text-lg">
-              {copy.intro}
-            </p>
-            <GeneraciyaFotoStarter
-              sectionId="scenario-generator"
-              initialPrompt={starterPrompt}
-              copy={{
-                byTextTitle: "Создать по описанию",
-                byTextLead: `Промт для темы «${copy.label}» уже подготовлен`,
-                byPhotoTitle: "Создать по своему фото",
-                byPhotoLead: "Загрузите снимок — промт соберём автоматически",
-              }}
-            />
-            <p className="mx-auto mt-3 max-w-2xl text-sm leading-relaxed text-zinc-500">
-              {GENERACIYA_FOTO_SEO.generatorNote}
-            </p>
-            <GeneraciyaFotoHeroCarousel
-              cards={carouselCards}
-              ctaLabel="Создать фото"
-              ctaHref="#scenario-generator"
-              ariaLabel={`Примеры: ${copy.h1}`}
-            />
-          </div>
-        </section>
+          }
+          intro={copy.intro}
+          carouselCards={carouselCards}
+          carouselAriaLabel={`Примеры: ${copy.h1}`}
+          socialProof={null}
+          generatorNote={GENERACIYA_FOTO_SEO.generatorNote}
+          starterModes={["text", "photo"]}
+          starterInitialPrompt={starterPrompt}
+          starterSectionId="scenario-generator"
+          starterCopy={{
+            byTextTitle: "Создать по описанию",
+            byTextLead: `Промт для темы «${copy.label}» уже подготовлен`,
+            byPhotoTitle: "Создать по своему фото",
+            byPhotoLead: "Загрузите снимок — промт соберём автоматически",
+          }}
+        />
 
-        <div className="mx-auto flex w-full flex-col gap-10 px-2 pt-10 sm:gap-12 sm:px-5 sm:pt-12 lg:gap-16 lg:pt-16 xl:px-6">
+        <div className={GF_PAGE_STACK}>
           <section
             id="primery"
             className="scroll-mt-20"
@@ -393,7 +329,8 @@ export default async function GeneraciyaFotoScenarioPage({ params }: Props) {
                     [route.dimension]: route.tagValue,
                   },
                   totalCount: result.total_count ?? result.cards_count,
-                  initialRankedBatchSize: galleryCards.length,
+                  initialRankedBatchSize: result.cards_count,
+                  sort: "popular",
                 }}
               />
             ) : (

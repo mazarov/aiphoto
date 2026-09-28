@@ -7,9 +7,20 @@ import {
 } from "@/lib/card-image-presets";
 import { OVERLAY_BUTTON_UA_RESET } from "@/lib/card-overlay-action-pill";
 
+type SeoFrame = {
+  src: string;
+  srcSet?: string;
+  alt: string;
+  width: number | null;
+  height: number | null;
+};
+
 type Props = {
   urls: string[];
   alt: string;
+  /** Per-frame alt. When set, index 0 is no longer the only described frame. */
+  alts?: readonly string[] | null;
+  frames?: readonly (SeoFrame | null)[] | null;
   priority?: boolean;
   onSelect?: (url: string, index: number) => void;
   onPrefetch?: () => void;
@@ -24,6 +35,8 @@ type Props = {
 export function PhotoshootListingGrid({
   urls,
   alt,
+  alts = null,
+  frames = null,
   priority = false,
   onSelect,
   onPrefetch,
@@ -45,10 +58,26 @@ export function PhotoshootListingGrid({
     >
       {urls.slice(0, 4).map((url, index) => {
         const label = `Кадр ${index + 1}`;
-        const media = (
+        const frameAlt = alts ? (alts[index] ?? "") : index === 0 ? alt : "";
+        const frame = frames?.[index];
+        const media = frame ? (
+          <img
+            src={frame.src}
+            srcSet={frame.srcSet}
+            alt={frame.alt}
+            sizes={sizes}
+            width={frame.width && frame.width > 0 ? frame.width : undefined}
+            height={frame.height && frame.height > 0 ? frame.height : undefined}
+            decoding="async"
+            loading={priority && index === 0 ? "eager" : "lazy"}
+            fetchPriority={priority && index === 0 ? "high" : undefined}
+            className="photoshoot-history-tile__img absolute inset-0 h-full w-full object-cover"
+            draggable={false}
+          />
+        ) : (
           <Image
             src={url}
-            alt={index === 0 ? alt : ""}
+            alt={frameAlt}
             fill
             sizes={sizes}
             quality={CARD_IMAGE_LISTING_NEXT_QUALITY}

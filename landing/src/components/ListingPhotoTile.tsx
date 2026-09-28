@@ -6,12 +6,16 @@ import type { ReactNode } from "react";
 import { ListingCardVideo } from "@/components/ListingCardVideo";
 import { PhotoshootListingBadge } from "@/components/PhotoshootListingBadge";
 import { PhotoshootListingGrid } from "@/components/PhotoshootListingGrid";
+import { SeoIndexableImage } from "@/components/generate/SeoIndexableImage";
 import { usePromptCardModal } from "@/context/PromptCardModalContext";
 import {
   CARD_IMAGE_LISTING_NEXT_QUALITY,
   SIZES_CARD_GRID,
 } from "@/lib/card-image-presets";
 import { buildCardImageAlt } from "@/lib/card-meta-title";
+import { generaciyaLiveTileAlt } from "@/lib/generaciya-seo-alt";
+import { buildGeneraciyaSeoImgAttrs } from "@/lib/generaciya-seo-image-url";
+import type { GeneraciyaSeoFrameImage } from "@/lib/generaciya-seo-frame";
 import type { GenerationExampleCard } from "@/lib/generation/example-card";
 
 type Props = {
@@ -44,9 +48,45 @@ export function ListingPhotoTile({
   const { open, prefetchCard } = usePromptCardModal();
   const photoshootUrls =
     card.isPhotoshoot && card.photoUrls.length === 4 ? card.photoUrls : null;
+  const frame = decorative ? undefined : card.seoFrame;
   const cardLabel = buildCardImageAlt(card.title);
-  const imageAlt = decorative ? "" : imageAltOverride || cardLabel;
+  const imageAlt = generaciyaLiveTileAlt({
+    decorative,
+    frameAlts: frame?.alts,
+    fallback: imageAltOverride || cardLabel,
+  });
+  const linkLabel = decorative ? "" : frame?.linkLabel || imageAlt;
   const showVideo = Boolean(card.videoUrl) && !decorative && !still;
+  const seoMode = frame && frame.mode !== "current" ? frame.mode : null;
+
+  function seoAttrs(image: GeneraciyaSeoFrameImage, alt: string) {
+    if (!seoMode) return null;
+    return buildGeneraciyaSeoImgAttrs({
+      mode: seoMode,
+      bucket: image.bucket,
+      path: image.path,
+      previewUrl: image.previewUrl,
+      alt,
+    });
+  }
+
+  const primarySeo = frame?.images[0] ? seoAttrs(frame.images[0], imageAlt) : null;
+  const photoshootSeo = photoshootUrls
+    ? frame?.images.slice(0, 4).map((image, index) => {
+        const alt = frame.alts ? (frame.alts[index] ?? "") : index === 0 ? imageAlt : "";
+        const attrs = seoAttrs(image, alt);
+        if (!attrs) return null;
+        return {
+          ...attrs,
+          width: image.width,
+          height: image.height,
+        };
+      })
+    : null;
+  const photoshootSeoFrames =
+    photoshootSeo && photoshootSeo.every((item) => item !== null)
+      ? photoshootSeo
+      : null;
 
   return (
     <article
@@ -58,6 +98,8 @@ export function ListingPhotoTile({
         <PhotoshootListingGrid
           urls={photoshootUrls}
           alt={imageAlt}
+          alts={frame?.alts}
+          frames={photoshootSeoFrames}
           priority={priority}
           onPrefetch={decorative ? undefined : () => prefetchCard(card.slug)}
           onSelect={
@@ -76,6 +118,16 @@ export function ListingPhotoTile({
         />
       ) : showVideo ? (
         <ListingCardVideo src={card.videoUrl!} poster={card.photoUrl} />
+      ) : primarySeo ? (
+        <SeoIndexableImage
+          src={primarySeo.src}
+          srcSet={primarySeo.srcSet}
+          alt={primarySeo.alt}
+          sizes={sizes}
+          priority={priority}
+          width={frame?.images[0]?.width ?? card.photoWidth}
+          height={frame?.images[0]?.height ?? card.photoHeight}
+        />
       ) : card.photoUrl ? (
         <Image
           src={card.photoUrl}
@@ -114,7 +166,7 @@ export function ListingPhotoTile({
         <Link
           href={`/p/${card.slug}`}
           className={`absolute inset-0 z-10${photoshootUrls ? " pointer-events-none" : ""}`}
-          aria-label={imageAlt}
+          aria-label={linkLabel}
           prefetch
           onPointerEnter={() => prefetchCard(card.slug)}
           onTouchStart={() => prefetchCard(card.slug)}

@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { GeneraciyaFotoHeroCarousel } from "@/components/generate/GeneraciyaFotoHeroCarousel";
 import {
@@ -32,6 +33,7 @@ function BreadcrumbSeparator() {
 export function GeneraciyaHubHero({
   breadcrumbs,
   h1,
+  heading,
   intro,
   carouselCards,
   carouselAriaLabel,
@@ -42,19 +44,25 @@ export function GeneraciyaHubHero({
   starterModes,
   starterCopy,
   starterCtaLabel,
+  starterInitialPrompt,
+  starterSectionId,
 }: {
   breadcrumbs: readonly GeneraciyaHubBreadcrumb[];
   h1: string;
+  /** Replaces the plain H1. Scenario pages pass the ad-landing heading. */
+  heading?: ReactNode;
   intro: string;
   carouselCards: GenerationExampleCard[];
   carouselAriaLabel: string;
   socialProof: string | null;
-  generatorTitle: string;
-  generatorLead: string;
+  generatorTitle?: string;
+  generatorLead?: string;
   generatorNote: string;
   starterModes: readonly ("text" | "photo")[];
   starterCopy?: GeneraciyaFotoStarterCopy;
   starterCtaLabel?: string;
+  starterInitialPrompt?: string;
+  starterSectionId?: string;
 }) {
   return (
     <section id="generator" className="relative scroll-mt-20 overflow-hidden">
@@ -85,9 +93,11 @@ export function GeneraciyaHubHero({
             );
           })}
         </nav>
-        <h1 className="mx-auto max-w-3xl text-balance text-3xl font-bold tracking-tight text-zinc-900 sm:text-4xl lg:text-[2.75rem] lg:leading-tight">
-          {h1}
-        </h1>
+        {heading ?? (
+          <h1 className="mx-auto max-w-3xl text-balance text-3xl font-bold tracking-tight text-zinc-900 sm:text-4xl lg:text-[2.75rem] lg:leading-tight">
+            {h1}
+          </h1>
+        )}
         <p className="mx-auto mt-3 max-w-2xl text-pretty text-base leading-relaxed text-zinc-600 sm:mt-4 sm:text-lg">
           {intro}
         </p>
@@ -97,12 +107,16 @@ export function GeneraciyaHubHero({
             {socialProof}
           </p>
         ) : null}
-        <h2 className={`mx-auto mt-8 max-w-3xl text-balance ${GF_H2}`}>{generatorTitle}</h2>
-        <p className={`mx-auto text-pretty ${GF_LEAD}`}>{generatorLead}</p>
+        {generatorTitle ? (
+          <h2 className={`mx-auto mt-8 max-w-3xl text-balance ${GF_H2}`}>{generatorTitle}</h2>
+        ) : null}
+        {generatorLead ? <p className={`mx-auto text-pretty ${GF_LEAD}`}>{generatorLead}</p> : null}
         <GeneraciyaFotoStarter
           modes={starterModes}
           copy={starterCopy}
           ctaLabel={starterCtaLabel}
+          initialPrompt={starterInitialPrompt}
+          sectionId={starterSectionId}
         />
         <p className="mx-auto mt-3 max-w-2xl text-sm leading-relaxed text-zinc-500">
           {generatorNote}

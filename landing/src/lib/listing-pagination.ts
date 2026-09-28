@@ -43,6 +43,14 @@ export function hasMoreRankedPages(
   return rankedOffset + rankedStep < totalCount;
 }
 
+/** `nextOffset` is the offset of the page that has not been fetched yet. */
+export function hasMoreListingFromOffset(
+  nextOffset: number,
+  totalCount: number,
+): boolean {
+  return totalCount > 0 && nextOffset < totalCount;
+}
+
 /** Text-search listings have no total_count — a full page means another fetch. */
 export function hasMoreSearchPages(
   receivedCount: number,

@@ -707,7 +707,9 @@ export function PricingCards({
         </ul>
         </section>
         {legalFooter ? (
-          <div className="pricing-paywall-legal">{legalFooter}</div>
+          <div className="pricing-paywall-legal min-w-0 w-full max-w-full">
+            {legalFooter}
+          </div>
         ) : null}
       </div>
 

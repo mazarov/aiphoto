@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   hasListingSentinelReachedLoadRange,
+  hasMoreListingFromOffset,
   hasMoreRankedPages,
   hasMoreSearchPages,
   LISTING_SEARCH_API_MAX_LIMIT,
@@ -24,6 +25,10 @@ test("hasMoreRankedPages uses ranked offset, not expanded card count", () => {
   assert.equal(hasMoreRankedPages(58, 24, 80), false);
   assert.equal(hasMoreRankedPages(10, 0, 80), false);
   assert.equal(hasMoreRankedPages(0, 10, 0), false);
+  assert.equal(hasMoreListingFromOffset(24, 80), true);
+  assert.equal(hasMoreListingFromOffset(24, 40), true);
+  assert.equal(hasMoreListingFromOffset(40, 40), false);
+  assert.equal(hasMoreListingFromOffset(0, 0), false);
 });
 
 test("hasMoreSearchPages treats a full page as a signal to fetch again", () => {

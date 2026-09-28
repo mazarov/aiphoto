@@ -4,6 +4,7 @@ import path from "node:path";
 import type { NextConfig } from "next";
 import { DEN_ROZHDENIYA_PERMANENT_REDIRECTS } from "./src/lib/den-rozhdeniya-cluster";
 import { PROMTY_DLYA_II_FOTOSESSII_PERMANENT_REDIRECTS } from "./src/lib/promty-dlya-ii-fotosessii-cluster";
+import { GENERACIYA_SEO_VARIANTS } from "./src/lib/generaciya-seo-image-url";
 import {
   NEXT_CACHE_MAX_MEMORY_BYTES,
   NEXT_IMAGE_DEVICE_SIZES,
@@ -105,13 +106,26 @@ const nextConfig: NextConfig = {
   },
   async rewrites() {
     const supa = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/$/, "");
-    if (!supa) return [];
-    return [
-      {
-        source: "/img/:bucket/:path*",
-        destination: `${supa}/storage/v1/object/public/:bucket/:path*`,
-      },
-    ];
+    if (!supa) return { fallback: [] };
+    // beforeFiles runs before the App Router. Middleware is the primary alias
+    // (it drops ?width=). This copy still serves the image if middleware does
+    // not match, and it is not an App Route rewrite — those throw in Next 15.
+    const seoAlias = (variant: "w1080" | "w512") => {
+      const spec = GENERACIYA_SEO_VARIANTS[variant];
+      return {
+        source: `/img/seo/${variant}/:bucket/:path*`,
+        destination: `${supa}/storage/v1/render/image/public/:bucket/:path*?width=${spec.width}&quality=${spec.quality}`,
+      };
+    };
+    return {
+      beforeFiles: [seoAlias("w1080"), seoAlias("w512")],
+      fallback: [
+        {
+          source: "/img/:bucket/:path*",
+          destination: `${supa}/storage/v1/object/public/:bucket/:path*`,
+        },
+      ],
+    };
   },
   images: {
     qualities: [45, 60, 75],

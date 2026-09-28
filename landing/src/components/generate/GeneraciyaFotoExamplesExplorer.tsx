@@ -23,6 +23,7 @@ import { appendUniqueCardPage } from "@/lib/listing-cards";
 import {
   LISTING_INFINITE_PAGE_SIZE,
   LISTING_SEARCH_PAGE_SIZE,
+  hasMoreListingFromOffset,
   hasMoreRankedPages,
   hasMoreSearchPages,
   resolveListingPageStep,
@@ -41,8 +42,25 @@ export type ExamplesExplorerLoadMore = {
   rpcParams: Record<string, string | null>;
   totalCount: number;
   initialRankedBatchSize: number;
+  /**
+   * Next `/api/listing` offset. Omit to continue after `initialRankedBatchSize`.
+   * Must be the same sort as the first page, or the next cards jump the order.
+   */
+  resumeOffset?: number;
+  sort?: "popular" | "new";
   strict?: boolean;
 };
+
+function listingStartOffset(listing: ExamplesExplorerLoadMore): number {
+  return listing.resumeOffset ?? listing.initialRankedBatchSize;
+}
+
+function listingHasMore(listing: ExamplesExplorerLoadMore): boolean {
+  return hasMoreListingFromOffset(
+    listingStartOffset(listing),
+    listing.totalCount,
+  );
+}
 
 type QuickFilter = {
   label: string;
@@ -171,20 +189,16 @@ export function GeneraciyaFotoExamplesExplorer({
   const [loadMoreError, setLoadMoreError] = useState(false);
   const [galleryRevealed, setGalleryRevealed] = useState(false);
   const [hasMore, setHasMore] = useState(() =>
-    loadMoreListing
-      ? hasMoreRankedPages(
-          loadMoreListing.initialRankedBatchSize,
-          loadMoreListing.initialRankedBatchSize,
-          loadMoreListing.totalCount
-        )
-      : false
+    loadMoreListing ? listingHasMore(loadMoreListing) : false
   );
   const [error, setError] = useState("");
   const usesScenarioNavigation = Boolean(scenarioNavigation?.length);
   const lockedToScenario = usesScenarioNavigation && lockCardsToScenario;
   const chipsFilterInPlace = usesScenarioNavigation && filterChipsInPlace;
   const inlineLoadMore = Boolean(loadMoreListing);
-  const rankedOffsetRef = useRef(loadMoreListing?.initialRankedBatchSize ?? 0);
+  const rankedOffsetRef = useRef(
+    loadMoreListing ? listingStartOffset(loadMoreListing) : 0,
+  );
   const totalCountRef = useRef(loadMoreListing?.totalCount ?? 0);
   const hasMoreRef = useRef(hasMore);
   const loadingMoreRef = useRef(false);
@@ -204,17 +218,11 @@ export function GeneraciyaFotoExamplesExplorer({
     if (hasExpandedRef.current) return;
     replaceCardPages(initialCards);
     if (!loadMoreListing) return;
-    rankedOffsetRef.current = loadMoreListing.initialRankedBatchSize;
+    rankedOffsetRef.current = listingStartOffset(loadMoreListing);
     totalCountRef.current = loadMoreListing.totalCount;
     setGalleryRevealed(false);
     setLoadMoreError(false);
-    setHasMore(
-      hasMoreRankedPages(
-        loadMoreListing.initialRankedBatchSize,
-        loadMoreListing.initialRankedBatchSize,
-        loadMoreListing.totalCount
-      )
-    );
+    setHasMore(listingHasMore(loadMoreListing));
   }, [initialCards, loadMoreListing, replaceCardPages]);
 
   const fetchListingPage = useCallback(
@@ -237,6 +245,7 @@ export function GeneraciyaFotoExamplesExplorer({
           if (value) sp.set(key, value);
         }
         if (loadMoreListing.strict) sp.set("strict", "1");
+        sp.set("sort", loadMoreListing.sort ?? "new");
       }
 
       const response = await fetch(`/api/listing?${sp.toString()}`, {
@@ -381,16 +390,10 @@ export function GeneraciyaFotoExamplesExplorer({
       setLoading(false);
       setError("");
       if (loadMoreListing && !hasExpandedRef.current) {
-        rankedOffsetRef.current = loadMoreListing.initialRankedBatchSize;
+        rankedOffsetRef.current = listingStartOffset(loadMoreListing);
         totalCountRef.current = loadMoreListing.totalCount;
         setGalleryRevealed(false);
-        setHasMore(
-          hasMoreRankedPages(
-            loadMoreListing.initialRankedBatchSize,
-            loadMoreListing.initialRankedBatchSize,
-            loadMoreListing.totalCount
-          )
-        );
+        setHasMore(listingHasMore(loadMoreListing));
       }
       return;
     }

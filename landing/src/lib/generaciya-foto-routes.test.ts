@@ -6,8 +6,10 @@ import {
   findGeneraciyaFotoScenarioRoute,
   generaciyaLegacyRedirectPath,
   getGeneraciyaFotoScenarioPath,
+  generaciyaSeoImagePaths,
   isGeneraciyaFotoScenarioPath,
   isGeneraciyaHubPath,
+  isGeneraciyaSeoImagePath,
 } from "./generaciya-foto-routes";
 import {
   GENERACIYA_FOTO_SCENARIO_COPY,
@@ -42,6 +44,29 @@ test("generation scenario routes cover every hub chip and core SEO page", () => 
       "anime",
     ]
   );
+});
+
+test("SEO image stack is limited to the three hubs and 22 scenarios", () => {
+  const paths = generaciyaSeoImagePaths();
+  assert.equal(paths.length, 25);
+  assert.equal(new Set(paths).size, 25);
+  for (const path of paths) {
+    assert.equal(isGeneraciyaSeoImagePath(path), true);
+    assert.equal(isGeneraciyaSeoImagePath(`${path}/`), true);
+  }
+  assert.equal(isGeneraciyaSeoImagePath("/generaciya/foto-po-opisaniyu"), true);
+  assert.equal(isGeneraciyaSeoImagePath("/generaciya/kartinka-po-opisaniyu"), true);
+  assert.equal(isGeneraciyaSeoImagePath("/generaciya/po-foto"), true);
+  for (const route of GENERACIYA_FOTO_SCENARIO_ROUTES) {
+    assert.equal(
+      isGeneraciyaSeoImagePath(getGeneraciyaFotoScenarioPath(route.slug)),
+      true,
+    );
+  }
+  assert.equal(isGeneraciyaSeoImagePath("/generaciya/po-foto/neizvestno"), false);
+  assert.equal(isGeneraciyaSeoImagePath("/promty-dlya-foto-devushki"), false);
+  assert.equal(isGeneraciyaSeoImagePath("/p/portret-u-okna"), false);
+  assert.equal(isGeneraciyaSeoImagePath("/"), false);
 });
 
 test("generation scenario paths use an explicit allowlist", () => {

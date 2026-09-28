@@ -25,16 +25,13 @@ import { GENERACIYA_PO_FOTO_PATH } from "@/lib/generaciya-foto-routes";
 import { getGeneraciyaFotoChipNavigation } from "@/lib/generaciya-foto-chip-nav";
 import {
   buildGeneraciyaHubJsonLd,
-  enrichGeneraciyaCards,
-  firstGeneraciyaOgImage,
+  GENERACIYA_BASE_RPC_PARAMS,
   getGeneraciyaCompletedImageCount,
-  getGeneraciyaNewestExamples,
+  getGeneraciyaPopularPage,
+  prepareGeneraciyaSeoCards,
   SITE_URL,
 } from "@/lib/generaciya-hub-data";
-import {
-  toGenerationExampleCard,
-  withGenerationExampleFallbackTitle,
-} from "@/lib/generation/example-card";
+import { readGeneraciyaSeoImageFlags } from "@/lib/generaciya-seo-image-config";
 import { takeHeroMarqueeCards } from "@/lib/hero-marquee";
 
 export const revalidate = 3600;
@@ -55,11 +52,19 @@ const getThemeCollagePhotos = cache(async () => {
   }
 });
 
+const PAGE_HEADINGS = [GENERACIYA_PO_FOTO_SEO.h1, GENERACIYA_PO_FOTO_SEO.examplesTitle];
+
 const getPageCards = cache(async () => {
-  const result = await getGeneraciyaNewestExamples();
-  const cards = await enrichGeneraciyaCards(result, "po-foto");
-  const ogImage = await firstGeneraciyaOgImage(result, cards);
-  return { result, cards, ogImage };
+  const flags = await readGeneraciyaSeoImageFlags();
+  const result = await getGeneraciyaPopularPage(null);
+  const prepared = await prepareGeneraciyaSeoCards({
+    result,
+    label: "po-foto",
+    flags: { ...flags, firstScreenRank: false },
+    headings: PAGE_HEADINGS,
+    fallbackTitle: (index) => `Фото ИИ по референсу — пример ${index + 1}`,
+  });
+  return { result, flags, ...prepared };
 });
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -96,25 +101,21 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function PoFotoPage() {
-  const [{ cards, ogImage }, themeCollage, completedImageCount] =
+  const [{ result, cards, exampleCards, ogImage, imageCaption, flags }, themeCollage, completedImageCount] =
     await Promise.all([
       getPageCards(),
       getThemeCollagePhotos(),
       getGeneraciyaCompletedImageCount(),
     ]);
   const socialProof = formatGeneraciyaFotoSocialProof(completedImageCount);
-  const exampleCards = cards
-    .map(toGenerationExampleCard)
-    .map((card, index) =>
-      withGenerationExampleFallbackTitle(card, `Фото ИИ по референсу — пример ${index + 1}`)
-    );
   const carouselCards = takeHeroMarqueeCards(exampleCards.filter((card) => card.photoUrl));
-  const galleryCards = exampleCards.slice(0, 16);
+  const galleryCards = exampleCards;
   const schemas = buildGeneraciyaHubJsonLd({
     pageUrl: PAGE_URL,
     name: `${GENERACIYA_PO_FOTO_SEO.h1} — PromptShot`,
     description: GENERACIYA_PO_FOTO_SEO.metaDescription,
     ogImage,
+    imageCaption,
     breadcrumbs: [
       { name: "Главная", item: SITE_URL },
       { name: GENERACIYA_PO_FOTO_SEO.breadcrumb, item: PAGE_URL },
@@ -124,7 +125,13 @@ export default async function PoFotoPage() {
       steps: GENERACIYA_PO_FOTO_HOW_TO_STEPS,
     },
     faq: GENERACIYA_PO_FOTO_FAQ,
-    itemList: { name: GENERACIYA_PO_FOTO_SEO.examplesTitle, cards: cards.slice(0, 16) },
+    itemList: {
+      name: GENERACIYA_PO_FOTO_SEO.examplesTitle,
+      cards: cards.slice(0, 16),
+      names: flags.descriptiveAlt
+        ? exampleCards.slice(0, 16).map((card) => card.seoFrame?.alts?.[0])
+        : undefined,
+    },
   });
 
   return (
@@ -149,7 +156,7 @@ export default async function PoFotoPage() {
           h1={GENERACIYA_PO_FOTO_SEO.h1}
           intro={GENERACIYA_PO_FOTO_SEO.intro}
           carouselCards={carouselCards}
-          carouselAriaLabel="Новые фото ИИ по своему фото"
+          carouselAriaLabel="Популярные фото ИИ по своему фото"
           socialProof={socialProof}
           generatorTitle={GENERACIYA_PO_FOTO_SEO.generatorTitle}
           generatorLead={GENERACIYA_PO_FOTO_SEO.generatorLead}
@@ -177,6 +184,12 @@ export default async function PoFotoPage() {
                 allPromptsLabel={GENERACIYA_FOTO_SEO.examplesCta}
                 defaultAllPromptsHref="#primery"
                 scenarioNavigation={getGeneraciyaFotoChipNavigation()}
+                loadMoreListing={{
+                  rpcParams: GENERACIYA_BASE_RPC_PARAMS,
+                  totalCount: result.total_count ?? result.cards_count,
+                  initialRankedBatchSize: result.cards_count,
+                  sort: "popular",
+                }}
               />
             ) : (
               <div className="rounded-2xl border border-zinc-200 bg-zinc-50 px-6 py-12 text-center text-sm text-zinc-500">

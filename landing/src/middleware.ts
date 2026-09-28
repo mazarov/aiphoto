@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { listingCatalogHubChildRedirectPath } from "@/lib/listing-catalog-hub";
 import { generaciyaLegacyRedirectPath } from "@/lib/generaciya-foto-routes";
+import { rewriteGeneraciyaSeoImage } from "@/lib/generaciya-seo-image-proxy";
 
 const OLD_SLUG_RE = /^\/p\/([^/]+)\/?$/;
 const DEFAULT_ALLOWED_METHODS = "GET, POST, OPTIONS";
@@ -96,6 +97,9 @@ export async function middleware(request: NextRequest) {
   const wwwRedirect = redirectWwwToApex(request);
   if (wwwRedirect) return wwwRedirect;
 
+  const seoImage = await rewriteGeneraciyaSeoImage(request);
+  if (seoImage) return seoImage;
+
   const catalogHub = listingCatalogHubChildRedirectPath(request.nextUrl.pathname);
   if (catalogHub) {
     return NextResponse.redirect(new URL(catalogHub, request.url), 301);
@@ -131,5 +135,7 @@ export async function middleware(request: NextRequest) {
 export const config = {
   matcher: [
     "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    // The exclusion above drops `.jpg`. This alias is the SEO image src.
+    "/img/seo/:path*",
   ],
 };

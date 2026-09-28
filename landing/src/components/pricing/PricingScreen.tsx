@@ -19,15 +19,18 @@ type Props = {
 
 function LegalFooter({
   dark = false,
-  layout = "stacked",
+  align = "center",
 }: {
   dark?: boolean;
-  layout?: "stacked" | "inline";
+  /** Embed on hub pages — left; modal/page paywall — centered. */
+  align?: "center" | "left";
 }) {
   const textClass = dark ? "text-zinc-500" : "text-zinc-600";
   const linkClass = dark
     ? "text-zinc-400 underline underline-offset-2 hover:text-zinc-200"
     : "text-zinc-600 underline underline-offset-2 hover:text-zinc-900";
+  const wrapClass = "min-w-0 break-words [overflow-wrap:anywhere]";
+  const alignClass = align === "left" ? "text-left" : "text-center";
   const offer = (
     <>
       Покупая пакет, вы принимаете условия{" "}
@@ -42,27 +45,24 @@ function LegalFooter({
     </>
   );
   const email = (
-    <a href="mailto:support_ru@promptshot.ru" className={linkClass}>
+    <a
+      href="mailto:support_ru@promptshot.ru"
+      className={`${linkClass} break-all`}
+    >
       support_ru@promptshot.ru
     </a>
   );
   const requisites = "СМЗ Азарова Мария Петровна · ИНН 673201018413";
 
-  if (layout === "inline") {
-    return (
-      <footer
-        className={`mt-3 pl-4 text-left text-xs leading-relaxed tracking-tight sm:pl-6 sm:whitespace-nowrap ${textClass}`}
-      >
-        {offer} {email} {requisites}
-      </footer>
-    );
-  }
-
   return (
-    <footer className={`space-y-0.5 px-1 pt-5 text-center text-[10px] leading-snug sm:text-xs ${textClass}`}>
-      <p>{offer}</p>
-      <p>{email}</p>
-      <p>{requisites}</p>
+    <footer
+      className={`min-w-0 w-full max-w-full space-y-0.5 px-1 pt-5 text-[10px] leading-snug sm:text-xs ${alignClass} ${textClass} ${
+        align === "left" ? "mt-3 pl-4 sm:pl-6" : ""
+      }`}
+    >
+      <p className={wrapClass}>{offer}</p>
+      <p className={wrapClass}>{email}</p>
+      <p className={wrapClass}>{requisites}</p>
     </footer>
   );
 }
@@ -166,7 +166,7 @@ function CompactPricingScreen({
     return (
       <div className="w-full">
         {paywall}
-        <LegalFooter layout="inline" />
+        <LegalFooter align="left" />
       </div>
     );
   }

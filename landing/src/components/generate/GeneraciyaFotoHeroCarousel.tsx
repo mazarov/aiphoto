@@ -26,6 +26,11 @@ function CarouselTile({
   headingAltSlots: readonly string[];
 }) {
   const decorative = copy === "b";
+  const seoImage =
+    !decorative &&
+    card.seoFrame &&
+    card.seoFrame.mode !== "current" &&
+    card.seoFrame.images.length > 0;
   return (
     <div
       data-hero-card-slug={card.slug}
@@ -37,7 +42,7 @@ function CarouselTile({
       <ListingPhotoTile
         card={card}
         aspectRatio={TILE_ASPECT}
-        priority={!decorative && index < 4}
+        priority={!decorative && (seoImage ? index === 0 : index < 4)}
         decorative={decorative}
         still
         sizes={SIZES_HERO_MARQUEE}

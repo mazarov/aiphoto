@@ -16,12 +16,12 @@ import { GENERACIYA_KARTINKA_PO_OPISANIYU_PATH } from "@/lib/generaciya-foto-rou
 import type { GeneraciyaFotoChipNavItem } from "@/lib/generaciya-foto-chip-nav";
 import {
   buildGeneraciyaHubJsonLd,
-  enrichGeneraciyaCards,
-  firstGeneraciyaOgImage,
   getGeneraciyaCompletedImageCount,
   getGeneraciyaKartinkaExamples,
+  prepareGeneraciyaSeoCards,
   SITE_URL,
 } from "@/lib/generaciya-hub-data";
+import { readGeneraciyaSeoImageFlags } from "@/lib/generaciya-seo-image-config";
 import {
   KARTINKA_PO_OPISANIYU_FAQ,
   KARTINKA_PO_OPISANIYU_HOW_IT_WORKS,
@@ -30,10 +30,6 @@ import {
   KARTINKA_PO_OPISANIYU_SEO,
   KARTINKA_PO_OPISANIYU_STYLE_CHIPS,
 } from "@/lib/kartinka-po-opisaniyu-seo-copy";
-import {
-  toGenerationExampleCard,
-  withGenerationExampleFallbackTitle,
-} from "@/lib/generation/example-card";
 import { takeHeroMarqueeCards } from "@/lib/hero-marquee";
 
 export const revalidate = 3600;
@@ -50,11 +46,22 @@ const STYLE_NAVIGATION: GeneraciyaFotoChipNavItem[] =
     value: chip.value,
   }));
 
+const PAGE_HEADINGS = [
+  KARTINKA_PO_OPISANIYU_SEO.h1,
+  KARTINKA_PO_OPISANIYU_SEO.examplesTitle,
+];
+
 const getPageCards = cache(async () => {
-  const result = await getGeneraciyaKartinkaExamples();
-  const cards = await enrichGeneraciyaCards(result, "kartinka-po-opisaniyu");
-  const ogImage = await firstGeneraciyaOgImage(result, cards);
-  return { result, cards, ogImage };
+  const flags = await readGeneraciyaSeoImageFlags();
+  const result = await getGeneraciyaKartinkaExamples(flags.firstScreenRank);
+  const prepared = await prepareGeneraciyaSeoCards({
+    result,
+    label: "kartinka-po-opisaniyu",
+    flags,
+    headings: PAGE_HEADINGS,
+    fallbackTitle: (index) => `Картинка по описанию — пример ${index + 1}`,
+  });
+  return { result, flags, ...prepared };
 });
 
 function formatSocialProof(count: number): string | null {
@@ -96,16 +103,12 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function KartinkaPoOpisaniyuPage() {
-  const [{ cards, ogImage }, completedImageCount] = await Promise.all([
-    getPageCards(),
-    getGeneraciyaCompletedImageCount(),
-  ]);
+  const [{ cards, exampleCards, ogImage, imageCaption, flags }, completedImageCount] =
+    await Promise.all([
+      getPageCards(),
+      getGeneraciyaCompletedImageCount(),
+    ]);
   const socialProof = formatSocialProof(completedImageCount);
-  const exampleCards = cards
-    .map(toGenerationExampleCard)
-    .map((card, index) =>
-      withGenerationExampleFallbackTitle(card, `Картинка по описанию — пример ${index + 1}`)
-    );
   const carouselCards = takeHeroMarqueeCards(exampleCards.filter((card) => card.photoUrl));
   const galleryCards = exampleCards.slice(0, 16);
   const schemas = buildGeneraciyaHubJsonLd({
@@ -113,6 +116,7 @@ export default async function KartinkaPoOpisaniyuPage() {
     name: `${KARTINKA_PO_OPISANIYU_SEO.h1} — PromptShot`,
     description: KARTINKA_PO_OPISANIYU_SEO.metaDescription,
     ogImage,
+    imageCaption,
     breadcrumbs: [
       { name: "Главная", item: SITE_URL },
       { name: KARTINKA_PO_OPISANIYU_SEO.breadcrumb, item: PAGE_URL },
@@ -122,7 +126,13 @@ export default async function KartinkaPoOpisaniyuPage() {
       steps: KARTINKA_PO_OPISANIYU_HOW_TO_STEPS,
     },
     faq: KARTINKA_PO_OPISANIYU_FAQ,
-    itemList: { name: KARTINKA_PO_OPISANIYU_SEO.examplesTitle, cards: cards.slice(0, 16) },
+    itemList: {
+      name: KARTINKA_PO_OPISANIYU_SEO.examplesTitle,
+      cards: cards.slice(0, 16),
+      names: flags.descriptiveAlt
+        ? exampleCards.slice(0, 16).map((card) => card.seoFrame?.alts?.[0])
+        : undefined,
+    },
   });
 
   return (
