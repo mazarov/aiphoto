@@ -11,6 +11,7 @@ import {
   isGenerateDockSeoPagePath,
   useGenerateDock,
 } from "@/context/GenerateDockContext";
+import { isAdminGenerateDockPath } from "@/lib/generate-dock-path";
 import { useListingScrollActivity } from "@/hooks/useListingScrollActivity";
 import { useListingIsMobile } from "@/hooks/useListingIsMobile";
 import { setListingChromeAutoHideBlocked } from "@/hooks/useListingChromeAutoHide";
@@ -48,13 +49,15 @@ const CardInlineGeneratePanel = dynamic(
 );
 
 /**
- * Global floating generate composer on listing routes.
+ * Global floating generate composer on listing routes and on admin history
+ * («Сгенерировать» / «Повторить»). Admin has no idle FAB.
  * Glass / result chrome lives on CardInlineGeneratePanel (photo clipped inside plate).
  * Host only positions the shell and close control.
  */
 export function GenerateListingDockHost() {
   const pathname = usePathname();
   const seoPage = isGenerateDockSeoPagePath(pathname);
+  const adminDock = isAdminGenerateDockPath(pathname);
   const { open: openPricing } = usePricingModal();
   const { user, loading: authLoading } = useAuth();
   const {
@@ -186,10 +189,11 @@ export function GenerateListingDockHost() {
     focusBlank({ entrySource: "fab" });
   }, [focusBlank, needsCredits, openPricing, pathname, seedBlankPrompt, seedPhotoshoot]);
 
-  if (!isGenerateDockListingPath(pathname)) return null;
+  if (!isGenerateDockListingPath(pathname) && !adminDock) return null;
 
   const collapsed = authLoading || !plateOpen;
-  const showFab = !isMobile && collapsed && !(seoPage && heroCtaInView);
+  const showFab =
+    !adminDock && !isMobile && collapsed && !(seoPage && heroCtaInView);
   const keepPanelMounted =
     !authLoading &&
     (plateOpen || runBusy || plateLocked || dockSurface !== null);

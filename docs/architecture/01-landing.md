@@ -1,5 +1,7 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-09-28 (**админ-генерация = listing dock:** «Сгенерировать» и «Повторить» на `/admin/analyze-history` открывают тот же `GenerateListingDockHost` → `CardInlineGeneratePanel chrome=dock` (`seedBlankPrompt`, `entry_source=admin`). Idle FAB и listing-padding на админке нет. Job идёт через `POST /api/generate`. `AdminGenerateModal` снят. `POST /api/admin/generate` и `/api/admin/generation-photo` остаются для старой очереди `client_source=admin`.)
+>
 > Последнее обновление: 2026-09-28 (**хабы дня учителя и воспитателя:** `/promty-dlya-foto/den-uchitelya` и `/promty-dlya-foto/den-vospitatelya`. Теги `den_uchitelya` / `den_vospitatelya` — объединение двух интентов: праздник («днем/днём/дню …») и портрет роли («учитель» / `teacher`, «воспитатель»). Карусель только по occasion-тегу. `{N}+` в Title и intro — живой счётчик ленты, пустая лента не публикует выдуманный объём. Чипов нет, пока нет карточек. SSOT `school-day-hubs.ts`.)
 >
 > Последнее обновление: 2026-09-28 (**сборка воркера:** `Dockerfile.worker` и `web-generation-worker/Dockerfile` копируют `storage-cache-control.ts`, файл есть в `include` у `web-generation-worker/tsconfig.json`. `photoshootTilesForComplete` принимает и видео-результат: у параметра обязателен `resultPath`.)
@@ -1031,7 +1033,7 @@
 /admin/analytics        → Закрытый analytics dashboard: пользователи/клиенты + live непотраченные кредиты. `?tab=search` → `/admin/search`; `?tab=nps` → `/admin/nps`; `?tab=finance` → `/admin/finance`
 /admin/search           → Вкладка «Поиск»: зафиксированные запросы `/search`, размер выдачи, CTR в карточку, топ и нулевая выдача; свой период 1/7/30/90; `GET /api/admin/search-analytics`
 /admin/nps              → Вкладка «Оценки»: KPI/динамика/таблица NPS 1–10; свой период 1/7/30/90; `GET /api/admin/nps`. Спека `docs/14-09-nps-survey.md`
-/admin/analyze-history  → Закрытая история analyze/remix + все non-admin user generations; remix помечается бейджем и `change_request`; image job — бейдж `Gemini|xAI generate|edit`; private source previews выдаются signed, completed results публикуются идемпотентно. Mobile rows: dense (56px thumb, 1-line prompt) via `admin-dense-row.ts`
+/admin/analyze-history  → Закрытая история analyze/remix + все non-admin user generations; remix помечается бейджем и `change_request`; image job — бейдж `Gemini|xAI generate|edit`; private source previews выдаются signed, completed results публикуются идемпотентно. Mobile rows: dense (56px thumb, 1-line prompt) via `admin-dense-row.ts`. «Сгенерировать» / «Повторить» открывают тот же floating Generate Dock, что листинг (`isAdminGenerateDockPath`), без отдельной модалки и без idle FAB
 /admin/payments         → Закрытый cursor-реестр YooKassa/Robokassa: payer identity, RUB/status/test, credits/`credited_at`; кнопка «Скачать CSV» выгружает все строки текущих фильтров
 /admin/finance          → Live P&L: Сегодня/Вчера/7 дней + календарь; default `csv=0`; график выручка / косты стеком / опер. маржа; `csv=1` — monthly CSV override; `?tab=finance` с аналитики редиректит сюда
 /admin/seo              → Вотчлист топ-30 URL: фильтр дней, таблица + раскрытие запросов и график динамики
@@ -1269,10 +1271,15 @@
     $$
   );
   ```
-- **Admin generation:** `/api/admin/generate` резолвит отдельно requester
-  `auth.users.id` и shared `imageprompt_users.id`, ставит `client_source='admin'` job
-  через существующий `landing_enqueue_generation`. Job обрабатывает тот же durable
-  `web-generation-worker`; admin UI только enqueue-ит и poll-ит status.
+- **Admin generation:** клик «Сгенерировать» / «Повторить» на `/admin/analyze-history`
+  сидирует тот же floating composer, что листинг (`GenerateListingDockHost`,
+  `CardInlineGeneratePanel chrome=dock`, `seedBlankPrompt`, `entry_source=admin`).
+  Страница не в listing allowlist: idle FAB нет, нижний padding листинга не добавляется.
+  Новый job — обычный `POST /api/generate` (кредиты, библиотека фото).
+  `POST /api/admin/generate` по-прежнему резолвит requester `auth.users.id` и shared
+  `imageprompt_users.id` и ставит `client_source='admin'` через `landing_enqueue_generation`
+  без списания кредитов; UI его больше не вызывает. Очередь `/api/admin/generations`
+  и закреплённое фото `/api/admin/generation-photo` остаются для уже поставленных admin-job.
 - **Оплаты:** `/admin/payments` читает объединённый ledger через
   service-role RPC `admin_landing_payments` (YooKassa + Robokassa). Keyset cursor использует
   `(created_at,id)`; identity собирается одним SQL-read model из `auth.users`,
@@ -1757,7 +1764,7 @@ SearchResults (client, infinite scroll)
 | MobileTabBar | `components/MobileTabBar.tsx` | Tab bar (max-lg): **Тренды** / Каталог / **Создать фото** → `focusBlank` / **Фото в промт** / **Войти·Профиль** → `MobileProfileSheet`. Поиск — иконка в шапке (`useOpenMobileSearchEntry`). |
 | GenerateDockContext | `context/GenerateDockContext.tsx` | SSOT seed/focus/dockSurface/historyRefresh/`lastDockResultDismissed` для listing dock. Path allowlist — `generate-dock-path.ts` (включая `/foto-v-promt`, `/analyses`, `/ii-fotosessiya*`). Guest может открыть plate без auth (`seedPhotoPrompt` / `seedPhotoshoot` / FAB / tab). Auth на enqueue и исчерпанной analyze-квоте. Photo→prompt payload — in-memory (`generate-photo-prompt.ts`), не sessionStorage. Upload-first surface — `resolveDockSurfaceForComposeEntry`. |
 | FotoVPromtGenerateButton | `components/foto-v-promt/FotoVPromtGenerateButton.tsx` | Фирменный CTA анализа: clipboard + `seedBlankPrompt(intent=photo_prompt)` |
-| GenerateListingDockHost | `components/generate/GenerateListingDockHost.tsx` | Плавающий composer на allowlist листингов (treatment); collapse FAB для гостя / при скролле. `plateOpen` блокирует autohide через `setListingChromeAutoHideBlocked` (без ререндера `PageLayout`). |
+| GenerateListingDockHost | `components/generate/GenerateListingDockHost.tsx` | Плавающий composer на allowlist листингов (treatment); collapse FAB для гостя / при скролле. На `/admin/analyze-history` тот же composer по клику «Сгенерировать» / «Повторить», без idle FAB. `plateOpen` блокирует autohide через `setListingChromeAutoHideBlocked` (без ререндера `PageLayout`). |
 | GenerationResultBackdrop | `components/generate/GenerationResultBackdrop.tsx` | Фон result: pixelate previous → reveal next (CSS); shared dock/card. |
 | useListingScrollActivity | `hooks/useListingScrollActivity.ts` | Скролл листинга с опциональным `minDeltaPx` (dock collapse только после заметного сдвига). |
 | useListingChromeAutoHide | `hooks/useListingChromeAutoHide.ts` | Hide-on-scroll: classList на `.listing-shell-root`, rAF; лого — `listingChromeLogoRowHidden` (только скролл, hold не разворачивает); таббар: hide ≥24px вниз, show ≥4px вверх; hold при search/profile/menu sheet; fail-open |

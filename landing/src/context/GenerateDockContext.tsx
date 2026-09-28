@@ -69,7 +69,8 @@ export type GenerateDockEntrySource =
   | "route"
   | "sidebar"
   | "foto_v_promt"
-  | "analyses";
+  | "analyses"
+  | "admin";
 
 const DEFAULT_SEED: GenerateDockSeed = DEFAULT_GENERATE_DOCK_SEED;
 

@@ -74,6 +74,14 @@ export function listingComposeExampleInitialFilter(pathname: string): {
   return resolveListingCatalogHub(pathname)?.composeExampleFilter ?? null;
 }
 
+/**
+ * Admin history opens the same floating composer on «Сгенерировать» / «Повторить».
+ * Not a listing path: no idle FAB and no listing bottom padding.
+ */
+export function isAdminGenerateDockPath(pathname: string): boolean {
+  return normalizeGenerateDockPath(pathname) === "/admin/analyze-history";
+}
+
 /** Listing routes where the floating generate dock is mounted. */
 export function isGenerateDockListingPath(pathname: string): boolean {
   const np = normalizeGenerateDockPath(pathname);

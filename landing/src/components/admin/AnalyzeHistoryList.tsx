@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
-import { AdminGenerateModal } from "./AdminGenerateModal";
+import { useGenerateDock } from "@/context/GenerateDockContext";
 import { AdminGenerationQueue } from "./AdminGenerationQueue";
 import { AdminUserGenerationsList } from "./AdminUserGenerationsList";
 import {
@@ -40,6 +40,7 @@ type View = "analyses" | "user_generations" | "unpublished" | "published";
 
 export function AnalyzeHistoryList() {
   const { user, openAuthModal } = useAuth();
+  const { seedBlankPrompt } = useGenerateDock();
   const [view, setView] = useState<View>("analyses");
   const [source, setSource] = useState("all");
   const [items, setItems] = useState<Item[]>([]);
@@ -49,9 +50,13 @@ export function AnalyzeHistoryList() {
   const [error, setError] = useState("");
   const [lightbox, setLightbox] = useState<string | null>(null);
   const [fullPrompt, setFullPrompt] = useState<string | null>(null);
-  const [generatePrompt, setGeneratePrompt] = useState<string | null>(null);
   const [publishing, setPublishing] = useState<string | null>(null);
-  const [queueRefresh, setQueueRefresh] = useState(0);
+
+  const openGenerate = useCallback((prompt: string) => {
+    const text = prompt.trim();
+    if (!text) return;
+    seedBlankPrompt(text, { entrySource: "admin", intent: "text" });
+  }, [seedBlankPrompt]);
 
   const load = useCallback(async (next?: string) => {
     setLoading(true); setError(""); setStatus(0);
@@ -108,9 +113,9 @@ export function AnalyzeHistoryList() {
       <button className={adminDenseFilterClass(view === "published")} onClick={() => setView("published")}>Опубликовано</button>
     </nav>
     {error && <p className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}
-    {view === "user_generations" ? <AdminUserGenerationsList onRegenerate={setGeneratePrompt} />
-      : view !== "analyses" ? <AdminGenerationQueue status={view} refreshKey={queueRefresh}
-      onRegenerate={setGeneratePrompt} /> : <>
+    {view === "user_generations" ? <AdminUserGenerationsList onRegenerate={openGenerate} />
+      : view !== "analyses" ? <AdminGenerationQueue status={view} refreshKey={0}
+      onRegenerate={openGenerate} /> : <>
       <div className="flex flex-wrap gap-1.5 sm:gap-2">
         {["all", ...CLIENT_SOURCES_ORDER].map((item) => <button key={item} onClick={() => setSource(item)}
           className={adminDenseFilterClass(source === item)}>{item === "all" ? "Все" : clientSourceLabel(item)}</button>)}
@@ -151,7 +156,7 @@ export function AnalyzeHistoryList() {
             <button onClick={() => setFullPrompt(item.prompt)} className={adminDensePromptClass}>{item.prompt}</button>
             <div className={adminDenseActionsClass}>
               <button onClick={() => navigator.clipboard.writeText(item.prompt)} className="text-indigo-600">Копировать</button>
-              <button onClick={() => setGeneratePrompt(item.prompt)} className="text-violet-600">Сгенерировать</button>
+              <button onClick={() => openGenerate(item.prompt)} className="text-violet-600">Сгенерировать</button>
               {!item.is_published ? <button disabled={Boolean(publishing) || !item.image_url}
                 onClick={() => void publish(item.id)} className="text-amber-700 disabled:opacity-40">
                 {publishing === item.id ? "Публикация…" : "Опубликовать"}
@@ -163,8 +168,6 @@ export function AnalyzeHistoryList() {
       {cursor && <button disabled={loading} onClick={() => void load(cursor)}
         className="mx-auto block rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold">Показать ещё</button>}
     </>}
-    {generatePrompt && <AdminGenerateModal initialPrompt={generatePrompt} onClose={() => setGeneratePrompt(null)}
-      onCompleted={() => setQueueRefresh((value) => value + 1)} />}
     {lightbox && <div onClick={() => setLightbox(null)} className="fixed inset-0 z-[80] flex items-center justify-center bg-black/80 p-4">
       <img src={lightbox} alt="" onClick={(event) => event.stopPropagation()} className="max-h-[90vh] max-w-full rounded-2xl object-contain" />
     </div>}

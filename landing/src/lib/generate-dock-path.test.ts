@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  isAdminGenerateDockPath,
   isFotoVPromtDockPath,
   isFotosessiiGenerateDockPath,
   isGenerateDockListingPath,
@@ -104,4 +105,12 @@ test("isGenerateDockListingPath still blocks admin, pricing, and cards", () => {
   assert.equal(isGenerateDockListingPath("/admin/analyze-history"), false);
   assert.equal(isGenerateDockListingPath("/pricing"), false);
   assert.equal(isGenerateDockListingPath("/p/some-card"), false);
+});
+
+test("admin analyze-history mounts the floating composer without listing FAB", () => {
+  assert.equal(isAdminGenerateDockPath("/admin/analyze-history"), true);
+  assert.equal(isAdminGenerateDockPath("/admin/analyze-history/"), true);
+  assert.equal(isAdminGenerateDockPath("/admin"), false);
+  assert.equal(isAdminGenerateDockPath("/admin/finance"), false);
+  assert.equal(isGenerateDockListingPath("/admin/analyze-history"), false);
 });
