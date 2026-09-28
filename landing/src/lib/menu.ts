@@ -225,6 +225,8 @@ const CURATED_SECTIONS: MenuSection[] = [
           tagItem("14_fevralya"),
           tagItem("8_marta"),
           tagItem("1_sentyabrya"),
+          tagItem("den_uchitelya"),
+          tagItem("den_vospitatelya"),
           tagItem("maslenica"),
           tagItem("svadba"),
           tagItem("novyy_god"),

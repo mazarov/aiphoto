@@ -227,6 +227,15 @@ import {
   toHeroGapHeroCarouselCards,
 } from "./hero-gap-hubs";
 import {
+  SCHOOL_DAY_HUB_SPECS,
+  isSchoolDayClusterPath,
+  schoolDayChildRedirectPath,
+  schoolDayFilterNav,
+  schoolDayHubHeroFetchParams,
+  schoolDayHubSpec,
+  toSchoolDayHeroCarouselCards,
+} from "./school-day-hubs";
+import {
   MEN_HUB_COMPOSE_EXAMPLE_FILTER,
   MEN_HUB_GENERATE_CTA,
   MEN_HUB_HERO_ARIA_LABEL,
@@ -489,6 +498,21 @@ const OBJECT_SCENE_HUB_LIST: readonly ListingCatalogHub[] = OBJECT_SCENE_HUB_SPE
   getFilterNavItems: (state) => objectSceneFilterNav(spec, state),
 }));
 
+const SCHOOL_DAY_HUB_LIST: readonly ListingCatalogHub[] = SCHOOL_DAY_HUB_SPECS.map((spec) => ({
+  path: spec.hubPath,
+  loadMoreLabel: spec.loadMoreLabel,
+  generateCta: spec.generateCta,
+  heroAriaLabel: spec.heroAriaLabel,
+  composeExampleFilter: {
+    label: spec.label,
+    dimension: "occasion_tag",
+    value: spec.slug,
+  },
+  heroFetchParams: schoolDayHubHeroFetchParams(spec.slug),
+  toHeroCarouselCards: toSchoolDayHeroCarouselCards,
+  getFilterNavItems: () => schoolDayFilterNav(),
+}));
+
 const HERO_GAP_HUB_LIST: readonly ListingCatalogHub[] = HERO_GAP_HUB_SPECS.map((spec) => ({
   path: spec.hubPath,
   loadMoreLabel: `Больше промтов: ${spec.label}`,
@@ -522,6 +546,7 @@ const LISTING_CATALOG_HUBS: readonly ListingCatalogHub[] = [
   S_LOSHADYU_HUB,
   V_LESU_HUB,
   ...OBJECT_SCENE_HUB_LIST,
+  ...SCHOOL_DAY_HUB_LIST,
   ...HERO_GAP_HUB_LIST,
 ];
 
@@ -547,6 +572,8 @@ export function resolveListingCatalogHub(
   if (isVLesuHubPath(pathname)) return V_LESU_HUB;
   const scene = objectSceneHubSpec(pathname);
   if (scene) return OBJECT_SCENE_HUB_LIST.find((hub) => hub.path === scene.hubPath) ?? null;
+  const schoolDay = schoolDayHubSpec(pathname);
+  if (schoolDay) return SCHOOL_DAY_HUB_LIST.find((hub) => hub.path === schoolDay.hubPath) ?? null;
   const gap = heroGapHubSpec(pathname);
   if (gap) return HERO_GAP_HUB_LIST.find((hub) => hub.path === gap.hubPath) ?? null;
   return null;
@@ -579,6 +606,7 @@ export function isListingCatalogHubClusterPath(pathname: string): boolean {
     isSLoshadyuClusterPath(pathname) ||
     isVLesuClusterPath(pathname) ||
     isObjectSceneClusterPath(pathname) ||
+    isSchoolDayClusterPath(pathname) ||
     isHeroGapClusterPath(pathname)
   );
 }
@@ -605,6 +633,7 @@ export function listingCatalogHubChildRedirectPath(
     sLoshadyuChildRedirectPath(pathname) ??
     vLesuChildRedirectPath(pathname) ??
     objectSceneChildRedirectPath(pathname) ??
+    schoolDayChildRedirectPath(pathname) ??
     heroGapChildRedirectPath(pathname)
   );
 }

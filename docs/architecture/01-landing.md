@@ -1,5 +1,7 @@
 # 01 — Лендинг (promptshot.ru)
 
+> Последнее обновление: 2026-09-28 (**хабы дня учителя и воспитателя:** `/promty-dlya-foto/den-uchitelya` и `/promty-dlya-foto/den-vospitatelya`. Теги `den_uchitelya` / `den_vospitatelya` — объединение двух интентов: праздник («днем/днём/дню …») и портрет роли («учитель» / `teacher`, «воспитатель»). Карусель только по occasion-тегу. `{N}+` в Title и intro — живой счётчик ленты, пустая лента не публикует выдуманный объём. Чипов нет, пока нет карточек. SSOT `school-day-hubs.ts`.)
+>
 > Последнее обновление: 2026-09-28 (**сборка воркера:** `Dockerfile.worker` и `web-generation-worker/Dockerfile` копируют `storage-cache-control.ts`, файл есть в `include` у `web-generation-worker/tsconfig.json`. `photoshootTilesForComplete` принимает и видео-результат: у параметра обязателен `resultPath`.)
 >
 > Последнее обновление: 2026-09-27 (**скрытие публикации по пользователю:** `landing_users.publish_hidden`, SQL `258`. `GET /api/me` отдаёт `publishHidden`. Кнопка «Опубликовать» пропадает в результате, в «Моих генерациях» и на своей карточке; `POST /api/generations/[id]/publish` и публикация через visibility отвечают `403 publish_hidden`. Скрыть свою карточку по-прежнему можно. Переключатель в `/admin/analyze-history` → генерации пользователей: `PATCH /api/admin/landing-users/[id]/publish-hidden`. Клиент не может сменить флаг сам — триггер откатывает `publish_hidden` для `anon`/`authenticated`.)

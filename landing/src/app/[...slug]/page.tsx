@@ -51,6 +51,7 @@ import {
   resolveListingCatalogHubL1,
 } from "@/lib/listing-catalog-hub";
 import { heroGapCanonicalPath } from "@/lib/hero-gap-hubs";
+import { applySchoolDayListingCount } from "@/lib/school-day-hubs";
 import {
   resolveSeoIllustrations,
   type ResolvedSeoIllustration,
@@ -244,13 +245,16 @@ export async function generateMetadata({ params, searchParams }: Props) {
   if (!route) notFound();
   redirectIfNotCanonical(slug, route);
 
-  const seo = getSeoForRoute(route);
+  const result = await getListingCards(route, qs ?? null);
+  const totalCount = result.total_count ?? result.cards_count;
+  const seo = applySchoolDayListingCount(
+    getSeoForRoute(route),
+    route.primaryTag.slug,
+    totalCount,
+  );
 
   const canonicalUrl = `${SITE_URL}${route.canonicalPath}`;
   const title = seo.metaTitle;
-
-  const result = await getListingCards(route, qs ?? null);
-  const totalCount = result.total_count ?? result.cards_count;
   const minCards = getMinCardsForLevel(route.level);
   const dbUnavailable = result.tier_used === "error";
   const shouldIndex = !dbUnavailable && totalCount >= minCards;
@@ -661,7 +665,11 @@ export default async function TagPage({ params, searchParams }: Props) {
       )
     : [];
 
-  const seo = getSeoForRoute(route);
+  const seo = applySchoolDayListingCount(
+    getSeoForRoute(route),
+    route.primaryTag.slug,
+    totalCount,
+  );
 
   let resolvedIllustrations: ResolvedSeoIllustration[] = [];
   if (seo.illustrations?.length) {
