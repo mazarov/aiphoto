@@ -13,3 +13,4 @@ docs/export/
 tmp/
 .cursor/yandex-smtp.env
 .cursor/yandex-seo.env
+.cursor/loki.env

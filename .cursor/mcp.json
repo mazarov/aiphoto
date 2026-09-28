@@ -17,6 +17,12 @@
       "command": "node",
       "args": ["${workspaceFolder}/src/standalone/mcp-yandex-webmaster.mjs"],
       "envFile": "${workspaceFolder}/.cursor/yandex-seo.env"
+    },
+    "loki": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["${workspaceFolder}/src/standalone/mcp-loki.mjs"],
+      "envFile": "${workspaceFolder}/.cursor/loki.env"
     }
   }
 }

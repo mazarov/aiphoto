@@ -97,6 +97,7 @@ fetch grafana/provisioning/datasources/loki.yml
 fetch grafana/provisioning/dashboards/provider.yml
 fetch grafana/provisioning/dashboards/json/promptshot.json
 fetch grafana/provisioning/alerting/rules.yml
+fetch repair-loki-auth.sh
 
 cd "$ROOT"
 if [ ! -f .env ]; then
@@ -195,4 +196,6 @@ echo "LOKI_PUSH_URL=https://${OPS_DOMAIN}/loki/api/v1/push"
 echo "LOKI_BASIC_AUTH=${LOKI_PUSH_USER}:${LOKI_PUSH_PASSWORD}"
 echo "LOG_ENV=${LOG_ENV:-prod}"
 echo "Saved to /opt/observability/CONNECT.txt"
-echo "Wait about a minute, then open Grafana. The landing health probe stays red until /api/health is deployed."
+chmod +x /opt/observability/repair-loki-auth.sh
+bash /opt/observability/repair-loki-auth.sh
+echo "Wait about a minute, then open Grafana. Landing logs appear after Dockhost has LOKI_PUSH_URL and the service is restarted."

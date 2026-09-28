@@ -1,0 +1,17 @@
+---
+description: Read PromptShot production logs from Loki when diagnosing landing, worker, or payment-bot.
+alwaysApply: true
+---
+
+# Production logs
+
+Landing, `web-generation-worker`, and `payment-bot` push logs to Loki. When the user asks what happened in production, why a generation failed, or to check service health, call the Loki MCP tools `loki_status` and `loki_query`. They are read-only.
+
+LogQL examples:
+
+- `{service="landing", env="prod"}`
+- `{service="landing", env="prod"} | json | event="product_snapshot"`
+- `{service="web-generation-worker", env="prod", level="error"}`
+- `{service="payment-bot", env="prod"}`
+
+Do not print `LOKI_BASIC_AUTH` or copy the password into the repo. If the Loki MCP is not connected, say to enable `loki` in Cursor Settings → MCP. The password lives only in gitignored `.cursor/loki.env`.
