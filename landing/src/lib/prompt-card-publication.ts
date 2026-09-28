@@ -9,7 +9,11 @@ import {
   photoshootCardNeedsPromptHydration,
 } from "@/lib/photoshoot-publish";
 import { scheduleCardSubjectAudience } from "@/lib/card-subject-audience";
-import { classifySeoTagsForPublish } from "@/lib/seo-tags-classify";
+import {
+  catalogPathsForSeoTags,
+  classifySeoTagsForPublish,
+  unionKnownRegistryTags,
+} from "@/lib/seo-tags-classify";
 import { processPublishedCardEmbedding } from "@/lib/visual-embedding-publish";
 
 export type PromptCardPublicationResult = {
@@ -74,8 +78,7 @@ function schedulePhotoshootPromptHydration(
       if (seoError) {
         throw new Error(`card_seo_refresh_failed:${seoError.message}`);
       }
-      revalidatePath(`/p/${slug}`);
-      revalidatePath("/sitemap.xml");
+      revalidatePublishedSurfaces(slug, classified.seo_tags);
       console.info("[photoshoot.publish.analyze] after hydrate ok", {
         cardId,
         promptCount: hydration.promptCount,
@@ -87,6 +90,66 @@ function schedulePhotoshootPromptHydration(
       });
     }
   });
+}
+
+function revalidatePublishedSurfaces(slug: string, seoTags: unknown): void {
+  revalidatePath(`/p/${slug}`);
+  revalidatePath("/sitemap.xml");
+  for (const path of catalogPathsForSeoTags(seoTags)) {
+    revalidatePath(path);
+  }
+}
+
+function promptTextsFromVariants(
+  variants: Array<{ prompt_text_ru: string | null; prompt_text_en: string | null }> | null,
+): string[] {
+  return (variants || [])
+    .map(
+      (variant) =>
+        usableCatalogPrompt(variant.prompt_text_ru) ||
+        usableCatalogPrompt(variant.prompt_text_en),
+    )
+    .filter((text): text is string => Boolean(text));
+}
+
+/**
+ * Repeat publish must not call the model again.
+ * It only unions occasion slugs the registry regex already matches, then drops hub ISR.
+ */
+async function mergeKnownTagsOnPublishedCard(
+  supabase: SupabaseClient,
+  card: { id: string; slug: string; title_ru: string | null; seo_tags: unknown },
+): Promise<number | null> {
+  const { data: variants, error: variantsError } = await supabase
+    .from("prompt_variants")
+    .select("prompt_text_ru,prompt_text_en")
+    .eq("card_id", card.id)
+    .order("variant_index", { ascending: true });
+  if (variantsError) {
+    throw new Error(`card_variants_failed:${variantsError.message}`);
+  }
+
+  const merged = unionKnownRegistryTags(
+    card.seo_tags,
+    card.title_ru,
+    promptTextsFromVariants(variants),
+  );
+  if (merged.changed) {
+    const { error: seoError } = await supabase
+      .from("prompt_cards")
+      .update({
+        seo_tags: merged.seo_tags,
+        seo_readiness_score: merged.seo_readiness_score,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", card.id)
+      .eq("is_published", true);
+    if (seoError) {
+      throw new Error(`card_seo_refresh_failed:${seoError.message}`);
+    }
+  }
+  revalidatePublishedSurfaces(card.slug, merged.seo_tags);
+  return merged.seo_readiness_score;
 }
 
 function scheduleSubjectAudience(supabase: SupabaseClient, cardId: string): void {
@@ -133,7 +196,7 @@ export async function publishPromptCard(
 
   const { data: card, error: cardError } = await supabase
     .from("prompt_cards")
-    .select("id,slug,title_ru,is_published,seo_readiness_score")
+    .select("id,slug,title_ru,is_published,seo_tags,seo_readiness_score")
     .eq("id", cardId)
     .maybeSingle();
 
@@ -145,6 +208,12 @@ export async function publishPromptCard(
   }
 
   if (card.is_published && !needsPhotoshootHydration) {
+    const seoReadinessScore = await mergeKnownTagsOnPublishedCard(supabase, {
+      id: card.id as string,
+      slug: card.slug as string,
+      title_ru: (card.title_ru as string | null) ?? null,
+      seo_tags: card.seo_tags,
+    });
     scheduleVisualEmbeddingProcessing(supabase, card.id as string);
     scheduleSubjectAudience(supabase, card.id as string);
     return {
@@ -152,10 +221,7 @@ export async function publishPromptCard(
       slug: card.slug as string,
       isPublished: true,
       alreadyPublished: true,
-      seoReadinessScore:
-        typeof card.seo_readiness_score === "number"
-          ? card.seo_readiness_score
-          : null,
+      seoReadinessScore,
       promptsReady: true,
       firstPublishedAt: await readFirstPublishedAt(supabase, card.id as string),
     };
@@ -171,15 +237,7 @@ export async function publishPromptCard(
     throw new Error(`card_variants_failed:${variantsError.message}`);
   }
 
-  const promptTexts = (variants || [])
-    .map((variant) => {
-      const row = variant as {
-        prompt_text_ru: string | null;
-        prompt_text_en: string | null;
-      };
-      return usableCatalogPrompt(row.prompt_text_ru) || usableCatalogPrompt(row.prompt_text_en);
-    })
-    .filter((text): text is string => Boolean(text));
+  const promptTexts = promptTextsFromVariants(variants);
 
   const classified = await classifySeoTagsForPublish(
     (card.title_ru as string | null) ?? null,
@@ -201,8 +259,7 @@ export async function publishPromptCard(
     }
 
     const slug = card.slug as string;
-    revalidatePath(`/p/${slug}`);
-    revalidatePath("/sitemap.xml");
+    revalidatePublishedSurfaces(slug, classified.seo_tags);
     if (needsPhotoshootHydration) {
       schedulePhotoshootPromptHydration(supabase, card.id as string, slug);
     }
@@ -249,8 +306,7 @@ export async function publishPromptCard(
   }
 
   const slug = card.slug as string;
-  revalidatePath(`/p/${slug}`);
-  revalidatePath("/sitemap.xml");
+  revalidatePublishedSurfaces(slug, classified.seo_tags);
   if (needsPhotoshootHydration) {
     schedulePhotoshootPromptHydration(supabase, card.id as string, slug);
   }

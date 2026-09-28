@@ -107,6 +107,78 @@ export function computeSeoReadinessScore(seoTags: SeoTags): number {
   return Math.min(100, score);
 }
 
+function emptySeoTags(): SeoTags {
+  return {
+    audience_tag: [],
+    style_tag: [],
+    occasion_tag: [],
+    object_tag: [],
+    doc_task_tag: [],
+    labels: { ru: [], en: [] },
+  };
+}
+
+function stringList(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is string => typeof item === "string" && item.length > 0);
+}
+
+function asSeoTags(raw: unknown): SeoTags {
+  const obj = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+  const labels =
+    obj.labels && typeof obj.labels === "object"
+      ? (obj.labels as Record<string, unknown>)
+      : {};
+  const tags = emptySeoTags();
+  for (const dim of DIMENSIONS) {
+    tags[dim] = stringList(obj[dim]);
+  }
+  tags.labels = { ru: stringList(labels.ru), en: stringList(labels.en) };
+  return tags;
+}
+
+/**
+ * Known occasion slugs come from TAG_REGISTRY regex.
+ * A successful model answer may add tags, but it must not drop an explicit holiday match.
+ * Repeat publish uses this without a second model call.
+ */
+export function unionKnownRegistryTags(
+  seoTags: unknown,
+  title: string | null,
+  promptTexts: string[],
+): { seo_tags: SeoTags; seo_readiness_score: number; changed: boolean } {
+  const base = asSeoTags(seoTags);
+  const known = extractSeoTagsRegex(promptTexts, title);
+  const seen = new Set(base.occasion_tag);
+  let changed = false;
+  for (const slug of known.occasion_tag) {
+    if (seen.has(slug)) continue;
+    seen.add(slug);
+    base.occasion_tag.push(slug);
+    changed = true;
+  }
+  if (changed) fillLabels(base);
+  return {
+    seo_tags: base,
+    seo_readiness_score: computeSeoReadinessScore(base),
+    changed,
+  };
+}
+
+/** Listing paths whose ISR cache should drop when this card is published. */
+export function catalogPathsForSeoTags(seoTags: unknown): string[] {
+  const tags = asSeoTags(seoTags);
+  const slugs = new Set(DIMENSIONS.flatMap((dim) => tags[dim]));
+  const paths: string[] = [];
+  const seen = new Set<string>();
+  for (const tag of TAG_REGISTRY) {
+    if (!slugs.has(tag.slug) || !tag.urlPath || seen.has(tag.urlPath)) continue;
+    seen.add(tag.urlPath);
+    paths.push(tag.urlPath);
+  }
+  return paths;
+}
+
 function buildTagListForPrompt(): string {
   const lines: string[] = [];
   for (const dim of DIMENSIONS) {
@@ -313,48 +385,39 @@ async function classifyWithRetry(
   return null;
 }
 
+function finishClassification(
+  seoTags: unknown,
+  title: string | null,
+  promptTexts: string[],
+): { seo_tags: Record<string, unknown>; seo_readiness_score: number } {
+  const merged = unionKnownRegistryTags(seoTags, title, promptTexts);
+  return {
+    seo_tags: merged.seo_tags as unknown as Record<string, unknown>,
+    seo_readiness_score: merged.seo_readiness_score,
+  };
+}
+
 /** Returns JSON-serializable seo_tags + readiness score (same shape as fill-seo-tags DB updates). */
 export async function classifySeoTagsForPublish(
   title: string | null,
   promptTexts: string[],
 ): Promise<{ seo_tags: Record<string, unknown>; seo_readiness_score: number }> {
   if (promptTexts.length === 0) {
-    const empty: SeoTags = {
-      audience_tag: [],
-      style_tag: [],
-      occasion_tag: [],
-      object_tag: [],
-      doc_task_tag: [],
-      labels: { ru: [], en: [] },
-    };
-    return { seo_tags: empty as unknown as Record<string, unknown>, seo_readiness_score: 0 };
+    return finishClassification(emptySeoTags(), title, promptTexts);
   }
 
   if (!process.env.OPENAI_API_KEY) {
-    const regexTags = extractSeoTagsRegex(promptTexts, title);
-    return {
-      seo_tags: regexTags as unknown as Record<string, unknown>,
-      seo_readiness_score: computeSeoReadinessScore(regexTags),
-    };
+    return finishClassification(extractSeoTagsRegex(promptTexts, title), title, promptTexts);
   }
 
   try {
     const result = await classifyWithRetry(title, promptTexts);
-    if (result) {
-      return {
-        seo_tags: result.seoTags as unknown as Record<string, unknown>,
-        seo_readiness_score: computeSeoReadinessScore(result.seoTags),
-      };
-    }
+    if (result) return finishClassification(result.seoTags, title, promptTexts);
   } catch (err) {
     console.warn("[seo-tags-classify] LLM failed, regex fallback", {
       message: err instanceof Error ? err.message : String(err),
     });
   }
 
-  const regexTags = extractSeoTagsRegex(promptTexts, title);
-  return {
-    seo_tags: regexTags as unknown as Record<string, unknown>,
-    seo_readiness_score: computeSeoReadinessScore(regexTags),
-  };
+  return finishClassification(extractSeoTagsRegex(promptTexts, title), title, promptTexts);
 }
