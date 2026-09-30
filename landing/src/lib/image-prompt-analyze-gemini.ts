@@ -3,6 +3,7 @@ import {
   buildRouterExtractPrompt,
   isAnalyzePatternRouterFlagValue,
   parseAnalyzeDraft,
+  normalizeAnalyzeLayout,
   patternCriticalRules,
   rejectionSuffix,
   sectionOrderFor,
@@ -39,7 +40,7 @@ export const GEMINI_TIMEOUT_MS = 30_000;
 export const ANALYZE_THINKING_BUDGET = 0;
 /** Two routed attempts must finish inside the route maxDuration of 60s. */
 export const ANALYZE_ROUTER_ATTEMPT_TIMEOUT_MS = 22_000;
-const ANALYZE_ROUTER_TEMPERATURE = 0.2;
+const ANALYZE_ROUTER_TEMPERATURE = 0.3;
 const ANALYZE_ROUTER_ATTEMPTS = 2;
 
 const CRITICAL_RULES_EN = `CRITICAL RULES
@@ -380,11 +381,8 @@ async function generateRoutedPromptFromImage(
       reasons = ["Pattern line missing or invalid"];
       continue;
     }
-    const validation = validateAnalyzeDraft({
-      pattern,
-      medium,
-      body: draft.body,
-    });
+    const body = normalizeAnalyzeLayout(draft.body);
+    const validation = validateAnalyzeDraft({ pattern, medium, body });
     if (!validation.ok) {
       reasons = validation.reasons;
       extensionLog(`${params.logPrefix}.pattern_rejected`, {
@@ -397,10 +395,10 @@ async function generateRoutedPromptFromImage(
       continue;
     }
     const missing = sectionOrderFor(pattern).filter(
-      (heading) => !new RegExp(`^${escapeRegExp(heading)}:`, "im").test(draft.body),
+      (heading) => !new RegExp(`^${escapeRegExp(heading)}:`, "im").test(body),
     );
     return {
-      promptText: `${draft.body}\n\n${patternCriticalRules(pattern, medium, params.locale)}`,
+      promptText: `${body}\n\n${patternCriticalRules(pattern, medium, params.locale)}`,
       rawText: posted.rawText,
       missing,
       truncated: posted.summary.finishReason === "MAX_TOKENS" || missing.length > 0,

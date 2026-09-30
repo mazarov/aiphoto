@@ -4,6 +4,7 @@ import {
   ANALYZE_PATTERNS,
   buildLockedExtractPrompt,
   buildRouterExtractPrompt,
+  normalizeAnalyzeLayout,
   forbiddenHeadingsFor,
   isAnalyzePatternRouterFlagValue,
   parseAnalyzeDraft,
@@ -40,6 +41,48 @@ test("router prompt names every pattern and does not ban appearance", () => {
   }
   assert.doesNotMatch(ru, /do not describe identity, facial features/i);
   assert.match(ru, /Appearance/);
+});
+
+test("router prompt keeps the quality header and writes each spec once", () => {
+  const prompt = buildRouterExtractPrompt("ru");
+  assert.match(prompt, /Be technically specific/);
+  assert.match(prompt, /will NOT see the source image/);
+  assert.match(prompt, /6–10 concrete anti-drift constraints/);
+  assert.equal(prompt.match(/^Camera:$/gm)?.length, 1);
+  assert.equal(prompt.match(/^Composition:$/gm)?.length, 1);
+  assert.match(prompt, /do not begin with “must survive”/);
+  assert.ok(prompt.length < buildRouterExtractPrompt("ru").length + 1);
+});
+
+test("inline heading bodies are normalized and validate", () => {
+  const inline = [
+    "Visual Hook: Маяк на островке перед водопадом.",
+    "Scene: Озеро, утро.",
+    "**Genre:** Пейзаж.",
+    "Environment: Скалы, остров, водопад.",
+    "Lighting: Мягкий рассеянный.",
+    "Camera: 50–70 мм.",
+    "Color: Синий, оранжевый.",
+    "Composition: Маяк по центру.",
+    "Text:",
+    "none",
+    "Avoid:",
+    "- не добавлять людей",
+    "- Text: не менять надписи",
+  ].join("\n");
+  const body = normalizeAnalyzeLayout(inline);
+  assert.match(body, /^Visual Hook:\nМаяк/m);
+  assert.match(body, /^Genre:\nПейзаж/m);
+  assert.match(body, /^- Text: не менять надписи$/m);
+  assert.deepEqual(validateAnalyzeDraft({ pattern: "scene", medium: "illustration", body }), { ok: true });
+});
+
+test("locked prompt lists only its own specs", () => {
+  const prompt = buildLockedExtractPrompt("scene", "illustration", "ru");
+  assert.match(prompt, /^Environment:$/m);
+  assert.doesNotMatch(prompt, /^Pose:$/m);
+  assert.doesNotMatch(prompt, /^Makeup:$/m);
+  assert.match(prompt, /Be technically specific/);
 });
 
 test("locked person prompt does not ask for a Pattern line", () => {

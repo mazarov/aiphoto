@@ -1,4 +1,10 @@
-import { analyzeBodyLanguageName } from "@/lib/extension-prompt-sections";
+/**
+ * Pattern router for image → prompt analyze.
+ *
+ * Self-contained on purpose: this file is shared verbatim with the
+ * imageprompt.tools repo (`landing/src/lib/analyze-pattern.ts`). Keep both copies
+ * identical; do not add imports from other project modules.
+ */
 
 export const ANALYZE_PATTERNS = ["person", "object", "layout", "scene"] as const;
 export const ANALYZE_MEDIA = ["photo", "illustration", "graphic", "3d"] as const;
@@ -71,50 +77,68 @@ const SECTION_ORDER: Record<AnalyzePattern, readonly string[]> = {
   scene: SCENE_SECTIONS,
 };
 
-const SECTION_SPECS: Record<string, string> = {
+/**
+ * One spec per heading, shared by every pattern. Kept as detailed as the legacy
+ * 12-section extract: the generator does not see the source image, so thin
+ * sections lose the frame. Written once in the prompt, not once per pattern.
+ */
+export const SECTION_SPECS: Record<string, string> = {
   "Visual Hook":
-    "One sentence naming what must survive: the distinctive silhouette, object, or layout. Do not catalogue every detail.",
+    "One sentence of art direction that names the distinctive silhouette, object, layout, or aesthetic that makes this image recognizable. Write it as a description of the image, not as an instruction: do not begin with “must survive”, “preserve”, “keep”, or their translations. Do not catalogue every detail.",
   Scene:
-    "Where it is and what is happening, in 1–2 sentences. Put appearance in Appearance, not here.",
+    "Where it is and what is happening, in 2–3 sentences: location type, indoor or outdoor, time of day, weather or interior condition, and the main action. For person, put looks in Appearance and garments in Clothing, not here.",
   Genre:
-    "Short genre label, such as fashion portrait, product photo, poster, or landscape.",
+    "Genre label with one qualifier, such as fashion editorial, street photography, product packshot, still life, movie poster, infographic, landscape, or interior. If Medium is illustration, graphic, or 3d, also name the visual style, such as watercolor, anime, cel-shaded, flat vector, or low-poly.",
   Appearance:
-    "What is required to repeat the person without the source photo: hair length and color, approximate age band, build, and visible distinguishing features. Do not write “preserve the face” and do not ask for a reference photo.",
+    "What is required to repeat the person without the source photo: hair style, length, and color; approximate age band; build and height impression; skin tone as light, medium, or deep; visible distinguishing features such as glasses, beard, tattoos, or freckles. Do not write “preserve the face” and do not ask for a reference photo.",
   Pose:
-    "Torso orientation, head turn, gaze, shoulders, spine, visible limbs and contacts. Occluded parts: none. No focal length.",
+    "One detailed paragraph. Begin with torso orientation relative to the lens and head turn with gaze direction. Then the shoulder line, torso lean, spine curvature and its magnitude, visible arms and hands with their contact points, hips and legs with weight distribution, and a final posture label. Report the true magnitude of bends without softening. Describe only visible limbs; write not visible for occluded parts. No focal length or framing here.",
   Lighting:
-    "Key direction and hardness, fill or rim, color temperature, shadows and highlights.",
+    "Key-light direction as a clock position and height, and its hardness; fill and rim presence; color temperature as warm, neutral, or cool with an approximate kelvin range; contrast impression; where shadows fall and how soft their edges are; specular highlights and reflections. Name the apparent source, such as a window, softbox, overcast sky, or neon. Be technically specific.",
   Camera:
-    "Full-frame focal-length range, framing, camera height, viewing angle, depth of field. Preserve crop and subject scale.",
-  Mood: "Emotional tone in one or two sentences.",
-  Color: "Dominant and accent colors, contrast, saturation, grade.",
+    "Estimated full-frame focal-length range in mm; framing scale from extreme close-up to wide establishing; camera height relative to the subject and tilt; horizontal viewing angle; depth of field with which regions are sharp and which are blurred; lens character such as rectilinear, wide-angle stretch, macro, or tilt-shift. Preserve crop and subject scale.",
+  Mood: "Emotional tone and atmosphere in 1–2 sentences, with a brief note on what creates it.",
+  Color:
+    "Dominant and accent colors with where each sits in the frame; color grade and any cinematic treatment such as teal-orange, faded film, or high-key; contrast; saturation; white-balance shift; how skin or key materials are rendered.",
   Clothing:
-    "Visible garments, cut, color, material, fit, accessories. Use none where nothing is visible.",
+    "One detailed paragraph covering visible upper and lower garments: construction, neckline, sleeves, cut, colors and patterns, materials, fit and styling, jewelry, footwear, and worn accessories. Preserve distinctive structural details. Write not visible or none where appropriate.",
   Makeup:
-    "Visible cosmetics only. Use none when no makeup is visible. Do not describe identity.",
+    "Visible cosmetic application only: overall look, complexion finish, eyes, lips, brows, blush, highlight, and contour. Write none when no makeup is visible. Do not describe identity.",
   Composition:
-    "Placement, crop, foreground, midground, background, and negative space.",
+    "Subject placement on the frame grid; exact crop and which regions are included or cut; horizon or eye-line height; foreground, midground, and background layers with their relative scale; leading lines, framing elements, repetition, or symmetry; negative space. Preserve the original composition.",
   Text:
-    "Every readable string that must be reproduced, one per line, original language and spelling. Skip illegible scribbles. If there is no readable text, the body is exactly: none",
+    "Every readable string that must be reproduced, one per line, in the original language and spelling. Skip illegible scribbles. If there is no readable text, the body is exactly: none",
   Avoid:
-    "Short anti-drift list for this pattern only. If Medium is photo, forbid a cartoon or 3D look. If Medium is illustration or 3d, forbid turning the image into a photograph. Do not mention spine, plastic skin, or makeup unless this pattern is person and Medium is photo.",
+    "A generator-ready list of 6–10 concrete anti-drift constraints for this Pattern and Medium, one per line, each starting with a dash. Name what would break this specific image: wrong placement or scale of the main subject, changed crop or lens, altered lighting direction, changed palette, added or removed elements. Person: add wrong pose or orientation, redesigned clothing, distorted anatomy. Object: add changed shape, material, or markings, extra props. Layout: add changed reading order, misspelled or moved text, altered icon count. Scene: add added people, moved landmarks, lost reflections or weather. If Medium is photo, forbid a cartoon, painterly, or 3D look. If Medium is illustration, graphic, or 3d, forbid turning the image into a photograph. Do not mention spine, plastic skin, or makeup unless Pattern is person and Medium is photo.",
   Object:
-    "What the item is, its shape and proportions. A mannequin is a display form, not a body with a spine.",
-  Materials: "Surface material, texture, and finish.",
+    "What the item is, its category, shape, proportions, approximate size, count, and orientation in the frame. A mannequin is a display form, not a body with a spine.",
+  Materials:
+    "Surface material, texture, and finish such as matte, satin, gloss, or brushed; transparency; wear; how the surface responds to light.",
   Markings:
-    "Brand, logo, print, and embossing that are actually readable. Do not invent marks.",
+    "Brand, logo, print, label, embossing, and pattern that are actually visible, with placement and color. Do not invent marks. If none are visible, write none.",
   Staging:
-    "Surface, background, neighboring objects, and how the item sits or stands.",
+    "The surface the item sits on, the backdrop, neighboring props, spacing between items, how the item stands or is held, and the shadows or reflections it casts.",
   Rendering:
-    "The carrier in one or two sentences: watercolor, vector, diagram, 3D, newspaper illustration, or similar.",
-  Canvas: "Orientation, margins, and background.",
+    "The carrier in 1–2 sentences: flat vector, watercolor, hand-drawn diagram, UI screenshot, newspaper illustration, 3D render, or collage; line weight, shading style, and texture.",
+  Canvas:
+    "Orientation, aspect impression, margins, background color or texture, and any grid or guide lines.",
   Regions:
-    "Blocks in reading order, top to bottom and left to right. Describe what each block contains. Do not copy the strings; those belong in Text.",
+    "Blocks in reading order, top to bottom and left to right. For each block: position, approximate size, what it contains such as headline, body copy, image, chart, or button, and alignment. Do not copy the strings; those belong in Text.",
   Icons:
-    "Signs, arrows, logos, and decorative symbols. If there are none, the body is exactly: none",
+    "Signs, arrows, logos, pictograms, and decorative symbols: count, style, color, and placement. If there are none, the body is exactly: none",
   Environment:
-    "Foreground, midground, and background, plus weather or architecture. Do not add people.",
+    "Foreground, midground, and background with what each contains and its relative scale; terrain, water, vegetation, or architecture; weather, season, and time of day; atmosphere such as haze, fog, or mist. Do not add people.",
 };
+
+/** Sections whose body is a list or a token, not prose paragraphs. */
+const LIST_SECTIONS = new Set(["Text", "Avoid"]);
+
+const QUALITY_HEADER = `You are an expert AI image analyst and art director.
+Analyze the image and produce a structured description for an AI image generator that will NOT see the source image. Everything the generator needs must be in the sections.
+
+Describe this specific image faithfully, not an idealized version. Preserve the actual crop, subject scale, camera angle, lighting, background, palette, and composition. State concrete geometry, positions, and counts before mood or style language. Be technically specific: name directions, angles, focal-length classes, materials, and quantities. Do not invent hidden parts, props, marks, or scene details; if something is occluded, write not visible.
+
+Every prose section is a complete paragraph of 2–5 full sentences unless its spec says otherwise. Finish every sentence. No markdown, no bullet lists except in Text and Avoid, no commentary outside the sections.`;
 
 const NA_BODY =
   /не применим|not applicable|\bn\/?a\b|não aplic|nao aplic/i;
@@ -158,29 +182,54 @@ function uniqueHeadings(headings: readonly string[]): string[] {
   return out;
 }
 
+/** BCP-47 → English language name for the extract contract (`ru` → Russian). */
+export function analyzeBodyLanguageName(locale: string): string {
+  const lang = (locale.split("-")[0] || "en").trim().toLowerCase() || "en";
+  try {
+    return new Intl.DisplayNames(["en"], { type: "language" }).of(lang) || "English";
+  } catch {
+    return "English";
+  }
+}
+
 function languageBlock(locale: string, controlTokens: boolean): string {
   const bodyLanguage = analyzeBodyLanguageName(locale);
   return [
     "LANGUAGE (mandatory):",
     "- Keep every section heading in English.",
-    `- Write every section body in ${bodyLanguage}.`,
-    "- The token none stays exactly none.",
+    `- Write every section body in ${bodyLanguage}. A section body is the text after each heading.`,
+    "- The tokens none and not visible stay exactly as written. Latin camera units (mm, K) stay as written.",
     ...(controlTokens
       ? ["- Pattern and Medium values stay the English tokens listed below."]
       : []),
-    `- LANGUAGE CHECK: every section body must be ${bodyLanguage}.`,
   ].join("\n");
 }
 
-function sectionBlock(headings: readonly string[], locale: string): string {
+function languageCheck(locale: string): string {
   const bodyLanguage = analyzeBodyLanguageName(locale);
-  return headings
-    .map(
-      (heading) =>
-        `${heading}:\nWrite the body in ${bodyLanguage}. ${SECTION_SPECS[heading]}`,
-    )
-    .join("\n\n");
+  return `LANGUAGE CHECK: every section body must be ${bodyLanguage}. Headings stay English.`;
 }
+
+function headingList(pattern: AnalyzePattern): string {
+  return sectionOrderFor(pattern)
+    .map((heading) => `${heading}:`)
+    .join(" → ");
+}
+
+/** Spec dictionary for the given headings, written once. */
+function specBlock(headings: readonly string[], locale: string): string {
+  const bodyLanguage = analyzeBodyLanguageName(locale);
+  const lines = headings.map((heading) => {
+    const shape = LIST_SECTIONS.has(heading) ? "" : ` Body in ${bodyLanguage}, full sentences.`;
+    return `${heading}:\n${SECTION_SPECS[heading]}${shape}`;
+  });
+  return ["SECTION SPECS (follow for every section you output):", ...lines].join("\n\n");
+}
+
+const OUTPUT_FORMAT = `Output ONLY the sections for that Pattern, in the listed order. Each heading is on its own line, exactly as written with the colon, and the body starts on the NEXT line, never on the heading line. Example:
+Lighting:
+Soft overcast key from above…
+Each section exactly once. Do not output sections from other patterns. Do not write “not applicable”, “не применимо”, “n/a”, or “não aplicável”. If a detail is absent, write none. Do not output CRITICAL RULES.`;
 
 const DECISION = `PATTERN (first line of the answer, exactly one token):
 Pattern: person
@@ -203,16 +252,22 @@ Decision order:
 
 Medium: a camera photograph is photo; a drawing, watercolor, anime, or illustrated character is illustration; a flat vector, poster, UI, or diagram is graphic; a rendered still is 3d.
 
-Then output ONLY the sections for that Pattern, in the listed order. Each heading is on its own line and the body starts on the next line. Each section exactly once. Do not output sections from other patterns. Do not write “not applicable”, “не применимо”, “n/a”, or “não aplicável”. If a detail is absent, write none. Do not output Pattern or Medium again after the second line. Do not output CRITICAL RULES.`;
+Do not output Pattern or Medium again after the second line.`;
 
 export function buildRouterExtractPrompt(locale: string): string {
-  const blocks = ANALYZE_PATTERNS.map((pattern) =>
-    [
-      `If Pattern is ${pattern}, output only these sections in this order:`,
-      sectionBlock(sectionOrderFor(pattern), locale),
-    ].join("\n\n"),
-  );
-  return [languageBlock(locale, true), DECISION, ...blocks].join("\n\n");
+  const patternLists = [
+    "SECTIONS PER PATTERN:",
+    ...ANALYZE_PATTERNS.map((pattern) => `${pattern}: ${headingList(pattern)}`),
+  ].join("\n");
+  return [
+    languageBlock(locale, true),
+    QUALITY_HEADER,
+    DECISION,
+    OUTPUT_FORMAT,
+    patternLists,
+    specBlock(ALL_ANALYZE_HEADINGS, locale),
+    languageCheck(locale),
+  ].join("\n\n");
 }
 
 export function buildLockedExtractPrompt(
@@ -222,11 +277,12 @@ export function buildLockedExtractPrompt(
 ): string {
   return [
     languageBlock(locale, false),
+    QUALITY_HEADER,
     `Pattern is ${pattern}. Medium is ${medium}. Do not output Pattern or Medium lines.`,
-    "Output only the sections below, in this order. Each heading is on its own line. Each section exactly once.",
-    "Do not write “not applicable”, “не применимо”, “n/a”, or “não aplicável”. If a detail is absent, write none.",
-    "Do not output CRITICAL RULES.",
-    sectionBlock(sectionOrderFor(pattern), locale),
+    OUTPUT_FORMAT,
+    `SECTIONS: ${headingList(pattern)}`,
+    specBlock(sectionOrderFor(pattern), locale),
+    languageCheck(locale),
   ].join("\n\n");
 }
 
@@ -288,11 +344,29 @@ function escapeHeading(heading: string): string {
   return heading.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+const KNOWN_LAYOUT_HEADINGS: readonly string[] = [...ALL_ANALYZE_HEADINGS, "CRITICAL RULES"];
+
+/**
+ * Put every known heading on its own line. Models sometimes write
+ * `Lighting: Soft key…` or glue two headings; the validator, remix splitter and
+ * stored prompt all expect `Lighting:\nSoft key…`.
+ */
+export function normalizeAnalyzeLayout(text: string): string {
+  let out = text.replace(/\r\n/g, "\n");
+  const alternation = KNOWN_LAYOUT_HEADINGS.map(escapeHeading).join("|");
+  // Markdown emphasis around headings: **Lighting:** → Lighting:
+  out = out.replace(new RegExp(`^\\*\\*(${alternation}):?\\*\\*:?`, "gm"), "$1:");
+  // Body on the heading line: "Lighting: Soft key" → "Lighting:\nSoft key".
+  // Anchored to line start, so "Text:" quoted inside a body line is left alone.
+  out = out.replace(new RegExp(`^(${alternation}):[ \\t]+(\\S)`, "gm"), "$1:\n$2");
+  return out.replace(/\n{3,}/g, "\n\n").trim();
+}
+
 export function splitAnalyzeSections(
-  text: string,
+  input: string,
 ): Array<{ heading: string | null; body: string }> {
-  const known = [...ALL_ANALYZE_HEADINGS, "CRITICAL RULES"];
-  const re = new RegExp(`^(${known.map(escapeHeading).join("|")}):\\s*$`, "gim");
+  const text = normalizeAnalyzeLayout(input);
+  const re = new RegExp(`^(${KNOWN_LAYOUT_HEADINGS.map(escapeHeading).join("|")}):\\s*$`, "gim");
   const matches = [...text.matchAll(re)];
   if (!matches.length) {
     const body = text.trim();
