@@ -1,9 +1,9 @@
+import { ALL_ANALYZE_HEADINGS } from "@/lib/analyze-pattern";
 import { SECTION_SPEC_ORDER } from "@/lib/extension-prompt-sections";
 
 export const REMIX_KNOWN_HEADINGS = [
-  ...SECTION_SPEC_ORDER,
-  "CRITICAL RULES",
-] as const;
+  ...new Set<string>([...SECTION_SPEC_ORDER, ...ALL_ANALYZE_HEADINGS, "CRITICAL RULES"]),
+];
 
 export type RemixAttemptMode = "section_edits" | "full_rewrite";
 
@@ -46,6 +46,7 @@ export const REMIX_EDITS_SYSTEM_INSTRUCTION = [
   "- CHANGE_REQUEST is the only editing instruction and has priority over conflicting source details.",
   "- Edit every section that would become inconsistent after the change, including Avoid and CRITICAL RULES when they contradict the request.",
   "- heading must match an existing SOURCE_SECTION_HEADINGS value.",
+  "- Do not add a section from another pattern. Do not add portrait sections that are absent from SOURCE_SECTION_HEADINGS.",
   "- body is the complete replacement for that section, without the heading line.",
   "- Do not return unchanged sections.",
   "- Do not return the full prompt.",

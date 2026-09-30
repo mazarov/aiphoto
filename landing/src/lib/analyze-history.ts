@@ -22,6 +22,8 @@ type AnalyzeHistoryInput = {
   prompt: string;
   changeRequest?: string | null;
   style?: string | null;
+  analyzePattern?: string | null;
+  analyzeMedium?: string | null;
   locale?: string | null;
   model?: string | null;
   userId?: string | null;
@@ -93,6 +95,8 @@ async function persist(
     prompt,
     change_request: kind === "remix" ? changeRequest : null,
     style: input.style ?? null,
+    analyze_pattern: input.analyzePattern ?? null,
+    analyze_medium: input.analyzeMedium ?? null,
     locale: input.locale ?? null,
     model: input.model ?? null,
     user_id: input.userId ?? null,
@@ -150,6 +154,8 @@ export type AnalyzeHistoryRow = {
   prompt: string;
   change_request: string | null;
   style: string | null;
+  analyze_pattern?: string | null;
+  analyze_medium?: string | null;
   locale: string | null;
   model: string | null;
   image_path: string | null;

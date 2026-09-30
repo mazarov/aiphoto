@@ -1,4 +1,16 @@
 import {
+  buildLockedExtractPrompt,
+  buildRouterExtractPrompt,
+  isAnalyzePatternRouterFlagValue,
+  parseAnalyzeDraft,
+  patternCriticalRules,
+  rejectionSuffix,
+  sectionOrderFor,
+  validateAnalyzeDraft,
+  type AnalyzeMedium,
+  type AnalyzePattern,
+} from "@/lib/analyze-pattern";
+import {
   buildExtractLanguageContract,
   buildExtractPrompt,
   SECTION_SPEC_ORDER,
@@ -25,6 +37,10 @@ export const GEMINI_DIRECT_BASE_URL = "https://generativelanguage.googleapis.com
 export const GEMINI_TIMEOUT_MS = 30_000;
 /** Flash extract: thinking 256 + portrait regularly dies on DO proxy (~25s EPIPE). */
 export const ANALYZE_THINKING_BUDGET = 0;
+/** Two routed attempts must finish inside the route maxDuration of 60s. */
+export const ANALYZE_ROUTER_ATTEMPT_TIMEOUT_MS = 22_000;
+const ANALYZE_ROUTER_TEMPERATURE = 0.2;
+const ANALYZE_ROUTER_ATTEMPTS = 2;
 
 const CRITICAL_RULES_EN = `CRITICAL RULES
 - Preserve: face structure, features, skin tone, eye color, proportions.
@@ -93,7 +109,29 @@ export async function resolveAnalyzeGeminiBaseUrl(
   return GEMINI_DIRECT_BASE_URL;
 }
 
-export async function generatePhotorealPromptFromImage(params: {
+export async function isAnalyzePatternRouterEnabled(
+  supabase: SupabaseServer,
+): Promise<boolean> {
+  try {
+    const { data, error } = await supabase
+      .from("landing_generation_config")
+      .select("value")
+      .eq("key", "analyze_pattern_router_enabled")
+      .maybeSingle();
+    if (error) {
+      extensionLog("analyze.pattern_flag_failed", { message: error.message });
+      return false;
+    }
+    return isAnalyzePatternRouterFlagValue(data?.value);
+  } catch (error) {
+    extensionLog("analyze.pattern_flag_failed", {
+      message: error instanceof Error ? error.message : String(error),
+    });
+    return false;
+  }
+}
+
+type AnalyzeImageParams = {
   image: ParsedAnalyzeImage;
   locale: string;
   supabase: SupabaseServer;
@@ -105,27 +143,29 @@ export async function generatePhotorealPromptFromImage(params: {
   thinkingBudget?: number;
   imageMaxEdge?: number;
   imageMaxBytes?: number;
-}): Promise<{
+};
+
+export type AnalyzePromptResult = {
   promptText: string;
   rawText: string;
   missing: string[];
   truncated: boolean;
   summary: ReturnType<typeof summarizeGeminiApiResponse>;
   baseUrl: string;
-}> {
-  const prompt = buildExtractPrompt("photoreal", params.locale);
-  const thinkingBudget =
-    typeof params.thinkingBudget === "number"
-      ? params.thinkingBudget
-      : ANALYZE_THINKING_BUDGET;
-  const timeoutMs =
-    typeof params.timeoutMs === "number" && params.timeoutMs > 0
-      ? params.timeoutMs
-      : GEMINI_TIMEOUT_MS;
-  const baseUrl = await resolveAnalyzeGeminiBaseUrl(params.supabase);
-  let image: ParsedAnalyzeImage;
+  pattern: AnalyzePattern | null;
+  medium: AnalyzeMedium | null;
+  attempts: number;
+};
+
+function resolveAttemptTimeout(value: number | undefined, fallback: number): number {
+  return typeof value === "number" && value > 0 ? value : fallback;
+}
+
+async function prepareAnalyzeImage(
+  params: AnalyzeImageParams,
+): Promise<ParsedAnalyzeImage> {
   try {
-    image = await prepareAnalyzeImageForGemini(params.image, {
+    return await prepareAnalyzeImageForGemini(params.image, {
       maxEdge: params.imageMaxEdge ?? ANALYZE_GEMINI_MAX_EDGE,
       maxBytes: params.imageMaxBytes ?? ANALYZE_GEMINI_MAX_BYTES,
     });
@@ -133,23 +173,41 @@ export async function generatePhotorealPromptFromImage(params: {
     if (isSharpBusyError(error)) throw error;
     throw new PhotorealAnalyzeError("payload", 503);
   }
+}
+
+async function postPreparedAnalyzeImage(params: {
+  prompt: string;
+  image: ParsedAnalyzeImage;
+  sourceBase64Chars: number;
+  locale: string;
+  systemInstruction: string;
+  apiKey: string;
+  baseUrl: string;
+  logPrefix: string;
+  requestId: string;
+  correlationId: string;
+  timeoutMs: number;
+  thinkingBudget: number;
+  temperature: number;
+  attempt: number;
+}): Promise<{ rawText: string; summary: ReturnType<typeof summarizeGeminiApiResponse> }> {
   const body = {
     systemInstruction: {
-      parts: [{ text: buildExtractLanguageContract(params.locale) }],
+      parts: [{ text: params.systemInstruction }],
     },
     contents: [
       {
         role: "user",
         parts: [
-          { text: prompt },
-          { inlineData: { mimeType: image.mimeType, data: image.data } },
+          { text: params.prompt },
+          { inlineData: { mimeType: params.image.mimeType, data: params.image.data } },
         ],
       },
     ],
     generationConfig: {
-      temperature: 0.3,
+      temperature: params.temperature,
       maxOutputTokens: 4096,
-      thinkingConfig: { thinkingBudget },
+      thinkingConfig: { thinkingBudget: params.thinkingBudget },
     },
   };
   extensionLog(`${params.logPrefix}.gemini_request`, {
@@ -157,17 +215,18 @@ export async function generatePhotorealPromptFromImage(params: {
     correlationId: params.correlationId,
     model: ANALYZE_GEMINI_MODEL,
     locale: params.locale,
-    endpointHost: new URL(baseUrl).hostname,
-    viaProxy: baseUrl !== GEMINI_DIRECT_BASE_URL,
-    imageBase64CharsIn: params.image.data.length,
-    imageBase64CharsOut: image.data.length,
+    endpointHost: new URL(params.baseUrl).hostname,
+    viaProxy: params.baseUrl !== GEMINI_DIRECT_BASE_URL,
+    imageBase64CharsIn: params.sourceBase64Chars,
+    imageBase64CharsOut: params.image.data.length,
+    attempt: params.attempt,
     body: redactGenerateContentBody(body),
   });
 
   let response: Response;
   try {
     response = await fetch(
-      `${baseUrl}/v1beta/models/${ANALYZE_GEMINI_MODEL}:generateContent`,
+      `${params.baseUrl}/v1beta/models/${ANALYZE_GEMINI_MODEL}:generateContent`,
       {
         method: "POST",
         headers: {
@@ -175,7 +234,7 @@ export async function generatePhotorealPromptFromImage(params: {
           "x-goog-api-key": params.apiKey,
         },
         body: JSON.stringify(body),
-        signal: AbortSignal.timeout(timeoutMs),
+        signal: AbortSignal.timeout(params.timeoutMs),
       },
     );
   } catch (error) {
@@ -188,6 +247,7 @@ export async function generatePhotorealPromptFromImage(params: {
           : error instanceof Error && error.cause
             ? String(error.cause)
             : undefined,
+      attempt: params.attempt,
     });
     throw new PhotorealAnalyzeError("fetch_failed", 503);
   }
@@ -196,6 +256,7 @@ export async function generatePhotorealPromptFromImage(params: {
       requestId: params.requestId,
       status: response.status,
       body: (await response.text().catch(() => "")).slice(0, 300),
+      attempt: params.attempt,
     });
     throw new PhotorealAnalyzeError("gemini_http", 502, response.status);
   }
@@ -215,14 +276,164 @@ export async function generatePhotorealPromptFromImage(params: {
     .join("")
     .trim();
   if (!rawText) throw new PhotorealAnalyzeError("empty_prompt", 502);
+  return { rawText, summary };
+}
 
-  const diagnostics = analyzePromptDiagnostics(rawText, summary.finishReason);
+export async function generatePhotorealPromptFromImage(
+  params: AnalyzeImageParams,
+): Promise<Omit<AnalyzePromptResult, "pattern" | "medium" | "attempts">> {
+  const thinkingBudget =
+    typeof params.thinkingBudget === "number"
+      ? params.thinkingBudget
+      : ANALYZE_THINKING_BUDGET;
+  const timeoutMs = resolveAttemptTimeout(params.timeoutMs, GEMINI_TIMEOUT_MS);
+  const baseUrl = await resolveAnalyzeGeminiBaseUrl(params.supabase);
+  const image = await prepareAnalyzeImage(params);
+  const posted = await postPreparedAnalyzeImage({
+    prompt: buildExtractPrompt("photoreal", params.locale),
+    image,
+    sourceBase64Chars: params.image.data.length,
+    locale: params.locale,
+    systemInstruction: buildExtractLanguageContract(params.locale),
+    apiKey: params.apiKey,
+    baseUrl,
+    logPrefix: params.logPrefix,
+    requestId: params.requestId,
+    correlationId: params.correlationId,
+    timeoutMs,
+    thinkingBudget,
+    temperature: 0.3,
+    attempt: 1,
+  });
+  const diagnostics = analyzePromptDiagnostics(posted.rawText, posted.summary.finishReason);
   return {
-    promptText: appendAnalyzeCriticalRules(rawText, params.locale),
-    rawText,
+    promptText: appendAnalyzeCriticalRules(posted.rawText, params.locale),
+    rawText: posted.rawText,
     missing: diagnostics.missing,
     truncated: diagnostics.truncated,
-    summary,
+    summary: posted.summary,
     baseUrl,
   };
+}
+
+async function generateRoutedPromptFromImage(
+  params: AnalyzeImageParams & {
+    patternLock?: { pattern: "person"; medium: "photo" };
+  },
+): Promise<AnalyzePromptResult> {
+  const thinkingBudget =
+    typeof params.thinkingBudget === "number"
+      ? params.thinkingBudget
+      : ANALYZE_THINKING_BUDGET;
+  const timeoutMs = resolveAttemptTimeout(
+    params.timeoutMs,
+    params.patternLock ? GEMINI_TIMEOUT_MS : ANALYZE_ROUTER_ATTEMPT_TIMEOUT_MS,
+  );
+  const baseUrl = await resolveAnalyzeGeminiBaseUrl(params.supabase);
+  const image = await prepareAnalyzeImage(params);
+  const locked = params.patternLock;
+  let reasons: string[] = [];
+  let lastSummary: ReturnType<typeof summarizeGeminiApiResponse> | null = null;
+
+  for (let attempt = 1; attempt <= ANALYZE_ROUTER_ATTEMPTS; attempt += 1) {
+    const prompt = locked
+      ? buildLockedExtractPrompt(locked.pattern, locked.medium, params.locale)
+      : buildRouterExtractPrompt(params.locale);
+    const posted = await postPreparedAnalyzeImage({
+      prompt: reasons.length ? `${prompt}\n\n${rejectionSuffix(reasons, Boolean(locked))}` : prompt,
+      image,
+      sourceBase64Chars: params.image.data.length,
+      locale: params.locale,
+      systemInstruction: locked
+        ? "Headings stay English. Bodies follow the LANGUAGE block in the user message. Do not output Pattern or Medium lines."
+        : "Headings stay English. Bodies follow the LANGUAGE block in the user message. The first line is Pattern and the second line is Medium.",
+      apiKey: params.apiKey,
+      baseUrl,
+      logPrefix: params.logPrefix,
+      requestId: params.requestId,
+      correlationId: params.correlationId,
+      timeoutMs,
+      thinkingBudget,
+      temperature: ANALYZE_ROUTER_TEMPERATURE,
+      attempt,
+    });
+    lastSummary = posted.summary;
+    const draft = parseAnalyzeDraft(posted.rawText);
+    const pattern = locked?.pattern ?? draft.pattern;
+    const medium = locked?.medium ?? draft.medium;
+    if (
+      !locked &&
+      (!pattern || !medium || draft.patternLineInvalid || draft.mediumLineInvalid)
+    ) {
+      reasons = [
+        draft.patternLineInvalid || !pattern ? "Pattern line missing or invalid" : "",
+        draft.mediumLineInvalid || !medium ? "Medium line missing or invalid" : "",
+      ].filter(Boolean);
+      extensionLog(`${params.logPrefix}.pattern_rejected`, {
+        requestId: params.requestId,
+        attempt,
+        reasons,
+      });
+      continue;
+    }
+    if (!pattern || !medium) {
+      reasons = ["Pattern line missing or invalid"];
+      continue;
+    }
+    const validation = validateAnalyzeDraft({
+      pattern,
+      medium,
+      body: draft.body,
+    });
+    if (!validation.ok) {
+      reasons = validation.reasons;
+      extensionLog(`${params.logPrefix}.pattern_rejected`, {
+        requestId: params.requestId,
+        attempt,
+        pattern,
+        medium,
+        reasons,
+      });
+      continue;
+    }
+    const missing = sectionOrderFor(pattern).filter(
+      (heading) => !new RegExp(`^${escapeRegExp(heading)}:`, "im").test(draft.body),
+    );
+    return {
+      promptText: `${draft.body}\n\n${patternCriticalRules(pattern, medium, params.locale)}`,
+      rawText: posted.rawText,
+      missing,
+      truncated: posted.summary.finishReason === "MAX_TOKENS" || missing.length > 0,
+      summary: posted.summary,
+      baseUrl,
+      pattern,
+      medium,
+      attempts: attempt,
+    };
+  }
+
+  extensionLog(`${params.logPrefix}.pattern_rejected`, {
+    requestId: params.requestId,
+    attempt: ANALYZE_ROUTER_ATTEMPTS,
+    reasons,
+    finishReason: lastSummary?.finishReason ?? null,
+  });
+  throw new PhotorealAnalyzeError("bad_response", 502);
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+export async function generateAnalyzePrompt(
+  params: AnalyzeImageParams & {
+    routerEnabled: boolean;
+    patternLock?: { pattern: "person"; medium: "photo" };
+  },
+): Promise<AnalyzePromptResult> {
+  if (!params.routerEnabled) {
+    const generated = await generatePhotorealPromptFromImage(params);
+    return { ...generated, pattern: null, medium: null, attempts: 1 };
+  }
+  return generateRoutedPromptFromImage(params);
 }

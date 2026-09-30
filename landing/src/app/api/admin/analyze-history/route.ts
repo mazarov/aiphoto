@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
   const cursor = parseAnalyzeHistoryCursor(req.nextUrl.searchParams.get("cursor"));
   const source = req.nextUrl.searchParams.get("client_source")?.trim();
   let query = supabase.from("analyze_history")
-    .select("id,created_at,kind,client_source,prompt,change_request,style,locale,model,image_path,ugc_card_id,user_id,credits_spent,quota_mode")
+    .select("id,created_at,kind,client_source,prompt,change_request,style,locale,model,image_path,ugc_card_id,user_id,credits_spent,quota_mode,analyze_pattern,analyze_medium")
     .order("created_at", { ascending: false }).order("id", { ascending: false }).limit(limit + 1);
   if (source) query = query.eq("client_source", source);
   if (cursor) query = query.or(
@@ -54,6 +54,8 @@ export async function GET(req: NextRequest) {
       prompt: row.prompt,
       change_request: row.change_request,
       style: row.style,
+      analyze_pattern: row.analyze_pattern ?? null,
+      analyze_medium: row.analyze_medium ?? null,
       locale: row.locale,
       model: row.model,
       credits_spent: Number(row.credits_spent ?? 0) || 0,

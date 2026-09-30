@@ -15,7 +15,9 @@ import {
 import { extensionLog } from "@/lib/extension-pipeline-log";
 import {
   ANALYZE_GEMINI_MODEL,
-  generatePhotorealPromptFromImage,
+  ANALYZE_ROUTER_ATTEMPT_TIMEOUT_MS,
+  generateAnalyzePrompt,
+  isAnalyzePatternRouterEnabled,
   normalizeAnalyzeLocale,
   PhotorealAnalyzeError,
 } from "@/lib/image-prompt-analyze-gemini";
@@ -264,9 +266,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   };
 
-  let generated: Awaited<ReturnType<typeof generatePhotorealPromptFromImage>>;
+  const routerEnabled = await isAnalyzePatternRouterEnabled(supabase);
+  let generated: Awaited<ReturnType<typeof generateAnalyzePrompt>>;
   try {
-    generated = await generatePhotorealPromptFromImage({
+    generated = await generateAnalyzePrompt({
       image,
       locale,
       supabase,
@@ -274,6 +277,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       logPrefix: "scout.analyze",
       requestId,
       correlationId,
+      routerEnabled,
+      timeoutMs: routerEnabled ? ANALYZE_ROUTER_ATTEMPT_TIMEOUT_MS : undefined,
     });
   } catch (error) {
     if (isSharpBusyError(error)) {
@@ -315,6 +320,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     style,
     locale,
     model: ANALYZE_GEMINI_MODEL,
+    analyzePattern: generated.pattern,
+    analyzeMedium: generated.medium,
     userId: null,
     ipHash: finalSession.ipHash,
     correlationId,
@@ -329,6 +336,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     correlationId,
     latencyMs: Date.now() - startedAt,
     promptChars: generated.promptText.length,
+    pattern: generated.pattern,
+    medium: generated.medium,
+    attempts: generated.attempts,
     remainingFree: finalSession.remainingFree,
     missingSections: generated.missing,
     ...generated.summary,
@@ -338,6 +348,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   return NextResponse.json(
     {
       prompt: generated.promptText,
+      ...(generated.pattern && generated.medium
+        ? { pattern: generated.pattern, medium: generated.medium }
+        : {}),
       ...(settings ? { imageSettings: settings } : {}),
       quota: scoutQuotaFields(finalSession, { mode: "free", creditsCharged: 0 }),
     },

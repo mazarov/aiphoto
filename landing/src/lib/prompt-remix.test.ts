@@ -122,3 +122,24 @@ test("resolveRemixPrompt falls back to a rewritten prompt when edits are missing
 test("unstructured prompts are not treated as sectioned", () => {
   assert.equal(hasStructuredRemixSections("девушка в красном пальто, вечерний город"), false);
 });
+
+test("object analyze sections can be edited without adding portrait headings", () => {
+  const source = [
+    "Object:",
+    "Розовый флакон.",
+    "",
+    "Text:",
+    "BURBERRY",
+    "",
+    "Avoid:",
+    "Другой предмет.",
+    "",
+    "CRITICAL RULES",
+    "- Не добавляй лицо.",
+  ].join("\n");
+  assert.equal(hasStructuredRemixSections(source), true);
+  const applied = applyRemixEdits(source, [{ heading: "Text", body: "BURBERRY HER" }]);
+  assert.deepEqual(applied.appliedHeadings, ["Text"]);
+  assert.equal(applied.prompt.includes("BURBERRY HER"), true);
+  assert.equal(applied.prompt.includes("Makeup:"), false);
+});

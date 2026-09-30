@@ -3,7 +3,8 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   ANALYZE_THINKING_BUDGET,
-  generatePhotorealPromptFromImage,
+  generateAnalyzePrompt,
+  isAnalyzePatternRouterEnabled,
   PhotorealAnalyzeError,
 } from "@/lib/image-prompt-analyze-gemini";
 import {
@@ -74,9 +75,10 @@ async function analyzePhotoshootTile(params: {
   index: number;
 }): Promise<string> {
   let lastError: unknown;
+  const routerEnabled = await isAnalyzePatternRouterEnabled(params.supabase);
   for (let attempt = 1; attempt <= ANALYZE_ATTEMPTS; attempt += 1) {
     try {
-      const result = await generatePhotorealPromptFromImage({
+      const result = await generateAnalyzePrompt({
         image: params.image,
         locale: "ru",
         supabase: params.supabase,
@@ -88,6 +90,8 @@ async function analyzePhotoshootTile(params: {
         thinkingBudget: ANALYZE_THINKING_BUDGET,
         imageMaxEdge: PHOTOSHOOT_ANALYZE_MAX_EDGE,
         imageMaxBytes: PHOTOSHOOT_ANALYZE_MAX_BYTES,
+        routerEnabled,
+        patternLock: routerEnabled ? { pattern: "person", medium: "photo" } : undefined,
       });
       return result.promptText;
     } catch (error) {

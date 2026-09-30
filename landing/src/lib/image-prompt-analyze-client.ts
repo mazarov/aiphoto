@@ -25,7 +25,7 @@ export type AnalyzeQuotaPayload = {
 };
 
 export type AnalyzeImageToPromptResult =
-  | { ok: true; prompt: string; quota?: AnalyzeQuotaPayload }
+  | { ok: true; prompt: string; pattern?: string; medium?: string; quota?: AnalyzeQuotaPayload }
   | {
       ok: false;
       message: string;
@@ -100,6 +100,8 @@ export async function analyzeImageToPrompt(
 
   const payload = (await response.json().catch(() => ({}))) as {
     prompt?: string;
+    pattern?: string;
+    medium?: string;
     message?: string;
     error?: string;
     auth_required?: boolean;
@@ -135,6 +137,8 @@ export async function analyzeImageToPrompt(
   return {
     ok: true,
     prompt: payload.prompt.trim(),
+    ...(payload.pattern ? { pattern: payload.pattern } : {}),
+    ...(payload.medium ? { medium: payload.medium } : {}),
     quota: payload.quota,
   };
 }

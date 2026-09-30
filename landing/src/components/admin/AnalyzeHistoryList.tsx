@@ -30,6 +30,8 @@ type Item = {
   change_request: string | null;
   image_url: string | null;
   style: string | null;
+  analyze_pattern?: string | null;
+  analyze_medium?: string | null;
   model: string | null;
   is_published: boolean;
   card_url: string | null;
@@ -134,6 +136,11 @@ export function AnalyzeHistoryList() {
                 style={{ background: clientSourceColor(item.client_source) }}>{clientSourceLabel(item.client_source)}</span>
               {item.kind === "remix" && (
                 <span className={`${adminDenseBadgeClass} bg-violet-600 text-white`}>Remix</span>
+              )}
+              {item.analyze_pattern && (
+                <span className={`${adminDenseBadgeClass} border border-zinc-300 text-zinc-700`}>
+                  {item.analyze_pattern}
+                </span>
               )}
               {Number(item.credits_spent) > 0 && (
                 <span className={`${adminDenseBadgeClass} bg-amber-600 text-white`}>

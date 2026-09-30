@@ -17,7 +17,9 @@ import { resolveClientSource } from "@/lib/client-source";
 import { extensionLog } from "@/lib/extension-pipeline-log";
 import {
   ANALYZE_GEMINI_MODEL,
-  generatePhotorealPromptFromImage,
+  ANALYZE_ROUTER_ATTEMPT_TIMEOUT_MS,
+  generateAnalyzePrompt,
+  isAnalyzePatternRouterEnabled,
   normalizeAnalyzeLocale,
   PhotorealAnalyzeError,
 } from "@/lib/image-prompt-analyze-gemini";
@@ -227,9 +229,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   };
 
-  let generated: Awaited<ReturnType<typeof generatePhotorealPromptFromImage>>;
+  const routerEnabled = await isAnalyzePatternRouterEnabled(supabase);
+  let generated: Awaited<ReturnType<typeof generateAnalyzePrompt>>;
   try {
-    generated = await generatePhotorealPromptFromImage({
+    generated = await generateAnalyzePrompt({
       image,
       locale,
       supabase,
@@ -237,6 +240,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       logPrefix: "analyze",
       requestId,
       correlationId,
+      routerEnabled,
+      timeoutMs: routerEnabled ? ANALYZE_ROUTER_ATTEMPT_TIMEOUT_MS : undefined,
     });
   } catch (error) {
     if (isSharpBusyError(error)) {
@@ -280,6 +285,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     style,
     locale,
     model: ANALYZE_GEMINI_MODEL,
+    analyzePattern: generated.pattern,
+    analyzeMedium: generated.medium,
     userId: finalSession?.userId ?? snapshot.userId,
     ipHash: finalSession?.ipHash ?? snapshot.ipHash,
     correlationId,
@@ -293,6 +300,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     correlationId,
     latencyMs: Date.now() - startedAt,
     promptChars: generated.promptText.length,
+    pattern: generated.pattern,
+    medium: generated.medium,
+    attempts: generated.attempts,
     missingSections: generated.missing,
     ...generated.summary,
   });
@@ -300,6 +310,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const settings = await settingsPromise;
   return NextResponse.json({
     prompt: generated.promptText,
+    ...(generated.pattern && generated.medium
+      ? { pattern: generated.pattern, medium: generated.medium }
+      : {}),
     ...(settings ? { imageSettings: settings } : {}),
     quota: analyzeQuotaPublicFields(finalSession ?? snapshot, {
       mode: finalSession?.mode ?? "free",
