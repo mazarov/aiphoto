@@ -42,11 +42,13 @@ import {
 } from "../../landing/src/lib/photoshoot";
 import { resolveJobWardrobePolicy } from "../../landing/src/lib/wardrobe-policy";
 import { assembleStickerFinalPrompt, isStickerEditKind } from "../../landing/src/lib/sticker";
+import { isStickerPackEditKind } from "../../landing/src/lib/sticker-pack";
 import {
   finalizeStickerImage,
   flattenStickerSourceForEdit,
   type StickerFinalizeStats,
 } from "./sticker-finalize";
+import { processStickerPack } from "./sticker-pack-generation";
 import { planPhotoshootShots } from "./photoshoot-planner";
 import { splitContactSheet } from "./photoshoot-split";
 import {
@@ -374,6 +376,7 @@ export async function processGeneration(
   rawPrompt: string;
   executedModel: string;
   fallbackUsed: boolean;
+  /** Sidecars for `photoshoot_tile_paths`: 4 photoshoot JPEGs or 16 sticker-pack PNGs. */
   photoshootTilePaths?: string[];
   providerCostUsd?: number | null;
 }> {
@@ -432,8 +435,62 @@ export async function processGeneration(
     throw new ProcessingError("input_missing", "Sticker job needs exactly one source photo", false);
   }
   /**
+   * Sticker pack: 4 OpenRouter sheets (2×2) → 16 stickers. Runs on the sticker finalize pipeline per cell,
+   * so it needs rembg for the chroma / rembg routes even when GPT Image returns real alpha.
+   */
+  if (isStickerPackEditKind(job.edit_kind)) {
+    if (!config.rembgUrl) {
+      throw new ProcessingError("config_error", "REMBG_URL is required for sticker pack jobs", false);
+    }
+    if (inputSource.paths.length !== 1 || job.parent_generation_id) {
+      throw new ProcessingError("input_missing", "Sticker pack job needs exactly one source photo", false);
+    }
+    if (!isOpenRouterImageModel(requestedModel)) {
+      throw new ProcessingError(
+        "config_error",
+        `Sticker pack needs an OpenRouter image model, got ${requestedModel} (sticker_pack_model)`,
+        false,
+      );
+    }
+    const packConfig = await getStickerWorkerConfig(supabase);
+    const packModel = requestedModel;
+    const packMode = imageModelOutputsAlpha(packModel) ? "transparent" : "magenta";
+    const signedUrls = await createSeedreamSignedUrls(supabase, inputSource);
+    const pack = await processStickerPack({
+      supabase,
+      job,
+      signal,
+      context,
+      mode: packMode,
+      rembgUrl: config.rembgUrl,
+      bgRoute: packConfig.bgRoute,
+      ensureLease,
+      runSheet: ({ prompt }) =>
+        generateSeedreamImage({
+          job,
+          productModel: packModel,
+          prompt,
+          imageInput: signedUrls,
+          imageInputClamped: false,
+          quality: packConfig.imageQuality,
+          transparentBackground: packMode === "transparent",
+          signal,
+          context,
+          ensureLease,
+          supabase,
+        }),
+    });
+    return {
+      resultPath: pack.resultPath,
+      rawPrompt,
+      executedModel: packModel,
+      fallbackUsed: false,
+      photoshootTilePaths: pack.tilePaths,
+    };
+  }
+  /**
    * Sticker: RGB providers paint a magenta frame that chroma key / rembg remove; GPT Image returns real alpha
-   * (`alpha_native` route). Either way the outline + 512 canvas are added in `finalizeStickerImage`.
+   * (`alpha_native` route). Either way `finalizeStickerImage` writes a 512 PNG with a safe margin and no outline.
    */
   const stickerConfig: StickerWorkerConfig | undefined = isSticker ? await getStickerWorkerConfig(supabase) : undefined;
   const encodeResult = (buffer: Buffer) =>

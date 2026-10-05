@@ -1,4 +1,6 @@
 import { isPhotoshootEditKind, resolvePhotoshootUserFacingResult } from "./photoshoot";
+import { isStickerEditKind } from "./sticker";
+import { isStickerPackEditKind, resolveStickerPackUserFacingResult } from "./sticker-pack";
 
 export const GENERATIONS_PAGE_SIZE = 24;
 export const GENERATIONS_API_MAX_LIMIT = 50;
@@ -95,11 +97,18 @@ export function buildGenerationResultMedia(input: {
 > {
   const bucket = input.bucket?.trim() || null;
   const sheetPath = input.sheetPath?.trim() || null;
-  const facing = resolvePhotoshootUserFacingResult({
-    editKind: input.editKind,
-    sheetPath,
-    tilePaths: input.tilePaths,
-  });
+  // Sticker pack: preview PNG in the single slot, the 16 stickers as tiles (same column as photoshoot).
+  const facing =
+    resolveStickerPackUserFacingResult({
+      editKind: input.editKind,
+      previewPath: sheetPath,
+      tilePaths: input.tilePaths,
+    }) ??
+    resolvePhotoshootUserFacingResult({
+      editKind: input.editKind,
+      sheetPath,
+      tilePaths: input.tilePaths,
+    });
   const photoshoot = isPhotoshootEditKind(input.editKind);
   const sheetUrl =
     bucket && photoshoot && sheetPath ? input.toPublicUrl(bucket, sheetPath) : null;
@@ -117,18 +126,36 @@ export function buildGenerationResultMedia(input: {
   }
   const tiles = facing.tilePaths;
   const video = isVideoGenerationMedia(input);
+  // Listing thumbs are JPEG via imgproxy. A sticker PNG is already 512px and
+  // its alpha must stay; a JPEG thumb mattes the transparent pixels black.
+  const keepOriginal = video || isStickerEditKind(input.editKind) || isStickerPackEditKind(input.editKind);
   return {
     resultUrl: input.toPublicUrl(bucket, facing.resultPath),
-    resultThumbUrl: video ? null : input.toListingUrl(bucket, facing.resultPath),
+    resultThumbUrl: keepOriginal ? null : input.toListingUrl(bucket, facing.resultPath),
     photoshootTileUrls: tiles
       ? tiles.map((path) => input.toPublicUrl(bucket, path))
       : null,
+    // Pack stickers are 512 PNG with alpha — serve them as-is instead of a JPEG thumb.
     photoshootTileThumbUrls: tiles
-      ? tiles.map((path) => input.toListingUrl(bucket, path))
+      ? tiles.map((path) => (keepOriginal ? input.toPublicUrl(bucket, path) : input.toListingUrl(bucket, path)))
       : null,
     photoshootSheetUrl: sheetUrl,
     photoshootSheetThumbUrl: sheetThumbUrl,
   };
+}
+
+/** Masonry card ratio. Stickers and packs are always 1:1; other jobs use stored `W:H`, else 3:4. */
+export function generationListingAspectRatio(
+  aspectRatio: string | null | undefined,
+  editKind?: string | null,
+): number {
+  if (isStickerEditKind(editKind) || isStickerPackEditKind(editKind)) return 1;
+  const match = /^(\d+(?:\.\d+)?)\s*:\s*(\d+(?:\.\d+)?)$/.exec((aspectRatio ?? "").trim());
+  if (!match) return 3 / 4;
+  const width = Number(match[1]);
+  const height = Number(match[2]);
+  if (!(width > 0) || !(height > 0)) return 3 / 4;
+  return width / height;
 }
 
 export function generationGridDisplay(

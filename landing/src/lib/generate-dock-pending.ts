@@ -16,6 +16,7 @@ export type PendingGenerateDockSurface =
   | "photos"
   | "model"
   | "example"
+  | "tool"
   | null;
 
 export type PendingGenerateDock = {
@@ -62,7 +63,8 @@ function isSurface(value: unknown): value is PendingGenerateDockSurface {
     value === "prompt" ||
     value === "photos" ||
     value === "model" ||
-    value === "example"
+    value === "example" ||
+    value === "tool"
   );
 }
 

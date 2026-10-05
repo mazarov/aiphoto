@@ -14,7 +14,14 @@ import {
   STICKER_CONFIG_MODEL_KEY,
   resolveStickerModel,
 } from "@/lib/sticker";
-import { isStickerUnlocked } from "@/lib/sticker-access";
+import { isStickerPackUnlocked, isStickerUnlocked } from "@/lib/sticker-access";
+import {
+  STICKER_PACK_CONFIG_COST_KEY,
+  STICKER_PACK_CONFIG_ENABLED_KEY,
+  STICKER_PACK_CONFIG_MODEL_KEY,
+  STICKER_PACK_COUNT,
+  parseStickerPackCreditCost,
+} from "@/lib/sticker-pack";
 import { parsePublishRewardConfig } from "@/lib/publish-reward";
 import { LISTING_VIDEO_REPEAT_CONFIG_KEY } from "@/lib/listing-video-repeat";
 import { isListingVideoRepeatUnlocked } from "@/lib/listing-video-repeat-access";
@@ -77,6 +84,9 @@ export async function GET(req: NextRequest) {
         "photoshoot_model",
         STICKER_CONFIG_ENABLED_KEY,
         STICKER_CONFIG_MODEL_KEY,
+        STICKER_PACK_CONFIG_ENABLED_KEY,
+        STICKER_PACK_CONFIG_COST_KEY,
+        STICKER_PACK_CONFIG_MODEL_KEY,
         "publish_reward_enabled",
         "publish_reward_photo",
         "publish_reward_video",
@@ -150,6 +160,12 @@ export async function GET(req: NextRequest) {
       config.default_model,
       models,
     );
+    const stickerPackCreditCost = parseStickerPackCreditCost(config[STICKER_PACK_CONFIG_COST_KEY]);
+    const stickerPackModel = resolveStickerModel(
+      config[STICKER_PACK_CONFIG_MODEL_KEY] || config[STICKER_CONFIG_MODEL_KEY],
+      config.default_model,
+      models,
+    );
 
     return NextResponse.json({
       modality: IMAGE_GENERATION_MODALITY,
@@ -171,6 +187,16 @@ export async function GET(req: NextRequest) {
         user?.email,
       ),
       stickerModel,
+      stickerPackEnabled: isStickerPackUnlocked(
+        config[STICKER_PACK_CONFIG_ENABLED_KEY],
+        user?.email,
+      ),
+      stickerPackCreditCost,
+      stickerPackCount: STICKER_PACK_COUNT,
+      /** Product price, not the picker cost of the sheet model. */
+      stickerPackModel: stickerPackModel
+        ? { ...stickerPackModel, cost: stickerPackCreditCost }
+        : null,
       models,
       aspectRatios: IMAGE_ASPECT_RATIO_OPTIONS,
       imageSizes: IMAGE_SIZE_OPTIONS,

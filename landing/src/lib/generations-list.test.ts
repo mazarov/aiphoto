@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   buildGenerationResultMedia,
   generationGridDisplay,
+  generationListingAspectRatio,
   isUnknownGenerationsListRpc,
   mergeGenerationFirstPage,
   takeGenerationPage,
@@ -101,6 +102,27 @@ test("buildGenerationResultMedia maps photoshoot sidecars to four thumbs", () =>
     media.photoshootTileThumbUrls,
     tiles.map((path) => `thumb/${path}`),
   );
+});
+
+test("buildGenerationResultMedia keeps the sticker PNG so alpha is not matted", () => {
+  const media = buildGenerationResultMedia({
+    bucket: "web-generation-results",
+    editKind: "sticker",
+    sheetPath: "u/job.png",
+    tilePaths: null,
+    resultMimeType: "image/png",
+    toPublicUrl: (bucket, path) => `full/${bucket}/${path}`,
+    toListingUrl: (bucket, path) => `thumb/${bucket}/${path}`,
+  });
+  assert.equal(media.resultUrl, "full/web-generation-results/u/job.png");
+  assert.equal(media.resultThumbUrl, null);
+});
+
+test("generationListingAspectRatio uses the file shape and forces stickers to square", () => {
+  assert.equal(generationListingAspectRatio("16:9", null), 16 / 9);
+  assert.equal(generationListingAspectRatio("3:4", "photoshoot"), 3 / 4);
+  assert.equal(generationListingAspectRatio("", null), 3 / 4);
+  assert.equal(generationListingAspectRatio("9:16", "sticker"), 1);
 });
 
 test("generationGridDisplay prefers listing thumbs and keeps full tiles for actions", () => {

@@ -13,17 +13,18 @@ export function stickerExampleAlt(styleLabel: string, index: number): string {
 }
 
 /**
- * Up to three real stickers of a style on a checker plate. Server-safe (plain `<img>`: the files live in
- * the bot's public Supabase bucket, not behind imgproxy). Renders nothing when the style has no live examples.
+ * Up to three real stickers of a style, straight on the card — no checker plate.
+ * Server-safe (plain `<img>`: the files live in the bot's public bucket, not behind imgproxy).
+ * Renders nothing when the style has no live examples.
  */
 export function StickerExampleStrip({ urls, styleLabel, size = "sm", className = "" }: Props) {
   const list = (urls ?? []).slice(0, STICKER_EXAMPLES_PER_STYLE);
   if (!list.length) return null;
-  const cell = size === "md" ? "h-20 w-20 sm:h-24 sm:w-24" : "h-14 w-14";
+  const cell = size === "md" ? "h-24 w-24 sm:h-28 sm:w-28" : "h-14 w-14";
   return (
-    <div className={`flex gap-1.5 ${className}`} aria-label={`Примеры стиля «${styleLabel}»`}>
+    <div className={`flex min-w-0 max-w-full gap-1.5 ${className}`} aria-label={`Примеры стиля «${styleLabel}»`}>
       {list.map((url, index) => (
-        <span key={url} className={`ps-sticker-plate relative shrink-0 overflow-hidden rounded-xl ${cell}`}>
+        <span key={url} className={`relative min-w-0 shrink overflow-hidden rounded-xl ${cell}`}>
           {/* eslint-disable-next-line @next/next/no-img-element -- external public bucket, fixed tiny size */}
           <img
             src={url}

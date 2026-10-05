@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { usePathname } from "next/navigation";
 import { OVERLAY_BUTTON_UA_RESET } from "@/lib/card-overlay-action-pill";
 import {
   CREDIT_BALANCE_REFRESH_EVENT,
@@ -95,9 +96,11 @@ import {
   ComposeDockToolTile,
   ComposeExampleToolIcon,
   ComposeLibraryPhotosIcon,
-  ComposeModeToolTile,
+  ComposeModelToolTile,
+  ComposeToolChoiceTile,
+  ComposeToolPickerTile,
 } from "@/components/generate/ComposeModeToolTile";
-import { ComposeToolGuide } from "@/components/generate/ComposeToolGuide";
+import { ComposeToolGuide, StickerPickerGuide } from "@/components/generate/ComposeToolGuide";
 import { GenerationResultActionRail } from "@/components/generate/GenerationResultActionRail";
 import { LowBalanceUpgradeOfferCard } from "@/components/LowBalanceUpgradeOfferCard";
 import {
@@ -129,6 +132,7 @@ import {
   YM_GOAL_STICKER_MOTION,
   YM_GOAL_STICKER_START,
   YM_GOAL_STICKER_TEXT,
+  YM_GOAL_STICKER_BORDER,
   YM_GOAL_STICKER_DOWNLOAD,
   YM_GOAL_ANALYZE_AUTH_REQUIRED,
   YM_GOAL_ANALYZE_NO_CREDITS,
@@ -153,6 +157,8 @@ import {
   VIDEO_GENERATION_MODALITY,
   VIDEO_RESOLUTION_OPTIONS,
   clampImageSizeForModel,
+  GPT_IMAGE_25_FLARE_CREDIT_COST,
+  GPT_IMAGE_25_FLARE_IMAGE_MODEL,
   imageSizeOptionsForModel,
   isVeoLiteVideoModel,
   videoDurationOptionsForModel,
@@ -175,10 +181,19 @@ import {
   COMPOSE_SAVING_PROMPT_CTA,
   composeModeFromDockIntent,
   composeNeedsPhotoCtaLabel,
+  composeHasSingleSourcePhoto,
+  stickerStudioCta,
   COMPOSE_PHOTOS_TOOL_EDGE_LABEL,
+  COMPOSE_TOOL_SHEET_DONE_CTA,
+  COMPOSE_TOOL_SHEET_TITLE,
+  STICKER_PACK_SOON_CTA,
+  composeCtaDisabledForStickerPack,
   composePhotosToolCountLabel,
-  nextComposeModeTileSheet,
+  composeSecondaryTools,
+  composeToolOptions,
+  composeToolTileBodyLabel,
   promptModalityForComposeMode,
+  type StickerToolKind,
   rememberCompletedImageResult,
   resolvePhotoshootLibraryFrame,
   resolvePhotoshootReadyFrame,
@@ -239,10 +254,17 @@ import {
 import {
   STICKER_ACTION_COPY,
   STICKER_ACTION_FREE_DETAIL,
+  STICKER_BORDER_COPY,
   type StickerResultAction,
 } from "@/lib/sticker-action-sheet";
 import { StickerStylePicker, STICKER_STYLE_PICKER_TITLE } from "@/components/sticker/StickerStylePicker";
+import {
+  loadStickerPackExamplesClient,
+  peekStickerPackExamples,
+  type StickerPackExampleClient,
+} from "@/lib/sticker-pack-examples-client";
 import { StickerActionSheet } from "@/components/sticker/StickerActionSheet";
+import { StickerBorderSheet } from "@/components/sticker/StickerBorderSheet";
 import { StickerDownloadSheet } from "@/components/sticker/StickerDownloadSheet";
 import {
   CAMERA_ORBIT_EDIT_KIND,
@@ -285,7 +307,7 @@ import {
   warmupPhotoPreviewImages,
   writeCachedUserGenerationPhotos,
 } from "@/lib/user-generation-photos-cache";
-import { listingComposeExampleInitialFilter } from "@/lib/generate-dock-path";
+import { isStickerGenerateDockPath, listingComposeExampleInitialFilter } from "@/lib/generate-dock-path";
 import {
   composePhotosPreviewUrls,
   composePreviewImageUrls,
@@ -416,8 +438,10 @@ export function CardInlineGeneratePanel({
   const [imageSize, setImageSize] = useState(DEFAULT_IMAGE_SIZE);
   const [configError, setConfigError] = useState("");
   const [maxPhotos, setMaxPhotos] = useState(10);
+  const pathname = usePathname();
+  /** `/stiker-iz-foto`: dock is the sticker tool for guests and signed-in users. */
   const [composeMode, setComposeMode] = useState<GenerateComposeMode>(() =>
-    composeModeFromDockIntent(seed.intent)
+    isStickerGenerateDockPath(pathname || "") ? "sticker" : composeModeFromDockIntent(seed.intent)
   );
   const [analyzeQuota, setAnalyzeQuota] = useState<AnalyzeQuotaPayload | null>(
     null
@@ -448,15 +472,21 @@ export function CardInlineGeneratePanel({
     })
   );
   const [stickerStyleId, setStickerStyleId] = useState(DEFAULT_STICKER_STYLE_ID);
-  const [stickerCost, setStickerCost] = useState<number | null>(null);
+  const [stickerModelId, setStickerModelId] = useState(GPT_IMAGE_25_FLARE_IMAGE_MODEL);
+  const [stickerCost, setStickerCost] = useState<number | null>(GPT_IMAGE_25_FLARE_CREDIT_COST);
   const [stickerCatalog, setStickerCatalog] = useState<StickerCatalogClient | null>(() => peekStickerCatalog());
   const [stickerCatalogLoading, setStickerCatalogLoading] = useState(false);
+  const [stickerPacks, setStickerPacks] = useState<StickerPackExampleClient[] | null>(() => peekStickerPackExamples());
+  /** «Стикер» tool: one sticker or a pack. Pack only shows examples until pack generation ships. */
+  const [stickerKind, setStickerKind] = useState<StickerToolKind>("single");
   /** Open result action («emotion» / «motion» / «text») on a finished sticker. */
   const [stickerActionOpen, setStickerActionOpen] = useState<StickerResultAction | null>(null);
   const [stickerDownloadOpen, setStickerDownloadOpen] = useState(false);
   const [stickerDownloadBusy, setStickerDownloadBusy] = useState<StickerPlatform["id"] | null>(null);
   const [stickerDownloadError, setStickerDownloadError] = useState<string | null>(null);
   const [stickerTextBusy, setStickerTextBusy] = useState(false);
+  const [stickerBorderBusy, setStickerBorderBusy] = useState(false);
+  const [stickerBorderOpen, setStickerBorderOpen] = useState(false);
   const stickerStyleTouchedRef = useRef(false);
   const [photoshootOpen, setPhotoshootOpen] = useState(false);
   const [photoshootSourceId, setPhotoshootSourceId] = useState<string | null>(null);
@@ -711,7 +741,7 @@ export function CardInlineGeneratePanel({
   const [publishHidden, setPublishHidden] = useState(false);
   const [toast, setToast] = useState("");
   const [expandedControlLocal, setExpandedControlLocal] = useState<
-    "photos" | "model" | "example" | null
+    "photos" | "model" | "example" | "tool" | null
   >(null);
   const [promptExpandedLocal, setPromptExpandedLocal] = useState(false);
 
@@ -725,7 +755,8 @@ export function CardInlineGeneratePanel({
   const expandedControl =
     activeDockSurface === "photos" ||
     activeDockSurface === "model" ||
-    activeDockSurface === "example"
+    activeDockSurface === "example" ||
+    activeDockSurface === "tool"
       ? activeDockSurface
       : null;
 
@@ -739,7 +770,7 @@ export function CardInlineGeneratePanel({
       if (value === "prompt") {
         setExpandedControlLocal(null);
         setPromptExpandedLocal(true);
-      } else if (value === "photos" || value === "model" || value === "example") {
+      } else if (value === "photos" || value === "model" || value === "example" || value === "tool") {
         setPromptExpandedLocal(false);
         setExpandedControlLocal(value);
       } else {
@@ -764,10 +795,11 @@ export function CardInlineGeneratePanel({
         | "photos"
         | "model"
         | "example"
+        | "tool"
         | null
         | ((
-            prev: "photos" | "model" | "example" | null,
-          ) => "photos" | "model" | "example" | null)
+            prev: "photos" | "model" | "example" | "tool" | null,
+          ) => "photos" | "model" | "example" | "tool" | null)
     ) => {
       const prev = expandedControl;
       const value = typeof next === "function" ? next(prev) : next;
@@ -1127,10 +1159,15 @@ export function CardInlineGeneratePanel({
         const nextStickerEnabled = Boolean(configData.stickerEnabled);
         writeCachedStickerEnabled(nextStickerEnabled);
         setStickerEnabled(nextStickerEnabled);
+        setStickerModelId(
+          typeof configData.stickerModel?.id === "string" && configData.stickerModel.id.trim()
+            ? configData.stickerModel.id.trim()
+            : GPT_IMAGE_25_FLARE_IMAGE_MODEL,
+        );
         setStickerCost(
           typeof configData.stickerModel?.cost === "number"
             ? configData.stickerModel.cost
-            : null,
+            : GPT_IMAGE_25_FLARE_CREDIT_COST,
         );
         setListingVideoRepeatEnabled(Boolean(configData.listingVideoRepeatEnabled));
         setPreserveOutfitEnabled(Boolean(configData.preserveOutfitEnabled));
@@ -1567,7 +1604,7 @@ export function CardInlineGeneratePanel({
    * Any exit from photos/model sheet (Готово, tile toggle, desktop scrim →
    * setDockSurface(null), switch to prompt) must flush — not only «Готово».
    */
-  const prevPrefsSurfaceRef = useRef<"photos" | "model" | "example" | null>(null);
+  const prevPrefsSurfaceRef = useRef<"photos" | "model" | "example" | "tool" | null>(null);
   useEffect(() => {
     const prev = prevPrefsSurfaceRef.current;
     prevPrefsSurfaceRef.current = expandedControl;
@@ -1590,13 +1627,6 @@ export function CardInlineGeneratePanel({
     persistGenerationPreferences();
     setExpandedControl(null);
   }, [persistGenerationPreferences, setExpandedControl]);
-
-  const composeModeSheetArg = (
-    control: "photos" | "model" | "example" | null,
-  ): "photos" | "model" | "prompt" | null => {
-    if (control === "photos" || control === "model") return control;
-    return null;
-  };
 
   const openSeoExampleSheet = () => {
     setError("");
@@ -1784,6 +1814,8 @@ export function CardInlineGeneratePanel({
   const photoshootLibraryFrame = resolvePhotoshootLibraryFrame({
     selectedPhotos,
   });
+  /** Footer copy: a guest's not-yet-saved upload counts as a picked photo. */
+  const sourcePhotoPicked = composeHasSingleSourcePhoto({ selectedPhotos });
   const selectedModelCost =
     listingVideoRepeatCompose && composeMode === "video"
       ? selectedVideoCost != null
@@ -1797,7 +1829,7 @@ export function CardInlineGeneratePanel({
           : null
         : composeMode === "sticker"
           ? photoshootLibraryFrame
-            ? stickerCost
+            ? stickerCost ?? GPT_IMAGE_25_FLARE_CREDIT_COST
             : null
           : models.find((item) => item.id === model)?.cost ?? null;
   const cannotAffordSelected =
@@ -2930,12 +2962,28 @@ export function CardInlineGeneratePanel({
       cancelled = true;
     };
   }, [stickerCatalogWanted, stickerCatalog]);
+  useEffect(() => {
+    if (!stickerCompose || stickerPacks) return;
+    let cancelled = false;
+    loadStickerPackExamplesClient()
+      .then((packs) => {
+        if (!cancelled) setStickerPacks(packs);
+      })
+      .catch(() => {
+        if (!cancelled) setStickerPacks([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [stickerCompose, stickerPacks]);
   const stickerStyles = stickerCatalog?.styles ?? STICKER_STYLES_FALLBACK;
-  const stickerStyleGroups = stickerCatalog?.groups ?? [];
   const stickerPresetsFor = (action: StickerResultAction) =>
     action === "emotion" ? stickerCatalog?.emotions ?? [] : action === "motion" ? stickerCatalog?.motions ?? [] : [];
   const selectedStickerStyleLabel = stickerStyleTileLabel(stickerStyles, stickerStyleId);
-  const selectedStickerExampleUrl = stickerStyles.find((style) => style.id === stickerStyleId)?.exampleUrls?.[0] ?? null;
+  const selectedStickerExampleUrl =
+    stickerStyles.find((style) => style.id === stickerStyleId)?.exampleUrls?.[0] ??
+    stickerStyles.find((style) => style.exampleUrls?.length)?.exampleUrls?.[0] ??
+    null;
   const photoPromptHasSource = Boolean(
     resolvePhotoPromptAnalyzeSource({
       selectedPreviewUrl: selectedPhotos[0]?.previewUrl,
@@ -3011,15 +3059,28 @@ export function CardInlineGeneratePanel({
   const selectedVideoModelTileLabel = videoCostModel
     ? displayTileLabelForGenerationModel(videoCostModel.id, videoCostModel.label)
     : null;
-  const composeCtaModelLabel = composeGenerateCtaShowsModelName(composeMode, {
-    isAuthed,
-  })
-    ? videoCompose
-      ? selectedVideoModelLabel
-      : selectedImageModelLabel
-    : null;
-  const composeCtaCost =
-    !isAuthed || photoPromptCompose
+  /** Sticker footer always names the model and price — the model tile is not shown for this tool. */
+  const stickerPageCta = stickerCompose ? stickerStudioCta({ modelId: stickerModelId, cost: stickerCost }) : null;
+  const stickerPackSoon = composeCtaDisabledForStickerPack({ composeMode, stickerKind });
+  const toolOptions = composeToolOptions({
+    videoEnabled,
+    photoshootEnabled,
+    stickerEnabled,
+    current: composeMode,
+  });
+  const secondaryTools = composeSecondaryTools(composeMode);
+  const composeCtaModelLabel = stickerPageCta
+    ? stickerPageCta.modelLabel
+    : composeGenerateCtaShowsModelName(composeMode, {
+        isAuthed,
+      })
+      ? videoCompose
+        ? selectedVideoModelLabel
+        : selectedImageModelLabel
+      : null;
+  const composeCtaCost = stickerPageCta
+    ? stickerPageCta.cost
+    : !isAuthed || photoPromptCompose
       ? null
       : photoshootCompose
         ? photoshootLibraryFrame
@@ -3052,12 +3113,12 @@ export function CardInlineGeneratePanel({
         {composePhotoPromptGuestQuotaLabel(composeCtaGuestQuota)}
       </span>
     ) : null;
-  const composeTileBorder = (selected: boolean) =>
+  const composeTileBorder = (selected: boolean, glass: boolean = glassChrome) =>
     selected
-      ? glassChrome
+      ? glass
         ? "bg-indigo-400 text-white after:border-indigo-400"
         : "bg-indigo-500 text-white after:border-indigo-500"
-      : glassChrome
+      : glass
         ? "bg-white/5 text-white after:border-white/25 hover:bg-white/10 hover:after:border-white/40"
         : "bg-zinc-100 text-zinc-900 after:border-zinc-300 hover:bg-zinc-200 hover:after:border-zinc-400";
   const composeTileFrame =
@@ -3079,6 +3140,7 @@ export function CardInlineGeneratePanel({
   const dockPhotosExpanded = dockExpanded && activeDockSurface === "photos";
   const dockModelExpanded = dockExpanded && activeDockSurface === "model";
   const dockExampleExpanded = dockExpanded && activeDockSurface === "example";
+  const dockToolExpanded = dockExpanded && activeDockSurface === "tool";
   const showComposeToolGuide = composeToolGuideVisible({
     composeMode,
     showResultChrome,
@@ -3174,11 +3236,26 @@ export function CardInlineGeneratePanel({
     Boolean(resultUrl) &&
     Boolean(generationId) &&
     resultModality === "image";
+  const showStickerBorderOverlay =
+    stickerBorderOpen &&
+    stickerResult &&
+    phase === "done" &&
+    Boolean(resultUrl) &&
+    Boolean(generationId) &&
+    resultModality === "image";
   const hideComposeChrome =
-    showPhotoshootOverlay || showCameraOverlay || showStickerActionOverlay || showStickerDownloadOverlay;
+    showPhotoshootOverlay ||
+    showCameraOverlay ||
+    showStickerActionOverlay ||
+    showStickerDownloadOverlay ||
+    showStickerBorderOverlay;
   const openStickerAction = (action: StickerResultAction) => {
     setError("");
     setStickerActionOpen(action);
+  };
+  const openStickerBorder = () => {
+    setError("");
+    setStickerBorderOpen(true);
   };
   const closeStickerDownload = () => {
     setStickerDownloadOpen(false);
@@ -3264,6 +3341,54 @@ export function CardInlineGeneratePanel({
       setStickerTextBusy(false);
     }
   };
+  /** Free die-cut, same role as the bot's «Обводка»: new completed sticker, no model call. */
+  const submitStickerBorder = async ({ borderPx }: { borderPx: number }): Promise<boolean> => {
+    if (!generationId || stickerBorderBusy || stickerTextBusy) return false;
+    setStickerBorderBusy(true);
+    setError("");
+    try {
+      const res = await fetch(`/api/generations/${generationId}/sticker-border`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...browserAcquisitionHeaders() },
+        credentials: "include",
+        body: JSON.stringify({ borderPx }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        id?: string;
+        resultUrl?: string;
+        message?: string;
+      };
+      if (!res.ok || !data.id || !data.resultUrl) {
+        setError(data.message || (res.status === 503 ? "Сервер занят, попробуйте ещё раз" : "Не удалось добавить обводку"));
+        return false;
+      }
+      reachYandexMetrikaGoal(YM_GOAL_STICKER_BORDER);
+      setGenerationId(data.id);
+      setResultUrl(data.resultUrl);
+      setResultEditKind(STICKER_EDIT_KIND);
+      setIsPublished(false);
+      setPublishedSlug(null);
+      rememberLastDockResult({
+        generationId: data.id,
+        resultUrl: data.resultUrl,
+        promptText: draftPrompt,
+        modality: "image",
+        isPublished: false,
+        editKind: STICKER_EDIT_KIND,
+        photoshootTileUrls: null,
+      });
+      setStickerActionOpen(null);
+      setStickerBorderOpen(false);
+      setStickerDownloadOpen(false);
+      onGenerationComplete?.();
+      return true;
+    } catch {
+      setError("Не удалось добавить обводку");
+      return false;
+    } finally {
+      setStickerBorderBusy(false);
+    }
+  };
   const startPhotoshoot = () => {
     const frame = resolvePhotoshootReadyFrame({
       generationId,
@@ -3302,14 +3427,25 @@ export function CardInlineGeneratePanel({
     reachYandexMetrikaGoal(YM_GOAL_PHOTOSHOOT_OPEN);
   };
 
-  const onPhotoshootTileClick = () => {
-    enterPhotoshootCompose();
-    setExpandedControl(null);
-  };
-
-  const onStickerTileClick = () => {
-    enterStickerCompose();
-    setExpandedControl(null);
+  /**
+   * «Инструмент» sheet chip. Switches compose mode and keeps the sheet open —
+   * the guide under the chips is the onboarding; «Готово» closes it.
+   */
+  const selectComposeTool = (mode: GenerateComposeMode) => {
+    if (composeModeRef.current !== mode) {
+      if (mode === "image") enterImageCompose();
+      else if (mode === "photoshoot") enterPhotoshootCompose();
+      else if (mode === "sticker") enterStickerCompose();
+      else if (mode === "photo_prompt") {
+        enterPhotoPromptCompose();
+        reachYandexMetrikaGoal(YM_GOAL_GENERATION_PHOTO_PROMPT_OPEN);
+      } else if (selectedPhotos.length === 1) {
+        selectVideoModel(activeVideoModel?.id || videoModel);
+      } else {
+        enterVideoCompose({ scenarioKey: null });
+      }
+    }
+    setExpandedControl("tool");
   };
 
   const startPhotoPromptFromSelected = () => {
@@ -3334,49 +3470,6 @@ export function CardInlineGeneratePanel({
         setError("Не удалось прочитать фото. Попробуйте другое.");
       }
     })();
-  };
-
-  const onPhotoPromptTileClick = () => {
-    const wasPhotoPrompt = composeModeRef.current === "photo_prompt";
-    if (!wasPhotoPrompt) enterPhotoPromptCompose();
-    setExpandedControl(
-      nextComposeModeTileSheet({
-        mode: "photo_prompt",
-        alreadyInMode: wasPhotoPrompt,
-        currentSheet: composeModeSheetArg(expandedControl),
-      })
-    );
-    reachYandexMetrikaGoal(YM_GOAL_GENERATION_PHOTO_PROMPT_OPEN);
-  };
-
-  const onImageModeTileClick = () => {
-    const wasImage = composeModeRef.current === "image";
-    if (!wasImage) enterImageCompose();
-    setExpandedControl(
-      nextComposeModeTileSheet({
-        mode: "image",
-        alreadyInMode: wasImage,
-        currentSheet: composeModeSheetArg(expandedControl),
-      }),
-    );
-  };
-
-  const onVideoModeTileClick = () => {
-    const wasVideo = composeModeRef.current === "video";
-    if (!wasVideo) {
-      if (selectedPhotos.length === 1) {
-        selectVideoModel(activeVideoModel?.id || videoModel);
-      } else {
-        enterVideoCompose({ scenarioKey: null });
-      }
-    }
-    setExpandedControl(
-      nextComposeModeTileSheet({
-        mode: "video",
-        alreadyInMode: wasVideo,
-        currentSheet: composeModeSheetArg(expandedControl),
-      }),
-    );
   };
 
   const createPhotoshoot = () => {
@@ -3510,7 +3603,10 @@ export function CardInlineGeneratePanel({
       className={`relative isolate flex min-h-0 flex-col overflow-hidden ${
         isDock
           ? showResultChrome
-            ? `${isMobile ? "rounded-none pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]" : "rounded-[1.75rem]"} border-0 bg-zinc-950 text-zinc-100${
+            ? `${isMobile ? "rounded-none pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]" : "rounded-[1.75rem]"} border-0 text-zinc-100 ${
+                // Sticker: same frosted glass as compose, so the white die-cut reads on it.
+                stickerResult ? "bg-zinc-950/55 backdrop-blur-xl" : "bg-zinc-950"
+              }${
                 isMobile ? "" : " shadow-[0_-12px_48px_-16px_rgba(24,24,27,0.28)]"
               }${dockTall || isMobile ? " h-full min-h-0 flex-1" : ""}`
             : // Frosted glass — listing shows through (mobile fullscreen + desktop plate).
@@ -3529,7 +3625,7 @@ export function CardInlineGeneratePanel({
           kind={resultModality}
           pixelateOnBusy={!photoPromptCompose}
           fit={photoPromptCompose ? "cover" : "contain"}
-          checker={stickerResult || stickerCompose}
+          frame={stickerResult ? "square" : "fill"}
           className={isDock && isMobile ? "" : "rounded-[1.75rem]"}
         />
       ) : !isDock ? (
@@ -3711,7 +3807,7 @@ export function CardInlineGeneratePanel({
                     creditCost: stickerCost ?? undefined,
                     creditUnaffordable:
                       stickerCost != null && isAuthed && credits !== null && credits < stickerCost,
-                    disabled: busy || Boolean(busyAction),
+                    disabled: busy || Boolean(busyAction) || stickerTextBusy || stickerBorderBusy,
                     ariaLabel: STICKER_ACTION_COPY.emotion.title,
                     onClick: () => openStickerAction("emotion"),
                     icon: (
@@ -3728,7 +3824,7 @@ export function CardInlineGeneratePanel({
                     creditCost: stickerCost ?? undefined,
                     creditUnaffordable:
                       stickerCost != null && isAuthed && credits !== null && credits < stickerCost,
-                    disabled: busy || Boolean(busyAction),
+                    disabled: busy || Boolean(busyAction) || stickerTextBusy || stickerBorderBusy,
                     ariaLabel: STICKER_ACTION_COPY.motion.title,
                     onClick: () => openStickerAction("motion"),
                     icon: (
@@ -3742,12 +3838,26 @@ export function CardInlineGeneratePanel({
                     id: "sticker-text",
                     label: STICKER_ACTION_COPY.text.railLabel,
                     detail: STICKER_ACTION_FREE_DETAIL,
-                    disabled: busy || Boolean(busyAction) || stickerTextBusy,
+                    disabled: busy || Boolean(busyAction) || stickerTextBusy || stickerBorderBusy,
                     ariaLabel: `${STICKER_ACTION_COPY.text.title}, ${STICKER_ACTION_FREE_DETAIL}`,
                     onClick: () => openStickerAction(STICKER_TEXT_ACTION),
                     icon: (
                       <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
                         <path d="M5 6.5V4.5h14v2M12 4.5v15m-3 0h6" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    ),
+                  },
+                  {
+                    id: "sticker-border",
+                    label: stickerBorderBusy ? `${STICKER_BORDER_COPY.railLabel}…` : STICKER_BORDER_COPY.railLabel,
+                    detail: STICKER_ACTION_FREE_DETAIL,
+                    disabled: busy || Boolean(busyAction) || stickerTextBusy || stickerBorderBusy,
+                    ariaLabel: `${STICKER_BORDER_COPY.railLabel}, ${STICKER_ACTION_FREE_DETAIL}`,
+                    onClick: openStickerBorder,
+                    icon: (
+                      <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                        <circle cx="12" cy="12" r="4.25" />
+                        <circle cx="12" cy="12" r="7.25" />
                       </svg>
                     ),
                   },
@@ -3999,6 +4109,15 @@ export function CardInlineGeneratePanel({
         />
       ) : null}
 
+      {showStickerBorderOverlay ? (
+        <StickerBorderSheet
+          busy={stickerBorderBusy}
+          error={error || null}
+          onClose={() => setStickerBorderOpen(false)}
+          onSubmit={submitStickerBorder}
+        />
+      ) : null}
+
       {showStickerDownloadOverlay ? (
         <StickerDownloadSheet
           busyPlatform={stickerDownloadBusy}
@@ -4099,6 +4218,9 @@ export function CardInlineGeneratePanel({
                 ? composePhotoshootGuideExample(photoshootComposeExampleEnabled)
                 : null
             }
+            stickerExampleUrl={composeMode === "sticker" ? selectedStickerExampleUrl : null}
+            stickerKind={stickerKind}
+            stickerPacks={stickerPacks}
             className="min-h-0 flex-1 px-2 py-4"
           />
         ) : null}
@@ -4502,7 +4624,9 @@ export function CardInlineGeneratePanel({
                 aria-labelledby={
                   photoPromptCompose
                     ? "generation-photo-prompt-guide-title"
-                    : "generation-photo-guide-title"
+                    : stickerCompose
+                      ? "generation-sticker-picker-guide-title"
+                      : "generation-photo-guide-title"
                 }
                 className={
                   isMobile || dockPhotosExpanded
@@ -4517,6 +4641,12 @@ export function CardInlineGeneratePanel({
                     className={
                       isMobile || dockPhotosExpanded ? "" : "items-start"
                     }
+                  />
+                ) : stickerCompose ? (
+                  <StickerPickerGuide
+                    glassChrome={dockPhotosExpanded}
+                    centered={isMobile || dockPhotosExpanded}
+                    exampleUrl={selectedStickerExampleUrl}
                   />
                 ) : (
                 <div
@@ -4760,7 +4890,6 @@ export function CardInlineGeneratePanel({
             {stickerCompose ? (
               <StickerStylePicker
                 styles={stickerStyles}
-                groups={stickerStyleGroups}
                 loading={stickerCatalogLoading}
                 selectedId={stickerStyleId}
                 tone={dockExampleExpanded ? "dark" : "light"}
@@ -4807,6 +4936,107 @@ export function CardInlineGeneratePanel({
               onConfirmed={closePrefsSheet}
             />
             )}
+            </div>
+          </div>
+        ) : null}
+
+        {expandedControl === "tool" && !showResultChrome ? (
+          <div
+            id="inline-generation-tools"
+            role={isDock ? undefined : "dialog"}
+            aria-modal={isDock ? undefined : "true"}
+            aria-labelledby="generation-tool-sheet-title"
+            className={
+              dockToolExpanded
+                ? `${dockSheetPanelBase} overflow-hidden`
+                : isMobile
+                  ? `${sheetPos} inset-0 z-50 flex h-full min-h-0 flex-col overflow-hidden bg-white p-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))] text-zinc-900`
+                  : `${sheetPos} inset-x-0 bottom-0 z-50 flex h-[min(82dvh,44rem)] max-h-[min(82dvh,44rem)] flex-col overflow-hidden rounded-t-3xl bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))] text-zinc-900 shadow-[0_-20px_60px_-24px_rgba(0,0,0,0.45)]`
+            }
+          >
+            <div className="flex h-full min-h-0 w-full flex-col">
+            {dockToolExpanded ? (
+              <button
+                type="button"
+                aria-label="Свернуть выбор инструмента"
+                onClick={closePrefsSheet}
+                className={`${OVERLAY_BUTTON_UA_RESET} mx-auto mb-1 flex w-full shrink-0 flex-col items-center gap-1 py-1`}
+              >
+                <span className={dockSheetHandle} aria-hidden />
+              </button>
+            ) : (
+              <div className="mx-auto mb-2 h-1 w-9 rounded-full bg-zinc-300" aria-hidden />
+            )}
+            <div className="mb-3 flex min-h-11 shrink-0 items-center justify-between gap-3">
+              <h3
+                id="generation-tool-sheet-title"
+                className={`text-[13px] font-semibold ${
+                  dockToolExpanded ? "text-white" : "text-zinc-900"
+                }`}
+              >
+                {COMPOSE_TOOL_SHEET_TITLE}
+              </h3>
+              <button
+                type="button"
+                aria-label="Закрыть выбор инструмента"
+                onClick={closePrefsSheet}
+                className={
+                  dockToolExpanded
+                    ? dockSheetCloseBtn
+                    : `${OVERLAY_BUTTON_UA_RESET} flex h-11 w-11 items-center justify-center rounded-full bg-zinc-100 text-zinc-700 transition hover:bg-zinc-200`
+                }
+              >
+                <svg
+                  className="h-5 w-5"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  aria-hidden
+                >
+                  <path d="m6 6 12 12M18 6 6 18" />
+                </svg>
+              </button>
+            </div>
+            <ComposeToolGuide
+              mode={composeMode}
+              glassChrome={dockToolExpanded}
+              photoshootExample={
+                composeMode === "photoshoot"
+                  ? composePhotoshootGuideExample(photoshootComposeExampleEnabled)
+                  : null
+              }
+              stickerExampleUrl={composeMode === "sticker" ? selectedStickerExampleUrl : null}
+              stickerKind={stickerKind}
+              onStickerKindChange={setStickerKind}
+              stickerPacks={stickerPacks}
+              photoExampleUrl={pickedExamplePreviewUrl || PHOTO_GUIDE_PORTRAIT_SRC}
+              className="min-h-0 flex-1 overflow-y-auto px-2 py-4"
+            />
+            {/* Tool tiles sit at the bottom, same square as the modal row; the guide above is their onboarding. */}
+            <div
+              role="group"
+              aria-label={COMPOSE_TOOL_SHEET_TITLE}
+              className="flex shrink-0 items-start gap-2 overflow-x-auto overscroll-x-contain pb-3 pt-3 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            >
+              {toolOptions.map((mode) => (
+                <ComposeToolChoiceTile
+                  key={mode}
+                  mode={mode}
+                  selected={composeMode === mode}
+                  disabled={controlsBusy}
+                  glassChrome={dockToolExpanded}
+                  className={`${composeToolTileSize} rounded-xl ${composeTileFrame} ${composeTileBorder(
+                    composeMode === mode,
+                    dockToolExpanded,
+                  )}`}
+                  onClick={() => selectComposeTool(mode)}
+                />
+              ))}
+            </div>
+            <button type="button" onClick={closePrefsSheet} className={composeSheetCta}>
+              {COMPOSE_TOOL_SHEET_DONE_CTA}
+            </button>
             </div>
           </div>
         ) : null}
@@ -5161,7 +5391,24 @@ export function CardInlineGeneratePanel({
               }}
             />
 
-            {showSeoExampleTool ? (
+            <ComposeToolPickerTile
+              composeMode={composeMode}
+              bodyLabel={composeToolTileBodyLabel({ composeMode, stickerKind })}
+              selected={expandedControl === "tool"}
+              expanded={expandedControl === "tool"}
+              disabled={controlsBusy}
+              glassChrome={glassChrome}
+              className={`${composeToolTileSize} rounded-xl ${composeTileFrame} ${composeTileBorder(
+                expandedControl === "tool",
+              )}`}
+              controlsId="inline-generation-tools"
+              onClick={() => {
+                setError("");
+                setExpandedControl((current) => (current === "tool" ? null : "tool"));
+              }}
+            />
+
+            {showSeoExampleTool && secondaryTools.includes("style") ? (
               <ComposeDockToolTile
                 edgeLabel={SEO_COMPOSE_EXAMPLE_TOOL_EDGE_LABEL}
                 bodyLabel={stickerCompose ? selectedStickerStyleLabel : undefined}
@@ -5170,6 +5417,7 @@ export function CardInlineGeneratePanel({
                     ? composePreviewImageUrls([selectedStickerExampleUrl])
                     : composePreviewImageUrls([pickedExamplePreviewUrl])
                 }
+                previewPlate={stickerCompose ? "clear" : "photo"}
                 icon={<ComposeExampleToolIcon className="h-5 w-5" />}
                 selected={expandedControl === "example"}
                 expanded={expandedControl === "example"}
@@ -5184,78 +5432,45 @@ export function CardInlineGeneratePanel({
               />
             ) : null}
 
-            <ComposeModeToolTile
-              mode="image"
-              modelId={model || null}
-              tileLabel={selectedImageModelTileLabel}
-              fullLabel={selectedImageModelLabel}
-              selected={imageCompose}
-              expanded={imageCompose && expandedControl === "model"}
-              disabled={controlsBusy}
-              glassChrome={glassChrome}
-              className={`${composeToolTileSize} rounded-xl ${composeTileFrame} ${composeTileBorder(
-                imageCompose,
-              )}`}
-              controlsId="inline-generation-models"
-              onClick={onImageModeTileClick}
-            />
+            {secondaryTools.includes("model") && imageCompose ? (
+              <ComposeModelToolTile
+                mode="image"
+                modelId={model || null}
+                tileLabel={selectedImageModelTileLabel}
+                fullLabel={selectedImageModelLabel}
+                selected={expandedControl === "model"}
+                expanded={expandedControl === "model"}
+                disabled={controlsBusy}
+                glassChrome={glassChrome}
+                className={`${composeToolTileSize} rounded-xl ${composeTileFrame} ${composeTileBorder(
+                  expandedControl === "model",
+                )}`}
+                controlsId="inline-generation-models"
+                onClick={() => {
+                  setExpandedControl((current) => (current === "model" ? null : "model"));
+                }}
+              />
+            ) : null}
 
-            {videoEnabled ? (
-              <ComposeModeToolTile
+            {secondaryTools.includes("model") && videoCompose ? (
+              <ComposeModelToolTile
                 mode="video"
                 modelId={activeVideoModel?.id || DEFAULT_VIDEO_MODEL}
                 tileLabel={selectedVideoModelTileLabel}
                 fullLabel={selectedVideoModelLabel}
-                selected={videoCompose}
-                expanded={videoCompose && expandedControl === "model"}
+                selected={expandedControl === "model"}
+                expanded={expandedControl === "model"}
                 disabled={controlsBusy}
                 glassChrome={glassChrome}
                 className={`${composeToolTileSize} rounded-xl ${composeTileFrame} ${composeTileBorder(
-                  videoCompose,
+                  expandedControl === "model",
                 )}`}
                 controlsId="inline-generation-models"
-                onClick={onVideoModeTileClick}
+                onClick={() => {
+                  setExpandedControl((current) => (current === "model" ? null : "model"));
+                }}
               />
             ) : null}
-
-            {photoshootEnabled ? (
-              <ComposeModeToolTile
-                mode="photoshoot"
-                selected={photoshootCompose}
-                disabled={controlsBusy}
-                glassChrome={glassChrome}
-                className={`${composeToolTileSize} rounded-xl ${composeTileFrame} ${composeTileBorder(
-                  photoshootCompose,
-                )}`}
-                onClick={onPhotoshootTileClick}
-              />
-            ) : null}
-
-            {stickerEnabled ? (
-              <ComposeModeToolTile
-                mode="sticker"
-                selected={stickerCompose}
-                disabled={controlsBusy}
-                glassChrome={glassChrome}
-                className={`${composeToolTileSize} rounded-xl ${composeTileFrame} ${composeTileBorder(
-                  stickerCompose,
-                )}`}
-                onClick={onStickerTileClick}
-              />
-            ) : null}
-
-            <ComposeModeToolTile
-              mode="photo_prompt"
-              selected={photoPromptCompose}
-              expanded={photoPromptCompose && expandedControl === "photos"}
-              disabled={controlsBusy}
-              glassChrome={glassChrome}
-              className={`${composeToolTileSize} rounded-xl ${composeTileFrame} ${composeTileBorder(
-                photoPromptCompose,
-              )}`}
-              controlsId="inline-generation-photos"
-              onClick={onPhotoPromptTileClick}
-            />
           </div>
           {showPreserveOutfitChip ? (
             <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -5363,6 +5578,7 @@ export function CardInlineGeneratePanel({
             aria-valuenow={jobBusy ? Math.round(progress) : undefined}
             disabled={
               busy ||
+              stickerPackSoon ||
               (photoPromptCompose
                 ? Boolean(busyAction)
                 : isAuthed &&
@@ -5378,6 +5594,7 @@ export function CardInlineGeneratePanel({
                       !seoNeedsImageModelPick)))
             }
             onClick={() => {
+              if (stickerPackSoon) return;
               if (photoPromptCompose) {
                 if (busy) return;
                 startPhotoPromptFromSelected();
@@ -5414,10 +5631,11 @@ export function CardInlineGeneratePanel({
                 return;
               }
               if (stickerCompose) {
-                if (photoshootLibraryFrame) {
+                if (sourcePhotoPicked) {
+                  // Just-signed-in user: the upload is still in-browser; runGenerate persists it first.
                   void runGenerate({
                     editKind: STICKER_EDIT_KIND,
-                    photoStoragePath: photoshootLibraryFrame.storagePath,
+                    photoStoragePath: photoshootLibraryFrame?.storagePath,
                   });
                   return;
                 }
@@ -5497,10 +5715,10 @@ export function CardInlineGeneratePanel({
             <span
               className={
                 starting ||
+                stickerPackSoon ||
                 phase === "uploading" ||
                 phase === "generating" ||
-                (photoshootCompose && !photoshootLibraryFrame) ||
-                (stickerCompose && !photoshootLibraryFrame) ||
+                (photoshootCompose && !sourcePhotoPicked) ||
                 (photoPromptCompose &&
                   !photoPromptHasSource &&
                   composeCtaGuestQuota == null) ||
@@ -5512,7 +5730,9 @@ export function CardInlineGeneratePanel({
                   : "flex min-w-0 w-full items-center justify-between gap-3"
               }
             >
-              {starting
+              {stickerPackSoon
+                ? STICKER_PACK_SOON_CTA
+                : starting
                 ? "Запускаем…"
                 : phase === "uploading"
                 ? `Загружаем фото · ${Math.round(progress)}%`
@@ -5520,10 +5740,8 @@ export function CardInlineGeneratePanel({
                   ? photoPromptCompose
                     ? composePhotoPromptBusyLabel(progress)
                     : `Генерируем · ${Math.round(progress)}%`
-                  : photoshootCompose && !photoshootLibraryFrame
+                  : photoshootCompose && !sourcePhotoPicked
                     ? composeNeedsPhotoCtaLabel("photoshoot", { isAuthed })
-                  : stickerCompose && !photoshootLibraryFrame
-                    ? composeNeedsPhotoCtaLabel("sticker", { isAuthed })
                   : photoPromptCompose && !photoPromptHasSource
                     ? (
                       <>
@@ -5540,7 +5758,9 @@ export function CardInlineGeneratePanel({
                     : (
                       <>
                         <span className="shrink-0">
-                          {seoNeedsExamplePick
+                          {stickerCompose && !sourcePhotoPicked
+                            ? composeNeedsPhotoCtaLabel("sticker", { isAuthed })
+                            : seoNeedsExamplePick
                             ? SEO_COMPOSE_PICK_EXAMPLE_CTA
                             : seoNeedsImageModelPick
                               ? COMPOSE_PICK_IMAGE_MODEL_CTA
@@ -5598,7 +5818,9 @@ export function CardInlineGeneratePanel({
               role="dialog"
               aria-modal="true"
               aria-label="Просмотр результата"
-              className="fixed inset-0 z-[130] flex items-center justify-center bg-black/80 p-4"
+              className={`fixed inset-0 z-[130] flex items-center justify-center p-4 ${
+                stickerResult ? "bg-zinc-950/55 backdrop-blur-xl" : "bg-black/80"
+              }`}
               onClick={() => setResultPreviewOpen(false)}
             >
               <button

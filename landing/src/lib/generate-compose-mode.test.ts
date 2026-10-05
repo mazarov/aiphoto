@@ -24,13 +24,39 @@ import {
   composeNeedsPhotoCtaLabel,
   COMPOSE_GUEST_UPLOAD_PHOTO_CTA,
   COMPOSE_SELECT_PHOTO_CTA,
-  composeModeTileSheet,
-  nextComposeModeTileSheet,
+  COMPOSE_STICKER_GUEST_UPLOAD_PICTURE_CTA,
+  COMPOSE_STICKER_SELECT_PICTURE_CTA,
+  COMPOSE_TOOL_EDGE_LABEL,
+  COMPOSE_STYLE_TOOL_EDGE_LABEL,
+  COMPOSE_MODEL_TOOL_EDGE_LABEL,
+  COMPOSE_TOOL_SHEET_DONE_CTA,
+  COMPOSE_TOOL_ORDER,
+  composeToolOptions,
+  composeSecondaryTools,
+  STICKER_TOOL_KINDS,
+  stickerToolKindLabel,
+  STICKER_PACK_SOON_CTA,
+  composeCtaDisabledForStickerPack,
+  composeToolTileBodyLabel,
+  stickerStudioCta,
   promptModalityForComposeMode,
   rememberCompletedImageResult,
+  composeHasSingleSourcePhoto,
   resolvePhotoshootLibraryFrame,
   resolvePhotoshootReadyFrame,
 } from "./generate-compose-mode";
+
+test("composeHasSingleSourcePhoto accepts a guest's in-browser photo, enqueue frame does not", () => {
+  const guestPhoto = { id: "photo-prompt-ephemeral", storagePath: "", previewUrl: "data:image/jpeg;base64,xx" };
+  assert.equal(composeHasSingleSourcePhoto({ selectedPhotos: [guestPhoto] }), true);
+  assert.equal(resolvePhotoshootLibraryFrame({ selectedPhotos: [guestPhoto] }), null);
+  assert.equal(composeHasSingleSourcePhoto({ selectedPhotos: [] }), false);
+  assert.equal(
+    composeHasSingleSourcePhoto({ selectedPhotos: [guestPhoto, { id: "b", storagePath: "u/b.jpg" }] }),
+    false,
+  );
+  assert.equal(composeHasSingleSourcePhoto({ selectedPhotos: [{ id: "a", storagePath: "u/a.jpg" }] }), true);
+});
 
 test("photoshoot prompt and API modality stay on image", () => {
   assert.equal(promptModalityForComposeMode("photoshoot"), "image");
@@ -200,75 +226,65 @@ test("compose tiles and generate CTA follow the selected block", () => {
   assert.equal(composeModeFromDockIntent("text"), "image");
 });
 
-test("image and video tiles toggle the model sheet; photoshoot and photo_prompt first-select stay on the plate", () => {
-  assert.equal(composeModeTileSheet("image"), "model");
-  assert.equal(composeModeTileSheet("video"), "model");
-  assert.equal(composeModeTileSheet("photoshoot"), null);
-  assert.equal(composeModeTileSheet("photo_prompt"), "photos");
-  assert.equal(
-    nextComposeModeTileSheet({
-      mode: "photoshoot",
-      alreadyInMode: false,
-      currentSheet: null,
+test("«Инструмент» sheet lists tools in a fixed order and drops the ones a flag closed", () => {
+  assert.deepEqual(
+    [...COMPOSE_TOOL_ORDER],
+    ["image", "video", "photoshoot", "sticker", "photo_prompt"],
+  );
+  assert.deepEqual(
+    composeToolOptions({ videoEnabled: true, photoshootEnabled: true, stickerEnabled: true }),
+    ["image", "video", "photoshoot", "sticker", "photo_prompt"],
+  );
+  assert.deepEqual(
+    composeToolOptions({ videoEnabled: false, photoshootEnabled: false, stickerEnabled: false }),
+    ["image", "photo_prompt"],
+  );
+  // /stiker-iz-foto seeds sticker before the config answers: the picked tool must stay on the row.
+  assert.deepEqual(
+    composeToolOptions({
+      videoEnabled: false,
+      photoshootEnabled: false,
+      stickerEnabled: false,
+      current: "sticker",
     }),
-    null,
+    ["image", "sticker", "photo_prompt"],
+  );
+  assert.equal(COMPOSE_TOOL_EDGE_LABEL, "Инструмент");
+  assert.equal(COMPOSE_TOOL_SHEET_DONE_CTA, "Готово");
+});
+
+test("secondary tiles: photo → style + model, video → model, sticker → style, rest → none", () => {
+  assert.deepEqual(composeSecondaryTools("image"), ["style", "model"]);
+  assert.deepEqual(composeSecondaryTools("video"), ["model"]);
+  assert.deepEqual(composeSecondaryTools("sticker"), ["style"]);
+  assert.deepEqual(composeSecondaryTools("photoshoot"), []);
+  assert.deepEqual(composeSecondaryTools("photo_prompt"), []);
+  assert.equal(COMPOSE_STYLE_TOOL_EDGE_LABEL, "Стиль");
+  assert.equal(COMPOSE_MODEL_TOOL_EDGE_LABEL, "Модель");
+});
+
+test("sticker tool has two kinds; pack is a disabled «скоро» CTA and names itself on the tile", () => {
+  assert.deepEqual([...STICKER_TOOL_KINDS], ["single", "pack"]);
+  assert.equal(stickerToolKindLabel("single"), "Стикер");
+  assert.equal(stickerToolKindLabel("pack"), "Стикер пак");
+  assert.equal(
+    composeCtaDisabledForStickerPack({ composeMode: "sticker", stickerKind: "pack" }),
+    true,
   );
   assert.equal(
-    nextComposeModeTileSheet({
-      mode: "photo_prompt",
-      alreadyInMode: false,
-      currentSheet: null,
-    }),
-    null,
+    composeCtaDisabledForStickerPack({ composeMode: "sticker", stickerKind: "single" }),
+    false,
   );
+  // Pack kind is remembered but must not block other tools.
   assert.equal(
-    nextComposeModeTileSheet({
-      mode: "photo_prompt",
-      alreadyInMode: true,
-      currentSheet: null,
-    }),
-    "photos",
+    composeCtaDisabledForStickerPack({ composeMode: "image", stickerKind: "pack" }),
+    false,
   );
-  assert.equal(
-    nextComposeModeTileSheet({
-      mode: "photo_prompt",
-      alreadyInMode: true,
-      currentSheet: "photos",
-    }),
-    null,
-  );
-  assert.equal(
-    nextComposeModeTileSheet({
-      mode: "video",
-      alreadyInMode: false,
-      currentSheet: "photos",
-    }),
-    "model",
-  );
-  assert.equal(
-    nextComposeModeTileSheet({
-      mode: "image",
-      alreadyInMode: false,
-      currentSheet: null,
-    }),
-    "model",
-  );
-  assert.equal(
-    nextComposeModeTileSheet({
-      mode: "image",
-      alreadyInMode: true,
-      currentSheet: "model",
-    }),
-    null,
-  );
-  assert.equal(
-    nextComposeModeTileSheet({
-      mode: "video",
-      alreadyInMode: true,
-      currentSheet: "model",
-    }),
-    null,
-  );
+  assert.match(STICKER_PACK_SOON_CTA, /скоро/i);
+  assert.equal(composeToolTileBodyLabel({ composeMode: "sticker", stickerKind: "pack" }), "Стикер пак");
+  assert.equal(composeToolTileBodyLabel({ composeMode: "sticker", stickerKind: "single" }), "Стикер");
+  assert.equal(composeToolTileBodyLabel({ composeMode: "video", stickerKind: "pack" }), "Видео");
+  assert.equal(composeToolTileBodyLabel({ composeMode: "image", stickerKind: "single" }), "Фото");
 });
 
 test("photoshoot mode does not enqueue without editKind=photoshoot", () => {
@@ -295,22 +311,21 @@ test("photoshoot mode does not enqueue without editKind=photoshoot", () => {
 
 test("sticker is a select-only tool and only enqueues editKind=sticker", () => {
   assert.equal(composeModeTileLabel("sticker"), "Стикер");
-  assert.equal(composeModeTileSheet("sticker"), null);
-  assert.equal(
-    nextComposeModeTileSheet({
-      mode: "sticker",
-      alreadyInMode: true,
-      currentSheet: null,
-    }),
-    null,
-  );
   assert.equal(composeModeFromDockIntent("sticker"), "sticker");
   assert.equal(composeGenerateCtaLabel("sticker"), "Создать стикер");
   assert.equal(composeGenerateCtaShowsModelName("sticker", { isAuthed: true }), false);
+  // Sticker never says «фото»: the source may be a pet, a meme or a drawing.
   assert.equal(
     composeNeedsPhotoCtaLabel("sticker", { isAuthed: false }),
-    COMPOSE_GUEST_UPLOAD_PHOTO_CTA,
+    COMPOSE_STICKER_GUEST_UPLOAD_PICTURE_CTA,
   );
+  assert.equal(
+    composeNeedsPhotoCtaLabel("sticker", { isAuthed: true }),
+    COMPOSE_STICKER_SELECT_PICTURE_CTA,
+  );
+  assert.equal(composeNeedsPhotoCtaLabel("sticker"), COMPOSE_STICKER_SELECT_PICTURE_CTA);
+  assert.doesNotMatch(COMPOSE_STICKER_GUEST_UPLOAD_PICTURE_CTA, /фото/i);
+  assert.doesNotMatch(COMPOSE_STICKER_SELECT_PICTURE_CTA, /фото/i);
   assert.equal(
     canEnqueueWhilePhotoshootSelected({ composeMode: "sticker" }),
     false,
@@ -322,4 +337,12 @@ test("sticker is a select-only tool and only enqueues editKind=sticker", () => {
     }),
     true,
   );
+});
+
+test("sticker footer prices GPT Image 2.5 at 5 wherever the tool is picked", () => {
+  assert.deepEqual(stickerStudioCta({}), { modelLabel: "GPT Image 2.5", cost: 5 });
+  assert.deepEqual(stickerStudioCta({ modelId: "gpt-image-2.5-flare", cost: 5 }), {
+    modelLabel: "GPT Image 2.5",
+    cost: 5,
+  });
 });

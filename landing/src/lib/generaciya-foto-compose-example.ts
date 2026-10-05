@@ -6,15 +6,16 @@ import {
 import { composeExamplePickerListingAudience } from "./compose-example-audience";
 
 /**
- * Catalog style tile stays in the tools row for every compose mode.
- * Hidden only under result chrome (the whole row is gone then).
+ * «Стиль» tile: catalog example for Фото, bot style for Стикер. Other tools have no style.
+ * Hidden under result chrome (the whole row is gone then).
  * `generationSurface` stays a Metrika/API label only.
  */
 export function composeShowsExampleTool(input: {
   composeMode?: GenerateComposeMode;
   showResultChrome?: boolean;
 }): boolean {
-  return !input.showResultChrome;
+  if (input.showResultChrome) return false;
+  return input.composeMode === "image" || input.composeMode === "sticker";
 }
 
 /** Photo in, catalog style not picked, prompt still too short to generate. Image CTA only. */
@@ -40,7 +41,8 @@ export function composeShouldAutoOpenExampleSheet(input: {
 }
 
 export const SEO_COMPOSE_EXAMPLE_TOOL_LABEL = "Выбрать стиль";
-export const SEO_COMPOSE_EXAMPLE_TOOL_EDGE_LABEL = SEO_COMPOSE_EXAMPLE_TOOL_LABEL;
+/** Pill on the tile is short; the sheet title keeps the verb. */
+export const SEO_COMPOSE_EXAMPLE_TOOL_EDGE_LABEL = "Стиль";
 export const SEO_COMPOSE_EXAMPLE_SHEET_TITLE = "Выбрать стиль";
 export const SEO_COMPOSE_EXAMPLE_CONFIRM_CTA = "Выбрать";
 /** Footer gate when selfie is in and catalog example is not. Opens the example sheet. */

@@ -28,8 +28,10 @@ import { isPhotoshootEditKind } from "@/lib/photoshoot";
 import { requestCreditBalanceRefresh } from "@/lib/credit-balance-events";
 import {
   generationGridDisplay,
+  generationListingAspectRatio,
   type GenerationHistoryItem,
 } from "@/lib/generations-list";
+import { isStickerEditKind } from "@/lib/sticker";
 import {
   publishRewardAmount,
   publishRewardKindForGeneration,
@@ -98,6 +100,8 @@ export function GenerationHistoryCard({
   const hasPrompt = Boolean(generation.prompt?.trim());
   const isVideo = generation.modality === "video" || generation.resultMimeType === "video/mp4";
   const isPhotoshoot = isPhotoshootEditKind(generation.editKind);
+  const isSticker = isStickerEditKind(generation.editKind);
+  const listingAspect = generationListingAspectRatio(generation.aspectRatio, generation.editKind);
   const canOpenCard = generation.status === "completed" && hasResult;
   const canOpenResult = generation.status === "completed" && hasResult;
   const canAnimate =
@@ -322,7 +326,12 @@ export function GenerationHistoryCard({
         if (selectMode) onToggleSelect(generation.id);
       }}
     >
-      <div className="relative w-full overflow-hidden rounded-2xl bg-zinc-900 aspect-[3/4]">
+      <div
+        className={`relative w-full overflow-hidden rounded-2xl ${
+          isSticker && displaySrc ? "bg-transparent" : "bg-zinc-100"
+        }`}
+        style={{ aspectRatio: listingAspect }}
+      >
         {sheetDisplay ? (
           <Image
             src={sheetDisplay}
@@ -353,6 +362,15 @@ export function GenerationHistoryCard({
           <ListingCardVideo
             src={generation.resultUrl}
             className="listing-card-photo-hover"
+          />
+        ) : displaySrc && isSticker ? (
+          <img
+            src={displaySrc}
+            alt="Стикер"
+            className="absolute inset-0 h-full w-full object-contain"
+            draggable={false}
+            decoding={priority ? "sync" : "async"}
+            fetchPriority={priority ? "high" : "auto"}
           />
         ) : displaySrc && !isPhotoshoot ? (
           <Image

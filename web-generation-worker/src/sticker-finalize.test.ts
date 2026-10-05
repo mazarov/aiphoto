@@ -201,7 +201,7 @@ test("clearChromaFringe zeroes magenta pixels and keeps others", () => {
   assert.equal(rgba[11], 255);
 });
 
-test("composeStickerFromCutout yields 512×512 PNG with alpha and a white border", async () => {
+test("composeStickerFromCutout yields 512×512 PNG with alpha and no white border", async () => {
   const cutout = await syntheticCutout();
   const result = await composeStickerFromCutout(cutout);
   const meta = await sharp(result.buffer).metadata();
@@ -221,8 +221,8 @@ test("composeStickerFromCutout yields 512×512 PNG with alpha and a white border
     else if (data[o + 2] > 150 && data[o] < 100) blue += 1;
   }
   assert.ok(transparent > 0, "corners stay transparent");
-  assert.ok(white > 0, "outline is painted");
-  assert.ok(blue > white, "subject dominates the outline");
+  assert.equal(white, 0, "generation does not paint an outline");
+  assert.ok(blue > 0, "subject survives");
   let partial = 0;
   for (let i = 0; i < info.width * info.height; i += 1) {
     const alpha = data[i * 4 + 3];

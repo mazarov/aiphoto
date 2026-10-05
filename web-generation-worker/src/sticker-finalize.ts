@@ -2,7 +2,6 @@ import sharp from "sharp";
 import {
   DEFAULT_STICKER_BG_ROUTE,
   STICKER_BACKGROUND_HEX,
-  STICKER_OUTLINE_PX,
   STICKER_OUTPUT_PX,
   STICKER_SAFE_MARGIN_PX,
   type StickerBgRoute,
@@ -42,7 +41,7 @@ export type StickerFinalizeOptions = {
   rembgUrl: string;
   signal?: AbortSignal;
   fetchImpl?: typeof fetch;
-  /** Override for tests; production uses STICKER_OUTLINE_PX. */
+  /** White die-cut width. Production passes nothing: the sticker is saved without an outline. */
   outlinePx?: number;
   outputPx?: number;
   /** Routing flag from `landing_generation_config.sticker_bg_route`; default chroma_first. */
@@ -335,15 +334,16 @@ export function dilateAlpha(alpha: Uint8Array, width: number, height: number, ra
 }
 
 /**
- * Cut-out PNG → white die-cut border → trim → square `outputPx` canvas with a transparent safe margin
+ * Cut-out PNG → square `outputPx` canvas with a transparent safe margin
  * on every side (the figure never touches the canvas edge — the bot's 15 px, WhatsApp's 16 px).
+ * No white outline unless `outlinePx` is set; the result button paints that later.
  */
 export async function composeStickerFromCutout(
   cutout: Buffer,
   options?: { outlinePx?: number; outputPx?: number; marginPx?: number },
 ): Promise<{ buffer: Buffer; width: number; height: number; outlineMs: number; chromaPixelsCleared: number }> {
   const outputPx = options?.outputPx ?? STICKER_OUTPUT_PX;
-  const outlinePx = options?.outlinePx ?? STICKER_OUTLINE_PX;
+  const outlinePx = Math.max(0, options?.outlinePx ?? 0);
   const marginPx = Math.max(0, Math.min(Math.floor(outputPx / 4), options?.marginPx ?? STICKER_SAFE_MARGIN_PX));
   const started = Date.now();
 
@@ -374,23 +374,28 @@ export async function composeStickerFromCutout(
   const chromaPixelsCleared = clearChromaFringe(rgba, width, height);
   hardenAlpha(rgba, width, height);
 
-  const alpha = new Uint8Array(width * height);
-  for (let i = 0; i < width * height; i += 1) alpha[i] = rgba[i * 4 + 3];
-  const dilated = dilateAlpha(alpha, width, height, outlinePx);
-  const border = Buffer.alloc(width * height * 4);
-  for (let i = 0; i < width * height; i += 1) {
-    const a = dilated[i];
-    if (!a) continue;
-    const o = i * 4;
-    border[o] = 255;
-    border[o + 1] = 255;
-    border[o + 2] = 255;
-    border[o + 3] = a;
+  let composited: Buffer;
+  if (outlinePx > 0) {
+    const alpha = new Uint8Array(width * height);
+    for (let i = 0; i < width * height; i += 1) alpha[i] = rgba[i * 4 + 3];
+    const dilated = dilateAlpha(alpha, width, height, outlinePx);
+    const border = Buffer.alloc(width * height * 4);
+    for (let i = 0; i < width * height; i += 1) {
+      const a = dilated[i];
+      if (!a) continue;
+      const o = i * 4;
+      border[o] = 255;
+      border[o + 1] = 255;
+      border[o + 2] = 255;
+      border[o + 3] = a;
+    }
+    composited = await sharp(border, { raw: { width, height, channels: 4 } })
+      .composite([{ input: rgba, raw: { width, height, channels: 4 }, blend: "over" }])
+      .png()
+      .toBuffer();
+  } else {
+    composited = await sharp(rgba, { raw: { width, height, channels: 4 } }).png().toBuffer();
   }
-  const composited = await sharp(border, { raw: { width, height, channels: 4 } })
-    .composite([{ input: rgba, raw: { width, height, channels: 4 }, blend: "over" }])
-    .png()
-    .toBuffer();
 
   const padX = Math.max(0, contentPx - width);
   const padY = Math.max(0, contentPx - height);

@@ -1,7 +1,10 @@
 /**
- * Example stickers per style from the bot's `stickers` table (`is_example = true`, `public_url` in the
- * public `stickers-examples` bucket). A share of stored URLs point at deleted files, so candidates are
- * HEAD-checked before they reach the catalog; results live in a process cache for 10 minutes.
+ * Example stickers per style. The landing shows a pinned set
+ * (`landing_generation_config.sticker_landing_example_ids`: style id → sticker ids, in display order)
+ * and ignores `is_example` for those styles — that flag also drives the Telegram bot, so curating the
+ * site must not flip it. Styles absent from the pin fall back to the newest `is_example` rows.
+ * Files live in the public `stickers-examples` bucket; a share of stored URLs 404, so candidates are
+ * HEAD-checked. Results live in a process cache for 10 minutes.
  * Landing-only (Supabase client); the worker never imports this file.
  */
 
@@ -16,6 +19,64 @@ const URL_CHECK_TTL_MS = 60 * 60 * 1000;
 const HEAD_TIMEOUT_MS = 3000;
 const HEAD_CONCURRENCY = 12;
 const PUBLIC_EXAMPLES_PREFIX = "/storage/v1/object/public/stickers-examples/";
+
+/** `landing_generation_config` key: JSON `{ "<styleId>": ["<sticker uuid>", ...] }` in display order. */
+export const STICKER_LANDING_EXAMPLES_KEY = "sticker_landing_example_ids";
+const STICKER_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+type PinnedExampleRow = { id: string; public_url: string | null };
+
+/**
+ * Pinned ids per style. Junk (non-uuid, duplicates, empty styles) is dropped.
+ * `null` when the config is missing or holds nothing usable — caller keeps the `is_example` fallback.
+ */
+export function parseStickerLandingExampleIds(value: unknown): Record<string, string[]> | null {
+  let raw: unknown = value;
+  if (typeof value === "string") {
+    const text = value.trim();
+    if (!text) return null;
+    try {
+      raw = JSON.parse(text);
+    } catch {
+      return null;
+    }
+  }
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const out: Record<string, string[]> = {};
+  for (const [styleId, ids] of Object.entries(raw as Record<string, unknown>)) {
+    const key = styleId.trim();
+    if (!key || !Array.isArray(ids)) continue;
+    const clean: string[] = [];
+    for (const id of ids) {
+      const text = String(id ?? "").trim();
+      if (!STICKER_ID_RE.test(text) || clean.includes(text)) continue;
+      clean.push(text);
+      if (clean.length >= STICKER_EXAMPLES_PER_STYLE) break;
+    }
+    if (clean.length) out[key] = clean;
+  }
+  return Object.keys(out).length ? out : null;
+}
+
+/** URLs in the pinned order. A style with no live public URL is omitted (no fallback mixed in). */
+export function pinnedExampleCandidates(
+  pins: Readonly<Record<string, readonly string[]>>,
+  rows: readonly PinnedExampleRow[],
+  supabaseOrigin: string | null,
+): StickerExampleMap {
+  const byId = new Map(rows.map((row) => [row.id, row.public_url]));
+  const out: StickerExampleMap = new Map();
+  for (const [styleId, ids] of Object.entries(pins)) {
+    const urls: string[] = [];
+    for (const id of ids) {
+      const url = byId.get(id);
+      if (!isStickerExampleUrl(url, supabaseOrigin) || urls.includes(url)) continue;
+      urls.push(url);
+    }
+    if (urls.length) out.set(styleId, urls);
+  }
+  return out;
+}
 
 type ExampleRow = { style_preset_id: string | null; public_url: string | null; created_at: string | null };
 
@@ -112,18 +173,38 @@ function supabaseOriginFromEnv(): string | null {
 }
 
 async function loadFresh(supabase: SupabaseClient, fetchImpl: typeof fetch): Promise<StickerExampleMap> {
-  const { data, error } = await supabase
-    .from("stickers")
-    .select("style_preset_id,public_url,created_at")
-    .eq("is_example", true)
-    .not("public_url", "is", null)
-    .order("created_at", { ascending: false })
-    .limit(ROWS_LIMIT);
-  if (error) {
-    console.error("[sticker-examples] stickers read failed", { error: error.message });
-    return new Map();
+  const origin = supabaseOriginFromEnv();
+  const [pinRes, fallbackRes] = await Promise.all([
+    supabase.from("landing_generation_config").select("value").eq("key", STICKER_LANDING_EXAMPLES_KEY).maybeSingle(),
+    supabase
+      .from("stickers")
+      .select("style_preset_id,public_url,created_at")
+      .eq("is_example", true)
+      .not("public_url", "is", null)
+      .order("created_at", { ascending: false })
+      .limit(ROWS_LIMIT),
+  ]);
+  if (fallbackRes.error) {
+    console.error("[sticker-examples] stickers read failed", { error: fallbackRes.error.message });
   }
-  const candidates = groupExampleCandidates((data || []) as ExampleRow[], supabaseOriginFromEnv());
+  const pins = pinRes.error ? null : parseStickerLandingExampleIds(pinRes.data?.value);
+  if (pinRes.error) {
+    console.error("[sticker-examples] pin read failed", { error: pinRes.error.message });
+  }
+  const candidates = groupExampleCandidates((fallbackRes.data || []) as ExampleRow[], origin);
+  // A pinned style never falls back to the newest `is_example` rows: those are exactly what the pin replaces.
+  if (pins) {
+    for (const styleId of Object.keys(pins)) candidates.delete(styleId);
+    const ids = [...new Set(Object.values(pins).flat())];
+    const { data, error } = await supabase.from("stickers").select("id,public_url").in("id", ids);
+    if (error) {
+      console.error("[sticker-examples] pinned stickers read failed", { error: error.message });
+    } else {
+      for (const [styleId, urls] of pinnedExampleCandidates(pins, (data || []) as PinnedExampleRow[], origin)) {
+        candidates.set(styleId, urls);
+      }
+    }
+  }
   return validateExampleCandidates(candidates, fetchImpl);
 }
 

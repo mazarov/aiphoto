@@ -18,6 +18,7 @@ import {
   photoshootUserFacingMediaPaths,
   resolvePhotoshootUserFacingResult,
 } from "../../landing/src/lib/photoshoot";
+import { isSidecarTileCount } from "../../landing/src/lib/sticker-pack";
 import { elapsedMs, parseTimestampMs, queueWaitMs } from "./photoshoot-timing";
 import { enqueueListingVideoRepeatFollowup } from "../../landing/src/lib/listing-video-repeat-followup";
 
@@ -127,6 +128,7 @@ async function persistExecutedModel(job: GenerationJob, executedModel: string, f
   }
 }
 
+/** Sidecars for `photoshoot_tile_paths`: 4 photoshoot tiles or 16 sticker-pack stickers (SQL 270). */
 function photoshootTilesForComplete(result: {
   resultPath: string;
   photoshootTilePaths?: string[];
@@ -134,7 +136,7 @@ function photoshootTilesForComplete(result: {
   const paths = "photoshootTilePaths" in result && Array.isArray(result.photoshootTilePaths)
     ? result.photoshootTilePaths
     : null;
-  return paths?.length === 4 ? paths : null;
+  return paths && isSidecarTileCount(paths.length) ? paths : null;
 }
 
 function isUnknownCompleteTilesParam(message: string): boolean {

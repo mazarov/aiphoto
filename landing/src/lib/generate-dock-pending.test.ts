@@ -385,6 +385,16 @@ test("consume pending dock is sticky across a second take on the same page", () 
   });
 });
 
+test("parsePendingGenerateDock keeps the «Инструмент» sheet", () => {
+  const parsed = parsePendingGenerateDock(
+    JSON.stringify({
+      seed: { source: "blank", promptText: "", cardId: null, intent: "text" },
+      dockSurface: "tool",
+    }),
+  );
+  assert.equal(parsed?.dockSurface, "tool");
+});
+
 test("parsePendingGenerateDock rejects malformed payloads", () => {
   assert.equal(parsePendingGenerateDock(null), null);
   assert.equal(parsePendingGenerateDock(""), null);

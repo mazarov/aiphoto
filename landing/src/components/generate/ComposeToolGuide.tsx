@@ -1,8 +1,19 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { composeToolGuideCopy } from "@/lib/compose-tool-guide";
-import type { GenerateComposeMode } from "@/lib/generate-compose-mode";
+import { OVERLAY_BUTTON_UA_RESET } from "@/lib/card-overlay-action-pill";
+import {
+  COMPOSE_STICKER_PICKER_GUIDE,
+  composeToolGuideCopy,
+} from "@/lib/compose-tool-guide";
+import {
+  STICKER_TOOL_KINDS,
+  stickerToolKindLabel,
+  type GenerateComposeMode,
+  type StickerToolKind,
+} from "@/lib/generate-compose-mode";
+import type { StickerPackExampleClient } from "@/lib/sticker-pack-examples-client";
+import { PHOTO_GUIDE_PORTRAIT_SRC } from "@/lib/user-generation-photos-cache";
 import {
   PHOTOSHOOT_TILE_INDEXES,
   PHOTOSHOOT_TILE_OBJECT_POSITION,
@@ -20,10 +31,19 @@ import {
 } from "@/components/foto-v-promt/FotoVPromtEmptyState";
 
 type Props = {
-  mode: Extract<GenerateComposeMode, "photoshoot" | "photo_prompt" | "sticker">;
+  mode: GenerateComposeMode;
   glassChrome: boolean;
   className?: string;
   photoshootExample?: PhotoshootGuideExample | null;
+  /** Real example sticker of the selected style — the single accent of the sticker guide. */
+  stickerExampleUrl?: string | null;
+  /** «Стикер» / «Стикер пак» toggle at the top of the sticker guide. */
+  stickerKind?: StickerToolKind;
+  onStickerKindChange?: (kind: StickerToolKind) => void;
+  /** Pack grids the bot already made — the pack kind's picture. */
+  stickerPacks?: readonly StickerPackExampleClient[] | null;
+  /** Frame for the photo / video guide: picked catalog example or the guide portrait. */
+  photoExampleUrl?: string | null;
 };
 
 function SourceToTilesVisual({
@@ -108,40 +128,202 @@ function SourceToTilesVisual({
   );
 }
 
-function StickerCutoutVisual({ glassChrome }: { glassChrome: boolean }) {
-  const ink = glassChrome ? "text-white/80" : "text-zinc-700";
-  const muted = glassChrome ? "text-white/45" : "text-zinc-400";
+/**
+ * The one accent of both sticker guides: a real sticker of the chosen style, cut out.
+ * No drawn placeholder — a generic figure reads as the product, and it isn't.
+ */
+export function StickerHeroVisual({
+  exampleUrl,
+  size = "lg",
+  className = "",
+}: {
+  exampleUrl: string | null | undefined;
+  size?: "md" | "lg";
+  className?: string;
+}) {
+  if (!exampleUrl) return null;
+  const box = size === "lg" ? "h-44 w-44" : "h-32 w-32";
   return (
     <div
       role="img"
-      aria-label="Фото превращается в стикер без фона"
-      className="mt-3 flex w-full items-center justify-center gap-2"
+      aria-label="Пример стикера"
+      className={`relative flex ${box} items-center justify-center ${className}`.trim()}
     >
-      <svg className={`h-14 w-14 ${ink}`} viewBox="0 0 48 48" fill="none" aria-hidden>
-        <rect x="6" y="6" width="36" height="36" rx="6" stroke="currentColor" strokeWidth="1.6" />
-        <circle cx="20" cy="20" r="3" fill="currentColor" />
-        <path d="M10 36l8-9 6 5 5-4 9 8" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
-      </svg>
-      <span className={`text-lg ${muted}`} aria-hidden>→</span>
-      <span
-        className="relative h-14 w-14 overflow-hidden rounded-2xl"
-        style={{
-          backgroundColor: glassChrome ? "rgba(255,255,255,0.08)" : "#f4f4f5",
-          backgroundImage:
-            "linear-gradient(45deg,rgba(161,161,170,0.35) 25%,transparent 25%),linear-gradient(-45deg,rgba(161,161,170,0.35) 25%,transparent 25%),linear-gradient(45deg,transparent 75%,rgba(161,161,170,0.35) 75%),linear-gradient(-45deg,transparent 75%,rgba(161,161,170,0.35) 75%)",
-          backgroundSize: "10px 10px",
-          backgroundPosition: "0 0,0 5px,5px -5px,-5px 0",
-        }}
-      >
-        <svg className="absolute inset-1 h-12 w-12 text-white drop-shadow" viewBox="0 0 48 48" aria-hidden>
-          <path
-            d="M24 8c6 0 10 5 10 11 0 3-1 5-2 7 4 1 7 4 7 8 0 5-5 8-11 8s-11-3-11-8c0-4 3-7 7-8-1-2-2-4-2-7 0-6 4-11 2-11z"
-            fill="currentColor"
-            stroke="#18181b"
-            strokeWidth="2"
-          />
-        </svg>
-      </span>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={exampleUrl}
+        alt=""
+        decoding="async"
+        draggable={false}
+        className="h-full w-full object-contain drop-shadow-[0_8px_18px_rgba(0,0,0,0.28)]"
+      />
+    </div>
+  );
+}
+
+/** Empty plate: the sticker above the title, nothing else. */
+function StickerCutoutVisual({ exampleUrl }: { exampleUrl?: string | null }) {
+  return <StickerHeroVisual exampleUrl={exampleUrl} size="lg" />;
+}
+
+/** Segmented «Стикер | Стикер пак» — one tool, two kinds. */
+export function StickerKindToggle({
+  kind,
+  onChange,
+  glassChrome,
+  className = "",
+}: {
+  kind: StickerToolKind;
+  onChange: (kind: StickerToolKind) => void;
+  glassChrome: boolean;
+  className?: string;
+}) {
+  return (
+    <div
+      role="radiogroup"
+      aria-label="Вид стикера"
+      className={`inline-flex rounded-full p-0.5 ${glassChrome ? "bg-white/10 ring-1 ring-white/15" : "bg-zinc-100 ring-1 ring-zinc-200"} ${className}`.trim()}
+    >
+      {STICKER_TOOL_KINDS.map((item) => {
+        const active = item === kind;
+        return (
+          <button
+            key={item}
+            type="button"
+            role="radio"
+            aria-checked={active}
+            onClick={() => onChange(item)}
+            className={`${OVERLAY_BUTTON_UA_RESET} min-h-9 rounded-full px-3.5 text-[13px] font-semibold transition ${
+              active
+                ? glassChrome
+                  ? "bg-white text-zinc-900 shadow-sm"
+                  : "bg-zinc-900 text-white shadow-sm"
+                : glassChrome
+                  ? "text-white/75 hover:text-white"
+                  : "text-zinc-600 hover:text-zinc-900"
+            }`}
+          >
+            {stickerToolKindLabel(item)}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Pack kind: the first pack's 4×4 grid is the hero, the rest run under it as thumbs. */
+function StickerPackVisual({
+  packs,
+  glassChrome,
+}: {
+  packs: readonly StickerPackExampleClient[];
+  glassChrome: boolean;
+}) {
+  const [hero, ...rest] = packs;
+  const plate = glassChrome ? "bg-white/10 ring-1 ring-white/15" : "bg-zinc-100 ring-1 ring-zinc-200";
+  if (!hero) {
+    return <div className={`h-44 w-44 animate-pulse rounded-2xl ${plate}`} aria-hidden />;
+  }
+  return (
+    <div className="flex w-full flex-col items-center">
+      <figure className="flex flex-col items-center">
+        {/* eslint-disable-next-line @next/next/no-img-element -- public bot bucket, not imgproxy */}
+        <img
+          src={hero.exampleUrl}
+          alt={`Пример стикерпака «${hero.name}»`}
+          width={512}
+          height={512}
+          decoding="async"
+          draggable={false}
+          className={`h-44 w-44 rounded-2xl object-cover ${plate}`}
+        />
+        <figcaption className={`mt-2 text-[13px] font-medium ${glassChrome ? "text-white/65" : "text-zinc-600"}`}>
+          {hero.name}
+        </figcaption>
+      </figure>
+      {rest.length ? (
+        <ul className="mt-3 flex max-w-full gap-1.5 overflow-x-auto" aria-label="Другие паки">
+          {rest.map((pack) => (
+            <li key={pack.id} className="shrink-0">
+              {/* eslint-disable-next-line @next/next/no-img-element -- public bot bucket, not imgproxy */}
+              <img
+                src={pack.exampleUrl}
+                alt={`Пример стикерпака «${pack.name}»`}
+                width={56}
+                height={56}
+                loading="lazy"
+                decoding="async"
+                draggable={false}
+                title={pack.name}
+                className={`h-14 w-14 rounded-xl object-cover ${plate}`}
+              />
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
+  );
+}
+
+/** Photo / video kind: one frame; video adds a play badge. */
+function FrameVisual({
+  src,
+  video,
+  glassChrome,
+}: {
+  src: string;
+  video: boolean;
+  glassChrome: boolean;
+}) {
+  return (
+    <div
+      role="img"
+      aria-label={video ? "Пример: фото становится видео" : "Пример фото"}
+      className={`relative h-44 w-36 overflow-hidden rounded-2xl ring-1 ${glassChrome ? "ring-white/15" : "ring-zinc-200"}`}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={src} alt="" decoding="async" draggable={false} className="h-full w-full object-cover" />
+      {video ? (
+        <span className="pointer-events-none absolute inset-0 flex items-center justify-center">
+          <span className="flex h-11 w-11 items-center justify-center rounded-full bg-zinc-950/60 text-white shadow-lg backdrop-blur-sm">
+            <svg className="ml-0.5 h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+              <path d="M8 6.5v11l9-5.5Z" />
+            </svg>
+          </span>
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * Photo picker sheet guide for Стикер. Title is the action, one line of scope,
+ * and the same sticker as the plate — not a studio portrait that reads as «people only».
+ */
+export function StickerPickerGuide({
+  glassChrome,
+  centered,
+  exampleUrl,
+}: {
+  glassChrome: boolean;
+  /** Mobile / expanded dock: centered column; desktop sheet: left-aligned. */
+  centered: boolean;
+  exampleUrl?: string | null;
+}) {
+  return (
+    <div className={`flex w-full ${centered ? "flex-col items-center text-center" : "flex-row items-center gap-4"}`}>
+      <StickerHeroVisual exampleUrl={exampleUrl} size="md" className={centered ? "" : "shrink-0"} />
+      <div className={`flex flex-col ${centered ? "mt-4 items-center" : "items-start"}`}>
+        <h3
+          id="generation-sticker-picker-guide-title"
+          className={`text-[15px] font-semibold ${glassChrome ? "text-white" : "text-zinc-900"}`}
+        >
+          {COMPOSE_STICKER_PICKER_GUIDE.title}
+        </h3>
+        <p className={`mt-1 text-[13px] font-medium leading-relaxed ${glassChrome ? "text-white/65" : "text-zinc-600"}`}>
+          {COMPOSE_STICKER_PICKER_GUIDE.lead}
+        </p>
+      </div>
     </div>
   );
 }
@@ -159,21 +341,33 @@ function PromptFromPhotoVisual({ glassChrome }: { glassChrome: boolean }) {
   );
 }
 
+const GUIDE_TITLE_ID: Record<GenerateComposeMode, string> = {
+  image: "generation-photo-guide-title",
+  video: "generation-video-guide-title",
+  photoshoot: "generation-photoshoot-guide-title",
+  sticker: "generation-sticker-guide-title",
+  photo_prompt: "generation-photo-prompt-guide-title",
+};
+
 export function ComposeToolGuide({
   mode,
   glassChrome,
   className = "",
   photoshootExample = null,
+  stickerExampleUrl = null,
+  stickerKind = "single",
+  onStickerKindChange,
+  stickerPacks = null,
+  photoExampleUrl = null,
 }: Props) {
-  const copy = composeToolGuideCopy(mode);
-  if (!copy) return null;
-  const titleId =
-    mode === "photoshoot"
-      ? "generation-photoshoot-guide-title"
-      : mode === "sticker"
-        ? "generation-sticker-guide-title"
-        : "generation-photo-prompt-guide-title";
+  const copy = composeToolGuideCopy(mode, { stickerKind });
+  const titleId = GUIDE_TITLE_ID[mode];
   const photoPrompt = copy.visual === "prompt-from-photo";
+  const sticker = copy.visual === "sticker-cutout";
+  const pack = copy.visual === "sticker-pack";
+  const frame = copy.visual === "photo-frame" || copy.visual === "video-frame";
+  /** Picture-first guides: hero above, one-line title under it. */
+  const pictureFirst = sticker || pack || frame;
 
   return (
     <section
@@ -182,12 +376,29 @@ export function ComposeToolGuide({
     >
       <div
         className={`flex w-full flex-col items-center text-center ${
-          photoPrompt ? "max-w-[18rem]" : "max-w-[13.5rem]"
+          photoPrompt ? "max-w-[18rem]" : pictureFirst ? "max-w-[15rem]" : "max-w-[13.5rem]"
         }`}
       >
+        {mode === "sticker" && onStickerKindChange ? (
+          <StickerKindToggle
+            kind={stickerKind}
+            onChange={onStickerKindChange}
+            glassChrome={glassChrome}
+            className="mb-4"
+          />
+        ) : null}
+        {sticker ? <StickerCutoutVisual exampleUrl={stickerExampleUrl} /> : null}
+        {pack ? <StickerPackVisual packs={stickerPacks ?? []} glassChrome={glassChrome} /> : null}
+        {frame ? (
+          <FrameVisual
+            src={photoExampleUrl || PHOTO_GUIDE_PORTRAIT_SRC}
+            video={copy.visual === "video-frame"}
+            glassChrome={glassChrome}
+          />
+        ) : null}
         <h3
           id={titleId}
-          className={`text-[13px] font-semibold ${
+          className={`${pictureFirst ? "mt-4 text-[15px]" : "text-[13px]"} font-semibold ${
             glassChrome ? "text-white" : "text-zinc-900"
           }`}
         >
@@ -214,20 +425,9 @@ export function ComposeToolGuide({
               {copy.hint}
             </p>
           </>
-        ) : copy.visual === "sticker-cutout" ? (
-          <>
-            <StickerCutoutVisual glassChrome={glassChrome} />
-            <p
-              className={`mt-2 text-[13px] font-medium ${
-                glassChrome ? "text-white/50" : "text-zinc-500"
-              }`}
-            >
-              {copy.hint}
-            </p>
-          </>
-        ) : (
+        ) : photoPrompt ? (
           <PromptFromPhotoVisual glassChrome={glassChrome} />
-        )}
+        ) : null}
       </div>
     </section>
   );

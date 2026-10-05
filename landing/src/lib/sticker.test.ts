@@ -2,9 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   assembleStickerFinalPrompt,
+  buildStickerBorderPromptText,
   buildStickerEditPromptText,
   buildStickerPromptText,
   buildStickerTextPromptText,
+  clampStickerBorderPx,
   DEFAULT_STICKER_STYLE_ID,
   findStickerStyle,
   isStickerEditAction,
@@ -12,11 +14,16 @@ import {
   isStickerFlagOn,
   isStickerTextPromptText,
   normalizeStickerOverlayText,
+  parseStickerBorderPxFromPrompt,
   parseStickerEditFromPrompt,
   parseStickerStyleIdFromPrompt,
   resolveStickerModel,
   sanitizeStickerCustomHint,
   STICKER_BACKGROUND_HEX,
+  STICKER_BORDER_MAX_PX,
+  STICKER_BORDER_MIN_PX,
+  STICKER_BORDER_PRESETS_PX,
+  STICKER_BORDER_PX,
   STICKER_CUSTOM_HINT_MAX,
   STICKER_STYLES,
   STICKER_TEXT_MAX_CHARS,
@@ -75,6 +82,28 @@ test("custom hint and overlay text normalisation", () => {
   assert.equal(isStickerTextPromptText(textPrompt), true);
   assert.equal(isStickerTextPromptText(buildStickerPromptText("anime")), false);
   assert.equal(stripStickerPromptMarker(textPrompt), "Привет");
+});
+
+test("border px is clamped to the shared bounds and round-trips through prompt_text", () => {
+  assert.equal(clampStickerBorderPx(undefined), STICKER_BORDER_PX);
+  assert.equal(clampStickerBorderPx("abc"), STICKER_BORDER_PX);
+  assert.equal(clampStickerBorderPx(0), STICKER_BORDER_MIN_PX);
+  assert.equal(clampStickerBorderPx(-5), STICKER_BORDER_MIN_PX);
+  assert.equal(clampStickerBorderPx(999), STICKER_BORDER_MAX_PX);
+  assert.equal(clampStickerBorderPx("12"), 12);
+  assert.equal(clampStickerBorderPx(7.6), 8);
+  for (const preset of STICKER_BORDER_PRESETS_PX) {
+    assert.equal(clampStickerBorderPx(preset), preset, `preset ${preset} is inside bounds`);
+  }
+
+  assert.equal(buildStickerBorderPromptText(12), "STICKER border px=12");
+  assert.equal(buildStickerBorderPromptText(), `STICKER border px=${STICKER_BORDER_PX}`);
+  assert.equal(buildStickerBorderPromptText(500), `STICKER border px=${STICKER_BORDER_MAX_PX}`);
+  assert.equal(parseStickerBorderPxFromPrompt("STICKER border px=12"), 12);
+  // Rows written before the width was configurable carry no px → default.
+  assert.equal(parseStickerBorderPxFromPrompt("STICKER border"), STICKER_BORDER_PX);
+  assert.equal(parseStickerBorderPxFromPrompt(buildStickerTextPromptText("Привет")), null);
+  assert.equal(parseStickerBorderPxFromPrompt(buildStickerPromptText("anime")), null);
 });
 
 test("style ids are unique and default exists", () => {

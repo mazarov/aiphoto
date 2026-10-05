@@ -1186,16 +1186,24 @@ p {
     display: none;
   }
 
-  /* Small transparent-PNG thumbnails (sticker style examples): same plate, finer grid. */
-  .ps-sticker-plate {
-    background-color: #f4f4f5;
-    background-image:
-      linear-gradient(45deg, #e4e4e7 25%, transparent 25%),
-      linear-gradient(-45deg, #e4e4e7 25%, transparent 25%),
-      linear-gradient(45deg, transparent 75%, #e4e4e7 75%),
-      linear-gradient(-45deg, transparent 75%, #e4e4e7 75%);
-    background-size: 10px 10px;
-    background-position: 0 0, 0 5px, 5px -5px, -5px 0;
+  /* Sticker result is 512×512. The dock plate is a tall rectangle; keep the picture square. */
+  .ps-result-backdrop--square {
+    container-type: size;
+    background: transparent;
+  }
+
+  .ps-result-backdrop--square .ps-result-backdrop__layer {
+    inset: auto;
+    top: 50%;
+    left: 50%;
+    width: min(100cqw, 100cqh);
+    height: min(100cqw, 100cqh);
+    transform: translate(-50%, -50%);
+  }
+
+  .ps-result-backdrop--square .ps-result-backdrop__fill,
+  .ps-result-backdrop--square .ps-result-backdrop__tint {
+    display: none;
   }
 
   .ps-result-backdrop--cover .ps-result-backdrop__img {

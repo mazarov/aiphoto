@@ -84,17 +84,18 @@ test("composeNeedsExamplePick false off image compose", () => {
   );
 });
 
-test("composeShowsExampleTool stays visible in every compose mode", () => {
+test("«Стиль» tile shows for photo and sticker only", () => {
   assert.equal(composeShowsExampleTool({ composeMode: "image" }), true);
-  assert.equal(composeShowsExampleTool({ composeMode: "photo_prompt" }), true);
-  assert.equal(composeShowsExampleTool({ composeMode: "video" }), true);
-  assert.equal(composeShowsExampleTool({ composeMode: "photoshoot" }), true);
+  assert.equal(composeShowsExampleTool({ composeMode: "sticker" }), true);
+  assert.equal(composeShowsExampleTool({ composeMode: "photo_prompt" }), false);
+  assert.equal(composeShowsExampleTool({ composeMode: "video" }), false);
+  assert.equal(composeShowsExampleTool({ composeMode: "photoshoot" }), false);
   assert.equal(
     composeShowsExampleTool({ composeMode: "image", showResultChrome: true }),
     false,
   );
   assert.equal(
-    composeShowsExampleTool({ composeMode: "video", showResultChrome: true }),
+    composeShowsExampleTool({ composeMode: "sticker", showResultChrome: true }),
     false,
   );
 });
@@ -174,7 +175,7 @@ test("compose example quick filters lead with СВО then Осень", () => {
 
 test("SEO compose pick CTA copy", () => {
   assert.equal(SEO_COMPOSE_EXAMPLE_TOOL_LABEL, "Выбрать стиль");
-  assert.equal(SEO_COMPOSE_EXAMPLE_TOOL_EDGE_LABEL, "Выбрать стиль");
+  assert.equal(SEO_COMPOSE_EXAMPLE_TOOL_EDGE_LABEL, "Стиль");
   assert.equal(SEO_COMPOSE_PICK_EXAMPLE_CTA, "Выбрать стиль");
   assert.equal(SEO_COMPOSE_EXAMPLE_CONFIRM_CTA, "Выбрать");
   assert.equal(SEO_COMPOSE_EXAMPLE_SHEET_CLOSE_LABEL, "Закрыть выбор стиля");

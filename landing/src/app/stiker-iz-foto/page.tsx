@@ -9,7 +9,6 @@ import {
 import { GeneraciyaFotoFaq } from "@/components/generate/GeneraciyaFotoFaq";
 import {
   GF_BLOCK,
-  GF_EYEBROW,
   GF_H2,
   GF_HERO_GRADIENT,
   GF_HERO_H1,
@@ -20,7 +19,6 @@ import {
   GF_PAGE_MAIN,
   GF_PAGE_STACK,
   GF_STACK,
-  GF_SURFACE,
 } from "@/components/generate/generaciya-foto-ui";
 import { StickerExampleStrip } from "@/components/sticker/StickerExampleStrip";
 import { StickerStudioGate } from "@/components/sticker/StickerStudioGate";
@@ -96,16 +94,30 @@ function StickerStylesSection({ styles }: { styles: StickerStyle[] }) {
         </h2>
         <p className={GF_LEAD}>{STIKER_IZ_FOTO_SEO.stylesLead}</p>
         <ul className={`${GF_STACK} grid gap-3 sm:grid-cols-2 lg:grid-cols-3`}>
-          {styles.map((style) => (
-            <li key={style.id} className={`p-4 ${GF_SURFACE}`}>
-              <StickerExampleStrip urls={style.exampleUrls} styleLabel={style.label} size="md" className="mb-3" />
-              <p className={GF_EYEBROW}>{style.description || style.hint}</p>
-              <h3 className="mt-1 text-base font-semibold text-zinc-900">
-                {style.emoji ? <span aria-hidden>{style.emoji} </span> : null}
-                {style.label}
-              </h3>
-            </li>
-          ))}
+          {styles.map((style) => {
+            const caption = style.description || style.hint;
+            return (
+              <li
+                key={style.id}
+                className="flex h-full flex-col overflow-hidden rounded-2xl border border-white/80 bg-white shadow-sm"
+              >
+                <div className="flex min-h-36 items-center justify-center bg-zinc-100 px-3 py-4">
+                  <StickerExampleStrip
+                    urls={style.exampleUrls}
+                    styleLabel={style.label}
+                    size="md"
+                    className="justify-center"
+                  />
+                </div>
+                <div className="flex flex-1 flex-col px-4 py-3">
+                  <h3 className="text-base font-semibold text-zinc-900">{style.label}</h3>
+                  {caption ? (
+                    <p className="mt-1 line-clamp-2 text-sm leading-snug text-zinc-500">{caption}</p>
+                  ) : null}
+                </div>
+              </li>
+            );
+          })}
         </ul>
         <p className="mt-4 text-sm text-zinc-500">
           Нужно не наклейку, а полноценное фото в сцене?{" "}

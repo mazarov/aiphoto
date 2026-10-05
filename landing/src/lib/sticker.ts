@@ -12,8 +12,26 @@ export const STICKER_ASPECT_RATIO = "1:1";
 export const STICKER_IMAGE_SIZE = "1K";
 /** Telegram / Max / WhatsApp static sticker: 512 px on the long side, PNG or WebP. */
 export const STICKER_OUTPUT_PX = 512;
-/** White die-cut outline width at output scale. */
-export const STICKER_OUTLINE_PX = 10;
+/**
+ * White die-cut added only by the free «Обводка» action (bot `addWhiteBorder`, 8px).
+ * A finished generation has no outline until that click. The user picks the width in px
+ * of the 512 canvas; UI and API share the same bounds.
+ */
+export const STICKER_BORDER_PX = 8;
+export const STICKER_BORDER_MIN_PX = 1;
+export const STICKER_BORDER_MAX_PX = 32;
+/** Quick picks in the «Обводка» sheet; the slider covers the whole range. */
+export const STICKER_BORDER_PRESETS_PX = [4, 8, 12, 16, 24] as const;
+
+/** Integer in [MIN, MAX]; anything unparsable → default 8. */
+export function clampStickerBorderPx(value: unknown): number {
+  if (value == null) return STICKER_BORDER_PX;
+  const text = typeof value === "number" ? null : String(value).trim();
+  if (text === "") return STICKER_BORDER_PX;
+  const num = typeof value === "number" ? value : Number(text);
+  if (!Number.isFinite(num)) return STICKER_BORDER_PX;
+  return Math.min(STICKER_BORDER_MAX_PX, Math.max(STICKER_BORDER_MIN_PX, Math.round(num)));
+}
 /** Flat background the model paints; chroma key (or rembg fallback) removes it. */
 export const STICKER_BACKGROUND_HEX = "#FF00FF";
 /**
@@ -104,7 +122,7 @@ export type StickerStyle = {
   /** Bot `style_presets_v2.description_ru` — shown under the name in the picker. */
   description?: string | null;
   isDefault?: boolean;
-  /** Live example stickers of this style from the bot (`stickers.is_example`), newest first, ≤ 3. */
+  /** Pinned landing examples for this style (`sticker_landing_example_ids`), else newest bot `is_example`, ≤ 3. */
   exampleUrls?: string[];
 };
 
@@ -271,6 +289,18 @@ export function parseStickerEditFromPrompt(promptText: unknown): StickerEditSpec
 /** `prompt_text` of a free text-overlay row (no model run). */
 export function buildStickerTextPromptText(text: string): string {
   return [`${STICKER_PROMPT_MARKER} text`, normalizeStickerOverlayText(text)].join("\n");
+}
+
+/** `prompt_text` of a free border row: `STICKER border px=8`. */
+export function buildStickerBorderPromptText(borderPx: number = STICKER_BORDER_PX): string {
+  return `${STICKER_PROMPT_MARKER} border px=${clampStickerBorderPx(borderPx)}`;
+}
+
+/** Width stored in a border row; legacy `STICKER border` (no px) → default 8. */
+export function parseStickerBorderPxFromPrompt(promptText: unknown): number | null {
+  const match = /^STICKER border(?: px=(\d+))?\s*$/m.exec(String(promptText ?? ""));
+  if (!match) return null;
+  return match[1] ? clampStickerBorderPx(match[1]) : STICKER_BORDER_PX;
 }
 
 export function isStickerTextPromptText(promptText: unknown): boolean {

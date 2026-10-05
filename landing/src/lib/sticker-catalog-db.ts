@@ -1,7 +1,8 @@
 /**
  * Sticker catalog from the bot's tables — same Supabase project as photo2sticker.
  * `style_groups` / `style_presets_v2` / `emotion_presets` / `motion_presets` are owned by the bot repo;
- * the landing only reads active rows. Falls back to `STICKER_STYLES` when the read fails.
+ * the sticker landing reads rows with `landing = true` (ordered by `sort_order`, the style's popularity)
+ * and does not require `is_active` — that flag is the bot's own picker. Falls back to `STICKER_STYLES` when the read fails.
  * Landing-only (Supabase client); the worker never imports this file.
  */
 
@@ -115,8 +116,9 @@ export async function loadStickerCatalog(supabase: SupabaseClient): Promise<Stic
     supabase
       .from("style_presets_v2")
       .select("id,group_id,emoji,name_ru,prompt_hint,description_ru,is_default,sort_order")
-      .eq("is_active", true)
-      .order("sort_order", { ascending: true }),
+      .eq("landing", true)
+      .order("sort_order", { ascending: true })
+      .order("name_ru", { ascending: true }),
     supabase.from("emotion_presets").select("id,emoji,name_ru,prompt_hint,sort_order").eq("is_active", true).order("sort_order", { ascending: true }),
     supabase.from("motion_presets").select("id,emoji,name_ru,prompt_hint,sort_order").eq("is_active", true).order("sort_order", { ascending: true }),
     loadStickerExampleUrls(supabase),
@@ -154,14 +156,18 @@ export async function resolveStickerStyleForEnqueue(supabase: SupabaseClient, id
   if (!key) return null;
   const { data, error } = await supabase
     .from("style_presets_v2")
-    .select("id,group_id,emoji,name_ru,prompt_hint,description_ru,is_default,sort_order")
+    .select("id,group_id,emoji,name_ru,prompt_hint,description_ru,is_default,sort_order,is_active,landing")
     .eq("id", key)
-    .eq("is_active", true)
     .maybeSingle();
   if (error) {
     console.error("[sticker-catalog] style lookup failed", { id: key, error: error.message });
   }
-  const fromDb = data ? mapStyleRows([data as StylePresetRow])[0] : null;
+  const row = data as (StylePresetRow & { is_active?: boolean | null; landing?: boolean | null }) | null;
+  // `is_active` is the bot picker. The site also accepts `landing` styles that stay off in the bot.
+  if (row && !row.is_active && !row.landing) {
+    return findStickerStyleInCatalog(STICKER_STYLES, key);
+  }
+  const fromDb = row ? mapStyleRows([row])[0] : null;
   return fromDb ?? findStickerStyleInCatalog(STICKER_STYLES, key);
 }
 

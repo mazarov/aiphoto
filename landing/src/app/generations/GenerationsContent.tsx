@@ -56,9 +56,14 @@ export function GenerationsContent({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [toast, setToast] = useState("");
-  const [videoEnabled, setVideoEnabled] = useState(
-    () => readCachedVideoAnimateEnabled() === true
-  );
+  /**
+   * SSR renders the first page, so the initial value must match the server (no sessionStorage there).
+   * The cached flag is applied after mount; otherwise the «Оживить» chip flips during hydration.
+   */
+  const [videoEnabled, setVideoEnabled] = useState(false);
+  useEffect(() => {
+    if (readCachedVideoAnimateEnabled() === true) setVideoEnabled(true);
+  }, []);
   const publishReward = usePublishReward();
 
   const showToast = useCallback((message: string) => {
@@ -359,7 +364,7 @@ export function GenerationsContent({
 
   return (
     <div className={className}>
-      <ListingGrid clamp={hasMore} className={selectMode ? "pb-24" : undefined}>
+      <ListingGrid clamp={hasMore} className={selectMode ? "items-start pb-24" : "items-start"}>
         {generations.map((generation, index) => (
           <GenerationHistoryCard
             key={generation.id}

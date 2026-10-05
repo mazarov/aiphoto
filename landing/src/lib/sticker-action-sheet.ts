@@ -51,6 +51,16 @@ export const STICKER_ACTION_COPY: Record<
   },
 };
 
+/** «Обводка» has no presets/text — its own sheet (`StickerBorderSheet`) with a px control. */
+export const STICKER_BORDER_COPY = {
+  railLabel: "Обводка",
+  title: "Добавить обводку",
+  lead: "Белый контур вокруг фигуры, как на стикерах в Telegram. Бесплатно.",
+  sliderLabel: "Толщина обводки, px",
+  cta: "Добавить",
+  busy: "Добавляем…",
+} as const;
+
 export const STICKER_ACTION_FREE_DETAIL = "бесплатно";
 export const STICKER_ACTION_EXIT = "Выйти";
 

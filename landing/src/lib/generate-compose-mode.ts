@@ -1,3 +1,8 @@
+import { displayLabelForGenerationModel } from "./generation-model-labels";
+import {
+  GPT_IMAGE_25_FLARE_CREDIT_COST,
+  GPT_IMAGE_25_FLARE_IMAGE_MODEL,
+} from "./generation/image-options";
 import { PHOTOSHOOT_EDIT_KIND } from "./photoshoot";
 import { STICKER_EDIT_KIND } from "./sticker";
 
@@ -84,6 +89,20 @@ export function resolvePhotoshootReadyFrame(input: {
   return null;
 }
 
+/**
+ * One source photo is picked for photoshoot / sticker — library row or a guest's
+ * in-browser upload (no `storagePath` until sign-in). Drives the footer label only;
+ * enqueue still needs `resolvePhotoshootLibraryFrame`.
+ */
+export function composeHasSingleSourcePhoto(input: {
+  selectedPhotos: Array<{ id?: string | null; storagePath?: string | null; previewUrl?: string | null }>;
+}): boolean {
+  if (input.selectedPhotos.length !== 1) return false;
+  const photo = input.selectedPhotos[0];
+  if (!photo.id?.trim()) return false;
+  return Boolean(photo.storagePath?.trim() || photo.previewUrl?.trim());
+}
+
 export function resolvePhotoshootLibraryFrame(input: {
   selectedPhotos: Array<{
     id?: string | null;
@@ -107,15 +126,74 @@ export function resolvePhotoshootLibraryFrame(input: {
   };
 }
 
-export type ComposeModeTileSheet = "photos" | "model";
+/** Tools row: «Ваши фото» → «Инструмент» → the tool's own tiles. */
+export const COMPOSE_TOOL_EDGE_LABEL = "Инструмент";
+export const COMPOSE_STYLE_TOOL_EDGE_LABEL = "Стиль";
+export const COMPOSE_MODEL_TOOL_EDGE_LABEL = "Модель";
+export const COMPOSE_TOOL_SHEET_TITLE = "Инструмент";
+export const COMPOSE_TOOL_SHEET_DONE_CTA = "Готово";
 
-/** Image/video → model sheet. Photo prompt can open «Ваши фото» on repeat click. Photoshoot and sticker are select-only. */
-export function composeModeTileSheet(
-  mode: GenerateComposeMode,
-): ComposeModeTileSheet | null {
-  if (mode === "photoshoot" || mode === "sticker") return null;
-  if (mode === "photo_prompt") return "photos";
-  return "model";
+/** Order of buttons in the «Инструмент» sheet. Flags drop the ones that are off. */
+export const COMPOSE_TOOL_ORDER: readonly GenerateComposeMode[] = [
+  "image",
+  "video",
+  "photoshoot",
+  "sticker",
+  "photo_prompt",
+];
+
+export function composeToolOptions(flags: {
+  videoEnabled: boolean;
+  photoshootEnabled: boolean;
+  stickerEnabled: boolean;
+  /** Already picked tool stays listed even if its flag is off (seeded sticker before config arrives). */
+  current?: GenerateComposeMode;
+}): GenerateComposeMode[] {
+  return COMPOSE_TOOL_ORDER.filter((mode) => {
+    if (mode === flags.current) return true;
+    if (mode === "video") return flags.videoEnabled;
+    if (mode === "photoshoot") return flags.photoshootEnabled;
+    if (mode === "sticker") return flags.stickerEnabled;
+    return true;
+  });
+}
+
+export type ComposeSecondaryTool = "style" | "model";
+
+/**
+ * Tiles that appear next to «Инструмент» once a tool is picked.
+ * Photo: style + model. Video: model. Sticker: style (its model is fixed). Photoshoot / photo prompt: nothing.
+ */
+export function composeSecondaryTools(mode: GenerateComposeMode): ComposeSecondaryTool[] {
+  if (mode === "image") return ["style", "model"];
+  if (mode === "video") return ["model"];
+  if (mode === "sticker") return ["style"];
+  return [];
+}
+
+/** «Стикер» tool has two kinds; the pack kind only shows examples until pack generation ships. */
+export type StickerToolKind = "single" | "pack";
+export const STICKER_TOOL_KINDS: readonly StickerToolKind[] = ["single", "pack"];
+export function stickerToolKindLabel(kind: StickerToolKind): string {
+  return kind === "pack" ? "Стикер пак" : "Стикер";
+}
+export const STICKER_PACK_SOON_CTA = "Стикер пак — скоро";
+
+/** Pack kind cannot enqueue yet: the footer button is disabled with «скоро». */
+export function composeCtaDisabledForStickerPack(input: {
+  composeMode: GenerateComposeMode;
+  stickerKind: StickerToolKind;
+}): boolean {
+  return input.composeMode === "sticker" && input.stickerKind === "pack";
+}
+
+/** Caption on the «Инструмент» tile. */
+export function composeToolTileBodyLabel(input: {
+  composeMode: GenerateComposeMode;
+  stickerKind: StickerToolKind;
+}): string {
+  if (input.composeMode === "sticker") return stickerToolKindLabel(input.stickerKind);
+  return composeModeTileLabel(input.composeMode);
 }
 
 /** Mode tile caption. Library preview stays on the «Ваши фото» tile. */
@@ -150,6 +228,9 @@ export function composeModeFromDockIntent(intent: string): GenerateComposeMode {
 export const COMPOSE_GUEST_SIGN_IN_CTA = "Войдите";
 export const COMPOSE_SELECT_PHOTO_CTA = "Выберите фото";
 export const COMPOSE_GUEST_UPLOAD_PHOTO_CTA = "Загрузите фото";
+/** Sticker takes any picture (pet, meme, drawing), so the CTA does not say «фото». */
+export const COMPOSE_STICKER_SELECT_PICTURE_CTA = "Выберите картинку";
+export const COMPOSE_STICKER_GUEST_UPLOAD_PICTURE_CTA = "Добавьте картинку";
 
 export type ComposeGenerateCtaOptions = {
   isAuthed?: boolean;
@@ -161,10 +242,12 @@ export function composeNeedsPhotoCtaLabel(
   mode: GenerateComposeMode,
   options?: ComposeGenerateCtaOptions,
 ): string {
-  if (
-    (mode === "photoshoot" || mode === "sticker") &&
-    options?.isAuthed === false
-  ) {
+  if (mode === "sticker") {
+    return options?.isAuthed === false
+      ? COMPOSE_STICKER_GUEST_UPLOAD_PICTURE_CTA
+      : COMPOSE_STICKER_SELECT_PICTURE_CTA;
+  }
+  if (mode === "photoshoot" && options?.isAuthed === false) {
     return COMPOSE_GUEST_UPLOAD_PHOTO_CTA;
   }
   return COMPOSE_SELECT_PHOTO_CTA;
@@ -240,19 +323,20 @@ export function composeGenerateCtaShowsModelName(
   return mode === "image" || mode === "video";
 }
 
-/** Repeat click toggles the mode sheet. First select of photoshoot / photo_prompt stays on the empty plate (tool guide). */
-export function nextComposeModeTileSheet(input: {
-  mode: GenerateComposeMode;
-  alreadyInMode: boolean;
-  currentSheet: "photos" | "model" | "prompt" | null;
-}): ComposeModeTileSheet | null {
-  if (input.mode === "photoshoot" || input.mode === "sticker") return null;
-  if (input.mode === "photo_prompt") {
-    if (!input.alreadyInMode) return null;
-    return input.currentSheet === "photos" ? null : "photos";
-  }
-  if (!input.alreadyInMode) return "model";
-  return input.currentSheet === "model" ? null : "model";
+/** Sticker footer: GPT Image 2.5 and its credit price, before config arrives too. */
+export function stickerStudioCta(input: {
+  modelId?: string | null;
+  cost?: number | null;
+}): { modelLabel: string; cost: number } {
+  const modelId = input.modelId?.trim() || GPT_IMAGE_25_FLARE_IMAGE_MODEL;
+  const cost =
+    typeof input.cost === "number" && Number.isFinite(input.cost)
+      ? input.cost
+      : GPT_IMAGE_25_FLARE_CREDIT_COST;
+  return {
+    modelLabel: displayLabelForGenerationModel(modelId, "GPT Image 2.5"),
+    cost,
+  };
 }
 
 /** Photoshoot / photo_prompt / sticker must not enqueue a regular image/video job. */

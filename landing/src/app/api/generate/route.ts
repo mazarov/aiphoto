@@ -60,11 +60,27 @@ import {
   type StickerEditSpec,
   type StickerStyle,
 } from "@/lib/sticker";
-import { isStickerUnlocked } from "@/lib/sticker-access";
+import { isStickerPackUnlocked, isStickerUnlocked } from "@/lib/sticker-access";
 import {
   resolveStickerPresetForEnqueue,
   resolveStickerStyleForEnqueue,
 } from "@/lib/sticker-catalog-db";
+import {
+  STICKER_PACK_ASPECT_RATIO,
+  STICKER_PACK_CONFIG_COST_KEY,
+  STICKER_PACK_CONFIG_ENABLED_KEY,
+  STICKER_PACK_CONFIG_MODEL_KEY,
+  STICKER_PACK_EDIT_KIND,
+  STICKER_PACK_IMAGE_SIZE,
+  buildStickerPackPromptText,
+  isStickerPackEditKind,
+  parseStickerPackCreditCost,
+  stickerPackFingerprintFields,
+} from "@/lib/sticker-pack";
+import {
+  resolveStickerPackSetForEnqueue,
+  type StickerPackSet,
+} from "@/lib/sticker-pack-sets-db";
 import {
   PRESERVE_OUTFIT_CONFIG_KEY,
   resolveRequestedWardrobePolicy,
@@ -217,6 +233,7 @@ export async function POST(req: NextRequest) {
       stickerAction: rawStickerAction,
       stickerPresetId: rawStickerPresetId,
       stickerCustomHint: rawStickerCustomHint,
+      packContentSetId: rawPackContentSetId,
     } = body as {
       generationSurface?: string;
       modality?: string;
@@ -241,6 +258,7 @@ export async function POST(req: NextRequest) {
       stickerAction?: unknown;
       stickerPresetId?: unknown;
       stickerCustomHint?: unknown;
+      packContentSetId?: unknown;
     };
     const preserveOutfitRequested = preserveOutfit === true;
     const listingRepeatInput = parseListingVideoRepeatClientPipeline(body.pipeline);
@@ -266,11 +284,14 @@ export async function POST(req: NextRequest) {
     const isCameraOrbit = isCameraOrbitEditKind(requestedEditKind);
     const isPhotoshoot = isPhotoshootEditKind(requestedEditKind);
     const isSticker = isStickerEditKind(requestedEditKind);
+    const isStickerPack = isStickerPackEditKind(requestedEditKind);
+    /** Sticker and sticker pack share the compose chrome: fixed model, no prompt, no catalog card. */
+    const isStickerLike = isSticker || isStickerPack;
     if (
       requestedEditKind &&
       !isCameraOrbit &&
       !isPhotoshoot &&
-      !isSticker &&
+      !isStickerLike &&
       requestedEditKind !== LOCAL_EDIT_KIND
     ) {
       return NextResponse.json(
@@ -319,6 +340,34 @@ export async function POST(req: NextRequest) {
         }
       }
     }
+    /** Sticker pack: one library photo, no parent, no instruction; scenes come from a bot `pack_content_sets` row. */
+    let stickerPackSet: StickerPackSet | null = null;
+    if (isStickerPack) {
+      if (isVideo) {
+        return NextResponse.json(
+          { error: "validation_error", message: "Стикер пак доступен только для фото" },
+          { status: 400 }
+        );
+      }
+      if (typeof parentGenerationId === "string" && parentGenerationId.trim() !== "") {
+        return NextResponse.json(
+          { error: "validation_error", message: "Стикер пак делается из загруженного фото" },
+          { status: 400 }
+        );
+      }
+      if (normalizeEditInstruction(editInstruction)) {
+        return NextResponse.json(
+          { error: "validation_error", message: "Стикер пак делается из загруженного фото" },
+          { status: 400 }
+        );
+      }
+      if (normalizePhotoStoragePaths(photoStoragePaths).length !== 1) {
+        return NextResponse.json(
+          { error: "validation_error", message: "Загрузите одно фото для стикер пака" },
+          { status: 400 }
+        );
+      }
+    }
     if (isCameraOrbit && isVideo) {
       return NextResponse.json(
         { error: "validation_error", message: "Смена ракурса доступна только для фото" },
@@ -335,7 +384,7 @@ export async function POST(req: NextRequest) {
     if (
       !isCameraOrbit &&
       !isPhotoshoot &&
-      !isSticker &&
+      !isStickerLike &&
       (!prompt || typeof prompt !== "string" || prompt.trim().length < minPromptLength)
     ) {
       console.warn("[generation.create] validation error: prompt too short", {
@@ -438,7 +487,7 @@ export async function POST(req: NextRequest) {
         );
       }
     }
-    const editContractError = isVideo || isCameraOrbit || isPhotoshoot || isSticker
+    const editContractError = isVideo || isCameraOrbit || isPhotoshoot || isStickerLike
       ? null
       : validateGenerationEditContract({
           hasParentGeneration,
@@ -667,11 +716,20 @@ export async function POST(req: NextRequest) {
       normalizedEditInstruction = serializePhotoshootEnqueueInstruction();
     }
 
-    if (isSticker && !stickerEditRequested) {
+    if ((isSticker && !stickerEditRequested) || isStickerPack) {
       stickerStyle = await resolveStickerStyleForEnqueue(supabase, rawStickerStyleId);
       if (!stickerStyle) {
         return NextResponse.json(
           { error: "validation_error", message: "Выберите стиль стикера" },
+          { status: 400 }
+        );
+      }
+    }
+    if (isStickerPack) {
+      stickerPackSet = await resolveStickerPackSetForEnqueue(supabase, rawPackContentSetId);
+      if (!stickerPackSet) {
+        return NextResponse.json(
+          { error: "validation_error", message: "Выберите набор стикер пака" },
           { status: 400 }
         );
       }
@@ -700,6 +758,8 @@ export async function POST(req: NextRequest) {
       ? resolveVideoAspectRatio(aspectRatio)
       : isSticker
         ? STICKER_ASPECT_RATIO
+      : isStickerPack
+        ? STICKER_PACK_ASPECT_RATIO
       : ((isCameraOrbit || isPhotoshoot) && inheritedRootAspect) || aspectRatio || DEFAULT_IMAGE_ASPECT_RATIO;
     let sz = isVideo
       ? resolveVideoResolution(imageSize)
@@ -707,6 +767,8 @@ export async function POST(req: NextRequest) {
         ? PHOTOSHOOT_IMAGE_SIZE
         : isSticker
           ? STICKER_IMAGE_SIZE
+        : isStickerPack
+          ? STICKER_PACK_IMAGE_SIZE
         : ((isCameraOrbit && inheritedRootSize) || imageSize || DEFAULT_IMAGE_SIZE);
     if (isVideo) {
       const sourceError = validateVideoGenerationSource({
@@ -783,6 +845,9 @@ export async function POST(req: NextRequest) {
         "photoshoot_model",
         STICKER_CONFIG_ENABLED_KEY,
         STICKER_CONFIG_MODEL_KEY,
+        STICKER_PACK_CONFIG_ENABLED_KEY,
+        STICKER_PACK_CONFIG_COST_KEY,
+        STICKER_PACK_CONFIG_MODEL_KEY,
         PRESERVE_OUTFIT_CONFIG_KEY,
         LISTING_VIDEO_REPEAT_CONFIG_KEY,
       ]);
@@ -867,7 +932,7 @@ export async function POST(req: NextRequest) {
       isVibe: Boolean(resolvedVibeId),
       isPhotoshoot,
       isCameraOrbit,
-      isLocalEdit: hasParentGeneration && !isPhotoshoot && !isCameraOrbit && !isSticker,
+      isLocalEdit: hasParentGeneration && !isPhotoshoot && !isCameraOrbit && !isStickerLike,
       isVideo,
     });
 
@@ -898,6 +963,18 @@ export async function POST(req: NextRequest) {
         );
       }
     }
+    if (isStickerPack) {
+      const enabled = isStickerPackUnlocked(config[STICKER_PACK_CONFIG_ENABLED_KEY], user.email);
+      if (!enabled && !openDebug) {
+        return NextResponse.json(
+          {
+            error: "sticker_pack_disabled",
+            message: "Стикер пак пока недоступен",
+          },
+          { status: 503 }
+        );
+      }
+    }
 
     let models: { id: string; cost: number }[] = [];
     if (isVideo) {
@@ -921,7 +998,7 @@ export async function POST(req: NextRequest) {
     const videoDuration = isVideo
       ? normalizeVideoDurationSeconds(durationSeconds, resolvedVideoModelId)
       : null;
-    const requestedImageModel = isCameraOrbit || isPhotoshoot || isSticker
+    const requestedImageModel = isCameraOrbit || isPhotoshoot || isStickerLike
       ? ""
       : typeof model === "string" ? model.trim() : "";
     const orbitModelConfig = isCameraOrbit
@@ -938,6 +1015,23 @@ export async function POST(req: NextRequest) {
         {
           error: "sticker_model_unavailable",
           message: "Модель стикеров временно недоступна",
+        },
+        { status: 503 }
+      );
+    }
+    /** Pack sheets: `sticker_pack_model`, else the single-sticker model, else the default picker model. */
+    const stickerPackModelConfig = isStickerPack
+      ? resolveStickerModel(
+          config[STICKER_PACK_CONFIG_MODEL_KEY] || config[STICKER_CONFIG_MODEL_KEY],
+          config.default_model,
+          models,
+        )
+      : null;
+    if (isStickerPack && !stickerPackModelConfig) {
+      return NextResponse.json(
+        {
+          error: "sticker_pack_model_unavailable",
+          message: "Модель стикер пака временно недоступна",
         },
         { status: 503 }
       );
@@ -968,10 +1062,12 @@ export async function POST(req: NextRequest) {
           ? photoshootModelConfig
         : isSticker
           ? stickerModelConfig
+        : isStickerPack
+          ? stickerPackModelConfig
         : requestedImageModel
           ? models.find((item) => item.id === requestedImageModel)
           : models.find((item) => item.id === config.default_model) || models[0];
-    if (!isVideo && !isCameraOrbit && !isPhotoshoot && !isSticker && requestedImageModel && !modelConfig) {
+    if (!isVideo && !isCameraOrbit && !isPhotoshoot && !isStickerLike && requestedImageModel && !modelConfig) {
       return NextResponse.json(
         { error: "validation_error", message: "Неизвестная модель генерации" },
         { status: 400 }
@@ -998,6 +1094,8 @@ export async function POST(req: NextRequest) {
       ? calculateVideoCreditCost(modelConfig.cost, videoDuration, modelConfig.id)
       : isPhotoshoot
         ? PHOTOSHOOT_CREDIT_COST
+        : isStickerPack
+          ? parseStickerPackCreditCost(config[STICKER_PACK_CONFIG_COST_KEY])
         : modelConfig.cost;
     const guestMode = Boolean(user && isStvGuestUser(user));
     /** Open-debug and guest: never charge. */
@@ -1054,6 +1152,14 @@ export async function POST(req: NextRequest) {
       promptText = stickerEdit
         ? buildStickerEditPromptText(stickerEdit)
         : buildStickerPromptText(stickerStyle ?? "");
+    }
+    if (isStickerPack && stickerStyle && stickerPackSet) {
+      promptText = buildStickerPackPromptText({
+        styleId: stickerStyle.id,
+        stylePrompt: stickerStyle.prompt,
+        setId: stickerPackSet.id,
+        scenes: stickerPackSet.scenes,
+      });
     }
     if (!promptText || promptText.length < minPromptLength) {
       return NextResponse.json(
@@ -1152,6 +1258,12 @@ export async function POST(req: NextRequest) {
                   normalizedPhotoStoragePaths[0] || "",
                   stickerStyle.id,
                 )
+            : isStickerPack && stickerStyle && stickerPackSet
+              ? stickerPackFingerprintFields(
+                  normalizedPhotoStoragePaths[0] || "",
+                  stickerStyle.id,
+                  stickerPackSet.id,
+                )
               : generationEditFingerprintFields(
                 normalizedParentGenerationId,
                 normalizedEditInstruction
@@ -1195,6 +1307,8 @@ export async function POST(req: NextRequest) {
         ? "photoshoot"
         : isSticker
         ? "sticker"
+        : isStickerPack
+        ? "sticker_pack"
         : isCameraOrbit
         ? "camera_orbit"
         : hasParentGeneration
@@ -1230,6 +1344,8 @@ export async function POST(req: NextRequest) {
         ? "photoshoot"
         : isSticker
         ? "sticker"
+        : isStickerPack
+        ? "sticker_pack"
         : isCameraOrbit
         ? "camera_orbit"
         : hasParentGeneration
@@ -1258,10 +1374,10 @@ export async function POST(req: NextRequest) {
         p_image_size: sz,
         p_credits_spent: creditsCharged,
         p_input_photo_paths: normalizedPhotoStoragePaths,
-        p_vibe_id: isCameraOrbit || isPhotoshoot || isSticker ? null : resolvedVibeId,
+        p_vibe_id: isCameraOrbit || isPhotoshoot || isStickerLike ? null : resolvedVibeId,
         p_client_source: GENERATION_CLIENT_SOURCE,
         p_pipeline_trace_id: pipelineTrace,
-        p_create_ugc: isVideo || isListingVideoRepeat || isSticker ? false : !guestMode,
+        p_create_ugc: isVideo || isListingVideoRepeat || isStickerLike ? false : !guestMode,
         p_parent_generation_id: normalizedParentGenerationId || null,
         p_edit_instruction: isVideo ? null : normalizedEditInstruction || null,
         p_modality: requestedModality,
@@ -1281,6 +1397,10 @@ export async function POST(req: NextRequest) {
           : isSticker
             ? {
                 p_edit_kind: STICKER_EDIT_KIND,
+              }
+          : isStickerPack
+            ? {
+                p_edit_kind: STICKER_PACK_EDIT_KIND,
               }
           : {}),
         ...(wardrobePolicy === "keep" ? { p_wardrobe_policy: "keep" } : {}),
@@ -1314,7 +1434,10 @@ export async function POST(req: NextRequest) {
         enqueueError?.message?.includes("sticker_source_conflict") ||
         enqueueError?.message?.includes("sticker_edit_incomplete") ||
         enqueueError?.message?.includes("sticker_parent_not_sticker") ||
-        enqueueError?.message?.includes("sticker_no_parent");
+        enqueueError?.message?.includes("sticker_no_parent") ||
+        enqueueError?.message?.includes("sticker_pack_source_required") ||
+        enqueueError?.message?.includes("sticker_pack_source_conflict") ||
+        enqueueError?.message?.includes("sticker_pack_image_only");
       const { data: userRow } = insufficient
         ? await supabase
             .from("landing_users")
