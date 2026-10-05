@@ -56,6 +56,7 @@ import {
   type PhotoshootTimingMarks,
 } from "./photoshoot-timing";
 import { getVibeAttachReferenceImage } from "./lib/vibe-config";
+import { getStickerWorkerConfig, type StickerWorkerConfig } from "./lib/sticker-config";
 import { errorFields, log } from "./lib/logger";
 import {
   ProcessingError,
@@ -108,6 +109,7 @@ import {
   requireOpenRouterBaseUrl,
   runSeedreamImage,
 } from "./openrouter-seedream";
+import { imageModelOutputsAlpha, type GptImageQuality } from "../../landing/src/lib/generation/image-options";
 
 export { ProcessingError, RESULTS_BUCKET } from "./input-source";
 const DIRECT_GEMINI_BASE_URL = "https://generativelanguage.googleapis.com";
@@ -429,11 +431,28 @@ export async function processGeneration(
   if (isSticker && inputSource.paths.length !== 1) {
     throw new ProcessingError("input_missing", "Sticker job needs exactly one source photo", false);
   }
-  /** Sticker: provider output is a magenta-background frame; rembg + outline turn it into a PNG with alpha. */
+  /**
+   * Sticker: RGB providers paint a magenta frame that chroma key / rembg remove; GPT Image returns real alpha
+   * (`alpha_native` route). Either way the outline + 512 canvas are added in `finalizeStickerImage`.
+   */
+  const stickerConfig: StickerWorkerConfig | undefined = isSticker ? await getStickerWorkerConfig(supabase) : undefined;
   const encodeResult = (buffer: Buffer) =>
     isSticker
-      ? finalizeStickerImage(buffer, { rembgUrl: config.rembgUrl, signal })
+      ? finalizeStickerImage(buffer, { rembgUrl: config.rembgUrl, signal, bgRoute: stickerConfig?.bgRoute })
       : encodeGenerationResult(buffer);
+  const logStickerFinalized = (stats: StickerFinalizeStats | undefined, bytesOut: number) => {
+    if (!stats) return;
+    log("info", "sticker_finalized", {
+      ...context,
+      route: stats.route,
+      magentaRatio: stats.magentaRatio,
+      chromaKeyedPixels: stats.chromaKeyedPixels,
+      rembgMs: stats.rembgMs,
+      rembgAttempts: stats.rembgAttempts,
+      outlineMs: stats.outlineMs,
+      bytesOut,
+    });
+  };
   const photoshootMarks: PhotoshootTimingMarks | undefined = isPhotoshoot
     ? { createdAt: job.created_at, startedAt: workerStartedAt }
     : undefined;
@@ -499,7 +518,11 @@ export async function processGeneration(
       imageBuffer = await generateSeedreamFromJob({
         job,
         productModel: executedOpenRouter,
-        rawPrompt: isSticker ? assembleStickerFinalPrompt(rawPrompt) : rawPrompt,
+        rawPrompt: isSticker
+          ? assembleStickerFinalPrompt(rawPrompt, imageModelOutputsAlpha(executedOpenRouter) ? "transparent" : "magenta")
+          : rawPrompt,
+        isSticker,
+        stickerQuality: stickerConfig?.imageQuality,
         editInstruction,
         isVibe,
         isPhotoshoot,
@@ -548,15 +571,7 @@ export async function processGeneration(
     const encodedSeedream = await encodeResult(imageBuffer);
     if (photoshootMarks) photoshootMarks.encodeMs = encodedSeedream.encodeMs;
     if (isSticker && "sticker" in encodedSeedream) {
-      const stickerStats = encodedSeedream.sticker as StickerFinalizeStats | undefined;
-      if (stickerStats) {
-        log("info", "sticker_finalized", {
-          ...context,
-          rembgMs: stickerStats.rembgMs,
-          rembgAttempts: stickerStats.rembgAttempts,
-          bytesOut: encodedSeedream.bytesOut,
-        });
-      }
+      logStickerFinalized(encodedSeedream.sticker as StickerFinalizeStats | undefined, encodedSeedream.bytesOut);
     }
     await ensureLease();
     const seedreamResultPath = `${job.user_id}/${job.id}/${job.lease_token}.${encodedSeedream.extension}`;
@@ -760,6 +775,8 @@ export async function processGeneration(
           requestedModel,
           error: processing,
           rawPrompt,
+          isSticker,
+          stickerQuality: stickerConfig?.imageQuality,
           editInstruction,
           isVibe,
           isPhotoshoot,
@@ -867,6 +884,8 @@ export async function processGeneration(
             requestedModel,
             error: processing,
             rawPrompt,
+            isSticker,
+            stickerQuality: stickerConfig?.imageQuality,
             editInstruction,
             isVibe,
             isPhotoshoot,
@@ -898,6 +917,8 @@ export async function processGeneration(
           requestedModel,
           error,
           rawPrompt,
+          isSticker,
+          stickerQuality: stickerConfig?.imageQuality,
           editInstruction,
           isVibe,
           isPhotoshoot,
@@ -930,15 +951,7 @@ export async function processGeneration(
   const encoded = await encodeResult(imageBuffer);
   if (photoshootMarks) photoshootMarks.encodeMs = encoded.encodeMs;
   if (isSticker && "sticker" in encoded) {
-    const stickerStats = encoded.sticker as StickerFinalizeStats | undefined;
-    if (stickerStats) {
-      log("info", "sticker_finalized", {
-        ...context,
-        rembgMs: stickerStats.rembgMs,
-        rembgAttempts: stickerStats.rembgAttempts,
-        bytesOut: encoded.bytesOut,
-      });
-    }
+    logStickerFinalized(encoded.sticker as StickerFinalizeStats | undefined, encoded.bytesOut);
   }
   await ensureLease();
   const resultPath = `${job.user_id}/${job.id}/${job.lease_token}.${encoded.extension}`;
@@ -1049,6 +1062,9 @@ async function generateSeedreamFromJob(input: {
   job: GenerationJob;
   productModel?: string;
   rawPrompt: string;
+  /** Sticker job: `rawPrompt` is already the final sticker prompt — no i2i wrapper; GPT Image gets `background: transparent`. */
+  isSticker?: boolean;
+  stickerQuality?: GptImageQuality;
   editInstruction: string;
   isVibe: boolean;
   isPhotoshoot: boolean;
@@ -1071,7 +1087,9 @@ async function generateSeedreamFromJob(input: {
       false,
     );
   }
-  const seedreamPrompt = input.isVibe
+  const seedreamPrompt = input.isSticker
+    ? input.rawPrompt
+    : input.isVibe
     ? assembleSeedreamVibePrompt(input.rawPrompt, Boolean(input.vibeSourceUrl))
     : input.isPhotoshoot
       ? assembleSeedreamPhotoshootSheetPrompt(input.photoshootSheet)
@@ -1133,6 +1151,8 @@ async function generateSeedreamFromJob(input: {
     imageInput: imageInput.urls,
     imageInputClamped: imageInput.clamped,
     safetyTolerance: photoshootFluxSafetyTolerance(input.isPhotoshoot, productModel),
+    quality: input.isSticker ? input.stickerQuality : undefined,
+    transparentBackground: Boolean(input.isSticker) && imageModelOutputsAlpha(productModel),
     bypassCircuit: input.bypassCircuit,
     signal: input.signal,
     context: input.context,
@@ -1145,7 +1165,10 @@ async function trySeedreamImageFallback(input: {
   job: GenerationJob;
   requestedModel: string;
   error: ProcessingError;
+  /** Raw job prompt; sticker jobs get the final sticker prompt assembled for the fallback model here. */
   rawPrompt: string;
+  isSticker?: boolean;
+  stickerQuality?: GptImageQuality;
   editInstruction: string;
   isVibe: boolean;
   isPhotoshoot: boolean;
@@ -1192,6 +1215,9 @@ async function trySeedreamImageFallback(input: {
   const buffer = await generateSeedreamFromJob({
     ...input,
     productModel: decision.model,
+    rawPrompt: input.isSticker
+      ? assembleStickerFinalPrompt(input.rawPrompt, imageModelOutputsAlpha(decision.model) ? "transparent" : "magenta")
+      : input.rawPrompt,
   });
   return { buffer, model: decision.model };
 }
@@ -1312,6 +1338,8 @@ async function generateSeedreamImage(input: {
   imageInput: string[];
   imageInputClamped: boolean;
   safetyTolerance?: number;
+  quality?: GptImageQuality;
+  transparentBackground?: boolean;
   bypassCircuit?: boolean;
   signal: AbortSignal;
   context: ProviderContext;
@@ -1358,6 +1386,8 @@ async function generateSeedreamImage(input: {
     imageInput: input.imageInput,
     model: input.productModel,
     safetyTolerance: input.safetyTolerance,
+    quality: input.quality,
+    transparentBackground: input.transparentBackground,
   });
   const startedAt = Date.now();
   log("info", "seedream_request_started", {
@@ -1369,6 +1399,8 @@ async function generateSeedreamImage(input: {
     clampedSize: mapped.clamped,
     partCount: input.imageInput.length,
     safetyTolerance: input.safetyTolerance ?? null,
+    quality: body.quality ?? null,
+    transparentBackground: body.background === "transparent",
     bypassCircuit: Boolean(input.bypassCircuit),
   });
   try {

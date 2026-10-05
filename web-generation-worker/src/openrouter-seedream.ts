@@ -1,27 +1,35 @@
 import {
+  DEFAULT_GPT_IMAGE_QUALITY,
   FLUX_2_FLEX_IMAGE_MODEL,
   FLUX_2_FLEX_OPENROUTER_MODEL,
+  GPT_IMAGE_25_FLARE_IMAGE_MODEL,
+  GPT_IMAGE_25_FLARE_OPENROUTER_MODEL,
   SEEDREAM_45_IMAGE_MODEL,
   SEEDREAM_45_OPENROUTER_MODEL,
   SEEDREAM_50_PRO_IMAGE_MODEL,
   SEEDREAM_50_PRO_OPENROUTER_MODEL,
   isFluxImageModel,
+  isGptImageModel,
   isOpenRouterImageModel,
   isSeedreamImageModel,
   mapOpenRouterImageSize,
   openRouterMaxImageInputs,
   openRouterSendsResolution,
   openRouterVendorModel,
+  type GptImageQuality,
 } from "../../landing/src/lib/generation/image-options";
 
 export {
   FLUX_2_FLEX_IMAGE_MODEL,
   FLUX_2_FLEX_OPENROUTER_MODEL,
+  GPT_IMAGE_25_FLARE_IMAGE_MODEL,
+  GPT_IMAGE_25_FLARE_OPENROUTER_MODEL,
   SEEDREAM_45_IMAGE_MODEL,
   SEEDREAM_45_OPENROUTER_MODEL,
   SEEDREAM_50_PRO_IMAGE_MODEL,
   SEEDREAM_50_PRO_OPENROUTER_MODEL,
   isFluxImageModel,
+  isGptImageModel,
   isOpenRouterImageModel,
   isSeedreamImageModel,
   mapOpenRouterImageSize,
@@ -124,6 +132,10 @@ export function buildSeedreamImageBody(input: {
   imageInput?: string[];
   model?: string;
   safetyTolerance?: number | null;
+  /** GPT Image only: OpenAI rendering tier. Ignored for models without a quality knob. */
+  quality?: GptImageQuality | null;
+  /** GPT Image only: ask for a real alpha channel (sticker jobs). Requires png/webp output — we always send png. */
+  transparentBackground?: boolean;
 }): Record<string, unknown> {
   const productId = resolveProductModelId(input.model);
   const imageInput = clampSeedreamImageUrls(
@@ -149,6 +161,10 @@ export function buildSeedreamImageBody(input: {
   const safetyTolerance = clampFluxSafetyTolerance(input.safetyTolerance);
   if (safetyTolerance != null && isFluxImageModel(productId)) {
     payload.safety_tolerance = safetyTolerance;
+  }
+  if (isGptImageModel(productId)) {
+    payload.quality = input.quality ?? DEFAULT_GPT_IMAGE_QUALITY;
+    if (input.transparentBackground) payload.background = "transparent";
   }
   if (imageInput.length) {
     payload.input_references = imageInput.map((url) => ({

@@ -1,8 +1,11 @@
 import sharp from "sharp";
 import {
+  DEFAULT_STICKER_BG_ROUTE,
   STICKER_BACKGROUND_HEX,
   STICKER_OUTLINE_PX,
   STICKER_OUTPUT_PX,
+  STICKER_SAFE_MARGIN_PX,
+  type StickerBgRoute,
 } from "../../landing/src/lib/sticker";
 import { ProcessingError } from "./input-source";
 import type { EncodedGenerationResult } from "./result-encode";
@@ -11,14 +14,28 @@ import type { EncodedGenerationResult } from "./result-encode";
 const REMBG_INPUT_MAX_PX = 1024;
 const REMBG_TIMEOUT_MS = 90_000;
 const REMBG_ATTEMPTS = 2;
+/** Frame is treated as "model painted the magenta background" above this share of key pixels. */
+export const STICKER_CHROMA_ONLY_RATIO = 0.2;
+/** Between this and CHROMA_ONLY: key first, then rembg tidies what the model drew behind the figure. */
+export const STICKER_CHROMA_ASSIST_RATIO = 0.05;
+
+/** Which pass actually removed the background. `alpha_native` — provider returned real transparency (GPT Image). */
+export type StickerBgRouteUsed = "alpha_native" | "chroma" | "chroma_rembg" | "rembg" | "rembg_forced";
+/** Share of (near-)fully transparent pixels that proves the provider frame already carries alpha. */
+export const STICKER_ALPHA_NATIVE_RATIO = 0.05;
 
 export type StickerFinalizeStats = {
+  /** 0 when rembg did not run. */
   rembgMs: number;
   rembgAttempts: number;
   chromaPixelsCleared: number;
   outlineMs: number;
   width: number;
   height: number;
+  magentaRatio: number;
+  route: StickerBgRouteUsed;
+  /** Pixels keyed out by the chroma pass (0 on the rembg-only route). */
+  chromaKeyedPixels: number;
 };
 
 export type StickerFinalizeOptions = {
@@ -28,6 +45,8 @@ export type StickerFinalizeOptions = {
   /** Override for tests; production uses STICKER_OUTLINE_PX. */
   outlinePx?: number;
   outputPx?: number;
+  /** Routing flag from `landing_generation_config.sticker_bg_route`; default chroma_first. */
+  bgRoute?: StickerBgRoute;
 };
 
 function hexToRgb(hex: string): { r: number; g: number; b: number } {
@@ -53,6 +72,90 @@ export async function flattenStickerSourceForEdit(input: Buffer): Promise<{ buff
     .png({ compressionLevel: 6 })
     .toBuffer();
   return { buffer, mimeType: "image/png" };
+}
+
+/** Share of pixels close to the chroma key — decides between keying and segmentation. */
+export function magentaRatio(rgba: Buffer, width: number, height: number, tolerance = 90): number {
+  const total = width * height;
+  if (!total) return 0;
+  let hits = 0;
+  for (let i = 0; i < total; i += 1) {
+    const o = i * 4;
+    const dist = Math.abs(rgba[o] - BG.r) + Math.abs(rgba[o + 1] - BG.g) + Math.abs(rgba[o + 2] - BG.b);
+    if (dist <= tolerance) hits += 1;
+  }
+  return hits / total;
+}
+
+/**
+ * Key out the flat magenta the model painted. Hard radius → fully transparent; soft radius →
+ * alpha ramps down so anti-aliased edges stay smooth. Operates in place on RGBA.
+ * Pink / purple on the subject is far from #FF00FF in RGB (green channel), so a tight radius keeps it.
+ */
+export function chromaKeyMagenta(
+  rgba: Buffer,
+  width: number,
+  height: number,
+  options?: { hard?: number; soft?: number; despillBandPx?: number },
+): number {
+  const hard = options?.hard ?? 70;
+  const soft = options?.soft ?? 130;
+  const bandPx = options?.despillBandPx ?? 3;
+  const hardSq = hard * hard;
+  const softSq = soft * soft;
+  const total = width * height;
+  let keyed = 0;
+  // Pass 1: distance key. `cleared` marks pixels that became fully transparent — seed of the edge band.
+  const cleared = new Uint8Array(total);
+  for (let i = 0; i < total; i += 1) {
+    const o = i * 4;
+    const dr = rgba[o] - BG.r;
+    const dg = rgba[o + 1] - BG.g;
+    const db = rgba[o + 2] - BG.b;
+    const distSq = dr * dr + dg * dg + db * db;
+    if (distSq <= hardSq) {
+      rgba[o + 3] = 0;
+      cleared[i] = 255;
+      keyed += 1;
+    } else if (distSq < softSq) {
+      const t = (distSq - hardSq) / (softSq - hardSq);
+      rgba[o + 3] = Math.round(rgba[o + 3] * t);
+      keyed += 1;
+    }
+  }
+  if (bandPx <= 0) return keyed;
+  // Pass 2: colour-difference despill only within `bandPx` of a keyed pixel. Anti-aliased edges are a
+  // mix of figure and #FF00FF: the magenta excess (min(r,b) − g) becomes transparency and the tint is
+  // neutralised. Pink inside the figure is outside the band and stays.
+  const band = dilateAlpha(cleared, width, height, bandPx);
+  for (let i = 0; i < total; i += 1) {
+    if (!band[i] || cleared[i]) continue;
+    const o = i * 4;
+    const a = rgba[o + 3];
+    if (a === 0) continue;
+    const r = rgba[o];
+    const g = rgba[o + 1];
+    const b = rgba[o + 2];
+    const spill = Math.min(r, b) - g;
+    if (spill <= 24) continue;
+    const factor = Math.max(0, 1 - spill / 160);
+    rgba[o] = r - spill;
+    rgba[o + 2] = b - spill;
+    rgba[o + 3] = Math.round(a * factor);
+    keyed += 1;
+  }
+  return keyed;
+}
+
+/** Decode the provider frame (≤ 1024 px) to RGBA once; shared by the ratio check and the key pass. */
+async function decodeFrameRgba(input: Buffer): Promise<{ rgba: Buffer; width: number; height: number }> {
+  const { data, info } = await sharp(input, { failOn: "none" })
+    .rotate()
+    .resize(REMBG_INPUT_MAX_PX, REMBG_INPUT_MAX_PX, { fit: "inside", withoutEnlargement: true })
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  return { rgba: Buffer.from(data), width: info.width, height: info.height };
 }
 
 async function sleep(ms: number, signal?: AbortSignal): Promise<void> {
@@ -210,14 +313,16 @@ export function dilateAlpha(alpha: Uint8Array, width: number, height: number, ra
 }
 
 /**
- * Cut-out PNG → white die-cut border → trim → square `outputPx` canvas with transparent padding.
+ * Cut-out PNG → white die-cut border → trim → square `outputPx` canvas with a transparent safe margin
+ * on every side (the figure never touches the canvas edge — the bot's 15 px, WhatsApp's 16 px).
  */
 export async function composeStickerFromCutout(
   cutout: Buffer,
-  options?: { outlinePx?: number; outputPx?: number },
+  options?: { outlinePx?: number; outputPx?: number; marginPx?: number },
 ): Promise<{ buffer: Buffer; width: number; height: number; outlineMs: number; chromaPixelsCleared: number }> {
   const outputPx = options?.outputPx ?? STICKER_OUTPUT_PX;
   const outlinePx = options?.outlinePx ?? STICKER_OUTLINE_PX;
+  const marginPx = Math.max(0, Math.min(Math.floor(outputPx / 4), options?.marginPx ?? STICKER_SAFE_MARGIN_PX));
   const started = Date.now();
 
   // Work at output scale (+ margin for the border) so the outline width is predictable.
@@ -264,12 +369,103 @@ export async function composeStickerFromCutout(
     .png()
     .toBuffer();
 
+  const contentPx = outputPx - marginPx * 2;
   const buffer = await sharp(composited)
     .trim({ threshold: 1 })
-    .resize(outputPx, outputPx, { fit: "contain", background: { r: 0, g: 0, b: 0, alpha: 0 } })
+    .resize(contentPx, contentPx, { fit: "contain", background: { r: 0, g: 0, b: 0, alpha: 0 } })
+    .extend({
+      top: marginPx,
+      bottom: marginPx,
+      left: marginPx,
+      right: marginPx,
+      background: { r: 0, g: 0, b: 0, alpha: 0 },
+    })
     .png({ compressionLevel: 9, palette: false })
     .toBuffer();
   return { buffer, width: outputPx, height: outputPx, outlineMs: Date.now() - started, chromaPixelsCleared };
+}
+
+/** Fraction of pixels with alpha ≤ 8 — real transparency from the provider, not a painted checkerboard. */
+export function transparentRatio(rgba: Buffer, width: number, height: number): number {
+  const total = width * height;
+  if (!total) return 0;
+  let clear = 0;
+  for (let i = 3; i < total * 4; i += 4) {
+    if (rgba[i] <= 8) clear += 1;
+  }
+  return clear / total;
+}
+
+/**
+ * Pick the background pass from the share of key-coloured pixels in the provider frame.
+ * Pure function so the thresholds are unit-testable. A frame with real alpha wins regardless of the flag.
+ */
+export function pickStickerBgRoute(ratio: number, flag: StickerBgRoute, alphaRatio = 0): StickerBgRouteUsed {
+  if (alphaRatio >= STICKER_ALPHA_NATIVE_RATIO) return "alpha_native";
+  if (flag === "rembg") return "rembg_forced";
+  if (ratio >= STICKER_CHROMA_ONLY_RATIO) return "chroma";
+  if (ratio >= STICKER_CHROMA_ASSIST_RATIO) return "chroma_rembg";
+  return "rembg";
+}
+
+/**
+ * Background removal with routing:
+ *  - `chroma`        — flat magenta frame: key it out, no segmentation model (nothing gets cropped by saliency).
+ *  - `chroma_rembg`  — partial magenta: key first, then rembg cleans whatever the model drew behind the figure.
+ *  - `rembg`         — model ignored the key colour: segmentation as before.
+ * Any failure of the key pass falls through to rembg; rembg failure after a key pass keeps the keyed result.
+ */
+export async function removeStickerBackground(
+  input: Buffer,
+  options: StickerFinalizeOptions,
+): Promise<{
+  buffer: Buffer;
+  route: StickerBgRouteUsed;
+  magentaRatio: number;
+  chromaKeyedPixels: number;
+  rembgMs: number;
+  rembgAttempts: number;
+}> {
+  const flag = options.bgRoute ?? DEFAULT_STICKER_BG_ROUTE;
+  let ratio = 0;
+  let alphaRatio = 0;
+  let frame: { rgba: Buffer; width: number; height: number } | null = null;
+  try {
+    frame = await decodeFrameRgba(input);
+    alphaRatio = transparentRatio(frame.rgba, frame.width, frame.height);
+    ratio = alphaRatio >= STICKER_ALPHA_NATIVE_RATIO ? 0 : magentaRatio(frame.rgba, frame.width, frame.height);
+  } catch {
+    frame = null;
+  }
+  const route = frame ? pickStickerBgRoute(ratio, flag, alphaRatio) : flag === "rembg" ? "rembg_forced" : "rembg";
+
+  if (route === "alpha_native" && frame) {
+    // Provider already isolated the subject (GPT Image `background: "transparent"`): nothing to key, nothing to segment.
+    const png = await sharp(frame.rgba, { raw: { width: frame.width, height: frame.height, channels: 4 } })
+      .png({ compressionLevel: 3 })
+      .toBuffer();
+    return { buffer: png, route, magentaRatio: 0, chromaKeyedPixels: 0, rembgMs: 0, rembgAttempts: 0 };
+  }
+
+  if (route === "rembg" || route === "rembg_forced" || !frame) {
+    const rembg = await removeBackgroundViaRembg(input, options);
+    return { buffer: rembg.buffer, route, magentaRatio: ratio, chromaKeyedPixels: 0, rembgMs: rembg.ms, rembgAttempts: rembg.attempts };
+  }
+
+  const keyed = chromaKeyMagenta(frame.rgba, frame.width, frame.height);
+  const keyedPng = await sharp(frame.rgba, { raw: { width: frame.width, height: frame.height, channels: 4 } })
+    .png({ compressionLevel: 3 })
+    .toBuffer();
+  if (route === "chroma") {
+    return { buffer: keyedPng, route, magentaRatio: ratio, chromaKeyedPixels: keyed, rembgMs: 0, rembgAttempts: 0 };
+  }
+  try {
+    const rembg = await removeBackgroundViaRembg(keyedPng, options);
+    return { buffer: rembg.buffer, route, magentaRatio: ratio, chromaKeyedPixels: keyed, rembgMs: rembg.ms, rembgAttempts: rembg.attempts };
+  } catch (error) {
+    if (error instanceof ProcessingError && error.errorType === "shutdown") throw error;
+    return { buffer: keyedPng, route: "chroma", magentaRatio: ratio, chromaKeyedPixels: keyed, rembgMs: 0, rembgAttempts: REMBG_ATTEMPTS };
+  }
 }
 
 export async function finalizeStickerImage(
@@ -278,8 +474,8 @@ export async function finalizeStickerImage(
 ): Promise<EncodedGenerationResult & { sticker: StickerFinalizeStats }> {
   const bytesIn = input.length;
   const started = Date.now();
-  const rembg = await removeBackgroundViaRembg(input, options);
-  const composed = await composeStickerFromCutout(rembg.buffer, {
+  const removed = await removeStickerBackground(input, options);
+  const composed = await composeStickerFromCutout(removed.buffer, {
     outlinePx: options.outlinePx,
     outputPx: options.outputPx,
   });
@@ -293,12 +489,15 @@ export async function finalizeStickerImage(
     encodeMs: Date.now() - started,
     skippedReason: null,
     sticker: {
-      rembgMs: rembg.ms,
-      rembgAttempts: rembg.attempts,
+      rembgMs: removed.rembgMs,
+      rembgAttempts: removed.rembgAttempts,
       chromaPixelsCleared: composed.chromaPixelsCleared,
       outlineMs: composed.outlineMs,
       width: composed.width,
       height: composed.height,
+      magentaRatio: Math.round(removed.magentaRatio * 1000) / 1000,
+      route: removed.route,
+      chromaKeyedPixels: removed.chromaKeyedPixels,
     },
   };
 }

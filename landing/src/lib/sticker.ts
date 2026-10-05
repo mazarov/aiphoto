@@ -14,8 +14,79 @@ export const STICKER_IMAGE_SIZE = "1K";
 export const STICKER_OUTPUT_PX = 512;
 /** White die-cut outline width at output scale. */
 export const STICKER_OUTLINE_PX = 10;
-/** Flat background the model paints; rembg + chroma cleanup remove it. */
+/** Flat background the model paints; chroma key (or rembg fallback) removes it. */
 export const STICKER_BACKGROUND_HEX = "#FF00FF";
+/**
+ * Transparent safe margin inside the 512 canvas so the figure never touches the edge
+ * (bot used 15 px; WhatsApp recommends 16 px).
+ */
+export const STICKER_SAFE_MARGIN_PX = 16;
+
+/**
+ * Background-removal routing flag in `landing_generation_config` (SQL `265`).
+ * `chroma_first` — key out the flat magenta the model painted, rembg only when the frame is not magenta;
+ * `rembg` — always the segmentation model (previous behaviour). Missing row → `chroma_first`.
+ */
+export const STICKER_BG_ROUTE_CONFIG_KEY = "sticker_bg_route";
+/** GPT Image rendering tier for sticker jobs (`low` | `medium` | `high`, SQL `266`). Missing row → `medium`. */
+export const STICKER_IMAGE_QUALITY_CONFIG_KEY = "sticker_image_quality";
+export type StickerBgRoute = "chroma_first" | "rembg";
+export const DEFAULT_STICKER_BG_ROUTE: StickerBgRoute = "chroma_first";
+export function parseStickerBgRoute(value: string | null | undefined): StickerBgRoute {
+  const raw = String(value ?? "").trim().toLowerCase();
+  return raw === "rembg" ? "rembg" : DEFAULT_STICKER_BG_ROUTE;
+}
+
+/**
+ * Per-messenger export targets for a finished sticker. One row = one platform;
+ * `GET /api/generations/[id]/sticker-file?platform=<id>` converts on the fly.
+ */
+export type StickerPlatform = {
+  id: "telegram" | "whatsapp" | "max";
+  label: string;
+  /** Short note under the label in the download chooser. */
+  note: string;
+  format: "webp" | "png";
+  /** Canvas side; the long side must be exactly this for Telegram / WhatsApp. */
+  sidePx: number;
+  /** Hard limit of the platform for a static sticker. */
+  maxBytes: number;
+  filename: string;
+};
+export const STICKER_PLATFORMS: readonly StickerPlatform[] = [
+  {
+    id: "telegram",
+    label: "Telegram",
+    note: "WebP 512×512, до 512 КБ",
+    format: "webp",
+    sidePx: 512,
+    maxBytes: 512 * 1024,
+    filename: "sticker-telegram.webp",
+  },
+  {
+    id: "whatsapp",
+    label: "WhatsApp",
+    note: "WebP 512×512, до 100 КБ",
+    format: "webp",
+    sidePx: 512,
+    maxBytes: 100 * 1024,
+    filename: "sticker-whatsapp.webp",
+  },
+  {
+    id: "max",
+    label: "Max",
+    note: "PNG 512×512 (WebP не принимает)",
+    format: "png",
+    sidePx: 512,
+    maxBytes: 10 * 1024 * 1024,
+    filename: "sticker-max.png",
+  },
+];
+export const DEFAULT_STICKER_PLATFORM_ID: StickerPlatform["id"] = "telegram";
+export function stickerPlatformById(id: unknown): StickerPlatform | null {
+  const key = String(id ?? "").trim().toLowerCase();
+  return STICKER_PLATFORMS.find((platform) => platform.id === key) ?? null;
+}
 export const STICKER_PATH = "/stiker-iz-foto";
 /** Idle FAB / tab / hero CTA on `/stiker-iz-foto`. */
 export const STICKER_GENERATE_CTA = "Создать стикер";
@@ -205,10 +276,40 @@ export function isStickerTextPromptText(promptText: unknown): boolean {
 }
 
 /** Worker prompt for an emotion / motion edit of an existing sticker. Ported from the bot's imported-sticker editor. */
-export function assembleStickerEditFinalPrompt(spec: StickerEditSpec): string {
+/**
+ * How the provider should paint the background.
+ * `magenta` — flat #FF00FF for chroma key / rembg (Gemini, Grok, Seedream: RGB only).
+ * `transparent` — real alpha (GPT Image via `background: "transparent"`); no keying afterwards.
+ */
+export type StickerBackgroundMode = "magenta" | "transparent";
+
+function stickerBackgroundRule(mode: StickerBackgroundMode): string {
+  return mode === "transparent"
+    ? "- Background: fully TRANSPARENT (alpha channel) over the entire canvas — the subject is isolated. No backdrop, no floor, no shadow, no props behind the subject."
+    : `- Background: flat, uniform, pure BRIGHT MAGENTA (${STICKER_BACKGROUND_HEX}) over the entire canvas. No gradient, no texture, no floor, no shadow on the background, no props behind the subject.`;
+}
+
+function stickerMarginWord(mode: StickerBackgroundMode): string {
+  return mode === "transparent" ? "transparent" : "magenta";
+}
+
+function stickerSpillRule(mode: StickerBackgroundMode): string {
+  return mode === "transparent"
+    ? ""
+    : "- Avoid magenta or pink tones on the subject itself (clothes, lips, cheeks lean warm/neutral) so chroma cleanup does not eat the figure.";
+}
+
+export function assembleStickerEditFinalPrompt(
+  spec: StickerEditSpec,
+  mode: StickerBackgroundMode = "magenta",
+): string {
   const changeType = spec.action === "emotion" ? "emotion / facial expression" : "motion / body pose and gesture";
+  const given =
+    mode === "transparent"
+      ? "an existing messenger sticker of one person (the SUBJECT) with a transparent background"
+      : `an existing messenger sticker of one person (the SUBJECT) on a flat bright magenta (${STICKER_BACKGROUND_HEX}) background`;
   return `
-You are an image editor. You are given an existing messenger sticker of one person (the SUBJECT) on a flat bright magenta (${STICKER_BACKGROUND_HEX}) background.
+You are an image editor. You are given ${given}.
 
 YOUR TASK: edit this sticker by changing ONLY the ${changeType} to: "${spec.hint}".
 
@@ -216,14 +317,14 @@ EVERYTHING else MUST remain exactly the same:
 - Same person: face structure, eye color, skin tone, hair color and shape, glasses and marks.
 - Same art style, line work and coloring technique — if the input is a photo, output a photo; if cartoon, cartoon; if anime, anime.
 - Same clothing, accessories and props unless the change itself needs a hand gesture.
-- Same chest-up framing, proportions and scale; keep at least 15% empty magenta margin on all four sides, nothing cropped.
+- Same chest-up framing, proportions and scale; keep at least 15% empty ${stickerMarginWord(mode)} margin on all four sides, nothing cropped.
 
 CRITICAL RULES:
 - Do NOT regenerate the sticker from scratch — make a minimal, targeted edit.
-- Background: flat, uniform, pure BRIGHT MAGENTA (${STICKER_BACKGROUND_HEX}) over the whole canvas. No gradient, texture, shadow or props behind the subject.
+${stickerBackgroundRule(mode)}
 - Do NOT draw any outline, border, stroke or glow around the figure — the white sticker border is added later.
 - No text, letters, captions, emojis, watermarks or logos.
-- Avoid magenta or pink tones on the subject itself so chroma cleanup does not eat the figure.
+${stickerSpillRule(mode)}
 `.trim();
 }
 
@@ -246,25 +347,36 @@ export function stickerEditFingerprintFields(
   };
 }
 
-export const GENERATE_STICKER_CRITICAL_RULES = `
+export function generateStickerCriticalRules(mode: StickerBackgroundMode = "magenta"): string {
+  const outcome =
+    mode === "transparent"
+      ? "The result is used directly as a messenger sticker."
+      : "The result will be background-removed programmatically and used as a messenger sticker.";
+  return `
 CRITICAL RULES — STICKER
-The input image shows the SUBJECT (a real person). Output exactly one new image of that same person in the style described above. The result will be background-removed programmatically and used as a messenger sticker.
+The input image shows the SUBJECT (a real person). Output exactly one new image of that same person in the style described above. ${outcome}
 
 - Identity: preserve the same person — face structure, eye color, skin tone, hair color and shape, distinctive marks (freckles, moles, glasses if worn). Do not swap in a different face.
-- Background: flat, uniform, pure BRIGHT MAGENTA (${STICKER_BACKGROUND_HEX}) over the entire canvas. No gradient, no texture, no floor, no shadow on the background, no props behind the subject.
-- Framing: chest-up (mid-torso to top of head), head about 40% of canvas height, subject centered. Leave at least 15% empty magenta margin on ALL four sides; hands and hair fully inside the frame, nothing cropped.
+${stickerBackgroundRule(mode)}
+- Framing: chest-up (mid-torso to top of head), head about 40% of canvas height, subject centered. Leave at least 15% empty ${stickerMarginWord(mode)} margin on ALL four sides; hands and hair fully inside the frame, nothing cropped.
 - Edges: do NOT draw any outline, border, stroke, glow or contour around the figure — raw clean edges only. The white sticker border is added later.
 - No text, letters, captions, emojis, watermarks or logos anywhere.
 - Expression: lively but natural; the person should be instantly recognisable.
-- Avoid magenta or pink tones on the subject itself (clothes, lips, cheeks lean warm/neutral) so chroma cleanup does not eat the figure.
+${stickerSpillRule(mode)}
 `.trim();
+}
 
-/** Worker prompt for Gemini / Grok / Seedream sticker jobs — initial style job or emotion / motion edit. */
-export function assembleStickerFinalPrompt(rawPrompt: string): string {
+export const GENERATE_STICKER_CRITICAL_RULES = generateStickerCriticalRules("magenta");
+
+/**
+ * Worker prompt for sticker jobs — initial style job or emotion / motion edit.
+ * `magenta` for RGB-only providers (Gemini / Grok / Seedream), `transparent` for GPT Image.
+ */
+export function assembleStickerFinalPrompt(rawPrompt: string, mode: StickerBackgroundMode = "magenta"): string {
   const edit = parseStickerEditFromPrompt(rawPrompt);
-  if (edit) return assembleStickerEditFinalPrompt(edit);
+  if (edit) return assembleStickerEditFinalPrompt(edit, mode);
   const style = stripStickerPromptMarker(rawPrompt);
-  return [style, "", GENERATE_STICKER_CRITICAL_RULES].join("\n").trim();
+  return [style, "", generateStickerCriticalRules(mode)].join("\n").trim();
 }
 
 export function stickerFingerprintFields(photoStoragePath: string, styleId: string): {

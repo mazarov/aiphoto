@@ -3,6 +3,13 @@ import test from "node:test";
 import {
   FLUX_2_FLEX_CREDIT_COST,
   FLUX_2_FLEX_OPENROUTER_MODEL,
+  GPT_IMAGE_25_FLARE_CREDIT_COST,
+  GPT_IMAGE_25_FLARE_IMAGE_MODEL,
+  GPT_IMAGE_25_FLARE_OPENROUTER_MODEL,
+  imageModelOutputsAlpha,
+  isGptImageModel,
+  openRouterMaxImageInputs,
+  parseGptImageQuality,
   SEEDANCE_25_CREDIT_COST_PER_SECOND,
   SEEDANCE_25_OPENROUTER_MODEL,
   SEEDANCE_25_VIDEO_MODEL,
@@ -29,6 +36,28 @@ test("Seedream 4.5 hides 1K and clamps prefs to 2K", () => {
   assert.equal(clampImageSizeForModel("seedream-4.5", "1K"), "2K");
   assert.equal(clampImageSizeForModel("seedream-4.5", "4K"), "4K");
   assert.equal(clampImageSizeForModel("grok-imagine-image-2.0", "4K"), "2K");
+});
+
+test("GPT Image 2.5 Flare: OpenRouter model, 1K only, alpha output, 5 credits", () => {
+  assert.equal(isGptImageModel(GPT_IMAGE_25_FLARE_IMAGE_MODEL), true);
+  assert.equal(isGptImageModel("seedream-5.0-pro"), false);
+  assert.equal(isOpenRouterImageModel(GPT_IMAGE_25_FLARE_IMAGE_MODEL), true);
+  assert.equal(imageModelOutputsAlpha(GPT_IMAGE_25_FLARE_IMAGE_MODEL), true);
+  assert.equal(imageModelOutputsAlpha("gemini-3.1-flash-image"), false);
+  assert.equal(openRouterVendorModel(GPT_IMAGE_25_FLARE_IMAGE_MODEL), GPT_IMAGE_25_FLARE_OPENROUTER_MODEL);
+  assert.equal(openRouterSendsResolution(GPT_IMAGE_25_FLARE_IMAGE_MODEL), false);
+  assert.equal(openRouterMaxImageInputs(GPT_IMAGE_25_FLARE_IMAGE_MODEL), 16);
+  assert.deepEqual(
+    imageSizeOptionsForModel(GPT_IMAGE_25_FLARE_IMAGE_MODEL).map((option) => option.value),
+    ["1K"],
+  );
+  assert.equal(clampImageSizeForModel(GPT_IMAGE_25_FLARE_IMAGE_MODEL, "4K"), "1K");
+  assert.deepEqual(mapOpenRouterImageSize(GPT_IMAGE_25_FLARE_IMAGE_MODEL, "2K"), { size: "1K", clamped: true });
+  assert.equal(forcedImageCreditCost(GPT_IMAGE_25_FLARE_IMAGE_MODEL), GPT_IMAGE_25_FLARE_CREDIT_COST);
+  assert.equal(GPT_IMAGE_25_FLARE_CREDIT_COST, 5);
+  assert.equal(parseGptImageQuality("HIGH"), "high");
+  assert.equal(parseGptImageQuality("xhigh"), "medium", "unknown tiers fall back to medium");
+  assert.equal(parseGptImageQuality(undefined), "medium");
 });
 
 test("Seedream 5.0 Pro and Flux 2 Flex hide 4K and clamp to 2K", () => {

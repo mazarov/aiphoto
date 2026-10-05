@@ -79,6 +79,11 @@ export const GENERATION_MODEL_DISPLAY: Record<string, GenerationModelDisplay> = 
     tile: "Flux",
     description: "Баланс качества, скорости и контроля",
   },
+  "gpt-image-2.5-flare": {
+    label: "GPT Image 2.5",
+    tile: "GPT Image",
+    description: "Точный текст и стикеры без фона",
+  },
   "grok-imagine-video-1.5": {
     label: "Grok Imagine 1.5",
     tile: "Grok",

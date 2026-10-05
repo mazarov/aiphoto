@@ -3,6 +3,28 @@ export async function downloadGenerationResult(url: string, filename: string) {
   if (!res.ok) throw new Error("download_failed");
 
   const blob = await res.blob();
+  saveBlobAs(blob, filename);
+}
+
+/**
+ * Ready-to-upload sticker for a messenger via `GET /api/generations/:id/sticker-file`.
+ * Throws with the server `message` (or a generic one) so the sheet can show it.
+ */
+export async function downloadStickerPlatformFile(generationId: string, platformId: string, filename: string) {
+  const res = await fetch(
+    `/api/generations/${encodeURIComponent(generationId)}/sticker-file?platform=${encodeURIComponent(platformId)}`,
+    { credentials: "include" },
+  );
+  if (!res.ok) {
+    const data = (await res.json().catch(() => ({}))) as { message?: string };
+    throw new Error(
+      data.message || (res.status === 503 ? "Сервер занят, попробуйте ещё раз" : "Не удалось подготовить стикер"),
+    );
+  }
+  saveBlobAs(await res.blob(), filename);
+}
+
+function saveBlobAs(blob: Blob, filename: string) {
   const objectUrl = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = objectUrl;

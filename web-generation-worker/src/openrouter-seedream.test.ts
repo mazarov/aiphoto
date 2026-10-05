@@ -118,6 +118,45 @@ test("Seedream 5.0 Pro and Flux 2 Flex use vendor slugs", () => {
   assert.equal(seedreamLoose.safety_tolerance, undefined);
 });
 
+test("GPT Image 2.5 Flare body: vendor slug, quality, transparent background, no resolution", () => {
+  const sticker = buildSeedreamImageBody({
+    prompt: "sticker",
+    size: "1K",
+    aspectRatio: "1:1",
+    model: "gpt-image-2.5-flare",
+    imageInput: ["https://storage.example.test/sign/photo.jpg"],
+    quality: "medium",
+    transparentBackground: true,
+  });
+  assert.equal(sticker.model, "openai/gpt-image-2.5-flare");
+  assert.equal(sticker.quality, "medium");
+  assert.equal(sticker.background, "transparent");
+  assert.equal(sticker.output_format, "png");
+  assert.equal(sticker.resolution, undefined);
+  assert.equal(sticker.aspect_ratio, "1:1");
+  assert.equal((sticker.input_references as unknown[]).length, 1);
+
+  const plain = buildSeedreamImageBody({
+    prompt: "poster",
+    size: "1K",
+    aspectRatio: "3:4",
+    model: "gpt-image-2.5-flare",
+  });
+  assert.equal(plain.quality, "medium", "default tier when none is passed");
+  assert.equal(plain.background, undefined, "opaque unless a sticker job asks for alpha");
+
+  const seedreamSticker = buildSeedreamImageBody({
+    prompt: "sticker",
+    size: "2K",
+    aspectRatio: "1:1",
+    model: "seedream-5.0-pro",
+    quality: "low",
+    transparentBackground: true,
+  });
+  assert.equal(seedreamSticker.quality, undefined, "quality / background are GPT Image knobs only");
+  assert.equal(seedreamSticker.background, undefined);
+});
+
 test("Flux safety_tolerance clamps 0..5", () => {
   assert.equal(clampFluxSafetyTolerance(5), 5);
   assert.equal(clampFluxSafetyTolerance(2.4), 2);

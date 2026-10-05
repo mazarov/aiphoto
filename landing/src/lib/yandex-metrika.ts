@@ -68,6 +68,7 @@ export const YM_GOAL_GENERATION_PHOTO_PROMPT_START =
 export const YM_GOAL_STICKER_UPLOAD = "sticker_upload";
 export const YM_GOAL_STICKER_START = "sticker_start";
 export const YM_GOAL_STICKER_DONE = "sticker_done";
+/** Platform file saved from the sticker result. Params: `{ platform }`. */
 export const YM_GOAL_STICKER_DOWNLOAD = "sticker_download";
 /** Result rail actions on a finished sticker. Params: `{ preset }` / `{ length }`. */
 export const YM_GOAL_STICKER_EMOTION = "sticker_emotion";

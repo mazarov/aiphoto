@@ -51,6 +51,7 @@ import {
 } from "@/components/GenerationCardMenu";
 import {
   downloadGenerationResult,
+  downloadStickerPlatformFile,
   shareGenerationResult,
 } from "@/lib/generation-result-client-actions";
 import { getGenerationPromptRemixUrl } from "@/lib/foto-v-promt-config";
@@ -128,6 +129,7 @@ import {
   YM_GOAL_STICKER_MOTION,
   YM_GOAL_STICKER_START,
   YM_GOAL_STICKER_TEXT,
+  YM_GOAL_STICKER_DOWNLOAD,
   YM_GOAL_ANALYZE_AUTH_REQUIRED,
   YM_GOAL_ANALYZE_NO_CREDITS,
   YM_GOAL_GENERATION_PHOTO_PROMPT_OPEN,
@@ -226,6 +228,7 @@ import {
   STICKER_TEXT_ACTION,
   isStickerEditKind,
   type StickerEditAction,
+  type StickerPlatform,
 } from "@/lib/sticker";
 import {
   loadStickerCatalogClient,
@@ -240,6 +243,7 @@ import {
 } from "@/lib/sticker-action-sheet";
 import { StickerStylePicker, STICKER_STYLE_PICKER_TITLE } from "@/components/sticker/StickerStylePicker";
 import { StickerActionSheet } from "@/components/sticker/StickerActionSheet";
+import { StickerDownloadSheet } from "@/components/sticker/StickerDownloadSheet";
 import {
   CAMERA_ORBIT_EDIT_KIND,
   type CameraPose,
@@ -449,6 +453,9 @@ export function CardInlineGeneratePanel({
   const [stickerCatalogLoading, setStickerCatalogLoading] = useState(false);
   /** Open result action («emotion» / «motion» / «text») on a finished sticker. */
   const [stickerActionOpen, setStickerActionOpen] = useState<StickerResultAction | null>(null);
+  const [stickerDownloadOpen, setStickerDownloadOpen] = useState(false);
+  const [stickerDownloadBusy, setStickerDownloadBusy] = useState<StickerPlatform["id"] | null>(null);
+  const [stickerDownloadError, setStickerDownloadError] = useState<string | null>(null);
   const [stickerTextBusy, setStickerTextBusy] = useState(false);
   const stickerStyleTouchedRef = useRef(false);
   const [photoshootOpen, setPhotoshootOpen] = useState(false);
@@ -2557,6 +2564,7 @@ export function CardInlineGeneratePanel({
           if (isSticker) {
             setResultEditKind(STICKER_EDIT_KIND);
             setStickerActionOpen(null);
+            setStickerDownloadOpen(false);
             if (!isStickerEdit) {
               reachYandexMetrikaGoal(YM_GOAL_STICKER_DONE, { style: stickerStyleId });
             }
@@ -3118,6 +3126,7 @@ export function CardInlineGeneratePanel({
     !cameraOrbitOpen &&
     !photoshootOpen &&
     !stickerActionOpen &&
+    !stickerDownloadOpen &&
     !(isDock && dockExpanded);
   const resultPrimary = resultPrimaryAction({
     showCreditsCta,
@@ -3157,10 +3166,38 @@ export function CardInlineGeneratePanel({
     Boolean(resultUrl) &&
     Boolean(generationId) &&
     resultModality === "image";
-  const hideComposeChrome = showPhotoshootOverlay || showCameraOverlay || showStickerActionOverlay;
+  const showStickerDownloadOverlay =
+    stickerDownloadOpen &&
+    stickerResult &&
+    phase === "done" &&
+    Boolean(resultUrl) &&
+    Boolean(generationId) &&
+    resultModality === "image";
+  const hideComposeChrome =
+    showPhotoshootOverlay || showCameraOverlay || showStickerActionOverlay || showStickerDownloadOverlay;
   const openStickerAction = (action: StickerResultAction) => {
     setError("");
     setStickerActionOpen(action);
+  };
+  const closeStickerDownload = () => {
+    setStickerDownloadOpen(false);
+    setStickerDownloadError(null);
+  };
+  /** Platform-specific file (Telegram WebP / WhatsApp WebP ≤100 KB / Max PNG) built server-side. */
+  const downloadStickerFor = async (platform: StickerPlatform) => {
+    if (!generationId || stickerDownloadBusy) return;
+    setStickerDownloadBusy(platform.id);
+    setStickerDownloadError(null);
+    try {
+      await downloadStickerPlatformFile(generationId, platform.id, platform.filename);
+      reachYandexMetrikaGoal(YM_GOAL_STICKER_DOWNLOAD, { platform: platform.id });
+      setStickerDownloadOpen(false);
+      setToast(`Стикер для ${platform.label} сохранён`);
+    } catch (err) {
+      setStickerDownloadError(err instanceof Error ? err.message : "Не удалось подготовить стикер");
+    } finally {
+      setStickerDownloadBusy(null);
+    }
   };
   const submitStickerEdit = async (
     action: StickerEditAction,
@@ -3216,6 +3253,7 @@ export function CardInlineGeneratePanel({
         photoshootTileUrls: null,
       });
       setStickerActionOpen(null);
+      setStickerDownloadOpen(false);
       onGenerationComplete?.();
       return true;
     } catch {
@@ -3636,8 +3674,16 @@ export function CardInlineGeneratePanel({
             {
               id: "download",
               label: busyAction === "download" ? "Скачиваем…" : "Скачать",
+              detail: stickerResult ? "Telegram · WhatsApp · Max" : undefined,
               disabled: Boolean(busyAction),
-              onClick: () => void handleResultAction("download"),
+              onClick: () => {
+                if (stickerResult) {
+                  setStickerDownloadError(null);
+                  setStickerDownloadOpen(true);
+                  return;
+                }
+                void handleResultAction("download");
+              },
               icon: (
                 <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
                   <path d="M12 3v12m0 0 4-4m-4 4-4-4M5 20h14" strokeLinecap="round" strokeLinejoin="round" />
@@ -3952,7 +3998,16 @@ export function CardInlineGeneratePanel({
         />
       ) : null}
 
-      {!isDock && !showCameraOverlay && !showPhotoshootOverlay && !showStickerActionOverlay ? (
+      {showStickerDownloadOverlay ? (
+        <StickerDownloadSheet
+          busyPlatform={stickerDownloadBusy}
+          error={stickerDownloadError}
+          onClose={closeStickerDownload}
+          onPick={(platform) => void downloadStickerFor(platform)}
+        />
+      ) : null}
+
+      {!isDock && !hideComposeChrome ? (
       <header
         className={`relative z-30 flex min-h-14 shrink-0 items-center justify-between gap-2 border-b px-3 ${
           isMobile ? "pb-2 pt-[max(0.5rem,env(safe-area-inset-top))]" : "py-2"

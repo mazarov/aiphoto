@@ -24,11 +24,31 @@ export const SEEDREAM_50_PRO_IMAGE_MODEL = "seedream-5.0-pro";
 export const SEEDREAM_50_PRO_OPENROUTER_MODEL = "bytedance-seed/seedream-5-0-pro";
 export const FLUX_2_FLEX_IMAGE_MODEL = "flux-2-flex";
 export const FLUX_2_FLEX_OPENROUTER_MODEL = "black-forest-labs/flux.2-flex";
+/**
+ * OpenAI GPT Image 2.5 Flare via OpenRouter. Only image model with a real alpha channel
+ * (`background: "transparent"`), so sticker jobs skip chroma key / rembg. 1024px output only.
+ */
+export const GPT_IMAGE_25_FLARE_IMAGE_MODEL = "gpt-image-2.5-flare";
+export const GPT_IMAGE_25_FLARE_OPENROUTER_MODEL = "openai/gpt-image-2.5-flare";
 /** PromptShot credits for OpenRouter image models. SSOT for picker + enqueue. */
 export const OPENROUTER_IMAGE_CREDIT_COST = 10;
 export const SEEDREAM_45_CREDIT_COST = OPENROUTER_IMAGE_CREDIT_COST;
 export const SEEDREAM_50_PRO_CREDIT_COST = OPENROUTER_IMAGE_CREDIT_COST;
 export const FLUX_2_FLEX_CREDIT_COST = OPENROUTER_IMAGE_CREDIT_COST;
+/** ≈$0.022 per 1K `medium` edit → 5 credits (2.5 ₽) keeps the margin without pricing it like Seedream. */
+export const GPT_IMAGE_25_FLARE_CREDIT_COST = 5;
+
+/** OpenAI rendering tiers exposed by OpenRouter for GPT Image models. */
+export const GPT_IMAGE_QUALITY_OPTIONS = ["low", "medium", "high"] as const;
+export type GptImageQuality = (typeof GPT_IMAGE_QUALITY_OPTIONS)[number];
+/** 1024px output downscaled to a 512 sticker — `medium` is already 2× oversampling; `high` is 4× the price for no visible gain. */
+export const DEFAULT_GPT_IMAGE_QUALITY: GptImageQuality = "medium";
+export function parseGptImageQuality(value: unknown): GptImageQuality {
+  const raw = String(value ?? "").trim().toLowerCase();
+  return (GPT_IMAGE_QUALITY_OPTIONS as readonly string[]).includes(raw)
+    ? (raw as GptImageQuality)
+    : DEFAULT_GPT_IMAGE_QUALITY;
+}
 
 export function isGrokVideoModel(model: unknown): boolean {
   return typeof model === "string" && model.startsWith("grok-imagine-video");
@@ -54,29 +74,41 @@ export function isFluxImageModel(model: unknown): boolean {
   return typeof model === "string" && model.startsWith("flux-");
 }
 
+export function isGptImageModel(model: unknown): boolean {
+  return typeof model === "string" && model.startsWith("gpt-image-");
+}
+
 export function isOpenRouterImageModel(model: unknown): boolean {
-  return isSeedreamImageModel(model) || isFluxImageModel(model);
+  return isSeedreamImageModel(model) || isFluxImageModel(model) || isGptImageModel(model);
+}
+
+/** Models whose output carries a real alpha channel when asked for `background: "transparent"`. */
+export function imageModelOutputsAlpha(model: unknown): boolean {
+  return isGptImageModel(model);
 }
 
 export function openRouterVendorModel(productId: string): string {
   if (productId === SEEDREAM_50_PRO_IMAGE_MODEL) return SEEDREAM_50_PRO_OPENROUTER_MODEL;
   if (productId === FLUX_2_FLEX_IMAGE_MODEL) return FLUX_2_FLEX_OPENROUTER_MODEL;
+  if (productId === GPT_IMAGE_25_FLARE_IMAGE_MODEL) return GPT_IMAGE_25_FLARE_OPENROUTER_MODEL;
   return SEEDREAM_45_OPENROUTER_MODEL;
 }
 
 export function openRouterMaxImageInputs(productId: string): number {
   if (productId === SEEDREAM_50_PRO_IMAGE_MODEL) return 14;
   if (productId === FLUX_2_FLEX_IMAGE_MODEL) return 8;
+  if (isGptImageModel(productId)) return 16;
   return 10;
 }
 
-/** Flux Image API does not list `resolution`; Seedream does. */
+/** Flux and GPT Image endpoints do not list `resolution` (GPT Image: aspect_ratio + quality only); Seedream does. */
 export function openRouterSendsResolution(productId: string): boolean {
-  return !isFluxImageModel(productId);
+  return !isFluxImageModel(productId) && !isGptImageModel(productId);
 }
 
 export function forcedImageCreditCost(modelId: string): number | null {
   if (isGrokImageModel(modelId)) return GROK_IMAGINE_IMAGE_CREDIT_COST;
+  if (isGptImageModel(modelId)) return GPT_IMAGE_25_FLARE_CREDIT_COST;
   if (isOpenRouterImageModel(modelId)) return OPENROUTER_IMAGE_CREDIT_COST;
   return null;
 }
@@ -138,10 +170,14 @@ export function isImageSize(value: unknown): value is string {
 /**
  * Grok / Flux / Seedream 5.0 Pro: 1K|2K.
  * Seedream 4.5: 2K|4K.
+ * GPT Image (OpenRouter): 1K only.
  */
 export function imageSizeOptionsForModel(
   model?: string | null
 ): readonly { value: string; label: string }[] {
+  if (isGptImageModel(model)) {
+    return IMAGE_SIZE_OPTIONS.filter((option) => option.value === "1K");
+  }
   if (isGrokImageModel(model) || isFluxImageModel(model) || isSeedream50ProImageModel(model)) {
     return IMAGE_SIZE_OPTIONS.filter((option) => option.value !== "4K");
   }
@@ -155,6 +191,7 @@ export function clampImageSizeForModel(
   model: string | null | undefined,
   imageSize: string
 ): string {
+  if (isGptImageModel(model)) return "1K";
   if (
     (isGrokImageModel(model) || isFluxImageModel(model) || isSeedream50ProImageModel(model))
     && imageSize === "4K"
