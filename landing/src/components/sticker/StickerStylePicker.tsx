@@ -16,6 +16,8 @@ type Props = {
   onConfirmed?: () => void;
   tone?: "light" | "dark";
   confirmCtaClassName: string;
+  /** Sheet already scrolls and draws «Готово» — used when the pack set sits under the styles. */
+  embedded?: boolean;
 };
 
 /**
@@ -30,6 +32,7 @@ export function StickerStylePicker({
   onConfirmed,
   tone = "light",
   confirmCtaClassName,
+  embedded = false,
 }: Props) {
   const dark = tone === "dark";
 
@@ -45,8 +48,8 @@ export function StickerStylePicker({
     }`;
 
   return (
-    <div className="flex h-full min-h-0 min-w-0 w-full flex-col">
-      <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain p-1">
+    <div className={embedded ? "min-w-0 w-full" : "flex h-full min-h-0 min-w-0 w-full flex-col"}>
+      <div className={embedded ? "min-w-0 p-1" : "min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain p-1"}>
         {loading && !styles.length ? (
           <div className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-3" aria-busy="true">
             {Array.from({ length: 6 }).map((_, index) => (
@@ -83,7 +86,7 @@ export function StickerStylePicker({
         )}
       </div>
 
-      {onConfirmed ? (
+      {!embedded && onConfirmed ? (
         <button type="button" onClick={onConfirmed} className={confirmCtaClassName} disabled={!selectedId}>
           {STICKER_STYLE_PICKER_CONFIRM_CTA}
         </button>

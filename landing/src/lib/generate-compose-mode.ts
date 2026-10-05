@@ -5,6 +5,7 @@ import {
 } from "./generation/image-options";
 import { PHOTOSHOOT_EDIT_KIND } from "./photoshoot";
 import { STICKER_EDIT_KIND } from "./sticker";
+import { STICKER_PACK_EDIT_KIND } from "./sticker-pack";
 
 /** Exclusive generate-dock mode. Photoshoot / photo_prompt / sticker are buttons, not model sheets. */
 export type GenerateComposeMode =
@@ -171,20 +172,26 @@ export function composeSecondaryTools(mode: GenerateComposeMode): ComposeSeconda
   return [];
 }
 
-/** «Стикер» tool has two kinds; the pack kind only shows examples until pack generation ships. */
+/** «Стикер» tool has two kinds. Pack style and pack set are both picked in the «Стиль» sheet. */
 export type StickerToolKind = "single" | "pack";
 export const STICKER_TOOL_KINDS: readonly StickerToolKind[] = ["single", "pack"];
 export function stickerToolKindLabel(kind: StickerToolKind): string {
   return kind === "pack" ? "Стикер пак" : "Стикер";
 }
 export const STICKER_PACK_SOON_CTA = "Стикер пак — скоро";
+export const STICKER_PACK_CREATE_CTA = "Создать стикер пак";
 
-/** Pack kind cannot enqueue yet: the footer button is disabled with «скоро». */
+/**
+ * Pack footer stays «скоро» until this viewer may enqueue.
+ * `enqueueEnabled` is `stickerPackEnabled` from generation-config (flag or allowlist).
+ */
 export function composeCtaDisabledForStickerPack(input: {
   composeMode: GenerateComposeMode;
   stickerKind: StickerToolKind;
+  enqueueEnabled?: boolean;
 }): boolean {
-  return input.composeMode === "sticker" && input.stickerKind === "pack";
+  if (input.composeMode !== "sticker" || input.stickerKind !== "pack") return false;
+  return input.enqueueEnabled !== true;
 }
 
 /** Caption on the «Инструмент» tile. */
@@ -345,7 +352,12 @@ export function canEnqueueWhilePhotoshootSelected(input: {
   editKind?: string | null;
 }): boolean {
   if (input.composeMode === "photo_prompt") return false;
-  if (input.composeMode === "sticker") return input.editKind === STICKER_EDIT_KIND;
+  if (input.composeMode === "sticker") {
+    return (
+      input.editKind === STICKER_EDIT_KIND ||
+      input.editKind === STICKER_PACK_EDIT_KIND
+    );
+  }
   if (input.composeMode !== "photoshoot") return true;
   return input.editKind === PHOTOSHOOT_EDIT_KIND;
 }

@@ -186,6 +186,7 @@ import {
   COMPOSE_PHOTOS_TOOL_EDGE_LABEL,
   COMPOSE_TOOL_SHEET_DONE_CTA,
   COMPOSE_TOOL_SHEET_TITLE,
+  STICKER_PACK_CREATE_CTA,
   STICKER_PACK_SOON_CTA,
   composeCtaDisabledForStickerPack,
   composePhotosToolCountLabel,
@@ -237,6 +238,10 @@ import {
   writeCachedStickerEnabled,
 } from "@/lib/sticker-availability";
 import {
+  STICKER_PACK_DEFAULT_CREDIT_COST,
+  STICKER_PACK_EDIT_KIND,
+} from "@/lib/sticker-pack";
+import {
   DEFAULT_STICKER_STYLE_ID,
   STICKER_EDIT_KIND,
   STICKER_STYLES as STICKER_STYLES_FALLBACK,
@@ -257,7 +262,8 @@ import {
   STICKER_BORDER_COPY,
   type StickerResultAction,
 } from "@/lib/sticker-action-sheet";
-import { StickerStylePicker, STICKER_STYLE_PICKER_TITLE } from "@/components/sticker/StickerStylePicker";
+import { StickerPackSetPicker, STICKER_PACK_SET_PICKER_TITLE } from "@/components/sticker/StickerPackSetPicker";
+import { StickerStylePicker, STICKER_STYLE_PICKER_CONFIRM_CTA, STICKER_STYLE_PICKER_TITLE } from "@/components/sticker/StickerStylePicker";
 import {
   loadStickerPackExamplesClient,
   peekStickerPackExamples,
@@ -474,11 +480,15 @@ export function CardInlineGeneratePanel({
   const [stickerStyleId, setStickerStyleId] = useState(DEFAULT_STICKER_STYLE_ID);
   const [stickerModelId, setStickerModelId] = useState(GPT_IMAGE_25_FLARE_IMAGE_MODEL);
   const [stickerCost, setStickerCost] = useState<number | null>(GPT_IMAGE_25_FLARE_CREDIT_COST);
+  /** From generation-config: flag on, or this email is on the internal allowlist. */
+  const [stickerPackEnabled, setStickerPackEnabled] = useState(false);
+  const [stickerPackCreditCost, setStickerPackCreditCost] = useState(STICKER_PACK_DEFAULT_CREDIT_COST);
   const [stickerCatalog, setStickerCatalog] = useState<StickerCatalogClient | null>(() => peekStickerCatalog());
   const [stickerCatalogLoading, setStickerCatalogLoading] = useState(false);
   const [stickerPacks, setStickerPacks] = useState<StickerPackExampleClient[] | null>(() => peekStickerPackExamples());
-  /** «Стикер» tool: one sticker or a pack. Pack only shows examples until pack generation ships. */
+  /** «Стикер» tool: one sticker or a pack. Pack enqueue follows `stickerPackEnabled`. */
   const [stickerKind, setStickerKind] = useState<StickerToolKind>("single");
+  const [stickerPackSetId, setStickerPackSetId] = useState<string | null>(null);
   /** Open result action («emotion» / «motion» / «text») on a finished sticker. */
   const [stickerActionOpen, setStickerActionOpen] = useState<StickerResultAction | null>(null);
   const [stickerDownloadOpen, setStickerDownloadOpen] = useState(false);
@@ -1090,6 +1100,8 @@ export function CardInlineGeneratePanel({
           photoshootModel?: { id?: string; cost?: number } | null;
           stickerEnabled?: boolean;
           stickerModel?: { id?: string; cost?: number } | null;
+          stickerPackEnabled?: boolean;
+          stickerPackCreditCost?: number;
           listingVideoRepeatEnabled?: boolean;
           preserveOutfitEnabled?: boolean;
           composeExampleMatchEnabled?: boolean;
@@ -1168,6 +1180,13 @@ export function CardInlineGeneratePanel({
           typeof configData.stickerModel?.cost === "number"
             ? configData.stickerModel.cost
             : GPT_IMAGE_25_FLARE_CREDIT_COST,
+        );
+        setStickerPackEnabled(configData.stickerPackEnabled === true);
+        setStickerPackCreditCost(
+          typeof configData.stickerPackCreditCost === "number" &&
+            Number.isFinite(configData.stickerPackCreditCost)
+            ? configData.stickerPackCreditCost
+            : STICKER_PACK_DEFAULT_CREDIT_COST,
         );
         setListingVideoRepeatEnabled(Boolean(configData.listingVideoRepeatEnabled));
         setPreserveOutfitEnabled(Boolean(configData.preserveOutfitEnabled));
@@ -2174,6 +2193,8 @@ export function CardInlineGeneratePanel({
     const isCameraOrbit = options?.editKind === CAMERA_ORBIT_EDIT_KIND;
     const isPhotoshoot = options?.editKind === PHOTOSHOOT_EDIT_KIND;
     const isSticker = options?.editKind === STICKER_EDIT_KIND;
+    const isStickerPack = options?.editKind === STICKER_PACK_EDIT_KIND;
+    const isStickerJob = isSticker || isStickerPack;
     const isStickerEdit =
       isSticker && Boolean(options?.parentGenerationId?.trim()) && Boolean(options?.stickerAction);
     if (
@@ -2206,7 +2227,7 @@ export function CardInlineGeneratePanel({
       ? "CAMERA ORBIT"
       : isPhotoshoot
         ? "PHOTOSHOOT"
-      : isSticker
+      : isStickerJob
         ? "STICKER"
       : (options?.promptOverride ?? draftPrompt).trim()
         || (isVideo ? DEFAULT_VIDEO_PROMPT : "");
@@ -2232,7 +2253,7 @@ export function CardInlineGeneratePanel({
       setExpandedControl("model");
       return false;
     }
-    if (!isCameraOrbit && !isPhotoshoot && !isSticker && prompt.length < 8) {
+    if (!isCameraOrbit && !isPhotoshoot && !isStickerJob && prompt.length < 8) {
       setError("Промпт слишком короткий");
       return false;
     }
@@ -2277,13 +2298,18 @@ export function CardInlineGeneratePanel({
         return false;
       }
     }
-    if (isSticker && !isStickerEdit) {
+    if ((isSticker && !isStickerEdit) || isStickerPack) {
       const libraryPath =
         photoshootLibraryPathOverride || photosForEnqueue[0]?.storagePath || "";
       if (!libraryPath || photosForEnqueue.length !== 1) {
         setError(STICKER_NEEDS_LIBRARY_PHOTO);
         return false;
       }
+    }
+    if (isStickerPack && !stickerPackSetId) {
+      setError("Выберите набор стикер пака");
+      setExpandedControl("example");
+      return false;
     }
     if (generateInFlightRef.current) return false;
     generateInFlightRef.current = true;
@@ -2334,8 +2360,8 @@ export function CardInlineGeneratePanel({
           imageSize: isVideo ? DEFAULT_VIDEO_RESOLUTION : imageSize,
           durationSeconds: isVideo ? videoDurationSeconds : undefined,
           cardId: resolvedCardId,
-          photoStoragePaths: isPhotoshoot || isSticker
-            ? parentGenerationId && (!isSticker || isStickerEdit)
+          photoStoragePaths: isPhotoshoot || isStickerJob
+            ? parentGenerationId && (!isStickerJob || isStickerEdit)
               ? []
               : [
                   photoshootLibraryPathOverride ||
@@ -2350,15 +2376,18 @@ export function CardInlineGeneratePanel({
               ? []
               : libraryStoragePaths(photosForEnqueue),
           parentGenerationId: parentGenerationId || null,
-          editInstruction: isVideo || isCameraOrbit || isPhotoshoot || isSticker ? null : editInstruction || null,
+          editInstruction: isVideo || isCameraOrbit || isPhotoshoot || isStickerJob ? null : editInstruction || null,
           editKind: isCameraOrbit
             ? CAMERA_ORBIT_EDIT_KIND
             : isPhotoshoot
               ? PHOTOSHOOT_EDIT_KIND
-              : isSticker
-                ? STICKER_EDIT_KIND
-                : undefined,
-          stickerStyleId: isSticker && !isStickerEdit ? stickerStyleId : undefined,
+              : isStickerPack
+                ? STICKER_PACK_EDIT_KIND
+                : isSticker
+                  ? STICKER_EDIT_KIND
+                  : undefined,
+          stickerStyleId: isStickerJob && !isStickerEdit ? stickerStyleId : undefined,
+          packContentSetId: isStickerPack ? stickerPackSetId : undefined,
           stickerAction: isStickerEdit ? options?.stickerAction : undefined,
           stickerPresetId: isStickerEdit ? options?.stickerPresetId || null : undefined,
           stickerCustomHint: isStickerEdit ? options?.stickerCustomHint || undefined : undefined,
@@ -2369,7 +2398,7 @@ export function CardInlineGeneratePanel({
             !isVideo &&
             !isCameraOrbit &&
             !isPhotoshoot &&
-            !isSticker &&
+            !isStickerJob &&
             !isContinuation &&
             !options?.forceTextOnly &&
             preserveOutfit &&
@@ -2439,6 +2468,12 @@ export function CardInlineGeneratePanel({
         if (isSticker && genData.error === "sticker_model_unavailable") {
           throw new Error(genData.message || "Модель стикеров временно недоступна");
         }
+        if (isStickerPack && genData.error === "sticker_pack_disabled") {
+          throw new Error(genData.message || "Стикер пак пока недоступен");
+        }
+        if (isStickerPack && genData.error === "sticker_pack_model_unavailable") {
+          throw new Error(genData.message || "Модель стикер пака временно недоступна");
+        }
         throw new Error(genData.message || genData.error || "Не удалось создать генерацию");
       }
       if (isCameraOrbit) {
@@ -2451,7 +2486,7 @@ export function CardInlineGeneratePanel({
       if (isPhotoshoot) {
         reachYandexMetrikaGoal(YM_GOAL_PHOTOSHOOT_SUBMIT, { credits: PHOTOSHOOT_CREDIT_COST });
       }
-      if (isSticker && !isStickerEdit) {
+      if (isStickerJob && !isStickerEdit) {
         reachYandexMetrikaGoal(YM_GOAL_STICKER_START, { style: stickerStyleId });
       }
       setPhase("generating");
@@ -2557,9 +2592,11 @@ export function CardInlineGeneratePanel({
             isPublished: false,
             editKind: isPhotoshoot
               ? PHOTOSHOOT_EDIT_KIND
-              : isSticker
-                ? STICKER_EDIT_KIND
-                : undefined,
+              : isStickerPack
+                ? STICKER_PACK_EDIT_KIND
+                : isSticker
+                  ? STICKER_EDIT_KIND
+                  : undefined,
             photoshootTileUrls: tiles,
           });
           if (nextModality !== "video") {
@@ -2592,6 +2629,12 @@ export function CardInlineGeneratePanel({
             setPhotoshootOpen(false);
             setPhotoshootLibraryPath(null);
             reachYandexMetrikaGoal(YM_GOAL_PHOTOSHOOT_READY);
+          }
+          if (isStickerPack) {
+            setResultEditKind(STICKER_PACK_EDIT_KIND);
+            setStickerActionOpen(null);
+            setStickerDownloadOpen(false);
+            reachYandexMetrikaGoal(YM_GOAL_STICKER_DONE, { style: stickerStyleId });
           }
           if (isSticker) {
             setResultEditKind(STICKER_EDIT_KIND);
@@ -2976,9 +3019,15 @@ export function CardInlineGeneratePanel({
       cancelled = true;
     };
   }, [stickerCompose, stickerPacks]);
+  useEffect(() => {
+    if (!stickerPacks?.length) return;
+    setStickerPackSetId((current) => current ?? stickerPacks[0].id);
+  }, [stickerPacks]);
   const stickerStyles = stickerCatalog?.styles ?? STICKER_STYLES_FALLBACK;
   const stickerPresetsFor = (action: StickerResultAction) =>
     action === "emotion" ? stickerCatalog?.emotions ?? [] : action === "motion" ? stickerCatalog?.motions ?? [] : [];
+  const selectedStickerPack =
+    stickerPacks?.find((pack) => pack.id === stickerPackSetId) ?? stickerPacks?.[0] ?? null;
   const selectedStickerStyleLabel = stickerStyleTileLabel(stickerStyles, stickerStyleId);
   const selectedStickerExampleUrl =
     stickerStyles.find((style) => style.id === stickerStyleId)?.exampleUrls?.[0] ??
@@ -3060,8 +3109,18 @@ export function CardInlineGeneratePanel({
     ? displayTileLabelForGenerationModel(videoCostModel.id, videoCostModel.label)
     : null;
   /** Sticker footer always names the model and price — the model tile is not shown for this tool. */
-  const stickerPageCta = stickerCompose ? stickerStudioCta({ modelId: stickerModelId, cost: stickerCost }) : null;
-  const stickerPackSoon = composeCtaDisabledForStickerPack({ composeMode, stickerKind });
+  const stickerPageCta = stickerCompose
+    ? stickerStudioCta({
+        modelId: stickerModelId,
+        cost:
+          stickerKind === "pack" && stickerPackEnabled ? stickerPackCreditCost : stickerCost,
+      })
+    : null;
+  const stickerPackSoon = composeCtaDisabledForStickerPack({
+    composeMode,
+    stickerKind,
+    enqueueEnabled: stickerPackEnabled,
+  });
   const toolOptions = composeToolOptions({
     videoEnabled,
     photoshootEnabled,
@@ -4220,7 +4279,6 @@ export function CardInlineGeneratePanel({
             }
             stickerExampleUrl={composeMode === "sticker" ? selectedStickerExampleUrl : null}
             stickerKind={stickerKind}
-            stickerPacks={stickerPacks}
             className="min-h-0 flex-1 px-2 py-4"
           />
         ) : null}
@@ -4887,7 +4945,57 @@ export function CardInlineGeneratePanel({
                 </svg>
               </button>
             </div>
-            {stickerCompose ? (
+            {stickerCompose && stickerKind === "pack" ? (
+              <div className="flex h-full min-h-0 min-w-0 w-full flex-col">
+                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+                  <p
+                    className={`px-1 pb-2 text-[13px] font-semibold ${
+                      dockExampleExpanded ? "text-white" : "text-zinc-900"
+                    }`}
+                  >
+                    {STICKER_PACK_SET_PICKER_TITLE}
+                  </p>
+                  <StickerPackSetPicker
+                    packs={stickerPacks}
+                    selectedId={stickerPackSetId}
+                    tone={dockExampleExpanded ? "dark" : "light"}
+                    onSelect={(pack) => {
+                      setStickerPackSetId(pack.id);
+                      setError("");
+                    }}
+                  />
+                  <p
+                    className={`px-1 pb-2 pt-4 text-[13px] font-semibold ${
+                      dockExampleExpanded ? "text-white" : "text-zinc-900"
+                    }`}
+                  >
+                    {STICKER_STYLE_PICKER_TITLE}
+                  </p>
+                  <StickerStylePicker
+                    embedded
+                    styles={stickerStyles}
+                    loading={stickerCatalogLoading}
+                    selectedId={stickerStyleId}
+                    tone={dockExampleExpanded ? "dark" : "light"}
+                    confirmCtaClassName={composeSheetCta}
+                    onSelect={(style) => {
+                      stickerStyleTouchedRef.current = true;
+                      setStickerStyleId(style.id);
+                      setError("");
+                    }}
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={closePrefsSheet}
+                  className={`${OVERLAY_BUTTON_UA_RESET} ${
+                    isMobile || dockExampleExpanded ? "" : "mt-3 "
+                  }${composeSheetCta}`}
+                >
+                  {STICKER_STYLE_PICKER_CONFIRM_CTA}
+                </button>
+              </div>
+            ) : stickerCompose ? (
               <StickerStylePicker
                 styles={stickerStyles}
                 loading={stickerCatalogLoading}
@@ -5009,7 +5117,6 @@ export function CardInlineGeneratePanel({
               stickerExampleUrl={composeMode === "sticker" ? selectedStickerExampleUrl : null}
               stickerKind={stickerKind}
               onStickerKindChange={setStickerKind}
-              stickerPacks={stickerPacks}
               photoExampleUrl={pickedExamplePreviewUrl || PHOTO_GUIDE_PORTRAIT_SRC}
               className="min-h-0 flex-1 overflow-y-auto px-2 py-4"
             />
@@ -5411,13 +5518,21 @@ export function CardInlineGeneratePanel({
             {showSeoExampleTool && secondaryTools.includes("style") ? (
               <ComposeDockToolTile
                 edgeLabel={SEO_COMPOSE_EXAMPLE_TOOL_EDGE_LABEL}
-                bodyLabel={stickerCompose ? selectedStickerStyleLabel : undefined}
-                previewUrls={
-                  stickerCompose
-                    ? composePreviewImageUrls([selectedStickerExampleUrl])
-                    : composePreviewImageUrls([pickedExamplePreviewUrl])
+                bodyLabel={
+                  stickerCompose && stickerKind === "pack"
+                    ? selectedStickerPack?.name ?? selectedStickerStyleLabel
+                    : stickerCompose
+                      ? selectedStickerStyleLabel
+                      : undefined
                 }
-                previewPlate={stickerCompose ? "clear" : "photo"}
+                previewUrls={
+                  stickerCompose && stickerKind === "pack"
+                    ? composePreviewImageUrls([selectedStickerPack?.exampleUrl])
+                    : stickerCompose
+                      ? composePreviewImageUrls([selectedStickerExampleUrl])
+                      : composePreviewImageUrls([pickedExamplePreviewUrl])
+                }
+                previewPlate={stickerCompose && stickerKind !== "pack" ? "clear" : "photo"}
                 icon={<ComposeExampleToolIcon className="h-5 w-5" />}
                 selected={expandedControl === "example"}
                 expanded={expandedControl === "example"}
@@ -5634,7 +5749,8 @@ export function CardInlineGeneratePanel({
                 if (sourcePhotoPicked) {
                   // Just-signed-in user: the upload is still in-browser; runGenerate persists it first.
                   void runGenerate({
-                    editKind: STICKER_EDIT_KIND,
+                    editKind:
+                      stickerKind === "pack" ? STICKER_PACK_EDIT_KIND : STICKER_EDIT_KIND,
                     photoStoragePath: photoshootLibraryFrame?.storagePath,
                   });
                   return;
@@ -5760,6 +5876,8 @@ export function CardInlineGeneratePanel({
                         <span className="shrink-0">
                           {stickerCompose && !sourcePhotoPicked
                             ? composeNeedsPhotoCtaLabel("sticker", { isAuthed })
+                            : stickerCompose && stickerKind === "pack"
+                              ? STICKER_PACK_CREATE_CTA
                             : seoNeedsExamplePick
                             ? SEO_COMPOSE_PICK_EXAMPLE_CTA
                             : seoNeedsImageModelPick

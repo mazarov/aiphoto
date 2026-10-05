@@ -9,7 +9,6 @@ export type ComposeToolGuideCopy = {
     | "source-to-tiles"
     | "prompt-from-photo"
     | "sticker-cutout"
-    | "sticker-pack"
     | "photo-frame"
     | "video-frame";
 };
@@ -30,12 +29,15 @@ export const COMPOSE_VIDEO_GUIDE: ComposeToolGuideCopy = {
   visual: "video-frame",
 };
 
-/** «Стикер» → «Стикер пак»: grids the bot already made; generation on the site is not open yet. */
+/**
+ * «Стикер» → «Стикер пак». The picture is the style picked on the «Стиль» button
+ * (same sticker example as the single kind). The pack set is chosen in that sheet too.
+ */
 export const COMPOSE_STICKER_PACK_GUIDE: ComposeToolGuideCopy = {
   title: "16 стикеров с одного фото",
-  lead: "Готовые наборы реакций. На сайте — скоро.",
+  lead: "Один стиль на все 16 — кнопка «Стиль».",
   hint: "",
-  visual: "sticker-pack",
+  visual: "sticker-cutout",
 };
 
 /** Empty-plate explainer when Фотосессии is selected. Same beat as «Какое фото добавить». */

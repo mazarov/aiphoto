@@ -12,7 +12,6 @@ import {
   type GenerateComposeMode,
   type StickerToolKind,
 } from "@/lib/generate-compose-mode";
-import type { StickerPackExampleClient } from "@/lib/sticker-pack-examples-client";
 import { PHOTO_GUIDE_PORTRAIT_SRC } from "@/lib/user-generation-photos-cache";
 import {
   PHOTOSHOOT_TILE_INDEXES,
@@ -35,13 +34,11 @@ type Props = {
   glassChrome: boolean;
   className?: string;
   photoshootExample?: PhotoshootGuideExample | null;
-  /** Real example sticker of the selected style — the single accent of the sticker guide. */
+  /** Real example sticker of the selected style — the accent of the sticker and pack guides. */
   stickerExampleUrl?: string | null;
   /** «Стикер» / «Стикер пак» toggle at the top of the sticker guide. */
   stickerKind?: StickerToolKind;
   onStickerKindChange?: (kind: StickerToolKind) => void;
-  /** Pack grids the bot already made — the pack kind's picture. */
-  stickerPacks?: readonly StickerPackExampleClient[] | null;
   /** Frame for the photo / video guide: picked catalog example or the guide portrait. */
   photoExampleUrl?: string | null;
 };
@@ -211,60 +208,6 @@ export function StickerKindToggle({
   );
 }
 
-/** Pack kind: the first pack's 4×4 grid is the hero, the rest run under it as thumbs. */
-function StickerPackVisual({
-  packs,
-  glassChrome,
-}: {
-  packs: readonly StickerPackExampleClient[];
-  glassChrome: boolean;
-}) {
-  const [hero, ...rest] = packs;
-  const plate = glassChrome ? "bg-white/10 ring-1 ring-white/15" : "bg-zinc-100 ring-1 ring-zinc-200";
-  if (!hero) {
-    return <div className={`h-44 w-44 animate-pulse rounded-2xl ${plate}`} aria-hidden />;
-  }
-  return (
-    <div className="flex w-full flex-col items-center">
-      <figure className="flex flex-col items-center">
-        {/* eslint-disable-next-line @next/next/no-img-element -- public bot bucket, not imgproxy */}
-        <img
-          src={hero.exampleUrl}
-          alt={`Пример стикерпака «${hero.name}»`}
-          width={512}
-          height={512}
-          decoding="async"
-          draggable={false}
-          className={`h-44 w-44 rounded-2xl object-cover ${plate}`}
-        />
-        <figcaption className={`mt-2 text-[13px] font-medium ${glassChrome ? "text-white/65" : "text-zinc-600"}`}>
-          {hero.name}
-        </figcaption>
-      </figure>
-      {rest.length ? (
-        <ul className="mt-3 flex max-w-full gap-1.5 overflow-x-auto" aria-label="Другие паки">
-          {rest.map((pack) => (
-            <li key={pack.id} className="shrink-0">
-              {/* eslint-disable-next-line @next/next/no-img-element -- public bot bucket, not imgproxy */}
-              <img
-                src={pack.exampleUrl}
-                alt={`Пример стикерпака «${pack.name}»`}
-                width={56}
-                height={56}
-                loading="lazy"
-                decoding="async"
-                draggable={false}
-                title={pack.name}
-                className={`h-14 w-14 rounded-xl object-cover ${plate}`}
-              />
-            </li>
-          ))}
-        </ul>
-      ) : null}
-    </div>
-  );
-}
-
 /** Photo / video kind: one frame; video adds a play badge. */
 function FrameVisual({
   src,
@@ -357,17 +300,15 @@ export function ComposeToolGuide({
   stickerExampleUrl = null,
   stickerKind = "single",
   onStickerKindChange,
-  stickerPacks = null,
   photoExampleUrl = null,
 }: Props) {
   const copy = composeToolGuideCopy(mode, { stickerKind });
   const titleId = GUIDE_TITLE_ID[mode];
   const photoPrompt = copy.visual === "prompt-from-photo";
   const sticker = copy.visual === "sticker-cutout";
-  const pack = copy.visual === "sticker-pack";
   const frame = copy.visual === "photo-frame" || copy.visual === "video-frame";
   /** Picture-first guides: hero above, one-line title under it. */
-  const pictureFirst = sticker || pack || frame;
+  const pictureFirst = sticker || frame;
 
   return (
     <section
@@ -388,7 +329,6 @@ export function ComposeToolGuide({
           />
         ) : null}
         {sticker ? <StickerCutoutVisual exampleUrl={stickerExampleUrl} /> : null}
-        {pack ? <StickerPackVisual packs={stickerPacks ?? []} glassChrome={glassChrome} /> : null}
         {frame ? (
           <FrameVisual
             src={photoExampleUrl || PHOTO_GUIDE_PORTRAIT_SRC}

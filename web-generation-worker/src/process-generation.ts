@@ -435,35 +435,29 @@ export async function processGeneration(
     throw new ProcessingError("input_missing", "Sticker job needs exactly one source photo", false);
   }
   /**
-   * Sticker pack: 4 OpenRouter sheets (2×2) → 16 stickers. Runs on the sticker finalize pipeline per cell,
-   * so it needs rembg for the chroma / rembg routes even when GPT Image returns real alpha.
+   * Sticker pack: one GPT Image sheet (4×4, transparent, 1024) scaled to 1512 → 16 stickers of 378.
+   * Cells already have alpha, so rembg is not on this path.
    */
   if (isStickerPackEditKind(job.edit_kind)) {
-    if (!config.rembgUrl) {
-      throw new ProcessingError("config_error", "REMBG_URL is required for sticker pack jobs", false);
-    }
     if (inputSource.paths.length !== 1 || job.parent_generation_id) {
       throw new ProcessingError("input_missing", "Sticker pack job needs exactly one source photo", false);
     }
-    if (!isOpenRouterImageModel(requestedModel)) {
+    if (!imageModelOutputsAlpha(requestedModel)) {
       throw new ProcessingError(
         "config_error",
-        `Sticker pack needs an OpenRouter image model, got ${requestedModel} (sticker_pack_model)`,
+        `Sticker pack needs a transparent-background model, got ${requestedModel} (sticker_pack_model)`,
         false,
       );
     }
     const packConfig = await getStickerWorkerConfig(supabase);
     const packModel = requestedModel;
-    const packMode = imageModelOutputsAlpha(packModel) ? "transparent" : "magenta";
     const signedUrls = await createSeedreamSignedUrls(supabase, inputSource);
     const pack = await processStickerPack({
       supabase,
       job,
       signal,
       context,
-      mode: packMode,
-      rembgUrl: config.rembgUrl,
-      bgRoute: packConfig.bgRoute,
+      mode: "transparent",
       ensureLease,
       runSheet: ({ prompt }) =>
         generateSeedreamImage({
@@ -473,7 +467,7 @@ export async function processGeneration(
           imageInput: signedUrls,
           imageInputClamped: false,
           quality: packConfig.imageQuality,
-          transparentBackground: packMode === "transparent",
+          transparentBackground: true,
           signal,
           context,
           ensureLease,

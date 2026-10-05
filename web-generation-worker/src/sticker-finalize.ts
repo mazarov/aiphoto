@@ -495,6 +495,56 @@ export async function removeStickerBackground(
   }
 }
 
+/**
+ * One sticker-pack cell from GPT Image (`background: transparent`).
+ * The provider already returned alpha, so this never calls chroma key or rembg.
+ * An opaque cell is a bad sheet: retry the job instead of segmenting it.
+ */
+export async function finalizeStickerPackCell(
+  input: Buffer,
+  options?: { signal?: AbortSignal; outputPx?: number },
+): Promise<EncodedGenerationResult & { sticker: StickerFinalizeStats }> {
+  if (options?.signal?.aborted) {
+    throw new ProcessingError("shutdown", "Sticker pack finalize aborted", false);
+  }
+  const bytesIn = input.length;
+  const started = Date.now();
+  const frame = await decodeFrameRgba(input);
+  const alphaRatio = transparentRatio(frame.rgba, frame.width, frame.height);
+  if (alphaRatio < STICKER_ALPHA_NATIVE_RATIO) {
+    throw new ProcessingError(
+      "provider_error",
+      "Sticker pack cell has no transparent background",
+      true,
+    );
+  }
+  const png = await sharp(frame.rgba, { raw: { width: frame.width, height: frame.height, channels: 4 } })
+    .png({ compressionLevel: 3 })
+    .toBuffer();
+  const composed = await composeStickerFromCutout(png, { outputPx: options?.outputPx });
+  return {
+    buffer: composed.buffer,
+    extension: "png",
+    contentType: "image/png",
+    bytesIn,
+    bytesOut: composed.buffer.length,
+    outputFormat: "png",
+    encodeMs: Date.now() - started,
+    skippedReason: null,
+    sticker: {
+      rembgMs: 0,
+      rembgAttempts: 0,
+      chromaPixelsCleared: composed.chromaPixelsCleared,
+      outlineMs: composed.outlineMs,
+      width: composed.width,
+      height: composed.height,
+      magentaRatio: 0,
+      route: "alpha_native",
+      chromaKeyedPixels: 0,
+    },
+  };
+}
+
 export async function finalizeStickerImage(
   input: Buffer,
   options: StickerFinalizeOptions,

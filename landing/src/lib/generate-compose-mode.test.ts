@@ -36,6 +36,7 @@ import {
   STICKER_TOOL_KINDS,
   stickerToolKindLabel,
   STICKER_PACK_SOON_CTA,
+  STICKER_PACK_CREATE_CTA,
   composeCtaDisabledForStickerPack,
   composeToolTileBodyLabel,
   stickerStudioCta,
@@ -263,13 +264,29 @@ test("secondary tiles: photo → style + model, video → model, sticker → sty
   assert.equal(COMPOSE_MODEL_TOOL_EDGE_LABEL, "Модель");
 });
 
-test("sticker tool has two kinds; pack is a disabled «скоро» CTA and names itself on the tile", () => {
+test("sticker tool has two kinds; pack CTA is «скоро» until enqueue is unlocked", () => {
   assert.deepEqual([...STICKER_TOOL_KINDS], ["single", "pack"]);
   assert.equal(stickerToolKindLabel("single"), "Стикер");
   assert.equal(stickerToolKindLabel("pack"), "Стикер пак");
   assert.equal(
     composeCtaDisabledForStickerPack({ composeMode: "sticker", stickerKind: "pack" }),
     true,
+  );
+  assert.equal(
+    composeCtaDisabledForStickerPack({
+      composeMode: "sticker",
+      stickerKind: "pack",
+      enqueueEnabled: false,
+    }),
+    true,
+  );
+  assert.equal(
+    composeCtaDisabledForStickerPack({
+      composeMode: "sticker",
+      stickerKind: "pack",
+      enqueueEnabled: true,
+    }),
+    false,
   );
   assert.equal(
     composeCtaDisabledForStickerPack({ composeMode: "sticker", stickerKind: "single" }),
@@ -281,6 +298,7 @@ test("sticker tool has two kinds; pack is a disabled «скоро» CTA and name
     false,
   );
   assert.match(STICKER_PACK_SOON_CTA, /скоро/i);
+  assert.equal(STICKER_PACK_CREATE_CTA, "Создать стикер пак");
   assert.equal(composeToolTileBodyLabel({ composeMode: "sticker", stickerKind: "pack" }), "Стикер пак");
   assert.equal(composeToolTileBodyLabel({ composeMode: "sticker", stickerKind: "single" }), "Стикер");
   assert.equal(composeToolTileBodyLabel({ composeMode: "video", stickerKind: "pack" }), "Видео");
@@ -334,6 +352,13 @@ test("sticker is a select-only tool and only enqueues editKind=sticker", () => {
     canEnqueueWhilePhotoshootSelected({
       composeMode: "sticker",
       editKind: STICKER_EDIT_KIND,
+    }),
+    true,
+  );
+  assert.equal(
+    canEnqueueWhilePhotoshootSelected({
+      composeMode: "sticker",
+      editKind: "sticker_pack",
     }),
     true,
   );

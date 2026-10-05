@@ -2,10 +2,11 @@
  * Sticker-pack generation contract — shared by the landing API, the worker and the compose UI.
  * No `@/` imports: the worker compiles this file via tsconfig include + Dockerfile COPY.
  *
- * One job = 16 stickers from one photo. The provider paints 4 sheets of 2×2 (1024 px → 512 px
- * cells, no upscale); each cell goes through the single-sticker finalize (alpha / chroma / rembg,
- * 512 PNG, safe margin, no outline). The 16 PNGs are the user-facing result, like photoshoot
- * tiles; `result_storage_path` holds a 4×4 preview sheet for lists.
+ * One job = 16 stickers from one photo and one GPT Image call. The model paints a 4×4 grid
+ * at 1024 px; the worker scales that sheet to 1512 px and cuts 16 cells of 378 px. Each cell
+ * already has alpha and is fitted to a 378 PNG (safe margin, no outline). No chroma key and no
+ * rembg. The 16 PNGs are the user-facing result, like photoshoot tiles; `result_storage_path`
+ * holds a 4×4 preview sheet for lists.
  */
 
 import { STICKER_BACKGROUND_HEX, type StickerBackgroundMode } from "./sticker";
@@ -23,14 +24,19 @@ export const STICKER_PACK_IMAGE_SIZE = "1K";
 export const STICKER_PACK_COUNT = 16;
 /** Preview sheet and bot example grid: 16 → 4×4. */
 export const STICKER_PACK_GRID = 4;
-/** Each provider call paints one 2×2 sheet; 4 calls make the pack. */
-export const STICKER_PACK_SHEET_GRID = 2;
-export const STICKER_PACK_SHEET_CELLS = STICKER_PACK_SHEET_GRID * STICKER_PACK_SHEET_GRID;
-export const STICKER_PACK_SHEET_COUNT = STICKER_PACK_COUNT / STICKER_PACK_SHEET_CELLS;
-/** GPT Image (OpenRouter) is 1024 px only; 2×2 on 1024 → 512 px cells, the sticker canvas. */
+/** One provider call paints the whole pack as a 4×4 grid. */
+export const STICKER_PACK_SHEET_GRID = STICKER_PACK_GRID;
+export const STICKER_PACK_SHEET_CELLS = STICKER_PACK_COUNT;
+export const STICKER_PACK_SHEET_COUNT = 1;
+/** GPT Image (OpenRouter) returns 1024 px only. */
 export const STICKER_PACK_PROVIDER_SHEET_PX = 1024;
-export const STICKER_PACK_CELL_PX = STICKER_PACK_PROVIDER_SHEET_PX / STICKER_PACK_SHEET_GRID;
-/** 4×4 preview of the finished 512 stickers, 256 px per cell. */
+/**
+ * The 1024 sheet is scaled up to this before the cut.
+ * 1512 / 4 = 378 px — the sticker canvas. Chosen so 16 cells fit one call.
+ */
+export const STICKER_PACK_UPSCALED_SHEET_PX = 1512;
+export const STICKER_PACK_CELL_PX = STICKER_PACK_UPSCALED_SHEET_PX / STICKER_PACK_GRID;
+/** 4×4 preview of the finished stickers, 256 px per cell. */
 export const STICKER_PACK_PREVIEW_PX = 1024;
 /** Same margin the bot uses when fitting a cut cell into 512 (`fitStickerIn512WithMargin`). */
 export const STICKER_PACK_FIT_MARGIN = 0.05;
@@ -98,7 +104,7 @@ export function stickerPackCellBox(
   return { left: col * width, top: row * height, width, height };
 }
 
-/** Scenes of provider sheet `sheetIndex` (0-based): 4 consecutive scenes in pack order. */
+/** Scenes of provider sheet `sheetIndex` (0-based). One sheet holds all 16. */
 export function stickerPackSheetScenes(scenes: readonly string[], sheetIndex: number): string[] {
   if (!Number.isInteger(sheetIndex) || sheetIndex < 0 || sheetIndex >= STICKER_PACK_SHEET_COUNT) return [];
   const start = sheetIndex * STICKER_PACK_SHEET_CELLS;
@@ -200,9 +206,8 @@ function sheetSpillRule(mode: StickerBackgroundMode): string {
 }
 
 /**
- * Worker prompt for one 2×2 provider sheet. Ported from the bot pack grid task; the style block
- * is the same `style_presets_v2.prompt_hint` the single sticker uses. `transparent` for GPT Image,
- * `magenta` for RGB-only providers (chroma key / rembg per cell afterwards).
+ * Worker prompt for the one 4×4 provider sheet. Ported from the bot pack grid task; the style block
+ * is the same `style_presets_v2.prompt_hint` the single sticker uses. `transparent` for GPT Image.
  */
 export function assembleStickerPackSheetPrompt(input: {
   stylePrompt: string;
@@ -221,7 +226,7 @@ export function assembleStickerPackSheetPrompt(input: {
   return `${input.stylePrompt.trim()}
 
 [TASK — STICKER PACK GRID]
-The input image shows the SUBJECT (a real person). Create ONE square image laid out as a ${grid}x${grid} grid (${scenes.length} cells, equal size, row-major: 1 top-left, 2 top-right, 3 bottom-left, 4 bottom-right).
+The input image shows the SUBJECT (a real person). Create ONE square image laid out as a ${grid}x${grid} grid (${scenes.length} cells, equal size, row-major: cell 1 is top-left, then left to right, cell ${scenes.length} is bottom-right).
 Each cell = ONE picture of that same person with a DISTINCT pose / emotion from the list below. ${outcome}
 
 Scenes (one per cell, left-to-right, top-to-bottom):
@@ -236,7 +241,7 @@ The character must look EXACTLY like the person in the reference photo in EVERY 
 ${sheetBackgroundRule(mode)}
 3. Each figure fully visible inside its cell, nothing cropped. Hands, arms, fingers and hair FULLY inside the cell with clear margin — never crop at the wrists. If a pose would leave the cell, draw the figure smaller.
 4. MANDATORY PADDING: every figure is SURROUNDED by empty ${sheetMarginWord(mode)} space on ALL four sides — at least 15% of the cell on top, bottom, left and right. Raised arms or wide gestures: 20% or more. A figure that touches a cell edge FAILED.
-5. SEAMLESS GRID: the image is one continuous surface — NO lines, stripes, frames, gutters or separators between the ${scenes.length} cells. We cut the image programmatically at the exact midlines; a figure that crosses a midline FAILED.
+5. SEAMLESS GRID: the image is one continuous surface — NO lines, stripes, frames, gutters or separators between the ${scenes.length} cells. We cut the image at the equal cell edges; a figure that crosses an edge FAILED.
 6. LIKENESS: in EVERY cell eye color matches the reference EXACTLY; keep freckles, moles, glasses (if worn), face shape, skin tone, hair color and shape. Do not swap in a different face.
 7. Style IDENTICAL across all cells — same art style, proportions, line work, palette.
 8. No text, letters, captions, emojis, watermarks or logos anywhere.

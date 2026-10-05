@@ -1,8 +1,8 @@
 /**
  * Sticker-pack examples the bot already made, plus the geometry of the bot example grid.
  *
- * The bot paints one 4×4 sheet (2048 px → 512 px cells) and cuts it; the web job
- * (`sticker-pack.ts`) paints 4 sheets of 2×2 instead. Both end in 512 px stickers.
+ * The bot paints one 4×4 sheet (2048 px → 512 px cells) and cuts it. The web job
+ * paints one 4×4 sheet at 1024 px, scales it to 1512, and cuts 378 px stickers.
  *
  * The pictures on the site are the bot carousel grids: `pack_content_sets` that have
  * `sticker_pack_example/<id>/example.webp` in the public `stickers-examples` bucket.

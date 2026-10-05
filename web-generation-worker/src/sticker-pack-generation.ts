@@ -1,13 +1,15 @@
 import sharp from "sharp";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { publicObjectUploadOptions } from "../../landing/src/lib/storage-cache-control";
-import type { StickerBackgroundMode, StickerBgRoute } from "../../landing/src/lib/sticker";
+import type { StickerBackgroundMode } from "../../landing/src/lib/sticker";
 import {
+  STICKER_PACK_CELL_PX,
   STICKER_PACK_COUNT,
   STICKER_PACK_GRID,
   STICKER_PACK_PREVIEW_PX,
   STICKER_PACK_SHEET_CELLS,
   STICKER_PACK_SHEET_COUNT,
+  STICKER_PACK_UPSCALED_SHEET_PX,
   assembleStickerPackSheetPrompt,
   parseStickerPackPrompt,
   stickerPackCellBox,
@@ -16,11 +18,11 @@ import {
   stickerPackTileStoragePath,
   type StickerPackPromptSpec,
 } from "../../landing/src/lib/sticker-pack";
-import { finalizeStickerImage, type StickerFinalizeStats } from "./sticker-finalize";
+import { finalizeStickerPackCell, type StickerFinalizeStats } from "./sticker-finalize";
 import { ProcessingError, RESULTS_BUCKET } from "./input-source";
 import { errorFields, log } from "./lib/logger";
 
-/** All 4 provider sheets in flight at once: ~1 call latency for the whole pack. */
+/** One provider sheet per pack. */
 export const STICKER_PACK_SHEET_CONCURRENCY = STICKER_PACK_SHEET_COUNT;
 
 export type StickerPackSheetRunner = (input: { prompt: string; sheetIndex: number }) => Promise<Buffer>;
@@ -55,7 +57,19 @@ export type StickerPackResult = {
 
 const TRANSPARENT = { r: 0, g: 0, b: 0, alpha: 0 };
 
-/** One 2×2 provider sheet → 4 PNG cells (row-major). Non-square sheets split by their own width/height. */
+/** Scale the 1024 provider sheet up to 1512 so a 4×4 cut yields 378 px cells. */
+export async function upscaleStickerPackSheet(
+  sheet: Buffer,
+  target = STICKER_PACK_UPSCALED_SHEET_PX,
+): Promise<Buffer> {
+  return sharp(sheet, { failOn: "none" })
+    .ensureAlpha()
+    .resize(target, target, { fit: "fill", kernel: "lanczos3" })
+    .png()
+    .toBuffer();
+}
+
+/** One 4×4 sheet → 16 PNG cells (row-major). Non-square sheets split by their own width/height. */
 export async function splitStickerPackSheet(sheet: Buffer): Promise<{ cells: Buffer[]; width: number; height: number }> {
   const meta = await sharp(sheet, { failOn: "none" }).metadata();
   const width = meta.width ?? 0;
@@ -141,8 +155,8 @@ function storageTemporary(error: unknown): boolean {
 }
 
 /**
- * Sticker pack job: 4 provider sheets (2×2, 1024 px) → 16 cells → single-sticker finalize per cell
- * (alpha / chroma / rembg, 512 PNG, safe margin, no outline) → 16 sidecars + one 4×4 preview.
+ * Sticker pack job: one GPT Image sheet (4×4, 1024 px, transparent) → scale to 1512 →
+ * 16 cells of 378 px (safe margin, no outline). No chroma key and no rembg.
  * The provider call is injected so this module stays free of OpenRouter / Gemini plumbing.
  */
 export async function processStickerPack(input: {
@@ -151,8 +165,6 @@ export async function processStickerPack(input: {
   signal: AbortSignal;
   context: Record<string, unknown>;
   mode: StickerBackgroundMode;
-  rembgUrl: string;
-  bgRoute?: StickerBgRoute;
   runSheet: StickerPackSheetRunner;
   ensureLease: () => Promise<void>;
   concurrency?: number;
@@ -192,14 +204,14 @@ export async function processStickerPack(input: {
   let bytesOut = 0;
   for (let sheetIndex = 0; sheetIndex < sheets.length; sheetIndex += 1) {
     const splitStarted = Date.now();
-    const split = await splitStickerPackSheet(sheets[sheetIndex]);
+    const scaled = await upscaleStickerPackSheet(sheets[sheetIndex]);
+    const split = await splitStickerPackSheet(scaled);
     splitMs += Date.now() - splitStarted;
     for (let cellIndex = 0; cellIndex < split.cells.length; cellIndex += 1) {
       const finalizeStarted = Date.now();
-      const encoded = await finalizeStickerImage(split.cells[cellIndex], {
-        rembgUrl: input.rembgUrl,
+      const encoded = await finalizeStickerPackCell(split.cells[cellIndex], {
         signal: input.signal,
-        bgRoute: input.bgRoute,
+        outputPx: STICKER_PACK_CELL_PX,
       });
       finalizeMs += Date.now() - finalizeStarted;
       const stats: StickerFinalizeStats = encoded.sticker;

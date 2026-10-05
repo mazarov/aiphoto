@@ -55,13 +55,13 @@ test("every tool has a guide for the «Инструмент» sheet; photo / vid
     assert.ok(guide.title.length <= 30, `${guide.title}: title fits one line`);
     assert.ok(guide.lead.length <= 64, `${guide.lead}: lead is one short line`);
   }
-  // Sticker kind picks the sticker guide; pack shows the bot's grids and says it is not open yet.
+  // Pack uses the same style picture as a single sticker. The set is picked in the «Стиль» sheet.
   assert.equal(composeToolGuideCopy("sticker", { stickerKind: "single" }), COMPOSE_STICKER_GUIDE);
   const pack = composeToolGuideCopy("sticker", { stickerKind: "pack" });
   assert.equal(pack, COMPOSE_STICKER_PACK_GUIDE);
-  assert.equal(pack.visual, "sticker-pack");
+  assert.equal(pack.visual, "sticker-cutout");
   assert.match(pack.title, /16 стикеров/i);
-  assert.match(pack.lead, /скоро/i);
+  assert.match(pack.lead, /стиль/i);
   // Plate rules do not change: photo and video keep the prompt strip there.
   assert.equal(
     composeToolGuideVisible({ composeMode: "image", showResultChrome: false, dockExpanded: false }),

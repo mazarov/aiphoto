@@ -8,6 +8,7 @@ import {
   STICKER_PACK_PROVIDER_SHEET_PX,
   STICKER_PACK_SHEET_CELLS,
   STICKER_PACK_SHEET_COUNT,
+  STICKER_PACK_UPSCALED_SHEET_PX,
   assembleStickerPackSheetPrompt,
   buildStickerPackPromptText,
   deriveStickerPackTilePaths,
@@ -29,12 +30,15 @@ import { stickerPackCellBox as exampleCellBox, STICKER_PACK_SHEET_PX } from "./s
 
 const SCENES = Array.from({ length: 16 }, (_, i) => `{subject} scene ${i + 1}, gaze at camera`);
 
-test("16 stickers = 4 provider sheets of 2×2 at 1024 → 512 px cells, no upscale", () => {
+test("16 stickers = one 1024 sheet scaled to 1512 → 378 px cells", () => {
   assert.equal(STICKER_PACK_COUNT, 16);
-  assert.equal(STICKER_PACK_SHEET_COUNT, 4);
-  assert.equal(STICKER_PACK_SHEET_CELLS, 4);
+  assert.equal(STICKER_PACK_SHEET_COUNT, 1);
+  assert.equal(STICKER_PACK_SHEET_CELLS, 16);
   assert.equal(STICKER_PACK_PROVIDER_SHEET_PX, 1024);
-  assert.equal(STICKER_PACK_CELL_PX, 512);
+  assert.equal(STICKER_PACK_UPSCALED_SHEET_PX, 1512);
+  assert.equal(STICKER_PACK_CELL_PX, 378);
+  assert.deepEqual(stickerPackCellBox(0, 16, 1512), { left: 0, top: 0, width: 378, height: 378 });
+  assert.deepEqual(stickerPackCellBox(5, 16, 1512), { left: 378, top: 378, width: 378, height: 378 });
   assert.deepEqual(stickerPackCellBox(0, 4, 1024), { left: 0, top: 0, width: 512, height: 512 });
   assert.deepEqual(stickerPackCellBox(3, 4, 1024), { left: 512, top: 512, width: 512, height: 512 });
   assert.deepEqual(stickerPackCellBox(1, 4, 1536, 1024), { left: 768, top: 0, width: 768, height: 512 });
@@ -46,12 +50,10 @@ test("16 stickers = 4 provider sheets of 2×2 at 1024 → 512 px cells, no upsca
 
 test("sheet scenes and sticker index walk the pack in order", () => {
   const scenes = normalizeStickerPackScenes(SCENES)!;
-  assert.deepEqual(stickerPackSheetScenes(scenes, 0), scenes.slice(0, 4));
-  assert.deepEqual(stickerPackSheetScenes(scenes, 3), scenes.slice(12, 16));
-  assert.deepEqual(stickerPackSheetScenes(scenes, 4), []);
+  assert.deepEqual(stickerPackSheetScenes(scenes, 0), scenes);
+  assert.deepEqual(stickerPackSheetScenes(scenes, 1), []);
   assert.equal(stickerPackStickerIndex(0, 0), 0);
-  assert.equal(stickerPackStickerIndex(2, 3), 11);
-  assert.equal(stickerPackStickerIndex(3, 3), 15);
+  assert.equal(stickerPackStickerIndex(0, 15), 15);
 });
 
 test("scene normalization: 16 lines, {subject} replaced, empty → null", () => {
@@ -85,13 +87,13 @@ test("prompt_text round-trips marker, style block and 16 scenes", () => {
   assert.throws(() => buildStickerPackPromptText({ styleId: "a", setId: "x", stylePrompt: "", scenes: SCENES }));
 });
 
-test("sheet prompt carries 4 numbered scenes and the background mode", () => {
-  const scenes = stickerPackSheetScenes(normalizeStickerPackScenes(SCENES)!, 1);
+test("sheet prompt carries 16 numbered scenes and the background mode", () => {
+  const scenes = stickerPackSheetScenes(normalizeStickerPackScenes(SCENES)!, 0);
   const transparent = assembleStickerPackSheetPrompt({ stylePrompt: "Anime style.", scenes, mode: "transparent" });
   assert.match(transparent, /^Anime style\./);
-  assert.match(transparent, /2x2 grid \(4 cells/);
-  assert.match(transparent, /1\. the person scene 5, gaze at camera/);
-  assert.match(transparent, /4\. the person scene 8, gaze at camera/);
+  assert.match(transparent, /4x4 grid \(16 cells/);
+  assert.match(transparent, /1\. the person scene 1, gaze at camera/);
+  assert.match(transparent, /16\. the person scene 16, gaze at camera/);
   assert.match(transparent, /fully TRANSPARENT/);
   assert.doesNotMatch(transparent, /MAGENTA/);
   const magenta = assembleStickerPackSheetPrompt({ stylePrompt: "Anime style.", scenes });
