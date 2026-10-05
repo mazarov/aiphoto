@@ -9,7 +9,6 @@ import {
 import { GeneraciyaFotoFaq } from "@/components/generate/GeneraciyaFotoFaq";
 import {
   GF_BLOCK,
-  GF_BRAND_CTA,
   GF_EYEBROW,
   GF_H2,
   GF_HERO_GRADIENT,
@@ -23,7 +22,7 @@ import {
   GF_STACK,
   GF_SURFACE,
 } from "@/components/generate/generaciya-foto-ui";
-import { StickerHeroCta } from "@/components/sticker/StickerHeroCta";
+import { StickerStudioGate } from "@/components/sticker/StickerStudioGate";
 import { buildGeneraciyaHubJsonLd, SITE_URL } from "@/lib/generaciya-hub-data";
 import { STICKER_PATH, type StickerStyle } from "@/lib/sticker";
 import { fallbackStickerCatalog, loadStickerCatalog } from "@/lib/sticker-catalog-db";
@@ -172,30 +171,8 @@ export default async function StikerIzFotoPage() {
 
         <div className={GF_PAGE_STACK}>
           <section id="generator" className={`scroll-mt-20 ${GF_BLOCK}`} aria-labelledby="studio-heading">
-            {enabled ? (
-              <>
-                <h2 id="studio-heading" className={GF_H2}>
-                  {STIKER_IZ_FOTO_SEO.studioTitle}
-                </h2>
-                <StickerHeroCta />
-              </>
-            ) : (
-              <>
-                <p className={GF_EYEBROW}>Скоро</p>
-                <h2 id="studio-heading" className={`mt-2 ${GF_H2}`}>
-                  {STIKER_IZ_FOTO_SEO.lockedTitle}
-                </h2>
-                <p className={GF_LEAD}>{STIKER_IZ_FOTO_SEO.lockedLead}</p>
-                <a
-                  href={STIKER_IZ_FOTO_SEO.botUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={`mt-5 ${GF_BRAND_CTA}`}
-                >
-                  {STIKER_IZ_FOTO_SEO.lockedCta}
-                </a>
-              </>
-            )}
+            {/* Public flag from ISR; allowlisted internals unlock client-side via /api/generation-config. */}
+            <StickerStudioGate enabled={enabled} />
           </section>
 
           <StickerStylesSection styles={styles} />
