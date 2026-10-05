@@ -15,6 +15,7 @@ import {
   type StickerStyle,
   type StickerStyleGroup,
 } from "./sticker";
+import { loadStickerExampleUrls, type StickerExampleMap } from "./sticker-examples";
 
 export type StickerCatalog = {
   groups: StickerStyleGroup[];
@@ -104,8 +105,12 @@ export function findStickerPreset(catalog: Pick<StickerCatalog, "emotions" | "mo
   return list.find((preset) => preset.id === key) ?? null;
 }
 
+export function attachStickerExamples(styles: readonly StickerStyle[], examples: StickerExampleMap): StickerStyle[] {
+  return styles.map((style) => ({ ...style, exampleUrls: examples.get(style.id) ?? [] }));
+}
+
 export async function loadStickerCatalog(supabase: SupabaseClient): Promise<StickerCatalog> {
-  const [groupsRes, stylesRes, emotionsRes, motionsRes] = await Promise.all([
+  const [groupsRes, stylesRes, emotionsRes, motionsRes, examples] = await Promise.all([
     supabase.from("style_groups").select("id,emoji,name_ru,sort_order").eq("is_active", true).order("sort_order", { ascending: true }),
     supabase
       .from("style_presets_v2")
@@ -114,19 +119,22 @@ export async function loadStickerCatalog(supabase: SupabaseClient): Promise<Stic
       .order("sort_order", { ascending: true }),
     supabase.from("emotion_presets").select("id,emoji,name_ru,prompt_hint,sort_order").eq("is_active", true).order("sort_order", { ascending: true }),
     supabase.from("motion_presets").select("id,emoji,name_ru,prompt_hint,sort_order").eq("is_active", true).order("sort_order", { ascending: true }),
+    loadStickerExampleUrls(supabase),
   ]);
   if (stylesRes.error) {
     console.error("[sticker-catalog] style_presets_v2 read failed", { error: stylesRes.error.message });
   }
-  const styles = mapStyleRows((stylesRes.data || []) as StylePresetRow[]);
-  if (!styles.length) {
+  const mapped = mapStyleRows((stylesRes.data || []) as StylePresetRow[]);
+  if (!mapped.length) {
     const fallback = fallbackStickerCatalog();
     return {
       ...fallback,
+      styles: attachStickerExamples(fallback.styles, examples),
       emotions: mapPresetRows((emotionsRes.data || []) as PresetRow[]),
       motions: mapPresetRows((motionsRes.data || []) as PresetRow[]),
     };
   }
+  const styles = attachStickerExamples(mapped, examples);
   const usedGroups = new Set(styles.map((style) => style.groupId).filter(Boolean));
   const groups: StickerStyleGroup[] = ((groupsRes.data || []) as StyleGroupRow[])
     .filter((row) => usedGroups.has(cleanText(row.id)))

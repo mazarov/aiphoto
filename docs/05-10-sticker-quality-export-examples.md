@@ -85,5 +85,5 @@ catalog: loadStickerCatalog → stickers(is_example, public_url, style_preset_id
 - [x] GPT Image 2.5 Flare: `image-options.ts`, лейбл, `openrouter-seedream.ts` (quality / background), prompt mode, `sql/266`
 - [x] `STICKER_PLATFORMS` + `GET /api/generations/[id]/sticker-file` + `StickerDownloadSheet` в rail
 - [x] `StickerStudioGate` — админ видит студию при выключенном флаге
-- [ ] каталог: `exampleUrls` + карточки/плитка/страница
+- [x] каталог: `exampleUrls` (`lib/sticker-examples.ts`: `stickers.is_example` → 4 кандидата на стиль → HEAD с кэшем 10 мин / вердикт URL 60 мин, concurrency 12, таймаут 3 с, только `stickers-examples` на нашем Supabase-origin) + `StickerExampleStrip` в `StickerStylePicker`, карточках `/stiker-iz-foto` и превью dock-плитки «Выбрать стиль»
 - [x] `docs/architecture/01-landing.md`

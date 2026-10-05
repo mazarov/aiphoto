@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { OVERLAY_BUTTON_UA_RESET } from "@/lib/card-overlay-action-pill";
 import type { StickerStyle, StickerStyleGroup } from "@/lib/sticker";
+import { StickerExampleStrip } from "./StickerExampleStrip";
 
 export const STICKER_STYLE_PICKER_TITLE = "Стиль стикера";
 export const STICKER_STYLE_PICKER_CONFIRM_CTA = "Выбрать";
@@ -116,6 +117,7 @@ export function StickerStylePicker({
                     onClick={() => onSelect(style)}
                     className={`${OVERLAY_BUTTON_UA_RESET} flex w-full flex-col items-start text-left`}
                   >
+                    <StickerExampleStrip urls={style.exampleUrls} styleLabel={style.label} className="mb-2" />
                     <span className={`flex items-center gap-1.5 text-[13px] font-semibold ${dark ? "text-white" : "text-zinc-900"}`}>
                       {style.emoji ? <span aria-hidden>{style.emoji}</span> : null}
                       {style.label}

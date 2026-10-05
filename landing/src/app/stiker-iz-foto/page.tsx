@@ -22,6 +22,7 @@ import {
   GF_STACK,
   GF_SURFACE,
 } from "@/components/generate/generaciya-foto-ui";
+import { StickerExampleStrip } from "@/components/sticker/StickerExampleStrip";
 import { StickerStudioGate } from "@/components/sticker/StickerStudioGate";
 import { buildGeneraciyaHubJsonLd, SITE_URL } from "@/lib/generaciya-hub-data";
 import { STICKER_PATH, type StickerStyle } from "@/lib/sticker";
@@ -97,6 +98,7 @@ function StickerStylesSection({ styles }: { styles: StickerStyle[] }) {
         <ul className={`${GF_STACK} grid gap-3 sm:grid-cols-2 lg:grid-cols-3`}>
           {styles.map((style) => (
             <li key={style.id} className={`p-4 ${GF_SURFACE}`}>
+              <StickerExampleStrip urls={style.exampleUrls} styleLabel={style.label} size="md" className="mb-3" />
               <p className={GF_EYEBROW}>{style.description || style.hint}</p>
               <h3 className="mt-1 text-base font-semibold text-zinc-900">
                 {style.emoji ? <span aria-hidden>{style.emoji} </span> : null}

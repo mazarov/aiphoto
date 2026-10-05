@@ -18,6 +18,7 @@ export async function GET() {
           emoji: style.emoji ?? null,
           description: style.description ?? null,
           isDefault: Boolean(style.isDefault),
+          exampleUrls: style.exampleUrls ?? [],
         })),
         defaultStyleId: defaultStickerStyleId(catalog.styles),
         emotions: catalog.emotions,

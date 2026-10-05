@@ -2935,6 +2935,7 @@ export function CardInlineGeneratePanel({
   const stickerPresetsFor = (action: StickerResultAction) =>
     action === "emotion" ? stickerCatalog?.emotions ?? [] : action === "motion" ? stickerCatalog?.motions ?? [] : [];
   const selectedStickerStyleLabel = stickerStyleTileLabel(stickerStyles, stickerStyleId);
+  const selectedStickerExampleUrl = stickerStyles.find((style) => style.id === stickerStyleId)?.exampleUrls?.[0] ?? null;
   const photoPromptHasSource = Boolean(
     resolvePhotoPromptAnalyzeSource({
       selectedPreviewUrl: selectedPhotos[0]?.previewUrl,
@@ -5164,7 +5165,11 @@ export function CardInlineGeneratePanel({
               <ComposeDockToolTile
                 edgeLabel={SEO_COMPOSE_EXAMPLE_TOOL_EDGE_LABEL}
                 bodyLabel={stickerCompose ? selectedStickerStyleLabel : undefined}
-                previewUrls={stickerCompose ? null : composePreviewImageUrls([pickedExamplePreviewUrl])}
+                previewUrls={
+                  stickerCompose
+                    ? composePreviewImageUrls([selectedStickerExampleUrl])
+                    : composePreviewImageUrls([pickedExamplePreviewUrl])
+                }
                 icon={<ComposeExampleToolIcon className="h-5 w-5" />}
                 selected={expandedControl === "example"}
                 expanded={expandedControl === "example"}

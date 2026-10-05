@@ -104,6 +104,8 @@ export type StickerStyle = {
   /** Bot `style_presets_v2.description_ru` — shown under the name in the picker. */
   description?: string | null;
   isDefault?: boolean;
+  /** Live example stickers of this style from the bot (`stickers.is_example`), newest first, ≤ 3. */
+  exampleUrls?: string[];
 };
 
 export type StickerStyleGroup = {
