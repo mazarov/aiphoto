@@ -179,6 +179,7 @@ import {
   composeGenerateCtaLabel,
   composeGenerateCtaShowsModelName,
   COMPOSE_SAVE_PROMPT_CTA,
+  showBlankPromptRemixBlock,
   COMPOSE_SAVING_PROMPT_CTA,
   composeModeFromDockIntent,
   composeNeedsPhotoCtaLabel,
@@ -964,6 +965,11 @@ export function CardInlineGeneratePanel({
 
   const [changeRequest, setChangeRequest] = useState("");
   const [remixing, setRemixing] = useState(false);
+  /** Blank compose: «Что изменить?» block under a typed/pasted prompt (same remix model as after generation). */
+  const [blankChangeOpen, setBlankChangeOpen] = useState(false);
+  useEffect(() => {
+    if (!promptExpanded) setBlankChangeOpen(false);
+  }, [promptExpanded]);
   const [pendingRemixEdit, setPendingRemixEdit] = useState<{
     parentGenerationId: string;
     editInstruction: string;
@@ -2673,7 +2679,11 @@ export function CardInlineGeneratePanel({
     }
   };
 
-  const applyPromptRemix = async () => {
+  /**
+   * Rewrite the prompt via the remix model. After a result the editor closes (the next CTA is generate);
+   * in blank compose (`keepEditorOpen`) the sheet stays up so the user sees the rewritten text.
+   */
+  const applyPromptRemix = async (options?: { keepEditorOpen?: boolean }) => {
     const basePrompt = draftPrompt.trim();
     const requestedChange = changeRequest.trim();
     const parentGenerationId =
@@ -2726,7 +2736,12 @@ export function CardInlineGeneratePanel({
           ? { parentGenerationId, editInstruction: requestedChange }
           : null,
       );
-      setPromptExpanded(false);
+      if (options?.keepEditorOpen) {
+        setBlankChangeOpen(false);
+        setToast(PROMPT_REMIX_COPY.done);
+      } else {
+        setPromptExpanded(false);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : PROMPT_REMIX_COPY.errorGeneric);
     } finally {
@@ -3056,6 +3071,15 @@ export function CardInlineGeneratePanel({
    */
   const useBlankPromptEditor =
     (isBlank && !(resultUrl && generationId)) || videoCompose;
+  /**
+   * Typed or pasted prompt in blank compose gets the same «Что изменить?» rewrite as a card seed —
+   * image prompts only (video scenarios are not remixed) and only once there is a prompt to rewrite.
+   */
+  const showBlankPromptRemix = showBlankPromptRemixBlock({
+    useBlankPromptEditor,
+    videoCompose,
+    promptLength: draftPrompt.trim().length,
+  });
   /** Prefill (photo→prompt) must not steal focus on mobile — keyboard shrinks the sheet. */
   const autofocusPromptEditor = !isMobile || draftPrompt.trim().length < 8;
   /**
@@ -4433,7 +4457,7 @@ export function CardInlineGeneratePanel({
                         : BLANK_PROMPT_PLACEHOLDER
                     }
                     maxLength={8000}
-                    disabled={busy}
+                    disabled={busy || remixing}
                     autoFocus={autofocusPromptEditor}
                     className={`min-h-0 w-full flex-1 resize-none overflow-y-auto p-3 text-[13px] font-medium leading-relaxed ${
                       dockPromptExpanded
@@ -4442,6 +4466,56 @@ export function CardInlineGeneratePanel({
                     }`}
                   />
                 </label>
+                {showBlankPromptRemix ? (
+                  blankChangeOpen ? (
+                    <label className="mt-3 block shrink-0">
+                      <span
+                        className={`mb-2 block text-[13px] font-semibold ${
+                          dockPromptExpanded ? "text-white/70" : "text-zinc-700"
+                        }`}
+                      >
+                        {PROMPT_REMIX_COPY.changeLabel}
+                      </span>
+                      <textarea
+                        value={changeRequest}
+                        onChange={(event) => setChangeRequest(event.target.value)}
+                        placeholder={PROMPT_REMIX_COPY.changePlaceholder}
+                        maxLength={1000}
+                        rows={2}
+                        disabled={busy || remixing}
+                        autoFocus
+                        className={`w-full resize-none p-3 text-[13px] font-medium leading-relaxed ${
+                          dockPromptExpanded
+                            ? dockSheetField
+                            : "rounded-xl border border-zinc-200 bg-white text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 disabled:opacity-60"
+                        }`}
+                      />
+                    </label>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={busy || remixing}
+                      onClick={() => {
+                        setError("");
+                        setBlankChangeOpen(true);
+                      }}
+                      className={`${OVERLAY_BUTTON_UA_RESET} mt-2 flex min-h-11 w-full shrink-0 items-center gap-2 rounded-xl px-3 py-2 text-left text-[13px] font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                        dockPromptExpanded
+                          ? "text-white/85 ring-1 ring-inset ring-white/20 hover:bg-white/10"
+                          : "text-indigo-700 ring-1 ring-inset ring-zinc-200 hover:bg-zinc-50"
+                      }`}
+                    >
+                      <svg className="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+                        <path d="M4 20h4l10.5-10.5a2.1 2.1 0 0 0-3-3L5 17v3Z" strokeLinecap="round" strokeLinejoin="round" />
+                        <path d="m13.5 7.5 3 3" strokeLinecap="round" />
+                      </svg>
+                      <span className="min-w-0 flex-1 truncate">{PROMPT_REMIX_COPY.changeLabel}</span>
+                      <span className={`shrink-0 text-[12px] font-medium ${dockPromptExpanded ? "text-white/60" : "text-zinc-500"}`}>
+                        {PROMPT_REMIX_COPY.changeHint}
+                      </span>
+                    </button>
+                  )
+                ) : null}
                 {error ? (
                   <p
                     className={`mt-2 text-[13px] font-medium ${
@@ -4480,14 +4554,27 @@ export function CardInlineGeneratePanel({
                     </svg>
                     <span className="truncate">Скопировать промт</span>
                   </button>
-                  <button
-                    type="button"
-                    disabled={busy || draftPrompt.trim().length < 8}
-                    onClick={() => setPromptExpanded(false)}
-                    className={`${OVERLAY_BUTTON_UA_RESET} flex min-h-12 min-w-0 flex-1 items-center justify-center rounded-2xl bg-indigo-600 px-3 py-3 text-[13px] font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50`}
-                  >
-                    Готово
-                  </button>
+                  {showBlankPromptRemix && blankChangeOpen ? (
+                    <button
+                      type="button"
+                      disabled={busy || remixing || !changeRequest.trim()}
+                      onClick={() => void applyPromptRemix({ keepEditorOpen: true })}
+                      className={`${OVERLAY_BUTTON_UA_RESET} flex min-h-12 min-w-0 flex-1 items-center justify-center rounded-2xl bg-gradient-to-r from-indigo-500 to-violet-500 px-3 py-3 text-[13px] font-semibold text-white shadow-lg shadow-indigo-950/20 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50`}
+                    >
+                      <span className="truncate">
+                        {remixing ? PROMPT_REMIX_COPY.submitting : PROMPT_REMIX_COPY.submit}
+                      </span>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={busy || remixing || draftPrompt.trim().length < 8}
+                      onClick={() => setPromptExpanded(false)}
+                      className={`${OVERLAY_BUTTON_UA_RESET} flex min-h-12 min-w-0 flex-1 items-center justify-center rounded-2xl bg-indigo-600 px-3 py-3 text-[13px] font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50`}
+                    >
+                      Готово
+                    </button>
+                  )}
                 </div>
               </>
             ) : (

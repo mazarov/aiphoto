@@ -198,10 +198,14 @@ export const PROMPT_REMIX_COPY = {
     "Не удалось загрузить промт из карточки. Откройте карточку заново.",
   originalLabel: "Исходный промт",
   changeLabel: "Что изменить?",
+  /** Right-side hint on the collapsed «Что изменить?» row in the compose prompt sheet. */
+  changeHint: "ИИ перепишет промт",
   changePlaceholder:
     "Например: сделай стиль более реалистичным, замени фон на вечерний город, добавь кинематографичный свет",
   submit: "Переделать промт",
   submitting: "Переделываем промт…",
+  /** Toast after an in-place rewrite in the compose prompt sheet. */
+  done: "Промт переделан",
   resultLabel: "Изменённый промт",
   copy: "Копировать промпт",
   copied: "Скопировано",

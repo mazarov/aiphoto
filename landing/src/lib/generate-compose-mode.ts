@@ -289,6 +289,22 @@ export const COMPOSE_EDIT_RESULT_CTA = "Что изменить";
 export const COMPOSE_SAVE_PROMPT_CTA = "Сохранить";
 export const COMPOSE_SAVING_PROMPT_CTA = "Сохраняем…";
 
+/** Remix API rejects prompts shorter than this; the compose sheet mirrors the bound. */
+export const PROMPT_REMIX_MIN_PROMPT_CHARS = 8;
+
+/**
+ * Blank compose sheet shows «Что изменить?» (remix model) under a typed or pasted prompt.
+ * Card seeds and post-result edits already have the remix editor; video scenarios are not remixed.
+ */
+export function showBlankPromptRemixBlock(input: {
+  useBlankPromptEditor: boolean;
+  videoCompose: boolean;
+  promptLength: number;
+}): boolean {
+  if (!input.useBlankPromptEditor || input.videoCompose) return false;
+  return input.promptLength >= PROMPT_REMIX_MIN_PROMPT_CHARS;
+}
+
 /** Collapsed prompt strip is off on the result plate until the editor sheet opens. */
 export function resultChromeHidesPromptStrip(input: {
   showResultChrome: boolean;

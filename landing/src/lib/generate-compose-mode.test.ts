@@ -45,7 +45,27 @@ import {
   composeHasSingleSourcePhoto,
   resolvePhotoshootLibraryFrame,
   resolvePhotoshootReadyFrame,
+  showBlankPromptRemixBlock,
+  PROMPT_REMIX_MIN_PROMPT_CHARS,
 } from "./generate-compose-mode";
+
+test("blank compose shows «Что изменить?» only for an image prompt long enough to remix", () => {
+  const base = { useBlankPromptEditor: true, videoCompose: false };
+  assert.equal(showBlankPromptRemixBlock({ ...base, promptLength: 0 }), false);
+  assert.equal(
+    showBlankPromptRemixBlock({ ...base, promptLength: PROMPT_REMIX_MIN_PROMPT_CHARS - 1 }),
+    false,
+  );
+  assert.equal(
+    showBlankPromptRemixBlock({ ...base, promptLength: PROMPT_REMIX_MIN_PROMPT_CHARS }),
+    true,
+  );
+  assert.equal(showBlankPromptRemixBlock({ ...base, promptLength: 40, videoCompose: true }), false);
+  assert.equal(
+    showBlankPromptRemixBlock({ ...base, promptLength: 40, useBlankPromptEditor: false }),
+    false,
+  );
+});
 
 test("composeHasSingleSourcePhoto accepts a guest's in-browser photo, enqueue frame does not", () => {
   const guestPhoto = { id: "photo-prompt-ephemeral", storagePath: "", previewUrl: "data:image/jpeg;base64,xx" };
