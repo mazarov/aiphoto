@@ -72,7 +72,7 @@
 
 1. Dockhost: разрешить трафик проекта aiphoto (web-generation-worker) → проект photo2sticker. Внутренний адрес `p2s-rembg:5000`. Из контейнера воркера `GET /health`.
 2. Env воркера (не в git): `REMBG_URL=http://<ip-or-dns>:5000`.
-3. Применить `sql/262_sticker_generation.sql`. При желании `sticker_model` (лучше Gemini — ровный magenta).
+3. Применить `sql/262_sticker_generation.sql` и `sql/263_sticker_edit_kind_check.sql`. 262 меняет RPC, но не CHECK `landing_generations_edit_kind_valid` из 224: без 263 вставка `edit_kind='sticker'` падает с `23514`. При желании `sticker_model` (лучше Gemini — ровный magenta).
 4. Задеплоить лендинг и воркер после мержа.
 5. `UPDATE landing_generation_config SET value='true' WHERE key='sticker_generation_enabled'` — плитка, index и sitemap сразу. Откат — то же `UPDATE` на `false`, без редеплоя.
 
@@ -80,6 +80,7 @@
 
 - [x] `landing/src/lib/sticker.ts` + тесты
 - [x] `sql/262_sticker_generation.sql`
+- [ ] `sql/263_sticker_edit_kind_check.sql` — CHECK колонки `edit_kind` включает `sticker`
 - [x] API-ветка sticker
 - [x] Worker: промпт, rembg finalize, `REMBG_URL`, tsconfig + оба Dockerfile
 - [x] Страница, copy SSOT, JSON-LD, sitemap

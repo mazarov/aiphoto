@@ -42,7 +42,11 @@ import {
 } from "../../landing/src/lib/photoshoot";
 import { resolveJobWardrobePolicy } from "../../landing/src/lib/wardrobe-policy";
 import { assembleStickerFinalPrompt, isStickerEditKind } from "../../landing/src/lib/sticker";
-import { finalizeStickerImage, type StickerFinalizeStats } from "./sticker-finalize";
+import {
+  finalizeStickerImage,
+  flattenStickerSourceForEdit,
+  type StickerFinalizeStats,
+} from "./sticker-finalize";
 import { planPhotoshootShots } from "./photoshoot-planner";
 import { splitContactSheet } from "./photoshoot-split";
 import {
@@ -612,7 +616,21 @@ export async function processGeneration(
     };
   }
 
-  const inputParts = cachedInputParts ?? (await downloadInputs(supabase, inputSource));
+  let inputParts = cachedInputParts ?? (await downloadInputs(supabase, inputSource));
+  if (isSticker && inputSource.sourceType === "generation_result") {
+    const flattenStarted = Date.now();
+    inputParts = await Promise.all(
+      inputParts.map(async (part) => {
+        const flat = await flattenStickerSourceForEdit(Buffer.from(part.inlineData.data, "base64"));
+        return { inlineData: { mimeType: flat.mimeType, data: flat.buffer.toString("base64") } };
+      }),
+    );
+    log("info", "sticker_edit_source_flattened", {
+      ...context,
+      parentGenerationId: job.parent_generation_id,
+      durationMs: elapsedMs(flattenStarted),
+    });
+  }
   await ensureLease();
   let reference: ImagePart | null = null;
   if (vibeSourceUrl) {

@@ -25,13 +25,16 @@ import {
 } from "@/components/generate/generaciya-foto-ui";
 import { StickerHeroCta } from "@/components/sticker/StickerHeroCta";
 import { buildGeneraciyaHubJsonLd, SITE_URL } from "@/lib/generaciya-hub-data";
-import { STICKER_PATH, STICKER_STYLES } from "@/lib/sticker";
+import { STICKER_PATH, type StickerStyle } from "@/lib/sticker";
+import { fallbackStickerCatalog, loadStickerCatalog } from "@/lib/sticker-catalog-db";
 import { readStickerGenerationEnabled } from "@/lib/sticker-config";
+import { createSupabaseServer } from "@/lib/supabase-server-client";
 import {
   STIKER_IZ_FOTO_FAQ,
   STIKER_IZ_FOTO_HOW_TO_STEPS,
   STIKER_IZ_FOTO_MORE_LINKS,
   STIKER_IZ_FOTO_SEO,
+  stickerStylesTitle,
 } from "@/lib/stiker-iz-foto-seo-copy";
 
 export const revalidate = 3600;
@@ -71,19 +74,35 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-function StickerStylesSection() {
+/** Styles come from the bot's `style_presets_v2` (shared Supabase); static list only if the read fails. */
+async function readStickerStylesForPage(): Promise<StickerStyle[]> {
+  try {
+    const catalog = await loadStickerCatalog(createSupabaseServer());
+    return catalog.styles;
+  } catch (error) {
+    console.warn("[sticker] catalog read failed", {
+      message: error instanceof Error ? error.message : "unknown",
+    });
+    return fallbackStickerCatalog().styles;
+  }
+}
+
+function StickerStylesSection({ styles }: { styles: StickerStyle[] }) {
   return (
     <section id="stili" className="scroll-mt-20" aria-labelledby="styles-heading">
       <div className={GF_BLOCK}>
         <h2 id="styles-heading" className={GF_H2}>
-          {STIKER_IZ_FOTO_SEO.stylesTitle}
+          {stickerStylesTitle(styles.length)}
         </h2>
         <p className={GF_LEAD}>{STIKER_IZ_FOTO_SEO.stylesLead}</p>
         <ul className={`${GF_STACK} grid gap-3 sm:grid-cols-2 lg:grid-cols-3`}>
-          {STICKER_STYLES.map((style) => (
+          {styles.map((style) => (
             <li key={style.id} className={`p-4 ${GF_SURFACE}`}>
-              <p className={GF_EYEBROW}>{style.hint}</p>
-              <h3 className="mt-1 text-base font-semibold text-zinc-900">{style.label}</h3>
+              <p className={GF_EYEBROW}>{style.description || style.hint}</p>
+              <h3 className="mt-1 text-base font-semibold text-zinc-900">
+                {style.emoji ? <span aria-hidden>{style.emoji} </span> : null}
+                {style.label}
+              </h3>
             </li>
           ))}
         </ul>
@@ -100,7 +119,10 @@ function StickerStylesSection() {
 }
 
 export default async function StikerIzFotoPage() {
-  const enabled = await readStickerGenerationEnabled();
+  const [enabled, styles] = await Promise.all([
+    readStickerGenerationEnabled(),
+    readStickerStylesForPage(),
+  ]);
   const schemas = buildGeneraciyaHubJsonLd({
     pageUrl: PAGE_URL,
     name: `${STIKER_IZ_FOTO_SEO.h1} — PromptShot`,
@@ -176,7 +198,7 @@ export default async function StikerIzFotoPage() {
             )}
           </section>
 
-          <StickerStylesSection />
+          <StickerStylesSection styles={styles} />
 
           <GeneraciyaFotoHowTo
             title={STIKER_IZ_FOTO_SEO.howToTitle}

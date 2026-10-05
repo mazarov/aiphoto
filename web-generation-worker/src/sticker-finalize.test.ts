@@ -6,9 +6,22 @@ import {
   composeStickerFromCutout,
   dilateAlpha,
   finalizeStickerImage,
+  flattenStickerSourceForEdit,
   removeBackgroundViaRembg,
 } from "./sticker-finalize";
 import { ProcessingError } from "./input-source";
+
+test("flattenStickerSourceForEdit paints transparency magenta and keeps the figure", async () => {
+  const flat = await flattenStickerSourceForEdit(await syntheticCutout());
+  assert.equal(flat.mimeType, "image/png");
+  const { data, info } = await sharp(flat.buffer).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  assert.equal(info.channels, 4);
+  // corner pixel was transparent → now opaque magenta
+  assert.deepEqual([data[0], data[1], data[2], data[3]], [255, 0, 255, 255]);
+  // inside the blob stays blue
+  const idx = (100 * info.width + 60) * 4;
+  assert.deepEqual([data[idx], data[idx + 1], data[idx + 2]], [0x22, 0x44, 0xcc]);
+});
 
 async function syntheticCutout(): Promise<Buffer> {
   // 200×300 transparent canvas with an opaque blue rounded blob offset to a corner.

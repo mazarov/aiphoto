@@ -69,6 +69,10 @@ export const YM_GOAL_STICKER_UPLOAD = "sticker_upload";
 export const YM_GOAL_STICKER_START = "sticker_start";
 export const YM_GOAL_STICKER_DONE = "sticker_done";
 export const YM_GOAL_STICKER_DOWNLOAD = "sticker_download";
+/** Result rail actions on a finished sticker. Params: `{ preset }` / `{ length }`. */
+export const YM_GOAL_STICKER_EMOTION = "sticker_emotion";
+export const YM_GOAL_STICKER_MOTION = "sticker_motion";
+export const YM_GOAL_STICKER_TEXT = "sticker_text";
 export const YM_GOAL_STICKER_PRICING = "sticker_pricing";
 export const YM_GOAL_ANALYZE_AUTH_REQUIRED = "analyze_auth_required";
 export const YM_GOAL_ANALYZE_NO_CREDITS = "analyze_no_credits";

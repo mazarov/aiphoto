@@ -41,6 +41,20 @@ function hexToRgb(hex: string): { r: number; g: number; b: number } {
 
 const BG = hexToRgb(STICKER_BACKGROUND_HEX);
 
+/**
+ * Emotion / motion edits start from the finished transparent PNG. The model is told the subject sits on
+ * flat magenta, so flatten alpha onto that colour first — otherwise providers fill transparency with
+ * black / white / checker and the edit prompt and chroma cleanup disagree with what the model saw.
+ */
+export async function flattenStickerSourceForEdit(input: Buffer): Promise<{ buffer: Buffer; mimeType: string }> {
+  const buffer = await sharp(input)
+    .ensureAlpha()
+    .flatten({ background: { r: BG.r, g: BG.g, b: BG.b } })
+    .png({ compressionLevel: 6 })
+    .toBuffer();
+  return { buffer, mimeType: "image/png" };
+}
+
 async function sleep(ms: number, signal?: AbortSignal): Promise<void> {
   if (signal?.aborted) return;
   await new Promise<void>((resolve) => {

@@ -29,12 +29,14 @@
     "@supabase/ssr": "^0.9.0",
     "@supabase/supabase-js": "^2.48.0",
     "next": "15.5.21",
+    "opentype.js": "^1.3.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "sharp": "^0.33.5"
   },
   "devDependencies": {
     "@types/node": "^20",
+    "@types/opentype.js": "^1.3.10",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "autoprefixer": "^10",

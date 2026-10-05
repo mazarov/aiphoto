@@ -6,6 +6,12 @@
  */
 
 import type { GeneraciyaFaqEntry } from "@/lib/generaciya-foto-seo-copy";
+import { pluralStyles } from "@/lib/plural-prompts";
+
+/** H2 «нейросеть стикеры» with the live style count (bot's `style_presets_v2`). */
+export function stickerStylesTitle(count: number): string {
+  return count > 0 ? `Нейросеть для стикеров: ${pluralStyles(count)}` : STIKER_IZ_FOTO_SEO.stylesTitle;
+}
 
 export const STIKER_IZ_FOTO_SEO = {
   metaTitle: "Сделать стикер из фото онлайн 🎨 — нейросеть, PNG без фона за минуту",
@@ -15,6 +21,7 @@ export const STIKER_IZ_FOTO_SEO = {
   intro:
     "Превратите фото в стикер: загрузите снимок, выберите стиль — и через минуту получите PNG с прозрачным фоном и белой обводкой. Готово для Telegram, Max и WhatsApp.",
   breadcrumb: "Стикер из фото",
+  /** Fallback H2; the page renders `stickerStylesTitle(count)` with the live count from `style_presets_v2`. */
   stylesTitle: "Нейросеть для стикеров: 6 стилей",
   stylesLead:
     "Один и тот же человек — разный характер. Выберите стиль под чат: мультяшный для друзей, аниме для фанатов, 3D как в анимационном кино, мем для реакций, акварель для спокойных бесед, фото — если нужен просто аккуратный вырез.",

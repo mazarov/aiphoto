@@ -48,13 +48,23 @@ import {
   STICKER_CONFIG_MODEL_KEY,
   STICKER_EDIT_KIND,
   STICKER_IMAGE_SIZE,
+  STICKER_CUSTOM_PRESET_ID,
+  buildStickerEditPromptText,
   buildStickerPromptText,
-  findStickerStyle,
+  isStickerEditAction,
   isStickerEditKind,
   resolveStickerModel,
+  sanitizeStickerCustomHint,
+  stickerEditFingerprintFields,
   stickerFingerprintFields,
+  type StickerEditSpec,
+  type StickerStyle,
 } from "@/lib/sticker";
 import { isStickerUnlocked } from "@/lib/sticker-access";
+import {
+  resolveStickerPresetForEnqueue,
+  resolveStickerStyleForEnqueue,
+} from "@/lib/sticker-catalog-db";
 import {
   PRESERVE_OUTFIT_CONFIG_KEY,
   resolveRequestedWardrobePolicy,
@@ -204,6 +214,9 @@ export async function POST(req: NextRequest) {
       idempotencyKey: bodyIdempotencyKey,
       preserveOutfit,
       stickerStyleId: rawStickerStyleId,
+      stickerAction: rawStickerAction,
+      stickerPresetId: rawStickerPresetId,
+      stickerCustomHint: rawStickerCustomHint,
     } = body as {
       generationSurface?: string;
       modality?: string;
@@ -225,6 +238,9 @@ export async function POST(req: NextRequest) {
       pipeline?: unknown;
       preserveOutfit?: unknown;
       stickerStyleId?: unknown;
+      stickerAction?: unknown;
+      stickerPresetId?: unknown;
+      stickerCustomHint?: unknown;
     };
     const preserveOutfitRequested = preserveOutfit === true;
     const listingRepeatInput = parseListingVideoRepeatClientPipeline(body.pipeline);
@@ -262,7 +278,12 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
-    const stickerStyle = isSticker ? findStickerStyle(rawStickerStyleId) : null;
+    /** Sticker edit (emotion / motion) = sticker job with a finished-sticker parent; initial sticker = one library photo. */
+    const stickerEditRequested =
+      isSticker && typeof parentGenerationId === "string" && parentGenerationId.trim() !== "";
+    const stickerAction = stickerEditRequested ? String(rawStickerAction ?? "").trim() : "";
+    let stickerStyle: StickerStyle | null = null;
+    let stickerEdit: StickerEditSpec | null = null;
     if (isSticker) {
       if (isVideo) {
         return NextResponse.json(
@@ -270,26 +291,32 @@ export async function POST(req: NextRequest) {
           { status: 400 }
         );
       }
-      if (!stickerStyle) {
-        return NextResponse.json(
-          { error: "validation_error", message: "Выберите стиль стикера" },
-          { status: 400 }
-        );
-      }
-      if (
-        (typeof parentGenerationId === "string" && parentGenerationId.trim()) ||
-        normalizeEditInstruction(editInstruction)
-      ) {
-        return NextResponse.json(
-          { error: "validation_error", message: "Стикер делается из загруженного фото" },
-          { status: 400 }
-        );
-      }
-      if (normalizePhotoStoragePaths(photoStoragePaths).length !== 1) {
-        return NextResponse.json(
-          { error: "validation_error", message: "Загрузите одно фото для стикера" },
-          { status: 400 }
-        );
+      if (stickerEditRequested) {
+        if (!isStickerEditAction(stickerAction)) {
+          return NextResponse.json(
+            { error: "validation_error", message: "Выберите эмоцию или движение" },
+            { status: 400 }
+          );
+        }
+        if (normalizePhotoStoragePaths(photoStoragePaths).length > 0) {
+          return NextResponse.json(
+            { error: "validation_error", message: "Эмоция и движение меняются у готового стикера" },
+            { status: 400 }
+          );
+        }
+      } else {
+        if (normalizeEditInstruction(editInstruction)) {
+          return NextResponse.json(
+            { error: "validation_error", message: "Стикер делается из загруженного фото" },
+            { status: 400 }
+          );
+        }
+        if (normalizePhotoStoragePaths(photoStoragePaths).length !== 1) {
+          return NextResponse.json(
+            { error: "validation_error", message: "Загрузите одно фото для стикера" },
+            { status: 400 }
+          );
+        }
       }
     }
     if (isCameraOrbit && isVideo) {
@@ -411,7 +438,7 @@ export async function POST(req: NextRequest) {
         );
       }
     }
-    const editContractError = isVideo || isCameraOrbit || isPhotoshoot
+    const editContractError = isVideo || isCameraOrbit || isPhotoshoot || isSticker
       ? null
       : validateGenerationEditContract({
           hasParentGeneration,
@@ -486,6 +513,19 @@ export async function POST(req: NextRequest) {
       if (isVideo && (parent.modality || "image") !== IMAGE_GENERATION_MODALITY) {
         return NextResponse.json(
           { error: "validation_error", message: "Оживить можно только готовое фото" },
+          { status: 400 }
+        );
+      }
+      if (
+        isSticker &&
+        ((parent.modality || "image") !== IMAGE_GENERATION_MODALITY ||
+          !isStickerEditKind(parent.edit_kind))
+      ) {
+        return NextResponse.json(
+          {
+            error: "sticker_parent_not_sticker",
+            message: "Эмоцию и движение можно менять только у готового стикера",
+          },
           { status: 400 }
         );
       }
@@ -625,6 +665,35 @@ export async function POST(req: NextRequest) {
         aspectRatio: typeof aspectRatio === "string" ? aspectRatio : "",
       });
       normalizedEditInstruction = serializePhotoshootEnqueueInstruction();
+    }
+
+    if (isSticker && !stickerEditRequested) {
+      stickerStyle = await resolveStickerStyleForEnqueue(supabase, rawStickerStyleId);
+      if (!stickerStyle) {
+        return NextResponse.json(
+          { error: "validation_error", message: "Выберите стиль стикера" },
+          { status: 400 }
+        );
+      }
+    }
+    if (isSticker && stickerEditRequested && isStickerEditAction(stickerAction)) {
+      const preset = await resolveStickerPresetForEnqueue(supabase, stickerAction, rawStickerPresetId);
+      const customHint = preset ? "" : sanitizeStickerCustomHint(rawStickerCustomHint);
+      if (!preset && !customHint) {
+        return NextResponse.json(
+          {
+            error: "validation_error",
+            message: stickerAction === "emotion" ? "Выберите или опишите эмоцию" : "Выберите или опишите движение",
+          },
+          { status: 400 }
+        );
+      }
+      stickerEdit = {
+        action: stickerAction,
+        presetId: preset?.id ?? STICKER_CUSTOM_PRESET_ID,
+        hint: preset?.hint ?? customHint,
+      };
+      normalizedEditInstruction = stickerEdit.hint;
     }
 
     const ar = isVideo
@@ -798,7 +867,7 @@ export async function POST(req: NextRequest) {
       isVibe: Boolean(resolvedVibeId),
       isPhotoshoot,
       isCameraOrbit,
-      isLocalEdit: hasParentGeneration && !isPhotoshoot && !isCameraOrbit,
+      isLocalEdit: hasParentGeneration && !isPhotoshoot && !isCameraOrbit && !isSticker,
       isVideo,
     });
 
@@ -981,8 +1050,10 @@ export async function POST(req: NextRequest) {
     if (isPhotoshoot) {
       promptText = serializePhotoshootEnqueueInstruction();
     }
-    if (isSticker && stickerStyle) {
-      promptText = buildStickerPromptText(stickerStyle.id);
+    if (isSticker) {
+      promptText = stickerEdit
+        ? buildStickerEditPromptText(stickerEdit)
+        : buildStickerPromptText(stickerStyle ?? "");
     }
     if (!promptText || promptText.length < minPromptLength) {
       return NextResponse.json(
@@ -1074,6 +1145,8 @@ export async function POST(req: NextRequest) {
                   normalizedParentGenerationId,
                   normalizedPhotoStoragePaths[0] || "",
                 )
+            : isSticker && stickerEdit
+              ? stickerEditFingerprintFields(normalizedParentGenerationId, stickerEdit)
             : isSticker && stickerStyle
               ? stickerFingerprintFields(
                   normalizedPhotoStoragePaths[0] || "",
@@ -1236,6 +1309,12 @@ export async function POST(req: NextRequest) {
       const photoshootSourceInvalid =
         enqueueError?.message?.includes("photoshoot_incomplete") ||
         enqueueError?.message?.includes("photoshoot_source_conflict");
+      const stickerSourceInvalid =
+        enqueueError?.message?.includes("sticker_source_required") ||
+        enqueueError?.message?.includes("sticker_source_conflict") ||
+        enqueueError?.message?.includes("sticker_edit_incomplete") ||
+        enqueueError?.message?.includes("sticker_parent_not_sticker") ||
+        enqueueError?.message?.includes("sticker_no_parent");
       const { data: userRow } = insufficient
         ? await supabase
             .from("landing_users")
@@ -1252,6 +1331,8 @@ export async function POST(req: NextRequest) {
             ? "photoshoot_from_sheet"
             : photoshootSourceInvalid
               ? "photoshoot_source_invalid"
+              : stickerSourceInvalid
+                ? "sticker_source_invalid"
               : parentUnavailable
                 ? "parent_unavailable"
                 : "opaque";
@@ -1311,6 +1392,17 @@ export async function POST(req: NextRequest) {
           {
             error: "validation_error",
             message: "Для фотосессии выберите одно фото",
+          },
+          { status: 400 }
+        );
+      }
+      if (stickerSourceInvalid) {
+        return NextResponse.json(
+          {
+            error: "validation_error",
+            message: stickerEdit
+              ? "Эмоцию и движение можно менять только у готового стикера"
+              : "Загрузите одно фото для стикера",
           },
           { status: 400 }
         );

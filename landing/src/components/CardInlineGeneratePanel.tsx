@@ -124,7 +124,10 @@ import {
   YM_GOAL_PHOTOSHOOT_READY,
   YM_GOAL_PHOTOSHOOT_SUBMIT,
   YM_GOAL_STICKER_DONE,
+  YM_GOAL_STICKER_EMOTION,
+  YM_GOAL_STICKER_MOTION,
   YM_GOAL_STICKER_START,
+  YM_GOAL_STICKER_TEXT,
   YM_GOAL_ANALYZE_AUTH_REQUIRED,
   YM_GOAL_ANALYZE_NO_CREDITS,
   YM_GOAL_GENERATION_PHOTO_PROMPT_OPEN,
@@ -219,9 +222,24 @@ import {
 import {
   DEFAULT_STICKER_STYLE_ID,
   STICKER_EDIT_KIND,
-  STICKER_STYLES,
+  STICKER_STYLES as STICKER_STYLES_FALLBACK,
+  STICKER_TEXT_ACTION,
   isStickerEditKind,
+  type StickerEditAction,
 } from "@/lib/sticker";
+import {
+  loadStickerCatalogClient,
+  peekStickerCatalog,
+  stickerStyleTileLabel,
+  type StickerCatalogClient,
+} from "@/lib/sticker-catalog-client";
+import {
+  STICKER_ACTION_COPY,
+  STICKER_ACTION_FREE_DETAIL,
+  type StickerResultAction,
+} from "@/lib/sticker-action-sheet";
+import { StickerStylePicker, STICKER_STYLE_PICKER_TITLE } from "@/components/sticker/StickerStylePicker";
+import { StickerActionSheet } from "@/components/sticker/StickerActionSheet";
 import {
   CAMERA_ORBIT_EDIT_KIND,
   type CameraPose,
@@ -427,6 +445,12 @@ export function CardInlineGeneratePanel({
   );
   const [stickerStyleId, setStickerStyleId] = useState(DEFAULT_STICKER_STYLE_ID);
   const [stickerCost, setStickerCost] = useState<number | null>(null);
+  const [stickerCatalog, setStickerCatalog] = useState<StickerCatalogClient | null>(() => peekStickerCatalog());
+  const [stickerCatalogLoading, setStickerCatalogLoading] = useState(false);
+  /** Open result action («emotion» / «motion» / «text») on a finished sticker. */
+  const [stickerActionOpen, setStickerActionOpen] = useState<StickerResultAction | null>(null);
+  const [stickerTextBusy, setStickerTextBusy] = useState(false);
+  const stickerStyleTouchedRef = useRef(false);
   const [photoshootOpen, setPhotoshootOpen] = useState(false);
   const [photoshootSourceId, setPhotoshootSourceId] = useState<string | null>(null);
   const [photoshootSourceUrl, setPhotoshootSourceUrl] = useState<string | null>(null);
@@ -1626,6 +1650,8 @@ export function CardInlineGeneratePanel({
   const startComposeExampleMatch = (photo: UserPhoto | null | undefined) => {
     if (!composeExampleMatchEnabled) return;
     if (!composeShowsExampleTool({ composeMode: composeModeRef.current })) return;
+    // Sticker mode shows bot styles, not catalog examples — no audience match needed.
+    if (composeModeRef.current === "sticker") return;
     if (!photo) return;
     const matchPhoto = {
       id: photo.id,
@@ -2097,6 +2123,10 @@ export function CardInlineGeneratePanel({
     modality?: "image" | "video";
     photoStoragePath?: string;
     listingVideoRepeat?: { videoPrompt: string };
+    /** Sticker result edit: emotion / motion on top of `parentGenerationId`. */
+    stickerAction?: StickerEditAction;
+    stickerPresetId?: string | null;
+    stickerCustomHint?: string;
   }): Promise<boolean> => {
     const requestedModality =
       options?.modality || apiModalityForComposeMode(composeMode);
@@ -2105,7 +2135,10 @@ export function CardInlineGeneratePanel({
     const isCameraOrbit = options?.editKind === CAMERA_ORBIT_EDIT_KIND;
     const isPhotoshoot = options?.editKind === PHOTOSHOOT_EDIT_KIND;
     const isSticker = options?.editKind === STICKER_EDIT_KIND;
+    const isStickerEdit =
+      isSticker && Boolean(options?.parentGenerationId?.trim()) && Boolean(options?.stickerAction);
     if (
+      !isStickerEdit &&
       !canEnqueueWhilePhotoshootSelected({
         composeMode,
         editKind: options?.editKind,
@@ -2126,7 +2159,7 @@ export function CardInlineGeneratePanel({
       : options?.parentGenerationId?.trim() || "";
     const editInstruction = isVideo || isCameraOrbit ? "" : options?.editInstruction?.trim() || "";
     const isContinuation = Boolean(parentGenerationId) && !isVideo;
-    if (isContinuation && !editInstruction && !isCameraOrbit && !isPhotoshoot) {
+    if (isContinuation && !editInstruction && !isCameraOrbit && !isPhotoshoot && !isStickerEdit) {
       setError("Опишите, что изменить");
       return false;
     }
@@ -2205,7 +2238,7 @@ export function CardInlineGeneratePanel({
         return false;
       }
     }
-    if (isSticker) {
+    if (isSticker && !isStickerEdit) {
       const libraryPath =
         photoshootLibraryPathOverride || photosForEnqueue[0]?.storagePath || "";
       if (!libraryPath || photosForEnqueue.length !== 1) {
@@ -2263,7 +2296,7 @@ export function CardInlineGeneratePanel({
           durationSeconds: isVideo ? videoDurationSeconds : undefined,
           cardId: resolvedCardId,
           photoStoragePaths: isPhotoshoot || isSticker
-            ? parentGenerationId && !isSticker
+            ? parentGenerationId && (!isSticker || isStickerEdit)
               ? []
               : [
                   photoshootLibraryPathOverride ||
@@ -2286,7 +2319,10 @@ export function CardInlineGeneratePanel({
               : isSticker
                 ? STICKER_EDIT_KIND
                 : undefined,
-          stickerStyleId: isSticker ? stickerStyleId : undefined,
+          stickerStyleId: isSticker && !isStickerEdit ? stickerStyleId : undefined,
+          stickerAction: isStickerEdit ? options?.stickerAction : undefined,
+          stickerPresetId: isStickerEdit ? options?.stickerPresetId || null : undefined,
+          stickerCustomHint: isStickerEdit ? options?.stickerCustomHint || undefined : undefined,
           cameraPose: isCameraOrbit ? options?.cameraPose : undefined,
           parentTile: isPhotoshoot ? options?.parentTile : undefined,
           vibeId: null,
@@ -2376,7 +2412,7 @@ export function CardInlineGeneratePanel({
       if (isPhotoshoot) {
         reachYandexMetrikaGoal(YM_GOAL_PHOTOSHOOT_SUBMIT, { credits: PHOTOSHOOT_CREDIT_COST });
       }
-      if (isSticker) {
+      if (isSticker && !isStickerEdit) {
         reachYandexMetrikaGoal(YM_GOAL_STICKER_START, { style: stickerStyleId });
       }
       setPhase("generating");
@@ -2520,7 +2556,10 @@ export function CardInlineGeneratePanel({
           }
           if (isSticker) {
             setResultEditKind(STICKER_EDIT_KIND);
-            reachYandexMetrikaGoal(YM_GOAL_STICKER_DONE, { style: stickerStyleId });
+            setStickerActionOpen(null);
+            if (!isStickerEdit) {
+              reachYandexMetrikaGoal(YM_GOAL_STICKER_DONE, { style: stickerStyleId });
+            }
           }
           onGenerationComplete?.();
           return true;
@@ -2860,6 +2899,34 @@ export function CardInlineGeneratePanel({
   const stickerCompose = composeMode === "sticker";
   const photoPromptCompose = composeMode === "photo_prompt";
   const stickerResult = isStickerEditKind(resultEditKind);
+  const stickerCatalogWanted = stickerCompose || stickerResult;
+  useEffect(() => {
+    if (!stickerCatalogWanted || stickerCatalog) return;
+    let cancelled = false;
+    setStickerCatalogLoading(true);
+    loadStickerCatalogClient()
+      .then((catalog) => {
+        if (cancelled) return;
+        setStickerCatalog(catalog);
+        if (!stickerStyleTouchedRef.current && catalog.defaultStyleId) {
+          setStickerStyleId(catalog.defaultStyleId);
+        }
+      })
+      .catch(() => {
+        /* static fallback styles stay in place */
+      })
+      .finally(() => {
+        if (!cancelled) setStickerCatalogLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [stickerCatalogWanted, stickerCatalog]);
+  const stickerStyles = stickerCatalog?.styles ?? STICKER_STYLES_FALLBACK;
+  const stickerStyleGroups = stickerCatalog?.groups ?? [];
+  const stickerPresetsFor = (action: StickerResultAction) =>
+    action === "emotion" ? stickerCatalog?.emotions ?? [] : action === "motion" ? stickerCatalog?.motions ?? [] : [];
+  const selectedStickerStyleLabel = stickerStyleTileLabel(stickerStyles, stickerStyleId);
   const photoPromptHasSource = Boolean(
     resolvePhotoPromptAnalyzeSource({
       selectedPreviewUrl: selectedPhotos[0]?.previewUrl,
@@ -3050,6 +3117,7 @@ export function CardInlineGeneratePanel({
     !photoPromptCompose &&
     !cameraOrbitOpen &&
     !photoshootOpen &&
+    !stickerActionOpen &&
     !(isDock && dockExpanded);
   const resultPrimary = resultPrimaryAction({
     showCreditsCta,
@@ -3081,7 +3149,82 @@ export function CardInlineGeneratePanel({
     photoshootOpen &&
     resultModality === "image" &&
     Boolean(photoshootLibraryPath || generationId);
-  const hideComposeChrome = showPhotoshootOverlay || showCameraOverlay;
+  // Stays up while the emotion/motion job runs so the CTA shows progress; closes on completion.
+  const showStickerActionOverlay =
+    Boolean(stickerActionOpen) &&
+    stickerResult &&
+    (phase === "done" || phase === "generating") &&
+    Boolean(resultUrl) &&
+    Boolean(generationId) &&
+    resultModality === "image";
+  const hideComposeChrome = showPhotoshootOverlay || showCameraOverlay || showStickerActionOverlay;
+  const openStickerAction = (action: StickerResultAction) => {
+    setError("");
+    setStickerActionOpen(action);
+  };
+  const submitStickerEdit = async (
+    action: StickerEditAction,
+    input: { presetId: string | null; customText: string },
+  ): Promise<boolean> => {
+    if (!generationId) return false;
+    reachYandexMetrikaGoal(action === "emotion" ? YM_GOAL_STICKER_EMOTION : YM_GOAL_STICKER_MOTION, {
+      preset: input.presetId || "custom",
+    });
+    return runGenerate({
+      editKind: STICKER_EDIT_KIND,
+      parentGenerationId: generationId,
+      stickerAction: action,
+      stickerPresetId: input.presetId,
+      stickerCustomHint: input.presetId ? "" : input.customText,
+    });
+  };
+  /** Free server-side overlay: new completed generation, no worker round-trip. */
+  const submitStickerText = async (input: { customText: string }): Promise<boolean> => {
+    if (!generationId || stickerTextBusy) return false;
+    setStickerTextBusy(true);
+    setError("");
+    try {
+      const res = await fetch(`/api/generations/${generationId}/sticker-text`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...browserAcquisitionHeaders() },
+        credentials: "include",
+        body: JSON.stringify({ text: input.customText }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        id?: string;
+        resultUrl?: string;
+        error?: string;
+        message?: string;
+      };
+      if (!res.ok || !data.id || !data.resultUrl) {
+        setError(data.message || (res.status === 503 ? "Сервер занят, попробуйте ещё раз" : "Не удалось добавить текст"));
+        return false;
+      }
+      reachYandexMetrikaGoal(YM_GOAL_STICKER_TEXT, { length: input.customText.trim().length });
+      setGenerationId(data.id);
+      setResultUrl(data.resultUrl);
+      setResultEditKind(STICKER_EDIT_KIND);
+      setIsPublished(false);
+      setPublishedSlug(null);
+      rememberLastDockResult({
+        generationId: data.id,
+        resultUrl: data.resultUrl,
+        promptText: draftPrompt,
+        modality: "image",
+        isPublished: false,
+        editKind: STICKER_EDIT_KIND,
+        photoshootTileUrls: null,
+      });
+      setStickerActionOpen(null);
+      onGenerationComplete?.();
+      return true;
+    } catch {
+      setError("Не удалось добавить текст");
+      return false;
+    } finally {
+      setStickerTextBusy(false);
+    }
+  };
   const startPhotoshoot = () => {
     const frame = resolvePhotoshootReadyFrame({
       generationId,
@@ -3513,6 +3656,56 @@ export function CardInlineGeneratePanel({
                 </svg>
               ),
             },
+            ...(stickerResult && resultModality === "image"
+              ? [
+                  {
+                    id: "sticker-emotion",
+                    label: STICKER_ACTION_COPY.emotion.railLabel,
+                    creditCost: stickerCost ?? undefined,
+                    creditUnaffordable:
+                      stickerCost != null && isAuthed && credits !== null && credits < stickerCost,
+                    disabled: busy || Boolean(busyAction),
+                    ariaLabel: STICKER_ACTION_COPY.emotion.title,
+                    onClick: () => openStickerAction("emotion"),
+                    icon: (
+                      <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                        <circle cx="12" cy="12" r="8.5" />
+                        <path d="M8.5 14.2c.9 1.3 2.1 1.9 3.5 1.9s2.6-.6 3.5-1.9" strokeLinecap="round" />
+                        <path d="M9.2 9.8h.01M14.8 9.8h.01" strokeLinecap="round" strokeWidth="2.4" />
+                      </svg>
+                    ),
+                  },
+                  {
+                    id: "sticker-motion",
+                    label: STICKER_ACTION_COPY.motion.railLabel,
+                    creditCost: stickerCost ?? undefined,
+                    creditUnaffordable:
+                      stickerCost != null && isAuthed && credits !== null && credits < stickerCost,
+                    disabled: busy || Boolean(busyAction),
+                    ariaLabel: STICKER_ACTION_COPY.motion.title,
+                    onClick: () => openStickerAction("motion"),
+                    icon: (
+                      <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                        <circle cx="13.5" cy="5" r="1.6" />
+                        <path d="m7 21 3.2-6.2L8 12.5l3.5-4.3 3.3 1.6 2.7 2.4M11 14.8l3.5 2.2L16 21" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    ),
+                  },
+                  {
+                    id: "sticker-text",
+                    label: STICKER_ACTION_COPY.text.railLabel,
+                    detail: STICKER_ACTION_FREE_DETAIL,
+                    disabled: busy || Boolean(busyAction) || stickerTextBusy,
+                    ariaLabel: `${STICKER_ACTION_COPY.text.title}, ${STICKER_ACTION_FREE_DETAIL}`,
+                    onClick: () => openStickerAction(STICKER_TEXT_ACTION),
+                    icon: (
+                      <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                        <path d="M5 6.5V4.5h14v2M12 4.5v15m-3 0h6" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    ),
+                  },
+                ]
+              : []),
             ...(videoEnabled && resultModality === "image" && !stickerResult
               ? [
                   {
@@ -3740,7 +3933,26 @@ export function CardInlineGeneratePanel({
         />
       ) : null}
 
-      {!isDock && !showCameraOverlay && !showPhotoshootOverlay ? (
+      {showStickerActionOverlay && stickerActionOpen ? (
+        <StickerActionSheet
+          action={stickerActionOpen}
+          presets={stickerPresetsFor(stickerActionOpen)}
+          loading={stickerCatalogLoading}
+          creditCost={stickerCost}
+          hideCreditCost={!isAuthed}
+          busy={phase === "generating" || starting || stickerTextBusy}
+          progress={progress}
+          error={error || null}
+          onClose={() => setStickerActionOpen(null)}
+          onSubmit={(input) =>
+            stickerActionOpen === STICKER_TEXT_ACTION
+              ? submitStickerText(input)
+              : submitStickerEdit(stickerActionOpen, input)
+          }
+        />
+      ) : null}
+
+      {!isDock && !showCameraOverlay && !showPhotoshootOverlay && !showStickerActionOverlay ? (
       <header
         className={`relative z-30 flex min-h-14 shrink-0 items-center justify-between gap-2 border-b px-3 ${
           isMobile ? "pb-2 pt-[max(0.5rem,env(safe-area-inset-top))]" : "py-2"
@@ -4465,7 +4677,7 @@ export function CardInlineGeneratePanel({
                   dockExampleExpanded ? "text-white" : "text-zinc-900"
                 }`}
               >
-                {SEO_COMPOSE_EXAMPLE_SHEET_TITLE}
+                {stickerCompose ? STICKER_STYLE_PICKER_TITLE : SEO_COMPOSE_EXAMPLE_SHEET_TITLE}
               </h3>
               <button
                 type="button"
@@ -4489,6 +4701,24 @@ export function CardInlineGeneratePanel({
                 </svg>
               </button>
             </div>
+            {stickerCompose ? (
+              <StickerStylePicker
+                styles={stickerStyles}
+                groups={stickerStyleGroups}
+                loading={stickerCatalogLoading}
+                selectedId={stickerStyleId}
+                tone={dockExampleExpanded ? "dark" : "light"}
+                confirmCtaClassName={`${OVERLAY_BUTTON_UA_RESET} ${
+                  isMobile || dockExampleExpanded ? "" : "mt-3 "
+                }${composeSheetCta}`}
+                onSelect={(style) => {
+                  stickerStyleTouchedRef.current = true;
+                  setStickerStyleId(style.id);
+                  setError("");
+                }}
+                onConfirmed={closePrefsSheet}
+              />
+            ) : (
             <ComposeExamplePicker
               selectedCardId={resolvedCardId}
               tone={dockExampleExpanded ? "dark" : "light"}
@@ -4520,6 +4750,7 @@ export function CardInlineGeneratePanel({
               }}
               onConfirmed={closePrefsSheet}
             />
+            )}
             </div>
           </div>
         ) : null}
@@ -4877,7 +5108,8 @@ export function CardInlineGeneratePanel({
             {showSeoExampleTool ? (
               <ComposeDockToolTile
                 edgeLabel={SEO_COMPOSE_EXAMPLE_TOOL_EDGE_LABEL}
-                previewUrls={composePreviewImageUrls([pickedExamplePreviewUrl])}
+                bodyLabel={stickerCompose ? selectedStickerStyleLabel : undefined}
+                previewUrls={stickerCompose ? null : composePreviewImageUrls([pickedExamplePreviewUrl])}
                 icon={<ComposeExampleToolIcon className="h-5 w-5" />}
                 selected={expandedControl === "example"}
                 expanded={expandedControl === "example"}
@@ -4986,35 +5218,6 @@ export function CardInlineGeneratePanel({
               </button>
             </div>
           ) : null}
-          {stickerCompose && !showResultChrome ? (
-            <div className="mt-2 flex flex-wrap gap-2" role="radiogroup" aria-label="Стиль стикера">
-              {STICKER_STYLES.map((style) => {
-                const active = style.id === stickerStyleId;
-                return (
-                  <button
-                    key={style.id}
-                    type="button"
-                    role="radio"
-                    aria-checked={active}
-                    disabled={controlsBusy}
-                    onClick={() => setStickerStyleId(style.id)}
-                    className={`${OVERLAY_BUTTON_UA_RESET} inline-flex min-h-11 items-center rounded-full px-3 text-[13px] font-medium transition disabled:opacity-50 ${
-                      active
-                        ? isDock || glassChrome
-                          ? "bg-white/20 text-white ring-1 ring-white/35"
-                          : "bg-zinc-900 text-white"
-                        : isDock || glassChrome
-                          ? "bg-white/10 text-white/85 ring-1 ring-white/15"
-                          : "bg-zinc-100 text-zinc-800"
-                    }`}
-                  >
-                    {style.label}
-                  </button>
-                );
-              })}
-            </div>
-          ) : null}
-
         </section>
         ) : null}
 
