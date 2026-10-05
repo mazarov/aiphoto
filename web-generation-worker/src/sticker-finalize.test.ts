@@ -4,8 +4,10 @@ import sharp from "sharp";
 import {
   chromaKeyMagenta,
   clearChromaFringe,
+  clearAlphaDust,
   composeStickerFromCutout,
   dilateAlpha,
+  removeAlphaIslands,
   finalizeStickerImage,
   flattenStickerSourceForEdit,
   magentaRatio,
@@ -69,6 +71,8 @@ test("finalizeStickerImage on a real-alpha frame takes alpha_native: no key, no 
   assert.equal(result.sticker.route, "alpha_native");
   assert.equal(result.sticker.rembgMs, 0);
   assert.equal(result.sticker.chromaKeyedPixels, 0);
+  assert.equal(result.sticker.edge, "soft", "real alpha keeps the soft edge");
+  assert.ok(result.sticker.partialAlphaRatio > 0, "antialiased edge survives");
   const out = await sharp(result.buffer).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
   assert.equal(out.info.width, 512);
   let blue = 0;
@@ -125,6 +129,8 @@ test("finalizeStickerImage on a magenta frame keys it out without calling rembg 
   assert.equal(result.sticker.route, "chroma");
   assert.equal(result.sticker.rembgMs, 0);
   assert.ok(result.sticker.magentaRatio > 0.6);
+  assert.equal(result.sticker.edge, "hard", "a chroma-key ramp is snapped, not kept");
+  assert.equal(result.sticker.partialAlphaRatio, 0);
   const { data, info } = await sharp(result.buffer).raw().toBuffer({ resolveWithObject: true });
   assert.equal(info.width, 512);
   // Every pixel inside the safe margin band is transparent → figure never touches the canvas edge.
@@ -152,6 +158,15 @@ test("finalizeStickerImage forced to rembg still calls the service on a magenta 
   const result = await finalizeStickerImage(frame, { rembgUrl: "http://rembg.test", fetchImpl: fetchStub, bgRoute: "rembg" });
   assert.equal(fetchCalls, 1);
   assert.equal(result.sticker.route, "rembg_forced");
+  assert.equal(result.sticker.edge, "soft", "a rembg matte is a real matte");
+});
+
+test("sticker_edge_mode=hard snaps even a real-alpha frame", async () => {
+  const frame = await syntheticAlphaFrame();
+  const result = await finalizeStickerImage(frame, { rembgUrl: "http://rembg.test", edgeMode: "hard" });
+  assert.equal(result.sticker.route, "alpha_native");
+  assert.equal(result.sticker.edge, "hard");
+  assert.equal(result.sticker.partialAlphaRatio, 0);
 });
 
 test("flattenStickerSourceForEdit paints transparency magenta and keeps the figure", async () => {
@@ -228,30 +243,131 @@ test("composeStickerFromCutout yields 512×512 PNG with alpha and no white borde
     const alpha = data[i * 4 + 3];
     if (alpha > 0 && alpha < 255) partial += 1;
   }
-  assert.equal(partial, 0, "die-cut is a hard edge, not a blurred halo");
+  assert.ok(partial > 0, "antialiased edge stays soft");
 });
 
-test("composeStickerFromCutout drops a faint checker square instead of outlining it", async () => {
-  const frame = await sharp(
+test("composeStickerFromCutout does not bake transparent-pixel colour into the edge", async () => {
+  const width = 64;
+  const height = 64;
+  const rgba = Buffer.alloc(width * height * 4);
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const offset = (y * width + x) * 4;
+      const inside = x >= 16 && x < 48 && y >= 8 && y < 56;
+      if (inside) {
+        rgba[offset] = 220;
+        rgba[offset + 1] = 20;
+        rgba[offset + 2] = 30;
+        rgba[offset + 3] = 255;
+      } else {
+        rgba[offset] = 40;
+        rgba[offset + 1] = 180;
+        rgba[offset + 2] = 20;
+        rgba[offset + 3] = 0;
+      }
+    }
+  }
+  const cutout = await sharp(rgba, { raw: { width, height, channels: 4 } }).png().toBuffer();
+  const result = await composeStickerFromCutout(cutout);
+  const out = await sharp(result.buffer).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  let greenOpaque = 0;
+  let red = 0;
+  for (let i = 0; i < out.info.width * out.info.height; i += 1) {
+    const offset = i * 4;
+    const alpha = out.data[offset + 3];
+    const r = out.data[offset];
+    const g = out.data[offset + 1];
+    const b = out.data[offset + 2];
+    if (alpha > 128 && g > r + 40 && g > b + 40) greenOpaque += 1;
+    if (alpha > 200 && r > 150 && g < 80) red += 1;
+  }
+  assert.equal(greenOpaque, 0, "green under transparent pixels stays out of the figure");
+  assert.ok(red > 0, "red subject survives");
+});
+
+test("clearAlphaDust drops near-invisible pixels and keeps a soft edge", () => {
+  const rgba = Buffer.from([
+    10, 200, 10, 8,
+    10, 200, 10, 0,
+    220, 20, 30, 40,
+    220, 20, 30, 255,
+  ]);
+  const cleared = clearAlphaDust(rgba, 4, 1);
+  assert.equal(cleared, 1, "only the visible speck counts; colour under alpha 0 is zeroed silently");
+  assert.equal(rgba[3], 0);
+  assert.equal(rgba[0], 0);
+  assert.equal(rgba[7], 0);
+  assert.equal(rgba[4], 0);
+  assert.equal(rgba[11], 40);
+  assert.equal(rgba[15], 255);
+});
+
+/** Figure plus a detached 35 %-alpha checker square in the corner — what GPT Image leaves beside the subject. */
+async function frameWithFaintSquare(): Promise<Buffer> {
+  return sharp(
     Buffer.from(
       `<svg xmlns="http://www.w3.org/2000/svg" width="240" height="240">
         <rect x="70" y="50" width="100" height="140" rx="20" fill="#2244cc"/>
-        <rect x="8" y="8" width="18" height="18" fill="#ffffff" fill-opacity="0.12"/>
+        <rect x="8" y="8" width="18" height="18" fill="#ffffff" fill-opacity="0.35"/>
       </svg>`,
     ),
   )
     .png()
     .toBuffer();
-  const result = await composeStickerFromCutout(frame, { outlinePx: 8, marginPx: 16 });
-  const { data, info } = await sharp(result.buffer).raw().toBuffer({ resolveWithObject: true });
+}
+
+function countCornerSpecks(data: Buffer, width: number): number {
   let speck = 0;
   for (let y = 0; y < 48; y += 1) {
     for (let x = 0; x < 48; x += 1) {
-      const offset = (y * info.width + x) * 4;
-      if (data[offset + 3] > 0) speck += 1;
+      if (data[(y * width + x) * 4 + 3] > 0) speck += 1;
     }
   }
-  assert.equal(speck, 0, "faint square in the corner does not survive");
+  return speck;
+}
+
+test("composeStickerFromCutout drops a faint checker square on the soft edge too", async () => {
+  const result = await composeStickerFromCutout(await frameWithFaintSquare(), { marginPx: 16 });
+  const { data, info } = await sharp(result.buffer).raw().toBuffer({ resolveWithObject: true });
+  assert.equal(countCornerSpecks(data, info.width), 0, "detached island is removed without hardening");
+  assert.equal(result.edge, "soft");
+  assert.ok(result.islandsCleared > 0, "island counter reports the removal");
+  assert.ok(result.partialAlphaRatio > 0, "the figure keeps its antialiased edge");
+});
+
+test("composeStickerFromCutout drops a faint checker square instead of outlining it", async () => {
+  const result = await composeStickerFromCutout(await frameWithFaintSquare(), { outlinePx: 8, marginPx: 16 });
+  const { data, info } = await sharp(result.buffer).raw().toBuffer({ resolveWithObject: true });
+  assert.equal(countCornerSpecks(data, info.width), 0, "faint square in the corner does not survive");
+  assert.equal(result.edge, "hard");
+  assert.equal(result.partialAlphaRatio, 0, "outline snaps the edge so the ring does not smear");
+});
+
+test("removeAlphaIslands keeps the figure and anything attached, drops faint or tiny islands", () => {
+  const width = 16;
+  const height = 8;
+  const rgba = Buffer.alloc(width * height * 4);
+  const set = (x: number, y: number, alpha: number) => {
+    const o = (y * width + x) * 4;
+    rgba[o] = 200;
+    rgba[o + 1] = 200;
+    rgba[o + 2] = 200;
+    rgba[o + 3] = alpha;
+  };
+  // Figure: 4×4 opaque block with a soft 1-px fringe on its right side (attached, alpha 60).
+  for (let y = 2; y < 6; y += 1) for (let x = 2; x < 6; x += 1) set(x, y, 255);
+  for (let y = 2; y < 6; y += 1) set(6, y, 60);
+  // Faint island: 3×3 at alpha 90, detached.
+  for (let y = 0; y < 3; y += 1) for (let x = 12; x < 15; x += 1) set(x, y, 90);
+  // Tiny opaque speck: 2 px at alpha 255, detached.
+  set(12, 6, 255);
+  set(13, 6, 255);
+  const cleared = removeAlphaIslands(rgba, width, height, { minPx: 4 });
+  assert.equal(cleared, 9 + 2);
+  assert.equal(rgba[(3 * width + 3) * 4 + 3], 255, "figure stays");
+  assert.equal(rgba[(3 * width + 6) * 4 + 3], 60, "attached soft fringe stays");
+  assert.equal(rgba[(1 * width + 13) * 4 + 3], 0, "faint island gone");
+  assert.equal(rgba[(6 * width + 12) * 4 + 3], 0, "tiny speck gone");
 });
 
 test("removeBackgroundViaRembg fails fast without REMBG_URL", async () => {

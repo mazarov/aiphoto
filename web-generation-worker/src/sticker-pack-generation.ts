@@ -1,7 +1,7 @@
 import sharp from "sharp";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { publicObjectUploadOptions } from "../../landing/src/lib/storage-cache-control";
-import type { StickerBackgroundMode } from "../../landing/src/lib/sticker";
+import type { StickerBackgroundMode, StickerEdgeMode } from "../../landing/src/lib/sticker";
 import {
   STICKER_PACK_CELL_PX,
   STICKER_PACK_COUNT,
@@ -45,6 +45,12 @@ export type StickerPackStats = {
   rembgMs: number;
   bytesOut: number;
   previewBytes: number;
+  /** Edge policy applied to every cell (`soft` unless `sticker_edge_mode=hard`). */
+  edge: StickerEdgeMode;
+  /** Mean share of partially transparent pixels across the 16 cells. */
+  partialAlphaRatio: number;
+  dustCleared: number;
+  islandsCleared: number;
 };
 
 export type StickerPackResult = {
@@ -165,6 +171,8 @@ export async function processStickerPack(input: {
   signal: AbortSignal;
   context: Record<string, unknown>;
   mode: StickerBackgroundMode;
+  /** `sticker_edge_mode`; default soft. */
+  edgeMode?: StickerEdgeMode;
   runSheet: StickerPackSheetRunner;
   ensureLease: () => Promise<void>;
   concurrency?: number;
@@ -202,6 +210,10 @@ export async function processStickerPack(input: {
   let finalizeMs = 0;
   let rembgMs = 0;
   let bytesOut = 0;
+  let edge: StickerEdgeMode = input.edgeMode ?? "soft";
+  let partialAlphaSum = 0;
+  let dustCleared = 0;
+  let islandsCleared = 0;
   for (let sheetIndex = 0; sheetIndex < sheets.length; sheetIndex += 1) {
     const splitStarted = Date.now();
     const scaled = await upscaleStickerPackSheet(sheets[sheetIndex]);
@@ -212,11 +224,16 @@ export async function processStickerPack(input: {
       const encoded = await finalizeStickerPackCell(split.cells[cellIndex], {
         signal: input.signal,
         outputPx: STICKER_PACK_CELL_PX,
+        edgeMode: input.edgeMode,
       });
       finalizeMs += Date.now() - finalizeStarted;
       const stats: StickerFinalizeStats = encoded.sticker;
       routes[stats.route] = (routes[stats.route] ?? 0) + 1;
       rembgMs += stats.rembgMs;
+      edge = stats.edge;
+      partialAlphaSum += stats.partialAlphaRatio;
+      dustCleared += stats.dustCleared;
+      islandsCleared += stats.islandsCleared;
       bytesOut += encoded.bytesOut;
       tiles[stickerPackStickerIndex(sheetIndex, cellIndex)] = encoded.buffer;
     }
@@ -273,6 +290,10 @@ export async function processStickerPack(input: {
     rembgMs,
     bytesOut,
     previewBytes: preview.length,
+    edge,
+    partialAlphaRatio: Math.round((partialAlphaSum / STICKER_PACK_COUNT) * 10_000) / 10_000,
+    dustCleared,
+    islandsCleared,
   };
   log("info", "sticker_pack_finalized", { ...input.context, resultPath, tiles: tilePaths.length, ...stats });
   return { resultPath, tilePaths, stats };

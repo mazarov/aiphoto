@@ -458,6 +458,7 @@ export async function processGeneration(
       signal,
       context,
       mode: "transparent",
+      edgeMode: packConfig.edgeMode,
       ensureLease,
       runSheet: ({ prompt }) =>
         generateSeedreamImage({
@@ -489,13 +490,22 @@ export async function processGeneration(
   const stickerConfig: StickerWorkerConfig | undefined = isSticker ? await getStickerWorkerConfig(supabase) : undefined;
   const encodeResult = (buffer: Buffer) =>
     isSticker
-      ? finalizeStickerImage(buffer, { rembgUrl: config.rembgUrl, signal, bgRoute: stickerConfig?.bgRoute })
+      ? finalizeStickerImage(buffer, {
+          rembgUrl: config.rembgUrl,
+          signal,
+          bgRoute: stickerConfig?.bgRoute,
+          edgeMode: stickerConfig?.edgeMode,
+        })
       : encodeGenerationResult(buffer);
   const logStickerFinalized = (stats: StickerFinalizeStats | undefined, bytesOut: number) => {
     if (!stats) return;
     log("info", "sticker_finalized", {
       ...context,
       route: stats.route,
+      edge: stats.edge,
+      partialAlphaRatio: stats.partialAlphaRatio,
+      dustCleared: stats.dustCleared,
+      islandsCleared: stats.islandsCleared,
       magentaRatio: stats.magentaRatio,
       chromaKeyedPixels: stats.chromaKeyedPixels,
       rembgMs: stats.rembgMs,

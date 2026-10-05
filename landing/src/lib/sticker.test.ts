@@ -16,8 +16,10 @@ import {
   normalizeStickerOverlayText,
   parseStickerBorderPxFromPrompt,
   parseStickerEditFromPrompt,
+  parseStickerEdgeMode,
   parseStickerStyleIdFromPrompt,
   resolveStickerModel,
+  stickerEdgeForRoute,
   sanitizeStickerCustomHint,
   STICKER_BACKGROUND_HEX,
   STICKER_BORDER_MAX_PX,
@@ -30,6 +32,18 @@ import {
   stickerEditFingerprintFields,
   stripStickerPromptMarker,
 } from "./sticker";
+
+test("edge policy: soft for real mattes, hard for chroma ramps, hard everywhere under the rollback knob", () => {
+  assert.equal(parseStickerEdgeMode(undefined), "soft");
+  assert.equal(parseStickerEdgeMode(" HARD "), "hard");
+  assert.equal(parseStickerEdgeMode("anything"), "soft");
+  assert.equal(stickerEdgeForRoute("alpha_native"), "soft");
+  assert.equal(stickerEdgeForRoute("rembg"), "soft");
+  assert.equal(stickerEdgeForRoute("rembg_forced"), "soft");
+  assert.equal(stickerEdgeForRoute("chroma"), "hard");
+  assert.equal(stickerEdgeForRoute("chroma_rembg"), "hard");
+  assert.equal(stickerEdgeForRoute("alpha_native", "hard"), "hard");
+});
 
 test("prompt text accepts a DB style row, not only the fallback id", () => {
   const text = buildStickerPromptText({ id: "cartoon_telegram", prompt: "Flat vector cartoon" });

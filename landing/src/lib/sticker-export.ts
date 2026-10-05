@@ -4,7 +4,12 @@
  */
 
 import sharp from "sharp";
-import type { StickerPlatform } from "./sticker";
+import { STICKER_ALPHA_HARD_MIN, type StickerPlatform } from "./sticker";
+
+export type StickerExportOptions = {
+  /** Row is a «Обводка» result: snap the white ring. Plain stickers keep their soft edge. */
+  hasBorder?: boolean;
+};
 
 export type StickerExportResult = {
   buffer: Buffer;
@@ -19,9 +24,9 @@ export type StickerExportResult = {
 const WEBP_QUALITY_LADDER = [95, 90, 85, 80, 75, 70, 65, 60, 55, 50, 45, 40] as const;
 
 /**
- * The stored sticker already has a white border whose alpha is a gradient, plus faint near-white
- * squares left by the model. Snap only near-white pixels: below half-alpha they disappear, the rest
- * becomes a hard edge. Coloured pixels (hair, skin, teeth) stay untouched.
+ * Border rows saved before the ring was snapped carry a white gradient edge. Snap only near-white
+ * pixels: below `STICKER_ALPHA_HARD_MIN` they disappear, the rest becomes a hard edge. Coloured
+ * pixels (hair, skin, teeth) stay untouched. Not applied to plain stickers — their soft edge is intended.
  */
 export async function crispStickerFringe(input: Buffer): Promise<Buffer> {
   const { data, info } = await sharp(input, { failOn: "none" }).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
@@ -33,7 +38,7 @@ export async function crispStickerFringe(input: Buffer): Promise<Buffer> {
     const green = rgba[offset + 1];
     const blue = rgba[offset + 2];
     if (red < 235 || green < 235 || blue < 235) continue;
-    if (rgba[offset + 3] >= 128) rgba[offset + 3] = 255;
+    if (rgba[offset + 3] >= STICKER_ALPHA_HARD_MIN) rgba[offset + 3] = 255;
     else {
       rgba[offset] = 0;
       rgba[offset + 1] = 0;
@@ -51,8 +56,12 @@ function normalizeCanvas(input: Buffer, sidePx: number) {
     .resize(sidePx, sidePx, { fit: "contain", background: { r: 0, g: 0, b: 0, alpha: 0 } });
 }
 
-export async function exportStickerForPlatform(input: Buffer, platform: StickerPlatform): Promise<StickerExportResult> {
-  const crisp = await crispStickerFringe(input);
+export async function exportStickerForPlatform(
+  input: Buffer,
+  platform: StickerPlatform,
+  options?: StickerExportOptions,
+): Promise<StickerExportResult> {
+  const crisp = options?.hasBorder ? await crispStickerFringe(input) : input;
   const side = platform.sidePx;
   if (platform.format === "png") {
     let buffer = await normalizeCanvas(crisp, side).png({ compressionLevel: 9, palette: false }).toBuffer();

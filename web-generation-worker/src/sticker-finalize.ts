@@ -1,10 +1,17 @@
 import sharp from "sharp";
 import {
   DEFAULT_STICKER_BG_ROUTE,
+  DEFAULT_STICKER_EDGE_MODE,
+  STICKER_ALPHA_DUST_MAX,
+  STICKER_ALPHA_HARD_MIN,
   STICKER_BACKGROUND_HEX,
+  STICKER_ISLAND_MIN_PX,
   STICKER_OUTPUT_PX,
   STICKER_SAFE_MARGIN_PX,
+  stickerEdgeForRoute,
   type StickerBgRoute,
+  type StickerBgRouteUsed,
+  type StickerEdgeMode,
 } from "../../landing/src/lib/sticker";
 import { ProcessingError } from "./input-source";
 import type { EncodedGenerationResult } from "./result-encode";
@@ -18,8 +25,7 @@ export const STICKER_CHROMA_ONLY_RATIO = 0.2;
 /** Between this and CHROMA_ONLY: key first, then rembg tidies what the model drew behind the figure. */
 export const STICKER_CHROMA_ASSIST_RATIO = 0.05;
 
-/** Which pass actually removed the background. `alpha_native` — provider returned real transparency (GPT Image). */
-export type StickerBgRouteUsed = "alpha_native" | "chroma" | "chroma_rembg" | "rembg" | "rembg_forced";
+export type { StickerBgRouteUsed };
 /** Share of (near-)fully transparent pixels that proves the provider frame already carries alpha. */
 export const STICKER_ALPHA_NATIVE_RATIO = 0.05;
 
@@ -35,6 +41,14 @@ export type StickerFinalizeStats = {
   route: StickerBgRouteUsed;
   /** Pixels keyed out by the chroma pass (0 on the rembg-only route). */
   chromaKeyedPixels: number;
+  /** `soft` — provider / rembg alpha kept; `hard` — snapped at `STICKER_ALPHA_HARD_MIN`. */
+  edge: StickerEdgeMode;
+  /** Share of canvas pixels with 0 < alpha < 255 in the saved PNG. 0 on a hard edge. */
+  partialAlphaRatio: number;
+  /** Pixels cleared as dust (alpha ≤ `STICKER_ALPHA_DUST_MAX`). */
+  dustCleared: number;
+  /** Pixels cleared as detached low-alpha islands. */
+  islandsCleared: number;
 };
 
 export type StickerFinalizeOptions = {
@@ -46,6 +60,8 @@ export type StickerFinalizeOptions = {
   outputPx?: number;
   /** Routing flag from `landing_generation_config.sticker_bg_route`; default chroma_first. */
   bgRoute?: StickerBgRoute;
+  /** `landing_generation_config.sticker_edge_mode`; default soft. `hard` forces the snap on every route. */
+  edgeMode?: StickerEdgeMode;
 };
 
 function hexToRgb(hex: string): { r: number; g: number; b: number } {
@@ -272,12 +288,10 @@ export function clearChromaFringe(
 }
 
 /**
- * Soft alpha is what makes the die-cut look smeared: dilation takes the max of a gradient and the
- * later downscale blurs it again. Anything below half goes fully transparent (this also drops the
- * faint checkerboard squares GPT Image leaves around the figure); the rest becomes a hard edge.
+ * Snap alpha to a hard edge before the white outline is dilated.
+ * A gradient here becomes a smeared ring, and faint checker squares grow into a fringe.
+ * The saved sticker does not call this — hair and the hem keep the model's soft edge.
  */
-export const STICKER_ALPHA_HARD_MIN = 128;
-
 export function hardenAlpha(rgba: Buffer, width: number, height: number, min = STICKER_ALPHA_HARD_MIN): void {
   const pixels = width * height;
   for (let i = 0; i < pixels; i += 1) {
@@ -291,6 +305,100 @@ export function hardenAlpha(rgba: Buffer, width: number, height: number, min = S
     rgba[offset + 2] = 0;
     rgba[offset + 3] = 0;
   }
+}
+
+/**
+ * Drop near-invisible pixels (resize ringing, leftovers under alpha 0). Counts only pixels that were
+ * visible (alpha > 0) so the metric reflects what changed, not how much canvas is empty.
+ */
+export function clearAlphaDust(rgba: Buffer, width: number, height: number, max = STICKER_ALPHA_DUST_MAX): number {
+  let cleared = 0;
+  const pixels = width * height;
+  for (let i = 0; i < pixels; i += 1) {
+    const offset = i * 4;
+    const alpha = rgba[offset + 3];
+    if (alpha > max) continue;
+    if (alpha > 0) cleared += 1;
+    rgba[offset] = 0;
+    rgba[offset + 1] = 0;
+    rgba[offset + 2] = 0;
+    rgba[offset + 3] = 0;
+  }
+  return cleared;
+}
+
+/**
+ * Remove detached low-alpha islands: 4-connected regions of visible pixels whose peak alpha stays below
+ * `minPeakAlpha`, or that are smaller than `minPx`. The figure and anything touching it survive, so soft
+ * hair keeps its gradient while the faint checker squares GPT Image paints beside the figure disappear.
+ */
+export function removeAlphaIslands(
+  rgba: Buffer,
+  width: number,
+  height: number,
+  options?: { minPeakAlpha?: number; minPx?: number },
+): number {
+  const minPeakAlpha = options?.minPeakAlpha ?? STICKER_ALPHA_HARD_MIN;
+  const minPx = options?.minPx ?? STICKER_ISLAND_MIN_PX;
+  const total = width * height;
+  const label = new Int32Array(total); // 0 = unvisited, >0 = component id
+  const stack = new Int32Array(total);
+  const members: number[] = [];
+  let cleared = 0;
+  let nextLabel = 1;
+  for (let seed = 0; seed < total; seed += 1) {
+    if (label[seed] !== 0 || rgba[seed * 4 + 3] === 0) continue;
+    const id = nextLabel;
+    nextLabel += 1;
+    let top = 0;
+    stack[top] = seed;
+    top += 1;
+    label[seed] = id;
+    members.length = 0;
+    let peak = 0;
+    while (top > 0) {
+      top -= 1;
+      const index = stack[top];
+      members.push(index);
+      const alpha = rgba[index * 4 + 3];
+      if (alpha > peak) peak = alpha;
+      const x = index % width;
+      const y = (index - x) / width;
+      if (x > 0) visit(index - 1);
+      if (x + 1 < width) visit(index + 1);
+      if (y > 0) visit(index - width);
+      if (y + 1 < height) visit(index + width);
+    }
+    if (peak >= minPeakAlpha && members.length >= minPx) continue;
+    for (const index of members) {
+      const offset = index * 4;
+      rgba[offset] = 0;
+      rgba[offset + 1] = 0;
+      rgba[offset + 2] = 0;
+      rgba[offset + 3] = 0;
+    }
+    cleared += members.length;
+
+    function visit(neighbour: number): void {
+      if (label[neighbour] !== 0 || rgba[neighbour * 4 + 3] === 0) return;
+      label[neighbour] = id;
+      stack[top] = neighbour;
+      top += 1;
+    }
+  }
+  return cleared;
+}
+
+/** Share of canvas pixels with 0 < alpha < 255. */
+export function partialAlphaRatio(rgba: Buffer, width: number, height: number): number {
+  const total = width * height;
+  if (!total) return 0;
+  let partial = 0;
+  for (let i = 3; i < total * 4; i += 4) {
+    const alpha = rgba[i];
+    if (alpha > 0 && alpha < 255) partial += 1;
+  }
+  return Math.round((partial / total) * 10_000) / 10_000;
 }
 
 /** Max-filter on the alpha channel: every opaque pixel grows by `radius`. */
@@ -337,14 +445,31 @@ export function dilateAlpha(alpha: Uint8Array, width: number, height: number, ra
  * Cut-out PNG → square `outputPx` canvas with a transparent safe margin
  * on every side (the figure never touches the canvas edge — the bot's 15 px, WhatsApp's 16 px).
  * No white outline unless `outlinePx` is set; the result button paints that later.
+ *
+ * Edge: sharp premultiplies alpha inside `resize`, so colour under transparent pixels never bleeds in.
+ * `edge: "soft"` (default) keeps the antialiased alpha; dust and detached islands are still removed.
+ * `edge: "hard"` or an outline snaps alpha at `STICKER_ALPHA_HARD_MIN` first.
  */
+export type StickerComposeStats = {
+  buffer: Buffer;
+  width: number;
+  height: number;
+  outlineMs: number;
+  chromaPixelsCleared: number;
+  edge: StickerEdgeMode;
+  partialAlphaRatio: number;
+  dustCleared: number;
+  islandsCleared: number;
+};
+
 export async function composeStickerFromCutout(
   cutout: Buffer,
-  options?: { outlinePx?: number; outputPx?: number; marginPx?: number },
-): Promise<{ buffer: Buffer; width: number; height: number; outlineMs: number; chromaPixelsCleared: number }> {
+  options?: { outlinePx?: number; outputPx?: number; marginPx?: number; edge?: StickerEdgeMode },
+): Promise<StickerComposeStats> {
   const outputPx = options?.outputPx ?? STICKER_OUTPUT_PX;
   const outlinePx = Math.max(0, options?.outlinePx ?? 0);
   const marginPx = Math.max(0, Math.min(Math.floor(outputPx / 4), options?.marginPx ?? STICKER_SAFE_MARGIN_PX));
+  const edge: StickerEdgeMode = outlinePx > 0 ? "hard" : options?.edge ?? DEFAULT_STICKER_EDGE_MODE;
   const started = Date.now();
 
   // Fit the figure at the final size first, then paint the border. A resize after dilation
@@ -356,9 +481,15 @@ export async function composeStickerFromCutout(
     .trim({ threshold: 1 })
     .toBuffer()
     .catch(() => cutout);
+  // Mitchell: no Lanczos ringing in the alpha channel, which unpremultiply would turn into bright specks.
   const { data, info } = await sharp(trimmed, { failOn: "none" })
     .ensureAlpha()
-    .resize(figurePx, figurePx, { fit: "inside", withoutEnlargement: false, background: { r: 0, g: 0, b: 0, alpha: 0 } })
+    .resize(figurePx, figurePx, {
+      fit: "inside",
+      withoutEnlargement: false,
+      kernel: "mitchell",
+      background: { r: 0, g: 0, b: 0, alpha: 0 },
+    })
     .extend({
       top: outlinePx,
       bottom: outlinePx,
@@ -372,7 +503,10 @@ export async function composeStickerFromCutout(
   const height = info.height;
   const rgba = Buffer.from(data);
   const chromaPixelsCleared = clearChromaFringe(rgba, width, height);
-  hardenAlpha(rgba, width, height);
+  const dustCleared = clearAlphaDust(rgba, width, height);
+  const islandsCleared = removeAlphaIslands(rgba, width, height);
+  if (edge === "hard") hardenAlpha(rgba, width, height);
+  const partial = partialAlphaRatio(rgba, width, height);
 
   let composited: Buffer;
   if (outlinePx > 0) {
@@ -409,7 +543,18 @@ export async function composeStickerFromCutout(
     })
     .png({ compressionLevel: 9, palette: false })
     .toBuffer();
-  return { buffer, width: outputPx, height: outputPx, outlineMs: Date.now() - started, chromaPixelsCleared };
+  // Partial ratio is over the canvas, so the padding (alpha 0) only dilutes it; scale back to the figure box.
+  return {
+    buffer,
+    width: outputPx,
+    height: outputPx,
+    outlineMs: Date.now() - started,
+    chromaPixelsCleared,
+    edge,
+    partialAlphaRatio: partial,
+    dustCleared,
+    islandsCleared,
+  };
 }
 
 /** Fraction of pixels with alpha ≤ 8 — real transparency from the provider, not a painted checkerboard. */
@@ -502,7 +647,7 @@ export async function removeStickerBackground(
  */
 export async function finalizeStickerPackCell(
   input: Buffer,
-  options?: { signal?: AbortSignal; outputPx?: number },
+  options?: { signal?: AbortSignal; outputPx?: number; edgeMode?: StickerEdgeMode },
 ): Promise<EncodedGenerationResult & { sticker: StickerFinalizeStats }> {
   if (options?.signal?.aborted) {
     throw new ProcessingError("shutdown", "Sticker pack finalize aborted", false);
@@ -521,7 +666,10 @@ export async function finalizeStickerPackCell(
   const png = await sharp(frame.rgba, { raw: { width: frame.width, height: frame.height, channels: 4 } })
     .png({ compressionLevel: 3 })
     .toBuffer();
-  const composed = await composeStickerFromCutout(png, { outputPx: options?.outputPx });
+  const composed = await composeStickerFromCutout(png, {
+    outputPx: options?.outputPx,
+    edge: stickerEdgeForRoute("alpha_native", options?.edgeMode),
+  });
   return {
     buffer: composed.buffer,
     extension: "png",
@@ -541,6 +689,10 @@ export async function finalizeStickerPackCell(
       magentaRatio: 0,
       route: "alpha_native",
       chromaKeyedPixels: 0,
+      edge: composed.edge,
+      partialAlphaRatio: composed.partialAlphaRatio,
+      dustCleared: composed.dustCleared,
+      islandsCleared: composed.islandsCleared,
     },
   };
 }
@@ -555,6 +707,7 @@ export async function finalizeStickerImage(
   const composed = await composeStickerFromCutout(removed.buffer, {
     outlinePx: options.outlinePx,
     outputPx: options.outputPx,
+    edge: stickerEdgeForRoute(removed.route, options.edgeMode),
   });
   return {
     buffer: composed.buffer,
@@ -575,6 +728,10 @@ export async function finalizeStickerImage(
       magentaRatio: Math.round(removed.magentaRatio * 1000) / 1000,
       route: removed.route,
       chromaKeyedPixels: removed.chromaKeyedPixels,
+      edge: composed.edge,
+      partialAlphaRatio: composed.partialAlphaRatio,
+      dustCleared: composed.dustCleared,
+      islandsCleared: composed.islandsCleared,
     },
   };
 }

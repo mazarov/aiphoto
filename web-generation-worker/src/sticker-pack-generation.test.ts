@@ -112,6 +112,8 @@ test("processStickerPack: 4 sheets → 16 × 512 PNG sidecars + preview, uploade
   assert.match(prompts[0], /16\. the person pose 16/);
   assert.equal(result.stats.routes.alpha_native, 16);
   assert.equal(result.stats.rembgMs, 0);
+  assert.equal(result.stats.edge, "soft", "pack cells keep the provider alpha");
+  assert.ok(result.stats.partialAlphaRatio >= 0);
 });
 
 test("processStickerPack rejects an opaque sheet instead of calling background removal", async () => {

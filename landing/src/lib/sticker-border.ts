@@ -1,11 +1,12 @@
 /**
  * Free «Обводка» for a finished sticker. Same idea as the bot's `addWhiteBorder`:
- * dilate the alpha and lay white behind the figure. The canvas is not resized —
+ * dilate the alpha and lay white behind the figure. Alpha is snapped to a hard edge
+ * first, so a soft hem does not smear the ring. The canvas is not resized —
  * a second scale is what blurred the ring when the outline was baked into generation.
  */
 
 import sharp from "sharp";
-import { STICKER_BORDER_PX, STICKER_OUTPUT_PX, clampStickerBorderPx } from "./sticker";
+import { STICKER_ALPHA_HARD_MIN, STICKER_BORDER_PX, STICKER_OUTPUT_PX, clampStickerBorderPx } from "./sticker";
 
 function dilateAlpha(alpha: Uint8Array, width: number, height: number, radius: number): Uint8Array {
   const horizontal = new Uint8Array(width * height);
@@ -57,7 +58,19 @@ export async function addWhiteBorderToStickerPng(
   const height = info.height;
   const rgba = Buffer.from(data);
   const alpha = new Uint8Array(width * height);
-  for (let i = 0; i < width * height; i += 1) alpha[i] = rgba[i * 4 + 3];
+  for (let i = 0; i < width * height; i += 1) {
+    const offset = i * 4;
+    if (rgba[offset + 3] >= STICKER_ALPHA_HARD_MIN) {
+      rgba[offset + 3] = 255;
+      alpha[i] = 255;
+      continue;
+    }
+    rgba[offset] = 0;
+    rgba[offset + 1] = 0;
+    rgba[offset + 2] = 0;
+    rgba[offset + 3] = 0;
+    alpha[i] = 0;
+  }
   const dilated = dilateAlpha(alpha, width, height, radius);
   const border = Buffer.alloc(width * height * 4);
   for (let i = 0; i < width * height; i += 1) {

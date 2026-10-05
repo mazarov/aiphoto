@@ -39,6 +39,40 @@ export const STICKER_BACKGROUND_HEX = "#FF00FF";
  * (bot used 15 px; WhatsApp recommends 16 px).
  */
 export const STICKER_SAFE_MARGIN_PX = 16;
+/**
+ * Edge policy — one place for worker save, «Обводка» and platform export.
+ *
+ * `soft`: the saved PNG keeps the antialiased alpha the provider / rembg returned; hair and hems
+ * do not turn into a staircase after the 1024 → 480 downscale.
+ * `hard`: alpha below `STICKER_ALPHA_HARD_MIN` is dropped, the rest becomes opaque. Used when a white
+ * ring is dilated (a gradient would smear it) and for chroma-keyed frames, whose ramp is synthetic
+ * and carries a magenta tint. `sticker_edge_mode` = `hard` forces it for every route (rollback knob).
+ */
+export type StickerEdgeMode = "soft" | "hard";
+export const STICKER_EDGE_MODE_CONFIG_KEY = "sticker_edge_mode";
+export const DEFAULT_STICKER_EDGE_MODE: StickerEdgeMode = "soft";
+export function parseStickerEdgeMode(value: string | null | undefined): StickerEdgeMode {
+  const raw = String(value ?? "").trim().toLowerCase();
+  return raw === "hard" ? "hard" : DEFAULT_STICKER_EDGE_MODE;
+}
+/** Which pass removed the background. `alpha_native` — the provider returned real transparency (GPT Image). */
+export type StickerBgRouteUsed = "alpha_native" | "chroma" | "chroma_rembg" | "rembg" | "rembg_forced";
+/** Routes whose alpha is a chroma-key ramp, not a real matte: always snap. */
+export const STICKER_HARD_EDGE_ROUTES: readonly StickerBgRouteUsed[] = ["chroma", "chroma_rembg"];
+export function stickerEdgeForRoute(route: StickerBgRouteUsed, mode: StickerEdgeMode = DEFAULT_STICKER_EDGE_MODE): StickerEdgeMode {
+  if (mode === "hard") return "hard";
+  return STICKER_HARD_EDGE_ROUTES.includes(route) ? "hard" : "soft";
+}
+/** Hard-edge threshold: alpha ≥ this → 255, below → cleared. */
+export const STICKER_ALPHA_HARD_MIN = 128;
+/** Near-invisible dust and resize ringing (alpha ≤ this is cleared on every route). */
+export const STICKER_ALPHA_DUST_MAX = 32;
+/**
+ * Detached low-alpha islands (checker squares GPT Image leaves around the figure, shadow smudges):
+ * a connected region whose peak alpha never reaches `STICKER_ALPHA_HARD_MIN`, or smaller than this many
+ * pixels, is removed. Regions attached to the figure are untouched, so soft hair survives.
+ */
+export const STICKER_ISLAND_MIN_PX = 24;
 
 /**
  * Background-removal routing flag in `landing_generation_config` (SQL `265`).

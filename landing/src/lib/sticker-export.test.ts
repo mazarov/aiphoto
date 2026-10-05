@@ -38,6 +38,26 @@ test("crispStickerFringe hardens the white border and erases a faint white squar
   assert.equal(data[border], 255);
 });
 
+test("exportStickerForPlatform keeps a soft white edge unless the row has a border", async () => {
+  const width = 512;
+  const height = 512;
+  const rgba = Buffer.alloc(width * height * 4);
+  const offset = (256 * width + 256) * 4;
+  rgba[offset] = 255;
+  rgba[offset + 1] = 255;
+  rgba[offset + 2] = 255;
+  rgba[offset + 3] = 90; // soft near-white pixel, e.g. a white sweater hem
+  const source = await sharp(rgba, { raw: { width, height, channels: 4 } }).png().toBuffer();
+  const max = STICKER_PLATFORMS.find((platform) => platform.id === "max");
+  assert.ok(max);
+  const plain = await exportStickerForPlatform(source, max);
+  const plainRaw = await sharp(plain.buffer).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  assert.equal(plainRaw.data[offset + 3], 90, "plain sticker keeps the soft edge");
+  const bordered = await exportStickerForPlatform(source, max, { hasBorder: true });
+  const borderedRaw = await sharp(bordered.buffer).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  assert.equal(borderedRaw.data[offset + 3], 0, "border row snaps the faint white pixel away");
+});
+
 test("exportStickerForPlatform telegram webp is 512 and under 512 KB", async () => {
   const png = await sharp({
     create: { width: 512, height: 512, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },

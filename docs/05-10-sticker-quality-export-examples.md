@@ -81,8 +81,8 @@ catalog: loadStickerCatalog → stickers(is_example, public_url, style_preset_id
 ## Checklist
 
 - [x] worker: `magentaRatio`, `chromaKeyMagenta` + despill, `transparentRatio` / `alpha_native`, роутинг, флаг, отступ 16 px, лог, тесты
-- [x] обводка: `hardenAlpha` (порог 128) до дилатации и дилатация уже в финальном размере — без даунскейла после неё. Иначе белое кольцо — градиент, а слабые квадраты модели (альфа < 128) раздуваются в кайму. Уже сохранённый PNG чистится на скачивании: `crispStickerFringe` в `sticker-export.ts` (только почти-белые пиксели).
-- [x] `sql/265_sticker_bg_route.sql`
+- [x] край стикера — одна политика в `sticker.ts` (`StickerEdgeMode`, `stickerEdgeForRoute`, SQL `272` `sticker_edge_mode='soft'`). `soft`: сохранённый PNG держит антиалиасинг модели / rembg (маршруты `alpha_native`, `rembg`, `rembg_forced`) — волосы и подол без лесенки после 1024 → 480. `hard` (порог 128): всегда для chroma-маршрутов (`chroma`, `chroma_rembg` — ramp синтетический, с розовым оттенком), для белого кольца (`outlinePx` в воркере, кнопка «Обводка» в `sticker-border.ts`) и для всех, если `sticker_edge_mode=hard` (откат одной строкой). Resize — один `sharp.resize` (`mitchell`, без ringing; premultiply делает сам sharp), затем `clearAlphaDust` (альфа ≤ 32) и `removeAlphaIslands` (отдельные острова с пиком альфы < 128 или < 24 px — бледные квадраты GPT Image; всё, что касается фигуры, остаётся). Лог `sticker_finalized` / `sticker_pack_finalized`: `edge`, `partialAlphaRatio`, `dustCleared`, `islandsCleared`. Экспорт (`sticker-file`): `crispStickerFringe` только для строк с обводкой (`parseStickerBorderPxFromPrompt`), обычный стикер уходит как сохранён.
+- [x] `sql/265_sticker_bg_route.sql`, `sql/272_sticker_edge_mode.sql`
 - [x] GPT Image 2.5 Flare: `image-options.ts`, лейбл, `openrouter-seedream.ts` (quality / background), prompt mode, `sql/266`
 - [x] `STICKER_PLATFORMS` + `GET /api/generations/[id]/sticker-file` + `StickerDownloadSheet` в rail
 - [x] `StickerStudioGate` — админ видит студию при выключенном флаге

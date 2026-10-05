@@ -49,6 +49,29 @@ test("border width in px controls the ring: thicker request → more white, out-
   assert.equal(clampedLow, min, "below min behaves like min");
 });
 
+test("addWhiteBorderToStickerPng drops a faint halo before the ring is drawn", async () => {
+  const width = 512;
+  const height = 512;
+  const rgba = Buffer.alloc(width * height * 4);
+  const at = (x: number, y: number) => (y * width + x) * 4;
+  const center = at(256, 256);
+  rgba[center] = 20;
+  rgba[center + 1] = 40;
+  rgba[center + 2] = 200;
+  rgba[center + 3] = 255;
+  const halo = at(260, 256);
+  rgba[halo] = 20;
+  rgba[halo + 1] = 40;
+  rgba[halo + 2] = 200;
+  rgba[halo + 3] = 40;
+  const source = await sharp(rgba, { raw: { width, height, channels: 4 } }).png().toBuffer();
+  const out = await addWhiteBorderToStickerPng(source, 1);
+  const raw = await sharp(out).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  assert.equal(raw.data[halo + 3], 0, "faint halo does not become part of the ring");
+  const ring = at(257, 256);
+  assert.ok(raw.data[ring + 3] > 200 && raw.data[ring] > 240, "opaque pixel still grows a hard ring");
+});
+
 test("addWhiteBorderToStickerPng paints a white ring and keeps the subject and the canvas", async () => {
   const source = await sharp({
     create: { width: 64, height: 64, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
