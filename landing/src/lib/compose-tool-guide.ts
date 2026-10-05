@@ -5,7 +5,7 @@ export type ComposeToolGuideCopy = {
   title: string;
   lead: string;
   hint: string;
-  visual: "source-to-tiles" | "prompt-from-photo";
+  visual: "source-to-tiles" | "prompt-from-photo" | "sticker-cutout";
 };
 
 /** Empty-plate explainer when Фотосессии is selected. Same beat as «Какое фото добавить». */
@@ -14,6 +14,14 @@ export const COMPOSE_PHOTOSHOOT_GUIDE: ComposeToolGuideCopy = {
   lead: "Сначала одно фото. Потом четыре кадра: разные позы, одно лицо.",
   hint: "Нужно одно фото. Лицо крупно, без групп и очков.",
   visual: "source-to-tiles",
+};
+
+/** Empty-plate explainer when Стикер is selected. */
+export const COMPOSE_STICKER_GUIDE: ComposeToolGuideCopy = {
+  title: "Сделайте стикер из фото",
+  lead: "Одно фото по грудь. На выходе — PNG 512×512 без фона, с белой обводкой.",
+  hint: "Лицо крупно, хороший свет. Фон уберём сами.",
+  visual: "sticker-cutout",
 };
 
 /** Empty-plate explainer when Промт по фото is selected — same copy as /foto-v-promt. */
@@ -29,6 +37,7 @@ export function composeToolGuideCopy(
 ): ComposeToolGuideCopy | null {
   if (mode === "photoshoot") return COMPOSE_PHOTOSHOOT_GUIDE;
   if (mode === "photo_prompt") return COMPOSE_PHOTO_PROMPT_GUIDE;
+  if (mode === "sticker") return COMPOSE_STICKER_GUIDE;
   return null;
 }
 
@@ -39,7 +48,11 @@ export function composeToolGuideVisible(input: {
   busy?: boolean;
 }): boolean {
   if (input.showResultChrome || input.dockExpanded || input.busy) return false;
-  return input.composeMode === "photoshoot" || input.composeMode === "photo_prompt";
+  return (
+    input.composeMode === "photoshoot" ||
+    input.composeMode === "photo_prompt" ||
+    input.composeMode === "sticker"
+  );
 }
 
 /** Prompt strip is unused in these tools — the empty plate is the explainer. */
@@ -48,5 +61,9 @@ export function composeToolGuideHidesPromptStrip(input: {
   promptExpanded: boolean;
 }): boolean {
   if (input.promptExpanded) return false;
-  return input.composeMode === "photoshoot" || input.composeMode === "photo_prompt";
+  return (
+    input.composeMode === "photoshoot" ||
+    input.composeMode === "photo_prompt" ||
+    input.composeMode === "sticker"
+  );
 }

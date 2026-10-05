@@ -177,6 +177,10 @@ test("generate FAB on the hub and children is photoshoot, not generic photo", ()
     }),
     "Создать ИИ фотосессию",
   );
+  assert.equal(
+    listingGenerateIdleCta({ pathname: "/stiker-iz-foto", isAuthed: true }),
+    "Создать стикер",
+  );
 });
 
 test("fotosessii listings seed photoshoot intent on idle FAB", () => {

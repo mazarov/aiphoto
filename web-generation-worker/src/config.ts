@@ -37,6 +37,8 @@ export const config = {
   xaiBaseUrl: (process.env.XAI_BASE_URL || "").trim().replace(/\/+$/, ""),
   openrouterApiKey: process.env.OPENROUTER_API_KEY?.trim() || "",
   openrouterBaseUrl: (process.env.OPENROUTER_BASE_URL || "").trim().replace(/\/+$/, ""),
+  /** rembg HTTP service (same image as photo2sticker bot). Required only for edit_kind=sticker jobs. */
+  rembgUrl: (process.env.REMBG_URL || "").trim().replace(/\/+$/, ""),
   workerId:
     process.env.WORKER_ID?.trim() ||
     `${os.hostname()}:${process.pid}:${crypto.randomBytes(4).toString("hex")}`,

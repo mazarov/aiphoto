@@ -23,6 +23,8 @@ import {
   fotosessiiClusterSitemapPages,
 } from "@/lib/promty-dlya-ii-fotosessii-cluster";
 import { listingCatalogHubChildRedirectPath } from "@/lib/listing-catalog-hub";
+import { STICKER_PATH } from "@/lib/sticker";
+import { readStickerGenerationEnabled } from "@/lib/sticker-config";
 import { HERO_GAP_HUB_SPECS } from "@/lib/hero-gap-hubs";
 import { getFotosessiiHubCards } from "@/lib/promty-dlya-ii-fotosessii-page-data";
 import { filterPhotoshootListingCardsBySeoTag } from "@/lib/photoshoot-listing";
@@ -154,6 +156,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // This keeps sitemap in sync with the noindex threshold (getMinCardsForLevel(1) === 1),
   // preventing "Submitted URL marked noindex" warnings in GSC/Yandex.
   const hubs = staticHubEntries();
+  // `/stiker-iz-foto` is noindex while `sticker_generation_enabled` is off — keep it out of the map too.
+  if (await readStickerGenerationEnabled()) {
+    hubs.push({
+      url: `${BASE_URL}${STICKER_PATH}`,
+      changeFrequency: "weekly",
+      priority: 0.9,
+    });
+  }
 
   try {
     const filterCounts = await getFilterCounts({});

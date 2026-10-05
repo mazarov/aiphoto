@@ -18,6 +18,8 @@ type Props = {
    * cover — photo is the plate wallpaper, no side mats.
    */
   fit?: BackdropFit;
+  /** Transparent PNG (sticker): checker plate instead of a blurred fill. */
+  checker?: boolean;
 };
 
 function preloadImage(url: string): Promise<void> {
@@ -41,6 +43,7 @@ export function GenerationResultBackdrop({
   kind = "image",
   pixelateOnBusy = true,
   fit = "contain",
+  checker = false,
 }: Props) {
   const [baseUrl, setBaseUrl] = useState<string | null>(resultUrl);
   const [overlayUrl, setOverlayUrl] = useState<string | null>(null);
@@ -139,12 +142,13 @@ export function GenerationResultBackdrop({
   if (!baseUrl && !overlayUrl) return null;
 
   const fitClass = fit === "cover" ? " ps-result-backdrop--cover" : "";
+  const checkerClass = checker ? " ps-result-backdrop--checker" : "";
 
   if (kind === "video" && (baseUrl || resultUrl)) {
     const src = resultUrl || baseUrl;
     return (
       <div
-        className={`ps-result-backdrop${fitClass} pointer-events-none absolute inset-0 z-0 overflow-hidden ${className}`}
+        className={`ps-result-backdrop${fitClass}${checkerClass} pointer-events-none absolute inset-0 z-0 overflow-hidden ${className}`}
         aria-hidden
       >
         {src ? <ResultFitVideo src={src} /> : null}
@@ -157,7 +161,7 @@ export function GenerationResultBackdrop({
 
   return (
     <div
-      className={`ps-result-backdrop${fitClass} pointer-events-none absolute inset-0 z-0 overflow-hidden ${className}`}
+      className={`ps-result-backdrop${fitClass}${checkerClass} pointer-events-none absolute inset-0 z-0 overflow-hidden ${className}`}
       aria-hidden
     >
       {shownBase ? (

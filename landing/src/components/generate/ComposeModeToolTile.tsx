@@ -182,6 +182,23 @@ export function ComposeModeToolIcon({
       </svg>
     );
   }
+  if (mode === "sticker") {
+    return (
+      <svg
+        className={`${className} text-zinc-800`}
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        aria-hidden
+      >
+        <path
+          d="M12 3.5c2.6 0 4.4 2.1 4.4 4.7 0 1.2-.4 2.2-.9 3 1.7.5 3 1.8 3 3.5 0 2.2-2.2 3.6-4.8 3.6h-.2l.6 2.2c.2.7-.4 1.4-1.1 1.2l-2.4-.6-1.6 1.8c-.5.6-1.5.3-1.6-.5l-.3-2.3-2.4.4c-.7.1-1.3-.6-1-1.3l1-2.1c-1.2-.7-2-1.8-2-3.2 0-1.7 1.3-3 3-3.5-.5-.8-.9-1.8-.9-3C6.8 5.6 8.8 3.5 12 3.5Z"
+          strokeLinejoin="round"
+        />
+      </svg>
+    );
+  }
   if (mode === "photo_prompt") {
     return (
       <svg

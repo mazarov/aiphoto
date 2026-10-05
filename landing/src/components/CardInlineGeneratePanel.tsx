@@ -123,6 +123,8 @@ import {
   YM_GOAL_PHOTOSHOOT_OPEN,
   YM_GOAL_PHOTOSHOOT_READY,
   YM_GOAL_PHOTOSHOOT_SUBMIT,
+  YM_GOAL_STICKER_DONE,
+  YM_GOAL_STICKER_START,
   YM_GOAL_ANALYZE_AUTH_REQUIRED,
   YM_GOAL_ANALYZE_NO_CREDITS,
   YM_GOAL_GENERATION_PHOTO_PROMPT_OPEN,
@@ -176,6 +178,7 @@ import {
   resolvePhotoshootLibraryFrame,
   resolvePhotoshootReadyFrame,
   PHOTOSHOOT_NEEDS_LIBRARY_PHOTO,
+  STICKER_NEEDS_LIBRARY_PHOTO,
   BLANK_PROMPT_PLACEHOLDER,
   PROMPT_FIELD_LABEL,
   type GenerateComposeMode,
@@ -208,6 +211,17 @@ import {
   readCachedPhotoshootEnabled,
   writeCachedPhotoshootEnabled,
 } from "@/lib/photoshoot-availability";
+import {
+  optimisticStickerEnabled,
+  readCachedStickerEnabled,
+  writeCachedStickerEnabled,
+} from "@/lib/sticker-availability";
+import {
+  DEFAULT_STICKER_STYLE_ID,
+  STICKER_EDIT_KIND,
+  STICKER_STYLES,
+  isStickerEditKind,
+} from "@/lib/sticker";
 import {
   CAMERA_ORBIT_EDIT_KIND,
   type CameraPose,
@@ -405,6 +419,14 @@ export function CardInlineGeneratePanel({
       cached: readCachedPhotoshootEnabled(),
     })
   );
+  const [stickerEnabled, setStickerEnabled] = useState(() =>
+    optimisticStickerEnabled({
+      pathname: typeof window !== "undefined" ? window.location.pathname : null,
+      cached: readCachedStickerEnabled(),
+    })
+  );
+  const [stickerStyleId, setStickerStyleId] = useState(DEFAULT_STICKER_STYLE_ID);
+  const [stickerCost, setStickerCost] = useState<number | null>(null);
   const [photoshootOpen, setPhotoshootOpen] = useState(false);
   const [photoshootSourceId, setPhotoshootSourceId] = useState<string | null>(null);
   const [photoshootSourceUrl, setPhotoshootSourceUrl] = useState<string | null>(null);
@@ -783,6 +805,17 @@ export function CardInlineGeneratePanel({
     setComposeMode("photoshoot");
   }, [restoreImagePromptFromVideo]);
 
+  const enterStickerCompose = useCallback(() => {
+    restoreImagePromptFromVideo();
+    setComposeMode("sticker");
+    setSelectedPhotoIds((current) => {
+      if (current.size <= 1) return current;
+      const last = [...current].at(-1);
+      return last ? new Set([last]) : new Set();
+    });
+    setError("");
+  }, [restoreImagePromptFromVideo]);
+
   const enterPhotoPromptCompose = useCallback(() => {
     restoreImagePromptFromVideo();
     setComposeMode("photo_prompt");
@@ -992,6 +1025,8 @@ export function CardInlineGeneratePanel({
           cameraOrbitModel?: { id?: string; cost?: number } | null;
           photoshootEnabled?: boolean;
           photoshootModel?: { id?: string; cost?: number } | null;
+          stickerEnabled?: boolean;
+          stickerModel?: { id?: string; cost?: number } | null;
           listingVideoRepeatEnabled?: boolean;
           preserveOutfitEnabled?: boolean;
           composeExampleMatchEnabled?: boolean;
@@ -1058,6 +1093,14 @@ export function CardInlineGeneratePanel({
         const nextPhotoshootEnabled = Boolean(configData.photoshootEnabled);
         writeCachedPhotoshootEnabled(nextPhotoshootEnabled);
         setPhotoshootEnabled(nextPhotoshootEnabled);
+        const nextStickerEnabled = Boolean(configData.stickerEnabled);
+        writeCachedStickerEnabled(nextStickerEnabled);
+        setStickerEnabled(nextStickerEnabled);
+        setStickerCost(
+          typeof configData.stickerModel?.cost === "number"
+            ? configData.stickerModel.cost
+            : null,
+        );
         setListingVideoRepeatEnabled(Boolean(configData.listingVideoRepeatEnabled));
         setPreserveOutfitEnabled(Boolean(configData.preserveOutfitEnabled));
         setComposeExampleMatchEnabled(Boolean(configData.composeExampleMatchEnabled));
@@ -1719,7 +1762,11 @@ export function CardInlineGeneratePanel({
         ? photoshootLibraryFrame
           ? PHOTOSHOOT_CREDIT_COST
           : null
-        : models.find((item) => item.id === model)?.cost ?? null;
+        : composeMode === "sticker"
+          ? photoshootLibraryFrame
+            ? stickerCost
+            : null
+          : models.find((item) => item.id === model)?.cost ?? null;
   const cannotAffordSelected =
     isAuthed &&
     credits !== null &&
@@ -2057,13 +2104,18 @@ export function CardInlineGeneratePanel({
     const isVideo = requestedModality === "video" && !listingVideoRepeat;
     const isCameraOrbit = options?.editKind === CAMERA_ORBIT_EDIT_KIND;
     const isPhotoshoot = options?.editKind === PHOTOSHOOT_EDIT_KIND;
+    const isSticker = options?.editKind === STICKER_EDIT_KIND;
     if (
       !canEnqueueWhilePhotoshootSelected({
         composeMode,
         editKind: options?.editKind,
       })
     ) {
-      setError(PHOTOSHOOT_NEEDS_LIBRARY_PHOTO);
+      setError(
+        composeMode === "sticker"
+          ? STICKER_NEEDS_LIBRARY_PHOTO
+          : PHOTOSHOOT_NEEDS_LIBRARY_PHOTO,
+      );
       return false;
     }
     const parentGenerationId = isVideo
@@ -2082,6 +2134,8 @@ export function CardInlineGeneratePanel({
       ? "CAMERA ORBIT"
       : isPhotoshoot
         ? "PHOTOSHOOT"
+      : isSticker
+        ? "STICKER"
       : (options?.promptOverride ?? draftPrompt).trim()
         || (isVideo ? DEFAULT_VIDEO_PROMPT : "");
     if (
@@ -2106,7 +2160,7 @@ export function CardInlineGeneratePanel({
       setExpandedControl("model");
       return false;
     }
-    if (!isCameraOrbit && !isPhotoshoot && prompt.length < 8) {
+    if (!isCameraOrbit && !isPhotoshoot && !isSticker && prompt.length < 8) {
       setError("Промпт слишком короткий");
       return false;
     }
@@ -2148,6 +2202,14 @@ export function CardInlineGeneratePanel({
         (!photoshootLibraryPathOverride && photosForEnqueue.length !== 1)
       ) {
         setError(PHOTOSHOOT_NEEDS_LIBRARY_PHOTO);
+        return false;
+      }
+    }
+    if (isSticker) {
+      const libraryPath =
+        photoshootLibraryPathOverride || photosForEnqueue[0]?.storagePath || "";
+      if (!libraryPath || photosForEnqueue.length !== 1) {
+        setError(STICKER_NEEDS_LIBRARY_PHOTO);
         return false;
       }
     }
@@ -2200,8 +2262,8 @@ export function CardInlineGeneratePanel({
           imageSize: isVideo ? DEFAULT_VIDEO_RESOLUTION : imageSize,
           durationSeconds: isVideo ? videoDurationSeconds : undefined,
           cardId: resolvedCardId,
-          photoStoragePaths: isPhotoshoot
-            ? parentGenerationId
+          photoStoragePaths: isPhotoshoot || isSticker
+            ? parentGenerationId && !isSticker
               ? []
               : [
                   photoshootLibraryPathOverride ||
@@ -2216,12 +2278,15 @@ export function CardInlineGeneratePanel({
               ? []
               : libraryStoragePaths(photosForEnqueue),
           parentGenerationId: parentGenerationId || null,
-          editInstruction: isVideo || isCameraOrbit || isPhotoshoot ? null : editInstruction || null,
+          editInstruction: isVideo || isCameraOrbit || isPhotoshoot || isSticker ? null : editInstruction || null,
           editKind: isCameraOrbit
             ? CAMERA_ORBIT_EDIT_KIND
             : isPhotoshoot
               ? PHOTOSHOOT_EDIT_KIND
-              : undefined,
+              : isSticker
+                ? STICKER_EDIT_KIND
+                : undefined,
+          stickerStyleId: isSticker ? stickerStyleId : undefined,
           cameraPose: isCameraOrbit ? options?.cameraPose : undefined,
           parentTile: isPhotoshoot ? options?.parentTile : undefined,
           vibeId: null,
@@ -2229,6 +2294,7 @@ export function CardInlineGeneratePanel({
             !isVideo &&
             !isCameraOrbit &&
             !isPhotoshoot &&
+            !isSticker &&
             !isContinuation &&
             !options?.forceTextOnly &&
             preserveOutfit &&
@@ -2292,6 +2358,12 @@ export function CardInlineGeneratePanel({
         if (isPhotoshoot && genData.error === "photoshoot_model_unavailable") {
           throw new Error(genData.message || "Модель фотосессии временно недоступна");
         }
+        if (isSticker && genData.error === "sticker_disabled") {
+          throw new Error(genData.message || "Генератор стикеров пока недоступен");
+        }
+        if (isSticker && genData.error === "sticker_model_unavailable") {
+          throw new Error(genData.message || "Модель стикеров временно недоступна");
+        }
         throw new Error(genData.message || genData.error || "Не удалось создать генерацию");
       }
       if (isCameraOrbit) {
@@ -2303,6 +2375,9 @@ export function CardInlineGeneratePanel({
       }
       if (isPhotoshoot) {
         reachYandexMetrikaGoal(YM_GOAL_PHOTOSHOOT_SUBMIT, { credits: PHOTOSHOOT_CREDIT_COST });
+      }
+      if (isSticker) {
+        reachYandexMetrikaGoal(YM_GOAL_STICKER_START, { style: stickerStyleId });
       }
       setPhase("generating");
       phaseRef.current = "generating";
@@ -2405,7 +2480,11 @@ export function CardInlineGeneratePanel({
             promptText: isPhotoshoot || isCameraOrbit ? draftPromptRef.current : prompt,
             modality: nextModality,
             isPublished: false,
-            editKind: isPhotoshoot ? PHOTOSHOOT_EDIT_KIND : undefined,
+            editKind: isPhotoshoot
+              ? PHOTOSHOOT_EDIT_KIND
+              : isSticker
+                ? STICKER_EDIT_KIND
+                : undefined,
             photoshootTileUrls: tiles,
           });
           if (nextModality !== "video") {
@@ -2438,6 +2517,10 @@ export function CardInlineGeneratePanel({
             setPhotoshootOpen(false);
             setPhotoshootLibraryPath(null);
             reachYandexMetrikaGoal(YM_GOAL_PHOTOSHOOT_READY);
+          }
+          if (isSticker) {
+            setResultEditKind(STICKER_EDIT_KIND);
+            reachYandexMetrikaGoal(YM_GOAL_STICKER_DONE, { style: stickerStyleId });
           }
           onGenerationComplete?.();
           return true;
@@ -2602,7 +2685,9 @@ export function CardInlineGeneratePanel({
           resultUrl,
           resultModality === "video"
             ? `promptshot-${generationId}.mp4`
-            : `promptshot-${generationId}.jpg`
+            : isStickerEditKind(resultEditKind) || /\.png($|\?)/i.test(resultUrl)
+              ? `promptshot-${generationId}.png`
+              : `promptshot-${generationId}.jpg`
         );
         setMenuOpen(false);
       } catch {
@@ -2749,8 +2834,11 @@ export function CardInlineGeneratePanel({
     setResultModality("image");
     if (composeModeRef.current === "video") {
       enterImageCompose();
-    } else {
+    } else if (composeModeRef.current !== "sticker") {
       setComposeMode("image");
+      setAnimateParentId(null);
+      setAnimatePreviewUrl(null);
+    } else {
       setAnimateParentId(null);
       setAnimatePreviewUrl(null);
     }
@@ -2769,7 +2857,9 @@ export function CardInlineGeneratePanel({
   };
   const videoCompose = composeMode === "video";
   const photoshootCompose = composeMode === "photoshoot";
+  const stickerCompose = composeMode === "sticker";
   const photoPromptCompose = composeMode === "photo_prompt";
+  const stickerResult = isStickerEditKind(resultEditKind);
   const photoPromptHasSource = Boolean(
     resolvePhotoPromptAnalyzeSource({
       selectedPreviewUrl: selectedPhotos[0]?.previewUrl,
@@ -2859,7 +2949,11 @@ export function CardInlineGeneratePanel({
         ? photoshootLibraryFrame
           ? PHOTOSHOOT_CREDIT_COST
           : null
-        : videoCompose
+        : stickerCompose
+          ? resolvePhotoshootLibraryFrame({ selectedPhotos })
+            ? stickerCost
+            : null
+          : videoCompose
           ? listingVideoRepeatCompose
             ? selectedModelCost
             : selectedVideoCost
@@ -2971,7 +3065,7 @@ export function CardInlineGeneratePanel({
     amount: publishRewardAmount(publishRewardKind, publishRewardConfig),
     remainingToday: publishRewardRemaining,
   });
-  const showPublishRail = showUserPublishControl({
+  const showPublishRail = !stickerResult && showUserPublishControl({
     publishHidden,
     isPublished,
     catalogSlug: publishedSlug,
@@ -3028,6 +3122,11 @@ export function CardInlineGeneratePanel({
 
   const onPhotoshootTileClick = () => {
     enterPhotoshootCompose();
+    setExpandedControl(null);
+  };
+
+  const onStickerTileClick = () => {
+    enterStickerCompose();
     setExpandedControl(null);
   };
 
@@ -3248,6 +3347,7 @@ export function CardInlineGeneratePanel({
           kind={resultModality}
           pixelateOnBusy={!photoPromptCompose}
           fit={photoPromptCompose ? "cover" : "contain"}
+          checker={stickerResult || stickerCompose}
           className={isDock && isMobile ? "" : "rounded-[1.75rem]"}
         />
       ) : !isDock ? (
@@ -3286,11 +3386,11 @@ export function CardInlineGeneratePanel({
                 showSelect={false}
                 hasResult
                 hasPrompt={Boolean(activePrompt.trim())}
-                canPublish
-                showPublish={!publishHidden}
+                canPublish={!stickerResult}
+                showPublish={!publishHidden && !stickerResult}
                 isPublished={isPublished}
                 allowRepublish={isPhotoshootEditKind(resultEditKind)}
-                canAnimate={videoEnabled && resultModality === "image"}
+                canAnimate={videoEnabled && resultModality === "image" && !stickerResult}
                 canSaveToLibrary={resultModality !== "video"}
                 publishRewardCredits={publishRewardVisible}
                 busyAction={busyAction}
@@ -3403,7 +3503,7 @@ export function CardInlineGeneratePanel({
             },
             {
               id: "repeat",
-              label: "Повторить",
+              label: stickerResult ? "Ещё стикер" : "Повторить",
               disabled: busy || Boolean(busyAction),
               onClick: resetToCompose,
               icon: (
@@ -3413,7 +3513,7 @@ export function CardInlineGeneratePanel({
                 </svg>
               ),
             },
-            ...(videoEnabled && resultModality === "image"
+            ...(videoEnabled && resultModality === "image" && !stickerResult
               ? [
                   {
                     id: "animate",
@@ -3438,7 +3538,7 @@ export function CardInlineGeneratePanel({
                   },
                 ]
               : []),
-            ...(cameraOrbitEnabled && resultModality === "image"
+            ...(cameraOrbitEnabled && resultModality === "image" && !stickerResult
               ? [
                   {
                     id: "camera",
@@ -3457,7 +3557,7 @@ export function CardInlineGeneratePanel({
                   },
                 ]
               : []),
-            ...(photoshootEnabled && resultModality === "image"
+            ...(photoshootEnabled && resultModality === "image" && !stickerResult
               ? [
                   {
                     id: "photoshoot",
@@ -3691,11 +3791,11 @@ export function CardInlineGeneratePanel({
               showSelect={false}
               hasResult
               hasPrompt={Boolean(activePrompt.trim())}
-              canPublish
-              showPublish={!publishHidden}
+              canPublish={!stickerResult}
+              showPublish={!publishHidden && !stickerResult}
               isPublished={isPublished}
               allowRepublish={isPhotoshootEditKind(resultEditKind)}
-              canAnimate={videoEnabled && resultModality === "image"}
+              canAnimate={videoEnabled && resultModality === "image" && !stickerResult}
               canSaveToLibrary={resultModality !== "video"}
               publishRewardCredits={publishRewardVisible}
               busyAction={busyAction}
@@ -3720,7 +3820,9 @@ export function CardInlineGeneratePanel({
         }`}
       >
         {showComposeToolGuide &&
-        (composeMode === "photoshoot" || composeMode === "photo_prompt") ? (
+        (composeMode === "photoshoot" ||
+          composeMode === "photo_prompt" ||
+          composeMode === "sticker") ? (
           <ComposeToolGuide
             mode={composeMode}
             glassChrome={glassChrome}
@@ -4837,6 +4939,19 @@ export function CardInlineGeneratePanel({
               />
             ) : null}
 
+            {stickerEnabled ? (
+              <ComposeModeToolTile
+                mode="sticker"
+                selected={stickerCompose}
+                disabled={controlsBusy}
+                glassChrome={glassChrome}
+                className={`${composeToolTileSize} rounded-xl ${composeTileFrame} ${composeTileBorder(
+                  stickerCompose,
+                )}`}
+                onClick={onStickerTileClick}
+              />
+            ) : null}
+
             <ComposeModeToolTile
               mode="photo_prompt"
               selected={photoPromptCompose}
@@ -4869,6 +4984,34 @@ export function CardInlineGeneratePanel({
               >
                 Оставить одежду
               </button>
+            </div>
+          ) : null}
+          {stickerCompose && !showResultChrome ? (
+            <div className="mt-2 flex flex-wrap gap-2" role="radiogroup" aria-label="Стиль стикера">
+              {STICKER_STYLES.map((style) => {
+                const active = style.id === stickerStyleId;
+                return (
+                  <button
+                    key={style.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={active}
+                    disabled={controlsBusy}
+                    onClick={() => setStickerStyleId(style.id)}
+                    className={`${OVERLAY_BUTTON_UA_RESET} inline-flex min-h-11 items-center rounded-full px-3 text-[13px] font-medium transition disabled:opacity-50 ${
+                      active
+                        ? isDock || glassChrome
+                          ? "bg-white/20 text-white ring-1 ring-white/35"
+                          : "bg-zinc-900 text-white"
+                        : isDock || glassChrome
+                          ? "bg-white/10 text-white/85 ring-1 ring-white/15"
+                          : "bg-zinc-100 text-zinc-800"
+                    }`}
+                  >
+                    {style.label}
+                  </button>
+                );
+              })}
             </div>
           ) : null}
 
@@ -4962,10 +5105,11 @@ export function CardInlineGeneratePanel({
                 : isAuthed &&
                   (controlsBusy ||
                     libraryLoading ||
-                    (!photoshootCompose && scenarioLoading) ||
+                    (!photoshootCompose && !stickerCompose && scenarioLoading) ||
                     Boolean(busyAction) ||
                     Boolean(configError) ||
                     (!photoshootCompose &&
+                      !stickerCompose &&
                       draftPrompt.trim().length < 8 &&
                       !seoNeedsExamplePick &&
                       !seoNeedsImageModelPick)))
@@ -5003,6 +5147,18 @@ export function CardInlineGeneratePanel({
                   return;
                 }
                 setError(PHOTOSHOOT_NEEDS_LIBRARY_PHOTO);
+                setExpandedControl("photos");
+                return;
+              }
+              if (stickerCompose) {
+                if (photoshootLibraryFrame) {
+                  void runGenerate({
+                    editKind: STICKER_EDIT_KIND,
+                    photoStoragePath: photoshootLibraryFrame.storagePath,
+                  });
+                  return;
+                }
+                setError(STICKER_NEEDS_LIBRARY_PHOTO);
                 setExpandedControl("photos");
                 return;
               }
@@ -5081,11 +5237,12 @@ export function CardInlineGeneratePanel({
                 phase === "uploading" ||
                 phase === "generating" ||
                 (photoshootCompose && !photoshootLibraryFrame) ||
+                (stickerCompose && !photoshootLibraryFrame) ||
                 (photoPromptCompose &&
                   !photoPromptHasSource &&
                   composeCtaGuestQuota == null) ||
                 (videoCompose && scenarioLoading) ||
-                (phase === "done" && resultUrl && !photoshootCompose && !videoCompose && !photoPromptCompose)
+                (phase === "done" && resultUrl && !photoshootCompose && !stickerCompose && !videoCompose && !photoPromptCompose)
                   ? phase === "done" && resultUrl && !busy
                     ? "truncate"
                     : undefined
@@ -5102,6 +5259,8 @@ export function CardInlineGeneratePanel({
                     : `Генерируем · ${Math.round(progress)}%`
                   : photoshootCompose && !photoshootLibraryFrame
                     ? composeNeedsPhotoCtaLabel("photoshoot", { isAuthed })
+                  : stickerCompose && !photoshootLibraryFrame
+                    ? composeNeedsPhotoCtaLabel("sticker", { isAuthed })
                   : photoPromptCompose && !photoPromptHasSource
                     ? (
                       <>
@@ -5113,7 +5272,7 @@ export function CardInlineGeneratePanel({
                     )
                   : videoCompose && scenarioLoading
                     ? ANIMATE_SCENARIO_PLACEHOLDER
-                    : phase === "done" && resultUrl && !photoshootCompose && !videoCompose && !photoPromptCompose
+                    : phase === "done" && resultUrl && !photoshootCompose && !stickerCompose && !videoCompose && !photoPromptCompose
                     ? "Что изменить"
                     : (
                       <>

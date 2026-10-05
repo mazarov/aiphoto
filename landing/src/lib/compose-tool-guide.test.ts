@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   COMPOSE_PHOTO_PROMPT_GUIDE,
   COMPOSE_PHOTOSHOOT_GUIDE,
+  COMPOSE_STICKER_GUIDE,
   composeToolGuideCopy,
   composeToolGuideHidesPromptStrip,
   composeToolGuideVisible,
@@ -22,6 +23,10 @@ test("photoshoot and photo_prompt have a three-beat explainer like the photo pic
   assert.equal(prompt?.hint, widgetCopy("emptyHint"));
   assert.equal(prompt?.visual, "prompt-from-photo");
   assert.equal(prompt?.title, COMPOSE_PHOTO_PROMPT_GUIDE.title);
+  const sticker = composeToolGuideCopy("sticker");
+  assert.equal(sticker, COMPOSE_STICKER_GUIDE);
+  assert.equal(sticker?.visual, "sticker-cutout");
+  assert.match(sticker?.lead ?? "", /512/);
   assert.equal(composeToolGuideCopy("image"), null);
   assert.equal(composeToolGuideCopy("video"), null);
 });
@@ -38,6 +43,14 @@ test("empty-plate guide shows only for idle photoshoot / photo_prompt", () => {
   assert.equal(
     composeToolGuideVisible({
       composeMode: "photo_prompt",
+      showResultChrome: false,
+      dockExpanded: false,
+    }),
+    true,
+  );
+  assert.equal(
+    composeToolGuideVisible({
+      composeMode: "sticker",
       showResultChrome: false,
       dockExpanded: false,
     }),
@@ -92,6 +105,13 @@ test("tool guide hides the unused prompt strip", () => {
       promptExpanded: true,
     }),
     false,
+  );
+  assert.equal(
+    composeToolGuideHidesPromptStrip({
+      composeMode: "sticker",
+      promptExpanded: false,
+    }),
+    true,
   );
   assert.equal(
     composeToolGuideHidesPromptStrip({

@@ -64,6 +64,12 @@ export const YM_GOAL_GENERATION_PHOTO_PROMPT_READY =
   "generation_photo_prompt_ready";
 export const YM_GOAL_GENERATION_PHOTO_PROMPT_START =
   "generation_photo_prompt_start";
+/** `/stiker-iz-foto` studio funnel. */
+export const YM_GOAL_STICKER_UPLOAD = "sticker_upload";
+export const YM_GOAL_STICKER_START = "sticker_start";
+export const YM_GOAL_STICKER_DONE = "sticker_done";
+export const YM_GOAL_STICKER_DOWNLOAD = "sticker_download";
+export const YM_GOAL_STICKER_PRICING = "sticker_pricing";
 export const YM_GOAL_ANALYZE_AUTH_REQUIRED = "analyze_auth_required";
 export const YM_GOAL_ANALYZE_NO_CREDITS = "analyze_no_credits";
 export const YM_GOAL_ANALYZE_FREE_SUCCESS = "analyze_free_success";

@@ -5,6 +5,7 @@ export type GenerateDockComposeIntent =
   | "text"
   | "photo_prompt"
   | "photoshoot"
+  | "sticker"
   | "animate"
   | "result";
 
@@ -165,7 +166,9 @@ export function defaultDockSurfaceForComposeEntry(
   entrySource?: string | null,
 ): "photos" | null {
   if (!isUploadFirstDockEntry(entrySource)) return null;
-  if (intent === "photoshoot" || intent === "photo_prompt") return "photos";
+  if (intent === "photoshoot" || intent === "photo_prompt" || intent === "sticker") {
+    return "photos";
+  }
   return null;
 }
 

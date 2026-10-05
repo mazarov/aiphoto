@@ -1,4 +1,5 @@
 import { composeGenerateCtaLabel } from "./generate-compose-mode";
+import { STICKER_GENERATE_CTA } from "./sticker";
 import { listingGenerateIdleIntent } from "./generate-dock-path";
 import { listingCatalogHubGenerateCta } from "./listing-catalog-hub";
 import type { Dimension } from "./tag-registry";
@@ -224,6 +225,9 @@ export function listingGenerateIdleCta(input: {
   }
   if (intent === "photoshoot") {
     return PROMTY_DLYA_II_FOTOSESSII_GENERATE_CTA;
+  }
+  if (intent === "sticker") {
+    return STICKER_GENERATE_CTA;
   }
   return listingCatalogHubGenerateCta(input.pathname) ?? "Создать фото";
 }

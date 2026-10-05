@@ -127,6 +127,7 @@ test("shouldHydrateLastDockResult restores blank resume and photoshoot", () => {
   assert.equal(shouldHydrateLastDockResult(DEFAULT_GENERATE_DOCK_SEED), true);
   assert.equal(shouldHydrateLastDockResult(seed({ intent: "photoshoot" })), true);
   assert.equal(shouldHydrateLastDockResult(seed({ intent: "text" })), false);
+  assert.equal(shouldHydrateLastDockResult(seed({ intent: "sticker" })), false);
   assert.equal(
     shouldHydrateLastDockResult(seed({ intent: "photo_prompt" })),
     false

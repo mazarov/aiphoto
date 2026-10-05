@@ -61,6 +61,7 @@ export function MobileTabBar() {
     focusBlank: focusGenerateDock,
     seedBlankPrompt,
     seedPhotoshoot,
+    seedSticker,
     seed,
     plateOpen: generatePlateOpen,
     setPlateOpen: setGeneratePlateOpen,
@@ -161,6 +162,10 @@ export function MobileTabBar() {
         seedPhotoshoot({ entrySource: "tab" });
         return;
       }
+      if (idleIntent === "sticker" && seed.intent !== "sticker") {
+        seedSticker({ entrySource: "tab" });
+        return;
+      }
       setGeneratePlateOpen(false);
       setGenerateDockSurface(null);
       return;
@@ -171,6 +176,10 @@ export function MobileTabBar() {
     }
     if (idleIntent === "photoshoot") {
       seedPhotoshoot({ entrySource: "tab" });
+      return;
+    }
+    if (idleIntent === "sticker") {
+      seedSticker({ entrySource: "tab" });
       return;
     }
     const idleSurface = listingGenerateIdleDockSurface(pathname);

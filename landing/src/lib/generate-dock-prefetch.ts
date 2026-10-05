@@ -4,6 +4,7 @@ import {
   shouldPrefetchGenerateDockPanel,
 } from "./generate-dock-path";
 import { writeCachedPhotoshootEnabled } from "./photoshoot-availability";
+import { writeCachedStickerEnabled } from "./sticker-availability";
 import { prefetchUserPhotoLibrary } from "./user-generation-photos-cache";
 
 export { shouldPrefetchGenerateDockPanel };
@@ -13,9 +14,12 @@ function prefetchGenerationConfigCache(): void {
     credentials: "same-origin",
   })
     .then((res) => (res.ok ? res.json() : null))
-    .then((data: { photoshootEnabled?: boolean } | null) => {
+    .then((data: { photoshootEnabled?: boolean; stickerEnabled?: boolean } | null) => {
       if (typeof data?.photoshootEnabled === "boolean") {
         writeCachedPhotoshootEnabled(data.photoshootEnabled);
+      }
+      if (typeof data?.stickerEnabled === "boolean") {
+        writeCachedStickerEnabled(data.stickerEnabled);
       }
     })
     .catch(() => {

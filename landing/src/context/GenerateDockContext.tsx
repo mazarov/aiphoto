@@ -132,6 +132,13 @@ type GenerateDockContextType = {
       dockSurface?: GenerateDockSurface;
     }
   ) => void;
+  /** Open dock on «Стикер» (`/stiker-iz-foto`). */
+  seedSticker: (
+    options?: {
+      entrySource?: GenerateDockEntrySource;
+      dockSurface?: GenerateDockSurface;
+    }
+  ) => void;
   /** Open dock on «Промт по фото» and start analyze from an in-memory payload. */
   seedPhotoPrompt: (
     args: { previewUrl: string; dataUrl: string },
@@ -211,6 +218,7 @@ const GenerateDockContext = createContext<GenerateDockContextType>({
   focusBlank: () => {},
   seedBlankPrompt: () => {},
   seedPhotoshoot: () => {},
+  seedSticker: () => {},
   seedPhotoPrompt: () => {},
   seedSeoSelfieCompose: () => {},
   applyComposeExamplePick: () => {},
@@ -556,6 +564,41 @@ export function GenerateDockProvider({ children }: { children: ReactNode }) {
     [isAuthed, lastDockResult, lastDockResultDismissed, seed, trackOpen]
   );
 
+  const seedSticker = useCallback(
+    (
+      options?: {
+        entrySource?: GenerateDockEntrySource;
+        dockSurface?: GenerateDockSurface;
+      }
+    ) => {
+      const nextSeed: GenerateDockSeed = {
+        source: "blank",
+        promptText: "",
+        cardId: null,
+        intent: "sticker",
+      };
+      const nextSurface = resolveDockSurfaceForComposeEntry({
+        intent: "sticker",
+        entrySource: options?.entrySource,
+        explicit: options?.dockSurface,
+        hasRestorableLastResult: isRestorableLastDockResult(lastDockResult, {
+          dismissedLastResult: lastDockResultDismissed,
+        }),
+      });
+      if (!sameGenerateDockComposeIdentity(seed, nextSeed)) {
+        setSeedToken((token) => token + 1);
+      }
+      setSeed(nextSeed);
+      setPlateOpen(true);
+      setDockSurface(nextSurface);
+      if (!isAuthed) {
+        persistPendingGenerateDock({ seed: nextSeed, dockSurface: nextSurface });
+      }
+      trackOpen(options?.entrySource ?? "route");
+    },
+    [isAuthed, lastDockResult, lastDockResultDismissed, seed, trackOpen]
+  );
+
   const seedPhotoPrompt = useCallback(
     (
       args: { previewUrl: string; dataUrl: string },
@@ -682,6 +725,7 @@ export function GenerateDockProvider({ children }: { children: ReactNode }) {
       focusBlank,
       seedBlankPrompt,
       seedPhotoshoot,
+      seedSticker,
       seedPhotoPrompt,
       seedSeoSelfieCompose,
       applyComposeExamplePick,
@@ -715,6 +759,7 @@ export function GenerateDockProvider({ children }: { children: ReactNode }) {
       focusBlank,
       seedBlankPrompt,
       seedPhotoshoot,
+      seedSticker,
       seedPhotoPrompt,
       seedSeoSelfieCompose,
       applyComposeExamplePick,

@@ -4,6 +4,7 @@ import {
 } from "./generaciya-foto-routes";
 import type { GenerateDockComposeIntent } from "./generate-dock-seed";
 import { isNanoBananaSeoPath } from "./nano-banana-seo-copy";
+import { STICKER_PATH } from "./sticker";
 import { resolveListingCatalogHub } from "./listing-catalog-hub";
 import { isPromtyDlyaIiFotosessiiPath } from "./promty-dlya-ii-fotosessii-cluster";
 
@@ -38,6 +39,11 @@ export function isLegacyPromtyDlyaIiFotosessiiDockPath(pathname: string): boolea
   );
 }
 
+/** `/stiker-iz-foto` — FAB opens the sticker tool. */
+export function isStickerGenerateDockPath(pathname: string): boolean {
+  return normalizeGenerateDockPath(pathname) === STICKER_PATH;
+}
+
 /** Canonical `/ii-fotosessiya*` plus the legacy `/promty-dlya-ii-fotosessii*` scenario. */
 export function isFotosessiiGenerateDockPath(pathname: string): boolean {
   return (
@@ -48,7 +54,11 @@ export function isFotosessiiGenerateDockPath(pathname: string): boolean {
 
 /** Prefetch the compose chunk + config only on upload-first landings. */
 export function shouldPrefetchGenerateDockPanel(pathname: string): boolean {
-  return isFotoVPromtDockPath(pathname) || isFotosessiiGenerateDockPath(pathname);
+  return (
+    isFotoVPromtDockPath(pathname) ||
+    isFotosessiiGenerateDockPath(pathname) ||
+    isStickerGenerateDockPath(pathname)
+  );
 }
 
 /** Non-null: FAB / tab must seed this intent instead of blank resume. */
@@ -56,6 +66,7 @@ export function listingGenerateIdleIntent(
   pathname: string
 ): GenerateDockComposeIntent | null {
   if (isFotoVPromtDockPath(pathname)) return "photo_prompt";
+  if (isStickerGenerateDockPath(pathname)) return "sticker";
   if (isFotosessiiGenerateDockPath(pathname)) return "photoshoot";
   if (resolveListingCatalogHub(pathname)) return "text";
   return null;

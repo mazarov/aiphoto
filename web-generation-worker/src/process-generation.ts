@@ -41,6 +41,8 @@ import {
   serializePhotoshootSheetInstruction,
 } from "../../landing/src/lib/photoshoot";
 import { resolveJobWardrobePolicy } from "../../landing/src/lib/wardrobe-policy";
+import { assembleStickerFinalPrompt, isStickerEditKind } from "../../landing/src/lib/sticker";
+import { finalizeStickerImage, type StickerFinalizeStats } from "./sticker-finalize";
 import { planPhotoshootShots } from "./photoshoot-planner";
 import { splitContactSheet } from "./photoshoot-split";
 import {
@@ -416,6 +418,18 @@ export async function processGeneration(
   const isPhotoshoot = generationMode === "photoshoot";
   const isCameraOrbit = generationMode === "camera_orbit";
   const isLocalEdit = generationMode === "local_edit";
+  const isSticker = isStickerEditKind(job.edit_kind);
+  if (isSticker && !config.rembgUrl) {
+    throw new ProcessingError("config_error", "REMBG_URL is required for sticker jobs", false);
+  }
+  if (isSticker && inputSource.paths.length !== 1) {
+    throw new ProcessingError("input_missing", "Sticker job needs exactly one source photo", false);
+  }
+  /** Sticker: provider output is a magenta-background frame; rembg + outline turn it into a PNG with alpha. */
+  const encodeResult = (buffer: Buffer) =>
+    isSticker
+      ? finalizeStickerImage(buffer, { rembgUrl: config.rembgUrl, signal })
+      : encodeGenerationResult(buffer);
   const photoshootMarks: PhotoshootTimingMarks | undefined = isPhotoshoot
     ? { createdAt: job.created_at, startedAt: workerStartedAt }
     : undefined;
@@ -481,7 +495,7 @@ export async function processGeneration(
       imageBuffer = await generateSeedreamFromJob({
         job,
         productModel: executedOpenRouter,
-        rawPrompt,
+        rawPrompt: isSticker ? assembleStickerFinalPrompt(rawPrompt) : rawPrompt,
         editInstruction,
         isVibe,
         isPhotoshoot,
@@ -527,8 +541,19 @@ export async function processGeneration(
       photoshootMarks.provider = executedModel;
       photoshootMarks.providerMs = elapsedMs(providerStarted);
     }
-    const encodedSeedream = await encodeGenerationResult(imageBuffer);
+    const encodedSeedream = await encodeResult(imageBuffer);
     if (photoshootMarks) photoshootMarks.encodeMs = encodedSeedream.encodeMs;
+    if (isSticker && "sticker" in encodedSeedream) {
+      const stickerStats = encodedSeedream.sticker as StickerFinalizeStats | undefined;
+      if (stickerStats) {
+        log("info", "sticker_finalized", {
+          ...context,
+          rembgMs: stickerStats.rembgMs,
+          rembgAttempts: stickerStats.rembgAttempts,
+          bytesOut: encodedSeedream.bytesOut,
+        });
+      }
+    }
     await ensureLease();
     const seedreamResultPath = `${job.user_id}/${job.id}/${job.lease_token}.${encodedSeedream.extension}`;
     const uploadStarted = Date.now();
@@ -612,6 +637,8 @@ export async function processGeneration(
   });
   const geminiPrompt = isVibe
     ? assembleVibeFinalPrompt(rawPrompt, hasReference)
+    : isSticker
+      ? assembleStickerFinalPrompt(rawPrompt)
     : isPhotoshoot
       ? assemblePhotoshootSheetPrompt(photoshootSheet)
     : isCameraOrbit
@@ -629,6 +656,8 @@ export async function processGeneration(
           : assembleTextToImageFinalPrompt(rawPrompt);
   const grokPrompt = isVibe
     ? assembleGrokVibePrompt(rawPrompt, hasReference)
+    : isSticker
+      ? assembleStickerFinalPrompt(rawPrompt)
     : isPhotoshoot
       ? assembleGrokPhotoshootSheetPrompt(photoshootSheet)
     : isCameraOrbit
@@ -880,8 +909,19 @@ export async function processGeneration(
     photoshootMarks.providerMs = elapsedMs(providerStarted);
   }
 
-  const encoded = await encodeGenerationResult(imageBuffer);
+  const encoded = await encodeResult(imageBuffer);
   if (photoshootMarks) photoshootMarks.encodeMs = encoded.encodeMs;
+  if (isSticker && "sticker" in encoded) {
+    const stickerStats = encoded.sticker as StickerFinalizeStats | undefined;
+    if (stickerStats) {
+      log("info", "sticker_finalized", {
+        ...context,
+        rembgMs: stickerStats.rembgMs,
+        rembgAttempts: stickerStats.rembgAttempts,
+        bytesOut: encoded.bytesOut,
+      });
+    }
+  }
   await ensureLease();
   const resultPath = `${job.user_id}/${job.id}/${job.lease_token}.${encoded.extension}`;
   const uploadStarted = Date.now();

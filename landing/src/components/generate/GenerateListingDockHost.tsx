@@ -74,6 +74,7 @@ export function GenerateListingDockHost() {
     focusBlank,
     seedBlankPrompt,
     seedPhotoshoot,
+    seedSticker,
   } = useGenerateDock();
   const isMobile = useListingIsMobile();
   /** Tall + sticky plate: result chrome and/or in-flight generation. */
@@ -177,6 +178,10 @@ export function GenerateListingDockHost() {
       seedPhotoshoot({ entrySource: "fab" });
       return;
     }
+    if (idleIntent === "sticker") {
+      seedSticker({ entrySource: "fab" });
+      return;
+    }
     const idleSurface = listingGenerateIdleDockSurface(pathname);
     if (idleIntent === "text" || idleSurface === "example") {
       seedBlankPrompt("", {
@@ -187,7 +192,7 @@ export function GenerateListingDockHost() {
       return;
     }
     focusBlank({ entrySource: "fab" });
-  }, [focusBlank, needsCredits, openPricing, pathname, seedBlankPrompt, seedPhotoshoot]);
+  }, [focusBlank, needsCredits, openPricing, pathname, seedBlankPrompt, seedPhotoshoot, seedSticker]);
 
   if (!isGenerateDockListingPath(pathname) && !adminDock) return null;
 

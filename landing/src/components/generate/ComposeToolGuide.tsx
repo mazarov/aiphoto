@@ -20,7 +20,7 @@ import {
 } from "@/components/foto-v-promt/FotoVPromtEmptyState";
 
 type Props = {
-  mode: Extract<GenerateComposeMode, "photoshoot" | "photo_prompt">;
+  mode: Extract<GenerateComposeMode, "photoshoot" | "photo_prompt" | "sticker">;
   glassChrome: boolean;
   className?: string;
   photoshootExample?: PhotoshootGuideExample | null;
@@ -108,6 +108,44 @@ function SourceToTilesVisual({
   );
 }
 
+function StickerCutoutVisual({ glassChrome }: { glassChrome: boolean }) {
+  const ink = glassChrome ? "text-white/80" : "text-zinc-700";
+  const muted = glassChrome ? "text-white/45" : "text-zinc-400";
+  return (
+    <div
+      role="img"
+      aria-label="Фото превращается в стикер без фона"
+      className="mt-3 flex w-full items-center justify-center gap-2"
+    >
+      <svg className={`h-14 w-14 ${ink}`} viewBox="0 0 48 48" fill="none" aria-hidden>
+        <rect x="6" y="6" width="36" height="36" rx="6" stroke="currentColor" strokeWidth="1.6" />
+        <circle cx="20" cy="20" r="3" fill="currentColor" />
+        <path d="M10 36l8-9 6 5 5-4 9 8" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+      </svg>
+      <span className={`text-lg ${muted}`} aria-hidden>→</span>
+      <span
+        className="relative h-14 w-14 overflow-hidden rounded-2xl"
+        style={{
+          backgroundColor: glassChrome ? "rgba(255,255,255,0.08)" : "#f4f4f5",
+          backgroundImage:
+            "linear-gradient(45deg,rgba(161,161,170,0.35) 25%,transparent 25%),linear-gradient(-45deg,rgba(161,161,170,0.35) 25%,transparent 25%),linear-gradient(45deg,transparent 75%,rgba(161,161,170,0.35) 75%),linear-gradient(-45deg,transparent 75%,rgba(161,161,170,0.35) 75%)",
+          backgroundSize: "10px 10px",
+          backgroundPosition: "0 0,0 5px,5px -5px,-5px 0",
+        }}
+      >
+        <svg className="absolute inset-1 h-12 w-12 text-white drop-shadow" viewBox="0 0 48 48" aria-hidden>
+          <path
+            d="M24 8c6 0 10 5 10 11 0 3-1 5-2 7 4 1 7 4 7 8 0 5-5 8-11 8s-11-3-11-8c0-4 3-7 7-8-1-2-2-4-2-7 0-6 4-11 2-11z"
+            fill="currentColor"
+            stroke="#18181b"
+            strokeWidth="2"
+          />
+        </svg>
+      </span>
+    </div>
+  );
+}
+
 function PromptFromPhotoVisual({ glassChrome }: { glassChrome: boolean }) {
   return (
     <div
@@ -132,7 +170,9 @@ export function ComposeToolGuide({
   const titleId =
     mode === "photoshoot"
       ? "generation-photoshoot-guide-title"
-      : "generation-photo-prompt-guide-title";
+      : mode === "sticker"
+        ? "generation-sticker-guide-title"
+        : "generation-photo-prompt-guide-title";
   const photoPrompt = copy.visual === "prompt-from-photo";
 
   return (
@@ -166,6 +206,17 @@ export function ComposeToolGuide({
               example={photoshootExample}
               glassChrome={glassChrome}
             />
+            <p
+              className={`mt-2 text-[13px] font-medium ${
+                glassChrome ? "text-white/50" : "text-zinc-500"
+              }`}
+            >
+              {copy.hint}
+            </p>
+          </>
+        ) : copy.visual === "sticker-cutout" ? (
+          <>
+            <StickerCutoutVisual glassChrome={glassChrome} />
             <p
               className={`mt-2 text-[13px] font-medium ${
                 glassChrome ? "text-white/50" : "text-zinc-500"

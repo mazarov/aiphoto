@@ -4,6 +4,7 @@ import {
   isAdminGenerateDockPath,
   isFotoVPromtDockPath,
   isFotosessiiGenerateDockPath,
+  isStickerGenerateDockPath,
   isGenerateDockListingPath,
   isGenerateDockSeoPagePath,
   isLegacyPromtyDlyaIiFotosessiiDockPath,
@@ -91,6 +92,10 @@ test("foto-v-promt FAB seeds photo_prompt, fotosessii seeds photoshoot", () => {
   assert.equal(shouldPrefetchGenerateDockPanel("/foto-v-promt"), true);
   assert.equal(shouldPrefetchGenerateDockPanel("/ii-fotosessiya/zhenskie"), true);
   assert.equal(shouldPrefetchGenerateDockPanel("/"), false);
+  assert.equal(isStickerGenerateDockPath("/stiker-iz-foto"), true);
+  assert.equal(isStickerGenerateDockPath("/stiker-iz-foto/"), true);
+  assert.equal(listingGenerateIdleIntent("/stiker-iz-foto"), "sticker");
+  assert.equal(shouldPrefetchGenerateDockPanel("/stiker-iz-foto"), true);
 });
 
 test("isGenerateDockListingPath includes foto-v-promt and analyses", () => {

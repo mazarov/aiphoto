@@ -9,6 +9,12 @@ import { isVideoAnimateUnlocked, resolveVideoModelId } from "@/lib/video-generat
 import { isCameraOrbitUnlocked, resolveCameraOrbitModel } from "@/lib/camera-orbit-access";
 import { PHOTOSHOOT_CREDIT_COST } from "@/lib/photoshoot";
 import { isPhotoshootUnlocked, resolvePhotoshootModel } from "@/lib/photoshoot-access";
+import {
+  STICKER_CONFIG_ENABLED_KEY,
+  STICKER_CONFIG_MODEL_KEY,
+  resolveStickerModel,
+} from "@/lib/sticker";
+import { isStickerUnlocked } from "@/lib/sticker-access";
 import { parsePublishRewardConfig } from "@/lib/publish-reward";
 import { LISTING_VIDEO_REPEAT_CONFIG_KEY } from "@/lib/listing-video-repeat";
 import { isListingVideoRepeatUnlocked } from "@/lib/listing-video-repeat-access";
@@ -69,6 +75,8 @@ export async function GET(req: NextRequest) {
         "camera_orbit_model",
         "photoshoot_enabled",
         "photoshoot_model",
+        STICKER_CONFIG_ENABLED_KEY,
+        STICKER_CONFIG_MODEL_KEY,
         "publish_reward_enabled",
         "publish_reward_photo",
         "publish_reward_video",
@@ -137,6 +145,11 @@ export async function GET(req: NextRequest) {
     const models = parseEnabledGenerationModels(config.models);
     const cameraOrbitModel = resolveCameraOrbitModel(config.camera_orbit_model, models);
     const photoshootModel = resolvePhotoshootModel(config.photoshoot_model, models);
+    const stickerModel = resolveStickerModel(
+      config[STICKER_CONFIG_MODEL_KEY],
+      config.default_model,
+      models,
+    );
 
     return NextResponse.json({
       modality: IMAGE_GENERATION_MODALITY,
@@ -153,6 +166,11 @@ export async function GET(req: NextRequest) {
       photoshootModel: photoshootModel
         ? { ...photoshootModel, cost: PHOTOSHOOT_CREDIT_COST }
         : null,
+      stickerEnabled: isStickerUnlocked(
+        config[STICKER_CONFIG_ENABLED_KEY],
+        user?.email,
+      ),
+      stickerModel,
       models,
       aspectRatios: IMAGE_ASPECT_RATIO_OPTIONS,
       imageSizes: IMAGE_SIZE_OPTIONS,

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { PHOTOSHOOT_EDIT_KIND } from "./photoshoot";
+import { STICKER_EDIT_KIND } from "./sticker";
 import {
   apiModalityForComposeMode,
   canEnqueueWhilePhotoshootSelected,
@@ -289,5 +290,36 @@ test("photoshoot mode does not enqueue without editKind=photoshoot", () => {
   assert.equal(
     canEnqueueWhilePhotoshootSelected({ composeMode: "photo_prompt" }),
     false
+  );
+});
+
+test("sticker is a select-only tool and only enqueues editKind=sticker", () => {
+  assert.equal(composeModeTileLabel("sticker"), "Стикер");
+  assert.equal(composeModeTileSheet("sticker"), null);
+  assert.equal(
+    nextComposeModeTileSheet({
+      mode: "sticker",
+      alreadyInMode: true,
+      currentSheet: null,
+    }),
+    null,
+  );
+  assert.equal(composeModeFromDockIntent("sticker"), "sticker");
+  assert.equal(composeGenerateCtaLabel("sticker"), "Создать стикер");
+  assert.equal(composeGenerateCtaShowsModelName("sticker", { isAuthed: true }), false);
+  assert.equal(
+    composeNeedsPhotoCtaLabel("sticker", { isAuthed: false }),
+    COMPOSE_GUEST_UPLOAD_PHOTO_CTA,
+  );
+  assert.equal(
+    canEnqueueWhilePhotoshootSelected({ composeMode: "sticker" }),
+    false,
+  );
+  assert.equal(
+    canEnqueueWhilePhotoshootSelected({
+      composeMode: "sticker",
+      editKind: STICKER_EDIT_KIND,
+    }),
+    true,
   );
 });

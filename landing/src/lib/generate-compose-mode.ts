@@ -1,7 +1,13 @@
 import { PHOTOSHOOT_EDIT_KIND } from "./photoshoot";
+import { STICKER_EDIT_KIND } from "./sticker";
 
-/** Exclusive generate-dock mode. Photoshoot / photo_prompt are buttons, not model sheets. */
-export type GenerateComposeMode = "image" | "video" | "photoshoot" | "photo_prompt";
+/** Exclusive generate-dock mode. Photoshoot / photo_prompt / sticker are buttons, not model sheets. */
+export type GenerateComposeMode =
+  | "image"
+  | "video"
+  | "photoshoot"
+  | "photo_prompt"
+  | "sticker";
 
 export type PhotoshootReadyFrame = {
   generationId: string;
@@ -20,6 +26,8 @@ export type PhotoshootLibraryFrame = {
 export const PHOTOSHOOT_NEEDS_LIBRARY_PHOTO =
   "Для фотосессии выберите одно фото";
 
+export const STICKER_NEEDS_LIBRARY_PHOTO = "Для стикера выберите одно фото";
+
 export const PHOTOSHOOT_NEEDS_READY_FRAME = PHOTOSHOOT_NEEDS_LIBRARY_PHOTO;
 
 export function isGenerateComposeMode(value: unknown): value is GenerateComposeMode {
@@ -27,7 +35,8 @@ export function isGenerateComposeMode(value: unknown): value is GenerateComposeM
     value === "image" ||
     value === "video" ||
     value === "photoshoot" ||
-    value === "photo_prompt"
+    value === "photo_prompt" ||
+    value === "sticker"
   );
 }
 
@@ -100,11 +109,11 @@ export function resolvePhotoshootLibraryFrame(input: {
 
 export type ComposeModeTileSheet = "photos" | "model";
 
-/** Image/video → model sheet. Photo prompt can open «Ваши фото» on repeat click. Photoshoot is select-only. */
+/** Image/video → model sheet. Photo prompt can open «Ваши фото» on repeat click. Photoshoot and sticker are select-only. */
 export function composeModeTileSheet(
   mode: GenerateComposeMode,
 ): ComposeModeTileSheet | null {
-  if (mode === "photoshoot") return null;
+  if (mode === "photoshoot" || mode === "sticker") return null;
   if (mode === "photo_prompt") return "photos";
   return "model";
 }
@@ -114,6 +123,7 @@ export function composeModeTileLabel(mode: GenerateComposeMode): string {
   if (mode === "video") return "Видео";
   if (mode === "photoshoot") return "Фотосессии";
   if (mode === "photo_prompt") return "Промт по фото";
+  if (mode === "sticker") return "Стикер";
   return "Фото";
 }
 
@@ -132,6 +142,7 @@ export function composeModeFromDockIntent(intent: string): GenerateComposeMode {
   if (intent === "animate") return "video";
   if (intent === "photo_prompt") return "photo_prompt";
   if (intent === "photoshoot") return "photoshoot";
+  if (intent === "sticker") return "sticker";
   return "image";
 }
 
@@ -150,7 +161,10 @@ export function composeNeedsPhotoCtaLabel(
   mode: GenerateComposeMode,
   options?: ComposeGenerateCtaOptions,
 ): string {
-  if (mode === "photoshoot" && options?.isAuthed === false) {
+  if (
+    (mode === "photoshoot" || mode === "sticker") &&
+    options?.isAuthed === false
+  ) {
     return COMPOSE_GUEST_UPLOAD_PHOTO_CTA;
   }
   return COMPOSE_SELECT_PHOTO_CTA;
@@ -169,6 +183,7 @@ export function composeGenerateCtaLabel(
   }
   if (mode === "photoshoot") return "Создать фотосессию";
   if (mode === "photo_prompt") return "Создать промт по фото";
+  if (mode === "sticker") return "Создать стикер";
   return "Создать фото";
 }
 
@@ -231,7 +246,7 @@ export function nextComposeModeTileSheet(input: {
   alreadyInMode: boolean;
   currentSheet: "photos" | "model" | "prompt" | null;
 }): ComposeModeTileSheet | null {
-  if (input.mode === "photoshoot") return null;
+  if (input.mode === "photoshoot" || input.mode === "sticker") return null;
   if (input.mode === "photo_prompt") {
     if (!input.alreadyInMode) return null;
     return input.currentSheet === "photos" ? null : "photos";
@@ -240,12 +255,13 @@ export function nextComposeModeTileSheet(input: {
   return input.currentSheet === "model" ? null : "model";
 }
 
-/** Photoshoot / photo_prompt must not enqueue a regular image/video job. */
+/** Photoshoot / photo_prompt / sticker must not enqueue a regular image/video job. */
 export function canEnqueueWhilePhotoshootSelected(input: {
   composeMode: GenerateComposeMode;
   editKind?: string | null;
 }): boolean {
   if (input.composeMode === "photo_prompt") return false;
+  if (input.composeMode === "sticker") return input.editKind === STICKER_EDIT_KIND;
   if (input.composeMode !== "photoshoot") return true;
   return input.editKind === PHOTOSHOOT_EDIT_KIND;
 }
