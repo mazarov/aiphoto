@@ -29,9 +29,13 @@ type Props = {
   selectedIndex?: number;
   sizes?: string;
   className?: string;
+  /** Grid side: 2 = photoshoot (4 frames), 4 = sticker pack (16 stickers). */
+  columns?: 2 | 4;
+  /** Accessible per-tile noun: «Кадр» for photos, «Стикер» for a pack. */
+  tileLabel?: string;
 };
 
-/** Same 2×2 flush sheet as `/generations`: hover dims siblings, click opens that frame. */
+/** Same flush sheet as `/generations` (2×2 photoshoot or 4×4 sticker pack): hover dims siblings, click opens that tile. */
 export function PhotoshootListingGrid({
   urls,
   alt,
@@ -45,19 +49,22 @@ export function PhotoshootListingGrid({
   selectedIndex,
   sizes = SIZES_CARD_GRID,
   className = "",
+  columns = 2,
+  tileLabel = "Кадр",
 }: Props) {
   const interactive = Boolean(onSelect);
+  const gridClass = columns === 4 ? "grid-cols-4 grid-rows-4" : "grid-cols-2 grid-rows-2";
 
   return (
     <div
-      className={`photoshoot-history-grid absolute inset-0 z-[2] grid grid-cols-2 grid-rows-2 bg-zinc-900${
+      className={`photoshoot-history-grid absolute inset-0 z-[2] grid ${gridClass} bg-zinc-900${
         interactive ? " is-interactive" : ""
       }${className ? ` ${className}` : ""}`}
       onPointerEnter={onPrefetch}
       onTouchStart={onPrefetch}
     >
-      {urls.slice(0, 4).map((url, index) => {
-        const label = `Кадр ${index + 1}`;
+      {urls.slice(0, columns * columns).map((url, index) => {
+        const label = `${tileLabel} ${index + 1}`;
         const frameAlt = alts ? (alts[index] ?? "") : index === 0 ? alt : "";
         const frame = frames?.[index];
         const media = frame ? (

@@ -1,4 +1,5 @@
 import { parsePhotoshootTilePaths } from "./photoshoot";
+import { parseStickerPackTilePaths } from "./sticker-pack";
 
 export type GenerateDockComposeIntent =
   | "resume"
@@ -27,8 +28,9 @@ export type GenerateDockSeed = {
   photoshootTileUrls?: string[] | null;
 };
 
+/** Persisted tile list for the dock seed: 4 photoshoot frames or 16 pack stickers. */
 export function photoshootTileUrlsFromUnknown(raw: unknown): string[] | null {
-  return parsePhotoshootTilePaths(raw);
+  return parsePhotoshootTilePaths(raw) ?? parseStickerPackTilePaths(raw);
 }
 
 /** Catalog example thumbs may be persisted; identity data:/blob: must not. */

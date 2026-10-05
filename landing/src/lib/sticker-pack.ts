@@ -22,6 +22,8 @@ export const STICKER_PACK_ASPECT_RATIO = "1:1";
 export const STICKER_PACK_IMAGE_SIZE = "1K";
 
 export const STICKER_PACK_COUNT = 16;
+/** Listing badge over the 4×4 grid on /generations. */
+export const STICKER_PACK_CTA_LABEL = "Стикер пак";
 /** Preview sheet and bot example grid: 16 → 4×4. */
 export const STICKER_PACK_GRID = 4;
 /** One provider call paints the whole pack as a 4×4 grid. */
@@ -335,6 +337,47 @@ export function resolveStickerPackUserFacingResult(input: {
     resultPath: previewPath,
     tilePaths: stickerPackTilePathsForJob({ tilePaths: input.tilePaths, previewPath }),
   };
+}
+
+/** `?tile=1..16` on sticker routes: which sticker of a pack row is the source. */
+export function parseStickerPackTileNumber(raw: unknown): number | null {
+  if (raw == null || raw === "") return null;
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value < 1 || value > STICKER_PACK_COUNT) return null;
+  return value;
+}
+
+export type StickerSourceResolution =
+  | { ok: true; path: string; isPack: boolean; tile: number | null }
+  | { ok: false; reason: "not_sticker" | "tile_required" | "tile_missing" };
+
+/**
+ * Storage path the sticker-file / border / text routes work on.
+ * Single sticker → its result path. Pack → the chosen tile (`tile` is mandatory: the preview is not a sticker).
+ */
+export function resolveStickerSourcePath(input: {
+  editKind: string | null | undefined;
+  resultPath: string | null | undefined;
+  tilePaths?: unknown;
+  tile?: unknown;
+  isSingleSticker: (editKind: unknown) => boolean;
+}): StickerSourceResolution {
+  const resultPath = String(input.resultPath || "").trim();
+  if (input.isSingleSticker(input.editKind)) {
+    return resultPath ? { ok: true, path: resultPath, isPack: false, tile: null } : { ok: false, reason: "not_sticker" };
+  }
+  if (!isStickerPackEditKind(input.editKind)) return { ok: false, reason: "not_sticker" };
+  const tile = parseStickerPackTileNumber(input.tile);
+  if (!tile) return { ok: false, reason: "tile_required" };
+  const tiles = stickerPackTilePathsForJob({ tilePaths: input.tilePaths, previewPath: resultPath || null });
+  const path = tiles?.[tile - 1];
+  if (!path) return { ok: false, reason: "tile_missing" };
+  return { ok: true, path, isPack: true, tile };
+}
+
+/** `sticker-07.png` inside the pack ZIP and in per-tile downloads. */
+export function stickerPackTileFilename(tile: number, extension = "png"): string {
+  return `sticker-${String(tile).padStart(2, "0")}.${extension}`;
 }
 
 export function stickerPackFingerprintFields(

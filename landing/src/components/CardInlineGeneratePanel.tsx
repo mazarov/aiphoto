@@ -52,6 +52,7 @@ import {
 } from "@/components/GenerationCardMenu";
 import {
   downloadGenerationResult,
+  downloadStickerPackZip,
   downloadStickerPlatformFile,
   shareGenerationResult,
 } from "@/lib/generation-result-client-actions";
@@ -240,7 +241,10 @@ import {
 import {
   STICKER_PACK_DEFAULT_CREDIT_COST,
   STICKER_PACK_EDIT_KIND,
+  isStickerPackEditKind,
+  stickerPackTileFilename,
 } from "@/lib/sticker-pack";
+import { sidecarTileNumberForUrl, sidecarTileUrls } from "@/lib/generations-list";
 import {
   DEFAULT_STICKER_STYLE_ID,
   STICKER_EDIT_KIND,
@@ -271,7 +275,7 @@ import {
 } from "@/lib/sticker-pack-examples-client";
 import { StickerActionSheet } from "@/components/sticker/StickerActionSheet";
 import { StickerBorderSheet } from "@/components/sticker/StickerBorderSheet";
-import { StickerDownloadSheet } from "@/components/sticker/StickerDownloadSheet";
+import { StickerDownloadSheet, type StickerDownloadTarget } from "@/components/sticker/StickerDownloadSheet";
 import {
   CAMERA_ORBIT_EDIT_KIND,
   type CameraPose,
@@ -284,7 +288,6 @@ import {
   photoshootCtaDetail,
   photoshootTileIndexForUrl,
   resolvePhotoshootSheetAspect,
-  type PhotoshootTileIndex,
 } from "@/lib/photoshoot";
 import {
   DEFAULT_PUBLISH_REWARD_CONFIG,
@@ -492,7 +495,7 @@ export function CardInlineGeneratePanel({
   /** Open result action («emotion» / «motion» / «text») on a finished sticker. */
   const [stickerActionOpen, setStickerActionOpen] = useState<StickerResultAction | null>(null);
   const [stickerDownloadOpen, setStickerDownloadOpen] = useState(false);
-  const [stickerDownloadBusy, setStickerDownloadBusy] = useState<StickerPlatform["id"] | null>(null);
+  const [stickerDownloadBusy, setStickerDownloadBusy] = useState<StickerDownloadTarget | null>(null);
   const [stickerDownloadError, setStickerDownloadError] = useState<string | null>(null);
   const [stickerTextBusy, setStickerTextBusy] = useState(false);
   const [stickerBorderBusy, setStickerBorderBusy] = useState(false);
@@ -2567,18 +2570,19 @@ export function CardInlineGeneratePanel({
             continue;
           }
           if (photoshootAbort?.signal.aborted) return true;
-          const tiles =
-            Array.isArray(poll.photoshootTileUrls) && poll.photoshootTileUrls.length === 4
-              ? poll.photoshootTileUrls
-              : null;
-          if (isPhotoshoot && !tiles) {
+          // Photoshoot = 4 frames, sticker pack = 16 stickers; the single slot (sheet / preview) is never the result.
+          const tiles = sidecarTileUrls(
+            isPhotoshoot ? PHOTOSHOOT_EDIT_KIND : isStickerPack ? STICKER_PACK_EDIT_KIND : null,
+            poll.photoshootTileUrls,
+          );
+          if ((isPhotoshoot || isStickerPack) && !tiles) {
             photoshootTilesWaitStarted ||= Date.now();
             if (Date.now() - photoshootTilesWaitStarted > 45_000) {
-              throw new Error("Кадры фотосессии не готовы");
+              throw new Error(isPhotoshoot ? "Кадры фотосессии не готовы" : "Стикеры пака не готовы");
             }
             continue;
           }
-          const nextResultUrl = isPhotoshoot ? tiles![0] : poll.resultUrl;
+          const nextResultUrl = tiles ? tiles[0] : poll.resultUrl;
           if (!nextResultUrl) {
             continue;
           }
@@ -2632,6 +2636,7 @@ export function CardInlineGeneratePanel({
           }
           if (isStickerPack) {
             setResultEditKind(STICKER_PACK_EDIT_KIND);
+            setPhotoshootTileUrls(tiles);
             setStickerActionOpen(null);
             setStickerDownloadOpen(false);
             reachYandexMetrikaGoal(YM_GOAL_STICKER_DONE, { style: stickerStyleId });
@@ -2981,7 +2986,11 @@ export function CardInlineGeneratePanel({
   const photoshootCompose = composeMode === "photoshoot";
   const stickerCompose = composeMode === "sticker";
   const photoPromptCompose = composeMode === "photo_prompt";
-  const stickerResult = isStickerEditKind(resultEditKind);
+  /** A pack result is shown one sticker at a time; the sticker chrome applies to the selected tile. */
+  const stickerPackResult = isStickerPackEditKind(resultEditKind);
+  const stickerResult = isStickerEditKind(resultEditKind) || stickerPackResult;
+  /** 1..16 for the sticker on screen when the result is a pack, else null (`?tile=` for sticker routes). */
+  const stickerTile = stickerPackResult ? sidecarTileNumberForUrl(photoshootTileUrls, resultUrl) : null;
   const stickerCatalogWanted = stickerCompose || stickerResult;
   useEffect(() => {
     if (!stickerCatalogWanted || stickerCatalog) return;
@@ -3323,15 +3332,38 @@ export function CardInlineGeneratePanel({
   /** Platform-specific file (Telegram WebP / WhatsApp WebP ≤100 KB / Max PNG) built server-side. */
   const downloadStickerFor = async (platform: StickerPlatform) => {
     if (!generationId || stickerDownloadBusy) return;
+    if (stickerPackResult && !stickerTile) {
+      setStickerDownloadError("Выберите стикер из пака");
+      return;
+    }
     setStickerDownloadBusy(platform.id);
     setStickerDownloadError(null);
     try {
-      await downloadStickerPlatformFile(generationId, platform.id, platform.filename);
+      const filename = stickerTile
+        ? stickerPackTileFilename(stickerTile, platform.filename.split(".").pop() || "png")
+        : platform.filename;
+      await downloadStickerPlatformFile(generationId, platform.id, filename, { tile: stickerTile });
       reachYandexMetrikaGoal(YM_GOAL_STICKER_DOWNLOAD, { platform: platform.id });
       setStickerDownloadOpen(false);
       setToast(`Стикер для ${platform.label} сохранён`);
     } catch (err) {
       setStickerDownloadError(err instanceof Error ? err.message : "Не удалось подготовить стикер");
+    } finally {
+      setStickerDownloadBusy(null);
+    }
+  };
+  /** Whole pack: 16 PNGs in one ZIP, built server-side. */
+  const downloadStickerPackAll = async () => {
+    if (!generationId || stickerDownloadBusy) return;
+    setStickerDownloadBusy("zip");
+    setStickerDownloadError(null);
+    try {
+      await downloadStickerPackZip(generationId, `promptshot-stickers-${generationId}.zip`);
+      reachYandexMetrikaGoal(YM_GOAL_STICKER_DOWNLOAD, { platform: "zip" });
+      setStickerDownloadOpen(false);
+      setToast("Стикер пак сохранён");
+    } catch (err) {
+      setStickerDownloadError(err instanceof Error ? err.message : "Не удалось собрать архив");
     } finally {
       setStickerDownloadBusy(null);
     }
@@ -3362,7 +3394,7 @@ export function CardInlineGeneratePanel({
         method: "POST",
         headers: { "Content-Type": "application/json", ...browserAcquisitionHeaders() },
         credentials: "include",
-        body: JSON.stringify({ text: input.customText }),
+        body: JSON.stringify({ text: input.customText, tile: stickerTile ?? undefined }),
       });
       const data = (await res.json().catch(() => ({}))) as {
         id?: string;
@@ -3378,6 +3410,8 @@ export function CardInlineGeneratePanel({
       setGenerationId(data.id);
       setResultUrl(data.resultUrl);
       setResultEditKind(STICKER_EDIT_KIND);
+      // The new row is one sticker — drop the pack film if the source was a pack tile.
+      setPhotoshootTileUrls(null);
       setIsPublished(false);
       setPublishedSlug(null);
       rememberLastDockResult({
@@ -3410,7 +3444,7 @@ export function CardInlineGeneratePanel({
         method: "POST",
         headers: { "Content-Type": "application/json", ...browserAcquisitionHeaders() },
         credentials: "include",
-        body: JSON.stringify({ borderPx }),
+        body: JSON.stringify({ borderPx, tile: stickerTile ?? undefined }),
       });
       const data = (await res.json().catch(() => ({}))) as {
         id?: string;
@@ -3425,6 +3459,7 @@ export function CardInlineGeneratePanel({
       setGenerationId(data.id);
       setResultUrl(data.resultUrl);
       setResultEditKind(STICKER_EDIT_KIND);
+      setPhotoshootTileUrls(null);
       setIsPublished(false);
       setPublishedSlug(null);
       rememberLastDockResult({
@@ -3582,12 +3617,9 @@ export function CardInlineGeneratePanel({
         if (cancelled || !data) return;
         const kind = String(data.editKind || "").trim() || null;
         setResultEditKind(kind);
-        const tiles =
-          Array.isArray(data.photoshootTileUrls) && data.photoshootTileUrls.length === 4
-            ? data.photoshootTileUrls
-            : null;
+        const tiles = sidecarTileUrls(kind, data.photoshootTileUrls);
         if (tiles) setPhotoshootTileUrls(tiles);
-        if (isPhotoshootEditKind(kind) && tiles) {
+        if ((isPhotoshootEditKind(kind) || isStickerPackEditKind(kind)) && tiles) {
           setPhotoshootOpen(false);
           setResultUrl((current) =>
             current && tiles.includes(current) ? current : tiles[0],
@@ -3761,7 +3793,8 @@ export function CardInlineGeneratePanel({
         <PhotoshootFrameFilm
           className="absolute bottom-[max(0.75rem,env(safe-area-inset-bottom))] left-3 right-[11rem] z-20"
           tileUrls={photoshootTileUrls}
-          activeTile={photoshootTileIndexForUrl(photoshootTileUrls, resultUrl)}
+          activeTile={sidecarTileNumberForUrl(photoshootTileUrls, resultUrl) ?? 1}
+          tileLabel={stickerPackResult ? "Стикер" : "Кадр"}
           onSelect={(tile) => {
             const url = photoshootTileUrls?.[tile - 1];
             if (url) setResultUrl(url);
@@ -3858,7 +3891,8 @@ export function CardInlineGeneratePanel({
                 </svg>
               ),
             },
-            ...(stickerResult && resultModality === "image"
+            // Emotion / motion re-generate from a finished single sticker; a pack tile has no own row yet.
+            ...(stickerResult && !stickerPackResult && resultModality === "image"
               ? [
                   {
                     id: "sticker-emotion",
@@ -3893,6 +3927,11 @@ export function CardInlineGeneratePanel({
                       </svg>
                     ),
                   },
+                ]
+              : []),
+            // Text and border are free overlays on the stored PNG — work on a single sticker and on a pack tile.
+            ...(stickerResult && resultModality === "image" && (!stickerPackResult || stickerTile)
+              ? [
                   {
                     id: "sticker-text",
                     label: STICKER_ACTION_COPY.text.railLabel,
@@ -4181,8 +4220,10 @@ export function CardInlineGeneratePanel({
         <StickerDownloadSheet
           busyPlatform={stickerDownloadBusy}
           error={stickerDownloadError}
+          packTile={stickerTile}
           onClose={closeStickerDownload}
           onPick={(platform) => void downloadStickerFor(platform)}
+          onPickAll={stickerPackResult ? () => void downloadStickerPackAll() : undefined}
         />
       ) : null}
 

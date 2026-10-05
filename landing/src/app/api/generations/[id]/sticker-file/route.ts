@@ -4,25 +4,30 @@ import { readBlobBytes } from "@/lib/request-byte-limit";
 import { isSharpBusyError, runSharpLimited } from "@/lib/sharp-runtime";
 import { createSupabaseServer } from "@/lib/supabase";
 import { getSupabaseUserForApiRoute } from "@/lib/supabase-route-auth";
-import { isStickerEditKind, stickerPlatformById } from "@/lib/sticker";
+import { parseStickerBorderPxFromPrompt, stickerPlatformById } from "@/lib/sticker";
 import { exportStickerForPlatform } from "@/lib/sticker-export";
+import { stickerPackTileFilename } from "@/lib/sticker-pack";
+import {
+  STICKER_SOURCE_ROW_COLUMNS,
+  resolveStickerSourceFile,
+  stickerSourceErrorCode,
+  stickerSourceErrorMessage,
+  type StickerSourceRow,
+} from "@/lib/sticker-source-row";
 
 const MAX_SOURCE_MB = 8;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-type StickerRow = {
+type StickerRow = StickerSourceRow & {
   id: string;
-  status: string;
-  modality: string | null;
-  edit_kind: string | null;
-  result_storage_bucket: string | null;
-  result_storage_path: string | null;
+  prompt_text: string | null;
 };
 
 /**
  * Ready-to-upload sticker file for a messenger: `?platform=telegram|whatsapp|max`.
- * Owner-only. Converts the stored 512×512 PNG into the platform's format/size on the fly —
- * nothing extra is stored, so adding a platform is one entry in `STICKER_PLATFORMS`.
+ * Owner-only. Converts the stored PNG (512 single sticker, 378 pack tile) into the platform's
+ * format/size on the fly — nothing extra is stored, so adding a platform is one entry in `STICKER_PLATFORMS`.
+ * Sticker pack rows need `?tile=1..16`; the response is `sticker-NN.<ext>`.
  */
 export async function GET(
   req: NextRequest,
@@ -46,7 +51,7 @@ export async function GET(
     const supabase = createSupabaseServer();
     const { data: rowRaw, error: rowError } = await supabase
       .from("landing_generations")
-      .select("id,status,modality,edit_kind,result_storage_bucket,result_storage_path")
+      .select(`id,prompt_text,${STICKER_SOURCE_ROW_COLUMNS}`)
       .eq("id", id)
       .eq("requester_auth_user_id", user.id)
       .maybeSingle();
@@ -58,19 +63,18 @@ export async function GET(
     if (!row) {
       return NextResponse.json({ error: "forbidden", message: "Стикер недоступен" }, { status: 403 });
     }
-    if (
-      row.status !== "completed" ||
-      !row.result_storage_bucket ||
-      !row.result_storage_path ||
-      (row.modality || "image") !== "image" ||
-      !isStickerEditKind(row.edit_kind)
-    ) {
-      return NextResponse.json({ error: "not_a_sticker", message: "Файл доступен только для готового стикера" }, { status: 400 });
+    const src = resolveStickerSourceFile(row, req.nextUrl.searchParams.get("tile"));
+    if (!src.ok) {
+      return NextResponse.json(
+        {
+          error: stickerSourceErrorCode(src.reason),
+          message: stickerSourceErrorMessage(src.reason, "Файл доступен только для готового стикера"),
+        },
+        { status: 400 },
+      );
     }
 
-    const { data: file, error: downloadError } = await supabase.storage
-      .from(row.result_storage_bucket)
-      .download(row.result_storage_path);
+    const { data: file, error: downloadError } = await supabase.storage.from(src.bucket).download(src.path);
     if (downloadError || !file) {
       console.error("[sticker-file] source download failed", { id, error: downloadError?.message });
       return NextResponse.json({ error: "source_unavailable", message: "Исходный стикер недоступен" }, { status: 409 });
@@ -79,7 +83,9 @@ export async function GET(
 
     let exported;
     try {
-      exported = await runSharpLimited(() => exportStickerForPlatform(source, platform));
+      // Only a «Обводка» row gets its white ring snapped; a plain sticker keeps the soft edge the worker saved.
+      const hasBorder = parseStickerBorderPxFromPrompt(row.prompt_text) !== null;
+      exported = await runSharpLimited(() => exportStickerForPlatform(source, platform, { hasBorder }));
     } catch (err) {
       if (isSharpBusyError(err)) {
         return NextResponse.json({ error: "busy", message: "Сервер занят, попробуйте ещё раз" }, { status: 503 });
@@ -95,12 +101,15 @@ export async function GET(
       });
     }
 
+    const filename = src.tile
+      ? stickerPackTileFilename(src.tile, platform.filename.split(".").pop() || "png")
+      : platform.filename;
     return new NextResponse(new Uint8Array(exported.buffer), {
       status: 200,
       headers: {
         "Content-Type": exported.contentType,
         "Content-Length": String(exported.buffer.length),
-        "Content-Disposition": `attachment; filename="${platform.filename}"`,
+        "Content-Disposition": `attachment; filename="${filename}"`,
         "Cache-Control": "private, max-age=3600",
         "X-Sticker-Platform": platform.id,
         "X-Sticker-Quality": exported.quality === null ? "lossless" : String(exported.quality),

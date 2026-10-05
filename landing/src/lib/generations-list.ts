@@ -1,6 +1,57 @@
-import { isPhotoshootEditKind, resolvePhotoshootUserFacingResult } from "./photoshoot";
+import {
+  PHOTOSHOOT_FRAME_COUNT,
+  isPhotoshootEditKind,
+  resolvePhotoshootUserFacingResult,
+  type PhotoshootUserFacingResult,
+} from "./photoshoot";
 import { isStickerEditKind } from "./sticker";
-import { isStickerPackEditKind, resolveStickerPackUserFacingResult } from "./sticker-pack";
+import { STICKER_PACK_COUNT, isStickerPackEditKind, resolveStickerPackUserFacingResult } from "./sticker-pack";
+
+/**
+ * How many sidecar tiles a completed job of this kind carries in `photoshoot_tile_paths`.
+ * Photoshoot = 4 JPEG frames, sticker pack = 16 PNG stickers, anything else = none.
+ * Every "is this a tiled result" check goes through here instead of a literal `=== 4`.
+ */
+export function expectedSidecarTileCount(editKind: string | null | undefined): number | null {
+  if (isPhotoshootEditKind(editKind)) return PHOTOSHOOT_FRAME_COUNT;
+  if (isStickerPackEditKind(editKind)) return STICKER_PACK_COUNT;
+  return null;
+}
+
+/** Tile URLs from an API payload, or null unless the list is complete for this kind. */
+export function sidecarTileUrls(editKind: string | null | undefined, raw: unknown): string[] | null {
+  const expected = expectedSidecarTileCount(editKind);
+  if (!expected || !Array.isArray(raw) || raw.length !== expected) return null;
+  const urls = raw.map((item) => String(item ?? "").trim());
+  return urls.some((url) => !url) ? null : urls;
+}
+
+/** 1-based tile number of `resultUrl` in the list, or null when it is not a tile (e.g. the pack preview). */
+export function sidecarTileNumberForUrl(tileUrls: string[] | null, resultUrl: string | null): number | null {
+  if (!tileUrls || !resultUrl) return null;
+  const index = tileUrls.indexOf(resultUrl);
+  return index < 0 ? null : index + 1;
+}
+
+/** Single-slot path + tiles for any completed job; pack and photoshoot share the same column. */
+export function resolveGenerationUserFacingResult(input: {
+  editKind?: string | null;
+  sheetPath?: string | null;
+  tilePaths?: unknown;
+}): PhotoshootUserFacingResult {
+  return (
+    resolveStickerPackUserFacingResult({
+      editKind: input.editKind,
+      previewPath: input.sheetPath,
+      tilePaths: input.tilePaths,
+    }) ??
+    resolvePhotoshootUserFacingResult({
+      editKind: input.editKind,
+      sheetPath: input.sheetPath,
+      tilePaths: input.tilePaths,
+    })
+  );
+}
 
 export const GENERATIONS_PAGE_SIZE = 24;
 export const GENERATIONS_API_MAX_LIMIT = 50;
@@ -98,17 +149,11 @@ export function buildGenerationResultMedia(input: {
   const bucket = input.bucket?.trim() || null;
   const sheetPath = input.sheetPath?.trim() || null;
   // Sticker pack: preview PNG in the single slot, the 16 stickers as tiles (same column as photoshoot).
-  const facing =
-    resolveStickerPackUserFacingResult({
-      editKind: input.editKind,
-      previewPath: sheetPath,
-      tilePaths: input.tilePaths,
-    }) ??
-    resolvePhotoshootUserFacingResult({
-      editKind: input.editKind,
-      sheetPath,
-      tilePaths: input.tilePaths,
-    });
+  const facing = resolveGenerationUserFacingResult({
+    editKind: input.editKind,
+    sheetPath,
+    tilePaths: input.tilePaths,
+  });
   const photoshoot = isPhotoshootEditKind(input.editKind);
   const sheetUrl =
     bucket && photoshoot && sheetPath ? input.toPublicUrl(bucket, sheetPath) : null;
@@ -163,6 +208,7 @@ export function generationGridDisplay(
     GenerationHistoryItem,
     | "resultUrl"
     | "resultThumbUrl"
+    | "editKind"
     | "photoshootTileUrls"
     | "photoshootTileThumbUrls"
   >,
@@ -170,17 +216,17 @@ export function generationGridDisplay(
   fullTiles: string[] | null;
   displayTiles: string[] | null;
   displaySrc: string | null;
+  /** Grid side: 2 for a photoshoot, 4 for a sticker pack, null without tiles. */
+  gridColumns: 2 | 4 | null;
 } {
-  const fullTiles =
-    item.photoshootTileUrls?.length === 4 ? item.photoshootTileUrls : null;
-  const displayTiles =
-    item.photoshootTileThumbUrls?.length === 4
-      ? item.photoshootTileThumbUrls
-      : fullTiles;
+  const fullTiles = sidecarTileUrls(item.editKind, item.photoshootTileUrls);
+  const displayTiles = sidecarTileUrls(item.editKind, item.photoshootTileThumbUrls) ?? fullTiles;
+  const gridColumns: 2 | 4 | null = !fullTiles ? null : fullTiles.length === STICKER_PACK_COUNT ? 4 : 2;
   return {
     fullTiles,
     displayTiles,
     displaySrc: item.resultThumbUrl || item.resultUrl,
+    gridColumns,
   };
 }
 

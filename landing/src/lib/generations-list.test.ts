@@ -2,10 +2,14 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   buildGenerationResultMedia,
+  expectedSidecarTileCount,
   generationGridDisplay,
   generationListingAspectRatio,
   isUnknownGenerationsListRpc,
   mergeGenerationFirstPage,
+  resolveGenerationUserFacingResult,
+  sidecarTileNumberForUrl,
+  sidecarTileUrls,
   takeGenerationPage,
 } from "./generations-list";
 
@@ -129,6 +133,7 @@ test("generationGridDisplay prefers listing thumbs and keeps full tiles for acti
   const display = generationGridDisplay({
     resultUrl: "full/a.jpg",
     resultThumbUrl: "thumb/a.jpg",
+    editKind: "photoshoot",
     photoshootTileUrls: ["full/1.jpg", "full/2.jpg", "full/3.jpg", "full/4.jpg"],
     photoshootTileThumbUrls: ["t/1.jpg", "t/2.jpg", "t/3.jpg", "t/4.jpg"],
   });
@@ -140,4 +145,56 @@ test("generationGridDisplay prefers listing thumbs and keeps full tiles for acti
   ]);
   assert.deepEqual(display.displayTiles, ["t/1.jpg", "t/2.jpg", "t/3.jpg", "t/4.jpg"]);
   assert.equal(display.displaySrc, "thumb/a.jpg");
+  assert.equal(display.gridColumns, 2);
+});
+
+test("sidecar tiles: 4 for a photoshoot, 16 for a sticker pack, none otherwise", () => {
+  assert.equal(expectedSidecarTileCount("photoshoot"), 4);
+  assert.equal(expectedSidecarTileCount("sticker_pack"), 16);
+  assert.equal(expectedSidecarTileCount("sticker"), null);
+  assert.equal(expectedSidecarTileCount(null), null);
+
+  const four = ["a", "b", "c", "d"];
+  const sixteen = Array.from({ length: 16 }, (_, i) => `t/${i + 1}.png`);
+  assert.deepEqual(sidecarTileUrls("photoshoot", four), four);
+  assert.equal(sidecarTileUrls("photoshoot", sixteen), null);
+  assert.deepEqual(sidecarTileUrls("sticker_pack", sixteen), sixteen);
+  assert.equal(sidecarTileUrls("sticker_pack", four), null, "a pack never shows 4 of 16");
+  assert.equal(sidecarTileUrls("sticker", four), null);
+  assert.equal(sidecarTileUrls("sticker_pack", [...sixteen.slice(0, 15), ""]), null);
+
+  assert.equal(sidecarTileNumberForUrl(sixteen, "t/7.png"), 7);
+  assert.equal(sidecarTileNumberForUrl(sixteen, "preview.png"), null, "the pack preview is not a tile");
+  assert.equal(sidecarTileNumberForUrl(null, "t/1.png"), null);
+});
+
+test("sticker pack card: 4×4 grid of the 16 PNGs, preview stays in the single slot", () => {
+  const tiles = Array.from({ length: 16 }, (_, i) => `u/j/lease-${String(i + 1).padStart(2, "0")}.png`);
+  const display = generationGridDisplay({
+    resultUrl: "u/j/lease.png",
+    resultThumbUrl: null,
+    editKind: "sticker_pack",
+    photoshootTileUrls: tiles,
+    photoshootTileThumbUrls: tiles,
+  });
+  assert.equal(display.gridColumns, 4);
+  assert.equal(display.fullTiles?.length, 16);
+  assert.equal(display.displaySrc, "u/j/lease.png");
+
+  const facing = resolveGenerationUserFacingResult({
+    editKind: "sticker_pack",
+    sheetPath: "u/j/lease.png",
+    tilePaths: null,
+  });
+  assert.equal(facing.resultPath, "u/j/lease.png");
+  assert.equal(facing.tilePaths?.length, 16);
+  assert.equal(facing.tilePaths?.[15], "u/j/lease-16.png");
+
+  const photoshoot = resolveGenerationUserFacingResult({
+    editKind: "photoshoot",
+    sheetPath: "u/j/sheet.jpg",
+    tilePaths: null,
+  });
+  assert.equal(photoshoot.resultPath, "u/j/sheet-1.jpg");
+  assert.equal(photoshoot.tilePaths?.length, 4);
 });

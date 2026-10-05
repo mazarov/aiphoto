@@ -10,9 +10,15 @@ export async function downloadGenerationResult(url: string, filename: string) {
  * Ready-to-upload sticker for a messenger via `GET /api/generations/:id/sticker-file`.
  * Throws with the server `message` (or a generic one) so the sheet can show it.
  */
-export async function downloadStickerPlatformFile(generationId: string, platformId: string, filename: string) {
+export async function downloadStickerPlatformFile(
+  generationId: string,
+  platformId: string,
+  filename: string,
+  options?: { tile?: number | null },
+) {
+  const tile = options?.tile ? `&tile=${encodeURIComponent(String(options.tile))}` : "";
   const res = await fetch(
-    `/api/generations/${encodeURIComponent(generationId)}/sticker-file?platform=${encodeURIComponent(platformId)}`,
+    `/api/generations/${encodeURIComponent(generationId)}/sticker-file?platform=${encodeURIComponent(platformId)}${tile}`,
     { credentials: "include" },
   );
   if (!res.ok) {
@@ -20,6 +26,18 @@ export async function downloadStickerPlatformFile(generationId: string, platform
     throw new Error(
       data.message || (res.status === 503 ? "Сервер занят, попробуйте ещё раз" : "Не удалось подготовить стикер"),
     );
+  }
+  saveBlobAs(await res.blob(), filename);
+}
+
+/** All 16 stickers of a pack as one archive via `GET /api/generations/:id/sticker-pack.zip`. */
+export async function downloadStickerPackZip(generationId: string, filename: string) {
+  const res = await fetch(`/api/generations/${encodeURIComponent(generationId)}/sticker-pack.zip`, {
+    credentials: "include",
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => ({}))) as { message?: string };
+    throw new Error(data.message || "Не удалось собрать архив стикеров");
   }
   saveBlobAs(await res.blob(), filename);
 }

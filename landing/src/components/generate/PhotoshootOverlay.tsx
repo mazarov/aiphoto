@@ -8,41 +8,52 @@ import {
 } from "@/components/generate/GenerationResultActionRail";
 import {
   PHOTOSHOOT_CREDIT_COST,
-  PHOTOSHOOT_TILE_INDEXES,
+  PHOTOSHOOT_FRAME_COUNT,
   photoshootOverlayChromeState,
-  type PhotoshootTileIndex,
 } from "@/lib/photoshoot";
 
+/**
+ * Thumb strip under the result: 4 photoshoot frames, or 16 stickers of a pack (scrolls horizontally).
+ * `activeTile` / `onSelect` are 1-based like `photoshoot_tile_paths`.
+ */
 export function PhotoshootFrameFilm({
   tileUrls,
   activeTile,
   disabled = false,
   className = "",
+  tileLabel = "Кадр",
   onSelect,
 }: {
   tileUrls: string[] | null;
-  activeTile: PhotoshootTileIndex;
+  activeTile: number;
   disabled?: boolean;
   className?: string;
-  onSelect: (tile: PhotoshootTileIndex) => void;
+  tileLabel?: string;
+  onSelect: (tile: number) => void;
 }) {
+  const count = Math.max(tileUrls?.length ?? 0, PHOTOSHOOT_FRAME_COUNT);
+  const compact = count > PHOTOSHOOT_FRAME_COUNT;
   return (
-    <div className={`flex gap-2 ${className}`.trim()}>
-      {PHOTOSHOOT_TILE_INDEXES.map((item) => {
+    <div
+      className={`flex gap-2 ${compact ? "overflow-x-auto overscroll-x-contain pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" : ""} ${className}`.trim()}
+      role="tablist"
+      aria-label={compact ? "Стикеры пака" : "Кадры фотосессии"}
+    >
+      {Array.from({ length: count }, (_, index) => index + 1).map((item) => {
         const active = item === activeTile;
         const thumbUrl = tileUrls?.[item - 1] || null;
         return (
           <button
             key={item}
             type="button"
+            role="tab"
+            aria-selected={active}
             disabled={disabled || !thumbUrl}
             onClick={() => onSelect(item)}
-            className={`${OVERLAY_BUTTON_UA_RESET} relative h-16 shrink-0 overflow-hidden rounded-xl ${
-              active ? "ring-2 ring-indigo-400" : "ring-1 ring-white/25"
-            }`}
-            style={{ width: "48px" }}
-            aria-label={`Кадр ${item}`}
-            aria-pressed={active}
+            className={`${OVERLAY_BUTTON_UA_RESET} relative shrink-0 overflow-hidden rounded-xl ${
+              compact ? "h-12 w-12 bg-white/10" : "h-16 w-12"
+            } ${active ? "ring-2 ring-indigo-400" : "ring-1 ring-white/25"}`}
+            aria-label={`${tileLabel} ${item}`}
           >
             {thumbUrl ? (
               // eslint-disable-next-line @next/next/no-img-element

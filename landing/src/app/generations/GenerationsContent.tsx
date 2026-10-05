@@ -9,11 +9,12 @@ import { VIDEO_GENERATION_MODALITY } from "@/lib/generation/image-options";
 import {
   GENERATIONS_GRID_PRIORITY_COUNT,
   GENERATIONS_PAGE_SIZE,
+  expectedSidecarTileCount,
   mergeGenerationFirstPage,
+  sidecarTileUrls,
   type GenerationHistoryItem,
   type GenerationListPage,
 } from "@/lib/generations-list";
-import { isPhotoshootEditKind } from "@/lib/photoshoot";
 import { useListingSentinelLoadMore } from "@/hooks/useListingSentinelLoadMore";
 import {
   readCachedVideoAnimateEnabled,
@@ -199,8 +200,9 @@ export function GenerationsContent({
     const hasActiveGeneration = generations.some((generation) => {
       if (generation.status === "pending" || generation.status === "processing") return true;
       if (generation.status !== "completed") return false;
-      if (!isPhotoshootEditKind(generation.editKind)) return false;
-      const tilesReady = generation.photoshootTileUrls?.length === 4;
+      // Tiled results (photoshoot 4 / sticker pack 16) can complete before the sidecar column is written.
+      if (expectedSidecarTileCount(generation.editKind) === null) return false;
+      const tilesReady = sidecarTileUrls(generation.editKind, generation.photoshootTileUrls) !== null;
       return !generation.resultUrl && !tilesReady;
     });
     if (!user || !hasActiveGeneration) return;

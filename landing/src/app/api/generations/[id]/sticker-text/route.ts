@@ -10,33 +10,35 @@ import {
   STICKER_EDIT_KIND,
   STICKER_TEXT_MAX_CHARS,
   buildStickerTextPromptText,
-  isStickerEditKind,
   normalizeStickerOverlayText,
 } from "@/lib/sticker";
 import { addTextToStickerPng, type StickerTextPosition } from "@/lib/sticker-text-overlay";
+import {
+  STICKER_SOURCE_ROW_COLUMNS,
+  resolveStickerSourceFile,
+  stickerSourceErrorCode,
+  stickerSourceErrorMessage,
+  type StickerSourceRow,
+} from "@/lib/sticker-source-row";
 
 const MAX_SOURCE_MB = 8;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-type ParentRow = {
+type ParentRow = StickerSourceRow & {
   id: string;
   user_id: string;
   requester_auth_user_id: string | null;
-  status: string;
-  modality: string | null;
-  edit_kind: string | null;
   model: string;
   executed_model: string | null;
   aspect_ratio: string;
   image_size: string;
   client_source: string | null;
-  result_storage_bucket: string | null;
-  result_storage_path: string | null;
 };
 
 /**
  * «Добавить текст» — free, synchronous. Takes a finished sticker PNG, composites a caption badge,
  * stores the result as a new completed `landing_generations` row (0 credits, parent = source sticker).
+ * Body `{ text, position?, tile? }` — `tile` 1..16 picks the sticker when the parent is a sticker pack.
  */
 export async function POST(
   req: NextRequest,
@@ -52,7 +54,7 @@ export async function POST(
     if (!id || !UUID_RE.test(id)) {
       return NextResponse.json({ error: "validation_error", message: "Некорректный стикер" }, { status: 400 });
     }
-    const body = (await req.json().catch(() => ({}))) as { text?: unknown; position?: unknown };
+    const body = (await req.json().catch(() => ({}))) as { text?: unknown; position?: unknown; tile?: unknown };
     const text = normalizeStickerOverlayText(body.text);
     if (!text) {
       return NextResponse.json(
@@ -66,7 +68,7 @@ export async function POST(
     const { data: parentRaw, error: parentError } = await supabase
       .from("landing_generations")
       .select(
-        "id,user_id,requester_auth_user_id,status,modality,edit_kind,model,executed_model,aspect_ratio,image_size,client_source,result_storage_bucket,result_storage_path",
+        `id,user_id,requester_auth_user_id,model,executed_model,aspect_ratio,image_size,client_source,${STICKER_SOURCE_ROW_COLUMNS}`,
       )
       .eq("id", id)
       .eq("requester_auth_user_id", user.id)
@@ -79,24 +81,20 @@ export async function POST(
     if (!parent) {
       return NextResponse.json({ error: "forbidden", message: "Стикер недоступен" }, { status: 403 });
     }
-    if (
-      parent.status !== "completed" ||
-      !parent.result_storage_bucket ||
-      !parent.result_storage_path ||
-      (parent.modality || "image") !== "image" ||
-      !isStickerEditKind(parent.edit_kind)
-    ) {
+    const src = resolveStickerSourceFile(parent, body.tile);
+    if (!src.ok) {
       return NextResponse.json(
-        { error: "sticker_parent_not_sticker", message: "Текст добавляется на готовый стикер" },
+        {
+          error: stickerSourceErrorCode(src.reason) === "pack_tile_required" ? "pack_tile_required" : "sticker_parent_not_sticker",
+          message: stickerSourceErrorMessage(src.reason, "Текст добавляется на готовый стикер"),
+        },
         { status: 400 },
       );
     }
 
-    const { data: file, error: downloadError } = await supabase.storage
-      .from(parent.result_storage_bucket)
-      .download(parent.result_storage_path);
+    const { data: file, error: downloadError } = await supabase.storage.from(src.bucket).download(src.path);
     if (downloadError || !file) {
-      console.error("[sticker-text] source download failed", { id, error: downloadError?.message });
+      console.error("[sticker-text] source download failed", { id, tile: src.tile, error: downloadError?.message });
       return NextResponse.json({ error: "source_unavailable", message: "Исходный стикер недоступен" }, { status: 409 });
     }
     const source = Buffer.from(await readBlobBytes(file, MAX_SOURCE_MB * 1024 * 1024));
@@ -114,7 +112,7 @@ export async function POST(
     const newId = crypto.randomUUID();
     const resultPath = `${parent.user_id}/${newId}/text.png`;
     const { error: uploadError } = await supabase.storage
-      .from(parent.result_storage_bucket)
+      .from(src.bucket)
       .upload(resultPath, output, publicObjectUploadOptions({ contentType: "image/png", upsert: false }));
     if (uploadError) {
       console.error("[sticker-text] upload failed", { id, error: uploadError.message });
@@ -143,23 +141,23 @@ export async function POST(
       modality: "image",
       visitor_id: acquisition.visitorId,
       session_id: acquisition.sessionId,
-      result_storage_bucket: parent.result_storage_bucket,
+      result_storage_bucket: src.bucket,
       result_storage_path: resultPath,
       generation_started_at: now,
       generation_completed_at: now,
     });
     if (insertError) {
       console.error("[sticker-text] insert failed", { id, newId, error: insertError.message });
-      await supabase.storage.from(parent.result_storage_bucket).remove([resultPath]).catch(() => {});
+      await supabase.storage.from(src.bucket).remove([resultPath]).catch(() => {});
       return NextResponse.json({ error: "insert_failed" }, { status: 500 });
     }
 
-    console.log("[sticker-text] created", { parentId: parent.id, id: newId, textLength: text.length, position });
+    console.log("[sticker-text] created", { parentId: parent.id, id: newId, textLength: text.length, position, tile: src.tile });
     return NextResponse.json({
       id: newId,
       parentGenerationId: parent.id,
       editKind: STICKER_EDIT_KIND,
-      resultUrl: getStoragePublicUrl(parent.result_storage_bucket, resultPath),
+      resultUrl: getStoragePublicUrl(src.bucket, resultPath),
     });
   } catch (err) {
     console.error("[sticker-text] failed", err);

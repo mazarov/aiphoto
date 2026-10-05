@@ -72,7 +72,18 @@ index.ts → landing_complete_generation(p_photoshoot_tile_paths = 16)   # SQL 2
 
 ## Read-side
 
-`generations-list.ts` → `buildGenerationResultMedia`: для `sticker_pack` `resultUrl` = превью PNG (без JPEG-thumb — альфа), `photoshootTileUrls` / `photoshootTileThumbUrls` = 16 оригиналов 512 PNG. `generationListingAspectRatio` → 1. `generationGridDisplay` пока показывает только 4-тайловые сетки — 16-тайловая карточка в `/generations` и скачивание отдельных стикеров (`sticker-file?tile=`) — UI follow-up.
+`generations-list.ts` → `buildGenerationResultMedia`: для `sticker_pack` `resultUrl` = превью PNG (без JPEG-thumb — альфа), `photoshootTileUrls` / `photoshootTileThumbUrls` = 16 оригиналов 378 PNG. `generationListingAspectRatio` → 1.
+
+Число тайлов — SSOT `expectedSidecarTileCount(editKind)` → 4 / 16 / null; `sidecarTileUrls` принимает список только полной длины; `sidecarTileNumberForUrl` — 1-based номер (превью → null). `resolveGenerationUserFacingResult` = пак ∪ фотосессия, им пользуется и `GET /api/generations/[id]` (до этого роут отдавал пак без 16 URL — док показывал только превью).
+
+## UI (05.10, `feature/sticker-pack-tiles-ui`)
+
+- `/generations`: `PhotoshootListingGrid columns={4}` поверх карточки, бейдж «Стикер пак», клик по тайлу открывает этот стикер в доке, клик по карточке — стикер 1. Меню «Скачать» → ZIP.
+- Док: лента `PhotoshootFrameFilm` на 16 тайлов (компактная, горизонтальный скролл), результат = выбранный стикер. `stickerResult` включает пак; `stickerTile` — номер выбранного.
+  - «Скачать» → `StickerDownloadSheet`: Telegram / WhatsApp / Max для выбранного стикера (`sticker-file?platform=&tile=`, файл `sticker-NN.webp|png`) + ряд «Весь пак» → `GET /api/generations/[id]/sticker-pack.zip` (16 × `sticker-NN.png`, STORE-ZIP из `lib/zip-store.ts`, в памяти, ничего не хранится).
+  - «Текст» / «Обводка» — `body.tile`; ответ — новая одиночная строка `edit_kind=sticker`, лента пака скрывается.
+  - Эмоция / движение для пака скрыты: `/api/generate` требует родителя `edit_kind=sticker`.
+- Роуты `sticker-file`, `sticker-border`, `sticker-text`: источник через `lib/sticker-source-row.ts` → `resolveStickerSourcePath` (пак без `tile` → 400 `pack_tile_required`).
 
 `GET /api/generation-config` (image): `stickerPackEnabled`, `stickerPackCreditCost`, `stickerPackCount`, `stickerPackModel {id,label,cost=цена пака}`.
 
@@ -88,4 +99,4 @@ index.ts → landing_complete_generation(p_photoshoot_tile_paths = 16)   # SQL 2
 - Модель пака должна отдавать альфу (`gpt-image-*`, сейчас `gpt-image-2.5-flare`). Seedream, Flux, Gemini, Grok → `config_error` без retry. Ячейка без прозрачности → retry всего job, без rembg.
 - Нет фолбека модели для пака (пустой кадр или ячейка без альфы → retry всего job). Оплачивается один вызов.
 - `{subject}` → «the person» без определения пола (бот подставляет gender word из subject profile).
-- Экспорт пака в Telegram / zip, карточка 16 тайлов в `/generations`, CTA вместо «Скоро» — UI-этап.
+- CTA вместо «Скоро» — флаг `sticker_pack_enabled`. Эмоция / движение от тайла пака — нужен `parentTile` в `/api/generate` + источник тайла в worker (`input-source.ts`), пока не делаем.

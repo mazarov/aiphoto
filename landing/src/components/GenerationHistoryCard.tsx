@@ -19,6 +19,7 @@ import {
 } from "@/components/GenerationCardMenu";
 import {
   downloadGenerationResult,
+  downloadStickerPackZip,
   shareGenerationResult,
 } from "@/lib/generation-result-client-actions";
 import { ListingCardVideo } from "@/components/ListingCardVideo";
@@ -32,6 +33,7 @@ import {
   type GenerationHistoryItem,
 } from "@/lib/generations-list";
 import { isStickerEditKind } from "@/lib/sticker";
+import { STICKER_PACK_CTA_LABEL, isStickerPackEditKind } from "@/lib/sticker-pack";
 import {
   publishRewardAmount,
   publishRewardKindForGeneration,
@@ -90,7 +92,7 @@ export function GenerationHistoryCard({
   const [busyAction, setBusyAction] = useState<GenerationMenuAction | null>(null);
   const [tilesOk, setTilesOk] = useState(false);
   const [tilesFailed, setTilesFailed] = useState(false);
-  const { fullTiles, displayTiles, displaySrc } = generationGridDisplay(generation);
+  const { fullTiles, displayTiles, displaySrc, gridColumns } = generationGridDisplay(generation);
   const sheetDisplay =
     generation.photoshootSheetThumbUrl || generation.photoshootSheetUrl || null;
   const showTileGrid = Boolean(displayTiles) && !tilesFailed;
@@ -101,6 +103,7 @@ export function GenerationHistoryCard({
   const isVideo = generation.modality === "video" || generation.resultMimeType === "video/mp4";
   const isPhotoshoot = isPhotoshootEditKind(generation.editKind);
   const isSticker = isStickerEditKind(generation.editKind);
+  const isStickerPack = isStickerPackEditKind(generation.editKind);
   const listingAspect = generationListingAspectRatio(generation.aspectRatio, generation.editKind);
   const canOpenCard = generation.status === "completed" && hasResult;
   const canOpenResult = generation.status === "completed" && hasResult;
@@ -108,6 +111,7 @@ export function GenerationHistoryCard({
     videoEnabled &&
     !isVideo &&
     !isPhotoshoot &&
+    !isStickerPack &&
     generation.status === "completed" &&
     hasResult;
   const publishRewardVisible = publishReward
@@ -134,8 +138,10 @@ export function GenerationHistoryCard({
   const toast = (message: string) => onToast?.(message);
 
   const openResult = (previewUrl?: string) => {
+    // A pack's single slot is the 4×4 preview, not a sticker: open the first sticker instead.
     const url =
       previewUrl ||
+      (isStickerPack && !tilesFailed ? fullTiles?.[0] : null) ||
       (!tilesFailed ? generation.resultUrl : null) ||
       (!tilesFailed ? fullTiles?.[0] : null) ||
       generation.photoshootSheetUrl ||
@@ -183,7 +189,10 @@ export function GenerationHistoryCard({
       if (!generation.resultUrl && !fullTiles && !generation.photoshootSheetUrl) return;
       setBusyAction("download");
       try {
-        if (fullTiles && !tilesFailed) {
+        if (isStickerPack && fullTiles && !tilesFailed) {
+          // 16 PNGs as one archive instead of 16 browser downloads.
+          await downloadStickerPackZip(generation.id, `promptshot-stickers-${generation.id}.zip`);
+        } else if (fullTiles && !tilesFailed) {
           for (const [index, url] of fullTiles.entries()) {
             await downloadGenerationResult(url, `promptshot-${generation.id}-${index + 1}.jpg`);
           }
@@ -347,7 +356,9 @@ export function GenerationHistoryCard({
         {showTileGrid && displayTiles ? (
           <PhotoshootListingGrid
             urls={displayTiles}
-            alt="Кадры фотосессии"
+            alt={isStickerPack ? "Стикеры пака" : "Кадры фотосессии"}
+            columns={gridColumns ?? 2}
+            tileLabel={isStickerPack ? "Стикер" : "Кадр"}
             priority={priority}
             className={tilesOk || !sheetDisplay ? "" : "opacity-0"}
             onLoad={() => setTilesOk(true)}
@@ -399,7 +410,10 @@ export function GenerationHistoryCard({
         ) : null}
 
         {!selectMode && (isPhotoshoot || displayTiles || sheetDisplay) ? (
-          <PhotoshootListingBadge className="bottom-14" />
+          <PhotoshootListingBadge
+            className="bottom-14"
+            label={isStickerPack ? STICKER_PACK_CTA_LABEL : undefined}
+          />
         ) : null}
 
         {!selectMode && canOpenResult && !(showTileGrid && tilesOk) ? (

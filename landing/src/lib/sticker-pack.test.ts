@@ -18,12 +18,15 @@ import {
   normalizeStickerPackScenes,
   parseStickerPackCreditCost,
   parseStickerPackPrompt,
+  parseStickerPackTileNumber,
   parseStickerPackTilePaths,
   resolveStickerPackUserFacingResult,
+  resolveStickerSourcePath,
   stickerPackCellBox,
   stickerPackFingerprintFields,
   stickerPackSheetScenes,
   stickerPackStickerIndex,
+  stickerPackTileFilename,
   stickerPackTileStoragePath,
 } from "./sticker-pack";
 import { stickerPackCellBox as exampleCellBox, STICKER_PACK_SHEET_PX } from "./sticker-pack-examples";
@@ -130,6 +133,37 @@ test("user-facing result: preview in the single slot, 16 stickers as tiles", () 
   assert.equal(resolveStickerPackUserFacingResult({ editKind: "photoshoot", previewPath: "x.jpg" }), null);
   assert.ok(isStickerPackEditKind("sticker_pack"));
   assert.equal(isStickerPackEditKind("sticker"), false);
+});
+
+test("sticker routes: single row → result path, pack row → the chosen tile, preview never", () => {
+  const isSingle = (kind: unknown) => kind === "sticker";
+  assert.deepEqual(
+    resolveStickerSourcePath({ editKind: "sticker", resultPath: "u/j/sticker.png", isSingleSticker: isSingle }),
+    { ok: true, path: "u/j/sticker.png", isPack: false, tile: null },
+  );
+  const pack = { editKind: STICKER_PACK_EDIT_KIND, resultPath: "u/j/lease.png", tilePaths: null, isSingleSticker: isSingle };
+  assert.deepEqual(resolveStickerSourcePath({ ...pack, tile: "7" }), {
+    ok: true,
+    path: "u/j/lease-07.png",
+    isPack: true,
+    tile: 7,
+  });
+  assert.deepEqual(resolveStickerSourcePath({ ...pack }), { ok: false, reason: "tile_required" });
+  assert.deepEqual(resolveStickerSourcePath({ ...pack, tile: 17 }), { ok: false, reason: "tile_required" });
+  assert.deepEqual(
+    resolveStickerSourcePath({ ...pack, tile: 3, tilePaths: ["a", "b"] }),
+    { ok: true, path: "u/j/lease-03.png", isPack: true, tile: 3 },
+    "a short sidecar list falls back to paths derived from the preview",
+  );
+  assert.deepEqual(
+    resolveStickerSourcePath({ editKind: "photoshoot", resultPath: "u/j/sheet.jpg", tile: 1, isSingleSticker: isSingle }),
+    { ok: false, reason: "not_sticker" },
+  );
+  assert.equal(parseStickerPackTileNumber("16"), 16);
+  assert.equal(parseStickerPackTileNumber(0), null);
+  assert.equal(parseStickerPackTileNumber(""), null);
+  assert.equal(stickerPackTileFilename(7), "sticker-07.png");
+  assert.equal(stickerPackTileFilename(16, "webp"), "sticker-16.webp");
 });
 
 test("credit cost: DB integer wins, junk → 20", () => {

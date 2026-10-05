@@ -8,7 +8,7 @@ import {
   landingGenerationsOwnerOrFilter,
   removeGenerationResultObjects,
 } from "@/lib/landing-generations-access";
-import { resolvePhotoshootUserFacingResult } from "@/lib/photoshoot";
+import { resolveGenerationUserFacingResult } from "@/lib/generations-list";
 import { parseListingVideoRepeatSpec } from "@/lib/listing-video-repeat";
 import { enqueueListingVideoRepeatFollowup } from "@/lib/listing-video-repeat-followup";
 
@@ -70,7 +70,8 @@ export async function GET(
     };
 
     if (status === "completed" && gen.result_storage_bucket) {
-      const facing = resolvePhotoshootUserFacingResult({
+      // Photoshoot: 4 frames; sticker pack: preview in the single slot + 16 stickers as tiles.
+      const facing = resolveGenerationUserFacingResult({
         editKind: gen.edit_kind,
         sheetPath: gen.result_storage_path,
         tilePaths: gen.photoshoot_tile_paths,
