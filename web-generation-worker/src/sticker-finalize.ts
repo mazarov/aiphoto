@@ -272,6 +272,28 @@ export function clearChromaFringe(
   return cleared;
 }
 
+/**
+ * Soft alpha is what makes the die-cut look smeared: dilation takes the max of a gradient and the
+ * later downscale blurs it again. Anything below half goes fully transparent (this also drops the
+ * faint checkerboard squares GPT Image leaves around the figure); the rest becomes a hard edge.
+ */
+export const STICKER_ALPHA_HARD_MIN = 128;
+
+export function hardenAlpha(rgba: Buffer, width: number, height: number, min = STICKER_ALPHA_HARD_MIN): void {
+  const pixels = width * height;
+  for (let i = 0; i < pixels; i += 1) {
+    const offset = i * 4;
+    if (rgba[offset + 3] >= min) {
+      rgba[offset + 3] = 255;
+      continue;
+    }
+    rgba[offset] = 0;
+    rgba[offset + 1] = 0;
+    rgba[offset + 2] = 0;
+    rgba[offset + 3] = 0;
+  }
+}
+
 /** Max-filter on the alpha channel: every opaque pixel grows by `radius`. */
 export function dilateAlpha(alpha: Uint8Array, width: number, height: number, radius: number): Uint8Array {
   if (radius <= 0) return Uint8Array.from(alpha);
@@ -325,22 +347,23 @@ export async function composeStickerFromCutout(
   const marginPx = Math.max(0, Math.min(Math.floor(outputPx / 4), options?.marginPx ?? STICKER_SAFE_MARGIN_PX));
   const started = Date.now();
 
-  // Work at output scale (+ margin for the border) so the outline width is predictable.
-  const workPx = outputPx * 2;
+  // Fit the figure at the final size first, then paint the border. A resize after dilation
+  // (the old 2× canvas) is what blurred the white ring.
+  const contentPx = outputPx - marginPx * 2;
+  const figurePx = Math.max(16, contentPx - outlinePx * 2);
   const trimmed = await sharp(cutout, { failOn: "none" })
     .ensureAlpha()
     .trim({ threshold: 1 })
     .toBuffer()
     .catch(() => cutout);
-  const inner = Math.max(16, workPx - outlinePx * 4);
   const { data, info } = await sharp(trimmed, { failOn: "none" })
     .ensureAlpha()
-    .resize(inner, inner, { fit: "inside", withoutEnlargement: false, background: { r: 0, g: 0, b: 0, alpha: 0 } })
+    .resize(figurePx, figurePx, { fit: "inside", withoutEnlargement: false, background: { r: 0, g: 0, b: 0, alpha: 0 } })
     .extend({
-      top: outlinePx * 2,
-      bottom: outlinePx * 2,
-      left: outlinePx * 2,
-      right: outlinePx * 2,
+      top: outlinePx,
+      bottom: outlinePx,
+      left: outlinePx,
+      right: outlinePx,
       background: { r: 0, g: 0, b: 0, alpha: 0 },
     })
     .raw()
@@ -349,11 +372,11 @@ export async function composeStickerFromCutout(
   const height = info.height;
   const rgba = Buffer.from(data);
   const chromaPixelsCleared = clearChromaFringe(rgba, width, height);
+  hardenAlpha(rgba, width, height);
 
   const alpha = new Uint8Array(width * height);
   for (let i = 0; i < width * height; i += 1) alpha[i] = rgba[i * 4 + 3];
-  // Border radius scaled to the working canvas (2× output).
-  const dilated = dilateAlpha(alpha, width, height, outlinePx * 2);
+  const dilated = dilateAlpha(alpha, width, height, outlinePx);
   const border = Buffer.alloc(width * height * 4);
   for (let i = 0; i < width * height; i += 1) {
     const a = dilated[i];
@@ -369,15 +392,14 @@ export async function composeStickerFromCutout(
     .png()
     .toBuffer();
 
-  const contentPx = outputPx - marginPx * 2;
+  const padX = Math.max(0, contentPx - width);
+  const padY = Math.max(0, contentPx - height);
   const buffer = await sharp(composited)
-    .trim({ threshold: 1 })
-    .resize(contentPx, contentPx, { fit: "contain", background: { r: 0, g: 0, b: 0, alpha: 0 } })
     .extend({
-      top: marginPx,
-      bottom: marginPx,
-      left: marginPx,
-      right: marginPx,
+      top: Math.floor(padY / 2) + marginPx,
+      bottom: padY - Math.floor(padY / 2) + marginPx,
+      left: Math.floor(padX / 2) + marginPx,
+      right: padX - Math.floor(padX / 2) + marginPx,
       background: { r: 0, g: 0, b: 0, alpha: 0 },
     })
     .png({ compressionLevel: 9, palette: false })

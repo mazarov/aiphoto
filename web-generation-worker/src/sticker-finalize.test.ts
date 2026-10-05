@@ -223,6 +223,35 @@ test("composeStickerFromCutout yields 512×512 PNG with alpha and a white border
   assert.ok(transparent > 0, "corners stay transparent");
   assert.ok(white > 0, "outline is painted");
   assert.ok(blue > white, "subject dominates the outline");
+  let partial = 0;
+  for (let i = 0; i < info.width * info.height; i += 1) {
+    const alpha = data[i * 4 + 3];
+    if (alpha > 0 && alpha < 255) partial += 1;
+  }
+  assert.equal(partial, 0, "die-cut is a hard edge, not a blurred halo");
+});
+
+test("composeStickerFromCutout drops a faint checker square instead of outlining it", async () => {
+  const frame = await sharp(
+    Buffer.from(
+      `<svg xmlns="http://www.w3.org/2000/svg" width="240" height="240">
+        <rect x="70" y="50" width="100" height="140" rx="20" fill="#2244cc"/>
+        <rect x="8" y="8" width="18" height="18" fill="#ffffff" fill-opacity="0.12"/>
+      </svg>`,
+    ),
+  )
+    .png()
+    .toBuffer();
+  const result = await composeStickerFromCutout(frame, { outlinePx: 8, marginPx: 16 });
+  const { data, info } = await sharp(result.buffer).raw().toBuffer({ resolveWithObject: true });
+  let speck = 0;
+  for (let y = 0; y < 48; y += 1) {
+    for (let x = 0; x < 48; x += 1) {
+      const offset = (y * info.width + x) * 4;
+      if (data[offset + 3] > 0) speck += 1;
+    }
+  }
+  assert.equal(speck, 0, "faint square in the corner does not survive");
 });
 
 test("removeBackgroundViaRembg fails fast without REMBG_URL", async () => {

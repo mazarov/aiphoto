@@ -81,6 +81,7 @@ catalog: loadStickerCatalog → stickers(is_example, public_url, style_preset_id
 ## Checklist
 
 - [x] worker: `magentaRatio`, `chromaKeyMagenta` + despill, `transparentRatio` / `alpha_native`, роутинг, флаг, отступ 16 px, лог, тесты
+- [x] обводка: `hardenAlpha` (порог 128) до дилатации и дилатация уже в финальном размере — без даунскейла после неё. Иначе белое кольцо — градиент, а слабые квадраты модели (альфа < 128) раздуваются в кайму. Уже сохранённый PNG чистится на скачивании: `crispStickerFringe` в `sticker-export.ts` (только почти-белые пиксели).
 - [x] `sql/265_sticker_bg_route.sql`
 - [x] GPT Image 2.5 Flare: `image-options.ts`, лейбл, `openrouter-seedream.ts` (quality / background), prompt mode, `sql/266`
 - [x] `STICKER_PLATFORMS` + `GET /api/generations/[id]/sticker-file` + `StickerDownloadSheet` в rail
