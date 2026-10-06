@@ -12,6 +12,7 @@ import {
   listingGenerateIdleDockSurface,
   listingGenerateIdleIntent,
   normalizeGenerateDockPath,
+  shouldPrefetchGenerateDockMedia,
   shouldPrefetchGenerateDockPanel,
 } from "./generate-dock-path";
 
@@ -96,6 +97,9 @@ test("foto-v-promt FAB seeds photo_prompt, fotosessii seeds photoshoot", () => {
   assert.equal(isStickerGenerateDockPath("/stiker-iz-foto/"), true);
   assert.equal(listingGenerateIdleIntent("/stiker-iz-foto"), "sticker");
   assert.equal(shouldPrefetchGenerateDockPanel("/stiker-iz-foto"), true);
+  assert.equal(shouldPrefetchGenerateDockMedia("/stiker-iz-foto"), false);
+  assert.equal(shouldPrefetchGenerateDockMedia("/foto-v-promt"), true);
+  assert.equal(shouldPrefetchGenerateDockMedia("/"), true);
 });
 
 test("isGenerateDockListingPath includes foto-v-promt and analyses", () => {

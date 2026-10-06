@@ -1,6 +1,7 @@
 "use client";
 
 import { OVERLAY_BUTTON_UA_RESET } from "@/lib/card-overlay-action-pill";
+import { stickerExampleThumbUrl } from "@/lib/sticker-examples";
 import type { StickerPackExampleClient } from "@/lib/sticker-pack-examples-client";
 
 export const STICKER_PACK_SET_PICKER_TITLE = "Набор";
@@ -60,12 +61,13 @@ export function StickerPackSetPicker({ packs, selectedId, onSelect, tone = "ligh
             onClick={() => onSelect(pack)}
             className={cardClass(active)}
           >
-            {/* eslint-disable-next-line @next/next/no-img-element -- public bot bucket, not imgproxy */}
+            {/* eslint-disable-next-line @next/next/no-img-element -- resized WebP with alpha, not a JPEG thumb */}
             <img
-              src={pack.exampleUrl}
+              src={stickerExampleThumbUrl(pack.exampleUrl, "lg")}
               alt=""
-              width={512}
-              height={512}
+              width={384}
+              height={384}
+              loading="lazy"
               decoding="async"
               draggable={false}
               className="aspect-square w-full rounded-xl object-cover"

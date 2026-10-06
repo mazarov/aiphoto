@@ -71,7 +71,7 @@ catalog: loadStickerCatalog → stickers(is_example, public_url, style_preset_id
 ## Безопасность
 
 - `sticker-file` — только владелец генерации (как `sticker-text`), размер источника ≤ 8 МБ.
-- Примеры — публичный бакет бота, URL из БД; наружу уходят только `https://<supabase>/storage/v1/object/public/stickers-examples/...`.
+- Примеры — публичный бакет бота, URL из БД; в данных только `https://<supabase>/storage/v1/object/public/stickers-examples/...`. В `<img>` страница и док подставляют `render/image` (`stickerExampleThumbUrl`): WebP с альфой, не JPEG.
 
 ## Эволюция
 
@@ -86,5 +86,5 @@ catalog: loadStickerCatalog → stickers(is_example, public_url, style_preset_id
 - [x] GPT Image 2.5 Flare: `image-options.ts`, лейбл, `openrouter-seedream.ts` (quality / background), prompt mode, `sql/266`
 - [x] `STICKER_PLATFORMS` + `GET /api/generations/[id]/sticker-file` + `StickerDownloadSheet` в rail
 - [x] `StickerStudioGate` — админ видит студию при выключенном флаге
-- [x] каталог: `exampleUrls` (`lib/sticker-examples.ts`: `stickers.is_example` → 4 кандидата на стиль → HEAD с кэшем 10 мин / вердикт URL 60 мин, concurrency 12, таймаут 3 с, только `stickers-examples` на нашем Supabase-origin) + `StickerExampleStrip` в `StickerStylePicker`, карточках `/stiker-iz-foto` и превью dock-плитки «Выбрать стиль»
+- [x] каталог: `exampleUrls` (`lib/sticker-examples.ts`: `stickers.is_example` → 4 кандидата на стиль → HEAD с кэшем 10 мин / вердикт URL 60 мин, concurrency 12, таймаут 3 с, только `stickers-examples` на нашем Supabase-origin) + `StickerExampleStrip` в `StickerStylePicker`, карточках `/stiker-iz-foto` и превью dock-плитки «Выбрать стиль». В разметке — thumb `render/image` 128/192/384 px, q45, `resize=contain`, `format=origin` (альфа). Первая карточка `/stiker-iz-foto` eager, `preconnect` на storage. На этом URL нет prefetch портрета-гайда и `/api/listing`.
 - [x] `docs/architecture/01-landing.md`

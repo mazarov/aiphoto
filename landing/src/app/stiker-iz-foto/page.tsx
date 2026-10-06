@@ -25,6 +25,7 @@ import { StickerStudioGate } from "@/components/sticker/StickerStudioGate";
 import { buildGeneraciyaHubJsonLd, SITE_URL } from "@/lib/generaciya-hub-data";
 import { STICKER_PATH, type StickerStyle } from "@/lib/sticker";
 import { fallbackStickerCatalog, loadStickerCatalog } from "@/lib/sticker-catalog-db";
+import { stickerExamplesPublicOrigin } from "@/lib/sticker-examples";
 import { readStickerGenerationEnabled } from "@/lib/sticker-config";
 import { createSupabaseServer } from "@/lib/supabase-server-client";
 import {
@@ -94,7 +95,7 @@ function StickerStylesSection({ styles }: { styles: StickerStyle[] }) {
         </h2>
         <p className={GF_LEAD}>{STIKER_IZ_FOTO_SEO.stylesLead}</p>
         <ul className={`${GF_STACK} grid gap-3 sm:grid-cols-2 lg:grid-cols-3`}>
-          {styles.map((style) => {
+          {styles.map((style, styleIndex) => {
             const caption = style.description || style.hint;
             return (
               <li
@@ -106,6 +107,7 @@ function StickerStylesSection({ styles }: { styles: StickerStyle[] }) {
                     urls={style.exampleUrls}
                     styleLabel={style.label}
                     size="md"
+                    viewport={styleIndex === 0 ? "lcp" : styleIndex === 1 ? "eager" : undefined}
                     className="justify-center"
                   />
                 </div>
@@ -152,8 +154,12 @@ export default async function StikerIzFotoPage() {
     faq: STIKER_IZ_FOTO_FAQ,
   });
 
+  const examplesOrigin = stickerExamplesPublicOrigin();
+
   return (
-    <PageLayout showFooterWithGenerateDock>
+    <>
+      {examplesOrigin ? <link rel="preconnect" href={examplesOrigin} /> : null}
+      <PageLayout showFooterWithGenerateDock>
       {schemas.map((schema, index) => (
         <script
           key={index}
@@ -213,5 +219,6 @@ export default async function StikerIzFotoPage() {
         </div>
       </main>
     </PageLayout>
+    </>
   );
 }

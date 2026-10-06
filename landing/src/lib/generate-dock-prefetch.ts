@@ -1,6 +1,8 @@
 import { prefetchComposeExamplePickerFirstPage } from "./compose-example-audience-client";
 import {
+  isStickerGenerateDockPath,
   listingComposeExampleInitialFilter,
+  shouldPrefetchGenerateDockMedia,
   shouldPrefetchGenerateDockPanel,
 } from "./generate-dock-path";
 import { writeCachedPhotoshootEnabled } from "./photoshoot-availability";
@@ -40,23 +42,46 @@ export function scheduleGenerateDockPrefetch(
   userId?: string | null,
 ): () => void {
   if (typeof window === "undefined") return () => {};
+  let cancelled = false;
+  let idleId = 0;
+  let timer = 0;
+  const prefetchPanel = () => {
+    if (cancelled) return;
+    void import("@/components/CardInlineGeneratePanel");
+    prefetchGenerationConfigCache();
+  };
   const run = () => {
-    prefetchUserPhotoLibrary(userId);
-    const filter = listingComposeExampleInitialFilter(pathname);
-    prefetchComposeExamplePickerFirstPage({
-      filter: filter
-        ? { dimension: filter.dimension, value: filter.value }
-        : null,
-    });
-    if (shouldPrefetchGenerateDockPanel(pathname)) {
-      void import("@/components/CardInlineGeneratePanel");
-      prefetchGenerationConfigCache();
+    if (cancelled) return;
+    if (shouldPrefetchGenerateDockMedia(pathname)) {
+      prefetchUserPhotoLibrary(userId);
+      const filter = listingComposeExampleInitialFilter(pathname);
+      prefetchComposeExamplePickerFirstPage({
+        filter: filter
+          ? { dimension: filter.dimension, value: filter.value }
+          : null,
+      });
     }
+    if (!shouldPrefetchGenerateDockPanel(pathname)) return;
+    // Sticker landing: the panel chunk waits until the document has loaded,
+    // so it does not share the first-viewport connection with the LCP thumb.
+    if (isStickerGenerateDockPath(pathname)) {
+      if (document.readyState === "complete") prefetchPanel();
+      else window.addEventListener("load", prefetchPanel, { once: true });
+      return;
+    }
+    prefetchPanel();
   };
   if (typeof window.requestIdleCallback === "function") {
-    const id = window.requestIdleCallback(run, { timeout: 2500 });
-    return () => window.cancelIdleCallback(id);
+    idleId = window.requestIdleCallback(run, { timeout: 2500 });
+  } else {
+    timer = window.setTimeout(run, 400);
   }
-  const timer = window.setTimeout(run, 400);
-  return () => window.clearTimeout(timer);
+  return () => {
+    cancelled = true;
+    window.removeEventListener("load", prefetchPanel);
+    if (idleId && typeof window.cancelIdleCallback === "function") {
+      window.cancelIdleCallback(idleId);
+    }
+    if (timer) window.clearTimeout(timer);
+  };
 }

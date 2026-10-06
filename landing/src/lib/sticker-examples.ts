@@ -19,6 +19,57 @@ const URL_CHECK_TTL_MS = 60 * 60 * 1000;
 const HEAD_TIMEOUT_MS = 3000;
 const HEAD_CONCURRENCY = 12;
 const PUBLIC_EXAMPLES_PREFIX = "/storage/v1/object/public/stickers-examples/";
+const RENDER_EXAMPLES_PREFIX = "/storage/v1/render/image/public/stickers-examples/";
+
+/**
+ * Display sizes for example stickers. Files in the bucket are 512×512 WebP
+ * (~50–75 KiB). The page paints them at 56–112 CSS px (Lighthouse: 161 device px).
+ * `render/image` at these widths, quality 45, `resize=contain` (imgproxy `fit`, not `fill`)
+ * is ~8 KiB and stays WebP with alpha. `format=webp` is a 400 on this storage;
+ * `format=origin` is accepted and the body stays VP8X+ALPH even when Accept prefers JPEG.
+ */
+export const STICKER_EXAMPLE_THUMB_PX = {
+  sm: 128,
+  md: 192,
+  lg: 384,
+} as const;
+
+export type StickerExampleThumbSize = keyof typeof STICKER_EXAMPLE_THUMB_PX;
+
+/**
+ * Thumb URL for a public examples object. Other buckets and non-URLs pass through.
+ * Host is unchanged — the catalog already drops foreign origins.
+ */
+export function stickerExampleThumbUrl(url: string, size: StickerExampleThumbSize): string {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return url;
+  }
+  if (parsed.protocol !== "https:") return url;
+  let objectPath = "";
+  if (parsed.pathname.startsWith(PUBLIC_EXAMPLES_PREFIX)) {
+    objectPath = parsed.pathname.slice(PUBLIC_EXAMPLES_PREFIX.length);
+  } else if (parsed.pathname.startsWith(RENDER_EXAMPLES_PREFIX)) {
+    objectPath = parsed.pathname.slice(RENDER_EXAMPLES_PREFIX.length);
+  } else {
+    return url;
+  }
+  if (!objectPath || objectPath.includes("..")) return url;
+  const thumb = new URL(parsed.origin);
+  thumb.pathname = `${RENDER_EXAMPLES_PREFIX}${objectPath}`;
+  thumb.searchParams.set("width", String(STICKER_EXAMPLE_THUMB_PX[size]));
+  thumb.searchParams.set("resize", "contain");
+  thumb.searchParams.set("quality", "45");
+  thumb.searchParams.set("format", "origin");
+  return thumb.toString();
+}
+
+/** Public storage origin for `<link rel="preconnect">`. Empty env → no hint. */
+export function stickerExamplesPublicOrigin(): string | null {
+  return supabaseOriginFromEnv();
+}
 
 /** `landing_generation_config` key: JSON `{ "<styleId>": ["<sticker uuid>", ...] }` in display order. */
 export const STICKER_LANDING_EXAMPLES_KEY = "sticker_landing_example_ids";

@@ -6,6 +6,7 @@ import {
   parseStickerLandingExampleIds,
   pinnedExampleCandidates,
   resetStickerExamplesCache,
+  stickerExampleThumbUrl,
   validateExampleCandidates,
 } from "./sticker-examples";
 
@@ -72,6 +73,31 @@ test("groupExampleCandidates: newest first, dedup, capped per style, junk rows s
   assert.deepEqual(grouped.get("anime"), [ex("a1"), ex("a2"), ex("a3"), ex("a4")]);
   assert.deepEqual(grouped.get("cartoon"), [ex("c1")]);
   assert.equal(grouped.has(""), false);
+});
+
+test("stickerExampleThumbUrl: 192px webp render for example objects, passthrough otherwise", () => {
+  const thumb = new URL(stickerExampleThumbUrl(ex("a"), "md"));
+  assert.equal(thumb.origin, ORIGIN);
+  assert.equal(thumb.pathname, "/storage/v1/render/image/public/stickers-examples/a.png");
+  assert.equal(thumb.searchParams.get("width"), "192");
+  assert.equal(thumb.searchParams.get("resize"), "contain");
+  assert.equal(thumb.searchParams.get("quality"), "45");
+  assert.equal(thumb.searchParams.get("format"), "origin");
+  assert.equal(stickerExampleThumbUrl(ex("a").replace("https:", "http:"), "sm"), ex("a").replace("https:", "http:"));
+  assert.equal(
+    stickerExampleThumbUrl(`${ORIGIN}/storage/v1/object/public/stickers/a.png`, "sm"),
+    `${ORIGIN}/storage/v1/object/public/stickers/a.png`,
+  );
+  assert.equal(stickerExampleThumbUrl("not a url", "lg"), "not a url");
+  const nested = stickerExampleThumbUrl(
+    `${ORIGIN}/storage/v1/object/public/stickers-examples/sticker_pack_example/pack/example.webp`,
+    "lg",
+  );
+  assert.equal(
+    new URL(nested).pathname,
+    "/storage/v1/render/image/public/stickers-examples/sticker_pack_example/pack/example.webp",
+  );
+  assert.equal(new URL(nested).searchParams.get("width"), "384");
 });
 
 test("validateExampleCandidates: HEAD-checks once per URL, drops 4xx and errors, keeps ≤ 3 live per style", async () => {

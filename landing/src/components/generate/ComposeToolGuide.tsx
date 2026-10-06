@@ -12,6 +12,7 @@ import {
   type GenerateComposeMode,
   type StickerToolKind,
 } from "@/lib/generate-compose-mode";
+import { stickerExampleThumbUrl } from "@/lib/sticker-examples";
 import { PHOTO_GUIDE_PORTRAIT_SRC } from "@/lib/user-generation-photos-cache";
 import {
   PHOTOSHOOT_TILE_INDEXES,
@@ -148,7 +149,7 @@ export function StickerHeroVisual({
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        src={exampleUrl}
+        src={stickerExampleThumbUrl(exampleUrl, size === "lg" ? "lg" : "md")}
         alt=""
         decoding="async"
         draggable={false}

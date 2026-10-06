@@ -52,6 +52,14 @@ export function isFotosessiiGenerateDockPath(pathname: string): boolean {
   );
 }
 
+/**
+ * Portrait guide and `/api/listing` warmup. `/stiker-iz-foto` does not paint either,
+ * and both compete with the sticker LCP image on a slow connection.
+ */
+export function shouldPrefetchGenerateDockMedia(pathname: string): boolean {
+  return !isStickerGenerateDockPath(pathname);
+}
+
 /** Prefetch the compose chunk + config only on upload-first landings. */
 export function shouldPrefetchGenerateDockPanel(pathname: string): boolean {
   return (
