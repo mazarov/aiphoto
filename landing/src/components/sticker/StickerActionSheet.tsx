@@ -17,6 +17,7 @@ import {
   STICKER_ACTION_EXIT,
   stickerActionCanSubmit,
   stickerActionCtaLabel,
+  stickerActionHasPresets,
   type StickerResultAction,
 } from "@/lib/sticker-action-sheet";
 
@@ -53,6 +54,7 @@ export function StickerActionSheet({
 }: Props) {
   const copy = STICKER_ACTION_COPY[action];
   const isText = action === STICKER_TEXT_ACTION;
+  const hasPresets = stickerActionHasPresets(action);
   const [presetId, setPresetId] = useState<string | null>(null);
   const [customText, setCustomText] = useState("");
   const [starting, setStarting] = useState(false);
@@ -113,7 +115,7 @@ export function StickerActionSheet({
         <h3 className="text-[15px] font-semibold">{copy.title}</h3>
         <p className="mt-0.5 text-[12px] text-white/75">{copy.lead}</p>
 
-        {!isText ? (
+        {hasPresets ? (
           <div className="mt-3 flex flex-wrap gap-2" role="radiogroup" aria-label={copy.title}>
             {loading && !presets.length
               ? Array.from({ length: 6 }).map((_, index) => (
@@ -148,6 +150,7 @@ export function StickerActionSheet({
           value={customText}
           maxLength={isText ? STICKER_TEXT_MAX_CHARS : STICKER_CUSTOM_HINT_MAX}
           placeholder={copy.customPlaceholder}
+          autoFocus={action === "revise"}
           disabled={submitting}
           aria-label={copy.customPlaceholder}
           onChange={(event) => {

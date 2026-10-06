@@ -41,7 +41,7 @@ import {
   serializePhotoshootSheetInstruction,
 } from "../../landing/src/lib/photoshoot";
 import { resolveJobWardrobePolicy } from "../../landing/src/lib/wardrobe-policy";
-import { assembleStickerFinalPrompt, isStickerEditKind } from "../../landing/src/lib/sticker";
+import { assembleStickerFinalPrompt, isStickerEditKind, parseStickerEditFromPrompt } from "../../landing/src/lib/sticker";
 import { isStickerPackEditKind } from "../../landing/src/lib/sticker-pack";
 import {
   finalizeStickerImage,
@@ -772,6 +772,7 @@ export async function processGeneration(
     generationMode,
     wardrobePolicy,
     editKind: job.edit_kind ?? null,
+    stickerEdit: isSticker ? parseStickerEditFromPrompt(rawPrompt)?.action ?? null : null,
     cameraPose: job.camera_pose ?? null,
     editInstructionLength: editInstruction.length,
     scenePromptLength: rawPrompt.length,
@@ -1190,6 +1191,7 @@ async function generateSeedreamFromJob(input: {
       isLocalEdit: input.isLocalEdit,
     }),
     editKind: input.job.edit_kind ?? null,
+    stickerEdit: input.isSticker ? parseStickerEditFromPrompt(input.rawPrompt)?.action ?? null : null,
     cameraPose: input.job.camera_pose ?? null,
     editInstructionLength: input.editInstruction.length,
     scenePromptLength: input.rawPrompt.length,

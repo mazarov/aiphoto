@@ -12,9 +12,10 @@ import { isPhotoshootUnlocked, resolvePhotoshootModel } from "@/lib/photoshoot-a
 import {
   STICKER_CONFIG_ENABLED_KEY,
   STICKER_CONFIG_MODEL_KEY,
+  STICKER_FROM_RESULT_CONFIG_ENABLED_KEY,
   resolveStickerModel,
 } from "@/lib/sticker";
-import { isStickerPackUnlocked, isStickerUnlocked } from "@/lib/sticker-access";
+import { isStickerFromResultUnlocked, isStickerPackUnlocked, isStickerUnlocked } from "@/lib/sticker-access";
 import {
   STICKER_PACK_CONFIG_COST_KEY,
   STICKER_PACK_CONFIG_ENABLED_KEY,
@@ -84,6 +85,7 @@ export async function GET(req: NextRequest) {
         "photoshoot_model",
         STICKER_CONFIG_ENABLED_KEY,
         STICKER_CONFIG_MODEL_KEY,
+        STICKER_FROM_RESULT_CONFIG_ENABLED_KEY,
         STICKER_PACK_CONFIG_ENABLED_KEY,
         STICKER_PACK_CONFIG_COST_KEY,
         STICKER_PACK_CONFIG_MODEL_KEY,
@@ -184,6 +186,10 @@ export async function GET(req: NextRequest) {
         : null,
       stickerEnabled: isStickerUnlocked(
         config[STICKER_CONFIG_ENABLED_KEY],
+        user?.email,
+      ),
+      stickerFromResultEnabled: isStickerFromResultUnlocked(
+        config[STICKER_FROM_RESULT_CONFIG_ENABLED_KEY],
         user?.email,
       ),
       stickerModel,

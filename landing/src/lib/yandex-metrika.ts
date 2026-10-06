@@ -73,9 +73,15 @@ export const YM_GOAL_STICKER_DOWNLOAD = "sticker_download";
 /** Result rail actions on a finished sticker. Params: `{ preset }` / `{ length }`. */
 export const YM_GOAL_STICKER_EMOTION = "sticker_emotion";
 export const YM_GOAL_STICKER_MOTION = "sticker_motion";
+/** Free-text edit of the sticker PNG. Params: `{ preset: "custom" }`. */
+export const YM_GOAL_STICKER_REVISE = "sticker_revise";
 export const YM_GOAL_STICKER_TEXT = "sticker_text";
 export const YM_GOAL_STICKER_BORDER = "sticker_border";
 export const YM_GOAL_STICKER_PRICING = "sticker_pricing";
+/** Photo result → sticker style sheet. `sticker_start` also gets `{ source: "photo" | "result" }`. */
+export const YM_GOAL_STICKER_FROM_RESULT_OPEN = "sticker_from_result_open";
+export const YM_GOAL_STICKER_FROM_RESULT_CLOSE = "sticker_from_result_close";
+export const YM_GOAL_STICKER_FROM_RESULT_RESTYLE = "sticker_from_result_restyle";
 export const YM_GOAL_ANALYZE_AUTH_REQUIRED = "analyze_auth_required";
 export const YM_GOAL_ANALYZE_NO_CREDITS = "analyze_no_credits";
 export const YM_GOAL_ANALYZE_FREE_SUCCESS = "analyze_free_success";

@@ -7,6 +7,8 @@ export const STICKER_EDIT_KIND = "sticker";
 /** `generation_surface` is a closed enum (`prompt_card` | `seo_page`); sticker jobs are told apart by `edit_kind`. */
 export const STICKER_GENERATION_SURFACE = "seo_page";
 export const STICKER_CONFIG_ENABLED_KEY = "sticker_generation_enabled";
+/** Separate from the studio flag so the result-rail button can roll back alone. */
+export const STICKER_FROM_RESULT_CONFIG_ENABLED_KEY = "sticker_from_result_enabled";
 export const STICKER_CONFIG_MODEL_KEY = "sticker_model";
 export const STICKER_ASPECT_RATIO = "1:1";
 export const STICKER_IMAGE_SIZE = "1K";
@@ -264,9 +266,9 @@ export function stripStickerPromptMarker(promptText: string): string {
     .trim();
 }
 
-/* ---------- Edits from a finished sticker: emotion / motion (model) and text (overlay, free) ---------- */
+/* ---------- Edits from a finished sticker: emotion / motion / revise (model) and text (overlay, free) ---------- */
 
-export const STICKER_EDIT_ACTIONS = ["emotion", "motion"] as const;
+export const STICKER_EDIT_ACTIONS = ["emotion", "motion", "revise"] as const;
 export type StickerEditAction = (typeof STICKER_EDIT_ACTIONS)[number];
 export const STICKER_TEXT_ACTION = "text";
 /** Preset id persisted in the marker when the user typed their own hint. */
@@ -313,7 +315,7 @@ export function buildStickerEditPromptText(spec: StickerEditSpec): string {
 
 export function parseStickerEditFromPrompt(promptText: unknown): StickerEditSpec | null {
   const text = String(promptText ?? "");
-  const match = /^STICKER edit=(emotion|motion) preset=([A-Za-z0-9_-]+)\s*\n([\s\S]*)$/m.exec(text);
+  const match = /^STICKER edit=(emotion|motion|revise) preset=([A-Za-z0-9_-]+)\s*\n([\s\S]*)$/m.exec(text);
   if (!match) return null;
   const hint = match[3].trim();
   if (!hint) return null;
@@ -369,21 +371,32 @@ export function assembleStickerEditFinalPrompt(
   spec: StickerEditSpec,
   mode: StickerBackgroundMode = "magenta",
 ): string {
+  const revise = spec.action === "revise";
   const changeType = spec.action === "emotion" ? "emotion / facial expression" : "motion / body pose and gesture";
   const given =
     mode === "transparent"
       ? "an existing messenger sticker of one person (the SUBJECT) with a transparent background"
       : `an existing messenger sticker of one person (the SUBJECT) on a flat bright magenta (${STICKER_BACKGROUND_HEX}) background`;
-  return `
-You are an image editor. You are given ${given}.
-
-YOUR TASK: edit this sticker by changing ONLY the ${changeType} to: "${spec.hint}".
-
-EVERYTHING else MUST remain exactly the same:
+  const task = revise
+    ? `YOUR TASK: edit this sticker by applying ONLY this change: "${spec.hint}".`
+    : `YOUR TASK: edit this sticker by changing ONLY the ${changeType} to: "${spec.hint}".`;
+  const keep = revise
+    ? `EVERYTHING the request does not mention MUST remain exactly the same:
+- Same person: face structure, eye color, skin tone, hair color and shape, glasses and marks.
+- Same art style, line work and coloring technique — if the input is a photo, output a photo; if cartoon, cartoon; if anime, anime.
+- Clothing, props and pose change only if the request asks for it.
+- Same chest-up framing, proportions and scale; keep at least 15% empty ${stickerMarginWord(mode)} margin on all four sides, nothing cropped.`
+    : `EVERYTHING else MUST remain exactly the same:
 - Same person: face structure, eye color, skin tone, hair color and shape, glasses and marks.
 - Same art style, line work and coloring technique — if the input is a photo, output a photo; if cartoon, cartoon; if anime, anime.
 - Same clothing, accessories and props unless the change itself needs a hand gesture.
-- Same chest-up framing, proportions and scale; keep at least 15% empty ${stickerMarginWord(mode)} margin on all four sides, nothing cropped.
+- Same chest-up framing, proportions and scale; keep at least 15% empty ${stickerMarginWord(mode)} margin on all four sides, nothing cropped.`;
+  return `
+You are an image editor. You are given ${given}.
+
+${task}
+
+${keep}
 
 CRITICAL RULES:
 - Do NOT regenerate the sticker from scratch — make a minimal, targeted edit.
@@ -443,6 +456,51 @@ export function assembleStickerFinalPrompt(rawPrompt: string, mode: StickerBackg
   if (edit) return assembleStickerEditFinalPrompt(edit, mode);
   const style = stripStickerPromptMarker(rawPrompt);
   return [style, "", generateStickerCriticalRules(mode)].join("\n").trim();
+}
+
+/** A finished image that is not itself a sticker, pack, or photoshoot sheet. */
+export function isStickerFromResultParent(input: {
+  modality?: string | null;
+  editKind?: string | null;
+}): boolean {
+  if ((input.modality || "image") !== "image") return false;
+  const kind = String(input.editKind ?? "").trim();
+  return kind !== STICKER_EDIT_KIND && kind !== "sticker_pack" && kind !== "photoshoot";
+}
+
+export function stickerFromResultFingerprintFields(
+  parentGenerationId: string,
+  styleId: string,
+): {
+  editKind: string;
+  parentGenerationId: string;
+  stickerStyleId: string;
+  source: "result";
+} {
+  return {
+    editKind: STICKER_EDIT_KIND,
+    parentGenerationId: String(parentGenerationId || "").trim(),
+    stickerStyleId: String(styleId || "").trim(),
+    source: "result",
+  };
+}
+
+/** New style cut from the sticker PNG itself, not from the original photo. */
+export function stickerRestyleFingerprintFields(
+  parentGenerationId: string,
+  styleId: string,
+): {
+  editKind: string;
+  parentGenerationId: string;
+  stickerStyleId: string;
+  source: "restyle";
+} {
+  return {
+    editKind: STICKER_EDIT_KIND,
+    parentGenerationId: String(parentGenerationId || "").trim(),
+    stickerStyleId: String(styleId || "").trim(),
+    source: "restyle",
+  };
 }
 
 export function stickerFingerprintFields(photoStoragePath: string, styleId: string): {

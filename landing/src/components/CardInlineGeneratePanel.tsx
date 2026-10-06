@@ -105,22 +105,12 @@ import { ComposeToolGuide, StickerPickerGuide } from "@/components/generate/Comp
 import { GenerationResultActionRail } from "@/components/generate/GenerationResultActionRail";
 import { LowBalanceUpgradeOfferCard } from "@/components/LowBalanceUpgradeOfferCard";
 import {
-  CameraOrbitOverlay,
-  type CameraSceneShot,
-} from "@/components/generate/CameraOrbitOverlay";
-import {
   PhotoshootFrameFilm,
   PhotoshootOverlay,
 } from "@/components/generate/PhotoshootOverlay";
 import { PricingEntryLink } from "@/components/PricingEntryLink";
 import {
   reachYandexMetrikaGoal,
-  YM_GOAL_CAMERA_ORBIT_BUSY,
-  YM_GOAL_CAMERA_ORBIT_DISABLED,
-  YM_GOAL_CAMERA_ORBIT_FAIL,
-  YM_GOAL_CAMERA_ORBIT_NO_CREDITS,
-  YM_GOAL_CAMERA_ORBIT_READY,
-  YM_GOAL_CAMERA_ORBIT_SUBMIT,
   YM_GOAL_PHOTOSHOOT_BUSY,
   YM_GOAL_PHOTOSHOOT_DISABLED,
   YM_GOAL_PHOTOSHOOT_FAIL,
@@ -131,10 +121,14 @@ import {
   YM_GOAL_STICKER_DONE,
   YM_GOAL_STICKER_EMOTION,
   YM_GOAL_STICKER_MOTION,
+  YM_GOAL_STICKER_REVISE,
   YM_GOAL_STICKER_START,
   YM_GOAL_STICKER_TEXT,
   YM_GOAL_STICKER_BORDER,
   YM_GOAL_STICKER_DOWNLOAD,
+  YM_GOAL_STICKER_FROM_RESULT_CLOSE,
+  YM_GOAL_STICKER_FROM_RESULT_OPEN,
+  YM_GOAL_STICKER_FROM_RESULT_RESTYLE,
   YM_GOAL_ANALYZE_AUTH_REQUIRED,
   YM_GOAL_ANALYZE_NO_CREDITS,
   YM_GOAL_GENERATION_PHOTO_PROMPT_OPEN,
@@ -200,6 +194,7 @@ import {
   rememberCompletedImageResult,
   resolvePhotoshootLibraryFrame,
   resolvePhotoshootReadyFrame,
+  resolveStickerFromResultFrame,
   PHOTOSHOOT_NEEDS_LIBRARY_PHOTO,
   STICKER_NEEDS_LIBRARY_PHOTO,
   BLANK_PROMPT_PLACEHOLDER,
@@ -225,10 +220,6 @@ import {
   readCachedVideoAnimateEnabled,
   writeCachedVideoAnimateEnabled,
 } from "@/lib/video-animate-availability";
-import {
-  readCachedCameraOrbitEnabled,
-  writeCachedCameraOrbitEnabled,
-} from "@/lib/camera-orbit-availability";
 import {
   optimisticPhotoshootEnabled,
   readCachedPhotoshootEnabled,
@@ -265,6 +256,9 @@ import {
   STICKER_ACTION_COPY,
   STICKER_ACTION_FREE_DETAIL,
   STICKER_BORDER_COPY,
+  STICKER_FROM_RESULT_RAIL,
+  STICKER_FROM_RESULT_RAIL_DETAIL,
+  STICKER_FROM_RESULT_RESTYLE,
   type StickerResultAction,
 } from "@/lib/sticker-action-sheet";
 import { StickerPackSetPicker, STICKER_PACK_SET_PICKER_TITLE } from "@/components/sticker/StickerPackSetPicker";
@@ -275,12 +269,9 @@ import {
   type StickerPackExampleClient,
 } from "@/lib/sticker-pack-examples-client";
 import { StickerActionSheet } from "@/components/sticker/StickerActionSheet";
+import { StickerFromResultSheet } from "@/components/sticker/StickerFromResultSheet";
 import { StickerBorderSheet } from "@/components/sticker/StickerBorderSheet";
 import { StickerDownloadSheet, type StickerDownloadTarget } from "@/components/sticker/StickerDownloadSheet";
-import {
-  CAMERA_ORBIT_EDIT_KIND,
-  type CameraPose,
-} from "@/lib/camera-orbit";
 import {
   PHOTOSHOOT_CTA_LABEL,
   PHOTOSHOOT_CREDIT_COST,
@@ -460,15 +451,10 @@ export function CardInlineGeneratePanel({
     () => readCachedVideoAnimateEnabled() === true
   );
   const [listingVideoRepeatEnabled, setListingVideoRepeatEnabled] = useState(false);
-  const [cameraOrbitEnabled, setCameraOrbitEnabled] = useState(
-    () => readCachedCameraOrbitEnabled() === true
-  );
   const [composeExampleMatchEnabled, setComposeExampleMatchEnabled] =
     useState(false);
   const [photoshootComposeExampleEnabled, setPhotoshootComposeExampleEnabled] =
     useState(false);
-  const [cameraOrbitOpen, setCameraOrbitOpen] = useState(false);
-  const [cameraOrbitCreditCost, setCameraOrbitCreditCost] = useState(10);
   const [photoshootEnabled, setPhotoshootEnabled] = useState(() =>
     optimisticPhotoshootEnabled({
       pathname: typeof window !== "undefined" ? window.location.pathname : null,
@@ -481,6 +467,11 @@ export function CardInlineGeneratePanel({
       cached: readCachedStickerEnabled(),
     })
   );
+  const [stickerFromResultEnabled, setStickerFromResultEnabled] = useState(false);
+  const [stickerFromResultOpen, setStickerFromResultOpen] = useState(false);
+  const [stickerFromResultParentId, setStickerFromResultParentId] = useState<string | null>(null);
+  /** «Сменить стиль» cuts the sticker on screen; «Сделать стикер» cuts the photo. */
+  const [stickerStyleSheetMode, setStickerStyleSheetMode] = useState<"photo" | "restyle" | null>(null);
   const [stickerStyleId, setStickerStyleId] = useState(DEFAULT_STICKER_STYLE_ID);
   const [stickerModelId, setStickerModelId] = useState(GPT_IMAGE_25_FLARE_IMAGE_MODEL);
   const [stickerCost, setStickerCost] = useState<number | null>(GPT_IMAGE_25_FLARE_CREDIT_COST);
@@ -947,7 +938,6 @@ export function CardInlineGeneratePanel({
         setResultUrl(null);
         setGenerationId(null);
         enterImageCompose();
-        setCameraOrbitOpen(false);
         setPhotoshootOpen(false);
         markPhotoPromptAnalyzeCompleted(dataUrl);
         clearPendingPhotoPrompt();
@@ -1103,9 +1093,8 @@ export function CardInlineGeneratePanel({
           imageSizes?: SizeOpt[];
           defaults?: { model?: string; aspectRatio?: string; imageSize?: string };
           limits?: { maxPhotos?: number };
-          cameraOrbitEnabled?: boolean;
-          cameraOrbitModel?: { id?: string; cost?: number } | null;
           photoshootEnabled?: boolean;
+          stickerFromResultEnabled?: boolean;
           photoshootModel?: { id?: string; cost?: number } | null;
           stickerEnabled?: boolean;
           stickerModel?: { id?: string; cost?: number } | null;
@@ -1166,20 +1155,13 @@ export function CardInlineGeneratePanel({
         const nextVideoEnabled = Boolean(videoConfigData.enabled);
         writeCachedVideoAnimateEnabled(nextVideoEnabled);
         setVideoEnabled(nextVideoEnabled);
-        const nextCameraOrbitEnabled = Boolean(configData.cameraOrbitEnabled);
-        writeCachedCameraOrbitEnabled(nextCameraOrbitEnabled);
-        setCameraOrbitEnabled(nextCameraOrbitEnabled);
-        setCameraOrbitCreditCost(
-          typeof configData.cameraOrbitModel?.cost === "number"
-            ? configData.cameraOrbitModel.cost
-            : 10,
-        );
         const nextPhotoshootEnabled = Boolean(configData.photoshootEnabled);
         writeCachedPhotoshootEnabled(nextPhotoshootEnabled);
         setPhotoshootEnabled(nextPhotoshootEnabled);
         const nextStickerEnabled = Boolean(configData.stickerEnabled);
         writeCachedStickerEnabled(nextStickerEnabled);
         setStickerEnabled(nextStickerEnabled);
+        setStickerFromResultEnabled(configData.stickerFromResultEnabled === true);
         setStickerModelId(
           typeof configData.stickerModel?.id === "string" && configData.stickerModel.id.trim()
             ? configData.stickerModel.id.trim()
@@ -1257,6 +1239,8 @@ export function CardInlineGeneratePanel({
           setSubmittedPrompt(prompt);
           setIsPublished(Boolean(seed.isPublished));
           setResultEditKind(seed.editKind || null);
+          setStickerFromResultOpen(false);
+          setStickerFromResultParentId(null);
           setPhotoshootTileUrls(photoshootTileUrlsFromUnknown(seed.photoshootTileUrls));
           setProgress(100);
           setPhase("done");
@@ -1416,6 +1400,8 @@ export function CardInlineGeneratePanel({
           setSubmittedPrompt(prompt);
           setIsPublished(Boolean(lastCompleted.isPublished));
           setResultEditKind(lastCompleted.editKind || null);
+          setStickerFromResultOpen(false);
+          setStickerFromResultParentId(null);
           setPhotoshootTileUrls(
             photoshootTileUrlsFromUnknown(lastCompleted.photoshootTileUrls),
           );
@@ -2185,7 +2171,6 @@ export function CardInlineGeneratePanel({
     editInstruction?: string;
     editKind?: string;
     parentTile?: number;
-    cameraPose?: CameraPose;
     forceTextOnly?: boolean;
     modality?: "image" | "video";
     photoStoragePath?: string;
@@ -2194,20 +2179,29 @@ export function CardInlineGeneratePanel({
     stickerAction?: StickerEditAction;
     stickerPresetId?: string | null;
     stickerCustomHint?: string;
+    /** Cut a sticker from a finished photo (`parentGenerationId`), not from the library. */
+    stickerFromResult?: boolean;
+    /** New style from the sticker PNG on screen (`parentGenerationId` is that sticker). */
+    stickerRestyle?: boolean;
   }): Promise<boolean> => {
     const requestedModality =
       options?.modality || apiModalityForComposeMode(composeMode);
     const listingVideoRepeat = options?.listingVideoRepeat;
     const isVideo = requestedModality === "video" && !listingVideoRepeat;
-    const isCameraOrbit = options?.editKind === CAMERA_ORBIT_EDIT_KIND;
     const isPhotoshoot = options?.editKind === PHOTOSHOOT_EDIT_KIND;
     const isSticker = options?.editKind === STICKER_EDIT_KIND;
     const isStickerPack = options?.editKind === STICKER_PACK_EDIT_KIND;
     const isStickerJob = isSticker || isStickerPack;
     const isStickerEdit =
       isSticker && Boolean(options?.parentGenerationId?.trim()) && Boolean(options?.stickerAction);
+    const isStickerFromResult =
+      isSticker && options?.stickerFromResult === true && Boolean(options?.parentGenerationId?.trim());
+    const isStickerRestyle =
+      isSticker && options?.stickerRestyle === true && Boolean(options?.parentGenerationId?.trim());
     if (
       !isStickerEdit &&
+      !isStickerFromResult &&
+      !isStickerRestyle &&
       !canEnqueueWhilePhotoshootSelected({
         composeMode,
         editKind: options?.editKind,
@@ -2226,15 +2220,13 @@ export function CardInlineGeneratePanel({
           selectedPhotos[0]?.originalFilename,
         )
       : options?.parentGenerationId?.trim() || "";
-    const editInstruction = isVideo || isCameraOrbit ? "" : options?.editInstruction?.trim() || "";
+    const editInstruction = isVideo ? "" : options?.editInstruction?.trim() || "";
     const isContinuation = Boolean(parentGenerationId) && !isVideo;
-    if (isContinuation && !editInstruction && !isCameraOrbit && !isPhotoshoot && !isStickerEdit) {
+    if (isContinuation && !editInstruction && !isPhotoshoot && !isStickerEdit && !isStickerFromResult && !isStickerRestyle) {
       setError("Опишите, что изменить");
       return false;
     }
-    const prompt = isCameraOrbit
-      ? "CAMERA ORBIT"
-      : isPhotoshoot
+    const prompt = isPhotoshoot
         ? "PHOTOSHOOT"
       : isStickerJob
         ? "STICKER"
@@ -2262,7 +2254,7 @@ export function CardInlineGeneratePanel({
       setExpandedControl("model");
       return false;
     }
-    if (!isCameraOrbit && !isPhotoshoot && !isStickerJob && prompt.length < 8) {
+    if (!isPhotoshoot && !isStickerJob && prompt.length < 8) {
       setError("Промпт слишком короткий");
       return false;
     }
@@ -2307,10 +2299,11 @@ export function CardInlineGeneratePanel({
         return false;
       }
     }
-    if ((isSticker && !isStickerEdit) || isStickerPack) {
+    if ((isSticker && !isStickerEdit && !isStickerFromResult && !isStickerRestyle) || isStickerPack) {
       const libraryPath =
         photoshootLibraryPathOverride || photosForEnqueue[0]?.storagePath || "";
-      if (!libraryPath || photosForEnqueue.length !== 1) {
+      const singleLibraryPhoto = Boolean(photoshootLibraryPathOverride) || photosForEnqueue.length === 1;
+      if (!libraryPath || !singleLibraryPhoto) {
         setError(STICKER_NEEDS_LIBRARY_PHOTO);
         return false;
       }
@@ -2370,7 +2363,7 @@ export function CardInlineGeneratePanel({
           durationSeconds: isVideo ? videoDurationSeconds : undefined,
           cardId: resolvedCardId,
           photoStoragePaths: isPhotoshoot || isStickerJob
-            ? parentGenerationId && (!isStickerJob || isStickerEdit)
+            ? parentGenerationId && (!isStickerJob || isStickerEdit || isStickerFromResult || isStickerRestyle)
               ? []
               : [
                   photoshootLibraryPathOverride ||
@@ -2385,10 +2378,8 @@ export function CardInlineGeneratePanel({
               ? []
               : libraryStoragePaths(photosForEnqueue),
           parentGenerationId: parentGenerationId || null,
-          editInstruction: isVideo || isCameraOrbit || isPhotoshoot || isStickerJob ? null : editInstruction || null,
-          editKind: isCameraOrbit
-            ? CAMERA_ORBIT_EDIT_KIND
-            : isPhotoshoot
+          editInstruction: isVideo || isPhotoshoot || isStickerJob ? null : editInstruction || null,
+          editKind: isPhotoshoot
               ? PHOTOSHOOT_EDIT_KIND
               : isStickerPack
                 ? STICKER_PACK_EDIT_KIND
@@ -2400,12 +2391,10 @@ export function CardInlineGeneratePanel({
           stickerAction: isStickerEdit ? options?.stickerAction : undefined,
           stickerPresetId: isStickerEdit ? options?.stickerPresetId || null : undefined,
           stickerCustomHint: isStickerEdit ? options?.stickerCustomHint || undefined : undefined,
-          cameraPose: isCameraOrbit ? options?.cameraPose : undefined,
           parentTile: isPhotoshoot ? options?.parentTile : undefined,
           vibeId: null,
           preserveOutfit:
             !isVideo &&
-            !isCameraOrbit &&
             !isPhotoshoot &&
             !isStickerJob &&
             !isContinuation &&
@@ -2434,28 +2423,15 @@ export function CardInlineGeneratePanel({
       if (!genRes.ok || !genData.id) {
         if (genData.error === "insufficient_credits") {
           setNeedsCredits(true);
-          setError("");
+          setError(isStickerFromResult || isStickerRestyle ? "Не хватает кредитов" : "");
           setPhase(resultUrl || isContinuation ? "done" : "idle");
           phaseRef.current = resultUrl || isContinuation ? "done" : "idle";
           reachYandexMetrikaGoal(
             isPhotoshoot
               ? YM_GOAL_PHOTOSHOOT_NO_CREDITS
-              : isCameraOrbit
-              ? YM_GOAL_CAMERA_ORBIT_NO_CREDITS
               : YM_GOAL_PROMPT_CARD_GENERATION_NO_CREDITS,
           );
           return false;
-        }
-        if (isCameraOrbit && genData.error === "camera_orbit_busy") {
-          reachYandexMetrikaGoal(YM_GOAL_CAMERA_ORBIT_BUSY);
-          throw new Error(genData.message || "Этот ракурс ещё снимается");
-        }
-        if (isCameraOrbit && genData.error === "camera_orbit_disabled") {
-          reachYandexMetrikaGoal(YM_GOAL_CAMERA_ORBIT_DISABLED);
-          throw new Error(genData.message || "Смена ракурса пока недоступна");
-        }
-        if (isCameraOrbit && genData.error === "camera_orbit_model_unavailable") {
-          throw new Error(genData.message || "Модель смены ракурса временно недоступна");
         }
         if (isPhotoshoot && genData.error === "photoshoot_busy") {
           reachYandexMetrikaGoal(YM_GOAL_PHOTOSHOOT_BUSY);
@@ -2474,6 +2450,9 @@ export function CardInlineGeneratePanel({
         if (isSticker && genData.error === "sticker_disabled") {
           throw new Error(genData.message || "Генератор стикеров пока недоступен");
         }
+        if (isSticker && genData.error === "sticker_from_result_disabled") {
+          throw new Error(genData.message || "Стикер из этого фото пока недоступен");
+        }
         if (isSticker && genData.error === "sticker_model_unavailable") {
           throw new Error(genData.message || "Модель стикеров временно недоступна");
         }
@@ -2485,18 +2464,14 @@ export function CardInlineGeneratePanel({
         }
         throw new Error(genData.message || genData.error || "Не удалось создать генерацию");
       }
-      if (isCameraOrbit) {
-        reachYandexMetrikaGoal(YM_GOAL_CAMERA_ORBIT_SUBMIT, {
-          azimuth: options?.cameraPose?.azimuthDeg ?? 0,
-          elevation: options?.cameraPose?.elevationDeg ?? 0,
-          distance: options?.cameraPose?.distanceRel ?? 1,
-        });
-      }
       if (isPhotoshoot) {
         reachYandexMetrikaGoal(YM_GOAL_PHOTOSHOOT_SUBMIT, { credits: PHOTOSHOOT_CREDIT_COST });
       }
       if (isStickerJob && !isStickerEdit) {
-        reachYandexMetrikaGoal(YM_GOAL_STICKER_START, { style: stickerStyleId });
+        reachYandexMetrikaGoal(YM_GOAL_STICKER_START, {
+          style: stickerStyleId,
+          source: isStickerRestyle ? "restyle" : isStickerFromResult ? "result" : "photo",
+        });
       }
       setPhase("generating");
       phaseRef.current = "generating";
@@ -2504,7 +2479,7 @@ export function CardInlineGeneratePanel({
       setStarting(false);
       reachYandexMetrikaGoal(YM_GOAL_PROMPT_CARD_GENERATION_ACCEPTED);
       if (!isContinuation) setGenerationId(genData.id);
-      if (!isCameraOrbit && !isPhotoshoot && !listingVideoRepeat) {
+      if (!isPhotoshoot && !listingVideoRepeat) {
         setDraftPrompt(prompt);
         setSubmittedPrompt(prompt);
       }
@@ -2597,7 +2572,7 @@ export function CardInlineGeneratePanel({
           rememberLastDockResult({
             generationId: genData.id,
             resultUrl: nextResultUrl,
-            promptText: isPhotoshoot || isCameraOrbit ? draftPromptRef.current : prompt,
+            promptText: isPhotoshoot ? draftPromptRef.current : prompt,
             modality: nextModality,
             isPublished: false,
             editKind: isPhotoshoot
@@ -2632,7 +2607,11 @@ export function CardInlineGeneratePanel({
           }
           setProgress(100);
           setPhase("done");
-          if (isCameraOrbit) reachYandexMetrikaGoal(YM_GOAL_CAMERA_ORBIT_READY);
+          setStickerFromResultOpen(false);
+          setStickerStyleSheetMode(null);
+          if (!(isStickerFromResult || (isSticker && isStickerEdit))) {
+            setStickerFromResultParentId(null);
+          }
           if (isPhotoshoot) {
             setResultEditKind(PHOTOSHOOT_EDIT_KIND);
             setPhotoshootTileUrls(tiles);
@@ -2651,6 +2630,7 @@ export function CardInlineGeneratePanel({
             setResultEditKind(STICKER_EDIT_KIND);
             setStickerActionOpen(null);
             setStickerDownloadOpen(false);
+            if (isStickerFromResult) setPhotoshootTileUrls(null);
             if (!isStickerEdit) {
               reachYandexMetrikaGoal(YM_GOAL_STICKER_DONE, { style: stickerStyleId });
             }
@@ -2664,7 +2644,6 @@ export function CardInlineGeneratePanel({
         }
       }
     } catch (err) {
-      if (isCameraOrbit) reachYandexMetrikaGoal(YM_GOAL_CAMERA_ORBIT_FAIL);
       if (isPhotoshoot) reachYandexMetrikaGoal(YM_GOAL_PHOTOSHOOT_FAIL);
       setPhase(resultUrl || isContinuation ? "done" : "error");
       phaseRef.current = resultUrl || isContinuation ? "done" : "error";
@@ -2904,6 +2883,8 @@ export function CardInlineGeneratePanel({
         setProgress(0);
         setPhase("idle");
         phaseRef.current = "idle";
+        setStickerFromResultOpen(false);
+        setStickerFromResultParentId(null);
         setToast("Генерация удалена");
         onGenerationComplete?.();
       } catch (err) {
@@ -2923,8 +2904,8 @@ export function CardInlineGeneratePanel({
   const activePrompt = draftPrompt;
   const openPromptEditor = () => {
     setError("");
-    setCameraOrbitOpen(false);
     setPhotoshootOpen(false);
+    setStickerFromResultOpen(false);
     setDockSurface("prompt");
   };
   /** Leave result chrome → idle compose (keep prompt / model / photos for editing). */
@@ -2943,7 +2924,8 @@ export function CardInlineGeneratePanel({
     setPendingRemixEdit(null);
     setNeedsCredits(false);
     setMenuOpen(false);
-    setCameraOrbitOpen(false);
+    setStickerFromResultOpen(false);
+    setStickerFromResultParentId(null);
     setResultPreviewOpen(false);
     setExpandedControl(null);
     setPromptExpanded(false);
@@ -2963,7 +2945,8 @@ export function CardInlineGeneratePanel({
     setError("");
     setNeedsCredits(false);
     setMenuOpen(false);
-    setCameraOrbitOpen(false);
+    setStickerFromResultOpen(false);
+    setStickerFromResultParentId(null);
     setPhotoshootOpen(false);
     setPhotoshootSourceId(null);
     setPhotoshootSourceUrl(null);
@@ -3006,7 +2989,7 @@ export function CardInlineGeneratePanel({
   const stickerResult = isStickerEditKind(resultEditKind) || stickerPackResult;
   /** 1..16 for the sticker on screen when the result is a pack, else null (`?tile=` for sticker routes). */
   const stickerTile = stickerPackResult ? sidecarTileNumberForUrl(photoshootTileUrls, resultUrl) : null;
-  const stickerCatalogWanted = stickerCompose || stickerResult;
+  const stickerCatalogWanted = stickerCompose || stickerResult || stickerFromResultOpen;
   useEffect(() => {
     if (!stickerCatalogWanted || stickerCatalog) return;
     let cancelled = false;
@@ -3227,7 +3210,7 @@ export function CardInlineGeneratePanel({
   /** Tall plate when editor / result / in-flight generate needs height. */
   const dockTall =
     dockExpanded ||
-    (isDock && (showResultChrome || busy || cameraOrbitOpen || photoshootOpen));
+    (isDock && (showResultChrome || busy || stickerFromResultOpen || photoshootOpen));
   const dockPromptExpanded = dockExpanded && activeDockSurface === "prompt";
   const dockPhotosExpanded = dockExpanded && activeDockSurface === "photos";
   const dockModelExpanded = dockExpanded && activeDockSurface === "model";
@@ -3269,7 +3252,7 @@ export function CardInlineGeneratePanel({
     phase === "done" &&
     Boolean(resultUrl) &&
     Boolean(draftPrompt.trim()) &&
-    !cameraOrbitOpen &&
+    !stickerFromResultOpen &&
     !photoshootOpen &&
     !(isDock && dockExpanded);
   const showResultActions =
@@ -3278,7 +3261,7 @@ export function CardInlineGeneratePanel({
     Boolean(resultUrl) &&
     Boolean(generationId) &&
     !photoPromptCompose &&
-    !cameraOrbitOpen &&
+    !stickerFromResultOpen &&
     !photoshootOpen &&
     !stickerActionOpen &&
     !stickerDownloadOpen &&
@@ -3286,6 +3269,8 @@ export function CardInlineGeneratePanel({
   const resultPrimary = resultPrimaryAction({
     showCreditsCta,
     remixSaved: Boolean(pendingRemixEdit),
+    stickerResult,
+    stickerPackResult,
   });
   const publishRewardKind = publishRewardKindForGeneration({
     modality: resultModality,
@@ -3303,12 +3288,12 @@ export function CardInlineGeneratePanel({
     catalogSlug: publishedSlug,
     republish: isPhotoshootEditKind(resultEditKind),
   });
-  const showCameraOverlay =
-    cameraOrbitOpen &&
-    !photoshootOpen &&
+  const showStickerFromResultOverlay =
+    stickerFromResultOpen &&
     Boolean(resultUrl) &&
     Boolean(generationId) &&
-    resultModality === "image";
+    resultModality === "image" &&
+    (phase === "done" || phase === "generating");
   const showPhotoshootOverlay =
     photoshootOpen &&
     resultModality === "image" &&
@@ -3337,13 +3322,63 @@ export function CardInlineGeneratePanel({
     resultModality === "image";
   const hideComposeChrome =
     showPhotoshootOverlay ||
-    showCameraOverlay ||
+    showStickerFromResultOverlay ||
     showStickerActionOverlay ||
     showStickerDownloadOverlay ||
     showStickerBorderOverlay;
   const openStickerAction = (action: StickerResultAction) => {
     setError("");
     setStickerActionOpen(action);
+  };
+  const openStickerFromResult = () => {
+    const frame = resolveStickerFromResultFrame({
+      generationId,
+      resultUrl,
+      resultModality,
+      resultEditKind,
+    });
+    if (!frame) return;
+    setPhotoshootOpen(false);
+    setStickerActionOpen(null);
+    setStickerDownloadOpen(false);
+    setStickerBorderOpen(false);
+    setError("");
+    setStickerFromResultParentId(frame.parentGenerationId);
+    setStickerStyleSheetMode("photo");
+    setStickerFromResultOpen(true);
+    reachYandexMetrikaGoal(YM_GOAL_STICKER_FROM_RESULT_OPEN);
+  };
+  const openStickerRestyle = () => {
+    if (!generationId || !resultUrl || resultModality !== "image" || stickerPackResult) return;
+    setPhotoshootOpen(false);
+    setStickerActionOpen(null);
+    setStickerDownloadOpen(false);
+    setStickerBorderOpen(false);
+    setError("");
+    setStickerStyleSheetMode("restyle");
+    setStickerFromResultOpen(true);
+    reachYandexMetrikaGoal(YM_GOAL_STICKER_FROM_RESULT_RESTYLE);
+  };
+  const closeStickerFromResult = () => {
+    setStickerFromResultOpen(false);
+    setStickerStyleSheetMode(null);
+    reachYandexMetrikaGoal(YM_GOAL_STICKER_FROM_RESULT_CLOSE);
+  };
+  const submitStickerFromResult = () => {
+    if (stickerStyleSheetMode === "restyle") {
+      if (!generationId) return false;
+      return runGenerate({
+        editKind: STICKER_EDIT_KIND,
+        parentGenerationId: generationId,
+        stickerRestyle: true,
+      });
+    }
+    if (!stickerFromResultParentId) return false;
+    return runGenerate({
+      editKind: STICKER_EDIT_KIND,
+      parentGenerationId: stickerFromResultParentId,
+      stickerFromResult: true,
+    });
   };
   const openStickerBorder = () => {
     setError("");
@@ -3397,15 +3432,21 @@ export function CardInlineGeneratePanel({
     input: { presetId: string | null; customText: string },
   ): Promise<boolean> => {
     if (!generationId) return false;
-    reachYandexMetrikaGoal(action === "emotion" ? YM_GOAL_STICKER_EMOTION : YM_GOAL_STICKER_MOTION, {
-      preset: input.presetId || "custom",
+    const goal =
+      action === "emotion"
+        ? YM_GOAL_STICKER_EMOTION
+        : action === "motion"
+          ? YM_GOAL_STICKER_MOTION
+          : YM_GOAL_STICKER_REVISE;
+    reachYandexMetrikaGoal(goal, {
+      preset: action === "revise" ? "custom" : input.presetId || "custom",
     });
     return runGenerate({
       editKind: STICKER_EDIT_KIND,
       parentGenerationId: generationId,
       stickerAction: action,
-      stickerPresetId: input.presetId,
-      stickerCustomHint: input.presetId ? "" : input.customText,
+      stickerPresetId: action === "revise" ? null : input.presetId,
+      stickerCustomHint: action === "revise" || !input.presetId ? input.customText : "",
     });
   };
   /** Free server-side overlay: new completed generation, no worker round-trip. */
@@ -3524,6 +3565,8 @@ export function CardInlineGeneratePanel({
     setPhotoshootSourceUrl(frame.resultUrl);
     setPromptExpanded(false);
     setExpandedControl(null);
+    setStickerFromResultOpen(false);
+    setStickerFromResultParentId(null);
     setPhotoshootOpen(true);
     reachYandexMetrikaGoal(YM_GOAL_PHOTOSHOOT_OPEN);
   };
@@ -3626,6 +3669,8 @@ export function CardInlineGeneratePanel({
       setGenerationId(photoshootSourceId);
       setResultUrl(photoshootSourceUrl);
       setResultEditKind(null);
+      setStickerFromResultOpen(false);
+      setStickerFromResultParentId(null);
       setPhotoshootTileUrls(null);
     }
     setPhase("done");
@@ -3688,7 +3733,7 @@ export function CardInlineGeneratePanel({
     const previous = phaseRef.current;
     phaseRef.current = phase;
     if (isGenerateComposeJobBusy(phase)) {
-      if (!isMobile && !cameraOrbitOpen && !photoshootOpen && !photoPromptCompose) {
+      if (!isMobile && !stickerFromResultOpen && !photoshootOpen && !photoPromptCompose) {
         setDockPlateOpen(false);
       }
       return;
@@ -3702,7 +3747,7 @@ export function CardInlineGeneratePanel({
       setExpandedControl(null);
     }
   }, [
-    cameraOrbitOpen,
+    stickerFromResultOpen,
     isDock,
     isMobile,
     phase,
@@ -3750,7 +3795,7 @@ export function CardInlineGeneratePanel({
         />
       ) : null}
 
-      {isDock && showResultChrome && phase === "done" && !dockExpanded && !cameraOrbitOpen && !photoshootOpen ? (
+      {isDock && showResultChrome && phase === "done" && !dockExpanded && !stickerFromResultOpen && !photoshootOpen ? (
         <div className="absolute right-2.5 top-2.5 z-30 flex items-center gap-2">
           {resultUrl && generationId ? (
             <div className="relative" data-generation-menu-root>
@@ -3915,6 +3960,29 @@ export function CardInlineGeneratePanel({
                 </svg>
               ),
             },
+            ...(stickerResult && !stickerPackResult && resultModality === "image"
+              ? [
+                  {
+                    id: "restyle",
+                    label: STICKER_FROM_RESULT_RESTYLE,
+                    creditCost: stickerCost ?? undefined,
+                    creditUnaffordable:
+                      stickerCost != null && isAuthed && credits !== null && credits < stickerCost,
+                    disabled: busy || Boolean(busyAction) || stickerTextBusy || stickerBorderBusy,
+                    ariaLabel:
+                      stickerCost != null
+                        ? `${STICKER_FROM_RESULT_RESTYLE}, ${stickerCost} кредитов`
+                        : STICKER_FROM_RESULT_RESTYLE,
+                    onClick: () => void openStickerRestyle(),
+                    icon: (
+                      <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                        <path d="M12 4.5a7.5 7.5 0 1 0 7.2 5.4" strokeLinecap="round" />
+                        <path d="M16.5 3.5v4.2H20" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    ),
+                  },
+                ]
+              : []),
             // Emotion / motion re-generate from a finished single sticker; a pack tile has no own row yet.
             ...(stickerResult && !stickerPackResult && resultModality === "image"
               ? [
@@ -4010,20 +4078,33 @@ export function CardInlineGeneratePanel({
                   },
                 ]
               : []),
-            ...(cameraOrbitEnabled && resultModality === "image" && !stickerResult
+            ...(stickerEnabled &&
+            stickerFromResultEnabled &&
+            resultModality === "image" &&
+            !stickerResult &&
+            !isPhotoshootEditKind(resultEditKind)
               ? [
                   {
-                    id: "camera",
-                    label: "Камера",
-                    onClick: () => setCameraOrbitOpen(true),
+                    id: "sticker",
+                    label: STICKER_FROM_RESULT_RAIL,
+                    detail: STICKER_FROM_RESULT_RAIL_DETAIL,
+                    creditCost: stickerCost ?? undefined,
+                    creditUnaffordable:
+                      stickerCost != null && isAuthed && credits !== null && credits < stickerCost,
+                    ariaLabel:
+                      stickerCost != null
+                        ? `${STICKER_FROM_RESULT_RAIL}, ${STICKER_FROM_RESULT_RAIL_DETAIL}, ${stickerCost} кредитов`
+                        : `${STICKER_FROM_RESULT_RAIL}, ${STICKER_FROM_RESULT_RAIL_DETAIL}`,
+                    disabled: busy || Boolean(busyAction),
+                    onClick: openStickerFromResult,
                     icon: (
                       <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
                         <path
-                          d="M4.5 8.5h2.2l1.1-2h8.4l1.1 2H19.5A1.5 1.5 0 0 1 21 10v7.5a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 17.5V10a1.5 1.5 0 0 1 1.5-1.5Z"
+                          d="M5 7a2 2 0 0 1 2-2h8l4 4v8a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V7Z"
                           strokeLinecap="round"
                           strokeLinejoin="round"
                         />
-                        <circle cx="12" cy="14" r="3.1" />
+                        <path d="M15 5v4h4" strokeLinecap="round" strokeLinejoin="round" />
                       </svg>
                     ),
                   },
@@ -4053,8 +4134,8 @@ export function CardInlineGeneratePanel({
                   },
                 ]
               : []),
-            resultPrimary.kind === "credits"
-              ? {
+            ...(resultPrimary.kind === "credits"
+              ? [{
                   id: "credits",
                   label: resultPrimary.label,
                   primary: true,
@@ -4069,9 +4150,9 @@ export function CardInlineGeneratePanel({
                       <path d="M12 8v8M9.5 10.5h3.2a1.8 1.8 0 1 1 0 3.6H9.5" strokeLinecap="round" />
                     </svg>
                   ),
-                }
+                }]
               : resultPrimary.kind === "generate" && pendingRemixEdit
-              ? {
+              ? [{
                   id: "generate",
                   label: resultPrimary.label,
                   primary: true,
@@ -4090,8 +4171,32 @@ export function CardInlineGeneratePanel({
                       <path d="M5 12h14M13 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
                   ),
-                }
-              : {
+                }]
+              : resultPrimary.kind === "sticker_revise"
+              ? [{
+                  id: "sticker-revise",
+                  label: resultPrimary.label,
+                  primary: true,
+                  wrap: true,
+                  creditCost: stickerCost ?? undefined,
+                  creditUnaffordable:
+                    stickerCost != null && isAuthed && credits !== null && credits < stickerCost,
+                  disabled: busy || Boolean(busyAction) || stickerTextBusy || stickerBorderBusy,
+                  ariaLabel:
+                    stickerCost != null
+                      ? `${STICKER_ACTION_COPY.revise.title}, ${stickerCost} кредитов`
+                      : STICKER_ACTION_COPY.revise.title,
+                  onClick: () => openStickerAction("revise"),
+                  icon: (
+                    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                      <path d="m4 20 4.2-1 10.6-10.6a2.1 2.1 0 0 0-3-3L5.2 16 4 20Z" strokeLinecap="round" strokeLinejoin="round" />
+                      <path d="m14.5 6.7 2.8 2.8" />
+                    </svg>
+                  ),
+                }]
+              : resultPrimary.kind === "none"
+              ? []
+              : [{
                   id: "edit",
                   label: resultPrimary.label,
                   primary: true,
@@ -4103,7 +4208,7 @@ export function CardInlineGeneratePanel({
                       <path d="m14.5 6.7 2.8 2.8" />
                     </svg>
                   ),
-                },
+                }]),
           ]}
         />
       ) : null}
@@ -4179,27 +4284,26 @@ export function CardInlineGeneratePanel({
         />
       ) : null}
 
-      {showCameraOverlay && generationId && resultUrl ? (
-        <CameraOrbitOverlay
-          generationId={generationId}
-          displayedResultUrl={resultUrl}
-          creditCostFallback={cameraOrbitCreditCost}
-          hideCreditCost={!isAuthed}
-          capturing={phase === "generating"}
-          progress={progress}
-          onClose={() => setCameraOrbitOpen(false)}
-          onCapture={(pose) =>
-            runGenerate({
-              parentGenerationId: generationId,
-              editKind: CAMERA_ORBIT_EDIT_KIND,
-              cameraPose: pose,
-            })
-          }
-          onSelectShot={(shot: CameraSceneShot) => {
-            if (!shot.resultUrl) return;
-            setGenerationId(shot.id);
-            setResultUrl(shot.resultUrl);
+      {showStickerFromResultOverlay ? (
+        <StickerFromResultSheet
+          styles={stickerStyles}
+          loading={stickerCatalogLoading}
+          selectedId={stickerStyleId}
+          onSelect={(style) => {
+            stickerStyleTouchedRef.current = true;
+            setStickerStyleId(style.id);
+            setError("");
           }}
+          creditCost={stickerCost}
+          creditUnaffordable={
+            stickerCost != null && isAuthed && credits !== null && credits < stickerCost
+          }
+          hideCreditCost={!isAuthed}
+          busy={phase === "generating" || starting}
+          progress={progress}
+          error={error || null}
+          onClose={closeStickerFromResult}
+          onSubmit={submitStickerFromResult}
         />
       ) : null}
 

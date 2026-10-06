@@ -47,6 +47,8 @@ import {
   STICKER_CONFIG_ENABLED_KEY,
   STICKER_CONFIG_MODEL_KEY,
   STICKER_EDIT_KIND,
+  STICKER_FROM_RESULT_CONFIG_ENABLED_KEY,
+  isStickerFromResultParent,
   STICKER_IMAGE_SIZE,
   STICKER_CUSTOM_PRESET_ID,
   buildStickerEditPromptText,
@@ -57,10 +59,12 @@ import {
   sanitizeStickerCustomHint,
   stickerEditFingerprintFields,
   stickerFingerprintFields,
+  stickerFromResultFingerprintFields,
+  stickerRestyleFingerprintFields,
   type StickerEditSpec,
   type StickerStyle,
 } from "@/lib/sticker";
-import { isStickerPackUnlocked, isStickerUnlocked } from "@/lib/sticker-access";
+import { isStickerFromResultUnlocked, isStickerPackUnlocked, isStickerUnlocked } from "@/lib/sticker-access";
 import {
   resolveStickerPresetForEnqueue,
   resolveStickerStyleForEnqueue,
@@ -299,10 +303,18 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
-    /** Sticker edit (emotion / motion) = sticker job with a finished-sticker parent; initial sticker = one library photo. */
-    const stickerEditRequested =
+    /**
+     * Sticker + parent is an emotion/motion/revise edit (stickerAction set),
+     * a restyle of that sticker PNG (no action, parent edit_kind sticker),
+     * or a sticker cut from a finished photo (no action, parent is a plain image).
+     */
+    const stickerParentRequested =
       isSticker && typeof parentGenerationId === "string" && parentGenerationId.trim() !== "";
-    const stickerAction = stickerEditRequested ? String(rawStickerAction ?? "").trim() : "";
+    const stickerAction = stickerParentRequested ? String(rawStickerAction ?? "").trim() : "";
+    const stickerEditRequested = stickerParentRequested && stickerAction !== "";
+    const stickerFromResultRequested = stickerParentRequested && !stickerEditRequested;
+    /** Set after the parent row is loaded: restyle uses the sticker PNG, not the original photo. */
+    let stickerRestyleRequested = false;
     let stickerStyle: StickerStyle | null = null;
     let stickerEdit: StickerEditSpec | null = null;
     if (isSticker) {
@@ -315,13 +327,26 @@ export async function POST(req: NextRequest) {
       if (stickerEditRequested) {
         if (!isStickerEditAction(stickerAction)) {
           return NextResponse.json(
-            { error: "validation_error", message: "Выберите эмоцию или движение" },
+            { error: "validation_error", message: "Некорректная правка стикера" },
             { status: 400 }
           );
         }
         if (normalizePhotoStoragePaths(photoStoragePaths).length > 0) {
           return NextResponse.json(
-            { error: "validation_error", message: "Эмоция и движение меняются у готового стикера" },
+            { error: "validation_error", message: "Правка делается у готового стикера" },
+            { status: 400 }
+          );
+        }
+      } else if (stickerFromResultRequested) {
+        if (normalizePhotoStoragePaths(photoStoragePaths).length > 0) {
+          return NextResponse.json(
+            { error: "validation_error", message: "Стикер из фото делается без загрузки" },
+            { status: 400 }
+          );
+        }
+        if (normalizeEditInstruction(editInstruction)) {
+          return NextResponse.json(
+            { error: "validation_error", message: "Стикер из этого фото делается только стилем" },
             { status: 400 }
           );
         }
@@ -565,18 +590,40 @@ export async function POST(req: NextRequest) {
           { status: 400 }
         );
       }
-      if (
-        isSticker &&
-        ((parent.modality || "image") !== IMAGE_GENERATION_MODALITY ||
-          !isStickerEditKind(parent.edit_kind))
-      ) {
-        return NextResponse.json(
-          {
-            error: "sticker_parent_not_sticker",
-            message: "Эмоцию и движение можно менять только у готового стикера",
-          },
-          { status: 400 }
-        );
+      if (isSticker && stickerEditRequested) {
+        if (
+          (parent.modality || "image") !== IMAGE_GENERATION_MODALITY ||
+          !isStickerEditKind(parent.edit_kind)
+        ) {
+          return NextResponse.json(
+            {
+              error: "sticker_parent_not_sticker",
+              message: "Изменить можно только готовый стикер",
+            },
+            { status: 400 }
+          );
+        }
+      }
+      if (isSticker && stickerFromResultRequested) {
+        const parentIsSticker =
+          (parent.modality || "image") === IMAGE_GENERATION_MODALITY &&
+          isStickerEditKind(parent.edit_kind);
+        if (parentIsSticker) {
+          stickerRestyleRequested = true;
+        } else if (
+          !isStickerFromResultParent({
+            modality: parent.modality,
+            editKind: parent.edit_kind,
+          })
+        ) {
+          return NextResponse.json(
+            {
+              error: "sticker_parent_not_sticker",
+              message: "Стикер из этого результата сделать нельзя",
+            },
+            { status: 400 }
+          );
+        }
       }
       if (isCameraOrbit && cameraOrbitPose) {
         if ((parent.modality || "image") !== IMAGE_GENERATION_MODALITY) {
@@ -735,13 +782,21 @@ export async function POST(req: NextRequest) {
       }
     }
     if (isSticker && stickerEditRequested && isStickerEditAction(stickerAction)) {
-      const preset = await resolveStickerPresetForEnqueue(supabase, stickerAction, rawStickerPresetId);
+      const preset =
+        stickerAction === "revise"
+          ? null
+          : await resolveStickerPresetForEnqueue(supabase, stickerAction, rawStickerPresetId);
       const customHint = preset ? "" : sanitizeStickerCustomHint(rawStickerCustomHint);
       if (!preset && !customHint) {
         return NextResponse.json(
           {
             error: "validation_error",
-            message: stickerAction === "emotion" ? "Выберите или опишите эмоцию" : "Выберите или опишите движение",
+            message:
+              stickerAction === "emotion"
+                ? "Выберите или опишите эмоцию"
+                : stickerAction === "motion"
+                  ? "Выберите или опишите движение"
+                  : "Опишите, что изменить",
           },
           { status: 400 }
         );
@@ -845,6 +900,7 @@ export async function POST(req: NextRequest) {
         "photoshoot_model",
         STICKER_CONFIG_ENABLED_KEY,
         STICKER_CONFIG_MODEL_KEY,
+        STICKER_FROM_RESULT_CONFIG_ENABLED_KEY,
         STICKER_PACK_CONFIG_ENABLED_KEY,
         STICKER_PACK_CONFIG_COST_KEY,
         STICKER_PACK_CONFIG_MODEL_KEY,
@@ -958,6 +1014,20 @@ export async function POST(req: NextRequest) {
           {
             error: "sticker_disabled",
             message: "Генератор стикеров пока недоступен",
+          },
+          { status: 503 }
+        );
+      }
+      if (
+        stickerFromResultRequested &&
+        !stickerRestyleRequested &&
+        !isStickerFromResultUnlocked(config[STICKER_FROM_RESULT_CONFIG_ENABLED_KEY], user.email) &&
+        !openDebug
+      ) {
+        return NextResponse.json(
+          {
+            error: "sticker_from_result_disabled",
+            message: "Стикер из этого фото пока недоступен",
           },
           { status: 503 }
         );
@@ -1253,6 +1323,10 @@ export async function POST(req: NextRequest) {
                 )
             : isSticker && stickerEdit
               ? stickerEditFingerprintFields(normalizedParentGenerationId, stickerEdit)
+            : isSticker && stickerRestyleRequested && stickerStyle
+              ? stickerRestyleFingerprintFields(normalizedParentGenerationId, stickerStyle.id)
+            : isSticker && stickerFromResultRequested && stickerStyle
+              ? stickerFromResultFingerprintFields(normalizedParentGenerationId, stickerStyle.id)
             : isSticker && stickerStyle
               ? stickerFingerprintFields(
                   normalizedPhotoStoragePaths[0] || "",
@@ -1524,7 +1598,7 @@ export async function POST(req: NextRequest) {
           {
             error: "validation_error",
             message: stickerEdit
-              ? "Эмоцию и движение можно менять только у готового стикера"
+              ? "Изменить можно только готовый стикер"
               : "Загрузите одно фото для стикера",
           },
           { status: 400 }

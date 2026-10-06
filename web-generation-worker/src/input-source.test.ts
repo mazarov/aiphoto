@@ -51,6 +51,23 @@ test("text-only generation resolves without upload paths", () => {
   );
 });
 
+test("sticker from a photo result reads the parent image, not uploads", () => {
+  assert.deepEqual(
+    resolveGenerationInputSource(
+      job({
+        parent_generation_id: "parent-id",
+        input_photo_paths: [],
+      }),
+      { ...completedParent, edit_kind: null },
+    ),
+    {
+      sourceType: "generation_result",
+      bucket: RESULTS_BUCKET,
+      paths: ["db-user-id/parent/result.png"],
+    },
+  );
+});
+
 test("continuation reads only the completed parent result", () => {
   assert.deepEqual(
     resolveGenerationInputSource(

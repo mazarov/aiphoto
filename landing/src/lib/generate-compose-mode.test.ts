@@ -5,6 +5,7 @@ import { STICKER_EDIT_KIND } from "./sticker";
 import {
   apiModalityForComposeMode,
   canEnqueueWhilePhotoshootSelected,
+  resolveStickerFromResultFrame,
   COMPOSE_BUY_CREDITS_CTA,
   COMPOSE_BUY_CREDITS_CTA_COMPACT,
   COMPOSE_EDIT_RESULT_CTA,
@@ -225,6 +226,18 @@ test("compose tiles and generate CTA follow the selected block", () => {
     resultPrimaryAction({ showCreditsCta: false, remixSaved: true }),
     { kind: "generate", label: composeGenerateCtaLabel("image") },
   );
+  assert.deepEqual(resultPrimaryAction({ showCreditsCta: false, stickerResult: true }), {
+    kind: "sticker_revise",
+    label: COMPOSE_EDIT_RESULT_CTA,
+  });
+  assert.deepEqual(
+    resultPrimaryAction({ showCreditsCta: true, stickerResult: true }),
+    { kind: "credits", label: COMPOSE_BUY_CREDITS_CTA_COMPACT },
+  );
+  assert.deepEqual(resultPrimaryAction({ showCreditsCta: false, stickerPackResult: true, stickerResult: true }), {
+    kind: "none",
+    label: "",
+  });
   assert.equal(COMPOSE_SAVE_PROMPT_CTA, "Сохранить");
   assert.equal(COMPOSE_SAVING_PROMPT_CTA, "Сохраняем…");
   assert.equal(composeNeedsPhotoCtaLabel("photoshoot"), COMPOSE_SELECT_PHOTO_CTA);
@@ -342,6 +355,13 @@ test("photoshoot mode does not enqueue without editKind=photoshoot", () => {
     true
   );
   assert.equal(
+    canEnqueueWhilePhotoshootSelected({
+      composeMode: "image",
+      editKind: STICKER_EDIT_KIND,
+    }),
+    true
+  );
+  assert.equal(
     canEnqueueWhilePhotoshootSelected({ composeMode: "photo_prompt" }),
     false
   );
@@ -381,6 +401,47 @@ test("sticker is a select-only tool and only enqueues editKind=sticker", () => {
       editKind: "sticker_pack",
     }),
     true,
+  );
+});
+
+test("sticker from result accepts a plain photo and rejects video, sticker, pack, photoshoot", () => {
+  assert.deepEqual(
+    resolveStickerFromResultFrame({
+      generationId: " gen ",
+      resultUrl: " https://cdn/a.png ",
+      resultModality: "image",
+      resultEditKind: null,
+    }),
+    { parentGenerationId: "gen", previewUrl: "https://cdn/a.png" },
+  );
+  assert.equal(
+    resolveStickerFromResultFrame({
+      generationId: "gen",
+      resultUrl: "https://cdn/a.png",
+      resultModality: "video",
+      resultEditKind: null,
+    }),
+    null,
+  );
+  for (const resultEditKind of ["sticker", "sticker_pack", "photoshoot"]) {
+    assert.equal(
+      resolveStickerFromResultFrame({
+        generationId: "gen",
+        resultUrl: "https://cdn/a.png",
+        resultModality: "image",
+        resultEditKind,
+      }),
+      null,
+    );
+  }
+  assert.equal(
+    resolveStickerFromResultFrame({
+      generationId: "",
+      resultUrl: "https://cdn/a.png",
+      resultModality: "image",
+      resultEditKind: null,
+    }),
+    null,
   );
 });
 

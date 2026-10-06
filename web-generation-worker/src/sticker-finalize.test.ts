@@ -89,6 +89,18 @@ test("finalizeStickerImage on a real-alpha frame takes alpha_native: no key, no 
   assert.equal(edgeOpaque, 0, "safe margin bands stay fully transparent");
 });
 
+test("assembleStickerFinalPrompt: revise edits the sticker instead of restyling it", () => {
+  const raw = "STICKER edit=revise preset=custom\nдобавь очки";
+  const magenta = assembleStickerFinalPrompt(raw);
+  assert.match(magenta, /applying ONLY this change: "добавь очки"/);
+  assert.match(magenta, /BRIGHT MAGENTA/);
+  assert.doesNotMatch(magenta, /STICKER edit=/);
+  const transparent = assembleStickerFinalPrompt(raw, "transparent");
+  assert.match(transparent, /fully TRANSPARENT \(alpha channel\)/);
+  assert.match(transparent, /applying ONLY this change: "добавь очки"/);
+  assert.doesNotMatch(transparent, /MAGENTA|magenta/);
+});
+
 test("assembleStickerFinalPrompt: magenta vs transparent background mode", () => {
   const raw = "STICKER style=cartoon_telegram\nCartoon portrait, bold outlines";
   const magenta = assembleStickerFinalPrompt(raw);

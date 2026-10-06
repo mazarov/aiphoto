@@ -29,7 +29,10 @@ import {
   STICKER_CUSTOM_HINT_MAX,
   STICKER_STYLES,
   STICKER_TEXT_MAX_CHARS,
+  isStickerFromResultParent,
   stickerEditFingerprintFields,
+  stickerFromResultFingerprintFields,
+  stickerRestyleFingerprintFields,
   stripStickerPromptMarker,
 } from "./sticker";
 
@@ -74,6 +77,7 @@ test("emotion / motion edit marker round-trips and switches the worker prompt", 
   assert.ok(!prompt.includes("STICKER edit="));
   assert.ok(!prompt.includes("The input image shows the SUBJECT"), "initial-sticker rules must not leak into an edit");
   assert.equal(isStickerEditAction("emotion"), true);
+  assert.equal(isStickerEditAction("revise"), true);
   assert.equal(isStickerEditAction("text"), false);
   assert.deepEqual(stickerEditFingerprintFields(" p1 ", { action: "motion", presetId: "", hint: " x y " }), {
     editKind: "sticker",
@@ -82,6 +86,23 @@ test("emotion / motion edit marker round-trips and switches the worker prompt", 
     stickerPresetId: "custom",
     stickerHint: "x y",
   });
+
+  const reviseText = buildStickerEditPromptText({ action: "revise", presetId: "custom", hint: "добавь очки" });
+  assert.equal(reviseText, "STICKER edit=revise preset=custom\nдобавь очки");
+  assert.deepEqual(parseStickerEditFromPrompt(reviseText), {
+    action: "revise",
+    presetId: "custom",
+    hint: "добавь очки",
+  });
+  const revisePrompt = assembleStickerFinalPrompt(reviseText);
+  assert.match(revisePrompt, /applying ONLY this change: "добавь очки"/);
+  assert.match(revisePrompt, /Clothing, props and pose change only if the request asks for it/);
+  assert.ok(!revisePrompt.includes("STICKER edit="));
+  assert.ok(!revisePrompt.includes("emotion / facial expression"));
+  assert.ok(!revisePrompt.includes("motion / body pose"));
+  const reviseTransparent = assembleStickerFinalPrompt(reviseText, "transparent");
+  assert.match(reviseTransparent, /fully TRANSPARENT \(alpha channel\)/);
+  assert.doesNotMatch(reviseTransparent, /MAGENTA|magenta/);
 });
 
 test("custom hint and overlay text normalisation", () => {
@@ -153,6 +174,29 @@ test("edit kind and flag parsing", () => {
   assert.equal(isStickerFlagOn("1"), true);
   assert.equal(isStickerFlagOn("false"), false);
   assert.equal(isStickerFlagOn(undefined), false);
+});
+
+test("sticker from a finished photo: parent shape and fingerprint", () => {
+  assert.equal(isStickerFromResultParent({ modality: "image", editKind: null }), true);
+  assert.equal(isStickerFromResultParent({ editKind: "" }), true);
+  assert.equal(isStickerFromResultParent({ editKind: "local_edit" }), true);
+  assert.equal(isStickerFromResultParent({ modality: "video", editKind: null }), false);
+  assert.equal(isStickerFromResultParent({ editKind: "sticker" }), false);
+  assert.equal(isStickerFromResultParent({ editKind: " sticker " }), false);
+  assert.equal(isStickerFromResultParent({ editKind: "sticker_pack" }), false);
+  assert.equal(isStickerFromResultParent({ editKind: "photoshoot" }), false);
+  assert.deepEqual(stickerRestyleFingerprintFields(" sticker ", " anime "), {
+    editKind: "sticker",
+    parentGenerationId: "sticker",
+    stickerStyleId: "anime",
+    source: "restyle",
+  });
+  assert.deepEqual(stickerFromResultFingerprintFields(" parent ", " cartoon "), {
+    editKind: "sticker",
+    parentGenerationId: "parent",
+    stickerStyleId: "cartoon",
+    source: "result",
+  });
 });
 
 test("sticker model resolution", () => {

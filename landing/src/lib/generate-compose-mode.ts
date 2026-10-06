@@ -4,7 +4,7 @@ import {
   GPT_IMAGE_25_FLARE_IMAGE_MODEL,
 } from "./generation/image-options";
 import { PHOTOSHOOT_EDIT_KIND } from "./photoshoot";
-import { STICKER_EDIT_KIND } from "./sticker";
+import { isStickerFromResultParent, STICKER_EDIT_KIND } from "./sticker";
 import { STICKER_PACK_EDIT_KIND } from "./sticker-pack";
 
 /** Exclusive generate-dock mode. Photoshoot / photo_prompt / sticker are buttons, not model sheets. */
@@ -70,6 +70,27 @@ export function rememberCompletedImageResult(input: {
   const resultUrl = input.resultUrl?.trim() || "";
   if (!generationId || !resultUrl) return input.previous ?? null;
   return { generationId, resultUrl };
+}
+
+/** Finished photo the «Сделать стикер» sheet can turn into a sticker. */
+export function resolveStickerFromResultFrame(input: {
+  generationId?: string | null;
+  resultUrl?: string | null;
+  resultModality?: "image" | "video" | null;
+  resultEditKind?: string | null;
+}): { parentGenerationId: string; previewUrl: string } | null {
+  const parentGenerationId = input.generationId?.trim() || "";
+  const previewUrl = input.resultUrl?.trim() || "";
+  if (!parentGenerationId || !previewUrl || input.resultModality === "video") return null;
+  if (
+    !isStickerFromResultParent({
+      modality: input.resultModality,
+      editKind: input.resultEditKind,
+    })
+  ) {
+    return null;
+  }
+  return { parentGenerationId, previewUrl };
 }
 
 export function resolvePhotoshootReadyFrame(input: {
@@ -324,12 +345,22 @@ export function resultChromeHidesComposeFooter(input: {
 export function resultPrimaryAction(input: {
   showCreditsCta: boolean;
   remixSaved?: boolean;
+  /** Finished single sticker: primary rail edits the sticker, not the photo prompt. */
+  stickerResult?: boolean;
+  /** Pack tile has no generation row to edit. */
+  stickerPackResult?: boolean;
 }): {
-  kind: "credits" | "edit" | "generate";
+  kind: "credits" | "edit" | "generate" | "sticker_revise" | "none";
   label: string;
 } {
   if (input.showCreditsCta) {
     return { kind: "credits", label: COMPOSE_BUY_CREDITS_CTA_COMPACT };
+  }
+  if (input.stickerPackResult) {
+    return { kind: "none", label: "" };
+  }
+  if (input.stickerResult) {
+    return { kind: "sticker_revise", label: COMPOSE_EDIT_RESULT_CTA };
   }
   if (input.remixSaved) {
     return { kind: "generate", label: composeGenerateCtaLabel("image") };
